@@ -1,0 +1,21 @@
+1:1	KW_LET      	lexeme="let"
+1:5	IDENT       	lexeme="a"
+1:7	ASSIGN      	lexeme="="
+1:9	INT         	lexeme="0" int=0
+2:1	KW_LET      	lexeme="let"
+2:5	IDENT       	lexeme="b"
+2:7	ASSIGN      	lexeme="="
+2:9	INT         	lexeme="123" int=123
+3:1	KW_LET      	lexeme="let"
+3:5	IDENT       	lexeme="c"
+3:7	ASSIGN      	lexeme="="
+3:9	FLOAT       	lexeme="3.14" float=3.14
+4:1	KW_LET      	lexeme="let"
+4:5	IDENT       	lexeme="d"
+4:7	ASSIGN      	lexeme="="
+4:9	FLOAT       	lexeme="1e9" float=1e+09
+5:1	KW_LET      	lexeme="let"
+5:5	IDENT       	lexeme="e"
+5:7	ASSIGN      	lexeme="="
+5:9	FLOAT       	lexeme="2.5e-3" float=0.0025
+6:1	EOF         	lexeme="EOF"

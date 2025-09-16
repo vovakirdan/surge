@@ -1,0 +1,3 @@
+let t = true
+let f = false
+let r = (t && !f) || (f || t)

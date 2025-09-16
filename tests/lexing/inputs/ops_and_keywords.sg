@@ -1,0 +1,6 @@
+import math
+let x = 42
+signal s = 5
+y := x + s * 2 - 1 / 3
+if (y >= 10 && x == 42) { y = y - 1; } else { y = 0; }
+fn f(a:int, b:int) -> int { return a + b; }

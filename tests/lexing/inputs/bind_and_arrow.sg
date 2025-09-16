@@ -1,0 +1,3 @@
+signal base = 21
+k := base * 2
+fn id(x:int) -> int { return x; }

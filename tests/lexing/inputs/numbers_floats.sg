@@ -1,0 +1,5 @@
+let a = 0
+let b = 123
+let c = 3.14
+let d = 1e9
+let e = 2.5e-3

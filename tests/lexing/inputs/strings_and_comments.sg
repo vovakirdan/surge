@@ -1,0 +1,5 @@
+// strings and comments
+let s = "hi \"surge\" \n tab:\t backslash:\\"
+ /* block
+    comment */
+let t = "/* not comment */"

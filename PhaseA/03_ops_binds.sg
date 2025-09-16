@@ -1,0 +1,6 @@
+// operators, comparisons, bind :=, arrow ->
+signal k = 2
+let x:int = 10
+y := x * k + 1
+fn inc(a:int) -> int { return a + 1 }
+let ok:bool = (x >= 10) && (k != 0) || false

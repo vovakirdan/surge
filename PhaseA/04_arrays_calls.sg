@@ -1,0 +1,4 @@
+// arrays, indexing, calls, commas
+let xs:int[] = [1, 2, 3, 4]
+fn add(a:int, b:int) -> int { return a + b }
+let r:int = add(xs[0], xs[1])

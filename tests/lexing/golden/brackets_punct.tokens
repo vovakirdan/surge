@@ -1,0 +1,31 @@
+1:1	KW_LET      	lexeme="let"
+1:5	IDENT       	lexeme="a"
+1:7	ASSIGN      	lexeme="="
+1:9	LPAREN      	lexeme="("
+1:10	INT         	lexeme="1" int=1
+1:12	PLUS        	lexeme="+"
+1:14	INT         	lexeme="2" int=2
+1:15	RPAREN      	lexeme=")"
+1:17	STAR        	lexeme="*"
+1:19	LBRACKET    	lexeme="["
+1:20	INT         	lexeme="3" int=3
+1:21	COMMA       	lexeme=","
+1:22	INT         	lexeme="4" int=4
+1:23	COMMA       	lexeme=","
+1:24	INT         	lexeme="5" int=5
+1:25	RBRACKET    	lexeme="]"
+1:26	LBRACKET    	lexeme="["
+1:27	INT         	lexeme="0" int=0
+1:28	RBRACKET    	lexeme="]"
+1:29	SEMICOLON   	lexeme=";"
+2:1	LBRACE      	lexeme="{"
+2:3	RBRACE      	lexeme="}"
+3:1	LBRACKET    	lexeme="["
+3:3	RBRACKET    	lexeme="]"
+4:1	LPAREN      	lexeme="("
+4:3	RPAREN      	lexeme=")"
+5:1	COMMA       	lexeme=","
+5:3	SEMICOLON   	lexeme=";"
+5:5	DOT         	lexeme="."
+5:7	COLON       	lexeme=":"
+6:1	EOF         	lexeme="EOF"
