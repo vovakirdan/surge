@@ -8,7 +8,7 @@ static void vprint_diag(const char *level, SurgeSrcPos pos, const char *fmt, va_
     } else {
         fprintf(stderr, "%zu:%zu: %s: ", pos.line, pos.col, level);
     }
-    vprintf(stderr, fmt, ap);
+    vfprintf(stderr, fmt, ap);
     fputc('\n', stderr);
 }
 

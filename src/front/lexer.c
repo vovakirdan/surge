@@ -13,23 +13,19 @@
 static inline int lx_eof(const SurgeLexer *lx) {
     return lx->idx >= lx->len;
 }
-
 static inline char lx_peek(const SurgeLexer *lx) {
     return lx->idx < lx->len ? lx->buf[lx->idx] : '\0';
 }
-
 static inline char lx_peek2(const SurgeLexer *lx) {
     return (lx->idx + 1) < lx->len ? lx->buf[lx->idx + 1] : '\0';
 }
-
-static inline char lx_advance(SurgeLexer * lx) {
+static inline char lx_advance(SurgeLexer *lx) {
     if (lx->idx >= lx->len) return '\0';
     char c = lx->buf[lx->idx++];
     if (c == '\n') { lx->line++; lx->col = 1; }
     else { lx->col++; }
     return c;
 }
-
 static char *xstrndup0(const char *s, size_t n) {
     char *p = (char*)malloc(n + 1);
     if (!p) return NULL;
@@ -37,18 +33,9 @@ static char *xstrndup0(const char *s, size_t n) {
     p[n] = '\0';
     return p;
 }
-
-static void *xmemdup(const void *s, size_t n) {
-    void *p = malloc(n);
-    if (!p) return NULL;
-    memcpy(p, s, n);
-    return p;
-}
-
 static int is_ident_start(char c) {
     return isalpha((unsigned char)c) || c == '_';
 }
-
 static int is_ident_part(char c) {
     return isalnum((unsigned char)c) || c == '_';
 }
@@ -58,7 +45,7 @@ static void skip_bom(SurgeLexer *lx) {
         (unsigned char)lx->buf[0] == 0xEF &&
         (unsigned char)lx->buf[1] == 0xBB &&
         (unsigned char)lx->buf[2] == 0xBF) {
-        lx->idx += 3; lx->col += 3;
+        lx->idx = 3; lx->col += 3;
     }
 }
 
@@ -86,10 +73,10 @@ static void skip_ws_and_comments(SurgeLexer *lx) {
     }
 }
 
-static SurgeToken make_simple(SurgeLexer *lx, SurgeTokenKind k, SurgeSrcPos pos, const char *lex, size_t n) {
-    SurgeToken t = {0};
+static SurgeToken make_simple(SurgeTokenKind k, SurgeSrcPos pos, const char *lex, size_t n) {
+    SurgeToken t = (SurgeToken){0};
     t.kind = k;
-    t.pos = pos;
+    t.pos  = pos;
     t.lexeme = xstrndup0(lex, n);
     t.length = n;
     return t;
@@ -113,13 +100,11 @@ static SurgeToken lex_number(SurgeLexer *lx, SurgeSrcPos pos) {
 
     // integer part
     while (isdigit((unsigned char)lx_peek(lx))) lx_advance(lx);
-    
     // fractional part
-    if (lx_peek(lx) == '.' && isdigit((unsigned char)lx_peek2(lx))) {
+    if (lx_peek(lx)=='.' && isdigit((unsigned char)lx_peek2(lx))) {
         saw_dot = 1; lx_advance(lx);
         while (isdigit((unsigned char)lx_peek(lx))) lx_advance(lx);
     }
-
     // exponent part
     if (lx_peek(lx)=='e' || lx_peek(lx)=='E') {
         char n = lx_peek2(lx);
@@ -144,7 +129,9 @@ static SurgeToken lex_number(SurgeLexer *lx, SurgeSrcPos pos) {
         errno = 0;
         char *endp = NULL;
         double v = strtod(lex, &endp);
-        if (errno != 0 || endp == lex) return make_error(lx, pos, "Invalid float literal");
+        if (errno!=0 || endp==lex) {
+            return make_error(lx, pos, "Invalid float literal");
+        }
         t.kind = TOK_FLOAT;
         t.has_float = true;
         t.float_value = v;
@@ -190,7 +177,7 @@ static SurgeToken lex_ident_or_kw(SurgeLexer *lx, SurgeSrcPos pos) {
     while (is_ident_part(lx_peek(lx))) lx_advance(lx);
     size_t n = lx->idx - begin;
     SurgeTokenKind k = keyword_lookup(&lx->buf[begin], n);
-    return make_simple(lx, k, pos, &lx->buf[begin], n);
+    return make_simple(k, pos, &lx->buf[begin], n);
 }
 
 static SurgeToken lex_string(SurgeLexer *lx, SurgeSrcPos pos) {
@@ -200,7 +187,7 @@ static SurgeToken lex_string(SurgeLexer *lx, SurgeSrcPos pos) {
     int escaped = 0;
     while (!lx_eof(lx)) {
         char c = lx_peek(lx);
-        id (!escaped) {
+        if (!escaped) {
             if (c == '\\') { escaped = 1; lx_advance(lx); continue; }
             if (c == '"') {
                 size_t raw_len = lx->idx - begin;
@@ -228,35 +215,35 @@ static SurgeToken lex_operator_or_punct(SurgeLexer *lx, SurgeSrcPos pos) {
     char n = lx_peek2(lx);
 
     // two-char combos first
-    if (c==':' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(lx, TOK_BIND, pos, ":=", 2); }
-    if (c=='-' && n=='>') { lx_advance(lx); lx_advance(lx); return make_simple(lx, TOK_ARROW, pos, "->", 2); }
-    if (c=='=' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(lx, TOK_EQ, pos, "==", 2); }
-    if (c=='!' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(lx, TOK_NE, pos, "!=", 2); }
-    if (c=='<' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(lx, TOK_LE, pos, "<=", 2); }
-    if (c=='>' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(lx, TOK_GE, pos, ">=", 2); }
-    if (c=='&' && n=='&') { lx_advance(lx); lx_advance(lx); return make_simple(lx, TOK_AND_AND, pos, "&&", 2); }
-    if (c=='|' && n=='|') { lx_advance(lx); lx_advance(lx); return make_simple(lx, TOK_OR_OR, pos, "||", 2); }
+    if (c==':' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_BIND, pos, ":=", 2); }
+    if (c=='-' && n=='>') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_ARROW, pos, "->", 2); }
+    if (c=='=' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_EQ, pos, "==", 2); }
+    if (c=='!' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_NE, pos, "!=", 2); }
+    if (c=='<' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_LE, pos, "<=", 2); }
+    if (c=='>' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_GE, pos, ">=", 2); }
+    if (c=='&' && n=='&') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_AND_AND, pos, "&&", 2); }
+    if (c=='|' && n=='|') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_OR_OR, pos, "||", 2); }
 
     switch (c) {
-        case '(': lx_advance(lx); return make_simple(lx, TOK_LPAREN, pos, "(", 1);
-        case ')': lx_advance(lx); return make_simple(lx, TOK_RPAREN, pos, ")", 1);
-        case '{': lx_advance(lx); return make_simple(lx, TOK_LBRACE, pos, "{", 1);
-        case '}': lx_advance(lx); return make_simple(lx, TOK_RBRACE, pos, "}", 1);
-        case '[': lx_advance(lx); return make_simple(lx, TOK_LBRACKET, pos, "[", 1);
-        case ']': lx_advance(lx); return make_simple(lx, TOK_RBRACKET, pos, "]", 1);
-        case ',': lx_advance(lx); return make_simple(lx, TOK_COMMA, pos, ",", 1);
-        case ';': lx_advance(lx); return make_simple(lx, TOK_SEMICOLON, pos, ";", 1);
-        case '.': lx_advance(lx); return make_simple(lx, TOK_DOT, pos, ".", 1);
-        case ':': lx_advance(lx); return make_simple(lx, TOK_COLON, pos, ":", 1);
-        case '+': lx_advance(lx); return make_simple(lx, TOK_PLUS, pos, "+", 1);
-        case '-': lx_advance(lx); return make_simple(lx, TOK_MINUS, pos, "-", 1);
-        case '*': lx_advance(lx); return make_simple(lx, TOK_STAR, pos, "*", 1);
-        case '/': lx_advance(lx); return make_simple(lx, TOK_SLASH, pos, "/", 1);
-        case '%': lx_advance(lx); return make_simple(lx, TOK_PERCENT, pos, "%", 1);
-        case '!': lx_advance(lx); return make_simple(lx, TOK_BANG, pos, "!", 1);
-        case '=': lx_advance(lx); return make_simple(lx, TOK_ASSIGN, pos, "=", 1);
-        case '<': lx_advance(lx); return make_simple(lx, TOK_LT, pos, "<", 1);
-        case '>': lx_advance(lx); return make_simple(lx, TOK_GT, pos, ">", 1);
+        case '(': lx_advance(lx); return make_simple(TOK_LPAREN, pos, "(", 1);
+        case ')': lx_advance(lx); return make_simple(TOK_RPAREN, pos, ")", 1);
+        case '{': lx_advance(lx); return make_simple(TOK_LBRACE, pos, "{", 1);
+        case '}': lx_advance(lx); return make_simple(TOK_RBRACE, pos, "}", 1);
+        case '[': lx_advance(lx); return make_simple(TOK_LBRACKET, pos, "[", 1);
+        case ']': lx_advance(lx); return make_simple(TOK_RBRACKET, pos, "]", 1);
+        case ',': lx_advance(lx); return make_simple(TOK_COMMA, pos, ",", 1);
+        case ';': lx_advance(lx); return make_simple(TOK_SEMICOLON, pos, ";", 1);
+        case '.': lx_advance(lx); return make_simple(TOK_DOT, pos, ".", 1);
+        case ':': lx_advance(lx); return make_simple(TOK_COLON, pos, ":", 1);
+        case '+': lx_advance(lx); return make_simple(TOK_PLUS, pos, "+", 1);
+        case '-': lx_advance(lx); return make_simple(TOK_MINUS, pos, "-", 1);
+        case '*': lx_advance(lx); return make_simple(TOK_STAR, pos, "*", 1);
+        case '/': lx_advance(lx); return make_simple(TOK_SLASH, pos, "/", 1);
+        case '%': lx_advance(lx); return make_simple(TOK_PERCENT, pos, "%", 1);
+        case '!': lx_advance(lx); return make_simple(TOK_BANG, pos, "!", 1);
+        case '=': lx_advance(lx); return make_simple(TOK_ASSIGN, pos, "=", 1);
+        case '<': lx_advance(lx); return make_simple(TOK_LT, pos, "<", 1);
+        case '>': lx_advance(lx); return make_simple(TOK_GT, pos, ">", 1);
         default: break;
     }
 
@@ -326,8 +313,9 @@ SurgeToken surge_lexer_next(SurgeLexer *lx) {
     if (!lx) {
         SurgeToken t = {0};
         t.kind = TOK_ERROR;
-        t.pos = (SurgeSrcPos){ .file = NULL, .line = 0, .col = 0 };
+        t.pos = (SurgeSrcPos){ .file=NULL, .line=0, .col=0 };
         t.lexeme = xstrndup0("Lexer is NULL", 12);
+        t.length = 12;
         return t;
     }
 

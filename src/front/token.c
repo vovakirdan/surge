@@ -65,8 +65,6 @@ void surge_token_free(SurgeToken *t) {
     t->length = 0;
     t->has_int = false;
     t->has_float = false;
-    t->has_bool = false;
     t->int_value = 0;
     t->float_value = 0.0;
-    t->bool_value = false;
 }

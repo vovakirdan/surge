@@ -23,7 +23,7 @@ bool surge_lexer_init_from_string(SurgeLexer *lx, const char *source, const char
 bool surge_lexer_init_from_file(SurgeLexer *lx, const char *path);
 
 // Get next token. Caller must free with surge_token_free()
-SurgeToken *surge_lexer_next(SurgeLexer *lx);
+SurgeToken surge_lexer_next(SurgeLexer *lx);
 
 // Destroy lexer and free owned memory
 void surge_lexer_destroy(SurgeLexer *lx);

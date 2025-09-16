@@ -17,7 +17,7 @@ typedef enum SurgeTokenKind {
     TOK_KW_LET,
     TOK_KW_SIGNAL,
     TOK_KW_FN,
-    TOK_KW_ID,
+    TOK_KW_IF,
     TOK_KW_ELSE,
     TOK_KW_WHILE,
     TOK_KW_RETURN,
@@ -80,10 +80,8 @@ typedef struct SurgeToken {
     size_t length; // bytes in lexeme
     bool has_int; // true if lexeme is a valid integer
     bool has_float; // true if lexeme is a valid float
-    bool has_bool; // true if lexeme is a valid bool
     int64_t int_value; // valid if has_int
     double float_value; // valid if has_float
-    bool bool_value; // valid if has_bool
 } SurgeToken;
 
 const char *surge_token_kind_cstr(SurgeTokenKind k);
