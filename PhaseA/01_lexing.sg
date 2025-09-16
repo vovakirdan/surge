@@ -1,0 +1,24 @@
+// Basic tokens demo for Phase A
+import math
+
+let x:int = 42
+let y:float = 3.14
+signal k = 2
+z := x * k + y / 2.0 - 1
+
+fn add(a:int, b:int) -> int {
+    return a + b
+}
+
+// strings, ops and comparisons
+let s:string = "hello \"surge\""
+if (x >= 10 && y != 0.0) {
+    z = add(x, 1)
+} else {
+    z = 0
+}
+
+// arrays and parallel hint words (still just tokens)
+let arr:int[] = [1,2,3,4]
+parallel map add(arr[0], 1)
+parallel reduce arr with (acc:int, v:int) => acc + v
