@@ -1,9 +1,9 @@
 // numbers: ints, floats with fraction and exponent; strings with escapes
-let a:int = 0
-let b:int = 1234567890
-let c:float = 3.14159
-let d:float = 2.5e10
-let e:float = 1e-3
+let a:int = 0;
+let b:int = 1234567890;
+let c:float = 3.14159;
+let d:float = 2.5e10;
+let e:float = 1e-3;
 
-let s1:string = "hello"
-let s2:string = "line1\nline2\t\"quote\"\\backslash"
+let s1:string = "hello";
+let s2:string = "line1\nline2\t\"quote\"\\backslash";

@@ -1,24 +1,29 @@
 // Basic tokens demo for Phase A
-import math
+import math;
 
-let x:int = 42
-let y:float = 3.14
-signal k = 2
-z := x * k + y / 2.0 - 1
+let x:int = 42;
+let y:float = 3.14;
+signal k = 2;
+z := x * k + y / 2.0 - 1;
 
 fn add(a:int, b:int) -> int {
-    return a + b
+    return a + b;
 }
 
 // strings, ops and comparisons
-let s:string = "hello \"surge\""
+let s:string = "hello \"surge\"";
 if (x >= 10 && y != 0.0) {
-    z = add(x, 1)
+    z = add(x, 1);
 } else {
-    z = 0
+    z = 0;
 }
 
 // arrays and parallel hint words (still just tokens)
-let arr:int[] = [1,2,3,4]
-parallel map add(arr[0], 1)
-parallel reduce arr with (acc:int, v:int) => acc + v
+let arr:int[] = [1,2,3,4];
+
+// Our MVP grammar for map: `parallel map <callee_expr> <array_expr>;`
+// Раньше тут было `add(arr[0], 1)` — это НЕ наш синтаксис.
+// Делаем явный массив-источник:
+parallel map add [arr[0], 1];
+
+parallel reduce arr with (acc:int, v:int) => acc + v;

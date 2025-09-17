@@ -41,6 +41,7 @@ typedef enum {
     AST_FN_DECL,       // fn name(params) -> Type block
     AST_PAR_MAP,       // parallel map fn_or_ident expr
     AST_PAR_REDUCE,    // parallel reduce expr with (acc:T, v:T) => expr
+    AST_IMPORT,        // import name ;
 
     // Root
     AST_UNIT           // Program root
@@ -109,6 +110,7 @@ typedef struct SurgeAstStmt {
         struct { SurgeAstIdent name; SurgeAstParam *params; size_t paramc; bool has_ret; SurgeAstIdent ret_type; struct SurgeAstStmt *body; } fn_decl;
         struct { SurgeAstExpr *fn_or_ident; SurgeAstExpr *seq; } par_map;
         struct { SurgeAstExpr *seq; SurgeAstParam acc; SurgeAstParam v; SurgeAstExpr *body; } par_reduce;
+        struct { SurgeAstIdent name; } import_stmt;
     } as;
 } SurgeAstStmt;
 

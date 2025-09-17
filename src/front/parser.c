@@ -492,6 +492,25 @@ static SurgeAstStmt *parse_parallel(SurgeParser *ps) {
     return mk_stmt(AST_EXPR_STMT, pos);
 }
 
+static SurgeAstStmt *parse_import(SurgeParser *ps){
+    SurgeSrcPos pos = ps->cur.pos;
+    parser_advance(ps); // import
+    if (!is_token(ps, TOK_IDENTIFIER)) {
+        surge_diag_errorf(ps->cur.pos, "Expected module name after 'import'");
+        ps->had_error = true;
+        // попытка восстановления
+        while (!is_token(ps, TOK_SEMICOLON) && !is_token(ps, TOK_EOF)) parser_advance(ps);
+        if (is_token(ps, TOK_SEMICOLON)) parser_advance(ps);
+        return mk_stmt(AST_IMPORT, pos);
+    }
+    SurgeAstIdent mod = (SurgeAstIdent){ .name = dup_lex(ps->cur.lexeme ? ps->cur.lexeme : "") };
+    parser_advance(ps);
+    (void)parser_expect(ps, TOK_SEMICOLON, "';'");
+    SurgeAstStmt *s = mk_stmt(AST_IMPORT, pos);
+    s->as.import_stmt.name = mod;
+    return s;
+}
+
 static SurgeAstStmt *parse_simple_or_assign_or_bind_stmt(SurgeParser *ps){
     // Lookahead: parse an expression, then if ';' => expr stmt
     // If pattern IDENT '=' expr ';' => assign
@@ -574,6 +593,7 @@ static SurgeAstStmt *parse_stmt(SurgeParser *ps){
     if (is_token(ps, TOK_KW_FN))     return parse_fn(ps);
     if (is_token(ps, TOK_LBRACE))    return parse_block(ps);
     if (is_token(ps, TOK_KW_PARALLEL)) return parse_parallel(ps);
+    if (is_token(ps, TOK_KW_IMPORT)) return parse_import(ps);
     return parse_simple_or_assign_or_bind_stmt(ps);
 }
 

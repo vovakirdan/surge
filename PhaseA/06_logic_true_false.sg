@@ -1,4 +1,4 @@
 // true/false tokens presence
-let t:bool = true
-let f:bool = false
+let t:bool = true;
+let f:bool = false;
 if (t && !f) { /* noop */ } else { /* noop */ }

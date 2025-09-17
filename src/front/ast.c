@@ -95,6 +95,10 @@ static void free_stmt(SurgeAstStmt *s) {
             free_ident(&s->as.par_reduce.v.type_name);
             free_expr(s->as.par_reduce.body);
             break;
+        case AST_IMPORT:
+            free_ident(&s->as.import_stmt.name);
+            break;
+
         default: break;
     }
     free(s);
@@ -250,6 +254,12 @@ static void print_stmt(const SurgeAstStmt *s, FILE *out, int ind) {
             print_indent(out, ind+2); fprintf(out,"Val "); print_ident(&s->as.par_reduce.v.name,out); fprintf(out,":"); print_ident(&s->as.par_reduce.v.type_name,out); fprintf(out,"\n");
             print_expr(s->as.par_reduce.body,out,ind+2);
             break;
+        case AST_IMPORT:
+            print_indent(out, ind); fprintf(out, "Import ");
+            print_ident(&s->as.import_stmt.name, out);
+            fprintf(out, "\n");
+            break;
+
         default:
             print_indent(out, ind); fprintf(out, "(stmt-kind=%d)\n",(int)s->base.kind);
     }
