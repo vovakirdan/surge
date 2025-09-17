@@ -124,7 +124,7 @@ lex-golden-update: all
 .PHONY: lex-golden
 lex-golden: all
 	@bash tools/lex_golden.sh check
-	
+
 # -----------------------------
 # Parser golden tests
 # -----------------------------
@@ -136,7 +136,18 @@ parse-golden-update: all
 parse-golden: all
 	@bash tools/parse_golden.sh check
 
-# Расширяем "test": после лексера — парсер
+# -----------------------------
+# Diagnostics golden tests
+# -----------------------------
+.PHONY: diag-golden-update
+diag-golden-update: all
+	@bash tools/diag_golden.sh update
+
+.PHONY: diag-golden
+diag-golden: all
+	@bash tools/diag_golden.sh check
+
+# В общий тест-ран:
 test: all
 	@set -e; \
 	if [ -x "$(SURGETEST_BIN)" ]; then \
@@ -157,6 +168,7 @@ test: all
 	fi
 	@$(MAKE) lex-golden
 	@$(MAKE) parse-golden
+	@$(MAKE) diag-golden
 
 # Example: compile a single .sg to .sbc (if surgec is implemented)
 # Usage: make compile FILE=examples/hello.sg

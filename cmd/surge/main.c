@@ -5,6 +5,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "ast.h"
+#include "diagnostics.h"
 
 static void usage(const char *prog) {
     fprintf(stderr, "Surge v%d.%d.%d\n", SURGE_VERSION_MAJOR, SURGE_VERSION_MINOR, SURGE_VERSION_PATCH);
@@ -41,6 +42,9 @@ int main(int argc, char **argv) {
 
     if (!ok) { fprintf(stderr, "Failed to initialize lexer for %s\n", argv[1]); return 1; }
 
+    // Bind diagnostics to current source so errors show line context.
+    surge_diag_set_source(lx.file ? lx.file : (strcmp(argv[1], "-")==0 ? "<stdin>" : argv[1]), lx.buf, lx.len);
+    
     SurgeParser ps;
     parser_init(&ps, &lx);
     SurgeAstUnit *unit = parser_parse_unit(&ps);
