@@ -1,0 +1,49 @@
+Unit{
+  Let x:int =
+    Int(42)
+  Signal s =
+    Int(5)
+  Fn inc
+    Param a:int
+  Ret: int
+    Block{
+      Return
+        Binary(+)
+          Ident(a)
+          Int(1)
+    }
+  Assign x =
+    Call{
+      Ident(inc)
+      Ident(s)
+    }
+  If
+    Binary(&&)
+      Binary(>=)
+        Ident(x)
+        Int(10)
+      Binary(!=)
+        Ident(s)
+        Int(0)
+    Block{
+      Assign x =
+        Binary(-)
+          Ident(x)
+          Int(1)
+    }
+  Else
+    Block{
+      Assign x =
+        Int(0)
+    }
+  While
+    Binary(>)
+      Ident(x)
+      Int(0)
+    Block{
+      Assign x =
+        Binary(-)
+          Ident(x)
+          Int(1)
+    }
+}

@@ -1,0 +1,20 @@
+Unit{
+  Let xs:int[] =
+    Array[
+      Int(1)
+      Int(2)
+      Int(3)
+    ]
+  Let r =
+    Call{
+      Ident(add)
+      Index{
+        Ident(xs)
+        Int(0)
+      }
+      Index{
+        Ident(xs)
+        Int(1)
+      }
+    }
+}
