@@ -355,15 +355,53 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
             (void)check_expr(s, st->as.par_map.seq);
             break;
         }
-        case AST_PAR_REDUCE:
-            (void)check_expr(s, st->as.par_reduce.seq);
-            // параметры (acc, v) — проверим только валидность их типов
-            if (resolve_decl_type(&st->as.par_reduce.acc.type_name)->kind==TY_INVALID)
-                { s->had_error=true; surge_diag_errorf(st->base.pos, "reduce: invalid type for 'acc'"); }
-            if (resolve_decl_type(&st->as.par_reduce.v.type_name)->kind==TY_INVALID)
-                { s->had_error=true; surge_diag_errorf(st->base.pos, "reduce: invalid type for 'v'"); }
-            (void)check_expr(s, st->as.par_reduce.body);
+        case AST_PAR_REDUCE: {
+            // 1) Тип последовательности должен быть массивом
+            TExpr seq = check_expr(s, st->as.par_reduce.seq);
+            if (seq.type->kind != TY_ARRAY) {
+                s->had_error = true;
+                surge_diag_errorf(st->base.pos, "reduce: sequence must be an array, got %s", ty_name(seq.type));
+                break;
+            }
+            const SurgeType *elem_t = seq.type->elem;
+
+            // 2) Типы параметров (acc:int, v:int)
+            const SurgeType *acc_t = resolve_decl_type(&st->as.par_reduce.acc.type_name);
+            const SurgeType *v_t   = resolve_decl_type(&st->as.par_reduce.v.type_name);
+
+            if (acc_t->kind == TY_INVALID) {
+                s->had_error = true;
+                surge_diag_errorf(st->base.pos, "reduce: invalid type for 'acc'");
+            }
+            if (v_t->kind == TY_INVALID) {
+                s->had_error = true;
+                surge_diag_errorf(st->base.pos, "reduce: invalid type for 'v'");
+            }
+
+            // 3) v должен совпадать с элементом массива
+            if (!ty_equal(v_t, elem_t)) {
+                s->had_error = true;
+                surge_diag_errorf(st->base.pos, "reduce: 'v' type must match element type (%s vs %s)", ty_name(v_t), ty_name(elem_t));
+            }
+
+            // 4) Лексическая область параметров тела: (acc, v) видимы только в лямбде
+            scope_push(s);
+            (void)scope_insert(s->scope, st->as.par_reduce.acc.name.name, (Symbol){ .kind=SYM_VAR, .type=acc_t });
+            (void)scope_insert(s->scope, st->as.par_reduce.v.name.name,   (Symbol){ .kind=SYM_VAR, .type=v_t });
+
+            TExpr body = check_expr(s, st->as.par_reduce.body);
+
+            scope_pop(s);
+
+            // 5) Результат тела должен совпадать с типом аккумулятора
+            if (!ty_equal(body.type, acc_t)) {
+                s->had_error = true;
+                surge_diag_errorf(st->as.par_reduce.body->base.pos,
+                    "reduce: body result type must equal accumulator type (%s vs %s)",
+                    ty_name(body.type), ty_name(acc_t));
+            }
             break;
+        }
         default:
             break;
     }
