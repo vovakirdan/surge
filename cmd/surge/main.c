@@ -9,6 +9,7 @@
 #include "ast.h"
 #include "token.h"
 #include "diagnostics.h"
+#include "sema.h"
 
 static void usage(const char *prog) {
     fprintf(stderr,
@@ -16,9 +17,10 @@ static void usage(const char *prog) {
         "Usage:\n"
         "  %s tokenize <file | ->   # PhaseA pt.1 — print tokens\n"
         "  %s ast       <file | ->   # PhaseA pt.2 — print AST snapshot\n"
-        "  %s diag      <file | ->   # PhaseA pt.3 — parse and show diagnostics\n",
+        "  %s diag      <file | ->   # PhaseA pt.3 — parse and show diagnostics\n"
+        "  %s sema      <file | ->   # Phase B pt.1 — semantic check (prints OK or errors)\n",
         SURGE_VERSION_MAJOR, SURGE_VERSION_MINOR, SURGE_VERSION_PATCH,
-        prog, prog, prog
+        prog, prog, prog, prog
     );
 }
 
@@ -150,6 +152,33 @@ static int cmd_diag(const char *path) {
     return had_error;
 }
 
+/* ---- sema subcommand ---- 
+   Просто семантическую проверку, не печатаем AST; ошибки уйдут в stderr с контекстом.
+   Если ошибок нет — ничего не выводим (успех). */
+
+static int cmd_sema(const char *path) {
+    SurgeLexer lx = {0};
+    if (!init_lexer_from_arg(&lx, path)) {
+        fprintf(stderr, "Failed to initialize lexer for %s\n", path);
+        return 1;
+    }
+    surge_diag_set_source(lx.file ? lx.file : path, lx.buf, lx.len);
+
+    SurgeParser ps; parser_init(&ps, &lx);
+    SurgeAstUnit *unit = parser_parse_unit(&ps);
+
+    Sema sema; sema_init(&sema);
+    bool ok = sema_check_unit(&sema, unit);
+    if (ok) { printf("OK\n"); }
+
+    sema_destroy(&sema);
+    ast_free_unit(unit);
+    parser_destroy(&ps);
+    surge_lexer_destroy(&lx);
+    return ok? 0 : 1;
+}
+
+
 /* ---- main ---- */
 
 int main(int argc, char **argv) {
@@ -167,6 +196,8 @@ int main(int argc, char **argv) {
         return cmd_ast(path);
     } else if (strcmp(cmd, "diag") == 0) {
         return cmd_diag(path);
+    } else if (strcmp(cmd, "sema") == 0) {
+        return cmd_sema(path);
     } else {
         usage(argv[0]);
         return 2;

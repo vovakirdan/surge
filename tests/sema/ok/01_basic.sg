@@ -1,0 +1,13 @@
+import math;
+
+fn add(a:int, b:int) -> int { return a + b; }
+
+signal k = 2;
+let x:int = 10;
+let y:float = 3.0;
+x = add(x, 1);
+if (x > 0) { x = x - 1; }
+
+let xs:int[] = [1,2,3];
+parallel map add [1,2,3];
+parallel reduce [1,2,3] with (acc:int, v:int) => acc + v;

@@ -147,6 +147,17 @@ diag-golden-update: all
 diag-golden: all
 	@bash tools/diag_golden.sh check
 
+# -----------------------------
+# Sema golden tests
+# -----------------------------
+.PHONY: sema-golden-update
+sema-golden-update: all
+	@bash tools/sema_golden.sh update
+
+.PHONY: sema-golden
+sema-golden: all
+	@bash tools/sema_golden.sh check
+
 # В общий тест-ран:
 test: all
 	@set -e; \
@@ -169,6 +180,7 @@ test: all
 	@$(MAKE) lex-golden
 	@$(MAKE) parse-golden
 	@$(MAKE) diag-golden
+	@$(MAKE) sema-golden
 
 # Example: compile a single .sg to .sbc (if surgec is implemented)
 # Usage: make compile FILE=examples/hello.sg
