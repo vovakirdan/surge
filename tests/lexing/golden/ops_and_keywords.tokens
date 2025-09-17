@@ -1,67 +1,67 @@
-1:1	KW_IMPORT   	lexeme="import"
-1:8	IDENT       	lexeme="math"
-2:1	KW_LET      	lexeme="let"
-2:5	IDENT       	lexeme="x"
-2:7	ASSIGN      	lexeme="="
-2:9	INT         	lexeme="42" int=42
-3:1	KW_SIGNAL   	lexeme="signal"
-3:8	IDENT       	lexeme="s"
-3:10	ASSIGN      	lexeme="="
-3:12	INT         	lexeme="5" int=5
-4:1	IDENT       	lexeme="y"
-4:3	BIND        	lexeme=":="
-4:6	IDENT       	lexeme="x"
-4:8	PLUS        	lexeme="+"
-4:10	IDENT       	lexeme="s"
-4:12	STAR        	lexeme="*"
-4:14	INT         	lexeme="2" int=2
-4:16	MINUS       	lexeme="-"
-4:18	INT         	lexeme="1" int=1
-4:20	SLASH       	lexeme="/"
-4:22	INT         	lexeme="3" int=3
-5:1	KW_IF       	lexeme="if"
-5:4	LPAREN      	lexeme="("
-5:5	IDENT       	lexeme="y"
-5:7	GE          	lexeme=">="
-5:10	INT         	lexeme="10" int=10
-5:13	AND_AND     	lexeme="&&"
-5:16	IDENT       	lexeme="x"
-5:18	EQ          	lexeme="=="
-5:21	INT         	lexeme="42" int=42
-5:23	RPAREN      	lexeme=")"
-5:25	LBRACE      	lexeme="{"
-5:27	IDENT       	lexeme="y"
-5:29	ASSIGN      	lexeme="="
-5:31	IDENT       	lexeme="y"
-5:33	MINUS       	lexeme="-"
-5:35	INT         	lexeme="1" int=1
-5:36	SEMICOLON   	lexeme=";"
-5:38	RBRACE      	lexeme="}"
-5:40	KW_ELSE     	lexeme="else"
-5:45	LBRACE      	lexeme="{"
-5:47	IDENT       	lexeme="y"
-5:49	ASSIGN      	lexeme="="
-5:51	INT         	lexeme="0" int=0
-5:52	SEMICOLON   	lexeme=";"
-5:54	RBRACE      	lexeme="}"
-6:1	KW_FN       	lexeme="fn"
-6:4	IDENT       	lexeme="f"
-6:5	LPAREN      	lexeme="("
-6:6	IDENT       	lexeme="a"
-6:7	COLON       	lexeme=":"
-6:8	IDENT       	lexeme="int"
-6:11	COMMA       	lexeme=","
-6:13	IDENT       	lexeme="b"
-6:14	COLON       	lexeme=":"
-6:15	IDENT       	lexeme="int"
-6:18	RPAREN      	lexeme=")"
-6:20	ARROW       	lexeme="->"
-6:23	IDENT       	lexeme="int"
-6:27	LBRACE      	lexeme="{"
-6:29	KW_RETURN   	lexeme="return"
-6:36	IDENT       	lexeme="a"
-6:38	PLUS        	lexeme="+"
-6:40	IDENT       	lexeme="b"
-6:41	SEMICOLON   	lexeme=";"
-6:43	RBRACE      	lexeme="}"
-7:1	EOF         	lexeme="EOF"
+KW_IMPORT
+Ident(math)
+KW_LET
+Ident(x)
+ASSIGN
+Int(42)
+KW_SIGNAL
+Ident(s)
+ASSIGN
+Int(5)
+Ident(y)
+BIND
+Ident(x)
+PLUS
+Ident(s)
+STAR
+Int(2)
+MINUS
+Int(1)
+SLASH
+Int(3)
+KW_IF
+LPAREN
+Ident(y)
+GE
+Int(10)
+AND_AND
+Ident(x)
+EQ
+Int(42)
+RPAREN
+LBRACE
+Ident(y)
+ASSIGN
+Ident(y)
+MINUS
+Int(1)
+SEMICOLON
+RBRACE
+KW_ELSE
+LBRACE
+Ident(y)
+ASSIGN
+Int(0)
+SEMICOLON
+RBRACE
+KW_FN
+Ident(f)
+LPAREN
+Ident(a)
+COLON
+Ident(int)
+COMMA
+Ident(b)
+COLON
+Ident(int)
+RPAREN
+ARROW
+Ident(int)
+LBRACE
+KW_RETURN
+Ident(a)
+PLUS
+Ident(b)
+SEMICOLON
+RBRACE
+EOF

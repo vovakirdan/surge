@@ -1,24 +1,24 @@
-1:1	KW_LET      	lexeme="let"
-1:5	IDENT       	lexeme="t"
-1:7	ASSIGN      	lexeme="="
-1:9	KW_TRUE     	lexeme="true"
-2:1	KW_LET      	lexeme="let"
-2:5	IDENT       	lexeme="f"
-2:7	ASSIGN      	lexeme="="
-2:9	KW_FALSE    	lexeme="false"
-3:1	KW_LET      	lexeme="let"
-3:5	IDENT       	lexeme="r"
-3:7	ASSIGN      	lexeme="="
-3:9	LPAREN      	lexeme="("
-3:10	IDENT       	lexeme="t"
-3:12	AND_AND     	lexeme="&&"
-3:15	BANG        	lexeme="!"
-3:16	IDENT       	lexeme="f"
-3:17	RPAREN      	lexeme=")"
-3:19	OR_OR       	lexeme="||"
-3:22	LPAREN      	lexeme="("
-3:23	IDENT       	lexeme="f"
-3:25	OR_OR       	lexeme="||"
-3:28	IDENT       	lexeme="t"
-3:29	RPAREN      	lexeme=")"
-4:1	EOF         	lexeme="EOF"
+KW_LET
+Ident(t)
+ASSIGN
+Bool(true)
+KW_LET
+Ident(f)
+ASSIGN
+Bool(false)
+KW_LET
+Ident(r)
+ASSIGN
+LPAREN
+Ident(t)
+AND_AND
+BANG
+Ident(f)
+RPAREN
+OR_OR
+LPAREN
+Ident(f)
+OR_OR
+Ident(t)
+RPAREN
+EOF

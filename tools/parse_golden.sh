@@ -31,7 +31,7 @@ case "$cmd" in
       base="$(basename "$f" .sg)"
       out="$GOLD_DIR/$base.ast"
       echo "  -> $base"
-      "$BIN" "$f" > "$out"
+      "$BIN" ast "$f" > "$out"
     done
     echo "[parse] done."
     ;;
@@ -43,7 +43,7 @@ case "$cmd" in
       tmp="$OUT_DIR/$base.ast"
       gold="$GOLD_DIR/$base.ast"
       echo "  -> $base"
-      "$BIN" "$f" > "$tmp"
+      "$BIN" ast "$f" > "$tmp"
       if [ ! -f "$gold" ]; then
         echo "     [warn] missing golden: $gold (run: make parse-golden-update)"
         continue

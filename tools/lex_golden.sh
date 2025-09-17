@@ -31,7 +31,7 @@ case "$cmd" in
       base="$(basename "$f" .sg)"
       out="$GOLD_DIR/$base.tokens"
       echo "  -> $base"
-      "$BIN" "$f" > "$out"
+      "$BIN" tokenize "$f" > "$out"
     done
     echo "[lex] done."
     ;;
@@ -43,7 +43,7 @@ case "$cmd" in
       tmp="$OUT_DIR/$base.tokens"
       gold="$GOLD_DIR/$base.tokens"
       echo "  -> $base"
-      "$BIN" "$f" > "$tmp"
+      "$BIN" tokenize "$f" > "$tmp"
       if [ ! -f "$gold" ]; then
         echo "     [warn] missing golden: $gold (run: make lex-golden-update)"
         continue

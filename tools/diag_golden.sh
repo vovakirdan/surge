@@ -32,7 +32,7 @@ case "$cmd" in
       out="$GOLD_DIR/$base.out"
       echo "  -> $base"
       set +e
-      "$BIN" "$f" > "$out" 2>&1
+      "$BIN" diag "$f" > "$out" 2>&1
       set -e
     done
     echo "[diag] done."
@@ -46,7 +46,7 @@ case "$cmd" in
       gold="$GOLD_DIR/$base.out"
       echo "  -> $base"
       set +e
-      "$BIN" "$f" > "$tmp" 2>&1
+      "$BIN" diag "$f" > "$tmp" 2>&1
       code=$?
       set -e
       if [ ! -f "$gold" ]; then
