@@ -1,14 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "lexer.h"
-#include "token.h"
 #include "config.h"
+#include "lexer.h"
+#include "parser.h"
+#include "ast.h"
 
 static void usage(const char *prog) {
     fprintf(stderr, "Surge v%d.%d.%d\n", SURGE_VERSION_MAJOR, SURGE_VERSION_MINOR, SURGE_VERSION_PATCH);
     fprintf(stderr, "Usage: %s <file.sg | ->\n", prog);
-    fprintf(stderr, "Phase A: lex only — prints tokens\n");
+    fprintf(stderr, "Phase A pt.2: parse program and print AST snapshot\n");
 }
 
 int main(int argc, char **argv) {
@@ -18,7 +19,6 @@ int main(int argc, char **argv) {
     int ok = 0;
 
     if (strcmp(argv[1], "-") == 0) {
-        // read from stdin
         size_t cap = 4096, len = 0;
         char *buf = (char*)malloc(cap);
         if (!buf) { fprintf(stderr, "OOM\n"); return 1; }
@@ -39,28 +39,16 @@ int main(int argc, char **argv) {
         ok = surge_lexer_init_from_file(&lx, argv[1]);
     }
 
-    if (!ok) {
-        fprintf(stderr, "Failed to open/initialize input: %s\n", argv[1]);
-        return 1;
-    }
+    if (!ok) { fprintf(stderr, "Failed to initialize lexer for %s\n", argv[1]); return 1; }
 
-    for (;;) {
-        SurgeToken t = surge_lexer_next(&lx);
-        printf("%zu:%zu\t%-12s\t", t.pos.line, t.pos.col, surge_token_kind_cstr(t.kind));
-        if (t.has_int) {
-            printf("lexeme=\"%s\" int=%lld\n", t.lexeme ? t.lexeme : "", (long long)t.int_value);
-        } else if (t.has_float) {
-            printf("lexeme=\"%s\" float=%g\n", t.lexeme ? t.lexeme : "", t.float_value);
-        } else {
-            printf("lexeme=\"%s\"\n", t.lexeme ? t.lexeme : "");
-        }
-        if (t.kind == TOK_EOF) {
-            surge_token_free(&t);
-            break;
-        }
-        surge_token_free(&t);
-    }
+    SurgeParser ps;
+    parser_init(&ps, &lx);
+    SurgeAstUnit *unit = parser_parse_unit(&ps);
 
+    ast_print_unit(unit, stdout);
+
+    ast_free_unit(unit);
+    parser_destroy(&ps);
     surge_lexer_destroy(&lx);
     return 0;
 }

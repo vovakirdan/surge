@@ -1,0 +1,7 @@
+// MVP grammar:
+// parallel map <callee_expr> <array_expr> ;
+parallel map add [1,2,3];
+
+// MVP reduce:
+// parallel reduce <array_expr> with (acc:int, v:int) => acc + v ;
+parallel reduce [1,2,3] with (acc:int, v:int) => acc + v ;

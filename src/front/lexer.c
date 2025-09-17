@@ -217,6 +217,7 @@ static SurgeToken lex_operator_or_punct(SurgeLexer *lx, SurgeSrcPos pos) {
     // two-char combos first
     if (c==':' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_BIND, pos, ":=", 2); }
     if (c=='-' && n=='>') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_ARROW, pos, "->", 2); }
+    if (c=='=' && n=='>') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_REDUCE_EXP, pos, "=>", 2); }
     if (c=='=' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_EQ, pos, "==", 2); }
     if (c=='!' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_NE, pos, "!=", 2); }
     if (c=='<' && n=='=') { lx_advance(lx); lx_advance(lx); return make_simple(TOK_LE, pos, "<=", 2); }

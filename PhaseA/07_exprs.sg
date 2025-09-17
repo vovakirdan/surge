@@ -1,0 +1,5 @@
+let x:int = 1 + 2 * 3 - 4 / 2;
+let b:bool = (1 < 2) && (3 >= 2) || false;
+let s:string = "hey";
+let arr:int[] = [1, 2, 3, x];
+x = arr[0] + (x * 2);

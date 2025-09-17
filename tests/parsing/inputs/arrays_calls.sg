@@ -1,0 +1,2 @@
+let xs:int[] = [1, 2, 3];
+let r = add(xs[0], xs[1]);

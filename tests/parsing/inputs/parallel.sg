@@ -1,0 +1,2 @@
+parallel map inc [1,2,3];
+parallel reduce [1,2,3] with (acc:int, v:int) => acc + v ;

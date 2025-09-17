@@ -1,0 +1,6 @@
+let x:int = 42;
+signal s = 5;
+fn inc(a:int) -> int { return a + 1; }
+x = inc(s);
+if (x >= 10 && s != 0) { x = x - 1; } else { x = 0; }
+while (x > 0) { x = x - 1; }
