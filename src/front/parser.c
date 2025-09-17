@@ -85,6 +85,68 @@ static SurgeAstOp binop_from_token(SurgeTokenKind k) {
     }
 }
 
+// Parse array literal ONLY when current token is '[' (without treating it as postfix).
+static SurgeAstExpr *parse_array_literal_only(SurgeParser *ps){
+    SurgeSrcPos pos = ps->cur.pos;
+    (void)parser_expect(ps, TOK_LBRACKET, "'['");
+    SurgeAstExpr **items = NULL; size_t cap=0, cnt=0;
+    if (!is_token(ps, TOK_RBRACKET)) {
+        for (;;) {
+            SurgeAstExpr *it = parse_expr(ps);
+            if (cnt==cap){ cap=cap?cap*2:4; items=(SurgeAstExpr**)realloc(items, cap*sizeof(*items)); }
+            items[cnt++] = it;
+            if (is_token(ps, TOK_COMMA)) { parser_advance(ps); continue; }
+            break;
+        }
+    }
+    (void)parser_expect(ps, TOK_RBRACKET, "']'");
+    SurgeAstExpr *e = mk_expr(AST_ARRAY_LIT, pos);
+    e->as.array_lit.items = items;
+    e->as.array_lit.count = cnt;
+    return e;
+}
+
+// Парсит только базовое выражение БЕЗ постфиксных операций (вызовов, индексации, bind)
+static SurgeAstExpr *parse_base_expr(SurgeParser *ps) {
+    SurgeAstExpr *e = NULL;
+    SurgeSrcPos pos = ps->cur.pos;
+    if (is_token(ps, TOK_INT)) {
+        e = mk_expr(AST_INT_LIT, pos);
+        e->as.int_lit.v = ps->cur.int_value;
+        parser_advance(ps);
+    } else if (is_token(ps, TOK_FLOAT)) {
+        e = mk_expr(AST_FLOAT_LIT, pos);
+        e->as.float_lit.v = ps->cur.float_value;
+        parser_advance(ps);
+    } else if (is_token(ps, TOK_KW_TRUE) || is_token(ps, TOK_KW_FALSE)) {
+        e = mk_expr(AST_BOOL_LIT, pos);
+        e->as.bool_lit.v = is_token(ps, TOK_KW_TRUE);
+        parser_advance(ps);
+    } else if (is_token(ps, TOK_STRING)) {
+        e = mk_expr(AST_STRING_LIT, pos);
+        e->as.string_lit.v = dup_lex(ps->cur.lexeme);
+        parser_advance(ps);
+    } else if (is_token(ps, TOK_IDENTIFIER)) {
+        e = mk_expr(AST_IDENT, pos);
+        e->as.ident.ident = make_ident_from_tok(ps->cur);
+        parser_advance(ps);
+    } else if (is_token(ps, TOK_LPAREN)) {
+        parser_advance(ps);
+        SurgeAstExpr *inner = parse_expr(ps);
+        (void)parser_expect(ps, TOK_RPAREN, "')'");
+        e = mk_expr(AST_PAREN, pos);
+        e->as.paren.inner = inner;
+    } else {
+        surge_diag_errorf(ps->cur.pos, "Unexpected token in base expression: %s", surge_token_kind_cstr(ps->cur.kind));
+        ps->had_error = true;
+        // error recovery: create dummy int literal
+        e = mk_expr(AST_INT_LIT, pos); e->as.int_lit.v = 0;
+        parser_advance(ps);
+    }
+    // НЕ обрабатываем постфиксные операции!
+    return e;
+}
+
 // --- Primary / postfix ---
 
 static SurgeAstExpr *parse_primary(SurgeParser *ps) {
@@ -255,13 +317,8 @@ static SurgeAstStmt *parse_let(SurgeParser *ps) {
             // append "[]" to type_name
             size_t n = strlen(type_name.name);
             char *p = (char*)malloc(n + 3);
-            if (p) {
-                memcpy(p, type_name.name, n);
-                p[n] = '['; p[n+1] = ']'; p[n+2] = '\0';
-                free(type_name.name);
-                type_name.name = p;
-            }
-        }
+            if (p) { memcpy(p, type_name.name, n); p[n]='['; p[n+1]=']'; p[n+2]='\0'; free(type_name.name); type_name.name = p; }
+        }        
     }
     (void)parser_expect(ps, TOK_ASSIGN, "'='");
     SurgeAstExpr *init = parse_expr(ps);
@@ -392,8 +449,15 @@ static SurgeAstStmt *parse_parallel(SurgeParser *ps) {
     if (is_token(ps, TOK_KW_MAP)) {
         parser_advance(ps);
         // grammar (MVP): parallel map <callee_expr> <array_expr> ;
-        SurgeAstExpr *fn = parse_expr(ps);
-        SurgeAstExpr *seq = parse_expr(ps);
+        // Парсим только базовое выражение для функции (без постфиксов)
+        SurgeAstExpr *fn = parse_base_expr(ps);
+        SurgeAstExpr *seq = NULL;
+        if (is_token(ps, TOK_LBRACKET)) {
+            // Disambiguate: treat following '[' as array literal, not as fn[index]
+            seq = parse_array_literal_only(ps);
+        } else {
+            seq = parse_expr(ps);
+        }
         (void)parser_expect(ps, TOK_SEMICOLON, "';'");
         SurgeAstStmt *s = mk_stmt(AST_PAR_MAP, pos);
         s->as.par_map.fn_or_ident = fn; s->as.par_map.seq = seq; return s;
@@ -402,12 +466,12 @@ static SurgeAstStmt *parse_parallel(SurgeParser *ps) {
         parser_advance(ps);
         // grammar (MVP): parallel reduce <array_expr> with (acc:T, v:T) => <expr> ;
         SurgeAstExpr *seq = parse_expr(ps);
-        if (!parser_expect(ps, TOK_IDENTIFIER, "'with'")) {} // allow 'with' as ident? Better: we had KW_REDUCE only. For simplicity, require keyword? We'll tolerate ident named 'with'.
-        // previous lexer has no KW_WITH, so accept identifier 'with'
-        if (ps->cur.lexeme && strcmp(ps->cur.lexeme,"with")!=0) {
-            surge_diag_warningf(ps->cur.pos, "Expected 'with' keyword-like identifier");
+        if (!is_token(ps, TOK_IDENTIFIER) || !ps->cur.lexeme || strcmp(ps->cur.lexeme,"with") != 0) {
+            surge_diag_errorf(ps->cur.pos, "Expected 'with'");
+            ps->had_error = true;
+        } else {
+            parser_advance(ps); // consume 'with'
         }
-        parser_advance(ps);
         (void)parser_expect(ps, TOK_LPAREN, "'('");
         SurgeAstParam acc = parse_param(ps);
         (void)parser_expect(ps, TOK_COMMA, "','");
