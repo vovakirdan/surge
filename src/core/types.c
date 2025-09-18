@@ -39,8 +39,15 @@ bool ty_equal(const SurgeType *a, const SurgeType *b){
     if (a == b) return true;
     if (!a || !b) return false;
     if (a->kind != b->kind) return false;
-    if (a->kind == TY_ARRAY) return ty_equal(a->elem, b->elem);
-    return true;
+    switch (a->kind) {
+        case TY_ARRAY:
+        case TY_REF:
+        case TY_OWN:
+        case TY_CHANNEL:
+            return ty_equal(a->elem, b->elem);
+        default:
+            return true; // int/float/bool/string by kind
+    }
 }
 
 // add caches for REF/OWN/CHANNEL (как для массивов)

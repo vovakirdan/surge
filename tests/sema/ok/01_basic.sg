@@ -1,6 +1,6 @@
 import math;
 
-fn add(a:int, b:int) -> int { return a + b; }
+@pure fn add(a:int, b:int) -> int { return a + b; }
 
 signal k = 2;
 let x:int = 10;
