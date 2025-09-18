@@ -1,0 +1,4 @@
+@pure fn f() -> int {
+  return s;   // using signal in pure context
+}
+signal s = 1;

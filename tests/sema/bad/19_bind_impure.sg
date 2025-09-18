@@ -1,0 +1,3 @@
+fn imp(a:int) -> int { return a; }   // not pure
+signal s = 0;
+s := imp(1);                         // RHS must be pure -> error

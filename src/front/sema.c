@@ -54,6 +54,13 @@ static const SurgeType *alias_lookup(Sema *s, const char *name){
     return NULL;
 }
 
+// View type as rvalue: own T -> T, otherwise itself.
+// NOTE: move/consume rules will be implemented later.
+static const SurgeType *rview(const SurgeType *t) {
+    if (!t) return &TY_Invalid;
+    return (t->kind == TY_OWN && t->elem) ? t->elem : t;
+}
+
 // check if we are inside a pure context
 static bool in_pure_ctx(Sema *s) { return s->pure_depth > 0; }
 
@@ -197,11 +204,13 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
         case AST_UNARY: {
             TExpr x = check_expr(s, e->as.unary.expr);
             if (e->as.unary.op == AST_OP_NEG){
-                if (x.type->kind==TY_INT || x.type->kind==TY_FLOAT) return x;
+                const SurgeType *ux = rview(x.type);
+                if (ux->kind==TY_INT || ux->kind==TY_FLOAT) return mk(ux);
                 s->had_error=true; surge_diag_errorf(e->base.pos, "unary '-' expects int or float, got %s", ty_name(x.type));
                 return mk(&TY_Invalid);
             } else if (e->as.unary.op == AST_OP_NOT){
-                if (x.type->kind==TY_BOOL) return x;
+                const SurgeType *ux = rview(x.type);
+                if (ux->kind==TY_BOOL) return mk(ux);
                 s->had_error=true; surge_diag_errorf(e->base.pos, "unary '!' expects bool, got %s", ty_name(x.type));
                 return mk(&TY_Invalid);
             } else if (e->as.unary.op == AST_OP_ADDR){
@@ -238,26 +247,28 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
         case AST_BINARY: {
             TExpr L = check_expr(s, e->as.binary.lhs);
             TExpr R = check_expr(s, e->as.binary.rhs);
+            const SurgeType *Lt = rview(L.type);
+            const SurgeType *Rt = rview(R.type);
             // НЕТ автоприведения (MVP)
             if (is_arith(e->as.binary.op)){
-                if (!ty_equal(L.type, R.type)){
+                if (!ty_equal(Lt, Rt)){
                     type_mismatch(s, e->base.pos, "arithmetic operands", L.type, R.type);
                     return mk(&TY_Invalid);
                 }
-                if (L.type->kind==TY_INT || L.type->kind==TY_FLOAT) return L;
-                s->had_error=true; surge_diag_errorf(e->base.pos, "arithmetic on non-numeric type %s", ty_name(L.type));
+                if (Lt->kind==TY_INT || Lt->kind==TY_FLOAT) return mk(Lt);
+                s->had_error=true; surge_diag_errorf(e->base.pos, "arithmetic on non-numeric type %s", ty_name(Lt));
                 return mk(&TY_Invalid);
             }
             // сравнения -> bool, операнды одного типа
             switch (e->as.binary.op){
                 case AST_OP_EQ: case AST_OP_NE: case AST_OP_LT: case AST_OP_LE: case AST_OP_GT: case AST_OP_GE:
-                    if (!ty_equal(L.type, R.type)){
+                    if (!ty_equal(Lt, Rt)){
                         type_mismatch(s, e->base.pos, "comparison operands", L.type, R.type);
                         return mk(&TY_Invalid);
                     }
                     return mk(&TY_Bool);
                 case AST_OP_AND: case AST_OP_OR:
-                    if (L.type->kind!=TY_BOOL || R.type->kind!=TY_BOOL){
+                    if (rview(L.type)->kind!=TY_BOOL || rview(R.type)->kind!=TY_BOOL){
                         s->had_error=true; surge_diag_errorf(e->base.pos, "logical operator requires bool operands");
                         return mk(&TY_Invalid);
                     }
@@ -272,10 +283,10 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
             s->pure_depth++;
             TExpr R = check_expr(s, e->as.bind_expr.rhs);
             s->pure_depth--;
-            if (!ty_equal(L.type, R.type)){
+            if (!ty_equal(rview(L.type), rview(R.type))){
                 type_mismatch(s, e->base.pos, "reactive bind (:=)", L.type, R.type);
             }
-            return R;
+            return mk(rview(R.type));
         }
         default:
             return mk(&TY_Invalid);

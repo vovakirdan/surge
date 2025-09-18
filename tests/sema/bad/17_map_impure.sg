@@ -1,0 +1,2 @@
+fn imp(a:int) -> int { return a; }      // not pure
+parallel map imp [1,2,3];               // error: requires pure function

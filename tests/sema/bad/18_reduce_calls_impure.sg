@@ -1,0 +1,2 @@
+fn imp(a:int, b:int) -> int { return a + b; }  // not pure
+parallel reduce [1,2,3] with (acc:int, v:int) => imp(acc, v); // body in pure ctx -> error
