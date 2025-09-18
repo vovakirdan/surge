@@ -396,19 +396,6 @@ static SurgeAstParam parse_param(SurgeParser *ps){
     (void)parser_expect(ps, TOK_COLON, "':'");
     SurgeAstType *ty = parse_type(ps);
     p.type_ast = ty;
-    // Удаляем использование несуществующего поля type_name
-    if (is_token(ps, TOK_LBRACKET)) {
-        parser_advance(ps);
-        (void)parser_expect(ps, TOK_RBRACKET, "']'");
-        // Создаем новый тип массива вместо модификации строки
-        SurgeAstType *arr_ty = (SurgeAstType*)malloc(sizeof(SurgeAstType));
-        if (arr_ty) {
-            arr_ty->base = ty->base;
-            arr_ty->kind = TYPE_ARRAY;
-            arr_ty->as.array.elem = ty;
-            p.type_ast = arr_ty;
-        }
-    }    
     return p;
 }
 

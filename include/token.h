@@ -28,7 +28,6 @@ typedef enum SurgeTokenKind {
     TOK_KW_MAP,
     TOK_KW_REDUCE,
     TOK_KW_OWN, // own
-    TOK_KW_CHANNEL, // channel
     TOK_KW_TYPE, // type
 
     // Literals

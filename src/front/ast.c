@@ -69,7 +69,7 @@ static void free_stmt(SurgeAstStmt *s) {
             break;
         case AST_ASSIGN_STMT:
             free_ident(&s->as.assign_stmt.name);
-            free_expr(s->as.signal_decl.init);
+            free_expr(s->as.assign_stmt.expr);
             break;
         case AST_EXPR_STMT:
             free_expr(s->as.expr_stmt.expr);
@@ -122,12 +122,6 @@ static void free_stmt(SurgeAstStmt *s) {
         default: break;
     }
     free(s);
-}
-
-void as_free_unit(SurgeAstUnit *u) {
-    if (!u) return;
-    free_stmt_list(u->decls, u->count);
-    free(u);
 }
 
 // --- pretty print (snapshot) ---

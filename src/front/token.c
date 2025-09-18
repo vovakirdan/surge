@@ -20,7 +20,7 @@ const char *surge_token_kind_cstr(SurgeTokenKind k) {
         case TOK_KW_MAP: return "KW_MAP";
         case TOK_KW_REDUCE: return "KW_REDUCE";
         case TOK_KW_OWN: return "KW_OWN";
-        case TOK_KW_CHANNEL: return "KW_CHANNEL";
+        case TOK_KW_TYPE: return "KW_TYPE";
         case TOK_INT: return "INT";
         case TOK_FLOAT: return "FLOAT";
         case TOK_BOOL: return "BOOL";

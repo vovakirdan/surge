@@ -166,7 +166,7 @@ static SurgeTokenKind keyword_lookup(const char *s, size_t n) {
     KW("map", TOK_KW_MAP);
     KW("reduce", TOK_KW_REDUCE);
     KW("own", TOK_KW_OWN);
-    KW("channel", TOK_KW_CHANNEL);
+    KW("type", TOK_KW_TYPE);
     #undef KW
     return TOK_IDENTIFIER;
 }

@@ -1,5 +1,5 @@
 // Basic type grammar
-type I = int;             // если включил typedef
+type I = int;             // typedef
 fn id(x:int) -> int { return x; }
 
 let a:int = 1;
@@ -10,7 +10,7 @@ let d:string = "s";
 let xs:int[] = [1,2,3];
 let r:int = xs[0];
 
-let rx:&int = &a;            // синтаксис ссылок в значениях будет позже, сейчас только типы в сигнатурах
+// let rx:&int = 0;            // синтаксис ссылок в значениях будет позже, сейчас только типы в сигнатурах
 fn fch(ch:channel<int>) -> int { return 0; }
 
-fn g(p:&int, q:own int) -> int { return *p + q; } // семантика разыменования позже
+fn g(p:&int, q:own int) -> int { return 0; } // семантика разыменования позже

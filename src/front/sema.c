@@ -56,16 +56,6 @@ static const SurgeType *alias_lookup(Sema *s, const char *name){
 
 // ---------- type resolution ----------
 
-static const SurgeType *resolve_type_name(const char *name){
-    if (!name) return &TY_Invalid;
-    if (strcmp(name,"int")==0)    return &TY_Int;
-    if (strcmp(name,"float")==0)  return &TY_Float;
-    if (strcmp(name,"bool")==0)   return &TY_Bool;
-    if (strcmp(name,"string")==0) return &TY_String;
-    // позже: resolve user types, channel<T>, &T, own T
-    return &TY_Invalid;
-}
-
 static const SurgeType *resolve_type_ast(Sema *s, const SurgeAstType *t){
     switch (t->kind){
         case TYPE_IDENT: {
@@ -95,38 +85,6 @@ static const SurgeType *resolve_type_ast(Sema *s, const SurgeAstType *t){
         }
     }
     return &TY_Invalid;
-}
-
-// резолв AST типа в семантический тип
-static const SurgeType *resolve_decl_ast(SurgeAstType *ast_type){
-    if (!ast_type) return &TY_Invalid;
-    switch (ast_type->kind) {
-        case TYPE_IDENT:
-            return resolve_type_name(ast_type->as.ident.name.name);
-        case TYPE_ARRAY:
-            {
-                const SurgeType *elem = resolve_decl_ast(ast_type->as.array.elem);
-                if (elem->kind == TY_INVALID) return &TY_Invalid;
-                return ty_array_of(elem);
-            }
-        case TYPE_REF:
-            {
-                const SurgeType *elem = resolve_decl_ast(ast_type->as.ref_ty.elem);
-                if (elem->kind == TY_INVALID) return &TY_Invalid;
-                return ty_ref_of(elem);
-            }
-        case TYPE_OWN:
-            {
-                const SurgeType *elem = resolve_decl_ast(ast_type->as.own_ty.elem);
-                if (elem->kind == TY_INVALID) return &TY_Invalid;
-                return ty_own_of(elem);
-            }
-        case TYPE_APPLY:
-            // Пока просто возвращаем invalid для сложных типов
-            return &TY_Invalid;
-        default:
-            return &TY_Invalid;
-    }
 }
 
 // ---------- expr typing ----------
@@ -290,7 +248,7 @@ static void declare_fn_signature(Sema *s, SurgeAstStmt *fn){
     // регистрируем функцию, чтобы она была видна до тела (single-pass достаточно)
     const char *name = fn->as.fn_decl.name.name;
     const SurgeType *ret = fn->as.fn_decl.has_ret
-        ? resolve_decl_ast(fn->as.fn_decl.ret_type_ast)
+        ? resolve_type_ast(s, fn->as.fn_decl.ret_type_ast)
         : &TY_Invalid; // void будет задан позже, пока оставим invalid => нельзя использовать как значение
 
     Symbol sym = { .kind=SYM_FN, .type=ret };
@@ -473,6 +431,16 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
 void sema_init(Sema *sema){ memset(sema, 0, sizeof(*sema)); }
 void sema_destroy(Sema *sema){
     while (sema->scope) scope_pop(sema);
+
+    if (sema->aliases) {
+        for (size_t i = 0; i < sema->alias_n; i++) {
+            free(sema->aliases[i].name);
+            // sema->aliases[i].type points to global or cached types — не освобождаем
+        }
+        free(sema->aliases);
+        sema->aliases = NULL;
+        sema->alias_n = sema->alias_cap = 0;
+    }
 }
 
 bool sema_check_unit(Sema *sema, SurgeAstUnit *unit){
