@@ -1,0 +1,5 @@
+fn f(x:int) -> int { 
+  let y:int = x;
+  { let y:int = 1; }     // allowed if SHADOW_ALLOW; error if SHADOW_DENY
+  return y;
+}

@@ -29,27 +29,104 @@ static Symbol *scope_lookup(SemaScope *sc, const char *name){
     }
     return NULL;
 }
-static bool scope_insert(SemaScope *sc, const char *name, Symbol sym){
-    // запрет шадовинга в пределах одного scope (разрешён — в родителях? пока запретим шадовинг вообще)
-    for (SemaScope *p=sc; p; p=p->parent){
-        for (size_t i=0;i<p->n;i++){
-            if (strcmp(p->entries[i].name, name)==0){
-                return false;
-            }
-        }
-        break; // запрет только в текущем скоупе
-    }
+static bool scope_insert_current(SemaScope *sc, const char *name, Symbol sym){
     if (sc->n == sc->cap){
-        size_t new_cap = sc->cap ? sc->cap * 2 : 8;
-        void *p = realloc(sc->entries, new_cap * sizeof(*sc->entries));
-        if (!p) return false;             // оставляем старый буфер нетронутым
-        sc->entries = p;
-        sc->cap = new_cap;
+        sc->cap = sc->cap? sc->cap*2 : 8;
+        struct Entry *new_entries = realloc(sc->entries, sc->cap*sizeof(*sc->entries));
+        if (!new_entries) return false;
+        sc->entries = new_entries;
     }
     sc->entries[sc->n].name = strdup(name);
     sc->entries[sc->n].sym = sym;
     sc->n++;
     return true;
+}
+
+static Symbol *scope_lookup_current(SemaScope *sc, const char *name){
+    for (size_t i=0;i<sc->n;i++) if (strcmp(sc->entries[i].name, name)==0) return &sc->entries[i].sym;
+    return NULL;
+}
+
+static bool sema_insert_symbol(Sema *s, const char *name, Symbol sym){
+    // ALLOW: запрещаем только дубликаты в текущем скоупе
+    if (s->shadow == SHADOW_ALLOW) {
+        if (scope_lookup_current(s->scope, name)) return false;
+        return scope_insert_current(s->scope, name, sym);
+    }
+    // DENY: нельзя, если имя встречается в любом предке
+    if (s->shadow == SHADOW_DENY) {
+        if (scope_lookup(s->scope, name)) return false;
+        return scope_insert_current(s->scope, name, sym);
+    }
+    // CONTROLLED: можно перекрывать, если тип совпадает
+    if (s->shadow == SHADOW_CONTROLLED) {
+        Symbol *prev = scope_lookup(s->scope, name);
+        if (prev && !ty_equal(prev->type, sym.type)) {
+            return false; // тип другой — запрещаем
+        }
+        // если нет или тип совпадает — ок
+        return scope_insert_current(s->scope, name, sym);
+    }
+    // fallback
+    return scope_insert_current(s->scope, name, sym);
+}
+
+static bool scope_insert_raw(SemaScope *sc, const char *name, Symbol sym, SurgeSrcPos pos){
+    for (size_t i=0;i<sc->n;i++) if (strcmp(sc->entries[i].name, name)==0) return false;
+    if (sc->n == sc->cap){
+        sc->cap = sc->cap ? sc->cap*2 : 8;
+        sc->entries = realloc(sc->entries, sc->cap * sizeof(*sc->entries));
+        if (!sc->entries) return false;
+    }
+    sc->entries[sc->n].name = strdup(name);
+    sc->entries[sc->n].sym  = sym;
+    sc->entries[sc->n].pos  = pos;
+    sc->n++;
+    return true;
+}
+
+static struct Entry *scope_find_any(SemaScope *sc, const char *name){
+    for (SemaScope *p=sc; p; p=p->parent)
+        for (size_t i=0;i<p->n;i++)
+            if (strcmp(p->entries[i].name, name)==0) return &p->entries[i];
+    return NULL;
+}
+
+bool sema_insert(Sema *s, const char *name, Symbol sym, SurgeSrcPos pos){
+    struct Entry *prev = scope_find_any(s->scope, name);
+
+    bool violate = false;
+    if (s->shadow == SHADOW_DENY) {
+        violate = (prev != NULL);
+    } else if (s->shadow == SHADOW_CONTROLLED) {
+        // пример: разрешаем только перекрывать обычные локальные переменные из внешних блоков,
+        // но не параметры / функции / глобальные сигналы
+        if (prev) {
+            SymKind k = prev->sym.kind;
+            if (k == SYM_FN || k == SYM_SIGNAL) violate = true;
+            // можно запретить и параметры (распознаются по месту вставки — например, помечать флагом)
+        }
+    } // SHADOW_ALLOW — всегда ок
+
+    if (violate) {
+        s->had_error = true;
+        surge_diag_errorf(pos,
+            "redeclaration of '%s' (previous at %s:%d:%d)",
+            name,
+            prev->pos.file ? prev->pos.file : "<unknown>",
+            prev->pos.line, prev->pos.col);
+        return false;
+    }
+
+    // запрет дублей в текущем блоке:
+    for (size_t i=0;i<s->scope->n;i++){
+        if (strcmp(s->scope->entries[i].name, name)==0){
+            s->had_error = true;
+            surge_diag_errorf(pos, "redeclaration of '%s' in the same scope", name);
+            return false;
+        }
+    }
+    return scope_insert_raw(s->scope, name, sym, pos);
 }
 
 static const SurgeType *alias_lookup(Sema *s, const char *name){
@@ -160,8 +237,7 @@ static TExpr check_index(Sema *s, SurgeAstExpr *ix){
     TExpr idx  = check_expr(s, ix->as.index.index);
     if (base.type->kind != TY_ARRAY){
         s->had_error = true;
-        surge_diag_errorf(ix->base.pos,
-            "indexing non-array value of type %s", ty_name(base.type));
+        surge_diag_errorf(ix->base.pos, "indexing non-array value of type %s", ty_name(base.type));
         return mk(&TY_Invalid, false);
     }
     if (rview(idx.type)->kind != TY_INT) {
@@ -330,7 +406,7 @@ static void declare_fn_signature(Sema *s, SurgeAstStmt *fn){
         : &TY_Invalid; // void будет задан позже, пока оставим invalid => нельзя использовать как значение
 
     Symbol sym = { .kind=SYM_FN, .type=ret, .is_pure=fn->as.fn_decl.is_pure };
-    if (!scope_insert(s->scope, name, sym)){
+    if (!sema_insert_symbol(s, name, sym)){
         s->had_error=true;
         surge_diag_errorf(fn->base.pos, "redeclaration of '%s'", name);
     }
@@ -347,7 +423,7 @@ static void check_fn(Sema *s, SurgeAstStmt *fn){
             surge_diag_errorf(fn->base.pos, "unknown parameter type for '%s'", pname);
         }
         Symbol sym = { .kind=SYM_VAR, .type=pt };
-        if (!scope_insert(s->scope, pname, sym)){
+        if (!sema_insert_symbol(s, pname, sym)){
             s->had_error=true;
             surge_diag_errorf(fn->base.pos, "duplicate parameter '%s'", pname);
         }
@@ -376,7 +452,7 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
                 type_mismatch(s, st->base.pos, "let initializer", decl, init.type);
             }
             Symbol sym = { .kind=SYM_VAR, .type=decl };
-            if (!scope_insert(s->scope, st->as.let_decl.name.name, sym)){
+            if (!sema_insert_symbol(s, st->as.let_decl.name.name, sym)){
                 s->had_error=true; surge_diag_errorf(st->base.pos, "redeclaration of '%s'", st->as.let_decl.name.name);
             }
             break;
@@ -384,7 +460,7 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
         case AST_SIGNAL_DECL: {
             TExpr init = check_expr(s, st->as.signal_decl.init);
             Symbol sym = { .kind=SYM_SIGNAL, .type=init.type };
-            if (!scope_insert(s->scope, st->as.signal_decl.name.name, sym)){
+            if (!sema_insert_symbol(s, st->as.signal_decl.name.name, sym)){
                 s->had_error=true; surge_diag_errorf(st->base.pos, "redeclaration of '%s'", st->as.signal_decl.name.name);
             }
             break;
@@ -483,8 +559,8 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
 
             // 4) Лексическая область параметров тела: (acc, v) видимы только в лямбде
             scope_push(s);
-            (void)scope_insert(s->scope, st->as.par_reduce.acc.name.name, (Symbol){ .kind=SYM_VAR, .type=acc_t });
-            (void)scope_insert(s->scope, st->as.par_reduce.v.name.name,   (Symbol){ .kind=SYM_VAR, .type=v_t });
+            (void)scope_insert_current(s->scope, st->as.par_reduce.acc.name.name, (Symbol){ .kind=SYM_VAR, .type=acc_t });
+            (void)scope_insert_current(s->scope, st->as.par_reduce.v.name.name,   (Symbol){ .kind=SYM_VAR, .type=v_t });
             s->pure_depth++;
             TExpr body = check_expr(s, st->as.par_reduce.body);
             s->pure_depth--;
@@ -515,7 +591,7 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
     }
 }
 
-void sema_init(Sema *sema){ memset(sema, 0, sizeof(*sema)); }
+void sema_init(Sema *sema){ memset(sema, 0, sizeof(*sema)); sema->shadow = SHADOW_DENY; }
 void sema_destroy(Sema *sema){
     while (sema->scope) scope_pop(sema);
 

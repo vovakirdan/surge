@@ -15,10 +15,10 @@ static void usage(const char *prog) {
     fprintf(stderr,
         "Surge v%d.%d.%d\n"
         "Usage:\n"
-        "  %s tokenize <file | ->   # PhaseA pt.1 — print tokens\n"
-        "  %s ast       <file | ->   # PhaseA pt.2 — print AST snapshot\n"
-        "  %s diag      <file | ->   # PhaseA pt.3 — parse and show diagnostics\n"
-        "  %s sema      <file | ->   # Phase B pt.1 — semantic check (prints OK or errors)\n",
+        "  %s [--shadow DENY|ALLOW|CONTROLLED] tokenize <file | ->\n"
+        "  %s [--shadow DENY|ALLOW|CONTROLLED] ast       <file | ->\n"
+        "  %s [--shadow DENY|ALLOW|CONTROLLED] diag      <file | ->\n"
+        "  %s [--shadow DENY|ALLOW|CONTROLLED] sema      <file | ->\n",
         SURGE_VERSION_MAJOR, SURGE_VERSION_MINOR, SURGE_VERSION_PATCH,
         prog, prog, prog, prog
     );
@@ -156,8 +156,10 @@ static int cmd_diag(const char *path) {
    Просто семантическую проверку, не печатаем AST; ошибки уйдут в stderr с контекстом.
    Если ошибок нет — ничего не выводим (успех). */
 
-static int cmd_sema(const char *path) {
-    SurgeLexer lx = {0};
+static int cmd_sema(const char *path, ShadowPolicy shadow) {
+    // прокинем политику внутрь
+    // (чуть перепишем cmd_sema, чтобы принять shadow)
+    SurgeLexer lx = (SurgeLexer){0};
     if (!init_lexer_from_arg(&lx, path)) {
         fprintf(stderr, "Failed to initialize lexer for %s\n", path);
         return 1;
@@ -168,6 +170,7 @@ static int cmd_sema(const char *path) {
     SurgeAstUnit *unit = parser_parse_unit(&ps);
 
     Sema sema; sema_init(&sema);
+    sema.shadow = shadow;
     bool ok = sema_check_unit(&sema, unit);
     if (ok) { printf("OK\n"); }
 
@@ -178,6 +181,13 @@ static int cmd_sema(const char *path) {
     return ok? 0 : 1;
 }
 
+static ShadowPolicy parse_shadow(const char *s){
+    if (!s) return SHADOW_DENY;
+    if (strcmp(s,"DENY")==0) return SHADOW_DENY;
+    if (strcmp(s,"ALLOW")==0) return SHADOW_ALLOW;
+    if (strcmp(s,"CONTROLLED")==0) return SHADOW_CONTROLLED;
+    return SHADOW_DENY;
+}
 
 /* ---- main ---- */
 
@@ -187,8 +197,16 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    const char *cmd  = argv[1];
-    const char *path = argv[2];
+    int argi = 1;
+    ShadowPolicy shadow = SHADOW_DENY;
+    if (argi + 2 <= argc && strcmp(argv[argi], "--shadow") == 0) {
+        shadow = parse_shadow(argv[argi+1]);
+        argi += 2;
+    }
+    if (argc - argi < 2) { usage(argv[0]); return 2; }
+
+    const char *cmd  = argv[argi+0];
+    const char *path = argv[argi+1];
 
     if (strcmp(cmd, "tokenize") == 0) {
         return cmd_tokenize(path);
@@ -197,7 +215,7 @@ int main(int argc, char **argv) {
     } else if (strcmp(cmd, "diag") == 0) {
         return cmd_diag(path);
     } else if (strcmp(cmd, "sema") == 0) {
-        return cmd_sema(path);
+        return cmd_sema(path, shadow);
     } else {
         usage(argv[0]);
         return 2;
