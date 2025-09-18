@@ -9,6 +9,7 @@
 
 static SurgeAstExpr *parse_expr(SurgeParser *ps);
 static SurgeAstStmt *parse_stmt(SurgeParser *ps);
+static SurgeAstType *parse_type(SurgeParser *ps);
 
 // --- helpers ---
 
@@ -51,6 +52,13 @@ static SurgeAstExpr *mk_expr(SurgeAstKind k, SurgeSrcPos pos) {
 static SurgeAstStmt *mk_stmt(SurgeAstKind k, SurgeSrcPos pos) {
     SurgeAstStmt *s = (SurgeAstStmt*)calloc(1,sizeof(SurgeAstStmt));
     s->base.kind = k; s->base.pos = pos; return s;
+}
+static SurgeAstType *mk_type(SurgeTypeAstKind k, SurgeSrcPos pos){
+    SurgeAstType *t = (SurgeAstType*)calloc(1,sizeof(*t));
+    t->base.kind = (SurgeAstKind)0; // not used for type nodes
+    t->base.pos = pos;
+    t->kind = k;
+    return t;
 }
 
 // precedence
@@ -304,27 +312,17 @@ static SurgeAstStmt *parse_let(SurgeParser *ps) {
     if (!is_token(ps, TOK_IDENTIFIER)) { surge_diag_errorf(ps->cur.pos, "Expected identifier after 'let'"); ps->had_error=true; }
     SurgeAstIdent name = make_ident_from_tok(ps->cur); parser_advance(ps);
 
-    bool has_type=false; SurgeAstIdent type_name={0};
+    bool has_type=false; SurgeAstType *type_ast=NULL;
     if (is_token(ps, TOK_COLON)) {
         parser_advance(ps);
-        if (!is_token(ps, TOK_IDENTIFIER)) { surge_diag_errorf(ps->cur.pos,"Expected type name after ':'"); ps->had_error=true; }
-        type_name = make_ident_from_tok(ps->cur); parser_advance(ps);
+        type_ast = parse_type(ps);
         has_type = true;
-        if (is_token(ps, TOK_LBRACKET)) {
-            // allow only one [] in MVP; легко расширить на многомерные позже
-            parser_advance(ps);
-            (void)parser_expect(ps, TOK_RBRACKET, "']'");
-            // append "[]" to type_name
-            size_t n = strlen(type_name.name);
-            char *p = (char*)malloc(n + 3);
-            if (p) { memcpy(p, type_name.name, n); p[n]='['; p[n+1]=']'; p[n+2]='\0'; free(type_name.name); type_name.name = p; }
-        }        
     }
     (void)parser_expect(ps, TOK_ASSIGN, "'='");
     SurgeAstExpr *init = parse_expr(ps);
     (void)parser_expect(ps, TOK_SEMICOLON, "';'");
     SurgeAstStmt *s = mk_stmt(AST_LET_DECL, pos);
-    s->as.let_decl.name = name; s->as.let_decl.has_type=has_type; s->as.let_decl.type_name=type_name; s->as.let_decl.init=init;
+    s->as.let_decl.name = name; s->as.let_decl.has_type=has_type; s->as.let_decl.type_ast=type_ast; s->as.let_decl.init=init;
     return s;
 }
 
@@ -396,18 +394,19 @@ static SurgeAstParam parse_param(SurgeParser *ps){
     if (!is_token(ps, TOK_IDENTIFIER)) { surge_diag_errorf(ps->cur.pos,"Expected param name"); ps->had_error=true; return p; }
     p.name = make_ident_from_tok(ps->cur); parser_advance(ps);
     (void)parser_expect(ps, TOK_COLON, "':'");
-    if (!is_token(ps, TOK_IDENTIFIER)) { surge_diag_errorf(ps->cur.pos,"Expected type after ':'"); ps->had_error=true; return p; }
-    p.type_name = make_ident_from_tok(ps->cur); parser_advance(ps);
+    SurgeAstType *ty = parse_type(ps);
+    p.type_ast = ty;
+    // Удаляем использование несуществующего поля type_name
     if (is_token(ps, TOK_LBRACKET)) {
         parser_advance(ps);
         (void)parser_expect(ps, TOK_RBRACKET, "']'");
-        size_t n = strlen(p.type_name.name);
-        char *pnew = (char*)malloc(n + 3);
-        if (pnew) {
-            memcpy(pnew, p.type_name.name, n);
-            pnew[n] = '['; pnew[n+1] = ']'; pnew[n+2] = '\0';
-            free(p.type_name.name);
-            p.type_name.name = pnew;
+        // Создаем новый тип массива вместо модификации строки
+        SurgeAstType *arr_ty = (SurgeAstType*)malloc(sizeof(SurgeAstType));
+        if (arr_ty) {
+            arr_ty->base = ty->base;
+            arr_ty->kind = TYPE_ARRAY;
+            arr_ty->as.array.elem = ty;
+            p.type_ast = arr_ty;
         }
     }    
     return p;
@@ -430,16 +429,15 @@ static SurgeAstStmt *parse_fn(SurgeParser *ps){
         }
     }
     (void)parser_expect(ps, TOK_RPAREN, "')'");
-    bool has_ret=false; SurgeAstIdent ret={0};
+    bool has_ret=false; SurgeAstType *ret=NULL;
     if (is_token(ps, TOK_ARROW)) {
         parser_advance(ps);
-        if (!is_token(ps, TOK_IDENTIFIER)) { surge_diag_errorf(ps->cur.pos,"Expected return type after '->'"); ps->had_error=true; }
-        ret = make_ident_from_tok(ps->cur); parser_advance(ps);
-        has_ret=true;
+        ret = parse_type(ps);
+        has_ret = true;
     }
     SurgeAstStmt *body = parse_block(ps);
     SurgeAstStmt *fn = mk_stmt(AST_FN_DECL, pos);
-    fn->as.fn_decl.name=name; fn->as.fn_decl.params=params; fn->as.fn_decl.paramc=cnt; fn->as.fn_decl.has_ret=has_ret; fn->as.fn_decl.ret_type=ret; fn->as.fn_decl.body=body;
+    fn->as.fn_decl.name=name; fn->as.fn_decl.params=params; fn->as.fn_decl.paramc=cnt; fn->as.fn_decl.has_ret=has_ret; fn->as.fn_decl.ret_type_ast=ret; fn->as.fn_decl.body=body;
     return fn;
 }
 
@@ -508,6 +506,28 @@ static SurgeAstStmt *parse_import(SurgeParser *ps){
     (void)parser_expect(ps, TOK_SEMICOLON, "';'");
     SurgeAstStmt *s = mk_stmt(AST_IMPORT, pos);
     s->as.import_stmt.name = mod;
+    return s;
+}
+
+static SurgeAstStmt *parse_typedef(SurgeParser *ps){
+    SurgeSrcPos pos = ps->cur.pos;
+    parser_advance(ps); // type
+    if (!is_token(ps, TOK_IDENTIFIER)) {
+        surge_diag_errorf(ps->cur.pos, "Expected type name after 'type'");
+        ps->had_error = true;
+        // попытка восстановления
+        while (!is_token(ps, TOK_SEMICOLON) && !is_token(ps, TOK_EOF)) parser_advance(ps);
+        if (is_token(ps, TOK_SEMICOLON)) parser_advance(ps);
+        return mk_stmt(AST_TYPEDEF, pos);
+    }
+    SurgeAstIdent name = (SurgeAstIdent){ .name = dup_lex(ps->cur.lexeme ? ps->cur.lexeme : "") };
+    parser_advance(ps);
+    (void)parser_expect(ps, TOK_ASSIGN, "'='");
+    SurgeAstType *aliased = parse_type(ps);
+    (void)parser_expect(ps, TOK_SEMICOLON, "';'");
+    SurgeAstStmt *s = mk_stmt(AST_TYPEDEF, pos);
+    s->as.typedef_decl.name = name;
+    s->as.typedef_decl.aliased = aliased;
     return s;
 }
 
@@ -594,8 +614,71 @@ static SurgeAstStmt *parse_stmt(SurgeParser *ps){
     if (is_token(ps, TOK_LBRACE))    return parse_block(ps);
     if (is_token(ps, TOK_KW_PARALLEL)) return parse_parallel(ps);
     if (is_token(ps, TOK_KW_IMPORT)) return parse_import(ps);
+    if (is_token(ps, TOK_KW_TYPE)) return parse_typedef(ps);
     return parse_simple_or_assign_or_bind_stmt(ps);
 }
+
+static SurgeAstType *parse_type_atom(SurgeParser *ps){
+    SurgeSrcPos pos = ps->cur.pos;
+    if (is_token(ps, TOK_AMP)) {
+        parser_advance(ps);
+        SurgeAstType *inner = parse_type(ps);
+        SurgeAstType *t = mk_type(TYPE_REF, pos);
+        t->as.ref_ty.elem = inner; return t;
+    }
+    if (is_token(ps, TOK_KW_OWN)) {
+        parser_advance(ps);
+        SurgeAstType *inner = parse_type(ps);
+        SurgeAstType *t = mk_type(TYPE_OWN, pos);
+        t->as.own_ty.elem = inner; return t;
+    }
+    if (is_token(ps, TOK_IDENTIFIER)) {
+        // Ident [ '<' Type (',' Type)* '>' ]?
+        SurgeAstIdent name = make_ident_from_tok(ps->cur);
+        parser_advance(ps);
+        if (is_token(ps, TOK_LT)) {
+            parser_advance(ps);
+            SurgeAstType **args=NULL; size_t cap=0,cnt=0;
+            if (!is_token(ps, TOK_GT)) {
+                for (;;) {
+                    SurgeAstType *a = parse_type(ps);
+                    if (cnt==cap){ cap=cap?cap*2:4; args=(SurgeAstType**)realloc(args, cap*sizeof(*args)); }
+                    args[cnt++]=a;
+                    if (is_token(ps, TOK_COMMA)){ parser_advance(ps); continue; }
+                    break;
+                }
+            }
+            (void)parser_expect(ps, TOK_GT, "'>'");
+            SurgeAstType *t = mk_type(TYPE_APPLY, pos);
+            t->as.apply.name = name; t->as.apply.args=args; t->as.apply.argc=cnt; return t;
+        } else {
+            SurgeAstType *t = mk_type(TYPE_IDENT, pos);
+            t->as.ident.name = name; return t;
+        }
+    }
+    surge_diag_errorf(ps->cur.pos, "Expected type");
+    ps->had_error = true;
+    // fallback
+    SurgeAstType *t = mk_type(TYPE_IDENT, pos);
+    t->as.ident.name.name = dup_lex("int");
+    return t;
+}
+
+static SurgeAstType *parse_type(SurgeParser *ps){
+    SurgeAstType *t = parse_type_atom(ps);
+    // postfix array suffix: '[]' (многократно)
+    while (is_token(ps, TOK_LBRACKET)) {
+        // only exact '[]'
+        SurgeSrcPos pos = ps->cur.pos;
+        parser_advance(ps);
+        (void)parser_expect(ps, TOK_RBRACKET, "']'");
+        SurgeAstType *arr = mk_type(TYPE_ARRAY, pos);
+        arr->as.array.elem = t;
+        t = arr;
+    }
+    return t;
+}
+
 
 // --- Unit ---
 

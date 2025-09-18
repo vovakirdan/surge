@@ -4,7 +4,7 @@
 // Global build configuration flags
 #define SURGE_VERSION_MAJOR 0
 #define SURGE_VERSION_MINOR 1
-#define SURGE_VERSION_PATCH 1
+#define SURGE_VERSION_PATCH 2
 
 // limits/tuning
 #define SURGE_MAX_TOKEN_LEXEME 4096

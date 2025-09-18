@@ -42,6 +42,7 @@ typedef enum {
     AST_PAR_MAP,       // parallel map fn_or_ident expr
     AST_PAR_REDUCE,    // parallel reduce expr with (acc:T, v:T) => expr
     AST_IMPORT,        // import name ;
+    AST_TYPEDEF,       // typedef name = <Type> ;
 
     // Root
     AST_UNIT           // Program root
@@ -55,6 +56,7 @@ typedef enum {
     AST_OP_NEG, AST_OP_NOT
 } SurgeAstOp;
 
+// ---- Type AST ----
 typedef struct SurgeAstNode {
     SurgeAstKind kind;
     SurgeSrcPos  pos;
@@ -64,6 +66,26 @@ typedef struct SurgeAstNode {
 typedef struct {
     char *name; // heap string
 } SurgeAstIdent;
+
+typedef enum {
+    TYPE_IDENT,     // Foo
+    TYPE_ARRAY,     // T[]
+    TYPE_REF,       // &T
+    TYPE_OWN,       // own T
+    TYPE_APPLY      // Name<T1, T2, ...>  (e.g., channel<int>)
+} SurgeTypeAstKind;
+
+typedef struct SurgeAstType {
+    SurgeAstNode base; // pos
+    SurgeTypeAstKind kind;
+    union {
+        struct { SurgeAstIdent name; } ident; // TYPE_IDENT
+        struct { struct SurgeAstType *elem; } array; // TYPE_ARRAY
+        struct { struct SurgeAstType *elem; } ref_ty; // TYPE_REF
+        struct { struct SurgeAstType *elem; } own_ty; // TYPE_OWN
+        struct { SurgeAstIdent name; struct SurgeAstType **args; size_t argc; } apply; // TYPE_APPLY
+    } as;
+} SurgeAstType;
 
 // Expressions
 typedef struct SurgeAstExpr {
@@ -93,13 +115,13 @@ typedef struct SurgeAstExpr {
 // Statements
 typedef struct SurgeAstParam {
     SurgeAstIdent name;
-    SurgeAstIdent type_name;  // Phase A: just an identifier as type
+    SurgeAstType *type_ast;  // Phase A: just an identifier as type
 } SurgeAstParam;
 
 typedef struct SurgeAstStmt {
     SurgeAstNode base;
     union {
-        struct { SurgeAstIdent name; bool has_type; SurgeAstIdent type_name; SurgeAstExpr *init; } let_decl;
+        struct { SurgeAstIdent name; bool has_type; SurgeAstType *type_ast; SurgeAstExpr *init; } let_decl;
         struct { SurgeAstIdent name; SurgeAstExpr *init; } signal_decl;
         struct { SurgeAstIdent name; SurgeAstExpr *expr; } assign_stmt;
         struct { SurgeAstExpr *expr; } expr_stmt;
@@ -107,10 +129,11 @@ typedef struct SurgeAstStmt {
         struct { SurgeAstExpr *cond; struct SurgeAstStmt *then_blk; bool has_else; struct SurgeAstStmt *else_blk; } if_stmt;
         struct { SurgeAstExpr *cond; struct SurgeAstStmt *body; } while_stmt;
         struct { bool has_value; SurgeAstExpr *value; } return_stmt;
-        struct { SurgeAstIdent name; SurgeAstParam *params; size_t paramc; bool has_ret; SurgeAstIdent ret_type; struct SurgeAstStmt *body; } fn_decl;
+        struct { SurgeAstIdent name; SurgeAstParam *params; size_t paramc; bool has_ret; SurgeAstType *ret_type_ast; struct SurgeAstStmt *body; } fn_decl;
         struct { SurgeAstExpr *fn_or_ident; SurgeAstExpr *seq; } par_map;
         struct { SurgeAstExpr *seq; SurgeAstParam acc; SurgeAstParam v; SurgeAstExpr *body; } par_reduce;
         struct { SurgeAstIdent name; } import_stmt;
+        struct { SurgeAstIdent name; SurgeAstType *aliased; } typedef_decl;
     } as;
 } SurgeAstStmt;
 

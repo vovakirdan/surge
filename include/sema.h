@@ -18,6 +18,11 @@ typedef struct {
     // для fn можно позже добавить сигнатуры (параметры)
 } Symbol;
 
+typedef struct {
+    char *name;
+    const SurgeType *type;
+} TypeAlias;
+
 // Скоп
 typedef struct SemaScope SemaScope;
 struct SemaScope {
@@ -29,7 +34,10 @@ struct SemaScope {
 // Контекст семантики
 typedef struct {
     bool had_error;
-    SemaScope *scope; // текущий
+    SemaScope *scope;
+
+    // type aliases (global for MVP)
+    TypeAlias *aliases; size_t alias_n, alias_cap;
 } Sema;
 
 // API

@@ -53,6 +53,7 @@ const char *surge_token_kind_cstr(SurgeTokenKind k) {
         case TOK_GE: return "GE";
         case TOK_ARROW: return "ARROW";
         case TOK_REDUCE_EXP: return "REDUCE_EXP";
+        case TOK_AMP: return "AMP";
         default: return "UNKNOWN";
     }
 }

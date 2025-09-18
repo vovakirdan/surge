@@ -1,11 +1,13 @@
 # Makefile for Surge (C11, Linux/WSL2)
 # Usage:
-#   make                # build surge, surgec, surgetest (release)
-#   make dev            # debug build with -O0 -g
+#   make                # build surge, surgec, surgetest (release) -> build/bin/
+#   make dev            # debug build with -O0 -g -> build/bin/v{VERSION}/
 #   make SAN=1          # enable address/ub sanitizers
 #   make test           # run doctests if any Phase*/ present
 #   make clean          # remove build artifacts
 #   make distclean      # clean + remove .sbc and temp files
+#   make version        # show current version from config.h
+#   make vars           # show build variables
 #
 # Structure assumptions (can be extended later):
 #   cmd/surge/main.c
@@ -51,12 +53,29 @@ MKDIR    := mkdir -p
 FIND     := find
 
 # -----------------------------
+# Version extraction from config.h
+# -----------------------------
+# Извлекаем версию из include/config.h
+VERSION_MAJOR := $(shell grep 'SURGE_VERSION_MAJOR' include/config.h | awk '{print $$3}')
+VERSION_MINOR := $(shell grep 'SURGE_VERSION_MINOR' include/config.h | awk '{print $$3}')
+VERSION_PATCH := $(shell grep 'SURGE_VERSION_PATCH' include/config.h | awk '{print $$3}')
+VERSION_STR   := $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
+
+# -----------------------------
 # Project layout
 # -----------------------------
 BUILD_DIR := build
-OBJ_DIR   := $(BUILD_DIR)/obj
+
+# Для dev-сборки создаем версионную поддиректорию
+ifeq ($(BUILD),dev)
+BIN_DIR   := $(BUILD_DIR)/bin/v$(VERSION_STR)
+OUT_DIR   := $(BUILD_DIR)/out/v$(VERSION_STR)
+else
 BIN_DIR   := $(BUILD_DIR)/bin
 OUT_DIR   := $(BUILD_DIR)/out
+endif
+
+OBJ_DIR   := $(BUILD_DIR)/obj
 
 # Collect sources (core/front/back/runtime/testing/extras)
 SRC_DIRS := src src/core src/front src/back src/runtime src/testing src/extras
@@ -84,9 +103,10 @@ SURGETEST_BIN := $(BIN_DIR)/surgetest
 .PHONY: all
 all: prep $(SURGE_BIN) $(SURGEC_BIN) $(SURGETEST_BIN)
 
-# Debug build alias
+# Debug build alias (создает версионную поддиректорию)
 .PHONY: dev
 dev:
+	@echo "[surge] Building dev version $(VERSION_STR) -> $(BIN_DIR)"
 	$(MAKE) BUILD=dev all
 
 # Prepare build folders
@@ -217,8 +237,17 @@ distclean: clean
 # Print variables (debug)
 .PHONY: vars
 vars:
+	@echo "VERSION  = $(VERSION_STR)"
+	@echo "BUILD    = $(BUILD)"
 	@echo "CC       = $(CC)"
 	@echo "CFLAGS   = $(CFLAGS)"
 	@echo "LDFLAGS  = $(LDFLAGS)"
+	@echo "BIN_DIR  = $(BIN_DIR)"
+	@echo "OUT_DIR  = $(OUT_DIR)"
 	@echo "SRCS     = $(SRCS)"
 	@echo "OBJS     = $(OBJS)"
+
+# Show current version from config.h
+.PHONY: version
+version:
+	@echo "Surge version: $(VERSION_STR)"

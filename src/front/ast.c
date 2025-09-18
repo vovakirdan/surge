@@ -10,6 +10,22 @@ static void free_ident(SurgeAstIdent *id) {
 static void free_expr(SurgeAstExpr *e);
 static void free_stmt(SurgeAstStmt *s);
 
+static void free_type(SurgeAstType *t){
+    if (!t) return;
+    switch (t->kind){
+        case TYPE_IDENT: if (t->as.ident.name.name) free(t->as.ident.name.name); break;
+        case TYPE_ARRAY: free_type(t->as.array.elem); break;
+        case TYPE_REF:   free_type(t->as.ref_ty.elem); break;
+        case TYPE_OWN:   free_type(t->as.own_ty.elem); break;
+        case TYPE_APPLY:
+            if (t->as.apply.name.name) free(t->as.apply.name.name);
+            for (size_t i=0;i<t->as.apply.argc;i++) free_type(t->as.apply.args[i]);
+            free(t->as.apply.args);
+            break;
+    }
+    free(t);
+}
+
 static void free_expr_list(SurgeAstExpr **xs, size_t n) {
     if (!xs) return;
     for (size_t i=0; i < n; i++) free_expr(xs[i]);
@@ -44,7 +60,7 @@ static void free_stmt(SurgeAstStmt *s) {
     switch (s->base.kind) {
         case AST_LET_DECL:
             free_ident(&s->as.let_decl.name);
-            if (s->as.let_decl.has_type) free_ident(&s->as.let_decl.type_name);
+            if (s->as.let_decl.has_type) free_type(s->as.let_decl.type_ast);
             free_expr(s->as.let_decl.init);
             break;
         case AST_SIGNAL_DECL:
@@ -75,12 +91,12 @@ static void free_stmt(SurgeAstStmt *s) {
             break;
         case AST_FN_DECL:
             free_ident(&s->as.fn_decl.name);
-            for (size_t i=0; i < s->as.fn_decl.paramc; i++) {
+            for (size_t i=0;i<s->as.fn_decl.paramc;i++){
                 free_ident(&s->as.fn_decl.params[i].name);
-                free_ident(&s->as.fn_decl.params[i].type_name);
+                free_type(s->as.fn_decl.params[i].type_ast);
             }
             free(s->as.fn_decl.params);
-            if (s->as.fn_decl.has_ret) free_ident(&s->as.fn_decl.ret_type);
+            if (s->as.fn_decl.has_ret) free_type(s->as.fn_decl.ret_type_ast);
             free_stmt(s->as.fn_decl.body);
             break;
         case AST_PAR_MAP:
@@ -90,13 +106,17 @@ static void free_stmt(SurgeAstStmt *s) {
         case AST_PAR_REDUCE:
             free_expr(s->as.par_reduce.seq);
             free_ident(&s->as.par_reduce.acc.name);
-            free_ident(&s->as.par_reduce.acc.type_name);
+            free_type(s->as.par_reduce.acc.type_ast);
             free_ident(&s->as.par_reduce.v.name);
-            free_ident(&s->as.par_reduce.v.type_name);
+            free_type(s->as.par_reduce.v.type_ast);
             free_expr(s->as.par_reduce.body);
             break;
         case AST_IMPORT:
             free_ident(&s->as.import_stmt.name);
+            break;
+        case AST_TYPEDEF:
+            free_ident(&s->as.typedef_decl.name);
+            free_type(s->as.typedef_decl.aliased);
             break;
 
         default: break;
@@ -140,6 +160,20 @@ static void print_stmt(const SurgeAstStmt *s, FILE *out, int ind);
 
 static void print_ident(const SurgeAstIdent *id, FILE *out) {
     fprintf(out, "%s", id->name ? id->name : "<null>");
+}
+
+static void print_type(const SurgeAstType *t, FILE *out){
+    switch (t->kind){
+        case TYPE_IDENT: fprintf(out, "%s", t->as.ident.name.name); break;
+        case TYPE_ARRAY: print_type(t->as.array.elem,out); fprintf(out,"[]"); break;
+        case TYPE_REF:   fprintf(out,"&"); print_type(t->as.ref_ty.elem,out); break;
+        case TYPE_OWN:   fprintf(out,"own "); print_type(t->as.own_ty.elem,out); break;
+        case TYPE_APPLY:
+            fprintf(out, "%s<", t->as.apply.name.name);
+            for (size_t i=0;i<t->as.apply.argc;i++){ if (i) fputc(',',out); print_type(t->as.apply.args[i],out); }
+            fputc('>',out);
+            break;
+    }
 }
 
 static void print_expr(const SurgeAstExpr *e, FILE *out, int ind) {
@@ -196,7 +230,7 @@ static void print_params(const SurgeAstParam *ps, size_t n, FILE *out, int ind) 
         fprintf(out, "Param ");
         print_ident(&ps[i].name,out);
         fprintf(out, ":");
-        print_ident(&ps[i].type_name,out);
+        print_type(ps[i].type_ast,out);
         fprintf(out, "\n");
     }
 }
@@ -206,7 +240,7 @@ static void print_stmt(const SurgeAstStmt *s, FILE *out, int ind) {
     switch (s->base.kind) {
         case AST_LET_DECL:
             print_indent(out, ind); fprintf(out, "Let "); print_ident(&s->as.let_decl.name, out);
-            if (s->as.let_decl.has_type){ fprintf(out, ":"); print_ident(&s->as.let_decl.type_name,out); }
+            if (s->as.let_decl.has_type){ fprintf(out, ":"); print_type(s->as.let_decl.type_ast,out); }
             fprintf(out, " =\n"); print_expr(s->as.let_decl.init, out, ind+2); break;
         case AST_SIGNAL_DECL:
             print_indent(out, ind); fprintf(out, "Signal "); print_ident(&s->as.signal_decl.name, out); fprintf(out, " =\n");
@@ -239,7 +273,7 @@ static void print_stmt(const SurgeAstStmt *s, FILE *out, int ind) {
         case AST_FN_DECL:
             print_indent(out, ind); fprintf(out, "Fn "); print_ident(&s->as.fn_decl.name,out); fprintf(out,"\n");
             print_params(s->as.fn_decl.params, s->as.fn_decl.paramc, out, ind+2);
-            if (s->as.fn_decl.has_ret){ print_indent(out, ind); fprintf(out, "Ret: "); print_ident(&s->as.fn_decl.ret_type,out); fprintf(out,"\n"); }
+            if (s->as.fn_decl.has_ret){ print_indent(out, ind); fprintf(out, "Ret: "); print_type(s->as.fn_decl.ret_type_ast,out); fprintf(out,"\n"); }
             print_stmt(s->as.fn_decl.body,out,ind+2);
             break;
         case AST_PAR_MAP:
@@ -250,8 +284,8 @@ static void print_stmt(const SurgeAstStmt *s, FILE *out, int ind) {
         case AST_PAR_REDUCE:
             print_indent(out, ind); fprintf(out, "ParallelReduce\n");
             print_expr(s->as.par_reduce.seq,out,ind+2);
-            print_indent(out, ind+2); fprintf(out,"Acc "); print_ident(&s->as.par_reduce.acc.name,out); fprintf(out,":"); print_ident(&s->as.par_reduce.acc.type_name,out); fprintf(out,"\n");
-            print_indent(out, ind+2); fprintf(out,"Val "); print_ident(&s->as.par_reduce.v.name,out); fprintf(out,":"); print_ident(&s->as.par_reduce.v.type_name,out); fprintf(out,"\n");
+            print_indent(out, ind+2); fprintf(out,"Acc "); print_ident(&s->as.par_reduce.acc.name,out); fprintf(out,":"); print_type(s->as.par_reduce.acc.type_ast,out); fprintf(out,"\n");
+            print_indent(out, ind+2); fprintf(out,"Val "); print_ident(&s->as.par_reduce.v.name,out); fprintf(out,":"); print_type(s->as.par_reduce.v.type_ast,out); fprintf(out,"\n");
             print_expr(s->as.par_reduce.body,out,ind+2);
             break;
         case AST_IMPORT:
@@ -259,7 +293,13 @@ static void print_stmt(const SurgeAstStmt *s, FILE *out, int ind) {
             print_ident(&s->as.import_stmt.name, out);
             fprintf(out, "\n");
             break;
-
+        case AST_TYPEDEF:
+            print_indent(out, ind); fprintf(out, "Typedef ");
+            print_ident(&s->as.typedef_decl.name, out);
+            fprintf(out, " = ");
+            print_type(s->as.typedef_decl.aliased, out);
+            fprintf(out, "\n");
+            break;
         default:
             print_indent(out, ind); fprintf(out, "(stmt-kind=%d)\n",(int)s->base.kind);
     }

@@ -27,8 +27,9 @@ typedef enum SurgeTokenKind {
     TOK_KW_PARALLEL,
     TOK_KW_MAP,
     TOK_KW_REDUCE,
-    TOK_KW_OWN,
-    TOK_KW_CHANNEL,
+    TOK_KW_OWN, // own
+    TOK_KW_CHANNEL, // channel
+    TOK_KW_TYPE, // type
 
     // Literals
     TOK_INT, // 64-BIT SIGNED INT (LATER WILL BE DYNAMICALLY SIZED)
@@ -62,6 +63,7 @@ typedef enum SurgeTokenKind {
 
     // Assignment / comparison / special
     TOK_ASSIGN,     // =
+    TOK_AMP,        // &
     TOK_BIND,       // :=   (reactive bind)
     TOK_EQ,         // ==
     TOK_NE,         // !=

@@ -245,6 +245,7 @@ static SurgeToken lex_operator_or_punct(SurgeLexer *lx, SurgeSrcPos pos) {
         case '=': lx_advance(lx); return make_simple(TOK_ASSIGN, pos, "=", 1);
         case '<': lx_advance(lx); return make_simple(TOK_LT, pos, "<", 1);
         case '>': lx_advance(lx); return make_simple(TOK_GT, pos, ">", 1);
+        case '&': lx_advance(lx); return make_simple(TOK_AMP, pos, "&", 1);
         default: break;
     }
 

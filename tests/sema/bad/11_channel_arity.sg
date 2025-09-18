@@ -1,0 +1,1 @@
+let c:channel<int, int> = 0; // channel<T> должен иметь 1 аргумент
