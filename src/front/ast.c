@@ -267,7 +267,9 @@ static void print_stmt(const SurgeAstStmt *s, FILE *out, int ind) {
             if (s->as.return_stmt.has_value) print_expr(s->as.return_stmt.value,out,ind+2);
             break;
         case AST_FN_DECL:
-            print_indent(out, ind); fprintf(out, "Fn "); print_ident(&s->as.fn_decl.name,out); fprintf(out,"\n");
+            print_indent(out, ind);
+            if (s->as.fn_decl.is_pure) fprintf(out, "@pure ");
+            fprintf(out, "Fn "); print_ident(&s->as.fn_decl.name,out); fprintf(out,"\n");
             print_params(s->as.fn_decl.params, s->as.fn_decl.paramc, out, ind+2);
             if (s->as.fn_decl.has_ret){ print_indent(out, ind); fprintf(out, "Ret: "); print_type(s->as.fn_decl.ret_type_ast,out); fprintf(out,"\n"); }
             print_stmt(s->as.fn_decl.body,out,ind+2);

@@ -71,7 +71,8 @@ typedef enum SurgeTokenKind {
     TOK_GT,         // >
     TOK_GE,         // >=
     TOK_ARROW,      // ->   (fn return type)
-    TOK_REDUCE_EXP  // =>   (reduce expression)
+    TOK_REDUCE_EXP, // =>   (reduce expression)
+    TOK_AT          // @    (pure function)
 } SurgeTokenKind;
 
 // Token structure

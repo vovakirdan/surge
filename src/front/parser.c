@@ -318,6 +318,21 @@ static SurgeAstExpr *parse_expr(SurgeParser *ps){
 
 // --- Statements & Declarations ---
 
+static bool parse_attr_pure(SurgeParser *ps) {
+    // assumes current token is TOK_AT
+    SurgeSrcPos pos = ps->cur.pos;
+    parser_advance(ps); // '@'
+    if (ps->cur.kind != TOK_IDENTIFIER || strcmp(ps->cur.lexeme,"pure")!=0) {
+        surge_diag_errorf(pos, "Unknown attribute after '@' (expected 'pure')");
+        ps->had_error = true;
+        // try to recover: if it's identifier, consume it
+        if (ps->cur.kind == TOK_IDENTIFIER) parser_advance(ps);
+        return false;
+    }
+    parser_advance(ps); // 'pure'
+    return true;
+}
+
 static SurgeAstStmt *parse_let(SurgeParser *ps) {
     SurgeSrcPos pos = ps->cur.pos;
     parser_advance(ps); // let
@@ -411,7 +426,7 @@ static SurgeAstParam parse_param(SurgeParser *ps){
     return p;
 }
 
-static SurgeAstStmt *parse_fn(SurgeParser *ps){
+static SurgeAstStmt *parse_fn_core(SurgeParser *ps, bool is_pure){
     SurgeSrcPos pos = ps->cur.pos;
     parser_advance(ps); // fn
     if (!is_token(ps, TOK_IDENTIFIER)) { surge_diag_errorf(ps->cur.pos,"Expected function name"); ps->had_error=true; }
@@ -436,9 +451,16 @@ static SurgeAstStmt *parse_fn(SurgeParser *ps){
     }
     SurgeAstStmt *body = parse_block(ps);
     SurgeAstStmt *fn = mk_stmt(AST_FN_DECL, pos);
-    fn->as.fn_decl.name=name; fn->as.fn_decl.params=params; fn->as.fn_decl.paramc=cnt; fn->as.fn_decl.has_ret=has_ret; fn->as.fn_decl.ret_type_ast=ret; fn->as.fn_decl.body=body;
+    fn->as.fn_decl.name=name; 
+    fn->as.fn_decl.params=params; 
+    fn->as.fn_decl.paramc=cnt; 
+    fn->as.fn_decl.has_ret=has_ret; 
+    fn->as.fn_decl.ret_type_ast=ret; 
+    fn->as.fn_decl.body=body;
+    fn->as.fn_decl.is_pure=is_pure;
     return fn;
 }
+static SurgeAstStmt *parse_fn(SurgeParser *ps) { return parse_fn_core(ps, /*is_pure*/false); }
 
 static SurgeAstStmt *parse_parallel(SurgeParser *ps) {
     SurgeSrcPos pos = ps->cur.pos;
@@ -604,6 +626,18 @@ static SurgeAstStmt *parse_simple_or_assign_or_bind_stmt(SurgeParser *ps){
 }
 
 static SurgeAstStmt *parse_stmt(SurgeParser *ps){
+    if (is_token(ps, TOK_AT)) {
+        bool is_pure = parse_attr_pure(ps);
+        if (!is_token(ps, TOK_KW_FN)) {
+            surge_diag_errorf(ps->cur.pos, "Expected 'fn' after '@' attribute");
+            ps->had_error = true;
+            // recover to ';'
+            while (!is_token(ps, TOK_SEMICOLON) && !is_token(ps, TOK_EOF)) parser_advance(ps);
+            if (is_token(ps, TOK_SEMICOLON)) parser_advance(ps);
+            return mk_stmt(AST_EXPR_STMT, ps->cur.pos);
+        }
+        return parse_fn_core(ps, is_pure);
+    }
     if (is_token(ps, TOK_KW_LET))    return parse_let(ps);
     if (is_token(ps, TOK_KW_SIGNAL)) return parse_signal(ps);
     if (is_token(ps, TOK_KW_RETURN)) return parse_return(ps);

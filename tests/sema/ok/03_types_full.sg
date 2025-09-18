@@ -13,4 +13,5 @@ let r:int = xs[0];
 let rx:&int = &a;            // синтаксис ссылок в значениях будет позже, сейчас только типы в сигнатурах
 fn fch(ch:channel<int>) -> int { return 0; }
 
-fn g(p:&int, q:int) -> int { return *p + q; } // deref &int -> int
+// own T shows up in type signatures (value semantics later)
+@pure fn g(p:&int, q:own int) -> int { return *p + q; } // deref &int -> int

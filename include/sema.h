@@ -15,7 +15,7 @@ typedef enum {
 typedef struct {
     SymKind kind;
     const SurgeType *type;   // для var/signal/ret type для fn
-    // для fn можно позже добавить сигнатуры (параметры)
+    bool is_pure;
 } Symbol;
 
 typedef struct {
@@ -35,6 +35,7 @@ struct SemaScope {
 typedef struct {
     bool had_error;
     SemaScope *scope;
+    int pure_depth; // >0 when checking inside pure-required context
 
     // type aliases (global for MVP)
     TypeAlias *aliases; size_t alias_n, alias_cap;

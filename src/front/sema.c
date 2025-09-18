@@ -54,6 +54,9 @@ static const SurgeType *alias_lookup(Sema *s, const char *name){
     return NULL;
 }
 
+// check if we are inside a pure context
+static bool in_pure_ctx(Sema *s) { return s->pure_depth > 0; }
+
 // ---------- type resolution ----------
 
 static const SurgeType *resolve_type_ast(Sema *s, const SurgeAstType *t){
@@ -117,6 +120,11 @@ static TExpr check_call(Sema *s, SurgeAstExpr *call){
         surge_diag_errorf(callee->base.pos, "unknown function '%s'", name);
         return mk(&TY_Invalid);
     }
+    // If inside pure context, callee must be pure
+    if (in_pure_ctx(s) && !sym->is_pure) {
+        s->had_error=true;
+        surge_diag_errorf(callee->base.pos, "calling impure function '%s' in a pure context", name);
+    }
     // пока считаем, что fn возвращает sym->type
     for (size_t i=0;i<call->as.call.argc;i++){
         (void)check_expr(s, call->as.call.args[i]); // просто посетим для побочных ошибок
@@ -160,6 +168,11 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
                 s->had_error=true;
                 surge_diag_errorf(e->base.pos, "unknown identifier '%s'", name);
                 return mk(&TY_Invalid);
+            }
+            // pure context: forbid reading signals
+            if (in_pure_ctx(s) && sym->kind == SYM_SIGNAL) {
+                s->had_error=true;
+                surge_diag_errorf(e->base.pos, "using signal '%s' is not allowed in a pure context", name);
             }
             return mk(sym->type);
         }
@@ -256,7 +269,9 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
         case AST_BIND_EXPR: {
             // реактивная привязка — тип RHS возвращаем как тип выражения (на случай последующих проверок)
             TExpr L = check_expr(s, e->as.bind_expr.lhs);
+            s->pure_depth++;
             TExpr R = check_expr(s, e->as.bind_expr.rhs);
+            s->pure_depth--;
             if (!ty_equal(L.type, R.type)){
                 type_mismatch(s, e->base.pos, "reactive bind (:=)", L.type, R.type);
             }
@@ -284,7 +299,7 @@ static void declare_fn_signature(Sema *s, SurgeAstStmt *fn){
         ? resolve_type_ast(s, fn->as.fn_decl.ret_type_ast)
         : &TY_Invalid; // void будет задан позже, пока оставим invalid => нельзя использовать как значение
 
-    Symbol sym = { .kind=SYM_FN, .type=ret };
+    Symbol sym = { .kind=SYM_FN, .type=ret, .is_pure=fn->as.fn_decl.is_pure };
     if (!scope_insert(s->scope, name, sym)){
         s->had_error=true;
         surge_diag_errorf(fn->base.pos, "redeclaration of '%s'", name);
@@ -395,6 +410,15 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
                     s->had_error=true; surge_diag_errorf(st->base.pos, "parallel map: unknown function '%s'", name);
                 }
             }
+            // callee must be pure even outside a pure context
+            if (st->as.par_map.fn_or_ident->base.kind == AST_IDENT){
+                const char *name = st->as.par_map.fn_or_ident->as.ident.ident.name;
+                Symbol *sym = scope_lookup(s->scope, name);
+                if (sym && sym->kind == SYM_FN && !sym->is_pure) {
+                    s->had_error = true;
+                    surge_diag_errorf(st->base.pos, "parallel map requires a pure function, '%s' is impure", name);
+                }
+            }
             (void)check_expr(s, st->as.par_map.seq);
             break;
         }
@@ -431,9 +455,9 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
             scope_push(s);
             (void)scope_insert(s->scope, st->as.par_reduce.acc.name.name, (Symbol){ .kind=SYM_VAR, .type=acc_t });
             (void)scope_insert(s->scope, st->as.par_reduce.v.name.name,   (Symbol){ .kind=SYM_VAR, .type=v_t });
-
+            s->pure_depth++;
             TExpr body = check_expr(s, st->as.par_reduce.body);
-
+            s->pure_depth--;
             scope_pop(s);
 
             // 5) Результат тела должен совпадать с типом аккумулятора

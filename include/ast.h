@@ -131,7 +131,15 @@ typedef struct SurgeAstStmt {
         struct { SurgeAstExpr *cond; struct SurgeAstStmt *then_blk; bool has_else; struct SurgeAstStmt *else_blk; } if_stmt;
         struct { SurgeAstExpr *cond; struct SurgeAstStmt *body; } while_stmt;
         struct { bool has_value; SurgeAstExpr *value; } return_stmt;
-        struct { SurgeAstIdent name; SurgeAstParam *params; size_t paramc; bool has_ret; SurgeAstType *ret_type_ast; struct SurgeAstStmt *body; } fn_decl;
+        struct { 
+                SurgeAstIdent name;
+                SurgeAstParam *params;
+                size_t paramc;
+                bool has_ret; 
+                SurgeAstType *ret_type_ast; 
+                struct SurgeAstStmt *body; 
+                bool is_pure; 
+            } fn_decl;
         struct { SurgeAstExpr *fn_or_ident; SurgeAstExpr *seq; } par_map;
         struct { SurgeAstExpr *seq; SurgeAstParam acc; SurgeAstParam v; SurgeAstExpr *body; } par_reduce;
         struct { SurgeAstIdent name; } import_stmt;
