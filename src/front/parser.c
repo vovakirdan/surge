@@ -273,6 +273,18 @@ static SurgeAstExpr *parse_unary(SurgeParser *ps){
         SurgeAstExpr *u = mk_expr(AST_UNARY, pos);
         u->as.unary.op = AST_OP_NOT; u->as.unary.expr = e; return u;
     }
+    if (is_token(ps, TOK_AMP)) {
+        SurgeSrcPos pos = ps->cur.pos; parser_advance(ps);
+        SurgeAstExpr *e = parse_unary(ps);
+        SurgeAstExpr *u = mk_expr(AST_UNARY, pos);
+        u->as.unary.op = AST_OP_ADDR; u->as.unary.expr = e; return u;
+    }
+    if (is_token(ps, TOK_STAR)) {
+        SurgeSrcPos pos = ps->cur.pos; parser_advance(ps);
+        SurgeAstExpr *e = parse_unary(ps);
+        SurgeAstExpr *u = mk_expr(AST_UNARY, pos);
+        u->as.unary.op = AST_OP_DEREF; u->as.unary.expr = e; return u;
+    }
     return parse_primary(ps);
 }
 

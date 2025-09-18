@@ -4,8 +4,10 @@
 #   make dev            # debug build with -O0 -g -> build/bin/v{VERSION}/
 #   make SAN=1          # enable address/ub sanitizers
 #   make test           # run doctests if any Phase*/ present
-#   make clean          # remove build artifacts
-#   make distclean      # clean + remove .sbc and temp files
+#   make clean          # remove current dev version (v{VERSION}) + obj/
+#   make clean-all      # remove all build artifacts (entire build/)
+#   make clean-release  # remove only release binaries + obj/
+#   make distclean      # clean-all + remove .sbc and temp files
 #   make version        # show current version from config.h
 #   make vars           # show build variables
 #
@@ -227,12 +229,32 @@ runbc: all
 # Clean artifacts
 .PHONY: clean
 clean:
+	@echo "[surge] Cleaning dev version $(VERSION_STR)..."
+	$(RM) $(BUILD_DIR)/bin/v$(VERSION_STR)
+	$(RM) $(BUILD_DIR)/out/v$(VERSION_STR)
+	$(RM) $(BUILD_DIR)/obj
+	@echo "[surge] Dev version $(VERSION_STR) cleaned."
+
+.PHONY: clean-all
+clean-all:
+	@echo "[surge] Cleaning all build artifacts..."
 	$(RM) $(BUILD_DIR)
+	@echo "[surge] All build artifacts cleaned."
+
+.PHONY: clean-release
+clean-release:
+	@echo "[surge] Cleaning release build..."
+	$(RM) $(BUILD_DIR)/bin/surge $(BUILD_DIR)/bin/surgec $(BUILD_DIR)/bin/surgetest
+	$(RM) $(BUILD_DIR)/out/*.sbc 2>/dev/null || true
+	$(RM) $(BUILD_DIR)/obj
+	@echo "[surge] Release build cleaned."
 
 .PHONY: distclean
-distclean: clean
-	$(RM) **/*.sbc
+distclean: clean-all
+	@echo "[surge] Deep cleaning..."
+	$(FIND) . -name "*.sbc" -type f -delete 2>/dev/null || true
 	$(RM) tags
+	@echo "[surge] Deep clean completed."
 
 # Print variables (debug)
 .PHONY: vars

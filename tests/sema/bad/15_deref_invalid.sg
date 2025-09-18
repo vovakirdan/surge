@@ -1,0 +1,3 @@
+// нельзя разыменовывать не-ссылку
+let x:int = 1;
+let y:int = *x;          // error: dereference '*' expects '&T', got int

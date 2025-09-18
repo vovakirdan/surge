@@ -1,0 +1,3 @@
+// нельзя брать адрес от rvalue/выражения
+let x:int = 1;
+let p:&int = &(x + 1);   // error: address-of '&' requires an lvalue variable/parameter

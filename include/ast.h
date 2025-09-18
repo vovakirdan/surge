@@ -53,7 +53,9 @@ typedef enum {
     AST_OP_ADD, AST_OP_SUB, AST_OP_MUL, AST_OP_DIV, AST_OP_REM,
     AST_OP_EQ, AST_OP_NE, AST_OP_LT, AST_OP_LE, AST_OP_GT, AST_OP_GE,
     AST_OP_AND, AST_OP_OR,
-    AST_OP_NEG, AST_OP_NOT
+    AST_OP_NEG, AST_OP_NOT,
+    AST_OP_ADDR, // &expr
+    AST_OP_DEREF, // *expr
 } SurgeAstOp;
 
 // ---- Type AST ----

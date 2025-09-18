@@ -142,6 +142,11 @@ static bool is_arith(SurgeAstOp op){
     return false;
 }
 
+// fast check: expression - is it a just lvalue-variable?
+static bool is_plain_lvalue_ident(SurgeAstExpr *e) {
+    return e && e->base.kind == AST_IDENT;
+}
+
 static TExpr check_expr(Sema *s, SurgeAstExpr *e){
     switch (e->base.kind){
         case AST_INT_LIT:   return mk(&TY_Int);
@@ -186,6 +191,34 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
                 if (x.type->kind==TY_BOOL) return x;
                 s->had_error=true; surge_diag_errorf(e->base.pos, "unary '!' expects bool, got %s", ty_name(x.type));
                 return mk(&TY_Invalid);
+            } else if (e->as.unary.op == AST_OP_ADDR){
+                // MVP: we can take address only from var/par (simple lvalue)
+                if (!is_plain_lvalue_ident(e->as.unary.expr)) {
+                    s->had_error=true;
+                    surge_diag_errorf(e->base.pos, "address-of '&' requires an lvalue variable/parameter");
+                    return mk(&TY_Invalid);
+                }
+                // deprecate reference from signal
+                const char *nm = e->as.unary.expr->as.ident.ident.name;
+                Symbol *sym = scope_lookup(s->scope, nm);
+                if (!sym) {
+                    s->had_error = true;
+                    surge_diag_errorf(e->base.pos, "unknown identifier '%s' in address-of", nm);
+                    return mk(&TY_Invalid);
+                }
+                if (sym->kind == SYM_SIGNAL) {
+                    s->had_error = true;
+                    surge_diag_errorf(e->base.pos, "cannot take address of signal '%s'", nm);
+                    return mk(&TY_Invalid);
+                }
+                return mk(ty_ref_of(sym->type));
+            } else if (e->as.unary.op == AST_OP_DEREF){
+                if (x.type->kind != TY_REF) {
+                    s->had_error = true;
+                    surge_diag_errorf(e->base.pos, "dereference '*' expects '&T', got %s", ty_name(x.type));
+                    return mk(&TY_Invalid);
+                }
+                return mk(x.type->elem);
             }
             return mk(&TY_Invalid);
         }

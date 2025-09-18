@@ -143,6 +143,8 @@ static const char* op_str(SurgeAstOp op) {
         case AST_OP_OR:  return "||";
         case AST_OP_NEG: return "neg";
         case AST_OP_NOT: return "not";
+        case AST_OP_ADDR: return "addr";
+        case AST_OP_DEREF: return "deref";
         default: return "?";
     }
 }
