@@ -1,0 +1,47 @@
+// Демонстрация работы с массивами и проверки типов при индексации
+// Основано на tests/sema/ok/02_arrays.sg и tests/sema/bad/05_index_non_array.sg
+
+///! test: массивы должны иметь корректную типизацию и индексацию
+fn process_array(numbers: int[]) -> int {
+    let sum: int = 0;
+    let i: int = 0;
+    
+    // Итерация по массиву с проверкой границ
+    while (i < len(numbers)) {
+        sum = sum + numbers[i];
+        i = i + 1;
+    }
+    
+    return sum;
+}
+
+fn main() {
+    // Объявление массивов с типами
+    let integers: int[] = [1, 2, 3, 4, 5];
+    let floats: float[] = [1.1, 2.2, 3.3];
+    let flags: bool[] = [true, false, true];
+    
+    // Доступ к элементам массива
+    let first_int: int = integers[0];
+    let last_float: float = floats[2];
+    let middle_flag: bool = flags[1];
+    
+    // Изменение элементов массива
+    integers[0] = 10;
+    floats[1] = 5.5;
+    flags[2] = false;
+    
+    // Вызов функции с массивом
+    let total: int = process_array(integers);
+    
+    // Получение длины массива
+    let array_length: int = len(integers);
+    
+    println("Array operations work correctly");
+}
+
+// Семантический анализатор должен проверить:
+// 1. Типы элементов массива должны быть однородными
+// 2. Индексы должны быть целочисленными
+// 3. Нельзя индексировать не-массивы
+// 4. Типы при присваивании элементов должны совпадать

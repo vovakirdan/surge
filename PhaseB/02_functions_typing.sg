@@ -1,0 +1,43 @@
+// Демонстрация проверки типов функций и их вызовов
+// Основано на tests/sema/ok/01_basic.sg
+
+fn println(s:string) { /* abstract function */ }
+fn string(n:int) -> string { /* abstract function */ }
+
+///! test: функции должны иметь корректные сигнатуры типов
+fn add(a: int, b: int) -> int {
+    return a + b;
+}
+
+fn multiply(x: float, y: float) -> float {
+    return x * y;
+}
+
+fn is_even(n: int) -> bool {
+    return (n % 2) == 0;
+}
+
+// Функция с несколькими параметрами разных типов
+fn format_result(value: int, multiplier: float, show_debug: bool) -> string {
+    if (show_debug) {
+        return "Debug: value=" + string(value) + " multiplier=" + string(multiplier);
+    }
+    return string(value);
+}
+
+fn main() {
+    // Корректные вызовы функций
+    let result1: int = add(5, 3);
+    let result2: float = multiply(2.5, 4.0);
+    let even_check: bool = is_even(result1);
+    
+    // Вызов функции с несколькими типами параметров
+    let formatted: string = format_result(result1, 1.5, true);
+    
+    println("Function typing works correctly");
+}
+
+// Семантический анализатор должен:
+// 1. Проверить соответствие типов параметров при вызове
+// 2. Проверить соответствие типа возвращаемого значения
+// 3. Убедиться что все функции имеют явные типы параметров и возврата

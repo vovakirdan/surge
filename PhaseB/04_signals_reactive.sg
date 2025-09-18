@@ -1,0 +1,35 @@
+// Демонстрация сигналов и реактивных связываний
+// Основано на tests/sema/ok/01_basic.sg и tests/sema/bad/07_assign_signal.sg
+
+///! test: сигналы и реактивные связывания должны работать корректно
+fn main() {
+    // Объявление сигналов с начальными значениями
+    signal temperature: int = 20;
+    signal humidity: float = 0.6;
+    signal is_comfortable: bool = true;
+    
+    // Обычные переменные
+    let threshold: int = 25;
+    let max_humidity: float = 0.8;
+    
+    // Реактивные связывания - автоматически пересчитываются при изменении сигналов
+    comfort_index := temperature * 0.5 + humidity * 100.0;
+    is_too_hot := temperature > threshold;
+    is_too_humid := humidity > max_humidity;
+    
+    // Комплексное реактивное выражение
+    overall_comfort := !is_too_hot && !is_too_humid && (comfort_index < 50.0);
+    
+    // Изменение значений сигналов (это должно запустить перерасчет связанных выражений)
+    temperature = 30;
+    humidity = 0.9;
+    
+    println("Reactive signals work correctly");
+}
+
+// Семантический анализатор должен проверить:
+// 1. Сигналы могут быть изменены через присваивание
+// 2. Обычные переменные нельзя присваивать сигналам напрямую
+// 3. Реактивные связывания (:=) могут использовать сигналы и переменные
+// 4. Типы в реактивных выражениях должны быть корректными
+// 5. Нельзя брать адрес сигнала (&signal)

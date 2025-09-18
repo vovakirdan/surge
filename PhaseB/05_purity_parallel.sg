@@ -1,0 +1,58 @@
+// Демонстрация проверки чистоты функций для параллельных операций
+// Основано на tests/sema/ok/04_pure_ok.sg и tests/sema/bad/17_map_impure.sg
+
+import math;
+
+// Чистая функция - может использоваться в parallel операциях
+@pure
+fn square(x: int) -> int {
+    return x * x;
+}
+
+// Чистая функция с математическими операциями
+@pure
+fn calculate_distance(x: float, y: float) -> float {
+    return sqrt(x*x + y*y);
+}
+
+// Нечистая функция - использует I/O или глобальное состояние
+fn log_and_process(x: int) -> int {
+    println("Processing: " + string(x));  // I/O операция
+    return x * 2;
+}
+
+// Нечистая функция - использует сигналы
+signal global_multiplier: int = 2;
+
+fn uses_signal(x: int) -> int {
+    return x * global_multiplier;  // использует глобальный сигнал
+}
+
+///! test: parallel операции должны использовать только чистые функции
+fn main() {
+    let numbers: int[] = [1, 2, 3, 4, 5];
+    let points_x: float[] = [1.0, 2.0, 3.0];
+    let points_y: float[] = [4.0, 5.0, 6.0];
+    
+    // Корректные parallel операции с чистыми функциями
+    squares := parallel map square numbers;
+    
+    // Parallel reduce с чистой ассоциативной операцией
+    sum := parallel reduce numbers with (acc: int, val: int) => acc + val;
+    
+    // Parallel map с математическими функциями
+    distances := parallel map calculate_distance points_x; // предполагаем zip с points_y
+    
+    println("Parallel operations with pure functions work correctly");
+}
+
+// Примеры ОШИБОК, которые должен поймать семантический анализатор:
+// parallel map log_and_process numbers;     // ОШИБКА: функция не помечена @pure
+// parallel map uses_signal numbers;        // ОШИБКА: функция использует сигнал
+// parallel reduce numbers with (a,b) => { println("debug"); return a+b; }; // ОШИБКА: лямбда не чистая
+
+// Семантический анализатор должен проверить:
+// 1. Функции в parallel map/reduce должны быть помечены @pure
+// 2. Чистые функции не должны использовать I/O операции
+// 3. Чистые функции не должны обращаться к сигналам или глобальному состоянию
+// 4. Лямбда-функции в reduce также должны быть чистыми

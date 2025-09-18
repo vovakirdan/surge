@@ -1,0 +1,31 @@
+// Демонстрация базовых типов и проверки типов переменных
+// Основано на tests/sema/ok/01_basic.sg и tests/sema/bad/02_let_type_mismatch.sg
+
+fn println(s:string) { /* abstract function */ }
+
+///! test: типы переменных должны соответствовать значениям
+fn main() {
+    // Корректные объявления переменных с типами
+    let x: int = 42;
+    let y: float = 3.14;
+    let flag: bool = true;
+    let name: string = "Surge";
+    
+    // Переприсваивание с совместимыми типами
+    x = x + 1;
+    y = y * 2.0;
+    flag = !flag;
+    
+    // Арифметические операции с проверкой типов
+    let sum: int = x + 10;
+    let product: float = y * 1.5;
+    
+    // Сравнения
+    let is_positive: bool = x > 0;
+    let is_equal: bool = sum == 53;
+    
+    println("Basic types work correctly");
+}
+
+// Этот пример должен пройти семантический анализ без ошибок
+// В отличие от cases вроде: let a: int = 3.14; (type mismatch)
