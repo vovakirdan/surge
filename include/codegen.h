@@ -32,10 +32,19 @@ typedef struct {
 } CgFunc;
 
 typedef struct {
+    char *name;
+    SurgeAstStmt *decl;
+    uint16_t slot;
+} CgGlobal;
+
+typedef struct {
     SbcWriter *w;
     CgFunc *funcs;
     size_t func_count;
     size_t func_cap;
+    CgGlobal *globals;
+    size_t global_count;
+    size_t global_cap;
     CgBuf code;
     CgLocals locals;
 } Codegen;

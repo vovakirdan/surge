@@ -3,6 +3,7 @@ SBC file: build/tmp/codegen/01_arrays.sbc
   consts  : off=36 size=32
   funcs   : off=68 size=40
   code    : off=108 size=87
+  globals : 0
 
 Constants (count=2):
   [0] str "fill_first"

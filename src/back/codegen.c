@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const char *kGlobalInitName = "__global_init_auto__";
+
 static bool grow(CgBuf *b, uint32_t need) {
     if (b->len + need <= b->cap) {
         return true;
@@ -160,6 +162,23 @@ static bool cg_funcs_reserve(Codegen *cg, size_t need) {
     return true;
 }
 
+static bool cg_globals_reserve(Codegen *cg, size_t need) {
+    if (need <= cg->global_cap) {
+        return true;
+    }
+    size_t cap = cg->global_cap ? cg->global_cap * 2 : 4;
+    if (cap < need) {
+        cap = need;
+    }
+    CgGlobal *tmp = (CgGlobal*)realloc(cg->globals, cap * sizeof(*cg->globals));
+    if (!tmp) {
+        return false;
+    }
+    cg->globals = tmp;
+    cg->global_cap = cap;
+    return true;
+}
+
 static void cg_funcs_free(Codegen *cg) {
     if (!cg) {
         return;
@@ -171,6 +190,19 @@ static void cg_funcs_free(Codegen *cg) {
     cg->funcs = NULL;
     cg->func_count = 0;
     cg->func_cap = 0;
+}
+
+static void cg_globals_free(Codegen *cg) {
+    if (!cg) {
+        return;
+    }
+    for (size_t i = 0; i < cg->global_count; ++i) {
+        free(cg->globals[i].name);
+    }
+    free(cg->globals);
+    cg->globals = NULL;
+    cg->global_count = 0;
+    cg->global_cap = 0;
 }
 
 static bool cg_register_function(Codegen *cg, SurgeAstStmt *fn) {
@@ -203,6 +235,64 @@ static bool cg_register_function(Codegen *cg, SurgeAstStmt *fn) {
     }
 
     cg->func_count++;
+    return true;
+}
+
+static bool cg_global_get(const Codegen *cg, const char *name, uint16_t *out_slot);
+
+static bool cg_global_put(Codegen *cg, SurgeAstStmt *decl, uint16_t *out_slot) {
+    if (!cg || !decl || decl->base.kind != AST_LET_DECL) {
+        return false;
+    }
+    if (cg->global_count >= UINT16_MAX) {
+        return false;
+    }
+    if (decl->as.let_decl.name.name) {
+        if (cg_global_get(cg, decl->as.let_decl.name.name, NULL)) {
+            return false;
+        }
+    }
+    if (!cg_globals_reserve(cg, cg->global_count + 1)) {
+        return false;
+    }
+    CgGlobal *g = &cg->globals[cg->global_count];
+    g->name = decl->as.let_decl.name.name ? strdup(decl->as.let_decl.name.name) : NULL;
+    if (decl->as.let_decl.name.name && !g->name) {
+        return false;
+    }
+    g->decl = decl;
+    g->slot = (uint16_t)cg->global_count;
+    if (out_slot) {
+        *out_slot = g->slot;
+    }
+    cg->global_count++;
+    return true;
+}
+
+static bool cg_global_get(const Codegen *cg, const char *name, uint16_t *out_slot) {
+    if (!cg || !name) {
+        return false;
+    }
+    for (size_t i = 0; i < cg->global_count; ++i) {
+        if (cg->globals[i].name && strcmp(cg->globals[i].name, name) == 0) {
+            if (out_slot) {
+                *out_slot = cg->globals[i].slot;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool cg_collect_globals(Codegen *cg, SurgeAstUnit *unit) {
+    for (size_t i = 0; i < unit->count; ++i) {
+        SurgeAstStmt *st = unit->decls[i];
+        if (st->base.kind == AST_LET_DECL) {
+            if (!cg_global_put(cg, st, NULL)) {
+                return false;
+            }
+        }
+    }
     return true;
 }
 
@@ -300,6 +390,64 @@ static bool emit_trap(Ctx *cx, SurgeTrapCode code) {
     return op_u16(cx->code, SURGE_OP_TRAP, (uint16_t)code);
 }
 
+static bool cg_emit_global_init(Codegen *cg) {
+    sbc_writer_set_global_count(cg->w, (uint32_t)cg->global_count);
+    if (cg->global_count == 0) {
+        return true;
+    }
+
+    if (cg_lookup_func_index(cg, kGlobalInitName, NULL)) {
+        return false;
+    }
+
+    CgBuf code;
+    cg_buf_init(&code);
+    CgLocals locals;
+    cg_locals_init(&locals);
+    Ctx cx = { .cg = cg, .w = cg->w, .code = &code, .locals = &locals };
+
+    for (size_t i = 0; i < cg->global_count; ++i) {
+        CgGlobal *g = &cg->globals[i];
+        if (!gen_expr(&cx, g->decl->as.let_decl.init)) {
+            cg_locals_free(&locals);
+            cg_buf_free(&code);
+            return false;
+        }
+        if (!op_u16(cx.code, SURGE_OP_GSTORE, g->slot)) {
+            cg_locals_free(&locals);
+            cg_buf_free(&code);
+            return false;
+        }
+    }
+
+    if (!op0(&code, SURGE_OP_PUSH_NULL) || !op0(&code, SURGE_OP_RET)) {
+        cg_locals_free(&locals);
+        cg_buf_free(&code);
+        return false;
+    }
+
+    uint32_t name_idx = sbc_intern_string(cg->w, kGlobalInitName);
+    if (name_idx == UINT32_MAX) {
+        cg_locals_free(&locals);
+        cg_buf_free(&code);
+        return false;
+    }
+
+    SbcFuncInput input = {
+        .name_idx = name_idx,
+        .arity = 0,
+        .nlocals = 0,
+        .code = code.data,
+        .code_len = code.len,
+        .flags = 0
+    };
+
+    bool ok = sbc_add_function(cg->w, &input);
+    cg_locals_free(&locals);
+    cg_buf_free(&code);
+    return ok;
+}
+
 static bool gen_expr(Ctx *cx, SurgeAstExpr *e) {
     switch (e->base.kind) {
         case AST_INT_LIT:
@@ -320,6 +468,10 @@ static bool gen_expr(Ctx *cx, SurgeAstExpr *e) {
             uint16_t slot;
             if (cg_locals_get(cx->locals, e->as.ident.ident.name, &slot)) {
                 return op_u16(cx->code, SURGE_OP_LOAD, slot);
+            }
+            uint16_t gslot;
+            if (cg_global_get(cx->cg, e->as.ident.ident.name, &gslot)) {
+                return op_u16(cx->code, SURGE_OP_GLOAD, gslot);
             }
             return emit_trap(cx, SURGE_TRAP_BAD_CALL);
         }
@@ -389,6 +541,23 @@ static bool gen_expr(Ctx *cx, SurgeAstExpr *e) {
         }
         case AST_BIND_EXPR: {
             SurgeAstExpr *lhs = e->as.bind_expr.lhs;
+            if (lhs->base.kind == AST_IDENT) {
+                uint16_t slot;
+                if (cg_locals_get(cx->locals, lhs->as.ident.ident.name, &slot)) {
+                    if (!gen_expr(cx, e->as.bind_expr.rhs)) {
+                        return false;
+                    }
+                    return op_u16(cx->code, SURGE_OP_STORE, slot);
+                }
+                uint16_t gslot;
+                if (cg_global_get(cx->cg, lhs->as.ident.ident.name, &gslot)) {
+                    if (!gen_expr(cx, e->as.bind_expr.rhs)) {
+                        return false;
+                    }
+                    return op_u16(cx->code, SURGE_OP_GSTORE, gslot);
+                }
+                return emit_trap(cx, SURGE_TRAP_BAD_CALL);
+            }
             if (lhs->base.kind == AST_INDEX) {
                 if (!gen_expr(cx, lhs->as.index.base)) {
                     return false;
@@ -484,6 +653,13 @@ static bool gen_stmt(Ctx *cx, SurgeAstStmt *st) {
         case AST_ASSIGN_STMT: {
             uint16_t slot;
             if (!cg_locals_get(cx->locals, st->as.assign_stmt.name.name, &slot)) {
+                uint16_t gslot;
+                if (cg_global_get(cx->cg, st->as.assign_stmt.name.name, &gslot)) {
+                    if (!gen_expr(cx, st->as.assign_stmt.expr)) {
+                        return false;
+                    }
+                    return op_u16(cx->code, SURGE_OP_GSTORE, gslot);
+                }
                 return emit_trap(cx, SURGE_TRAP_BAD_CALL);
             }
             if (!gen_expr(cx, st->as.assign_stmt.expr)) {
@@ -574,6 +750,9 @@ static bool gen_function(Codegen *cg, size_t index) {
 }
 
 static bool gen_unit(Codegen *cg, SurgeAstUnit *unit) {
+    if (!cg_collect_globals(cg, unit)) {
+        return false;
+    }
     if (!cg_collect_functions(cg, unit)) {
         return false;
     }
@@ -581,6 +760,9 @@ static bool gen_unit(Codegen *cg, SurgeAstUnit *unit) {
         if (!gen_function(cg, i)) {
             return false;
         }
+    }
+    if (!cg_emit_global_init(cg)) {
+        return false;
     }
     return true;
 }
@@ -602,6 +784,7 @@ CgResult surge_codegen_unit(SurgeAstUnit *unit, const char *out_path) {
     }
 
     cg_funcs_free(&cg);
+    cg_globals_free(&cg);
     sbc_writer_free(cg.w);
     return ok ? CG_OK : CG_ERR;
 }

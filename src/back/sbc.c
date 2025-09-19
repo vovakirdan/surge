@@ -188,6 +188,7 @@ bool sbc_load_from_file(const char *path, SbcImage *out_img) {
     out_img->const_count = const_count;
     out_img->funcs = funcs;
     out_img->func_count = func_count;
+    out_img->global_count = hdr.global_count;
     out_img->code_sec = code_sec;
 
     return true;
@@ -210,7 +211,6 @@ bool sbc_const_at(const SbcImage *img, uint32_t index, SbcConstKind *out_kind,
 
     const uint8_t *p = img->const_data;
     const uint8_t *const_end = img->const_sec + img->hdr.sz_const;
-
     for (uint32_t idx = 0; idx < img->const_count; ++idx) {
         if (p >= const_end) {
             return false;

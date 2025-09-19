@@ -321,6 +321,7 @@ int surge_disasm_file(const char *path, FILE *out) {
     fprintf(out, "  consts  : off=%u size=%u\n", hdr->off_const, hdr->sz_const);
     fprintf(out, "  funcs   : off=%u size=%u\n", hdr->off_funcs, hdr->sz_funcs);
     fprintf(out, "  code    : off=%u size=%u\n", hdr->off_code, hdr->sz_code);
+    fprintf(out, "  globals : %u\n", img.global_count);
     fputc('\n', out);
 
     dump_constants(&img, out);

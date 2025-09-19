@@ -33,6 +33,8 @@ struct SbcWriter {
     SbcFuncEntry *funcs;
     size_t func_count;
     size_t func_cap;
+
+    uint32_t global_count;
 };
 
 static void *xrealloc(void *ptr, size_t new_cap, size_t elem_size) {
@@ -77,6 +79,13 @@ static bool ensure_func_capacity(SbcWriter *w, size_t needed) {
 SbcWriter *sbc_writer_new(void) {
     SbcWriter *w = (SbcWriter*)calloc(1, sizeof(SbcWriter));
     return w;
+}
+
+void sbc_writer_set_global_count(SbcWriter *w, uint32_t count) {
+    if (!w) {
+        return;
+    }
+    w->global_count = count;
 }
 
 void sbc_writer_free(SbcWriter *w) {
@@ -285,7 +294,7 @@ bool sbc_write_to_file(SbcWriter *w, const char *path) {
         .sz_funcs = func_size,
         .off_code = off_code,
         .sz_code = code_size,
-        .reserved = 0
+        .global_count = w->global_count
     };
 
     if (fwrite(&hdr, 1, sizeof(SbcHeader), f) != sizeof(SbcHeader)) {

@@ -3,6 +3,7 @@ SBC file: build/tmp/codegen/02_control_flow.sbc
   consts  : off=36 size=28
   funcs   : off=64 size=40
   code    : off=104 size=118
+  globals : 0
 
 Constants (count=2):
   [0] str "helper"

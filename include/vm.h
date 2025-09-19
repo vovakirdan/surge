@@ -17,13 +17,22 @@ typedef enum VmValueTag {
     VM_VT_ARR
 } VmValueTag;
 
+struct RtString;
+
 typedef struct VmString {
+    struct RtString *obj;
     const char *data;
     uint32_t len;
 } VmString;
 
 struct VmArray;
 struct VmFrame;
+struct VmArenaChunk;
+
+typedef struct VmArena {
+    struct VmArenaChunk *chunks;
+    size_t chunk_size;
+} VmArena;
 
 typedef struct VmValue {
     VmValueTag tag;
@@ -55,6 +64,14 @@ typedef struct Vm {
     struct VmFrame *frames;
     uint32_t frame_cap;
     uint32_t fp;
+
+    VmValue *globals;
+    uint32_t global_count;
+
+    struct RtString **str_cache;
+    uint32_t str_cache_len;
+
+    VmArena arena;
 
     char *last_error;
     bool trace;

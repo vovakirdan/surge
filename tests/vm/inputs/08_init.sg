@@ -1,0 +1,9 @@
+let counter:int = 0;
+
+fn __init() {
+  counter = counter + 10;
+}
+
+fn main() -> int {
+  return counter;
+}

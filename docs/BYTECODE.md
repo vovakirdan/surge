@@ -94,7 +94,7 @@ u16 ver_minor  // 1
 u32 off_const, sz_const
 u32 off_funcs, sz_funcs
 u32 off_code,  sz_code
-u32 reserved   // =0
+u32 global_count // number of global slots
 ```
 
 ### Пул констант
@@ -157,8 +157,9 @@ Function[0] helper : arity=1 locals=2 flags=0x00000000 code=[0..37)
 
 * VM пока не выполняет байткод end-to-end; реализация цикла запланирована на
   фазу D.
-* Глобальные переменные (`GLOAD/GSTORE`) зарезервированы — кодоген пока не
-  выделяет gslot'ы.
+* Глобальные переменные (`GLOAD/GSTORE`) поддерживаются для верхнеуровневых
+  `let`; компилятор генерирует функцию `__global_init_auto__`, которую VM
+  вызывает перед пользовательским `__init` и `main`.
 * Нет поддержки каналов, сигналов, ссылок/own-типа в рантайме.
 * Отладочные метаданные (linemap) не сериализуются.
 

@@ -25,6 +25,8 @@ uint32_t sbc_intern_string_n(SbcWriter *w, const char *s, uint32_t len);
 uint32_t sbc_add_const_i64(SbcWriter *w, int64_t value);
 uint32_t sbc_add_const_f64(SbcWriter *w, double value);
 
+void sbc_writer_set_global_count(SbcWriter *w, uint32_t count);
+
 bool sbc_add_function(SbcWriter *w, const SbcFuncInput *fn);
 
 bool sbc_write_to_file(SbcWriter *w, const char *path);

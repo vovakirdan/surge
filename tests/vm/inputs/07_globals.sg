@@ -1,0 +1,6 @@
+let counter:int = 1;
+
+fn main() -> int {
+  counter = counter + 1;
+  return counter;
+}

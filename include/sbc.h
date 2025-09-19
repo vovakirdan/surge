@@ -23,7 +23,7 @@ typedef struct SbcHeader {
     uint32_t sz_funcs;
     uint32_t off_code;
     uint32_t sz_code;
-    uint32_t reserved;
+    uint32_t global_count;
 } SbcHeader;
 
 /*
@@ -64,6 +64,8 @@ typedef struct SbcImage {
 
     SbcFuncDesc *funcs;
     uint32_t func_count;
+
+    uint32_t global_count;
 
     const uint8_t *code_sec;
 } SbcImage;
