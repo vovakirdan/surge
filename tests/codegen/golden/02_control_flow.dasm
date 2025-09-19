@@ -1,0 +1,44 @@
+SBC file: build/tmp/codegen/02_control_flow.sbc
+  version : 0.1
+  consts  : off=36 size=28
+  funcs   : off=64 size=40
+  code    : off=104 size=118
+
+Constants (count=2):
+  [0] str "helper"
+  [1] str "main"
+
+Functions (count=2):
+Function[0] helper : arity=1 locals=2 flags=0x00000000 code=[0..37)
+    0000  LOAD        0
+    0003  PUSH_I64    10
+    0012  CMP_LT      
+    0013  JMP_IF_FALSE+9 -> 0027
+    0018  LOAD        0
+    0021  RET         
+    0022  JMP         +10 -> 0037
+    0027  LOAD        0
+    0030  STORE       1
+    0033  LOAD        1
+    0036  RET         
+Function[1] main : arity=0 locals=2 flags=0x00000000 code=[37..118)
+    0000  PUSH_I64    0
+    0009  STORE       0
+    0012  PUSH_I64    0
+    0021  STORE       1
+    0024  LOAD        1
+    0027  PUSH_I64    4
+    0036  CMP_LT      
+    0037  JMP_IF_FALSE+35 -> 0077
+    0042  LOAD        1
+    0045  CALL        0 <helper>, 1
+    0049  LOAD        0
+    0052  ADD         
+    0053  STORE       0
+    0056  LOAD        1
+    0059  PUSH_I64    1
+    0068  ADD         
+    0069  STORE       1
+    0072  JMP         -53 -> 0024
+    0077  LOAD        0
+    0080  RET         

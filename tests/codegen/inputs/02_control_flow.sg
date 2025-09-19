@@ -1,0 +1,18 @@
+fn helper(x:int) -> int {
+  if (x < 10) {
+    return x;
+  } else {
+    let y:int = x;
+    return y;
+  }
+}
+
+fn main() -> int {
+  let sum:int = 0;
+  let i:int = 0;
+  while (i < 4) {
+    sum = helper(i) + sum;
+    i = i + 1;
+  }
+  return sum;
+}

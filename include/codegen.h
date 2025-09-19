@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include "ast.h"
 #include "sbc_writer.h"
 
@@ -24,8 +25,17 @@ typedef struct {
 } CgLocals;
 
 typedef struct {
+    char *name;
+    uint32_t name_idx;
+    SurgeAstStmt *decl;
+    uint16_t arity;
+} CgFunc;
+
+typedef struct {
     SbcWriter *w;
-    uint32_t name_main_idx;
+    CgFunc *funcs;
+    size_t func_count;
+    size_t func_cap;
     CgBuf code;
     CgLocals locals;
 } Codegen;
@@ -37,6 +47,7 @@ bool cg_emit_u16(CgBuf *b, uint16_t v);
 bool cg_emit_u32(CgBuf *b, uint32_t v);
 bool cg_emit_u64(CgBuf *b, uint64_t v);
 bool cg_emit_f64(CgBuf *b, double d);
+bool cg_patch_i32(CgBuf *b, uint32_t offset, int32_t value);
 
 bool cg_locals_init(CgLocals *ls);
 void cg_locals_free(CgLocals *ls);

@@ -110,6 +110,17 @@ static const char *resolve_func_name(const SbcImage *img, uint32_t func_index) {
     return NULL;
 }
 
+static const char *trap_code_name(uint16_t code) {
+    switch ((SurgeTrapCode)code) {
+        case SURGE_TRAP_UNREACHABLE: return "UNREACHABLE";
+        case SURGE_TRAP_DIV_BY_ZERO: return "DIV_BY_ZERO";
+        case SURGE_TRAP_OUT_OF_BOUNDS: return "OUT_OF_BOUNDS";
+        case SURGE_TRAP_BAD_CALL: return "BAD_CALL";
+        case SURGE_TRAP_TYPE_ERROR: return "TYPE_ERROR";
+        default: return NULL;
+    }
+}
+
 static size_t disasm_instruction(const SbcImage *img,
                                  const uint8_t *code,
                                  uint32_t offset,
@@ -181,11 +192,22 @@ static size_t disasm_instruction(const SbcImage *img,
             case SURGE_OPERAND_TRAP_CODE: {
                 uint16_t code_val = read_u16_le(cursor);
                 fprintf(out, "%u", (unsigned)code_val);
+                const char *name = trap_code_name(code_val);
+                if (name) {
+                    fprintf(out, " <%s>", name);
+                }
                 break;
             }
             case SURGE_OPERAND_JUMP_OFFSET: {
                 int32_t delta = read_i32_le(cursor);
                 fprintf(out, "%+d", delta);
+                size_t inst_size = (size_t)((cursor - code) + size);
+                int64_t target = (int64_t)offset + (int64_t)inst_size + (int64_t)delta;
+                if (target >= 0) {
+                    fprintf(out, " -> %04" PRId64, target);
+                } else {
+                    fprintf(out, " -> %" PRId64, target);
+                }
                 break;
             }
             case SURGE_OPERAND_I64: {
@@ -308,4 +330,3 @@ int surge_disasm_file(const char *path, FILE *out) {
     sbc_unload(&img);
     return 0;
 }
-

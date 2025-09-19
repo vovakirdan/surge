@@ -1,0 +1,33 @@
+SBC file: build/tmp/codegen/01_arrays.sbc
+  version : 0.1
+  consts  : off=36 size=32
+  funcs   : off=68 size=40
+  code    : off=108 size=87
+
+Constants (count=2):
+  [0] str "fill_first"
+  [1] str "main"
+
+Functions (count=2):
+Function[0] fill_first : arity=1 locals=1 flags=0x00000000 code=[0..24)
+    0000  LOAD        0
+    0003  PUSH_I64    0
+    0012  PUSH_I64    42
+    0021  ARR_SET     
+    0022  PUSH_NULL   
+    0023  RET         
+Function[1] main : arity=0 locals=2 flags=0x00000000 code=[24..87)
+    0000  PUSH_I64    1
+    0009  PUSH_I64    2
+    0018  PUSH_I64    3
+    0027  ARR_NEW     3
+    0032  STORE       0
+    0035  LOAD        0
+    0038  CALL        0 <fill_first>, 1
+    0042  POP         
+    0043  LOAD        0
+    0046  PUSH_I64    0
+    0055  ARR_GET     
+    0056  STORE       1
+    0059  LOAD        1
+    0062  RET         

@@ -190,6 +190,17 @@ sema-golden-update: all
 sema-golden: all
 	@bash tools/sema_golden.sh check
 
+# -----------------------------
+# Disassembler golden tests
+# -----------------------------
+.PHONY: disasm-golden-update
+disasm-golden-update: all
+	@bash tools/disasm_golden.sh update
+
+.PHONY: disasm-golden
+disasm-golden: all
+	@bash tools/disasm_golden.sh check
+
 # В общий тест-ран:
 test: all
 	@set -e; \
@@ -213,6 +224,7 @@ test: all
 	@$(MAKE) parse-golden
 	@$(MAKE) diag-golden
 	@$(MAKE) sema-golden
+	@$(MAKE) disasm-golden
 
 # Example: compile a single .sg to .sbc (if surgec is implemented)
 # Usage: make compile FILE=examples/hello.sg
