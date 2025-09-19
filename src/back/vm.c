@@ -242,15 +242,28 @@ static int32_t read_i32_le(const uint8_t *p) {
     return (int32_t)read_u32_le(p);
 }
 
+static uint64_t read_u64_le(const uint8_t *p) {
+    return (uint64_t)p[0] |
+           ((uint64_t)p[1] << 8) |
+           ((uint64_t)p[2] << 16) |
+           ((uint64_t)p[3] << 24) |
+           ((uint64_t)p[4] << 32) |
+           ((uint64_t)p[5] << 40) |
+           ((uint64_t)p[6] << 48) |
+           ((uint64_t)p[7] << 56);
+}
+
 static int64_t read_i64_le(const uint8_t *p) {
+    uint64_t raw = read_u64_le(p);
     int64_t v;
-    memcpy(&v, p, sizeof(int64_t));
+    memcpy(&v, &raw, sizeof(v));
     return v;
 }
 
 static double read_f64_le(const uint8_t *p) {
+    uint64_t raw = read_u64_le(p);
     double d;
-    memcpy(&d, p, sizeof(double));
+    memcpy(&d, &raw, sizeof(d));
     return d;
 }
 
@@ -638,6 +651,9 @@ VmRunStatus vm_run_main(Vm *vm, const SbcImage *img, VmRunResult *out_result) {
                 VmValue *dst = &vm->stack[frame->base + slot];
                 vm_value_release(vm, dst);
                 *dst = val;
+                /* Retain after assignment so locals keep shared refs alive; the
+                 * temporary popped value still owns one count until we drop it.
+                 */
                 vm_value_retain(dst);
                 vm_value_release(vm, &val);
                 break;
@@ -746,6 +762,7 @@ VmRunStatus vm_run_main(Vm *vm, const SbcImage *img, VmRunResult *out_result) {
                     status = VM_RUN_ERROR;
                     goto loop_end;
                 }
+                /* TODO: detect zero-offset jumps to catch accidental infinite loops. */
                 break;
             }
             case SURGE_OP_JMP_IF_TRUE:

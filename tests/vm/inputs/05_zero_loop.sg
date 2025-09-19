@@ -1,0 +1,7 @@
+fn main() -> int {
+  let i:int = 0;
+  while (i < 0) {
+    i = i + 1;
+  }
+  return i;
+}

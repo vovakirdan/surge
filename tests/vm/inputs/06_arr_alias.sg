@@ -1,0 +1,5 @@
+fn main() -> int {
+  let xs:int[] = [5, 6];
+  xs[1] := 99;
+  return xs[0];
+}
