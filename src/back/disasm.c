@@ -46,11 +46,11 @@ static void print_string_escaped(FILE *out, const char *data, uint32_t len) {
     for (uint32_t i = 0; i < len; ++i) {
         unsigned char ch = (unsigned char)data[i];
         switch (ch) {
-            case '\\': fputs("\\", out); break;
-            case '"': fputs("\"", out); break;
-            case '\n': fputs("\n", out); break;
-            case '\r': fputs("\r", out); break;
-            case '	': fputs("\t", out); break;
+            case '\\': fputs("\\\\", out); break;
+            case '"': fputs("\\\"", out); break;
+            case '\n': fputs("\\n", out); break;
+            case '\r': fputs("\\r", out); break;
+            case '	': fputs("\\t", out); break;
             default:
                 if (ch < 0x20 || ch > 0x7E) {
                     fprintf(out, "\\x%02X", ch);

@@ -172,6 +172,10 @@ bool sbc_load_from_file(const char *path, SbcImage *out_img) {
             return false;
         }
         memcpy(funcs, func_sec, hdr.sz_funcs);
+        for (uint32_t i=0; i<func_count; ++i) {
+            if (funcs[i].name_idx >= const_count) { free(funcs); free(blob); return false; }
+            if ((uint64_t)funcs[i].code_off + funcs[i].code_len > hdr.sz_code) { free(funcs); free(blob); return false; }
+        }
     }
 
     const uint8_t *code_sec = blob + hdr.off_code;
