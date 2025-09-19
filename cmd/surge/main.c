@@ -11,6 +11,8 @@
 #include "diagnostics.h"
 #include "sema.h"
 #include "disasm.h"
+#include "sbc.h"
+#include "vm.h"
 
 static void usage(const char *prog) {
     fprintf(stderr,
@@ -20,9 +22,10 @@ static void usage(const char *prog) {
         "  %s [--shadow DENY|ALLOW|CONTROLLED] ast       <file | ->\n"
         "  %s [--shadow DENY|ALLOW|CONTROLLED] diag      <file | ->\n"
         "  %s [--shadow DENY|ALLOW|CONTROLLED] sema      <file | ->\n"
-        "  %s disasm <file.sbc>\n",
+        "  %s disasm <file.sbc>\n"
+        "  %s runbc [--trace-vm] <file.sbc>\n",
         SURGE_VERSION_MAJOR, SURGE_VERSION_MINOR, SURGE_VERSION_PATCH,
-        prog, prog, prog, prog, prog
+        prog, prog, prog, prog, prog, prog
     );
 }
 
@@ -187,6 +190,83 @@ static int cmd_disasm_file(const char *path) {
     return surge_disasm_file(path, stdout);
 }
 
+static void vm_print_return_value(const VmValue *value) {
+    if (!value) {
+        printf("exit=null\n");
+        return;
+    }
+    switch (value->tag) {
+        case VM_VT_NULL:
+            printf("exit=null\n");
+            break;
+        case VM_VT_BOOL:
+            printf("exit=%s\n", value->as.b ? "true" : "false");
+            break;
+        case VM_VT_I64:
+            printf("exit=%lld\n", (long long)value->as.i64);
+            break;
+        case VM_VT_F64:
+            printf("exit=%g\n", value->as.f64);
+            break;
+        case VM_VT_STR: {
+            printf("exit=\"");
+            if (value->as.str.data && value->as.str.len) {
+                fwrite(value->as.str.data, 1, value->as.str.len, stdout);
+            }
+            printf("\"\n");
+            break;
+        }
+        case VM_VT_ARR:
+            printf("exit=<array>\n");
+            break;
+        default:
+            printf("exit=<unknown>\n");
+            break;
+    }
+}
+
+static int cmd_runbc(const char *path, bool trace_vm) {
+    SbcImage img;
+    if (!sbc_load_from_file(path, &img)) {
+        fprintf(stderr, "vm: failed to load %s\n", path);
+        return 1;
+    }
+
+    VmConfig cfg;
+    vm_config_defaults(&cfg);
+    cfg.trace = trace_vm;
+
+    Vm vm;
+    if (!vm_init(&vm, &cfg)) {
+        fprintf(stderr, "vm: failed to initialize VM\n");
+        sbc_unload(&img);
+        return 1;
+    }
+
+    VmRunResult result;
+    memset(&result, 0, sizeof(result));
+    VmRunStatus status = vm_run_main(&vm, &img, &result);
+
+    int rc = 0;
+    if (status == VM_RUN_OK) {
+        vm_print_return_value(&result.return_value);
+    } else {
+        const char *err = vm_last_error(&vm);
+        if (!err) {
+            err = (status == VM_RUN_TRAP)
+                ? "vm: execution trapped"
+                : "vm: execution failed";
+        }
+        fprintf(stderr, "%s\n", err);
+        rc = (status == VM_RUN_TRAP) ? 2 : 1;
+    }
+
+    vm_value_release(&vm, &result.return_value);
+    vm_destroy(&vm);
+    sbc_unload(&img);
+    return rc;
+}
+
 static ShadowPolicy parse_shadow(const char *s){
     if (!s) return SHADOW_DENY;
     if (strcmp(s,"DENY")==0) return SHADOW_DENY;
@@ -230,6 +310,17 @@ int main(int argc, char **argv) {
         if (argc - argi < 2) { usage(argv[0]); return 2; }
         const char *path = argv[argi + 1];
         return cmd_disasm_file(path);
+    } else if (strcmp(cmd, "runbc") == 0) {
+        if (argc - argi < 2) { usage(argv[0]); return 2; }
+        int next = argi + 1;
+        bool trace_vm = false;
+        if (next < argc && strcmp(argv[next], "--trace-vm") == 0) {
+            trace_vm = true;
+            ++next;
+        }
+        if (next >= argc) { usage(argv[0]); return 2; }
+        const char *path = argv[next];
+        return cmd_runbc(path, trace_vm);
     } else {
         usage(argv[0]);
         return 2;

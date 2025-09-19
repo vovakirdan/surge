@@ -1,0 +1,4 @@
+fn main() -> int {
+  let data:int[] = [10];
+  return data[1];
+}

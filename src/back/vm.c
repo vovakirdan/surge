@@ -1,6 +1,1045 @@
-// TODO: Implement vm functionality
-// This is a placeholder file to allow compilation
+#include "vm.h"
 
-int vm_placeholder(void) {
-    return 0;
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define VM_DEFAULT_STACK_CAP 1024u
+#define VM_DEFAULT_FRAME_CAP 64u
+
+struct VmArray {
+    uint32_t refcnt;
+    uint32_t len;
+    VmValue *data;
+};
+
+typedef struct VmFrame {
+    const SbcFuncDesc *func;
+    const uint8_t *code_start;
+    const uint8_t *ip;
+    const uint8_t *code_end;
+    uint32_t base;
+    uint32_t locals_end;
+} VmFrame;
+
+static VmValue vm_value_null(void) {
+    VmValue v;
+    memset(&v, 0, sizeof(v));
+    v.tag = VM_VT_NULL;
+    return v;
+}
+
+static VmValue vm_value_bool(bool b) {
+    VmValue v = vm_value_null();
+    v.tag = VM_VT_BOOL;
+    v.as.b = (uint8_t)(b ? 1 : 0);
+    return v;
+}
+
+static VmValue vm_value_i64(int64_t x) {
+    VmValue v = vm_value_null();
+    v.tag = VM_VT_I64;
+    v.as.i64 = x;
+    return v;
+}
+
+static VmValue vm_value_f64(double x) {
+    VmValue v = vm_value_null();
+    v.tag = VM_VT_F64;
+    v.as.f64 = x;
+    return v;
+}
+
+static void vm_clear_error(Vm *vm) {
+    if (!vm) {
+        return;
+    }
+    free(vm->last_error);
+    vm->last_error = NULL;
+}
+
+static void vm_set_errorf(Vm *vm, const char *fmt, ...) {
+    if (!vm) {
+        return;
+    }
+    vm_clear_error(vm);
+    if (!fmt) {
+        return;
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    int needed = vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
+    if (needed < 0) {
+        return;
+    }
+    char *buf = (char*)malloc((size_t)needed + 1u);
+    if (!buf) {
+        return;
+    }
+    va_start(ap, fmt);
+    vsnprintf(buf, (size_t)needed + 1u, fmt, ap);
+    va_end(ap);
+    vm->last_error = buf;
+}
+
+static void vm_array_retain(struct VmArray *arr) {
+    if (arr) {
+        ++arr->refcnt;
+    }
+}
+
+static void vm_value_retain(VmValue *value) {
+    if (!value) {
+        return;
+    }
+    if (value->tag == VM_VT_ARR && value->as.arr) {
+        vm_array_retain(value->as.arr);
+    }
+}
+
+void vm_value_release(Vm *vm, VmValue *value) {
+    (void)vm;
+    if (!value) {
+        return;
+    }
+    if (value->tag == VM_VT_ARR && value->as.arr) {
+        struct VmArray *arr = value->as.arr;
+        if (arr->refcnt > 0) {
+            --arr->refcnt;
+        }
+        if (arr->refcnt == 0) {
+            if (arr->data) {
+                for (uint32_t i = 0; i < arr->len; ++i) {
+                    vm_value_release(vm, &arr->data[i]);
+                }
+                free(arr->data);
+            }
+            free(arr);
+        }
+    }
+    if (value->tag == VM_VT_STR) {
+        value->as.str.data = NULL;
+        value->as.str.len = 0;
+    }
+    memset(value, 0, sizeof(*value));
+    value->tag = VM_VT_NULL;
+}
+
+void vm_config_defaults(VmConfig *cfg) {
+    if (!cfg) {
+        return;
+    }
+    cfg->stack_capacity = VM_DEFAULT_STACK_CAP;
+    cfg->frame_capacity = VM_DEFAULT_FRAME_CAP;
+    cfg->trace = false;
+}
+
+static void vm_clear_stack(Vm *vm) {
+    if (!vm) {
+        return;
+    }
+    for (uint32_t i = 0; i < vm->sp; ++i) {
+        vm_value_release(vm, &vm->stack[i]);
+    }
+    vm->sp = 0;
+}
+
+bool vm_init(Vm *vm, const VmConfig *cfg) {
+    if (!vm) {
+        return false;
+    }
+    memset(vm, 0, sizeof(*vm));
+
+    VmConfig local_cfg;
+    if (cfg) {
+        local_cfg = *cfg;
+    } else {
+        vm_config_defaults(&local_cfg);
+    }
+    if (local_cfg.stack_capacity == 0) {
+        local_cfg.stack_capacity = VM_DEFAULT_STACK_CAP;
+    }
+    if (local_cfg.frame_capacity == 0) {
+        local_cfg.frame_capacity = VM_DEFAULT_FRAME_CAP;
+    }
+
+    vm->cfg = local_cfg;
+    vm->trace = local_cfg.trace;
+
+    vm->stack = (VmValue*)calloc(vm->cfg.stack_capacity, sizeof(VmValue));
+    if (!vm->stack) {
+        return false;
+    }
+    vm->stack_cap = vm->cfg.stack_capacity;
+
+    vm->frames = (VmFrame*)calloc(vm->cfg.frame_capacity, sizeof(VmFrame));
+    if (!vm->frames) {
+        free(vm->stack);
+        vm->stack = NULL;
+        vm->stack_cap = 0;
+        return false;
+    }
+    vm->frame_cap = vm->cfg.frame_capacity;
+    return true;
+}
+
+void vm_reset(Vm *vm) {
+    if (!vm) {
+        return;
+    }
+    vm_clear_stack(vm);
+    vm->fp = 0;
+    vm->img = NULL;
+    vm->trace = vm->cfg.trace;
+    vm_clear_error(vm);
+}
+
+void vm_destroy(Vm *vm) {
+    if (!vm) {
+        return;
+    }
+    vm_clear_stack(vm);
+    free(vm->stack);
+    free(vm->frames);
+    vm->stack = NULL;
+    vm->frames = NULL;
+    vm->stack_cap = 0;
+    vm->frame_cap = 0;
+    vm->fp = 0;
+    vm_clear_error(vm);
+}
+
+const char *vm_last_error(const Vm *vm) {
+    return vm ? vm->last_error : NULL;
+}
+
+static const char *vm_trap_name(SurgeTrapCode code) {
+    switch (code) {
+        case SURGE_TRAP_UNREACHABLE: return "UNREACHABLE";
+        case SURGE_TRAP_DIV_BY_ZERO: return "DIV_BY_ZERO";
+        case SURGE_TRAP_OUT_OF_BOUNDS: return "OUT_OF_BOUNDS";
+        case SURGE_TRAP_BAD_CALL: return "BAD_CALL";
+        case SURGE_TRAP_TYPE_ERROR: return "TYPE_ERROR";
+        default: return "UNKNOWN";
+    }
+}
+
+static uint32_t read_u32_le(const uint8_t *p) {
+    return (uint32_t)p[0] |
+           ((uint32_t)p[1] << 8) |
+           ((uint32_t)p[2] << 16) |
+           ((uint32_t)p[3] << 24);
+}
+
+static uint16_t read_u16_le(const uint8_t *p) {
+    return (uint16_t)p[0] |
+           ((uint16_t)p[1] << 8);
+}
+
+static int32_t read_i32_le(const uint8_t *p) {
+    return (int32_t)read_u32_le(p);
+}
+
+static int64_t read_i64_le(const uint8_t *p) {
+    int64_t v;
+    memcpy(&v, p, sizeof(int64_t));
+    return v;
+}
+
+static double read_f64_le(const uint8_t *p) {
+    double d;
+    memcpy(&d, p, sizeof(double));
+    return d;
+}
+
+static bool vm_stack_reserve(Vm *vm, uint32_t needed_extra) {
+    if (vm->sp + needed_extra <= vm->stack_cap) {
+        return true;
+    }
+    uint32_t new_cap = vm->stack_cap ? vm->stack_cap : VM_DEFAULT_STACK_CAP;
+    while (vm->sp + needed_extra > new_cap) {
+        new_cap <<= 1;
+        if (new_cap < vm->stack_cap) {
+            new_cap = vm->stack_cap + needed_extra;
+            break;
+        }
+    }
+    VmValue *tmp = (VmValue*)realloc(vm->stack, new_cap * sizeof(VmValue));
+    if (!tmp) {
+        vm_set_errorf(vm, "vm: failed to grow stack to %u slots", new_cap);
+        return false;
+    }
+    for (uint32_t i = vm->stack_cap; i < new_cap; ++i) {
+        tmp[i] = vm_value_null();
+    }
+    vm->stack = tmp;
+    vm->stack_cap = new_cap;
+    return true;
+}
+
+static bool vm_frames_reserve(Vm *vm, uint32_t needed_extra) {
+    if (vm->fp + needed_extra <= vm->frame_cap) {
+        return true;
+    }
+    uint32_t new_cap = vm->frame_cap ? vm->frame_cap : VM_DEFAULT_FRAME_CAP;
+    while (vm->fp + needed_extra > new_cap) {
+        new_cap <<= 1;
+        if (new_cap < vm->frame_cap) {
+            new_cap = vm->frame_cap + needed_extra;
+            break;
+        }
+    }
+    VmFrame *tmp = (VmFrame*)realloc(vm->frames, new_cap * sizeof(VmFrame));
+    if (!tmp) {
+        vm_set_errorf(vm, "vm: failed to grow frame stack to %u entries", new_cap);
+        return false;
+    }
+    memset(tmp + vm->frame_cap, 0, (new_cap - vm->frame_cap) * sizeof(VmFrame));
+    vm->frames = tmp;
+    vm->frame_cap = new_cap;
+    return true;
+}
+
+static bool vm_stack_push(Vm *vm, VmValue value) {
+    if (!vm_stack_reserve(vm, 1)) {
+        return false;
+    }
+    vm_value_retain(&value);
+    vm->stack[vm->sp++] = value;
+    return true;
+}
+
+static bool vm_stack_pop(Vm *vm, VmValue *out) {
+    if (vm->sp == 0) {
+        vm_set_errorf(vm, "vm: stack underflow");
+        return false;
+    }
+    vm->sp--;
+    if (out) {
+        *out = vm->stack[vm->sp];
+    }
+    vm->stack[vm->sp] = vm_value_null();
+    return true;
+}
+
+static bool vm_fetch_func_name(const Vm *vm, const SbcFuncDesc *func, VmString *out) {
+    if (!vm || !vm->img || !func || !out) {
+        return false;
+    }
+    const void *ptr = NULL;
+    uint32_t len = 0;
+    SbcConstKind kind;
+    if (!sbc_const_at(vm->img, func->name_idx, &kind, &ptr, &len)) {
+        return false;
+    }
+    if (kind != SBC_CONST_STR) {
+        return false;
+    }
+    out->data = (const char*)ptr;
+    out->len = len;
+    return true;
+}
+
+static void vm_trace_op(Vm *vm, VmFrame *frame, const uint8_t *op_start, SurgeOpcode opcode) {
+    if (!vm || !vm->trace) {
+        return;
+    }
+    uint32_t offs = (uint32_t)(op_start - frame->code_start);
+    VmString name = {0};
+    if (!vm_fetch_func_name(vm, frame->func, &name)) {
+        name.data = "<anon>";
+        name.len = (uint32_t)strlen(name.data);
+    }
+    fprintf(stderr, "[vm] %.*s+%04u %-12s sp=%u\n",
+            (int)name.len, name.data,
+            offs,
+            surge_opcode_name(opcode),
+            vm->sp);
+}
+
+static int vm_find_function_by_name(const SbcImage *img, const char *name) {
+    if (!img || !name) {
+        return -1;
+    }
+    size_t name_len = strlen(name);
+    for (uint32_t i = 0; i < img->func_count; ++i) {
+        const SbcFuncDesc *fn = &img->funcs[i];
+        const void *ptr = NULL;
+        uint32_t len = 0;
+        SbcConstKind kind;
+        if (!sbc_const_at(img, fn->name_idx, &kind, &ptr, &len)) {
+            continue;
+        }
+        if (kind != SBC_CONST_STR) {
+            continue;
+        }
+        if (len == name_len && memcmp(ptr, name, len) == 0) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static bool vm_push_frame(Vm *vm, const SbcFuncDesc *func, uint32_t base) {
+    if (!vm_frames_reserve(vm, 1)) {
+        return false;
+    }
+    if (func->nlocals < func->arity) {
+        vm_set_errorf(vm, "vm: function metadata invalid (locals < arity)");
+        return false;
+    }
+    const uint8_t *code_start = vm->img->code_sec + func->code_off;
+    VmFrame *frame = &vm->frames[vm->fp++];
+    frame->func = func;
+    frame->code_start = code_start;
+    frame->ip = code_start;
+    frame->code_end = code_start + func->code_len;
+    frame->base = base;
+    frame->locals_end = base + func->nlocals;
+    return true;
+}
+
+static bool vm_prepare_frame_locals(Vm *vm, VmFrame *frame, uint16_t argc) {
+    if (argc != frame->func->arity) {
+        vm_set_errorf(vm, "vm: bad call arity: expected %u got %u",
+                      (unsigned)frame->func->arity, (unsigned)argc);
+        return false;
+    }
+    if (frame->locals_end > vm->stack_cap) {
+        if (!vm_stack_reserve(vm, frame->locals_end - vm->sp)) {
+            return false;
+        }
+    }
+    if (vm->sp < frame->base + argc) {
+        vm_set_errorf(vm, "vm: stack underflow entering frame");
+        return false;
+    }
+    if (frame->locals_end > vm->sp) {
+        for (uint32_t slot = vm->sp; slot < frame->locals_end; ++slot) {
+            vm->stack[slot] = vm_value_null();
+        }
+        vm->sp = frame->locals_end;
+    }
+    return true;
+}
+
+static VmRunStatus vm_raise_trap(Vm *vm, VmRunResult *result, SurgeTrapCode code, const char *fmt, ...) {
+    if (result) {
+        result->status = VM_RUN_TRAP;
+        result->trap_code = code;
+        result->return_value = vm_value_null();
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    int needed = vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
+    if (needed < 0) {
+        vm_set_errorf(vm, "runtime trap: %s (%u)", vm_trap_name(code), (unsigned)code);
+        return VM_RUN_TRAP;
+    }
+    char *buf = (char*)malloc((size_t)needed + 1u);
+    if (!buf) {
+        vm_set_errorf(vm, "runtime trap: %s (%u)", vm_trap_name(code), (unsigned)code);
+        return VM_RUN_TRAP;
+    }
+    va_start(ap, fmt);
+    vsnprintf(buf, (size_t)needed + 1u, fmt, ap);
+    va_end(ap);
+    vm_set_errorf(vm, "runtime trap: %s (%u): %s", vm_trap_name(code), (unsigned)code, buf);
+    free(buf);
+    return VM_RUN_TRAP;
+}
+
+static bool vm_check_ip(Vm *vm, VmFrame *frame) {
+    if (frame->ip >= frame->code_end) {
+        vm_set_errorf(vm, "vm: instruction pointer OOB in function");
+        return false;
+    }
+    return true;
+}
+
+VmRunStatus vm_run_main(Vm *vm, const SbcImage *img, VmRunResult *out_result) {
+    if (!vm || !img) {
+        if (out_result) {
+            memset(out_result, 0, sizeof(*out_result));
+            out_result->status = VM_RUN_ERROR;
+        }
+        return VM_RUN_ERROR;
+    }
+
+    vm_reset(vm);
+    vm->img = img;
+    vm->trace = vm->cfg.trace;
+
+    VmRunResult result;
+    memset(&result, 0, sizeof(result));
+    result.status = VM_RUN_ERROR;
+    result.return_value = vm_value_null();
+
+    int main_idx = vm_find_function_by_name(img, "main");
+    if (main_idx < 0) {
+        vm_set_errorf(vm, "vm: entry point main() not found");
+        if (out_result) {
+            *out_result = result;
+        }
+        vm_clear_stack(vm);
+        return VM_RUN_ERROR;
+    }
+
+    const SbcFuncDesc *entry = &img->funcs[main_idx];
+    if (!vm_push_frame(vm, entry, 0)) {
+        if (out_result) {
+            *out_result = result;
+        }
+        vm_clear_stack(vm);
+        return VM_RUN_ERROR;
+    }
+
+    VmFrame *frame = &vm->frames[vm->fp - 1];
+    if (!vm_prepare_frame_locals(vm, frame, 0)) {
+        if (out_result) {
+            *out_result = result;
+        }
+        vm_clear_stack(vm);
+        vm->fp = 0;
+        return VM_RUN_ERROR;
+    }
+
+    VmRunStatus status = VM_RUN_ERROR;
+
+    while (vm->fp > 0) {
+        frame = &vm->frames[vm->fp - 1];
+        if (!vm_check_ip(vm, frame)) {
+            status = VM_RUN_ERROR;
+            break;
+        }
+
+        const uint8_t *op_start = frame->ip;
+        uint8_t opcode_byte = *frame->ip++;
+        SurgeOpcode opcode = (SurgeOpcode)opcode_byte;
+
+        vm_trace_op(vm, frame, op_start, opcode);
+
+        switch (opcode) {
+            case SURGE_OP_PUSH_I64: {
+                if (frame->ip + 8 > frame->code_end) {
+                    vm_set_errorf(vm, "vm: PUSH_I64 truncated");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                int64_t value = read_i64_le(frame->ip);
+                frame->ip += 8;
+                if (!vm_stack_push(vm, vm_value_i64(value))) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_PUSH_F64: {
+                if (frame->ip + 8 > frame->code_end) {
+                    vm_set_errorf(vm, "vm: PUSH_F64 truncated");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                double value = read_f64_le(frame->ip);
+                frame->ip += 8;
+                if (!vm_stack_push(vm, vm_value_f64(value))) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_PUSH_BOOL: {
+                if (frame->ip + 1 > frame->code_end) {
+                    vm_set_errorf(vm, "vm: PUSH_BOOL truncated");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                uint8_t raw = *frame->ip++;
+                if (!vm_stack_push(vm, vm_value_bool(raw != 0))) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_PUSH_NULL: {
+                if (!vm_stack_push(vm, vm_value_null())) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_PUSH_STR: {
+                if (frame->ip + 4 > frame->code_end) {
+                    vm_set_errorf(vm, "vm: PUSH_STR truncated");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                uint32_t const_idx = read_u32_le(frame->ip);
+                frame->ip += 4;
+                const void *ptr = NULL;
+                uint32_t len = 0;
+                SbcConstKind kind;
+                if (!sbc_const_at(vm->img, const_idx, &kind, &ptr, &len) || kind != SBC_CONST_STR) {
+                    vm_set_errorf(vm, "vm: PUSH_STR invalid const index %u", const_idx);
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                VmValue val = vm_value_null();
+                val.tag = VM_VT_STR;
+                val.as.str.data = (const char*)ptr;
+                val.as.str.len = len;
+                if (!vm_stack_push(vm, val)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_LOAD: {
+                if (frame->ip + 2 > frame->code_end) {
+                    vm_set_errorf(vm, "vm: LOAD truncated");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                uint16_t slot = read_u16_le(frame->ip);
+                frame->ip += 2;
+                if (frame->base + slot >= frame->locals_end) {
+                    vm_set_errorf(vm, "vm: LOAD slot %u OOB", (unsigned)slot);
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                VmValue val = vm->stack[frame->base + slot];
+                if (!vm_stack_push(vm, val)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_STORE: {
+                if (frame->ip + 2 > frame->code_end) {
+                    vm_set_errorf(vm, "vm: STORE truncated");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                uint16_t slot = read_u16_le(frame->ip);
+                frame->ip += 2;
+                if (frame->base + slot >= frame->locals_end) {
+                    vm_set_errorf(vm, "vm: STORE slot %u OOB", (unsigned)slot);
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                VmValue val;
+                if (!vm_stack_pop(vm, &val)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                VmValue *dst = &vm->stack[frame->base + slot];
+                vm_value_release(vm, dst);
+                *dst = val;
+                vm_value_retain(dst);
+                vm_value_release(vm, &val);
+                break;
+            }
+            case SURGE_OP_GLOAD:
+            case SURGE_OP_GSTORE: {
+                vm_set_errorf(vm, "vm: global slots not implemented yet");
+                status = VM_RUN_ERROR;
+                goto loop_end;
+            }
+            case SURGE_OP_POP: {
+                VmValue tmp;
+                if (!vm_stack_pop(vm, &tmp)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                vm_value_release(vm, &tmp);
+                break;
+            }
+            case SURGE_OP_NOP: {
+                break;
+            }
+            case SURGE_OP_ADD:
+            case SURGE_OP_SUB:
+            case SURGE_OP_MUL:
+            case SURGE_OP_DIV:
+            case SURGE_OP_REM:
+            case SURGE_OP_CMP_EQ:
+            case SURGE_OP_CMP_NE:
+            case SURGE_OP_CMP_LT:
+            case SURGE_OP_CMP_LE:
+            case SURGE_OP_CMP_GT:
+            case SURGE_OP_CMP_GE: {
+                VmValue rhs;
+                if (!vm_stack_pop(vm, &rhs)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                VmValue lhs;
+                if (!vm_stack_pop(vm, &lhs)) {
+                    vm_value_release(vm, &rhs);
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (lhs.tag != VM_VT_I64 || rhs.tag != VM_VT_I64) {
+                    vm_value_release(vm, &rhs);
+                    vm_value_release(vm, &lhs);
+                    status = vm_raise_trap(vm, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "arithmetic expects i64 operands");
+                    goto loop_end;
+                }
+                int64_t a = lhs.as.i64;
+                int64_t b = rhs.as.i64;
+                VmValue out = vm_value_null();
+                switch (opcode) {
+                    case SURGE_OP_ADD: out = vm_value_i64(a + b); break;
+                    case SURGE_OP_SUB: out = vm_value_i64(a - b); break;
+                    case SURGE_OP_MUL: out = vm_value_i64(a * b); break;
+                    case SURGE_OP_DIV:
+                        if (b == 0) {
+                            vm_value_release(vm, &rhs);
+                            vm_value_release(vm, &lhs);
+                            status = vm_raise_trap(vm, &result, SURGE_TRAP_DIV_BY_ZERO,
+                                                   "integer division by zero");
+                            goto loop_end;
+                        }
+                        out = vm_value_i64(a / b);
+                        break;
+                    case SURGE_OP_REM:
+                        if (b == 0) {
+                            vm_value_release(vm, &rhs);
+                            vm_value_release(vm, &lhs);
+                            status = vm_raise_trap(vm, &result, SURGE_TRAP_DIV_BY_ZERO,
+                                                   "integer remainder by zero");
+                            goto loop_end;
+                        }
+                        out = vm_value_i64(a % b);
+                        break;
+                    case SURGE_OP_CMP_EQ: out = vm_value_bool(a == b); break;
+                    case SURGE_OP_CMP_NE: out = vm_value_bool(a != b); break;
+                    case SURGE_OP_CMP_LT: out = vm_value_bool(a < b); break;
+                    case SURGE_OP_CMP_LE: out = vm_value_bool(a <= b); break;
+                    case SURGE_OP_CMP_GT: out = vm_value_bool(a > b); break;
+                    case SURGE_OP_CMP_GE: out = vm_value_bool(a >= b); break;
+                    default:
+                        break;
+                }
+                vm_value_release(vm, &rhs);
+                vm_value_release(vm, &lhs);
+                if (!vm_stack_push(vm, out)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_JMP: {
+                if (frame->ip + 4 > frame->code_end) {
+                    vm_set_errorf(vm, "vm: JMP truncated");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                int32_t offset = read_i32_le(frame->ip);
+                frame->ip = op_start + 1 + 4 + offset;
+                if (frame->ip < frame->code_start || frame->ip > frame->code_end) {
+                    vm_set_errorf(vm, "vm: JMP out of range");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_JMP_IF_TRUE:
+            case SURGE_OP_JMP_IF_FALSE: {
+                if (frame->ip + 4 > frame->code_end) {
+                    vm_set_errorf(vm, "vm: conditional jump truncated");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                int32_t offset = read_i32_le(frame->ip);
+                frame->ip += 4;
+                VmValue cond;
+                if (!vm_stack_pop(vm, &cond)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (cond.tag != VM_VT_BOOL) {
+                    vm_value_release(vm, &cond);
+                    status = vm_raise_trap(vm, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "conditional jump expects bool");
+                    goto loop_end;
+                }
+                bool truth = cond.as.b != 0;
+                vm_value_release(vm, &cond);
+                if ((opcode == SURGE_OP_JMP_IF_TRUE && truth) ||
+                    (opcode == SURGE_OP_JMP_IF_FALSE && !truth)) {
+                    frame->ip = op_start + 1 + 4 + offset;
+                    if (frame->ip < frame->code_start || frame->ip > frame->code_end) {
+                        vm_set_errorf(vm, "vm: jump target out of range");
+                        status = VM_RUN_ERROR;
+                        goto loop_end;
+                    }
+                }
+                break;
+            }
+            case SURGE_OP_CALL: {
+                if (frame->ip + 3 > frame->code_end) {
+                    vm_set_errorf(vm, "vm: CALL truncated");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                uint16_t func_index = read_u16_le(frame->ip);
+                frame->ip += 2;
+                uint8_t argc = *frame->ip++;
+                if (func_index >= vm->img->func_count) {
+                    status = vm_raise_trap(vm, &result, SURGE_TRAP_BAD_CALL,
+                                           "call to invalid function index %u", (unsigned)func_index);
+                    goto loop_end;
+                }
+                if (vm->sp < argc) {
+                    status = vm_raise_trap(vm, &result, SURGE_TRAP_BAD_CALL,
+                                           "stack underflow for call (argc=%u)", (unsigned)argc);
+                    goto loop_end;
+                }
+                VmFrame *caller = frame;
+                caller->ip = frame->ip;
+                const SbcFuncDesc *callee = &vm->img->funcs[func_index];
+                uint32_t base = vm->sp - argc;
+                if (!vm_push_frame(vm, callee, base)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                frame = &vm->frames[vm->fp - 1];
+                if (!vm_prepare_frame_locals(vm, frame, argc)) {
+                    vm->fp--;
+                    frame = caller;
+                    status = vm_raise_trap(vm, &result, SURGE_TRAP_BAD_CALL,
+                                           "call to %u expected %u args",
+                                           (unsigned)func_index,
+                                           (unsigned)callee->arity);
+                    goto loop_end;
+                }
+                continue; /* tail to next frame */
+            }
+            case SURGE_OP_RET: {
+                VmValue ret = vm_value_null();
+                bool have_ret = false;
+                if (vm->sp > frame->base) {
+                    if (!vm_stack_pop(vm, &ret)) {
+                        status = VM_RUN_ERROR;
+                        goto loop_end;
+                    }
+                    have_ret = true;
+                }
+                for (uint32_t i = frame->base; i < vm->sp; ++i) {
+                    vm_value_release(vm, &vm->stack[i]);
+                }
+                vm->sp = frame->base;
+
+                vm->fp--;
+                if (vm->fp == 0) {
+                    result.status = VM_RUN_OK;
+                    result.return_value = have_ret ? ret : vm_value_null();
+                    status = VM_RUN_OK;
+                    goto loop_end;
+                }
+
+                if (have_ret) {
+                    if (!vm_stack_push(vm, ret)) {
+                        vm_value_release(vm, &ret);
+                        status = VM_RUN_ERROR;
+                        goto loop_end;
+                    }
+                    vm_value_release(vm, &ret);
+                }
+                frame = &vm->frames[vm->fp - 1];
+                break;
+            }
+            case SURGE_OP_ARR_NEW: {
+                if (frame->ip + 4 > frame->code_end) {
+                    vm_set_errorf(vm, "vm: ARR_NEW truncated");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                uint32_t count = read_u32_le(frame->ip);
+                frame->ip += 4;
+                if (count > vm->sp) {
+                    status = vm_raise_trap(vm, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "ARR_NEW requires %u stack values", (unsigned)count);
+                    goto loop_end;
+                }
+                struct VmArray *arr = (struct VmArray*)calloc(1, sizeof(struct VmArray));
+                if (!arr) {
+                    vm_set_errorf(vm, "vm: OOM allocating array header");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                arr->len = count;
+                arr->refcnt = 1;
+                if (count) {
+                    arr->data = (VmValue*)calloc(count, sizeof(VmValue));
+                    if (!arr->data) {
+                        free(arr);
+                        vm_set_errorf(vm, "vm: OOM allocating array payload");
+                        status = VM_RUN_ERROR;
+                        goto loop_end;
+                    }
+                }
+                uint32_t start = vm->sp - count;
+                for (uint32_t i = 0; i < count; ++i) {
+                    VmValue elem = vm->stack[start + i];
+                    arr->data[i] = elem;
+                    vm_value_retain(&arr->data[i]);
+                    vm_value_release(vm, &vm->stack[start + i]);
+                }
+                vm->sp -= count;
+                VmValue arr_val = vm_value_null();
+                arr_val.tag = VM_VT_ARR;
+                arr_val.as.arr = arr;
+                if (!vm_stack_push(vm, arr_val)) {
+                    vm_value_release(vm, &arr_val);
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                vm_value_release(vm, &arr_val);
+                break;
+            }
+            case SURGE_OP_ARR_GET: {
+                VmValue idx_val;
+                if (!vm_stack_pop(vm, &idx_val)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                VmValue arr_val;
+                if (!vm_stack_pop(vm, &arr_val)) {
+                    vm_value_release(vm, &idx_val);
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (arr_val.tag != VM_VT_ARR || !arr_val.as.arr) {
+                    vm_value_release(vm, &idx_val);
+                    vm_value_release(vm, &arr_val);
+                    status = vm_raise_trap(vm, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "ARR_GET expects array");
+                    goto loop_end;
+                }
+                if (idx_val.tag != VM_VT_I64 || idx_val.as.i64 < 0 ||
+                    (uint64_t)idx_val.as.i64 >= arr_val.as.arr->len) {
+                    vm_value_release(vm, &idx_val);
+                    vm_value_release(vm, &arr_val);
+                    status = vm_raise_trap(vm, &result, SURGE_TRAP_OUT_OF_BOUNDS,
+                                           "ARR_GET index out of bounds");
+                    goto loop_end;
+                }
+                VmValue elem = arr_val.as.arr->data[(uint32_t)idx_val.as.i64];
+                vm_value_release(vm, &idx_val);
+                vm_value_release(vm, &arr_val);
+                if (!vm_stack_push(vm, elem)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_ARR_SET: {
+                VmValue value;
+                if (!vm_stack_pop(vm, &value)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                VmValue idx_val;
+                if (!vm_stack_pop(vm, &idx_val)) {
+                    vm_value_release(vm, &value);
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                VmValue arr_val;
+                if (!vm_stack_pop(vm, &arr_val)) {
+                    vm_value_release(vm, &value);
+                    vm_value_release(vm, &idx_val);
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (arr_val.tag != VM_VT_ARR || !arr_val.as.arr) {
+                    vm_value_release(vm, &value);
+                    vm_value_release(vm, &idx_val);
+                    vm_value_release(vm, &arr_val);
+                    status = vm_raise_trap(vm, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "ARR_SET expects array");
+                    goto loop_end;
+                }
+                if (idx_val.tag != VM_VT_I64 || idx_val.as.i64 < 0 ||
+                    (uint64_t)idx_val.as.i64 >= arr_val.as.arr->len) {
+                    vm_value_release(vm, &value);
+                    vm_value_release(vm, &idx_val);
+                    vm_value_release(vm, &arr_val);
+                    status = vm_raise_trap(vm, &result, SURGE_TRAP_OUT_OF_BOUNDS,
+                                           "ARR_SET index out of bounds");
+                    goto loop_end;
+                }
+                uint32_t slot = (uint32_t)idx_val.as.i64;
+                VmValue *dst = &arr_val.as.arr->data[slot];
+                vm_value_release(vm, dst);
+                *dst = value;
+                vm_value_retain(dst);
+                vm_value_release(vm, &value);
+                vm_value_release(vm, &idx_val);
+                vm_value_release(vm, &arr_val);
+                break;
+            }
+            case SURGE_OP_ARR_LEN: {
+                VmValue arr_val;
+                if (!vm_stack_pop(vm, &arr_val)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (arr_val.tag != VM_VT_ARR || !arr_val.as.arr) {
+                    vm_value_release(vm, &arr_val);
+                    status = vm_raise_trap(vm, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "ARR_LEN expects array");
+                    goto loop_end;
+                }
+                uint32_t len = arr_val.as.arr->len;
+                VmValue out = vm_value_i64((int64_t)len);
+                vm_value_release(vm, &arr_val);
+                if (!vm_stack_push(vm, out)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_TRAP: {
+                if (frame->ip + 2 > frame->code_end) {
+                    vm_set_errorf(vm, "vm: TRAP truncated");
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                uint16_t code = read_u16_le(frame->ip);
+                frame->ip += 2;
+                status = vm_raise_trap(vm, &result, (SurgeTrapCode)code, "TRAP instruction");
+                goto loop_end;
+            }
+            case SURGE_OP_HALT: {
+                result.status = VM_RUN_OK;
+                result.return_value = vm_value_null();
+                status = VM_RUN_OK;
+                goto loop_end;
+            }
+            default: {
+                vm_set_errorf(vm, "vm: unknown opcode %u", (unsigned)opcode);
+                status = VM_RUN_ERROR;
+                goto loop_end;
+            }
+        }
+        continue;
+
+loop_end:
+        break;
+    }
+
+    vm_clear_stack(vm);
+    vm->fp = 0;
+
+    if (out_result) {
+        *out_result = result;
+    }
+    return status;
 }

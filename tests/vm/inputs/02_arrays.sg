@@ -1,0 +1,10 @@
+fn fill_first(xs:int[]) {
+  xs[0] := 42;
+}
+
+fn main() -> int {
+  let data:int[] = [1, 2, 3];
+  fill_first(data);
+  let first:int = data[0];
+  return first;
+}

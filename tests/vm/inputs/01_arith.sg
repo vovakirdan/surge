@@ -1,0 +1,5 @@
+fn main() -> int {
+  let x:int = 5;
+  let y:int = 7;
+  return x * y + 1;
+}

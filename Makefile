@@ -201,6 +201,17 @@ disasm-golden-update: all
 disasm-golden: all
 	@bash tools/disasm_golden.sh check
 
+# -----------------------------
+# VM golden tests
+# -----------------------------
+.PHONY: vm-golden-update
+vm-golden-update: all
+	@bash tools/vm_golden.sh update
+
+.PHONY: vm-golden
+vm-golden: all
+	@bash tools/vm_golden.sh check
+
 # В общий тест-ран:
 test: all
 	@set -e; \
@@ -225,6 +236,7 @@ test: all
 	@$(MAKE) diag-golden
 	@$(MAKE) sema-golden
 	@$(MAKE) disasm-golden
+	@$(MAKE) vm-golden
 
 # Example: compile a single .sg to .sbc (if surgec is implemented)
 # Usage: make compile FILE=examples/hello.sg
