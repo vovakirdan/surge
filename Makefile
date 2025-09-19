@@ -4,6 +4,7 @@
 #   make dev            # debug build with -O0 -g -> build/bin/v{VERSION}/
 #   make SAN=1          # enable address/ub sanitizers
 #   make test           # run doctests if any Phase*/ present
+#   make make-hello-sbc # create sample.sbc using tools/make_hello_sbc.c
 #   make clean          # remove current dev version (v{VERSION}) + obj/
 #   make clean-all      # remove all build artifacts (entire build/)
 #   make clean-release  # remove only release binaries + obj/
@@ -101,6 +102,11 @@ SURGE_BIN     := $(BIN_DIR)/surge
 SURGEC_BIN    := $(BIN_DIR)/surgec
 SURGETEST_BIN := $(BIN_DIR)/surgetest
 
+# Tools
+SAMPLE_SBC_SRC := tools/make_hello_sbc.c
+SAMPLE_SBC_OBJ := $(patsubst %.c,$(OBJ_DIR)/%.o,$(SAMPLE_SBC_SRC))
+SAMPLE_SBC_BIN := $(BIN_DIR)/sample_sbc
+
 # Default target
 .PHONY: all
 all: prep $(SURGE_BIN) $(SURGEC_BIN) $(SURGETEST_BIN)
@@ -116,6 +122,7 @@ dev:
 prep:
 	@$(MKDIR) $(BUILD_DIR) $(OBJ_DIR) $(BIN_DIR) $(OUT_DIR)
 	@$(foreach d,$(SRC_DIRS) $(SURGE_DIR) $(SURGEC_DIR) $(SURGETEST_DIR), $(MKDIR) $(OBJ_DIR)/$(d);)
+	@$(MKDIR) $(OBJ_DIR)/tools
 
 # Pattern rule for object files
 $(OBJ_DIR)/%.o: %.c
@@ -131,6 +138,9 @@ $(SURGEC_BIN): $(OBJS) $(SURGEC_OBJ)
 
 $(SURGETEST_BIN): $(OBJS) $(SURGETEST_OBJ)
 	$(CC) $(CFLAGS) $(OBJS) $(SURGETEST_OBJ) -o $@ $(LDFLAGS)
+
+$(SAMPLE_SBC_BIN): $(OBJS) $(SAMPLE_SBC_OBJ)
+	$(CC) $(CFLAGS) $(OBJS) $(SAMPLE_SBC_OBJ) -o $@ $(LDFLAGS)
 
 # -----------------------------
 # Convenience targets
@@ -226,6 +236,12 @@ runbc: all
 	@if [ -z "$(FILE)" ]; then echo "Usage: make runbc FILE=path/to/file.sbc"; exit 2; fi
 	$(SURGE_BIN) "$(FILE)"
 
+# Create sample.sbc using make_hello_sbc tool
+.PHONY: make-hello-sbc
+make-hello-sbc: prep $(SAMPLE_SBC_BIN)
+	@$(MKDIR) $(OUT_DIR)
+	$(SAMPLE_SBC_BIN) "$(OUT_DIR)/sample.sbc"
+
 # Clean artifacts
 .PHONY: clean
 clean:
@@ -244,7 +260,7 @@ clean-all:
 .PHONY: clean-release
 clean-release:
 	@echo "[surge] Cleaning release build..."
-	$(RM) $(BUILD_DIR)/bin/surge $(BUILD_DIR)/bin/surgec $(BUILD_DIR)/bin/surgetest
+	$(RM) $(BUILD_DIR)/bin/surge $(BUILD_DIR)/bin/surgec $(BUILD_DIR)/bin/surgetest $(BUILD_DIR)/bin/sample_sbc
 	$(RM) $(BUILD_DIR)/out/*.sbc 2>/dev/null || true
 	$(RM) $(BUILD_DIR)/obj
 	@echo "[surge] Release build cleaned."
