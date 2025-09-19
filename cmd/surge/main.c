@@ -10,6 +10,7 @@
 #include "token.h"
 #include "diagnostics.h"
 #include "sema.h"
+#include "disasm.h"
 
 static void usage(const char *prog) {
     fprintf(stderr,
@@ -18,9 +19,10 @@ static void usage(const char *prog) {
         "  %s [--shadow DENY|ALLOW|CONTROLLED] tokenize <file | ->\n"
         "  %s [--shadow DENY|ALLOW|CONTROLLED] ast       <file | ->\n"
         "  %s [--shadow DENY|ALLOW|CONTROLLED] diag      <file | ->\n"
-        "  %s [--shadow DENY|ALLOW|CONTROLLED] sema      <file | ->\n",
+        "  %s [--shadow DENY|ALLOW|CONTROLLED] sema      <file | ->\n"
+        "  %s disasm <file.sbc>\n",
         SURGE_VERSION_MAJOR, SURGE_VERSION_MINOR, SURGE_VERSION_PATCH,
-        prog, prog, prog, prog
+        prog, prog, prog, prog, prog
     );
 }
 
@@ -181,6 +183,10 @@ static int cmd_sema(const char *path, ShadowPolicy shadow) {
     return ok? 0 : 1;
 }
 
+static int cmd_disasm_file(const char *path) {
+    return surge_disasm_file(path, stdout);
+}
+
 static ShadowPolicy parse_shadow(const char *s){
     if (!s) return SHADOW_DENY;
     if (strcmp(s,"DENY")==0) return SHADOW_DENY;
@@ -203,19 +209,27 @@ int main(int argc, char **argv) {
         shadow = parse_shadow(argv[argi+1]);
         argi += 2;
     }
-    if (argc - argi < 2) { usage(argv[0]); return 2; }
+    if (argc - argi < 1) { usage(argv[0]); return 2; }
 
-    const char *cmd  = argv[argi+0];
-    const char *path = argv[argi+1];
+    const char *cmd = argv[argi];
 
-    if (strcmp(cmd, "tokenize") == 0) {
-        return cmd_tokenize(path);
-    } else if (strcmp(cmd, "ast") == 0) {
-        return cmd_ast(path);
-    } else if (strcmp(cmd, "diag") == 0) {
-        return cmd_diag(path);
-    } else if (strcmp(cmd, "sema") == 0) {
-        return cmd_sema(path, shadow);
+    if (strcmp(cmd, "tokenize") == 0 || strcmp(cmd, "ast") == 0 ||
+        strcmp(cmd, "diag") == 0 || strcmp(cmd, "sema") == 0) {
+        if (argc - argi < 2) { usage(argv[0]); return 2; }
+        const char *path = argv[argi + 1];
+        if (strcmp(cmd, "tokenize") == 0) {
+            return cmd_tokenize(path);
+        } else if (strcmp(cmd, "ast") == 0) {
+            return cmd_ast(path);
+        } else if (strcmp(cmd, "diag") == 0) {
+            return cmd_diag(path);
+        } else {
+            return cmd_sema(path, shadow);
+        }
+    } else if (strcmp(cmd, "disasm") == 0) {
+        if (argc - argi < 2) { usage(argv[0]); return 2; }
+        const char *path = argv[argi + 1];
+        return cmd_disasm_file(path);
     } else {
         usage(argv[0]);
         return 2;
