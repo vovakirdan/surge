@@ -1,5 +1,10 @@
 #include "opcodes.h"
 
+#include <assert.h>
+#include <string.h>
+
+#define STATIC_ASSERT(COND, MSG) typedef char static_assertion_##MSG[(COND) ? 1 : -1]
+
 static const SurgeOpcodeInfo g_opcode_info[SURGE_OP_COUNT] = {
     [SURGE_OP_PUSH_I64] = {
         .mnemonic = "PUSH_I64",
@@ -126,6 +131,16 @@ static const SurgeOpcodeInfo g_opcode_info[SURGE_OP_COUNT] = {
         .operand_count = 0,
         .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
     },
+    [SURGE_OP_NOP] = {
+        .mnemonic = "NOP",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_POP] = {
+        .mnemonic = "POP",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
     [SURGE_OP_ARR_NEW] = {
         .mnemonic = "ARR_NEW",
         .operand_count = 1,
@@ -158,8 +173,20 @@ static const SurgeOpcodeInfo g_opcode_info[SURGE_OP_COUNT] = {
     }
 };
 
+STATIC_ASSERT(SURGE_OP_COUNT > 0, opcode_count_positive);
+
+static void surge_opcode_table_check_once(void) {
+    static bool checked = false;
+    if (checked) {
+        return;
+    }
+    surge_opcode_table_selfcheck();
+    checked = true;
+}
+
 const SurgeOpcodeInfo *surge_opcode_info(SurgeOpcode opcode) {
-    if (opcode < 0 || opcode >= SURGE_OP_COUNT) {
+    surge_opcode_table_check_once();
+    if ((int)opcode < 0 || opcode >= SURGE_OP_COUNT) {
         return NULL;
     }
     return &g_opcode_info[opcode];
@@ -203,5 +230,39 @@ size_t surge_operand_kind_size(SurgeOperandKind kind) {
         case SURGE_OPERAND_I64: return sizeof(int64_t);
         case SURGE_OPERAND_F64: return sizeof(double);
         default: return 0;
+    }
+}
+
+bool surge_operand_kind_is_signed(SurgeOperandKind kind) {
+    switch (kind) {
+        case SURGE_OPERAND_JUMP_OFFSET:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool surge_opcode_from_name(const char *mnemonic, SurgeOpcode *out_opcode) {
+    if (!mnemonic || !out_opcode) {
+        return false;
+    }
+    surge_opcode_table_check_once();
+    for (int i = 0; i < SURGE_OP_COUNT; ++i) {
+        if (strcmp(g_opcode_info[i].mnemonic, mnemonic) == 0) {
+            *out_opcode = (SurgeOpcode)i;
+            return true;
+        }
+    }
+    return false;
+}
+
+void surge_opcode_table_selfcheck(void) {
+    for (int i = 0; i < SURGE_OP_COUNT; ++i) {
+        const SurgeOpcodeInfo *info = &g_opcode_info[i];
+        assert(info->mnemonic && info->mnemonic[0] != '\0');
+        assert(info->operand_count <= SURGE_OPCODE_MAX_OPERANDS);
+        for (uint8_t k = info->operand_count; k < SURGE_OPCODE_MAX_OPERANDS; ++k) {
+            assert(info->operands[k] == SURGE_OPERAND_NONE);
+        }
     }
 }

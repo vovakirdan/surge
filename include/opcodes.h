@@ -1,11 +1,16 @@
 #ifndef SURGE_OPCODES_H
 #define SURGE_OPCODES_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
 // Maximum operands per opcode (ISA v0)
 #define SURGE_OPCODE_MAX_OPERANDS 2
+
+// Encoding note:
+// - All multi-byte operands in .sbc are written little-endian.
+// - Instruction layout: [1 byte opcode][operands packed without padding].
 
 typedef enum SurgeOpcode {
     SURGE_OP_INVALID = -1,
@@ -13,7 +18,7 @@ typedef enum SurgeOpcode {
     SURGE_OP_PUSH_F64,
     SURGE_OP_PUSH_BOOL,
     SURGE_OP_PUSH_STR,
-    SURGE_OP_PUSH_NULL,
+    SURGE_OP_PUSH_NULL, // null sentinel for reference-like values
     SURGE_OP_LOAD,
     SURGE_OP_STORE,
     SURGE_OP_GLOAD,
@@ -34,14 +39,26 @@ typedef enum SurgeOpcode {
     SURGE_OP_JMP_IF_FALSE,
     SURGE_OP_CALL,
     SURGE_OP_RET,
+    SURGE_OP_NOP,
+    SURGE_OP_POP,
     SURGE_OP_ARR_NEW,
     SURGE_OP_ARR_LEN,
     SURGE_OP_ARR_GET,
+    // ARR_GET: stack [..., arr, idx] -> [..., value]
     SURGE_OP_ARR_SET,
+    // ARR_SET: stack [..., arr, idx, value] -> [...]
     SURGE_OP_TRAP,
     SURGE_OP_HALT,
     SURGE_OP_COUNT
 } SurgeOpcode;
+
+typedef enum SurgeTrapCode {
+    SURGE_TRAP_UNREACHABLE = 1,
+    SURGE_TRAP_DIV_BY_ZERO = 2,
+    SURGE_TRAP_OUT_OF_BOUNDS = 3,
+    SURGE_TRAP_BAD_CALL = 4,
+    SURGE_TRAP_TYPE_ERROR = 5
+} SurgeTrapCode;
 
 typedef enum SurgeOperandKind {
     SURGE_OPERAND_NONE = 0,
@@ -68,5 +85,8 @@ const SurgeOpcodeInfo *surge_opcode_info(SurgeOpcode opcode);
 const char *surge_opcode_name(SurgeOpcode opcode);
 const char *surge_operand_kind_name(SurgeOperandKind kind);
 size_t surge_operand_kind_size(SurgeOperandKind kind);
+bool surge_operand_kind_is_signed(SurgeOperandKind kind);
+bool surge_opcode_from_name(const char *mnemonic, SurgeOpcode *out_opcode);
+void surge_opcode_table_selfcheck(void);
 
 #endif // SURGE_OPCODES_H
