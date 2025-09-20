@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <errno.h>
+#include <limits.h>
 
 // ---------- Internal helpers ----------
 
@@ -81,7 +82,21 @@ static void skip_bom(SurgeLexer *lx) {
     }
 }
 
-static void skip_ws_and_comments(SurgeLexer *lx) {
+static SurgeToken make_error(SurgeLexer *lx, SurgeSrcPos pos, const char *msg);
+
+static bool skip_block_comment(SurgeLexer *lx, SurgeSrcPos start, SurgeToken *err_out) {
+    while (!lx_eof(lx)) {
+        char c = lx_advance(lx);
+        if (c == '*' && lx_peek(lx) == '/') {
+            lx_advance(lx);
+            return true;
+        }
+    }
+    if (err_out) *err_out = make_error(lx, start, "Unterminated block comment");
+    return false;
+}
+
+static bool skip_ws_and_comments(SurgeLexer *lx, SurgeToken *err_out) {
     for (;;) {
         char c = lx_peek(lx);
         // whitespace
@@ -94,15 +109,16 @@ static void skip_ws_and_comments(SurgeLexer *lx) {
         }
         // /* block comment */
         if (c=='/' && lx_peek2(lx)=='*') {
+            SurgeSrcPos start = { .file = lx->file, .line = lx->line, .col = lx->col };
             lx_advance(lx); lx_advance(lx);
-            while (!lx_eof(lx)) {
-                if (lx_peek(lx)=='*' && lx_peek2(lx)=='/') { lx_advance(lx); lx_advance(lx); break; }
-                lx_advance(lx);
+            if (!skip_block_comment(lx, start, err_out)) {
+                return false;
             }
             continue;
         }
         break;
     }
+    return true;
 }
 
 static SurgeToken make_simple(SurgeTokenKind k, SurgeSrcPos pos, const char *lex, size_t n) {
@@ -126,36 +142,59 @@ static SurgeToken make_error(SurgeLexer *lx, SurgeSrcPos pos, const char *msg) {
 }
 
 static SurgeToken make_numeric_from_buffer(SurgeLexer *lx, SurgeSrcPos pos, size_t begin, size_t end, const char *clean, bool is_float, int int_base) {
-    char *raw = xstrndup0(&lx->buf[begin], end - begin);
+    size_t raw_len = end - begin;
+    if (raw_len > SURGE_MAX_TOKEN_LEXEME) {
+        return make_error(lx, pos, "Numeric literal too long");
+    }
+
+    char *raw = xstrndup0(&lx->buf[begin], raw_len);
     if (!raw) return make_error(lx, pos, "Out of memory (number)");
 
     SurgeToken t = {0};
     t.pos = pos;
     t.lexeme = raw;
-    t.length = end - begin;
+    t.length = raw_len;
 
     if (is_float) {
         errno = 0;
         char *endp = NULL;
         double v = strtod(clean, &endp);
-        if (errno != 0 || !endp || *endp != '\0') {
+        if (errno != 0 && errno != ERANGE) {
+            free(raw);
+            return make_error(lx, pos, "Invalid float literal");
+        }
+        if (!endp || *endp != '\0') {
             free(raw);
             return make_error(lx, pos, "Invalid float literal");
         }
         t.kind = TOK_FLOAT;
-        t.has_float = true;
-        t.float_value = v;
+        if (errno == ERANGE) {
+            t.has_float = false;
+            t.float_value = v;
+        } else {
+            t.has_float = true;
+            t.float_value = v;
+        }
     } else {
         errno = 0;
         char *endp = NULL;
         long long v = strtoll(clean, &endp, int_base);
-        if (errno != 0 || !endp || *endp != '\0') {
+        if (!endp || *endp != '\0') {
+            free(raw);
+            return make_error(lx, pos, "Invalid integer literal");
+        }
+        if (errno != 0 && errno != ERANGE) {
             free(raw);
             return make_error(lx, pos, "Invalid integer literal");
         }
         t.kind = TOK_INT;
-        t.has_int = true;
-        t.int_value = (int64_t)v;
+        if (errno == ERANGE) {
+            t.has_int = false;
+            t.int_value = (int64_t)v;
+        } else {
+            t.has_int = true;
+            t.int_value = (int64_t)v;
+        }
     }
     return t;
 }
@@ -192,6 +231,9 @@ static SurgeToken lex_hex_number(SurgeLexer *lx, SurgeSrcPos pos) {
 
     size_t end = lx->idx;
     size_t raw_len = end - begin;
+    if (raw_len > SURGE_MAX_TOKEN_LEXEME) {
+        return make_error(lx, pos, "Numeric literal too long");
+    }
     char *clean = (char*)malloc(raw_len + 1);
     if (!clean) return make_error(lx, pos, "Out of memory (number)");
     size_t ci = 0;
@@ -297,6 +339,9 @@ static SurgeToken lex_decimal_or_float(SurgeLexer *lx, SurgeSrcPos pos) {
 
     size_t end = lx->idx;
     size_t raw_len = end - begin;
+    if (raw_len > SURGE_MAX_TOKEN_LEXEME) {
+        return make_error(lx, pos, "Numeric literal too long");
+    }
     char *clean = (char*)malloc(raw_len + 1);
     if (!clean) return make_error(lx, pos, "Out of memory (number)");
     size_t ci = 0;
@@ -346,6 +391,9 @@ static SurgeToken lex_ident_or_kw(SurgeLexer *lx, SurgeSrcPos pos) {
     lx_advance(lx); // consume first validated char
     while (is_ident_part(lx_peek(lx))) lx_advance(lx);
     size_t n = lx->idx - begin;
+    if (n > SURGE_MAX_TOKEN_LEXEME) {
+        return make_error(lx, pos, "Identifier too long");
+    }
     SurgeTokenKind k = keyword_lookup(&lx->buf[begin], n);
     return make_simple(k, pos, &lx->buf[begin], n);
 }
@@ -529,7 +577,10 @@ SurgeToken surge_lexer_next(SurgeLexer *lx) {
         return t;
     }
 
-    skip_ws_and_comments(lx);
+    SurgeToken skip_err;
+    if (!skip_ws_and_comments(lx, &skip_err)) {
+        return skip_err;
+    }
 
     SurgeSrcPos pos = { .file = lx->file, .line = lx->line, .col = lx->col };
     if (lx_eof(lx)) {

@@ -1,0 +1,3 @@
+let sel = foo.bar
+let call = obj.method(arg)
+let chain = arr[0].field

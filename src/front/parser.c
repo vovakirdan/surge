@@ -16,6 +16,11 @@ static SurgeAstType *parse_type(SurgeParser *ps);
 static void parser_advance(SurgeParser *ps) {
     surge_token_free(&ps->cur);
     ps->cur = surge_lexer_next(ps->lx);
+    if (ps->cur.kind == TOK_ERROR) {
+        const char *msg = ps->cur.lexeme ? ps->cur.lexeme : "lexer error";
+        surge_diag_errorf(ps->cur.pos, "Lexer error: %s", msg);
+        ps->had_error = true;
+    }
 }
 
 static bool parser_expect(SurgeParser *ps, SurgeTokenKind k, const char *what) {
@@ -42,6 +47,33 @@ static char *dup_lex(const char *s) {
 static SurgeAstIdent make_ident_from_tok(SurgeToken t) {
     SurgeAstIdent id = {0};
     id.name = dup_lex(t.lexeme ? t.lexeme : "");
+    return id;
+}
+
+static SurgeAstIdent make_dummy_ident(void) {
+    SurgeAstIdent id = {0};
+    id.name = dup_lex("<error>");
+    return id;
+}
+
+static SurgeAstIdent parser_expect_identifier(SurgeParser *ps, const char *context) {
+    if (ps->cur.kind == TOK_IDENTIFIER) {
+        SurgeAstIdent id = make_ident_from_tok(ps->cur);
+        parser_advance(ps);
+        return id;
+    }
+    SurgeAstIdent id = make_dummy_ident();
+    if (ps->cur.kind == TOK_ERROR) {
+        parser_advance(ps);
+        return id;
+    }
+    ps->had_error = true;
+    if (context) {
+        surge_diag_errorf(ps->cur.pos, "Expected identifier %s", context);
+    } else {
+        surge_diag_errorf(ps->cur.pos, "Expected identifier");
+    }
+    if (!is_token(ps, TOK_EOF)) parser_advance(ps);
     return id;
 }
 
@@ -359,8 +391,7 @@ static bool parse_attr_pure(SurgeParser *ps) {
 static SurgeAstStmt *parse_let(SurgeParser *ps) {
     SurgeSrcPos pos = ps->cur.pos;
     parser_advance(ps); // let
-    if (!is_token(ps, TOK_IDENTIFIER)) { surge_diag_errorf(ps->cur.pos, "Expected identifier after 'let'"); ps->had_error=true; }
-    SurgeAstIdent name = make_ident_from_tok(ps->cur); parser_advance(ps);
+    SurgeAstIdent name = parser_expect_identifier(ps, "after 'let'");
 
     bool has_type=false; SurgeAstType *type_ast=NULL;
     if (is_token(ps, TOK_COLON)) {
@@ -379,8 +410,7 @@ static SurgeAstStmt *parse_let(SurgeParser *ps) {
 static SurgeAstStmt *parse_signal(SurgeParser *ps){
     SurgeSrcPos pos = ps->cur.pos;
     parser_advance(ps); // signal
-    if (!is_token(ps, TOK_IDENTIFIER)) { surge_diag_errorf(ps->cur.pos, "Expected identifier after 'signal'"); ps->had_error=true; }
-    SurgeAstIdent name = make_ident_from_tok(ps->cur); parser_advance(ps);
+    SurgeAstIdent name = parser_expect_identifier(ps, "after 'signal'");
     (void)parser_expect(ps, TOK_ASSIGN, "'='");
     SurgeAstExpr *init = parse_expr(ps);
     (void)parser_expect(ps, TOK_SEMICOLON, "';'");
@@ -441,8 +471,7 @@ static SurgeAstStmt *parse_while(SurgeParser *ps){
 
 static SurgeAstParam parse_param(SurgeParser *ps){
     SurgeAstParam p = {0};
-    if (!is_token(ps, TOK_IDENTIFIER)) { surge_diag_errorf(ps->cur.pos,"Expected param name"); ps->had_error=true; return p; }
-    p.name = make_ident_from_tok(ps->cur); parser_advance(ps);
+    p.name = parser_expect_identifier(ps, "in parameter list");
     (void)parser_expect(ps, TOK_COLON, "':'");
     SurgeAstType *ty = parse_type(ps);
     p.type_ast = ty;
@@ -452,8 +481,7 @@ static SurgeAstParam parse_param(SurgeParser *ps){
 static SurgeAstStmt *parse_fn_core(SurgeParser *ps, bool is_pure){
     SurgeSrcPos pos = ps->cur.pos;
     parser_advance(ps); // fn
-    if (!is_token(ps, TOK_IDENTIFIER)) { surge_diag_errorf(ps->cur.pos,"Expected function name"); ps->had_error=true; }
-    SurgeAstIdent name = make_ident_from_tok(ps->cur); parser_advance(ps);
+    SurgeAstIdent name = parser_expect_identifier(ps, "for function name");
     (void)parser_expect(ps, TOK_LPAREN, "'('");
     SurgeAstParam *params=NULL; size_t cap=0,cnt=0;
     if (!is_token(ps, TOK_RPAREN)) {
@@ -537,16 +565,7 @@ static SurgeAstStmt *parse_parallel(SurgeParser *ps) {
 static SurgeAstStmt *parse_import(SurgeParser *ps){
     SurgeSrcPos pos = ps->cur.pos;
     parser_advance(ps); // import
-    if (!is_token(ps, TOK_IDENTIFIER)) {
-        surge_diag_errorf(ps->cur.pos, "Expected module name after 'import'");
-        ps->had_error = true;
-        // попытка восстановления
-        while (!is_token(ps, TOK_SEMICOLON) && !is_token(ps, TOK_EOF)) parser_advance(ps);
-        if (is_token(ps, TOK_SEMICOLON)) parser_advance(ps);
-        return mk_stmt(AST_IMPORT, pos);
-    }
-    SurgeAstIdent mod = (SurgeAstIdent){ .name = dup_lex(ps->cur.lexeme ? ps->cur.lexeme : "") };
-    parser_advance(ps);
+    SurgeAstIdent mod = parser_expect_identifier(ps, "after 'import'");
     (void)parser_expect(ps, TOK_SEMICOLON, "';'");
     SurgeAstStmt *s = mk_stmt(AST_IMPORT, pos);
     s->as.import_stmt.name = mod;
@@ -556,16 +575,7 @@ static SurgeAstStmt *parse_import(SurgeParser *ps){
 static SurgeAstStmt *parse_typedef(SurgeParser *ps){
     SurgeSrcPos pos = ps->cur.pos;
     parser_advance(ps); // type
-    if (!is_token(ps, TOK_IDENTIFIER)) {
-        surge_diag_errorf(ps->cur.pos, "Expected type name after 'type'");
-        ps->had_error = true;
-        // попытка восстановления
-        while (!is_token(ps, TOK_SEMICOLON) && !is_token(ps, TOK_EOF)) parser_advance(ps);
-        if (is_token(ps, TOK_SEMICOLON)) parser_advance(ps);
-        return mk_stmt(AST_TYPEDEF, pos);
-    }
-    SurgeAstIdent name = (SurgeAstIdent){ .name = dup_lex(ps->cur.lexeme ? ps->cur.lexeme : "") };
-    parser_advance(ps);
+    SurgeAstIdent name = parser_expect_identifier(ps, "after 'type'");
     (void)parser_expect(ps, TOK_ASSIGN, "'='");
     SurgeAstType *aliased = parse_type(ps);
     (void)parser_expect(ps, TOK_SEMICOLON, "';'");
@@ -742,7 +752,11 @@ bool parser_init(SurgeParser *ps, SurgeLexer *lx){
     memset(ps, 0, sizeof(*ps));
     ps->lx = lx;
     ps->cur = surge_lexer_next(lx);
-    ps->had_error = false;
+    if (ps->cur.kind == TOK_ERROR) {
+        const char *msg = ps->cur.lexeme ? ps->cur.lexeme : "lexer error";
+        surge_diag_errorf(ps->cur.pos, "Lexer error: %s", msg);
+        ps->had_error = true;
+    }
     return true;
 }
 

@@ -1,0 +1,4 @@
+let max = 9223372036854775807
+let overflow = 9223372036854775808
+let hex_max = 0x7FFF_FFFF_FFFF_FFFF
+let hex_over = 0x8000_0000_0000_0000

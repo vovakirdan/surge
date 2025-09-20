@@ -1,0 +1,4 @@
+fn main() {
+  let s:string = "hi";
+  let x:int = +s;
+}

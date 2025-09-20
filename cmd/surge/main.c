@@ -78,10 +78,18 @@ static void print_token(const SurgeToken *t) {
     const char *k = surge_token_kind_cstr(t->kind);
     switch (t->kind) {
         case TOK_INT:
-            printf("Int(%lld)\n", (long long)t->int_value);
+            if (t->has_int) {
+                printf("Int(%lld)\n", (long long)t->int_value);
+            } else {
+                printf("Int(%s)\n", t->lexeme ? t->lexeme : "");
+            }
             break;
         case TOK_FLOAT:
-            printf("Float(%g)\n", t->float_value);
+            if (t->has_float) {
+                printf("Float(%g)\n", t->float_value);
+            } else {
+                printf("Float(%s)\n", t->lexeme ? t->lexeme : "");
+            }
             break;
         case TOK_STRING:
             fputs("String(\"", stdout);

@@ -1,0 +1,8 @@
+fn main() {
+  let x:int = +1;
+  let y:int = -x;
+  let flag:bool = true && !false;
+  let arr:int[] = [1, 2];
+  let first:int = arr[0];
+  let combo:bool = (flag && true) || !flag;
+}

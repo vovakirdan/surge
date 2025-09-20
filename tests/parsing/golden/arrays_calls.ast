@@ -5,6 +5,9 @@ Unit{
       Int(2)
       Int(3)
     ]
+  Let empty:int[] =
+    Array[
+    ]
   Let r =
     Call{
       Ident(add)

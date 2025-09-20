@@ -1,0 +1,34 @@
+Unit{
+  Fn main
+    Block{
+      Let a =
+        Binary(+)
+          Int(1)
+          Binary(*)
+            Int(2)
+            Int(3)
+      Let b =
+        Binary(||)
+          Ident(x)
+          Binary(&&)
+            Ident(y)
+            Ident(z)
+      Let c =
+        Unary(neg)
+          Unary(not)
+            Unary(pos)
+              Ident(value)
+      Let d =
+        Call{
+          Index{
+            Call{
+              Ident(f)
+              Ident(x)
+              Ident(y)
+            }
+            Ident(idx)
+          }
+          Ident(z)
+        }
+    }
+}
