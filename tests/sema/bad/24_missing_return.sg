@@ -1,0 +1,6 @@
+fn bad(a:int) -> int {
+  if (a > 0) {
+    return 1;
+  }
+  let x:int = 2;
+}

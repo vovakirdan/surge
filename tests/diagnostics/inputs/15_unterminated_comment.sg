@@ -1,2 +1,3 @@
 let x = 1;
 /* not closed
+let x:int = 1;

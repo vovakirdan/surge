@@ -1,0 +1,6 @@
+let counter:int = 0;
+
+@pure fn bump() -> int {
+  counter = counter + 1;
+  return counter;
+}

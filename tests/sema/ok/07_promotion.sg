@@ -1,0 +1,9 @@
+let global_float:float = 1;
+
+fn mix(a:int, b:float) -> float {
+  let lhs:float = a;
+  let rhs:float = b + 3;
+  let sum:float = a + b;
+  let cmp:bool = a < b;
+  return sum + rhs;
+}

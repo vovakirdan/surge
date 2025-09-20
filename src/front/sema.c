@@ -197,6 +197,7 @@ typedef struct {
 } TExpr;
 
 static TExpr check_expr(Sema *s, SurgeAstExpr *e);
+static bool stmt_guarantees_return(const SurgeAstStmt *st);
 
 static void type_mismatch(Sema *s, SurgeSrcPos pos, const char *ctx, const SurgeType *a, const SurgeType *b){
     s->had_error = true;
@@ -204,6 +205,29 @@ static void type_mismatch(Sema *s, SurgeSrcPos pos, const char *ctx, const Surge
 }
 
 static TExpr mk(const SurgeType *t, bool is_lvalue) { TExpr x; x.type=t; x.is_lvalue=is_lvalue; return x; }
+
+static bool is_numeric_type(const SurgeType *t) {
+    const SurgeType *rt = rview(t);
+    return rt->kind == TY_INT || rt->kind == TY_FLOAT;
+}
+
+static const SurgeType *numeric_join(const SurgeType *a, const SurgeType *b) {
+    const SurgeType *ra = rview(a);
+    const SurgeType *rb = rview(b);
+    if (ra->kind == TY_INVALID || rb->kind == TY_INVALID) return &TY_Invalid;
+    if (ra->kind == TY_INT && rb->kind == TY_INT) return &TY_Int;
+    if (ra->kind == TY_FLOAT && rb->kind == TY_FLOAT) return &TY_Float;
+    if ((ra->kind == TY_FLOAT && rb->kind == TY_INT) || (ra->kind == TY_INT && rb->kind == TY_FLOAT)) return &TY_Float;
+    return &TY_Invalid;
+}
+
+static bool can_assign_to(const SurgeType *dst, const SurgeType *src) {
+    if (ty_equal(dst, src)) return true;
+    const SurgeType *rd = rview(dst);
+    const SurgeType *rs = rview(src);
+    if (rd->kind == TY_FLOAT && rs->kind == TY_INT) return true;
+    return false;
+}
 
 static TExpr check_call(Sema *s, SurgeAstExpr *call){
     // MVP: callee должен быть идентификатором функции; аргументы не проверяем по сигнатуре (позже)
@@ -345,31 +369,56 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
             TExpr R = check_expr(s, e->as.binary.rhs);
             const SurgeType *Lt = rview(L.type);
             const SurgeType *Rt = rview(R.type);
-            // НЕТ автоприведения (MVP)
             if (is_arith(e->as.binary.op)){
-                if (!ty_equal(Lt, Rt)){
-                    type_mismatch(s, e->base.pos, "arithmetic operands", Lt, Rt);
+                const SurgeType *res = numeric_join(Lt, Rt);
+                if (res != &TY_Invalid) {
+                    return mk(res, false);
+                }
+                if (!is_numeric_type(Lt) || !is_numeric_type(Rt)) {
+                    s->had_error = true;
+                    surge_diag_errorf(e->base.pos, "arithmetic on non-numeric operands (%s vs %s)", ty_name(Lt), ty_name(Rt));
                     return mk(&TY_Invalid, false);
                 }
-                if (Lt->kind==TY_INT || Lt->kind==TY_FLOAT) return mk(Lt, false);
-                s->had_error=true; surge_diag_errorf(e->base.pos, "arithmetic on non-numeric type %s", ty_name(Lt));
+                type_mismatch(s, e->base.pos, "arithmetic operands", Lt, Rt);
                 return mk(&TY_Invalid, false);
             }
-            // сравнения -> bool, операнды одного типа
             switch (e->as.binary.op){
-                case AST_OP_EQ: case AST_OP_NE: case AST_OP_LT: case AST_OP_LE: case AST_OP_GT: case AST_OP_GE:
-                    if (!ty_equal(Lt, Rt)){
+                case AST_OP_EQ:
+                case AST_OP_NE: {
+                    if (is_numeric_type(Lt) && is_numeric_type(Rt)) {
+                        if (numeric_join(Lt, Rt) == &TY_Invalid) {
+                            type_mismatch(s, e->base.pos, "numeric comparison", Lt, Rt);
+                            return mk(&TY_Invalid, false);
+                        }
+                        return mk(&TY_Bool, false);
+                    }
+                    if (!ty_equal(Lt, Rt)) {
                         type_mismatch(s, e->base.pos, "comparison operands", Lt, Rt);
                         return mk(&TY_Invalid, false);
                     }
                     return mk(&TY_Bool, false);
-                case AST_OP_AND: case AST_OP_OR:
+                }
+                case AST_OP_LT:
+                case AST_OP_LE:
+                case AST_OP_GT:
+                case AST_OP_GE: {
+                    const SurgeType *res = numeric_join(Lt, Rt);
+                    if (res == &TY_Invalid) {
+                        s->had_error = true;
+                        surge_diag_errorf(e->base.pos, "ordered comparison requires numeric operands (%s vs %s)", ty_name(Lt), ty_name(Rt));
+                        return mk(&TY_Invalid, false);
+                    }
+                    return mk(&TY_Bool, false);
+                }
+                case AST_OP_AND:
+                case AST_OP_OR:
                     if (rview(L.type)->kind!=TY_BOOL || rview(R.type)->kind!=TY_BOOL){
                         s->had_error=true; surge_diag_errorf(e->base.pos, "logical operator requires bool operands");
                         return mk(&TY_Invalid, false);
                     }
                     return mk(&TY_Bool, false);
-                default: break;
+                default:
+                    break;
             }
             return mk(&TY_Invalid, false);
         }
@@ -406,7 +455,7 @@ static void declare_fn_signature(Sema *s, SurgeAstStmt *fn){
         ? resolve_type_ast(s, fn->as.fn_decl.ret_type_ast)
         : &TY_Invalid; // void будет задан позже, пока оставим invalid => нельзя использовать как значение
 
-    Symbol sym = { .kind=SYM_FN, .type=ret, .is_pure=fn->as.fn_decl.is_pure };
+    Symbol sym = { .kind=SYM_FN, .type=ret, .is_pure=fn->as.fn_decl.is_pure, .is_global=true };
     if (!sema_insert_symbol(s, name, sym)){
         s->had_error=true;
         surge_diag_errorf(fn->base.pos, "redeclaration of '%s'", name);
@@ -414,6 +463,18 @@ static void declare_fn_signature(Sema *s, SurgeAstStmt *fn){
 }
 
 static void check_fn(Sema *s, SurgeAstStmt *fn){
+    Symbol *fn_sym = scope_lookup(s->scope, fn->as.fn_decl.name.name);
+    const SurgeType *ret_type = fn_sym ? fn_sym->type : &TY_Invalid;
+    bool prev_has_ret = s->current_fn_has_ret;
+    const SurgeType *prev_ret = s->current_ret;
+    int prev_pure_depth = s->pure_depth;
+
+    s->current_fn_has_ret = fn->as.fn_decl.has_ret;
+    s->current_ret = ret_type;
+    if (fn->as.fn_decl.is_pure) {
+        s->pure_depth++;
+    }
+
     scope_push(s);
     // параметры
     for (size_t i=0;i<fn->as.fn_decl.paramc;i++){
@@ -423,14 +484,28 @@ static void check_fn(Sema *s, SurgeAstStmt *fn){
             s->had_error=true;
             surge_diag_errorf(fn->base.pos, "unknown parameter type for '%s'", pname);
         }
-        Symbol sym = { .kind=SYM_VAR, .type=pt };
+        Symbol sym = { .kind=SYM_VAR, .type=pt, .is_pure=false, .is_global=false };
         if (!sema_insert_symbol(s, pname, sym)){
             s->had_error=true;
             surge_diag_errorf(fn->base.pos, "duplicate parameter '%s'", pname);
         }
     }
     check_stmt(s, fn->as.fn_decl.body);
+
+    if (fn->as.fn_decl.has_ret) {
+        bool ensured = fn->as.fn_decl.body ? stmt_guarantees_return(fn->as.fn_decl.body) : false;
+        if (!ensured) {
+            s->had_error = true;
+            surge_diag_errorf(fn->base.pos, "not all paths return a value in function '%s'", fn->as.fn_decl.name.name);
+        }
+    }
     scope_pop(s);
+
+    if (fn->as.fn_decl.is_pure) {
+        s->pure_depth = prev_pure_depth;
+    }
+    s->current_fn_has_ret = prev_has_ret;
+    s->current_ret = prev_ret;
 }
 
 static void check_stmt(Sema *s, SurgeAstStmt *st){
@@ -449,10 +524,11 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
             TExpr init = check_expr(s, st->as.let_decl.init);
             if (decl->kind == TY_INVALID){
                 s->had_error=true; surge_diag_errorf(st->base.pos, "unknown declared type");
-            } else if (!ty_equal(decl, init.type)){
+            } else if (init.type->kind != TY_INVALID && !can_assign_to(decl, init.type)){
                 type_mismatch(s, st->base.pos, "let initializer", decl, init.type);
             }
-            Symbol sym = { .kind=SYM_VAR, .type=decl };
+            bool is_global = (s->scope && s->scope->parent == NULL);
+            Symbol sym = { .kind=SYM_VAR, .type=decl, .is_pure=false, .is_global=is_global };
             if (!sema_insert_symbol(s, st->as.let_decl.name.name, sym)){
                 s->had_error=true; surge_diag_errorf(st->base.pos, "redeclaration of '%s'", st->as.let_decl.name.name);
             }
@@ -460,7 +536,8 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
         }
         case AST_SIGNAL_DECL: {
             TExpr init = check_expr(s, st->as.signal_decl.init);
-            Symbol sym = { .kind=SYM_SIGNAL, .type=init.type };
+            bool is_global = (s->scope && s->scope->parent == NULL);
+            Symbol sym = { .kind=SYM_SIGNAL, .type=init.type, .is_pure=false, .is_global=is_global };
             if (!sema_insert_symbol(s, st->as.signal_decl.name.name, sym)){
                 s->had_error=true; surge_diag_errorf(st->base.pos, "redeclaration of '%s'", st->as.signal_decl.name.name);
             }
@@ -474,8 +551,12 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
                 break;
             }
             TExpr rhs = check_expr(s, st->as.assign_stmt.expr);
-            if (!ty_equal(sym->type, rhs.type)){
+            if (rhs.type->kind != TY_INVALID && !can_assign_to(sym->type, rhs.type)){
                 type_mismatch(s, st->base.pos, "assignment", sym->type, rhs.type);
+            }
+            if (in_pure_ctx(s) && sym->is_global) {
+                s->had_error = true;
+                surge_diag_errorf(st->base.pos, "cannot assign to global '%s' in a pure context", st->as.assign_stmt.name.name);
             }
             break;
         }
@@ -499,8 +580,24 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
             check_stmt(s, st->as.while_stmt.body);
             break;
         case AST_RETURN:
-            // минимально: разрешаем везде; проверка соответствия ret-типа будет позже, когда добавим контроль текущей fn
-            if (st->as.return_stmt.has_value) (void)check_expr(s, st->as.return_stmt.value);
+            if (s->current_fn_has_ret) {
+                if (!st->as.return_stmt.has_value) {
+                    s->had_error = true;
+                    surge_diag_errorf(st->base.pos, "missing return value");
+                } else {
+                    TExpr val = check_expr(s, st->as.return_stmt.value);
+                    if (val.type->kind != TY_INVALID && !can_assign_to(s->current_ret, val.type)) {
+                        type_mismatch(s, st->base.pos, "return", s->current_ret, val.type);
+                    }
+                }
+            } else {
+                if (st->as.return_stmt.has_value) {
+                    TExpr val = check_expr(s, st->as.return_stmt.value);
+                    (void)val;
+                    s->had_error = true;
+                    surge_diag_errorf(st->base.pos, "return with a value in function returning void");
+                }
+            }
             break;
         case AST_FN_DECL:
             // сигнатуры объявлены заранее (см. prepass)
@@ -560,8 +657,8 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
 
             // 4) Лексическая область параметров тела: (acc, v) видимы только в лямбде
             scope_push(s);
-            (void)scope_insert_current(s->scope, st->as.par_reduce.acc.name.name, (Symbol){ .kind=SYM_VAR, .type=acc_t });
-            (void)scope_insert_current(s->scope, st->as.par_reduce.v.name.name,   (Symbol){ .kind=SYM_VAR, .type=v_t });
+            (void)scope_insert_current(s->scope, st->as.par_reduce.acc.name.name, (Symbol){ .kind=SYM_VAR, .type=acc_t, .is_pure=false, .is_global=false });
+            (void)scope_insert_current(s->scope, st->as.par_reduce.v.name.name,   (Symbol){ .kind=SYM_VAR, .type=v_t, .is_pure=false, .is_global=false });
             s->pure_depth++;
             TExpr body = check_expr(s, st->as.par_reduce.body);
             s->pure_depth--;
@@ -589,6 +686,40 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
         }        
         default:
             break;
+    }
+}
+
+static bool stmt_guarantees_return(const SurgeAstStmt *st) {
+    if (!st) return false;
+    switch (st->base.kind) {
+        case AST_RETURN:
+            return true;
+        case AST_BLOCK: {
+            for (size_t i = 0; i < st->as.block.count; ++i) {
+                if (stmt_guarantees_return(st->as.block.stmts[i])) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        case AST_IF:
+            if (!st->as.if_stmt.has_else) return false;
+            return stmt_guarantees_return(st->as.if_stmt.then_blk) &&
+                   stmt_guarantees_return(st->as.if_stmt.else_blk);
+        case AST_WHILE:
+            return false; // conservative: loops may not execute
+        case AST_EXPR_STMT:
+        case AST_LET_DECL:
+        case AST_SIGNAL_DECL:
+        case AST_ASSIGN_STMT:
+        case AST_PAR_MAP:
+        case AST_PAR_REDUCE:
+        case AST_IMPORT:
+        case AST_TYPEDEF:
+        case AST_FN_DECL:
+            return false;
+        default:
+            return false;
     }
 }
 

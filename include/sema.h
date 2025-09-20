@@ -23,6 +23,7 @@ typedef struct {
     SymKind kind;
     const SurgeType *type;   // для var/signal/ret type для fn
     bool is_pure;
+    bool is_global;
 } Symbol;
 
 typedef struct {
@@ -47,6 +48,9 @@ typedef struct {
     ShadowPolicy shadow;
 
     int pure_depth; // >0 when checking inside pure-required context
+
+    const SurgeType *current_ret;
+    bool current_fn_has_ret;
 
     // type aliases (global for MVP)
     TypeAlias *aliases; size_t alias_n, alias_cap;

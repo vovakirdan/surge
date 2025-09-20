@@ -1,0 +1,7 @@
+fn wrong_bool() -> float {
+  return 1 == 2;
+}
+
+fn missing_value() -> int {
+  return;
+}

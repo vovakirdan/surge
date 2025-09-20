@@ -1,0 +1,5 @@
+fn cat() -> string {
+  let s:string = "hi";
+  let x:int = 1;
+  return s + x;
+}

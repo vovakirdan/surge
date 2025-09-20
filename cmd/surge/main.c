@@ -63,6 +63,7 @@ static void print_escaped_string(const char *s) {
     for (const unsigned char *p = (const unsigned char*)s; *p; ++p) {
         switch (*p) {
             case '\n': fputs("\\n", stdout); break;
+            case '\r': fputs("\\r", stdout); break;
             case '\t': fputs("\\t", stdout); break;
             case '\\': fputs("\\\\", stdout); break;
             case '"':  fputs("\\\"", stdout); break;
@@ -77,6 +78,12 @@ static void print_escaped_string(const char *s) {
 static void print_token(const SurgeToken *t) {
     const char *k = surge_token_kind_cstr(t->kind);
     switch (t->kind) {
+        case TOK_ERROR: {
+            const char *msg = t->lexeme ? t->lexeme : "lexer error";
+            printf("Error(%s) @ %s:%zu:%zu\n",
+                msg, t->pos.file ? t->pos.file : "<stdin>", t->pos.line, t->pos.col);
+            break;
+        }
         case TOK_INT:
             if (t->has_int) {
                 printf("Int(%lld)\n", (long long)t->int_value);
@@ -124,6 +131,13 @@ static int cmd_tokenize(const char *path) {
     for (;;) {
         SurgeToken t = surge_lexer_next(&lx);
         print_token(&t);
+
+        if (t.kind == TOK_ERROR) {
+                /* уже распечатали через print_token; завершаем с ошибкой */
+                surge_token_free(&t);
+                surge_lexer_destroy(&lx);
+                return 2;
+            }
         if (t.kind == TOK_EOF) {
             surge_token_free(&t);
             break;
