@@ -225,7 +225,18 @@ static bool can_assign_to(const SurgeType *dst, const SurgeType *src) {
     if (ty_equal(dst, src)) return true;
     const SurgeType *rd = rview(dst);
     const SurgeType *rs = rview(src);
+    // int -> float промоушен
     if (rd->kind == TY_FLOAT && rs->kind == TY_INT) return true;
+    // Пустой массивный литерал: [] может присваиваться в любой T[]
+    // Мы типизируем [] как array<Invalid> в check_expr(AST_ARRAY_LIT),
+    // поэтому тут разрешаем array<Invalid> -> array<T>.
+    if (rd->kind == TY_ARRAY && rs->kind == TY_ARRAY) {
+        // const SurgeType *rd_elem = rview(rd->elem);
+        const SurgeType *rs_elem = rview(rs->elem);
+        if (rs_elem->kind == TY_INVALID) {
+            return true;
+        }
+    }
     return false;
 }
 
@@ -548,6 +559,11 @@ static void check_stmt(Sema *s, SurgeAstStmt *st){
             if (!sym){ s->had_error=true; surge_diag_errorf(st->base.pos, "unknown variable '%s'", st->as.assign_stmt.name.name); break; }
             if (sym->kind == SYM_SIGNAL){
                 s->had_error=true; surge_diag_errorf(st->base.pos, "cannot assign to signal '%s' (use ':=' for reactive bind)", st->as.assign_stmt.name.name);
+                break;
+            }
+            if (sym->kind != SYM_VAR) {
+                s->had_error = true;
+                surge_diag_errorf(st->base.pos, "cannot assign to non-variable '%s'", st->as.assign_stmt.name.name);
                 break;
             }
             TExpr rhs = check_expr(s, st->as.assign_stmt.expr);

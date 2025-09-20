@@ -1,0 +1,2 @@
+@pure fn sq(x:float) -> float { return x * x; }
+fn main() -> float { return sq(3); }

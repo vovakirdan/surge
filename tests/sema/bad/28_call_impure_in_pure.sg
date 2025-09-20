@@ -1,0 +1,2 @@
+fn imp(x:int)->int { return x + 1; }
+@pure fn f()->int { return imp(1); } // error: calling impure in pure
