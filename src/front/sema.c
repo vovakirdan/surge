@@ -298,10 +298,11 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
         case AST_PAREN:  { TExpr in = check_expr(s, e->as.paren.inner); return mk(in.type, in.is_lvalue); } // скобки сохраняют lvalue
         case AST_UNARY: {
             TExpr x = check_expr(s, e->as.unary.expr);
-            if (e->as.unary.op == AST_OP_NEG){
+            if (e->as.unary.op == AST_OP_NEG || e->as.unary.op == AST_OP_POS){
                 const SurgeType *ux = rview(x.type);
                 if (ux->kind==TY_INT || ux->kind==TY_FLOAT) return mk(ux, false);
-                s->had_error=true; surge_diag_errorf(e->base.pos, "unary '-' expects int or float, got %s", ty_name(x.type));
+                char opch = (e->as.unary.op == AST_OP_NEG) ? '-' : '+';
+                s->had_error=true; surge_diag_errorf(e->base.pos, "unary '%c' expects int or float, got %s", opch, ty_name(x.type));
                 return mk(&TY_Invalid, false);
             } else if (e->as.unary.op == AST_OP_NOT){
                 const SurgeType *ux = rview(x.type);

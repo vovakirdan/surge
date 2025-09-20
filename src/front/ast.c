@@ -141,6 +141,7 @@ static const char* op_str(SurgeAstOp op) {
         case AST_OP_GE:  return ">=";
         case AST_OP_AND: return "&&";
         case AST_OP_OR:  return "||";
+        case AST_OP_POS: return "pos";
         case AST_OP_NEG: return "neg";
         case AST_OP_NOT: return "not";
         case AST_OP_ADDR: return "addr";

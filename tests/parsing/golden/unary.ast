@@ -1,0 +1,17 @@
+Unit{
+  Fn main
+    Block{
+      Let x =
+        Unary(pos)
+          Int(1)
+      Let y =
+        Unary(neg)
+          Paren
+            Unary(pos)
+              Int(2)
+      Let z =
+        Unary(not)
+          Unary(pos)
+            Ident(flag)
+    }
+}

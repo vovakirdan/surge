@@ -26,6 +26,38 @@ static inline char lx_advance(SurgeLexer *lx) {
     else { lx->col++; }
     return c;
 }
+typedef struct StrBuilder {
+    char  *buf;
+    size_t len;
+    size_t cap;
+} StrBuilder;
+
+static bool sb_reserve(StrBuilder *sb, size_t extra) {
+    size_t need = sb->len + extra + 1; // +1 for null terminator
+    if (need <= sb->cap) return true;
+    size_t new_cap = sb->cap ? sb->cap * 2 : 32;
+    while (new_cap < need) {
+        if (new_cap > (SIZE_MAX / 2)) { new_cap = need; break; }
+        new_cap *= 2;
+    }
+    char *nb = (char*)realloc(sb->buf, new_cap);
+    if (!nb) return false;
+    sb->buf = nb;
+    sb->cap = new_cap;
+    return true;
+}
+
+static bool sb_push(StrBuilder *sb, char c) {
+    if (!sb_reserve(sb, 1)) return false;
+    sb->buf[sb->len++] = c;
+    return true;
+}
+
+static void sb_free(StrBuilder *sb) {
+    if (sb->buf) free(sb->buf);
+    sb->buf = NULL;
+    sb->len = sb->cap = 0;
+}
 static char *xstrndup0(const char *s, size_t n) {
     char *p = (char*)malloc(n + 1);
     if (!p) return NULL;
@@ -93,43 +125,21 @@ static SurgeToken make_error(SurgeLexer *lx, SurgeSrcPos pos, const char *msg) {
     return t;
 }
 
-static SurgeToken lex_number(SurgeLexer *lx, SurgeSrcPos pos) {
-    size_t begin = lx->idx;
-    int saw_dot = 0;
-    int saw_exp = 0;
-
-    // integer part
-    while (isdigit((unsigned char)lx_peek(lx))) lx_advance(lx);
-    // fractional part
-    if (lx_peek(lx)=='.' && isdigit((unsigned char)lx_peek2(lx))) {
-        saw_dot = 1; lx_advance(lx);
-        while (isdigit((unsigned char)lx_peek(lx))) lx_advance(lx);
-    }
-    // exponent part
-    if (lx_peek(lx)=='e' || lx_peek(lx)=='E') {
-        char n = lx_peek2(lx);
-        if (isdigit((unsigned char)n) || n=='+' || n=='-') {
-            saw_exp = 1; lx_advance(lx);
-            if (lx_peek(lx)=='+'||lx_peek(lx)=='-') lx_advance(lx);
-            if (!isdigit((unsigned char)lx_peek(lx))) return make_error(lx, pos, "Invalid float exponent");
-            while (isdigit((unsigned char)lx_peek(lx))) lx_advance(lx);
-        }
-    }
-
-    size_t n = lx->idx - begin;
-    char *lex = xstrndup0(&lx->buf[begin], n);
-    if (!lex) return make_error(lx, pos, "Out of memory (number)");
+static SurgeToken make_numeric_from_buffer(SurgeLexer *lx, SurgeSrcPos pos, size_t begin, size_t end, const char *clean, bool is_float, int int_base) {
+    char *raw = xstrndup0(&lx->buf[begin], end - begin);
+    if (!raw) return make_error(lx, pos, "Out of memory (number)");
 
     SurgeToken t = {0};
     t.pos = pos;
-    t.lexeme = lex;
-    t.length = n;
+    t.lexeme = raw;
+    t.length = end - begin;
 
-    if (saw_dot || saw_exp) {
+    if (is_float) {
         errno = 0;
         char *endp = NULL;
-        double v = strtod(lex, &endp);
-        if (errno!=0 || endp==lex) {
+        double v = strtod(clean, &endp);
+        if (errno != 0 || !endp || *endp != '\0') {
+            free(raw);
             return make_error(lx, pos, "Invalid float literal");
         }
         t.kind = TOK_FLOAT;
@@ -138,8 +148,9 @@ static SurgeToken lex_number(SurgeLexer *lx, SurgeSrcPos pos) {
     } else {
         errno = 0;
         char *endp = NULL;
-        long long v = strtoll(lex, &endp, 10);
-        if (errno!=0 || endp==lex) {
+        long long v = strtoll(clean, &endp, int_base);
+        if (errno != 0 || !endp || *endp != '\0') {
+            free(raw);
             return make_error(lx, pos, "Invalid integer literal");
         }
         t.kind = TOK_INT;
@@ -147,6 +158,165 @@ static SurgeToken lex_number(SurgeLexer *lx, SurgeSrcPos pos) {
         t.int_value = (int64_t)v;
     }
     return t;
+}
+
+static SurgeToken lex_hex_number(SurgeLexer *lx, SurgeSrcPos pos) {
+    size_t begin = lx->idx;
+    lx_advance(lx); // '0'
+    char x = lx_advance(lx); // 'x' or 'X'
+    (void)x;
+
+    bool saw_digit = false;
+    bool last_underscore = false;
+    while (!lx_eof(lx)) {
+        char c = lx_peek(lx);
+        if (isxdigit((unsigned char)c)) {
+            saw_digit = true;
+            last_underscore = false;
+            lx_advance(lx);
+            continue;
+        }
+        if (c == '_') {
+            if (!saw_digit || last_underscore) {
+                return make_error(lx, pos, "Invalid underscore in hex literal");
+            }
+            last_underscore = true;
+            lx_advance(lx);
+            continue;
+        }
+        break;
+    }
+    if (!saw_digit || last_underscore) {
+        return make_error(lx, pos, "Invalid hex literal");
+    }
+
+    size_t end = lx->idx;
+    size_t raw_len = end - begin;
+    char *clean = (char*)malloc(raw_len + 1);
+    if (!clean) return make_error(lx, pos, "Out of memory (number)");
+    size_t ci = 0;
+    for (size_t i = begin; i < end; ++i) {
+        char c = lx->buf[i];
+        if (c == '_') continue;
+        clean[ci++] = c;
+    }
+    clean[ci] = '\0';
+
+    SurgeToken t = make_numeric_from_buffer(lx, pos, begin, end, clean, false, 0);
+    free(clean);
+    return t;
+}
+
+static SurgeToken lex_decimal_or_float(SurgeLexer *lx, SurgeSrcPos pos) {
+    size_t begin = lx->idx;
+    bool last_underscore = false;
+    bool saw_digit = false;
+    while (!lx_eof(lx)) {
+        char c = lx_peek(lx);
+        if (isdigit((unsigned char)c)) {
+            saw_digit = true;
+            last_underscore = false;
+            lx_advance(lx);
+        } else if (c == '_') {
+            if (!saw_digit || last_underscore) {
+                return make_error(lx, pos, "Invalid underscore in number literal");
+            }
+            last_underscore = true;
+            lx_advance(lx);
+        } else {
+            break;
+        }
+    }
+
+    bool saw_dot = false;
+    bool frac_digit = false;
+    if (lx_peek(lx) == '.' && isdigit((unsigned char)lx_peek2(lx))) {
+        if (last_underscore) {
+            return make_error(lx, pos, "Invalid underscore in number literal");
+        }
+        saw_dot = true;
+        last_underscore = false;
+        lx_advance(lx); // consume '.'
+        while (!lx_eof(lx)) {
+            char c = lx_peek(lx);
+            if (isdigit((unsigned char)c)) {
+                frac_digit = true;
+                last_underscore = false;
+                lx_advance(lx);
+            } else if (c == '_') {
+                if (!frac_digit || last_underscore) {
+                    return make_error(lx, pos, "Invalid underscore in number literal");
+                }
+                last_underscore = true;
+                lx_advance(lx);
+            } else {
+                break;
+            }
+        }
+        if (!frac_digit || last_underscore) {
+            return make_error(lx, pos, "Invalid float literal");
+        }
+    } else if (last_underscore) {
+        return make_error(lx, pos, "Invalid underscore in number literal");
+    }
+
+    bool saw_exp = false;
+    bool exp_digit = false;
+    bool exp_last_us = false;
+    if (lx_peek(lx) == 'e' || lx_peek(lx) == 'E') {
+        if (last_underscore) {
+            return make_error(lx, pos, "Invalid underscore in number literal");
+        }
+        saw_exp = true;
+        lx_advance(lx);
+        if (lx_peek(lx) == '+' || lx_peek(lx) == '-') {
+            lx_advance(lx);
+        }
+        while (!lx_eof(lx)) {
+            char c = lx_peek(lx);
+            if (isdigit((unsigned char)c)) {
+                exp_digit = true;
+                exp_last_us = false;
+                lx_advance(lx);
+            } else if (c == '_') {
+                if (!exp_digit || exp_last_us) {
+                    return make_error(lx, pos, "Invalid underscore in number literal");
+                }
+                exp_last_us = true;
+                lx_advance(lx);
+            } else {
+                break;
+            }
+        }
+        if (!exp_digit || exp_last_us) {
+            return make_error(lx, pos, "Invalid float exponent");
+        }
+    } else if (last_underscore) {
+        return make_error(lx, pos, "Invalid underscore in number literal");
+    }
+
+    size_t end = lx->idx;
+    size_t raw_len = end - begin;
+    char *clean = (char*)malloc(raw_len + 1);
+    if (!clean) return make_error(lx, pos, "Out of memory (number)");
+    size_t ci = 0;
+    for (size_t i = begin; i < end; ++i) {
+        char c = lx->buf[i];
+        if (c == '_') continue;
+        clean[ci++] = c;
+    }
+    clean[ci] = '\0';
+
+    SurgeToken t = make_numeric_from_buffer(lx, pos, begin, end, clean, saw_dot || saw_exp, 10);
+    free(clean);
+    return t;
+}
+
+static SurgeToken lex_number(SurgeLexer *lx, SurgeSrcPos pos) {
+    if (lx_peek(lx) == '0' && (lx_peek2(lx) == 'x' || lx_peek2(lx) == 'X')) {
+        return lex_hex_number(lx, pos);
+    }
+    return lex_decimal_or_float(lx, pos);
 }
 
 static SurgeTokenKind keyword_lookup(const char *s, size_t n) {
@@ -181,32 +351,69 @@ static SurgeToken lex_ident_or_kw(SurgeLexer *lx, SurgeSrcPos pos) {
 }
 
 static SurgeToken lex_string(SurgeLexer *lx, SurgeSrcPos pos) {
-    // consume opening "
-    lx_advance(lx);
-    size_t begin = lx->idx;
-    int escaped = 0;
+    lx_advance(lx); // consume opening '"'
+    StrBuilder sb = {0};
+
     while (!lx_eof(lx)) {
         char c = lx_peek(lx);
-        if (!escaped) {
-            if (c == '\\') { escaped = 1; lx_advance(lx); continue; }
-            if (c == '"') {
-                size_t raw_len = lx->idx - begin;
-                lx_advance(lx); // consume closing "
-                char *raw = xstrndup0(&lx->buf[begin], raw_len);
-                if (!raw) return make_error(lx, pos, "Out of memory (string)");
-                SurgeToken t = {0};
-                t.kind = TOK_STRING;
-                t.pos = pos;
-                t.lexeme = raw;
-                t.length = raw_len;
-                return t;
+        if (c == '"') {
+            lx_advance(lx); // closing quote
+            if (!sb_reserve(&sb, 0)) {
+                sb_free(&sb);
+                return make_error(lx, pos, "Out of memory (string)");
             }
-            lx_advance(lx);
-        } else {
-            escaped = 0;
-            lx_advance(lx);
+            sb.buf[sb.len] = '\0';
+            SurgeToken t = {0};
+            t.kind = TOK_STRING;
+            t.pos = pos;
+            t.lexeme = sb.buf;
+            t.length = sb.len;
+            return t;
+        }
+        if (c == '\\') {
+            lx_advance(lx); // consume '\\'
+            if (lx_eof(lx)) {
+                sb_free(&sb);
+                return make_error(lx, pos, "Unterminated string escape");
+            }
+            char esc = lx_advance(lx);
+            char actual;
+            switch (esc) {
+                case 'n': actual = '\n'; break;
+                case 't': actual = '\t'; break;
+                case '\\': actual = '\\'; break;
+                case '"': actual = '"'; break;
+                default:
+                    sb_free(&sb);
+                    char msg[64];
+                    snprintf(msg, sizeof(msg), "Unknown escape sequence '\\%c'", esc ? esc : '?');
+                    return make_error(lx, pos, msg);
+            }
+            if (!sb_push(&sb, actual)) {
+                sb_free(&sb);
+                return make_error(lx, pos, "Out of memory (string)");
+            }
+            if (sb.len > SURGE_MAX_TOKEN_LEXEME) {
+                sb_free(&sb);
+                return make_error(lx, pos, "String literal too long");
+            }
+            continue;
+        }
+        if (c == '\n' || c == '\r') {
+            sb_free(&sb);
+            return make_error(lx, pos, "Unterminated string literal");
+        }
+        lx_advance(lx);
+        if (!sb_push(&sb, c)) {
+            sb_free(&sb);
+            return make_error(lx, pos, "Out of memory (string)");
+        }
+        if (sb.len > SURGE_MAX_TOKEN_LEXEME) {
+            sb_free(&sb);
+            return make_error(lx, pos, "String literal too long");
         }
     }
+    sb_free(&sb);
     return make_error(lx, pos, "Unterminated string literal");
 }
 

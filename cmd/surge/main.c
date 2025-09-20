@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <ctype.h>
 
 #include "config.h"
 #include "lexer.h"
@@ -57,6 +58,22 @@ static int init_lexer_from_arg(SurgeLexer *lx, const char *arg_path) {
 
 /* ---- tokenize subcommand ---- */
 
+static void print_escaped_string(const char *s) {
+    if (!s) return;
+    for (const unsigned char *p = (const unsigned char*)s; *p; ++p) {
+        switch (*p) {
+            case '\n': fputs("\\n", stdout); break;
+            case '\t': fputs("\\t", stdout); break;
+            case '\\': fputs("\\\\", stdout); break;
+            case '"':  fputs("\\\"", stdout); break;
+            default:
+                if (isprint(*p)) fputc(*p, stdout);
+                else fprintf(stdout, "\\x%02X", *p);
+                break;
+        }
+    }
+}
+
 static void print_token(const SurgeToken *t) {
     const char *k = surge_token_kind_cstr(t->kind);
     switch (t->kind) {
@@ -67,7 +84,9 @@ static void print_token(const SurgeToken *t) {
             printf("Float(%g)\n", t->float_value);
             break;
         case TOK_STRING:
-            printf("String(\"%s\")\n", t->lexeme ? t->lexeme : "");
+            fputs("String(\"", stdout);
+            print_escaped_string(t->lexeme);
+            fputs("\")\n", stdout);
             break;
         case TOK_IDENTIFIER:
             printf("Ident(%s)\n", t->lexeme ? t->lexeme : "");

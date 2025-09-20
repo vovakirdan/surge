@@ -1,0 +1,7 @@
+// numerics with separators and formats
+let a = 1_000
+let b = 0xDEAD_BEEF
+let c = 1_234.5_6
+let d = 1.0e-3
+let e = 6.022e+23
+let f = 1.2_5e-1_0

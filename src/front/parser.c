@@ -118,6 +118,15 @@ static SurgeAstExpr *parse_array_literal_only(SurgeParser *ps){
 static SurgeAstExpr *parse_base_expr(SurgeParser *ps) {
     SurgeAstExpr *e = NULL;
     SurgeSrcPos pos = ps->cur.pos;
+    if (is_token(ps, TOK_ERROR)) {
+        const char *msg = ps->cur.lexeme ? ps->cur.lexeme : "lexer error";
+        surge_diag_errorf(ps->cur.pos, "Lexer error: %s", msg);
+        ps->had_error = true;
+        parser_advance(ps);
+        e = mk_expr(AST_INT_LIT, pos);
+        e->as.int_lit.v = 0;
+        return e;
+    }
     if (is_token(ps, TOK_INT)) {
         e = mk_expr(AST_INT_LIT, pos);
         e->as.int_lit.v = ps->cur.int_value;
@@ -204,6 +213,14 @@ static SurgeAstExpr *parse_primary(SurgeParser *ps) {
         e->as.array_lit.items = items;
         e->as.array_lit.count = cnt;
     } else {
+        if (is_token(ps, TOK_ERROR)) {
+            const char *msg = ps->cur.lexeme ? ps->cur.lexeme : "lexer error";
+            surge_diag_errorf(ps->cur.pos, "Lexer error: %s", msg);
+            ps->had_error = true;
+            parser_advance(ps);
+            e = mk_expr(AST_INT_LIT, pos); e->as.int_lit.v = 0;
+            return e;
+        }
         surge_diag_errorf(ps->cur.pos, "Unexpected token in primary: %s", surge_token_kind_cstr(ps->cur.kind));
         ps->had_error = true;
         // error recovery: create dummy int literal
@@ -266,6 +283,12 @@ static SurgeAstExpr *parse_unary(SurgeParser *ps){
         SurgeAstExpr *e = parse_unary(ps);
         SurgeAstExpr *u = mk_expr(AST_UNARY, pos);
         u->as.unary.op = AST_OP_NEG; u->as.unary.expr = e; return u;
+    }
+    if (is_token(ps, TOK_PLUS)) {
+        SurgeSrcPos pos = ps->cur.pos; parser_advance(ps);
+        SurgeAstExpr *e = parse_unary(ps);
+        SurgeAstExpr *u = mk_expr(AST_UNARY, pos);
+        u->as.unary.op = AST_OP_POS; u->as.unary.expr = e; return u;
     }
     if (is_token(ps, TOK_BANG)) {
         SurgeSrcPos pos = ps->cur.pos; parser_advance(ps);
