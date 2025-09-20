@@ -2,7 +2,6 @@
 #include "diagnostics.h"
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 // ---------- scope helpers ----------
 
@@ -48,6 +47,9 @@ static Symbol *scope_lookup_current(SemaScope *sc, const char *name){
 }
 
 static bool sema_insert_symbol(Sema *s, const char *name, Symbol sym){
+    if (!name) {
+        return false;
+    }
     // ALLOW: запрещаем только дубликаты в текущем скоупе
     if (s->shadow == SHADOW_ALLOW) {
         if (scope_lookup_current(s->scope, name)) return false;
@@ -206,6 +208,14 @@ static void type_mismatch(Sema *s, SurgeSrcPos pos, const char *ctx, const Surge
 
 static TExpr mk(const SurgeType *t, bool is_lvalue) { TExpr x; x.type=t; x.is_lvalue=is_lvalue; return x; }
 
+static TExpr annotate_expr(SurgeAstExpr *expr, TExpr t) {
+    if (expr) {
+        expr->inferred_type = t.type;
+        expr->inferred_is_lvalue = t.is_lvalue;
+    }
+    return t;
+}
+
 static bool is_numeric_type(const SurgeType *t) {
     const SurgeType *rt = rview(t);
     return rt->kind == TY_INT || rt->kind == TY_FLOAT;
@@ -264,7 +274,7 @@ static TExpr check_call(Sema *s, SurgeAstExpr *call){
     for (size_t i=0;i<call->as.call.argc;i++){
         (void)check_expr(s, call->as.call.args[i]); // просто посетим для побочных ошибок
     }
-    return mk(sym->type ? sym->type : &TY_Invalid, false);
+    return annotate_expr(call, mk(sym->type ? sym->type : &TY_Invalid, false));
 }
 
 static TExpr check_index(Sema *s, SurgeAstExpr *ix){
@@ -273,7 +283,7 @@ static TExpr check_index(Sema *s, SurgeAstExpr *ix){
     if (base.type->kind != TY_ARRAY){
         s->had_error = true;
         surge_diag_errorf(ix->base.pos, "indexing non-array value of type %s", ty_name(base.type));
-        return mk(&TY_Invalid, false);
+        return annotate_expr(ix, mk(&TY_Invalid, false));
     }
     if (rview(idx.type)->kind != TY_INT) {
         s->had_error = true;
@@ -281,7 +291,7 @@ static TExpr check_index(Sema *s, SurgeAstExpr *ix){
             "array index must be int, got %s", ty_name(rview(idx.type)));
         return mk(&TY_Invalid, false);
     }
-    return mk(base.type->elem, true); // элемент массива — lvalue
+    return annotate_expr(ix, mk(base.type->elem, true)); // элемент массива — lvalue
 }
 
 static SurgeAstOp arith_ops[] = { AST_OP_ADD, AST_OP_SUB, AST_OP_MUL, AST_OP_DIV, AST_OP_REM };
@@ -292,29 +302,43 @@ static bool is_arith(SurgeAstOp op){
 }
 
 static TExpr check_expr(Sema *s, SurgeAstExpr *e){
+    TExpr out = mk(&TY_Invalid, false);
+    if (!e) {
+        return out;
+    }
+
     switch (e->base.kind){
-        case AST_INT_LIT:   return mk(&TY_Int, false);
-        case AST_FLOAT_LIT: return mk(&TY_Float, false);
-        case AST_BOOL_LIT:  return mk(&TY_Bool, false);
-        case AST_STRING_LIT:return mk(&TY_String, false);
+        case AST_INT_LIT:
+            out = mk(&TY_Int, false);
+            break;
+        case AST_FLOAT_LIT:
+            out = mk(&TY_Float, false);
+            break;
+        case AST_BOOL_LIT:
+            out = mk(&TY_Bool, false);
+            break;
+        case AST_STRING_LIT:
+            out = mk(&TY_String, false);
+            break;
         case AST_IDENT: {
             const char *name = e->as.ident.ident.name;
             Symbol *sym = scope_lookup(s->scope, name);
             if (!sym){
                 s->had_error=true;
                 surge_diag_errorf(e->base.pos, "unknown identifier '%s'", name);
-                return mk(&TY_Invalid, false);
+                out = mk(&TY_Invalid, false);
+                break;
             }
             // pure context: forbid reading signals
             if (in_pure_ctx(s) && sym->kind == SYM_SIGNAL) {
                 s->had_error=true;
                 surge_diag_errorf(e->base.pos, "using signal '%s' is not allowed in a pure context", name);
             }
-            bool lv = (sym->kind == SYM_VAR); // signals/fn are not addressable (MVP)
-            return mk(sym->type, lv);
+            bool lv = (sym->kind == SYM_VAR);
+            out = mk(sym->type, lv);
+            break;
         }
         case AST_ARRAY_LIT: {
-            // правило: все элементы одного типа (строгий)
             const SurgeType *elem_t = NULL;
             for (size_t i=0;i<e->as.array_lit.count;i++){
                 TExpr it = check_expr(s, e->as.array_lit.items[i]);
@@ -326,54 +350,80 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
                 }
             }
             if (!elem_t) elem_t = &TY_Invalid;
-            return mk(ty_array_of(elem_t), false);
+            out = mk(ty_array_of(elem_t), false);
+            break;
         }
-        case AST_INDEX:  return check_index(s, e);
-        case AST_CALL:   return check_call(s, e);
-        case AST_PAREN:  { TExpr in = check_expr(s, e->as.paren.inner); return mk(in.type, in.is_lvalue); } // скобки сохраняют lvalue
+        case AST_INDEX:
+            out = check_index(s, e);
+            goto done;
+        case AST_CALL:
+            out = check_call(s, e);
+            goto done;
+        case AST_PAREN: {
+            TExpr in = check_expr(s, e->as.paren.inner);
+            out = mk(in.type, in.is_lvalue);
+            break;
+        }
         case AST_UNARY: {
             TExpr x = check_expr(s, e->as.unary.expr);
-            if (e->as.unary.op == AST_OP_NEG || e->as.unary.op == AST_OP_POS){
-                const SurgeType *ux = rview(x.type);
-                if (ux->kind==TY_INT || ux->kind==TY_FLOAT) return mk(ux, false);
-                char opch = (e->as.unary.op == AST_OP_NEG) ? '-' : '+';
-                s->had_error=true; surge_diag_errorf(e->base.pos, "unary '%c' expects int or float, got %s", opch, ty_name(x.type));
-                return mk(&TY_Invalid, false);
-            } else if (e->as.unary.op == AST_OP_NOT){
-                const SurgeType *ux = rview(x.type);
-                if (ux->kind==TY_BOOL) return mk(ux, false);
-                s->had_error=true; surge_diag_errorf(e->base.pos, "unary '!' expects bool, got %s", ty_name(x.type));
-                return mk(&TY_Invalid, false);
-            } else if (e->as.unary.op == AST_OP_ADDR){
-                // MVP: we can take address only from var/par (simple lvalue)
-                if (!is_lvalue_expr(e->as.unary.expr)) {
-                    s->had_error=true;
-                    surge_diag_errorf(e->base.pos, "address-of '&' requires an lvalue variable/parameter");
-                    return mk(&TY_Invalid, false);
-                }
-                // deprecate reference from signal
-                if (e->as.unary.expr->base.kind == AST_IDENT) {
-                    const char *nm = e->as.unary.expr->as.ident.ident.name;
-                    Symbol *sym = scope_lookup(s->scope, nm);
-                    if (sym && sym->kind == SYM_SIGNAL) {
-                        s->had_error = true;
-                        surge_diag_errorf(e->base.pos, "cannot take address of signal '%s'", nm);
-                        return mk(&TY_Invalid, false);
+            switch (e->as.unary.op) {
+                case AST_OP_NEG:
+                case AST_OP_POS: {
+                    const SurgeType *ux = rview(x.type);
+                    if (ux->kind==TY_INT || ux->kind==TY_FLOAT) {
+                        out = mk(ux, false);
+                    } else {
+                        char opch = (e->as.unary.op == AST_OP_NEG) ? '-' : '+';
+                        s->had_error=true; surge_diag_errorf(e->base.pos, "unary '%c' expects int or float, got %s", opch, ty_name(x.type));
+                        out = mk(&TY_Invalid, false);
                     }
+                    break;
                 }
-                return mk(ty_ref_of(x.type), false);
-            } else if (e->as.unary.op == AST_OP_DEREF){
-                // *expr — expr must be &T
-                const SurgeType *ux = rview(x.type);
-                if (ux->kind != TY_REF || !ux->elem) {
-                    s->had_error = true;
-                    surge_diag_errorf(e->base.pos, "dereference '*' expects '&T', got %s", ty_name(x.type));
-                    return mk(&TY_Invalid, false);
+                case AST_OP_NOT: {
+                    const SurgeType *ux = rview(x.type);
+                    if (ux->kind==TY_BOOL) {
+                        out = mk(ux, false);
+                    } else {
+                        s->had_error=true; surge_diag_errorf(e->base.pos, "unary '!' expects bool, got %s", ty_name(x.type));
+                        out = mk(&TY_Invalid, false);
+                    }
+                    break;
                 }
-                // deref result behaves like an lvalue (so later we can assign to *p)
-                return mk(ux->elem, true);
+                case AST_OP_ADDR:
+                    if (!is_lvalue_expr(e->as.unary.expr)) {
+                        s->had_error=true;
+                        surge_diag_errorf(e->base.pos, "address-of '&' requires an lvalue variable/parameter");
+                        out = mk(&TY_Invalid, false);
+                        break;
+                    }
+                    if (e->as.unary.expr->base.kind == AST_IDENT) {
+                        const char *nm = e->as.unary.expr->as.ident.ident.name;
+                        Symbol *sym = scope_lookup(s->scope, nm);
+                        if (sym && sym->kind == SYM_SIGNAL) {
+                            s->had_error = true;
+                            surge_diag_errorf(e->base.pos, "cannot take address of signal '%s'", nm);
+                            out = mk(&TY_Invalid, false);
+                            break;
+                        }
+                    }
+                    out = mk(ty_ref_of(x.type), false);
+                    break;
+                case AST_OP_DEREF: {
+                    const SurgeType *ux = rview(x.type);
+                    if (ux->kind != TY_REF || !ux->elem) {
+                        s->had_error = true;
+                        surge_diag_errorf(e->base.pos, "dereference '*' expects '&T', got %s", ty_name(x.type));
+                        out = mk(&TY_Invalid, false);
+                    } else {
+                        out = mk(ux->elem, true);
+                    }
+                    break;
+                }
+                default:
+                    out = mk(&TY_Invalid, false);
+                    break;
             }
-            return mk(&TY_Invalid, false);
+            break;
         }
         case AST_BINARY: {
             TExpr L = check_expr(s, e->as.binary.lhs);
@@ -383,15 +433,18 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
             if (is_arith(e->as.binary.op)){
                 const SurgeType *res = numeric_join(Lt, Rt);
                 if (res != &TY_Invalid) {
-                    return mk(res, false);
+                    out = mk(res, false);
+                    break;
                 }
                 if (!is_numeric_type(Lt) || !is_numeric_type(Rt)) {
                     s->had_error = true;
                     surge_diag_errorf(e->base.pos, "arithmetic on non-numeric operands (%s vs %s)", ty_name(Lt), ty_name(Rt));
-                    return mk(&TY_Invalid, false);
+                    out = mk(&TY_Invalid, false);
+                    break;
                 }
                 type_mismatch(s, e->base.pos, "arithmetic operands", Lt, Rt);
-                return mk(&TY_Invalid, false);
+                out = mk(&TY_Invalid, false);
+                break;
             }
             switch (e->as.binary.op){
                 case AST_OP_EQ:
@@ -399,15 +452,19 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
                     if (is_numeric_type(Lt) && is_numeric_type(Rt)) {
                         if (numeric_join(Lt, Rt) == &TY_Invalid) {
                             type_mismatch(s, e->base.pos, "numeric comparison", Lt, Rt);
-                            return mk(&TY_Invalid, false);
+                            out = mk(&TY_Invalid, false);
+                            break;
                         }
-                        return mk(&TY_Bool, false);
+                        out = mk(&TY_Bool, false);
+                        break;
                     }
                     if (!ty_equal(Lt, Rt)) {
                         type_mismatch(s, e->base.pos, "comparison operands", Lt, Rt);
-                        return mk(&TY_Invalid, false);
+                        out = mk(&TY_Invalid, false);
+                        break;
                     }
-                    return mk(&TY_Bool, false);
+                    out = mk(&TY_Bool, false);
+                    break;
                 }
                 case AST_OP_LT:
                 case AST_OP_LE:
@@ -417,24 +474,28 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
                     if (res == &TY_Invalid) {
                         s->had_error = true;
                         surge_diag_errorf(e->base.pos, "ordered comparison requires numeric operands (%s vs %s)", ty_name(Lt), ty_name(Rt));
-                        return mk(&TY_Invalid, false);
+                        out = mk(&TY_Invalid, false);
+                        break;
                     }
-                    return mk(&TY_Bool, false);
+                    out = mk(&TY_Bool, false);
+                    break;
                 }
                 case AST_OP_AND:
                 case AST_OP_OR:
                     if (rview(L.type)->kind!=TY_BOOL || rview(R.type)->kind!=TY_BOOL){
                         s->had_error=true; surge_diag_errorf(e->base.pos, "logical operator requires bool operands");
-                        return mk(&TY_Invalid, false);
+                        out = mk(&TY_Invalid, false);
+                        break;
                     }
-                    return mk(&TY_Bool, false);
+                    out = mk(&TY_Bool, false);
+                    break;
                 default:
+                    out = mk(&TY_Invalid, false);
                     break;
             }
-            return mk(&TY_Invalid, false);
+            break;
         }
         case AST_BIND_EXPR: {
-            // реактивная привязка — тип RHS возвращаем как тип выражения (на случай последующих проверок)
             TExpr L = check_expr(s, e->as.bind_expr.lhs);
             s->pure_depth++;
             TExpr R = check_expr(s, e->as.bind_expr.rhs);
@@ -442,11 +503,18 @@ static TExpr check_expr(Sema *s, SurgeAstExpr *e){
             if (!ty_equal(rview(L.type), rview(R.type))){
                 type_mismatch(s, e->base.pos, "reactive bind (:=)", L.type, R.type);
             }
-            return mk(rview(R.type), false);
+            out = mk(rview(R.type), false);
+            break;
         }
         default:
-            return mk(&TY_Invalid, false);
+            out = mk(&TY_Invalid, false);
+            break;
     }
+
+done:
+    e->inferred_type = out.type;
+    e->inferred_is_lvalue = out.is_lvalue;
+    return out;
 }
 
 // ---------- stmt typing ----------

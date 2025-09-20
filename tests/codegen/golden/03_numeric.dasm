@@ -1,0 +1,97 @@
+SBC file: build/tmp/codegen/03_numeric.sbc
+  version : 0.1
+  consts  : off=36 size=16
+  funcs   : off=52 size=20
+  code    : off=72 size=217
+  globals : 0
+
+Constants (count=1):
+  [0] str "numeric"
+
+Functions (count=1):
+Function[0] numeric : arity=5 locals=22 flags=0x00000000 code=[0..217)
+    0000  LOAD        0
+    0003  NEG_I64     
+    0004  STORE       5
+    0007  LOAD        1
+    0010  STORE       6
+    0013  LOAD        2
+    0016  NEG_F64     
+    0017  STORE       7
+    0020  LOAD        4
+    0023  NOT_BOOL    
+    0024  STORE       8
+    0027  LOAD        2
+    0030  LOAD        3
+    0033  ADD_F64     
+    0034  STORE       9
+    0037  LOAD        0
+    0040  I64_TO_F64  
+    0041  LOAD        3
+    0044  ADD_F64     
+    0045  STORE       10
+    0048  LOAD        2
+    0051  LOAD        3
+    0054  SUB_F64     
+    0055  STORE       11
+    0058  LOAD        2
+    0061  LOAD        3
+    0064  MUL_F64     
+    0065  STORE       12
+    0068  LOAD        2
+    0071  LOAD        3
+    0074  DIV_F64     
+    0075  STORE       13
+    0078  LOAD        2
+    0081  LOAD        3
+    0084  REM_F64     
+    0085  STORE       14
+    0088  LOAD        2
+    0091  LOAD        3
+    0094  CMP_LT_F64  
+    0095  STORE       15
+    0098  LOAD        2
+    0101  LOAD        3
+    0104  CMP_LE_F64  
+    0105  STORE       16
+    0108  LOAD        2
+    0111  LOAD        3
+    0114  CMP_GT_F64  
+    0115  STORE       17
+    0118  LOAD        2
+    0121  LOAD        3
+    0124  CMP_GE_F64  
+    0125  STORE       18
+    0128  LOAD        2
+    0131  LOAD        3
+    0134  CMP_EQ_F64  
+    0135  STORE       19
+    0138  LOAD        2
+    0141  LOAD        3
+    0144  CMP_NE_F64  
+    0145  STORE       20
+    0148  PUSH_F64    0
+    0157  STORE       21
+    0160  LOAD        8
+    0163  JMP_IF_FALSE+12 -> 0180
+    0168  PUSH_F64    1
+    0177  STORE       21
+    0180  LOAD        10
+    0183  LOAD        9
+    0186  ADD_F64     
+    0187  LOAD        11
+    0190  ADD_F64     
+    0191  LOAD        12
+    0194  ADD_F64     
+    0195  LOAD        13
+    0198  ADD_F64     
+    0199  LOAD        14
+    0202  ADD_F64     
+    0203  LOAD        21
+    0206  ADD_F64     
+    0207  LOAD        7
+    0210  LOAD        5
+    0213  I64_TO_F64  
+    0214  SUB_F64     
+    0215  ADD_F64     
+    0216  RET         

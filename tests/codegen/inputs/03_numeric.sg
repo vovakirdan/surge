@@ -1,0 +1,27 @@
+fn numeric(a:int, b:int, x:float, y:float, flag:bool) -> float {
+  let neg_i:int = -a;
+  let pos_b:int = +b;
+  let neg_f:float = -x;
+  let inv:bool = !flag;
+
+  let sum_f:float = x + y;
+  let mix:float = a + y;
+  let diff:float = x - y;
+  let prod:float = x * y;
+  let quot:float = x / y;
+  let rem:float = x % y;
+
+  let lt:bool = x < y;
+  let le:bool = x <= y;
+  let gt:bool = x > y;
+  let ge:bool = x >= y;
+  let eq:bool = x == y;
+  let ne:bool = x != y;
+
+  let inv_val:float = 0.0;
+  if (inv) {
+    inv_val = 1.0;
+  }
+
+  return mix + sum_f + diff + prod + quot + rem + inv_val + (neg_f - neg_i);
+}

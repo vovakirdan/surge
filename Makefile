@@ -49,7 +49,7 @@ CFLAGS   := $(CSTD) $(WARN) $(OPT_REL) $(DEFS) $(THREAD) $(INC) $(SANFLAGS)
 else
 CFLAGS   := $(CSTD) $(WARN) $(OPT_DEV) $(DEFS) $(THREAD) $(INC) $(SANFLAGS)
 endif
-LDFLAGS  := $(THREAD) $(SANFLAGS)
+LDFLAGS  := $(THREAD) $(SANFLAGS) -lm
 AR       := ar
 RM       := rm -rf
 MKDIR    := mkdir -p

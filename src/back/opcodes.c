@@ -106,6 +106,111 @@ static const SurgeOpcodeInfo g_opcode_info[SURGE_OP_COUNT] = {
         .operand_count = 0,
         .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
     },
+    [SURGE_OP_NEG_I64] = {
+        .mnemonic = "NEG_I64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_NEG_F64] = {
+        .mnemonic = "NEG_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_NOT_BOOL] = {
+        .mnemonic = "NOT_BOOL",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_I64_TO_F64] = {
+        .mnemonic = "I64_TO_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_F64_TO_I64] = {
+        .mnemonic = "F64_TO_I64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_ADD_F64] = {
+        .mnemonic = "ADD_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_SUB_F64] = {
+        .mnemonic = "SUB_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_MUL_F64] = {
+        .mnemonic = "MUL_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_DIV_F64] = {
+        .mnemonic = "DIV_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_REM_F64] = {
+        .mnemonic = "REM_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_CMP_EQ_F64] = {
+        .mnemonic = "CMP_EQ_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_CMP_NE_F64] = {
+        .mnemonic = "CMP_NE_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_CMP_LT_F64] = {
+        .mnemonic = "CMP_LT_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_CMP_LE_F64] = {
+        .mnemonic = "CMP_LE_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_CMP_GT_F64] = {
+        .mnemonic = "CMP_GT_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_CMP_GE_F64] = {
+        .mnemonic = "CMP_GE_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_AND_I64] = {
+        .mnemonic = "AND_I64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_OR_I64] = {
+        .mnemonic = "OR_I64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_XOR_I64] = {
+        .mnemonic = "XOR_I64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_SHL_I64] = {
+        .mnemonic = "SHL_I64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_SHR_I64] = {
+        .mnemonic = "SHR_I64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
     [SURGE_OP_JMP] = {
         .mnemonic = "JMP",
         .operand_count = 1,

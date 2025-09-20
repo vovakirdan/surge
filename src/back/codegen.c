@@ -1,5 +1,6 @@
 #include "codegen.h"
 #include "opcodes.h"
+#include "sema.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -390,6 +391,39 @@ static bool emit_trap(Ctx *cx, SurgeTrapCode code) {
     return op_u16(cx->code, SURGE_OP_TRAP, (uint16_t)code);
 }
 
+static bool type_is_int(const SurgeType *t) {
+    return t && t->kind == TY_INT;
+}
+
+static bool type_is_float(const SurgeType *t) {
+    return t && t->kind == TY_FLOAT;
+}
+
+static bool type_is_bool(const SurgeType *t) {
+    return t && t->kind == TY_BOOL;
+}
+
+static const SurgeType *expr_type(const SurgeAstExpr *e) {
+    return e ? e->inferred_type : &TY_Invalid;
+}
+
+static bool ensure_stack_type(Ctx *cx, const SurgeAstExpr *expr, const SurgeType *target) {
+    const SurgeType *src = expr_type(expr);
+    if (!src || !target) {
+        return true;
+    }
+    if (ty_equal(src, target)) {
+        return true;
+    }
+    if (src->kind == TY_INT && target->kind == TY_FLOAT) {
+        return op0(cx->code, SURGE_OP_I64_TO_F64);
+    }
+    if (src->kind == TY_FLOAT && target->kind == TY_INT) {
+        return op0(cx->code, SURGE_OP_F64_TO_I64);
+    }
+    return true;
+}
+
 static bool cg_emit_global_init(Codegen *cg) {
     sbc_writer_set_global_count(cg->w, (uint32_t)cg->global_count);
     if (cg->global_count == 0) {
@@ -516,28 +550,166 @@ static bool gen_expr(Ctx *cx, SurgeAstExpr *e) {
             }
             return op_call(cx->code, fn_idx, (uint8_t)e->as.call.argc);
         }
+        case AST_UNARY: {
+            SurgeAstExpr *operand = e->as.unary.expr;
+            if (!gen_expr(cx, operand)) {
+                return false;
+            }
+            switch (e->as.unary.op) {
+                case AST_OP_POS:
+                    if (type_is_float(expr_type(e))) {
+                        if (!ensure_stack_type(cx, operand, &TY_Float)) {
+                            return false;
+                        }
+                    } else if (type_is_int(expr_type(e))) {
+                        if (!ensure_stack_type(cx, operand, &TY_Int)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                case AST_OP_NEG:
+                    if (type_is_float(expr_type(e))) {
+                        if (!ensure_stack_type(cx, operand, &TY_Float)) {
+                            return false;
+                        }
+                        return op0(cx->code, SURGE_OP_NEG_F64);
+                    }
+                    if (!ensure_stack_type(cx, operand, &TY_Int)) {
+                        return false;
+                    }
+                    return op0(cx->code, SURGE_OP_NEG_I64);
+                case AST_OP_NOT:
+                    if (!type_is_bool(expr_type(operand))) {
+                        return emit_trap(cx, SURGE_TRAP_TYPE_ERROR);
+                    }
+                    return op0(cx->code, SURGE_OP_NOT_BOOL);
+                default:
+                    return emit_trap(cx, SURGE_TRAP_TYPE_ERROR);
+            }
+        }
         case AST_BINARY: {
-            if (!gen_expr(cx, e->as.binary.lhs)) {
-                return false;
-            }
-            if (!gen_expr(cx, e->as.binary.rhs)) {
-                return false;
-            }
+            SurgeAstExpr *lhs = e->as.binary.lhs;
+            SurgeAstExpr *rhs = e->as.binary.rhs;
+            const SurgeType *res_type = expr_type(e);
+            const SurgeType *lhs_type = expr_type(lhs);
+            const SurgeType *rhs_type = expr_type(rhs);
             switch (e->as.binary.op) {
-                case AST_OP_ADD: return op0(cx->code, SURGE_OP_ADD);
-                case AST_OP_SUB: return op0(cx->code, SURGE_OP_SUB);
-                case AST_OP_MUL: return op0(cx->code, SURGE_OP_MUL);
-                case AST_OP_DIV: return op0(cx->code, SURGE_OP_DIV);
-                case AST_OP_REM: return op0(cx->code, SURGE_OP_REM);
-                case AST_OP_EQ:  return op0(cx->code, SURGE_OP_CMP_EQ);
-                case AST_OP_NE:  return op0(cx->code, SURGE_OP_CMP_NE);
-                case AST_OP_LT:  return op0(cx->code, SURGE_OP_CMP_LT);
-                case AST_OP_LE:  return op0(cx->code, SURGE_OP_CMP_LE);
-                case AST_OP_GT:  return op0(cx->code, SURGE_OP_CMP_GT);
-                case AST_OP_GE:  return op0(cx->code, SURGE_OP_CMP_GE);
-                default: break;
+                case AST_OP_ADD:
+                case AST_OP_SUB:
+                case AST_OP_MUL:
+                case AST_OP_DIV:
+                case AST_OP_REM: {
+                    bool want_float = type_is_float(res_type);
+                    if (!want_float) {
+                        if (!type_is_int(lhs_type) || !type_is_int(rhs_type)) {
+                            return emit_trap(cx, SURGE_TRAP_TYPE_ERROR);
+                        }
+                    }
+                    if (!gen_expr(cx, lhs)) {
+                        return false;
+                    }
+                    if (want_float) {
+                        if (!ensure_stack_type(cx, lhs, &TY_Float)) {
+                            return false;
+                        }
+                        if (!gen_expr(cx, rhs)) {
+                            return false;
+                        }
+                        if (!ensure_stack_type(cx, rhs, &TY_Float)) {
+                            return false;
+                        }
+                        SurgeOpcode op = SURGE_OP_ADD_F64;
+                        switch (e->as.binary.op) {
+                            case AST_OP_ADD: op = SURGE_OP_ADD_F64; break;
+                            case AST_OP_SUB: op = SURGE_OP_SUB_F64; break;
+                            case AST_OP_MUL: op = SURGE_OP_MUL_F64; break;
+                            case AST_OP_DIV: op = SURGE_OP_DIV_F64; break;
+                            case AST_OP_REM: op = SURGE_OP_REM_F64; break;
+                            default: break;
+                        }
+                        return op0(cx->code, op);
+                    }
+                    if (!ensure_stack_type(cx, lhs, &TY_Int)) {
+                        return false;
+                    }
+                    if (!gen_expr(cx, rhs)) {
+                        return false;
+                    }
+                    if (!ensure_stack_type(cx, rhs, &TY_Int)) {
+                        return false;
+                    }
+                    SurgeOpcode op = SURGE_OP_ADD;
+                    switch (e->as.binary.op) {
+                        case AST_OP_ADD: op = SURGE_OP_ADD; break;
+                        case AST_OP_SUB: op = SURGE_OP_SUB; break;
+                        case AST_OP_MUL: op = SURGE_OP_MUL; break;
+                        case AST_OP_DIV: op = SURGE_OP_DIV; break;
+                        case AST_OP_REM: op = SURGE_OP_REM; break;
+                        default: break;
+                    }
+                    return op0(cx->code, op);
+                }
+                case AST_OP_EQ:
+                case AST_OP_NE:
+                case AST_OP_LT:
+                case AST_OP_LE:
+                case AST_OP_GT:
+                case AST_OP_GE: {
+                    bool float_operands = type_is_float(lhs_type) || type_is_float(rhs_type);
+                    if (!float_operands) {
+                        if (!type_is_int(lhs_type) || !type_is_int(rhs_type)) {
+                            return emit_trap(cx, SURGE_TRAP_TYPE_ERROR);
+                        }
+                    }
+                    if (!gen_expr(cx, lhs)) {
+                        return false;
+                    }
+                    if (float_operands) {
+                        if (!ensure_stack_type(cx, lhs, &TY_Float)) {
+                            return false;
+                        }
+                        if (!gen_expr(cx, rhs)) {
+                            return false;
+                        }
+                        if (!ensure_stack_type(cx, rhs, &TY_Float)) {
+                            return false;
+                        }
+                        SurgeOpcode op = SURGE_OP_CMP_EQ_F64;
+                        switch (e->as.binary.op) {
+                            case AST_OP_EQ: op = SURGE_OP_CMP_EQ_F64; break;
+                            case AST_OP_NE: op = SURGE_OP_CMP_NE_F64; break;
+                            case AST_OP_LT: op = SURGE_OP_CMP_LT_F64; break;
+                            case AST_OP_LE: op = SURGE_OP_CMP_LE_F64; break;
+                            case AST_OP_GT: op = SURGE_OP_CMP_GT_F64; break;
+                            case AST_OP_GE: op = SURGE_OP_CMP_GE_F64; break;
+                            default: break;
+                        }
+                        return op0(cx->code, op);
+                    }
+                    if (!ensure_stack_type(cx, lhs, &TY_Int)) {
+                        return false;
+                    }
+                    if (!gen_expr(cx, rhs)) {
+                        return false;
+                    }
+                    if (!ensure_stack_type(cx, rhs, &TY_Int)) {
+                        return false;
+                    }
+                    SurgeOpcode op = SURGE_OP_CMP_EQ;
+                    switch (e->as.binary.op) {
+                        case AST_OP_EQ: op = SURGE_OP_CMP_EQ; break;
+                        case AST_OP_NE: op = SURGE_OP_CMP_NE; break;
+                        case AST_OP_LT: op = SURGE_OP_CMP_LT; break;
+                        case AST_OP_LE: op = SURGE_OP_CMP_LE; break;
+                        case AST_OP_GT: op = SURGE_OP_CMP_GT; break;
+                        case AST_OP_GE: op = SURGE_OP_CMP_GE; break;
+                        default: break;
+                    }
+                    return op0(cx->code, op);
+                }
+                default:
+                    return emit_trap(cx, SURGE_TRAP_TYPE_ERROR);
             }
-            return emit_trap(cx, SURGE_TRAP_TYPE_ERROR);
         }
         case AST_BIND_EXPR: {
             SurgeAstExpr *lhs = e->as.bind_expr.lhs;
@@ -769,6 +941,14 @@ static bool gen_unit(Codegen *cg, SurgeAstUnit *unit) {
 
 CgResult surge_codegen_unit(SurgeAstUnit *unit, const char *out_path) {
     if (!unit || !out_path) {
+        return CG_ERR;
+    }
+
+    Sema sema;
+    sema_init(&sema);
+    bool sema_ok = sema_check_unit(&sema, unit);
+    sema_destroy(&sema);
+    if (!sema_ok) {
         return CG_ERR;
     }
 

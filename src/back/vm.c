@@ -1,6 +1,8 @@
 #include "vm.h"
 
 #include <stdarg.h>
+#include <float.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -956,6 +958,115 @@ static VmRunStatus vm_run_frames(Vm *vm, VmRunResult *out_result) {
             case SURGE_OP_NOP: {
                 break;
             }
+            case SURGE_OP_NEG_I64: {
+                VmValue val;
+                if (!vm_stack_pop(vm, &val)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (val.tag != VM_VT_I64) {
+                    vm_value_release(vm, &val);
+                    status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "NEG_I64 expects i64");
+                    goto loop_end;
+                }
+                VmValue out = vm_value_i64(-val.as.i64);
+                vm_value_release(vm, &val);
+                if (!vm_stack_push(vm, out)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_NEG_F64: {
+                VmValue val;
+                if (!vm_stack_pop(vm, &val)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (val.tag != VM_VT_F64) {
+                    vm_value_release(vm, &val);
+                    status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "NEG_F64 expects f64");
+                    goto loop_end;
+                }
+                VmValue out = vm_value_f64(-val.as.f64);
+                vm_value_release(vm, &val);
+                if (!vm_stack_push(vm, out)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_NOT_BOOL: {
+                VmValue val;
+                if (!vm_stack_pop(vm, &val)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (val.tag != VM_VT_BOOL) {
+                    vm_value_release(vm, &val);
+                    status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "NOT_BOOL expects bool");
+                    goto loop_end;
+                }
+                VmValue out = vm_value_bool(val.as.b == 0);
+                vm_value_release(vm, &val);
+                if (!vm_stack_push(vm, out)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_I64_TO_F64: {
+                VmValue val;
+                if (!vm_stack_pop(vm, &val)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (val.tag != VM_VT_I64) {
+                    vm_value_release(vm, &val);
+                    status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "I64_TO_F64 expects i64");
+                    goto loop_end;
+                }
+                VmValue out = vm_value_f64((double)val.as.i64);
+                vm_value_release(vm, &val);
+                if (!vm_stack_push(vm, out)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_F64_TO_I64: {
+                VmValue val;
+                if (!vm_stack_pop(vm, &val)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (val.tag != VM_VT_F64) {
+                    vm_value_release(vm, &val);
+                    status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "F64_TO_I64 expects f64");
+                    goto loop_end;
+                }
+                double d = val.as.f64;
+                // trap on NaN or out-of-range; truncate toward 0 otherwise
+                if (isnan(d) || d < (double)INT64_MIN || d > (double)INT64_MAX) {
+                    vm_value_release(vm, &val);
+                    status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "F64_TO_I64 overflow or NaN");
+                    goto loop_end;
+                }
+                // trunc toward 0 is the C cast semantics, and now it's defined (range-checked)
+                VmValue out = vm_value_i64((int64_t)d);
+                vm_value_release(vm, &val);
+                if (!vm_stack_push(vm, out)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
             case SURGE_OP_ADD:
             case SURGE_OP_SUB:
             case SURGE_OP_MUL:
@@ -1020,6 +1131,124 @@ static VmRunStatus vm_run_frames(Vm *vm, VmRunResult *out_result) {
                     case SURGE_OP_CMP_GE: out = vm_value_bool(a >= b); break;
                     default:
                         break;
+                }
+                vm_value_release(vm, &rhs);
+                vm_value_release(vm, &lhs);
+                if (!vm_stack_push(vm, out)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_ADD_F64:
+            case SURGE_OP_SUB_F64:
+            case SURGE_OP_MUL_F64:
+            case SURGE_OP_DIV_F64:
+            case SURGE_OP_REM_F64:
+            case SURGE_OP_CMP_EQ_F64:
+            case SURGE_OP_CMP_NE_F64:
+            case SURGE_OP_CMP_LT_F64:
+            case SURGE_OP_CMP_LE_F64:
+            case SURGE_OP_CMP_GT_F64:
+            case SURGE_OP_CMP_GE_F64: {
+                VmValue rhs;
+                if (!vm_stack_pop(vm, &rhs)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                VmValue lhs;
+                if (!vm_stack_pop(vm, &lhs)) {
+                    vm_value_release(vm, &rhs);
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (lhs.tag != VM_VT_F64 || rhs.tag != VM_VT_F64) {
+                    vm_value_release(vm, &rhs);
+                    vm_value_release(vm, &lhs);
+                    status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "floating-point op expects f64 operands");
+                    goto loop_end;
+                }
+                double a = lhs.as.f64;
+                double b = rhs.as.f64;
+                VmValue out = vm_value_null();
+                switch (opcode) {
+                    case SURGE_OP_ADD_F64: out = vm_value_f64(a + b); break;
+                    case SURGE_OP_SUB_F64: out = vm_value_f64(a - b); break;
+                    case SURGE_OP_MUL_F64: out = vm_value_f64(a * b); break;
+                    case SURGE_OP_DIV_F64:
+                        out = vm_value_f64(a / b);
+                        break;
+                    case SURGE_OP_REM_F64:
+                        out = vm_value_f64(fmod(a, b));
+                        break;
+                    case SURGE_OP_CMP_EQ_F64: out = vm_value_bool(a == b); break;
+                    case SURGE_OP_CMP_NE_F64: out = vm_value_bool(a != b); break;
+                    case SURGE_OP_CMP_LT_F64: out = vm_value_bool(a < b); break;
+                    case SURGE_OP_CMP_LE_F64: out = vm_value_bool(a <= b); break;
+                    case SURGE_OP_CMP_GT_F64: out = vm_value_bool(a > b); break;
+                    case SURGE_OP_CMP_GE_F64: out = vm_value_bool(a >= b); break;
+                    default: break;
+                }
+                vm_value_release(vm, &rhs);
+                vm_value_release(vm, &lhs);
+                if (!vm_stack_push(vm, out)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
+            case SURGE_OP_AND_I64:
+            case SURGE_OP_OR_I64:
+            case SURGE_OP_XOR_I64:
+            case SURGE_OP_SHL_I64:
+            case SURGE_OP_SHR_I64: {
+                VmValue rhs;
+                if (!vm_stack_pop(vm, &rhs)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                VmValue lhs;
+                if (!vm_stack_pop(vm, &lhs)) {
+                    vm_value_release(vm, &rhs);
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (lhs.tag != VM_VT_I64 || rhs.tag != VM_VT_I64) {
+                    vm_value_release(vm, &rhs);
+                    vm_value_release(vm, &lhs);
+                    status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "bitwise op expects i64 operands");
+                    goto loop_end;
+                }
+                uint64_t a = (uint64_t)lhs.as.i64;
+                uint64_t b = (uint64_t)rhs.as.i64;
+                VmValue out = vm_value_null();
+                switch (opcode) {
+                    case SURGE_OP_AND_I64: out = vm_value_i64((int64_t)(a & b)); break;
+                    case SURGE_OP_OR_I64:  out = vm_value_i64((int64_t)(a | b)); break;
+                    case SURGE_OP_XOR_I64: out = vm_value_i64((int64_t)(a ^ b)); break;
+                    case SURGE_OP_SHL_I64:
+                        if (b >= 64u) {
+                            vm_value_release(vm, &rhs);
+                            vm_value_release(vm, &lhs);
+                            status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
+                                                   "shift amount out of range");
+                            goto loop_end;
+                        }
+                        out = vm_value_i64((int64_t)(a << b));
+                        break;
+                    case SURGE_OP_SHR_I64:
+                        if (b >= 64u) {
+                            vm_value_release(vm, &rhs);
+                            vm_value_release(vm, &lhs);
+                            status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
+                                                   "shift amount out of range");
+                            goto loop_end;
+                        }
+                        out = vm_value_i64((int64_t)(a >> b));
+                        break;
+                    default: break;
                 }
                 vm_value_release(vm, &rhs);
                 vm_value_release(vm, &lhs);

@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include "diagnostics.h"
+#include "types.h"
 
 // Forward decls
 struct SurgeAstNode;
@@ -92,6 +93,8 @@ typedef struct SurgeAstType {
 // Expressions
 typedef struct SurgeAstExpr {
     SurgeAstNode base;
+    const SurgeType *inferred_type; // filled by sema
+    bool inferred_is_lvalue;
     union {
         struct { int64_t v; } int_lit;
         struct { double  v; } float_lit;
