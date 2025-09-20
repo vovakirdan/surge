@@ -78,7 +78,8 @@ typedef enum SurgeTrapCode {
     SURGE_TRAP_DIV_BY_ZERO = 2,
     SURGE_TRAP_OUT_OF_BOUNDS = 3,
     SURGE_TRAP_BAD_CALL = 4,
-    SURGE_TRAP_TYPE_ERROR = 5
+    SURGE_TRAP_TYPE_ERROR = 5,
+    SURGE_TRAP_STACK_OVERFLOW = 6
 } SurgeTrapCode;
 
 typedef enum SurgeOperandKind {

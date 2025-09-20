@@ -1,4 +1,5 @@
 #include "vm.h"
+#include "config.h"
 
 #include <stdarg.h>
 #include <float.h>
@@ -401,12 +402,13 @@ const char *vm_last_error(const Vm *vm) {
 
 static const char *vm_trap_name(SurgeTrapCode code) {
     switch (code) {
-        case SURGE_TRAP_UNREACHABLE: return "UNREACHABLE";
-        case SURGE_TRAP_DIV_BY_ZERO: return "DIV_BY_ZERO";
-        case SURGE_TRAP_OUT_OF_BOUNDS: return "OUT_OF_BOUNDS";
-        case SURGE_TRAP_BAD_CALL: return "BAD_CALL";
-        case SURGE_TRAP_TYPE_ERROR: return "TYPE_ERROR";
-        default: return "UNKNOWN";
+        case SURGE_TRAP_UNREACHABLE:    return "UNREACHABLE";
+        case SURGE_TRAP_DIV_BY_ZERO:    return "DIV_BY_ZERO";
+        case SURGE_TRAP_OUT_OF_BOUNDS:  return "OUT_OF_BOUNDS";
+        case SURGE_TRAP_BAD_CALL:       return "BAD_CALL";
+        case SURGE_TRAP_TYPE_ERROR:     return "TYPE_ERROR";
+        case SURGE_TRAP_STACK_OVERFLOW: return "STACK_OVERFLOW";
+        default:                        return "UNKNOWN";
     }
 }
 
@@ -721,6 +723,12 @@ static VmRunStatus vm_raise_trap(Vm *vm, VmFrame *frame, const uint8_t *op_start
     vm_set_errorf(vm, "%s: runtime trap: %s (%u): %s", loc, vm_trap_name(code), (unsigned)code, buf);
     free(buf);
     return VM_RUN_TRAP;
+}
+
+static VmRunStatus vm_trap_stack_overflow(Vm *vm, VmFrame *frame, const uint8_t *op_start,
+                                          VmRunResult *result) {
+    return vm_raise_trap(vm, frame, op_start, result, SURGE_TRAP_STACK_OVERFLOW,
+                         "call stack overflow (limit=%u)", (unsigned)SURGE_VM_MAX_CALL_DEPTH);
 }
 
 static bool vm_check_ip(Vm *vm, VmFrame *frame) {
@@ -1051,11 +1059,16 @@ static VmRunStatus vm_run_frames(Vm *vm, VmRunResult *out_result) {
                     goto loop_end;
                 }
                 double d = val.as.f64;
-                // trap on NaN or out-of-range; truncate toward 0 otherwise
-                if (isnan(d) || d < (double)INT64_MIN || d > (double)INT64_MAX) {
+                if (isnan(d)) {
                     vm_value_release(vm, &val);
                     status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
-                                           "F64_TO_I64 overflow or NaN");
+                                           "cannot convert NaN to i64");
+                    goto loop_end;
+                }
+                if (d > (double)INT64_MAX || d < (double)INT64_MIN) {
+                    vm_value_release(vm, &val);
+                    status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "f64 to i64 overflow");
                     goto loop_end;
                 }
                 // trunc toward 0 is the C cast semantics, and now it's defined (range-checked)
@@ -1332,6 +1345,10 @@ static VmRunStatus vm_run_frames(Vm *vm, VmRunResult *out_result) {
                 caller->ip = frame->ip;
                 const SbcFuncDesc *callee = &vm->img->funcs[func_index];
                 uint32_t base = vm->sp - argc;
+                if (vm->fp >= SURGE_VM_MAX_CALL_DEPTH) {
+                    status = vm_trap_stack_overflow(vm, frame, op_start, &result);
+                    goto loop_end;
+                }
                 if (!vm_push_frame(vm, callee, base)) {
                     status = VM_RUN_ERROR;
                     goto loop_end;
@@ -1588,6 +1605,20 @@ static VmRunStatus vm_call_function(Vm *vm, int func_idx, uint16_t argc, bool ke
     if (argc > vm->sp) {
         vm_set_errorf(vm, "vm: stack underflow entering call");
         return VM_RUN_ERROR;
+    }
+
+    if (vm->fp >= SURGE_VM_MAX_CALL_DEPTH) {
+        VmRunResult trap;
+        memset(&trap, 0, sizeof(trap));
+        VmFrame *top = (vm->fp > 0) ? &vm->frames[vm->fp - 1] : NULL;
+        const uint8_t *ip = top ? top->ip : NULL;
+        VmRunStatus status = vm_trap_stack_overflow(vm, top, ip, &trap);
+        if (out_result) {
+            *out_result = trap;
+        } else {
+            vm_value_release(vm, &trap.return_value);
+        }
+        return status;
     }
 
     uint32_t base = vm->sp - argc;

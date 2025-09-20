@@ -117,6 +117,7 @@ static const char *trap_code_name(uint16_t code) {
         case SURGE_TRAP_OUT_OF_BOUNDS: return "OUT_OF_BOUNDS";
         case SURGE_TRAP_BAD_CALL: return "BAD_CALL";
         case SURGE_TRAP_TYPE_ERROR: return "TYPE_ERROR";
+        case SURGE_TRAP_STACK_OVERFLOW: return "STACK_OVERFLOW";
         default: return NULL;
     }
 }
