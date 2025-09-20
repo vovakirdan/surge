@@ -1,0 +1,6 @@
+tests/sema/bad/11_channel_arity.sg:1:7: error: channel<T> expects 1 type arg
+  let c:channel<int, int> = 0; // channel<T> должен иметь 1 аргумент
+        ^
+tests/sema/bad/11_channel_arity.sg:1:1: error: unknown declared type
+  let c:channel<int, int> = 0; // channel<T> должен иметь 1 аргумент
+  ^

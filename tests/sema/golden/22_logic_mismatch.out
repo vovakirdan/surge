@@ -1,0 +1,3 @@
+tests/sema/bad/22_logic_mismatch.sg:2:18: error: logical operator requires bool operands
+    let x:bool = 1 && true;
+                   ^

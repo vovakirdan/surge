@@ -1,0 +1,3 @@
+tests/sema/bad/15_deref_invalid.sg:3:13: error: dereference '*' expects '&T', got int
+  let y:int = *x;          // error: dereference '*' expects '&T', got int
+              ^

@@ -1,0 +1,21 @@
+fn main() -> int {
+  let score:int = 0;
+
+  if ("foo" == "foo") {
+    score = score + 1;
+  }
+
+  if ("foo" != "foo") {
+    score = score + 10;
+  }
+
+  if ("foo" != "bar") {
+    score = score + 100;
+  }
+
+  if ("foo" == "bar") {
+    score = score + 1000;
+  }
+
+  return score;
+}

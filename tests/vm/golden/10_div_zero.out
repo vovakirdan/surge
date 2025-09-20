@@ -1,0 +1,2 @@
+main+0024: runtime trap: DIV_BY_ZERO (2): integer division by zero
+status=2

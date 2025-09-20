@@ -1,0 +1,3 @@
+tests/sema/bad/05_index_non_array.sg:2:13: error: indexing non-array value of type int
+  let y:int = x[0];
+              ^

@@ -1,0 +1,3 @@
+tests/sema/bad/08_map_unknown_fn.sg:1:1: error: parallel map: unknown function 'foo'
+  parallel map foo [1,2,3];
+  ^

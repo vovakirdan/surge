@@ -31,6 +31,9 @@
 # Executables
 *.exe
 *.out
+# keep vm golden outputs under version control
+!tests/vm/golden/*.out
+!tests/sema/golden/*.out
 *.app
 *.i*86
 *.x86_64

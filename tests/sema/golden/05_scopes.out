@@ -1,0 +1,3 @@
+tests/sema/ok/05_scopes.sg:3:5: error: redeclaration of 'y'
+    { let y:int = 1; }     // allowed if SHADOW_ALLOW; error if SHADOW_DENY
+      ^

@@ -3,10 +3,30 @@
 #include "sema.h"
 
 #include <limits.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static const char *kGlobalInitName = "__global_init_auto__";
+
+static bool g_codegen_trace = false;
+
+void surge_codegen_set_trace(bool trace) {
+    g_codegen_trace = trace;
+}
+
+static void cg_trace(const char *fmt, ...) {
+    if (!g_codegen_trace || !fmt) {
+        return;
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    fputs("[cg] ", stderr);
+    vfprintf(stderr, fmt, ap);
+    fputc('\n', stderr);
+    va_end(ap);
+}
 
 static bool grow(CgBuf *b, uint32_t need) {
     if (b->len + need <= b->cap) {
@@ -236,6 +256,7 @@ static bool cg_register_function(Codegen *cg, SurgeAstStmt *fn) {
     }
 
     cg->func_count++;
+    cg_trace("register fn %s (arity=%u)", slot->name ? slot->name : "<anon>", (unsigned)slot->arity);
     return true;
 }
 
@@ -267,6 +288,7 @@ static bool cg_global_put(Codegen *cg, SurgeAstStmt *decl, uint16_t *out_slot) {
         *out_slot = g->slot;
     }
     cg->global_count++;
+    cg_trace("register global %s (slot=%u)", g->name ? g->name : "<anon>", (unsigned)g->slot);
     return true;
 }
 
@@ -401,6 +423,10 @@ static bool type_is_float(const SurgeType *t) {
 
 static bool type_is_bool(const SurgeType *t) {
     return t && t->kind == TY_BOOL;
+}
+
+static bool type_is_string(const SurgeType *t) {
+    return t && t->kind == TY_STRING;
 }
 
 static const SurgeType *expr_type(const SurgeAstExpr *e) {
@@ -656,13 +682,31 @@ static bool gen_expr(Ctx *cx, SurgeAstExpr *e) {
                 case AST_OP_GT:
                 case AST_OP_GE: {
                     bool float_operands = type_is_float(lhs_type) || type_is_float(rhs_type);
-                    if (!float_operands) {
+                    bool string_operands = type_is_string(lhs_type) && type_is_string(rhs_type);
+                    if (!float_operands && !string_operands) {
                         if (!type_is_int(lhs_type) || !type_is_int(rhs_type)) {
                             return emit_trap(cx, SURGE_TRAP_TYPE_ERROR);
                         }
                     }
                     if (!gen_expr(cx, lhs)) {
                         return false;
+                    }
+                    if (string_operands) {
+                        if (e->as.binary.op != AST_OP_EQ && e->as.binary.op != AST_OP_NE) {
+                            return emit_trap(cx, SURGE_TRAP_TYPE_ERROR);
+                        }
+                        if (!gen_expr(cx, rhs)) {
+                            return false;
+                        }
+                        if (!op0(cx->code, SURGE_OP_CMP_EQ_STR)) {
+                            return false;
+                        }
+                        if (e->as.binary.op == AST_OP_NE) {
+                            if (!op0(cx->code, SURGE_OP_NOT_BOOL)) {
+                                return false;
+                            }
+                        }
+                        return true;
                     }
                     if (float_operands) {
                         if (!ensure_stack_type(cx, lhs, &TY_Float)) {
@@ -883,6 +927,8 @@ static bool gen_function(Codegen *cg, size_t index) {
     cg_buf_init(&cg->code);
     cg_locals_init(&cg->locals);
 
+    cg_trace("emit fn %s", fn->name ? fn->name : "<anon>");
+
     for (size_t i = 0; i < node->as.fn_decl.paramc; ++i) {
         if (!cg_locals_put(&cg->locals, node->as.fn_decl.params[i].name.name, NULL)) {
             cg_locals_free(&cg->locals);
@@ -925,9 +971,11 @@ static bool gen_unit(Codegen *cg, SurgeAstUnit *unit) {
     if (!cg_collect_globals(cg, unit)) {
         return false;
     }
+    cg_trace("globals collected: %zu", cg->global_count);
     if (!cg_collect_functions(cg, unit)) {
         return false;
     }
+    cg_trace("functions collected: %zu", cg->func_count);
     for (size_t i = 0; i < cg->func_count; ++i) {
         if (!gen_function(cg, i)) {
             return false;
@@ -944,6 +992,8 @@ CgResult surge_codegen_unit(SurgeAstUnit *unit, const char *out_path) {
         return CG_ERR;
     }
 
+    cg_trace("start -> %s", out_path);
+
     Sema sema;
     sema_init(&sema);
     bool sema_ok = sema_check_unit(&sema, unit);
@@ -951,6 +1001,7 @@ CgResult surge_codegen_unit(SurgeAstUnit *unit, const char *out_path) {
     if (!sema_ok) {
         return CG_ERR;
     }
+    cg_trace("sema OK");
 
     Codegen cg = {0};
     cg.w = sbc_writer_new();
@@ -960,6 +1011,7 @@ CgResult surge_codegen_unit(SurgeAstUnit *unit, const char *out_path) {
 
     bool ok = gen_unit(&cg, unit);
     if (ok) {
+        cg_trace("write image: %s", out_path);
         ok = sbc_write_to_file(cg.w, out_path);
     }
 

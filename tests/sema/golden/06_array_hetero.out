@@ -1,0 +1,9 @@
+tests/sema/bad/06_array_hetero.sg:1:1: error: let requires explicit type (no inference yet)
+  let xs = [1, 2.0];
+  ^
+tests/sema/bad/06_array_hetero.sg:1:10: error: array elements must have same type (int vs float)
+  let xs = [1, 2.0];
+           ^
+tests/sema/bad/06_array_hetero.sg:1:1: error: unknown declared type
+  let xs = [1, 2.0];
+  ^

@@ -1,0 +1,3 @@
+tests/sema/bad/27_string_plus_int.sg:4:12: error: arithmetic on non-numeric operands (string vs int)
+    return s + x;
+             ^

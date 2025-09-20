@@ -1,0 +1,2 @@
+main+0047: runtime trap: OUT_OF_BOUNDS (3): ARR_SET index out of bounds
+status=2

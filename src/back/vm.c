@@ -1211,6 +1211,42 @@ static VmRunStatus vm_run_frames(Vm *vm, VmRunResult *out_result) {
                 }
                 break;
             }
+            case SURGE_OP_CMP_EQ_STR: {
+                VmValue rhs;
+                if (!vm_stack_pop(vm, &rhs)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                VmValue lhs;
+                if (!vm_stack_pop(vm, &lhs)) {
+                    vm_value_release(vm, &rhs);
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                if (lhs.tag != VM_VT_STR || rhs.tag != VM_VT_STR) {
+                    vm_value_release(vm, &rhs);
+                    vm_value_release(vm, &lhs);
+                    status = vm_raise_trap(vm, frame, op_start, &result, SURGE_TRAP_TYPE_ERROR,
+                                           "CMP_EQ_STR expects strings");
+                    goto loop_end;
+                }
+                bool equal = false;
+                if (lhs.as.str.len == rhs.as.str.len) {
+                    if (lhs.as.str.len == 0) {
+                        equal = true;
+                    } else {
+                        equal = memcmp(lhs.as.str.data, rhs.as.str.data, lhs.as.str.len) == 0;
+                    }
+                }
+                VmValue out = vm_value_bool(equal);
+                vm_value_release(vm, &rhs);
+                vm_value_release(vm, &lhs);
+                if (!vm_stack_push(vm, out)) {
+                    status = VM_RUN_ERROR;
+                    goto loop_end;
+                }
+                break;
+            }
             case SURGE_OP_AND_I64:
             case SURGE_OP_OR_I64:
             case SURGE_OP_XOR_I64:

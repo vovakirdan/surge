@@ -1,0 +1,3 @@
+tests/sema/bad/23_use_before_decl.sg:2:15: error: unknown identifier 'x'
+    let y:int = x;
+                ^

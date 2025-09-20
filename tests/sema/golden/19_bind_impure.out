@@ -1,0 +1,3 @@
+tests/sema/bad/19_bind_impure.sg:3:6: error: calling impure function 'imp' in a pure context
+  s := imp(1);                         // RHS must be pure -> error
+       ^

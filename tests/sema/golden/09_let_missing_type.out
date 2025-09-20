@@ -1,0 +1,6 @@
+tests/sema/bad/09_let_missing_type.sg:1:1: error: let requires explicit type (no inference yet)
+  let z = 1;
+  ^
+tests/sema/bad/09_let_missing_type.sg:1:1: error: unknown declared type
+  let z = 1;
+  ^

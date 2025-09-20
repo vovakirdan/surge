@@ -1,0 +1,3 @@
+tests/sema/bad/07_assign_signal.sg:2:1: error: cannot assign to signal 's' (use ':=' for reactive bind)
+  s = 2;
+  ^

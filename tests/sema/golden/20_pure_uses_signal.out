@@ -1,0 +1,3 @@
+tests/sema/bad/20_pure_uses_signal.sg:2:10: error: unknown identifier 's'
+    return s;   // using signal in pure context
+           ^

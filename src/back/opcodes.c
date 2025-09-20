@@ -5,7 +5,7 @@
 
 #define STATIC_ASSERT(COND, MSG) typedef char static_assertion_##MSG[(COND) ? 1 : -1]
 
-static const SurgeOpcodeInfo g_opcode_info[SURGE_OP_COUNT] = {
+static const SurgeOpcodeInfo g_opcode_info[SURGE_OP_COUNT] = { // todo: generate by macro
     [SURGE_OP_PUSH_I64] = {
         .mnemonic = "PUSH_I64",
         .operand_count = 1,
@@ -183,6 +183,11 @@ static const SurgeOpcodeInfo g_opcode_info[SURGE_OP_COUNT] = {
     },
     [SURGE_OP_CMP_GE_F64] = {
         .mnemonic = "CMP_GE_F64",
+        .operand_count = 0,
+        .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
+    },
+    [SURGE_OP_CMP_EQ_STR] = {
+        .mnemonic = "CMP_EQ_STR",
         .operand_count = 0,
         .operands = { SURGE_OPERAND_NONE, SURGE_OPERAND_NONE }
     },

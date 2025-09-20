@@ -1,0 +1,3 @@
+tests/sema/bad/17_map_impure.sg:2:1: error: parallel map requires a pure function, 'imp' is impure
+  parallel map imp [1,2,3];               // error: requires pure function
+  ^

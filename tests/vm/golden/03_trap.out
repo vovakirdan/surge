@@ -1,0 +1,2 @@
+main+0029: runtime trap: OUT_OF_BOUNDS (3): ARR_GET index out of bounds
+status=2

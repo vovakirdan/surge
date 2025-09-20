@@ -1,0 +1,3 @@
+tests/sema/bad/26_pure_assign_global.sg:4:3: error: cannot assign to global 'counter' in a pure context
+    counter = counter + 1;
+    ^

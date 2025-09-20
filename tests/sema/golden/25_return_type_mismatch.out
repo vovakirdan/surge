@@ -1,0 +1,6 @@
+tests/sema/bad/25_return_type_mismatch.sg:2:3: error: return: type mismatch (float vs bool)
+    return 1 == 2;
+    ^
+tests/sema/bad/25_return_type_mismatch.sg:6:3: error: missing return value
+    return;
+    ^

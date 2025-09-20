@@ -1,0 +1,3 @@
+tests/sema/bad/04_if_non_bool.sg:1:1: error: if condition must be bool
+  if (1) { }
+  ^

@@ -64,5 +64,6 @@ bool cg_locals_put(CgLocals *ls, const char *name, uint16_t *out_slot); // alloc
 bool cg_locals_get(const CgLocals *ls, const char *name, uint16_t *out_slot);
 
 CgResult surge_codegen_unit(SurgeAstUnit *unit, const char *out_path);
+void surge_codegen_set_trace(bool trace);
 
 #endif // SURGE_CODEGEN_H

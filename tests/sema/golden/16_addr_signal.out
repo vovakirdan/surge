@@ -1,0 +1,3 @@
+tests/sema/bad/16_addr_signal.sg:3:14: error: cannot take address of signal 's'
+  let p:&int = &s;         // error: cannot take address of signal 's'
+               ^

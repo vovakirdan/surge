@@ -50,6 +50,7 @@ typedef enum SurgeOpcode {
     SURGE_OP_CMP_LE_F64,
     SURGE_OP_CMP_GT_F64,
     SURGE_OP_CMP_GE_F64,
+    SURGE_OP_CMP_EQ_STR,
     SURGE_OP_AND_I64,
     SURGE_OP_OR_I64,
     SURGE_OP_XOR_I64,
