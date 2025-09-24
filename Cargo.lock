@@ -116,6 +116,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 
 [[package]]
+name = "diagnostics"
+version = "0.1.0"
+
+[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -168,14 +172,14 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "surge-lexer"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "surge-token",
 ]
 
 [[package]]
 name = "surge-token"
-version = "0.1.0"
+version = "0.1.2"
 
 [[package]]
 name = "syn"
