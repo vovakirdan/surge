@@ -1,0 +1,27 @@
+// Тест граничных случаев и специальных токенов
+fn test_edge_cases() -> int {
+    // Пустые значения
+    let empty_string:string = "";
+    let zero:int = 0;
+    let false_val:bool = false;
+    
+    // Специальные операторы
+    let arrow_result:int = 10 -> 20;        // ->
+    let x:int = 5;
+    let fat_arrow:int = x => x * 2;         // =>
+    let path_sep:string = std::collections;    // ::
+    let ellipsis:int = ...;                 // ...
+    let colon_eq:int = x := 42;             // :=
+    
+    // Многоточие в параметрах
+    fn variadic(...args) -> int {
+        return args.length;
+    }
+    
+    // Pipe оператор
+    let a:int = 5;
+    let b:int = 3;
+    let pipe_result:int = a | b;            // |
+    
+    return zero;
+}

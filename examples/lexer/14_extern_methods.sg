@@ -1,0 +1,14 @@
+// Тест внешних методов
+type MyInt = int;
+
+extern<MyInt> {
+    @override @pure fn __add(a: MyInt, b: MyInt) -> MyInt { return a + b + 1; }
+    @override @pure fn __to_string(self: &MyInt) -> string { return "this is int"; }
+}
+
+fn test_extern_methods() -> MyInt {
+    let x: MyInt = 10;
+    let y: MyInt = 20;
+    let sum: MyInt = x + y;
+    return sum;
+}

@@ -1,0 +1,20 @@
+// Тест идентификаторов и ключевых слов
+fn test_identifiers() -> int {
+    // Простые идентификаторы
+    let snake_case_var:int = 42;
+    let camelCaseVar:int = 10;
+    let _underscore_start:int = 5;
+    let var_with_numbers123:int = 7;
+    
+    // Ключевые слова как значения
+    let true_val:bool = true;
+    let false_val:bool = false;
+    
+    // Смешанные случаи
+    let fn_name:string = "function";
+    let let_keyword:string = "let";
+    let if_condition:bool = true;
+    let while_loop:bool = false;
+    
+    return snake_case_var;
+}

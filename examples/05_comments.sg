@@ -1,0 +1,7 @@
+// line comment
+let a = 1 /* inline block start
+  still comment
+*/ + 2; // end-of-line
+/* full block
+comment */
+let s = "/* not a comment inside string */";

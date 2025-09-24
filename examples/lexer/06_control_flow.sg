@@ -1,0 +1,19 @@
+// Тест управляющих конструкций
+fn test_control_flow() {
+    let x:int = 0;
+    while (x < 10) {
+        x = x + 1;
+        if (x == 5) {
+            break;
+        }
+        if (x == 3) {
+            continue;
+        }
+    }
+    for (let i:int = 0; i < 5; i = i + 1) {
+        if (i == 2) {
+            break;
+        }
+    }
+    return x;
+}

@@ -1,0 +1,10 @@
+// Тест строковых литералов и escape-последовательностей
+fn test_strings() -> string {
+    let simple:string = "hello world";
+    let escaped:string = "line1\nline2\tindented";
+    let quotes:string = "he said \"hello\"";
+    let backslash:string = "path\\to\\file";
+    let unicode:string = "emoji \u{1F600}";
+    let empty:string = "";
+    return simple;
+}

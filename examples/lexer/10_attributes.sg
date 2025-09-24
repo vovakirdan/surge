@@ -1,0 +1,20 @@
+// Тест атрибутов функций
+@pure
+fn pure_function(x: int) -> int {
+    return x * 2;
+}
+
+@overload
+fn add(a: int, b: int) -> int {
+    return a + b;
+}
+
+@override
+fn custom_add(a: int, b: int) -> int {
+    return a + b + 1;
+}
+
+fn test_attributes() -> int {
+    let result:int = pure_function(21);
+    return result;
+}

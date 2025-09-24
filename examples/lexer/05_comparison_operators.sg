@@ -1,0 +1,14 @@
+// Тест операторов сравнения
+fn test_comparisons() -> bool {
+    let x:int = 5;
+    let y:int = 10;
+    let lt:bool = x < y;
+    let le:bool = x <= y;
+    let gt:bool = x > y;
+    let ge:bool = x >= y;
+    let eq:bool = x == y;
+    let ne:bool = x != y;
+    let and:bool = true && false;
+    let or:bool = true || false;
+    return lt;
+}

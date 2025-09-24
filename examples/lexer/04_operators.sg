@@ -1,0 +1,14 @@
+// Тест арифметических и логических операторов
+fn test_operators() -> int {
+    let a:int = 10;
+    let b:int = 3;
+    let sum:int = a + b;
+    let diff:int = a - b;
+    let prod:int = a * b;
+    let quot:int = a / b;
+    let rem:int = a % b;
+    let neg:int = -a;
+    let pos:int = +a;
+    let not:bool = !true;
+    return sum;
+}

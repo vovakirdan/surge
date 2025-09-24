@@ -1,0 +1,10 @@
+// Тест базовых ключевых слов и структуры функции
+fn main() -> int {
+    let x:int = 42;
+    let mut y:int = 10;
+    if (true) {
+        return x;
+    } else {
+        return y;
+    }
+}

@@ -24,8 +24,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn tokenize(file: &str) -> anyhow::Result<()> {
-    let src = std::fs::read_to_string(file)
-        .with_context(|| format!("failed to read {}", file))?;
+    let src = std::fs::read_to_string(file).with_context(|| format!("failed to read {}", file))?;
     let res = lex(&src, SourceId(0));
 
     for t in res.tokens {

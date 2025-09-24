@@ -1,0 +1,11 @@
+// Тест различных числовых литералов
+fn test_numbers() -> int {
+    let decimal:int = 123;
+    let underscore:uint32 = 1_000_000;
+    let float_simple:float16 = 3.14;
+    let float_scientific:float64 = 1.5e-10;
+    let float_positive_exp:float32 = 2.5e+10;
+    let zero:int = 0;
+    let negative:int = -42;
+    return decimal + underscore;
+}

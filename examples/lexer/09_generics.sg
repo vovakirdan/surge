@@ -1,0 +1,11 @@
+// Тест дженериков и функций
+fn id<T>(x: T) -> T {
+    return x;
+}
+
+fn test_generics() -> int {
+    let int_result:int = id<int>(42);
+    let float_result:float = id<float>(3.14);
+    let string_result:string = id<string>("hello");
+    return int_result;
+}

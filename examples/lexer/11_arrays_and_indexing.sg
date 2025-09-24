@@ -1,0 +1,9 @@
+// Тест массивов и индексации
+fn test_arrays() -> int {
+    let arr: int[] = [1, 2, 3, 4, 5];
+    let first:int = arr[0];
+    let last:int = arr[4];
+    arr[2] = 99;
+    let empty_arr: int[] = [];
+    return first;
+}

@@ -1,0 +1,11 @@
+// Тест объявлений типов
+fn test_types() -> int {
+    let int_val: int = 42;
+    let uint_val: uint = 100;
+    let float_val: float = 3.14;
+    let bool_val: bool = true;
+    let string_val: string = "test";
+    let int32_val: int32 = 123;
+    let float64_val: float64 = 2.718;
+    return int_val;
+}

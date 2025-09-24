@@ -1,0 +1,10 @@
+// Тест импортов и модулей
+import math::sin;
+import stdlib::print as println;
+using collections;
+
+fn test_imports() -> float {
+    let result = sin(3.14159);
+    println("Hello from surge");
+    return result;
+}

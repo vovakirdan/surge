@@ -1,0 +1,58 @@
+// Комплексный тест всех возможностей лексера
+@pure
+fn comprehensive_test() -> int {
+    // Числовые литералы
+    let int_val:int = 123;
+    let float_val:float = 3.14159;
+    let scientific:float = 1.5e-10;
+    let underscore:int = 1_000_000;
+    
+    // Строки
+    let hello:string = "Hello, World!";
+    let escaped:string = "Line1\nLine2\tTabbed";
+    let unicode:string = "Привет \u{1F600}";
+    
+    // Булевы значения
+    let is_true:bool = true;
+    let is_false:bool = false;
+    
+    // Арифметические операции
+    let sum:float = int_val + float_val;
+    let diff:float = int_val - float_val;
+    let prod:float = int_val * float_val;
+    let quot:float = int_val / float_val;
+    let rem:float = int_val % float_val;
+    
+    // Логические операции
+    let and_result:bool = is_true && is_false;
+    let or_result:bool = is_true || is_false;
+    let not_result:bool = !is_true;
+    
+    // Операторы сравнения
+    let eq:bool = int_val == float_val;
+    let ne:bool = int_val != float_val;
+    let lt:bool = int_val < float_val;
+    let le:bool = int_val <= float_val;
+    let gt:bool = int_val > float_val;
+    let ge:bool = int_val >= float_val;
+    
+    // Управляющие конструкции
+    if (is_true) {
+        let x:int = 10;
+        while (x > 0) {
+            x = x - 1;
+            if (x == 5) {
+                break;
+            }
+        }
+        for (let i:int = 0; i < 3; i = i + 1) {
+            if (i == 1) {
+                continue;
+            }
+        }
+    } else {
+        return 0;
+    }
+    
+    return int_val;
+}

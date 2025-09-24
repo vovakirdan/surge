@@ -1,0 +1,19 @@
+// Тест сложных выражений с приоритетами операторов
+fn test_complex_expressions() -> int {
+    let a:int = 10;
+    let b:int = 5;
+    let c:int = 2;
+    
+    // Тест приоритетов операторов
+    let result1:int = a + b * c;        // 10 + (5 * 2) = 20
+    let result2:int = (a + b) * c;      // (10 + 5) * 2 = 30
+    let result3:int = a * b + c;        // (10 * 5) + 2 = 52
+    let result4:int = a / b - c;        // (10 / 5) - 2 = 0
+    let result5:bool = a % b == 0;       // (10 % 5) == 0 = true
+    
+    // Логические операторы
+    let logical1:bool = true && false || true;  // (true && false) || true = true
+    let logical2:bool = !(a > b) && (b < c);    // !(10 > 5) && (5 < 2) = false
+    
+    return result1;
+}

@@ -5,7 +5,7 @@ pub struct SourceId(pub u32);
 pub struct Span {
     pub source: SourceId,
     pub start: u32, // byte offset, inclusive
-    pub end: u32, // byte offset, exclusive
+    pub end: u32,   // byte offset, exclusive
 }
 impl Span {
     pub fn new(source: SourceId, start: u32, end: u32) -> Self {

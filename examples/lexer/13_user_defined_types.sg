@@ -1,0 +1,20 @@
+// Тест пользовательских типов
+type Person {
+    age: int,
+    name: string,
+    @readonly weight: float
+}
+
+type MyInt = int;
+
+literal Color = "red" | "green" | "blue";
+
+alias Number = int | float;
+
+fn test_user_types() -> int {
+    let person: Person = { age: 25, name: "Alice", weight: 65.5 };
+    let my_num: MyInt = 42;
+    let color: Color = "red";
+    let number: Number = 3.14;
+    return person.age;
+}

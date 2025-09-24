@@ -1,0 +1,9 @@
+// Тест типов владения и ссылок
+fn test_ownership() -> int {
+    let owned: own int = 42;
+    let borrowed: &int = &owned;
+    let raw_ptr: *int = &owned;
+    let mut mutable:mut int = 10;
+    mutable = 20;
+    return owned;
+}
