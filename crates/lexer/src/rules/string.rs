@@ -1,12 +1,16 @@
 use crate::{cursor::Cursor, emit::Emitter};
-use crate::token::{TokenKind, Span, SourceId};
-use super::DiagCode;
+use crate::emit::DiagCode;
+use surge_token::Span;
+use surge_token::TokenKind;
 
 /// Пытается захватить строковый литерал
 /// Стартует только если текущий символ == '"'
 /// Поддерживает escape-последовательности и unicode литералы
 /// Возвращает true если строка была найдена и захвачена
-pub fn try_take_string(cur: &mut Cursor, em: &mut Emitter) -> bool {
+pub fn try_take_string(
+    cur: &mut Cursor,
+    em: &mut Emitter
+) -> bool {
     // Проверяем что начинается с кавычки
     if cur.peek() != Some('"') {
         return false;
@@ -15,13 +19,14 @@ pub fn try_take_string(cur: &mut Cursor, em: &mut Emitter) -> bool {
     let start_pos = cur.pos();
     cur.bump(); // захватываем открывающую кавычку
 
-    let mut has_errors = false;
+    let mut closed = false;
 
     // Обрабатываем содержимое строки до закрывающей кавычки или EOF
     while let Some(ch) = cur.peek() {
         if ch == '"' {
             // Закрывающая кавычка - завершаем строку
             cur.bump(); // захватываем закрывающую кавычку
+            closed = true;
             break;
         }
 
@@ -41,9 +46,8 @@ pub fn try_take_string(cur: &mut Cursor, em: &mut Emitter) -> bool {
 
                         if cur.peek() != Some('{') {
                             // Ожидалась {, но её нет
-                            has_errors = true;
-                            let span = Span::new(SourceId(0), cur.pos(), cur.pos() + 1);
-                            em.diag(span, DiagCode::BadEscape, "Expected '{' after '\\u'".to_string());
+                            let span = Span::new(em.file, cur.pos(), cur.pos() + 1);
+                            em.diag(span, DiagCode::BadEscape, "Expected '{' after '\\u'");
                             continue;
                         }
 
@@ -74,23 +78,20 @@ pub fn try_take_string(cur: &mut Cursor, em: &mut Emitter) -> bool {
 
                         // Проверяем что была закрывающая }
                         if cur.peek() != Some('}') {
-                            has_errors = true;
-                            let span = Span::new(SourceId(0), cur.pos(), cur.pos() + 1);
-                            em.diag(span, DiagCode::BadEscape, "Missing '}' in unicode escape".to_string());
+                            let span = Span::new(em.file, cur.pos(), cur.pos() + 1);
+                            em.diag(span, DiagCode::BadEscape, "Missing '}' in unicode escape");
                         } else {
                             cur.bump(); // захватываем }
 
                             if !valid_hex || hex_count == 0 {
-                                has_errors = true;
-                                let span = Span::new(SourceId(0), cur.pos() - hex_count - 2, cur.pos());
-                                em.diag(span, DiagCode::BadEscape, "Invalid unicode escape sequence".to_string());
+                                let span = Span::new(em.file, cur.pos() - hex_count - 2, cur.pos());
+                                em.diag(span, DiagCode::BadEscape, "Invalid unicode escape sequence");
                             }
                         }
                     }
                     _ => {
                         // Неподдерживаемая escape-последовательность
-                        has_errors = true;
-                        let span = Span::new(SourceId(0), cur.pos(), cur.pos() + 1);
+                        let span = Span::new(em.file, cur.pos(), cur.pos() + 1);
                         em.diag(span, DiagCode::BadEscape, format!("Unknown escape sequence '\\{}'", escape_ch));
                         cur.bump(); // захватываем символ
                     }
@@ -105,11 +106,10 @@ pub fn try_take_string(cur: &mut Cursor, em: &mut Emitter) -> bool {
     let end_pos = cur.pos();
 
     // Проверяем что строка была закрыта
-    if cur.eof() || cur.peek() != Some('"') {
+    if !closed {
         // Незакрытая строка
-        has_errors = true;
-        let span = Span::new(SourceId(0), start_pos, end_pos);
-        em.diag(span, DiagCode::UnclosedString, "Unclosed string literal".to_string());
+        let span = Span::new(em.file, start_pos, end_pos);
+        em.diag(span, DiagCode::UnclosedString, "Unclosed string literal");
     }
 
     // Создаем токен строки

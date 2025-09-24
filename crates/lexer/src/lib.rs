@@ -1,25 +1,13 @@
+// Модули
+pub mod cursor;
+pub mod emit;
+pub mod rules;
+
 // Импортируем реальный Token из крейта token
 pub use surge_token::{Token, SourceId, TokenKind, Span};
 
-// Временные типы для диагностик и тривии - позже будут заменены на реальные
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LexDiag {
-    pub span: Span,
-    pub message: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TriviaKind {
-    Whitespace,
-    LineComment,
-    BlockComment,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Trivia {
-    pub span: Span,
-    pub kind: TriviaKind,
-}
+// Реэкспортируем типы из emit для удобства
+pub use emit::{LexDiag, TriviaKind, Trivia, DiagCode};
 
 /// Опции лексического анализа
 pub struct LexOptions {
@@ -44,7 +32,22 @@ pub struct LexResult {
 }
 
 /// Основная функция лексического анализа
-/// Заглушка - реализация будет позже
-pub fn lex(_source: &str, _file: SourceId, _opts: &LexOptions) -> LexResult {
-    todo!("Lexer implementation is not yet complete")
+pub fn lex(source: &str, file: SourceId, opts: &LexOptions) -> LexResult {
+    use crate::cursor::Cursor;
+    use crate::emit::Emitter;
+    use crate::rules;
+    use surge_token::TokenKind;
+
+    let mut cur = Cursor::new(source, file);
+    let mut em = Emitter::new(file, opts);
+
+    while rules::next_token(&mut cur, &mut em, opts) {}
+
+    em.token(cur.pos(), cur.pos(), TokenKind::Eof);
+
+    LexResult {
+        tokens: em.tokens,
+        trivia: em.trivia,
+        diags: em.diags,
+    }
 }

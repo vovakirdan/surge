@@ -1,12 +1,14 @@
 use crate::{cursor::Cursor, emit::Emitter};
-use crate::token::{TokenKind, Span, SourceId};
-use super::DiagCode;
+use surge_token::TokenKind;
 
 /// Пытается захватить директиву начинающуюся с ///
 /// Возвращает Option<u32> с позицией начала директивы, если она найдена
 /// Срабатывает только если /// находится в начале строки (после \n или в начале файла)
 /// Проверка opt.enable_directives должна выполняться в вызывающем коде
-pub fn try_take_directive(cur: &mut Cursor, em: &mut Emitter) -> Option<u32> {
+pub fn try_take_directive(
+    cur: &mut Cursor,
+    em: &mut Emitter,
+) -> Option<u32> {
     // Запоминаем позицию начала для создания span
     let start_pos = cur.pos();
 
@@ -29,7 +31,7 @@ pub fn try_take_directive(cur: &mut Cursor, em: &mut Emitter) -> Option<u32> {
     cur.bump(); // третий /
 
     // Собираем содержимое директивы (включая пустую часть после ///)
-    let content_start = cur.pos();
+    let _content_start = cur.pos();
 
     // Продолжаем захватывать строки, начинающиеся с ///
     while !cur.eof() {
@@ -47,8 +49,6 @@ pub fn try_take_directive(cur: &mut Cursor, em: &mut Emitter) -> Option<u32> {
     let end_pos = cur.pos();
 
     // Создаем span для всего блока директивы (включая начальный ///)
-    let span = Span::new(SourceId(0), start_pos, end_pos);
-
     // Создаем токен директивы
     // TODO: Заменить на TokenKind::DirectiveTest когда он будет добавлен
     em.token(start_pos, end_pos, TokenKind::Ident);
@@ -58,7 +58,7 @@ pub fn try_take_directive(cur: &mut Cursor, em: &mut Emitter) -> Option<u32> {
 
 /// Проверяет находится ли текущая позиция в начале строки
 /// (либо начало файла, либо после \n)
-fn is_at_line_start(cur: &mut Cursor, pos: u32) -> bool {
+fn is_at_line_start(_cur: &mut Cursor, pos: u32) -> bool {
     // Если позиция 0 - это начало файла
     if pos == 0 {
         return true;

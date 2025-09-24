@@ -1,11 +1,14 @@
 use crate::{cursor::Cursor, emit::Emitter};
-use token::TokenKind;
+use surge_token::TokenKind;
 
 /// Пытается захватить многосимвольный оператор
 /// Проверяет операторы в строгом порядке по убыванию длины:
 /// "..." "::" "->" "=>" "&&" "||" "<=" ">=" "==" "!=" ":="
 /// Возвращает true если оператор был найден и захвачен
-pub fn try_take_multi(cur: &mut Cursor, em: &mut Emitter) -> bool {
+pub fn try_take_multi(
+    cur: &mut Cursor,
+    em: &mut Emitter
+) -> bool {
     let start_pos = cur.pos();
 
     // Проверяем операторы в порядке приоритета (по убыванию длины)
@@ -103,7 +106,10 @@ pub fn try_take_multi(cur: &mut Cursor, em: &mut Emitter) -> bool {
 /// Пытается захватить одиночный символ пунктуации
 /// Обрабатывает: [ ] ( ) { } < > | , ; : . & * ! = + - / %
 /// Возвращает true если символ был найден и захвачен
-pub fn try_take_single(cur: &mut Cursor, em: &mut Emitter) -> bool {
+pub fn try_take_single(
+    cur: &mut Cursor,
+    em: &mut Emitter
+) -> bool {
     let start_pos = cur.pos();
 
     if let Some(ch) = cur.peek() {

@@ -1,12 +1,15 @@
 use crate::{cursor::Cursor, emit::Emitter};
-use crate::token::{TokenKind, Span, SourceId};
-use super::DiagCode;
+use crate::emit::DiagCode;
+use surge_token::TokenKind;
 
 /// Пытается захватить числовой литерал
 /// Стартует только если первая руна - is_ascii_digit()
 /// Поддерживает hex (0x), binary (0b), decimal, float и экспоненциальную запись
 /// Возвращает true если число было найдено и захвачено
-pub fn try_take_number(cur: &mut Cursor, em: &mut Emitter) -> bool {
+pub fn try_take_number(
+    cur: &mut Cursor,
+    em: &mut Emitter
+) -> bool {
     // Проверяем что начинается с цифры
     if let Some(ch) = cur.peek() {
         if !ch.is_ascii_digit() {
@@ -60,8 +63,8 @@ pub fn try_take_number(cur: &mut Cursor, em: &mut Emitter) -> bool {
             }
 
             // Должна быть хотя бы одна цифра
-            if let Some(ch) = cur.peek() {
-                if ch.is_ascii_digit() {
+            if let Some(ch_after) = cur.peek() {
+                if ch_after.is_ascii_digit() {
                     is_float = true;
                     current_end = collect_number_digits(cur, em, 10);
                 }
@@ -94,7 +97,7 @@ fn collect_number_digits(cur: &mut Cursor, em: &mut Emitter, base: u32) -> u32 {
             cur.bump();
         } else {
             // Недопустимая цифра для базы
-            let span = Span::new(SourceId(0), cur.pos(), cur.pos() + 1);
+            let span = surge_token::Span::new(em.file, cur.pos(), cur.pos() + 1);
             em.diag(span, DiagCode::InvalidDigitForBase, format!("Invalid digit '{}' for base {}", ch, base));
             break;
         }

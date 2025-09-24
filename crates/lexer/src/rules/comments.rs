@@ -1,11 +1,14 @@
-use crate::{cursor::Cursor, emit::Emitter, LexOptions, TriviaKind};
-use super::DiagCode;
-use crate::token::{Span, SourceId};
+use crate::{cursor::Cursor, emit::{Emitter, DiagCode, TriviaKind}, LexOptions};
+use surge_token::Span;
 
 /// Пропускает всю подряд идущую тривию (пробелы и комментарии)
 /// Если opt.keep_trivia == true, публикует каждый элемент тривии через em.trivia()
 /// Возвращает () - функция не возвращает значения, только модифицирует курсор и эмиттер
-pub fn skip_trivia(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) {
+pub fn skip_trivia(
+    cur: &mut Cursor,
+    em: &mut Emitter,
+    opt: &LexOptions
+) {
     // Цикл продолжается пока есть тривия
     while !cur.eof() {
         let ch = cur.peek();
@@ -32,7 +35,11 @@ pub fn skip_trivia(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) {
 }
 
 /// Пропускает последовательность пробельных символов
-fn skip_whitespace(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) {
+fn skip_whitespace(
+    cur: &mut Cursor,
+    em: &mut Emitter,
+    opt: &LexOptions
+) {
     let start = cur.pos();
 
     // Пропускаем все пробельные символы подряд
@@ -52,7 +59,11 @@ fn skip_whitespace(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) {
 }
 
 /// Пропускает однострочный комментарий от // до конца строки или EOF
-fn skip_line_comment(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) {
+fn skip_line_comment(
+    cur: &mut Cursor,
+    em: &mut Emitter,
+    opt: &LexOptions
+) {
     let start = cur.pos();
 
     // Пропускаем маркер начала комментария //
@@ -77,7 +88,11 @@ fn skip_line_comment(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) {
 }
 
 /// Пропускает многострочный комментарий /* ... */ с поддержкой вложенности
-fn skip_block_comment(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) {
+fn skip_block_comment(
+    cur: &mut Cursor,
+    em: &mut Emitter,
+    opt: &LexOptions
+) {
     let start = cur.pos();
 
     // Пропускаем маркер начала комментария /*
@@ -109,8 +124,8 @@ fn skip_block_comment(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) {
     // Проверяем, закрыт ли комментарий
     if depth > 0 {
         // Незакрытый комментарий до EOF - выдаем диагностику
-        let span = Span::new(SourceId(0), start, end);
-        em.diag(span, DiagCode::UnclosedBlockComment, "Unclosed block comment".to_string());
+        let span = Span::new(em.file, start, end);
+        em.diag(span, DiagCode::UnclosedBlockComment, "Unclosed block comment");
     }
 
     // Если нужно сохранять тривию - публикуем

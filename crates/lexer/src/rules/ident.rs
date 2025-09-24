@@ -1,12 +1,15 @@
 use crate::{cursor::Cursor, emit::Emitter};
-use crate::token::{TokenKind, Keyword, Span, SourceId};
+use surge_token::TokenKind;
 
 /// Пытается захватить идентификатор или ключевое слово
 /// Условия входа: текущая руна @ или is_alphabetic() или '_'
 /// Собирает @? + [A-Za-z0-9_]*
 /// Использует lookup_keyword для определения типа токена
 /// Возвращает true если идентификатор/ключевое слово было найдено и захвачено
-pub fn try_take_ident_or_keyword(cur: &mut Cursor, em: &mut Emitter) -> bool {
+pub fn try_take_ident_or_keyword(
+    cur: &mut Cursor,
+    em: &mut Emitter
+) -> bool {
     // Проверяем условие входа
     if let Some(ch) = cur.peek() {
         if ch != '@' && ch != '_' && !ch.is_alphabetic() {

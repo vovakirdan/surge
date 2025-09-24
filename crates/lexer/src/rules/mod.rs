@@ -1,22 +1,23 @@
 
-use crate::{cursor::Cursor, emit::Emitter, LexOptions};
-use token::{TokenKind, Span, SourceId};
-use std::char;
+pub mod comments;
+pub mod directive;
+pub mod ident;
+pub mod number;
+pub mod punct;
+pub mod string;
 
-// Диагностические коды для ошибок лексического анализа
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DiagCode {
-    UnclosedString,      // Незакрытая строковая константа
-    BadEscape,           // Неправильная escape-последовательность
-    UnclosedBlockComment,// Незакрытый блочный комментарий
-    InvalidDigitForBase, // Неправильная цифра для системы счисления
-    UnknownChar,         // Неизвестный символ
-}
+use crate::{cursor::Cursor, emit::Emitter, LexOptions};
+use surge_token::Span;
+use crate::emit::DiagCode;
 
 /// Основная функция диспетчера лексера
 /// Выполняет лексический анализ в строгом порядке приоритетов
 /// Возвращает true если токен был успешно обработан, false при достижении EOF
-pub fn next_token(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) -> bool {
+pub fn next_token(
+    cur: &mut Cursor,
+    em: &mut Emitter,
+    opt: &LexOptions
+) -> bool {
     // Шаг 1: Пропустить всю тривию (пробелы/комментарии)
     // Функция должна пропустить все пробелы и комментарии подряд
     comments::skip_trivia(cur, em, opt);
@@ -29,7 +30,7 @@ pub fn next_token(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) -> bool 
     // Шаг 2: Проверить директивы (если включены)
     // Обрабатываем специальные директивы начинающиеся с ///
     if opt.enable_directives {
-        if let Some(start_pos) = directive::try_take_directive(cur, em) {
+        if directive::try_take_directive(cur, em).is_some() {
             return true;
         }
     }
@@ -80,7 +81,8 @@ pub fn next_token(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) -> bool 
     // Если символ не распознан ни одним правилом - выдаем диагностику и пропускаем его
     if let Some(ch) = cur.peek() {
         let start_pos = cur.pos();
-        let span = Span::new(SourceId(0), start_pos, start_pos + 1);
+        let end_pos = start_pos + ch.len_utf8() as u32;
+        let span = Span::new(em.file, start_pos, end_pos);
         em.diag(span, DiagCode::UnknownChar, format!("Unknown character: '{}'", ch));
         cur.bump(); // Пропустить символ
         return true;
