@@ -1,14 +1,11 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+pub mod model;
+pub mod source;
+pub mod collect;
+pub mod format;
+pub mod report;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use model::{Severity, Code, SpanRef, Related, Diagnostic};
+pub use source::{SourceMap, SourceLabel, SourceTextProvider, InMemorySourceText};
+pub use collect::from_lexer_diags;
+pub use format::{Format, Formatter, FormatError, PrettyFormatter, JsonFormatter, CsvFormatter};
+pub use report::{ReportOptions, Reporter};

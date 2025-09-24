@@ -1,7 +1,8 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+use serde::{Serialize, Deserialize};
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub struct SourceId(pub u32);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub struct Span {
     pub source: SourceId,
     pub start: u32, // byte offset, inclusive
