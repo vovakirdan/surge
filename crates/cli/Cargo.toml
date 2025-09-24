@@ -4,8 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "surge"
+path = "src/main.rs"
+
 [dependencies]
 clap = { version = "4.5.48", features = ["derive"] }
 surge-token = { path = "../token" }
 surge-lexer = { path = "../lexer" }
 anyhow = "1.0.100"
+walkdir = "2.5.0"
