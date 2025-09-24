@@ -5,16 +5,15 @@ use surge_token::TokenKind;
 /// Проверяет операторы в строгом порядке по убыванию длины:
 /// "..." "::" "->" "=>" "&&" "||" "<=" ">=" "==" "!=" ":="
 /// Возвращает true если оператор был найден и захвачен
-pub fn try_take_multi(
-    cur: &mut Cursor,
-    em: &mut Emitter
-) -> bool {
+pub fn try_take_multi(cur: &mut Cursor, em: &mut Emitter) -> bool {
     let start_pos = cur.pos();
 
     // Проверяем операторы в порядке приоритета (по убыванию длины)
     if cur.starts_with("...") {
         // Ellipsis
-        cur.bump(); cur.bump(); cur.bump(); // захватываем ...
+        cur.bump();
+        cur.bump();
+        cur.bump(); // захватываем ...
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::Ellipsis);
         return true;
@@ -22,7 +21,8 @@ pub fn try_take_multi(
 
     if cur.starts_with("::") {
         // PathSep
-        cur.bump(); cur.bump(); // захватываем ::
+        cur.bump();
+        cur.bump(); // захватываем ::
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::PathSep);
         return true;
@@ -30,7 +30,8 @@ pub fn try_take_multi(
 
     if cur.starts_with("->") {
         // ThinArrow
-        cur.bump(); cur.bump(); // захватываем ->
+        cur.bump();
+        cur.bump(); // захватываем ->
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::ThinArrow);
         return true;
@@ -38,7 +39,8 @@ pub fn try_take_multi(
 
     if cur.starts_with("=>") {
         // FatArrow
-        cur.bump(); cur.bump(); // захватываем =>
+        cur.bump();
+        cur.bump(); // захватываем =>
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::FatArrow);
         return true;
@@ -46,7 +48,8 @@ pub fn try_take_multi(
 
     if cur.starts_with("&&") {
         // AndAnd
-        cur.bump(); cur.bump(); // захватываем &&
+        cur.bump();
+        cur.bump(); // захватываем &&
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::AndAnd);
         return true;
@@ -54,7 +57,8 @@ pub fn try_take_multi(
 
     if cur.starts_with("||") {
         // OrOr
-        cur.bump(); cur.bump(); // захватываем ||
+        cur.bump();
+        cur.bump(); // захватываем ||
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::OrOr);
         return true;
@@ -62,7 +66,8 @@ pub fn try_take_multi(
 
     if cur.starts_with("<=") {
         // Le
-        cur.bump(); cur.bump(); // захватываем <=
+        cur.bump();
+        cur.bump(); // захватываем <=
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::Le);
         return true;
@@ -70,7 +75,8 @@ pub fn try_take_multi(
 
     if cur.starts_with(">=") {
         // Ge
-        cur.bump(); cur.bump(); // захватываем >=
+        cur.bump();
+        cur.bump(); // захватываем >=
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::Ge);
         return true;
@@ -78,7 +84,8 @@ pub fn try_take_multi(
 
     if cur.starts_with("==") {
         // EqEq
-        cur.bump(); cur.bump(); // захватываем ==
+        cur.bump();
+        cur.bump(); // захватываем ==
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::EqEq);
         return true;
@@ -86,7 +93,8 @@ pub fn try_take_multi(
 
     if cur.starts_with("!=") {
         // Ne
-        cur.bump(); cur.bump(); // захватываем !=
+        cur.bump();
+        cur.bump(); // захватываем !=
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::Ne);
         return true;
@@ -94,7 +102,8 @@ pub fn try_take_multi(
 
     if cur.starts_with(":=") {
         // ColonEq
-        cur.bump(); cur.bump(); // захватываем :=
+        cur.bump();
+        cur.bump(); // захватываем :=
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::ColonEq);
         return true;
@@ -106,10 +115,7 @@ pub fn try_take_multi(
 /// Пытается захватить одиночный символ пунктуации
 /// Обрабатывает: [ ] ( ) { } < > | , ; : . & * ! = + - / %
 /// Возвращает true если символ был найден и захвачен
-pub fn try_take_single(
-    cur: &mut Cursor,
-    em: &mut Emitter
-) -> bool {
+pub fn try_take_single(cur: &mut Cursor, em: &mut Emitter) -> bool {
     let start_pos = cur.pos();
 
     if let Some(ch) = cur.peek() {

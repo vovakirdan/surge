@@ -1,4 +1,3 @@
-
 pub mod comments;
 pub mod directive;
 pub mod ident;
@@ -6,18 +5,14 @@ pub mod number;
 pub mod punct;
 pub mod string;
 
-use crate::{cursor::Cursor, emit::Emitter, LexOptions};
-use surge_token::Span;
 use crate::emit::DiagCode;
+use crate::{LexOptions, cursor::Cursor, emit::Emitter};
+use surge_token::Span;
 
 /// Основная функция диспетчера лексера
 /// Выполняет лексический анализ в строгом порядке приоритетов
 /// Возвращает true если токен был успешно обработан, false при достижении EOF
-pub fn next_token(
-    cur: &mut Cursor,
-    em: &mut Emitter,
-    opt: &LexOptions
-) -> bool {
+pub fn next_token(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) -> bool {
     // Шаг 1: Пропустить всю тривию (пробелы/комментарии)
     // Функция должна пропустить все пробелы и комментарии подряд
     comments::skip_trivia(cur, em, opt);
@@ -83,7 +78,11 @@ pub fn next_token(
         let start_pos = cur.pos();
         let end_pos = start_pos + ch.len_utf8() as u32;
         let span = Span::new(em.file, start_pos, end_pos);
-        em.diag(span, DiagCode::UnknownChar, format!("Unknown character: '{}'", ch));
+        em.diag(
+            span,
+            DiagCode::UnknownChar,
+            format!("Unknown character: '{}'", ch),
+        );
         cur.bump(); // Пропустить символ
         return true;
     }

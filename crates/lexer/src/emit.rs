@@ -1,5 +1,5 @@
-use surge_token::{Token, TokenKind, Span, SourceId};
 use crate::LexOptions;
+use surge_token::{SourceId, Span, Token, TokenKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TriviaKind {
@@ -77,7 +77,11 @@ impl Emitter {
     /// Эмит диагностики
     pub fn diag(&mut self, span: Span, code: DiagCode, msg: impl Into<String>) {
         let message = msg.into();
-        let diag = LexDiag { span, code, message };
+        let diag = LexDiag {
+            span,
+            code,
+            message,
+        };
         self.diags.push(diag);
     }
 }
@@ -106,7 +110,10 @@ mod tests {
     #[test]
     fn test_emitter_trivia_with_keep_trivia() {
         let file = SourceId(0);
-        let opts = LexOptions { keep_trivia: true, enable_directives: false };
+        let opts = LexOptions {
+            keep_trivia: true,
+            enable_directives: false,
+        };
         let mut emitter = Emitter::new(file, &opts);
 
         // Эмитим тривию
@@ -122,7 +129,10 @@ mod tests {
     #[test]
     fn test_emitter_trivia_without_keep_trivia() {
         let file = SourceId(0);
-        let opts = LexOptions { keep_trivia: false, enable_directives: false };
+        let opts = LexOptions {
+            keep_trivia: false,
+            enable_directives: false,
+        };
         let mut emitter = Emitter::new(file, &opts);
 
         // Эмитим тривию
@@ -135,7 +145,10 @@ mod tests {
     #[test]
     fn test_emitter_trivia_empty_span() {
         let file = SourceId(0);
-        let opts = LexOptions { keep_trivia: true, enable_directives: false };
+        let opts = LexOptions {
+            keep_trivia: true,
+            enable_directives: false,
+        };
         let mut emitter = Emitter::new(file, &opts);
 
         // Эмитим пустую тривию

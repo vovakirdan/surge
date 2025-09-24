@@ -1,5 +1,5 @@
-use crate::{cursor::Cursor, emit::Emitter};
 use crate::emit::DiagCode;
+use crate::{cursor::Cursor, emit::Emitter};
 use surge_token::Span;
 use surge_token::TokenKind;
 
@@ -7,10 +7,7 @@ use surge_token::TokenKind;
 /// Стартует только если текущий символ == '"'
 /// Поддерживает escape-последовательности и unicode литералы
 /// Возвращает true если строка была найдена и захвачена
-pub fn try_take_string(
-    cur: &mut Cursor,
-    em: &mut Emitter
-) -> bool {
+pub fn try_take_string(cur: &mut Cursor, em: &mut Emitter) -> bool {
     // Проверяем что начинается с кавычки
     if cur.peek() != Some('"') {
         return false;
@@ -59,7 +56,6 @@ pub fn try_take_string(
 
                         while let Some(hex_ch) = cur.peek() {
                             if hex_ch == '}' {
-                                cur.bump(); // захватываем }
                                 break;
                             }
 
@@ -85,14 +81,22 @@ pub fn try_take_string(
 
                             if !valid_hex || hex_count == 0 {
                                 let span = Span::new(em.file, cur.pos() - hex_count - 2, cur.pos());
-                                em.diag(span, DiagCode::BadEscape, "Invalid unicode escape sequence");
+                                em.diag(
+                                    span,
+                                    DiagCode::BadEscape,
+                                    "Invalid unicode escape sequence",
+                                );
                             }
                         }
                     }
                     _ => {
                         // Неподдерживаемая escape-последовательность
                         let span = Span::new(em.file, cur.pos(), cur.pos() + 1);
-                        em.diag(span, DiagCode::BadEscape, format!("Unknown escape sequence '\\{}'", escape_ch));
+                        em.diag(
+                            span,
+                            DiagCode::BadEscape,
+                            format!("Unknown escape sequence '\\{}'", escape_ch),
+                        );
                         cur.bump(); // захватываем символ
                     }
                 }

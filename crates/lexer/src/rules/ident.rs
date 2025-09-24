@@ -6,10 +6,7 @@ use surge_token::TokenKind;
 /// Собирает @? + [A-Za-z0-9_]*
 /// Использует lookup_keyword для определения типа токена
 /// Возвращает true если идентификатор/ключевое слово было найдено и захвачено
-pub fn try_take_ident_or_keyword(
-    cur: &mut Cursor,
-    em: &mut Emitter
-) -> bool {
+pub fn try_take_ident_or_keyword(cur: &mut Cursor, em: &mut Emitter) -> bool {
     // Проверяем условие входа
     if let Some(ch) = cur.peek() {
         if ch != '@' && ch != '_' && !ch.is_alphabetic() {

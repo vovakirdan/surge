@@ -4,15 +4,15 @@ pub mod emit;
 pub mod rules;
 
 // Импортируем реальный Token из крейта token
-pub use surge_token::{Token, SourceId, TokenKind, Span};
+pub use surge_token::{SourceId, Span, Token, TokenKind};
 
 // Реэкспортируем типы из emit для удобства
-pub use emit::{LexDiag, TriviaKind, Trivia, DiagCode};
+pub use emit::{DiagCode, LexDiag, Trivia, TriviaKind};
 
 /// Опции лексического анализа
 pub struct LexOptions {
-    pub keep_trivia: bool,      // вернуть пробелы/комменты отдельным каналом
-    pub enable_directives: bool // активировать /// test:
+    pub keep_trivia: bool,       // вернуть пробелы/комменты отдельным каналом
+    pub enable_directives: bool, // активировать /// test:
 }
 
 impl Default for LexOptions {
@@ -26,9 +26,9 @@ impl Default for LexOptions {
 
 /// Результат лексического анализа
 pub struct LexResult {
-    pub tokens: Vec<Token>,     // основные токены (без trivia)
-    pub trivia: Vec<Trivia>,    // если keep_trivia = true
-    pub diags: Vec<LexDiag>,    // диагностические сообщения
+    pub tokens: Vec<Token>,  // основные токены (без trivia)
+    pub trivia: Vec<Trivia>, // если keep_trivia = true
+    pub diags: Vec<LexDiag>, // диагностические сообщения
 }
 
 /// Основная функция лексического анализа

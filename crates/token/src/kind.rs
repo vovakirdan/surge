@@ -48,7 +48,8 @@ pub enum TokenKind {
     StarEq,
     SlashEq,
     PercentEq, // += -= *= /= %=
-    ColonEq, // :=
+    ColonEq,   // :=
     At,        // @
+    Directive, // ///
     Eof,
 }

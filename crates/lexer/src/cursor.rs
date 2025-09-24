@@ -29,6 +29,15 @@ impl<'a> Cursor<'a> {
         self.file
     }
 
+    /// Находится ли курсор в начале строки (или файла)
+    pub fn is_line_start(&self) -> bool {
+        if self.i == 0 {
+            return true;
+        }
+
+        self.src[..self.i].chars().rev().next() == Some('\n')
+    }
+
     /// Посмотреть текущую руну (не двигая курсор)
     pub fn peek(&self) -> Option<char> {
         if self.eof() {
@@ -39,17 +48,7 @@ impl<'a> Cursor<'a> {
 
     /// Lookahead на n рун вперёд (n=1 — как peek следующего после текущего)
     pub fn peek_n(&self, n: usize) -> Option<char> {
-        if n == 0 {
-            return self.peek();
-        }
-
-        let mut chars = self.src[self.i..].chars();
-        for _ in 0..n {
-            if chars.next().is_none() {
-                return None;
-            }
-        }
-        chars.next()
+        self.src[self.i..].chars().nth(n)
     }
 
     /// Стартуется ли оставшийся текст с данным литералом (байтовое сравнение)
@@ -88,7 +87,7 @@ impl<'a> Cursor<'a> {
     /// Удобно для многосимвольных операторов
     pub fn bump_str(&mut self, s: &str) -> bool {
         if self.starts_with(s) {
-            self.i += s.chars().map(|ch| ch.len_utf8()).sum::<usize>();
+            self.i += s.len();
             true
         } else {
             false
@@ -137,9 +136,9 @@ mod tests {
         assert_eq!(cursor.pos(), 2);
         assert!(cursor.starts_with(">>"));
 
-        // bump_str не захватывает если не совпадает
-        assert!(!cursor.bump_str(">>>"));
-        assert_eq!(cursor.pos(), 2);
+        // bump_str захватывает совпадение
+        assert!(cursor.bump_str(">>>"));
+        assert_eq!(cursor.pos(), 5);
     }
 
     #[test]
@@ -150,8 +149,8 @@ mod tests {
 
         // bump_while для пробельных символов
         let count = cursor.bump_while(|c| c.is_whitespace());
-        assert_eq!(count, 4); // 3 пробела + 1 табуляция
-        assert_eq!(cursor.pos(), 4);
+        assert_eq!(count, 5); // 3 пробела + 1 табуляция + 1 перевод строки
+        assert_eq!(cursor.pos(), 5);
         assert_eq!(cursor.peek(), Some('a'));
 
         // bump_while для букв
