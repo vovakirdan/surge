@@ -1,5 +1,5 @@
 use crate::LexOptions;
-use surge_token::{SourceId, Span, Token, TokenKind};
+use surge_token::{SourceId, Span, Token, TokenContext, TokenKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TriviaKind {
@@ -56,6 +56,13 @@ impl Emitter {
     pub fn token(&mut self, start: u32, end: u32, kind: TokenKind) {
         let span = Span::new(self.file, start, end);
         let token = Token::new(kind, span);
+        self.tokens.push(token);
+    }
+
+    /// Эмит токена с контекстом [start..end). Предусловие: start/end — корректные байтовые оффсеты
+    pub fn token_with_context(&mut self, start: u32, end: u32, kind: TokenKind, context: TokenContext) {
+        let span = Span::new(self.file, start, end);
+        let token = Token::new_with_context(kind, span, context);
         self.tokens.push(token);
     }
 

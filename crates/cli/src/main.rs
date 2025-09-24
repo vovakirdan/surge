@@ -1,40 +1,23 @@
-use anyhow::Context;
-use clap::{Parser, Subcommand};
-use surge_lexer::lex;
-use surge_token::{SourceId, TokenKind};
+use surge_lexer::{LexOptions, SourceId, lex};
 
-#[derive(Parser)]
-#[command(name = "surge", version, about = "Surge toolchain")]
-struct Cli {
-    #[command(subcommand)]
-    cmd: Cmd,
-}
+fn main() {
+    let source = "fn main() { let x = 42; }";
+    let file = SourceId(0);
+    let opts = LexOptions::default();
 
-#[derive(Subcommand)]
-enum Cmd {
-    /// Tokenize a .sg file and print tokens
-    Tokenize { file: String },
-}
+    let result = lex(source, file, &opts);
 
-fn main() -> anyhow::Result<()> {
-    let cli = Cli::parse();
-    match cli.cmd {
-        Cmd::Tokenize { file } => tokenize(&file),
+    println!("Tokens:");
+    for (i, token) in result.tokens.iter().enumerate() {
+        let text = &source[token.span.start as usize..token.span.end as usize];
+        println!("  {}: {:?} = {:?}", i, token.kind, text);
     }
-}
 
-fn tokenize(file: &str) -> anyhow::Result<()> {
-    let src = std::fs::read_to_string(file).with_context(|| format!("failed to read {}", file))?;
-    let res = lex(&src, SourceId(0));
-
-    for t in res.tokens {
-        match t.kind {
-            TokenKind::Eof => println!("{:?} @ {:?}", t.kind, t.span),
-            _ => println!("{:?} @ {:?}", t.kind, t.span),
+    if !result.diags.is_empty() {
+        println!("\nDiagnostics:");
+        for diag in &result.diags {
+            let text = &source[diag.span.start as usize..diag.span.end as usize];
+            println!("  {:?}: {} at {:?}", diag.code, diag.message, text);
         }
     }
-    for d in res.diags {
-        eprintln!("diag: {d:?}");
-    }
-    Ok(())
 }

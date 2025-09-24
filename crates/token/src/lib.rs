@@ -3,7 +3,7 @@ pub mod kind;
 pub mod span;
 pub mod token;
 
-pub use keyword::{Keyword, lookup_keyword};
+pub use keyword::{Keyword, lookup_keyword, lookup_directive_keyword};
 pub use kind::{DirectiveKind, TokenKind};
 pub use span::{SourceId, Span};
-pub use token::Token;
+pub use token::{Token, TokenContext};

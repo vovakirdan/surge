@@ -25,7 +25,7 @@ pub fn next_token(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) -> bool 
     // Шаг 2: Проверить директивы (если включены)
     // Обрабатываем специальные директивы начинающиеся с ///
     if opt.enable_directives {
-        if directive::try_take_directive(cur, em).is_some() {
+        if directive::try_take_directive(cur, em, opt).is_some() {
             return true;
         }
     }
