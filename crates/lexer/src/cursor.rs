@@ -31,11 +31,7 @@ impl<'a> Cursor<'a> {
 
     /// Находится ли курсор в начале строки (или файла)
     pub fn is_line_start(&self) -> bool {
-        if self.i == 0 {
-            return true;
-        }
-
-        self.src[..self.i].chars().rev().next() == Some('\n')
+        self.i == 0 || self.src.as_bytes()[self.i - 1] == b'\n'
     }
 
     /// Посмотреть текущую руну (не двигая курсор)
