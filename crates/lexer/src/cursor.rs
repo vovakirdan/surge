@@ -93,6 +93,16 @@ impl<'a> Cursor<'a> {
             false
         }
     }
+
+    /// Сохранить текущую позицию для возможного отката
+    pub fn save_pos(&self) -> usize {
+        self.i
+    }
+
+    /// Восстановить позицию из сохраненной
+    pub fn restore_pos(&mut self, pos: usize) {
+        self.i = pos;
+    }
 }
 
 #[cfg(test)]

@@ -18,6 +18,10 @@ pub fn skip_trivia(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) {
                 // Обработка пробельных символов
                 skip_whitespace(cur, em, opt);
             }
+            Some('/') if cur.starts_with("///") && cur.is_line_start() && opt.enable_directives => {
+                // Это может быть директива - не обрабатываем как комментарий
+                break;
+            }
             Some('/') if cur.starts_with("//") => {
                 // Однострочный комментарий
                 skip_line_comment(cur, em, opt);

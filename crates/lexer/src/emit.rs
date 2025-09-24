@@ -28,6 +28,8 @@ pub enum DiagCode {
     UnclosedBlockComment,
     InvalidDigitForBase,
     UnknownChar,
+    UnknownDirective,
+    InvalidDirectiveFormat,
 }
 
 pub struct Emitter {

@@ -1,5 +1,13 @@
 use crate::keyword::Keyword;
 
+/// Типы директив для компилятора
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DirectiveKind {
+    Test,      // /// test:
+    Benchmark, // /// benchmark:
+    Time,      // /// time:
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TokenKind {
     Ident,
@@ -50,6 +58,6 @@ pub enum TokenKind {
     PercentEq, // += -= *= /= %=
     ColonEq,   // :=
     At,        // @
-    Directive, // ///
+    Directive(DirectiveKind), // ///
     Eof,
 }
