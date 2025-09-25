@@ -62,6 +62,9 @@ pub fn from_parser_diags(file: SourceId, diags: &[surge_parser::ParseDiag]) -> V
                 surge_parser::ParseCode::ExpectedTypeAfterArrow => {
                     "PARSE_EXPECTED_TYPE_AFTER_ARROW".into()
                 }
+                surge_parser::ParseCode::MissingReturnType => {
+                    "PARSE_MISSING_RETURN_TYPE".into()
+                }
                 surge_parser::ParseCode::ExternGenericBrackets => {
                     "PARSE_EXTERN_GENERIC_BRACKETS".into()
                 }

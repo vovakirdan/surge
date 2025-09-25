@@ -24,6 +24,7 @@ pub enum ParseCode {
     FatArrowOutsideParallel,
     UnknownAttribute,
     ExpectedTypeAfterArrow,
+    MissingReturnType,
     ExternGenericBrackets,
     ExternMissingType,
     ExternUnclosedBlock,

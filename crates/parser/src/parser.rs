@@ -943,7 +943,7 @@ impl<'src> Parser<'src> {
         let end = end_span.unwrap_or(start);
         let span = start.join(end);
         let text = self.stream.text(span);
-        Some(TypeNode { text, span })
+        Some(TypeNode { repr: text, span })
     }
 
     fn is_type_terminator(&self, kind: TokenKind) -> bool {
@@ -1146,7 +1146,9 @@ fn expr_span(expr: &Expr) -> Span {
         | Expr::Unary { span, .. }
         | Expr::Binary { span, .. }
         | Expr::Assign { span, .. }
-        | Expr::Let { span, .. } => *span,
+        | Expr::Let { span, .. }
+        | Expr::ParallelMap { span, .. }
+        | Expr::ParallelReduce { span, .. } => *span,
     }
 }
 
@@ -1175,6 +1177,8 @@ fn with_span(expr: Expr, span: Span) -> Expr {
             mutable,
             span,
         },
+        Expr::ParallelMap { seq, params, func, .. } => Expr::ParallelMap { seq, params, func, span },
+        Expr::ParallelReduce { seq, init, params, func, .. } => Expr::ParallelReduce { seq, init, params, func, span },
     }
 }
 

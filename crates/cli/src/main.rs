@@ -561,7 +561,7 @@ fn render_expr(output: &mut String, expr: &Expr, src: &str, source_id: SourceId,
 fn render_type_node(output: &mut String, type_node: &TypeNode, _src: &str, _source_id: SourceId, indent: usize) {
     let indent_str = "  ".repeat(indent);
     output.push_str(&format!("TypeNode {{\n"));
-    output.push_str(&format!("{}  text: \"{}\",\n", indent_str, type_node.text));
+    output.push_str(&format!("{}  text: \"{}\",\n", indent_str, type_node.repr));
     output.push_str(&format!("{}  span: {:?}\n", indent_str, type_node.span));
     output.push_str(&format!("{}}}", indent_str));
 }
