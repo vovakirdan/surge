@@ -12,7 +12,7 @@ use surge_diagnostics::{
     from_parser_diags,
 };
 use surge_lexer::{LexOptions, lex};
-use surge_parser::parse_tokens;
+use surge_parser::{parse_tokens, Ast, Module, Item, Func, FuncSig, Param, Block, Stmt, Expr, TypeNode, Attr};
 use surge_token::SourceId;
 
 /// Источник входных данных
@@ -136,6 +136,20 @@ enum Cmd {
         #[arg(long)]
         enable_directives: bool,
     },
+
+    /// Parse .sg file/dir or stdin and print AST tree to stdout
+    Parse {
+        /// Path to .sg file/dir or '-' for stdin. Omit to use stdin.
+        path: Option<String>,
+
+        /// Keep trivia in lexer
+        #[arg(long)]
+        keep_trivia: bool,
+
+        /// Enable /// directives
+        #[arg(long)]
+        enable_directives: bool,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -170,6 +184,11 @@ fn main() -> Result<()> {
             keep_trivia,
             enable_directives,
         } => run_tokenize(path, keep_trivia, enable_directives),
+        Cmd::Parse {
+            path,
+            keep_trivia,
+            enable_directives,
+        } => run_parse(path, keep_trivia, enable_directives),
     }
 }
 
@@ -228,6 +247,49 @@ fn run_diag(
     }
 }
 
+/// Команда parse: парсинг с выводом AST дерева в stdout
+fn run_parse(path: Option<String>, keep_trivia: bool, enable_directives: bool) -> Result<()> {
+    // Собрать входные данные через общий интерфейс
+    let input = collect_inputs(path)?;
+
+    // Настроить опции лексера
+    let lex_opts = LexOptions {
+        keep_trivia,
+        enable_directives,
+    };
+
+    let mut stdout = io::stdout().lock();
+
+    // Обработать каждый источник
+    for source in &input.sources {
+        let lex_res = lex(&source.content, source.id, &lex_opts);
+        let parse_res = parse_tokens(source.id, &lex_res.tokens);
+
+        // Вывести заголовок для источника (если их больше одного)
+        if input.sources.len() > 1 {
+            writeln!(stdout, "== AST: {} ==", source.label)?;
+        }
+
+        // Вывести AST дерево
+        let ast_tree = render_ast_tree(&parse_res.ast, &source.content, source.id);
+        stdout.write_all(ast_tree.as_bytes())?;
+
+        if input.sources.len() > 1 {
+            writeln!(stdout)?;
+        }
+
+        // Вывести диагностики парсера, если есть
+        if !parse_res.diags.is_empty() {
+            writeln!(stdout, "\nParser diagnostics:")?;
+            for diag in &parse_res.diags {
+                writeln!(stdout, "  {:?}", diag)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Команда tokenize: токенизация с выводом токенов в stdout
 fn run_tokenize(path: Option<String>, keep_trivia: bool, enable_directives: bool) -> Result<()> {
     // Собрать входные данные через общий интерфейс
@@ -260,6 +322,265 @@ fn run_tokenize(path: Option<String>, keep_trivia: bool, enable_directives: bool
     }
 
     Ok(())
+}
+
+/// Извлечь текст из исходного кода по span
+fn get_text_from_span(src: &str, span: &surge_token::Span) -> String {
+    let start = span.start as usize;
+    let end = span.end as usize;
+    src.get(start..end).unwrap_or("").to_string()
+}
+
+/// Напечатать AST дерево с красивой индентацией
+fn render_ast_tree(ast: &Ast, src: &str, source_id: SourceId) -> String {
+    let mut output = String::new();
+    output.push_str("AST Tree:\n");
+    render_module(&mut output, &ast.module, src, source_id, 0);
+    output
+}
+
+fn render_module(output: &mut String, module: &Module, src: &str, source_id: SourceId, indent: usize) {
+    let indent_str = "  ".repeat(indent);
+    output.push_str(&format!("{}Module {{\n", indent_str));
+    output.push_str(&format!("{}  items: [\n", indent_str));
+
+    for (i, item) in module.items.iter().enumerate() {
+        if i > 0 {
+            output.push_str(",\n");
+        }
+        render_item(output, item, src, source_id, indent + 2);
+    }
+
+    output.push_str(&format!("\n{}  ]\n", indent_str));
+    output.push_str(&format!("{}}}\n", indent_str));
+}
+
+fn render_item(output: &mut String, item: &Item, src: &str, source_id: SourceId, indent: usize) {
+    let indent_str = "  ".repeat(indent);
+    match item {
+        Item::Fn(func) => {
+            output.push_str(&format!("{}Fn(\n", indent_str));
+            render_func(output, func, src, source_id, indent + 1);
+            output.push_str(&format!("{})", indent_str));
+        }
+        _ => {
+            output.push_str(&format!("{}<unimplemented item>", indent_str));
+        }
+    }
+}
+
+fn render_func(output: &mut String, func: &Func, src: &str, source_id: SourceId, indent: usize) {
+    let indent_str = "  ".repeat(indent);
+    output.push_str(&format!("{}sig: (\n", indent_str));
+    render_func_sig(output, &func.sig, src, source_id, indent + 1);
+    output.push_str(&format!("\n{})", indent_str));
+
+    if let Some(body) = &func.body {
+        output.push_str(&format!(",\n{}body: (\n", indent_str));
+        render_block(output, body, src, source_id, indent + 1);
+        output.push_str(&format!("\n{})", indent_str));
+    } else {
+        output.push_str(&format!(", body: None"));
+    }
+
+    output.push_str(&format!(", span: {:?}", func.span));
+}
+
+fn render_func_sig(output: &mut String, sig: &FuncSig, src: &str, source_id: SourceId, indent: usize) {
+    let indent_str = "  ".repeat(indent);
+    let name = get_text_from_span(src, &sig.span);
+    output.push_str(&format!("{}name: \"{}\",\n", indent_str, name));
+    output.push_str(&format!("{}params: [\n", indent_str));
+
+    for (i, param) in sig.params.iter().enumerate() {
+        if i > 0 {
+            output.push_str(",\n");
+        }
+        render_param(output, param, src, source_id, indent + 1);
+    }
+
+    output.push_str(&format!("\n{}]{}", indent_str, if sig.params.is_empty() { "" } else { "," }));
+    output.push_str(&format!("\n{}ret: ", indent_str));
+
+    if let Some(ret) = &sig.ret {
+        output.push_str(&format!("Some("));
+        render_type_node(output, ret, src, source_id, indent + 1);
+        output.push_str(")");
+    } else {
+        output.push_str("None");
+    }
+
+    output.push_str(&format!(",\n{}span: {:?}", indent_str, sig.span));
+    output.push_str(&format!(",\n{}attrs: [", indent_str));
+
+    for (i, attr) in sig.attrs.iter().enumerate() {
+        if i > 0 {
+            output.push_str(", ");
+        }
+        render_attr(output, attr);
+    }
+
+    output.push_str("]");
+}
+
+fn render_param(output: &mut String, param: &Param, src: &str, source_id: SourceId, indent: usize) {
+    let indent_str = "  ".repeat(indent);
+    let name = get_text_from_span(src, &param.span);
+    output.push_str(&format!("{}Param {{\n", indent_str));
+    output.push_str(&format!("{}  name: \"{}\",\n", indent_str, name));
+
+    if let Some(ty) = &param.ty {
+        output.push_str(&format!("{}  ty: ", indent_str));
+        render_type_node(output, ty, src, source_id, indent + 1);
+        output.push_str(",\n");
+    } else {
+        output.push_str(&format!("{}  ty: None,\n", indent_str));
+    }
+
+    output.push_str(&format!("{}  span: {:?}\n", indent_str, param.span));
+    output.push_str(&format!("{}}}", indent_str));
+}
+
+fn render_block(output: &mut String, block: &Block, src: &str, source_id: SourceId, indent: usize) {
+    let indent_str = "  ".repeat(indent);
+    output.push_str(&format!("{}Block {{\n", indent_str));
+    output.push_str(&format!("{}  stmts: [\n", indent_str));
+
+    for (i, stmt) in block.stmts.iter().enumerate() {
+        if i > 0 {
+            output.push_str(",\n");
+        }
+        render_stmt(output, stmt, src, source_id, indent + 2);
+    }
+
+    output.push_str(&format!("\n{}  ],\n", indent_str));
+    output.push_str(&format!("{}  span: {:?}\n", indent_str, block.span));
+    output.push_str(&format!("{}}}", indent_str));
+}
+
+fn render_stmt(output: &mut String, stmt: &Stmt, src: &str, source_id: SourceId, indent: usize) {
+    let indent_str = "  ".repeat(indent);
+    match stmt {
+        Stmt::Let { ty, init, mutable, span, semi, .. } => {
+            let name_text = get_text_from_span(src, span);
+            output.push_str(&format!("{}Let {{\n", indent_str));
+            output.push_str(&format!("{}  name: \"{}\",\n", indent_str, name_text));
+            output.push_str(&format!("{}  mutable: {},\n", indent_str, mutable));
+
+            if let Some(ty) = ty {
+                output.push_str(&format!("{}  ty: ", indent_str));
+                render_type_node(output, ty, src, source_id, indent + 1);
+                output.push_str(",\n");
+            } else {
+                output.push_str(&format!("{}  ty: None,\n", indent_str));
+            }
+
+            if let Some(init) = init {
+                output.push_str(&format!("{}  init: ", indent_str));
+                render_expr(output, init, src, source_id, indent + 1);
+                output.push_str(",\n");
+            } else {
+                output.push_str(&format!("{}  init: None,\n", indent_str));
+            }
+
+            output.push_str(&format!("{}  span: {:?},\n", indent_str, span));
+            output.push_str(&format!("{}  semi: {:?}\n", indent_str, semi));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        Stmt::ExprStmt { expr, span, semi } => {
+            output.push_str(&format!("{}ExprStmt {{\n", indent_str));
+            output.push_str(&format!("{}  expr: ", indent_str));
+            render_expr(output, expr, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  span: {:?},\n", indent_str, span));
+            output.push_str(&format!("{}  semi: {:?}\n", indent_str, semi));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        _ => {
+            output.push_str(&format!("{}<unimplemented stmt>", indent_str));
+        }
+    }
+}
+
+fn render_expr(output: &mut String, expr: &Expr, src: &str, source_id: SourceId, indent: usize) {
+    let indent_str = "  ".repeat(indent);
+    match expr {
+        Expr::LitInt(val, span) => {
+            output.push_str(&format!("LitInt(\"{}\", {:?})", val, span));
+        }
+        Expr::LitFloat(val, span) => {
+            output.push_str(&format!("LitFloat(\"{}\", {:?})", val, span));
+        }
+        Expr::LitString(val, span) => {
+            output.push_str(&format!("LitString(\"{}\", {:?})", val, span));
+        }
+        Expr::Ident(name, span) => {
+            output.push_str(&format!("Ident(\"{}\", {:?})", name, span));
+        }
+        Expr::Binary { lhs, op, rhs, span } => {
+            output.push_str(&format!("Binary {{\n"));
+            output.push_str(&format!("{}  lhs: ", indent_str));
+            render_expr(output, lhs, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  op: {:?},\n", indent_str, op));
+            output.push_str(&format!("{}  rhs: ", indent_str));
+            render_expr(output, rhs, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        Expr::Unary { op, rhs, span } => {
+            output.push_str(&format!("Unary {{\n"));
+            output.push_str(&format!("{}  op: {:?},\n", indent_str, op));
+            output.push_str(&format!("{}  rhs: ", indent_str));
+            render_expr(output, rhs, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        Expr::Call { callee, args, span } => {
+            output.push_str(&format!("Call {{\n"));
+            output.push_str(&format!("{}  callee: ", indent_str));
+            render_expr(output, callee, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  args: [\n", indent_str));
+
+            for (i, arg) in args.iter().enumerate() {
+                if i > 0 {
+                    output.push_str(",\n");
+                }
+                output.push_str(&format!("{}    ", indent_str));
+                render_expr(output, arg, src, source_id, indent + 2);
+            }
+
+            output.push_str(&format!("\n{}  ],\n", indent_str));
+            output.push_str(&format!("{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        _ => {
+            output.push_str(&format!("<unimplemented expr>"));
+        }
+    }
+}
+
+fn render_type_node(output: &mut String, type_node: &TypeNode, _src: &str, _source_id: SourceId, indent: usize) {
+    let indent_str = "  ".repeat(indent);
+    output.push_str(&format!("TypeNode {{\n"));
+    output.push_str(&format!("{}  text: \"{}\",\n", indent_str, type_node.text));
+    output.push_str(&format!("{}  span: {:?}\n", indent_str, type_node.span));
+    output.push_str(&format!("{}}}", indent_str));
+}
+
+fn render_attr(output: &mut String, attr: &Attr) {
+    match attr {
+        Attr::Pure { span } => {
+            output.push_str(&format!("Pure({:?})", span));
+        }
+        Attr::Overload { span } => {
+            output.push_str(&format!("Overload({:?})", span));
+        }
+        Attr::Override { span } => {
+            output.push_str(&format!("Override({:?})", span));
+        }
+        Attr::Backend { span, value, value_span } => {
+            output.push_str(&format!("Backend({:?}, \"{}\", {:?})", span, value, value_span));
+        }
+    }
 }
 
 /// Напечатать таблицу токенов: IDX  START..END  KIND  "LEXEME"
