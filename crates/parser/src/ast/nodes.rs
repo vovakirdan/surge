@@ -24,6 +24,7 @@ pub enum Item {
     Extern(ExternBlock),
     Import(Import),
     Using(Using),
+    Let(Stmt),
 }
 
 /// Function declaration.
@@ -191,6 +192,19 @@ pub enum Expr {
         mutable: bool,
         span: Span,
     },
+    ParallelMap {
+        seq: Box<Expr>,
+        params: Vec<Param>,
+        func: Box<Expr>,
+        span: Span,
+    },
+    ParallelReduce {
+        seq: Box<Expr>,
+        init: Box<Expr>,
+        params: Vec<Param>,
+        func: Box<Expr>,
+        span: Span,
+    },
 }
 
 /// Unary operator variants.
@@ -219,11 +233,11 @@ pub enum BinaryOp {
     OrOr,
 }
 
-/// Type node represented as source slice.
-#[derive(Debug)]
+/// Type node represented by its span and optional textual form.
+#[derive(Debug, Clone)]
 pub struct TypeNode {
-    pub text: String,
     pub span: Span,
+    pub repr: String,
 }
 
 /// Type alias declaration.
