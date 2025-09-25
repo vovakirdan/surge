@@ -1,0 +1,3 @@
+fn main() {
+parallel reduce [1,2,3] with (acc:int, v:int) acc + v;
+}

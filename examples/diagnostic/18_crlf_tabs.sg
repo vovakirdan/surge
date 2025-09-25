@@ -1,0 +1,5 @@
+fn main() {
+let ok = 1;
+	let bad = "oops
+let done = ok;
+}

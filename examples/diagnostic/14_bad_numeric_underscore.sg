@@ -1,0 +1,4 @@
+fn main() {
+let a = 1_;
+let b = 0x_DEAD;
+}

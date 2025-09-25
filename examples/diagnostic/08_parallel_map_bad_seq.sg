@@ -1,0 +1,3 @@
+fn main() {
+parallel map add [1, 2, 3;
+}

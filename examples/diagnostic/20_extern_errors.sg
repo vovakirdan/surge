@@ -1,0 +1,19 @@
+extern<T {
+  fn missing_gt() -> int;
+}
+
+extern<> {
+  fn empty_generics();
+}
+
+extern<T,> {
+  fn trailing_comma();
+}
+
+extern {
+  fn missing_semicolon()
+}
+
+extern {
+  @weird fn unknown_attr();
+}
