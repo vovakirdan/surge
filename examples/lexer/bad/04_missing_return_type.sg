@@ -1,0 +1,6 @@
+// Ошибка: пропущен тип возвращаемого значения
+fn test_return_type() {
+    let x:int = 42;
+    let y:int = 10;
+    return x + y;
+}

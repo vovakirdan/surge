@@ -1,0 +1,4 @@
+[settings]
+# Настройки для cargo insta
+review = "auto"
+# Автоматически принимать новые snapshots

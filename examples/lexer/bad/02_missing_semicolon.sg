@@ -1,0 +1,6 @@
+// Ошибка: пропущена точка с запятой
+fn test_semicolon() -> int {
+    let x:int = 42
+    let y:int = 10;
+    return x + y;
+}

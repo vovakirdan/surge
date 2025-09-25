@@ -1,0 +1,7 @@
+// Ошибка: пропущен знак присваивания
+fn test_assignment() -> int {
+    let x:int = 42;
+    let y:int;
+    y 10;  // пропущен знак =
+    return x + y;
+}

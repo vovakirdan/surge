@@ -1,0 +1,5 @@
+// Ошибка: незакрытая строка
+fn test_string() -> string {
+    let message:string = "Hello world;  // незакрытая строка
+    return message;
+}

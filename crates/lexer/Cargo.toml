@@ -5,4 +5,6 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+insta = { version = "1.43.2", features = ["redactions"] }
 surge-token = { path = "../token" }
+walkdir = "2.5.0"

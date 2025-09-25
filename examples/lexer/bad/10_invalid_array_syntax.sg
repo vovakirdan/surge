@@ -1,0 +1,9 @@
+// Ошибка: неправильный синтаксис массива
+fn test_array() -> int {
+    let prices: int[] = [10, 20, 30;  // пропущена закрывающая скобка ]
+    let sum:int = 0;
+    for (let i:int = 0; i < prices.length; i = i + 1) {
+        sum = sum + prices[i];
+    }
+    return sum;
+}

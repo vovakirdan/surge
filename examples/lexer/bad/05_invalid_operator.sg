@@ -1,0 +1,7 @@
+// Ошибка: недопустимый оператор
+fn test_operator() -> bool {
+    let x:int = 5;
+    let y:int = 10;
+    let result:bool = x <> y;  // недопустимый оператор <>
+    return result;
+}

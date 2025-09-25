@@ -1,0 +1,6 @@
+// Ошибка: пропущено двоеточие в объявлении типа
+fn test_colon() -> int {
+    let x int = 42;
+    let y:int = 10;
+    return x + y;
+}
