@@ -102,5 +102,4 @@ impl<'src> Stream<'src> {
     pub fn text(&self, span: Span) -> String {
         self.slice(span).unwrap_or("").to_string()
     }
-
 }

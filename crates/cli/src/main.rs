@@ -12,7 +12,10 @@ use surge_diagnostics::{
     from_parser_diags,
 };
 use surge_lexer::{LexOptions, lex};
-use surge_parser::{parse_tokens, parse_source_with_options, Ast, Module, Item, Func, FuncSig, Param, Block, Stmt, Expr, TypeNode, Attr};
+use surge_parser::{
+    Ast, Attr, Block, Expr, Func, FuncSig, Item, Module, Param, Stmt, TypeNode,
+    parse_source_with_options, parse_tokens,
+};
 use surge_token::SourceId;
 
 /// Источник входных данных
@@ -263,7 +266,8 @@ fn run_parse(path: Option<String>, keep_trivia: bool, enable_directives: bool) -
     // Обработать каждый источник
     for source in &input.sources {
         // Парсим с пользовательскими опциями лексера
-        let (parse_res, _lex_res) = parse_source_with_options(source.id, &source.content, &lex_opts);
+        let (parse_res, _lex_res) =
+            parse_source_with_options(source.id, &source.content, &lex_opts);
 
         // Вывести заголовок для источника (если их больше одного)
         if input.sources.len() > 1 {
@@ -339,7 +343,13 @@ fn render_ast_tree(ast: &Ast, src: &str, source_id: SourceId) -> String {
     output
 }
 
-fn render_module(output: &mut String, module: &Module, src: &str, source_id: SourceId, indent: usize) {
+fn render_module(
+    output: &mut String,
+    module: &Module,
+    src: &str,
+    source_id: SourceId,
+    indent: usize,
+) {
     let indent_str = "  ".repeat(indent);
     output.push_str(&format!("{}Module {{\n", indent_str));
     output.push_str(&format!("{}  items: [\n", indent_str));
@@ -386,7 +396,13 @@ fn render_func(output: &mut String, func: &Func, src: &str, source_id: SourceId,
     output.push_str(&format!(", span: {:?}", func.span));
 }
 
-fn render_func_sig(output: &mut String, sig: &FuncSig, src: &str, source_id: SourceId, indent: usize) {
+fn render_func_sig(
+    output: &mut String,
+    sig: &FuncSig,
+    src: &str,
+    source_id: SourceId,
+    indent: usize,
+) {
     let indent_str = "  ".repeat(indent);
     let name = get_text_from_span(src, &sig.span);
     output.push_str(&format!("{}name: \"{}\",\n", indent_str, name));
@@ -399,7 +415,11 @@ fn render_func_sig(output: &mut String, sig: &FuncSig, src: &str, source_id: Sou
         render_param(output, param, src, source_id, indent + 1);
     }
 
-    output.push_str(&format!("\n{}]{}", indent_str, if sig.params.is_empty() { "" } else { "," }));
+    output.push_str(&format!(
+        "\n{}]{}",
+        indent_str,
+        if sig.params.is_empty() { "" } else { "," }
+    ));
     output.push_str(&format!("\n{}ret: ", indent_str));
 
     if let Some(ret) = &sig.ret {
@@ -461,7 +481,14 @@ fn render_block(output: &mut String, block: &Block, src: &str, source_id: Source
 fn render_stmt(output: &mut String, stmt: &Stmt, src: &str, source_id: SourceId, indent: usize) {
     let indent_str = "  ".repeat(indent);
     match stmt {
-        Stmt::Let { ty, init, mutable, span, semi, .. } => {
+        Stmt::Let {
+            ty,
+            init,
+            mutable,
+            span,
+            semi,
+            ..
+        } => {
             let name_text = get_text_from_span(src, span);
             output.push_str(&format!("{}Let {{\n", indent_str));
             output.push_str(&format!("{}  name: \"{}\",\n", indent_str, name_text));
@@ -558,7 +585,13 @@ fn render_expr(output: &mut String, expr: &Expr, src: &str, source_id: SourceId,
     }
 }
 
-fn render_type_node(output: &mut String, type_node: &TypeNode, _src: &str, _source_id: SourceId, indent: usize) {
+fn render_type_node(
+    output: &mut String,
+    type_node: &TypeNode,
+    _src: &str,
+    _source_id: SourceId,
+    indent: usize,
+) {
     let indent_str = "  ".repeat(indent);
     output.push_str(&format!("TypeNode {{\n"));
     output.push_str(&format!("{}  text: \"{}\",\n", indent_str, type_node.repr));
@@ -577,8 +610,15 @@ fn render_attr(output: &mut String, attr: &Attr) {
         Attr::Override { span } => {
             output.push_str(&format!("Override({:?})", span));
         }
-        Attr::Backend { span, value, value_span } => {
-            output.push_str(&format!("Backend({:?}, \"{}\", {:?})", span, value, value_span));
+        Attr::Backend {
+            span,
+            value,
+            value_span,
+        } => {
+            output.push_str(&format!(
+                "Backend({:?}, \"{}\", {:?})",
+                span, value, value_span
+            ));
         }
     }
 }

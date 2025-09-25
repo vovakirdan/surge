@@ -168,3 +168,34 @@ fn control() -> int {
             .any(|stmt| matches!(stmt, Stmt::ForC { .. }))
     );
 }
+
+#[test]
+fn let_without_initializer_is_allowed() {
+    let src = r#"
+fn defaults() -> int {
+    let count:int;
+    let mut total:int;
+    count = 1;
+    total = count + 2;
+    return total;
+}
+"#;
+    let res = parse(src);
+    assert_no_parse_errors(&res);
+
+    if let Item::Fn(func) = &res.ast.module.items[0] {
+        let body = func.body.as_ref().expect("function body");
+        // Ensure we recorded let statements without initializers
+        assert!(matches!(body.stmts[0], Stmt::Let { ref init, .. } if init.is_none()));
+        assert!(matches!(
+            body.stmts[1],
+            Stmt::Let {
+                ref init,
+                mutable: true,
+                ..
+            } if init.is_none()
+        ));
+    } else {
+        panic!("expected function item");
+    }
+}

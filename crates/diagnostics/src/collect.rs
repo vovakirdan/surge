@@ -43,14 +43,20 @@ pub fn from_parser_diags(file: SourceId, diags: &[surge_parser::ParseDiag]) -> V
                 surge_parser::ParseCode::MissingSemicolon => "PARSE_MISSING_SEMICOLON".into(),
                 surge_parser::ParseCode::MissingColonInType => "PARSE_MISSING_COLON_TYPE".into(),
                 surge_parser::ParseCode::LetMissingEquals => "PARSE_LET_MISSING_EQUALS".into(),
-                surge_parser::ParseCode::SignalMissingAssign => "PARSE_SIGNAL_MISSING_ASSIGN".into(),
-                surge_parser::ParseCode::AssignmentWithoutLhs => "PARSE_ASSIGNMENT_WITHOUT_LHS".into(),
+                surge_parser::ParseCode::SignalMissingAssign => {
+                    "PARSE_SIGNAL_MISSING_ASSIGN".into()
+                }
+                surge_parser::ParseCode::AssignmentWithoutLhs => {
+                    "PARSE_ASSIGNMENT_WITHOUT_LHS".into()
+                }
                 surge_parser::ParseCode::UnexpectedPrimary => "PARSE_UNEXPECTED_PRIMARY".into(),
                 surge_parser::ParseCode::ForInMissingColon => "PARSE_FORIN_MISSING_COLON".into(),
                 surge_parser::ParseCode::ForInMissingType => "PARSE_FORIN_MISSING_TYPE".into(),
                 surge_parser::ParseCode::ForInMissingIn => "PARSE_FORIN_MISSING_IN".into(),
                 surge_parser::ParseCode::ForInMissingExpr => "PARSE_FORIN_MISSING_EXPR".into(),
-                surge_parser::ParseCode::ParallelMissingWith => "PARSE_PARALLEL_MISSING_WITH".into(),
+                surge_parser::ParseCode::ParallelMissingWith => {
+                    "PARSE_PARALLEL_MISSING_WITH".into()
+                }
                 surge_parser::ParseCode::ParallelMissingFatArrow => {
                     "PARSE_PARALLEL_MISSING_FATARROW".into()
                 }
@@ -62,14 +68,14 @@ pub fn from_parser_diags(file: SourceId, diags: &[surge_parser::ParseDiag]) -> V
                 surge_parser::ParseCode::ExpectedTypeAfterArrow => {
                     "PARSE_EXPECTED_TYPE_AFTER_ARROW".into()
                 }
-                surge_parser::ParseCode::MissingReturnType => {
-                    "PARSE_MISSING_RETURN_TYPE".into()
-                }
+                surge_parser::ParseCode::MissingReturnType => "PARSE_MISSING_RETURN_TYPE".into(),
                 surge_parser::ParseCode::ExternGenericBrackets => {
                     "PARSE_EXTERN_GENERIC_BRACKETS".into()
                 }
                 surge_parser::ParseCode::ExternMissingType => "PARSE_EXTERN_MISSING_TYPE".into(),
-                surge_parser::ParseCode::ExternUnclosedBlock => "PARSE_EXTERN_UNCLOSED_BLOCK".into(),
+                surge_parser::ParseCode::ExternUnclosedBlock => {
+                    "PARSE_EXTERN_UNCLOSED_BLOCK".into()
+                }
                 surge_parser::ParseCode::UnexpectedToken => "PARSE_UNEXPECTED_TOKEN".into(),
                 surge_parser::ParseCode::InvalidArraySyntax => "PARSE_INVALID_ARRAY_SYNTAX".into(),
                 surge_parser::ParseCode::IncompleteFunction => "PARSE_INCOMPLETE_FUNCTION".into(),

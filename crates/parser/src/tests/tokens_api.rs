@@ -1,6 +1,6 @@
-use surge_lexer::{lex, LexOptions};
+use crate::{Item, parse_tokens};
+use surge_lexer::{LexOptions, lex};
 use surge_token::SourceId;
-use crate::{parse_tokens, Item};
 
 #[test]
 fn test_parse_tokens_with_attributes() {
@@ -47,7 +47,10 @@ fn test_parse_tokens_unknown_attribute() {
     assert!(!parse_res.diags.is_empty());
 
     for diag in &parse_res.diags {
-        println!("Unknown attr diagnostic: {:?} - {}", diag.code, diag.message);
+        println!(
+            "Unknown attr diagnostic: {:?} - {}",
+            diag.code, diag.message
+        );
     }
 }
 
@@ -88,7 +91,10 @@ fn test_parse_tokens_overload_override_ambiguity() {
             // Это ожидаемое поведение при отсутствии исходного текста
             println!("As expected, @override was parsed as @overload due to token-only limitation");
         } else {
-            panic!("Expected Overload attribute due to ambiguity, got: {:?}", func.sig.attrs[0]);
+            panic!(
+                "Expected Overload attribute due to ambiguity, got: {:?}",
+                func.sig.attrs[0]
+            );
         }
     }
 }
@@ -151,10 +157,14 @@ fn test_parse_tokens_function_with_arrow_but_no_type() {
 
         // Должна быть диагностика о том, что после -> ожидается тип
         assert!(!parse_res.diags.is_empty());
-        let has_expected_type_error = parse_res.diags.iter().any(|d| {
-            matches!(d.code, crate::ParseCode::ExpectedTypeAfterArrow)
-        });
-        assert!(has_expected_type_error, "Expected PARSE_EXPECTED_TYPE_AFTER_ARROW diagnostic");
+        let has_expected_type_error = parse_res
+            .diags
+            .iter()
+            .any(|d| matches!(d.code, crate::ParseCode::ExpectedTypeAfterArrow));
+        assert!(
+            has_expected_type_error,
+            "Expected PARSE_EXPECTED_TYPE_AFTER_ARROW diagnostic"
+        );
     } else {
         panic!("Expected function item");
     }

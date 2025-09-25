@@ -54,7 +54,11 @@ fn test() {
 "#;
     let res = parse(src);
     // Return types are now optional, so this should parse without error
-    assert!(res.diags.is_empty(), "Expected no diagnostics, but got: {:?}", res.diags);
+    assert!(
+        res.diags.is_empty(),
+        "Expected no diagnostics, but got: {:?}",
+        res.diags
+    );
 
     // Verify the function parsed correctly
     assert_eq!(res.ast.module.items.len(), 1);
@@ -97,6 +101,22 @@ fn assign() -> int {
     let res = parse(src);
     assert_eq!(res.diags[0].code, ParseCode::UnexpectedToken);
     assert_eq!(res.diags[0].message, "Expected '=' in assignment");
+}
+
+#[test]
+fn reports_let_missing_type_and_initializer() {
+    let src = r#"
+fn missing() -> int {
+    let value;
+    return 0;
+}
+"#;
+    let res = parse(src);
+    assert_eq!(res.diags[0].code, ParseCode::LetMissingEquals);
+    assert_eq!(
+        res.diags[0].message,
+        "Expected type annotation or initializer in let declaration"
+    );
 }
 
 #[test]

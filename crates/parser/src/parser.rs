@@ -27,7 +27,11 @@ pub fn parse_source(file: SourceId, src: &str) -> (ParseResult, surge_lexer::Lex
 }
 
 /// Lex with custom options and parse the provided source.
-pub fn parse_source_with_options(file: SourceId, src: &str, lex_opts: &surge_lexer::LexOptions) -> (ParseResult, surge_lexer::LexResult) {
+pub fn parse_source_with_options(
+    file: SourceId,
+    src: &str,
+    lex_opts: &surge_lexer::LexOptions,
+) -> (ParseResult, surge_lexer::LexResult) {
     let lex_res = surge_lexer::lex(src, file, lex_opts);
     let parse_res = Parser::new(file, &lex_res.tokens, Some(src)).parse();
     (parse_res, lex_res)
@@ -74,6 +78,7 @@ impl<'src> Parser<'src> {
         let attrs = self.parse_attrs();
         match self.stream.peek().kind {
             TokenKind::Keyword(Keyword::Fn) => self.parse_fn(attrs).map(Item::Fn),
+            TokenKind::Keyword(Keyword::Let) => self.parse_let_stmt().map(Item::Let),
             TokenKind::Keyword(Keyword::Type)
             | TokenKind::Keyword(Keyword::Literal)
             | TokenKind::Keyword(Keyword::Alias)
@@ -129,15 +134,15 @@ impl<'src> Parser<'src> {
             let has_paren_after = self.stream.peek().kind == TokenKind::LParen;
 
             match (ident_len, has_paren_after) {
-                (4, false) => Some("pure"),        // "pure" is 4 chars, no parens
-                (7, true) => Some("backend"),      // "backend" is 7 chars, has parens
+                (4, false) => Some("pure"),   // "pure" is 4 chars, no parens
+                (7, true) => Some("backend"), // "backend" is 7 chars, has parens
                 (8, false) => {
                     // Both "overload" and "override" are 8 chars without parens
                     // We can't distinguish them without source text, so we'll default to "overload"
                     // but this is an inherent limitation of the token-only approach
                     Some("overload")
                 }
-                _ => None,  // Unknown attribute
+                _ => None, // Unknown attribute
             }
         } else {
             // We have actual source text - use exact match
@@ -158,14 +163,18 @@ impl<'src> Parser<'src> {
 
                     let (value, value_span) = if self.stream.peek().kind == TokenKind::StringLit {
                         let str_tok = self.stream.bump();
-                        let text = self.stream.slice(str_tok.span).unwrap_or("\"\"").to_string();
+                        let text = self
+                            .stream
+                            .slice(str_tok.span)
+                            .unwrap_or("\"\"")
+                            .to_string();
                         let has_source_text = !text.is_empty();
 
                         // Handle case where string text is not available
                         let value = if has_source_text {
                             // Remove quotes from string literal
                             if text.len() >= 2 {
-                                text[1..text.len()-1].to_string()
+                                text[1..text.len() - 1].to_string()
                             } else {
                                 text
                             }
@@ -173,13 +182,17 @@ impl<'src> Parser<'src> {
                             // Fallback: guess based on string literal span length
                             let str_len = (str_tok.span.end - str_tok.span.start) as usize;
                             match str_len {
-                                5 => "cpu".to_string(),   // Both "cpu" and "gpu" + quotes = 5 chars - ambiguous, default to cpu
+                                5 => "cpu".to_string(), // Both "cpu" and "gpu" + quotes = 5 chars - ambiguous, default to cpu
                                 _ => format!("<string@{}>", str_tok.span.start),
                             }
                         };
 
                         // Validate backend string only when we have real source text
-                        if !value.starts_with('<') && has_source_text && value != "cpu" && value != "gpu" {
+                        if !value.starts_with('<')
+                            && has_source_text
+                            && value != "cpu"
+                            && value != "gpu"
+                        {
                             self.error(
                                 ParseCode::UnknownAttribute,
                                 str_tok.span,
@@ -207,7 +220,11 @@ impl<'src> Parser<'src> {
                         );
                     }
 
-                    Some(Attr::Backend { span, value, value_span })
+                    Some(Attr::Backend {
+                        span,
+                        value,
+                        value_span,
+                    })
                 } else {
                     self.error(
                         ParseCode::UnexpectedToken,
@@ -252,7 +269,6 @@ impl<'src> Parser<'src> {
             }
         }
     }
-
 
     fn parse_fn(&mut self, attrs: Vec<Attr>) -> Option<Func> {
         let fn_tok = self.stream.bump();
@@ -465,15 +481,21 @@ impl<'src> Parser<'src> {
             None
         };
 
-        let init = if self.stream.eat(TokenKind::Eq).is_some() {
-            let expr = self.parse_expr();
-            if let Some(ref expr) = expr {
+        let mut init = None;
+        if self.stream.eat(TokenKind::Eq).is_some() {
+            init = self.parse_expr();
+            if let Some(ref expr) = init {
                 span = span.join(expr_span(expr));
             }
-            expr
-        } else {
-            None
-        };
+        } else if ty.is_none() {
+            // Neither a type annotation nor an initializer provided – issue a diagnostic
+            let diag_span = Span::new(self.file, name_span.end, name_span.end);
+            self.error(
+                ParseCode::LetMissingEquals,
+                diag_span,
+                "Expected type annotation or initializer in let declaration",
+            );
+        }
 
         let semi = self.expect_semicolon(span);
         Some(Stmt::Let {
@@ -512,17 +534,20 @@ impl<'src> Parser<'src> {
             None
         };
 
-        let init = if self.stream.eat(TokenKind::Eq).is_some() {
-            match self.parse_expr() {
-                Some(expr) => {
-                    span = span.join(expr_span(&expr));
-                    Some(Box::new(expr))
-                }
-                None => None,
+        let mut init = None;
+        if self.stream.eat(TokenKind::Eq).is_some() {
+            if let Some(expr) = self.parse_expr() {
+                span = span.join(expr_span(&expr));
+                init = Some(Box::new(expr));
             }
-        } else {
-            None
-        };
+        } else if ty.is_none() {
+            let diag_span = Span::new(self.file, name_span.end, name_span.end);
+            self.error(
+                ParseCode::LetMissingEquals,
+                diag_span,
+                "Expected type annotation or initializer in let declaration",
+            );
+        }
 
         Some(Expr::Let {
             name,
@@ -679,7 +704,7 @@ impl<'src> Parser<'src> {
         if self.stream.eat(TokenKind::ColonEq).is_none() {
             let tok = self.stream.peek();
             self.error(
-                ParseCode::UnexpectedToken,
+                ParseCode::SignalMissingAssign,
                 tok.span,
                 "Expected ':=' after signal name",
             );
@@ -821,6 +846,15 @@ impl<'src> Parser<'src> {
 
             let op_tok = self.stream.bump();
             if op_tok.kind == TokenKind::Eq {
+                // Check if LHS is a valid assignment target
+                if !self.is_assignable_expr(&lhs) {
+                    self.error(
+                        ParseCode::AssignmentWithoutLhs,
+                        expr_span(&lhs),
+                        "Invalid assignment target",
+                    );
+                }
+
                 let rhs = self.parse_expr_bp(r_bp)?;
                 let span = expr_span(&lhs).join(expr_span(&rhs));
                 lhs = Expr::Assign {
@@ -870,9 +904,18 @@ impl<'src> Parser<'src> {
     fn parse_prefix(&mut self) -> Option<Expr> {
         let tok = self.stream.bump();
         match tok.kind {
-            TokenKind::IntLit => Some(Expr::LitInt(self.stream.slice(tok.span).unwrap_or("0").to_string(), tok.span)),
-            TokenKind::FloatLit => Some(Expr::LitFloat(self.stream.slice(tok.span).unwrap_or("0.0").to_string(), tok.span)),
-            TokenKind::StringLit => Some(Expr::LitString(self.stream.slice(tok.span).unwrap_or("\"\"").to_string(), tok.span)),
+            TokenKind::IntLit => Some(Expr::LitInt(
+                self.stream.slice(tok.span).unwrap_or("0").to_string(),
+                tok.span,
+            )),
+            TokenKind::FloatLit => Some(Expr::LitFloat(
+                self.stream.slice(tok.span).unwrap_or("0.0").to_string(),
+                tok.span,
+            )),
+            TokenKind::StringLit => Some(Expr::LitString(
+                self.stream.slice(tok.span).unwrap_or("\"\"").to_string(),
+                tok.span,
+            )),
             TokenKind::Ident => {
                 let name = if let Some(slice) = self.stream.slice(tok.span) {
                     slice.to_string()
@@ -880,7 +923,7 @@ impl<'src> Parser<'src> {
                     format!("identifier_{}", tok.span.start)
                 };
                 Some(Expr::Ident(name, tok.span))
-            },
+            }
             TokenKind::Keyword(Keyword::True) => Some(Expr::Ident("true".into(), tok.span)),
             TokenKind::Keyword(Keyword::False) => Some(Expr::Ident("false".into(), tok.span)),
             TokenKind::Keyword(Keyword::Nothing) => Some(Expr::Ident("nothing".into(), tok.span)),
@@ -946,7 +989,7 @@ impl<'src> Parser<'src> {
             }
             other => {
                 self.error(
-                    ParseCode::UnexpectedToken,
+                    ParseCode::UnexpectedPrimary,
                     tok.span,
                     format!("Unexpected token {:?} in expression", other),
                 );
@@ -1062,6 +1105,15 @@ impl<'src> Parser<'src> {
         Some(TypeNode { repr, span })
     }
 
+    /// Check if an expression is a valid assignment target
+    fn is_assignable_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Ident(_, _) => true,  // Variables can be assigned
+            Expr::Index { .. } => true, // Array/object indexing can be assigned (arr[i] = x)
+            _ => false,                 // Literals, function calls, etc. cannot be assigned
+        }
+    }
+
     /// Reconstruct type representation from tokens when source text is unavailable
     fn reconstruct_type_from_tokens(&self, tokens: &[surge_token::Token]) -> String {
         let mut result = String::new();
@@ -1076,13 +1128,19 @@ impl<'src> Parser<'src> {
                         let len = (tok.span.end - tok.span.start) as usize;
                         match len {
                             3 => "int".to_string(),
-                            4 => if result.is_empty() { "bool".to_string() } else { "uint".to_string() },
+                            4 => {
+                                if result.is_empty() {
+                                    "bool".to_string()
+                                } else {
+                                    "uint".to_string()
+                                }
+                            }
                             5 => "float".to_string(),
                             6 => "string".to_string(),
                             _ => format!("T{}", len), // Generic fallback
                         }
                     }
-                },
+                }
                 TokenKind::Keyword(kw) => format!("{:?}", kw).to_lowercase(),
                 TokenKind::LAngle => "<".to_string(),
                 TokenKind::RAngle => ">".to_string(),
@@ -1098,7 +1156,7 @@ impl<'src> Parser<'src> {
                     } else {
                         "0".to_string()
                     }
-                },
+                }
                 _ => {
                     if let Some(slice) = self.stream.slice(tok.span) {
                         slice.to_string()
@@ -1354,8 +1412,27 @@ fn with_span(expr: Expr, span: Span) -> Expr {
             mutable,
             span,
         },
-        Expr::ParallelMap { seq, params, func, .. } => Expr::ParallelMap { seq, params, func, span },
-        Expr::ParallelReduce { seq, init, params, func, .. } => Expr::ParallelReduce { seq, init, params, func, span },
+        Expr::ParallelMap {
+            seq, params, func, ..
+        } => Expr::ParallelMap {
+            seq,
+            params,
+            func,
+            span,
+        },
+        Expr::ParallelReduce {
+            seq,
+            init,
+            params,
+            func,
+            ..
+        } => Expr::ParallelReduce {
+            seq,
+            init,
+            params,
+            func,
+            span,
+        },
     }
 }
 
