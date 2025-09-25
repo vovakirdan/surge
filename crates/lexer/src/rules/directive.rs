@@ -1,5 +1,11 @@
-use crate::{cursor::Cursor, emit::{Emitter, DiagCode}, LexOptions};
-use surge_token::{DirectiveKind, Span, TokenContext, TokenKind, lookup_directive_keyword, lookup_keyword};
+use crate::{
+    LexOptions,
+    cursor::Cursor,
+    emit::{DiagCode, Emitter},
+};
+use surge_token::{
+    DirectiveKind, Span, TokenContext, TokenKind, lookup_directive_keyword, lookup_keyword,
+};
 
 /// Пытается захватить директиву начинающуюся с ///
 /// Возвращает Option<u32> с позицией начала директивы, если она найдена
@@ -60,7 +66,7 @@ fn skip_whitespace(cur: &mut Cursor) {
 /// Пытается распознать тип директивы по ключевому слову
 fn parse_directive_kind(cur: &mut Cursor, em: &mut Emitter) -> Option<DirectiveKind> {
     let keyword_start = cur.pos();
-    
+
     // Читаем ключевое слово до двоеточия или пробела
     let mut keyword = String::new();
     while let Some(ch) = cur.peek() {
@@ -70,9 +76,9 @@ fn parse_directive_kind(cur: &mut Cursor, em: &mut Emitter) -> Option<DirectiveK
         keyword.push(ch);
         cur.bump();
     }
-    
+
     let keyword_end = cur.pos();
-    
+
     // Проверяем что после ключевого слова идет двоеточие
     skip_whitespace(cur);
     if cur.peek() != Some(':') {
@@ -88,7 +94,7 @@ fn parse_directive_kind(cur: &mut Cursor, em: &mut Emitter) -> Option<DirectiveK
         return None;
     }
     cur.bump(); // пропускаем ':'
-    
+
     // Сопоставляем ключевое слово с типом директивы
     match keyword.as_str() {
         "test" => Some(DirectiveKind::Test),
@@ -110,13 +116,18 @@ fn parse_directive_kind(cur: &mut Cursor, em: &mut Emitter) -> Option<DirectiveK
 }
 
 /// Лексирует содержимое директивы как отдельные токены
-fn tokenize_directive_content(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions, directive_kind: DirectiveKind) {
+fn tokenize_directive_content(
+    cur: &mut Cursor,
+    em: &mut Emitter,
+    opt: &LexOptions,
+    directive_kind: DirectiveKind,
+) {
     let context = TokenContext::Directive(directive_kind);
-    
+
     while !cur.eof() {
         // Пропускаем до конца текущей строки, лексируя содержимое
         tokenize_directive_line(cur, em, opt, context);
-        
+
         // Ищем следующую строку с содержимым директивы
         if !find_and_consume_next_directive_line(cur, em, opt) {
             break;
@@ -125,12 +136,17 @@ fn tokenize_directive_content(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptio
 }
 
 /// Лексирует одну строку содержимого директивы
-fn tokenize_directive_line(cur: &mut Cursor, em: &mut Emitter, _opt: &LexOptions, context: TokenContext) {
+fn tokenize_directive_line(
+    cur: &mut Cursor,
+    em: &mut Emitter,
+    _opt: &LexOptions,
+    context: TokenContext,
+) {
     use crate::rules;
-    
+
     while !cur.eof() {
         let ch = cur.peek();
-        
+
         match ch {
             Some('\n') => {
                 cur.bump(); // поглощаем \n и заканчиваем строку
@@ -185,7 +201,7 @@ fn tokenize_directive_line(cur: &mut Cursor, em: &mut Emitter, _opt: &LexOptions
 /// Лексирует идентификатор в контексте директивы
 fn tokenize_directive_ident(cur: &mut Cursor, em: &mut Emitter, context: TokenContext) {
     let start = cur.pos();
-    
+
     // Читаем идентификатор
     let mut ident = String::new();
     while let Some(ch) = cur.peek() {
@@ -196,9 +212,9 @@ fn tokenize_directive_ident(cur: &mut Cursor, em: &mut Emitter, context: TokenCo
             break;
         }
     }
-    
+
     let end = cur.pos();
-    
+
     // Проверяем, является ли это ключевым словом директивы или обычным ключевым словом
     let token_kind = if let Some(keyword) = lookup_directive_keyword(&ident) {
         TokenKind::Keyword(keyword)
@@ -207,17 +223,21 @@ fn tokenize_directive_ident(cur: &mut Cursor, em: &mut Emitter, context: TokenCo
     } else {
         TokenKind::Ident
     };
-    
+
     em.token_with_context(start, end, token_kind, context);
 }
 
 /// Ищет следующую строку с содержимым директивы, пропуская комментарии
 /// Возвращает true если нашли строку с ///, false если дошли до конца директивы
-fn find_and_consume_next_directive_line(cur: &mut Cursor, _em: &mut Emitter, _opt: &LexOptions) -> bool {
+fn find_and_consume_next_directive_line(
+    cur: &mut Cursor,
+    _em: &mut Emitter,
+    _opt: &LexOptions,
+) -> bool {
     while !cur.eof() {
         // Пропускаем пробелы в начале строки
         skip_line_whitespace(cur);
-        
+
         if cur.starts_with("///") {
             // Нашли продолжение директивы
             cur.bump(); // /
@@ -266,7 +286,7 @@ fn skip_comment_line(cur: &mut Cursor) {
         cur.bump(); // /
         cur.bump(); // *
         let mut depth = 1;
-        
+
         while !cur.eof() && depth > 0 {
             if cur.starts_with("/*") {
                 depth += 1;
@@ -302,23 +322,30 @@ mod tests {
 
         let result = try_take_directive(&mut cursor, &mut emitter, &opts);
         assert!(result.is_some());
-        
+
         // Должен быть токен директивы + токены содержимого
         assert!(emitter.tokens.len() > 1);
-        
+
         // Первый токен - это токен директивы
         let directive_token = &emitter.tokens[0];
-        assert_eq!(directive_token.kind, TokenKind::Directive(DirectiveKind::Test));
+        assert_eq!(
+            directive_token.kind,
+            TokenKind::Directive(DirectiveKind::Test)
+        );
         assert_eq!(directive_token.context, TokenContext::Normal);
-        
+
         // Проверяем, что есть токены с контекстом директивы
-        let directive_content_tokens: Vec<_> = emitter.tokens.iter()
+        let directive_content_tokens: Vec<_> = emitter
+            .tokens
+            .iter()
             .filter(|t| matches!(t.context, TokenContext::Directive(DirectiveKind::Test)))
             .collect();
         assert!(!directive_content_tokens.is_empty());
-        
+
         // Проверяем наличие ключевого слова test.equal
-        let test_equal_tokens: Vec<_> = emitter.tokens.iter()
+        let test_equal_tokens: Vec<_> = emitter
+            .tokens
+            .iter()
             .filter(|t| matches!(t.kind, TokenKind::Keyword(surge_token::Keyword::TestEqual)))
             .collect();
         assert_eq!(test_equal_tokens.len(), 1);
@@ -338,17 +365,24 @@ mod tests {
         let result = try_take_directive(&mut cursor, &mut emitter, &opts);
         assert!(result.is_some());
         assert!(emitter.tokens.len() > 1);
-        
+
         let directive_token = &emitter.tokens[0];
-        assert_eq!(directive_token.kind, TokenKind::Directive(DirectiveKind::Benchmark));
-        
+        assert_eq!(
+            directive_token.kind,
+            TokenKind::Directive(DirectiveKind::Benchmark)
+        );
+
         // Проверяем ключевые слова random.int и repeat
-        let random_int_tokens: Vec<_> = emitter.tokens.iter()
+        let random_int_tokens: Vec<_> = emitter
+            .tokens
+            .iter()
             .filter(|t| matches!(t.kind, TokenKind::Keyword(surge_token::Keyword::RandomInt)))
             .collect();
         assert_eq!(random_int_tokens.len(), 2); // два вызова random.int()
-        
-        let repeat_tokens: Vec<_> = emitter.tokens.iter()
+
+        let repeat_tokens: Vec<_> = emitter
+            .tokens
+            .iter()
             .filter(|t| matches!(t.kind, TokenKind::Keyword(surge_token::Keyword::Repeat)))
             .collect();
         assert_eq!(repeat_tokens.len(), 1);
@@ -368,9 +402,12 @@ mod tests {
         let result = try_take_directive(&mut cursor, &mut emitter, &opts);
         assert!(result.is_some());
         assert!(emitter.tokens.len() > 1);
-        
+
         let directive_token = &emitter.tokens[0];
-        assert_eq!(directive_token.kind, TokenKind::Directive(DirectiveKind::Time));
+        assert_eq!(
+            directive_token.kind,
+            TokenKind::Directive(DirectiveKind::Time)
+        );
     }
 
     #[test]
@@ -387,9 +424,12 @@ mod tests {
         let result = try_take_directive(&mut cursor, &mut emitter, &opts);
         assert!(result.is_some());
         assert!(emitter.tokens.len() > 1);
-        
+
         let directive_token = &emitter.tokens[0];
-        assert_eq!(directive_token.kind, TokenKind::Directive(DirectiveKind::Test));
+        assert_eq!(
+            directive_token.kind,
+            TokenKind::Directive(DirectiveKind::Test)
+        );
     }
 
     #[test]
@@ -463,7 +503,8 @@ mod tests {
 
     #[test]
     fn test_complex_directive_tokenization() {
-        let source = "/// test:\n/// let result = test.equal(add(2, 3), 5);\n/// test.assert(result);";
+        let source =
+            "/// test:\n/// let result = test.equal(add(2, 3), 5);\n/// test.assert(result);";
         let file = SourceId(0);
         let mut cursor = Cursor::new(source, file);
         let opts = LexOptions {
@@ -474,37 +515,46 @@ mod tests {
 
         let result = try_take_directive(&mut cursor, &mut emitter, &opts);
         assert!(result.is_some());
-        
+
         // Проверяем что у нас есть различные типы токенов
-        let directive_tokens: Vec<_> = emitter.tokens.iter()
+        let directive_tokens: Vec<_> = emitter
+            .tokens
+            .iter()
             .filter(|t| matches!(t.context, TokenContext::Directive(DirectiveKind::Test)))
             .collect();
-        
+
         // Должны быть токены: let, result, =, test.equal, (, add, (, 2, ,, 3, ), ,, 5, ), ;, test.assert, (, result, ), ;
         assert!(directive_tokens.len() > 10);
-        
+
         // Проверяем наличие ключевых слов директивы
-        let test_equal_count = emitter.tokens.iter()
+        let test_equal_count = emitter
+            .tokens
+            .iter()
             .filter(|t| matches!(t.kind, TokenKind::Keyword(surge_token::Keyword::TestEqual)))
             .count();
         assert_eq!(test_equal_count, 1);
-        
-        let test_assert_count = emitter.tokens.iter()
+
+        let test_assert_count = emitter
+            .tokens
+            .iter()
             .filter(|t| matches!(t.kind, TokenKind::Keyword(surge_token::Keyword::TestAssert)))
             .count();
         assert_eq!(test_assert_count, 1);
-        
+
         // Проверяем наличие обычных ключевых слов (let)
-        let let_count = emitter.tokens.iter()
+        let let_count = emitter
+            .tokens
+            .iter()
             .filter(|t| matches!(t.kind, TokenKind::Keyword(surge_token::Keyword::Let)))
             .count();
         assert_eq!(let_count, 1);
-        
+
         // Проверяем наличие литералов
-        let number_count = emitter.tokens.iter()
+        let number_count = emitter
+            .tokens
+            .iter()
             .filter(|t| matches!(t.kind, TokenKind::IntLit))
             .count();
         assert_eq!(number_count, 3); // 2, 3, и 5
     }
 }
-

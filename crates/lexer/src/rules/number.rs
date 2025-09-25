@@ -32,7 +32,8 @@ pub fn try_take_number(cur: &mut Cursor, em: &mut Emitter) -> bool {
     }
 
     // Собираем число
-    let (mut current_end, had_digits) = collect_number_digits(cur, em, base, /*allow_exp=*/ base == 10);
+    let (mut current_end, had_digits) =
+        collect_number_digits(cur, em, base, /*allow_exp=*/ base == 10);
 
     // Если был указан не-десятичный префикс и ни одной цифры не встретили — это ошибка
     if (base == 16 || base == 2) && !had_digits {
@@ -78,7 +79,8 @@ pub fn try_take_number(cur: &mut Cursor, em: &mut Emitter) -> bool {
             if let Some(ch_after) = cur.peek() {
                 if ch_after.is_ascii_digit() {
                     is_float = true;
-                    let (end_after_exp, _) = collect_number_digits(cur, em, 10, /*allow_exp=*/ false);
+                    let (end_after_exp, _) =
+                        collect_number_digits(cur, em, 10, /*allow_exp=*/ false);
                     current_end = end_after_exp;
                 }
             }
@@ -99,7 +101,12 @@ pub fn try_take_number(cur: &mut Cursor, em: &mut Emitter) -> bool {
 /// Собирает цифры числа с учетом подчеркиваний.
 /// Если `allow_exp == true`, то для base=10 `e|E` считается **терминатором**, а не ошибкой.
 /// Возвращает (позиция после последней цифры, были_ли_цифры).
-fn collect_number_digits(cur: &mut Cursor, em: &mut Emitter, base: u32, allow_exp: bool) -> (u32, bool) {
+fn collect_number_digits(
+    cur: &mut Cursor,
+    em: &mut Emitter,
+    base: u32,
+    allow_exp: bool,
+) -> (u32, bool) {
     let mut had_digits = false;
 
     while let Some(ch) = cur.peek() {
@@ -121,7 +128,8 @@ fn collect_number_digits(cur: &mut Cursor, em: &mut Emitter, base: u32, allow_ex
                 break;
             }
             if ch.is_alphanumeric() {
-                let span = surge_token::Span::new(em.file, cur.pos(), cur.pos() + ch.len_utf8() as u32);
+                let span =
+                    surge_token::Span::new(em.file, cur.pos(), cur.pos() + ch.len_utf8() as u32);
                 em.diag(
                     span,
                     DiagCode::InvalidDigitForBase,

@@ -60,7 +60,13 @@ impl Emitter {
     }
 
     /// Эмит токена с контекстом [start..end). Предусловие: start/end — корректные байтовые оффсеты
-    pub fn token_with_context(&mut self, start: u32, end: u32, kind: TokenKind, context: TokenContext) {
+    pub fn token_with_context(
+        &mut self,
+        start: u32,
+        end: u32,
+        kind: TokenKind,
+        context: TokenContext,
+    ) {
         let span = Span::new(self.file, start, end);
         let token = Token::new_with_context(kind, span, context);
         self.tokens.push(token);

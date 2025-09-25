@@ -1,4 +1,4 @@
-use crate::format::{Formatter, FormatError};
+use crate::format::{FormatError, Formatter};
 use crate::model::Diagnostic;
 use crate::source::{SourceMap, SourceTextProvider, line_col};
 
@@ -13,11 +13,11 @@ impl Formatter for CsvFormatter {
     ) -> Result<String, FormatError> {
         let mut wtr = csv::Writer::from_writer(vec![]);
         wtr.write_record(&[
-            "file","line","col","end_line","end_col","severity","code","message"
+            "file", "line", "col", "end_line", "end_col", "severity", "code", "message",
         ])?;
         for d in diagnostics {
             let file_label = sources.label(d.span.source).to_string();
-            let (mut line, mut col, mut eline, mut ecol) = (0,0,0,0);
+            let (mut line, mut col, mut eline, mut ecol) = (0, 0, 0, 0);
             if let Some(src) = text.get(d.span.source) {
                 (line, col) = line_col(src, d.span.start as usize);
                 (eline, ecol) = line_col(src, d.span.end as usize);

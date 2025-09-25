@@ -1,4 +1,4 @@
-use crate::format::{Formatter, FormatError};
+use crate::format::{FormatError, Formatter};
 use crate::model::Diagnostic;
 use crate::source::{SourceMap, SourceTextProvider, line_col};
 
@@ -29,9 +29,11 @@ impl Formatter for PrettyFormatter {
                 // каретка
                 let caret_pos = display_col(&src[ctx_line_start..d.span.start as usize]);
                 let underline = if d.span.end > d.span.start {
-                    let len = display_col(&src[d.span.start as usize .. d.span.end as usize]).max(1);
+                    let len = display_col(&src[d.span.start as usize..d.span.end as usize]).max(1);
                     "~".repeat(len)
-                } else { "^".into() };
+                } else {
+                    "^".into()
+                };
                 let _ = writeln!(out, "       | {}{}", " ".repeat(caret_pos), underline);
             } else {
                 use std::fmt::Write as _;
@@ -53,11 +55,16 @@ fn current_line(src: &str, byte_off: usize) -> (usize, String) {
     let mut start = 0usize;
     let mut i = byte_off.min(bytes.len());
     while i > 0 {
-        if bytes[i - 1] == b'\n' { start = i; break; }
+        if bytes[i - 1] == b'\n' {
+            start = i;
+            break;
+        }
         i -= 1;
     }
     let mut end = byte_off;
-    while end < bytes.len() && bytes[end] != b'\n' { end += 1; }
+    while end < bytes.len() && bytes[end] != b'\n' {
+        end += 1;
+    }
     (start, src[start..end].to_string())
 }
 

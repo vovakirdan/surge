@@ -1,8 +1,13 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use surge_token::SourceId;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Severity { Error, Warning, Info, Hint }
+pub enum Severity {
+    Error,
+    Warning,
+    Info,
+    Hint,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Code(pub String);

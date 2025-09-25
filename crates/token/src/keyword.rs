@@ -31,16 +31,16 @@ pub enum Keyword {
     False,
     Own,
     // directive-specific keywords
-    TestEqual,    // test.equal
-    TestNotEqual, // test.ne
-    TestLess,     // test.lt
-    TestLessEq,   // test.le
-    TestGreater,  // test.gt
-    TestGreaterEq,// test.ge
-    TestAssert,   // test.assert
-    Repeat,       // repeat
-    RandomInt,    // random.int
-    RandomFloat,  // random.float
+    TestEqual,     // test.equal
+    TestNotEqual,  // test.ne
+    TestLess,      // test.lt
+    TestLessEq,    // test.le
+    TestGreater,   // test.gt
+    TestGreaterEq, // test.ge
+    TestAssert,    // test.assert
+    Repeat,        // repeat
+    RandomInt,     // random.int
+    RandomFloat,   // random.float
 }
 
 pub fn lookup_keyword(ident: &str) -> Option<Keyword> {

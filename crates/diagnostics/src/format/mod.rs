@@ -1,15 +1,19 @@
-mod pretty;
-mod json;
 mod csv_format;
+mod json;
+mod pretty;
 
-pub use pretty::PrettyFormatter;
-pub use json::JsonFormatter;
 pub use csv_format::CsvFormatter;
+pub use json::JsonFormatter;
+pub use pretty::PrettyFormatter;
 
 use thiserror::Error;
 
 #[derive(Debug, Clone, Copy)]
-pub enum Format { Pretty, Json, Csv }
+pub enum Format {
+    Pretty,
+    Json,
+    Csv,
+}
 
 #[derive(Error, Debug)]
 pub enum FormatError {

@@ -1,6 +1,6 @@
-use crate::format::{Format, Formatter, PrettyFormatter, JsonFormatter, CsvFormatter, FormatError};
-use crate::source::{SourceMap, SourceTextProvider};
+use crate::format::{CsvFormatter, Format, FormatError, Formatter, JsonFormatter, PrettyFormatter};
 use crate::model::Diagnostic;
+use crate::source::{SourceMap, SourceTextProvider};
 
 pub struct ReportOptions {
     pub format: Format,
@@ -18,13 +18,14 @@ impl Reporter {
         text: Box<dyn SourceTextProvider + Send + Sync>,
         opts: ReportOptions,
     ) -> Self {
-        Self { sources, text, opts }
+        Self {
+            sources,
+            text,
+            opts,
+        }
     }
 
-    pub fn render(
-        &self,
-        diagnostics: &[Diagnostic],
-    ) -> Result<String, FormatError> {
+    pub fn render(&self, diagnostics: &[Diagnostic]) -> Result<String, FormatError> {
         let fmt: Box<dyn Formatter> = match self.opts.format {
             Format::Pretty => Box::new(PrettyFormatter::default()),
             Format::Json => Box::new(JsonFormatter),

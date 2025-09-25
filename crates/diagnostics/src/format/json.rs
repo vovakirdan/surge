@@ -1,4 +1,4 @@
-use crate::format::{Formatter, FormatError};
+use crate::format::{FormatError, Formatter};
 use crate::model::Diagnostic;
 use crate::source::{SourceMap, SourceTextProvider};
 

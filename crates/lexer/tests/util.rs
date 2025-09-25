@@ -8,7 +8,9 @@ impl<'a> LineMap<'a> {
     pub fn new(src: &'a str) -> Self {
         let mut starts = vec![0];
         for (i, ch) in src.char_indices() {
-            if ch == '\n' { starts.push(i + 1); }
+            if ch == '\n' {
+                starts.push(i + 1);
+            }
         }
         Self { src, starts }
     }
@@ -46,13 +48,17 @@ pub fn dump_tokens(tokens: &[Token], src: &str) -> String {
     out.push_str("IDX  LINE:COL  KIND                 LEXEME\n");
     for (i, t) in tokens.iter().enumerate() {
         let (l, c) = lm.line_col(t.span.start as usize);
-        let lexeme = &src[t.span.start as usize .. t.span.end as usize];
+        let lexeme = &src[t.span.start as usize..t.span.end as usize];
         let esc = escape_lexeme(lexeme);
         use std::fmt::Write;
         let _ = writeln!(
             out,
             "{:>3}  {:>4}:{:<-3}  {:<20}  \"{}\"",
-            i, l, c, format!("{:?}", t.kind), esc
+            i,
+            l,
+            c,
+            format!("{:?}", t.kind),
+            esc
         );
     }
     out

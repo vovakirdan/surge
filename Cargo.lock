@@ -121,6 +121,7 @@ dependencies = [
  "clap",
  "surge-diagnostics",
  "surge-lexer",
+ "surge-parser",
  "surge-token",
  "walkdir",
 ]
@@ -416,6 +417,7 @@ dependencies = [
  "serde",
  "serde_json",
  "surge-lexer",
+ "surge-parser",
  "surge-token",
  "thiserror",
 ]
@@ -427,6 +429,14 @@ dependencies = [
  "insta",
  "surge-token",
  "walkdir",
+]
+
+[[package]]
+name = "surge-parser"
+version = "0.1.0"
+dependencies = [
+ "surge-lexer",
+ "surge-token",
 ]
 
 [[package]]

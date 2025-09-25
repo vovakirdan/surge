@@ -1,10 +1,10 @@
 mod util;
 
 use std::{fs, path::Path};
-use walkdir::WalkDir;
+use surge_lexer::{LexOptions, lex};
 use surge_token::SourceId;
-use surge_lexer::{lex, LexOptions};
 use util::dump_tokens;
+use walkdir::WalkDir;
 
 fn collect_ok_files(root: &Path) -> Vec<String> {
     let mut out = Vec::new();
@@ -27,21 +27,25 @@ fn collect_ok_files(root: &Path) -> Vec<String> {
 
 #[test]
 fn ok_files_tokenize_snapshot() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/lexer"); // подстрой если у тебя другой путь
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/lexer"); // подстрой если у тебя другой путь
     let files = collect_ok_files(&root);
 
-    let opts = LexOptions { keep_trivia: false, enable_directives: true };
+    let opts = LexOptions {
+        keep_trivia: false,
+        enable_directives: true,
+    };
 
     for file in files {
-        let src = fs::read_to_string(&file)
-            .unwrap_or_else(|e| panic!("failed to read {file}: {e}"));
+        let src =
+            fs::read_to_string(&file).unwrap_or_else(|e| panic!("failed to read {file}: {e}"));
 
         let res = lex(&src, SourceId(0), &opts);
 
         // Убедимся, что diagnostics пустые для позитивных кейсов
         if !res.diags.is_empty() {
-            let msgs = res.diags.iter()
+            let msgs = res
+                .diags
+                .iter()
                 .map(|d| format!("{:?}: {}", d.code, d.message))
                 .collect::<Vec<_>>()
                 .join("\n");
@@ -51,11 +55,12 @@ fn ok_files_tokenize_snapshot() {
         let dump = dump_tokens(&res.tokens, &src);
 
         // Ключ снепшота: нормализуем путь, чтобы он красиво назывался
-        let name = file.replace('\\', "/")
-                       .split("/examples/lexer/")
-                       .last()
-                       .unwrap()
-                       .replace('/', "__");
+        let name = file
+            .replace('\\', "/")
+            .split("/examples/lexer/")
+            .last()
+            .unwrap()
+            .replace('/', "__");
         insta::with_settings!({snapshot_suffix => name}, {
             insta::assert_snapshot!(dump);
         });

@@ -1,11 +1,11 @@
-pub mod model;
-pub mod source;
 pub mod collect;
 pub mod format;
+pub mod model;
 pub mod report;
+pub mod source;
 
-pub use model::{Severity, Code, SpanRef, Related, Diagnostic};
-pub use source::{SourceMap, SourceLabel, SourceTextProvider, InMemorySourceText};
-pub use collect::from_lexer_diags;
-pub use format::{Format, Formatter, FormatError, PrettyFormatter, JsonFormatter, CsvFormatter};
+pub use collect::{from_lexer_diags, from_parser_diags};
+pub use format::{CsvFormatter, Format, FormatError, Formatter, JsonFormatter, PrettyFormatter};
+pub use model::{Code, Diagnostic, Related, Severity, SpanRef};
 pub use report::{ReportOptions, Reporter};
+pub use source::{InMemorySourceText, SourceLabel, SourceMap, SourceTextProvider};
