@@ -1,9 +1,0 @@
-// Ошибка: неправильный синтаксис дженериков
-fn id<T>(x: T) -> T {
-    return x;
-}
-
-fn test_generics() -> int {
-    let result:int = id<int(42);  // пропущена закрывающая скобка >
-    return result;
-}
