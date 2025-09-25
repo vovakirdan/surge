@@ -10,6 +10,81 @@ use surge_diagnostics::{
     Reporter, ReportOptions, Format,
 };
 
+/// Источник входных данных
+pub struct InputSource {
+    pub id: SourceId,
+    pub label: String,
+    pub content: String,
+}
+
+/// Результат обработки входных данных
+pub struct ProcessedInput {
+    pub sources: Vec<InputSource>,
+    pub source_map: SourceMap,
+    pub text_provider: InMemorySourceText,
+}
+
+/// Общий интерфейс для обработки входных данных
+pub fn collect_inputs(path: Option<String>) -> Result<ProcessedInput> {
+    let mut sources = Vec::new();
+    let mut source_map = SourceMap::new();
+    let mut text_provider = InMemorySourceText::new();
+    let mut sid_counter: u32 = 0;
+
+    match path.as_deref() {
+        None | Some("-") => {
+            let mut buf = String::new();
+            io::stdin().read_to_string(&mut buf).context("failed to read stdin")?;
+            let source = InputSource {
+                id: SourceId(sid_counter),
+                label: "<stdin>".to_string(),
+                content: buf,
+            };
+            source_map.insert(source.id, source.label.clone());
+            text_provider.insert(source.id, source.content.clone());
+            sources.push(source);
+        }
+        Some(p) => {
+            let p = Path::new(p);
+            if p.is_dir() {
+                for entry in WalkDir::new(p).into_iter().filter_map(Result::ok) {
+                    let path = entry.path();
+                    if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("sg") {
+                        let content = fs::read_to_string(path)
+                            .with_context(|| format!("failed to read {}", path.display()))?;
+                        let source = InputSource {
+                            id: SourceId(sid_counter),
+                            label: path.display().to_string(),
+                            content,
+                        };
+                        source_map.insert(source.id, source.label.clone());
+                        text_provider.insert(source.id, source.content.clone());
+                        sources.push(source);
+                        sid_counter += 1;
+                    }
+                }
+            } else {
+                let content = fs::read_to_string(p)
+                    .with_context(|| format!("failed to read {}", p.display()))?;
+                let source = InputSource {
+                    id: SourceId(sid_counter),
+                    label: p.display().to_string(),
+                    content,
+                };
+                source_map.insert(source.id, source.label.clone());
+                text_provider.insert(source.id, source.content.clone());
+                sources.push(source);
+            }
+        }
+    }
+
+    Ok(ProcessedInput {
+        sources,
+        source_map,
+        text_provider,
+    })
+}
+
 #[derive(Parser)]
 #[command(name="surge", version, about="Surge toolchain")]
 struct Cli {
@@ -19,14 +94,18 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Tokenize a .sg file/dir or stdin (-), then print diagnostics
-    Tokenize {
+    /// Run diagnostics on .sg file/dir or stdin and output formatted results
+    Diag {
         /// Path to .sg file/dir or '-' for stdin. Omit to use stdin.
         path: Option<String>,
 
         /// Diagnostics format
         #[arg(long, value_enum, default_value="pretty")]
         format: Fmt,
+
+        /// Write diagnostics to file instead of stdout
+        #[arg(long)]
+        out: Option<PathBuf>,
 
         /// Keep trivia in lexer
         #[arg(long)]
@@ -35,14 +114,20 @@ enum Cmd {
         /// Enable /// directives
         #[arg(long)]
         enable_directives: bool,
+    },
 
-        /// Write diagnostics to file instead of stdout
-        #[arg(long)]
-        out: Option<PathBuf>,
+    /// Tokenize .sg file/dir or stdin and print tokens to stdout
+    Tokenize {
+        /// Path to .sg file/dir or '-' for stdin. Omit to use stdin.
+        path: Option<String>,
 
-        /// If there are no errors, print tokens (debug)
+        /// Keep trivia in lexer
         #[arg(long)]
-        print_tokens: bool,
+        keep_trivia: bool,
+
+        /// Enable /// directives
+        #[arg(long)]
+        enable_directives: bool,
     },
 }
 
@@ -62,79 +147,46 @@ impl From<Fmt> for Format {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.cmd {
-        Cmd::Tokenize { path, format, keep_trivia, enable_directives, out, print_tokens } => {
-            run_tokenize(path, format.into(), keep_trivia, enable_directives, out, print_tokens)
+        Cmd::Diag { path, format, out, keep_trivia, enable_directives } => {
+            run_diag(path, format.into(), out, keep_trivia, enable_directives)
+        }
+        Cmd::Tokenize { path, keep_trivia, enable_directives } => {
+            run_tokenize(path, keep_trivia, enable_directives)
         }
     }
 }
 
-fn run_tokenize(
+/// Команда diag: запуск диагностики с форматированным выводом
+fn run_diag(
     path: Option<String>,
-    fmt: Format,
+    format: Format,
+    out: Option<PathBuf>,
     keep_trivia: bool,
     enable_directives: bool,
-    out: Option<PathBuf>,
-    print_tokens: bool,
 ) -> Result<()> {
-    // 1) собрать входные «файлы» (включая stdin)
-    let mut inputs = Vec::<(SourceId, String, String)>::new(); // (sid, label, source)
-    let mut sid_counter: u32 = 0;
-
-    match path.as_deref() {
-        None | Some("-") => {
-            let mut buf = String::new();
-            io::stdin().read_to_string(&mut buf).context("failed to read stdin")?;
-            inputs.push((SourceId(sid_counter), "<stdin>".into(), buf));
-        }
-        Some(p) => {
-            let p = Path::new(p);
-            if p.is_dir() {
-                for entry in WalkDir::new(p).into_iter().filter_map(Result::ok) {
-                    let path = entry.path();
-                    if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("sg") {
-                        let src = fs::read_to_string(path)
-                            .with_context(|| format!("failed to read {}", path.display()))?;
-                        inputs.push((SourceId(sid_counter), path.display().to_string(), src));
-                        sid_counter += 1;
-                    }
-                }
-            } else {
-                let src = fs::read_to_string(p)
-                    .with_context(|| format!("failed to read {}", p.display()))?;
-                inputs.push((SourceId(sid_counter), p.display().to_string(), src));
-            }
-        }
-    }
-
-    // 2) прогнать лексер, собрать диагностики
-    let mut all_diags = Vec::new();
-    let mut sm = SourceMap::new();
-    let mut texts = InMemorySourceText::new();
-
+    // Собрать входные данные через общий интерфейс
+    let input = collect_inputs(path)?;
+    
+    // Настроить опции лексера
     let lex_opts = LexOptions { keep_trivia, enable_directives };
-
-    // Чтобы решить печать токенов: сохраняем токены, если попросили
-    let mut saved_tokens: Vec<(String, String)> = Vec::new(); // (label, printable_table)
-
-    for (sid, label, src) in &inputs {
-        sm.insert(*sid, label.clone());
-        texts.insert(*sid, src.clone());
-
-        let res = lex(src, *sid, &lex_opts);
-        let mut diags = from_lexer_diags(*sid, &res.diags);
+    
+    // Прогнать лексер, собрать диагностики
+    let mut all_diags = Vec::new();
+    
+    for source in &input.sources {
+        let res = lex(&source.content, source.id, &lex_opts);
+        let mut diags = from_lexer_diags(source.id, &res.diags);
         all_diags.append(&mut diags);
-
-        if print_tokens {
-            // Сгенерировать printable таблицу токенов на случай отсутствия ошибок
-            let table = render_tokens_table(src, &res.tokens);
-            saved_tokens.push((label.clone(), table));
-        }
     }
-
-    // 3) вывести диагностику выбранным форматтером
-    let reporter = Reporter::new(sm, Box::new(texts), ReportOptions { format: fmt });
+    
+    // Вывести диагностику выбранным форматтером
+    let reporter = Reporter::new(
+        input.source_map,
+        Box::new(input.text_provider),
+        ReportOptions { format }
+    );
     let rendered = reporter.render(&all_diags)?;
-
+    
     if let Some(out_path) = out {
         fs::write(&out_path, rendered.as_bytes())
             .with_context(|| format!("failed to write {}", out_path.display()))?;
@@ -142,24 +194,48 @@ fn run_tokenize(
         let mut stdout = io::stdout().lock();
         stdout.write_all(rendered.as_bytes())?;
     }
-
-    // 4) если ошибок нет и просили токены — печатаем таблицы токенов после диагностики
-    let has_errors = !all_diags.is_empty();
-    if print_tokens && !has_errors {
-        let mut stdout = io::stdout().lock();
-        for (label, table) in saved_tokens {
-            writeln!(stdout, "== TOKENS: {} ==", label)?;
-            stdout.write_all(table.as_bytes())?;
-            writeln!(stdout)?;
-        }
-    }
-
-    // 5) код возврата
-    if has_errors {
+    
+    // Код возврата: 1 если есть диагностики, 0 если нет
+    if !all_diags.is_empty() {
         std::process::exit(1);
     } else {
         Ok(())
     }
+}
+
+/// Команда tokenize: токенизация с выводом токенов в stdout
+fn run_tokenize(
+    path: Option<String>,
+    keep_trivia: bool,
+    enable_directives: bool,
+) -> Result<()> {
+    // Собрать входные данные через общий интерфейс
+    let input = collect_inputs(path)?;
+    
+    // Настроить опции лексера
+    let lex_opts = LexOptions { keep_trivia, enable_directives };
+    
+    let mut stdout = io::stdout().lock();
+    
+    // Обработать каждый источник
+    for source in &input.sources {
+        let res = lex(&source.content, source.id, &lex_opts);
+        
+        // Вывести заголовок для источника (если их больше одного)
+        if input.sources.len() > 1 {
+            writeln!(stdout, "== TOKENS: {} ==", source.label)?;
+        }
+        
+        // Вывести таблицу токенов
+        let table = render_tokens_table(&source.content, &res.tokens);
+        stdout.write_all(table.as_bytes())?;
+        
+        if input.sources.len() > 1 {
+            writeln!(stdout)?;
+        }
+    }
+    
+    Ok(())
 }
 
 /// Напечатать таблицу токенов: IDX  START..END  KIND  "LEXEME"
