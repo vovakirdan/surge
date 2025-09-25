@@ -13,7 +13,7 @@ pub use ast::{
     Param, Stmt, StmtOrBlock, TypeDef, TypeNode, UnaryOp, Using,
 };
 pub use error::{ParseCode, ParseDiag};
-pub use parser::{ParseResult, parse_source, parse_tokens};
+pub use parser::{ParseResult, parse_source, parse_source_with_options, parse_tokens};
 
 #[cfg(test)]
 mod tests;

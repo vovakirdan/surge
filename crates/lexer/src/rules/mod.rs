@@ -63,9 +63,9 @@ pub fn next_token(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) -> bool 
     }
 
     // Шаг 7: Проверить идентификаторы и ключевые слова
-    // Обрабатываем идентификаторы начинающиеся с буквы, _ или @
+    // Обрабатываем идентификаторы начинающиеся с буквы или _
     if let Some(ch) = cur.peek() {
-        if ch == '@' || ch.is_alphabetic() || ch == '_' {
+        if ch.is_alphabetic() || ch == '_' {
             if ident::try_take_ident_or_keyword(cur, em) {
                 return true;
             }

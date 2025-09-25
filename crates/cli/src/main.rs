@@ -12,7 +12,7 @@ use surge_diagnostics::{
     from_parser_diags,
 };
 use surge_lexer::{LexOptions, lex};
-use surge_parser::{parse_tokens, Ast, Module, Item, Func, FuncSig, Param, Block, Stmt, Expr, TypeNode, Attr};
+use surge_parser::{parse_tokens, parse_source_with_options, Ast, Module, Item, Func, FuncSig, Param, Block, Stmt, Expr, TypeNode, Attr};
 use surge_token::SourceId;
 
 /// Источник входных данных
@@ -262,8 +262,8 @@ fn run_parse(path: Option<String>, keep_trivia: bool, enable_directives: bool) -
 
     // Обработать каждый источник
     for source in &input.sources {
-        let lex_res = lex(&source.content, source.id, &lex_opts);
-        let parse_res = parse_tokens(source.id, &lex_res.tokens);
+        // Парсим с пользовательскими опциями лексера
+        let (parse_res, _lex_res) = parse_source_with_options(source.id, &source.content, &lex_opts);
 
         // Вывести заголовок для источника (если их больше одного)
         if input.sources.len() > 1 {

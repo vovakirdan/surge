@@ -113,7 +113,7 @@ pub fn try_take_multi(cur: &mut Cursor, em: &mut Emitter) -> bool {
 }
 
 /// Пытается захватить одиночный символ пунктуации
-/// Обрабатывает: [ ] ( ) { } < > | , ; : . & * ! = + - / %
+/// Обрабатывает: [ ] ( ) { } < > | , ; : . & * ! = + - / % @
 /// Возвращает true если символ был найден и захвачен
 pub fn try_take_single(cur: &mut Cursor, em: &mut Emitter) -> bool {
     let start_pos = cur.pos();
@@ -141,6 +141,7 @@ pub fn try_take_single(cur: &mut Cursor, em: &mut Emitter) -> bool {
             '-' => TokenKind::Minus,
             '/' => TokenKind::Slash,
             '%' => TokenKind::Percent,
+            '@' => TokenKind::At,
             _ => return false, // не одиночный оператор
         };
 
