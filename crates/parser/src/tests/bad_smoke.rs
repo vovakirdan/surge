@@ -46,18 +46,25 @@ fn test() -> int {
 }
 
 #[test]
-fn reports_missing_return_type() {
+fn accepts_function_without_return_type() {
     let src = r#"
 fn test() {
     return 0;
 }
 "#;
     let res = parse(src);
-    assert_eq!(res.diags[0].code, ParseCode::MissingReturnType);
-    assert_eq!(
-        res.diags[0].message,
-        "Expected '-> Type' in function signature"
-    );
+    // Return types are now optional, so this should parse without error
+    assert!(res.diags.is_empty(), "Expected no diagnostics, but got: {:?}", res.diags);
+
+    // Verify the function parsed correctly
+    assert_eq!(res.ast.module.items.len(), 1);
+    if let crate::Item::Fn(func) = &res.ast.module.items[0] {
+        assert_eq!(func.sig.name, "test");
+        assert!(func.sig.ret.is_none()); // No return type
+        assert!(func.sig.params.is_empty());
+    } else {
+        panic!("Expected function item");
+    }
 }
 
 #[test]

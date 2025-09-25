@@ -98,6 +98,7 @@ impl<'src> Stream<'src> {
     }
 
     /// Extract text for a span; returns empty string when the original source is not available.
+    #[allow(dead_code)]
     pub fn text(&self, span: Span) -> String {
         self.slice(span).unwrap_or("").to_string()
     }

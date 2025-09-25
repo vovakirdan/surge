@@ -92,3 +92,70 @@ fn test_parse_tokens_overload_override_ambiguity() {
         }
     }
 }
+
+#[test]
+fn test_parse_tokens_function_without_return_type() {
+    // Тест функции без типа возврата (теперь это валидно)
+    let src = "fn no_return() { let x = 42; }";
+    let source_id = SourceId(0);
+
+    let lex_res = lex(src, source_id, &LexOptions::default());
+    let parse_res = parse_tokens(source_id, &lex_res.tokens);
+
+    assert_eq!(parse_res.ast.module.items.len(), 1);
+
+    if let Item::Fn(func) = &parse_res.ast.module.items[0] {
+        // Функция должна парситься успешно
+        // В режиме parse_tokens имя будет fallback, так как нет исходного текста
+        assert!(func.sig.name.starts_with("identifier_"));
+        assert!(func.sig.ret.is_none()); // Нет типа возврата
+        assert!(func.sig.params.is_empty());
+
+        println!("Function without return type parsed successfully");
+        println!("Diagnostics count: {}", parse_res.diags.len());
+
+        for diag in &parse_res.diags {
+            println!("Diagnostic: {:?} - {}", diag.code, diag.message);
+        }
+
+        // Не должно быть ошибок
+        assert!(parse_res.diags.is_empty());
+    } else {
+        panic!("Expected function item");
+    }
+}
+
+#[test]
+fn test_parse_tokens_function_with_arrow_but_no_type() {
+    // Тест функции с -> но без типа (должна быть ошибка)
+    let src = "fn bad_arrow() -> { return 42; }";
+    let source_id = SourceId(0);
+
+    let lex_res = lex(src, source_id, &LexOptions::default());
+    let parse_res = parse_tokens(source_id, &lex_res.tokens);
+
+    // Функция должна парситься, но с диагностикой
+    assert_eq!(parse_res.ast.module.items.len(), 1);
+
+    if let Item::Fn(func) = &parse_res.ast.module.items[0] {
+        // В режиме parse_tokens имя будет fallback, так как нет исходного текста
+        assert!(func.sig.name.starts_with("identifier_"));
+        assert!(func.sig.ret.is_none()); // Нет валидного типа возврата
+
+        println!("Function with -> but no type parsed");
+        println!("Diagnostics count: {}", parse_res.diags.len());
+
+        for diag in &parse_res.diags {
+            println!("Diagnostic: {:?} - {}", diag.code, diag.message);
+        }
+
+        // Должна быть диагностика о том, что после -> ожидается тип
+        assert!(!parse_res.diags.is_empty());
+        let has_expected_type_error = parse_res.diags.iter().any(|d| {
+            matches!(d.code, crate::ParseCode::ExpectedTypeAfterArrow)
+        });
+        assert!(has_expected_type_error, "Expected PARSE_EXPECTED_TYPE_AFTER_ARROW diagnostic");
+    } else {
+        panic!("Expected function item");
+    }
+}

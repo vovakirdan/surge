@@ -128,7 +128,7 @@ impl<'src> Parser<'src> {
         let mut span = at_tok.span.join(ident_tok.span);
 
         // Try to get attribute name from source text first
-        let attr_name = self.stream.text(ident_tok.span);
+        let attr_name = self.stream.slice(ident_tok.span).unwrap_or("").to_string();
         let attr_type = if !attr_name.is_empty() {
             // Source text available - use it directly
             Some(attr_name.as_str())
@@ -168,7 +168,7 @@ impl<'src> Parser<'src> {
 
                     let (value, value_span) = if self.stream.peek().kind == TokenKind::StringLit {
                         let str_tok = self.stream.bump();
-                        let text = self.stream.text(str_tok.span);
+                        let text = self.stream.slice(str_tok.span).unwrap_or("\"\"").to_string();
 
                         // Handle case where string text is not available
                         let value = if !text.is_empty() {
@@ -337,15 +337,22 @@ impl<'src> Parser<'src> {
         Some(Param { name, ty, span })
     }
 
-    fn parse_return_type(&mut self, fn_span: Span) -> Option<TypeNode> {
-        if self.stream.eat(TokenKind::ThinArrow).is_some() {
-            self.parse_type_node()
+    fn parse_return_type(&mut self, _fn_span: Span) -> Option<TypeNode> {
+        if let Some(arrow_tok) = self.stream.eat(TokenKind::ThinArrow) {
+            // Arrow present, type is required
+            if let Some(type_node) = self.parse_type_node() {
+                Some(type_node)
+            } else {
+                // Arrow present but no valid type follows
+                self.error(
+                    ParseCode::ExpectedTypeAfterArrow,
+                    arrow_tok.span,
+                    "Expected type after '->'",
+                );
+                None
+            }
         } else {
-            self.error(
-                ParseCode::MissingReturnType,
-                fn_span,
-                "Expected '-> Type' in function signature",
-            );
+            // No arrow means no return type (optional)
             None
         }
     }
@@ -847,10 +854,17 @@ impl<'src> Parser<'src> {
     fn parse_prefix(&mut self) -> Option<Expr> {
         let tok = self.stream.bump();
         match tok.kind {
-            TokenKind::IntLit => Some(Expr::LitInt(self.stream.text(tok.span), tok.span)),
-            TokenKind::FloatLit => Some(Expr::LitFloat(self.stream.text(tok.span), tok.span)),
-            TokenKind::StringLit => Some(Expr::LitString(self.stream.text(tok.span), tok.span)),
-            TokenKind::Ident => Some(Expr::Ident(self.stream.text(tok.span), tok.span)),
+            TokenKind::IntLit => Some(Expr::LitInt(self.stream.slice(tok.span).unwrap_or("0").to_string(), tok.span)),
+            TokenKind::FloatLit => Some(Expr::LitFloat(self.stream.slice(tok.span).unwrap_or("0.0").to_string(), tok.span)),
+            TokenKind::StringLit => Some(Expr::LitString(self.stream.slice(tok.span).unwrap_or("\"\"").to_string(), tok.span)),
+            TokenKind::Ident => {
+                let name = if let Some(slice) = self.stream.slice(tok.span) {
+                    slice.to_string()
+                } else {
+                    format!("identifier_{}", tok.span.start)
+                };
+                Some(Expr::Ident(name, tok.span))
+            },
             TokenKind::Keyword(Keyword::True) => Some(Expr::Ident("true".into(), tok.span)),
             TokenKind::Keyword(Keyword::False) => Some(Expr::Ident("false".into(), tok.span)),
             TokenKind::Minus => {
@@ -1015,8 +1029,16 @@ impl<'src> Parser<'src> {
         };
         let end = end_span.unwrap_or(start);
         let span = start.join(end);
-        let text = self.stream.text(span);
-        Some(TypeNode { repr: text, span })
+
+        // First try to get text from source if available, otherwise use fallback
+        let repr = if let Some(slice) = self.stream.slice(span) {
+            slice.to_string()
+        } else {
+            // Fallback when source text is not available
+            "type".to_string()
+        };
+
+        Some(TypeNode { repr, span })
     }
 
     fn is_type_terminator(&self, kind: TokenKind) -> bool {
@@ -1136,7 +1158,12 @@ impl<'src> Parser<'src> {
         let tok = self.stream.peek();
         if tok.kind == TokenKind::Ident {
             let taken = self.stream.bump();
-            let name = self.stream.text(taken.span);
+            let name = if let Some(slice) = self.stream.slice(taken.span) {
+                slice.to_string()
+            } else {
+                // Fallback when source text is not available
+                format!("identifier_{}", taken.span.start)
+            };
             return Some((name, taken.span));
         }
         self.error(
