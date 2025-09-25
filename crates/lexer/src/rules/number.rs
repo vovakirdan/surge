@@ -32,7 +32,17 @@ pub fn try_take_number(cur: &mut Cursor, em: &mut Emitter) -> bool {
     }
 
     // Собираем число
-    let mut current_end = collect_number_digits(cur, em, base);
+    let (mut current_end, had_digits)= collect_number_digits(cur, em, base);
+
+    // Если был указан не-десятичный префикс и ни одной цифры не встретили — это ошибка
+    if (base == 16 || base == 2) && !had_digits {
+        let span = surge_token::Span::new(em.file, cur.pos(), cur.pos());
+        em.diag(
+            span,
+            DiagCode::InvalidDigitForBase,
+            format!("expected at least one digit for base {}", base),
+        );
+    }
 
     // Проверяем float часть
     if cur.peek() == Some('.') {
@@ -41,7 +51,8 @@ pub fn try_take_number(cur: &mut Cursor, em: &mut Emitter) -> bool {
         if next_ch.map_or(false, |ch| ch.is_ascii_digit()) {
             is_float = true;
             cur.bump(); // захватываем .
-            current_end = collect_number_digits(cur, em, 10);
+            let (end_after_frac, _) = collect_number_digits(cur, em, 10);
+            current_end = end_after_frac;
         }
     }
 
@@ -67,7 +78,8 @@ pub fn try_take_number(cur: &mut Cursor, em: &mut Emitter) -> bool {
             if let Some(ch_after) = cur.peek() {
                 if ch_after.is_ascii_digit() {
                     is_float = true;
-                    current_end = collect_number_digits(cur, em, 10);
+                    let (end_after_exp, _) = collect_number_digits(cur, em, 10);
+                    current_end = end_after_exp;
                 }
             }
         }
@@ -84,31 +96,40 @@ pub fn try_take_number(cur: &mut Cursor, em: &mut Emitter) -> bool {
     true
 }
 
-/// Собирает цифры числа с учетом подчеркиваний
-/// Возвращает позицию после последней корректной цифры
-fn collect_number_digits(cur: &mut Cursor, em: &mut Emitter, base: u32) -> u32 {
+/// Собирает цифры числа с учетом подчеркиваний.
+/// Возвращает (позиция после последней цифры, были_ли_цифры).
+fn collect_number_digits(cur: &mut Cursor, em: &mut Emitter, base: u32) -> (u32, bool) {
+    let mut had_digits = false;
+
     while let Some(ch) = cur.peek() {
         if ch == '_' {
+            // '_' используем только как разделитель, если дальше действительно идёт допустимая цифра.
             match cur.peek_n(1) {
                 Some(next) if is_valid_digit(next, base) => {
                     cur.bump(); // съели '_', следующая итерация проверит цифру
                 }
-                _ => break, // висячий '_' оставляем на месте
+                _ => break, // висячий '_' — заканчиваем число, '_' останется для следующего токена
             }
         } else if is_valid_digit(ch, base) {
+            had_digits = true;
             cur.bump();
         } else {
-            let span = surge_token::Span::new(em.file, cur.pos(), cur.pos() + ch.len_utf8() as u32);
-            em.diag(
-                span,
-                DiagCode::InvalidDigitForBase,
-                format!("Invalid digit '{}' for base {}", ch, base),
-            );
+            // Не цифра для этой базы: решаем, это терминатор или реальная ошибка продолжения.
+            // Терминаторы: пробелы и «неалфанумная» пунктуация (например ; , ) } ...).
+            // Ошибка: буквы/цифры, которые не допустимы для этой базы (например 'g' после 0x1).
+            if ch.is_alphanumeric() {
+                let span = surge_token::Span::new(em.file, cur.pos(), cur.pos() + ch.len_utf8() as u32);
+                em.diag(
+                    span,
+                    DiagCode::InvalidDigitForBase,
+                    format!("Invalid digit '{}' for base {}", ch, base),
+                );
+            }
             break;
         }
     }
 
-    cur.pos()
+    (cur.pos(), had_digits)
 }
 
 /// Проверяет является ли символ допустимой цифрой для заданной базы
