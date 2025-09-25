@@ -159,3 +159,58 @@ fn test_parse_tokens_function_with_arrow_but_no_type() {
         panic!("Expected function item");
     }
 }
+
+#[test]
+fn test_parse_tokens_function_with_nothing_return() {
+    // Тест функции с возвратом nothing (валидная конструкция)
+    let src = "fn test() { return nothing; }";
+    let source_id = SourceId(0);
+
+    let lex_res = lex(src, source_id, &LexOptions::default());
+    let parse_res = parse_tokens(source_id, &lex_res.tokens);
+
+    assert_eq!(parse_res.ast.module.items.len(), 1);
+
+    if let Item::Fn(func) = &parse_res.ast.module.items[0] {
+        // Функция должна парситься успешно
+        assert!(func.sig.name.starts_with("identifier_"));
+        assert!(func.sig.ret.is_none()); // Нет типа возврата
+        assert!(func.sig.params.is_empty());
+
+        println!("Function with nothing return parsed successfully");
+        println!("Diagnostics count: {}", parse_res.diags.len());
+
+        for diag in &parse_res.diags {
+            println!("Diagnostic: {:?} - {}", diag.code, diag.message);
+        }
+
+        // Не должно быть ошибок
+        assert!(parse_res.diags.is_empty());
+    } else {
+        panic!("Expected function item");
+    }
+}
+
+#[test]
+fn test_parse_tokens_function_with_return_type_and_nothing() {
+    // Тест функции с типом возврата, но возвращающей nothing (должна быть ошибка на семантическом уровне, но парсится)
+    let src = "fn test() -> int { return nothing; }";
+    let source_id = SourceId(0);
+
+    let lex_res = lex(src, source_id, &LexOptions::default());
+    let parse_res = parse_tokens(source_id, &lex_res.tokens);
+
+    assert_eq!(parse_res.ast.module.items.len(), 1);
+
+    if let Item::Fn(func) = &parse_res.ast.module.items[0] {
+        assert!(func.sig.name.starts_with("identifier_"));
+        assert!(func.sig.ret.is_some()); // Есть тип возврата
+        assert_eq!(func.sig.ret.as_ref().unwrap().repr, "int"); // Теперь корректно реконструирует тип из токенов
+
+        // На уровне парсера это должно проходить без ошибок
+        // Семантическая ошибка будет на следующих этапах
+        assert!(parse_res.diags.is_empty());
+    } else {
+        panic!("Expected function item");
+    }
+}

@@ -24,6 +24,7 @@ pub enum Keyword {
     Reduce,
     True,
     False,
+    Nothing,
     Own,
     // directive-specific keywords
     TestEqual,     // test.equal
@@ -65,6 +66,7 @@ pub fn lookup_keyword(ident: &str) -> Option<Keyword> {
         "reduce" => Reduce,
         "true" => True,
         "false" => False,
+        "nothing" => Nothing,
         "own" => Own,
         // directive keywords не обрабатываются здесь - они требуют специального контекста
         _ => return None,

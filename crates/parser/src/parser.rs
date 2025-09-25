@@ -114,27 +114,18 @@ impl<'src> Parser<'src> {
     fn parse_single_attr(&mut self) -> Option<Attr> {
         let at_tok = self.stream.bump(); // consume '@'
 
-        // Expect identifier after '@'
-        if self.stream.peek().kind != TokenKind::Ident {
-            self.error(
-                ParseCode::UnexpectedToken,
-                self.stream.peek().span,
-                "Expected attribute name after '@'",
-            );
-            return None;
-        }
+        // Get attribute name using expect_ident which handles both source and tokens-only modes
+        let (attr_name, ident_span) = match self.expect_ident("attribute name") {
+            Some(result) => result,
+            None => return None, // Error already emitted by expect_ident
+        };
 
-        let ident_tok = self.stream.bump();
-        let mut span = at_tok.span.join(ident_tok.span);
+        let mut span = at_tok.span.join(ident_span);
 
-        // Try to get attribute name from source text first
-        let attr_name = self.stream.slice(ident_tok.span).unwrap_or("").to_string();
-        let attr_type = if !attr_name.is_empty() {
-            // Source text available - use it directly
-            Some(attr_name.as_str())
-        } else {
-            // Source text not available - use combined heuristics
-            let ident_len = (ident_tok.span.end - ident_tok.span.start) as usize;
+        // Determine attribute type - prefer exact name match when available
+        let attr_type = if attr_name.starts_with("identifier_") {
+            // In parse_tokens mode, we got a fallback name - use heuristics
+            let ident_len = (ident_span.end - ident_span.start) as usize;
             let has_paren_after = self.stream.peek().kind == TokenKind::LParen;
 
             match (ident_len, has_paren_after) {
@@ -148,13 +139,12 @@ impl<'src> Parser<'src> {
                 }
                 _ => None,  // Unknown attribute
             }
+        } else {
+            // We have actual source text - use exact match
+            Some(attr_name.as_str())
         };
 
-        let attr_display = if !attr_name.is_empty() {
-            format!("@{}", attr_name)
-        } else {
-            format!("@<identifier at {}>", ident_tok.span.start)
-        };
+        let attr_display = format!("@{}", attr_name);
 
         match attr_type {
             Some("pure") => Some(Attr::Pure { span }),
@@ -169,9 +159,10 @@ impl<'src> Parser<'src> {
                     let (value, value_span) = if self.stream.peek().kind == TokenKind::StringLit {
                         let str_tok = self.stream.bump();
                         let text = self.stream.slice(str_tok.span).unwrap_or("\"\"").to_string();
+                        let has_source_text = !text.is_empty();
 
                         // Handle case where string text is not available
-                        let value = if !text.is_empty() {
+                        let value = if has_source_text {
                             // Remove quotes from string literal
                             if text.len() >= 2 {
                                 text[1..text.len()-1].to_string()
@@ -187,8 +178,8 @@ impl<'src> Parser<'src> {
                             }
                         };
 
-                        // Validate backend string (skip validation if we couldn't determine the value)
-                        if !value.starts_with('<') && value != "cpu" && value != "gpu" {
+                        // Validate backend string only when we have real source text
+                        if !value.starts_with('<') && has_source_text && value != "cpu" && value != "gpu" {
                             self.error(
                                 ParseCode::UnknownAttribute,
                                 str_tok.span,
@@ -229,9 +220,34 @@ impl<'src> Parser<'src> {
             _ => {
                 self.error(
                     ParseCode::UnknownAttribute,
-                    ident_tok.span,
+                    ident_span,
                     &format!("Unknown attribute {}", attr_display),
                 );
+
+                // Recovery: consume possible parentheses after unknown attribute
+                if self.stream.peek().kind == TokenKind::LParen {
+                    let mut paren_depth = 0;
+                    while !self.stream.is_eof() {
+                        let tok = self.stream.peek();
+                        match tok.kind {
+                            TokenKind::LParen => {
+                                paren_depth += 1;
+                                self.stream.bump();
+                            }
+                            TokenKind::RParen => {
+                                self.stream.bump();
+                                paren_depth -= 1;
+                                if paren_depth == 0 {
+                                    break;
+                                }
+                            }
+                            _ => {
+                                self.stream.bump();
+                            }
+                        }
+                    }
+                }
+
                 None
             }
         }
@@ -867,6 +883,7 @@ impl<'src> Parser<'src> {
             },
             TokenKind::Keyword(Keyword::True) => Some(Expr::Ident("true".into(), tok.span)),
             TokenKind::Keyword(Keyword::False) => Some(Expr::Ident("false".into(), tok.span)),
+            TokenKind::Keyword(Keyword::Nothing) => Some(Expr::Ident("nothing".into(), tok.span)),
             TokenKind::Minus => {
                 let rhs = self.parse_expr_bp(90)?;
                 let span = tok.span.join(expr_span(&rhs));
@@ -980,6 +997,7 @@ impl<'src> Parser<'src> {
         let mut consumed_any = false;
         let mut start_span = None;
         let mut end_span = None;
+        let mut consumed_tokens = Vec::new();
 
         loop {
             let tok = self.stream.peek();
@@ -1000,6 +1018,9 @@ impl<'src> Parser<'src> {
             consumed_any = true;
             start_span.get_or_insert(tok.span);
             end_span = Some(tok.span);
+
+            // Store token for reconstruction
+            consumed_tokens.push(tok);
 
             match tok.kind {
                 TokenKind::LAngle => depth_angle += 1,
@@ -1030,15 +1051,71 @@ impl<'src> Parser<'src> {
         let end = end_span.unwrap_or(start);
         let span = start.join(end);
 
-        // First try to get text from source if available, otherwise use fallback
+        // First try to get text from source if available, otherwise reconstruct from tokens
         let repr = if let Some(slice) = self.stream.slice(span) {
             slice.to_string()
         } else {
-            // Fallback when source text is not available
-            "type".to_string()
+            // Reconstruct type text from consumed tokens
+            self.reconstruct_type_from_tokens(&consumed_tokens)
         };
 
         Some(TypeNode { repr, span })
+    }
+
+    /// Reconstruct type representation from tokens when source text is unavailable
+    fn reconstruct_type_from_tokens(&self, tokens: &[surge_token::Token]) -> String {
+        let mut result = String::new();
+
+        for tok in tokens {
+            let token_repr = match &tok.kind {
+                TokenKind::Ident => {
+                    if let Some(slice) = self.stream.slice(tok.span) {
+                        slice.to_string()
+                    } else {
+                        // Common type names based on token length heuristics
+                        let len = (tok.span.end - tok.span.start) as usize;
+                        match len {
+                            3 => "int".to_string(),
+                            4 => if result.is_empty() { "bool".to_string() } else { "uint".to_string() },
+                            5 => "float".to_string(),
+                            6 => "string".to_string(),
+                            _ => format!("T{}", len), // Generic fallback
+                        }
+                    }
+                },
+                TokenKind::Keyword(kw) => format!("{:?}", kw).to_lowercase(),
+                TokenKind::LAngle => "<".to_string(),
+                TokenKind::RAngle => ">".to_string(),
+                TokenKind::LBracket => "[".to_string(),
+                TokenKind::RBracket => "]".to_string(),
+                TokenKind::Comma => ", ".to_string(),
+                TokenKind::Colon => ":".to_string(),
+                TokenKind::Amp => "&".to_string(),
+                TokenKind::Star => "*".to_string(),
+                TokenKind::IntLit => {
+                    if let Some(slice) = self.stream.slice(tok.span) {
+                        slice.to_string()
+                    } else {
+                        "0".to_string()
+                    }
+                },
+                _ => {
+                    if let Some(slice) = self.stream.slice(tok.span) {
+                        slice.to_string()
+                    } else {
+                        "".to_string()
+                    }
+                }
+            };
+
+            result.push_str(&token_repr);
+        }
+
+        if result.is_empty() {
+            "T".to_string() // Ultimate fallback
+        } else {
+            result
+        }
     }
 
     fn is_type_terminator(&self, kind: TokenKind) -> bool {

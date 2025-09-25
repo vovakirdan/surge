@@ -40,7 +40,7 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 ```
 fn, let, mut, if, else, while, for, in, break, continue,
 import, using, type, literal, alias, extern, return, signal,
-true, false, @pure, @overload, @override, @backend
+true, false, nothing, @pure, @overload, @override, @backend
 ```
 
 ### 1.5. Literals
@@ -49,6 +49,7 @@ true, false, @pure, @overload, @override, @backend
 * Float: `1.0`, `0.5`, `1e-9`, `2.5e+10`.
 * String: `"..."` (UTF-8), escape sequences `\n \t \" \\` and `\u{hex}`.
 * Bool: `true`, `false`.
+* Nothing: `nothing` (represents absence of value, similar to null/nil/none).
 
 ---
 
@@ -164,6 +165,15 @@ params := name:Type (, ...)* | ... (variadic)
 
 * Example: `fn add(a:int, b:int) -> int { return a + b; }`
 * Variadics: `fn print(...args) { ... }`
+
+**Return type semantics:**
+
+* Functions without `-> RetType` have no return type and do not need explicit `return` statements
+  * `fn main() { ... }` - valid, no return needed
+  * `fn main() { return nothing; }` - also valid, explicitly returns nothing
+* Functions with `-> RetType` must return a value of that type
+  * `fn add() -> int { return 42; }` - must return int
+* The `nothing` keyword represents absence of value and can be used in return statements for functions without return types
 
 ### 4.2. Attributes
 
