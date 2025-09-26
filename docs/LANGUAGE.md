@@ -38,8 +38,8 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 ### 1.4. Keywords
 
 ```
-fn, let, mut, if, else, while, for, in, break, continue,
-import, using, type, literal, alias, extern, return, signal,
+pub, fn, let, mut, if, else, while, for, in, break, continue,
+import, using, type, literal, alias, extern, return, signal, compare,
 true, false, nothing, @pure, @overload, @override, @backend
 ```
 
@@ -49,7 +49,8 @@ true, false, nothing, @pure, @overload, @override, @backend
 * Float: `1.0`, `0.5`, `1e-9`, `2.5e+10`.
 * String: `"..."` (UTF-8), escape sequences `\n \t \" \\` and `\u{hex}`.
 * Bool: `true`, `false`.
-* Nothing: `nothing` (represents absence of value, similar to null/nil/none).
+* Unit value: `()` is the single value of the `unit` type.
+* Absence value: `nothing` denotes the absent variant of `Option<T>`.
 
 ---
 
@@ -71,7 +72,8 @@ Types are written postfixed: `name: Type`.
 * **Other primitives**:
 
   * `bool` – logical; no implicit cast to/from numeric.
-  * `string` – a sequence of Unicode scalar values (rune-like). Layout: dynamic array of code points.
+  * `string` – a sequence of Unicode scalar values (code points). Layout: dynamic array of code points.
+  * `unit` – a type with a single value `()`.
 
 **Coercions:**
 
@@ -89,26 +91,34 @@ Types are written postfixed: `name: Type`.
 ### 2.3. Ownership & References
 
 * `own T` – owning value, moved by default.
-* `&T` – shared borrow (immutable view).
+* `&T` – shared immutable borrow (read-only view).
+* `&mut T` – exclusive mutable borrow.
 * `*T` – raw pointer (unsafe operations; deref requires explicit `deref(*p)` call).
+
+Borrowing rules:
+
+* While a `&mut T` exists, no other `&` or `&mut` borrows to the same value may exist.
+* While any `&T` borrows exist, mutation of the underlying value is forbidden (the value is frozen).
+* Lifetimes are lexical; the compiler emits diagnostics for aliasing violations.
 
 **Moves & Copies:**
 
 * Primitive fixed-size types and `bool` are `Copy`; `string` and arrays are `own` by default (move). The compiler may optimize small-string copies, but semantics are move.
-* Assignment `x = y;` moves if `y` is `own` and `T` not `Copy`. Borrowing uses `&` operator: `let r: &T = &x;`.
+* Assignment `x = y;` moves if `y` is `own` and `T` not `Copy`. Borrowing uses `&`/`&mut` operators: `let r: &T = &x;`, `let m: &mut T = &mut x;`.
 
 **Function parameters:**
 
 * `fn f(x: own T)`: takes ownership.
-* `fn f(x: &T)`: borrows; caller retains ownership; lifetime is lexical.
+* `fn f(x: &T)`: shared-borrows; caller retains ownership; lifetime is lexical.
+* `fn f(x: &mut T)`: exclusive mutable borrow.
 * `fn f(x: *T)`: raw; callee must not assume safety.
 
 ### 2.4. Generics
 
-* Universal type parameter `T` denotes any type. Generic syntax:
+Generic parameters must be declared explicitly with angle brackets: `<T, U, ...>`. Implicit type variables (using a bare `T` without declaration) are not supported.
 
-  * Functions: `fn id(x: T) -> T { return x; }` - this will be a generic function
-  * Extern methods: `extern<T> { ... }` - this will be a generic method
+* Functions: `fn id<T>(x: T) -> T { return x; }`
+* Extern methods/blocks: `extern<T> { ... }`
 
 ### 2.5. User-defined Types
 
@@ -119,6 +129,19 @@ Types are written postfixed: `name: Type`.
 * **Literal enums:** `literal Color = "black" | "white";` Only the listed literals are allowed values.
 * **Union alias:** `alias Number = int | float;` a type that admits any member type; overload resolution uses the best matching member (§8).
 
+### 2.6. Option and Result Types
+
+* `Option<T>` – optional value. Constructors:
+  * `Some(x)` wraps a present value of type `T`.
+  * `nothing` denotes the absent case and has type `Option<T>` for some `T` determined by context.
+
+Type-directed rules:
+
+* `nothing` requires contextual typing to determine `T`; using `nothing` where `T` cannot be inferred is a type error.
+* `compare` supports `nothing`/`Some(...)` patterns natively (§3.6).
+
+* `Result<T, E>` – recoverable error pattern provided by the standard library.
+
 ---
 
 ## 3. Expressions & Statements
@@ -128,6 +151,7 @@ Types are written postfixed: `name: Type`.
 * Declaration: `let name: Type = expr;`
 * Mutability: `let mut x: Type = expr;` allows assignment `x = expr;` and in-place updates.
 * Also we can declare a variable without a value: `let x: Type;` - this will be a variable with a default value of the type, but we can assign to it later.
+* Top-level `let` is allowed as an item; items are private by default and can be exported with `pub let`.
 
 ### 3.2. Control Flow
 
@@ -150,7 +174,32 @@ Types are written postfixed: `name: Type`.
 
 * `signal name := expr;` binds `name` to the value of `expr`, re-evaluated automatically when any of its dependencies change.
 * Signals are single-assignment; you cannot assign to `name` directly.
-* Update semantics: changes propagate in topological order per turn. Side-effects inside re-evaluations are forbidden unless the function is marked `@pure` (signals implicitly require purity).
+* Update semantics: changes propagate in topological order per turn. The bound expression must be `@pure`; side-effects inside signal evaluation are disallowed.
+
+### 3.6. Compare (Pattern Matching)
+
+`compare` is an expression that branches on a value against patterns. It evaluates to the expression of the first matching arm.
+
+```
+compare value {
+  pattern1 => expr1;
+  pattern2 => expr2;
+  _        => fallback;
+}
+```
+
+Patterns (baseline set):
+
+- `_` – wildcard, matches anything.
+- Literals – `123`, `"str"`, `true`, `false`.
+- Bindings – `name` binds the matched value in that arm.
+- Option – `nothing` (absent) and `Some(p)` where `p` is a sub-pattern.
+
+Notes:
+
+- Arms are tried top-to-bottom; the first match wins.
+- `=>` separates pattern from result expression and is only valid within `compare` arms and parallel constructs.
+- `nothing` has type `Option<T>` for some `T` determined by context; using `nothing` without sufficient type information is a type error at a later phase.
 
 ---
 
@@ -166,14 +215,15 @@ params := name:Type (, ...)* | ... (variadic)
 * Example: `fn add(a:int, b:int) -> int { return a + b; }`
 * Variadics: `fn print(...args) { ... }`
 
+Variadics: `...args` denotes a variadic parameter and desugars to an array parameter (e.g., `args: T[]`). Overload resolution treats variadic candidates as matching variable arity with an added cost versus exact-arity matches.
+
 **Return type semantics:**
 
-* Functions without `-> RetType` have no return type and do not need explicit `return` statements
+* Functions without `-> RetType` are considered to return `unit` and do not need explicit `return` statements.
   * `fn main() { ... }` - valid, no return needed
-  * `fn main() { return nothing; }` - also valid, explicitly returns nothing
-* Functions with `-> RetType` must return a value of that type
-  * `fn add() -> int { return 42; }` - must return int
-* The `nothing` keyword represents absence of value and can be used in return statements for functions without return types
+  * `fn main() { return (); }` - also valid, explicitly returns unit
+* Functions with `-> RetType` must return a value of that type.
+  * `fn answer() -> int { return 42; }`
 
 ### 4.2. Attributes
 
@@ -248,7 +298,7 @@ Each file is a module. Folder hierarchy maps to module paths.
 
 ### 7.2. String & Rune
 
-* `string` stores Unicode scalar values; `"\u{1F600}"` represents a single code point.
+* `string` stores Unicode scalar values (code points); `"\u{1F600}"` represents a single code point. Indexing and length are defined over code points. Implementations may choose different internal encodings; complexity of indexing is implementation-defined.
 
 ---
 
@@ -276,7 +326,16 @@ Union alias `alias Number = int | float` participates by expanding to candidates
 
 ### 9.1. Channels
 
-`channel<T>` is a typed FIFO. Core ops (from std): `make_channel<T>(cap:uint) -> own channel<T>`, `send(ch:&channel<T>, v:own T)`, `recv(ch:&channel<T>) -> T|none`.
+`channel<T>` is a typed FIFO. Core ops (from std):
+
+* `make_channel<T>(cap:uint) -> own channel<T>`
+* `send(ch:&channel<T>, v:own T)`
+* `recv(ch:&channel<T>) -> Option<T>`         // blocking receive
+* `try_recv(ch:&channel<T>) -> Option<T>`     // non-blocking receive
+* `recv_timeout(ch:&channel<T>, ms:int) -> Option<T>`
+* `close(ch:&channel<T>)`
+
+The standard library also provides `choose { ... }` to select among ready operations. Channels are FIFO; fairness across multiple senders/receivers is not specified.
 
 ### 9.2. Parallel Map / Reduce
 
@@ -355,6 +414,33 @@ signal total := sum(prices);
 // any change to prices recomputes total (sum must be @pure)
 ```
 
+```sg
+// Option and compare
+fn maybe_head<T>(xs: T[]) -> Option<T> {
+  if (xs.len == 0) { return nothing; }
+  return Some(xs[0]);
+}
+
+fn demo_option() {
+  let v = maybe_head([1, 2, 3]);
+  compare v {
+    nothing   => print("empty");
+    Some(x)   => print(x);
+  }
+}
+```
+
+```sg
+// Channels (blocking + try)
+let ch = make_channel<int>(0);
+// spawn omitted; assume a sender exists
+let v = recv(&ch);          // Option<int>
+compare try_recv(&ch) {
+  nothing => print("empty");
+  Some(x) => print(x);
+}
+```
+
 ---
 
 ## 13. Directives (`///`)
@@ -405,12 +491,14 @@ From highest to lowest:
 
 Short-circuiting for `&&` and `||` is guaranteed.
 
+Note: `=>` is not a general expression operator; it is reserved for `parallel map` / `parallel reduce` (§9.2) and for arms in `compare` expressions (§3.6).
+
 ---
 
 ## 15. Name & Visibility
 
 * Items are `pub` (public) or private by default. (Default: private.)
-* `pub fn`, `pub type`, `pub literal`, `pub alias` export items from the module.
+* `pub fn`, `pub type`, `pub literal`, `pub alias`, `pub let` export items from the module.
 
 ---
 
@@ -426,7 +514,8 @@ Short-circuiting for `&&` and `||` is guaranteed.
 
 ```
 Module     := Item*
-Item       := Fn | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Using
+Item       := Visibility? (Fn | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Using | Let)
+Visibility := "pub"
 Fn         := Attr* "fn" Ident GenericParams? ParamList RetType? Block
 Attr       := "@pure" | "@overload" | "@override" | "@backend(" Str ")"
 GenericParams := "<" Ident ("," Ident)* ">"
@@ -445,15 +534,18 @@ Using      := "using" Path ";"
 Path       := Ident ("/" Ident)*
 Block      := "{" Stmt* "}"
 Stmt       := Let | While | For | If | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
-Let        := "let" ("mut")? Ident (":" Type)? "=" Expr
+Let        := "let" ("mut")? Ident (":" Type)? ("=" Expr)? ";"
 While      := "while" "(" Expr ")" Block
 For        := "for" "(" Expr? ";" Expr? ";" Expr? ")" Block | "for" Ident ":" Type "in" Expr Block
 If         := "if" "(" Expr ")" Block ("else" If | "else" Block)?
 Return     := "return" Expr?
 Signal     := "signal" Ident ":=" Expr
-Expr       := ... (standard precedence)
+Expr       := Compare | ... (standard precedence)
+Compare    := "compare" Expr "{" Arm (";" Arm)* ";"? "}"
+Arm        := Pattern "=>" Expr
+Pattern    := "_" | Ident | Literal | "nothing" | "Some" "(" Pattern ")"
 Type       := Ownership? CoreType Suffix*
-Ownership  := "own" | "&" | "*"
+Ownership  := "own" | "&" | "&mut" | "*"
 CoreType   := Ident ("<" Type ("," Type)* ">")?
 Suffix     := "[]"
 ```
