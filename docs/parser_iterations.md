@@ -127,7 +127,7 @@ populate the AST correctly.
 ## Iteration 6 — Parallel map/reduce expressions
 
 **Goals**
-- Parse `parallel map` and `parallel reduce` constructs according to §9.2.
+- Parse `parallel map` and `parallel reduce` constructs according to §9.2. (Note that parallel is a keyword, and map/reduce just a function call. So we can call parallel with other functions, not just map/reduce.)
 - Restrict `=>` usage and introduce new diagnostics for malformed headers.
 
 **Files**

@@ -1,0 +1,15 @@
+fn test_signals() -> int {
+    let prices: int[] = [10, 20, 30];
+    signal total := sum(prices);
+    signal average := total / 3;
+    signal doubled := total * 2;
+    return total;
+}
+
+fn sum(arr: int[]) -> int {
+    let result: int = 0;
+    for (let i: int = 0; i < 3; i = i + 1) {
+        result = result + arr[i];
+    }
+    return result;
+}

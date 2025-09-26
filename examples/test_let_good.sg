@@ -1,0 +1,15 @@
+// Top-level let declarations
+let global_var: int = 42;
+let mut global_mut: float = 3.14;
+let global_typed: string;
+
+fn test() {
+    // Local let declarations
+    let local_init: int = 10;
+    let local_typed: bool;
+    let mut local_mut: float = 2.5;
+
+    // Assignment to uninitialized
+    local_typed = true;
+    global_typed = "hello";
+}

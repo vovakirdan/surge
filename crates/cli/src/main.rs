@@ -373,6 +373,11 @@ fn render_item(output: &mut String, item: &Item, src: &str, source_id: SourceId,
             render_func(output, func, src, source_id, indent + 1);
             output.push_str(&format!("{})", indent_str));
         }
+        Item::Let(stmt) => {
+            output.push_str(&format!("{}Let(\n", indent_str));
+            render_stmt(output, stmt, src, source_id, indent + 1);
+            output.push_str(&format!("\n{})", indent_str));
+        }
         _ => {
             output.push_str(&format!("{}<unimplemented item>", indent_str));
         }
@@ -514,11 +519,44 @@ fn render_stmt(output: &mut String, stmt: &Stmt, src: &str, source_id: SourceId,
             output.push_str(&format!("{}  semi: {:?}\n", indent_str, semi));
             output.push_str(&format!("{}}}", indent_str));
         }
+        Stmt::Signal { name, expr, span, semi } => {
+            output.push_str(&format!("{}Signal {{\n", indent_str));
+            output.push_str(&format!("{}  name: \"{}\",\n", indent_str, name));
+            output.push_str(&format!("{}  expr: ", indent_str));
+            render_expr(output, expr, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  span: {:?},\n", indent_str, span));
+            output.push_str(&format!("{}  semi: {:?}\n", indent_str, semi));
+            output.push_str(&format!("{}}}", indent_str));
+        }
         Stmt::ExprStmt { expr, span, semi } => {
             output.push_str(&format!("{}ExprStmt {{\n", indent_str));
             output.push_str(&format!("{}  expr: ", indent_str));
             render_expr(output, expr, src, source_id, indent + 1);
             output.push_str(&format!(",\n{}  span: {:?},\n", indent_str, span));
+            output.push_str(&format!("{}  semi: {:?}\n", indent_str, semi));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        Stmt::Return { expr, span, semi } => {
+            output.push_str(&format!("{}Return {{\n", indent_str));
+            output.push_str(&format!("{}  expr: ", indent_str));
+            if let Some(expr) = expr {
+                render_expr(output, expr, src, source_id, indent + 1);
+            } else {
+                output.push_str("None");
+            }
+            output.push_str(&format!(",\n{}  span: {:?},\n", indent_str, span));
+            output.push_str(&format!("{}  semi: {:?}\n", indent_str, semi));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        Stmt::Break { span, semi } => {
+            output.push_str(&format!("{}Break {{\n", indent_str));
+            output.push_str(&format!("{}  span: {:?},\n", indent_str, span));
+            output.push_str(&format!("{}  semi: {:?}\n", indent_str, semi));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        Stmt::Continue { span, semi } => {
+            output.push_str(&format!("{}Continue {{\n", indent_str));
+            output.push_str(&format!("{}  span: {:?},\n", indent_str, span));
             output.push_str(&format!("{}  semi: {:?}\n", indent_str, semi));
             output.push_str(&format!("{}}}", indent_str));
         }
@@ -577,6 +615,38 @@ fn render_expr(output: &mut String, expr: &Expr, src: &str, source_id: SourceId,
 
             output.push_str(&format!("\n{}  ],\n", indent_str));
             output.push_str(&format!("{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        Expr::Array { elems, span } => {
+            output.push_str(&format!("Array {{\n"));
+            output.push_str(&format!("{}  elems: [\n", indent_str));
+            for (i, elem) in elems.iter().enumerate() {
+                if i > 0 {
+                    output.push_str(",\n");
+                }
+                output.push_str(&format!("{}    ", indent_str));
+                render_expr(output, elem, src, source_id, indent + 2);
+            }
+            output.push_str(&format!("\n{}  ],\n", indent_str));
+            output.push_str(&format!("{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        Expr::Index { base, index, span } => {
+            output.push_str(&format!("Index {{\n"));
+            output.push_str(&format!("{}  base: ", indent_str));
+            render_expr(output, base, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  index: ", indent_str));
+            render_expr(output, index, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        Expr::Assign { lhs, rhs, span } => {
+            output.push_str(&format!("Assign {{\n"));
+            output.push_str(&format!("{}  lhs: ", indent_str));
+            render_expr(output, lhs, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  rhs: ", indent_str));
+            render_expr(output, rhs, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  span: {:?}\n", indent_str, span));
             output.push_str(&format!("{}}}", indent_str));
         }
         _ => {

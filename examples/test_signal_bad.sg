@@ -1,0 +1,12 @@
+fn test_signals() -> int {
+    // Missing := operator
+    signal bad_signal = 42;
+
+    // Missing expression after :=
+    signal bad_signal2 :=;
+
+    // Using = instead of :=
+    signal bad_signal3 = value;
+
+    return 0;
+}

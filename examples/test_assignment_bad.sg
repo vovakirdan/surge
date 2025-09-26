@@ -1,0 +1,11 @@
+fn test_assignment() {
+    let x: int = 42;
+
+    // Assignment to non-assignable expressions
+    42 = 10;
+    x + 1 = 5;
+    foo() = 3;
+
+    // Assignment without left-hand side
+    = 10;
+}

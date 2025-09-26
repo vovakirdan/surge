@@ -1,0 +1,11 @@
+// Missing both type and initializer
+let bad_var;
+
+// Missing colon before type
+let bad_colon int = 42;
+
+fn test() {
+    // Same errors in function scope
+    let bad_local;
+    let bad_local2 float = 1.0;
+}

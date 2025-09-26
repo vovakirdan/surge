@@ -1,0 +1,14 @@
+@unknown
+fn test() -> int {
+    return 42;
+}
+
+@backend("invalid")
+fn test2() {
+    return;
+}
+
+@backend
+fn test3() {
+    return;
+}
