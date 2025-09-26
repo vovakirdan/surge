@@ -107,8 +107,8 @@ Types are written postfixed: `name: Type`.
 
 * Universal type parameter `T` denotes any type. Generic syntax:
 
-  * Functions: `fn id<T>(x: T) -> T { return x; }`
-  * Extern methods: `extern<T> { ... }`
+  * Functions: `fn id(x: T) -> T { return x; }` - this will be a generic function
+  * Extern methods: `extern<T> { ... }` - this will be a generic method
 
 ### 2.5. User-defined Types
 
@@ -126,8 +126,8 @@ Types are written postfixed: `name: Type`.
 ### 3.1. Variables
 
 * Declaration: `let name: Type = expr;`
-* Type may be omitted if inferrable: `let x = 42;` (defaults: integer literal -> `int`, float literal -> `float`, string literal -> `string`).
-* Mutability: `let mut x = expr;` allows assignment `x = expr;` and in-place updates.
+* Mutability: `let mut x: Type = expr;` allows assignment `x = expr;` and in-place updates.
+* Also we can declare a variable without a value: `let x: Type;` - this will be a variable with a default value of the type, but we can assign to it later.
 
 ### 3.2. Control Flow
 
@@ -357,9 +357,9 @@ signal total := sum(prices);
 
 ---
 
-## 13. Test Directives (`///`)
+## 13. Directives (`///`)
 
-In any file, `/// test:` starts a test section composed of one or more named tests. Each test is a block of surge code executed separately.
+13.1 In any file, `/// test:` starts a test section composed of one or more named tests. Each test is a block of surge code executed separately.
 
 ```
 /// test:
@@ -374,6 +374,21 @@ In any file, `/// test:` starts a test section composed of one or more named tes
 * Names must be unique within the file.
 * Test harness collects and runs these in isolation; they have access to the module scope where they appear.
 
+13.2 In any file, `/// benchmark:` starts a benchmark section composed of one or more named benchmarks. Each benchmark is a block of surge code executed separately.
+
+```
+/// benchmark:
+/// Benchmark1:
+///   benchmark.measure(add(2, 3), 5);
+```
+
+13.3 In any file, `/// time:` starts a time section composed of one or more named times. Each time is a block of surge code executed separately.
+
+```
+/// time:
+/// Time1:
+///   time.measure(add(2, 3), 5);
+```
 ---
 
 ## 14. Precedence & Associativity
