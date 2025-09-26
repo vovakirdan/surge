@@ -39,7 +39,7 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 
 ```
 pub, fn, let, mut, if, else, while, for, in, break, continue,
-import, using, type, literal, alias, extern, return, signal, compare,
+import, using, type, literal, alias, extern, return, signal, compare, spawn,
 true, false, nothing, @pure, @overload, @override, @backend
 ```
 
@@ -113,6 +113,15 @@ Borrowing rules:
 * `fn f(x: &mut T)`: exclusive mutable borrow.
 * `fn f(x: *T)`: raw; callee must not assume safety.
 
+### Ownership and threads
+
+To avoid data races the following conservative rule applies:
+
+* Only `own T` values may be moved (transferred) into spawned tasks/threads.
+* Borrowed references `&T` and `&mut T` are not allowed to cross thread boundaries (attempting to do so is a compile-time error).
+
+This rule simplifies early implementation and preserves soundness of the ownership model without a full cross-thread borrow-checker.
+
 ### 2.4. Generics
 
 Generic parameters must be declared explicitly with angle brackets: `<T, U, ...>`. Implicit type variables (using a bare `T` without declaration) are not supported.
@@ -142,6 +151,18 @@ Type-directed rules:
 
 * `Result<T, E>` – recoverable error pattern provided by the standard library.
 
+### `nothing` contextual typing
+
+`nothing` is the absent variant for `Option<T>`. Its type must be inferred from context. If the context does not provide a target `Option<T>` to infer `T`, the compiler emits `E_AMBIGUOUS_NOTHING`.
+
+Examples:
+
+```
+let x = nothing;                 // E_AMBIGUOUS_NOTHING
+let y: Option<int> = nothing;    // OK
+return nothing;                  // OK if function returns Option<T>
+```
+
 ---
 
 ## 3. Expressions & Statements
@@ -153,6 +174,11 @@ Type-directed rules:
 * Also we can declare a variable without a value: `let x: Type;` - this will be a variable with a default value of the type, but we can assign to it later.
 * Top-level `let` is allowed as an item; items are private by default and can be exported with `pub let`.
 
+Top-level `let` initialization and cycles:
+
+* Top-level `let` items are executed at module initialization time in textual order within a module.
+* Cyclic initialization among top-level `let`s is a compile-time error `E_CYCLIC_TOPLEVEL_INIT`.
+
 ### 3.2. Control Flow
 
 * If: `if (cond) { ... } else if (cond) { ... } else { ... }`
@@ -160,6 +186,32 @@ Type-directed rules:
 * For counter: `for (init; cond; step) { ... }` where each part may be empty.
 * For-in iteration: `for item:T in xs:T[] { ... }` requires `__range()`.
 * `break`, `continue`, `return expr?;`.
+
+For loops (two syntactic forms):
+
+1) C-style counter:
+
+```
+for ( init? ; cond? ; post? ) { body }
+```
+
+* init: `let` or expression statement
+* cond: boolean expression (defaults true if omitted)
+* post: expression statement
+
+2) For-in (foreach):
+
+```
+for pattern (":" Type)? in Expr { body }
+```
+
+* `pattern` may be an identifier; future iterations may add destructuring.
+* If `: Type` is present it must be a valid type; if omitted the element type is inferred from the iterable.
+
+Parser diagnostics:
+
+* `E_FOR_MISSING_IN` — `for`-in form lacks `in`.
+* `E_FOR_BAD_HEADER` — mismatched semicolons in C-style `for`.
 
 ### 3.3. Semicolons
 
@@ -227,10 +279,18 @@ Variadics: `...args` denotes a variadic parameter and desugars to an array param
 
 ### 4.2. Attributes
 
-* `@pure` – function has no side effects, deterministic, cannot mutate non-local state; required for execution in certain parallel contexts.
+* `@pure` – function has no side effects, deterministic, cannot mutate non-local state; required for execution in certain parallel contexts and signals.
 * `@overload` – declares an overload of an existing function name with a distinct signature.
 * `@override` – replaces an existing implementation for a target (primarily used in `extern<T>` blocks for newtypes). Use sparingly.
 * `@backend("cpu"|"gpu")` – execution target hint. Semantics: a backend-specific lowering may choose specialized code paths. If not supported, it is a no-op.
+* `@test` – marks test functions or doc-test helpers.
+* `@benchmark`, `@time` – benchmark/time helpers.
+* `@deprecated("msg")` – marks items as deprecated with a message.
+
+Parser behaviour:
+
+* Unknown attributes are accepted syntactically but produce a warning `W_UNKNOWN_ATTRIBUTE` by default. A `--strict-attributes` mode may promote this to `E_UNKNOWN_ATTRIBUTE`.
+* If an attribute is used on an unsupported target (e.g., `@test` on a type alias), emit `E_ILLEGAL_ATTRIBUTE_TARGET`.
 
 ### 4.3. Overloading Rules
 
@@ -281,6 +341,7 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Abs: `abs(x)` → `__abs`
 * To-string: used by `print` → `__to_string() -> string`
 * Range: `for in` → `__range() -> Range<T>` where `Range<T>` yields `T` via `next()`.
+* Result propagation: `expr?` — if `expr` is `Result<T,E>`, yields `T` or returns `Err(E)` from the current function (see §11).
 
 ### 6.2. Assignment
 
@@ -339,12 +400,29 @@ The standard library also provides `choose { ... }` to select among ready operat
 
 ### 9.2. Parallel Map / Reduce
 
-* `parallel map xs with args => func` executes `func` over `xs` elements concurrently; `func` must be `@pure` or side-effect constraints must be satisfied by the backend.
+* `parallel map xs with args => func` executes `func` over `xs` elements concurrently; `func` must be `@pure`.
 * `parallel reduce xs with init, args => func` reduces in parallel; `func` must be associative and `@pure`.
+
+Grammar (surface):
+
+```
+ParallelMap    := "parallel" "map" Expr "with" ArgList "=>" Expr
+ParallelReduce := "parallel" "reduce" Expr "with" Expr "," ArgList "=>" Expr
+ArgList        := "(" (Expr ("," Expr)*)? ")" | "()"
+```
+
+Restriction: `=>` is valid only in these `parallel` constructs and within `compare` arms (§3.6). Any other use is a parse error `E_ARROW_USAGE`.
 
 ### 9.3. Backend Selection
 
 `@backend("gpu")`/`@backend("cpu")` may annotate functions or blocks. If the target is unsupported, a diagnostic is emitted or a fallback is chosen by the compiler based on flags.
+
+### 9.4. Tasks and spawn semantics
+
+* `spawn expr` launches a new task to evaluate `expr` asynchronously. If `expr` has type `T`, `spawn expr` has type `Task<T>` (a join handle).
+* `join(t: Task<T>) -> Result<T, Cancelled>` waits for completion; on normal completion returns `Ok(value)`, on cooperative cancellation returns `Err(Cancelled)`.
+* `t.cancel()` requests cooperative cancellation; tasks can check via `task::is_cancelled()`.
+* Moving values into `spawn` consumes them (ownership semantics). Only `own` values may be moved into tasks.
 
 ---
 
@@ -364,6 +442,29 @@ The standard library also provides `choose { ... }` to select among ready operat
 * Ambiguous overloads and missing methods are compile-time errors.
 
 (Full trap catalogue and error codes live in DIAGNOSTICS.md / RUNTIME.md.)
+
+### Recoverable errors: Result<T, E> and `?` propagation
+
+The standard recoverable error type is `Result<T, E>` provided by the standard library:
+
+```
+type Result<T, E> = Ok(T) | Err(E)
+```
+
+Use the `?` operator to propagate `Err` early: `expr?` evaluates `expr` which must be `Result<T,E>`; if `Ok(v)` — yields `v`, if `Err(e)` — the current function returns `Err(e)` immediately (the function must return `Result<...,E>` or a compatible result type).
+
+Example:
+
+```
+fn parse_int(s:string) -> Result<int, ParseError> { /* ... */ }
+fn read_and_parse() -> Result<int, ParseError> {
+  let line = read_line()?;      // if read_line() returns Err -> propagate
+  let v = parse_int(line)?;     // propagate parse error
+  return Ok(v);
+}
+```
+
+Traps remain for unrecoverable faults (OOB, internal assertion, certain cast traps). A richer effects model may be added later; this draft uses Result + traps.
 
 ---
 
@@ -481,7 +582,7 @@ compare try_recv(&ch) {
 
 From highest to lowest:
 
-1. `[]` (index), call `()`, member `.` (future), unary `! + -`
+1. `[]` (index), call `()`, member `.`, postfix `?`
 2. `* / %`
 3. `+ -`
 4. `< <= > >= == !=`
@@ -492,6 +593,10 @@ From highest to lowest:
 Short-circuiting for `&&` and `||` is guaranteed.
 
 Note: `=>` is not a general expression operator; it is reserved for `parallel map` / `parallel reduce` (§9.2) and for arms in `compare` expressions (§3.6).
+
+### Member access precedence
+
+Member access `.` is a postfix operator and binds tightly together with function calls and indexing. This resolves ambiguous parses, e.g., `a.f()[i].g()` parses as `(((a.f())[i]).g)()`.
 
 ---
 
@@ -533,14 +638,15 @@ Import     := "import" Path ("::" Ident ("as" Ident)?)? ";"
 Using      := "using" Path ";"
 Path       := Ident ("/" Ident)*
 Block      := "{" Stmt* "}"
-Stmt       := Let | While | For | If | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
+Stmt       := Let | While | For | If | Spawn ";" | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
 Let        := "let" ("mut")? Ident (":" Type)? ("=" Expr)? ";"
 While      := "while" "(" Expr ")" Block
 For        := "for" "(" Expr? ";" Expr? ";" Expr? ")" Block | "for" Ident ":" Type "in" Expr Block
 If         := "if" "(" Expr ")" Block ("else" If | "else" Block)?
 Return     := "return" Expr?
 Signal     := "signal" Ident ":=" Expr
-Expr       := Compare | ... (standard precedence)
+Expr       := Compare | Spawn | ... (standard precedence)
+Spawn      := "spawn" Expr
 Compare    := "compare" Expr "{" Arm (";" Arm)* ";"? "}"
 Arm        := Pattern "=>" Expr
 Pattern    := "_" | Ident | Literal | "nothing" | "Some" "(" Pattern ")"
@@ -560,3 +666,23 @@ Suffix     := "[]"
 ---
 
 *End of Draft 1*
+
+---
+
+## 19. Diagnostics Overview (selected)
+
+Stable diagnostic codes used by the parser and early semantic checks:
+
+* `E_GENERIC_UNDECLARED` — generic parameter used but not declared.
+* `E_AMBIGUOUS_NOTHING` — `nothing` used without contextual type.
+* `E_MOVE_BORROWED_TO_THREAD` — cannot move borrowed reference into spawned task.
+* `E_SIGNAL_NOT_PURE` — signals require @pure expression.
+* `E_ARROW_USAGE` — `=>` reserved for compare arms and parallel constructs.
+* `E_FOR_MISSING_IN` — `for`-in missing `in` token.
+* `E_FOR_BAD_HEADER` — malformed C-style `for` header.
+* `E_ILLEGAL_ATTRIBUTE_TARGET` — attribute not allowed on this target.
+* `W_UNKNOWN_ATTRIBUTE` — unknown attribute.
+* `E_CHANNEL_CLOSED_ON_SEND` — send on closed channel returns Err(ChannelClosed).
+* `E_CYCLIC_TOPLEVEL_INIT` — cyclic top-level initialization.
+* `E_AMBIGUOUS_OVERLOAD` — ambiguous overload resolution.
+* `E_MISMATCH_RESULT_USE` — Result used where plain value expected (use `?` or compare).
