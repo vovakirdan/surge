@@ -166,8 +166,9 @@ Type-directed rules:
 * This is different from `let x: Option<int>;` which would get `nothing` as the default
 
 **Array homogeneity:**
-* Arrays must be homogeneous: `let arr: Option<int>[] = [1, nothing, 3];` is invalid
-* Correct: `let arr: Option<int>[] = [Some(1), nothing, Some(3)];`
+* Arrays must be homogeneous: `let arr: Option<int>[] = [1, nothing, 3];` is valid - auto-wraps in `Some()`
+* Elements `1` and `3` automatically wrap in `Some()` when target type is `Option<T>[]`
+* Result: `[Some(1), nothing, Some(3)]`
 
 **String conversion:**
 * `nothing.__to_string() -> string { return ""; }`
@@ -181,6 +182,32 @@ return nothing;                  // OK if function returns Option<T>
 fn foo() { }                     // returns unit
 fn bar() { return nothing; }     // also returns unit (equivalent)
 ```
+
+### 2.7. Memory Management Model
+
+Surge uses **pure ownership** (similar to Rust) for predictable performance:
+
+**Core principles:**
+- All heap-allocated data has exactly one owner at any time
+- Ownership can be transferred (moved) or temporarily borrowed
+- No garbage collector - deterministic cleanup via RAII
+- Reference cycles must be broken explicitly using weak references (future extension)
+
+**Rationale for scientific computing and AI backend:**
+- Predictable performance characteristics (no GC pauses)
+- Zero-cost abstractions
+- Fine-grained control over memory layout
+- Suitable for real-time and high-performance computing
+
+**Future extensions:**
+- Weak references for breaking cycles: `weak<T>`
+- Arena allocators for bulk allocation patterns
+- Custom allocators for GPU memory management
+
+**Trade-offs:**
+- Higher learning curve compared to GC languages
+- More explicit lifetime management required
+- Better performance and predictability for target domains
 
 ---
 
@@ -447,6 +474,18 @@ Given a call `f(a1, ..., an)` with candidate signatures `Si`:
 
 Union alias `alias Number = int | float` participates by expanding to candidates for each member type; the best member is chosen.
 
+### Option Auto-wrapping
+
+When the target type is `Option<T>` and the source is `T`, automatic wrapping in `Some()` occurs:
+
+```sg
+let x: Option<int> = 42;           // auto-wraps to Some(42)
+let arr: Option<int>[] = [1, 2, 3]; // auto-wraps to [Some(1), Some(2), Some(3)]
+let mixed: Option<int>[] = [1, nothing, 3]; // [Some(1), nothing, Some(3)]
+```
+
+This coercion has cost 1 in overload resolution (same as numeric literal fitting).
+
 ---
 
 ## 9. Concurrency Primitives
@@ -710,6 +749,28 @@ fn classify_value(value: alias Number | string) {
 }
 ```
 
+```sg
+// Async function with structured concurrency
+async fn process_data(urls: string[]) -> Result<Data[], Error> {
+    async {
+        let tasks: Task<Result<Data, Error>>[] = [];
+
+        for url in urls {
+            let task = spawn fetch_data(url);
+            tasks.push(task);
+        }
+
+        let results: Result<Data, Error>[] = [];
+        for task in tasks {
+            let result = task.await?;
+            results.push(result);
+        }
+
+        return Ok(results);
+    }
+}
+```
+
 ---
 
 ## 13. Directives (`///`)
@@ -753,10 +814,17 @@ From highest to lowest:
 1. `[]` (index), call `()`, member `.`, postfix `?`
 2. `* / %`
 3. `+ -`
-4. `< <= > >= == != is`
+4. `< <= > >= == != is` (all comparison operators have same precedence, left-associative)
 5. `&&`
 6. `||`
 7. `=` `+=` `-=` `*=` `/=` (right-associative)
+
+**Type checking precedence:**
+Type checking with `is` has the same precedence as equality operators. Use parentheses for complex expressions:
+```sg
+x is int && y is string  // OK
+(x is int) == true       // explicit grouping recommended
+```
 
 Short-circuiting for `&&` and `||` is guaranteed.
 
@@ -825,9 +893,10 @@ let c = identity(3.14);    // generates identity_float
 
 ```
 Module     := Item*
-Item       := Visibility? (Fn | NewtypeDef | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
+Item       := Visibility? (Fn | AsyncFn | NewtypeDef | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
 Visibility := "pub"
 Fn         := Attr* "fn" Ident GenericParams? ParamList RetType? Block
+AsyncFn    := Attr* "async" "fn" Ident GenericParams? ParamList RetType? Block
 Attr       := "@pure" | "@overload" | "@override" | "@backend(" Str ")"
 GenericParams := "<" Ident ("," Ident)* ">"
 ParamList  := "(" (Param ("," Param)*)? ")"
@@ -871,7 +940,7 @@ Suffix     := "[]"
 * Dynamic numerics (`int/uint/float`) allow large results; casts to fixed-width may trap.
 ---
 
-*End of Draft 1*
+*End of Draft 3*
 
 ---
 
