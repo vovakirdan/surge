@@ -8,8 +8,8 @@ Crate изолирован, чтобы его можно было переисп
 
 ## Возможности
 
-* Определение **ключевых слов** языка (например, `fn`, `let`, `signal`, `parallel`, `map/reduce`).
-* **Специальные ключевые слова для директив** (`test.equal`, `repeat`, `random.int` и т.д.).
+* Определение **ключевых слов** языка (например, `fn`, `let`, `signal`, `parallel`).
+* **Специальные ключевые слова для директив** (`test.equal`, `benchmark.measure`, `time.measure`).
 * Типизация токенов через `TokenKind` (идентификаторы, литералы, операторы, скобки и т.п.).
 * Поддержка **директив** в комментариях (`/// test:`, `/// benchmark:`, `/// time:`).
 * **Контекст токенизации** для различения обычных токенов и токенов внутри директив.
@@ -36,20 +36,13 @@ token/
 ### 1. Ключевые слова (`keyword.rs`)
 
 ```rust
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Keyword {
-    Fn, Let, Mut, If, Else, While, For, In,
-    Break, Continue, As, Import, Using,
-    Type, Literal, Alias, Extern, Return,
-    Signal, Parallel, Map, Reduce,
-    // атрибуты
-    AtPure, AtOverload, AtOverride, AtBackend,
-    True, False, Own,
-    // ключевые слова для директив
-    TestEqual, TestNotEqual, TestLess, TestLessEq,
-    TestGreater, TestGreaterEq, TestAssert,
-    Repeat, RandomInt, RandomFloat,
-}
+// См. актуальный список в `crates/token/src/keyword.rs`.
+// Ключевые слова включают: fn, let, mut, if, else, while, for, in,
+// break, continue, as, import, pub, newtype, type, literal, alias, extern,
+// return, signal, parallel, compare, spawn, async, await, is, finally,
+// true, false, nothing, own.
+// Для директив распознаются test.equal/test.ne/…/test.assert, а также
+// benchmark.measure и time.measure.
 ```
 
 * Включают **основные конструкции языка** (`fn`, `let`, `signal`, `parallel`) и спец-атрибуты (`@pure`, `@override`).
@@ -78,6 +71,7 @@ pub enum TokenKind {
     Plus, Minus, Slash, Percent,
     PlusEq, MinusEq, StarEq, SlashEq, PercentEq,
     ColonEq,
+    Question,
     At,
     Directive(DirectiveKind),
     Eof,
@@ -206,15 +200,16 @@ fn main() {
 
 ```sg
 /// benchmark:
-/// a:int = random.int(); b:int = random.int();
-/// repeat(1000, add(a, b));
+/// Benchmark1:
+///   benchmark.measure(add(2, 3), 5);
 ```
 
 ### Директивы измерения времени
 
 ```sg
 /// time:
-/// for i:int in [1, 2, 3] { add(1, 2); }
+/// Time1:
+///   time.measure(add(2, 3), 5);
 ```
 
 Все содержимое директив токенизируется как обычный код, но с контекстом `TokenContext::Directive(DirectiveKind)`, что позволяет в будущем легко генерировать соответствующий тестовый/бенчмарковый код.
