@@ -39,8 +39,9 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 
 ```
 pub, fn, let, mut, if, else, while, for, in, break, continue,
-import, using, type, literal, alias, extern, return, signal, compare, spawn,
-true, false, nothing, @pure, @overload, @override, @backend
+import, newtype, type, literal, alias, extern, return, signal, compare, spawn,
+true, false, nothing, is, finally, async, await,
+@pure, @overload, @override, @backend
 ```
 
 ### 1.5. Literals
@@ -131,12 +132,12 @@ Generic parameters must be declared explicitly with angle brackets: `<T, U, ...>
 
 ### 2.5. User-defined Types
 
-* **Newtype:** `type MyInt = int;` creates a distinct nominal type that inherits semantics of `int` but can override magic methods via `extern<MyInt>`. (Different from a pure alias.)
+* **Newtype:** `newtype MyInt = int;` creates a distinct nominal type that inherits semantics of `int` but can override magic methods via `extern<MyInt>`. (Different from a pure alias.)
 * **Struct:** `type Person { age:int, name:string, @readonly weight:float }`.
 
   * Fields are immutable unless variable is `mut`. `@readonly` forbids writes even through `mut` bindings.
 * **Literal enums:** `literal Color = "black" | "white";` Only the listed literals are allowed values.
-* **Union alias:** `alias Number = int | float;` a type that admits any member type; overload resolution uses the best matching member (§8).
+* **Type alias:** `alias Number = int | float;` a type that admits any member type; overload resolution uses the best matching member (§8).
 
 ### 2.6. Option and Result Types
 
@@ -148,6 +149,7 @@ Type-directed rules:
 
 * `nothing` requires contextual typing to determine `T`; using `nothing` where `T` cannot be inferred is a type error.
 * `compare` supports `nothing`/`Some(...)` patterns natively (§3.6).
+* `Option<T>` is equivalent to `alias Option<T> = T | nothing;`
 
 * `Result<T, E>` – recoverable error pattern provided by the standard library.
 
@@ -155,12 +157,29 @@ Type-directed rules:
 
 `nothing` is the absent variant for `Option<T>`. Its type must be inferred from context. If the context does not provide a target `Option<T>` to infer `T`, the compiler emits `E_AMBIGUOUS_NOTHING`.
 
+**Function return equivalence:**
+* `fn foo() { }` and `fn bar() { return nothing; }` are equivalent when the function has no explicit return type
+* Functions without explicit return types return `unit`, so `return nothing;` is equivalent to `return ();`
+
+**Variable declarations:**
+* `let x: int;` gets default value (0 for int, "" for string, false for bool, etc.)
+* This is different from `let x: Option<int>;` which would get `nothing` as the default
+
+**Array homogeneity:**
+* Arrays must be homogeneous: `let arr: Option<int>[] = [1, nothing, 3];` is invalid
+* Correct: `let arr: Option<int>[] = [Some(1), nothing, Some(3)];`
+
+**String conversion:**
+* `nothing.__to_string() -> string { return ""; }`
+
 Examples:
 
 ```
 let x = nothing;                 // E_AMBIGUOUS_NOTHING
 let y: Option<int> = nothing;    // OK
 return nothing;                  // OK if function returns Option<T>
+fn foo() { }                     // returns unit
+fn bar() { return nothing; }     // also returns unit (equivalent)
 ```
 
 ---
@@ -236,16 +255,17 @@ Parser diagnostics:
 compare value {
   pattern1 => expr1;
   pattern2 => expr2;
-  _        => fallback;
+  finally  => fallback;
 }
 ```
 
 Patterns (baseline set):
 
-- `_` – wildcard, matches anything.
+- `finally` – wildcard, matches anything (default case).
 - Literals – `123`, `"str"`, `true`, `false`.
 - Bindings – `name` binds the matched value in that arm.
 - Option – `nothing` (absent) and `Some(p)` where `p` is a sub-pattern.
+- Conditional patterns – `x if x is int` where `x` is bound and condition is checked.
 
 Notes:
 
@@ -323,9 +343,8 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Module or submodule: `import math/trig;`
 * Specific item: `import math/trig::sin;`
 * Aliasing: `import math/trig::sin as sine;`
-* `using pkg` – brings all public items of `pkg` into the current scope (discouraged in libraries).
 
-**Name resolution order:** local scope > explicit imports > `using`-brought names > prelude/std.
+**Name resolution order:** local scope > explicit imports > prelude/std.
 
 ---
 
@@ -335,6 +354,7 @@ Each file is a module. Folder hierarchy maps to module paths.
 
 * Arithmetic: `+ - * / %` → `__add __sub __mul __div __mod`
 * Comparison: `< <= == != >= >` → `__lt __le __eq __ne __ge __gt` (must return `bool`)
+* Type checking: `is` – checks type identity (see §6.2)
 * Logical: `&& || !` – short-circuiting; operate only on `bool`.
 * Indexing: `[]` → `__index __index_set`
 * Unary: `+x -x` → `__pos __neg`
@@ -343,7 +363,33 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Range: `for in` → `__range() -> Range<T>` where `Range<T>` yields `T` via `next()`.
 * Result propagation: `expr?` — if `expr` is `Result<T,E>`, yields `T` or returns `Err(E)` from the current function (see §11).
 
-### 6.2. Assignment
+### 6.2. Type Checking Operator (`is`)
+
+The `is` operator performs runtime type checking and returns a `bool`. It checks the essential type identity, ignoring ownership modifiers:
+
+**Rules:**
+* `42 is int` → `true`
+* `nothing is nothing` → `true`
+* `Option<int> is int` → `false` (it's `Option<int>`, not `int`)
+* `own T is T` → `true` (ownership doesn't change type essence)
+* `mut T is T` → `true`
+* `&T is T` → `false` (reference is different type)
+* `*T is T` → `false` (pointer is different type)
+
+**Examples:**
+```sg
+let x: int = 42;
+let y: Option<int> = Some(42);
+let z: &int = &x;
+
+print(x is int);        // true
+print(y is int);        // false
+print(y is Option<int>); // true
+print(z is int);        // false
+print(z is &int);       // true
+```
+
+### 6.3. Assignment
 
 * `=` move/assign; compound ops `+=` etc. desugar to method + assign if defined.
 
@@ -357,9 +403,29 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Float literals default to `float`.
 * Suffixes allowed: `123:int32`, `1.0:float32` to select fixed types.
 
-### 7.2. String & Rune
+### 7.2. String Implementation
 
-* `string` stores Unicode scalar values (code points); `"\u{1F600}"` represents a single code point. Indexing and length are defined over code points. Implementations may choose different internal encodings; complexity of indexing is implementation-defined.
+* `string` stores Unicode scalar values (code points); `"\u{1F600}"` represents a single code point.
+* **Default indexing:** `s[i]` uses char-based (Unicode code points) access
+* **Implementation:** Hybrid approach using rope data structure with position caching for O(1) amortized performance
+* **Indexing complexity:** O(1) amortized for most access patterns, O(n) worst case for random access
+
+**String methods:**
+* `len_chars() -> int` – length in Unicode code points (default)
+* `len_bytes() -> int` – length in UTF-8 bytes
+* `len_graphemes() -> int` – length in user-perceived characters (grapheme clusters)
+* `char_at(i: int) -> Option<char>` – get character at code point index
+* `byte_at(i: int) -> Option<uint8>` – get byte at byte index
+* `grapheme_at(i: int) -> Option<string>` – get grapheme cluster at grapheme index
+
+**Examples:**
+```sg
+let text = "Hello 👋 World";
+print(text.len_chars());      // 13 (code points)
+print(text.len_bytes());      // 15 (UTF-8 bytes, emoji takes 4 bytes)
+print(text.len_graphemes());  // 13 (user-perceived characters)
+print(text[6]);               // 👋 (7th code point)
+```
 
 ---
 
@@ -424,6 +490,51 @@ Restriction: `=>` is valid only in these `parallel` constructs and within `compa
 * `t.cancel()` requests cooperative cancellation; tasks can check via `task::is_cancelled()`.
 * Moving values into `spawn` consumes them (ownership semantics). Only `own` values may be moved into tasks.
 
+### 9.5. Async/Await Model (Structured Concurrency)
+
+Surge provides structured concurrency with async/await for managing asynchronous operations:
+
+**Async Functions:**
+```sg
+async fn fetch_data(url: string) -> Result<Data, Error> {
+    let response = http_get(url).await?;
+    let data = parse_response(response).await?;
+    return Ok(data);
+}
+
+async fn process_multiple_urls(urls: string[]) -> Result<Data[], Error> {
+    let results: Result<Data, Error>[] = [];
+    for url in urls {
+        let data = fetch_data(url).await?;
+        results.push(Ok(data));
+    }
+    return Ok(results);
+}
+```
+
+**Structured Concurrency Blocks:**
+```sg
+async {
+    let task1 = spawn fetch_data("url1");
+    let task2 = spawn fetch_data("url2");
+    let task3 = spawn fetch_data("url3");
+
+    let r1 = task1.await?;
+    let r2 = task2.await?;
+    let r3 = task3.await?;
+
+    // automatic cleanup on block exit
+    // all spawned tasks are automatically cancelled if not awaited
+}
+```
+
+**Key properties:**
+* Async blocks provide automatic resource cleanup
+* Tasks spawned within an async block are automatically cancelled when the block exits
+* `await` can only be used within `async` functions or `async` blocks
+* Async functions return `Future<T>` which must be awaited or spawned
+* Structured concurrency ensures no "fire-and-forget" tasks that can leak
+
 ---
 
 ## 10. Standard Library Conventions
@@ -442,6 +553,51 @@ Restriction: `=>` is valid only in these `parallel` constructs and within `compa
 * Ambiguous overloads and missing methods are compile-time errors.
 
 (Full trap catalogue and error codes live in DIAGNOSTICS.md / RUNTIME.md.)
+
+### Error Inheritance Model
+
+Surge uses a simple inheritance model for errors instead of complex trait systems:
+
+```sg
+type Error {
+    message: string;
+    code: uint;
+}
+
+extern<Error> {
+    fn throw(self: &Error) -> void;
+    fn __to_string(self: &Error) -> string {
+        return "Error " + self.code + ": " + self.message;
+    }
+}
+
+// Custom errors via newtype:
+newtype HTTPError = Error;
+newtype FileError = Error;
+newtype NetworkError = Error;
+
+// Usage:
+let http_access_denied: HTTPError = HTTPError {
+    message: "Access denied",
+    code: 401
+};
+
+let file_not_found: FileError = FileError {
+    message: "File not found",
+    code: 404
+};
+```
+
+Newtype errors inherit all methods from the base `Error` type but can override specific behaviors:
+
+```sg
+extern<HTTPError> {
+    @override
+    fn __to_string(self: &HTTPError) -> string {
+        return "HTTP Error " + self.code + ": " + self.message;
+    }
+}
+```
 
 ### Recoverable errors: Result<T, E> and `?` propagation
 
@@ -487,7 +643,7 @@ fn demo() {
 
 ```sg
 // Newtype with override
-type MyInt = int;
+newtype MyInt = int;
 extern<MyInt> {
   @pure @override fn __add(a: MyInt, b: MyInt) -> MyInt { return 42:int; }
 }
@@ -542,6 +698,18 @@ compare try_recv(&ch) {
 }
 ```
 
+```sg
+// Compare with conditional patterns and finally
+fn classify_value(value: alias Number | string) {
+  compare value {
+    x if x is int => print("integer: ", x);
+    42            => print("exactly 42");
+    nothing       => print("absent");
+    finally       => print("default case");
+  }
+}
+```
+
 ---
 
 ## 13. Directives (`///`)
@@ -585,7 +753,7 @@ From highest to lowest:
 1. `[]` (index), call `()`, member `.`, postfix `?`
 2. `* / %`
 3. `+ -`
-4. `< <= > >= == !=`
+4. `< <= > >= == != is`
 5. `&&`
 6. `||`
 7. `=` `+=` `-=` `*=` `/=` (right-associative)
@@ -607,7 +775,45 @@ Member access `.` is a postfix operator and binds tightly together with function
 
 ---
 
-## 16. Open Questions / To Confirm
+## 16. Compilation Model
+
+### 16.1. Generic Monomorphization
+
+Surge uses monomorphization for generics to achieve zero runtime cost:
+
+* **Compile-time expansion:** Each generic instantiation creates a separate compiled function
+* **Type specialization:** `fn id<T>(x: T) -> T` compiled as `fn id_int`, `fn id_string`, etc.
+* **Code generation:** No generic dispatch at runtime; all type resolution happens at compile time
+* **Binary size:** Trade-off between runtime performance and binary size
+
+**Example:**
+```sg
+fn identity<T>(x: T) -> T { return x; }
+
+let a = identity(42);      // generates identity_int
+let b = identity("hello"); // generates identity_string
+let c = identity(3.14);    // generates identity_float
+```
+
+**Compilation process:**
+1. Parse and type-check generic functions
+2. Collect all instantiation sites
+3. Generate specialized versions for each unique type combination
+4. Replace generic calls with calls to specialized functions
+5. Dead code elimination removes unused instantiations
+
+**Benefits:**
+* Zero runtime cost for generics
+* Full optimization opportunities for each instantiation
+* No virtual dispatch overhead
+* Predictable performance characteristics
+
+**Limitations:**
+* Increased compilation time for heavily generic code
+* Larger binary sizes with many instantiations
+* Compile-time blow-up possible with recursive generic instantiations
+
+## 17. Open Questions / To Confirm
 
 * Should `string` be `Copy` for small sizes or always `own`? (Proposed: always `own`.)
 * Exact GPU backend surface (kernels, memory spaces). For now, `@backend` is a hint.
@@ -615,11 +821,11 @@ Member access `.` is a postfix operator and binds tightly together with function
 
 ---
 
-## 17. Grammar Sketch (extract)
+## 18. Grammar Sketch (extract)
 
 ```
 Module     := Item*
-Item       := Visibility? (Fn | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Using | Let)
+Item       := Visibility? (Fn | NewtypeDef | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
 Visibility := "pub"
 Fn         := Attr* "fn" Ident GenericParams? ParamList RetType? Block
 Attr       := "@pure" | "@overload" | "@override" | "@backend(" Str ")"
@@ -627,7 +833,8 @@ GenericParams := "<" Ident ("," Ident)* ">"
 ParamList  := "(" (Param ("," Param)*)? ")"
 Param      := Ident ":" Type | "..."
 RetType    := "->" Type
-TypeDef    := "type" Ident "=" Type ";" | "type" Ident StructBody ";"?
+NewtypeDef := "newtype" Ident "=" Type ";"
+TypeDef    := "type" Ident StructBody ";"?
 StructBody := "{" Field ("," Field)* "}"
 Field      := Attr* Ident ":" Type
 LiteralDef := "literal" Ident "=" LiteralAlt ("|" LiteralAlt)* ";"
@@ -635,21 +842,21 @@ LiteralAlt := Str
 AliasDef   := "alias" Ident "=" Type ("|" Type)* ";"
 ExternBlock:= "extern<" Type ">" Block
 Import     := "import" Path ("::" Ident ("as" Ident)?)? ";"
-Using      := "using" Path ";"
 Path       := Ident ("/" Ident)*
 Block      := "{" Stmt* "}"
-Stmt       := Let | While | For | If | Spawn ";" | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
+Stmt       := Let | While | For | If | Spawn ";" | Async | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
 Let        := "let" ("mut")? Ident (":" Type)? ("=" Expr)? ";"
 While      := "while" "(" Expr ")" Block
 For        := "for" "(" Expr? ";" Expr? ";" Expr? ")" Block | "for" Ident ":" Type "in" Expr Block
 If         := "if" "(" Expr ")" Block ("else" If | "else" Block)?
 Return     := "return" Expr?
 Signal     := "signal" Ident ":=" Expr
+Async      := "async" "{" Stmt* "}"
 Expr       := Compare | Spawn | ... (standard precedence)
 Spawn      := "spawn" Expr
 Compare    := "compare" Expr "{" Arm (";" Arm)* ";"? "}"
 Arm        := Pattern "=>" Expr
-Pattern    := "_" | Ident | Literal | "nothing" | "Some" "(" Pattern ")"
+Pattern    := "finally" | Ident | Literal | "nothing" | "Some" "(" Pattern ")" | Ident "if" Expr
 Type       := Ownership? CoreType Suffix*
 Ownership  := "own" | "&" | "&mut" | "*"
 CoreType   := Ident ("<" Type ("," Type)* ">")?
@@ -658,18 +865,17 @@ Suffix     := "[]"
 
 ---
 
-## 18. Compatibility Notes
+## 19. Compatibility Notes
 
-* Built-ins for primitive base types are sealed; you cannot `@override` them directly. Use `type New = int;` and override on the newtype.
+* Built-ins for primitive base types are sealed; you cannot `@override` them directly. Use `newtype New = int;` and override on the newtype.
 * Dynamic numerics (`int/uint/float`) allow large results; casts to fixed-width may trap.
-
 ---
 
 *End of Draft 1*
 
 ---
 
-## 19. Diagnostics Overview (selected)
+## 20. Diagnostics Overview (selected)
 
 Stable diagnostic codes used by the parser and early semantic checks:
 
