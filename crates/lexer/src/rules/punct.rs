@@ -3,7 +3,7 @@ use surge_token::TokenKind;
 
 /// Пытается захватить многосимвольный оператор
 /// Проверяет операторы в строгом порядке по убыванию длины:
-/// "..." "::" "->" "=>" "&&" "||" "<=" ">=" "==" "!=" ":="
+/// "..." "::" "->" "=>" "&&" "||" "<=" ">=" "==" "!=" ":=" "+=" "-=" "*=" "/=" "%="
 /// Возвращает true если оператор был найден и захвачен
 pub fn try_take_multi(cur: &mut Cursor, em: &mut Emitter) -> bool {
     let start_pos = cur.pos();
@@ -109,11 +109,56 @@ pub fn try_take_multi(cur: &mut Cursor, em: &mut Emitter) -> bool {
         return true;
     }
 
+    if cur.starts_with("+=") {
+        // PlusEq
+        cur.bump();
+        cur.bump(); // захватываем +=
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::PlusEq);
+        return true;
+    }
+
+    if cur.starts_with("-=") {
+        // MinusEq
+        cur.bump();
+        cur.bump(); // захватываем -=
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::MinusEq);
+        return true;
+    }
+
+    if cur.starts_with("*=") {
+        // StarEq
+        cur.bump();
+        cur.bump(); // захватываем *=
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::StarEq);
+        return true;
+    }
+
+    if cur.starts_with("/=") {
+        // SlashEq
+        cur.bump();
+        cur.bump(); // захватываем /=
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::SlashEq);
+        return true;
+    }
+
+    if cur.starts_with("%=") {
+        // PercentEq
+        cur.bump();
+        cur.bump(); // захватываем %=
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::PercentEq);
+        return true;
+    }
+
     false
 }
 
 /// Пытается захватить одиночный символ пунктуации
-/// Обрабатывает: [ ] ( ) { } < > | , ; : . & * ! = + - / % @
+/// Обрабатывает: [ ] ( ) { } < > | , ; : . & * ! = + - / % @ ?
 /// Возвращает true если символ был найден и захвачен
 pub fn try_take_single(cur: &mut Cursor, em: &mut Emitter) -> bool {
     let start_pos = cur.pos();
@@ -142,6 +187,7 @@ pub fn try_take_single(cur: &mut Cursor, em: &mut Emitter) -> bool {
             '/' => TokenKind::Slash,
             '%' => TokenKind::Percent,
             '@' => TokenKind::At,
+            '?' => TokenKind::Question,
             _ => return false, // не одиночный оператор
         };
 
