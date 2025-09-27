@@ -1,160 +1,251 @@
-# Surge — reactive, parallel-first language (interpreter + bytecode VM)
+# Surge Programming Language
 
-**Surge** is a new language prototype with:
-- **Reactive state** (`signal` + `:=`) and automatic recomputation
-- **Parallel-by-default** execution for pure functions (thread pool, futures)
-- **Strict static typing** with simple, cheap memory model (arenas + RC)
-- **Standard math from the box** (`sqrt`, `pow`, `sin/cos`, ...)
-- **Built-in HTTP server** for easy service-building
-- **Live comments / doctests** (`///! test:`) next to code
+> Lessons learned from Rust/Python/Go
 
-This repo contains the **front-end** (lexer, parser, type checker), the **bytecode compiler** (AST → SBC), and the **VM interpreter** executing Surge ByteCode.
+**Surge** is a modern systems programming language designed for scientific computing, AI backends, and high-performance applications. It combines the safety of Rust-style ownership with the ergonomics of higher-level languages, while providing first-class support for reactive programming and structured concurrency.
 
-> Early stages: expect stubs. We build iteratively by **Phases**.
+## Key Features
 
----
+### 🔒 **Memory Safety Without Garbage Collection**
+- Pure ownership model with deterministic cleanup via RAII
+- No garbage collector pauses - predictable performance for real-time systems
+- Borrowing system prevents data races and memory corruption
+- Zero-cost abstractions with compile-time memory management
 
-## Layout
+### ⚡ **Performance-First Design**
+- Monomorphization for zero-cost generics
+- Dynamic-width numeric types (`int`, `uint`, `float`) with arbitrary precision
+- Hybrid string implementation with O(1) amortized indexing
+- GPU backend support with `@backend("gpu")` annotations
 
-```
+### 🔄 **Reactive Programming Built-in**
+- `signal` bindings with automatic dependency tracking
+- Declarative reactive state management
+- Pure function requirements ensure predictable updates
+- Topological sorting for efficient propagation
 
-surge/
-├─ cmd/
-│  ├─ surge/            # run .sg or .sbc (interpreter/runner)
-│  ├─ surgec/           # compile .sg → .sbc
-│  └─ surgetest/        # run doctests from ///! blocks
-├─ include/             # public/internal headers
-├─ src/                 # C sources (core, front, back, runtime, testing, extras)
-├─ stdlib/              # Surge .sg helpers (HTTP/maths/parallel sugar)
-├─ examples/            # Sample Surge programs
-├─ tests/               # Golden tests per subsystem
-├─ docs/                # LANGUAGE.md, BYTECODE.md, RUNTIME.md, HTTP.md, ROADMAP.md
-└─ Makefile
+### 🚀 **Structured Concurrency**
+- `async`/`await` with automatic resource cleanup
+- Parallel primitives: `parallel map` and `parallel reduce`
+- Task spawning with ownership-based thread safety
+- No "fire-and-forget" tasks - everything is properly managed
 
-```
+### 🎯 **Type Safety and Ergonomics**
+- Strong static typing with type inference
+- Pattern matching with `compare` expressions
+- Option types with automatic wrapping: `let x: Option<int> = 42`
+- Result types with `?` operator for error propagation
 
-You may also create **Phase** directories to isolate experiments:
+## Language Overview
 
-```
-
-PhaseA/         # sandbox for Phase A (lexer, parser demos)
-PhaseB/         # sandbox for Phase B (types, sema)
-PhaseC/         # ...
-PhaseX/foo.sg   # any .sg files; 'make test' will try to run doctests here
-
-````
-
-`make test` scans `Phase*/` and runs doctests using `surgetest`.
-
----
-
-## Build (Ubuntu/WSL2)
-
-Requirements:
-- `gcc` (or `clang`), `make`, `pthread`, Linux `epoll`
-
-Commands:
-```bash
-# Release build
-make
-
-# Debug build
-make dev
-
-# With sanitizers (ASan+UBSan)
-make SAN=1
-````
-
-Binaries (after build):
-
-```
-build/bin/surge
-build/bin/surgec
-build/bin/surgetest
-```
-
----
-
-## Running
-
-If `surge` already supports direct `.sg` interpretation:
-
-```bash
-make run FILE=examples/hello.sg
-```
-
-If you first compile to bytecode `.sbc`:
-
-```bash
-make compile FILE=examples/hello.sg
-make runbc FILE=build/out/hello.sbc
-```
-
----
-
-## Doctests (Live comments)
-
-Write tests right in your `.sg` files:
+### Basic Syntax
 
 ```sg
-///! test: add(2,3) == 5
-fn add(a:int, b:int) -> int { a + b }
+// Variables and types
+let name: string = "Surge";
+let mut counter: int = 0;
+let temperature: float = 98.6;
+
+// Functions
+fn fibonacci(n: int) -> int {
+    if (n <= 1) { return n; }
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+// Async functions
+async fn fetch_data(url: string) -> Result<Data, Error> {
+    let response = http_get(url).await?;
+    return parse_json(response);
+}
 ```
 
-Run all doctests in Phase sandboxes:
+### User-Defined Types
+
+```sg
+// Structs
+type Person {
+    name: string,
+    age: int,
+    @readonly id: uint
+}
+
+// Newtypes with custom behavior
+newtype UserId = int;
+extern<UserId> {
+    fn validate(self: &UserId) -> bool {
+        return self.value > 0;
+    }
+}
+
+// Type aliases
+alias Number = int | float;
+
+// Literal enums
+literal Color = "red" | "green" | "blue";
+```
+
+### Ownership and Borrowing
+
+```sg
+fn process_data(data: own Data) -> Result<Output, Error> {
+    let borrowed = &data;        // Shared borrow
+    let mut_ref = &mut data;     // Exclusive borrow
+
+    // Move ownership to another function
+    return transform(data);
+}
+
+// Thread safety through ownership
+async fn concurrent_processing(items: own Vec<Item>) {
+    async {
+        let task1 = spawn process_chunk(items[0..100]);
+        let task2 = spawn process_chunk(items[100..200]);
+
+        let result1 = task1.await?;
+        let result2 = task2.await?;
+
+        // Automatic cleanup on block exit
+    }
+}
+```
+
+### Pattern Matching and Error Handling
+
+```sg
+fn handle_response(result: Result<Data, HttpError>) -> string {
+    compare result {
+        Ok(data)    => format_data(data),
+        Err(error)  => handle_error(error),
+        finally     => "Unknown response"
+    }
+}
+
+// Type checking with 'is' operator
+fn classify_value(value: Number) {
+    compare value {
+        x if x is int   => print("Integer: ", x),
+        x if x is float => print("Float: ", x),
+        finally         => print("Unknown number type")
+    }
+}
+```
+
+### Reactive Programming
+
+```sg
+// Reactive signals automatically update when dependencies change
+signal total_price := base_price + tax_amount + shipping;
+signal discount := if (total_price > 100) { 0.1 } else { 0.0 };
+signal final_price := total_price * (1.0 - discount);
+
+// Any change to base_price, tax_amount, or shipping automatically
+// propagates through the dependency graph
+```
+
+### Parallel Computing
+
+```sg
+// Parallel map over collections
+let results = parallel map numbers with (multiplier) => x * multiplier;
+
+// Parallel reduction
+let sum = parallel reduce values with 0, () => a + b;
+
+// GPU computing
+@backend("gpu")
+fn matrix_multiply(a: Matrix, b: Matrix) -> Matrix {
+    // Executed on GPU if available, CPU fallback otherwise
+    // Implementation details...
+}
+```
+
+### Error Handling
+
+```sg
+// Simple inheritance-based error model
+type Error {
+    message: string,
+    code: uint
+}
+
+newtype NetworkError = Error;
+newtype ParseError = Error;
+
+// Result types with ? operator
+fn load_config() -> Result<Config, Error> {
+    let content = read_file("config.json")?;
+    let config = parse_json(content)?;
+    return Ok(config);
+}
+```
+
+## Design Goals
+
+- **Safety by default**: Explicit ownership/borrows, no hidden implicit mutability
+- **Deterministic semantics**: Operator/overload resolution is fully specified
+- **Orthogonality**: Features compose cleanly (generics + ownership + methods)
+- **Compile-time rigor, runtime pragmatism**: Static typing with dynamic-width numerics
+- **Testability**: First-class doc-tests via `/// test:` directives
+
+## Target Domains
+
+### Scientific Computing
+- Predictable performance without GC pauses
+- Arbitrary precision numeric types
+- GPU computing support
+- Memory layout control for HPC applications
+
+### AI/ML Backends
+- Efficient tensor operations
+- Parallel processing primitives
+- Structured concurrency for training pipelines
+- Zero-copy data processing
+
+### Systems Programming
+- Memory safety without runtime overhead
+- Fine-grained control over resource management
+- Thread-safe programming by design
+- Async I/O with structured concurrency
+
+### Real-time Applications
+- Deterministic memory management
+- No unexpected allocation or collection pauses
+- Predictable performance characteristics
+- Low-latency reactive updates
+
+## Development Status
+
+Surge is currently in active development. The language specification is complete, and we're working on the implementation:
+
+- ✅ Language specification (Draft 3)
+- 🔄 Lexer and parser implementation
+- 🔄 Type checker and semantic analysis
+- ⏳ Bytecode compiler
+- ⏳ Virtual machine runtime
+- ⏳ Standard library
+
+## Building and Installation
 
 ```bash
-make test
+# Clone the repository
+git clone https://github.com/vovakirdan/surge.git
+cd surge
+
+# Build the compiler and runtime
+cargo build
+
+# Run examples
+cargo run -- examples/hello.sg
+
+# Run tests
+cargo test
 ```
 
----
+## Documentation
 
-## Phased Development
+- [Language Specification](docs/LANGUAGE.md) - Complete language reference
+- [Getting Started](docs/getting-started.md) - Tutorial and examples
+- [Standard Library](docs/stdlib.md) - Built-in functions and modules
+- [Concurrency Guide](docs/concurrency.md) - Async programming and parallelism
 
-We iterate by **phases**:
-
-* **Phase A** — Lexer/Parser & diagnostics
-* **Phase B** — Types/Semantics
-* **Phase C** — Bytecode design & .sbc format
-* **Phase D** — VM & memory (arenas + RC)
-* **Phase E** — AST→SBC compiler
-* **Phase F** — std::math + native builtin calls
-* **Phase G** — Reactive graph (signals, `:=`)
-* **Phase H** — Task scheduler, futures, `parallel map/reduce`
-* **Phase I** — Built-in HTTP (epoll), JSON, per-request arenas
-* **Phase J** — Doctest runner
-* **Phase K** — Modules/Imports + cache
-* **Phase L** — Perf & optimizations
-* **Phase M** — Stability & limits
-* **Phase N** — Docs & DX
-
-Each phase can drop playground files into `PhaseX/`, and tests can be tied to those samples.
-
----
-
-## Coding Guidelines
-
-* C11, strict warnings, pedantic (`-Wall -Wextra -Werror -Wpedantic`).
-* Threading with `pthread`, I/O with `epoll`.
-* Memory: **arenas** for short-lived objects (e.g., per-request), **RC heap** for long-lived.
-* English-only comments/messages in code.
-* Keep front-end, compiler, VM, runtime **independent** where possible.
-
----
-
-## Roadmap (short)
-
-1. Minimal front-end → eval expressions → VM skeleton
-2. SBC format + disassembler
-3. std::math + purity tagging → parallel primitives
-4. signals/`:=` + propagation engine
-5. HTTP server + JSON + per-request arenas
-6. doctests + examples
-
-See `docs/ROADMAP.md` for detailed milestones.
-
----
-
-## License
-
-TBD (pick later: MIT/Apache-2.0).
+*Surge: Reactive, parallel, and safe systems programming for the modern world.*
