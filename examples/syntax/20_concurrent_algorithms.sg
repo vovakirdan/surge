@@ -1,7 +1,7 @@
 // Concurrent algorithms и parallel processing
-import std.async.{spawn, await, join_all, select};
-import std.sync.{Mutex, RwLock, Channel, Semaphore};
-import std.collections.{ConcurrentHashMap, AtomicCounter};
+import std/async::{spawn, await, join_all, select};
+import std/sync::{Mutex, RwLock, Channel, Semaphore};
+import std/collections::{ConcurrentHashMap, AtomicCounter};
 
 // Producer-Consumer pattern
 type Channel<T> {
@@ -430,12 +430,40 @@ async fn concurrent_algorithms_demo() -> int {
     return sum + counter.get();
 }
 
-// External functions for atomic operations
-extern fn atomic_load<T>(ptr: *T) -> T;
-extern fn atomic_store<T>(ptr: *T, value: T);
-extern fn atomic_fetch_add(ptr: *int, value: int) -> int;
-extern fn atomic_compare_and_swap<T>(ptr: *T, expected: T, new_value: T) -> bool;
-extern fn allocate_node<T>(node: Node<T>) -> *Node<T>;
-extern fn deallocate_node<T>(ptr: *Node<T>);
-extern fn get_current_thread_id() -> int;
-extern fn sleep(duration: Duration);
+// Atomic operations functions (would be provided by runtime)
+fn atomic_load<T>(ptr: *T) -> T {
+    // Implementation would be provided by runtime
+    return deref(ptr);
+}
+
+fn atomic_store<T>(ptr: *T, value: T) {
+    // Implementation would be provided by runtime
+}
+
+fn atomic_fetch_add(ptr: *int, value: int) -> int {
+    // Implementation would be provided by runtime
+    return 0;
+}
+
+fn atomic_compare_and_swap<T>(ptr: *T, expected: T, new_value: T) -> bool {
+    // Implementation would be provided by runtime
+    return true;
+}
+
+fn allocate_node<T>(node: Node<T>) -> *Node<T> {
+    // Implementation would be provided by runtime
+    return null;
+}
+
+fn deallocate_node<T>(ptr: *Node<T>) {
+    // Implementation would be provided by runtime
+}
+
+fn get_current_thread_id() -> int {
+    // Implementation would be provided by runtime
+    return 0;
+}
+
+async fn sleep(duration: Duration) {
+    // Implementation would be provided by runtime
+}

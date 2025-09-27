@@ -1,25 +1,25 @@
 // Примеры директив компилятора
 
 // Conditional compilation
-#[cfg(target_os = "linux")]
+/// target: os = "linux"
 fn linux_specific_function() -> string {
     return "Linux implementation";
 }
 
-#[cfg(target_os = "windows")]
+/// target: os = "windows"
 fn windows_specific_function() -> string {
     return "Windows implementation";
 }
 
-#[cfg(feature = "debug")]
+/// target: feature = "debug"
 fn debug_function() -> string {
     return "Debug mode enabled";
 }
 
 // Import с абсолютными путями
-import std.io;
-import std.collections.HashMap;
-import mylib.utils.{helper_function, another_helper};
+import std/io;
+import std/collections::HashMap;
+import mylib/utils::{helper_function, another_helper};
 
 // Relative imports
 import ./local_module;
@@ -27,7 +27,11 @@ import ../parent_module;
 import ./subdir/nested_module;
 
 // Performance directives
-#[benchmark.measure]
+/// benchmark:
+/// Performance test:
+///   benchmark.measure(performance_critical_function);
+
+@benchmark
 fn performance_critical_function() -> int {
     let mut sum: int = 0;
     for (let i: int = 0; i < 10000; i = i + 1) {
@@ -36,32 +40,32 @@ fn performance_critical_function() -> int {
     return sum;
 }
 
-#[time.measure]
+/// time:
+/// Execution time measurement:
+///   time.measure(timed_function);
+
+@time
 fn timed_function() -> string {
     return "This function execution time will be measured";
 }
 
 // Memory layout directives
-#[packed]
 type PackedStruct {
-    a: uint8,
-    b: uint32,
-    c: uint8
+    @packed a: uint8,
+    @packed b: uint32,
+    @packed c: uint8
 }
 
-#[align(16)]
 type AlignedStruct {
-    data: int[],
+    @align(16) data: int[],
     meta: string
 }
 
 // Optimization hints
-#[inline]
 fn small_function(x: int) -> int {
     return x * 2 + 1;
 }
 
-#[inline(never)]
 fn large_function() -> int {
     let mut result: int = 0;
     for (let i: int = 0; i < 1000; i = i + 1) {
@@ -71,68 +75,63 @@ fn large_function() -> int {
 }
 
 // Target-specific code
-#[cfg(arch = "x86_64")]
+/// target: arch = "x86_64"
 fn x86_optimized() -> int {
     return 64;
 }
 
-#[cfg(arch = "arm64")]
+/// target: arch = "arm64"
 fn arm_optimized() -> int {
     return 64;
 }
 
 // Feature flags
-#[cfg(feature = "networking")]
+/// target: feature = "networking"
 fn network_function() -> string {
     return "Network feature enabled";
 }
 
-#[cfg(feature = "database")]
+/// target: feature = "database"
 fn database_function() -> string {
     return "Database feature enabled";
 }
 
 // Debug информация
-#[cfg(debug_assertions)]
+/// target: debug_assertions
 fn debug_only_checks() -> bool {
     // Дополнительные проверки в debug режиме
     return true;
 }
 
 // Unsafe операции (если поддерживаются)
-#[unsafe]
 fn unsafe_pointer_operation(ptr: *int) -> int {
     return deref(ptr);
 }
 
-// Link directives
-#[link(name = "math")]
+// External library functions
 fn external_math_function() -> float {
     // Внешняя функция из библиотеки math
     return 3.14159;
 }
 
-#[link(name = "ssl", kind = "static")]
 fn ssl_function() -> string {
     return "SSL functionality";
 }
 
-// Serialization hints
-#[derive(Serialize, Deserialize)]
+// Serialization types
 type SerializableData {
     id: int,
     name: string,
     active: bool
 }
 
-// Error handling directives
-#[must_use]
+// Error handling functions
 fn important_result() -> Option<int> {
     return Some(42);
 }
 
-// Documentation directives
-#[doc("This function demonstrates directive usage")]
+// Documentation
+/// This function demonstrates directive usage
 fn documented_function() -> string {
     return "well documented";
 }
@@ -142,41 +141,41 @@ type ConditionalImpl {
     value: int
 }
 
-#[cfg(feature = "advanced")]
-impl ConditionalImpl {
-    fn advanced_method(&self) -> int {
+/// target: feature = "advanced"
+extern<ConditionalImpl> {
+    fn advanced_method(self: &ConditionalImpl) -> int {
         return self.value * 2;
     }
 }
 
 // Complex conditional compilation
-#[cfg(all(target_os = "linux", feature = "performance"))]
+/// target: all(os = "linux", feature = "performance")
 fn linux_performance_function() -> int {
     return 1000;
 }
 
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+/// target: any(os = "macos", os = "ios")
 fn apple_platform_function() -> string {
     return "Apple platform";
 }
 
-#[cfg(not(feature = "minimal"))]
+/// target: not(feature = "minimal")
 fn full_feature_function() -> string {
     return "Full feature set available";
 }
 
 // Testing directives
-#[cfg(test)]
+/// target: test
 fn test_helper() -> bool {
     return true;
 }
 
 // Main function with imports
 fn test_directives() -> int {
-    #[cfg(feature = "debug")]
+    /// target: feature = "debug"
     let debug_result: string = debug_function();
 
-    #[cfg(target_os = "linux")]
+    /// target: os = "linux"
     let os_result: string = linux_specific_function();
 
     let benchmark_result: int = performance_critical_function();

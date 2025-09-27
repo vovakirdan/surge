@@ -1,21 +1,21 @@
 // Модульная система и импорты
-import std.io.{print, println, read_line};
-import std.collections.{HashMap, Vec, LinkedList};
-import std.string.{String, format};
-import std.math.{sqrt, pow, PI, E};
+import std/io::{print, println, read_line};
+import std/collections::{HashMap, Vec, LinkedList};
+import std/string::{String, format};
+import std/math::{sqrt, pow, PI, E};
 
 // Относительные импорты
 import ./utils;
-import ./types.{Person, Address};
-import ../common/constants.{MAX_SIZE, DEFAULT_TIMEOUT};
+import ./types::{Person, Address};
+import ../common/constants::{MAX_SIZE, DEFAULT_TIMEOUT};
 
 // Импорт всего модуля
-import std.json as JSON;
-import std.http as HTTP;
+import std/json as JSON;
+import std/http as HTTP;
 
 // Импорт с алиасами
-import std.collections.HashMap as Map;
-import very.long.module.name as Short;
+import std/collections::HashMap as Map;
+import very/long/module/name as Short;
 
 // Экспорт типов и функций
 pub type Config {
@@ -103,10 +103,10 @@ pub const MAX_USERS: int = 1000;
 pub const API_VERSION: string = "v1.2.3";
 
 // Условная компиляция модулей
-#[cfg(feature = "database")]
-import database.{Connection, Query};
+/// target: feature = "database"
+import database::{Connection, Query};
 
-#[cfg(feature = "database")]
+/// target: feature = "database"
 pub fn connect_to_db() -> Option<Connection> {
     return Connection::new("postgresql://localhost/app");
 }
@@ -123,22 +123,22 @@ mod internal {
 }
 
 // Re-export
-pub use internal.exposed_function;
-pub use std.collections.{HashMap, Vec};
+pub use internal::exposed_function;
+pub use std/collections::{HashMap, Vec};
 
 // Тестовый модуль
-#[cfg(test)]
+/// target: test
 mod tests {
-    use super::*;
+    import super::*;
 
-    #[test]
+    @test
     fn test_create_config() {
         let config: Config = create_config("localhost", 8080);
         assert(config.host == "localhost");
         assert(config.port == 8080);
     }
 
-    #[test]
+    @test
     fn test_validate_user_id() {
         assert(validate_user_id(UserId(1)) == true);
         assert(validate_user_id(UserId(0)) == false);

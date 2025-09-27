@@ -1,9 +1,9 @@
 // Комплексное приложение - веб-сервер с базой данных
-import std.http.{Server, Request, Response, StatusCode};
-import std.json.{JSON, JsonValue};
-import std.db.{Database, Connection, QueryResult};
-import std.collections.HashMap;
-import std.string.format;
+import std/http::{Server, Request, Response, StatusCode};
+import std/json::{JSON, JsonValue};
+import std/db::{Database, Connection, QueryResult};
+import std/collections::{HashMap};
+import std/string::{format};
 
 // Application state
 type AppState {
@@ -56,21 +56,21 @@ alias ApiResult<T> = T | AppError;
 alias UserResult = ApiResult<User>;
 alias UsersResult = ApiResult<User[]>;
 
-// Database layer
-trait UserRepository {
-    async fn create_user(&self, req: CreateUserRequest) -> UserResult;
-    async fn get_user(&self, id: UserId) -> UserResult;
-    async fn list_users(&self, limit: int, offset: int) -> UsersResult;
-    async fn update_user(&self, id: UserId, updates: UserUpdate) -> UserResult;
-    async fn delete_user(&self, id: UserId) -> ApiResult<unit>;
+// Database layer interface
+type UserRepository {
+    create_user: async fn(req: CreateUserRequest) -> UserResult,
+    get_user: async fn(id: UserId) -> UserResult,
+    list_users: async fn(limit: int, offset: int) -> UsersResult,
+    update_user: async fn(id: UserId, updates: UserUpdate) -> UserResult,
+    delete_user: async fn(id: UserId) -> ApiResult<unit>
 }
 
 type PostgresUserRepository {
     @shared db: Database
 }
 
-impl UserRepository for PostgresUserRepository {
-    async fn create_user(&self, req: CreateUserRequest) -> UserResult {
+extern<PostgresUserRepository> {
+    async fn create_user(self: &PostgresUserRepository, req: CreateUserRequest) -> UserResult {
         // Validation
         let validation_result: ApiResult<unit> = validate_create_request(&req);
         compare validation_result {
@@ -104,7 +104,7 @@ impl UserRepository for PostgresUserRepository {
         };
     }
 
-    async fn get_user(&self, id: UserId) -> UserResult {
+    async fn get_user(self: &PostgresUserRepository, id: UserId) -> UserResult {
         let query: string = "SELECT * FROM users WHERE id = ?";
         let result: QueryResult = await self.db.query(query, [id.value()]);
 
@@ -132,7 +132,7 @@ impl UserRepository for PostgresUserRepository {
         };
     }
 
-    async fn list_users(&self, limit: int, offset: int) -> UsersResult {
+    async fn list_users(self: &PostgresUserRepository, limit: int, offset: int) -> UsersResult {
         let query: string = "SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?";
         let result: QueryResult = await self.db.query(query, [limit, offset]);
 
@@ -169,8 +169,8 @@ type UserService {
     @shared cache: HashMap<UserId, User>
 }
 
-impl UserService {
-    async fn get_user_cached(&self, id: UserId) -> UserResult {
+extern<UserService> {
+    async fn get_user_cached(self: &UserService, id: UserId) -> UserResult {
         // Check cache first
         let cached: Option<User> = self.cache.get(&id);
         compare cached {
@@ -189,13 +189,13 @@ impl UserService {
         };
     }
 
-    async fn create_user_with_notification(&self, req: CreateUserRequest) -> UserResult {
+    async fn create_user_with_notification(self: &UserService, req: CreateUserRequest) -> UserResult {
         let user_result: UserResult = await self.repository.create_user(req);
 
         compare user_result {
             Ok(user) => {
                 // Send welcome email asynchronously
-                spawn send_welcome_email(user.email.clone());
+                spawn send_welcome_email(user.email);
 
                 // Clear cache
                 self.cache.clear();

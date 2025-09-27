@@ -1,9 +1,9 @@
 // Testing framework и test utilities
-import std.test.{TestResult, TestSuite, Assertion, Mock};
-import std.time.{Duration, Instant};
+import std/test::{TestResult, TestSuite, Assertion, Mock};
+import std/time::{Duration, Instant};
 
-// Test attributes и макросы
-#[test]
+// Test attributes и директивы
+@test
 fn test_basic_arithmetic() {
     let result: int = 2 + 2;
     assert_eq!(result, 4);
@@ -11,104 +11,115 @@ fn test_basic_arithmetic() {
     assert!(result > 0);
 }
 
-#[test]
-#[should_panic("Division by zero")]
+@test
 fn test_division_by_zero() {
-    let result: int = 10 / 0; // Should panic
+    // Should panic
+    let result: int = 10 / 0;
 }
 
-#[test]
-#[ignore("Expensive test")]
+@test
 fn test_expensive_computation() {
-    // This test would be skipped by default
     let result: int = fibonacci(50);
     assert!(result > 0);
 }
 
-// Parameterized tests
-#[test]
-#[test_case(1, 1, 2)]
-#[test_case(2, 3, 5)]
-#[test_case(-1, 1, 0)]
-#[test_case(0, 0, 0)]
-fn test_addition(a: int, b: int, expected: int) {
-    let result: int = a + b;
-    assert_eq!(result, expected, "Failed for {} + {}", a, b);
+// Parameterized tests using doc-test directives
+/// test:
+/// Test addition cases:
+///   assert_eq!(test_addition(1, 1), 2);
+///   assert_eq!(test_addition(2, 3), 5);
+///   assert_eq!(test_addition(-1, 1), 0);
+///   assert_eq!(test_addition(0, 0), 0);
+
+fn test_addition(a: int, b: int) -> int {
+    return a + b;
 }
 
-// Property-based testing
-#[test]
-#[quickcheck]
-fn test_addition_commutative(a: int, b: int) {
-    assert_eq!(a + b, b + a);
+// Property-based testing functions
+@test
+fn test_addition_commutative() {
+    // Property: addition is commutative
+    for (let i: int = 0; i < 100; i = i + 1) {
+        let a: int = random_int();
+        let b: int = random_int();
+        assert_eq!(a + b, b + a);
+    }
 }
 
-#[test]
-#[quickcheck]
-fn test_string_concatenation_length(s1: string, s2: string) {
-    let combined: string = s1 + s2;
-    assert_eq!(combined.len(), s1.len() + s2.len());
+@test
+fn test_string_concatenation_length() {
+    for (let i: int = 0; i < 100; i = i + 1) {
+        let s1: string = random_string();
+        let s2: string = random_string();
+        let combined: string = s1 + s2;
+        assert_eq!(combined.len_chars(), s1.len_chars() + s2.len_chars());
+    }
 }
 
 // Benchmark tests
-#[bench]
-fn bench_vector_push() -> BenchResult {
+@benchmark
+fn bench_vector_push() {
     let mut vec: int[] = [];
 
-    return benchmark(|| {
-        for (let i: int = 0; i < 1000; i = i + 1) {
-            vec = vec + [i];
-        }
-    });
+    for (let i: int = 0; i < 1000; i = i + 1) {
+        vec = vec + [i];
+    }
 }
 
-#[bench]
-fn bench_hashmap_insert() -> BenchResult {
+@benchmark
+fn bench_hashmap_insert() {
     let mut map: HashMap<string, int> = HashMap::new();
 
-    return benchmark(|| {
-        for (let i: int = 0; i < 1000; i = i + 1) {
-            map.insert(i.to_string(), i);
-        }
-    });
+    for (let i: int = 0; i < 1000; i = i + 1) {
+        map.insert(i.to_string(), i);
+    }
 }
 
+// Benchmark directives
+/// benchmark:
+/// Vector operations:
+///   benchmark.measure(bench_vector_operations);
+/// String operations:
+///   benchmark.measure(bench_string_operations);
+
 // Async tests
-#[async_test]
+@test
 async fn test_async_computation() {
     let result: int = await async_add(2, 3);
     assert_eq!(result, 5);
 }
 
-#[async_test]
-#[timeout(Duration::seconds(5))]
-async fn test_with_timeout() {
+@test
+async fn test_async_with_timeout() {
     let result: string = await fetch_data_slowly();
     assert!(!result.is_empty());
 }
 
 // Mock objects и dependency injection
-trait DatabaseInterface {
-    fn get_user(&self, id: int) -> Option<User>;
-    fn save_user(&self, user: User) -> bool;
+type DatabaseInterface {
+    get_user: fn(id: int) -> Option<User>,
+    save_user: fn(user: User) -> bool
 }
 
 type MockDatabase {
-    @mock users: HashMap<int, User>
+    users: HashMap<int, User>
 }
 
-impl DatabaseInterface for MockDatabase {
-    fn get_user(&self, id: int) -> Option<User> {
-        return self.users.get(&id).cloned();
-    }
-
-    fn save_user(&self, user: User) -> bool {
-        self.users.insert(user.id, user);
-        return true;
+extern<MockDatabase> {
+    fn create_interface(self: &MockDatabase) -> DatabaseInterface {
+        return DatabaseInterface {
+            get_user: fn(id: int) -> Option<User> {
+                return self.users.get(&id);
+            },
+            save_user: fn(user: User) -> bool {
+                self.users.insert(user.id, user);
+                return true;
+            }
+        };
     }
 }
 
-#[test]
+@test
 fn test_user_service_with_mock() {
     let mut mock_db: MockDatabase = MockDatabase {
         users: HashMap::new()
@@ -120,13 +131,16 @@ fn test_user_service_with_mock() {
         email: "test@example.com"
     };
 
-    mock_db.users.insert(1, test_user.clone());
+    mock_db.users.insert(1, test_user);
 
-    let service: UserService = UserService::new(&mock_db);
-    let retrieved_user: Option<User> = service.get_user(1);
+    let db_interface: DatabaseInterface = mock_db.create_interface();
+    let retrieved_user: Option<User> = db_interface.get_user(1);
 
-    assert!(retrieved_user.is_some());
-    assert_eq!(retrieved_user.unwrap().name, "Test User");
+    assert!(retrieved_user is Some);
+    compare retrieved_user {
+        Some(user) => assert_eq!(user.name, "Test User"),
+        nothing => assert!(false)
+    };
 }
 
 // Test fixtures и setup/teardown
@@ -136,7 +150,7 @@ type TestFixture {
     test_data: TestData
 }
 
-impl TestFixture {
+extern<TestFixture> {
     fn setup() -> TestFixture {
         let db: TestDatabase = TestDatabase::create_memory();
         db.run_migrations();
@@ -149,7 +163,7 @@ impl TestFixture {
         };
     }
 
-    fn teardown(&mut self) {
+    fn teardown(self: &mut TestFixture) {
         self.database.cleanup();
 
         for (let file: string in self.temp_files) {
@@ -158,39 +172,43 @@ impl TestFixture {
     }
 }
 
-#[test_fixture(TestFixture)]
-fn test_with_fixture(fixture: &mut TestFixture) {
+@test
+fn test_with_fixture() {
+    let mut fixture: TestFixture = TestFixture::setup();
+
     let user: User = fixture.test_data.get_test_user();
     let saved: bool = fixture.database.save_user(user);
 
     assert!(saved);
 
     let retrieved: Option<User> = fixture.database.get_user(user.id);
-    assert!(retrieved.is_some());
+    assert!(retrieved is Some);
+
+    fixture.teardown();
 }
 
 // Test suite organization
-type UserServiceTests;
+type UserServiceTests {}
 
-impl UserServiceTests {
-    #[test]
+extern<UserServiceTests> {
+    @test
     fn test_create_user() {
         // Test implementation
     }
 
-    #[test]
+    @test
     fn test_update_user() {
         // Test implementation
     }
 
-    #[test]
+    @test
     fn test_delete_user() {
         // Test implementation
     }
 }
 
 // Integration tests
-#[integration_test]
+@test
 async fn test_full_user_workflow() {
     let app: TestApp = TestApp::start().await;
 
@@ -259,27 +277,32 @@ fn create_test_user(id: int) -> User {
 }
 
 // Snapshot testing
-#[test]
+@test
 fn test_user_serialization_snapshot() {
     let user: User = create_test_user(123);
     let json: string = JSON.stringify(user);
 
-    assert_snapshot!(json, "user_serialization");
+    // Simplified snapshot comparison
+    let expected: string = load_snapshot("user_serialization");
+    assert_eq!(json, expected);
 }
 
 // Fuzz testing
-#[fuzz_test]
-fn fuzz_string_parsing(input: uint8[]) {
-    let string_data: string = String::from_utf8_lossy(input);
+@test
+fn fuzz_string_parsing() {
+    for (let i: int = 0; i < 1000; i = i + 1) {
+        let input: uint8[] = generate_random_bytes();
+        let string_data: string = String::from_utf8_lossy(input);
 
-    // This should never panic
-    let parsed: Option<JsonValue> = JSON.parse(string_data);
+        // This should never panic
+        let parsed: Option<JsonValue> = JSON.parse(string_data);
 
-    // We don't care about the result, just that it doesn't crash
+        // We don't care about the result, just that it doesn't crash
+    }
 }
 
 // Performance regression tests
-#[perf_test]
+@benchmark
 fn perf_test_sorting_algorithm() {
     let data: int[] = generate_random_data(10000);
 
@@ -288,19 +311,18 @@ fn perf_test_sorting_algorithm() {
     let duration: Duration = start.elapsed();
 
     // Ensure sorting is fast enough
-    assert!(duration < Duration::milliseconds(100), "Sorting took too long: {}ms", duration.milliseconds());
+    assert!(duration < Duration::milliseconds(100));
 
     // Ensure correctness
     assert!(is_sorted(sorted));
 }
 
-// Test runner configuration
-#[test_config]
+// Test configuration
 type TestConfig {
-    parallel: bool = true,
-    timeout: Duration = Duration::seconds(30),
-    max_threads: int = 4,
-    verbose: bool = false
+    parallel: bool,
+    timeout: Duration,
+    max_threads: int,
+    verbose: bool
 }
 
 // Custom test framework implementation
@@ -393,17 +415,41 @@ fn main() -> int {
     // Register all tests
     register_tests(&mut runner);
 
-    let summary: TestSummary = await runner.run_all();
+    let summary: TestSummary = runner.run_all();
 
     println("Test Results:");
     println("=============");
-    println("Total:  {}", summary.total);
-    println("Passed: {}", summary.passed);
-    println("Failed: {}", summary.failed);
-    println("Ignored: {}", summary.ignored);
+    println("Total:  " + summary.total.to_string());
+    println("Passed: " + summary.passed.to_string());
+    println("Failed: " + summary.failed.to_string());
+    println("Ignored: " + summary.ignored.to_string());
 
     return compare summary.failed {
         0 => 0,
         _ => 1
+    };
+}
+
+// Helper functions
+fn random_int() -> int {
+    return 42; // Simplified
+}
+
+fn random_string() -> string {
+    return "test"; // Simplified
+}
+
+fn generate_random_bytes() -> uint8[] {
+    return [1, 2, 3, 4]; // Simplified
+}
+
+fn load_snapshot(name: string) -> string {
+    return "{}"; // Simplified
+}
+
+fn fibonacci(n: int) -> int {
+    return compare n {
+        0 | 1 => n,
+        _ => fibonacci(n - 1) + fibonacci(n - 2)
     };
 }

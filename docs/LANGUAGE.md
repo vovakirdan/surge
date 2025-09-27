@@ -40,8 +40,9 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 ```
 pub, fn, let, mut, if, else, while, for, in, break, continue,
 import, newtype, type, literal, alias, extern, return, signal, compare, spawn,
-true, false, nothing, is, finally, async, await,
-@pure, @overload, @override, @backend
+true, false, nothing, is, finally, async, await, macro,
+@pure, @overload, @override, @backend, @test, @benchmark, @time, @deprecated,
+@packed, @align, @shared, @atomic, @raii, @arena, @weak, @readonly
 ```
 
 ### 1.5. Literals
@@ -333,6 +334,14 @@ Variadics: `...args` denotes a variadic parameter and desugars to an array param
 * `@test` – marks test functions or doc-test helpers.
 * `@benchmark`, `@time` – benchmark/time helpers.
 * `@deprecated("msg")` – marks items as deprecated with a message.
+* `@packed` – indicates tightly packed memory layout for types/fields.
+* `@align(N)` – specifies memory alignment for types/fields.
+* `@shared` – marks data as shared between threads (thread-safe).
+* `@atomic` – marks data as atomic for lock-free operations.
+* `@raii` – enables automatic resource cleanup.
+* `@arena` – indicates arena-allocated memory.
+* `@weak` – weak reference (breaks cycles).
+* `@readonly` – marks fields as read-only even in mutable contexts.
 
 Parser behaviour:
 
@@ -356,6 +365,36 @@ extern<T> {
 
 * Methods are dispatched statically by the receiver type (`T`). No dynamic dispatch.
 * Built-in magic names implement operators and protocols (see below).
+
+### 4.5. Macros
+
+Macros provide compile-time code generation and metaprogramming capabilities:
+
+```sg
+macro assert_eq(left: expr, right: expr) {
+    if (!(left == right)) {
+        panic("Assertion failed: " + stringify(left) + " != " + stringify(right));
+    }
+}
+
+// Usage
+fn test_something() {
+    assert_eq(2 + 2, 4); // Expands to assertion code
+}
+```
+
+**Macro rules:**
+* Macros are declared with `macro` keyword followed by parameter list
+* Macro parameters have types like `expr`, `ident`, `type`, `block`, `meta`
+* Macros are called like functions: `macro_name(args)`
+* Macros expand at compile-time before type checking
+* Recursive macro expansion is limited to prevent infinite loops
+
+**Built-in macro functions:**
+* `stringify(expr)` – converts expression to string literal
+* `type_name_of<T>()` – returns type name as string
+* `size_of<T>()` – returns size of type in bytes
+* `align_of<T>()` – returns alignment requirement of type
 
 ---
 
@@ -389,6 +428,14 @@ Each file is a module. Folder hierarchy maps to module paths.
 * To-string: used by `print` → `__to_string() -> string`
 * Range: `for in` → `__range() -> Range<T>` where `Range<T>` yields `T` via `next()`.
 * Result propagation: `expr?` — if `expr` is `Result<T,E>`, yields `T` or returns `Err(E)` from the current function (see §11).
+* Compound assignment: `+= -= *= /= %= &= |= ^= <<= >>=` → corresponding operation + assign.
+* Increment/decrement: `++x --x x++ x--` → pre/post increment/decrement.
+* Ternary: `condition ? true_expr : false_expr` → conditional expression.
+* Null coalescing: `optional ?? default` → returns default if optional is `nothing`.
+* Safe navigation: `optional?.field` → access field if optional is not `nothing`.
+* Range creation: `start..end`, `start..=end`, `..end`, `start..` → range operators.
+* String operators: `string * count` → string repetition, `string + string` → concatenation.
+* Array operators: `array + array` → concatenation, `array[index]` → element access.
 
 ### 6.2. Type Checking Operator (`is`)
 
@@ -805,19 +852,63 @@ async fn process_data(urls: string[]) -> Result<Data[], Error> {
 /// Time1:
 ///   time.measure(add(2, 3), 5);
 ```
+
+13.4 Target directives `/// target:` provide conditional compilation based on platform, features, and build configuration:
+
+```sg
+/// target: os = "linux"
+fn linux_only_function() -> string {
+    return "Linux implementation";
+}
+
+/// target: feature = "networking"
+fn network_function() -> bool {
+    return true;
+}
+
+/// target: all(arch = "x86_64", feature = "performance")
+fn optimized_function() -> int {
+    return 42;
+}
+
+/// target: any(os = "macos", os = "ios")
+fn apple_function() -> string {
+    return "Apple platform";
+}
+
+/// target: not(feature = "minimal")
+fn full_feature_function() -> string {
+    return "Full version";
+}
+```
+
+**Target conditions:**
+* `os = "linux" | "windows" | "macos" | "ios" | "android"`
+* `arch = "x86_64" | "arm64" | "x86" | "arm"`
+* `feature = "feature_name"` (build-time feature flags)
+* `debug_assertions` (debug vs release builds)
+* `test` (test compilation mode)
+* Logical operators: `all(...)`, `any(...)`, `not(...)`
+
 ---
 
 ## 14. Precedence & Associativity
 
 From highest to lowest:
 
-1. `[]` (index), call `()`, member `.`, postfix `?`
-2. `* / %`
-3. `+ -`
-4. `< <= > >= == != is` (all comparison operators have same precedence, left-associative)
-5. `&&`
-6. `||`
-7. `=` `+=` `-=` `*=` `/=` (right-associative)
+1. `[]` (index), call `()`, member `.`, postfix `? ++ --`
+2. `++x --x +x -x !x` (prefix unary)
+3. `* / %`
+4. `+ -` (binary)
+5. `<< >>` (bitwise shift)
+6. `& ^ |` (bitwise operations)
+7. `..` `..=` (range operators)
+8. `< <= > >= == != is` (all comparison operators have same precedence, left-associative)
+9. `&&`
+10. `||`
+11. `? :` (ternary, right-associative)
+12. `??` (null coalescing)
+13. `=` `+=` `-=` `*=` `/=` `%=` `&=` `|=` `^=` `<<=` `>>=` (assignment, right-associative)
 
 **Type checking precedence:**
 Type checking with `is` has the same precedence as equality operators. Use parentheses for complex expressions:
@@ -881,7 +972,73 @@ let c = identity(3.14);    // generates identity_float
 * Larger binary sizes with many instantiations
 * Compile-time blow-up possible with recursive generic instantiations
 
-## 17. Open Questions / To Confirm
+## 17. Advanced Type System Features
+
+### 17.1. Union Types
+
+Union types allow a value to be one of several types:
+
+```sg
+alias Number = int | float;
+alias OptionalString = string | nothing;
+alias Result<T, E> = T | E;
+
+fn process_number(n: Number) -> string {
+    return compare n {
+        x if x is int => "Integer: " + x.to_string(),
+        x if x is float => "Float: " + x.to_string()
+    };
+}
+```
+
+### 17.2. Function Types
+
+Functions can be stored in variables and passed as parameters:
+
+```sg
+type Handler = fn(string) -> bool;
+type AsyncHandler = async fn(string) -> bool;
+
+fn register_handler(handler: Handler) {
+    // Store handler for later use
+}
+
+let my_handler: Handler = fn(input: string) -> bool {
+    return input.len_chars() > 0;
+};
+```
+
+### 17.3. Tuple Types
+
+Tuples group multiple values together:
+
+```sg
+type Point = (float, float);
+type NamedTuple = (name: string, age: int);
+
+fn get_coordinates() -> (float, float) {
+    return (10.5, 20.3);
+}
+
+let (x, y): (float, float) = get_coordinates();
+```
+
+### 17.4. Phantom Types
+
+Phantom types provide compile-time type safety without runtime overhead:
+
+```sg
+newtype UserId<T> = int;
+newtype ProductId<T> = int;
+
+type User { id: UserId<User>, name: string }
+type Product { id: ProductId<Product>, name: string }
+
+// Prevents mixing user and product IDs
+fn get_user(id: UserId<User>) -> Option<User> { ... }
+```
+
+## 18. Open Questions / To Confirm
 
 * Should `string` be `Copy` for small sizes or always `own`? (Proposed: always `own`.)
 * Exact GPU backend surface (kernels, memory spaces). For now, `@backend` is a hint.
@@ -889,15 +1046,19 @@ let c = identity(3.14);    // generates identity_float
 
 ---
 
-## 18. Grammar Sketch (extract)
+## 19. Grammar Sketch (extract)
 
 ```
 Module     := Item*
-Item       := Visibility? (Fn | AsyncFn | NewtypeDef | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
+Item       := Visibility? (Fn | AsyncFn | MacroDef | NewtypeDef | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
 Visibility := "pub"
 Fn         := Attr* "fn" Ident GenericParams? ParamList RetType? Block
 AsyncFn    := Attr* "async" "fn" Ident GenericParams? ParamList RetType? Block
-Attr       := "@pure" | "@overload" | "@override" | "@backend(" Str ")"
+MacroDef   := "macro" Ident MacroParamList Block
+MacroParamList := "(" (MacroParam ("," MacroParam)*)? ")"
+MacroParam := Ident ":" MacroType | "..." Ident ":" MacroType
+MacroType  := "expr" | "ident" | "type" | "block" | "meta"
+Attr       := "@pure" | "@overload" | "@override" | "@backend(" Str ")" | "@test" | "@benchmark" | "@time" | "@deprecated(" Str ")" | "@packed" | "@align(" Int ")" | "@shared" | "@atomic" | "@raii" | "@arena" | "@weak" | "@readonly"
 GenericParams := "<" Ident ("," Ident)* ">"
 ParamList  := "(" (Param ("," Param)*)? ")"
 Param      := Ident ":" Type | "..."
@@ -934,7 +1095,7 @@ Suffix     := "[]"
 
 ---
 
-## 19. Compatibility Notes
+## 20. Compatibility Notes
 
 * Built-ins for primitive base types are sealed; you cannot `@override` them directly. Use `newtype New = int;` and override on the newtype.
 * Dynamic numerics (`int/uint/float`) allow large results; casts to fixed-width may trap.
@@ -944,7 +1105,7 @@ Suffix     := "[]"
 
 ---
 
-## 20. Diagnostics Overview (selected)
+## 21. Diagnostics Overview (selected)
 
 Stable diagnostic codes used by the parser and early semantic checks:
 
