@@ -2,7 +2,6 @@
 // Union types
 alias StringOrNumber = string | int;
 alias OptionalData = string | nothing;
-alias Result<T, E> = T | E;
 
 // Intersection types (если поддерживаются)
 type Nameable {

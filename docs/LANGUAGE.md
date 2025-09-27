@@ -144,7 +144,7 @@ Generic parameters must be declared explicitly with angle brackets: `<T, U, ...>
 
 ### 2.6. Option and Result Types
 
-* `Option<T>` – optional value. Constructors:
+* `Option<T>` – optional value (nominal type with special typing rules). Constructors:
   * `Some(x)` wraps a present value of type `T`.
   * `nothing` denotes the absent case and has type `Option<T>` for some `T` determined by context.
 
@@ -152,7 +152,7 @@ Type-directed rules:
 
 * `nothing` requires contextual typing to determine `T`; using `nothing` where `T` cannot be inferred is a type error.
 * `compare` supports `nothing`/`Some(...)` patterns natively (§3.6).
-* `Option<T>` is equivalent to `alias Option<T> = T | nothing;`
+* Behavioral equivalence: `Option<T>` behaves like the union `T | nothing` for pattern matching and overloading, but it is a nominal type reserved by the language with special typing rules (contextual typing for `nothing`, auto-wrapping). It is not a plain alias.
 
 * `Result<T, E>` – recoverable error pattern provided by the standard library.
 
@@ -297,7 +297,7 @@ Parser diagnostics:
 
 * `signal name := expr;` binds `name` to the value of `expr`, re-evaluated automatically when any of its dependencies change.
 * Signals are single-assignment; you cannot assign to `name` directly.
-* Update semantics: changes propagate in topological order per turn. The bound expression must be `@pure`; side-effects inside signal evaluation are disallowed.
+* Update semantics: changes propagate in topological order per turn. The bound expression must be `@pure`; side-effects inside signal evaluation are disallowed. Violations emit `E_SIGNAL_NOT_PURE`.
 
 ### 3.6. Compare (Pattern Matching)
 
@@ -739,6 +739,8 @@ fn read_and_parse() -> Result<int, ParseError> {
 
 Traps remain for unrecoverable faults (OOB, internal assertion, certain cast traps). A richer effects model may be added later; this draft uses Result + traps.
 
+Convention: error types `E` used in `Result<T, E>` should extend the base `Error` via `newtype`, enabling consistent formatting and handling. The compiler does not enforce this; it is a project convention.
+
 ---
 
 ## 12. Examples
@@ -927,7 +929,7 @@ fn full_feature_function() -> string {
 
 From highest to lowest:
 
-1. `[]` (index), call `()`, member `.`, postfix `?`
+1. `[]` (index), call `()`, member `.`, await `.await`, postfix `?`
 2. `+x -x !x` (prefix unary)
 3. `* / %`
 4. `+ -` (binary)
@@ -954,7 +956,7 @@ Note: `=>` is not a general expression operator; it is reserved for `parallel ma
 
 ### Member access precedence
 
-Member access `.` is a postfix operator and binds tightly together with function calls and indexing. This resolves ambiguous parses, e.g., `a.f()[i].g()` parses as `(((a.f())[i]).g)()`.
+Member access `.` and await `.await` are postfix operators and bind tightly together with function calls and indexing. This resolves ambiguous parses, e.g., `a.f()[i].g()` parses as `(((a.f())[i]).g)()`; `future.await?` parses as `((future.await) ?)` with `.await` applied before the postfix `?`.
 
 ---
 
@@ -1017,7 +1019,6 @@ Union types allow a value to be one of several types:
 ```sg
 alias Number = int | float;
 alias OptionalString = string | nothing;
-alias Result<T, E> = T | E;
 
 fn process_number(n: Number) -> string {
     return compare n {
@@ -1067,7 +1068,7 @@ fn get_user(id: UserId<User>) -> Option<User> { ... }
 
 ## 19. Grammar Sketch (extract)
 
-Note: `MacroDef` is reserved for a future iteration. The syntax is specified for completeness; the core implementation should focus on the rest of the language first.
+Note: `MacroDef` is reserved for a future iteration. The syntax is specified for completeness; the core implementation should focus on the rest of the language first. Implementations should parse `macro` items but reject them with `E_MACRO_UNSUPPORTED`.
 
 ```
 Module     := Item*
@@ -1104,6 +1105,7 @@ Return     := "return" Expr?
 Signal     := "signal" Ident ":=" Expr
 Async      := "async" "{" Stmt* "}"
 Expr       := Compare | Spawn | ... (standard precedence)
+AwaitExpr  := Expr "." "await"           // awaits a Future; only valid in async fn/block
 Spawn      := "spawn" Expr
 Compare    := "compare" Expr "{" Arm (";" Arm)* ";"? "}"
 Arm        := Pattern "=>" Expr
@@ -1139,7 +1141,9 @@ Stable diagnostic codes used by the parser and early semantic checks:
 * `E_FOR_BAD_HEADER` — malformed C-style `for` header.
 * `E_ILLEGAL_ATTRIBUTE_TARGET` — attribute not allowed on this target.
 * `W_UNKNOWN_ATTRIBUTE` — unknown attribute.
-* `E_CHANNEL_CLOSED_ON_SEND` — send on closed channel returns Err(ChannelClosed).
 * `E_CYCLIC_TOPLEVEL_INIT` — cyclic top-level initialization.
 * `E_AMBIGUOUS_OVERLOAD` — ambiguous overload resolution.
 * `E_MISMATCH_RESULT_USE` — Result used where plain value expected (use `?` or compare).
+* `E_MACRO_UNSUPPORTED` — `macro` definitions are parsed but not supported in this iteration.
+
+Note: Channel closure is a runtime condition; `send` returns `Result<unit, ChannelClosed>`. The corresponding runtime diagnostic lives in RUNTIME.md, not as a compile-time diagnostic.
