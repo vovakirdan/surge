@@ -12,6 +12,8 @@
 * **Orthogonality:** features compose cleanly (e.g., generics + ownership + methods via `extern<T>`).
 * **Compile-time rigor, runtime pragmatism:** statically-typed core with dynamic-width numeric families (`int`, `uint`, `float`).
 * **Testability:** first-class doc-tests via `/// test:` directives.
+* **Explicit over implicit:** prefer clear, verbose constructs over clever shortcuts that obscure ownership or control flow.
+* **Ownership clarity:** every operation's ownership semantics should be obvious from the syntax.
 
 ---
 
@@ -182,6 +184,28 @@ let y: Option<int> = nothing;    // OK
 return nothing;                  // OK if function returns Option<T>
 fn foo() { }                     // returns unit
 fn bar() { return nothing; }     // also returns unit (equivalent)
+```
+
+Note: Surge does not include a safe-navigation operator (?.). Prefer explicit pattern matching with `compare` to work with optional values and avoid Option-heavy chaining.
+
+```sg
+let person: Option<Person> = get_person();
+let name: Option<string> = compare person {
+    Some(p) => Some(p.name),
+    nothing => nothing
+};
+
+// More complex logic stays clear and explicit
+let email_len: Option<int> = compare person {
+    Some(p) => compare p.profile {
+        Some(pr) => compare pr.email {
+            Some(e) => Some(e.len_chars()),
+            nothing => nothing
+        },
+        nothing => nothing
+    },
+    nothing => nothing
+};
 ```
 
 ### 2.7. Memory Management Model
@@ -396,6 +420,8 @@ fn test_something() {
 * `size_of<T>()` – returns size of type in bytes
 * `align_of<T>()` – returns alignment requirement of type
 
+**Implementation Status:** Macros are reserved for future iterations. The syntax and semantics are specified for completeness, but core implementation work should focus on other features first. Macros will be added after the base language is stable.
+
 ---
 
 ## 5. Modules & Imports
@@ -429,13 +455,18 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Range: `for in` → `__range() -> Range<T>` where `Range<T>` yields `T` via `next()`.
 * Result propagation: `expr?` — if `expr` is `Result<T,E>`, yields `T` or returns `Err(E)` from the current function (see §11).
 * Compound assignment: `+= -= *= /= %= &= |= ^= <<= >>=` → corresponding operation + assign.
-* Increment/decrement: `++x --x x++ x--` → pre/post increment/decrement.
 * Ternary: `condition ? true_expr : false_expr` → conditional expression.
 * Null coalescing: `optional ?? default` → returns default if optional is `nothing`.
-* Safe navigation: `optional?.field` → access field if optional is not `nothing`.
 * Range creation: `start..end`, `start..=end`, `..end`, `start..` → range operators.
 * String operators: `string * count` → string repetition, `string + string` → concatenation.
 * Array operators: `array + array` → concatenation, `array[index]` → element access.
+
+```
+// Rationale:
+// Compound assignment provides clear semantics: x += 1
+// C-style increment removed due to ownership ambiguity
+// Safe-navigation (?.) is not part of Surge; prefer compare for Option
+```
 
 ### 6.2. Type Checking Operator (`is`)
 
@@ -896,8 +927,8 @@ fn full_feature_function() -> string {
 
 From highest to lowest:
 
-1. `[]` (index), call `()`, member `.`, postfix `? ++ --`
-2. `++x --x +x -x !x` (prefix unary)
+1. `[]` (index), call `()`, member `.`, postfix `?`
+2. `+x -x !x` (prefix unary)
 3. `* / %`
 4. `+ -` (binary)
 5. `<< >>` (bitwise shift)
@@ -974,6 +1005,11 @@ let c = identity(3.14);    // generates identity_float
 
 ## 17. Advanced Type System Features
 
+**Implementation Priority:**
+1. Union types (§17.1) - core language feature
+2. Tuple types (§17.2) - standard feature for multiple returns
+3. Phantom types (§17.3) - advanced feature for type safety
+
 ### 17.1. Union Types
 
 Union types allow a value to be one of several types:
@@ -991,24 +1027,7 @@ fn process_number(n: Number) -> string {
 }
 ```
 
-### 17.2. Function Types
-
-Functions can be stored in variables and passed as parameters:
-
-```sg
-type Handler = fn(string) -> bool;
-type AsyncHandler = async fn(string) -> bool;
-
-fn register_handler(handler: Handler) {
-    // Store handler for later use
-}
-
-let my_handler: Handler = fn(input: string) -> bool {
-    return input.len_chars() > 0;
-};
-```
-
-### 17.3. Tuple Types
+### 17.2. Tuple Types
 
 Tuples group multiple values together:
 
@@ -1023,7 +1042,7 @@ fn get_coordinates() -> (float, float) {
 let (x, y): (float, float) = get_coordinates();
 ```
 
-### 17.4. Phantom Types
+### 17.3. Phantom Types
 
 Phantom types provide compile-time type safety without runtime overhead:
 
@@ -1047,6 +1066,8 @@ fn get_user(id: UserId<User>) -> Option<User> { ... }
 ---
 
 ## 19. Grammar Sketch (extract)
+
+Note: `MacroDef` is reserved for a future iteration. The syntax is specified for completeness; the core implementation should focus on the rest of the language first.
 
 ```
 Module     := Item*

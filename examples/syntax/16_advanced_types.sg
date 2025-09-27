@@ -162,8 +162,7 @@ fn calculate_area(shape: Shape) -> float {
 }
 
 // Type aliases with parameters
-type EventHandler<Event, Result> = fn(Event) -> Result;
-type AsyncHandler<Event, Result> = async fn(Event) -> Result;
+// (Function types removed from the language; use explicit functions or extern blocks instead.)
 
 // Nominal vs structural typing
 newtype UserId = int; // nominal
@@ -189,13 +188,7 @@ fn validate_email(email: string) -> Option<EmailPattern> {
 }
 
 // Type constructors
-type State<S, A> = fn(S) -> (A, S);
-
-fn return_state<S, A>(value: A) -> State<S, A> {
-    return fn(state: S) -> (A, S) {
-        return (value, state);
-    };
-}
+// (Function type constructors removed; express stateful computations via explicit types and methods.)
 
 // Complex type inference example
 fn complex_inference() -> int {

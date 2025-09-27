@@ -57,6 +57,7 @@ alias UserResult = ApiResult<User>;
 alias UsersResult = ApiResult<User[]>;
 
 // Database layer interface
+/*
 type UserRepository {
     create_user: async fn(req: CreateUserRequest) -> UserResult,
     get_user: async fn(id: UserId) -> UserResult,
@@ -64,6 +65,7 @@ type UserRepository {
     update_user: async fn(id: UserId, updates: UserUpdate) -> UserResult,
     delete_user: async fn(id: UserId) -> ApiResult<unit>
 }
+*/
 
 type PostgresUserRepository {
     @shared db: Database
@@ -272,6 +274,7 @@ async fn handle_create_user(request: Request, state: &AppState) -> Response {
 }
 
 // Middleware
+/*
 async fn logging_middleware(request: Request, next: fn(Request) -> async Response) -> Response {
     let start_time: Timestamp = get_current_time();
 
@@ -297,6 +300,7 @@ async fn rate_limiting_middleware(request: Request, next: fn(Request) -> async R
     };
 }
 
+*/
 // Application setup
 async fn create_app() -> ApiResult<Server> {
     // Database connection
@@ -320,8 +324,6 @@ async fn create_app() -> ApiResult<Server> {
     // Create server
     let server: Server = Server::new("0.0.0.0", 8080)
         .with_state(state)
-        .middleware(logging_middleware)
-        .middleware(rate_limiting_middleware)
         .route("GET", "/users/:id", handle_get_user)
         .route("POST", "/users", handle_create_user)
         .route("GET", "/health", handle_health_check);

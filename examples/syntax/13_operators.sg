@@ -85,15 +85,13 @@ fn test_assignment_operators() -> int {
 fn test_increment_decrement() -> int {
     let mut counter: int = 5;
 
-    // Префиксные операторы
-    let pre_inc: int = ++counter;   // counter = 6, pre_inc = 6
-    let pre_dec: int = --counter;   // counter = 5, pre_dec = 5
+    // Используем составные операторы вместо ++/--
+    counter += 1;   // 6
+    let after_inc: int = counter;
+    counter -= 1;   // 5
+    let after_dec: int = counter;
 
-    // Постфиксные операторы
-    let post_inc: int = counter++;  // post_inc = 5, counter = 6
-    let post_dec: int = counter--;  // post_dec = 6, counter = 5
-
-    return pre_inc + pre_dec + post_inc + post_dec + counter;
+    return after_inc + after_dec + counter; // 6 + 5 + 5 = 16
 }
 
 fn test_ternary_operator() -> string {
@@ -130,9 +128,15 @@ fn test_safe_navigation() -> int {
     let person: Option<Person> = Some(Person { name: "Alice", age: 30 });
     let no_person: Option<Person> = nothing;
 
-    // Safe navigation operator (если поддерживается)
-    let age1: Option<int> = person?.age;
-    let age2: Option<int> = no_person?.age;
+    // В Surge нет оператора безопасной навигации (?.). Используем compare.
+    let age1: Option<int> = compare person {
+        Some(p) => Some(p.age),
+        nothing => nothing
+    };
+    let age2: Option<int> = compare no_person {
+        Some(p) => Some(p.age),
+        nothing => nothing
+    };
 
     return compare age1 {
         Some(age) => age,

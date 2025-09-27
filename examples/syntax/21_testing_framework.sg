@@ -96,26 +96,18 @@ async fn test_async_with_timeout() {
 }
 
 // Mock objects и dependency injection
-type DatabaseInterface {
-    get_user: fn(id: int) -> Option<User>,
-    save_user: fn(user: User) -> bool
-}
-
 type MockDatabase {
     users: HashMap<int, User>
 }
 
 extern<MockDatabase> {
-    fn create_interface(self: &MockDatabase) -> DatabaseInterface {
-        return DatabaseInterface {
-            get_user: fn(id: int) -> Option<User> {
-                return self.users.get(&id);
-            },
-            save_user: fn(user: User) -> bool {
-                self.users.insert(user.id, user);
-                return true;
-            }
-        };
+    fn get_user(self: &MockDatabase, id: int) -> Option<User> {
+        return self.users.get(&id);
+    }
+
+    fn save_user(self: &mut MockDatabase, user: User) -> bool {
+        self.users.insert(user.id, user);
+        return true;
     }
 }
 
@@ -133,8 +125,7 @@ fn test_user_service_with_mock() {
 
     mock_db.users.insert(1, test_user);
 
-    let db_interface: DatabaseInterface = mock_db.create_interface();
-    let retrieved_user: Option<User> = db_interface.get_user(1);
+    let retrieved_user: Option<User> = mock_db.get_user(1);
 
     assert!(retrieved_user is Some);
     compare retrieved_user {

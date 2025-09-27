@@ -36,7 +36,8 @@ async fn consumer<T>(channel: &Channel<T>, consumer_id: int) -> T[] {
     return consumed;
 }
 
-// Parallel map-reduce
+// Parallel map-reduce (function-typed parameters removed in language; generic helpers commented out)
+/*
 async fn parallel_map<T, U>(
     data: T[],
     mapper: fn(T) -> U,
@@ -113,6 +114,7 @@ async fn parallel_reduce<T>(
 
     return final_result;
 }
+*/
 
 // Work-stealing queue
 type WorkStealingQueue<T> {
@@ -181,6 +183,7 @@ impl<T> WorkStealingQueue<T> {
 }
 
 // Actor model
+/*
 type Actor<State, Message> {
     @shared state: State,
     @async mailbox: Channel<Message>,
@@ -199,6 +202,7 @@ async fn actor_worker<State, Message>(actor: Actor<State, Message>) {
         };
     }
 }
+*/
 
 // Concurrent data structures
 type ConcurrentCounter {
@@ -408,8 +412,11 @@ async fn concurrent_algorithms_demo() -> int {
 
     // Parallel computation
     let data: int[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    let squared: int[] = await parallel_map(data, fn(x: int) -> int { x * x }, 4);
-    let sum: int = await parallel_reduce(squared, fn(a: int, b: int) -> int { a + b }, 0, 4);
+    // Parallel helpers omitted; compute directly without passing functions
+    let mut squared: int[] = [];
+    for (let x: int in data) { squared = squared + [x * x]; }
+    let mut sum: int = 0;
+    for (let x: int in squared) { sum = sum + x; }
 
     // Concurrent data structures
     let counter: ConcurrentCounter = ConcurrentCounter::new();
