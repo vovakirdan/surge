@@ -83,8 +83,7 @@ impl<'src> Parser<'src> {
             | TokenKind::Keyword(Keyword::Literal)
             | TokenKind::Keyword(Keyword::Alias)
             | TokenKind::Keyword(Keyword::Extern)
-            | TokenKind::Keyword(Keyword::Import)
-            | TokenKind::Keyword(Keyword::Using) => {
+            | TokenKind::Keyword(Keyword::Import) => {
                 let tok = self.stream.bump();
                 self.error(
                     ParseCode::UnexpectedToken,

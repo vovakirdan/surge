@@ -12,31 +12,37 @@ pub enum Keyword {
     Continue,
     As,
     Import,
-    Using,
+    // Using, - removed
+    Pub,
+    Newtype,
     Type,
     Literal,
     Alias,
     Extern,
     Return,
     Signal,
-    Parallel,
-    Map,
-    Reduce,
+    Compare,
+    Spawn,
+    Async,
+    Await,
+    Is,
+    Finally,
+    // Parallel, Map, Reduce - removed
     True,
     False,
     Nothing,
     Own,
     // directive-specific keywords
-    TestEqual,     // test.equal
-    TestNotEqual,  // test.ne
-    TestLess,      // test.lt
-    TestLessEq,    // test.le
-    TestGreater,   // test.gt
-    TestGreaterEq, // test.ge
-    TestAssert,    // test.assert
-    Repeat,        // repeat
-    RandomInt,     // random.int
-    RandomFloat,   // random.float
+    TestEqual,       // test.equal
+    TestNotEqual,    // test.ne
+    TestLess,        // test.lt
+    TestLessEq,      // test.le
+    TestGreater,     // test.gt
+    TestGreaterEq,   // test.ge
+    TestAssert,      // test.assert
+    BenchmarkMeasure, // benchmark.measure
+    TimeMeasure,     // time.measure
+    // Repeat, RandomInt, RandomFloat - removed
 }
 
 pub fn lookup_keyword(ident: &str) -> Option<Keyword> {
@@ -54,16 +60,20 @@ pub fn lookup_keyword(ident: &str) -> Option<Keyword> {
         "continue" => Continue,
         "import" => Import,
         "as" => As,
-        "using" => Using,
+        "pub" => Pub,
+        "newtype" => Newtype,
         "type" => Type,
         "literal" => Literal,
         "alias" => Alias,
         "extern" => Extern,
         "return" => Return,
         "signal" => Signal,
-        "parallel" => Parallel,
-        "map" => Map,
-        "reduce" => Reduce,
+        "compare" => Compare,
+        "spawn" => Spawn,
+        "async" => Async,
+        "await" => Await,
+        "is" => Is,
+        "finally" => Finally,
         "true" => True,
         "false" => False,
         "nothing" => Nothing,
@@ -85,9 +95,38 @@ pub fn lookup_directive_keyword(ident: &str) -> Option<Keyword> {
         "test.gt" => TestGreater,
         "test.ge" => TestGreaterEq,
         "test.assert" => TestAssert,
-        "repeat" => Repeat,
-        "random.int" => RandomInt,
-        "random.float" => RandomFloat,
+        "benchmark.measure" => BenchmarkMeasure,
+        "time.measure" => TimeMeasure,
+        _ => return None,
+    })
+}
+
+/// Ключевые слова для атрибутов (@attribute)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AttrKeyword {
+    Pure,
+    Overload,
+    Override,
+    Backend,
+    Test,
+    Benchmark,
+    Time,
+    Deprecated,
+}
+
+/// Поиск ключевых слов атрибутов
+/// Возвращает Some(AttrKeyword) если найдено ключевое слово атрибута
+pub fn lookup_attribute_keyword(ident: &str) -> Option<AttrKeyword> {
+    use AttrKeyword::*;
+    Some(match ident {
+        "pure" => Pure,
+        "overload" => Overload,
+        "override" => Override,
+        "backend" => Backend,
+        "test" => Test,
+        "benchmark" => Benchmark,
+        "time" => Time,
+        "deprecated" => Deprecated,
         _ => return None,
     })
 }

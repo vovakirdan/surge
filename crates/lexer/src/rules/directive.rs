@@ -353,7 +353,7 @@ mod tests {
 
     #[test]
     fn test_parse_benchmark_directive() {
-        let source = "/// benchmark:\n/// a:int = random.int(); b:int = random.int();\n/// repeat(1000, add(a, b));";
+        let source = "/// benchmark:\n/// Benchmark1:\n///   benchmark.measure(add(2, 3), 5);";
         let file = SourceId(0);
         let mut cursor = Cursor::new(source, file);
         let opts = LexOptions {
@@ -372,25 +372,18 @@ mod tests {
             TokenKind::Directive(DirectiveKind::Benchmark)
         );
 
-        // Проверяем ключевые слова random.int и repeat
-        let random_int_tokens: Vec<_> = emitter
+        // Проверяем ключевое слово benchmark.measure
+        let benchmark_measure_tokens: Vec<_> = emitter
             .tokens
             .iter()
-            .filter(|t| matches!(t.kind, TokenKind::Keyword(surge_token::Keyword::RandomInt)))
+            .filter(|t| matches!(t.kind, TokenKind::Keyword(surge_token::Keyword::BenchmarkMeasure)))
             .collect();
-        assert_eq!(random_int_tokens.len(), 2); // два вызова random.int()
-
-        let repeat_tokens: Vec<_> = emitter
-            .tokens
-            .iter()
-            .filter(|t| matches!(t.kind, TokenKind::Keyword(surge_token::Keyword::Repeat)))
-            .collect();
-        assert_eq!(repeat_tokens.len(), 1);
+        assert_eq!(benchmark_measure_tokens.len(), 1);
     }
 
     #[test]
     fn test_parse_time_directive() {
-        let source = "/// time:\n/// for i:int in [1, 2, 3] { add(1, 2); }";
+        let source = "/// time:\n/// Time1:\n///   time.measure(add(2, 3), 5);";
         let file = SourceId(0);
         let mut cursor = Cursor::new(source, file);
         let opts = LexOptions {
@@ -408,6 +401,14 @@ mod tests {
             directive_token.kind,
             TokenKind::Directive(DirectiveKind::Time)
         );
+
+        // Проверяем ключевое слово time.measure
+        let time_measure_tokens: Vec<_> = emitter
+            .tokens
+            .iter()
+            .filter(|t| matches!(t.kind, TokenKind::Keyword(surge_token::Keyword::TimeMeasure)))
+            .collect();
+        assert_eq!(time_measure_tokens.len(), 1);
     }
 
     #[test]

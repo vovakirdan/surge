@@ -74,7 +74,7 @@ fn test() {
 #[test]
 fn reports_invalid_operator() {
     let src = r#"
-fn compare() -> bool {
+fn test_func() -> bool {
     let a:int = 1;
     let b:int = 2;
     return a <> b;

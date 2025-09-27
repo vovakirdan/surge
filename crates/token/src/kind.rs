@@ -57,6 +57,7 @@ pub enum TokenKind {
     SlashEq,
     PercentEq,                // += -= *= /= %=
     ColonEq,                  // :=
+    Question,                 // ?
     At,                       // @
     Directive(DirectiveKind), // ///
     Eof,

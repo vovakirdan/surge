@@ -1,6 +1,5 @@
 ---
 source: crates/lexer/tests/ok_snapshots.rs
-assertion_line: 60
 expression: dump
 ---
 IDX  LINE:COL  KIND                 LEXEME
@@ -16,7 +15,7 @@ IDX  LINE:COL  KIND                 LEXEME
   9     3:22   Keyword(As)           "as"
  10     3:25   Ident                 "println"
  11     3:32   Semicolon             ";"
- 12     4:1    Keyword(Using)        "using"
+ 12     4:1    Ident                 "using"
  13     4:7    Ident                 "collections"
  14     4:18   Semicolon             ";"
  15     6:1    Keyword(Fn)           "fn"
