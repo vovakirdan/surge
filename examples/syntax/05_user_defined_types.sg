@@ -1,0 +1,49 @@
+// Пользовательские типы: структуры, newtypes, aliases
+type Person {
+    name: string,
+    age: int,
+    @readonly id: uint
+}
+
+// Newtype - создает новый номинальный тип
+newtype UserId = int;
+newtype Temperature = float;
+
+// Literal enum
+literal Color = "red" | "green" | "blue" | "yellow";
+
+// Type alias для union типов
+alias Number = int | float;
+alias OptionalString = string | nothing;
+
+fn test_user_types() -> int {
+    // Создание структуры
+    let person: Person = Person {
+        name: "Alice",
+        age: 30,
+        id: 12345
+    };
+
+    // Доступ к полям
+    let person_name: string = person.name;
+    let person_age: int = person.age;
+
+    // Newtype использование
+    let user_id: UserId = UserId(999);
+    let temp: Temperature = Temperature(36.6);
+
+    // Literal enum
+    let primary_color: Color = "red";
+    let secondary_color: Color = "green";
+
+    // Union types
+    let int_number: Number = 42;
+    let float_number: Number = 3.14;
+
+    return person_age;
+}
+
+// Функция с пользовательскими типами
+fn process_person(p: Person) -> UserId {
+    return UserId(p.id);
+}

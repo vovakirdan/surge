@@ -1,0 +1,409 @@
+// Testing framework и test utilities
+import std.test.{TestResult, TestSuite, Assertion, Mock};
+import std.time.{Duration, Instant};
+
+// Test attributes и макросы
+#[test]
+fn test_basic_arithmetic() {
+    let result: int = 2 + 2;
+    assert_eq!(result, 4);
+    assert_ne!(result, 5);
+    assert!(result > 0);
+}
+
+#[test]
+#[should_panic("Division by zero")]
+fn test_division_by_zero() {
+    let result: int = 10 / 0; // Should panic
+}
+
+#[test]
+#[ignore("Expensive test")]
+fn test_expensive_computation() {
+    // This test would be skipped by default
+    let result: int = fibonacci(50);
+    assert!(result > 0);
+}
+
+// Parameterized tests
+#[test]
+#[test_case(1, 1, 2)]
+#[test_case(2, 3, 5)]
+#[test_case(-1, 1, 0)]
+#[test_case(0, 0, 0)]
+fn test_addition(a: int, b: int, expected: int) {
+    let result: int = a + b;
+    assert_eq!(result, expected, "Failed for {} + {}", a, b);
+}
+
+// Property-based testing
+#[test]
+#[quickcheck]
+fn test_addition_commutative(a: int, b: int) {
+    assert_eq!(a + b, b + a);
+}
+
+#[test]
+#[quickcheck]
+fn test_string_concatenation_length(s1: string, s2: string) {
+    let combined: string = s1 + s2;
+    assert_eq!(combined.len(), s1.len() + s2.len());
+}
+
+// Benchmark tests
+#[bench]
+fn bench_vector_push() -> BenchResult {
+    let mut vec: int[] = [];
+
+    return benchmark(|| {
+        for (let i: int = 0; i < 1000; i = i + 1) {
+            vec = vec + [i];
+        }
+    });
+}
+
+#[bench]
+fn bench_hashmap_insert() -> BenchResult {
+    let mut map: HashMap<string, int> = HashMap::new();
+
+    return benchmark(|| {
+        for (let i: int = 0; i < 1000; i = i + 1) {
+            map.insert(i.to_string(), i);
+        }
+    });
+}
+
+// Async tests
+#[async_test]
+async fn test_async_computation() {
+    let result: int = await async_add(2, 3);
+    assert_eq!(result, 5);
+}
+
+#[async_test]
+#[timeout(Duration::seconds(5))]
+async fn test_with_timeout() {
+    let result: string = await fetch_data_slowly();
+    assert!(!result.is_empty());
+}
+
+// Mock objects и dependency injection
+trait DatabaseInterface {
+    fn get_user(&self, id: int) -> Option<User>;
+    fn save_user(&self, user: User) -> bool;
+}
+
+type MockDatabase {
+    @mock users: HashMap<int, User>
+}
+
+impl DatabaseInterface for MockDatabase {
+    fn get_user(&self, id: int) -> Option<User> {
+        return self.users.get(&id).cloned();
+    }
+
+    fn save_user(&self, user: User) -> bool {
+        self.users.insert(user.id, user);
+        return true;
+    }
+}
+
+#[test]
+fn test_user_service_with_mock() {
+    let mut mock_db: MockDatabase = MockDatabase {
+        users: HashMap::new()
+    };
+
+    let test_user: User = User {
+        id: 1,
+        name: "Test User",
+        email: "test@example.com"
+    };
+
+    mock_db.users.insert(1, test_user.clone());
+
+    let service: UserService = UserService::new(&mock_db);
+    let retrieved_user: Option<User> = service.get_user(1);
+
+    assert!(retrieved_user.is_some());
+    assert_eq!(retrieved_user.unwrap().name, "Test User");
+}
+
+// Test fixtures и setup/teardown
+type TestFixture {
+    database: TestDatabase,
+    temp_files: string[],
+    test_data: TestData
+}
+
+impl TestFixture {
+    fn setup() -> TestFixture {
+        let db: TestDatabase = TestDatabase::create_memory();
+        db.run_migrations();
+        db.seed_test_data();
+
+        return TestFixture {
+            database: db,
+            temp_files: [],
+            test_data: create_test_data()
+        };
+    }
+
+    fn teardown(&mut self) {
+        self.database.cleanup();
+
+        for (let file: string in self.temp_files) {
+            delete_file(file);
+        }
+    }
+}
+
+#[test_fixture(TestFixture)]
+fn test_with_fixture(fixture: &mut TestFixture) {
+    let user: User = fixture.test_data.get_test_user();
+    let saved: bool = fixture.database.save_user(user);
+
+    assert!(saved);
+
+    let retrieved: Option<User> = fixture.database.get_user(user.id);
+    assert!(retrieved.is_some());
+}
+
+// Test suite organization
+type UserServiceTests;
+
+impl UserServiceTests {
+    #[test]
+    fn test_create_user() {
+        // Test implementation
+    }
+
+    #[test]
+    fn test_update_user() {
+        // Test implementation
+    }
+
+    #[test]
+    fn test_delete_user() {
+        // Test implementation
+    }
+}
+
+// Integration tests
+#[integration_test]
+async fn test_full_user_workflow() {
+    let app: TestApp = TestApp::start().await;
+
+    // Create user
+    let create_response: HttpResponse = await app.post("/users")
+        .json({
+            "name": "Integration Test User",
+            "email": "integration@test.com"
+        })
+        .send();
+
+    assert_eq!(create_response.status(), 201);
+
+    let created_user: User = create_response.json().await;
+    let user_id: int = created_user.id;
+
+    // Get user
+    let get_response: HttpResponse = await app.get(format("/users/{}", user_id)).send();
+    assert_eq!(get_response.status(), 200);
+
+    let retrieved_user: User = get_response.json().await;
+    assert_eq!(retrieved_user.name, "Integration Test User");
+
+    // Update user
+    let update_response: HttpResponse = await app.put(format("/users/{}", user_id))
+        .json({
+            "name": "Updated User",
+            "email": "updated@test.com"
+        })
+        .send();
+
+    assert_eq!(update_response.status(), 200);
+
+    // Delete user
+    let delete_response: HttpResponse = await app.delete(format("/users/{}", user_id)).send();
+    assert_eq!(delete_response.status(), 204);
+
+    // Verify deletion
+    let get_deleted_response: HttpResponse = await app.get(format("/users/{}", user_id)).send();
+    assert_eq!(get_deleted_response.status(), 404);
+
+    app.shutdown().await;
+}
+
+// Test utilities и helpers
+fn assert_arrays_equal<T: Eq>(actual: T[], expected: T[]) {
+    assert_eq!(actual.len(), expected.len(), "Array lengths differ");
+
+    for (let i: int = 0; i < actual.len(); i = i + 1) {
+        assert_eq!(actual[i], expected[i], "Arrays differ at index {}", i);
+    }
+}
+
+fn assert_float_eq(actual: float, expected: float, epsilon: float) {
+    let diff: float = abs(actual - expected);
+    assert!(diff < epsilon, "Floats differ by more than epsilon: {} vs {}", actual, expected);
+}
+
+fn create_test_user(id: int) -> User {
+    return User {
+        id: id,
+        name: format("Test User {}", id),
+        email: format("test{}@example.com", id),
+        created_at: get_current_time()
+    };
+}
+
+// Snapshot testing
+#[test]
+fn test_user_serialization_snapshot() {
+    let user: User = create_test_user(123);
+    let json: string = JSON.stringify(user);
+
+    assert_snapshot!(json, "user_serialization");
+}
+
+// Fuzz testing
+#[fuzz_test]
+fn fuzz_string_parsing(input: uint8[]) {
+    let string_data: string = String::from_utf8_lossy(input);
+
+    // This should never panic
+    let parsed: Option<JsonValue> = JSON.parse(string_data);
+
+    // We don't care about the result, just that it doesn't crash
+}
+
+// Performance regression tests
+#[perf_test]
+fn perf_test_sorting_algorithm() {
+    let data: int[] = generate_random_data(10000);
+
+    let start: Instant = Instant::now();
+    let sorted: int[] = quick_sort(data);
+    let duration: Duration = start.elapsed();
+
+    // Ensure sorting is fast enough
+    assert!(duration < Duration::milliseconds(100), "Sorting took too long: {}ms", duration.milliseconds());
+
+    // Ensure correctness
+    assert!(is_sorted(sorted));
+}
+
+// Test runner configuration
+#[test_config]
+type TestConfig {
+    parallel: bool = true,
+    timeout: Duration = Duration::seconds(30),
+    max_threads: int = 4,
+    verbose: bool = false
+}
+
+// Custom test framework implementation
+type TestRunner {
+    config: TestConfig,
+    tests: TestCase[],
+    results: TestResult[]
+}
+
+impl TestRunner {
+    fn new(config: TestConfig) -> TestRunner {
+        return TestRunner {
+            config: config,
+            tests: [],
+            results: []
+        };
+    }
+
+    fn add_test(&mut self, test: TestCase) {
+        self.tests = self.tests + [test];
+    }
+
+    async fn run_all(&mut self) -> TestSummary {
+        let mut passed: int = 0;
+        let mut failed: int = 0;
+        let mut ignored: int = 0;
+
+        for (let test: TestCase in self.tests) {
+            let result: TestResult = await self.run_test(test);
+            self.results = self.results + [result];
+
+            compare result.status {
+                TestStatus::Passed => passed = passed + 1,
+                TestStatus::Failed => failed = failed + 1,
+                TestStatus::Ignored => ignored = ignored + 1
+            };
+        }
+
+        return TestSummary {
+            total: self.tests.len(),
+            passed: passed,
+            failed: failed,
+            ignored: ignored
+        };
+    }
+
+    async fn run_test(&self, test: TestCase) -> TestResult {
+        if (test.should_ignore) {
+            return TestResult {
+                name: test.name,
+                status: TestStatus::Ignored,
+                duration: Duration::zero(),
+                error: nothing
+            };
+        }
+
+        let start: Instant = Instant::now();
+
+        let result: Result<unit, TestError> = try {
+            await test.run();
+        } catch (err: TestError) {
+            return TestResult {
+                name: test.name,
+                status: TestStatus::Failed,
+                duration: start.elapsed(),
+                error: Some(err)
+            };
+        };
+
+        return TestResult {
+            name: test.name,
+            status: TestStatus::Passed,
+            duration: start.elapsed(),
+            error: nothing
+        };
+    }
+}
+
+// Main test entry point
+fn main() -> int {
+    let config: TestConfig = TestConfig {
+        parallel: true,
+        timeout: Duration::seconds(60),
+        max_threads: 8,
+        verbose: true
+    };
+
+    let mut runner: TestRunner = TestRunner::new(config);
+
+    // Register all tests
+    register_tests(&mut runner);
+
+    let summary: TestSummary = await runner.run_all();
+
+    println("Test Results:");
+    println("=============");
+    println("Total:  {}", summary.total);
+    println("Passed: {}", summary.passed);
+    println("Failed: {}", summary.failed);
+    println("Ignored: {}", summary.ignored);
+
+    return compare summary.failed {
+        0 => 0,
+        _ => 1
+    };
+}

@@ -1,0 +1,212 @@
+// Операторы и выражения
+fn test_arithmetic_operators() -> int {
+    // Арифметические операторы
+    let a: int = 10;
+    let b: int = 3;
+
+    let sum: int = a + b;        // 13
+    let diff: int = a - b;       // 7
+    let product: int = a * b;    // 30
+    let quotient: int = a / b;   // 3
+    let remainder: int = a % b;  // 1
+
+    // Унарные операторы
+    let negative: int = -a;      // -10
+    let positive: int = +a;      // 10
+
+    return sum + diff + product + quotient + remainder;
+}
+
+fn test_comparison_operators() -> bool {
+    let x: int = 5;
+    let y: int = 10;
+
+    // Операторы сравнения
+    let equal: bool = x == y;           // false
+    let not_equal: bool = x != y;       // true
+    let less: bool = x < y;             // true
+    let less_equal: bool = x <= y;      // true
+    let greater: bool = x > y;          // false
+    let greater_equal: bool = x >= y;   // false
+
+    return equal && not_equal && less && less_equal && greater && greater_equal;
+}
+
+fn test_logical_operators() -> bool {
+    let a: bool = true;
+    let b: bool = false;
+
+    // Логические операторы
+    let and_result: bool = a && b;      // false
+    let or_result: bool = a || b;       // true
+    let not_a: bool = !a;              // false
+    let not_b: bool = !b;              // true
+
+    return and_result || or_result || not_a || not_b;
+}
+
+fn test_bitwise_operators() -> int {
+    let x: int = 12;  // 1100 в двоичной
+    let y: int = 10;  // 1010 в двоичной
+
+    // Битовые операторы
+    let and_bits: int = x & y;          // 1000 = 8
+    let or_bits: int = x | y;           // 1110 = 14
+    let xor_bits: int = x ^ y;          // 0110 = 6
+    let not_bits: int = ~x;             // инверсия битов
+
+    // Сдвиги
+    let left_shift: int = x << 2;       // 110000 = 48
+    let right_shift: int = x >> 2;      // 11 = 3
+
+    return and_bits + or_bits + xor_bits + left_shift + right_shift;
+}
+
+fn test_assignment_operators() -> int {
+    let mut x: int = 10;
+
+    // Составные операторы присваивания
+    x += 5;     // x = x + 5, теперь x = 15
+    x -= 3;     // x = x - 3, теперь x = 12
+    x *= 2;     // x = x * 2, теперь x = 24
+    x /= 4;     // x = x / 4, теперь x = 6
+    x %= 4;     // x = x % 4, теперь x = 2
+
+    let mut y: int = 8;
+    y &= 12;    // y = y & 12
+    y |= 3;     // y = y | 3
+    y ^= 5;     // y = y ^ 5
+    y <<= 1;    // y = y << 1
+    y >>= 2;    // y = y >> 2
+
+    return x + y;
+}
+
+fn test_increment_decrement() -> int {
+    let mut counter: int = 5;
+
+    // Префиксные операторы
+    let pre_inc: int = ++counter;   // counter = 6, pre_inc = 6
+    let pre_dec: int = --counter;   // counter = 5, pre_dec = 5
+
+    // Постфиксные операторы
+    let post_inc: int = counter++;  // post_inc = 5, counter = 6
+    let post_dec: int = counter--;  // post_dec = 6, counter = 5
+
+    return pre_inc + pre_dec + post_inc + post_dec + counter;
+}
+
+fn test_ternary_operator() -> string {
+    let condition: bool = true;
+    let x: int = 10;
+
+    // Тернарный оператор
+    let result: string = condition ? "true case" : "false case";
+    let number_result: int = x > 5 ? x * 2 : x / 2;
+
+    // Вложенные тернарные операторы
+    let nested: string = x > 15 ? "large" : (x > 5 ? "medium" : "small");
+
+    return result;
+}
+
+fn test_null_coalescing() -> string {
+    let maybe_string: Option<string> = Some("hello");
+    let empty_string: Option<string> = nothing;
+
+    // Null coalescing operator (если поддерживается)
+    let result1: string = maybe_string ?? "default";
+    let result2: string = empty_string ?? "default";
+
+    return result1 + result2;
+}
+
+fn test_safe_navigation() -> int {
+    type Person {
+        name: string,
+        age: int
+    }
+
+    let person: Option<Person> = Some(Person { name: "Alice", age: 30 });
+    let no_person: Option<Person> = nothing;
+
+    // Safe navigation operator (если поддерживается)
+    let age1: Option<int> = person?.age;
+    let age2: Option<int> = no_person?.age;
+
+    return compare age1 {
+        Some(age) => age,
+        nothing => 0
+    };
+}
+
+fn test_is_operator() -> bool {
+    let value: Option<int> = Some(42);
+    let empty: Option<int> = nothing;
+
+    // is operator для проверки типов
+    let has_value: bool = value is Some;
+    let is_empty: bool = empty is nothing;
+    let is_some_int: bool = value is Some<int>;
+
+    return has_value && is_empty && is_some_int;
+}
+
+fn test_range_operators() -> int[] {
+    // Range операторы (если поддерживаются)
+    let range1: int[] = 1..5;      // [1, 2, 3, 4]
+    let range2: int[] = 1..=5;     // [1, 2, 3, 4, 5]
+    let range3: int[] = ..5;       // [0, 1, 2, 3, 4]
+    let range4: int[] = 3..;       // бесконечный range от 3
+
+    return range1;
+}
+
+fn test_destructuring() -> int {
+    let tuple: (int, string, bool) = (42, "hello", true);
+
+    // Destructuring assignment
+    let (number, text, flag): (int, string, bool) = tuple;
+
+    let array: int[] = [1, 2, 3, 4, 5];
+    let [first, second, ...rest]: int[] = array;
+
+    return number + first + second;
+}
+
+fn test_operator_precedence() -> int {
+    // Тестирование приоритета операторов
+    let result1: int = 2 + 3 * 4;           // 14, не 20
+    let result2: int = (2 + 3) * 4;         // 20
+    let result3: int = 2 * 3 + 4 * 5;       // 26
+    let result4: bool = true || false && false; // true
+
+    return result1 + result2 + result3;
+}
+
+fn test_string_operators() -> string {
+    let str1: string = "Hello";
+    let str2: string = "World";
+
+    // String concatenation
+    let combined: string = str1 + " " + str2;
+
+    // String repetition (если поддерживается)
+    let repeated: string = str1 * 3;  // "HelloHelloHello"
+
+    return combined;
+}
+
+fn test_array_operators() -> int {
+    let arr1: int[] = [1, 2, 3];
+    let arr2: int[] = [4, 5, 6];
+
+    // Array concatenation
+    let combined: int[] = arr1 + arr2;  // [1, 2, 3, 4, 5, 6]
+
+    // Array access
+    let first: int = combined[0];
+    let last: int = combined[combined.length - 1];
+
+    return first + last + combined.length;
+}

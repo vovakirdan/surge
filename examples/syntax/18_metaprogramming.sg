@@ -1,0 +1,276 @@
+// Метапрограммирование и макросы
+// Simple макросы
+macro simple_assert(condition: expr) {
+    if (!condition) {
+        panic("Assertion failed: " + stringify!(condition));
+    }
+}
+
+// Макрос с множественными аргументами
+macro debug_print(format: string, ...args: expr) {
+    #[cfg(debug_assertions)]
+    println(format!(format, ...args));
+}
+
+// Compile-time вычисления
+const fn compile_time_factorial(n: int) -> int {
+    return compare n {
+        0 | 1 => 1,
+        _ => n * compile_time_factorial(n - 1)
+    };
+}
+
+const FACTORIAL_5: int = compile_time_factorial(5); // 120
+
+// Template метапрограммирование
+template<T, N: int>
+type FixedArray {
+    data: T[N]
+}
+
+template<T>
+fn create_array<const N: int>(default_value: T) -> FixedArray<T, N> {
+    let mut arr: FixedArray<T, N>;
+    for (let i: int = 0; i < N; i = i + 1) {
+        arr.data[i] = default_value;
+    }
+    return arr;
+}
+
+// Reflection и type introspection
+fn type_info_example<T>() -> string {
+    let type_name: string = type_name_of<T>();
+    let size: int = size_of<T>();
+    let align: int = align_of<T>();
+
+    return format("Type: {}, Size: {}, Align: {}", type_name, size, align);
+}
+
+// Procedural макросы
+proc_macro derive_debug(item: TypeDefinition) -> TokenStream {
+    let type_name: string = item.name;
+    let fields: Field[] = item.fields;
+
+    let mut debug_impl: string = format("impl Debug for {} {{\n", type_name);
+    debug_impl += "    fn debug(&self) -> string {\n";
+    debug_impl += format("        let mut result = \"{}{{ \";\n", type_name);
+
+    for (let field: Field in fields) {
+        debug_impl += format("        result += \"{}: \" + self.{}.debug() + \", \";\n",
+                           field.name, field.name);
+    }
+
+    debug_impl += "        result += \"}\";\n";
+    debug_impl += "        return result;\n";
+    debug_impl += "    }\n";
+    debug_impl += "}\n";
+
+    return parse_tokens(debug_impl);
+}
+
+// Attribute макросы
+attr_macro benchmark(args: TokenStream, item: Function) -> TokenStream {
+    let function_name: string = item.name;
+    let bench_name: string = "bench_" + function_name;
+
+    let bench_function: string = format(
+        "fn {}() -> BenchResult {{
+            let start = get_time();
+            {}();
+            let end = get_time();
+            return BenchResult {{ duration: end - start }};
+        }}",
+        bench_name,
+        function_name
+    );
+
+    return parse_tokens(bench_function);
+}
+
+// Code generation макросы
+macro generate_accessors(type_name: ident, ...fields: ident) {
+    impl type_name {
+        $(
+            pub fn get_$fields(&self) -> &$fields.type {
+                return &self.$fields;
+            }
+
+            pub fn set_$fields(&mut self, value: $fields.type) {
+                self.$fields = value;
+            }
+        )*
+    }
+}
+
+// Conditional compilation макросы
+macro cfg_if(condition: meta, then_block: block, else_block: block) {
+    #[cfg(condition)]
+    then_block
+
+    #[cfg(not(condition))]
+    else_block
+}
+
+// Format макрос
+macro format(template: string, ...args: expr) -> string {
+    // Compile-time обработка format string
+    let mut result: string = template;
+
+    let mut arg_index: int = 0;
+    for (let arg in args) {
+        let placeholder: string = "{" + arg_index.to_string() + "}";
+        result = result.replace(placeholder, stringify!(arg));
+        arg_index = arg_index + 1;
+    }
+
+    return result;
+}
+
+// Type-safe SQL макрос
+macro sql(query: string) -> QueryBuilder {
+    // Парсим SQL на compile time
+    let parsed_query: ParsedSQL = parse_sql_at_compile_time(query);
+
+    // Генерируем type-safe код
+    return QueryBuilder::from_parsed(parsed_query);
+}
+
+// Pattern matching макрос
+macro matches(expr: expr, pattern: pattern) -> bool {
+    compare expr {
+        pattern => true,
+        _ => false
+    }
+}
+
+// Async макрос для упрощения async кода
+macro async_block(body: block) {
+    spawn async {
+        body
+    }
+}
+
+// Compile-time assertions
+macro static_assert(condition: expr, message: string) {
+    const CHECK: bool = condition;
+    const _: () = if (!CHECK) {
+        compile_error!(message);
+    };
+}
+
+// Declarative макросы с pattern matching
+macro vec [...elements: expr] -> Vec<InferredType> {
+    let mut result = Vec::new();
+    $(
+        result.push(elements);
+    )*
+    return result;
+}
+
+// Domain-specific language макрос
+macro html {
+    element($tag:ident) {
+        $(attr($name:ident = $value:expr))*
+        $($children:html)*
+    } => {
+        HtmlElement::new(stringify!($tag))
+            $(
+                .with_attribute(stringify!($name), $value)
+            )*
+            $(
+                .with_child($children)
+            )*
+    },
+
+    text($content:expr) => {
+        HtmlText::new($content)
+    }
+}
+
+// Usage примеры
+fn metaprogramming_examples() -> int {
+    // Simple макрос
+    let x: int = 42;
+    simple_assert!(x > 0);
+
+    // Debug printing
+    debug_print!("Value is: {}", x);
+
+    // Type information
+    let info: string = type_info_example<int>();
+
+    // Format макрос
+    let message: string = format!("Hello, {}! You are {} years old.", "Alice", 30);
+
+    // Pattern matching макрос
+    let matches_some: bool = matches!(Some(42), Some(_));
+
+    // Vec макрос
+    let numbers: Vec<int> = vec![1, 2, 3, 4, 5];
+
+    // HTML DSL
+    let html_element = html! {
+        element(div) {
+            attr(class = "container")
+            attr(id = "main")
+            element(h1) {
+                text("Hello, World!")
+            }
+            element(p) {
+                text("This is generated HTML")
+            }
+        }
+    };
+
+    return x + numbers.len();
+}
+
+// Macro-generated код пример
+#[derive(Debug, Clone, PartialEq)]
+type Person {
+    name: string,
+    age: int,
+    email: string
+}
+
+generate_accessors!(Person, name, age, email);
+
+// Conditional compilation example
+cfg_if!(target_os = "linux", {
+    fn platform_specific() -> string {
+        return "Linux implementation";
+    }
+}, {
+    fn platform_specific() -> string {
+        return "Other platform implementation";
+    }
+});
+
+// Compile-time constraints
+static_assert!(size_of<int>() == 4, "int must be 4 bytes");
+static_assert!(FACTORIAL_5 == 120, "factorial calculation failed");
+
+// Benchmark example
+#[benchmark]
+fn fibonacci(n: int) -> int {
+    return compare n {
+        0 | 1 => n,
+        _ => fibonacci(n - 1) + fibonacci(n - 2)
+    };
+}
+
+// Type-safe SQL example
+fn database_query() -> QueryResult {
+    let query = sql!("SELECT name, age FROM users WHERE age > ?");
+    return query.bind(18).execute();
+}
+
+// Async block example
+fn concurrent_operations() {
+    async_block! {
+        let result1 = await fetch_data("url1");
+        let result2 = await fetch_data("url2");
+        let combined = combine_results(result1, result2);
+        return combined;
+    };
+}
