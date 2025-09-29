@@ -1,11 +1,14 @@
-use surge_lexer::{lex, LexOptions};
+use surge_lexer::{LexOptions, lex};
 use surge_token::{SourceId, TokenKind};
 
 fn kinds(src: &str) -> Vec<TokenKind> {
     let res = lex(
         src,
         SourceId(0),
-        &LexOptions { keep_trivia: false, enable_directives: true },
+        &LexOptions {
+            keep_trivia: false,
+            enable_directives: true,
+        },
     );
     res.tokens.into_iter().map(|t| t.kind).collect()
 }
@@ -25,4 +28,3 @@ fn question_token() {
     let ks = kinds("let v = f()?;");
     assert!(ks.contains(&TokenKind::Question));
 }
-

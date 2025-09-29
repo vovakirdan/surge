@@ -100,6 +100,7 @@ fn parse_directive_kind(cur: &mut Cursor, em: &mut Emitter) -> Option<DirectiveK
         "test" => Some(DirectiveKind::Test),
         "benchmark" => Some(DirectiveKind::Benchmark),
         "time" => Some(DirectiveKind::Time),
+        "target" => Some(DirectiveKind::Target),
         _ => {
             // Неизвестная директива - выдаем диагностику
             if !keyword.is_empty() {
@@ -376,7 +377,12 @@ mod tests {
         let benchmark_measure_tokens: Vec<_> = emitter
             .tokens
             .iter()
-            .filter(|t| matches!(t.kind, TokenKind::Keyword(surge_token::Keyword::BenchmarkMeasure)))
+            .filter(|t| {
+                matches!(
+                    t.kind,
+                    TokenKind::Keyword(surge_token::Keyword::BenchmarkMeasure)
+                )
+            })
             .collect();
         assert_eq!(benchmark_measure_tokens.len(), 1);
     }
@@ -406,7 +412,12 @@ mod tests {
         let time_measure_tokens: Vec<_> = emitter
             .tokens
             .iter()
-            .filter(|t| matches!(t.kind, TokenKind::Keyword(surge_token::Keyword::TimeMeasure)))
+            .filter(|t| {
+                matches!(
+                    t.kind,
+                    TokenKind::Keyword(surge_token::Keyword::TimeMeasure)
+                )
+            })
             .collect();
         assert_eq!(time_measure_tokens.len(), 1);
     }

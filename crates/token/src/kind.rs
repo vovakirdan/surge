@@ -6,6 +6,7 @@ pub enum DirectiveKind {
     Test,      // /// test:
     Benchmark, // /// benchmark:
     Time,      // /// time:
+    Target,    // /// target:
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -20,9 +21,11 @@ pub enum TokenKind {
     // bool is a keyword
 
     // markers
-    Amp,  // &
-    Star, // *
-    Pipe, // |
+    Amp,   // &
+    Star,  // *
+    Pipe,  // |
+    Caret, // ^
+
     LBracket,
     RBracket, // [ ]
     LParen,
@@ -31,34 +34,53 @@ pub enum TokenKind {
     RBrace, // { }
     LAngle,
     RAngle, // < >
+
     Comma,
     Semicolon,
     Colon,
-    Dot,       // , : .
+    ColonEq, // :=
+
+    Dot,      // .
+    DotDot,   // ..
+    DotDotEq, // ..=
+    Ellipsis, // ...
+
+    PathSep,   // ::
     ThinArrow, // ->
     FatArrow,  // =>
-    Ellipsis,  // ...
-    PathSep,   // ::
+
     AndAnd,
     OrOr,
     Not, // && || !
+
     Eq,
     EqEq,
-    Ne, // = == !=
+    Ne,
     Le,
-    Ge, // < <= > >=
+    Ge,
+
     Plus,
     Minus,
     Slash,
-    Percent, // + - / %
+    Percent,
+
     PlusEq,
     MinusEq,
     StarEq,
     SlashEq,
-    PercentEq,                // += -= *= /= %=
-    ColonEq,                  // :=
-    Question,                 // ?
-    At,                       // @
+    PercentEq,
+    AmpEq,
+    PipeEq,
+    CaretEq,
+    Shl,
+    Shr,
+    ShlEq,
+    ShrEq,
+
+    Question,
+    QuestionQuestion,
+    At,
+
     Directive(DirectiveKind), // ///
     Eof,
 }

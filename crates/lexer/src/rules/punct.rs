@@ -3,7 +3,8 @@ use surge_token::TokenKind;
 
 /// Пытается захватить многосимвольный оператор
 /// Проверяет операторы в строгом порядке по убыванию длины:
-/// "..." "::" "->" "=>" "&&" "||" "<=" ">=" "==" "!=" ":=" "+=" "-=" "*=" "/=" "%="
+/// "..." "..=" "::" "->" "=>" "<<=" ">>=" "<<" ">>" "&&" "||" "??" "<=" ">=" "==" "!="
+/// ":=" "+=" "-=" "*=" "/=" "%=" "&=" "|=" "^=" ".."
 /// Возвращает true если оператор был найден и захвачен
 pub fn try_take_multi(cur: &mut Cursor, em: &mut Emitter) -> bool {
     let start_pos = cur.pos();
@@ -16,6 +17,15 @@ pub fn try_take_multi(cur: &mut Cursor, em: &mut Emitter) -> bool {
         cur.bump(); // захватываем ...
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::Ellipsis);
+        return true;
+    }
+
+    if cur.starts_with("..=") {
+        cur.bump();
+        cur.bump();
+        cur.bump();
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::DotDotEq);
         return true;
     }
 
@@ -46,6 +56,40 @@ pub fn try_take_multi(cur: &mut Cursor, em: &mut Emitter) -> bool {
         return true;
     }
 
+    if cur.starts_with("<<=") {
+        cur.bump();
+        cur.bump();
+        cur.bump();
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::ShlEq);
+        return true;
+    }
+
+    if cur.starts_with(">>=") {
+        cur.bump();
+        cur.bump();
+        cur.bump();
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::ShrEq);
+        return true;
+    }
+
+    if cur.starts_with("<<") {
+        cur.bump();
+        cur.bump();
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::Shl);
+        return true;
+    }
+
+    if cur.starts_with(">>") {
+        cur.bump();
+        cur.bump();
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::Shr);
+        return true;
+    }
+
     if cur.starts_with("&&") {
         // AndAnd
         cur.bump();
@@ -61,6 +105,14 @@ pub fn try_take_multi(cur: &mut Cursor, em: &mut Emitter) -> bool {
         cur.bump(); // захватываем ||
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::OrOr);
+        return true;
+    }
+
+    if cur.starts_with("??") {
+        cur.bump();
+        cur.bump();
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::QuestionQuestion);
         return true;
     }
 
@@ -97,6 +149,30 @@ pub fn try_take_multi(cur: &mut Cursor, em: &mut Emitter) -> bool {
         cur.bump(); // захватываем !=
         let end_pos = cur.pos();
         em.token(start_pos, end_pos, TokenKind::Ne);
+        return true;
+    }
+
+    if cur.starts_with("&=") {
+        cur.bump();
+        cur.bump();
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::AmpEq);
+        return true;
+    }
+
+    if cur.starts_with("|=") {
+        cur.bump();
+        cur.bump();
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::PipeEq);
+        return true;
+    }
+
+    if cur.starts_with("^=") {
+        cur.bump();
+        cur.bump();
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::CaretEq);
         return true;
     }
 
@@ -154,11 +230,19 @@ pub fn try_take_multi(cur: &mut Cursor, em: &mut Emitter) -> bool {
         return true;
     }
 
+    if cur.starts_with("..") {
+        cur.bump();
+        cur.bump();
+        let end_pos = cur.pos();
+        em.token(start_pos, end_pos, TokenKind::DotDot);
+        return true;
+    }
+
     false
 }
 
 /// Пытается захватить одиночный символ пунктуации
-/// Обрабатывает: [ ] ( ) { } < > | , ; : . & * ! = + - / % @ ?
+/// Обрабатывает: [ ] ( ) { } < > | ^ , ; : . & * ! = + - / % @ ?
 /// Возвращает true если символ был найден и захвачен
 pub fn try_take_single(cur: &mut Cursor, em: &mut Emitter) -> bool {
     let start_pos = cur.pos();
@@ -174,6 +258,7 @@ pub fn try_take_single(cur: &mut Cursor, em: &mut Emitter) -> bool {
             '<' => TokenKind::LAngle,
             '>' => TokenKind::RAngle,
             '|' => TokenKind::Pipe,
+            '^' => TokenKind::Caret,
             ',' => TokenKind::Comma,
             ';' => TokenKind::Semicolon,
             ':' => TokenKind::Colon,

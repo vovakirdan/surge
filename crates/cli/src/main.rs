@@ -519,7 +519,12 @@ fn render_stmt(output: &mut String, stmt: &Stmt, src: &str, source_id: SourceId,
             output.push_str(&format!("{}  semi: {:?}\n", indent_str, semi));
             output.push_str(&format!("{}}}", indent_str));
         }
-        Stmt::Signal { name, expr, span, semi } => {
+        Stmt::Signal {
+            name,
+            expr,
+            span,
+            semi,
+        } => {
             output.push_str(&format!("{}Signal {{\n", indent_str));
             output.push_str(&format!("{}  name: \"{}\",\n", indent_str, name));
             output.push_str(&format!("{}  expr: ", indent_str));

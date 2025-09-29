@@ -223,14 +223,23 @@ pub enum BinaryOp {
     Mul,
     Div,
     Mod,
+    Shl,
+    Shr,
+    BitAnd,
+    BitOr,
+    BitXor,
     Lt,
     Le,
     Gt,
     Ge,
     EqEq,
     Ne,
+    Is,
     AndAnd,
     OrOr,
+    Range,
+    RangeInclusive,
+    NullCoalesce,
 }
 
 /// Type node represented by its span and optional textual form.

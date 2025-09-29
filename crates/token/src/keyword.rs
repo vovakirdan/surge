@@ -26,24 +26,27 @@ pub enum Keyword {
     Spawn,
     Async,
     Await,
+    Macro,
+    Tag,
+    Heir,
+    With,
     Is,
     Finally,
-    // Parallel, Map, Reduce - removed
     True,
     False,
     Nothing,
     Own,
     // directive-specific keywords
-    TestEqual,       // test.equal
-    TestNotEqual,    // test.ne
-    TestLess,        // test.lt
-    TestLessEq,      // test.le
-    TestGreater,     // test.gt
-    TestGreaterEq,   // test.ge
-    TestAssert,      // test.assert
+    TestEqual,        // test.equal
+    TestNotEqual,     // test.ne
+    TestLess,         // test.lt
+    TestLessEq,       // test.le
+    TestGreater,      // test.gt
+    TestGreaterEq,    // test.ge
+    TestAssert,       // test.assert
     BenchmarkMeasure, // benchmark.measure
-    TimeMeasure,     // time.measure
-    // Repeat, RandomInt, RandomFloat - removed
+    TimeMeasure,      // time.measure
+                      // Repeat, RandomInt, RandomFloat - removed
 }
 
 pub fn lookup_keyword(ident: &str) -> Option<Keyword> {
@@ -74,6 +77,10 @@ pub fn lookup_keyword(ident: &str) -> Option<Keyword> {
         "spawn" => Spawn,
         "async" => Async,
         "await" => Await,
+        "macro" => Macro,
+        "tag" => Tag,
+        "heir" => Heir,
+        "with" => With,
         "is" => Is,
         "finally" => Finally,
         "true" => True,
@@ -114,6 +121,15 @@ pub enum AttrKeyword {
     Benchmark,
     Time,
     Deprecated,
+    Packed,
+    Align,
+    Shared,
+    Atomic,
+    Raii,
+    Arena,
+    Weak,
+    Readonly,
+    Hidden,
 }
 
 /// Поиск ключевых слов атрибутов
@@ -129,6 +145,15 @@ pub fn lookup_attribute_keyword(ident: &str) -> Option<AttrKeyword> {
         "benchmark" => Benchmark,
         "time" => Time,
         "deprecated" => Deprecated,
+        "packed" => Packed,
+        "align" => Align,
+        "shared" => Shared,
+        "atomic" => Atomic,
+        "raii" => Raii,
+        "arena" => Arena,
+        "weak" => Weak,
+        "readonly" => Readonly,
+        "hidden" => Hidden,
         _ => return None,
     })
 }
