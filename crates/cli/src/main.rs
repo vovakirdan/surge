@@ -645,11 +645,12 @@ fn render_expr(output: &mut String, expr: &Expr, src: &str, source_id: SourceId,
             output.push_str(&format!(",\n{}  span: {:?}\n", indent_str, span));
             output.push_str(&format!("{}}}", indent_str));
         }
-        Expr::Assign { lhs, rhs, span } => {
+        Expr::Assign { lhs, rhs, op, span } => {
             output.push_str(&format!("Assign {{\n"));
             output.push_str(&format!("{}  lhs: ", indent_str));
             render_expr(output, lhs, src, source_id, indent + 1);
-            output.push_str(&format!(",\n{}  rhs: ", indent_str));
+            output.push_str(&format!(",\n{}  op: {:?},\n", indent_str, op));
+            output.push_str(&format!("{}  rhs: ", indent_str));
             render_expr(output, rhs, src, source_id, indent + 1);
             output.push_str(&format!(",\n{}  span: {:?}\n", indent_str, span));
             output.push_str(&format!("{}}}", indent_str));

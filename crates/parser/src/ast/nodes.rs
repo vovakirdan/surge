@@ -183,6 +183,7 @@ pub enum Expr {
     Assign {
         lhs: Box<Expr>,
         rhs: Box<Expr>,
+        op: AssignOp,
         span: Span,
     },
     Let {
@@ -240,6 +241,22 @@ pub enum BinaryOp {
     Range,
     RangeInclusive,
     NullCoalesce,
+}
+
+/// Assignment operators (plain and compound).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssignOp {
+    Assign,
+    AddAssign,
+    SubAssign,
+    MulAssign,
+    DivAssign,
+    ModAssign,
+    BitAndAssign,
+    BitOrAssign,
+    BitXorAssign,
+    ShlAssign,
+    ShrAssign,
 }
 
 /// Type node represented by its span and optional textual form.

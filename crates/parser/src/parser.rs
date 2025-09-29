@@ -844,7 +844,7 @@ impl<'src> Parser<'src> {
             }
 
             let op_tok = self.stream.bump();
-            if op_tok.kind == TokenKind::Eq {
+            if let Some(assign_op) = assign_op_from_token(op_tok.kind) {
                 // Check if LHS is a valid assignment target
                 if !self.is_assignable_expr(&lhs) {
                     self.error(
@@ -859,6 +859,7 @@ impl<'src> Parser<'src> {
                 lhs = Expr::Assign {
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
+                    op: assign_op,
                     span,
                 };
                 continue;
@@ -1406,7 +1407,7 @@ fn with_span(expr: Expr, span: Span) -> Expr {
         Expr::Array { elems, .. } => Expr::Array { elems, span },
         Expr::Unary { op, rhs, .. } => Expr::Unary { op, rhs, span },
         Expr::Binary { lhs, op, rhs, .. } => Expr::Binary { lhs, op, rhs, span },
-        Expr::Assign { lhs, rhs, .. } => Expr::Assign { lhs, rhs, span },
+        Expr::Assign { lhs, rhs, op, .. } => Expr::Assign { lhs, rhs, op, span },
         Expr::Let {
             name,
             ty,
@@ -1442,6 +1443,26 @@ fn with_span(expr: Expr, span: Span) -> Expr {
             span,
         },
     }
+}
+
+fn assign_op_from_token(kind: TokenKind) -> Option<AssignOp> {
+    use AssignOp::*;
+    use TokenKind::*;
+
+    Some(match kind {
+        Eq => Assign,
+        PlusEq => AddAssign,
+        MinusEq => SubAssign,
+        StarEq => MulAssign,
+        SlashEq => DivAssign,
+        PercentEq => ModAssign,
+        AmpEq => BitAndAssign,
+        PipeEq => BitOrAssign,
+        CaretEq => BitXorAssign,
+        ShlEq => ShlAssign,
+        ShrEq => ShrAssign,
+        _ => return None,
+    })
 }
 
 fn stmt_span(stmt: &Stmt) -> Span {

@@ -31,7 +31,17 @@ pub fn infix_binding_power(kind: &TokenKind) -> Option<(u8, u8)> {
         TokenKind::AndAnd => Some((AND, AND + 1)),
         TokenKind::OrOr => Some((OR, OR + 1)),
         TokenKind::QuestionQuestion => Some((COALESCE, COALESCE + 1)),
-        TokenKind::Eq => Some((ASSIGN, ASSIGN)),
+        TokenKind::Eq
+        | TokenKind::PlusEq
+        | TokenKind::MinusEq
+        | TokenKind::StarEq
+        | TokenKind::SlashEq
+        | TokenKind::PercentEq
+        | TokenKind::AmpEq
+        | TokenKind::PipeEq
+        | TokenKind::CaretEq
+        | TokenKind::ShlEq
+        | TokenKind::ShrEq => Some((ASSIGN, ASSIGN)),
         _ => None,
     }
 }
