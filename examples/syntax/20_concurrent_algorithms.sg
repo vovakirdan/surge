@@ -4,12 +4,12 @@ import std/sync::{Mutex, RwLock, Channel, Semaphore};
 import std/collections::{ConcurrentHashMap, AtomicCounter};
 
 // Producer-Consumer pattern
-type Channel<T> {
+type Channel<T> = {
     @atomic capacity: int,
     @shared buffer: T[],
-    @sync not_empty: Condition,
-    @sync not_full: Condition,
-    @mutex lock: Mutex
+    not_empty: Condition,
+    not_full: Condition,
+    lock: Mutex
 }
 
 async fn producer<T>(channel: &Channel<T>, items: T[]) {
@@ -36,8 +36,7 @@ async fn consumer<T>(channel: &Channel<T>, consumer_id: int) -> T[] {
     return consumed;
 }
 
-// Parallel map-reduce (function-typed parameters removed in language; generic helpers commented out)
-/*
+// Parallel map-reduce
 async fn parallel_map<T, U>(
     data: T[],
     mapper: fn(T) -> U,
@@ -114,17 +113,17 @@ async fn parallel_reduce<T>(
 
     return final_result;
 }
-*/
+
 
 // Work-stealing queue
-type WorkStealingQueue<T> {
+type WorkStealingQueue<T> = {
     @atomic head: int,
     @atomic tail: int,
     @shared tasks: T[],
-    @mutex steal_lock: Mutex
+    steal_lock: Mutex
 }
 
-impl<T> WorkStealingQueue<T> {
+extern<WorkStealingQueue<T>> {
     fn new(capacity: int) -> WorkStealingQueue<T> {
         return WorkStealingQueue {
             head: 0,
@@ -205,11 +204,11 @@ async fn actor_worker<State, Message>(actor: Actor<State, Message>) {
 */
 
 // Concurrent data structures
-type ConcurrentCounter {
+type ConcurrentCounter = {
     @atomic value: int
 }
 
-impl ConcurrentCounter {
+extern<ConcurrentCounter> {
     fn new() -> ConcurrentCounter {
         return ConcurrentCounter { value: 0 };
     }
@@ -224,24 +223,24 @@ impl ConcurrentCounter {
 }
 
 // Lock-free stack
-type LockFreeStack<T> {
+type LockFreeStack<T> = {
     @atomic head: *Node<T>
 }
 
-type Node<T> {
+type Node<T> = {
     data: T,
     next: *Node<T>
 }
 
-impl<T> LockFreeStack<T> {
+extern<LockFreeStack<T>> {
     fn new() -> LockFreeStack<T> {
-        return LockFreeStack { head: null };
+        return LockFreeStack { head: nothing };
     }
 
     fn push(&self, item: T) {
         let new_node: *Node<T> = allocate_node(Node {
             data: item,
-            next: null
+            next: nothing
         });
 
         loop {
@@ -258,7 +257,7 @@ impl<T> LockFreeStack<T> {
         loop {
             let current_head: *Node<T> = atomic_load(&self.head);
 
-            if (current_head == null) {
+            if (current_head == nothing) {
                 return nothing;
             }
 
@@ -313,15 +312,15 @@ async fn parallel_merge_sort<T: Ord + Clone>(arr: T[], worker_count: int) -> T[]
 }
 
 // Thread pool
-type ThreadPool {
-    @shared workers: WorkStealingQueue<Task<unit>>[],
+type ThreadPool = {
+    @shared workers: WorkStealingQueue<Task<nothing>>[],
     @atomic worker_count: int,
     @shared shutdown: bool
 }
 
-impl ThreadPool {
+extern<ThreadPool> {
     fn new(size: int) -> ThreadPool {
-        let mut workers: WorkStealingQueue<Task<unit>>[] = [];
+        let mut workers: WorkStealingQueue<Task<nothing>>[] = [];
 
         for (let i: int = 0; i < size; i = i + 1) {
             workers = workers + [WorkStealingQueue::new(1000)];
@@ -343,11 +342,11 @@ impl ThreadPool {
 
     fn submit<T>(&self, task: fn() -> T) -> Task<T> {
         let worker_index: int = get_current_thread_id() % self.worker_count;
-        let queue: &WorkStealingQueue<Task<unit>> = &self.workers[worker_index];
+        let queue: &WorkStealingQueue<Task<nothing>> = &self.workers[worker_index];
 
         let (sender, receiver) = create_oneshot_channel<T>();
 
-        let wrapped_task: Task<unit> = async {
+        let wrapped_task: Task<nothing> = async {
             let result: T = task();
             sender.send(result);
         };
@@ -361,17 +360,17 @@ impl ThreadPool {
 }
 
 async fn worker_thread(pool: ThreadPool, worker_id: int) {
-    let my_queue: &WorkStealingQueue<Task<unit>> = &pool.workers[worker_id];
+    let my_queue: &WorkStealingQueue<Task<nothing>> = &pool.workers[worker_id];
 
     while (!pool.shutdown) {
         // Try to get task from own queue
-        let task_opt: Option<Task<unit>> = my_queue.pop();
+        let task_opt: Option<Task<nothing>> = my_queue.pop();
 
-        let task: Task<unit> = compare task_opt {
+        let task: Task<nothing> = compare task_opt {
             Some(t) => t,
             nothing => {
                 // Try to steal from other workers
-                let mut stolen: Option<Task<unit>> = nothing;
+                let mut stolen: Option<Task<nothing>> = nothing;
 
                 for (let i: int = 0; i < pool.worker_count; i = i + 1) {
                     if (i != worker_id) {
@@ -422,7 +421,7 @@ async fn concurrent_algorithms_demo() -> int {
     let counter: ConcurrentCounter = ConcurrentCounter::new();
     let stack: LockFreeStack<int> = LockFreeStack::new();
 
-    let mut tasks: Task<unit>[] = [];
+    let mut tasks: Task<nothing>[] = [];
 
     for (let i: int = 0; i < 10; i = i + 1) {
         let task = spawn async {
@@ -459,7 +458,7 @@ fn atomic_compare_and_swap<T>(ptr: *T, expected: T, new_value: T) -> bool {
 
 fn allocate_node<T>(node: Node<T>) -> *Node<T> {
     // Implementation would be provided by runtime
-    return null;
+    return nothing;
 }
 
 fn deallocate_node<T>(ptr: *Node<T>) {

@@ -436,29 +436,50 @@ Attributes are a **closed set** provided by the language. User-defined attribute
 * `@noinherit` *(field)* — field is **not inherited** when extending types via `type Child = Base : {...}`.
 * `@sealed` *(type)* — type cannot be extended through `Base : {...}` inheritance. Attempting extension emits `E_TYPE_SEALED`.
 
+#### E. Concurrency Contracts
+
+* `@guarded_by("lock")` *(field)* — field is protected by the specified mutex or read-write lock. The string `"lock"` must refer to a field name of type `Mutex` or `RwLock` in the same struct.
+* `@requires_lock("lock")` *(fn)* — function requires the caller to hold the specified lock when called. The string `"lock"` must refer to a field name of type `Mutex` or `RwLock`.
+* `@acquires_lock("lock")` *(fn)* — function acquires the specified lock and holds it until function exit.
+* `@releases_lock("lock")` *(fn)* — function releases the specified lock before function exit.
+* `@waits_on("cond")` *(fn)* — function may block waiting on the specified condition variable or semaphore. The string `"cond"` must refer to a field name of type `Condition` or `Semaphore`.
+* `@send` *(type)* — type can be safely transferred between tasks/threads (move-safe). Conflicts with `@nosend`.
+* `@nosend` *(type)* — type is forbidden from being transferred between tasks/threads. Conflicts with `@send`.
+* `@nonblocking` *(fn)* — function performs no blocking waits. Conflicts with `@waits_on`.
+
+All string parameters (`"lock"`, `"cond"`) must be **field names or parameter names**, not expressions or function calls.
+
 #### Closed Set Rule
 
 Attributes are a **closed list** defined by the language. All layout and ABI modifications are specified through attributes, not directives. Directives handle tooling and testing, but never affect type layout or ABI.
 
 #### Applicability Matrix
 
-| Attribute    |  Fn | Block | Type | Field | Param |
-| ------------ | :-: | :---: | :--: | :---: | :---: |
-| @pure        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
-| @overload    |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
-| @override    |  ✅* |   ❌   |   ❌  |   ❌   |   ❌   |
-| @backend     |  ✅  |   ✅   |   ❌  |   ❌   |   ❌   |
-| @packed      |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
-| @align       |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
-| @raii        |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |
-| @arena       |  ❌  |   ❌   |   ✅  |   ✅   |   ✅   |
-| @weak        |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
-| @shared      |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
-| @atomic      |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
-| @readonly    |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
-| @hidden      |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
-| @noinherit   |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
-| @sealed      |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |
+| Attribute        |  Fn | Block | Type | Field | Param |
+| ---------------- | :-: | :---: | :--: | :---: | :---: |
+| @pure            |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
+| @overload        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
+| @override        |  ✅* |   ❌   |   ❌  |   ❌   |   ❌   |
+| @backend         |  ✅  |   ✅   |   ❌  |   ❌   |   ❌   |
+| @packed          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
+| @align           |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
+| @raii            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |
+| @arena           |  ❌  |   ❌   |   ✅  |   ✅   |   ✅   |
+| @weak            |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
+| @shared          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
+| @atomic          |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
+| @readonly        |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
+| @hidden          |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
+| @noinherit       |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
+| @sealed          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |
+| @guarded_by      |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
+| @requires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
+| @acquires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
+| @releases_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
+| @waits_on        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
+| @send            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |
+| @nosend          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |
+| @nonblocking     |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
 
 *`@override` — only within `extern<T>` and `extern<Newtype>` blocks.
 
@@ -468,6 +489,8 @@ Attributes are a **closed list** defined by the language. All layout and ABI mod
 * `@override` + `@overload` on same declaration → `E_ATTR_CONFLICT`
 * `@packed` + impossible `@align(N)` → `E_ATTR_CONFLICT`
 * `@sealed` + attempt to extend type → `E_TYPE_SEALED`
+* `@send` + `@nosend` on same type → `E_CONC_CONTRACT_CONFLICT`
+* `@nonblocking` + `@waits_on` on same function → `E_CONC_CONTRACT_CONFLICT`
 
 Parser behavior:
 
@@ -664,7 +687,7 @@ No implicit conversion inserts `Some(...)`; `Option<T>` construction is always e
 
 ### 9.1. Channels
 
-`channel<T>` is a typed FIFO. Core ops (from std):
+`channel<T>` is a typed FIFO provided by the standard library. Core ops (from std):
 
 * `make_channel<T>(cap:uint) -> own channel<T>`
 * `send(ch:&channel<T>, v:own T)`
@@ -674,6 +697,17 @@ No implicit conversion inserts `Some(...)`; `Option<T>` construction is always e
 * `close(ch:&channel<T>)`
 
 The standard library also provides `choose { ... }` to select among ready operations. Channels are FIFO; fairness across multiple senders/receivers is not specified.
+
+**Standard Library Synchronization Types:**
+
+The following types are provided by the standard library for synchronization and are referenced by concurrency contract attributes:
+
+* `Mutex` — mutual exclusion lock
+* `RwLock` — reader-writer lock allowing multiple readers or single writer
+* `Condition` — condition variable for thread coordination
+* `Semaphore` — counting semaphore for resource control
+
+These types are used in conjunction with concurrency contract attributes (§4.2.E) to express locking requirements and data protection invariants.
 
 ### 9.2. Parallel Map / Reduce
 
@@ -938,6 +972,71 @@ type Public = Base : { display:string } // field internal_id not inherited in Pu
 type Conn = { fd:int, @noinherit secret:uint64 }
 
 type SafeConn = Conn : { tag:string } // error: E_TYPE_SEALED
+```
+
+```sg
+// @guarded_by and @requires_lock example
+type BankAccount = {
+  lock: Mutex,
+  @guarded_by("lock") balance: int
+}
+
+extern<BankAccount> {
+  @requires_lock("lock")
+  fn withdraw(self: &mut BankAccount, amount: int) -> bool {
+    if (self.balance >= amount) {
+      self.balance = self.balance - amount;
+      return true;
+    }
+    return false;
+  }
+}
+```
+
+```sg
+// @waits_on example for blocking receive
+type MessageQueue<T> = {
+  items: T[],
+  not_empty: Condition,
+  lock: Mutex
+}
+
+extern<MessageQueue<T>> {
+  @waits_on("not_empty")
+  fn recv<T>(self: &MessageQueue<T>) -> T {
+    // Implementation would wait on condition variable
+    return self.items[0];
+  }
+}
+```
+
+```sg
+// @send and @nosend type examples
+@send
+type SafeCounter = { @atomic value: int }
+
+@nosend
+type FileHandle = { fd: int, @readonly path: string }
+```
+
+```sg
+// RwLock with @guarded_by example
+type CachedData = {
+  rwlock: RwLock,
+  @guarded_by("rwlock") cache: string[]
+}
+
+extern<CachedData> {
+  @requires_lock("rwlock") @nonblocking
+  fn read_cache(self: &CachedData) -> string[] {
+    return self.cache;
+  }
+
+  @requires_lock("rwlock")
+  fn update_cache(self: &mut CachedData, data: string[]) {
+    self.cache = data;
+  }
+}
 ```
 
 ---
@@ -1239,6 +1338,7 @@ Suffix         := "[]"
 * Built-ins for primitive base types are sealed; you cannot `@override` them directly. Use `newtype New = int;` and override on the newtype.
 * Dynamic numerics (`int/uint/float`) allow large results; casts to fixed-width may trap.
 * Attributes affecting memory layout and ABI (`@packed`, `@align`) are part of the language specification and cannot be replaced by directives. Directives do not modify type layout or ABI contracts.
+* Concurrency contract attributes describe *analyzable requirements* and do not change language semantics at runtime. Violations may not always be statically checkable; in such cases the compiler emits `W_CONC_UNVERIFIED` and defers verification to linters or runtime debug tools.
 
 ## 21. Diagnostics Overview (selected)
 
@@ -1274,5 +1374,13 @@ Stable diagnostic codes used by the parser and early semantic checks:
 * `E_OVERLOAD_FIRST_DECL` — first function declaration marked with `@overload`.
 * `E_PURE_VIOLATION` — violation of `@pure` contract detected during frontend analysis.
 * `W_BACKEND_UNSUPPORTED` — unsupported `@backend` target (warning; escalates to error in strict mode).
+
+**Concurrency Contracts:**
+
+* `E_CONC_UNKNOWN_GUARD` — lock field referenced in concurrency attribute not found.
+* `E_CONC_BAD_GUARD_TYPE` — field referenced by concurrency attribute is not `Mutex` or `RwLock`.
+* `E_CONC_LOCK_CONTRACT` — function call violates `@requires_lock` contract.
+* `E_CONC_CONTRACT_CONFLICT` — conflicting concurrency attributes (e.g., `@send` + `@nosend`, `@nonblocking` + `@waits_on`).
+* `W_CONC_UNVERIFIED` — analyzer cannot prove lock contract compliance (warning; verification deferred to linter or runtime debug).
 
 Note: Channel closure is a runtime condition; `send` returns `Result<nothing, ChannelClosed>`. The corresponding runtime diagnostic lives in RUNTIME.md, not as a compile-time diagnostic.
