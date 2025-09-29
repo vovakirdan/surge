@@ -186,6 +186,12 @@ pub enum Expr {
         op: AssignOp,
         span: Span,
     },
+    Ternary {
+        cond: Box<Expr>,
+        then_branch: Box<Expr>,
+        else_branch: Box<Expr>,
+        span: Span,
+    },
     Let {
         name: String,
         ty: Option<TypeNode>,

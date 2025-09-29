@@ -21,8 +21,8 @@ fn test_basic_variables() -> int {
     let is_true: bool = true;
     let is_false: bool = false;
 
-    // Unit тип
-    let unit_val: unit = ();
+    // Absence значение
+    let nothing_val: nothing = nothing;
 
     // Фиксированные размеры
     let small_int: int32 = 100;

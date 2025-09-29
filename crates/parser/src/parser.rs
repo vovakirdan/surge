@@ -8,6 +8,8 @@ use crate::precedence::infix_binding_power;
 use crate::sync::{is_stmt_sync, is_top_level_sync};
 use surge_token::{Keyword, SourceId, Span, Token, TokenKind};
 
+const TERNARY_BP: u8 = 25;
+
 /// Parsing outcome containing AST and diagnostics.
 pub struct ParseResult {
     pub ast: Ast,
@@ -774,6 +776,43 @@ impl<'src> Parser<'src> {
         let mut lhs = self.parse_prefix()?;
 
         loop {
+            if self.stream.peek().kind == TokenKind::Question {
+                if TERNARY_BP < min_bp {
+                    break;
+                }
+
+                let cond = lhs;
+                let question_span = self.stream.bump().span;
+                let then_expr = match self.parse_expr_bp(TERNARY_BP + 1) {
+                    Some(expr) => expr,
+                    None => return None,
+                };
+
+                if self.stream.eat(TokenKind::Colon).is_none() {
+                    let tok = self.stream.peek();
+                    self.error(
+                        ParseCode::UnexpectedToken,
+                        tok.span,
+                        "Expected ':' in ternary expression",
+                    );
+                    return Some(cond);
+                }
+
+                let else_expr = match self.parse_expr_bp(TERNARY_BP) {
+                    Some(expr) => expr,
+                    None => return None,
+                };
+
+                let span = expr_span(&cond).join(expr_span(&else_expr));
+                lhs = Expr::Ternary {
+                    cond: Box::new(cond),
+                    then_branch: Box::new(then_expr),
+                    else_branch: Box::new(else_expr),
+                    span: question_span.join(span),
+                };
+                continue;
+            }
+
             match self.stream.peek().kind {
                 TokenKind::LParen => {
                     let open = self.stream.bump();
@@ -1390,6 +1429,7 @@ fn expr_span(expr: &Expr) -> Span {
         | Expr::Unary { span, .. }
         | Expr::Binary { span, .. }
         | Expr::Assign { span, .. }
+        | Expr::Ternary { span, .. }
         | Expr::Let { span, .. }
         | Expr::ParallelMap { span, .. }
         | Expr::ParallelReduce { span, .. } => *span,
@@ -1408,6 +1448,17 @@ fn with_span(expr: Expr, span: Span) -> Expr {
         Expr::Unary { op, rhs, .. } => Expr::Unary { op, rhs, span },
         Expr::Binary { lhs, op, rhs, .. } => Expr::Binary { lhs, op, rhs, span },
         Expr::Assign { lhs, rhs, op, .. } => Expr::Assign { lhs, rhs, op, span },
+        Expr::Ternary {
+            cond,
+            then_branch,
+            else_branch,
+            ..
+        } => Expr::Ternary {
+            cond,
+            then_branch,
+            else_branch,
+            span,
+        },
         Expr::Let {
             name,
             ty,

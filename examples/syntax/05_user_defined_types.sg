@@ -1,9 +1,10 @@
 // Пользовательские типы: структуры, newtypes, aliases
-type Person {
+type Person = {
     name: string,
     age: int,
-    @readonly id: uint
-}
+    @readonly id: uint,
+    @hidden height: float
+};
 
 // Newtype - создает новый номинальный тип
 newtype UserId = int;
@@ -16,12 +17,30 @@ literal Color = "red" | "green" | "blue" | "yellow";
 alias Number = int | float;
 alias OptionalString = string | nothing;
 
+// Tags для создания tagged unions
+tag Some<T>(T);
+tag None();
+
+alias Option<T> = Some(T) | None();
+
+// Struct inheritance
+type BasePerson = {
+    name: string,
+    age: int
+};
+
+type Employee = BasePerson : {
+    @readonly id: uint,
+    department: string
+};
+
 fn test_user_types() -> int {
     // Создание структуры
-    let person: Person = Person {
+    let person: Person = {
         name: "Alice",
         age: 30,
-        id: 12345
+        id: 12345,
+        height: 1.80
     };
 
     // Доступ к полям
@@ -29,8 +48,8 @@ fn test_user_types() -> int {
     let person_age: int = person.age;
 
     // Newtype использование
-    let user_id: UserId = UserId(999);
-    let temp: Temperature = Temperature(36.6);
+    let user_id: UserId = 999;
+    let temp: Temperature = 36.6;
 
     // Literal enum
     let primary_color: Color = "red";
@@ -40,10 +59,53 @@ fn test_user_types() -> int {
     let int_number: Number = 42;
     let float_number: Number = 3.14;
 
+    // Tagged union использование
+    let some_value: Option<int> = Some(42);
+    let none_value: Option<int> = None();
+
+    // Struct inheritance использование
+    let base_person: BasePerson = {
+        name: "John",
+        age: 25
+    };
+
+    let employee: Employee = {
+        name: "Jane",
+        age: 30,
+        id: 12345,
+        department: "Engineering"
+    };
+
+    // Проверка наследования
+    let is_employee_base: bool = (Employee heir BasePerson);
+
     return person_age;
 }
 
 // Функция с пользовательскими типами
 fn process_person(p: Person) -> UserId {
-    return UserId(p.id);
+    return p.id;
+}
+
+// Функция для работы с tagged unions
+fn test_tagged_unions() -> int {
+    let maybe_value: Option<int> = Some(42);
+
+    return compare maybe_value {
+        Some(x) => x,
+        None() => 0
+    };
+}
+
+// Функция для работы с struct inheritance
+fn test_struct_inheritance() -> bool {
+    let employee: Employee = {
+        name: "Alice",
+        age: 28,
+        id: 54321,
+        department: "Marketing"
+    };
+
+    // Проверка, что Employee наследует от BasePerson
+    return (Employee heir BasePerson);
 }

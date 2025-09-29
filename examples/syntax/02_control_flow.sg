@@ -28,7 +28,9 @@ fn test_control_flow() -> int {
         result = result + i;
     }
 
-    for item in collection {
+    // For-in петля
+    let items: int[] = [1, 2, 3, 4, 5];
+    for (let item: int in items) {
         result = result + item;
     }
 

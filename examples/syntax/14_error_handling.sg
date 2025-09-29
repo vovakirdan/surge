@@ -2,49 +2,53 @@
 newtype FileError = string;
 newtype NetworkError = string;
 
-// Error inheritance
-error BaseError {
+// Error типы как структуры
+type BaseError = {
     message: string,
     code: int
-}
+};
 
-error FileNotFoundError : BaseError {
+type FileNotFoundError = BaseError : {
     filename: string
-}
+};
 
-error PermissionError : BaseError {
+type PermissionError = BaseError : {
     required_permission: string
-}
+};
 
-// Result типы
-alias FileResult<T> = T | FileError;
-alias NetworkResult<T> = T | NetworkError;
+// Result типы с tagged unions
+tag Ok<T>(T);
+tag Err<E>(E);
+
+alias Result<T, E> = Ok(T) | Err(E);
+alias FileResult<T> = Result<T, FileError>;
+alias NetworkResult<T> = Result<T, NetworkError>;
 
 fn read_file(path: string) -> FileResult<string> {
     if (path == "") {
-        return FileError("Empty path");
+        return Err(FileError("Empty path"));
     }
 
     if (path == "nonexistent.txt") {
-        return FileError("File not found");
+        return Err(FileError("File not found"));
     }
 
-    return "file contents";
+    return Ok("file contents");
 }
 
-fn write_file(path: string, content: string) -> FileResult<unit> {
+fn write_file(path: string, content: string) -> FileResult<nothing> {
     if (path.starts_with("/readonly/")) {
-        return FileError("Permission denied");
+        return Err(FileError("Permission denied"));
     }
 
-    return nothing; // unit value for success
+    return Ok(nothing);
 }
 
 fn download_data(url: string) -> NetworkResult<string> {
     if (url.starts_with("https://")) {
-        return "downloaded data";
+        return Ok("downloaded data");
     } else {
-        return NetworkError("Invalid URL protocol");
+        return Err(NetworkError("Invalid URL protocol"));
     }
 }
 
@@ -52,10 +56,10 @@ fn download_data(url: string) -> NetworkResult<string> {
 fn process_file(path: string) -> FileResult<int> {
     let content: string = compare read_file(path) {
         Ok(data) => data,
-        Error(err) => return err
+        Err(err) => return Err(err)
     };
 
-    return content.len_chars();
+    return Ok(content.len_chars());
 }
 
 // Complex error handling
@@ -63,12 +67,12 @@ fn backup_and_process(source: string, backup: string) -> FileResult<int> {
     // Создаем backup
     let source_content: string = compare read_file(source) {
         Ok(data) => data,
-        Error(err) => return err
+        Err(err) => return Err(err)
     };
 
     compare write_file(backup, source_content) {
         Ok(_) => {},
-        Error(err) => return err
+        Err(err) => return Err(err)
     };
 
     // Обрабатываем файл
@@ -82,7 +86,7 @@ fn robust_file_operation(paths: string[]) -> Option<string> {
 
         compare result {
             Ok(content) => return Some(content),
-            Error(_) => continue // Пробуем следующий файл
+            Err(_) => continue // Пробуем следующий файл
         };
     }
 
@@ -95,10 +99,10 @@ async fn download_with_retry(url: string, max_retries: int) -> NetworkResult<str
         let result: NetworkResult<string> = await download_data(url);
 
         compare result {
-            Ok(data) => return data,
-            Error(err) => {
+            Ok(data) => return Ok(data),
+            Err(_) => {
                 if (attempt == max_retries - 1) {
-                    return err;
+                    return Err(NetworkError("Max retries exceeded"));
                 }
                 // Ждем перед повторной попыткой
                 continue;

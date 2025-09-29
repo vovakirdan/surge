@@ -12,7 +12,7 @@ type Ageable {
     age: int
 }
 
-alias Person = Nameable & Ageable;
+alias Person = Nameable | Ageable;
 
 // Phantom types
 newtype TypedId<T> = int;
@@ -33,7 +33,7 @@ type Container<F<_>, T> {
     value: F<T>
 }
 
-type Optional<T> = T | nothing;
+type Optional<T> = Some(T) | nothing;
 type List<T> = T[];
 
 // Recursive types

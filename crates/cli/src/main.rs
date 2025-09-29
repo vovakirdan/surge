@@ -655,6 +655,22 @@ fn render_expr(output: &mut String, expr: &Expr, src: &str, source_id: SourceId,
             output.push_str(&format!(",\n{}  span: {:?}\n", indent_str, span));
             output.push_str(&format!("{}}}", indent_str));
         }
+        Expr::Ternary {
+            cond,
+            then_branch,
+            else_branch,
+            span,
+        } => {
+            output.push_str(&format!("Ternary {{\n"));
+            output.push_str(&format!("{}  cond: ", indent_str));
+            render_expr(output, cond, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  then: ", indent_str));
+            render_expr(output, then_branch, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  else: ", indent_str));
+            render_expr(output, else_branch, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
+        }
         _ => {
             output.push_str(&format!("<unimplemented expr>"));
         }
