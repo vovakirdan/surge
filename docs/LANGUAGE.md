@@ -44,7 +44,7 @@ pub, fn, let, mut, if, else, while, for, in, break, continue,
 import, newtype, type, literal, alias, extern, return, signal, compare, spawn,
 true, false, nothing, is, finally, async, await, macro,
 @pure, @overload, @override, @backend, @test, @benchmark, @time, @deprecated,
-@packed, @align, @shared, @atomic, @raii, @arena, @weak, @readonly
+@packed, @align, @shared, @atomic, @raii, @arena, @weak, @readonly, @hidden, @noinherit, @sealed
 ```
 
 ### 1.5. Literals
@@ -407,26 +407,72 @@ Variadics: `...args` denotes a variadic parameter and desugars to an array param
 
 ### 4.2. Attributes
 
-* `@pure` – function has no side effects, deterministic, cannot mutate non-local state; required for execution in certain parallel contexts and signals.
-* `@overload` – declares an overload of an existing function name with a distinct signature.
-* `@override` – replaces an existing implementation for a target (primarily used in `extern<T>` blocks for newtypes). Use sparingly.
-* `@backend("cpu"|"gpu")` – execution target hint. Semantics: a backend-specific lowering may choose specialized code paths. If not supported, it is a no-op.
-* `@test` – marks test functions or doc-test helpers.
-* `@benchmark`, `@time` – benchmark/time helpers.
-* `@deprecated("msg")` – marks items as deprecated with a message.
-* `@packed` – indicates tightly packed memory layout for types/fields.
-* `@align(N)` – specifies memory alignment for types/fields.
-* `@shared` – marks data as shared between threads (thread-safe).
-* `@atomic` – marks data as atomic for lock-free operations.
-* `@raii` – enables automatic resource cleanup.
-* `@arena` – indicates arena-allocated memory.
-* `@weak` – weak reference (breaks cycles).
-* `@readonly` – marks fields as read-only even in mutable contexts.
+Attributes are a **closed set** provided by the language. User-defined attributes are not supported.
 
-Parser behaviour:
+#### A. Contracts, Behavior, and Overloading
 
-* Unknown attributes are accepted syntactically but produce a warning `W_UNKNOWN_ATTRIBUTE` by default. A `--strict-attributes` mode may promote this to `E_UNKNOWN_ATTRIBUTE`.
-* If an attribute is used on an unsupported target (e.g., `@test` on a type alias), emit `E_ILLEGAL_ATTRIBUTE_TARGET`.
+* `@pure` *(fn)* — function has no side effects, is deterministic, cannot mutate non-local state. Required for execution in signals and parallel contexts. Violations emit `E_PURE_VIOLATION`.
+* `@overload` *(fn)* — declares an overload of an existing function name with a distinct signature. Must not be used on the first declaration of a function name; doing so emits `E_OVERLOAD_FIRST_DECL`. Incompatible with `@override`.
+* `@override` *(fn)* — replaces an existing implementation for a target type. Only valid within `extern<T>` and `extern<Newtype>` blocks. Attempting to override primitive base types directly emits `E_PRIMITIVE_SEALED` (use newtype instead). Incompatible with `@overload`.
+
+#### B. Code Generation and ABI
+
+* `@backend("cpu"|"gpu"|Ident)` *(fn|block)* — execution target hint for backend-specific lowering. Unsupported targets emit `W_BACKEND_UNSUPPORTED` or error in strict mode.
+* `@packed` *(type|field)* — tightly packed memory layout without padding.
+* `@align(N)` *(type|field)* — memory alignment requirement. Conflicts with `@packed` when alignment `N` is impossible emit `E_ATTR_CONFLICT`.
+
+#### C. Memory and Resources
+
+* `@raii` *(type)* — enables automatic resource cleanup (destructor) when values leave scope.
+* `@arena` *(type|field|param)* — hint for arena-based memory allocation policy.
+* `@weak` *(field)* — weak reference for breaking cycles (reserved for future extension).
+* `@shared` *(type|field)* — marks data as thread-safe. Does not override the rule that only `own` values may cross thread boundaries.
+* `@atomic` *(field)* — atomic operations for lock-free data access.
+
+#### D. Visibility, Inheritance, and Structural Rules
+
+* `@readonly` *(field)* — field cannot be written even through `mut` bindings.
+* `@hidden` *(field)* — field is hidden outside `extern<Base>` blocks and initializers.
+* `@noinherit` *(field)* — field is **not inherited** when extending types via `type Child = Base : {...}`.
+* `@sealed` *(type)* — type cannot be extended through `Base : {...}` inheritance. Attempting extension emits `E_TYPE_SEALED`.
+
+#### Closed Set Rule
+
+Attributes are a **closed list** defined by the language. All layout and ABI modifications are specified through attributes, not directives. Directives handle tooling and testing, but never affect type layout or ABI.
+
+#### Applicability Matrix
+
+| Attribute    |  Fn | Block | Type | Field | Param |
+| ------------ | :-: | :---: | :--: | :---: | :---: |
+| @pure        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
+| @overload    |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
+| @override    |  ✅* |   ❌   |   ❌  |   ❌   |   ❌   |
+| @backend     |  ✅  |   ✅   |   ❌  |   ❌   |   ❌   |
+| @packed      |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
+| @align       |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
+| @raii        |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |
+| @arena       |  ❌  |   ❌   |   ✅  |   ✅   |   ✅   |
+| @weak        |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
+| @shared      |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
+| @atomic      |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
+| @readonly    |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
+| @hidden      |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
+| @noinherit   |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
+| @sealed      |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |
+
+*`@override` — only within `extern<T>` and `extern<Newtype>` blocks.
+
+#### Typical Conflicts
+
+* `@overload` + first function declaration → `E_OVERLOAD_FIRST_DECL`
+* `@override` + `@overload` on same declaration → `E_ATTR_CONFLICT`
+* `@packed` + impossible `@align(N)` → `E_ATTR_CONFLICT`
+* `@sealed` + attempt to extend type → `E_TYPE_SEALED`
+
+Parser behavior:
+
+* Unknown attributes produce `W_UNKNOWN_ATTRIBUTE` by default. `--strict-attributes` mode promotes this to `E_UNKNOWN_ATTRIBUTE`.
+* Attributes used on unsupported targets emit `E_ILLEGAL_ATTRIBUTE_TARGET`.
 
 ### 4.3. Overloading Rules
 
@@ -880,6 +926,20 @@ async fn process_data(urls: string[]) -> Result<Data[], Error> {
 }
 ```
 
+```sg
+// @noinherit field example
+type Base = { @noinherit internal_id:uint64, name:string }
+type Public = Base : { display:string } // field internal_id not inherited in Public
+```
+
+```sg
+// @sealed type example
+@sealed
+type Conn = { fd:int, @noinherit secret:uint64 }
+
+type SafeConn = Conn : { tag:string } // error: E_TYPE_SEALED
+```
+
 ---
 
 ## 13. Directives (`///`)
@@ -1125,7 +1185,7 @@ MacroDef   := "macro" Ident MacroParamList Block
 MacroParamList := "(" (MacroParam ("," MacroParam)*)? ")"
 MacroParam := Ident ":" MacroType | "..." Ident ":" MacroType
 MacroType  := "expr" | "ident" | "type" | "block" | "meta"
-Attr       := "@pure" | "@overload" | "@override" | "@backend(" Str ")" | "@test" | "@benchmark" | "@time" | "@deprecated(" Str ")" | "@packed" | "@align(" Int ")" | "@shared" | "@atomic" | "@raii" | "@arena" | "@weak" | "@readonly"
+Attr       := "@pure" | "@overload" | "@override" | "@backend(" Str ")" | "@test" | "@benchmark" | "@time" | "@deprecated(" Str ")" | "@packed" | "@align(" Int ")" | "@shared" | "@atomic" | "@raii" | "@arena" | "@weak" | "@readonly" | "@hidden" | "@noinherit" | "@sealed"
 GenericParams := "<" Ident ("," Ident)* ">"
 ParamList  := "(" (Param ("," Param)*)? ")"
 Param      := Ident ":" Type | "..."
@@ -1178,6 +1238,7 @@ Suffix         := "[]"
 
 * Built-ins for primitive base types are sealed; you cannot `@override` them directly. Use `newtype New = int;` and override on the newtype.
 * Dynamic numerics (`int/uint/float`) allow large results; casts to fixed-width may trap.
+* Attributes affecting memory layout and ABI (`@packed`, `@align`) are part of the language specification and cannot be replaced by directives. Directives do not modify type layout or ABI contracts.
 
 ## 21. Diagnostics Overview (selected)
 
@@ -1203,5 +1264,15 @@ Stable diagnostic codes used by the parser and early semantic checks:
 * `E_AMBIGUOUS_UNION_MEMBERS` — untagged union members cannot be distinguished at runtime.
 * `E_FIELD_CONFLICT` — field name repeated while extending a struct (`type Child = Base : { ... }`).
 * `E_MACRO_UNSUPPORTED` — `macro` definitions are parsed but not supported in this iteration.
+
+**Attributes & Backend:**
+
+* `E_ATTR_CONFLICT` — conflicting attributes (e.g., incompatible `@align` with `@packed`).
+* `E_ATTR_DUPLICATE` — duplicate attribute with incompatible parameters.
+* `E_PRIMITIVE_SEALED` — attempt to `@override` primitive base type (use newtype instead).
+* `E_TYPE_SEALED` — attempt to extend sealed type via `type Child = Base : {...}`.
+* `E_OVERLOAD_FIRST_DECL` — first function declaration marked with `@overload`.
+* `E_PURE_VIOLATION` — violation of `@pure` contract detected during frontend analysis.
+* `W_BACKEND_UNSUPPORTED` — unsupported `@backend` target (warning; escalates to error in strict mode).
 
 Note: Channel closure is a runtime condition; `send` returns `Result<nothing, ChannelClosed>`. The corresponding runtime diagnostic lives in RUNTIME.md, not as a compile-time diagnostic.
