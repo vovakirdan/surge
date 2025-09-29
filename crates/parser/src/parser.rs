@@ -6,6 +6,7 @@ use crate::error::{ParseCode, ParseDiag};
 use crate::lexer_api::Stream;
 use crate::precedence::infix_binding_power;
 use crate::sync::{is_stmt_sync, is_top_level_sync};
+use std::collections::HashMap;
 use surge_token::{Keyword, SourceId, Span, Token, TokenKind};
 
 const TERNARY_BP: u8 = 25;
@@ -43,6 +44,8 @@ struct Parser<'src> {
     file: SourceId,
     stream: Stream<'src>,
     diags: Vec<ParseDiag>,
+    fn_purity: HashMap<String, bool>,
+    parallel_checks: Vec<(Span, String)>,
 }
 
 impl<'src> Parser<'src> {
@@ -51,6 +54,8 @@ impl<'src> Parser<'src> {
             file,
             stream: Stream::new(tokens, src),
             diags: Vec::new(),
+            fn_purity: HashMap::new(),
+            parallel_checks: Vec::new(),
         }
     }
 
@@ -73,6 +78,7 @@ impl<'src> Parser<'src> {
                 None => self.synchronize_top_level(),
             }
         }
+        self.finalize_parallel_checks();
         Module { items }
     }
 
@@ -292,6 +298,7 @@ impl<'src> Parser<'src> {
             span: sig_span,
             attrs,
         };
+        self.record_function_purity(&sig);
         let body = match self.parse_block() {
             Some(block) => Some(block),
             None => None,
@@ -368,6 +375,17 @@ impl<'src> Parser<'src> {
             None
         };
         Some(Param { name, ty, span })
+    }
+
+    fn record_function_purity(&mut self, sig: &FuncSig) {
+        let is_pure = sig
+            .attrs
+            .iter()
+            .any(|attr| matches!(attr, Attr::Pure { .. }));
+        let entry = self.fn_purity.entry(sig.name.clone()).or_insert(false);
+        if is_pure {
+            *entry = true;
+        }
     }
 
     fn parse_return_type(&mut self, _fn_span: Span) -> Option<TypeNode> {
@@ -1147,6 +1165,7 @@ impl<'src> Parser<'src> {
         };
 
         let span = parallel_tok.span.join(expr_span(&func));
+        self.register_parallel_func(&func);
         Some(Expr::ParallelMap {
             seq: Box::new(seq),
             args,
@@ -1214,6 +1233,7 @@ impl<'src> Parser<'src> {
         };
 
         let span = parallel_tok.span.join(expr_span(&func));
+        self.register_parallel_func(&func);
         Some(Expr::ParallelReduce {
             seq: Box::new(seq),
             init: Box::new(init),
@@ -1281,6 +1301,22 @@ impl<'src> Parser<'src> {
                 _ => {
                     self.stream.bump();
                 }
+            }
+        }
+    }
+
+    fn register_parallel_func(&mut self, func: &Expr) {
+        match func {
+            Expr::Ident(name, span) => {
+                self.parallel_checks.push((*span, name.clone()));
+            }
+            other => {
+                let span = expr_span(other);
+                self.error(
+                    ParseCode::ParallelFuncNotPure,
+                    span,
+                    "Parallel map/reduce requires a function name marked @pure",
+                );
             }
         }
     }
@@ -2060,5 +2096,26 @@ fn stmt_span(stmt: &Stmt) -> Span {
         | Stmt::Signal { span, .. }
         | Stmt::Break { span, .. }
         | Stmt::Continue { span, .. } => *span,
+    }
+}
+
+impl<'src> Parser<'src> {
+    fn finalize_parallel_checks(&mut self) {
+        let pending = std::mem::take(&mut self.parallel_checks);
+        for (span, name) in pending {
+            match self.fn_purity.get(&name).copied() {
+                Some(true) => {}
+                _ => {
+                    self.error(
+                        ParseCode::ParallelFuncNotPure,
+                        span,
+                        format!(
+                            "Function '{}' used in parallel context must be declared @pure",
+                            name
+                        ),
+                    );
+                }
+            }
+        }
     }
 }

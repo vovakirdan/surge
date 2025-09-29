@@ -25,6 +25,7 @@ pub enum ParseCode {
     ParallelMissingFatArrow,
     ParallelBadHeader,
     FatArrowOutsideParallel,
+    ParallelFuncNotPure,
     UnknownAttribute,
     ExpectedTypeAfterArrow,
     MissingReturnType,

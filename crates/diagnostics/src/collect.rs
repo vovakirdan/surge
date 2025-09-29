@@ -71,6 +71,9 @@ pub fn from_parser_diags(file: SourceId, diags: &[surge_parser::ParseDiag]) -> V
                 surge_parser::ParseCode::FatArrowOutsideParallel => {
                     "PARSE_FATARROW_OUTSIDE_PARALLEL".into()
                 }
+                surge_parser::ParseCode::ParallelFuncNotPure => {
+                    "PARSE_PARALLEL_FUNC_NOT_PURE".into()
+                }
                 surge_parser::ParseCode::UnknownAttribute => "PARSE_UNKNOWN_ATTRIBUTE".into(),
                 surge_parser::ParseCode::ExpectedTypeAfterArrow => {
                     "PARSE_EXPECTED_TYPE_AFTER_ARROW".into()
