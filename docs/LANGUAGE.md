@@ -53,8 +53,7 @@ true, false, nothing, is, finally, async, await, macro,
 * Float: `1.0`, `0.5`, `1e-9`, `2.5e+10`.
 * String: `"..."` (UTF-8), escape sequences `\n \t \" \\` and `\u{hex}`.
 * Bool: `true`, `false`.
-* Unit value: `()` is the single value of the `unit` type.
-* Absence value: `nothing` denotes the absent variant of `Option<T>`.
+* Absence value: `nothing` is the single "no value" literal used for void/null/absent semantics.
 
 ---
 
@@ -77,7 +76,6 @@ Types are written postfixed: `name: Type`.
 
   * `bool` – logical; no implicit cast to/from numeric.
   * `string` – a sequence of Unicode scalar values (code points). Layout: dynamic array of code points.
-  * `unit` – a type with a single value `()`.
 
 **Coercions:**
 
@@ -142,73 +140,106 @@ Generic parameters must be declared explicitly with angle brackets: `<T, U, ...>
 * **Literal enums:** `literal Color = "black" | "white";` Only the listed literals are allowed values.
 * **Type alias:** `alias Number = int | float;` a type that admits any member type; overload resolution uses the best matching member (§8).
 
-### 2.6. Option and Result Types
-
-* `Option<T>` – optional value (nominal type with special typing rules). Constructors:
-  * `Some(x)` wraps a present value of type `T`.
-  * `nothing` denotes the absent case and has type `Option<T>` for some `T` determined by context.
-
-Type-directed rules:
-
-* `nothing` requires contextual typing to determine `T`; using `nothing` where `T` cannot be inferred is a type error.
-* `compare` supports `nothing`/`Some(...)` patterns natively (§3.6).
-* Behavioral equivalence: `Option<T>` behaves like the union `T | nothing` for pattern matching and overloading, but it is a nominal type reserved by the language with special typing rules (contextual typing for `nothing`, auto-wrapping). It is not a plain alias.
-
-* `Result<T, E>` – recoverable error pattern provided by the standard library.
-
-### `nothing` contextual typing
-
-`nothing` is the absent variant for `Option<T>`. Its type must be inferred from context. If the context does not provide a target `Option<T>` to infer `T`, the compiler emits `E_AMBIGUOUS_NOTHING`.
-
-**Function return equivalence:**
-* `fn foo() { }` and `fn bar() { return nothing; }` are equivalent when the function has no explicit return type
-* Functions without explicit return types return `unit`, so `return nothing;` is equivalent to `return ();`
-
-**Variable declarations:**
-* `let x: int;` gets default value (0 for int, "" for string, false for bool, etc.)
-* This is different from `let x: Option<int>;` which would get `nothing` as the default
-
-**Array homogeneity:**
-* Arrays must be homogeneous: `let arr: Option<int>[] = [1, nothing, 3];` is valid - auto-wraps in `Some()`
-* Elements `1` and `3` automatically wrap in `Some()` when target type is `Option<T>[]`
-* Result: `[Some(1), nothing, Some(3)]`
-
-**String conversion:**
-* `nothing.__to_string() -> string { return ""; }`
-
-Examples:
-
-```
-let x = nothing;                 // E_AMBIGUOUS_NOTHING
-let y: Option<int> = nothing;    // OK
-return nothing;                  // OK if function returns Option<T>
-fn foo() { }                     // returns unit
-fn bar() { return nothing; }     // also returns unit (equivalent)
-```
-
-Note: Surge does not include a safe-navigation operator (?.). Prefer explicit pattern matching with `compare` to work with optional values and avoid Option-heavy chaining.
+#### Struct extension
 
 ```sg
-let person: Option<Person> = get_person();
-let name: Option<string> = compare person {
-    Some(p) => Some(p.name),
-    nothing => nothing
-};
+type Person = { age:int, @hidden weight:float, @readonly name:string }
 
-// More complex logic stays clear and explicit
-let email_len: Option<int> = compare person {
-    Some(p) => compare p.profile {
-        Some(pr) => compare pr.email {
-            Some(e) => Some(e.len_chars()),
-            nothing => nothing
-        },
-        nothing => nothing
-    },
-    nothing => nothing
-};
+type PersonSon = Person : { patronymic: string = "" }
+
+let p: Person    = { age=20, weight=80.0, name="Alex" }
+let s: PersonSon = p            // patronymic picks the default ""
+// Assigning PersonSon back to Person is illegal (strict nominality).
 ```
 
-### 2.7. Memory Management Model
+- `type Child = Base : { ... }` inherits all fields from `Base` and appends new ones.
+- Defaults initialise missing fields; absence of a default requires callers to provide the field explicitly.
+- `@hidden` fields remain hidden outside `extern<Base>` and initialisers. `@readonly` fields stay immutable after construction.
+- Assigning from a child to its base is forbidden (types remain nominal).
+- Field name clashes trigger `E_FIELD_CONFLICT` during expansion.
+- Methods defined in `extern<Base>` are visible on `Child`. Override behaviour lives in `extern<Child>` with `@override` marking intentional replacements.
+
+### 2.6. `nothing` — the single absence value
+
+`nothing` is the sole inhabitant of the type `nothing` and represents "no value" for void returns, null-like states, and explicit absence.
+
+- Functions without an explicit `-> Type` return `nothing`. `fn f() {}` is sugar for `fn f() -> nothing { return nothing; }`.
+- `nothing` has no literal shorthand other than the keyword itself. There is no `unit`/`()` type in Surge.
+- Context must accept the type `nothing`; using `nothing` where the target type cannot absorb it emits `E_AMBIGUOUS_NOTHING`.
+- Arrays remain homogeneous: `[nothing, nothing]` has type `nothing[]`. Mixing `nothing` with other literals requires an explicit union or alias accommodating both members.
+
+### 2.7. Tags (`tag`) and tagged unions
+
+Tags describe explicit union constructors and are declared ahead of use:
+
+```sg
+tag Name(T);
+```
+
+- `Name(expr)` constructs a value whose discriminant is `Name` and whose payload type is `T`.
+- The declaration parentheses list payload types; `tag Ping();` produces a payload-less constructor, `tag Pair(A, B);` expects two arguments.
+- Tags live in their own namespace. They are not callable functions and they are not first-class types. To pass a constructor, wrap it in a closure: `fn(x:T) -> Alias<T> { return Name(x); }`.
+- When an identifier resolves both to a tag and to a function and is used in the form `Ident(...)`, resolution fails with `E_AMBIGUOUS_CONSTRUCTOR_OR_FN` (§3.6, §15).
+
+Tags participate in alias unions as variants. They may be generic: `tag Some(T);` declares a tag family parameterised by `T`.
+
+### 2.8. Alias unions
+
+`alias` builds sum types with or without tags:
+
+```sg
+// Untagged members (minimal surface)
+alias Number = int | float
+alias MaybeInt = int | nothing
+
+// Tagged members (recommended for public APIs)
+tag Left(L); tag Right(R);
+alias Either<L, R> = Left(L) | Right(R)
+```
+
+- Untagged unions rely on runtime type tests: `compare v { x if x is int => ... }`.
+- Tagged unions enable concise and exhaustive pattern matching. For tagged unions the compiler checks that all declared tags are covered in `compare`, unless a `finally` arm is present; missing variants trigger `E_NONEXHAUSTIVE_MATCH`.
+- Mixing many untagged structural types may lead to `E_AMBIGUOUS_UNION_MEMBERS` when the runtime cannot tell members apart. Prefer tags for evolving APIs and stability.
+
+### 2.9. Option and Result via tags
+
+The standard library defines canonical constructors and aliases:
+
+```sg
+tag Some(T); tag Ok(T); tag Error(E);
+
+alias Option<T> = Some(T) | nothing
+alias Result<T, E> = Ok(T) | Error(E)
+
+fn head<T>(xs: T[]) -> Option<T> {
+  if (xs.len == 0) { return nothing; }
+  return Some(xs[0]);
+}
+
+fn parse(s: string) -> Result<int, Error> {
+  if (s == "42") { return Ok(42); }
+  let e: Error = { message: "bad", code: 1 };
+  return Error(e); // explicit constructor required
+}
+
+compare head([1, 2, 3]) {
+  Some(v) => print(v),
+  nothing => print("empty")
+}
+
+compare parse("x") {
+  Ok(v)      => print("ok", v),
+  Error(err) => print("err", err)
+}
+```
+
+Rules:
+
+- There is no auto-wrapping when returning from `-> Result<T, E>`; use `Ok(...)` or `Error(...)`. Returning a bare payload yields `E_EXPECTED_TAGGED_VARIANT`.
+- `Option<T>` also requires explicit constructors. Future toolchains may allow opt-in auto-wrapping, but the base language keeps construction explicit.
+- `nothing` remains the shared absence literal for both Option and other contexts (§2.6).
+
+### 2.10. Memory Management Model
 
 Surge uses **pure ownership** (similar to Rust) for predictable performance:
 
@@ -316,14 +347,30 @@ Patterns (baseline set):
 - `finally` – wildcard, matches anything (default case).
 - Literals – `123`, `"str"`, `true`, `false`.
 - Bindings – `name` binds the matched value in that arm.
-- Option – `nothing` (absent) and `Some(p)` where `p` is a sub-pattern.
+- Tagged constructors – `Tag(p)` such as `Some(x)`, `Ok(v)`, `Error(e)`; payload patterns recurse.
+- `nothing` – matches the absence literal of type `nothing`.
 - Conditional patterns – `x if x is int` where `x` is bound and condition is checked.
+
+Examples:
+
+```sg
+compare v {
+  Some(x) => print(x),
+  nothing => print("empty")
+}
+
+compare r {
+  Ok(v)      => print("ok", v),
+  Error(err) => print("err", err)
+}
+```
 
 Notes:
 
 - Arms are tried top-to-bottom; the first match wins.
 - `=>` separates pattern from result expression and is only valid within `compare` arms and parallel constructs.
-- `nothing` has type `Option<T>` for some `T` determined by context; using `nothing` without sufficient type information is a type error at a later phase.
+- Tagged unions must cover every declared tag (or provide `finally`) or emit `E_NONEXHAUSTIVE_MATCH`. Untagged unions skip this exhaustiveness check.
+- `Ident(...)` resolves to a tag constructor before a function; ambiguous resolution yields `E_AMBIGUOUS_CONSTRUCTOR_OR_FN`.
 
 ---
 
@@ -343,9 +390,9 @@ Variadics: `...args` denotes a variadic parameter and desugars to an array param
 
 **Return type semantics:**
 
-* Functions without `-> RetType` are considered to return `unit` and do not need explicit `return` statements.
-  * `fn main() { ... }` - valid, no return needed
-  * `fn main() { return (); }` - also valid, explicitly returns unit
+* Functions without `-> RetType` return `nothing` and may omit explicit `return` statements.
+  * `fn main() { ... }` - valid, implicit `return nothing;`
+  * `fn main() { return nothing; }` - also valid, explicitly returns the absence value
 * Functions with `-> RetType` must return a value of that type.
   * `fn answer() -> int { return 42; }`
 
@@ -453,7 +500,7 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Abs: `abs(x)` → `__abs`
 * To-string: used by `print` → `__to_string() -> string`
 * Range: `for in` → `__range() -> Range<T>` where `Range<T>` yields `T` via `next()`.
-* Result propagation: `expr?` — if `expr` is `Result<T,E>`, yields `T` or returns `Err(E)` from the current function (see §11).
+* Result propagation: `expr?` — if `expr` is `Result<T,E>`, yields `T` or returns `Error(E)` from the current function (see §11).
 * Compound assignment: `+= -= *= /= %= &= |= ^= <<= >>=` → corresponding operation + assign.
 * Ternary: `condition ? true_expr : false_expr` → conditional expression.
 * Null coalescing: `optional ?? default` → returns default if optional is `nothing`.
@@ -552,17 +599,9 @@ Given a call `f(a1, ..., an)` with candidate signatures `Si`:
 
 Union alias `alias Number = int | float` participates by expanding to candidates for each member type; the best member is chosen.
 
-### Option Auto-wrapping
+### Option conversions
 
-When the target type is `Option<T>` and the source is `T`, automatic wrapping in `Some()` occurs:
-
-```sg
-let x: Option<int> = 42;           // auto-wraps to Some(42)
-let arr: Option<int>[] = [1, 2, 3]; // auto-wraps to [Some(1), Some(2), Some(3)]
-let mixed: Option<int>[] = [1, nothing, 3]; // [Some(1), nothing, Some(3)]
-```
-
-This coercion has cost 1 in overload resolution (same as numeric literal fitting).
+No implicit conversion inserts `Some(...)`; `Option<T>` construction is always explicit (§2.9). Overload resolution treats values of type `Option<T>` distinctly from `T`.
 
 ---
 
@@ -603,7 +642,7 @@ Restriction: `=>` is valid only in these `parallel` constructs and within `compa
 ### 9.4. Tasks and spawn semantics
 
 * `spawn expr` launches a new task to evaluate `expr` asynchronously. If `expr` has type `T`, `spawn expr` has type `Task<T>` (a join handle).
-* `join(t: Task<T>) -> Result<T, Cancelled>` waits for completion; on normal completion returns `Ok(value)`, on cooperative cancellation returns `Err(Cancelled)`.
+* `join(t: Task<T>) -> Result<T, Cancelled>` waits for completion; on normal completion returns `Ok(value)`, on cooperative cancellation returns `Error(Cancelled)`.
 * `t.cancel()` requests cooperative cancellation; tasks can check via `task::is_cancelled()`.
 * Moving values into `spawn` consumes them (ownership semantics). Only `own` values may be moved into tasks.
 
@@ -671,75 +710,52 @@ async {
 
 (Full trap catalogue and error codes live in DIAGNOSTICS.md / RUNTIME.md.)
 
-### Error Inheritance Model
-
-Surge uses a simple inheritance model for errors instead of complex trait systems:
+### Error types and inheritance
 
 ```sg
-type Error {
-    message: string;
-    code: uint;
-}
+type Error = { message: string, code: uint }
 
-extern<Error> {
-    fn throw(self: &Error) -> void;
-    fn __to_string(self: &Error) -> string {
-        return "Error " + self.code + ": " + self.message;
-    }
-}
-
-// Custom errors via newtype:
-newtype HTTPError = Error;
-newtype FileError = Error;
-newtype NetworkError = Error;
-
-// Usage:
-let http_access_denied: HTTPError = HTTPError {
-    message: "Access denied",
-    code: 401
-};
-
-let file_not_found: FileError = FileError {
-    message: "File not found",
-    code: 404
-};
+// Derived error with extra data
+type MyError = Error : { path: string }
 ```
 
-Newtype errors inherit all methods from the base `Error` type but can override specific behaviors:
+- `type Child = Base : { ... }` copies all fields from `Base` and extends the struct with additional fields. Field names must remain unique; conflicts emit `E_FIELD_CONFLICT`.
+- Fields may provide defaults (`field: T = expr`). Missing defaults require callers to populate the field explicitly.
+- Attributes on inherited fields (`@hidden`, `@readonly`) retain their behaviour. New fields may declare their own attributes.
+- Methods declared in `extern<Base>` apply to `Child`. Overrides live in `extern<Child>` with `@override` for clarity.
+- `(Child heir Base)` is a runtime predicate returning `bool` and captures the declared inheritance chain.
+- `is` remains strictly nominal: `e is Error` is false if `e: MyError`. Use `heir` or tagged results for family checks.
 
 ```sg
-extern<HTTPError> {
-    @override
-    fn __to_string(self: &HTTPError) -> string {
-        return "HTTP Error " + self.code + ": " + self.message;
-    }
+fn open_file(p: string) -> Result<string, MyError> {
+  let e: MyError = { message: "denied", code: 401, path: p };
+  return Error(e);
 }
+
+let ok = (MyError heir Error); // true
 ```
 
 ### Recoverable errors: Result<T, E> and `?` propagation
 
-The standard recoverable error type is `Result<T, E>` provided by the standard library:
+`Result<T, E>` is defined via tags (§2.9). The `?` operator expects `Result<_, E>` and propagates the `Error(E)` branch: if the operand yields `Error(e)`, the surrounding function returns `Error(e)` immediately.
 
-```
-type Result<T, E> = Ok(T) | Err(E)
-```
+```sg
+fn parse_int(s: string) -> Result<int, Error> {
+  if (s == "42") { return Ok(42); }
+  let e: Error = { message: "bad int", code: 2 };
+  return Error(e);
+}
 
-Use the `?` operator to propagate `Err` early: `expr?` evaluates `expr` which must be `Result<T,E>`; if `Ok(v)` — yields `v`, if `Err(e)` — the current function returns `Err(e)` immediately (the function must return `Result<...,E>` or a compatible result type).
-
-Example:
-
-```
-fn parse_int(s:string) -> Result<int, ParseError> { /* ... */ }
-fn read_and_parse() -> Result<int, ParseError> {
-  let line = read_line()?;      // if read_line() returns Err -> propagate
-  let v = parse_int(line)?;     // propagate parse error
+fn read_and_parse() -> Result<int, Error> {
+  let line = read_line()?;      // propagates Error(..) if present
+  let v = parse_int(line)?;     // requires parse_int to return Result
   return Ok(v);
 }
 ```
 
-Traps remain for unrecoverable faults (OOB, internal assertion, certain cast traps). A richer effects model may be added later; this draft uses Result + traps.
+Returning a bare payload where `Result<T, E>` is expected emits `E_EXPECTED_TAGGED_VARIANT`; use `Ok(...)` / `Error(...)` explicitly.
 
-Convention: error types `E` used in `Result<T, E>` should extend the base `Error` via `newtype`, enabling consistent formatting and handling. The compiler does not enforce this; it is a project convention.
+Traps remain for unrecoverable faults (OOB, internal assertion, certain cast traps). A richer effects model may be added later; this draft focuses on explicit tagged results plus traps.
 
 ---
 
@@ -965,6 +981,11 @@ Member access `.` and await `.await` are postfix operators and bind tightly toge
 * Items are `pub` (public) or private by default. (Default: private.)
 * `pub fn`, `pub type`, `pub literal`, `pub alias`, `pub let` export items from the module.
 
+### 15.1. Resolving `Ident(...)`
+
+- In expression or pattern position the form `Ident(...)` prefers tag constructors over function calls when both exist.
+- If both a tag and a function of the same name are visible and overload resolution cannot disambiguate, the parser emits `E_AMBIGUOUS_CONSTRUCTOR_OR_FN`.
+
 ---
 
 ## 16. Compilation Model
@@ -1014,19 +1035,24 @@ let c = identity(3.14);    // generates identity_float
 
 ### 17.1. Union Types
 
-Union types allow a value to be one of several types:
+Union aliases (§2.8) support both untagged and tagged composition. Untagged unions rely on runtime type tests:
 
 ```sg
-alias Number = int | float;
-alias OptionalString = string | nothing;
+alias Number = int | float
 
-fn process_number(n: Number) -> string {
-    return compare n {
-        x if x is int => "Integer: " + x.to_string(),
-        x if x is float => "Float: " + x.to_string()
+extern<Number> {
+  fn __add(a: Number, b: Number) -> Number {
+    return compare (a, b) {
+      (x if x is int,   y if y is int)   => (x + y):Number,
+      (x if x is int,   y if y is float) => (x:float + y):Number,
+      (x if x is float, y if y is int)   => (x + y:float):Number,
+      (x if x is float, y if y is float) => (x + y):Number,
     };
+  }
 }
 ```
+
+Tagged unions provide exhaustiveness checking and clearer APIs; see §2.7 for constructors and §3.6 for matching rules. If the runtime cannot distinguish untagged members, emit `E_AMBIGUOUS_UNION_MEMBERS`.
 
 ### 17.2. Tuple Types
 
@@ -1072,7 +1098,7 @@ Note: `MacroDef` is reserved for a future iteration. The syntax is specified for
 
 ```
 Module     := Item*
-Item       := Visibility? (Fn | AsyncFn | MacroDef | NewtypeDef | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
+Item       := Visibility? (Fn | AsyncFn | MacroDef | TagDecl | NewtypeDef | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
 Visibility := "pub"
 Fn         := Attr* "fn" Ident GenericParams? ParamList RetType? Block
 AsyncFn    := Attr* "async" "fn" Ident GenericParams? ParamList RetType? Block
@@ -1085,13 +1111,15 @@ GenericParams := "<" Ident ("," Ident)* ">"
 ParamList  := "(" (Param ("," Param)*)? ")"
 Param      := Ident ":" Type | "..."
 RetType    := "->" Type
+TagDecl    := "tag" Ident "(" TypeArgs? ")" ";"
 NewtypeDef := "newtype" Ident "=" Type ";"
 TypeDef    := "type" Ident StructBody ";"?
 StructBody := "{" Field ("," Field)* "}"
 Field      := Attr* Ident ":" Type
 LiteralDef := "literal" Ident "=" LiteralAlt ("|" LiteralAlt)* ";"
 LiteralAlt := Str
-AliasDef   := "alias" Ident "=" Type ("|" Type)* ";"
+AliasDef   := "alias" Ident GenericParams? "=" UnionAlt ("|" UnionAlt)* ";"
+UnionAlt   := "nothing" | Ident "(" TypeArgs? ")" | Type
 ExternBlock:= "extern<" Type ">" Block
 Import     := "import" Path ("::" Ident ("as" Ident)?)? ";"
 Path       := Ident ("/" Ident)*
@@ -1109,10 +1137,12 @@ AwaitExpr  := Expr "." "await"           // awaits a Future; only valid in async
 Spawn      := "spawn" Expr
 Compare    := "compare" Expr "{" Arm (";" Arm)* ";"? "}"
 Arm        := Pattern "=>" Expr
-Pattern    := "finally" | Ident | Literal | "nothing" | "Some" "(" Pattern ")" | Ident "if" Expr
+Pattern    := "finally" | Literal | "nothing" | Ident | Ident "(" PatternArgs? ")" | Ident "if" Expr
+PatternArgs:= Pattern ("," Pattern)*
 Type       := Ownership? CoreType Suffix*
 Ownership  := "own" | "&" | "&mut" | "*"
 CoreType   := Ident ("<" Type ("," Type)* ">")?
+TypeArgs   := Type ("," Type)*
 Suffix     := "[]"
 ```
 
@@ -1134,6 +1164,7 @@ Stable diagnostic codes used by the parser and early semantic checks:
 
 * `E_GENERIC_UNDECLARED` — generic parameter used but not declared.
 * `E_AMBIGUOUS_NOTHING` — `nothing` used without contextual type.
+* `E_AMBIGUOUS_CONSTRUCTOR_OR_FN` — `Ident(...)` could resolve to either a tag constructor or a function.
 * `E_MOVE_BORROWED_TO_THREAD` — cannot move borrowed reference into spawned task.
 * `E_SIGNAL_NOT_PURE` — signals require @pure expression.
 * `E_ARROW_USAGE` — `=>` reserved for compare arms and parallel constructs.
@@ -1144,6 +1175,10 @@ Stable diagnostic codes used by the parser and early semantic checks:
 * `E_CYCLIC_TOPLEVEL_INIT` — cyclic top-level initialization.
 * `E_AMBIGUOUS_OVERLOAD` — ambiguous overload resolution.
 * `E_MISMATCH_RESULT_USE` — Result used where plain value expected (use `?` or compare).
+* `E_NONEXHAUSTIVE_MATCH` — tagged union match missing variants without `finally`.
+* `E_EXPECTED_TAGGED_VARIANT` — bare payload returned where a tagged constructor was required.
+* `E_AMBIGUOUS_UNION_MEMBERS` — untagged union members cannot be distinguished at runtime.
+* `E_FIELD_CONFLICT` — field name repeated while extending a struct (`type Child = Base : { ... }`).
 * `E_MACRO_UNSUPPORTED` — `macro` definitions are parsed but not supported in this iteration.
 
-Note: Channel closure is a runtime condition; `send` returns `Result<unit, ChannelClosed>`. The corresponding runtime diagnostic lives in RUNTIME.md, not as a compile-time diagnostic.
+Note: Channel closure is a runtime condition; `send` returns `Result<nothing, ChannelClosed>`. The corresponding runtime diagnostic lives in RUNTIME.md, not as a compile-time diagnostic.
