@@ -533,6 +533,60 @@ fn render_stmt(output: &mut String, stmt: &Stmt, src: &str, source_id: SourceId,
             output.push_str(&format!("{}  semi: {:?}\n", indent_str, semi));
             output.push_str(&format!("{}}}", indent_str));
         }
+        Stmt::ForC {
+            init,
+            cond,
+            step,
+            body,
+            span,
+        } => {
+            output.push_str(&format!("{}ForC {{\n", indent_str));
+            output.push_str(&format!("{}  init: ", indent_str));
+            if let Some(expr) = init {
+                render_expr(output, expr, src, source_id, indent + 1);
+            } else {
+                output.push_str("None");
+            }
+            output.push_str(&format!(",\n{}  cond: ", indent_str));
+            if let Some(expr) = cond {
+                render_expr(output, expr, src, source_id, indent + 1);
+            } else {
+                output.push_str("None");
+            }
+            output.push_str(&format!(",\n{}  step: ", indent_str));
+            if let Some(expr) = step {
+                render_expr(output, expr, src, source_id, indent + 1);
+            } else {
+                output.push_str("None");
+            }
+            output.push_str(&format!(",\n{}  body: \n", indent_str));
+            render_block(output, body, src, source_id, indent + 1);
+            output.push_str(&format!("\n{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        Stmt::ForIn {
+            pat,
+            ty,
+            iter,
+            body,
+            span,
+        } => {
+            output.push_str(&format!("{}ForIn {{\n", indent_str));
+            output.push_str(&format!("{}  pat: \"{}\",\n", indent_str, pat));
+            output.push_str(&format!("{}  ty: ", indent_str));
+            if let Some(ty) = ty {
+                render_type_node(output, ty, src, source_id, indent + 1);
+                output.push_str(",\n");
+            } else {
+                output.push_str("None,\n");
+            }
+            output.push_str(&format!("{}  iter: ", indent_str));
+            render_expr(output, iter, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  body: \n", indent_str));
+            render_block(output, body, src, source_id, indent + 1);
+            output.push_str(&format!("\n{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
+        }
         Stmt::ExprStmt { expr, span, semi } => {
             output.push_str(&format!("{}ExprStmt {{\n", indent_str));
             output.push_str(&format!("{}  expr: ", indent_str));

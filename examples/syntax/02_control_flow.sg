@@ -20,15 +20,18 @@ fn test_control_flow() -> int {
         }
     }
 
-    // Эмулируем for с помощью while
-    let mut i: int = 0;
-    while (i < 5) {
+    // C-style for петля
+    for (let i: int = 0; i < 5; i = i + 1) {
         if (i == 1) {
-            i = i + 1;
             continue;
         }
         result = result + i;
-        i = i + 1;
+    }
+
+    // For-in петля
+    let items: int[] = [1, 2, 3, 4, 5];
+    for item: int in items {
+        result = result + item;
     }
 
     return result;

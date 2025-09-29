@@ -611,18 +611,15 @@ impl<'src> Parser<'src> {
 
     fn parse_for_stmt(&mut self) -> Option<Stmt> {
         let for_tok = self.stream.bump();
-        let header_open = match self.stream.eat(TokenKind::LParen) {
-            Some(tok) => tok,
-            None => {
-                let tok = self.stream.peek();
-                self.error(
-                    ParseCode::UnexpectedToken,
-                    tok.span,
-                    "Expected '(' after 'for'",
-                );
-                return None;
-            }
-        };
+        if self.stream.at(TokenKind::LParen) {
+            self.parse_for_c(for_tok)
+        } else {
+            self.parse_for_in(for_tok)
+        }
+    }
+
+    fn parse_for_c(&mut self, for_tok: Token) -> Option<Stmt> {
+        let header_open = self.stream.bump(); // consume '('
 
         let init = if self.stream.at(TokenKind::Semicolon) {
             self.stream.bump();
@@ -694,6 +691,72 @@ impl<'src> Parser<'src> {
             init,
             cond,
             step,
+            body,
+            span,
+        })
+    }
+
+    fn parse_for_in(&mut self, for_tok: Token) -> Option<Stmt> {
+        let (pat, pat_span) = match self.expect_ident("for binding") {
+            Some(res) => res,
+            None => return None,
+        };
+        let mut span = for_tok.span.join(pat_span);
+
+        let ty = if let Some(colon) = self.stream.eat(TokenKind::Colon) {
+            let ty = self.parse_type_node();
+            if let Some(ref ty_node) = ty {
+                span = span.join(ty_node.span);
+            } else {
+                self.error(
+                    ParseCode::ForInMissingType,
+                    colon.span,
+                    "Expected type after ':' in for-in loop",
+                );
+            }
+            ty
+        } else {
+            self.error(
+                ParseCode::ForInMissingColon,
+                pat_span,
+                "Expected ':' after binding in for-in loop",
+            );
+            None
+        };
+
+        if self.stream.eat(TokenKind::Keyword(Keyword::In)).is_none() {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::ForInMissingIn,
+                tok.span,
+                "Expected 'in' in for-in loop",
+            );
+            return None;
+        }
+
+        let iter = match self.parse_expr() {
+            Some(expr) => {
+                span = span.join(expr_span(&expr));
+                expr
+            }
+            None => {
+                let tok = self.stream.peek();
+                self.error(
+                    ParseCode::ForInMissingExpr,
+                    tok.span,
+                    "Expected iterator expression in for-in loop",
+                );
+                return None;
+            }
+        };
+
+        let body = self.parse_block()?;
+        span = span.join(body.span);
+
+        Some(Stmt::ForIn {
+            pat,
+            ty,
+            iter,
             body,
             span,
         })
