@@ -186,6 +186,11 @@ pub enum Expr {
         op: AssignOp,
         span: Span,
     },
+    Compare {
+        scrutinee: Box<Expr>,
+        arms: Vec<CompareArm>,
+        span: Span,
+    },
     Ternary {
         cond: Box<Expr>,
         then_branch: Box<Expr>,
@@ -263,6 +268,32 @@ pub enum AssignOp {
     BitXorAssign,
     ShlAssign,
     ShrAssign,
+}
+
+/// Compare expression arm.
+#[derive(Debug)]
+pub struct CompareArm {
+    pub pattern: Pattern,
+    pub guard: Option<Expr>,
+    pub expr: Expr,
+    pub span: Span,
+}
+
+/// Compare pattern with its span.
+#[derive(Debug)]
+pub struct Pattern {
+    pub kind: PatternKind,
+    pub span: Span,
+}
+
+/// Kinds of patterns supported by compare expressions.
+#[derive(Debug)]
+pub enum PatternKind {
+    Finally,
+    Binding(String),
+    Nothing,
+    Literal(Expr),
+    Tag { name: String, args: Vec<Pattern> },
 }
 
 /// Type node represented by its span and optional textual form.

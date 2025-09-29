@@ -13,8 +13,8 @@ use surge_diagnostics::{
 };
 use surge_lexer::{LexOptions, lex};
 use surge_parser::{
-    Ast, Attr, Block, Expr, Func, FuncSig, Item, Module, Param, Stmt, TypeNode,
-    parse_source_with_options, parse_tokens,
+    Ast, Attr, Block, Expr, Func, FuncSig, Item, Module, Param, Pattern, PatternKind, Stmt,
+    TypeNode, parse_source_with_options, parse_tokens,
 };
 use surge_token::SourceId;
 
@@ -709,6 +709,33 @@ fn render_expr(output: &mut String, expr: &Expr, src: &str, source_id: SourceId,
             output.push_str(&format!(",\n{}  span: {:?}\n", indent_str, span));
             output.push_str(&format!("{}}}", indent_str));
         }
+        Expr::Let {
+            name,
+            ty,
+            init,
+            mutable,
+            span,
+        } => {
+            output.push_str(&format!("LetExpr {{\n"));
+            output.push_str(&format!("{}  name: \"{}\",\n", indent_str, name));
+            output.push_str(&format!("{}  mutable: {},\n", indent_str, mutable));
+            output.push_str(&format!("{}  ty: ", indent_str));
+            if let Some(ty) = ty {
+                render_type_node(output, ty, src, source_id, indent + 1);
+                output.push_str(",\n");
+            } else {
+                output.push_str("None,\n");
+            }
+            output.push_str(&format!("{}  init: ", indent_str));
+            if let Some(expr) = init {
+                render_expr(output, expr, src, source_id, indent + 1);
+                output.push_str(",\n");
+            } else {
+                output.push_str("None,\n");
+            }
+            output.push_str(&format!("{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
+        }
         Expr::Ternary {
             cond,
             then_branch,
@@ -725,8 +752,74 @@ fn render_expr(output: &mut String, expr: &Expr, src: &str, source_id: SourceId,
             output.push_str(&format!(",\n{}  span: {:?}\n", indent_str, span));
             output.push_str(&format!("{}}}", indent_str));
         }
+        Expr::Compare {
+            scrutinee,
+            arms,
+            span,
+        } => {
+            output.push_str(&format!("Compare {{\n"));
+            output.push_str(&format!("{}  scrutinee: ", indent_str));
+            render_expr(output, scrutinee, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  arms: [\n", indent_str));
+            for (i, arm) in arms.iter().enumerate() {
+                if i > 0 {
+                    output.push_str(",\n");
+                }
+                output.push_str(&format!("{}    Arm {{\n", indent_str));
+                output.push_str(&format!("{}      pattern: ", indent_str));
+                render_pattern(output, &arm.pattern, src, source_id, indent + 3);
+                if let Some(ref guard) = arm.guard {
+                    output.push_str(&format!(",\n{}      guard: ", indent_str));
+                    render_expr(output, guard, src, source_id, indent + 3);
+                } else {
+                    output.push_str(&format!(",\n{}      guard: None", indent_str));
+                }
+                output.push_str(&format!(",\n{}      expr: ", indent_str));
+                render_expr(output, &arm.expr, src, source_id, indent + 3);
+                output.push_str(&format!(",\n{}      span: {:?}\n", indent_str, arm.span));
+                output.push_str(&format!("{}    }}", indent_str));
+            }
+            output.push_str(&format!("\n{}  ],\n", indent_str));
+            output.push_str(&format!("{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
+        }
         _ => {
             output.push_str(&format!("<unimplemented expr>"));
+        }
+    }
+}
+
+fn render_pattern(
+    output: &mut String,
+    pattern: &Pattern,
+    src: &str,
+    source_id: SourceId,
+    indent: usize,
+) {
+    match &pattern.kind {
+        PatternKind::Finally => {
+            output.push_str(&format!("Finally(span={:?})", pattern.span));
+        }
+        PatternKind::Nothing => {
+            output.push_str(&format!("Nothing(span={:?})", pattern.span));
+        }
+        PatternKind::Binding(name) => {
+            output.push_str(&format!("Binding(\"{}\", span={:?})", name, pattern.span));
+        }
+        PatternKind::Literal(expr) => {
+            output.push_str("Literal(");
+            render_expr(output, expr, src, source_id, indent + 1);
+            output.push_str(&format!(", span={:?})", pattern.span));
+        }
+        PatternKind::Tag { name, args } => {
+            output.push_str(&format!("Tag {{ name: \"{}\", args: [", name));
+            for (i, arg) in args.iter().enumerate() {
+                if i > 0 {
+                    output.push_str(", ");
+                }
+                render_pattern(output, arg, src, source_id, indent + 1);
+            }
+            output.push_str(&format!("], span: {:?} }}", pattern.span));
         }
     }
 }

@@ -831,6 +831,255 @@ impl<'src> Parser<'src> {
         }
     }
 
+    fn parse_compare_expr(&mut self, compare_tok: Token) -> Option<Expr> {
+        let scrutinee = self.parse_expr()?;
+        let _brace_open = match self.stream.eat(TokenKind::LBrace) {
+            Some(tok) => tok,
+            None => {
+                let tok = self.stream.peek();
+                self.error(
+                    ParseCode::CompareMissingBrace,
+                    tok.span,
+                    "Expected '{' to start compare arms",
+                );
+                return None;
+            }
+        };
+
+        let mut arms = Vec::new();
+        let mut saw_finally = false;
+
+        while !self.stream.is_eof() && !self.stream.at(TokenKind::RBrace) {
+            let pattern = match self.parse_pattern() {
+                Some(pat) => {
+                    if matches!(pat.kind, PatternKind::Finally) {
+                        if saw_finally {
+                            self.error(
+                                ParseCode::UnexpectedToken,
+                                pat.span,
+                                "Duplicate 'finally' arm in compare expression",
+                            );
+                        }
+                        saw_finally = true;
+                    }
+                    pat
+                }
+                None => {
+                    self.recover_compare_arm();
+                    continue;
+                }
+            };
+
+            let guard = if self.stream.eat(TokenKind::Keyword(Keyword::If)).is_some() {
+                match self.parse_expr() {
+                    Some(expr) => Some(expr),
+                    None => {
+                        self.recover_compare_arm();
+                        continue;
+                    }
+                }
+            } else {
+                None
+            };
+
+            if self.stream.eat(TokenKind::FatArrow).is_none() {
+                let tok = self.stream.peek();
+                self.error(
+                    ParseCode::CompareMissingArrow,
+                    tok.span,
+                    "Expected '=>' in compare arm",
+                );
+                self.recover_compare_arm();
+                continue;
+            }
+
+            let expr = match self.parse_expr() {
+                Some(expr) => expr,
+                None => {
+                    let tok = self.stream.peek();
+                    self.error(
+                        ParseCode::CompareMissingExpr,
+                        tok.span,
+                        "Expected expression after '=>' in compare arm",
+                    );
+                    self.recover_compare_arm();
+                    continue;
+                }
+            };
+
+            let mut arm_span = pattern.span;
+            if let Some(ref guard_expr) = guard {
+                arm_span = arm_span.join(expr_span(guard_expr));
+            }
+            arm_span = arm_span.join(expr_span(&expr));
+
+            arms.push(CompareArm {
+                pattern,
+                guard,
+                expr,
+                span: arm_span,
+            });
+
+            if self.stream.eat(TokenKind::Semicolon).is_some() {
+                continue;
+            }
+            if self.stream.eat(TokenKind::Comma).is_some() {
+                continue;
+            }
+        }
+
+        let close = match self.stream.eat(TokenKind::RBrace) {
+            Some(tok) => tok,
+            None => {
+                let tok = self.stream.peek();
+                self.error(
+                    ParseCode::CompareMissingBrace,
+                    tok.span,
+                    "Expected '}' to close compare expression",
+                );
+                return None;
+            }
+        };
+
+        let span = compare_tok.span.join(close.span);
+        Some(Expr::Compare {
+            scrutinee: Box::new(scrutinee),
+            arms,
+            span,
+        })
+    }
+
+    fn parse_pattern(&mut self) -> Option<Pattern> {
+        let tok = self.stream.bump();
+        match tok.kind {
+            TokenKind::Keyword(Keyword::Finally) => Some(Pattern {
+                kind: PatternKind::Finally,
+                span: tok.span,
+            }),
+            TokenKind::Keyword(Keyword::Nothing) => Some(Pattern {
+                kind: PatternKind::Nothing,
+                span: tok.span,
+            }),
+            TokenKind::Keyword(Keyword::True) | TokenKind::Keyword(Keyword::False) => {
+                let default = if matches!(tok.kind, TokenKind::Keyword(Keyword::True)) {
+                    "true"
+                } else {
+                    "false"
+                };
+                let text = self.stream.slice(tok.span).unwrap_or(default).to_string();
+                Some(Pattern {
+                    kind: PatternKind::Literal(Expr::Ident(text, tok.span)),
+                    span: tok.span,
+                })
+            }
+            TokenKind::IntLit => {
+                let text = self.stream.slice(tok.span).unwrap_or("0").to_string();
+                Some(Pattern {
+                    kind: PatternKind::Literal(Expr::LitInt(text, tok.span)),
+                    span: tok.span,
+                })
+            }
+            TokenKind::FloatLit => {
+                let text = self.stream.slice(tok.span).unwrap_or("0.0").to_string();
+                Some(Pattern {
+                    kind: PatternKind::Literal(Expr::LitFloat(text, tok.span)),
+                    span: tok.span,
+                })
+            }
+            TokenKind::StringLit => {
+                let text = self.stream.slice(tok.span).unwrap_or("\"\"").to_string();
+                Some(Pattern {
+                    kind: PatternKind::Literal(Expr::LitString(text, tok.span)),
+                    span: tok.span,
+                })
+            }
+            TokenKind::Ident => {
+                let name = if let Some(slice) = self.stream.slice(tok.span) {
+                    slice.to_string()
+                } else {
+                    format!("ident_{}", tok.span.start)
+                };
+
+                if self.stream.at(TokenKind::LParen) {
+                    let open = self.stream.bump();
+                    let mut args = Vec::new();
+                    while !self.stream.is_eof() && !self.stream.at(TokenKind::RParen) {
+                        match self.parse_pattern() {
+                            Some(arg) => args.push(arg),
+                            None => {
+                                self.recover_pattern_args();
+                                break;
+                            }
+                        }
+                        if self.stream.eat(TokenKind::Comma).is_some() {
+                            continue;
+                        }
+                        break;
+                    }
+                    let close = match self.stream.eat(TokenKind::RParen) {
+                        Some(tok) => tok,
+                        None => {
+                            self.error(
+                                ParseCode::UnclosedParen,
+                                open.span,
+                                "Expected ')' after tag pattern",
+                            );
+                            open
+                        }
+                    };
+                    let span = tok.span.join(close.span);
+                    Some(Pattern {
+                        kind: PatternKind::Tag { name, args },
+                        span,
+                    })
+                } else {
+                    Some(Pattern {
+                        kind: PatternKind::Binding(name),
+                        span: tok.span,
+                    })
+                }
+            }
+            _ => {
+                self.error(
+                    ParseCode::UnexpectedPrimary,
+                    tok.span,
+                    "Unexpected token in compare pattern",
+                );
+                None
+            }
+        }
+    }
+
+    fn recover_pattern_args(&mut self) {
+        while !self.stream.is_eof() {
+            match self.stream.peek().kind {
+                TokenKind::Comma => {
+                    self.stream.bump();
+                    break;
+                }
+                TokenKind::RParen => break,
+                _ => {
+                    self.stream.bump();
+                }
+            }
+        }
+    }
+
+    fn recover_compare_arm(&mut self) {
+        while !self.stream.is_eof() {
+            match self.stream.peek().kind {
+                TokenKind::Semicolon | TokenKind::Comma => {
+                    self.stream.bump();
+                    break;
+                }
+                TokenKind::RBrace => break,
+                _ => {
+                    self.stream.bump();
+                }
+            }
+        }
+    }
+
     fn parse_expr(&mut self) -> Option<Expr> {
         self.parse_expr_bp(0)
     }
@@ -1035,6 +1284,7 @@ impl<'src> Parser<'src> {
                 };
                 Some(Expr::Ident(name, tok.span))
             }
+            TokenKind::Keyword(Keyword::Compare) => self.parse_compare_expr(tok),
             TokenKind::Keyword(Keyword::True) => Some(Expr::Ident("true".into(), tok.span)),
             TokenKind::Keyword(Keyword::False) => Some(Expr::Ident("false".into(), tok.span)),
             TokenKind::Keyword(Keyword::Nothing) => Some(Expr::Ident("nothing".into(), tok.span)),
@@ -1496,6 +1746,7 @@ fn expr_span(expr: &Expr) -> Span {
         | Expr::Unary { span, .. }
         | Expr::Binary { span, .. }
         | Expr::Assign { span, .. }
+        | Expr::Compare { span, .. }
         | Expr::Ternary { span, .. }
         | Expr::Let { span, .. }
         | Expr::ParallelMap { span, .. }
@@ -1515,6 +1766,13 @@ fn with_span(expr: Expr, span: Span) -> Expr {
         Expr::Unary { op, rhs, .. } => Expr::Unary { op, rhs, span },
         Expr::Binary { lhs, op, rhs, .. } => Expr::Binary { lhs, op, rhs, span },
         Expr::Assign { lhs, rhs, op, .. } => Expr::Assign { lhs, rhs, op, span },
+        Expr::Compare {
+            scrutinee, arms, ..
+        } => Expr::Compare {
+            scrutinee,
+            arms,
+            span,
+        },
         Expr::Ternary {
             cond,
             then_branch,

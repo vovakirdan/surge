@@ -54,6 +54,13 @@ pub fn from_parser_diags(file: SourceId, diags: &[surge_parser::ParseDiag]) -> V
                 surge_parser::ParseCode::ForInMissingType => "PARSE_FORIN_MISSING_TYPE".into(),
                 surge_parser::ParseCode::ForInMissingIn => "PARSE_FORIN_MISSING_IN".into(),
                 surge_parser::ParseCode::ForInMissingExpr => "PARSE_FORIN_MISSING_EXPR".into(),
+                surge_parser::ParseCode::CompareMissingArrow => {
+                    "PARSE_COMPARE_MISSING_ARROW".into()
+                }
+                surge_parser::ParseCode::CompareMissingExpr => "PARSE_COMPARE_MISSING_EXPR".into(),
+                surge_parser::ParseCode::CompareMissingBrace => {
+                    "PARSE_COMPARE_MISSING_BRACE".into()
+                }
                 surge_parser::ParseCode::ParallelMissingWith => {
                     "PARSE_PARALLEL_MISSING_WITH".into()
                 }
