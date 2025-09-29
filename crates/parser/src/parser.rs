@@ -1080,6 +1080,211 @@ impl<'src> Parser<'src> {
         }
     }
 
+    fn parse_parallel_expr(&mut self, parallel_tok: Token) -> Option<Expr> {
+        let mode_tok = self.stream.bump();
+        let mode = match mode_tok.kind {
+            TokenKind::Ident => {
+                let text = self.stream.slice(mode_tok.span).unwrap_or("").to_string();
+                if text == "map" {
+                    Some(true)
+                } else if text == "reduce" {
+                    Some(false)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+
+        match mode {
+            Some(true) => self.parse_parallel_map(parallel_tok),
+            Some(false) => self.parse_parallel_reduce(parallel_tok),
+            None => {
+                self.error(
+                    ParseCode::UnexpectedToken,
+                    mode_tok.span,
+                    "Expected 'map' or 'reduce' after 'parallel'",
+                );
+                None
+            }
+        }
+    }
+
+    fn parse_parallel_map(&mut self, parallel_tok: Token) -> Option<Expr> {
+        let seq = self.parse_expr()?;
+
+        if self.stream.eat(TokenKind::Keyword(Keyword::With)).is_none() {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::ParallelMissingWith,
+                tok.span,
+                "Expected 'with' in parallel map expression",
+            );
+        }
+
+        let args = self.parse_parallel_arg_list();
+
+        if self.stream.eat(TokenKind::FatArrow).is_none() {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::ParallelMissingFatArrow,
+                tok.span,
+                "Expected '=>' in parallel map expression",
+            );
+        }
+
+        let func = match self.parse_expr() {
+            Some(expr) => expr,
+            None => {
+                let tok = self.stream.peek();
+                self.error(
+                    ParseCode::ParallelBadHeader,
+                    tok.span,
+                    "Expected mapping expression after '=>'",
+                );
+                return None;
+            }
+        };
+
+        let span = parallel_tok.span.join(expr_span(&func));
+        Some(Expr::ParallelMap {
+            seq: Box::new(seq),
+            args,
+            func: Box::new(func),
+            span,
+        })
+    }
+
+    fn parse_parallel_reduce(&mut self, parallel_tok: Token) -> Option<Expr> {
+        let seq = self.parse_expr()?;
+
+        if self.stream.eat(TokenKind::Keyword(Keyword::With)).is_none() {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::ParallelMissingWith,
+                tok.span,
+                "Expected 'with' in parallel reduce expression",
+            );
+        }
+
+        let init = match self.parse_expr() {
+            Some(expr) => expr,
+            None => {
+                let tok = self.stream.peek();
+                self.error(
+                    ParseCode::ParallelBadHeader,
+                    tok.span,
+                    "Expected initializer expression after 'with'",
+                );
+                return None;
+            }
+        };
+
+        if self.stream.eat(TokenKind::Comma).is_none() {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::ParallelBadHeader,
+                tok.span,
+                "Expected ',' between initializer and argument list",
+            );
+        }
+
+        let args = self.parse_parallel_arg_list();
+
+        if self.stream.eat(TokenKind::FatArrow).is_none() {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::ParallelMissingFatArrow,
+                tok.span,
+                "Expected '=>' in parallel reduce expression",
+            );
+        }
+
+        let func = match self.parse_expr() {
+            Some(expr) => expr,
+            None => {
+                let tok = self.stream.peek();
+                self.error(
+                    ParseCode::ParallelBadHeader,
+                    tok.span,
+                    "Expected reducer expression after '=>'",
+                );
+                return None;
+            }
+        };
+
+        let span = parallel_tok.span.join(expr_span(&func));
+        Some(Expr::ParallelReduce {
+            seq: Box::new(seq),
+            init: Box::new(init),
+            args,
+            func: Box::new(func),
+            span,
+        })
+    }
+
+    fn parse_parallel_arg_list(&mut self) -> Vec<Expr> {
+        let mut args = Vec::new();
+        let Some(open) = self.stream.eat(TokenKind::LParen) else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::ParallelBadHeader,
+                tok.span,
+                "Expected '(' to start argument list",
+            );
+            return args;
+        };
+
+        if self.stream.at(TokenKind::RParen) {
+            self.stream.bump();
+            return args;
+        }
+
+        loop {
+            if self.stream.is_eof() {
+                break;
+            }
+
+            match self.parse_expr() {
+                Some(expr) => args.push(expr),
+                None => {
+                    self.recover_parallel_args();
+                    break;
+                }
+            }
+
+            if self.stream.eat(TokenKind::Comma).is_some() {
+                continue;
+            }
+            break;
+        }
+
+        if self.stream.eat(TokenKind::RParen).is_none() {
+            self.error(
+                ParseCode::ParallelBadHeader,
+                open.span,
+                "Expected ')' after argument list",
+            );
+        }
+
+        args
+    }
+
+    fn recover_parallel_args(&mut self) {
+        while !self.stream.is_eof() {
+            match self.stream.peek().kind {
+                TokenKind::Comma => {
+                    self.stream.bump();
+                    break;
+                }
+                TokenKind::RParen => break,
+                _ => {
+                    self.stream.bump();
+                }
+            }
+        }
+    }
+
     fn parse_expr(&mut self) -> Option<Expr> {
         self.parse_expr_bp(0)
     }
@@ -1285,6 +1490,7 @@ impl<'src> Parser<'src> {
                 Some(Expr::Ident(name, tok.span))
             }
             TokenKind::Keyword(Keyword::Compare) => self.parse_compare_expr(tok),
+            TokenKind::Keyword(Keyword::Parallel) => self.parse_parallel_expr(tok),
             TokenKind::Keyword(Keyword::True) => Some(Expr::Ident("true".into(), tok.span)),
             TokenKind::Keyword(Keyword::False) => Some(Expr::Ident("false".into(), tok.span)),
             TokenKind::Keyword(Keyword::Nothing) => Some(Expr::Ident("nothing".into(), tok.span)),
@@ -1613,6 +1819,7 @@ impl<'src> Parser<'src> {
                 | TokenKind::Keyword(Keyword::Break)
                 | TokenKind::Keyword(Keyword::Continue)
                 | TokenKind::Keyword(Keyword::Signal)
+                | TokenKind::Keyword(Keyword::With)
                 | TokenKind::Eof
         )
     }
@@ -1798,23 +2005,23 @@ fn with_span(expr: Expr, span: Span) -> Expr {
             span,
         },
         Expr::ParallelMap {
-            seq, params, func, ..
+            seq, args, func, ..
         } => Expr::ParallelMap {
             seq,
-            params,
+            args,
             func,
             span,
         },
         Expr::ParallelReduce {
             seq,
             init,
-            params,
+            args,
             func,
             ..
         } => Expr::ParallelReduce {
             seq,
             init,
-            params,
+            args,
             func,
             span,
         },

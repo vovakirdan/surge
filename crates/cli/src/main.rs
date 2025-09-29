@@ -783,8 +783,52 @@ fn render_expr(output: &mut String, expr: &Expr, src: &str, source_id: SourceId,
             output.push_str(&format!("{}  span: {:?}\n", indent_str, span));
             output.push_str(&format!("{}}}", indent_str));
         }
-        _ => {
-            output.push_str(&format!("<unimplemented expr>"));
+        Expr::ParallelMap {
+            seq,
+            args,
+            func,
+            span,
+        } => {
+            output.push_str(&format!("ParallelMap {{\n"));
+            output.push_str(&format!("{}  seq: ", indent_str));
+            render_expr(output, seq, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  args: [\n", indent_str));
+            for (i, arg) in args.iter().enumerate() {
+                if i > 0 {
+                    output.push_str(",\n");
+                }
+                output.push_str(&format!("{}    ", indent_str));
+                render_expr(output, arg, src, source_id, indent + 2);
+            }
+            output.push_str(&format!("\n{}  ],\n{}  func: ", indent_str, indent_str));
+            render_expr(output, func, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
+        }
+        Expr::ParallelReduce {
+            seq,
+            init,
+            args,
+            func,
+            span,
+        } => {
+            output.push_str(&format!("ParallelReduce {{\n"));
+            output.push_str(&format!("{}  seq: ", indent_str));
+            render_expr(output, seq, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  init: ", indent_str));
+            render_expr(output, init, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  args: [\n", indent_str));
+            for (i, arg) in args.iter().enumerate() {
+                if i > 0 {
+                    output.push_str(",\n");
+                }
+                output.push_str(&format!("{}    ", indent_str));
+                render_expr(output, arg, src, source_id, indent + 2);
+            }
+            output.push_str(&format!("\n{}  ],\n{}  func: ", indent_str, indent_str));
+            render_expr(output, func, src, source_id, indent + 1);
+            output.push_str(&format!(",\n{}  span: {:?}\n", indent_str, span));
+            output.push_str(&format!("{}}}", indent_str));
         }
     }
 }

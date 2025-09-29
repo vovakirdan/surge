@@ -206,14 +206,14 @@ pub enum Expr {
     },
     ParallelMap {
         seq: Box<Expr>,
-        params: Vec<Param>,
+        args: Vec<Expr>,
         func: Box<Expr>,
         span: Span,
     },
     ParallelReduce {
         seq: Box<Expr>,
         init: Box<Expr>,
-        params: Vec<Param>,
+        args: Vec<Expr>,
         func: Box<Expr>,
         span: Span,
     },
