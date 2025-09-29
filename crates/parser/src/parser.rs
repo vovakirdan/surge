@@ -1242,7 +1242,11 @@ impl<'src> Parser<'src> {
     fn looks_like_type_start(&self, kind: TokenKind) -> bool {
         matches!(
             kind,
-            TokenKind::Ident | TokenKind::Keyword(Keyword::Own) | TokenKind::Amp | TokenKind::Star
+            TokenKind::Ident
+                | TokenKind::Keyword(Keyword::Own)
+                | TokenKind::Keyword(Keyword::Nothing)
+                | TokenKind::Amp
+                | TokenKind::Star
         )
     }
 

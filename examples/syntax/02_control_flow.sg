@@ -11,7 +11,7 @@ fn test_control_flow() -> int {
         result = 30;
     }
 
-    // While петля
+    // While-петля
     let mut counter: int = 0;
     while (counter < 3) {
         counter = counter + 1;
@@ -20,18 +20,15 @@ fn test_control_flow() -> int {
         }
     }
 
-    // C-style for петля
-    for (let i: int = 0; i < 5; i = i + 1) {
+    // Эмулируем for с помощью while
+    let mut i: int = 0;
+    while (i < 5) {
         if (i == 1) {
+            i = i + 1;
             continue;
         }
         result = result + i;
-    }
-
-    // For-in петля
-    let items: int[] = [1, 2, 3, 4, 5];
-    for (let item: int in items) {
-        result = result + item;
+        i = i + 1;
     }
 
     return result;

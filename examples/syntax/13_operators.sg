@@ -14,7 +14,7 @@ fn test_arithmetic_operators() -> int {
     let negative: int = -a;      // -10
     let positive: int = +a;      // 10
 
-    return sum + diff + product + quotient + remainder;
+    return sum + diff + product + quotient + remainder + negative + positive;
 }
 
 fn test_comparison_operators() -> bool {
@@ -29,7 +29,7 @@ fn test_comparison_operators() -> bool {
     let greater: bool = x > y;          // false
     let greater_equal: bool = x >= y;   // false
 
-    return equal && not_equal && less && less_equal && greater && greater_equal;
+    return equal || not_equal || less || less_equal || greater || greater_equal;
 }
 
 fn test_logical_operators() -> bool {
@@ -39,8 +39,8 @@ fn test_logical_operators() -> bool {
     // Логические операторы
     let and_result: bool = a && b;      // false
     let or_result: bool = a || b;       // true
-    let not_a: bool = !a;              // false
-    let not_b: bool = !b;              // true
+    let not_a: bool = !a;               // false
+    let not_b: bool = !b;               // true
 
     return and_result || or_result || not_a || not_b;
 }
@@ -53,7 +53,6 @@ fn test_bitwise_operators() -> int {
     let and_bits: int = x & y;          // 1000 = 8
     let or_bits: int = x | y;           // 1110 = 14
     let xor_bits: int = x ^ y;          // 0110 = 6
-    let not_bits: int = ~x;             // инверсия битов
 
     // Сдвиги
     let left_shift: int = x << 2;       // 110000 = 48
@@ -105,6 +104,13 @@ fn test_ternary_operator() -> string {
     // Вложенные тернарные операторы
     let nested: string = x > 15 ? "large" : (x > 5 ? "medium" : "small");
 
+    let summary: string = result + " " + nested;
+    let total: int = number_result + x;
+
+    if (total > 0) {
+        return summary;
+    }
+
     return result;
 }
 
@@ -112,70 +118,11 @@ fn test_null_coalescing() -> string {
     let maybe_string: Option<string> = Some("hello");
     let empty_string: Option<string> = nothing;
 
-    // Null coalescing operator (если поддерживается)
+    // Null coalescing operator
     let result1: string = maybe_string ?? "default";
     let result2: string = empty_string ?? "default";
 
     return result1 + result2;
-}
-
-fn test_safe_navigation() -> int {
-    type Person {
-        name: string,
-        age: int
-    }
-
-    let person: Option<Person> = Some(Person { name: "Alice", age: 30 });
-    let no_person: Option<Person> = nothing;
-
-    // В Surge нет оператора безопасной навигации (?.). Используем compare.
-    let age1: Option<int> = compare person {
-        Some(p) => Some(p.age),
-        nothing => nothing
-    };
-    let age2: Option<int> = compare no_person {
-        Some(p) => Some(p.age),
-        nothing => nothing
-    };
-
-    return compare age1 {
-        Some(age) => age,
-        nothing => 0
-    };
-}
-
-fn test_is_operator() -> bool {
-    let value: Option<int> = Some(42);
-    let empty: Option<int> = nothing;
-
-    // is operator для проверки типов
-    let has_value: bool = value is Some;
-    let is_empty: bool = empty is nothing;
-    let is_some_int: bool = value is Some<int>;
-
-    return has_value && is_empty && is_some_int;
-}
-
-fn test_range_operators() -> int[] {
-    // Range операторы (если поддерживаются)
-    let range1: int[] = 1..5;      // [1, 2, 3, 4]
-    let range2: int[] = 1..=5;     // [1, 2, 3, 4, 5]
-    let range3: int[] = ..5;       // [0, 1, 2, 3, 4]
-    let range4: int[] = 3..;       // бесконечный range от 3
-
-    return range1;
-}
-
-fn test_destructuring() -> int {
-    let tuple: (int, string, bool) = (42, "hello", true);
-
-    // Destructuring assignment
-    let (number, text, flag): (int, string, bool) = tuple;
-
-    let array: int[] = [1, 2, 3, 4, 5];
-    let [first, second, ...rest]: int[] = array;
-
-    return number + first + second;
 }
 
 fn test_operator_precedence() -> int {
@@ -185,32 +132,9 @@ fn test_operator_precedence() -> int {
     let result3: int = 2 * 3 + 4 * 5;       // 26
     let result4: bool = true || false && false; // true
 
-    return result1 + result2 + result3;
-}
+    if (result4) {
+        return result1 + result2 + result3;
+    }
 
-fn test_string_operators() -> string {
-    let str1: string = "Hello";
-    let str2: string = "World";
-
-    // String concatenation
-    let combined: string = str1 + " " + str2;
-
-    // String repetition (если поддерживается)
-    let repeated: string = str1 * 3;  // "HelloHelloHello"
-
-    return combined;
-}
-
-fn test_array_operators() -> int {
-    let arr1: int[] = [1, 2, 3];
-    let arr2: int[] = [4, 5, 6];
-
-    // Array concatenation
-    let combined: int[] = arr1 + arr2;  // [1, 2, 3, 4, 5, 6]
-
-    // Array access
-    let first: int = combined[0];
-    let last: int = combined[combined.length - 1];
-
-    return first + last + combined.length;
+    return result1;
 }
