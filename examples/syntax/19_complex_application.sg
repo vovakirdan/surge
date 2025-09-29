@@ -6,7 +6,7 @@ import std/collections::{HashMap};
 import std/string::{format};
 
 // Application state
-type AppState {
+type AppState = {
     @shared database: Database,
     @shared user_cache: HashMap<UserId, User>,
     @atomic request_count: int
@@ -15,21 +15,21 @@ type AppState {
 // Domain models
 newtype UserId = int;
 
-type User {
+type User = {
     id: UserId,
     name: string,
     email: string,
     @readonly created_at: Timestamp,
-    @optional profile: UserProfile
+    profile: Option<UserProfile>
 }
 
-type UserProfile {
+type UserProfile = {
     bio: string,
     website: Option<string>,
     location: Option<string>
 }
 
-type CreateUserRequest {
+type CreateUserRequest = {
     name: string,
     email: string,
     profile: Option<UserProfile>
@@ -58,23 +58,23 @@ alias UsersResult = ApiResult<User[]>;
 
 // Database layer interface
 /*
-type UserRepository {
+type UserRepository = {
     create_user: async fn(req: CreateUserRequest) -> UserResult,
     get_user: async fn(id: UserId) -> UserResult,
     list_users: async fn(limit: int, offset: int) -> UsersResult,
     update_user: async fn(id: UserId, updates: UserUpdate) -> UserResult,
-    delete_user: async fn(id: UserId) -> ApiResult<unit>
+    delete_user: async fn(id: UserId) -> ApiResult<nothing>
 }
 */
 
-type PostgresUserRepository {
+type PostgresUserRepository = {
     @shared db: Database
 }
 
 extern<PostgresUserRepository> {
     async fn create_user(self: &PostgresUserRepository, req: CreateUserRequest) -> UserResult {
         // Validation
-        let validation_result: ApiResult<unit> = validate_create_request(&req);
+        let validation_result: ApiResult<nothing> = validate_create_request(&req);
         compare validation_result {
             Ok(_) => {},
             Error(err) => return err
@@ -166,7 +166,7 @@ extern<PostgresUserRepository> {
 }
 
 // Service layer
-type UserService {
+type UserService = {
     @shared repository: PostgresUserRepository,
     @shared cache: HashMap<UserId, User>
 }
@@ -345,7 +345,7 @@ async fn main() -> int {
 
     println("Server starting on http://0.0.0.0:8080");
 
-    let server_result: Result<unit, ServerError> = await server.listen();
+    let server_result: Result<nothing, ServerError> = await server.listen();
 
     return compare server_result {
         Ok(_) => 0,
@@ -357,7 +357,7 @@ async fn main() -> int {
 }
 
 // Helper functions
-fn validate_create_request(req: &CreateUserRequest) -> ApiResult<unit> {
+fn validate_create_request(req: &CreateUserRequest) -> ApiResult<nothing> {
     if (req.name.is_empty()) {
         return Error(ValidationError {
             message: "Validation failed",

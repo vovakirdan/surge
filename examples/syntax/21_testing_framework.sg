@@ -96,7 +96,7 @@ async fn test_async_with_timeout() {
 }
 
 // Mock objects и dependency injection
-type MockDatabase {
+type MockDatabase = {
     users: HashMap<int, User>
 }
 
@@ -135,7 +135,7 @@ fn test_user_service_with_mock() {
 }
 
 // Test fixtures и setup/teardown
-type TestFixture {
+type TestFixture = {
     database: TestDatabase,
     temp_files: string[],
     test_data: TestData
@@ -179,7 +179,7 @@ fn test_with_fixture() {
 }
 
 // Test suite organization
-type UserServiceTests {}
+type UserServiceTests = {}
 
 extern<UserServiceTests> {
     @test
@@ -309,7 +309,7 @@ fn perf_test_sorting_algorithm() {
 }
 
 // Test configuration
-type TestConfig {
+type TestConfig = {
     parallel: bool,
     timeout: Duration,
     max_threads: int,
@@ -317,13 +317,13 @@ type TestConfig {
 }
 
 // Custom test framework implementation
-type TestRunner {
+type TestRunner = {
     config: TestConfig,
     tests: TestCase[],
     results: TestResult[]
 }
 
-impl TestRunner {
+extern<TestRunner> {
     fn new(config: TestConfig) -> TestRunner {
         return TestRunner {
             config: config,
@@ -372,7 +372,7 @@ impl TestRunner {
 
         let start: Instant = Instant::now();
 
-        let result: Result<unit, TestError> = try {
+        let result: Result<nothing, TestError> = try {
             await test.run();
         } catch (err: TestError) {
             return TestResult {

@@ -20,7 +20,7 @@ fn test_arrays() -> int {
 
     // Массивы различных типов
     let bools: bool[] = [true, false, true];
-    let units: unit[] = [(), (), ()];
+    let units: nothing[] = [nothing, nothing, nothing];
 
     return first + second + element;
 }

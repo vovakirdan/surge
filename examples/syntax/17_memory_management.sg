@@ -40,7 +40,7 @@ fn longest_string<'a>(s1: &'a string, s2: &'a string) -> &'a string {
 }
 
 // Reference counting
-type Rc<T> {
+type Rc<T> = {
     @shared data: T,
     @atomic ref_count: int
 }
@@ -61,7 +61,7 @@ fn clone_rc<T>(rc: &Rc<T>) -> Rc<T> {
 }
 
 // Weak references
-type Weak<T> {
+type Weak<T> = {
     @weak data: *T
 }
 
@@ -72,8 +72,8 @@ fn downgrade_rc<T>(rc: &Rc<T>) -> Weak<T> {
 }
 
 // Memory pools
-type MemoryPool<T> {
-    @pool chunks: T[],
+type MemoryPool<T> = {
+    @arena chunks: T[],
     @atomic free_list: *T
 }
 
@@ -83,11 +83,11 @@ fn allocate_from_pool<T>(pool: &mut MemoryPool<T>) -> Option<&mut T> {
 }
 
 // RAII и automatic cleanup
-type FileHandle {
+type FileHandle = {
     @raii handle: int
 }
 
-impl Drop for FileHandle {
+extern<FileHandle> {
     fn drop(&mut self) {
         close_file(self.handle);
     }
@@ -102,7 +102,7 @@ fn open_file_safe(path: string) -> Option<FileHandle> {
 }
 
 // Arena allocation
-type Arena {
+type Arena = {
     @arena memory: uint8[],
     @atomic offset: int
 }
@@ -140,14 +140,12 @@ fn allocation_strategies() -> int {
 }
 
 // Custom allocators
-trait Allocator {
-    fn allocate(&mut self, size: int, align: int) -> *uint8;
-    fn deallocate(&mut self, ptr: *uint8, size: int, align: int);
-}
+// Note: trait syntax not defined in specification
+// Allocator behavior would be defined via extern<T> blocks
 
-type MallocAllocator {}
+type MallocAllocator = {}
 
-impl Allocator for MallocAllocator {
+extern<MallocAllocator> {
     fn allocate(&mut self, size: int, align: int) -> *uint8 {
         return malloc_aligned(size, align);
     }
@@ -158,13 +156,13 @@ impl Allocator for MallocAllocator {
 }
 
 // Memory-safe collections
-type SafeVector<T> {
+type SafeVector<T> = {
     @owned data: T[],
     capacity: int,
     length: int
 }
 
-impl<T> SafeVector<T> {
+extern<SafeVector<T>> {
     fn new() -> SafeVector<T> {
         return SafeVector {
             data: [],
@@ -253,19 +251,19 @@ fn memory_profiled_function() -> int {
 
 // Compile-time memory layout
 @packed
-type PackedData {
+type PackedData = {
     flag: bool,    // 1 byte
     value: int,    // 4 bytes immediately after
     data: float    // 4 bytes immediately after
 }
 
 @align(64)
-type CacheAlignedData {
+type CacheAlignedData = {
     hot_data: int[16]  // aligned to cache line
 }
 
 // Memory debugging
-@debug("memory")
+// Debug attribute not defined in specification
 fn debug_memory_usage() -> int {
     let usage_before: int = get_memory_usage();
 

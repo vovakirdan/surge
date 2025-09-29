@@ -183,10 +183,10 @@ extern<WorkStealingQueue<T>> {
 
 // Actor model
 /*
-type Actor<State, Message> {
+type Actor<State, Message> = {
     @shared state: State,
-    @async mailbox: Channel<Message>,
-    @async handler: fn(&mut State, Message) -> unit
+    mailbox: Channel<Message>,
+    handler: fn(&mut State, Message) -> nothing
 }
 
 async fn actor_worker<State, Message>(actor: Actor<State, Message>) {

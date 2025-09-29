@@ -50,13 +50,13 @@ fn timed_function() -> string {
 }
 
 // Memory layout directives
-type PackedStruct {
+type PackedStruct = {
     @packed a: uint8,
     @packed b: uint32,
     @packed c: uint8
 }
 
-type AlignedStruct {
+type AlignedStruct = {
     @align(16) data: int[],
     meta: string
 }
@@ -119,7 +119,7 @@ fn ssl_function() -> string {
 }
 
 // Serialization types
-type SerializableData {
+type SerializableData = {
     id: int,
     name: string,
     active: bool
@@ -137,7 +137,7 @@ fn documented_function() -> string {
 }
 
 // Conditional methods
-type ConditionalImpl {
+type ConditionalImpl = {
     value: int
 }
 

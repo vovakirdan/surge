@@ -8,11 +8,11 @@ fn test_option_types() -> int {
     let none_value: Option<int> = nothing;
     let none_string: Option<string> = nothing;
 
-    // Auto-wrapping в Option
-    let auto_wrapped: Option<int> = 100; // Автоматически Some(100)
+    // Explicit Option construction (no auto-wrapping)
+    let explicit_wrapped: Option<int> = Some(100);
 
-    // Массивы с Option и auto-wrapping
-    let mixed_array: Option<int>[] = [1, nothing, 3]; // [Some(1), nothing, Some(3)]
+    // Массивы с Option и explicit construction
+    let mixed_array: Option<int>[] = [Some(1), nothing, Some(3)];
 
     // Default values для переменных без инициализации
     let default_int: int; // 0
@@ -34,13 +34,13 @@ fn return_nothing() -> Option<string> {
     return nothing; // OK - тип инферится из return type
 }
 
-// Functions returning unit implicitly
-fn unit_function() {
-    // Equivalent to: return nothing; или return ();
+// Functions returning nothing implicitly
+fn nothing_function() {
+    // Equivalent to: return nothing;
 }
 
-fn explicit_unit() {
-    return nothing; // Эквивалентно return ();
+fn explicit_nothing() {
+    return nothing;
 }
 
 // Contextual typing examples

@@ -87,7 +87,7 @@ fn maybe_divide(a: int, b: int) -> Option<int> {
 }
 
 // Функции с атрибутами backend
-@backend("llvm")
+@backend("cpu")
 fn optimized_function(data: int[]) -> int {
     let mut sum: int = 0;
     for (let item: int in data) {
@@ -96,7 +96,11 @@ fn optimized_function(data: int[]) -> int {
     return sum;
 }
 
-@override
-fn overridden_method() -> string {
-    return "overridden implementation";
-}
+// @override can only be used within extern<T> blocks
+// Example usage would be:
+// extern<SomeType> {
+//     @override
+//     fn some_method() -> string {
+//         return "overridden implementation";
+//     }
+// }

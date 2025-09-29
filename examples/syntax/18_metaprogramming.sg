@@ -1,4 +1,6 @@
 // Метапрограммирование и макросы
+// NOTE: Macros are reserved for future iterations per LANGUAGE.md §4.5
+// These examples show proposed syntax but will emit E_MACRO_UNSUPPORTED
 // Simple макросы
 macro simple_assert(condition: expr) {
     if (!condition) {
@@ -24,7 +26,7 @@ const FACTORIAL_5: int = compile_time_factorial(5); // 120
 
 // Template метапрограммирование
 template<T, N: int>
-type FixedArray {
+type FixedArray = {
     data: T[N]
 }
 
@@ -170,7 +172,7 @@ fn metaprogramming_examples() -> int {
 }
 
 // Macro-generated код пример
-type Person {
+type Person = {
     name: string,
     age: int,
     email: string
