@@ -1,4 +1,4 @@
-# Surge Language Specification (Draft 4)
+# Surge Language Specification (Draft 5)
 
 > **Status:** Draft for review
 > **Scope:** Full language surface for tokenizer → parser → semantics. VM/runtime details are out of scope here and live in RUNTIME.md / BYTECODE.md.
@@ -42,8 +42,8 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 ```
 pub, fn, let, mut, if, else, while, for, in, break, continue,
 import, newtype, type, literal, alias, extern, return, signal, compare, spawn,
-true, false, nothing, is, finally, async, await, macro,
-@pure, @overload, @override, @backend, @test, @benchmark, @time, @deprecated,
+true, false, nothing, is, finally, async, await, macro, pragma,
+@pure, @overload, @override, @backend, @deprecated,
 @packed, @align, @shared, @atomic, @raii, @arena, @weak, @readonly, @hidden, @noinherit, @sealed
 ```
 
@@ -451,7 +451,7 @@ All string parameters (`"lock"`, `"cond"`) must be **field names or parameter na
 
 #### Closed Set Rule
 
-Attributes are a **closed list** defined by the language. All layout and ABI modifications are specified through attributes, not directives. Directives handle tooling and testing, but never affect type layout or ABI.
+Attributes are a **closed set** defined by the language. Tests, benchmarks, and timing measurements are implemented through the directive system (§13), not attributes. Attributes affect language semantics and ABI; directives are toolchain mechanisms that do not modify program semantics.
 
 #### Applicability Matrix
 
@@ -1039,42 +1039,137 @@ extern<CachedData> {
 }
 ```
 
+```sg
+
+/// test:
+/// AddBasic:
+///   test.eq(add(2, 3), 5);
+///   test.eq(add(-1, 1), 0);
+// Test directive example
+// the function can be defined both before and after the directive
+fn add(a: int, b: int) -> int { return a + b; }
+
+/// test:
+/// SecondExample:
+// you can also write comments inside the directive
+///   test.le(add(2, 3), 5); // and this comment is valid
+// you can also define a function inside the directive, but it will be visible only inside the directive
+/// fn return_42() -> int { return 42; }
+///   test.eq(return_42(), add(40, 2));
+// but u can't use the function outside the directive:
+return_42(); // error: E_UNDEFINED_FUNCTION
+```
+
+```sg
+// Benchmark directive example
+fn factorial(n: int) -> int {
+  return compare n {
+    0 | 1 => 1,
+    x => x * factorial(x - 1)
+  };
+}
+
+/// benchmark:
+/// FactorialPerf:
+///   benchmark.measure(|| factorial(10));
+```
+
+```sg
+// Time measurement directive example
+/// time:
+/// DataProcessing:
+///   let data = generate_large_dataset();
+///   let result = time.measure(|| process_data(data));
+///   time.report("Processing time", result);
+```
+
 ---
 
 ## 13. Directives (`///`)
 
-13.1 In any file, `/// test:` starts a test section composed of one or more named tests. Each test is a block of surge code executed separately.
+Directives provide an extensible system for toolchain functionality such as testing, benchmarking, timing, and custom tooling scenarios.
+
+### 13.1. General Directive Syntax
+
+```
+/// <namespace>:
+/// <name>:
+///   <body...>   // free-form Surge code
+```
+
+* `<namespace>` — identifier (e.g., `test`, `benchmark`, `time`, `tool:myplugin`).
+* `<name>` — scenario identifier unique within the file.
+* `<body>` — **Surge code** executed in an isolated directive context.
+
+### 13.2. Visibility and Scope
+
+* Directives have **read-only access** to the same names available at their declaration site (module scope).
+* Items declared **within** directives are **not visible** to the rest of the program.
+* Directives do not modify program typization or ABI.
+
+### 13.3. Directive Execution
+
+* The compiler/driver executes directives **only** when enabled by flags:
+  * `--compile-directives` (enable directive execution)
+  * `--directive-filter=<ns[:name]>` (filter execution to specific namespaces/scenarios)
+* Each directive executes as a **separate scenario** (equivalent to a separate file/test).
+* Directive code may call standard API functions: `test.eq(...)`, `benchmark.measure(...)`, `time.measure(...)`, etc. (provided by std as regular functions).
+
+### 13.4. Built-in (Standard) Directives
+
+* **`test:`** — executes test scenarios; standard conventions:
+  * `test.eq(actual, expected) -> Result<nothing, Error>`
+  * `test.le(a, b)`, `test.ok(cond)`, etc.
+* **`benchmark:`** — benchmarking (ignored in release builds by default unless explicitly enabled).
+* **`time:`** — timing measurements (for local analysis, ignored in release builds by default).
+
+### 13.5. Execution Model Equivalence
+
+Directives translate to isolated execution contexts. For reference, a directive:
 
 ```
 /// test:
-/// Test1:
-///   test.equal(add(2, 3), 5);
-/// Test2:
-///   let a:int = 4;
-///   let b:int = 0;
-///   test.le(add(a, b), 4);
+/// SumIsCorrect:
+///   test.eq(add(1, 2), 3);
 ```
 
-* Names must be unique within the file.
-* Test harness collects and runs these in isolation; they have access to the module scope where they appear.
-
-13.2 In any file, `/// benchmark:` starts a benchmark section composed of one or more named benchmarks. Each benchmark is a block of surge code executed separately.
+is equivalent to creating a hidden wrapper function and calling it in the test runner:
 
 ```
-/// benchmark:
-/// Benchmark1:
-///   benchmark.measure(add(2, 3), 5);
+fn __directive_test_SumIsCorrect__() -> Result<nothing, Error> {
+  return test.eq(add(1, 2), 3);
+}
 ```
 
-13.3 In any file, `/// time:` starts a time section composed of one or more named times. Each time is a block of surge code executed separately.
+(The function does not appear in the binary if directives are not executed.)
+
+### 13.6. User-defined Directives (Extensions)
+
+Users can declare **directive modules** using `pragma directive` at the top of a module file:
+
+```sg
+pragma directive
+
+// directive name declaration (singular)
+pub literal DirectiveName = "mycheck";
+
+// API — regular functions available as mycheck.<fn>
+pub fn check_invariant(x: int) -> Result<nothing, Error> { ... }
+```
+
+Such modules are imported normally. After import, directive blocks become available:
 
 ```
-/// time:
-/// Time1:
-///   time.measure(add(2, 3), 5);
+/// mycheck:
+/// FooInvariant:
+///   mycheck.check_invariant(42);
 ```
 
-13.4 Target directives `/// target:` provide conditional compilation based on platform, features, and build configuration:
+**Rules:** Directive modules **must not** modify the ABI of main code; their functions execute only during directive execution.
+
+### 13.7. Target Directives (Conditional Compilation)
+
+Target directives `/// target:` provide conditional compilation based on platform, features, and build configuration:
 
 ```sg
 /// target: os = "linux"
@@ -1110,6 +1205,29 @@ fn full_feature_function() -> string {
 * `debug_assertions` (debug vs release builds)
 * `test` (test compilation mode)
 * Logical operators: `all(...)`, `any(...)`, `not(...)`
+
+### 13.8. Examples
+
+**Unit test:**
+```
+/// test:
+/// AddSmall:
+///   test.eq(add(2, 3), 5);
+```
+
+**Benchmark:**
+```
+/// benchmark:
+/// AddBench:
+///   benchmark.measure(|| { let mut s=0; for i:int in 0..1_000_000 { s+=i; } return s; });
+```
+
+**Custom directive:**
+```
+/// lint:deadcode:
+/// UnusedStuff:
+///   lint.deadcode.scan_module();
+```
 
 ---
 
@@ -1274,8 +1392,16 @@ fn get_user(id: UserId<User>) -> Option<User> { ... }
 
 Note: `MacroDef` is reserved for a future iteration. The syntax is specified for completeness; the core implementation should focus on the rest of the language first. Implementations should parse `macro` items but reject them with `E_MACRO_UNSUPPORTED`.
 
+Directives are parsed as "out-of-band" nodes attached to the module. The parser collects directive blocks alongside regular items but they do not participate in the main program syntax tree.
+
 ```
-Module     := Item*
+Module     := PragmaDirective? (Item | DirectiveBlock)*
+PragmaDirective := "pragma" "directive"
+DirectiveBlock := "///" Namespace ":" Newline
+                  "///" Ident ":" Newline
+                  ( "///" BodyLine Newline )+
+Namespace  := Ident | Ident ":" Ident
+BodyLine   := <any characters except newline>
 Item       := Visibility? (Fn | AsyncFn | MacroDef | TagDecl | NewtypeDef | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
 Visibility := "pub"
 Fn         := Attr* "fn" Ident GenericParams? ParamList RetType? Block
@@ -1284,7 +1410,7 @@ MacroDef   := "macro" Ident MacroParamList Block
 MacroParamList := "(" (MacroParam ("," MacroParam)*)? ")"
 MacroParam := Ident ":" MacroType | "..." Ident ":" MacroType
 MacroType  := "expr" | "ident" | "type" | "block" | "meta"
-Attr       := "@pure" | "@overload" | "@override" | "@backend(" Str ")" | "@test" | "@benchmark" | "@time" | "@deprecated(" Str ")" | "@packed" | "@align(" Int ")" | "@shared" | "@atomic" | "@raii" | "@arena" | "@weak" | "@readonly" | "@hidden" | "@noinherit" | "@sealed"
+Attr       := "@pure" | "@overload" | "@override" | "@backend(" Str ")" | "@deprecated(" Str ")" | "@packed" | "@align(" Int ")" | "@shared" | "@atomic" | "@raii" | "@arena" | "@weak" | "@readonly" | "@hidden" | "@noinherit" | "@sealed"
 GenericParams := "<" Ident ("," Ident)* ">"
 ParamList  := "(" (Param ("," Param)*)? ")"
 Param      := Ident ":" Type | "..."
@@ -1339,6 +1465,7 @@ Suffix         := "[]"
 * Dynamic numerics (`int/uint/float`) allow large results; casts to fixed-width may trap.
 * Attributes affecting memory layout and ABI (`@packed`, `@align`) are part of the language specification and cannot be replaced by directives. Directives do not modify type layout or ABI contracts.
 * Concurrency contract attributes describe *analyzable requirements* and do not change language semantics at runtime. Violations may not always be statically checkable; in such cases the compiler emits `W_CONC_UNVERIFIED` and defers verification to linters or runtime debug tools.
+* **Directive vs Attribute distinction**: Attributes are closed-set language features that affect compilation, type checking, or runtime behavior. Directives are extensible annotations that provide metadata for external tools without changing language semantics. Tests, benchmarks, and documentation have been moved from attributes to the directive system to maintain the distinction.
 
 ## 21. Diagnostics Overview (selected)
 
@@ -1382,5 +1509,12 @@ Stable diagnostic codes used by the parser and early semantic checks:
 * `E_CONC_LOCK_CONTRACT` — function call violates `@requires_lock` contract.
 * `E_CONC_CONTRACT_CONFLICT` — conflicting concurrency attributes (e.g., `@send` + `@nosend`, `@nonblocking` + `@waits_on`).
 * `W_CONC_UNVERIFIED` — analyzer cannot prove lock contract compliance (warning; verification deferred to linter or runtime debug).
+
+**Directives:**
+
+* `E_DIRECTIVE_UNKNOWN_NAMESPACE` — directive uses undeclared namespace (no matching `pragma directive` declaration).
+* `E_DIRECTIVE_MALFORMED_SYNTAX` — directive block has invalid syntax or structure.
+* `E_DIRECTIVE_MISSING_HANDLER` — directive namespace declared but no handler module found.
+* `W_DIRECTIVE_UNUSED` — directive block present but no tool processes it.
 
 Note: Channel closure is a runtime condition; `send` returns `Result<nothing, ChannelClosed>`. The corresponding runtime diagnostic lives in RUNTIME.md, not as a compile-time diagnostic.

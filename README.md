@@ -33,7 +33,7 @@
 ### 🎯 **Type Safety and Ergonomics**
 - Strong static typing with type inference
 - Pattern matching with `compare` expressions
-- Option types with automatic wrapping: `let x: Option<int> = 42`
+- Option types with explicit wrapping: `let x: Option<int> = Some(42)`
 - Result types with `?` operator for error propagation
 
 ## Language Overview
@@ -63,7 +63,7 @@ async fn fetch_data(url: string) -> Result<Data, Error> {
 
 ```sg
 // Structs
-type Person {
+type Person = {
     name: string,
     age: int,
     @readonly id: uint
@@ -163,7 +163,7 @@ fn matrix_multiply(a: Matrix, b: Matrix) -> Matrix {
 
 ```sg
 // Simple inheritance-based error model
-type Error {
+type Error = {
     message: string,
     code: uint
 }
@@ -217,7 +217,7 @@ fn load_config() -> Result<Config, Error> {
 
 Surge is currently in active development. The language specification is complete, and we're working on the implementation:
 
-- ✅ Language specification (Draft 3)
+- ✅ Language specification (Draft 5)
 - 🔄 Lexer and parser implementation
 - 🔄 Type checker and semantic analysis
 - ⏳ Bytecode compiler
