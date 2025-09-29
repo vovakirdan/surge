@@ -1,4 +1,4 @@
-# Surge Language Specification (Draft 1)
+# Surge Language Specification (Draft 4)
 
 > **Status:** Draft for review
 > **Scope:** Full language surface for tokenizer → parser → semantics. VM/runtime details are out of scope here and live in RUNTIME.md / BYTECODE.md.
@@ -200,7 +200,7 @@ alias Either<L, R> = Left(L) | Right(R)
 
 - Untagged unions rely on runtime type tests: `compare v { x if x is int => ... }`.
 - Tagged unions enable concise and exhaustive pattern matching. For tagged unions the compiler checks that all declared tags are covered in `compare`, unless a `finally` arm is present; missing variants trigger `E_NONEXHAUSTIVE_MATCH`.
-- Mixing many untagged structural types may lead to `E_AMBIGUOUS_UNION_MEMBERS` when the runtime cannot tell members apart. Prefer tags for evolving APIs and stability.
+- Mixing many untagged structural types may lead to `E_AMBIGUOUS_UNION_MEMBERS` when the runtime cannot tell members apart (identical or overlapping runtime layout without a discriminant). Prefer tags for evolving APIs and stability.
 
 ### 2.9. Option and Result via tags
 
@@ -533,7 +533,7 @@ The `is` operator performs runtime type checking and returns a `bool`. It checks
 * `nothing is nothing` → `true`
 * `Option<int> is int` → `false` (it's `Option<int>`, not `int`)
 * `own T is T` → `true` (ownership doesn't change type essence)
-* `mut T is T` → `true`
+* Mutability of a binding does not affect `is`: `let mut x:T; (x is T) == true`.
 * `&T is T` → `false` (reference is different type)
 * `*T is T` → `false` (pointer is different type)
 
@@ -720,6 +720,8 @@ async {
 (Full trap catalogue and error codes live in DIAGNOSTICS.md / RUNTIME.md.)
 
 ### Error types and inheritance
+
+The predicate `(Child heir Base)` is a type-level check surfaced as a boolean expression; implementations may reuse it for future generic constraints.
 
 ```sg
 type Error = { message: string, code: uint }
@@ -1066,6 +1068,13 @@ Tagged unions provide exhaustiveness checking and clearer APIs; see §2.7 for co
 
 ### 17.2. Tuple Types
 
+```sg
+compare (a, b) {
+  (x, y) if x is int && y is float => print(x + y),
+  finally => print("unsupported")
+}
+```
+
 Tuples group multiple values together:
 
 ```sg
@@ -1142,18 +1151,25 @@ If         := "if" "(" Expr ")" Block ("else" If | "else" Block)?
 Return     := "return" Expr?
 Signal     := "signal" Ident ":=" Expr
 Async      := "async" "{" Stmt* "}"
-Expr       := Compare | Spawn | ... (standard precedence)
+Expr       := Compare | Spawn | TypeHeirPred | TupleLit | ... (standard precedence)
+TypeHeirPred := "(" CoreType " heir " CoreType ")"
+TupleLit   := "(" Expr ("," Expr)+ ")"
 AwaitExpr  := Expr "." "await"           // awaits a Future; only valid in async fn/block
 Spawn      := "spawn" Expr
 Compare    := "compare" Expr "{" Arm (";" Arm)* ";"? "}"
 Arm        := Pattern "=>" Expr
-Pattern    := "finally" | Literal | "nothing" | Ident | Ident "(" PatternArgs? ")" | Ident "if" Expr
-PatternArgs:= Pattern ("," Pattern)*
-Type       := Ownership? CoreType Suffix*
-Ownership  := "own" | "&" | "&mut" | "*"
-CoreType   := Ident ("<" Type ("," Type)* ">")?
-ParamTypes := Type ("," Type)*
-Suffix     := "[]"
+Pattern        := "finally" | Literal | "nothing" | Ident
+                | Ident "(" PatternArgs? ")"
+                | TuplePattern
+                | Ident "if" Expr
+PatternArgs   := Pattern ("," Pattern)*
+TuplePattern  := "(" Pattern ("," Pattern)+ ")"
+Type           := Ownership? (TupleType | CoreType) Suffix*
+Ownership      := "own" | "&" | "&mut" | "*"
+CoreType       := Ident ("<" Type ("," Type)* ">")?
+TupleType      := "(" Type ("," Type)+ ")"
+ParamTypes     := Type ("," Type)*
+Suffix         := "[]"
 ```
 
 ---
@@ -1162,16 +1178,13 @@ Suffix     := "[]"
 
 * Built-ins for primitive base types are sealed; you cannot `@override` them directly. Use `newtype New = int;` and override on the newtype.
 * Dynamic numerics (`int/uint/float`) allow large results; casts to fixed-width may trap.
----
-
-*End of Draft 3*
-
----
 
 ## 21. Diagnostics Overview (selected)
 
 Stable diagnostic codes used by the parser and early semantic checks:
 
+* `E_MISSING_FIELD_DEFAULT` — struct declared without defaults for one or more fields that lack explicit initialisers.
+* `E_UNDEFINED_DEFAULT` — type lacks a well-defined default for zero-initialisation (untagged unions, aliases, tagged unions without explicit value).
 * `E_GENERIC_UNDECLARED` — generic parameter used but not declared.
 * `E_AMBIGUOUS_NOTHING` — `nothing` used without contextual type.
 * `E_AMBIGUOUS_CONSTRUCTOR_OR_FN` — `Ident(...)` could resolve to either a tag constructor or a function.
