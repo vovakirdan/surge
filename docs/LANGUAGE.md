@@ -87,7 +87,7 @@ Types are written postfixed: `name: Type`.
 
 `T[]` is a growable, indexable sequence of `T` with zero-based indexing.
 
-* Indexing calls magic methods: `__index(i:int) -> T` and `__index_set(i:int, v:T) -> void`.
+* Indexing calls magic methods: `__index(i:int) -> T` and `__index_set(i:int, v:T) -> nothing`.
 * Iterable if `extern<T[]> { __range() -> Range<T> }` is provided (stdlib provides this for arrays).
 
 ### 2.3. Ownership & References
@@ -134,7 +134,7 @@ Generic parameters must be declared explicitly with angle brackets: `<T, U, ...>
 ### 2.5. User-defined Types
 
 * **Newtype:** `newtype MyInt = int;` creates a distinct nominal type that inherits semantics of `int` but can override magic methods via `extern<MyInt>`. (Different from a pure alias.)
-* **Struct:** `type Person { age:int, name:string, @readonly weight:float }`.
+* **Struct:** `type Person = { age:int, name:string, @readonly weight:float }`.
 
   * Fields are immutable unless variable is `mut`. `@readonly` forbids writes even through `mut` bindings.
 * **Literal enums:** `literal Color = "black" | "white";` Only the listed literals are allowed values.
@@ -173,15 +173,16 @@ let s: PersonSon = p            // patronymic picks the default ""
 Tags describe explicit union constructors and are declared ahead of use:
 
 ```sg
-tag Name(T);
+tag Ping();
+tag Pair<A, B>(A, B);
 ```
 
-- `Name(expr)` constructs a value whose discriminant is `Name` and whose payload type is `T`.
-- The declaration parentheses list payload types; `tag Ping();` produces a payload-less constructor, `tag Pair(A, B);` expects two arguments.
+- `Name(args...)` constructs a value whose discriminant is `Name` and whose payload tuple matches the declaration.
+- The declaration parentheses list payload types; `tag Ping();` produces a payload-less constructor, `tag Pair<A, B>(A, B);` expects two arguments.
 - Tags live in their own namespace. They are not callable functions and they are not first-class types. To pass a constructor, wrap it in a closure: `fn(x:T) -> Alias<T> { return Name(x); }`.
 - When an identifier resolves both to a tag and to a function and is used in the form `Ident(...)`, resolution fails with `E_AMBIGUOUS_CONSTRUCTOR_OR_FN` (§3.6, §15).
 
-Tags participate in alias unions as variants. They may be generic: `tag Some(T);` declares a tag family parameterised by `T`.
+Tags participate in alias unions as variants. They may declare generic parameters ahead of the payload list: `tag Some<T>(T);` introduces a tag family parameterised by `T`.
 
 ### 2.8. Alias unions
 
@@ -206,7 +207,7 @@ alias Either<L, R> = Left(L) | Right(R)
 The standard library defines canonical constructors and aliases:
 
 ```sg
-tag Some(T); tag Ok(T); tag Error(E);
+tag Some<T>(T); tag Ok<T>(T); tag Error<E>(E);
 
 alias Option<T> = Some(T) | nothing
 alias Result<T, E> = Ok(T) | Error(E)
@@ -273,8 +274,16 @@ Surge uses **pure ownership** (similar to Rust) for predictable performance:
 
 * Declaration: `let name: Type = expr;`
 * Mutability: `let mut x: Type = expr;` allows assignment `x = expr;` and in-place updates.
-* Also we can declare a variable without a value: `let x: Type;` - this will be a variable with a default value of the type, but we can assign to it later.
+* Declaration without an initializer: `let x: Type;` (see default-initialisation rules below).
 * Top-level `let` is allowed as an item; items are private by default and can be exported with `pub let`.
+
+**Default initialisation rules:**
+
+- Numeric types → `0` / `0.0`; `bool` → `false`; `string` → `""`.
+- Arrays, maps, and other collection literals → empty instance of that container.
+- Structs → every field must have an explicit default; otherwise `let x: Struct;` is rejected (`E_MISSING_FIELD_DEFAULT`).
+- Untagged unions and aliases → declaration without an initializer is rejected unless every member has a well-defined zero/empty default (`E_UNDEFINED_DEFAULT`).
+- Tagged unions (`Option`, `Result`, `Either`, …) → require an explicit initializer (`E_UNDEFINED_DEFAULT`).
 
 Top-level `let` initialization and cycles:
 
@@ -370,7 +379,7 @@ Notes:
 - Arms are tried top-to-bottom; the first match wins.
 - `=>` separates pattern from result expression and is only valid within `compare` arms and parallel constructs.
 - Tagged unions must cover every declared tag (or provide `finally`) or emit `E_NONEXHAUSTIVE_MATCH`. Untagged unions skip this exhaustiveness check.
-- `Ident(...)` resolves to a tag constructor before a function; ambiguous resolution yields `E_AMBIGUOUS_CONSTRUCTOR_OR_FN`.
+- If both a tag constructor and a function named `Ident` are in scope, using `Ident(...)` emits `E_AMBIGUOUS_CONSTRUCTOR_OR_FN`.
 
 ---
 
@@ -500,7 +509,7 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Abs: `abs(x)` → `__abs`
 * To-string: used by `print` → `__to_string() -> string`
 * Range: `for in` → `__range() -> Range<T>` where `Range<T>` yields `T` via `next()`.
-* Result propagation: `expr?` — if `expr` is `Result<T,E>`, yields `T` or returns `Error(E)` from the current function (see §11).
+* Result propagation: `expr?` — if `expr` is `Result<T,E>`, yields `T` or returns the value `Error(e)` from the current function (see §11).
 * Compound assignment: `+= -= *= /= %= &= |= ^= <<= >>=` → corresponding operation + assign.
 * Ternary: `condition ? true_expr : false_expr` → conditional expression.
 * Null coalescing: `optional ?? default` → returns default if optional is `nothing`.
@@ -795,7 +804,7 @@ fn absn(x: Number) -> Number { return abs(x); }
 
 ```sg
 // Struct and readonly
-type Person { age:int, name:string, @readonly weight:float }
+type Person = { age:int, name:string, @readonly weight:float }
 
 fn birthday(mut p: Person) { p.age = p.age + 1; }
 ```
@@ -835,7 +844,9 @@ compare try_recv(&ch) {
 
 ```sg
 // Compare with conditional patterns and finally
-fn classify_value(value: alias Number | string) {
+alias NumberOrString = Number | string | nothing
+
+fn classify_value(value: NumberOrString) {
   compare value {
     x if x is int => print("integer: ", x);
     42            => print("exactly 42");
@@ -983,8 +994,7 @@ Member access `.` and await `.await` are postfix operators and bind tightly toge
 
 ### 15.1. Resolving `Ident(...)`
 
-- In expression or pattern position the form `Ident(...)` prefers tag constructors over function calls when both exist.
-- If both a tag and a function of the same name are visible and overload resolution cannot disambiguate, the parser emits `E_AMBIGUOUS_CONSTRUCTOR_OR_FN`.
+- In expression or pattern position the form `Ident(...)` is ambiguous if both a tag constructor and a function named `Ident` are visible. The parser emits `E_AMBIGUOUS_CONSTRUCTOR_OR_FN`.
 
 ---
 
@@ -1077,8 +1087,8 @@ Phantom types provide compile-time type safety without runtime overhead:
 newtype UserId<T> = int;
 newtype ProductId<T> = int;
 
-type User { id: UserId<User>, name: string }
-type Product { id: ProductId<Product>, name: string }
+type User = { id: UserId<User>, name: string }
+type Product = { id: ProductId<Product>, name: string }
 
 // Prevents mixing user and product IDs
 fn get_user(id: UserId<User>) -> Option<User> { ... }
@@ -1111,15 +1121,15 @@ GenericParams := "<" Ident ("," Ident)* ">"
 ParamList  := "(" (Param ("," Param)*)? ")"
 Param      := Ident ":" Type | "..."
 RetType    := "->" Type
-TagDecl    := "tag" Ident "(" TypeArgs? ")" ";"
+TagDecl    := "tag" Ident GenericParams? "(" ParamTypes? ")" ";"
 NewtypeDef := "newtype" Ident "=" Type ";"
-TypeDef    := "type" Ident StructBody ";"?
+TypeDef    := "type" Ident "=" StructBody ";"?
 StructBody := "{" Field ("," Field)* "}"
 Field      := Attr* Ident ":" Type
 LiteralDef := "literal" Ident "=" LiteralAlt ("|" LiteralAlt)* ";"
 LiteralAlt := Str
 AliasDef   := "alias" Ident GenericParams? "=" UnionAlt ("|" UnionAlt)* ";"
-UnionAlt   := "nothing" | Ident "(" TypeArgs? ")" | Type
+UnionAlt   := "nothing" | Ident "(" ParamTypes? ")" | Type
 ExternBlock:= "extern<" Type ">" Block
 Import     := "import" Path ("::" Ident ("as" Ident)?)? ";"
 Path       := Ident ("/" Ident)*
@@ -1142,7 +1152,7 @@ PatternArgs:= Pattern ("," Pattern)*
 Type       := Ownership? CoreType Suffix*
 Ownership  := "own" | "&" | "&mut" | "*"
 CoreType   := Ident ("<" Type ("," Type)* ">")?
-TypeArgs   := Type ("," Type)*
+ParamTypes := Type ("," Type)*
 Suffix     := "[]"
 ```
 
