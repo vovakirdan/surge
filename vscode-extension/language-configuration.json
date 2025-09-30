@@ -21,5 +21,11 @@
     ["{", "}"],
     ["[", "]"],
     ["(", ")"]
-  ]
+  ],
+  "folding": {
+    "markers": {
+      "start": "^\\s*///\\s*(test|benchmark|time|target):",
+      "end": "^(?!\\s*///).*$"
+    }
+  }
 }

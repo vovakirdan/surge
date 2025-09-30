@@ -18,6 +18,7 @@
     { "include": "#aliasDefinition" },
     { "include": "#literalDefinition" },
     { "include": "#tagDefinition" },
+    { "include": "#importStatement" },
     { "include": "#declarations" },
     { "include": "#keywords" },
     { "include": "#primitiveTypes" },
@@ -167,8 +168,8 @@
           "match": "\\b(pub|fn|let|mut|newtype|type|literal|alias|extern|tag|macro|pragma)\\b"
         },
         {
-          "name": "keyword.other.special.surge",
-          "match": "\\b(nothing|own)\\b"
+          "name": "keyword.other.ownership.surge",
+          "match": "\\bown\\b"
         }
       ]
     },
@@ -196,7 +197,7 @@
         },
         {
           "name": "storage.type.reference.surge",
-          "match": "\\b(&mut|&|\\*)\\b"
+          "match": "&mut\\s+|&\\s+|\\*\\s+"
         }
       ]
     },
@@ -205,6 +206,10 @@
         {
           "name": "constant.language.boolean.surge",
           "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "constant.language.nothing.surge",
+          "match": "\\bnothing\\b"
         }
       ]
     },
@@ -236,6 +241,13 @@
           "match": "(own)(\\s+)([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "storage.modifier.surge" },
+            "3": { "name": "entity.name.type.surge" }
+          }
+        },
+        {
+          "match": "(&mut|&|\\*)(\\s*)([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.reference.surge" },
             "3": { "name": "entity.name.type.surge" }
           }
         }
@@ -281,8 +293,16 @@
       ]
     },
     "functionCall": {
-      "name": "entity.name.function.call.surge",
-      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\()"
+      "patterns": [
+        {
+          "name": "entity.name.tag.constructor.surge",
+          "match": "\\b([A-Z][A-Za-z0-9_]*)(?=\\()"
+        },
+        {
+          "name": "entity.name.function.call.surge",
+          "match": "\\b([a-z_][A-Za-z0-9_]*)(?=\\()"
+        }
+      ]
     },
     "functionParameters": {
       "begin": "\\(",
@@ -450,22 +470,41 @@
     "directives": {
       "patterns": [
         {
-          "name": "comment.line.directive.surge",
+          "name": "meta.directive.header.surge",
           "begin": "^\\s*///\\s*(test|benchmark|time|target):",
           "beginCaptures": {
+            "0": { "name": "comment.line.directive.header.surge" },
             "1": { "name": "keyword.directive.surge" }
           },
-          "end": "$",
-          "patterns": [
-            {
-              "name": "string.quoted.double.directive.surge",
-              "match": "\"[^\"]*\""
-            }
-          ]
+          "end": "$"
         },
         {
-          "name": "comment.line.directive.body.surge",
-          "match": "^\\s*///.*$"
+          "name": "meta.directive.name.surge",
+          "begin": "^\\s*///\\s*([A-Za-z_][A-Za-z0-9_]*):?\\s*$",
+          "beginCaptures": {
+            "0": { "name": "comment.line.directive.name.surge" },
+            "1": { "name": "entity.name.directive.surge" }
+          },
+          "end": "$"
+        },
+        {
+          "name": "meta.directive.body.surge",
+          "begin": "^\\s*///\\s+",
+          "beginCaptures": {
+            "0": { "name": "comment.line.directive.prefix.surge" }
+          },
+          "end": "$",
+          "contentName": "source.surge.directive",
+          "patterns": [
+            { "include": "#strings" },
+            { "include": "#numbers" },
+            { "include": "#booleanLiterals" },
+            { "include": "#functionCall" },
+            { "include": "#keywords" },
+            { "include": "#primitiveTypes" },
+            { "include": "#operators" },
+            { "include": "#punctuation" }
+          ]
         }
       ]
     },
@@ -496,10 +535,8 @@
           "match": "=>"
         },
         {
-          "match": "\\b([A-Z][A-Za-z0-9_]*)\\s*\\(",
-          "captures": {
-            "1": { "name": "entity.name.tag.constructor.surge" }
-          }
+          "name": "entity.name.tag.constructor.surge",
+          "match": "\\b([A-Z][A-Za-z0-9_]*)(?=\\s*\\()"
         }
       ]
     },
@@ -523,6 +560,68 @@
       "patterns": [
         { "include": "#generics" },
         { "include": "#functionParameters" }
+      ]
+    },
+    "importStatement": {
+      "begin": "\\b(import)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.import.surge" }
+      },
+      "end": ";",
+      "endCaptures": {
+        "0": { "name": "punctuation.terminator.surge" }
+      },
+      "patterns": [
+        {
+          "match": "([A-Za-z_][A-Za-z0-9_]*)(/)([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "entity.name.namespace.surge" },
+            "2": { "name": "punctuation.separator.namespace.surge" },
+            "3": { "name": "entity.name.namespace.surge" }
+          }
+        },
+        {
+          "match": "(::)([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "punctuation.separator.scope.surge" },
+            "2": { "name": "entity.name.function.import.surge" }
+          }
+        },
+        {
+          "match": "\\b(as)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.other.as.surge" },
+            "2": { "name": "entity.name.alias.surge" }
+          }
+        },
+        {
+          "begin": "\\{",
+          "beginCaptures": {
+            "0": { "name": "punctuation.section.block.begin.surge" }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.block.end.surge" }
+          },
+          "patterns": [
+            {
+              "match": "([A-Za-z_][A-Za-z0-9_]*)",
+              "captures": {
+                "1": { "name": "entity.name.function.import.surge" }
+              }
+            },
+            {
+              "match": ",",
+              "name": "punctuation.separator.comma.surge"
+            }
+          ]
+        },
+        {
+          "match": "([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "entity.name.namespace.surge" }
+          }
+        }
       ]
     }
   }

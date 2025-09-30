@@ -2,7 +2,7 @@
   "name": "surge-syntax-highlighting",
   "displayName": "Surge Syntax Highlighting",
   "description": "VS Code support for Surge (.sg) syntax with comprehensive Draft 5 language support, including directives, attributes, async/await, pattern matching, and advanced type system features.",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "publisher": "surge",
   "license": "MIT",
   "main": "./extension.js",
@@ -53,15 +53,48 @@
             }
           },
           {
-            "name": "Surge Import",
+            "name": "Surge Import Keywords",
             "scope": [
               "keyword.other.import.surge",
-              "keyword.other.using.surge",
               "keyword.other.as.surge"
             ],
             "settings": {
               "foreground": "#A29BFE",
               "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Import Namespaces",
+            "scope": "entity.name.namespace.surge",
+            "settings": {
+              "foreground": "#74B9FF",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "name": "Surge Import Functions",
+            "scope": "entity.name.function.import.surge",
+            "settings": {
+              "foreground": "#00CEC9",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "name": "Surge Import Alias",
+            "scope": "entity.name.alias.surge",
+            "settings": {
+              "foreground": "#FDCB6E",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Import Separators",
+            "scope": [
+              "punctuation.separator.namespace.surge",
+              "punctuation.separator.scope.surge"
+            ],
+            "settings": {
+              "foreground": "#636E72"
             }
           },
           {
@@ -146,6 +179,14 @@
             "scope": "constant.language.boolean.surge",
             "settings": {
               "foreground": "#FECA57"
+            }
+          },
+          {
+            "name": "Surge Nothing Literal",
+            "scope": "constant.language.nothing.surge",
+            "settings": {
+              "foreground": "#00B894",
+              "fontStyle": "bold"
             }
           },
           {
@@ -315,6 +356,39 @@
             "settings": {
               "foreground": "#105294",
               "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Directive Header",
+            "scope": "comment.line.directive.header.surge",
+            "settings": {
+              "foreground": "#6C7B7F",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "name": "Surge Directive Name",
+            "scope": [
+              "comment.line.directive.name.surge",
+              "entity.name.directive.surge"
+            ],
+            "settings": {
+              "foreground": "#74B9FF",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Directive Prefix",
+            "scope": "comment.line.directive.prefix.surge",
+            "settings": {
+              "foreground": "#95A5A6"
+            }
+          },
+          {
+            "name": "Surge Directive Body",
+            "scope": "source.surge.directive",
+            "settings": {
+              "foreground": "#7D8491"
             }
           },
           {
