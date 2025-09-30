@@ -3,10 +3,13 @@
   "name": "Surge",
   "scopeName": "source.surge",
   "patterns": [
+    { "include": "#directives" },
     { "include": "#comments" },
     { "include": "#strings" },
     { "include": "#numbers" },
     { "include": "#attributes" },
+    { "include": "#compareExpression" },
+    { "include": "#asyncBlock" },
     { "include": "#forLoop" },
     { "include": "#functionDefinition" },
     { "include": "#functionCall" },
@@ -14,6 +17,7 @@
     { "include": "#typeDefinition" },
     { "include": "#aliasDefinition" },
     { "include": "#literalDefinition" },
+    { "include": "#tagDefinition" },
     { "include": "#declarations" },
     { "include": "#keywords" },
     { "include": "#primitiveTypes" },
@@ -73,6 +77,44 @@
     "attributes": {
       "patterns": [
         {
+          "name": "storage.type.attribute.contract.surge",
+          "match": "@(pure|overload|override|intrinsic)\\b"
+        },
+        {
+          "name": "storage.type.attribute.backend.surge",
+          "match": "@(backend|packed|align|raii|arena|weak|shared|atomic)\\b"
+        },
+        {
+          "name": "storage.type.attribute.visibility.surge",
+          "match": "@(readonly|hidden|noinherit|sealed)\\b"
+        },
+        {
+          "name": "storage.type.attribute.concurrency.surge",
+          "match": "@(guarded_by|requires_lock|acquires_lock|releases_lock|waits_on|send|nosend|nonblocking)\\b"
+        },
+        {
+          "name": "storage.type.attribute.deprecated.surge",
+          "match": "@deprecated\\b"
+        },
+        {
+          "name": "storage.type.attribute.argument.surge",
+          "begin": "@(backend|align|guarded_by|requires_lock|acquires_lock|releases_lock|waits_on|deprecated)\\s*\\(",
+          "beginCaptures": {
+            "1": { "name": "storage.type.attribute.surge" }
+          },
+          "end": "\\)",
+          "patterns": [
+            {
+              "name": "string.quoted.double.attribute.surge",
+              "match": "\"[^\"]*\""
+            },
+            {
+              "name": "constant.numeric.attribute.surge",
+              "match": "\\b[0-9]+\\b"
+            }
+          ]
+        },
+        {
           "name": "storage.type.attribute.surge",
           "match": "@[A-Za-z_][A-Za-z0-9_]*"
         }
@@ -82,9 +124,20 @@
       "patterns": [
         {
           "name": "keyword.control.flow.surge",
-          "match": "\\b(if|else|while|return|break|continue)\\b"
+          "match": "\\b(if|else|while|for|in|return|break|continue|finally)\\b"
         },
-        
+        {
+          "name": "keyword.other.async.surge",
+          "match": "\\b(async|await)\\b"
+        },
+        {
+          "name": "keyword.other.concurrency.surge",
+          "match": "\\b(spawn|join)\\b"
+        },
+        {
+          "name": "keyword.other.compare.surge",
+          "match": "\\bcompare\\b"
+        },
         {
           "name": "keyword.other.parallel.surge",
           "match": "\\bparallel\\b"
@@ -106,12 +159,16 @@
           "match": "\\bimport\\b"
         },
         {
-          "name": "keyword.other.using.surge",
-          "match": "\\busing\\b"
-        },
-        {
           "name": "keyword.other.as.surge",
           "match": "\\bas\\b"
+        },
+        {
+          "name": "keyword.other.type.surge",
+          "match": "\\b(pub|fn|let|mut|newtype|type|literal|alias|extern|tag|macro|pragma)\\b"
+        },
+        {
+          "name": "keyword.other.special.surge",
+          "match": "\\b(nothing|own)\\b"
         }
       ]
     },
@@ -135,7 +192,11 @@
         },
         {
           "name": "storage.type.primitive.surge",
-          "match": "\\b(int|float|bool|string|int8|int16|int32|int64|uint8|uint16|uint32|uint64|uint|f16|f32|f64)\\b"
+          "match": "\\b(int|uint|float|bool|string|int8|int16|int32|int64|uint8|uint16|uint32|uint64|float16|float32|float64)\\b"
+        },
+        {
+          "name": "storage.type.reference.surge",
+          "match": "\\b(&mut|&|\\*)\\b"
         }
       ]
     },
@@ -317,6 +378,30 @@
           "match": ":="
         },
         {
+          "name": "keyword.operator.cast.surge",
+          "match": "\\bto\\b"
+        },
+        {
+          "name": "keyword.operator.type-check.surge",
+          "match": "\\bis\\b"
+        },
+        {
+          "name": "keyword.operator.heir.surge",
+          "match": "\\bheir\\b"
+        },
+        {
+          "name": "keyword.operator.null-coalescing.surge",
+          "match": "\\?\\?"
+        },
+        {
+          "name": "keyword.operator.question.surge",
+          "match": "\\?"
+        },
+        {
+          "name": "keyword.operator.range.surge",
+          "match": "\\.\\.|\\.\\.="
+        },
+        {
           "name": "keyword.operator.logical.surge",
           "match": "\\|\\||&&|!(?!=)"
         },
@@ -331,6 +416,10 @@
         {
           "name": "keyword.operator.comparison.surge",
           "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.ternary.surge",
+          "match": "\\?:|:"
         },
         {
           "name": "keyword.operator.surge",
@@ -356,6 +445,84 @@
           "name": "punctuation.separator.semicolon.surge",
           "match": ";"
         }
+      ]
+    },
+    "directives": {
+      "patterns": [
+        {
+          "name": "comment.line.directive.surge",
+          "begin": "^\\s*///\\s*(test|benchmark|time|target):",
+          "beginCaptures": {
+            "1": { "name": "keyword.directive.surge" }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "name": "string.quoted.double.directive.surge",
+              "match": "\"[^\"]*\""
+            }
+          ]
+        },
+        {
+          "name": "comment.line.directive.body.surge",
+          "match": "^\\s*///.*$"
+        }
+      ]
+    },
+    "compareExpression": {
+      "begin": "\\b(compare)\\s+",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.compare.surge" }
+      },
+      "end": "(?=\\})",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#numbers" },
+        { "include": "#booleanLiterals" },
+        { "include": "#patterns" },
+        { "include": "#operators" },
+        { "include": "#punctuation" }
+      ]
+    },
+    "patterns": {
+      "patterns": [
+        {
+          "name": "keyword.control.pattern.surge",
+          "match": "\\bfinally\\b"
+        },
+        {
+          "name": "keyword.operator.pattern-match.surge",
+          "match": "=>"
+        },
+        {
+          "match": "\\b([A-Z][A-Za-z0-9_]*)\\s*\\(",
+          "captures": {
+            "1": { "name": "entity.name.tag.constructor.surge" }
+          }
+        }
+      ]
+    },
+    "asyncBlock": {
+      "begin": "\\b(async)\\s*\\{",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.async.surge" }
+      },
+      "end": "\\}",
+      "patterns": [
+        { "include": "$self" }
+      ]
+    },
+    "tagDefinition": {
+      "begin": "\\b(tag)\\s+([A-Z][A-Za-z0-9_]*)",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.type.surge" },
+        "2": { "name": "entity.name.type.tag.surge" }
+      },
+      "end": ";",
+      "patterns": [
+        { "include": "#generics" },
+        { "include": "#functionParameters" }
       ]
     }
   }

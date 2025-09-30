@@ -1,8 +1,8 @@
 {
   "name": "surge-syntax-highlighting",
   "displayName": "Surge Syntax Highlighting",
-  "description": "VS Code support for Surge (.sg) syntax with vibrant language-specific colors.",
-  "version": "0.0.6",
+  "description": "VS Code support for Surge (.sg) syntax with comprehensive Draft 5 language support, including directives, attributes, async/await, pattern matching, and advanced type system features.",
+  "version": "0.0.7",
   "publisher": "surge",
   "license": "MIT",
   "main": "./extension.js",
@@ -174,6 +174,46 @@
             }
           },
           {
+            "name": "Surge Contract Attributes",
+            "scope": "storage.type.attribute.contract.surge",
+            "settings": {
+              "foreground": "#FF6B6B",
+              "fontStyle": "bold italic"
+            }
+          },
+          {
+            "name": "Surge Backend Attributes",
+            "scope": "storage.type.attribute.backend.surge",
+            "settings": {
+              "foreground": "#FFA502",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "name": "Surge Visibility Attributes",
+            "scope": "storage.type.attribute.visibility.surge",
+            "settings": {
+              "foreground": "#A29BFE",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "name": "Surge Concurrency Attributes",
+            "scope": "storage.type.attribute.concurrency.surge",
+            "settings": {
+              "foreground": "#00B894",
+              "fontStyle": "bold italic"
+            }
+          },
+          {
+            "name": "Surge Deprecated Attributes",
+            "scope": "storage.type.attribute.deprecated.surge",
+            "settings": {
+              "foreground": "#636E72",
+              "fontStyle": "italic strikethrough"
+            }
+          },
+          {
             "name": "Surge Attributes",
             "scope": "storage.type.attribute.surge",
             "settings": {
@@ -202,6 +242,102 @@
             "scope": "keyword.operator.reference.surge",
             "settings": {
               "foreground": "#FFEAA7",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Cast Operator",
+            "scope": "keyword.operator.cast.surge",
+            "settings": {
+              "foreground": "#9B59B6",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Type Check Operator",
+            "scope": "keyword.operator.type-check.surge",
+            "settings": {
+              "foreground": "#E67E22",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Heir Operator",
+            "scope": "keyword.operator.heir.surge",
+            "settings": {
+              "foreground": "#3498DB",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Null Coalescing",
+            "scope": "keyword.operator.null-coalescing.surge",
+            "settings": {
+              "foreground": "#1ABC9C",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Range Operators",
+            "scope": "keyword.operator.range.surge",
+            "settings": {
+              "foreground": "#F39C12",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Compare Keyword",
+            "scope": "keyword.other.compare.surge",
+            "settings": {
+              "foreground": "#E74C3C",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Async Keywords",
+            "scope": "keyword.other.async.surge",
+            "settings": {
+              "foreground": "#2ECC71",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Concurrency Keywords",
+            "scope": "keyword.other.concurrency.surge",
+            "settings": {
+              "foreground": "#8E44AD",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Directive Keywords",
+            "scope": "keyword.directive.surge",
+            "settings": {
+              "foreground": "#105294",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Tag Constructors",
+            "scope": "entity.name.tag.constructor.surge",
+            "settings": {
+              "foreground": "#F1C40F",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Pattern Match",
+            "scope": "keyword.operator.pattern-match.surge",
+            "settings": {
+              "foreground": "#E74C3C",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Pattern Keywords",
+            "scope": "keyword.control.pattern.surge",
+            "settings": {
+              "foreground": "#95A5A6",
               "fontStyle": "bold"
             }
           },

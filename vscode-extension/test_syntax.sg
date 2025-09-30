@@ -1,0 +1,200 @@
+// Test file for Surge syntax highlighting Draft 5
+
+/// test:
+/// BasicArithmetic:
+///   test.eq(add(2, 3), 5);
+
+/// benchmark:
+/// PerformanceTest:
+///   benchmark.measure(|| factorial(10));
+
+/// target: os = "linux"
+fn linux_only() -> string {
+    return "Linux implementation";
+}
+
+// Imports and modules
+import math/trig;
+import std/collections::HashMap as Map;
+
+// Pragmas and directives
+pragma directive
+
+// Type definitions with attributes
+@sealed
+type BankAccount = {
+    lock: Mutex,
+    @guarded_by("lock") balance: int,
+    @readonly account_id: uint64,
+    @hidden internal_data: string
+}
+
+// Newtype with casting
+newtype UserId = uint64;
+
+extern<UserId> {
+    @override
+    fn __cast<uint64>(self: UserId) -> uint64 {
+        return (self: uint64);
+    }
+}
+
+// Tagged unions and aliases
+tag Some<T>(T);
+tag Ok<T>(T);
+tag Error<E>(E);
+
+alias Option<T> = Some(T) | nothing
+alias Result<T, E> = Ok(T) | Error(E)
+alias Number = int | float
+
+// Literal enums
+literal Color = "red" | "green" | "blue";
+
+// Function with attributes and generics
+@pure @overload
+fn add<T>(a: T, b: T) -> T {
+    return a + b;
+}
+
+@intrinsic
+fn rt_alloc(size: uint, align: uint) -> *byte;
+
+// Async functions and structured concurrency
+async fn fetch_data(url: string) -> Result<Data, Error> {
+    let response = http_get(url).await?;
+    let data = parse_response(response).await?;
+    return Ok(data);
+}
+
+// Compare expressions with pattern matching
+fn process_value(value: Option<int>) -> string {
+    compare value {
+        Some(x) if x > 0 => return "positive",
+        Some(x) if x < 0 => return "negative",
+        Some(0) => return "zero",
+        nothing => return "absent",
+        finally => return "unknown"
+    }
+}
+
+// Ownership and references
+fn work_with_refs(data: &Data, mut_data: &mut Data, owned: own Data) {
+    let borrowed: &Data = &owned;
+    let mut_borrowed: &mut Data = &mut owned;
+
+    // Type checking with 'is'
+    if (data is Data) {
+        print("Valid data");
+    }
+
+    // Casting with 'to'
+    let number: int = 42;
+    let float_val: float = number to float;
+
+    // Null coalescing and range operators
+    let result = optional_value ?? default_value;
+    let range1 = 1..10;
+    let range2 = 1..=10;
+
+    // Heir checking
+    let is_child = (Child heir Base);
+}
+
+// Concurrency with attributes
+@send
+type SafeCounter = {
+    @atomic value: int
+}
+
+extern<SafeCounter> {
+    @nonblocking
+    @requires_lock("lock")
+    fn increment(self: &mut SafeCounter) {
+        self.value = self.value + 1;
+    }
+
+    @waits_on("condition")
+    fn wait_for_condition(self: &SafeCounter) {
+        // Implementation would wait
+    }
+}
+
+// Spawn and async blocks
+fn concurrent_work() {
+    async {
+        let task1 = spawn fetch_data("url1");
+        let task2 = spawn fetch_data("url2");
+
+        let result1 = task1.await?;
+        let result2 = task2.await?;
+
+        return Ok([result1, result2]);
+    }
+}
+
+// Signals (reactive programming)
+signal total := sum(prices);
+
+// Parallel processing
+fn parallel_computation(data: int[]) -> int {
+    return parallel reduce data with 0 => |acc, x| acc + x;
+}
+
+// For loops and iteration
+fn iteration_examples() {
+    // C-style for loop
+    for (let i = 0; i < 10; i = i + 1) {
+        print(i);
+    }
+
+    // For-in loop
+    for item: int in data {
+        print(item);
+    }
+}
+
+// Magic methods and extern blocks
+extern<String> {
+    @pure
+    fn __add(self: &String, other: &String) -> String {
+        // String concatenation implementation
+        return concat_strings(self, other);
+    }
+}
+
+// Error handling with Result and ?
+fn parse_and_process(input: string) -> Result<int, Error> {
+    let parsed = parse_int(input)?;
+    let validated = validate_range(parsed)?;
+    return Ok(validated * 2);
+}
+
+// Nothing literal and void functions
+fn returns_nothing() {
+    print("This function returns nothing");
+    return nothing;
+}
+
+let empty_option: Option<int> = nothing;
+
+// Macro definition (for future)
+macro assert_eq(left: expr, right: expr) {
+    if (!(left == right)) {
+        panic("Assertion failed");
+    }
+}
+
+// Memory management attributes
+@raii
+type Resource = {
+    @arena data: *byte,
+    @weak reference: *Resource
+}
+
+// Backend-specific code
+@backend("gpu")
+fn gpu_computation(data: float[]) -> float[] {
+    // GPU-specific implementation
+    return data;
+}
