@@ -415,6 +415,9 @@ Attributes are a **closed set** provided by the language. User-defined attribute
 * `@overload` *(fn)* — declares an overload of an existing function name with a distinct signature. Must not be used on the first declaration of a function name; doing so emits `E_OVERLOAD_FIRST_DECL`. Incompatible with `@override`.
 * `@override` *(fn)* — replaces an existing implementation for a target type. Only valid within `extern<T>` and `extern<Newtype>` blocks. Attempting to override primitive base types directly emits `E_PRIMITIVE_SEALED` (use newtype instead). Incompatible with `@overload`.
 
+  **Exception:** `@override` may be used outside `extern<T>` only if the target symbol is local to the current module (declared earlier in the same module) and previously had no body implementation. This allows completing forward declarations. Attempting to override functions from standard library/imports or any public symbols from other modules emits `E_OVERRIDE_FORBIDDEN_TARGET`.
+* `@intrinsic` *(fn)* — marks function as a language intrinsic (implementation provided by runtime/compiler). Intrinsics are declared only as function declarations without body (`fn name(...): Ret;`) in the special module `core/intrinsics` and made available to other code through standard library re-exports. User code cannot declare intrinsics outside `core/intrinsics`. Violations emit errors per §21.
+
 #### B. Code Generation and ABI
 
 * `@backend("cpu"|"gpu"|Ident)` *(fn|block)* — execution target hint for backend-specific lowering. Unsupported targets emit `W_BACKEND_UNSUPPORTED` or error in strict mode.
@@ -460,6 +463,7 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 | @pure            |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
 | @overload        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
 | @override        |  ✅* |   ❌   |   ❌  |   ❌   |   ❌   |
+| @intrinsic       |  ✅** |   ❌   |   ❌  |   ❌   |   ❌   |
 | @backend         |  ✅  |   ✅   |   ❌  |   ❌   |   ❌   |
 | @packed          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
 | @align           |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
@@ -482,6 +486,7 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 | @nonblocking     |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
 
 *`@override` — only within `extern<T>` and `extern<Newtype>` blocks.
+**`@intrinsic` — only on function declarations (FnDecl) without body.
 
 #### Typical Conflicts
 
@@ -491,6 +496,12 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 * `@sealed` + attempt to extend type → `E_TYPE_SEALED`
 * `@send` + `@nosend` on same type → `E_CONC_CONTRACT_CONFLICT`
 * `@nonblocking` + `@waits_on` on same function → `E_CONC_CONTRACT_CONFLICT`
+
+#### Limitations for @intrinsic
+
+* Target platform and ABI for intrinsics are fixed in RUNTIME.md.
+* List of permitted names is restricted: `rt_alloc`, `rt_free`, `rt_realloc`, `rt_memcpy`, `rt_memmove`. Any other names → error.
+* Intrinsics cannot have body; any attempts to provide implementation or call `@intrinsic` outside `core/intrinsics` → errors (§21).
 
 Parser behavior:
 
@@ -1179,6 +1190,33 @@ return_42(); // error: E_UNDEFINED_FUNCTION
 ```
 
 ```sg
+// Forward declaration and later implementation
+// forward-declare (no body)
+fn encode_frame(buf:&byte[], out:&mut byte[]) -> uint;
+
+// ... (other code)
+
+// local implementation (same module)
+@override
+fn encode_frame(buf:&byte[], out:&mut byte[]) -> uint {
+  // real body
+  return 0:uint;
+}
+```
+
+```sg
+// core/intrinsics example (only in special module)
+// core/intrinsics.sg
+@intrinsic fn rt_alloc(size:uint, align:uint) -> *byte;
+@intrinsic fn rt_free(ptr:*byte, size:uint, align:uint) -> nothing;
+@intrinsic fn rt_realloc(ptr:*byte, old_size:uint, new_size:uint, align:uint) -> *byte;
+@intrinsic fn rt_memcpy(dst:*byte, src:*byte, n:uint) -> nothing;
+@intrinsic fn rt_memmove(dst:*byte, src:*byte, n:uint) -> nothing;
+
+// Note: intrinsics have no function bodies
+```
+
+```sg
 // Benchmark directive example
 fn factorial(n: int) -> int {
   return compare n {
@@ -1522,13 +1560,15 @@ Namespace  := Ident | Ident ":" Ident
 BodyLine   := <any characters except newline>
 Item       := Visibility? (Fn | AsyncFn | MacroDef | TagDecl | NewtypeDef | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
 Visibility := "pub"
-Fn         := Attr* "fn" Ident GenericParams? ParamList RetType? Block
+Fn         := FnDef | FnDecl
+FnDef      := Attr* "fn" Ident GenericParams? ParamList RetType? Block
+FnDecl     := Attr* "fn" Ident GenericParams? ParamList RetType? ";"
 AsyncFn    := Attr* "async" "fn" Ident GenericParams? ParamList RetType? Block
 MacroDef   := "macro" Ident MacroParamList Block
 MacroParamList := "(" (MacroParam ("," MacroParam)*)? ")"
 MacroParam := Ident ":" MacroType | "..." Ident ":" MacroType
 MacroType  := "expr" | "ident" | "type" | "block" | "meta"
-Attr       := "@pure" | "@overload" | "@override" | "@backend(" Str ")" | "@deprecated(" Str ")" | "@packed" | "@align(" Int ")" | "@shared" | "@atomic" | "@raii" | "@arena" | "@weak" | "@readonly" | "@hidden" | "@noinherit" | "@sealed"
+Attr       := "@pure" | "@overload" | "@override" | "@intrinsic" | "@backend(" Str ")" | "@deprecated(" Str ")" | "@packed" | "@align(" Int ")" | "@shared" | "@atomic" | "@raii" | "@arena" | "@weak" | "@readonly" | "@hidden" | "@noinherit" | "@sealed"
 GenericParams := "<" Ident ("," Ident)* ">"
 ParamList  := "(" (Param ("," Param)*)? ")"
 Param      := Ident ":" Type | "..."
@@ -1575,6 +1615,8 @@ ParamTypes     := Type ("," Type)*
 Suffix         := "[]"
 ```
 
+**Note:** `@intrinsic` is permitted only on `FnDecl` (function declarations without body).
+
 ---
 
 ## 20. Compatibility Notes
@@ -1584,6 +1626,7 @@ Suffix         := "[]"
 * Attributes affecting memory layout and ABI (`@packed`, `@align`) are part of the language specification and cannot be replaced by directives. Directives do not modify type layout or ABI contracts.
 * Concurrency contract attributes describe *analyzable requirements* and do not change language semantics at runtime. Violations may not always be statically checkable; in such cases the compiler emits `W_CONC_UNVERIFIED` and defers verification to linters or runtime debug tools.
 * **Directive vs Attribute distinction**: Attributes are closed-set language features that affect compilation, type checking, or runtime behavior. Directives are extensible annotations that provide metadata for external tools without changing language semantics. Tests, benchmarks, and documentation have been moved from attributes to the directive system to maintain the distinction.
+* **Language intrinsics**: Intrinsics constitute a fixed, small set and are declared in the module `core/intrinsics`. Their implementation is described in RUNTIME.md. Using `@intrinsic` outside this module is forbidden. They serve basic memory management operations (`rt_alloc`, `rt_free`, `rt_realloc`) and byte copying (`rt_memcpy`, `rt_memmove`).
 
 ## 21. Diagnostics Overview (selected)
 
@@ -1635,6 +1678,15 @@ Stable diagnostic codes used by the parser and early semantic checks:
 * `E_CONC_LOCK_CONTRACT` — function call violates `@requires_lock` contract.
 * `E_CONC_CONTRACT_CONFLICT` — conflicting concurrency attributes (e.g., `@send` + `@nosend`, `@nonblocking` + `@waits_on`).
 * `W_CONC_UNVERIFIED` — analyzer cannot prove lock contract compliance (warning; verification deferred to linter or runtime debug).
+
+**Intrinsics & Forward Decls:**
+
+* `E_FN_BODY_MISSING` — function declared as `fn ...;` without body and is not an intrinsic or subsequent implementation in the same module.
+* `E_INTRINSIC_FORBIDDEN_CONTEXT` — `@intrinsic` used outside module `core/intrinsics`.
+* `E_INTRINSIC_DISALLOWED_NAME` — function name under `@intrinsic` not in permitted list (`rt_alloc`, `rt_free`, `rt_realloc`, `rt_memcpy`, `rt_memmove`).
+* `E_INTRINSIC_HAS_BODY` — intrinsic declared with function body.
+* `E_OVERRIDE_FORBIDDEN_TARGET` — `@override` on free function attempts to replace symbol not from current module (std/import).
+* `E_OVERRIDE_REDEFINITION` — repeated `@override` for already implemented function in module.
 
 **Directives:**
 
