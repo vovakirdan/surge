@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <!-- Surge icon placeholder for dark theme -->
+  <rect width="16" height="16" fill="#1e1e1e" stroke="#cccccc" stroke-width="1"/>
+  <text x="8" y="11" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#cccccc">SG</text>
+</svg>

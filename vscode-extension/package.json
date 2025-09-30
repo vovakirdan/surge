@@ -1,0 +1,255 @@
+{
+  "name": "surge-syntax-highlighting",
+  "displayName": "Surge Syntax Highlighting",
+  "description": "VS Code support for Surge (.sg) syntax with vibrant language-specific colors.",
+  "version": "0.0.6",
+  "publisher": "surge",
+  "license": "MIT",
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "surge",
+    "syntax",
+    "language"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "surge",
+        "aliases": ["Surge", "surge"],
+        "extensions": [".sg"],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/surge-light.svg",
+          "dark": "./icons/surge-dark.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "surge",
+        "scopeName": "source.surge",
+        "path": "./syntaxes/surge.tmLanguage.json"
+      }
+    ],
+    "configurationDefaults": {
+      "editor.semanticHighlighting.enabled": true,
+      "editor.tokenColorCustomizations": {
+        "textMateRules": [
+          {
+            "name": "Surge Control Flow",
+            "scope": "keyword.control.flow.surge",
+            "settings": {
+              "foreground": "#FF6B6B",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Import",
+            "scope": [
+              "keyword.other.import.surge",
+              "keyword.other.using.surge",
+              "keyword.other.as.surge"
+            ],
+            "settings": {
+              "foreground": "#A29BFE",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Function",
+            "scope": "keyword.other.function.surge",
+            "settings": {
+              "foreground": "#FD79A8",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Variable Declaration",
+            "scope": "keyword.other.variable.surge",
+            "settings": {
+              "foreground": "#FDCB6E",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Signal",
+            "scope": "keyword.other.signal.surge",
+            "settings": {
+              "foreground": "#00B894",
+              "fontStyle": "bold italic"
+            }
+          },
+          {
+            "name": "Surge Extern",
+            "scope": "keyword.other.extern.surge",
+            "settings": {
+              "foreground": "#FFA502",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Reactive Assignment",
+            "scope": "keyword.operator.assignment.reactive.surge",
+            "settings": {
+              "foreground": "#4ECDC4",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Parallel Keywords",
+            "scope": [
+              "keyword.other.parallel.surge",
+              "keyword.other.map.surge",
+              "keyword.other.reduce.surge",
+              "keyword.other.with.surge"
+            ],
+            "settings": {
+              "foreground": "#45B7D1",
+              "fontStyle": "bold italic"
+            }
+          },
+          {
+            "name": "Surge Function Calls",
+            "scope": "entity.name.function.call.surge",
+            "settings": {
+              "foreground": "#96CEB4",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "name": "Surge Types",
+            "scope": "storage.type.primitive.surge",
+            "settings": {
+              "foreground": "#74B9FF",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "name": "Surge Channel Type",
+            "scope": "support.type.channel.surge",
+            "settings": {
+              "foreground": "#1DD1A1",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "name": "Surge Boolean Literals",
+            "scope": "constant.language.boolean.surge",
+            "settings": {
+              "foreground": "#FECA57"
+            }
+          },
+          {
+            "name": "Surge Numbers",
+            "scope": [
+              "constant.numeric.int.surge",
+              "constant.numeric.float.surge"
+            ],
+            "settings": {
+              "foreground": "#B19CD9"
+            }
+          },
+          {
+            "name": "Surge Strings",
+            "scope": "string.quoted.double.surge",
+            "settings": {
+              "foreground": "#54A0FF"
+            }
+          },
+          {
+            "name": "Surge String Escapes",
+            "scope": "constant.character.escape.surge",
+            "settings": {
+              "foreground": "#5F27CD",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Attributes",
+            "scope": "storage.type.attribute.surge",
+            "settings": {
+              "foreground": "#FF9FF3",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "name": "Surge Logical Operators",
+            "scope": "keyword.operator.logical.surge",
+            "settings": {
+              "foreground": "#18DCFF",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Arithmetic Operators",
+            "scope": "keyword.operator.arithmetic.surge",
+            "settings": {
+              "foreground": "#FF7675",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Reference Operators",
+            "scope": "keyword.operator.reference.surge",
+            "settings": {
+              "foreground": "#FFEAA7",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "name": "Surge Operators",
+            "scope": [
+              "keyword.operator.surge",
+              "keyword.operator.comparison.surge"
+            ],
+            "settings": {
+              "foreground": "#0077ff"
+            }
+          },
+          {
+            "name": "Surge Punctuation",
+            "scope": [
+              "punctuation.section.block.begin.surge",
+              "punctuation.section.block.end.surge",
+              "punctuation.separator.semicolon.surge",
+              "punctuation.section.brackets.surge"
+            ],
+            "settings": {
+              "foreground": "#DDA0DD"
+            }
+          },
+          {
+            "name": "Surge Comments",
+            "scope": [
+              "comment.line.double-slash.surge",
+              "comment.block.surge"
+            ],
+            "settings": {
+              "foreground": "#6C7B7F",
+              "fontStyle": "italic"
+            }
+          }
+        ]
+      }
+    },
+    "configuration": {
+      "title": "Surge",
+      "properties": {
+        "surge.analyzer.executablePath": {
+          "type": "string",
+          "default": "surge",
+          "description": "Path to the surge executable used for semantic analysis and diagnostics."
+        }
+      }
+    }
+  }
+}

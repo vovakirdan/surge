@@ -1,0 +1,362 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vscode/master/extensions/json/syntaxes/json.tmLanguage.schema.json",
+  "name": "Surge",
+  "scopeName": "source.surge",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#attributes" },
+    { "include": "#forLoop" },
+    { "include": "#functionDefinition" },
+    { "include": "#functionCall" },
+    { "include": "#externBlock" },
+    { "include": "#typeDefinition" },
+    { "include": "#aliasDefinition" },
+    { "include": "#literalDefinition" },
+    { "include": "#declarations" },
+    { "include": "#keywords" },
+    { "include": "#primitiveTypes" },
+    { "include": "#booleanLiterals" },
+    { "include": "#typeConstructors" },
+    { "include": "#typeAnnotations" },
+    { "include": "#operators" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.surge",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.surge",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.surge",
+          "begin": "\"",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.surge" }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.surge" }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.surge",
+              "match": "\\\\(\\n|\\r|\\t|\"|\\\\)"
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.surge",
+          "match": "\\b(?:[0-9](?:_?[0-9])*(?:\\.(?:[0-9](?:_?[0-9])*))(?:[eE][+-]?[0-9]+)?|[0-9](?:_?[0-9])*[eE][+-]?[0-9]+)\\b"
+        },
+        {
+          "name": "constant.numeric.int.surge",
+          "match": "\\b[0-9](?:_?[0-9])*(?![\\.eE])\\b"
+        }
+      ]
+    },
+    "attributes": {
+      "patterns": [
+        {
+          "name": "storage.type.attribute.surge",
+          "match": "@[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.flow.surge",
+          "match": "\\b(if|else|while|return|break|continue)\\b"
+        },
+        
+        {
+          "name": "keyword.other.parallel.surge",
+          "match": "\\bparallel\\b"
+        },
+        {
+          "name": "keyword.other.map.surge",
+          "match": "\\bmap\\b"
+        },
+        {
+          "name": "keyword.other.reduce.surge",
+          "match": "\\breduce\\b"
+        },
+        {
+          "name": "keyword.other.with.surge",
+          "match": "\\bwith\\b"
+        },
+        {
+          "name": "keyword.other.import.surge",
+          "match": "\\bimport\\b"
+        },
+        {
+          "name": "keyword.other.using.surge",
+          "match": "\\busing\\b"
+        },
+        {
+          "name": "keyword.other.as.surge",
+          "match": "\\bas\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "keyword.other.variable.surge",
+          "match": "\\blet\\b"
+        },
+        {
+          "name": "keyword.other.signal.surge",
+          "match": "\\bsignal\\b"
+        }
+      ]
+    },
+    "primitiveTypes": {
+      "patterns": [
+        {
+          "name": "support.type.channel.surge",
+          "match": "\\bchannel\\b"
+        },
+        {
+          "name": "storage.type.primitive.surge",
+          "match": "\\b(int|float|bool|string|int8|int16|int32|int64|uint8|uint16|uint32|uint64|uint|f16|f32|f64)\\b"
+        }
+      ]
+    },
+    "booleanLiterals": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.surge",
+          "match": "\\b(true|false)\\b"
+        }
+      ]
+    },
+    "typeConstructors": {
+      "patterns": [
+        {
+          "name": "entity.name.type.surge",
+          "match": "(?<!\\btype\\s)(?<!\\balias\\s)(?<!\\bliteral\\s)\\b[A-Z][A-Za-z0-9_]*\\b(?=\\s*\\{)"
+        }
+      ]
+    },
+    "typeAnnotations": {
+      "patterns": [
+        {
+          "match": "(:)(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:\\[\\])?)",
+          "captures": {
+            "1": { "name": "punctuation.separator.type.surge" },
+            "3": { "name": "entity.name.type.surge" }
+          }
+        },
+        {
+          "match": "(->)(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:\\[\\])?)",
+          "captures": {
+            "1": { "name": "punctuation.separator.type.result.surge" },
+            "3": { "name": "entity.name.type.surge" }
+          }
+        },
+        {
+          "match": "(own)(\\s+)([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.modifier.surge" },
+            "3": { "name": "entity.name.type.surge" }
+          }
+        }
+      ]
+    },
+    "forLoop": {
+      "begin": "\\b(for)\\b\\s*\\(",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.flow.surge" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.parameters.end.surge" }
+      },
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#numbers" },
+        { "include": "#primitiveTypes" },
+        { "include": "#booleanLiterals" },
+        { "include": "#attributes" },
+        { "include": "#declarations" },
+        { "include": "#operators" },
+        { "include": "#punctuation" },
+        {
+          "name": "variable.other.parameter.surge",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b(?=\\s*:)"
+        },
+        { "include": "#typeAnnotations" }
+      ]
+    },
+    "functionDefinition": {
+      "begin": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.function.surge" },
+        "2": { "name": "entity.name.function.surge" }
+      },
+      "end": "(?=\\{|;)",
+      "patterns": [
+        { "include": "#generics" },
+        { "include": "#functionParameters" },
+        { "include": "#typeAnnotations" }
+      ]
+    },
+    "functionCall": {
+      "name": "entity.name.function.call.surge",
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\()"
+    },
+    "functionParameters": {
+      "begin": "\\(",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.parameters.begin.surge" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.parameters.end.surge" }
+      },
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#numbers" },
+        { "include": "#primitiveTypes" },
+        { "include": "#booleanLiterals" },
+        { "include": "#attributes" },
+        { "include": "#generics" },
+        {
+          "name": "variable.other.parameter.surge",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b(?=\\s*:)"
+        },
+        {
+          "match": "(:)(\\s*)([A-Za-z_][A-Za-z0-9_]*(?:\\[\\])?)",
+          "captures": {
+            "1": { "name": "punctuation.separator.type.surge" },
+            "3": { "name": "entity.name.type.surge" }
+          }
+        }
+      ]
+    },
+    "generics": {
+      "begin": "<",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.generic.begin.surge" }
+      },
+      "end": ">",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.generic.end.surge" }
+      },
+      "patterns": [
+        { "include": "#primitiveTypes" },
+        {
+          "name": "variable.other.parameter.surge",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+        }
+      ]
+    },
+    "externBlock": {
+      "begin": "\\b(extern)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.extern.surge" }
+      },
+      "end": "(?=\\{)",
+      "patterns": [
+        { "include": "#generics" }
+      ]
+    },
+    "typeDefinition": {
+      "begin": "\\b(type)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.type.surge" },
+        "2": { "name": "entity.name.type.surge" }
+      },
+      "end": "(?=\\s*[\\{=])",
+      "patterns": [
+        { "include": "#generics" }
+      ]
+    },
+    "aliasDefinition": {
+      "begin": "\\b(alias)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.type.surge" },
+        "2": { "name": "entity.name.type.surge" }
+      },
+      "end": "(?=\\s*=)",
+      "patterns": [
+        { "include": "#generics" }
+      ]
+    },
+    "literalDefinition": {
+      "begin": "\\b(literal)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.type.surge" },
+        "2": { "name": "entity.name.type.surge" }
+      },
+      "end": "(?=\\s*=)"
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.reactive.surge",
+          "match": ":="
+        },
+        {
+          "name": "keyword.operator.logical.surge",
+          "match": "\\|\\||&&|!(?!=)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.surge",
+          "match": "\\+|-(?!>)|\\*(?![*/])|/(?![/*])|%"
+        },
+        {
+          "name": "keyword.operator.reference.surge",
+          "match": "&(?!&)"
+        },
+        {
+          "name": "keyword.operator.comparison.surge",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.surge",
+          "match": "->|=>|="
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.section.block.begin.surge",
+          "match": "\\{"
+        },
+        {
+          "name": "punctuation.section.block.end.surge",
+          "match": "\\}"
+        },
+        {
+          "name": "punctuation.section.brackets.surge",
+          "match": "\\[|\\]"
+        },
+        {
+          "name": "punctuation.separator.semicolon.surge",
+          "match": ";"
+        }
+      ]
+    }
+  }
+}
