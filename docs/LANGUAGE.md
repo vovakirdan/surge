@@ -623,6 +623,78 @@ print(z is &int);       // true
 
 * `=` move/assign; compound ops `+=` etc. desugar to method + assign if defined.
 
+### 6.4. Cast Operator (`to`)
+
+The `to` operator performs explicit type conversions with syntax `Expr to Type`.
+
+**Precedence:** Postfix operator with same precedence as `.await`, before `?` (see §14).
+
+**Built-in cast rules:**
+
+* **Identical type:** NOP (no operation).
+* **Fixed → dynamic (same family):** Always allowed, e.g., `int32 to int`.
+* **Dynamic → fixed (same family):** Explicit only, may trap at runtime if value exceeds target range.
+* **Between numeric families:** Explicit only with defined semantics:
+  * `int` ↔ `float`: standard conversion with potential precision loss.
+  * `int` ↔ `uint`: may trap on negative values or overflow.
+  * Between fixed types of different sizes: may trap if significant bits are lost.
+* **Reference and pointer types:** `&T`, `&mut T`, and `*T` cannot be cast via `to` (compile error).
+* **Tag constructors:** No casting to/from tags; use constructors and `compare` matching.
+
+**Examples:**
+```sg
+let a: int32 = 300000;
+let b: int = a to int;        // fixed→dynamic, always safe
+let c: int16 = a to int16;    // may trap if value > int16 range
+let d: float = 42 to float;   // int→float conversion
+```
+
+### 6.5. Custom Cast Protocol (`__cast`)
+
+User-defined types can implement custom cast behavior via the `__cast` magic method:
+
+```sg
+extern<From> {
+  fn __cast<To>(self: From) -> To
+}
+```
+
+**Resolution rules:**
+
+1. If `From == To` → NOP (no cast needed).
+2. If built-in cast exists → use built-in rule.
+3. Otherwise, search for `__cast<To>` implementation in `extern<From>`.
+4. Multiple implementations → `E_AMBIGUOUS_CAST`.
+5. No implementation found → `E_NO_CAST`.
+
+**Orphan rule:** At least one of `From` or `To` must be local to the current module.
+
+**Overlapping implementations:** Conflicting `__cast` definitions emit `E_CAST_OVERLAP`.
+
+**Restrictions:**
+* Direct calls to `__cast` are forbidden; only the `to` operator may invoke it.
+* The `to` operator is the sole interface for casting.
+
+**Examples:**
+```sg
+newtype UserId = uint64;
+
+extern<UserId> {
+  fn __cast<uint64>(self: UserId) -> uint64 {
+    return (self: uint64);
+  }
+}
+
+extern<uint64> {
+  fn __cast<UserId>(self: uint64) -> UserId {
+    return (self: UserId);
+  }
+}
+
+let uid: UserId = 42:uint64 to UserId;
+let raw: uint64 = uid to uint64;
+```
+
 ---
 
 ## 7. Literals & Inference
@@ -674,6 +746,8 @@ Given a call `f(a1, ..., an)` with candidate signatures `Si`:
    * explicit-only or impossible: ∞
 5. **Best candidate:** sum costs; choose minimal sum. Ties → ambiguous call error.
 6. **Qualifiers:** purity/`@backend` must be compatible with call context.
+
+**Cast operator exclusion:** The `to` operator does **not** participate in overload resolution. Function signature selection happens first, then users may explicitly insert `to` casts as needed. Numeric literal fitting (§7.1) remains a separate rule from explicit casting.
 
 Union alias `alias Number = int | float` participates by expanding to candidates for each member type; the best member is chosen.
 
@@ -895,6 +969,50 @@ fn birthday(mut p: Person) { p.age = p.age + 1; }
 // Signals
 signal total := sum(prices);
 // any change to prices recomputes total (sum must be @pure)
+```
+
+```sg
+// Basic casting
+let a: int32 = 300000;
+let b: int = a to int;        // fixed→dynamic
+let c: int16 = a to int16;    // may trap
+```
+
+```sg
+// Custom casting with newtype
+newtype UserId = uint64;
+
+extern<UserId> {
+  fn __cast<uint64>(self: UserId) -> uint64 { return (self: uint64); }
+}
+
+extern<uint64> {
+  fn __cast<UserId>(self: uint64) -> UserId { return (self: UserId); }
+}
+
+let uid: UserId = 42:uint64 to UserId;
+let raw: uint64 = uid to uint64;
+```
+
+```sg
+// Struct casting
+type Point2D = { x: float32, y: float32 }
+type Point3D = { x: float32, y: float32, z: float32 = 0.0 }
+
+extern<Point2D> {
+  fn __cast<Point3D>(self: Point2D) -> Point3D {
+    return { x: self.x, y: self.y, z: 0.0 };
+  }
+}
+
+let p3 = ({x: 1.0, y: 2.0}: Point2D) to Point3D;
+```
+
+```sg
+// Union injection via casting
+alias Number = int | float
+let i: int = 42;
+let n: Number = i to Number;  // injection into union
 ```
 
 ```sg
@@ -1235,7 +1353,7 @@ fn full_feature_function() -> string {
 
 From highest to lowest:
 
-1. `[]` (index), call `()`, member `.`, await `.await`, postfix `?`
+1. `[]` (index), call `()`, member `.`, await `.await`, `to Type` (cast operator), postfix `?`
 2. `+x -x !x` (prefix unary)
 3. `* / %`
 4. `+ -` (binary)
@@ -1262,7 +1380,7 @@ Note: `=>` is not a general expression operator; it is reserved for `parallel ma
 
 ### Member access precedence
 
-Member access `.` and await `.await` are postfix operators and bind tightly together with function calls and indexing. This resolves ambiguous parses, e.g., `a.f()[i].g()` parses as `(((a.f())[i]).g)()`; `future.await?` parses as `((future.await) ?)` with `.await` applied before the postfix `?`.
+Member access `.`, await `.await`, and cast `to Type` are postfix operators and bind tightly together with function calls and indexing. This resolves ambiguous parses, e.g., `a.f()[i].g()` parses as `(((a.f())[i]).g)()`; `future.await?` parses as `((future.await) ?)` with `.await` applied before the postfix `?`; `value to Type?` parses as `((value to Type) ?)`.
 
 ---
 
@@ -1491,6 +1609,14 @@ Stable diagnostic codes used by the parser and early semantic checks:
 * `E_AMBIGUOUS_UNION_MEMBERS` — untagged union members cannot be distinguished at runtime.
 * `E_FIELD_CONFLICT` — field name repeated while extending a struct (`type Child = Base : { ... }`).
 * `E_MACRO_UNSUPPORTED` — `macro` definitions are parsed but not supported in this iteration.
+
+**Cast Operations:**
+
+* `E_NO_CAST(From, To)` — no available cast implementation found from `From` to `To`.
+* `E_AMBIGUOUS_CAST(From, To)` — multiple `__cast` implementations found for the same cast.
+* `E_CAST_OVERLAP(From, To)` — conflicting `__cast` implementations detected.
+* `E_CAST_REF_KIND` — invalid cast attempted on reference or pointer type (`&T`, `&mut T`, `*T`).
+* `E_CAST_OUT_OF_RANGE` — runtime trap: value exceeds target type range during built-in numeric cast.
 
 **Attributes & Backend:**
 
