@@ -92,9 +92,12 @@ impl<'src> Parser<'src> {
 
     fn parse_item(&mut self) -> Option<Item> {
         let attrs = parse_attrs(&mut self.stream, &mut self.diags);
-        match self.stream.peek().kind {
-            TokenKind::Keyword(Keyword::Fn) => self.parse_fn(attrs).map(Item::Fn),
-            TokenKind::Keyword(Keyword::Let) => match parse_stmt(
+        if self.stream.at_keyword(Keyword::Fn) {
+            return self.parse_fn(attrs).map(Item::Fn);
+        }
+
+        if self.stream.at_keyword(Keyword::Let) {
+            return match parse_stmt(
                 &mut self.stream,
                 &mut self.diags,
                 &mut self.fn_purity,
@@ -104,20 +107,29 @@ impl<'src> Parser<'src> {
                 Some(stmt @ Stmt::Let { .. }) => Some(Item::Let(stmt)),
                 Some(_) => None,
                 None => None,
-            },
-            TokenKind::Keyword(Keyword::Type)
-            | TokenKind::Keyword(Keyword::Literal)
-            | TokenKind::Keyword(Keyword::Alias)
-            | TokenKind::Keyword(Keyword::Extern)
-            | TokenKind::Keyword(Keyword::Import) => {
-                let tok = self.stream.bump();
-                self.error(
-                    ParseCode::UnexpectedToken,
-                    tok.span,
-                    "Item kind not implemented yet",
-                );
-                None
+            };
+        }
+
+        if let Some(keyword) = self.stream.peek_keyword() {
+            match keyword {
+                Keyword::Type
+                | Keyword::Literal
+                | Keyword::Alias
+                | Keyword::Extern
+                | Keyword::Import => {
+                    let tok = self.stream.bump();
+                    self.error(
+                        ParseCode::UnexpectedToken,
+                        tok.span,
+                        "Item kind not implemented yet",
+                    );
+                    return None;
+                }
+                _ => {}
             }
+        }
+
+        match self.stream.peek().kind {
             TokenKind::Eof => None,
             unexpected => {
                 let tok = self.stream.bump();
@@ -136,7 +148,15 @@ impl<'src> Parser<'src> {
     // ========================================
 
     fn parse_fn(&mut self, attrs: Vec<Attr>) -> Option<Func> {
-        let fn_tok = self.stream.bump();
+        let Some(fn_tok) = self.stream.eat_keyword(Keyword::Fn) else {
+            let tok = self.stream.bump();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected 'fn' keyword",
+            );
+            return None;
+        };
         let (name, name_span) = self.expect_ident("function name")?;
         let params = self.parse_param_list();
         let ret = self.parse_return_type(fn_tok.span);
