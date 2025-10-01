@@ -179,7 +179,7 @@ pub enum Stmt {
         span: Span,
     },
     ForIn {
-        pat: String,
+        pattern: Pattern,
         ty: Option<TypeNode>,
         iter: Expr,
         body: Block,

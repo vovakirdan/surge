@@ -538,106 +538,7 @@ fn parse_compare_expr(
 
 /// Парсинг шаблона для выражений compare
 fn parse_pattern(stream: &mut Stream, diags: &mut Vec<ParseDiag>) -> Option<Pattern> {
-    let tok = stream.bump();
-    match tok.kind {
-        TokenKind::Keyword(Keyword::Finally) => Some(Pattern {
-            kind: PatternKind::Finally,
-            span: tok.span,
-        }),
-        TokenKind::Keyword(Keyword::Nothing) => Some(Pattern {
-            kind: PatternKind::Nothing,
-            span: tok.span,
-        }),
-        TokenKind::Keyword(Keyword::True) | TokenKind::Keyword(Keyword::False) => {
-            let default = if matches!(tok.kind, TokenKind::Keyword(Keyword::True)) {
-                "true"
-            } else {
-                "false"
-            };
-            let text = stream.slice(tok.span).unwrap_or(default).to_string();
-            Some(Pattern {
-                kind: PatternKind::Literal(Expr::Ident(text, tok.span)),
-                span: tok.span,
-            })
-        }
-        TokenKind::IntLit => {
-            let text = stream.slice(tok.span).unwrap_or("0").to_string();
-            Some(Pattern {
-                kind: PatternKind::Literal(Expr::LitInt(text, tok.span)),
-                span: tok.span,
-            })
-        }
-        TokenKind::FloatLit => {
-            let text = stream.slice(tok.span).unwrap_or("0.0").to_string();
-            Some(Pattern {
-                kind: PatternKind::Literal(Expr::LitFloat(text, tok.span)),
-                span: tok.span,
-            })
-        }
-        TokenKind::StringLit => {
-            let text = stream.slice(tok.span).unwrap_or("\"\"").to_string();
-            Some(Pattern {
-                kind: PatternKind::Literal(Expr::LitString(text, tok.span)),
-                span: tok.span,
-            })
-        }
-        TokenKind::Ident => {
-            let name = if let Some(slice) = stream.slice(tok.span) {
-                slice.to_string()
-            } else {
-                format!("ident_{}", tok.span.start)
-            };
-
-            if stream.at(TokenKind::LParen) {
-                let open = stream.bump();
-                let mut args = Vec::new();
-                while !stream.is_eof() && !stream.at(TokenKind::RParen) {
-                    match parse_pattern(stream, diags) {
-                        Some(arg) => args.push(arg),
-                        None => {
-                            recover_pattern_args(stream);
-                            break;
-                        }
-                    }
-                    if stream.eat(TokenKind::Comma).is_some() {
-                        continue;
-                    }
-                    break;
-                }
-                let close = match stream.eat(TokenKind::RParen) {
-                    Some(tok) => tok,
-                    None => {
-                        error(
-                            diags,
-                            ParseCode::UnclosedParen,
-                            open.span,
-                            "Expected ')' after tag pattern",
-                        );
-                        open
-                    }
-                };
-                let span = tok.span.join(close.span);
-                Some(Pattern {
-                    kind: PatternKind::Tag { name, args },
-                    span,
-                })
-            } else {
-                Some(Pattern {
-                    kind: PatternKind::Binding(name),
-                    span: tok.span,
-                })
-            }
-        }
-        _ => {
-            error(
-                diags,
-                ParseCode::UnexpectedPrimary,
-                tok.span,
-                "Unexpected token in compare pattern",
-            );
-            None
-        }
-    }
+    crate::patterns::parse_pattern(stream, diags)
 }
 
 /// Парсинг выражений parallel (map/reduce)
@@ -1007,21 +908,6 @@ fn report_unexpected_in_expr(
 }
 
 // Функции восстановления
-fn recover_pattern_args(stream: &mut Stream) {
-    while !stream.is_eof() {
-        match stream.peek().kind {
-            TokenKind::Comma => {
-                stream.bump();
-                break;
-            }
-            TokenKind::RParen => break,
-            _ => {
-                stream.bump();
-            }
-        }
-    }
-}
-
 fn recover_compare_arm(stream: &mut Stream) {
     while !stream.is_eof() {
         match stream.peek().kind {

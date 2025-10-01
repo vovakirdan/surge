@@ -6,6 +6,7 @@ mod attributes;
 mod expressions;
 mod lexer_api;
 mod parser;
+mod patterns;
 mod precedence;
 mod statements;
 mod sync;

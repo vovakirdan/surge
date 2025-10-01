@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Attr, BinaryOp, Expr, Item, Stmt};
+use crate::{Attr, BinaryOp, Expr, Item, PatternKind, Stmt};
 
 #[test]
 fn parses_function_with_return_and_body() {
@@ -197,6 +197,71 @@ fn defaults() -> int {
         ));
     } else {
         panic!("expected function item");
+    }
+}
+
+#[test]
+fn for_in_parses_pattern_and_optional_type() {
+    let src = r#"
+fn walk(seq: Option<int>) {
+    for value in seq {
+        continue;
+    }
+
+    for Some(inner): Option<int> in seq {
+        let current:int = inner;
+    }
+}
+"#;
+
+    let res = parse(src);
+    assert_no_parse_errors(&res);
+
+    let func = match &res.ast.module.items[0] {
+        Item::Fn(func) => func,
+        other => panic!("expected function item, got {other:?}"),
+    };
+    let body = func.body.as_ref().expect("function body");
+    assert_eq!(body.stmts.len(), 2);
+
+    match &body.stmts[0] {
+        Stmt::ForIn {
+            pattern,
+            ty,
+            body: loop_body,
+            ..
+        } => {
+            assert!(matches!(pattern.kind, PatternKind::Binding(ref name) if name == "value"));
+            assert!(ty.is_none());
+            assert!(matches!(
+                loop_body.stmts.as_slice(),
+                [Stmt::Continue { .. }]
+            ));
+        }
+        other => panic!("expected for-in binding without type, got {other:?}"),
+    }
+
+    match &body.stmts[1] {
+        Stmt::ForIn {
+            pattern,
+            ty,
+            body: loop_body,
+            ..
+        } => {
+            match &pattern.kind {
+                PatternKind::Tag { name, args } => {
+                    assert_eq!(name, "Some");
+                    assert_eq!(args.len(), 1);
+                    assert!(
+                        matches!(args[0].kind, PatternKind::Binding(ref inner) if inner == "inner")
+                    );
+                }
+                other => panic!("expected tag pattern in second loop, got {other:?}"),
+            }
+            assert!(ty.is_some());
+            assert!(matches!(loop_body.stmts.as_slice(), [Stmt::Let { .. }]));
+        }
+        other => panic!("expected for-in tag pattern, got {other:?}"),
     }
 }
 

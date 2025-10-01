@@ -4,6 +4,7 @@ use crate::ast::*;
 use crate::error::{ParseCode, ParseDiag};
 use crate::expressions::{expr_span, handle_trailing_expr_tokens, parse_expr, parse_paren_expr};
 use crate::lexer_api::Stream;
+use crate::patterns::parse_pattern;
 use crate::sync::is_stmt_sync;
 use crate::types::parse_type_node;
 use std::collections::HashMap;
@@ -371,17 +372,18 @@ fn parse_for_in(
     for_tok: Token,
     file: SourceId,
 ) -> Option<Stmt> {
-    let (pat, pat_span) = match expect_ident(stream, diags, "for binding") {
-        Some(res) => res,
+    let pattern = match parse_pattern(stream, diags) {
+        Some(pat) => pat,
         None => return None,
     };
-    let mut span = for_tok.span.join(pat_span);
+    let mut span = for_tok.span.join(pattern.span);
 
     let ty = if let Some(colon) = stream.eat(TokenKind::Colon) {
         let ty = parse_type_node(stream, diags);
         if let Some(ref ty_node) = ty {
             span = span.join(ty_node.span);
         } else {
+            span = span.join(colon.span);
             error(
                 diags,
                 ParseCode::ForInMissingType,
@@ -391,12 +393,6 @@ fn parse_for_in(
         }
         ty
     } else {
-        error(
-            diags,
-            ParseCode::ForInMissingColon,
-            pat_span,
-            "Expected ':' after binding in for-in loop",
-        );
         None
     };
 
@@ -432,7 +428,7 @@ fn parse_for_in(
     span = span.join(body.span);
 
     Some(Stmt::ForIn {
-        pat,
+        pattern,
         ty,
         iter,
         body,

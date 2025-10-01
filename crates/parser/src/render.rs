@@ -277,14 +277,16 @@ impl AstRender for Stmt {
                 ctx.push_str(&format!("{}}}", indent_str));
             }
             Stmt::ForIn {
-                pat,
+                pattern,
                 ty,
                 iter,
                 body,
                 span,
             } => {
                 ctx.push_str(&format!("{}ForIn {{\n", indent_str));
-                ctx.push_str(&format!("{}  pat: \"{}\",\n", indent_str, pat));
+                ctx.push_str(&format!("{}  pattern: ", indent_str));
+                pattern.render(ctx, indent + 1);
+                ctx.push_str(",\n");
                 ctx.push_str(&format!("{}  ty: ", indent_str));
                 if let Some(ty) = ty {
                     ty.render(ctx, indent + 1);
