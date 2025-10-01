@@ -1,4 +1,4 @@
-use crate::{Item, parse_tokens};
+use crate::{Attr, Item, parse_source, parse_tokens};
 use surge_lexer::{LexOptions, lex};
 use surge_token::SourceId;
 
@@ -69,6 +69,63 @@ fn test() -> int { return 42; }"#;
 
     for diag in &parse_res.diags {
         println!("Backend diagnostic: {:?} - {}", diag.code, diag.message);
+    }
+}
+
+#[test]
+fn test_parse_source_intrinsic_attribute() {
+    let src = "@intrinsic\nfn intrinsic_fn() { }";
+    let source_id = SourceId(1);
+
+    let (parse_res, _lex_res) = parse_source(source_id, src);
+    assert!(parse_res.diags.is_empty());
+
+    let func = match &parse_res.ast.module.items[0] {
+        Item::Fn(func) => func,
+        other => panic!("Expected function item, got {:?}", other),
+    };
+
+    assert!(matches!(
+        func.sig.attrs.first(),
+        Some(Attr::Intrinsic { .. })
+    ));
+}
+
+#[test]
+fn test_parse_source_deprecated_attribute() {
+    let src = "@deprecated(\"use_new\")\nfn legacy() { }";
+    let source_id = SourceId(2);
+
+    let (parse_res, _lex_res) = parse_source(source_id, src);
+    assert!(parse_res.diags.is_empty());
+
+    let func = match &parse_res.ast.module.items[0] {
+        Item::Fn(func) => func,
+        other => panic!("Expected function item, got {:?}", other),
+    };
+
+    match func.sig.attrs.first() {
+        Some(Attr::Deprecated { message, .. }) => assert_eq!(message, "use_new"),
+        unexpected => panic!("Expected Deprecated attr, got {:?}", unexpected),
+    }
+}
+
+#[test]
+fn test_parse_source_requires_lock_attribute() {
+    let src = "@requires_lock(\"mutex\")\nfn critical() { }";
+    let source_id = SourceId(3);
+
+    let (parse_res, _lex_res) = parse_source(source_id, src);
+    assert!(parse_res.diags.is_empty());
+
+    let func = match &parse_res.ast.module.items[0] {
+        Item::Fn(func) => func,
+        other => panic!("Expected function item, got {:?}", other),
+    };
+
+    match func.sig.attrs.first() {
+        Some(Attr::RequiresLock { lock, .. }) => assert_eq!(lock, "mutex"),
+        unexpected => panic!("Expected RequiresLock attr, got {:?}", unexpected),
     }
 }
 

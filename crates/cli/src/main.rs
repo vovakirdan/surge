@@ -893,6 +893,9 @@ fn render_attr(output: &mut String, attr: &Attr) {
         Attr::Override { span } => {
             output.push_str(&format!("Override({:?})", span));
         }
+        Attr::Intrinsic { span } => {
+            output.push_str(&format!("Intrinsic({:?})", span));
+        }
         Attr::Backend {
             span,
             value,
@@ -902,6 +905,112 @@ fn render_attr(output: &mut String, attr: &Attr) {
                 "Backend({:?}, \"{}\", {:?})",
                 span, value, value_span
             ));
+        }
+        Attr::Deprecated {
+            span,
+            message,
+            message_span,
+        } => {
+            output.push_str(&format!(
+                "Deprecated({:?}, \"{}\", {:?})",
+                span, message, message_span
+            ));
+        }
+        Attr::Packed { span } => {
+            output.push_str(&format!("Packed({:?})", span));
+        }
+        Attr::Align {
+            span,
+            value,
+            value_span,
+        } => {
+            output.push_str(&format!("Align({:?}, {}, {:?})", span, value, value_span));
+        }
+        Attr::Shared { span } => {
+            output.push_str(&format!("Shared({:?})", span));
+        }
+        Attr::Atomic { span } => {
+            output.push_str(&format!("Atomic({:?})", span));
+        }
+        Attr::Raii { span } => {
+            output.push_str(&format!("Raii({:?})", span));
+        }
+        Attr::Arena { span } => {
+            output.push_str(&format!("Arena({:?})", span));
+        }
+        Attr::Weak { span } => {
+            output.push_str(&format!("Weak({:?})", span));
+        }
+        Attr::Readonly { span } => {
+            output.push_str(&format!("Readonly({:?})", span));
+        }
+        Attr::Hidden { span } => {
+            output.push_str(&format!("Hidden({:?})", span));
+        }
+        Attr::NoInherit { span } => {
+            output.push_str(&format!("NoInherit({:?})", span));
+        }
+        Attr::Sealed { span } => {
+            output.push_str(&format!("Sealed({:?})", span));
+        }
+        Attr::GuardedBy {
+            span,
+            lock,
+            lock_span,
+        } => {
+            output.push_str(&format!(
+                "GuardedBy({:?}, \"{}\", {:?})",
+                span, lock, lock_span
+            ));
+        }
+        Attr::RequiresLock {
+            span,
+            lock,
+            lock_span,
+        } => {
+            output.push_str(&format!(
+                "RequiresLock({:?}, \"{}\", {:?})",
+                span, lock, lock_span
+            ));
+        }
+        Attr::AcquiresLock {
+            span,
+            lock,
+            lock_span,
+        } => {
+            output.push_str(&format!(
+                "AcquiresLock({:?}, \"{}\", {:?})",
+                span, lock, lock_span
+            ));
+        }
+        Attr::ReleasesLock {
+            span,
+            lock,
+            lock_span,
+        } => {
+            output.push_str(&format!(
+                "ReleasesLock({:?}, \"{}\", {:?})",
+                span, lock, lock_span
+            ));
+        }
+        Attr::WaitsOn {
+            span,
+            cond,
+            cond_span,
+        } => {
+            output.push_str(&format!(
+                "WaitsOn({:?}, \"{}\", {:?})",
+                span, cond, cond_span
+            ));
+        }
+        Attr::Send { span } => {
+            output.push_str(&format!("Send({:?})", span));
+        }
+        Attr::NoSend { span } => {
+            output.push_str(&format!("NoSend({:?})", span));
+        }
+        Attr::NonBlocking { span } => {
+            output.push_str(&format!("NonBlocking({:?})", span));
         }
     }
 }

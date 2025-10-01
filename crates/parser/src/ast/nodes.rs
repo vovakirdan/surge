@@ -57,10 +57,87 @@ pub enum Attr {
     Override {
         span: Span,
     },
+    Intrinsic {
+        span: Span,
+    },
     Backend {
         span: Span,
         value: String,
         value_span: Span,
+    },
+    Deprecated {
+        span: Span,
+        message: String,
+        message_span: Span,
+    },
+    Packed {
+        span: Span,
+    },
+    Align {
+        span: Span,
+        value: String,
+        value_span: Span,
+    },
+    Shared {
+        span: Span,
+    },
+    Atomic {
+        span: Span,
+    },
+    Raii {
+        span: Span,
+    },
+    Arena {
+        span: Span,
+    },
+    Weak {
+        span: Span,
+    },
+    Readonly {
+        span: Span,
+    },
+    Hidden {
+        span: Span,
+    },
+    NoInherit {
+        span: Span,
+    },
+    Sealed {
+        span: Span,
+    },
+    GuardedBy {
+        span: Span,
+        lock: String,
+        lock_span: Span,
+    },
+    RequiresLock {
+        span: Span,
+        lock: String,
+        lock_span: Span,
+    },
+    AcquiresLock {
+        span: Span,
+        lock: String,
+        lock_span: Span,
+    },
+    ReleasesLock {
+        span: Span,
+        lock: String,
+        lock_span: Span,
+    },
+    WaitsOn {
+        span: Span,
+        cond: String,
+        cond_span: Span,
+    },
+    Send {
+        span: Span,
+    },
+    NoSend {
+        span: Span,
+    },
+    NonBlocking {
+        span: Span,
     },
 }
 
