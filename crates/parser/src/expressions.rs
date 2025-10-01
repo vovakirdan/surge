@@ -31,6 +31,7 @@ pub fn parse_paren_expr(
         }
     };
     let expr = parse_expr(stream, diags, fn_purity, parallel_checks)?;
+    forbid_fat_arrow(stream, diags);
     if let Some(close) = stream.eat(TokenKind::RParen) {
         let span = open.span.join(close.span);
         Some(with_span(expr, span))
@@ -797,6 +798,7 @@ fn register_parallel_func(
 
 /// Обработка завершающих токенов выражений
 pub fn handle_trailing_expr_tokens(stream: &mut Stream, diags: &mut Vec<ParseDiag>, expr: &Expr) {
+    forbid_fat_arrow(stream, diags);
     let next = stream.peek();
     if is_expr_terminator(next.kind) || matches!(next.kind, TokenKind::Semicolon) {
         return;
@@ -824,6 +826,19 @@ pub fn handle_trailing_expr_tokens(stream: &mut Stream, diags: &mut Vec<ParseDia
             format!("Unexpected token {:?} in expression", next.kind),
         );
         stream.bump();
+    }
+}
+
+/// Emit a diagnostic when `=>` appears outside compare arms or parallel expressions.
+pub fn forbid_fat_arrow(stream: &mut Stream, diags: &mut Vec<ParseDiag>) {
+    if stream.peek().kind == TokenKind::FatArrow {
+        let tok = stream.bump();
+        error(
+            diags,
+            ParseCode::FatArrowOutsideParallel,
+            tok.span,
+            "'=>` is only allowed in compare arms and parallel map/reduce expressions",
+        );
     }
 }
 

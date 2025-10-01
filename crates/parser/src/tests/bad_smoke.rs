@@ -142,3 +142,19 @@ fn test_array() -> int {
     assert_eq!(res.diags[0].code, ParseCode::UnclosedBracket);
     assert_eq!(res.diags[0].message, "Expected ']' to close array literal");
 }
+
+#[test]
+fn reports_fat_arrow_outside_parallel() {
+    let src = r#"
+fn invalid_arrow() -> int {
+    let value:int = compute => 42;
+    return value;
+}
+"#;
+    let res = parse(src);
+    assert_eq!(res.diags[0].code, ParseCode::FatArrowOutsideParallel);
+    assert_eq!(
+        res.diags[0].message,
+        "'=>` is only allowed in compare arms and parallel map/reduce expressions"
+    );
+}

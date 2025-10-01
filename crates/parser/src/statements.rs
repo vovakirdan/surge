@@ -2,7 +2,9 @@
 
 use crate::ast::*;
 use crate::error::{ParseCode, ParseDiag};
-use crate::expressions::{expr_span, handle_trailing_expr_tokens, parse_expr, parse_paren_expr};
+use crate::expressions::{
+    expr_span, forbid_fat_arrow, handle_trailing_expr_tokens, parse_expr, parse_paren_expr,
+};
 use crate::lexer_api::Stream;
 use crate::patterns::parse_pattern;
 use crate::sync::is_stmt_sync;
@@ -122,6 +124,7 @@ fn parse_let_stmt(
     if stream.eat(TokenKind::Eq).is_some() {
         init = parse_expr(stream, diags, fn_purity, parallel_checks);
         if let Some(ref expr) = init {
+            forbid_fat_arrow(stream, diags);
             span = span.join(expr_span(expr));
         }
     } else if ty.is_none() {
@@ -164,6 +167,7 @@ pub fn parse_for_init_let(
     let mut init = None;
     if stream.eat(TokenKind::Eq).is_some() {
         if let Some(expr) = parse_expr(stream, diags, fn_purity, parallel_checks) {
+            forbid_fat_arrow(stream, diags);
             span = span.join(expr_span(&expr));
             init = Some(Box::new(expr));
         }
@@ -198,7 +202,11 @@ fn parse_return_stmt(
     let expr = if stream.at(TokenKind::Semicolon) {
         None
     } else {
-        parse_expr(stream, diags, fn_purity, parallel_checks)
+        let expr = parse_expr(stream, diags, fn_purity, parallel_checks);
+        if expr.is_some() {
+            forbid_fat_arrow(stream, diags);
+        }
+        expr
     };
     let mut span = ret_tok.span;
     if let Some(ref expr) = expr {
@@ -304,6 +312,9 @@ fn parse_for_c(
         expr
     } else {
         let expr = parse_expr(stream, diags, fn_purity, parallel_checks);
+        if expr.is_some() {
+            forbid_fat_arrow(stream, diags);
+        }
         if stream.eat(TokenKind::Semicolon).is_none() {
             let tok = stream.peek();
             error(
@@ -323,6 +334,9 @@ fn parse_for_c(
         None
     } else {
         let expr = parse_expr(stream, diags, fn_purity, parallel_checks);
+        if expr.is_some() {
+            forbid_fat_arrow(stream, diags);
+        }
         if stream.eat(TokenKind::Semicolon).is_none() {
             let tok = stream.peek();
             error(
@@ -340,7 +354,11 @@ fn parse_for_c(
     let step = if stream.at(TokenKind::RParen) {
         None
     } else {
-        parse_expr(stream, diags, fn_purity, parallel_checks)
+        let expr = parse_expr(stream, diags, fn_purity, parallel_checks);
+        if expr.is_some() {
+            forbid_fat_arrow(stream, diags);
+        }
+        expr
     };
 
     if stream.eat(TokenKind::RParen).is_none() {
@@ -409,6 +427,7 @@ fn parse_for_in(
 
     let iter = match parse_expr(stream, diags, fn_purity, parallel_checks) {
         Some(expr) => {
+            forbid_fat_arrow(stream, diags);
             span = span.join(expr_span(&expr));
             expr
         }
@@ -456,6 +475,7 @@ fn parse_signal_stmt(
         );
     }
     let expr = parse_expr(stream, diags, fn_purity, parallel_checks)?;
+    forbid_fat_arrow(stream, diags);
     let span = sig_tok.span.join(expr_span(&expr));
     let semi = expect_semicolon(stream, diags, span);
     Some(Stmt::Signal {
