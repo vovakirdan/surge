@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Attr, BinaryOp, Expr, Item, PatternKind, Stmt};
+use crate::{AliasVariant, Attr, BinaryOp, Expr, Item, PatternKind, Stmt};
 
 #[test]
 fn parses_function_with_return_and_body() {
@@ -179,6 +179,7 @@ fn defaults() -> int {
     total = count + 2;
     return total;
 }
+
 "#;
     let res = parse(src);
     assert_no_parse_errors(&res);
@@ -198,6 +199,98 @@ fn defaults() -> int {
     } else {
         panic!("expected function item");
     }
+}
+
+#[test]
+fn parses_struct_types_with_inheritance_and_defaults() {
+    let src = r#"
+@sealed
+type Person<T> = {
+    name: string,
+    @readonly age: int = 30,
+};
+
+type Employee = Person : {
+    @hidden id: uint64,
+};
+"#;
+    let res = parse(src);
+    assert_no_parse_errors(&res);
+
+    assert_eq!(res.ast.module.items.len(), 2);
+
+    let person = match &res.ast.module.items[0] {
+        Item::Type(def) => def,
+        other => panic!("expected first item to be type, got {other:?}"),
+    };
+    assert_eq!(person.name, "Person");
+    assert_eq!(person.generics.len(), 1);
+    assert_eq!(person.attrs.len(), 1);
+    assert!(matches!(person.attrs[0], Attr::Sealed { .. }));
+    assert!(person.base.is_none());
+    assert_eq!(person.fields.len(), 2);
+    assert!(person.fields[0].attrs.is_empty());
+    assert_eq!(person.fields[0].name, "name");
+    assert!(person.fields[0].default.is_none());
+    assert_eq!(person.fields[1].name, "age");
+    assert!(matches!(
+        person.fields[1].attrs.get(0),
+        Some(Attr::Readonly { .. })
+    ));
+    assert!(person.fields[1].default.is_some());
+
+    let employee = match &res.ast.module.items[1] {
+        Item::Type(def) => def,
+        other => panic!("expected second item to be type, got {other:?}"),
+    };
+    assert!(employee.base.is_some());
+    assert_eq!(employee.fields.len(), 1);
+    assert_eq!(employee.fields[0].name, "id");
+    assert!(matches!(
+        employee.fields[0].attrs.get(0),
+        Some(Attr::Hidden { .. })
+    ));
+}
+
+#[test]
+fn parses_newtypes_and_aliases_with_generics() {
+    let src = r#"
+newtype UserId<T> = uint64;
+alias Maybe<T> = T | nothing;
+alias Option<T> = Some(T) | nothing;
+"#;
+
+    let res = parse(src);
+    assert_no_parse_errors(&res);
+    assert_eq!(res.ast.module.items.len(), 3);
+
+    let newtype = match &res.ast.module.items[0] {
+        Item::Newtype(def) => def,
+        other => panic!("expected newtype, got {other:?}"),
+    };
+    assert_eq!(newtype.name, "UserId");
+    assert_eq!(newtype.generics.len(), 1);
+
+    let alias_maybe = match &res.ast.module.items[1] {
+        Item::Alias(def) => def,
+        other => panic!("expected alias, got {other:?}"),
+    };
+    assert_eq!(alias_maybe.name, "Maybe");
+    assert_eq!(alias_maybe.generics.len(), 1);
+    assert_eq!(alias_maybe.variants.len(), 2);
+
+    let alias_option = match &res.ast.module.items[2] {
+        Item::Alias(def) => def,
+        other => panic!("expected alias, got {other:?}"),
+    };
+    assert_eq!(alias_option.name, "Option");
+    assert_eq!(alias_option.generics.len(), 1);
+    assert_eq!(alias_option.variants.len(), 2);
+    assert!(matches!(alias_option.variants[0], AliasVariant::Tag { .. }));
+    assert!(matches!(
+        alias_option.variants[1],
+        AliasVariant::Nothing { .. }
+    ));
 }
 
 #[test]

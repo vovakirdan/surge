@@ -144,9 +144,11 @@ fn is_type_terminator(kind: TokenKind) -> bool {
             | TokenKind::RParen
             | TokenKind::Semicolon
             | TokenKind::Eq
+            | TokenKind::Colon
             | TokenKind::RBrace
             | TokenKind::LBrace
             | TokenKind::ColonEq
+            | TokenKind::Pipe
             | TokenKind::RAngle
             | TokenKind::Keyword(Keyword::In)
             | TokenKind::Eof
