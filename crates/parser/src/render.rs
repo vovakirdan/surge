@@ -5,8 +5,8 @@ use std::fmt::Write as _;
 use surge_token::{SourceId, Token};
 
 use crate::{
-    Ast, Attr, Block, Expr, Func, FuncSig, Item, Module, Param, Pattern, PatternKind, Stmt,
-    StmtOrBlock, TypeNode,
+    AliasDef, Ast, Attr, Block, Expr, ExternBlock, Func, FuncSig, Import, Item, LiteralDef, Module, Param, Pattern, PatternKind, Stmt,
+    StmtOrBlock, TypeDef, TypeNode,
 };
 
 /// Rendering context passed to AST nodes.
@@ -72,9 +72,32 @@ impl AstRender for Item {
                 stmt.render(ctx, indent + 1);
                 ctx.push_str(&format!("\n{})", indent_str));
             }
-            _ => {
-                ctx.push_str(&format!("{}<unimplemented item>", indent_str));
+            Item::Type(type_def) => {
+                ctx.push_str(&format!("{}Type(\n", indent_str));
+                type_def.render(ctx, indent + 1);
+                ctx.push_str(&format!("\n{})", indent_str));
             }
+            Item::Literal(literal_def) => {
+                ctx.push_str(&format!("{}Literal(\n", indent_str));
+                literal_def.render(ctx, indent + 1);
+                ctx.push_str(&format!("\n{})", indent_str));
+            }
+            Item::Alias(alias_def) => {
+                ctx.push_str(&format!("{}Alias(\n", indent_str));
+                alias_def.render(ctx, indent + 1);
+                ctx.push_str(&format!("\n{})", indent_str));
+            }
+            Item::Extern(extern_block) => {
+                ctx.push_str(&format!("{}Extern(\n", indent_str));
+                extern_block.render(ctx, indent + 1);
+                ctx.push_str(&format!("\n{})", indent_str));
+            }
+            Item::Import(import) => {
+                ctx.push_str(&format!("{}Import(\n", indent_str));
+                import.render(ctx, indent + 1);
+                ctx.push_str(&format!("\n{})", indent_str));
+            }
+            // Все варианты Item теперь поддерживаются
         }
     }
 }
@@ -688,6 +711,67 @@ impl AstRender for Attr {
             Attr::NoSend { span } => ctx.push_str(&format!("NoSend({:?})", span)),
             Attr::NonBlocking { span } => ctx.push_str(&format!("NonBlocking({:?})", span)),
         }
+    }
+}
+
+impl AstRender for TypeDef {
+    fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
+        let indent_str = "  ".repeat(indent);
+        ctx.push_str(&format!("{}TypeDef {{\n", indent_str));
+        ctx.push_str(&format!("{}  name: \"{}\",\n", indent_str, self.name));
+        ctx.push_str(&format!("{}  span: {:?}\n", indent_str, self.span));
+        ctx.push_str(&format!("{}}}", indent_str));
+    }
+}
+
+impl AstRender for LiteralDef {
+    fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
+        let indent_str = "  ".repeat(indent);
+        ctx.push_str(&format!("{}LiteralDef {{\n", indent_str));
+        ctx.push_str(&format!("{}  name: \"{}\",\n", indent_str, self.name));
+        ctx.push_str(&format!("{}  span: {:?}\n", indent_str, self.span));
+        ctx.push_str(&format!("{}}}", indent_str));
+    }
+}
+
+impl AstRender for AliasDef {
+    fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
+        let indent_str = "  ".repeat(indent);
+        ctx.push_str(&format!("{}AliasDef {{\n", indent_str));
+        ctx.push_str(&format!("{}  name: \"{}\",\n", indent_str, self.name));
+        ctx.push_str(&format!("{}  span: {:?}\n", indent_str, self.span));
+        ctx.push_str(&format!("{}}}", indent_str));
+    }
+}
+
+impl AstRender for ExternBlock {
+    fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
+        let indent_str = "  ".repeat(indent);
+        ctx.push_str(&format!("{}ExternBlock {{\n", indent_str));
+        ctx.push_str(&format!("{}  name: ", indent_str));
+        if let Some(name) = &self.name {
+            ctx.push_str(&format!("Some(\"{}\")", name));
+        } else {
+            ctx.push_str("None");
+        }
+        ctx.push_str(&format!(",\n{}  span: {:?}\n", indent_str, self.span));
+        ctx.push_str(&format!("{}}}", indent_str));
+    }
+}
+
+impl AstRender for Import {
+    fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
+        let indent_str = "  ".repeat(indent);
+        ctx.push_str(&format!("{}Import {{\n", indent_str));
+        ctx.push_str(&format!("{}  path: \"{}\",\n", indent_str, self.path));
+        ctx.push_str(&format!("{}  alias: ", indent_str));
+        if let Some(alias) = &self.alias {
+            ctx.push_str(&format!("Some(\"{}\")", alias));
+        } else {
+            ctx.push_str("None");
+        }
+        ctx.push_str(&format!(",\n{}  span: {:?}\n", indent_str, self.span));
+        ctx.push_str(&format!("{}}}", indent_str));
     }
 }
 

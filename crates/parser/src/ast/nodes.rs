@@ -23,7 +23,6 @@ pub enum Item {
     Alias(AliasDef),
     Extern(ExternBlock),
     Import(Import),
-    Using(Using),
     Let(Stmt),
 }
 
@@ -416,9 +415,3 @@ pub struct Import {
     pub span: Span,
 }
 
-/// Using declaration stub.
-#[derive(Debug)]
-pub struct Using {
-    pub path: String,
-    pub span: Span,
-}
