@@ -403,7 +403,9 @@ pub struct TypeDef {
 /// Extern block declaration stub.
 #[derive(Debug)]
 pub struct ExternBlock {
-    pub name: Option<String>,
+    pub attrs: Vec<Attr>,
+    pub target: TypeNode,
+    pub methods: Vec<Func>,
     pub span: Span,
 }
 
@@ -414,4 +416,3 @@ pub struct Import {
     pub alias: Option<String>,
     pub span: Span,
 }
-

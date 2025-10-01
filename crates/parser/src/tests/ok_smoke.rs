@@ -1,5 +1,5 @@
 use super::*;
-use crate::{BinaryOp, Expr, Item, Stmt};
+use crate::{Attr, BinaryOp, Expr, Item, Stmt};
 
 #[test]
 fn parses_function_with_return_and_body() {
@@ -198,4 +198,37 @@ fn defaults() -> int {
     } else {
         panic!("expected function item");
     }
+}
+
+#[test]
+fn extern_block_parses_methods() {
+    let src = r#"
+extern<Point> {
+    @override
+    fn __add(self: &Point, rhs: &Point) -> Point {
+        return __add_impl(self, rhs);
+    }
+}
+"#;
+
+    let res = parse(src);
+    assert_no_parse_errors(&res);
+
+    assert_eq!(res.ast.module.items.len(), 1);
+    let extern_block = match &res.ast.module.items[0] {
+        Item::Extern(block) => block,
+        other => panic!("expected extern block, got {other:?}"),
+    };
+
+    assert!(extern_block.attrs.is_empty());
+    assert_eq!(extern_block.target.repr.trim(), "Point");
+    assert_eq!(extern_block.methods.len(), 1);
+
+    let method = &extern_block.methods[0];
+    assert!(matches!(
+        method.sig.attrs.first(),
+        Some(Attr::Override { .. })
+    ));
+    assert_eq!(method.sig.name, "__add");
+    assert!(method.body.is_some());
 }

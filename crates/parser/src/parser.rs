@@ -110,13 +110,13 @@ impl<'src> Parser<'src> {
             };
         }
 
+        if self.stream.at_keyword(Keyword::Extern) {
+            return self.parse_extern(attrs).map(Item::Extern);
+        }
+
         if let Some(keyword) = self.stream.peek_keyword() {
             match keyword {
-                Keyword::Type
-                | Keyword::Literal
-                | Keyword::Alias
-                | Keyword::Extern
-                | Keyword::Import => {
+                Keyword::Type | Keyword::Literal | Keyword::Alias | Keyword::Import => {
                     let tok = self.stream.bump();
                     self.error(
                         ParseCode::UnexpectedToken,
@@ -192,6 +192,109 @@ impl<'src> Parser<'src> {
             span = span.join(block.span);
         }
         Some(Func { sig, body, span })
+    }
+
+    fn parse_extern(&mut self, attrs: Vec<Attr>) -> Option<ExternBlock> {
+        let Some(extern_tok) = self.stream.eat_keyword(Keyword::Extern) else {
+            let tok = self.stream.bump();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected 'extern' keyword",
+            );
+            return None;
+        };
+
+        let Some(lt_tok) = self.stream.eat(TokenKind::LAngle) else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::ExternGenericBrackets,
+                tok.span,
+                "Expected '<' after 'extern'",
+            );
+            return None;
+        };
+
+        let target = match parse_type_node(&mut self.stream, &mut self.diags) {
+            Some(ty) => ty,
+            None => {
+                self.error(
+                    ParseCode::ExternMissingType,
+                    lt_tok.span,
+                    "Expected type in extern block",
+                );
+                self.recover_after_extern_type();
+                return None;
+            }
+        };
+
+        if self.stream.eat(TokenKind::RAngle).is_none() {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::ExternGenericBrackets,
+                tok.span,
+                "Expected '>' to close extern target",
+            );
+            self.recover_after_extern_type();
+            self.stream.eat(TokenKind::RAngle);
+        }
+
+        let open_brace = match self.stream.eat(TokenKind::LBrace) {
+            Some(tok) => tok,
+            None => {
+                let tok = self.stream.peek();
+                self.error(
+                    ParseCode::UnexpectedToken,
+                    tok.span,
+                    "Expected '{' to start extern block",
+                );
+                return None;
+            }
+        };
+
+        let mut methods = Vec::new();
+        while !self.stream.is_eof() && !self.stream.at(TokenKind::RBrace) {
+            let method_attrs = parse_attrs(&mut self.stream, &mut self.diags);
+            if self.stream.at_keyword(Keyword::Fn) {
+                match self.parse_fn(method_attrs) {
+                    Some(func) => methods.push(func),
+                    None => self.synchronize_extern_item(),
+                }
+                continue;
+            }
+
+            if self.stream.at(TokenKind::RBrace) {
+                break;
+            }
+
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected function declaration in extern block",
+            );
+            self.stream.bump();
+            self.synchronize_extern_item();
+        }
+
+        let mut span = extern_tok.span.join(target.span);
+        if let Some(close) = self.stream.eat(TokenKind::RBrace) {
+            span = span.join(close.span);
+        } else {
+            self.error(
+                ParseCode::ExternUnclosedBlock,
+                open_brace.span,
+                "Expected '}' to close extern block",
+            );
+            self.synchronize_extern_block();
+        }
+
+        Some(ExternBlock {
+            attrs,
+            target,
+            methods,
+            span,
+        })
     }
 
     fn parse_param_list(&mut self) -> Vec<Param> {
@@ -324,6 +427,35 @@ impl<'src> Parser<'src> {
             }
             self.stream.bump();
         }
+    }
+
+    fn recover_after_extern_type(&mut self) {
+        while !self.stream.is_eof() {
+            match self.stream.peek().kind {
+                TokenKind::RAngle | TokenKind::LBrace | TokenKind::RBrace => break,
+                _ => {
+                    self.stream.bump();
+                }
+            }
+        }
+    }
+
+    fn synchronize_extern_item(&mut self) {
+        while !self.stream.is_eof() {
+            match self.stream.peek().kind {
+                TokenKind::Keyword(Keyword::Fn) | TokenKind::RBrace => break,
+                _ => {
+                    self.stream.bump();
+                }
+            }
+        }
+    }
+
+    fn synchronize_extern_block(&mut self) {
+        while !self.stream.is_eof() && !self.stream.at(TokenKind::RBrace) {
+            self.stream.bump();
+        }
+        self.stream.eat(TokenKind::RBrace);
     }
 
     fn synchronize_top_level(&mut self) {

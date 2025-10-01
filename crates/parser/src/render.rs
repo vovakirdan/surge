@@ -5,8 +5,8 @@ use std::fmt::Write as _;
 use surge_token::{SourceId, Token};
 
 use crate::{
-    AliasDef, Ast, Attr, Block, Expr, ExternBlock, Func, FuncSig, Import, Item, LiteralDef, Module, Param, Pattern, PatternKind, Stmt,
-    StmtOrBlock, TypeDef, TypeNode,
+    AliasDef, Ast, Attr, Block, Expr, ExternBlock, Func, FuncSig, Import, Item, LiteralDef, Module,
+    Param, Pattern, PatternKind, Stmt, StmtOrBlock, TypeDef, TypeNode,
 };
 
 /// Rendering context passed to AST nodes.
@@ -96,8 +96,7 @@ impl AstRender for Item {
                 ctx.push_str(&format!("{}Import(\n", indent_str));
                 import.render(ctx, indent + 1);
                 ctx.push_str(&format!("\n{})", indent_str));
-            }
-            // Все варианты Item теперь поддерживаются
+            } // Все варианты Item теперь поддерживаются
         }
     }
 }
@@ -748,13 +747,29 @@ impl AstRender for ExternBlock {
     fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
         let indent_str = "  ".repeat(indent);
         ctx.push_str(&format!("{}ExternBlock {{\n", indent_str));
-        ctx.push_str(&format!("{}  name: ", indent_str));
-        if let Some(name) = &self.name {
-            ctx.push_str(&format!("Some(\"{}\")", name));
-        } else {
-            ctx.push_str("None");
+
+        ctx.push_str(&format!("{}  attrs: [", indent_str));
+        for (i, attr) in self.attrs.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(", ");
+            }
+            attr.render(ctx, indent + 1);
         }
-        ctx.push_str(&format!(",\n{}  span: {:?}\n", indent_str, self.span));
+        ctx.push_str("],\n");
+
+        ctx.push_str(&format!("{}  target: ", indent_str));
+        self.target.render(ctx, indent + 1);
+        ctx.push_str(",\n");
+
+        ctx.push_str(&format!("{}  methods: [\n", indent_str));
+        for (i, method) in self.methods.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(",\n");
+            }
+            method.render(ctx, indent + 2);
+        }
+        ctx.push_str(&format!("\n{}  ],\n", indent_str));
+        ctx.push_str(&format!("{}  span: {:?}\n", indent_str, self.span));
         ctx.push_str(&format!("{}}}", indent_str));
     }
 }

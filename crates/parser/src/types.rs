@@ -147,6 +147,7 @@ fn is_type_terminator(kind: TokenKind) -> bool {
             | TokenKind::RBrace
             | TokenKind::LBrace
             | TokenKind::ColonEq
+            | TokenKind::RAngle
             | TokenKind::Keyword(Keyword::In)
             | TokenKind::Eof
     )
