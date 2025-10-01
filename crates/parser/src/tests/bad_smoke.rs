@@ -158,3 +158,47 @@ fn invalid_arrow() -> int {
         "'=>` is only allowed in compare arms and parallel map/reduce expressions"
     );
 }
+
+#[test]
+fn reports_parallel_map_missing_with() {
+    let src = r#"
+fn demo(xs: int[]) -> int[] {
+    return parallel map xs => process_item;
+}
+"#;
+    let res = parse(src);
+    assert_eq!(res.diags[0].code, ParseCode::ParallelMissingWith);
+}
+
+#[test]
+fn reports_parallel_map_missing_arrow() {
+    let src = r#"
+fn demo(xs: int[]) -> int[] {
+    return parallel map xs with () process_item;
+}
+"#;
+    let res = parse(src);
+    assert_eq!(res.diags[0].code, ParseCode::ParallelMissingFatArrow);
+}
+
+#[test]
+fn reports_parallel_map_missing_parens() {
+    let src = r#"
+fn demo(xs: int[]) -> int[] {
+    return parallel map xs with item => process_item;
+}
+"#;
+    let res = parse(src);
+    assert_eq!(res.diags[0].code, ParseCode::ParallelBadHeader);
+}
+
+#[test]
+fn reports_parallel_reduce_missing_comma() {
+    let src = r#"
+fn demo(xs: int[]) -> int {
+    return parallel reduce xs with 0 () => combine;
+}
+"#;
+    let res = parse(src);
+    assert_eq!(res.diags[0].code, ParseCode::ParallelBadHeader);
+}

@@ -808,7 +808,7 @@ ParallelReduce := "parallel" "reduce" Expr "with" Expr "," ArgList "=>" Expr
 ArgList        := "(" (Expr ("," Expr)*)? ")" | "()"
 ```
 
-Restriction: `=>` is valid only in these `parallel` constructs and within `compare` arms (§3.6). Any other use is a parse error `E_ARROW_USAGE`.
+Restriction: `=>` is valid only in these `parallel` constructs and within `compare` arms (§3.6). Any other use is a parse error `PARSE_FAT_ARROW_OUTSIDE_PARALLEL`.
 
 ### 9.3. Backend Selection
 
@@ -1640,7 +1640,7 @@ Stable diagnostic codes used by the parser and early semantic checks:
 * `E_AMBIGUOUS_CONSTRUCTOR_OR_FN` — `Ident(...)` could resolve to either a tag constructor or a function.
 * `E_MOVE_BORROWED_TO_THREAD` — cannot move borrowed reference into spawned task.
 * `E_SIGNAL_NOT_PURE` — signals require @pure expression.
-* `E_ARROW_USAGE` — `=>` reserved for compare arms and parallel constructs.
+* `PARSE_FAT_ARROW_OUTSIDE_PARALLEL` — `=>` reserved for compare arms and parallel constructs.
 * `E_FOR_MISSING_IN` — `for`-in missing `in` token.
 * `E_FOR_BAD_HEADER` — malformed C-style `for` header.
 * `E_ILLEGAL_ATTRIBUTE_TARGET` — attribute not allowed on this target.

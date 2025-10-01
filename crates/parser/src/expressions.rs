@@ -592,7 +592,10 @@ fn parse_parallel_map(
 ) -> Option<Expr> {
     let seq = parse_expr(stream, diags, fn_purity, parallel_checks)?;
 
-    if stream.eat(TokenKind::Keyword(Keyword::With)).is_none() {
+    let mut ok = true;
+    let args = if stream.eat(TokenKind::Keyword(Keyword::With)).is_some() {
+        parse_parallel_arg_list(stream, diags, fn_purity, parallel_checks)
+    } else {
         let tok = stream.peek();
         error(
             diags,
@@ -600,11 +603,14 @@ fn parse_parallel_map(
             tok.span,
             "Expected 'with' in parallel map expression",
         );
-    }
+        ok = false;
+        recover_until_fat_arrow(stream);
+        Vec::new()
+    };
 
-    let args = parse_parallel_arg_list(stream, diags, fn_purity, parallel_checks);
-
-    if stream.eat(TokenKind::FatArrow).is_none() {
+    let arrow_present = if stream.eat(TokenKind::FatArrow).is_some() {
+        true
+    } else {
         let tok = stream.peek();
         error(
             diags,
@@ -612,24 +618,40 @@ fn parse_parallel_map(
             tok.span,
             "Expected '=>' in parallel map expression",
         );
+        recover_until_fat_arrow(stream);
+        stream.eat(TokenKind::FatArrow).is_some()
+    };
+    if !arrow_present {
+        ok = false;
     }
 
-    let func = match parse_expr(stream, diags, fn_purity, parallel_checks) {
-        Some(expr) => expr,
-        None => {
-            let tok = stream.peek();
-            error(
-                diags,
-                ParseCode::ParallelBadHeader,
-                tok.span,
-                "Expected mapping expression after '=>'",
-            );
-            return None;
+    let func = if ok {
+        match parse_expr(stream, diags, fn_purity, parallel_checks) {
+            Some(expr) => expr,
+            None => {
+                let tok = stream.peek();
+                error(
+                    diags,
+                    ParseCode::ParallelBadHeader,
+                    tok.span,
+                    "Expected mapping expression after '=>'",
+                );
+                ok = false;
+                dummy_parallel_expr(parallel_tok.span)
+            }
         }
+    } else {
+        dummy_parallel_expr(parallel_tok.span)
     };
 
+    if ok {
+        forbid_fat_arrow(stream, diags);
+        register_parallel_func(parallel_checks, diags, &func);
+    } else {
+        recover_parallel_trailer(stream);
+    }
+
     let span = parallel_tok.span.join(expr_span(&func));
-    register_parallel_func(parallel_checks, diags, &func);
     Some(Expr::ParallelMap {
         seq: Box::new(seq),
         args,
@@ -648,6 +670,8 @@ fn parse_parallel_reduce(
 ) -> Option<Expr> {
     let seq = parse_expr(stream, diags, fn_purity, parallel_checks)?;
 
+    let mut ok = true;
+
     if stream.eat(TokenKind::Keyword(Keyword::With)).is_none() {
         let tok = stream.peek();
         error(
@@ -656,35 +680,52 @@ fn parse_parallel_reduce(
             tok.span,
             "Expected 'with' in parallel reduce expression",
         );
+        ok = false;
+        recover_until_fat_arrow(stream);
     }
 
-    let init = match parse_expr(stream, diags, fn_purity, parallel_checks) {
-        Some(expr) => expr,
-        None => {
+    let init = if ok {
+        match parse_expr(stream, diags, fn_purity, parallel_checks) {
+            Some(expr) => expr,
+            None => {
+                let tok = stream.peek();
+                error(
+                    diags,
+                    ParseCode::ParallelBadHeader,
+                    tok.span,
+                    "Expected initializer expression after 'with'",
+                );
+                ok = false;
+                dummy_parallel_expr(parallel_tok.span)
+            }
+        }
+    } else {
+        dummy_parallel_expr(parallel_tok.span)
+    };
+
+    if ok {
+        if stream.eat(TokenKind::Comma).is_none() {
             let tok = stream.peek();
             error(
                 diags,
                 ParseCode::ParallelBadHeader,
                 tok.span,
-                "Expected initializer expression after 'with'",
+                "Expected ',' between initializer and argument list",
             );
-            return None;
+            ok = false;
+            recover_until_arg_list(stream);
         }
-    };
-
-    if stream.eat(TokenKind::Comma).is_none() {
-        let tok = stream.peek();
-        error(
-            diags,
-            ParseCode::ParallelBadHeader,
-            tok.span,
-            "Expected ',' between initializer and argument list",
-        );
     }
 
-    let args = parse_parallel_arg_list(stream, diags, fn_purity, parallel_checks);
+    let args = if ok {
+        parse_parallel_arg_list(stream, diags, fn_purity, parallel_checks)
+    } else {
+        Vec::new()
+    };
 
-    if stream.eat(TokenKind::FatArrow).is_none() {
+    let arrow_present = if stream.eat(TokenKind::FatArrow).is_some() {
+        true
+    } else {
         let tok = stream.peek();
         error(
             diags,
@@ -692,24 +733,40 @@ fn parse_parallel_reduce(
             tok.span,
             "Expected '=>' in parallel reduce expression",
         );
+        recover_until_fat_arrow(stream);
+        stream.eat(TokenKind::FatArrow).is_some()
+    };
+    if !arrow_present {
+        ok = false;
     }
 
-    let func = match parse_expr(stream, diags, fn_purity, parallel_checks) {
-        Some(expr) => expr,
-        None => {
-            let tok = stream.peek();
-            error(
-                diags,
-                ParseCode::ParallelBadHeader,
-                tok.span,
-                "Expected reducer expression after '=>'",
-            );
-            return None;
+    let func = if ok {
+        match parse_expr(stream, diags, fn_purity, parallel_checks) {
+            Some(expr) => expr,
+            None => {
+                let tok = stream.peek();
+                error(
+                    diags,
+                    ParseCode::ParallelBadHeader,
+                    tok.span,
+                    "Expected reducer expression after '=>'",
+                );
+                ok = false;
+                dummy_parallel_expr(parallel_tok.span)
+            }
         }
+    } else {
+        dummy_parallel_expr(parallel_tok.span)
     };
 
+    if ok {
+        forbid_fat_arrow(stream, diags);
+        register_parallel_func(parallel_checks, diags, &func);
+    } else {
+        recover_parallel_trailer(stream);
+    }
+
     let span = parallel_tok.span.join(expr_span(&func));
-    register_parallel_func(parallel_checks, diags, &func);
     Some(Expr::ParallelReduce {
         seq: Box::new(seq),
         init: Box::new(init),
@@ -883,6 +940,16 @@ fn report_unexpected_in_expr(
     tok: Token,
     lhs: &Expr,
 ) {
+    if tok.kind == TokenKind::FatArrow {
+        error(
+            diags,
+            ParseCode::FatArrowOutsideParallel,
+            tok.span,
+            "'=>` is only allowed in compare arms and parallel map/reduce expressions",
+        );
+        stream.bump();
+        return;
+    }
     if matches!(lhs, Expr::Ident(_, _))
         && matches!(
             tok.kind,
@@ -951,6 +1018,43 @@ fn recover_parallel_args(stream: &mut Stream) {
             }
         }
     }
+}
+
+fn recover_parallel_trailer(stream: &mut Stream) {
+    while !stream.is_eof() {
+        if is_expr_terminator(stream.peek().kind) {
+            break;
+        }
+        stream.bump();
+    }
+}
+
+fn recover_until_fat_arrow(stream: &mut Stream) {
+    while !stream.is_eof() {
+        match stream.peek().kind {
+            TokenKind::FatArrow | TokenKind::Semicolon | TokenKind::RBrace => break,
+            _ => {
+                stream.bump();
+            }
+        }
+    }
+}
+
+fn recover_until_arg_list(stream: &mut Stream) {
+    while !stream.is_eof() {
+        match stream.peek().kind {
+            TokenKind::LParen | TokenKind::FatArrow | TokenKind::Semicolon | TokenKind::RBrace => {
+                break;
+            }
+            _ => {
+                stream.bump();
+            }
+        }
+    }
+}
+
+fn dummy_parallel_expr(span: Span) -> Expr {
+    Expr::Ident("__parallel_error".into(), span)
 }
 
 /// Получение span выражения
