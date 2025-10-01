@@ -18,6 +18,7 @@ pub struct Module {
 #[derive(Debug)]
 pub enum Item {
     Fn(Func),
+    Newtype(NewtypeDef),
     Type(TypeDef),
     Literal(LiteralDef),
     Alias(AliasDef),
@@ -379,11 +380,46 @@ pub struct TypeNode {
     pub repr: String,
 }
 
+/// Named generic parameter with the original span.
+#[derive(Debug, Clone)]
+pub struct GenericParam {
+    pub name: String,
+    pub span: Span,
+}
+
+/// Field inside a struct-like type definition.
+#[derive(Debug)]
+pub struct StructField {
+    pub attrs: Vec<Attr>,
+    pub name: String,
+    pub ty: TypeNode,
+    pub default: Option<Expr>,
+    pub span: Span,
+}
+
 /// Type alias declaration.
 #[derive(Debug)]
 pub struct AliasDef {
     pub name: String,
+    pub generics: Vec<GenericParam>,
+    pub variants: Vec<AliasVariant>,
+    pub attrs: Vec<Attr>,
     pub span: Span,
+}
+
+/// Alternatives that may appear in a type alias union.
+#[derive(Debug)]
+pub enum AliasVariant {
+    /// Plain type alternative like `int` or `Foo<T>`.
+    Type(TypeNode),
+    /// Explicit inclusion of the `nothing` sentinel type.
+    Nothing { span: Span },
+    /// Reference to a tagged constructor such as `Some(T)`.
+    Tag {
+        name: String,
+        args: Vec<TypeNode>,
+        span: Span,
+    },
 }
 
 /// Literal definition declaration stub.
@@ -393,10 +429,24 @@ pub struct LiteralDef {
     pub span: Span,
 }
 
-/// Type definition declaration stub.
+/// Struct-like type definition with optional base type extension.
 #[derive(Debug)]
 pub struct TypeDef {
     pub name: String,
+    pub generics: Vec<GenericParam>,
+    pub base: Option<TypeNode>,
+    pub fields: Vec<StructField>,
+    pub attrs: Vec<Attr>,
+    pub span: Span,
+}
+
+/// Newtype declaration that wraps an existing type.
+#[derive(Debug)]
+pub struct NewtypeDef {
+    pub name: String,
+    pub generics: Vec<GenericParam>,
+    pub ty: TypeNode,
+    pub attrs: Vec<Attr>,
     pub span: Span,
 }
 

@@ -22,6 +22,7 @@ pub fn is_top_level_sync(tok: &TokenKind) -> bool {
             | TokenKind::Keyword(Keyword::Extern)
             | TokenKind::Keyword(Keyword::Literal)
             | TokenKind::Keyword(Keyword::Alias)
+            | TokenKind::Keyword(Keyword::Newtype)
             | TokenKind::Keyword(Keyword::Import)
     )
 }
