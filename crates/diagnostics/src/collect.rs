@@ -50,7 +50,6 @@ pub fn from_parser_diags(file: SourceId, diags: &[surge_parser::ParseDiag]) -> V
                     "PARSE_ASSIGNMENT_WITHOUT_LHS".into()
                 }
                 surge_parser::ParseCode::UnexpectedPrimary => "PARSE_UNEXPECTED_PRIMARY".into(),
-                surge_parser::ParseCode::ForInMissingColon => "PARSE_FORIN_MISSING_COLON".into(),
                 surge_parser::ParseCode::ForInMissingType => "PARSE_FORIN_MISSING_TYPE".into(),
                 surge_parser::ParseCode::ForInMissingIn => "PARSE_FORIN_MISSING_IN".into(),
                 surge_parser::ParseCode::ForInMissingExpr => "PARSE_FORIN_MISSING_EXPR".into(),

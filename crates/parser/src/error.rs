@@ -14,7 +14,6 @@ pub enum ParseCode {
     SignalMissingAssign,
     AssignmentWithoutLhs,
     UnexpectedPrimary,
-    ForInMissingColon,
     ForInMissingType,
     ForInMissingIn,
     ForInMissingExpr,

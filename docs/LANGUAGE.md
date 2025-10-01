@@ -317,7 +317,8 @@ for pattern (":" Type)? in Expr { body }
 ```
 
 * `pattern` may be an identifier; future iterations may add destructuring.
-* If `: Type` is present it must be a valid type; if omitted the element type is inferred from the iterable.
+* Type annotation is optional: the parser accepts `for item in seq { ... }` and leaves element-type inference to later semantic analysis.
+* When `: Type` is supplied it must describe a valid type; malformed annotations emit `E_FOR_MISSING_TYPE` diagnostics.
 
 Parser diagnostics:
 
