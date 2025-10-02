@@ -35,6 +35,14 @@ pub fn take_directive_block(
     let mut last_span = header.span;
     let requires_label = block.kind != DirectiveKind::Target;
 
+    if !block.has_trailing_colon {
+        diags.push(ParseDiag::new(
+            ParseCode::DirectiveMalformed,
+            header.span,
+            "Directive header must end with ':'",
+        ));
+    }
+
     if requires_label {
         match peek_directive(stream, &spec) {
             Some(next) if matches!(next.kind, TokenKind::Ident) => {
@@ -48,7 +56,7 @@ pub fn take_directive_block(
                     }
                     _ => {
                         diags.push(ParseDiag::new(
-                            ParseCode::UnexpectedToken,
+                            ParseCode::DirectiveMalformed,
                             label_tok.span,
                             "Expected ':' after directive label",
                         ));
@@ -57,14 +65,14 @@ pub fn take_directive_block(
             }
             Some(unexpected) => {
                 diags.push(ParseDiag::new(
-                    ParseCode::UnexpectedToken,
+                    ParseCode::DirectiveMalformed,
                     unexpected.span,
                     "Directive label must be an identifier",
                 ));
             }
             None => {
                 diags.push(ParseDiag::new(
-                    ParseCode::UnexpectedToken,
+                    ParseCode::DirectiveMalformed,
                     header.span,
                     "Directive header must be followed by a label",
                 ));
@@ -166,7 +174,7 @@ fn parse_target_condition(
     if parser.idx < tokens.len() {
         let span = tokens[parser.idx].span;
         parser.diags.push(ParseDiag::new(
-            ParseCode::UnexpectedToken,
+            ParseCode::DirectiveMalformed,
             span,
             "Unexpected trailing tokens in target directive",
         ));
@@ -194,7 +202,7 @@ impl<'a> TargetConditionParser<'a> {
             TokenKind::Ident => self.parse_ident_start(token),
             _ => {
                 self.diags.push(ParseDiag::new(
-                    ParseCode::UnexpectedToken,
+                    ParseCode::DirectiveMalformed,
                     token.span,
                     "Expected identifier in target directive",
                 ));
@@ -213,7 +221,7 @@ impl<'a> TargetConditionParser<'a> {
                 "not" => self.parse_not(token.span),
                 _ => {
                     self.diags.push(ParseDiag::new(
-                        ParseCode::UnexpectedToken,
+                        ParseCode::DirectiveMalformed,
                         token.span,
                         "Unknown function in target directive",
                     ));
@@ -230,7 +238,7 @@ impl<'a> TargetConditionParser<'a> {
                 TokenKind::StringLit | TokenKind::Ident => self.token_text(&value_tok),
                 _ => {
                     self.diags.push(ParseDiag::new(
-                        ParseCode::UnexpectedToken,
+                        ParseCode::DirectiveMalformed,
                         value_tok.span,
                         "Expected string or identifier after '='",
                     ));
@@ -268,7 +276,7 @@ impl<'a> TargetConditionParser<'a> {
             } else {
                 let span = self.current_span();
                 self.diags.push(ParseDiag::new(
-                    ParseCode::UnexpectedToken,
+                    ParseCode::DirectiveMalformed,
                     span,
                     "Expected ',' or ')' in target directive",
                 ));
@@ -282,7 +290,7 @@ impl<'a> TargetConditionParser<'a> {
         if !self.peek_kind(TokenKind::RParen) {
             let span = self.current_span();
             self.diags.push(ParseDiag::new(
-                ParseCode::UnexpectedToken,
+                ParseCode::DirectiveMalformed,
                 span,
                 "Expected ')' after not(...)",
             ));

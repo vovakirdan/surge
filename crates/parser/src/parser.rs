@@ -10,8 +10,8 @@ use crate::lexer_api::Stream;
 use crate::statements::{parse_block, parse_stmt};
 use crate::sync::is_top_level_sync;
 use crate::types::parse_type_node;
-use std::collections::{HashMap, hash_map::Entry};
-use surge_token::{Keyword, SourceId, Span, Token, TokenKind};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
+use surge_token::{DirectiveKind, Keyword, SourceId, Span, Token, TokenKind};
 
 /// Parsing outcome containing AST and diagnostics.
 pub struct ParseResult {
@@ -49,6 +49,8 @@ struct Parser<'src> {
     fn_purity: HashMap<String, bool>,
     parallel_checks: Vec<(Span, String)>,
     module_directives: Vec<DirectiveBlock>,
+    known_directive_namespaces: HashSet<String>,
+    pending_directive_handlers: Vec<(Span, String)>,
 }
 
 impl<'src> Parser<'src> {
@@ -64,6 +66,8 @@ impl<'src> Parser<'src> {
             fn_purity: HashMap::new(),
             parallel_checks: Vec::new(),
             module_directives: Vec::new(),
+            known_directive_namespaces: default_directive_namespaces(),
+            pending_directive_handlers: Vec::new(),
         }
     }
 
@@ -141,10 +145,38 @@ impl<'src> Parser<'src> {
         }
 
         self.finalize_parallel_checks();
+
+        let directives = std::mem::take(&mut self.module_directives);
+        for block in &directives {
+            self.validate_directive_namespace(block);
+        }
+
         Module {
             items,
-            directives: std::mem::take(&mut self.module_directives),
+            directives,
             has_pragma_directive,
+        }
+    }
+
+    fn validate_directive_namespace(&mut self, block: &DirectiveBlock) {
+        if matches!(block.kind, DirectiveKind::Custom) {
+            let ns = block.namespace.as_str();
+            if !self.known_directive_namespaces.contains(ns) {
+                self.diags.push(ParseDiag::new(
+                    ParseCode::DirectiveUnknownNamespace,
+                    block.header_span,
+                    format!("Unknown directive namespace '{}'", ns),
+                ));
+                self.pending_directive_handlers
+                    .push((block.header_span, ns.to_string()));
+            }
+        }
+        if matches!(block.kind, DirectiveKind::Target) && block.condition.is_none() {
+            self.diags.push(ParseDiag::new(
+                ParseCode::DirectiveMalformed,
+                block.header_span,
+                "target directive must specify a condition",
+            ));
         }
     }
 
@@ -1331,4 +1363,11 @@ impl<'src> Parser<'src> {
     fn error(&mut self, code: ParseCode, span: Span, message: impl Into<String>) {
         self.diags.push(ParseDiag::new(code, span, message));
     }
+}
+
+fn default_directive_namespaces() -> HashSet<String> {
+    ["test", "benchmark", "time", "target"]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect()
 }

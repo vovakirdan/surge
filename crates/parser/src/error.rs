@@ -37,6 +37,9 @@ pub enum ParseCode {
     Recoverable,
     FieldConflict,
     DuplicateLiteral,
+    DirectiveMalformed,
+    DirectiveUnknownNamespace,
+    DirectiveMissingHandler,
 }
 
 /// Parser diagnostic with message and related spans.

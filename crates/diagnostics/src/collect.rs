@@ -89,6 +89,13 @@ pub fn from_parser_diags(file: SourceId, diags: &[surge_parser::ParseDiag]) -> V
                 surge_parser::ParseCode::InvalidArraySyntax => "PARSE_INVALID_ARRAY_SYNTAX".into(),
                 surge_parser::ParseCode::FieldConflict => "PARSE_FIELD_CONFLICT".into(),
                 surge_parser::ParseCode::DuplicateLiteral => "PARSE_DUPLICATE_LITERAL".into(),
+                surge_parser::ParseCode::DirectiveMalformed => "PARSE_DIRECTIVE_MALFORMED".into(),
+                surge_parser::ParseCode::DirectiveUnknownNamespace => {
+                    "PARSE_DIRECTIVE_UNKNOWN_NAMESPACE".into()
+                }
+                surge_parser::ParseCode::DirectiveMissingHandler => {
+                    "PARSE_DIRECTIVE_MISSING_HANDLER".into()
+                }
                 surge_parser::ParseCode::IncompleteFunction => "PARSE_INCOMPLETE_FUNCTION".into(),
                 surge_parser::ParseCode::Recoverable => "PARSE_RECOVERABLE".into(),
             });

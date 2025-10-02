@@ -94,50 +94,37 @@ fn take_ident(cur: &mut Cursor) -> Option<String> {
 
 /// Разбирает заголовок директивы и формирует структурированное представление пространства имён.
 fn parse_directive_header(cur: &mut Cursor) -> Option<DirectiveSpec> {
+    let start_pos = cur.save_pos();
+
     let namespace = take_ident(cur)?;
 
     skip_whitespace(cur);
+
+    if cur.peek() != Some(':') {
+        cur.restore_pos(start_pos);
+        return None;
+    }
 
     let mut sub_namespace = None;
     let mut has_trailing_colon = false;
 
     if cur.peek() == Some(':') {
-        // Сохраняем позицию на случай, если двоеточие окажется разделителем имени и содержимого.
-        let colon_pos = cur.save_pos();
         cur.bump();
+        has_trailing_colon = true;
         skip_whitespace(cur);
 
         if let Some(ch) = cur.peek() {
             if is_ident_start(ch) {
+                let checkpoint = cur.save_pos();
                 let sub = take_ident(cur).unwrap();
                 skip_whitespace(cur);
-
-                match cur.peek() {
-                    Some(':') => {
-                        cur.bump();
-                        has_trailing_colon = true;
-                        sub_namespace = Some(sub);
-                    }
-                    Some('\n') | None => {
-                        // Пространство имён расширено, но завершающего двоеточия нет — сообщим на этапе парсинга.
-                        has_trailing_colon = false;
-                        sub_namespace = Some(sub);
-                    }
-                    Some(_) => {
-                        // После идентификатора идет другой токен — значит это было содержимое, а не подпространство.
-                        cur.restore_pos(colon_pos);
-                        skip_whitespace(cur);
-                        if cur.peek() == Some(':') {
-                            cur.bump();
-                            has_trailing_colon = true;
-                        }
-                    }
+                if cur.peek() == Some(':') {
+                    cur.bump();
+                    sub_namespace = Some(sub);
+                } else {
+                    cur.restore_pos(checkpoint);
                 }
-            } else {
-                has_trailing_colon = true;
             }
-        } else {
-            has_trailing_colon = true;
         }
     }
 
@@ -555,18 +542,8 @@ mod tests {
         let mut emitter = Emitter::new(file, &opts);
 
         let result = try_take_directive(&mut cursor, &mut emitter, &opts);
-        assert!(result.is_some());
-        assert!(!emitter.tokens.is_empty());
-
-        let directive_token = &emitter.tokens[0];
-        let spec = match &directive_token.kind {
-            TokenKind::Directive(spec) => Arc::clone(spec),
-            other => panic!("expected directive token, got {:?}", other),
-        };
-        assert_eq!(spec.kind, DirectiveKind::Test);
-        assert_eq!(spec.namespace(), "test");
-        assert!(!spec.has_trailing_colon);
-        assert!(emitter.diags.is_empty());
+        assert!(result.is_none());
+        assert!(emitter.tokens.is_empty());
     }
 
     #[test]
