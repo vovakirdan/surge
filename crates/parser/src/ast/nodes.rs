@@ -22,6 +22,7 @@ pub enum Item {
     Type(TypeDef),
     Literal(LiteralDef),
     Alias(AliasDef),
+    Tag(TagDef),
     Extern(ExternBlock),
     Import(Import),
     Let(Stmt),
@@ -426,6 +427,25 @@ pub enum AliasVariant {
 #[derive(Debug)]
 pub struct LiteralDef {
     pub name: String,
+    pub values: Vec<LiteralVariant>,
+    pub attrs: Vec<Attr>,
+    pub span: Span,
+}
+
+/// Individual literal alternative as part of a `literal` declaration.
+#[derive(Debug)]
+pub struct LiteralVariant {
+    pub value: String,
+    pub span: Span,
+}
+
+/// Tagged constructor declaration used by tagged unions.
+#[derive(Debug)]
+pub struct TagDef {
+    pub name: String,
+    pub generics: Vec<GenericParam>,
+    pub params: Vec<TypeNode>,
+    pub attrs: Vec<Attr>,
     pub span: Span,
 }
 

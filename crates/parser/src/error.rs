@@ -35,6 +35,8 @@ pub enum ParseCode {
     InvalidArraySyntax,
     IncompleteFunction,
     Recoverable,
+    FieldConflict,
+    DuplicateLiteral,
 }
 
 /// Parser diagnostic with message and related spans.

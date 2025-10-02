@@ -6,8 +6,8 @@ use surge_token::{SourceId, Token};
 
 use crate::{
     AliasDef, AliasVariant, Ast, Attr, Block, Expr, ExternBlock, Func, FuncSig, GenericParam,
-    Import, Item, LiteralDef, Module, NewtypeDef, Param, Pattern, PatternKind, Stmt, StmtOrBlock,
-    StructField, TypeDef, TypeNode,
+    Import, Item, LiteralDef, LiteralVariant, Module, NewtypeDef, Param, Pattern, PatternKind,
+    Stmt, StmtOrBlock, StructField, TagDef, TypeDef, TypeNode,
 };
 
 /// Rendering context passed to AST nodes.
@@ -91,6 +91,11 @@ impl AstRender for Item {
             Item::Alias(alias_def) => {
                 ctx.push_str(&format!("{}Alias(\n", indent_str));
                 alias_def.render(ctx, indent + 1);
+                ctx.push_str(&format!("\n{})", indent_str));
+            }
+            Item::Tag(tag_def) => {
+                ctx.push_str(&format!("{}Tag(\n", indent_str));
+                tag_def.render(ctx, indent + 1);
                 ctx.push_str(&format!("\n{})", indent_str));
             }
             Item::Extern(extern_block) => {
@@ -841,8 +846,34 @@ impl AstRender for LiteralDef {
         let indent_str = "  ".repeat(indent);
         ctx.push_str(&format!("{}LiteralDef {{\n", indent_str));
         ctx.push_str(&format!("{}  name: \"{}\",\n", indent_str, self.name));
+        ctx.push_str(&format!("{}  attrs: [", indent_str));
+        for (i, attr) in self.attrs.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(", ");
+            }
+            attr.render(ctx, indent + 1);
+        }
+        ctx.push_str("],\n");
+        ctx.push_str(&format!("{}  values: [\n", indent_str));
+        for (i, value) in self.values.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(",\n");
+            }
+            value.render(ctx, indent + 2);
+        }
+        ctx.push_str(&format!("\n{}  ],\n", indent_str));
         ctx.push_str(&format!("{}  span: {:?}\n", indent_str, self.span));
         ctx.push_str(&format!("{}}}", indent_str));
+    }
+}
+
+impl AstRender for LiteralVariant {
+    fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
+        let indent_str = "  ".repeat(indent);
+        ctx.push_str(&format!(
+            "{}LiteralVariant {{ value: \"{}\", span: {:?} }}",
+            indent_str, self.value, self.span
+        ));
     }
 }
 
@@ -879,6 +910,39 @@ impl AstRender for AliasDef {
         ctx.push_str(&format!("\n{}  ],\n", indent_str));
 
         ctx.push_str(&format!("{}  span: {:?}\n", indent_str, self.span));
+        ctx.push_str(&format!("{}}}", indent_str));
+    }
+}
+
+impl AstRender for TagDef {
+    fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
+        let indent_str = "  ".repeat(indent);
+        ctx.push_str(&format!("{}TagDef {{\n", indent_str));
+        ctx.push_str(&format!("{}  name: \"{}\",\n", indent_str, self.name));
+        ctx.push_str(&format!("{}  generics: [", indent_str));
+        for (i, param) in self.generics.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(", ");
+            }
+            param.render(ctx, indent + 1);
+        }
+        ctx.push_str("],\n");
+        ctx.push_str(&format!("{}  attrs: [", indent_str));
+        for (i, attr) in self.attrs.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(", ");
+            }
+            attr.render(ctx, indent + 1);
+        }
+        ctx.push_str("],\n");
+        ctx.push_str(&format!("{}  params: [", indent_str));
+        for (i, param) in self.params.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(", ");
+            }
+            param.render(ctx, indent + 1);
+        }
+        ctx.push_str(&format!("],\n{}  span: {:?}\n", indent_str, self.span));
         ctx.push_str(&format!("{}}}", indent_str));
     }
 }
