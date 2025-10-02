@@ -35,7 +35,7 @@ pub fn parse_type_node(stream: &mut Stream, diags: &mut Vec<ParseDiag>) -> Optio
         end_span = Some(tok.span);
 
         // Сохраняем токен для реконструкции
-        consumed_tokens.push(tok);
+        consumed_tokens.push(tok.clone());
 
         match tok.kind {
             TokenKind::LAngle => depth_angle += 1,

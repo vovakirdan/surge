@@ -169,8 +169,9 @@ fn parse_expr_bp(
         }
 
         let tok = stream.peek();
-        let Some((l_bp, r_bp)) = infix_binding_power(&tok.kind) else {
-            if !is_expr_terminator(tok.kind) {
+        let tok_kind = tok.kind.clone();
+        let Some((l_bp, r_bp)) = infix_binding_power(&tok_kind) else {
+            if !is_expr_terminator(tok_kind.clone()) {
                 report_unexpected_in_expr(stream, diags, tok, &lhs);
             }
             break;
@@ -180,7 +181,8 @@ fn parse_expr_bp(
         }
 
         let op_tok = stream.bump();
-        if let Some(assign_op) = assign_op_from_token(op_tok.kind) {
+        let op_kind = op_tok.kind.clone();
+        if let Some(assign_op) = assign_op_from_token(op_kind.clone()) {
             // Проверяем является ли левая часть допустимой целью для присваивания
             if !is_assignable_expr(&lhs) {
                 error(
@@ -204,7 +206,7 @@ fn parse_expr_bp(
 
         let rhs = parse_expr_bp(stream, diags, fn_purity, parallel_checks, r_bp)?;
         let span = expr_span(&lhs).join(expr_span(&rhs));
-        let op = match op_tok.kind {
+        let op = match op_kind {
             TokenKind::Plus => BinaryOp::Add,
             TokenKind::Minus => BinaryOp::Sub,
             TokenKind::Star => BinaryOp::Mul,
@@ -857,12 +859,13 @@ fn register_parallel_func(
 pub fn handle_trailing_expr_tokens(stream: &mut Stream, diags: &mut Vec<ParseDiag>, expr: &Expr) {
     forbid_fat_arrow(stream, diags);
     let next = stream.peek();
-    if is_expr_terminator(next.kind) || matches!(next.kind, TokenKind::Semicolon) {
+    let next_kind = next.kind.clone();
+    if is_expr_terminator(next_kind.clone()) || matches!(next_kind.clone(), TokenKind::Semicolon) {
         return;
     }
     if matches!(expr, Expr::Ident(_, _))
         && matches!(
-            next.kind,
+            next_kind.clone(),
             TokenKind::IntLit | TokenKind::FloatLit | TokenKind::Ident
         )
     {
@@ -875,12 +878,12 @@ pub fn handle_trailing_expr_tokens(stream: &mut Stream, diags: &mut Vec<ParseDia
         stream.bump();
         return;
     }
-    if !is_expr_terminator(next.kind) && !stream.is_eof() {
+    if !is_expr_terminator(next_kind.clone()) && !stream.is_eof() {
         error(
             diags,
             ParseCode::UnexpectedToken,
             next.span,
-            format!("Unexpected token {:?} in expression", next.kind),
+            format!("Unexpected token {:?} in expression", next_kind),
         );
         stream.bump();
     }
@@ -940,7 +943,9 @@ fn report_unexpected_in_expr(
     tok: Token,
     lhs: &Expr,
 ) {
-    if tok.kind == TokenKind::FatArrow {
+    let kind = tok.kind.clone();
+
+    if matches!(kind.clone(), TokenKind::FatArrow) {
         error(
             diags,
             ParseCode::FatArrowOutsideParallel,
@@ -952,7 +957,7 @@ fn report_unexpected_in_expr(
     }
     if matches!(lhs, Expr::Ident(_, _))
         && matches!(
-            tok.kind,
+            kind.clone(),
             TokenKind::IntLit | TokenKind::FloatLit | TokenKind::Ident
         )
     {
@@ -965,9 +970,9 @@ fn report_unexpected_in_expr(
         stream.bump();
         return;
     }
-    if tok.kind == TokenKind::RAngle {
+    if matches!(kind.clone(), TokenKind::RAngle) {
         if let Some(prev) = stream.previous() {
-            if prev.kind == TokenKind::LAngle {
+            if matches!(prev.kind, TokenKind::LAngle) {
                 error(
                     diags,
                     ParseCode::UnexpectedToken,
@@ -982,9 +987,9 @@ fn report_unexpected_in_expr(
         diags,
         ParseCode::UnexpectedToken,
         tok.span,
-        format!("Unexpected token {:?} in expression", tok.kind),
+        format!("Unexpected token {:?} in expression", kind.clone()),
     );
-    if !is_expr_terminator(tok.kind) && !stream.is_eof() {
+    if !is_expr_terminator(kind) && !stream.is_eof() {
         stream.bump();
     }
 }

@@ -1,10 +1,9 @@
-use crate::{
-    LexOptions,
-    cursor::Cursor,
-    emit::{DiagCode, Emitter},
-};
+use std::sync::Arc;
+
+use crate::{LexOptions, cursor::Cursor, emit::Emitter};
 use surge_token::{
-    DirectiveKind, Span, TokenContext, TokenKind, lookup_directive_keyword, lookup_keyword,
+    DirectiveKind, DirectiveName, DirectiveSpec, TokenContext, TokenKind, lookup_directive_keyword,
+    lookup_keyword,
 };
 
 /// Пытается захватить директиву начинающуюся с ///
@@ -33,22 +32,20 @@ pub fn try_take_directive(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) 
     // Пропускаем пробелы после ///
     skip_whitespace(cur);
 
-    // Пытаемся определить тип директивы по первой строке
-    let directive_kind = match parse_directive_kind(cur, em) {
-        Some(kind) => kind,
-        None => {
-            // Если не удалось распознать директиву - это обычный комментарий
-            // Возвращаем курсор в исходное положение
-            cur.restore_pos(start_pos as usize);
-            return None;
-        }
+    // Пытаемся разобрать заголовок директивы (пространство имён + метаданные)
+    let Some(spec) = parse_directive_header(cur) else {
+        // Если не удалось распознать идентификатор — это не директивный блок
+        cur.restore_pos(start_pos as usize);
+        return None;
     };
 
+    let spec = Arc::new(spec);
+
     // Создаем токен начала директивы
-    em.token(start_pos, cur.pos(), TokenKind::Directive(directive_kind));
+    em.token(start_pos, cur.pos(), TokenKind::Directive(spec.clone()));
 
     // Лексируем содержимое директивы как отдельные токены с контекстом
-    tokenize_directive_content(cur, em, opt, directive_kind);
+    tokenize_directive_content(cur, em, opt, spec);
 
     Some(start_pos)
 }
@@ -63,57 +60,103 @@ fn skip_whitespace(cur: &mut Cursor) {
     }
 }
 
-/// Пытается распознать тип директивы по ключевому слову
-fn parse_directive_kind(cur: &mut Cursor, em: &mut Emitter) -> Option<DirectiveKind> {
-    let keyword_start = cur.pos();
+#[inline]
+fn is_ident_start(ch: char) -> bool {
+    ch.is_ascii_alphabetic() || ch == '_'
+}
 
-    // Читаем ключевое слово до двоеточия или пробела
-    let mut keyword = String::new();
+#[inline]
+fn is_ident_continue(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_'
+}
+
+fn take_ident(cur: &mut Cursor) -> Option<String> {
+    let mut ident = String::new();
+
+    let first = cur.peek()?;
+    if !is_ident_start(first) {
+        return None;
+    }
+
+    ident.push(first);
+    cur.bump();
+
     while let Some(ch) = cur.peek() {
-        if ch == ':' || ch.is_whitespace() || ch == '\n' {
+        if !is_ident_continue(ch) {
             break;
         }
-        keyword.push(ch);
+        ident.push(ch);
         cur.bump();
     }
 
-    let keyword_end = cur.pos();
+    Some(ident)
+}
 
-    // Проверяем что после ключевого слова идет двоеточие
+/// Разбирает заголовок директивы и формирует структурированное представление пространства имён.
+fn parse_directive_header(cur: &mut Cursor) -> Option<DirectiveSpec> {
+    let namespace = take_ident(cur)?;
+
     skip_whitespace(cur);
-    if cur.peek() != Some(':') {
-        // Нет двоеточия - выдаем диагностику если есть ключевое слово
-        if !keyword.is_empty() {
-            let span = Span::new(em.file, keyword_start, keyword_end);
-            em.diag(
-                span,
-                DiagCode::InvalidDirectiveFormat,
-                format!("Expected ':' after directive keyword '{}'", keyword),
-            );
-        }
-        return None;
-    }
-    cur.bump(); // пропускаем ':'
 
-    // Сопоставляем ключевое слово с типом директивы
-    match keyword.as_str() {
-        "test" => Some(DirectiveKind::Test),
-        "benchmark" => Some(DirectiveKind::Benchmark),
-        "time" => Some(DirectiveKind::Time),
-        "target" => Some(DirectiveKind::Target),
-        _ => {
-            // Неизвестная директива - выдаем диагностику
-            if !keyword.is_empty() {
-                let span = Span::new(em.file, keyword_start, keyword_end);
-                em.diag(
-                    span,
-                    DiagCode::UnknownDirective,
-                    format!("Unknown directive type '{}'", keyword),
-                );
+    let mut sub_namespace = None;
+    let mut has_trailing_colon = false;
+
+    if cur.peek() == Some(':') {
+        // Сохраняем позицию на случай, если двоеточие окажется разделителем имени и содержимого.
+        let colon_pos = cur.save_pos();
+        cur.bump();
+        skip_whitespace(cur);
+
+        if let Some(ch) = cur.peek() {
+            if is_ident_start(ch) {
+                let sub = take_ident(cur).unwrap();
+                skip_whitespace(cur);
+
+                match cur.peek() {
+                    Some(':') => {
+                        cur.bump();
+                        has_trailing_colon = true;
+                        sub_namespace = Some(sub);
+                    }
+                    Some('\n') | None => {
+                        // Пространство имён расширено, но завершающего двоеточия нет — сообщим на этапе парсинга.
+                        has_trailing_colon = false;
+                        sub_namespace = Some(sub);
+                    }
+                    Some(_) => {
+                        // После идентификатора идет другой токен — значит это было содержимое, а не подпространство.
+                        cur.restore_pos(colon_pos);
+                        skip_whitespace(cur);
+                        if cur.peek() == Some(':') {
+                            cur.bump();
+                            has_trailing_colon = true;
+                        }
+                    }
+                }
+            } else {
+                has_trailing_colon = true;
             }
-            None
+        } else {
+            has_trailing_colon = true;
         }
     }
+
+    let kind = match namespace.as_str() {
+        "test" if sub_namespace.is_none() => DirectiveKind::Test,
+        "benchmark" if sub_namespace.is_none() => DirectiveKind::Benchmark,
+        "time" if sub_namespace.is_none() => DirectiveKind::Time,
+        "target" if sub_namespace.is_none() => DirectiveKind::Target,
+        _ => DirectiveKind::Custom,
+    };
+
+    Some(DirectiveSpec {
+        kind,
+        name: DirectiveName {
+            namespace,
+            sub_namespace,
+        },
+        has_trailing_colon,
+    })
 }
 
 /// Лексирует содержимое директивы как отдельные токены
@@ -121,13 +164,13 @@ fn tokenize_directive_content(
     cur: &mut Cursor,
     em: &mut Emitter,
     opt: &LexOptions,
-    directive_kind: DirectiveKind,
+    spec: Arc<DirectiveSpec>,
 ) {
-    let context = TokenContext::Directive(directive_kind);
+    let context = TokenContext::Directive(spec);
 
     while !cur.eof() {
         // Пропускаем до конца текущей строки, лексируя содержимое
-        tokenize_directive_line(cur, em, opt, context);
+        tokenize_directive_line(cur, em, opt, context.clone());
 
         // Ищем следующую строку с содержимым директивы
         if !find_and_consume_next_directive_line(cur, em, opt) {
@@ -159,14 +202,14 @@ fn tokenize_directive_line(
             }
             Some(ch) if ch.is_alphabetic() || ch == '_' => {
                 // Идентификатор или ключевое слово директивы
-                tokenize_directive_ident(cur, em, context);
+                tokenize_directive_ident(cur, em, context.clone());
             }
             Some(ch) if ch.is_ascii_digit() => {
                 // Числовой литерал
                 if rules::number::try_take_number(cur, em) {
                     // Обновляем контекст последнего токена
                     if let Some(last_token) = em.tokens.last_mut() {
-                        last_token.context = context;
+                        last_token.context = context.clone();
                     }
                 }
             }
@@ -175,7 +218,7 @@ fn tokenize_directive_line(
                 if rules::string::try_take_string(cur, em) {
                     // Обновляем контекст последнего токена
                     if let Some(last_token) = em.tokens.last_mut() {
-                        last_token.context = context;
+                        last_token.context = context.clone();
                     }
                 }
             }
@@ -184,7 +227,7 @@ fn tokenize_directive_line(
                 if rules::punct::try_take_multi(cur, em) || rules::punct::try_take_single(cur, em) {
                     // Обновляем контекст последнего токена
                     if let Some(last_token) = em.tokens.last_mut() {
-                        last_token.context = context;
+                        last_token.context = context.clone();
                     }
                 } else {
                     // Неизвестный символ - пропускаем
@@ -307,7 +350,7 @@ fn skip_comment_line(cur: &mut Cursor) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LexOptions, emit::DiagCode};
+    use crate::LexOptions;
     use surge_token::SourceId;
 
     #[test]
@@ -329,17 +372,25 @@ mod tests {
 
         // Первый токен - это токен директивы
         let directive_token = &emitter.tokens[0];
-        assert_eq!(
-            directive_token.kind,
-            TokenKind::Directive(DirectiveKind::Test)
-        );
+        let spec = match &directive_token.kind {
+            TokenKind::Directive(spec) => Arc::clone(spec),
+            other => panic!("expected directive token, got {:?}", other),
+        };
+        assert_eq!(spec.kind, DirectiveKind::Test);
+        assert_eq!(spec.namespace(), "test");
+        assert!(spec.has_trailing_colon);
         assert_eq!(directive_token.context, TokenContext::Normal);
 
         // Проверяем, что есть токены с контекстом директивы
         let directive_content_tokens: Vec<_> = emitter
             .tokens
             .iter()
-            .filter(|t| matches!(t.context, TokenContext::Directive(DirectiveKind::Test)))
+            .filter(|t| {
+                matches!(
+                    &t.context,
+                    TokenContext::Directive(spec) if spec.kind == DirectiveKind::Test
+                )
+            })
             .collect();
         assert!(!directive_content_tokens.is_empty());
 
@@ -368,10 +419,13 @@ mod tests {
         assert!(emitter.tokens.len() > 1);
 
         let directive_token = &emitter.tokens[0];
-        assert_eq!(
-            directive_token.kind,
-            TokenKind::Directive(DirectiveKind::Benchmark)
-        );
+        let spec = match &directive_token.kind {
+            TokenKind::Directive(spec) => Arc::clone(spec),
+            other => panic!("expected directive token, got {:?}", other),
+        };
+        assert_eq!(spec.kind, DirectiveKind::Benchmark);
+        assert_eq!(spec.namespace(), "benchmark");
+        assert!(spec.has_trailing_colon);
 
         // Проверяем ключевое слово benchmark.measure
         let benchmark_measure_tokens: Vec<_> = emitter
@@ -403,10 +457,13 @@ mod tests {
         assert!(emitter.tokens.len() > 1);
 
         let directive_token = &emitter.tokens[0];
-        assert_eq!(
-            directive_token.kind,
-            TokenKind::Directive(DirectiveKind::Time)
-        );
+        let spec = match &directive_token.kind {
+            TokenKind::Directive(spec) => Arc::clone(spec),
+            other => panic!("expected directive token, got {:?}", other),
+        };
+        assert_eq!(spec.kind, DirectiveKind::Time);
+        assert_eq!(spec.namespace(), "time");
+        assert!(spec.has_trailing_colon);
 
         // Проверяем ключевое слово time.measure
         let time_measure_tokens: Vec<_> = emitter
@@ -438,10 +495,11 @@ mod tests {
         assert!(emitter.tokens.len() > 1);
 
         let directive_token = &emitter.tokens[0];
-        assert_eq!(
-            directive_token.kind,
-            TokenKind::Directive(DirectiveKind::Test)
-        );
+        let spec = match &directive_token.kind {
+            TokenKind::Directive(spec) => Arc::clone(spec),
+            other => panic!("expected directive token, got {:?}", other),
+        };
+        assert_eq!(spec.kind, DirectiveKind::Test);
     }
 
     #[test]
@@ -456,8 +514,17 @@ mod tests {
         let mut emitter = Emitter::new(file, &opts);
 
         let result = try_take_directive(&mut cursor, &mut emitter, &opts);
-        assert!(result.is_none());
-        assert_eq!(emitter.tokens.len(), 0);
+        assert!(result.is_some());
+        assert!(!emitter.tokens.is_empty());
+        let directive_token = &emitter.tokens[0];
+        let spec = match &directive_token.kind {
+            TokenKind::Directive(spec) => Arc::clone(spec),
+            other => panic!("expected directive token, got {:?}", other),
+        };
+        assert_eq!(spec.kind, DirectiveKind::Custom);
+        assert_eq!(spec.namespace(), "invalid_directive");
+        assert!(spec.has_trailing_colon);
+        assert!(emitter.diags.is_empty());
     }
 
     #[test]
@@ -488,10 +555,18 @@ mod tests {
         let mut emitter = Emitter::new(file, &opts);
 
         let result = try_take_directive(&mut cursor, &mut emitter, &opts);
-        assert!(result.is_none());
-        assert_eq!(emitter.tokens.len(), 0);
-        assert_eq!(emitter.diags.len(), 1);
-        assert_eq!(emitter.diags[0].code, DiagCode::InvalidDirectiveFormat);
+        assert!(result.is_some());
+        assert!(!emitter.tokens.is_empty());
+
+        let directive_token = &emitter.tokens[0];
+        let spec = match &directive_token.kind {
+            TokenKind::Directive(spec) => Arc::clone(spec),
+            other => panic!("expected directive token, got {:?}", other),
+        };
+        assert_eq!(spec.kind, DirectiveKind::Test);
+        assert_eq!(spec.namespace(), "test");
+        assert!(!spec.has_trailing_colon);
+        assert!(emitter.diags.is_empty());
     }
 
     #[test]
@@ -506,11 +581,17 @@ mod tests {
         let mut emitter = Emitter::new(file, &opts);
 
         let result = try_take_directive(&mut cursor, &mut emitter, &opts);
-        assert!(result.is_none());
-        assert_eq!(emitter.tokens.len(), 0);
-        assert_eq!(emitter.diags.len(), 1);
-        assert_eq!(emitter.diags[0].code, DiagCode::UnknownDirective);
-        assert!(emitter.diags[0].message.contains("unknown_directive"));
+        assert!(result.is_some());
+        assert!(!emitter.tokens.is_empty());
+        let directive_token = &emitter.tokens[0];
+        let spec = match &directive_token.kind {
+            TokenKind::Directive(spec) => Arc::clone(spec),
+            other => panic!("expected directive token, got {:?}", other),
+        };
+        assert_eq!(spec.kind, DirectiveKind::Custom);
+        assert_eq!(spec.namespace(), "unknown_directive");
+        assert!(spec.has_trailing_colon);
+        assert!(emitter.diags.is_empty());
     }
 
     #[test]
@@ -532,7 +613,12 @@ mod tests {
         let directive_tokens: Vec<_> = emitter
             .tokens
             .iter()
-            .filter(|t| matches!(t.context, TokenContext::Directive(DirectiveKind::Test)))
+            .filter(|t| {
+                matches!(
+                    &t.context,
+                    TokenContext::Directive(spec) if spec.kind == DirectiveKind::Test
+                )
+            })
             .collect();
 
         // Должны быть токены: let, result, =, test.equal, (, add, (, 2, ,, 3, ), ,, 5, ), ;, test.assert, (, result, ), ;

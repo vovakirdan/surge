@@ -1,13 +1,15 @@
-use crate::{DirectiveKind, Keyword, Span, TokenKind};
+use std::sync::Arc;
+
+use crate::{DirectiveSpec, Keyword, Span, TokenKind};
 
 /// Контекст токена - указывает, находится ли токен внутри директивы
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TokenContext {
-    Normal,                   // обычный токен
-    Directive(DirectiveKind), // токен внутри директивы определенного типа
+    Normal,                        // обычный токен
+    Directive(Arc<DirectiveSpec>), // токен внутри директивы определенного типа
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,

@@ -31,7 +31,6 @@ import ./subdir/nested_module;
 /// Performance test:
 ///   benchmark.measure(performance_critical_function);
 
-@benchmark
 fn performance_critical_function() -> int {
     let mut sum: int = 0;
     for (let i: int = 0; i < 10000; i = i + 1) {
@@ -44,7 +43,6 @@ fn performance_critical_function() -> int {
 /// Execution time measurement:
 ///   time.measure(timed_function);
 
-@time
 fn timed_function() -> string {
     return "This function execution time will be measured";
 }
