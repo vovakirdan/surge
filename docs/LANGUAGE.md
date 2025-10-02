@@ -1228,7 +1228,7 @@ fn factorial(n: int) -> int {
 
 /// benchmark:
 /// FactorialPerf:
-///   benchmark.measure(|| factorial(10));
+///   benchmark.measure(factorial(10));
 ```
 
 ```sg
@@ -1236,7 +1236,7 @@ fn factorial(n: int) -> int {
 /// time:
 /// DataProcessing:
 ///   let data = generate_large_dataset();
-///   let result = time.measure(|| process_data(data));
+///   let result = time.measure(process_data(data));
 ///   time.report("Processing time", result);
 ```
 
