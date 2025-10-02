@@ -51,6 +51,7 @@ struct Parser<'src> {
     module_directives: Vec<DirectiveBlock>,
     known_directive_namespaces: HashSet<String>,
     pending_directive_handlers: Vec<(Span, String)>,
+    is_directive_module: bool,
 }
 
 impl<'src> Parser<'src> {
@@ -68,6 +69,7 @@ impl<'src> Parser<'src> {
             module_directives: Vec::new(),
             known_directive_namespaces: default_directive_namespaces(),
             pending_directive_handlers: Vec::new(),
+            is_directive_module: false,
         }
     }
 
@@ -119,6 +121,7 @@ impl<'src> Parser<'src> {
     fn parse_module(&mut self) -> Module {
         let mut items = Vec::new();
         let has_pragma_directive = self.consume_pragma_directive();
+        self.is_directive_module = has_pragma_directive;
 
         while !self.stream.is_eof() {
             // Gather any leading directives and attach them to the module scope.
@@ -729,6 +732,8 @@ impl<'src> Parser<'src> {
                 "Expected ';' after literal definition",
             );
         }
+
+        self.register_directive_names(&name, &values);
 
         Some(LiteralDef {
             name,
@@ -1362,6 +1367,20 @@ impl<'src> Parser<'src> {
 
     fn error(&mut self, code: ParseCode, span: Span, message: impl Into<String>) {
         self.diags.push(ParseDiag::new(code, span, message));
+    }
+
+    fn register_directive_names(&mut self, literal_name: &str, values: &[LiteralVariant]) {
+        if !self.is_directive_module || literal_name != "DirectiveName" {
+            return;
+        }
+
+        for variant in values {
+            if variant.value.is_empty() {
+                continue;
+            }
+            self.known_directive_namespaces
+                .insert(variant.value.clone());
+        }
     }
 }
 

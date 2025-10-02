@@ -47,21 +47,42 @@ pub fn take_directive_block(
         match peek_directive(stream, &spec) {
             Some(next) if matches!(next.kind, TokenKind::Ident) => {
                 let label_tok = stream.bump();
-                block.label = Some(token_text(stream, &label_tok));
-                last_span = label_tok.span;
+                let label_start = label_tok.span.start;
+                let mut label_end = label_tok.span.end;
+                let mut found_colon = false;
 
-                match peek_directive(stream, &spec) {
-                    Some(colon_tok) if matches!(colon_tok.kind, TokenKind::Colon) => {
-                        last_span = stream.bump().span;
-                    }
-                    _ => {
-                        diags.push(ParseDiag::new(
-                            ParseCode::DirectiveMalformed,
-                            label_tok.span,
-                            "Expected ':' after directive label",
-                        ));
+                loop {
+                    match peek_directive(stream, &spec) {
+                        Some(colon_tok) if matches!(colon_tok.kind, TokenKind::Colon) => {
+                            let colon_tok = stream.bump();
+                            last_span = colon_tok.span;
+                            block.header_span = block.header_span.join(last_span);
+                            found_colon = true;
+                            break;
+                        }
+                        Some(_) => {
+                            let tok = stream.bump();
+                            label_end = tok.span.end;
+                        }
+                        None => break,
                     }
                 }
+
+                if !found_colon {
+                    diags.push(ParseDiag::new(
+                        ParseCode::DirectiveMalformed,
+                        label_tok.span,
+                        "Expected ':' after directive label",
+                    ));
+                }
+
+                let label_span = Span::new(file, label_start, label_end);
+                let label_text = stream
+                    .slice(label_span)
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                block.label = Some(label_text);
             }
             Some(unexpected) => {
                 diags.push(ParseDiag::new(
@@ -122,10 +143,6 @@ fn is_same_directive(tok: &Token, spec: &Arc<DirectiveSpec>) -> bool {
         &tok.context,
         TokenContext::Directive(ctx) if Arc::ptr_eq(ctx, spec)
     )
-}
-
-fn token_text(stream: &Stream, token: &Token) -> String {
-    stream.slice(token.span).unwrap_or("").to_string()
 }
 
 fn collect_body_lines(

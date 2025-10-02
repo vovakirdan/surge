@@ -1,4 +1,4 @@
-use crate::{Attr, Item, parse_source, parse_tokens};
+use crate::{Attr, Item, parse_source, parse_source_with_options, parse_tokens};
 use surge_lexer::{LexOptions, lex};
 use surge_token::SourceId;
 
@@ -154,6 +154,61 @@ fn test_parse_tokens_overload_override_ambiguity() {
             );
         }
     }
+}
+
+#[test]
+fn test_doc_comment_not_directive() {
+    let src = "/// Just documentation\nfn foo() {}";
+    let source_id = SourceId(10);
+    let opts = LexOptions {
+        keep_trivia: false,
+        enable_directives: true,
+    };
+
+    let (parse_res, _) = parse_source_with_options(source_id, src, &opts);
+    assert!(parse_res.diags.is_empty());
+    assert!(parse_res.ast.module.directives.is_empty());
+}
+
+#[test]
+fn test_multi_word_directive_label() {
+    let src = r#"/// benchmark:
+/// Performance test:
+///   benchmark.measure(main);
+fn main() {}"#;
+    let source_id = SourceId(11);
+    let opts = LexOptions {
+        keep_trivia: false,
+        enable_directives: true,
+    };
+
+    let (parse_res, _) = parse_source_with_options(source_id, src, &opts);
+    assert!(parse_res.diags.is_empty());
+    assert_eq!(parse_res.ast.module.directives.len(), 1);
+    let directive = &parse_res.ast.module.directives[0];
+    assert_eq!(directive.label.as_deref(), Some("Performance test"));
+}
+
+#[test]
+fn test_custom_directive_namespace_in_directive_module() {
+    let src = r#"pragma directive
+literal DirectiveName = "lint";
+
+/// lint:
+/// Checks:
+///   lint.run();
+fn lint_run() {}
+"#;
+    let source_id = SourceId(12);
+    let opts = LexOptions {
+        keep_trivia: false,
+        enable_directives: true,
+    };
+
+    let (parse_res, _) = parse_source_with_options(source_id, src, &opts);
+    assert!(parse_res.diags.is_empty());
+    assert_eq!(parse_res.ast.module.directives.len(), 1);
+    assert_eq!(parse_res.ast.module.directives[0].namespace, "lint");
 }
 
 #[test]

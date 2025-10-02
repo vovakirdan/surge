@@ -34,8 +34,7 @@ pub fn try_take_directive(cur: &mut Cursor, em: &mut Emitter, opt: &LexOptions) 
 
     // Пытаемся разобрать заголовок директивы (пространство имён + метаданные)
     let Some(spec) = parse_directive_header(cur) else {
-        // Если не удалось распознать идентификатор — это не директивный блок
-        cur.restore_pos(start_pos as usize);
+        skip_plain_doc_comment(cur);
         return None;
     };
 
@@ -144,6 +143,14 @@ fn parse_directive_header(cur: &mut Cursor) -> Option<DirectiveSpec> {
         },
         has_trailing_colon,
     })
+}
+
+fn skip_plain_doc_comment(cur: &mut Cursor) {
+    while let Some(ch) = cur.bump() {
+        if ch == '\n' {
+            break;
+        }
+    }
 }
 
 /// Лексирует содержимое директивы как отдельные токены
