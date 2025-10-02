@@ -294,6 +294,43 @@ alias Option<T> = Some(T) | nothing;
 }
 
 #[test]
+fn parses_literal_and_tag_definitions() {
+    let src = r#"
+literal Color = "red" | "green";
+tag Some<T>(T);
+tag None();
+"#;
+
+    let res = parse(src);
+    assert_no_parse_errors(&res);
+    assert_eq!(res.ast.module.items.len(), 3);
+
+    let literal = match &res.ast.module.items[0] {
+        Item::Literal(def) => def,
+        other => panic!("expected literal def, got {other:?}"),
+    };
+    assert_eq!(literal.name, "Color");
+    assert_eq!(literal.values.len(), 2);
+    assert_eq!(literal.values[0].value, "red");
+    assert_eq!(literal.values[1].value, "green");
+
+    let tag_some = match &res.ast.module.items[1] {
+        Item::Tag(def) => def,
+        other => panic!("expected tag def, got {other:?}"),
+    };
+    assert_eq!(tag_some.name, "Some");
+    assert_eq!(tag_some.generics.len(), 1);
+    assert_eq!(tag_some.params.len(), 1);
+
+    let tag_none = match &res.ast.module.items[2] {
+        Item::Tag(def) => def,
+        other => panic!("expected tag def, got {other:?}"),
+    };
+    assert_eq!(tag_none.name, "None");
+    assert!(tag_none.params.is_empty());
+}
+
+#[test]
 fn for_in_parses_pattern_and_optional_type() {
     let src = r#"
 fn walk(seq: Option<int>) {

@@ -9,7 +9,7 @@ use crate::lexer_api::Stream;
 use crate::statements::{parse_block, parse_stmt};
 use crate::sync::is_top_level_sync;
 use crate::types::parse_type_node;
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Entry};
 use surge_token::{Keyword, SourceId, Span, Token, TokenKind};
 
 /// Parsing outcome containing AST and diagnostics.
@@ -127,9 +127,17 @@ impl<'src> Parser<'src> {
             return self.parse_alias(attrs).map(Item::Alias);
         }
 
+        if self.stream.at_keyword(Keyword::Literal) {
+            return self.parse_literal(attrs).map(Item::Literal);
+        }
+
+        if self.stream.at_keyword(Keyword::Tag) {
+            return self.parse_tag(attrs).map(Item::Tag);
+        }
+
         if let Some(keyword) = self.stream.peek_keyword() {
             match keyword {
-                Keyword::Literal | Keyword::Import => {
+                Keyword::Import => {
                     let tok = self.stream.bump();
                     self.error(
                         ParseCode::UnexpectedToken,
@@ -541,6 +549,191 @@ impl<'src> Parser<'src> {
         })
     }
 
+    /// Parse a `literal Name = "foo" | "bar";` declaration.
+    fn parse_literal(&mut self, attrs: Vec<Attr>) -> Option<LiteralDef> {
+        let Some(literal_tok) = self.stream.eat_keyword(Keyword::Literal) else {
+            let tok = self.stream.bump();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected 'literal' keyword",
+            );
+            return None;
+        };
+
+        let (name, name_span) = self.expect_ident("literal name")?;
+
+        let Some(eq_tok) = self.stream.eat(TokenKind::Eq) else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected '=' after literal name",
+            );
+            return None;
+        };
+
+        // Track literal alternatives to flag duplicates early (E_FIELD_CONFLICT equivalent for literals).
+        let mut seen = HashMap::<String, Span>::new();
+        let mut values = Vec::new();
+        let mut last_span = eq_tok.span;
+
+        while !self.stream.is_eof() {
+            match self.expect_string_literal("literal alternative") {
+                Some((value, span)) => {
+                    last_span = span;
+                    match seen.entry(value.clone()) {
+                        Entry::Vacant(slot) => {
+                            slot.insert(span);
+                        }
+                        Entry::Occupied(entry) => {
+                            let prev = *entry.get();
+                            let display_value = self
+                                .stream
+                                .slice(span)
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|| format!("\"{}\"", value));
+                            let diag = ParseDiag::new(
+                                ParseCode::DuplicateLiteral,
+                                span,
+                                format!(
+                                    "Literal value {} is declared multiple times",
+                                    display_value
+                                ),
+                            )
+                            .with_related(prev, "Previous declaration here");
+                            self.diags.push(diag);
+                        }
+                    }
+                    values.push(LiteralVariant { value, span });
+                }
+                None => {
+                    self.recover_in_literal_values();
+                }
+            }
+
+            if self.stream.eat(TokenKind::Pipe).is_some() {
+                continue;
+            }
+            break;
+        }
+
+        if values.is_empty() {
+            self.error(
+                ParseCode::UnexpectedToken,
+                self.stream.peek().span,
+                "Expected at least one literal alternative",
+            );
+        }
+
+        let mut span = literal_tok.span.join(name_span);
+        span = span.join(last_span);
+        if let Some(semi) = self.stream.eat(TokenKind::Semicolon) {
+            span = span.join(semi.span);
+        } else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::MissingSemicolon,
+                tok.span,
+                "Expected ';' after literal definition",
+            );
+        }
+
+        Some(LiteralDef {
+            name,
+            values,
+            attrs,
+            span,
+        })
+    }
+
+    /// Parse a `tag Name<T>(args);` declaration.
+    fn parse_tag(&mut self, attrs: Vec<Attr>) -> Option<TagDef> {
+        let Some(tag_tok) = self.stream.eat_keyword(Keyword::Tag) else {
+            let tok = self.stream.bump();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected 'tag' keyword",
+            );
+            return None;
+        };
+
+        let (name, name_span) = self.expect_ident("tag name")?;
+        let generics = self.parse_generic_params();
+
+        let Some(open) = self.stream.eat(TokenKind::LParen) else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected '(' after tag name",
+            );
+            return None;
+        };
+
+        let mut params = Vec::new();
+        let mut end_span = open.span;
+
+        if self.stream.at(TokenKind::RParen) {
+            end_span = self.stream.bump().span;
+        } else {
+            while !self.stream.is_eof() {
+                match parse_type_node(&mut self.stream, &mut self.diags) {
+                    Some(ty) => {
+                        end_span = ty.span;
+                        params.push(ty);
+                    }
+                    None => {
+                        self.recover_in_tag_params();
+                        break;
+                    }
+                }
+
+                if self.stream.eat(TokenKind::Comma).is_some() {
+                    continue;
+                }
+                break;
+            }
+
+            if let Some(close) = self.stream.eat(TokenKind::RParen) {
+                end_span = close.span;
+            } else {
+                let tok = self.stream.peek();
+                self.error(
+                    ParseCode::UnexpectedToken,
+                    tok.span,
+                    "Expected ')' to close tag parameters",
+                );
+            }
+        }
+
+        let mut span = tag_tok.span.join(name_span);
+        if let Some(last_generic) = generics.last() {
+            span = span.join(last_generic.span);
+        }
+        span = span.join(end_span);
+
+        if let Some(semi) = self.stream.eat(TokenKind::Semicolon) {
+            span = span.join(semi.span);
+        } else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::MissingSemicolon,
+                tok.span,
+                "Expected ';' after tag declaration",
+            );
+        }
+
+        Some(TagDef {
+            name,
+            generics,
+            params,
+            attrs,
+            span,
+        })
+    }
+
     /// Parse `<T, U>` generic parameter lists shared between newtype, alias and type definitions.
     fn parse_generic_params(&mut self) -> Vec<GenericParam> {
         if !self.stream.at(TokenKind::LAngle) {
@@ -616,6 +809,7 @@ impl<'src> Parser<'src> {
 
         let mut fields = Vec::new();
         let mut last_span = open.span;
+        let mut seen_fields = HashMap::<String, Span>::new();
 
         while !self.stream.at(TokenKind::RBrace) && !self.stream.is_eof() {
             let attrs = parse_attrs(&mut self.stream, &mut self.diags);
@@ -693,6 +887,22 @@ impl<'src> Parser<'src> {
                 span,
             };
             last_span = field.span;
+            match seen_fields.entry(field.name.clone()) {
+                Entry::Vacant(slot) => {
+                    slot.insert(field.span);
+                }
+                Entry::Occupied(entry) => {
+                    let prev = *entry.get();
+                    // Emit E_FIELD_CONFLICT eagerly so extensions surface duplicates during parsing.
+                    let diag = ParseDiag::new(
+                        ParseCode::FieldConflict,
+                        field.span,
+                        format!("Field '{}' is declared multiple times", field.name),
+                    )
+                    .with_related(prev, "Previous declaration here");
+                    self.diags.push(diag);
+                }
+            }
             fields.push(field);
 
             if let Some(comma) = self.stream.eat(TokenKind::Comma) {
@@ -820,6 +1030,30 @@ impl<'src> Parser<'src> {
         }
     }
 
+    /// Skip tokens until the next literal delimiter to keep error recovery predictable.
+    fn recover_in_literal_values(&mut self) {
+        while !self.stream.is_eof() {
+            match self.stream.peek().kind {
+                TokenKind::Pipe | TokenKind::Semicolon => break,
+                _ => {
+                    self.stream.bump();
+                }
+            }
+        }
+    }
+
+    /// Skip to the next comma or closing parenthesis when a tag parameter fails to parse.
+    fn recover_in_tag_params(&mut self) {
+        while !self.stream.is_eof() {
+            match self.stream.peek().kind {
+                TokenKind::Comma | TokenKind::RParen => break,
+                _ => {
+                    self.stream.bump();
+                }
+            }
+        }
+    }
+
     fn parse_param_list(&mut self) -> Vec<Param> {
         let mut params = Vec::new();
         let open = match self.stream.eat(TokenKind::LParen) {
@@ -933,6 +1167,28 @@ impl<'src> Parser<'src> {
                 format!("identifier_{}", taken.span.start)
             };
             return Some((name, taken.span));
+        }
+        self.error(
+            ParseCode::UnexpectedToken,
+            tok.span,
+            format!("Expected {what}"),
+        );
+        None
+    }
+
+    fn expect_string_literal(&mut self, what: &str) -> Option<(String, Span)> {
+        let tok = self.stream.peek();
+        if tok.kind == TokenKind::StringLit {
+            let taken = self.stream.bump();
+            if let Some(slice) = self.stream.slice(taken.span) {
+                let text = slice.to_string();
+                if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
+                    let inner = text[1..text.len() - 1].to_string();
+                    return Some((inner, taken.span));
+                }
+                return Some((text, taken.span));
+            }
+            return Some((String::new(), taken.span));
         }
         self.error(
             ParseCode::UnexpectedToken,

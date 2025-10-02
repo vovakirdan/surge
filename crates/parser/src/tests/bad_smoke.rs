@@ -204,6 +204,38 @@ fn demo(xs: int[]) -> int {
 }
 
 #[test]
+fn reports_duplicate_fields_in_type_body() {
+    let src = r#"
+type Base = { id: int };
+type Derived = Base : {
+    id: int,
+    id: string
+};
+"#;
+
+    let res = parse(src);
+    assert!(
+        res.diags
+            .iter()
+            .any(|diag| diag.code == ParseCode::FieldConflict)
+    );
+}
+
+#[test]
+fn reports_duplicate_literal_alternatives() {
+    let src = r#"
+literal Color = "red" | "red";
+"#;
+
+    let res = parse(src);
+    assert!(
+        res.diags
+            .iter()
+            .any(|diag| diag.code == ParseCode::DuplicateLiteral)
+    );
+}
+
+#[test]
 fn reports_type_extension_missing_body() {
     let src = r#"
 type Derived = Base;
