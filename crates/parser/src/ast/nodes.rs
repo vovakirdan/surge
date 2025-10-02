@@ -42,6 +42,33 @@ pub struct DirectiveBlock {
     pub span: Span,
     pub header_span: Span,
     pub anchor: DirectiveAnchor,
+    pub condition: Option<DirectiveCondition>,
+}
+
+/// AST node for target directive conditions.
+#[derive(Debug)]
+pub enum DirectiveCondition {
+    KeyValue {
+        key: String,
+        value: String,
+        span: Span,
+    },
+    Flag {
+        name: String,
+        span: Span,
+    },
+    All {
+        conditions: Vec<DirectiveCondition>,
+        span: Span,
+    },
+    Any {
+        conditions: Vec<DirectiveCondition>,
+        span: Span,
+    },
+    Not {
+        condition: Box<DirectiveCondition>,
+        span: Span,
+    },
 }
 
 /// A compilation unit containing top-level items.
