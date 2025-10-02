@@ -1,4 +1,7 @@
-use crate::{Attr, Item, parse_source, parse_source_with_options, parse_tokens};
+use crate::{
+    Attr, DirectiveCondition, Item, ParseCode, parse_source, parse_source_with_options,
+    parse_tokens,
+};
 use surge_lexer::{LexOptions, lex};
 use surge_token::SourceId;
 
@@ -165,7 +168,7 @@ fn test_doc_comment_not_directive() {
         enable_directives: true,
     };
 
-    let (parse_res, _) = parse_source_with_options(source_id, src, &opts);
+    let (parse_res, _) = parse_source_with_options(source_id, &src, &opts);
     assert!(parse_res.diags.is_empty());
     assert!(parse_res.ast.module.directives.is_empty());
 }
@@ -182,7 +185,7 @@ fn main() {}"#;
         enable_directives: true,
     };
 
-    let (parse_res, _) = parse_source_with_options(source_id, src, &opts);
+    let (parse_res, _) = parse_source_with_options(source_id, &src, &opts);
     assert!(parse_res.diags.is_empty());
     assert_eq!(parse_res.ast.module.directives.len(), 1);
     let directive = &parse_res.ast.module.directives[0];
@@ -205,10 +208,33 @@ fn lint_run() {}
         enable_directives: true,
     };
 
-    let (parse_res, _) = parse_source_with_options(source_id, src, &opts);
+    let (parse_res, _) = parse_source_with_options(source_id, &src, &opts);
     assert!(parse_res.diags.is_empty());
     assert_eq!(parse_res.ast.module.directives.len(), 1);
     assert_eq!(parse_res.ast.module.directives[0].namespace, "lint");
+}
+
+#[test]
+fn test_target_directive_condition_parses() {
+    let src = "/// target: all(os = \"linux\", feature = \"performance\")\r\n".to_owned()
+        + "fn linux_performance_function() -> int {\r\n"
+        + "    return 1000;\r\n"
+        + "}\r\n";
+    let source_id = SourceId(13);
+    let opts = LexOptions {
+        keep_trivia: false,
+        enable_directives: true,
+    };
+
+    let (parse_res, _) = parse_source_with_options(source_id, &src, &opts);
+    assert!(parse_res.diags.is_empty(), "diags: {:?}", parse_res.diags);
+    assert_eq!(parse_res.ast.module.directives.len(), 1);
+    match &parse_res.ast.module.directives[0].condition {
+        Some(DirectiveCondition::All { conditions, .. }) => {
+            assert_eq!(conditions.len(), 2);
+        }
+        other => panic!("Expected all(...) condition, got {:?}", other),
+    }
 }
 
 #[test]
@@ -241,6 +267,27 @@ fn test_parse_tokens_function_without_return_type() {
     } else {
         panic!("Expected function item");
     }
+}
+
+#[test]
+fn test_examples_12_directives_diagnostics() {
+    let src = include_str!("../../../../examples/syntax/12_directives.sg");
+    let source_id = SourceId(99);
+    let opts = LexOptions {
+        keep_trivia: false,
+        enable_directives: true,
+    };
+
+    let (parse_res, _) = parse_source_with_options(source_id, src, &opts);
+    let has_directive_malformed = parse_res
+        .diags
+        .iter()
+        .any(|d| matches!(d.code, ParseCode::DirectiveMalformed));
+    assert!(
+        !has_directive_malformed,
+        "unexpected directive diagnostics: {:?}",
+        parse_res.diags
+    );
 }
 
 #[test]
