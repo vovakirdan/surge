@@ -3,7 +3,9 @@ use std::sync::Arc;
 use crate::ast::{DirectiveAnchor, DirectiveBlock, DirectiveBody, DirectiveCondition, SpanExt};
 use crate::error::{ParseCode, ParseDiag};
 use crate::lexer_api::Stream;
-use surge_token::{DirectiveKind, DirectiveSpec, SourceId, Span, Token, TokenContext, TokenKind};
+use surge_token::{
+    DirectiveKind, DirectiveSpec, Keyword, SourceId, Span, Token, TokenContext, TokenKind,
+};
 
 /// Consume a directive block from the token stream if the next token starts one.
 /// Returns `None` when the upcoming token is not a directive header.
@@ -216,7 +218,7 @@ impl<'a> TargetConditionParser<'a> {
     fn parse_prim(&mut self) -> Option<DirectiveCondition> {
         let token = self.next_token()?;
         match &token.kind {
-            TokenKind::Ident => self.parse_ident_start(token),
+            TokenKind::Ident | TokenKind::Keyword(_) => self.parse_ident_start(token),
             _ => {
                 self.diags.push(ParseDiag::new(
                     ParseCode::DirectiveMalformed,
@@ -230,13 +232,14 @@ impl<'a> TargetConditionParser<'a> {
 
     fn parse_ident_start(&mut self, token: Token) -> Option<DirectiveCondition> {
         let ident = self.token_text(&token);
+        let combinator = DirectiveFunction::classify(&token, &ident);
         if self.peek_kind(TokenKind::LParen) {
             self.bump();
-            match ident.as_str() {
-                "all" => self.parse_list(token.span, ListKind::All),
-                "any" => self.parse_list(token.span, ListKind::Any),
-                "not" => self.parse_not(token.span),
-                _ => {
+            match combinator {
+                Some(DirectiveFunction::All) => self.parse_list(token.span, ListKind::All),
+                Some(DirectiveFunction::Any) => self.parse_list(token.span, ListKind::Any),
+                Some(DirectiveFunction::Not) => self.parse_not(token.span),
+                None => {
                     self.diags.push(ParseDiag::new(
                         ParseCode::DirectiveMalformed,
                         token.span,
@@ -346,11 +349,74 @@ impl<'a> TargetConditionParser<'a> {
     }
 
     fn token_text(&self, token: &Token) -> String {
-        self.stream
-            .slice(token.span)
-            .unwrap_or("")
-            .trim_matches('"')
-            .to_string()
+        match token.kind {
+            TokenKind::StringLit => self
+                .stream
+                .slice(token.span)
+                .map(|text| text.trim_matches('"').to_string())
+                .unwrap_or_else(|| format!("<string@{}>", token.span.start)),
+            TokenKind::Ident => self
+                .stream
+                .slice(token.span)
+                .map(|text| text.to_string())
+                .unwrap_or_else(|| format!("identifier_{}", token.span.start)),
+            TokenKind::Keyword(keyword) => self
+                .stream
+                .slice(token.span)
+                .map(|text| text.to_string())
+                .or_else(|| {
+                    DirectiveFunction::from_keyword(keyword).map(|func| func.as_str().to_string())
+                })
+                .unwrap_or_else(|| format!("keyword_{:?}", keyword).to_lowercase()),
+            _ => self
+                .stream
+                .slice(token.span)
+                .map(|text| text.to_string())
+                .unwrap_or_default(),
+        }
+    }
+}
+
+/// Built-in target directive combinators (all/any/not).
+#[derive(Clone, Copy)]
+enum DirectiveFunction {
+    All,
+    Any,
+    Not,
+}
+
+impl DirectiveFunction {
+    fn from_keyword(keyword: Keyword) -> Option<Self> {
+        match keyword {
+            Keyword::TargetAll => Some(Self::All),
+            Keyword::TargetAny => Some(Self::Any),
+            Keyword::TargetNot => Some(Self::Not),
+            _ => None,
+        }
+    }
+
+    fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "all" => Some(Self::All),
+            "any" => Some(Self::Any),
+            "not" => Some(Self::Not),
+            _ => None,
+        }
+    }
+
+    fn classify(token: &Token, ident: &str) -> Option<Self> {
+        match token.kind {
+            TokenKind::Keyword(keyword) => Self::from_keyword(keyword),
+            _ => Self::from_name(ident),
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            DirectiveFunction::All => "all",
+            DirectiveFunction::Any => "any",
+            DirectiveFunction::Not => "not",
+        }
     }
 }
 

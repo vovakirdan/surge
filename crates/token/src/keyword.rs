@@ -47,6 +47,9 @@ pub enum Keyword {
     TestAssert,       // test.assert
     BenchmarkMeasure, // benchmark.measure
     TimeMeasure,      // time.measure
+    TargetAll,        // all(...)
+    TargetAny,        // any(...)
+    TargetNot,        // not(...)
                       // Repeat, RandomInt, RandomFloat - removed
 }
 
@@ -108,6 +111,9 @@ pub fn lookup_directive_keyword(ident: &str) -> Option<Keyword> {
         "test.assert" => TestAssert,
         "benchmark.measure" => BenchmarkMeasure,
         "time.measure" => TimeMeasure,
+        "all" => TargetAll,
+        "any" => TargetAny,
+        "not" => TargetNot,
         _ => return None,
     })
 }

@@ -278,7 +278,7 @@ fn test_examples_12_directives_diagnostics() {
         enable_directives: true,
     };
 
-    let (parse_res, _) = parse_source_with_options(source_id, src, &opts);
+    let (parse_res, lex_res) = parse_source_with_options(source_id, src, &opts);
     let has_directive_malformed = parse_res
         .diags
         .iter()
@@ -287,6 +287,17 @@ fn test_examples_12_directives_diagnostics() {
         !has_directive_malformed,
         "unexpected directive diagnostics: {:?}",
         parse_res.diags
+    );
+
+    let token_parse = parse_tokens(source_id, &lex_res.tokens);
+    let token_has_malformed = token_parse
+        .diags
+        .iter()
+        .any(|d| matches!(d.code, ParseCode::DirectiveMalformed));
+    assert!(
+        !token_has_malformed,
+        "unexpected directive diagnostics when parsing tokens only: {:?}",
+        token_parse.diags
     );
 }
 
