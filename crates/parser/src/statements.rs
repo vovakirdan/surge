@@ -1,6 +1,7 @@
 //! Парсинг операторов (let, if, while, for и т.д.)
 
 use crate::ast::*;
+use crate::directives::take_directive_block;
 use crate::error::{ParseCode, ParseDiag};
 use crate::expressions::{
     expr_span, forbid_fat_arrow, handle_trailing_expr_tokens, parse_expr, parse_paren_expr,
@@ -19,6 +20,7 @@ pub fn parse_block(
     fn_purity: &mut HashMap<String, bool>,
     parallel_checks: &mut Vec<(Span, String)>,
     file: SourceId,
+    directives: &mut Vec<DirectiveBlock>,
 ) -> Option<Block> {
     let open = match stream.eat(TokenKind::LBrace) {
         Some(tok) => tok,
@@ -35,12 +37,35 @@ pub fn parse_block(
     };
 
     let mut stmts = Vec::new();
+    let mut pending_directives = Vec::new();
     while !stream.at(TokenKind::RBrace) && !stream.is_eof() {
-        match parse_stmt(stream, diags, fn_purity, parallel_checks, file) {
-            Some(stmt) => stmts.push(stmt),
-            None => synchronize_stmt(stream),
+        let mut consumed = false;
+        while let Some(mut block) = take_directive_block(stream, diags, file) {
+            block.anchor = DirectiveAnchor::Detached;
+            directives.push(block);
+            pending_directives.push(directives.len() - 1);
+            consumed = true;
+        }
+        if consumed {
+            continue;
+        }
+
+        match parse_stmt(stream, diags, fn_purity, parallel_checks, file, directives) {
+            Some(stmt) => {
+                let span = stmt_span(&stmt);
+                for idx in pending_directives.drain(..) {
+                    directives[idx].anchor = DirectiveAnchor::Statement { span };
+                }
+                stmts.push(stmt);
+            }
+            None => {
+                pending_directives.clear();
+                synchronize_stmt(stream);
+            }
         }
     }
+
+    pending_directives.clear();
 
     let span = if let Some(close) = stream.eat(TokenKind::RBrace) {
         open.span.join(close.span)
@@ -64,6 +89,7 @@ pub fn parse_stmt(
     fn_purity: &mut HashMap<String, bool>,
     parallel_checks: &mut Vec<(Span, String)>,
     file: SourceId,
+    directives: &mut Vec<DirectiveBlock>,
 ) -> Option<Stmt> {
     let tok = stream.peek();
     match tok.kind {
@@ -74,16 +100,16 @@ pub fn parse_stmt(
             parse_return_stmt(stream, diags, fn_purity, parallel_checks, file)
         }
         TokenKind::Keyword(Keyword::If) => {
-            parse_if_stmt(stream, diags, fn_purity, parallel_checks, file)
+            parse_if_stmt(stream, diags, fn_purity, parallel_checks, file, directives)
         }
         TokenKind::Keyword(Keyword::While) => {
-            parse_while_stmt(stream, diags, fn_purity, parallel_checks, file)
+            parse_while_stmt(stream, diags, fn_purity, parallel_checks, file, directives)
         }
         TokenKind::Keyword(Keyword::For) => {
-            parse_for_stmt(stream, diags, fn_purity, parallel_checks, file)
+            parse_for_stmt(stream, diags, fn_purity, parallel_checks, file, directives)
         }
         TokenKind::Keyword(Keyword::Signal) => {
-            parse_signal_stmt(stream, diags, fn_purity, parallel_checks, file)
+            parse_signal_stmt(stream, diags, fn_purity, parallel_checks, file, directives)
         }
         TokenKind::Keyword(Keyword::Break) => {
             let token = stream.bump();
@@ -223,17 +249,20 @@ fn parse_if_stmt(
     fn_purity: &mut HashMap<String, bool>,
     parallel_checks: &mut Vec<(Span, String)>,
     file: SourceId,
+    directives: &mut Vec<DirectiveBlock>,
 ) -> Option<Stmt> {
     let if_tok = stream.bump();
     let cond = parse_paren_expr(stream, diags, fn_purity, parallel_checks, "if condition")?;
-    let then_block = parse_block(stream, diags, fn_purity, parallel_checks, file)?;
+    let then_block = parse_block(stream, diags, fn_purity, parallel_checks, file, directives)?;
     let mut span = if_tok.span.join(then_block.span);
     let else_b = if stream.eat(TokenKind::Keyword(Keyword::Else)).is_some() {
         if stream.at(TokenKind::Keyword(Keyword::If)) {
-            let stmt = parse_if_stmt(stream, diags, fn_purity, parallel_checks, file)?;
+            let stmt = parse_if_stmt(stream, diags, fn_purity, parallel_checks, file, directives)?;
             span = span.join(stmt_span(&stmt));
             Some(Box::new(StmtOrBlock::Stmt(stmt)))
-        } else if let Some(block) = parse_block(stream, diags, fn_purity, parallel_checks, file) {
+        } else if let Some(block) =
+            parse_block(stream, diags, fn_purity, parallel_checks, file, directives)
+        {
             span = span.join(block.span);
             Some(Box::new(StmtOrBlock::Block(block)))
         } else {
@@ -257,10 +286,11 @@ fn parse_while_stmt(
     fn_purity: &mut HashMap<String, bool>,
     parallel_checks: &mut Vec<(Span, String)>,
     file: SourceId,
+    directives: &mut Vec<DirectiveBlock>,
 ) -> Option<Stmt> {
     let while_tok = stream.bump();
     let cond = parse_paren_expr(stream, diags, fn_purity, parallel_checks, "while condition")?;
-    let body = parse_block(stream, diags, fn_purity, parallel_checks, file)?;
+    let body = parse_block(stream, diags, fn_purity, parallel_checks, file, directives)?;
     let span = while_tok.span.join(body.span);
     Some(Stmt::While { cond, body, span })
 }
@@ -272,12 +302,29 @@ fn parse_for_stmt(
     fn_purity: &mut HashMap<String, bool>,
     parallel_checks: &mut Vec<(Span, String)>,
     file: SourceId,
+    directives: &mut Vec<DirectiveBlock>,
 ) -> Option<Stmt> {
     let for_tok = stream.bump();
     if stream.at(TokenKind::LParen) {
-        parse_for_c(stream, diags, fn_purity, parallel_checks, for_tok, file)
+        parse_for_c(
+            stream,
+            diags,
+            fn_purity,
+            parallel_checks,
+            for_tok,
+            file,
+            directives,
+        )
     } else {
-        parse_for_in(stream, diags, fn_purity, parallel_checks, for_tok, file)
+        parse_for_in(
+            stream,
+            diags,
+            fn_purity,
+            parallel_checks,
+            for_tok,
+            file,
+            directives,
+        )
     }
 }
 
@@ -289,6 +336,7 @@ fn parse_for_c(
     parallel_checks: &mut Vec<(Span, String)>,
     for_tok: Token,
     file: SourceId,
+    directives: &mut Vec<DirectiveBlock>,
 ) -> Option<Stmt> {
     let header_open = stream.bump(); // consume '('
 
@@ -370,7 +418,7 @@ fn parse_for_c(
         );
     }
 
-    let body = parse_block(stream, diags, fn_purity, parallel_checks, file)?;
+    let body = parse_block(stream, diags, fn_purity, parallel_checks, file, directives)?;
     let span = for_tok.span.join(body.span);
     Some(Stmt::ForC {
         init,
@@ -389,6 +437,7 @@ fn parse_for_in(
     parallel_checks: &mut Vec<(Span, String)>,
     for_tok: Token,
     file: SourceId,
+    directives: &mut Vec<DirectiveBlock>,
 ) -> Option<Stmt> {
     let pattern = match parse_pattern(stream, diags) {
         Some(pat) => pat,
@@ -443,7 +492,7 @@ fn parse_for_in(
         }
     };
 
-    let body = parse_block(stream, diags, fn_purity, parallel_checks, file)?;
+    let body = parse_block(stream, diags, fn_purity, parallel_checks, file, directives)?;
     span = span.join(body.span);
 
     Some(Stmt::ForIn {
@@ -462,6 +511,7 @@ fn parse_signal_stmt(
     fn_purity: &mut HashMap<String, bool>,
     parallel_checks: &mut Vec<(Span, String)>,
     _file: SourceId,
+    _directives: &mut Vec<DirectiveBlock>,
 ) -> Option<Stmt> {
     let sig_tok = stream.bump();
     let (name, _span) = expect_ident(stream, diags, "signal name")?;

@@ -5,9 +5,10 @@ use std::fmt::Write as _;
 use surge_token::{SourceId, Token};
 
 use crate::{
-    AliasDef, AliasVariant, Ast, Attr, Block, DirectiveBlock, DirectiveBody, Expr, ExternBlock,
-    Func, FuncSig, GenericParam, Import, Item, LiteralDef, LiteralVariant, Module, NewtypeDef,
-    Param, Pattern, PatternKind, Stmt, StmtOrBlock, StructField, TagDef, TypeDef, TypeNode,
+    AliasDef, AliasVariant, Ast, Attr, Block, DirectiveBlock, DirectiveBody, DirectiveCondition,
+    Expr, ExternBlock, Func, FuncSig, GenericParam, Import, Item, LiteralDef, LiteralVariant,
+    Module, NewtypeDef, Param, Pattern, PatternKind, Stmt, StmtOrBlock, StructField, TagDef,
+    TypeDef, TypeNode,
 };
 
 /// Rendering context passed to AST nodes.
@@ -96,6 +97,13 @@ impl AstRender for DirectiveBlock {
             indent_str, self.header_span
         ));
         ctx.push_str(&format!("{}  anchor: {:?},\n", indent_str, self.anchor));
+        ctx.push_str(&format!("{}  condition: ", indent_str));
+        if let Some(cond) = &self.condition {
+            cond.render(ctx, indent + 2);
+            ctx.push_str(",\n");
+        } else {
+            ctx.push_str("None,\n");
+        }
         ctx.push_str(&format!("{}  body: ", indent_str));
         self.body.render(ctx, 0);
         ctx.push_str(&format!("\n{}}}\n", indent_str));
@@ -109,6 +117,51 @@ impl AstRender for DirectiveBody {
             self.raw_lines,
             self.tokens.len()
         ));
+    }
+}
+
+impl AstRender for DirectiveCondition {
+    fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
+        let indent_str = "  ".repeat(indent);
+        match self {
+            DirectiveCondition::KeyValue { key, value, span } => {
+                ctx.push_str(&format!(
+                    "{}KeyValue {{ key: {:?}, value: {:?}, span: {:?} }}",
+                    indent_str, key, value, span
+                ));
+            }
+            DirectiveCondition::Flag { name, span } => {
+                ctx.push_str(&format!(
+                    "{}Flag {{ name: {:?}, span: {:?} }}",
+                    indent_str, name, span
+                ));
+            }
+            DirectiveCondition::All { conditions, span } => {
+                ctx.push_str(&format!("{}All {{ span: {:?}, [\n", indent_str, span));
+                for (i, cond) in conditions.iter().enumerate() {
+                    if i > 0 {
+                        ctx.push_str(",\n");
+                    }
+                    cond.render(ctx, indent + 2);
+                }
+                ctx.push_str(&format!("\n{}] }}", indent_str));
+            }
+            DirectiveCondition::Any { conditions, span } => {
+                ctx.push_str(&format!("{}Any {{ span: {:?}, [\n", indent_str, span));
+                for (i, cond) in conditions.iter().enumerate() {
+                    if i > 0 {
+                        ctx.push_str(",\n");
+                    }
+                    cond.render(ctx, indent + 2);
+                }
+                ctx.push_str(&format!("\n{}] }}", indent_str));
+            }
+            DirectiveCondition::Not { condition, span } => {
+                ctx.push_str(&format!("{}Not {{ span: {:?}, ", indent_str, span));
+                condition.render(ctx, indent + 1);
+                ctx.push_str(" }");
+            }
+        }
     }
 }
 

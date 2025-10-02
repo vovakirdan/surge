@@ -3,6 +3,7 @@
 use crate::ast::SpanExt;
 use crate::ast::*;
 use crate::attributes::parse_attrs;
+use crate::directives::take_directive_block;
 use crate::error::{ParseCode, ParseDiag};
 use crate::expressions::{expr_span, parse_expr};
 use crate::lexer_api::Stream;
@@ -47,6 +48,7 @@ struct Parser<'src> {
     diags: Vec<ParseDiag>,
     fn_purity: HashMap<String, bool>,
     parallel_checks: Vec<(Span, String)>,
+    module_directives: Vec<DirectiveBlock>,
 }
 
 impl<'src> Parser<'src> {
@@ -61,6 +63,7 @@ impl<'src> Parser<'src> {
             diags: Vec::new(),
             fn_purity: HashMap::new(),
             parallel_checks: Vec::new(),
+            module_directives: Vec::new(),
         }
     }
 
@@ -76,22 +79,72 @@ impl<'src> Parser<'src> {
     // TOP-LEVEL PARSING (MODULE AND ITEMS)
     // ========================================
 
+    fn consume_pragma_directive(&mut self) -> bool {
+        let mut seen = false;
+        while self.stream.at_keyword(Keyword::Pragma) {
+            let pragma_tok = self.stream.bump();
+            if seen {
+                self.error(
+                    ParseCode::UnexpectedToken,
+                    pragma_tok.span,
+                    "Duplicate 'pragma directive' declaration",
+                );
+            }
+
+            match self.expect_ident("pragma directive target") {
+                Some((ident, span)) => {
+                    if ident != "directive" {
+                        self.error(
+                            ParseCode::UnexpectedToken,
+                            span,
+                            "Expected 'directive' after 'pragma'",
+                        );
+                        continue;
+                    }
+                }
+                None => break,
+            }
+
+            // Optional semicolon for readability.
+            self.stream.eat(TokenKind::Semicolon);
+            seen = true;
+        }
+        seen
+    }
+
     fn parse_module(&mut self) -> Module {
         let mut items = Vec::new();
+        let has_pragma_directive = self.consume_pragma_directive();
+
         while !self.stream.is_eof() {
+            // Gather any leading directives and attach them to the module scope.
+            let mut consumed_directive = false;
+            while let Some(mut block) =
+                take_directive_block(&mut self.stream, &mut self.diags, self.file)
+            {
+                block.anchor = DirectiveAnchor::Module;
+                self.module_directives.push(block);
+                consumed_directive = true;
+            }
+            if consumed_directive {
+                continue;
+            }
+
             if self.stream.at(TokenKind::Eof) {
                 break;
             }
+
             match self.parse_item() {
                 Some(item) => items.push(item),
                 None => self.synchronize_top_level(),
             }
         }
+
         self.finalize_parallel_checks();
         Module {
             items,
-            directives: Vec::new(),
-            has_pragma_directive: false,
+            directives: std::mem::take(&mut self.module_directives),
+            has_pragma_directive,
         }
     }
 
@@ -108,6 +161,7 @@ impl<'src> Parser<'src> {
                 &mut self.fn_purity,
                 &mut self.parallel_checks,
                 self.file,
+                &mut self.module_directives,
             ) {
                 Some(stmt @ Stmt::Let { .. }) => Some(Item::Let(stmt)),
                 Some(_) => None,
@@ -208,6 +262,7 @@ impl<'src> Parser<'src> {
             &mut self.fn_purity,
             &mut self.parallel_checks,
             self.file,
+            &mut self.module_directives,
         ) {
             Some(block) => Some(block),
             None => None,
