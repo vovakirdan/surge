@@ -202,3 +202,26 @@ fn demo(xs: int[]) -> int {
     let res = parse(src);
     assert_eq!(res.diags[0].code, ParseCode::ParallelBadHeader);
 }
+
+#[test]
+fn reports_type_extension_missing_body() {
+    let src = r#"
+type Derived = Base;
+"#;
+    let res = parse(src);
+    assert_eq!(res.diags[0].code, ParseCode::UnexpectedToken);
+    assert_eq!(
+        res.diags[0].message,
+        "Expected ':' before struct extension body"
+    );
+}
+
+#[test]
+fn reports_alias_missing_semicolon() {
+    let src = r#"
+alias Maybe = int | nothing
+"#;
+    let res = parse(src);
+    assert_eq!(res.diags[0].code, ParseCode::MissingSemicolon);
+    assert_eq!(res.diags[0].message, "Expected ';' after alias definition");
+}

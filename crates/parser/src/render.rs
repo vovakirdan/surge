@@ -5,8 +5,9 @@ use std::fmt::Write as _;
 use surge_token::{SourceId, Token};
 
 use crate::{
-    AliasDef, Ast, Attr, Block, Expr, ExternBlock, Func, FuncSig, Import, Item, LiteralDef, Module,
-    Param, Pattern, PatternKind, Stmt, StmtOrBlock, TypeDef, TypeNode,
+    AliasDef, AliasVariant, Ast, Attr, Block, Expr, ExternBlock, Func, FuncSig, GenericParam,
+    Import, Item, LiteralDef, Module, NewtypeDef, Param, Pattern, PatternKind, Stmt, StmtOrBlock,
+    StructField, TypeDef, TypeNode,
 };
 
 /// Rendering context passed to AST nodes.
@@ -66,6 +67,11 @@ impl AstRender for Item {
                 ctx.push_str(&format!("{}Fn(\n", indent_str));
                 func.render(ctx, indent + 1);
                 ctx.push_str(&format!("{})", indent_str));
+            }
+            Item::Newtype(newtype_def) => {
+                ctx.push_str(&format!("{}Newtype(\n", indent_str));
+                newtype_def.render(ctx, indent + 1);
+                ctx.push_str(&format!("\n{})", indent_str));
             }
             Item::Let(stmt) => {
                 ctx.push_str(&format!("{}Let(\n", indent_str));
@@ -720,7 +726,112 @@ impl AstRender for TypeDef {
         let indent_str = "  ".repeat(indent);
         ctx.push_str(&format!("{}TypeDef {{\n", indent_str));
         ctx.push_str(&format!("{}  name: \"{}\",\n", indent_str, self.name));
+
+        ctx.push_str(&format!("{}  generics: [", indent_str));
+        for (i, param) in self.generics.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(", ");
+            }
+            param.render(ctx, indent + 1);
+        }
+        ctx.push_str("],\n");
+
+        ctx.push_str(&format!("{}  attrs: [", indent_str));
+        for (i, attr) in self.attrs.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(", ");
+            }
+            attr.render(ctx, indent + 1);
+        }
+        ctx.push_str("],\n");
+
+        ctx.push_str(&format!("{}  base: ", indent_str));
+        if let Some(base) = &self.base {
+            base.render(ctx, indent + 1);
+        } else {
+            ctx.push_str("None");
+        }
+        ctx.push_str(",\n");
+
+        ctx.push_str(&format!("{}  fields: [\n", indent_str));
+        for (i, field) in self.fields.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(",\n");
+            }
+            field.render(ctx, indent + 2);
+        }
+        ctx.push_str(&format!("\n{}  ],\n", indent_str));
         ctx.push_str(&format!("{}  span: {:?}\n", indent_str, self.span));
+        ctx.push_str(&format!("{}}}", indent_str));
+    }
+}
+
+impl AstRender for NewtypeDef {
+    fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
+        let indent_str = "  ".repeat(indent);
+        ctx.push_str(&format!("{}NewtypeDef {{\n", indent_str));
+        ctx.push_str(&format!("{}  name: \"{}\",\n", indent_str, self.name));
+
+        ctx.push_str(&format!("{}  generics: [", indent_str));
+        for (i, param) in self.generics.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(", ");
+            }
+            param.render(ctx, indent + 1);
+        }
+        ctx.push_str("],\n");
+
+        ctx.push_str(&format!("{}  attrs: [", indent_str));
+        for (i, attr) in self.attrs.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(", ");
+            }
+            attr.render(ctx, indent + 1);
+        }
+        ctx.push_str("],\n");
+
+        ctx.push_str(&format!("{}  ty: ", indent_str));
+        self.ty.render(ctx, indent + 1);
+        ctx.push_str(&format!(",\n{}  span: {:?}\n", indent_str, self.span));
+        ctx.push_str(&format!("{}}}", indent_str));
+    }
+}
+
+impl AstRender for GenericParam {
+    fn render(&self, ctx: &mut RenderCtx<'_>, _indent: usize) {
+        ctx.push_str(&format!(
+            "GenericParam {{ name: \"{}\", span: {:?} }}",
+            self.name, self.span
+        ));
+    }
+}
+
+impl AstRender for StructField {
+    fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
+        let indent_str = "  ".repeat(indent);
+        ctx.push_str(&format!("{}StructField {{\n", indent_str));
+        ctx.push_str(&format!("{}  name: \"{}\",\n", indent_str, self.name));
+
+        ctx.push_str(&format!("{}  attrs: [", indent_str));
+        for (i, attr) in self.attrs.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(", ");
+            }
+            attr.render(ctx, indent + 1);
+        }
+        ctx.push_str("],\n");
+
+        ctx.push_str(&format!("{}  ty: ", indent_str));
+        self.ty.render(ctx, indent + 1);
+        ctx.push_str(",\n");
+
+        ctx.push_str(&format!("{}  default: ", indent_str));
+        if let Some(default) = &self.default {
+            default.render(ctx, indent + 1);
+        } else {
+            ctx.push_str("None");
+        }
+        ctx.push_str(&format!(",\n{}  span: {:?}\n", indent_str, self.span));
         ctx.push_str(&format!("{}}}", indent_str));
     }
 }
@@ -740,8 +851,61 @@ impl AstRender for AliasDef {
         let indent_str = "  ".repeat(indent);
         ctx.push_str(&format!("{}AliasDef {{\n", indent_str));
         ctx.push_str(&format!("{}  name: \"{}\",\n", indent_str, self.name));
+        ctx.push_str(&format!("{}  generics: [", indent_str));
+        for (i, param) in self.generics.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(", ");
+            }
+            param.render(ctx, indent + 1);
+        }
+        ctx.push_str("],\n");
+
+        ctx.push_str(&format!("{}  attrs: [", indent_str));
+        for (i, attr) in self.attrs.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(", ");
+            }
+            attr.render(ctx, indent + 1);
+        }
+        ctx.push_str("],\n");
+
+        ctx.push_str(&format!("{}  variants: [\n", indent_str));
+        for (i, variant) in self.variants.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(",\n");
+            }
+            variant.render(ctx, indent + 2);
+        }
+        ctx.push_str(&format!("\n{}  ],\n", indent_str));
+
         ctx.push_str(&format!("{}  span: {:?}\n", indent_str, self.span));
         ctx.push_str(&format!("{}}}", indent_str));
+    }
+}
+
+impl AstRender for AliasVariant {
+    fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
+        let indent_str = "  ".repeat(indent);
+        match self {
+            AliasVariant::Type(ty) => {
+                ctx.push_str(&format!("{}Type(", indent_str));
+                ty.render(ctx, indent + 1);
+                ctx.push_str(")");
+            }
+            AliasVariant::Nothing { span } => {
+                ctx.push_str(&format!("{}Nothing(span={:?})", indent_str, span));
+            }
+            AliasVariant::Tag { name, args, span } => {
+                ctx.push_str(&format!("{}Tag {{ name: \"{}\", args: [", indent_str, name));
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        ctx.push_str(", ");
+                    }
+                    arg.render(ctx, indent + 1);
+                }
+                ctx.push_str(&format!("], span: {:?} }}", span));
+            }
+        }
     }
 }
 

@@ -4,6 +4,7 @@ use crate::ast::SpanExt;
 use crate::ast::*;
 use crate::attributes::parse_attrs;
 use crate::error::{ParseCode, ParseDiag};
+use crate::expressions::{expr_span, parse_expr};
 use crate::lexer_api::Stream;
 use crate::statements::{parse_block, parse_stmt};
 use crate::sync::is_top_level_sync;
@@ -114,9 +115,21 @@ impl<'src> Parser<'src> {
             return self.parse_extern(attrs).map(Item::Extern);
         }
 
+        if self.stream.at_keyword(Keyword::Newtype) {
+            return self.parse_newtype(attrs).map(Item::Newtype);
+        }
+
+        if self.stream.at_keyword(Keyword::Type) {
+            return self.parse_type_def(attrs).map(Item::Type);
+        }
+
+        if self.stream.at_keyword(Keyword::Alias) {
+            return self.parse_alias(attrs).map(Item::Alias);
+        }
+
         if let Some(keyword) = self.stream.peek_keyword() {
             match keyword {
-                Keyword::Type | Keyword::Literal | Keyword::Alias | Keyword::Import => {
+                Keyword::Literal | Keyword::Import => {
                     let tok = self.stream.bump();
                     self.error(
                         ParseCode::UnexpectedToken,
@@ -295,6 +308,516 @@ impl<'src> Parser<'src> {
             methods,
             span,
         })
+    }
+
+    // ========================================
+    // USER-DEFINED TYPE PARSING
+    // ========================================
+
+    /// Parse a `newtype Name = ExistingType;` declaration.
+    fn parse_newtype(&mut self, attrs: Vec<Attr>) -> Option<NewtypeDef> {
+        let Some(newtype_tok) = self.stream.eat_keyword(Keyword::Newtype) else {
+            let tok = self.stream.bump();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected 'newtype' keyword",
+            );
+            return None;
+        };
+
+        let (name, name_span) = self.expect_ident("newtype name")?;
+        let generics = self.parse_generic_params();
+
+        let Some(eq_tok) = self.stream.eat(TokenKind::Eq) else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected '=' after newtype name",
+            );
+            return None;
+        };
+
+        let ty = match parse_type_node(&mut self.stream, &mut self.diags) {
+            Some(ty) => ty,
+            None => {
+                self.error(
+                    ParseCode::UnexpectedToken,
+                    eq_tok.span,
+                    "Expected type on the right-hand side of newtype",
+                );
+                return None;
+            }
+        };
+
+        let mut span = newtype_tok.span.join(name_span);
+        if let Some(last_generic) = generics.last() {
+            span = span.join(last_generic.span);
+        }
+        span = span.join(ty.span);
+        if let Some(semi) = self.stream.eat(TokenKind::Semicolon) {
+            span = span.join(semi.span);
+        } else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::MissingSemicolon,
+                tok.span,
+                "Expected ';' after newtype definition",
+            );
+        }
+
+        Some(NewtypeDef {
+            name,
+            generics,
+            ty,
+            attrs,
+            span,
+        })
+    }
+
+    /// Parse a `type Name = Base : { ... }` or `type Name = { ... }` declaration.
+    fn parse_type_def(&mut self, attrs: Vec<Attr>) -> Option<TypeDef> {
+        let Some(type_tok) = self.stream.eat_keyword(Keyword::Type) else {
+            let tok = self.stream.bump();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected 'type' keyword",
+            );
+            return None;
+        };
+
+        let (name, name_span) = self.expect_ident("type name")?;
+        let generics = self.parse_generic_params();
+
+        let Some(eq_tok) = self.stream.eat(TokenKind::Eq) else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected '=' after type name",
+            );
+            return None;
+        };
+
+        let mut base = None;
+        let (fields, body_span) = if self.stream.at(TokenKind::LBrace) {
+            match self.parse_struct_body() {
+                Some(res) => res,
+                None => (Vec::new(), eq_tok.span),
+            }
+        } else {
+            let parsed_base = match parse_type_node(&mut self.stream, &mut self.diags) {
+                Some(ty) => {
+                    let span = ty.span;
+                    base = Some(ty);
+                    span
+                }
+                None => {
+                    self.error(
+                        ParseCode::UnexpectedToken,
+                        eq_tok.span,
+                        "Expected base type or '{' after '='",
+                    );
+                    return None;
+                }
+            };
+
+            if self.stream.eat(TokenKind::Colon).is_none() {
+                self.error(
+                    ParseCode::UnexpectedToken,
+                    self.stream.peek().span,
+                    "Expected ':' before struct extension body",
+                );
+                return None;
+            }
+
+            match self.parse_struct_body() {
+                Some((fields, span)) => (fields, parsed_base.join(span)),
+                None => (Vec::new(), parsed_base),
+            }
+        };
+
+        let mut span = type_tok.span.join(name_span);
+        if let Some(last_generic) = generics.last() {
+            span = span.join(last_generic.span);
+        }
+        if let Some(base_ty) = &base {
+            span = span.join(base_ty.span);
+        }
+        span = span.join(body_span);
+
+        if let Some(semi) = self.stream.eat(TokenKind::Semicolon) {
+            span = span.join(semi.span);
+        }
+
+        Some(TypeDef {
+            name,
+            generics,
+            base,
+            fields,
+            attrs,
+            span,
+        })
+    }
+
+    /// Parse an `alias Name = Variant | Variant;` declaration.
+    fn parse_alias(&mut self, attrs: Vec<Attr>) -> Option<AliasDef> {
+        let Some(alias_tok) = self.stream.eat_keyword(Keyword::Alias) else {
+            let tok = self.stream.bump();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected 'alias' keyword",
+            );
+            return None;
+        };
+
+        let (name, name_span) = self.expect_ident("alias name")?;
+        let generics = self.parse_generic_params();
+
+        let Some(eq_tok) = self.stream.eat(TokenKind::Eq) else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected '=' after alias name",
+            );
+            return None;
+        };
+
+        let mut variants = Vec::new();
+        let mut last_span = eq_tok.span;
+
+        while !self.stream.at(TokenKind::Semicolon) && !self.stream.is_eof() {
+            if let Some(variant) = self.parse_alias_variant() {
+                last_span = match &variant {
+                    AliasVariant::Type(ty) => ty.span,
+                    AliasVariant::Nothing { span } => *span,
+                    AliasVariant::Tag { span, .. } => *span,
+                };
+                variants.push(variant);
+            } else {
+                self.recover_in_alias_variants();
+            }
+
+            if self.stream.eat(TokenKind::Pipe).is_some() {
+                continue;
+            }
+            break;
+        }
+
+        if variants.is_empty() {
+            self.error(
+                ParseCode::UnexpectedToken,
+                self.stream.peek().span,
+                "Expected at least one alternative in alias definition",
+            );
+        }
+
+        let mut span = alias_tok.span.join(name_span);
+        if let Some(last_generic) = generics.last() {
+            span = span.join(last_generic.span);
+        }
+        span = span.join(last_span);
+        if let Some(semi) = self.stream.eat(TokenKind::Semicolon) {
+            span = span.join(semi.span);
+        } else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::MissingSemicolon,
+                tok.span,
+                "Expected ';' after alias definition",
+            );
+        }
+
+        Some(AliasDef {
+            name,
+            generics,
+            variants,
+            attrs,
+            span,
+        })
+    }
+
+    /// Parse `<T, U>` generic parameter lists shared between newtype, alias and type definitions.
+    fn parse_generic_params(&mut self) -> Vec<GenericParam> {
+        if !self.stream.at(TokenKind::LAngle) {
+            return Vec::new();
+        }
+
+        let open = self.stream.bump();
+        let mut params = Vec::new();
+
+        while !self.stream.is_eof() {
+            if self.stream.at(TokenKind::RAngle) {
+                let close = self.stream.bump();
+                if params.is_empty() {
+                    self.error(
+                        ParseCode::UnexpectedToken,
+                        close.span,
+                        "Generic parameter list cannot be empty",
+                    );
+                }
+                break;
+            }
+
+            let (name, span) = match self.expect_ident("generic parameter") {
+                Some(res) => res,
+                None => {
+                    self.recover_in_generics();
+                    break;
+                }
+            };
+            params.push(GenericParam { name, span });
+
+            if self.stream.eat(TokenKind::Comma).is_some() {
+                continue;
+            }
+
+            if self.stream.eat(TokenKind::RAngle).is_some() {
+                break;
+            }
+
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected ',' or '>' in generic parameter list",
+            );
+            self.recover_in_generics();
+            break;
+        }
+
+        if !params.is_empty() {
+            params
+        } else {
+            self.error(
+                ParseCode::UnexpectedToken,
+                open.span,
+                "Expected at least one generic parameter",
+            );
+            Vec::new()
+        }
+    }
+
+    /// Parse `{ field: Type, ... }` bodies used by struct definitions.
+    fn parse_struct_body(&mut self) -> Option<(Vec<StructField>, Span)> {
+        let Some(open) = self.stream.eat(TokenKind::LBrace) else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::UnexpectedToken,
+                tok.span,
+                "Expected '{' to start type body",
+            );
+            return None;
+        };
+
+        let mut fields = Vec::new();
+        let mut last_span = open.span;
+
+        while !self.stream.at(TokenKind::RBrace) && !self.stream.is_eof() {
+            let attrs = parse_attrs(&mut self.stream, &mut self.diags);
+
+            if self.stream.at(TokenKind::RBrace) {
+                if !attrs.is_empty() {
+                    self.error(
+                        ParseCode::UnexpectedToken,
+                        self.stream.peek().span,
+                        "Expected field declaration after attributes",
+                    );
+                }
+                break;
+            }
+
+            let (name, name_span) = match self.expect_ident("field name") {
+                Some(res) => res,
+                None => {
+                    self.recover_in_struct_fields();
+                    self.stream.eat(TokenKind::Comma);
+                    continue;
+                }
+            };
+
+            let mut span = name_span;
+
+            if self.stream.eat(TokenKind::Colon).is_none() {
+                self.error(
+                    ParseCode::MissingColonInType,
+                    name_span,
+                    "Expected ':' before field type",
+                );
+                self.recover_in_struct_fields();
+                self.stream.eat(TokenKind::Comma);
+                continue;
+            }
+
+            let ty = match parse_type_node(&mut self.stream, &mut self.diags) {
+                Some(ty) => {
+                    span = span.join(ty.span);
+                    ty
+                }
+                None => {
+                    self.recover_in_struct_fields();
+                    self.stream.eat(TokenKind::Comma);
+                    continue;
+                }
+            };
+
+            let default = if let Some(eq_tok) = self.stream.eat(TokenKind::Eq) {
+                match parse_expr(
+                    &mut self.stream,
+                    &mut self.diags,
+                    &mut self.fn_purity,
+                    &mut self.parallel_checks,
+                ) {
+                    Some(expr) => {
+                        span = span.join(expr_span(&expr));
+                        Some(expr)
+                    }
+                    None => {
+                        span = span.join(eq_tok.span);
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
+            let field = StructField {
+                attrs,
+                name,
+                ty,
+                default,
+                span,
+            };
+            last_span = field.span;
+            fields.push(field);
+
+            if let Some(comma) = self.stream.eat(TokenKind::Comma) {
+                last_span = comma.span;
+            } else if !self.stream.at(TokenKind::RBrace) {
+                let tok = self.stream.peek();
+                self.error(
+                    ParseCode::UnexpectedToken,
+                    tok.span,
+                    "Expected ',' or '}' after struct field",
+                );
+                self.recover_in_struct_fields();
+                self.stream.eat(TokenKind::Comma);
+            }
+        }
+
+        let close_span = if let Some(close) = self.stream.eat(TokenKind::RBrace) {
+            close.span
+        } else {
+            let tok = self.stream.peek();
+            self.error(
+                ParseCode::UnclosedBrace,
+                tok.span,
+                "Expected '}' to close type body",
+            );
+            last_span
+        };
+
+        let body_span = open.span.join(close_span);
+        Some((fields, body_span))
+    }
+
+    /// Parse a single union alternative inside an `alias` declaration.
+    fn parse_alias_variant(&mut self) -> Option<AliasVariant> {
+        if self.stream.at_keyword(Keyword::Nothing) {
+            let tok = self.stream.bump();
+            return Some(AliasVariant::Nothing { span: tok.span });
+        }
+
+        if self.stream.peek().kind == TokenKind::Ident
+            && self.stream.nth(1).kind == TokenKind::LParen
+        {
+            let (name, name_span) = self.expect_ident("tag name")?;
+            let open = self.stream.bump(); // consume '('
+            let mut args = Vec::new();
+            let mut end_span = open.span;
+
+            if self.stream.at(TokenKind::RParen) {
+                end_span = self.stream.bump().span;
+            } else {
+                loop {
+                    match parse_type_node(&mut self.stream, &mut self.diags) {
+                        Some(arg) => {
+                            end_span = arg.span;
+                            args.push(arg);
+                        }
+                        None => {
+                            self.recover_in_alias_variants();
+                            break;
+                        }
+                    }
+
+                    if self.stream.eat(TokenKind::Comma).is_some() {
+                        continue;
+                    }
+                    break;
+                }
+
+                if let Some(close) = self.stream.eat(TokenKind::RParen) {
+                    end_span = close.span;
+                } else {
+                    let tok = self.stream.peek();
+                    self.error(
+                        ParseCode::UnexpectedToken,
+                        tok.span,
+                        "Expected ')' to close tag variant",
+                    );
+                }
+            }
+
+            let span = name_span.join(end_span);
+            return Some(AliasVariant::Tag { name, args, span });
+        }
+
+        parse_type_node(&mut self.stream, &mut self.diags).map(AliasVariant::Type)
+    }
+
+    /// Recover inside a struct field list by skipping to the next delimiter.
+    fn recover_in_struct_fields(&mut self) {
+        while !self.stream.is_eof() {
+            match self.stream.peek().kind {
+                TokenKind::Comma | TokenKind::RBrace => break,
+                _ => {
+                    self.stream.bump();
+                }
+            }
+        }
+    }
+
+    /// Recover in a generic parameter list until we hit a closing bracket.
+    fn recover_in_generics(&mut self) {
+        while !self.stream.is_eof() {
+            match self.stream.peek().kind {
+                TokenKind::RAngle => {
+                    self.stream.bump();
+                    break;
+                }
+                TokenKind::Comma => break,
+                _ => {
+                    self.stream.bump();
+                }
+            }
+        }
+    }
+
+    /// Recover inside alias variants until the next `|` or `;`.
+    fn recover_in_alias_variants(&mut self) {
+        while !self.stream.is_eof() {
+            match self.stream.peek().kind {
+                TokenKind::Pipe | TokenKind::Semicolon => break,
+                _ => {
+                    self.stream.bump();
+                }
+            }
+        }
     }
 
     fn parse_param_list(&mut self) -> Vec<Param> {
