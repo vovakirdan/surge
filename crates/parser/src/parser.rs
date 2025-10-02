@@ -88,7 +88,11 @@ impl<'src> Parser<'src> {
             }
         }
         self.finalize_parallel_checks();
-        Module { items }
+        Module {
+            items,
+            directives: Vec::new(),
+            has_pragma_directive: false,
+        }
     }
 
     fn parse_item(&mut self) -> Option<Item> {

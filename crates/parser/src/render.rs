@@ -5,9 +5,9 @@ use std::fmt::Write as _;
 use surge_token::{SourceId, Token};
 
 use crate::{
-    AliasDef, AliasVariant, Ast, Attr, Block, Expr, ExternBlock, Func, FuncSig, GenericParam,
-    Import, Item, LiteralDef, LiteralVariant, Module, NewtypeDef, Param, Pattern, PatternKind,
-    Stmt, StmtOrBlock, StructField, TagDef, TypeDef, TypeNode,
+    AliasDef, AliasVariant, Ast, Attr, Block, DirectiveBlock, DirectiveBody, Expr, ExternBlock,
+    Func, FuncSig, GenericParam, Import, Item, LiteralDef, LiteralVariant, Module, NewtypeDef,
+    Param, Pattern, PatternKind, Stmt, StmtOrBlock, StructField, TagDef, TypeDef, TypeNode,
 };
 
 /// Rendering context passed to AST nodes.
@@ -45,8 +45,21 @@ impl AstRender for Module {
     fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
         let indent_str = "  ".repeat(indent);
         ctx.push_str(&format!("{}Module {{\n", indent_str));
-        ctx.push_str(&format!("{}  items: [\n", indent_str));
+        ctx.push_str(&format!(
+            "{}  has_pragma_directive: {},\n",
+            indent_str, self.has_pragma_directive
+        ));
 
+        ctx.push_str(&format!("{}  directives: [\n", indent_str));
+        for (i, directive) in self.directives.iter().enumerate() {
+            if i > 0 {
+                ctx.push_str(",\n");
+            }
+            directive.render(ctx, indent + 2);
+        }
+        ctx.push_str(&format!("\n{}  ],\n", indent_str));
+
+        ctx.push_str(&format!("{}  items: [\n", indent_str));
         for (i, item) in self.items.iter().enumerate() {
             if i > 0 {
                 ctx.push_str(",\n");
@@ -56,6 +69,46 @@ impl AstRender for Module {
 
         ctx.push_str(&format!("\n{}  ]\n", indent_str));
         ctx.push_str(&format!("{}}}\n", indent_str));
+    }
+}
+
+impl AstRender for DirectiveBlock {
+    fn render(&self, ctx: &mut RenderCtx<'_>, indent: usize) {
+        let indent_str = "  ".repeat(indent);
+        ctx.push_str(&format!("{}DirectiveBlock {{\n", indent_str));
+        ctx.push_str(&format!("{}  kind: {:?},\n", indent_str, self.kind));
+        ctx.push_str(&format!(
+            "{}  namespace: {:?},\n",
+            indent_str, self.namespace
+        ));
+        ctx.push_str(&format!(
+            "{}  sub_namespace: {:?},\n",
+            indent_str, self.sub_namespace
+        ));
+        ctx.push_str(&format!("{}  label: {:?},\n", indent_str, self.label));
+        ctx.push_str(&format!(
+            "{}  has_trailing_colon: {},\n",
+            indent_str, self.has_trailing_colon
+        ));
+        ctx.push_str(&format!("{}  span: {:?},\n", indent_str, self.span));
+        ctx.push_str(&format!(
+            "{}  header_span: {:?},\n",
+            indent_str, self.header_span
+        ));
+        ctx.push_str(&format!("{}  anchor: {:?},\n", indent_str, self.anchor));
+        ctx.push_str(&format!("{}  body: ", indent_str));
+        self.body.render(ctx, 0);
+        ctx.push_str(&format!("\n{}}}\n", indent_str));
+    }
+}
+
+impl AstRender for DirectiveBody {
+    fn render(&self, ctx: &mut RenderCtx<'_>, _indent: usize) {
+        ctx.push_str(&format!(
+            "DirectiveBody {{ raw_lines: {:?}, tokens: {} }}",
+            self.raw_lines,
+            self.tokens.len()
+        ));
     }
 }
 

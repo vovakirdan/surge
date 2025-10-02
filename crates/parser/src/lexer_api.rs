@@ -41,10 +41,12 @@ impl<'src> Stream<'src> {
     /// Peek at the nth token ahead (0-based).
     #[inline]
     pub fn nth(&self, n: usize) -> Token {
-        self.tokens
-            .get(self.idx + n)
-            .copied()
-            .unwrap_or_else(|| *self.tokens.last().expect("token stream must end with EOF"))
+        self.tokens.get(self.idx + n).cloned().unwrap_or_else(|| {
+            self.tokens
+                .last()
+                .cloned()
+                .expect("token stream must end with EOF")
+        })
     }
 
     /// Return the previously consumed token if any.
@@ -53,7 +55,7 @@ impl<'src> Stream<'src> {
         if self.idx == 0 {
             None
         } else {
-            Some(self.tokens[self.idx - 1])
+            Some(self.tokens[self.idx - 1].clone())
         }
     }
 
@@ -63,7 +65,7 @@ impl<'src> Stream<'src> {
         if self.idx <= n + 1 {
             None
         } else {
-            Some(self.tokens[self.idx - 1 - n])
+            Some(self.tokens[self.idx - 1 - n].clone())
         }
     }
 

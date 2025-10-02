@@ -1,6 +1,6 @@
 //! Abstract syntax tree nodes for the Surge language parser.
 
-use surge_token::Span;
+use surge_token::{DirectiveKind, Span, Token};
 
 /// Root AST node that wraps a [`Module`].
 #[derive(Debug, Default)]
@@ -8,10 +8,48 @@ pub struct Ast {
     pub module: Module,
 }
 
+/// Raw body content captured for a directive block.
+#[derive(Debug, Default)]
+pub struct DirectiveBody {
+    pub raw_lines: Vec<String>,
+    pub tokens: Vec<Token>,
+}
+
+/// Placement of a directive relative to the parsed syntax tree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirectiveAnchor {
+    Module,
+    Item { span: Span },
+    Statement { span: Span },
+    Detached,
+}
+
+impl Default for DirectiveAnchor {
+    fn default() -> Self {
+        DirectiveAnchor::Detached
+    }
+}
+
+/// Directive block captured from `///` syntax.
+#[derive(Debug)]
+pub struct DirectiveBlock {
+    pub kind: DirectiveKind,
+    pub namespace: String,
+    pub sub_namespace: Option<String>,
+    pub label: Option<String>,
+    pub has_trailing_colon: bool,
+    pub body: DirectiveBody,
+    pub span: Span,
+    pub header_span: Span,
+    pub anchor: DirectiveAnchor,
+}
+
 /// A compilation unit containing top-level items.
 #[derive(Debug, Default)]
 pub struct Module {
     pub items: Vec<Item>,
+    pub directives: Vec<DirectiveBlock>,
+    pub has_pragma_directive: bool,
 }
 
 /// All supported top-level declarations.
