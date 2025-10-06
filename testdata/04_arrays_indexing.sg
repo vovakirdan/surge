@@ -1,0 +1,26 @@
+// Массивы и индексация
+fn test_arrays() -> int {
+    // Создание массивов
+    let numbers: int[] = [1, 2, 3, 4, 5];
+    let strings: string[] = ["hello", "world", "test"];
+    let empty: float[] = [];
+
+    // Индексация
+    let first: int = numbers[0];
+    let second: int = numbers[1];
+
+    // Модификация элементов
+    let mut mutable_array: int[] = [10, 20, 30];
+    mutable_array[0] = 100;
+    mutable_array[1] = 200;
+
+    // Вложенные массивы
+    let matrix: int[][] = [[1, 2], [3, 4], [5, 6]];
+    let element: int = matrix[1][0]; // Должно быть 3
+
+    // Массивы различных типов
+    let bools: bool[] = [true, false, true];
+    let units: nothing[] = [nothing, nothing, nothing];
+
+    return first + second + element;
+}

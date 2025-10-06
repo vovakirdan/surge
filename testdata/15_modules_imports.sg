@@ -1,0 +1,146 @@
+// Модульная система и импорты
+import std/io::{print, println, read_line};
+import std/collections::{HashMap, Vec, LinkedList};
+import std/string::{String, format};
+import std/math::{sqrt, pow, PI, E};
+
+// Относительные импорты
+import ./utils;
+import ./types::{Person, Address};
+import ../common/constants::{MAX_SIZE, DEFAULT_TIMEOUT};
+
+// Импорт всего модуля
+import std/json as JSON;
+import std/http as HTTP;
+
+// Импорт с алиасами
+import std/collections::HashMap as Map;
+import very/long/module/name as Short;
+
+// Экспорт типов и функций
+pub type Config {
+    host: string,
+    port: int,
+    timeout: int
+}
+
+pub newtype UserId = int;
+pub alias UserMap = HashMap<UserId, Person>;
+
+// Публичные функции
+pub fn create_config(host: string, port: int) -> Config {
+    return Config {
+        host: host,
+        port: port,
+        timeout: DEFAULT_TIMEOUT
+    };
+}
+
+pub fn validate_user_id(id: UserId) -> bool {
+    return id.value() > 0;
+}
+
+// Приватные вспомогательные функции
+fn internal_helper(data: string) -> int {
+    return data.len_chars() * 2;
+}
+
+fn calculate_hash(input: string) -> int {
+    let mut hash: int = 0;
+    for (let char: char in input.chars()) {
+        hash = hash * 31 + char.to_int();
+    }
+    return hash;
+}
+
+// Использование импортированных типов
+fn create_user_database() -> UserMap {
+    let mut users: UserMap = Map::new();
+
+    let user1: Person = Person {
+        name: "Alice",
+        age: 30,
+        address: Address {
+            street: "Main St",
+            city: "Springfield"
+        }
+    };
+
+    users.insert(UserId(1), user1);
+    return users;
+}
+
+// Использование математических функций
+pub fn calculate_distance(x1: float, y1: float, x2: float, y2: float) -> float {
+    let dx: float = x2 - x1;
+    let dy: float = y2 - y1;
+    return sqrt(pow(dx, 2.0) + pow(dy, 2.0));
+}
+
+// Работа с JSON
+fn serialize_config(config: Config) -> string {
+    return JSON.stringify(config);
+}
+
+fn deserialize_config(json: string) -> Option<Config> {
+    return JSON.parse<Config>(json);
+}
+
+// HTTP клиент
+async fn fetch_user_data(user_id: UserId) -> Option<string> {
+    let url: string = format("https://api.example.com/users/{}", user_id.value());
+
+    let response: HTTP.Response = await HTTP.get(url);
+
+    return compare response.status {
+        200 => Some(response.body),
+        _ => nothing
+    };
+}
+
+// Модульные константы
+pub const MAX_USERS: int = 1000;
+pub const API_VERSION: string = "v1.2.3";
+
+// Условная компиляция модулей
+/// target: feature = "database"
+import database::{Connection, Query};
+
+/// target: feature = "database"
+pub fn connect_to_db() -> Option<Connection> {
+    return Connection::new("postgresql://localhost/app");
+}
+
+// Вложенные модули
+mod internal {
+    fn secret_function() -> string {
+        return "This is internal";
+    }
+
+    pub fn exposed_function() -> string {
+        return secret_function() + " but exposed";
+    }
+}
+
+// Re-export
+pub use internal::exposed_function;
+pub use std/collections::{HashMap, Vec};
+
+// Тестовый модуль
+/// target: test
+mod tests {
+    import super::*;
+
+    @test
+    fn test_create_config() {
+        let config: Config = create_config("localhost", 8080);
+        assert(config.host == "localhost");
+        assert(config.port == 8080);
+    }
+
+    @test
+    fn test_validate_user_id() {
+        assert(validate_user_id(UserId(1)) == true);
+        assert(validate_user_id(UserId(0)) == false);
+    }
+}

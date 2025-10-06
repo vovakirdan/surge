@@ -1,0 +1,51 @@
+// Обобщенные типы (Generics)
+
+// Generic функция с одним параметром типа
+fn identity<T>(value: T) -> T {
+    return value;
+}
+
+// Generic функция с несколькими параметрами типа
+fn pair<T, U>(first: T, second: U) -> string {
+    // В реальности вернуло бы tuple или структуру
+    return "pair";
+}
+
+// Generic функция с ограничениями (когда будут реализованы)
+fn add_generic<T>(a: T, b: T) -> T {
+    return a + b; // Требует, чтобы T поддерживал +
+}
+
+// Тестирование generic функций
+fn test_generics() -> int {
+    // Explicit type parameters
+    let int_val: int = identity<int>(42);
+    let string_val: string = identity<string>("hello");
+    let float_val: float = identity<float>(3.14);
+
+    // Type inference
+    let inferred_int: int = identity(100);
+    let inferred_string: string = identity("world");
+
+    // Multiple type parameters
+    let pair_result: string = pair<int, string>(1, "one");
+    let another_pair: string = pair<bool, float>(true, 2.5);
+
+    // Generic с ownership
+    let owned_data: own string = "test";
+    let moved_data: own string = identity<own string>(owned_data);
+
+    return int_val + inferred_int;
+}
+
+// Generic struct (когда будет поддержан)
+// type Container<T> {
+//     value: T,
+//     count: int
+// }
+
+// Generic для Option-like типов
+fn maybe_add<T>(a: T, b: T) -> T {
+    // Предполагаемая реализация
+    return a + b;
+}

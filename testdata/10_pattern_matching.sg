@@ -1,0 +1,130 @@
+// Pattern matching с compare
+fn test_pattern_matching() -> int {
+    let value: int = 42;
+
+    let result: string = compare value {
+        0 => "zero",
+        1 => "one",
+        42 => "answer",
+        finally => "other"
+    };
+
+    let option_value: Option<int> = Some(100);
+
+    let unwrapped: int = compare option_value {
+        Some(x) => x,
+        nothing => 0
+    };
+
+    // Pattern matching с finally
+    let final_result: int = compare value {
+        0 => 0,
+        1 => 1,
+        finally => -1
+    };
+
+    return final_result;
+}
+
+// Pattern matching с boolean
+fn test_bool_patterns() -> string {
+    let flag: bool = true;
+
+    return compare flag {
+        true => "enabled",
+        false => "disabled"
+    };
+}
+
+// Pattern matching с string literals
+fn test_string_patterns(input: string) -> int {
+    return compare input {
+        "hello" => 1,
+        "world" => 2,
+        "test" => 3,
+        finally => 0
+    };
+}
+
+// Pattern matching с числами
+fn test_number_patterns(num: int) -> string {
+    return compare num {
+        0 => "zero",
+        1 => "one",
+        2 => "two",
+        3 => "three",
+        10 => "ten",
+        finally => "other"
+    };
+}
+
+// Nested pattern matching
+fn test_nested_patterns() -> int {
+    let nested_option: Option<Option<int>> = Some(Some(42));
+
+    return compare nested_option {
+        Some(Some(x)) => x,
+        Some(nothing) => -1,
+        nothing => -2
+    };
+}
+
+// Pattern matching с user-defined types
+literal Status = "ok" | "error";
+
+fn test_custom_type_patterns(result: Status) -> string {
+    return compare result {
+        "ok" => "success",
+        "error" => "failure"
+    };
+}
+
+// Pattern matching с arrays
+fn test_array_patterns(arr: int[]) -> string {
+    return compare arr.len() {
+        0 => "empty",
+        1 => "single element",
+        2 => "two elements",
+        finally => "multiple elements"
+    };
+}
+
+// Комплексный pattern matching
+fn complex_pattern_example(data: Option<string>) -> int {
+    let intermediate: int = compare data {
+        Some("important") => 100,
+        Some("normal") => 50,
+        Some(s) => 10,
+        nothing => 0
+    };
+
+    return compare intermediate {
+        0 => -1,
+        x if x > 50 => x * 2,
+        x => x
+    };
+}
+
+// Pattern matching с ownership
+fn test_ownership_patterns(owned: own Option<int>) -> int {
+    return compare owned {
+        Some(x) => x,
+        nothing => 0
+    };
+}
+
+// Pattern matching в цикле
+fn test_patterns_in_loop() -> int {
+    let options: Option<int>[] = [Some(1), nothing, Some(3)];
+    let mut sum: int = 0;
+
+    for (let opt: Option<int> in options) {
+        let value: int = compare opt {
+            Some(x) => x,
+            nothing => 0
+        };
+        sum = sum + value;
+    }
+
+    return sum;
+}

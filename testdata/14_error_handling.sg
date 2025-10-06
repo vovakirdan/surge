@@ -1,0 +1,198 @@
+// Error handling и Result типы
+newtype FileError = string;
+newtype NetworkError = string;
+
+// Error типы как структуры
+type BaseError = {
+    message: string,
+    code: int
+};
+
+type FileNotFoundError = BaseError : {
+    filename: string
+};
+
+type PermissionError = BaseError : {
+    required_permission: string
+};
+
+// Result типы с tagged unions
+tag Ok<T>(T);
+tag Err<E>(E);
+
+alias Result<T, E> = Ok(T) | Err(E);
+alias FileResult<T> = Result<T, FileError>;
+alias NetworkResult<T> = Result<T, NetworkError>;
+
+fn read_file(path: string) -> FileResult<string> {
+    if (path == "") {
+        return Err(FileError("Empty path"));
+    }
+
+    if (path == "nonexistent.txt") {
+        return Err(FileError("File not found"));
+    }
+
+    return Ok("file contents");
+}
+
+fn write_file(path: string, content: string) -> FileResult<nothing> {
+    if (path.starts_with("/readonly/")) {
+        return Err(FileError("Permission denied"));
+    }
+
+    return Ok(nothing);
+}
+
+fn download_data(url: string) -> NetworkResult<string> {
+    if (url.starts_with("https://")) {
+        return Ok("downloaded data");
+    } else {
+        return Err(NetworkError("Invalid URL protocol"));
+    }
+}
+
+// Error propagation
+fn process_file(path: string) -> FileResult<int> {
+    let content: string = compare read_file(path) {
+        Ok(data) => data,
+        Err(err) => return Err(err)
+    };
+
+    return Ok(content.len_chars());
+}
+
+// Complex error handling
+fn backup_and_process(source: string, backup: string) -> FileResult<int> {
+    // Создаем backup
+    let source_content: string = compare read_file(source) {
+        Ok(data) => data,
+        Err(err) => return Err(err)
+    };
+
+    compare write_file(backup, source_content) {
+        Ok(_) => {},
+        Err(err) => return Err(err)
+    };
+
+    // Обрабатываем файл
+    return process_file(source);
+}
+
+// Error recovery
+fn robust_file_operation(paths: string[]) -> Option<string> {
+    for (let path: string in paths) {
+        let result: FileResult<string> = read_file(path);
+
+        compare result {
+            Ok(content) => return Some(content),
+            Err(_) => continue // Пробуем следующий файл
+        };
+    }
+
+    return nothing; // Все файлы не удалось прочитать
+}
+
+// Async error handling
+async fn download_with_retry(url: string, max_retries: int) -> NetworkResult<string> {
+    for (let attempt: int = 0; attempt < max_retries; attempt = attempt + 1) {
+        let result: NetworkResult<string> = await download_data(url);
+
+        compare result {
+            Ok(data) => return Ok(data),
+            Err(_) => {
+                if (attempt == max_retries - 1) {
+                    return Err(NetworkError("Max retries exceeded"));
+                }
+                // Ждем перед повторной попыткой
+                continue;
+            }
+        };
+    }
+
+    return NetworkError("Max retries exceeded");
+}
+
+// Error aggregation
+fn process_multiple_files(paths: string[]) -> (string[], FileError[]) {
+    let mut successful: string[] = [];
+    let mut errors: FileError[] = [];
+
+    for (let path: string in paths) {
+        let result: FileResult<string> = read_file(path);
+
+        compare result {
+            Ok(content) => successful = successful + [content],
+            Error(err) => errors = errors + [err]
+        };
+    }
+
+    return (successful, errors);
+}
+
+// Custom error types with inheritance
+fn detailed_file_operation(path: string) -> BaseError | string {
+    if (path == "") {
+        return FileNotFoundError {
+            message: "File path is empty",
+            code: 404,
+            filename: path
+        };
+    }
+
+    if (!has_permission(path)) {
+        return PermissionError {
+            message: "Insufficient permissions",
+            code: 403,
+            required_permission: "read"
+        };
+    }
+
+    return "Operation successful";
+}
+
+fn has_permission(path: string) -> bool {
+    return !path.starts_with("/system/");
+}
+
+// Error pattern matching
+fn handle_error(error: BaseError) -> string {
+    return compare error {
+        FileNotFoundError(fnf) => "File not found: " + fnf.filename,
+        PermissionError(perm) => "Permission denied: " + perm.required_permission,
+        BaseError(base) => "Generic error: " + base.message
+    };
+}
+
+// Try-catch style (если поддерживается)
+fn try_operation() -> Option<string> {
+    try {
+        let result: string = read_file("important.txt")?;
+        let processed: int = result.len_chars();
+        return Some("Success: " + processed.to_string());
+    } catch (err: FileError) {
+        return nothing;
+    }
+}
+
+// Panic и unwrap операции
+fn unsafe_operation(path: string) -> string {
+    let result: FileResult<string> = read_file(path);
+
+    return compare result {
+        Ok(content) => content,
+        Error(err) => panic("Failed to read file: " + err)
+    };
+}
+
+fn main_error_example() -> int {
+    let result: FileResult<int> = process_file("example.txt");
+
+    return compare result {
+        Ok(size) => size,
+        Error(err) => {
+            print("Error: " + err);
+            return -1;
+        }
+    };
+}

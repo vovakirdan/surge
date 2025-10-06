@@ -1,0 +1,31 @@
+// Примеры параллельных конструкций
+fn parallel_examples(xs: int[], factor: int) -> int {
+    let processed: int[] = parallel map xs with () => process_item;
+    let summed: int = parallel reduce xs with 0, () => combine;
+
+    let scaled: int[] = parallel map xs with (factor) => scale;
+
+    let total: int = parallel reduce xs with 0, () => reduce_fn;
+
+    return total;
+}
+
+@pure
+fn process_item(x: int) -> int {
+    return x * 2;
+}
+
+@pure
+fn combine(acc: int, value: int) -> int {
+    return acc + value;
+}
+
+@pure
+fn scale(factor: int, value: int) -> int {
+    return value * factor;
+}
+
+@pure
+fn reduce_fn(acc: int, value: int) -> int {
+    return acc + value;
+}

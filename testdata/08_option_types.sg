@@ -1,0 +1,54 @@
+// Option типы и nothing
+fn test_option_types() -> int {
+    // Option values с explicit Some
+    let some_value: Option<int> = Some(42);
+    let some_string: Option<string> = Some("hello");
+
+    // nothing с contextual typing
+    let none_value: Option<int> = nothing;
+    let none_string: Option<string> = nothing;
+
+    // Explicit Option construction (no auto-wrapping)
+    let explicit_wrapped: Option<int> = Some(100);
+
+    // Массивы с Option и explicit construction
+    let mixed_array: Option<int>[] = [Some(1), nothing, Some(3)];
+
+    // Default values для переменных без инициализации
+    let default_int: int; // 0
+    let default_string: string; // ""
+    let default_bool: bool; // false
+
+    return 42;
+}
+
+fn return_option() -> Option<int> {
+    if (true) {
+        return Some(100);
+    } else {
+        return nothing;
+    }
+}
+
+fn return_nothing() -> Option<string> {
+    return nothing; // OK - тип инферится из return type
+}
+
+// Functions returning nothing implicitly
+fn nothing_function() {
+    // Equivalent to: return nothing;
+}
+
+fn explicit_nothing() {
+    return nothing;
+}
+
+// Contextual typing examples
+fn test_contextual_typing() -> int {
+    let opt1: Option<int> = nothing; // OK
+    let opt2: Option<string> = nothing; // OK
+
+    // let ambiguous = nothing; // ERROR: E_AMBIGUOUS_NOTHING
+
+    return 0;
+}

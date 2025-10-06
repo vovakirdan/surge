@@ -1,0 +1,32 @@
+// Базовые типы переменных и литералы
+fn test_basic_variables() -> int {
+    // Целые числа
+    let x: int = 42;
+    let hex_val: int = 0xFF;
+    let bin_val: int = 0b1010;
+    let large_num: int = 1_000_000;
+
+    // Числа с плавающей точкой
+    let pi: float = 3.14159;
+    let scientific: float = 1.5e-10;
+    let negative: float = -2.5e+3;
+
+    // Строки
+    let greeting: string = "Hello, World!";
+    let escaped: string = "Line1\nLine2\tTabbed";
+    let unicode: string = "Привет 👋 мир!";
+    let raw_unicode: string = "\u{1F600}";
+
+    // Логические значения
+    let is_true: bool = true;
+    let is_false: bool = false;
+
+    // Absence значение
+    let nothing_val: nothing = nothing;
+
+    // Фиксированные размеры
+    let small_int: int32 = 100;
+    let precise_float: float64 = 3.141592653589793;
+
+    return x;
+}

@@ -1,0 +1,234 @@
+// Продвинутые типы и type system
+// Union types
+alias StringOrNumber = string | int;
+alias OptionalData = string | nothing;
+
+// Intersection types (если поддерживаются)
+type Nameable = {
+    name: string
+}
+
+type Ageable = {
+    age: int
+}
+
+alias Person = Nameable | Ageable;
+
+// Phantom types
+newtype TypedId<T> = int;
+
+type User = {
+    id: TypedId<User>,
+    name: string
+}
+
+type Product = {
+    id: TypedId<Product>,
+    title: string,
+    price: float
+}
+
+// Higher-kinded types (если поддерживаются)
+type Container<F<_>, T> = {
+    value: F<T>
+}
+
+type Optional<T> = Some(T) | nothing;
+type List<T> = T[];
+
+// Recursive types
+type TreeNode<T> = {
+    value: T,
+    children: TreeNode<T>[]
+}
+
+alias JSON = JSONValue;
+
+literal JSONValue =
+    | JSONObject
+    | JSONArray
+    | string
+    | int
+    | float
+    | bool
+    | nothing;
+
+type JSONObject = HashMap<string, JSONValue>;
+type JSONArray = JSONValue[];
+
+// GADTs (Generalized Algebraic Data Types)
+type Expr<T> = {
+    IntLit(int) where T = int,
+    BoolLit(bool) where T = bool,
+    Add(Expr<int>, Expr<int>) where T = int,
+    Eq<U>(Expr<U>, Expr<U>) where T = bool
+}
+
+// Existential types
+type SomeContainer = {
+    exists T: Container<T>
+}
+
+// Dependent types (если поддерживаются)
+type Vec<T, n: int> = {
+    data: T[n]
+}
+
+// Type families
+type family Add(a: int, b: int) -> int;
+type instance Add(0, n) = n;
+type instance Add(succ(m), n) = succ(Add(m, n));
+
+// Advanced generics with constraints
+fn generic_function<T: Ord + Clone>(a: T, b: T) -> T {
+    return compare a.cmp(b) {
+        Less => a.clone(),
+        Greater => b.clone(),
+        Equal => a
+    };
+}
+
+// Associated types
+// Note: trait syntax not defined in specification
+// Would need to use extern<T> blocks instead
+
+// Type projections
+fn process_iterator<I: Iterator>(iter: I) -> Option<I::Item> {
+    return iter.next();
+}
+
+// Variance annotations
+type Covariant<+T> = {
+    value: T
+}
+
+type Contravariant<-T> = {
+    consumer: fn(T) -> nothing
+}
+
+type Invariant<T> = {
+    value: &mut T
+}
+
+// Linear types (если поддерживаются)
+linear type LinearResource {
+    handle: int
+}
+
+fn use_linear_resource(resource: LinearResource) -> int {
+    return resource.handle; // resource consumed here
+}
+
+// Type-level programming
+type True = true;
+type False = false;
+
+type And<A: bool, B: bool> =
+    | true if A == true && B == true
+    | false;
+
+type Or<A: bool, B: bool> =
+    | true if A == true || B == true
+    | false;
+
+// Refinement types
+newtype PositiveInt = int where value > 0;
+newtype NonEmptyString = string where !value.is_empty();
+
+fn safe_divide(a: int, b: PositiveInt) -> float {
+    return a.to_float() / b.value().to_float();
+}
+
+// Tagged unions
+type Shape = {
+    Circle { radius: float },
+    Rectangle { width: float, height: float },
+    Triangle { a: float, b: float, c: float }
+}
+
+fn calculate_area(shape: Shape) -> float {
+    return compare shape {
+        Circle { radius } => 3.14159 * radius * radius,
+        Rectangle { width, height } => width * height,
+        Triangle { a, b, c } => {
+            let s: float = (a + b + c) / 2.0;
+            sqrt(s * (s - a) * (s - b) * (s - c))
+        }
+    };
+}
+
+// Type aliases with parameters
+// (Function types removed from the language; use explicit functions or extern blocks instead.)
+
+// Nominal vs structural typing
+newtype UserId = int; // nominal
+type Point = { x: int, y: int }; // structural
+
+// Type erasure generics
+type Box<T> = {
+    value: T
+}
+
+fn box_any<T>(value: T) -> Box<T> {
+    return Box { value: value };
+}
+
+// Pattern types (если поддерживаются)
+type EmailPattern = string matching /^[^@]+@[^@]+\.[^@]+$/;
+
+fn validate_email(email: string) -> Option<EmailPattern> {
+    return compare email {
+        pattern EmailPattern => Some(email as EmailPattern),
+        _ => nothing
+    };
+}
+
+// Type constructors
+// (Function type constructors removed; express stateful computations via explicit types and methods.)
+
+// Complex type inference example
+fn complex_inference() -> int {
+    let data = [1, 2, 3]; // inferred as int[]
+    let mapped = data.map(fn(x) => x * 2); // inferred as int[]
+    let filtered = mapped.filter(fn(x) => x > 4); // inferred as int[]
+
+    return filtered.fold(0, fn(acc, x) => acc + x); // inferred as int
+}
+
+// Type-safe builder pattern
+type ConfigBuilder = {
+    host: Option<string>,
+    port: Option<int>,
+    ssl: Option<bool>
+}
+
+extern<ConfigBuilder> {
+    fn new() -> ConfigBuilder {
+        return ConfigBuilder {
+            host: nothing,
+            port: nothing,
+            ssl: nothing
+        };
+    }
+
+    fn with_host(mut self, host: string) -> ConfigBuilder {
+        self.host = Some(host);
+        return self;
+    }
+
+    fn with_port(mut self, port: int) -> ConfigBuilder {
+        self.port = Some(port);
+        return self;
+    }
+
+    fn build(self) -> Option<Config> {
+        return compare (self.host, self.port) {
+            (Some(h), Some(p)) => Some(Config {
+                host: h,
+                port: p,
+                ssl: self.ssl ?? false
+            }),
+            _ => nothing
+        };
+    }
+}

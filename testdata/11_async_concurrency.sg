@@ -1,0 +1,151 @@
+// Async функции и concurrency
+async fn fetch_data(url: string) -> string {
+    // Симуляция HTTP запроса
+    return "data from " + url;
+}
+
+async fn process_data(data: string) -> int {
+    // Симуляция обработки данных
+    return data.len_chars();
+}
+
+// Основная async функция
+async fn main_async() -> int {
+    // Простой await
+    let data: string = await fetch_data("https://api.example.com");
+    let result: int = await process_data(data);
+
+    // Concurrent execution с spawn
+    let task1 = spawn fetch_data("https://api1.com");
+    let task2 = spawn fetch_data("https://api2.com");
+    let task3 = spawn fetch_data("https://api3.com");
+
+    // Ожидание результатов
+    let data1: string = await task1;
+    let data2: string = await task2;
+    let data3: string = await task3;
+
+    return result + data1.len_chars() + data2.len_chars() + data3.len_chars();
+}
+
+// Async функция с error handling
+async fn fetch_with_error() -> Option<string> {
+    // Симуляция возможной ошибки
+    if (true) {
+        return Some("success");
+    } else {
+        return nothing;
+    }
+}
+
+// Комплексный concurrent workflow
+async fn complex_workflow() -> int {
+    // Параллельные вычисления
+    let computation1 = spawn async_computation(100);
+    let computation2 = spawn async_computation(200);
+    let computation3 = spawn async_computation(300);
+
+    // Последовательная обработка результатов
+    let result1: int = await computation1;
+    let processed1: int = await process_number(result1);
+
+    let result2: int = await computation2;
+    let processed2: int = await process_number(result2);
+
+    let result3: int = await computation3;
+    let processed3: int = await process_number(result3);
+
+    return processed1 + processed2 + processed3;
+}
+
+async fn async_computation(input: int) -> int {
+    // Симуляция вычислений
+    return input * 2;
+}
+
+async fn process_number(num: int) -> int {
+    // Симуляция обработки числа
+    return num + 10;
+}
+
+// Async функция с циклом и await
+async fn process_urls(urls: string[]) -> int {
+    let mut total_length: int = 0;
+
+    for (let url: string in urls) {
+        let data: string = await fetch_data(url);
+        total_length = total_length + data.len_chars();
+    }
+
+    return total_length;
+}
+
+// Async функция с pattern matching
+async fn handle_response(response: Option<string>) -> string {
+    return compare response {
+        Some(data) => await process_data_async(data),
+        nothing => "no data"
+    };
+}
+
+async fn process_data_async(data: string) -> string {
+    return "processed: " + data;
+}
+
+// Timeout и cancellation (если поддерживается)
+async fn with_timeout() -> Option<string> {
+    let task = spawn fetch_data("https://slow-api.com");
+
+    // Простая симуляция timeout
+    let result: string = await task;
+    return Some(result);
+}
+
+// Stream processing (если поддерживается)
+async fn process_stream(data_stream: string[]) -> int {
+    let mut count: int = 0;
+
+    for (let item: string in data_stream) {
+        let processed: int = await process_data(item);
+        count = count + 1;
+    }
+
+    return count;
+}
+
+// Async генератор (если поддерживается)
+async fn generate_numbers() -> int[] {
+    let mut numbers: int[] = [];
+
+    for (let i: int = 0; i < 10; i = i + 1) {
+        let computed: int = await async_computation(i);
+        numbers = numbers + [computed];
+    }
+
+    return numbers;
+}
+
+// Sync функция, которая запускает async
+fn start_async_work() -> int {
+    // В реальности здесь был бы runtime или executor
+    return 42;
+}
+
+// Error propagation в async функциях
+async fn chain_async_calls() -> Option<int> {
+    let data: Option<string> = await fetch_with_error();
+
+    return compare data {
+        Some(content) => {
+            let length: int = await process_data(content);
+            Some(length)
+        },
+        nothing => nothing
+    };
+}
+
+// Async функция с ownership
+async fn async_ownership(owned_data: own string) -> own string {
+    let processed: string = await process_data_async(owned_data);
+    return processed;
+}

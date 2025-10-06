@@ -1,0 +1,106 @@
+// Функции с атрибутами и модификаторами
+@pure
+fn pure_function(x: int, y: int) -> int {
+    return x + y;
+}
+
+@pure @overload
+fn pure_add(a: float, b: float) -> float {
+    return a + b;
+}
+
+@test
+fn test_addition() {
+    let result: int = pure_function(2, 3);
+    // assert(result == 5);
+}
+
+@benchmark
+fn bench_calculation() -> int {
+    let mut sum: int = 0;
+    for (let i: int = 0; i < 1000; i = i + 1) {
+        sum = sum + i;
+    }
+    return sum;
+}
+
+@time
+fn timed_operation() -> string {
+    return "operation completed";
+}
+
+@deprecated("Use new_function instead")
+fn old_function() -> int {
+    return 42;
+}
+
+// Pub функции
+pub fn public_function(data: string) -> int {
+    return data.len_chars();
+}
+
+pub fn public_with_generics<T>(value: T) -> T {
+    return value;
+}
+
+// Функции с различными параметрами
+fn multiple_params(a: int, b: string, c: bool, d: float) -> string {
+    return "multiple parameters";
+}
+
+fn default_params() -> int {
+    let default_int: int;
+    let default_string: string;
+    let default_bool: bool;
+    return 0;
+}
+
+// Функции с ownership параметрами
+fn take_ownership(data: own string) -> int {
+    return data.len_chars();
+}
+
+fn borrow_data(data: &string) -> int {
+    return data.len_chars();
+}
+
+fn mutate_data(data: &mut int) {
+    *data = *data * 2;
+}
+
+// Вложенные функции (если поддерживаются)
+fn outer_function() -> int {
+    fn inner_function(x: int) -> int {
+        return x * 2;
+    }
+
+    return inner_function(21);
+}
+
+// Функции возвращающие Option
+fn maybe_divide(a: int, b: int) -> Option<int> {
+    if (b == 0) {
+        return nothing;
+    } else {
+        return Some(a / b);
+    }
+}
+
+// Функции с атрибутами backend
+@backend("cpu")
+fn optimized_function(data: int[]) -> int {
+    let mut sum: int = 0;
+    for (let item: int in data) {
+        sum = sum + item;
+    }
+    return sum;
+}
+
+// @override can only be used within extern<T> blocks
+// Example usage would be:
+// extern<SomeType> {
+//     @override
+//     fn some_method() -> string {
+//         return "overridden implementation";
+//     }
+// }
