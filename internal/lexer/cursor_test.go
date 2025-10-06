@@ -5,16 +5,16 @@ import (
 	"testing"
 )
 
-// helper function to create a file
-func createFile(content string) *source.File {
+// helper function to create a file and return both file and fileset
+func createFile(content string) (*source.File, *source.FileSet) {
 	fs := source.NewFileSet()
 	id := fs.AddVirtual("test.sg", []byte(content))
-	return fs.Get(id)
+	return fs.Get(id), fs
 }
 
 // TestSequentialReading проверяет последовательное чтение: "a\nb" → a, \n, b, EOF
 func TestSequentialReading(t *testing.T) {
-	file := createFile("a\nb")
+	file, _ := createFile("a\nb")
 	cursor := NewCursor(file)
 
 	// Читаем первый символ 'a'
@@ -68,7 +68,7 @@ func TestSequentialReading(t *testing.T) {
 
 // TestPeek2 проверяет Peek2 на середине и конце файла
 func TestPeek2(t *testing.T) {
-	file := createFile("abc")
+	file, _ := createFile("abc")
 	cursor := NewCursor(file)
 
 	// Peek2 в начале файла
@@ -108,9 +108,7 @@ func TestPeek2(t *testing.T) {
 // TestSpanFromResolve проверяет SpanFrom и Resolve с UTF-8
 func TestSpanFromResolve(t *testing.T) {
 	// Создаем файл с UTF-8 символом "α\nβ" (α=2 байта, \n=1 байт, β=2 байта)
-	file := createFile("α\nβ")
-	fs := source.NewFileSet()
-	fs.AddVirtual("test.sg", []byte("α\nβ"))
+	file, fs := createFile("α\nβ")
 
 	cursor := NewCursor(file)
 
@@ -135,7 +133,7 @@ func TestSpanFromResolve(t *testing.T) {
 	// Проверяем Resolve через FileSet
 	start, end := fs.Resolve(span)
 	expectedStart := source.LineCol{Line: 1, Col: 1}
-	expectedEnd := source.LineCol{Line: 2, Col: 0} // позиция символа \n
+	expectedEnd := source.LineCol{Line: 1, Col: 3} // конец первой строки (после α)
 
 	if start != expectedStart {
 		t.Errorf("Expected start %+v, got %+v", expectedStart, start)
@@ -154,8 +152,8 @@ func TestSpanFromResolve(t *testing.T) {
 	}
 
 	start2, end2 := fs.Resolve(span2)
-	expectedStart2 := source.LineCol{Line: 2, Col: 0} // позиция символа \n (строка 2, колонка 0)
-	expectedEnd2 := source.LineCol{Line: 2, Col: 1}   // после \n
+	expectedStart2 := source.LineCol{Line: 1, Col: 3} // конец первой строки (позиция \n)
+	expectedEnd2 := source.LineCol{Line: 2, Col: 1}   // начало второй строки (после \n)
 
 	if start2 != expectedStart2 {
 		t.Errorf("Expected start2 %+v, got %+v", expectedStart2, start2)
@@ -167,7 +165,7 @@ func TestSpanFromResolve(t *testing.T) {
 
 // TestEatNewline проверяет поведение Eat('\n')
 func TestEatNewline(t *testing.T) {
-	file := createFile("a\nb")
+	file, _ := createFile("a\nb")
 	cursor := NewCursor(file)
 
 	// Пытаемся съесть 'a' - должно сработать
@@ -211,7 +209,7 @@ func TestEatNewline(t *testing.T) {
 
 // TestMarkReset проверяет работу Mark и Reset
 func TestMarkReset(t *testing.T) {
-	file := createFile("abc")
+	file, _ := createFile("abc")
 	cursor := NewCursor(file)
 
 	// Ставим метку в начале

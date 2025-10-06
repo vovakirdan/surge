@@ -81,11 +81,26 @@ func toLineCol(lineIdx []uint32, off uint32) LineCol {
 	}
 
 	// hi == индекс последнего '\n' с позицией <= off; может быть -1 если off до первого \n
-    if hi < 0 {
-        return LineCol{Line: 1, Col: off + 1}
-    }
-    startOff := lineIdx[hi] + 1
-    return LineCol{Line: uint32(hi + 2), Col: off - startOff + 1}
+	if hi < 0 {
+		return LineCol{Line: 1, Col: off + 1}
+	}
+
+	// Если off указывает на байт '\n', интерпретируем как конец предыдущей строки
+	if off == lineIdx[hi] {
+		// Находим длину предыдущей строки
+		var lineStart uint32
+		if hi == 0 {
+			lineStart = 0
+		} else {
+			lineStart = lineIdx[hi-1] + 1
+		}
+		lineLength := lineIdx[hi] - lineStart
+		return LineCol{Line: uint32(hi + 1), Col: lineLength + 1}
+	}
+
+	// Обычный случай: off после '\n'
+	startOff := lineIdx[hi] + 1
+	return LineCol{Line: uint32(hi + 2), Col: off - startOff + 1}
 }
 
 func normalizePath(p string) string {

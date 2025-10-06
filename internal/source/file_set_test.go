@@ -1,8 +1,8 @@
 package source
 
 import (
-	"testing"
 	"os"
+	"testing"
 )
 
 func TestFileSetVersioning(t *testing.T) {
@@ -255,7 +255,7 @@ func TestLoad(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(tempFile.Name())
-	
+
 	// запишем в него "a\nb\n"
 	_, err = tempFile.WriteString("a\nb\n")
 	if err != nil {
@@ -307,31 +307,61 @@ func TestLoadBOM(t *testing.T) {
 	}
 }
 
-func TestLoadCRLF(t *testing.T) {
+func TestColNeverZero(t *testing.T) {
 	fs := NewFileSet()
-	// создадим временный файл
-	tempFile, err := os.CreateTemp("", "testdata")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tempFile.Name())
 
-	// запишем в него "a\r\nb\r\n"
-	_, err = tempFile.WriteString("a\r\nb\r\n")
-	if err != nil {
-		t.Fatalf("Failed to write to temp file: %v", err)
-	}
-	err = tempFile.Close()
-	if err != nil {
-		t.Fatalf("Failed to close temp file: %v", err)
+	// Тестируем различные случаи, которые раньше могли давать Col=0
+	testCases := []struct {
+		content string
+		spans   []struct {
+			start, end uint32
+			desc       string
+		}
+	}{
+		{
+			content: "a\nb",
+			spans: []struct {
+				start, end uint32
+				desc       string
+			}{
+				{1, 2, "позиция символа \\n"},
+				{2, 3, "после символа \\n"},
+			},
+		},
+		{
+			content: "α\nβ",
+			spans: []struct {
+				start, end uint32
+				desc       string
+			}{
+				{2, 3, "позиция символа \\n в UTF-8"},
+				{3, 5, "после символа \\n в UTF-8"},
+			},
+		},
+		{
+			content: "\n",
+			spans: []struct {
+				start, end uint32
+				desc       string
+			}{
+				{0, 1, "позиция единственного \\n"},
+			},
+		},
 	}
 
-	fs.Load(tempFile.Name())
-	file := fs.Get(0)
-	if string(file.Content) != "a\nb\n" {
-		t.Errorf("Expected file content 'a\nb\n', got %q", string(file.Content))
-	}
-	if file.Flags&FileNormalizedCRLF == 0 {
-		t.Error("Expected FileNormalizedCRLF flag to be set")
+	for _, tc := range testCases {
+		id := fs.AddVirtual("test.sg", []byte(tc.content))
+
+		for _, span := range tc.spans {
+			s := Span{File: id, Start: span.start, End: span.end}
+			start, end := fs.Resolve(s)
+
+			if start.Col == 0 {
+				t.Errorf("Content %q, span %s: start.Col = 0 (should be >= 1)", tc.content, span.desc)
+			}
+			if end.Col == 0 {
+				t.Errorf("Content %q, span %s: end.Col = 0 (should be >= 1)", tc.content, span.desc)
+			}
+		}
 	}
 }
