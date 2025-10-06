@@ -118,16 +118,14 @@ func TestUnderscore_Single(t *testing.T) {
 	expectSingleToken(t, "_", token.Underscore, "_")
 }
 
-func TestKeywords_CaseInsensitive(t *testing.T) {
+func TestKeywords_Lowercase(t *testing.T) {
+	// Ключевые слова регистрозависимые — только строчные распознаются как ключевые слова
 	tests := []struct {
 		input string
 		kind  token.Kind
 	}{
 		{"fn", token.KwFn},
-		{"Fn", token.KwFn},
-		{"FN", token.KwFn},
 		{"let", token.KwLet},
-		{"LET", token.KwLet},
 		{"mut", token.KwMut},
 		{"own", token.KwOwn},
 		{"if", token.KwIf},
@@ -170,6 +168,61 @@ func TestKeywords_CaseInsensitive(t *testing.T) {
 			tok := lx.Next()
 			if tok.Kind != tt.kind {
 				t.Errorf("Expected %v, got %v", tt.kind, tok.Kind)
+			}
+		})
+	}
+}
+
+func TestKeywords_CapitalizedAreIdents(t *testing.T) {
+	// Капитализированные версии ключевых слов — это обычные идентификаторы
+	tests := []string{
+		"Fn", "FN",
+		"Let", "LET",
+		"Mut", "MUT",
+		"Own", "OWN",
+		"If", "IF",
+		"Else", "ELSE",
+		"While", "WHILE",
+		"For", "FOR",
+		"In", "IN",
+		"Break", "BREAK",
+		"Continue", "CONTINUE",
+		"Return", "RETURN",
+		"Import", "IMPORT",
+		"As", "AS",
+		"Type", "TYPE",
+		"Newtype", "NEWTYPE",
+		"Alias", "ALIAS",
+		"Literal", "LITERAL",
+		"Tag", "TAG",
+		"Extern", "EXTERN",
+		"Pub", "PUB",
+		"Async", "ASYNC",
+		"Await", "AWAIT",
+		"True", "TRUE",
+		"False", "FALSE",
+		"Compare", "COMPARE",
+		"Finally", "FINALLY",
+		"Channel", "CHANNEL",
+		"Spawn", "SPAWN",
+		"Signal", "SIGNAL",
+		"Parallel", "PARALLEL",
+		"Macro", "MACRO",
+		"Pragma", "PRAGMA",
+		"To", "TO",
+		"Heir", "HEIR",
+		"Is", "IS",
+	}
+
+	for _, input := range tests {
+		t.Run(input, func(t *testing.T) {
+			lx, _ := makeTestLexer(input)
+			tok := lx.Next()
+			if tok.Kind != token.Ident {
+				t.Errorf("Expected Ident for %q, got %v", input, tok.Kind)
+			}
+			if tok.Text != input {
+				t.Errorf("Expected text %q, got %q", input, tok.Text)
 			}
 		})
 	}

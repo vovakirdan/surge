@@ -1,12 +1,13 @@
 package lexer
 
 import (
-	"bytes"
 	"surge/internal/token"
 )
 
-// scanIdentOrKeyword сканирует [Ident] и мапит через LookupKeyword.
-// Важно: Token.Text — ровно исходный срез, lower-casing делаем временно для Lookup.
+const utf8RuneSelf = 0x80
+
+// scanIdentOrKeyword сканирует [Ident] и проверяет через LookupKeyword.
+// Ключевые слова регистрозависимые (только lowercase). Token.Text — ровно исходный срез.
 func (lx *Lexer) scanIdentOrKeyword() token.Token {
 	start := lx.cursor.Mark()
 
@@ -48,30 +49,13 @@ func (lx *Lexer) scanIdentOrKeyword() token.Token {
 	sp := lx.cursor.SpanFrom(start)
 	lex := lx.file.Content[sp.Start:sp.End]
 
-	// Вызов LookupKeyword — понижая ASCII без лишних аллокаций
-	lower := toLowerASCIIBytes(lex)
-	if k, ok := token.LookupKeyword(string(lower)); ok {
+	if len(lex) == 1 && lex[0] == '_' {
+		return token.Token{Kind: token.Underscore, Span: sp, Text: string(lex)}
+	}
+
+	// Проверка на ключевое слово (регистрозависимо)
+	if k, ok := token.LookupKeyword(string(lex)); ok {
 		return token.Token{Kind: k, Span: sp, Text: string(lex)}
 	}
 	return token.Token{Kind: token.Ident, Span: sp, Text: string(lex)}
-}
-
-const utf8RuneSelf = 0x80
-
-func toLowerASCIIBytes(b []byte) []byte {
-	// Если нет верхних ASCII, вернём исходный срез (без копий).
-	if bytes.IndexFunc(b, func(r rune) bool {
-		return r >= 'A' && r <= 'Z'
-	}) == -1 {
-		return b
-	}
-	out := make([]byte, len(b))
-	for i := range b {
-		c := b[i]
-		if c >= 'A' && c <= 'Z' {
-			c = c + ('a' - 'A')
-		}
-		out[i] = c
-	}
-	return out
 }

@@ -82,11 +82,3 @@ func (lx *Lexer) try2(a, b byte) bool {
 	lx.cursor.Bump()
 	return true
 }
-
-func (lx *Lexer) try1(a byte) bool {
-	if lx.cursor.Peek() != a {
-		return false
-	}
-	lx.cursor.Bump()
-	return true
-}

@@ -39,9 +39,9 @@ var keywords = map[string]Kind{
 	"is":       KwIs,
 }
 
-// LookupKeyword возвращает тип и bool если это ключевое слово
+// LookupKeyword возвращает тип и bool если это ключевое слово.
+// Ключевые слова регистрозависимые — только lowercase версии распознаются.
 func LookupKeyword(ident string) (Kind, bool) {
-	// ident уже должен быть в lowercase, но ответсвенность за это лежит на лексере
 	k, ok := keywords[ident]
 	return k, ok
 }

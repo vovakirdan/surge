@@ -50,17 +50,6 @@ func (lx *Lexer) Next() token.Token {
 	var tok token.Token
 
 	switch {
-	case ch == '_':
-		// Специальная обработка для underscore: если следующий символ не продолжение идента, то это токен Underscore
-		b0, b1, ok := lx.cursor.Peek2()
-		if ok && b0 == '_' && isIdentContinueByte(b1) {
-			// "__foo" или "_123" → идентификатор
-			tok = lx.scanIdentOrKeyword()
-		} else {
-			// одиночный "_" → токен Underscore
-			tok = lx.scanOperatorOrPunct()
-		}
-
 	case isIdentStartByte(ch):
 		// ASCII буква → scanIdentOrKeyword()
 		tok = lx.scanIdentOrKeyword()
