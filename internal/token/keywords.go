@@ -1,0 +1,47 @@
+package token
+
+var keywords = map[string]Kind{
+	"fn":       KwFn,
+	"let":      KwLet,
+	"mut":      KwMut,
+	"own":      KwOwn,
+	"if":       KwIf,
+	"else":     KwElse,
+	"while":    KwWhile,
+	"for":      KwFor,
+	"in":       KwIn,
+	"break":    KwBreak,
+	"continue": KwContinue,
+	"return":   KwReturn,
+	"import":   KwImport,
+	"as":       KwAs,
+	"type":     KwType,
+	"newtype":  KwNewtype,
+	"alias":    KwAlias,
+	"literal":  KwLiteral,
+	"tag":      KwTag,
+	"extern":   KwExtern,
+	"pub":      KwPub,
+	"async":    KwAsync,
+	"await":    KwAwait,
+	"compare":  KwCompare,
+	"finally":  KwFinally,
+	"channel":  KwChannel,
+	"spawn":    KwSpawn,
+	"true":     KwTrue,
+	"false":    KwFalse,
+	"signal":   KwSignal,
+	"parallel": KwParallel,
+	"macro":    KwMacro,
+	"pragma":   KwPragma,
+	"to":       KwTo,
+	"heir":     KwHeir,
+	"is":       KwIs,
+}
+
+// LookupKeyword возвращает тип и bool если это ключевое слово
+func LookupKeyword(ident string) (Kind, bool) {
+	// ident уже должен быть в lowercase, но ответсвенность за это лежит на лексере
+	k, ok := keywords[ident]
+	return k, ok
+}
