@@ -93,4 +93,5 @@ const (
 	At         // @
 	Underscore // _
 	DotDotEq   // ..=
+	DotDotDot  // ... (vararg)
 )

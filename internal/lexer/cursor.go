@@ -38,6 +38,14 @@ func (c *Cursor) Peek2() (b0, b1 byte, ok bool) {
 	return c.File.Content[c.Off], c.File.Content[c.Off+1], true
 }
 
+// Peek3 читает текущий, следующий и следующий за ним байт, если есть, иначе возвращает 0, 0, 0, false
+func (c *Cursor) Peek3() (b0, b1, b2 byte, ok bool) {
+	if c.Off+2 >= uint32(len(c.File.Content)) {
+		return 0, 0, 0, false
+	}
+	return c.File.Content[c.Off], c.File.Content[c.Off+1], c.File.Content[c.Off+2], true
+}
+
 // Bump перемещает курсор на один байт вперед и возвращает прочитанный байт
 func (c *Cursor) Bump() byte {
 	if c.EOF() {
