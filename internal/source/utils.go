@@ -44,6 +44,9 @@ func removeBOM(content []byte) ([]byte, bool) {
 	return content, false
 }
 
+// LineIdx хранит БАЙТОВЫЕ позиции всех '\n' в файле (0-based).
+// Первая строка начинается в байте 0.
+// Начало строки k > 1 = LineIdx[k-2] + 1.
 func buildLineIndex(content []byte) []uint32 {
 	out := make([]uint32, 0, len(content))
 	for i, b := range content {
@@ -77,15 +80,12 @@ func toLineCol(lineIdx []uint32, off uint32) LineCol {
 		return LineCol{Line: 1, Col: off + 1}
 	}
 
-	// Находим начало текущей строки
-	var startOff uint32
-	if line == 0 {
-		startOff = 0 // первая строка начинается с позиции 0
-	} else {
-		startOff = lineIdx[line-1] + 1 // следующая строка начинается после \n предыдущей
-	}
-
-	return LineCol{Line: uint32(line + 1), Col: off - startOff + 1}
+	// hi == индекс последнего '\n' с позицией <= off; может быть -1 если off до первого \n
+    if hi < 0 {
+        return LineCol{Line: 1, Col: off + 1}
+    }
+    startOff := lineIdx[hi] + 1
+    return LineCol{Line: uint32(hi + 2), Col: off - startOff + 1}
 }
 
 func normalizePath(p string) string {

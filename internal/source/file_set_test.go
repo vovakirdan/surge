@@ -2,6 +2,7 @@ package source
 
 import (
 	"testing"
+	"os"
 )
 
 func TestFileSetVersioning(t *testing.T) {
@@ -243,5 +244,94 @@ func TestEdgeCases(t *testing.T) {
 	expected := []uint32{0}
 	if len(file3.LineIdx) != 1 || file3.LineIdx[0] != expected[0] {
 		t.Errorf("Expected LineIdx [0] for file with only newline, got %v", file3.LineIdx)
+	}
+}
+
+func TestLoad(t *testing.T) {
+	fs := NewFileSet()
+	// создадим временный файл
+	tempFile, err := os.CreateTemp("", "testdata")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+	
+	// запишем в него "a\nb\n"
+	_, err = tempFile.WriteString("a\nb\n")
+	if err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	err = tempFile.Close()
+	if err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
+
+	fs.Load(tempFile.Name())
+	file := fs.Get(0)
+	if string(file.Content) != "a\nb\n" {
+		t.Errorf("Expected file content 'a\nb\n', got %q", string(file.Content))
+	}
+	if file.LineIdx[0] != 1 {
+		t.Errorf("Expected LineIdx[0] to be 1, got %d", file.LineIdx[0])
+	}
+	if file.LineIdx[1] != 3 {
+		t.Errorf("Expected LineIdx[1] to be 3, got %d", file.LineIdx[1])
+	}
+}
+
+func TestLoadBOM(t *testing.T) {
+	fs := NewFileSet()
+	// создадим временный файл
+	tempFile, err := os.CreateTemp("", "testdata")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+	// запишем в него BOM + "a\nb\n"
+	_, err = tempFile.WriteString("\xEF\xBB\xBFa\nb\n")
+	if err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	err = tempFile.Close()
+	if err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
+
+	fs.Load(tempFile.Name())
+	file := fs.Get(0)
+	if string(file.Content) != "a\nb\n" {
+		t.Errorf("Expected file content 'a\nb\n', got %q", string(file.Content))
+	}
+	if file.Flags&FileHadBOM == 0 {
+		t.Error("Expected FileHadBOM flag to be set")
+	}
+}
+
+func TestLoadCRLF(t *testing.T) {
+	fs := NewFileSet()
+	// создадим временный файл
+	tempFile, err := os.CreateTemp("", "testdata")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	// запишем в него "a\r\nb\r\n"
+	_, err = tempFile.WriteString("a\r\nb\r\n")
+	if err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	err = tempFile.Close()
+	if err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
+
+	fs.Load(tempFile.Name())
+	file := fs.Get(0)
+	if string(file.Content) != "a\nb\n" {
+		t.Errorf("Expected file content 'a\nb\n', got %q", string(file.Content))
+	}
+	if file.Flags&FileNormalizedCRLF == 0 {
+		t.Error("Expected FileNormalizedCRLF flag to be set")
 	}
 }

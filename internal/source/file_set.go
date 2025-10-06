@@ -22,18 +22,19 @@ func NewFileSet() *FileSet {
 func (fs *FileSet) Add(path string, content []byte, flags FileFlags) FileID {
 	hash := sha256.Sum256(content)
 	lineIdx := buildLineIndex(content)
+	normalizedPath := normalizePath(path)
 
 	id := FileID(len(fs.files))
 	fs.files = append(fs.files, File{
 		ID:      id,
-		Path:    normalizePath(path),
+		Path:    normalizedPath,
 		Content: content,
 		LineIdx: lineIdx,
 		Hash:    hash,
 		Flags:   flags,
 	})
 	// Всегда обновляем индекс на последнюю версию файла
-	fs.index[path] = id
+	fs.index[normalizedPath] = id
 	return id
 }
 
@@ -63,12 +64,13 @@ func (fs *FileSet) AddVirtual(name string, content []byte) FileID {
 }
 
 func (fs *FileSet) Get(id FileID) *File {
+    // TODO: optional bounds check in debug builds
 	return &fs.files[id]
 }
 
 // Возвращает последнюю версию файла по пути, если он существует
 func (fs *FileSet) GetLatest(path string) (FileID, bool) {
-	id, ok := fs.index[path]
+	id, ok := fs.index[normalizePath(path)]
 	return id, ok
 }
 
