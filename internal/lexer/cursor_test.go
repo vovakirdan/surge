@@ -6,7 +6,7 @@ import (
 )
 
 // helper function to create a file
-func createFile(t *testing.T, content string) *source.File {
+func createFile(content string) *source.File {
 	fs := source.NewFileSet()
 	id := fs.AddVirtual("test.sg", []byte(content))
 	return fs.Get(id)
@@ -14,7 +14,7 @@ func createFile(t *testing.T, content string) *source.File {
 
 // TestSequentialReading проверяет последовательное чтение: "a\nb" → a, \n, b, EOF
 func TestSequentialReading(t *testing.T) {
-	file := createFile(t, "a\nb")
+	file := createFile("a\nb")
 	cursor := NewCursor(file)
 
 	// Читаем первый символ 'a'
@@ -68,7 +68,7 @@ func TestSequentialReading(t *testing.T) {
 
 // TestPeek2 проверяет Peek2 на середине и конце файла
 func TestPeek2(t *testing.T) {
-	file := createFile(t, "abc")
+	file := createFile("abc")
 	cursor := NewCursor(file)
 
 	// Peek2 в начале файла
@@ -108,7 +108,7 @@ func TestPeek2(t *testing.T) {
 // TestSpanFromResolve проверяет SpanFrom и Resolve с UTF-8
 func TestSpanFromResolve(t *testing.T) {
 	// Создаем файл с UTF-8 символом "α\nβ" (α=2 байта, \n=1 байт, β=2 байта)
-	file := createFile(t, "α\nβ")
+	file := createFile("α\nβ")
 	fs := source.NewFileSet()
 	fs.AddVirtual("test.sg", []byte("α\nβ"))
 
@@ -167,7 +167,7 @@ func TestSpanFromResolve(t *testing.T) {
 
 // TestEatNewline проверяет поведение Eat('\n')
 func TestEatNewline(t *testing.T) {
-	file := createFile(t, "a\nb")
+	file := createFile("a\nb")
 	cursor := NewCursor(file)
 
 	// Пытаемся съесть 'a' - должно сработать
@@ -211,7 +211,7 @@ func TestEatNewline(t *testing.T) {
 
 // TestMarkReset проверяет работу Mark и Reset
 func TestMarkReset(t *testing.T) {
-	file := createFile(t, "abc")
+	file := createFile("abc")
 	cursor := NewCursor(file)
 
 	// Ставим метку в начале
