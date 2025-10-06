@@ -1,9 +1,9 @@
 package source
 
 type Span struct {
-	File FileID
+	File  FileID
 	Start uint32 // в байтах включительно
-	End uint32 // в байтах не включительно
+	End   uint32 // в байтах не включительно
 }
 
 func (s Span) Empty() bool {
@@ -18,7 +18,11 @@ func (s Span) Cover(other Span) Span {
 	if s.File != other.File {
 		return s
 	}
-	if other.Start < s.Start { s.Start = other.Start }
-    if other.End   > s.End   { s.End   = other.End }
-    return s
+	if other.Start < s.Start {
+		s.Start = other.Start
+	}
+	if other.End > s.End {
+		s.End = other.End
+	}
+	return s
 }

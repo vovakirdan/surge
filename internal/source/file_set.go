@@ -64,7 +64,7 @@ func (fs *FileSet) AddVirtual(name string, content []byte) FileID {
 }
 
 func (fs *FileSet) Get(id FileID) *File {
-    // TODO: optional bounds check in debug builds
+	// TODO: optional bounds check in debug builds
 	return &fs.files[id]
 }
 

@@ -7,13 +7,13 @@ import (
 // Cursor представляет собой позицию в файле
 type Cursor struct {
 	File *source.File
-	Off uint32
+	Off  uint32
 }
 
 func NewCursor(f *source.File) Cursor {
 	return Cursor{
 		File: f,
-		Off: 0,
+		Off:  0,
 	}
 }
 
@@ -32,10 +32,10 @@ func (c *Cursor) Peek() byte {
 
 // Peek2 читает текущий и следующий байт, если есть, иначе возвращает 0, 0, false
 func (c *Cursor) Peek2() (b0, b1 byte, ok bool) {
-	if c.Off + 1 >= uint32(len(c.File.Content)) {
+	if c.Off+1 >= uint32(len(c.File.Content)) {
 		return 0, 0, false
 	}
-	return c.File.Content[c.Off], c.File.Content[c.Off + 1], true
+	return c.File.Content[c.Off], c.File.Content[c.Off+1], true
 }
 
 // Bump перемещает курсор на один байт вперед и возвращает прочитанный байт
@@ -59,9 +59,9 @@ func (c *Cursor) Mark() Mark {
 // SpanFrom получает Span для фрагмента, начиная с метки
 func (c *Cursor) SpanFrom(m Mark) source.Span {
 	return source.Span{
-		File: c.File.ID,
+		File:  c.File.ID,
 		Start: uint32(m),
-		End: c.Off,
+		End:   c.Off,
 	}
 }
 

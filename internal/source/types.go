@@ -1,8 +1,8 @@
 package source
 
 type (
-	FileID uint32 // просто ID источника
-	FileFlags uint8 // метаданные
+	FileID    uint32 // просто ID источника
+	FileFlags uint8  // метаданные
 )
 
 const (
@@ -12,15 +12,15 @@ const (
 )
 
 type File struct {
-	ID FileID
-	Path string
+	ID      FileID
+	Path    string
 	Content []byte
 	LineIdx []uint32
-	Hash [32]byte
-	Flags FileFlags
+	Hash    [32]byte
+	Flags   FileFlags
 }
 
 type LineCol struct {
 	Line uint32 // 1-based
-	Col uint32 // 1-based
+	Col  uint32 // 1-based
 }
