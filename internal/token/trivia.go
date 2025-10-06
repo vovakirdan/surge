@@ -13,7 +13,7 @@ type TriviaKind uint8
 
 const (
 	TriviaSpace TriviaKind = iota
-	TriviaNewLine
+	TriviaNewline
 	TriviaLineComment
 	TriviaBlockComment
 	TriviaDocLine
