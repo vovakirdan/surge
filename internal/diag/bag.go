@@ -41,6 +41,16 @@ func (b *Bag) HasErrors() bool {
 	return false
 }
 
+// HasWarnings возвращает true, если есть хотя бы одна диагностика с Severity >= Warning
+func (b *Bag) HasWarnings() bool {
+	for i := range b.items {
+		if b.items[i].Severity >= SevWarning {
+			return true
+		}
+	}
+	return false
+}
+
 // длина
 func (b *Bag) Len() int {
 	return len(b.items)

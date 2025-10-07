@@ -1,0 +1,4 @@
+// File with lexical errors
+let x = $invalid_token;
+let name = "unclosed string
+let y = 42invalid;

@@ -142,6 +142,7 @@ func RelativePath(path, base string) (string, error) {
 }
 
 // BaseName возвращает только имя файла без директорий.
+// Нормализует результат для консистентности (хотя обычно в basename нет слэшей).
 func BaseName(path string) string {
-	return filepath.Base(path)
+	return normalizePath(filepath.Base(path))
 }

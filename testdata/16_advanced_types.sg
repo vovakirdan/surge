@@ -174,7 +174,7 @@ fn box_any<T>(value: T) -> Box<T> {
 }
 
 // Pattern types (если поддерживаются)
-type EmailPattern = string matching /^[^@]+@[^@]+\.[^@]+$/;
+type EmailPattern = string matching "/^[^@]+@[^@]+\.[^@]+$/";
 
 fn validate_email(email: string) -> Option<EmailPattern> {
     return compare email {

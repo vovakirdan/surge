@@ -1,7 +1,35 @@
 package main
 
-import "fmt"
+import (
+	"os"
+
+	"github.com/spf13/cobra"
+	"golang.org/x/term"
+)
+
+var rootCmd = &cobra.Command{
+	Use:   "surge",
+	Short: "Surge language compiler and toolchain",
+	Long:  `Surge is a programming language compiler with diagnostic tools`,
+}
 
 func main() {
-	fmt.Println("Hello, World!")
+	// Добавляем команды
+	rootCmd.AddCommand(tokenizeCmd)
+	rootCmd.AddCommand(diagCmd)
+
+	// Глобальные флаги
+	rootCmd.PersistentFlags().String("color", "auto", "colorize output (auto|on|off)")
+	rootCmd.PersistentFlags().Bool("quiet", false, "suppress non-essential output")
+	rootCmd.PersistentFlags().Bool("timings", false, "show timing information")
+	rootCmd.PersistentFlags().Int("max-diagnostics", 100, "maximum number of diagnostics to show")
+
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+// isTerminal проверяет, является ли файл терминалом
+func isTerminal(f *os.File) bool {
+	return term.IsTerminal(int(f.Fd()))
 }
