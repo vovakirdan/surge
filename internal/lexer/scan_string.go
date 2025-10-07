@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"surge/internal/diag"
 	"surge/internal/token"
 )
 
@@ -27,13 +28,13 @@ func (lx *Lexer) scanString() token.Token {
 		if b == '\n' {
 			// в этой версии — ошибка: перевод строки в строковом литерале
 			sp := lx.cursor.SpanFrom(start)
-			lx.report("UnterminatedString", sp, "newline in string literal")
+			lx.errLex(diag.LexUnterminatedString, sp, "newline in string literal")
 			return token.Token{Kind: token.Invalid, Span: sp, Text: string(lx.file.Content[sp.Start:sp.End])}
 		}
 		lx.cursor.Bump()
 	}
 	// EOF без закрывающей кавычки
 	sp := lx.cursor.SpanFrom(start)
-	lx.report("UnterminatedString", sp, "unterminated string literal")
+	lx.errLex(diag.LexUnterminatedString, sp, "unterminated string literal")
 	return token.Token{Kind: token.Invalid, Span: sp, Text: string(lx.file.Content[sp.Start:sp.End])}
 }

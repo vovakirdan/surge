@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"surge/internal/diag"
 	"surge/internal/token"
 )
 
@@ -23,7 +24,7 @@ func (lx *Lexer) scanNumber() token.Token {
 		lx.cursor.Bump() // '.'
 		if !isDec(lx.cursor.Peek()) {
 			sp := lx.cursor.SpanFrom(start)
-			lx.report("BadNumber", sp, "expected digit after '.'")
+			lx.errLex(diag.LexBadNumber, sp, "expected digit after '.'")
 			return token.Token{Kind: token.Invalid, Span: sp, Text: string(lx.file.Content[sp.Start:sp.End])}
 		}
 		kind = token.FloatLit
@@ -101,7 +102,7 @@ emitWithMaybeExp:
 		}
 		if !isDec(lx.cursor.Peek()) {
 			sp := lx.cursor.SpanFrom(start)
-			lx.report("BadNumber", sp, "expected digit after exponent")
+			lx.errLex(diag.LexBadNumber, sp, "expected digit after exponent")
 			return token.Token{Kind: token.Invalid, Span: sp, Text: string(lx.file.Content[sp.Start:sp.End])}
 		}
 		for isDec(lx.cursor.Peek()) || lx.cursor.Peek() == '_' {

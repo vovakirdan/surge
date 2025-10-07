@@ -1,8 +1,11 @@
 package lexer
 
 import (
+	"fmt"
+	"surge/internal/diag"
 	"surge/internal/token"
 )
+
 // Жадность: сначала 3-символьные, затем 2-символьные,
 // затем 1-символьные. Набор из token.Kind (.., ..=, ::, ->, =>, &&, ||, ==, !=, <=, >=, <<, >>, ...).
 func (lx *Lexer) scanOperatorOrPunct() token.Token {
@@ -104,7 +107,7 @@ func (lx *Lexer) scanOperatorOrPunct() token.Token {
 	default:
 		// неизвестный символ
 		sp := lx.cursor.SpanFrom(start)
-		lx.report("UnknownChar", sp, "unknown character")
+		lx.errLex(diag.LexUnknownChar, sp, fmt.Sprintf("unknown character %q (0x%X)", ch, ch))
 		return token.Token{Kind: token.Invalid, Span: sp, Text: string(lx.file.Content[sp.Start:sp.End])}
 	}
 }

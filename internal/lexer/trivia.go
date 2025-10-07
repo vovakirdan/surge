@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"surge/internal/diag"
 	"surge/internal/token"
 )
 
@@ -103,7 +104,7 @@ func (lx *Lexer) scanCommentOrDocLineIntoHold() bool {
 		}
 		sp := lx.cursor.SpanFrom(start)
 		if !closed {
-			lx.report("UnterminatedBlockComment", sp, "unterminated block comment")
+			lx.errLex(diag.LexUnterminatedBlockComment, sp, "unterminated block comment")
 		}
 		lx.hold = append(lx.hold, token.Trivia{
 			Kind: token.TriviaBlockComment,

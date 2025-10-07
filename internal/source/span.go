@@ -1,5 +1,9 @@
 package source
 
+import (
+	"fmt"
+)
+
 type Span struct {
 	File  FileID
 	Start uint32 // в байтах включительно
@@ -12,6 +16,10 @@ func (s Span) Empty() bool {
 
 func (s Span) Len() uint32 {
 	return s.End - s.Start
+}
+
+func (s Span) String() string {
+	return fmt.Sprintf("%d:%d-%d", s.File, s.Start, s.End)
 }
 
 func (s Span) Cover(other Span) Span {

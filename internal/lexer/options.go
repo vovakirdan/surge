@@ -1,21 +1,28 @@
 package lexer
 
 import (
+	"surge/internal/diag"
 	"surge/internal/source"
 )
 
-// Reporter — тонкий интерфейс, чтобы не тянуть diag сюда.
-// Лексер **только вызывает** его с параметрами; форматирует diag внешний слой.
-type Reporter interface {
-	Report(kind string, span source.Span, msg string)
-}
-
 type Options struct {
-	Reporter Reporter // может быть nil — тогда ошибки игнорируем (но продолжаем лексить)
+	Reporter diag.Reporter
 }
 
-func (lx *Lexer) report(kind string, sp source.Span, msg string) {
+func (lx *Lexer) reportLex(code diag.Code, sev diag.Severity, sp source.Span, msg string) {
 	if lx.opts.Reporter != nil {
-		lx.opts.Reporter.Report(kind, sp, msg)
+		lx.opts.Reporter.Report(code, sev, sp, msg, nil, nil)
 	}
+}
+
+func (lx *Lexer) errLex(code diag.Code, sp source.Span, msg string) {
+	lx.reportLex(code, diag.SevError, sp, msg)
+}
+
+func (lx *Lexer) warnLex(code diag.Code, sp source.Span, msg string) {
+	lx.reportLex(code, diag.SevWarning, sp, msg)
+}
+
+func (lx *Lexer) infoLex(code diag.Code, sp source.Span, msg string) {
+	lx.reportLex(code, diag.SevInfo, sp, msg)
 }

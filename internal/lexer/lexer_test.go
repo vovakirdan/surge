@@ -3,19 +3,58 @@ package lexer_test
 import (
 	"fmt"
 	"strings"
+	"surge/internal/diag"
 	"surge/internal/lexer"
 	"surge/internal/source"
 	"surge/internal/token"
 	"testing"
 )
 
-// testReporter собирает все ошибки, полученные от лексера
+// testReporter собирает все диагностики, полученные от лексера
 type testReporter struct {
-	errors []string
+	diagnostics []diag.Diagnostic
 }
 
-func (r *testReporter) Report(kind string, span source.Span, msg string) {
-	r.errors = append(r.errors, fmt.Sprintf("%s: %s", kind, msg))
+// Report реализует интерфейс diag.Reporter
+func (r *testReporter) Report(code diag.Code, sev diag.Severity, primary source.Span, msg string, notes []diag.Note, fixes []diag.Fix) {
+	r.diagnostics = append(r.diagnostics, diag.Diagnostic{
+		Severity: sev,
+		Code:     code,
+		Message:  msg,
+		Primary:  primary,
+		Notes:    notes,
+		Fixes:    fixes,
+	})
+}
+
+// HasErrors возвращает true, если были зарегистрированы ошибки
+func (r *testReporter) HasErrors() bool {
+	for _, d := range r.diagnostics {
+		if d.Severity == diag.SevError {
+			return true
+		}
+	}
+	return false
+}
+
+// ErrorCount возвращает количество ошибок
+func (r *testReporter) ErrorCount() int {
+	count := 0
+	for _, d := range r.diagnostics {
+		if d.Severity == diag.SevError {
+			count++
+		}
+	}
+	return count
+}
+
+// ErrorMessages возвращает список сообщений об ошибках (для обратной совместимости с тестами)
+func (r *testReporter) ErrorMessages() []string {
+	messages := make([]string, 0, len(r.diagnostics))
+	for _, d := range r.diagnostics {
+		messages = append(messages, fmt.Sprintf("[%s] %s: %s", d.Code.ID(), d.Severity, d.Message))
+	}
+	return messages
 }
 
 // makeTestLexer создаёт лексер для тестовой строки
@@ -24,7 +63,7 @@ func makeTestLexer(input string) (*lexer.Lexer, *testReporter) {
 	fileID := fs.AddVirtual("test.sg", []byte(input))
 	file := fs.Get(fileID)
 
-	reporter := &testReporter{errors: make([]string, 0)}
+	reporter := &testReporter{diagnostics: make([]diag.Diagnostic, 0)}
 	opts := lexer.Options{Reporter: reporter}
 	lx := lexer.New(file, opts)
 
@@ -57,7 +96,7 @@ func expectTokens(t *testing.T, input string, expected []token.Kind) {
 
 	if len(tokens) != len(expected) {
 		t.Fatalf("Expected %d tokens, got %d\nInput: %q\nTokens: %v\nErrors: %v",
-			len(expected), len(tokens), input, tokensToString(tokens), reporter.errors)
+			len(expected), len(tokens), input, tokensToString(tokens), reporter.ErrorMessages())
 	}
 
 	for i, tok := range tokens {
@@ -375,7 +414,7 @@ func TestNumbers_InvalidExponent(t *testing.T) {
 			tok := lx.Next()
 
 			// должны получить Invalid или ошибку
-			if tok.Kind != token.Invalid && len(reporter.errors) == 0 {
+			if tok.Kind != token.Invalid && !reporter.HasErrors() {
 				t.Errorf("Expected Invalid token or error for %q, got %v", input, tok.Kind)
 			}
 		})
@@ -460,7 +499,7 @@ func TestString_Unterminated(t *testing.T) {
 			if tok.Kind != token.Invalid {
 				t.Errorf("Expected Invalid for unterminated string, got %v", tok.Kind)
 			}
-			if len(reporter.errors) == 0 {
+			if !reporter.HasErrors() {
 				t.Error("Expected error report for unterminated string")
 			}
 		})
@@ -475,7 +514,7 @@ func TestString_NewlineInString(t *testing.T) {
 	if tok.Kind != token.Invalid {
 		t.Errorf("Expected Invalid for newline in string, got %v", tok.Kind)
 	}
-	if len(reporter.errors) == 0 {
+	if !reporter.HasErrors() {
 		t.Error("Expected error report for newline in string")
 	}
 }
@@ -680,7 +719,7 @@ func TestTrivia_UnterminatedBlockComment(t *testing.T) {
 		t.Errorf("Expected EOF after unterminated block comment consuming all input, got %v", tok.Kind)
 	}
 	// должен быть репорт об ошибке
-	if len(reporter.errors) == 0 {
+	if !reporter.HasErrors() {
 		t.Error("Expected error report for unterminated block comment")
 	}
 
@@ -693,8 +732,8 @@ func TestTrivia_UnterminatedBlockComment(t *testing.T) {
 	if len(tok2.Leading) == 0 {
 		t.Error("Expected at least one leading trivia (the block comment)")
 	}
-	if len(reporter2.errors) != 0 {
-		t.Errorf("Expected no errors for properly terminated block comment, got %v", reporter2.errors)
+	if reporter2.HasErrors() {
+		t.Errorf("Expected no errors for properly terminated block comment, got %v", reporter2.ErrorMessages())
 	}
 }
 
@@ -865,7 +904,7 @@ func TestLexer_UnknownCharacter(t *testing.T) {
 			if tok.Kind != token.Invalid {
 				t.Errorf("Expected Invalid for unknown char %q, got %v", input, tok.Kind)
 			}
-			if len(reporter.errors) == 0 {
+			if !reporter.HasErrors() {
 				t.Error("Expected error report for unknown character")
 			}
 		})
