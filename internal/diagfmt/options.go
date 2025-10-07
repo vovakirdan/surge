@@ -17,7 +17,9 @@ type PrettyOpts struct {
 }
 
 type JSONOpts struct {
-	// todo
+    IncludePositions bool // добавить line/col
+    PathMode PathMode
+    Max int // обрезка вывода, не Bag
 }
 
 type SarifRunMeta struct {

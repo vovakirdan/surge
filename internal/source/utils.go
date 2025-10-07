@@ -107,3 +107,41 @@ func normalizePath(p string) string {
 	// единый вид в кроссплатформенных дифах
 	return filepath.ToSlash(filepath.Clean(p))
 }
+
+// AbsolutePath возвращает абсолютный путь к файлу.
+// Если путь уже абсолютный, возвращает его нормализованным.
+func AbsolutePath(path string) (string, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return path, err
+	}
+	return normalizePath(absPath), nil
+}
+
+// RelativePath возвращает путь относительно базовой директории.
+// Если не удаётся вычислить относительный путь, возвращает абсолютный.
+func RelativePath(path, base string) (string, error) {
+	// Сначала делаем оба пути абсолютными
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return path, err
+	}
+
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return normalizePath(absPath), nil
+	}
+
+	// Вычисляем относительный путь
+	relPath, err := filepath.Rel(absBase, absPath)
+	if err != nil {
+		return normalizePath(absPath), nil
+	}
+
+	return normalizePath(relPath), nil
+}
+
+// BaseName возвращает только имя файла без директорий.
+func BaseName(path string) string {
+	return filepath.Base(path)
+}
