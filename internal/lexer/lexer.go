@@ -40,7 +40,7 @@ func (lx *Lexer) Next() token.Token {
 	if lx.cursor.EOF() {
 		return token.Token{
 			Kind: token.EOF,
-			Span: lx.emptySpan(),
+			Span: lx.EmptySpan(),
 			Text: "",
 		}
 	}
@@ -90,6 +90,6 @@ func (lx *Lexer) Peek() token.Token {
 	return t
 }
 
-func (lx *Lexer) emptySpan() source.Span {
+func (lx *Lexer) EmptySpan() source.Span {
 	return source.Span{File: lx.file.ID, Start: lx.cursor.Off, End: lx.cursor.Off}
 }

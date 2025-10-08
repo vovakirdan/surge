@@ -27,6 +27,14 @@ const (
 	SynUnclosedSquareBracket Code = 2009
 	SynUnclosedAngleBracket  Code = 2010
 	SynUnclosedCurlyBracket  Code = 2011
+	SynExpectSemicolon Code = 2012
+
+	// import errors & warnings
+	SynUnexpectedTopLevel Code = 2101
+	SynExpectIdentifier Code = 2102
+	SynExpectModuleSeg Code = 2103
+	SynExpectItemAfterDbl Code = 2104
+	SynExpectIdentAfterAs Code = 2105
 )
 
 var (
@@ -47,6 +55,12 @@ var (
 		SynUnclosedSquareBracket:    "Unclosed square bracket",
 		SynUnclosedAngleBracket:     "Unclosed angle bracket",
 		SynUnclosedCurlyBracket:     "Unclosed curly bracket",
+		SynUnexpectedTopLevel:       "Unexpected top level",
+		SynExpectSemicolon:          "Expect semicolon",
+		SynExpectIdentifier:         "Expect identifier",
+		SynExpectModuleSeg:          "Expect module segment",
+		SynExpectItemAfterDbl:       "Expect item after double colon",
+		SynExpectIdentAfterAs:       "Expect identifier after as",
 	}
 )
 
