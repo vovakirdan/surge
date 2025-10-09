@@ -101,7 +101,16 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					continue
 				}
 				// Иначе должна быть закрывающая скобка
+				if !p.at(token.RBrace) {
+					p.err(diag.SynUnexpectedToken, "expected ',' or '}' in import group, got '"+p.lx.Peek().Text+"'")
+					break
+				}
 				break
+			}
+
+			// Проверяем на пустую группу
+			if len(pairs) == 0 {
+				p.warn(diag.SynEmptyImportGroup, "empty import group")
 			}
 
 			_, ok := p.expect(token.RBrace, diag.SynUnclosedBrace, "expected '}' to close import group")
@@ -140,8 +149,10 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 	default:
 		// Неожиданный токен после пути модуля
-		p.err(diag.SynUnexpectedToken, "expected '::' or 'as' or ';' after module path, got '"+p.lx.Peek().Text+"'")
-		return ast.NoItemID, false
+		peek := p.lx.Peek()
+		if peek.Kind != token.EOF {
+			p.err(diag.SynUnexpectedToken, "expected '::' or 'as' or ';' after module path, got '"+peek.Text+"'")
+		}
 	}
 
 	// Ожидаем точку с запятой в конце

@@ -376,8 +376,14 @@ func TestParseImport_Errors(t *testing.T) {
 			wantErrorCode: diag.SynExpectModuleSeg,
 			description:   "expected SynExpectModuleSeg when slash is not followed by identifier",
 		},
+		{
+			name:          "double slash",
+			input:         "import foo//bar;",
+			wantErrorCode: diag.SynExpectSemicolon,
+			description:   "expected SynExpectSemicolon when // starts comment",
+		},
 		// Примечание: double slash "//" воспринимается лексером как начало комментария,
-		// поэтому ожидается другая ошибка
+		// поэтому ожидается SynExpectSemicolon
 		{
 			name:          "missing identifier after ::",
 			input:         "import foo::;",
@@ -405,8 +411,8 @@ func TestParseImport_Errors(t *testing.T) {
 		{
 			name:          "missing semicolon",
 			input:         "import foo",
-			wantErrorCode: diag.SynUnexpectedToken,
-			description:   "expected SynUnexpectedToken when EOF reached before semicolon",
+			wantErrorCode: diag.SynExpectSemicolon,
+			description:   "expected SynExpectSemicolon when EOF reached before semicolon",
 		},
 		{
 			name:          "unclosed group brace",
@@ -414,8 +420,18 @@ func TestParseImport_Errors(t *testing.T) {
 			wantErrorCode: diag.SynUnclosedBrace,
 			description:   "expected SynUnclosedBrace when } is missing",
 		},
-		// Примечание: пустая группа "import foo::{};" технически корректна синтаксически
-		// (хотя семантически бесполезна). Парсер её успешно обрабатывает.
+		{
+			name:          "unexpected token after module path",
+			input:         "import foo::{Bar, Baz;",
+			wantErrorCode: diag.SynUnclosedBrace,
+			description:   "expected SynUnclosedBrace when semicolon token after module path",
+		},
+		{
+			name:          "unexpected token inside group path",
+			input:         "import foo::{Bar, Baz +}",
+			wantErrorCode: diag.SynUnexpectedToken,
+			description:   "expected SynUnexpectedToken when unexpected token inside group path",
+		},
 	}
 
 	for _, tt := range tests {
@@ -537,5 +553,53 @@ import qux as Q;`
 		if item.Kind != ast.ItemImport {
 			t.Errorf("item[%d]: expected import, got %v", i, item.Kind)
 		}
+	}
+}
+
+// TestParseImport_Warnings тестирует случаи, которые должны выдавать предупреждения
+func TestParseImport_Warnings(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		wantWarningCode diag.Code
+		description    string
+	}{
+		{
+			name:           "empty group",
+			input:          "import foo::{};",
+			wantWarningCode: diag.SynEmptyImportGroup,
+			description:    "expected SynEmptyImportGroup warning for empty import group",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, bag, _ := parseImportString(t, tt.input)
+
+			// Не должно быть ошибок
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %v", bag.Items())
+			}
+
+			// Проверяем, что есть ожидаемое предупреждение
+			found := false
+			for _, d := range bag.Items() {
+				if d.Code == tt.wantWarningCode {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				var codes []string
+				for _, d := range bag.Items() {
+					codes = append(codes, d.Code.String())
+				}
+				t.Errorf("%s: expected warning code %s, got diagnostics: %s",
+					tt.description,
+					tt.wantWarningCode.String(),
+					strings.Join(codes, ", "))
+			}
+		})
 	}
 }

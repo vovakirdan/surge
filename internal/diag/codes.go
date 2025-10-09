@@ -38,6 +38,7 @@ const (
 	SynExpectModuleSeg Code = 2103
 	SynExpectItemAfterDbl Code = 2104
 	SynExpectIdentAfterAs Code = 2105
+	SynEmptyImportGroup   Code = 2106
 )
 
 var (
@@ -67,6 +68,7 @@ var (
 		SynExpectModuleSeg:          "Expect module segment",
 		SynExpectItemAfterDbl:       "Expect item after double colon",
 		SynExpectIdentAfterAs:       "Expect identifier after as",
+		SynEmptyImportGroup:         "Empty import group",
 	}
 )
 
