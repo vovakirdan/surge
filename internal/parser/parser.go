@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"slices"
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/lexer"
@@ -68,13 +69,25 @@ func (p *Parser) at(k token.Kind) bool {
 	return p.lx.Peek().Kind == k
 }
 
+func (p *Parser) at_or(kinds ... token.Kind) bool {
+	return slices.Contains(kinds, p.lx.Peek().Kind)
+}
+
+func (p *Parser) at_and(kinds ... token.Kind) bool {
+	for _, k := range kinds {
+		if !p.at(k) {
+			return false
+		}
+	}
+	return true
+}
+
 func (p *Parser) IsError() bool {
 	return p.opts.CurrentErrors != 0
 }
 
 // parseItems — основной цикл верхнего уровня: пока не EOF — parseItem.
 func (p *Parser) parseItems() {
-	// TODO: while !At(EOF): parseItem(); на ошибке — p.resyncTop()
 	startSpan := p.lx.Peek().Span
 	for !p.at(token.EOF) {
 		itemID, ok := p.parseItem()
@@ -90,7 +103,7 @@ func (p *Parser) parseItems() {
 // parseItem выбирает по первому токену нужный распознаватель top-level конструкции.
 // На этом шаге мы поддерживаем только `import`.
 func (p *Parser) parseItem() (ast.ItemID, bool) {
-	// TODO: switch по ключевым словам: если import → parseImportItem().
+	// switch по ключевым словам: если import → parseImportItem().
 	// Иначе — диагностика SynUnexpectedTopLevel и false.
 	switch p.lx.Peek().Kind {
 	case token.KwImport:

@@ -1,9 +1,5 @@
 package ast
 
-import (
-
-)
-
 type ImportItem struct {
 	Module []string // todo []stingID
 	Alias string
