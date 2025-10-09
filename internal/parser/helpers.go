@@ -35,6 +35,11 @@ func (p *Parser) warn(code diag.Code, msg string) bool {
 	return p.report(code, diag.SevWarning, p.lx.Peek().Span, msg)
 }
 
+// репортует info и передает текущий спан
+func (p *Parser) info(code diag.Code, msg string) bool {
+	return p.report(code, diag.SevInfo, p.lx.Peek().Span, msg)
+}
+
 func (p *Parser) report(code diag.Code, sev diag.Severity, sp source.Span, msg string) bool {
 	if p.opts.Reporter != nil {
 		if sev == diag.SevError {

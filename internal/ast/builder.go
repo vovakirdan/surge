@@ -38,8 +38,8 @@ func (b *Builder) NewFile(sp source.Span) FileID {
 	return b.Files.New(sp)
 }
 
-func (b *Builder) NewItem(kind ItemKind, sp source.Span, name string) ItemID {
-	return b.Items.New(kind, sp, name)
+func (b *Builder) NewItem(kind ItemKind, sp source.Span, payloadID PayloadID) ItemID {
+	return b.Items.New(kind, sp, payloadID)
 }
 
 func (b *Builder) NewStmt(kind StmtKind, sp source.Span) StmtID {
@@ -48,4 +48,8 @@ func (b *Builder) NewStmt(kind StmtKind, sp source.Span) StmtID {
 
 func (b *Builder) PushItem(file FileID, item ItemID) {
 	b.Files.Get(file).Items = append(b.Files.Get(file).Items, item)
+}
+
+func (b *Builder) NewImport(span source.Span, module []string, alias string, one *ImportOne, group []ImportPair) ItemID {
+	return b.Items.NewImport(span, module, alias, one, group)
 }

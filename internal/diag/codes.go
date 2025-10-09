@@ -10,12 +10,14 @@ const (
 	// Неизвестная ошибка - на первое время
 	UnknownCode Code = 0
 	// Лексические
+	LexInfo Code = 1000
 	LexUnknownChar              Code = 1001
 	LexUnterminatedString       Code = 1002
 	LexUnterminatedBlockComment Code = 1003
 	LexBadNumber                Code = 1004
 
 	// Парсерные (зарезервируем)
+	SynInfo Code = 2000
 	SynUnexpectedToken       Code = 2001
 	SynUnclosedDelimiter     Code = 2002
 	SynUnclosedBlockComment  Code = 2003
@@ -30,6 +32,7 @@ const (
 	SynExpectSemicolon Code = 2012
 
 	// import errors & warnings
+	SynInfoImportGroup Code = 2100
 	SynUnexpectedTopLevel Code = 2101
 	SynExpectIdentifier Code = 2102
 	SynExpectModuleSeg Code = 2103
@@ -40,10 +43,12 @@ const (
 var (
 	codeDescription = map[Code]string{
 		UnknownCode:                 "Unknown error",
+		LexInfo:                     "Lexical information",
 		LexUnknownChar:              "Unknown character",
 		LexUnterminatedString:       "Unterminated string",
 		LexUnterminatedBlockComment: "Unterminated block comment",
 		LexBadNumber:                "Bad number",
+		SynInfo:                     "Syntax information",
 		SynUnexpectedToken:          "Unexpected token",
 		SynUnclosedDelimiter:        "Unclosed delimiter",
 		SynUnclosedBlockComment:     "Unclosed block comment",
@@ -55,6 +60,7 @@ var (
 		SynUnclosedSquareBracket:    "Unclosed square bracket",
 		SynUnclosedAngleBracket:     "Unclosed angle bracket",
 		SynUnclosedCurlyBracket:     "Unclosed curly bracket",
+		SynInfoImportGroup:          "Import group information",
 		SynUnexpectedTopLevel:       "Unexpected top level",
 		SynExpectSemicolon:          "Expect semicolon",
 		SynExpectIdentifier:         "Expect identifier",
