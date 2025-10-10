@@ -4,6 +4,8 @@ import (
 	"surge/internal/diag"
 	"surge/internal/lexer"
 	"surge/internal/source"
+	"surge/internal/parser"
+	"surge/internal/ast"
 )
 
 type DiagnoseResult struct {
@@ -42,8 +44,7 @@ func Diagnose(path string, stage DiagnoseStage, maxDiagnostics int) (*DiagnoseRe
 	case DiagnoseStageSyntax:
 		err = diagnoseTokenize(file, bag)
 		if err == nil {
-			// TODO: добавить диагностику парсера когда он будет готов
-			// err = diagnoseParse(file, bag)
+			err = diagnoseParse(fs, file, bag)
 		}
 	case DiagnoseStageSema:
 		fallthrough // пока что обрабатываем как syntax
@@ -51,7 +52,7 @@ func Diagnose(path string, stage DiagnoseStage, maxDiagnostics int) (*DiagnoseRe
 		err = diagnoseTokenize(file, bag)
 		if err == nil {
 			// TODO: добавить диагностику парсера и семантики
-			// err = diagnoseParse(file, bag)
+			err = diagnoseParse(fs, file, bag)
 			// if err == nil {
 			//     err = diagnoseSema(file, bag)
 			// }
@@ -84,6 +85,25 @@ func diagnoseTokenize(file *source.File, bag *diag.Bag) error {
 			break
 		}
 	}
+
+	return nil
+}
+
+func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) error {
+	lx := lexer.New(file, lexer.Options{})
+	arenas := ast.NewBuilder(ast.Hints{})
+
+	maxErrors := uint(bag.Cap())
+	if maxErrors == 0 {
+		maxErrors = 0 // без лимита для парсера
+	}
+
+	opts := parser.Options{
+		Reporter: &diag.BagReporter{Bag: bag},
+		MaxErrors: maxErrors,
+	}
+
+	parser.ParseFile(fs, lx, arenas, opts)
 
 	return nil
 }

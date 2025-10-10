@@ -31,11 +31,12 @@ type Result struct {
 
 // Parser — состояние парсера на один файл
 type Parser struct {
-	lx     *lexer.Lexer    // поток токенов (Peek/Next/Expect)
-	arenas *ast.Builder    // построитель аренных узлов
-	file   ast.FileID      // текущий FileID (в AST)
-	fs     *source.FileSet // нужен только для спанов/путей при надобности
-	opts   Options
+	lx       *lexer.Lexer    // поток токенов (Peek/Next/Expect)
+	arenas   *ast.Builder    // построитель аренных узлов
+	file     ast.FileID      // текущий FileID (в AST)
+	fs       *source.FileSet // нужен только для спанов/путей при надобности
+	opts     Options
+	lastSpan source.Span     // span последнего съеденного токена для лучшей диагностики
 }
 
 // ParseFile — входная точка для разбора одного файла.
@@ -47,11 +48,12 @@ func ParseFile(
 	opts Options,
 ) Result {
 	p := Parser{
-		lx:     lx,
-		arenas: arenas,
-		file:   arenas.Files.New(lx.EmptySpan()), // todo: проверить; по идее в lexer уже есть source.File
-		fs:     fs,
-		opts:   opts,
+		lx:       lx,
+		arenas:   arenas,
+		file:     arenas.Files.New(lx.EmptySpan()), // todo: проверить; по идее в lexer уже есть source.File
+		fs:       fs,
+		opts:     opts,
+		lastSpan: lx.EmptySpan(), // инициализируем с пустым span
 	}
 
 	p.parseItems()
@@ -120,11 +122,11 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 func (p *Parser) resyncTop() {
 	// Читать токены до ; | EOF | токен из набора стартеров (import, fn, let, type,...)
 	for !(p.at(token.EOF) || isTopLevelStarter(p.lx.Peek().Kind) || p.at(token.Semicolon)) {
-		p.lx.Next()
+		p.advance()
 	}
 	// После выхода: если не EOF, съедаем токен-синхронизатор, чтобы не застрять
 	if !p.at(token.EOF) {
-		p.lx.Next()
+		p.advance()
 	}
 }
 

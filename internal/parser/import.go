@@ -3,6 +3,7 @@ package parser
 import (
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/source"
 	"surge/internal/token"
 )
 
@@ -18,12 +19,16 @@ import (
 //	import module::{Ident, Ident} ;               	// элементы с подпапками
 //	import module::{Ident as Ident, Ident as Ident} ; // элементы с алиасами с подпапками
 func (p *Parser) parseImportItem() (ast.ItemID, bool) {
-	importTok := p.lx.Next() // съедаем KwImport; если мы здесь, то это точно KwImport
+	importTok := p.advance() // съедаем KwImport; если мы здесь, то это точно KwImport
 
 	// Парсим путь модуля (module/subpath/...)
-	moduleSegs, ok := p.parseImportModule()
+	moduleSegs, moduleEndSpan, ok := p.parseImportModule()
 	if !ok {
 		return ast.NoItemID, false
+	}
+	// Обновляем lastSpan на основе последнего сегмента модуля
+	if moduleEndSpan.End > 0 {
+		p.lastSpan = moduleEndSpan
 	}
 
 	// Переменные для различных форм импорта, объявленные вне switch
@@ -36,7 +41,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 	// Смотрим, что идёт после пути модуля
 	switch p.lx.Peek().Kind {
 	case token.ColonColon:
-		p.lx.Next() // съедаем '::'
+		p.advance() // съедаем '::'
 
 		// После '::' может быть либо идентификатор, либо группа {Ident, ...}
 		if p.at(token.Ident) {
@@ -49,7 +54,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			// Проверяем, есть ли алиас
 			alias := ""
 			if p.at(token.KwAs) {
-				p.lx.Next() // съедаем 'as'
+				p.advance() // съедаем 'as'
 
 				// Проверяем, что после 'as' идёт идентификатор
 				if !p.at(token.Ident) {
@@ -67,7 +72,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 		} else if p.at(token.LBrace) {
 			// import module::{Ident [as Alias], ...};
-			p.lx.Next() // съедаем '{'
+			p.advance() // съедаем '{'
 			pairs = make([]ast.ImportPair, 0, 2)
 
 			for !p.at(token.RBrace) && !p.at(token.EOF) {
@@ -79,7 +84,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 				alias := ""
 				if p.at(token.KwAs) {
-					p.lx.Next() // съедаем 'as'
+					p.advance() // съедаем 'as'
 
 					// Проверяем, что после 'as' идёт идентификатор
 					if !p.at(token.Ident) {
@@ -97,7 +102,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 				// Если есть запятая, съедаем и продолжаем
 				if p.at(token.Comma) {
-					p.lx.Next()
+					p.advance()
 					continue
 				}
 				// Иначе должна быть закрывающая скобка
@@ -129,7 +134,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 	case token.KwAs:
 		// import module as Alias;
-		p.lx.Next() // съедаем 'as'
+		p.advance() // съедаем 'as'
 
 		// Проверяем, что после 'as' идёт идентификатор
 		if !p.at(token.Ident) {
@@ -168,45 +173,41 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 }
 
 // parseImportModule — собирает последовательность идентификаторов через '/'.
-// Возвращает список сегментов и успех.
-func (p *Parser) parseImportModule() ([]string, bool) {
+// Возвращает список сегментов, span последнего сегмента и успех.
+func (p *Parser) parseImportModule() ([]string, source.Span, bool) {
 	// Ожидаем как минимум один идентификатор (первый сегмент модуля)
 	if !p.at(token.Ident) {
 		p.err(diag.SynExpectModuleSeg, "expected module segment, got '"+p.lx.Peek().Text+"'")
-		return nil, false
+		return nil, source.Span{}, false
 	}
 
-	firstSeg, ok := p.parseIdent()
-	if !ok {
-		return nil, false
-	}
-	segments := []string{firstSeg}
+	firstTok := p.advance()
+	segments := []string{firstTok.Text}
+	lastSpan := firstTok.Span
 
 	// Затем цикл: ('/' Ident)*
 	for p.at(token.Slash) {
-		p.lx.Next() // съедаем '/'
+		p.advance() // съедаем '/'
 
 		// После '/' обязан быть идентификатор
 		if !p.at(token.Ident) {
 			p.err(diag.SynExpectModuleSeg, "expected module segment after '/'")
-			return nil, false
+			return nil, lastSpan, false
 		}
 
-		seg, ok := p.parseIdent()
-		if !ok {
-			return nil, false
-		}
-		segments = append(segments, seg)
+		segTok := p.advance()
+		segments = append(segments, segTok.Text)
+		lastSpan = segTok.Span
 	}
 
-	return segments, true
+	return segments, lastSpan, true
 }
 
 // parseIdent — утилита: ожидает Ident и возвращает его текст.
 // На ошибке — репорт SynExpectIdentifier.
 func (p *Parser) parseIdent() (string, bool) {
 	if p.at(token.Ident) {
-		tok := p.lx.Next()
+		tok := p.advance()
 		return tok.Text, true
 	}
 	p.err(diag.SynExpectIdentifier, "expected identifier, got \""+p.lx.Peek().Text+"\"")
