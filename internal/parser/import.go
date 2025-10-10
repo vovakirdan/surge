@@ -35,11 +35,13 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 	// Переменные для различных форм импорта, объявленные вне switch
 	var (
-		moduleAlias   string
-		one           *ast.ImportOne
+		moduleAlias   source.StringID
+		one           ast.ImportOne
+		hasOne        bool
 		pairs         []ast.ImportPair
 		needSemicolon = true // флаг для определения нужности `;` в конце
 	)
+	moduleAlias = source.NoStringID
 
 	// Смотрим, что идёт после пути модуля
 	switch p.lx.Peek().Kind {
@@ -74,7 +76,13 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 				}
 			}
 
-			one = &ast.ImportOne{Name: name, Alias: alias}
+			nameID := p.arenas.StringsInterner.Intern(name)
+			aliasID := source.NoStringID
+			if alias != "" {
+				aliasID = p.arenas.StringsInterner.Intern(alias)
+			}
+			one = ast.ImportOne{Name: nameID, Alias: aliasID}
+			hasOne = true
 
 		} else if p.at(token.LBrace) {
 			// import module::{Ident [as Alias], ...};
@@ -111,7 +119,13 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					}
 				}
 
-				pairs = append(pairs, ast.ImportPair{Name: name, Alias: alias})
+				nameID := p.arenas.StringsInterner.Intern(name)
+				aliasID := source.NoStringID
+				if alias != "" {
+					aliasID = p.arenas.StringsInterner.Intern(alias)
+				}
+
+				pairs = append(pairs, ast.ImportPair{Name: nameID, Alias: aliasID})
 
 				// Если есть запятая, съедаем и продолжаем
 				if p.at(token.Comma) {
@@ -175,7 +189,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			p.resyncStatement()
 			return ast.NoItemID, false
 		}
-		moduleAlias = alias
+		moduleAlias = p.arenas.StringsInterner.Intern(alias)
 
 	case token.Semicolon:
 		// import module;
@@ -207,13 +221,13 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 	// Финальный span от начала import до точки с запятой
 	span := importTok.Span.Cover(semi.Span)
-	id := p.arenas.NewImport(span, moduleSegs, moduleAlias, one, pairs)
+	id := p.arenas.NewImport(span, moduleSegs, moduleAlias, one, hasOne, pairs)
 	return id, true
 }
 
 // parseImportModule — собирает последовательность идентификаторов через '/'.
 // Возвращает список сегментов, span последнего сегмента и успех.
-func (p *Parser) parseImportModule() ([]string, source.Span, bool) {
+func (p *Parser) parseImportModule() ([]source.StringID, source.Span, bool) {
 	// Ожидаем как минимум один идентификатор (первый сегмент модуля)
 	if !p.at(token.Ident) {
 		p.err(diag.SynExpectModuleSeg, "expected module segment, got '"+p.lx.Peek().Text+"'")
@@ -221,7 +235,7 @@ func (p *Parser) parseImportModule() ([]string, source.Span, bool) {
 	}
 
 	firstTok := p.advance()
-	segments := []string{firstTok.Text}
+	segments := []source.StringID{p.arenas.StringsInterner.Intern(firstTok.Text)}
 	lastSpan := firstTok.Span
 
 	// Затем цикл: ('/' Ident)*
@@ -237,7 +251,7 @@ func (p *Parser) parseImportModule() ([]string, source.Span, bool) {
 		}
 
 		segTok := p.advance()
-		segments = append(segments, segTok.Text)
+		segments = append(segments, p.arenas.StringsInterner.Intern(segTok.Text))
 		lastSpan = segTok.Span
 	}
 

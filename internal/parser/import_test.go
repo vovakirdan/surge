@@ -32,7 +32,7 @@ func makeTestParser(input string) (*Parser, *source.FileSet, *ast.Builder, *diag
 	lxOpts := lexer.Options{Reporter: reporter}
 	lx := lexer.New(file, lxOpts)
 
-	arenas := ast.NewBuilder(ast.Hints{})
+	arenas := ast.NewBuilder(ast.Hints{}, nil)
 
 	opts := Options{
 		MaxErrors: 100,
@@ -73,6 +73,31 @@ func parseImportString(t *testing.T, input string) (*ast.ImportItem, *diag.Bag, 
 	return importItem, bag, arenas
 }
 
+func idsToStrings(t *testing.T, interner *source.Interner, ids []source.StringID) []string {
+	t.Helper()
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		str, ok := interner.Lookup(id)
+		if !ok {
+			t.Fatalf("invalid string id %d", id)
+		}
+		out[i] = str
+	}
+	return out
+}
+
+func idToString(t *testing.T, interner *source.Interner, id source.StringID) (string, bool) {
+	t.Helper()
+	if id == source.NoStringID {
+		return "", false
+	}
+	str, ok := interner.Lookup(id)
+	if !ok {
+		return "", false
+	}
+	return str, true
+}
+
 // TestParseImport_SimpleModule тестирует простейший импорт модуля
 func TestParseImport_SimpleModule(t *testing.T) {
 	tests := []struct {
@@ -99,7 +124,7 @@ func TestParseImport_SimpleModule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			imp, bag, _ := parseImportString(t, tt.input)
+			imp, bag, arenas := parseImportString(t, tt.input)
 
 			if bag.HasErrors() {
 				t.Fatalf("unexpected errors: %v", bag.Items())
@@ -109,24 +134,25 @@ func TestParseImport_SimpleModule(t *testing.T) {
 				t.Fatal("import item is nil")
 			}
 
-			if len(imp.Module) != len(tt.wantSegs) {
-				t.Errorf("module segments count: got %d, want %d", len(imp.Module), len(tt.wantSegs))
+			actualSegs := idsToStrings(t, arenas.StringsInterner, imp.Module)
+			if len(actualSegs) != len(tt.wantSegs) {
+				t.Errorf("module segments count: got %d, want %d", len(actualSegs), len(tt.wantSegs))
 			}
 
 			for i, seg := range tt.wantSegs {
-				if i >= len(imp.Module) {
+				if i >= len(actualSegs) {
 					break
 				}
-				if imp.Module[i] != seg {
-					t.Errorf("segment[%d]: got %q, want %q", i, imp.Module[i], seg)
+				if actualSegs[i] != seg {
+					t.Errorf("segment[%d]: got %q, want %q", i, actualSegs[i], seg)
 				}
 			}
 
 			// Проверяем, что нет дополнительных элементов
-			if imp.Alias != "" {
-				t.Errorf("expected no alias, got %q", imp.Alias)
+			if alias, ok := idToString(t, arenas.StringsInterner, imp.ModuleAlias); ok && alias != "" {
+				t.Errorf("expected no alias, got %q", alias)
 			}
-			if imp.One != nil {
+			if imp.HasOne {
 				t.Errorf("expected no One, got %+v", imp.One)
 			}
 			if len(imp.Group) != 0 {
@@ -160,7 +186,7 @@ func TestParseImport_ModuleWithAlias(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			imp, bag, _ := parseImportString(t, tt.input)
+			imp, bag, arenas := parseImportString(t, tt.input)
 
 			if bag.HasErrors() {
 				t.Fatalf("unexpected errors: %v", bag.Items())
@@ -170,16 +196,18 @@ func TestParseImport_ModuleWithAlias(t *testing.T) {
 				t.Fatal("import item is nil")
 			}
 
-			if len(imp.Module) != len(tt.wantSegs) {
-				t.Errorf("module segments: got %v, want %v", imp.Module, tt.wantSegs)
+			actualSegs := idsToStrings(t, arenas.StringsInterner, imp.Module)
+			if len(actualSegs) != len(tt.wantSegs) {
+				t.Errorf("module segments: got %v, want %v", actualSegs, tt.wantSegs)
 			}
 
-			if imp.Alias != tt.wantAlias {
-				t.Errorf("alias: got %q, want %q", imp.Alias, tt.wantAlias)
+			alias, ok := idToString(t, arenas.StringsInterner, imp.ModuleAlias)
+			if !ok || alias != tt.wantAlias {
+				t.Errorf("alias: got %q, want %q", alias, tt.wantAlias)
 			}
 
 			// Проверяем, что нет One и Group
-			if imp.One != nil {
+			if imp.HasOne {
 				t.Errorf("expected no One, got %+v", imp.One)
 			}
 			if len(imp.Group) != 0 {
@@ -230,7 +258,7 @@ func TestParseImport_SingleItem(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			imp, bag, _ := parseImportString(t, tt.input)
+			imp, bag, arenas := parseImportString(t, tt.input)
 
 			if bag.HasErrors() {
 				t.Fatalf("unexpected errors: %v", bag.Items())
@@ -240,25 +268,28 @@ func TestParseImport_SingleItem(t *testing.T) {
 				t.Fatal("import item is nil")
 			}
 
-			if len(imp.Module) != len(tt.wantSegs) {
-				t.Errorf("module segments: got %v, want %v", imp.Module, tt.wantSegs)
+			actualSegs := idsToStrings(t, arenas.StringsInterner, imp.Module)
+			if len(actualSegs) != len(tt.wantSegs) {
+				t.Errorf("module segments: got %v, want %v", actualSegs, tt.wantSegs)
 			}
 
-			if imp.One == nil {
+			if !imp.HasOne {
 				t.Fatal("expected One to be set")
 			}
 
-			if imp.One.Name != tt.wantName {
-				t.Errorf("item name: got %q, want %q", imp.One.Name, tt.wantName)
+			name, _ := idToString(t, arenas.StringsInterner, imp.One.Name)
+			if name != tt.wantName {
+				t.Errorf("item name: got %q, want %q", name, tt.wantName)
 			}
 
-			if imp.One.Alias != tt.wantAlias {
-				t.Errorf("item alias: got %q, want %q", imp.One.Alias, tt.wantAlias)
+			alias, _ := idToString(t, arenas.StringsInterner, imp.One.Alias)
+			if alias != tt.wantAlias {
+				t.Errorf("item alias: got %q, want %q", alias, tt.wantAlias)
 			}
 
 			// Проверяем, что нет module alias и Group
-			if imp.Alias != "" {
-				t.Errorf("expected no module alias, got %q", imp.Alias)
+			if alias, ok := idToString(t, arenas.StringsInterner, imp.ModuleAlias); ok && alias != "" {
+				t.Errorf("expected no module alias, got %q", alias)
 			}
 			if len(imp.Group) != 0 {
 				t.Errorf("expected no Group, got %+v", imp.Group)
@@ -273,13 +304,19 @@ func TestParseImport_Group(t *testing.T) {
 		name      string
 		input     string
 		wantSegs  []string
-		wantPairs []ast.ImportPair
+		wantPairs []struct {
+			Name  string
+			Alias string
+		}
 	}{
 		{
 			name:     "two items without aliases",
 			input:    "import foo::{Bar, Baz};",
 			wantSegs: []string{"foo"},
-			wantPairs: []ast.ImportPair{
+			wantPairs: []struct {
+				Name  string
+				Alias string
+			}{
 				{Name: "Bar", Alias: ""},
 				{Name: "Baz", Alias: ""},
 			},
@@ -288,7 +325,10 @@ func TestParseImport_Group(t *testing.T) {
 			name:     "items with aliases",
 			input:    "import foo::{Bar as B, Baz as Z};",
 			wantSegs: []string{"foo"},
-			wantPairs: []ast.ImportPair{
+			wantPairs: []struct {
+				Name  string
+				Alias string
+			}{
 				{Name: "Bar", Alias: "B"},
 				{Name: "Baz", Alias: "Z"},
 			},
@@ -297,7 +337,10 @@ func TestParseImport_Group(t *testing.T) {
 			name:     "mixed aliases",
 			input:    "import foo::{Bar, Baz as Z, Qux};",
 			wantSegs: []string{"foo"},
-			wantPairs: []ast.ImportPair{
+			wantPairs: []struct {
+				Name  string
+				Alias string
+			}{
 				{Name: "Bar", Alias: ""},
 				{Name: "Baz", Alias: "Z"},
 				{Name: "Qux", Alias: ""},
@@ -307,7 +350,10 @@ func TestParseImport_Group(t *testing.T) {
 			name:     "nested module group",
 			input:    "import std/io::{File, Reader, Writer as W};",
 			wantSegs: []string{"std", "io"},
-			wantPairs: []ast.ImportPair{
+			wantPairs: []struct {
+				Name  string
+				Alias string
+			}{
 				{Name: "File", Alias: ""},
 				{Name: "Reader", Alias: ""},
 				{Name: "Writer", Alias: "W"},
@@ -317,7 +363,7 @@ func TestParseImport_Group(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			imp, bag, _ := parseImportString(t, tt.input)
+			imp, bag, arenas := parseImportString(t, tt.input)
 
 			if bag.HasErrors() {
 				t.Fatalf("unexpected errors: %v", bag.Items())
@@ -327,8 +373,9 @@ func TestParseImport_Group(t *testing.T) {
 				t.Fatal("import item is nil")
 			}
 
-			if len(imp.Module) != len(tt.wantSegs) {
-				t.Errorf("module segments: got %v, want %v", imp.Module, tt.wantSegs)
+			actualSegs := idsToStrings(t, arenas.StringsInterner, imp.Module)
+			if len(actualSegs) != len(tt.wantSegs) {
+				t.Errorf("module segments: got %v, want %v", actualSegs, tt.wantSegs)
 			}
 
 			if len(imp.Group) != len(tt.wantPairs) {
@@ -337,19 +384,21 @@ func TestParseImport_Group(t *testing.T) {
 
 			for i, want := range tt.wantPairs {
 				got := imp.Group[i]
-				if got.Name != want.Name {
-					t.Errorf("pair[%d] name: got %q, want %q", i, got.Name, want.Name)
+				name, _ := idToString(t, arenas.StringsInterner, got.Name)
+				if name != want.Name {
+					t.Errorf("pair[%d] name: got %q, want %q", i, name, want.Name)
 				}
-				if got.Alias != want.Alias {
-					t.Errorf("pair[%d] alias: got %q, want %q", i, got.Alias, want.Alias)
+				alias, _ := idToString(t, arenas.StringsInterner, got.Alias)
+				if alias != want.Alias {
+					t.Errorf("pair[%d] alias: got %q, want %q", i, alias, want.Alias)
 				}
 			}
 
 			// Проверяем, что нет module alias и One
-			if imp.Alias != "" {
-				t.Errorf("expected no module alias, got %q", imp.Alias)
+			if alias, ok := idToString(t, arenas.StringsInterner, imp.ModuleAlias); ok && alias != "" {
+				t.Errorf("expected no module alias, got %q", alias)
 			}
-			if imp.One != nil {
+			if imp.HasOne {
 				t.Errorf("expected no One, got %+v", imp.One)
 			}
 		})

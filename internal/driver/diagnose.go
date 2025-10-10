@@ -91,7 +91,7 @@ func diagnoseTokenize(file *source.File, bag *diag.Bag) error {
 
 func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) error {
 	lx := lexer.New(file, lexer.Options{})
-	arenas := ast.NewBuilder(ast.Hints{})
+	arenas := ast.NewBuilder(ast.Hints{}, nil)
 
 	maxErrors := uint(bag.Cap())
 	if maxErrors == 0 {

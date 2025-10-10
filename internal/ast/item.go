@@ -46,16 +46,6 @@ func (i *Items) New(kind ItemKind, span source.Span, payloadID PayloadID) ItemID
 	}))
 }
 
-func (i *Items) NewImport(span source.Span, module []string, alias string, one *ImportOne, group []ImportPair) ItemID {
-	payload := i.Imports.Allocate(ImportItem{
-		Module: append([]string(nil), module...), // копия, чтобы не держать чужой слайс
-		Alias:  alias,
-		One:    one,
-		Group:  append([]ImportPair(nil), group...),
-	})
-	return i.New(ItemImport, span, PayloadID(payload))
-}
-
 func (i *Items) Import(id ItemID) (*ImportItem, bool) {
 	item := i.Arena.Get(uint32(id))
 	if item == nil || item.Kind != ItemImport {
@@ -66,4 +56,33 @@ func (i *Items) Import(id ItemID) (*ImportItem, bool) {
 
 func (i *Items) Get(id ItemID) *Item {
 	return i.Arena.Get(uint32(id))
+}
+
+func (i *Items) newImportPayload(
+	module []source.StringID,
+	moduleAlias source.StringID,
+	one ImportOne,
+	hasOne bool,
+	group []ImportPair,
+) PayloadID {
+	payload := i.Imports.Allocate(ImportItem{
+		Module:      append([]source.StringID(nil), module...),
+		ModuleAlias: moduleAlias,
+		One:         one,
+		HasOne:      hasOne,
+		Group:       append([]ImportPair(nil), group...),
+	})
+	return PayloadID(payload)
+}
+
+func (i *Items) NewImport(
+	span source.Span,
+	module []source.StringID,
+	moduleAlias source.StringID,
+	one ImportOne,
+	hasOne bool,
+	group []ImportPair,
+) ItemID {
+	payloadID := i.newImportPayload(module, moduleAlias, one, hasOne, group)
+	return i.New(ItemImport, span, payloadID)
 }

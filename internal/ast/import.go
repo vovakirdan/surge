@@ -1,18 +1,21 @@
 package ast
 
+import "surge/internal/source"
+
 type ImportItem struct {
-	Module []string // todo []stingID
-	Alias  string
-	One    *ImportOne
-	Group  []ImportPair
+	Module      []source.StringID
+	ModuleAlias source.StringID
+	One         ImportOne
+	HasOne      bool
+	Group       []ImportPair
 }
 
 type ImportOne struct {
-	Name  string
-	Alias string
+	Name  source.StringID
+	Alias source.StringID
 }
 
 type ImportPair struct {
-	Name  string
-	Alias string
+	Name  source.StringID
+	Alias source.StringID
 }

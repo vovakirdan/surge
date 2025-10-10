@@ -7,13 +7,14 @@ import (
 type Hints struct{ Files, Items, Stmts, Exprs uint }
 
 type Builder struct {
-	Files *Files
-	Items *Items
-	Stmts *Stmts
-	Exprs *Exprs
+	Files   *Files
+	Items   *Items
+	Stmts   *Stmts
+	Exprs   *Exprs
+	StringsInterner *source.Interner
 }
 
-func NewBuilder(hints Hints) *Builder {
+func NewBuilder(hints Hints, stringsInterner *source.Interner) *Builder {
 	if hints.Files == 0 {
 		hints.Files = 1 << 6 // просто понты; 64
 	}
@@ -26,11 +27,15 @@ func NewBuilder(hints Hints) *Builder {
 	if hints.Exprs == 0 {
 		hints.Exprs = 1 << 8
 	}
+	if stringsInterner == nil {
+		stringsInterner = source.NewInterner()
+	}
 	return &Builder{
-		Files: NewFiles(hints.Files),
-		Items: NewItems(hints.Items),
-		Stmts: NewStmts(hints.Stmts),
-		Exprs: NewExprs(hints.Exprs),
+		Files:   NewFiles(hints.Files),
+		Items:   NewItems(hints.Items),
+		Stmts:   NewStmts(hints.Stmts),
+		Exprs:   NewExprs(hints.Exprs),
+		StringsInterner: stringsInterner,
 	}
 }
 
@@ -50,6 +55,13 @@ func (b *Builder) PushItem(file FileID, item ItemID) {
 	b.Files.Get(file).Items = append(b.Files.Get(file).Items, item)
 }
 
-func (b *Builder) NewImport(span source.Span, module []string, alias string, one *ImportOne, group []ImportPair) ItemID {
-	return b.Items.NewImport(span, module, alias, one, group)
+func (b *Builder) NewImport(
+	span source.Span,
+	module []source.StringID,
+	moduleAlias source.StringID,
+	one ImportOne,
+	hasOne bool,
+	group []ImportPair,
+) ItemID {
+	return b.Items.NewImport(span, module, moduleAlias, one, hasOne, group)
 }
