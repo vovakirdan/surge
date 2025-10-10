@@ -112,3 +112,21 @@ func (b *Bag) Dedup() {
 	}
 	b.items = newitems
 }
+
+// Filter удаляет диагностики, которые не проходят проверку predicate
+func (b *Bag) Filter(predicate func(Diagnostic) bool) {
+	newitems := make([]Diagnostic, 0, len(b.items))
+	for _, d := range b.items {
+		if predicate(d) {
+			newitems = append(newitems, d)
+		}
+	}
+	b.items = newitems
+}
+
+// Transform применяет функцию к каждой диагностике
+func (b *Bag) Transform(transformer func(Diagnostic) Diagnostic) {
+	for i := range b.items {
+		b.items[i] = transformer(b.items[i])
+	}
+}

@@ -24,8 +24,25 @@ const (
 	DiagnoseStageAll      DiagnoseStage = "all"
 )
 
+// DiagnoseOptions содержит опции для диагностики
+type DiagnoseOptions struct {
+	Stage            DiagnoseStage
+	MaxDiagnostics   int
+	IgnoreWarnings   bool
+	WarningsAsErrors bool
+}
+
 // Diagnose запускает диагностику файла до указанного уровня
 func Diagnose(path string, stage DiagnoseStage, maxDiagnostics int) (*DiagnoseResult, error) {
+	opts := DiagnoseOptions{
+		Stage:          stage,
+		MaxDiagnostics: maxDiagnostics,
+	}
+	return DiagnoseWithOptions(path, opts)
+}
+
+// DiagnoseWithOptions запускает диагностику файла с указанными опциями
+func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, error) {
 	// Создаём FileSet и загружаем файл
 	fs := source.NewFileSet()
 	fileID, err := fs.Load(path)
@@ -35,10 +52,10 @@ func Diagnose(path string, stage DiagnoseStage, maxDiagnostics int) (*DiagnoseRe
 	file := fs.Get(fileID)
 
 	// Создаём диагностический пакет
-	bag := diag.NewBag(maxDiagnostics)
+	bag := diag.NewBag(opts.MaxDiagnostics)
 
 	// Запускаем диагностику по стадиям
-	switch stage {
+	switch opts.Stage {
 	case DiagnoseStageTokenize:
 		err = diagnoseTokenize(file, bag)
 	case DiagnoseStageSyntax:
@@ -61,6 +78,24 @@ func Diagnose(path string, stage DiagnoseStage, maxDiagnostics int) (*DiagnoseRe
 
 	if err != nil {
 		return nil, err
+	}
+
+	// Применяем фильтрацию и трансформацию диагностик
+	if opts.IgnoreWarnings {
+		bag.Filter(func(d diag.Diagnostic) bool {
+			return d.Severity != diag.SevWarning && d.Severity != diag.SevInfo
+		})
+	}
+
+	if opts.WarningsAsErrors {
+		bag.Transform(func(d diag.Diagnostic) diag.Diagnostic {
+			if d.Severity == diag.SevWarning {
+				d.Severity = diag.SevError
+			}
+			return d
+		})
+		// Пересортировываем после изменения severity
+		bag.Sort()
 	}
 
 	return &DiagnoseResult{

@@ -20,6 +20,8 @@ var diagCmd = &cobra.Command{
 func init() {
 	diagCmd.Flags().String("format", "pretty", "output format (pretty|json|sarif)")
 	diagCmd.Flags().String("stages", "syntax", "diagnostic stages to run (tokenize|syntax|sema|all)")
+	diagCmd.Flags().Bool("no-warnings", false, "ignore warnings in diagnostics")
+	diagCmd.Flags().Bool("warnings-as-errors", false, "treat warnings as errors")
 }
 
 func runDiagnose(cmd *cobra.Command, args []string) error {
@@ -41,6 +43,20 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get max-diagnostics flag: %w", err)
 	}
 
+	noWarnings, err := cmd.Flags().GetBool("no-warnings")
+	if err != nil {
+		return fmt.Errorf("failed to get no-warnings flag: %w", err)
+	}
+
+	warningsAsErrors, err := cmd.Flags().GetBool("warnings-as-errors")
+	if err != nil {
+		return fmt.Errorf("failed to get warnings-as-errors flag: %w", err)
+	}
+
+	if noWarnings && warningsAsErrors {
+		return fmt.Errorf("no-warnings and warnings-as-errors flags cannot be used together")
+	}
+
 	// Конвертируем строку стадии в тип
 	var stage driver.DiagnoseStage
 	switch stagesStr {
@@ -56,8 +72,16 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown stages value: %s", stagesStr)
 	}
 
+	// Создаём опции диагностики
+	opts := driver.DiagnoseOptions{
+		Stage:            stage,
+		MaxDiagnostics:   maxDiagnostics,
+		IgnoreWarnings:   noWarnings,
+		WarningsAsErrors: warningsAsErrors,
+	}
+
 	// Выполняем диагностику
-	result, err := driver.Diagnose(filePath, stage, maxDiagnostics)
+	result, err := driver.DiagnoseWithOptions(filePath, opts)
 	if err != nil {
 		return fmt.Errorf("diagnosis failed: %w", err)
 	}
