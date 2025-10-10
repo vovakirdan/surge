@@ -118,14 +118,15 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 
 // resyncTop — восстановление после ошибки на верхнем уровне:
 // прокручиваем до ';' ИЛИ до стартового токена следующего item ИЛИ EOF.
-// После этого обязательно съедаем токен, если это не EOF (иначе цикл может застрять на месте).
 func (p *Parser) resyncTop() {
-	// Читать токены до ; | EOF | токен из набора стартеров (import, fn, let, type,...)
-	for !(p.at(token.EOF) || isTopLevelStarter(p.lx.Peek().Kind) || p.at(token.Semicolon)) {
-		p.advance()
-	}
-	// После выхода: если не EOF, съедаем токен-синхронизатор, чтобы не застрять
-	if !p.at(token.EOF) {
+	// Список всех стартеров + semicolon
+	stopTokens := []token.Kind{token.Semicolon, token.KwImport}
+	// TODO: добавить другие стартеры когда они будут реализованы: token.KwFn, token.KwLet, token.KwType, etc.
+
+	p.resyncUntil(stopTokens...)
+
+	// Если нашли semicolon, съедаем его
+	if p.at(token.Semicolon) {
 		p.advance()
 	}
 }

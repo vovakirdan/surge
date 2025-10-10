@@ -24,6 +24,8 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 	// Парсим путь модуля (module/subpath/...)
 	moduleSegs, moduleEndSpan, ok := p.parseImportModule()
 	if !ok {
+		// Если не смогли распарсить модуль, пытаемся восстановиться до конца statement
+		p.resyncStatement()
 		return ast.NoItemID, false
 	}
 	// Обновляем lastSpan на основе последнего сегмента модуля
@@ -48,6 +50,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			// import module::Ident [as Alias];
 			name, ok := p.parseIdent()
 			if !ok {
+				p.resyncStatement()
 				return ast.NoItemID, false
 			}
 
@@ -59,11 +62,13 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 				// Проверяем, что после 'as' идёт идентификатор
 				if !p.at(token.Ident) {
 					p.err(diag.SynExpectIdentAfterAs, "expected identifier after 'as', got '"+p.lx.Peek().Text+"'")
+					p.resyncStatement()
 					return ast.NoItemID, false
 				}
 
 				alias, ok = p.parseIdent()
 				if !ok {
+					p.resyncStatement()
 					return ast.NoItemID, false
 				}
 			}
@@ -129,6 +134,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		} else {
 			// Ни идентификатор, ни '{'
 			p.err(diag.SynExpectItemAfterDbl, "expected identifier or '{' after '::'")
+			p.resyncStatement()
 			return ast.NoItemID, false
 		}
 
@@ -139,11 +145,13 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		// Проверяем, что после 'as' идёт идентификатор
 		if !p.at(token.Ident) {
 			p.err(diag.SynExpectIdentAfterAs, "expected identifier after 'as', got '"+p.lx.Peek().Text+"'")
+			p.resyncStatement()
 			return ast.NoItemID, false
 		}
 
 		alias, ok := p.parseIdent()
 		if !ok {
+			p.resyncStatement()
 			return ast.NoItemID, false
 		}
 		moduleAlias = alias
@@ -163,6 +171,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 	// Ожидаем точку с запятой в конце
 	semi, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected semicolon after import item")
 	if !ok {
+		// expect уже содержит диагностику с правильным span, просто возвращаем false
 		return ast.NoItemID, false
 	}
 
@@ -192,6 +201,8 @@ func (p *Parser) parseImportModule() ([]string, source.Span, bool) {
 		// После '/' обязан быть идентификатор
 		if !p.at(token.Ident) {
 			p.err(diag.SynExpectModuleSeg, "expected module segment after '/'")
+			// Не вызываем resync здесь, так как parseImportModule вызывается из parseImportItem
+			// который сам обработает ошибку
 			return nil, lastSpan, false
 		}
 
