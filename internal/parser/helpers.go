@@ -34,13 +34,27 @@ func (p *Parser) getDiagnosticSpan() source.Span {
 	return peek.Span
 }
 
+// currentErrorSpan — возвращает оптимальный span для ошибок expect
+// Если Peek().Kind == EOF, возвращает позицию сразу после lastSpan
+func (p *Parser) currentErrorSpan() source.Span {
+	peek := p.lx.Peek()
+	if peek.Kind == token.EOF {
+		return source.Span{
+			File:  p.lastSpan.File,
+			Start: p.lastSpan.End,
+			End:   p.lastSpan.End,
+		}
+	}
+	return peek.Span
+}
+
 // expect — ожидаем конкретный токен. Если нет — репортим и возвращаем (invalid,false).
 func (p *Parser) expect(k token.Kind, code diag.Code, msg string) (token.Token, bool) {
 	if p.at(k) {
 		return p.advance(), true
 	}
-	// Используем лучший span для диагностики
-	diagSpan := p.getDiagnosticSpan()
+	// Используем currentErrorSpan для более точной диагностики
+	diagSpan := p.currentErrorSpan()
 	p.report(code, diag.SevError, diagSpan, msg)
 	return token.Token{Kind: token.Invalid, Span: diagSpan, Text: p.lx.Peek().Text}, false
 }
@@ -132,7 +146,7 @@ func (p *Parser) resyncIfStuck(max int) {
 func (p *Parser) resyncImportGroup() {
 	p.resyncUntil(token.RBrace, token.Semicolon, token.EOF)
 	if p.at(token.RBrace) {
-		p.advance()
+		p.advance() // съедаем найденную '}'
 	}
 }
 

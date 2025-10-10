@@ -35,9 +35,10 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 	// Переменные для различных форм импорта, объявленные вне switch
 	var (
-		moduleAlias string
-		one         *ast.ImportOne
-		pairs       []ast.ImportPair
+		moduleAlias   string
+		one           *ast.ImportOne
+		pairs         []ast.ImportPair
+		needSemicolon = true // флаг для определения нужности `;` в конце
 	)
 
 	// Смотрим, что идёт после пути модуля
@@ -79,11 +80,14 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			// import module::{Ident [as Alias], ...};
 			p.advance() // съедаем '{'
 			pairs = make([]ast.ImportPair, 0, 2)
+			broken := false // флаг для обработки ошибок в группе
 
 			for !p.at(token.RBrace) && !p.at(token.EOF) {
 				name, ok := p.parseIdent()
 				if !ok {
 					// Ошибка уже зарепортирована в parseIdent
+					broken = true
+					p.resyncImportGroup()
 					break
 				}
 
@@ -94,11 +98,15 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					// Проверяем, что после 'as' идёт идентификатор
 					if !p.at(token.Ident) {
 						p.err(diag.SynExpectIdentAfterAs, "expected identifier after 'as', got '"+p.lx.Peek().Text+"'")
+						broken = true
+						p.resyncImportGroup()
 						break
 					}
 
 					alias, ok = p.parseIdent()
 					if !ok {
+						broken = true
+						p.resyncImportGroup()
 						break
 					}
 				}
@@ -110,12 +118,22 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					p.advance()
 					continue
 				}
-				// Иначе должна быть закрывающая скобка
-				if !p.at(token.RBrace) {
-					p.err(diag.SynUnexpectedToken, "expected ',' or '}' in import group, got '"+p.lx.Peek().Text+"'")
+				if p.at_or(token.RBrace, token.EOF, token.Semicolon) {
+					// Если нет запятой, должна быть закрывающая скобка или EOF
+					// Если EOF, то это ошибка unclosed brace (обработаем позже)
+					// Если видим `;`, это означает, что группа не закрыта
 					break
 				}
+				// Иначе это неожиданный токен
+				p.err(diag.SynUnexpectedToken, "expected ',' or '}' in import group, got '"+p.lx.Peek().Text+"'")
+				broken = true
+				p.resyncImportGroup()
 				break
+			}
+
+			// Если группа была повреждена, сразу возвращаемся
+			if broken {
+				return ast.NoItemID, false
 			}
 
 			// Проверяем на пустую группу
@@ -123,13 +141,16 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 				p.warn(diag.SynEmptyImportGroup, "empty import group")
 			}
 
-			_, ok := p.expect(token.RBrace, diag.SynUnclosedBrace, "expected '}' to close import group")
-			if !ok {
+			// Проверяем, что у нас есть закрывающая скобка
+			if !p.at(token.RBrace) {
+				p.err(diag.SynUnclosedBrace, "expected '}' to close import group")
 				return ast.NoItemID, false
 			}
+
+			p.advance() // съедаем '}'
 			// если здесь только один Ident, то кидаем info что можно без {}
 			if len(pairs) == 1 {
-				p.warn(diag.SynInfoImportGroup, "import group with only one item can be written without braces")
+				p.info(diag.SynInfoImportGroup, "import group with only one item can be written without braces")
 			}
 		} else {
 			// Ни идентификатор, ни '{'
@@ -165,7 +186,16 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		peek := p.lx.Peek()
 		if peek.Kind != token.EOF {
 			p.err(diag.SynUnexpectedToken, "expected '::' or 'as' or ';' after module path, got '"+peek.Text+"'")
+			needSemicolon = false
+			p.resyncTop()
+			return ast.NoItemID, false
 		}
+		// Если EOF, то это просто недостающая `;` - продолжаем обычную обработку
+	}
+
+	// Проверяем, нужна ли точка с запятой
+	if !needSemicolon {
+		return ast.NoItemID, false
 	}
 
 	// Ожидаем точку с запятой в конце
