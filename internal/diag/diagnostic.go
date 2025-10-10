@@ -6,11 +6,11 @@ import (
 
 type Note struct {
 	Span source.Span
-	Msg string
+	Msg  string
 }
 
 type FixEdit struct {
-	Span source.Span
+	Span    source.Span
 	NewText string
 }
 
@@ -21,9 +21,9 @@ type Fix struct {
 
 type Diagnostic struct {
 	Severity Severity
-	Code Code
-	Message string
-	Primary source.Span
-	Notes []Note
-	Fixes []Fix
+	Code     Code
+	Message  string
+	Primary  source.Span
+	Notes    []Note
+	Fixes    []Fix
 }

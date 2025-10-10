@@ -20,7 +20,7 @@ func (a *Arena[T]) Get(index uint32) *T {
 	if index == 0 {
 		return nil
 	}
-	return &a.data[index - 1]
+	return &a.data[index-1]
 }
 
 // READONLY

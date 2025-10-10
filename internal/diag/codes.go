@@ -10,14 +10,14 @@ const (
 	// Неизвестная ошибка - на первое время
 	UnknownCode Code = 0
 	// Лексические
-	LexInfo Code = 1000
+	LexInfo                     Code = 1000
 	LexUnknownChar              Code = 1001
 	LexUnterminatedString       Code = 1002
 	LexUnterminatedBlockComment Code = 1003
 	LexBadNumber                Code = 1004
 
 	// Парсерные (зарезервируем)
-	SynInfo Code = 2000
+	SynInfo                  Code = 2000
 	SynUnexpectedToken       Code = 2001
 	SynUnclosedDelimiter     Code = 2002
 	SynUnclosedBlockComment  Code = 2003
@@ -29,13 +29,13 @@ const (
 	SynUnclosedSquareBracket Code = 2009
 	SynUnclosedAngleBracket  Code = 2010
 	SynUnclosedCurlyBracket  Code = 2011
-	SynExpectSemicolon Code = 2012
+	SynExpectSemicolon       Code = 2012
 
 	// import errors & warnings
-	SynInfoImportGroup Code = 2100
+	SynInfoImportGroup    Code = 2100
 	SynUnexpectedTopLevel Code = 2101
-	SynExpectIdentifier Code = 2102
-	SynExpectModuleSeg Code = 2103
+	SynExpectIdentifier   Code = 2102
+	SynExpectModuleSeg    Code = 2103
 	SynExpectItemAfterDbl Code = 2104
 	SynExpectIdentAfterAs Code = 2105
 	SynEmptyImportGroup   Code = 2106

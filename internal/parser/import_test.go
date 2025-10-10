@@ -559,16 +559,16 @@ import qux as Q;`
 // TestParseImport_Warnings тестирует случаи, которые должны выдавать предупреждения
 func TestParseImport_Warnings(t *testing.T) {
 	tests := []struct {
-		name           string
-		input          string
+		name            string
+		input           string
 		wantWarningCode diag.Code
-		description    string
+		description     string
 	}{
 		{
-			name:           "empty group",
-			input:          "import foo::{};",
+			name:            "empty group",
+			input:           "import foo::{};",
 			wantWarningCode: diag.SynEmptyImportGroup,
-			description:    "expected SynEmptyImportGroup warning for empty import group",
+			description:     "expected SynEmptyImportGroup warning for empty import group",
 		},
 	}
 

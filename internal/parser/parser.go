@@ -10,10 +10,10 @@ import (
 )
 
 type Options struct {
-	Trace bool
-	MaxErrors uint
+	Trace         bool
+	MaxErrors     uint
 	CurrentErrors uint
-	Reporter diag.Reporter
+	Reporter      diag.Reporter
 }
 
 // Enough - проверить, достигли ли мы максимального количества ошибок
@@ -26,12 +26,12 @@ func (o *Options) Enough() bool {
 
 type Result struct {
 	File ast.FileID
-	Bag *diag.Bag
+	Bag  *diag.Bag
 }
 
 // Parser — состояние парсера на один файл
 type Parser struct {
-	lx     *lexer.Lexer      // поток токенов (Peek/Next/Expect)
+	lx     *lexer.Lexer    // поток токенов (Peek/Next/Expect)
 	arenas *ast.Builder    // построитель аренных узлов
 	file   ast.FileID      // текущий FileID (в AST)
 	fs     *source.FileSet // нужен только для спанов/путей при надобности
@@ -47,21 +47,21 @@ func ParseFile(
 	opts Options,
 ) Result {
 	p := Parser{
-		lx: lx,
+		lx:     lx,
 		arenas: arenas,
-		file: arenas.Files.New(lx.EmptySpan()), // todo: проверить; по идее в lexer уже есть source.File
-		fs: fs,
-		opts: opts,
+		file:   arenas.Files.New(lx.EmptySpan()), // todo: проверить; по идее в lexer уже есть source.File
+		fs:     fs,
+		opts:   opts,
 	}
 
 	p.parseItems()
 	var bag *diag.Bag
-    if br, ok := opts.Reporter.(*diag.BagReporter); ok {
-        bag = br.Bag
-    }
+	if br, ok := opts.Reporter.(*diag.BagReporter); ok {
+		bag = br.Bag
+	}
 	return Result{
 		File: p.file,
-		Bag: bag,
+		Bag:  bag,
 	}
 }
 
@@ -69,11 +69,11 @@ func (p *Parser) at(k token.Kind) bool {
 	return p.lx.Peek().Kind == k
 }
 
-func (p *Parser) at_or(kinds ... token.Kind) bool {
+func (p *Parser) at_or(kinds ...token.Kind) bool {
 	return slices.Contains(kinds, p.lx.Peek().Kind)
 }
 
-func (p *Parser) at_and(kinds ... token.Kind) bool {
+func (p *Parser) at_and(kinds ...token.Kind) bool {
 	for _, k := range kinds {
 		if !p.at(k) {
 			return false

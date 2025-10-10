@@ -21,27 +21,27 @@ const (
 )
 
 type Item struct {
-	Kind ItemKind
-	Span source.Span
+	Kind    ItemKind
+	Span    source.Span
 	Payload PayloadID
 }
 
 type Items struct {
-	Arena *Arena[Item]
+	Arena   *Arena[Item]
 	Imports *Arena[ImportItem]
 }
 
 func NewItems(capHint uint) *Items {
 	return &Items{
-		Arena: NewArena[Item](capHint),
+		Arena:   NewArena[Item](capHint),
 		Imports: NewArena[ImportItem](capHint),
 	}
 }
 
 func (i *Items) New(kind ItemKind, span source.Span, payloadID PayloadID) ItemID {
 	return ItemID(i.Arena.Allocate(Item{
-		Kind: kind,
-		Span: span,
+		Kind:    kind,
+		Span:    span,
 		Payload: payloadID,
 	}))
 }

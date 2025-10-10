@@ -5,11 +5,11 @@ import "surge/internal/source"
 func New(sev Severity, code Code, primary source.Span, msg string) Diagnostic {
 	return Diagnostic{
 		Severity: sev,
-		Code: code,
-		Primary: primary,
-		Message: msg,
-		Notes: nil,
-		Fixes: nil,
+		Code:     code,
+		Primary:  primary,
+		Message:  msg,
+		Notes:    nil,
+		Fixes:    nil,
 	}
 }
 

@@ -21,7 +21,9 @@ func (lx *Lexer) collectLeadingTrivia() {
 		if b == ' ' || b == '\t' {
 			for {
 				b2 := lx.cursor.Peek()
-				if b2 != ' ' && b2 != '\t' { break }
+				if b2 != ' ' && b2 != '\t' {
+					break
+				}
 				lx.cursor.Bump()
 			}
 			sp := lx.cursor.SpanFrom(start)

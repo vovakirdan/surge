@@ -44,7 +44,9 @@ func (lx *Lexer) scanNumber() token.Token {
 				b := lx.cursor.Peek()
 				if b == '0' || b == '1' || b == '_' {
 					lx.cursor.Bump()
-				} else { break }
+				} else {
+					break
+				}
 			}
 			goto emit
 		case 'o', 'O':
@@ -53,7 +55,9 @@ func (lx *Lexer) scanNumber() token.Token {
 				b := lx.cursor.Peek()
 				if (b >= '0' && b <= '7') || b == '_' {
 					lx.cursor.Bump()
-				} else { break }
+				} else {
+					break
+				}
 			}
 			goto emit
 		case 'x', 'X':
