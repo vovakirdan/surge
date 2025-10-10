@@ -16,6 +16,7 @@ var rootCmd = &cobra.Command{
 func main() {
 	// Добавляем команды
 	rootCmd.AddCommand(tokenizeCmd)
+	rootCmd.AddCommand(parseCmd)
 	rootCmd.AddCommand(diagCmd)
 
 	// Глобальные флаги

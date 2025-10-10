@@ -142,3 +142,44 @@ func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) error {
 
 	return nil
 }
+
+type ParseResult struct {
+	FileSet *source.FileSet
+	File    *source.File
+	Builder *ast.Builder
+	FileID  ast.FileID
+	Bag     *diag.Bag
+}
+
+func Parse(path string, maxDiagnostics int) (*ParseResult, error) {
+	fs := source.NewFileSet()
+	fileID, err := fs.Load(path)
+	if err != nil {
+		return nil, err
+	}
+	file := fs.Get(fileID)
+
+	bag := diag.NewBag(maxDiagnostics)
+	lx := lexer.New(file, lexer.Options{})
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+
+	maxErrors := uint(maxDiagnostics)
+	if maxErrors == 0 {
+		maxErrors = 0
+	}
+
+	opts := parser.Options{
+		Reporter:  &diag.BagReporter{Bag: bag},
+		MaxErrors: maxErrors,
+	}
+
+	result := parser.ParseFile(fs, lx, builder, opts)
+
+	return &ParseResult{
+		FileSet: fs,
+		File:    file,
+		Builder: builder,
+		FileID:  result.File,
+		Bag:     bag,
+	}, nil
+}
