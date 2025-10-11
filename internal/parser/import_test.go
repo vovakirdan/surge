@@ -652,3 +652,329 @@ func TestParseImport_Warnings(t *testing.T) {
 		})
 	}
 }
+
+// TestParseImport_RelativePaths тестирует импорты с относительными путями
+func TestParseImport_RelativePaths(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantSegs []string
+	}{
+		{
+			name:     "current directory - single module",
+			input:    "import ./module;",
+			wantSegs: []string{".", "module"},
+		},
+		{
+			name:     "current directory - nested path",
+			input:    "import ./foo/bar;",
+			wantSegs: []string{".", "foo", "bar"},
+		},
+		{
+			name:     "parent directory - single module",
+			input:    "import ../module;",
+			wantSegs: []string{"..", "module"},
+		},
+		{
+			name:     "parent directory - nested path",
+			input:    "import ../foo/bar;",
+			wantSegs: []string{"..", "foo", "bar"},
+		},
+		{
+			name:     "two levels up - single module",
+			input:    "import ../../module;",
+			wantSegs: []string{"..", "..", "module"},
+		},
+		{
+			name:     "two levels up - nested path",
+			input:    "import ../../foo/bar/baz;",
+			wantSegs: []string{"..", "..", "foo", "bar", "baz"},
+		},
+		{
+			name:     "three levels up",
+			input:    "import ../../../module;",
+			wantSegs: []string{"..", "..", "..", "module"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			imp, bag, arenas := parseImportString(t, tt.input)
+
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %v", bag.Items())
+			}
+
+			if imp == nil {
+				t.Fatal("import item is nil")
+			}
+
+			actualSegs := idsToStrings(t, arenas.StringsInterner, imp.Module)
+			if len(actualSegs) != len(tt.wantSegs) {
+				t.Errorf("module segments count: got %d, want %d", len(actualSegs), len(tt.wantSegs))
+			}
+
+			for i, seg := range tt.wantSegs {
+				if i >= len(actualSegs) {
+					break
+				}
+				if actualSegs[i] != seg {
+					t.Errorf("segment[%d]: got %q, want %q", i, actualSegs[i], seg)
+				}
+			}
+
+			// Проверяем, что нет дополнительных элементов
+			if alias, ok := idToString(t, arenas.StringsInterner, imp.ModuleAlias); ok && alias != "" {
+				t.Errorf("expected no alias, got %q", alias)
+			}
+			if imp.HasOne {
+				t.Errorf("expected no One, got %+v", imp.One)
+			}
+			if len(imp.Group) != 0 {
+				t.Errorf("expected no Group, got %+v", imp.Group)
+			}
+		})
+	}
+}
+
+// TestParseImport_RelativePathsWithAliases тестирует относительные импорты с алиасами
+func TestParseImport_RelativePathsWithAliases(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantSegs  []string
+		wantAlias string
+	}{
+		{
+			name:      "current directory module with alias",
+			input:     "import ./module as M;",
+			wantSegs:  []string{".", "module"},
+			wantAlias: "M",
+		},
+		{
+			name:      "parent directory module with alias",
+			input:     "import ../utils as Utils;",
+			wantSegs:  []string{"..", "utils"},
+			wantAlias: "Utils",
+		},
+		{
+			name:      "two levels up with alias",
+			input:     "import ../../lib/core as Core;",
+			wantSegs:  []string{"..", "..", "lib", "core"},
+			wantAlias: "Core",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			imp, bag, arenas := parseImportString(t, tt.input)
+
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %v", bag.Items())
+			}
+
+			if imp == nil {
+				t.Fatal("import item is nil")
+			}
+
+			actualSegs := idsToStrings(t, arenas.StringsInterner, imp.Module)
+			if len(actualSegs) != len(tt.wantSegs) {
+				t.Errorf("module segments: got %v, want %v", actualSegs, tt.wantSegs)
+			}
+
+			alias, ok := idToString(t, arenas.StringsInterner, imp.ModuleAlias)
+			if !ok || alias != tt.wantAlias {
+				t.Errorf("alias: got %q, want %q", alias, tt.wantAlias)
+			}
+
+			// Проверяем, что нет One и Group
+			if imp.HasOne {
+				t.Errorf("expected no One, got %+v", imp.One)
+			}
+			if len(imp.Group) != 0 {
+				t.Errorf("expected no Group, got %+v", imp.Group)
+			}
+		})
+	}
+}
+
+// TestParseImport_RelativePathsWithItems тестирует относительные импорты конкретных элементов
+func TestParseImport_RelativePathsWithItems(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantSegs  []string
+		wantName  string
+		wantAlias string
+	}{
+		{
+			name:      "current directory item",
+			input:     "import ./module::Foo;",
+			wantSegs:  []string{".", "module"},
+			wantName:  "Foo",
+			wantAlias: "",
+		},
+		{
+			name:      "current directory item with alias",
+			input:     "import ./module::Foo as F;",
+			wantSegs:  []string{".", "module"},
+			wantName:  "Foo",
+			wantAlias: "F",
+		},
+		{
+			name:      "parent directory item",
+			input:     "import ../utils::Helper;",
+			wantSegs:  []string{"..", "utils"},
+			wantName:  "Helper",
+			wantAlias: "",
+		},
+		{
+			name:      "parent directory item with alias",
+			input:     "import ../utils::Helper as H;",
+			wantSegs:  []string{"..", "utils"},
+			wantName:  "Helper",
+			wantAlias: "H",
+		},
+		{
+			name:      "two levels up item",
+			input:     "import ../../lib/core::Engine;",
+			wantSegs:  []string{"..", "..", "lib", "core"},
+			wantName:  "Engine",
+			wantAlias: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			imp, bag, arenas := parseImportString(t, tt.input)
+
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %v", bag.Items())
+			}
+
+			if imp == nil {
+				t.Fatal("import item is nil")
+			}
+
+			actualSegs := idsToStrings(t, arenas.StringsInterner, imp.Module)
+			if len(actualSegs) != len(tt.wantSegs) {
+				t.Errorf("module segments: got %v, want %v", actualSegs, tt.wantSegs)
+			}
+
+			if !imp.HasOne {
+				t.Fatal("expected One to be set")
+			}
+
+			name, _ := idToString(t, arenas.StringsInterner, imp.One.Name)
+			if name != tt.wantName {
+				t.Errorf("item name: got %q, want %q", name, tt.wantName)
+			}
+
+			alias, _ := idToString(t, arenas.StringsInterner, imp.One.Alias)
+			if alias != tt.wantAlias {
+				t.Errorf("item alias: got %q, want %q", alias, tt.wantAlias)
+			}
+
+			// Проверяем, что нет module alias и Group
+			if alias, ok := idToString(t, arenas.StringsInterner, imp.ModuleAlias); ok && alias != "" {
+				t.Errorf("expected no module alias, got %q", alias)
+			}
+			if len(imp.Group) != 0 {
+				t.Errorf("expected no Group, got %+v", imp.Group)
+			}
+		})
+	}
+}
+
+// TestParseImport_RelativePathsWithGroups тестирует относительные импорты групп элементов
+func TestParseImport_RelativePathsWithGroups(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantSegs  []string
+		wantPairs []struct {
+			Name  string
+			Alias string
+		}
+	}{
+		{
+			name:     "current directory group",
+			input:    "import ./module::{Foo, Bar};",
+			wantSegs: []string{".", "module"},
+			wantPairs: []struct {
+				Name  string
+				Alias string
+			}{
+				{Name: "Foo", Alias: ""},
+				{Name: "Bar", Alias: ""},
+			},
+		},
+		{
+			name:     "parent directory group with aliases",
+			input:    "import ../utils::{Helper as H, Logger as L};",
+			wantSegs: []string{"..", "utils"},
+			wantPairs: []struct {
+				Name  string
+				Alias string
+			}{
+				{Name: "Helper", Alias: "H"},
+				{Name: "Logger", Alias: "L"},
+			},
+		},
+		{
+			name:     "two levels up group mixed",
+			input:    "import ../../lib::{Engine, Config as Cfg};",
+			wantSegs: []string{"..", "..", "lib"},
+			wantPairs: []struct {
+				Name  string
+				Alias string
+			}{
+				{Name: "Engine", Alias: ""},
+				{Name: "Config", Alias: "Cfg"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			imp, bag, arenas := parseImportString(t, tt.input)
+
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %v", bag.Items())
+			}
+
+			if imp == nil {
+				t.Fatal("import item is nil")
+			}
+
+			actualSegs := idsToStrings(t, arenas.StringsInterner, imp.Module)
+			if len(actualSegs) != len(tt.wantSegs) {
+				t.Errorf("module segments: got %v, want %v", actualSegs, tt.wantSegs)
+			}
+
+			if len(imp.Group) != len(tt.wantPairs) {
+				t.Fatalf("group count: got %d, want %d", len(imp.Group), len(tt.wantPairs))
+			}
+
+			for i, want := range tt.wantPairs {
+				got := imp.Group[i]
+				name, _ := idToString(t, arenas.StringsInterner, got.Name)
+				if name != want.Name {
+					t.Errorf("pair[%d] name: got %q, want %q", i, name, want.Name)
+				}
+				alias, _ := idToString(t, arenas.StringsInterner, got.Alias)
+				if alias != want.Alias {
+					t.Errorf("pair[%d] alias: got %q, want %q", i, alias, want.Alias)
+				}
+			}
+
+			// Проверяем, что нет module alias и One
+			if alias, ok := idToString(t, arenas.StringsInterner, imp.ModuleAlias); ok && alias != "" {
+				t.Errorf("expected no module alias, got %q", alias)
+			}
+			if imp.HasOne {
+				t.Errorf("expected no One, got %+v", imp.One)
+			}
+		})
+	}
+}

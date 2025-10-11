@@ -18,6 +18,11 @@ import (
 //	import module as Ident ;                      	// module с алиасом
 //	import module::{Ident, Ident} ;               	// элементы с подпапками
 //	import module::{Ident as Ident, Ident as Ident} ; // элементы с алиасами с подпапками
+//  import ./module ; // не ошибка, значит "импорт из текущей директории". 
+// Info что так не обязательно, но в случае если имеем библиотеку и файл с одинаковым названием 
+// - это будет явное указание взять файл
+//  import ../module ; // импорт с верхнего уровня
+//  import ../../module ; // импорт с верхнего верхнего уровня
 func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 	importTok := p.advance() // съедаем KwImport; если мы здесь, то это точно KwImport
 
@@ -229,7 +234,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 // Возвращает список сегментов, span последнего сегмента и успех.
 func (p *Parser) parseImportModule() ([]source.StringID, source.Span, bool) {
 	// Ожидаем как минимум один идентификатор (первый сегмент модуля)
-	if !p.at(token.Ident) {
+	if !p.at_or(token.Ident, token.Dot, token.DotDot) {
 		p.err(diag.SynExpectModuleSeg, "expected module segment, got '"+p.lx.Peek().Text+"'")
 		return nil, source.Span{}, false
 	}
@@ -243,7 +248,7 @@ func (p *Parser) parseImportModule() ([]source.StringID, source.Span, bool) {
 		p.advance() // съедаем '/'
 
 		// После '/' обязан быть идентификатор
-		if !p.at(token.Ident) {
+		if !p.at_or(token.Ident, token.Dot, token.DotDot) {
 			p.err(diag.SynExpectModuleSeg, "expected module segment after '/'")
 			// Не вызываем resync здесь, так как parseImportModule вызывается из parseImportItem
 			// который сам обработает ошибку
