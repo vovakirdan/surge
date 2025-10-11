@@ -20,7 +20,7 @@ var parseCmd = &cobra.Command{
 }
 
 func init() {
-	parseCmd.Flags().String("format", "pretty", "output format (pretty|json)")
+	parseCmd.Flags().String("format", "pretty", "output format (pretty|json|tree)")
 	parseCmd.Flags().Int("jobs", 0, "max parallel workers for directory processing (0=auto)")
 }
 
@@ -70,6 +70,8 @@ func runParse(cmd *cobra.Command, args []string) error {
 			return diagfmt.FormatASTPretty(os.Stdout, result.Builder, result.FileID, result.FileSet)
 		case "json":
 			return diagfmt.FormatASTJSON(os.Stdout, result.Builder, result.FileID)
+		case "tree":
+			return diagfmt.FormatASTTree(os.Stdout, result.Builder, result.FileID, result.FileSet)
 		default:
 			return fmt.Errorf("unknown format: %s", format)
 		}
@@ -158,6 +160,30 @@ func runParse(cmd *cobra.Command, args []string) error {
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(output); err != nil {
 			return err
+		}
+	case "tree":
+		for idx, r := range results {
+			displayPath := r.Path
+			if r.FileID != 0 && r.Builder != nil {
+				astFile := r.Builder.Files.Get(r.FileID)
+				sourceFileID := astFile.Span.File
+				file := fs.Get(sourceFileID)
+				displayPath = file.FormatPath("auto", fs.BaseDir())
+			}
+
+			if !quiet {
+				fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
+			}
+
+			if r.Builder != nil {
+				if err := diagfmt.FormatASTTree(os.Stdout, r.Builder, r.FileID, fs); err != nil {
+					return err
+				}
+			}
+
+			if !quiet && idx < len(results)-1 {
+				fmt.Fprintln(os.Stdout)
+			}
 		}
 	default:
 		return fmt.Errorf("unknown format: %s", format)
