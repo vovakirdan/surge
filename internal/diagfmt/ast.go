@@ -24,8 +24,12 @@ func FormatASTPretty(w io.Writer, builder *ast.Builder, fileID ast.FileID, fs *s
 		return fmt.Errorf("file not found")
 	}
 
-	// todo печатать название файла
-	fmt.Fprintf(w, "File (span: %s)\n", formatSpan(file.Span, fs))
+	header := "File"
+	if fs != nil {
+		srcFile := fs.Get(file.Span.File)
+		header = srcFile.FormatPath("auto", fs.BaseDir())
+	}
+	fmt.Fprintf(w, "%s (span: %s)\n", header, formatSpan(file.Span, fs))
 
 	for i, itemID := range file.Items {
 		isLast := i == len(file.Items)-1
