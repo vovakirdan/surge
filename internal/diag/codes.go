@@ -39,6 +39,13 @@ const (
 	SynExpectItemAfterDbl Code = 2104
 	SynExpectIdentAfterAs Code = 2105
 	SynEmptyImportGroup   Code = 2106
+
+	// Семантические (резервируем)
+	SemaInfo Code = 3000
+	SemaError Code = 3001
+
+	// Ошибки I/O
+	IOLoadFileError Code = 4001
 )
 
 var (
@@ -69,6 +76,9 @@ var (
 		SynExpectItemAfterDbl:       "Expect item after double colon",
 		SynExpectIdentAfterAs:       "Expect identifier after as",
 		SynEmptyImportGroup:         "Empty import group",
+		SemaInfo:                    "Semantic information",
+		SemaError:                   "Semantic error",
+		IOLoadFileError:             "I/O load file error",
 	}
 )
 

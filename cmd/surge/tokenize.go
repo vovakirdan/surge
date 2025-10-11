@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"runtime"
@@ -92,7 +93,7 @@ func runTokenize(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("tokenization failed: %w", err)
 	}
 
-	// Обрабатываем результаты (они уже отсортированы)
+	// Обрабатываем диагностику (они уже отсортированы)
 	colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
 	useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stderr))
 	prettyOpts := diagfmt.PrettyOpts{
@@ -105,31 +106,45 @@ func runTokenize(cmd *cobra.Command, args []string) error {
 		if r.Bag.HasErrors() || r.Bag.HasWarnings() {
 			diagfmt.Pretty(os.Stderr, r.Bag, fs, prettyOpts)
 		}
+	}
 
-		// Выводим заголовок файла, если не quiet
-		if !quiet {
-			file := fs.Get(r.FileID)
-			fmt.Fprintf(os.Stdout, "== %s ==\n", file.FormatPath("auto", fs.BaseDir()))
-		}
+	switch format {
+	case "pretty":
+		for idx, r := range results {
+			if !quiet {
+				displayPath := r.Path
+				if r.FileID != 0 {
+					file := fs.Get(r.FileID)
+					displayPath = file.FormatPath("auto", fs.BaseDir())
+				}
+				fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
+			}
 
-		// Выводим токены в выбранном формате
-		switch format {
-		case "pretty":
 			if err := diagfmt.FormatTokensPretty(os.Stdout, r.Tokens, fs); err != nil {
 				return err
 			}
-		case "json":
-			if err := diagfmt.FormatTokensJSON(os.Stdout, r.Tokens); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("unknown format: %s", format)
-		}
 
-		// Добавляем пустую строку между файлами для читаемости
-		if !quiet && format == "pretty" {
-			fmt.Fprintln(os.Stdout)
+			if !quiet && idx < len(results)-1 {
+				fmt.Fprintln(os.Stdout)
+			}
 		}
+	case "json":
+		output := make(map[string][]diagfmt.TokenOutput, len(results))
+		for _, r := range results {
+			displayPath := r.Path
+			if r.FileID != 0 {
+				file := fs.Get(r.FileID)
+				displayPath = file.FormatPath("auto", fs.BaseDir())
+			}
+			output[displayPath] = diagfmt.TokenOutputsJSON(r.Tokens)
+		}
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(output); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown format: %s", format)
 	}
 
 	return nil

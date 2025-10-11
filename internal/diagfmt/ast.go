@@ -10,12 +10,12 @@ import (
 )
 
 type ASTNodeOutput struct {
-	Type     string             `json:"type"`
-	Kind     string             `json:"kind,omitempty"`
-	Span     source.Span        `json:"span"`
-	Text     string             `json:"text,omitempty"`
-	Children []ASTNodeOutput    `json:"children,omitempty"`
-	Fields   map[string]any     `json:"fields,omitempty"`
+	Type     string          `json:"type"`
+	Kind     string          `json:"kind,omitempty"`
+	Span     source.Span     `json:"span"`
+	Text     string          `json:"text,omitempty"`
+	Children []ASTNodeOutput `json:"children,omitempty"`
+	Fields   map[string]any  `json:"fields,omitempty"`
 }
 
 func FormatASTPretty(w io.Writer, builder *ast.Builder, fileID ast.FileID, fs *source.FileSet) error {
@@ -45,17 +45,18 @@ func FormatASTPretty(w io.Writer, builder *ast.Builder, fileID ast.FileID, fs *s
 	return nil
 }
 
-func FormatASTJSON(w io.Writer, builder *ast.Builder, fileID ast.FileID) error {
+// BuildASTJSON формирует JSON-представление AST для заданного файла.
+func BuildASTJSON(builder *ast.Builder, fileID ast.FileID) (ASTNodeOutput, error) {
 	file := builder.Files.Get(fileID)
 	if file == nil {
-		return fmt.Errorf("file not found")
+		return ASTNodeOutput{}, fmt.Errorf("file not found")
 	}
 
 	var children []ASTNodeOutput
 	for _, itemID := range file.Items {
 		itemNode, err := formatItemJSON(builder, itemID)
 		if err != nil {
-			return err
+			return ASTNodeOutput{}, err
 		}
 		children = append(children, itemNode)
 	}
@@ -64,6 +65,15 @@ func FormatASTJSON(w io.Writer, builder *ast.Builder, fileID ast.FileID) error {
 		Type:     "File",
 		Span:     file.Span,
 		Children: children,
+	}
+
+	return output, nil
+}
+
+func FormatASTJSON(w io.Writer, builder *ast.Builder, fileID ast.FileID) error {
+	output, err := BuildASTJSON(builder, fileID)
+	if err != nil {
+		return err
 	}
 
 	encoder := json.NewEncoder(w)

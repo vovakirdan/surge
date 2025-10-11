@@ -3,6 +3,7 @@ package diagfmt
 import (
 	"encoding/json"
 	"io"
+
 	"surge/internal/diag"
 	"surge/internal/source"
 )
@@ -89,9 +90,8 @@ func makeLocation(span source.Span, fs *source.FileSet, pathMode PathMode, inclu
 	return loc
 }
 
-// JSON форматирует диагностики в JSON формат.
-// Выводит массив диагностик с полной информацией о местоположении, заметках и исправлениях.
-func JSON(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts JSONOpts) error {
+// BuildDiagnosticsOutput формирует структуру JSON-вывода без сериализации.
+func BuildDiagnosticsOutput(bag *diag.Bag, fs *source.FileSet, opts JSONOpts) (DiagnosticsOutput, error) {
 	diagnostics := make([]DiagnosticJSON, 0, bag.Len())
 
 	items := bag.Items()
@@ -103,7 +103,6 @@ func JSON(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts JSONOpts) error {
 	for i := 0; i < maxItems; i++ {
 		d := items[i]
 
-		// Основная диагностика
 		diagJSON := DiagnosticJSON{
 			Severity: d.Severity.String(),
 			Code:     d.Code.ID(),
@@ -111,7 +110,6 @@ func JSON(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts JSONOpts) error {
 			Location: makeLocation(d.Primary, fs, opts.PathMode, opts.IncludePositions),
 		}
 
-		// Добавляем заметки
 		if len(d.Notes) > 0 {
 			diagJSON.Notes = make([]NoteJSON, len(d.Notes))
 			for j, note := range d.Notes {
@@ -122,7 +120,6 @@ func JSON(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts JSONOpts) error {
 			}
 		}
 
-		// Добавляем исправления
 		if len(d.Fixes) > 0 {
 			diagJSON.Fixes = make([]FixJSON, len(d.Fixes))
 			for j, fix := range d.Fixes {
@@ -146,6 +143,17 @@ func JSON(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts JSONOpts) error {
 	output := DiagnosticsOutput{
 		Diagnostics: diagnostics,
 		Count:       len(diagnostics),
+	}
+
+	return output, nil
+}
+
+// JSON форматирует диагностики в JSON формат.
+// Выводит массив диагностик с полной информацией о местоположении, заметках и исправлениях.
+func JSON(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts JSONOpts) error {
+	output, err := BuildDiagnosticsOutput(bag, fs, opts)
+	if err != nil {
+		return err
 	}
 
 	encoder := json.NewEncoder(w)

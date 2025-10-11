@@ -53,10 +53,9 @@ func FormatTokensPretty(w io.Writer, tokens []token.Token, fs *source.FileSet) e
 	return nil
 }
 
-// FormatTokensJSON выводит токены в JSON формате
-func FormatTokensJSON(w io.Writer, tokens []token.Token) error {
-	var output []TokenOutput
-
+// TokenOutputsJSON готовит токены к сериализации в JSON формате.
+func TokenOutputsJSON(tokens []token.Token) []TokenOutput {
+	output := make([]TokenOutput, 0, len(tokens))
 	for _, tok := range tokens {
 		var leading []string
 		for _, trivia := range tok.Leading {
@@ -84,6 +83,13 @@ func FormatTokensJSON(w io.Writer, tokens []token.Token) error {
 			break
 		}
 	}
+
+	return output
+}
+
+// FormatTokensJSON выводит токены в JSON формате
+func FormatTokensJSON(w io.Writer, tokens []token.Token) error {
+	output := TokenOutputsJSON(tokens)
 
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")

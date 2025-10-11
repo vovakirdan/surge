@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"runtime"
@@ -98,34 +99,68 @@ func runParse(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, r := range results {
-		// Выводим диагностику в stderr, если есть
 		if r.Bag.HasErrors() || r.Bag.HasWarnings() {
 			diagfmt.Pretty(os.Stderr, r.Bag, fs, prettyOpts)
 		}
+	}
 
-		// Выводим заголовок файла, если не quiet
-		if !quiet {
-			fmt.Fprintf(os.Stdout, "== %s ==\n", r.Path)
+	switch format {
+	case "pretty":
+		for idx, r := range results {
+			displayPath := r.Path
+			if r.FileID != 0 && r.Builder != nil {
+				astFile := r.Builder.Files.Get(r.FileID)
+				sourceFileID := astFile.Span.File
+				file := fs.Get(sourceFileID)
+				displayPath = file.FormatPath("auto", fs.BaseDir())
+			}
+
+			if !quiet {
+				fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
+			}
+
+			if r.Builder != nil {
+				if err := diagfmt.FormatASTPretty(os.Stdout, r.Builder, r.FileID, fs); err != nil {
+					return err
+				}
+			}
+
+			if !quiet && idx < len(results)-1 {
+				fmt.Fprintln(os.Stdout)
+			}
 		}
+	case "json":
+		output := make(map[string]*diagfmt.ASTNodeOutput, len(results))
+		for _, r := range results {
+			displayPath := r.Path
+			if r.FileID != 0 && r.Builder != nil {
+				astFile := r.Builder.Files.Get(r.FileID)
+				sourceFileID := astFile.Span.File
+				file := fs.Get(sourceFileID)
+				displayPath = file.FormatPath("auto", fs.BaseDir())
+			}
 
-		// Выводим AST в выбранном формате
-		switch format {
-		case "pretty":
-			if err := diagfmt.FormatASTPretty(os.Stdout, r.Builder, r.FileID, fs); err != nil {
+			if r.Builder == nil {
+				output[displayPath] = nil
+				continue
+			}
+
+			node, err := diagfmt.BuildASTJSON(r.Builder, r.FileID)
+			if err != nil {
 				return err
 			}
-		case "json":
-			if err := diagfmt.FormatASTJSON(os.Stdout, r.Builder, r.FileID); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("unknown format: %s", format)
+			// Ensure distinct pointer per iteration
+			nodeCopy := node
+			output[displayPath] = &nodeCopy
 		}
 
-		// Добавляем пустую строку между файлами для читаемости
-		if !quiet && format == "pretty" {
-			fmt.Fprintln(os.Stdout)
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(output); err != nil {
+			return err
 		}
+	default:
+		return fmt.Errorf("unknown format: %s", format)
 	}
 
 	return nil
