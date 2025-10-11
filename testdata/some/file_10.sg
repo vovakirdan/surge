@@ -1,0 +1,2 @@
+import foo::Bar;
+import error::{Error, +}; // error: unexpected token '+'

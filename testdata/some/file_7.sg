@@ -1,0 +1,2 @@
+import foo::{Bar, Baz as BazAlias}; // no error
+import foo // error: expected '::' or 'as' or ';' after module path

@@ -1,0 +1,10 @@
+import foo/bar;
+import foo/bar/baz;
+import foo/bar/baz/qux;
+import foo/bar/baz/qux/quux;
+import foo/bar/baz/qux/quux/quuux;
+import foo/bar/baz/qux/quux/quuux/quuuxx;
+import foo/bar/baz/qux/quux/quuux/quuuxx/quuuxxx;
+import foo/bar/baz/qux/quux/quuux/quuuxx/quuuxxx/quuuxxxx;
+import foo/bar/baz/qux/quux/quuux/quuuxx/quuuxxx/quuuxxxx/quuuxxxxx;
+// just a lot of imports

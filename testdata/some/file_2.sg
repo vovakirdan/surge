@@ -1,0 +1,6 @@
+import ./file_1; // no error
+import ../some/file_1; // no error
+import ../../some/file_1; // no error
+import .../error; // but here is an error - what is ...?
+import foo::1; // error: expected identifier after ::
+import 1; // error: we cant name module start with a number

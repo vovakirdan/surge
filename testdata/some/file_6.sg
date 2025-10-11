@@ -1,0 +1,2 @@
+import foo::{Bar, Baz}; // no error
+import foo::{Bar as BarAlias, Baz as BazAlias}; // no error

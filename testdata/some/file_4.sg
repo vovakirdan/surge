@@ -1,0 +1,2 @@
+import foo::Bar; // no error
+import foo::{Bar}; // info: import group with only one item can be written without braces
