@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/spf13/cobra"
 	"surge/internal/diagfmt"
@@ -10,15 +11,16 @@ import (
 )
 
 var tokenizeCmd = &cobra.Command{
-	Use:   "tokenize [flags] file.sg",
-	Short: "Tokenize a surge source file",
-	Long:  `Tokenize breaks down a surge source file into its constituent tokens`,
+	Use:   "tokenize [flags] <file.sg|directory>",
+	Short: "Tokenize a surge source file or directory",
+	Long:  `Tokenize breaks down a surge source file or all *.sg files in a directory into their constituent tokens`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  runTokenize,
 }
 
 func init() {
 	tokenizeCmd.Flags().String("format", "pretty", "output format (pretty|json)")
+	tokenizeCmd.Flags().Int("jobs", 0, "max parallel workers for directory processing (0=auto)")
 }
 
 func runTokenize(cmd *cobra.Command, args []string) error {
@@ -35,30 +37,100 @@ func runTokenize(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get max-diagnostics flag: %w", err)
 	}
 
-	// Выполняем токенизацию
-	result, err := driver.Tokenize(filePath, maxDiagnostics)
+	quiet, err := cmd.Root().PersistentFlags().GetBool("quiet")
+	if err != nil {
+		return fmt.Errorf("failed to get quiet flag: %w", err)
+	}
+
+	// Проверяем, файл это или директория
+	st, err := os.Stat(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat path: %w", err)
+	}
+
+	if !st.IsDir() {
+		// Токенизация одного файла
+		result, err := driver.Tokenize(filePath, maxDiagnostics)
+		if err != nil {
+			return fmt.Errorf("tokenization failed: %w", err)
+		}
+
+		// Выводим диагностику в stderr, если есть
+		if result.Bag.HasErrors() || result.Bag.HasWarnings() {
+			colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
+			useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stderr))
+			opts := diagfmt.PrettyOpts{
+				Color:   useColor,
+				Context: 2,
+			}
+			diagfmt.Pretty(os.Stderr, result.Bag, result.FileSet, opts)
+		}
+
+		// Выводим токены в выбранном формате
+		switch format {
+		case "pretty":
+			return diagfmt.FormatTokensPretty(os.Stdout, result.Tokens, result.FileSet)
+		case "json":
+			return diagfmt.FormatTokensJSON(os.Stdout, result.Tokens)
+		default:
+			return fmt.Errorf("unknown format: %s", format)
+		}
+	}
+
+	// Токенизация директории
+	jobs, err := cmd.Flags().GetInt("jobs")
+	if err != nil {
+		return fmt.Errorf("failed to get jobs flag: %w", err)
+	}
+
+	if jobs <= 0 {
+		jobs = runtime.GOMAXPROCS(0)
+	}
+
+	fs, results, err := driver.TokenizeDir(cmd.Context(), filePath, maxDiagnostics, jobs)
 	if err != nil {
 		return fmt.Errorf("tokenization failed: %w", err)
 	}
 
-	// Выводим диагностику в stderr, если есть
-	if result.Bag.HasErrors() || result.Bag.HasWarnings() {
-		colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
-		useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stderr))
-		opts := diagfmt.PrettyOpts{
-			Color:   useColor,
-			Context: 2,
-		}
-		diagfmt.Pretty(os.Stderr, result.Bag, result.FileSet, opts)
+	// Обрабатываем результаты (они уже отсортированы)
+	colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
+	useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stderr))
+	prettyOpts := diagfmt.PrettyOpts{
+		Color:   useColor,
+		Context: 2,
 	}
 
-	// Выводим токены в выбранном формате
-	switch format {
-	case "pretty":
-		return diagfmt.FormatTokensPretty(os.Stdout, result.Tokens, result.FileSet)
-	case "json":
-		return diagfmt.FormatTokensJSON(os.Stdout, result.Tokens)
-	default:
-		return fmt.Errorf("unknown format: %s", format)
+	for _, r := range results {
+		// Выводим диагностику в stderr, если есть
+		if r.Bag.HasErrors() || r.Bag.HasWarnings() {
+			diagfmt.Pretty(os.Stderr, r.Bag, fs, prettyOpts)
+		}
+
+		// Выводим заголовок файла, если не quiet
+		if !quiet {
+			file := fs.Get(r.FileID)
+			fmt.Fprintf(os.Stdout, "== %s ==\n", file.FormatPath("auto", fs.BaseDir()))
+		}
+
+		// Выводим токены в выбранном формате
+		switch format {
+		case "pretty":
+			if err := diagfmt.FormatTokensPretty(os.Stdout, r.Tokens, fs); err != nil {
+				return err
+			}
+		case "json":
+			if err := diagfmt.FormatTokensJSON(os.Stdout, r.Tokens); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unknown format: %s", format)
+		}
+
+		// Добавляем пустую строку между файлами для читаемости
+		if !quiet && format == "pretty" {
+			fmt.Fprintln(os.Stdout)
+		}
 	}
+
+	return nil
 }
