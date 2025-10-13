@@ -144,27 +144,61 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 
 	if opts.Stage == DiagnoseStageSyntax || opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
 		baseDir := fs.BaseDir()
-		metas := make([]project.ModuleMeta, 0, len(results))
-		nodes := make([]dag.ModuleNode, 0, len(results))
+		type entry struct {
+			meta project.ModuleMeta
+			node dag.ModuleNode
+		}
+		entries := make([]entry, 0, len(results))
 		for i := range results {
 			res := &results[i]
 			if res.Bag == nil || res.Builder == nil {
 				continue
 			}
 			reporter := &diag.BagReporter{Bag: res.Bag}
-			if meta, ok := buildModuleMeta(fs, res.Builder, res.ASTFile, baseDir, reporter); ok {
-				metas = append(metas, meta)
-				nodes = append(nodes, dag.ModuleNode{
+			meta, ok := buildModuleMeta(fs, res.Builder, res.ASTFile, baseDir, reporter)
+			if !ok {
+				file := fs.Get(res.FileID)
+				meta = fallbackModuleMeta(file, baseDir)
+			}
+			broken, firstErr := moduleStatus(res.Bag)
+			entries = append(entries, entry{
+				meta: meta,
+				node: dag.ModuleNode{
 					Meta:     meta,
 					Reporter: reporter,
-				})
-			}
+					Broken:   broken,
+					FirstErr: firstErr,
+				},
+			})
 		}
-		if len(metas) > 0 {
+		if len(entries) > 0 {
+			sort.Slice(entries, func(i, j int) bool {
+				return entries[i].meta.Path < entries[j].meta.Path
+			})
+			metas := make([]project.ModuleMeta, 0, len(entries))
+			nodes := make([]dag.ModuleNode, 0, len(entries))
+			for _, e := range entries {
+				metas = append(metas, e.meta)
+				nodes = append(nodes, e.node)
+			}
 			idx := dag.BuildIndex(metas)
 			graph, slots := dag.BuildGraph(idx, nodes)
 			topo := dag.ToposortKahn(graph)
 			dag.ReportCycles(idx, slots, topo)
+			for i := range slots {
+				reporter, ok := slots[i].Reporter.(*diag.BagReporter)
+				if !ok || reporter.Bag == nil {
+					continue
+				}
+				brokenNow, firstErrNow := moduleStatus(reporter.Bag)
+				if brokenNow {
+					slots[i].Broken = true
+					if slots[i].FirstErr == nil && firstErrNow != nil {
+						slots[i].FirstErr = firstErrNow
+					}
+				}
+			}
+			dag.ReportBrokenDeps(idx, slots)
 		}
 	}
 

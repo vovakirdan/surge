@@ -19,12 +19,16 @@ type Graph struct {
 type ModuleNode struct {
 	Meta     project.ModuleMeta
 	Reporter diag.Reporter
+	Broken   bool
+	FirstErr *diag.Diagnostic
 }
 
 type ModuleSlot struct {
 	Meta     project.ModuleMeta
 	Reporter diag.Reporter
 	Present  bool
+	Broken   bool
+	FirstErr *diag.Diagnostic
 }
 
 func BuildGraph(idx ModuleIndex, nodes []ModuleNode) (Graph, []ModuleSlot) {
@@ -73,6 +77,8 @@ func BuildGraph(idx ModuleIndex, nodes []ModuleNode) (Graph, []ModuleSlot) {
 		slot.Meta = meta
 		slot.Reporter = node.Reporter
 		slot.Present = true
+		slot.Broken = node.Broken
+		slot.FirstErr = node.FirstErr
 		g.Present[int(id)] = true
 	}
 
@@ -157,5 +163,41 @@ func ReportCycles(idx ModuleIndex, slots []ModuleSlot, topo Topo) {
 		}
 		msg := fmt.Sprintf("module %q participates in an import cycle: %s", slot.Meta.Path, summary)
 		slot.Reporter.Report(diag.ProjImportCycle, diag.SevError, slot.Meta.Span, msg, nil, nil)
+	}
+}
+
+func ReportBrokenDeps(idx ModuleIndex, slots []ModuleSlot) {
+	for i := range slots {
+		slotFrom := &slots[i]
+		if !slotFrom.Present || slotFrom.Reporter == nil || len(slotFrom.Meta.Imports) == 0 {
+			continue
+		}
+		emitted := make(map[string]struct{}, len(slotFrom.Meta.Imports))
+		for _, imp := range slotFrom.Meta.Imports {
+			toID, ok := idx.NameToID[imp.Path]
+			if !ok {
+				continue
+			}
+			depSlot := slots[int(toID)]
+			if !depSlot.Broken {
+				continue
+			}
+			key := imp.Path + "|" + imp.Span.String()
+			if _, seen := emitted[key]; seen {
+				continue
+			}
+			emitted[key] = struct{}{}
+
+			notes := []diag.Note(nil)
+			if depSlot.FirstErr != nil {
+				notes = append(notes, diag.Note{
+					Span: depSlot.FirstErr.Primary,
+					Msg:  fmt.Sprintf("first error in dependency: %s", depSlot.FirstErr.Message),
+				})
+			}
+
+			msg := fmt.Sprintf("dependency module %q has errors", imp.Path)
+			slotFrom.Reporter.Report(diag.ProjDependencyFailed, diag.SevError, imp.Span, msg, notes, nil)
+		}
 	}
 }

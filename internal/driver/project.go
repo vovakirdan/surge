@@ -25,21 +25,14 @@ func buildModuleMeta(
 	fileSpan := fileNode.Span
 	srcFile := fs.Get(fileSpan.File)
 
-	modulePath := srcFile.Path
-	if baseDir != "" {
-		if rel, err := source.RelativePath(modulePath, baseDir); err == nil {
-			modulePath = rel
-		}
-	}
-
-	normModule, err := project.NormalizeModulePath(modulePath)
+	fullModulePath, err := project.NormalizeModulePath(srcFile.Path)
 	if err != nil {
 		if reporter != nil {
 			reporter.Report(
 				diag.ProjInvalidModulePath,
 				diag.SevError,
 				fileSpan,
-				fmt.Sprintf("invalid module path %q: %v", modulePath, err),
+				fmt.Sprintf("invalid module path %q: %v", srcFile.Path, err),
 				nil,
 				nil,
 			)
@@ -48,7 +41,7 @@ func buildModuleMeta(
 	}
 
 	meta := project.ModuleMeta{
-		Path: normModule,
+		Path: fullModulePath,
 		Span: fileSpan,
 	}
 
@@ -90,7 +83,7 @@ func buildModuleMeta(
 		}
 
 		rawPath := strings.Join(segments, "/")
-		normImport, err := project.ResolveImportPath(meta.Path, segments)
+		normImport, err := project.ResolveImportPath(fullModulePath, baseDir, segments)
 		if err != nil {
 			if reporter != nil {
 				reporter.Report(

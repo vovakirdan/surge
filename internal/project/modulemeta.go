@@ -68,11 +68,19 @@ func NormalizeModulePath(path string) (string, error) {
 	return out, nil
 }
 
-// ResolveImportPath нормализует путь импорта относительно модуля modulePath.
+// ResolveImportPath нормализует путь импорта относительно модуля modulePath и базового каталога basePath.
 // segments — список сегментов (включая ".", "..").
-func ResolveImportPath(modulePath string, segments []string) (string, error) {
+func ResolveImportPath(modulePath string, basePath string, segments []string) (string, error) {
 	if len(segments) == 0 {
 		return "", errors.New("empty import path")
+	}
+
+	var baseSegments []string
+	if basePath != "" {
+		clean := strings.Trim(basePath, "/")
+		if clean != "" {
+			baseSegments = strings.Split(strings.ReplaceAll(clean, "\\", "/"), "/")
+		}
 	}
 
 	var moduleDir []string
@@ -83,10 +91,47 @@ func ResolveImportPath(modulePath string, segments []string) (string, error) {
 		}
 	}
 
-	useBase := len(segments) > 0 && (segments[0] == "." || segments[0] == "..")
 	target := make([]string, 0, len(moduleDir)+len(segments))
-	if useBase {
+	if len(moduleDir) > 0 {
 		target = append(target, moduleDir...)
+	}
+
+	useRelative := segments[0] == "." || segments[0] == ".."
+	if !useRelative {
+		absolute := false
+		if len(baseSegments) > 0 && len(segments) >= len(baseSegments) {
+			absolute = true
+			for i := range baseSegments {
+				if segments[i] != baseSegments[i] {
+					absolute = false
+					break
+				}
+			}
+		}
+		if !absolute && len(segments) >= len(moduleDir) {
+			absolute = true
+			for i := range moduleDir {
+				if moduleDir[i] != segments[i] {
+					absolute = false
+					break
+				}
+			}
+		}
+		if !absolute && len(moduleDir) > 0 {
+			parent := moduleDir[:len(moduleDir)-1]
+			if len(parent) > 0 && len(segments) >= len(parent) {
+				absolute = true
+				for i := range parent {
+					if parent[i] != segments[i] {
+						absolute = false
+						break
+					}
+				}
+			}
+		}
+		if absolute {
+			target = target[:0]
+		}
 	}
 
 	for _, seg := range segments {

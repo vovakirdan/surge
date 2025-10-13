@@ -249,3 +249,67 @@ func TestReportCycles(t *testing.T) {
 		t.Fatalf("module b diagnostics = %v", bagB.Items())
 	}
 }
+
+func TestReportBrokenDeps(t *testing.T) {
+	importSpan := source.Span{File: 1, Start: 0, End: 10}
+	depSpan := source.Span{File: 2, Start: 0, End: 8}
+
+	importMeta := project.ModuleMeta{
+		Path: "app",
+		Span: importSpan,
+		Imports: []project.ImportMeta{
+			{Path: "lib/util", Span: importSpan},
+		},
+	}
+	depMeta := project.ModuleMeta{
+		Path: "lib/util",
+		Span: depSpan,
+	}
+
+	importBag := diag.NewBag(10)
+	depBag := diag.NewBag(10)
+	depErr := diag.Diagnostic{
+		Severity: diag.SevError,
+		Code:     diag.SynUnexpectedToken,
+		Message:  "boom",
+		Primary:  depSpan,
+	}
+	depBag.Add(depErr)
+	firstCopy := depErr
+
+	nodes := []ModuleNode{
+		{
+			Meta:     importMeta,
+			Reporter: &diag.BagReporter{Bag: importBag},
+		},
+		{
+			Meta:     depMeta,
+			Reporter: &diag.BagReporter{Bag: depBag},
+			Broken:   true,
+			FirstErr: &firstCopy,
+		},
+	}
+
+	idx := BuildIndex([]project.ModuleMeta{importMeta, depMeta})
+	graph, slots := BuildGraph(idx, nodes)
+	topo := ToposortKahn(graph)
+	if topo.Cyclic {
+		t.Fatalf("expected graph to be acyclic")
+	}
+
+	ReportBrokenDeps(idx, slots)
+
+	if importBag.Len() != 1 {
+		t.Fatalf("expected one diagnostic in importer bag, got %d", importBag.Len())
+	}
+	diagEntry := importBag.Items()[0]
+	if diagEntry.Code != diag.ProjDependencyFailed {
+		t.Fatalf("diag code = %v, want %v", diagEntry.Code, diag.ProjDependencyFailed)
+	}
+	if len(diagEntry.Notes) != 1 {
+		t.Fatalf("expected one note, got %d", len(diagEntry.Notes))
+	}
+	if diagEntry.Notes[0].Span != depSpan {
+		t.Fatalf("note span = %+v, want %+v", diagEntry.Notes[0].Span, depSpan)
+	}
+}

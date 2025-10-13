@@ -55,6 +55,7 @@ const (
 	ProjImportCycle       Code = 5004
 	ProjInvalidModulePath Code = 5005
 	ProjInvalidImportPath Code = 5006
+	ProjDependencyFailed  Code = 5007
 )
 
 var (
@@ -95,6 +96,7 @@ var (
 		ProjImportCycle:             "Import cycle detected",
 		ProjInvalidModulePath:       "Invalid module path",
 		ProjInvalidImportPath:       "Invalid import path",
+		ProjDependencyFailed:        "Dependency module has errors",
 	}
 )
 

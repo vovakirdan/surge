@@ -6,6 +6,7 @@ func TestResolveImportPath(t *testing.T) {
 	tests := []struct {
 		name       string
 		modulePath string
+		basePath   string
 		segments   []string
 		want       string
 		wantErr    bool
@@ -13,38 +14,57 @@ func TestResolveImportPath(t *testing.T) {
 		{
 			name:       "simple",
 			modulePath: "core/main",
+			basePath:   "",
 			segments:   []string{"std", "io"},
-			want:       "std/io",
+			want:       "core/std/io",
 		},
 		{
 			name:       "relative same dir",
 			modulePath: "core/main",
+			basePath:   "",
 			segments:   []string{".", "util"},
 			want:       "core/util",
 		},
 		{
 			name:       "relative parent",
 			modulePath: "included/d",
+			basePath:   "",
 			segments:   []string{"..", "a"},
 			want:       "a",
 		},
 		{
 			name:       "multiple parent",
 			modulePath: "a/b/c",
+			basePath:   "",
 			segments:   []string{"..", "..", "d"},
 			want:       "d",
 		},
 		{
 			name:       "escape root",
 			modulePath: "a",
+			basePath:   "",
 			segments:   []string{"..", "b"},
 			wantErr:    true,
+		},
+		{
+			name:       "sibling module",
+			modulePath: "testdata/test_imports/a",
+			basePath:   "",
+			segments:   []string{"b"},
+			want:       "testdata/test_imports/b",
+		},
+		{
+			name:       "absolute from base",
+			modulePath: "included/d",
+			basePath:   "testdata/test_imports",
+			segments:   []string{"testdata", "test_imports", "a"},
+			want:       "testdata/test_imports/a",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ResolveImportPath(tt.modulePath, tt.segments)
+			got, err := ResolveImportPath(tt.modulePath, tt.basePath, tt.segments)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got nil")
