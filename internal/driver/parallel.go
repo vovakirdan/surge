@@ -14,6 +14,8 @@ import (
 	"surge/internal/diag"
 	"surge/internal/lexer"
 	"surge/internal/parser"
+	"surge/internal/project"
+	"surge/internal/project/dag"
 	"surge/internal/source"
 	"surge/internal/token"
 )
@@ -35,9 +37,11 @@ type ParseDirResult struct {
 }
 
 type DiagnoseDirResult struct {
-	Path   string
-	FileID source.FileID
-	Bag    *diag.Bag
+	Path    string
+	FileID  source.FileID
+	Bag     *diag.Bag
+	Builder *ast.Builder
+	ASTFile ast.FileID
 }
 
 func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOptions, jobs int) (*source.FileSet, []DiagnoseDirResult, error) {
@@ -82,6 +86,10 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 			}
 
 			bag := diag.NewBag(opts.MaxDiagnostics)
+			var (
+				builder *ast.Builder
+				astFile ast.FileID
+			)
 
 			if loadErr, hadErr := loadErrors[path]; hadErr {
 				bag.Add(diag.Diagnostic{
@@ -90,20 +98,6 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					Message:  "failed to load file: " + loadErr.Error(),
 					Primary:  source.Span{},
 				})
-				if opts.IgnoreWarnings {
-					bag.Filter(func(d diag.Diagnostic) bool {
-						return d.Severity != diag.SevWarning && d.Severity != diag.SevInfo
-					})
-				}
-				if opts.WarningsAsErrors {
-					bag.Transform(func(d diag.Diagnostic) diag.Diagnostic {
-						if d.Severity == diag.SevWarning {
-							d.Severity = diag.SevError
-						}
-						return d
-					})
-					bag.Sort()
-				}
 				results[i] = DiagnoseDirResult{Path: path, FileID: 0, Bag: bag}
 				return nil
 			}
@@ -120,41 +114,81 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				_ = diagnoseTokenize(file, bag)
 			case DiagnoseStageSyntax:
 				if err := diagnoseTokenize(file, bag); err == nil {
-					_ = diagnoseParse(fs, file, bag)
+					builder, astFile, _ = diagnoseParse(fs, file, bag)
 				}
 			case DiagnoseStageSema, DiagnoseStageAll:
 				if err := diagnoseTokenize(file, bag); err == nil {
-					_ = diagnoseParse(fs, file, bag)
+					builder, astFile, _ = diagnoseParse(fs, file, bag)
 					// TODO: добавить семантическую диагностику
 				}
 			default:
 				if err := diagnoseTokenize(file, bag); err == nil {
-					_ = diagnoseParse(fs, file, bag)
+					builder, astFile, _ = diagnoseParse(fs, file, bag)
 				}
 			}
 
-			if opts.IgnoreWarnings {
-				bag.Filter(func(d diag.Diagnostic) bool {
-					return d.Severity != diag.SevWarning && d.Severity != diag.SevInfo
-				})
+			results[i] = DiagnoseDirResult{
+				Path:    path,
+				FileID:  fileID,
+				Bag:     bag,
+				Builder: builder,
+				ASTFile: astFile,
 			}
-			if opts.WarningsAsErrors {
-				bag.Transform(func(d diag.Diagnostic) diag.Diagnostic {
-					if d.Severity == diag.SevWarning {
-						d.Severity = diag.SevError
-					}
-					return d
-				})
-				bag.Sort()
-			}
-
-			results[i] = DiagnoseDirResult{Path: path, FileID: fileID, Bag: bag}
 			return nil
 		})
 	}
 
 	if err := g.Wait(); err != nil {
 		return fs, results, err
+	}
+
+	if opts.Stage == DiagnoseStageSyntax || opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
+		baseDir := fs.BaseDir()
+		metas := make([]project.ModuleMeta, 0, len(results))
+		nodes := make([]dag.ModuleNode, 0, len(results))
+		for i := range results {
+			res := &results[i]
+			if res.Bag == nil || res.Builder == nil {
+				continue
+			}
+			reporter := &diag.BagReporter{Bag: res.Bag}
+			if meta, ok := buildModuleMeta(fs, res.Builder, res.ASTFile, baseDir, reporter); ok {
+				metas = append(metas, meta)
+				nodes = append(nodes, dag.ModuleNode{
+					Meta:     meta,
+					Reporter: reporter,
+				})
+			}
+		}
+		if len(metas) > 0 {
+			idx := dag.BuildIndex(metas)
+			graph, slots := dag.BuildGraph(idx, nodes)
+			topo := dag.ToposortKahn(graph)
+			dag.ReportCycles(idx, slots, topo)
+		}
+	}
+
+	for i := range results {
+		bag := results[i].Bag
+		if bag == nil {
+			continue
+		}
+		results[i].Builder = nil
+		results[i].ASTFile = 0
+		if opts.IgnoreWarnings {
+			bag.Filter(func(d diag.Diagnostic) bool {
+				return d.Severity != diag.SevWarning && d.Severity != diag.SevInfo
+			})
+		}
+		if opts.WarningsAsErrors {
+			bag.Transform(func(d diag.Diagnostic) diag.Diagnostic {
+				if d.Severity == diag.SevWarning {
+					d.Severity = diag.SevError
+				}
+				return d
+			})
+			bag.Sort()
+		}
 	}
 
 	return fs, results, nil

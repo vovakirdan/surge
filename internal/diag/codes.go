@@ -41,11 +41,20 @@ const (
 	SynEmptyImportGroup   Code = 2106
 
 	// Семантические (резервируем)
-	SemaInfo Code = 3000
+	SemaInfo  Code = 3000
 	SemaError Code = 3001
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
+
+	// Ошибки проекта / DAG
+	ProjInfo              Code = 5000
+	ProjDuplicateModule   Code = 5001
+	ProjMissingModule     Code = 5002
+	ProjSelfImport        Code = 5003
+	ProjImportCycle       Code = 5004
+	ProjInvalidModulePath Code = 5005
+	ProjInvalidImportPath Code = 5006
 )
 
 var (
@@ -79,6 +88,13 @@ var (
 		SemaInfo:                    "Semantic information",
 		SemaError:                   "Semantic error",
 		IOLoadFileError:             "I/O load file error",
+		ProjInfo:                    "Project information",
+		ProjDuplicateModule:         "Duplicate module definition",
+		ProjMissingModule:           "Missing module",
+		ProjSelfImport:              "Module imports itself",
+		ProjImportCycle:             "Import cycle detected",
+		ProjInvalidModulePath:       "Invalid module path",
+		ProjInvalidImportPath:       "Invalid import path",
 	}
 )
 
@@ -88,6 +104,12 @@ func (c Code) ID() string {
 		return fmt.Sprintf("LEX%04d", ic)
 	case ic >= 2000 && ic < 3000:
 		return fmt.Sprintf("SYN%04d", ic)
+	case ic >= 3000 && ic < 4000:
+		return fmt.Sprintf("SEM%04d", ic)
+	case ic >= 4000 && ic < 5000:
+		return fmt.Sprintf("IO%04d", ic)
+	case ic >= 5000 && ic < 6000:
+		return fmt.Sprintf("PRJ%04d", ic)
 	}
 	return "E0000"
 }

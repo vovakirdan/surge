@@ -3,6 +3,7 @@ package source
 import (
 	"path/filepath"
 	"slices"
+	"sort"
 )
 
 // normalizeCRLF заменяет все \r\n на \n, не трогая одиночные \r.
@@ -58,49 +59,26 @@ func buildLineIndex(content []byte) []uint32 {
 }
 
 func toLineCol(lineIdx []uint32, off uint32) LineCol {
-	// Если LineIdx пустой, то весь файл - одна строка
-	if len(lineIdx) == 0 {
-		return LineCol{Line: 1, Col: off + 1}
-	}
-
-	// бинпоиск: находим наибольший lineIdx[i] <= off
-	lo, hi := 0, len(lineIdx)-1
-	for lo <= hi {
-		mid := (lo + hi) >> 1
-		if lineIdx[mid] <= off {
-			lo = mid + 1
-		} else {
-			hi = mid - 1
-		}
-	}
-	line := hi // индекс строки (0-based)
-
-	// Если off меньше первого элемента LineIdx, то это первая строка
-	if line < 0 {
-		return LineCol{Line: 1, Col: off + 1}
-	}
-
-	// hi == индекс последнего '\n' с позицией <= off; может быть -1 если off до первого \n
-	if hi < 0 {
-		return LineCol{Line: 1, Col: off + 1}
-	}
-
-	// Если off указывает на байт '\n', интерпретируем как конец предыдущей строки
-	if off == lineIdx[hi] {
-		// Находим длину предыдущей строки
-		var lineStart uint32
-		if hi == 0 {
-			lineStart = 0
-		} else {
-			lineStart = lineIdx[hi-1] + 1
-		}
-		lineLength := lineIdx[hi] - lineStart
-		return LineCol{Line: uint32(hi + 1), Col: lineLength + 1}
-	}
-
-	// Обычный случай: off после '\n'
-	startOff := lineIdx[hi] + 1
-	return LineCol{Line: uint32(hi + 2), Col: off - startOff + 1}
+    if len(lineIdx) == 0 {
+        return LineCol{Line: 1, Col: off + 1}
+    }
+    // ищем первый индекс '\n' > off
+    i := sort.Search(len(lineIdx), func(k int) bool { return lineIdx[k] > off })
+    if i == 0 {
+        // off до первого \n
+        return LineCol{Line: 1, Col: off + 1}
+    }
+    // последний '\n' <= off находится по индексу i-1
+    last := lineIdx[i-1]
+    if off == last {
+        // позиция на '\n' — считаем концом предыдущей строки
+        var start uint32
+        if i-1 == 0 { start = 0 } else { start = lineIdx[i-2] + 1 }
+        return LineCol{Line: uint32(i), Col: last - start + 1}
+    }
+    // обычный случай
+    start := last + 1
+    return LineCol{Line: uint32(i + 1), Col: off - start + 1}
 }
 
 func normalizePath(p string) string {

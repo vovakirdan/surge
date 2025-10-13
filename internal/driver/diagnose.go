@@ -1,11 +1,15 @@
 package driver
 
 import (
+	"path/filepath"
+
+	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/lexer"
-	"surge/internal/source"
 	"surge/internal/parser"
-	"surge/internal/ast"
+	"surge/internal/project"
+	"surge/internal/project/dag"
+	"surge/internal/source"
 )
 
 type DiagnoseResult struct {
@@ -49,10 +53,16 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	if err != nil {
 		return nil, err
 	}
+	fs.SetBaseDir(filepath.Dir(path))
 	file := fs.Get(fileID)
 
 	// Создаём диагностический пакет
 	bag := diag.NewBag(opts.MaxDiagnostics)
+
+	var (
+		builder *ast.Builder
+		astFile ast.FileID
+	)
 
 	// Запускаем диагностику по стадиям
 	switch opts.Stage {
@@ -61,7 +71,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	case DiagnoseStageSyntax:
 		err = diagnoseTokenize(file, bag)
 		if err == nil {
-			err = diagnoseParse(fs, file, bag)
+			builder, astFile, err = diagnoseParse(fs, file, bag)
 		}
 	case DiagnoseStageSema:
 		fallthrough // пока что обрабатываем как syntax
@@ -69,7 +79,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		err = diagnoseTokenize(file, bag)
 		if err == nil {
 			// TODO: добавить диагностику парсера и семантики
-			err = diagnoseParse(fs, file, bag)
+			builder, astFile, err = diagnoseParse(fs, file, bag)
 			// if err == nil {
 			//     err = diagnoseSema(file, bag)
 			// }
@@ -78,6 +88,23 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 
 	if err != nil {
 		return nil, err
+	}
+
+	if builder != nil {
+		baseDir := fs.BaseDir()
+		if baseDir == "" {
+			baseDir = filepath.Dir(file.Path)
+		}
+		reporter := &diag.BagReporter{Bag: bag}
+		if meta, ok := buildModuleMeta(fs, builder, astFile, baseDir, reporter); ok {
+			metas := []project.ModuleMeta{meta}
+			idx := dag.BuildIndex(metas)
+			graph, slots := dag.BuildGraph(idx, []dag.ModuleNode{
+				{Meta: meta, Reporter: reporter},
+			})
+			topo := dag.ToposortKahn(graph)
+			dag.ReportCycles(idx, slots, topo)
+		}
 	}
 
 	// Применяем фильтрацию и трансформацию диагностик
@@ -124,7 +151,7 @@ func diagnoseTokenize(file *source.File, bag *diag.Bag) error {
 	return nil
 }
 
-func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) error {
+func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) (*ast.Builder, ast.FileID, error) {
 	lx := lexer.New(file, lexer.Options{})
 	arenas := ast.NewBuilder(ast.Hints{}, nil)
 
@@ -134,13 +161,13 @@ func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) error {
 	}
 
 	opts := parser.Options{
-		Reporter: &diag.BagReporter{Bag: bag},
+		Reporter:  &diag.BagReporter{Bag: bag},
 		MaxErrors: maxErrors,
 	}
 
-	parser.ParseFile(fs, lx, arenas, opts)
+	result := parser.ParseFile(fs, lx, arenas, opts)
 
-	return nil
+	return arenas, result.File, nil
 }
 
 type ParseResult struct {
