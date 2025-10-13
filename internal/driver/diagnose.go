@@ -53,7 +53,6 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	if err != nil {
 		return nil, err
 	}
-	fs.SetBaseDir(filepath.Dir(path))
 	file := fs.Get(fileID)
 
 	// Создаём диагностический пакет

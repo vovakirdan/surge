@@ -1,0 +1,3 @@
+import ../a as a_module;
+import ../../some/file_1;
+import testdata/test_imports/a;

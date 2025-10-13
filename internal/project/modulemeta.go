@@ -2,6 +2,9 @@ package project
 
 import (
 	"errors"
+	"fmt"
+	"strings"
+
 	"surge/internal/source"
 )
 
@@ -63,4 +66,51 @@ func NormalizeModulePath(path string) (string, error) {
 		out += seg
 	}
 	return out, nil
+}
+
+// ResolveImportPath нормализует путь импорта относительно модуля modulePath.
+// segments — список сегментов (включая ".", "..").
+func ResolveImportPath(modulePath string, segments []string) (string, error) {
+	if len(segments) == 0 {
+		return "", errors.New("empty import path")
+	}
+
+	var moduleDir []string
+	if modulePath != "" {
+		parts := strings.Split(modulePath, "/")
+		if len(parts) > 1 {
+			moduleDir = append(moduleDir, parts[:len(parts)-1]...)
+		}
+	}
+
+	useBase := len(segments) > 0 && (segments[0] == "." || segments[0] == "..")
+	target := make([]string, 0, len(moduleDir)+len(segments))
+	if useBase {
+		target = append(target, moduleDir...)
+	}
+
+	for _, seg := range segments {
+		switch seg {
+		case "":
+			return "", errors.New("empty import segment")
+		case ".":
+			continue
+		case "..":
+			if len(target) == 0 {
+				return "", errors.New("import path escapes project root")
+			}
+			target = target[:len(target)-1]
+		default:
+			if strings.Contains(seg, "/") {
+				return "", fmt.Errorf("import segment %q contains '/'", seg)
+			}
+			target = append(target, seg)
+		}
+	}
+
+	if len(target) == 0 {
+		return "", errors.New("import resolves to empty path")
+	}
+
+	return NormalizeModulePath(strings.Join(target, "/"))
 }

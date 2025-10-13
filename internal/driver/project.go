@@ -89,15 +89,15 @@ func buildModuleMeta(
 			continue
 		}
 
-		path := strings.Join(segments, "/")
-		normImport, err := project.NormalizeModulePath(path)
+		rawPath := strings.Join(segments, "/")
+		normImport, err := project.ResolveImportPath(meta.Path, segments)
 		if err != nil {
 			if reporter != nil {
 				reporter.Report(
 					diag.ProjInvalidImportPath,
 					diag.SevError,
 					item.Span,
-					fmt.Sprintf("invalid import path %q: %v", path, err),
+					fmt.Sprintf("invalid import path %q: %v", rawPath, err),
 					nil,
 					nil,
 				)

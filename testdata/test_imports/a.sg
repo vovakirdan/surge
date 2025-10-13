@@ -1,0 +1,3 @@
+import b; // import cycle
+import d; // import missing module
+import b::baz; // import with alias - ok
