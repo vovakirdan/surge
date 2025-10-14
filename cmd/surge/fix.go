@@ -1,5 +1,8 @@
 package main
 
+// todo: tui mode
+// флаг --interactive/--tui включает интерактивный режим замен
+
 import (
 	"errors"
 	"fmt"
@@ -73,6 +76,12 @@ func runFix(cmd *cobra.Command, args []string) error {
 	info, err := os.Stat(targetPath)
 	if err != nil {
 		return fmt.Errorf("fix: %w", err)
+	}
+
+	// если это директория, но передан id, то ошибка
+	// так как id уникален только для одного файла
+	if info.IsDir() && targetID != "" {
+		return fmt.Errorf("fix: id can only be used with a single file")
 	}
 
 	if !info.IsDir() {

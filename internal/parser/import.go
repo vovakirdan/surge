@@ -56,7 +56,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 	// Смотрим, что идёт после пути модуля
 	switch p.lx.Peek().Kind {
 	case token.ColonColon:
-		p.advance() // съедаем '::'
+		colonColonTok := p.advance() // съедаем '::'
 
 		// После '::' может быть либо идентификатор, либо группа {Ident, ...}
 		if p.at(token.Ident) {
@@ -165,6 +165,27 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			// Проверяем на пустую группу
 			if len(pairs) == 0 {
 				p.warn(diag.SynEmptyImportGroup, "empty import group")
+				// p.emitDiagnostic(
+				// 	diag.SynEmptyImportGroup,
+				// 	diag.SevWarning,
+				// 	p.currentErrorSpan(),
+				// 	"empty import group",
+				// 	func(b *diag.ReportBuilder) {
+				// 		if b == nil {
+				// 			return
+				// 		}
+				// 		fixID := fmt.Sprintf("%s-%d-%d", diag.SynEmptyImportGroup.ID(), p.currentErrorSpan().File, p.currentErrorSpan().Start)
+				// 		suggestion := fix.DeleteSpans(
+				// 			"remove braces around single import",
+				// 			[]source.Span{groupOpenSpan},
+				// 			fix.WithKind(diag.FixKindRefactor),
+				// 			fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				// 			fix.WithID(fixID),
+				// 		)
+				// 		b.WithFixSuggestion(suggestion)
+				// 		b.WithNote(p.currentErrorSpan(), "remove braces to simplify the import statement")
+				// 	},
+				// )
 			}
 
 			// Проверяем, что у нас есть закрывающая скобка
@@ -205,11 +226,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		} else {
 			// Ни идентификатор, ни '{'
 			// да, p.err удобно но тут мы можем предложить фиксы
-			dblSpan := source.Span{
-				File: p.currentErrorSpan().File,
-				Start: p.currentErrorSpan().Start - 2,
-				End: p.currentErrorSpan().End,
-			}
+			dblSpan := colonColonTok.Span
 			p.emitDiagnostic(
 				diag.SynExpectItemAfterDbl,
 				diag.SevError,
@@ -219,11 +236,10 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					if b == nil {
 						return
 					}
-					fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectItemAfterDbl.ID(), p.currentErrorSpan().File, p.currentErrorSpan().Start)
-					suggestion := fix.ReplaceSpan(
-						"replace '::' with ';'",
+					fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectItemAfterDbl.ID(), dblSpan.File, dblSpan.Start)
+					suggestion := fix.DeleteSpan(
+						"remove unexpected '::'",
 						dblSpan,
-						";",
 						"::",
 						fix.WithKind(diag.FixKindRefactor),
 						fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
@@ -232,8 +248,9 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					b.WithFixSuggestion(suggestion)
 				},
 			)
-			p.resyncStatement()
-			return ast.NoItemID, false
+			// НЕ делаем resyncStatement() здесь, продолжаем до проверки ';'
+			// Устанавливаем флаг, что не нужно ожидать ';' т.к. была ошибка
+			needSemicolon = true
 		}
 
 	case token.KwAs:
@@ -276,7 +293,8 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 	}
 
 	// Ожидаем точку с запятой в конце
-	insertSpan := p.currentErrorSpan()
+	// Для вставки ';' используем позицию после последнего токена модуля
+	insertSpan := source.Span{File: p.lastSpan.File, Start: p.lastSpan.End, End: p.lastSpan.End}
 	semi, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected semicolon after import item", func(b *diag.ReportBuilder) {
 		if b == nil {
 			return

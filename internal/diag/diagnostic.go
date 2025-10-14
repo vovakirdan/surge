@@ -89,6 +89,8 @@ type Fix struct {
 	IsPreferred   bool
 	Edits         []TextEdit
 	Thunk         FixThunk
+	// todo: внедрить эту логику
+	RequiresAll   bool // спасибо go что она по умолчанию false; если true, то fix должен быть пропущен без флага --all
 }
 
 // Materialized reports whether the fix already contains concrete edits.

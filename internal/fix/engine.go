@@ -1,4 +1,8 @@
 package fix
+// todo: интеграция с git: 
+// По умолчанию создавать .bak только для незатрекинных файлов.
+// Флаг --staged-only (работать по git diff --name-only --staged).
+// Флаг --since HEAD~1 (фильтр по изменённым файлам).
 
 import (
 	"errors"

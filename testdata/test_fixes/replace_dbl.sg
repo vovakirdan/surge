@@ -1,1 +1,1 @@
-import missing_semicolon:: // surge fix должен заменить '::' на ';'
+import missing_semicolon:: // surge fix должен заменить '::' на '' и предложить точку с запятой
