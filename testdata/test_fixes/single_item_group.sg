@@ -1,2 +1,2 @@
-import math::{sin};
-// surge fix должен удалить {}
+import missing_semicolon::{sin}; // surge fix должен удалить {}
+import missing_module; // surge fix должен предложить закомментировать или создать

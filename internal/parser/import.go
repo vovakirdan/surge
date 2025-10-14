@@ -22,7 +22,7 @@ import (
 //	import module::{Ident, Ident} ;               	// элементы с подпапками
 //	import module::{Ident as Ident, Ident as Ident} ; // элементы с алиасами с подпапками
 //  import ./module ; // не ошибка, значит "импорт из текущей директории". 
-// Info что так не обязательно, но в случае если имеем библиотеку и файл с одинаковым названием 
+//  Info что так не обязательно, но в случае если имеем библиотеку и файл с одинаковым названием 
 // - это будет явное указание взять файл
 //  import ../module ; // импорт с верхнего уровня
 //  import ../../module ; // импорт с верхнего верхнего уровня
@@ -49,6 +49,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		pairs         []ast.ImportPair
 		needSemicolon = true // флаг для определения нужности `;` в конце
 		groupOpenSpan source.Span
+		trailingComma source.Span
 	)
 	moduleAlias = source.NoStringID
 
@@ -139,7 +140,8 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 				// Если есть запятая, съедаем и продолжаем
 				if p.at(token.Comma) {
-					p.advance()
+					commaTok := p.advance()
+					trailingComma = commaTok.Span
 					continue
 				}
 				if p.at_or(token.RBrace, token.EOF, token.Semicolon) {
@@ -184,17 +186,52 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					if b == nil {
 						return
 					}
-					posFirstBrace := source.Span{File: braceSpan.File, Start: braceSpan.Start, End: braceSpan.Start+1}
-					posSecondBrace := source.Span{File: braceSpan.File, Start: braceSpan.End, End: braceSpan.End}
-					fixID := fmt.Sprintf("%s-%d-%d", diag.SynInfoImportGroup.ID(), posFirstBrace.File, posFirstBrace.Start)
-					suggestion := fix.DeleteSpans("remove braces to simplify the import statement", []source.Span{posFirstBrace, posSecondBrace}, "", fix.Preferred(), fix.WithID(fixID))
-					b.WithFixSuggestion(suggestion)
-					b.WithNote(braceSpan, "remove braces to simplify the import statement.\nAll items should be terminated with a semicolon.")
+					removeSpans := []source.Span{groupOpenSpan, closeTok.Span}
+					if trailingComma.End > trailingComma.Start {
+						removeSpans = append(removeSpans, trailingComma)
+					}
+					fixID := fmt.Sprintf("%s-%d-%d", diag.SynInfoImportGroup.ID(), groupOpenSpan.File, groupOpenSpan.Start)
+					suggestion := fix.DeleteSpans(
+						"remove braces around single import",
+						removeSpans,
+						fix.WithKind(diag.FixKindRefactor),
+						fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						fix.WithID(fixID),
+					)
+					b.WithNote(braceSpan, "remove braces to simplify the import statement").
+						WithFixSuggestion(suggestion)
 				})
 			}
 		} else {
 			// Ни идентификатор, ни '{'
-			p.err(diag.SynExpectItemAfterDbl, "expected identifier or '{' after '::'")
+			// да, p.err удобно но тут мы можем предложить фиксы
+			dblSpan := source.Span{
+				File: p.currentErrorSpan().File,
+				Start: p.currentErrorSpan().Start - 2,
+				End: p.currentErrorSpan().End,
+			}
+			p.emitDiagnostic(
+				diag.SynExpectItemAfterDbl,
+				diag.SevError,
+				dblSpan,
+				"expected identifier or '{' after '::'",
+				func(b *diag.ReportBuilder) {
+					if b == nil {
+						return
+					}
+					fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectItemAfterDbl.ID(), p.currentErrorSpan().File, p.currentErrorSpan().Start)
+					suggestion := fix.ReplaceSpan(
+						"replace '::' with ';'",
+						dblSpan,
+						";",
+						"::",
+						fix.WithKind(diag.FixKindRefactor),
+						fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						fix.WithID(fixID),
+					)
+					b.WithFixSuggestion(suggestion)
+				},
+			)
 			p.resyncStatement()
 			return ast.NoItemID, false
 		}
