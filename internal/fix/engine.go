@@ -1,5 +1,6 @@
 package fix
-// todo: интеграция с git: 
+
+// todo: интеграция с git:
 // По умолчанию создавать .bak только для незатрекинных файлов.
 // Флаг --staged-only (работать по git diff --name-only --staged).
 // Флаг --since HEAD~1 (фильтр по изменённым файлам).
@@ -113,6 +114,7 @@ func Apply(fs *source.FileSet, diagnostics []diag.Diagnostic, opts ApplyOptions)
 func gatherCandidates(ctx diag.FixBuildContext, diagnostics []diag.Diagnostic) ([]candidate, []SkippedFix) {
 	cands := make([]candidate, 0)
 	skips := make([]SkippedFix, 0)
+	seenIDs := make(map[string]struct{})
 
 	for _, d := range diagnostics {
 		if len(d.Fixes) == 0 {
@@ -140,6 +142,15 @@ func gatherCandidates(ctx diag.FixBuildContext, diagnostics []diag.Diagnostic) (
 			if f.ID == "" {
 				f.ID = fmt.Sprintf("%s-%d-%d-%d", d.Code.ID(), d.Primary.File, d.Primary.Start, idx)
 			}
+			if _, exists := seenIDs[f.ID]; exists {
+				skips = append(skips, SkippedFix{
+					ID:     f.ID,
+					Title:  f.Title,
+					Reason: "duplicate fix id",
+				})
+				continue
+			}
+			seenIDs[f.ID] = struct{}{}
 			cands = append(cands, candidate{
 				diag: d,
 				fix:  f,
