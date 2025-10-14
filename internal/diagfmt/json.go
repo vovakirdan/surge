@@ -117,7 +117,7 @@ func BuildDiagnosticsOutput(bag *diag.Bag, fs *source.FileSet, opts JSONOpts) (D
 			Location: makeLocation(d.Primary, fs, opts.PathMode, opts.IncludePositions),
 		}
 
-		if len(d.Notes) > 0 {
+		if opts.IncludeNotes && len(d.Notes) > 0 {
 			diagJSON.Notes = make([]NoteJSON, len(d.Notes))
 			for j, note := range d.Notes {
 				diagJSON.Notes[j] = NoteJSON{
@@ -127,7 +127,7 @@ func BuildDiagnosticsOutput(bag *diag.Bag, fs *source.FileSet, opts JSONOpts) (D
 			}
 		}
 
-		if len(d.Fixes) > 0 {
+		if opts.IncludeFixes && len(d.Fixes) > 0 {
 			fixes := append([]diag.Fix(nil), d.Fixes...)
 			sort.SliceStable(fixes, func(i, j int) bool {
 				fi, fj := fixes[i], fixes[j]

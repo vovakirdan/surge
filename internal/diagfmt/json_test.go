@@ -31,6 +31,8 @@ func TestJSONBasic(t *testing.T) {
 		IncludePositions: true,
 		PathMode:         PathModeBasename,
 		Max:              0,
+		IncludeNotes:     true,
+		IncludeFixes:     true,
 	}
 
 	err := JSON(&buf, bag, fs, opts)
@@ -124,6 +126,8 @@ func TestJSONWithNotesAndFixes(t *testing.T) {
 		IncludePositions: true,
 		PathMode:         PathModeBasename,
 		Max:              0,
+		IncludeNotes:     true,
+		IncludeFixes:     true,
 	}
 
 	err := JSON(&buf, bag, fs, opts)

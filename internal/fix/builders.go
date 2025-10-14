@@ -84,6 +84,19 @@ func DeleteSpan(title string, span source.Span, expect string, opts ...Option) d
 	return applyOptions(fix, opts)
 }
 
+// DeleteSpans removes text covered by spans.
+func DeleteSpans(title string, spans []source.Span, expect string, opts ...Option) diag.Fix {
+	edits := make([]diag.TextEdit, len(spans))
+	for i, span := range spans {
+		edits[i] = diag.TextEdit{Span: source.Span{
+			File: span.File,
+			Start: span.Start - uint32(i),
+			End: span.End - uint32(i),
+		 }, NewText: "", OldText: expect}
+	}
+	return applyOptions(diag.Fix{Title: title, Kind: diag.FixKindQuickFix, Applicability: diag.FixApplicabilityAlwaysSafe, Edits: edits}, opts)
+}
+
 // ReplaceSpan replaces text covered by span with newText.
 func ReplaceSpan(title string, span source.Span, newText, expect string, opts ...Option) diag.Fix {
 	edit := diag.TextEdit{

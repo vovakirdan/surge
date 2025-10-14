@@ -24,6 +24,8 @@ func init() {
 	diagCmd.Flags().Bool("no-warnings", false, "ignore warnings in diagnostics")
 	diagCmd.Flags().Bool("warnings-as-errors", false, "treat warnings as errors")
 	diagCmd.Flags().Int("jobs", 0, "max parallel workers for directory processing (0=auto)")
+	diagCmd.Flags().Bool("with-notes", false, "include diagnostic notes in output")
+	diagCmd.Flags().Bool("suggest", false, "include fix suggestions in output")
 }
 
 func runDiagnose(cmd *cobra.Command, args []string) error {
@@ -57,6 +59,16 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 	if noWarnings && warningsAsErrors {
 		return fmt.Errorf("no-warnings and warnings-as-errors flags cannot be used together")
+	}
+
+	withNotes, err := cmd.Flags().GetBool("with-notes")
+	if err != nil {
+		return fmt.Errorf("failed to get with-notes flag: %w", err)
+	}
+
+	suggest, err := cmd.Flags().GetBool("suggest")
+	if err != nil {
+		return fmt.Errorf("failed to get suggest flag: %w", err)
 	}
 
 	// Конвертируем строку стадии в тип
@@ -104,15 +116,19 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
 			useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stdout))
 			opts := diagfmt.PrettyOpts{
-				Color:    useColor,
-				Context:  2,
-				PathMode: diagfmt.PathModeAuto,
+				Color:     useColor,
+				Context:   2,
+				PathMode:  diagfmt.PathModeAuto,
+				ShowNotes: withNotes,
+				ShowFixes: suggest,
 			}
 			diagfmt.Pretty(os.Stdout, result.Bag, result.FileSet, opts)
 		case "json":
 			jsonOpts := diagfmt.JSONOpts{
 				IncludePositions: true,
 				PathMode:         diagfmt.PathModeAuto,
+				IncludeNotes:     withNotes,
+				IncludeFixes:     suggest,
 			}
 			err = diagfmt.JSON(os.Stdout, result.Bag, result.FileSet, jsonOpts)
 		case "sarif":
@@ -158,13 +174,17 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
 	useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stdout))
 	prettyOpts := diagfmt.PrettyOpts{
-		Color:    useColor,
-		Context:  2,
-		PathMode: diagfmt.PathModeAuto,
+		Color:     useColor,
+		Context:   2,
+		PathMode:  diagfmt.PathModeAuto,
+		ShowNotes: withNotes,
+		ShowFixes: suggest,
 	}
 	jsonOpts := diagfmt.JSONOpts{
 		IncludePositions: true,
 		PathMode:         diagfmt.PathModeAuto,
+		IncludeNotes:     withNotes,
+		IncludeFixes:     suggest,
 	}
 	meta := diagfmt.SarifRunMeta{
 		ToolName:    "surge",

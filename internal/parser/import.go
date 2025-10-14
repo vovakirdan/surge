@@ -1,8 +1,11 @@
 package parser
 
 import (
+	"fmt"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/fix"
 	"surge/internal/source"
 	"surge/internal/token"
 )
@@ -45,6 +48,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		hasOne        bool
 		pairs         []ast.ImportPair
 		needSemicolon = true // флаг для определения нужности `;` в конце
+		groupOpenSpan source.Span
 	)
 	moduleAlias = source.NoStringID
 
@@ -91,7 +95,8 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 		} else if p.at(token.LBrace) {
 			// import module::{Ident [as Alias], ...};
-			p.advance() // съедаем '{'
+			openTok := p.advance() // съедаем '{'
+			groupOpenSpan = openTok.Span
 			pairs = make([]ast.ImportPair, 0, 2)
 			broken := false // флаг для обработки ошибок в группе
 
@@ -166,10 +171,26 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 				return ast.NoItemID, false
 			}
 
-			p.advance() // съедаем '}'
+			closeTok := p.advance() // съедаем '}'
 			// если здесь только один Ident, то кидаем info что можно без {}
+			// предлагаем так же fix удалить {}
 			if len(pairs) == 1 {
-				p.info(diag.SynInfoImportGroup, "import group with only one item can be written without braces")
+				braceSpan := groupOpenSpan
+				if braceSpan.File == closeTok.Span.File {
+					braceSpan = braceSpan.Cover(closeTok.Span)
+				}
+				msg := "import group with only one item can be written without braces"
+				p.emitDiagnostic(diag.SynInfoImportGroup, diag.SevInfo, braceSpan, msg, func(b *diag.ReportBuilder) {
+					if b == nil {
+						return
+					}
+					posFirstBrace := source.Span{File: braceSpan.File, Start: braceSpan.Start, End: braceSpan.Start+1}
+					posSecondBrace := source.Span{File: braceSpan.File, Start: braceSpan.End, End: braceSpan.End}
+					fixID := fmt.Sprintf("%s-%d-%d", diag.SynInfoImportGroup.ID(), posFirstBrace.File, posFirstBrace.Start)
+					suggestion := fix.DeleteSpans("remove braces to simplify the import statement", []source.Span{posFirstBrace, posSecondBrace}, "", fix.Preferred(), fix.WithID(fixID))
+					b.WithFixSuggestion(suggestion)
+					b.WithNote(braceSpan, "remove braces to simplify the import statement.\nAll items should be terminated with a semicolon.")
+				})
 			}
 		} else {
 			// Ни идентификатор, ни '{'
@@ -218,7 +239,17 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 	}
 
 	// Ожидаем точку с запятой в конце
-	semi, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected semicolon after import item")
+	insertSpan := p.currentErrorSpan()
+	semi, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected semicolon after import item", func(b *diag.ReportBuilder) {
+		if b == nil {
+			return
+		}
+		insertPos := source.Span{File: insertSpan.File, Start: insertSpan.Start, End: insertSpan.Start}
+		fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectSemicolon.ID(), insertPos.File, insertPos.Start)
+		suggestion := fix.InsertText("insert ';' after import", insertPos, ";", "", fix.Preferred(), fix.WithID(fixID))
+		b.WithFixSuggestion(suggestion)
+		b.WithNote(insertPos, "insert ';' to terminate the import item")
+	})
 	if !ok {
 		// expect уже содержит диагностику с правильным span, просто возвращаем false
 		return ast.NoItemID, false

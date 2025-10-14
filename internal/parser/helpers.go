@@ -49,13 +49,17 @@ func (p *Parser) currentErrorSpan() source.Span {
 }
 
 // expect — ожидаем конкретный токен. Если нет — репортим и возвращаем (invalid,false).
-func (p *Parser) expect(k token.Kind, code diag.Code, msg string) (token.Token, bool) {
+func (p *Parser) expect(k token.Kind, code diag.Code, msg string, augment ...func(*diag.ReportBuilder)) (token.Token, bool) {
 	if p.at(k) {
 		return p.advance(), true
 	}
 	// Используем currentErrorSpan для более точной диагностики
 	diagSpan := p.currentErrorSpan()
-	p.report(code, diag.SevError, diagSpan, msg)
+	var fn func(*diag.ReportBuilder)
+	if len(augment) > 0 {
+		fn = augment[0]
+	}
+	p.emitDiagnostic(code, diag.SevError, diagSpan, msg, fn)
 	return token.Token{Kind: token.Invalid, Span: diagSpan, Text: p.lx.Peek().Text}, false
 }
 
@@ -85,17 +89,27 @@ func (p *Parser) info(code diag.Code, msg string) bool {
 }
 
 func (p *Parser) report(code diag.Code, sev diag.Severity, sp source.Span, msg string) bool {
-	if p.opts.Reporter != nil {
-		if sev == diag.SevError {
-			p.opts.CurrentErrors++
-		}
-		if !p.opts.Enough() {
-			p.opts.Reporter.Report(code, sev, sp, msg, nil, nil)
-			return true
-		}
-		return false // достигли максимального количества ошибок
+	return p.emitDiagnostic(code, sev, sp, msg, nil)
+}
+
+func (p *Parser) emitDiagnostic(code diag.Code, sev diag.Severity, sp source.Span, msg string, augment func(*diag.ReportBuilder)) bool {
+	if p.opts.Reporter == nil {
+		return false
 	}
-	return false // нет reporter - ничего не записали
+	if sev == diag.SevError {
+		p.opts.CurrentErrors++
+	}
+	if p.opts.Enough() {
+		return false
+	}
+	if augment == nil {
+		p.opts.Reporter.Report(code, sev, sp, msg, nil, nil)
+		return true
+	}
+	builder := diag.NewReportBuilder(p.opts.Reporter, sev, code, sp, msg)
+	augment(builder)
+	builder.Emit()
+	return true
 }
 
 // resyncUntil — consume tokens until Peek() matches any stop token or EOF.

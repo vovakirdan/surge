@@ -18,6 +18,7 @@ func main() {
 	rootCmd.AddCommand(tokenizeCmd)
 	rootCmd.AddCommand(parseCmd)
 	rootCmd.AddCommand(diagCmd)
+	rootCmd.AddCommand(fixCmd)
 
 	// Глобальные флаги
 	rootCmd.PersistentFlags().String("color", "auto", "colorize output (auto|on|off)")

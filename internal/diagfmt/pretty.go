@@ -212,7 +212,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 		}
 
 		// Заглушки для Notes и Fixes
-		if len(d.Notes) > 0 {
+		if opts.ShowNotes && len(d.Notes) > 0 {
 			for _, note := range d.Notes {
 				nf := fs.Get(note.Span.File)
 				notePath := formatPath(nf)
@@ -229,7 +229,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 			}
 		}
 
-		if len(d.Fixes) > 0 {
+		if opts.ShowFixes && len(d.Fixes) > 0 {
 			fixes := append([]diag.Fix(nil), d.Fixes...)
 			sort.SliceStable(fixes, func(i, j int) bool {
 				fi, fj := fixes[i], fixes[j]

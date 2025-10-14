@@ -186,9 +186,11 @@ func TestPrettyNotesAndFixes(t *testing.T) {
 
 	var buf bytes.Buffer
 	opts := PrettyOpts{
-		Color:    false,
-		Context:  0,
-		PathMode: PathModeBasename,
+		Color:     false,
+		Context:   0,
+		PathMode:  PathModeBasename,
+		ShowNotes: true,
+		ShowFixes: true,
 	}
 	Pretty(&buf, bag, fs, opts)
 
