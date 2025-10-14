@@ -3,6 +3,7 @@ package diagfmt
 import (
 	"encoding/json"
 	"io"
+	"sort"
 
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -29,12 +30,18 @@ type NoteJSON struct {
 type FixEditJSON struct {
 	Location LocationJSON `json:"location"`
 	NewText  string       `json:"new_text"`
+	OldText  string       `json:"old_text,omitempty"`
 }
 
 // FixJSON представляет предложение по исправлению для JSON
 type FixJSON struct {
-	Title string        `json:"title"`
-	Edits []FixEditJSON `json:"edits"`
+	ID            string        `json:"id,omitempty"`
+	Title         string        `json:"title"`
+	Kind          string        `json:"kind"`
+	Applicability string        `json:"applicability"`
+	IsPreferred   bool          `json:"is_preferred,omitempty"`
+	BuildError    string        `json:"build_error,omitempty"`
+	Edits         []FixEditJSON `json:"edits,omitempty"`
 }
 
 // DiagnosticJSON представляет диагностику в JSON формате
@@ -121,19 +128,48 @@ func BuildDiagnosticsOutput(bag *diag.Bag, fs *source.FileSet, opts JSONOpts) (D
 		}
 
 		if len(d.Fixes) > 0 {
-			diagJSON.Fixes = make([]FixJSON, len(d.Fixes))
-			for j, fix := range d.Fixes {
-				fixJSON := FixJSON{
-					Title: fix.Title,
-					Edits: make([]FixEditJSON, len(fix.Edits)),
+			fixes := append([]diag.Fix(nil), d.Fixes...)
+			sort.SliceStable(fixes, func(i, j int) bool {
+				fi, fj := fixes[i], fixes[j]
+				if fi.IsPreferred != fj.IsPreferred {
+					return fi.IsPreferred && !fj.IsPreferred
 				}
-				for k, edit := range fix.Edits {
-					fixJSON.Edits[k] = FixEditJSON{
-						Location: makeLocation(edit.Span, fs, opts.PathMode, opts.IncludePositions),
-						NewText:  edit.NewText,
+				if fi.Applicability != fj.Applicability {
+					return fi.Applicability < fj.Applicability
+				}
+				if fi.Kind != fj.Kind {
+					return fi.Kind < fj.Kind
+				}
+				if fi.Title != fj.Title {
+					return fi.Title < fj.Title
+				}
+				return fi.ID < fj.ID
+			})
+
+			ctx := diag.FixBuildContext{FileSet: fs}
+			diagJSON.Fixes = make([]FixJSON, 0, len(fixes))
+			for _, fix := range fixes {
+				resolved, err := fix.Resolve(ctx)
+				fixJSON := FixJSON{
+					ID:            resolved.ID,
+					Title:         resolved.Title,
+					Kind:          resolved.Kind.String(),
+					Applicability: resolved.Applicability.String(),
+					IsPreferred:   resolved.IsPreferred,
+				}
+				if err != nil {
+					fixJSON.BuildError = err.Error()
+				} else if len(resolved.Edits) > 0 {
+					fixJSON.Edits = make([]FixEditJSON, len(resolved.Edits))
+					for k, edit := range resolved.Edits {
+						fixJSON.Edits[k] = FixEditJSON{
+							Location: makeLocation(edit.Span, fs, opts.PathMode, opts.IncludePositions),
+							NewText:  edit.NewText,
+							OldText:  edit.OldText,
+						}
 					}
 				}
-				diagJSON.Fixes[j] = fixJSON
+				diagJSON.Fixes = append(diagJSON.Fixes, fixJSON)
 			}
 		}
 

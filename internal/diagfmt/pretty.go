@@ -3,6 +3,7 @@ package diagfmt
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -68,6 +69,23 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 		context = 1
 	}
 
+	formatPath := func(f *source.File) string {
+		switch opts.PathMode {
+		case PathModeAbsolute:
+			return f.FormatPath("absolute", "")
+		case PathModeRelative:
+			return f.FormatPath("relative", fs.BaseDir())
+		case PathModeBasename:
+			return f.FormatPath("basename", "")
+		case PathModeAuto:
+			return f.FormatPath("auto", "")
+		default:
+			return f.Path
+		}
+	}
+
+	fixLabelColor := infoColor
+
 	for idx, d := range bag.Items() {
 		if idx > 0 {
 			fmt.Fprintln(w) // пустая строка между диагностиками
@@ -77,19 +95,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 		f := fs.Get(d.Primary.File)
 
 		// Форматируем путь в зависимости от PathMode
-		var displayPath string
-		switch opts.PathMode {
-		case PathModeAbsolute:
-			displayPath = f.FormatPath("absolute", "")
-		case PathModeRelative:
-			displayPath = f.FormatPath("relative", fs.BaseDir())
-		case PathModeBasename:
-			displayPath = f.FormatPath("basename", "")
-		case PathModeAuto:
-			displayPath = f.FormatPath("auto", "")
-		default:
-			displayPath = f.Path
-		}
+		displayPath := formatPath(f)
 
 		// Заголовок: file.sg:23:7: ERROR LEX1002: message
 		sevStr := d.Severity.String()
@@ -207,11 +213,109 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 
 		// Заглушки для Notes и Fixes
 		if len(d.Notes) > 0 {
-			fmt.Fprintf(w, "Notes: (TODO: implement notes formatting)\n")
+			for _, note := range d.Notes {
+				nf := fs.Get(note.Span.File)
+				notePath := formatPath(nf)
+				noteStart, _ := fs.Resolve(note.Span)
+				fmt.Fprintf(
+					w,
+					"  %s: %s:%d:%d: %s\n",
+					infoColor.Sprint("note"),
+					pathColor.Sprint(notePath),
+					noteStart.Line,
+					noteStart.Col,
+					note.Msg,
+				)
+			}
 		}
 
 		if len(d.Fixes) > 0 {
-			fmt.Fprintf(w, "Fixes: (TODO: implement fixes formatting)\n")
+			fixes := append([]diag.Fix(nil), d.Fixes...)
+			sort.SliceStable(fixes, func(i, j int) bool {
+				fi, fj := fixes[i], fixes[j]
+				if fi.IsPreferred != fj.IsPreferred {
+					return fi.IsPreferred && !fj.IsPreferred
+				}
+				if fi.Applicability != fj.Applicability {
+					return fi.Applicability < fj.Applicability
+				}
+				if fi.Kind != fj.Kind {
+					return fi.Kind < fj.Kind
+				}
+				if fi.Title != fj.Title {
+					return fi.Title < fj.Title
+				}
+				return fi.ID < fj.ID
+			})
+
+			ctx := diag.FixBuildContext{FileSet: fs}
+			for i, fix := range fixes {
+				resolved, err := fix.Resolve(ctx)
+				if err != nil {
+					fmt.Fprintf(
+						w,
+						"  %s #%d: %s (build error: %v)\n",
+						fixLabelColor.Sprint("fix"),
+						i+1,
+						fix.Title,
+						err,
+					)
+					continue
+				}
+
+				meta := []string{
+					resolved.Kind.String(),
+					resolved.Applicability.String(),
+				}
+				if resolved.IsPreferred {
+					meta = append(meta, "preferred")
+				}
+				if resolved.ID != "" {
+					meta = append(meta, "id="+resolved.ID)
+				}
+				fmt.Fprintf(
+					w,
+					"  %s #%d: %s (%s)\n",
+					fixLabelColor.Sprint("fix"),
+					i+1,
+					resolved.Title,
+					strings.Join(meta, ", "),
+				)
+
+				if len(resolved.Edits) == 0 {
+					fmt.Fprintf(w, "      (no edits)\n")
+					continue
+				}
+
+				for _, edit := range resolved.Edits {
+					ef := fs.Get(edit.Span.File)
+					editPath := formatPath(ef)
+					start, end := fs.Resolve(edit.Span)
+					oldPreview := edit.OldText
+					newPreview := edit.NewText
+					if len(oldPreview) > 32 {
+						oldPreview = oldPreview[:29] + "..."
+					}
+					if len(newPreview) > 32 {
+						newPreview = newPreview[:29] + "..."
+					}
+					metaParts := []string{}
+					if edit.OldText != "" {
+						metaParts = append(metaParts, fmt.Sprintf("expect=%q", oldPreview))
+					}
+					metaParts = append(metaParts, fmt.Sprintf("apply=%q", newPreview))
+					fmt.Fprintf(
+						w,
+						"      %s:%d:%d-%d:%d %s\n",
+						pathColor.Sprint(editPath),
+						start.Line,
+						start.Col,
+						end.Line,
+						end.Col,
+						strings.Join(metaParts, ", "),
+					)
+				}
+			}
 		}
 	}
 }

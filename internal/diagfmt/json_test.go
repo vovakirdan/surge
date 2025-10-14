@@ -170,6 +170,21 @@ func TestJSONWithNotesAndFixes(t *testing.T) {
 	if edit.NewText != "" {
 		t.Errorf("Expected empty new_text, got %s", edit.NewText)
 	}
+	if edit.OldText != "" {
+		t.Errorf("Expected old_text to be empty, got %s", edit.OldText)
+	}
+	if fix.Kind != "QUICK_FIX" {
+		t.Errorf("Expected kind QUICK_FIX, got %s", fix.Kind)
+	}
+	if fix.Applicability != "ALWAYS_SAFE" {
+		t.Errorf("Expected applicability ALWAYS_SAFE, got %s", fix.Applicability)
+	}
+	if fix.IsPreferred {
+		t.Errorf("Expected is_preferred to be false")
+	}
+	if fix.BuildError != "" {
+		t.Errorf("Unexpected build error: %s", fix.BuildError)
+	}
 }
 
 // TestJSONWithoutPositions проверяет JSON без позиций строк/колонок

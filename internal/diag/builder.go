@@ -22,7 +22,22 @@ func (d Diagnostic) WithNote(sp source.Span, msg string) Diagnostic {
 	return d
 }
 
+// WithFix appends a ready-to-use fix with default metadata (quick fix, always safe).
 func (d Diagnostic) WithFix(title string, edits ...FixEdit) Diagnostic {
-	d.Fixes = append(d.Fixes, Fix{Title: title, Edits: edits})
+	if d.Fixes == nil {
+		d.Fixes = make([]Fix, 0, 1)
+	}
+	d.Fixes = append(d.Fixes, Fix{
+		Title:         title,
+		Kind:          FixKindQuickFix,
+		Applicability: FixApplicabilityAlwaysSafe,
+		Edits:         edits,
+	})
+	return d
+}
+
+// WithFixSuggestion appends a fully configured fix structure (materialised or lazy).
+func (d Diagnostic) WithFixSuggestion(fix Fix) Diagnostic {
+	d.Fixes = append(d.Fixes, fix)
 	return d
 }

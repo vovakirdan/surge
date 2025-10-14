@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"surge/internal/diag"
+	"surge/internal/fix"
 	"surge/internal/source"
 )
 
@@ -132,5 +133,80 @@ func TestPathModeAuto(t *testing.T) {
 				t.Errorf("Expected output to contain %q, got:\n%s", tt.expected, output)
 			}
 		})
+	}
+}
+
+type staticFixThunk struct {
+	fix diag.Fix
+}
+
+func (t staticFixThunk) ID() string {
+	if t.fix.ID != "" {
+		return t.fix.ID
+	}
+	return "static-fix"
+}
+
+func (t staticFixThunk) Build(ctx diag.FixBuildContext) (diag.Fix, error) {
+	return t.fix, nil
+}
+
+func TestPrettyNotesAndFixes(t *testing.T) {
+	fs := source.NewFileSet()
+	content := []byte("import core::util\n")
+	fileID := fs.AddVirtual("test.sg", content)
+
+	bag := diag.NewBag(4)
+	primary := source.Span{File: fileID, Start: 6, End: 10}
+	d := diag.New(diag.SevWarning, diag.SynUnexpectedToken, primary, "unexpected token")
+
+	noteSpan := source.Span{File: fileID, Start: 11, End: 15}
+	d = d.WithNote(noteSpan, "remove trailing identifier")
+
+	insertSpan := source.Span{File: fileID, Start: primary.End, End: primary.End}
+	d = d.WithFix("insert semicolon", diag.FixEdit{Span: insertSpan, NewText: ";"})
+
+	lazyFix := diag.Fix{
+		Title:         "wrap import block",
+		Kind:          diag.FixKindRefactor,
+		Applicability: diag.FixApplicabilitySafeWithHeuristics,
+		Thunk: staticFixThunk{
+			fix: fix.WrapWith(
+				"wrap import block",
+				source.Span{File: fileID, Start: 0, End: uint32(len(content))},
+				"/* ",
+				" */",
+				fix.WithID("wrap-import-001"),
+			),
+		},
+	}
+	d = d.WithFixSuggestion(lazyFix)
+
+	bag.Add(d)
+
+	var buf bytes.Buffer
+	opts := PrettyOpts{
+		Color:    false,
+		Context:  0,
+		PathMode: PathModeBasename,
+	}
+	Pretty(&buf, bag, fs, opts)
+
+	output := buf.String()
+
+	if !strings.Contains(output, "note: test.sg:1:12") {
+		t.Fatalf("expected note with location, got:\n%s", output)
+	}
+
+	if !strings.Contains(output, "fix #1: insert semicolon") {
+		t.Fatalf("expected first fix entry, got:\n%s", output)
+	}
+
+	if !strings.Contains(output, "apply=\";\"") {
+		t.Fatalf("expected fix edit apply preview, got:\n%s", output)
+	}
+
+	if !strings.Contains(output, "id=wrap-import-001") {
+		t.Fatalf("expected lazy fix id in output, got:\n%s", output)
 	}
 }
