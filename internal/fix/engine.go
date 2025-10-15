@@ -275,7 +275,9 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 					skipReason = "existing text does not match expected content"
 					break
 				}
-				working = append(append(working[:start], []byte(edit.NewText)...), working[end:]...)
+				// Fix the slice aliasing bug by capturing working[end:] before modifying working
+				suffix := append([]byte(nil), working[end:]...)
+				working = append(append(working[:start], []byte(edit.NewText)...), suffix...)
 			}
 			if skipReason != "" {
 				break
