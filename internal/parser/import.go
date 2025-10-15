@@ -164,33 +164,65 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 			// Проверяем на пустую группу
 			if len(pairs) == 0 {
-				p.warn(diag.SynEmptyImportGroup, "empty import group")
-				// p.emitDiagnostic(
-				// 	diag.SynEmptyImportGroup,
-				// 	diag.SevWarning,
-				// 	p.currentErrorSpan(),
-				// 	"empty import group",
-				// 	func(b *diag.ReportBuilder) {
-				// 		if b == nil {
-				// 			return
-				// 		}
-				// 		fixID := fmt.Sprintf("%s-%d-%d", diag.SynEmptyImportGroup.ID(), p.currentErrorSpan().File, p.currentErrorSpan().Start)
-				// 		suggestion := fix.DeleteSpans(
-				// 			"remove braces around single import",
-				// 			[]source.Span{groupOpenSpan},
-				// 			fix.WithKind(diag.FixKindRefactor),
-				// 			fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-				// 			fix.WithID(fixID),
-				// 		)
-				// 		b.WithFixSuggestion(suggestion)
-				// 		b.WithNote(p.currentErrorSpan(), "remove braces to simplify the import statement")
-				// 	},
-				// )
+				// p.warn(diag.SynEmptyImportGroup, "empty import group")
+				// тут мы встретили ::{} и, возможно, ;
+				// удалим только ::{}
+				// а точку с запятой проверяет другой фикс
+				// если мы удалим только {}, то нарвемся на другую ошибку - unexpected item after ::
+				groupCloseSpan := source.Span{
+					File: groupOpenSpan.File,
+					Start: groupOpenSpan.Start+1,
+					End: groupOpenSpan.End+1,
+				}
+				p.emitDiagnostic(
+					diag.SynEmptyImportGroup,
+					diag.SevWarning,
+					p.currentErrorSpan(),
+					"empty import group",
+					func(b *diag.ReportBuilder) {
+						if b == nil {
+							return
+						}
+						fixID := fmt.Sprintf("%s-%d-%d", diag.SynEmptyImportGroup.ID(), p.currentErrorSpan().File, p.currentErrorSpan().Start)
+						suggestion := fix.DeleteSpans(
+							"remove '::{}' to simplify the import statement",
+							[]source.Span{groupOpenSpan, groupCloseSpan, colonColonTok.Span},
+							fix.WithKind(diag.FixKindRefactor),
+							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+							fix.WithID(fixID),
+						)
+						b.WithFixSuggestion(suggestion)
+						b.WithNote(p.currentErrorSpan(), "remove double colons and braces to simplify the import statement")
+					},
+				)
 			}
 
 			// Проверяем, что у нас есть закрывающая скобка
 			if !p.at(token.RBrace) {
 				p.err(diag.SynUnclosedBrace, "expected '}' to close import group")
+				// closeBraceSpan := p.lx.Peek().Span
+				// p.emitDiagnostic(
+				// 	diag.SynUnclosedBrace,
+				// 	diag.SevError,
+				// 	closeBraceSpan,
+				// 	"expected '}' to close import group",
+				// 	func(b *diag.ReportBuilder) {
+				// 		if b == nil {
+				// 			return
+				// 		}
+				// 		fixID := fmt.Sprintf("%s-%d-%d", diag.SynUnclosedBrace.ID(), p.currentErrorSpan().File, p.currentErrorSpan().Start)
+				// 		suggestion := fix.InsertText(
+				// 			"add missing '}' to close import group",
+				// 			closeBraceSpan,
+				// 			"}",
+				// 			"",
+				// 			fix.WithKind(diag.FixKindRefactor),
+				// 			fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				// 			fix.WithID(fixID),
+				// 		)
+				// 		b.WithFixSuggestion(suggestion)
+				// 	},
+				// )
 				return ast.NoItemID, false
 			}
 

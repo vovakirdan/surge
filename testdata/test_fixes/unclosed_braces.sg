@@ -1,0 +1,3 @@
+import foo::{Bar, Baz
+
+// surge fix должен предложить добавить '}'
