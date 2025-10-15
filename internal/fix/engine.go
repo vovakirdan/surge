@@ -1,5 +1,6 @@
 package fix
-// todo: интеграция с git: 
+
+// todo: интеграция с git:
 // По умолчанию создавать .bak только для незатрекинных файлов.
 // Флаг --staged-only (работать по git diff --name-only --staged).
 // Флаг --since HEAD~1 (фильтр по изменённым файлам).
@@ -239,6 +240,8 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 		totalEdits := 0
 		var skipReason string
 
+		stagedApplied := make(map[source.FileID][]diag.TextEdit)
+
 		for fileID, edits := range buckets {
 			file := fs.Get(fileID)
 			if file.Flags&source.FileVirtual != 0 {
@@ -264,9 +267,11 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 				return edits[i].Span.Start > edits[j].Span.Start
 			})
 
+			existingApplied := append([]diag.TextEdit(nil), appliedEdits[fileID]...)
+
 			for _, edit := range edits {
-				start := int(edit.Span.Start)
-				end := int(edit.Span.End)
+				start := int(edit.Span.Start) + cumulativeDelta(existingApplied, int(edit.Span.Start))
+				end := int(edit.Span.End) + cumulativeDelta(existingApplied, int(edit.Span.End))
 				if start < 0 || end < start || end > len(working) {
 					skipReason = "edit span out of range"
 					break
@@ -275,9 +280,9 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 					skipReason = "existing text does not match expected content"
 					break
 				}
-				// Fix the slice aliasing bug by capturing working[end:] before modifying working
 				suffix := append([]byte(nil), working[end:]...)
 				working = append(append(working[:start], []byte(edit.NewText)...), suffix...)
+				existingApplied = insertEditSorted(existingApplied, edit)
 			}
 			if skipReason != "" {
 				break
@@ -288,6 +293,7 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 				copied[i] = copyEdit(e)
 			}
 			stagedEdits[fileID] = copied
+			stagedApplied[fileID] = existingApplied
 			totalEdits += len(edits)
 		}
 
@@ -302,7 +308,7 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 
 		for fileID, buf := range stagedBuffers {
 			buffers[fileID] = buf
-			appliedEdits[fileID] = append(appliedEdits[fileID], stagedEdits[fileID]...)
+			appliedEdits[fileID] = stagedApplied[fileID]
 			fileEditCount[fileID] += len(stagedEdits[fileID])
 			dirtyFiles[fileID] = true
 		}
@@ -391,6 +397,36 @@ func copyEdit(e diag.TextEdit) diag.TextEdit {
 		NewText: e.NewText,
 		OldText: e.OldText,
 	}
+}
+
+func cumulativeDelta(edits []diag.TextEdit, pos int) int {
+	delta := 0
+	for _, e := range edits {
+		eStart := int(e.Span.Start)
+		if eStart > pos {
+			break
+		}
+		eEnd := int(e.Span.End)
+		length := eEnd - eStart
+		change := len(e.NewText) - length
+		if eEnd <= pos {
+			delta += change
+		}
+	}
+	return delta
+}
+
+func insertEditSorted(edits []diag.TextEdit, edit diag.TextEdit) []diag.TextEdit {
+	insertIdx := sort.Search(len(edits), func(i int) bool {
+		if edits[i].Span.Start == edit.Span.Start {
+			return edits[i].Span.End >= edit.Span.End
+		}
+		return edits[i].Span.Start > edit.Span.Start
+	})
+	edits = append(edits, diag.TextEdit{})
+	copy(edits[insertIdx+1:], edits[insertIdx:])
+	edits[insertIdx] = edit
+	return edits
 }
 
 func formatFilePath(fs *source.FileSet, fileID source.FileID) string {
