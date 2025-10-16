@@ -144,7 +144,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					trailingComma = commaTok.Span
 					continue
 				}
-				if p.at_or(token.RBrace, token.EOF, token.Semicolon) {
+				if p.at_or(token.RBrace, token.EOF, token.Semicolon) || isTopLevelStarter(p.lx.Peek().Kind) {
 					// Если нет запятой, должна быть закрывающая скобка или EOF
 					// Если EOF, то это ошибка unclosed brace (обработаем позже)
 					// Если видим `;`, это означает, что группа не закрыта
@@ -170,9 +170,9 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 				// а точку с запятой проверяет другой фикс
 				// если мы удалим только {}, то нарвемся на другую ошибку - unexpected item after ::
 				groupCloseSpan := source.Span{
-					File: groupOpenSpan.File,
-					Start: groupOpenSpan.Start+1,
-					End: groupOpenSpan.End+1,
+					File:  groupOpenSpan.File,
+					Start: groupOpenSpan.Start + 1,
+					End:   groupOpenSpan.End + 1,
 				}
 				p.emitDiagnostic(
 					diag.SynEmptyImportGroup,
@@ -197,39 +197,50 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 				)
 			}
 
-			// Проверяем, что у нас есть закрывающая скобка
-			if !p.at(token.RBrace) {
-				p.err(diag.SynUnclosedBrace, "expected '}' to close import group")
-				// closeBraceSpan := p.lx.Peek().Span
-				// p.emitDiagnostic(
-				// 	diag.SynUnclosedBrace,
-				// 	diag.SevError,
-				// 	closeBraceSpan,
-				// 	"expected '}' to close import group",
-				// 	func(b *diag.ReportBuilder) {
-				// 		if b == nil {
-				// 			return
-				// 		}
-				// 		fixID := fmt.Sprintf("%s-%d-%d", diag.SynUnclosedBrace.ID(), p.currentErrorSpan().File, p.currentErrorSpan().Start)
-				// 		suggestion := fix.InsertText(
-				// 			"add missing '}' to close import group",
-				// 			closeBraceSpan,
-				// 			"}",
-				// 			"",
-				// 			fix.WithKind(diag.FixKindRefactor),
-				// 			fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-				// 			fix.WithID(fixID),
-				// 		)
-				// 		b.WithFixSuggestion(suggestion)
-				// 	},
-				// )
-				return ast.NoItemID, false
+			missingClose := false
+			var closeTok token.Token
+			if p.at(token.RBrace) {
+				closeTok = p.advance() // съедаем '}'
+			} else {
+				anchor := p.lastSpan
+				if anchor.End == 0 {
+					anchor = colonColonTok.Span
+				}
+				closeBraceSpan := source.Span{
+					File:  anchor.File,
+					Start: anchor.End,
+					End:   anchor.End,
+				}
+				p.emitDiagnostic(
+					diag.SynUnclosedBrace,
+					diag.SevError,
+					closeBraceSpan,
+					"expected '}' to close import group",
+					func(b *diag.ReportBuilder) {
+						if b == nil {
+							return
+						}
+						fixID := fmt.Sprintf("%s-%d-%d", diag.SynUnclosedBrace.ID(), closeBraceSpan.File, closeBraceSpan.Start)
+						suggestion := fix.InsertText(
+							"add missing '}' to close import group",
+							closeBraceSpan,
+							"}",
+							"",
+							fix.WithKind(diag.FixKindRefactor),
+							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+							fix.WithID(fixID),
+						)
+						b.WithFixSuggestion(suggestion)
+					},
+				)
+				p.lastSpan = closeBraceSpan
+				closeTok = token.Token{Kind: token.RBrace, Span: closeBraceSpan}
+				missingClose = true
 			}
 
-			closeTok := p.advance() // съедаем '}'
 			// если здесь только один Ident, то кидаем info что можно без {}
 			// предлагаем так же fix удалить {}
-			if len(pairs) == 1 {
+			if len(pairs) == 1 && !missingClose {
 				braceSpan := groupOpenSpan
 				if braceSpan.File == closeTok.Span.File {
 					braceSpan = braceSpan.Cover(closeTok.Span)
@@ -311,10 +322,12 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		// Неожиданный токен после пути модуля
 		peek := p.lx.Peek()
 		if peek.Kind != token.EOF {
-			p.err(diag.SynUnexpectedToken, "expected '::' or 'as' or ';' after module path, got '"+peek.Text+"'")
-			needSemicolon = false
-			p.resyncTop()
-			return ast.NoItemID, false
+			if !(needSemicolon && isTopLevelStarter(peek.Kind)) {
+				p.err(diag.SynUnexpectedToken, "expected '::' or 'as' or ';' after module path, got '"+peek.Text+"'")
+				needSemicolon = false
+				p.resyncTop()
+				return ast.NoItemID, false
+			}
 		}
 		// Если EOF, то это просто недостающая `;` - продолжаем обычную обработку
 	}

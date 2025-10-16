@@ -514,6 +514,72 @@ func TestParseImport_Errors(t *testing.T) {
 	}
 }
 
+func TestParseImport_UnclosedGroupDiagnostics(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantCodes []diag.Code
+	}{
+		{
+			name:      "missing brace before semicolon",
+			input:     "import foo::{Bar, Baz;\nimport foo;",
+			wantCodes: []diag.Code{diag.SynUnclosedBrace},
+		},
+		{
+			name:      "missing brace and semicolon",
+			input:     "import foo::{Bar, Baz\nimport foo;",
+			wantCodes: []diag.Code{diag.SynUnclosedBrace, diag.SynExpectSemicolon},
+		},
+		{
+			name:      "missing brace with comment and no semicolon",
+			input:     "import foo::{Bar, Baz\n\n// trailing comment\n",
+			wantCodes: []diag.Code{diag.SynUnclosedBrace, diag.SynExpectSemicolon},
+		},
+		{
+			name:      "missing brace at end of file with semicolon",
+			input:     "import foo::{Bar, Baz;\n\n",
+			wantCodes: []diag.Code{diag.SynUnclosedBrace},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, bag, _ := parseImportString(t, tt.input)
+
+			items := bag.Items()
+			if len(items) != len(tt.wantCodes) {
+				var got []string
+				for _, d := range items {
+					got = append(got, d.Code.String())
+				}
+				t.Fatalf("unexpected diagnostics count: got %d (%v), want %d",
+					len(items), got, len(tt.wantCodes))
+			}
+
+			for i, code := range tt.wantCodes {
+				if items[i].Code != code {
+					t.Errorf("diag[%d] code mismatch: got %s, want %s", i, items[i].Code, code)
+				}
+			}
+
+			if len(items) > 0 {
+				wantOffset := strings.Index(tt.input, "Baz")
+				if wantOffset == -1 {
+					t.Fatalf("failed to locate 'Baz' in input")
+				}
+				wantOffset += len("Baz")
+				got := items[0].Primary.Start
+				if got != uint32(wantOffset) {
+					t.Errorf("unexpected primary span start: got %d, want %d", got, wantOffset)
+				}
+				if items[0].Primary.End != got {
+					t.Errorf("expected zero-length primary span, got end=%d start=%d", items[0].Primary.End, got)
+				}
+			}
+		})
+	}
+}
+
 // TestParseImport_TrailingComma тестирует поведение с trailing comma в группах
 func TestParseImport_TrailingComma(t *testing.T) {
 	// В текущей реализации trailing comma должна парситься корректно
