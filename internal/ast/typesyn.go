@@ -85,11 +85,13 @@ func (t *TypeExprs) UnaryType(id TypeID) (*TypeUnary, bool) {
 	return t.Unary.Get(uint32(typ.Payload)), true
 }
 
-func (t *TypeExprs) NewArray(span source.Span, elem TypeID, kind TypeArrayKind, length ExprID) TypeID {
+func (t *TypeExprs) NewArray(span source.Span, elem TypeID, kind TypeArrayKind, length ExprID, hasConstLen bool, constLen uint64) TypeID {
 	payload := t.Arrays.Allocate(TypeArray{
-		Elem:   elem,
-		Kind:   kind,
-		Length: length,
+		Elem:        elem,
+		Kind:        kind,
+		Length:      length,
+		HasConstLen: hasConstLen,
+		ConstLength: constLen,
 	})
 	return t.new(TypeExprArray, span, PayloadID(payload))
 }
@@ -164,9 +166,11 @@ const (
 )
 
 type TypeArray struct {
-	Elem   TypeID
-	Kind   TypeArrayKind
-	Length ExprID // NoExprID when Kind == ArraySlice
+	Elem        TypeID
+	Kind        TypeArrayKind
+	Length      ExprID // NoExprID when Kind == ArraySlice
+	ConstLength uint64
+	HasConstLen bool
 }
 
 type TypeTuple struct {

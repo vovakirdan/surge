@@ -1,6 +1,10 @@
 package parser
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -255,25 +259,140 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 		return p.parseTypeSuffix(baseType)
 
 	case token.NothingLit:
-		// nothing тип
 		nothingTok := p.advance()
-		nothingID := p.arenas.StringsInterner.Intern("nothing")
-		segments := []ast.TypePathSegment{{
-			Name:     nothingID,
-			Generics: nil,
-		}}
-		baseType := p.arenas.Types.NewPath(nothingTok.Span, segments)
-		return p.parseTypeSuffix(baseType)
+		return p.parseTypeSuffix(p.makeBuiltinType("nothing", nothingTok.Span))
 
 	case token.LParen:
-		// Кортеж (пока заглушка)
-		p.err(diag.SynUnexpectedToken, "tuple types not yet implemented")
-		return ast.NoTypeID, false
+		openTok := p.advance()
+
+		if p.at(token.RParen) {
+			closeTok := p.advance()
+			tupleType := p.arenas.Types.NewTuple(openTok.Span.Cover(closeTok.Span), nil)
+			return p.parseTypeSuffix(tupleType)
+		}
+
+		firstElem, ok := p.parseTypePrefix()
+		if !ok {
+			return ast.NoTypeID, false
+		}
+		elements := []ast.TypeID{firstElem}
+		sawComma := false
+
+		for p.at(token.Comma) {
+			sawComma = true
+			p.advance() // съедаем ','
+
+			if p.at(token.RParen) {
+				break // допускаем завершающую запятую
+			}
+
+			elem, ok := p.parseTypePrefix()
+			if !ok {
+				return ast.NoTypeID, false
+			}
+			elements = append(elements, elem)
+		}
+
+		closeTok, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' to close tuple type", nil)
+		if !ok {
+			return ast.NoTypeID, false
+		}
+
+		if len(elements) == 1 && !sawComma {
+			// скобки — просто группировка
+			return p.parseTypeSuffix(elements[0])
+		}
+
+		tupleType := p.arenas.Types.NewTuple(openTok.Span.Cover(closeTok.Span), elements)
+		return p.parseTypeSuffix(tupleType)
 
 	case token.KwFn:
-		// Функциональный тип (пока заглушка)
-		p.err(diag.SynUnexpectedToken, "function types not yet implemented")
-		return ast.NoTypeID, false
+		fnTok := p.advance()
+		if _, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after 'fn' in function type", nil); !ok {
+			return ast.NoTypeID, false
+		}
+
+		var params []ast.TypeFnParam
+		var sawVariadic bool
+
+		if !p.at(token.RParen) {
+			for {
+				if p.at(token.DotDotDot) {
+					if sawVariadic {
+						p.err(diag.SynUnexpectedToken, "multiple variadic parameters are not allowed")
+						return ast.NoTypeID, false
+					}
+					p.advance()
+					elemType, ok := p.parseTypePrefix()
+					if !ok {
+						return ast.NoTypeID, false
+					}
+					params = append(params, ast.TypeFnParam{
+						Type:     elemType,
+						Name:     source.NoStringID,
+						Variadic: true,
+					})
+					sawVariadic = true
+					if p.at(token.Comma) {
+						p.err(diag.SynUnexpectedToken, "variadic parameter must be last in function type")
+						p.advance()
+					}
+					break
+				}
+
+				elemType, ok := p.parseTypePrefix()
+				if !ok {
+					return ast.NoTypeID, false
+				}
+				params = append(params, ast.TypeFnParam{
+					Type:     elemType,
+					Name:     source.NoStringID,
+					Variadic: false,
+				})
+
+				if !p.at(token.Comma) {
+					break
+				}
+				p.advance()
+
+				if p.at(token.RParen) {
+					break
+				}
+				if sawVariadic {
+					p.err(diag.SynUnexpectedToken, "parameters cannot follow a variadic parameter")
+					break
+				}
+			}
+		}
+
+		closeTok, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' to close function type parameters", nil)
+		if !ok {
+			return ast.NoTypeID, false
+		}
+
+		fnSpan := fnTok.Span.Cover(closeTok.Span)
+		var returnType ast.TypeID
+
+		if p.at(token.Arrow) {
+			arrowTok := p.advance()
+			retType, ok := p.parseTypePrefix()
+			if !ok {
+				return ast.NoTypeID, false
+			}
+			returnType = retType
+			retSpan := p.arenas.Types.Get(returnType).Span
+			fnSpan = fnSpan.Cover(arrowTok.Span.Cover(retSpan))
+		} else {
+			retSpan := source.Span{
+				File:  closeTok.Span.File,
+				Start: closeTok.Span.End,
+				End:   closeTok.Span.End,
+			}
+			returnType = p.makeBuiltinType("nothing", retSpan)
+		}
+
+		fnType := p.arenas.Types.NewFn(fnSpan, params, returnType)
+		return p.parseTypeSuffix(fnType)
 
 	default:
 		p.err(diag.SynExpectType, "expected type")
@@ -291,45 +410,178 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 
 		if p.at(token.RBracket) {
 			// Динамический массив []Type
-			p.advance()
-			bracketEndSpan := p.lastSpan
-
-			// Получаем span текущего типа и объединяем с span скобок
+			closeTok := p.advance()
 			currentTypeSpan := p.arenas.Types.Get(currentType).Span
-			finalSpan := currentTypeSpan.Cover(bracketEndSpan)
+			finalSpan := currentTypeSpan.Cover(closeTok.Span)
 
 			currentType = p.arenas.Types.NewArray(
 				finalSpan,
 				currentType,
 				ast.ArraySlice,
 				ast.NoExprID,
+				false,
+				0,
 			)
-		} else if p.at(token.IntLit) {
-			// Массив фиксированного размера [N]Type
-			// TODO: парсить число правильно
-			p.advance()
+			continue
+		}
+
+		if p.at(token.IntLit) || p.at(token.UintLit) {
+			sizeTok := p.advance()
+			lengthValue, ok := p.parseArraySizeLiteral(sizeTok)
+			if !ok {
+				// ошибка уже зарепорчена
+				p.resyncUntil(token.RBracket, token.Semicolon, token.Comma)
+				if p.at(token.RBracket) {
+					p.advance()
+				}
+				return ast.NoTypeID, false
+			}
+
 			if !p.at(token.RBracket) {
 				p.err(diag.SynExpectRightBracket, "expected ']' after array size")
 				return ast.NoTypeID, false
 			}
-			p.advance()
-			bracketEndSpan := p.lastSpan
+			closeTok := p.advance()
 
-			// Получаем span текущего типа и объединяем с span скобок
 			currentTypeSpan := p.arenas.Types.Get(currentType).Span
-			finalSpan := currentTypeSpan.Cover(bracketEndSpan)
+			finalSpan := currentTypeSpan.Cover(closeTok.Span)
 
 			currentType = p.arenas.Types.NewArray(
 				finalSpan,
 				currentType,
 				ast.ArraySized,
-				ast.NoExprID, // TODO: парсить выражение размера
+				ast.NoExprID,
+				true,
+				lengthValue,
 			)
-		} else {
-			p.err(diag.SynExpectRightBracket, "expected ']' or array size")
-			return ast.NoTypeID, false
+			continue
 		}
+
+		p.err(diag.SynExpectRightBracket, "expected ']' or array size")
+		p.resyncUntil(token.RBracket, token.Semicolon, token.Comma)
+		if p.at(token.RBracket) {
+			p.advance()
+		}
+		return ast.NoTypeID, false
 	}
 
 	return currentType, true
+}
+
+func (p *Parser) makeBuiltinType(name string, span source.Span) ast.TypeID {
+	nameID := p.arenas.StringsInterner.Intern(name)
+	segments := []ast.TypePathSegment{{
+		Name:     nameID,
+		Generics: nil,
+	}}
+	return p.arenas.Types.NewPath(span, segments)
+}
+
+func (p *Parser) parseArraySizeLiteral(tok token.Token) (uint64, bool) {
+	clean := strings.ReplaceAll(tok.Text, "_", "")
+	if clean == "" {
+		p.err(diag.SynUnexpectedToken, "array size literal is empty")
+		return 0, false
+	}
+	if strings.HasPrefix(clean, "+") || strings.HasPrefix(clean, "-") {
+		p.err(diag.SynUnexpectedToken, "array size literal must be a non-negative integer")
+		return 0, false
+	}
+
+	body, suffix, err := splitNumericLiteral(clean)
+	if err != nil {
+		p.err(diag.SynUnexpectedToken, fmt.Sprintf("invalid array size literal %q: %v", tok.Text, err))
+		return 0, false
+	}
+	if suffix != "" && !isValidIntegerSuffix(suffix) {
+		p.err(diag.SynUnexpectedToken, fmt.Sprintf("invalid array size suffix %q", suffix))
+		return 0, false
+	}
+
+	value, err := strconv.ParseUint(body, 0, 64)
+	if err != nil {
+		p.err(diag.SynUnexpectedToken, fmt.Sprintf("array size literal %q is out of range", tok.Text))
+		return 0, false
+	}
+	return value, true
+}
+
+func splitNumericLiteral(lit string) (string, string, error) {
+	if lit == "" {
+		return "", "", fmt.Errorf("empty literal")
+	}
+
+	base := 10
+	start := 0
+	if len(lit) >= 2 && lit[0] == '0' {
+		switch lit[1] {
+		case 'x', 'X':
+			base = 16
+			start = 2
+		case 'b', 'B':
+			base = 2
+			start = 2
+		case 'o', 'O':
+			base = 8
+			start = 2
+		}
+	}
+
+	end := start
+	for end < len(lit) && isDigitForBase(lit[end], base) {
+		end++
+	}
+
+	if end == start && start != 0 {
+		return "", "", fmt.Errorf("missing digits after base prefix")
+	}
+	if end == 0 {
+		return "", "", fmt.Errorf("missing digits in literal")
+	}
+	if end < len(lit) {
+		switch lit[end] {
+		case '.', 'e', 'E', 'p', 'P':
+			return "", "", fmt.Errorf("fractional literals are not allowed in array sizes")
+		}
+	}
+
+	return lit[:end], lit[end:], nil
+}
+
+func isDigitForBase(b byte, base int) bool {
+	switch base {
+	case 2:
+		return b == '0' || b == '1'
+	case 8:
+		return b >= '0' && b <= '7'
+	case 10:
+		return b >= '0' && b <= '9'
+	case 16:
+		return (b >= '0' && b <= '9') || (b >= 'a' && b <= 'f') || (b >= 'A' && b <= 'F')
+	default:
+		return false
+	}
+}
+
+func isValidIntegerSuffix(s string) bool {
+	if s == "" {
+		return true
+	}
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if i == 0 {
+			if !isLetter(ch) {
+				return false
+			}
+			continue
+		}
+		if !isLetter(ch) && (ch < '0' || ch > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+func isLetter(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }
