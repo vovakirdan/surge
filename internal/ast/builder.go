@@ -4,13 +4,14 @@ import (
 	"surge/internal/source"
 )
 
-type Hints struct{ Files, Items, Stmts, Exprs uint }
+type Hints struct{ Files, Items, Stmts, Exprs, Types uint }
 
 type Builder struct {
 	Files           *Files
 	Items           *Items
 	Stmts           *Stmts
 	Exprs           *Exprs
+	Types           *TypeExprs
 	StringsInterner *source.Interner
 }
 
@@ -27,6 +28,9 @@ func NewBuilder(hints Hints, stringsInterner *source.Interner) *Builder {
 	if hints.Exprs == 0 {
 		hints.Exprs = 1 << 8
 	}
+	if hints.Types == 0 {
+		hints.Types = 1 << 7
+	}
 	if stringsInterner == nil {
 		stringsInterner = source.NewInterner()
 	}
@@ -35,6 +39,7 @@ func NewBuilder(hints Hints, stringsInterner *source.Interner) *Builder {
 		Items:           NewItems(hints.Items),
 		Stmts:           NewStmts(hints.Stmts),
 		Exprs:           NewExprs(hints.Exprs),
+		Types:           NewTypeExprs(hints.Types),
 		StringsInterner: stringsInterner,
 	}
 }
@@ -64,4 +69,13 @@ func (b *Builder) NewImport(
 	group []ImportPair,
 ) ItemID {
 	return b.Items.NewImport(span, module, moduleAlias, one, hasOne, group)
+}
+
+func (b *Builder) NewFn(
+	name source.StringID,
+	returnType TypeID,
+	body StmtID,
+	span source.Span,
+) ItemID {
+	return b.Items.NewFn(name, returnType, body, span)
 }

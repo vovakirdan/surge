@@ -29,12 +29,17 @@ type Item struct {
 type Items struct {
 	Arena   *Arena[Item]
 	Imports *Arena[ImportItem]
+	Fns     *Arena[FnItem]
 }
 
 func NewItems(capHint uint) *Items {
+	if capHint == 0 {
+		capHint = 1 << 8
+	}
 	return &Items{
 		Arena:   NewArena[Item](capHint),
 		Imports: NewArena[ImportItem](capHint),
+		Fns:     NewArena[FnItem](capHint),
 	}
 }
 
@@ -46,43 +51,6 @@ func (i *Items) New(kind ItemKind, span source.Span, payloadID PayloadID) ItemID
 	}))
 }
 
-func (i *Items) Import(id ItemID) (*ImportItem, bool) {
-	item := i.Arena.Get(uint32(id))
-	if item == nil || item.Kind != ItemImport {
-		return nil, false
-	}
-	return i.Imports.Get(uint32(item.Payload)), true
-}
-
 func (i *Items) Get(id ItemID) *Item {
 	return i.Arena.Get(uint32(id))
-}
-
-func (i *Items) newImportPayload(
-	module []source.StringID,
-	moduleAlias source.StringID,
-	one ImportOne,
-	hasOne bool,
-	group []ImportPair,
-) PayloadID {
-	payload := i.Imports.Allocate(ImportItem{
-		Module:      append([]source.StringID(nil), module...),
-		ModuleAlias: moduleAlias,
-		One:         one,
-		HasOne:      hasOne,
-		Group:       append([]ImportPair(nil), group...),
-	})
-	return PayloadID(payload)
-}
-
-func (i *Items) NewImport(
-	span source.Span,
-	module []source.StringID,
-	moduleAlias source.StringID,
-	one ImportOne,
-	hasOne bool,
-	group []ImportPair,
-) ItemID {
-	payloadID := i.newImportPayload(module, moduleAlias, one, hasOne, group)
-	return i.New(ItemImport, span, payloadID)
 }
