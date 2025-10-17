@@ -31,6 +31,13 @@ func Preferred() Option {
 	}
 }
 
+// WithRequiresAll marks fix as requiring all fixes to be applied.
+func WithRequiresAll() Option {
+	return func(f *diag.Fix) {
+		f.RequiresAll = true
+	}
+}
+
 // WithID sets stable identifier for fix.
 func WithID(id string) Option {
 	return func(f *diag.Fix) {

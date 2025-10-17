@@ -59,26 +59,30 @@ func buildLineIndex(content []byte) []uint32 {
 }
 
 func toLineCol(lineIdx []uint32, off uint32) LineCol {
-    if len(lineIdx) == 0 {
-        return LineCol{Line: 1, Col: off + 1}
-    }
-    // ищем первый индекс '\n' > off
-    i := sort.Search(len(lineIdx), func(k int) bool { return lineIdx[k] > off })
-    if i == 0 {
-        // off до первого \n
-        return LineCol{Line: 1, Col: off + 1}
-    }
-    // последний '\n' <= off находится по индексу i-1
-    last := lineIdx[i-1]
-    if off == last {
-        // позиция на '\n' — считаем концом предыдущей строки
-        var start uint32
-        if i-1 == 0 { start = 0 } else { start = lineIdx[i-2] + 1 }
-        return LineCol{Line: uint32(i), Col: last - start + 1}
-    }
-    // обычный случай
-    start := last + 1
-    return LineCol{Line: uint32(i + 1), Col: off - start + 1}
+	if len(lineIdx) == 0 {
+		return LineCol{Line: 1, Col: off + 1}
+	}
+	// ищем первый индекс '\n' > off
+	i := sort.Search(len(lineIdx), func(k int) bool { return lineIdx[k] > off })
+	if i == 0 {
+		// off до первого \n
+		return LineCol{Line: 1, Col: off + 1}
+	}
+	// последний '\n' <= off находится по индексу i-1
+	last := lineIdx[i-1]
+	if off == last {
+		// позиция на '\n' — считаем концом предыдущей строки
+		var start uint32
+		if i-1 == 0 {
+			start = 0
+		} else {
+			start = lineIdx[i-2] + 1
+		}
+		return LineCol{Line: uint32(i), Col: last - start + 1}
+	}
+	// обычный случай
+	start := last + 1
+	return LineCol{Line: uint32(i + 1), Col: off - start + 1}
 }
 
 func normalizePath(p string) string {

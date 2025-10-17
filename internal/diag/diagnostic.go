@@ -89,7 +89,6 @@ type Fix struct {
 	IsPreferred   bool
 	Edits         []TextEdit
 	Thunk         FixThunk
-	// todo: внедрить эту логику
 	RequiresAll   bool // спасибо go что она по умолчанию false; если true, то fix должен быть пропущен без флага --all
 }
 
@@ -129,6 +128,9 @@ func (f Fix) Resolve(ctx FixBuildContext) (Fix, error) {
 		}
 		if f.IsPreferred {
 			built.IsPreferred = true
+		}
+		if f.RequiresAll {
+			built.RequiresAll = true
 		}
 		return built.ensureDefaults(), nil
 	}

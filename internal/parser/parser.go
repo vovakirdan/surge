@@ -36,7 +36,7 @@ type Parser struct {
 	file     ast.FileID      // текущий FileID (в AST)
 	fs       *source.FileSet // нужен только для спанов/путей при надобности
 	opts     Options
-	lastSpan source.Span     // span последнего съеденного токена для лучшей диагностики
+	lastSpan source.Span // span последнего съеденного токена для лучшей диагностики
 }
 
 // ParseFile — входная точка для разбора одного файла.

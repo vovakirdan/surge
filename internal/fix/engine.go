@@ -177,6 +177,12 @@ func selectCandidates(candidates []candidate, opts ApplyOptions) ([]candidate, [
 	case ApplyModeID:
 		for _, cand := range candidates {
 			if cand.fix.ID == opts.TargetID {
+				if cand.fix.RequiresAll { // если fix требует всех fixes, то пропускаем
+					return nil, []SkippedFix{{
+						ID:     opts.TargetID,
+						Reason: "fix requires all fixes to be applied",
+					}}
+				}
 				return []candidate{cand}, nil
 			}
 		}
@@ -202,8 +208,17 @@ func selectCandidates(candidates []candidate, opts ApplyOptions) ([]candidate, [
 	case ApplyModeOnce:
 		var selected []candidate
 		var fallback *candidate
+		skipped := make([]SkippedFix, 0)
 		for i := range candidates {
 			cand := candidates[i]
+			if cand.fix.RequiresAll {
+				skipped = append(skipped, SkippedFix{
+					ID:     cand.fix.ID,
+					Title:  cand.fix.Title,
+					Reason: "fix requires all fixes to be applied",
+				})
+				continue
+			}
 			if cand.fix.Applicability == diag.FixApplicabilityAlwaysSafe {
 				selected = []candidate{cand}
 				break
@@ -216,7 +231,7 @@ func selectCandidates(candidates []candidate, opts ApplyOptions) ([]candidate, [
 		if len(selected) == 0 && fallback != nil {
 			selected = []candidate{*fallback}
 		}
-		return selected, nil
+		return selected, skipped
 	default:
 		return nil, nil
 	}

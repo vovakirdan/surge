@@ -17,7 +17,7 @@ type Interner struct {
 
 func NewInterner() *Interner {
 	return &Interner{
-		byID:  []string{""},                    // NoStringID → пустая строка
+		byID:  []string{""},               // NoStringID → пустая строка
 		index: map[string]StringID{"": 0}, // сохраняем явное соответствие
 	}
 }

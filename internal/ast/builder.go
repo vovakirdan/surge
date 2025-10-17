@@ -7,10 +7,10 @@ import (
 type Hints struct{ Files, Items, Stmts, Exprs uint }
 
 type Builder struct {
-	Files   *Files
-	Items   *Items
-	Stmts   *Stmts
-	Exprs   *Exprs
+	Files           *Files
+	Items           *Items
+	Stmts           *Stmts
+	Exprs           *Exprs
 	StringsInterner *source.Interner
 }
 
@@ -31,10 +31,10 @@ func NewBuilder(hints Hints, stringsInterner *source.Interner) *Builder {
 		stringsInterner = source.NewInterner()
 	}
 	return &Builder{
-		Files:   NewFiles(hints.Files),
-		Items:   NewItems(hints.Items),
-		Stmts:   NewStmts(hints.Stmts),
-		Exprs:   NewExprs(hints.Exprs),
+		Files:           NewFiles(hints.Files),
+		Items:           NewItems(hints.Items),
+		Stmts:           NewStmts(hints.Stmts),
+		Exprs:           NewExprs(hints.Exprs),
 		StringsInterner: stringsInterner,
 	}
 }
