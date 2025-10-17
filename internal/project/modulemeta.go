@@ -28,6 +28,9 @@ func NormalizeModulePath(path string) (string, error) {
 	if len(path) >= len(ext) && path[len(path)-len(ext):] == ext {
 		path = path[:len(path)-len(ext)]
 	}
+	for len(path) > 0 && (path[0] == '/' || path[0] == '\\') {
+		path = path[1:]
+	}
 	// filepath.Clean нормализует слэши и убирает ./, ../, но нам нужно проверить сегменты
 	// Разделяем путь на сегменты
 	cleaned := []string{}
