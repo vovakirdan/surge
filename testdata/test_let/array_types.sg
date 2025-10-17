@@ -1,0 +1,6 @@
+// Test array types with proper span calculation
+let x: int[];
+let y: String[10];
+let z: **Vector[][];
+let w: &mut HashMap[][5];
+let a: own std.collections.Map[];

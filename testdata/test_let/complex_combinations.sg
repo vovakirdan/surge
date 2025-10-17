@@ -1,0 +1,6 @@
+// Test complex type combinations
+let x: *std.io.Writer[];
+let y: &&mut collections.HashMap[10];
+let z: own *math.Matrix[][];
+let w: **nothing;
+let a: &mut std.string.String[5][];

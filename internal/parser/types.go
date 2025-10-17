@@ -2,9 +2,9 @@ package parser
 
 import (
 	"surge/internal/ast"
-	"surge/internal/token"
 	"surge/internal/diag"
 	"surge/internal/source"
+	"surge/internal/token"
 )
 
 // LetBinding представляет парсированный биндинг let
@@ -68,9 +68,10 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 }
 
 // parseLetItem распознаёт let items верхнего уровня:
-//		let [mut] name: Type = Expr;
-//		let [mut] name: Type;
-//		let [mut] name = Expr;
+//
+//	let [mut] name: Type = Expr;
+//	let [mut] name: Type;
+//	let [mut] name = Expr;
 func (p *Parser) parseLetItem() (ast.ItemID, bool) {
 	letTok := p.advance() // съедаем KwLet
 
@@ -100,10 +101,11 @@ func (p *Parser) parseLetItem() (ast.ItemID, bool) {
 }
 
 // parseTypeExpr распознаёт полные типовые выражения:
-//		own Type, &Type, &mut Type, *Type (префиксы)
-//		Type[] (постфиксы)
-//		Type[Expr] (постфиксы)
-//		простые типы
+//
+//	own Type, &Type, &mut Type, *Type (префиксы)
+//	Type[] (постфиксы)
+//	Type[Expr] (постфиксы)
+//	простые типы
 func (p *Parser) parseTypeExpr() (ast.TypeID, bool) {
 	// Если нет двоеточия, тип не указан
 	if !p.at(token.Colon) {
@@ -114,32 +116,75 @@ func (p *Parser) parseTypeExpr() (ast.TypeID, bool) {
 	return p.parseTypePrefix()
 }
 
-// parseTypePrefix обрабатывает префиксы: own, &, &mut, *
+// parseTypePrefix обрабатывает цепочки префиксов: own, &, &mut, *
+// Поддерживает множественные префиксы типа **int, &&mut Payload, own &T
 func (p *Parser) parseTypePrefix() (ast.TypeID, bool) {
-	startSpan := p.lx.Peek().Span
+	type prefixInfo struct {
+		op   ast.TypeUnaryOp
+		span source.Span
+	}
 
-	// Проверяем наличие модификаторов владения/ссылки
-	var op ast.TypeUnaryOp
-	var hasPrefix bool
+	var prefixes []prefixInfo
 
-	switch p.lx.Peek().Kind {
-	case token.KwOwn:
-		op = ast.TypeUnaryOwn
-		hasPrefix = true
-		p.advance()
-	case token.Amp:
-		op = ast.TypeUnaryRef
-		hasPrefix = true
-		p.advance()
-		// Проверяем &mut
-		if p.at(token.KwMut) {
-			op = ast.TypeUnaryRefMut
+prefixLoop:
+	for {
+		switch p.lx.Peek().Kind {
+		case token.KwOwn:
+			start := p.lx.Peek().Span
 			p.advance()
+			prefixes = append(prefixes, prefixInfo{
+				op:   ast.TypeUnaryOwn,
+				span: start.Cover(p.lastSpan),
+			})
+		case token.Amp:
+			start := p.lx.Peek().Span
+			p.advance()
+			end := p.lastSpan
+			if p.at(token.KwMut) {
+				p.advance()
+				end = p.lastSpan
+				prefixes = append(prefixes, prefixInfo{
+					op:   ast.TypeUnaryRefMut,
+					span: start.Cover(end),
+				})
+			} else {
+				prefixes = append(prefixes, prefixInfo{
+					op:   ast.TypeUnaryRef,
+					span: start.Cover(end),
+				})
+			}
+		case token.AndAnd:
+			start := p.lx.Peek().Span
+			p.advance()
+			end := p.lastSpan
+			if p.at(token.KwMut) {
+				// &&mut = & + &mut
+				prefixes = append(prefixes,
+					prefixInfo{op: ast.TypeUnaryRef, span: start.Cover(end)},
+				)
+				p.advance()
+				end = p.lastSpan
+				prefixes = append(prefixes,
+					prefixInfo{op: ast.TypeUnaryRefMut, span: start.Cover(end)},
+				)
+			} else {
+				// && = & + &
+				prefixes = append(prefixes,
+					prefixInfo{op: ast.TypeUnaryRef, span: start.Cover(end)},
+					prefixInfo{op: ast.TypeUnaryRef, span: start.Cover(end)},
+				)
+			}
+		case token.Star:
+			start := p.lx.Peek().Span
+			p.advance()
+			prefixes = append(prefixes, prefixInfo{
+				op:   ast.TypeUnaryPointer,
+				span: start.Cover(p.lastSpan),
+			})
+		default:
+			// Больше префиксов нет, выходим из цикла
+			break prefixLoop
 		}
-	case token.Star:
-		op = ast.TypeUnaryPointer
-		hasPrefix = true
-		p.advance()
 	}
 
 	// Парсим базовый тип
@@ -148,40 +193,76 @@ func (p *Parser) parseTypePrefix() (ast.TypeID, bool) {
 		return ast.NoTypeID, false
 	}
 
-	// Если есть префикс, оборачиваем в унарный тип
-	if hasPrefix {
-		endSpan := p.lastSpan
-		return p.arenas.Types.NewUnary(startSpan.Cover(endSpan), op, baseType), true
+	// Применяем префиксы справа налево (последний префикс - ближе к базовому типу)
+	currentType := baseType
+	for i := len(prefixes) - 1; i >= 0; i-- {
+		// Получаем span текущего типа для правильного объединения
+		currentSpan := p.arenas.Types.Get(currentType).Span
+		finalSpan := prefixes[i].span.Cover(currentSpan)
+		currentType = p.arenas.Types.NewUnary(finalSpan, prefixes[i].op, currentType)
 	}
 
-	return baseType, true
+	return currentType, true
 }
 
 // parseTypePrimary обрабатывает базовые формы типов:
-//		идентификатор/путь
-//		( tuple )
-//		fn ( сигнатура ) -> ...
+//
+//	идентификатор/квалифицированный.путь
+//	nothing
+//	( tuple )
+//	fn ( сигнатура ) -> ...
 func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 	startSpan := p.lx.Peek().Span
 
 	switch p.lx.Peek().Kind {
 	case token.Ident:
-		// Простой путь к типу (пока без generic аргументов)
+		// Квалифицированный путь к типу: Ident ( "." Ident )*
+		var segments []ast.TypePathSegment
+
+		// Парсим первый идентификатор
 		identText, ok := p.parseIdent()
 		if !ok {
 			return ast.NoTypeID, false
 		}
-
-		// Интернируем строку для получения StringID
 		identID := p.arenas.StringsInterner.Intern(identText)
-
-		// Создаем простой путь из одного сегмента
-		segments := []ast.TypePathSegment{{
+		segments = append(segments, ast.TypePathSegment{
 			Name:     identID,
 			Generics: nil, // пока без generic аргументов
-		}}
+		})
+
+		// Парсим дополнительные сегменты через точку
+		for p.at(token.Dot) {
+			p.advance() // съедаем '.'
+
+			// После точки должен быть идентификатор
+			if !p.at(token.Ident) {
+				p.err(diag.SynExpectIdentifier, "expected identifier after '.'")
+				return ast.NoTypeID, false
+			}
+
+			identText, ok := p.parseIdent()
+			if !ok {
+				return ast.NoTypeID, false
+			}
+			identID := p.arenas.StringsInterner.Intern(identText)
+			segments = append(segments, ast.TypePathSegment{
+				Name:     identID,
+				Generics: nil, // пока без generic аргументов
+			})
+		}
 
 		baseType := p.arenas.Types.NewPath(startSpan.Cover(p.lastSpan), segments)
+		return p.parseTypeSuffix(baseType)
+
+	case token.NothingLit:
+		// nothing тип
+		nothingTok := p.advance()
+		nothingID := p.arenas.StringsInterner.Intern("nothing")
+		segments := []ast.TypePathSegment{{
+			Name:     nothingID,
+			Generics: nil,
+		}}
+		baseType := p.arenas.Types.NewPath(nothingTok.Span, segments)
 		return p.parseTypeSuffix(baseType)
 
 	case token.LParen:
@@ -206,14 +287,19 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 
 	// Обрабатываем массивы в цикле для поддержки вложенных массивов
 	for p.at(token.LBracket) {
-		startSpan := p.lx.Peek().Span
 		p.advance()
 
 		if p.at(token.RBracket) {
 			// Динамический массив []Type
 			p.advance()
+			bracketEndSpan := p.lastSpan
+
+			// Получаем span текущего типа и объединяем с span скобок
+			currentTypeSpan := p.arenas.Types.Get(currentType).Span
+			finalSpan := currentTypeSpan.Cover(bracketEndSpan)
+
 			currentType = p.arenas.Types.NewArray(
-				startSpan.Cover(p.lastSpan),
+				finalSpan,
 				currentType,
 				ast.ArraySlice,
 				ast.NoExprID,
@@ -227,8 +313,14 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 				return ast.NoTypeID, false
 			}
 			p.advance()
+			bracketEndSpan := p.lastSpan
+
+			// Получаем span текущего типа и объединяем с span скобок
+			currentTypeSpan := p.arenas.Types.Get(currentType).Span
+			finalSpan := currentTypeSpan.Cover(bracketEndSpan)
+
 			currentType = p.arenas.Types.NewArray(
-				startSpan.Cover(p.lastSpan),
+				finalSpan,
 				currentType,
 				ast.ArraySized,
 				ast.NoExprID, // TODO: парсить выражение размера

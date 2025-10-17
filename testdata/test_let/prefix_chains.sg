@@ -1,0 +1,6 @@
+// Test multiple prefix chains
+let x: **int;
+let y: &&mut Payload;
+let z: own &String;
+let w: *&mut Vector;
+let a: ***CustomType;
