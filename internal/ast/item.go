@@ -30,6 +30,7 @@ type Items struct {
 	Arena   *Arena[Item]
 	Imports *Arena[ImportItem]
 	Fns     *Arena[FnItem]
+	Lets    *Arena[LetItem]
 }
 
 func NewItems(capHint uint) *Items {
@@ -40,6 +41,7 @@ func NewItems(capHint uint) *Items {
 		Arena:   NewArena[Item](capHint),
 		Imports: NewArena[ImportItem](capHint),
 		Fns:     NewArena[FnItem](capHint),
+		Lets:    NewArena[LetItem](capHint),
 	}
 }
 
