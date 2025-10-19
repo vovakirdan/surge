@@ -85,3 +85,22 @@ func (p *Parser) parseMemberExpr(target ast.ExprID) (ast.ExprID, bool) {
 
 	return p.arenas.Exprs.NewMember(finalSpan, target, fieldNameID), true
 }
+
+// parseCastExpr парсит приведение типов: expr to Type
+func (p *Parser) parseCastExpr(value ast.ExprID) (ast.ExprID, bool) {
+	toTok := p.advance() // съедаем 'to'
+
+	typeID, ok := p.parseTypePrefix()
+	if !ok || typeID == ast.NoTypeID {
+		if ok && typeID == ast.NoTypeID {
+			p.err(diag.SynExpectType, "expected type after 'to'")
+		}
+		return ast.NoExprID, false
+	}
+
+	typeSpan := p.arenas.Types.Get(typeID).Span
+	valueSpan := p.arenas.Exprs.Get(value).Span
+	finalSpan := valueSpan.Cover(toTok.Span).Cover(typeSpan)
+
+	return p.arenas.Exprs.NewCast(finalSpan, value, typeID), true
+}

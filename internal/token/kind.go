@@ -61,6 +61,16 @@ const (
 	Slash      // /
 	Percent    // %
 	Assign     // =
+	PlusAssign // +=
+	MinusAssign // -=
+	StarAssign // *=
+	SlashAssign // /=
+	PercentAssign // %=
+	AmpAssign  // &=
+	PipeAssign // |=
+	CaretAssign // ^=
+	ShlAssign  // <<=
+	ShrAssign  // >>=
 	EqEq       // ==
 	Bang       // !
 	BangEq     // !=
@@ -76,6 +86,7 @@ const (
 	AndAnd     // &&
 	OrOr       // ||
 	Question   // ?
+	QuestionQuestion // ??
 	Colon      // :
 	ColonColon // ::
 	Semicolon  // ;

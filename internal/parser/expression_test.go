@@ -1,11 +1,11 @@
 package parser
 
 import (
-	"testing"
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/lexer"
 	"surge/internal/source"
+	"testing"
 )
 
 func TestBasicLiterals(t *testing.T) {
@@ -50,6 +50,20 @@ func TestBinaryOperators(t *testing.T) {
 		{"logical_and", "let x = a && b;"},
 		{"logical_or", "let x = a || b;"},
 		{"assignment", "let x = a = b;"},
+		{"add_assign", "let x = a += b;"},
+		{"sub_assign", "let x = a -= b;"},
+		{"mul_assign", "let x = a *= b;"},
+		{"div_assign", "let x = a /= b;"},
+		{"mod_assign", "let x = a %= b;"},
+		{"and_assign", "let x = a &= b;"},
+		{"or_assign", "let x = a |= b;"},
+		{"xor_assign", "let x = a ^= b;"},
+		{"shl_assign", "let x = a <<= b;"},
+		{"shr_assign", "let x = a >>= b;"},
+		{"null_coalescing", "let x = a ?? b;"},
+		{"range", "let x = a..b;"},
+		{"range_inclusive", "let x = a..=b;"},
+		{"type_check", "let x = a is int;"},
 	}
 
 	for _, tt := range tests {
@@ -69,14 +83,17 @@ func TestBinaryOperators(t *testing.T) {
 
 func TestUnaryOperators(t *testing.T) {
 	tests := []struct {
-		name  string
-		input string
+		name       string
+		input      string
+		expectedOp ast.ExprUnaryOp
 	}{
-		{"plus", "let x = +a;"},
-		{"minus", "let x = -a;"},
-		{"not", "let x = !a;"},
-		{"deref", "let x = *a;"},
-		{"ref", "let x = &a;"},
+		{"plus", "let x = +a;", ast.ExprUnaryPlus},
+		{"minus", "let x = -a;", ast.ExprUnaryMinus},
+		{"not", "let x = !a;", ast.ExprUnaryNot},
+		{"deref", "let x = *a;", ast.ExprUnaryDeref},
+		{"ref", "let x = &a;", ast.ExprUnaryRef},
+		{"ref_mut", "let x = &mut a;", ast.ExprUnaryRefMut},
+		{"own", "let x = own a;", ast.ExprUnaryOwn},
 	}
 
 	for _, tt := range tests {
@@ -89,6 +106,14 @@ func TestUnaryOperators(t *testing.T) {
 			expr := arenas.Exprs.Get(letItem.Value)
 			if expr.Kind != ast.ExprUnary {
 				t.Errorf("Expected unary expression, got %v", expr.Kind)
+			}
+
+			unaryData, ok := arenas.Exprs.Unary(letItem.Value)
+			if !ok {
+				t.Fatal("Failed to get unary data")
+			}
+			if unaryData.Op != tt.expectedOp {
+				t.Errorf("Expected unary op %v, got %v", tt.expectedOp, unaryData.Op)
 			}
 		})
 	}
@@ -187,6 +212,46 @@ func TestTupleExpressions(t *testing.T) {
 			// Для остальных проверяем что элементы есть
 			if tt.name != "empty_tuple" && len(tupleData.Elements) == 0 {
 				t.Error("Expected tuple with elements, got empty")
+			}
+		})
+	}
+}
+
+func TestCastExpression(t *testing.T) {
+	tests := []struct {
+		name            string
+		input           string
+		expectInnerKind ast.ExprKind
+	}{
+		{"simple_cast", "let x = value to int;", ast.ExprIdent},
+		{"chained_cast", "let x = value to int to float;", ast.ExprCast},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			letItem, arenas := parseExprTestInput(t, tt.input)
+			if letItem.Value == ast.NoExprID {
+				t.Fatal("Expected expression value")
+			}
+
+			expr := arenas.Exprs.Get(letItem.Value)
+			if expr.Kind != ast.ExprCast {
+				t.Fatalf("Expected cast expression, got %v", expr.Kind)
+			}
+
+			castData, ok := arenas.Exprs.Cast(letItem.Value)
+			if !ok {
+				t.Fatal("Failed to get cast data")
+			}
+
+			inner := arenas.Exprs.Get(castData.Value)
+			if inner.Kind != tt.expectInnerKind {
+				t.Errorf("Expected inner value %v, got %v", tt.expectInnerKind, inner.Kind)
+			}
+
+			typeExpr := arenas.Types.Get(castData.Type)
+			if typeExpr == nil {
+				t.Fatal("Expected cast type to be recorded")
 			}
 		})
 	}

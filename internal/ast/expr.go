@@ -12,6 +12,7 @@ const (
 	ExprCall
 	ExprBinary
 	ExprUnary
+	ExprCast
 	ExprGroup
 	ExprTuple
 	ExprIndex
@@ -66,6 +67,17 @@ const (
 	ExprBinaryMulAssign
 	ExprBinaryDivAssign
 	ExprBinaryModAssign
+	ExprBinaryBitAndAssign
+	ExprBinaryBitOrAssign
+	ExprBinaryBitXorAssign
+	ExprBinaryShlAssign
+	ExprBinaryShrAssign
+
+	// Специальные операторы
+	ExprBinaryNullCoalescing // ??
+	ExprBinaryRange          // ..
+	ExprBinaryRangeInclusive // ..=
+	ExprBinaryIs             // is
 )
 
 // Типы унарных операторов
@@ -77,6 +89,8 @@ const (
 	ExprUnaryNot
 	ExprUnaryDeref
 	ExprUnaryRef
+	ExprUnaryRefMut
+	ExprUnaryOwn
 	ExprUnaryAwait
 )
 
@@ -114,6 +128,11 @@ type ExprUnaryData struct {
 	Operand ExprID
 }
 
+type ExprCastData struct {
+	Value ExprID
+	Type  TypeID
+}
+
 type ExprCallData struct {
 	Target ExprID
 	Args   []ExprID
@@ -143,6 +162,7 @@ type Exprs struct {
 	Literals *Arena[ExprLiteralData]
 	Binaries *Arena[ExprBinaryData]
 	Unaries  *Arena[ExprUnaryData]
+	Casts    *Arena[ExprCastData]
 	Calls    *Arena[ExprCallData]
 	Indices  *Arena[ExprIndexData]
 	Members  *Arena[ExprMemberData]
@@ -160,6 +180,7 @@ func NewExprs(capHint uint) *Exprs {
 		Literals: NewArena[ExprLiteralData](capHint),
 		Binaries: NewArena[ExprBinaryData](capHint),
 		Unaries:  NewArena[ExprUnaryData](capHint),
+		Casts:    NewArena[ExprCastData](capHint),
 		Calls:    NewArena[ExprCallData](capHint),
 		Indices:  NewArena[ExprIndexData](capHint),
 		Members:  NewArena[ExprMemberData](capHint),
@@ -230,6 +251,19 @@ func (e *Exprs) Unary(id ExprID) (*ExprUnaryData, bool) {
 		return nil, false
 	}
 	return e.Unaries.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewCast(span source.Span, value ExprID, typ TypeID) ExprID {
+	payload := e.Casts.Allocate(ExprCastData{Value: value, Type: typ})
+	return e.new(ExprCast, span, PayloadID(payload))
+}
+
+func (e *Exprs) Cast(id ExprID) (*ExprCastData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprCast {
+		return nil, false
+	}
+	return e.Casts.Get(uint32(expr.Payload)), true
 }
 
 func (e *Exprs) NewCall(span source.Span, target ExprID, args []ExprID) ExprID {

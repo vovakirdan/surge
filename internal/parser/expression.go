@@ -72,6 +72,40 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 	// Собираем все префиксы
 	for {
 		tok := p.lx.Peek()
+
+		// Специальная обработка для &mut
+		if tok.Kind == token.Amp {
+			ampTok := p.advance() // съедаем &
+			nextTok := p.lx.Peek()
+			if nextTok.Kind == token.KwMut {
+				// Это &mut
+				mutTok := p.advance() // съедаем mut
+				finalSpan := ampTok.Span.Cover(mutTok.Span)
+				prefixes = append(prefixes, prefixOp{
+					op:   ast.ExprUnaryRefMut,
+					span: finalSpan,
+				})
+			} else {
+				// Обычный &
+				prefixes = append(prefixes, prefixOp{
+					op:   ast.ExprUnaryRef,
+					span: ampTok.Span,
+				})
+			}
+			continue
+		}
+
+		// Специальная обработка для own
+		if tok.Kind == token.KwOwn {
+			ownTok := p.advance()
+			prefixes = append(prefixes, prefixOp{
+				op:   ast.ExprUnaryOwn,
+				span: ownTok.Span,
+			})
+			continue
+		}
+
+		// Обычные унарные операторы
 		if op, ok := p.getUnaryOperator(tok.Kind); ok {
 			opTok := p.advance()
 			prefixes = append(prefixes, prefixOp{
@@ -129,6 +163,14 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 		case token.Dot:
 			// Доступ к полю: expr.field
 			newExpr, ok := p.parseMemberExpr(expr)
+			if !ok {
+				return ast.NoExprID, false
+			}
+			expr = newExpr
+
+		case token.KwTo:
+			// Приведение типов: expr to Type
+			newExpr, ok := p.parseCastExpr(expr)
 			if !ok {
 				return ast.NoExprID, false
 			}

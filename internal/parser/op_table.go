@@ -8,17 +8,21 @@ import (
 // Таблица приоритетов для бинарных операторов
 // Чем больше число, тем выше приоритет
 const (
-	precAssignment     = 1  // = += -= *= /= %=
-	precLogicalOr      = 2  // ||
-	precLogicalAnd     = 3  // &&
-	precEquality       = 4  // == !=
-	precComparison     = 5  // < <= > >=
-	precBitwiseOr      = 6  // |
-	precBitwiseXor     = 7  // ^
-	precBitwiseAnd     = 8  // &
-	precShift          = 9  // << >>
-	precAdditive       = 10 // + -
-	precMultiplicative = 11 // * / %
+	precAssignment     = 1 // = += -= *= /= %= &= |= ^= <<= >>=
+	precNullCoalescing = 2 // ??
+	// precTernary зарезервирован под тернарный оператор `?:`.
+	// Он разбирается отдельной веткой, поэтому в таблице пока не используется.
+	precTernary        = 3  // ? : (right-associative)
+	precLogicalOr      = 4  // ||
+	precLogicalAnd     = 5  // &&
+	precComparison     = 6  // < <= > >= == != is
+	precRange          = 7  // .. ..=
+	precBitwiseOr      = 8  // |
+	precBitwiseXor     = 9  // ^
+	precBitwiseAnd     = 10 // &
+	precShift          = 11 // << >>
+	precAdditive       = 12 // + -
+	precMultiplicative = 13 // * / %
 )
 
 // getBinaryOperatorPrec возвращает приоритет и ассоциативность оператора
@@ -26,8 +30,14 @@ const (
 func (p *Parser) getBinaryOperatorPrec(kind token.Kind) (int, bool) {
 	switch kind {
 	// Присваивание (правоассоциативно)
-	case token.Assign:
+	case token.Assign, token.PlusAssign, token.MinusAssign, token.StarAssign,
+		token.SlashAssign, token.PercentAssign, token.AmpAssign, token.PipeAssign,
+		token.CaretAssign, token.ShlAssign, token.ShrAssign:
 		return precAssignment, true
+
+	// Null coalescing
+	case token.QuestionQuestion:
+		return precNullCoalescing, false
 
 	// Логические операторы
 	case token.OrOr:
@@ -35,13 +45,13 @@ func (p *Parser) getBinaryOperatorPrec(kind token.Kind) (int, bool) {
 	case token.AndAnd:
 		return precLogicalAnd, false
 
-	// Операторы равенства
-	case token.EqEq, token.BangEq:
-		return precEquality, false
-
-	// Операторы сравнения
-	case token.Lt, token.LtEq, token.Gt, token.GtEq:
+	// Операторы сравнения (включая is)
+	case token.EqEq, token.BangEq, token.Lt, token.LtEq, token.Gt, token.GtEq, token.KwIs:
 		return precComparison, false
+
+	// Range операторы
+	case token.DotDot, token.DotDotEq:
+		return precRange, false
 
 	// Битовые операторы
 	case token.Pipe:
@@ -116,6 +126,36 @@ func (p *Parser) tokenKindToBinaryOp(kind token.Kind) ast.ExprBinaryOp {
 	// Присваивание
 	case token.Assign:
 		return ast.ExprBinaryAssign
+	case token.PlusAssign:
+		return ast.ExprBinaryAddAssign
+	case token.MinusAssign:
+		return ast.ExprBinarySubAssign
+	case token.StarAssign:
+		return ast.ExprBinaryMulAssign
+	case token.SlashAssign:
+		return ast.ExprBinaryDivAssign
+	case token.PercentAssign:
+		return ast.ExprBinaryModAssign
+	case token.AmpAssign:
+		return ast.ExprBinaryBitAndAssign
+	case token.PipeAssign:
+		return ast.ExprBinaryBitOrAssign
+	case token.CaretAssign:
+		return ast.ExprBinaryBitXorAssign
+	case token.ShlAssign:
+		return ast.ExprBinaryShlAssign
+	case token.ShrAssign:
+		return ast.ExprBinaryShrAssign
+
+	// Специальные операторы
+	case token.QuestionQuestion:
+		return ast.ExprBinaryNullCoalescing
+	case token.DotDot:
+		return ast.ExprBinaryRange
+	case token.DotDotEq:
+		return ast.ExprBinaryRangeInclusive
+	case token.KwIs:
+		return ast.ExprBinaryIs
 
 	default:
 		// Это не должно случаться, если таблица приоритетов корректна
