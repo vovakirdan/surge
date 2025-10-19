@@ -44,6 +44,7 @@ const (
 	SynInfoTypeExpr       Code = 2200
 	SynExpectRightBracket Code = 2201
 	SynExpectType         Code = 2202
+	SynExpectExpression   Code = 2203
 
 	// Семантические (резервируем)
 	SemaInfo  Code = 3000
@@ -92,6 +93,7 @@ var (
 		SynExpectIdentAfterAs:       "Expect identifier after as",
 		SynEmptyImportGroup:         "Empty import group",
 		SynExpectType:               "Expect type",
+		SynExpectExpression:         "Expect expression",
 		SemaInfo:                    "Semantic information",
 		SemaError:                   "Semantic error",
 		IOLoadFileError:             "I/O load file error",

@@ -49,9 +49,12 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 	var valueID ast.ExprID = ast.NoExprID
 	if p.at(token.Assign) {
 		p.advance() // съедаем '='
-		// TODO: реализовать parseExpr()
-		p.err(diag.SynUnexpectedToken, "expression parsing not yet implemented")
-		return LetBinding{}, false
+		var ok bool
+		valueID, ok = p.parseExpr()
+		if !ok {
+			p.err(diag.SynExpectExpression, "expected expression after '='")
+			return LetBinding{}, false
+		}
 	}
 
 	// Проверяем, что хотя бы тип или значение указано
