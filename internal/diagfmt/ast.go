@@ -185,6 +185,39 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 				}
 			}
 		}
+	case ast.ItemLet:
+		if letItem, ok := builder.Items.Let(itemID); ok {
+			fields := []struct {
+				label string
+				value string
+				show  bool
+			}{
+				{"Name", builder.StringsInterner.MustLookup(letItem.Name), true},
+				{"Mutable", fmt.Sprintf("%v", letItem.IsMut), true},
+				{"Type", formatTypeExprInline(builder, letItem.Type), letItem.Type.IsValid()},
+				{"Value", formatLetValuePlaceholder(letItem.Value), true},
+			}
+
+			visible := 0
+			for _, f := range fields {
+				if f.show {
+					visible++
+				}
+			}
+
+			current := 0
+			for _, f := range fields {
+				if !f.show {
+					continue
+				}
+				current++
+				fieldPrefix := "├─"
+				if current == visible {
+					fieldPrefix = "└─"
+				}
+				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, fieldPrefix, f.label, f.value)
+			}
+		}
 	}
 
 	return nil
@@ -244,6 +277,17 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 
 			output.Fields = fields
 		}
+	case ast.ItemLet:
+		if letItem, ok := builder.Items.Let(itemID); ok {
+			fields := map[string]any{
+				"name":    builder.StringsInterner.MustLookup(letItem.Name),
+				"isMut":   letItem.IsMut,
+				"value":   formatLetValuePlaceholder(letItem.Value),
+				"type":    formatTypeExprInline(builder, letItem.Type),
+				"typeSet": letItem.Type.IsValid(),
+			}
+			output.Fields = fields
+		}
 	}
 
 	return output, nil
@@ -291,6 +335,117 @@ func formatSpan(span source.Span, fs *source.FileSet) string {
 		return fmt.Sprintf("%d:%d-%d:%d", start.Line, start.Col, end.Line, end.Col)
 	}
 	return fmt.Sprintf("span(%d-%d)", span.Start, span.End)
+}
+
+func formatLetValuePlaceholder(exprID ast.ExprID) string {
+	if !exprID.IsValid() {
+		return "<none>"
+	}
+	return fmt.Sprintf("expr#%d", exprID)
+}
+
+func formatTypeExprInline(builder *ast.Builder, typeID ast.TypeID) string {
+	if !typeID.IsValid() {
+		return "<inferred>"
+	}
+	typ := builder.Types.Get(typeID)
+	if typ == nil {
+		return "<invalid>"
+	}
+
+	switch typ.Kind {
+	case ast.TypeExprPath:
+		path, ok := builder.Types.Path(typeID)
+		if !ok {
+			return "<invalid-path>"
+		}
+		segments := make([]string, 0, len(path.Segments))
+		for _, seg := range path.Segments {
+			name := builder.StringsInterner.MustLookup(seg.Name)
+			if len(seg.Generics) > 0 {
+				genericStrs := make([]string, 0, len(seg.Generics))
+				for _, gid := range seg.Generics {
+					genericStrs = append(genericStrs, formatTypeExprInline(builder, gid))
+				}
+				name = fmt.Sprintf("%s<%s>", name, strings.Join(genericStrs, ", "))
+			}
+			segments = append(segments, name)
+		}
+		return strings.Join(segments, ".")
+	case ast.TypeExprUnary:
+		un, ok := builder.Types.UnaryType(typeID)
+		if !ok {
+			return "<invalid-unary>"
+		}
+		op := ""
+		switch un.Op {
+		case ast.TypeUnaryOwn:
+			op = "own "
+		case ast.TypeUnaryRef:
+			op = "&"
+		case ast.TypeUnaryRefMut:
+			op = "&mut "
+		case ast.TypeUnaryPointer:
+			op = "*"
+		default:
+			op = "<?>"
+		}
+		return op + formatTypeExprInline(builder, un.Inner)
+	case ast.TypeExprArray:
+		arr, ok := builder.Types.Array(typeID)
+		if !ok {
+			return "<invalid-array>"
+		}
+		elem := formatTypeExprInline(builder, arr.Elem)
+		switch arr.Kind {
+		case ast.ArraySlice:
+			return elem + "[]"
+		case ast.ArraySized:
+			if arr.HasConstLen {
+				return fmt.Sprintf("%s[%d]", elem, arr.ConstLength)
+			}
+			if arr.Length.IsValid() {
+				return fmt.Sprintf("%s[expr#%d]", elem, arr.Length)
+			}
+			return fmt.Sprintf("%s[?]", elem)
+		default:
+			return fmt.Sprintf("%s[<?>]", elem)
+		}
+	case ast.TypeExprTuple:
+		tuple, ok := builder.Types.Tuple(typeID)
+		if !ok {
+			return "<invalid-tuple>"
+		}
+		if len(tuple.Elems) == 0 {
+			return "()"
+		}
+		elems := make([]string, 0, len(tuple.Elems))
+		for _, elem := range tuple.Elems {
+			elems = append(elems, formatTypeExprInline(builder, elem))
+		}
+		return fmt.Sprintf("(%s)", strings.Join(elems, ", "))
+	case ast.TypeExprFn:
+		fn, ok := builder.Types.Fn(typeID)
+		if !ok {
+			return "<invalid-fn>"
+		}
+		paramStrs := make([]string, 0, len(fn.Params))
+		for _, param := range fn.Params {
+			paramType := formatTypeExprInline(builder, param.Type)
+			if param.Variadic {
+				paramType = "..." + paramType
+			}
+			if param.Name != source.NoStringID {
+				name := builder.StringsInterner.MustLookup(param.Name)
+				paramType = fmt.Sprintf("%s: %s", name, paramType)
+			}
+			paramStrs = append(paramStrs, paramType)
+		}
+		ret := formatTypeExprInline(builder, fn.Return)
+		return fmt.Sprintf("fn(%s) -> %s", strings.Join(paramStrs, ", "), ret)
+	default:
+		return "<unknown-type>"
+	}
 }
 
 type treeNode struct {
@@ -362,6 +517,20 @@ func buildItemTreeNode(builder *ast.Builder, itemID ast.ItemID, fs *source.FileS
 				}
 				node.children = append(node.children, groupNode)
 			}
+		}
+	case ast.ItemLet:
+		if letItem, ok := builder.Items.Let(itemID); ok {
+			nameNode := &treeNode{label: fmt.Sprintf("Name: %s", builder.StringsInterner.MustLookup(letItem.Name))}
+			mutNode := &treeNode{label: fmt.Sprintf("Mutable: %v", letItem.IsMut)}
+			node.children = append(node.children, nameNode, mutNode)
+
+			if letItem.Type.IsValid() {
+				typeNode := &treeNode{label: fmt.Sprintf("Type: %s", formatTypeExprInline(builder, letItem.Type))}
+				node.children = append(node.children, typeNode)
+			}
+
+			valueLabel := fmt.Sprintf("Value: %s", formatLetValuePlaceholder(letItem.Value))
+			node.children = append(node.children, &treeNode{label: valueLabel})
 		}
 	}
 
