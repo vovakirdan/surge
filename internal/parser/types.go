@@ -400,12 +400,16 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 
 		// p.err(diag.SynExpectRightBracket, "expected ']' or array size")
 		errSpan := p.currentErrorSpan()
-		insertSpan := source.Span{File: errSpan.File, Start: errSpan.Start, End: errSpan.Start}
+		primarySpan := errSpan.ShiftLeft(1)
+		if primarySpan.Start == primarySpan.End && primarySpan.Start == errSpan.Start {
+			primarySpan = errSpan
+		}
+		insertSpan := errSpan.ZeroideToStart()
 
 		p.emitDiagnostic(
 			diag.SynExpectRightBracket,
 			diag.SevError,
-			errSpan,
+			primarySpan,
 			"expected ']' or array size",
 			func(b *diag.ReportBuilder) {
 				if b == nil {

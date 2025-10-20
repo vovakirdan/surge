@@ -24,7 +24,7 @@ func TestDiagnose_NoDependencyErrorForCleanImport(t *testing.T) {
 		t.Fatalf("chdir: %v", err)
 	}
 
-	path := filepath.Join("testdata", "test_fixes", "empty_import_group.sg")
+	path := filepath.Join("testdata", "test_fixes", "import_fixes", "empty_import_group.sg")
 
 	res, err := DiagnoseWithOptions(path, opts)
 	if err != nil {

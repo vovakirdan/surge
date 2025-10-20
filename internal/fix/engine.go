@@ -166,14 +166,14 @@ func sortCandidates(candidates []candidate) {
 		if di.Primary.End != dj.Primary.End {
 			return di.Primary.End < dj.Primary.End
 		}
+		if candidates[i].order != candidates[j].order {
+			return candidates[i].order < candidates[j].order
+		}
 		if di.Code != dj.Code {
 			return di.Code < dj.Code
 		}
 		if candidates[i].fix.IsPreferred != candidates[j].fix.IsPreferred {
 			return candidates[i].fix.IsPreferred && !candidates[j].fix.IsPreferred
-		}
-		if candidates[i].order != candidates[j].order {
-			return candidates[i].order < candidates[j].order
 		}
 		if candidates[i].fix.ID != candidates[j].fix.ID {
 			return candidates[i].fix.ID < candidates[j].fix.ID

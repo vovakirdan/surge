@@ -147,6 +147,36 @@ func (p *Parser) parseLetItem() (ast.ItemID, bool) {
 	// Парсим биндинг
 	binding, ok := p.parseLetBinding()
 	if !ok {
+		if !p.at(token.Semicolon) {
+			insertPos := p.lastSpan.ZeroideToEnd()
+			p.emitDiagnostic(
+				diag.SynExpectSemicolon,
+				diag.SevError,
+				insertPos,
+				"expected semicolon after let item",
+				func(b *diag.ReportBuilder) {
+					if b == nil {
+						return
+					}
+					fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectSemicolon.ID(), insertPos.File, insertPos.Start)
+					suggestion := fix.InsertText(
+						"insert semicolon after let item",
+						insertPos,
+						";",
+						"",
+						fix.WithID(fixID),
+						fix.WithKind(diag.FixKindRefactor),
+						fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						fix.Preferred(),
+					)
+					b.WithFixSuggestion(suggestion)
+					b.WithNote(insertPos, "insert missing semicolon")
+				},
+			)
+		} else {
+			p.advance() // consume existing semicolon to keep parser progress
+		}
+		p.resyncTop()
 		return ast.NoItemID, false
 	}
 
