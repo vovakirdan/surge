@@ -211,7 +211,8 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 		return p.parseParenExpr()
 
 	default:
-		p.err(diag.SynExpectExpression, "expected expression")
+		// договоримся, что обрабатываем все ошибки до
+		// p.err(diag.SynExpectExpression, "expected expression")
 		return ast.NoExprID, false
 	}
 }

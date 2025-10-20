@@ -9,6 +9,7 @@ import (
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/token"
+	"surge/internal/fix"
 )
 
 // LetBinding представляет парсированный биндинг let
@@ -48,11 +49,34 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 	// Парсим инициализацию (если есть =)
 	var valueID ast.ExprID = ast.NoExprID
 	if p.at(token.Assign) {
-		p.advance() // съедаем '='
+		tokAssign := p.advance() // съедаем '='
 		var ok bool
 		valueID, ok = p.parseExpr()
 		if !ok {
-			p.err(diag.SynExpectExpression, "expected expression after '='")
+			// p.err(diag.SynExpectExpression, "expected expression after '='")
+			// todo: попробуем так же посмотреть вокруг, если там пробелы - забираем их тоже
+			p.emitDiagnostic(
+				diag.SynExpectExpression,
+				diag.SevError,
+				tokAssign.Span,
+				"expected expression after '='",
+				func(b *diag.ReportBuilder) {
+					if b == nil {
+						return
+					}
+					fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectExpression.ID(), tokAssign.Span.File, tokAssign.Span.Start)
+					suggestion := fix.DeleteSpan(
+						"remove '=' to simplify the let binding",
+						tokAssign.Span,
+						"",
+						fix.WithID(fixID),
+						fix.WithKind(diag.FixKindRefactor),
+						fix.WithApplicability(diag.FixApplicabilityAlwaysSafe), // todo подумать безопасно ли это
+					)
+					b.WithFixSuggestion(suggestion)
+					b.WithNote(tokAssign.Span, "remove '=' to simplify the let binding")
+				},
+			)
 			return LetBinding{}, false
 		}
 	}

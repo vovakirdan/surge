@@ -72,6 +72,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 				// Проверяем, что после 'as' идёт идентификатор
 				if !p.at(token.Ident) {
+					// todo: убирать 'as'
 					p.err(diag.SynExpectIdentAfterAs, "expected identifier after 'as', got '"+p.lx.Peek().Text+"'")
 					p.resyncStatement()
 					return ast.NoItemID, false

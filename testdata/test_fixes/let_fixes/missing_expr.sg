@@ -1,0 +1,4 @@
+let a:int = ; // SYN2203 surge fix должен убрать "="
+let b: = 1; // SYN2202 surge fix должен убрать ":"
+let c = 1 // SYN2012 surge fix должен установить ;
+let d = 2;
