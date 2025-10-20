@@ -36,6 +36,9 @@ func (s Span) Cover(other Span) Span {
 }
 
 func (s Span) ShiftLeft(n uint32) Span {
+	if n > s.Start {
+		return s
+	}
 	return Span{
 		File:  s.File,
 		Start: s.Start - n,
@@ -44,6 +47,9 @@ func (s Span) ShiftLeft(n uint32) Span {
 }
 
 func (s Span) ShiftRight(n uint32) Span {
+	if n > s.End - s.Start {
+		return s
+	}
 	return Span{
 		File:  s.File,
 		Start: s.Start + n,
