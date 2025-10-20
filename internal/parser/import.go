@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"fmt"
-
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
@@ -173,25 +171,27 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					Start: groupOpenSpan.Start + 1,
 					End:   groupOpenSpan.End + 1,
 				}
+				combinedSpan := colonColonTok.Span.Cover(groupCloseSpan)
 				p.emitDiagnostic(
 					diag.SynEmptyImportGroup,
 					diag.SevWarning,
-					p.currentErrorSpan(),
+					combinedSpan,
 					"empty import group",
 					func(b *diag.ReportBuilder) {
 						if b == nil {
 							return
 						}
-						fixID := fmt.Sprintf("%s-%d-%d", diag.SynEmptyImportGroup.ID(), p.currentErrorSpan().File, p.currentErrorSpan().Start)
-						suggestion := fix.DeleteSpans(
+						fixID := fix.MakeFixID(diag.SynEmptyImportGroup, combinedSpan)
+						suggestion := fix.DeleteSpan(
 							"remove '::{}' to simplify the import statement",
-							[]source.Span{groupOpenSpan, groupCloseSpan, colonColonTok.Span},
+							combinedSpan,
+							"::{}",
 							fix.WithKind(diag.FixKindRefactor),
 							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
 							fix.WithID(fixID),
 						)
 						b.WithFixSuggestion(suggestion)
-						b.WithNote(p.currentErrorSpan(), "remove double colons and braces to simplify the import statement")
+						b.WithNote(combinedSpan, "remove double colons and braces to simplify the import statement")
 					},
 				)
 			}
@@ -215,7 +215,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 						if b == nil {
 							return
 						}
-						fixID := fmt.Sprintf("%s-%d-%d", diag.SynUnclosedBrace.ID(), closeBraceSpan.File, closeBraceSpan.Start)
+						fixID := fix.MakeFixID(diag.SynUnclosedBrace, closeBraceSpan)
 						suggestion := fix.InsertText(
 							"add missing '}' to close import group",
 							closeBraceSpan,
@@ -249,7 +249,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					if trailingComma.End > trailingComma.Start {
 						removeSpans = append(removeSpans, trailingComma)
 					}
-					fixID := fmt.Sprintf("%s-%d-%d", diag.SynInfoImportGroup.ID(), groupOpenSpan.File, groupOpenSpan.Start)
+					fixID := fix.MakeFixID(diag.SynInfoImportGroup, groupOpenSpan)
 					suggestion := fix.DeleteSpans(
 						"remove braces around single import",
 						removeSpans,
@@ -274,7 +274,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					if b == nil {
 						return
 					}
-					fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectItemAfterDbl.ID(), dblSpan.File, dblSpan.Start)
+					fixID := fix.MakeFixID(diag.SynExpectItemAfterDbl, dblSpan)
 					suggestion := fix.DeleteSpan(
 						"remove unexpected '::'",
 						dblSpan,
@@ -340,7 +340,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			return
 		}
 		insertPos := source.Span{File: insertSpan.File, Start: insertSpan.Start, End: insertSpan.Start}
-		fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectSemicolon.ID(), insertPos.File, insertPos.Start)
+		fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertPos)
 		suggestion := fix.InsertText(
 			"insert ';' after import",
 			insertPos,

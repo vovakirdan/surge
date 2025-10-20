@@ -324,7 +324,7 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 				if b == nil {
 					return
 				}
-				fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectType.ID(), spanColon.File, spanColon.Start)
+				fixID := fix.MakeFixID(diag.SynExpectType, spanColon)
 				suggestion := fix.DeleteSpan(
 					"remove type to simplify the type expression",
 					spanColon,
@@ -379,7 +379,32 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 			}
 
 			if !p.at(token.RBracket) {
-				p.err(diag.SynExpectRightBracket, "expected ']' after array size")
+				// p.err(diag.SynExpectRightBracket, "expected ']' after array size")
+				rightBracketSpan := p.currentErrorSpan().ZeroideToStart()
+				p.emitDiagnostic(
+					diag.SynExpectRightBracket,
+					diag.SevError,
+					p.currentErrorSpan(),
+					"expected ']' after array size",
+					func(b *diag.ReportBuilder) {
+						if b == nil {
+							return
+						}
+						// как же не хватает макросов сейчас...
+						fixID := fix.MakeFixID(diag.SynExpectRightBracket, rightBracketSpan)
+						suggestion := fix.InsertText(
+							"insert ']' after array size",
+							rightBracketSpan,
+							"]",
+							"",
+							fix.WithID(fixID),
+							fix.WithKind(diag.FixKindRefactor),
+							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						)
+						b.WithFixSuggestion(suggestion)
+						b.WithNote(rightBracketSpan, "insert ']' after array size")
+					},
+				)
 				return ast.NoTypeID, false
 			}
 			closeTok := p.advance()
@@ -415,7 +440,7 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 				if b == nil {
 					return
 				}
-				fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectRightBracket.ID(), insertSpan.File, insertSpan.Start)
+				fixID := fix.MakeFixID(diag.SynExpectRightBracket, insertSpan)
 				suggestion := fix.InsertText(
 					"insert ']' to close array type",
 					insertSpan,
@@ -430,7 +455,8 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 				b.WithNote(insertSpan, "insert ']' to close array type")
 			},
 		)
-		p.resyncUntil(token.RBracket, token.Semicolon, token.Comma)
+		// p.resyncUntil(token.RBracket, token.Semicolon, token.Comma)
+		p.resyncTop()
 		if p.at(token.RBracket) {
 			p.advance()
 		}

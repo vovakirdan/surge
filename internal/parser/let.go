@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
@@ -51,7 +50,7 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 					if b == nil {
 						return
 					}
-					fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectExpression.ID(), tokAssign.Span.File, tokAssign.Span.Start)
+					fixID := fix.MakeFixID(diag.SynExpectExpression, tokAssign.Span)
 					suggestion := fix.DeleteSpan(
 						"remove '=' to simplify the let binding",
 						tokAssign.Span,
@@ -86,12 +85,7 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 					return
 				}
 				// проверить тип ли это мы сможем только на семантике, так что предложим сначала ":"
-				fixIDInsertColon := fmt.Sprintf(
-					"%s-%d-%d",
-					diag.SynExpectColon.ID(),
-					spanWhereShouldBeColon.File,
-					spanWhereShouldBeColon.Start,
-				)
+				fixIDInsertColon := fix.MakeFixID(diag.SynExpectColon, spanWhereShouldBeColon)
 				suggestionInsertColon := fix.InsertText(
 					"insert colon to add type annotation",
 					spanWhereShouldBeColon,
@@ -103,12 +97,7 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 					fix.Preferred(),
 				)
 				b.WithFixSuggestion(suggestionInsertColon)
-				fixIDDeleteIdent := fmt.Sprintf(
-					"%s-%d-%d",
-					diag.SynExpectType.ID(),
-					spanWhereUnexpectedIdent.File,
-					spanWhereUnexpectedIdent.Start,
-				)
+				fixIDDeleteIdent := fix.MakeFixID(diag.SynExpectType, spanWhereUnexpectedIdent)
 				// и уже вторым фиксом предлагаем удалить ident
 				suggestionDeleteIdent := fix.DeleteSpan(
 					"remove ident to simplify the let binding",
@@ -158,7 +147,7 @@ func (p *Parser) parseLetItem() (ast.ItemID, bool) {
 					if b == nil {
 						return
 					}
-					fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectSemicolon.ID(), insertPos.File, insertPos.Start)
+					fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertPos)
 					suggestion := fix.InsertText(
 						"insert semicolon after let item",
 						insertPos,
@@ -186,7 +175,7 @@ func (p *Parser) parseLetItem() (ast.ItemID, bool) {
 		if b == nil {
 			return
 		}
-		fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectSemicolon.ID(), insertPos.File, insertPos.Start)
+		fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertPos)
 		suggestion := fix.InsertText(
 			"insert semicolon after let item",
 			insertPos,
