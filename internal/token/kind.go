@@ -89,6 +89,7 @@ const (
 	QuestionQuestion // ??
 	Colon      // :
 	ColonColon // ::
+	ColonAssign // :=
 	Semicolon  // ;
 	Comma      // ,
 	Dot        // .

@@ -236,3 +236,7 @@ func DeleteLine(title string, lineSpan source.Span, lineText string, opts ...Opt
 	newText := ""
 	return ReplaceSpan(title, lineSpan, newText, lineText, opts...)
 }
+
+// RemoveExtraWhitespaces должна удалять лишние пробелы после insert/delete etc
+// todo: это должен делать formatter
+// func RemoveExtraWhitespaces()

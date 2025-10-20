@@ -25,7 +25,7 @@ func (t Token) IsPunctOrOp() bool {
 	case Plus, Minus, Star, Slash, Percent, Assign, EqEq, Bang, BangEq, Lt, LtEq,
 		Gt, GtEq, Shl, Shr, Amp, Pipe, Caret, AndAnd, OrOr, Question, Colon, ColonColon,
 		Semicolon, Comma, Dot, DotDot, Arrow, FatArrow, LParen, RParen, LBrace, RBrace,
-		LBracket, RBracket, At, Underscore, DotDotEq:
+		LBracket, RBracket, At, Underscore, DotDotEq, ColonAssign:
 		return true
 	default:
 		return false

@@ -422,7 +422,31 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 		return p.parseTypeSuffix(fnType)
 
 	default:
-		p.err(diag.SynExpectType, "expected type")
+		// p.err(diag.SynExpectType, "expected type")
+		// так как := это токен, то мы можем уверенно сдвигаться
+		spanColon := startSpan.ShiftLeft(2)
+		p.emitDiagnostic(
+			diag.SynExpectType,
+			diag.SevError,
+			spanColon,
+			"expected type",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectType.ID(), spanColon.File, spanColon.Start)
+				suggestion := fix.DeleteSpan(
+					"remove type to simplify the type expression",
+					spanColon,
+					"",
+					fix.WithID(fixID),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe), // todo подумать безопасно ли это
+				)
+				b.WithFixSuggestion(suggestion)
+				b.WithNote(startSpan, "remove type to simplify the type expression")
+			},
+		)
 		return ast.NoTypeID, false
 	}
 }

@@ -73,6 +73,8 @@ func (lx *Lexer) scanOperatorOrPunct() token.Token {
 		return emit(token.PipeAssign)
 	case lx.try2('^', '='):
 		return emit(token.CaretAssign)
+	case lx.try2(':', '='):
+		return emit(token.ColonAssign)
 	// Null coalescing
 	case lx.try2('?', '?'):
 		return emit(token.QuestionQuestion)

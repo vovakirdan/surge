@@ -34,3 +34,19 @@ func (s Span) Cover(other Span) Span {
 	}
 	return s
 }
+
+func (s Span) ShiftLeft(n uint32) Span {
+	return Span{
+		File:  s.File,
+		Start: s.Start - n,
+		End:   s.End - n,
+	}
+}
+
+func (s Span) ShiftRight(n uint32) Span {
+	return Span{
+		File:  s.File,
+		Start: s.Start + n,
+		End:   s.End + n,
+	}
+}
