@@ -164,40 +164,33 @@ func (p *Parser) parseLetItem() (ast.ItemID, bool) {
 		return ast.NoItemID, false
 	}
 
-	semi := p.lx.Peek()
+	insertPos := p.lastSpan
 
-	// Ожидаем точку с запятой
-	if semi.Kind != token.Semicolon {
-		endSpan := p.lastSpan.ShiftRight(1) // идеально!
-		p.emitDiagnostic(
-			diag.SynExpectSemicolon,
-			diag.SevError,
-			endSpan,
-			"expected semicolon after let item",
-			func(b *diag.ReportBuilder) {
-				if b == nil {
-					return
-				}
-				fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectSemicolon.ID(), endSpan.File, endSpan.Start)
-				suggestion := fix.InsertText( // todo: перепроверить insert, сейчас он работает как замена, а должен именно вставлять
-					"remove semicolon to simplify the let item",
-					endSpan,
-					";",
-					"",
-					fix.WithID(fixID),
-					fix.WithKind(diag.FixKindRefactor),
-					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe), // todo подумать безопасно ли это
-				)
-				b.WithFixSuggestion(suggestion)
-				b.WithNote(letTok.Span, "remove semicolon to simplify the let item")
-			},
+	semiTok, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected semicolon after let item", func(b *diag.ReportBuilder) {
+		if b == nil {
+			return
+		}
+		fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectSemicolon.ID(), insertPos.File, insertPos.Start)
+		suggestion := fix.InsertText(
+			"insert semicolon after let item",
+			insertPos,
+			";",
+			"",
+			fix.WithID(fixID),
+			fix.WithKind(diag.FixKindRefactor),
+			fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+			fix.Preferred(),
 		)
+		b.WithFixSuggestion(suggestion)
+		b.WithNote(insertPos, "insert missing semicolon")
+	})
+	if !ok {
 		p.resyncTop()
 		return ast.NoItemID, false
 	}
 
 	// Создаем LetItem в AST
-	finalSpan := letTok.Span.Cover(semi.Span)
+	finalSpan := letTok.Span.Cover(semiTok.Span)
 	itemID := p.arenas.Items.NewLet(
 		binding.Name,
 		binding.Type,

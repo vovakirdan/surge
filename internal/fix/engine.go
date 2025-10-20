@@ -65,8 +65,9 @@ type ApplyResult struct {
 }
 
 type candidate struct {
-	diag diag.Diagnostic
-	fix  diag.Fix
+	diag  diag.Diagnostic
+	fix   diag.Fix
+	order int
 }
 
 // Apply collects fixes from diagnostics, selects a subset according to opts, and applies them.
@@ -115,6 +116,7 @@ func gatherCandidates(ctx diag.FixBuildContext, diagnostics []diag.Diagnostic) (
 	cands := make([]candidate, 0)
 	skips := make([]SkippedFix, 0)
 
+	order := 0
 	for _, d := range diagnostics {
 		if len(d.Fixes) == 0 {
 			continue
@@ -142,9 +144,11 @@ func gatherCandidates(ctx diag.FixBuildContext, diagnostics []diag.Diagnostic) (
 				f.ID = fmt.Sprintf("%s-%d-%d-%d", d.Code.ID(), d.Primary.File, d.Primary.Start, idx)
 			}
 			cands = append(cands, candidate{
-				diag: d,
-				fix:  f,
+				diag:  d,
+				fix:   f,
+				order: order,
 			})
+			order++
 		}
 	}
 	return cands, skips
@@ -164,6 +168,12 @@ func sortCandidates(candidates []candidate) {
 		}
 		if di.Code != dj.Code {
 			return di.Code < dj.Code
+		}
+		if candidates[i].fix.IsPreferred != candidates[j].fix.IsPreferred {
+			return candidates[i].fix.IsPreferred && !candidates[j].fix.IsPreferred
+		}
+		if candidates[i].order != candidates[j].order {
+			return candidates[i].order < candidates[j].order
 		}
 		if candidates[i].fix.ID != candidates[j].fix.ID {
 			return candidates[i].fix.ID < candidates[j].fix.ID
