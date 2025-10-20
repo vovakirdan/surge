@@ -83,7 +83,59 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 
 	// Проверяем, что хотя бы тип или значение указано
 	if typeID == ast.NoTypeID && valueID == ast.NoExprID {
-		p.err(diag.SynExpectType, "let binding must have either type annotation or initializer")
+		// p.err(diag.SynExpectType, "let binding must have either type annotation or initializer")
+		// здесь мы если не нашли тип и значение, то мы должны предложить два фикса:
+		// либо убрать ident, либо добавить ":"
+		spanWhereShouldBeColon := p.lastSpan.ShiftRight(1)
+		spanWhereUnexpectedIdent := p.currentErrorSpan()
+		combinedSpan := spanWhereShouldBeColon.Cover(spanWhereUnexpectedIdent)
+		p.emitDiagnostic(
+			diag.SynExpectColon,
+			diag.SevError,
+			combinedSpan,
+			"let binding must have either type annotation or initializer",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				// проверить тип ли это мы сможем только на семантике, так что предложим сначала ":"
+				fixIDInsertColon := fmt.Sprintf(
+					"%s-%d-%d",
+					diag.SynExpectColon.ID(),
+					spanWhereShouldBeColon.File,
+					spanWhereShouldBeColon.Start,
+				)
+				suggestionInsertColon := fix.InsertText(
+					"insert colon to add type annotation",
+					spanWhereShouldBeColon,
+					":",
+					"",
+					fix.WithID(fixIDInsertColon),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+					fix.Preferred(),
+				)
+				b.WithFixSuggestion(suggestionInsertColon)
+				b.WithNote(spanWhereShouldBeColon, "insert colon to add type annotation")
+				fixIDDeleteIdent := fmt.Sprintf(
+					"%s-%d-%d",
+					diag.SynExpectType.ID(),
+					spanWhereUnexpectedIdent.File,
+					spanWhereUnexpectedIdent.Start,
+				)
+				// и уже вторым фиксом предлагаем удалить ident
+				suggestionDeleteIdent := fix.DeleteSpan(
+					"remove ident to simplify the let binding",
+					spanWhereUnexpectedIdent,
+					"",
+					fix.WithID(fixIDDeleteIdent),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				)
+				b.WithFixSuggestion(suggestionDeleteIdent)
+				b.WithNote(spanWhereUnexpectedIdent, "remove ident to simplify the let binding")
+			},
+		)
 		return LetBinding{}, false
 	}
 
@@ -112,9 +164,35 @@ func (p *Parser) parseLetItem() (ast.ItemID, bool) {
 		return ast.NoItemID, false
 	}
 
+	semi := p.lx.Peek()
+
 	// Ожидаем точку с запятой
-	semi, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected semicolon after let item", nil)
-	if !ok {
+	if semi.Kind != token.Semicolon {
+		endSpan := p.lastSpan.ShiftRight(1) // идеально!
+		p.emitDiagnostic(
+			diag.SynExpectSemicolon,
+			diag.SevError,
+			endSpan,
+			"expected semicolon after let item",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectSemicolon.ID(), endSpan.File, endSpan.Start)
+				suggestion := fix.InsertText( // todo: перепроверить insert, сейчас он работает как замена, а должен именно вставлять
+					"remove semicolon to simplify the let item",
+					endSpan,
+					";",
+					"",
+					fix.WithID(fixID),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe), // todo подумать безопасно ли это
+				)
+				b.WithFixSuggestion(suggestion)
+				b.WithNote(letTok.Span, "remove semicolon to simplify the let item")
+			},
+		)
+		p.resyncTop()
 		return ast.NoItemID, false
 	}
 
