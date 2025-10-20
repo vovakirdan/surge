@@ -209,143 +209,14 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 	case token.LParen:
 		// Скобки: (expr)
 		return p.parseParenExpr()
+	
+	case token.LBracket:
+		// Массив: [expr]
+		return p.parseArrayExpr()
 
 	default:
-		// договоримся, что обрабатываем все ошибки до
+		// договоримся, что обрабатываем все ошибки до этого момента
 		// p.err(diag.SynExpectExpression, "expected expression")
 		return ast.NoExprID, false
 	}
-}
-
-// parseIdentExpr парсит выражение-идентификатор
-func (p *Parser) parseIdentExpr() (ast.ExprID, bool) {
-	tok := p.advance()
-	if tok.Kind != token.Ident {
-		p.err(diag.SynExpectIdentifier, "expected identifier")
-		return ast.NoExprID, false
-	}
-
-	nameID := p.arenas.StringsInterner.Intern(tok.Text)
-	return p.arenas.Exprs.NewIdent(tok.Span, nameID), true
-}
-
-// parseNumericLiteral парсит числовые литералы
-func (p *Parser) parseNumericLiteral() (ast.ExprID, bool) {
-	tok := p.advance()
-
-	var kind ast.ExprLitKind
-	switch tok.Kind {
-	case token.IntLit:
-		kind = ast.ExprLitInt
-	case token.UintLit:
-		kind = ast.ExprLitUint
-	case token.FloatLit:
-		kind = ast.ExprLitFloat
-	default:
-		p.err(diag.SynUnexpectedToken, "expected numeric literal")
-		return ast.NoExprID, false
-	}
-
-	// Сохраняем сырое значение для sema
-	valueID := p.arenas.StringsInterner.Intern(tok.Text)
-	return p.arenas.Exprs.NewLiteral(tok.Span, kind, valueID), true
-}
-
-// parseStringLiteral парсит строковые литералы
-func (p *Parser) parseStringLiteral() (ast.ExprID, bool) {
-	tok := p.advance()
-	if tok.Kind != token.StringLit {
-		p.err(diag.SynUnexpectedToken, "expected string literal")
-		return ast.NoExprID, false
-	}
-
-	valueID := p.arenas.StringsInterner.Intern(tok.Text)
-	return p.arenas.Exprs.NewLiteral(tok.Span, ast.ExprLitString, valueID), true
-}
-
-// parseBoolLiteral парсит булевы литералы
-func (p *Parser) parseBoolLiteral() (ast.ExprID, bool) {
-	tok := p.advance()
-
-	var kind ast.ExprLitKind
-	switch tok.Kind {
-	case token.KwTrue:
-		kind = ast.ExprLitTrue
-	case token.KwFalse:
-		kind = ast.ExprLitFalse
-	default:
-		p.err(diag.SynUnexpectedToken, "expected boolean literal")
-		return ast.NoExprID, false
-	}
-
-	valueID := p.arenas.StringsInterner.Intern(tok.Text)
-	return p.arenas.Exprs.NewLiteral(tok.Span, kind, valueID), true
-}
-
-// parseNothingLiteral парсит nothing литерал
-func (p *Parser) parseNothingLiteral() (ast.ExprID, bool) {
-	tok := p.advance()
-	if tok.Kind != token.NothingLit {
-		p.err(diag.SynUnexpectedToken, "expected 'nothing'")
-		return ast.NoExprID, false
-	}
-
-	valueID := p.arenas.StringsInterner.Intern(tok.Text)
-	return p.arenas.Exprs.NewLiteral(tok.Span, ast.ExprLitNothing, valueID), true
-}
-
-// parseParenExpr парсит выражения в скобках - может быть группировкой или tuple
-func (p *Parser) parseParenExpr() (ast.ExprID, bool) {
-	openTok := p.advance() // съедаем '('
-
-	// Проверяем на пустой tuple
-	if p.at(token.RParen) {
-		closeTok := p.advance()
-		finalSpan := openTok.Span.Cover(closeTok.Span)
-		return p.arenas.Exprs.NewTuple(finalSpan, []ast.ExprID{}), true
-	}
-
-	// Парсим первое выражение
-	first, ok := p.parseExpr()
-	if !ok {
-		return ast.NoExprID, false
-	}
-
-	// Проверяем есть ли запятая - если да, то это tuple
-	if p.at(token.Comma) {
-		var elements []ast.ExprID
-		elements = append(elements, first)
-
-		for p.at(token.Comma) {
-			p.advance() // съедаем ','
-
-			// Разрешаем завершающую запятую
-			if p.at(token.RParen) {
-				break
-			}
-
-			expr, ok := p.parseExpr()
-			if !ok {
-				return ast.NoExprID, false
-			}
-			elements = append(elements, expr)
-		}
-
-		closeTok, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' after tuple elements", nil)
-		if !ok {
-			return ast.NoExprID, false
-		}
-
-		finalSpan := openTok.Span.Cover(closeTok.Span)
-		return p.arenas.Exprs.NewTuple(finalSpan, elements), true
-	}
-
-	// Не tuple - обычная группировка
-	closeTok, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' after expression", nil)
-	if !ok {
-		return ast.NoExprID, false
-	}
-
-	finalSpan := openTok.Span.Cover(closeTok.Span)
-	return p.arenas.Exprs.NewGroup(finalSpan, first), true
 }

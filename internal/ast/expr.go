@@ -15,6 +15,7 @@ const (
 	ExprCast
 	ExprGroup
 	ExprTuple
+	ExprArray
 	ExprIndex
 	ExprMember
 	ExprTernary
@@ -156,6 +157,10 @@ type ExprTupleData struct {
 	Elements []ExprID
 }
 
+type ExprArrayData struct {
+	Elements []ExprID
+}
+
 type Exprs struct {
 	Arena    *Arena[Expr]
 	Idents   *Arena[ExprIdentData]
@@ -168,6 +173,7 @@ type Exprs struct {
 	Members  *Arena[ExprMemberData]
 	Groups   *Arena[ExprGroupData]
 	Tuples   *Arena[ExprTupleData]
+	Arrays   *Arena[ExprArrayData]
 }
 
 func NewExprs(capHint uint) *Exprs {
@@ -186,6 +192,7 @@ func NewExprs(capHint uint) *Exprs {
 		Members:  NewArena[ExprMemberData](capHint),
 		Groups:   NewArena[ExprGroupData](capHint),
 		Tuples:   NewArena[ExprTupleData](capHint),
+		Arrays:   NewArena[ExprArrayData](capHint),
 	}
 }
 
@@ -329,4 +336,17 @@ func (e *Exprs) Tuple(id ExprID) (*ExprTupleData, bool) {
 		return nil, false
 	}
 	return e.Tuples.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewArray(span source.Span, elements []ExprID) ExprID {
+	payload := e.Arrays.Allocate(ExprArrayData{Elements: append([]ExprID(nil), elements...)})
+	return e.new(ExprArray, span, PayloadID(payload))
+}
+
+func (e *Exprs) Array(id ExprID) (*ExprArrayData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprArray {
+		return nil, false
+	}
+	return e.Arrays.Get(uint32(expr.Payload)), true
 }
