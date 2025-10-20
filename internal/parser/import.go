@@ -205,11 +205,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 				if anchor.End == 0 {
 					anchor = colonColonTok.Span
 				}
-				closeBraceSpan := source.Span{
-					File:  anchor.File,
-					Start: anchor.End,
-					End:   anchor.End,
-				}
+				closeBraceSpan := anchor.ZeroideToEnd()
 				p.emitDiagnostic(
 					diag.SynUnclosedBrace,
 					diag.SevError,
@@ -345,7 +341,16 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		}
 		insertPos := source.Span{File: insertSpan.File, Start: insertSpan.Start, End: insertSpan.Start}
 		fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectSemicolon.ID(), insertPos.File, insertPos.Start)
-		suggestion := fix.InsertText("insert ';' after import", insertPos, ";", "", fix.Preferred(), fix.WithID(fixID))
+		suggestion := fix.InsertText(
+			"insert ';' after import",
+			insertPos,
+			";",
+			"",
+			fix.Preferred(),
+			fix.WithID(fixID),
+			fix.WithKind(diag.FixKindRefactor),
+			fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+		)
 		b.WithFixSuggestion(suggestion)
 		b.WithNote(insertPos, "insert ';' to terminate the import item")
 	})

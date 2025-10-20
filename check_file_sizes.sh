@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Настройки по умолчанию
 EXTENSIONS="go"
-EXCLUDE_TESTS=false
+EXCLUDE_TESTS=true
 
 # Функция для получения оценки файла
 get_file_rating() {
@@ -138,17 +138,48 @@ check_directory() {
     echo -e "Acceptable (551-650 строк): ${YELLOW}$acceptable_files${NC}"
     echo -e "BAD (>650 строк): ${RED}$bad_files${NC}"
     
-    # Возвращаем код выхода на основе количества проблемных файлов
+    # Рассчитываем процент "хороших" файлов (OK + ACCEPTABLE)
+    local good_files=$((ok_files + acceptable_files))
+    local percentage=0
+    if [ $total_files -gt 0 ]; then
+        percentage=$((good_files * 100 / total_files))
+    fi
+    
+    echo ""
+    echo "Процент хороших файлов: $percentage%"
+    
+    # Определяем общую оценку на основе процента
+    local overall_rating=""
+    local overall_color=""
+    local exit_code=0
+    
+    if [ $percentage -ge 90 ]; then
+        overall_rating="ОТЛИЧНО"
+        overall_color="$GREEN"
+        echo -e "Общая оценка: ${overall_color}$overall_rating${NC} (≥90% хороших файлов)"
+    elif [ $percentage -ge 75 ]; then
+        overall_rating="ХОРОШО"
+        overall_color="$GREEN"
+        echo -e "Общая оценка: ${overall_color}$overall_rating${NC} (75-89% хороших файлов)"
+    elif [ $percentage -ge 60 ]; then
+        overall_rating="УДОВЛЕТВОРИТЕЛЬНО"
+        overall_color="$YELLOW"
+        echo -e "Общая оценка: ${overall_color}$overall_rating${NC} (60-74% хороших файлов)"
+    else
+        overall_rating="ТРЕБУЕТ УЛУЧШЕНИЯ"
+        overall_color="$RED"
+        echo -e "Общая оценка: ${overall_color}$overall_rating${NC} (<60% хороших файлов)"
+        exit_code=1
+    fi
+    
+    # Дополнительные сообщения
     if [ $bad_files -gt 0 ]; then
         echo -e "\n${RED}ВНИМАНИЕ: Найдены файлы, требующие рефакторинга!${NC}"
-        exit 1
     elif [ $acceptable_files -gt 0 ]; then
         echo -e "\n${YELLOW}ВНИМАНИЕ: Найдены файлы с приемлемым размером, но стоит рассмотреть оптимизацию.${NC}"
-        exit 0
-    else
-        echo -e "\n${GREEN}Отлично! Все файлы имеют приемлемый размер.${NC}"
-        exit 0
     fi
+    
+    exit $exit_code
 }
 
 # Обработка аргументов командной строки
@@ -166,15 +197,21 @@ show_help() {
     echo "  -h, --help              - показать эту справку"
     echo "  -e, --extensions EXT    - расширения файлов (по умолчанию: go)"
     echo "                           пример: -e 'go,js,ts' или -e 'go'"
-    echo "  -t, --exclude-tests     - исключить тестовые файлы (*_test.*, test_*, *Test.*)"
+    echo "  -t, --include-tests     - включить тестовые файлы (по умолчанию исключены)"
     echo "  -a, --all-files         - проверить все текстовые файлы (игнорировать расширения)"
     echo ""
+    echo "Общая оценка:"
+    echo "  ≥90% хороших файлов     - ОТЛИЧНО (зеленый)"
+    echo "  75-89% хороших файлов   - ХОРОШО (зеленый)"
+    echo "  60-74% хороших файлов   - УДОВЛЕТВОРИТЕЛЬНО (желтый)"
+    echo "  <60% хороших файлов     - ТРЕБУЕТ УЛУЧШЕНИЯ (красный)"
+    echo ""
     echo "Примеры:"
-    echo "  $0                                    # проверить .go файлы в текущей директории"
-    echo "  $0 -t                                 # проверить .go файлы, исключив тесты"
+    echo "  $0                                    # проверить .go файлы (тесты исключены)"
+    echo "  $0 -t                                 # проверить .go файлы, включив тесты"
     echo "  $0 -e 'go,js,ts'                     # проверить .go, .js, .ts файлы"
     echo "  $0 -a                                 # проверить все текстовые файлы"
-    echo "  $0 -t -e 'go' /path/to/project       # проверить .go файлы в /path/to/project, исключив тесты"
+    echo "  $0 -t -e 'go' /path/to/project       # проверить .go файлы в /path/to/project, включив тесты"
 }
 
 # Парсинг аргументов
@@ -188,8 +225,8 @@ while [[ $# -gt 0 ]]; do
             EXTENSIONS="$2"
             shift 2
             ;;
-        -t|--exclude-tests)
-            EXCLUDE_TESTS=true
+        -t|--include-tests)
+            EXCLUDE_TESTS=false
             shift
             ;;
         -a|--all-files)

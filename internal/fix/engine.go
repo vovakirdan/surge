@@ -396,7 +396,7 @@ func spansConflict(a, b diag.TextEdit) bool {
 	bStart, bEnd := b.Span.Start, b.Span.End
 
 	if aStart == aEnd && bStart == bEnd {
-		return aStart == bStart
+		return false
 	}
 	if aStart == aEnd {
 		return bStart <= aStart && aStart < bEnd
