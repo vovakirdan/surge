@@ -52,11 +52,10 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 		var segments []ast.TypePathSegment
 
 		// Парсим первый идентификатор
-		identText, ok := p.parseIdent()
+		identID, ok := p.parseIdent()
 		if !ok {
 			return ast.NoTypeID, false
 		}
-		identID := p.arenas.StringsInterner.Intern(identText)
 		segments = append(segments, ast.TypePathSegment{
 			Name:     identID,
 			Generics: nil, // пока без generic аргументов
@@ -72,11 +71,10 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 				return ast.NoTypeID, false
 			}
 
-			identText, ok := p.parseIdent()
+			identID, ok := p.parseIdent()
 			if !ok {
 				return ast.NoTypeID, false
 			}
-			identID := p.arenas.StringsInterner.Intern(identText)
 			segments = append(segments, ast.TypePathSegment{
 				Name:     identID,
 				Generics: nil, // пока без generic аргументов

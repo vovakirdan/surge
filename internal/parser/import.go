@@ -10,18 +10,18 @@ import (
 
 // parseImportItem распознаёт формы:
 //
-//		import module;                                	// module/submodule
-//		import module :: Ident ;                      	// конкретный элемент
-//		import module :: Ident as Ident ;             	// элемент с алиасом
-//		import module/subpath ;                       	// module/submodule с подпапками
-//		import module/subpath :: Ident ;              	// конкретный элемент с подпапками
-//		import module/subpath :: Ident as Ident ;     	// элемент с алиасом с подпапками
-//		import module as Ident ;                      	// module с алиасом
-//		import module::{Ident, Ident} ;               	// элементы с подпапками
-//		import module::{Ident as Ident, Ident as Ident} ; // элементы с алиасами с подпапками
-//		import ./module ; // не ошибка, значит "импорт из текущей директории". Info что так не обязательно, но в случае если имеем библиотеку и файл с одинаковым названием это будет явное указание взять файл
-//	 import ../module ; // импорт с верхнего уровня
-//	 import ../../module ; // импорт с верхнего верхнего уровня
+//	import module;                                	// module/submodule
+//	import module :: Ident ;                      	// конкретный элемент
+//	import module :: Ident as Ident ;             	// элемент с алиасом
+//	import module/subpath ;                       	// module/submodule с подпапками
+//	import module/subpath :: Ident ;              	// конкретный элемент с подпапками
+//	import module/subpath :: Ident as Ident ;     	// элемент с алиасом с подпапками
+//	import module as Ident ;                      	// module с алиасом
+//	import module::{Ident, Ident} ;               	// элементы с подпапками
+//	import module::{Ident as Ident, Ident as Ident} ; // элементы с алиасами с подпапками
+//	import ./module ; // не ошибка, значит "импорт из текущей директории". Info что так не обязательно, но в случае если имеем библиотеку и файл с одинаковым названием это будет явное указание взять файл
+//	import ../module ; // импорт с верхнего уровня
+//	import ../../module ; // импорт с верхнего верхнего уровня
 func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 	importTok := p.advance() // съедаем KwImport; если мы здесь, то это точно KwImport
 
@@ -57,14 +57,14 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		// После '::' может быть либо идентификатор, либо группа {Ident, ...}
 		if p.at(token.Ident) {
 			// import module::Ident [as Alias];
-			name, ok := p.parseIdent()
+			nameID, ok := p.parseIdent()
 			if !ok {
 				p.resyncStatement()
 				return ast.NoItemID, false
 			}
 
 			// Проверяем, есть ли алиас
-			alias := ""
+			var aliasID source.StringID
 			if p.at(token.KwAs) {
 				p.advance() // съедаем 'as'
 
@@ -76,18 +76,13 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					return ast.NoItemID, false
 				}
 
-				alias, ok = p.parseIdent()
+				aliasID, ok = p.parseIdent()
 				if !ok {
 					p.resyncStatement()
 					return ast.NoItemID, false
 				}
 			}
 
-			nameID := p.arenas.StringsInterner.Intern(name)
-			aliasID := source.NoStringID
-			if alias != "" {
-				aliasID = p.arenas.StringsInterner.Intern(alias)
-			}
 			one = ast.ImportOne{Name: nameID, Alias: aliasID}
 			hasOne = true
 
@@ -99,7 +94,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			broken := false // флаг для обработки ошибок в группе
 
 			for !p.at(token.RBrace) && !p.at(token.EOF) {
-				name, ok := p.parseIdent()
+				nameID, ok := p.parseIdent()
 				if !ok {
 					// Ошибка уже зарепортирована в parseIdent
 					broken = true
@@ -107,7 +102,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					break
 				}
 
-				alias := ""
+				var aliasID source.StringID
 				if p.at(token.KwAs) {
 					p.advance() // съедаем 'as'
 
@@ -119,18 +114,12 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 						break
 					}
 
-					alias, ok = p.parseIdent()
+					aliasID, ok = p.parseIdent()
 					if !ok {
 						broken = true
 						p.resyncImportGroup()
 						break
 					}
-				}
-
-				nameID := p.arenas.StringsInterner.Intern(name)
-				aliasID := source.NoStringID
-				if alias != "" {
-					aliasID = p.arenas.StringsInterner.Intern(alias)
 				}
 
 				pairs = append(pairs, ast.ImportPair{Name: nameID, Alias: aliasID})
@@ -302,12 +291,11 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			return ast.NoItemID, false
 		}
 
-		alias, ok := p.parseIdent()
+		_, ok := p.parseIdent()
 		if !ok {
 			p.resyncStatement()
 			return ast.NoItemID, false
 		}
-		moduleAlias = p.arenas.StringsInterner.Intern(alias)
 
 	case token.Semicolon:
 		// import module;

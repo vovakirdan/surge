@@ -20,11 +20,10 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 	}
 
 	// Парсим имя переменной
-	nameText, ok := p.parseIdent()
+	nameID, ok := p.parseIdent()
 	if !ok {
 		return LetBinding{}, false
 	}
-	nameID := p.arenas.StringsInterner.Intern(nameText)
 
 	// Парсим тип (если есть двоеточие)
 	typeID, ok := p.parseTypeExpr()

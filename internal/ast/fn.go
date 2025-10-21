@@ -8,6 +8,10 @@ const (
 	FnAttrExtern FnAttr = 1 << iota
 	FnAttrAsync
 	FnAttrUnsafe
+	FnAttrPure
+	FnAttrOverload
+	FnAttrOverride
+	FnAttrInline
 )
 
 type FnParam struct {

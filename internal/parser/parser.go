@@ -94,7 +94,7 @@ func (p *Parser) parseItems() {
 }
 
 // parseItem выбирает по первому токену нужный распознаватель top-level конструкции.
-// На этом шаге мы поддерживаем только `import`.
+// На этом шаге мы поддерживаем только `import`, `let` и `fn`.
 func (p *Parser) parseItem() (ast.ItemID, bool) {
 	// switch по ключевым словам: если import → parseImportItem().
 	// Иначе — диагностика SynUnexpectedTopLevel и false.
@@ -103,6 +103,8 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 		return p.parseImportItem()
 	case token.KwLet:
 		return p.parseLetItem()
+	case token.KwFn:
+		return p.parseFnItem()
 	default:
 		p.report(diag.SynUnexpectedTopLevel, diag.SevError, p.lx.Peek().Span, "unexpected top-level construct")
 		return 0, false
@@ -111,7 +113,7 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 
 // resyncTop — восстановление после ошибки на верхнем уровне:
 // прокручиваем до ';' ИЛИ до стартового токена следующего item ИЛИ EOF.
-func (p *Parser) resyncTop() {
+func (p *Parser) resyncTop() { // todo: использовать resyncUntill - надо явно знать до какого токена прокручивать
 	// Список всех стартеров + semicolon
 	stopTokens := []token.Kind{token.Semicolon, token.KwImport, token.KwLet}
 	// TODO: добавить другие стартеры когда они будут реализованы: token.KwFn, token.KwType, etc.
@@ -130,13 +132,14 @@ func isTopLevelStarter(k token.Kind) bool {
 	return k == token.KwImport || k == token.KwLet
 }
 
-// parseIdent — утилита: ожидает Ident и возвращает его текст.
+// parseIdent — утилита: ожидает Ident и интернирует его, возвращает source.StringID.
 // На ошибке — репорт SynExpectIdentifier.
-func (p *Parser) parseIdent() (string, bool) {
+func (p *Parser) parseIdent() (source.StringID, bool) {
 	if p.at_or(token.Ident, token.Underscore) {
 		tok := p.advance()
-		return tok.Text, true
+		id := p.arenas.StringsInterner.Intern(tok.Text)
+		return id, true
 	}
 	p.err(diag.SynExpectIdentifier, "expected identifier, got \""+p.lx.Peek().Text+"\"")
-	return "", false
+	return source.NoStringID, false
 }
