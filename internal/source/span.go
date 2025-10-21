@@ -49,7 +49,7 @@ func (s Span) ShiftLeft(n uint32) Span {
 
 // ShiftRight сдвигает span направо на n символов
 func (s Span) ShiftRight(n uint32) Span {
-	if n > s.End - s.Start {
+	if n > s.End-s.Start {
 		return s
 	}
 	return Span{

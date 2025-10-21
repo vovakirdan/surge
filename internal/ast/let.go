@@ -3,11 +3,11 @@ package ast
 import "surge/internal/source"
 
 type LetItem struct {
-	Name     source.StringID
-	Type     TypeID      // NoTypeID if type is inferred
-	Value    ExprID      // NoExprID if no initialization
-	IsMut    bool        // mut modifier
-	Span     source.Span
+	Name  source.StringID
+	Type  TypeID // NoTypeID if type is inferred
+	Value ExprID // NoExprID if no initialization
+	IsMut bool   // mut modifier
+	Span  source.Span
 }
 
 func (i *Items) Let(id ItemID) (*LetItem, bool) {

@@ -3,10 +3,10 @@ package ast
 import "surge/internal/source"
 
 type FnItem struct {
-	Name source.StringID
+	Name       source.StringID
 	ReturnType TypeID
-	Body StmtID
-	Span source.Span
+	Body       StmtID
+	Span       source.Span
 }
 
 func (i *Items) Fn(id ItemID) (*FnItem, bool) {
@@ -24,10 +24,10 @@ func (i *Items) newFnPayload(
 	span source.Span,
 ) PayloadID {
 	payload := i.Fns.Allocate(FnItem{
-		Name: name,
+		Name:       name,
 		ReturnType: returnType,
-		Body: body,
-		Span: span,
+		Body:       body,
+		Span:       span,
 	})
 	return PayloadID(payload)
 }

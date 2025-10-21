@@ -10,18 +10,18 @@ import (
 
 // parseImportItem распознаёт формы:
 //
-//	import module;                                	// module/submodule
-//	import module :: Ident ;                      	// конкретный элемент
-//	import module :: Ident as Ident ;             	// элемент с алиасом
-//	import module/subpath ;                       	// module/submodule с подпапками
-//	import module/subpath :: Ident ;              	// конкретный элемент с подпапками
-//	import module/subpath :: Ident as Ident ;     	// элемент с алиасом с подпапками
-//	import module as Ident ;                      	// module с алиасом
-//	import module::{Ident, Ident} ;               	// элементы с подпапками
-//	import module::{Ident as Ident, Ident as Ident} ; // элементы с алиасами с подпапками
-//	import ./module ; // не ошибка, значит "импорт из текущей директории". Info что так не обязательно, но в случае если имеем библиотеку и файл с одинаковым названием это будет явное указание взять файл
-//  import ../module ; // импорт с верхнего уровня
-//  import ../../module ; // импорт с верхнего верхнего уровня
+//		import module;                                	// module/submodule
+//		import module :: Ident ;                      	// конкретный элемент
+//		import module :: Ident as Ident ;             	// элемент с алиасом
+//		import module/subpath ;                       	// module/submodule с подпапками
+//		import module/subpath :: Ident ;              	// конкретный элемент с подпапками
+//		import module/subpath :: Ident as Ident ;     	// элемент с алиасом с подпапками
+//		import module as Ident ;                      	// module с алиасом
+//		import module::{Ident, Ident} ;               	// элементы с подпапками
+//		import module::{Ident as Ident, Ident as Ident} ; // элементы с алиасами с подпапками
+//		import ./module ; // не ошибка, значит "импорт из текущей директории". Info что так не обязательно, но в случае если имеем библиотеку и файл с одинаковым названием это будет явное указание взять файл
+//	 import ../module ; // импорт с верхнего уровня
+//	 import ../../module ; // импорт с верхнего верхнего уровня
 func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 	importTok := p.advance() // съедаем KwImport; если мы здесь, то это точно KwImport
 

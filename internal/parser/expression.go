@@ -209,7 +209,7 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 	case token.LParen:
 		// Скобки: (expr)
 		return p.parseParenExpr()
-	
+
 	case token.LBracket:
 		// Массив: [expr]
 		return p.parseArrayExpr()

@@ -20,11 +20,11 @@ package parser
 import (
 	"strconv"
 	"strings"
-	"testing"
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/lexer"
 	"surge/internal/source"
+	"testing"
 )
 
 func TestBasicTypes(t *testing.T) {
