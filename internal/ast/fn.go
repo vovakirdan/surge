@@ -18,7 +18,7 @@ type FnParam struct {
 
 type FnItem struct {
 	Name        source.StringID
-	ParamsStart uint32
+	ParamsStart FnParamID
 	ParamsCount uint32
 	ReturnType  TypeID
 	Body        StmtID
@@ -36,7 +36,7 @@ func (i *Items) Fn(id ItemID) (*FnItem, bool) {
 
 func (i *Items) newFnPayload(
 	name source.StringID,
-	paramsStart uint32,
+	paramsStart FnParamID,
 	paramsCount uint32,
 	returnType TypeID,
 	body StmtID,
@@ -67,18 +67,19 @@ func (i *Items) FnParam(id FnParamID) *FnParam {
 	return i.FnParams.Get(uint32(id))
 }
 
-func (i *Items) GetFnParams(fn *FnItem) []*FnParam {
-	if fn.ParamsCount == 0 {
+func (i *Items) GetFnParamIDs(fn *FnItem) []FnParamID {
+	if fn == nil || fn.ParamsCount == 0 || !fn.ParamsStart.IsValid() {
 		return nil
 	}
-	params := make([]*FnParam, fn.ParamsCount)
+	params := make([]FnParamID, fn.ParamsCount)
+	start := uint32(fn.ParamsStart)
 	for j := uint32(0); j < fn.ParamsCount; j++ {
-		params[j] = i.FnParams.Get(fn.ParamsStart + j)
+		params[j] = FnParamID(start + j)
 	}
 	return params
 }
 
-func (i *Items) NewFnWithParams(
+func (i *Items) NewFn(
 	name source.StringID,
 	params []FnParam,
 	returnType TypeID,
@@ -86,30 +87,15 @@ func (i *Items) NewFnWithParams(
 	attr FnAttr,
 	span source.Span,
 ) ItemID {
-	var paramsStart, paramsCount uint32
-	if len(params) > 0 {
-		paramsStart = uint32(len(i.FnParams.Slice())) + 1
-		paramsCount = uint32(len(params))
-		for _, param := range params {
-			i.FnParams.Allocate(param)
+	var paramsStart FnParamID
+	paramsCount := uint32(len(params))
+	if paramsCount > 0 {
+		for idx, param := range params {
+			id := FnParamID(i.FnParams.Allocate(param))
+			if idx == 0 {
+				paramsStart = id
+			}
 		}
-	}
-	payloadID := i.newFnPayload(name, paramsStart, paramsCount, returnType, body, attr, span)
-	return i.New(ItemFn, span, payloadID)
-}
-
-func (i *Items) NewFn(
-	name source.StringID,
-	params []FnParamID,
-	returnType TypeID,
-	body StmtID,
-	attr FnAttr,
-	span source.Span,
-) ItemID {
-	var paramsStart, paramsCount uint32
-	if len(params) > 0 {
-		paramsStart = uint32(params[0])
-		paramsCount = uint32(len(params))
 	}
 	payloadID := i.newFnPayload(name, paramsStart, paramsCount, returnType, body, attr, span)
 	return i.New(ItemFn, span, payloadID)

@@ -77,22 +77,11 @@ func (b *Builder) NewFnParam(name source.StringID, typ TypeID, def ExprID) FnPar
 
 func (b *Builder) NewFn(
 	name source.StringID,
-	params []FnParamID,
-	returnType TypeID,
-	body StmtID,
-	attr FnAttr,
-	span source.Span,
-) ItemID {
-	return b.Items.NewFn(name, params, returnType, body, attr, span)
-}
-
-func (b *Builder) NewFnWithParams(
-	name source.StringID,
 	params []FnParam,
 	returnType TypeID,
 	body StmtID,
 	attr FnAttr,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewFnWithParams(name, params, returnType, body, attr, span)
+	return b.Items.NewFn(name, params, returnType, body, attr, span)
 }

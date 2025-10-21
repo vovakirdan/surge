@@ -10,7 +10,7 @@ func NewArena[T any](capHint uint) *Arena[T] {
 	}
 }
 
-// Возвращает индекс нового элемента
+// Возвращает индекс нового элемента (1-based).
 func (a *Arena[T]) Allocate(value T) uint32 {
 	a.data = append(a.data, value)
 	return uint32(len(a.data))
@@ -26,4 +26,8 @@ func (a *Arena[T]) Get(index uint32) *T {
 // READONLY
 func (a *Arena[T]) Slice() []T {
 	return a.data
+}
+
+func (a *Arena[T]) Len() uint32 {
+	return uint32(len(a.data))
 }
