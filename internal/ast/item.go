@@ -27,10 +27,11 @@ type Item struct {
 }
 
 type Items struct {
-	Arena   *Arena[Item]
-	Imports *Arena[ImportItem]
-	Fns     *Arena[FnItem]
-	Lets    *Arena[LetItem]
+	Arena    *Arena[Item]
+	Imports  *Arena[ImportItem]
+	Fns      *Arena[FnItem]
+	FnParams *Arena[FnParam]
+	Lets     *Arena[LetItem]
 }
 
 func NewItems(capHint uint) *Items {
@@ -38,10 +39,11 @@ func NewItems(capHint uint) *Items {
 		capHint = 1 << 8
 	}
 	return &Items{
-		Arena:   NewArena[Item](capHint),
-		Imports: NewArena[ImportItem](capHint),
-		Fns:     NewArena[FnItem](capHint),
-		Lets:    NewArena[LetItem](capHint),
+		Arena:    NewArena[Item](capHint),
+		Imports:  NewArena[ImportItem](capHint),
+		Fns:      NewArena[FnItem](capHint),
+		FnParams: NewArena[FnParam](capHint),
+		Lets:     NewArena[LetItem](capHint),
 	}
 }
 

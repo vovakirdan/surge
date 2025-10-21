@@ -71,11 +71,28 @@ func (b *Builder) NewImport(
 	return b.Items.NewImport(span, module, moduleAlias, one, hasOne, group)
 }
 
+func (b *Builder) NewFnParam(name source.StringID, typ TypeID, def ExprID) FnParamID {
+	return b.Items.NewFnParam(name, typ, def)
+}
+
 func (b *Builder) NewFn(
 	name source.StringID,
+	params []FnParamID,
 	returnType TypeID,
 	body StmtID,
+	attr FnAttr,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewFn(name, returnType, body, span)
+	return b.Items.NewFn(name, params, returnType, body, attr, span)
+}
+
+func (b *Builder) NewFnWithParams(
+	name source.StringID,
+	params []FnParam,
+	returnType TypeID,
+	body StmtID,
+	attr FnAttr,
+	span source.Span,
+) ItemID {
+	return b.Items.NewFnWithParams(name, params, returnType, body, attr, span)
 }
