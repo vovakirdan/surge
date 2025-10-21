@@ -137,8 +137,11 @@ func (p *Parser) parseLetItem() (ast.ItemID, bool) {
 	// Парсим биндинг
 	binding, ok := p.parseLetBinding()
 	if !ok {
-		if !p.at(token.Semicolon) {
-			insertPos := p.lastSpan.ZeroideToEnd()
+		insertPos := p.lastSpan.ZeroideToEnd()
+		p.resyncUntil(token.Semicolon, token.RBrace, token.EOF)
+		if p.at(token.Semicolon) {
+			p.advance()
+		} else {
 			p.emitDiagnostic(
 				diag.SynExpectSemicolon,
 				diag.SevError,
@@ -163,8 +166,6 @@ func (p *Parser) parseLetItem() (ast.ItemID, bool) {
 					b.WithNote(insertPos, "insert missing semicolon")
 				},
 			)
-		} else {
-			p.advance() // consume existing semicolon to keep parser progress
 		}
 		p.resyncTop()
 		return ast.NoItemID, false

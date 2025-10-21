@@ -129,3 +129,14 @@ func (p *Parser) resyncTop() {
 func isTopLevelStarter(k token.Kind) bool {
 	return k == token.KwImport || k == token.KwLet
 }
+
+// parseIdent — утилита: ожидает Ident и возвращает его текст.
+// На ошибке — репорт SynExpectIdentifier.
+func (p *Parser) parseIdent() (string, bool) {
+	if p.at_or(token.Ident, token.Underscore) {
+		tok := p.advance()
+		return tok.Text, true
+	}
+	p.err(diag.SynExpectIdentifier, "expected identifier, got \""+p.lx.Peek().Text+"\"")
+	return "", false
+}

@@ -397,14 +397,3 @@ func (p *Parser) parseImportModule() ([]source.StringID, source.Span, bool) {
 
 	return segments, lastSpan, true
 }
-
-// parseIdent — утилита: ожидает Ident и возвращает его текст.
-// На ошибке — репорт SynExpectIdentifier.
-func (p *Parser) parseIdent() (string, bool) {
-	if p.at(token.Ident) {
-		tok := p.advance()
-		return tok.Text, true
-	}
-	p.err(diag.SynExpectIdentifier, "expected identifier, got \""+p.lx.Peek().Text+"\"")
-	return "", false
-}
