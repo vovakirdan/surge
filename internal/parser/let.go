@@ -172,28 +172,35 @@ func (p *Parser) parseLetItem() (ast.ItemID, bool) {
 
 	insertPos := p.lastSpan.ZeroideToEnd()
 
-	semiTok, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected semicolon after let item", func(b *diag.ReportBuilder) {
-		if b == nil {
-			return
-		}
-		fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertPos)
-		suggestion := fix.InsertText(
-			"insert semicolon after let item",
+	if !p.at(token.Semicolon) {
+		p.emitDiagnostic(
+			diag.SynExpectSemicolon,
+			diag.SevError,
 			insertPos,
-			";",
-			"",
-			fix.WithID(fixID),
-			fix.WithKind(diag.FixKindRefactor),
-			fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-			fix.Preferred(),
+			"expected semicolon after let item",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertPos)
+				suggestion := fix.InsertText(
+					"insert semicolon after let item",
+					insertPos,
+					";",
+					"",
+					fix.WithID(fixID),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+					fix.Preferred(),
+				)
+				b.WithFixSuggestion(suggestion)
+				b.WithNote(insertPos, "insert missing semicolon")
+			},
 		)
-		b.WithFixSuggestion(suggestion)
-		b.WithNote(insertPos, "insert missing semicolon")
-	})
-	if !ok {
 		p.resyncTop()
 		return ast.NoItemID, false
 	}
+	semiTok := p.advance()
 
 	// Создаем LetItem в AST
 	finalSpan := letTok.Span.Cover(semiTok.Span)
