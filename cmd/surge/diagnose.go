@@ -19,6 +19,7 @@ var diagCmd = &cobra.Command{
 	RunE:  runDiagnose,
 }
 
+// inclusion of notes and suggestions, and whether file paths are emitted as absolute.
 func init() {
 	diagCmd.Flags().String("format", "pretty", "output format (pretty|json|sarif)")
 	diagCmd.Flags().String("stages", "syntax", "diagnostic stages to run (tokenize|syntax|sema|all)")
@@ -30,6 +31,13 @@ func init() {
 	diagCmd.Flags().Bool("fullpath", false, "emit absolute file paths in output")
 }
 
+// runDiagnose runs the "diag" Cobra command: it parses command flags, performs diagnostics
+// on the provided file or directory path, and emits formatted output (pretty, json, or sarif).
+// It expects exactly one positional argument specifying a file or directory. Flags read include
+// format, stages, max-diagnostics, no-warnings, warnings-as-errors, with-notes, suggest, fullpath,
+// and jobs; the root color flag is consulted for pretty output. The function returns a non-nil
+// error for flag parsing, path/stat, diagnosis, or formatting failures. If any diagnostics contain
+// errors, the function terminates the process with a non-zero exit code via os.Exit.
 func runDiagnose(cmd *cobra.Command, args []string) error {
 	filePath := args[0]
 

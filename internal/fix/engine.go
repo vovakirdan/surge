@@ -112,6 +112,12 @@ func Apply(fs *source.FileSet, diagnostics []diag.Diagnostic, opts ApplyOptions)
 	return result, nil
 }
 
+// gatherCandidates builds candidate fixes from the provided diagnostics.
+// It materializes each diagnostic's fixes, filters out fixes with no edits,
+// assigns a deterministic ID to any fix missing an ID, and preserves the
+// original discovery order in each candidate's `order` field.
+// It returns the list of candidates and a list of SkippedFix entries for any
+// fixes that were not materialized or were skipped.
 func gatherCandidates(ctx diag.FixBuildContext, diagnostics []diag.Diagnostic) ([]candidate, []SkippedFix) {
 	cands := make([]candidate, 0)
 	skips := make([]SkippedFix, 0)
@@ -154,6 +160,13 @@ func gatherCandidates(ctx diag.FixBuildContext, diagnostics []diag.Diagnostic) (
 	return cands, skips
 }
 
+// sortCandidates sorts the provided slice of candidates in place using a stable,
+// deterministic ordering.
+//
+// The ordering compares candidates by, in priority order: primary file path,
+// primary start position, primary end position, the candidate's original
+// insertion order, diagnostic code, whether the fix is preferred (preferred
+// fixes come first), fix ID, and finally fix title.
 func sortCandidates(candidates []candidate) {
 	sort.SliceStable(candidates, func(i, j int) bool {
 		di, dj := candidates[i].diag, candidates[j].diag
@@ -391,6 +404,11 @@ func conflictsWithExisting(existing []diag.TextEdit, edits []diag.TextEdit) bool
 	return false
 }
 
+// spansConflict reports whether two text edits have overlapping spans.
+// If both spans are zero-length (points), they do not conflict.
+// If one span is zero-length, it conflicts when the point lies within the other span
+// using half-open interval semantics: start <= point < end.
+// For non-zero spans, conflicts are detected when the half-open intervals overlap.
 func spansConflict(a, b diag.TextEdit) bool {
 	aStart, aEnd := a.Span.Start, a.Span.End
 	bStart, bEnd := b.Span.Start, b.Span.End

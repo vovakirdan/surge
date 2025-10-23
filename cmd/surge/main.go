@@ -14,6 +14,8 @@ var rootCmd = &cobra.Command{
     Long:  `Surge is a programming language compiler with diagnostic tools`,
 }
 
+// main initializes the CLI by setting the command version, registering subcommands and persistent flags, and then executes the root command.
+// If command execution returns an error, the process exits with status code 1.
 func main() {
     // Устанавливаем версию для автоматического флага --version
     rootCmd.Version = version.Version

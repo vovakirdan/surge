@@ -9,6 +9,13 @@ import (
 	"surge/internal/source"
 )
 
+// formatItemPretty writes a tree-like, human-readable representation of the AST item
+// identified by itemID to w.
+// It prints the item's kind and span, and expands payloads for import, let, and
+// function items (including module/alias/group entries for imports; name, mutability,
+// type, and value for lets; and name, generics, params, return type, and optional body
+// for functions). If the referenced item is nil it writes "nil item" and returns nil.
+// Returns any error produced while formatting nested statements.
 func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *source.FileSet, prefix string) error {
 	item := builder.Items.Get(itemID)
 	if item == nil {
@@ -198,6 +205,16 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 	return nil
 }
 
+// formatItemJSON returns an ASTNodeOutput representing the item identified by itemID.
+// 
+// The returned node has Type "Item", a human-readable Kind string, the item's Span,
+// a Fields map containing payload-specific entries (e.g., module, moduleAlias, one, group
+// for imports; name, isMut, value, valueExprID, type for lets; name, returnType, params,
+// generics, hasBody for functions), and optional Children (the function body node when present).
+// 
+// If the item ID is not found, an error with message "item not found" is returned.
+// Any error produced while formatting nested statements (e.g., formatting a function body)
+// is propagated.
 func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, error) {
 	item := builder.Items.Get(itemID)
 	if item == nil {
@@ -299,6 +316,8 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 	return output, nil
 }
 
+// formatItemKind returns a short, human-readable label for the given ast.ItemKind.
+// For unknown kinds it returns a string of the form "Unknown(<n>)" where <n> is the numeric kind value.
 func formatItemKind(kind ast.ItemKind) string {
 	switch kind {
 	case ast.ItemFn:
@@ -328,6 +347,9 @@ func formatItemKind(kind ast.ItemKind) string {
 	}
 }
 
+// formatImportOne returns the display string for an import "one" entry.
+// If the import specifies no name (Name == 0) it returns "*" to denote a wildcard.
+// Otherwise it returns the name resolved from the builder's string interner.
 func formatImportOne(one ast.ImportOne, builder *ast.Builder) string {
 	if one.Name == 0 {
 		return "*"

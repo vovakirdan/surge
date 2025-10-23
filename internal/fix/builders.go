@@ -232,7 +232,8 @@ func CommentLine(title string, lineSpan source.Span, lineText string, opts ...Op
 	return ReplaceSpan(title, lineSpan, comment, lineText, opts...)
 }
 
-// DeleteLine removes entire line (caller decides whether newline part of span).
+// DeleteLine deletes the contents of the specified line span.
+// The provided lineText is used as the expected old text (guard); the caller is responsible for choosing whether the span includes the trailing newline.
 func DeleteLine(title string, lineSpan source.Span, lineText string, opts ...Option) diag.Fix {
 	newText := ""
 	return ReplaceSpan(title, lineSpan, newText, lineText, opts...)
@@ -240,7 +241,9 @@ func DeleteLine(title string, lineSpan source.Span, lineText string, opts ...Opt
 
 // RemoveExtraWhitespaces должна удалять лишние пробелы после insert/delete etc
 // todo: это должен делать formatter
-// func RemoveExtraWhitespaces()
+// MakeFixID constructs a stable fix identifier by concatenating the diagnostic code ID,
+// the source file, and the span start offset.
+// The identifier has the form "<code.ID()>-<span.File>-<span.Start>".
 
 func MakeFixID(code diag.Code, span source.Span) string {
 	return fmt.Sprintf("%s-%d-%d", code.ID(), span.File, span.Start)

@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 EXTENSIONS="go"
 EXCLUDE_TESTS=true
 
-# Функция для получения оценки файла
+# get_file_rating prints a colored rating label (OK, ACCEPTABLE, or BAD - need refactoring) based on the given line count for a file.
 get_file_rating() {
     local lines=$1
     local filename=$2
@@ -30,7 +30,7 @@ get_file_rating() {
     fi
 }
 
-# Функция для проверки расширения файла
+# has_allowed_extension checks whether a filename's extension is allowed by the EXTENSIONS list (comma-separated) and returns success if EXTENSIONS is empty or the file's extension is present, failure otherwise.
 has_allowed_extension() {
     local file=$1
     
@@ -52,7 +52,7 @@ has_allowed_extension() {
     return 1
 }
 
-# Функция для проверки, является ли файл тестовым
+# is_test_file determines whether a filename matches common test-file naming patterns (for example: *_test.*, test_*, or *Test.*).
 is_test_file() {
     local file=$1
     local basename=$(basename "$file")
@@ -64,7 +64,7 @@ is_test_file() {
     return 1
 }
 
-# Функция для проверки, является ли файл текстовым
+# is_text_file determines whether a given path is a regular text file by checking that it exists and is not a directory, using the `file` MIME type when available or a content heuristic that rejects files with binary control characters.
 is_text_file() {
     local file=$1
     # Проверяем, что файл существует и не является директорией
@@ -88,7 +88,8 @@ is_text_file() {
     return 0
 }
 
-# Основная функция
+# check_directory recursively scans a directory, counts lines of allowed text files, prints color-coded per-file ratings and aggregated statistics, and sets the script exit status based on the overall rating.
+# It accepts an optional directory argument (defaults to "."), respects the global EXTENSIONS and EXCLUDE_TESTS settings, and treats files as OK, ACCEPTABLE, or BAD according to configured line-count thresholds; exits with 0 for acceptable overall evaluation or 1 when the overall rating requires improvement.
 check_directory() {
     local dir=${1:-.}
     local total_files=0
@@ -182,7 +183,7 @@ check_directory() {
     exit $exit_code
 }
 
-# Обработка аргументов командной строки
+# show_help displays usage information, command-line options, file-rating criteria, examples, and overall evaluation thresholds for the script.
 show_help() {
     echo "Использование: $0 [опции] [директория]"
     echo ""

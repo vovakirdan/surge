@@ -18,6 +18,9 @@ type treeBlock struct {
 	root  int
 }
 
+// buildFileTreeNode constructs a treeNode representing the specified file and its items.
+// If fs is non-nil, the node label uses the file's formatted path; otherwise it uses "File".
+// The root label also includes the file span. Each file item is added as a child node in source order.
 func buildFileTreeNode(builder *ast.Builder, fileID ast.FileID, fs *source.FileSet) *treeNode {
 	file := builder.Files.Get(fileID)
 	header := "File"
@@ -36,6 +39,12 @@ func buildFileTreeNode(builder *ast.Builder, fileID ast.FileID, fs *source.FileS
 	return root
 }
 
+// buildItemTreeNode constructs a treeNode representing the item identified by itemID.
+// The returned node is labeled with the item's kind and span and includes kind-specific
+// child nodes (for example: module segments and aliases for imports; name, mutability,
+// type, and value for let bindings; name, generics, params, return type, and body for functions).
+// The fs parameter, if non-nil, is used when formatting spans. The idx parameter is the
+// item's index within its containing file and is used only for labeling.
 func buildItemTreeNode(builder *ast.Builder, itemID ast.ItemID, fs *source.FileSet, idx int) *treeNode {
 	item := builder.Items.Get(itemID)
 	if item == nil {
@@ -129,6 +138,10 @@ func buildItemTreeNode(builder *ast.Builder, itemID ast.ItemID, fs *source.FileS
 	return node
 }
 
+// renderTree renders the given treeNode and its descendants into a treeBlock that contains the
+// textual lines, total width, and root column position for the rendered subtree.
+// The produced lines include the node label as the root line, a connector line linking the root to
+// its children, and the child subtree lines laid out with consistent spacing and alignment.
 func renderTree(node *treeNode) treeBlock {
 	label := node.label
 	labelWidth := len(label)

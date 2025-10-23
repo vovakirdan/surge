@@ -176,6 +176,8 @@ type Exprs struct {
 	Arrays   *Arena[ExprArrayData]
 }
 
+// NewExprs creates an Exprs with per-kind arenas for Expr nodes and their payload data.
+// If capHint is zero, a default initial capacity of 1<<8 is used.
 func NewExprs(capHint uint) *Exprs {
 	if capHint == 0 {
 		capHint = 1 << 8

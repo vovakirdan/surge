@@ -15,6 +15,11 @@ type Builder struct {
 	StringsInterner *source.Interner
 }
 
+// NewBuilder creates a Builder pre-sized according to the provided hints and wired with its sub-builders.
+// 
+// Any hint value of zero is replaced with a sensible default: Files=64, Items=128, Stmts=256, Exprs=256, Types=128.
+// If stringsInterner is nil a new source.Interner is created. The returned *Builder has its Files, Items, Stmts,
+// Exprs, Types sub-builders and StringsInterner initialized.
 func NewBuilder(hints Hints, stringsInterner *source.Interner) *Builder {
 	if hints.Files == 0 {
 		hints.Files = 1 << 6 // просто понты; 64

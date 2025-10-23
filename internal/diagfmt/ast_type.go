@@ -7,6 +7,12 @@ import (
 	"surge/internal/source"
 )
 
+// formatTypeExprInline renders a type expression as a concise, human-readable inline string.
+// It returns "<inferred>" if the provided typeID is not valid and "<invalid>" if the type cannot be resolved;
+// other specific placeholders (for example "<invalid-path>", "<invalid-unary>", "<invalid-array>", "<invalid-tuple>", "<invalid-fn>")
+// are used for particular lookup failures. The function produces dotted paths with generic arguments, unary prefixes
+// (own, &, &mut, *), array/slice/sized forms, tuple element lists, and function signatures like `fn(params) -> ret`,
+// recursively formatting nested type expressions.
 func formatTypeExprInline(builder *ast.Builder, typeID ast.TypeID) string {
 	if !typeID.IsValid() {
 		return "<inferred>"

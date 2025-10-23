@@ -9,6 +9,10 @@ import (
 
 const exprInlineMaxDepth = 32
 
+// formatExprSummary produces a short human-readable summary for the expression identified by exprID.
+// If exprID is invalid this returns "<none>". Otherwise it obtains a compact inline rendering
+// and returns it in the form "expr#<id>: <inline>"; if the inline rendering is empty it substitutes
+// "<invalid>".
 func formatExprSummary(builder *ast.Builder, exprID ast.ExprID) string {
 	if !exprID.IsValid() {
 		return "<none>"
@@ -20,10 +24,17 @@ func formatExprSummary(builder *ast.Builder, exprID ast.ExprID) string {
 	return fmt.Sprintf("expr#%d: %s", uint32(exprID), inline)
 }
 
+// formatExprInline produces a compact inline textual representation of the expression identified by exprID.
 func formatExprInline(builder *ast.Builder, exprID ast.ExprID) string {
 	return formatExprInlineDepth(builder, exprID, 0)
 }
 
+// formatExprInlineDepth returns a compact inline textual representation of the expression identified by exprID,
+// using depth to limit recursive expansion.
+// It returns "<none>" for an invalid exprID, "<invalid>" when the builder or expression data are missing,
+// and "..." when the recursion depth reaches the configured maximum.
+// Known expression kinds are rendered concisely (identifiers, literals — including "true", "false", "nothing" — unary and binary
+// operators, calls, indexing, member access, groups, tuples, and casts). Unknown kinds are rendered as "<KindName>" via formatExprKind.
 func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) string {
 	if !exprID.IsValid() {
 		return "<none>"
@@ -157,6 +168,12 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 	}
 }
 
+// wrapExprIfNeeded wraps the rendered sub-expression in parentheses when the expression
+// kind requires grouping to preserve precedence.
+//
+// If exprID is invalid, builder is nil, builder.Exprs is nil, or the expression cannot
+// be found, the original rendered string is returned unchanged. Parentheses are added
+// for ExprBinary, ExprTernary, ExprCompare, and ExprCast kinds.
 func wrapExprIfNeeded(builder *ast.Builder, exprID ast.ExprID, rendered string) string {
 	if !exprID.IsValid() {
 		return rendered
@@ -177,6 +194,10 @@ func wrapExprIfNeeded(builder *ast.Builder, exprID ast.ExprID, rendered string) 
 	}
 }
 
+// formatUnaryOpString returns the textual form of the unary operator applied to the given operand.
+// It maps known ExprUnaryOp values (plus, minus, not, dereference, reference, mutable reference,
+// ownership and await) to their conventional prefixes (for example "+x", "&mut x", "await x").
+// For unknown operator values it returns a placeholder of the form "<unary N> operand" where N is the numeric op.
 func formatUnaryOpString(op ast.ExprUnaryOp, operand string) string {
 	switch op {
 	case ast.ExprUnaryPlus:
@@ -200,6 +221,7 @@ func formatUnaryOpString(op ast.ExprUnaryOp, operand string) string {
 	}
 }
 
+// formatBinaryOpString returns the textual operator corresponding to the given binary operation enum (for example "+" for ExprBinaryAdd or "is" for ExprBinaryIs); unknown operations are formatted as "op<value>".
 func formatBinaryOpString(op ast.ExprBinaryOp) string {
 	switch op {
 	case ast.ExprBinaryAdd:
@@ -273,6 +295,8 @@ func formatBinaryOpString(op ast.ExprBinaryOp) string {
 	}
 }
 
+// formatExprKind returns a human-readable label for the given ast.ExprKind.
+// For unknown kinds it returns a string of the form "ExprKind(<n>)" where <n> is the numeric kind.
 func formatExprKind(kind ast.ExprKind) string {
 	switch kind {
 	case ast.ExprIdent:

@@ -127,7 +127,8 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 }
 
 // isTopLevelStarter — принадлежит ли токен стартерам item.
-// На этом шаге — import и let; позже добавим остальные.
+// isTopLevelStarter reports whether k is a token kind that can begin a top-level
+// item in the source (import, let, or fn).
 func isTopLevelStarter(k token.Kind) bool {
 	return k == token.KwImport || k == token.KwLet || k == token.KwFn
 }

@@ -35,6 +35,10 @@ type Items struct {
 	Lets     *Arena[LetItem]
 }
 
+// NewItems creates an Items container with internal arenas preallocated to capHint.
+//
+// If capHint is zero, it defaults to 256. The created Items contains arenas for
+// Item, ImportItem, FnItem, FnParam, Attr, and LetItem, each initialized with capHint.
 func NewItems(capHint uint) *Items {
 	if capHint == 0 {
 		capHint = 1 << 8
