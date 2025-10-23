@@ -2,9 +2,10 @@ package parser
 
 import (
 	"surge/internal/ast"
-	"surge/internal/token"
 	"surge/internal/diag"
 	"surge/internal/fix"
+	"surge/internal/source"
+	"surge/internal/token"
 )
 
 // parseFnItem - парсит функцию
@@ -21,28 +22,30 @@ func (p *Parser) parseFnItem() (ast.ItemID, bool) {
 	// todo парсить атрибуты, хотя они перед fn...
 	fnTok := p.advance() // съедаем KwFn; если мы здесь, то это точно KwFn
 
-	// Парсим имя функции
 	fnNameID, ok := p.parseIdent()
 	if !ok {
 		return ast.NoItemID, false
 	}
 
-	// todo: парсить generic параметры func<T>(param: T) и решить, что с ними делать
+	generics, ok := p.parseFnGenerics()
+	if !ok {
+		return ast.NoItemID, false
+	}
 
-	// Парсим параметры функции
-	p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after function name", nil)
+	if _, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after function name"); !ok {
+		p.resyncUntil(token.LBrace, token.Semicolon)
+		return ast.NoItemID, false
+	}
+
 	params, ok := p.parseFnParams()
 	if !ok {
 		return ast.NoItemID, false
 	}
 
-	// По умолчанию возвращаем nothing
 	var returnType ast.TypeID
-	// Если есть -> то ожидаем тип возвращаемого значения
 	if p.at(token.Arrow) {
 		arrowTok := p.advance()
 		if p.at(token.LBrace) {
-			// Это мы попали на тело функции - явно предложим убрать ->
 			p.emitDiagnostic(
 				diag.SynUnexpectedToken,
 				diag.SevError,
@@ -63,35 +66,38 @@ func (p *Parser) parseFnItem() (ast.ItemID, bool) {
 					b.WithNote(arrowTok.Span, "remove '->' to simplify the function signature")
 				},
 			)
+			p.resyncUntil(token.LBrace, token.Semicolon)
 			return ast.NoItemID, false
 		}
-		returnType, ok = p.parseTypePrefix() // надеюсь, он парсит весь тип
+		returnType, ok = p.parseTypePrefix()
 		if !ok {
+			p.resyncUntil(token.LBrace, token.Semicolon)
 			return ast.NoItemID, false
 		}
 	}
-	if returnType == ast.NoTypeID { // зачем makeBuiltinType требует span?
-		returnType = p.makeBuiltinType("nothing", p.lx.Peek().Span.Cover(p.lastSpan))
+
+	if returnType == ast.NoTypeID {
+		returnType = p.makeBuiltinType("nothing", p.lastSpan.ZeroideToEnd())
 	}
 
 	var bodyStmtID ast.StmtID
 	if p.at(token.LBrace) {
-		// Парсим тело функции
 		bodyStmtID, ok = p.parseBlock()
 		if !ok {
 			return ast.NoItemID, false
 		}
-	} else if p.at(token.Semicolon) { // функция без тела
+	} else if p.at(token.Semicolon) {
 		p.advance()
 	} else {
-		p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after function signature", func(b *diag.ReportBuilder) {
+		_, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after function signature", func(b *diag.ReportBuilder) {
 			if b == nil {
 				return
 			}
-			fixID := fix.MakeFixID(diag.SynExpectSemicolon, p.lx.Peek().Span.Cover(p.lastSpan))
+			insertSpan := p.lastSpan.ZeroideToEnd()
+			fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertSpan)
 			suggestion := fix.InsertText(
 				"insert ';' after function signature",
-				p.lx.Peek().Span.Cover(p.lastSpan),
+				insertSpan,
 				";",
 				"",
 				fix.WithID(fixID),
@@ -99,51 +105,156 @@ func (p *Parser) parseFnItem() (ast.ItemID, bool) {
 				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
 			)
 			b.WithFixSuggestion(suggestion)
-			b.WithNote(p.lx.Peek().Span.Cover(p.lastSpan), "insert ';' after function signature")
+			b.WithNote(insertSpan, "insert ';' after function signature")
 		})
-	}
-
-	// Создаем функцию
-	fnItemID := p.arenas.NewFn(fnNameID, params, returnType, bodyStmtID, 0, fnTok.Span.Cover(p.lastSpan))
-	return fnItemID, true
-}
-
-func (p *Parser) parseFnParam() (ast.FnParamID, bool) {
-	nameID, ok := p.parseIdent()
-	if !ok {
-		return ast.NoFnParamID, false
-	}
-
-	typeID, ok := p.parseTypePrefix() // а обязательно ли надо указывать тип?
-	if !ok {
-		return ast.NoFnParamID, false
-	}
-
-	defaultExprID := ast.NoExprID
-	if p.at(token.Assign) {
-		p.advance()
-		defaultExprID, ok = p.parseExpr()
 		if !ok {
-			return ast.NoFnParamID, false
+			return ast.NoItemID, false
 		}
 	}
 
-	return p.arenas.NewFnParam(nameID, typeID, defaultExprID), true
+	fnItemID := p.arenas.NewFn(fnNameID, generics, params, returnType, bodyStmtID, 0, nil, fnTok.Span.Cover(p.lastSpan))
+	return fnItemID, true
+}
+
+func (p *Parser) parseFnParam() (ast.FnParam, bool) {
+	param := ast.FnParam{}
+
+	nameID, ok := p.parseIdent()
+	if !ok {
+		return param, false
+	}
+	param.Name = nameID
+
+	if _, ok := p.expect(token.Colon, diag.SynExpectColon, "expected ':' after parameter name"); !ok {
+		p.resyncUntil(token.Comma, token.RParen, token.Semicolon)
+		return param, false
+	}
+
+	typeID, ok := p.parseTypePrefix()
+	if !ok {
+		return param, false
+	}
+	param.Type = typeID
+
+	if p.at(token.Assign) {
+		p.advance()
+		defaultExprID, ok := p.parseExpr()
+		if !ok {
+			p.resyncUntil(token.Comma, token.RParen, token.Semicolon)
+			return param, false
+		}
+		param.Default = defaultExprID
+	}
+
+	return param, true
 }
 
 func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
 	params := make([]ast.FnParam, 0)
-	for !p.at(token.RParen) {
-		paramID, ok := p.parseFnParam()
+
+	if p.at(token.RParen) {
+		p.advance()
+		return params, true
+	}
+
+	for {
+		param, ok := p.parseFnParam()
 		if !ok {
+			p.resyncUntil(token.RParen, token.Semicolon)
+			if p.at(token.RParen) {
+				p.advance()
+			}
 			return nil, false
 		}
-		param := p.arenas.Items.FnParams.Get(uint32(paramID))
-		params = append(params, *param)
-		if !p.at(token.Comma) {
-			break
+		params = append(params, param)
+
+		if p.at(token.Comma) {
+			p.advance()
+			if p.at(token.RParen) {
+				p.advance()
+				break
+			}
+			continue
 		}
-		p.advance()
+
+		if _, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' after function parameters", func(b *diag.ReportBuilder) {
+			if b == nil {
+				return
+			}
+			insertSpan := p.lastSpan.ZeroideToEnd()
+			fixID := fix.MakeFixID(diag.SynUnclosedParen, insertSpan)
+			suggestion := fix.InsertText(
+				"insert ')' to close the parameter list",
+				insertSpan,
+				")",
+				"",
+				fix.WithID(fixID),
+				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+			)
+			b.WithFixSuggestion(suggestion)
+			b.WithNote(insertSpan, "insert ')' to close the parameter list")
+		}); !ok {
+			p.resyncUntil(token.Semicolon)
+			return params, false
+		}
+		break
 	}
+
 	return params, true
+}
+
+func (p *Parser) parseFnGenerics() ([]source.StringID, bool) {
+	if !p.at(token.Lt) {
+		return nil, true
+	}
+
+	p.advance()
+
+	generics := make([]source.StringID, 0, 2)
+
+	for {
+		nameID, ok := p.parseIdent()
+		if !ok {
+			p.resyncUntil(token.Gt, token.LParen, token.Semicolon)
+			if p.at(token.Gt) {
+				p.advance()
+			}
+			return nil, false
+		}
+
+		generics = append(generics, nameID)
+
+		if p.at(token.Comma) {
+			p.advance()
+			if p.at(token.Gt) {
+				p.advance()
+				break
+			}
+			continue
+		}
+
+		if _, ok := p.expect(token.Gt, diag.SynUnclosedAngleBracket, "expected '>' after generic parameter list", func(b *diag.ReportBuilder) {
+			if b == nil {
+				return
+			}
+			insertSpan := p.lastSpan.ZeroideToEnd()
+			fixID := fix.MakeFixID(diag.SynUnclosedAngleBracket, insertSpan)
+			suggestion := fix.InsertText(
+				"insert '>' to close the generic parameter list",
+				insertSpan,
+				">",
+				"",
+				fix.WithID(fixID),
+				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+			)
+			b.WithFixSuggestion(suggestion)
+			b.WithNote(insertSpan, "insert '>' to close the generic parameter list")
+		}); !ok {
+			p.resyncUntil(token.LParen, token.Semicolon)
+			return generics, false
+		}
+		break
+	}
+
+	return generics, true
 }

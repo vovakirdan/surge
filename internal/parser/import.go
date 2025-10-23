@@ -291,7 +291,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			return ast.NoItemID, false
 		}
 
-		_, ok := p.parseIdent()
+		moduleAlias, ok = p.parseIdent()
 		if !ok {
 			p.resyncStatement()
 			return ast.NoItemID, false

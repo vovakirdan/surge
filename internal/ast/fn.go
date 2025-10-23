@@ -2,7 +2,7 @@ package ast
 
 import "surge/internal/source"
 
-type FnAttr uint8
+type FnAttr uint64
 
 const (
 	FnAttrExtern FnAttr = 1 << iota
@@ -22,11 +22,14 @@ type FnParam struct {
 
 type FnItem struct {
 	Name        source.StringID
+	Generics    []source.StringID
 	ParamsStart FnParamID
 	ParamsCount uint32
 	ReturnType  TypeID
 	Body        StmtID
-	Attr        FnAttr
+	Flags       FnAttr
+	AttrStart   AttrID
+	AttrCount   uint32
 	Span        source.Span
 }
 
@@ -40,20 +43,26 @@ func (i *Items) Fn(id ItemID) (*FnItem, bool) {
 
 func (i *Items) newFnPayload(
 	name source.StringID,
+	generics []source.StringID,
 	paramsStart FnParamID,
 	paramsCount uint32,
 	returnType TypeID,
 	body StmtID,
-	attr FnAttr,
+	flags FnAttr,
+	attrStart AttrID,
+	attrCount uint32,
 	span source.Span,
 ) PayloadID {
 	payload := i.Fns.Allocate(FnItem{
 		Name:        name,
+		Generics:    generics,
 		ParamsStart: paramsStart,
 		ParamsCount: paramsCount,
 		ReturnType:  returnType,
 		Body:        body,
-		Attr:        attr,
+		Flags:       flags,
+		AttrStart:   attrStart,
+		AttrCount:   attrCount,
 		Span:        span,
 	})
 	return PayloadID(payload)
@@ -85,10 +94,12 @@ func (i *Items) GetFnParamIDs(fn *FnItem) []FnParamID {
 
 func (i *Items) NewFn(
 	name source.StringID,
+	generics []source.StringID,
 	params []FnParam,
 	returnType TypeID,
 	body StmtID,
-	attr FnAttr,
+	flags FnAttr,
+	attrs []Attr,
 	span source.Span,
 ) ItemID {
 	var paramsStart FnParamID
@@ -101,6 +112,16 @@ func (i *Items) NewFn(
 			}
 		}
 	}
-	payloadID := i.newFnPayload(name, paramsStart, paramsCount, returnType, body, attr, span)
+	var attrStart AttrID
+	attrCount := uint32(len(attrs))
+	if attrCount > 0 {
+		for idx, attr := range attrs {
+			id := AttrID(i.Attrs.Allocate(attr))
+			if idx == 0 {
+				attrStart = id
+			}
+		}
+	}
+	payloadID := i.newFnPayload(name, generics, paramsStart, paramsCount, returnType, body, flags, attrStart, attrCount, span)
 	return i.New(ItemFn, span, payloadID)
 }
