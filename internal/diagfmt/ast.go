@@ -89,6 +89,12 @@ func BuildASTJSON(builder *ast.Builder, fileID ast.FileID) (ASTNodeOutput, error
 	return output, nil
 }
 
+// FormatASTJSON writes the JSON representation of the AST for the specified file to w.
+// 
+// FormatASTJSON constructs a JSON-serializable AST for fileID and encodes it to w
+// using two-space indentation.
+// 
+// It returns any error produced while building the AST or while encoding to the writer.
 func FormatASTJSON(w io.Writer, builder *ast.Builder, fileID ast.FileID) error {
 	output, err := BuildASTJSON(builder, fileID)
 	if err != nil {

@@ -202,6 +202,8 @@ func (p *Parser) parseExprStmt() (ast.StmtID, bool) {
 	return stmtID, true
 }
 
+// coverOptional returns the span that covers base and other, or base if other is the zero span.
+// The other span is considered zero when its File, Start, and End fields are all zero.
 func coverOptional(base source.Span, other source.Span) source.Span {
 	if other.File == 0 && other.Start == 0 && other.End == 0 {
 		return base

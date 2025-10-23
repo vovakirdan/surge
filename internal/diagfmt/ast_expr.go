@@ -9,6 +9,10 @@ import (
 
 const exprInlineMaxDepth = 32
 
+// formatExprSummary produces a compact diagnostic summary for the given expression ID.
+// If exprID is invalid it returns "<none>". Otherwise it returns a string of the form
+// "expr#<id>: <inline>" where `<inline>` is a concise inline representation; if that
+// representation is empty it returns "<invalid>".
 func formatExprSummary(builder *ast.Builder, exprID ast.ExprID) string {
 	if !exprID.IsValid() {
 		return "<none>"
@@ -20,10 +24,13 @@ func formatExprSummary(builder *ast.Builder, exprID ast.ExprID) string {
 	return fmt.Sprintf("expr#%d: %s", uint32(exprID), inline)
 }
 
+// formatExprInline produces a compact, human-friendly inline representation of the expression identified by exprID.
+// If the expression is invalid or cannot be resolved, it yields a placeholder such as "<none>" or "<invalid>".
 func formatExprInline(builder *ast.Builder, exprID ast.ExprID) string {
 	return formatExprInlineDepth(builder, exprID, 0)
 }
 
+// `"<invalid-binary>"`, etc.
 func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) string {
 	if !exprID.IsValid() {
 		return "<none>"
@@ -157,6 +164,11 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 	}
 }
 
+// wrapExprIfNeeded conditionally wraps a rendered expression in parentheses to preserve
+// precedence for certain expression kinds.
+// If the expression ID is invalid, or the builder or referenced expression is nil,
+// the original rendered string is returned unchanged. Expressions of kinds
+// ExprBinary, ExprTernary, ExprCompare, and ExprCast are wrapped with parentheses.
 func wrapExprIfNeeded(builder *ast.Builder, exprID ast.ExprID, rendered string) string {
 	if !exprID.IsValid() {
 		return rendered
@@ -177,6 +189,9 @@ func wrapExprIfNeeded(builder *ast.Builder, exprID ast.ExprID, rendered string) 
 	}
 }
 
+// formatUnaryOpString formats a unary operator and its operand into a textual representation.
+// For known operators it produces the conventional prefix form (e.g. "+x", "&mut x", "await x").
+// For unknown operators it returns a placeholder of the form "<unary N> operand".
 func formatUnaryOpString(op ast.ExprUnaryOp, operand string) string {
 	switch op {
 	case ast.ExprUnaryPlus:
@@ -200,6 +215,8 @@ func formatUnaryOpString(op ast.ExprUnaryOp, operand string) string {
 	}
 }
 
+// formatBinaryOpString returns the textual symbol for the given binary operator.
+// For known operators it yields conventional symbols (for example "+", "&&", "==", "is", ".."); for unknown operators it returns "op<value>" where <value> is the operator's numeric value.
 func formatBinaryOpString(op ast.ExprBinaryOp) string {
 	switch op {
 	case ast.ExprBinaryAdd:
@@ -273,6 +290,8 @@ func formatBinaryOpString(op ast.ExprBinaryOp) string {
 	}
 }
 
+// formatExprKind returns a human-friendly name for the given expression kind.
+// For recognized kinds it returns names like "Ident", "Literal", "Call", etc.; for unknown kinds it returns "ExprKind(<numeric>)".
 func formatExprKind(kind ast.ExprKind) string {
 	switch kind {
 	case ast.ExprIdent:

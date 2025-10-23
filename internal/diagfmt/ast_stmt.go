@@ -9,6 +9,9 @@ import (
 	"surge/internal/source"
 )
 
+// formatStmtKind returns a human-friendly label for the given AST statement kind.
+// For known kinds it returns "Block", "Let", "Expr", or "Return"; for unknown kinds
+// it returns "StmtKind(<numeric>)" where <numeric> is the numeric value of kind.
 func formatStmtKind(kind ast.StmtKind) string {
 	switch kind {
 	case ast.StmtBlock:
@@ -24,6 +27,14 @@ func formatStmtKind(kind ast.StmtKind) string {
 	}
 }
 
+// formatStmtPretty writes a tree-like, human-readable representation of the statement identified by
+// stmtID to w, including the statement kind and its source span.
+//
+// If builder or its statements arena is nil, it writes "<no statements arena>". If the referenced
+// statement is nil, it writes "<nil>".
+//
+// The output handles block, let, expr, and return statements with nested ASCII tree markers and
+// summaries for nested expressions and types. It returns any write or recursive formatting error.
 func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *source.FileSet, prefix string) error {
 	if builder == nil || builder.Stmts == nil {
 		fmt.Fprintf(w, "<no statements arena>\n")
@@ -101,6 +112,9 @@ func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *
 	return nil
 }
 
+// buildStmtTreeNode constructs a treeNode that represents the statement identified by stmtID.
+// If builder or its Stmts arena is unavailable the returned node's label indicates the missing arena; if the statement is nil the label indicates nil.
+// The node's label contains "Stmt[idx]: <Kind> (span: <span>)". For a block statement each child statement is appended as a child node. For a let statement the node includes children for the name, mutability, type, and value. For expression and return statements the node includes a child summarizing the expression (returns "<none>" when a return has no expression).
 func buildStmtTreeNode(builder *ast.Builder, stmtID ast.StmtID, fs *source.FileSet, idx int) *treeNode {
 	if builder == nil || builder.Stmts == nil {
 		return &treeNode{label: fmt.Sprintf("Stmt[%d]: <no statements arena>", idx)}
@@ -163,6 +177,8 @@ func buildStmtTreeNode(builder *ast.Builder, stmtID ast.StmtID, fs *source.FileS
 	return node
 }
 
+// formatStmtJSON converts the statement identified by stmtID into an ASTNodeOutput suitable for JSON-like serialization.
+// It returns the constructed ASTNodeOutput and an error if the builder or its statements arena is nil or if the statement is not found.
 func formatStmtJSON(builder *ast.Builder, stmtID ast.StmtID) (ASTNodeOutput, error) {
 	if builder == nil || builder.Stmts == nil {
 		return ASTNodeOutput{}, fmt.Errorf("statements arena is nil")
@@ -238,6 +254,8 @@ func formatStmtJSON(builder *ast.Builder, stmtID ast.StmtID) (ASTNodeOutput, err
 	return output, nil
 }
 
+// lookupStringOr resolves the interned string for the given StringID, falling back to the provided fallback or "<anon>" when unavailable.
+// If builder or its StringsInterner is nil, or id is source.NoStringID, the fallback is returned when non-empty; otherwise "<anon>" is returned.
 func lookupStringOr(builder *ast.Builder, id source.StringID, fallback string) string {
 	if builder == nil || builder.StringsInterner == nil || id == source.NoStringID {
 		if fallback != "" {
@@ -248,6 +266,9 @@ func lookupStringOr(builder *ast.Builder, id source.StringID, fallback string) s
 	return builder.StringsInterner.MustLookup(id)
 }
 
+// formatFnParamsInline formats a function's parameters as a parenthesized, comma-separated inline string.
+// It resolves parameter names, types, and default values using the provided builder.
+// If builder or fn is nil, or the function has no parameters, it returns "()".
 func formatFnParamsInline(builder *ast.Builder, fn *ast.FnItem) string {
 	if builder == nil || fn == nil {
 		return "()"
@@ -273,6 +294,8 @@ func formatFnParamsInline(builder *ast.Builder, fn *ast.FnItem) string {
 	return fmt.Sprintf("(%s)", strings.Join(parts, ", "))
 }
 
+// cleanupNilFields removes any key/value pairs from fields whose value is nil and returns the resulting map.
+// The input map is modified in-place; if all entries are removed the function returns nil.
 func cleanupNilFields(fields map[string]any) map[string]any {
 	for key, value := range fields {
 		if value == nil {

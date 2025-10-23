@@ -4,6 +4,8 @@ type Arena[T any] struct {
 	data []T
 }
 
+// NewArena creates and returns an *Arena[T] whose internal slice is allocated with a capacity of capHint.
+// capHint is a hint for the initial capacity of the arena's underlying storage; zero is allowed.
 func NewArena[T any](capHint uint) *Arena[T] {
 	return &Arena[T]{
 		data: make([]T, 0, capHint),

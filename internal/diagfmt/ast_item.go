@@ -9,6 +9,14 @@ import (
 	"surge/internal/source"
 )
 
+// formatItemPretty writes a tree-style, human-readable representation of the AST item
+// identified by itemID to the provided writer.
+//
+// The output includes the item's kind and span and expands payloads for Import, Let,
+// and Fn items with hierarchical prefixes (├─, └─). For functions, generics, parameters,
+// return type, and the first body statement (if present) are shown. If nested formatters
+// (for statements) return an error, that error is propagated. If the item is not found
+// (nil), a "nil item" line is written and no error is returned.
 func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *source.FileSet, prefix string) error {
 	item := builder.Items.Get(itemID)
 	if item == nil {
@@ -198,6 +206,16 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 	return nil
 }
 
+// formatItemJSON builds an ASTNodeOutput for the item identified by itemID in builder.
+// The output contains Type "Item", a human-readable Kind, the item's Span, and a
+// Fields map populated according to the item's payload. For imports the fields may
+// include "module", "moduleAlias", "one" (with "name" and optional "alias"), and
+// "group" (list of name/alias entries). For let bindings the fields include
+// "name", "isMut", "value", "valueSet", "type", "typeSet" and, if present, "valueExprID".
+// For functions the fields include "name", "returnType", "params", "hasBody" and,
+// when generics are present, "generics"; when a body exists the function also
+// appends the formatted body as a child node.
+// Returns an error if the item is not found or if nested formatting fails.
 func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, error) {
 	item := builder.Items.Get(itemID)
 	if item == nil {
@@ -299,6 +317,9 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 	return output, nil
 }
 
+// formatItemKind returns a short human-readable label for the given ast.ItemKind.
+// Known kinds are mapped to concise names such as "Fn", "Let", "Type", "Import", etc.
+// For an unrecognized kind it returns "Unknown(<value>)" where <value> is the numeric kind.
 func formatItemKind(kind ast.ItemKind) string {
 	switch kind {
 	case ast.ItemFn:
@@ -328,6 +349,8 @@ func formatItemKind(kind ast.ItemKind) string {
 	}
 }
 
+// formatImportOne returns the import identifier as a string.
+// It returns "*" when the import is a glob (one.Name == 0); otherwise it looks up the interned name.
 func formatImportOne(one ast.ImportOne, builder *ast.Builder) string {
 	if one.Name == 0 {
 		return "*"

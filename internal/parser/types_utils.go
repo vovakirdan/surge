@@ -2,6 +2,13 @@ package parser
 
 import "fmt"
 
+// splitNumericLiteral splits lit into its contiguous integer digit prefix and the remaining suffix.
+// It recognizes optional base prefixes `0x`/`0X` (hex), `0b`/`0B` (binary), and `0o`/`0O` (octal).
+// It returns an error for empty input, for a missing digit sequence after a base prefix, for a
+// literal with no digits, or if the first non-digit character is a fractional/exponent marker
+// ('.', 'e', 'E', 'p', 'P') which are not allowed here.
+// The first return value is the numeric prefix, the second is the remaining suffix, and the third
+// is a non-nil error on failure.
 func splitNumericLiteral(lit string) (string, string, error) {
 	if lit == "" {
 		return "", "", fmt.Errorf("empty literal")
@@ -44,6 +51,8 @@ func splitNumericLiteral(lit string) (string, string, error) {
 	return lit[:end], lit[end:], nil
 }
 
+// isDigitForBase reports whether b is a valid digit for the given base.
+// It returns true for bases 2, 8, 10, and 16 when b is within the appropriate ASCII digit or hexadecimal range; for any other base it returns false.
 func isDigitForBase(b byte, base int) bool {
 	switch base {
 	case 2:
@@ -59,6 +68,8 @@ func isDigitForBase(b byte, base int) bool {
 	}
 }
 
+// isValidIntegerSuffix reports whether the string s is a valid integer suffix.
+// An empty string is valid. If non-empty, the first character must be an ASCII letter and each subsequent character must be an ASCII letter or digit.
 func isValidIntegerSuffix(s string) bool {
 	if s == "" {
 		return true
@@ -78,6 +89,7 @@ func isValidIntegerSuffix(s string) bool {
 	return true
 }
 
+// isLetter reports whether b is an ASCII alphabetic character ('A'–'Z' or 'a'–'z').
 func isLetter(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }

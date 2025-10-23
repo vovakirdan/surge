@@ -21,6 +21,16 @@ created.`,
     RunE: runInit,
 }
 
+// runInit initializes a Surge project at the specified target path (or the current
+// working directory when no argument or "." is provided) by creating a
+// surge.toml manifest and a main.sg entry file.
+//
+// It resolves the target path, creates the directory if it does not exist,
+// derives a project name from the directory basename (falling back to
+// "surge-project" for invalid names), and refuses to initialize if
+// surge.toml already exists. On success it writes the manifest and entry file
+// and prints the created files; it returns an error for any filesystem or
+// validation failures.
 func runInit(cmd *cobra.Command, args []string) error {
     // Resolve target directory
     var target string
@@ -95,6 +105,8 @@ func runInit(cmd *cobra.Command, args []string) error {
     return nil
 }
 
+// buildDefaultManifest returns a minimal TOML manifest for a Surge project using the provided package name.
+// The manifest contains a [package] section with the package name set to the given name and the version set to "0.1.0".
 func buildDefaultManifest(name string) string {
     // Minimal TOML manifest used as a project marker.
     return fmt.Sprintf(`# Surge project manifest
@@ -104,6 +116,9 @@ version = "0.1.0"
 `, name)
 }
 
+// defaultMainSG returns the default placeholder Surge program used when initializing a new project.
+// The returned source includes a `hello_world` function, a `main` entry that prints its result,
+// and an embedded test directive demonstrating the expected output.
 func defaultMainSG() string {
     return `// Surge hello world (placeholder)
 // Replace with real output once stdlib/runtime is available.

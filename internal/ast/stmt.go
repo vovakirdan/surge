@@ -34,6 +34,10 @@ type Stmts struct {
 	Returns *Arena[ReturnStmt]
 }
 
+// NewStmts creates and returns a new Stmts populated with internal arenas.
+// If capHint is 0, a default capacity of 1<<8 is used. The returned Stmts
+// has separate arenas allocated for Stmt, BlockStmt, LetStmt, ExprStmt and
+// ReturnStmt using the provided capacity hint.
 func NewStmts(capHint uint) *Stmts {
 	if capHint == 0 {
 		capHint = 1 << 8
