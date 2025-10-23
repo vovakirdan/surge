@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"surge/internal/diagfmt"
 	"surge/internal/driver"
+	"surge/internal/source"
 )
 
 var diagCmd = &cobra.Command{
@@ -26,6 +27,7 @@ func init() {
 	diagCmd.Flags().Int("jobs", 0, "max parallel workers for directory processing (0=auto)")
 	diagCmd.Flags().Bool("with-notes", false, "include diagnostic notes in output")
 	diagCmd.Flags().Bool("suggest", false, "include fix suggestions in output")
+	diagCmd.Flags().Bool("fullpath", false, "emit absolute file paths in output")
 }
 
 func runDiagnose(cmd *cobra.Command, args []string) error {
@@ -71,6 +73,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get suggest flag: %w", err)
 	}
 
+	fullPath, err := cmd.Flags().GetBool("fullpath")
+	if err != nil {
+		return fmt.Errorf("failed to get fullpath flag: %w", err)
+	}
+
 	// Конвертируем строку стадии в тип
 	var stage driver.DiagnoseStage
 	switch stagesStr {
@@ -111,6 +118,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			exitCode = 1
 		}
 
+		pathMode := diagfmt.PathModeAuto
+		if fullPath {
+			pathMode = diagfmt.PathModeAbsolute
+		}
+
 		switch format {
 		case "pretty":
 			colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
@@ -118,7 +130,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			opts := diagfmt.PrettyOpts{
 				Color:     useColor,
 				Context:   2,
-				PathMode:  diagfmt.PathModeAuto,
+				PathMode:  pathMode,
 				ShowNotes: withNotes,
 				ShowFixes: suggest,
 			}
@@ -126,7 +138,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		case "json":
 			jsonOpts := diagfmt.JSONOpts{
 				IncludePositions: true,
-				PathMode:         diagfmt.PathModeAuto,
+				PathMode:         pathMode,
 				IncludeNotes:     withNotes,
 				IncludeFixes:     suggest,
 			}
@@ -173,16 +185,20 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 	colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
 	useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stdout))
+	pathMode := diagfmt.PathModeAuto
+	if fullPath {
+		pathMode = diagfmt.PathModeAbsolute
+	}
 	prettyOpts := diagfmt.PrettyOpts{
 		Color:     useColor,
 		Context:   2,
-		PathMode:  diagfmt.PathModeAuto,
+		PathMode:  pathMode,
 		ShowNotes: withNotes,
 		ShowFixes: suggest,
 	}
 	jsonOpts := diagfmt.JSONOpts{
 		IncludePositions: true,
-		PathMode:         diagfmt.PathModeAuto,
+		PathMode:         pathMode,
 		IncludeNotes:     withNotes,
 		IncludeFixes:     suggest,
 	}
@@ -201,7 +217,15 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			displayPath := r.Path
 			if r.FileID != 0 {
 				file := fs.Get(r.FileID)
-				displayPath = file.FormatPath("auto", fs.BaseDir())
+				mode := "auto"
+				if fullPath {
+					mode = "absolute"
+				}
+				displayPath = file.FormatPath(mode, fs.BaseDir())
+			} else if fullPath {
+				if abs, err := source.AbsolutePath(displayPath); err == nil {
+					displayPath = abs
+				}
 			}
 
 			fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
@@ -213,7 +237,15 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			displayPath := r.Path
 			if r.FileID != 0 {
 				file := fs.Get(r.FileID)
-				displayPath = file.FormatPath("auto", fs.BaseDir())
+				mode := "auto"
+				if fullPath {
+					mode = "absolute"
+				}
+				displayPath = file.FormatPath(mode, fs.BaseDir())
+			} else if fullPath {
+				if abs, err := source.AbsolutePath(displayPath); err == nil {
+					displayPath = abs
+				}
 			}
 			data, err := diagfmt.BuildDiagnosticsOutput(r.Bag, fs, jsonOpts)
 			if err != nil {

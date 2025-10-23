@@ -157,6 +157,36 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
 		return params, true
 	}
 
+	// если нет параметров, но забыли скобку
+	if p.at_or(token.LBrace, token.Arrow, token.Semicolon) {
+		// забыли закрыть скобку с пустыми аргами
+		p.emitDiagnostic(
+			diag.SynUnclosedParen,
+			diag.SevError,
+			p.lastSpan,
+			"expected ')' after function parameters",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				insertSpan := p.lastSpan.ZeroideToEnd()
+				fixID := fix.MakeFixID(diag.SynUnclosedParen, insertSpan)
+				suggestion := fix.InsertText(
+					"insert ')' to close the parameter list",
+					insertSpan,
+					")",
+					"",
+					fix.WithID(fixID),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				)
+				b.WithFixSuggestion(suggestion)
+				b.WithNote(insertSpan, "insert ')' to close the parameter list")
+			},
+		)
+		p.resyncUntil(token.Semicolon, token.Arrow, token.LBrace)
+		return nil, false
+	}
 	for {
 		param, ok := p.parseFnParam()
 		if !ok {
