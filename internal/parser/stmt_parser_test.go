@@ -168,3 +168,353 @@ func TestParseBlockStatements_Diagnostics(t *testing.T) {
 		})
 	}
 }
+
+// Additional comprehensive tests for statement parsing
+
+func TestParseReturnStatement(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		hasValue  bool
+	}{
+		{
+			name:     "return with value",
+			input:    "fn foo() { return 42; }",
+			hasValue: true,
+		},
+		{
+			name:     "return without value",
+			input:    "fn foo() { return; }",
+			hasValue: false,
+		},
+		{
+			name:     "return expression",
+			input:    "fn foo() { return a + b; }",
+			hasValue: true,
+		},
+		{
+			name:     "return function call",
+			input:    "fn foo() { return bar(); }",
+			hasValue: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, fileID, bag := parseSource(t, tt.input)
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %+v", bag.Items())
+			}
+
+			file := builder.Files.Get(fileID)
+			fnItem, ok := builder.Items.Fn(file.Items[0])
+			if !ok {
+				t.Fatal("expected fn item")
+			}
+
+			block := builder.Stmts.Block(fnItem.Body)
+			if block == nil || len(block.Stmts) == 0 {
+				t.Fatal("expected block with statements")
+			}
+
+			stmt := builder.Stmts.Get(block.Stmts[0])
+			if stmt.Kind != ast.StmtReturn {
+				t.Fatalf("expected return statement, got %v", stmt.Kind)
+			}
+		})
+	}
+}
+
+func TestParseExpressionStatement(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"function_call", "fn foo() { bar(); }"},
+		{"method_call", "fn foo() { obj.method(); }"},
+		{"assignment", "fn foo() { x = 10; }"},
+		{"compound_assignment", "fn foo() { x += 5; }"},
+		{"field_access", "fn foo() { obj.field; }"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, fileID, bag := parseSource(t, tt.input)
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %+v", bag.Items())
+			}
+
+			file := builder.Files.Get(fileID)
+			fnItem, ok := builder.Items.Fn(file.Items[0])
+			if !ok {
+				t.Fatal("expected fn item")
+			}
+
+			block := builder.Stmts.Block(fnItem.Body)
+			if block == nil || len(block.Stmts) == 0 {
+				t.Fatal("expected block with statements")
+			}
+
+			stmt := builder.Stmts.Get(block.Stmts[0])
+			if stmt.Kind != ast.StmtExpr {
+				t.Fatalf("expected expression statement, got %v", stmt.Kind)
+			}
+		})
+	}
+}
+
+func TestParseNestedBlocks(t *testing.T) {
+	input := `
+		fn foo() {
+			{
+				let x = 1;
+				{
+					let y = 2;
+				}
+			}
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	if !fnItem.Body.IsValid() {
+		t.Fatal("expected function body")
+	}
+
+	outerBlock := builder.Stmts.Block(fnItem.Body)
+	if outerBlock == nil {
+		t.Fatal("expected outer block")
+	}
+}
+
+func TestParseLetStatementInFunction(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "let with type and value",
+			input: "fn foo() { let x: int = 42; }",
+		},
+		{
+			name:  "let with value only",
+			input: "fn foo() { let x = 42; }",
+		},
+		{
+			name:  "let with type only",
+			input: "fn foo() { let x: int; }",
+		},
+		{
+			name:  "mutable let",
+			input: "fn foo() { let mut x = 42; }",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, fileID, bag := parseSource(t, tt.input)
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %+v", bag.Items())
+			}
+
+			file := builder.Files.Get(fileID)
+			fnItem, ok := builder.Items.Fn(file.Items[0])
+			if !ok {
+				t.Fatal("expected fn item")
+			}
+
+			block := builder.Stmts.Block(fnItem.Body)
+			if block == nil || len(block.Stmts) == 0 {
+				t.Fatal("expected block with statements")
+			}
+
+			stmt := builder.Stmts.Get(block.Stmts[0])
+			if stmt.Kind != ast.StmtLet {
+				t.Fatalf("expected let statement, got %v", stmt.Kind)
+			}
+		})
+	}
+}
+
+func TestParseMultipleStatementsInBlock(t *testing.T) {
+	input := `
+		fn foo() {
+			let x = 1;
+			let y = 2;
+			bar();
+			return x + y;
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil {
+		t.Fatal("expected block")
+	}
+
+	expectedCount := 4 // 2 let statements, 1 expression statement, 1 return
+	if len(block.Stmts) != expectedCount {
+		t.Errorf("expected %d statements, got %d", expectedCount, len(block.Stmts))
+	}
+}
+
+func TestParseEmptyBlock(t *testing.T) {
+	input := "fn foo() {}"
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil {
+		t.Fatal("expected block")
+	}
+
+	if len(block.Stmts) != 0 {
+		t.Errorf("expected empty block, got %d statements", len(block.Stmts))
+	}
+}
+
+func TestParseStatementErrors(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "missing semicolon after let",
+			input: "fn foo() { let x = 1 }",
+		},
+		{
+			name:  "missing semicolon after expression",
+			input: "fn foo() { bar() }",
+		},
+		{
+			name:  "missing semicolon after return",
+			input: "fn foo() { return 1 }",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, bag := parseSource(t, tt.input)
+			
+			if !bag.HasErrors() {
+				t.Error("expected errors, but got none")
+			}
+		})
+	}
+}
+
+func TestParseBlockWithWhitespace(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name: "extra newlines",
+			input: `fn foo() {
+
+				let x = 1;
+
+				return x;
+
+			}`,
+		},
+		{
+			name: "tabs and spaces",
+			input: "fn foo() {\n\t\tlet x = 1;\n\t\treturn x;\n\t}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, fileID, bag := parseSource(t, tt.input)
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %+v", bag.Items())
+			}
+
+			file := builder.Files.Get(fileID)
+			fnItem, ok := builder.Items.Fn(file.Items[0])
+			if !ok {
+				t.Fatal("expected fn item")
+			}
+
+			block := builder.Stmts.Block(fnItem.Body)
+			if block == nil {
+				t.Fatal("expected block")
+			}
+		})
+	}
+}
+
+func TestParseComplexStatements(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name: "let with complex expression",
+			input: `fn foo() {
+				let x = (a + b) * c - d / e;
+			}`,
+		},
+		{
+			name: "return with complex expression",
+			input: `fn foo() {
+				return (a && b) || (c && d);
+			}`,
+		},
+		{
+			name: "chained method calls",
+			input: `fn foo() {
+				obj.method1().method2().method3();
+			}`,
+		},
+		{
+			name: "nested field access",
+			input: `fn foo() {
+				let x = obj.field1.field2.field3;
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, fileID, bag := parseSource(t, tt.input)
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %+v", bag.Items())
+			}
+
+			file := builder.Files.Get(fileID)
+			if len(file.Items) != 1 {
+				t.Fatalf("expected 1 item, got %d", len(file.Items))
+			}
+		})
+	}
+}
