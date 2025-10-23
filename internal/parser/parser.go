@@ -115,7 +115,7 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 // прокручиваем до ';' ИЛИ до стартового токена следующего item ИЛИ EOF.
 func (p *Parser) resyncTop() { // todo: использовать resyncUntill - надо явно знать до какого токена прокручивать
 	// Список всех стартеров + semicolon
-	stopTokens := []token.Kind{token.Semicolon, token.KwImport, token.KwLet}
+	stopTokens := []token.Kind{token.Semicolon, token.KwImport, token.KwLet, token.KwFn}
 	// TODO: добавить другие стартеры когда они будут реализованы: token.KwFn, token.KwType, etc.
 
 	p.resyncUntil(stopTokens...)
@@ -129,7 +129,7 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 // isTopLevelStarter — принадлежит ли токен стартерам item.
 // На этом шаге — import и let; позже добавим остальные.
 func isTopLevelStarter(k token.Kind) bool {
-	return k == token.KwImport || k == token.KwLet
+	return k == token.KwImport || k == token.KwLet || k == token.KwFn
 }
 
 // parseIdent — утилита: ожидает Ident и интернирует его, возвращает source.StringID.

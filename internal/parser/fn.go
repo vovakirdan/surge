@@ -29,16 +29,18 @@ func (p *Parser) parseFnItem() (ast.ItemID, bool) {
 
 	generics, ok := p.parseFnGenerics()
 	if !ok {
+		p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
 		return ast.NoItemID, false
 	}
 
 	if _, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after function name"); !ok {
-		p.resyncUntil(token.LBrace, token.Semicolon)
+		p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
 		return ast.NoItemID, false
 	}
 
 	params, ok := p.parseFnParams()
 	if !ok {
+		p.resyncUntil(token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet)
 		return ast.NoItemID, false
 	}
 
@@ -66,12 +68,12 @@ func (p *Parser) parseFnItem() (ast.ItemID, bool) {
 					b.WithNote(arrowTok.Span, "remove '->' to simplify the function signature")
 				},
 			)
-			p.resyncUntil(token.LBrace, token.Semicolon)
+			p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
 			return ast.NoItemID, false
 		}
 		returnType, ok = p.parseTypePrefix()
 		if !ok {
-			p.resyncUntil(token.LBrace, token.Semicolon)
+			p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
 			return ast.NoItemID, false
 		}
 	}
@@ -152,11 +154,6 @@ func (p *Parser) parseFnParam() (ast.FnParam, bool) {
 func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
 	params := make([]ast.FnParam, 0)
 
-	if p.at(token.RParen) {
-		p.advance()
-		return params, true
-	}
-
 	// если нет параметров, но забыли скобку
 	if p.at_or(token.LBrace, token.Arrow, token.Semicolon) {
 		// забыли закрыть скобку с пустыми аргами
@@ -184,13 +181,41 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
 				b.WithNote(insertSpan, "insert ')' to close the parameter list")
 			},
 		)
-		p.resyncUntil(token.Semicolon, token.Arrow, token.LBrace)
-		return nil, false
+		return params, true
 	}
+
+	if p.at(token.RParen) {
+		closeTok := p.advance()
+		_ = closeTok
+		return params, true
+	}
+
+	expectClosing := func() bool {
+		_, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' after function parameters", func(b *diag.ReportBuilder) {
+			if b == nil {
+				return
+			}
+			insertSpan := p.lastSpan.ZeroideToEnd()
+			fixID := fix.MakeFixID(diag.SynUnclosedParen, insertSpan)
+			suggestion := fix.InsertText(
+				"insert ')' to close the parameter list",
+				insertSpan,
+				")",
+				"",
+				fix.WithID(fixID),
+				fix.WithKind(diag.FixKindRefactor),
+				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+			)
+			b.WithFixSuggestion(suggestion)
+			b.WithNote(insertSpan, "insert ')' to close the parameter list")
+		})
+		return ok
+	}
+
 	for {
 		param, ok := p.parseFnParam()
 		if !ok {
-			p.resyncUntil(token.RParen, token.Semicolon)
+			p.resyncUntil(token.RParen, token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet)
 			if p.at(token.RParen) {
 				p.advance()
 			}
@@ -207,24 +232,8 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
 			continue
 		}
 
-		if _, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' after function parameters", func(b *diag.ReportBuilder) {
-			if b == nil {
-				return
-			}
-			insertSpan := p.lastSpan.ZeroideToEnd()
-			fixID := fix.MakeFixID(diag.SynUnclosedParen, insertSpan)
-			suggestion := fix.InsertText(
-				"insert ')' to close the parameter list",
-				insertSpan,
-				")",
-				"",
-				fix.WithID(fixID),
-				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-			)
-			b.WithFixSuggestion(suggestion)
-			b.WithNote(insertSpan, "insert ')' to close the parameter list")
-		}); !ok {
-			p.resyncUntil(token.Semicolon)
+		if !expectClosing() {
+			p.resyncUntil(token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet)
 			return params, false
 		}
 		break
@@ -245,7 +254,7 @@ func (p *Parser) parseFnGenerics() ([]source.StringID, bool) {
 	for {
 		nameID, ok := p.parseIdent()
 		if !ok {
-			p.resyncUntil(token.Gt, token.LParen, token.Semicolon)
+			p.resyncUntil(token.Gt, token.LParen, token.Semicolon, token.KwFn)
 			if p.at(token.Gt) {
 				p.advance()
 			}
@@ -275,12 +284,13 @@ func (p *Parser) parseFnGenerics() ([]source.StringID, bool) {
 				">",
 				"",
 				fix.WithID(fixID),
+				fix.WithKind(diag.FixKindRefactor),
 				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
 			)
 			b.WithFixSuggestion(suggestion)
 			b.WithNote(insertSpan, "insert '>' to close the generic parameter list")
 		}); !ok {
-			p.resyncUntil(token.LParen, token.Semicolon)
+			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn)
 			return generics, false
 		}
 		break
