@@ -31,5 +31,9 @@ go.work.sum
 .idea/
 .vscode/
 AGENTS.md
+CLAUDE.md
 test.sg
 .cursor/
+
+# Surge project
+helloworld/

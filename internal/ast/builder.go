@@ -52,8 +52,8 @@ func (b *Builder) NewItem(kind ItemKind, sp source.Span, payloadID PayloadID) It
 	return b.Items.New(kind, sp, payloadID)
 }
 
-func (b *Builder) NewStmt(kind StmtKind, sp source.Span) StmtID {
-	return b.Stmts.New(kind, sp)
+func (b *Builder) NewStmt(kind StmtKind, sp source.Span, payload PayloadID) StmtID {
+	return b.Stmts.New(kind, sp, payload)
 }
 
 func (b *Builder) PushItem(file FileID, item ItemID) {

@@ -3,6 +3,8 @@ package diagfmt
 import (
 	"fmt"
 	"io"
+	"strings"
+
 	"surge/internal/ast"
 	"surge/internal/source"
 )
@@ -125,6 +127,72 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, fieldPrefix, f.label, f.value)
 			}
 		}
+	case ast.ItemFn:
+		if fnItem, ok := builder.Items.Fn(itemID); ok {
+			type fnField struct {
+				label  string
+				value  string
+				isBody bool
+			}
+
+			fields := make([]fnField, 0, 5)
+
+			fields = append(fields, fnField{
+				label: "Name",
+				value: lookupStringOr(builder, fnItem.Name, "<anon>"),
+			})
+
+			if len(fnItem.Generics) > 0 {
+				genericNames := make([]string, 0, len(fnItem.Generics))
+				for _, gid := range fnItem.Generics {
+					genericNames = append(genericNames, lookupStringOr(builder, gid, "_"))
+				}
+				fields = append(fields, fnField{
+					label: "Generics",
+					value: "<" + strings.Join(genericNames, ", ") + ">",
+				})
+			}
+
+			fields = append(fields, fnField{
+				label: "Params",
+				value: formatFnParamsInline(builder, fnItem),
+			})
+
+			fields = append(fields, fnField{
+				label: "Return",
+				value: formatTypeExprInline(builder, fnItem.ReturnType),
+			})
+
+			fields = append(fields, fnField{
+				label:  "Body",
+				isBody: true,
+			})
+
+			for idx, field := range fields {
+				isLast := idx == len(fields)-1
+				marker := "├─"
+				childPrefix := prefix + "│  "
+				if isLast {
+					marker = "└─"
+					childPrefix = prefix + "   "
+				}
+
+				if field.isBody {
+					if fnItem.Body.IsValid() {
+						fmt.Fprintf(w, "%s%s Body:\n", prefix, marker)
+						fmt.Fprintf(w, "%s└─ Stmt[0]: ", childPrefix)
+						if err := formatStmtPretty(w, builder, fnItem.Body, fs, childPrefix+"   "); err != nil {
+							return err
+						}
+					} else {
+						fmt.Fprintf(w, "%s%s Body: <none>\n", prefix, marker)
+					}
+					continue
+				}
+
+				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, field.label, field.value)
+			}
+		}
 	}
 
 	return nil
@@ -198,6 +266,33 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 				fields["valueExprID"] = uint32(letItem.Value)
 			}
 			output.Fields = fields
+		}
+	case ast.ItemFn:
+		if fnItem, ok := builder.Items.Fn(itemID); ok {
+			fields := map[string]any{
+				"name":       lookupStringOr(builder, fnItem.Name, "<anon>"),
+				"returnType": formatTypeExprInline(builder, fnItem.ReturnType),
+				"params":     formatFnParamsInline(builder, fnItem),
+				"hasBody":    fnItem.Body.IsValid(),
+			}
+
+			if len(fnItem.Generics) > 0 {
+				genericNames := make([]string, 0, len(fnItem.Generics))
+				for _, gid := range fnItem.Generics {
+					genericNames = append(genericNames, lookupStringOr(builder, gid, "_"))
+				}
+				fields["generics"] = genericNames
+			}
+
+			output.Fields = fields
+
+			if fnItem.Body.IsValid() {
+				bodyNode, err := formatStmtJSON(builder, fnItem.Body)
+				if err != nil {
+					return ASTNodeOutput{}, err
+				}
+				output.Children = append(output.Children, bodyNode)
+			}
 		}
 	}
 

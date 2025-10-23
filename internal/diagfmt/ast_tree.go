@@ -97,6 +97,33 @@ func buildItemTreeNode(builder *ast.Builder, itemID ast.ItemID, fs *source.FileS
 			valueLabel := fmt.Sprintf("Value: %s", formatExprSummary(builder, letItem.Value))
 			node.children = append(node.children, &treeNode{label: valueLabel})
 		}
+	case ast.ItemFn:
+		if fnItem, ok := builder.Items.Fn(itemID); ok {
+			nameNode := &treeNode{label: fmt.Sprintf("Name: %s", lookupStringOr(builder, fnItem.Name, "<anon>"))}
+			node.children = append(node.children, nameNode)
+
+			if len(fnItem.Generics) > 0 {
+				genericNames := make([]string, 0, len(fnItem.Generics))
+				for _, gid := range fnItem.Generics {
+					genericNames = append(genericNames, lookupStringOr(builder, gid, "_"))
+				}
+				node.children = append(node.children, &treeNode{
+					label: fmt.Sprintf("Generics: <%s>", strings.Join(genericNames, ", ")),
+				})
+			}
+
+			paramsNode := &treeNode{label: fmt.Sprintf("Params: %s", formatFnParamsInline(builder, fnItem))}
+			retNode := &treeNode{label: fmt.Sprintf("Return: %s", formatTypeExprInline(builder, fnItem.ReturnType))}
+			node.children = append(node.children, paramsNode, retNode)
+
+			if fnItem.Body.IsValid() {
+				bodyNode := &treeNode{label: "Body"}
+				bodyNode.children = append(bodyNode.children, buildStmtTreeNode(builder, fnItem.Body, fs, 0))
+				node.children = append(node.children, bodyNode)
+			} else {
+				node.children = append(node.children, &treeNode{label: "Body: <none>"})
+			}
+		}
 	}
 
 	return node
