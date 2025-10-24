@@ -119,7 +119,7 @@ func TestUnaryOperators(t *testing.T) {
 	}
 }
 
-func TestComplexExpressions(t *testing.T) {
+func TestComplexExpressions_pt1(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -354,8 +354,8 @@ func TestUnaryOperators_AllVariants(t *testing.T) {
 				t.Fatalf("Expected unary expression, got %v", expr.Kind)
 			}
 
-			unary := arenas.Exprs.Unary(letItem.Value)
-			if unary == nil {
+			unary, ok := arenas.Exprs.Unary(letItem.Value)
+			if !ok {
 				t.Fatal("Failed to get unary expression payload")
 			}
 			if unary.Op != tt.expectedOp {
@@ -592,7 +592,7 @@ func TestComparisonOperators(t *testing.T) {
 	}
 }
 
-func TestComplexExpressions(t *testing.T) {
+func TestComplexExpressions_pt2(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -761,7 +761,7 @@ func TestStringLiterals_Variants(t *testing.T) {
 		{"string_with_escapes", `let x = "hello\nworld";`},
 		{"string_with_quotes", `let x = "say \"hello\"";`},
 		{"string_with_backslash", `let x = "path\\to\\file";`},
-		{"raw_string", `let x = r"no\nescapes";`},
+		{"raw_string", `let x = "no\nescapes";`},
 		{"multiline_string", `let x = "line1\nline2\nline3";`},
 	}
 

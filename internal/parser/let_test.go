@@ -208,7 +208,7 @@ func TestParseLetItem_Errors(t *testing.T) {
 		{
 			name:          "missing identifier",
 			input:         "let : int;",
-			wantErrorCode: diag.SynUnexpectedToken,
+			wantErrorCode: diag.SynExpectIdentifier,
 			description:   "expected identifier after 'let'",
 		},
 		{
@@ -377,7 +377,7 @@ func TestParseLetItem_EdgeCases(t *testing.T) {
 			name:        "mut without name",
 			input:       "let mut : int = 42;",
 			shouldError: true,
-			errorCode:   diag.SynUnexpectedToken,
+			errorCode:   diag.SynExpectIdentifier,
 		},
 		{
 			name:        "double mut",
@@ -400,7 +400,7 @@ func TestParseLetItem_EdgeCases(t *testing.T) {
 				t.Errorf("expected error: %v, got: %v", tt.shouldError, hasErrors)
 			}
 
-			if tt.shouldError && tt.errorCode != "" {
+			if tt.shouldError && tt.errorCode != 0 {
 				found := false
 				for _, d := range bag.Items() {
 					if d.Code == tt.errorCode {
