@@ -8,6 +8,115 @@ import (
 	"surge/internal/token"
 )
 
+type fnModifiers struct {
+	flags     ast.FnAttr
+	span      source.Span
+	hasSpan   bool
+	seenPub   bool
+	seenAsync bool
+}
+
+func (m *fnModifiers) extend(sp source.Span) {
+	if !m.hasSpan {
+		m.span = sp
+		m.hasSpan = true
+		return
+	}
+	m.span = m.span.Cover(sp)
+}
+
+func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
+	mods := fnModifiers{}
+
+	for {
+		tok := p.lx.Peek()
+		switch tok.Kind {
+		case token.KwFn:
+			return mods, true
+		case token.KwPub:
+			tok = p.advance()
+			if mods.seenPub {
+				p.emitDiagnostic(
+					diag.SynUnexpectedToken,
+					diag.SevError,
+					tok.Span,
+					"duplicate 'pub' modifier",
+					nil,
+				)
+			} else {
+				mods.seenPub = true
+				mods.flags |= ast.FnAttrPublic
+			}
+			mods.extend(tok.Span)
+
+		case token.KwAsync:
+			tok = p.advance()
+			if mods.seenAsync {
+				p.emitDiagnostic(
+					diag.SynUnexpectedToken,
+					diag.SevError,
+					tok.Span,
+					"duplicate 'async' modifier",
+					nil,
+				)
+			} else {
+				mods.seenAsync = true
+				mods.flags |= ast.FnAttrAsync
+			}
+			mods.extend(tok.Span)
+
+		case token.KwExtern:
+			tok = p.advance()
+			p.emitDiagnostic(
+				diag.SynUnexpectedToken,
+				diag.SevError,
+				tok.Span,
+				"'extern' cannot be used as a function modifier",
+				nil,
+			)
+			mods.extend(tok.Span)
+			continue
+		case token.Ident:
+			tok = p.advance()
+			msg := "unknown function modifier"
+			if tok.Text != "" {
+				msg = "unknown function modifier '" + tok.Text + "'"
+			}
+			p.emitDiagnostic(
+				diag.SynUnexpectedToken,
+				diag.SevError,
+				tok.Span,
+				msg,
+				func(b *diag.ReportBuilder) {
+					if b == nil {
+						return
+					}
+					fixID := fix.MakeFixID(diag.SynUnexpectedToken, tok.Span)
+					suggestion := fix.DeleteSpan(
+						"remove the unknown function modifier",
+						tok.Span.ExtendRight(p.lx.Peek().Span),
+						"",
+						fix.WithID(fixID),
+						fix.WithKind(diag.FixKindRefactor),
+						fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+					)
+					b.WithFixSuggestion(suggestion)
+					b.WithNote(tok.Span, "Possible fn modifier: pub, async")
+				},
+			)
+			mods.extend(tok.Span)
+			continue
+		case token.EOF:
+			return mods, false
+		default:
+			if isTopLevelStarter(tok.Kind) || tok.Kind == token.Semicolon {
+				return mods, false
+			}
+			return mods, false
+		}
+	}
+}
+
 // parseFnItem - парсит функцию
 //
 // fn Ident GenericParams? ParamList RetType? Block
@@ -21,9 +130,16 @@ import (
 // fn func<T, U>(param: T, ...params: U) { ... } // с параметрами и вариативными параметрами и телом с generic параметрами
 // fn @attr fn func() { ... } // с атрибутами и телом
 // modifier fn func() { ... } // с модификаторами и телом
-func (p *Parser) parseFnItem() (ast.ItemID, bool) {
-	// todo парсить атрибуты, хотя они перед fn...
+func (p *Parser) parseFnItem(mods fnModifiers) (ast.ItemID, bool) {
+
 	fnTok := p.advance() // съедаем KwFn; если мы здесь, то это точно KwFn
+
+	startSpan := fnTok.Span
+	if mods.hasSpan {
+		startSpan = mods.span.Cover(fnTok.Span)
+	}
+
+	flags := mods.flags
 
 	// Допускаем Rust-подобный синтаксис: fn <T, U> name(...)
 	preGenerics, ok := p.parseFnGenerics()
@@ -78,6 +194,7 @@ func (p *Parser) parseFnItem() (ast.ItemID, bool) {
 
 	var returnType ast.TypeID
 	if p.at(token.Arrow) {
+		prevSpan := p.lastSpan.ZeroideToEnd()
 		arrowTok := p.advance()
 		if p.at(token.LBrace) {
 			p.emitDiagnostic(
@@ -90,11 +207,14 @@ func (p *Parser) parseFnItem() (ast.ItemID, bool) {
 						return
 					}
 					fixID := fix.MakeFixID(diag.SynUnexpectedToken, arrowTok.Span)
-					suggestion := fix.DeleteSpan(
+					suggestion := fix.ReplaceSpan(
 						"remove '->' to simplify the function signature",
-						arrowTok.Span,
+						prevSpan.Cover(arrowTok.Span).ExtendRight(p.lx.Peek().Span), // что бы взять всё вокруг
+						" ",
 						"",
 						fix.WithID(fixID),
+						fix.WithKind(diag.FixKindRefactor),
+						fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
 					)
 					b.WithFixSuggestion(suggestion)
 					b.WithNote(arrowTok.Span, "remove '->' to simplify the function signature")
@@ -146,7 +266,8 @@ func (p *Parser) parseFnItem() (ast.ItemID, bool) {
 		}
 	}
 
-	fnItemID := p.arenas.NewFn(fnNameID, generics, params, returnType, bodyStmtID, 0, nil, fnTok.Span.Cover(p.lastSpan))
+	itemSpan := startSpan.Cover(p.lastSpan)
+	fnItemID := p.arenas.NewFn(fnNameID, generics, params, returnType, bodyStmtID, flags, nil, itemSpan)
 	return fnItemID, true
 }
 

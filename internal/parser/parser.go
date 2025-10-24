@@ -104,7 +104,26 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 	case token.KwLet:
 		return p.parseLetItem()
 	case token.KwFn:
-		return p.parseFnItem()
+		return p.parseFnItem(fnModifiers{})
+	case token.KwPub, token.KwAsync, token.Ident:
+		mods, ok := p.parseFnModifiers()
+		if ok && p.at(token.KwFn) {
+			return p.parseFnItem(mods)
+		}
+		if mods.flags != 0 {
+			span := mods.span
+			if !mods.hasSpan {
+				span = p.lx.Peek().Span
+			}
+			p.emitDiagnostic(
+				diag.SynUnexpectedToken,
+				diag.SevError,
+				span,
+				"expected 'fn' after function modifiers",
+				nil,
+			)
+		}
+		return ast.NoItemID, false
 	default:
 		p.report(diag.SynUnexpectedTopLevel, diag.SevError, p.lx.Peek().Span, "unexpected top-level construct")
 		return 0, false
@@ -115,7 +134,7 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 // прокручиваем до ';' ИЛИ до стартового токена следующего item ИЛИ EOF.
 func (p *Parser) resyncTop() { // todo: использовать resyncUntill - надо явно знать до какого токена прокручивать
 	// Список всех стартеров + semicolon
-	stopTokens := []token.Kind{token.Semicolon, token.KwImport, token.KwLet, token.KwFn}
+	stopTokens := []token.Kind{token.Semicolon, token.KwImport, token.KwLet, token.KwFn, token.KwPub, token.KwAsync}
 	// TODO: добавить другие стартеры когда они будут реализованы: token.KwFn, token.KwType, etc.
 
 	p.resyncUntil(stopTokens...)
@@ -127,9 +146,14 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 }
 
 // isTopLevelStarter — принадлежит ли токен стартерам item.
-// isTopLevelStarter reports whether k is a token kind that begins a top-level declaration (import, let, or fn).
+// isTopLevelStarter reports whether k is a token kind that begins a top-level declaration (import, let, fn, or fn-modifier).
 func isTopLevelStarter(k token.Kind) bool {
-	return k == token.KwImport || k == token.KwLet || k == token.KwFn
+	switch k {
+	case token.KwImport, token.KwLet, token.KwFn, token.KwPub, token.KwAsync:
+		return true
+	default:
+		return false
+	}
 }
 
 // parseIdent — утилита: ожидает Ident и интернирует его, возвращает source.StringID.

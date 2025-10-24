@@ -5,13 +5,8 @@ import "surge/internal/source"
 type FnAttr uint64
 
 const (
-	FnAttrExtern FnAttr = 1 << iota
-	FnAttrAsync
-	FnAttrUnsafe
-	FnAttrPure
-	FnAttrOverload
-	FnAttrOverride
-	FnAttrInline
+	FnAttrAsync FnAttr = 1 << iota
+	FnAttrPublic
 )
 
 type FnParam struct {

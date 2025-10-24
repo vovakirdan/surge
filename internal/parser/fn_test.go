@@ -611,6 +611,74 @@ func TestParseFnItem_Generics(t *testing.T) {
 	})
 }
 
+func TestParseFnItem_Modifiers(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantFlags ast.FnAttr
+		wantError bool
+	}{
+		{
+			name:      "pub_fn",
+			input:     "pub fn foo() {}",
+			wantFlags: ast.FnAttrPublic,
+		},
+		{
+			name:      "async_fn",
+			input:     "async fn foo() {}",
+			wantFlags: ast.FnAttrAsync,
+		},
+		{
+			name:      "combined_modifiers",
+			input:     "pub async fn foo() {}",
+			wantFlags: ast.FnAttrPublic | ast.FnAttrAsync,
+		},
+		{
+			name:      "duplicate_async",
+			input:     "async async fn foo() {}",
+			wantFlags: ast.FnAttrAsync,
+			wantError: true,
+		},
+		{
+			name:      "unsafe_modifier",
+			input:     "unsafe fn foo() {}",
+			wantFlags: 0,
+			wantError: true,
+		},
+		{
+			name:      "unknown_modifier",
+			input:     "some_modifier fn foo() {}",
+			wantFlags: 0,
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, fileID, bag := parseSource(t, tt.input)
+
+			hasErrors := bag.HasErrors()
+			if hasErrors != tt.wantError {
+				t.Fatalf("expected error=%v, got %v (bag=%+v)", tt.wantError, hasErrors, bag.Items())
+			}
+
+			file := builder.Files.Get(fileID)
+			if len(file.Items) == 0 {
+				t.Fatal("expected at least one item")
+			}
+
+			fnItem, ok := builder.Items.Fn(file.Items[0])
+			if !ok {
+				t.Fatal("expected function item")
+			}
+
+			if (fnItem.Flags & tt.wantFlags) != tt.wantFlags {
+				t.Fatalf("expected flags %v to include %v", fnItem.Flags, tt.wantFlags)
+			}
+		})
+	}
+}
+
 // TestParseFnItem_ComplexSignatures tests complex function signatures
 func TestParseFnItem_ComplexSignatures(t *testing.T) {
 	tests := []struct {

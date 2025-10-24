@@ -35,6 +35,46 @@ func (s Span) Cover(other Span) Span {
 	return s
 }
 
+// ExtendUntil расширяет span до начала другого span не включительно
+func (s Span) ExtendRight(other Span) Span {
+	if s.File != other.File {
+		return s
+	}
+	// Если текущий span заканчивается раньше начала другого span,
+	// расширяем его до начала другого span
+	if s.End < other.Start {
+		return Span{
+			File:  s.File,
+			Start: s.Start,
+			End:   other.Start,
+		}
+	}
+	return s
+}
+
+// ExtendLeft расширяет span до конца другого span не включительно
+func (s Span) ExtendLeft(other Span) Span {
+	if s.File != other.File {
+		return s
+	}
+	if s.Start > other.End {
+		return Span{
+			File:  s.File,
+			Start: other.End,
+			End:   s.End,
+		}
+	}
+	return s
+}
+
+func (s Span) IsLeftThan(other Span) bool {
+	return s.File == other.File && s.Start < other.Start
+}
+
+func (s Span) IsRightThan(other Span) bool {
+	return s.File == other.File && s.End > other.End
+}
+
 // ShiftLeft сдвигает span налево на n байт
 func (s Span) ShiftLeft(n uint32) Span {
 	if n > s.Start {
