@@ -28,9 +28,11 @@ type NoteJSON struct {
 
 // FixEditJSON представляет одно редактирование для JSON
 type FixEditJSON struct {
-	Location LocationJSON `json:"location"`
-	NewText  string       `json:"new_text"`
-	OldText  string       `json:"old_text,omitempty"`
+	Location    LocationJSON `json:"location"`
+	NewText     string       `json:"new_text"`
+	OldText     string       `json:"old_text,omitempty"`
+	BeforeLines []string     `json:"before_lines,omitempty"`
+	AfterLines  []string     `json:"after_lines,omitempty"`
 }
 
 // FixJSON представляет предложение по исправлению для JSON
@@ -162,11 +164,18 @@ func BuildDiagnosticsOutput(bag *diag.Bag, fs *source.FileSet, opts JSONOpts) (D
 				} else if len(resolved.Edits) > 0 {
 					fixJSON.Edits = make([]FixEditJSON, len(resolved.Edits))
 					for k, edit := range resolved.Edits {
-						fixJSON.Edits[k] = FixEditJSON{
+						editJSON := FixEditJSON{
 							Location: makeLocation(edit.Span, fs, opts.PathMode, opts.IncludePositions),
 							NewText:  edit.NewText,
 							OldText:  edit.OldText,
 						}
+						if opts.IncludePreviews {
+							if preview, err := buildFixEditPreview(fs, edit); err == nil {
+								editJSON.BeforeLines = append([]string(nil), preview.before...)
+								editJSON.AfterLines = append([]string(nil), preview.after...)
+							}
+						}
+						fixJSON.Edits[k] = editJSON
 					}
 				}
 				diagJSON.Fixes = append(diagJSON.Fixes, fixJSON)

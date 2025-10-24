@@ -212,3 +212,40 @@ func TestPrettyNotesAndFixes(t *testing.T) {
 		t.Fatalf("expected lazy fix id in output, got:\n%s", output)
 	}
 }
+
+func TestPrettyFixPreview(t *testing.T) {
+	fs := source.NewFileSet()
+	content := []byte("let a = 42 // missing semicolon")
+	fileID := fs.AddVirtual("example.sg", content)
+
+	bag := diag.NewBag(2)
+	insertSpan := source.Span{File: fileID, Start: 10, End: 10}
+	d := diag.New(diag.SevWarning, diag.LexUnknownChar, insertSpan, "missing semicolon")
+	d = d.WithFix("insert semicolon", diag.FixEdit{
+		Span:    insertSpan,
+		NewText: ";",
+	})
+
+	bag.Add(d)
+
+	var buf bytes.Buffer
+	opts := PrettyOpts{
+		Color:       false,
+		Context:     0,
+		PathMode:    PathModeBasename,
+		ShowFixes:   true,
+		ShowPreview: true,
+	}
+	Pretty(&buf, bag, fs, opts)
+
+	output := buf.String()
+	if !strings.Contains(output, "preview:") {
+		t.Fatalf("expected preview header in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "- let a = 42 // missing semicolon") {
+		t.Fatalf("expected before line in preview, got:\n%s", output)
+	}
+	if !strings.Contains(output, "+ let a = 42; // missing semicolon") {
+		t.Fatalf("expected after line in preview, got:\n%s", output)
+	}
+}

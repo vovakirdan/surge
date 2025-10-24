@@ -57,6 +57,9 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 		codeColor      = color.New(color.FgMagenta)
 		lineNumColor   = color.New(color.FgBlue)
 		underlineColor = color.New(color.FgRed, color.Bold)
+		previewLabel   = color.New(color.FgCyan, color.Bold)
+		beforeColor    = color.New(color.FgRed)
+		afterColor     = color.New(color.FgGreen)
 	)
 
 	// Отключаем цвета если нужно
@@ -314,6 +317,56 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 						end.Col,
 						strings.Join(metaParts, ", "),
 					)
+
+					if opts.ShowPreview {
+						preview, err := buildFixEditPreview(fs, edit)
+						if err != nil {
+							fmt.Fprintf(
+								w,
+								"        preview unavailable: %v\n",
+								err,
+							)
+							continue
+						}
+
+						fmt.Fprintf(
+							w,
+							"      %s\n",
+							previewLabel.Sprint("preview:"),
+						)
+
+						printPreviewSection := func(label string, marker string, lines []string, colorizer *color.Color) {
+							if len(lines) == 0 {
+								fmt.Fprintf(
+									w,
+									"        %s %s\n",
+									label,
+									colorizer.Sprint("<empty>"),
+								)
+								return
+							}
+							fmt.Fprintf(
+								w,
+								"        %s\n",
+								label,
+							)
+							for _, line := range lines {
+								display := line
+								if display == "" {
+									display = "(blank)"
+								}
+								fmt.Fprintf(
+									w,
+									"          %s %s\n",
+									colorizer.Sprint(marker),
+									colorizer.Sprint(display),
+								)
+							}
+						}
+
+						printPreviewSection("before:", "-", preview.before, beforeColor)
+						printPreviewSection("after:", "+", preview.after, afterColor)
+					}
 				}
 			}
 		}

@@ -30,6 +30,7 @@ func init() {
 	diagCmd.Flags().Int("jobs", 0, "max parallel workers for directory processing (0=auto)")
 	diagCmd.Flags().Bool("with-notes", false, "include diagnostic notes in output")
 	diagCmd.Flags().Bool("suggest", false, "include fix suggestions in output")
+	diagCmd.Flags().Bool("preview", false, "preview changes without modifying files")
 	diagCmd.Flags().Bool("fullpath", false, "emit absolute file paths in output")
 }
 
@@ -84,6 +85,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get suggest flag: %w", err)
 	}
 
+	preview, err := cmd.Flags().GetBool("preview")
+	if err != nil {
+		return fmt.Errorf("failed to get preview flag: %w", err)
+	}
+
 	fullPath, err := cmd.Flags().GetBool("fullpath")
 	if err != nil {
 		return fmt.Errorf("failed to get fullpath flag: %w", err)
@@ -133,17 +139,19 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		if fullPath {
 			pathMode = diagfmt.PathModeAbsolute
 		}
+		showFixes := suggest || preview
 
 		switch format {
 		case "pretty":
 			colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
 			useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stdout))
 			opts := diagfmt.PrettyOpts{
-				Color:     useColor,
-				Context:   2,
-				PathMode:  pathMode,
-				ShowNotes: withNotes,
-				ShowFixes: suggest,
+				Color:       useColor,
+				Context:     2,
+				PathMode:    pathMode,
+				ShowNotes:   withNotes,
+				ShowFixes:   showFixes,
+				ShowPreview: preview,
 			}
 			diagfmt.Pretty(os.Stdout, result.Bag, result.FileSet, opts)
 		case "json":
@@ -151,7 +159,8 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 				IncludePositions: true,
 				PathMode:         pathMode,
 				IncludeNotes:     withNotes,
-				IncludeFixes:     suggest,
+				IncludeFixes:     showFixes,
+				IncludePreviews:  preview,
 			}
 			err = diagfmt.JSON(os.Stdout, result.Bag, result.FileSet, jsonOpts)
 		case "sarif":
@@ -200,18 +209,21 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	if fullPath {
 		pathMode = diagfmt.PathModeAbsolute
 	}
+	showFixes := suggest || preview
 	prettyOpts := diagfmt.PrettyOpts{
-		Color:     useColor,
-		Context:   2,
-		PathMode:  pathMode,
-		ShowNotes: withNotes,
-		ShowFixes: suggest,
+		Color:       useColor,
+		Context:     2,
+		PathMode:    pathMode,
+		ShowNotes:   withNotes,
+		ShowFixes:   showFixes,
+		ShowPreview: preview,
 	}
 	jsonOpts := diagfmt.JSONOpts{
 		IncludePositions: true,
 		PathMode:         pathMode,
 		IncludeNotes:     withNotes,
-		IncludeFixes:     suggest,
+		IncludeFixes:     showFixes,
+		IncludePreviews:  preview,
 	}
 	meta := diagfmt.SarifRunMeta{
 		ToolName:    "surge",

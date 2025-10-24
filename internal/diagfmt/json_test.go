@@ -333,3 +333,64 @@ func TestJSONPathModes(t *testing.T) {
 		})
 	}
 }
+
+func TestJSONFixPreview(t *testing.T) {
+	fs := source.NewFileSet()
+	content := []byte("let a = 42 // missing semicolon")
+	fileID := fs.AddVirtual("example.sg", content)
+
+	bag := diag.NewBag(2)
+	insertSpan := source.Span{File: fileID, Start: 10, End: 10}
+	d := diag.New(diag.SevWarning, diag.LexUnknownChar, insertSpan, "missing semicolon")
+	d = d.WithFix("insert semicolon", diag.FixEdit{
+		Span:    insertSpan,
+		NewText: ";",
+	})
+	bag.Add(d)
+
+	var buf bytes.Buffer
+	opts := JSONOpts{
+		IncludePositions: true,
+		PathMode:         PathModeBasename,
+		IncludeFixes:     true,
+		IncludePreviews:  true,
+	}
+
+	if err := JSON(&buf, bag, fs, opts); err != nil {
+		t.Fatalf("JSON() error: %v", err)
+	}
+
+	var output DiagnosticsOutput
+	if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
+		t.Fatalf("Invalid JSON output: %v", err)
+	}
+
+	if len(output.Diagnostics) != 1 {
+		t.Fatalf("Expected 1 diagnostic, got %d", len(output.Diagnostics))
+	}
+
+	diagJSON := output.Diagnostics[0]
+	if len(diagJSON.Fixes) != 1 {
+		t.Fatalf("Expected 1 fix, got %d", len(diagJSON.Fixes))
+	}
+
+	fixJSON := diagJSON.Fixes[0]
+	if len(fixJSON.Edits) != 1 {
+		t.Fatalf("Expected 1 edit, got %d", len(fixJSON.Edits))
+	}
+
+	editJSON := fixJSON.Edits[0]
+	if len(editJSON.BeforeLines) != 1 {
+		t.Fatalf("Expected 1 before line, got %d", len(editJSON.BeforeLines))
+	}
+	if editJSON.BeforeLines[0] != "let a = 42 // missing semicolon" {
+		t.Errorf("Unexpected before line: %q", editJSON.BeforeLines[0])
+	}
+
+	if len(editJSON.AfterLines) != 1 {
+		t.Fatalf("Expected 1 after line, got %d", len(editJSON.AfterLines))
+	}
+	if editJSON.AfterLines[0] != "let a = 42; // missing semicolon" {
+		t.Errorf("Unexpected after line: %q", editJSON.AfterLines[0])
+	}
+}

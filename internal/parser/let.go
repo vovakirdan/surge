@@ -94,7 +94,7 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 					"",
 					fix.WithID(fixIDInsertColon),
 					fix.WithKind(diag.FixKindRefactor),
-					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+					fix.WithApplicability(diag.FixApplicabilityManualReview),
 					fix.Preferred(),
 				)
 				b.WithFixSuggestion(suggestionInsertColon)
@@ -106,7 +106,7 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 					"",
 					fix.WithID(fixIDDeleteIdent),
 					fix.WithKind(diag.FixKindRefactor),
-					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+					fix.WithApplicability(diag.FixApplicabilityManualReview),
 				)
 				b.WithFixSuggestion(suggestionDeleteIdent)
 				b.WithNote(spanWhereUnexpectedIdent, "insert colon to add type annotation or remove ident to simplify the let binding")

@@ -10,12 +10,13 @@ const (
 )
 
 type PrettyOpts struct {
-	Color     bool
-	Context   int8
-	PathMode  PathMode
-	Width     uint8 // максимальная ширина строки, 0 - не ограничено
-	ShowNotes bool
-	ShowFixes bool
+	Color       bool
+	Context     int8
+	PathMode    PathMode
+	Width       uint8 // максимальная ширина строки, 0 - не ограничено
+	ShowNotes   bool
+	ShowFixes   bool
+	ShowPreview bool
 }
 
 type JSONOpts struct {
@@ -24,6 +25,7 @@ type JSONOpts struct {
 	Max              int // обрезка вывода, не Bag
 	IncludeNotes     bool
 	IncludeFixes     bool
+	IncludePreviews  bool
 }
 
 type SarifRunMeta struct {
