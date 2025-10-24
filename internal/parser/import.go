@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"fmt"
-
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
@@ -12,20 +10,18 @@ import (
 
 // parseImportItem распознаёт формы:
 //
-//		import module;                                	// module/submodule
-//		import module :: Ident ;                      	// конкретный элемент
-//		import module :: Ident as Ident ;             	// элемент с алиасом
-//		import module/subpath ;                       	// module/submodule с подпапками
-//		import module/subpath :: Ident ;              	// конкретный элемент с подпапками
-//		import module/subpath :: Ident as Ident ;     	// элемент с алиасом с подпапками
-//		import module as Ident ;                      	// module с алиасом
-//		import module::{Ident, Ident} ;               	// элементы с подпапками
-//		import module::{Ident as Ident, Ident as Ident} ; // элементы с алиасами с подпапками
-//	 import ./module ; // не ошибка, значит "импорт из текущей директории".
-//	 Info что так не обязательно, но в случае если имеем библиотеку и файл с одинаковым названием
-//   - это будет явное указание взять файл
-//     import ../module ; // импорт с верхнего уровня
-//     import ../../module ; // импорт с верхнего верхнего уровня
+//	import module;                                	// module/submodule
+//	import module :: Ident ;                      	// конкретный элемент
+//	import module :: Ident as Ident ;             	// элемент с алиасом
+//	import module/subpath ;                       	// module/submodule с подпапками
+//	import module/subpath :: Ident ;              	// конкретный элемент с подпапками
+//	import module/subpath :: Ident as Ident ;     	// элемент с алиасом с подпапками
+//	import module as Ident ;                      	// module с алиасом
+//	import module::{Ident, Ident} ;               	// элементы с подпапками
+//	import module::{Ident as Ident, Ident as Ident} ; // элементы с алиасами с подпапками
+//	import ./module ; // не ошибка, значит "импорт из текущей директории". Info что так не обязательно, но в случае если имеем библиотеку и файл с одинаковым названием это будет явное указание взять файл
+//	import ../module ; // импорт с верхнего уровня
+//	import ../../module ; // импорт с верхнего верхнего уровня
 func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 	importTok := p.advance() // съедаем KwImport; если мы здесь, то это точно KwImport
 
@@ -61,36 +57,32 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		// После '::' может быть либо идентификатор, либо группа {Ident, ...}
 		if p.at(token.Ident) {
 			// import module::Ident [as Alias];
-			name, ok := p.parseIdent()
+			nameID, ok := p.parseIdent()
 			if !ok {
 				p.resyncStatement()
 				return ast.NoItemID, false
 			}
 
 			// Проверяем, есть ли алиас
-			alias := ""
+			var aliasID source.StringID
 			if p.at(token.KwAs) {
 				p.advance() // съедаем 'as'
 
 				// Проверяем, что после 'as' идёт идентификатор
 				if !p.at(token.Ident) {
+					// todo: убирать 'as'
 					p.err(diag.SynExpectIdentAfterAs, "expected identifier after 'as', got '"+p.lx.Peek().Text+"'")
 					p.resyncStatement()
 					return ast.NoItemID, false
 				}
 
-				alias, ok = p.parseIdent()
+				aliasID, ok = p.parseIdent()
 				if !ok {
 					p.resyncStatement()
 					return ast.NoItemID, false
 				}
 			}
 
-			nameID := p.arenas.StringsInterner.Intern(name)
-			aliasID := source.NoStringID
-			if alias != "" {
-				aliasID = p.arenas.StringsInterner.Intern(alias)
-			}
 			one = ast.ImportOne{Name: nameID, Alias: aliasID}
 			hasOne = true
 
@@ -102,7 +94,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			broken := false // флаг для обработки ошибок в группе
 
 			for !p.at(token.RBrace) && !p.at(token.EOF) {
-				name, ok := p.parseIdent()
+				nameID, ok := p.parseIdent()
 				if !ok {
 					// Ошибка уже зарепортирована в parseIdent
 					broken = true
@@ -110,7 +102,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					break
 				}
 
-				alias := ""
+				var aliasID source.StringID
 				if p.at(token.KwAs) {
 					p.advance() // съедаем 'as'
 
@@ -122,18 +114,12 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 						break
 					}
 
-					alias, ok = p.parseIdent()
+					aliasID, ok = p.parseIdent()
 					if !ok {
 						broken = true
 						p.resyncImportGroup()
 						break
 					}
-				}
-
-				nameID := p.arenas.StringsInterner.Intern(name)
-				aliasID := source.NoStringID
-				if alias != "" {
-					aliasID = p.arenas.StringsInterner.Intern(alias)
 				}
 
 				pairs = append(pairs, ast.ImportPair{Name: nameID, Alias: aliasID})
@@ -174,25 +160,27 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					Start: groupOpenSpan.Start + 1,
 					End:   groupOpenSpan.End + 1,
 				}
+				combinedSpan := colonColonTok.Span.Cover(groupCloseSpan)
 				p.emitDiagnostic(
 					diag.SynEmptyImportGroup,
 					diag.SevWarning,
-					p.currentErrorSpan(),
+					combinedSpan,
 					"empty import group",
 					func(b *diag.ReportBuilder) {
 						if b == nil {
 							return
 						}
-						fixID := fmt.Sprintf("%s-%d-%d", diag.SynEmptyImportGroup.ID(), p.currentErrorSpan().File, p.currentErrorSpan().Start)
-						suggestion := fix.DeleteSpans(
+						fixID := fix.MakeFixID(diag.SynEmptyImportGroup, combinedSpan)
+						suggestion := fix.DeleteSpan(
 							"remove '::{}' to simplify the import statement",
-							[]source.Span{groupOpenSpan, groupCloseSpan, colonColonTok.Span},
+							combinedSpan,
+							"::{}",
 							fix.WithKind(diag.FixKindRefactor),
 							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
 							fix.WithID(fixID),
 						)
 						b.WithFixSuggestion(suggestion)
-						b.WithNote(p.currentErrorSpan(), "remove double colons and braces to simplify the import statement")
+						b.WithNote(combinedSpan, "remove double colons and braces to simplify the import statement")
 					},
 				)
 			}
@@ -206,11 +194,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 				if anchor.End == 0 {
 					anchor = colonColonTok.Span
 				}
-				closeBraceSpan := source.Span{
-					File:  anchor.File,
-					Start: anchor.End,
-					End:   anchor.End,
-				}
+				closeBraceSpan := anchor.ZeroideToEnd()
 				p.emitDiagnostic(
 					diag.SynUnclosedBrace,
 					diag.SevError,
@@ -220,7 +204,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 						if b == nil {
 							return
 						}
-						fixID := fmt.Sprintf("%s-%d-%d", diag.SynUnclosedBrace.ID(), closeBraceSpan.File, closeBraceSpan.Start)
+						fixID := fix.MakeFixID(diag.SynUnclosedBrace, closeBraceSpan)
 						suggestion := fix.InsertText(
 							"add missing '}' to close import group",
 							closeBraceSpan,
@@ -254,7 +238,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					if trailingComma.End > trailingComma.Start {
 						removeSpans = append(removeSpans, trailingComma)
 					}
-					fixID := fmt.Sprintf("%s-%d-%d", diag.SynInfoImportGroup.ID(), groupOpenSpan.File, groupOpenSpan.Start)
+					fixID := fix.MakeFixID(diag.SynInfoImportGroup, groupOpenSpan)
 					suggestion := fix.DeleteSpans(
 						"remove braces around single import",
 						removeSpans,
@@ -279,7 +263,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					if b == nil {
 						return
 					}
-					fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectItemAfterDbl.ID(), dblSpan.File, dblSpan.Start)
+					fixID := fix.MakeFixID(diag.SynExpectItemAfterDbl, dblSpan)
 					suggestion := fix.DeleteSpan(
 						"remove unexpected '::'",
 						dblSpan,
@@ -307,12 +291,11 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			return ast.NoItemID, false
 		}
 
-		alias, ok := p.parseIdent()
+		moduleAlias, ok = p.parseIdent()
 		if !ok {
 			p.resyncStatement()
 			return ast.NoItemID, false
 		}
-		moduleAlias = p.arenas.StringsInterner.Intern(alias)
 
 	case token.Semicolon:
 		// import module;
@@ -345,8 +328,17 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			return
 		}
 		insertPos := source.Span{File: insertSpan.File, Start: insertSpan.Start, End: insertSpan.Start}
-		fixID := fmt.Sprintf("%s-%d-%d", diag.SynExpectSemicolon.ID(), insertPos.File, insertPos.Start)
-		suggestion := fix.InsertText("insert ';' after import", insertPos, ";", "", fix.Preferred(), fix.WithID(fixID))
+		fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertPos)
+		suggestion := fix.InsertText(
+			"insert ';' after import",
+			insertPos,
+			";",
+			"",
+			fix.Preferred(),
+			fix.WithID(fixID),
+			fix.WithKind(diag.FixKindRefactor),
+			fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+		)
 		b.WithFixSuggestion(suggestion)
 		b.WithNote(insertPos, "insert ';' to terminate the import item")
 	})
@@ -392,15 +384,4 @@ func (p *Parser) parseImportModule() ([]source.StringID, source.Span, bool) {
 	}
 
 	return segments, lastSpan, true
-}
-
-// parseIdent — утилита: ожидает Ident и возвращает его текст.
-// На ошибке — репорт SynExpectIdentifier.
-func (p *Parser) parseIdent() (string, bool) {
-	if p.at(token.Ident) {
-		tok := p.advance()
-		return tok.Text, true
-	}
-	p.err(diag.SynExpectIdentifier, "expected identifier, got \""+p.lx.Peek().Text+"\"")
-	return "", false
 }

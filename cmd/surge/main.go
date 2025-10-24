@@ -1,24 +1,31 @@
 package main
 
 import (
-	"os"
+    "os"
 
-	"github.com/spf13/cobra"
-	"golang.org/x/term"
+    "github.com/spf13/cobra"
+    "golang.org/x/term"
+    "surge/internal/version"
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "surge",
-	Short: "Surge language compiler and toolchain",
-	Long:  `Surge is a programming language compiler with diagnostic tools`,
+    Use:   "surge",
+    Short: "Surge language compiler and toolchain",
+    Long:  `Surge is a programming language compiler with diagnostic tools`,
 }
 
 func main() {
-	// Добавляем команды
-	rootCmd.AddCommand(tokenizeCmd)
-	rootCmd.AddCommand(parseCmd)
-	rootCmd.AddCommand(diagCmd)
-	rootCmd.AddCommand(fixCmd)
+    // Устанавливаем версию для автоматического флага --version
+    rootCmd.Version = version.Version
+
+    // Добавляем команды
+    rootCmd.AddCommand(tokenizeCmd)
+    rootCmd.AddCommand(parseCmd)
+    rootCmd.AddCommand(diagCmd)
+    rootCmd.AddCommand(fixCmd)
+    rootCmd.AddCommand(versionCmd)
+    rootCmd.AddCommand(initCmd)
+    rootCmd.AddCommand(buildCmd)
 
 	// Глобальные флаги
 	rootCmd.PersistentFlags().String("color", "auto", "colorize output (auto|on|off)")

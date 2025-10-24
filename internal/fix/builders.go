@@ -1,6 +1,7 @@
 package fix
 
 import (
+	"fmt"
 	"strings"
 
 	"surge/internal/diag"
@@ -235,4 +236,12 @@ func CommentLine(title string, lineSpan source.Span, lineText string, opts ...Op
 func DeleteLine(title string, lineSpan source.Span, lineText string, opts ...Option) diag.Fix {
 	newText := ""
 	return ReplaceSpan(title, lineSpan, newText, lineText, opts...)
+}
+
+// RemoveExtraWhitespaces должна удалять лишние пробелы после insert/delete etc
+// todo: это должен делать formatter
+// func RemoveExtraWhitespaces()
+
+func MakeFixID(code diag.Code, span source.Span) string {
+	return fmt.Sprintf("%s-%d-%d", code.ID(), span.File, span.Start)
 }

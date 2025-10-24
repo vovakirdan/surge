@@ -34,3 +34,47 @@ func (s Span) Cover(other Span) Span {
 	}
 	return s
 }
+
+// ShiftLeft сдвигает span налево на n байт
+func (s Span) ShiftLeft(n uint32) Span {
+	if n > s.Start {
+		return s
+	}
+	return Span{
+		File:  s.File,
+		Start: s.Start - n,
+		End:   s.End - n,
+	}
+}
+
+// ShiftRight сдвигает span направо на n байт
+func (s Span) ShiftRight(n uint32) Span {
+	if n > s.End-s.Start {
+		return s
+	}
+	return Span{
+		File:  s.File,
+		Start: s.Start + n,
+		End:   s.End + n,
+	}
+}
+
+// ZeroideToStart возвращает span, где start == end == изначальный start
+// используется для Insert операций
+func (s Span) ZeroideToStart() Span {
+	return Span{
+		File:  s.File,
+		Start: s.Start,
+		End:   s.Start,
+	}
+}
+
+// ZeroideToEnd возвращает span, где start == end == изначальный end
+// используется для Insert операций
+func (s Span) ZeroideToEnd() Span {
+	return Span{
+		File:  s.File,
+		Start: s.End,
+		End:   s.End,
+	}
+}

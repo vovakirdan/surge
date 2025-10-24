@@ -1,0 +1,3 @@
+// Test nothing type
+let x: nothing;
+let mut y: nothing;

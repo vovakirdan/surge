@@ -75,15 +75,6 @@ func (p *Parser) at_or(kinds ...token.Kind) bool {
 	return slices.Contains(kinds, p.lx.Peek().Kind)
 }
 
-func (p *Parser) at_and(kinds ...token.Kind) bool {
-	for _, k := range kinds {
-		if !p.at(k) {
-			return false
-		}
-	}
-	return true
-}
-
 func (p *Parser) IsError() bool {
 	return p.opts.CurrentErrors != 0
 }
@@ -103,13 +94,17 @@ func (p *Parser) parseItems() {
 }
 
 // parseItem выбирает по первому токену нужный распознаватель top-level конструкции.
-// На этом шаге мы поддерживаем только `import`.
+// На этом шаге мы поддерживаем только `import`, `let` и `fn`.
 func (p *Parser) parseItem() (ast.ItemID, bool) {
 	// switch по ключевым словам: если import → parseImportItem().
 	// Иначе — диагностика SynUnexpectedTopLevel и false.
 	switch p.lx.Peek().Kind {
 	case token.KwImport:
 		return p.parseImportItem()
+	case token.KwLet:
+		return p.parseLetItem()
+	case token.KwFn:
+		return p.parseFnItem()
 	default:
 		p.report(diag.SynUnexpectedTopLevel, diag.SevError, p.lx.Peek().Span, "unexpected top-level construct")
 		return 0, false
@@ -118,10 +113,10 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 
 // resyncTop — восстановление после ошибки на верхнем уровне:
 // прокручиваем до ';' ИЛИ до стартового токена следующего item ИЛИ EOF.
-func (p *Parser) resyncTop() {
+func (p *Parser) resyncTop() { // todo: использовать resyncUntill - надо явно знать до какого токена прокручивать
 	// Список всех стартеров + semicolon
-	stopTokens := []token.Kind{token.Semicolon, token.KwImport}
-	// TODO: добавить другие стартеры когда они будут реализованы: token.KwFn, token.KwLet, token.KwType, etc.
+	stopTokens := []token.Kind{token.Semicolon, token.KwImport, token.KwLet, token.KwFn}
+	// TODO: добавить другие стартеры когда они будут реализованы: token.KwFn, token.KwType, etc.
 
 	p.resyncUntil(stopTokens...)
 
@@ -132,7 +127,19 @@ func (p *Parser) resyncTop() {
 }
 
 // isTopLevelStarter — принадлежит ли токен стартерам item.
-// На этом шаге — только import; позже добавим остальные.
+// На этом шаге — import и let; позже добавим остальные.
 func isTopLevelStarter(k token.Kind) bool {
-	return k == token.KwImport
+	return k == token.KwImport || k == token.KwLet || k == token.KwFn
+}
+
+// parseIdent — утилита: ожидает Ident и интернирует его, возвращает source.StringID.
+// На ошибке — репорт SynExpectIdentifier.
+func (p *Parser) parseIdent() (source.StringID, bool) {
+	if p.at_or(token.Ident, token.Underscore) {
+		tok := p.advance()
+		id := p.arenas.StringsInterner.Intern(tok.Text)
+		return id, true
+	}
+	p.err(diag.SynExpectIdentifier, "expected identifier, got \""+p.lx.Peek().Text+"\"")
+	return source.NoStringID, false
 }

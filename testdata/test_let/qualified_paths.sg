@@ -1,0 +1,4 @@
+// Test qualified type paths
+let x: math.PI;
+let y: std.collections.HashMap;
+let z: super.module.Type;

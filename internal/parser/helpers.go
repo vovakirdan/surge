@@ -175,3 +175,9 @@ func (p *Parser) resyncStatement() {
 func (p *Parser) resyncExpression() {
 	p.resyncUntil(token.Semicolon, token.Comma, token.RBrace, token.RParen, token.RBracket, token.EOF)
 }
+
+// FakeError — эмулирует ошибку в указанном span
+// используется для генерации диагностик для дебага
+func (p *Parser) FakeError(msg string, span source.Span) {
+	p.emitDiagnostic(diag.UnknownCode, diag.SevError, span, msg, nil)
+}

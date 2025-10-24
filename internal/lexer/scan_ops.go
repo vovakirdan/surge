@@ -19,12 +19,19 @@ func (lx *Lexer) scanOperatorOrPunct() token.Token {
 		}
 	}
 
-	// диапазоны и стрелки, логика И/ИЛИ, сравнения, сдвиги, namespace
+	// диапазоны и стрелки, логика И/ИЛИ, сравнения, сдвиги, namespace, compound assignment
 	switch {
+	// 3-символьные операторы
 	case lx.try3('.', '.', '='):
 		return emit(token.DotDotEq)
 	case lx.try3('.', '.', '.'):
 		return emit(token.DotDotDot)
+	case lx.try3('<', '<', '='):
+		return emit(token.ShlAssign)
+	case lx.try3('>', '>', '='):
+		return emit(token.ShrAssign)
+
+	// 2-символьные операторы
 	case lx.try2('.', '.'):
 		return emit(token.DotDot) // ..
 	case lx.try2(':', ':'):
@@ -49,6 +56,28 @@ func (lx *Lexer) scanOperatorOrPunct() token.Token {
 		return emit(token.Shl)
 	case lx.try2('>', '>'):
 		return emit(token.Shr)
+	// Compound assignment operators
+	case lx.try2('+', '='):
+		return emit(token.PlusAssign)
+	case lx.try2('-', '='):
+		return emit(token.MinusAssign)
+	case lx.try2('*', '='):
+		return emit(token.StarAssign)
+	case lx.try2('/', '='):
+		return emit(token.SlashAssign)
+	case lx.try2('%', '='):
+		return emit(token.PercentAssign)
+	case lx.try2('&', '='):
+		return emit(token.AmpAssign)
+	case lx.try2('|', '='):
+		return emit(token.PipeAssign)
+	case lx.try2('^', '='):
+		return emit(token.CaretAssign)
+	case lx.try2(':', '='):
+		return emit(token.ColonAssign)
+	// Null coalescing
+	case lx.try2('?', '?'):
+		return emit(token.QuestionQuestion)
 	}
 
 	// односимвольные
