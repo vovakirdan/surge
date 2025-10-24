@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -31,6 +32,7 @@ const (
 type ApplyOptions struct {
 	Mode     ApplyMode
 	TargetID string
+	Preview  bool
 }
 
 // AppliedFix records a successfully applied fix.
@@ -42,6 +44,7 @@ type AppliedFix struct {
 	Applicability diag.FixApplicability
 	PrimaryPath   string
 	EditCount     int
+	Previews      []PreviewHunk
 }
 
 // SkippedFix captures a skipped or failed fix with a reason.
@@ -62,6 +65,20 @@ type ApplyResult struct {
 	Applied     []AppliedFix
 	Skipped     []SkippedFix
 	FileChanges []FileChange
+}
+
+// PreviewRange describes a contiguous block of lines before or after a fix edit.
+type PreviewRange struct {
+	StartLine uint32
+	EndLine   uint32
+	Lines     []string
+}
+
+// PreviewHunk captures the textual before/after preview for a fix edit.
+type PreviewHunk struct {
+	Path   string
+	Before PreviewRange
+	After  PreviewRange
 }
 
 type candidate struct {
@@ -98,7 +115,7 @@ func Apply(fs *source.FileSet, diagnostics []diag.Diagnostic, opts ApplyOptions)
 		return result, ErrNoFixes
 	}
 
-	applied, skippedDuringApply, changes, err := applyCandidates(fs, selected)
+	applied, skippedDuringApply, changes, err := applyCandidates(fs, selected, opts.Preview)
 	result.Applied = append(result.Applied, applied...)
 	result.Skipped = append(result.Skipped, skippedDuringApply...)
 	result.FileChanges = append(result.FileChanges, changes...)
@@ -263,7 +280,7 @@ func selectCandidates(candidates []candidate, opts ApplyOptions) ([]candidate, [
 	}
 }
 
-func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []SkippedFix, []FileChange, error) {
+func applyCandidates(fs *source.FileSet, selected []candidate, preview bool) ([]AppliedFix, []SkippedFix, []FileChange, error) {
 	buffers := make(map[source.FileID][]byte)
 	appliedEdits := make(map[source.FileID][]diag.TextEdit)
 	fileEditCount := make(map[source.FileID]int)
@@ -282,6 +299,8 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 		var skipReason string
 
 		stagedApplied := make(map[source.FileID][]diag.TextEdit)
+
+		fixPreviews := make([]PreviewHunk, 0)
 
 		for fileID, edits := range buckets {
 			file := fs.Get(fileID)
@@ -321,6 +340,13 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 					skipReason = "existing text does not match expected content"
 					break
 				}
+
+				if preview {
+					if hunk, err := buildPreviewHunk(fs, file, edit); err == nil {
+						fixPreviews = append(fixPreviews, hunk)
+					}
+				}
+
 				suffix := append([]byte(nil), working[end:]...)
 				working = append(append(working[:start], []byte(edit.NewText)...), suffix...)
 				existingApplied = insertEditSorted(existingApplied, edit)
@@ -362,6 +388,7 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 			Applicability: cand.fix.Applicability,
 			PrimaryPath:   formatFilePath(fs, cand.diag.Primary.File),
 			EditCount:     totalEdits,
+			Previews:      fixPreviews,
 		})
 	}
 
@@ -379,8 +406,10 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 			mode = info.Mode()
 		}
 
-		if err := os.WriteFile(file.Path, buf, mode); err != nil {
-			return applied, skipped, fileChanges, fmt.Errorf("write %s: %w", file.Path, err)
+		if !preview {
+			if err := os.WriteFile(file.Path, buf, mode); err != nil {
+				return applied, skipped, fileChanges, fmt.Errorf("write %s: %w", file.Path, err)
+			}
 		}
 
 		fileChanges = append(fileChanges, FileChange{
@@ -484,4 +513,105 @@ func formatFilePath(fs *source.FileSet, fileID source.FileID) string {
 		return ""
 	}
 	return file.FormatPath("auto", fs.BaseDir())
+}
+
+func buildPreviewHunk(fs *source.FileSet, file *source.File, edit diag.TextEdit) (PreviewHunk, error) {
+	if fs == nil || file == nil {
+		return PreviewHunk{}, fmt.Errorf("nil fileset or file")
+	}
+
+	startPos, endPos := fs.Resolve(edit.Span)
+	startLine := startPos.Line
+	endLine := endPos.Line
+	if endLine < startLine {
+		endLine = startLine
+	}
+
+	snippetStart := lineStartOffset(file, startLine)
+	snippetEnd := lineStartOffset(file, endLine+1)
+	if snippetStart < 0 {
+		snippetStart = 0
+	}
+	if snippetEnd < snippetStart {
+		snippetEnd = snippetStart
+	}
+	if snippetEnd > len(file.Content) {
+		snippetEnd = len(file.Content)
+	}
+
+	snippet := append([]byte(nil), file.Content[snippetStart:snippetEnd]...)
+	beforeLines := splitPreviewLines(snippet)
+
+	startOffset := int(edit.Span.Start) - snippetStart
+	endOffset := int(edit.Span.End) - snippetStart
+	if startOffset < 0 {
+		startOffset = 0
+	}
+	if startOffset > len(snippet) {
+		startOffset = len(snippet)
+	}
+	if endOffset < startOffset {
+		endOffset = startOffset
+	}
+	if endOffset > len(snippet) {
+		endOffset = len(snippet)
+	}
+
+	after := make([]byte, 0, len(snippet)-endOffset+startOffset+len(edit.NewText))
+	after = append(after, snippet[:startOffset]...)
+	after = append(after, []byte(edit.NewText)...)
+	after = append(after, snippet[endOffset:]...)
+
+	afterLines := splitPreviewLines(after)
+
+	beforeEnd := startLine
+	if len(beforeLines) > 0 {
+		beforeEnd = startLine + uint32(len(beforeLines)) - 1
+	}
+	afterEnd := startLine
+	if len(afterLines) > 0 {
+		afterEnd = startLine + uint32(len(afterLines)) - 1
+	}
+
+	return PreviewHunk{
+		Path: file.FormatPath("relative", fs.BaseDir()),
+		Before: PreviewRange{
+			StartLine: startLine,
+			EndLine:   beforeEnd,
+			Lines:     beforeLines,
+		},
+		After: PreviewRange{
+			StartLine: startLine,
+			EndLine:   afterEnd,
+			Lines:     afterLines,
+		},
+	}, nil
+}
+
+func lineStartOffset(file *source.File, line uint32) int {
+	if file == nil {
+		return 0
+	}
+	if line <= 1 {
+		return 0
+	}
+	idx := int(line - 2)
+	if idx < 0 {
+		return 0
+	}
+	if idx >= len(file.LineIdx) {
+		return len(file.Content)
+	}
+	return int(file.LineIdx[idx]) + 1
+}
+
+func splitPreviewLines(data []byte) []string {
+	if len(data) == 0 {
+		return []string{""}
+	}
+	lines := strings.Split(string(data), "\n")
+	if len(lines) > 1 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
 }
