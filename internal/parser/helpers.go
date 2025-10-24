@@ -169,34 +169,32 @@ func (p *Parser) parseAttributes() ([]ast.Attr, source.Span, bool) {
 					break
 				}
 
-				closeTok := p.lastSpan
-				if !p.at(token.RParen) {
-					p.emitDiagnostic(
-						diag.SynUnclosedParen,
-						diag.SevError,
-						p.lastSpan.ZeroideToEnd(),
-						"expected ')' to close attribute arguments",
-						func(b *diag.ReportBuilder) {
-							if b == nil {
-								return
-							}
-							fixID := fix.MakeFixID(diag.SynUnclosedParen, p.lastSpan.ZeroideToEnd())
-							suggestion := fix.InsertText(
-								"insert ')' to close attribute arguments",
-								p.lastSpan.ZeroideToEnd(),
-								")",
-								"",
-								fix.WithID(fixID),
-								fix.WithKind(diag.FixKindRefactor),
-								fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-							)
-							b.WithFixSuggestion(suggestion)
-							b.WithNote(p.lastSpan.ZeroideToEnd(), "insert ')' to close attribute arguments")
-						},
-					)
+				closeTok, ok := p.expect(
+					token.RParen,
+					diag.SynUnclosedParen,
+					"expected ')' to close attribute arguments",
+					func(b *diag.ReportBuilder) {
+						if b == nil {
+							return
+						}
+						fixID := fix.MakeFixID(diag.SynUnclosedParen, p.lastSpan.ZeroideToEnd())
+						suggestion := fix.InsertText(
+							"insert ')' to close attribute arguments",
+							p.lastSpan.ZeroideToEnd(),
+							")",
+							"",
+							fix.WithID(fixID),
+							fix.WithKind(diag.FixKindRefactor),
+							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						)
+						b.WithFixSuggestion(suggestion)
+						b.WithNote(p.lastSpan.ZeroideToEnd(), "insert ')' to close attribute arguments")
+					},
+				)
+				if !ok {
 					return attrs, combined, false
 				}
-				attr.Span = attr.Span.Cover(closeTok)
+				attr.Span = attr.Span.Cover(closeTok.Span)
 			}
 		}
 

@@ -121,8 +121,8 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 	case token.KwFn:
 		return p.parseFnItem(attrs, attrSpan, fnModifiers{})
 	case token.KwPub, token.KwAsync, token.KwExtern, token.Ident:
-		mods, ok := p.parseFnModifiers()
-		if ok && p.at(token.KwFn) {
+		mods, _ := p.parseFnModifiers()
+		if p.at(token.KwFn) {
 			return p.parseFnItem(attrs, attrSpan, mods)
 		}
 		if p.at(token.KwLet) {
