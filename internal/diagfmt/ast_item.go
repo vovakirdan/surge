@@ -116,6 +116,25 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 				{"Value", formatExprSummary(builder, letItem.Value), true},
 			}
 
+			if letItem.AttrCount > 0 {
+				attrs := builder.Items.CollectAttrs(letItem.AttrStart, letItem.AttrCount)
+				if len(attrs) > 0 {
+					attrStrings := make([]string, 0, len(attrs))
+					for _, attr := range attrs {
+						attrStrings = append(attrStrings, formatAttrInline(builder, attr))
+					}
+					fields = append(fields, struct {
+						label string
+						value string
+						show  bool
+					}{
+						label: "Attributes",
+						value: strings.Join(attrStrings, ", "),
+						show:  true,
+					})
+				}
+			}
+
 			visible := 0
 			for _, f := range fields {
 				if f.show {
@@ -285,6 +304,10 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 			if letItem.Value.IsValid() {
 				fields["valueExprID"] = uint32(letItem.Value)
 			}
+			if letItem.AttrCount > 0 {
+				attrs := builder.Items.CollectAttrs(letItem.AttrStart, letItem.AttrCount)
+				fields["attributes"] = buildAttrsJSON(builder, attrs)
+			}
 			output.Fields = fields
 		}
 	case ast.ItemFn:
@@ -358,4 +381,37 @@ func formatImportOne(one ast.ImportOne, builder *ast.Builder) string {
 		return "*"
 	}
 	return builder.StringsInterner.MustLookup(one.Name)
+}
+
+func formatAttrInline(builder *ast.Builder, attr ast.Attr) string {
+	name := lookupStringOr(builder, attr.Name, "<attr>")
+	if len(attr.Args) == 0 {
+		return "@" + name
+	}
+	argStrs := make([]string, 0, len(attr.Args))
+	for _, arg := range attr.Args {
+		argStrs = append(argStrs, formatExprInline(builder, arg))
+	}
+	return fmt.Sprintf("@%s(%s)", name, strings.Join(argStrs, ", "))
+}
+
+func buildAttrsJSON(builder *ast.Builder, attrs []ast.Attr) []map[string]any {
+	if len(attrs) == 0 {
+		return nil
+	}
+	result := make([]map[string]any, 0, len(attrs))
+	for _, attr := range attrs {
+		entry := map[string]any{
+			"name": lookupStringOr(builder, attr.Name, "<attr>"),
+		}
+		if len(attr.Args) > 0 {
+			argStrs := make([]string, 0, len(attr.Args))
+			for _, arg := range attr.Args {
+				argStrs = append(argStrs, formatExprInline(builder, arg))
+			}
+			entry["args"] = argStrs
+		}
+		result = append(result, entry)
+	}
+	return result
 }

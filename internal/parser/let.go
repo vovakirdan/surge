@@ -132,10 +132,10 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 //	let [mut] name: Type;
 //	let [mut] name = Expr;
 func (p *Parser) parseLetItem() (ast.ItemID, bool) {
-	return p.parseLetItemWithVisibility(ast.VisPrivate, source.Span{}, false)
+	return p.parseLetItemWithVisibility(nil, source.Span{}, ast.VisPrivate, source.Span{}, false)
 }
 
-func (p *Parser) parseLetItemWithVisibility(visibility ast.Visibility, prefixSpan source.Span, hasPrefix bool) (ast.ItemID, bool) {
+func (p *Parser) parseLetItemWithVisibility(attrs []ast.Attr, attrSpan source.Span, visibility ast.Visibility, prefixSpan source.Span, hasPrefix bool) (ast.ItemID, bool) {
 	letTok := p.advance() // съедаем KwLet
 
 	// Парсим биндинг
@@ -209,6 +209,9 @@ func (p *Parser) parseLetItemWithVisibility(visibility ast.Visibility, prefixSpa
 
 	// Создаем LetItem в AST
 	finalSpan := letTok.Span.Cover(semiTok.Span)
+	if attrSpan.End > attrSpan.Start {
+		finalSpan = attrSpan.Cover(finalSpan)
+	}
 	if hasPrefix {
 		finalSpan = prefixSpan.Cover(finalSpan)
 	}
@@ -218,6 +221,7 @@ func (p *Parser) parseLetItemWithVisibility(visibility ast.Visibility, prefixSpa
 		binding.Value,
 		binding.IsMut,
 		visibility,
+		attrs,
 		finalSpan,
 	)
 

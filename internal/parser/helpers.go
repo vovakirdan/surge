@@ -2,10 +2,12 @@ package parser
 
 import (
 	"slices"
+	"surge/internal/ast"
 	"surge/internal/diag"
 	_ "surge/internal/lexer"
 	"surge/internal/source"
 	"surge/internal/token"
+	"surge/internal/fix"
 )
 
 // advance — съедает следующий токен и обновляет lastSpan
@@ -54,7 +56,7 @@ func (p *Parser) expect(k token.Kind, code diag.Code, msg string, augment ...fun
 		return p.advance(), true
 	}
 	// Используем currentErrorSpan для более точной диагностики
-	diagSpan := p.currentErrorSpan()
+	diagSpan := p.lastSpan.ZeroideToEnd()
 	var fn func(*diag.ReportBuilder)
 	if len(augment) > 0 {
 		fn = augment[0]
@@ -122,6 +124,91 @@ func (p *Parser) resyncUntil(stop ...token.Kind) {
 		}
 		p.advance() // съедаем текущий токен и продолжаем
 	}
+}
+
+func (p *Parser) parseAttributes() ([]ast.Attr, source.Span, bool) {
+	var attrs []ast.Attr
+	var combined source.Span
+
+	for p.at(token.At) {
+		atTok := p.advance()
+		attr := ast.Attr{
+			Span: atTok.Span,
+		}
+
+		nameID, ok := p.parseIdent()
+		if !ok {
+			return attrs, combined, false
+		}
+		attr.Name = nameID
+		attr.Span = attr.Span.Cover(p.lastSpan)
+
+		if p.at(token.LParen) {
+			op := p.advance()
+			attr.Span = attr.Span.Cover(op.Span)
+
+			if p.at(token.RParen) {
+				closeTok := p.advance()
+				attr.Span = attr.Span.Cover(closeTok.Span)
+			} else {
+				for {
+					exprID, ok := p.parseExpr()
+					if !ok {
+						return attrs, combined, false
+					}
+					attr.Args = append(attr.Args, exprID)
+					if expr := p.arenas.Exprs.Get(exprID); expr != nil {
+						attr.Span = attr.Span.Cover(expr.Span)
+					}
+
+					if p.at(token.Comma) {
+						comma := p.advance()
+						attr.Span = attr.Span.Cover(comma.Span)
+						continue
+					}
+					break
+				}
+
+				closeTok := p.lastSpan
+				if !p.at(token.RParen) {
+					p.emitDiagnostic(
+						diag.SynUnclosedParen,
+						diag.SevError,
+						p.lastSpan.ZeroideToEnd(),
+						"expected ')' to close attribute arguments",
+						func(b *diag.ReportBuilder) {
+							if b == nil {
+								return
+							}
+							fixID := fix.MakeFixID(diag.SynUnclosedParen, p.lastSpan.ZeroideToEnd())
+							suggestion := fix.InsertText(
+								"insert ')' to close attribute arguments",
+								p.lastSpan.ZeroideToEnd(),
+								")",
+								"",
+								fix.WithID(fixID),
+								fix.WithKind(diag.FixKindRefactor),
+								fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+							)
+							b.WithFixSuggestion(suggestion)
+							b.WithNote(p.lastSpan.ZeroideToEnd(), "insert ')' to close attribute arguments")
+						},
+					)
+					return attrs, combined, false
+				}
+				attr.Span = attr.Span.Cover(closeTok)
+			}
+		}
+
+		attrs = append(attrs, attr)
+		if len(attrs) == 1 {
+			combined = attr.Span
+		} else {
+			combined = combined.Cover(attr.Span)
+		}
+	}
+
+	return attrs, combined, true
 }
 
 // resyncUntilIncluding — то же, но съедает найденный стоп-токен

@@ -679,6 +679,52 @@ func TestParseFnItem_Modifiers(t *testing.T) {
 	}
 }
 
+func TestParseFnItem_Attributes(t *testing.T) {
+	inputs := []struct {
+		name      string
+		input     string
+		attrNames []string
+	}{
+		{
+			name:      "single_attribute",
+			input:     "@pure fn foo() {}",
+			attrNames: []string{"pure"},
+		},
+		{
+			name:      "multiple_attributes_with_args",
+			input:     "@pure @backend(\"gpu\") async fn foo() {}",
+			attrNames: []string{"pure", "backend"},
+		},
+	}
+
+	for _, tt := range inputs {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, fileID, bag := parseSource(t, tt.input)
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %+v", bag.Items())
+			}
+			file := builder.Files.Get(fileID)
+			if len(file.Items) == 0 {
+				t.Fatal("expected at least one item")
+			}
+			fnItem, ok := builder.Items.Fn(file.Items[0])
+			if !ok {
+				t.Fatal("expected fn item")
+			}
+			attrs := builder.Items.CollectAttrs(fnItem.AttrStart, fnItem.AttrCount)
+			if len(attrs) != len(tt.attrNames) {
+				t.Fatalf("attr count: got %d, want %d", len(attrs), len(tt.attrNames))
+			}
+			for i, wantName := range tt.attrNames {
+				name := builder.StringsInterner.MustLookup(attrs[i].Name)
+				if name != wantName {
+					t.Fatalf("attr[%d] name: got %q, want %q", i, name, wantName)
+				}
+			}
+		})
+	}
+}
+
 // TestParseFnItem_ComplexSignatures tests complex function signatures
 func TestParseFnItem_ComplexSignatures(t *testing.T) {
 	tests := []struct {

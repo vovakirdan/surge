@@ -149,13 +149,16 @@ func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
 // fn func<T, U>(param: T, ...params: U) { ... } // с параметрами и вариативными параметрами и телом с generic параметрами
 // fn @attr fn func() { ... } // с атрибутами и телом
 // modifier fn func() { ... } // с модификаторами и телом
-func (p *Parser) parseFnItem(mods fnModifiers) (ast.ItemID, bool) {
+func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModifiers) (ast.ItemID, bool) {
 
 	fnTok := p.advance() // съедаем KwFn; если мы здесь, то это точно KwFn
 
 	startSpan := fnTok.Span
+	if attrSpan.End > attrSpan.Start {
+		startSpan = attrSpan.Cover(startSpan)
+	}
 	if mods.hasSpan {
-		startSpan = mods.span.Cover(fnTok.Span)
+		startSpan = mods.span.Cover(startSpan)
 	}
 
 	flags := mods.flags
@@ -286,7 +289,7 @@ func (p *Parser) parseFnItem(mods fnModifiers) (ast.ItemID, bool) {
 	}
 
 	itemSpan := startSpan.Cover(p.lastSpan)
-	fnItemID := p.arenas.NewFn(fnNameID, generics, params, returnType, bodyStmtID, flags, nil, itemSpan)
+	fnItemID := p.arenas.NewFn(fnNameID, generics, params, returnType, bodyStmtID, flags, attrs, itemSpan)
 	return fnItemID, true
 }
 

@@ -97,19 +97,33 @@ func (p *Parser) parseItems() {
 // parseItem выбирает по первому токену нужный распознаватель top-level конструкции.
 // На этом шаге мы поддерживаем только `import`, `let` и `fn`.
 func (p *Parser) parseItem() (ast.ItemID, bool) {
+	attrs, attrSpan, ok := p.parseAttributes()
+	if !ok {
+		p.resyncTop()
+		return ast.NoItemID, false
+	}
 	// switch по ключевым словам: если import → parseImportItem().
 	// Иначе — диагностика SynUnexpectedTopLevel и false.
 	switch p.lx.Peek().Kind {
 	case token.KwImport:
+		if len(attrs) > 0 && attrSpan.End > attrSpan.Start {
+			p.emitDiagnostic(
+				diag.SynUnexpectedToken,
+				diag.SevError,
+				attrSpan,
+				"attributes are not allowed on import declarations",
+				nil,
+			)
+		}
 		return p.parseImportItem()
 	case token.KwLet:
-		return p.parseLetItem()
+		return p.parseLetItemWithVisibility(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
 	case token.KwFn:
-		return p.parseFnItem(fnModifiers{})
+		return p.parseFnItem(attrs, attrSpan, fnModifiers{})
 	case token.KwPub, token.KwAsync, token.KwExtern, token.Ident:
 		mods, ok := p.parseFnModifiers()
 		if ok && p.at(token.KwFn) {
-			return p.parseFnItem(mods)
+			return p.parseFnItem(attrs, attrSpan, mods)
 		}
 		if p.at(token.KwLet) {
 			visibility := ast.VisPrivate
@@ -145,7 +159,7 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 					},
 				)
 			}
-			return p.parseLetItemWithVisibility(visibility, mods.span, mods.hasSpan)
+			return p.parseLetItemWithVisibility(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
 		}
 		if mods.flags != 0 {
 			span := mods.span
@@ -160,8 +174,26 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 				nil,
 			)
 		}
+		if len(attrs) > 0 && attrSpan.End > attrSpan.Start {
+			p.emitDiagnostic(
+				diag.SynUnexpectedToken,
+				diag.SevError,
+				attrSpan,
+				"attributes must precede a function or let declaration",
+				nil,
+			)
+		}
 		return ast.NoItemID, false
 	default:
+		if len(attrs) > 0 && attrSpan.End > attrSpan.Start {
+			p.emitDiagnostic(
+				diag.SynUnexpectedToken,
+				diag.SevError,
+				attrSpan,
+				"attributes are not allowed in this position",
+				nil,
+			)
+		}
 		p.report(diag.SynUnexpectedTopLevel, diag.SevError, p.lx.Peek().Span, "unexpected top-level construct")
 		return 0, false
 	}

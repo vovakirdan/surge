@@ -63,3 +63,21 @@ func (i *Items) New(kind ItemKind, span source.Span, payloadID PayloadID) ItemID
 func (i *Items) Get(id ItemID) *Item {
 	return i.Arena.Get(uint32(id))
 }
+
+// CollectAttrs returns a copy of attributes starting at attrStart with count attrCount.
+func (i *Items) CollectAttrs(attrStart AttrID, attrCount uint32) []Attr {
+	if attrCount == 0 || !attrStart.IsValid() {
+		return nil
+	}
+	result := make([]Attr, 0, attrCount)
+
+	base := uint32(attrStart)
+	for offset := range attrCount {
+		attr := i.Attrs.Get(base + offset)
+		if attr == nil {
+			continue
+		}
+		result = append(result, *attr)
+	}
+	return result
+}
