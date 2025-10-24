@@ -57,7 +57,22 @@ func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
 					diag.SevError,
 					tok.Span,
 					"duplicate 'async' modifier",
-					nil,
+					func(b *diag.ReportBuilder) {
+						if b == nil {
+							return
+						}
+						fixID := fix.MakeFixID(diag.SynUnexpectedToken, tok.Span)
+						suggestion := fix.DeleteSpan(
+							"remove the duplicate 'async' modifier",
+							tok.Span.ExtendRight(p.lx.Peek().Span),
+							"",
+							fix.WithID(fixID),
+							fix.WithKind(diag.FixKindRefactor),
+							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						)
+						b.WithFixSuggestion(suggestion)
+						b.WithNote(tok.Span, "Async modifier can be only once")
+					},
 				)
 			} else {
 				mods.seenAsync = true
