@@ -16,7 +16,7 @@ type Builder struct {
 }
 
 // NewBuilder creates a Builder configured with capacity hints and a shared string interner.
-// 
+//
 // If any hint field is zero, a sensible default capacity is applied (Files=64, Items=128,
 // Stmts=256, Exprs=256, Types=128). If stringsInterner is nil, a new interner is created.
 // The returned Builder is fully initialized and non-nil.

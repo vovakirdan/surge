@@ -304,13 +304,13 @@ func TestSpan_ChainedOperations(t *testing.T) {
 func TestSpan_EdgeCases(t *testing.T) {
 	t.Run("max uint32 values", func(t *testing.T) {
 		maxSpan := Span{File: 1, Start: 0xFFFFFFFF, End: 0xFFFFFFFF}
-		
+
 		// ShiftLeft with max value
 		result := maxSpan.ShiftLeft(1)
 		if result.Start != 0xFFFFFFFE {
 			t.Errorf("ShiftLeft(1) on max value: got Start=%d, want %d", result.Start, 0xFFFFFFFE)
 		}
-		
+
 		// ShiftRight on zero-length at max should return original (shift > length)
 		result = maxSpan.ShiftRight(1)
 		if result != maxSpan {
@@ -321,10 +321,10 @@ func TestSpan_EdgeCases(t *testing.T) {
 	t.Run("operations preserve file ID", func(t *testing.T) {
 		fileIDs := []FileID{0, 1, 100, 0xFFFF}
 		span := Span{Start: 10, End: 20}
-		
+
 		for _, fid := range fileIDs {
 			span.File = fid
-			
+
 			if result := span.ShiftLeft(2); result.File != fid {
 				t.Errorf("ShiftLeft changed FileID from %d to %d", fid, result.File)
 			}

@@ -113,13 +113,13 @@ func Apply(fs *source.FileSet, diagnostics []diag.Diagnostic, opts ApplyOptions)
 }
 
 // gatherCandidates builds a list of candidate fixes from diagnostics and reports any skips encountered.
-// 
+//
 // For each diagnostic that has fixes, it materializes fixes via diag.MaterializeFixes. Diagnostics whose
 // fixes fail to materialize or materialized fixes that contain no edits are recorded as SkippedFix entries.
 // If a materialized fix has an empty ID, gatherCandidates synthesizes one using the diagnostic code, file,
 // start position, and the fix index. Each produced candidate is given a monotonically increasing `order`
 // value to provide a deterministic insertion order for later stable sorting.
-// 
+//
 // Returns the collected candidates and any SkippedFix records.
 func gatherCandidates(ctx diag.FixBuildContext, diagnostics []diag.Diagnostic) ([]candidate, []SkippedFix) {
 	cands := make([]candidate, 0)

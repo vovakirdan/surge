@@ -329,13 +329,13 @@ func TestUnaryOperators_AllVariants(t *testing.T) {
 		{"reference", "let x = &a;", ast.ExprUnaryRef},
 		{"mutable_reference", "let x = &mut a;", ast.ExprUnaryRefMut},
 		{"own", "let x = own a;", ast.ExprUnaryOwn},
-		
+
 		// Nested unary operators
 		{"double_negation", "let x = --a;", ast.ExprUnaryMinus},
 		{"not_not", "let x = !!a;", ast.ExprUnaryNot},
 		{"ref_deref", "let x = &*a;", ast.ExprUnaryRef},
 		{"deref_ref", "let x = *&a;", ast.ExprUnaryDeref},
-		
+
 		// Complex combinations
 		{"minus_deref", "let x = -*a;", ast.ExprUnaryMinus},
 		{"not_ref", "let x = !&a;", ast.ExprUnaryNot},
@@ -434,7 +434,7 @@ func TestBinaryOperators_Precedence(t *testing.T) {
 			if letItem.Value == ast.NoExprID {
 				t.Fatalf("Expected expression value for %s", tt.desc)
 			}
-			
+
 			expr := arenas.Exprs.Get(letItem.Value)
 			if expr.Kind != ast.ExprBinary {
 				t.Fatalf("Expected binary expression for %s, got %v", tt.desc, expr.Kind)
@@ -482,7 +482,7 @@ func TestBinaryOperators_Associativity(t *testing.T) {
 			if letItem.Value == ast.NoExprID {
 				t.Fatalf("Expected expression value for %s", tt.desc)
 			}
-			
+
 			expr := arenas.Exprs.Get(letItem.Value)
 			if expr.Kind != ast.ExprBinary {
 				t.Fatalf("Expected binary expression for %s, got %v", tt.desc, expr.Kind)
@@ -533,7 +533,7 @@ func TestBitwiseOperators(t *testing.T) {
 		{"bitwise_xor", "let x = a ^ b;"},
 		{"left_shift", "let x = a << b;"},
 		{"right_shift", "let x = a >> b;"},
-		
+
 		// Complex bitwise expressions
 		{"and_or_combo", "let x = a & b | c;"},
 		{"xor_and_combo", "let x = a ^ b & c;"},
@@ -569,7 +569,7 @@ func TestComparisonOperators(t *testing.T) {
 		{"greater_than", "let x = a > b;"},
 		{"greater_or_equal", "let x = a >= b;"},
 		{"type_check", "let x = a is int;"},
-		
+
 		// Chained comparisons
 		{"chained_comparison_1", "let x = a < b < c;"},
 		{"chained_comparison_2", "let x = a == b == c;"},
@@ -645,7 +645,7 @@ func TestComplexExpressions_pt2(t *testing.T) {
 			if letItem.Value == ast.NoExprID {
 				t.Fatal("Expected expression value")
 			}
-			
+
 			// Just verify it parses without errors
 			expr := arenas.Exprs.Get(letItem.Value)
 			if expr == nil {
@@ -680,7 +680,7 @@ func TestPostfixOperators(t *testing.T) {
 			if letItem.Value == ast.NoExprID {
 				t.Fatal("Expected expression value")
 			}
-			
+
 			expr := arenas.Exprs.Get(letItem.Value)
 			if expr == nil {
 				t.Fatal("Failed to get expression")
@@ -708,7 +708,7 @@ func TestExpressionEdgeCases(t *testing.T) {
 				// Some edge cases might not parse, just verify no crash
 				return
 			}
-			
+
 			expr := arenas.Exprs.Get(letItem.Value)
 			if expr == nil {
 				t.Fatal("Failed to get expression")
@@ -742,7 +742,7 @@ func TestNumberLiterals_ExtendedFormats(t *testing.T) {
 				// Some formats might not be supported
 				return
 			}
-			
+
 			expr := arenas.Exprs.Get(letItem.Value)
 			if expr == nil {
 				t.Fatal("Failed to get expression")
@@ -772,7 +772,7 @@ func TestStringLiterals_Variants(t *testing.T) {
 				// Some string formats might not be supported yet
 				return
 			}
-			
+
 			expr := arenas.Exprs.Get(letItem.Value)
 			if expr == nil {
 				t.Fatal("Failed to get expression")
@@ -799,7 +799,7 @@ func TestBooleanAndNothingLiterals(t *testing.T) {
 			if letItem.Value == ast.NoExprID {
 				t.Fatal("Expected expression value")
 			}
-			
+
 			expr := arenas.Exprs.Get(letItem.Value)
 			if expr == nil {
 				t.Fatal("Failed to get expression")

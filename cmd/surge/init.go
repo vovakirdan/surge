@@ -1,24 +1,24 @@
 package main
 
 import (
-    "errors"
-    "fmt"
-    "os"
-    "path/filepath"
-    "strings"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
-    "github.com/spf13/cobra"
+	"github.com/spf13/cobra"
 )
 
 var initCmd = &cobra.Command{
-    Use:   "init [path|name]",
-    Short: "Initialize a new surge project",
-    Long: `Initialize a new surge project by creating a project manifest (surge.toml)
+	Use:   "init [path|name]",
+	Short: "Initialize a new surge project",
+	Long: `Initialize a new surge project by creating a project manifest (surge.toml)
 and a hello-world entry point (main.sg). If [path|name] is omitted, initializes
 the current directory. If a non-existing name is provided, a directory will be
 created.`,
-    Args: cobra.MaximumNArgs(1),
-    RunE: runInit,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runInit,
 }
 
 // runInit initializes a Surge project at the specified target path (or the current
@@ -32,90 +32,90 @@ created.`,
 // and prints the created files; it returns an error for any filesystem or
 // validation failures.
 func runInit(cmd *cobra.Command, args []string) error {
-    // Resolve target directory
-    var target string
-    if len(args) == 0 || args[0] == "." {
-        wd, err := os.Getwd()
-        if err != nil {
-            return err
-        }
-        target = wd
-    } else {
-        // treat as path or name relative to cwd
-        arg := args[0]
-        if !filepath.IsAbs(arg) {
-            wd, err := os.Getwd()
-            if err != nil {
-                return err
-            }
-            target = filepath.Join(wd, arg)
-        } else {
-            target = arg
-        }
-    }
+	// Resolve target directory
+	var target string
+	if len(args) == 0 || args[0] == "." {
+		wd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		target = wd
+	} else {
+		// treat as path or name relative to cwd
+		arg := args[0]
+		if !filepath.IsAbs(arg) {
+			wd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			target = filepath.Join(wd, arg)
+		} else {
+			target = arg
+		}
+	}
 
-    // Ensure directory exists
-    if st, err := os.Stat(target); err != nil {
-        if errors.Is(err, os.ErrNotExist) {
-            if err := os.MkdirAll(target, 0o755); err != nil {
-                return fmt.Errorf("failed to create directory %q: %w", target, err)
-            }
-        } else {
-            return err
-        }
-    } else if !st.IsDir() {
-        return fmt.Errorf("%q is not a directory", target)
-    }
+	// Ensure directory exists
+	if st, err := os.Stat(target); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return fmt.Errorf("failed to create directory %q: %w", target, err)
+			}
+		} else {
+			return err
+		}
+	} else if !st.IsDir() {
+		return fmt.Errorf("%q is not a directory", target)
+	}
 
-    // Determine project name from directory basename
-    name := filepath.Base(target)
-    name = strings.TrimSpace(name)
-    if name == "" || name == "." || name == string(filepath.Separator) {
-        name = "surge-project"
-    }
+	// Determine project name from directory basename
+	name := filepath.Base(target)
+	name = strings.TrimSpace(name)
+	if name == "" || name == "." || name == string(filepath.Separator) {
+		name = "surge-project"
+	}
 
-    // Create manifest file if not exists
-    manifestPath := filepath.Join(target, "surge.toml")
-    if _, err := os.Stat(manifestPath); err == nil {
-        return fmt.Errorf("project already initialized: %s exists", manifestPath)
-    }
+	// Create manifest file if not exists
+	manifestPath := filepath.Join(target, "surge.toml")
+	if _, err := os.Stat(manifestPath); err == nil {
+		return fmt.Errorf("project already initialized: %s exists", manifestPath)
+	}
 
-    manifest := buildDefaultManifest(name)
-    if err := os.WriteFile(manifestPath, []byte(manifest), 0o644); err != nil {
-        return fmt.Errorf("failed to write manifest: %w", err)
-    }
+	manifest := buildDefaultManifest(name)
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o644); err != nil {
+		return fmt.Errorf("failed to write manifest: %w", err)
+	}
 
-    // Create main.sg if not exists
-    mainPath := filepath.Join(target, "main.sg")
-    createdMain := false
-    if _, err := os.Stat(mainPath); errors.Is(err, os.ErrNotExist) {
-        if err := os.WriteFile(mainPath, []byte(defaultMainSG()), 0o644); err != nil {
-            return fmt.Errorf("failed to write main.sg: %w", err)
-        }
-        createdMain = true
-    }
+	// Create main.sg if not exists
+	mainPath := filepath.Join(target, "main.sg")
+	createdMain := false
+	if _, err := os.Stat(mainPath); errors.Is(err, os.ErrNotExist) {
+		if err := os.WriteFile(mainPath, []byte(defaultMainSG()), 0o644); err != nil {
+			return fmt.Errorf("failed to write main.sg: %w", err)
+		}
+		createdMain = true
+	}
 
-    rel := target
-    if wd, err := os.Getwd(); err == nil {
-        if r, err2 := filepath.Rel(wd, target); err2 == nil {
-            rel = r
-        }
-    }
-    fmt.Fprintf(os.Stdout, "Initialized surge project in %s\n", rel)
-    fmt.Fprintf(os.Stdout, "  - surge.toml\n")
-    if createdMain {
-        fmt.Fprintf(os.Stdout, "  - main.sg\n")
-    } else {
-        fmt.Fprintf(os.Stdout, "  - main.sg (existing)\n")
-    }
-    return nil
+	rel := target
+	if wd, err := os.Getwd(); err == nil {
+		if r, err2 := filepath.Rel(wd, target); err2 == nil {
+			rel = r
+		}
+	}
+	fmt.Fprintf(os.Stdout, "Initialized surge project in %s\n", rel)
+	fmt.Fprintf(os.Stdout, "  - surge.toml\n")
+	if createdMain {
+		fmt.Fprintf(os.Stdout, "  - main.sg\n")
+	} else {
+		fmt.Fprintf(os.Stdout, "  - main.sg (existing)\n")
+	}
+	return nil
 }
 
 // buildDefaultManifest returns a minimal TOML manifest for a Surge project using the provided package name.
 // The manifest contains a [package] section with the package name set to the given name and the version set to "0.1.0".
 func buildDefaultManifest(name string) string {
-    // Minimal TOML manifest used as a project marker.
-    return fmt.Sprintf(`# Surge project manifest
+	// Minimal TOML manifest used as a project marker.
+	return fmt.Sprintf(`# Surge project manifest
 [package]
 name = "%s"
 version = "0.1.0"
@@ -126,7 +126,7 @@ version = "0.1.0"
 // The returned source includes a `hello_world` function, a `main` entry that prints its result,
 // and an embedded test directive demonstrating the expected output.
 func defaultMainSG() string {
-    return `// Surge hello world (placeholder)
+	return `// Surge hello world (placeholder)
 // Replace with real output once stdlib/runtime is available.
 
 // Sure, you can run test directives!

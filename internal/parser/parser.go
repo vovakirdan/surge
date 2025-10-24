@@ -4,10 +4,10 @@ import (
 	"slices"
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/fix"
 	"surge/internal/lexer"
 	"surge/internal/source"
 	"surge/internal/token"
-	"surge/internal/fix"
 )
 
 type Options struct {
@@ -191,7 +191,7 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 func isTopLevelStarter(k token.Kind) bool {
 	switch k {
 	case token.KwImport, token.KwLet, token.KwFn,
-	 token.KwPub, token.KwAsync, token.KwExtern:
+		token.KwPub, token.KwAsync, token.KwExtern:
 		return true
 	default:
 		return false

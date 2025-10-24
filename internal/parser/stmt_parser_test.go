@@ -173,9 +173,9 @@ func TestParseBlockStatements_Diagnostics(t *testing.T) {
 
 func TestParseReturnStatement(t *testing.T) {
 	tests := []struct {
-		name      string
-		input     string
-		hasValue  bool
+		name     string
+		input    string
+		hasValue bool
 	}{
 		{
 			name:     "return with value",
@@ -424,7 +424,7 @@ func TestParseStatementErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, _, bag := parseSource(t, tt.input)
-			
+
 			if !bag.HasErrors() {
 				t.Error("expected errors, but got none")
 			}
@@ -448,7 +448,7 @@ func TestParseBlockWithWhitespace(t *testing.T) {
 			}`,
 		},
 		{
-			name: "tabs and spaces",
+			name:  "tabs and spaces",
 			input: "fn foo() {\n\t\tlet x = 1;\n\t\treturn x;\n\t}",
 		},
 	}
