@@ -223,19 +223,19 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 	default:
 		// p.err(diag.SynExpectType, "expected type")
 		// так как := это токен, то мы можем уверенно сдвигаться
-		spanColon := startSpan.ShiftLeft(2)
+		spanColon := p.lastSpan
 		p.emitDiagnostic(
 			diag.SynExpectType,
 			diag.SevError,
 			spanColon,
-			"expected type",
+			"expected type after colon",
 			func(b *diag.ReportBuilder) {
 				if b == nil {
 					return
 				}
 				fixID := fix.MakeFixID(diag.SynExpectType, spanColon)
 				suggestion := fix.DeleteSpan(
-					"remove type to simplify the type expression",
+					"remove colon to simplify the type expression",
 					spanColon,
 					"",
 					fix.WithID(fixID),
@@ -243,7 +243,7 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe), // todo подумать безопасно ли это
 				)
 				b.WithFixSuggestion(suggestion)
-				b.WithNote(startSpan, "remove type to simplify the type expression")
+				b.WithNote(startSpan, "remove colon to simplify the type expression")
 			},
 		)
 		return ast.NoTypeID, false

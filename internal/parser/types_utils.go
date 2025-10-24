@@ -36,8 +36,16 @@ func splitNumericLiteral(lit string) (string, string, error) {
 	}
 	if end < len(lit) {
 		switch lit[end] {
-		case '.', 'e', 'E', 'p', 'P':
+		case '.':
 			return "", "", fmt.Errorf("fractional literals are not allowed in array sizes")
+		case 'e', 'E':
+			if base == 10 {
+				return "", "", fmt.Errorf("fractional literals are not allowed in array sizes")
+			}
+		case 'p', 'P':
+			if base == 16 {
+				return "", "", fmt.Errorf("fractional literals are not allowed in array sizes")
+			}
 		}
 	}
 

@@ -93,6 +93,8 @@ var (
 		SynExpectItemAfterDbl:       "Expect item after double colon",
 		SynExpectIdentAfterAs:       "Expect identifier after as",
 		SynEmptyImportGroup:         "Empty import group",
+		SynInfoTypeExpr:             "Type expression information",
+		SynExpectRightBracket:       "Expect right bracket",
 		SynExpectType:               "Expect type",
 		SynExpectExpression:         "Expect expression",
 		SynExpectColon:              "Expect colon",

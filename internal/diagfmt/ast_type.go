@@ -11,6 +11,9 @@ func formatTypeExprInline(builder *ast.Builder, typeID ast.TypeID) string {
 	if !typeID.IsValid() {
 		return "<inferred>"
 	}
+	if builder == nil || builder.Types == nil {
+		return "<invalid>"
+	}
 	typ := builder.Types.Get(typeID)
 	if typ == nil {
 		return "<invalid>"

@@ -148,7 +148,7 @@ func TestOperatorPrecedence(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected string // упрощённое описание структуры
+		expected string // todo: упрощённое описание структуры
 	}{
 		{"multiply_before_add", "let x = a + b * c;", "binary(a, +, binary(b, *, c))"},
 		{"parentheses_override", "let x = (a + b) * c;", "binary(group(binary(a, +, b)), *, c)"},

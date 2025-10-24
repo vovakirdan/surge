@@ -35,7 +35,7 @@ func (s Span) Cover(other Span) Span {
 	return s
 }
 
-// ShiftLeft сдвигает span налево на n символов
+// ShiftLeft сдвигает span налево на n байт
 func (s Span) ShiftLeft(n uint32) Span {
 	if n > s.Start {
 		return s
@@ -47,7 +47,7 @@ func (s Span) ShiftLeft(n uint32) Span {
 	}
 }
 
-// ShiftRight сдвигает span направо на n символов
+// ShiftRight сдвигает span направо на n байт
 func (s Span) ShiftRight(n uint32) Span {
 	if n > s.End-s.Start {
 		return s
