@@ -18,19 +18,51 @@ import (
 // fn func(...params: Type) { ... } // с вариативными параметрами и телом
 // fn func(param: Type, ...params: Type) { ... } // с параметрами и вариативными параметрами и телом
 // fn func<T>(param: T) { ... } // с параметрами и телом с generic параметрами
+// fn func<T, U>(param: T, ...params: U) { ... } // с параметрами и вариативными параметрами и телом с generic параметрами
+// fn @attr fn func() { ... } // с атрибутами и телом
+// modifier fn func() { ... } // с модификаторами и телом
 func (p *Parser) parseFnItem() (ast.ItemID, bool) {
 	// todo парсить атрибуты, хотя они перед fn...
 	fnTok := p.advance() // съедаем KwFn; если мы здесь, то это точно KwFn
+
+	// Допускаем Rust-подобный синтаксис: fn <T, U> name(...)
+	preGenerics, ok := p.parseFnGenerics()
+	if !ok {
+		p.resyncUntil(token.Ident, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
+		return ast.NoItemID, false
+	}
 
 	fnNameID, ok := p.parseIdent()
 	if !ok {
 		return ast.NoItemID, false
 	}
 
-	generics, ok := p.parseFnGenerics()
-	if !ok {
-		p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
-		return ast.NoItemID, false
+	generics := preGenerics
+
+	if len(generics) > 0 {
+		// Если generics уже были до имени, запрещаем второе объявление.
+		if p.at(token.Lt) {
+			dupSpan := p.lx.Peek().Span
+			p.emitDiagnostic(
+				diag.SynUnexpectedToken,
+				diag.SevError,
+				dupSpan,
+				"duplicate generic parameter list for function",
+				nil,
+			)
+			// Пробуем съесть второе объявление, чтобы не застрять.
+			if _, ok := p.parseFnGenerics(); !ok {
+				p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
+				return ast.NoItemID, false
+			}
+		}
+	} else {
+		var ok bool
+		generics, ok = p.parseFnGenerics()
+		if !ok {
+			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
+			return ast.NoItemID, false
+		}
 	}
 
 	if _, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after function name"); !ok {

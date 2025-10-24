@@ -575,6 +575,8 @@ func TestParseFnItem_Generics(t *testing.T) {
 		name  string
 		input string
 	}{
+		{"header_generics_before_name", "fn <T> foo(x: T) {}"},
+		{"header_generics_multiple_before_name", "fn <T, U> foo(x: T, y: U) {}"},
 		{"single_generic", "fn foo<T>(x: T) {}"},
 		{"multiple_generics", "fn foo<T, U>(x: T, y: U) {}"},
 		{"generic_with_return", "fn foo<T>() -> T {}"},
@@ -600,6 +602,13 @@ func TestParseFnItem_Generics(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("duplicate_generic_lists", func(t *testing.T) {
+		_, _, bag := parseSource(t, "fn <T> foo<T>() {}")
+		if !bag.HasErrors() {
+			t.Fatal("expected error for duplicate generic lists, got none")
+		}
+	})
 }
 
 // TestParseFnItem_ComplexSignatures tests complex function signatures
