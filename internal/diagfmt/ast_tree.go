@@ -19,7 +19,10 @@ type treeBlock struct {
 }
 
 func buildFileTreeNode(builder *ast.Builder, fileID ast.FileID, fs *source.FileSet) *treeNode {
-	file := builder.Files.Get(fileID)
+    file := builder.Files.Get(fileID)
+    if file == nil {
+        return &treeNode{label: fmt.Sprintf("File[%d]: <nil>", fileID)}
+    }
 	header := "File"
 	if fs != nil {
 		srcFile := fs.Get(file.Span.File)

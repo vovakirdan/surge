@@ -32,14 +32,18 @@ func TestIsLiteral(t *testing.T) {
 func TestIsPunctOrOp(t *testing.T) {
 	ops := []token.Kind{
 		token.Plus, token.Minus, token.Star, token.Slash, token.Percent,
-		token.Assign, token.EqEq, token.Bang, token.BangEq,
+		token.Assign, token.PlusAssign, token.MinusAssign, token.StarAssign,
+		token.SlashAssign, token.PercentAssign, token.AmpAssign, token.PipeAssign,
+		token.CaretAssign, token.ShlAssign, token.ShrAssign,
+		token.EqEq, token.Bang, token.BangEq,
 		token.Lt, token.LtEq, token.Gt, token.GtEq,
 		token.Shl, token.Shr, token.Amp, token.Pipe, token.Caret,
 		token.AndAnd, token.OrOr,
-		token.Question, token.Colon, token.ColonColon, token.Semicolon, token.Comma,
+		token.Question, token.QuestionQuestion, token.Colon, token.ColonColon,
+		token.Semicolon, token.Comma,
 		token.Dot, token.DotDot, token.DotDotEq, token.Arrow, token.FatArrow,
 		token.LParen, token.RParen, token.LBrace, token.RBrace, token.LBracket, token.RBracket,
-		token.At, token.Underscore,
+		token.At, token.Underscore, token.ColonAssign,
 	}
 	for _, k := range ops {
 		if !tok(k).IsPunctOrOp() {

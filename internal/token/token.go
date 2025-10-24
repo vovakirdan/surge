@@ -22,10 +22,12 @@ func (t Token) IsLiteral() bool {
 
 func (t Token) IsPunctOrOp() bool {
 	switch t.Kind {
-	case Plus, Minus, Star, Slash, Percent, Assign, EqEq, Bang, BangEq, Lt, LtEq,
-		Gt, GtEq, Shl, Shr, Amp, Pipe, Caret, AndAnd, OrOr, Question, Colon, ColonColon,
-		Semicolon, Comma, Dot, DotDot, Arrow, FatArrow, LParen, RParen, LBrace, RBrace,
-		LBracket, RBracket, At, Underscore, DotDotEq, ColonAssign:
+	case Plus, Minus, Star, Slash, Percent, Assign, PlusAssign, MinusAssign, StarAssign,
+		SlashAssign, PercentAssign, AmpAssign, PipeAssign, CaretAssign, ShlAssign, ShrAssign,
+		EqEq, Bang, BangEq, Lt, LtEq, Gt, GtEq, Shl, Shr, Amp, Pipe, Caret, AndAnd, OrOr,
+		Question, QuestionQuestion, Colon, ColonColon, Semicolon, Comma, Dot, DotDot, Arrow,
+		FatArrow, LParen, RParen, LBrace, RBrace, LBracket, RBracket, At, Underscore,
+		DotDotEq, ColonAssign:
 		return true
 	default:
 		return false

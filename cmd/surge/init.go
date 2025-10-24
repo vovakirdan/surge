@@ -77,10 +77,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 
     // Create main.sg if not exists
     mainPath := filepath.Join(target, "main.sg")
+    createdMain := false
     if _, err := os.Stat(mainPath); errors.Is(err, os.ErrNotExist) {
         if err := os.WriteFile(mainPath, []byte(defaultMainSG()), 0o644); err != nil {
             return fmt.Errorf("failed to write main.sg: %w", err)
         }
+        createdMain = true
     }
 
     rel := target
@@ -91,7 +93,11 @@ func runInit(cmd *cobra.Command, args []string) error {
     }
     fmt.Fprintf(os.Stdout, "Initialized surge project in %s\n", rel)
     fmt.Fprintf(os.Stdout, "  - surge.toml\n")
-    fmt.Fprintf(os.Stdout, "  - main.sg\n")
+    if createdMain {
+        fmt.Fprintf(os.Stdout, "  - main.sg\n")
+    } else {
+        fmt.Fprintf(os.Stdout, "  - main.sg (existing)\n")
+    }
     return nil
 }
 

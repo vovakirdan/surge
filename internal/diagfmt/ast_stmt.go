@@ -213,9 +213,14 @@ func formatStmtJSON(builder *ast.Builder, stmtID ast.StmtID) (ASTNodeOutput, err
 	case ast.StmtExpr:
 		exprStmt := builder.Stmts.Expr(stmtID)
 		if exprStmt != nil {
-			output.Fields = cleanupNilFields(map[string]any{
-				"expr":   formatExprInline(builder, exprStmt.Expr),
-				"exprID": uint32(exprStmt.Expr),
+		    output.Fields = cleanupNilFields(map[string]any{
+			  "expr": formatExprInline(builder, exprStmt.Expr),
+			  "exprID": func() any {
+				if exprStmt.Expr.IsValid() {
+			      return uint32(exprStmt.Expr)
+			    }
+			    return nil
+			  }(),
 			})
 		}
 
