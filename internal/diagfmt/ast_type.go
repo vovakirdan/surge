@@ -7,6 +7,9 @@ import (
 	"surge/internal/source"
 )
 
+// formatTypeExprInline renders the type expression identified by typeID in builder into a compact inline string.
+// It formats path types (including generic arguments), unary modifiers (own, &, &mut, *), arrays (slices, sized, unknown length), tuples, and function types (named and/or variadic parameters and return type), formatting nested types recursively.
+// For missing or invalid metadata the function returns explicit placeholders such as "<inferred>", "<invalid>", "<invalid-path>", "<invalid-unary>", "<invalid-array>", "<invalid-tuple>", "<invalid-fn>", or "<unknown-type>".
 func formatTypeExprInline(builder *ast.Builder, typeID ast.TypeID) string {
 	if !typeID.IsValid() {
 		return "<inferred>"

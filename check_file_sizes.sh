@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 EXTENSIONS="go"
 EXCLUDE_TESTS=true
 
-# Функция для получения оценки файла
+# get_file_rating outputs a colored rating for a file based on its line count: "OK" for 550 lines or fewer, "ACCEPTABLE" for 551–650 lines, and "BAD - need refactoring" for more than 650 lines.
 get_file_rating() {
     local lines=$1
     local filename=$2
@@ -30,7 +30,7 @@ get_file_rating() {
     fi
 }
 
-# Функция для проверки расширения файла
+# has_allowed_extension determines whether the file's extension is permitted by the comma-separated EXTENSIONS variable (empty EXTENSIONS allows all files) and returns success (0) when allowed, failure (1) otherwise.
 has_allowed_extension() {
     local file=$1
     
@@ -52,7 +52,8 @@ has_allowed_extension() {
     return 1
 }
 
-# Функция для проверки, является ли файл тестовым
+# is_test_file checks whether a file path corresponds to a test file by matching common filename patterns: suffix "_test.", prefix "test_", or containing "Test.".
+# Returns 0 if the file is recognized as a test file, 1 otherwise.
 is_test_file() {
     local file=$1
     local basename=$(basename "$file")
@@ -64,7 +65,7 @@ is_test_file() {
     return 1
 }
 
-# Функция для проверки, является ли файл текстовым
+# is_text_file checks whether the given path is a regular text file and returns success if it is.
 is_text_file() {
     local file=$1
     # Проверяем, что файл существует и не является директорией
@@ -88,7 +89,7 @@ is_text_file() {
     return 0
 }
 
-# Основная функция
+# check_directory scans a directory recursively, filters files by configured extensions and test-file settings, counts lines for each text file, prints a per-file rating and aggregated statistics, and exits with code 0 unless the percentage of good files (OK or ACCEPTABLE) is below 60% (then exits 1).
 check_directory() {
     local dir=${1:-.}
     local total_files=0
@@ -182,7 +183,7 @@ check_directory() {
     exit $exit_code
 }
 
-# Обработка аргументов командной строки
+# show_help prints usage information, available options, rating criteria, examples, and overall grading thresholds for the script.
 show_help() {
     echo "Использование: $0 [опции] [директория]"
     echo ""

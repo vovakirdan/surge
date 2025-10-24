@@ -28,6 +28,9 @@ type TypeExprs struct {
 	Fns    *Arena[TypeFn]
 }
 
+// NewTypeExprs creates a TypeExprs with arenas for type expression nodes and their payloads initialized.
+// If capHint is 0, a default capacity of 1<<7 is used. The returned *TypeExprs has Arena, Paths,
+// Unary, Arrays, Tuples and Fns arenas allocated with the given capacity hint.
 func NewTypeExprs(capHint uint) *TypeExprs {
 	if capHint == 0 {
 		capHint = 1 << 7

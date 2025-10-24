@@ -176,6 +176,8 @@ type Exprs struct {
 	Arrays   *Arena[ExprArrayData]
 }
 
+// NewExprs creates a new Exprs with per-kind arenas preallocated using capHint as the initial capacity.
+// If capHint is 0, a default capacity of 1<<8 is used; all expression arenas (Expr, Idents, Literals, Binaries, Unaries, Casts, Calls, Indices, Members, Groups, Tuples, Arrays) are initialized.
 func NewExprs(capHint uint) *Exprs {
 	if capHint == 0 {
 		capHint = 1 << 8

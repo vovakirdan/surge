@@ -112,6 +112,15 @@ func Apply(fs *source.FileSet, diagnostics []diag.Diagnostic, opts ApplyOptions)
 	return result, nil
 }
 
+// gatherCandidates builds a list of candidate fixes from diagnostics and reports any skips encountered.
+// 
+// For each diagnostic that has fixes, it materializes fixes via diag.MaterializeFixes. Diagnostics whose
+// fixes fail to materialize or materialized fixes that contain no edits are recorded as SkippedFix entries.
+// If a materialized fix has an empty ID, gatherCandidates synthesizes one using the diagnostic code, file,
+// start position, and the fix index. Each produced candidate is given a monotonically increasing `order`
+// value to provide a deterministic insertion order for later stable sorting.
+// 
+// Returns the collected candidates and any SkippedFix records.
 func gatherCandidates(ctx diag.FixBuildContext, diagnostics []diag.Diagnostic) ([]candidate, []SkippedFix) {
 	cands := make([]candidate, 0)
 	skips := make([]SkippedFix, 0)
@@ -154,6 +163,13 @@ func gatherCandidates(ctx diag.FixBuildContext, diagnostics []diag.Diagnostic) (
 	return cands, skips
 }
 
+// sortCandidates sorts the candidate slice in-place to produce a deterministic
+// selection order used by the apply pipeline.
+//
+// The sort keys, in precedence order, are: file (Primary.File), span start
+// (Primary.Start), span end (Primary.End), candidate insertion order
+// (candidate.order), diagnostic code (diag.Code), fix preference (IsPreferred,
+// preferred first), fix ID, and finally fix Title.
 func sortCandidates(candidates []candidate) {
 	sort.SliceStable(candidates, func(i, j int) bool {
 		di, dj := candidates[i].diag, candidates[j].diag
@@ -391,6 +407,11 @@ func conflictsWithExisting(existing []diag.TextEdit, edits []diag.TextEdit) bool
 	return false
 }
 
+// spansConflict reports whether two text edits' spans overlap.
+// Spans are treated as half-open intervals [Start, End). Two zero-length edits
+// (Start == End) never conflict. A zero-length edit conflicts with a non-zero
+// span if its position is within that span (Start <= pos < End). For two
+// non-zero spans, any overlap yields a conflict.
 func spansConflict(a, b diag.TextEdit) bool {
 	aStart, aEnd := a.Span.Start, a.Span.End
 	bStart, bEnd := b.Span.Start, b.Span.End

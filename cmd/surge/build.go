@@ -37,8 +37,9 @@ var buildCmd = &cobra.Command{
     },
 }
 
+// init registers the command-line flags for buildCmd.
+// It adds the --release flag ("optimize for release") and the --dev flag ("development build with extra checks").
 func init() {
     buildCmd.Flags().Bool("release", false, "optimize for release")
     buildCmd.Flags().Bool("dev", false, "development build with extra checks")
 }
-

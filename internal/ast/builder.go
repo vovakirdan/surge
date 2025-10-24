@@ -15,6 +15,11 @@ type Builder struct {
 	StringsInterner *source.Interner
 }
 
+// NewBuilder creates a Builder configured with capacity hints and a shared string interner.
+// 
+// If any hint field is zero, a sensible default capacity is applied (Files=64, Items=128,
+// Stmts=256, Exprs=256, Types=128). If stringsInterner is nil, a new interner is created.
+// The returned Builder is fully initialized and non-nil.
 func NewBuilder(hints Hints, stringsInterner *source.Interner) *Builder {
 	if hints.Files == 0 {
 		hints.Files = 1 << 6 // просто понты; 64

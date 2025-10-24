@@ -18,6 +18,9 @@ type treeBlock struct {
 	root  int
 }
 
+// buildFileTreeNode constructs a treeNode representing the file identified by fileID,
+// labeling the root with a header and the file span and appending a child node for each item in the file.
+// If fs is non-nil the header is the source file's formatted path; otherwise the header is "File".
 func buildFileTreeNode(builder *ast.Builder, fileID ast.FileID, fs *source.FileSet) *treeNode {
     file := builder.Files.Get(fileID)
     if file == nil {
@@ -39,6 +42,9 @@ func buildFileTreeNode(builder *ast.Builder, fileID ast.FileID, fs *source.FileS
 	return root
 }
 
+// buildItemTreeNode constructs a treeNode for the item identified by itemID (displayed as Item[idx]) and populates children that describe the item's key components.
+// 
+// The returned node's label includes the item kind and its span. For import items, children include a "Module" subtree with path segments and optional "Alias", "One" (with alias), and "Group" entries. For let items, children include "Name", "Mutable", optional "Type", and "Value". For function items, children include "Name", optional "Generics", "Params", "Return", and either a "Body" subtree or "Body: <none>". If the item is nil, a node labeled "Item[idx]: <nil>" is returned.
 func buildItemTreeNode(builder *ast.Builder, itemID ast.ItemID, fs *source.FileSet, idx int) *treeNode {
 	item := builder.Items.Get(itemID)
 	if item == nil {
@@ -132,6 +138,12 @@ func buildItemTreeNode(builder *ast.Builder, itemID ast.ItemID, fs *source.FileS
 	return node
 }
 
+// renderTree converts a treeNode into a treeBlock containing an ASCII-art representation.
+// 
+// The returned treeBlock.lines is a slice of strings representing the rendered lines of
+// the node and its descendants arranged as a tree with connector characters. The block's
+// width is the horizontal extent of the rendered lines and root is the column index of
+// the root node's vertical connector within those lines.
 func renderTree(node *treeNode) treeBlock {
 	label := node.label
 	labelWidth := len(label)

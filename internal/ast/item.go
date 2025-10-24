@@ -35,6 +35,9 @@ type Items struct {
 	Lets     *Arena[LetItem]
 }
 
+// NewItems creates and returns an *Items with per-kind arenas initialized to capHint.
+// If capHint is 0, NewItems uses a default initial capacity of 1<<8.
+// The returned Items contains separate arenas for Item, ImportItem, FnItem, FnParam, Attr, and LetItem.
 func NewItems(capHint uint) *Items {
 	if capHint == 0 {
 		capHint = 1 << 8
