@@ -108,42 +108,69 @@ func TestParseFnItem_Parameters(t *testing.T) {
 		name       string
 		input      string
 		wantParams []struct {
-			name    string
-			hasType bool
+			name     string
+			hasType  bool
+			variadic bool
 		}
 	}{
 		{
 			name:  "single parameter",
 			input: "fn foo(x: int) {}",
 			wantParams: []struct {
-				name    string
-				hasType bool
+				name     string
+				hasType  bool
+				variadic bool
 			}{
-				{name: "x", hasType: true},
+				{name: "x", hasType: true, variadic: false},
 			},
 		},
 		{
 			name:  "multiple parameters",
 			input: "fn foo(x: int, y: string, z: bool) {}",
 			wantParams: []struct {
-				name    string
-				hasType bool
+				name     string
+				hasType  bool
+				variadic bool
 			}{
-				{name: "x", hasType: true},
-				{name: "y", hasType: true},
-				{name: "z", hasType: true},
+				{name: "x", hasType: true, variadic: false},
+				{name: "y", hasType: true, variadic: false},
+				{name: "z", hasType: true, variadic: false},
 			},
 		},
 		{
 			name:  "parameters with complex types",
 			input: "fn foo(x: int[], y: &string, z: *bool) {}",
 			wantParams: []struct {
-				name    string
-				hasType bool
+				name     string
+				hasType  bool
+				variadic bool
 			}{
-				{name: "x", hasType: true},
-				{name: "y", hasType: true},
-				{name: "z", hasType: true},
+				{name: "x", hasType: true, variadic: false},
+				{name: "y", hasType: true, variadic: false},
+				{name: "z", hasType: true, variadic: false},
+			},
+		},
+		{
+			name:  "variadic parameter last",
+			input: "fn foo(x: int, ...rest: string) {}",
+			wantParams: []struct {
+				name     string
+				hasType  bool
+				variadic bool
+			}{
+				{name: "x", hasType: true, variadic: false},
+				{name: "rest", hasType: true, variadic: true},
+			},
+		},
+		{
+			name:  "single variadic parameter",
+			input: "fn foo(...values: int) {}",
+			wantParams: []struct {
+				name     string
+				hasType  bool
+				variadic bool
+			}{
+				{name: "values", hasType: true, variadic: true},
 			},
 		},
 	}
@@ -182,6 +209,10 @@ func TestParseFnItem_Parameters(t *testing.T) {
 				hasType := param.Type != ast.NoTypeID
 				if hasType != wantParam.hasType {
 					t.Errorf("param %d has type: got %v, want %v", i, hasType, wantParam.hasType)
+				}
+
+				if param.Variadic != wantParam.variadic {
+					t.Errorf("param %d variadic: got %v, want %v", i, param.Variadic, wantParam.variadic)
 				}
 			}
 		})
@@ -330,6 +361,12 @@ func TestParseFnItem_Errors(t *testing.T) {
 			input:         "fn foo()",
 			wantErrorCode: diag.SynExpectSemicolon,
 			description:   "expected ';' or '{' after signature",
+		},
+		{
+			name:          "parameter after variadic",
+			input:         "fn foo(...args: int, y: int) {}",
+			wantErrorCode: diag.SynUnexpectedToken,
+			description:   "variadic parameter must be last",
 		},
 	}
 

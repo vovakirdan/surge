@@ -120,12 +120,19 @@ func (p *Parser) parseFnItem() (ast.ItemID, bool) {
 
 func (p *Parser) parseFnParam() (ast.FnParam, bool) {
 	param := ast.FnParam{}
+	variadic := false
+
+	if p.at(token.DotDotDot) {
+		variadic = true
+		p.advance()
+	}
 
 	nameID, ok := p.parseIdent()
 	if !ok {
 		return param, false
 	}
 	param.Name = nameID
+	param.Variadic = variadic
 
 	if _, ok := p.expect(token.Colon, diag.SynExpectColon, "expected ':' after parameter name"); !ok {
 		p.resyncUntil(token.Comma, token.RParen, token.Semicolon)
@@ -153,6 +160,7 @@ func (p *Parser) parseFnParam() (ast.FnParam, bool) {
 
 func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
 	params := make([]ast.FnParam, 0)
+	var sawVariadic bool
 
 	// если нет параметров, но забыли скобку
 	if p.at_or(token.LBrace, token.Arrow, token.Semicolon) {
@@ -222,12 +230,32 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
 			return nil, false
 		}
 		params = append(params, param)
+		if param.Variadic && sawVariadic {
+			p.err(diag.SynUnexpectedToken, "multiple variadic parameters are not allowed")
+		}
+		if param.Variadic {
+			sawVariadic = true
+		}
 
 		if p.at(token.Comma) {
-			p.advance()
+			commaTok := p.advance()
 			if p.at(token.RParen) {
 				p.advance()
 				break
+			}
+			if sawVariadic {
+				p.emitDiagnostic(
+					diag.SynUnexpectedToken,
+					diag.SevError,
+					commaTok.Span,
+					"variadic parameter must be the last parameter in the list",
+					nil,
+				)
+				p.resyncUntil(token.RParen, token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet)
+				if p.at(token.RParen) {
+					p.advance()
+				}
+				return params, false
 			}
 			continue
 		}

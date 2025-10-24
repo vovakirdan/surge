@@ -263,6 +263,9 @@ func formatFnParamsInline(builder *ast.Builder, fn *ast.FnItem) string {
 			continue
 		}
 		name := lookupStringOr(builder, param.Name, "_")
+		if param.Variadic {
+			name = "..." + name
+		}
 		typ := formatTypeExprInline(builder, param.Type)
 		piece := fmt.Sprintf("%s: %s", name, typ)
 		if param.Default.IsValid() {
