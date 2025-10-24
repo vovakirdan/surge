@@ -7,6 +7,7 @@ import (
 	"surge/internal/lexer"
 	"surge/internal/source"
 	"surge/internal/token"
+	"surge/internal/fix"
 )
 
 type Options struct {
@@ -105,10 +106,46 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 		return p.parseLetItem()
 	case token.KwFn:
 		return p.parseFnItem(fnModifiers{})
-	case token.KwPub, token.KwAsync, token.Ident:
+	case token.KwPub, token.KwAsync, token.KwExtern, token.Ident:
 		mods, ok := p.parseFnModifiers()
 		if ok && p.at(token.KwFn) {
 			return p.parseFnItem(mods)
+		}
+		if p.at(token.KwLet) {
+			visibility := ast.VisPrivate
+			if mods.flags&ast.FnAttrPublic != 0 {
+				visibility = ast.VisPublic
+			}
+			invalid := mods.flags &^ ast.FnAttrPublic
+			if invalid != 0 {
+				span := mods.span
+				if !mods.hasSpan {
+					span = p.lx.Peek().Span
+				}
+				p.emitDiagnostic(
+					diag.SynUnexpectedModifier,
+					diag.SevError,
+					span,
+					"unexpected modifiers before 'let'",
+					func(b *diag.ReportBuilder) {
+						if b == nil {
+							return
+						}
+						fixID := fix.MakeFixID(diag.SynUnexpectedModifier, span)
+						suggestion := fix.DeleteSpan(
+							"remove the invalid modifiers",
+							span.ExtendRight(p.lx.Peek().Span),
+							"",
+							fix.WithID(fixID),
+							fix.WithKind(diag.FixKindRefactor),
+							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						)
+						b.WithFixSuggestion(suggestion)
+						b.WithNote(span, "only 'pub' modifier is allowed before 'let'")
+					},
+				)
+			}
+			return p.parseLetItemWithVisibility(visibility, mods.span, mods.hasSpan)
 		}
 		if mods.flags != 0 {
 			span := mods.span
@@ -134,7 +171,11 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 // прокручиваем до ';' ИЛИ до стартового токена следующего item ИЛИ EOF.
 func (p *Parser) resyncTop() { // todo: использовать resyncUntill - надо явно знать до какого токена прокручивать
 	// Список всех стартеров + semicolon
-	stopTokens := []token.Kind{token.Semicolon, token.KwImport, token.KwLet, token.KwFn, token.KwPub, token.KwAsync}
+	stopTokens := []token.Kind{
+		token.Semicolon, token.KwImport, token.KwLet,
+		token.KwFn, token.KwPub, token.KwAsync,
+		token.KwExtern,
+	}
 	// TODO: добавить другие стартеры когда они будут реализованы: token.KwFn, token.KwType, etc.
 
 	p.resyncUntil(stopTokens...)
@@ -149,7 +190,8 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 // isTopLevelStarter reports whether k is a token kind that begins a top-level declaration (import, let, fn, or fn-modifier).
 func isTopLevelStarter(k token.Kind) bool {
 	switch k {
-	case token.KwImport, token.KwLet, token.KwFn, token.KwPub, token.KwAsync:
+	case token.KwImport, token.KwLet, token.KwFn,
+	 token.KwPub, token.KwAsync, token.KwExtern:
 		return true
 	default:
 		return false

@@ -111,6 +111,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 			}{
 				{"Name", builder.StringsInterner.MustLookup(letItem.Name), true},
 				{"Mutable", fmt.Sprintf("%v", letItem.IsMut), true},
+				{"Visibility", letItem.Visibility.String(), true},
 				{"Type", formatTypeExprInline(builder, letItem.Type), letItem.Type.IsValid()},
 				{"Value", formatExprSummary(builder, letItem.Value), true},
 			}
@@ -273,12 +274,13 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 	case ast.ItemLet:
 		if letItem, ok := builder.Items.Let(itemID); ok {
 			fields := map[string]any{
-				"name":     builder.StringsInterner.MustLookup(letItem.Name),
-				"isMut":    letItem.IsMut,
-				"value":    formatExprInline(builder, letItem.Value),
-				"valueSet": letItem.Value.IsValid(),
-				"type":     formatTypeExprInline(builder, letItem.Type),
-				"typeSet":  letItem.Type.IsValid(),
+				"name":       builder.StringsInterner.MustLookup(letItem.Name),
+				"isMut":      letItem.IsMut,
+				"value":      formatExprInline(builder, letItem.Value),
+				"valueSet":   letItem.Value.IsValid(),
+				"type":       formatTypeExprInline(builder, letItem.Type),
+				"typeSet":    letItem.Type.IsValid(),
+				"visibility": letItem.Visibility.String(),
 			}
 			if letItem.Value.IsValid() {
 				fields["valueExprID"] = uint32(letItem.Value)

@@ -94,11 +94,15 @@ func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
 		case token.Ident:
 			tok = p.advance()
 			msg := "unknown function modifier"
-			if tok.Text != "" {
+			note := "Possible fn modifier: pub, async"
+			if tok.Text == "unsafe" {
+				msg = "'unsafe' must be specified via attribute"
+				note = "'unsafe' should be declared via attribute before the function"
+			} else if tok.Text != "" {
 				msg = "unknown function modifier '" + tok.Text + "'"
 			}
 			p.emitDiagnostic(
-				diag.SynUnexpectedToken,
+				diag.SynUnexpectedModifier,
 				diag.SevError,
 				tok.Span,
 				msg,
@@ -106,7 +110,7 @@ func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
 					if b == nil {
 						return
 					}
-					fixID := fix.MakeFixID(diag.SynUnexpectedToken, tok.Span)
+					fixID := fix.MakeFixID(diag.SynUnexpectedModifier, tok.Span)
 					suggestion := fix.DeleteSpan(
 						"remove the unknown function modifier",
 						tok.Span.ExtendRight(p.lx.Peek().Span),
@@ -116,7 +120,7 @@ func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
 						fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
 					)
 					b.WithFixSuggestion(suggestion)
-					b.WithNote(tok.Span, "Possible fn modifier: pub, async")
+					b.WithNote(tok.Span, note)
 				},
 			)
 			mods.extend(tok.Span)

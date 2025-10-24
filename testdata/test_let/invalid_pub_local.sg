@@ -1,0 +1,4 @@
+fn demo() {
+    pub let temp = 5;
+    print(temp);
+}

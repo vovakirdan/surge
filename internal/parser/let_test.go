@@ -70,7 +70,7 @@ func TestParseLetItem_SimpleDeclarations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			builder, fileID, bag := parseSource(t, tt.input)
-			
+
 			if bag.HasErrors() {
 				t.Fatalf("unexpected errors: %+v", bag.Items())
 			}
@@ -107,6 +107,58 @@ func TestParseLetItem_SimpleDeclarations(t *testing.T) {
 	}
 }
 
+func TestParseLetItem_Visibility(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		wantVisibility ast.Visibility
+		wantError      bool
+	}{
+		{
+			name:           "default_private",
+			input:          "let x = 1;",
+			wantVisibility: ast.VisPrivate,
+			wantError:      false,
+		},
+		{
+			name:           "public_let",
+			input:          "pub let x = 1;",
+			wantVisibility: ast.VisPublic,
+			wantError:      false,
+		},
+		{
+			name:           "invalid_async_modifier",
+			input:          "async let x = 1;",
+			wantVisibility: ast.VisPrivate,
+			wantError:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, fileID, bag := parseSource(t, tt.input)
+
+			if bag.HasErrors() != tt.wantError {
+				t.Fatalf("expected error=%v, got errors=%v (%+v)", tt.wantError, bag.HasErrors(), bag.Items())
+			}
+
+			file := builder.Files.Get(fileID)
+			if len(file.Items) == 0 {
+				t.Fatal("expected at least one item")
+			}
+
+			letItem, ok := builder.Items.Let(file.Items[0])
+			if !ok {
+				t.Fatal("expected let item")
+			}
+
+			if letItem.Visibility != tt.wantVisibility {
+				t.Fatalf("visibility: got %v, want %v", letItem.Visibility, tt.wantVisibility)
+			}
+		})
+	}
+}
+
 // TestParseLetItem_ComplexTypes tests let declarations with complex types
 func TestParseLetItem_ComplexTypes(t *testing.T) {
 	tests := []struct {
@@ -128,7 +180,7 @@ func TestParseLetItem_ComplexTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			builder, fileID, bag := parseSource(t, tt.input)
-			
+
 			if bag.HasErrors() {
 				t.Fatalf("unexpected errors: %+v", bag.Items())
 			}
@@ -175,7 +227,7 @@ func TestParseLetItem_ComplexValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			builder, fileID, bag := parseSource(t, tt.input)
-			
+
 			if bag.HasErrors() {
 				t.Fatalf("unexpected errors: %+v", bag.Items())
 			}
@@ -353,10 +405,10 @@ func TestParseLetItem_WithWhitespace(t *testing.T) {
 // TestParseLetItem_EdgeCases tests edge cases
 func TestParseLetItem_EdgeCases(t *testing.T) {
 	tests := []struct {
-		name         string
-		input        string
-		shouldError  bool
-		errorCode    diag.Code
+		name        string
+		input       string
+		shouldError bool
+		errorCode   diag.Code
 	}{
 		{
 			name:        "underscore identifier",

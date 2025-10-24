@@ -46,6 +46,7 @@ const (
 	SynExpectType         Code = 2202
 	SynExpectExpression   Code = 2203
 	SynExpectColon        Code = 2204
+	SynUnexpectedModifier Code = 2205
 
 	// Семантические (резервируем)
 	SemaInfo  Code = 3000
@@ -65,7 +66,7 @@ const (
 	ProjDependencyFailed  Code = 5007
 )
 
-var (
+var ( // todo расширить описания и использовать как notes
 	codeDescription = map[Code]string{
 		UnknownCode:                 "Unknown error",
 		LexInfo:                     "Lexical information",
@@ -98,6 +99,7 @@ var (
 		SynExpectType:               "Expect type",
 		SynExpectExpression:         "Expect expression",
 		SynExpectColon:              "Expect colon",
+		SynUnexpectedModifier:       "Unexpected modifier",
 		SemaInfo:                    "Semantic information",
 		SemaError:                   "Semantic error",
 		IOLoadFileError:             "I/O load file error",

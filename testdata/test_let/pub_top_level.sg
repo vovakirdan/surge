@@ -1,0 +1,5 @@
+pub let ANSWER: int = 42;
+
+fn display_answer() {
+    print(ANSWER);
+}

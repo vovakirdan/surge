@@ -4,6 +4,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
+	"surge/internal/source"
 	"surge/internal/token"
 )
 
@@ -131,6 +132,10 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 //	let [mut] name: Type;
 //	let [mut] name = Expr;
 func (p *Parser) parseLetItem() (ast.ItemID, bool) {
+	return p.parseLetItemWithVisibility(ast.VisPrivate, source.Span{}, false)
+}
+
+func (p *Parser) parseLetItemWithVisibility(visibility ast.Visibility, prefixSpan source.Span, hasPrefix bool) (ast.ItemID, bool) {
 	letTok := p.advance() // съедаем KwLet
 
 	// Парсим биндинг
@@ -204,11 +209,15 @@ func (p *Parser) parseLetItem() (ast.ItemID, bool) {
 
 	// Создаем LetItem в AST
 	finalSpan := letTok.Span.Cover(semiTok.Span)
+	if hasPrefix {
+		finalSpan = prefixSpan.Cover(finalSpan)
+	}
 	itemID := p.arenas.Items.NewLet(
 		binding.Name,
 		binding.Type,
 		binding.Value,
 		binding.IsMut,
+		visibility,
 		finalSpan,
 	)
 
