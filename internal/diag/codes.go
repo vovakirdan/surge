@@ -30,6 +30,8 @@ const (
 	SynUnclosedAngleBracket  Code = 2010
 	SynUnclosedCurlyBracket  Code = 2011
 	SynExpectSemicolon       Code = 2012
+	SynForMissingIn          Code = 2013
+	SynForBadHeader          Code = 2014
 
 	// import errors & warnings
 	SynInfoImportGroup    Code = 2100
@@ -89,6 +91,8 @@ var ( // todo расширить описания и использовать к
 		SynInfoImportGroup:          "Import group information",
 		SynUnexpectedTopLevel:       "Unexpected top level",
 		SynExpectSemicolon:          "Expect semicolon",
+		SynForMissingIn:             "Missing 'in' in for-in loop",
+		SynForBadHeader:             "Malformed for-loop header",
 		SynExpectIdentifier:         "Expect identifier",
 		SynExpectModuleSeg:          "Expect module segment",
 		SynExpectItemAfterDbl:       "Expect item after double colon",

@@ -159,6 +159,13 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 		value = wrapExprIfNeeded(builder, data.Value, value)
 		typ := formatTypeExprInline(builder, data.Type)
 		return fmt.Sprintf("%s to %s", value, typ)
+	case ast.ExprCompare:
+		data, ok := builder.Exprs.Compare(exprID)
+		if !ok {
+			return "<invalid-compare>"
+		}
+		subject := formatExprInlineDepth(builder, data.Value, depth+1)
+		return fmt.Sprintf("compare %s { %d arms }", subject, len(data.Arms))
 	default:
 		return fmt.Sprintf("<%s>", formatExprKind(expr.Kind))
 	}

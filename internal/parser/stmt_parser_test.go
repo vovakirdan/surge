@@ -35,6 +35,13 @@ func parseSource(t *testing.T, input string) (*ast.Builder, ast.FileID, *diag.Ba
 	return builder, result.File, result.Bag
 }
 
+func lookupNameOr(builder *ast.Builder, id source.StringID, fallback string) string {
+	if builder == nil || builder.StringsInterner == nil || id == source.NoStringID {
+		return fallback
+	}
+	return builder.StringsInterner.MustLookup(id)
+}
+
 func TestParseBlockStatements_Positive(t *testing.T) {
 	input := `
 		fn foo() {
@@ -517,5 +524,298 @@ func TestParseComplexStatements(t *testing.T) {
 				t.Fatalf("expected 1 item, got %d", len(file.Items))
 			}
 		})
+	}
+}
+
+func TestParseIfStatement(t *testing.T) {
+	input := `
+		fn foo() {
+			if (a > 0) { return; } else { return; }
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil || len(block.Stmts) != 1 {
+		t.Fatalf("expected single statement block, got %d", len(block.Stmts))
+	}
+
+	stmt := builder.Stmts.Get(block.Stmts[0])
+	if stmt.Kind != ast.StmtIf {
+		t.Fatalf("expected StmtIf, got %v", stmt.Kind)
+	}
+
+	ifStmt := builder.Stmts.If(block.Stmts[0])
+	if ifStmt == nil {
+		t.Fatal("if payload missing")
+	}
+	condExpr := builder.Exprs.Get(ifStmt.Cond)
+	if condExpr == nil || condExpr.Kind != ast.ExprBinary {
+		t.Fatalf("expected binary condition, got %v", condExpr)
+	}
+	thenBlock := builder.Stmts.Block(ifStmt.Then)
+	if thenBlock == nil || len(thenBlock.Stmts) != 1 {
+		t.Fatalf("expected then-block with single stmt, got %+v", thenBlock)
+	}
+	elseBlock := builder.Stmts.Block(ifStmt.Else)
+	if elseBlock == nil || len(elseBlock.Stmts) != 1 {
+		t.Fatalf("expected else-block with single stmt, got %+v", elseBlock)
+	}
+}
+
+func TestParseWhileStatement(t *testing.T) {
+	input := `
+		fn foo() {
+			while (ready) { return; }
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil || len(block.Stmts) != 1 {
+		t.Fatalf("expected single statement block, got %d", len(block.Stmts))
+	}
+
+	stmt := builder.Stmts.Get(block.Stmts[0])
+	if stmt.Kind != ast.StmtWhile {
+		t.Fatalf("expected StmtWhile, got %v", stmt.Kind)
+	}
+
+	whileStmt := builder.Stmts.While(block.Stmts[0])
+	if whileStmt == nil {
+		t.Fatal("while payload missing")
+	}
+	if builder.Exprs.Get(whileStmt.Cond) == nil {
+		t.Fatal("while condition missing")
+	}
+	body := builder.Stmts.Block(whileStmt.Body)
+	if body == nil || len(body.Stmts) != 1 {
+		t.Fatalf("expected while-body with single stmt, got %+v", body)
+	}
+}
+
+func TestParseForClassicStatement(t *testing.T) {
+	input := `
+		fn foo() {
+			for (let i: int = 0; i < 10; i = i + 1) {
+				return;
+			}
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil || len(block.Stmts) != 1 {
+		t.Fatalf("expected single statement block, got %d", len(block.Stmts))
+	}
+
+	stmt := builder.Stmts.Get(block.Stmts[0])
+	if stmt.Kind != ast.StmtForClassic {
+		t.Fatalf("expected StmtForClassic, got %v", stmt.Kind)
+	}
+
+	forStmt := builder.Stmts.ForClassic(block.Stmts[0])
+	if forStmt == nil {
+		t.Fatal("for-classic payload missing")
+	}
+	init := builder.Stmts.Get(forStmt.Init)
+	if init == nil || init.Kind != ast.StmtLet {
+		t.Fatalf("expected let initializer, got %v", init)
+	}
+	if builder.Exprs.Get(forStmt.Cond) == nil {
+		t.Fatal("for condition missing")
+	}
+	if builder.Exprs.Get(forStmt.Post) == nil {
+		t.Fatal("for post expression missing")
+	}
+	body := builder.Stmts.Block(forStmt.Body)
+	if body == nil || len(body.Stmts) != 1 {
+		t.Fatalf("expected for-body with single stmt, got %+v", body)
+	}
+}
+
+func TestParseForInStatement(t *testing.T) {
+	input := `
+		fn foo() {
+			for item: int in items {
+				return;
+			}
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil || len(block.Stmts) != 1 {
+		t.Fatalf("expected single statement block, got %d", len(block.Stmts))
+	}
+
+	stmt := builder.Stmts.Get(block.Stmts[0])
+	if stmt.Kind != ast.StmtForIn {
+		t.Fatalf("expected StmtForIn, got %v", stmt.Kind)
+	}
+
+	forIn := builder.Stmts.ForIn(block.Stmts[0])
+	if forIn == nil {
+		t.Fatal("for-in payload missing")
+	}
+	name := lookupNameOr(builder, forIn.Pattern, "")
+	if name != "item" {
+		t.Fatalf("expected pattern name 'item', got %q", name)
+	}
+	if !forIn.Type.IsValid() {
+		t.Fatal("expected explicit type annotation")
+	}
+	if builder.Exprs.Get(forIn.Iterable) == nil {
+		t.Fatal("iterable expression missing")
+	}
+	body := builder.Stmts.Block(forIn.Body)
+	if body == nil || len(body.Stmts) != 1 {
+		t.Fatalf("expected for-in body with single stmt, got %+v", body)
+	}
+}
+
+func TestParseBreakContinueStatements(t *testing.T) {
+	input := `
+		fn foo() {
+			break;
+			continue;
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil || len(block.Stmts) != 2 {
+		t.Fatalf("expected two statements, got %d", len(block.Stmts))
+	}
+
+	first := builder.Stmts.Get(block.Stmts[0])
+	second := builder.Stmts.Get(block.Stmts[1])
+	if first.Kind != ast.StmtBreak {
+		t.Fatalf("expected first statement Break, got %v", first.Kind)
+	}
+	if second.Kind != ast.StmtContinue {
+		t.Fatalf("expected second statement Continue, got %v", second.Kind)
+	}
+}
+
+func TestParseCompareExpressionStatement(t *testing.T) {
+	input := `
+		fn foo() {
+			compare value {
+				target if ready => 1;
+				finally => 2;
+			};
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil || len(block.Stmts) != 1 {
+		t.Fatalf("expected single statement, got %d", len(block.Stmts))
+	}
+
+	stmt := builder.Stmts.Get(block.Stmts[0])
+	if stmt.Kind != ast.StmtExpr {
+		t.Fatalf("expected expression statement, got %v", stmt.Kind)
+	}
+
+	exprStmt := builder.Stmts.Expr(block.Stmts[0])
+	if exprStmt == nil {
+		t.Fatal("expression payload missing")
+	}
+	expr := builder.Exprs.Get(exprStmt.Expr)
+	if expr == nil || expr.Kind != ast.ExprCompare {
+		t.Fatalf("expected compare expression, got %v", expr)
+	}
+	data, ok := builder.Exprs.Compare(exprStmt.Expr)
+	if !ok {
+		t.Fatal("compare payload missing")
+	}
+	if len(data.Arms) != 2 {
+		t.Fatalf("expected 2 compare arms, got %d", len(data.Arms))
+	}
+	firstArm := data.Arms[0]
+	if firstArm.IsFinally {
+		t.Fatal("first arm should not be finally")
+	}
+	if firstArm.Pattern.IsValid() {
+		if ident, ok := builder.Exprs.Ident(firstArm.Pattern); ok {
+			name := lookupNameOr(builder, ident.Name, "")
+			if name != "target" {
+				t.Fatalf("expected pattern 'target', got %q", name)
+			}
+		} else {
+			t.Fatalf("expected pattern ident, got %+v", builder.Exprs.Get(firstArm.Pattern))
+		}
+	}
+	if !firstArm.Guard.IsValid() {
+		t.Fatal("expected guard expression on first arm")
+	}
+	lastArm := data.Arms[1]
+	if !lastArm.IsFinally {
+		t.Fatal("expected second arm to be finally")
+	}
+	if !lastArm.Result.IsValid() {
+		t.Fatal("expected result expression in finally arm")
 	}
 }

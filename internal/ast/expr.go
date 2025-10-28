@@ -161,6 +161,19 @@ type ExprArrayData struct {
 	Elements []ExprID
 }
 
+type ExprCompareArm struct {
+	Pattern     ExprID
+	PatternSpan source.Span
+	Guard       ExprID
+	Result      ExprID
+	IsFinally   bool
+}
+
+type ExprCompareData struct {
+	Value ExprID
+	Arms  []ExprCompareArm
+}
+
 type Exprs struct {
 	Arena    *Arena[Expr]
 	Idents   *Arena[ExprIdentData]
@@ -174,6 +187,7 @@ type Exprs struct {
 	Groups   *Arena[ExprGroupData]
 	Tuples   *Arena[ExprTupleData]
 	Arrays   *Arena[ExprArrayData]
+	Compares *Arena[ExprCompareData]
 }
 
 // NewExprs creates a new Exprs with per-kind arenas preallocated using capHint as the initial capacity.
@@ -195,6 +209,7 @@ func NewExprs(capHint uint) *Exprs {
 		Groups:   NewArena[ExprGroupData](capHint),
 		Tuples:   NewArena[ExprTupleData](capHint),
 		Arrays:   NewArena[ExprArrayData](capHint),
+		Compares: NewArena[ExprCompareData](capHint),
 	}
 }
 
@@ -351,4 +366,20 @@ func (e *Exprs) Array(id ExprID) (*ExprArrayData, bool) {
 		return nil, false
 	}
 	return e.Arrays.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewCompare(span source.Span, value ExprID, arms []ExprCompareArm) ExprID {
+	payload := e.Compares.Allocate(ExprCompareData{
+		Value: value,
+		Arms:  append([]ExprCompareArm(nil), arms...),
+	})
+	return e.new(ExprCompare, span, PayloadID(payload))
+}
+
+func (e *Exprs) Compare(id ExprID) (*ExprCompareData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprCompare || !expr.Payload.IsValid() {
+		return nil, false
+	}
+	return e.Compares.Get(uint32(expr.Payload)), true
 }

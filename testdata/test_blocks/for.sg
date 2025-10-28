@@ -1,0 +1,15 @@
+fn iterate(items: int[]) -> int {
+    for (let i: int = 0; i < items.len; i = i + 1) {
+        if (items[i] > 10) {
+            return items[i];
+        }
+    }
+
+    for value: int in items {
+        if (value == 0) {
+            return value;
+        }
+    }
+
+    return -1;
+}

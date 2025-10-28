@@ -62,10 +62,22 @@ func (p *Parser) parseBlock() (ast.StmtID, bool) {
 
 func (p *Parser) parseStmt() (ast.StmtID, bool) {
 	switch p.lx.Peek().Kind {
+	case token.LBrace:
+		return p.parseBlock()
 	case token.KwLet:
 		return p.parseLetStmt()
 	case token.KwReturn:
 		return p.parseReturnStmt()
+	case token.KwIf:
+		return p.parseIfStmt()
+	case token.KwWhile:
+		return p.parseWhileStmt()
+	case token.KwFor:
+		return p.parseForStmt()
+	case token.KwBreak:
+		return p.parseBreakStmt()
+	case token.KwContinue:
+		return p.parseContinueStmt()
 	default:
 		return p.parseExprStmt()
 	}

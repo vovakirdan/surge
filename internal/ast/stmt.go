@@ -9,13 +9,12 @@ const (
 	StmtLet
 	StmtExpr
 	StmtReturn
-	StmtContinue
 	StmtBreak
+	StmtContinue
 	StmtIf
 	StmtWhile
-	StmtFor
-	StmtIn
-	StmtFinally
+	StmtForClassic
+	StmtForIn
 )
 
 type Stmt struct {
@@ -27,11 +26,15 @@ type Stmt struct {
 }
 
 type Stmts struct {
-	Arena   *Arena[Stmt]
-	Blocks  *Arena[BlockStmt]
-	Lets    *Arena[LetStmt]
-	Exprs   *Arena[ExprStmt]
-	Returns *Arena[ReturnStmt]
+	Arena       *Arena[Stmt]
+	Blocks      *Arena[BlockStmt]
+	Lets        *Arena[LetStmt]
+	Exprs       *Arena[ExprStmt]
+	Returns     *Arena[ReturnStmt]
+	Ifs         *Arena[IfStmt]
+	Whiles      *Arena[WhileStmt]
+	ClassicFors *Arena[ForClassicStmt]
+	ForIns      *Arena[ForInStmt]
 }
 
 // NewStmts creates and returns a new Stmts populated with internal arenas.
@@ -43,11 +46,15 @@ func NewStmts(capHint uint) *Stmts {
 		capHint = 1 << 8
 	}
 	return &Stmts{
-		Arena:   NewArena[Stmt](capHint),
-		Blocks:  NewArena[BlockStmt](capHint),
-		Lets:    NewArena[LetStmt](capHint),
-		Exprs:   NewArena[ExprStmt](capHint),
-		Returns: NewArena[ReturnStmt](capHint),
+		Arena:       NewArena[Stmt](capHint),
+		Blocks:      NewArena[BlockStmt](capHint),
+		Lets:        NewArena[LetStmt](capHint),
+		Exprs:       NewArena[ExprStmt](capHint),
+		Returns:     NewArena[ReturnStmt](capHint),
+		Ifs:         NewArena[IfStmt](capHint),
+		Whiles:      NewArena[WhileStmt](capHint),
+		ClassicFors: NewArena[ForClassicStmt](capHint),
+		ForIns:      NewArena[ForInStmt](capHint),
 	}
 }
 
@@ -80,6 +87,32 @@ type ExprStmt struct {
 
 type ReturnStmt struct {
 	Expr ExprID
+}
+
+type IfStmt struct {
+	Cond ExprID
+	Then StmtID
+	Else StmtID
+}
+
+type WhileStmt struct {
+	Cond ExprID
+	Body StmtID
+}
+
+type ForClassicStmt struct {
+	Init StmtID
+	Cond ExprID
+	Post ExprID
+	Body StmtID
+}
+
+type ForInStmt struct {
+	Pattern     source.StringID
+	PatternSpan source.Span
+	Type        TypeID
+	Iterable    ExprID
+	Body        StmtID
 }
 
 func (s *Stmts) NewBlock(span source.Span, stmts []StmtID) StmtID {
@@ -143,4 +176,82 @@ func (s *Stmts) Return(id StmtID) *ReturnStmt {
 		return nil
 	}
 	return s.Returns.Get(uint32(stmt.Payload))
+}
+
+func (s *Stmts) NewBreak(span source.Span) StmtID {
+	return s.New(StmtBreak, span, NoPayloadID)
+}
+
+func (s *Stmts) NewContinue(span source.Span) StmtID {
+	return s.New(StmtContinue, span, NoPayloadID)
+}
+
+func (s *Stmts) NewIf(span source.Span, cond ExprID, thenStmt, elseStmt StmtID) StmtID {
+	payload := PayloadID(s.Ifs.Allocate(IfStmt{
+		Cond: cond,
+		Then: thenStmt,
+		Else: elseStmt,
+	}))
+	return s.New(StmtIf, span, payload)
+}
+
+func (s *Stmts) If(id StmtID) *IfStmt {
+	stmt := s.Get(id)
+	if stmt == nil || stmt.Kind != StmtIf || !stmt.Payload.IsValid() {
+		return nil
+	}
+	return s.Ifs.Get(uint32(stmt.Payload))
+}
+
+func (s *Stmts) NewWhile(span source.Span, cond ExprID, body StmtID) StmtID {
+	payload := PayloadID(s.Whiles.Allocate(WhileStmt{
+		Cond: cond,
+		Body: body,
+	}))
+	return s.New(StmtWhile, span, payload)
+}
+
+func (s *Stmts) While(id StmtID) *WhileStmt {
+	stmt := s.Get(id)
+	if stmt == nil || stmt.Kind != StmtWhile || !stmt.Payload.IsValid() {
+		return nil
+	}
+	return s.Whiles.Get(uint32(stmt.Payload))
+}
+
+func (s *Stmts) NewForClassic(span source.Span, init StmtID, cond ExprID, post ExprID, body StmtID) StmtID {
+	payload := PayloadID(s.ClassicFors.Allocate(ForClassicStmt{
+		Init: init,
+		Cond: cond,
+		Post: post,
+		Body: body,
+	}))
+	return s.New(StmtForClassic, span, payload)
+}
+
+func (s *Stmts) ForClassic(id StmtID) *ForClassicStmt {
+	stmt := s.Get(id)
+	if stmt == nil || stmt.Kind != StmtForClassic || !stmt.Payload.IsValid() {
+		return nil
+	}
+	return s.ClassicFors.Get(uint32(stmt.Payload))
+}
+
+func (s *Stmts) NewForIn(span source.Span, pattern source.StringID, patternSpan source.Span, typ TypeID, iterable ExprID, body StmtID) StmtID {
+	payload := PayloadID(s.ForIns.Allocate(ForInStmt{
+		Pattern:     pattern,
+		PatternSpan: patternSpan,
+		Type:        typ,
+		Iterable:    iterable,
+		Body:        body,
+	}))
+	return s.New(StmtForIn, span, payload)
+}
+
+func (s *Stmts) ForIn(id StmtID) *ForInStmt {
+	stmt := s.Get(id)
+	if stmt == nil || stmt.Kind != StmtForIn || !stmt.Payload.IsValid() {
+		return nil
+	}
+	return s.ForIns.Get(uint32(stmt.Payload))
 }
