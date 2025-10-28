@@ -61,32 +61,15 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 
 	switch p.lx.Peek().Kind {
 	case token.LBrace:
-		fields, _, ok := p.parseTypeStructBody()
+		fields, bodySpan, ok := p.parseTypeStructBody()
 		if !ok {
 			return ast.NoItemID, false
 		}
-		semiTok, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after type declaration", func(b *diag.ReportBuilder) {
-			if b == nil {
-				return
-			}
-			insert := p.lastSpan.ZeroideToEnd()
-			fixID := fix.MakeFixID(diag.SynExpectSemicolon, insert)
-			suggestion := fix.InsertText(
-				"insert ';' after type declaration",
-				insert,
-				";",
-				"",
-				fix.WithID(fixID),
-				fix.WithKind(diag.FixKindRefactor),
-				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-			)
-			b.WithFixSuggestion(suggestion)
-			b.WithNote(insert, "insert missing semicolon")
-		})
-		if !ok {
-			return ast.NoItemID, false
+		itemSpan := startSpan.Cover(bodySpan)
+		if p.at(token.Semicolon) {
+			semiTok := p.advance()
+			itemSpan = itemSpan.Cover(semiTok.Span)
 		}
-		itemSpan := startSpan.Cover(semiTok.Span)
 		itemID := p.arenas.NewTypeStruct(nameID, generics, attrs, visibility, ast.NoTypeID, fields, itemSpan)
 		return itemID, true
 	default:
@@ -104,32 +87,15 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 				p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.EOF)
 				return ast.NoItemID, false
 			}
-			fields, _, ok := p.parseTypeStructBody()
+			fields, bodySpan, ok := p.parseTypeStructBody()
 			if !ok {
 				return ast.NoItemID, false
 			}
-			semiTok, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after type declaration", func(b *diag.ReportBuilder) {
-				if b == nil {
-					return
-				}
-				insert := p.lastSpan.ZeroideToEnd()
-				fixID := fix.MakeFixID(diag.SynExpectSemicolon, insert)
-				suggestion := fix.InsertText(
-					"insert ';' after type declaration",
-					insert,
-					";",
-					"",
-					fix.WithID(fixID),
-					fix.WithKind(diag.FixKindRefactor),
-					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-				)
-				b.WithFixSuggestion(suggestion)
-				b.WithNote(insert, "insert missing semicolon")
-			})
-			if !ok {
-				return ast.NoItemID, false
+			itemSpan := startSpan.Cover(bodySpan)
+			if p.at(token.Semicolon) {
+				semiTok := p.advance()
+				itemSpan = itemSpan.Cover(semiTok.Span)
 			}
-			itemSpan := startSpan.Cover(semiTok.Span)
 			itemID := p.arenas.NewTypeStruct(nameID, generics, attrs, visibility, firstType, fields, itemSpan)
 			return itemID, true
 		}

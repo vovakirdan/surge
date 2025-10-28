@@ -82,6 +82,24 @@ func TestParseTypeStruct(t *testing.T) {
 	}
 }
 
+func TestParseTypeStructWithoutSemicolon(t *testing.T) {
+	src := "type Shape = { width: int, height: int }"
+	builder, fileID, bag := parseSource(t, src)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	if len(file.Items) != 1 {
+		t.Fatalf("expected single item, got %d", len(file.Items))
+	}
+
+	typeItem, ok := builder.Items.Type(file.Items[0])
+	if !ok || typeItem.Kind != ast.TypeDeclStruct {
+		t.Fatalf("expected struct type, got %v", builder.Items.Get(file.Items[0]).Kind)
+	}
+}
+
 func TestParseTypeStructWithBase(t *testing.T) {
 	src := "type Child = Parent : { extra: int };"
 	builder, fileID, bag := parseSource(t, src)
