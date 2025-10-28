@@ -41,7 +41,7 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 
 ```
 pub, fn, let, mut, if, else, while, for, in, break, continue,
-import, newtype, type, literal, alias, extern, return, signal, compare, spawn,
+import, type, extern, return, signal, compare, spawn,
 true, false, nothing, is, finally, async, await, macro, pragma,
 @pure, @overload, @override, @backend, @deprecated,
 @packed, @align, @shared, @atomic, @raii, @arena, @weak, @readonly, @hidden, @noinherit, @sealed
@@ -133,12 +133,12 @@ Generic parameters must be declared explicitly with angle brackets: `<T, U, ...>
 
 ### 2.5. User-defined Types
 
-* **Newtype:** `newtype MyInt = int;` creates a distinct nominal type that inherits semantics of `int` but can override magic methods via `extern<MyInt>`. (Different from a pure alias.)
+* **Newtype:** `type MyInt = int;` creates a distinct nominal type that inherits semantics of `int` but can override magic methods via `extern<MyInt>`. (Different from a pure alias.)
 * **Struct:** `type Person = { age:int, name:string, @readonly weight:float }`.
 
   * Fields are immutable unless variable is `mut`. `@readonly` forbids writes even through `mut` bindings.
-* **Literal enums:** `literal Color = "black" | "white";` Only the listed literals are allowed values.
-* **Type alias:** `alias Number = int | float;` a type that admits any member type; overload resolution uses the best matching member (§8).
+* **Literal enums:** `type Color = "black" | "white";` Only the listed literals are allowed values.
+* **Type alias:** `type Number = int | float;` a type that admits any member type; overload resolution uses the best matching member (§8).
 
 #### Struct extension
 
@@ -186,16 +186,16 @@ Tags participate in alias unions as variants. They may declare generic parameter
 
 ### 2.8. Alias unions
 
-`alias` builds sum types with or without tags:
+`type` can describe an alias that builds sum types with or without tags:
 
 ```sg
 // Untagged members (minimal surface)
-alias Number = int | float
-alias MaybeInt = int | nothing
+type Number = int | float
+type MaybeInt = int | nothing
 
 // Tagged members (recommended for public APIs)
 tag Left(L); tag Right(R);
-alias Either<L, R> = Left(L) | Right(R)
+type Either<L, R> = Left(L) | Right(R)
 ```
 
 - Untagged unions rely on runtime type tests: `compare v { x if x is int => ... }`.
@@ -209,8 +209,8 @@ The standard library defines canonical constructors and aliases:
 ```sg
 tag Some<T>(T); tag Ok<T>(T); tag Error<E>(E);
 
-alias Option<T> = Some(T) | nothing
-alias Result<T, E> = Ok(T) | Error(E)
+type Option<T> = Some(T) | nothing
+type Result<T, E> = Ok(T) | Error(E)
 
 fn head<T>(xs: T[]) -> Option<T> {
   if (xs.len == 0) { return nothing; }
@@ -689,7 +689,7 @@ extern<From> {
 
 **Examples:**
 ```sg
-newtype UserId = uint64;
+type UserId = uint64;
 
 extern<UserId> {
   fn __cast<uint64>(self: UserId) -> uint64 {
@@ -761,7 +761,7 @@ Given a call `f(a1, ..., an)` with candidate signatures `Si`:
 
 **Cast operator exclusion:** The `to` operator does **not** participate in overload resolution. Function signature selection happens first, then users may explicitly insert `to` casts as needed. Numeric literal fitting (§7.1) remains a separate rule from explicit casting.
 
-Union alias `alias Number = int | float` participates by expanding to candidates for each member type; the best member is chosen.
+Union alias `type Number = int | float` participates by expanding to candidates for each member type; the best member is chosen.
 
 ### Option conversions
 
@@ -963,8 +963,8 @@ extern<MyInt> {
 
 ```sg
 // Literal enum and union alias
-literal Color = "black" | "white";
-alias Number = int | float;
+type Color = "black" | "white";
+type Number = int | float;
 
 fn show(c: Color) { print(c); }
 fn absn(x: Number) -> Number { return abs(x); }
@@ -992,7 +992,7 @@ let c: int16 = a to int16;    // may trap
 
 ```sg
 // Custom casting with newtype
-newtype UserId = uint64;
+type UserId = uint64;
 
 extern<UserId> {
   fn __cast<uint64>(self: UserId) -> uint64 { return (self: uint64); }
@@ -1022,7 +1022,7 @@ let p3 = ({x: 1.0, y: 2.0}: Point2D) to Point3D;
 
 ```sg
 // Union injection via casting
-alias Number = int | float
+type Number = int | float
 let i: int = 42;
 let n: Number = i to Number;  // injection into union
 ```
@@ -1056,7 +1056,7 @@ compare try_recv(&ch) {
 
 ```sg
 // Compare with conditional patterns and finally
-alias NumberOrString = Number | string | nothing
+type NumberOrString = Number | string | nothing
 
 fn classify_value(value: NumberOrString) {
   compare value {
@@ -1308,7 +1308,7 @@ Users can declare **directive modules** using `pragma directive` at the top of a
 pragma directive
 
 // directive name declaration (singular)
-pub literal DirectiveName = "mycheck";
+pub type DirectiveName = "mycheck";
 
 // API — regular functions available as mycheck.<fn>
 pub fn check_invariant(x: int) -> Result<nothing, Error> { ... }
@@ -1426,7 +1426,7 @@ Member access `.`, await `.await`, and cast `to Type` are postfix operators and 
 ## 15. Name & Visibility
 
 * Items are `pub` (public) or private by default. (Default: private.)
-* `pub fn`, `pub type`, `pub literal`, `pub alias`, `pub let` export items from the module.
+* `pub fn`, `pub type`, `pub let` export items from the module.
 
 ### 15.1. Resolving `Ident(...)`
 
@@ -1484,7 +1484,7 @@ let c = identity(3.14);    // generates identity_float
 Union aliases (§2.8) support both untagged and tagged composition. Untagged unions rely on runtime type tests:
 
 ```sg
-alias Number = int | float
+type Number = int | float
 
 extern<Number> {
   fn __add(a: Number, b: Number) -> Number {
@@ -1575,14 +1575,12 @@ ParamList  := "(" (Param ("," Param)*)? ")"
 Param      := Ident ":" Type | "..."
 RetType    := "->" Type
 TagDecl    := "tag" Ident GenericParams? "(" ParamTypes? ")" ";"
-NewtypeDef := "newtype" Ident "=" Type ";"
-TypeDef    := "type" Ident "=" StructBody ";"?
+TypeDecl   := "type" Attr* Ident GenericParams? "=" TypeBody ";"
+TypeBody   := StructBody | UnionBody | Type
 StructBody := "{" Field ("," Field)* "}"
 Field      := Attr* Ident ":" Type
-LiteralDef := "literal" Ident "=" LiteralAlt ("|" LiteralAlt)* ";"
-LiteralAlt := Str
-AliasDef   := "alias" Ident GenericParams? "=" UnionAlt ("|" UnionAlt)* ";"
-UnionAlt   := "nothing" | Ident "(" ParamTypes? ")" | Type
+UnionBody  := UnionMember ("|" UnionMember)*
+UnionMember:= "nothing" | Ident "(" ParamTypes? ")" | Type
 ExternBlock:= "extern<" Type ">" Block
 Import     := "import" Path ("::" Ident ("as" Ident)?)? ";"
 Path       := Ident ("/" Ident)*
@@ -1622,7 +1620,7 @@ Suffix         := "[]"
 
 ## 20. Compatibility Notes
 
-* Built-ins for primitive base types are sealed; you cannot `@override` them directly. Use `newtype New = int;` and override on the newtype.
+* Built-ins for primitive base types are sealed; you cannot `@override` them directly. Use `type New = int;` and override on the newtype.
 * Dynamic numerics (`int/uint/float`) allow large results; casts to fixed-width may trap.
 * Attributes affecting memory layout and ABI (`@packed`, `@align`) are part of the language specification and cannot be replaced by directives. Directives do not modify type layout or ABI contracts.
 * Concurrency contract attributes describe *analyzable requirements* and do not change language semantics at runtime. Violations may not always be statically checkable; in such cases the compiler emits `W_CONC_UNVERIFIED` and defers verification to linters or runtime debug tools.

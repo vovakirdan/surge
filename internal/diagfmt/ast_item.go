@@ -2,229 +2,10 @@ package diagfmt
 
 import (
 	"fmt"
-	"io"
 	"strings"
 
 	"surge/internal/ast"
-	"surge/internal/source"
 )
-
-// formatItemPretty writes a tree-style, human-readable representation of the AST item
-// identified by itemID to the provided writer.
-//
-// The output includes the item's kind and span and expands payloads for Import, Let,
-// and Fn items with hierarchical prefixes (├─, └─). For functions, generics, parameters,
-// return type, and the first body statement (if present) are shown. If nested formatters
-// (for statements) return an error, that error is propagated. If the item is not found
-// (nil), a "nil item" line is written and no error is returned.
-func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *source.FileSet, prefix string) error {
-	item := builder.Items.Get(itemID)
-	if item == nil {
-		fmt.Fprintf(w, "nil item\n")
-		return nil
-	}
-
-	kindStr := formatItemKind(item.Kind)
-	fmt.Fprintf(w, "%s (span: %s)\n", kindStr, formatSpan(item.Span, fs))
-
-	// Handle special items with payload
-	switch item.Kind {
-	case ast.ItemImport:
-		if importItem, ok := builder.Items.Import(itemID); ok {
-			// Count how many fields we have to determine which one is last
-			hasAlias := importItem.ModuleAlias != 0
-			hasOne := importItem.HasOne
-			hasGroup := len(importItem.Group) > 0
-
-			fieldsCount := 1 // always have Module
-			if hasAlias {
-				fieldsCount++
-			}
-			if hasOne {
-				fieldsCount++
-			}
-			if hasGroup {
-				fieldsCount++
-			}
-
-			currentField := 0
-
-			// Module is always first
-			currentField++
-			modulePrefix := "├─"
-			if currentField == fieldsCount {
-				modulePrefix = "└─"
-			}
-			fmt.Fprintf(w, "%s%s Module: ", prefix, modulePrefix)
-			for i, stringID := range importItem.Module {
-				if i > 0 {
-					fmt.Fprintf(w, "::")
-				}
-				fmt.Fprintf(w, "%s", builder.StringsInterner.MustLookup(stringID))
-			}
-			fmt.Fprintf(w, "\n")
-
-			if hasAlias {
-				currentField++
-				aliasPrefix := "├─"
-				if currentField == fieldsCount {
-					aliasPrefix = "└─"
-				}
-				fmt.Fprintf(w, "%s%s Alias: %s\n", prefix, aliasPrefix, builder.StringsInterner.MustLookup(importItem.ModuleAlias))
-			}
-
-			if hasOne {
-				currentField++
-				onePrefix := "├─"
-				if currentField == fieldsCount {
-					onePrefix = "└─"
-				}
-				fmt.Fprintf(w, "%s%s One: %s", prefix, onePrefix, formatImportOne(importItem.One, builder))
-				if importItem.One.Alias != 0 {
-					fmt.Fprintf(w, " as %s", builder.StringsInterner.MustLookup(importItem.One.Alias))
-				}
-				fmt.Fprintf(w, "\n")
-			}
-
-			if hasGroup {
-				fmt.Fprintf(w, "%s└─ Group:\n", prefix)
-				for i, pair := range importItem.Group {
-					isLastInGroup := i == len(importItem.Group)-1
-					groupItemPrefix := "├─"
-					if isLastInGroup {
-						groupItemPrefix = "└─"
-					}
-					fmt.Fprintf(w, "%s   %s [%d] %s", prefix, groupItemPrefix, i, builder.StringsInterner.MustLookup(pair.Name))
-					if pair.Alias != 0 {
-						fmt.Fprintf(w, " as %s", builder.StringsInterner.MustLookup(pair.Alias))
-					}
-					fmt.Fprintf(w, "\n")
-				}
-			}
-		}
-	case ast.ItemLet:
-		if letItem, ok := builder.Items.Let(itemID); ok {
-			fields := []struct {
-				label string
-				value string
-				show  bool
-			}{
-				{"Name", builder.StringsInterner.MustLookup(letItem.Name), true},
-				{"Mutable", fmt.Sprintf("%v", letItem.IsMut), true},
-				{"Visibility", letItem.Visibility.String(), true},
-				{"Type", formatTypeExprInline(builder, letItem.Type), letItem.Type.IsValid()},
-				{"Value", formatExprSummary(builder, letItem.Value), true},
-			}
-
-			if letItem.AttrCount > 0 {
-				attrs := builder.Items.CollectAttrs(letItem.AttrStart, letItem.AttrCount)
-				if len(attrs) > 0 {
-					attrStrings := make([]string, 0, len(attrs))
-					for _, attr := range attrs {
-						attrStrings = append(attrStrings, formatAttrInline(builder, attr))
-					}
-					fields = append(fields, struct {
-						label string
-						value string
-						show  bool
-					}{
-						label: "Attributes",
-						value: strings.Join(attrStrings, ", "),
-						show:  true,
-					})
-				}
-			}
-
-			visible := 0
-			for _, f := range fields {
-				if f.show {
-					visible++
-				}
-			}
-
-			current := 0
-			for _, f := range fields {
-				if !f.show {
-					continue
-				}
-				current++
-				fieldPrefix := "├─"
-				if current == visible {
-					fieldPrefix = "└─"
-				}
-				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, fieldPrefix, f.label, f.value)
-			}
-		}
-	case ast.ItemFn:
-		if fnItem, ok := builder.Items.Fn(itemID); ok {
-			type fnField struct {
-				label  string
-				value  string
-				isBody bool
-			}
-
-			fields := make([]fnField, 0, 5)
-
-			fields = append(fields, fnField{
-				label: "Name",
-				value: lookupStringOr(builder, fnItem.Name, "<anon>"),
-			})
-
-			if len(fnItem.Generics) > 0 {
-				genericNames := make([]string, 0, len(fnItem.Generics))
-				for _, gid := range fnItem.Generics {
-					genericNames = append(genericNames, lookupStringOr(builder, gid, "_"))
-				}
-				fields = append(fields, fnField{
-					label: "Generics",
-					value: "<" + strings.Join(genericNames, ", ") + ">",
-				})
-			}
-
-			fields = append(fields, fnField{
-				label: "Params",
-				value: formatFnParamsInline(builder, fnItem),
-			})
-
-			fields = append(fields, fnField{
-				label: "Return",
-				value: formatTypeExprInline(builder, fnItem.ReturnType),
-			})
-
-			fields = append(fields, fnField{
-				label:  "Body",
-				isBody: true,
-			})
-
-			for idx, field := range fields {
-				isLast := idx == len(fields)-1
-				marker := "├─"
-				childPrefix := prefix + "│  "
-				if isLast {
-					marker = "└─"
-					childPrefix = prefix + "   "
-				}
-
-				if field.isBody {
-					if fnItem.Body.IsValid() {
-						fmt.Fprintf(w, "%s%s Body:\n", prefix, marker)
-						fmt.Fprintf(w, "%s└─ Stmt[0]: ", childPrefix)
-						if err := formatStmtPretty(w, builder, fnItem.Body, fs, childPrefix+"   "); err != nil {
-							return err
-						}
-					} else {
-						fmt.Fprintf(w, "%s%s Body: <none>\n", prefix, marker)
-					}
-					continue
-				}
-
-				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, field.label, field.value)
-			}
-		}
-	}
-
-	return nil
-}
 
 // formatItemJSON builds an ASTNodeOutput for the item identified by itemID in builder.
 // The output contains Type "Item", a human-readable Kind, the item's Span, and a
@@ -310,6 +91,99 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 			}
 			output.Fields = fields
 		}
+	case ast.ItemType:
+		if typeItem, ok := builder.Items.Type(itemID); ok {
+			fields := map[string]any{
+				"name": lookupStringOr(builder, typeItem.Name, "<anon>"),
+				"kind": formatTypeDeclKind(typeItem.Kind),
+			}
+
+			if len(typeItem.Generics) > 0 {
+				genericNames := make([]string, 0, len(typeItem.Generics))
+				for _, gid := range typeItem.Generics {
+					genericNames = append(genericNames, lookupStringOr(builder, gid, "_"))
+				}
+				fields["generics"] = genericNames
+			}
+
+			if typeItem.AttrCount > 0 {
+				attrs := builder.Items.CollectAttrs(typeItem.AttrStart, typeItem.AttrCount)
+				if len(attrs) > 0 {
+					fields["attributes"] = buildAttrsJSON(builder, attrs)
+				}
+			}
+
+			switch typeItem.Kind {
+			case ast.TypeDeclAlias:
+				if aliasDecl := builder.Items.TypeAlias(typeItem); aliasDecl != nil {
+					fields["target"] = formatTypeExprInline(builder, aliasDecl.Target)
+				}
+			case ast.TypeDeclStruct:
+				if structDecl := builder.Items.TypeStruct(typeItem); structDecl != nil {
+					if structDecl.Base.IsValid() {
+						fields["base"] = formatTypeExprInline(builder, structDecl.Base)
+					}
+					jsonFields := make([]map[string]any, 0, structDecl.FieldsCount)
+					if structDecl.FieldsCount > 0 && structDecl.FieldsStart.IsValid() {
+						start := uint32(structDecl.FieldsStart)
+						for idx := uint32(0); idx < structDecl.FieldsCount; idx++ {
+							field := builder.Items.StructField(ast.TypeFieldID(start + idx))
+							if field == nil {
+								continue
+							}
+							entry := map[string]any{
+								"name": lookupStringOr(builder, field.Name, "<field>"),
+								"type": formatTypeExprInline(builder, field.Type),
+							}
+							if field.Default.IsValid() {
+								entry["default"] = formatExprInline(builder, field.Default)
+							}
+							if field.AttrCount > 0 {
+								attrs := builder.Items.CollectAttrs(field.AttrStart, field.AttrCount)
+								if len(attrs) > 0 {
+									entry["attributes"] = buildAttrsJSON(builder, attrs)
+								}
+							}
+							jsonFields = append(jsonFields, entry)
+						}
+					}
+					fields["fields"] = jsonFields
+				}
+			case ast.TypeDeclUnion:
+				if unionDecl := builder.Items.TypeUnion(typeItem); unionDecl != nil {
+					members := make([]map[string]any, 0, unionDecl.MembersCount)
+					if unionDecl.MembersCount > 0 && unionDecl.MembersStart.IsValid() {
+						start := uint32(unionDecl.MembersStart)
+						for idx := uint32(0); idx < unionDecl.MembersCount; idx++ {
+							member := builder.Items.UnionMember(ast.TypeUnionMemberID(start + idx))
+							if member == nil {
+								continue
+							}
+							entry := map[string]any{
+								"kind": formatUnionMemberKind(member.Kind),
+							}
+							switch member.Kind {
+							case ast.TypeUnionMemberType:
+								entry["type"] = formatTypeExprInline(builder, member.Type)
+							case ast.TypeUnionMemberTag:
+								entry["tag"] = lookupStringOr(builder, member.TagName, "<tag>")
+								if len(member.TagArgs) > 0 {
+									argStrings := make([]string, 0, len(member.TagArgs))
+									for _, arg := range member.TagArgs {
+										argStrings = append(argStrings, formatTypeExprInline(builder, arg))
+									}
+									entry["args"] = argStrings
+								}
+							}
+							members = append(members, entry)
+						}
+					}
+					fields["members"] = members
+				}
+			}
+
+			output.Fields = fields
+		}
 	case ast.ItemFn:
 		if fnItem, ok := builder.Items.Fn(itemID); ok {
 			fields := map[string]any{
@@ -353,12 +227,6 @@ func formatItemKind(kind ast.ItemKind) string {
 		return "Let"
 	case ast.ItemType:
 		return "Type"
-	case ast.ItemNewtype:
-		return "Newtype"
-	case ast.ItemAlias:
-		return "Alias"
-	case ast.ItemLiteral:
-		return "Literal"
 	case ast.ItemTag:
 		return "Tag"
 	case ast.ItemExtern:
@@ -381,6 +249,56 @@ func formatImportOne(one ast.ImportOne, builder *ast.Builder) string {
 		return "*"
 	}
 	return builder.StringsInterner.MustLookup(one.Name)
+}
+
+func formatTypeDeclKind(kind ast.TypeDeclKind) string {
+	switch kind {
+	case ast.TypeDeclAlias:
+		return "Alias"
+	case ast.TypeDeclStruct:
+		return "Struct"
+	case ast.TypeDeclUnion:
+		return "Union"
+	default:
+		return fmt.Sprintf("TypeDeclKind(%d)", kind)
+	}
+}
+
+func formatUnionMemberKind(kind ast.TypeUnionMemberKind) string {
+	switch kind {
+	case ast.TypeUnionMemberType:
+		return "Type"
+	case ast.TypeUnionMemberNothing:
+		return "Nothing"
+	case ast.TypeUnionMemberTag:
+		return "Tag"
+	default:
+		return fmt.Sprintf("UnionMemberKind(%d)", kind)
+	}
+}
+
+func formatUnionMemberInline(builder *ast.Builder, member *ast.TypeUnionMember, idx int) string {
+	if member == nil {
+		return fmt.Sprintf("Member[%d]: <nil>", idx)
+	}
+	switch member.Kind {
+	case ast.TypeUnionMemberNothing:
+		return fmt.Sprintf("Member[%d]: nothing", idx)
+	case ast.TypeUnionMemberType:
+		return fmt.Sprintf("Member[%d]: %s", idx, formatTypeExprInline(builder, member.Type))
+	case ast.TypeUnionMemberTag:
+		name := lookupStringOr(builder, member.TagName, "<tag>")
+		if len(member.TagArgs) == 0 {
+			return fmt.Sprintf("Member[%d]: %s", idx, name)
+		}
+		args := make([]string, 0, len(member.TagArgs))
+		for _, arg := range member.TagArgs {
+			args = append(args, formatTypeExprInline(builder, arg))
+		}
+		return fmt.Sprintf("Member[%d]: %s(%s)", idx, name, strings.Join(args, ", "))
+	default:
+		return fmt.Sprintf("Member[%d]: <unknown>", idx)
+	}
 }
 
 func formatAttrInline(builder *ast.Builder, attr ast.Attr) string {

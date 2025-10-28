@@ -10,9 +10,6 @@ const (
 	ItemFn ItemKind = iota
 	ItemLet
 	ItemType
-	ItemNewtype
-	ItemAlias
-	ItemLiteral
 	ItemTag
 	ItemExtern
 	ItemPragma
@@ -27,12 +24,18 @@ type Item struct {
 }
 
 type Items struct {
-	Arena    *Arena[Item]
-	Imports  *Arena[ImportItem]
-	Fns      *Arena[FnItem]
-	FnParams *Arena[FnParam]
-	Attrs    *Arena[Attr]
-	Lets     *Arena[LetItem]
+	Arena            *Arena[Item]
+	Imports          *Arena[ImportItem]
+	Fns              *Arena[FnItem]
+	FnParams         *Arena[FnParam]
+	Attrs            *Arena[Attr]
+	Lets             *Arena[LetItem]
+	Types            *Arena[TypeItem]
+	TypeAliases      *Arena[TypeAliasDecl]
+	TypeStructs      *Arena[TypeStructDecl]
+	TypeFields       *Arena[TypeStructField]
+	TypeUnions       *Arena[TypeUnionDecl]
+	TypeUnionMembers *Arena[TypeUnionMember]
 }
 
 // NewItems creates and returns an *Items with per-kind arenas initialized to capHint.
@@ -43,12 +46,18 @@ func NewItems(capHint uint) *Items {
 		capHint = 1 << 8
 	}
 	return &Items{
-		Arena:    NewArena[Item](capHint),
-		Imports:  NewArena[ImportItem](capHint),
-		Fns:      NewArena[FnItem](capHint),
-		FnParams: NewArena[FnParam](capHint),
-		Attrs:    NewArena[Attr](capHint),
-		Lets:     NewArena[LetItem](capHint),
+		Arena:            NewArena[Item](capHint),
+		Imports:          NewArena[ImportItem](capHint),
+		Fns:              NewArena[FnItem](capHint),
+		FnParams:         NewArena[FnParam](capHint),
+		Attrs:            NewArena[Attr](capHint),
+		Lets:             NewArena[LetItem](capHint),
+		Types:            NewArena[TypeItem](capHint),
+		TypeAliases:      NewArena[TypeAliasDecl](capHint),
+		TypeStructs:      NewArena[TypeStructDecl](capHint),
+		TypeFields:       NewArena[TypeStructField](capHint),
+		TypeUnions:       NewArena[TypeUnionDecl](capHint),
+		TypeUnionMembers: NewArena[TypeUnionMember](capHint),
 	}
 }
 
@@ -80,4 +89,47 @@ func (i *Items) CollectAttrs(attrStart AttrID, attrCount uint32) []Attr {
 		result = append(result, *attr)
 	}
 	return result
+}
+
+func (i *Items) Type(itemID ItemID) (*TypeItem, bool) {
+	item := i.Get(itemID)
+	if item == nil || item.Kind != ItemType || !item.Payload.IsValid() {
+		return nil, false
+	}
+	return i.Types.Get(uint32(item.Payload)), true
+}
+
+func (i *Items) TypeAlias(item *TypeItem) *TypeAliasDecl {
+	if item == nil || item.Kind != TypeDeclAlias || !item.Payload.IsValid() {
+		return nil
+	}
+	return i.TypeAliases.Get(uint32(item.Payload))
+}
+
+func (i *Items) TypeStruct(item *TypeItem) *TypeStructDecl {
+	if item == nil || item.Kind != TypeDeclStruct || !item.Payload.IsValid() {
+		return nil
+	}
+	return i.TypeStructs.Get(uint32(item.Payload))
+}
+
+func (i *Items) TypeUnion(item *TypeItem) *TypeUnionDecl {
+	if item == nil || item.Kind != TypeDeclUnion || !item.Payload.IsValid() {
+		return nil
+	}
+	return i.TypeUnions.Get(uint32(item.Payload))
+}
+
+func (i *Items) StructField(id TypeFieldID) *TypeStructField {
+	if !id.IsValid() {
+		return nil
+	}
+	return i.TypeFields.Get(uint32(id))
+}
+
+func (i *Items) UnionMember(id TypeUnionMemberID) *TypeUnionMember {
+	if !id.IsValid() {
+		return nil
+	}
+	return i.TypeUnionMembers.Get(uint32(id))
 }
