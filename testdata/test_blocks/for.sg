@@ -11,5 +11,9 @@ fn iterate(items: int[]) -> int {
         }
     }
 
+    for fallback in items {
+        return fallback;
+    }
+
     return -1;
 }

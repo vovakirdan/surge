@@ -1,0 +1,8 @@
+fn extract(target: int, fallback: int) -> int {
+    let chosen = compare target {
+        value if value > 0 => value;
+        finally => fallback;
+    };
+
+    return chosen;
+}

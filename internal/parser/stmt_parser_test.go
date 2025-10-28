@@ -819,3 +819,128 @@ func TestParseCompareExpressionStatement(t *testing.T) {
 		t.Fatal("expected result expression in finally arm")
 	}
 }
+
+func TestParseLetWithCompareExpression(t *testing.T) {
+	input := `
+		fn foo() {
+			let a = compare something {
+				target if ready => 1;
+				finally => 2;
+			};
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil || len(block.Stmts) != 1 {
+		t.Fatalf("expected single statement block, got %d", len(block.Stmts))
+	}
+
+	stmt := builder.Stmts.Get(block.Stmts[0])
+	if stmt.Kind != ast.StmtLet {
+		t.Fatalf("expected let statement, got %v", stmt.Kind)
+	}
+
+	letData := builder.Stmts.Let(block.Stmts[0])
+	if letData == nil {
+		t.Fatal("missing let payload")
+	}
+	expr := builder.Exprs.Get(letData.Value)
+	if expr == nil || expr.Kind != ast.ExprCompare {
+		t.Fatalf("expected compare expression, got %v", expr)
+	}
+}
+
+func TestParseIfElseChain(t *testing.T) {
+	input := `
+		fn classify(x: int) -> int {
+			if (x < 0) {
+				return -1;
+			} else if (x == 0) {
+				return 0;
+			} else {
+				return 1;
+			}
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil || len(block.Stmts) != 1 {
+		t.Fatalf("expected single statement block, got %d", len(block.Stmts))
+	}
+
+	rootIf := builder.Stmts.If(block.Stmts[0])
+	if rootIf == nil {
+		t.Fatal("expected if payload")
+	}
+
+	elseStmt := rootIf.Else
+	if !elseStmt.IsValid() {
+		t.Fatal("expected else branch")
+	}
+
+	next := builder.Stmts.Get(elseStmt)
+	if next.Kind != ast.StmtIf {
+		t.Fatalf("expected chained if, got %v", next.Kind)
+	}
+}
+
+func TestParseForInWithoutTypeAnnotation(t *testing.T) {
+	input := `
+		fn iterate(items: int[]) {
+			for value in items {
+				return;
+			}
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil || len(block.Stmts) != 1 {
+		t.Fatalf("expected single statement block, got %d", len(block.Stmts))
+	}
+
+	stmt := builder.Stmts.Get(block.Stmts[0])
+	if stmt.Kind != ast.StmtForIn {
+		t.Fatalf("expected for-in statement, got %v", stmt.Kind)
+	}
+
+	forIn := builder.Stmts.ForIn(block.Stmts[0])
+	if forIn == nil {
+		t.Fatal("for-in payload missing")
+	}
+	if forIn.Type.IsValid() {
+		t.Fatal("expected no explicit type annotation")
+	}
+}
