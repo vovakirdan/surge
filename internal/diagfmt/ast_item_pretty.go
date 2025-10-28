@@ -1,8 +1,8 @@
 package diagfmt
 
 import (
-	"io"
 	"fmt"
+	"io"
 	"strings"
 
 	"surge/internal/ast"
@@ -164,6 +164,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 			}{
 				{"Name", lookupStringOr(builder, typeItem.Name, "<anon>"), true},
 				{"Kind", formatTypeDeclKind(typeItem.Kind), true},
+				{"Visibility", typeItem.Visibility.String(), true},
 			}
 
 			if len(typeItem.Generics) > 0 {

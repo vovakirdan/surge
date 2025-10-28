@@ -35,6 +35,11 @@ const (
 	SynModifierNotAllowed    Code = 2015
 	SynAttributeNotAllowed   Code = 2016
 	SynAsyncNotAllowed       Code = 2017
+	SynTypeExpectEquals      Code = 2018
+	SynTypeExpectBody        Code = 2019
+	SynTypeExpectUnionMember Code = 2020
+	SynTypeFieldConflict     Code = 2021
+	SynTypeDuplicateMember   Code = 2022
 
 	// import errors & warnings
 	SynInfoImportGroup    Code = 2100
@@ -99,6 +104,11 @@ var ( // todo расширить описания и использовать к
 		SynModifierNotAllowed:       "Modifier not allowed here",
 		SynAttributeNotAllowed:      "Attribute not allowed here",
 		SynAsyncNotAllowed:          "'async' not allowed here",
+		SynTypeExpectEquals:         "Expected '=' in type declaration",
+		SynTypeExpectBody:           "Expected type body",
+		SynTypeExpectUnionMember:    "Expected union member",
+		SynTypeFieldConflict:        "Duplicate field in type",
+		SynTypeDuplicateMember:      "Duplicate union member",
 		SynExpectIdentifier:         "Expect identifier",
 		SynExpectModuleSeg:          "Expect module segment",
 		SynExpectItemAfterDbl:       "Expect item after double colon",

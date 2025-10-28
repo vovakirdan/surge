@@ -120,6 +120,8 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 		return p.parseLetItemWithVisibility(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
 	case token.KwFn:
 		return p.parseFnItem(attrs, attrSpan, fnModifiers{})
+	case token.KwType:
+		return p.parseTypeItem(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
 	case token.KwPub, token.KwAsync, token.KwExtern, token.Ident:
 		mods, _ := p.parseFnModifiers()
 		if p.at(token.KwFn) {
@@ -160,6 +162,42 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 				)
 			}
 			return p.parseLetItemWithVisibility(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
+		}
+		if p.at(token.KwType) {
+			visibility := ast.VisPrivate
+			if mods.flags&ast.FnModifierPublic != 0 {
+				visibility = ast.VisPublic
+			}
+			invalid := mods.flags &^ ast.FnModifierPublic
+			if invalid != 0 {
+				span := mods.span
+				if !mods.hasSpan {
+					span = p.lx.Peek().Span
+				}
+				p.emitDiagnostic(
+					diag.SynUnexpectedModifier,
+					diag.SevError,
+					span,
+					"unexpected modifiers before 'type'",
+					func(b *diag.ReportBuilder) {
+						if b == nil {
+							return
+						}
+						fixID := fix.MakeFixID(diag.SynUnexpectedModifier, span)
+						suggestion := fix.DeleteSpan(
+							"remove the invalid modifiers",
+							span.ExtendRight(p.lx.Peek().Span),
+							"",
+							fix.WithID(fixID),
+							fix.WithKind(diag.FixKindRefactor),
+							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						)
+						b.WithFixSuggestion(suggestion)
+						b.WithNote(span, "only 'pub' modifier is allowed before 'type'")
+					},
+				)
+			}
+			return p.parseTypeItem(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
 		}
 		if mods.flags != 0 {
 			span := mods.span
@@ -223,7 +261,7 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 func isTopLevelStarter(k token.Kind) bool {
 	switch k {
 	case token.KwImport, token.KwLet, token.KwFn,
-		token.KwPub, token.KwAsync, token.KwExtern:
+		token.KwPub, token.KwAsync, token.KwExtern, token.KwType:
 		return true
 	default:
 		return false

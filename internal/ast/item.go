@@ -133,3 +133,131 @@ func (i *Items) UnionMember(id TypeUnionMemberID) *TypeUnionMember {
 	}
 	return i.TypeUnionMembers.Get(uint32(id))
 }
+
+func (i *Items) allocateAttrs(attrs []Attr) (AttrID, uint32) {
+	if len(attrs) == 0 {
+		return NoAttrID, 0
+	}
+	var start AttrID
+	for idx, attr := range attrs {
+		id := AttrID(i.Attrs.Allocate(attr))
+		if idx == 0 {
+			start = id
+		}
+	}
+	return start, uint32(len(attrs))
+}
+
+func (i *Items) NewTypeAlias(
+	name source.StringID,
+	generics []source.StringID,
+	attrs []Attr,
+	visibility Visibility,
+	target TypeID,
+	span source.Span,
+) ItemID {
+	attrStart, attrCount := i.allocateAttrs(attrs)
+	payload := i.TypeAliases.Allocate(TypeAliasDecl{Target: target})
+	typeItem := TypeItem{
+		Name:       name,
+		Generics:   append([]source.StringID(nil), generics...),
+		AttrStart:  attrStart,
+		AttrCount:  attrCount,
+		Kind:       TypeDeclAlias,
+		Payload:    PayloadID(payload),
+		Visibility: visibility,
+		Span:       span,
+	}
+	payloadID := PayloadID(i.Types.Allocate(typeItem))
+	return i.New(ItemType, span, payloadID)
+}
+
+func (i *Items) NewTypeStruct(
+	name source.StringID,
+	generics []source.StringID,
+	attrs []Attr,
+	visibility Visibility,
+	base TypeID,
+	fields []TypeStructFieldSpec,
+	span source.Span,
+) ItemID {
+	attrStart, attrCount := i.allocateAttrs(attrs)
+	var fieldsStart TypeFieldID
+	fieldCount := uint32(len(fields))
+	if fieldCount > 0 {
+		for idx, spec := range fields {
+			fieldAttrStart, fieldAttrCount := i.allocateAttrs(spec.Attrs)
+			fieldID := TypeFieldID(i.TypeFields.Allocate(TypeStructField{
+				Name:      spec.Name,
+				Type:      spec.Type,
+				Default:   spec.Default,
+				AttrStart: fieldAttrStart,
+				AttrCount: fieldAttrCount,
+				Span:      spec.Span,
+			}))
+			if idx == 0 {
+				fieldsStart = fieldID
+			}
+		}
+	}
+	structPayload := i.TypeStructs.Allocate(TypeStructDecl{
+		Base:        base,
+		FieldsStart: fieldsStart,
+		FieldsCount: fieldCount,
+	})
+	typeItem := TypeItem{
+		Name:       name,
+		Generics:   append([]source.StringID(nil), generics...),
+		AttrStart:  attrStart,
+		AttrCount:  attrCount,
+		Kind:       TypeDeclStruct,
+		Payload:    PayloadID(structPayload),
+		Visibility: visibility,
+		Span:       span,
+	}
+	payloadID := PayloadID(i.Types.Allocate(typeItem))
+	return i.New(ItemType, span, payloadID)
+}
+
+func (i *Items) NewTypeUnion(
+	name source.StringID,
+	generics []source.StringID,
+	attrs []Attr,
+	visibility Visibility,
+	members []TypeUnionMemberSpec,
+	span source.Span,
+) ItemID {
+	attrStart, attrCount := i.allocateAttrs(attrs)
+	var membersStart TypeUnionMemberID
+	memberCount := uint32(len(members))
+	if memberCount > 0 {
+		for idx, spec := range members {
+			memberID := TypeUnionMemberID(i.TypeUnionMembers.Allocate(TypeUnionMember{
+				Kind:    spec.Kind,
+				Type:    spec.Type,
+				TagName: spec.TagName,
+				TagArgs: append([]TypeID(nil), spec.TagArgs...),
+				Span:    spec.Span,
+			}))
+			if idx == 0 {
+				membersStart = memberID
+			}
+		}
+	}
+	unionPayload := i.TypeUnions.Allocate(TypeUnionDecl{
+		MembersStart: membersStart,
+		MembersCount: memberCount,
+	})
+	typeItem := TypeItem{
+		Name:       name,
+		Generics:   append([]source.StringID(nil), generics...),
+		AttrStart:  attrStart,
+		AttrCount:  attrCount,
+		Kind:       TypeDeclUnion,
+		Payload:    PayloadID(unionPayload),
+		Visibility: visibility,
+		Span:       span,
+	}
+	payloadID := PayloadID(i.Types.Allocate(typeItem))
+	return i.New(ItemType, span, payloadID)
+}

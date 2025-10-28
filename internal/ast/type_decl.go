@@ -11,13 +11,14 @@ const (
 )
 
 type TypeItem struct {
-	Name      source.StringID
-	Generics  []source.StringID
-	AttrStart AttrID
-	AttrCount uint32
-	Kind      TypeDeclKind
-	Payload   PayloadID
-	Span      source.Span
+	Name       source.StringID
+	Generics   []source.StringID
+	AttrStart  AttrID
+	AttrCount  uint32
+	Kind       TypeDeclKind
+	Payload    PayloadID
+	Visibility Visibility
+	Span       source.Span
 }
 
 type TypeAliasDecl struct {
@@ -53,6 +54,22 @@ const (
 )
 
 type TypeUnionMember struct {
+	Kind    TypeUnionMemberKind
+	Type    TypeID
+	TagName source.StringID
+	TagArgs []TypeID
+	Span    source.Span
+}
+
+type TypeStructFieldSpec struct {
+	Name    source.StringID
+	Type    TypeID
+	Default ExprID
+	Attrs   []Attr
+	Span    source.Span
+}
+
+type TypeUnionMemberSpec struct {
 	Kind    TypeUnionMemberKind
 	Type    TypeID
 	TagName source.StringID

@@ -94,8 +94,9 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 	case ast.ItemType:
 		if typeItem, ok := builder.Items.Type(itemID); ok {
 			fields := map[string]any{
-				"name": lookupStringOr(builder, typeItem.Name, "<anon>"),
-				"kind": formatTypeDeclKind(typeItem.Kind),
+				"name":       lookupStringOr(builder, typeItem.Name, "<anon>"),
+				"kind":       formatTypeDeclKind(typeItem.Kind),
+				"visibility": typeItem.Visibility.String(),
 			}
 
 			if len(typeItem.Generics) > 0 {

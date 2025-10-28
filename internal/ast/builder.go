@@ -92,3 +92,37 @@ func (b *Builder) NewFn(
 ) ItemID {
 	return b.Items.NewFn(name, generics, params, returnType, body, flags, attrs, span)
 }
+
+func (b *Builder) NewTypeAlias(
+	name source.StringID,
+	generics []source.StringID,
+	attrs []Attr,
+	visibility Visibility,
+	target TypeID,
+	span source.Span,
+) ItemID {
+	return b.Items.NewTypeAlias(name, generics, attrs, visibility, target, span)
+}
+
+func (b *Builder) NewTypeStruct(
+	name source.StringID,
+	generics []source.StringID,
+	attrs []Attr,
+	visibility Visibility,
+	base TypeID,
+	fields []TypeStructFieldSpec,
+	span source.Span,
+) ItemID {
+	return b.Items.NewTypeStruct(name, generics, attrs, visibility, base, fields, span)
+}
+
+func (b *Builder) NewTypeUnion(
+	name source.StringID,
+	generics []source.StringID,
+	attrs []Attr,
+	visibility Visibility,
+	members []TypeUnionMemberSpec,
+	span source.Span,
+) ItemID {
+	return b.Items.NewTypeUnion(name, generics, attrs, visibility, members, span)
+}

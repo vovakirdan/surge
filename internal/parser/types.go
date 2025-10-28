@@ -48,41 +48,12 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 
 	switch p.lx.Peek().Kind {
 	case token.Ident:
-		// Квалифицированный путь к типу: Ident ( "." Ident )*
-		var segments []ast.TypePathSegment
-
-		// Парсим первый идентификатор
+		identTok := p.lx.Peek()
 		identID, ok := p.parseIdent()
 		if !ok {
 			return ast.NoTypeID, false
 		}
-		segments = append(segments, ast.TypePathSegment{
-			Name:     identID,
-			Generics: nil, // пока без generic аргументов
-		})
-
-		// Парсим дополнительные сегменты через точку
-		for p.at(token.Dot) {
-			p.advance() // съедаем '.'
-
-			// После точки должен быть идентификатор
-			if !p.at(token.Ident) {
-				p.err(diag.SynExpectIdentifier, "expected identifier after '.'")
-				return ast.NoTypeID, false
-			}
-
-			identID, ok := p.parseIdent()
-			if !ok {
-				return ast.NoTypeID, false
-			}
-			segments = append(segments, ast.TypePathSegment{
-				Name:     identID,
-				Generics: nil, // пока без generic аргументов
-			})
-		}
-
-		baseType := p.arenas.Types.NewPath(startSpan.Cover(p.lastSpan), segments)
-		return p.parseTypeSuffix(baseType)
+		return p.finishTypePath(identID, identTok.Span)
 
 	case token.NothingLit:
 		nothingTok := p.advance()
@@ -257,6 +228,33 @@ func (p *Parser) makeBuiltinType(name string, span source.Span) ast.TypeID {
 		Generics: nil,
 	}}
 	return p.arenas.Types.NewPath(span, segments)
+}
+
+func (p *Parser) finishTypePath(firstID source.StringID, startSpan source.Span) (ast.TypeID, bool) {
+	segments := []ast.TypePathSegment{{
+		Name:     firstID,
+		Generics: nil,
+	}}
+
+	for p.at(token.Dot) {
+		p.advance()
+		if !p.at(token.Ident) {
+			p.err(diag.SynExpectIdentifier, "expected identifier after '.'")
+			return ast.NoTypeID, false
+		}
+		identID, ok := p.parseIdent()
+		if !ok {
+			return ast.NoTypeID, false
+		}
+		segments = append(segments, ast.TypePathSegment{
+			Name:     identID,
+			Generics: nil,
+		})
+	}
+
+	pathSpan := startSpan.Cover(p.lastSpan)
+	baseType := p.arenas.Types.NewPath(pathSpan, segments)
+	return p.parseTypeSuffix(baseType)
 }
 
 func (p *Parser) parseArraySizeLiteral(tok token.Token) (uint64, bool) {
