@@ -615,28 +615,28 @@ func TestParseFnItem_Modifiers(t *testing.T) {
 	tests := []struct {
 		name      string
 		input     string
-		wantFlags ast.FnAttr
+		wantFlags ast.FnModifier
 		wantError bool
 	}{
 		{
 			name:      "pub_fn",
 			input:     "pub fn foo() {}",
-			wantFlags: ast.FnAttrPublic,
+			wantFlags: ast.FnModifierPublic,
 		},
 		{
 			name:      "async_fn",
 			input:     "async fn foo() {}",
-			wantFlags: ast.FnAttrAsync,
+			wantFlags: ast.FnModifierAsync,
 		},
 		{
 			name:      "combined_modifiers",
 			input:     "pub async fn foo() {}",
-			wantFlags: ast.FnAttrPublic | ast.FnAttrAsync,
+			wantFlags: ast.FnModifierPublic | ast.FnModifierAsync,
 		},
 		{
 			name:      "duplicate_async",
 			input:     "async async fn foo() {}",
-			wantFlags: ast.FnAttrAsync,
+			wantFlags: ast.FnModifierAsync,
 			wantError: true,
 		},
 		{

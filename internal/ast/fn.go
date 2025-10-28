@@ -2,11 +2,11 @@ package ast
 
 import "surge/internal/source"
 
-type FnAttr uint64
+type FnModifier uint64
 
 const (
-	FnAttrAsync FnAttr = 1 << iota
-	FnAttrPublic
+	FnModifierAsync FnModifier = 1 << iota
+	FnModifierPublic
 )
 
 type FnParam struct {
@@ -23,7 +23,7 @@ type FnItem struct {
 	ParamsCount uint32
 	ReturnType  TypeID
 	Body        StmtID
-	Flags       FnAttr
+	Flags       FnModifier
 	AttrStart   AttrID
 	AttrCount   uint32
 	Span        source.Span
@@ -44,7 +44,7 @@ func (i *Items) newFnPayload(
 	paramsCount uint32,
 	returnType TypeID,
 	body StmtID,
-	flags FnAttr,
+	flags FnModifier,
 	attrStart AttrID,
 	attrCount uint32,
 	span source.Span,
@@ -95,7 +95,7 @@ func (i *Items) NewFn(
 	params []FnParam,
 	returnType TypeID,
 	body StmtID,
-	flags FnAttr,
+	flags FnModifier,
 	attrs []Attr,
 	span source.Span,
 ) ItemID {

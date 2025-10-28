@@ -127,10 +127,10 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 		}
 		if p.at(token.KwLet) {
 			visibility := ast.VisPrivate
-			if mods.flags&ast.FnAttrPublic != 0 {
+			if mods.flags&ast.FnModifierPublic != 0 {
 				visibility = ast.VisPublic
 			}
-			invalid := mods.flags &^ ast.FnAttrPublic
+			invalid := mods.flags &^ ast.FnModifierPublic
 			if invalid != 0 {
 				span := mods.span
 				if !mods.hasSpan {

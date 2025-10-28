@@ -86,7 +86,7 @@ func (b *Builder) NewFn(
 	params []FnParam,
 	returnType TypeID,
 	body StmtID,
-	flags FnAttr,
+	flags FnModifier,
 	attrs []Attr,
 	span source.Span,
 ) ItemID {

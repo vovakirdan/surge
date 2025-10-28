@@ -9,7 +9,7 @@ import (
 )
 
 type fnModifiers struct {
-	flags     ast.FnAttr
+	flags     ast.FnModifier
 	span      source.Span
 	hasSpan   bool
 	seenPub   bool
@@ -45,7 +45,7 @@ func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
 				)
 			} else {
 				mods.seenPub = true
-				mods.flags |= ast.FnAttrPublic
+				mods.flags |= ast.FnModifierPublic
 			}
 			mods.extend(tok.Span)
 
@@ -76,7 +76,7 @@ func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
 				)
 			} else {
 				mods.seenAsync = true
-				mods.flags |= ast.FnAttrAsync
+				mods.flags |= ast.FnModifierAsync
 			}
 			mods.extend(tok.Span)
 
