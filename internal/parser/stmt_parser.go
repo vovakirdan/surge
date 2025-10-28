@@ -64,6 +64,84 @@ func (p *Parser) parseStmt() (ast.StmtID, bool) {
 	switch p.lx.Peek().Kind {
 	case token.LBrace:
 		return p.parseBlock()
+	case token.KwPub:
+		pubTok := p.advance()
+		p.emitDiagnostic(
+			diag.SynModifierNotAllowed,
+			diag.SevError,
+			pubTok.Span,
+			"'pub' is only allowed for top-level declarations",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				fixID := fix.MakeFixID(diag.SynModifierNotAllowed, pubTok.Span)
+				suggestion := fix.DeleteSpan(
+					"remove 'pub' modifier",
+					pubTok.Span,
+					"",
+					fix.WithID(fixID),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				)
+				b.WithFixSuggestion(suggestion)
+				b.WithNote(pubTok.Span, "'pub' modifiers are only valid for top-level items")
+			},
+		)
+		return p.parseStmt()
+	case token.At:
+		_, attrSpan, ok := p.parseAttributes()
+		if !ok {
+			return ast.NoStmtID, false
+		}
+		p.emitDiagnostic(
+			diag.SynAttributeNotAllowed,
+			diag.SevError,
+			attrSpan,
+			"attributes are not allowed inside blocks",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				fixID := fix.MakeFixID(diag.SynAttributeNotAllowed, attrSpan)
+				suggestion := fix.DeleteSpan(
+					"remove attribute from statement",
+					attrSpan,
+					"",
+					fix.WithID(fixID),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				)
+				b.WithFixSuggestion(suggestion)
+				b.WithNote(attrSpan, "attributes are restricted to top-level declarations")
+			},
+		)
+		return p.parseStmt()
+	case token.KwAsync:
+		asyncTok := p.advance()
+		p.emitDiagnostic(
+			diag.SynAsyncNotAllowed,
+			diag.SevError,
+			asyncTok.Span,
+			"'async' modifier is not allowed inside blocks",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				fixID := fix.MakeFixID(diag.SynAsyncNotAllowed, asyncTok.Span)
+				suggestion := fix.DeleteSpan(
+					"remove 'async'",
+					asyncTok.Span,
+					"",
+					fix.WithID(fixID),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				)
+				b.WithFixSuggestion(suggestion)
+				b.WithNote(asyncTok.Span, "move async usage to top-level declarations")
+			},
+		)
+		return p.parseStmt()
 	case token.KwLet:
 		return p.parseLetStmt()
 	case token.KwReturn:

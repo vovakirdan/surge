@@ -944,3 +944,59 @@ func TestParseForInWithoutTypeAnnotation(t *testing.T) {
 		t.Fatal("expected no explicit type annotation")
 	}
 }
+
+func TestBlockDisallowsPubAsyncAndAttributes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantDiag diag.Code
+	}{
+		{
+			name: "pub modifier inside block",
+			input: `
+				fn foo() {
+					pub let x = 1;
+				}
+			`,
+			wantDiag: diag.SynModifierNotAllowed,
+		},
+		{
+			name: "attribute inside block",
+			input: `
+				fn foo() {
+					@pure let x = 1;
+				}
+			`,
+			wantDiag: diag.SynAttributeNotAllowed,
+		},
+		{
+			name: "async inside block",
+			input: `
+				fn foo() {
+					async {
+					}
+				}
+			`,
+			wantDiag: diag.SynAsyncNotAllowed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, bag := parseSource(t, tt.input)
+			if !bag.HasErrors() {
+				t.Fatalf("expected diagnostics, got none")
+			}
+			found := false
+			for _, item := range bag.Items() {
+				if item.Code == tt.wantDiag {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("expected diagnostic %s, got %+v", tt.wantDiag, bag.Items())
+			}
+		})
+	}
+}
