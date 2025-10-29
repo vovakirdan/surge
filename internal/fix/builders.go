@@ -53,23 +53,23 @@ func WithThunk(thunk diag.FixThunk) Option {
 	}
 }
 
-func applyOptions(f diag.Fix, opts []Option) diag.Fix {
+func applyOptions(f *diag.Fix, opts []Option) *diag.Fix {
 	for _, opt := range opts {
 		if opt != nil {
-			opt(&f)
+			opt(f)
 		}
 	}
 	return f
 }
 
 // InsertText creates fix that inserts text at span (Span.Start == Span.End).
-func InsertText(title string, at source.Span, text string, guard string, opts ...Option) diag.Fix {
+func InsertText(title string, at source.Span, text, guard string, opts ...Option) *diag.Fix {
 	edit := diag.TextEdit{
 		Span:    at,
 		NewText: text,
 		OldText: guard,
 	}
-	fix := diag.Fix{
+	fix := &diag.Fix{
 		Title:         title,
 		Kind:          diag.FixKindQuickFix,
 		Applicability: diag.FixApplicabilityAlwaysSafe,
@@ -79,13 +79,13 @@ func InsertText(title string, at source.Span, text string, guard string, opts ..
 }
 
 // DeleteSpan removes text covered by span.
-func DeleteSpan(title string, span source.Span, expect string, opts ...Option) diag.Fix {
+func DeleteSpan(title string, span source.Span, expect string, opts ...Option) *diag.Fix {
 	edit := diag.TextEdit{
 		Span:    span,
 		NewText: "",
 		OldText: expect,
 	}
-	fix := diag.Fix{
+	fix := &diag.Fix{
 		Title:         title,
 		Kind:          diag.FixKindQuickFix,
 		Applicability: diag.FixApplicabilityAlwaysSafe,
@@ -95,9 +95,9 @@ func DeleteSpan(title string, span source.Span, expect string, opts ...Option) d
 }
 
 // DeleteSpans removes text covered by spans.
-func DeleteSpans(title string, spans []source.Span, opts ...Option) diag.Fix {
+func DeleteSpans(title string, spans []source.Span, opts ...Option) *diag.Fix {
 	if len(spans) == 0 {
-		return diag.Fix{Title: title}
+		return &diag.Fix{Title: title}
 	}
 	edits := make([]diag.TextEdit, len(spans))
 	for i, span := range spans {
@@ -106,7 +106,7 @@ func DeleteSpans(title string, spans []source.Span, opts ...Option) diag.Fix {
 			NewText: "",
 		}
 	}
-	fix := diag.Fix{
+	fix := &diag.Fix{
 		Title:         title,
 		Kind:          diag.FixKindQuickFix,
 		Applicability: diag.FixApplicabilityAlwaysSafe,
@@ -116,9 +116,9 @@ func DeleteSpans(title string, spans []source.Span, opts ...Option) diag.Fix {
 }
 
 // DeleteSpansWithGuards removes spans with per-span guard strings.
-func DeleteSpansWithGuards(title string, spans []source.Span, expects []string, opts ...Option) diag.Fix {
+func DeleteSpansWithGuards(title string, spans []source.Span, expects []string, opts ...Option) *diag.Fix {
 	if len(spans) == 0 {
-		return diag.Fix{Title: title}
+		return &diag.Fix{Title: title}
 	}
 	if len(expects) != 0 && len(expects) != len(spans) {
 		panic("DeleteSpansWithGuards expects len(expects)==0 or len(spans)")
@@ -135,7 +135,7 @@ func DeleteSpansWithGuards(title string, spans []source.Span, expects []string, 
 			OldText: guard,
 		}
 	}
-	fix := diag.Fix{
+	fix := &diag.Fix{
 		Title:         title,
 		Kind:          diag.FixKindQuickFix,
 		Applicability: diag.FixApplicabilityAlwaysSafe,
@@ -145,13 +145,13 @@ func DeleteSpansWithGuards(title string, spans []source.Span, expects []string, 
 }
 
 // ReplaceSpan replaces text covered by span with newText.
-func ReplaceSpan(title string, span source.Span, newText, expect string, opts ...Option) diag.Fix {
+func ReplaceSpan(title string, span source.Span, newText, expect string, opts ...Option) *diag.Fix {
 	edit := diag.TextEdit{
 		Span:    span,
 		NewText: newText,
 		OldText: expect,
 	}
-	fix := diag.Fix{
+	fix := &diag.Fix{
 		Title:         title,
 		Kind:          diag.FixKindQuickFix,
 		Applicability: diag.FixApplicabilityAlwaysSafe,
@@ -161,9 +161,9 @@ func ReplaceSpan(title string, span source.Span, newText, expect string, opts ..
 }
 
 // ReplaceSpans replaces multiple spans with provided text (guards optional).
-func ReplaceSpans(title string, spans []source.Span, newTexts []string, expects []string, opts ...Option) diag.Fix {
+func ReplaceSpans(title string, spans []source.Span, newTexts, expects []string, opts ...Option) *diag.Fix {
 	if len(spans) == 0 {
-		return diag.Fix{Title: title}
+		return &diag.Fix{Title: title}
 	}
 	if len(newTexts) != len(spans) {
 		panic("ReplaceSpans requires len(newTexts) == len(spans)")
@@ -183,7 +183,7 @@ func ReplaceSpans(title string, spans []source.Span, newTexts []string, expects 
 			OldText: guard,
 		}
 	}
-	fix := diag.Fix{
+	fix := &diag.Fix{
 		Title:         title,
 		Kind:          diag.FixKindQuickFix,
 		Applicability: diag.FixApplicabilityAlwaysSafe,
@@ -193,7 +193,7 @@ func ReplaceSpans(title string, spans []source.Span, newTexts []string, expects 
 }
 
 // WrapWith surrounds span with prefix and suffix insertions.
-func WrapWith(title string, span source.Span, prefix, suffix string, opts ...Option) diag.Fix {
+func WrapWith(title string, span source.Span, prefix, suffix string, opts ...Option) *diag.Fix {
 	edits := []diag.TextEdit{
 		{
 			Span:    source.Span{File: span.File, Start: span.Start, End: span.Start},
@@ -204,7 +204,7 @@ func WrapWith(title string, span source.Span, prefix, suffix string, opts ...Opt
 			NewText: suffix,
 		},
 	}
-	fix := diag.Fix{
+	fix := &diag.Fix{
 		Title:         title,
 		Kind:          diag.FixKindRefactorRewrite,
 		Applicability: diag.FixApplicabilitySafeWithHeuristics,
@@ -214,7 +214,7 @@ func WrapWith(title string, span source.Span, prefix, suffix string, opts ...Opt
 }
 
 // CommentLine replaces line contents with commented variant.
-func CommentLine(title string, lineSpan source.Span, lineText string, opts ...Option) diag.Fix {
+func CommentLine(title string, lineSpan source.Span, lineText string, opts ...Option) *diag.Fix {
 	lineNoNL := strings.TrimSuffix(lineText, "\n")
 	if strings.HasPrefix(strings.TrimSpace(lineNoNL), "//") {
 		return ReplaceSpan(title, lineSpan, lineText, lineText, opts...)
@@ -235,16 +235,13 @@ func CommentLine(title string, lineSpan source.Span, lineText string, opts ...Op
 // DeleteLine replaces the contents of the specified line with an empty string.
 // The caller controls whether the span includes the line's terminating newline; if included, the newline will be removed.
 // Options provided are applied to the resulting fix.
-func DeleteLine(title string, lineSpan source.Span, lineText string, opts ...Option) diag.Fix {
+func DeleteLine(title string, lineSpan source.Span, lineText string, opts ...Option) *diag.Fix {
 	newText := ""
 	return ReplaceSpan(title, lineSpan, newText, lineText, opts...)
 }
 
-// RemoveExtraWhitespaces должна удалять лишние пробелы после insert/delete etc
-// todo: это должен делать formatter
 // MakeFixID returns a stable identifier for a fix composed from the diagnostic code ID, span file number, and span start offset.
 // The identifier is formatted as "<codeID>-<file>-<start>".
-
 func MakeFixID(code diag.Code, span source.Span) string {
 	return fmt.Sprintf("%s-%d-%d", code.ID(), span.File, span.Start)
 }

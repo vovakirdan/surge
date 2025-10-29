@@ -1,6 +1,11 @@
 package dag
 
-import "slices"
+import (
+	"fmt"
+	"slices"
+
+	"fortio.org/safecast"
+)
 
 type Topo struct {
 	Order   []ModuleID   // линейный порядок (только реальные модули)
@@ -9,12 +14,12 @@ type Topo struct {
 	Cycles  []ModuleID // узлы, оставшиеся в цикле
 }
 
-func ToposortKahn(g Graph) Topo {
+func ToposortKahn(g Graph) *Topo {
 	nodeCount := len(g.Edges)
 	indeg := make([]int, len(g.Indeg))
 	copy(indeg, g.Indeg)
 
-	topo := Topo{
+	topo := &Topo{
 		Order:   make([]ModuleID, 0, nodeCount),
 		Batches: make([][]ModuleID, 0),
 	}
@@ -32,7 +37,11 @@ func ToposortKahn(g Graph) Topo {
 			continue
 		}
 		if indeg[i] == 0 {
-			current = append(current, ModuleID(i))
+			mID, err := safecast.Conv[ModuleID](i)
+			if err != nil {
+				panic(fmt.Errorf("module id overflow: %w", err))
+			}
+			current = append(current, mID)
 		}
 	}
 	slices.Sort(current)
@@ -68,7 +77,11 @@ func ToposortKahn(g Graph) Topo {
 				continue
 			}
 			if indeg[i] > 0 {
-				topo.Cycles = append(topo.Cycles, ModuleID(i))
+				mID, err := safecast.Conv[ModuleID](i)
+				if err != nil {
+					panic(fmt.Errorf("module id overflow: %w", err))
+				}
+				topo.Cycles = append(topo.Cycles, mID)
 			}
 		}
 		slices.Sort(topo.Cycles)

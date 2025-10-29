@@ -8,6 +8,8 @@ import (
 	"surge/internal/diag"
 	"surge/internal/project"
 	"surge/internal/source"
+
+	"fortio.org/safecast"
 )
 
 type Graph struct {
@@ -106,7 +108,11 @@ func BuildGraph(idx ModuleIndex, nodes []ModuleNode) (Graph, []ModuleSlot) {
 				}
 				continue
 			}
-			if ModuleID(from) == toID {
+			uFrom, err := safecast.Conv[uint32](from)
+			if err != nil {
+				panic(fmt.Errorf("module id overflow: %w", err))
+			}
+			if ModuleID(uFrom) == toID {
 				if slot.Reporter != nil {
 					slot.Reporter.Report(
 						diag.ProjSelfImport,
@@ -146,8 +152,8 @@ func BuildGraph(idx ModuleIndex, nodes []ModuleNode) (Graph, []ModuleSlot) {
 	return g, slots
 }
 
-func ReportCycles(idx ModuleIndex, slots []ModuleSlot, topo Topo) {
-	if !topo.Cyclic || len(topo.Cycles) == 0 {
+func ReportCycles(idx ModuleIndex, slots []ModuleSlot, topo *Topo) {
+	if topo == nil || !topo.Cyclic || len(topo.Cycles) == 0 {
 		return
 	}
 	names := make([]string, 0, len(topo.Cycles))

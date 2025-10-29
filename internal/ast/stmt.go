@@ -219,7 +219,7 @@ func (s *Stmts) While(id StmtID) *WhileStmt {
 	return s.Whiles.Get(uint32(stmt.Payload))
 }
 
-func (s *Stmts) NewForClassic(span source.Span, init StmtID, cond ExprID, post ExprID, body StmtID) StmtID {
+func (s *Stmts) NewForClassic(span source.Span, init StmtID, cond, post ExprID, body StmtID) StmtID {
 	payload := PayloadID(s.ClassicFors.Allocate(ForClassicStmt{
 		Init: init,
 		Cond: cond,

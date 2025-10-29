@@ -57,7 +57,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Ensure directory exists
 	if st, err := os.Stat(target); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			if err := os.MkdirAll(target, 0o755); err != nil {
+			if err = os.MkdirAll(target, 0o755); err != nil {
 				return fmt.Errorf("failed to create directory %q: %w", target, err)
 			}
 		} else {
@@ -81,7 +81,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	manifest := buildDefaultManifest(name)
-	if err := os.WriteFile(manifestPath, []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(manifestPath, []byte(manifest), os.FileMode(0o600)); err != nil {
 		return fmt.Errorf("failed to write manifest: %w", err)
 	}
 
@@ -89,7 +89,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	mainPath := filepath.Join(target, "main.sg")
 	createdMain := false
 	if _, err := os.Stat(mainPath); errors.Is(err, os.ErrNotExist) {
-		if err := os.WriteFile(mainPath, []byte(defaultMainSG()), 0o644); err != nil {
+		if err := os.WriteFile(mainPath, []byte(defaultMainSG()), 0o600); err != nil {
 			return fmt.Errorf("failed to write main.sg: %w", err)
 		}
 		createdMain = true

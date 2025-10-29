@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"github.com/spf13/cobra"
+
 	"surge/internal/diagfmt"
 	"surge/internal/driver"
 )
@@ -50,13 +51,18 @@ func runParse(cmd *cobra.Command, args []string) error {
 
 	if !st.IsDir() {
 		// Парсинг одного файла
-		result, err := driver.Parse(filePath, maxDiagnostics)
+		var result *driver.ParseResult
+		result, err = driver.Parse(filePath, maxDiagnostics)
 		if err != nil {
 			return fmt.Errorf("parsing failed: %w", err)
 		}
 
 		if result.Bag.HasErrors() || result.Bag.HasWarnings() {
-			colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
+			var colorFlag string
+			colorFlag, err = cmd.Root().PersistentFlags().GetString("color")
+			if err != nil {
+				return err
+			}
 			useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stderr))
 			opts := diagfmt.PrettyOpts{
 				Color:   useColor,
@@ -93,7 +99,11 @@ func runParse(cmd *cobra.Command, args []string) error {
 	}
 
 	// Обрабатываем результаты (они уже отсортированы)
-	colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
+	var colorFlag string
+	colorFlag, err = cmd.Root().PersistentFlags().GetString("color")
+	if err != nil {
+		return err
+	}
 	useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stderr))
 	prettyOpts := diagfmt.PrettyOpts{
 		Color:   useColor,

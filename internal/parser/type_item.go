@@ -87,7 +87,9 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 				p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.EOF)
 				return ast.NoItemID, false
 			}
-			fields, bodySpan, ok := p.parseTypeStructBody()
+			var fields []ast.TypeStructFieldSpec
+			var bodySpan source.Span
+			fields, bodySpan, ok = p.parseTypeStructBody()
 			if !ok {
 				return ast.NoItemID, false
 			}
@@ -101,7 +103,9 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 		}
 
 		if p.at(token.LParen) {
-			tagSpec, tagSpan, ok := p.parseUnionTagFromType(firstType)
+			var tagSpec ast.TypeUnionMemberSpec
+			var tagSpan source.Span
+			tagSpec, tagSpan, ok = p.parseUnionTagFromType(firstType)
 			if !ok {
 				return ast.NoItemID, false
 			}
@@ -111,7 +115,8 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			if !ok {
 				return ast.NoItemID, false
 			}
-			semiTok, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after type declaration", func(b *diag.ReportBuilder) {
+			var semiTok token.Token
+			semiTok, ok = p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after type declaration", func(b *diag.ReportBuilder) {
 				if b == nil {
 					return
 				}
@@ -149,7 +154,8 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			if !ok {
 				return ast.NoItemID, false
 			}
-			semiTok, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after type declaration", func(b *diag.ReportBuilder) {
+			var semiTok token.Token
+			semiTok, ok = p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after type declaration", func(b *diag.ReportBuilder) {
 				if b == nil {
 					return
 				}
@@ -242,13 +248,16 @@ func (p *Parser) parseTypeStructBody() ([]ast.TypeStructFieldSpec, source.Span, 
 	fieldNames := make(map[source.StringID]source.Span)
 
 	for !p.at(token.RBrace) && !p.at(token.EOF) {
-		fieldAttrs, fieldAttrSpan, ok := p.parseAttributes()
+		var fieldAttrs []ast.Attr
+		var fieldAttrSpan source.Span
+		fieldAttrs, fieldAttrSpan, ok = p.parseAttributes()
 		if !ok {
 			p.resyncTypeStructField()
 			continue
 		}
 
-		nameID, ok := p.parseIdent()
+		var nameID source.StringID
+		nameID, ok = p.parseIdent()
 		if !ok {
 			p.resyncTypeStructField()
 			continue
@@ -273,22 +282,24 @@ func (p *Parser) parseTypeStructBody() ([]ast.TypeStructFieldSpec, source.Span, 
 			fieldNames[nameID] = nameSpan
 		}
 
-		if _, ok := p.expect(token.Colon, diag.SynExpectColon, "expected ':' after field name", nil); !ok {
+		if _, ok = p.expect(token.Colon, diag.SynExpectColon, "expected ':' after field name", nil); !ok {
 			p.resyncTypeStructField()
 			continue
 		}
 
-		fieldType, ok := p.parseTypePrefix()
+		var fieldType ast.TypeID
+		fieldType, ok = p.parseTypePrefix()
 		if !ok {
 			p.resyncTypeStructField()
 			continue
 		}
 		fieldSpan := nameSpan.Cover(p.arenas.Types.Get(fieldType).Span)
 
-		var defaultExpr ast.ExprID = ast.NoExprID
+		defaultExpr := ast.NoExprID
 		if p.at(token.Assign) {
 			assignTok := p.advance()
-			exprID, ok := p.parseExpr()
+			var exprID ast.ExprID
+			exprID, ok = p.parseExpr()
 			if !ok {
 				p.resyncTypeStructField()
 				continue
@@ -388,7 +399,7 @@ func (p *Parser) parseUnionTagFromType(typeID ast.TypeID) (ast.TypeUnionMemberSp
 		return ast.TypeUnionMemberSpec{}, source.Span{}, false
 	}
 
-	if _, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after tag name", nil); !ok {
+	if _, ok = p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after tag name", nil); !ok {
 		return ast.TypeUnionMemberSpec{}, source.Span{}, false
 	}
 
@@ -396,7 +407,8 @@ func (p *Parser) parseUnionTagFromType(typeID ast.TypeID) (ast.TypeUnionMemberSp
 
 	if !p.at(token.RParen) {
 		for {
-			argType, ok := p.parseTypePrefix()
+			var argType ast.TypeID
+			argType, ok = p.parseTypePrefix()
 			if !ok {
 				p.resyncUntil(token.Comma, token.RParen, token.Pipe, token.Semicolon, token.EOF)
 				if p.at(token.Comma) {

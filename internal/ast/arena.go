@@ -1,5 +1,11 @@
 package ast
 
+import (
+	"fmt"
+
+	"fortio.org/safecast"
+)
+
 type Arena[T any] struct {
 	data []*T
 }
@@ -17,7 +23,7 @@ func (a *Arena[T]) Allocate(value T) uint32 {
 	elem := new(T)
 	*elem = value
 	a.data = append(a.data, elem)
-	return uint32(len(a.data))
+	return a.Len()
 }
 
 func (a *Arena[T]) Get(index uint32) *T {
@@ -37,5 +43,9 @@ func (a *Arena[T]) Slice() []T {
 }
 
 func (a *Arena[T]) Len() uint32 {
-	return uint32(len(a.data))
+	result, err := safecast.Conv[uint32](len(a.data))
+	if err != nil {
+		panic(fmt.Errorf("arena len overflow: %w", err))
+	}
+	return result
 }

@@ -9,7 +9,7 @@ import "fmt"
 // ('.', 'e', 'E', 'p', 'P') which are not allowed here.
 // The first return value is the numeric prefix, the second is the remaining suffix, and the third
 // is a non-nil error on failure.
-func splitNumericLiteral(lit string) (string, string, error) {
+func splitNumericLiteral(lit string) (prefix, suffix string, err error) {
 	if lit == "" {
 		return "", "", fmt.Errorf("empty literal")
 	}
@@ -82,7 +82,7 @@ func isValidIntegerSuffix(s string) bool {
 	if s == "" {
 		return true
 	}
-	for i := 0; i < len(s); i++ {
+	for i := range s {
 		ch := s[i]
 		if i == 0 {
 			if !isLetter(ch) {

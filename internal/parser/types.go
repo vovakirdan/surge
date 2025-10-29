@@ -83,7 +83,8 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 				break // допускаем завершающую запятую
 			}
 
-			elem, ok := p.parseTypePrefix()
+			var elem ast.TypeID
+			elem, ok = p.parseTypePrefix()
 			if !ok {
 				return ast.NoTypeID, false
 			}
@@ -110,15 +111,10 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 		}
 
 		var params []ast.TypeFnParam
-		var sawVariadic bool
 
 		if !p.at(token.RParen) {
 			for {
 				if p.at(token.DotDotDot) {
-					if sawVariadic {
-						p.err(diag.SynUnexpectedToken, "multiple variadic parameters are not allowed")
-						return ast.NoTypeID, false
-					}
 					p.advance()
 					elemType, ok := p.parseTypePrefix()
 					if !ok {
@@ -129,7 +125,6 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 						Name:     source.NoStringID,
 						Variadic: true,
 					})
-					sawVariadic = true
 					if p.at(token.Comma) {
 						p.err(diag.SynUnexpectedToken, "variadic parameter must be last in function type")
 						p.advance()
@@ -153,10 +148,6 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 				p.advance()
 
 				if p.at(token.RParen) {
-					break
-				}
-				if sawVariadic {
-					p.err(diag.SynUnexpectedToken, "parameters cannot follow a variadic parameter")
 					break
 				}
 			}

@@ -215,7 +215,7 @@ func (p *Parser) parseLetStmt() (ast.StmtID, bool) {
 func (p *Parser) parseReturnStmt() (ast.StmtID, bool) {
 	retTok := p.advance()
 
-	var exprID ast.ExprID = ast.NoExprID
+	exprID := ast.NoExprID
 	if !p.at(token.Semicolon) && !p.at(token.RBrace) && !p.at(token.EOF) {
 		var ok bool
 		exprID, ok = p.parseExpr()
@@ -304,7 +304,7 @@ func (p *Parser) parseExprStmt() (ast.StmtID, bool) {
 
 // coverOptional returns the span that covers base and other, or base if other is the zero span.
 // The other span is considered zero when its File, Start, and End fields are all zero.
-func coverOptional(base source.Span, other source.Span) source.Span {
+func coverOptional(base, other source.Span) source.Span {
 	if other.File == 0 && other.Start == 0 && other.End == 0 {
 		return base
 	}

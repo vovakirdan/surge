@@ -33,7 +33,7 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 	}
 
 	// Парсим инициализацию (если есть =)
-	var valueID ast.ExprID = ast.NoExprID
+	valueID := ast.NoExprID
 	if p.at(token.Assign) {
 		tokAssign := p.advance() // съедаем '='
 		var ok bool

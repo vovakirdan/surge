@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"github.com/spf13/cobra"
+
 	"surge/internal/diagfmt"
 	"surge/internal/driver"
 )
@@ -51,14 +52,19 @@ func runTokenize(cmd *cobra.Command, args []string) error {
 
 	if !st.IsDir() {
 		// Токенизация одного файла
-		result, err := driver.Tokenize(filePath, maxDiagnostics)
+		var result *driver.TokenizeResult
+		result, err = driver.Tokenize(filePath, maxDiagnostics)
 		if err != nil {
 			return fmt.Errorf("tokenization failed: %w", err)
 		}
 
 		// Выводим диагностику в stderr, если есть
 		if result.Bag.HasErrors() || result.Bag.HasWarnings() {
-			colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
+			var colorFlag string
+			colorFlag, err = cmd.Root().PersistentFlags().GetString("color")
+			if err != nil {
+				return err
+			}
 			useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stderr))
 			opts := diagfmt.PrettyOpts{
 				Color:   useColor,
@@ -94,7 +100,11 @@ func runTokenize(cmd *cobra.Command, args []string) error {
 	}
 
 	// Обрабатываем диагностику (они уже отсортированы)
-	colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
+	var colorFlag string
+	colorFlag, err = cmd.Root().PersistentFlags().GetString("color")
+	if err != nil {
+		return err
+	}
 	useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stderr))
 	prettyOpts := diagfmt.PrettyOpts{
 		Color:   useColor,

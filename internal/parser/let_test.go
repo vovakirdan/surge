@@ -165,25 +165,25 @@ func TestParseLetItem_Visibility(t *testing.T) {
 				t.Fatal("expected let item")
 			}
 
-		if letItem.Visibility != tt.wantVisibility {
-			t.Fatalf("visibility: got %v, want %v", letItem.Visibility, tt.wantVisibility)
-		}
+			if letItem.Visibility != tt.wantVisibility {
+				t.Fatalf("visibility: got %v, want %v", letItem.Visibility, tt.wantVisibility)
+			}
 
-		attrs := builder.Items.CollectAttrs(letItem.AttrStart, letItem.AttrCount)
-		if len(attrs) != tt.wantAttrCount {
-			t.Fatalf("attr count: got %d, want %d", len(attrs), tt.wantAttrCount)
-		}
-		if tt.firstAttr != "" {
-			if len(attrs) == 0 {
-				t.Fatalf("expected attribute %q, but none found", tt.firstAttr)
+			attrs := builder.Items.CollectAttrs(letItem.AttrStart, letItem.AttrCount)
+			if len(attrs) != tt.wantAttrCount {
+				t.Fatalf("attr count: got %d, want %d", len(attrs), tt.wantAttrCount)
 			}
-			name := builder.StringsInterner.MustLookup(attrs[0].Name)
-			if name != tt.firstAttr {
-				t.Fatalf("attribute name: got %q, want %q", name, tt.firstAttr)
+			if tt.firstAttr != "" {
+				if len(attrs) == 0 {
+					t.Fatalf("expected attribute %q, but none found", tt.firstAttr)
+				}
+				name := builder.StringsInterner.MustLookup(attrs[0].Name)
+				if name != tt.firstAttr {
+					t.Fatalf("attribute name: got %q, want %q", name, tt.firstAttr)
+				}
 			}
-		}
-	})
-}
+		})
+	}
 }
 
 // TestParseLetItem_ComplexTypes tests let declarations with complex types

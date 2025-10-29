@@ -268,7 +268,7 @@ func TestReportBrokenDeps(t *testing.T) {
 
 	importBag := diag.NewBag(10)
 	depBag := diag.NewBag(10)
-	depErr := diag.Diagnostic{
+	depErr := &diag.Diagnostic{
 		Severity: diag.SevError,
 		Code:     diag.SynUnexpectedToken,
 		Message:  "boom",
@@ -286,7 +286,7 @@ func TestReportBrokenDeps(t *testing.T) {
 			Meta:     depMeta,
 			Reporter: &diag.BagReporter{Bag: depBag},
 			Broken:   true,
-			FirstErr: &firstCopy,
+			FirstErr: firstCopy,
 		},
 	}
 

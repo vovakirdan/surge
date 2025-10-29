@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
 	"surge/internal/diagfmt"
 	"surge/internal/driver"
 	"surge/internal/source"
@@ -124,8 +125,9 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	}
 
 	if !st.IsDir() {
+		var result *driver.DiagnoseResult
 		// Выполняем диагностику одного файла
-		result, err := driver.DiagnoseWithOptions(filePath, opts)
+		result, err = driver.DiagnoseWithOptions(filePath, opts)
 		if err != nil {
 			return fmt.Errorf("diagnosis failed: %w", err)
 		}
@@ -143,7 +145,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 		switch format {
 		case "pretty":
-			colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
+			var colorFlag string
+			colorFlag, err = cmd.Root().PersistentFlags().GetString("color")
+			if err != nil {
+				return err
+			}
 			useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stdout))
 			opts := diagfmt.PrettyOpts{
 				Color:       useColor,
@@ -203,7 +209,10 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	colorFlag, _ := cmd.Root().PersistentFlags().GetString("color")
+	colorFlag, err := cmd.Root().PersistentFlags().GetString("color")
+	if err != nil {
+		return err
+	}
 	useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stdout))
 	pathMode := diagfmt.PathModeAuto
 	if fullPath {

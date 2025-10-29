@@ -2,12 +2,14 @@ package driver
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 
+	"fortio.org/safecast"
 	"golang.org/x/sync/errgroup"
 
 	"surge/internal/ast"
@@ -50,12 +52,12 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 		return nil, nil, err
 	}
 
-	fs := source.NewFileSetWithBase(dir)
+	fileSet := source.NewFileSetWithBase(dir)
 	fileIDs := make(map[string]source.FileID, len(files))
 	loadErrors := make(map[string]error, len(files))
 
 	for _, p := range files {
-		id, err := fs.Load(p)
+		id, err := fileSet.Load(p)
 		if err != nil {
 			loadErrors[p] = err
 			continue
@@ -64,7 +66,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 	}
 
 	if len(files) == 0 {
-		return fs, nil, nil
+		return fileSet, nil, nil
 	}
 
 	if jobs <= 0 {
@@ -76,8 +78,6 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 	g.SetLimit(min(jobs, len(files)))
 
 	for i, path := range files {
-		i, path := i, path
-
 		g.Go(func() error {
 			select {
 			case <-gctx.Done():
@@ -92,7 +92,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 			)
 
 			if loadErr, hadErr := loadErrors[path]; hadErr {
-				bag.Add(diag.Diagnostic{
+				bag.Add(&diag.Diagnostic{
 					Severity: diag.SevError,
 					Code:     diag.IOLoadFileError,
 					Message:  "failed to load file: " + loadErr.Error(),
@@ -107,23 +107,34 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				results[i] = DiagnoseDirResult{Path: path, FileID: 0, Bag: bag}
 				return nil
 			}
-			file := fs.Get(fileID)
+			file := fileSet.Get(fileID)
 
 			switch opts.Stage {
 			case DiagnoseStageTokenize:
-				_ = diagnoseTokenize(file, bag)
+				if err := diagnoseTokenize(file, bag); err != nil {
+					return err
+				}
 			case DiagnoseStageSyntax:
 				if err := diagnoseTokenize(file, bag); err == nil {
-					builder, astFile, _ = diagnoseParse(fs, file, bag)
+					builder, astFile, err = diagnoseParse(fileSet, file, bag)
+					if err != nil {
+						return err
+					}
 				}
 			case DiagnoseStageSema, DiagnoseStageAll:
 				if err := diagnoseTokenize(file, bag); err == nil {
-					builder, astFile, _ = diagnoseParse(fs, file, bag)
+					builder, astFile, err = diagnoseParse(fileSet, file, bag)
+					if err != nil {
+						return err
+					}
 					// TODO: добавить семантическую диагностику
 				}
 			default:
 				if err := diagnoseTokenize(file, bag); err == nil {
-					builder, astFile, _ = diagnoseParse(fs, file, bag)
+					builder, astFile, err = diagnoseParse(fileSet, file, bag)
+					if err != nil {
+						return err
+					}
 				}
 			}
 
@@ -139,29 +150,29 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 	}
 
 	if err := g.Wait(); err != nil {
-		return fs, results, err
+		return fileSet, results, err
 	}
 
 	if opts.Stage == DiagnoseStageSyntax || opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
-		baseDir := fs.BaseDir()
+		baseDir := fileSet.BaseDir()
 		type entry struct {
 			meta project.ModuleMeta
 			node dag.ModuleNode
 		}
-		entries := make([]entry, 0, len(results))
+		entries := make([]*entry, 0, len(results))
 		for i := range results {
 			res := &results[i]
 			if res.Bag == nil || res.Builder == nil {
 				continue
 			}
 			reporter := &diag.BagReporter{Bag: res.Bag}
-			meta, ok := buildModuleMeta(fs, res.Builder, res.ASTFile, baseDir, reporter)
+			meta, ok := buildModuleMeta(fileSet, res.Builder, res.ASTFile, baseDir, reporter)
 			if !ok {
-				file := fs.Get(res.FileID)
+				file := fileSet.Get(res.FileID)
 				meta = fallbackModuleMeta(file, baseDir)
 			}
 			broken, firstErr := moduleStatus(res.Bag)
-			entries = append(entries, entry{
+			entries = append(entries, &entry{
 				meta: meta,
 				node: dag.ModuleNode{
 					Meta:     meta,
@@ -210,12 +221,12 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 		results[i].Builder = nil
 		results[i].ASTFile = 0
 		if opts.IgnoreWarnings {
-			bag.Filter(func(d diag.Diagnostic) bool {
+			bag.Filter(func(d *diag.Diagnostic) bool {
 				return d.Severity != diag.SevWarning && d.Severity != diag.SevInfo
 			})
 		}
 		if opts.WarningsAsErrors {
-			bag.Transform(func(d diag.Diagnostic) diag.Diagnostic {
+			bag.Transform(func(d *diag.Diagnostic) *diag.Diagnostic {
 				if d.Severity == diag.SevWarning {
 					d.Severity = diag.SevError
 				}
@@ -225,7 +236,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 		}
 	}
 
-	return fs, results, nil
+	return fileSet, results, nil
 }
 
 // listSGFiles возвращает отсортированный список всех *.sg файлов в директории
@@ -251,14 +262,6 @@ func listSGFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
-// min возвращает минимум из двух чисел
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // TokenizeDir токенизирует все *.sg файлы в директории параллельно
 func TokenizeDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*source.FileSet, []TokenizeDirResult, error) {
 	// Собираем список файлов
@@ -272,12 +275,12 @@ func TokenizeDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*so
 	}
 
 	// Создаём FileSet и предзагружаем все файлы
-	fs := source.NewFileSetWithBase(dir)
+	fileSet := source.NewFileSetWithBase(dir)
 	fileIDs := make(map[string]source.FileID, len(files))
 	loadErrors := make(map[string]error, len(files))
 
 	for _, path := range files {
-		fileID, err := fs.Load(path)
+		fileID, err := fileSet.Load(path)
 		if err != nil {
 			// Сохраняем ошибку загрузки для последующей обработки
 			loadErrors[path] = err
@@ -299,8 +302,6 @@ func TokenizeDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*so
 	g.SetLimit(min(jobs, len(files)))
 
 	for i, path := range files {
-		i, path := i, path // capture loop variables
-
 		g.Go(func() error {
 			// Проверка отмены
 			select {
@@ -322,7 +323,7 @@ func TokenizeDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*so
 					Bag:    bag,
 				}
 				// Добавляем диагностику в bag
-				bag.Add(diag.Diagnostic{
+				bag.Add(&diag.Diagnostic{
 					Severity: diag.SevError,
 					Code:     diag.IOLoadFileError, // Generic I/O error
 					Message:  "failed to load file: " + loadErr.Error(),
@@ -332,7 +333,7 @@ func TokenizeDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*so
 			}
 
 			fileID := fileIDs[path]
-			file := fs.Get(fileID)
+			file := fileSet.Get(fileID)
 
 			// Создаём лексер
 			reporter := (&lexer.ReporterAdapter{Bag: bag}).Reporter()
@@ -362,10 +363,10 @@ func TokenizeDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*so
 
 	// Ждём завершения всех горутин
 	if err := g.Wait(); err != nil {
-		return fs, results, err
+		return fileSet, results, err
 	}
 
-	return fs, results, nil
+	return fileSet, results, nil
 }
 
 // ParseDir парсит все *.sg файлы в директории параллельно
@@ -381,12 +382,13 @@ func ParseDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*sourc
 	}
 
 	// Создаём FileSet и предзагружаем все файлы
-	fs := source.NewFileSetWithBase(dir)
+	fileSet := source.NewFileSetWithBase(dir)
 	fileIDs := make(map[string]source.FileID, len(files))
 	loadErrors := make(map[string]error, len(files))
 
 	for _, path := range files {
-		fileID, err := fs.Load(path)
+		var fileID source.FileID
+		fileID, err = fileSet.Load(path)
 		if err != nil {
 			// Сохраняем ошибку загрузки для последующей обработки
 			loadErrors[path] = err
@@ -411,8 +413,6 @@ func ParseDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*sourc
 	g.SetLimit(min(jobs, len(files)))
 
 	for i, path := range files {
-		i, path := i, path // capture loop variables
-
 		g.Go(func() error {
 			// Проверка отмены
 			select {
@@ -434,7 +434,7 @@ func ParseDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*sourc
 					Bag:     bag,
 				}
 				// Добавляем диагностику в bag
-				bag.Add(diag.Diagnostic{
+				bag.Add(&diag.Diagnostic{
 					Severity: diag.SevError,
 					Code:     diag.IOLoadFileError, // Generic I/O error
 					Message:  "failed to load file: " + loadErr.Error(),
@@ -444,7 +444,7 @@ func ParseDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*sourc
 			}
 
 			fileID := fileIDs[path]
-			file := fs.Get(fileID)
+			file := fileSet.Get(fileID)
 
 			// Создаём builder с общим interner'ом
 			builder := ast.NewBuilder(ast.Hints{}, interner)
@@ -453,9 +453,10 @@ func ParseDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*sourc
 			lx := lexer.New(file, lexer.Options{})
 
 			// Парсим файл
-			maxErrors := uint(maxDiagnostics)
-			if maxDiagnostics == 0 {
-				maxErrors = 0 // без лимита
+			var maxErrors uint
+			maxErrors, err = safecast.Conv[uint](maxDiagnostics)
+			if err != nil {
+				panic(fmt.Errorf("maxDiagnostics overflow: %w", err))
 			}
 
 			opts := parser.Options{
@@ -463,7 +464,7 @@ func ParseDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*sourc
 				MaxErrors: maxErrors,
 			}
 
-			result := parser.ParseFile(fs, lx, builder, opts)
+			result := parser.ParseFile(fileSet, lx, builder, opts)
 
 			// Сохраняем результат (мьютекс не нужен — индекс i уникален)
 			results[i] = ParseDirResult{
@@ -479,8 +480,8 @@ func ParseDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*sourc
 
 	// Ждём завершения всех горутин
 	if err := g.Wait(); err != nil {
-		return fs, interner, results, err
+		return fileSet, interner, results, err
 	}
 
-	return fs, interner, results, nil
+	return fileSet, interner, results, nil
 }

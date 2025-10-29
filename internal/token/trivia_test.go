@@ -20,9 +20,7 @@ func TestDirectiveTriviaShape(t *testing.T) {
 		Directive: dir,
 	}
 	tok := token.Token{
-		Kind:    token.KwFn,
 		Span:    source.Span{Start: 42, End: 44},
-		Text:    "fn",
 		Leading: []token.Trivia{tv},
 	}
 	if len(tok.Leading) != 1 || tok.Leading[0].Kind != token.TriviaDirective || tok.Leading[0].Directive == nil {

@@ -20,7 +20,7 @@ func TestDiagnose_NoDependencyErrorForCleanImport(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origWD) }()
 
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
+	if err = os.Chdir(filepath.Join("..", "..")); err != nil {
 		t.Fatalf("chdir: %v", err)
 	}
 

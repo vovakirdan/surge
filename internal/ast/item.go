@@ -1,6 +1,10 @@
 package ast
 
 import (
+	"fmt"
+
+	"fortio.org/safecast"
+
 	"surge/internal/source"
 )
 
@@ -134,7 +138,7 @@ func (i *Items) UnionMember(id TypeUnionMemberID) *TypeUnionMember {
 	return i.TypeUnionMembers.Get(uint32(id))
 }
 
-func (i *Items) allocateAttrs(attrs []Attr) (AttrID, uint32) {
+func (i *Items) allocateAttrs(attrs []Attr) (attr AttrID, attrCount uint32) {
 	if len(attrs) == 0 {
 		return NoAttrID, 0
 	}
@@ -145,7 +149,11 @@ func (i *Items) allocateAttrs(attrs []Attr) (AttrID, uint32) {
 			start = id
 		}
 	}
-	return start, uint32(len(attrs))
+	count, err := safecast.Conv[uint32](len(attrs))
+	if err != nil {
+		panic(fmt.Errorf("attrs count overflow: %w", err))
+	}
+	return start, count
 }
 
 func (i *Items) NewTypeAlias(
@@ -183,7 +191,10 @@ func (i *Items) NewTypeStruct(
 ) ItemID {
 	attrStart, attrCount := i.allocateAttrs(attrs)
 	var fieldsStart TypeFieldID
-	fieldCount := uint32(len(fields))
+	fieldCount, err := safecast.Conv[uint32](len(fields))
+	if err != nil {
+		panic(fmt.Errorf("fields count overflow: %w", err))
+	}
 	if fieldCount > 0 {
 		for idx, spec := range fields {
 			fieldAttrStart, fieldAttrCount := i.allocateAttrs(spec.Attrs)
@@ -229,7 +240,10 @@ func (i *Items) NewTypeUnion(
 ) ItemID {
 	attrStart, attrCount := i.allocateAttrs(attrs)
 	var membersStart TypeUnionMemberID
-	memberCount := uint32(len(members))
+	memberCount, err := safecast.Conv[uint32](len(members))
+	if err != nil {
+		panic(fmt.Errorf("members count overflow: %w", err))
+	}
 	if memberCount > 0 {
 		for idx, spec := range members {
 			memberID := TypeUnionMemberID(i.TypeUnionMembers.Allocate(TypeUnionMember{

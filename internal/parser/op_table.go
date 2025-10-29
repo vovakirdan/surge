@@ -29,7 +29,7 @@ const (
 // Возвращает (приоритет, правоассоциативный)
 func (p *Parser) getBinaryOperatorPrec(kind token.Kind) (int, bool) {
 	switch kind {
-	// Присваивание (правоассоциативно)
+	// Присваивание, правоассоциативно
 	case token.Assign, token.PlusAssign, token.MinusAssign, token.StarAssign,
 		token.SlashAssign, token.PercentAssign, token.AmpAssign, token.PipeAssign,
 		token.CaretAssign, token.ShlAssign, token.ShrAssign:

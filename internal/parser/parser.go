@@ -72,7 +72,7 @@ func (p *Parser) at(k token.Kind) bool {
 	return p.lx.Peek().Kind == k
 }
 
-func (p *Parser) at_or(kinds ...token.Kind) bool {
+func (p *Parser) atOr(kinds ...token.Kind) bool {
 	return slices.Contains(kinds, p.lx.Peek().Kind)
 }
 
@@ -272,7 +272,7 @@ func isTopLevelStarter(k token.Kind) bool {
 // parseIdent — утилита: ожидает Ident и интернирует его, возвращает source.StringID.
 // На ошибке — репорт SynExpectIdentifier.
 func (p *Parser) parseIdent() (source.StringID, bool) {
-	if p.at_or(token.Ident, token.Underscore) {
+	if p.atOr(token.Ident, token.Underscore) {
 		tok := p.advance()
 		id := p.arenas.StringsInterner.Intern(tok.Text)
 		return id, true

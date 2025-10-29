@@ -71,7 +71,7 @@ func BuildASTJSON(builder *ast.Builder, fileID ast.FileID) (ASTNodeOutput, error
 		return ASTNodeOutput{}, fmt.Errorf("file not found")
 	}
 
-	var children []ASTNodeOutput
+	children := make([]ASTNodeOutput, 0, len(file.Items))
 	for _, itemID := range file.Items {
 		itemNode, err := formatItemJSON(builder, itemID)
 		if err != nil {

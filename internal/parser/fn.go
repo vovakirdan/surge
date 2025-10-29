@@ -189,13 +189,12 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 				nil,
 			)
 			// Пробуем съесть второе объявление, чтобы не застрять.
-			if _, ok := p.parseFnGenerics(); !ok {
+			if _, ok = p.parseFnGenerics(); !ok {
 				p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
 				return ast.NoItemID, false
 			}
 		}
 	} else {
-		var ok bool
 		generics, ok = p.parseFnGenerics()
 		if !ok {
 			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
@@ -203,7 +202,7 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 		}
 	}
 
-	if _, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after function name"); !ok {
+	if _, ok = p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after function name"); !ok {
 		p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
 		return ast.NoItemID, false
 	}
@@ -257,15 +256,16 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 	}
 
 	var bodyStmtID ast.StmtID
-	if p.at(token.LBrace) {
+	switch p.lx.Peek().Kind {
+	case token.LBrace:
 		bodyStmtID, ok = p.parseBlock()
 		if !ok {
 			return ast.NoItemID, false
 		}
-	} else if p.at(token.Semicolon) {
+	case token.Semicolon:
 		p.advance()
-	} else {
-		_, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after function signature", func(b *diag.ReportBuilder) {
+	default:
+		_, ok = p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after function signature", func(b *diag.ReportBuilder) {
 			if b == nil {
 				return
 			}
@@ -309,12 +309,13 @@ func (p *Parser) parseFnParam() (ast.FnParam, bool) {
 	param.Name = nameID
 	param.Variadic = variadic
 
-	if _, ok := p.expect(token.Colon, diag.SynExpectColon, "expected ':' after parameter name"); !ok {
+	if _, ok = p.expect(token.Colon, diag.SynExpectColon, "expected ':' after parameter name"); !ok {
 		p.resyncUntil(token.Comma, token.RParen, token.Semicolon)
 		return param, false
 	}
 
-	typeID, ok := p.parseTypePrefix()
+	var typeID ast.TypeID
+	typeID, ok = p.parseTypePrefix()
 	if !ok {
 		return param, false
 	}
@@ -322,7 +323,8 @@ func (p *Parser) parseFnParam() (ast.FnParam, bool) {
 
 	if p.at(token.Assign) {
 		p.advance()
-		defaultExprID, ok := p.parseExpr()
+		var defaultExprID ast.ExprID
+		defaultExprID, ok = p.parseExpr()
 		if !ok {
 			p.resyncUntil(token.Comma, token.RParen, token.Semicolon)
 			return param, false
@@ -338,7 +340,7 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
 	var sawVariadic bool
 
 	// если нет параметров, но забыли скобку
-	if p.at_or(token.LBrace, token.Arrow, token.Semicolon) {
+	if p.atOr(token.LBrace, token.Arrow, token.Semicolon) {
 		// забыли закрыть скобку с пустыми аргами
 		p.emitDiagnostic(
 			diag.SynUnclosedParen,

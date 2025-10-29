@@ -65,29 +65,9 @@ func (p *Parser) expect(k token.Kind, code diag.Code, msg string, augment ...fun
 	return token.Token{Kind: token.Invalid, Span: diagSpan, Text: p.lx.Peek().Text}, false
 }
 
-// want - желаем увидеть токен, но кидаем warning, если нет
-func (p *Parser) want(k token.Kind, code diag.Code, msg string) (token.Token, bool) {
-	if p.at(k) {
-		return p.advance(), true
-	}
-	diagSpan := p.getDiagnosticSpan()
-	p.report(code, diag.SevWarning, diagSpan, msg)
-	return p.lx.Peek(), false
-}
-
 // репортует ошибку и передает текущий спан
 func (p *Parser) err(code diag.Code, msg string) bool {
 	return p.report(code, diag.SevError, p.getDiagnosticSpan(), msg)
-}
-
-// репортует warning и передает текущий спан
-func (p *Parser) warn(code diag.Code, msg string) bool {
-	return p.report(code, diag.SevWarning, p.getDiagnosticSpan(), msg)
-}
-
-// репортует info и передает текущий спан
-func (p *Parser) info(code diag.Code, msg string) bool {
-	return p.report(code, diag.SevInfo, p.getDiagnosticSpan(), msg)
 }
 
 func (p *Parser) report(code diag.Code, sev diag.Severity, sp source.Span, msg string) bool {
@@ -209,35 +189,6 @@ func (p *Parser) parseAttributes() ([]ast.Attr, source.Span, bool) {
 	return attrs, combined, true
 }
 
-// resyncUntilIncluding — то же, но съедает найденный стоп-токен
-// (полезно, чтобы сбросить ;/}).
-func (p *Parser) resyncUntilIncluding(stop ...token.Kind) {
-	p.resyncUntil(stop...)
-	if !p.at(token.EOF) {
-		peek := p.lx.Peek().Kind
-		if slices.Contains(stop, peek) {
-			p.advance() // съедаем найденный стоп-токен
-			return
-		}
-	}
-}
-
-// resyncIfStuck — защититься от бесконечного цикла:
-// если Peek().Span == lastSpanEnd, force advance().
-func (p *Parser) resyncIfStuck(max int) {
-	for range max {
-		if p.at(token.EOF) {
-			return
-		}
-		peek := p.lx.Peek()
-		if peek.Span.Start == p.lastSpan.End {
-			p.advance() // force advance if stuck
-		} else {
-			return
-		}
-	}
-}
-
 // Specialized wrapper functions for different grammar constructs
 
 // resyncImportGroup — восстановление внутри группы импорта
@@ -315,12 +266,6 @@ func (p *Parser) resyncStatement() {
 
 		p.advance()
 	}
-}
-
-// resyncExpression — восстановление на уровне выражения
-// до ';', ',', закрывающих скобок, или EOF
-func (p *Parser) resyncExpression() {
-	p.resyncUntil(token.Semicolon, token.Comma, token.RBrace, token.RParen, token.RBracket, token.EOF)
 }
 
 // FakeError — эмулирует ошибку в указанном span

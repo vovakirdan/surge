@@ -228,18 +228,19 @@ func renderTree(node *treeNode) treeBlock {
 	}
 	connector[rootPos] = '|'
 	for _, pos := range positions {
-		if pos < rootPos {
+		switch {
+		case pos < rootPos:
 			connector[pos] = '/'
-		} else if pos > rootPos {
+		case pos > rootPos:
 			connector[pos] = '\\'
-		} else {
+		default:
 			connector[pos] = '|'
 		}
 	}
 	connectorLine := string(connector)
 
 	childLines := make([]string, maxChildHeight)
-	for row := 0; row < maxChildHeight; row++ {
+	for row := range maxChildHeight {
 		var sb strings.Builder
 		if childPrefix > 0 {
 			sb.WriteString(strings.Repeat(" ", childPrefix))

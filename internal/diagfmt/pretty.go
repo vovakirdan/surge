@@ -8,6 +8,7 @@ import (
 	"surge/internal/diag"
 	"surge/internal/source"
 
+	"fortio.org/safecast"
 	"github.com/fatih/color"
 	"github.com/mattn/go-runewidth"
 )
@@ -67,8 +68,11 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 	defer func() { color.NoColor = prev }()
 	color.NoColor = !opts.Color
 
-	context := int(opts.Context)
-	if context <= 0 {
+	context, err := safecast.Conv[uint32](opts.Context)
+	if err != nil {
+		panic(fmt.Errorf("context overflow: %w", err))
+	}
+	if context == 0 {
 		context = 1
 	}
 
@@ -124,20 +128,24 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 		)
 
 		// Вывод контекста с подчеркиванием
-		totalLines := uint32(len(f.LineIdx)) + 1
+		totalLines, err := safecast.Conv[uint32](len(f.LineIdx))
+		if err != nil {
+			panic(fmt.Errorf("total lines overflow: %w", err))
+		}
+		totalLines += 1
 		if len(f.LineIdx) == 0 && len(f.Content) > 0 {
 			totalLines = 1
 		}
 
 		// Определяем диапазон строк для отображения
 		startLine := lineColStart.Line
-		if int(startLine) > context {
+		if startLine > context {
 			startLine = lineColStart.Line - uint32(context)
 		} else {
 			startLine = 1
 		}
 
-		endLine := min(lineColStart.Line+uint32(context), totalLines)
+		endLine := min(lineColStart.Line+context, totalLines)
 
 		// Если это не первая строка файла, показываем "..."
 		if startLine > 1 {
@@ -159,9 +167,18 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 			// Длина без ANSI escape-кодов: "lineNumWidth цифр + ' | '"
 			gutterLen := lineNumWidth + 3
 
-			io.WriteString(w, gutter)
-			io.WriteString(w, lineText)
-			io.WriteString(w, "\n")
+			_, err = io.WriteString(w, gutter)
+			if err != nil {
+				panic(fmt.Errorf("write gutter: %w", err))
+			}
+			_, err = io.WriteString(w, lineText)
+			if err != nil {
+				panic(fmt.Errorf("write line text: %w", err))
+			}
+			_, err = io.WriteString(w, "\n")
+			if err != nil {
+				panic(fmt.Errorf("write newline: %w", err))
+			}
 
 			// Если это строка с ошибкой, добавляем подчеркивание
 			if lineNum == lineColStart.Line {
@@ -171,7 +188,11 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 
 				// Если ошибка на разных строках, подчеркиваем до конца текущей строки
 				if lineColEnd.Line > lineColStart.Line {
-					endCol = uint32(len(lineText)) + 1
+					lenLineText, err := safecast.Conv[uint32](len(lineText))
+					if err != nil {
+						panic(fmt.Errorf("len line text overflow: %w", err))
+					}
+					endCol = lenLineText + 1
 				}
 
 				// Вычисляем визуальные позиции с учётом табуляций и Unicode
@@ -233,7 +254,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 		}
 
 		if opts.ShowFixes && len(d.Fixes) > 0 {
-			fixes := append([]diag.Fix(nil), d.Fixes...)
+			fixes := append([]*diag.Fix(nil), d.Fixes...)
 			sort.SliceStable(fixes, func(i, j int) bool {
 				fi, fj := fixes[i], fixes[j]
 				if fi.IsPreferred != fj.IsPreferred {

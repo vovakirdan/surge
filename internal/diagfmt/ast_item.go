@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 )
 
@@ -127,8 +129,12 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 					jsonFields := make([]map[string]any, 0, structDecl.FieldsCount)
 					if structDecl.FieldsCount > 0 && structDecl.FieldsStart.IsValid() {
 						start := uint32(structDecl.FieldsStart)
-						for idx := uint32(0); idx < structDecl.FieldsCount; idx++ {
-							field := builder.Items.StructField(ast.TypeFieldID(start + idx))
+						for idx := range structDecl.FieldsCount {
+							idxUint32, err := safecast.Conv[uint32](idx)
+							if err != nil {
+								panic(fmt.Errorf("fields count overflow: %w", err))
+							}
+							field := builder.Items.StructField(ast.TypeFieldID(start + idxUint32))
 							if field == nil {
 								continue
 							}
@@ -155,8 +161,12 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 					members := make([]map[string]any, 0, unionDecl.MembersCount)
 					if unionDecl.MembersCount > 0 && unionDecl.MembersStart.IsValid() {
 						start := uint32(unionDecl.MembersStart)
-						for idx := uint32(0); idx < unionDecl.MembersCount; idx++ {
-							member := builder.Items.UnionMember(ast.TypeUnionMemberID(start + idx))
+						for idx := range unionDecl.MembersCount {
+							idxUint32, err := safecast.Conv[uint32](idx)
+							if err != nil {
+								panic(fmt.Errorf("members count overflow: %w", err))
+							}
+							member := builder.Items.UnionMember(ast.TypeUnionMemberID(start + idxUint32))
 							if member == nil {
 								continue
 							}

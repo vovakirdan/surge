@@ -5,13 +5,13 @@ import "surge/internal/source"
 // Reporter — минимальный контракт получения диагностик от фаз.
 // Реализации: BagReporter (кладёт в Bag), NopReporter, MultiReporter (fan-out).
 type Reporter interface {
-	Report(code Code, sev Severity, primary source.Span, msg string, notes []Note, fixes []Fix)
+	Report(code Code, sev Severity, primary source.Span, msg string, notes []Note, fixes []*Fix)
 }
 
 // ReportBuilder accumulates diagnostic details before emitting to Reporter.
 type ReportBuilder struct {
 	reporter Reporter
-	diag     Diagnostic
+	diag     *Diagnostic
 	emitted  bool
 }
 
@@ -19,7 +19,7 @@ type ReportBuilder struct {
 func NewReportBuilder(r Reporter, sev Severity, code Code, primary source.Span, msg string) *ReportBuilder {
 	return &ReportBuilder{
 		reporter: r,
-		diag: Diagnostic{
+		diag: &Diagnostic{
 			Severity: sev,
 			Code:     code,
 			Message:  msg,
@@ -62,7 +62,7 @@ func (b *ReportBuilder) WithFix(title string, edits ...FixEdit) *ReportBuilder {
 }
 
 // WithFixSuggestion appends configured fix (materialised or lazy).
-func (b *ReportBuilder) WithFixSuggestion(fix Fix) *ReportBuilder {
+func (b *ReportBuilder) WithFixSuggestion(fix *Fix) *ReportBuilder {
 	if b == nil {
 		return nil
 	}
@@ -82,9 +82,9 @@ func (b *ReportBuilder) Emit() {
 }
 
 // Diagnostic returns accumulated diagnostic without emitting.
-func (b *ReportBuilder) Diagnostic() Diagnostic {
+func (b *ReportBuilder) Diagnostic() *Diagnostic {
 	if b == nil {
-		return Diagnostic{}
+		return &Diagnostic{}
 	}
 	return b.diag
 }
@@ -92,11 +92,11 @@ func (b *ReportBuilder) Diagnostic() Diagnostic {
 // BagReporter — адаптер, который пишет в *Bag.
 type BagReporter struct{ Bag *Bag }
 
-func (r BagReporter) Report(code Code, sev Severity, primary source.Span, msg string, notes []Note, fixes []Fix) {
+func (r BagReporter) Report(code Code, sev Severity, primary source.Span, msg string, notes []Note, fixes []*Fix) {
 	if r.Bag == nil {
 		return
 	}
-	r.Bag.Add(Diagnostic{
+	r.Bag.Add(&Diagnostic{
 		Severity: sev, Code: code, Message: msg,
 		Primary: primary, Notes: notes, Fixes: fixes,
 	})
