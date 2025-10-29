@@ -175,6 +175,34 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 		}
 
 		// Alias
+		if p.at(token.LBrace) {
+			gapSpan := p.lastSpan.ZeroideToEnd().Cover(p.lx.Peek().Span.ZeroideToStart())
+			p.emitDiagnostic(
+				diag.SynExpectColon,
+				diag.SevError,
+				gapSpan,
+				"expected ':' after type name to make inheritance",
+				func(b *diag.ReportBuilder) {
+					if b == nil {
+						return
+					}
+					fixID := fix.MakeFixID(diag.SynExpectColon, gapSpan)
+					suggestion := fix.ReplaceSpan(
+						"insert ':' to make inheritance",
+						gapSpan,
+						" : ",
+						"",
+						fix.WithID(fixID),
+						fix.WithKind(diag.FixKindRefactor),
+						fix.WithApplicability(diag.FixApplicabilitySafeWithHeuristics),
+					)
+					b.WithFixSuggestion(suggestion)
+					b.WithNote(gapSpan, "you can use a colon to make inheritance")
+				},
+			)
+			p.resyncTop()
+			return ast.NoItemID, false
+		}
 		semiTok, ok := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after type declaration", func(b *diag.ReportBuilder) {
 			if b == nil {
 				return
