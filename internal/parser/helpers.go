@@ -4,10 +4,10 @@ import (
 	"slices"
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/fix"
 	_ "surge/internal/lexer"
 	"surge/internal/source"
 	"surge/internal/token"
-	"surge/internal/fix"
 )
 
 // advance — съедает следующий токен и обновляет lastSpan
@@ -249,10 +249,72 @@ func (p *Parser) resyncImportGroup() {
 	}
 }
 
-// resyncStatement — восстановление на уровне statement
-// до ';', '}', или EOF
+// isBlockStatementStarter reports whether a token can start a new statement inside a block.
+func isBlockStatementStarter(kind token.Kind) bool {
+	switch kind {
+	case token.LBrace, token.KwLet, token.KwReturn, token.KwIf, token.KwWhile,
+		token.KwFor, token.KwBreak, token.KwContinue, token.KwCompare:
+		return true
+	default:
+		return false
+	}
+}
+
+// resyncStatement — восстановление на уровне statement.
+// Пропускаем токены до тех пор, пока не встретим ';', начало нового statement, '}'
+// (закрытие текущего блока) или EOF. Для корректной работы игнорируем закрывающие
+// скобки внутри вложенных конструкций.
 func (p *Parser) resyncStatement() {
-	p.resyncUntil(token.Semicolon, token.RBrace, token.EOF)
+	braceDepth := 0
+	parenDepth := 0
+	bracketDepth := 0
+
+	for !p.at(token.EOF) {
+		tok := p.lx.Peek()
+
+		switch tok.Kind {
+		case token.Semicolon:
+			if braceDepth == 0 && parenDepth == 0 && bracketDepth == 0 {
+				return
+			}
+		case token.LBrace:
+			braceDepth++
+		case token.RBrace:
+			if braceDepth > 0 {
+				braceDepth--
+				break
+			}
+			if parenDepth == 0 && bracketDepth == 0 {
+				return
+			}
+		case token.LParen:
+			parenDepth++
+		case token.RParen:
+			if parenDepth > 0 {
+				parenDepth--
+				break
+			}
+			if braceDepth == 0 && bracketDepth == 0 {
+				return
+			}
+		case token.LBracket:
+			bracketDepth++
+		case token.RBracket:
+			if bracketDepth > 0 {
+				bracketDepth--
+				break
+			}
+			if braceDepth == 0 && parenDepth == 0 {
+				return
+			}
+		default:
+			if braceDepth == 0 && parenDepth == 0 && bracketDepth == 0 && isBlockStatementStarter(tok.Kind) {
+				return
+			}
+		}
+
+		p.advance()
+	}
 }
 
 // resyncExpression — восстановление на уровне выражения

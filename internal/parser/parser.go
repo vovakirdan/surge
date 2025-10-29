@@ -245,6 +245,7 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 		token.Semicolon, token.KwImport, token.KwLet,
 		token.KwFn, token.KwPub, token.KwAsync,
 		token.KwExtern,
+		token.KwType,
 	}
 	// TODO: добавить другие стартеры когда они будут реализованы: token.KwFn, token.KwType, etc.
 

@@ -40,6 +40,7 @@ const (
 	SynTypeExpectUnionMember Code = 2020
 	SynTypeFieldConflict     Code = 2021
 	SynTypeDuplicateMember   Code = 2022
+	SynTypeNotAllowed        Code = 2023
 
 	// import errors & warnings
 	SynInfoImportGroup    Code = 2100
@@ -109,6 +110,7 @@ var ( // todo расширить описания и использовать к
 		SynTypeExpectUnionMember:    "Expected union member",
 		SynTypeFieldConflict:        "Duplicate field in type",
 		SynTypeDuplicateMember:      "Duplicate union member",
+		SynTypeNotAllowed:           "Type declaration is not allowed here",
 		SynExpectIdentifier:         "Expect identifier",
 		SynExpectModuleSeg:          "Expect module segment",
 		SynExpectItemAfterDbl:       "Expect item after double colon",

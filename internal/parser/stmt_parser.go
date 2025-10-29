@@ -156,6 +156,16 @@ func (p *Parser) parseStmt() (ast.StmtID, bool) {
 		return p.parseBreakStmt()
 	case token.KwContinue:
 		return p.parseContinueStmt()
+	case token.KwType:
+		typeTok := p.advance()
+		p.emitDiagnostic(
+			diag.SynTypeNotAllowed,
+			diag.SevError,
+			typeTok.Span,
+			"type declarations are not allowed inside blocks",
+			nil,
+		)
+		return ast.NoStmtID, false
 	default:
 		return p.parseExprStmt()
 	}

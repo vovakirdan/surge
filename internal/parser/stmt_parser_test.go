@@ -979,6 +979,15 @@ func TestBlockDisallowsPubAsyncAndAttributes(t *testing.T) {
 			`,
 			wantDiag: diag.SynAsyncNotAllowed,
 		},
+		{
+			name: "type declaration inside block",
+			input: `
+				fn foo() {
+					type A = int;
+				}
+			`,
+			wantDiag: diag.SynTypeNotAllowed,
+		},
 	}
 
 	for _, tt := range tests {
@@ -998,5 +1007,59 @@ func TestBlockDisallowsPubAsyncAndAttributes(t *testing.T) {
 				t.Fatalf("expected diagnostic %s, got %+v", tt.wantDiag, bag.Items())
 			}
 		})
+	}
+}
+
+func TestBlockTypeDeclResyncKeepsFollowingStatements(t *testing.T) {
+	input := `
+		fn foo() {
+			type A = {
+				value: int,
+			}
+			let x = 1;
+			return;
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if !bag.HasErrors() {
+		t.Fatalf("expected diagnostics, got none")
+	}
+
+	found := false
+	for _, item := range bag.Items() {
+		if item.Code == diag.SynTypeNotAllowed {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected SynTypeNotAllowed diagnostic, got %+v", bag.Items())
+	}
+
+	file := builder.Files.Get(fileID)
+	if file == nil || len(file.Items) != 1 {
+		t.Fatalf("expected single function item, got %+v", file)
+	}
+
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatalf("expected fn item, got %v", builder.Items.Get(file.Items[0]).Kind)
+	}
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil {
+		t.Fatal("function body missing")
+	}
+	if len(block.Stmts) != 2 {
+		t.Fatalf("expected two statements in block, got %d", len(block.Stmts))
+	}
+
+	first := builder.Stmts.Get(block.Stmts[0])
+	if first.Kind != ast.StmtLet {
+		t.Fatalf("expected first statement after type to be let, got %v", first.Kind)
+	}
+	second := builder.Stmts.Get(block.Stmts[1])
+	if second.Kind != ast.StmtReturn {
+		t.Fatalf("expected second statement to be return, got %v", second.Kind)
 	}
 }

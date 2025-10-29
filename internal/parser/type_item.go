@@ -107,7 +107,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			}
 			members := []ast.TypeUnionMemberSpec{tagSpec}
 			unionSpan := tagSpan
-			members, unionSpan, ok = p.parseAdditionalUnionMembers(members, unionSpan)
+			members, _, ok = p.parseAdditionalUnionMembers(members, unionSpan)
 			if !ok {
 				return ast.NoItemID, false
 			}
@@ -132,7 +132,8 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			if !ok {
 				return ast.NoItemID, false
 			}
-			itemSpan := startSpan.Cover(semiTok.Span)
+			itemSpan := startSpan.Cover(unionSpan)
+			itemSpan = itemSpan.Cover(semiTok.Span)
 			itemID := p.arenas.NewTypeUnion(nameID, generics, attrs, visibility, members, itemSpan)
 			return itemID, true
 		}
@@ -169,7 +170,8 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			if !ok {
 				return ast.NoItemID, false
 			}
-			itemSpan := startSpan.Cover(semiTok.Span)
+			itemSpan := startSpan.Cover(unionSpan)
+			itemSpan = itemSpan.Cover(semiTok.Span)
 			itemID := p.arenas.NewTypeUnion(nameID, generics, attrs, visibility, members, itemSpan)
 			return itemID, true
 		}
