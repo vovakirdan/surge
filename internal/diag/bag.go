@@ -26,6 +26,9 @@ func NewBag(maximum int) *Bag {
 // Add добавляет диагностику, учитывая лимит.
 // Возвращает false, если диагностика не добавлена (достигнут лимит).
 func (b *Bag) Add(d *Diagnostic) bool {
+	if d == nil {
+		return false
+	}
 	if len(b.items) >= int(b.maximum) {
 		return false
 	}
@@ -137,6 +140,10 @@ func (b *Bag) Filter(predicate func(*Diagnostic) bool) {
 // Transform применяет функцию к каждой диагностике
 func (b *Bag) Transform(transformer func(*Diagnostic) *Diagnostic) {
 	for i := range b.items {
-		b.items[i] = transformer(b.items[i])
+		next := transformer(b.items[i])
+		if next == nil {
+			panic("diag: transformer returned nil")
+		}
+		b.items[i] = next
 	}
 }
