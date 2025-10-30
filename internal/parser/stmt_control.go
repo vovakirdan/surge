@@ -139,23 +139,24 @@ func (p *Parser) parseIfStmt() (ast.StmtID, bool) {
 		stmtSpan = stmtSpan.Cover(thenNode.Span)
 	}
 
-	var elseStmt ast.StmtID = ast.NoStmtID
+	elseStmt := ast.NoStmtID
 	var elseTok token.Token
 	if p.at(token.KwElse) {
 		elseTok = p.advance()
-		if p.at(token.KwIf) {
+		switch p.lx.Peek().Kind {
+		case token.KwIf:
 			var ok bool
 			elseStmt, ok = p.parseIfStmt()
 			if !ok {
 				return ast.NoStmtID, false
 			}
-		} else if p.at(token.LBrace) {
+		case token.LBrace:
 			var ok bool
 			elseStmt, ok = p.parseBlock()
 			if !ok {
 				return ast.NoStmtID, false
 			}
-		} else {
+		default:
 			p.emitDiagnostic(
 				diag.SynUnexpectedToken,
 				diag.SevError,
@@ -254,9 +255,9 @@ func (p *Parser) parseForClassic(forTok token.Token) (ast.StmtID, bool) {
 	openTok := p.advance()
 	_ = openTok
 
-	var initStmt ast.StmtID = ast.NoStmtID
-	var condExpr ast.ExprID = ast.NoExprID
-	var postExpr ast.ExprID = ast.NoExprID
+	initStmt := ast.NoStmtID
+	condExpr := ast.NoExprID
+	postExpr := ast.NoExprID
 
 	if !p.at(token.Semicolon) {
 		var ok bool

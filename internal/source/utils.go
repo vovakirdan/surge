@@ -1,9 +1,12 @@
 package source
 
 import (
+	"fmt"
 	"path/filepath"
 	"slices"
 	"sort"
+
+	"fortio.org/safecast"
 )
 
 // normalizeCRLF заменяет все \r\n на \n, не трогая одиночные \r.
@@ -52,7 +55,11 @@ func buildLineIndex(content []byte) []uint32 {
 	out := make([]uint32, 0, len(content))
 	for i, b := range content {
 		if b == '\n' {
-			out = append(out, uint32(i))
+			ui32, err := safecast.Conv[uint32](i)
+			if err != nil {
+				panic(fmt.Errorf("line index overflow: %w", err))
+			}
+			out = append(out, ui32)
 		}
 	}
 	return out
@@ -64,25 +71,29 @@ func toLineCol(lineIdx []uint32, off uint32) LineCol {
 	}
 	// ищем первый индекс '\n' > off
 	i := sort.Search(len(lineIdx), func(k int) bool { return lineIdx[k] > off })
-	if i == 0 {
+	ui32, err := safecast.Conv[uint32](i)
+	if err != nil {
+		panic(fmt.Errorf("line index overflow: %w", err))
+	}
+	if ui32 == 0 {
 		// off до первого \n
 		return LineCol{Line: 1, Col: off + 1}
 	}
 	// последний '\n' <= off находится по индексу i-1
-	last := lineIdx[i-1]
+	last := lineIdx[ui32-1]
 	if off == last {
 		// позиция на '\n' — считаем концом предыдущей строки
 		var start uint32
-		if i-1 == 0 {
+		if ui32-1 == 0 {
 			start = 0
 		} else {
-			start = lineIdx[i-2] + 1
+			start = lineIdx[ui32-2] + 1
 		}
-		return LineCol{Line: uint32(i), Col: last - start + 1}
+		return LineCol{Line: ui32, Col: last - start + 1}
 	}
 	// обычный случай
 	start := last + 1
-	return LineCol{Line: uint32(i + 1), Col: off - start + 1}
+	return LineCol{Line: ui32 + 1, Col: off - start + 1}
 }
 
 func normalizePath(p string) string {

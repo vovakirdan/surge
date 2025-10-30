@@ -114,14 +114,16 @@ func (p *Parser) parseParenExpr() (ast.ExprID, bool) {
 				break
 			}
 
-			expr, ok := p.parseExpr()
+			var expr ast.ExprID
+			expr, ok = p.parseExpr()
 			if !ok {
 				return ast.NoExprID, false
 			}
 			elements = append(elements, expr)
 		}
 
-		closeTok, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' after tuple elements", nil)
+		var closeTok token.Token
+		closeTok, ok = p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' after tuple elements", nil)
 		if !ok {
 			return ast.NoExprID, false
 		}
@@ -180,7 +182,8 @@ func (p *Parser) parseArrayExpr() (ast.ExprID, bool) {
 			break
 		}
 		beforeErrors = p.opts.CurrentErrors
-		expr, ok := p.parseExpr()
+		var expr ast.ExprID
+		expr, ok = p.parseExpr()
 		if !ok {
 			if p.opts.CurrentErrors == beforeErrors {
 				errSpan := p.currentErrorSpan()

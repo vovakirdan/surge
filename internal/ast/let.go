@@ -1,6 +1,12 @@
 package ast
 
-import "surge/internal/source"
+import (
+	"fmt"
+
+	"fortio.org/safecast"
+
+	"surge/internal/source"
+)
 
 type LetItem struct {
 	Name       source.StringID
@@ -54,7 +60,11 @@ func (i *Items) NewLet(
 	span source.Span,
 ) ItemID {
 	var attrStart AttrID
-	attrCount := uint32(len(attrs))
+	var attrCount uint32
+	attrCount, err := safecast.Conv[uint32](len(attrs))
+	if err != nil {
+		panic(fmt.Errorf("let attrs count overflow: %w", err))
+	}
 	if attrCount > 0 {
 		for idx, attr := range attrs {
 			id := AttrID(i.Attrs.Allocate(attr))

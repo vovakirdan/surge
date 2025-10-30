@@ -1,6 +1,12 @@
 package ast
 
-import "surge/internal/source"
+import (
+	"fmt"
+
+	"fortio.org/safecast"
+
+	"surge/internal/source"
+)
 
 type FnModifier uint64
 
@@ -83,7 +89,7 @@ func (i *Items) GetFnParamIDs(fn *FnItem) []FnParamID {
 	}
 	params := make([]FnParamID, fn.ParamsCount)
 	start := uint32(fn.ParamsStart)
-	for j := uint32(0); j < fn.ParamsCount; j++ {
+	for j := range fn.ParamsCount {
 		params[j] = FnParamID(start + j)
 	}
 	return params
@@ -100,7 +106,10 @@ func (i *Items) NewFn(
 	span source.Span,
 ) ItemID {
 	var paramsStart FnParamID
-	paramsCount := uint32(len(params))
+	paramsCount, err := safecast.Conv[uint32](len(params))
+	if err != nil {
+		panic(fmt.Errorf("fn params count overflow: %w", err))
+	}
 	if paramsCount > 0 {
 		for idx, param := range params {
 			id := FnParamID(i.FnParams.Allocate(param))
@@ -110,7 +119,11 @@ func (i *Items) NewFn(
 		}
 	}
 	var attrStart AttrID
-	attrCount := uint32(len(attrs))
+	var attrCount uint32
+	attrCount, err = safecast.Conv[uint32](len(attrs))
+	if err != nil {
+		panic(fmt.Errorf("fn attrs count overflow: %w", err))
+	}
 	if attrCount > 0 {
 		for idx, attr := range attrs {
 			id := AttrID(i.Attrs.Allocate(attr))

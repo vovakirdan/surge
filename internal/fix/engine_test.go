@@ -1,6 +1,7 @@
 package fix
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,12 +33,12 @@ func TestApplyModeOnce_WithRequiresAll(t *testing.T) {
 	fs := source.NewFileSet()
 	fileID := fs.Add(path, []byte("let x = 1"), 0)
 
-	d := diag.Diagnostic{
+	d := &diag.Diagnostic{
 		Severity: diag.SevError,
 		Code:     diag.Code(0x0001),
 		Message:  "test error",
 		Primary:  source.Span{File: fileID, Start: 0, End: 1},
-		Fixes: []diag.Fix{
+		Fixes: []*diag.Fix{
 			{
 				ID:            "fix-1",
 				Title:         "Fix with RequiresAll",
@@ -50,10 +51,10 @@ func TestApplyModeOnce_WithRequiresAll(t *testing.T) {
 		},
 	}
 
-	result, err := Apply(fs, []diag.Diagnostic{d}, ApplyOptions{Mode: ApplyModeOnce})
+	result, err := Apply(fs, []*diag.Diagnostic{d}, ApplyOptions{Mode: ApplyModeOnce})
 
 	// Ожидаем ErrNoFixes
-	if err != ErrNoFixes {
+	if !errors.Is(err, ErrNoFixes) {
 		t.Errorf("expected ErrNoFixes, got %v", err)
 	}
 
@@ -81,12 +82,12 @@ func TestApplyModeID_WithRequiresAll(t *testing.T) {
 	fs := source.NewFileSet()
 	fileID := fs.Add(path, []byte("let x = 1"), 0)
 
-	d := diag.Diagnostic{
+	d := &diag.Diagnostic{
 		Severity: diag.SevError,
 		Code:     diag.Code(0x0001),
 		Message:  "test error",
 		Primary:  source.Span{File: fileID, Start: 0, End: 1},
-		Fixes: []diag.Fix{
+		Fixes: []*diag.Fix{
 			{
 				ID:            "fix-1",
 				Title:         "Fix with RequiresAll",
@@ -99,13 +100,13 @@ func TestApplyModeID_WithRequiresAll(t *testing.T) {
 		},
 	}
 
-	result, err := Apply(fs, []diag.Diagnostic{d}, ApplyOptions{
+	result, err := Apply(fs, []*diag.Diagnostic{d}, ApplyOptions{
 		Mode:     ApplyModeID,
 		TargetID: "fix-1",
 	})
 
 	// Ожидаем ErrNoFixes
-	if err != ErrNoFixes {
+	if !errors.Is(err, ErrNoFixes) {
 		t.Errorf("expected ErrNoFixes, got %v", err)
 	}
 
@@ -134,12 +135,12 @@ func TestApplyModeAll_WithRequiresAll_Safe(t *testing.T) {
 	fs := source.NewFileSet()
 	fileID := fs.Add(path, []byte("let x = 1"), 0)
 
-	d := diag.Diagnostic{
+	d := &diag.Diagnostic{
 		Severity: diag.SevError,
 		Code:     diag.Code(0x0001),
 		Message:  "test error",
 		Primary:  source.Span{File: fileID, Start: 0, End: 1},
-		Fixes: []diag.Fix{
+		Fixes: []*diag.Fix{
 			{
 				ID:            "fix-1",
 				Title:         "Fix with RequiresAll",
@@ -152,7 +153,7 @@ func TestApplyModeAll_WithRequiresAll_Safe(t *testing.T) {
 		},
 	}
 
-	result, err := Apply(fs, []diag.Diagnostic{d}, ApplyOptions{Mode: ApplyModeAll})
+	result, err := Apply(fs, []*diag.Diagnostic{d}, ApplyOptions{Mode: ApplyModeAll})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -187,12 +188,12 @@ func TestApplyModeAll_WithRequiresAll_Unsafe(t *testing.T) {
 	fs := source.NewFileSet()
 	fileID := fs.Add(path, []byte("let x = 1"), 0)
 
-	d := diag.Diagnostic{
+	d := &diag.Diagnostic{
 		Severity: diag.SevError,
 		Code:     diag.Code(0x0001),
 		Message:  "test error",
 		Primary:  source.Span{File: fileID, Start: 0, End: 1},
-		Fixes: []diag.Fix{
+		Fixes: []*diag.Fix{
 			{
 				ID:            "fix-1",
 				Title:         "Fix with RequiresAll",
@@ -205,10 +206,10 @@ func TestApplyModeAll_WithRequiresAll_Unsafe(t *testing.T) {
 		},
 	}
 
-	result, err := Apply(fs, []diag.Diagnostic{d}, ApplyOptions{Mode: ApplyModeAll})
+	result, err := Apply(fs, []*diag.Diagnostic{d}, ApplyOptions{Mode: ApplyModeAll})
 
 	// Ожидаем ErrNoFixes из-за applicability, а не RequiresAll
-	if err != ErrNoFixes {
+	if !errors.Is(err, ErrNoFixes) {
 		t.Errorf("expected ErrNoFixes, got %v", err)
 	}
 
@@ -235,13 +236,13 @@ func TestApplyModeOnce_MixedFixes(t *testing.T) {
 	fs := source.NewFileSet()
 	fileID := fs.Add(path, []byte("let x = 1"), 0)
 
-	diagnostics := []diag.Diagnostic{
+	diagnostics := []*diag.Diagnostic{
 		{
 			Severity: diag.SevError,
 			Code:     diag.Code(0x0001),
 			Message:  "test error 1",
 			Primary:  source.Span{File: fileID, Start: 0, End: 1},
-			Fixes: []diag.Fix{
+			Fixes: []*diag.Fix{
 				{
 					ID:            "fix-requires-all",
 					Title:         "Fix with RequiresAll",
@@ -258,7 +259,7 @@ func TestApplyModeOnce_MixedFixes(t *testing.T) {
 			Code:     diag.Code(0x0002),
 			Message:  "test error 2",
 			Primary:  source.Span{File: fileID, Start: 5, End: 6},
-			Fixes: []diag.Fix{
+			Fixes: []*diag.Fix{
 				{
 					ID:            "fix-normal",
 					Title:         "Normal Fix",
@@ -307,13 +308,13 @@ func TestApplyModeAll_MixedFixes(t *testing.T) {
 	fs := source.NewFileSet()
 	fileID := fs.Add(path, []byte("let x = 1"), 0)
 
-	diagnostics := []diag.Diagnostic{
+	diagnostics := []*diag.Diagnostic{
 		{
 			Severity: diag.SevError,
 			Code:     diag.Code(0x0001),
 			Message:  "test error 1",
 			Primary:  source.Span{File: fileID, Start: 0, End: 1},
-			Fixes: []diag.Fix{
+			Fixes: []*diag.Fix{
 				{
 					ID:            "fix-requires-all",
 					Title:         "Fix with RequiresAll",
@@ -330,7 +331,7 @@ func TestApplyModeAll_MixedFixes(t *testing.T) {
 			Code:     diag.Code(0x0002),
 			Message:  "test error 2",
 			Primary:  source.Span{File: fileID, Start: 5, End: 6},
-			Fixes: []diag.Fix{
+			Fixes: []*diag.Fix{
 				{
 					ID:            "fix-normal",
 					Title:         "Normal Fix",
@@ -419,12 +420,12 @@ func TestThunk_WithRequiresAll(t *testing.T) {
 		fileID:      fileID,
 	}
 
-	d := diag.Diagnostic{
+	d := &diag.Diagnostic{
 		Severity: diag.SevError,
 		Code:     diag.Code(0x0001),
 		Message:  "test error",
 		Primary:  source.Span{File: fileID, Start: 0, End: 1},
-		Fixes: []diag.Fix{
+		Fixes: []*diag.Fix{
 			{
 				ID:            "thunk-fix",
 				Title:         "Thunk Fix",
@@ -436,9 +437,9 @@ func TestThunk_WithRequiresAll(t *testing.T) {
 	}
 
 	// Проверяем, что в режиме Once fix пропускается (т.к. RequiresAll=true на уровне Fix)
-	result, err := Apply(fs, []diag.Diagnostic{d}, ApplyOptions{Mode: ApplyModeOnce})
+	result, err := Apply(fs, []*diag.Diagnostic{d}, ApplyOptions{Mode: ApplyModeOnce})
 
-	if err != ErrNoFixes {
+	if !errors.Is(err, ErrNoFixes) {
 		t.Errorf("expected ErrNoFixes, got %v", err)
 	}
 
@@ -463,12 +464,12 @@ func TestThunk_WithRequiresAll(t *testing.T) {
 		fileID:      fileID2,
 	}
 
-	d2 := diag.Diagnostic{
+	d2 := &diag.Diagnostic{
 		Severity: diag.SevError,
 		Code:     diag.Code(0x0001),
 		Message:  "test error",
 		Primary:  source.Span{File: fileID2, Start: 0, End: 1},
-		Fixes: []diag.Fix{
+		Fixes: []*diag.Fix{
 			{
 				ID:            "thunk-fix",
 				Title:         "Thunk Fix",
@@ -479,7 +480,7 @@ func TestThunk_WithRequiresAll(t *testing.T) {
 		},
 	}
 
-	result2, err2 := Apply(fs2, []diag.Diagnostic{d2}, ApplyOptions{Mode: ApplyModeAll})
+	result2, err2 := Apply(fs2, []*diag.Diagnostic{d2}, ApplyOptions{Mode: ApplyModeAll})
 
 	if err2 != nil {
 		t.Fatalf("unexpected error in ApplyModeAll: %v", err2)

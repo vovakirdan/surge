@@ -13,8 +13,14 @@ var buildCmd = &cobra.Command{
 	Long:  "Build a surge project. This is a placeholder command; functionality is not implemented yet.",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		release, _ := cmd.Flags().GetBool("release")
-		dev, _ := cmd.Flags().GetBool("dev")
+		release, err := cmd.Flags().GetBool("release")
+		if err != nil {
+			return err
+		}
+		dev, err := cmd.Flags().GetBool("dev")
+		if err != nil {
+			return err
+		}
 
 		if release && dev {
 			return fmt.Errorf("--release and --dev are mutually exclusive")

@@ -245,7 +245,7 @@ func TestJSONMaxLimit(t *testing.T) {
 	bag := diag.NewBag(10)
 
 	// Добавляем 5 диагностик
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		d := diag.New(
 			diag.SevError,
 			diag.LexUnknownChar,

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"fortio.org/safecast"
+
 	"surge/internal/diag"
 	"surge/internal/source"
 )
@@ -30,13 +32,13 @@ func buildFixEditPreview(fs *source.FileSet, edit diag.TextEdit) (fixEditPreview
 	}
 
 	blockStart := lineStartOffset(file, startLine)
-	blockEnd := lineEndOffsetInclusive(file, endLine)
-	if blockEnd < blockStart {
-		blockEnd = blockStart
+	blockEnd := max(lineEndOffsetInclusive(file, endLine), blockStart)
+
+	lenFileContent, err := safecast.Conv[uint32](len(file.Content))
+	if err != nil {
+		return fixEditPreview{}, fmt.Errorf("len file content overflow: %w", err)
 	}
-	if blockEnd > uint32(len(file.Content)) {
-		blockEnd = uint32(len(file.Content))
-	}
+	blockEnd = min(blockEnd, lenFileContent)
 
 	original := make([]byte, blockEnd-blockStart)
 	copy(original, file.Content[blockStart:blockEnd])
@@ -82,7 +84,11 @@ func lineStartOffset(f *source.File, line uint32) uint32 {
 	if int(idx) < len(f.LineIdx) {
 		return f.LineIdx[idx] + 1
 	}
-	return uint32(len(f.Content))
+	lenFileContent, err := safecast.Conv[uint32](len(f.Content))
+	if err != nil {
+		panic(fmt.Errorf("len file content overflow: %w", err))
+	}
+	return lenFileContent
 }
 
 func lineEndOffsetInclusive(f *source.File, line uint32) uint32 {
@@ -93,5 +99,9 @@ func lineEndOffsetInclusive(f *source.File, line uint32) uint32 {
 	if int(idx) < len(f.LineIdx) {
 		return f.LineIdx[idx] + 1
 	}
-	return uint32(len(f.Content))
+	lenFileContent, err := safecast.Conv[uint32](len(f.Content))
+	if err != nil {
+		panic(fmt.Errorf("len file content overflow: %w", err))
+	}
+	return lenFileContent
 }

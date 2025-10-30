@@ -2,6 +2,7 @@ package driver
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,6 +14,8 @@ import (
 	"surge/internal/project"
 	"surge/internal/project/dag"
 	"surge/internal/source"
+
+	"fortio.org/safecast"
 )
 
 type DiagnoseResult struct {
@@ -94,13 +97,13 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 
 	// Применяем фильтрацию и трансформацию диагностик
 	if opts.IgnoreWarnings {
-		bag.Filter(func(d diag.Diagnostic) bool {
+		bag.Filter(func(d *diag.Diagnostic) bool {
 			return d.Severity != diag.SevWarning && d.Severity != diag.SevInfo
 		})
 	}
 
 	if opts.WarningsAsErrors {
-		bag.Transform(func(d diag.Diagnostic) diag.Diagnostic {
+		bag.Transform(func(d *diag.Diagnostic) *diag.Diagnostic {
 			if d.Severity == diag.SevWarning {
 				d.Severity = diag.SevError
 			}
@@ -175,9 +178,10 @@ func Parse(path string, maxDiagnostics int) (*ParseResult, error) {
 	lx := lexer.New(file, lexer.Options{})
 	builder := ast.NewBuilder(ast.Hints{}, nil)
 
-	maxErrors := uint(maxDiagnostics)
-	if maxErrors == 0 {
-		maxErrors = 0
+	var maxErrors uint
+	maxErrors, err = safecast.Conv[uint](maxDiagnostics)
+	if err != nil {
+		return nil, err
 	}
 
 	opts := parser.Options{
@@ -318,10 +322,13 @@ func analyzeDependencyModule(
 	}
 	file := fs.Get(fileID)
 	bag := diag.NewBag(opts.MaxDiagnostics)
-	if err := diagnoseTokenize(file, bag); err != nil {
+	err = diagnoseTokenize(file, bag)
+	if err != nil {
 		return nil, err
 	}
-	builder, astFile, err := diagnoseParse(fs, file, bag)
+	var builder *ast.Builder
+	var astFile ast.FileID
+	builder, astFile, err = diagnoseParse(fs, file, bag)
 	if err != nil {
 		return nil, err
 	}
@@ -347,8 +354,8 @@ func moduleStatus(bag *diag.Bag) (bool, *diag.Diagnostic) {
 	for i := range items {
 		if items[i].Severity >= diag.SevError {
 			first := items[i]
-			copy := first
-			return true, &copy
+			copyFirst := first
+			return true, copyFirst
 		}
 	}
 	return false, nil
@@ -372,8 +379,12 @@ func fallbackModuleMeta(file *source.File, baseDir string) project.ModuleMeta {
 	if norm, err := project.NormalizeModulePath(path); err == nil {
 		path = norm
 	}
+	lenFileContent, err := safecast.Conv[uint32](len(file.Content))
+	if err != nil {
+		panic(fmt.Errorf("len file content overflow: %w", err))
+	}
 	return project.ModuleMeta{
 		Path: path,
-		Span: source.Span{File: file.ID, Start: 0, End: uint32(len(file.Content))},
+		Span: source.Span{File: file.ID, Start: 0, End: lenFileContent},
 	}
 }

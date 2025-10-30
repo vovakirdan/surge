@@ -3,6 +3,7 @@ module surge
 go 1.25.1
 
 require (
+	fortio.org/safecast v1.2.0
 	github.com/fatih/color v1.18.0
 	github.com/mattn/go-runewidth v0.0.19
 	github.com/spf13/cobra v1.10.1

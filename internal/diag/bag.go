@@ -3,24 +3,33 @@ package diag
 import (
 	"fmt"
 	"sort"
+
+	"fortio.org/safecast"
 )
 
 type Bag struct {
-	items []Diagnostic
-	max   uint16
+	items   []*Diagnostic
+	maximum uint16
 }
 
-func NewBag(max int) *Bag {
+func NewBag(maximum int) *Bag {
+	result, err := safecast.Conv[uint16](maximum)
+	if err != nil {
+		panic(fmt.Errorf("bag maximum overflow: %w", err))
+	}
 	return &Bag{
-		items: make([]Diagnostic, 0, max),
-		max:   uint16(max),
+		items:   make([]*Diagnostic, 0, result),
+		maximum: result,
 	}
 }
 
 // Add добавляет диагностику, учитывая лимит.
 // Возвращает false, если диагностика не добавлена (достигнут лимит).
-func (b *Bag) Add(d Diagnostic) bool {
-	if len(b.items) >= int(b.max) {
+func (b *Bag) Add(d *Diagnostic) bool {
+	if d == nil {
+		return false
+	}
+	if len(b.items) >= int(b.maximum) {
 		return false
 	}
 	b.items = append(b.items, d)
@@ -28,7 +37,7 @@ func (b *Bag) Add(d Diagnostic) bool {
 }
 
 func (b *Bag) Cap() uint16 {
-	return b.max
+	return b.maximum
 }
 
 // HasErrors возвращает true, если есть хотя бы одна диагностика с Severity >= Error
@@ -58,7 +67,7 @@ func (b *Bag) Len() int {
 
 // Items возвращает read-only slice диагностик.
 // ВАЖНО: не модифицируйте возвращаемый срез! (он указывает на внутренний массив Bag)
-func (b *Bag) Items() []Diagnostic {
+func (b *Bag) Items() []*Diagnostic {
 	return b.items
 }
 
@@ -66,8 +75,12 @@ func (b *Bag) Items() []Diagnostic {
 // Увеличивает max, если нужно вместить все элементы.
 func (b *Bag) Merge(other *Bag) {
 	newTotal := len(b.items) + len(other.items)
-	if uint16(newTotal) > b.max {
-		b.max = uint16(newTotal)
+	newTotalUint16, err := safecast.Conv[uint16](newTotal)
+	if err != nil {
+		panic(fmt.Errorf("bag merge overflow: %w", err))
+	}
+	if newTotalUint16 > b.maximum {
+		b.maximum = newTotalUint16
 	}
 	b.items = append(b.items, other.items...)
 }
@@ -101,7 +114,7 @@ func (b *Bag) Sort() {
 // простая дедупликация (по Code+Primary)
 func (b *Bag) Dedup() {
 	seen := make(map[string]bool)
-	newitems := make([]Diagnostic, 0, len(b.items))
+	newitems := make([]*Diagnostic, 0, len(b.items))
 	for _, d := range b.items {
 		key := fmt.Sprintf("%s:%s", d.Code.String(), d.Primary.String())
 		if seen[key] {
@@ -114,8 +127,8 @@ func (b *Bag) Dedup() {
 }
 
 // Filter удаляет диагностики, которые не проходят проверку predicate
-func (b *Bag) Filter(predicate func(Diagnostic) bool) {
-	newitems := make([]Diagnostic, 0, len(b.items))
+func (b *Bag) Filter(predicate func(*Diagnostic) bool) {
+	newitems := make([]*Diagnostic, 0, len(b.items))
 	for _, d := range b.items {
 		if predicate(d) {
 			newitems = append(newitems, d)
@@ -125,8 +138,12 @@ func (b *Bag) Filter(predicate func(Diagnostic) bool) {
 }
 
 // Transform применяет функцию к каждой диагностике
-func (b *Bag) Transform(transformer func(Diagnostic) Diagnostic) {
+func (b *Bag) Transform(transformer func(*Diagnostic) *Diagnostic) {
 	for i := range b.items {
-		b.items[i] = transformer(b.items[i])
+		next := transformer(b.items[i])
+		if next == nil {
+			panic("diag: transformer returned nil")
+		}
+		b.items[i] = next
 	}
 }

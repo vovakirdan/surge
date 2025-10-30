@@ -1,7 +1,10 @@
 package lexer
 
 import (
+	"fmt"
 	"surge/internal/source"
+
+	"fortio.org/safecast"
 )
 
 // Cursor представляет собой позицию в файле
@@ -19,7 +22,11 @@ func NewCursor(f *source.File) Cursor {
 
 // EOF проверяет, достигнут ли конец файла
 func (c *Cursor) EOF() bool {
-	return c.Off >= uint32(len(c.File.Content))
+	lenFileContent, err := safecast.Conv[uint32](len(c.File.Content))
+	if err != nil {
+		panic(fmt.Errorf("len file content overflow: %w", err))
+	}
+	return c.Off >= lenFileContent
 }
 
 // Peek читает текущий байт, если есть, иначе возвращает 0
@@ -32,7 +39,11 @@ func (c *Cursor) Peek() byte {
 
 // Peek2 читает текущий и следующий байт, если есть, иначе возвращает 0, 0, false
 func (c *Cursor) Peek2() (b0, b1 byte, ok bool) {
-	if c.Off+1 >= uint32(len(c.File.Content)) {
+	lenFileContent, err := safecast.Conv[uint32](len(c.File.Content))
+	if err != nil {
+		panic(fmt.Errorf("len file content overflow: %w", err))
+	}
+	if c.Off+1 >= lenFileContent {
 		return 0, 0, false
 	}
 	return c.File.Content[c.Off], c.File.Content[c.Off+1], true
@@ -40,7 +51,11 @@ func (c *Cursor) Peek2() (b0, b1 byte, ok bool) {
 
 // Peek3 читает текущий, следующий и следующий за ним байт, если есть, иначе возвращает 0, 0, 0, false
 func (c *Cursor) Peek3() (b0, b1, b2 byte, ok bool) {
-	if c.Off+2 >= uint32(len(c.File.Content)) {
+	lenFileContent, err := safecast.Conv[uint32](len(c.File.Content))
+	if err != nil {
+		panic(fmt.Errorf("len file content overflow: %w", err))
+	}
+	if c.Off+2 >= lenFileContent {
 		return 0, 0, 0, false
 	}
 	return c.File.Content[c.Off], c.File.Content[c.Off+1], c.File.Content[c.Off+2], true

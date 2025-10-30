@@ -1,8 +1,11 @@
 package lexer
 
 import (
+	"fmt"
 	"unicode"
 	"unicode/utf8"
+
+	"fortio.org/safecast"
 )
 
 // ===== Работа с рунами поверх Cursor =====
@@ -26,7 +29,11 @@ func (lx *Lexer) bumpRune() (r rune, size int) {
 	if sz == 0 {
 		return utf8.RuneError, 0
 	}
-	lx.cursor.Off += uint32(sz)
+	usz, err := safecast.Conv[uint32](sz)
+	if err != nil {
+		panic(fmt.Errorf("bumpRune overflow: %w", err))
+	}
+	lx.cursor.Off += usz
 	return r, sz
 }
 

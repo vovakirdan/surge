@@ -135,7 +135,6 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 			}
 
 			if !p.at(token.RBracket) {
-				// p.err(diag.SynExpectRightBracket, "expected ']' after array size")
 				rightBracketSpan := p.currentErrorSpan().ZeroideToStart()
 				p.emitDiagnostic(
 					diag.SynExpectRightBracket,
@@ -179,10 +178,9 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 			continue
 		}
 
-		// p.err(diag.SynExpectRightBracket, "expected ']' or array size")
 		errSpan := p.currentErrorSpan()
 		primarySpan := errSpan.ShiftLeft(1)
-		if primarySpan.Start == primarySpan.End && primarySpan.Start == errSpan.Start {
+		if primarySpan.Start >= primarySpan.End || (primarySpan.Start == errSpan.Start && primarySpan.End == errSpan.End) {
 			primarySpan = errSpan
 		}
 		insertSpan := errSpan.ZeroideToStart()
@@ -211,7 +209,6 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 				b.WithNote(insertSpan, "insert ']' to close array type")
 			},
 		)
-		// p.resyncUntil(token.RBracket, token.Semicolon, token.Comma)
 		p.resyncTop()
 		if p.at(token.RBracket) {
 			p.advance()

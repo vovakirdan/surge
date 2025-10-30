@@ -55,9 +55,11 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		colonColonTok := p.advance() // съедаем '::'
 
 		// После '::' может быть либо идентификатор, либо группа {Ident, ...}
-		if p.at(token.Ident) {
+		switch p.lx.Peek().Kind {
+		case token.Ident:
 			// import module::Ident [as Alias];
-			nameID, ok := p.parseIdent()
+			var nameID source.StringID
+			nameID, ok = p.parseIdent()
 			if !ok {
 				p.resyncStatement()
 				return ast.NoItemID, false
@@ -85,8 +87,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 			one = ast.ImportOne{Name: nameID, Alias: aliasID}
 			hasOne = true
-
-		} else if p.at(token.LBrace) {
+		case token.LBrace:
 			// import module::{Ident [as Alias], ...};
 			openTok := p.advance() // съедаем '{'
 			groupOpenSpan = openTok.Span
@@ -94,7 +95,8 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 			broken := false // флаг для обработки ошибок в группе
 
 			for !p.at(token.RBrace) && !p.at(token.EOF) {
-				nameID, ok := p.parseIdent()
+				var nameID source.StringID
+				nameID, ok = p.parseIdent()
 				if !ok {
 					// Ошибка уже зарепортирована в parseIdent
 					broken = true
@@ -130,7 +132,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 					trailingComma = commaTok.Span
 					continue
 				}
-				if p.at_or(token.RBrace, token.EOF, token.Semicolon) || isTopLevelStarter(p.lx.Peek().Kind) {
+				if p.atOr(token.RBrace, token.EOF, token.Semicolon) || isTopLevelStarter(p.lx.Peek().Kind) {
 					// Если нет запятой, должна быть закрывающая скобка или EOF
 					// Если EOF, то это ошибка unclosed brace (обработаем позже)
 					// Если видим `;`, это означает, что группа не закрыта
@@ -250,7 +252,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 						WithFixSuggestion(suggestion)
 				})
 			}
-		} else {
+		default:
 			// Ни идентификатор, ни '{'
 			// да, p.err удобно но тут мы можем предложить фиксы
 			dblSpan := colonColonTok.Span
@@ -307,7 +309,6 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		if peek.Kind != token.EOF {
 			if !(needSemicolon && isTopLevelStarter(peek.Kind)) {
 				p.err(diag.SynUnexpectedToken, "expected '::' or 'as' or ';' after module path, got '"+peek.Text+"'")
-				needSemicolon = false
 				p.resyncTop()
 				return ast.NoItemID, false
 			}
@@ -357,7 +358,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 // Возвращает список сегментов, span последнего сегмента и успех.
 func (p *Parser) parseImportModule() ([]source.StringID, source.Span, bool) {
 	// Ожидаем как минимум один идентификатор (первый сегмент модуля)
-	if !p.at_or(token.Ident, token.Dot, token.DotDot) {
+	if !p.atOr(token.Ident, token.Dot, token.DotDot) {
 		p.err(diag.SynExpectModuleSeg, "expected module segment, got '"+p.lx.Peek().Text+"'")
 		return nil, source.Span{}, false
 	}
@@ -371,7 +372,7 @@ func (p *Parser) parseImportModule() ([]source.StringID, source.Span, bool) {
 		p.advance() // съедаем '/'
 
 		// После '/' обязан быть идентификатор
-		if !p.at_or(token.Ident, token.Dot, token.DotDot) {
+		if !p.atOr(token.Ident, token.Dot, token.DotDot) {
 			p.err(diag.SynExpectModuleSeg, "expected module segment after '/'")
 			// Не вызываем resync здесь, так как parseImportModule вызывается из parseImportItem
 			// который сам обработает ошибку

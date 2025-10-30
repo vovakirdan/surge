@@ -65,13 +65,13 @@ type ApplyResult struct {
 }
 
 type candidate struct {
-	diag  diag.Diagnostic
-	fix   diag.Fix
+	diag  *diag.Diagnostic
+	fix   *diag.Fix
 	order int
 }
 
 // Apply collects fixes from diagnostics, selects a subset according to opts, and applies them.
-func Apply(fs *source.FileSet, diagnostics []diag.Diagnostic, opts ApplyOptions) (*ApplyResult, error) {
+func Apply(fs *source.FileSet, diagnostics []*diag.Diagnostic, opts ApplyOptions) (*ApplyResult, error) {
 	result := &ApplyResult{
 		Applied:     make([]AppliedFix, 0),
 		Skipped:     make([]SkippedFix, 0),
@@ -121,12 +121,15 @@ func Apply(fs *source.FileSet, diagnostics []diag.Diagnostic, opts ApplyOptions)
 // value to provide a deterministic insertion order for later stable sorting.
 //
 // Returns the collected candidates and any SkippedFix records.
-func gatherCandidates(ctx diag.FixBuildContext, diagnostics []diag.Diagnostic) ([]candidate, []SkippedFix) {
+func gatherCandidates(ctx diag.FixBuildContext, diagnostics []*diag.Diagnostic) ([]candidate, []SkippedFix) {
 	cands := make([]candidate, 0)
 	skips := make([]SkippedFix, 0)
 
 	order := 0
 	for _, d := range diagnostics {
+		if d == nil {
+			continue
+		}
 		if len(d.Fixes) == 0 {
 			continue
 		}
@@ -396,7 +399,7 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 	return applied, skipped, fileChanges, nil
 }
 
-func conflictsWithExisting(existing []diag.TextEdit, edits []diag.TextEdit) bool {
+func conflictsWithExisting(existing, edits []diag.TextEdit) bool {
 	for _, prev := range existing {
 		for _, cand := range edits {
 			if spansConflict(prev, cand) {

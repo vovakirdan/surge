@@ -109,7 +109,7 @@ func BuildDiagnosticsOutput(bag *diag.Bag, fs *source.FileSet, opts JSONOpts) (D
 		maxItems = opts.Max
 	}
 
-	for i := 0; i < maxItems; i++ {
+	for i := range maxItems {
 		d := items[i]
 
 		diagJSON := DiagnosticJSON{
@@ -130,7 +130,7 @@ func BuildDiagnosticsOutput(bag *diag.Bag, fs *source.FileSet, opts JSONOpts) (D
 		}
 
 		if opts.IncludeFixes && len(d.Fixes) > 0 {
-			fixes := append([]diag.Fix(nil), d.Fixes...)
+			fixes := append([]*diag.Fix(nil), d.Fixes...)
 			sort.SliceStable(fixes, func(i, j int) bool {
 				fi, fj := fixes[i], fixes[j]
 				if fi.IsPreferred != fj.IsPreferred {

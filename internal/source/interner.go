@@ -1,8 +1,11 @@
 package source
 
 import (
+	"fmt"
 	"slices"
 	"sync"
+
+	"fortio.org/safecast"
 )
 
 type StringID uint32
@@ -44,7 +47,11 @@ func (i *Interner) Intern(s string) StringID {
 		i.mu.Unlock()
 		return id
 	}
-	id := StringID(len(i.byID))
+	value, err := safecast.Conv[uint32](len(i.byID))
+	if err != nil {
+		panic(fmt.Errorf("byID length overflow: %w", err))
+	}
+	id := StringID(value)
 	i.byID = append(i.byID, cpy)
 	i.index[cpy] = id
 	i.mu.Unlock()

@@ -137,7 +137,7 @@ func TestPathModeAuto(t *testing.T) {
 }
 
 type staticFixThunk struct {
-	fix diag.Fix
+	fix *diag.Fix
 }
 
 func (t staticFixThunk) ID() string {
@@ -148,7 +148,7 @@ func (t staticFixThunk) ID() string {
 }
 
 func (t staticFixThunk) Build(ctx diag.FixBuildContext) (diag.Fix, error) {
-	return t.fix, nil
+	return *t.fix, nil
 }
 
 func TestPrettyNotesAndFixes(t *testing.T) {
@@ -166,18 +166,20 @@ func TestPrettyNotesAndFixes(t *testing.T) {
 	insertSpan := source.Span{File: fileID, Start: primary.End, End: primary.End}
 	d = d.WithFix("insert semicolon", diag.FixEdit{Span: insertSpan, NewText: ";"})
 
-	lazyFix := diag.Fix{
+	staticFix := fix.WrapWith(
+		"wrap import block",
+		source.Span{File: fileID, Start: 0, End: uint32(len(content))},
+		"/* ",
+		" */",
+		fix.WithID("wrap-import-001"),
+	)
+
+	lazyFix := &diag.Fix{
 		Title:         "wrap import block",
 		Kind:          diag.FixKindRefactor,
 		Applicability: diag.FixApplicabilitySafeWithHeuristics,
 		Thunk: staticFixThunk{
-			fix: fix.WrapWith(
-				"wrap import block",
-				source.Span{File: fileID, Start: 0, End: uint32(len(content))},
-				"/* ",
-				" */",
-				fix.WithID("wrap-import-001"),
-			),
+			fix: staticFix,
 		},
 	}
 	d = d.WithFixSuggestion(lazyFix)

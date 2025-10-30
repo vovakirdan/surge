@@ -95,7 +95,7 @@ func runFixFile(path string, driverOpts driver.DiagnoseOptions, opts fix.ApplyOp
 	if err != nil {
 		return fmt.Errorf("fix: diagnose failed: %w", err)
 	}
-	var diagnostics []diag.Diagnostic
+	var diagnostics []*diag.Diagnostic
 	if result.Bag != nil {
 		result.Bag.Sort()
 		diagnostics = append(diagnostics, result.Bag.Items()...)
@@ -110,7 +110,7 @@ func runFixDir(cmd *cobra.Command, path string, driverOpts driver.DiagnoseOption
 		return fmt.Errorf("fix: diagnose dir failed: %w", err)
 	}
 
-	allDiagnostics := make([]diag.Diagnostic, 0)
+	allDiagnostics := make([]*diag.Diagnostic, 0)
 	for _, r := range results {
 		if r.Bag == nil {
 			continue

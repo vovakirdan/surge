@@ -2,12 +2,14 @@ package driver
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 
+	"fortio.org/safecast"
 	"golang.org/x/sync/errgroup"
 
 	"surge/internal/ast"
@@ -50,12 +52,12 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 		return nil, nil, err
 	}
 
-	fs := source.NewFileSetWithBase(dir)
+	fileSet := source.NewFileSetWithBase(dir)
 	fileIDs := make(map[string]source.FileID, len(files))
 	loadErrors := make(map[string]error, len(files))
 
 	for _, p := range files {
-		id, err := fs.Load(p)
+		id, err := fileSet.Load(p)
 		if err != nil {
 			loadErrors[p] = err
 			continue
@@ -64,7 +66,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 	}
 
 	if len(files) == 0 {
-		return fs, nil, nil
+		return fileSet, nil, nil
 	}
 
 	if jobs <= 0 {
@@ -76,92 +78,103 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 	g.SetLimit(min(jobs, len(files)))
 
 	for i, path := range files {
-		i, path := i, path
+		g.Go(func(i int, path string) func() error {
+			return func() error {
+				select {
+				case <-gctx.Done():
+					return gctx.Err()
+				default:
+				}
 
-		g.Go(func() error {
-			select {
-			case <-gctx.Done():
-				return gctx.Err()
-			default:
-			}
+				bag := diag.NewBag(opts.MaxDiagnostics)
+				var (
+					builder *ast.Builder
+					astFile ast.FileID
+				)
 
-			bag := diag.NewBag(opts.MaxDiagnostics)
-			var (
-				builder *ast.Builder
-				astFile ast.FileID
-			)
+				if loadErr, hadErr := loadErrors[path]; hadErr {
+					bag.Add(&diag.Diagnostic{
+						Severity: diag.SevError,
+						Code:     diag.IOLoadFileError,
+						Message:  "failed to load file: " + loadErr.Error(),
+						Primary:  source.Span{},
+					})
+					results[i] = DiagnoseDirResult{Path: path, FileID: 0, Bag: bag}
+					return nil
+				}
 
-			if loadErr, hadErr := loadErrors[path]; hadErr {
-				bag.Add(diag.Diagnostic{
-					Severity: diag.SevError,
-					Code:     diag.IOLoadFileError,
-					Message:  "failed to load file: " + loadErr.Error(),
-					Primary:  source.Span{},
-				})
-				results[i] = DiagnoseDirResult{Path: path, FileID: 0, Bag: bag}
+				fileID, ok := fileIDs[path]
+				if !ok {
+					results[i] = DiagnoseDirResult{Path: path, FileID: 0, Bag: bag}
+					return nil
+				}
+				file := fileSet.Get(fileID)
+
+				switch opts.Stage {
+				case DiagnoseStageTokenize:
+					if err := diagnoseTokenize(file, bag); err != nil {
+						return err
+					}
+				case DiagnoseStageSyntax:
+					if err := diagnoseTokenize(file, bag); err == nil {
+						builder, astFile, err = diagnoseParse(fileSet, file, bag)
+						if err != nil {
+							return err
+						}
+					}
+				case DiagnoseStageSema, DiagnoseStageAll:
+					if err := diagnoseTokenize(file, bag); err == nil {
+						builder, astFile, err = diagnoseParse(fileSet, file, bag)
+						if err != nil {
+							return err
+						}
+						// TODO: добавить семантическую диагностику
+					}
+				default:
+					if err := diagnoseTokenize(file, bag); err == nil {
+						builder, astFile, err = diagnoseParse(fileSet, file, bag)
+						if err != nil {
+							return err
+						}
+					}
+				}
+
+				results[i] = DiagnoseDirResult{
+					Path:    path,
+					FileID:  fileID,
+					Bag:     bag,
+					Builder: builder,
+					ASTFile: astFile,
+				}
 				return nil
 			}
-
-			fileID, ok := fileIDs[path]
-			if !ok {
-				results[i] = DiagnoseDirResult{Path: path, FileID: 0, Bag: bag}
-				return nil
-			}
-			file := fs.Get(fileID)
-
-			switch opts.Stage {
-			case DiagnoseStageTokenize:
-				_ = diagnoseTokenize(file, bag)
-			case DiagnoseStageSyntax:
-				if err := diagnoseTokenize(file, bag); err == nil {
-					builder, astFile, _ = diagnoseParse(fs, file, bag)
-				}
-			case DiagnoseStageSema, DiagnoseStageAll:
-				if err := diagnoseTokenize(file, bag); err == nil {
-					builder, astFile, _ = diagnoseParse(fs, file, bag)
-					// TODO: добавить семантическую диагностику
-				}
-			default:
-				if err := diagnoseTokenize(file, bag); err == nil {
-					builder, astFile, _ = diagnoseParse(fs, file, bag)
-				}
-			}
-
-			results[i] = DiagnoseDirResult{
-				Path:    path,
-				FileID:  fileID,
-				Bag:     bag,
-				Builder: builder,
-				ASTFile: astFile,
-			}
-			return nil
-		})
+		}(i, path))
 	}
 
 	if err := g.Wait(); err != nil {
-		return fs, results, err
+		return fileSet, results, err
 	}
 
 	if opts.Stage == DiagnoseStageSyntax || opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
-		baseDir := fs.BaseDir()
+		baseDir := fileSet.BaseDir()
 		type entry struct {
 			meta project.ModuleMeta
 			node dag.ModuleNode
 		}
-		entries := make([]entry, 0, len(results))
+		entries := make([]*entry, 0, len(results))
 		for i := range results {
 			res := &results[i]
 			if res.Bag == nil || res.Builder == nil {
 				continue
 			}
 			reporter := &diag.BagReporter{Bag: res.Bag}
-			meta, ok := buildModuleMeta(fs, res.Builder, res.ASTFile, baseDir, reporter)
+			meta, ok := buildModuleMeta(fileSet, res.Builder, res.ASTFile, baseDir, reporter)
 			if !ok {
-				file := fs.Get(res.FileID)
+				file := fileSet.Get(res.FileID)
 				meta = fallbackModuleMeta(file, baseDir)
 			}
 			broken, firstErr := moduleStatus(res.Bag)
-			entries = append(entries, entry{
+			entries = append(entries, &entry{
 				meta: meta,
 				node: dag.ModuleNode{
 					Meta:     meta,
@@ -210,12 +223,12 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 		results[i].Builder = nil
 		results[i].ASTFile = 0
 		if opts.IgnoreWarnings {
-			bag.Filter(func(d diag.Diagnostic) bool {
+			bag.Filter(func(d *diag.Diagnostic) bool {
 				return d.Severity != diag.SevWarning && d.Severity != diag.SevInfo
 			})
 		}
 		if opts.WarningsAsErrors {
-			bag.Transform(func(d diag.Diagnostic) diag.Diagnostic {
+			bag.Transform(func(d *diag.Diagnostic) *diag.Diagnostic {
 				if d.Severity == diag.SevWarning {
 					d.Severity = diag.SevError
 				}
@@ -225,7 +238,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 		}
 	}
 
-	return fs, results, nil
+	return fileSet, results, nil
 }
 
 // listSGFiles возвращает отсортированный список всех *.sg файлов в директории
@@ -251,14 +264,6 @@ func listSGFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
-// min возвращает минимум из двух чисел
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // TokenizeDir токенизирует все *.sg файлы в директории параллельно
 func TokenizeDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*source.FileSet, []TokenizeDirResult, error) {
 	// Собираем список файлов
@@ -272,12 +277,12 @@ func TokenizeDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*so
 	}
 
 	// Создаём FileSet и предзагружаем все файлы
-	fs := source.NewFileSetWithBase(dir)
+	fileSet := source.NewFileSetWithBase(dir)
 	fileIDs := make(map[string]source.FileID, len(files))
 	loadErrors := make(map[string]error, len(files))
 
 	for _, path := range files {
-		fileID, err := fs.Load(path)
+		fileID, err := fileSet.Load(path)
 		if err != nil {
 			// Сохраняем ошибку загрузки для последующей обработки
 			loadErrors[path] = err
@@ -299,73 +304,73 @@ func TokenizeDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*so
 	g.SetLimit(min(jobs, len(files)))
 
 	for i, path := range files {
-		i, path := i, path // capture loop variables
+		g.Go(func(i int, path string) func() error {
+			return func() error {
+				// Проверка отмены
+				select {
+				case <-gctx.Done():
+					return gctx.Err()
+				default:
+				}
 
-		g.Go(func() error {
-			// Проверка отмены
-			select {
-			case <-gctx.Done():
-				return gctx.Err()
-			default:
-			}
+				// Создаём bag для диагностик
+				bag := diag.NewBag(maxDiagnostics)
 
-			// Создаём bag для диагностик
-			bag := diag.NewBag(maxDiagnostics)
+				// Проверяем ошибку загрузки
+				if loadErr, hadError := loadErrors[path]; hadError {
+					// Файл не загрузился, создаём результат с ошибкой I/O
+					results[i] = TokenizeDirResult{
+						Path:   path,
+						FileID: 0,
+						Tokens: nil,
+						Bag:    bag,
+					}
+					// Добавляем диагностику в bag
+					bag.Add(&diag.Diagnostic{
+						Severity: diag.SevError,
+						Code:     diag.IOLoadFileError, // Generic I/O error
+						Message:  "failed to load file: " + loadErr.Error(),
+						Primary:  source.Span{}, // Empty span for I/O errors
+					})
+					return nil
+				}
 
-			// Проверяем ошибку загрузки
-			if loadErr, hadError := loadErrors[path]; hadError {
-				// Файл не загрузился, создаём результат с ошибкой I/O
+				fileID := fileIDs[path]
+				file := fileSet.Get(fileID)
+
+				// Создаём лексер
+				reporter := (&lexer.ReporterAdapter{Bag: bag}).Reporter()
+				lx := lexer.New(file, lexer.Options{Reporter: reporter})
+
+				// Собираем токены
+				var tokens []token.Token
+				for {
+					tok := lx.Next()
+					tokens = append(tokens, tok)
+					if tok.Kind == token.EOF {
+						break
+					}
+				}
+
+				// Сохраняем результат (мьютекс не нужен — индекс i уникален)
 				results[i] = TokenizeDirResult{
 					Path:   path,
-					FileID: 0,
-					Tokens: nil,
+					FileID: fileID,
+					Tokens: tokens,
 					Bag:    bag,
 				}
-				// Добавляем диагностику в bag
-				bag.Add(diag.Diagnostic{
-					Severity: diag.SevError,
-					Code:     diag.IOLoadFileError, // Generic I/O error
-					Message:  "failed to load file: " + loadErr.Error(),
-					Primary:  source.Span{}, // Empty span for I/O errors
-				})
+
 				return nil
 			}
-
-			fileID := fileIDs[path]
-			file := fs.Get(fileID)
-
-			// Создаём лексер
-			reporter := (&lexer.ReporterAdapter{Bag: bag}).Reporter()
-			lx := lexer.New(file, lexer.Options{Reporter: reporter})
-
-			// Собираем токены
-			var tokens []token.Token
-			for {
-				tok := lx.Next()
-				tokens = append(tokens, tok)
-				if tok.Kind == token.EOF {
-					break
-				}
-			}
-
-			// Сохраняем результат (мьютекс не нужен — индекс i уникален)
-			results[i] = TokenizeDirResult{
-				Path:   path,
-				FileID: fileID,
-				Tokens: tokens,
-				Bag:    bag,
-			}
-
-			return nil
-		})
+		}(i, path))
 	}
 
 	// Ждём завершения всех горутин
 	if err := g.Wait(); err != nil {
-		return fs, results, err
+		return fileSet, results, err
 	}
 
-	return fs, results, nil
+	return fileSet, results, nil
 }
 
 // ParseDir парсит все *.sg файлы в директории параллельно
@@ -381,12 +386,13 @@ func ParseDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*sourc
 	}
 
 	// Создаём FileSet и предзагружаем все файлы
-	fs := source.NewFileSetWithBase(dir)
+	fileSet := source.NewFileSetWithBase(dir)
 	fileIDs := make(map[string]source.FileID, len(files))
 	loadErrors := make(map[string]error, len(files))
 
 	for _, path := range files {
-		fileID, err := fs.Load(path)
+		var fileID source.FileID
+		fileID, err = fileSet.Load(path)
 		if err != nil {
 			// Сохраняем ошибку загрузки для последующей обработки
 			loadErrors[path] = err
@@ -411,76 +417,77 @@ func ParseDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*sourc
 	g.SetLimit(min(jobs, len(files)))
 
 	for i, path := range files {
-		i, path := i, path // capture loop variables
+		g.Go(func(i int, path string) func() error {
+			return func() error {
+				// Проверка отмены
+				select {
+				case <-gctx.Done():
+					return gctx.Err()
+				default:
+				}
 
-		g.Go(func() error {
-			// Проверка отмены
-			select {
-			case <-gctx.Done():
-				return gctx.Err()
-			default:
-			}
+				// Создаём bag для диагностик
+				bag := diag.NewBag(maxDiagnostics)
 
-			// Создаём bag для диагностик
-			bag := diag.NewBag(maxDiagnostics)
+				// Проверяем ошибку загрузки
+				if loadErr, hadError := loadErrors[path]; hadError {
+					// Файл не загрузился, создаём результат с ошибкой I/O
+					results[i] = ParseDirResult{
+						Path:    path,
+						FileID:  0,
+						Builder: nil,
+						Bag:     bag,
+					}
+					// Добавляем диагностику в bag
+					bag.Add(&diag.Diagnostic{
+						Severity: diag.SevError,
+						Code:     diag.IOLoadFileError, // Generic I/O error
+						Message:  "failed to load file: " + loadErr.Error(),
+						Primary:  source.Span{}, // Empty span for I/O errors
+					})
+					return nil
+				}
 
-			// Проверяем ошибку загрузки
-			if loadErr, hadError := loadErrors[path]; hadError {
-				// Файл не загрузился, создаём результат с ошибкой I/O
+				fileID := fileIDs[path]
+				file := fileSet.Get(fileID)
+
+				// Создаём builder с общим interner'ом
+				builder := ast.NewBuilder(ast.Hints{}, interner)
+
+				// Создаём лексер
+				lx := lexer.New(file, lexer.Options{})
+
+				// Парсим файл
+				var maxErrors uint
+				maxErrors, err = safecast.Conv[uint](maxDiagnostics)
+				if err != nil {
+					panic(fmt.Errorf("maxDiagnostics overflow: %w", err))
+				}
+
+				opts := parser.Options{
+					Reporter:  &diag.BagReporter{Bag: bag},
+					MaxErrors: maxErrors,
+				}
+
+				result := parser.ParseFile(fileSet, lx, builder, opts)
+
+				// Сохраняем результат (мьютекс не нужен — индекс i уникален)
 				results[i] = ParseDirResult{
 					Path:    path,
-					FileID:  0,
-					Builder: nil,
+					FileID:  result.File,
+					Builder: builder,
 					Bag:     bag,
 				}
-				// Добавляем диагностику в bag
-				bag.Add(diag.Diagnostic{
-					Severity: diag.SevError,
-					Code:     diag.IOLoadFileError, // Generic I/O error
-					Message:  "failed to load file: " + loadErr.Error(),
-					Primary:  source.Span{}, // Empty span for I/O errors
-				})
+
 				return nil
 			}
-
-			fileID := fileIDs[path]
-			file := fs.Get(fileID)
-
-			// Создаём builder с общим interner'ом
-			builder := ast.NewBuilder(ast.Hints{}, interner)
-
-			// Создаём лексер
-			lx := lexer.New(file, lexer.Options{})
-
-			// Парсим файл
-			maxErrors := uint(maxDiagnostics)
-			if maxDiagnostics == 0 {
-				maxErrors = 0 // без лимита
-			}
-
-			opts := parser.Options{
-				Reporter:  &diag.BagReporter{Bag: bag},
-				MaxErrors: maxErrors,
-			}
-
-			result := parser.ParseFile(fs, lx, builder, opts)
-
-			// Сохраняем результат (мьютекс не нужен — индекс i уникален)
-			results[i] = ParseDirResult{
-				Path:    path,
-				FileID:  result.File,
-				Builder: builder,
-				Bag:     bag,
-			}
-
-			return nil
-		})
+		}(i, path))
 	}
 
 	// Ждём завершения всех горутин
 	if err := g.Wait(); err != nil {
-		return fs, interner, results, err
+		return fileSet, interner, results, err
 	}
 
-	return fs, interner, results, nil
+	return fileSet, interner, results, nil
 }

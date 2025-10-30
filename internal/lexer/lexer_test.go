@@ -16,7 +16,7 @@ type testReporter struct {
 }
 
 // Report реализует интерфейс diag.Reporter
-func (r *testReporter) Report(code diag.Code, sev diag.Severity, primary source.Span, msg string, notes []diag.Note, fixes []diag.Fix) {
+func (r *testReporter) Report(code diag.Code, sev diag.Severity, primary source.Span, msg string, notes []diag.Note, fixes []*diag.Fix) {
 	r.diagnostics = append(r.diagnostics, diag.Diagnostic{
 		Severity: sev,
 		Code:     code,

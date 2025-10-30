@@ -28,7 +28,7 @@ func NormalizeModulePath(path string) (string, error) {
 	if len(path) >= len(ext) && path[len(path)-len(ext):] == ext {
 		path = path[:len(path)-len(ext)]
 	}
-	for len(path) > 0 && (path[0] == '/' || path[0] == '\\') {
+	for path != "" && (path[0] == '/' || path[0] == '\\') {
 		path = path[1:]
 	}
 	// filepath.Clean нормализует слэши и убирает ./, ../, но нам нужно проверить сегменты
@@ -73,7 +73,7 @@ func NormalizeModulePath(path string) (string, error) {
 
 // ResolveImportPath нормализует путь импорта относительно модуля modulePath и базового каталога basePath.
 // segments — список сегментов (включая ".", "..").
-func ResolveImportPath(modulePath string, basePath string, segments []string) (string, error) {
+func ResolveImportPath(modulePath, basePath string, segments []string) (string, error) {
 	if len(segments) == 0 {
 		return "", errors.New("empty import path")
 	}

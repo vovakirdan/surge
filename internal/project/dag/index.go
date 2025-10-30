@@ -1,7 +1,11 @@
 package dag
 
 import (
+	"fmt"
 	"sort"
+
+	"fortio.org/safecast"
+
 	"surge/internal/project"
 )
 
@@ -35,7 +39,11 @@ func BuildIndex(metas []project.ModuleMeta) ModuleIndex {
 
 	nameToID := make(map[string]ModuleID, len(paths))
 	for i, path := range paths {
-		nameToID[path] = ModuleID(i)
+		mID, err := safecast.Conv[ModuleID](i)
+		if err != nil {
+			panic(fmt.Errorf("module id overflow: %w", err))
+		}
+		nameToID[path] = mID
 	}
 
 	return ModuleIndex{

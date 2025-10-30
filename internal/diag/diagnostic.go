@@ -93,11 +93,11 @@ type Fix struct {
 }
 
 // Materialized reports whether the fix already contains concrete edits.
-func (f Fix) Materialized() bool {
+func (f *Fix) Materialized() bool {
 	return len(f.Edits) > 0
 }
 
-func (f Fix) ensureDefaults() Fix {
+func (f *Fix) ensureDefaults() *Fix {
 	if f.Kind > FixKindSourceAction {
 		f.Kind = FixKindQuickFix
 	}
@@ -108,11 +108,11 @@ func (f Fix) ensureDefaults() Fix {
 }
 
 // Resolve materialises lazy fixes using provided context, inheriting defaults.
-func (f Fix) Resolve(ctx FixBuildContext) (Fix, error) {
+func (f *Fix) Resolve(ctx FixBuildContext) (*Fix, error) {
 	if !f.Materialized() && f.Thunk != nil {
 		built, err := f.Thunk.Build(ctx)
 		if err != nil {
-			return Fix{}, err
+			return nil, err
 		}
 		if built.ID == "" {
 			built.ID = f.ID
@@ -138,11 +138,11 @@ func (f Fix) Resolve(ctx FixBuildContext) (Fix, error) {
 }
 
 // MaterializeFixes produces a slice of resolved fixes with lazy thunks expanded.
-func MaterializeFixes(ctx FixBuildContext, fixes []Fix) ([]Fix, error) {
+func MaterializeFixes(ctx FixBuildContext, fixes []*Fix) ([]*Fix, error) {
 	if len(fixes) == 0 {
 		return nil, nil
 	}
-	out := make([]Fix, len(fixes))
+	out := make([]*Fix, len(fixes))
 	for i := range fixes {
 		resolved, err := fixes[i].Resolve(ctx)
 		if err != nil {
@@ -160,5 +160,5 @@ type Diagnostic struct {
 	Message  string
 	Primary  source.Span
 	Notes    []Note
-	Fixes    []Fix
+	Fixes    []*Fix
 }

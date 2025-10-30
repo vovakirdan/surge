@@ -5,6 +5,8 @@ import (
 	"io"
 	"strings"
 
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/source"
 )
@@ -231,8 +233,12 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 						var structFields []*ast.TypeStructField
 						if structDecl.FieldsCount > 0 && structDecl.FieldsStart.IsValid() {
 							start := uint32(structDecl.FieldsStart)
-							for idx := uint32(0); idx < structDecl.FieldsCount; idx++ {
-								field := builder.Items.StructField(ast.TypeFieldID(start + idx))
+							for idx := range structDecl.FieldsCount {
+								idxUint32, err := safecast.Conv[uint32](idx)
+								if err != nil {
+									panic(fmt.Errorf("fields count overflow: %w", err))
+								}
+								field := builder.Items.StructField(ast.TypeFieldID(start + idxUint32))
 								if field != nil {
 									structFields = append(structFields, field)
 								}
@@ -284,8 +290,12 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 						var members []*ast.TypeUnionMember
 						if unionDecl.MembersCount > 0 && unionDecl.MembersStart.IsValid() {
 							start := uint32(unionDecl.MembersStart)
-							for idx := uint32(0); idx < unionDecl.MembersCount; idx++ {
-								member := builder.Items.UnionMember(ast.TypeUnionMemberID(start + idx))
+							for idx := range unionDecl.MembersCount {
+								idxUint32, err := safecast.Conv[uint32](idx)
+								if err != nil {
+									panic(fmt.Errorf("members count overflow: %w", err))
+								}
+								member := builder.Items.UnionMember(ast.TypeUnionMemberID(start + idxUint32))
 								if member != nil {
 									members = append(members, member)
 								}
@@ -378,20 +388,20 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 				})
 			}
 
-			fields = append(fields, fnField{
-				label: "Params",
-				value: formatFnParamsInline(builder, fnItem),
-			})
-
-			fields = append(fields, fnField{
-				label: "Return",
-				value: formatTypeExprInline(builder, fnItem.ReturnType),
-			})
-
-			fields = append(fields, fnField{
-				label:  "Body",
-				isBody: true,
-			})
+			fields = append(fields,
+				fnField{
+					label: "Params",
+					value: formatFnParamsInline(builder, fnItem),
+				},
+				fnField{
+					label: "Return",
+					value: formatTypeExprInline(builder, fnItem.ReturnType),
+				},
+				fnField{
+					label:  "Body",
+					isBody: true,
+				},
+			)
 
 			for idx, field := range fields {
 				isLast := idx == len(fields)-1

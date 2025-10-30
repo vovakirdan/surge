@@ -2,8 +2,11 @@ package source
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
+
+	"fortio.org/safecast"
 )
 
 type FileSet struct {
@@ -30,30 +33,34 @@ func NewFileSetWithBase(baseDir string) *FileSet {
 }
 
 // SetBaseDir устанавливает базовую директорию для относительных путей.
-func (fs *FileSet) SetBaseDir(dir string) {
-	fs.baseDir = dir
+func (fileSet *FileSet) SetBaseDir(dir string) {
+	fileSet.baseDir = dir
 }
 
 // BaseDir возвращает текущую базовую директорию.
-func (fs *FileSet) BaseDir() string {
-	if fs.baseDir == "" {
+func (fileSet *FileSet) BaseDir() string {
+	if fileSet.baseDir == "" {
 		// Если не установлена, используем текущую рабочую директорию
 		if wd, err := os.Getwd(); err == nil {
 			return wd
 		}
 	}
-	return fs.baseDir
+	return fileSet.baseDir
 }
 
 // Добавляет файл из готовых байт (уже нормализованных), считает LineIdx и Hash, возвращает новый FileID.
 // Всегда создает новый FileID, даже если файл с таким путем уже существует.
-func (fs *FileSet) Add(path string, content []byte, flags FileFlags) FileID {
+func (fileSet *FileSet) Add(path string, content []byte, flags FileFlags) FileID {
 	hash := sha256.Sum256(content)
 	lineIdx := buildLineIndex(content)
 	normalizedPath := normalizePath(path)
 
-	id := FileID(len(fs.files))
-	fs.files = append(fs.files, File{
+	lenFiles, err := safecast.Conv[uint32](len(fileSet.files))
+	if err != nil {
+		panic(fmt.Errorf("len files overflow: %w", err))
+	}
+	id := FileID(lenFiles)
+	fileSet.files = append(fileSet.files, File{
 		ID:      id,
 		Path:    normalizedPath,
 		Content: content,
@@ -62,48 +69,48 @@ func (fs *FileSet) Add(path string, content []byte, flags FileFlags) FileID {
 		Flags:   flags,
 	})
 	// Всегда обновляем индекс на последнюю версию файла
-	fs.index[normalizedPath] = id
+	fileSet.index[normalizedPath] = id
 	return id
 }
 
 // Читает файл с диска (делает нормализацию CRLF→LF, удаляет BOM), вызывает Add.
-func (fs *FileSet) Load(path string) (FileID, error) {
+func (fileSet *FileSet) Load(path string) (FileID, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return 0, err
 	}
 
-	content, had_BOM := removeBOM(content)
-	content, had_CRLF := normalizeCRLF(content)
+	content, hadBOM := removeBOM(content)
+	content, hadCRLF := normalizeCRLF(content)
 
 	flags := FileFlags(0)
-	if had_BOM {
+	if hadBOM {
 		flags |= FileHadBOM
 	}
-	if had_CRLF {
+	if hadCRLF {
 		flags |= FileNormalizedCRLF
 	}
-	return fs.Add(path, content, flags), nil
+	return fileSet.Add(path, content, flags), nil
 }
 
 // Добавляет "виртуальный" файл (stdin, тест, автогенерированный), флаг FileVirtual.
-func (fs *FileSet) AddVirtual(name string, content []byte) FileID {
-	return fs.Add(name, content, FileVirtual)
+func (fileSet *FileSet) AddVirtual(name string, content []byte) FileID {
+	return fileSet.Add(name, content, FileVirtual)
 }
 
-func (fs *FileSet) Get(id FileID) *File {
+func (fileSet *FileSet) Get(id FileID) *File {
 	// TODO: optional bounds check in debug builds
-	return &fs.files[id]
+	return &fileSet.files[id]
 }
 
 // Возвращает последнюю версию файла по пути, если он существует
-func (fs *FileSet) GetLatest(path string) (FileID, bool) {
-	id, ok := fs.index[normalizePath(path)]
+func (fileSet *FileSet) GetLatest(path string) (FileID, bool) {
+	id, ok := fileSet.index[normalizePath(path)]
 	return id, ok
 }
 
-func (fs *FileSet) Resolve(span Span) (start LineCol, end LineCol) {
-	f := fs.files[span.File]
+func (fileSet *FileSet) Resolve(span Span) (start, end LineCol) {
+	f := fileSet.files[span.File]
 	return toLineCol(f.LineIdx, span.Start), toLineCol(f.LineIdx, span.End)
 }
 
@@ -115,27 +122,37 @@ func (f *File) GetLine(lineNum uint32) string {
 	}
 
 	// Определяем начало и конец строки
-	var start, end uint32
+	var start, end, lenLineIdx, lenContent uint32
+	var err error
+	lenLineIdx, err = safecast.Conv[uint32](len(f.LineIdx))
+	if err != nil {
+		panic(fmt.Errorf("line index length overflow: %w", err))
+	}
+	lenContent, err = safecast.Conv[uint32](len(f.Content))
+	if err != nil {
+		panic(fmt.Errorf("content length overflow: %w", err))
+	}
 
-	if lineNum == 1 {
+	switch {
+	case lineNum == 1:
 		start = 0
-	} else if int(lineNum-2) < len(f.LineIdx) {
+	case (lineNum - 2) < lenLineIdx:
 		start = f.LineIdx[lineNum-2] + 1
-	} else {
+	default:
 		return ""
 	}
 
-	if int(lineNum-1) < len(f.LineIdx) {
+	if (lineNum - 1) < lenLineIdx {
 		end = f.LineIdx[lineNum-1]
 	} else {
-		end = uint32(len(f.Content))
+		end = lenContent
 	}
 
-	if start >= uint32(len(f.Content)) {
+	if start >= lenContent {
 		return ""
 	}
-	if end > uint32(len(f.Content)) {
-		end = uint32(len(f.Content))
+	if end > lenContent {
+		end = lenContent
 	}
 
 	return string(f.Content[start:end])
@@ -144,7 +161,7 @@ func (f *File) GetLine(lineNum uint32) string {
 // FormatPath форматирует путь к файлу в зависимости от режима.
 // mode: "absolute", "relative", "basename", "auto"
 // baseDir: базовая директория для относительных путей (игнорируется для других режимов)
-func (f *File) FormatPath(mode string, baseDir string) string {
+func (f *File) FormatPath(mode, baseDir string) string {
 	switch mode {
 	case "absolute":
 		if abs, err := AbsolutePath(f.Path); err == nil {
