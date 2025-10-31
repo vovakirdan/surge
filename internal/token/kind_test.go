@@ -71,7 +71,7 @@ func TestIsKeyword(t *testing.T) {
 	keywords := []token.Kind{
 		token.KwFn, token.KwLet, token.KwMut, token.KwOwn, token.KwIf, token.KwElse, token.KwWhile,
 		token.KwFor, token.KwIn, token.KwBreak, token.KwContinue, token.KwReturn, token.KwImport,
-		token.KwAs, token.KwType, token.KwNewtype, token.KwAlias, token.KwLiteral, token.KwTag,
+		token.KwAs, token.KwType, token.KwTag,
 		token.KwExtern, token.KwPub, token.KwAsync, token.KwAwait, token.KwCompare, token.KwFinally,
 		token.KwChannel, token.KwSpawn, token.KwTrue, token.KwFalse, token.KwSignal, token.KwParallel,
 		token.KwMacro, token.KwPragma, token.KwTo, token.KwHeir, token.KwIs,

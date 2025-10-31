@@ -24,9 +24,6 @@ const (
 	KwImport   // import
 	KwAs       // as
 	KwType     // type
-	KwNewtype  // newtype
-	KwAlias    // alias
-	KwLiteral  // literal
 	KwTag      // tag
 	KwExtern   // extern
 	KwPub      // pub
