@@ -51,6 +51,7 @@ func buildModuleMeta(
 	meta := project.ModuleMeta{
 		Path: fullModulePath,
 		Span: fileSpan,
+		ContentHash: srcFile.Hash,
 	}
 
 	if len(fileNode.Items) == 0 {

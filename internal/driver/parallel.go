@@ -198,6 +198,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 			graph, slots := dag.BuildGraph(idx, nodes)
 			topo := dag.ToposortKahn(graph)
 			dag.ReportCycles(idx, slots, topo)
+			dag.ComputeModuleHashes(idx, graph, slots, topo)
 			for i := range slots {
 				reporter, ok := slots[i].Reporter.(*diag.BagReporter)
 				if !ok || reporter.Bag == nil {
