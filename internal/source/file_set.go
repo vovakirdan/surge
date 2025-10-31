@@ -111,10 +111,10 @@ func (fileSet *FileSet) GetLatest(path string) (FileID, bool) {
 
 // GetByPath возвращает *File по пути, если был загружен в этот FileSet.
 func (fileSet *FileSet) GetByPath(path string) (*File, bool) {
-    if id, ok := fileSet.index[normalizePath(path)]; ok {
-        return &fileSet.files[id], true
-    }
-    return nil, false
+	if id, ok := fileSet.index[normalizePath(path)]; ok {
+		return &fileSet.files[id], true
+	}
+	return nil, false
 }
 
 func (fileSet *FileSet) Resolve(span Span) (start, end LineCol) {

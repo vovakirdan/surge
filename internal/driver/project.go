@@ -49,8 +49,8 @@ func buildModuleMeta(
 	}
 
 	meta := project.ModuleMeta{
-		Path: fullModulePath,
-		Span: fileSpan,
+		Path:        fullModulePath,
+		Span:        fileSpan,
 		ContentHash: srcFile.Hash,
 	}
 

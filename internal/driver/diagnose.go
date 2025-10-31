@@ -272,11 +272,11 @@ func runModuleGraph(
 	sort.Strings(paths)
 
 	metas := make([]project.ModuleMeta, 0, len(paths))
-	nodes := make([]dag.ModuleNode, 0, len(paths))
+	nodes := make([]*dag.ModuleNode, 0, len(paths))
 	for _, p := range paths {
 		rec := records[p]
 		metas = append(metas, rec.Meta)
-		nodes = append(nodes, dag.ModuleNode{
+		nodes = append(nodes, &dag.ModuleNode{
 			Meta:     rec.Meta,
 			Reporter: &diag.BagReporter{Bag: rec.Bag},
 			Broken:   rec.Broken,

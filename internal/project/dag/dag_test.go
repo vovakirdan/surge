@@ -77,7 +77,7 @@ func TestBuildGraphReportsMissingModules(t *testing.T) {
 	bagApp := diag.NewBag(10)
 	bagCore := diag.NewBag(10)
 
-	nodes := []ModuleNode{
+	nodes := []*ModuleNode{
 		{Meta: appMeta, Reporter: &diag.BagReporter{Bag: bagApp}},
 		{Meta: coreMeta, Reporter: &diag.BagReporter{Bag: bagCore}},
 	}
@@ -127,7 +127,7 @@ func TestBuildGraphDuplicateModules(t *testing.T) {
 	bagA := diag.NewBag(10)
 	bagB := diag.NewBag(10)
 
-	nodes := []ModuleNode{
+	nodes := []*ModuleNode{
 		{Meta: metaA, Reporter: &diag.BagReporter{Bag: bagA}},
 		{Meta: metaB, Reporter: &diag.BagReporter{Bag: bagB}},
 	}
@@ -163,7 +163,7 @@ func TestToposortKahnBatches(t *testing.T) {
 		{Path: "c"},
 	}
 
-	nodes := []ModuleNode{
+	nodes := []*ModuleNode{
 		{Meta: metas[0]},
 		{Meta: metas[1]},
 		{Meta: metas[2]},
@@ -227,7 +227,7 @@ func TestReportCycles(t *testing.T) {
 	bagA := diag.NewBag(10)
 	bagB := diag.NewBag(10)
 
-	nodes := []ModuleNode{
+	nodes := []*ModuleNode{
 		{Meta: metaA, Reporter: &diag.BagReporter{Bag: bagA}},
 		{Meta: metaB, Reporter: &diag.BagReporter{Bag: bagB}},
 	}
@@ -277,7 +277,7 @@ func TestReportBrokenDeps(t *testing.T) {
 	depBag.Add(depErr)
 	firstCopy := depErr
 
-	nodes := []ModuleNode{
+	nodes := []*ModuleNode{
 		{
 			Meta:     importMeta,
 			Reporter: &diag.BagReporter{Bag: importBag},

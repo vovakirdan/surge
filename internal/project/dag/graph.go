@@ -33,7 +33,7 @@ type ModuleSlot struct {
 	FirstErr *diag.Diagnostic
 }
 
-func BuildGraph(idx ModuleIndex, nodes []ModuleNode) (Graph, []ModuleSlot) {
+func BuildGraph(idx ModuleIndex, nodes []*ModuleNode) (Graph, []ModuleSlot) {
 	nodeCount := len(idx.IDToName)
 	g := Graph{
 		Edges:   make([][]ModuleID, nodeCount),

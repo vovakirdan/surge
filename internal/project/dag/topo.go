@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	"fortio.org/safecast"
-	"surge/internal/project"
 )
 
 type Topo struct {
@@ -89,34 +88,4 @@ func ToposortKahn(g Graph) *Topo {
 	}
 
 	return topo
-}
-
-// ComputeModuleHashes вычисляет ModuleHash для каждого присутствующего узла:
-// H( content || dep1 || dep2 ... ), где dep* — уже посчитанные хеши зависимостей.
-// Использует topo.Order, поэтому корректен только при ацикличном графе.
-// При цикле — хеши для узлов из цикла остаются нулями.
-func ComputeModuleHashes(idx ModuleIndex, g Graph, slots []ModuleSlot, topo *Topo) {
-    if topo == nil || topo.Cyclic {
-        return // для циклических — намеренно пропускаем (можно позже добавить стабилизацию)
-    }
-    // Идём по порядку Kahn: родители всегда раньше детей НЕ гарантируется,
-    // поэтому считаем "снизу-вверх": от узлов с нулевой out-degree вверх?
-    // Проще: у нас Edges[from] = deps (to). Тогда корректно идти В ОБРАТНОМ порядке topo.Order.
-    // На момент узла все его deps уже обработаны.
-    for i := len(topo.Order) - 1; i >= 0; i-- {
-        id := topo.Order[i]
-        slot := &slots[int(id)]
-        if !slot.Present {
-            continue
-        }
-        // Собираем хеши зависимостей в детерминированном порядке (Edges уже отсортированы).
-        deps := make([]project.Digest, 0, len(g.Edges[int(id)]))
-        for _, to := range g.Edges[int(id)] {
-            if !g.Present[int(to)] {
-                continue
-            }
-            deps = append(deps, slots[int(to)].Meta.ModuleHash)
-        }
-        slot.Meta.ModuleHash = project.Combine(slot.Meta.ContentHash, deps...)
-    }
 }

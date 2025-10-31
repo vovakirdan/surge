@@ -189,16 +189,16 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				return entries[i].meta.Path < entries[j].meta.Path
 			})
 			metas := make([]project.ModuleMeta, 0, len(entries))
-			nodes := make([]dag.ModuleNode, 0, len(entries))
+			nodes := make([]*dag.ModuleNode, 0, len(entries))
 			for _, e := range entries {
 				metas = append(metas, e.meta)
-				nodes = append(nodes, e.node)
+				nodes = append(nodes, &e.node)
 			}
 			idx := dag.BuildIndex(metas)
 			graph, slots := dag.BuildGraph(idx, nodes)
 			topo := dag.ToposortKahn(graph)
 			dag.ReportCycles(idx, slots, topo)
-			dag.ComputeModuleHashes(idx, graph, slots, topo)
+			ComputeModuleHashes(idx, graph, slots, topo)
 			for i := range slots {
 				reporter, ok := slots[i].Reporter.(*diag.BagReporter)
 				if !ok || reporter.Bag == nil {

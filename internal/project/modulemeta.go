@@ -14,11 +14,11 @@ type ImportMeta struct {
 }
 
 type ModuleMeta struct {
-	Path    string       // нормализованный путь к модулю: "a/b"
-	Span    source.Span  // span всего файла (или места объявления модуля)
-	Imports []ImportMeta // нормализованные пути импортов с их спанами
-    ContentHash Digest       // хеш содержимого файла (из FileSet)
-    ModuleHash  Digest       // агрегированный хеш модуля с учётом зависимостей
+	Path        string       // нормализованный путь к модулю: "a/b"
+	Span        source.Span  // span всего файла (или места объявления модуля)
+	Imports     []ImportMeta // нормализованные пути импортов с их спанами
+	ContentHash Digest       // хеш содержимого файла (из FileSet)
+	ModuleHash  Digest       // агрегированный хеш модуля с учётом зависимостей
 }
 
 // NormalizeModulePath приводит путь модуля (импорт/сам файл) к каноническому виду "a/b".
