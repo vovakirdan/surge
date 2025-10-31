@@ -17,9 +17,27 @@ func (p *Parser) parseCallExpr(target ast.ExprID) (ast.ExprID, bool) {
 		for {
 			arg, ok := p.parseExpr()
 			if !ok {
+				// Ошибка парсинга аргумента - восстанавливаемся
+				p.resyncUntil(token.RParen, token.Comma, token.Semicolon, token.LBrace)
+				if p.at(token.RParen) {
+					p.advance()
+				}
 				return ast.NoExprID, false
 			}
 			args = append(args, arg)
+
+			// Проверяем spread-оператор: expr...
+			if p.at(token.DotDotDot) {
+				// TODO: Поддержка spread-оператора (если планируется)
+				// Пока выдаем ошибку и восстанавливаемся
+				p.err(diag.SynUnexpectedToken, "spread operator '...' is not yet supported in function calls")
+				p.advance()
+				p.resyncUntil(token.RParen, token.Comma, token.Semicolon, token.LBrace)
+				if p.at(token.RParen) {
+					p.advance()
+				}
+				return ast.NoExprID, false
+			}
 
 			if !p.at(token.Comma) {
 				break
@@ -35,6 +53,8 @@ func (p *Parser) parseCallExpr(target ast.ExprID) (ast.ExprID, bool) {
 
 	closeTok, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' after function arguments", nil)
 	if !ok {
+		// Восстанавливаемся после ошибки ожидания ')'
+		p.resyncUntil(token.Semicolon, token.LBrace, token.RBrace, token.EOF)
 		return ast.NoExprID, false
 	}
 
