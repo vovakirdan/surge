@@ -60,6 +60,66 @@ func (p *Parser) parseBlock() (ast.StmtID, bool) {
 	return blockID, true
 }
 
+func (p *Parser) parseSignalStmt() (ast.StmtID, bool) {
+	signalTok := p.advance()
+
+	nameID, ok := p.parseIdent()
+	if !ok {
+		return ast.NoStmtID, false
+	}
+
+	assignTok, ok := p.expect(token.ColonAssign, diag.SynUnexpectedToken, "expected ':=' after signal target")
+	if !ok {
+		return ast.NoStmtID, false
+	}
+
+	valueExpr, ok := p.parseExpr()
+	if !ok {
+		return ast.NoStmtID, false
+	}
+
+	insertSpan := p.lastSpan.ZeroideToEnd()
+	semiTok, semiOK := p.expect(
+		token.Semicolon,
+		diag.SynExpectSemicolon,
+		"expected ';' after signal statement",
+		func(b *diag.ReportBuilder) {
+			if b == nil {
+				return
+			}
+			fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertSpan)
+			suggestion := fix.InsertText(
+				"insert ';' after signal statement",
+				insertSpan,
+				";",
+				"",
+				fix.WithID(fixID),
+				fix.WithKind(diag.FixKindRefactor),
+				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+			)
+			b.WithFixSuggestion(suggestion)
+			b.WithNote(insertSpan, "insert missing ';'")
+		},
+	)
+	if !semiOK {
+		return ast.NoStmtID, false
+	}
+
+	stmtSpan := signalTok.Span
+	if assignTok.Kind != token.Invalid {
+		stmtSpan = stmtSpan.Cover(assignTok.Span)
+	}
+	if node := p.arenas.Exprs.Get(valueExpr); node != nil {
+		stmtSpan = stmtSpan.Cover(node.Span)
+	}
+	if semiTok.Kind != token.Invalid {
+		stmtSpan = stmtSpan.Cover(semiTok.Span)
+	}
+
+	stmtID := p.arenas.Stmts.NewSignal(stmtSpan, nameID, valueExpr)
+	return stmtID, true
+}
+
 func (p *Parser) parseStmt() (ast.StmtID, bool) {
 	switch p.lx.Peek().Kind {
 	case token.LBrace:
@@ -144,6 +204,8 @@ func (p *Parser) parseStmt() (ast.StmtID, bool) {
 		return p.parseStmt()
 	case token.KwLet:
 		return p.parseLetStmt()
+	case token.KwSignal:
+		return p.parseSignalStmt()
 	case token.KwReturn:
 		return p.parseReturnStmt()
 	case token.KwIf:

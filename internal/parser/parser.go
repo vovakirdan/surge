@@ -38,6 +38,8 @@ type Parser struct {
 	fs       *source.FileSet // нужен только для спанов/путей при надобности
 	opts     Options
 	lastSpan source.Span // span последнего съеденного токена для лучшей диагностики
+	// allowFatArrow tracks the nesting depth of constructs where fat arrows are valid (compare arms, parallel expressions).
+	allowFatArrow int
 }
 
 // ParseFile — входная точка для разбора одного файла.

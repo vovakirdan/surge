@@ -17,32 +17,33 @@ const (
 	LexBadNumber                Code = 1004
 
 	// Парсерные (зарезервируем)
-	SynInfo                  Code = 2000
-	SynUnexpectedToken       Code = 2001
-	SynUnclosedDelimiter     Code = 2002
-	SynUnclosedBlockComment  Code = 2003
-	SynUnclosedString        Code = 2004
-	SynUnclosedChar          Code = 2005
-	SynUnclosedParen         Code = 2006
-	SynUnclosedBrace         Code = 2007
-	SynUnclosedBracket       Code = 2008
-	SynUnclosedSquareBracket Code = 2009
-	SynUnclosedAngleBracket  Code = 2010
-	SynUnclosedCurlyBracket  Code = 2011
-	SynExpectSemicolon       Code = 2012
-	SynForMissingIn          Code = 2013
-	SynForBadHeader          Code = 2014
-	SynModifierNotAllowed    Code = 2015
-	SynAttributeNotAllowed   Code = 2016
-	SynAsyncNotAllowed       Code = 2017
-	SynTypeExpectEquals      Code = 2018
-	SynTypeExpectBody        Code = 2019
-	SynTypeExpectUnionMember Code = 2020
-	SynTypeFieldConflict     Code = 2021
-	SynTypeDuplicateMember   Code = 2022
-	SynTypeNotAllowed        Code = 2023
-	SynIllegalItemInExtern   Code = 2024
-	SynVisibilityReduction   Code = 2025
+	SynInfo                    Code = 2000
+	SynUnexpectedToken         Code = 2001
+	SynUnclosedDelimiter       Code = 2002
+	SynUnclosedBlockComment    Code = 2003
+	SynUnclosedString          Code = 2004
+	SynUnclosedChar            Code = 2005
+	SynUnclosedParen           Code = 2006
+	SynUnclosedBrace           Code = 2007
+	SynUnclosedBracket         Code = 2008
+	SynUnclosedSquareBracket   Code = 2009
+	SynUnclosedAngleBracket    Code = 2010
+	SynUnclosedCurlyBracket    Code = 2011
+	SynExpectSemicolon         Code = 2012
+	SynForMissingIn            Code = 2013
+	SynForBadHeader            Code = 2014
+	SynModifierNotAllowed      Code = 2015
+	SynAttributeNotAllowed     Code = 2016
+	SynAsyncNotAllowed         Code = 2017
+	SynTypeExpectEquals        Code = 2018
+	SynTypeExpectBody          Code = 2019
+	SynTypeExpectUnionMember   Code = 2020
+	SynTypeFieldConflict       Code = 2021
+	SynTypeDuplicateMember     Code = 2022
+	SynTypeNotAllowed          Code = 2023
+	SynIllegalItemInExtern     Code = 2024
+	SynVisibilityReduction     Code = 2025
+	SynFatArrowOutsideParallel Code = 2026
 
 	// import errors & warnings
 	SynInfoImportGroup    Code = 2100
@@ -115,6 +116,7 @@ var ( // todo расширить описания и использовать к
 		SynTypeNotAllowed:           "Type declaration is not allowed here",
 		SynIllegalItemInExtern:      "Illegal item inside extern block",
 		SynVisibilityReduction:      "Visibility reduction is not allowed",
+		SynFatArrowOutsideParallel:  "Fat arrow is only allowed in parallel expressions or compare arms",
 		SynExpectIdentifier:         "Expect identifier",
 		SynExpectModuleSeg:          "Expect module segment",
 		SynExpectItemAfterDbl:       "Expect item after double colon",

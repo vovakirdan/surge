@@ -19,6 +19,8 @@ func formatStmtKind(kind ast.StmtKind) string {
 		return "Let"
 	case ast.StmtExpr:
 		return "Expr"
+	case ast.StmtSignal:
+		return "Signal"
 	case ast.StmtReturn:
 		return "Return"
 	case ast.StmtBreak:
@@ -107,6 +109,26 @@ func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *
 			return nil
 		}
 		fmt.Fprintf(w, "%s└─ Expr: %s\n", prefix, formatExprSummary(builder, exprStmt.Expr))
+
+	case ast.StmtSignal:
+		signalStmt := builder.Stmts.Signal(stmtID)
+		if signalStmt == nil {
+			return nil
+		}
+		fields := []struct {
+			label string
+			value string
+		}{
+			{"Name", lookupStringOr(builder, signalStmt.Name, "<anon>")},
+			{"Value", formatExprSummary(builder, signalStmt.Value)},
+		}
+		for i, field := range fields {
+			marker := "├─"
+			if i == len(fields)-1 {
+				marker = "└─"
+			}
+			fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, field.label, field.value)
+		}
 
 	case ast.StmtReturn:
 		retStmt := builder.Stmts.Return(stmtID)

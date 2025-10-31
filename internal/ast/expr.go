@@ -20,7 +20,7 @@ const (
 	ExprMember
 	ExprTernary
 	ExprAwait
-	ExprSignal
+	ExprSpawn
 	ExprParallel
 	ExprSpread
 	ExprCompare
@@ -167,6 +167,29 @@ type ExprSpreadData struct {
 	Value ExprID
 }
 
+// ExprSpawnData represents the operand of a `spawn` expression.
+// TODO(sema): enforce async context and Future/Task requirements once sema is in place.
+type ExprSpawnData struct {
+	Value ExprID
+}
+
+type ExprParallelKind uint8
+
+const (
+	ExprParallelMap ExprParallelKind = iota
+	ExprParallelReduce
+)
+
+// ExprParallelData captures common fields for `parallel map` and `parallel reduce`.
+// TODO(sema): validate purity attributes and reduction invariants.
+type ExprParallelData struct {
+	Kind     ExprParallelKind
+	Iterable ExprID
+	Init     ExprID // only set for reduce
+	Args     []ExprID
+	Body     ExprID
+}
+
 // ExprAwaitData stores the operand of a postfix `.await` expression.
 // TODO(sema): ensure `.await` is only used in async contexts and operates on Future-like values.
 type ExprAwaitData struct {
@@ -187,21 +210,23 @@ type ExprCompareData struct {
 }
 
 type Exprs struct {
-	Arena    *Arena[Expr]
-	Idents   *Arena[ExprIdentData]
-	Literals *Arena[ExprLiteralData]
-	Binaries *Arena[ExprBinaryData]
-	Unaries  *Arena[ExprUnaryData]
-	Casts    *Arena[ExprCastData]
-	Calls    *Arena[ExprCallData]
-	Indices  *Arena[ExprIndexData]
-	Members  *Arena[ExprMemberData]
-	Awaits   *Arena[ExprAwaitData]
-	Groups   *Arena[ExprGroupData]
-	Tuples   *Arena[ExprTupleData]
-	Arrays   *Arena[ExprArrayData]
-	Spreads  *Arena[ExprSpreadData]
-	Compares *Arena[ExprCompareData]
+	Arena     *Arena[Expr]
+	Idents    *Arena[ExprIdentData]
+	Literals  *Arena[ExprLiteralData]
+	Binaries  *Arena[ExprBinaryData]
+	Unaries   *Arena[ExprUnaryData]
+	Casts     *Arena[ExprCastData]
+	Calls     *Arena[ExprCallData]
+	Indices   *Arena[ExprIndexData]
+	Members   *Arena[ExprMemberData]
+	Awaits    *Arena[ExprAwaitData]
+	Groups    *Arena[ExprGroupData]
+	Tuples    *Arena[ExprTupleData]
+	Arrays    *Arena[ExprArrayData]
+	Spreads   *Arena[ExprSpreadData]
+	Spawns    *Arena[ExprSpawnData]
+	Parallels *Arena[ExprParallelData]
+	Compares  *Arena[ExprCompareData]
 }
 
 // NewExprs creates a new Exprs with per-kind arenas preallocated using capHint as the initial capacity.
@@ -211,21 +236,23 @@ func NewExprs(capHint uint) *Exprs {
 		capHint = 1 << 8
 	}
 	return &Exprs{
-		Arena:    NewArena[Expr](capHint),
-		Idents:   NewArena[ExprIdentData](capHint),
-		Literals: NewArena[ExprLiteralData](capHint),
-		Binaries: NewArena[ExprBinaryData](capHint),
-		Unaries:  NewArena[ExprUnaryData](capHint),
-		Casts:    NewArena[ExprCastData](capHint),
-		Calls:    NewArena[ExprCallData](capHint),
-		Indices:  NewArena[ExprIndexData](capHint),
-		Members:  NewArena[ExprMemberData](capHint),
-		Awaits:   NewArena[ExprAwaitData](capHint),
-		Groups:   NewArena[ExprGroupData](capHint),
-		Tuples:   NewArena[ExprTupleData](capHint),
-		Arrays:   NewArena[ExprArrayData](capHint),
-		Spreads:  NewArena[ExprSpreadData](capHint),
-		Compares: NewArena[ExprCompareData](capHint),
+		Arena:     NewArena[Expr](capHint),
+		Idents:    NewArena[ExprIdentData](capHint),
+		Literals:  NewArena[ExprLiteralData](capHint),
+		Binaries:  NewArena[ExprBinaryData](capHint),
+		Unaries:   NewArena[ExprUnaryData](capHint),
+		Casts:     NewArena[ExprCastData](capHint),
+		Calls:     NewArena[ExprCallData](capHint),
+		Indices:   NewArena[ExprIndexData](capHint),
+		Members:   NewArena[ExprMemberData](capHint),
+		Awaits:    NewArena[ExprAwaitData](capHint),
+		Groups:    NewArena[ExprGroupData](capHint),
+		Tuples:    NewArena[ExprTupleData](capHint),
+		Arrays:    NewArena[ExprArrayData](capHint),
+		Spreads:   NewArena[ExprSpreadData](capHint),
+		Spawns:    NewArena[ExprSpawnData](capHint),
+		Parallels: NewArena[ExprParallelData](capHint),
+		Compares:  NewArena[ExprCompareData](capHint),
 	}
 }
 
@@ -400,6 +427,49 @@ func (e *Exprs) Array(id ExprID) (*ExprArrayData, bool) {
 func (e *Exprs) NewSpread(span source.Span, value ExprID) ExprID {
 	payload := e.Spreads.Allocate(ExprSpreadData{Value: value})
 	return e.new(ExprSpread, span, PayloadID(payload))
+}
+
+func (e *Exprs) NewSpawn(span source.Span, value ExprID) ExprID {
+	payload := e.Spawns.Allocate(ExprSpawnData{Value: value})
+	return e.new(ExprSpawn, span, PayloadID(payload))
+}
+
+func (e *Exprs) Spawn(id ExprID) (*ExprSpawnData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprSpawn {
+		return nil, false
+	}
+	return e.Spawns.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewParallelMap(span source.Span, iterable ExprID, args []ExprID, body ExprID) ExprID {
+	payload := e.Parallels.Allocate(ExprParallelData{
+		Kind:     ExprParallelMap,
+		Iterable: iterable,
+		Init:     NoExprID,
+		Args:     append([]ExprID(nil), args...),
+		Body:     body,
+	})
+	return e.new(ExprParallel, span, PayloadID(payload))
+}
+
+func (e *Exprs) NewParallelReduce(span source.Span, iterable, init ExprID, args []ExprID, body ExprID) ExprID {
+	payload := e.Parallels.Allocate(ExprParallelData{
+		Kind:     ExprParallelReduce,
+		Iterable: iterable,
+		Init:     init,
+		Args:     append([]ExprID(nil), args...),
+		Body:     body,
+	})
+	return e.new(ExprParallel, span, PayloadID(payload))
+}
+
+func (e *Exprs) Parallel(id ExprID) (*ExprParallelData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprParallel {
+		return nil, false
+	}
+	return e.Parallels.Get(uint32(expr.Payload)), true
 }
 
 func (e *Exprs) Spread(id ExprID) (*ExprSpreadData, bool) {

@@ -38,8 +38,8 @@ func (t Token) IsKeyword() bool {
 	switch t.Kind {
 	case KwFn, KwLet, KwMut, KwOwn, KwIf, KwElse, KwWhile, KwFor, KwIn, KwBreak, KwContinue, KwReturn,
 		KwImport, KwAs, KwType, KwTag, KwExtern, KwPub, KwAsync, KwAwait,
-		KwCompare, KwFinally, KwChannel, KwSpawn, KwTrue, KwFalse, KwSignal, KwParallel, KwMacro,
-		KwPragma, KwTo, KwHeir, KwIs:
+		KwCompare, KwFinally, KwChannel, KwSpawn, KwTrue, KwFalse, KwSignal, KwParallel, KwMap, KwReduce,
+		KwWith, KwMacro, KwPragma, KwTo, KwHeir, KwIs:
 		return true
 	default:
 		return false

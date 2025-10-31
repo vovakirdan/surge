@@ -27,6 +27,18 @@ func (p *Parser) parseBinaryExpr(minPrec int) (ast.ExprID, bool) {
 	for {
 		tok := p.lx.Peek()
 
+		if tok.Kind == token.FatArrow && p.allowFatArrow == 0 {
+			p.emitDiagnostic(
+				diag.SynFatArrowOutsideParallel,
+				diag.SevError,
+				tok.Span,
+				"'=>' is only allowed inside parallel expressions or compare arms",
+				nil,
+			)
+			p.advance()
+			return ast.NoExprID, false
+		}
+
 		// Проверяем, является ли токен бинарным оператором
 		prec, isRightAssoc := p.getBinaryOperatorPrec(tok.Kind)
 		if prec < minPrec {
@@ -63,9 +75,16 @@ func (p *Parser) parseBinaryExpr(minPrec int) (ast.ExprID, bool) {
 
 // parseUnaryExpr обрабатывает унарные операторы (префиксы)
 func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
+	type prefixKind uint8
+	const (
+		prefixUnary prefixKind = iota
+		prefixSpawn
+	)
+
 	type prefixOp struct {
-		op   ast.ExprUnaryOp
-		span source.Span
+		kind  prefixKind
+		span  source.Span
+		unary ast.ExprUnaryOp
 	}
 
 	var prefixes []prefixOp
@@ -73,6 +92,15 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 	// Собираем все префиксы
 	for {
 		tok := p.lx.Peek()
+
+		if tok.Kind == token.KwSpawn {
+			spawnTok := p.advance()
+			prefixes = append(prefixes, prefixOp{
+				kind: prefixSpawn,
+				span: spawnTok.Span,
+			})
+			continue
+		}
 
 		// Специальная обработка для &mut
 		if tok.Kind == token.Amp {
@@ -83,14 +111,16 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 				mutTok := p.advance() // съедаем mut
 				finalSpan := ampTok.Span.Cover(mutTok.Span)
 				prefixes = append(prefixes, prefixOp{
-					op:   ast.ExprUnaryRefMut,
-					span: finalSpan,
+					kind:  prefixUnary,
+					span:  finalSpan,
+					unary: ast.ExprUnaryRefMut,
 				})
 			} else {
 				// Обычный &
 				prefixes = append(prefixes, prefixOp{
-					op:   ast.ExprUnaryRef,
-					span: ampTok.Span,
+					kind:  prefixUnary,
+					span:  ampTok.Span,
+					unary: ast.ExprUnaryRef,
 				})
 			}
 			continue
@@ -100,8 +130,9 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 		if tok.Kind == token.KwOwn {
 			ownTok := p.advance()
 			prefixes = append(prefixes, prefixOp{
-				op:   ast.ExprUnaryOwn,
-				span: ownTok.Span,
+				kind:  prefixUnary,
+				span:  ownTok.Span,
+				unary: ast.ExprUnaryOwn,
 			})
 			continue
 		}
@@ -110,12 +141,14 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 		if op, ok := p.getUnaryOperator(tok.Kind); ok {
 			opTok := p.advance()
 			prefixes = append(prefixes, prefixOp{
-				op:   op,
-				span: opTok.Span,
+				kind:  prefixUnary,
+				span:  opTok.Span,
+				unary: op,
 			})
-		} else {
-			break
+			continue
 		}
+
+		break
 	}
 
 	// Парсим базовое выражение
@@ -126,9 +159,16 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 
 	// Применяем префиксы справа налево
 	for i := len(prefixes) - 1; i >= 0; i-- {
-		exprSpan := p.arenas.Exprs.Get(expr).Span
-		finalSpan := prefixes[i].span.Cover(exprSpan)
-		expr = p.arenas.Exprs.NewUnary(finalSpan, prefixes[i].op, expr)
+		exprSpan := prefixes[i].span
+		if node := p.arenas.Exprs.Get(expr); node != nil {
+			exprSpan = prefixes[i].span.Cover(node.Span)
+		}
+		switch prefixes[i].kind {
+		case prefixUnary:
+			expr = p.arenas.Exprs.NewUnary(exprSpan, prefixes[i].unary, expr)
+		case prefixSpawn:
+			expr = p.arenas.Exprs.NewSpawn(exprSpan, expr)
+		}
 	}
 
 	return expr, true
@@ -218,6 +258,9 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 	case token.KwCompare:
 		return p.parseCompareExpr()
 
+	case token.KwParallel:
+		return p.parseParallelExpr()
+
 	default:
 		// договоримся, что обрабатываем все ошибки до этого момента
 		// p.err(diag.SynExpectExpression, "expected expression")
@@ -226,6 +269,8 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 }
 
 func (p *Parser) parseCompareExpr() (ast.ExprID, bool) {
+	p.allowFatArrow++
+	defer func() { p.allowFatArrow-- }()
 	compareTok := p.advance()
 
 	subjectExpr, ok := p.parseExpr()
@@ -372,4 +417,142 @@ func (p *Parser) parseCompareArm() (ast.ExprCompareArm, bool) {
 	}
 	arm.Result = resultExpr
 	return arm, true
+}
+
+func (p *Parser) parseParallelExpr() (ast.ExprID, bool) {
+	p.allowFatArrow++
+	defer func() { p.allowFatArrow-- }()
+	parallelTok := p.advance()
+
+	var modeTok token.Token
+	switch p.lx.Peek().Kind {
+	case token.KwMap:
+		modeTok = p.advance()
+	case token.KwReduce:
+		modeTok = p.advance()
+	default:
+		p.emitDiagnostic(
+			diag.SynUnexpectedToken,
+			diag.SevError,
+			p.lx.Peek().Span,
+			"expected 'map' or 'reduce' after 'parallel'",
+			nil,
+		)
+		return ast.NoExprID, false
+	}
+
+	iterableExpr, ok := p.parseExpr()
+	if !ok {
+		return ast.NoExprID, false
+	}
+
+	withTok, ok := p.expect(token.KwWith, diag.SynUnexpectedToken, "expected 'with' after parallel iterable")
+	if !ok {
+		return ast.NoExprID, false
+	}
+
+	var (
+		initExpr ast.ExprID
+		commaTok token.Token
+	)
+
+	if modeTok.Kind == token.KwReduce {
+		initExpr, ok = p.parseExpr()
+		if !ok {
+			return ast.NoExprID, false
+		}
+		commaTok, ok = p.expect(token.Comma, diag.SynUnexpectedToken, "expected ',' between reduce initializer and argument list")
+		if !ok {
+			return ast.NoExprID, false
+		}
+	}
+
+	args, argsSpan, ok := p.parseParallelArgList()
+	if !ok {
+		return ast.NoExprID, false
+	}
+
+	arrowTok, ok := p.expect(token.FatArrow, diag.SynUnexpectedToken, "expected '=>' after parallel argument list")
+	if !ok {
+		return ast.NoExprID, false
+	}
+
+	bodyExpr, ok := p.parseExpr()
+	if !ok {
+		return ast.NoExprID, false
+	}
+
+	span := parallelTok.Span.Cover(modeTok.Span)
+	if node := p.arenas.Exprs.Get(iterableExpr); node != nil {
+		span = span.Cover(node.Span)
+	}
+	span = span.Cover(withTok.Span)
+	if initExpr.IsValid() {
+		if node := p.arenas.Exprs.Get(initExpr); node != nil {
+			span = span.Cover(node.Span)
+		}
+		if commaTok.Kind != token.Invalid {
+			span = span.Cover(commaTok.Span)
+		}
+	}
+	span = span.Cover(argsSpan)
+	span = span.Cover(arrowTok.Span)
+	if node := p.arenas.Exprs.Get(bodyExpr); node != nil {
+		span = span.Cover(node.Span)
+	}
+
+	if modeTok.Kind == token.KwMap {
+		exprID := p.arenas.Exprs.NewParallelMap(span, iterableExpr, args, bodyExpr)
+		return exprID, true
+	}
+
+	exprID := p.arenas.Exprs.NewParallelReduce(span, iterableExpr, initExpr, args, bodyExpr)
+	return exprID, true
+}
+
+func (p *Parser) parseParallelArgList() ([]ast.ExprID, source.Span, bool) {
+	openTok, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' to start parallel argument list")
+	if !ok {
+		return nil, source.Span{}, false
+	}
+
+	args := make([]ast.ExprID, 0, 2)
+	listSpan := openTok.Span
+
+	if p.at(token.RParen) {
+		closeTok := p.advance()
+		listSpan = listSpan.Cover(closeTok.Span)
+		return args, listSpan, true
+	}
+
+	for {
+		argExpr, exprOK := p.parseExpr()
+		if !exprOK {
+			return nil, source.Span{}, false
+		}
+		args = append(args, argExpr)
+		if node := p.arenas.Exprs.Get(argExpr); node != nil {
+			listSpan = listSpan.Cover(node.Span)
+		}
+
+		if p.at(token.Comma) {
+			commaTok := p.advance()
+			listSpan = listSpan.Cover(commaTok.Span)
+			if p.at(token.RParen) {
+				closeTok := p.advance()
+				listSpan = listSpan.Cover(closeTok.Span)
+				return args, listSpan, true
+			}
+			continue
+		}
+
+		break
+	}
+
+	closeTok, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' to close parallel argument list")
+	if !ok {
+		return nil, source.Span{}, false
+	}
+	listSpan = listSpan.Cover(closeTok.Span)
+	return args, listSpan, true
 }

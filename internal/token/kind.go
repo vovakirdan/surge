@@ -37,6 +37,9 @@ const (
 	KwFalse    // false
 	KwSignal   // signal
 	KwParallel // parallel
+	KwMap      // map
+	KwReduce   // reduce
+	KwWith     // with
 	KwMacro    // macro
 	KwPragma   // pragma
 	KwTo       // to

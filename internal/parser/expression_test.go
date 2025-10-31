@@ -1,11 +1,13 @@
 package parser
 
 import (
+	"strings"
+	"testing"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/lexer"
 	"surge/internal/source"
-	"testing"
 )
 
 func TestBasicLiterals(t *testing.T) {
@@ -1054,4 +1056,193 @@ func TestBooleanAndNothingLiterals(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSpawnExpressionForms(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		wantInnerKind ast.ExprKind
+	}{
+		{
+			name:          "call_operand",
+			input:         "let task = spawn fetch();",
+			wantInnerKind: ast.ExprCall,
+		},
+		{
+			name:          "await_operand",
+			input:         "let task = spawn future.await;",
+			wantInnerKind: ast.ExprAwait,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			letItem, arenas := parseExprTestInput(t, tt.input)
+			if letItem.Value == ast.NoExprID {
+				t.Fatal("expected expression value")
+			}
+
+			expr := arenas.Exprs.Get(letItem.Value)
+			if expr == nil {
+				t.Fatal("spawn expression missing")
+			}
+			if expr.Kind != ast.ExprSpawn {
+				t.Fatalf("expected spawn expression, got %v", expr.Kind)
+			}
+
+			data, ok := arenas.Exprs.Spawn(letItem.Value)
+			if !ok {
+				t.Fatal("spawn payload missing")
+			}
+			inner := arenas.Exprs.Get(data.Value)
+			if inner == nil {
+				t.Fatal("spawn operand missing")
+			}
+			if inner.Kind != tt.wantInnerKind {
+				t.Fatalf("expected inner kind %v, got %v", tt.wantInnerKind, inner.Kind)
+			}
+		})
+	}
+}
+
+func TestParallelMapExpression(t *testing.T) {
+	letItem, arenas := parseExprTestInput(t, "let result = parallel map xs with (item) => process(item);")
+	if letItem.Value == ast.NoExprID {
+		t.Fatal("expected expression value")
+	}
+
+	expr := arenas.Exprs.Get(letItem.Value)
+	if expr == nil || expr.Kind != ast.ExprParallel {
+		t.Fatalf("expected parallel expression, got %v", expr)
+	}
+
+	data, ok := arenas.Exprs.Parallel(letItem.Value)
+	if !ok {
+		t.Fatal("parallel payload missing")
+	}
+	if data.Kind != ast.ExprParallelMap {
+		t.Fatalf("expected map kind, got %v", data.Kind)
+	}
+	if data.Init.IsValid() {
+		t.Fatalf("map initializer should be invalid, got %v", data.Init)
+	}
+	if len(data.Args) != 1 {
+		t.Fatalf("expected 1 arg, got %d", len(data.Args))
+	}
+	arg := arenas.Exprs.Get(data.Args[0])
+	if arg == nil || arg.Kind != ast.ExprIdent {
+		t.Fatalf("expected identifier arg, got %v", arg)
+	}
+	if iter := arenas.Exprs.Get(data.Iterable); iter == nil || iter.Kind != ast.ExprIdent {
+		t.Fatalf("expected iterable identifier, got %v", iter)
+	}
+	if body := arenas.Exprs.Get(data.Body); body == nil || body.Kind != ast.ExprCall {
+		t.Fatalf("expected call body, got %v", body)
+	}
+}
+
+func TestParallelReduceExpression(t *testing.T) {
+	letItem, arenas := parseExprTestInput(t, "let reduced = parallel reduce xs with init, (acc, value) => combine(acc, value);")
+	if letItem.Value == ast.NoExprID {
+		t.Fatal("expected expression value")
+	}
+
+	expr := arenas.Exprs.Get(letItem.Value)
+	if expr == nil || expr.Kind != ast.ExprParallel {
+		t.Fatalf("expected parallel expression, got %v", expr)
+	}
+
+	data, ok := arenas.Exprs.Parallel(letItem.Value)
+	if !ok {
+		t.Fatal("parallel payload missing")
+	}
+	if data.Kind != ast.ExprParallelReduce {
+		t.Fatalf("expected reduce kind, got %v", data.Kind)
+	}
+	if !data.Init.IsValid() {
+		t.Fatal("reduce initializer missing")
+	}
+	if init := arenas.Exprs.Get(data.Init); init == nil || init.Kind != ast.ExprIdent {
+		t.Fatalf("expected identifier init, got %v", init)
+	}
+	if len(data.Args) != 2 {
+		t.Fatalf("expected 2 args, got %d", len(data.Args))
+	}
+	for i, argID := range data.Args {
+		arg := arenas.Exprs.Get(argID)
+		if arg == nil || arg.Kind != ast.ExprIdent {
+			t.Fatalf("arg[%d] expected ident, got %v", i, arg)
+		}
+	}
+	if body := arenas.Exprs.Get(data.Body); body == nil || body.Kind != ast.ExprCall {
+		t.Fatalf("expected call body, got %v", body)
+	}
+}
+
+func TestParallelExpressionDiagnostics(t *testing.T) {
+	tests := []struct {
+		name        string
+		snippet     string
+		wantCode    diag.Code
+		wantMessage string
+	}{
+		{
+			name: "missing_with",
+			snippet: `
+				fn main() {
+					let x = parallel map xs => f;
+				}
+			`,
+			wantCode:    diag.SynUnexpectedToken,
+			wantMessage: "expected 'with' after parallel iterable",
+		},
+		{
+			name: "missing_mode",
+			snippet: `
+				fn main() {
+					let x = parallel xs with (item) => f(item);
+				}
+			`,
+			wantCode:    diag.SynUnexpectedToken,
+			wantMessage: "expected 'map' or 'reduce' after 'parallel'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, bag := parseSource(t, tt.snippet)
+			if !bag.HasErrors() {
+				t.Fatalf("expected diagnostics for %s", tt.name)
+			}
+			found := false
+			for _, d := range bag.Items() {
+				if d.Code == tt.wantCode && strings.Contains(d.Message, tt.wantMessage) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("expected diagnostic %s containing %q, got %s", tt.wantCode.ID(), tt.wantMessage, diagnosticsSummary(bag))
+			}
+		})
+	}
+}
+
+func TestFatArrowOutsideParallelDiagnostic(t *testing.T) {
+	_, _, bag := parseSource(t, `
+		fn main() {
+			let x = foo => bar;
+		}
+	`)
+	if !bag.HasErrors() {
+		t.Fatal("expected fat arrow diagnostic")
+	}
+
+	for _, d := range bag.Items() {
+		if d.Code == diag.SynFatArrowOutsideParallel {
+			return
+		}
+	}
+	t.Fatalf("fat arrow diagnostic not reported, got %s", diagnosticsSummary(bag))
 }

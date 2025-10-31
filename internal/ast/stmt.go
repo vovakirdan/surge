@@ -8,6 +8,7 @@ const (
 	StmtBlock StmtKind = iota
 	StmtLet
 	StmtExpr
+	StmtSignal
 	StmtReturn
 	StmtBreak
 	StmtContinue
@@ -30,6 +31,7 @@ type Stmts struct {
 	Blocks      *Arena[BlockStmt]
 	Lets        *Arena[LetStmt]
 	Exprs       *Arena[ExprStmt]
+	Signals     *Arena[SignalStmt]
 	Returns     *Arena[ReturnStmt]
 	Ifs         *Arena[IfStmt]
 	Whiles      *Arena[WhileStmt]
@@ -50,6 +52,7 @@ func NewStmts(capHint uint) *Stmts {
 		Blocks:      NewArena[BlockStmt](capHint),
 		Lets:        NewArena[LetStmt](capHint),
 		Exprs:       NewArena[ExprStmt](capHint),
+		Signals:     NewArena[SignalStmt](capHint),
 		Returns:     NewArena[ReturnStmt](capHint),
 		Ifs:         NewArena[IfStmt](capHint),
 		Whiles:      NewArena[WhileStmt](capHint),
@@ -83,6 +86,11 @@ type LetStmt struct {
 
 type ExprStmt struct {
 	Expr ExprID
+}
+
+type SignalStmt struct {
+	Name  source.StringID
+	Value ExprID
 }
 
 type ReturnStmt struct {
@@ -161,6 +169,22 @@ func (s *Stmts) Expr(id StmtID) *ExprStmt {
 		return nil
 	}
 	return s.Exprs.Get(uint32(stmt.Payload))
+}
+
+func (s *Stmts) NewSignal(span source.Span, name source.StringID, value ExprID) StmtID {
+	payload := PayloadID(s.Signals.Allocate(SignalStmt{
+		Name:  name,
+		Value: value,
+	}))
+	return s.New(StmtSignal, span, payload)
+}
+
+func (s *Stmts) Signal(id StmtID) *SignalStmt {
+	stmt := s.Get(id)
+	if stmt == nil || stmt.Kind != StmtSignal || !stmt.Payload.IsValid() {
+		return nil
+	}
+	return s.Signals.Get(uint32(stmt.Payload))
 }
 
 func (s *Stmts) NewReturn(span source.Span, expr ExprID) StmtID {

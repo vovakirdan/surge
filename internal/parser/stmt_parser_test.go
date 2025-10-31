@@ -54,7 +54,7 @@ func TestParseBlockStatements_Positive(t *testing.T) {
 
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
-		t.Fatalf("unexpected diagnostics: %+v", bag.Items())
+		t.Fatalf("unexpected diagnostics: %s", diagnosticsSummary(bag))
 	}
 
 	file := builder.Files.Get(fileID)
@@ -134,6 +134,96 @@ func TestParseBlockStatements_Positive(t *testing.T) {
 	}
 }
 
+func TestSignalStatement(t *testing.T) {
+	input := `
+		fn main() {
+			signal total := parallel reduce xs with init, (acc, price) => combine(acc, price);
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diagnosticsSummary(bag))
+	}
+
+	file := builder.Files.Get(fileID)
+	if file == nil || len(file.Items) != 1 {
+		t.Fatalf("expected single item file, got %+v", file)
+	}
+
+	itemID := file.Items[0]
+	fnItem, ok := builder.Items.Fn(itemID)
+	if !ok {
+		t.Fatalf("expected fn item, got %v", builder.Items.Get(itemID).Kind)
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil || len(block.Stmts) != 1 {
+		t.Fatalf("expected single statement in body, got %+v", block)
+	}
+
+	stmtID := block.Stmts[0]
+	stmt := builder.Stmts.Get(stmtID)
+	if stmt == nil {
+		t.Fatal("statement missing")
+	}
+	if stmt.Kind != ast.StmtSignal {
+		t.Fatalf("expected signal statement, got %v", stmt.Kind)
+	}
+
+	signalStmt := builder.Stmts.Signal(stmtID)
+	if signalStmt == nil {
+		t.Fatal("signal payload missing")
+	}
+	if lookupNameOr(builder, signalStmt.Name, "") != "total" {
+		t.Fatalf("expected signal target 'total', got %q", lookupNameOr(builder, signalStmt.Name, ""))
+	}
+	valueExpr := builder.Exprs.Get(signalStmt.Value)
+	if valueExpr == nil || valueExpr.Kind != ast.ExprParallel {
+		t.Fatalf("expected parallel expression, got %v", valueExpr)
+	}
+	reduceData, ok := builder.Exprs.Parallel(signalStmt.Value)
+	if !ok {
+		t.Fatal("parallel payload missing")
+	}
+	if reduceData.Kind != ast.ExprParallelReduce {
+		t.Fatalf("expected reduce kind, got %v", reduceData.Kind)
+	}
+	if !reduceData.Init.IsValid() {
+		t.Fatal("reduce initializer missing")
+	}
+	if initExpr := builder.Exprs.Get(reduceData.Init); initExpr == nil || initExpr.Kind != ast.ExprIdent {
+		t.Fatalf("expected identifier init, got %v", initExpr)
+	}
+	if len(reduceData.Args) != 2 {
+		t.Fatalf("expected two args, got %d", len(reduceData.Args))
+	}
+}
+
+func TestSignalStatementDiagnostics(t *testing.T) {
+	input := `
+		fn main() {
+			signal total = 1;
+		}
+	`
+
+	_, _, bag := parseSource(t, input)
+	if !bag.HasErrors() {
+		t.Fatal("expected diagnostics for malformed signal statement")
+	}
+
+	found := false
+	for _, d := range bag.Items() {
+		if d.Code == diag.SynUnexpectedToken && d.Message == "expected ':=' after signal target" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("missing signal diagnostic, got %s", diagnosticsSummary(bag))
+	}
+}
+
 func TestParseBlockStatements_Diagnostics(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -210,7 +300,7 @@ func TestParseReturnStatement(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			builder, fileID, bag := parseSource(t, tt.input)
 			if bag.HasErrors() {
-				t.Fatalf("unexpected errors: %+v", bag.Items())
+				t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 			}
 
 			file := builder.Files.Get(fileID)
@@ -248,7 +338,7 @@ func TestParseExpressionStatement(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			builder, fileID, bag := parseSource(t, tt.input)
 			if bag.HasErrors() {
-				t.Fatalf("unexpected errors: %+v", bag.Items())
+				t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 			}
 
 			file := builder.Files.Get(fileID)
@@ -285,7 +375,7 @@ func TestParseExpressionStatement(t *testing.T) {
 
 // 	builder, fileID, bag := parseSource(t, input)
 // 	if bag.HasErrors() {
-// 		t.Fatalf("unexpected errors: %+v", bag.Items())
+// 		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 // 	}
 
 // 	file := builder.Files.Get(fileID)
@@ -331,7 +421,7 @@ func TestParseLetStatementInFunction(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			builder, fileID, bag := parseSource(t, tt.input)
 			if bag.HasErrors() {
-				t.Fatalf("unexpected errors: %+v", bag.Items())
+				t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 			}
 
 			file := builder.Files.Get(fileID)
@@ -365,7 +455,7 @@ func TestParseMultipleStatementsInBlock(t *testing.T) {
 
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %+v", bag.Items())
+		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 	}
 
 	file := builder.Files.Get(fileID)
@@ -390,7 +480,7 @@ func TestParseEmptyBlock(t *testing.T) {
 
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %+v", bag.Items())
+		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 	}
 
 	file := builder.Files.Get(fileID)
@@ -464,7 +554,7 @@ func TestParseBlockWithWhitespace(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			builder, fileID, bag := parseSource(t, tt.input)
 			if bag.HasErrors() {
-				t.Fatalf("unexpected errors: %+v", bag.Items())
+				t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 			}
 
 			file := builder.Files.Get(fileID)
@@ -516,7 +606,7 @@ func TestParseComplexStatements(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			builder, fileID, bag := parseSource(t, tt.input)
 			if bag.HasErrors() {
-				t.Fatalf("unexpected errors: %+v", bag.Items())
+				t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 			}
 
 			file := builder.Files.Get(fileID)
@@ -536,7 +626,7 @@ func TestParseIfStatement(t *testing.T) {
 
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %+v", bag.Items())
+		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 	}
 
 	file := builder.Files.Get(fileID)
@@ -582,7 +672,7 @@ func TestParseWhileStatement(t *testing.T) {
 
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %+v", bag.Items())
+		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 	}
 
 	file := builder.Files.Get(fileID)
@@ -625,7 +715,7 @@ func TestParseForClassicStatement(t *testing.T) {
 
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %+v", bag.Items())
+		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 	}
 
 	file := builder.Files.Get(fileID)
@@ -675,7 +765,7 @@ func TestParseForInStatement(t *testing.T) {
 
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %+v", bag.Items())
+		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 	}
 
 	file := builder.Files.Get(fileID)
@@ -724,7 +814,7 @@ func TestParseBreakContinueStatements(t *testing.T) {
 
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %+v", bag.Items())
+		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 	}
 
 	file := builder.Files.Get(fileID)
@@ -760,7 +850,7 @@ func TestParseCompareExpressionStatement(t *testing.T) {
 
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %+v", bag.Items())
+		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 	}
 
 	file := builder.Files.Get(fileID)
@@ -832,7 +922,7 @@ func TestParseLetWithCompareExpression(t *testing.T) {
 
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %+v", bag.Items())
+		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 	}
 
 	file := builder.Files.Get(fileID)
@@ -876,7 +966,7 @@ func TestParseIfElseChain(t *testing.T) {
 
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %+v", bag.Items())
+		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 	}
 
 	file := builder.Files.Get(fileID)
@@ -917,7 +1007,7 @@ func TestParseForInWithoutTypeAnnotation(t *testing.T) {
 
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %+v", bag.Items())
+		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
 	}
 
 	file := builder.Files.Get(fileID)

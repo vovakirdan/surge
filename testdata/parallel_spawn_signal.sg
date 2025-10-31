@@ -1,0 +1,31 @@
+// Showcase of spawn expressions, signal statements, and parallel map/reduce usage.
+
+fn orchestrate(xs: int[], seed: int) -> int {
+    let compute_task = spawn compute_total(xs, seed);
+
+    // Broadcast intermediate streams so observers can react.
+    signal doubled := parallel map xs with (item) => spawn scale_item(item, 2);
+    signal rolling_sum := parallel reduce xs with seed, (acc, value) => acc + value;
+
+    if monitor(compute_task) {
+        return compute_task.await;
+    }
+    return seed;
+}
+
+fn compute_total(xs: int[], init: int) -> int {
+    let staged = parallel map xs with (value) => spawn scale_item(value, 3);
+    let total = parallel reduce xs with init, (acc, value) => acc + value;
+    // Emitting a signal from inside a helper demonstrates nested usage.
+    signal snapshot := total;
+    return total;
+}
+
+fn monitor(handle: Future[int]) -> bool {
+    signal status := "waiting";
+    return handle.is_ready();
+}
+
+fn scale_item(value: int, factor: int) -> int {
+    return value * factor;
+}

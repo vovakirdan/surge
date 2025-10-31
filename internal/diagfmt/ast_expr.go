@@ -175,6 +175,54 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 		value := formatExprInlineDepth(builder, data.Value, depth+1)
 		value = wrapExprIfNeeded(builder, data.Value, value)
 		return value + "..."
+	case ast.ExprSpawn:
+		data, ok := builder.Exprs.Spawn(exprID)
+		if !ok {
+			return "<invalid-spawn>"
+		}
+		operand := formatExprInlineDepth(builder, data.Value, depth+1)
+		operand = wrapExprIfNeeded(builder, data.Value, operand)
+		return "spawn " + operand
+	case ast.ExprParallel:
+		data, ok := builder.Exprs.Parallel(exprID)
+		if !ok {
+			return "<invalid-parallel>"
+		}
+		iterable := formatExprInlineDepth(builder, data.Iterable, depth+1)
+		iterable = wrapExprIfNeeded(builder, data.Iterable, iterable)
+		args := make([]string, 0, len(data.Args))
+		for _, argID := range data.Args {
+			arg := formatExprInlineDepth(builder, argID, depth+1)
+			args = append(args, arg)
+		}
+		argsList := "()"
+		if len(args) > 0 {
+			argsList = "(" + strings.Join(args, ", ") + ")"
+		}
+		body := formatExprInlineDepth(builder, data.Body, depth+1)
+		body = wrapExprIfNeeded(builder, data.Body, body)
+
+		var sb strings.Builder
+		switch data.Kind {
+		case ast.ExprParallelMap:
+			sb.WriteString("parallel map ")
+		case ast.ExprParallelReduce:
+			sb.WriteString("parallel reduce ")
+		default:
+			sb.WriteString("parallel <unknown> ")
+		}
+		sb.WriteString(iterable)
+		sb.WriteString(" with ")
+		if data.Kind == ast.ExprParallelReduce {
+			init := formatExprInlineDepth(builder, data.Init, depth+1)
+			init = wrapExprIfNeeded(builder, data.Init, init)
+			sb.WriteString(init)
+			sb.WriteString(", ")
+		}
+		sb.WriteString(argsList)
+		sb.WriteString(" => ")
+		sb.WriteString(body)
+		return sb.String()
 	case ast.ExprCompare:
 		data, ok := builder.Exprs.Compare(exprID)
 		if !ok {
@@ -343,8 +391,8 @@ func formatExprKind(kind ast.ExprKind) string {
 		return "Ternary"
 	case ast.ExprAwait:
 		return "Await"
-	case ast.ExprSignal:
-		return "Signal"
+	case ast.ExprSpawn:
+		return "Spawn"
 	case ast.ExprParallel:
 		return "Parallel"
 	case ast.ExprSpread:

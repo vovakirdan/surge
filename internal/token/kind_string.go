@@ -66,6 +66,12 @@ func (k Kind) String() string {
 		return "KwSignal"
 	case KwParallel:
 		return "KwParallel"
+	case KwMap:
+		return "KwMap"
+	case KwReduce:
+		return "KwReduce"
+	case KwWith:
+		return "KwWith"
 	case KwMacro:
 		return "KwMacro"
 	case KwPragma:

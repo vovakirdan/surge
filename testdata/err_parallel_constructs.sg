@@ -1,0 +1,11 @@
+// Counterexamples highlighting parser diagnostics for parallel/spawn/signal features.
+
+fn bad_parallel(xs: int[], init: int) {
+    let missing_with = parallel map xs => xs;
+    let bad_mode = parallel foo xs with () => xs;
+    let missing_init = parallel reduce xs with (acc, value) => acc + value;
+
+    signal total = 1;
+
+    let stray_arrow = xs => init;
+}

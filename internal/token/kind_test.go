@@ -74,6 +74,7 @@ func TestIsKeyword(t *testing.T) {
 		token.KwAs, token.KwType, token.KwTag,
 		token.KwExtern, token.KwPub, token.KwAsync, token.KwAwait, token.KwCompare, token.KwFinally,
 		token.KwChannel, token.KwSpawn, token.KwTrue, token.KwFalse, token.KwSignal, token.KwParallel,
+		token.KwMap, token.KwReduce, token.KwWith,
 		token.KwMacro, token.KwPragma, token.KwTo, token.KwHeir, token.KwIs,
 	}
 	for _, k := range keywords {

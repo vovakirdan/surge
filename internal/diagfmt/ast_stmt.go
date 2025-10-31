@@ -47,6 +47,16 @@ func buildStmtTreeNode(builder *ast.Builder, stmtID ast.StmtID, fs *source.FileS
 			&treeNode{label: fmt.Sprintf("Value: %s", formatExprSummary(builder, letStmt.Value))},
 		)
 
+	case ast.StmtSignal:
+		signalStmt := builder.Stmts.Signal(stmtID)
+		if signalStmt == nil {
+			return node
+		}
+		node.children = append(node.children,
+			&treeNode{label: fmt.Sprintf("Name: %s", lookupStringOr(builder, signalStmt.Name, "<anon>"))},
+			&treeNode{label: fmt.Sprintf("Value: %s", formatExprSummary(builder, signalStmt.Value))},
+		)
+
 	case ast.StmtExpr:
 		exprStmt := builder.Stmts.Expr(stmtID)
 		if exprStmt == nil {
@@ -222,6 +232,21 @@ func formatStmtJSON(builder *ast.Builder, stmtID ast.StmtID) (ASTNodeOutput, err
 				"exprID": func() any {
 					if exprStmt.Expr.IsValid() {
 						return uint32(exprStmt.Expr)
+					}
+					return nil
+				}(),
+			})
+		}
+
+	case ast.StmtSignal:
+		signalStmt := builder.Stmts.Signal(stmtID)
+		if signalStmt != nil {
+			output.Fields = cleanupNilFields(map[string]any{
+				"name":  lookupStringOr(builder, signalStmt.Name, "<anon>"),
+				"value": formatExprInline(builder, signalStmt.Value),
+				"valueID": func() any {
+					if signalStmt.Value.IsValid() {
+						return uint32(signalStmt.Value)
 					}
 					return nil
 				}(),
