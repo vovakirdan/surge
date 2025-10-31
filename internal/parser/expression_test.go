@@ -257,6 +257,175 @@ func TestCastExpression(t *testing.T) {
 	}
 }
 
+func TestAwaitPostfixExpressions(t *testing.T) {
+	t.Run("basic", func(t *testing.T) {
+		letItem, arenas := parseExprTestInput(t, "let x = future.await;")
+		if letItem.Value == ast.NoExprID {
+			t.Fatal("Expected expression value")
+		}
+
+		expr := arenas.Exprs.Get(letItem.Value)
+		if expr.Kind != ast.ExprAwait {
+			t.Fatalf("Expected await expression, got %v", expr.Kind)
+		}
+
+		awaitData, ok := arenas.Exprs.Await(letItem.Value)
+		if !ok {
+			t.Fatal("Failed to get await expression data")
+		}
+
+		operand := arenas.Exprs.Get(awaitData.Value)
+		if operand.Kind != ast.ExprIdent {
+			t.Fatalf("Expected await operand to be identifier, got %v", operand.Kind)
+		}
+
+		ident, ok := arenas.Exprs.Ident(awaitData.Value)
+		if !ok {
+			t.Fatal("Failed to resolve await operand identifier")
+		}
+
+		if arenas.StringsInterner.MustLookup(ident.Name) != "future" {
+			t.Fatalf("Expected operand name 'future', got %q", arenas.StringsInterner.MustLookup(ident.Name))
+		}
+	})
+
+	t.Run("awaitThenCast", func(t *testing.T) {
+		letItem, arenas := parseExprTestInput(t, "let x = future.await to int;")
+		if letItem.Value == ast.NoExprID {
+			t.Fatal("Expected expression value")
+		}
+
+		expr := arenas.Exprs.Get(letItem.Value)
+		if expr.Kind != ast.ExprCast {
+			t.Fatalf("Expected cast expression, got %v", expr.Kind)
+		}
+
+		castData, ok := arenas.Exprs.Cast(letItem.Value)
+		if !ok {
+			t.Fatal("Failed to get cast expression data")
+		}
+
+		awaitExpr := arenas.Exprs.Get(castData.Value)
+		if awaitExpr.Kind != ast.ExprAwait {
+			t.Fatalf("Expected await before cast, got %v", awaitExpr.Kind)
+		}
+	})
+
+	t.Run("awaitAfterCall", func(t *testing.T) {
+		letItem, arenas := parseExprTestInput(t, "let x = fetch().await;")
+		if letItem.Value == ast.NoExprID {
+			t.Fatal("Expected expression value")
+		}
+
+		expr := arenas.Exprs.Get(letItem.Value)
+		if expr.Kind != ast.ExprAwait {
+			t.Fatalf("Expected await expression, got %v", expr.Kind)
+		}
+
+		awaitData, ok := arenas.Exprs.Await(letItem.Value)
+		if !ok {
+			t.Fatal("Failed to get await expression data")
+		}
+
+		target := arenas.Exprs.Get(awaitData.Value)
+		if target.Kind != ast.ExprCall {
+			t.Fatalf("Expected await operand to be call, got %v", target.Kind)
+		}
+	})
+
+	t.Run("awaitThenMethodCall", func(t *testing.T) {
+		letItem, arenas := parseExprTestInput(t, "let x = task.await().method();")
+		if letItem.Value == ast.NoExprID {
+			t.Fatal("Expected expression value")
+		}
+
+		expr := arenas.Exprs.Get(letItem.Value)
+		if expr.Kind != ast.ExprCall {
+			t.Fatalf("Expected outer call expression, got %v", expr.Kind)
+		}
+
+		outerCall, ok := arenas.Exprs.Call(letItem.Value)
+		if !ok {
+			t.Fatal("Failed to get outer call data")
+		}
+
+		memberExpr := arenas.Exprs.Get(outerCall.Target)
+		if memberExpr.Kind != ast.ExprMember {
+			t.Fatalf("Expected member access target, got %v", memberExpr.Kind)
+		}
+
+		memberData, ok := arenas.Exprs.Member(outerCall.Target)
+		if !ok {
+			t.Fatal("Failed to get member payload")
+		}
+
+		callAfterAwait := arenas.Exprs.Get(memberData.Target)
+		if callAfterAwait.Kind != ast.ExprCall {
+			t.Fatalf("Expected call after await, got %v", callAfterAwait.Kind)
+		}
+
+		callAfterAwaitData, ok := arenas.Exprs.Call(memberData.Target)
+		if !ok {
+			t.Fatal("Failed to get call payload after await")
+		}
+
+		awaitExpr := arenas.Exprs.Get(callAfterAwaitData.Target)
+		if awaitExpr.Kind != ast.ExprAwait {
+			t.Fatalf("Expected await feeding inner call, got %v", awaitExpr.Kind)
+		}
+
+		awaitData, ok := arenas.Exprs.Await(callAfterAwaitData.Target)
+		if !ok {
+			t.Fatal("Failed to get await payload for inner call")
+		}
+
+		operand := arenas.Exprs.Get(awaitData.Value)
+		if operand.Kind != ast.ExprIdent {
+			t.Fatalf("Expected await operand to be identifier, got %v", operand.Kind)
+		}
+	})
+}
+
+func TestAwaitPostfixErrors(t *testing.T) {
+	t.Run("missingLeftOperand", func(t *testing.T) {
+		_, _, bag := parseSource(t, "let x = .await;")
+		if !bag.HasErrors() {
+			t.Fatal("expected diagnostics, got none")
+		}
+
+		found := false
+		for _, d := range bag.Items() {
+			if d.Code == diag.SynExpectExpression {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			t.Fatalf("expected SynExpectExpression diagnostic, got %+v", bag.Items())
+		}
+	})
+
+	t.Run("missingAfterDot", func(t *testing.T) {
+		_, _, bag := parseSource(t, "let x = future.;")
+		if !bag.HasErrors() {
+			t.Fatal("expected diagnostics, got none")
+		}
+
+		found := false
+		for _, d := range bag.Items() {
+			if d.Code == diag.SynExpectIdentifier {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			t.Fatalf("expected SynExpectIdentifier diagnostic, got %+v", bag.Items())
+		}
+	})
+}
+
 // Helper function для парсинга выражений в тестах
 func parseExprTestInput(t *testing.T, input string) (*ast.LetItem, *ast.Builder) {
 	t.Helper()

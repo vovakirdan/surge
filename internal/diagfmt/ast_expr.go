@@ -127,6 +127,14 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 			field = builder.StringsInterner.MustLookup(data.Field)
 		}
 		return fmt.Sprintf("%s.%s", target, field)
+	case ast.ExprAwait:
+		data, ok := builder.Exprs.Await(exprID)
+		if !ok {
+			return "<invalid-await>"
+		}
+		target := formatExprInlineDepth(builder, data.Value, depth+1)
+		target = wrapExprIfNeeded(builder, data.Value, target)
+		return target + ".await"
 	case ast.ExprGroup:
 		data, ok := builder.Exprs.Group(exprID)
 		if !ok {
