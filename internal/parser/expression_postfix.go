@@ -24,20 +24,14 @@ func (p *Parser) parseCallExpr(target ast.ExprID) (ast.ExprID, bool) {
 				}
 				return ast.NoExprID, false
 			}
-			args = append(args, arg)
-
 			// Проверяем spread-оператор: expr...
 			if p.at(token.DotDotDot) {
-				// TODO: Поддержка spread-оператора (если планируется)
-				// Пока выдаем ошибку и восстанавливаемся
-				p.err(diag.SynUnexpectedToken, "spread operator '...' is not yet supported in function calls")
-				p.advance()
-				p.resyncUntil(token.RParen, token.Comma, token.Semicolon, token.LBrace)
-				if p.at(token.RParen) {
-					p.advance()
-				}
-				return ast.NoExprID, false
+				spreadTok := p.advance()
+				argSpan := p.arenas.Exprs.Get(arg).Span
+				arg = p.arenas.Exprs.NewSpread(argSpan.Cover(spreadTok.Span), arg)
 			}
+
+			args = append(args, arg)
 
 			if !p.at(token.Comma) {
 				break

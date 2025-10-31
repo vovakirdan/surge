@@ -22,6 +22,7 @@ const (
 	ExprAwait
 	ExprSignal
 	ExprParallel
+	ExprSpread
 	ExprCompare
 )
 
@@ -161,6 +162,10 @@ type ExprArrayData struct {
 	Elements []ExprID
 }
 
+type ExprSpreadData struct {
+	Value ExprID
+}
+
 type ExprCompareArm struct {
 	Pattern     ExprID
 	PatternSpan source.Span
@@ -187,11 +192,12 @@ type Exprs struct {
 	Groups   *Arena[ExprGroupData]
 	Tuples   *Arena[ExprTupleData]
 	Arrays   *Arena[ExprArrayData]
+	Spreads  *Arena[ExprSpreadData]
 	Compares *Arena[ExprCompareData]
 }
 
 // NewExprs creates a new Exprs with per-kind arenas preallocated using capHint as the initial capacity.
-// If capHint is 0, a default capacity of 1<<8 is used; all expression arenas (Expr, Idents, Literals, Binaries, Unaries, Casts, Calls, Indices, Members, Groups, Tuples, Arrays) are initialized.
+// If capHint is 0, a default capacity of 1<<8 is used; all expression arenas (Expr, Idents, Literals, Binaries, Unaries, Casts, Calls, Indices, Members, Groups, Tuples, Arrays, Spreads, Compares) are initialized.
 func NewExprs(capHint uint) *Exprs {
 	if capHint == 0 {
 		capHint = 1 << 8
@@ -209,6 +215,7 @@ func NewExprs(capHint uint) *Exprs {
 		Groups:   NewArena[ExprGroupData](capHint),
 		Tuples:   NewArena[ExprTupleData](capHint),
 		Arrays:   NewArena[ExprArrayData](capHint),
+		Spreads:  NewArena[ExprSpreadData](capHint),
 		Compares: NewArena[ExprCompareData](capHint),
 	}
 }
@@ -366,6 +373,19 @@ func (e *Exprs) Array(id ExprID) (*ExprArrayData, bool) {
 		return nil, false
 	}
 	return e.Arrays.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewSpread(span source.Span, value ExprID) ExprID {
+	payload := e.Spreads.Allocate(ExprSpreadData{Value: value})
+	return e.new(ExprSpread, span, PayloadID(payload))
+}
+
+func (e *Exprs) Spread(id ExprID) (*ExprSpreadData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprSpread {
+		return nil, false
+	}
+	return e.Spreads.Get(uint32(expr.Payload)), true
 }
 
 func (e *Exprs) NewCompare(span source.Span, value ExprID, arms []ExprCompareArm) ExprID {

@@ -159,6 +159,14 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 		value = wrapExprIfNeeded(builder, data.Value, value)
 		typ := formatTypeExprInline(builder, data.Type)
 		return fmt.Sprintf("%s to %s", value, typ)
+	case ast.ExprSpread:
+		data, ok := builder.Exprs.Spread(exprID)
+		if !ok {
+			return "<invalid-spread>"
+		}
+		value := formatExprInlineDepth(builder, data.Value, depth+1)
+		value = wrapExprIfNeeded(builder, data.Value, value)
+		return value + "..."
 	case ast.ExprCompare:
 		data, ok := builder.Exprs.Compare(exprID)
 		if !ok {
@@ -329,6 +337,8 @@ func formatExprKind(kind ast.ExprKind) string {
 		return "Signal"
 	case ast.ExprParallel:
 		return "Parallel"
+	case ast.ExprSpread:
+		return "Spread"
 	case ast.ExprCompare:
 		return "Compare"
 	default:
