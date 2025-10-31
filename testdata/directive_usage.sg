@@ -1,0 +1,13 @@
+import directives::test;
+
+/// test:
+/// test.eq_int(answer(), 42)
+fn answer() -> int {
+    return 42;
+}
+
+/// test:
+/// test.succeeds(run_check)
+fn run_check() -> void {
+    return;
+}

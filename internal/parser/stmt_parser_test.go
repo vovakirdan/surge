@@ -10,6 +10,10 @@ import (
 )
 
 func parseSource(t *testing.T, input string) (*ast.Builder, ast.FileID, *diag.Bag) {
+	return parseSourceWithOptions(t, input, Options{})
+}
+
+func parseSourceWithOptions(t *testing.T, input string, opts Options) (*ast.Builder, ast.FileID, *diag.Bag) {
 	t.Helper()
 
 	fs := source.NewFileSet()
@@ -22,10 +26,10 @@ func parseSource(t *testing.T, input string) (*ast.Builder, ast.FileID, *diag.Ba
 	lx := lexer.New(file, lexer.Options{Reporter: reporter})
 	builder := ast.NewBuilder(ast.Hints{}, nil)
 
-	opts := Options{
-		MaxErrors: 100,
-		Reporter:  reporter,
+	if opts.MaxErrors == 0 {
+		opts.MaxErrors = 100
 	}
+	opts.Reporter = reporter
 
 	result := ParseFile(fs, lx, builder, opts)
 	if result.Bag == nil {
@@ -40,6 +44,139 @@ func lookupNameOr(builder *ast.Builder, id source.StringID, fallback string) str
 		return fallback
 	}
 	return builder.StringsInterner.MustLookup(id)
+}
+
+func TestParsePragmaDirective(t *testing.T) {
+	input := `pragma directive, no_std
+
+fn foo() {}
+`
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diagnosticsSummary(bag))
+	}
+	file := builder.Files.Get(fileID)
+	if file == nil {
+		t.Fatal("file not found")
+	}
+	if file.Pragma.IsEmpty() {
+		t.Fatal("expected pragma metadata")
+	}
+	if file.Pragma.Flags&ast.PragmaFlagDirective == 0 {
+		t.Fatalf("expected directive flag, got %v", file.Pragma.Flags)
+	}
+	if len(file.Pragma.Entries) != 2 {
+		t.Fatalf("expected 2 pragma entries, got %d", len(file.Pragma.Entries))
+	}
+	names := []string{
+		builder.StringsInterner.MustLookup(file.Pragma.Entries[0].Name),
+		builder.StringsInterner.MustLookup(file.Pragma.Entries[1].Name),
+	}
+	if names[0] != "directive" || names[1] != "no_std" {
+		t.Fatalf("unexpected pragma entry names: %v", names)
+	}
+}
+
+func TestPragmaPositionError(t *testing.T) {
+	input := `
+fn foo() {}
+
+pragma directive
+`
+	_, _, bag := parseSource(t, input)
+	if !bag.HasErrors() {
+		t.Fatal("expected pragma position error")
+	}
+	found := false
+	for _, d := range bag.Items() {
+		if d.Code == diag.SynPragmaPosition {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected SynPragmaPosition diagnostic, got %s", diagnosticsSummary(bag))
+	}
+}
+
+func TestDirectiveBlocksCollectedWhenEnabled(t *testing.T) {
+	input := `
+import stdlib/directives::test;
+
+/// test:
+/// test.eq(foo, 42)
+fn foo() -> int { return 42; }
+`
+	opts := Options{
+		MaxErrors:     100,
+		DirectiveMode: DirectiveModeCollect,
+	}
+	builder, fileID, bag := parseSourceWithOptions(t, input, opts)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diagnosticsSummary(bag))
+	}
+	file := builder.Files.Get(fileID)
+	if file == nil {
+		t.Fatal("file not found")
+	}
+	if len(file.Directives) != 1 {
+		t.Fatalf("expected 1 directive block, got %d", len(file.Directives))
+	}
+	block := file.Directives[0]
+	if lookupNameOr(builder, block.Namespace, "") != "test" {
+		t.Fatalf("expected namespace 'test', got %q", lookupNameOr(builder, block.Namespace, ""))
+	}
+	if block.Owner == ast.NoItemID {
+		t.Fatal("expected directive block to be attached to an item")
+	}
+	if len(block.Lines) != 1 {
+		t.Fatalf("expected 1 directive line, got %d", len(block.Lines))
+	}
+	lineText := lookupNameOr(builder, block.Lines[0].Text, "")
+	if lineText != "test.eq(foo, 42)" {
+		t.Fatalf("unexpected directive line %q", lineText)
+	}
+}
+
+func TestDirectiveBlocksIgnoredWhenOff(t *testing.T) {
+	input := `
+/// test:
+/// test.eq(foo, 42)
+fn foo() -> int { return 42; }
+`
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diagnosticsSummary(bag))
+	}
+	file := builder.Files.Get(fileID)
+	if file == nil {
+		t.Fatal("file not found")
+	}
+	if len(file.Directives) != 0 {
+		t.Fatalf("expected no directive blocks when mode=off, got %d", len(file.Directives))
+	}
+}
+
+func TestDirectiveIgnoresNonDirectiveDocComment(t *testing.T) {
+	input := `
+/// Note: returns 42
+fn foo() -> int { return 42; }
+`
+	opts := Options{
+		MaxErrors:     100,
+		DirectiveMode: DirectiveModeCollect,
+	}
+	builder, fileID, bag := parseSourceWithOptions(t, input, opts)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diagnosticsSummary(bag))
+	}
+	file := builder.Files.Get(fileID)
+	if file == nil {
+		t.Fatal("file not found")
+	}
+	if len(file.Directives) != 0 {
+		t.Fatalf("expected no directive blocks for regular doc comments, got %d", len(file.Directives))
+	}
 }
 
 func TestParseBlockStatements_Positive(t *testing.T) {

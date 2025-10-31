@@ -44,6 +44,7 @@ const (
 	SynIllegalItemInExtern     Code = 2024
 	SynVisibilityReduction     Code = 2025
 	SynFatArrowOutsideParallel Code = 2026
+	SynPragmaPosition          Code = 2027
 
 	// import errors & warnings
 	SynInfoImportGroup    Code = 2100
@@ -117,6 +118,7 @@ var ( // todo расширить описания и использовать к
 		SynIllegalItemInExtern:      "Illegal item inside extern block",
 		SynVisibilityReduction:      "Visibility reduction is not allowed",
 		SynFatArrowOutsideParallel:  "Fat arrow is only allowed in parallel expressions or compare arms",
+		SynPragmaPosition:           "Pragma must appear at the top of the file",
 		SynExpectIdentifier:         "Expect identifier",
 		SynExpectModuleSeg:          "Expect module segment",
 		SynExpectItemAfterDbl:       "Expect item after double colon",

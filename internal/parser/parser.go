@@ -2,6 +2,7 @@ package parser
 
 import (
 	"slices"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
@@ -15,6 +16,7 @@ type Options struct {
 	MaxErrors     uint
 	CurrentErrors uint
 	Reporter      diag.Reporter
+	DirectiveMode DirectiveMode
 }
 
 // Enough - проверить, достигли ли мы максимального количества ошибок
@@ -40,7 +42,17 @@ type Parser struct {
 	lastSpan source.Span // span последнего съеденного токена для лучшей диагностики
 	// allowFatArrow tracks the nesting depth of constructs where fat arrows are valid (compare arms, parallel expressions).
 	allowFatArrow int
+	pragmaParsed  bool
 }
+
+type DirectiveMode uint8
+
+const (
+	DirectiveModeOff DirectiveMode = iota
+	DirectiveModeCollect
+	DirectiveModeGen
+	DirectiveModeRun
+)
 
 // ParseFile — входная точка для разбора одного файла.
 // Требует уже созданный lexer (на основе source.File).
@@ -85,6 +97,7 @@ func (p *Parser) IsError() bool {
 // parseItems — основной цикл верхнего уровня: пока не EOF — parseItem.
 func (p *Parser) parseItems() {
 	startSpan := p.lx.Peek().Span
+	p.consumeModulePragma()
 	for !p.at(token.EOF) {
 		itemID, ok := p.parseItem()
 		if !ok {
@@ -97,15 +110,21 @@ func (p *Parser) parseItems() {
 }
 
 // parseItem выбирает по первому токену нужный распознаватель top-level конструкции.
-// На этом шаге мы поддерживаем только `import`, `let` и `fn`.
+// На этом шаге мы поддерживаем только `import`, `let`, `fn` и связанные конструкции.
 func (p *Parser) parseItem() (ast.ItemID, bool) {
+	if p.lx.Peek().Kind == token.KwPragma {
+		p.parsePragma(false)
+		return ast.NoItemID, false
+	}
+
+	directiveBlocks := p.collectDirectiveBlocks()
+
 	attrs, attrSpan, ok := p.parseAttributes()
 	if !ok {
 		p.resyncTop()
 		return ast.NoItemID, false
 	}
-	// switch по ключевым словам: если import → parseImportItem().
-	// Иначе — диагностика SynUnexpectedTopLevel и false.
+
 	switch p.lx.Peek().Kind {
 	case token.KwImport:
 		if len(attrs) > 0 && attrSpan.End > attrSpan.Start {
@@ -117,21 +136,49 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 				nil,
 			)
 		}
-		return p.parseImportItem()
+		itemID, parsed := p.parseImportItem()
+		if parsed {
+			p.attachDirectiveBlocks(itemID, directiveBlocks)
+		}
+		return itemID, parsed
 	case token.KwLet:
-		return p.parseLetItemWithVisibility(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
+		itemID, parsed := p.parseLetItemWithVisibility(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
+		if parsed {
+			p.attachDirectiveBlocks(itemID, directiveBlocks)
+		}
+		return itemID, parsed
 	case token.KwFn:
-		return p.parseFnItem(attrs, attrSpan, fnModifiers{})
+		itemID, parsed := p.parseFnItem(attrs, attrSpan, fnModifiers{})
+		if parsed {
+			p.attachDirectiveBlocks(itemID, directiveBlocks)
+		}
+		return itemID, parsed
 	case token.KwType:
-		return p.parseTypeItem(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
+		itemID, parsed := p.parseTypeItem(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
+		if parsed {
+			p.attachDirectiveBlocks(itemID, directiveBlocks)
+		}
+		return itemID, parsed
 	case token.KwTag:
-		return p.parseTagItem(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
+		itemID, parsed := p.parseTagItem(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
+		if parsed {
+			p.attachDirectiveBlocks(itemID, directiveBlocks)
+		}
+		return itemID, parsed
 	case token.KwExtern:
-		return p.parseExternItem(attrs, attrSpan)
+		itemID, parsed := p.parseExternItem(attrs, attrSpan)
+		if parsed {
+			p.attachDirectiveBlocks(itemID, directiveBlocks)
+		}
+		return itemID, parsed
 	case token.KwPub, token.KwAsync, token.Ident:
 		mods, _ := p.parseFnModifiers()
 		if p.at(token.KwFn) {
-			return p.parseFnItem(attrs, attrSpan, mods)
+			itemID, parsed := p.parseFnItem(attrs, attrSpan, mods)
+			if parsed {
+				p.attachDirectiveBlocks(itemID, directiveBlocks)
+			}
+			return itemID, parsed
 		}
 		if p.at(token.KwLet) {
 			visibility := ast.VisPrivate
@@ -167,7 +214,11 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 					},
 				)
 			}
-			return p.parseLetItemWithVisibility(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
+			itemID, parsed := p.parseLetItemWithVisibility(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
+			if parsed {
+				p.attachDirectiveBlocks(itemID, directiveBlocks)
+			}
+			return itemID, parsed
 		}
 		if p.at(token.KwType) {
 			visibility := ast.VisPrivate
@@ -203,7 +254,11 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 					},
 				)
 			}
-			return p.parseTypeItem(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
+			itemID, parsed := p.parseTypeItem(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
+			if parsed {
+				p.attachDirectiveBlocks(itemID, directiveBlocks)
+			}
+			return itemID, parsed
 		}
 		if p.at(token.KwTag) {
 			visibility := ast.VisPrivate
@@ -239,7 +294,11 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 					},
 				)
 			}
-			return p.parseTagItem(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
+			itemID, parsed := p.parseTagItem(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
+			if parsed {
+				p.attachDirectiveBlocks(itemID, directiveBlocks)
+			}
+			return itemID, parsed
 		}
 		if mods.flags != 0 {
 			span := mods.span

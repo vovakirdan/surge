@@ -1,0 +1,13 @@
+pragma directive
+
+/// Simple directive module leveraged by surge demo projects.
+
+pub fn eq_int(actual: int, expected: int) -> void {
+    if actual != expected {
+        panic("eq_int failed");
+    }
+}
+
+pub fn succeeds(work: fn() -> void) -> void {
+    work();
+}

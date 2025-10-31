@@ -5,8 +5,10 @@ import (
 )
 
 type File struct {
-	Span  source.Span
-	Items []ItemID
+	Span       source.Span
+	Items      []ItemID
+	Pragma     Pragma
+	Directives []DirectiveBlock
 }
 
 type Files struct {
@@ -21,8 +23,10 @@ func NewFiles(capHint uint) *Files {
 
 func (f *Files) New(sp source.Span) FileID {
 	return FileID(f.Arena.Allocate(File{
-		Span:  sp,
-		Items: make([]ItemID, 0),
+		Span:       sp,
+		Items:      make([]ItemID, 0),
+		Pragma:     Pragma{},
+		Directives: make([]DirectiveBlock, 0),
 	}))
 }
 
