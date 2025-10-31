@@ -25,7 +25,7 @@ func batchesToNames(idx ModuleIndex, batches [][]ModuleID) [][]string {
 }
 
 func TestBuildIndexIncludesImports(t *testing.T) {
-	metas := []project.ModuleMeta{
+	metas := []*project.ModuleMeta{
 		{
 			Path: "core/main",
 			Imports: []project.ImportMeta{
@@ -58,7 +58,7 @@ func TestBuildGraphReportsMissingModules(t *testing.T) {
 	coreSpan := source.Span{File: 2, Start: 0, End: 8}
 	utilImportSpan := source.Span{File: 1, Start: 5, End: 8}
 
-	appMeta := project.ModuleMeta{
+	appMeta := &project.ModuleMeta{
 		Path: "app",
 		Span: appSpan,
 		Imports: []project.ImportMeta{
@@ -66,7 +66,7 @@ func TestBuildGraphReportsMissingModules(t *testing.T) {
 			{Path: "util", Span: utilImportSpan},
 		},
 	}
-	coreMeta := project.ModuleMeta{
+	coreMeta := &project.ModuleMeta{
 		Path: "core",
 		Span: coreSpan,
 		Imports: []project.ImportMeta{
@@ -81,7 +81,7 @@ func TestBuildGraphReportsMissingModules(t *testing.T) {
 		{Meta: appMeta, Reporter: &diag.BagReporter{Bag: bagApp}},
 		{Meta: coreMeta, Reporter: &diag.BagReporter{Bag: bagCore}},
 	}
-	idx := BuildIndex([]project.ModuleMeta{appMeta, coreMeta})
+	idx := BuildIndex([]*project.ModuleMeta{appMeta, coreMeta})
 	graph, _ := BuildGraph(idx, nodes)
 
 	appID := idx.NameToID["app"]
@@ -121,8 +121,8 @@ func TestBuildGraphDuplicateModules(t *testing.T) {
 	spanA := source.Span{File: 1, Start: 0, End: 5}
 	spanB := source.Span{File: 2, Start: 0, End: 5}
 
-	metaA := project.ModuleMeta{Path: "dup/mod", Span: spanA}
-	metaB := project.ModuleMeta{Path: "dup/mod", Span: spanB}
+	metaA := &project.ModuleMeta{Path: "dup/mod", Span: spanA}
+	metaB := &project.ModuleMeta{Path: "dup/mod", Span: spanB}
 
 	bagA := diag.NewBag(10)
 	bagB := diag.NewBag(10)
@@ -132,7 +132,7 @@ func TestBuildGraphDuplicateModules(t *testing.T) {
 		{Meta: metaB, Reporter: &diag.BagReporter{Bag: bagB}},
 	}
 
-	idx := BuildIndex([]project.ModuleMeta{metaA, metaB})
+	idx := BuildIndex([]*project.ModuleMeta{metaA, metaB})
 	graph, slots := BuildGraph(idx, nodes)
 
 	if !graph.Present[idx.NameToID["dup/mod"]] {
@@ -157,7 +157,7 @@ func TestBuildGraphDuplicateModules(t *testing.T) {
 }
 
 func TestToposortKahnBatches(t *testing.T) {
-	metas := []project.ModuleMeta{
+	metas := []*project.ModuleMeta{
 		{Path: "b", Imports: []project.ImportMeta{{Path: "c"}}},
 		{Path: "a"},
 		{Path: "c"},
@@ -209,14 +209,14 @@ func TestReportCycles(t *testing.T) {
 	spanA := source.Span{File: 1, Start: 0, End: 4}
 	spanB := source.Span{File: 2, Start: 0, End: 4}
 
-	metaA := project.ModuleMeta{
+	metaA := &project.ModuleMeta{
 		Path: "a",
 		Span: spanA,
 		Imports: []project.ImportMeta{
 			{Path: "b", Span: spanA},
 		},
 	}
-	metaB := project.ModuleMeta{
+	metaB := &project.ModuleMeta{
 		Path: "b",
 		Span: spanB,
 		Imports: []project.ImportMeta{
@@ -232,7 +232,7 @@ func TestReportCycles(t *testing.T) {
 		{Meta: metaB, Reporter: &diag.BagReporter{Bag: bagB}},
 	}
 
-	idx := BuildIndex([]project.ModuleMeta{metaA, metaB})
+	idx := BuildIndex([]*project.ModuleMeta{metaA, metaB})
 	graph, slots := BuildGraph(idx, nodes)
 
 	topo := ToposortKahn(graph)
@@ -254,14 +254,14 @@ func TestReportBrokenDeps(t *testing.T) {
 	importSpan := source.Span{File: 1, Start: 0, End: 10}
 	depSpan := source.Span{File: 2, Start: 0, End: 8}
 
-	importMeta := project.ModuleMeta{
+	importMeta := &project.ModuleMeta{
 		Path: "app",
 		Span: importSpan,
 		Imports: []project.ImportMeta{
 			{Path: "lib/util", Span: importSpan},
 		},
 	}
-	depMeta := project.ModuleMeta{
+	depMeta := &project.ModuleMeta{
 		Path: "lib/util",
 		Span: depSpan,
 	}
@@ -290,7 +290,7 @@ func TestReportBrokenDeps(t *testing.T) {
 		},
 	}
 
-	idx := BuildIndex([]project.ModuleMeta{importMeta, depMeta})
+	idx := BuildIndex([]*project.ModuleMeta{importMeta, depMeta})
 	graph, slots := BuildGraph(idx, nodes)
 	topo := ToposortKahn(graph)
 	if topo.Cyclic {

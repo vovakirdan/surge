@@ -17,7 +17,7 @@ type ModuleIndex struct {
 }
 
 // собрать уникальные пути, sort.Strings, раздать ID по порядку
-func BuildIndex(metas []project.ModuleMeta) ModuleIndex {
+func BuildIndex(metas []*project.ModuleMeta) ModuleIndex {
 	uniq := make(map[string]struct{}, len(metas))
 	for _, meta := range metas {
 		if meta.Path != "" {

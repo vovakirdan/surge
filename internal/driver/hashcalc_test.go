@@ -11,7 +11,9 @@ import (
 
 func digest(b byte) project.Digest {
 	var d project.Digest
-	for i := range d { d[i] = b }
+	for i := range d {
+		d[i] = b
+	}
 	return d
 }
 
@@ -24,27 +26,27 @@ func TestComputeModuleHashes_DeterministicAndTransitive(t *testing.T) {
 			/*B*/ {2},
 			/*C*/ {},
 		},
-		Indeg:   []int{0,1,1},
-		Present: []bool{true,true,true},
+		Indeg:   []int{0, 1, 1},
+		Present: []bool{true, true, true},
 	}
 	// Топосорт без циклов
 	topo := &dag.Topo{
-		Order:   []dag.ModuleID{0,1,2}, // порядок не так важен, считаем в обратном
+		Order:   []dag.ModuleID{0, 1, 2}, // порядок не так важен, считаем в обратном
 		Batches: nil,
 		Cyclic:  false,
 	}
 
 	// Слоты с content-хешами
 	slots := []dag.ModuleSlot{
-		{Meta: project.ModuleMeta{Path:"A", ContentHash: digest('A')}, Present:true},
-		{Meta: project.ModuleMeta{Path:"B", ContentHash: digest('B')}, Present:true},
-		{Meta: project.ModuleMeta{Path:"C", ContentHash: digest('C')}, Present:true},
+		{Meta: &project.ModuleMeta{Path: "A", ContentHash: digest('A')}, Present: true},
+		{Meta: &project.ModuleMeta{Path: "B", ContentHash: digest('B')}, Present: true},
+		{Meta: &project.ModuleMeta{Path: "C", ContentHash: digest('C')}, Present: true},
 	}
 
 	driver.ComputeModuleHashes(dag.ModuleIndex{}, g, slots, topo)
 
 	// Хеш C = H(C)
-	if bytes.Equal(slots[2].Meta.ModuleHash[:], make([]byte,32)) {
+	if bytes.Equal(slots[2].Meta.ModuleHash[:], make([]byte, 32)) {
 		t.Fatal("C.ModuleHash should be non-zero")
 	}
 	// Хеш B = H(B || C)
@@ -68,14 +70,14 @@ func TestComputeModuleHashes_DeterministicAndTransitive(t *testing.T) {
 
 func TestComputeModuleHashes_CycleDoesNothing(t *testing.T) {
 	g := dag.Graph{
-		Edges:   [][]dag.ModuleID{{1},{0}},
-		Indeg:   []int{1,1},
-		Present: []bool{true,true},
+		Edges:   [][]dag.ModuleID{{1}, {0}},
+		Indeg:   []int{1, 1},
+		Present: []bool{true, true},
 	}
-	topo := &dag.Topo{Cyclic:true}
+	topo := &dag.Topo{Cyclic: true}
 	slots := []dag.ModuleSlot{
-		{Meta: project.ModuleMeta{Path:"A", ContentHash: digest('A')}, Present:true},
-		{Meta: project.ModuleMeta{Path:"B", ContentHash: digest('B')}, Present:true},
+		{Meta: &project.ModuleMeta{Path: "A", ContentHash: digest('A')}, Present: true},
+		{Meta: &project.ModuleMeta{Path: "B", ContentHash: digest('B')}, Present: true},
 	}
 	driver.ComputeModuleHashes(dag.ModuleIndex{}, g, slots, topo)
 	if slots[0].Meta.ModuleHash != ([32]byte{}) || slots[1].Meta.ModuleHash != ([32]byte{}) {

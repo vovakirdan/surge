@@ -57,7 +57,8 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 	loadErrors := make(map[string]error, len(files))
 
 	for _, p := range files {
-		id, err := fileSet.Load(p)
+		var id source.FileID
+		id, err = fileSet.Load(p)
 		if err != nil {
 			loadErrors[p] = err
 			continue
@@ -71,6 +72,15 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 
 	if jobs <= 0 {
 		jobs = runtime.GOMAXPROCS(0)
+	}
+
+	// Общий in-memory кэш на прогон
+	mcache := NewModuleCache(len(files) * 2)
+	// Диск-кэш (под будущие экспорты/семантику). Ошибки игнорируем — не критично.
+	var dcache *DiskCache
+	dcache, err = OpenDiskCache("surge")
+	if err != nil {
+		return nil, nil, err
 	}
 
 	results := make([]DiagnoseDirResult, len(files))
@@ -110,20 +120,51 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				}
 				file := fileSet.Get(fileID)
 
+				// Предвычислим modulePath по имени файла, чтобы обратиться к кэшу до парсинга.
+				modulePath := file.Path
+				if base := fileSet.BaseDir(); base != "" {
+					var rel string
+					if rel, err = source.RelativePath(modulePath, base); err == nil {
+						modulePath = rel
+					}
+				}
+				var norm string
+				if norm, err = project.NormalizeModulePath(modulePath); err == nil {
+					modulePath = norm
+				}
+
+				// Попытка хита по (modulePath, contentHash): если совпало — можно пропустить парсинг.
+				if _, br, fe, ok := mcache.Get(modulePath, file.Hash); ok {
+					// Складываем минимальный результат; Bag оставим пустым (или info по желанию).
+					results[i] = DiagnoseDirResult{
+						Path:    path,
+						FileID:  fileID,
+						Bag:     bag,
+						Builder: nil,
+						ASTFile: 0,
+					}
+					// Для графа модулей мы воспользуемся кешированным meta ниже (в общей сборке).
+					// Сохраним его в Bag как info (опционально).
+					_ = br
+					_ = fe
+					return nil
+				}
+
 				switch opts.Stage {
 				case DiagnoseStageTokenize:
-					if err := diagnoseTokenize(file, bag); err != nil {
+					err = diagnoseTokenize(file, bag)
+					if err != nil {
 						return err
 					}
 				case DiagnoseStageSyntax:
-					if err := diagnoseTokenize(file, bag); err == nil {
+					if err = diagnoseTokenize(file, bag); err == nil {
 						builder, astFile, err = diagnoseParse(fileSet, file, bag)
 						if err != nil {
 							return err
 						}
 					}
 				case DiagnoseStageSema, DiagnoseStageAll:
-					if err := diagnoseTokenize(file, bag); err == nil {
+					if err = diagnoseTokenize(file, bag); err == nil {
 						builder, astFile, err = diagnoseParse(fileSet, file, bag)
 						if err != nil {
 							return err
@@ -131,7 +172,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 						// TODO: добавить семантическую диагностику
 					}
 				default:
-					if err := diagnoseTokenize(file, bag); err == nil {
+					if err = diagnoseTokenize(file, bag); err == nil {
 						builder, astFile, err = diagnoseParse(fileSet, file, bag)
 						if err != nil {
 							return err
@@ -151,27 +192,54 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 		}(i, path))
 	}
 
-	if err := g.Wait(); err != nil {
+	err = g.Wait()
+	if err != nil {
 		return fileSet, results, err
 	}
 
 	if opts.Stage == DiagnoseStageSyntax || opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
 		baseDir := fileSet.BaseDir()
 		type entry struct {
-			meta project.ModuleMeta
+			meta *project.ModuleMeta
 			node dag.ModuleNode
 		}
 		entries := make([]*entry, 0, len(results))
+		// Собираем метаданные: либо из кэша, либо из свежего парсинга, либо fallback.
 		for i := range results {
 			res := &results[i]
 			if res.Bag == nil || res.Builder == nil {
 				continue
 			}
 			reporter := &diag.BagReporter{Bag: res.Bag}
-			meta, ok := buildModuleMeta(fileSet, res.Builder, res.ASTFile, baseDir, reporter)
+			var (
+				meta *project.ModuleMeta
+				ok   bool
+				norm string
+				rel  string
+			)
+			file := fileSet.Get(res.FileID)
+			// Попробуем взять из in-memory кэша (по пути файла).
+			modulePath := file.Path
+			if baseDir != "" {
+				if rel, err = source.RelativePath(modulePath, baseDir); err == nil {
+					modulePath = rel
+				}
+			}
+			if norm, err = project.NormalizeModulePath(modulePath); err == nil {
+				modulePath = norm
+			}
+			if m, _, _, hit := mcache.Get(modulePath, file.Hash); hit {
+				meta = m
+				ok = true
+			} else if res.Builder != nil {
+				meta, ok = buildModuleMeta(fileSet, res.Builder, res.ASTFile, baseDir, reporter)
+			}
 			if !ok {
-				file := fileSet.Get(res.FileID)
 				meta = fallbackModuleMeta(file, baseDir)
+				// Гарантируем ContentHash (для последующих шагов)
+				if meta.ContentHash == ([32]byte{}) {
+					meta.ContentHash = file.Hash
+				}
 			}
 			broken, firstErr := moduleStatus(res.Bag)
 			entries = append(entries, &entry{
@@ -183,12 +251,14 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					FirstErr: firstErr,
 				},
 			})
+			// Положим в in-memory cache (обновление/вставка).
+			mcache.Put(meta, broken, firstErr)
 		}
 		if len(entries) > 0 {
 			sort.Slice(entries, func(i, j int) bool {
 				return entries[i].meta.Path < entries[j].meta.Path
 			})
-			metas := make([]project.ModuleMeta, 0, len(entries))
+			metas := make([]*project.ModuleMeta, 0, len(entries))
 			nodes := make([]*dag.ModuleNode, 0, len(entries))
 			for _, e := range entries {
 				metas = append(metas, e.meta)
@@ -209,6 +279,20 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					slots[i].Broken = true
 					if slots[i].FirstErr == nil && firstErrNow != nil {
 						slots[i].FirstErr = firstErrNow
+					}
+				}
+				// инкрементально обновим кэш на основе актуальной меты (с ModuleHash)
+				m := slots[i].Meta
+				mcache.Put(m, slots[i].Broken, slots[i].FirstErr)
+				// и положим запись в диск-кэш (ключ — ModuleHash).
+				if dcache != nil && IsSHA256(m.ModuleHash) {
+					err = dcache.Put(m.ModuleHash, &DiskPayload{
+						Schema:     1,
+						Path:       m.Path,
+						ModuleHash: m.ModuleHash,
+					})
+					if err != nil {
+						return nil, nil, err
 					}
 				}
 			}

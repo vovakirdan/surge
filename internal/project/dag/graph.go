@@ -19,14 +19,14 @@ type Graph struct {
 }
 
 type ModuleNode struct {
-	Meta     project.ModuleMeta
+	Meta     *project.ModuleMeta
 	Reporter diag.Reporter
 	Broken   bool
 	FirstErr *diag.Diagnostic
 }
 
 type ModuleSlot struct {
-	Meta     project.ModuleMeta
+	Meta     *project.ModuleMeta
 	Reporter diag.Reporter
 	Present  bool
 	Broken   bool
@@ -42,10 +42,13 @@ func BuildGraph(idx ModuleIndex, nodes []*ModuleNode) (Graph, []ModuleSlot) {
 	}
 	slots := make([]ModuleSlot, nodeCount)
 	for i, name := range idx.IDToName {
-		slots[i].Meta.Path = name
+		slots[i].Meta = &project.ModuleMeta{Path: name}
 	}
 
 	for _, node := range nodes {
+		if node == nil || node.Meta == nil {
+			continue
+		}
 		meta := node.Meta
 		if meta.Path == "" {
 			continue

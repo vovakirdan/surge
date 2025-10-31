@@ -17,10 +17,10 @@ func buildModuleMeta(
 	fileID ast.FileID,
 	baseDir string,
 	reporter diag.Reporter,
-) (project.ModuleMeta, bool) {
+) (*project.ModuleMeta, bool) {
 	fileNode := builder.Files.Get(fileID)
 	if fileNode == nil {
-		return project.ModuleMeta{}, false
+		return nil, false
 	}
 
 	fileSpan := fileNode.Span
@@ -45,10 +45,10 @@ func buildModuleMeta(
 				nil,
 			)
 		}
-		return project.ModuleMeta{}, false
+		return nil, false
 	}
 
-	meta := project.ModuleMeta{
+	meta := &project.ModuleMeta{
 		Path:        fullModulePath,
 		Span:        fileSpan,
 		ContentHash: srcFile.Hash,

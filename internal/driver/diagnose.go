@@ -68,8 +68,8 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		builder *ast.Builder
 		astFile ast.FileID
 	)
-    // per-call cache (следующим шагом добавим его в параллельный обход директорий)
-    cache := NewModuleCache(256)
+	// per-call cache (следующим шагом добавим его в параллельный обход директорий)
+	cache := NewModuleCache(256)
 
 	// Запускаем диагностику по стадиям
 	switch opts.Stage {
@@ -203,7 +203,7 @@ func Parse(path string, maxDiagnostics int) (*ParseResult, error) {
 }
 
 type moduleRecord struct {
-	Meta     project.ModuleMeta
+	Meta     *project.ModuleMeta
 	Bag      *diag.Bag
 	Broken   bool
 	FirstErr *diag.Diagnostic
@@ -278,7 +278,7 @@ func runModuleGraph(
 	}
 	sort.Strings(paths)
 
-	metas := make([]project.ModuleMeta, 0, len(paths))
+	metas := make([]*project.ModuleMeta, 0, len(paths))
 	nodes := make([]*dag.ModuleNode, 0, len(paths))
 	for _, p := range paths {
 		rec := records[p]
@@ -330,17 +330,17 @@ func analyzeDependencyModule(
 		return nil, err
 	}
 	file := fs.Get(fileID)
-    // try cache by modulePath + content hash
-    if cache != nil {
-        if m, br, fe, ok := cache.Get(modulePath, file.Hash); ok {
-            return &moduleRecord{
-                Meta:     m,
-                Bag:      diag.NewBag(opts.MaxDiagnostics), // пустой bag для согласованности
-                Broken:   br,
-                FirstErr: fe,
-            }, nil
-        }
-    }
+	// try cache by modulePath + content hash
+	if cache != nil {
+		if m, br, fe, ok := cache.Get(modulePath, file.Hash); ok {
+			return &moduleRecord{
+				Meta:     m,
+				Bag:      diag.NewBag(opts.MaxDiagnostics), // пустой bag для согласованности
+				Broken:   br,
+				FirstErr: fe,
+			}, nil
+		}
+	}
 	bag := diag.NewBag(opts.MaxDiagnostics)
 	err = diagnoseTokenize(file, bag)
 	if err != nil {
@@ -358,9 +358,13 @@ func analyzeDependencyModule(
 		meta = fallbackModuleMeta(file, baseDir)
 	}
 	broken, firstErr := moduleStatus(bag)
-    // fill content hash (на случай fallback)
-    if meta.ContentHash == ([32]byte{}) { meta.ContentHash = file.Hash }
-    if cache != nil { cache.Put(meta, broken, firstErr) }
+	// fill content hash (на случай fallback)
+	if meta.ContentHash == ([32]byte{}) {
+		meta.ContentHash = file.Hash
+	}
+	if cache != nil {
+		cache.Put(meta, broken, firstErr)
+	}
 	return &moduleRecord{
 		Meta:     meta,
 		Bag:      bag,
@@ -392,7 +396,7 @@ func modulePathToFilePath(baseDir, modulePath string) string {
 	return filepath.Join(baseDir, rel)
 }
 
-func fallbackModuleMeta(file *source.File, baseDir string) project.ModuleMeta {
+func fallbackModuleMeta(file *source.File, baseDir string) *project.ModuleMeta {
 	path := file.Path
 	if baseDir != "" {
 		if rel, err := source.RelativePath(path, baseDir); err == nil {
@@ -406,7 +410,7 @@ func fallbackModuleMeta(file *source.File, baseDir string) project.ModuleMeta {
 	if err != nil {
 		panic(fmt.Errorf("len file content overflow: %w", err))
 	}
-	return project.ModuleMeta{
+	return &project.ModuleMeta{
 		Path: path,
 		Span: source.Span{File: file.ID, Start: 0, End: lenFileContent},
 	}
