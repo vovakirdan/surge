@@ -362,6 +362,88 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 				}
 			}
 		}
+	case ast.ItemTag:
+		if tagItem, ok := builder.Items.Tag(itemID); ok {
+			fields := []struct {
+				label string
+				value string
+				show  bool
+			}{
+				{"Name", lookupStringOr(builder, tagItem.Name, "<anon>"), true},
+				{"Visibility", tagItem.Visibility.String(), true},
+			}
+
+			if len(tagItem.Generics) > 0 {
+				genericNames := make([]string, 0, len(tagItem.Generics))
+				for _, gid := range tagItem.Generics {
+					genericNames = append(genericNames, lookupStringOr(builder, gid, "_"))
+				}
+				fields = append(fields, struct {
+					label string
+					value string
+					show  bool
+				}{
+					label: "Generics",
+					value: "<" + strings.Join(genericNames, ", ") + ">",
+					show:  true,
+				})
+			}
+
+			if len(tagItem.Payload) > 0 {
+				payloadTypes := make([]string, 0, len(tagItem.Payload))
+				for _, pid := range tagItem.Payload {
+					payloadTypes = append(payloadTypes, formatTypeExprInline(builder, pid))
+				}
+				fields = append(fields, struct {
+					label string
+					value string
+					show  bool
+				}{
+					label: "Payload",
+					value: strings.Join(payloadTypes, ", "),
+					show:  true,
+				})
+			}
+
+			if tagItem.AttrCount > 0 {
+				attrs := builder.Items.CollectAttrs(tagItem.AttrStart, tagItem.AttrCount)
+				if len(attrs) > 0 {
+					attrStrings := make([]string, 0, len(attrs))
+					for _, attr := range attrs {
+						attrStrings = append(attrStrings, formatAttrInline(builder, attr))
+					}
+					fields = append(fields, struct {
+						label string
+						value string
+						show  bool
+					}{
+						label: "Attributes",
+						value: strings.Join(attrStrings, ", "),
+						show:  true,
+					})
+				}
+			}
+
+			visible := 0
+			for _, f := range fields {
+				if f.show {
+					visible++
+				}
+			}
+
+			current := 0
+			for _, f := range fields {
+				if !f.show {
+					continue
+				}
+				current++
+				marker := "├─"
+				if current == visible {
+					marker = "└─"
+				}
+				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, f.label, f.value)
+			}
+		}
 	case ast.ItemFn:
 		if fnItem, ok := builder.Items.Fn(itemID); ok {
 			type fnField struct {

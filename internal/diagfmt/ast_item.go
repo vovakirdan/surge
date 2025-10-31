@@ -195,6 +195,38 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 
 			output.Fields = fields
 		}
+	case ast.ItemTag:
+		if tagItem, ok := builder.Items.Tag(itemID); ok {
+			fields := map[string]any{
+				"name":       lookupStringOr(builder, tagItem.Name, "<anon>"),
+				"visibility": tagItem.Visibility.String(),
+			}
+
+			if len(tagItem.Generics) > 0 {
+				genericNames := make([]string, 0, len(tagItem.Generics))
+				for _, gid := range tagItem.Generics {
+					genericNames = append(genericNames, lookupStringOr(builder, gid, "_"))
+				}
+				fields["generics"] = genericNames
+			}
+
+			if len(tagItem.Payload) > 0 {
+				payload := make([]string, 0, len(tagItem.Payload))
+				for _, pid := range tagItem.Payload {
+					payload = append(payload, formatTypeExprInline(builder, pid))
+				}
+				fields["payload"] = payload
+			}
+
+			if tagItem.AttrCount > 0 {
+				attrs := builder.Items.CollectAttrs(tagItem.AttrStart, tagItem.AttrCount)
+				if len(attrs) > 0 {
+					fields["attributes"] = buildAttrsJSON(builder, attrs)
+				}
+			}
+
+			output.Fields = fields
+		}
 	case ast.ItemExtern:
 		if externItem, ok := builder.Items.Extern(itemID); ok {
 			fields := map[string]any{

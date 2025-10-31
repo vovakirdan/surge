@@ -148,3 +148,14 @@ func (b *Builder) NewExtern(
 ) ItemID {
 	return b.Items.NewExtern(target, attrs, members, span)
 }
+
+func (b *Builder) NewTag(
+	name source.StringID,
+	generics []source.StringID,
+	payload []TypeID,
+	attrs []Attr,
+	visibility Visibility,
+	span source.Span,
+) ItemID {
+	return b.Items.NewTag(name, generics, payload, attrs, visibility, span)
+}

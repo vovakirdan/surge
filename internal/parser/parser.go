@@ -122,6 +122,8 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 		return p.parseFnItem(attrs, attrSpan, fnModifiers{})
 	case token.KwType:
 		return p.parseTypeItem(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
+	case token.KwTag:
+		return p.parseTagItem(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
 	case token.KwExtern:
 		return p.parseExternItem(attrs, attrSpan)
 	case token.KwPub, token.KwAsync, token.Ident:
@@ -201,6 +203,42 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 			}
 			return p.parseTypeItem(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
 		}
+		if p.at(token.KwTag) {
+			visibility := ast.VisPrivate
+			if mods.flags&ast.FnModifierPublic != 0 {
+				visibility = ast.VisPublic
+			}
+			invalid := mods.flags &^ ast.FnModifierPublic
+			if invalid != 0 {
+				span := mods.span
+				if !mods.hasSpan {
+					span = p.lx.Peek().Span
+				}
+				p.emitDiagnostic(
+					diag.SynUnexpectedModifier,
+					diag.SevError,
+					span,
+					"unexpected modifiers before 'tag'",
+					func(b *diag.ReportBuilder) {
+						if b == nil {
+							return
+						}
+						fixID := fix.MakeFixID(diag.SynUnexpectedModifier, span)
+						suggestion := fix.DeleteSpan(
+							"remove the invalid modifiers",
+							span.ExtendRight(p.lx.Peek().Span),
+							"",
+							fix.WithID(fixID),
+							fix.WithKind(diag.FixKindRefactor),
+							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						)
+						b.WithFixSuggestion(suggestion)
+						b.WithNote(span, "only 'pub' modifier is allowed before 'tag'")
+					},
+				)
+			}
+			return p.parseTagItem(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
+		}
 		if mods.flags != 0 {
 			span := mods.span
 			if !mods.hasSpan {
@@ -248,6 +286,7 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 		token.KwFn, token.KwPub, token.KwAsync,
 		token.KwExtern,
 		token.KwType,
+		token.KwTag,
 	}
 	// TODO: добавить другие стартеры когда они будут реализованы: token.KwFn, token.KwType, etc.
 
@@ -264,7 +303,7 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 func isTopLevelStarter(k token.Kind) bool {
 	switch k {
 	case token.KwImport, token.KwLet, token.KwFn,
-		token.KwPub, token.KwAsync, token.KwExtern, token.KwType:
+		token.KwPub, token.KwAsync, token.KwExtern, token.KwType, token.KwTag:
 		return true
 	default:
 		return false
