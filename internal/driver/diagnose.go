@@ -68,6 +68,8 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		builder *ast.Builder
 		astFile ast.FileID
 	)
+    // per-call cache (следующим шагом добавим его в параллельный обход директорий)
+    cache := NewModuleCache(256)
 
 	// Запускаем диагностику по стадиям
 	switch opts.Stage {
@@ -78,7 +80,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		if err == nil {
 			builder, astFile, err = diagnoseParse(fs, file, bag)
 			if err == nil {
-				err = runModuleGraph(fs, file, builder, astFile, bag, opts)
+				err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache)
 			}
 		}
 	default:
@@ -86,7 +88,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		if err == nil {
 			builder, astFile, err = diagnoseParse(fs, file, bag)
 			if err == nil {
-				err = runModuleGraph(fs, file, builder, astFile, bag, opts)
+				err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache)
 			}
 		}
 	}
@@ -216,6 +218,7 @@ func runModuleGraph(
 	astFile ast.FileID,
 	bag *diag.Bag,
 	opts DiagnoseOptions,
+	cache *ModuleCache,
 ) error {
 	if builder == nil {
 		return nil
@@ -236,6 +239,10 @@ func runModuleGraph(
 		Broken:   broken,
 		FirstErr: firstErr,
 	}
+	// cache roor
+	if cache != nil {
+		cache.Put(meta, broken, firstErr)
+	}
 
 	missing := make(map[string]struct{})
 	queue := []string{meta.Path}
@@ -252,7 +259,7 @@ func runModuleGraph(
 				continue
 			}
 
-			depRec, err := analyzeDependencyModule(fs, imp.Path, baseDir, opts)
+			depRec, err := analyzeDependencyModule(fs, imp.Path, baseDir, opts, cache)
 			if err != nil {
 				if errors.Is(err, errModuleNotFound) {
 					missing[imp.Path] = struct{}{}
@@ -288,6 +295,7 @@ func runModuleGraph(
 	graph, slots := dag.BuildGraph(idx, nodes)
 	topo := dag.ToposortKahn(graph)
 	dag.ReportCycles(idx, slots, topo)
+	ComputeModuleHashes(idx, graph, slots, topo)
 	for i := range slots {
 		reporter, ok := slots[i].Reporter.(*diag.BagReporter)
 		if !ok || reporter.Bag == nil {
@@ -311,6 +319,7 @@ func analyzeDependencyModule(
 	modulePath string,
 	baseDir string,
 	opts DiagnoseOptions,
+	cache *ModuleCache,
 ) (*moduleRecord, error) {
 	filePath := modulePathToFilePath(baseDir, modulePath)
 	fileID, err := fs.Load(filePath)
@@ -321,6 +330,17 @@ func analyzeDependencyModule(
 		return nil, err
 	}
 	file := fs.Get(fileID)
+    // try cache by modulePath + content hash
+    if cache != nil {
+        if m, br, fe, ok := cache.Get(modulePath, file.Hash); ok {
+            return &moduleRecord{
+                Meta:     m,
+                Bag:      diag.NewBag(opts.MaxDiagnostics), // пустой bag для согласованности
+                Broken:   br,
+                FirstErr: fe,
+            }, nil
+        }
+    }
 	bag := diag.NewBag(opts.MaxDiagnostics)
 	err = diagnoseTokenize(file, bag)
 	if err != nil {
@@ -338,6 +358,9 @@ func analyzeDependencyModule(
 		meta = fallbackModuleMeta(file, baseDir)
 	}
 	broken, firstErr := moduleStatus(bag)
+    // fill content hash (на случай fallback)
+    if meta.ContentHash == ([32]byte{}) { meta.ContentHash = file.Hash }
+    if cache != nil { cache.Put(meta, broken, firstErr) }
 	return &moduleRecord{
 		Meta:     meta,
 		Bag:      bag,
