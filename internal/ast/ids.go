@@ -11,6 +11,8 @@ type (
 	PayloadID         uint32
 	FnParamID         uint32
 	AttrID            uint32
+	ExternMemberID    uint32
+	ExternBlockID     uint32
 	TypeFieldID       uint32
 	TypeUnionMemberID uint32
 )
@@ -24,6 +26,8 @@ const (
 	NoPayloadID       PayloadID         = 0
 	NoFnParamID       FnParamID         = 0
 	NoAttrID          AttrID            = 0
+	NoExternMemberID  ExternMemberID    = 0
+	NoExternBlockID   ExternBlockID     = 0
 	NoTypeFieldID     TypeFieldID       = 0
 	NoTypeUnionMember TypeUnionMemberID = 0
 )
@@ -36,5 +40,7 @@ func (id TypeID) IsValid() bool            { return id != NoTypeID }
 func (id PayloadID) IsValid() bool         { return id != NoPayloadID }
 func (id FnParamID) IsValid() bool         { return id != NoFnParamID }
 func (id AttrID) IsValid() bool            { return id != NoAttrID }
+func (id ExternMemberID) IsValid() bool    { return id != NoExternMemberID }
+func (id ExternBlockID) IsValid() bool     { return id != NoExternBlockID }
 func (id TypeFieldID) IsValid() bool       { return id != NoTypeFieldID }
 func (id TypeUnionMemberID) IsValid() bool { return id != NoTypeUnionMember }

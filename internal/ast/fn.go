@@ -95,6 +95,46 @@ func (i *Items) GetFnParamIDs(fn *FnItem) []FnParamID {
 	return params
 }
 
+func (i *Items) FnByPayload(id PayloadID) *FnItem {
+	if !id.IsValid() {
+		return nil
+	}
+	return i.Fns.Get(uint32(id))
+}
+
+func (i *Items) allocateFnParams(params []FnParam) (startID FnParamID, numberOfParams uint32) {
+	if len(params) == 0 {
+		return NoFnParamID, 0
+	}
+	var start FnParamID
+	count, err := safecast.Conv[uint32](len(params))
+	if err != nil {
+		panic(fmt.Errorf("fn params count overflow: %w", err))
+	}
+	for idx, param := range params {
+		id := FnParamID(i.FnParams.Allocate(param))
+		if idx == 0 {
+			start = id
+		}
+	}
+	return start, count
+}
+
+func (i *Items) newFn(
+	name source.StringID,
+	generics []source.StringID,
+	params []FnParam,
+	returnType TypeID,
+	body StmtID,
+	flags FnModifier,
+	attrs []Attr,
+	span source.Span,
+) PayloadID {
+	paramsStart, paramsCount := i.allocateFnParams(params)
+	attrStart, attrCount := i.allocateAttrs(attrs)
+	return i.newFnPayload(name, generics, paramsStart, paramsCount, returnType, body, flags, attrStart, attrCount, span)
+}
+
 func (i *Items) NewFn(
 	name source.StringID,
 	generics []source.StringID,
@@ -105,33 +145,19 @@ func (i *Items) NewFn(
 	attrs []Attr,
 	span source.Span,
 ) ItemID {
-	var paramsStart FnParamID
-	paramsCount, err := safecast.Conv[uint32](len(params))
-	if err != nil {
-		panic(fmt.Errorf("fn params count overflow: %w", err))
-	}
-	if paramsCount > 0 {
-		for idx, param := range params {
-			id := FnParamID(i.FnParams.Allocate(param))
-			if idx == 0 {
-				paramsStart = id
-			}
-		}
-	}
-	var attrStart AttrID
-	var attrCount uint32
-	attrCount, err = safecast.Conv[uint32](len(attrs))
-	if err != nil {
-		panic(fmt.Errorf("fn attrs count overflow: %w", err))
-	}
-	if attrCount > 0 {
-		for idx, attr := range attrs {
-			id := AttrID(i.Attrs.Allocate(attr))
-			if idx == 0 {
-				attrStart = id
-			}
-		}
-	}
-	payloadID := i.newFnPayload(name, generics, paramsStart, paramsCount, returnType, body, flags, attrStart, attrCount, span)
+	payloadID := i.newFn(name, generics, params, returnType, body, flags, attrs, span)
 	return i.New(ItemFn, span, payloadID)
+}
+
+func (i *Items) NewExternFn(
+	name source.StringID,
+	generics []source.StringID,
+	params []FnParam,
+	returnType TypeID,
+	body StmtID,
+	flags FnModifier,
+	attrs []Attr,
+	span source.Span,
+) PayloadID {
+	return i.newFn(name, generics, params, returnType, body, flags, attrs, span)
 }

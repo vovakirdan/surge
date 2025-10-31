@@ -25,6 +25,16 @@ func (m *fnModifiers) extend(sp source.Span) {
 	m.span = m.span.Cover(sp)
 }
 
+type parsedFn struct {
+	name       source.StringID
+	generics   []source.StringID
+	params     []ast.FnParam
+	returnType ast.TypeID
+	body       ast.StmtID
+	flags      ast.FnModifier
+	span       source.Span
+}
+
 func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
 	mods := fnModifiers{}
 
@@ -150,6 +160,16 @@ func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
 // fn @attr fn func() { ... } // с атрибутами и телом
 // modifier fn func() { ... } // с модификаторами и телом
 func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModifiers) (ast.ItemID, bool) {
+	fnData, ok := p.parseFnDefinition(attrs, attrSpan, mods)
+	if !ok {
+		return ast.NoItemID, false
+	}
+	fnItemID := p.arenas.NewFn(fnData.name, fnData.generics, fnData.params, fnData.returnType, fnData.body, fnData.flags, attrs, fnData.span)
+	return fnItemID, true
+}
+
+func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods fnModifiers) (parsedFn, bool) {
+	result := parsedFn{}
 
 	fnTok := p.advance() // съедаем KwFn; если мы здесь, то это точно KwFn
 
@@ -167,12 +187,12 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 	preGenerics, ok := p.parseFnGenerics()
 	if !ok {
 		p.resyncUntil(token.Ident, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
-		return ast.NoItemID, false
+		return parsedFn{}, false
 	}
 
 	fnNameID, ok := p.parseIdent()
 	if !ok {
-		return ast.NoItemID, false
+		return parsedFn{}, false
 	}
 
 	generics := preGenerics
@@ -191,26 +211,26 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 			// Пробуем съесть второе объявление, чтобы не застрять.
 			if _, ok = p.parseFnGenerics(); !ok {
 				p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
-				return ast.NoItemID, false
+				return parsedFn{}, false
 			}
 		}
 	} else {
 		generics, ok = p.parseFnGenerics()
 		if !ok {
 			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
-			return ast.NoItemID, false
+			return parsedFn{}, false
 		}
 	}
 
 	if _, ok = p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after function name"); !ok {
 		p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
-		return ast.NoItemID, false
+		return parsedFn{}, false
 	}
 
 	params, ok := p.parseFnParams()
 	if !ok {
 		p.resyncUntil(token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet)
-		return ast.NoItemID, false
+		return parsedFn{}, false
 	}
 
 	var returnType ast.TypeID
@@ -242,12 +262,12 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 				},
 			)
 			p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
-			return ast.NoItemID, false
+			return parsedFn{}, false
 		}
 		returnType, ok = p.parseTypePrefix()
 		if !ok {
 			p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
-			return ast.NoItemID, false
+			return parsedFn{}, false
 		}
 	}
 
@@ -260,7 +280,7 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 	case token.LBrace:
 		bodyStmtID, ok = p.parseBlock()
 		if !ok {
-			return ast.NoItemID, false
+			return parsedFn{}, false
 		}
 	case token.Semicolon:
 		p.advance()
@@ -284,13 +304,19 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 			b.WithNote(insertSpan, "insert ';' after function signature")
 		})
 		if !ok {
-			return ast.NoItemID, false
+			return parsedFn{}, false
 		}
 	}
 
-	itemSpan := startSpan.Cover(p.lastSpan)
-	fnItemID := p.arenas.NewFn(fnNameID, generics, params, returnType, bodyStmtID, flags, attrs, itemSpan)
-	return fnItemID, true
+	result.name = fnNameID
+	result.generics = generics
+	result.params = params
+	result.returnType = returnType
+	result.body = bodyStmtID
+	result.flags = flags
+	result.span = startSpan.Cover(p.lastSpan)
+
+	return result, true
 }
 
 func (p *Parser) parseFnParam() (ast.FnParam, bool) {

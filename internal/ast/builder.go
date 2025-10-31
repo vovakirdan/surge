@@ -93,6 +93,19 @@ func (b *Builder) NewFn(
 	return b.Items.NewFn(name, generics, params, returnType, body, flags, attrs, span)
 }
 
+func (b *Builder) NewExternFn(
+	name source.StringID,
+	generics []source.StringID,
+	params []FnParam,
+	returnType TypeID,
+	body StmtID,
+	flags FnModifier,
+	attrs []Attr,
+	span source.Span,
+) PayloadID {
+	return b.Items.NewExternFn(name, generics, params, returnType, body, flags, attrs, span)
+}
+
 func (b *Builder) NewTypeAlias(
 	name source.StringID,
 	generics []source.StringID,
@@ -125,4 +138,13 @@ func (b *Builder) NewTypeUnion(
 	span source.Span,
 ) ItemID {
 	return b.Items.NewTypeUnion(name, generics, attrs, visibility, members, span)
+}
+
+func (b *Builder) NewExtern(
+	target TypeID,
+	attrs []Attr,
+	members []ExternMemberSpec,
+	span source.Span,
+) ItemID {
+	return b.Items.NewExtern(target, attrs, members, span)
 }

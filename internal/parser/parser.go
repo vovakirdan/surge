@@ -122,7 +122,9 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 		return p.parseFnItem(attrs, attrSpan, fnModifiers{})
 	case token.KwType:
 		return p.parseTypeItem(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
-	case token.KwPub, token.KwAsync, token.KwExtern, token.Ident:
+	case token.KwExtern:
+		return p.parseExternItem(attrs, attrSpan)
+	case token.KwPub, token.KwAsync, token.Ident:
 		mods, _ := p.parseFnModifiers()
 		if p.at(token.KwFn) {
 			return p.parseFnItem(attrs, attrSpan, mods)

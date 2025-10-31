@@ -527,6 +527,75 @@ extern<T> {
 * Methods are dispatched statically by the receiver type (`T`). No dynamic dispatch.
 * Built-in magic names implement operators and protocols (see below).
 
+#### 4.4.1. Contents of `extern<T>` Blocks
+
+**Only function declarations/definitions are allowed inside `extern<T>` blocks.**
+
+Any item-level elements that are not functions are **prohibited**: `let`, `type/newtype`, alias declarations, literal definitions, `import` statements, nested `extern` blocks, etc. These produce syntax error `E_ILLEGAL_ITEM_IN_EXTERN`.
+
+**Rationale:** `extern<T>` blocks are intended to define methods (including magic methods/operators) for type `T` using static dispatch. Allowing non-function items would break orthogonality and predictability of the model.
+
+**Allowed items:**
+* Function definitions: `fn name(params) -> RetType? { body }`
+* Function declarations: `fn name(params) -> RetType?;`
+* Async functions: `async fn name(params) -> RetType? { body }`
+* Attributes on functions: `@pure`, `@overload`, `@override`, etc.
+
+**Examples:**
+
+```sg
+extern<Person> {
+  // ✅ Allowed
+  fn age(self: &Person) -> int { return self.age; }
+  
+  pub fn name(self: &Person) -> string { return self.name; }
+  
+  @pure
+  async fn to_json(self: &Person) -> string { /* ... */ }
+  
+  // ❌ Errors: E_ILLEGAL_ITEM_IN_EXTERN
+  let x = 1;
+  type Tmp = { a: int };
+  alias Num = int | float;
+}
+```
+
+#### 4.4.2. Visibility of Methods in `extern<T>`
+
+**`pub` modifier is allowed on methods inside `extern<T>`** and controls export from the module, same as for regular items. Methods without `pub` are private by default.
+
+**Two visibility levels:**
+* **Private methods** (no `pub`): visible only within the current module; calling from other modules is a visibility error.
+* **Public methods** (`pub fn`): accessible to consumers of the module and participate in method resolution across module boundaries.
+
+**Override visibility rule:** When overriding an already-public method implementation for a type, the new definition must not reduce visibility. Attempting to override a public method with a private one emits `E_VISIBILITY_REDUCTION`.
+
+**Examples:**
+
+```sg
+extern<Person> {
+  // Private method (internal use only)
+  fn age(self: &Person) -> int { return self.age; }
+  
+  // Public method (exported)
+  pub fn name(self: &Person) -> string { return self.name; }
+}
+
+extern<Person> {
+  pub fn __to_string(self: &Person) -> string { /* v1 */ }
+}
+
+extern<Person> {
+  // ✅ OK: maintaining public visibility
+  @override
+  pub fn __to_string(self: &Person) -> string { /* v2 */ }
+  
+  // ❌ Error: E_VISIBILITY_REDUCTION
+  @override
+  fn __to_string(self: &Person) -> string { /* v3 */ }
+}
+```
+
 ### 4.5. Macros
 
 Macros provide compile-time code generation and metaprogramming capabilities:
@@ -1686,6 +1755,11 @@ Stable diagnostic codes used by the parser and early semantic checks:
 * `E_INTRINSIC_HAS_BODY` — intrinsic declared with function body.
 * `E_OVERRIDE_FORBIDDEN_TARGET` — `@override` on free function attempts to replace symbol not from current module (std/import).
 * `E_OVERRIDE_REDEFINITION` — repeated `@override` for already implemented function in module.
+
+**Extern Blocks:**
+
+* `E_ILLEGAL_ITEM_IN_EXTERN` — non-function item declared inside `extern<T>` block.
+* `E_VISIBILITY_REDUCTION` — attempt to override a public method with a private one in `extern<T>`.
 
 **Directives:**
 

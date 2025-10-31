@@ -40,6 +40,8 @@ type Items struct {
 	TypeFields       *Arena[TypeStructField]
 	TypeUnions       *Arena[TypeUnionDecl]
 	TypeUnionMembers *Arena[TypeUnionMember]
+	Externs          *Arena[ExternBlock]
+	ExternMembers    *Arena[ExternMember]
 }
 
 // NewItems creates and returns an *Items with per-kind arenas initialized to capHint.
@@ -62,6 +64,8 @@ func NewItems(capHint uint) *Items {
 		TypeFields:       NewArena[TypeStructField](capHint),
 		TypeUnions:       NewArena[TypeUnionDecl](capHint),
 		TypeUnionMembers: NewArena[TypeUnionMember](capHint),
+		Externs:          NewArena[ExternBlock](capHint),
+		ExternMembers:    NewArena[ExternMember](capHint),
 	}
 }
 
