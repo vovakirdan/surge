@@ -1239,6 +1239,8 @@ extern<CachedData> {
 ```
 
 ```sg
+// Test directive example with pragma directive
+import stdlib/directives::test;
 
 /// test:
 /// AddBasic:
@@ -1288,6 +1290,8 @@ fn encode_frame(buf:&byte[], out:&mut byte[]) -> uint {
 
 ```sg
 // Benchmark directive example
+import stdlib/directives::benchmark;
+
 fn factorial(n: int) -> int {
   return compare n {
     0 | 1 => 1,
@@ -1301,7 +1305,9 @@ fn factorial(n: int) -> int {
 ```
 
 ```sg
-// Time measurement directive example
+// Time measurement directive example (simplified)
+import stdlib/directives::time;
+
 /// time:
 /// DataProcessing:
 ///   let data = generate_large_dataset();
@@ -1327,19 +1333,46 @@ Directives provide an extensible system for toolchain functionality such as test
 * `<name>` — scenario identifier unique within the file.
 * `<body>` — **Surge code** executed in an isolated directive context.
 
-### 13.2. Visibility and Scope
+### 13.2. Name Resolution in Directives
 
-* Directives have **read-only access** to the same names available at their declaration site (module scope).
+**Resolution rules:**
+
+* The left-hand side of `.` in directive expressions (e.g., `test.eq`) **must** resolve to an **imported directive module**.
+* The right-hand side must be a **public function** (`pub fn`) from that directive module.
+* All other identifiers (e.g., `foo` in `test.eq(foo, 42)`) resolve normally from the **current module scope**.
+* Directive module imports **must** have `pragma directive` at the top; otherwise `E_DIRECTIVE_NOT_A_DIRECTIVE_MODULE` is emitted.
+
+**Scope:**
+
+* Directives have **read-only access** to names available at their declaration site (module scope).
 * Items declared **within** directives are **not visible** to the rest of the program.
 * Directives do not modify program typization or ABI.
 
-### 13.3. Directive Execution
+### 13.3. Directive Execution Modes
 
-* The compiler/driver executes directives **only** when enabled by flags:
-  * `--compile-directives` (enable directive execution)
-  * `--directive-filter=<ns[:name]>` (filter execution to specific namespaces/scenarios)
-* Each directive executes as a **separate scenario** (equivalent to a separate file/test).
-* Directive code may call standard API functions: `test.eq(...)`, `benchmark.measure(...)`, `time.measure(...)`, etc. (provided by std as regular functions).
+Directives are controlled by the `--directives` flag with four execution modes:
+
+* `--directives=off` (default) — directive blocks are completely ignored by the parser, no diagnostics.
+* `--directives=collect` — parser recognizes directive blocks and adds them to AST as `DirectiveBlock` nodes; no name resolution or type checking.
+* `--directives=gen` — compiler generates hidden test module with synthesized function calls; participates in type checking but not execution.
+* `--directives=run` — same as `gen`, plus executes the generated test functions during build; non-zero exit code on failures.
+
+**Additional flags:**
+
+* `--directives-filter=<ns1,ns2,...>` — process only specified namespaces (applies to `gen` and `run`).
+* `--emit-directives=memory|cache` — where to store generated module (default: `memory` for in-memory only, `cache` to serialize to build cache).
+
+**Execution model:**
+
+In `gen` and `run` modes, directive blocks are transformed into hidden functions:
+
+```sg
+fn __generated_directives {
+  fn __test_file_<hash>_1() { ::stdlib::directives::test::eq(::current::foo, 42); }
+}
+```
+
+These functions participate in name resolution and type checking. In `run` mode, they are executed by the test runner; failures produce non-zero exit codes.
 
 ### 13.4. Built-in (Standard) Directives
 
@@ -1351,9 +1384,12 @@ Directives provide an extensible system for toolchain functionality such as test
 
 ### 13.5. Execution Model Equivalence
 
-Directives translate to isolated execution contexts. For reference, a directive:
+Directive blocks are transformed into hidden functions in a generated module. Each expression in a directive block becomes one function call.
 
-```
+**Transformation example:**
+
+Source:
+```sg
 /// test:
 /// SumIsCorrect:
 ///   test.eq(add(1, 2), 3);
@@ -1367,33 +1403,98 @@ fn __directive_test_SumIsCorrect__() -> Result<nothing, Error> {
 }
 ```
 
-(The function does not appear in the binary if directives are not executed.)
+**Function naming:**
 
-### 13.6. User-defined Directives (Extensions)
+* Deterministic: `__<namespace>_file_<hash>_<seq>`
+* Stable across incremental builds
+* Namespace matches directive module name
 
-Users can declare **directive modules** using `pragma directive` at the top of a module file:
+**When executed:**
+
+* In `gen` mode: generated functions participate in type checking only.
+* In `run` mode: generated functions are executed by test runner; non-zero exit on failure.
+* In `off` and `collect` modes: no generation occurs.
+
+### 13.6. `pragma directive` and Directive Modules
+
+Directive modules are ordinary Surge modules marked with `pragma directive` at the top of the file. They export functions that serve as handlers for directive blocks.
+
+**Syntax:**
 
 ```sg
 pragma directive
 
-// directive name declaration (singular)
-pub type DirectiveName = "mycheck";
-
-// API — regular functions available as mycheck.<fn>
-pub fn check_invariant(x: int) -> Result<nothing, Error> { ... }
+// Regular module code with exported functions
+pub fn eq<T>(f: fn() -> T, expected: T) -> void { ... }
+pub fn panics(f: fn() -> void) -> void { ... }
 ```
 
-Such modules are imported normally. After import, directive blocks become available:
+**Rules:**
 
+* `pragma directive` must appear as the **first meaningful line** of the module file (after optional shebang).
+* The directive module **namespace** is derived from the module import path. For example, importing `stdlib/directives::test` makes `test` the directive namespace.
+* All public functions (`pub fn`) from the directive module are accessible in directive blocks via `<namespace>.<function>`.
+* Directive modules are **ordinary modules**: they may import other modules, define types, and perform any valid Surge operations. No special restrictions apply.
+* Directive modules **do not** modify the ABI of main program code; their functions execute only during directive execution.
+
+**Example directive module:**
+
+```sg
+// stdlib/directives/test.sg
+pragma directive
+
+import stdlib::fmt;
+
+pub fn eq<T>(f: fn() -> T, expected: T) -> void {
+  let got = f();
+  if got != expected {
+    panic(fmt::format("eq failed: got {}, expected {}", got, expected));
+  }
+}
+
+pub fn panics(f: fn() -> void) -> void {
+  let ok = catch_unwind(f);
+  if ok {
+    panic("expected panic, but function returned normally");
+  }
+}
 ```
-/// mycheck:
-/// FooInvariant:
-///   mycheck.check_invariant(42);
+
+**Usage in code:**
+
+```sg
+import stdlib/directives::test;
+
+fn foo() -> int { return 42 }
+
+/// test:
+/// test.eq(foo, 42)
 ```
 
-**Rules:** Directive modules **must not** modify the ABI of main code; their functions execute only during directive execution.
+The compiler generates hidden test functions that call the directive module functions with resolved identifiers from the current module.
 
-### 13.7. Target Directives (Conditional Compilation)
+### 13.7. Safety and Invariants
+
+**Generated code isolation:**
+
+* Directive-generated functions **never appear in final binary** without `--directives=run`.
+* In `off` mode, directive behavior is identical to absence of directives (zero overhead).
+* Directives have **no special privileges**: directive modules are ordinary modules with no special restrictions.
+
+**Deterministic behavior:**
+
+* Function names are deterministic and stable across incremental builds.
+* Generated module references original sources via Spans for error reporting.
+* Directive execution respects `--directives-filter`; unspecified namespaces are ignored.
+
+**Future extensions:**
+
+* Directive space aliases via `pragma directive name="alias"` (optional, not in M0).
+* File-level directives without item attachment (future expansion).
+* `--directives=list` mode for debugging (print discovered blocks).
+* `--sandbox` profile for `run` mode (restrict I/O operations).
+
+### 13.8. Target Directives (Conditional Compilation)
 
 Target directives `/// target:` provide conditional compilation based on platform, features, and build configuration:
 
@@ -1432,27 +1533,53 @@ fn full_feature_function() -> string {
 * `test` (test compilation mode)
 * Logical operators: `all(...)`, `any(...)`, `not(...)`
 
-### 13.8. Examples
+### 13.9. Examples
 
 **Unit test:**
-```
+```sg
+import stdlib/directives::test;
+
+fn add(a: int, b: int) -> int { return a + b; }
+
 /// test:
 /// AddSmall:
 ///   test.eq(add(2, 3), 5);
 ```
 
 **Benchmark:**
-```
+```sg
+import stdlib/directives::benchmark;
+
 /// benchmark:
 /// AddBench:
 ///   benchmark.measure(|| { let mut s=0; for i:int in 0..1_000_000 { s+=i; } return s; });
 ```
 
 **Custom directive:**
+```sg
+import mytools::lint;
+
+/// lint:
+/// lint.scan_module()
 ```
-/// lint:deadcode:
-/// UnusedStuff:
-///   lint.deadcode.scan_module();
+
+**CLI usage examples:**
+
+```bash
+# Ignore all directives (default)
+surge build
+
+# Parse and collect directive blocks
+surge build --directives=collect
+
+# Generate and type-check, don't run
+surge build --directives=gen
+
+# Run only test directives
+surge build --directives=run --directives-filter=test
+
+# Generate with cache storage
+surge build --directives=gen --directives-filter=test,benchmark --emit-directives=cache
 ```
 
 ---
@@ -1618,16 +1745,15 @@ fn get_user(id: UserId<User>) -> Option<User> { ... }
 
 Note: `MacroDef` is reserved for a future iteration. The syntax is specified for completeness; the core implementation should focus on the rest of the language first. Implementations should parse `macro` items but reject them with `E_MACRO_UNSUPPORTED`.
 
-Directives are parsed as "out-of-band" nodes attached to the module. The parser collects directive blocks alongside regular items but they do not participate in the main program syntax tree.
+Directives are parsed as "out-of-band" nodes attached to the module. In `gen` and `run` modes, directive expressions are transformed into hidden functions in `__generated_directives` module. Each line becomes one function call to the imported directive module's handler functions.
 
 ```
 Module     := PragmaDirective? (Item | DirectiveBlock)*
 PragmaDirective := "pragma" "directive"
 DirectiveBlock := "///" Namespace ":" Newline
-                  "///" Ident ":" Newline
                   ( "///" BodyLine Newline )+
-Namespace  := Ident | Ident ":" Ident
-BodyLine   := <any characters except newline>
+Namespace  := Ident
+BodyLine   := <Surge expression on single line>
 Item       := Visibility? (Fn | AsyncFn | MacroDef | TagDecl | NewtypeDef | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
 Visibility := "pub"
 Fn         := FnDef | FnDecl
@@ -1694,6 +1820,7 @@ Suffix         := "[]"
 * Attributes affecting memory layout and ABI (`@packed`, `@align`) are part of the language specification and cannot be replaced by directives. Directives do not modify type layout or ABI contracts.
 * Concurrency contract attributes describe *analyzable requirements* and do not change language semantics at runtime. Violations may not always be statically checkable; in such cases the compiler emits `W_CONC_UNVERIFIED` and defers verification to linters or runtime debug tools.
 * **Directive vs Attribute distinction**: Attributes are closed-set language features that affect compilation, type checking, or runtime behavior. Directives are extensible annotations that provide metadata for external tools without changing language semantics. Tests, benchmarks, and documentation have been moved from attributes to the directive system to maintain the distinction.
+* **Pragma directive**: `pragma directive` marks a module as a directive module. The directive namespace is derived from the import path. In `--directives=off` (default), directive blocks have zero overhead.
 * **Language intrinsics**: Intrinsics constitute a fixed, small set and are declared in the module `core/intrinsics`. Their implementation is described in RUNTIME.md. Using `@intrinsic` outside this module is forbidden. They serve basic memory management operations (`rt_alloc`, `rt_free`, `rt_realloc`) and byte copying (`rt_memcpy`, `rt_memmove`).
 
 ## 21. Diagnostics Overview (selected)
@@ -1763,9 +1890,12 @@ Stable diagnostic codes used by the parser and early semantic checks:
 
 **Directives:**
 
-* `E_DIRECTIVE_UNKNOWN_NAMESPACE` — directive uses undeclared namespace (no matching `pragma directive` declaration).
-* `E_DIRECTIVE_MALFORMED_SYNTAX` — directive block has invalid syntax or structure.
-* `E_DIRECTIVE_MISSING_HANDLER` — directive namespace declared but no handler module found.
-* `W_DIRECTIVE_UNUSED` — directive block present but no tool processes it.
+* `E_PRAGMA_POSITION` — `pragma directive` not at the top of the file (must be first meaningful line).
+* `E_DIRECTIVE_PARSE` — line inside directive block fails to parse as expression.
+* `E_DIRECTIVE_NOT_IMPORTED` — directive namespace `<ns>` used but no matching import found.
+* `E_DIRECTIVE_NOT_A_DIRECTIVE_MODULE` — imported module for `<ns>` lacks `pragma directive`.
+* `E_DIRECTIVE_UNRESOLVED_FN` — `<ns>.<fn>` not found or not `pub` in directive module.
+* `E_DIRECTIVE_DOMAIN` — directives used outside `///` doc-comment blocks.
+* `W_DIRECTIVE_UNUSED` — directive block present but not processed (incorrect mode).
 
 Note: Channel closure is a runtime condition; `send` returns `Result<nothing, ChannelClosed>`. The corresponding runtime diagnostic lives in RUNTIME.md, not as a compile-time diagnostic.
