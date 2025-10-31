@@ -80,6 +80,7 @@ const (
 	ExprBinaryRange          // ..
 	ExprBinaryRangeInclusive // ..=
 	ExprBinaryIs             // is
+	ExprBinaryHeir           // heir
 )
 
 // Типы унарных операторов

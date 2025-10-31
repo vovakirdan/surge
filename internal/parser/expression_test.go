@@ -738,6 +738,7 @@ func TestComparisonOperators(t *testing.T) {
 		{"greater_than", "let x = a > b;"},
 		{"greater_or_equal", "let x = a >= b;"},
 		{"type_check", "let x = a is int;"},
+		{"heir_predicate", "let x = Employee heir Person;"},
 
 		// Chained comparisons
 		{"chained_comparison_1", "let x = a < b < c;"},
@@ -881,6 +882,84 @@ func TestExpressionEdgeCases(t *testing.T) {
 			expr := arenas.Exprs.Get(letItem.Value)
 			if expr == nil {
 				t.Fatal("Failed to get expression")
+			}
+		})
+	}
+}
+
+func TestHeirPredicateParsing(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectOp      ast.ExprBinaryOp
+		unwrapGrp     bool
+		leftOperandOp ast.ExprBinaryOp
+	}{
+		{
+			name:     "basic_heir",
+			input:    "let x = Employee heir Person;",
+			expectOp: ast.ExprBinaryHeir,
+		},
+		{
+			name:      "grouped_heir",
+			input:     "let x = (Employee heir Person);",
+			expectOp:  ast.ExprBinaryHeir,
+			unwrapGrp: true,
+		},
+		{
+			name:          "heir_with_logical_and",
+			input:         "let x = Employee heir Person && flag;",
+			expectOp:      ast.ExprBinaryLogicalAnd,
+			leftOperandOp: ast.ExprBinaryHeir,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			letItem, arenas := parseExprTestInput(t, tt.input)
+			if letItem.Value == ast.NoExprID {
+				t.Fatal("expected expression value")
+			}
+
+			exprID := letItem.Value
+			expr := arenas.Exprs.Get(exprID)
+			if expr == nil {
+				t.Fatal("expression not found")
+			}
+
+			if tt.unwrapGrp && expr.Kind == ast.ExprGroup {
+				group, ok := arenas.Exprs.Group(exprID)
+				if !ok || group == nil {
+					t.Fatalf("group payload missing")
+				}
+				exprID = group.Inner
+				expr = arenas.Exprs.Get(exprID)
+			}
+
+			if expr.Kind != ast.ExprBinary {
+				t.Fatalf("expected binary expression, got %v", expr.Kind)
+			}
+
+			binary, ok := arenas.Exprs.Binary(exprID)
+			if !ok || binary == nil {
+				t.Fatalf("binary payload missing")
+			}
+			if binary.Op != tt.expectOp {
+				t.Fatalf("expected operator %v, got %v", tt.expectOp, binary.Op)
+			}
+
+			if tt.leftOperandOp != 0 {
+				leftExpr := arenas.Exprs.Get(binary.Left)
+				if leftExpr == nil || leftExpr.Kind != ast.ExprBinary {
+					t.Fatalf("expected left operand to be binary, got %v", leftExpr.Kind)
+				}
+				leftBinary, ok := arenas.Exprs.Binary(binary.Left)
+				if !ok || leftBinary == nil {
+					t.Fatalf("left binary payload missing")
+				}
+				if leftBinary.Op != tt.leftOperandOp {
+					t.Fatalf("expected left operand operator %v, got %v", tt.leftOperandOp, leftBinary.Op)
+				}
 			}
 		})
 	}

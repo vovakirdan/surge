@@ -308,6 +308,8 @@ func formatBinaryOpString(op ast.ExprBinaryOp) string {
 		return "..="
 	case ast.ExprBinaryIs:
 		return "is"
+	case ast.ExprBinaryHeir:
+		return "heir"
 	default:
 		return fmt.Sprintf("op%d", op)
 	}

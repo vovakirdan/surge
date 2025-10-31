@@ -46,7 +46,7 @@ func (p *Parser) getBinaryOperatorPrec(kind token.Kind) (int, bool) {
 		return precLogicalAnd, false
 
 	// Операторы сравнения (включая is)
-	case token.EqEq, token.BangEq, token.Lt, token.LtEq, token.Gt, token.GtEq, token.KwIs:
+	case token.EqEq, token.BangEq, token.Lt, token.LtEq, token.Gt, token.GtEq, token.KwIs, token.KwHeir:
 		return precComparison, false
 
 	// Range операторы
@@ -156,6 +156,8 @@ func (p *Parser) tokenKindToBinaryOp(kind token.Kind) ast.ExprBinaryOp {
 		return ast.ExprBinaryRangeInclusive
 	case token.KwIs:
 		return ast.ExprBinaryIs
+	case token.KwHeir:
+		return ast.ExprBinaryHeir
 
 	default:
 		// Это не должно случаться, если таблица приоритетов корректна
