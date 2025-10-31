@@ -236,6 +236,9 @@ func (p *Parser) resyncStatement() {
 				break
 			}
 			if parenDepth == 0 && bracketDepth == 0 {
+				if !p.at(token.EOF) {
+					p.advance()
+				}
 				return
 			}
 		case token.LParen:
@@ -246,6 +249,9 @@ func (p *Parser) resyncStatement() {
 				break
 			}
 			if braceDepth == 0 && bracketDepth == 0 {
+				if !p.at(token.EOF) {
+					p.advance()
+				}
 				return
 			}
 		case token.LBracket:
@@ -256,6 +262,9 @@ func (p *Parser) resyncStatement() {
 				break
 			}
 			if braceDepth == 0 && parenDepth == 0 {
+				if !p.at(token.EOF) {
+					p.advance()
+				}
 				return
 			}
 		default:

@@ -99,11 +99,22 @@ func (p *Parser) parseItems() {
 	startSpan := p.lx.Peek().Span
 	p.consumeModulePragma()
 	for !p.at(token.EOF) {
+		// Следим за прогрессом: если за итерацию не съели ни одного токена, нужно его форсированно
+		// прокрутить, иначе можно зациклиться на повреждённом вводе.
+		before := p.lx.Peek()
+
 		itemID, ok := p.parseItem()
 		if !ok {
 			p.resyncTop()
 		} else {
 			p.arenas.PushItem(p.file, itemID)
+		}
+
+		if !p.at(token.EOF) {
+			after := p.lx.Peek()
+			if after.Kind == before.Kind && after.Span == before.Span {
+				p.advance()
+			}
 		}
 	}
 	p.arenas.Files.Get(p.file).Span = startSpan.Cover(p.lx.Peek().Span) // зачем?
@@ -351,7 +362,19 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 	}
 	// TODO: добавить другие стартеры когда они будут реализованы: token.KwFn, token.KwType, etc.
 
+	// Чтобы избежать зависания, запоминаем текущий токен и проверяем, сделал ли resync прогресс.
+	// В противном случае мы просто стоим на том же токене (часто это проблемный starter),
+	// и на следующей итерации цикла парсер снова попробует распознать его, попадая в бесконечный цикл.
+	// После resync мы принудительно съедаем токен, если остались на месте.
+	prev := p.lx.Peek()
+
 	p.resyncUntil(stopTokens...)
+
+	// Если resync не продвинулся (остались на том же токене) и это не EOF, съедаем токен,
+	// чтобы гарантировать прогресс и избежать бесконечного цикла на повреждённом вводе.
+	if !p.at(token.EOF) && p.lx.Peek().Span == prev.Span && p.lx.Peek().Kind == prev.Kind {
+		p.advance()
+	}
 
 	// Если нашли semicolon, съедаем его
 	if p.at(token.Semicolon) {
