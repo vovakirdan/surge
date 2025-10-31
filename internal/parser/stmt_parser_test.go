@@ -618,89 +618,113 @@ func TestParseComplexStatements(t *testing.T) {
 }
 
 func TestParseIfStatement(t *testing.T) {
-	input := `
-		fn foo() {
-			if (a > 0) { return; } else { return; }
-		}
-	`
-
-	builder, fileID, bag := parseSource(t, input)
-	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "with_parentheses",
+			input: `fn foo() { if (a > 0) { return; } else { return; } }`,
+		},
+		{
+			name:  "without_parentheses",
+			input: `fn foo() { if a > 0 { return; } else { return; } }`,
+		},
 	}
 
-	file := builder.Files.Get(fileID)
-	fnItem, ok := builder.Items.Fn(file.Items[0])
-	if !ok {
-		t.Fatal("expected fn item")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, fileID, bag := parseSource(t, tt.input)
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
+			}
 
-	block := builder.Stmts.Block(fnItem.Body)
-	if block == nil || len(block.Stmts) != 1 {
-		t.Fatalf("expected single statement block, got %d", len(block.Stmts))
-	}
+			file := builder.Files.Get(fileID)
+			fnItem, ok := builder.Items.Fn(file.Items[0])
+			if !ok {
+				t.Fatal("expected fn item")
+			}
 
-	stmt := builder.Stmts.Get(block.Stmts[0])
-	if stmt.Kind != ast.StmtIf {
-		t.Fatalf("expected StmtIf, got %v", stmt.Kind)
-	}
+			block := builder.Stmts.Block(fnItem.Body)
+			if block == nil || len(block.Stmts) != 1 {
+				t.Fatalf("expected single statement block, got %d", len(block.Stmts))
+			}
 
-	ifStmt := builder.Stmts.If(block.Stmts[0])
-	if ifStmt == nil {
-		t.Fatal("if payload missing")
-	}
-	condExpr := builder.Exprs.Get(ifStmt.Cond)
-	if condExpr == nil || condExpr.Kind != ast.ExprBinary {
-		t.Fatalf("expected binary condition, got %v", condExpr)
-	}
-	thenBlock := builder.Stmts.Block(ifStmt.Then)
-	if thenBlock == nil || len(thenBlock.Stmts) != 1 {
-		t.Fatalf("expected then-block with single stmt, got %+v", thenBlock)
-	}
-	elseBlock := builder.Stmts.Block(ifStmt.Else)
-	if elseBlock == nil || len(elseBlock.Stmts) != 1 {
-		t.Fatalf("expected else-block with single stmt, got %+v", elseBlock)
+			stmt := builder.Stmts.Get(block.Stmts[0])
+			if stmt.Kind != ast.StmtIf {
+				t.Fatalf("expected StmtIf, got %v", stmt.Kind)
+			}
+
+			ifStmt := builder.Stmts.If(block.Stmts[0])
+			if ifStmt == nil {
+				t.Fatal("if payload missing")
+			}
+			condExpr := builder.Exprs.Get(ifStmt.Cond)
+			if condExpr == nil || condExpr.Kind != ast.ExprBinary {
+				t.Fatalf("expected binary condition, got %v", condExpr)
+			}
+			thenBlock := builder.Stmts.Block(ifStmt.Then)
+			if thenBlock == nil || len(thenBlock.Stmts) != 1 {
+				t.Fatalf("expected then-block with single stmt, got %+v", thenBlock)
+			}
+			elseBlock := builder.Stmts.Block(ifStmt.Else)
+			if elseBlock == nil || len(elseBlock.Stmts) != 1 {
+				t.Fatalf("expected else-block with single stmt, got %+v", elseBlock)
+			}
+		})
 	}
 }
 
 func TestParseWhileStatement(t *testing.T) {
-	input := `
-		fn foo() {
-			while (ready) { return; }
-		}
-	`
-
-	builder, fileID, bag := parseSource(t, input)
-	if bag.HasErrors() {
-		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "with_parentheses",
+			input: `fn foo() { while (ready) { return; } }`,
+		},
+		{
+			name:  "without_parentheses",
+			input: `fn foo() { while ready { return; } }`,
+		},
 	}
 
-	file := builder.Files.Get(fileID)
-	fnItem, ok := builder.Items.Fn(file.Items[0])
-	if !ok {
-		t.Fatal("expected fn item")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder, fileID, bag := parseSource(t, tt.input)
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
+			}
 
-	block := builder.Stmts.Block(fnItem.Body)
-	if block == nil || len(block.Stmts) != 1 {
-		t.Fatalf("expected single statement block, got %d", len(block.Stmts))
-	}
+			file := builder.Files.Get(fileID)
+			fnItem, ok := builder.Items.Fn(file.Items[0])
+			if !ok {
+				t.Fatal("expected fn item")
+			}
 
-	stmt := builder.Stmts.Get(block.Stmts[0])
-	if stmt.Kind != ast.StmtWhile {
-		t.Fatalf("expected StmtWhile, got %v", stmt.Kind)
-	}
+			block := builder.Stmts.Block(fnItem.Body)
+			if block == nil || len(block.Stmts) != 1 {
+				t.Fatalf("expected single statement block, got %d", len(block.Stmts))
+			}
 
-	whileStmt := builder.Stmts.While(block.Stmts[0])
-	if whileStmt == nil {
-		t.Fatal("while payload missing")
-	}
-	if builder.Exprs.Get(whileStmt.Cond) == nil {
-		t.Fatal("while condition missing")
-	}
-	body := builder.Stmts.Block(whileStmt.Body)
-	if body == nil || len(body.Stmts) != 1 {
-		t.Fatalf("expected while-body with single stmt, got %+v", body)
+			stmt := builder.Stmts.Get(block.Stmts[0])
+			if stmt.Kind != ast.StmtWhile {
+				t.Fatalf("expected StmtWhile, got %v", stmt.Kind)
+			}
+
+			whileStmt := builder.Stmts.While(block.Stmts[0])
+			if whileStmt == nil {
+				t.Fatal("while payload missing")
+			}
+			if builder.Exprs.Get(whileStmt.Cond) == nil {
+				t.Fatal("while condition missing")
+			}
+			body := builder.Stmts.Block(whileStmt.Body)
+			if body == nil || len(body.Stmts) != 1 {
+				t.Fatalf("expected while-body with single stmt, got %+v", body)
+			}
+		})
 	}
 }
 

@@ -21,11 +21,11 @@ fn compute_total(xs: int[], init: int) -> int {
     return total;
 }
 
-fn monitor(handle: Future[int]) -> bool {
-    signal status := "waiting";
-    return handle.is_ready();
-}
-
 fn scale_item(value: int, factor: int) -> int {
     return value * factor;
+}
+
+fn monitor<T>(handle: T) -> bool {
+    signal status := "waiting";
+    return true;
 }

@@ -78,40 +78,50 @@ func (p *Parser) parseContinueStmt() (ast.StmtID, bool) {
 func (p *Parser) parseIfStmt() (ast.StmtID, bool) {
 	ifTok := p.advance()
 
-	if _, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after 'if' keyword"); !ok {
-		return ast.NoStmtID, false
+	useParens := p.at(token.LParen)
+	if useParens {
+		p.advance()
 	}
 
 	condExpr, ok := p.parseExpr()
 	if !ok {
+		if !useParens {
+			p.err(diag.SynExpectExpression, "expected condition expression after 'if'")
+		}
 		return ast.NoStmtID, false
 	}
 
-	closeTok, ok := p.expect(
-		token.RParen,
-		diag.SynUnclosedParen,
-		"expected ')' to close if condition",
-		func(b *diag.ReportBuilder) {
-			if b == nil {
-				return
-			}
-			insertSpan := p.lastSpan.ZeroideToEnd()
-			fixID := fix.MakeFixID(diag.SynUnclosedParen, insertSpan)
-			suggestion := fix.InsertText(
-				"insert ')' to close if condition",
-				insertSpan,
-				")",
-				"",
-				fix.WithID(fixID),
-				fix.WithKind(diag.FixKindRefactor),
-				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-			)
-			b.WithFixSuggestion(suggestion)
-			b.WithNote(insertSpan, "insert missing ')'")
-		},
-	)
-	if !ok {
-		return ast.NoStmtID, false
+	var closeTok token.Token
+	if useParens {
+		var expectOK bool
+		closeTok, expectOK = p.expect(
+			token.RParen,
+			diag.SynUnclosedParen,
+			"expected ')' to close if condition",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				insertSpan := p.lastSpan.ZeroideToEnd()
+				fixID := fix.MakeFixID(diag.SynUnclosedParen, insertSpan)
+				suggestion := fix.InsertText(
+					"insert ')' to close if condition",
+					insertSpan,
+					")",
+					"",
+					fix.WithID(fixID),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				)
+				b.WithFixSuggestion(suggestion)
+				b.WithNote(insertSpan, "insert missing ')'")
+			},
+		)
+		if !expectOK {
+			return ast.NoStmtID, false
+		}
+	} else {
+		closeTok = p.lx.Peek()
 	}
 
 	if !p.at(token.LBrace) {
@@ -131,10 +141,11 @@ func (p *Parser) parseIfStmt() (ast.StmtID, bool) {
 	}
 
 	stmtSpan := ifTok.Span
-	if cond := p.arenas.Exprs.Get(condExpr); cond != nil {
+	if useParens {
+		stmtSpan = stmtSpan.Cover(closeTok.Span)
+	} else if cond := p.arenas.Exprs.Get(condExpr); cond != nil {
 		stmtSpan = stmtSpan.Cover(cond.Span)
 	}
-	stmtSpan = stmtSpan.Cover(closeTok.Span)
 	if thenNode := p.arenas.Stmts.Get(thenStmt); thenNode != nil {
 		stmtSpan = stmtSpan.Cover(thenNode.Span)
 	}
@@ -179,40 +190,50 @@ func (p *Parser) parseIfStmt() (ast.StmtID, bool) {
 func (p *Parser) parseWhileStmt() (ast.StmtID, bool) {
 	whileTok := p.advance()
 
-	if _, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after 'while' keyword"); !ok {
-		return ast.NoStmtID, false
+	useParens := p.at(token.LParen)
+	if useParens {
+		p.advance()
 	}
 
 	condExpr, ok := p.parseExpr()
 	if !ok {
+		if !useParens {
+			p.err(diag.SynExpectExpression, "expected condition expression after 'while'")
+		}
 		return ast.NoStmtID, false
 	}
 
-	closeTok, ok := p.expect(
-		token.RParen,
-		diag.SynUnclosedParen,
-		"expected ')' to close while condition",
-		func(b *diag.ReportBuilder) {
-			if b == nil {
-				return
-			}
-			insertSpan := p.lastSpan.ZeroideToEnd()
-			fixID := fix.MakeFixID(diag.SynUnclosedParen, insertSpan)
-			suggestion := fix.InsertText(
-				"insert ')' to close while condition",
-				insertSpan,
-				")",
-				"",
-				fix.WithID(fixID),
-				fix.WithKind(diag.FixKindRefactor),
-				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-			)
-			b.WithFixSuggestion(suggestion)
-			b.WithNote(insertSpan, "insert missing ')'")
-		},
-	)
-	if !ok {
-		return ast.NoStmtID, false
+	var closeTok token.Token
+	if useParens {
+		var expectOK bool
+		closeTok, expectOK = p.expect(
+			token.RParen,
+			diag.SynUnclosedParen,
+			"expected ')' to close while condition",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				insertSpan := p.lastSpan.ZeroideToEnd()
+				fixID := fix.MakeFixID(diag.SynUnclosedParen, insertSpan)
+				suggestion := fix.InsertText(
+					"insert ')' to close while condition",
+					insertSpan,
+					")",
+					"",
+					fix.WithID(fixID),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				)
+				b.WithFixSuggestion(suggestion)
+				b.WithNote(insertSpan, "insert missing ')'")
+			},
+		)
+		if !expectOK {
+			return ast.NoStmtID, false
+		}
+	} else {
+		closeTok = p.lx.Peek()
 	}
 
 	if !p.at(token.LBrace) {
@@ -232,10 +253,11 @@ func (p *Parser) parseWhileStmt() (ast.StmtID, bool) {
 	}
 
 	stmtSpan := whileTok.Span
-	if cond := p.arenas.Exprs.Get(condExpr); cond != nil {
+	if useParens {
+		stmtSpan = stmtSpan.Cover(closeTok.Span)
+	} else if cond := p.arenas.Exprs.Get(condExpr); cond != nil {
 		stmtSpan = stmtSpan.Cover(cond.Span)
 	}
-	stmtSpan = stmtSpan.Cover(closeTok.Span)
 	if body := p.arenas.Stmts.Get(bodyStmt); body != nil {
 		stmtSpan = stmtSpan.Cover(body.Span)
 	}
