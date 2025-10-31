@@ -166,6 +166,12 @@ type ExprSpreadData struct {
 	Value ExprID
 }
 
+// ExprAwaitData stores the operand of a postfix `.await` expression.
+// TODO(sema): ensure `.await` is only used in async contexts and operates on Future-like values.
+type ExprAwaitData struct {
+	Value ExprID
+}
+
 type ExprCompareArm struct {
 	Pattern     ExprID
 	PatternSpan source.Span
@@ -189,6 +195,7 @@ type Exprs struct {
 	Calls    *Arena[ExprCallData]
 	Indices  *Arena[ExprIndexData]
 	Members  *Arena[ExprMemberData]
+	Awaits   *Arena[ExprAwaitData]
 	Groups   *Arena[ExprGroupData]
 	Tuples   *Arena[ExprTupleData]
 	Arrays   *Arena[ExprArrayData]
@@ -212,6 +219,7 @@ func NewExprs(capHint uint) *Exprs {
 		Calls:    NewArena[ExprCallData](capHint),
 		Indices:  NewArena[ExprIndexData](capHint),
 		Members:  NewArena[ExprMemberData](capHint),
+		Awaits:   NewArena[ExprAwaitData](capHint),
 		Groups:   NewArena[ExprGroupData](capHint),
 		Tuples:   NewArena[ExprTupleData](capHint),
 		Arrays:   NewArena[ExprArrayData](capHint),
@@ -334,6 +342,19 @@ func (e *Exprs) Member(id ExprID) (*ExprMemberData, bool) {
 		return nil, false
 	}
 	return e.Members.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewAwait(span source.Span, value ExprID) ExprID {
+	payload := e.Awaits.Allocate(ExprAwaitData{Value: value})
+	return e.new(ExprAwait, span, PayloadID(payload))
+}
+
+func (e *Exprs) Await(id ExprID) (*ExprAwaitData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprAwait {
+		return nil, false
+	}
+	return e.Awaits.Get(uint32(expr.Payload)), true
 }
 
 func (e *Exprs) NewGroup(span source.Span, inner ExprID) ExprID {

@@ -81,23 +81,30 @@ func (p *Parser) parseIndexExpr(target ast.ExprID) (ast.ExprID, bool) {
 	return p.arenas.Exprs.NewIndex(finalSpan, target, index), true
 }
 
-// parseMemberExpr парсит доступ к полю: expr.field
+// parseMemberExpr парсит доступ к полю или .await: expr.field / expr.await
 func (p *Parser) parseMemberExpr(target ast.ExprID) (ast.ExprID, bool) {
 	p.advance() // съедаем '.'
 
-	if !p.at(token.Ident) {
-		p.err(diag.SynExpectIdentifier, "expected field name after '.'")
+	switch p.lx.Peek().Kind {
+	case token.KwAwait:
+		awaitTok := p.advance()
+		targetSpan := p.arenas.Exprs.Get(target).Span
+		finalSpan := targetSpan.Cover(awaitTok.Span)
+		return p.arenas.Exprs.NewAwait(finalSpan, target), true
+
+	case token.Ident:
+		fieldTok := p.advance()
+		fieldNameID := p.arenas.StringsInterner.Intern(fieldTok.Text)
+
+		targetSpan := p.arenas.Exprs.Get(target).Span
+		finalSpan := targetSpan.Cover(fieldTok.Span)
+
+		return p.arenas.Exprs.NewMember(finalSpan, target, fieldNameID), true
+
+	default:
+		p.err(diag.SynExpectIdentifier, "expected field name or 'await' after '.'")
 		return ast.NoExprID, false
 	}
-
-	fieldTok := p.advance()
-	fieldNameID := p.arenas.StringsInterner.Intern(fieldTok.Text)
-
-	// Вычисляем общий span
-	targetSpan := p.arenas.Exprs.Get(target).Span
-	finalSpan := targetSpan.Cover(fieldTok.Span)
-
-	return p.arenas.Exprs.NewMember(finalSpan, target, fieldNameID), true
 }
 
 // parseCastExpr парсит приведение типов: expr to Type
