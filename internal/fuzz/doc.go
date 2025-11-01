@@ -1,4 +1,3 @@
-
 // Package fuzztests houses Go fuzz harnesses that exercise the early Surge
 // compilation pipeline (source -> lexer -> parser). Its goal is to smoke test
 // robustness and guard against panics or allocator explosions on arbitrary

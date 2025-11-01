@@ -3,6 +3,7 @@ package parser
 import (
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/source"
 	"surge/internal/token"
 )
 
@@ -11,6 +12,8 @@ func (p *Parser) parseCallExpr(target ast.ExprID) (ast.ExprID, bool) {
 	p.advance() // съедаем '('
 
 	var args []ast.ExprID
+	var commas []source.Span
+	var trailing bool
 
 	// Парсим аргументы
 	if !p.at(token.RParen) {
@@ -36,10 +39,12 @@ func (p *Parser) parseCallExpr(target ast.ExprID) (ast.ExprID, bool) {
 			if !p.at(token.Comma) {
 				break
 			}
-			p.advance() // съедаем ','
+			commaTok := p.advance() // съедаем ','
+			commas = append(commas, commaTok.Span)
 
 			// Разрешаем завершающую запятую
 			if p.at(token.RParen) {
+				trailing = true
 				break
 			}
 		}
@@ -56,7 +61,7 @@ func (p *Parser) parseCallExpr(target ast.ExprID) (ast.ExprID, bool) {
 	targetSpan := p.arenas.Exprs.Get(target).Span
 	finalSpan := targetSpan.Cover(closeTok.Span)
 
-	return p.arenas.Exprs.NewCall(finalSpan, target, args), true
+	return p.arenas.Exprs.NewCall(finalSpan, target, args, commas, trailing), true
 }
 
 // parseIndexExpr парсит индексацию: expr[index]

@@ -26,13 +26,15 @@ func (m *fnModifiers) extend(sp source.Span) {
 }
 
 type parsedFn struct {
-	name       source.StringID
-	generics   []source.StringID
-	params     []ast.FnParam
-	returnType ast.TypeID
-	body       ast.StmtID
-	flags      ast.FnModifier
-	span       source.Span
+	name           source.StringID
+	generics       []source.StringID
+	params         []ast.FnParam
+	paramCommas    []source.Span
+	paramsTrailing bool
+	returnType     ast.TypeID
+	body           ast.StmtID
+	flags          ast.FnModifier
+	span           source.Span
 }
 
 func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
@@ -164,7 +166,18 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 	if !ok {
 		return ast.NoItemID, false
 	}
-	fnItemID := p.arenas.NewFn(fnData.name, fnData.generics, fnData.params, fnData.returnType, fnData.body, fnData.flags, attrs, fnData.span)
+	fnItemID := p.arenas.NewFn(
+		fnData.name,
+		fnData.generics,
+		fnData.params,
+		fnData.paramCommas,
+		fnData.paramsTrailing,
+		fnData.returnType,
+		fnData.body,
+		fnData.flags,
+		attrs,
+		fnData.span,
+	)
 	return fnItemID, true
 }
 
@@ -227,7 +240,7 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 		return parsedFn{}, false
 	}
 
-	params, ok := p.parseFnParams()
+	params, commas, trailing, ok := p.parseFnParams()
 	if !ok {
 		p.resyncUntil(token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet)
 		return parsedFn{}, false
@@ -311,6 +324,8 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 	result.name = fnNameID
 	result.generics = generics
 	result.params = params
+	result.paramCommas = commas
+	result.paramsTrailing = trailing
 	result.returnType = returnType
 	result.body = bodyStmtID
 	result.flags = flags
@@ -361,9 +376,11 @@ func (p *Parser) parseFnParam() (ast.FnParam, bool) {
 	return param, true
 }
 
-func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
+func (p *Parser) parseFnParams() ([]ast.FnParam, []source.Span, bool, bool) {
 	params := make([]ast.FnParam, 0)
+	commas := make([]source.Span, 0, 2)
 	var sawVariadic bool
+	var trailing bool
 
 	// если нет параметров, но забыли скобку
 	if p.atOr(token.LBrace, token.Arrow, token.Semicolon) {
@@ -392,13 +409,13 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
 				b.WithNote(insertSpan, "insert ')' to close the parameter list")
 			},
 		)
-		return params, true
+		return params, commas, false, true
 	}
 
 	if p.at(token.RParen) {
 		closeTok := p.advance()
 		_ = closeTok
-		return params, true
+		return params, commas, false, true
 	}
 
 	expectClosing := func() bool {
@@ -430,7 +447,7 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
 			if p.at(token.RParen) {
 				p.advance()
 			}
-			return nil, false
+			return nil, nil, false, false
 		}
 		params = append(params, param)
 		if param.Variadic && sawVariadic {
@@ -442,8 +459,10 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
 
 		if p.at(token.Comma) {
 			commaTok := p.advance()
+			commas = append(commas, commaTok.Span)
 			if p.at(token.RParen) {
 				p.advance()
+				trailing = true
 				break
 			}
 			if sawVariadic {
@@ -458,19 +477,19 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, bool) {
 				if p.at(token.RParen) {
 					p.advance()
 				}
-				return params, false
+				return params, commas, trailing, false
 			}
 			continue
 		}
 
 		if !expectClosing() {
 			p.resyncUntil(token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet)
-			return params, false
+			return params, commas, trailing, false
 		}
 		break
 	}
 
-	return params, true
+	return params, commas, trailing, true
 }
 
 func (p *Parser) parseFnGenerics() ([]source.StringID, bool) {

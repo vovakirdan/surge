@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"testing"
 
+	"surge/internal/ast"
+	"surge/internal/diag"
 	"surge/internal/driver"
 	"surge/internal/lexer"
 	"surge/internal/parser"
 	"surge/internal/source"
-	"surge/internal/diag"
-	"surge/internal/ast"
 )
 
 // Seeds cover key surfaces from LANGUAGE.md to exercise parser/round-trip.
@@ -69,7 +69,9 @@ func TestRoundTrip_DetectsKindMismatch(t *testing.T) {
 	lx1 := lexer.New(sf1, lexer.Options{Reporter: (&lexer.ReporterAdapter{Bag: bag1}).Reporter()})
 	b1 := ast.NewBuilder(ast.Hints{}, nil)
 	r1 := parser.ParseFile(fs1, lx1, b1, parser.Options{Reporter: &diag.BagReporter{Bag: bag1}, MaxErrors: 32})
-	if r1.File == 0 { t.Fatalf("parse1 failed") }
+	if r1.File == 0 {
+		t.Fatalf("parse1 failed")
+	}
 
 	// parse printed (simulating pretty)
 	fs2 := source.NewFileSetWithBase("")
@@ -79,7 +81,9 @@ func TestRoundTrip_DetectsKindMismatch(t *testing.T) {
 	lx2 := lexer.New(sf2, lexer.Options{Reporter: (&lexer.ReporterAdapter{Bag: bag2}).Reporter()})
 	b2 := ast.NewBuilder(ast.Hints{}, nil)
 	r2 := parser.ParseFile(fs2, lx2, b2, parser.Options{Reporter: &diag.BagReporter{Bag: bag2}, MaxErrors: 32})
-	if r2.File == 0 { t.Fatalf("parse2 failed") }
+	if r2.File == 0 {
+		t.Fatalf("parse2 failed")
+	}
 
 	if bytes.Equal(itemKindsToBytes(b1, r1.File), itemKindsToBytes(b2, r2.File)) {
 		t.Fatalf("expected kind mismatch to be detected")

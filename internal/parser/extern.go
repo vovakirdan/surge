@@ -129,7 +129,18 @@ func (p *Parser) parseExternMembers() ([]ast.ExternMemberSpec, bool) {
 			)
 		}
 
-		fnPayload := p.arenas.NewExternFn(fnData.name, fnData.generics, fnData.params, fnData.returnType, fnData.body, fnData.flags, memberAttrs, fnData.span)
+		fnPayload := p.arenas.NewExternFn(
+			fnData.name,
+			fnData.generics,
+			fnData.params,
+			fnData.paramCommas,
+			fnData.paramsTrailing,
+			fnData.returnType,
+			fnData.body,
+			fnData.flags,
+			memberAttrs,
+			fnData.span,
+		)
 		members = append(members, ast.ExternMemberSpec{
 			Kind: ast.ExternMemberFn,
 			Fn:   fnPayload,

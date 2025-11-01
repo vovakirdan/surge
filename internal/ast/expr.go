@@ -137,8 +137,10 @@ type ExprCastData struct {
 }
 
 type ExprCallData struct {
-	Target ExprID
-	Args   []ExprID
+	Target           ExprID
+	Args             []ExprID
+	ArgCommas        []source.Span
+	HasTrailingComma bool
 }
 
 type ExprIndexData struct {
@@ -333,8 +335,13 @@ func (e *Exprs) Cast(id ExprID) (*ExprCastData, bool) {
 	return e.Casts.Get(uint32(expr.Payload)), true
 }
 
-func (e *Exprs) NewCall(span source.Span, target ExprID, args []ExprID) ExprID {
-	payload := e.Calls.Allocate(ExprCallData{Target: target, Args: append([]ExprID(nil), args...)})
+func (e *Exprs) NewCall(span source.Span, target ExprID, args []ExprID, argCommas []source.Span, trailing bool) ExprID {
+	payload := e.Calls.Allocate(ExprCallData{
+		Target:           target,
+		Args:             append([]ExprID(nil), args...),
+		ArgCommas:        append([]source.Span(nil), argCommas...),
+		HasTrailingComma: trailing,
+	})
 	return e.new(ExprCall, span, PayloadID(payload))
 }
 

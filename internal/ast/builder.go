@@ -84,26 +84,30 @@ func (b *Builder) NewFn(
 	name source.StringID,
 	generics []source.StringID,
 	params []FnParam,
+	paramCommas []source.Span,
+	paramsTrailing bool,
 	returnType TypeID,
 	body StmtID,
 	flags FnModifier,
 	attrs []Attr,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewFn(name, generics, params, returnType, body, flags, attrs, span)
+	return b.Items.NewFn(name, generics, params, paramCommas, paramsTrailing, returnType, body, flags, attrs, span)
 }
 
 func (b *Builder) NewExternFn(
 	name source.StringID,
 	generics []source.StringID,
 	params []FnParam,
+	paramCommas []source.Span,
+	paramsTrailing bool,
 	returnType TypeID,
 	body StmtID,
 	flags FnModifier,
 	attrs []Attr,
 	span source.Span,
 ) PayloadID {
-	return b.Items.NewExternFn(name, generics, params, returnType, body, flags, attrs, span)
+	return b.Items.NewExternFn(name, generics, params, paramCommas, paramsTrailing, returnType, body, flags, attrs, span)
 }
 
 func (b *Builder) NewTypeAlias(
