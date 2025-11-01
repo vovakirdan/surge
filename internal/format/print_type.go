@@ -4,6 +4,13 @@ import "surge/internal/ast"
 
 func (p *printer) printTypeItem(item *ast.Item, typeItem *ast.TypeItem) {
 	switch typeItem.Kind {
+	case ast.TypeDeclAlias:
+		decl := p.builder.Items.TypeAlias(typeItem)
+		if decl == nil {
+			p.writer.CopySpan(item.Span)
+			return
+		}
+		p.printTypeAlias(item, typeItem, decl)
 	case ast.TypeDeclStruct:
 		decl := p.builder.Items.TypeStruct(typeItem)
 		if decl == nil || !spanValid(decl.BodySpan) {
@@ -20,6 +27,39 @@ func (p *printer) printTypeItem(item *ast.Item, typeItem *ast.TypeItem) {
 		p.printUnionDecl(item, typeItem, decl)
 	default:
 		p.writer.CopySpan(item.Span)
+	}
+}
+
+func (p *printer) printTypeAlias(item *ast.Item, typeItem *ast.TypeItem, decl *ast.TypeAliasDecl) {
+	if !spanValid(typeItem.TypeKeywordSpan) {
+		p.writer.CopySpan(item.Span)
+		return
+	}
+
+	contentLen := len(p.writer.sf.Content)
+	start := clampToContent(int(item.Span.Start), contentLen)
+	kwStart := clampToContent(int(typeItem.TypeKeywordSpan.Start), contentLen)
+	if start < kwStart {
+		p.writer.CopyRange(start, kwStart)
+	}
+
+	p.writer.WriteString("type")
+	p.writer.Space()
+	p.writer.WriteString(p.string(typeItem.Name))
+	if len(typeItem.Generics) > 0 {
+		p.printGenerics(typeItem.Generics, typeItem.GenericsTrailingComma)
+	}
+
+	p.writer.WriteString(" = ")
+	p.printTypeID(decl.Target)
+	p.writer.WriteString(";")
+
+	tailStart := int(item.Span.End)
+	if spanValid(typeItem.SemicolonSpan) {
+		tailStart = clampToContent(int(typeItem.SemicolonSpan.End), contentLen)
+	}
+	if tailStart < int(item.Span.End) {
+		p.writer.CopyRange(tailStart, clampToContent(int(item.Span.End), contentLen))
 	}
 }
 

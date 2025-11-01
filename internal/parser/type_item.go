@@ -11,8 +11,9 @@ import (
 
 func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibility ast.Visibility, prefixSpan source.Span, hasPrefix bool) (ast.ItemID, bool) {
 	typeTok := p.advance()
+	typeKwSpan := typeTok.Span
 
-	startSpan := typeTok.Span
+	startSpan := typeKwSpan
 	if attrSpan.End > attrSpan.Start {
 		startSpan = attrSpan.Cover(startSpan)
 	}
@@ -33,7 +34,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 	}
 
 	insertSpan := p.lastSpan.ZeroideToEnd()
-	if _, ok := p.expect(token.Assign, diag.SynTypeExpectEquals, "expected '=' after type name", func(b *diag.ReportBuilder) {
+	assignTok, ok := p.expect(token.Assign, diag.SynTypeExpectEquals, "expected '=' after type name", func(b *diag.ReportBuilder) {
 		if b == nil {
 			return
 		}
@@ -49,10 +50,12 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 		)
 		b.WithFixSuggestion(suggestion)
 		b.WithNote(insertSpan, "insert missing '='")
-	}); !ok {
+	})
+	if !ok {
 		p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.EOF)
 		return ast.NoItemID, false
 	}
+	assignSpan := assignTok.Span
 
 	if p.at(token.Semicolon) {
 		p.emitDiagnostic(diag.SynTypeExpectBody, diag.SevError, p.lx.Peek().Span, "expected type body after '='", nil)
@@ -66,11 +69,13 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			return ast.NoItemID, false
 		}
 		itemSpan := startSpan.Cover(bodySpan)
+		semiSpan := source.Span{}
 		if p.at(token.Semicolon) {
 			semiTok := p.advance()
 			itemSpan = itemSpan.Cover(semiTok.Span)
+			semiSpan = semiTok.Span
 		}
-		itemID := p.arenas.NewTypeStruct(nameID, generics, genericCommas, genericsTrailing, genericsSpan, attrs, visibility, ast.NoTypeID, fields, fieldCommas, trailingComma, bodySpan, itemSpan)
+		itemID := p.arenas.NewTypeStruct(nameID, generics, genericCommas, genericsTrailing, genericsSpan, typeKwSpan, assignSpan, semiSpan, attrs, visibility, ast.NoTypeID, fields, fieldCommas, trailingComma, bodySpan, itemSpan)
 		return itemID, true
 	default:
 		firstType, ok := p.parseTypePrefix()
@@ -96,11 +101,13 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 				return ast.NoItemID, false
 			}
 			itemSpan := startSpan.Cover(bodySpan)
+			semiSpan := source.Span{}
 			if p.at(token.Semicolon) {
 				semiTok := p.advance()
 				itemSpan = itemSpan.Cover(semiTok.Span)
+				semiSpan = semiTok.Span
 			}
-			itemID := p.arenas.NewTypeStruct(nameID, generics, genericCommas, genericsTrailing, genericsSpan, attrs, visibility, firstType, fields, fieldCommas, trailingComma, bodySpan, itemSpan)
+			itemID := p.arenas.NewTypeStruct(nameID, generics, genericCommas, genericsTrailing, genericsSpan, typeKwSpan, assignSpan, semiSpan, attrs, visibility, firstType, fields, fieldCommas, trailingComma, bodySpan, itemSpan)
 			return itemID, true
 		}
 
@@ -141,7 +148,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			}
 			itemSpan := startSpan.Cover(unionSpan)
 			itemSpan = itemSpan.Cover(semiTok.Span)
-			itemID := p.arenas.NewTypeUnion(nameID, generics, genericCommas, genericsTrailing, genericsSpan, attrs, visibility, members, unionSpan, itemSpan)
+			itemID := p.arenas.NewTypeUnion(nameID, generics, genericCommas, genericsTrailing, genericsSpan, typeKwSpan, assignSpan, semiTok.Span, attrs, visibility, members, unionSpan, itemSpan)
 			return itemID, true
 		}
 
@@ -180,7 +187,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			}
 			itemSpan := startSpan.Cover(unionSpan)
 			itemSpan = itemSpan.Cover(semiTok.Span)
-			itemID := p.arenas.NewTypeUnion(nameID, generics, genericCommas, genericsTrailing, genericsSpan, attrs, visibility, members, unionSpan, itemSpan)
+			itemID := p.arenas.NewTypeUnion(nameID, generics, genericCommas, genericsTrailing, genericsSpan, typeKwSpan, assignSpan, semiTok.Span, attrs, visibility, members, unionSpan, itemSpan)
 			return itemID, true
 		}
 
@@ -235,7 +242,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			return ast.NoItemID, false
 		}
 		itemSpan := startSpan.Cover(semiTok.Span)
-		itemID := p.arenas.NewTypeAlias(nameID, generics, genericCommas, genericsTrailing, genericsSpan, attrs, visibility, firstType, itemSpan)
+		itemID := p.arenas.NewTypeAlias(nameID, generics, genericCommas, genericsTrailing, genericsSpan, typeKwSpan, assignSpan, semiTok.Span, attrs, visibility, firstType, itemSpan)
 		return itemID, true
 	}
 }

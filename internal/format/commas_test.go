@@ -42,6 +42,8 @@ func TestFormatFileBasic(t *testing.T) {
 		"import std/math::{sin as s ,cos,};\n" +
 			"type Vec2 = { x: int , y: int, };\n" +
 			"type Shape = Circle(Point ,int,) | nothing;\n" +
+			"type Wrapper<T ,> = Vec2 ;\n" +
+			"tag Event<T ,>(Vec2 ,int ,);\n" +
 			"let mut point : Vec2 = call((x ,y ,), [z ,w ,],);\n" +
 			"fn foo<T>(a: int=call((x ,y ,), [z ,w ,],), b :int,) -> Vec2;\n",
 	)
@@ -55,6 +57,8 @@ func TestFormatFileBasic(t *testing.T) {
 	want := "import std/math::{sin as s, cos};\n" +
 		"type Vec2 = { x: int, y: int, };\n" +
 		"type Shape = Circle(Point, int,) | nothing;\n" +
+		"type Wrapper<T,> = Vec2;\n" +
+		"tag Event<T,>(Vec2, int,);\n" +
 		"let mut point: Vec2 = call((x, y,), [z, w,],);\n" +
 		"fn foo<T>(a: int = call((x, y,), [z, w,],), b: int,) -> Vec2;\n"
 

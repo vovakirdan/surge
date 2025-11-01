@@ -130,12 +130,15 @@ func (b *Builder) NewTypeAlias(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeKwSpan source.Span,
+	assignSpan source.Span,
+	semicolonSpan source.Span,
 	attrs []Attr,
 	visibility Visibility,
 	target TypeID,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTypeAlias(name, generics, genericCommas, genericsTrailing, genericsSpan, attrs, visibility, target, span)
+	return b.Items.NewTypeAlias(name, generics, genericCommas, genericsTrailing, genericsSpan, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, target, span)
 }
 
 func (b *Builder) NewTypeStruct(
@@ -144,6 +147,9 @@ func (b *Builder) NewTypeStruct(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeKwSpan source.Span,
+	assignSpan source.Span,
+	semicolonSpan source.Span,
 	attrs []Attr,
 	visibility Visibility,
 	base TypeID,
@@ -153,7 +159,7 @@ func (b *Builder) NewTypeStruct(
 	bodySpan source.Span,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTypeStruct(name, generics, genericCommas, genericsTrailing, genericsSpan, attrs, visibility, base, fields, fieldCommas, hasTrailing, bodySpan, span)
+	return b.Items.NewTypeStruct(name, generics, genericCommas, genericsTrailing, genericsSpan, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, base, fields, fieldCommas, hasTrailing, bodySpan, span)
 }
 
 func (b *Builder) NewTypeUnion(
@@ -162,13 +168,16 @@ func (b *Builder) NewTypeUnion(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeKwSpan source.Span,
+	assignSpan source.Span,
+	semicolonSpan source.Span,
 	attrs []Attr,
 	visibility Visibility,
 	members []TypeUnionMemberSpec,
 	bodySpan source.Span,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTypeUnion(name, generics, genericCommas, genericsTrailing, genericsSpan, attrs, visibility, members, bodySpan, span)
+	return b.Items.NewTypeUnion(name, generics, genericCommas, genericsTrailing, genericsSpan, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, members, bodySpan, span)
 }
 
 func (b *Builder) NewExtern(
@@ -186,10 +195,15 @@ func (b *Builder) NewTag(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	tagKwSpan source.Span,
+	paramsSpan source.Span,
+	semicolonSpan source.Span,
 	payload []TypeID,
+	payloadCommas []source.Span,
+	payloadTrailing bool,
 	attrs []Attr,
 	visibility Visibility,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTag(name, generics, genericCommas, genericsTrailing, genericsSpan, payload, attrs, visibility, span)
+	return b.Items.NewTag(name, generics, genericCommas, genericsTrailing, genericsSpan, tagKwSpan, paramsSpan, semicolonSpan, payload, payloadCommas, payloadTrailing, attrs, visibility, span)
 }

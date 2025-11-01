@@ -109,6 +109,11 @@ func (p *printer) printItem(id ast.ItemID, item *ast.Item) {
 			p.printImportItem(item, imp)
 			return
 		}
+	case ast.ItemTag:
+		if tagItem, ok := p.builder.Items.Tag(id); ok && tagItem != nil {
+			p.printTagItem(item, tagItem)
+			return
+		}
 	}
 	// fallback copy
 	p.writer.CopySpan(item.Span)
