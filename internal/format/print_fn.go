@@ -17,7 +17,9 @@ func (p *printer) printFnItem(id ast.ItemID, item *ast.Item, fn *ast.FnItem) {
 	p.writer.WriteString("fn")
 	p.writer.Space()
 	p.writer.WriteString(p.string(fn.Name))
-	p.printGenerics(fn.Generics)
+	if len(fn.Generics) > 0 {
+		p.printGenerics(fn.Generics, fn.GenericsTrailingComma)
+	}
 
 	var err error
 	err = p.writer.WriteByte('(')
@@ -68,13 +70,11 @@ func (p *printer) printFnItem(id ast.ItemID, item *ast.Item, fn *ast.FnItem) {
 	p.writer.CopyRange(int(fn.ParamsSpan.End), int(item.Span.End))
 }
 
-func (p *printer) printGenerics(names []source.StringID) {
+func (p *printer) printGenerics(names []source.StringID, trailing bool) {
 	if len(names) == 0 {
 		return
 	}
-	var err error
-	err = p.writer.WriteByte('<')
-	if err != nil {
+	if err := p.writer.WriteByte('<'); err != nil {
 		panic(err)
 	}
 	for i, id := range names {
@@ -83,8 +83,10 @@ func (p *printer) printGenerics(names []source.StringID) {
 		}
 		p.writer.WriteString(p.string(id))
 	}
-	err = p.writer.WriteByte('>')
-	if err != nil {
+	if trailing && len(names) > 0 {
+		p.writer.WriteString(",")
+	}
+	if err := p.writer.WriteByte('>'); err != nil {
 		panic(err)
 	}
 }

@@ -165,6 +165,9 @@ func (i *Items) allocateAttrs(attrs []Attr) (attr AttrID, attrCount uint32) {
 func (i *Items) NewTypeAlias(
 	name source.StringID,
 	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
 	attrs []Attr,
 	visibility Visibility,
 	target TypeID,
@@ -173,14 +176,17 @@ func (i *Items) NewTypeAlias(
 	attrStart, attrCount := i.allocateAttrs(attrs)
 	payload := i.TypeAliases.Allocate(TypeAliasDecl{Target: target})
 	typeItem := TypeItem{
-		Name:       name,
-		Generics:   append([]source.StringID(nil), generics...),
-		AttrStart:  attrStart,
-		AttrCount:  attrCount,
-		Kind:       TypeDeclAlias,
-		Payload:    PayloadID(payload),
-		Visibility: visibility,
-		Span:       span,
+		Name:                  name,
+		Generics:              append([]source.StringID(nil), generics...),
+		GenericCommas:         append([]source.Span(nil), genericCommas...),
+		GenericsTrailingComma: genericsTrailing,
+		GenericsSpan:          genericsSpan,
+		AttrStart:             attrStart,
+		AttrCount:             attrCount,
+		Kind:                  TypeDeclAlias,
+		Payload:               PayloadID(payload),
+		Visibility:            visibility,
+		Span:                  span,
 	}
 	payloadID := PayloadID(i.Types.Allocate(typeItem))
 	return i.New(ItemType, span, payloadID)
@@ -189,6 +195,9 @@ func (i *Items) NewTypeAlias(
 func (i *Items) NewTypeStruct(
 	name source.StringID,
 	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
 	attrs []Attr,
 	visibility Visibility,
 	base TypeID,
@@ -229,14 +238,17 @@ func (i *Items) NewTypeStruct(
 		BodySpan:    bodySpan,
 	})
 	typeItem := TypeItem{
-		Name:       name,
-		Generics:   append([]source.StringID(nil), generics...),
-		AttrStart:  attrStart,
-		AttrCount:  attrCount,
-		Kind:       TypeDeclStruct,
-		Payload:    PayloadID(structPayload),
-		Visibility: visibility,
-		Span:       span,
+		Name:                  name,
+		Generics:              append([]source.StringID(nil), generics...),
+		GenericCommas:         append([]source.Span(nil), genericCommas...),
+		GenericsTrailingComma: genericsTrailing,
+		GenericsSpan:          genericsSpan,
+		AttrStart:             attrStart,
+		AttrCount:             attrCount,
+		Kind:                  TypeDeclStruct,
+		Payload:               PayloadID(structPayload),
+		Visibility:            visibility,
+		Span:                  span,
 	}
 	payloadID := PayloadID(i.Types.Allocate(typeItem))
 	return i.New(ItemType, span, payloadID)
@@ -245,6 +257,9 @@ func (i *Items) NewTypeStruct(
 func (i *Items) NewTypeUnion(
 	name source.StringID,
 	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
 	attrs []Attr,
 	visibility Visibility,
 	members []TypeUnionMemberSpec,
@@ -280,14 +295,17 @@ func (i *Items) NewTypeUnion(
 		BodySpan:     bodySpan,
 	})
 	typeItem := TypeItem{
-		Name:       name,
-		Generics:   append([]source.StringID(nil), generics...),
-		AttrStart:  attrStart,
-		AttrCount:  attrCount,
-		Kind:       TypeDeclUnion,
-		Payload:    PayloadID(unionPayload),
-		Visibility: visibility,
-		Span:       span,
+		Name:                  name,
+		Generics:              append([]source.StringID(nil), generics...),
+		GenericCommas:         append([]source.Span(nil), genericCommas...),
+		GenericsTrailingComma: genericsTrailing,
+		GenericsSpan:          genericsSpan,
+		AttrStart:             attrStart,
+		AttrCount:             attrCount,
+		Kind:                  TypeDeclUnion,
+		Payload:               PayloadID(unionPayload),
+		Visibility:            visibility,
+		Span:                  span,
 	}
 	payloadID := PayloadID(i.Types.Allocate(typeItem))
 	return i.New(ItemType, span, payloadID)

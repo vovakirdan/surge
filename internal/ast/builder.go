@@ -83,6 +83,9 @@ func (b *Builder) NewFnParam(name source.StringID, typ TypeID, def ExprID, varia
 func (b *Builder) NewFn(
 	name source.StringID,
 	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
 	params []FnParam,
 	paramCommas []source.Span,
 	paramsTrailing bool,
@@ -96,12 +99,15 @@ func (b *Builder) NewFn(
 	attrs []Attr,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewFn(name, generics, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
+	return b.Items.NewFn(name, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
 func (b *Builder) NewExternFn(
 	name source.StringID,
 	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
 	params []FnParam,
 	paramCommas []source.Span,
 	paramsTrailing bool,
@@ -115,23 +121,29 @@ func (b *Builder) NewExternFn(
 	attrs []Attr,
 	span source.Span,
 ) PayloadID {
-	return b.Items.NewExternFn(name, generics, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
+	return b.Items.NewExternFn(name, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
 func (b *Builder) NewTypeAlias(
 	name source.StringID,
 	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
 	attrs []Attr,
 	visibility Visibility,
 	target TypeID,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTypeAlias(name, generics, attrs, visibility, target, span)
+	return b.Items.NewTypeAlias(name, generics, genericCommas, genericsTrailing, genericsSpan, attrs, visibility, target, span)
 }
 
 func (b *Builder) NewTypeStruct(
 	name source.StringID,
 	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
 	attrs []Attr,
 	visibility Visibility,
 	base TypeID,
@@ -141,19 +153,22 @@ func (b *Builder) NewTypeStruct(
 	bodySpan source.Span,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTypeStruct(name, generics, attrs, visibility, base, fields, fieldCommas, hasTrailing, bodySpan, span)
+	return b.Items.NewTypeStruct(name, generics, genericCommas, genericsTrailing, genericsSpan, attrs, visibility, base, fields, fieldCommas, hasTrailing, bodySpan, span)
 }
 
 func (b *Builder) NewTypeUnion(
 	name source.StringID,
 	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
 	attrs []Attr,
 	visibility Visibility,
 	members []TypeUnionMemberSpec,
 	bodySpan source.Span,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTypeUnion(name, generics, attrs, visibility, members, bodySpan, span)
+	return b.Items.NewTypeUnion(name, generics, genericCommas, genericsTrailing, genericsSpan, attrs, visibility, members, bodySpan, span)
 }
 
 func (b *Builder) NewExtern(
@@ -168,10 +183,13 @@ func (b *Builder) NewExtern(
 func (b *Builder) NewTag(
 	name source.StringID,
 	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
 	payload []TypeID,
 	attrs []Attr,
 	visibility Visibility,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTag(name, generics, payload, attrs, visibility, span)
+	return b.Items.NewTag(name, generics, genericCommas, genericsTrailing, genericsSpan, payload, attrs, visibility, span)
 }

@@ -46,7 +46,6 @@ func TestFormatFileBasic(t *testing.T) {
 			"fn foo<T>(a: int=call((x ,y ,), [z ,w ,],), b :int,) -> Vec2;\n",
 	)
 	_, sf, builder, fileID := parseSource(t, src)
-
 	formatted, err := FormatFile(sf, builder, fileID, Options{})
 	if err != nil {
 		t.Fatalf("FormatFile failed: %v", err)

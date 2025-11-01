@@ -11,14 +11,17 @@ const (
 )
 
 type TypeItem struct {
-	Name       source.StringID
-	Generics   []source.StringID
-	AttrStart  AttrID
-	AttrCount  uint32
-	Kind       TypeDeclKind
-	Payload    PayloadID
-	Visibility Visibility
-	Span       source.Span
+	Name                  source.StringID
+	Generics              []source.StringID
+	GenericCommas         []source.Span
+	GenericsTrailingComma bool
+	GenericsSpan          source.Span
+	AttrStart             AttrID
+	AttrCount             uint32
+	Kind                  TypeDeclKind
+	Payload               PayloadID
+	Visibility            Visibility
+	Span                  source.Span
 }
 
 type TypeAliasDecl struct {

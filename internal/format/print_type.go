@@ -31,8 +31,22 @@ func (p *printer) printStructDecl(item *ast.Item, typeItem *ast.TypeItem, decl *
 		return
 	}
 
-	// Prefix before '{'
-	p.writer.CopyRange(int(item.Span.Start), bodyStart)
+	contentLen := len(p.writer.sf.Content)
+	start := int(item.Span.Start)
+
+	if len(typeItem.Generics) > 0 && spanValid(typeItem.GenericsSpan) {
+		genStart := clampToContent(int(typeItem.GenericsSpan.Start), contentLen)
+		if start < genStart {
+			p.writer.CopyRange(start, genStart)
+		}
+		p.printGenerics(typeItem.Generics, typeItem.GenericsTrailingComma)
+		afterGenerics := clampToContent(int(typeItem.GenericsSpan.End), contentLen)
+		if afterGenerics < bodyStart {
+			p.writer.CopyRange(afterGenerics, bodyStart)
+		}
+	} else {
+		p.writer.CopyRange(start, bodyStart)
+	}
 
 	cursor := bodyStart
 	fieldCount := int(decl.FieldsCount)
@@ -90,8 +104,7 @@ func (p *printer) printStructDecl(item *ast.Item, typeItem *ast.TypeItem, decl *
 
 	p.writer.CopyRange(cursor, bodyEnd)
 
-	// copy tail after body (semicolon, comments)
-	if int(item.Span.End) > bodyEnd {
+	if bodyEnd < int(item.Span.End) {
 		p.writer.CopyRange(bodyEnd, int(item.Span.End))
 	}
 }
@@ -118,7 +131,22 @@ func (p *printer) printUnionDecl(item *ast.Item, typeItem *ast.TypeItem, decl *a
 		return
 	}
 
-	p.writer.CopyRange(int(item.Span.Start), bodyStart)
+	contentLen := len(p.writer.sf.Content)
+	start := int(item.Span.Start)
+
+	if len(typeItem.Generics) > 0 && spanValid(typeItem.GenericsSpan) {
+		genStart := clampToContent(int(typeItem.GenericsSpan.Start), contentLen)
+		if start < genStart {
+			p.writer.CopyRange(start, genStart)
+		}
+		p.printGenerics(typeItem.Generics, typeItem.GenericsTrailingComma)
+		afterGenerics := clampToContent(int(typeItem.GenericsSpan.End), contentLen)
+		if afterGenerics < bodyStart {
+			p.writer.CopyRange(afterGenerics, bodyStart)
+		}
+	} else {
+		p.writer.CopyRange(start, bodyStart)
+	}
 
 	members := make([]*ast.TypeUnionMember, 0, int(decl.MembersCount))
 	if decl.MembersCount > 0 && decl.MembersStart.IsValid() {
@@ -139,22 +167,9 @@ func (p *printer) printUnionDecl(item *ast.Item, typeItem *ast.TypeItem, decl *a
 		p.writeUnionMember(member)
 	}
 
-	tailStart := bodyEnd
-	if tailStart < int(item.Span.End) {
-		content := p.writer.sf.Content
-		found := false
-		for i := tailStart; i < int(item.Span.End); i++ {
-			if content[i] == ';' {
-				tailStart = i
-				found = true
-				break
-			}
-		}
-		if !found {
-			tailStart = int(item.Span.End)
-		}
+	if int(item.Span.End) > bodyEnd {
+		p.writer.CopyRange(bodyEnd, int(item.Span.End))
 	}
-	p.writer.CopyRange(tailStart, int(item.Span.End))
 }
 
 func (p *printer) writeUnionMember(member *ast.TypeUnionMember) {

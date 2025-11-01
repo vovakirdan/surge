@@ -26,19 +26,22 @@ func (m *fnModifiers) extend(sp source.Span) {
 }
 
 type parsedFn struct {
-	name           source.StringID
-	generics       []source.StringID
-	params         []ast.FnParam
-	paramCommas    []source.Span
-	paramsTrailing bool
-	fnKwSpan       source.Span
-	paramsSpan     source.Span
-	returnSpan     source.Span
-	semicolonSpan  source.Span
-	returnType     ast.TypeID
-	body           ast.StmtID
-	flags          ast.FnModifier
-	span           source.Span
+	name             source.StringID
+	generics         []source.StringID
+	genericCommas    []source.Span
+	genericsSpan     source.Span
+	genericsTrailing bool
+	params           []ast.FnParam
+	paramCommas      []source.Span
+	paramsTrailing   bool
+	fnKwSpan         source.Span
+	paramsSpan       source.Span
+	returnSpan       source.Span
+	semicolonSpan    source.Span
+	returnType       ast.TypeID
+	body             ast.StmtID
+	flags            ast.FnModifier
+	span             source.Span
 }
 
 func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
@@ -173,6 +176,9 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 	fnItemID := p.arenas.NewFn(
 		fnData.name,
 		fnData.generics,
+		fnData.genericCommas,
+		fnData.genericsTrailing,
+		fnData.genericsSpan,
 		fnData.params,
 		fnData.paramCommas,
 		fnData.paramsTrailing,
@@ -206,7 +212,7 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 	flags := mods.flags
 
 	// Допускаем Rust-подобный синтаксис: fn <T, U> name(...)
-	preGenerics, ok := p.parseFnGenerics()
+	preGenerics, preCommas, preTrailing, preSpan, ok := p.parseFnGenerics()
 	if !ok {
 		p.resyncUntil(token.Ident, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
 		return parsedFn{}, false
@@ -218,6 +224,9 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 	}
 
 	generics := preGenerics
+	genericCommas := preCommas
+	genericsTrailing := preTrailing
+	genericsSpan := preSpan
 
 	if len(generics) > 0 {
 		// Если generics уже были до имени, запрещаем второе объявление.
@@ -231,13 +240,13 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 				nil,
 			)
 			// Пробуем съесть второе объявление, чтобы не застрять.
-			if _, ok = p.parseFnGenerics(); !ok {
+			if _, _, _, _, ok = p.parseFnGenerics(); !ok {
 				p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
 				return parsedFn{}, false
 			}
 		}
 	} else {
-		generics, ok = p.parseFnGenerics()
+		generics, genericCommas, genericsTrailing, genericsSpan, ok = p.parseFnGenerics()
 		if !ok {
 			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
 			return parsedFn{}, false
@@ -338,6 +347,9 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 
 	result.name = fnNameID
 	result.generics = generics
+	result.genericCommas = genericCommas
+	result.genericsTrailing = genericsTrailing
+	result.genericsSpan = genericsSpan
 	result.params = params
 	result.paramCommas = commas
 	result.paramsTrailing = trailing
@@ -531,31 +543,34 @@ func (p *Parser) parseFnParams() (params []ast.FnParam, commas []source.Span, tr
 	return
 }
 
-func (p *Parser) parseFnGenerics() ([]source.StringID, bool) {
+func (p *Parser) parseFnGenerics() (generics []source.StringID, commas []source.Span, trailing bool, span source.Span, ok bool) {
 	if !p.at(token.Lt) {
-		return nil, true
+		return nil, nil, false, source.Span{}, true
 	}
 
-	p.advance()
+	ltTok := p.advance()
 
-	generics := make([]source.StringID, 0, 2)
+	generics = make([]source.StringID, 0, 2)
+	commas = make([]source.Span, 0, 2)
 
 	for {
 		nameID, ok := p.parseIdent()
 		if !ok {
-			p.resyncUntil(token.Gt, token.LParen, token.Semicolon, token.KwFn)
+			p.resyncUntil(token.Gt, token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwType, token.KwTag, token.KwImport)
 			if p.at(token.Gt) {
 				p.advance()
 			}
-			return nil, false
+			return nil, nil, false, source.Span{}, false
 		}
 
 		generics = append(generics, nameID)
 
 		if p.at(token.Comma) {
-			p.advance()
+			commaTok := p.advance()
+			commas = append(commas, commaTok.Span)
 			if p.at(token.Gt) {
 				p.advance()
+				trailing = true
 				break
 			}
 			continue
@@ -579,11 +594,12 @@ func (p *Parser) parseFnGenerics() ([]source.StringID, bool) {
 			b.WithFixSuggestion(suggestion)
 			b.WithNote(insertSpan, "insert '>' to close the generic parameter list")
 		}); !ok {
-			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn)
-			return generics, false
+			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwType, token.KwTag, token.KwImport)
+			return generics, commas, trailing, source.Span{}, false
 		}
 		break
 	}
 
-	return generics, true
+	span = ltTok.Span.Cover(p.lastSpan)
+	return generics, commas, trailing, span, true
 }

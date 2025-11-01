@@ -132,6 +132,9 @@ func (p *Parser) parseExternMembers() ([]ast.ExternMemberSpec, bool) {
 		fnPayload := p.arenas.NewExternFn(
 			fnData.name,
 			fnData.generics,
+			fnData.genericCommas,
+			fnData.genericsTrailing,
+			fnData.genericsSpan,
 			fnData.params,
 			fnData.paramCommas,
 			fnData.paramsTrailing,
