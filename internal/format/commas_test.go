@@ -42,7 +42,7 @@ func TestFormatFileBasic(t *testing.T) {
 		"import std/math::{sin as s ,cos,};\n" +
 			"type Vec2 = { x: int , y: int, };\n" +
 			"type Shape = Circle(Point ,int,) | nothing;\n" +
-			"fn foo<T>(a: int=call(x ,y,z ,), b :int,) -> Vec2;\n",
+			"fn foo<T>(a: int=call((x ,y ,), [z ,w ,],), b :int,) -> Vec2;\n",
 	)
 	_, sf, builder, fileID := parseSource(t, src)
 
@@ -55,7 +55,7 @@ func TestFormatFileBasic(t *testing.T) {
 	want := "import std/math::{sin as s, cos};\n" +
 		"type Vec2 = { x: int, y: int, };\n" +
 		"type Shape = Circle(Point, int,) | nothing;\n" +
-		"fn foo<T>(a: int = call(x, y, z,), b: int,) -> Vec2;\n"
+		"fn foo<T>(a: int = call((x, y,), [z, w,],), b: int,) -> Vec2;\n"
 
 	if got != want {
 		t.Fatalf("FormatFile mismatch:\nwant %q\ngot  %q", want, got)

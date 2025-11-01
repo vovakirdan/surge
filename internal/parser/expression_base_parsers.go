@@ -4,6 +4,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
+	"surge/internal/source"
 	"surge/internal/token"
 )
 
@@ -88,11 +89,14 @@ func (p *Parser) parseNothingLiteral() (ast.ExprID, bool) {
 func (p *Parser) parseParenExpr() (ast.ExprID, bool) {
 	openTok := p.advance() // съедаем '('
 
+	commas := make([]source.Span, 0, 2)
+	var trailing bool
+
 	// Проверяем на пустой tuple
 	if p.at(token.RParen) {
 		closeTok := p.advance()
 		finalSpan := openTok.Span.Cover(closeTok.Span)
-		return p.arenas.Exprs.NewTuple(finalSpan, []ast.ExprID{}), true
+		return p.arenas.Exprs.NewTuple(finalSpan, []ast.ExprID{}, commas, trailing), true
 	}
 
 	// Парсим первое выражение
@@ -107,10 +111,12 @@ func (p *Parser) parseParenExpr() (ast.ExprID, bool) {
 		elements = append(elements, first)
 
 		for p.at(token.Comma) {
-			p.advance() // съедаем ','
+			commaTok := p.advance() // съедаем ','
+			commas = append(commas, commaTok.Span)
 
 			// Разрешаем завершающую запятую
 			if p.at(token.RParen) {
+				trailing = true
 				break
 			}
 
@@ -129,7 +135,7 @@ func (p *Parser) parseParenExpr() (ast.ExprID, bool) {
 		}
 
 		finalSpan := openTok.Span.Cover(closeTok.Span)
-		return p.arenas.Exprs.NewTuple(finalSpan, elements), true
+		return p.arenas.Exprs.NewTuple(finalSpan, elements, commas, trailing), true
 	}
 
 	// Не tuple - обычная группировка
@@ -150,7 +156,7 @@ func (p *Parser) parseArrayExpr() (ast.ExprID, bool) {
 	if p.at(token.RBracket) {
 		closeTok := p.advance()
 		finalSpan := openTok.Span.Cover(closeTok.Span)
-		return p.arenas.Exprs.NewArray(finalSpan, []ast.ExprID{}), true
+		return p.arenas.Exprs.NewArray(finalSpan, []ast.ExprID{}, nil, false), true
 	}
 
 	// Парсим первое выражение
@@ -176,9 +182,13 @@ func (p *Parser) parseArrayExpr() (ast.ExprID, bool) {
 	var elements []ast.ExprID
 	elements = append(elements, first)
 	encounteredError := false
+	commas := make([]source.Span, 0, 2)
+	var trailing bool
 	for p.at(token.Comma) {
-		p.advance() // съедаем ','
+		commaTok := p.advance() // съедаем ','
+		commas = append(commas, commaTok.Span)
 		if p.at(token.RBracket) {
+			trailing = true
 			break
 		}
 		beforeErrors = p.opts.CurrentErrors
@@ -230,5 +240,5 @@ func (p *Parser) parseArrayExpr() (ast.ExprID, bool) {
 	}
 
 	finalSpan := openTok.Span.Cover(closeTok.Span)
-	return p.arenas.Exprs.NewArray(finalSpan, elements), true
+	return p.arenas.Exprs.NewArray(finalSpan, elements, commas, trailing), true
 }

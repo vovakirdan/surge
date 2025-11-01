@@ -158,11 +158,15 @@ type ExprGroupData struct {
 }
 
 type ExprTupleData struct {
-	Elements []ExprID
+	Elements         []ExprID
+	ElementCommas    []source.Span
+	HasTrailingComma bool
 }
 
 type ExprArrayData struct {
-	Elements []ExprID
+	Elements         []ExprID
+	ElementCommas    []source.Span
+	HasTrailingComma bool
 }
 
 type ExprSpreadData struct {
@@ -405,8 +409,12 @@ func (e *Exprs) Group(id ExprID) (*ExprGroupData, bool) {
 	return e.Groups.Get(uint32(expr.Payload)), true
 }
 
-func (e *Exprs) NewTuple(span source.Span, elements []ExprID) ExprID {
-	payload := e.Tuples.Allocate(ExprTupleData{Elements: append([]ExprID(nil), elements...)})
+func (e *Exprs) NewTuple(span source.Span, elements []ExprID, commas []source.Span, trailing bool) ExprID {
+	payload := e.Tuples.Allocate(ExprTupleData{
+		Elements:         append([]ExprID(nil), elements...),
+		ElementCommas:    append([]source.Span(nil), commas...),
+		HasTrailingComma: trailing,
+	})
 	return e.new(ExprTuple, span, PayloadID(payload))
 }
 
@@ -418,8 +426,12 @@ func (e *Exprs) Tuple(id ExprID) (*ExprTupleData, bool) {
 	return e.Tuples.Get(uint32(expr.Payload)), true
 }
 
-func (e *Exprs) NewArray(span source.Span, elements []ExprID) ExprID {
-	payload := e.Arrays.Allocate(ExprArrayData{Elements: append([]ExprID(nil), elements...)})
+func (e *Exprs) NewArray(span source.Span, elements []ExprID, commas []source.Span, trailing bool) ExprID {
+	payload := e.Arrays.Allocate(ExprArrayData{
+		Elements:         append([]ExprID(nil), elements...),
+		ElementCommas:    append([]source.Span(nil), commas...),
+		HasTrailingComma: trailing,
+	})
 	return e.new(ExprArray, span, PayloadID(payload))
 }
 
