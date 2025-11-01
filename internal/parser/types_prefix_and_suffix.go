@@ -209,7 +209,18 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 				b.WithNote(insertSpan, "insert ']' to close array type")
 			},
 		)
-		p.resyncTop()
+		p.resyncUntil(
+			token.RBracket,
+			token.Comma,
+			token.Semicolon,
+			token.RParen,
+			token.RBrace,
+			token.KwType,
+			token.KwFn,
+			token.KwImport,
+			token.KwLet,
+			token.EOF,
+		)
 		if p.at(token.RBracket) {
 			p.advance()
 		}
