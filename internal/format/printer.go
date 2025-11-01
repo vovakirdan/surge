@@ -67,17 +67,24 @@ func (p *printer) printFile() {
 	if p.file == nil {
 		return
 	}
-	prev := p.file.Span.Start
+	contentLen := len(p.writer.sf.Content)
+	prev := 0
 	for _, itemID := range p.file.Items {
 		item := p.builder.Items.Get(itemID)
 		if item == nil {
 			continue
 		}
-		p.writer.CopyRange(int(prev), int(item.Span.Start))
+		start := clampToContent(int(item.Span.Start), contentLen)
+		if prev < start {
+			p.writer.CopyRange(prev, start)
+		}
 		p.printItem(itemID, item)
-		prev = item.Span.End
+		end := max(clampToContent(int(item.Span.End), contentLen), start)
+		prev = end
 	}
-	p.writer.CopyRange(int(prev), int(p.file.Span.End))
+	if prev < contentLen {
+		p.writer.CopyRange(prev, contentLen)
+	}
 }
 
 func (p *printer) printItem(id ast.ItemID, item *ast.Item) {
@@ -170,4 +177,14 @@ func sameTopItemKinds(b1 *ast.Builder, f1 ast.FileID, b2 *ast.Builder, f2 ast.Fi
 		}
 	}
 	return true
+}
+
+func clampToContent(pos, length int) int {
+	if pos < 0 {
+		return 0
+	}
+	if pos > length {
+		return length
+	}
+	return pos
 }

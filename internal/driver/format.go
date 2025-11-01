@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"fortio.org/safecast"
 
@@ -149,6 +150,7 @@ func collectSourceFiles(paths []string) ([]string, error) {
 		}
 	}
 
+	sort.Strings(files)
 	return files, nil
 }
 

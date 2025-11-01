@@ -39,3 +39,4 @@ test.sg
 helloworld/
 
 surge
+!cmd/surge
