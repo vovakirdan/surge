@@ -130,17 +130,25 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to stat path: %w", err)
 	}
 
-	if !st.IsDir() {
-		var result *driver.DiagnoseResult
-		// Выполняем диагностику одного файла
-		result, err = driver.DiagnoseWithOptions(filePath, opts)
+	cleanup, err := setupProfiling(cmd)
+	if err != nil {
+		return err
+	}
+
+	var (
+		exitCode  int
+		resultErr error
+	)
+
+	runFile := func() (int, error) {
+		result, err := driver.DiagnoseWithOptions(filePath, opts)
 		if err != nil {
-			return fmt.Errorf("diagnosis failed: %w", err)
+			return 0, fmt.Errorf("diagnosis failed: %w", err)
 		}
 
-		exitCode := 0
+		exit := 0
 		if result.Bag.HasErrors() {
-			exitCode = 1
+			exit = 1
 		}
 
 		pathMode := diagfmt.PathModeAuto
@@ -149,14 +157,15 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		}
 		showFixes := suggest || preview
 
+		var colorFlag string
+		colorFlag, err = cmd.Root().PersistentFlags().GetString("color")
+		if err != nil {
+			return 0, err
+		}
+		useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stdout))
+
 		switch format {
 		case "pretty":
-			var colorFlag string
-			colorFlag, err = cmd.Root().PersistentFlags().GetString("color")
-			if err != nil {
-				return err
-			}
-			useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stdout))
 			opts := diagfmt.PrettyOpts{
 				Color:       useColor,
 				Context:     2,
@@ -174,7 +183,9 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 				IncludeFixes:     showFixes,
 				IncludePreviews:  preview,
 			}
-			err = diagfmt.JSON(os.Stdout, result.Bag, result.FileSet, jsonOpts)
+			if err = diagfmt.JSON(os.Stdout, result.Bag, result.FileSet, jsonOpts); err != nil {
+				return 0, fmt.Errorf("failed to format diagnostics: %w", err)
+			}
 		case "sarif":
 			meta := diagfmt.SarifRunMeta{
 				ToolName:    "surge",
@@ -182,131 +193,136 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			}
 			diagfmt.Sarif(os.Stdout, result.Bag, result.FileSet, meta)
 		default:
-			return fmt.Errorf("unknown format: %s", format)
+			return 0, fmt.Errorf("unknown format: %s", format)
 		}
 
+		return exit, nil
+	}
+
+	runDir := func() (int, error) {
+		jobs, err := cmd.Flags().GetInt("jobs")
 		if err != nil {
-			return fmt.Errorf("failed to format diagnostics: %w", err)
+			return 0, fmt.Errorf("failed to get jobs flag: %w", err)
 		}
 
-		if exitCode != 0 {
-			os.Exit(exitCode)
+		fs, results, err := driver.DiagnoseDirWithOptions(cmd.Context(), filePath, opts, jobs)
+		if err != nil {
+			return 0, fmt.Errorf("diagnosis failed: %w", err)
 		}
 
-		return nil
-	}
-
-	// Диагностика директории
-	jobs, err := cmd.Flags().GetInt("jobs")
-	if err != nil {
-		return fmt.Errorf("failed to get jobs flag: %w", err)
-	}
-
-	fs, results, err := driver.DiagnoseDirWithOptions(cmd.Context(), filePath, opts, jobs)
-	if err != nil {
-		return fmt.Errorf("diagnosis failed: %w", err)
-	}
-
-	exitCode := 0
-	for _, r := range results {
-		if r.Bag.HasErrors() {
-			exitCode = 1
-			break
-		}
-	}
-
-	colorFlag, err := cmd.Root().PersistentFlags().GetString("color")
-	if err != nil {
-		return err
-	}
-	useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stdout))
-	pathMode := diagfmt.PathModeAuto
-	if fullPath {
-		pathMode = diagfmt.PathModeAbsolute
-	}
-	showFixes := suggest || preview
-	prettyOpts := diagfmt.PrettyOpts{
-		Color:       useColor,
-		Context:     2,
-		PathMode:    pathMode,
-		ShowNotes:   withNotes,
-		ShowFixes:   showFixes,
-		ShowPreview: preview,
-	}
-	jsonOpts := diagfmt.JSONOpts{
-		IncludePositions: true,
-		PathMode:         pathMode,
-		IncludeNotes:     withNotes,
-		IncludeFixes:     showFixes,
-		IncludePreviews:  preview,
-	}
-	meta := diagfmt.SarifRunMeta{
-		ToolName:    "surge",
-		ToolVersion: "0.1.0",
-	}
-
-	switch format {
-	case "pretty":
-		for idx, r := range results {
-			if idx > 0 {
-				fmt.Fprintln(os.Stdout)
-			}
-
-			displayPath := r.Path
-			if r.FileID != 0 {
-				file := fs.Get(r.FileID)
-				mode := "auto"
-				if fullPath {
-					mode = "absolute"
-				}
-				displayPath = file.FormatPath(mode, fs.BaseDir())
-			} else if fullPath {
-				if abs, err := source.AbsolutePath(displayPath); err == nil {
-					displayPath = abs
-				}
-			}
-
-			fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
-			diagfmt.Pretty(os.Stdout, r.Bag, fs, prettyOpts)
-		}
-	case "json":
-		output := make(map[string]diagfmt.DiagnosticsOutput, len(results))
+		exit := 0
 		for _, r := range results {
-			displayPath := r.Path
-			if r.FileID != 0 {
-				file := fs.Get(r.FileID)
-				mode := "auto"
-				if fullPath {
-					mode = "absolute"
-				}
-				displayPath = file.FormatPath(mode, fs.BaseDir())
-			} else if fullPath {
-				if abs, err := source.AbsolutePath(displayPath); err == nil {
-					displayPath = abs
-				}
+			if r.Bag.HasErrors() {
+				exit = 1
+				break
 			}
-			data, err := diagfmt.BuildDiagnosticsOutput(r.Bag, fs, jsonOpts)
-			if err != nil {
-				return fmt.Errorf("failed to build diagnostics output: %w", err)
+		}
+
+		colorFlag, err := cmd.Root().PersistentFlags().GetString("color")
+		if err != nil {
+			return 0, err
+		}
+		useColor := colorFlag == "on" || (colorFlag == "auto" && isTerminal(os.Stdout))
+		pathMode := diagfmt.PathModeAuto
+		if fullPath {
+			pathMode = diagfmt.PathModeAbsolute
+		}
+		showFixes := suggest || preview
+		prettyOpts := diagfmt.PrettyOpts{
+			Color:       useColor,
+			Context:     2,
+			PathMode:    pathMode,
+			ShowNotes:   withNotes,
+			ShowFixes:   showFixes,
+			ShowPreview: preview,
+		}
+		jsonOpts := diagfmt.JSONOpts{
+			IncludePositions: true,
+			PathMode:         pathMode,
+			IncludeNotes:     withNotes,
+			IncludeFixes:     showFixes,
+			IncludePreviews:  preview,
+		}
+		meta := diagfmt.SarifRunMeta{
+			ToolName:    "surge",
+			ToolVersion: "0.1.0",
+		}
+
+		switch format {
+		case "pretty":
+			for idx, r := range results {
+				if idx > 0 {
+					fmt.Fprintln(os.Stdout)
+				}
+
+				displayPath := r.Path
+				if r.FileID != 0 {
+					file := fs.Get(r.FileID)
+					mode := "auto"
+					if fullPath {
+						mode = "absolute"
+					}
+					displayPath = file.FormatPath(mode, fs.BaseDir())
+				} else if fullPath {
+					if abs, err := source.AbsolutePath(displayPath); err == nil {
+						displayPath = abs
+					}
+				}
+
+				fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
+				diagfmt.Pretty(os.Stdout, r.Bag, fs, prettyOpts)
 			}
-			output[displayPath] = data
+		case "json":
+			output := make(map[string]diagfmt.DiagnosticsOutput, len(results))
+			for _, r := range results {
+				displayPath := r.Path
+				if r.FileID != 0 {
+					file := fs.Get(r.FileID)
+					mode := "auto"
+					if fullPath {
+						mode = "absolute"
+					}
+					displayPath = file.FormatPath(mode, fs.BaseDir())
+				} else if fullPath {
+					if abs, err := source.AbsolutePath(displayPath); err == nil {
+						displayPath = abs
+					}
+				}
+				data, buildErr := diagfmt.BuildDiagnosticsOutput(r.Bag, fs, jsonOpts)
+				if buildErr != nil {
+					return 0, fmt.Errorf("failed to build diagnostics output: %w", buildErr)
+				}
+				output[displayPath] = data
+			}
+			encoder := json.NewEncoder(os.Stdout)
+			encoder.SetIndent("", "  ")
+			if err := encoder.Encode(output); err != nil {
+				return 0, fmt.Errorf("failed to encode diagnostics output: %w", err)
+			}
+		case "sarif":
+			for _, r := range results {
+				diagfmt.Sarif(os.Stdout, r.Bag, fs, meta)
+			}
+		default:
+			return 0, fmt.Errorf("unknown format: %s", format)
 		}
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		if err := encoder.Encode(output); err != nil {
-			return fmt.Errorf("failed to encode diagnostics output: %w", err)
-		}
-	case "sarif":
-		for _, r := range results {
-			diagfmt.Sarif(os.Stdout, r.Bag, fs, meta)
-		}
-	default:
-		return fmt.Errorf("unknown format: %s", format)
+
+		return exit, nil
 	}
 
+	if !st.IsDir() {
+		exitCode, resultErr = runFile()
+	} else {
+		exitCode, resultErr = runDir()
+	}
+
+	cleanup()
+
+	if resultErr != nil {
+		return resultErr
+	}
 	if exitCode != 0 {
 		os.Exit(exitCode)
 	}
-
 	return nil
 }

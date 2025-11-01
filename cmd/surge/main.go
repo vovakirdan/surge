@@ -36,6 +36,9 @@ func main() {
 	rootCmd.PersistentFlags().Bool("quiet", false, "suppress non-essential output")
 	rootCmd.PersistentFlags().Bool("timings", false, "show timing information")
 	rootCmd.PersistentFlags().Int("max-diagnostics", 100, "maximum number of diagnostics to show")
+	rootCmd.PersistentFlags().String("cpu-profile", "", "write CPU profile to file")
+	rootCmd.PersistentFlags().String("mem-profile", "", "write heap profile to file")
+	rootCmd.PersistentFlags().String("trace", "", "write runtime trace to file")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

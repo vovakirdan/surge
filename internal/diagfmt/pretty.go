@@ -1,6 +1,7 @@
 package diagfmt
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -238,6 +239,10 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 		// Заглушки для Notes и Fixes
 		if opts.ShowNotes && len(d.Notes) > 0 {
 			for _, note := range d.Notes {
+				if d.Code == diag.ObsTimings && printTimingNote(w, note.Msg, infoColor) {
+					continue
+				}
+
 				nf := fs.Get(note.Span.File)
 				notePath := formatPath(nf)
 				noteStart, _ := fs.Resolve(note.Span)
@@ -392,4 +397,48 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 			}
 		}
 	}
+}
+
+type timingNotePayload struct {
+	Kind    string  `json:"kind"`
+	Path    string  `json:"path"`
+	TotalMS float64 `json:"total_ms"`
+	Phases  []struct {
+		Name       string  `json:"name"`
+		DurationMS float64 `json:"duration_ms"`
+		Note       string  `json:"note"`
+	} `json:"phases"`
+}
+
+func printTimingNote(w io.Writer, payload string, infoColor *color.Color) bool {
+	var data timingNotePayload
+	if err := json.Unmarshal([]byte(payload), &data); err != nil {
+		return false
+	}
+	kind := data.Kind
+	if kind == "" {
+		kind = "pipeline"
+	}
+	fmt.Fprintf(
+		w,
+		"  %s: timings (%s) total %.2f ms",
+		infoColor.Sprint("note"),
+		kind,
+		data.TotalMS,
+	)
+	if data.Path != "" {
+		fmt.Fprintf(w, " — %s", data.Path)
+	}
+	fmt.Fprintln(w)
+	for _, phase := range data.Phases {
+		if phase.Name == "" {
+			continue
+		}
+		fmt.Fprintf(w, "      %-20s %7.2f ms", phase.Name, phase.DurationMS)
+		if phase.Note != "" {
+			fmt.Fprintf(w, "  // %s", phase.Note)
+		}
+		fmt.Fprintln(w)
+	}
+	return true
 }

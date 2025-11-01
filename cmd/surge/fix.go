@@ -73,6 +73,12 @@ func runFix(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	cleanup, err := setupProfiling(cmd)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
 	driverOpts := driver.DiagnoseOptions{
 		Stage:          driver.DiagnoseStageSyntax,
 		MaxDiagnostics: maxDiagnostics,
