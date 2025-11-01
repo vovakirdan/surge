@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -46,6 +45,7 @@ type DiagnoseDirResult struct {
 	Bag     *diag.Bag
 	Builder *ast.Builder
 	ASTFile ast.FileID
+	Timing  *observ.Report
 }
 
 func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOptions, jobs int) (*source.FileSet, []DiagnoseDirResult, error) {
@@ -86,41 +86,16 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 	}
 
 	results := make([]DiagnoseDirResult, len(files))
-	var fileTimers []string
-	if opts.EnableTimings {
-		fileTimers = make([]string, len(files))
-	}
+	var (
+		graphReport *observ.Report
+		graphPath   string
+	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(min(jobs, len(files)))
 
 	for i, path := range files {
 		g.Go(func(i int, path string) func() error {
 			return func() error {
-				var (
-					timer *observ.Timer
-					begin func(string) int
-					end   func(int, string)
-				)
-				if opts.EnableTimings {
-					timer = observ.NewTimer()
-					begin = func(name string) int {
-						return timer.Begin(name)
-					}
-					end = func(idx int, note string) {
-						if idx >= 0 {
-							timer.End(idx, note)
-						}
-					}
-					defer func() {
-						if fileTimers != nil {
-							fileTimers[i] = fmt.Sprintf("[%s]\n%s", path, timer.Summary())
-						}
-					}()
-				} else {
-					begin = func(string) int { return -1 }
-					end = func(int, string) {}
-				}
-
 				select {
 				case <-gctx.Done():
 					return gctx.Err()
@@ -133,6 +108,32 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					astFile ast.FileID
 				)
 
+				var (
+					timer         *observ.Timer
+					begin         func(string) int
+					end           func(int, string)
+					reportTimings func()
+				)
+				if opts.EnableTimings {
+					timer = observ.NewTimer()
+					begin = func(name string) int {
+						return timer.Begin(name)
+					}
+					end = func(idx int, note string) {
+						if idx >= 0 {
+							timer.End(idx, note)
+						}
+					}
+					reportTimings = func() {
+						report := timer.Report()
+						results[i].Timing = &report
+					}
+				} else {
+					begin = func(string) int { return -1 }
+					end = func(int, string) {}
+					reportTimings = func() {}
+				}
+
 				if loadErr, hadErr := loadErrors[path]; hadErr {
 					loadIdx := begin("load_file")
 					end(loadIdx, "error")
@@ -143,6 +144,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 						Primary:  source.Span{},
 					})
 					results[i] = DiagnoseDirResult{Path: path, FileID: 0, Bag: bag}
+					reportTimings()
 					return nil
 				}
 
@@ -151,6 +153,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					loadIdx := begin("load_file")
 					end(loadIdx, "missing")
 					results[i] = DiagnoseDirResult{Path: path, FileID: 0, Bag: bag}
+					reportTimings()
 					return nil
 				}
 
@@ -181,6 +184,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					}
 					_ = br
 					_ = fe
+					reportTimings()
 					return nil
 				}
 				end(cacheIdx, "miss")
@@ -221,27 +225,20 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					Builder: builder,
 					ASTFile: astFile,
 				}
+				reportTimings()
 				return nil
 			}
 		}(i, path))
 	}
 
 	err = g.Wait()
-
-	if opts.EnableTimings {
-		for _, summary := range fileTimers {
-			if summary == "" {
-				continue
-			}
-			fmt.Fprint(os.Stderr, summary)
-		}
-	}
 	if err != nil {
 		return fileSet, results, err
 	}
 
 	if opts.Stage == DiagnoseStageSyntax || opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
 		baseDir := fileSet.BaseDir()
+		graphPath = baseDir
 		type entry struct {
 			meta *project.ModuleMeta
 			node dag.ModuleNode
@@ -382,7 +379,8 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 			endGraph(hashIdx, "")
 		}
 		if opts.EnableTimings && graphTimer != nil {
-			fmt.Fprintf(os.Stderr, "[modules]\n%s", graphTimer.Summary())
+			report := graphTimer.Report()
+			graphReport = &report
 		}
 		if graphErr != nil {
 			return nil, nil, graphErr
@@ -409,6 +407,46 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				return d
 			})
 			bag.Sort()
+		}
+	}
+
+	if opts.EnableTimings {
+		for i := range results {
+			res := &results[i]
+			if res.Bag == nil || res.Timing == nil {
+				continue
+			}
+			path := res.Path
+			if res.FileID != 0 {
+				if file := fileSet.Get(res.FileID); file != nil {
+					path = file.Path
+				}
+			}
+			appendTimingDiagnostic(res.Bag, timingPayload{
+				Kind:    "file",
+				Path:    path,
+				TotalMS: res.Timing.TotalMS,
+				Phases:  res.Timing.Phases,
+			})
+			res.Timing = nil
+		}
+		if graphReport != nil {
+			path := graphPath
+			if path == "" {
+				path = dir
+			}
+			for i := range results {
+				if results[i].Bag == nil {
+					continue
+				}
+				appendTimingDiagnostic(results[i].Bag, timingPayload{
+					Kind:    "module_graph",
+					Path:    path,
+					TotalMS: graphReport.TotalMS,
+					Phases:  graphReport.Phases,
+				})
+				break
+			}
 		}
 	}
 

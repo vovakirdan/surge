@@ -79,6 +79,10 @@ const (
 	ProjInvalidModulePath Code = 5005
 	ProjInvalidImportPath Code = 5006
 	ProjDependencyFailed  Code = 5007
+
+	// Observability
+	ObsInfo    Code = 6000
+	ObsTimings Code = 6001
 )
 
 var ( // todo расширить описания и использовать как notes
@@ -141,6 +145,8 @@ var ( // todo расширить описания и использовать к
 		ProjInvalidModulePath:       "Invalid module path",
 		ProjInvalidImportPath:       "Invalid import path",
 		ProjDependencyFailed:        "Dependency module has errors",
+		ObsInfo:                     "Observability information",
+		ObsTimings:                  "Pipeline timings",
 	}
 )
 
@@ -156,6 +162,8 @@ func (c Code) ID() string {
 		return fmt.Sprintf("IO%04d", ic)
 	case ic >= 5000 && ic < 6000:
 		return fmt.Sprintf("PRJ%04d", ic)
+	case ic >= 6000 && ic < 7000:
+		return fmt.Sprintf("OBS%04d", ic)
 	}
 	return "E0000"
 }

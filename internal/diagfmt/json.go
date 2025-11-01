@@ -119,7 +119,8 @@ func BuildDiagnosticsOutput(bag *diag.Bag, fs *source.FileSet, opts JSONOpts) (D
 			Location: makeLocation(d.Primary, fs, opts.PathMode, opts.IncludePositions),
 		}
 
-		if opts.IncludeNotes && len(d.Notes) > 0 {
+		includeNotes := opts.IncludeNotes || d.Code == diag.ObsTimings
+		if includeNotes && len(d.Notes) > 0 {
 			diagJSON.Notes = make([]NoteJSON, len(d.Notes))
 			for j, note := range d.Notes {
 				diagJSON.Notes[j] = NoteJSON{

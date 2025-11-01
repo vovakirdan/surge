@@ -58,9 +58,6 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	var timer *observ.Timer
 	if opts.EnableTimings {
 		timer = observ.NewTimer()
-		defer func() {
-			fmt.Fprintln(os.Stderr, timer.Summary())
-		}()
 	}
 	begin := func(name string) int {
 		if timer == nil {
@@ -146,6 +143,16 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		})
 		// Пересортировываем после изменения severity
 		bag.Sort()
+	}
+
+	if timer != nil && opts.EnableTimings {
+		report := timer.Report()
+		appendTimingDiagnostic(bag, timingPayload{
+			Kind:    "file",
+			Path:    file.Path,
+			TotalMS: report.TotalMS,
+			Phases:  report.Phases,
+		})
 	}
 
 	return &DiagnoseResult{
