@@ -3,6 +3,7 @@ package driver
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"surge/internal/diag"
 	"surge/internal/observ"
@@ -23,10 +24,8 @@ func appendTimingDiagnostic(bag *diag.Bag, payload timingPayload) {
 	if payload.Kind == "" {
 		payload.Kind = "pipeline"
 	}
-	msg := fmt.Sprintf("timings (%s): total %.2f ms", payload.Kind, payload.TotalMS)
-	if payload.Path != "" {
-		msg = fmt.Sprintf("%s — %s", msg, payload.Path)
-	}
+
+	msg := formatSummary(payload)
 
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -49,4 +48,33 @@ func appendTimingDiagnostic(bag *diag.Bag, payload timingPayload) {
 	overflow := diag.NewBag(len(bag.Items()) + 1)
 	overflow.Add(entry)
 	bag.Merge(overflow)
+}
+
+func formatSummary(payload timingPayload) string {
+	var summary strings.Builder
+	for i, phase := range payload.Phases {
+		if phase.Name == "" {
+			continue
+		}
+		if summary.Len() > 0 {
+			summary.WriteString(" • ")
+		}
+		summary.WriteString(fmt.Sprintf("%s %.2fms", phase.Name, phase.DurationMS))
+		if phase.Note != "" {
+			summary.WriteString(fmt.Sprintf(" (%s)", phase.Note))
+		}
+		if i == len(payload.Phases)-1 {
+			break
+		}
+	}
+	total := fmt.Sprintf("total %.2fms", payload.TotalMS)
+	if summary.Len() > 0 {
+		summary.WriteString(" • ")
+	}
+	summary.WriteString(total)
+	msg := fmt.Sprintf("timings (%s): %s", payload.Kind, summary.String())
+	if payload.Path != "" {
+		msg = fmt.Sprintf("%s — %s", msg, payload.Path)
+	}
+	return msg
 }
