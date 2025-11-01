@@ -88,9 +88,7 @@ func (p *printer) printStructDecl(item *ast.Item, typeItem *ast.TypeItem, decl *
 	p.writer.Space()
 	if decl.Base != ast.NoTypeID {
 		p.printTypeID(decl.Base)
-		p.writer.Space()
-		p.writer.WriteString(":")
-		p.writer.Space()
+		p.writer.WriteString(": ")
 	}
 	p.writer.WriteString("{")
 

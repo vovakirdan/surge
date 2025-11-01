@@ -44,6 +44,8 @@ func TestFormatFileBasic(t *testing.T) {
 			"type Shape = Circle(Point ,int,) | nothing;\n" +
 			"type Wrapper<T ,> = Vec2 ;\n" +
 			"tag Event<T ,>(Vec2 ,int ,);\n" +
+			"type Employee = BasePerson : { id: int , };\n" +
+			"type Outcome = Ok(int ,) | Err(string ,) | nothing;\n" +
 			"let mut point : Vec2 = call((x ,y ,), [z ,w ,],);\n" +
 			"fn foo<T>(a: int=call((x ,y ,), [z ,w ,],), b :int,) -> Vec2;\n",
 	)
@@ -59,6 +61,8 @@ func TestFormatFileBasic(t *testing.T) {
 		"type Shape = Circle(Point, int,) | nothing;\n" +
 		"type Wrapper<T,> = Vec2;\n" +
 		"tag Event<T,>(Vec2, int,);\n" +
+		"type Employee = BasePerson: { id: int, };\n" +
+		"type Outcome = Ok(int,) | Err(string,) | nothing;\n" +
 		"let mut point: Vec2 = call((x, y,), [z, w,],);\n" +
 		"fn foo<T>(a: int = call((x, y,), [z, w,],), b: int,) -> Vec2;\n"
 
