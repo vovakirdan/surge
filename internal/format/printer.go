@@ -99,6 +99,11 @@ func (p *printer) printItem(id ast.ItemID, item *ast.Item) {
 			p.printTypeItem(item, typeItem)
 			return
 		}
+	case ast.ItemLet:
+		if letItem, ok := p.builder.Items.Let(id); ok && letItem != nil {
+			p.printLetItem(item, letItem)
+			return
+		}
 	case ast.ItemImport:
 		if imp, ok := p.builder.Items.Import(id); ok && imp != nil {
 			p.printImportItem(item, imp)

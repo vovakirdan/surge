@@ -15,9 +15,11 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 
 	// Парсим модификатор mut (если есть)
 	var isMut bool
+	var mutSpan source.Span
 	if p.at(token.KwMut) {
 		isMut = true
-		p.advance()
+		mutTok := p.advance()
+		mutSpan = mutTok.Span
 	}
 
 	// Парсим имя переменной
@@ -25,17 +27,33 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 	if !ok {
 		return LetBinding{}, false
 	}
+	nameSpan := p.lastSpan
 
 	// Парсим тип (если есть двоеточие)
-	typeID, ok := p.parseTypeExpr()
+	var colonSpan source.Span
+	typeID, ok := func() (ast.TypeID, bool) {
+		if p.at(token.Colon) {
+			colonSpan = p.lx.Peek().Span
+		}
+		return p.parseTypeExpr()
+	}()
 	if !ok {
 		return LetBinding{}, false
+	}
+	var typeSpan source.Span
+	if typeID.IsValid() {
+		if typ := p.arenas.Types.Get(typeID); typ != nil {
+			typeSpan = typ.Span
+		}
 	}
 
 	// Парсим инициализацию (если есть =)
 	valueID := ast.NoExprID
+	var assignSpan source.Span
+	var valueSpan source.Span
 	if p.at(token.Assign) {
 		tokAssign := p.advance() // съедаем '='
+		assignSpan = tokAssign.Span
 		var ok bool
 		beforeErrors := p.opts.CurrentErrors
 		valueID, ok = p.parseExpr()
@@ -65,6 +83,9 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 				)
 			}
 			return LetBinding{}, false
+		}
+		if expr := p.arenas.Exprs.Get(valueID); expr != nil {
+			valueSpan = expr.Span
 		}
 	}
 
@@ -116,11 +137,17 @@ func (p *Parser) parseLetBinding() (LetBinding, bool) {
 	}
 
 	binding := LetBinding{
-		Name:  nameID,
-		Type:  typeID,
-		Value: valueID,
-		IsMut: isMut,
-		Span:  startSpan.Cover(p.lastSpan),
+		Name:       nameID,
+		Type:       typeID,
+		Value:      valueID,
+		IsMut:      isMut,
+		Span:       startSpan.Cover(p.lastSpan),
+		MutSpan:    mutSpan,
+		NameSpan:   nameSpan,
+		ColonSpan:  colonSpan,
+		TypeSpan:   typeSpan,
+		AssignSpan: assignSpan,
+		ValueSpan:  valueSpan,
 	}
 
 	return binding, true
@@ -222,6 +249,12 @@ func (p *Parser) parseLetItemWithVisibility(attrs []ast.Attr, attrSpan source.Sp
 		binding.IsMut,
 		visibility,
 		attrs,
+		letTok.Span,
+		binding.MutSpan,
+		binding.NameSpan,
+		binding.ColonSpan,
+		binding.AssignSpan,
+		semiTok.Span,
 		finalSpan,
 	)
 

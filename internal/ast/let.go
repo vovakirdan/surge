@@ -9,14 +9,20 @@ import (
 )
 
 type LetItem struct {
-	Name       source.StringID
-	Type       TypeID // NoTypeID if type is inferred
-	Value      ExprID // NoExprID if no initialization
-	IsMut      bool   // mut modifier
-	Visibility Visibility
-	AttrStart  AttrID
-	AttrCount  uint32
-	Span       source.Span
+	Name          source.StringID
+	Type          TypeID // NoTypeID if type is inferred
+	Value         ExprID // NoExprID if no initialization
+	IsMut         bool   // mut modifier
+	Visibility    Visibility
+	AttrStart     AttrID
+	AttrCount     uint32
+	LetSpan       source.Span
+	MutSpan       source.Span
+	NameSpan      source.Span
+	ColonSpan     source.Span
+	EqualsSpan    source.Span
+	SemicolonSpan source.Span
+	Span          source.Span
 }
 
 func (i *Items) Let(id ItemID) (*LetItem, bool) {
@@ -35,17 +41,29 @@ func (i *Items) newLetPayload(
 	visibility Visibility,
 	attrStart AttrID,
 	attrCount uint32,
+	letSpan source.Span,
+	mutSpan source.Span,
+	nameSpan source.Span,
+	colonSpan source.Span,
+	equalsSpan source.Span,
+	semicolonSpan source.Span,
 	span source.Span,
 ) PayloadID {
 	payload := i.Lets.Allocate(LetItem{
-		Name:       name,
-		Type:       typeID,
-		Value:      value,
-		IsMut:      isMut,
-		Visibility: visibility,
-		AttrStart:  attrStart,
-		AttrCount:  attrCount,
-		Span:       span,
+		Name:          name,
+		Type:          typeID,
+		Value:         value,
+		IsMut:         isMut,
+		Visibility:    visibility,
+		AttrStart:     attrStart,
+		AttrCount:     attrCount,
+		LetSpan:       letSpan,
+		MutSpan:       mutSpan,
+		NameSpan:      nameSpan,
+		ColonSpan:     colonSpan,
+		EqualsSpan:    equalsSpan,
+		SemicolonSpan: semicolonSpan,
+		Span:          span,
 	})
 	return PayloadID(payload)
 }
@@ -57,6 +75,12 @@ func (i *Items) NewLet(
 	isMut bool,
 	visibility Visibility,
 	attrs []Attr,
+	letSpan source.Span,
+	mutSpan source.Span,
+	nameSpan source.Span,
+	colonSpan source.Span,
+	equalsSpan source.Span,
+	semicolonSpan source.Span,
 	span source.Span,
 ) ItemID {
 	var attrStart AttrID
@@ -73,6 +97,6 @@ func (i *Items) NewLet(
 			}
 		}
 	}
-	payloadID := i.newLetPayload(name, typeID, value, isMut, visibility, attrStart, attrCount, span)
+	payloadID := i.newLetPayload(name, typeID, value, isMut, visibility, attrStart, attrCount, letSpan, mutSpan, nameSpan, colonSpan, equalsSpan, semicolonSpan, span)
 	return i.New(ItemLet, span, payloadID)
 }

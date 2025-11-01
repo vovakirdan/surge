@@ -14,11 +14,17 @@ import (
 
 // LetBinding представляет парсированный биндинг let
 type LetBinding struct {
-	Name  source.StringID
-	Type  ast.TypeID
-	Value ast.ExprID
-	IsMut bool
-	Span  source.Span
+	Name       source.StringID
+	Type       ast.TypeID
+	Value      ast.ExprID
+	IsMut      bool
+	Span       source.Span
+	MutSpan    source.Span
+	NameSpan   source.Span
+	ColonSpan  source.Span
+	TypeSpan   source.Span
+	AssignSpan source.Span
+	ValueSpan  source.Span
 }
 
 // parseTypeExpr распознаёт полные типовые выражения:
