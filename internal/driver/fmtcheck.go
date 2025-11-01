@@ -7,16 +7,19 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/format"
 	"surge/internal/lexer"
 	"surge/internal/parser"
 	"surge/internal/source"
 )
 
-// PrettyNoop returns the original file bytes. This is a placeholder for a real pretty-printer.
-// It still allows round-trip scaffolding (parse -> print -> parse) without panics.
-func PrettyNoop(sf *source.File) []byte {
-	// preserve original as-is (already LF-normalized and without BOM in FileSet)
-	return append([]byte(nil), sf.Content...)
+// PrettyCommas normalizes whitespace around commas in fn parameters and call argument lists.
+// It is the first concrete formatter pass that operates on lossless metadata collected by the parser.
+func PrettyCommas(sf *source.File, b *ast.Builder, fid ast.FileID) []byte {
+	if sf == nil {
+		return nil
+	}
+	return format.NormalizeCommas(sf, b, fid)
 }
 
 // RunFmtCheck parses the file, prints code (currently no-op), re-parses, and
@@ -33,8 +36,8 @@ func RunFmtCheck(sf *source.File, maxDiagnostics int) (success bool, msg string)
 		return false, "fmt-check: initial parse has errors"
 	}
 
-	// 2) pretty print (no-op) -> bytes
-	out := PrettyNoop(sf)
+	// 2) pretty print -> bytes (commas normalizer)
+	out := PrettyCommas(sf, firstBuilder, firstFileID)
 
 	// 3) reparse from bytes
 	fs2 := source.NewFileSetWithBase("")
