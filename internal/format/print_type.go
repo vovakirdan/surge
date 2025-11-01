@@ -72,23 +72,29 @@ func (p *printer) printStructDecl(item *ast.Item, typeItem *ast.TypeItem, decl *
 	}
 
 	contentLen := len(p.writer.sf.Content)
-	start := int(item.Span.Start)
-
-	if len(typeItem.Generics) > 0 && spanValid(typeItem.GenericsSpan) {
-		genStart := clampToContent(int(typeItem.GenericsSpan.Start), contentLen)
-		if start < genStart {
-			p.writer.CopyRange(start, genStart)
-		}
-		p.printGenerics(typeItem.Generics, typeItem.GenericsTrailingComma)
-		afterGenerics := clampToContent(int(typeItem.GenericsSpan.End), contentLen)
-		if afterGenerics < bodyStart {
-			p.writer.CopyRange(afterGenerics, bodyStart)
-		}
-	} else {
-		p.writer.CopyRange(start, bodyStart)
+	start := clampToContent(int(item.Span.Start), contentLen)
+	typeStart := clampToContent(int(typeItem.TypeKeywordSpan.Start), contentLen)
+	if start < typeStart {
+		p.writer.CopyRange(start, typeStart)
 	}
 
-	cursor := bodyStart
+	p.writer.WriteString("type")
+	p.writer.Space()
+	p.writer.WriteString(p.string(typeItem.Name))
+	if len(typeItem.Generics) > 0 {
+		p.printGenerics(typeItem.Generics, typeItem.GenericsTrailingComma)
+	}
+	p.writer.WriteString(" =")
+	p.writer.Space()
+	if decl.Base != ast.NoTypeID {
+		p.printTypeID(decl.Base)
+		p.writer.Space()
+		p.writer.WriteString(":")
+		p.writer.Space()
+	}
+	p.writer.WriteString("{")
+
+	cursor := clampToContent(bodyStart+1, contentLen)
 	fieldCount := int(decl.FieldsCount)
 	fields := make([]*ast.TypeStructField, 0, fieldCount)
 	if decl.FieldsCount > 0 && decl.FieldsStart.IsValid() {
@@ -164,32 +170,28 @@ func (p *printer) writeStructFieldBody(field *ast.TypeStructField) {
 }
 
 func (p *printer) printUnionDecl(item *ast.Item, typeItem *ast.TypeItem, decl *ast.TypeUnionDecl) {
-	bodyStart := int(decl.BodySpan.Start)
-	bodyEnd := int(decl.BodySpan.End)
-	if bodyStart < int(item.Span.Start) || bodyEnd > int(item.Span.End) {
+	if decl.MembersCount == 0 {
 		p.writer.CopySpan(item.Span)
 		return
 	}
 
 	contentLen := len(p.writer.sf.Content)
-	start := int(item.Span.Start)
-
-	if len(typeItem.Generics) > 0 && spanValid(typeItem.GenericsSpan) {
-		genStart := clampToContent(int(typeItem.GenericsSpan.Start), contentLen)
-		if start < genStart {
-			p.writer.CopyRange(start, genStart)
-		}
-		p.printGenerics(typeItem.Generics, typeItem.GenericsTrailingComma)
-		afterGenerics := clampToContent(int(typeItem.GenericsSpan.End), contentLen)
-		if afterGenerics < bodyStart {
-			p.writer.CopyRange(afterGenerics, bodyStart)
-		}
-	} else {
-		p.writer.CopyRange(start, bodyStart)
+	start := clampToContent(int(item.Span.Start), contentLen)
+	typeStart := clampToContent(int(typeItem.TypeKeywordSpan.Start), contentLen)
+	if start < typeStart {
+		p.writer.CopyRange(start, typeStart)
 	}
 
+	p.writer.WriteString("type")
+	p.writer.Space()
+	p.writer.WriteString(p.string(typeItem.Name))
+	if len(typeItem.Generics) > 0 {
+		p.printGenerics(typeItem.Generics, typeItem.GenericsTrailingComma)
+	}
+	p.writer.WriteString(" = ")
+
 	members := make([]*ast.TypeUnionMember, 0, int(decl.MembersCount))
-	if decl.MembersCount > 0 && decl.MembersStart.IsValid() {
+	if decl.MembersStart.IsValid() {
 		start := uint32(decl.MembersStart)
 		end := start + decl.MembersCount
 		for rawID := start; rawID < end; rawID++ {
@@ -207,8 +209,14 @@ func (p *printer) printUnionDecl(item *ast.Item, typeItem *ast.TypeItem, decl *a
 		p.writeUnionMember(member)
 	}
 
-	if int(item.Span.End) > bodyEnd {
-		p.writer.CopyRange(bodyEnd, int(item.Span.End))
+	p.writer.WriteString(";")
+
+	tailStart := clampToContent(int(item.Span.End), contentLen)
+	if spanValid(typeItem.SemicolonSpan) {
+		tailStart = clampToContent(int(typeItem.SemicolonSpan.End), contentLen)
+	}
+	if tailStart < int(item.Span.End) {
+		p.writer.CopyRange(tailStart, clampToContent(int(item.Span.End), contentLen))
 	}
 }
 
