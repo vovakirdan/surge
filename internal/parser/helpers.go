@@ -200,6 +200,17 @@ func (p *Parser) resyncImportGroup() {
 	}
 }
 
+func isBlockRecoveryToken(k token.Kind) bool {
+	switch k {
+	case token.KwFn, token.KwImport, token.KwExtern, token.KwTag,
+		token.KwMacro, token.KwPragma,
+		token.KwElse, token.KwFinally:
+		return true
+	default:
+		return false
+	}
+}
+
 // isBlockStatementStarter reports whether a token can start a new statement inside a block.
 func isBlockStatementStarter(kind token.Kind) bool {
 	switch kind {

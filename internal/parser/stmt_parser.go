@@ -17,6 +17,10 @@ func (p *Parser) parseBlock() (ast.StmtID, bool) {
 	var stmtIDs []ast.StmtID
 
 	for !p.at(token.EOF) && !p.at(token.RBrace) {
+		if isBlockRecoveryToken(p.lx.Peek().Kind) {
+			break
+		}
+
 		stmtID, ok := p.parseStmt()
 		if ok {
 			stmtIDs = append(stmtIDs, stmtID)
@@ -28,7 +32,7 @@ func (p *Parser) parseBlock() (ast.StmtID, bool) {
 		if p.at(token.Semicolon) {
 			p.advance()
 		}
-		if p.at(token.RBrace) || p.at(token.EOF) {
+		if p.at(token.RBrace) || p.at(token.EOF) || isBlockRecoveryToken(p.lx.Peek().Kind) {
 			break
 		}
 	}
@@ -51,11 +55,12 @@ func (p *Parser) parseBlock() (ast.StmtID, bool) {
 		b.WithFixSuggestion(suggestion)
 		b.WithNote(insertSpan, "insert missing closing brace")
 	})
+	closeSpan := closeTok.Span
 	if !ok {
-		return ast.NoStmtID, false
+		closeSpan = p.currentErrorSpan()
 	}
 
-	blockSpan := openTok.Span.Cover(closeTok.Span)
+	blockSpan := openTok.Span.Cover(closeSpan)
 	blockID := p.arenas.Stmts.NewBlock(blockSpan, stmtIDs)
 	return blockID, true
 }
