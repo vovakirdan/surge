@@ -29,6 +29,9 @@ type TypeStructDecl struct {
 	Base        TypeID
 	FieldsStart TypeFieldID
 	FieldsCount uint32
+	FieldCommas []source.Span
+	HasTrailing bool
+	BodySpan    source.Span
 }
 
 type TypeStructField struct {
@@ -43,6 +46,7 @@ type TypeStructField struct {
 type TypeUnionDecl struct {
 	MembersStart TypeUnionMemberID
 	MembersCount uint32
+	BodySpan     source.Span
 }
 
 type TypeUnionMemberKind uint8
@@ -54,11 +58,14 @@ const (
 )
 
 type TypeUnionMember struct {
-	Kind    TypeUnionMemberKind
-	Type    TypeID
-	TagName source.StringID
-	TagArgs []TypeID
-	Span    source.Span
+	Kind        TypeUnionMemberKind
+	Type        TypeID
+	TagName     source.StringID
+	TagArgs     []TypeID
+	ArgCommas   []source.Span
+	HasTrailing bool
+	ArgsSpan    source.Span
+	Span        source.Span
 }
 
 type TypeStructFieldSpec struct {
@@ -70,9 +77,12 @@ type TypeStructFieldSpec struct {
 }
 
 type TypeUnionMemberSpec struct {
-	Kind    TypeUnionMemberKind
-	Type    TypeID
-	TagName source.StringID
-	TagArgs []TypeID
-	Span    source.Span
+	Kind        TypeUnionMemberKind
+	Type        TypeID
+	TagName     source.StringID
+	TagArgs     []TypeID
+	ArgCommas   []source.Span
+	HasTrailing bool
+	ArgsSpan    source.Span
+	Span        source.Span
 }

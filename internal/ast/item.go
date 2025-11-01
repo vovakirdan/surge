@@ -193,6 +193,9 @@ func (i *Items) NewTypeStruct(
 	visibility Visibility,
 	base TypeID,
 	fields []TypeStructFieldSpec,
+	fieldCommas []source.Span,
+	hasTrailing bool,
+	bodySpan source.Span,
 	span source.Span,
 ) ItemID {
 	attrStart, attrCount := i.allocateAttrs(attrs)
@@ -221,6 +224,9 @@ func (i *Items) NewTypeStruct(
 		Base:        base,
 		FieldsStart: fieldsStart,
 		FieldsCount: fieldCount,
+		FieldCommas: append([]source.Span(nil), fieldCommas...),
+		HasTrailing: hasTrailing,
+		BodySpan:    bodySpan,
 	})
 	typeItem := TypeItem{
 		Name:       name,
@@ -242,6 +248,7 @@ func (i *Items) NewTypeUnion(
 	attrs []Attr,
 	visibility Visibility,
 	members []TypeUnionMemberSpec,
+	bodySpan source.Span,
 	span source.Span,
 ) ItemID {
 	attrStart, attrCount := i.allocateAttrs(attrs)
@@ -253,11 +260,14 @@ func (i *Items) NewTypeUnion(
 	if memberCount > 0 {
 		for idx, spec := range members {
 			memberID := TypeUnionMemberID(i.TypeUnionMembers.Allocate(TypeUnionMember{
-				Kind:    spec.Kind,
-				Type:    spec.Type,
-				TagName: spec.TagName,
-				TagArgs: append([]TypeID(nil), spec.TagArgs...),
-				Span:    spec.Span,
+				Kind:        spec.Kind,
+				Type:        spec.Type,
+				TagName:     spec.TagName,
+				TagArgs:     append([]TypeID(nil), spec.TagArgs...),
+				ArgCommas:   append([]source.Span(nil), spec.ArgCommas...),
+				HasTrailing: spec.HasTrailing,
+				ArgsSpan:    spec.ArgsSpan,
+				Span:        spec.Span,
 			}))
 			if idx == 0 {
 				membersStart = memberID
@@ -267,6 +277,7 @@ func (i *Items) NewTypeUnion(
 	unionPayload := i.TypeUnions.Allocate(TypeUnionDecl{
 		MembersStart: membersStart,
 		MembersCount: memberCount,
+		BodySpan:     bodySpan,
 	})
 	typeItem := TypeItem{
 		Name:       name,

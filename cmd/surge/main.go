@@ -25,6 +25,7 @@ func main() {
 	rootCmd.AddCommand(tokenizeCmd)
 	rootCmd.AddCommand(parseCmd)
 	rootCmd.AddCommand(diagCmd)
+	rootCmd.AddCommand(fmtCmd)
 	rootCmd.AddCommand(fixCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)

@@ -86,13 +86,17 @@ func (b *Builder) NewFn(
 	params []FnParam,
 	paramCommas []source.Span,
 	paramsTrailing bool,
+	fnKwSpan source.Span,
+	paramsSpan source.Span,
+	returnSpan source.Span,
+	semicolonSpan source.Span,
 	returnType TypeID,
 	body StmtID,
 	flags FnModifier,
 	attrs []Attr,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewFn(name, generics, params, paramCommas, paramsTrailing, returnType, body, flags, attrs, span)
+	return b.Items.NewFn(name, generics, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
 func (b *Builder) NewExternFn(
@@ -101,13 +105,17 @@ func (b *Builder) NewExternFn(
 	params []FnParam,
 	paramCommas []source.Span,
 	paramsTrailing bool,
+	fnKwSpan source.Span,
+	paramsSpan source.Span,
+	returnSpan source.Span,
+	semicolonSpan source.Span,
 	returnType TypeID,
 	body StmtID,
 	flags FnModifier,
 	attrs []Attr,
 	span source.Span,
 ) PayloadID {
-	return b.Items.NewExternFn(name, generics, params, paramCommas, paramsTrailing, returnType, body, flags, attrs, span)
+	return b.Items.NewExternFn(name, generics, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
 func (b *Builder) NewTypeAlias(
@@ -128,9 +136,12 @@ func (b *Builder) NewTypeStruct(
 	visibility Visibility,
 	base TypeID,
 	fields []TypeStructFieldSpec,
+	fieldCommas []source.Span,
+	hasTrailing bool,
+	bodySpan source.Span,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTypeStruct(name, generics, attrs, visibility, base, fields, span)
+	return b.Items.NewTypeStruct(name, generics, attrs, visibility, base, fields, fieldCommas, hasTrailing, bodySpan, span)
 }
 
 func (b *Builder) NewTypeUnion(
@@ -139,9 +150,10 @@ func (b *Builder) NewTypeUnion(
 	attrs []Attr,
 	visibility Visibility,
 	members []TypeUnionMemberSpec,
+	bodySpan source.Span,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTypeUnion(name, generics, attrs, visibility, members, span)
+	return b.Items.NewTypeUnion(name, generics, attrs, visibility, members, bodySpan, span)
 }
 
 func (b *Builder) NewExtern(

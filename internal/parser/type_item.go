@@ -61,7 +61,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 
 	switch p.lx.Peek().Kind {
 	case token.LBrace:
-		fields, bodySpan, ok := p.parseTypeStructBody()
+		fields, fieldCommas, trailingComma, bodySpan, ok := p.parseTypeStructBody()
 		if !ok {
 			return ast.NoItemID, false
 		}
@@ -70,7 +70,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			semiTok := p.advance()
 			itemSpan = itemSpan.Cover(semiTok.Span)
 		}
-		itemID := p.arenas.NewTypeStruct(nameID, generics, attrs, visibility, ast.NoTypeID, fields, itemSpan)
+		itemID := p.arenas.NewTypeStruct(nameID, generics, attrs, visibility, ast.NoTypeID, fields, fieldCommas, trailingComma, bodySpan, itemSpan)
 		return itemID, true
 	default:
 		firstType, ok := p.parseTypePrefix()
@@ -88,8 +88,10 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 				return ast.NoItemID, false
 			}
 			var fields []ast.TypeStructFieldSpec
+			var fieldCommas []source.Span
+			var trailingComma bool
 			var bodySpan source.Span
-			fields, bodySpan, ok = p.parseTypeStructBody()
+			fields, fieldCommas, trailingComma, bodySpan, ok = p.parseTypeStructBody()
 			if !ok {
 				return ast.NoItemID, false
 			}
@@ -98,7 +100,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 				semiTok := p.advance()
 				itemSpan = itemSpan.Cover(semiTok.Span)
 			}
-			itemID := p.arenas.NewTypeStruct(nameID, generics, attrs, visibility, firstType, fields, itemSpan)
+			itemID := p.arenas.NewTypeStruct(nameID, generics, attrs, visibility, firstType, fields, fieldCommas, trailingComma, bodySpan, itemSpan)
 			return itemID, true
 		}
 
@@ -139,7 +141,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			}
 			itemSpan := startSpan.Cover(unionSpan)
 			itemSpan = itemSpan.Cover(semiTok.Span)
-			itemID := p.arenas.NewTypeUnion(nameID, generics, attrs, visibility, members, itemSpan)
+			itemID := p.arenas.NewTypeUnion(nameID, generics, attrs, visibility, members, unionSpan, itemSpan)
 			return itemID, true
 		}
 
@@ -178,7 +180,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			}
 			itemSpan := startSpan.Cover(unionSpan)
 			itemSpan = itemSpan.Cover(semiTok.Span)
-			itemID := p.arenas.NewTypeUnion(nameID, generics, attrs, visibility, members, itemSpan)
+			itemID := p.arenas.NewTypeUnion(nameID, generics, attrs, visibility, members, unionSpan, itemSpan)
 			return itemID, true
 		}
 
@@ -238,14 +240,15 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 	}
 }
 
-func (p *Parser) parseTypeStructBody() ([]ast.TypeStructFieldSpec, source.Span, bool) {
+func (p *Parser) parseTypeStructBody() (fields []ast.TypeStructFieldSpec, commas []source.Span, trailing bool, bodySpan source.Span, ok bool) {
 	openTok, ok := p.expect(token.LBrace, diag.SynTypeExpectBody, "expected '{' to start struct body", nil)
 	if !ok {
-		return nil, source.Span{}, false
+		return nil, nil, false, source.Span{}, false
 	}
 
-	fields := make([]ast.TypeStructFieldSpec, 0)
+	fields = make([]ast.TypeStructFieldSpec, 0)
 	fieldNames := make(map[source.StringID]source.Span)
+	commas = make([]source.Span, 0, 4)
 
 	for !p.at(token.RBrace) && !p.at(token.EOF) {
 		var fieldAttrs []ast.Attr
@@ -282,7 +285,8 @@ func (p *Parser) parseTypeStructBody() ([]ast.TypeStructFieldSpec, source.Span, 
 			fieldNames[nameID] = nameSpan
 		}
 
-		if _, ok = p.expect(token.Colon, diag.SynExpectColon, "expected ':' after field name", nil); !ok {
+		colonTok, colonOK := p.expect(token.Colon, diag.SynExpectColon, "expected ':' after field name", nil)
+		if !colonOK {
 			p.resyncTypeStructField()
 			continue
 		}
@@ -293,7 +297,7 @@ func (p *Parser) parseTypeStructBody() ([]ast.TypeStructFieldSpec, source.Span, 
 			p.resyncTypeStructField()
 			continue
 		}
-		fieldSpan := nameSpan.Cover(p.arenas.Types.Get(fieldType).Span)
+		fieldSpan := nameSpan.Cover(colonTok.Span).Cover(p.arenas.Types.Get(fieldType).Span)
 
 		defaultExpr := ast.NoExprID
 		if p.at(token.Assign) {
@@ -322,7 +326,12 @@ func (p *Parser) parseTypeStructBody() ([]ast.TypeStructFieldSpec, source.Span, 
 		})
 
 		if p.at(token.Comma) {
-			p.advance()
+			commaTok := p.advance()
+			commas = append(commas, commaTok.Span)
+			if p.at(token.RBrace) {
+				trailing = true
+				break
+			}
 			continue
 		}
 
@@ -336,11 +345,13 @@ func (p *Parser) parseTypeStructBody() ([]ast.TypeStructFieldSpec, source.Span, 
 
 	closeTok, ok := p.expect(token.RBrace, diag.SynUnclosedBrace, "expected '}' to close struct body", nil)
 	if !ok {
-		return fields, openTok.Span, false
+		bodySpan = openTok.Span
+		return
 	}
 
-	bodySpan := openTok.Span.Cover(closeTok.Span)
-	return fields, bodySpan, true
+	bodySpan = openTok.Span.Cover(closeTok.Span)
+	ok = true
+	return
 }
 
 func (p *Parser) parseAdditionalUnionMembers(initial []ast.TypeUnionMemberSpec, span source.Span) ([]ast.TypeUnionMemberSpec, source.Span, bool) {
@@ -399,11 +410,14 @@ func (p *Parser) parseUnionTagFromType(typeID ast.TypeID) (ast.TypeUnionMemberSp
 		return ast.TypeUnionMemberSpec{}, source.Span{}, false
 	}
 
-	if _, ok = p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after tag name", nil); !ok {
+	openTok, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after tag name", nil)
+	if !ok {
 		return ast.TypeUnionMemberSpec{}, source.Span{}, false
 	}
 
 	args := make([]ast.TypeID, 0)
+	argCommas := make([]source.Span, 0, 2)
+	hasTrailing := false
 
 	if !p.at(token.RParen) {
 		for {
@@ -422,8 +436,10 @@ func (p *Parser) parseUnionTagFromType(typeID ast.TypeID) (ast.TypeUnionMemberSp
 			args = append(args, argType)
 
 			if p.at(token.Comma) {
-				p.advance()
+				commaTok := p.advance()
+				argCommas = append(argCommas, commaTok.Span)
 				if p.at(token.RParen) {
+					hasTrailing = true
 					break
 				}
 				continue
@@ -437,13 +453,17 @@ func (p *Parser) parseUnionTagFromType(typeID ast.TypeID) (ast.TypeUnionMemberSp
 		return ast.TypeUnionMemberSpec{}, source.Span{}, false
 	}
 
+	argsSpan := openTok.Span.Cover(closeTok.Span)
 	memberSpan := p.arenas.Types.Get(typeID).Span.Cover(closeTok.Span)
 
 	return ast.TypeUnionMemberSpec{
-		Kind:    ast.TypeUnionMemberTag,
-		TagName: nameID,
-		TagArgs: args,
-		Span:    memberSpan,
+		Kind:        ast.TypeUnionMemberTag,
+		TagName:     nameID,
+		TagArgs:     args,
+		ArgCommas:   argCommas,
+		HasTrailing: hasTrailing,
+		ArgsSpan:    argsSpan,
+		Span:        memberSpan,
 	}, memberSpan, true
 }
 

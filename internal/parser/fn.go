@@ -31,6 +31,10 @@ type parsedFn struct {
 	params         []ast.FnParam
 	paramCommas    []source.Span
 	paramsTrailing bool
+	fnKwSpan       source.Span
+	paramsSpan     source.Span
+	returnSpan     source.Span
+	semicolonSpan  source.Span
 	returnType     ast.TypeID
 	body           ast.StmtID
 	flags          ast.FnModifier
@@ -172,6 +176,10 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 		fnData.params,
 		fnData.paramCommas,
 		fnData.paramsTrailing,
+		fnData.fnKwSpan,
+		fnData.paramsSpan,
+		fnData.returnSpan,
+		fnData.semicolonSpan,
 		fnData.returnType,
 		fnData.body,
 		fnData.flags,
@@ -185,6 +193,7 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 	result := parsedFn{}
 
 	fnTok := p.advance() // съедаем KwFn; если мы здесь, то это точно KwFn
+	result.fnKwSpan = fnTok.Span
 
 	startSpan := fnTok.Span
 	if attrSpan.End > attrSpan.Start {
@@ -235,16 +244,18 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 		}
 	}
 
-	if _, ok = p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after function name"); !ok {
+	openParen, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after function name")
+	if !ok {
 		p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
 		return parsedFn{}, false
 	}
 
-	params, commas, trailing, ok := p.parseFnParams()
+	params, commas, trailing, closeParenSpan, ok := p.parseFnParams()
 	if !ok {
 		p.resyncUntil(token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet)
 		return parsedFn{}, false
 	}
+	result.paramsSpan = openParen.Span.Cover(closeParenSpan)
 
 	var returnType ast.TypeID
 	if p.at(token.Arrow) {
@@ -282,6 +293,8 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 			p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet)
 			return parsedFn{}, false
 		}
+		typeSpan := p.arenas.Types.Get(returnType).Span
+		result.returnSpan = arrowTok.Span.Cover(typeSpan)
 	}
 
 	if returnType == ast.NoTypeID {
@@ -296,9 +309,10 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 			return parsedFn{}, false
 		}
 	case token.Semicolon:
-		p.advance()
+		semiTok := p.advance()
+		result.semicolonSpan = semiTok.Span
 	default:
-		_, ok = p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after function signature", func(b *diag.ReportBuilder) {
+		semiTok, okSemicolon := p.expect(token.Semicolon, diag.SynExpectSemicolon, "expected ';' after function signature", func(b *diag.ReportBuilder) {
 			if b == nil {
 				return
 			}
@@ -316,9 +330,10 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 			b.WithFixSuggestion(suggestion)
 			b.WithNote(insertSpan, "insert ';' after function signature")
 		})
-		if !ok {
+		if !okSemicolon {
 			return parsedFn{}, false
 		}
+		result.semicolonSpan = semiTok.Span
 	}
 
 	result.name = fnNameID
@@ -338,9 +353,11 @@ func (p *Parser) parseFnParam() (ast.FnParam, bool) {
 	param := ast.FnParam{}
 	variadic := false
 
+	startSpan := source.Span{}
 	if p.at(token.DotDotDot) {
 		variadic = true
-		p.advance()
+		dotsTok := p.advance()
+		startSpan = dotsTok.Span
 	}
 
 	nameID, ok := p.parseIdent()
@@ -349,8 +366,13 @@ func (p *Parser) parseFnParam() (ast.FnParam, bool) {
 	}
 	param.Name = nameID
 	param.Variadic = variadic
+	nameSpan := p.lastSpan
+	if !variadic {
+		startSpan = nameSpan
+	}
 
-	if _, ok = p.expect(token.Colon, diag.SynExpectColon, "expected ':' after parameter name"); !ok {
+	colonTok, colonOK := p.expect(token.Colon, diag.SynExpectColon, "expected ':' after parameter name")
+	if !colonOK {
 		p.resyncUntil(token.Comma, token.RParen, token.Semicolon)
 		return param, false
 	}
@@ -362,8 +384,12 @@ func (p *Parser) parseFnParam() (ast.FnParam, bool) {
 	}
 	param.Type = typeID
 
+	currentSpan := startSpan.Cover(colonTok.Span)
+	typeSpan := p.arenas.Types.Get(typeID).Span
+	currentSpan = currentSpan.Cover(typeSpan)
+
 	if p.at(token.Assign) {
-		p.advance()
+		assignTok := p.advance()
 		var defaultExprID ast.ExprID
 		defaultExprID, ok = p.parseExpr()
 		if !ok {
@@ -371,16 +397,20 @@ func (p *Parser) parseFnParam() (ast.FnParam, bool) {
 			return param, false
 		}
 		param.Default = defaultExprID
+		currentSpan = currentSpan.Cover(assignTok.Span)
+		if expr := p.arenas.Exprs.Get(defaultExprID); expr != nil {
+			currentSpan = currentSpan.Cover(expr.Span)
+		}
 	}
 
+	param.Span = currentSpan
 	return param, true
 }
 
-func (p *Parser) parseFnParams() ([]ast.FnParam, []source.Span, bool, bool) {
-	params := make([]ast.FnParam, 0)
-	commas := make([]source.Span, 0, 2)
+func (p *Parser) parseFnParams() (params []ast.FnParam, commas []source.Span, trailing bool, closeSpan source.Span, isOk bool) {
+	params = make([]ast.FnParam, 0)
+	commas = make([]source.Span, 0, 2)
 	var sawVariadic bool
-	var trailing bool
 
 	// если нет параметров, но забыли скобку
 	if p.atOr(token.LBrace, token.Arrow, token.Semicolon) {
@@ -409,17 +439,18 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, []source.Span, bool, bool) {
 				b.WithNote(insertSpan, "insert ')' to close the parameter list")
 			},
 		)
-		return params, commas, false, true
+		return
 	}
 
 	if p.at(token.RParen) {
 		closeTok := p.advance()
-		_ = closeTok
-		return params, commas, false, true
+		closeSpan = closeTok.Span
+		isOk = true
+		return
 	}
 
 	expectClosing := func() bool {
-		_, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' after function parameters", func(b *diag.ReportBuilder) {
+		closeTok, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' after function parameters", func(b *diag.ReportBuilder) {
 			if b == nil {
 				return
 			}
@@ -437,17 +468,22 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, []source.Span, bool, bool) {
 			b.WithFixSuggestion(suggestion)
 			b.WithNote(insertSpan, "insert ')' to close the parameter list")
 		})
+		if ok {
+			closeSpan = closeTok.Span
+		}
 		return ok
 	}
 
 	for {
-		param, ok := p.parseFnParam()
-		if !ok {
+		param, paramOK := p.parseFnParam()
+		if !paramOK {
 			p.resyncUntil(token.RParen, token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet)
 			if p.at(token.RParen) {
 				p.advance()
 			}
-			return nil, nil, false, false
+			params = nil
+			commas = nil
+			return
 		}
 		params = append(params, param)
 		if param.Variadic && sawVariadic {
@@ -461,7 +497,8 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, []source.Span, bool, bool) {
 			commaTok := p.advance()
 			commas = append(commas, commaTok.Span)
 			if p.at(token.RParen) {
-				p.advance()
+				closeTok := p.advance()
+				closeSpan = closeTok.Span
 				trailing = true
 				break
 			}
@@ -475,21 +512,23 @@ func (p *Parser) parseFnParams() ([]ast.FnParam, []source.Span, bool, bool) {
 				)
 				p.resyncUntil(token.RParen, token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet)
 				if p.at(token.RParen) {
-					p.advance()
+					closeTok := p.advance()
+					closeSpan = closeTok.Span
 				}
-				return params, commas, trailing, false
+				return
 			}
 			continue
 		}
 
 		if !expectClosing() {
 			p.resyncUntil(token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet)
-			return params, commas, trailing, false
+			return
 		}
 		break
 	}
 
-	return params, commas, trailing, true
+	isOk = true
+	return
 }
 
 func (p *Parser) parseFnGenerics() ([]source.StringID, bool) {

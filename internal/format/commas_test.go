@@ -2,7 +2,6 @@ package format
 
 import (
 	"fmt"
-	"slices"
 	"testing"
 
 	"surge/internal/ast"
@@ -38,33 +37,31 @@ func parseSource(t *testing.T, src []byte) (*source.FileSet, *source.File, *ast.
 	return fs, sf, builder, result.File
 }
 
-func TestNormalizeCommas(t *testing.T) {
-	src := []byte("fn f(a: int,b :int ,  c: int ,d:int,) { call(x ,y,z ,); }\n")
+func TestFormatFileBasic(t *testing.T) {
+	src := []byte(
+		"import std/math::{sin as s ,cos,};\n" +
+			"type Vec2 = { x: int , y: int, };\n" +
+			"type Shape = Circle(Point ,int,) | nothing;\n" +
+			"fn foo<T>(a: int=call(x ,y,z ,), b :int,) -> Vec2;\n",
+	)
 	_, sf, builder, fileID := parseSource(t, src)
 
-	out := NormalizeCommas(sf, builder, fileID)
-	got := string(out)
-	want := "fn f(a: int, b :int, c: int, d:int,) { call(x, y, z,); }\n"
+	formatted, err := FormatFile(sf, builder, fileID, Options{})
+	if err != nil {
+		t.Fatalf("FormatFile failed: %v", err)
+	}
+
+	got := string(formatted)
+	want := "import std/math::{sin as s, cos};\n" +
+		"type Vec2 = { x: int, y: int, };\n" +
+		"type Shape = Circle(Point, int,) | nothing;\n" +
+		"fn foo<T>(a: int = call(x, y, z,), b: int,) -> Vec2;\n"
+
 	if got != want {
-		t.Fatalf("NormalizeCommas mismatch:\nwant %q\ngot  %q", want, got)
+		t.Fatalf("FormatFile mismatch:\nwant %q\ngot  %q", want, got)
 	}
 
-	_, _, builder2, fileID2 := parseSource(t, out)
-	if !slices.Equal(kinds(builder, fileID), kinds(builder2, fileID2)) {
-		t.Fatalf("top-level item kinds differ after NormalizeCommas")
+	if ok, msg := CheckRoundTrip(sf, Options{}, 128); !ok {
+		t.Fatalf("CheckRoundTrip failed: %s", msg)
 	}
-}
-
-func kinds(b *ast.Builder, fid ast.FileID) []ast.ItemKind {
-	file := b.Files.Get(fid)
-	if file == nil {
-		return nil
-	}
-	result := make([]ast.ItemKind, 0, len(file.Items))
-	for _, itemID := range file.Items {
-		if item := b.Items.Get(itemID); item != nil {
-			result = append(result, item.Kind)
-		}
-	}
-	return result
 }
