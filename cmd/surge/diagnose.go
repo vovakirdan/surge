@@ -62,6 +62,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get max-diagnostics flag: %w", err)
 	}
 
+	showTimings, err := cmd.Root().PersistentFlags().GetBool("timings")
+	if err != nil {
+		return fmt.Errorf("failed to get timings flag: %w", err)
+	}
+
 	noWarnings, err := cmd.Flags().GetBool("no-warnings")
 	if err != nil {
 		return fmt.Errorf("failed to get no-warnings flag: %w", err)
@@ -117,6 +122,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		MaxDiagnostics:   maxDiagnostics,
 		IgnoreWarnings:   noWarnings,
 		WarningsAsErrors: warningsAsErrors,
+		EnableTimings:    showTimings,
 	}
 
 	st, err := os.Stat(filePath)

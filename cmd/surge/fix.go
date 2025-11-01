@@ -68,9 +68,15 @@ func runFix(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	showTimings, err := cmd.Root().PersistentFlags().GetBool("timings")
+	if err != nil {
+		return err
+	}
+
 	driverOpts := driver.DiagnoseOptions{
 		Stage:          driver.DiagnoseStageSyntax,
 		MaxDiagnostics: maxDiagnostics,
+		EnableTimings:  showTimings,
 	}
 
 	info, err := os.Stat(targetPath)

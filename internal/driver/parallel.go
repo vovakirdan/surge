@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -15,6 +16,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/lexer"
+	"surge/internal/observ"
 	"surge/internal/parser"
 	"surge/internal/project"
 	"surge/internal/project/dag"
@@ -84,12 +86,41 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 	}
 
 	results := make([]DiagnoseDirResult, len(files))
+	var fileTimers []string
+	if opts.EnableTimings {
+		fileTimers = make([]string, len(files))
+	}
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(min(jobs, len(files)))
 
 	for i, path := range files {
 		g.Go(func(i int, path string) func() error {
 			return func() error {
+				var (
+					timer *observ.Timer
+					begin func(string) int
+					end   func(int, string)
+				)
+				if opts.EnableTimings {
+					timer = observ.NewTimer()
+					begin = func(name string) int {
+						return timer.Begin(name)
+					}
+					end = func(idx int, note string) {
+						if idx >= 0 {
+							timer.End(idx, note)
+						}
+					}
+					defer func() {
+						if fileTimers != nil {
+							fileTimers[i] = fmt.Sprintf("[%s]\n%s", path, timer.Summary())
+						}
+					}()
+				} else {
+					begin = func(string) int { return -1 }
+					end = func(int, string) {}
+				}
+
 				select {
 				case <-gctx.Done():
 					return gctx.Err()
@@ -103,6 +134,8 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				)
 
 				if loadErr, hadErr := loadErrors[path]; hadErr {
+					loadIdx := begin("load_file")
+					end(loadIdx, "error")
 					bag.Add(&diag.Diagnostic{
 						Severity: diag.SevError,
 						Code:     diag.IOLoadFileError,
@@ -115,27 +148,30 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 
 				fileID, ok := fileIDs[path]
 				if !ok {
+					loadIdx := begin("load_file")
+					end(loadIdx, "missing")
 					results[i] = DiagnoseDirResult{Path: path, FileID: 0, Bag: bag}
 					return nil
 				}
+
+				loadIdx := begin("load_file")
 				file := fileSet.Get(fileID)
+				end(loadIdx, "")
 
 				// Предвычислим modulePath по имени файла, чтобы обратиться к кэшу до парсинга.
 				modulePath := file.Path
 				if base := fileSet.BaseDir(); base != "" {
-					var rel string
-					if rel, err = source.RelativePath(modulePath, base); err == nil {
+					if rel, relErr := source.RelativePath(modulePath, base); relErr == nil {
 						modulePath = rel
 					}
 				}
-				var norm string
-				if norm, err = project.NormalizeModulePath(modulePath); err == nil {
+				if norm, normErr := project.NormalizeModulePath(modulePath); normErr == nil {
 					modulePath = norm
 				}
 
-				// Попытка хита по (modulePath, contentHash): если совпало — можно пропустить парсинг.
-				if _, br, fe, ok := mcache.Get(modulePath, file.Hash); ok {
-					// Складываем минимальный результат; Bag оставим пустым (или info по желанию).
+				cacheIdx := begin("cache_lookup")
+				if _, br, fe, hit := mcache.Get(modulePath, file.Hash); hit {
+					end(cacheIdx, "hit")
 					results[i] = DiagnoseDirResult{
 						Path:    path,
 						FileID:  fileID,
@@ -143,41 +179,39 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 						Builder: nil,
 						ASTFile: 0,
 					}
-					// Для графа модулей мы воспользуемся кешированным meta ниже (в общей сборке).
-					// Сохраним его в Bag как info (опционально).
 					_ = br
 					_ = fe
 					return nil
 				}
+				end(cacheIdx, "miss")
 
-				switch opts.Stage {
-				case DiagnoseStageTokenize:
-					err = diagnoseTokenize(file, bag)
-					if err != nil {
-						return err
-					}
-				case DiagnoseStageSyntax:
-					if err = diagnoseTokenize(file, bag); err == nil {
-						builder, astFile, err = diagnoseParse(fileSet, file, bag)
-						if err != nil {
-							return err
+				tokenIdx := begin("tokenize")
+				tokenErr := diagnoseTokenize(file, bag)
+				tokenNote := ""
+				if timer != nil {
+					tokenNote = fmt.Sprintf("diags=%d", bag.Len())
+				}
+				end(tokenIdx, tokenNote)
+				if tokenErr != nil {
+					return tokenErr
+				}
+
+				if opts.Stage != DiagnoseStageTokenize {
+					parseIdx := begin("parse")
+					var parseErr error
+					builder, astFile, parseErr = diagnoseParse(fileSet, file, bag)
+					parseNote := ""
+					if timer != nil && parseErr == nil && builder != nil && builder.Files != nil {
+						fileNode := builder.Files.Get(astFile)
+						if fileNode != nil {
+							parseNote = fmt.Sprintf("items=%d", len(fileNode.Items))
 						}
 					}
-				case DiagnoseStageSema, DiagnoseStageAll:
-					if err = diagnoseTokenize(file, bag); err == nil {
-						builder, astFile, err = diagnoseParse(fileSet, file, bag)
-						if err != nil {
-							return err
-						}
-						// TODO: добавить семантическую диагностику
+					end(parseIdx, parseNote)
+					if parseErr != nil {
+						return parseErr
 					}
-				default:
-					if err = diagnoseTokenize(file, bag); err == nil {
-						builder, astFile, err = diagnoseParse(fileSet, file, bag)
-						if err != nil {
-							return err
-						}
-					}
+					// TODO: добавить семантическую диагностику
 				}
 
 				results[i] = DiagnoseDirResult{
@@ -193,6 +227,15 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 	}
 
 	err = g.Wait()
+
+	if opts.EnableTimings {
+		for _, summary := range fileTimers {
+			if summary == "" {
+				continue
+			}
+			fmt.Fprint(os.Stderr, summary)
+		}
+	}
 	if err != nil {
 		return fileSet, results, err
 	}
@@ -203,6 +246,26 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 			meta *project.ModuleMeta
 			node dag.ModuleNode
 		}
+		var (
+			graphTimer *observ.Timer
+			beginGraph func(string) int
+			endGraph   func(int, string)
+		)
+		if opts.EnableTimings {
+			graphTimer = observ.NewTimer()
+			beginGraph = func(name string) int {
+				return graphTimer.Begin(name)
+			}
+			endGraph = func(idx int, note string) {
+				if idx >= 0 {
+					graphTimer.End(idx, note)
+				}
+			}
+		} else {
+			beginGraph = func(string) int { return -1 }
+			endGraph = func(int, string) {}
+		}
+		collectIdx := beginGraph("collect_modules")
 		entries := make([]*entry, 0, len(results))
 		// Собираем метаданные: либо из кэша, либо из свежего парсинга, либо fallback.
 		for i := range results {
@@ -214,18 +277,16 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 			var (
 				meta *project.ModuleMeta
 				ok   bool
-				norm string
-				rel  string
 			)
 			file := fileSet.Get(res.FileID)
 			// Попробуем взять из in-memory кэша (по пути файла).
 			modulePath := file.Path
 			if baseDir != "" {
-				if rel, err = source.RelativePath(modulePath, baseDir); err == nil {
+				if rel, relErr := source.RelativePath(modulePath, baseDir); relErr == nil {
 					modulePath = rel
 				}
 			}
-			if norm, err = project.NormalizeModulePath(modulePath); err == nil {
+			if norm, normErr := project.NormalizeModulePath(modulePath); normErr == nil {
 				modulePath = norm
 			}
 			if m, _, _, hit := mcache.Get(modulePath, file.Hash); hit {
@@ -254,6 +315,12 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 			// Положим в in-memory cache (обновление/вставка).
 			mcache.Put(meta, broken, firstErr)
 		}
+		collectNote := ""
+		if opts.EnableTimings {
+			collectNote = fmt.Sprintf("modules=%d", len(entries))
+		}
+		endGraph(collectIdx, collectNote)
+		var graphErr error
 		if len(entries) > 0 {
 			sort.Slice(entries, func(i, j int) bool {
 				return entries[i].meta.Path < entries[j].meta.Path
@@ -264,10 +331,23 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				metas = append(metas, e.meta)
 				nodes = append(nodes, &e.node)
 			}
+			buildIdx := beginGraph("build_graph")
 			idx := dag.BuildIndex(metas)
 			graph, slots := dag.BuildGraph(idx, nodes)
+			buildNote := ""
+			if opts.EnableTimings {
+				buildNote = fmt.Sprintf("nodes=%d", len(metas))
+			}
+			endGraph(buildIdx, buildNote)
+			topoIdx := beginGraph("topo")
 			topo := dag.ToposortKahn(graph)
 			dag.ReportCycles(idx, slots, topo)
+			topoNote := ""
+			if opts.EnableTimings {
+				topoNote = fmt.Sprintf("order=%d", len(topo.Order))
+			}
+			endGraph(topoIdx, topoNote)
+			hashIdx := beginGraph("hashes")
 			ComputeModuleHashes(idx, graph, slots, topo)
 			for i := range slots {
 				reporter, ok := slots[i].Reporter.(*diag.BagReporter)
@@ -286,17 +366,26 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				mcache.Put(m, slots[i].Broken, slots[i].FirstErr)
 				// и положим запись в диск-кэш (ключ — ModuleHash).
 				if dcache != nil && IsSHA256(m.ModuleHash) {
-					err = dcache.Put(m.ModuleHash, &DiskPayload{
+					if putErr := dcache.Put(m.ModuleHash, &DiskPayload{
 						Schema:     1,
 						Path:       m.Path,
 						ModuleHash: m.ModuleHash,
-					})
-					if err != nil {
-						return nil, nil, err
+					}); putErr != nil {
+						graphErr = putErr
+						break
 					}
 				}
 			}
-			dag.ReportBrokenDeps(idx, slots)
+			if graphErr == nil {
+				dag.ReportBrokenDeps(idx, slots)
+			}
+			endGraph(hashIdx, "")
+		}
+		if opts.EnableTimings && graphTimer != nil {
+			fmt.Fprintf(os.Stderr, "[modules]\n%s", graphTimer.Summary())
+		}
+		if graphErr != nil {
+			return nil, nil, graphErr
 		}
 	}
 

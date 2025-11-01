@@ -10,6 +10,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/lexer"
+	"surge/internal/observ"
 	"surge/internal/parser"
 	"surge/internal/project"
 	"surge/internal/project/dag"
@@ -40,6 +41,7 @@ type DiagnoseOptions struct {
 	MaxDiagnostics   int
 	IgnoreWarnings   bool
 	WarningsAsErrors bool
+	EnableTimings    bool
 }
 
 // Diagnose запускает диагностику файла до указанного уровня
@@ -53,9 +55,31 @@ func Diagnose(path string, stage DiagnoseStage, maxDiagnostics int) (*DiagnoseRe
 
 // DiagnoseWithOptions запускает диагностику файла с указанными опциями
 func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, error) {
+	var timer *observ.Timer
+	if opts.EnableTimings {
+		timer = observ.NewTimer()
+		defer func() {
+			fmt.Fprintln(os.Stderr, timer.Summary())
+		}()
+	}
+	begin := func(name string) int {
+		if timer == nil {
+			return -1
+		}
+		return timer.Begin(name)
+	}
+	end := func(idx int, note string) {
+		if timer == nil || idx < 0 {
+			return
+		}
+		timer.End(idx, note)
+	}
+
+	loadIdx := begin("load_file")
 	// Создаём FileSet и загружаем файл
 	fs := source.NewFileSet()
 	fileID, err := fs.Load(path)
+	end(loadIdx, "")
 	if err != nil {
 		return nil, err
 	}
@@ -71,26 +95,35 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	// per-call cache (следующим шагом добавим его в параллельный обход директорий)
 	cache := NewModuleCache(256)
 
-	// Запускаем диагностику по стадиям
-	switch opts.Stage {
-	case DiagnoseStageTokenize:
-		err = diagnoseTokenize(file, bag)
-	case DiagnoseStageSyntax, DiagnoseStageSema, DiagnoseStageAll:
-		err = diagnoseTokenize(file, bag)
-		if err == nil {
-			builder, astFile, err = diagnoseParse(fs, file, bag)
-			if err == nil {
-				err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache)
+	tokenIdx := begin("tokenize")
+	err = diagnoseTokenize(file, bag)
+	tokenNote := ""
+	if timer != nil {
+		tokenNote = fmt.Sprintf("diags=%d", bag.Len())
+	}
+	end(tokenIdx, tokenNote)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts.Stage != DiagnoseStageTokenize {
+		parseIdx := begin("parse")
+		builder, astFile, err = diagnoseParse(fs, file, bag)
+		parseNote := ""
+		if timer != nil && err == nil && builder != nil && builder.Files != nil {
+			fileNode := builder.Files.Get(astFile)
+			if fileNode != nil {
+				parseNote = fmt.Sprintf("items=%d", len(fileNode.Items))
 			}
 		}
-	default:
-		err = diagnoseTokenize(file, bag)
-		if err == nil {
-			builder, astFile, err = diagnoseParse(fs, file, bag)
-			if err == nil {
-				err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache)
-			}
+		end(parseIdx, parseNote)
+		if err != nil {
+			return nil, err
 		}
+
+		graphIdx := begin("imports_graph")
+		err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache)
+		end(graphIdx, "")
 	}
 
 	if err != nil {
