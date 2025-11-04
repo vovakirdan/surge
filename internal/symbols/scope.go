@@ -16,6 +16,21 @@ const (
 	ScopeBlock              // generic block scope
 )
 
+func (k ScopeKind) String() string {
+	switch k {
+	case ScopeFile:
+		return "file"
+	case ScopeModule:
+		return "module"
+	case ScopeFunction:
+		return "function"
+	case ScopeBlock:
+		return "block"
+	default:
+		return "invalid"
+	}
+}
+
 // ScopeOwnerKind distinguishes what AST element owns a scope.
 type ScopeOwnerKind uint8
 
@@ -39,10 +54,11 @@ type ScopeOwner struct {
 
 // Scope models a lexical scope with a parent-child hierarchy.
 type Scope struct {
-	Kind     ScopeKind
-	Parent   ScopeID
-	Owner    ScopeOwner
-	Span     source.Span
-	Symbols  []SymbolID
-	Children []ScopeID
+	Kind      ScopeKind
+	Parent    ScopeID
+	Owner     ScopeOwner
+	Span      source.Span
+	NameIndex map[source.StringID][]SymbolID
+	Symbols   []SymbolID
+	Children  []ScopeID
 }

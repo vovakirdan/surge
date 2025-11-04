@@ -26,6 +26,7 @@ const (
 	SymbolFlagPublic SymbolFlags = 1 << iota
 	SymbolFlagMutable
 	SymbolFlagImported
+	SymbolFlagBuiltin
 )
 
 // SymbolDecl focuses on the AST origin for diagnostics.

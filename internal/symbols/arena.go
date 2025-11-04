@@ -1,6 +1,12 @@
 package symbols
 
-import "surge/internal/source"
+import (
+	"fmt"
+
+	"fortio.org/safecast"
+
+	"surge/internal/source"
+)
 
 // Scopes stores all allocated scopes in a compact slice-based arena.
 type Scopes struct {
@@ -19,13 +25,19 @@ func NewScopes(capacity uint32) *Scopes {
 }
 
 // New allocates a new scope and returns its ID.
+
 func (s *Scopes) New(kind ScopeKind, parent ScopeID, owner ScopeOwner, span source.Span) ScopeID {
-	id := ScopeID(len(s.data))
+	value, err := safecast.Conv[uint32](len(s.data))
+	if err != nil {
+		panic(fmt.Errorf("scopes arena overflow: %w", err))
+	}
+	id := ScopeID(value)
 	s.data = append(s.data, Scope{
-		Kind:   kind,
-		Parent: parent,
-		Owner:  owner,
-		Span:   span,
+		Kind:      kind,
+		Parent:    parent,
+		Owner:     owner,
+		Span:      span,
+		NameIndex: make(map[source.StringID][]SymbolID),
 	})
 	if parent.IsValid() {
 		if parentScope := s.Get(parent); parentScope != nil {
@@ -70,9 +82,16 @@ func NewSymbols(capacity uint32) *Symbols {
 }
 
 // New allocates a symbol in the arena and returns its ID.
-func (s *Symbols) New(sym Symbol) SymbolID {
-	id := SymbolID(len(s.data))
-	s.data = append(s.data, sym)
+func (s *Symbols) New(sym *Symbol) SymbolID {
+	if sym == nil {
+		panic("symbols.New: nil symbol")
+	}
+	value, err := safecast.Conv[uint32](len(s.data))
+	if err != nil {
+		panic(fmt.Errorf("symbols arena overflow: %w", err))
+	}
+	id := SymbolID(value)
+	s.data = append(s.data, *sym)
 	return id
 }
 

@@ -1,6 +1,12 @@
 package symbols
 
-import "surge/internal/source"
+import (
+	"fmt"
+
+	"fortio.org/safecast"
+
+	"surge/internal/source"
+)
 
 // Hints provide optional capacity suggestions for the symbol table arenas.
 type Hints struct{ Scopes, Symbols uint }
@@ -16,8 +22,14 @@ type Table struct {
 // NewTable builds a fresh table with optional capacity hints.
 // If strings is nil, a fresh interner is allocated.
 func NewTable(h Hints, strings *source.Interner) *Table {
-	scopeCap := uint32(h.Scopes)
-	symCap := uint32(h.Symbols)
+	scopeCap, err := safecast.Conv[uint32](h.Scopes)
+	if err != nil {
+		panic(fmt.Errorf("scope capacity overflow: %w", err))
+	}
+	symCap, err := safecast.Conv[uint32](h.Symbols)
+	if err != nil {
+		panic(fmt.Errorf("symbol capacity overflow: %w", err))
+	}
 	if strings == nil {
 		strings = source.NewInterner()
 	}

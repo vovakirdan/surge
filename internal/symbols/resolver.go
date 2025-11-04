@@ -1,6 +1,8 @@
 package symbols
 
 import (
+	"fmt"
+
 	"surge/internal/diag"
 	"surge/internal/source"
 )
@@ -16,22 +18,48 @@ type PreludeEntry struct {
 	Name  string
 	Kind  SymbolKind
 	Flags SymbolFlags
+	Span  source.Span
+}
+
+// KindMask restricts lookup to specific symbol kinds.
+type KindMask uint32
+
+const (
+	// KindMaskNone filters out all kinds.
+	KindMaskNone KindMask = 0
+	// KindMaskAny allows all kinds.
+	KindMaskAny KindMask = ^KindMask(0)
+)
+
+// Mask converts a symbol kind into a KindMask bit.
+func (k SymbolKind) Mask() KindMask {
+	return KindMask(1 << uint(k))
+}
+
+func matchKind(mask KindMask, kind SymbolKind) bool {
+	return mask == KindMaskAny || mask&kind.Mask() != 0
+}
+
+func allowsOverload(kind SymbolKind) bool {
+	return kind == SymbolFunction
 }
 
 // Resolver drives scope management and declaration/lookup routines.
 type Resolver struct {
-	table    *Table
-	reporter diag.Reporter
-	stack    []ScopeID
+	table                 *Table
+	reporter              diag.Reporter
+	stack                 []ScopeID
+	scopeMismatchReported map[ScopeID]bool
 }
 
 // NewResolver wires a resolver to an existing scope stack. If root is valid it
 // becomes the current scope; otherwise scope-sensitive operations are no-ops.
 func NewResolver(table *Table, root ScopeID, opts ResolverOptions) *Resolver {
 	r := &Resolver{
-		table:    table,
-		reporter: opts.Reporter,
-		stack:    make([]ScopeID, 0, 8),
+		table:                 table,
+		reporter:              opts.Reporter,
+		stack:                 make([]ScopeID, 0, 8),
+		scopeMismatchReported: make(map[ScopeID]bool),
 	}
 	if root.IsValid() {
 		r.stack = append(r.stack, root)
@@ -58,26 +86,52 @@ func (r *Resolver) Enter(kind ScopeKind, owner ScopeOwner, span source.Span) Sco
 	return scope
 }
 
-// Leave pops the current scope if it matches expected. Mismatches are ignored
-// in release builds; future debug builds may assert.
+// Leave pops the current scope, validating against the expected one. In debug
+// builds a mismatch triggers panic; release builds emit a warning diagnostic.
 func (r *Resolver) Leave(expected ScopeID) {
 	if len(r.stack) == 0 {
 		return
 	}
 	top := r.stack[len(r.stack)-1]
 	if expected.IsValid() && top != expected {
+		debugScopeMismatch(expected, top)
+		r.reportScopeMismatch(expected, top)
+		r.stack = r.stack[:len(r.stack)-1]
 		return
 	}
 	r.stack = r.stack[:len(r.stack)-1]
 }
 
 // Declare installs a symbol into the current scope. Returns false if there is
-// no active scope.
+// no active scope or declaration conflicts with existing entry.
 func (r *Resolver) Declare(name source.StringID, span source.Span, kind SymbolKind, flags SymbolFlags, decl SymbolDecl) (SymbolID, bool) {
 	scopeID := r.CurrentScope()
 	if !scopeID.IsValid() {
 		return NoSymbolID, false
 	}
+	scope := r.table.Scopes.Get(scopeID)
+	if scope == nil {
+		return NoSymbolID, false
+	}
+
+	if existing := scope.NameIndex[name]; len(existing) > 0 {
+		conflicts := false
+		for _, symID := range existing {
+			sym := r.table.Symbols.Get(symID)
+			if sym == nil {
+				continue
+			}
+			if sym.Kind != kind || !allowsOverload(kind) {
+				conflicts = true
+				r.reportDuplicateSymbol(name, span, sym.Span, sym.Flags)
+				break
+			}
+		}
+		if conflicts {
+			return NoSymbolID, false
+		}
+	}
+
 	sym := Symbol{
 		Name:  name,
 		Kind:  kind,
@@ -86,46 +140,161 @@ func (r *Resolver) Declare(name source.StringID, span source.Span, kind SymbolKi
 		Flags: flags,
 		Decl:  decl,
 	}
-	symbolID := r.table.Symbols.New(sym)
-	if scope := r.table.Scopes.Get(scopeID); scope != nil {
-		scope.Symbols = append(scope.Symbols, symbolID)
-	}
+	symbolID := r.table.Symbols.New(&sym)
+	scope.Symbols = append(scope.Symbols, symbolID)
+	scope.NameIndex[name] = append(scope.NameIndex[name], symbolID)
 	return symbolID, true
 }
 
 // Lookup walks the scope chain searching for a symbol with the given name.
 func (r *Resolver) Lookup(name source.StringID) (SymbolID, bool) {
+	return r.LookupOne(name, KindMaskAny)
+}
+
+// LookupOne finds the most recent symbol with matching name and kind mask.
+func (r *Resolver) LookupOne(name source.StringID, mask KindMask) (SymbolID, bool) {
+	if mask == KindMaskNone {
+		return NoSymbolID, false
+	}
 	scopeID := r.CurrentScope()
 	for scopeID.IsValid() {
 		scope := r.table.Scopes.Get(scopeID)
 		if scope == nil {
 			break
 		}
-		for i := len(scope.Symbols) - 1; i >= 0; i-- {
-			symbolID := scope.Symbols[i]
-			if sym := r.table.Symbols.Get(symbolID); sym != nil && sym.Name == name {
-				return symbolID, true
-			}
+		if candidates := r.lookupInScope(scopeID, name, mask); len(candidates) > 0 {
+			return candidates[len(candidates)-1], true
 		}
 		scopeID = scope.Parent
 	}
 	return NoSymbolID, false
 }
 
+// LookupAll collects all visible symbols with the specified name and kind mask.
+// Order: innermost scope first, and within the same scope — newest declaration first.
+func (r *Resolver) LookupAll(name source.StringID, mask KindMask) []SymbolID {
+	if mask == KindMaskNone {
+		return nil
+	}
+	var result []SymbolID
+	scopeID := r.CurrentScope()
+	for scopeID.IsValid() {
+		scope := r.table.Scopes.Get(scopeID)
+		if scope == nil {
+			break
+		}
+		if candidates := r.lookupInScope(scopeID, name, mask); len(candidates) > 0 {
+			for i := len(candidates) - 1; i >= 0; i-- {
+				result = append(result, candidates[i])
+			}
+		}
+		scopeID = scope.Parent
+	}
+	return result
+}
+
+func (r *Resolver) lookupInScope(scopeID ScopeID, name source.StringID, mask KindMask) []SymbolID {
+	scope := r.table.Scopes.Get(scopeID)
+	if scope == nil {
+		return nil
+	}
+	ids := scope.NameIndex[name]
+	if len(ids) == 0 {
+		return nil
+	}
+	if mask == KindMaskAny {
+		return ids
+	}
+	filtered := make([]SymbolID, 0, len(ids))
+	for _, id := range ids {
+		if sym := r.table.Symbols.Get(id); sym != nil && matchKind(mask, sym.Kind) {
+			filtered = append(filtered, id)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return filtered
+}
+
+func (r *Resolver) reportDuplicateSymbol(name source.StringID, span, prevSpan source.Span, prevFlags SymbolFlags) {
+	if r.reporter == nil {
+		return
+	}
+	nameStr := r.table.Strings.MustLookup(name)
+	msg := fmt.Sprintf("duplicate declaration of '%s'", nameStr)
+	builder := diag.ReportError(r.reporter, diag.SemaDuplicateSymbol, span, msg)
+	if builder == nil {
+		return
+	}
+	noteMsg := "previous declaration here"
+	if prevFlags&SymbolFlagBuiltin != 0 {
+		noteMsg = "built-in declaration here"
+	}
+	if prevSpan != (source.Span{}) {
+		builder.WithNote(prevSpan, noteMsg)
+	}
+	builder.Emit()
+}
+
+func (r *Resolver) reportScopeMismatch(expected, actual ScopeID) {
+	if r.reporter == nil {
+		return
+	}
+	if actual.IsValid() && r.scopeMismatchReported[actual] {
+		return
+	}
+	if actual.IsValid() {
+		r.scopeMismatchReported[actual] = true
+	}
+
+	var primary source.Span
+	var actualLabel string
+	if scope := r.table.Scopes.Get(actual); scope != nil {
+		primary = scope.Span
+		actualLabel = fmt.Sprintf("%s scope #%d", scope.Kind, actual)
+	} else {
+		actualLabel = fmt.Sprintf("scope #%d", actual)
+	}
+
+	expectedLabel := "unknown scope"
+	if expectedScope := r.table.Scopes.Get(expected); expectedScope != nil {
+		expectedLabel = fmt.Sprintf("%s scope #%d", expectedScope.Kind, expected)
+	}
+
+	msg := fmt.Sprintf("scope stack mismatch: closing %s while expecting %s", actualLabel, expectedLabel)
+	builder := diag.ReportWarning(r.reporter, diag.SemaScopeMismatch, primary, msg)
+	if builder == nil {
+		return
+	}
+	if expectedScope := r.table.Scopes.Get(expected); expectedScope != nil {
+		builder.WithNote(expectedScope.Span, "expected scope declared here")
+	}
+	builder.Emit()
+}
+
 // installPrelude declares prelude entries into scope.
-func (r *Resolver) installPrelude(scope ScopeID, entries []PreludeEntry) {
+func (r *Resolver) installPrelude(scopeID ScopeID, entries []PreludeEntry) {
+	scope := r.table.Scopes.Get(scopeID)
+	if scope == nil {
+		return
+	}
 	for _, entry := range entries {
 		nameID := r.table.Strings.Intern(entry.Name)
-		flags := entry.Flags | SymbolFlagImported
+		flags := entry.Flags | SymbolFlagImported | SymbolFlagBuiltin
+		span := entry.Span
 		sym := Symbol{
 			Name:  nameID,
 			Kind:  entry.Kind,
-			Scope: scope,
+			Scope: scopeID,
+			Span:  span,
 			Flags: flags,
+			Decl: SymbolDecl{
+				SourceFile: span.File,
+			},
 		}
-		id := r.table.Symbols.New(sym)
-		if sc := r.table.Scopes.Get(scope); sc != nil {
-			sc.Symbols = append(sc.Symbols, id)
-		}
+		id := r.table.Symbols.New(&sym)
+		scope.Symbols = append(scope.Symbols, id)
+		scope.NameIndex[nameID] = append(scope.NameIndex[nameID], id)
 	}
 }
