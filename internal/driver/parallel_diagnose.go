@@ -14,6 +14,7 @@ import (
 	"surge/internal/project"
 	"surge/internal/project/dag"
 	"surge/internal/source"
+	"surge/internal/symbols"
 )
 
 func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOptions, jobs int) (*source.FileSet, []DiagnoseDirResult, error) {
@@ -168,6 +169,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					return tokenErr
 				}
 
+				var symbolsRes *symbols.Result
 				if opts.Stage != DiagnoseStageTokenize {
 					parseIdx := begin("parse")
 					var parseErr error
@@ -183,7 +185,15 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					if parseErr != nil {
 						return parseErr
 					}
-					// TODO: добавить семантическую диагностику
+					if opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
+						semaIdx := begin("symbols")
+						symbolsRes = diagnoseSymbols(builder, astFile, bag)
+						semaNote := ""
+						if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
+							semaNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
+						}
+						end(semaIdx, semaNote)
+					}
 				}
 
 				results[i] = DiagnoseDirResult{
@@ -192,6 +202,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					Bag:     bag,
 					Builder: builder,
 					ASTFile: astFile,
+					Symbols: symbolsRes,
 				}
 				reportTimings()
 				return nil

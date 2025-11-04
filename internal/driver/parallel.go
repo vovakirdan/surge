@@ -18,6 +18,7 @@ import (
 	"surge/internal/observ"
 	"surge/internal/parser"
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/token"
 )
 
@@ -43,6 +44,7 @@ type DiagnoseDirResult struct {
 	Bag     *diag.Bag
 	Builder *ast.Builder
 	ASTFile ast.FileID
+	Symbols *symbols.Result
 	Timing  *observ.Report
 }
 

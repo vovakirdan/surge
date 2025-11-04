@@ -25,7 +25,7 @@ var diagCmd = &cobra.Command{
 // note/suggestion inclusion, and whether to emit absolute file paths.
 func init() {
 	diagCmd.Flags().String("format", "pretty", "output format (pretty|json|sarif)")
-	diagCmd.Flags().String("stages", "syntax", "diagnostic stages to run (tokenize|syntax|sema|all)")
+	diagCmd.Flags().String("stages", "all", "diagnostic stages to run (tokenize|syntax|sema|all)")
 	diagCmd.Flags().Bool("no-warnings", false, "ignore warnings in diagnostics")
 	diagCmd.Flags().Bool("warnings-as-errors", false, "treat warnings as errors")
 	diagCmd.Flags().Int("jobs", 0, "max parallel workers for directory processing (0=auto)")

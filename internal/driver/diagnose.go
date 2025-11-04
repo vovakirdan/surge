@@ -15,6 +15,7 @@ import (
 	"surge/internal/project"
 	"surge/internal/project/dag"
 	"surge/internal/source"
+	"surge/internal/symbols"
 
 	"fortio.org/safecast"
 )
@@ -23,6 +24,7 @@ type DiagnoseResult struct {
 	FileSet *source.FileSet
 	File    *source.File
 	Bag     *diag.Bag
+	Symbols *symbols.Result
 }
 
 // DiagnoseStage определяет уровень диагностики
@@ -86,8 +88,9 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	bag := diag.NewBag(opts.MaxDiagnostics)
 
 	var (
-		builder *ast.Builder
-		astFile ast.FileID
+		builder    *ast.Builder
+		astFile    ast.FileID
+		symbolsRes *symbols.Result
 	)
 	// per-call cache (следующим шагом добавим его в параллельный обход директорий)
 	cache := NewModuleCache(256)
@@ -121,10 +124,18 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		graphIdx := begin("imports_graph")
 		err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache)
 		end(graphIdx, "")
-	}
-
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+		if opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
+			semaIdx := begin("symbols")
+			symbolsRes = diagnoseSymbols(builder, astFile, bag)
+			semaNote := ""
+			if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
+				semaNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
+			}
+			end(semaIdx, semaNote)
+		}
 	}
 
 	// Применяем фильтрацию и трансформацию диагностик
@@ -159,7 +170,19 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		FileSet: fs,
 		File:    file,
 		Bag:     bag,
+		Symbols: symbolsRes,
 	}, nil
+}
+
+func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag) *symbols.Result {
+	if builder == nil || fileID == ast.NoFileID {
+		return nil
+	}
+	res := symbols.ResolveFile(builder, fileID, symbols.ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+	return &res
 }
 
 // diagnoseTokenize выполняет диагностику на уровне лексера
