@@ -122,132 +122,6 @@ func (fr *fileResolver) handleItem(id ast.ItemID) {
 	}
 }
 
-func (fr *fileResolver) declareLet(itemID ast.ItemID, letItem *ast.LetItem) {
-	if letItem.Name == source.NoStringID {
-		return
-	}
-	if letItem.Value.IsValid() {
-		fr.walkExpr(letItem.Value)
-	}
-	flags := SymbolFlags(0)
-	if letItem.Visibility == ast.VisPublic {
-		flags |= SymbolFlagPublic
-	}
-	if letItem.IsMut {
-		flags |= SymbolFlagMutable
-	}
-	decl := SymbolDecl{
-		SourceFile: fr.sourceFile,
-		ASTFile:    fr.fileID,
-		Item:       itemID,
-	}
-	span := preferSpan(letItem.NameSpan, letItem.Span)
-	if symID, ok := fr.resolver.Declare(letItem.Name, span, SymbolLet, flags, decl); ok {
-		fr.appendItemSymbol(itemID, symID)
-	}
-}
-
-func (fr *fileResolver) declareFn(itemID ast.ItemID, fnItem *ast.FnItem) {
-	if fnItem.Name == source.NoStringID {
-		return
-	}
-	flags := SymbolFlags(0)
-	if fnItem.Flags&ast.FnModifierPublic != 0 {
-		flags |= SymbolFlagPublic
-	}
-	decl := SymbolDecl{
-		SourceFile: fr.sourceFile,
-		ASTFile:    fr.fileID,
-		Item:       itemID,
-	}
-	span := fnNameSpan(fnItem)
-	if symID, ok := fr.resolver.Declare(fnItem.Name, span, SymbolFunction, flags, decl); ok {
-		fr.appendItemSymbol(itemID, symID)
-	}
-	fr.walkFn(itemID, fnItem)
-}
-
-func (fr *fileResolver) declareType(itemID ast.ItemID, typeItem *ast.TypeItem) {
-	if typeItem.Name == source.NoStringID {
-		return
-	}
-	flags := SymbolFlags(0)
-	if typeItem.Visibility == ast.VisPublic {
-		flags |= SymbolFlagPublic
-	}
-	decl := SymbolDecl{
-		SourceFile: fr.sourceFile,
-		ASTFile:    fr.fileID,
-		Item:       itemID,
-	}
-	span := preferSpan(typeItem.TypeKeywordSpan, typeItem.Span)
-	if symID, ok := fr.resolver.Declare(typeItem.Name, span, SymbolType, flags, decl); ok {
-		fr.appendItemSymbol(itemID, symID)
-	}
-}
-
-func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
-	if tagItem.Name == source.NoStringID {
-		return
-	}
-	flags := SymbolFlags(0)
-	if tagItem.Visibility == ast.VisPublic {
-		flags |= SymbolFlagPublic
-	}
-	decl := SymbolDecl{
-		SourceFile: fr.sourceFile,
-		ASTFile:    fr.fileID,
-		Item:       itemID,
-	}
-	span := preferSpan(tagItem.TagKeywordSpan, tagItem.Span)
-	if symID, ok := fr.resolver.Declare(tagItem.Name, span, SymbolTag, flags, decl); ok {
-		fr.appendItemSymbol(itemID, symID)
-	}
-}
-
-func (fr *fileResolver) declareImport(itemID ast.ItemID, importItem *ast.ImportItem, itemSpan source.Span) {
-	if importItem.ModuleAlias != source.NoStringID {
-		fr.declareImportName(itemID, importItem.ModuleAlias, source.NoStringID, importItem.Module, itemSpan)
-	}
-	if importItem.HasOne {
-		name := importItem.One.Alias
-		if name == source.NoStringID {
-			name = importItem.One.Name
-		}
-		fr.declareImportName(itemID, name, importItem.One.Name, importItem.Module, itemSpan)
-	}
-	for _, pair := range importItem.Group {
-		name := pair.Alias
-		if name == source.NoStringID {
-			name = pair.Name
-		}
-		fr.declareImportName(itemID, name, pair.Name, importItem.Module, itemSpan)
-	}
-}
-
-func (fr *fileResolver) declareImportName(itemID ast.ItemID, name, original source.StringID, module []source.StringID, span source.Span) {
-	if name == source.NoStringID {
-		return
-	}
-	decl := SymbolDecl{
-		SourceFile: fr.sourceFile,
-		ASTFile:    fr.fileID,
-		Item:       itemID,
-	}
-	if symID, ok := fr.resolver.Declare(name, span, SymbolImport, SymbolFlagImported, decl); ok {
-		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
-			if len(module) > 0 {
-				path := append([]source.StringID(nil), module...)
-				sym.Aliases = append(sym.Aliases, path...)
-			}
-			if original != source.NoStringID && original != name {
-				sym.Aliases = append(sym.Aliases, original)
-			}
-		}
-		fr.appendItemSymbol(itemID, symID)
-	}
-}
-
 func (fr *fileResolver) walkFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 	if fnItem == nil {
 		return
@@ -427,22 +301,46 @@ func (fr *fileResolver) handleExtern(itemID ast.ItemID, block *ast.ExternBlock) 
 	}
 }
 
-func (fr *fileResolver) declareExternFn(container ast.ItemID, member *ast.ExternMember, fnItem *ast.FnItem) {
-	if fnItem.Name == source.NoStringID {
+func (fr *fileResolver) reportMissingOverload(name source.StringID, span source.Span, existing []SymbolID) {
+	reporter := fr.resolver.reporter
+	if reporter == nil {
 		return
 	}
-	flags := SymbolFlagImported
-	if fnItem.Flags&ast.FnModifierPublic != 0 {
-		flags |= SymbolFlagPublic
+	nameStr := fr.builder.StringsInterner.MustLookup(name)
+	msg := fmt.Sprintf("function '%s' redeclared without @overload or @override", nameStr)
+	b := diag.ReportError(reporter, diag.SemaFnOverride, span, msg)
+	if b == nil {
+		return
 	}
-	decl := SymbolDecl{
-		SourceFile: fr.sourceFile,
-		ASTFile:    fr.fileID,
-		Item:       container,
+	fr.attachPreviousNotes(b, existing)
+	b.Emit()
+}
+
+func (fr *fileResolver) reportInvalidOverride(name source.StringID, span source.Span, message string, existing []SymbolID) {
+	reporter := fr.resolver.reporter
+	if reporter == nil {
+		return
 	}
-	span := fnNameSpan(fnItem)
-	if symID, ok := fr.resolver.Declare(fnItem.Name, span, SymbolFunction, flags, decl); ok {
-		fr.appendItemSymbol(container, symID)
+	nameStr := fr.builder.StringsInterner.MustLookup(name)
+	msg := fmt.Sprintf("invalid override for '%s': %s", nameStr, message)
+	b := diag.ReportError(reporter, diag.SemaFnOverride, span, msg)
+	if b == nil {
+		return
+	}
+	fr.attachPreviousNotes(b, existing)
+	b.Emit()
+}
+
+func (fr *fileResolver) attachPreviousNotes(b *diag.ReportBuilder, existing []SymbolID) {
+	if b == nil {
+		return
+	}
+	for _, id := range existing {
+		sym := fr.result.Table.Symbols.Get(id)
+		if sym == nil || sym.Span == (source.Span{}) {
+			continue
+		}
+		b.WithNote(sym.Span, "previous declaration here")
 	}
 }
 

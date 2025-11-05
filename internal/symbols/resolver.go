@@ -136,6 +136,14 @@ func (r *Resolver) Declare(name source.StringID, span source.Span, kind SymbolKi
 		r.reportShadowing(name, span, shadow)
 	}
 
+	return r.declareWithoutChecks(name, span, kind, flags, decl), true
+}
+
+func (r *Resolver) declareWithoutChecks(name source.StringID, span source.Span, kind SymbolKind, flags SymbolFlags, decl SymbolDecl) SymbolID {
+	scopeID := r.CurrentScope()
+	if !scopeID.IsValid() {
+		return NoSymbolID
+	}
 	sym := Symbol{
 		Name:  name,
 		Kind:  kind,
@@ -144,10 +152,12 @@ func (r *Resolver) Declare(name source.StringID, span source.Span, kind SymbolKi
 		Flags: flags,
 		Decl:  decl,
 	}
-	symbolID := r.table.Symbols.New(&sym)
-	scope.Symbols = append(scope.Symbols, symbolID)
-	scope.NameIndex[name] = append(scope.NameIndex[name], symbolID)
-	return symbolID, true
+	id := r.table.Symbols.New(&sym)
+	if scope := r.table.Scopes.Get(scopeID); scope != nil {
+		scope.Symbols = append(scope.Symbols, id)
+		scope.NameIndex[name] = append(scope.NameIndex[name], id)
+	}
+	return id
 }
 
 // Lookup walks the scope chain searching for a symbol with the given name.

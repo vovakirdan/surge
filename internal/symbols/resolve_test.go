@@ -66,7 +66,7 @@ func TestResolveFileDuplicateLetReported(t *testing.T) {
 func TestResolveAllowsFunctionOverloads(t *testing.T) {
 	src := `
         fn compute() {}
-        fn compute(a: int) {}
+        @overload fn compute(a: int) {}
     `
 	builder, fileID, parseBag := parseSnippet(t, src)
 	if parseBag.Len() != 0 {
@@ -114,6 +114,53 @@ func TestResolveFunctionParamDuplicates(t *testing.T) {
 	}
 	if bag.Items()[0].Code != diag.SemaDuplicateSymbol {
 		t.Fatalf("expected SemaDuplicateSymbol, got %v", bag.Items()[0].Code)
+	}
+}
+
+func TestResolveDuplicateFunctionWithoutAttribute(t *testing.T) {
+	src := `
+        fn compute() {}
+        fn compute() {}
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaFnOverride {
+		t.Fatalf("expected SemaFnOverride, got %v", bag.Items()[0].Code)
+	}
+}
+
+func TestResolveOverrideRequiresExistingFunction(t *testing.T) {
+	src := `
+        @override fn compute() {}
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaFnOverride {
+		t.Fatalf("expected SemaFnOverride, got %v", bag.Items()[0].Code)
 	}
 }
 

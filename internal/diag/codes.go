@@ -70,6 +70,7 @@ const (
 	SemaScopeMismatch    Code = 3003
 	SemaShadowSymbol     Code = 3004
 	SemaUnresolvedSymbol Code = 3005
+	SemaFnOverride       Code = 3006
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -144,6 +145,7 @@ var ( // todo расширить описания и использовать к
 		SemaScopeMismatch:           "Scope stack mismatch",
 		SemaShadowSymbol:            "Shadowed symbol",
 		SemaUnresolvedSymbol:        "Unresolved symbol",
+		SemaFnOverride:              "Invalid function override",
 		IOLoadFileError:             "I/O load file error",
 		ProjInfo:                    "Project information",
 		ProjDuplicateModule:         "Duplicate module definition",
