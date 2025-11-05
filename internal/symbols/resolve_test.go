@@ -34,8 +34,22 @@ func TestResolveFileDeclaresTopLevelSymbols(t *testing.T) {
 	if res.Table == nil {
 		t.Fatalf("expected table in result")
 	}
-	if res.Table.Symbols.Len() != 4 { // Bar, answer, compute, ID
-		t.Fatalf("expected 4 symbols, got %d", res.Table.Symbols.Len())
+	expected := map[string]bool{
+		"Bar":     false,
+		"answer":  false,
+		"compute": false,
+		"ID":      false,
+	}
+	for _, sym := range res.Table.Symbols.Data() {
+		name := builder.StringsInterner.MustLookup(sym.Name)
+		if _, ok := expected[name]; ok {
+			expected[name] = true
+		}
+	}
+	for name, ok := range expected {
+		if !ok {
+			t.Fatalf("expected symbol %s to be declared", name)
+		}
 	}
 }
 
@@ -284,6 +298,32 @@ func TestResolveUnresolvedIdentifier(t *testing.T) {
 	}
 	if bag.Items()[0].Code != diag.SemaUnresolvedSymbol {
 		t.Fatalf("expected SemaUnresolvedSymbol, got %v", bag.Items()[0].Code)
+	}
+}
+
+func TestResolveBuiltinTypes(t *testing.T) {
+	src := `
+	    fn f(a: int) -> bool {
+	        let ok = a is int;
+	        return ok;
+	    }
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 0 {
+		for _, d := range bag.Items() {
+			t.Logf("diagnostic: %s", d.Message)
+		}
+		t.Fatalf("expected no diagnostics, got %d", bag.Len())
 	}
 }
 

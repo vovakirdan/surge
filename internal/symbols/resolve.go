@@ -52,9 +52,10 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts ResolveOptions) R
 	fileScope := table.FileRoot(sourceFile, file.Span)
 	result.FileScope = fileScope
 
+	prelude := mergePrelude(opts.Prelude)
 	resolver := NewResolver(table, fileScope, ResolverOptions{
 		Reporter: opts.Reporter,
-		Prelude:  opts.Prelude,
+		Prelude:  prelude,
 	})
 
 	fr := fileResolver{
