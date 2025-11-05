@@ -172,6 +172,74 @@ func TestResolveLocalDuplicateLet(t *testing.T) {
 	}
 }
 
+func TestResolveExprIdentifierMapping(t *testing.T) {
+	src := `
+	    fn f(a: int) -> int {
+	        return a;
+	    }
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	res := ResolveFile(builder, fileID, ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 0 {
+		t.Fatalf("unexpected diagnostics: %d", bag.Len())
+	}
+
+	file := builder.Files.Get(fileID)
+	if file == nil || len(file.Items) == 0 {
+		t.Fatalf("expected items in file")
+	}
+	fnItemData, ok := builder.Items.Fn(file.Items[0])
+	if !ok || fnItemData == nil {
+		t.Fatalf("failed to fetch function item")
+	}
+	block := builder.Stmts.Block(fnItemData.Body)
+	if block == nil || len(block.Stmts) == 0 {
+		t.Fatalf("expected statements in function body")
+	}
+	ret := builder.Stmts.Return(block.Stmts[0])
+	if ret == nil {
+		t.Fatalf("expected return statement")
+	}
+	symID, ok := res.ExprSymbols[ret.Expr]
+	if !ok || !symID.IsValid() {
+		t.Fatalf("identifier not resolved")
+	}
+}
+
+func TestResolveUnresolvedIdentifier(t *testing.T) {
+	src := `
+	    fn f() {
+	        return missing;
+	    }
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaUnresolvedSymbol {
+		t.Fatalf("expected SemaUnresolvedSymbol, got %v", bag.Items()[0].Code)
+	}
+}
+
 func parseSnippet(t *testing.T, src string) (*ast.Builder, ast.FileID, *diag.Bag) {
 	t.Helper()
 	fs := source.NewFileSetWithBase("")

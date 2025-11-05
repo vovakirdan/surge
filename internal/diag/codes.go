@@ -64,11 +64,12 @@ const (
 	SynUnexpectedModifier Code = 2205
 
 	// Семантические (резервируем)
-	SemaInfo            Code = 3000
-	SemaError           Code = 3001
-	SemaDuplicateSymbol Code = 3002
-	SemaScopeMismatch   Code = 3003
-	SemaShadowSymbol    Code = 3004
+	SemaInfo             Code = 3000
+	SemaError            Code = 3001
+	SemaDuplicateSymbol  Code = 3002
+	SemaScopeMismatch    Code = 3003
+	SemaShadowSymbol     Code = 3004
+	SemaUnresolvedSymbol Code = 3005
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -142,6 +143,7 @@ var ( // todo расширить описания и использовать к
 		SemaDuplicateSymbol:         "Duplicate symbol",
 		SemaScopeMismatch:           "Scope stack mismatch",
 		SemaShadowSymbol:            "Shadowed symbol",
+		SemaUnresolvedSymbol:        "Unresolved symbol",
 		IOLoadFileError:             "I/O load file error",
 		ProjInfo:                    "Project information",
 		ProjDuplicateModule:         "Duplicate module definition",
