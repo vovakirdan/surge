@@ -132,6 +132,10 @@ func (r *Resolver) Declare(name source.StringID, span source.Span, kind SymbolKi
 		}
 	}
 
+	if shadow := r.findShadowing(scopeID, name); shadow.IsValid() {
+		r.reportShadowing(name, span, shadow)
+	}
+
 	sym := Symbol{
 		Name:  name,
 		Kind:  kind,
@@ -297,4 +301,48 @@ func (r *Resolver) installPrelude(scopeID ScopeID, entries []PreludeEntry) {
 		scope.Symbols = append(scope.Symbols, id)
 		scope.NameIndex[nameID] = append(scope.NameIndex[nameID], id)
 	}
+}
+
+func (r *Resolver) findShadowing(scopeID ScopeID, name source.StringID) SymbolID {
+	scope := r.table.Scopes.Get(scopeID)
+	if scope == nil {
+		return NoSymbolID
+	}
+	parent := scope.Parent
+	for parent.IsValid() {
+		parentScope := r.table.Scopes.Get(parent)
+		if parentScope == nil {
+			break
+		}
+		if ids := parentScope.NameIndex[name]; len(ids) > 0 {
+			return ids[len(ids)-1]
+		}
+		parent = parentScope.Parent
+	}
+	return NoSymbolID
+}
+
+func (r *Resolver) reportShadowing(name source.StringID, span source.Span, shadow SymbolID) {
+	if r.reporter == nil || !shadow.IsValid() {
+		return
+	}
+	nameStr := r.table.Strings.MustLookup(name)
+	if nameStr == "_" {
+		return
+	}
+	msg := fmt.Sprintf("declaration of '%s' shadows previous binding", nameStr)
+	builder := diag.ReportWarning(r.reporter, diag.SemaShadowSymbol, span, msg)
+	if builder == nil {
+		return
+	}
+	if prev := r.table.Symbols.Get(shadow); prev != nil {
+		noteMsg := "previous declaration here"
+		if prev.Flags&SymbolFlagBuiltin != 0 {
+			noteMsg = "built-in declaration here"
+		}
+		if prev.Span != (source.Span{}) {
+			builder.WithNote(prev.Span, noteMsg)
+		}
+	}
+	builder.Emit()
 }

@@ -159,6 +159,7 @@ func (fr *fileResolver) declareFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 	if symID, ok := fr.resolver.Declare(fnItem.Name, span, SymbolFunction, flags, decl); ok {
 		fr.appendItemSymbol(itemID, symID)
 	}
+	fr.walkFn(itemID, fnItem)
 }
 
 func (fr *fileResolver) declareType(itemID ast.ItemID, typeItem *ast.TypeItem) {
@@ -239,6 +240,143 @@ func (fr *fileResolver) declareImportName(itemID ast.ItemID, name, original sour
 			}
 		}
 		fr.appendItemSymbol(itemID, symID)
+	}
+}
+
+func (fr *fileResolver) walkFn(itemID ast.ItemID, fnItem *ast.FnItem) {
+	if fnItem == nil {
+		return
+	}
+	owner := ScopeOwner{
+		Kind:       ScopeOwnerItem,
+		SourceFile: fr.sourceFile,
+		ASTFile:    fr.fileID,
+		Item:       itemID,
+	}
+	scopeSpan := preferSpan(fnItem.ParamsSpan, fnItem.Span)
+	scopeID := fr.resolver.Enter(ScopeFunction, owner, scopeSpan)
+	paramIDs := fr.builder.Items.GetFnParamIDs(fnItem)
+	for _, pid := range paramIDs {
+		param := fr.builder.Items.FnParam(pid)
+		if param == nil || param.Name == source.NoStringID {
+			continue
+		}
+		span := param.Span
+		if span == (source.Span{}) {
+			span = fnItem.ParamsSpan
+		}
+		decl := SymbolDecl{
+			SourceFile: fr.sourceFile,
+			ASTFile:    fr.fileID,
+			Item:       itemID,
+		}
+		fr.resolver.Declare(param.Name, span, SymbolParam, 0, decl)
+	}
+	if fnItem.Body.IsValid() {
+		fr.walkStmt(fnItem.Body)
+	}
+	fr.resolver.Leave(scopeID)
+}
+
+func (fr *fileResolver) walkStmt(stmtID ast.StmtID) {
+	if !stmtID.IsValid() {
+		return
+	}
+	stmt := fr.builder.Stmts.Get(stmtID)
+	if stmt == nil {
+		return
+	}
+	switch stmt.Kind {
+	case ast.StmtBlock:
+		block := fr.builder.Stmts.Block(stmtID)
+		if block == nil {
+			return
+		}
+		owner := ScopeOwner{
+			Kind:       ScopeOwnerStmt,
+			SourceFile: fr.sourceFile,
+			ASTFile:    fr.fileID,
+			Stmt:       stmtID,
+		}
+		scopeID := fr.resolver.Enter(ScopeBlock, owner, stmt.Span)
+		for _, child := range block.Stmts {
+			fr.walkStmt(child)
+		}
+		fr.resolver.Leave(scopeID)
+	case ast.StmtLet:
+		letStmt := fr.builder.Stmts.Let(stmtID)
+		if letStmt == nil || letStmt.Name == source.NoStringID {
+			return
+		}
+		flags := SymbolFlags(0)
+		if letStmt.IsMut {
+			flags |= SymbolFlagMutable
+		}
+		decl := SymbolDecl{
+			SourceFile: fr.sourceFile,
+			ASTFile:    fr.fileID,
+			Stmt:       stmtID,
+		}
+		fr.resolver.Declare(letStmt.Name, stmt.Span, SymbolLet, flags, decl)
+	case ast.StmtIf:
+		ifStmt := fr.builder.Stmts.If(stmtID)
+		if ifStmt == nil {
+			return
+		}
+		fr.walkStmt(ifStmt.Then)
+		if ifStmt.Else.IsValid() {
+			fr.walkStmt(ifStmt.Else)
+		}
+	case ast.StmtWhile:
+		whileStmt := fr.builder.Stmts.While(stmtID)
+		if whileStmt == nil {
+			return
+		}
+		fr.walkStmt(whileStmt.Body)
+	case ast.StmtForClassic:
+		forStmt := fr.builder.Stmts.ForClassic(stmtID)
+		if forStmt == nil {
+			return
+		}
+		owner := ScopeOwner{
+			Kind:       ScopeOwnerStmt,
+			SourceFile: fr.sourceFile,
+			ASTFile:    fr.fileID,
+			Stmt:       stmtID,
+		}
+		scopeID := fr.resolver.Enter(ScopeBlock, owner, stmt.Span)
+		if forStmt.Init.IsValid() {
+			fr.walkStmt(forStmt.Init)
+		}
+		fr.walkStmt(forStmt.Body)
+		fr.resolver.Leave(scopeID)
+	case ast.StmtForIn:
+		forIn := fr.builder.Stmts.ForIn(stmtID)
+		if forIn == nil {
+			return
+		}
+		owner := ScopeOwner{
+			Kind:       ScopeOwnerStmt,
+			SourceFile: fr.sourceFile,
+			ASTFile:    fr.fileID,
+			Stmt:       stmtID,
+		}
+		scopeID := fr.resolver.Enter(ScopeBlock, owner, stmt.Span)
+		if forIn.Pattern != source.NoStringID {
+			decl := SymbolDecl{
+				SourceFile: fr.sourceFile,
+				ASTFile:    fr.fileID,
+				Stmt:       stmtID,
+			}
+			span := preferSpan(forIn.PatternSpan, stmt.Span)
+			fr.resolver.Declare(forIn.Pattern, span, SymbolLet, 0, decl)
+		}
+		fr.walkStmt(forIn.Body)
+		fr.resolver.Leave(scopeID)
+	case ast.StmtExpr, ast.StmtSignal, ast.StmtReturn, ast.StmtBreak, ast.StmtContinue:
+		// no declarations to track yet
+	default:
+		// future statement kinds
 	}
 }
 

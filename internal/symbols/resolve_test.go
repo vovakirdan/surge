@@ -94,6 +94,84 @@ func TestResolveAllowsFunctionOverloads(t *testing.T) {
 	}
 }
 
+func TestResolveFunctionParamDuplicates(t *testing.T) {
+	src := `
+	    fn f(a: int, a: int) {}
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected exactly 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaDuplicateSymbol {
+		t.Fatalf("expected SemaDuplicateSymbol, got %v", bag.Items()[0].Code)
+	}
+}
+
+func TestResolveLocalShadowingWarning(t *testing.T) {
+	src := `
+	    fn f(a: int) {
+	        let a = 1;
+	    }
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	d := bag.Items()[0]
+	if d.Code != diag.SemaShadowSymbol {
+		t.Fatalf("expected SemaShadowSymbol, got %v", d.Code)
+	}
+	if d.Severity != diag.SevWarning {
+		t.Fatalf("expected warning severity, got %v", d.Severity)
+	}
+}
+
+func TestResolveLocalDuplicateLet(t *testing.T) {
+	src := `
+	    fn f() {
+	        let value = 0;
+	        let value = 1;
+	    }
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaDuplicateSymbol {
+		t.Fatalf("expected SemaDuplicateSymbol, got %v", bag.Items()[0].Code)
+	}
+}
+
 func parseSnippet(t *testing.T, src string) (*ast.Builder, ast.FileID, *diag.Bag) {
 	t.Helper()
 	fs := source.NewFileSetWithBase("")
