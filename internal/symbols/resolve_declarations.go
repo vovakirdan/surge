@@ -166,6 +166,11 @@ func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.
 
 	scope := fr.resolver.CurrentScope()
 	existing := fr.resolver.lookupInScope(scope, fnItem.Name, SymbolFunction.Mask())
+	existingSymbols := make([]*Symbol, 0, len(existing))
+	for _, id := range existing {
+		existingSymbols = append(existingSymbols, fr.result.Table.Symbols.Get(id))
+	}
+	newSig := buildFunctionSignature(fr.builder, fnItem)
 
 	if hasOverload && hasOverride {
 		fr.reportInvalidOverride(fnItem.Name, span, "cannot combine @overload and @override", existing)
@@ -180,14 +185,27 @@ func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.
 	if len(existing) > 0 {
 		switch {
 		case hasOverload:
-			// allowed; future work will compare signatures
+			if !signatureDiffersFromAll(newSig, existingSymbols) {
+				fr.reportInvalidOverride(fnItem.Name, span, "@overload duplicates existing signature; use @override", existing)
+				return NoSymbolID, false
+			}
 		case hasOverride:
-			for _, id := range existing {
-				sym := fr.result.Table.Symbols.Get(id)
-				if sym != nil && sym.Flags&SymbolFlagBuiltin != 0 {
+			match := false
+			for _, sym := range existingSymbols {
+				if sym == nil {
+					continue
+				}
+				if sym.Flags&SymbolFlagBuiltin != 0 {
 					fr.reportInvalidOverride(fnItem.Name, span, "cannot override builtin function", existing)
 					return NoSymbolID, false
 				}
+				if signaturesEqual(sym.Signature, newSig) {
+					match = true
+				}
+			}
+			if !match {
+				fr.reportInvalidOverride(fnItem.Name, span, "@override requires matching signature", existing)
+				return NoSymbolID, false
 			}
 		default:
 			fr.reportMissingOverload(fnItem.Name, span, keywordSpan, existing)
@@ -195,7 +213,7 @@ func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.
 		}
 	}
 
-	symID := fr.resolver.declareWithoutChecks(fnItem.Name, span, SymbolFunction, flags, decl)
+	symID := fr.resolver.declareWithoutChecks(fnItem.Name, span, SymbolFunction, flags, decl, newSig)
 	if !symID.IsValid() {
 		return NoSymbolID, false
 	}

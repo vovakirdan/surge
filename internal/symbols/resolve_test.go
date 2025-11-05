@@ -178,6 +178,75 @@ func TestResolveOverrideRequiresExistingFunction(t *testing.T) {
 	}
 }
 
+func TestResolveOverloadDuplicateSignature(t *testing.T) {
+	src := `
+	    fn compute(a: int) {}
+	    @overload fn compute(a: int) {}
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaFnOverride {
+		t.Fatalf("expected SemaFnOverride, got %v", bag.Items()[0].Code)
+	}
+}
+
+func TestResolveOverrideMismatchedSignature(t *testing.T) {
+	src := `
+	    fn compute(a: int) {}
+	    @override fn compute(a: int, b: int) {}
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaFnOverride {
+		t.Fatalf("expected SemaFnOverride, got %v", bag.Items()[0].Code)
+	}
+}
+
+func TestResolveOverrideMatchingSignature(t *testing.T) {
+	src := `
+	    fn compute(a: int) {}
+	    @override fn compute(a: int) {}
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %d", bag.Len())
+	}
+}
+
 func TestResolveLocalShadowingWarning(t *testing.T) {
 	src := `
 	    fn f(a: int) {

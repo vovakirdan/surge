@@ -15,10 +15,11 @@ type ResolverOptions struct {
 
 // PreludeEntry describes a symbol injected before source traversal.
 type PreludeEntry struct {
-	Name  string
-	Kind  SymbolKind
-	Flags SymbolFlags
-	Span  source.Span
+	Name      string
+	Kind      SymbolKind
+	Flags     SymbolFlags
+	Span      source.Span
+	Signature *FunctionSignature
 }
 
 // KindMask restricts lookup to specific symbol kinds.
@@ -136,21 +137,23 @@ func (r *Resolver) Declare(name source.StringID, span source.Span, kind SymbolKi
 		r.reportShadowing(name, span, shadow)
 	}
 
-	return r.declareWithoutChecks(name, span, kind, flags, decl), true
+	id := r.declareWithoutChecks(name, span, kind, flags, decl, nil)
+	return id, id.IsValid()
 }
 
-func (r *Resolver) declareWithoutChecks(name source.StringID, span source.Span, kind SymbolKind, flags SymbolFlags, decl SymbolDecl) SymbolID {
+func (r *Resolver) declareWithoutChecks(name source.StringID, span source.Span, kind SymbolKind, flags SymbolFlags, decl SymbolDecl, sig *FunctionSignature) SymbolID {
 	scopeID := r.CurrentScope()
 	if !scopeID.IsValid() {
 		return NoSymbolID
 	}
 	sym := Symbol{
-		Name:  name,
-		Kind:  kind,
-		Scope: scopeID,
-		Span:  span,
-		Flags: flags,
-		Decl:  decl,
+		Name:      name,
+		Kind:      kind,
+		Scope:     scopeID,
+		Span:      span,
+		Flags:     flags,
+		Decl:      decl,
+		Signature: sig,
 	}
 	id := r.table.Symbols.New(&sym)
 	if scope := r.table.Scopes.Get(scopeID); scope != nil {
@@ -295,14 +298,15 @@ func (r *Resolver) installPrelude(scopeID ScopeID, entries []PreludeEntry) {
 	}
 	for _, entry := range entries {
 		nameID := r.table.Strings.Intern(entry.Name)
-		flags := entry.Flags | SymbolFlagImported | SymbolFlagBuiltin
+		flags := entry.Flags | SymbolFlagBuiltin
 		span := entry.Span
 		sym := Symbol{
-			Name:  nameID,
-			Kind:  entry.Kind,
-			Scope: scopeID,
-			Span:  span,
-			Flags: flags,
+			Name:      nameID,
+			Kind:      entry.Kind,
+			Scope:     scopeID,
+			Span:      span,
+			Flags:     flags,
+			Signature: entry.Signature,
 			Decl: SymbolDecl{
 				SourceFile: span.File,
 			},
