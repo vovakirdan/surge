@@ -37,3 +37,41 @@ func TestDiagnose_NoDependencyErrorForCleanImport(t *testing.T) {
 		}
 	}
 }
+
+func TestDiagnoseReportsUnresolvedSymbol(t *testing.T) {
+	src := `
+        fn demo() -> int {
+            return missing;
+        }
+    `
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "unresolved.sg")
+	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageAll,
+		MaxDiagnostics: 8,
+	}
+
+	res, err := DiagnoseWithOptions(path, opts)
+	if err != nil {
+		t.Fatalf("DiagnoseWithOptions error: %v", err)
+	}
+	if res.Bag.Len() == 0 {
+		t.Fatalf("expected diagnostics, got none")
+	}
+
+	found := false
+	for _, d := range res.Bag.Items() {
+		if d.Code == diag.SemaUnresolvedSymbol {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected unresolved symbol diagnostic, got %+v", res.Bag.Items())
+	}
+}
