@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/fix"
 	"surge/internal/source"
 )
 
@@ -301,17 +302,35 @@ func (fr *fileResolver) handleExtern(itemID ast.ItemID, block *ast.ExternBlock) 
 	}
 }
 
-func (fr *fileResolver) reportMissingOverload(name source.StringID, span source.Span, existing []SymbolID) {
+func (fr *fileResolver) reportMissingOverload(name source.StringID, span, keywordSpan source.Span, existing []SymbolID) {
 	reporter := fr.resolver.reporter
 	if reporter == nil {
 		return
 	}
 	nameStr := fr.builder.StringsInterner.MustLookup(name)
 	msg := fmt.Sprintf("function '%s' redeclared without @overload or @override", nameStr)
-	b := diag.ReportError(reporter, diag.SemaFnOverride, span, msg)
+	b := diag.ReportError(reporter, diag.SemaFnOverride, keywordSpan.Cover(span), msg)
 	if b == nil {
 		return
 	}
+	insert := keywordSpan
+	if insert == (source.Span{}) {
+		insert = span
+	}
+	insert = insert.ZeroideToStart()
+	fixID := fix.MakeFixID(diag.SemaFnOverride, insert)
+	// TODO: предлагать разные атрибуты в зависимости от сигнатуры
+	// сигнатура совпадает -> @override
+	// сигнатура не совпадает -> @overload
+	b.WithFixSuggestion(fix.InsertText(
+		"mark function as overload",
+		insert,
+		"@overload ",
+		"",
+		fix.WithID(fixID),
+		fix.WithKind(diag.FixKindRefactor),
+		fix.WithApplicability(diag.FixApplicabilitySafeWithHeuristics),
+	))
 	fr.attachPreviousNotes(b, existing)
 	b.Emit()
 }

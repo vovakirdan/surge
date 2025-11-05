@@ -44,7 +44,7 @@ func (fr *fileResolver) declareFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 		Item:       itemID,
 	}
 	span := fnNameSpan(fnItem)
-	if symID, ok := fr.declareFunctionWithAttrs(itemID, fnItem, span, flags, decl); ok {
+	if symID, ok := fr.declareFunctionWithAttrs(itemID, fnItem, span, fnItem.FnKeywordSpan, flags, decl); ok {
 		fr.appendItemSymbol(itemID, symID)
 	}
 	fr.walkFn(itemID, fnItem)
@@ -145,12 +145,12 @@ func (fr *fileResolver) declareExternFn(container ast.ItemID, member *ast.Extern
 		Item:       container,
 	}
 	span := fnNameSpan(fnItem)
-	if symID, ok := fr.declareFunctionWithAttrs(container, fnItem, span, flags, decl); ok {
+	if symID, ok := fr.declareFunctionWithAttrs(container, fnItem, span, fnItem.FnKeywordSpan, flags, decl); ok {
 		fr.appendItemSymbol(container, symID)
 	}
 }
 
-func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.FnItem, span source.Span, flags SymbolFlags, decl SymbolDecl) (SymbolID, bool) {
+func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.FnItem, span, keywordSpan source.Span, flags SymbolFlags, decl SymbolDecl) (SymbolID, bool) {
 	attrs := fr.builder.Items.CollectAttrs(fnItem.AttrStart, fnItem.AttrCount)
 	hasOverload := false
 	hasOverride := false
@@ -190,7 +190,7 @@ func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.
 				}
 			}
 		default:
-			fr.reportMissingOverload(fnItem.Name, span, existing)
+			fr.reportMissingOverload(fnItem.Name, span, keywordSpan, existing)
 			return NoSymbolID, false
 		}
 	}
