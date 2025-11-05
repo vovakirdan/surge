@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 
 	"fortio.org/safecast"
 )
@@ -131,7 +132,12 @@ func RelativePath(path, base string) (string, error) {
 		return normalizePath(absPath), nil
 	}
 
-	return normalizePath(relPath), nil
+	normRel := normalizePath(relPath)
+	if normRel == ".." || strings.HasPrefix(normRel, "../") {
+		return normalizePath(absPath), nil
+	}
+
+	return normRel, nil
 }
 
 // BaseName возвращает только имя файла без директорий.
