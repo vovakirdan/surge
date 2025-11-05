@@ -35,7 +35,7 @@ func TestJSONBasic(t *testing.T) {
 		IncludeFixes:     true,
 	}
 
-	err := JSON(&buf, bag, fs, opts)
+	err := JSON(&buf, bag, fs, opts, nil)
 	if err != nil {
 		t.Fatalf("JSON() error: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestJSONWithNotesAndFixes(t *testing.T) {
 		IncludeFixes:     true,
 	}
 
-	err := JSON(&buf, bag, fs, opts)
+	err := JSON(&buf, bag, fs, opts, nil)
 	if err != nil {
 		t.Fatalf("JSON() error: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestJSONWithoutPositions(t *testing.T) {
 		Max:              0,
 	}
 
-	err := JSON(&buf, bag, fs, opts)
+	err := JSON(&buf, bag, fs, opts, nil)
 	if err != nil {
 		t.Fatalf("JSON() error: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestJSONMaxLimit(t *testing.T) {
 		Max:              3, // Ограничение в 3 диагностики
 	}
 
-	err := JSON(&buf, bag, fs, opts)
+	err := JSON(&buf, bag, fs, opts, nil)
 	if err != nil {
 		t.Fatalf("JSON() error: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestJSONPathModes(t *testing.T) {
 				Max:              0,
 			}
 
-			err := JSON(&buf, bag, fs, opts)
+			err := JSON(&buf, bag, fs, opts, nil)
 			if err != nil {
 				t.Fatalf("JSON() error: %v", err)
 			}
@@ -356,7 +356,7 @@ func TestJSONFixPreview(t *testing.T) {
 		IncludePreviews:  true,
 	}
 
-	if err := JSON(&buf, bag, fs, opts); err != nil {
+	if err := JSON(&buf, bag, fs, opts, nil); err != nil {
 		t.Fatalf("JSON() error: %v", err)
 	}
 

@@ -60,6 +60,7 @@ type DiagnosticJSON struct {
 type DiagnosticsOutput struct {
 	Diagnostics []DiagnosticJSON `json:"diagnostics"`
 	Count       int              `json:"count"`
+	Semantics   *SemanticsOutput `json:"semantics,omitempty"`
 }
 
 // makeLocation создаёт LocationJSON из Span
@@ -100,7 +101,7 @@ func makeLocation(span source.Span, fs *source.FileSet, pathMode PathMode, inclu
 }
 
 // BuildDiagnosticsOutput формирует структуру JSON-вывода без сериализации.
-func BuildDiagnosticsOutput(bag *diag.Bag, fs *source.FileSet, opts JSONOpts) (DiagnosticsOutput, error) {
+func BuildDiagnosticsOutput(bag *diag.Bag, fs *source.FileSet, opts JSONOpts, semantics *SemanticsInput) (DiagnosticsOutput, error) {
 	diagnostics := make([]DiagnosticJSON, 0, bag.Len())
 
 	items := bag.Items()
@@ -191,13 +192,21 @@ func BuildDiagnosticsOutput(bag *diag.Bag, fs *source.FileSet, opts JSONOpts) (D
 		Count:       len(diagnostics),
 	}
 
+	if opts.IncludeSemantics {
+		if sema, err := buildSemanticsOutput(semantics); err == nil {
+			output.Semantics = sema
+		} else {
+			return DiagnosticsOutput{}, err
+		}
+	}
+
 	return output, nil
 }
 
 // JSON форматирует диагностики в JSON формат.
 // Выводит массив диагностик с полной информацией о местоположении, заметках и исправлениях.
-func JSON(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts JSONOpts) error {
-	output, err := BuildDiagnosticsOutput(bag, fs, opts)
+func JSON(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts JSONOpts, semantics *SemanticsInput) error {
+	output, err := BuildDiagnosticsOutput(bag, fs, opts, semantics)
 	if err != nil {
 		return err
 	}

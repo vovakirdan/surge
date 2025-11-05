@@ -26,6 +26,7 @@ type JSONOpts struct {
 	IncludeNotes     bool
 	IncludeFixes     bool
 	IncludePreviews  bool
+	IncludeSemantics bool
 }
 
 type SarifRunMeta struct {

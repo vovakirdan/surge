@@ -183,7 +183,16 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 				IncludeFixes:     showFixes,
 				IncludePreviews:  preview,
 			}
-			if err = diagfmt.JSON(os.Stdout, result.Bag, result.FileSet, jsonOpts); err != nil {
+			var semantics *diagfmt.SemanticsInput
+			if result.Symbols != nil && result.Builder != nil && result.FileID != 0 {
+				jsonOpts.IncludeSemantics = true
+				semantics = &diagfmt.SemanticsInput{
+					Builder: result.Builder,
+					FileID:  result.FileID,
+					Result:  result.Symbols,
+				}
+			}
+			if err = diagfmt.JSON(os.Stdout, result.Bag, result.FileSet, jsonOpts, semantics); err != nil {
 				return 0, fmt.Errorf("failed to format diagnostics: %w", err)
 			}
 		case "sarif":
@@ -288,7 +297,17 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 						displayPath = abs
 					}
 				}
-				data, buildErr := diagfmt.BuildDiagnosticsOutput(r.Bag, fs, jsonOpts)
+				optsForFile := jsonOpts
+				var semantics *diagfmt.SemanticsInput
+				if r.Symbols != nil && r.Builder != nil && r.ASTFile != 0 {
+					optsForFile.IncludeSemantics = true
+					semantics = &diagfmt.SemanticsInput{
+						Builder: r.Builder,
+						FileID:  r.ASTFile,
+						Result:  r.Symbols,
+					}
+				}
+				data, buildErr := diagfmt.BuildDiagnosticsOutput(r.Bag, fs, optsForFile, semantics)
 				if buildErr != nil {
 					return 0, fmt.Errorf("failed to build diagnostics output: %w", buildErr)
 				}

@@ -23,7 +23,9 @@ import (
 type DiagnoseResult struct {
 	FileSet *source.FileSet
 	File    *source.File
+	FileID  ast.FileID
 	Bag     *diag.Bag
+	Builder *ast.Builder
 	Symbols *symbols.Result
 }
 
@@ -169,7 +171,9 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	return &DiagnoseResult{
 		FileSet: fs,
 		File:    file,
+		FileID:  astFile,
 		Bag:     bag,
+		Builder: builder,
 		Symbols: symbolsRes,
 	}, nil
 }
