@@ -80,7 +80,7 @@ func runFix(cmd *cobra.Command, args []string) error {
 	defer cleanup()
 
 	driverOpts := driver.DiagnoseOptions{
-		Stage:          driver.DiagnoseStageSyntax,
+		Stage:          driver.DiagnoseStageAll,
 		MaxDiagnostics: maxDiagnostics,
 		EnableTimings:  showTimings,
 	}
