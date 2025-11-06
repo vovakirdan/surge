@@ -208,7 +208,7 @@ func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.
 				return NoSymbolID, false
 			}
 		default:
-			fr.reportMissingOverload(fnItem.Name, span, keywordSpan, existing)
+			fr.reportMissingOverload(fnItem.Name, span, keywordSpan, existing, newSig)
 			return NoSymbolID, false
 		}
 	}

@@ -150,8 +150,22 @@ func TestResolveDuplicateFunctionWithoutAttribute(t *testing.T) {
 	if bag.Len() != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
 	}
-	if bag.Items()[0].Code != diag.SemaFnOverride {
-		t.Fatalf("expected SemaFnOverride, got %v", bag.Items()[0].Code)
+	item := bag.Items()[0]
+	if item.Code != diag.SemaFnOverride {
+		t.Fatalf("expected SemaFnOverride, got %v", item.Code)
+	}
+	if len(item.Fixes) == 0 {
+		t.Fatalf("expected quick-fix suggestion")
+	}
+	f := item.Fixes[0]
+	if f.Title != "mark function as override" {
+		t.Fatalf("expected override suggestion, got %q", f.Title)
+	}
+	if len(f.Edits) != 1 {
+		t.Fatalf("expected single edit, got %d", len(f.Edits))
+	}
+	if f.Edits[0].NewText != "@override " {
+		t.Fatalf("expected override insertion, got %q", f.Edits[0].NewText)
 	}
 }
 
@@ -175,6 +189,44 @@ func TestResolveOverrideRequiresExistingFunction(t *testing.T) {
 	}
 	if bag.Items()[0].Code != diag.SemaFnOverride {
 		t.Fatalf("expected SemaFnOverride, got %v", bag.Items()[0].Code)
+	}
+}
+
+func TestResolveDuplicateFunctionWithoutAttributeSuggestsOverload(t *testing.T) {
+	src := `
+        fn compute(a: int) {}
+        fn compute(a: int, b: int) {}
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	item := bag.Items()[0]
+	if item.Code != diag.SemaFnOverride {
+		t.Fatalf("expected SemaFnOverride, got %v", item.Code)
+	}
+	if len(item.Fixes) == 0 {
+		t.Fatalf("expected quick-fix suggestion")
+	}
+	f := item.Fixes[0]
+	if f.Title != "mark function as overload" {
+		t.Fatalf("expected overload suggestion, got %q", f.Title)
+	}
+	if len(f.Edits) != 1 {
+		t.Fatalf("expected single edit, got %d", len(f.Edits))
+	}
+	if f.Edits[0].NewText != "@overload " {
+		t.Fatalf("expected overload insertion, got %q", f.Edits[0].NewText)
 	}
 }
 

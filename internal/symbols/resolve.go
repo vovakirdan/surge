@@ -303,7 +303,12 @@ func (fr *fileResolver) handleExtern(itemID ast.ItemID, block *ast.ExternBlock) 
 	}
 }
 
-func (fr *fileResolver) reportMissingOverload(name source.StringID, span, keywordSpan source.Span, existing []SymbolID) {
+func (fr *fileResolver) reportMissingOverload(
+	name source.StringID,
+	span, keywordSpan source.Span,
+	existing []SymbolID,
+	newSig *FunctionSignature,
+) {
 	reporter := fr.resolver.reporter
 	if reporter == nil {
 		return
@@ -320,13 +325,30 @@ func (fr *fileResolver) reportMissingOverload(name source.StringID, span, keywor
 	}
 	insert = insert.ZeroideToStart()
 	fixID := fix.MakeFixID(diag.SemaFnOverride, insert)
-	// TODO: предлагать разные атрибуты в зависимости от сигнатуры
-	// сигнатура совпадает -> @override
-	// сигнатура не совпадает -> @overload
+
+	suggestionText := "@overload "
+	suggestionTitle := "mark function as overload"
+	if newSig != nil && fr.result != nil && fr.result.Table != nil {
+		for _, id := range existing {
+			sym := fr.result.Table.Symbols.Get(id)
+			if sym == nil {
+				continue
+			}
+			if sym.Flags&SymbolFlagBuiltin != 0 {
+				continue
+			}
+			if signaturesEqual(sym.Signature, newSig) {
+				suggestionText = "@override "
+				suggestionTitle = "mark function as override"
+				break
+			}
+		}
+	}
+
 	b.WithFixSuggestion(fix.InsertText(
-		"mark function as overload",
+		suggestionTitle,
 		insert,
-		"@overload ",
+		suggestionText,
 		"",
 		fix.WithID(fixID),
 		fix.WithKind(diag.FixKindRefactor),
