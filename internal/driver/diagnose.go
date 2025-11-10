@@ -85,6 +85,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		return nil, err
 	}
 	file := fs.Get(fileID)
+	modulePath := modulePathForFile(fs, file)
 
 	// Создаём диагностический пакет
 	bag := diag.NewBag(opts.MaxDiagnostics)
@@ -131,7 +132,11 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		}
 		if opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
 			semaIdx := begin("symbols")
-			symbolsRes = diagnoseSymbols(builder, astFile, bag)
+			filePath := ""
+			if file != nil {
+				filePath = file.Path
+			}
+			symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, filePath)
 			semaNote := ""
 			if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
 				semaNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
@@ -178,13 +183,15 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	}, nil
 }
 
-func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag) *symbols.Result {
+func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, modulePath, filePath string) *symbols.Result {
 	if builder == nil || fileID == ast.NoFileID {
 		return nil
 	}
-	res := symbols.ResolveFile(builder, fileID, symbols.ResolveOptions{
-		Reporter: &diag.BagReporter{Bag: bag},
-		Validate: true,
+	res := symbols.ResolveFile(builder, fileID, &symbols.ResolveOptions{
+		Reporter:   &diag.BagReporter{Bag: bag},
+		Validate:   true,
+		ModulePath: modulePath,
+		FilePath:   filePath,
 	})
 	return &res
 }
@@ -461,6 +468,23 @@ func modulePathToFilePath(baseDir, modulePath string) string {
 		return rel
 	}
 	return filepath.Join(baseDir, rel)
+}
+
+func modulePathForFile(fs *source.FileSet, file *source.File) string {
+	if fs == nil || file == nil {
+		return ""
+	}
+	path := file.Path
+	baseDir := fs.BaseDir()
+	if baseDir != "" {
+		if rel, err := source.RelativePath(path, baseDir); err == nil {
+			path = rel
+		}
+	}
+	if norm, err := project.NormalizeModulePath(path); err == nil {
+		return norm
+	}
+	return ""
 }
 
 func fallbackModuleMeta(file *source.File, baseDir string) *project.ModuleMeta {

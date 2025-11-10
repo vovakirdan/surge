@@ -23,7 +23,7 @@ func TestResolveFileDeclaresTopLevelSymbols(t *testing.T) {
 	}
 
 	semaBag := diag.NewBag(16)
-	res := ResolveFile(builder, fileID, ResolveOptions{
+	res := ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 		Validate: true,
 	})
@@ -64,7 +64,7 @@ func TestResolveFileDuplicateLetReported(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, ResolveOptions{
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
@@ -88,7 +88,7 @@ func TestResolveAllowsFunctionOverloads(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	res := ResolveFile(builder, fileID, ResolveOptions{
+	res := ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
@@ -118,7 +118,7 @@ func TestResolveFunctionParamDuplicates(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, ResolveOptions{
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
@@ -142,7 +142,7 @@ func TestResolveDuplicateFunctionWithoutAttribute(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, ResolveOptions{
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
@@ -179,7 +179,7 @@ func TestResolveOverrideRequiresExistingFunction(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, ResolveOptions{
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
@@ -203,7 +203,7 @@ func TestResolveDuplicateFunctionWithoutAttributeSuggestsOverload(t *testing.T) 
 	}
 
 	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, ResolveOptions{
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
@@ -241,7 +241,7 @@ func TestResolveOverloadDuplicateSignature(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, ResolveOptions{
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
@@ -265,7 +265,7 @@ func TestResolveOverrideMismatchedSignature(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, ResolveOptions{
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
@@ -289,13 +289,112 @@ func TestResolveOverrideMatchingSignature(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, ResolveOptions{
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
 
 	if bag.Len() != 0 {
 		t.Fatalf("expected no diagnostics, got %d", bag.Len())
+	}
+}
+
+func TestResolveIntrinsicValid(t *testing.T) {
+	src := `
+	    @intrinsic fn rt_alloc(size: uint) -> *byte;
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter:   &diag.BagReporter{Bag: bag},
+		Validate:   true,
+		ModulePath: "core/intrinsics",
+		FilePath:   "core/intrinsics.sg",
+	})
+
+	if bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %d", bag.Len())
+	}
+}
+
+func TestResolveIntrinsicWrongModule(t *testing.T) {
+	src := `
+	    @intrinsic fn rt_alloc(size: uint) -> *byte;
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter:   &diag.BagReporter{Bag: bag},
+		Validate:   true,
+		ModulePath: "core/runtime",
+		FilePath:   "core/runtime.sg",
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaIntrinsicBadContext {
+		t.Fatalf("expected SemaIntrinsicBadContext, got %v", bag.Items()[0].Code)
+	}
+}
+
+func TestResolveIntrinsicHasBody(t *testing.T) {
+	src := `
+	    @intrinsic fn rt_alloc(size: uint) -> *byte {
+	        let x = size;
+	    }
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter:   &diag.BagReporter{Bag: bag},
+		Validate:   true,
+		ModulePath: "core/intrinsics",
+		FilePath:   "core/intrinsics.sg",
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaIntrinsicHasBody {
+		t.Fatalf("expected SemaIntrinsicHasBody, got %v", bag.Items()[0].Code)
+	}
+}
+
+func TestResolveIntrinsicBadName(t *testing.T) {
+	src := `
+	    @intrinsic fn foo() -> nothing;
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter:   &diag.BagReporter{Bag: bag},
+		Validate:   true,
+		ModulePath: "core/intrinsics",
+		FilePath:   "core/intrinsics.sg",
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaIntrinsicBadName {
+		t.Fatalf("expected SemaIntrinsicBadName, got %v", bag.Items()[0].Code)
 	}
 }
 
@@ -311,7 +410,7 @@ func TestResolveLocalShadowingWarning(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, ResolveOptions{
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
@@ -341,7 +440,7 @@ func TestResolveLocalDuplicateLet(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, ResolveOptions{
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
@@ -366,7 +465,7 @@ func TestResolveExprIdentifierMapping(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	res := ResolveFile(builder, fileID, ResolveOptions{
+	res := ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
@@ -409,7 +508,7 @@ func TestResolveUnresolvedIdentifier(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, ResolveOptions{
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})
@@ -435,7 +534,7 @@ func TestResolveBuiltinTypes(t *testing.T) {
 	}
 
 	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, ResolveOptions{
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
 	})

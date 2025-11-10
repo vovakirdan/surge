@@ -1,7 +1,10 @@
 package symbols
 
 import (
+	"fmt"
+
 	"surge/internal/ast"
+	"surge/internal/diag"
 	"surge/internal/source"
 )
 
@@ -154,6 +157,7 @@ func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.
 	attrs := fr.builder.Items.CollectAttrs(fnItem.AttrStart, fnItem.AttrCount)
 	hasOverload := false
 	hasOverride := false
+	hasIntrinsic := false
 	for _, attr := range attrs {
 		name := fr.builder.StringsInterner.MustLookup(attr.Name)
 		switch name {
@@ -161,6 +165,8 @@ func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.
 			hasOverload = true
 		case "override":
 			hasOverride = true
+		case "intrinsic":
+			hasIntrinsic = true
 		}
 	}
 
@@ -180,6 +186,26 @@ func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.
 	if hasOverride && len(existing) == 0 {
 		fr.reportInvalidOverride(fnItem.Name, span, "@override requires an existing declaration", nil)
 		return NoSymbolID, false
+	}
+
+	if hasIntrinsic {
+		if hasOverload || hasOverride {
+			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicBadContext, "@intrinsic cannot be combined with @overload or @override")
+			return NoSymbolID, false
+		}
+		if !fr.moduleAllowsIntrinsic() {
+			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicBadContext, "@intrinsic functions must be declared in module core/intrinsics")
+			return NoSymbolID, false
+		}
+		if fnItem.Body.IsValid() {
+			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicHasBody, "@intrinsic declarations cannot have a body")
+			return NoSymbolID, false
+		}
+		if !fr.intrinsicNameAllowed(fnItem.Name) {
+			msg := fmt.Sprintf("unknown intrinsic; allowed names: %s", intrinsicAllowedNamesDisplay)
+			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicBadName, msg)
+			return NoSymbolID, false
+		}
 	}
 
 	if len(existing) > 0 {

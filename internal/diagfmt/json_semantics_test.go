@@ -27,9 +27,11 @@ func TestJSONIncludesSemantics(t *testing.T) {
 		t.Fatalf("parse failed")
 	}
 
-	res := symbols.ResolveFile(builder, parseResult.File, symbols.ResolveOptions{
-		Reporter: &diag.BagReporter{Bag: bag},
-		Validate: true,
+	res := symbols.ResolveFile(builder, parseResult.File, &symbols.ResolveOptions{
+		Reporter:   &diag.BagReporter{Bag: bag},
+		Validate:   true,
+		ModulePath: "test",
+		FilePath:   file.Path,
 	})
 
 	if bag.Len() != 0 {

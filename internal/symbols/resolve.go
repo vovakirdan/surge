@@ -2,6 +2,8 @@ package symbols
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
@@ -9,13 +11,26 @@ import (
 	"surge/internal/source"
 )
 
+var (
+	intrinsicAllowedNames = map[string]struct{}{
+		"rt_alloc":   {},
+		"rt_free":    {},
+		"rt_realloc": {},
+		"rt_memcpy":  {},
+		"rt_memmove": {},
+	}
+	intrinsicAllowedNamesDisplay = "rt_alloc, rt_free, rt_realloc, rt_memcpy, rt_memmove"
+)
+
 // ResolveOptions controls a resolve pass for a single AST file.
 type ResolveOptions struct {
-	Table    *Table
-	Hints    Hints
-	Prelude  []PreludeEntry
-	Reporter diag.Reporter
-	Validate bool
+	Table      *Table
+	Hints      Hints
+	Prelude    []PreludeEntry
+	Reporter   diag.Reporter
+	Validate   bool
+	ModulePath string
+	FilePath   string
 }
 
 // Result captures resolve artefacts for one file.
@@ -28,8 +43,11 @@ type Result struct {
 }
 
 // ResolveFile walks the AST file and populates the symbol table.
-func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts ResolveOptions) Result {
+func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) Result {
 	var table *Table
+	if opts == nil {
+		opts = &ResolveOptions{}
+	}
 	if opts.Table != nil {
 		table = opts.Table
 	} else {
@@ -64,6 +82,8 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts ResolveOptions) R
 		resolver:   resolver,
 		fileID:     fileID,
 		sourceFile: sourceFile,
+		modulePath: opts.ModulePath,
+		filePath:   opts.FilePath,
 	}
 	for _, itemID := range file.Items {
 		fr.handleItem(itemID)
@@ -89,6 +109,8 @@ type fileResolver struct {
 	resolver   *Resolver
 	fileID     ast.FileID
 	sourceFile source.FileID
+	modulePath string
+	filePath   string
 }
 
 func (fr *fileResolver) handleItem(id ast.ItemID) {
@@ -569,4 +591,44 @@ func (fr *fileResolver) reportUnresolved(name source.StringID, span source.Span)
 		return
 	}
 	b.Emit()
+}
+
+func (fr *fileResolver) moduleAllowsIntrinsic() bool {
+	if isCoreIntrinsicsModule(fr.modulePath) {
+		return true
+	}
+	if fr.filePath == "" {
+		return false
+	}
+	path := filepath.ToSlash(fr.filePath)
+	path = strings.TrimSuffix(path, ".sg")
+	path = strings.TrimSuffix(path, "/")
+	return strings.HasSuffix(path, "/core/intrinsics") || path == "core/intrinsics"
+}
+
+func isCoreIntrinsicsModule(path string) bool {
+	if path == "" {
+		return false
+	}
+	return strings.Trim(path, "/") == "core/intrinsics"
+}
+
+func (fr *fileResolver) intrinsicNameAllowed(name source.StringID) bool {
+	if name == source.NoStringID || fr.builder == nil || fr.builder.StringsInterner == nil {
+		return false
+	}
+	nameStr := fr.builder.StringsInterner.MustLookup(name)
+	_, ok := intrinsicAllowedNames[nameStr]
+	return ok
+}
+
+func (fr *fileResolver) reportIntrinsicError(name source.StringID, span source.Span, code diag.Code, detail string) {
+	if fr.resolver == nil || fr.resolver.reporter == nil {
+		return
+	}
+	nameStr := fr.builder.StringsInterner.MustLookup(name)
+	msg := fmt.Sprintf("invalid intrinsic '%s': %s", nameStr, detail)
+	if b := diag.ReportError(fr.resolver.reporter, code, span, msg); b != nil {
+		b.Emit()
+	}
 }
