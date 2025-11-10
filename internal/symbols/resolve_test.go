@@ -299,6 +299,108 @@ func TestResolveOverrideMatchingSignature(t *testing.T) {
 	}
 }
 
+func TestResolveTagAndFunctionSameNameAllowed(t *testing.T) {
+	src := `
+        tag Foo();
+        fn Foo() {}
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaFnNameStyle {
+		t.Fatalf("expected SemaFnNameStyle, got %v", bag.Items()[0].Code)
+	}
+}
+
+func TestResolveAmbiguousConstructorCall(t *testing.T) {
+	src := `
+        tag Foo();
+        fn Foo() {}
+        fn run() {
+            Foo();
+        }
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if !containsCode(bag, diag.SemaAmbiguousCtorOrFn) {
+		t.Fatalf("expected SemaAmbiguousCtorOrFn diagnostic, got %+v", bag.Items())
+	}
+}
+
+func TestResolveFunctionNameStyleWarning(t *testing.T) {
+	src := `
+        fn Foo() {}
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 warning, got %d", bag.Len())
+	}
+	diagItem := bag.Items()[0]
+	if diagItem.Code != diag.SemaFnNameStyle {
+		t.Fatalf("expected SemaFnNameStyle, got %v", diagItem.Code)
+	}
+	if len(diagItem.Fixes) == 0 || diagItem.Fixes[0].Edits[0].NewText != "foo" {
+		t.Fatalf("expected fix to rename to foo, got %+v", diagItem.Fixes)
+	}
+}
+
+func TestResolveTagNameStyleWarning(t *testing.T) {
+	src := `
+        tag foo();
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 warning, got %d", bag.Len())
+	}
+	diagItem := bag.Items()[0]
+	if diagItem.Code != diag.SemaTagNameStyle {
+		t.Fatalf("expected SemaTagNameStyle, got %v", diagItem.Code)
+	}
+	if len(diagItem.Fixes) == 0 || diagItem.Fixes[0].Edits[0].NewText != "Foo" {
+		t.Fatalf("expected fix to rename to Foo, got %+v", diagItem.Fixes)
+	}
+}
+
 func TestResolveIntrinsicValid(t *testing.T) {
 	src := `
 	    @intrinsic fn rt_alloc(size: uint) -> *byte;
@@ -565,4 +667,13 @@ func parseSnippet(t *testing.T, src string) (*ast.Builder, ast.FileID, *diag.Bag
 	result := parser.ParseFile(fs, lx, builder, opts)
 
 	return builder, result.File, bag
+}
+
+func containsCode(bag *diag.Bag, code diag.Code) bool {
+	for _, item := range bag.Items() {
+		if item.Code == code {
+			return true
+		}
+	}
+	return false
 }

@@ -481,6 +481,7 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 		for _, arg := range data.Args {
 			fr.walkExpr(arg)
 		}
+		fr.checkAmbiguousCall(data.Target)
 	case ast.ExprIndex:
 		data, _ := fr.builder.Exprs.Index(exprID)
 		if data == nil {
@@ -591,6 +592,64 @@ func (fr *fileResolver) reportUnresolved(name source.StringID, span source.Span)
 		return
 	}
 	b.Emit()
+}
+
+func (fr *fileResolver) checkAmbiguousCall(target ast.ExprID) {
+	if fr.resolver == nil || fr.resolver.reporter == nil {
+		return
+	}
+	targetExpr := fr.builder.Exprs.Get(target)
+	if targetExpr == nil || targetExpr.Kind != ast.ExprIdent {
+		return
+	}
+	data, _ := fr.builder.Exprs.Ident(target)
+	if data == nil || data.Name == source.NoStringID {
+		return
+	}
+	fnSyms := fr.collectFileScopeSymbols(data.Name, SymbolFunction)
+	if len(fnSyms) == 0 {
+		return
+	}
+	tagSyms := fr.collectFileScopeSymbols(data.Name, SymbolTag)
+	if len(tagSyms) == 0 {
+		return
+	}
+	nameStr := fr.builder.StringsInterner.MustLookup(data.Name)
+	msg := fmt.Sprintf("identifier '%s' matches both a function and a tag constructor", nameStr)
+	if b := diag.ReportError(fr.resolver.reporter, diag.SemaAmbiguousCtorOrFn, targetExpr.Span, msg); b != nil {
+		combined := append(append([]SymbolID(nil), fnSyms...), tagSyms...)
+		fr.attachPreviousNotes(b, combined)
+		b.Emit()
+	}
+}
+
+func (fr *fileResolver) collectFileScopeSymbols(name source.StringID, kinds ...SymbolKind) []SymbolID {
+	if fr.result == nil || fr.result.Table == nil || name == source.NoStringID {
+		return nil
+	}
+	scope := fr.result.Table.Scopes.Get(fr.result.FileScope)
+	if scope == nil {
+		return nil
+	}
+	ids := scope.NameIndex[name]
+	if len(ids) == 0 || len(kinds) == 0 {
+		return nil
+	}
+	want := make(map[SymbolKind]struct{}, len(kinds))
+	for _, kind := range kinds {
+		want[kind] = struct{}{}
+	}
+	out := make([]SymbolID, 0, len(ids))
+	for _, id := range ids {
+		sym := fr.result.Table.Symbols.Get(id)
+		if sym == nil {
+			continue
+		}
+		if _, ok := want[sym.Kind]; ok {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 func (fr *fileResolver) moduleAllowsIntrinsic() bool {

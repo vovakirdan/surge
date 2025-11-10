@@ -45,6 +45,16 @@ func allowsOverload(kind SymbolKind) bool {
 	return kind == SymbolFunction
 }
 
+func canShareName(existing, next SymbolKind) bool {
+	if existing == next {
+		return allowsOverload(next)
+	}
+	if (existing == SymbolFunction && next == SymbolTag) || (existing == SymbolTag && next == SymbolFunction) {
+		return true
+	}
+	return false
+}
+
 // Resolver drives scope management and declaration/lookup routines.
 type Resolver struct {
 	table                 *Table
@@ -116,19 +126,15 @@ func (r *Resolver) Declare(name source.StringID, span source.Span, kind SymbolKi
 	}
 
 	if existing := scope.NameIndex[name]; len(existing) > 0 {
-		conflicts := false
 		for _, symID := range existing {
 			sym := r.table.Symbols.Get(symID)
 			if sym == nil {
 				continue
 			}
-			if sym.Kind != kind || !allowsOverload(kind) {
-				conflicts = true
-				r.reportDuplicateSymbol(name, span, sym.Span, sym.Flags)
-				break
+			if canShareName(sym.Kind, kind) {
+				continue
 			}
-		}
-		if conflicts {
+			r.reportDuplicateSymbol(name, span, sym.Span, sym.Flags)
 			return NoSymbolID, false
 		}
 	}

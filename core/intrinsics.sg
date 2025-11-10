@@ -1,0 +1,5 @@
+@intrinsic fn rt_alloc(size: uint, align: uint) -> *byte;
+@intrinsic fn rt_free(ptr: *byte, size: uint, align: uint) -> nothing;
+@intrinsic fn rt_realloc(ptr: *byte, old_size: uint, new_size: uint, align: uint) -> *byte;
+@intrinsic fn rt_memcpy(dst: *byte, src: *byte, n: uint) -> nothing;
+@intrinsic fn rt_memmove(dst: *byte, src: *byte, n: uint) -> nothing;
