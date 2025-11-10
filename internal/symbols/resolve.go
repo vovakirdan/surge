@@ -31,6 +31,7 @@ type ResolveOptions struct {
 	Validate   bool
 	ModulePath string
 	FilePath   string
+	BaseDir    string
 }
 
 // Result captures resolve artefacts for one file.
@@ -44,10 +45,10 @@ type Result struct {
 
 // ResolveFile walks the AST file and populates the symbol table.
 func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) Result {
-	var table *Table
 	if opts == nil {
 		opts = &ResolveOptions{}
 	}
+	var table *Table
 	if opts.Table != nil {
 		table = opts.Table
 	} else {
@@ -84,6 +85,7 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 		sourceFile: sourceFile,
 		modulePath: opts.ModulePath,
 		filePath:   opts.FilePath,
+		baseDir:    opts.BaseDir,
 	}
 	for _, itemID := range file.Items {
 		fr.handleItem(itemID)
@@ -111,6 +113,7 @@ type fileResolver struct {
 	sourceFile source.FileID
 	modulePath string
 	filePath   string
+	baseDir    string
 }
 
 func (fr *fileResolver) handleItem(id ast.ItemID) {

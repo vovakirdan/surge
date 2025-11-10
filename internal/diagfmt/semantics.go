@@ -83,7 +83,8 @@ func buildSemanticsOutput(in *SemanticsInput) (*SemanticsOutput, error) {
 
 	// Scopes are stored with sentinel at index 0.
 	scopes := table.Scopes.Data()
-	for idx, scope := range scopes {
+	for idx := range scopes {
+		scope := scopes[idx]
 		scopeValue, err := safecast.Conv[uint32](idx + 1)
 		if err != nil {
 			return nil, fmt.Errorf("semantics: scope id overflow: %w", err)
@@ -113,7 +114,8 @@ func buildSemanticsOutput(in *SemanticsInput) (*SemanticsOutput, error) {
 
 	// Symbols stored with sentinel at index 0.
 	syms := table.Symbols.Data()
-	for idx, sym := range syms {
+	for idx := range syms {
+		sym := syms[idx]
 		symValue, err := safecast.Conv[uint32](idx + 1)
 		if err != nil {
 			return nil, fmt.Errorf("semantics: symbol id overflow: %w", err)

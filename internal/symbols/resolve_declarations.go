@@ -2,11 +2,13 @@ package symbols
 
 import (
 	"fmt"
+	"strings"
 	"unicode"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
+	"surge/internal/project"
 	"surge/internal/source"
 )
 
@@ -96,26 +98,44 @@ func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
 }
 
 func (fr *fileResolver) declareImport(itemID ast.ItemID, importItem *ast.ImportItem, itemSpan source.Span) {
-	if importItem.ModuleAlias != source.NoStringID {
-		fr.declareImportName(itemID, importItem.ModuleAlias, source.NoStringID, importItem.Module, itemSpan)
+	modulePath := fr.resolveImportModulePath(importItem.Module)
+	if alias := fr.effectiveModuleAlias(importItem); alias != source.NoStringID {
+		fr.declareModuleAlias(itemID, alias, modulePath, itemSpan)
 	}
 	if importItem.HasOne {
 		name := importItem.One.Alias
 		if name == source.NoStringID {
 			name = importItem.One.Name
 		}
-		fr.declareImportName(itemID, name, importItem.One.Name, importItem.Module, itemSpan)
+		fr.declareImportName(itemID, name, importItem.One.Name, importItem.Module, modulePath, itemSpan)
 	}
 	for _, pair := range importItem.Group {
 		name := pair.Alias
 		if name == source.NoStringID {
 			name = pair.Name
 		}
-		fr.declareImportName(itemID, name, pair.Name, importItem.Module, itemSpan)
+		fr.declareImportName(itemID, name, pair.Name, importItem.Module, modulePath, itemSpan)
 	}
 }
 
-func (fr *fileResolver) declareImportName(itemID ast.ItemID, name, original source.StringID, module []source.StringID, span source.Span) {
+func (fr *fileResolver) declareModuleAlias(itemID ast.ItemID, alias source.StringID, modulePath string, span source.Span) {
+	if alias == source.NoStringID {
+		return
+	}
+	decl := SymbolDecl{
+		SourceFile: fr.sourceFile,
+		ASTFile:    fr.fileID,
+		Item:       itemID,
+	}
+	if symID, ok := fr.resolver.Declare(alias, span, SymbolModule, SymbolFlagImported, decl); ok {
+		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
+			sym.ModulePath = modulePath
+		}
+		fr.appendItemSymbol(itemID, symID)
+	}
+}
+
+func (fr *fileResolver) declareImportName(itemID ast.ItemID, name, original source.StringID, module []source.StringID, modulePath string, span source.Span) {
 	if name == source.NoStringID {
 		return
 	}
@@ -126,6 +146,8 @@ func (fr *fileResolver) declareImportName(itemID ast.ItemID, name, original sour
 	}
 	if symID, ok := fr.resolver.Declare(name, span, SymbolImport, SymbolFlagImported, decl); ok {
 		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
+			sym.ModulePath = modulePath
+			sym.ImportName = original
 			if len(module) > 0 {
 				path := append([]source.StringID(nil), module...)
 				sym.Aliases = append(sym.Aliases, path...)
@@ -300,4 +322,55 @@ func firstLetterIndex(runes []rune) int {
 		}
 	}
 	return -1
+}
+
+func (fr *fileResolver) effectiveModuleAlias(importItem *ast.ImportItem) source.StringID {
+	if importItem == nil {
+		return source.NoStringID
+	}
+	if importItem.ModuleAlias != source.NoStringID {
+		return importItem.ModuleAlias
+	}
+	for i := len(importItem.Module) - 1; i >= 0; i-- {
+		seg := importItem.Module[i]
+		segStr := fr.lookupString(seg)
+		if segStr == "" || segStr == "." || segStr == ".." {
+			continue
+		}
+		return seg
+	}
+	return source.NoStringID
+}
+
+func (fr *fileResolver) resolveImportModulePath(module []source.StringID) string {
+	segs := fr.moduleSegmentsToStrings(module)
+	if len(segs) == 0 {
+		return ""
+	}
+	if norm, err := project.ResolveImportPath(fr.modulePath, fr.baseDir, segs); err == nil {
+		return norm
+	}
+	joined := strings.Join(segs, "/")
+	if norm, err := project.NormalizeModulePath(joined); err == nil {
+		return norm
+	}
+	return joined
+}
+
+func (fr *fileResolver) moduleSegmentsToStrings(module []source.StringID) []string {
+	if len(module) == 0 || fr.builder == nil || fr.builder.StringsInterner == nil {
+		return nil
+	}
+	out := make([]string, 0, len(module))
+	for _, seg := range module {
+		out = append(out, fr.lookupString(seg))
+	}
+	return out
+}
+
+func (fr *fileResolver) lookupString(id source.StringID) string {
+	if id == source.NoStringID || fr.builder == nil || fr.builder.StringsInterner == nil {
+		return ""
+	}
+	return fr.builder.StringsInterner.MustLookup(id)
 }

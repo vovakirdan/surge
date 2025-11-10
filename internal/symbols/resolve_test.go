@@ -347,6 +347,78 @@ func TestResolveAmbiguousConstructorCall(t *testing.T) {
 	}
 }
 
+func TestResolveImportDefaultAlias(t *testing.T) {
+	src := `
+        import foo/bar;
+
+        fn run() {
+            bar.do();
+        }
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %d", bag.Len())
+	}
+}
+
+func TestResolveImportExplicitAlias(t *testing.T) {
+	src := `
+        import foo/bar as baz;
+
+        fn run() {
+            baz.do();
+        }
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %d", bag.Len())
+	}
+}
+
+func TestResolveImportSingleItem(t *testing.T) {
+	src := `
+        import foo/bar::run;
+
+        fn wrapper() {
+            run();
+        }
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %d", bag.Len())
+	}
+}
+
 func TestResolveFunctionNameStyleWarning(t *testing.T) {
 	src := `
         fn Foo() {}

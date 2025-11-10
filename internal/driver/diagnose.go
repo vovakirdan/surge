@@ -85,6 +85,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		return nil, err
 	}
 	file := fs.Get(fileID)
+	baseDir := fs.BaseDir()
 	modulePath := modulePathForFile(fs, file)
 
 	// Создаём диагностический пакет
@@ -136,7 +137,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 			if file != nil {
 				filePath = file.Path
 			}
-			symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, filePath)
+			symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, filePath, baseDir)
 			semaNote := ""
 			if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
 				semaNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
@@ -183,7 +184,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	}, nil
 }
 
-func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, modulePath, filePath string) *symbols.Result {
+func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, modulePath, filePath, baseDir string) *symbols.Result {
 	if builder == nil || fileID == ast.NoFileID {
 		return nil
 	}
@@ -192,6 +193,7 @@ func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, mod
 		Validate:   true,
 		ModulePath: modulePath,
 		FilePath:   filePath,
+		BaseDir:    baseDir,
 	})
 	return &res
 }
