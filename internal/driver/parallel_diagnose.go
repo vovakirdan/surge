@@ -13,6 +13,7 @@ import (
 	"surge/internal/observ"
 	"surge/internal/project"
 	"surge/internal/project/dag"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 )
@@ -169,7 +170,10 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					return tokenErr
 				}
 
-				var symbolsRes *symbols.Result
+				var (
+					symbolsRes *symbols.Result
+					semaRes    *sema.Result
+				)
 				if opts.Stage != DiagnoseStageTokenize {
 					parseIdx := begin("parse")
 					var parseErr error
@@ -186,13 +190,17 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 						return parseErr
 					}
 					if opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
-						semaIdx := begin("symbols")
+						symbolIdx := begin("symbols")
 						symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, file.Path, fileSet.BaseDir(), nil)
-						semaNote := ""
+						symbolNote := ""
 						if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
-							semaNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
+							symbolNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
 						}
-						end(semaIdx, semaNote)
+						end(symbolIdx, symbolNote)
+
+						semaIdx := begin("sema")
+						semaRes = diagnoseSema(builder, astFile, bag, symbolsRes)
+						end(semaIdx, "")
 					}
 				}
 
@@ -203,6 +211,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					Builder: builder,
 					ASTFile: astFile,
 					Symbols: symbolsRes,
+					Sema:    semaRes,
 				}
 				reportTimings()
 				return nil

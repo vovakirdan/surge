@@ -17,6 +17,7 @@ import (
 	"surge/internal/lexer"
 	"surge/internal/observ"
 	"surge/internal/parser"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/token"
@@ -45,6 +46,7 @@ type DiagnoseDirResult struct {
 	Builder *ast.Builder
 	ASTFile ast.FileID
 	Symbols *symbols.Result
+	Sema    *sema.Result
 	Timing  *observ.Report
 }
 

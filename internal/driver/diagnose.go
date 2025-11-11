@@ -14,6 +14,7 @@ import (
 	"surge/internal/parser"
 	"surge/internal/project"
 	"surge/internal/project/dag"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 
@@ -27,6 +28,7 @@ type DiagnoseResult struct {
 	Bag     *diag.Bag
 	Builder *ast.Builder
 	Symbols *symbols.Result
+	Sema    *sema.Result
 }
 
 // DiagnoseStage определяет уровень диагностики
@@ -95,6 +97,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		builder    *ast.Builder
 		astFile    ast.FileID
 		symbolsRes *symbols.Result
+		semaRes    *sema.Result
 	)
 	// per-call cache (следующим шагом добавим его в параллельный обход директорий)
 	cache := NewModuleCache(256)
@@ -133,7 +136,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 			return nil, err
 		}
 		if opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
-			semaIdx := begin("symbols")
+			symbolIdx := begin("symbols")
 			filePath := ""
 			if file != nil {
 				filePath = file.Path
@@ -144,11 +147,15 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 					moduleExports[modulePath] = rootExports
 				}
 			}
-			semaNote := ""
+			symbolNote := ""
 			if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
-				semaNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
+				symbolNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
 			}
-			end(semaIdx, semaNote)
+			end(symbolIdx, symbolNote)
+
+			semaIdx := begin("sema")
+			semaRes = diagnoseSema(builder, astFile, bag, symbolsRes)
+			end(semaIdx, "")
 		}
 	}
 
@@ -187,6 +194,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		Bag:     bag,
 		Builder: builder,
 		Symbols: symbolsRes,
+		Sema:    semaRes,
 	}, nil
 }
 
@@ -202,6 +210,18 @@ func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, mod
 		BaseDir:       baseDir,
 		ModuleExports: exports,
 	})
+	return &res
+}
+
+func diagnoseSema(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, symbolsRes *symbols.Result) *sema.Result {
+	if builder == nil || fileID == ast.NoFileID {
+		return nil
+	}
+	opts := sema.Options{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Symbols:  symbolsRes,
+	}
+	res := sema.Check(builder, fileID, opts)
 	return &res
 }
 
