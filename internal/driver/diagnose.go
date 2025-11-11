@@ -139,6 +139,11 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 				filePath = file.Path
 			}
 			symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, filePath, baseDir, moduleExports)
+			if moduleExports != nil && symbolsRes != nil {
+				if rootExports := symbols.CollectExports(builder, *symbolsRes, modulePath); rootExports != nil {
+					moduleExports[modulePath] = rootExports
+				}
+			}
 			semaNote := ""
 			if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
 				semaNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
@@ -396,7 +401,7 @@ func runModuleGraph(
 	}
 	dag.ReportBrokenDeps(idx, slots)
 
-	exports := collectModuleExports(records, idx, topo, baseDir)
+	exports := collectModuleExports(records, idx, topo, baseDir, meta.Path)
 
 	return exports, nil
 }
@@ -468,6 +473,7 @@ func collectModuleExports(
 	idx dag.ModuleIndex,
 	topo *dag.Topo,
 	baseDir string,
+	rootPath string,
 ) map[string]*symbols.ModuleExports {
 	if topo == nil || len(topo.Order) == 0 {
 		return nil
@@ -477,17 +483,24 @@ func collectModuleExports(
 		id := topo.Order[i]
 		path := idx.IDToName[int(id)]
 		rec := records[path]
-		if rec == nil || rec.Builder == nil || rec.FileID == ast.NoFileID {
+		if rec == nil {
 			continue
 		}
-		filePath := ""
-		if rec.File != nil {
-			filePath = rec.File.Path
+		if rec.Exports != nil {
+			exports[path] = rec.Exports
+			continue
+		}
+		if path == rootPath {
+			continue
+		}
+		if rec.Builder == nil || rec.FileID == ast.NoFileID {
+			continue
 		}
 		opts := &symbols.ResolveOptions{
-			Reporter:      &diag.BagReporter{Bag: rec.Bag},
+			Reporter:      nil,
+			Validate:      false,
 			ModulePath:    path,
-			FilePath:      filePath,
+			FilePath:      moduleFilePath(rec),
 			BaseDir:       baseDir,
 			ModuleExports: exports,
 		}
@@ -498,6 +511,13 @@ func collectModuleExports(
 		}
 	}
 	return exports
+}
+
+func moduleFilePath(rec *moduleRecord) string {
+	if rec == nil || rec.File == nil {
+		return ""
+	}
+	return rec.File.Path
 }
 
 func moduleStatus(bag *diag.Bag) (bool, *diag.Diagnostic) {
