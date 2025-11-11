@@ -12,26 +12,26 @@ import (
 )
 
 type versionInfo struct {
-	Version   string
-	GitCommit string
+	Version    string
+	GitCommit  string
 	GitMessage string
-	BuildDate string
+	BuildDate  string
 }
 
 type versionOptions struct {
-	format   string
-	showHash bool
+	format      string
+	showHash    bool
 	showMessage bool
-	showDate bool
+	showDate    bool
 }
 
 type versionPayload struct {
-	Tool      string `json:"tool"`
-	Version   string `json:"version"`
-	Tagline   string `json:"tagline"`
-	GitCommit string `json:"git_commit,omitempty"`
+	Tool       string `json:"tool"`
+	Version    string `json:"version"`
+	Tagline    string `json:"tagline"`
+	GitCommit  string `json:"git_commit,omitempty"`
 	GitMessage string `json:"git_message,omitempty"`
-	BuildDate string `json:"build_date,omitempty"`
+	BuildDate  string `json:"build_date,omitempty"`
 }
 
 const versionTagline = "forge storms before they land"
@@ -57,10 +57,10 @@ var versionCmd = &cobra.Command{
 	Short: "Show surge build fingerprints",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts := versionOptions{
-			format:   strings.ToLower(versionFormat),
-			showHash: versionShowHash || versionShowFull,
+			format:      strings.ToLower(versionFormat),
+			showHash:    versionShowHash || versionShowFull,
 			showMessage: versionShowMessage || versionShowFull,
-			showDate: versionShowDate || versionShowFull,
+			showDate:    versionShowDate || versionShowFull,
 		}
 
 		switch opts.format {
@@ -86,10 +86,10 @@ func collectVersionInfo() versionInfo {
 		v = "dev"
 	}
 	return versionInfo{
-		Version:   v,
-		GitCommit: strings.TrimSpace(version.GitCommit),
+		Version:    v,
+		GitCommit:  strings.TrimSpace(version.GitCommit),
 		GitMessage: strings.TrimSpace(version.GitMessage),
-		BuildDate: strings.TrimSpace(version.BuildDate),
+		BuildDate:  strings.TrimSpace(version.BuildDate),
 	}
 }
 

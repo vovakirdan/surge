@@ -735,6 +735,34 @@ func TestResolveIntrinsicBadName(t *testing.T) {
 	}
 }
 
+func TestResolveIntrinsicOverrideForbidden(t *testing.T) {
+	src := `
+	    @intrinsic fn __add(a: int, b: int) -> int;
+	    @override fn __add(a: int, b: int) -> int {
+	        return a;
+	    }
+	`
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter:   &diag.BagReporter{Bag: bag},
+		Validate:   true,
+		ModulePath: "core/intrinsics",
+		FilePath:   "core/intrinsics.sg",
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaFnOverride {
+		t.Fatalf("expected SemaFnOverride, got %v", bag.Items()[0].Code)
+	}
+}
+
 func TestResolveLocalShadowingWarning(t *testing.T) {
 	src := `
 	    fn f(a: int) {

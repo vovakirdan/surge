@@ -11,15 +11,37 @@ import (
 	"surge/internal/source"
 )
 
+var intrinsicAllowedNamesList = []string{
+	"rt_alloc",
+	"rt_free",
+	"rt_realloc",
+	"rt_memcpy",
+	"rt_memmove",
+	"__add",
+	"__sub",
+	"__mul",
+	"__div",
+	"__mod",
+	"__lt",
+	"__le",
+	"__eq",
+	"__ne",
+	"__ge",
+	"__gt",
+	"__pos",
+	"__neg",
+	"__to_string",
+}
+
 var (
-	intrinsicAllowedNames = map[string]struct{}{
-		"rt_alloc":   {},
-		"rt_free":    {},
-		"rt_realloc": {},
-		"rt_memcpy":  {},
-		"rt_memmove": {},
-	}
-	intrinsicAllowedNamesDisplay = "rt_alloc, rt_free, rt_realloc, rt_memcpy, rt_memmove"
+	intrinsicAllowedNames = func() map[string]struct{} {
+		m := make(map[string]struct{}, len(intrinsicAllowedNamesList))
+		for _, name := range intrinsicAllowedNamesList {
+			m[name] = struct{}{}
+		}
+		return m
+	}()
+	intrinsicAllowedNamesDisplay = strings.Join(intrinsicAllowedNamesList, ", ")
 )
 
 // ResolveOptions controls a resolve pass for a single AST file.

@@ -249,6 +249,7 @@ func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.
 			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicBadName, msg)
 			return NoSymbolID, false
 		}
+		flags |= SymbolFlagBuiltin
 	}
 
 	if len(existing) > 0 {
