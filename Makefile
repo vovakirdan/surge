@@ -8,13 +8,21 @@ ifeq ($(GOBIN),)
 GOBIN := $(shell $(GO) env GOPATH)/bin
 endif
 
+GIT_COMMIT ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+GIT_MESSAGE ?= $(shell git log -1 --pretty=%s 2>/dev/null || echo unknown)
+GIT_MESSAGE_ESC := $(shell printf '%s' "$(GIT_MESSAGE)" | sed 's/\\/\\\\/g; s/"/\\"/g')
+BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+LDFLAGS := -X surge/internal/version.GitCommit=$(GIT_COMMIT) \
+	-X surge/internal/version.GitMessage=$$GIT_MESSAGE \
+	-X surge/internal/version.BuildDate=$(BUILD_DATE)
+
 GOLANGCI_LINT := $(GOBIN)/golangci-lint
 GOLANGCI_LINT_VERSION := v1.62.2
 
 # ===== Build =====
 build:
 	@echo ">> Building surge"
-	$(GO) build -o surge ./cmd/surge/
+	@GIT_MESSAGE="$(GIT_MESSAGE_ESC)" $(GO) build -ldflags "$(LDFLAGS)" -o surge ./cmd/surge/
 
 # ===== Run =====
 run:

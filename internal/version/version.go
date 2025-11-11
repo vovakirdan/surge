@@ -10,6 +10,9 @@ var (
 	// GitCommit is an optional git commit hash.
 	GitCommit = ""
 
+	// GitMessage is an optional git commit message.
+	GitMessage = ""
+
 	// BuildDate is an optional build date in ISO-8601.
 	BuildDate = ""
 )
