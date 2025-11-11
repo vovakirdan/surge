@@ -419,6 +419,51 @@ func TestResolveImportSingleItem(t *testing.T) {
 	}
 }
 
+func TestResolveDuplicateModuleImport(t *testing.T) {
+	src := `
+        import foo;
+        import foo as bar;
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
+	}
+	if bag.Items()[0].Code != diag.SemaDuplicateSymbol {
+		t.Fatalf("expected SemaDuplicateSymbol, got %v", bag.Items()[0].Code)
+	}
+}
+
+func TestResolveModuleAndItemImportDoesNotConflict(t *testing.T) {
+	src := `
+        import foo;
+        import foo::bar;
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %d", bag.Len())
+	}
+}
+
 func TestResolveFunctionNameStyleWarning(t *testing.T) {
 	src := `
         fn Foo() {}

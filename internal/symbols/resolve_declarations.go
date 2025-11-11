@@ -2,6 +2,7 @@ package symbols
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -99,9 +100,19 @@ func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
 
 func (fr *fileResolver) declareImport(itemID ast.ItemID, importItem *ast.ImportItem, itemSpan source.Span) {
 	modulePath := fr.resolveImportModulePath(importItem.Module)
-	if alias := fr.effectiveModuleAlias(importItem); alias != source.NoStringID {
-		fr.declareModuleAlias(itemID, alias, modulePath, itemSpan)
+	hasItems := importItem.HasOne || len(importItem.Group) > 0
+
+	if !hasItems {
+		if modulePath != "" {
+			if !fr.trackModuleImport(modulePath, itemSpan) {
+				return
+			}
+		}
+		if alias := fr.moduleAliasForImport(importItem, true); alias != source.NoStringID {
+			fr.declareModuleAlias(itemID, alias, modulePath, itemSpan)
+		}
 	}
+
 	if importItem.HasOne {
 		name := importItem.One.Alias
 		if name == source.NoStringID {
@@ -324,12 +335,42 @@ func firstLetterIndex(runes []rune) int {
 	return -1
 }
 
-func (fr *fileResolver) effectiveModuleAlias(importItem *ast.ImportItem) source.StringID {
+func (fr *fileResolver) trackModuleImport(modulePath string, span source.Span) bool {
+	if modulePath == "" {
+		return true
+	}
+	if prev, ok := fr.moduleImports[modulePath]; ok {
+		fr.reportDuplicateModuleImport(modulePath, span, prev)
+		return false
+	}
+	fr.moduleImports[modulePath] = span
+	return true
+}
+
+func (fr *fileResolver) reportDuplicateModuleImport(modulePath string, span, prev source.Span) {
+	if fr.resolver == nil || fr.resolver.reporter == nil {
+		return
+	}
+	msg := fmt.Sprintf("module %q already imported", modulePath)
+	builder := diag.ReportError(fr.resolver.reporter, diag.SemaDuplicateSymbol, span, msg)
+	if builder == nil {
+		return
+	}
+	if prev != (source.Span{}) {
+		builder.WithNote(prev, "previous import here")
+	}
+	builder.Emit()
+}
+
+func (fr *fileResolver) moduleAliasForImport(importItem *ast.ImportItem, allowDefault bool) source.StringID {
 	if importItem == nil {
 		return source.NoStringID
 	}
 	if importItem.ModuleAlias != source.NoStringID {
 		return importItem.ModuleAlias
+	}
+	if !allowDefault {
+		return source.NoStringID
 	}
 	for i := len(importItem.Module) - 1; i >= 0; i-- {
 		seg := importItem.Module[i]
@@ -347,7 +388,11 @@ func (fr *fileResolver) resolveImportModulePath(module []source.StringID) string
 	if len(segs) == 0 {
 		return ""
 	}
-	if norm, err := project.ResolveImportPath(fr.modulePath, fr.baseDir, segs); err == nil {
+	base := fr.baseDir
+	if base == "" && fr.filePath != "" {
+		base = filepath.Dir(fr.filePath)
+	}
+	if norm, err := project.ResolveImportPath(fr.modulePath, base, segs); err == nil {
 		return norm
 	}
 	joined := strings.Join(segs, "/")

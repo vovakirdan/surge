@@ -78,14 +78,15 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 	})
 
 	fr := fileResolver{
-		builder:    builder,
-		result:     &result,
-		resolver:   resolver,
-		fileID:     fileID,
-		sourceFile: sourceFile,
-		modulePath: opts.ModulePath,
-		filePath:   opts.FilePath,
-		baseDir:    opts.BaseDir,
+		builder:       builder,
+		result:        &result,
+		resolver:      resolver,
+		fileID:        fileID,
+		sourceFile:    sourceFile,
+		modulePath:    opts.ModulePath,
+		filePath:      opts.FilePath,
+		baseDir:       opts.BaseDir,
+		moduleImports: make(map[string]source.Span),
 	}
 	for _, itemID := range file.Items {
 		fr.handleItem(itemID)
@@ -106,14 +107,15 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 }
 
 type fileResolver struct {
-	builder    *ast.Builder
-	result     *Result
-	resolver   *Resolver
-	fileID     ast.FileID
-	sourceFile source.FileID
-	modulePath string
-	filePath   string
-	baseDir    string
+	builder       *ast.Builder
+	result        *Result
+	resolver      *Resolver
+	fileID        ast.FileID
+	sourceFile    source.FileID
+	modulePath    string
+	filePath      string
+	baseDir       string
+	moduleImports map[string]source.Span
 }
 
 func (fr *fileResolver) handleItem(id ast.ItemID) {
