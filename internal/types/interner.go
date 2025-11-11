@@ -1,5 +1,11 @@
 package types
 
+import (
+	"fmt"
+
+	"fortio.org/safecast"
+)
+
 // Builtins stores TypeIDs for common primitive types.
 type Builtins struct {
 	Invalid TypeID
@@ -45,13 +51,7 @@ func (in *Interner) Intern(t Type) TypeID {
 	if t.Kind == KindInvalid {
 		return NoTypeID
 	}
-	key := typeKey{
-		Kind:    t.Kind,
-		Elem:    t.Elem,
-		Count:   t.Count,
-		Width:   t.Width,
-		Mutable: t.Mutable,
-	}
+	key := typeKey(t)
 	if id, ok := in.index[key]; ok {
 		return id
 	}
@@ -60,15 +60,13 @@ func (in *Interner) Intern(t Type) TypeID {
 
 // internRaw adds the descriptor to the storage without consulting the map.
 func (in *Interner) internRaw(t Type) TypeID {
-	id := TypeID(len(in.types))
-	in.types = append(in.types, t)
-	key := typeKey{
-		Kind:    t.Kind,
-		Elem:    t.Elem,
-		Count:   t.Count,
-		Width:   t.Width,
-		Mutable: t.Mutable,
+	lenTypes, err := safecast.Conv[uint32](len(in.types))
+	if err != nil {
+		panic(fmt.Errorf("len(types) overflow: %w", err))
 	}
+	id := TypeID(lenTypes)
+	in.types = append(in.types, t)
+	key := typeKey(t)
 	in.index[key] = id
 	return id
 }

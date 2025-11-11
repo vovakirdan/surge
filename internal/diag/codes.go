@@ -79,6 +79,9 @@ const (
 	SemaTagNameStyle          Code = 3012
 	SemaModuleMemberNotFound  Code = 3013
 	SemaModuleMemberNotPublic Code = 3014
+	SemaTypeMismatch          Code = 3015
+	SemaInvalidBinaryOperands Code = 3016
+	SemaInvalidUnaryOperand   Code = 3017
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -162,6 +165,9 @@ var ( // todo расширить описания и использовать к
 		SemaTagNameStyle:            "Tag name style warning",
 		SemaModuleMemberNotFound:    "Module member not found",
 		SemaModuleMemberNotPublic:   "Module member is not public",
+		SemaTypeMismatch:            "Type mismatch",
+		SemaInvalidBinaryOperands:   "Invalid operands for binary operator",
+		SemaInvalidUnaryOperand:     "Invalid operand for unary operator",
 		IOLoadFileError:             "I/O load file error",
 		ProjInfo:                    "Project information",
 		ProjDuplicateModule:         "Duplicate module definition",

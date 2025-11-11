@@ -194,12 +194,14 @@ var binarySpecTable = map[ast.ExprBinaryOp][]BinarySpec{
 }
 
 var unarySpecTable = map[ast.ExprUnaryOp]UnarySpec{
-	ast.ExprUnaryPlus:  {Operand: FamilyNumeric, Result: UnaryResultNumeric},
-	ast.ExprUnaryMinus: {Operand: FamilyNumeric, Result: UnaryResultNumeric},
-	ast.ExprUnaryNot:   {Operand: FamilyBool, Result: UnaryResultBool},
-	ast.ExprUnaryDeref: {Operand: FamilyPointer | FamilyReference, Result: UnaryResultDeref},
-	ast.ExprUnaryRef:   {Operand: FamilyAny, Result: UnaryResultReference, Flags: UnaryFlagRequiresAddressable},
-	ast.ExprUnaryAwait: {Operand: FamilyAny, Result: UnaryResultAwait},
+	ast.ExprUnaryPlus:   {Operand: FamilyNumeric, Result: UnaryResultNumeric},
+	ast.ExprUnaryMinus:  {Operand: FamilyNumeric, Result: UnaryResultNumeric},
+	ast.ExprUnaryNot:    {Operand: FamilyBool, Result: UnaryResultBool},
+	ast.ExprUnaryDeref:  {Operand: FamilyPointer | FamilyReference, Result: UnaryResultDeref},
+	ast.ExprUnaryRef:    {Operand: FamilyAny, Result: UnaryResultReference, Flags: UnaryFlagRequiresAddressable},
+	ast.ExprUnaryRefMut: {Operand: FamilyAny, Result: UnaryResultReference, Flags: UnaryFlagRequiresAddressable},
+	ast.ExprUnaryOwn:    {Operand: FamilyAny, Result: UnaryResultSame},
+	ast.ExprUnaryAwait:  {Operand: FamilyAny, Result: UnaryResultAwait},
 }
 
 // BinarySpecs returns operand rules for the given operator.
