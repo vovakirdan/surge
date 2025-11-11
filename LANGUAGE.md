@@ -674,6 +674,17 @@ Each file is a module. Folder hierarchy maps to module paths.
 // Safe-navigation (?.) is not part of Surge; prefer compare for Option
 ```
 
+**How operators are implemented.** Every primitive that participates in one of the operators above must expose the matching magic method inside an `extern<T>` block. The standard library ships those implementations in `core/intrinsics.sg`: each method is marked `@intrinsic` so the compiler can lower it straight to the runtime. For example, integer addition is defined as
+
+```sg
+extern<int> {
+    @intrinsic fn __add(self: int, other: int) -> int;
+    @intrinsic fn __lt(self: int, other: int) -> bool;
+}
+```
+
+Sema never assumes that `int + int` yields `int`. Instead, it resolves `__add` for the left operand’s type (respecting overrides/newtypes) and uses that signature as the source of truth. User-defined types opt in by providing their own `extern<MyType>` blocks; built-ins rely on the intrinsic versions provided by `core/intrinsics.sg`.
+
 ### 6.2. Type Checking Operator (`is`)
 
 The `is` operator performs runtime type checking and returns a `bool`. It checks the essential type identity, ignoring ownership modifiers:

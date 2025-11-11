@@ -3,3 +3,65 @@
 @intrinsic fn rt_realloc(ptr: *byte, old_size: uint, new_size: uint, align: uint) -> *byte;
 @intrinsic fn rt_memcpy(dst: *byte, src: *byte, n: uint) -> nothing;
 @intrinsic fn rt_memmove(dst: *byte, src: *byte, n: uint) -> nothing;
+
+extern<int> {
+    @intrinsic fn __add(self: int, other: int) -> int;
+    @intrinsic fn __sub(self: int, other: int) -> int;
+    @intrinsic fn __mul(self: int, other: int) -> int;
+    @intrinsic fn __div(self: int, other: int) -> int;
+    @intrinsic fn __mod(self: int, other: int) -> int;
+    @intrinsic fn __lt(self: int, other: int) -> bool;
+    @intrinsic fn __le(self: int, other: int) -> bool;
+    @intrinsic fn __eq(self: int, other: int) -> bool;
+    @intrinsic fn __ne(self: int, other: int) -> bool;
+    @intrinsic fn __ge(self: int, other: int) -> bool;
+    @intrinsic fn __gt(self: int, other: int) -> bool;
+    @intrinsic fn __pos(self: int) -> int;
+    @intrinsic fn __neg(self: int) -> int;
+    @intrinsic fn __to_string(self: int) -> string;
+}
+
+extern<uint> {
+    @intrinsic fn __add(self: uint, other: uint) -> uint;
+    @intrinsic fn __sub(self: uint, other: uint) -> uint;
+    @intrinsic fn __mul(self: uint, other: uint) -> uint;
+    @intrinsic fn __div(self: uint, other: uint) -> uint;
+    @intrinsic fn __mod(self: uint, other: uint) -> uint;
+    @intrinsic fn __lt(self: uint, other: uint) -> bool;
+    @intrinsic fn __le(self: uint, other: uint) -> bool;
+    @intrinsic fn __eq(self: uint, other: uint) -> bool;
+    @intrinsic fn __ne(self: uint, other: uint) -> bool;
+    @intrinsic fn __ge(self: uint, other: uint) -> bool;
+    @intrinsic fn __gt(self: uint, other: uint) -> bool;
+    @intrinsic fn __pos(self: uint) -> uint;
+    @intrinsic fn __to_string(self: uint) -> string;
+}
+
+extern<float> {
+    @intrinsic fn __add(self: float, other: float) -> float;
+    @intrinsic fn __sub(self: float, other: float) -> float;
+    @intrinsic fn __mul(self: float, other: float) -> float;
+    @intrinsic fn __div(self: float, other: float) -> float;
+    @intrinsic fn __lt(self: float, other: float) -> bool;
+    @intrinsic fn __le(self: float, other: float) -> bool;
+    @intrinsic fn __eq(self: float, other: float) -> bool;
+    @intrinsic fn __ne(self: float, other: float) -> bool;
+    @intrinsic fn __ge(self: float, other: float) -> bool;
+    @intrinsic fn __gt(self: float, other: float) -> bool;
+    @intrinsic fn __pos(self: float) -> float;
+    @intrinsic fn __neg(self: float) -> float;
+    @intrinsic fn __to_string(self: float) -> string;
+}
+
+extern<string> {
+    @intrinsic fn __add(self: string, other: string) -> string;
+    @intrinsic fn __eq(self: string, other: string) -> bool;
+    @intrinsic fn __ne(self: string, other: string) -> bool;
+    @intrinsic fn __to_string(self: string) -> string;
+}
+
+extern<bool> {
+    @intrinsic fn __eq(self: bool, other: bool) -> bool;
+    @intrinsic fn __ne(self: bool, other: bool) -> bool;
+    @intrinsic fn __to_string(self: bool) -> string;
+}
