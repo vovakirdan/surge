@@ -64,19 +64,21 @@ const (
 	SynUnexpectedModifier Code = 2205
 
 	// Семантические (резервируем)
-	SemaInfo                Code = 3000
-	SemaError               Code = 3001
-	SemaDuplicateSymbol     Code = 3002
-	SemaScopeMismatch       Code = 3003
-	SemaShadowSymbol        Code = 3004
-	SemaUnresolvedSymbol    Code = 3005
-	SemaFnOverride          Code = 3006
-	SemaIntrinsicBadContext Code = 3007
-	SemaIntrinsicBadName    Code = 3008
-	SemaIntrinsicHasBody    Code = 3009
-	SemaAmbiguousCtorOrFn   Code = 3010
-	SemaFnNameStyle         Code = 3011
-	SemaTagNameStyle        Code = 3012
+	SemaInfo                  Code = 3000
+	SemaError                 Code = 3001
+	SemaDuplicateSymbol       Code = 3002
+	SemaScopeMismatch         Code = 3003
+	SemaShadowSymbol          Code = 3004
+	SemaUnresolvedSymbol      Code = 3005
+	SemaFnOverride            Code = 3006
+	SemaIntrinsicBadContext   Code = 3007
+	SemaIntrinsicBadName      Code = 3008
+	SemaIntrinsicHasBody      Code = 3009
+	SemaAmbiguousCtorOrFn     Code = 3010
+	SemaFnNameStyle           Code = 3011
+	SemaTagNameStyle          Code = 3012
+	SemaModuleMemberNotFound  Code = 3013
+	SemaModuleMemberNotPublic Code = 3014
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -158,6 +160,8 @@ var ( // todo расширить описания и использовать к
 		SemaAmbiguousCtorOrFn:       "Ambiguous constructor or function call",
 		SemaFnNameStyle:             "Function name style warning",
 		SemaTagNameStyle:            "Tag name style warning",
+		SemaModuleMemberNotFound:    "Module member not found",
+		SemaModuleMemberNotPublic:   "Module member is not public",
 		IOLoadFileError:             "I/O load file error",
 		ProjInfo:                    "Project information",
 		ProjDuplicateModule:         "Duplicate module definition",

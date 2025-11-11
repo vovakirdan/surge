@@ -1,6 +1,8 @@
 package symbols
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"surge/internal/ast"
@@ -294,9 +296,7 @@ func TestResolveOverrideMatchingSignature(t *testing.T) {
 		Validate: true,
 	})
 
-	if bag.Len() != 0 {
-		t.Fatalf("expected no diagnostics, got %d", bag.Len())
-	}
+	expectNoDiagnostics(t, bag)
 }
 
 func TestResolveTagAndFunctionSameNameAllowed(t *testing.T) {
@@ -360,15 +360,23 @@ func TestResolveImportDefaultAlias(t *testing.T) {
 		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
 	}
 
+	exports := NewModuleExports("foo/bar")
+	exports.Add(ExportedSymbol{
+		Name:  "do",
+		Kind:  SymbolFunction,
+		Flags: SymbolFlagPublic,
+	})
+
 	bag := diag.NewBag(8)
 	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
+		ModuleExports: map[string]*ModuleExports{
+			"foo/bar": exports,
+		},
 	})
 
-	if bag.Len() != 0 {
-		t.Fatalf("expected no diagnostics, got %d", bag.Len())
-	}
+	expectNoDiagnostics(t, bag)
 }
 
 func TestResolveImportExplicitAlias(t *testing.T) {
@@ -384,15 +392,23 @@ func TestResolveImportExplicitAlias(t *testing.T) {
 		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
 	}
 
+	exports := NewModuleExports("foo/bar")
+	exports.Add(ExportedSymbol{
+		Name:  "do",
+		Kind:  SymbolFunction,
+		Flags: SymbolFlagPublic,
+	})
+
 	bag := diag.NewBag(8)
 	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
+		ModuleExports: map[string]*ModuleExports{
+			"foo/bar": exports,
+		},
 	})
 
-	if bag.Len() != 0 {
-		t.Fatalf("expected no diagnostics, got %d", bag.Len())
-	}
+	expectNoDiagnostics(t, bag)
 }
 
 func TestResolveImportSingleItem(t *testing.T) {
@@ -408,15 +424,23 @@ func TestResolveImportSingleItem(t *testing.T) {
 		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
 	}
 
+	exports := NewModuleExports("foo/bar")
+	exports.Add(ExportedSymbol{
+		Name:  "run",
+		Kind:  SymbolFunction,
+		Flags: SymbolFlagPublic,
+	})
+
 	bag := diag.NewBag(8)
 	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Validate: true,
+		ModuleExports: map[string]*ModuleExports{
+			"foo/bar": exports,
+		},
 	})
 
-	if bag.Len() != 0 {
-		t.Fatalf("expected no diagnostics, got %d", bag.Len())
-	}
+	expectNoDiagnostics(t, bag)
 }
 
 func TestResolveDuplicateModuleImport(t *testing.T) {
@@ -461,6 +485,100 @@ func TestResolveModuleAndItemImportDoesNotConflict(t *testing.T) {
 
 	if bag.Len() != 0 {
 		t.Fatalf("expected no diagnostics, got %d", bag.Len())
+	}
+}
+
+func TestResolveModuleMemberUsesExports(t *testing.T) {
+	src := `
+        import foo;
+        fn run() {
+            foo.bar();
+        }
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	exports := NewModuleExports("foo")
+	exports.Add(ExportedSymbol{
+		Name:  "bar",
+		Kind:  SymbolFunction,
+		Flags: SymbolFlagPublic,
+	})
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+		ModuleExports: map[string]*ModuleExports{
+			"foo": exports,
+		},
+	})
+
+	if bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %d", bag.Len())
+	}
+}
+
+func TestResolveModuleMemberMissing(t *testing.T) {
+	src := `
+        import foo;
+        fn run() {
+            foo.missing();
+        }
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	exports := NewModuleExports("foo")
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+		ModuleExports: map[string]*ModuleExports{
+			"foo": exports,
+		},
+	})
+
+	if !containsCode(bag, diag.SemaModuleMemberNotFound) {
+		t.Fatalf("expected SemaModuleMemberNotFound, got %+v", bag.Items())
+	}
+}
+
+func TestResolveModuleMemberNotPublic(t *testing.T) {
+	src := `
+        import foo;
+        fn run() {
+            foo.hidden();
+        }
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	exports := NewModuleExports("foo")
+	exports.Add(ExportedSymbol{
+		Name:  "hidden",
+		Kind:  SymbolFunction,
+		Flags: 0,
+	})
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+		ModuleExports: map[string]*ModuleExports{
+			"foo": exports,
+		},
+	})
+
+	if !containsCode(bag, diag.SemaModuleMemberNotPublic) {
+		t.Fatalf("expected SemaModuleMemberNotPublic, got %+v", bag.Items())
 	}
 }
 
@@ -793,4 +911,26 @@ func containsCode(bag *diag.Bag, code diag.Code) bool {
 		}
 	}
 	return false
+}
+
+func expectNoDiagnostics(t *testing.T, bag *diag.Bag) {
+	t.Helper()
+	if bag == nil {
+		return
+	}
+	if bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %d: %s", bag.Len(), diagSummary(bag))
+	}
+}
+
+func diagSummary(bag *diag.Bag) string {
+	if bag == nil {
+		return ""
+	}
+	items := bag.Items()
+	parts := make([]string, len(items))
+	for i, d := range items {
+		parts[i] = fmt.Sprintf("%s %s", d.Code, d.Message)
+	}
+	return strings.Join(parts, "; ")
 }

@@ -126,7 +126,8 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 		}
 
 		graphIdx := begin("imports_graph")
-		err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache)
+		var moduleExports map[string]*symbols.ModuleExports
+		moduleExports, err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache)
 		end(graphIdx, "")
 		if err != nil {
 			return nil, err
@@ -137,7 +138,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 			if file != nil {
 				filePath = file.Path
 			}
-			symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, filePath, baseDir)
+			symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, filePath, baseDir, moduleExports)
 			semaNote := ""
 			if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
 				semaNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
@@ -184,16 +185,17 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	}, nil
 }
 
-func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, modulePath, filePath, baseDir string) *symbols.Result {
+func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, modulePath, filePath, baseDir string, exports map[string]*symbols.ModuleExports) *symbols.Result {
 	if builder == nil || fileID == ast.NoFileID {
 		return nil
 	}
 	res := symbols.ResolveFile(builder, fileID, &symbols.ResolveOptions{
-		Reporter:   &diag.BagReporter{Bag: bag},
-		Validate:   true,
-		ModulePath: modulePath,
-		FilePath:   filePath,
-		BaseDir:    baseDir,
+		Reporter:      &diag.BagReporter{Bag: bag},
+		Validate:      true,
+		ModulePath:    modulePath,
+		FilePath:      filePath,
+		BaseDir:       baseDir,
+		ModuleExports: exports,
 	})
 	return &res
 }
@@ -283,6 +285,10 @@ type moduleRecord struct {
 	Bag      *diag.Bag
 	Broken   bool
 	FirstErr *diag.Diagnostic
+	Builder  *ast.Builder
+	FileID   ast.FileID
+	File     *source.File
+	Exports  *symbols.ModuleExports
 }
 
 var errModuleNotFound = errors.New("module not found")
@@ -295,9 +301,9 @@ func runModuleGraph(
 	bag *diag.Bag,
 	opts DiagnoseOptions,
 	cache *ModuleCache,
-) error {
+) (map[string]*symbols.ModuleExports, error) {
 	if builder == nil {
-		return nil
+		return nil, nil
 	}
 
 	baseDir := fs.BaseDir()
@@ -314,6 +320,9 @@ func runModuleGraph(
 		Bag:      bag,
 		Broken:   broken,
 		FirstErr: firstErr,
+		Builder:  builder,
+		FileID:   astFile,
+		File:     file,
 	}
 	// cache roor
 	if cache != nil {
@@ -341,7 +350,7 @@ func runModuleGraph(
 					missing[imp.Path] = struct{}{}
 					continue
 				}
-				return err
+				return nil, err
 			}
 			records[depRec.Meta.Path] = depRec
 			queue = append(queue, depRec.Meta.Path)
@@ -387,7 +396,9 @@ func runModuleGraph(
 	}
 	dag.ReportBrokenDeps(idx, slots)
 
-	return nil
+	exports := collectModuleExports(records, idx, topo, baseDir)
+
+	return exports, nil
 }
 
 func analyzeDependencyModule(
@@ -446,7 +457,47 @@ func analyzeDependencyModule(
 		Bag:      bag,
 		Broken:   broken,
 		FirstErr: firstErr,
+		Builder:  builder,
+		FileID:   astFile,
+		File:     file,
 	}, nil
+}
+
+func collectModuleExports(
+	records map[string]*moduleRecord,
+	idx dag.ModuleIndex,
+	topo *dag.Topo,
+	baseDir string,
+) map[string]*symbols.ModuleExports {
+	if topo == nil || len(topo.Order) == 0 {
+		return nil
+	}
+	exports := make(map[string]*symbols.ModuleExports, len(records))
+	for i := len(topo.Order) - 1; i >= 0; i-- {
+		id := topo.Order[i]
+		path := idx.IDToName[int(id)]
+		rec := records[path]
+		if rec == nil || rec.Builder == nil || rec.FileID == ast.NoFileID {
+			continue
+		}
+		filePath := ""
+		if rec.File != nil {
+			filePath = rec.File.Path
+		}
+		opts := &symbols.ResolveOptions{
+			Reporter:      &diag.BagReporter{Bag: rec.Bag},
+			ModulePath:    path,
+			FilePath:      filePath,
+			BaseDir:       baseDir,
+			ModuleExports: exports,
+		}
+		res := symbols.ResolveFile(rec.Builder, rec.FileID, opts)
+		rec.Exports = symbols.CollectExports(rec.Builder, res, path)
+		if rec.Exports != nil {
+			exports[path] = rec.Exports
+		}
+	}
+	return exports
 }
 
 func moduleStatus(bag *diag.Bag) (bool, *diag.Diagnostic) {

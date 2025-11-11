@@ -24,14 +24,15 @@ var (
 
 // ResolveOptions controls a resolve pass for a single AST file.
 type ResolveOptions struct {
-	Table      *Table
-	Hints      Hints
-	Prelude    []PreludeEntry
-	Reporter   diag.Reporter
-	Validate   bool
-	ModulePath string
-	FilePath   string
-	BaseDir    string
+	Table         *Table
+	Hints         Hints
+	Prelude       []PreludeEntry
+	Reporter      diag.Reporter
+	Validate      bool
+	ModulePath    string
+	FilePath      string
+	BaseDir       string
+	ModuleExports map[string]*ModuleExports
 }
 
 // Result captures resolve artefacts for one file.
@@ -78,15 +79,19 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 	})
 
 	fr := fileResolver{
-		builder:       builder,
-		result:        &result,
-		resolver:      resolver,
-		fileID:        fileID,
-		sourceFile:    sourceFile,
-		modulePath:    opts.ModulePath,
-		filePath:      opts.FilePath,
-		baseDir:       opts.BaseDir,
-		moduleImports: make(map[string]source.Span),
+		builder:             builder,
+		result:              &result,
+		resolver:            resolver,
+		fileID:              fileID,
+		sourceFile:          sourceFile,
+		modulePath:          opts.ModulePath,
+		filePath:            opts.FilePath,
+		baseDir:             opts.BaseDir,
+		moduleImports:       make(map[string]source.Span),
+		moduleExports:       opts.ModuleExports,
+		aliasExports:        make(map[source.StringID]*ModuleExports),
+		aliasModulePaths:    make(map[source.StringID]string),
+		syntheticImportSyms: make(map[string]SymbolID),
 	}
 	for _, itemID := range file.Items {
 		fr.handleItem(itemID)
@@ -107,15 +112,19 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 }
 
 type fileResolver struct {
-	builder       *ast.Builder
-	result        *Result
-	resolver      *Resolver
-	fileID        ast.FileID
-	sourceFile    source.FileID
-	modulePath    string
-	filePath      string
-	baseDir       string
-	moduleImports map[string]source.Span
+	builder             *ast.Builder
+	result              *Result
+	resolver            *Resolver
+	fileID              ast.FileID
+	sourceFile          source.FileID
+	modulePath          string
+	filePath            string
+	baseDir             string
+	moduleImports       map[string]source.Span
+	moduleExports       map[string]*ModuleExports
+	aliasExports        map[source.StringID]*ModuleExports
+	aliasModulePaths    map[source.StringID]string
+	syntheticImportSyms map[string]SymbolID
 }
 
 func (fr *fileResolver) handleItem(id ast.ItemID) {
@@ -500,6 +509,7 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 			return
 		}
 		fr.walkExpr(data.Target)
+		fr.resolveMember(exprID, data)
 	case ast.ExprAwait:
 		data, _ := fr.builder.Exprs.Await(exprID)
 		if data == nil {
@@ -626,6 +636,128 @@ func (fr *fileResolver) checkAmbiguousCall(target ast.ExprID) {
 		fr.attachPreviousNotes(b, combined)
 		b.Emit()
 	}
+}
+
+func (fr *fileResolver) resolveMember(exprID ast.ExprID, member *ast.ExprMemberData) {
+	if member == nil {
+		return
+	}
+	targetSymID, ok := fr.result.ExprSymbols[member.Target]
+	if !ok {
+		return
+	}
+	sym := fr.result.Table.Symbols.Get(targetSymID)
+	if sym == nil {
+		return
+	}
+	if sym.Kind == SymbolModule {
+		fr.resolveModuleMember(exprID, member, sym)
+	}
+}
+
+func (fr *fileResolver) resolveModuleMember(exprID ast.ExprID, member *ast.ExprMemberData, moduleSym *Symbol) {
+	if moduleSym == nil {
+		return
+	}
+	exports := fr.aliasExports[moduleSym.Name]
+	modulePath := fr.aliasModulePaths[moduleSym.Name]
+	memberName := fr.lookupString(member.Field)
+	useSpan := source.Span{}
+	if expr := fr.builder.Exprs.Get(exprID); expr != nil {
+		useSpan = expr.Span
+	}
+	if exports == nil {
+		fr.reportModuleMemberNotFound(modulePath, member.Field, useSpan)
+		return
+	}
+	exported := exports.Lookup(memberName)
+	if len(exported) == 0 {
+		fr.reportModuleMemberNotFound(modulePath, member.Field, useSpan)
+		return
+	}
+	var candidate *ExportedSymbol
+	for i := range exported {
+		if exported[i].Flags&SymbolFlagPublic != 0 {
+			candidate = &exported[i]
+			break
+		}
+	}
+	if candidate == nil {
+		refSpan := exported[0].Span
+		fr.reportModuleMemberNotPublic(modulePath, member.Field, useSpan, refSpan)
+		return
+	}
+	symID := fr.syntheticSymbolForExport(modulePath, memberName, *candidate, useSpan)
+	if symID.IsValid() {
+		fr.result.ExprSymbols[exprID] = symID
+	}
+}
+
+func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export ExportedSymbol, fallback source.Span) SymbolID {
+	if fr.syntheticImportSyms == nil {
+		fr.syntheticImportSyms = make(map[string]SymbolID)
+	}
+	key := modulePath + "::" + name + fmt.Sprintf("#%d", export.Kind)
+	if id, ok := fr.syntheticImportSyms[key]; ok {
+		return id
+	}
+	nameID := source.NoStringID
+	if fr.builder != nil && fr.builder.StringsInterner != nil {
+		nameID = fr.builder.StringsInterner.Intern(name)
+	}
+	span := export.Span
+	if span == (source.Span{}) {
+		span = fallback
+	}
+	sym := Symbol{
+		Name:       nameID,
+		Kind:       export.Kind,
+		Span:       span,
+		Flags:      export.Flags | SymbolFlagImported,
+		Scope:      fr.result.FileScope,
+		ModulePath: modulePath,
+		ImportName: nameID,
+	}
+	id := fr.result.Table.Symbols.New(&sym)
+	if scope := fr.result.Table.Scopes.Get(fr.result.FileScope); scope != nil {
+		scope.Symbols = append(scope.Symbols, id)
+		scope.NameIndex[nameID] = append(scope.NameIndex[nameID], id)
+	}
+	fr.syntheticImportSyms[key] = id
+	return id
+}
+
+func (fr *fileResolver) reportModuleMemberNotFound(modulePath string, field source.StringID, span source.Span) {
+	if fr.resolver == nil || fr.resolver.reporter == nil {
+		return
+	}
+	name := fr.lookupString(field)
+	if name == "" {
+		name = "_"
+	}
+	msg := fmt.Sprintf("module %q has no member %q", modulePath, name)
+	if b := diag.ReportError(fr.resolver.reporter, diag.SemaModuleMemberNotFound, span, msg); b != nil {
+		b.Emit()
+	}
+}
+
+func (fr *fileResolver) reportModuleMemberNotPublic(modulePath string, field source.StringID, useSpan, defSpan source.Span) {
+	if fr.resolver == nil || fr.resolver.reporter == nil {
+		return
+	}
+	name := fr.lookupString(field)
+	if name == "" {
+		name = "_"
+	}
+	msg := fmt.Sprintf("member %q of module %q is not public", name, modulePath)
+	b := diag.ReportError(fr.resolver.reporter, diag.SemaModuleMemberNotPublic, useSpan, msg)
+	if b == nil {
+		return
+	}
+	if defSpan != (source.Span{}) {
+		b.WithNote(defSpan, "declared here")
+	}
+	b.Emit()
 }
 
 func (fr *fileResolver) collectFileScopeSymbols(name source.StringID, kinds ...SymbolKind) []SymbolID {

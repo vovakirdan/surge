@@ -32,7 +32,7 @@ go.work.sum
 .vscode/
 AGENTS.md
 CLAUDE.md
-test.sg
+test*.sg
 .cursor/
 
 # Surge project

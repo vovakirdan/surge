@@ -187,7 +187,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					}
 					if opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
 						semaIdx := begin("symbols")
-						symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, file.Path, fileSet.BaseDir())
+						symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, file.Path, fileSet.BaseDir(), nil)
 						semaNote := ""
 						if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
 							semaNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())

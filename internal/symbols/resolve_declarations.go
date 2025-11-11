@@ -142,6 +142,12 @@ func (fr *fileResolver) declareModuleAlias(itemID ast.ItemID, alias source.Strin
 		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
 			sym.ModulePath = modulePath
 		}
+		if fr.aliasModulePaths != nil {
+			fr.aliasModulePaths[alias] = modulePath
+		}
+		if exports := fr.moduleExports[modulePath]; exports != nil && fr.aliasExports != nil {
+			fr.aliasExports[alias] = exports
+		}
 		fr.appendItemSymbol(itemID, symID)
 	}
 }
