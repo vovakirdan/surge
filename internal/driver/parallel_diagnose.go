@@ -199,7 +199,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 						end(symbolIdx, symbolNote)
 
 						semaIdx := begin("sema")
-						semaRes = diagnoseSema(builder, astFile, bag, symbolsRes)
+						semaRes = diagnoseSema(builder, astFile, bag, nil, symbolsRes)
 						end(semaIdx, "")
 					}
 				}

@@ -154,7 +154,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 			end(symbolIdx, symbolNote)
 
 			semaIdx := begin("sema")
-			semaRes = diagnoseSema(builder, astFile, bag, symbolsRes)
+			semaRes = diagnoseSema(builder, astFile, bag, moduleExports, symbolsRes)
 			end(semaIdx, "")
 		}
 	}
@@ -213,13 +213,14 @@ func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, mod
 	return &res
 }
 
-func diagnoseSema(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, symbolsRes *symbols.Result) *sema.Result {
+func diagnoseSema(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result) *sema.Result {
 	if builder == nil || fileID == ast.NoFileID {
 		return nil
 	}
 	opts := sema.Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  symbolsRes,
+		Exports:  exports,
 	}
 	res := sema.Check(builder, fileID, opts)
 	return &res

@@ -192,6 +192,12 @@ func (fr *fileResolver) declareExternFn(container ast.ItemID, member *ast.Extern
 	}
 	span := fnNameSpan(fnItem)
 	if symID, ok := fr.declareFunctionWithAttrs(container, fnItem, span, fnItem.FnKeywordSpan, flags, decl); ok {
+		if block, _ := fr.builder.Items.Extern(container); block != nil {
+			if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
+				sym.Receiver = block.Target
+				sym.ReceiverKey = makeTypeKey(fr.builder, block.Target)
+			}
+		}
 		fr.appendItemSymbol(container, symID)
 	}
 }

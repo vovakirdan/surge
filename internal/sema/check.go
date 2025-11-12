@@ -15,6 +15,7 @@ type Options struct {
 	Reporter diag.Reporter
 	Symbols  *symbols.Result
 	Types    *types.Interner
+	Exports  map[string]*symbols.ModuleExports
 }
 
 // Result stores semantic artefacts produced by the checker.
@@ -45,6 +46,7 @@ func Check(builder *ast.Builder, fileID ast.FileID, opts Options) Result {
 		symbols:  opts.Symbols,
 		result:   &res,
 		types:    res.TypeInterner,
+		exports:  opts.Exports,
 	}
 	checker.run()
 	return res
@@ -57,12 +59,15 @@ type typeChecker struct {
 	symbols  *symbols.Result
 	result   *Result
 	types    *types.Interner
+	exports  map[string]*symbols.ModuleExports
+	magic    map[symbols.TypeKey]map[string]*symbols.FunctionSignature
 }
 
 func (tc *typeChecker) run() {
 	if tc.builder == nil || tc.result == nil || tc.types == nil {
 		return
 	}
+	tc.buildMagicIndex()
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {
 		return
@@ -282,6 +287,9 @@ func (tc *typeChecker) typeUnary(span source.Span, data *ast.ExprUnaryData) type
 	if operandType == types.NoTypeID {
 		return types.NoTypeID
 	}
+	if magic := tc.magicResultForUnary(operandType, data.Op); magic != types.NoTypeID {
+		return magic
+	}
 	family := tc.familyOf(operandType)
 	if !tc.familyMatches(family, spec.Operand) {
 		tc.report(diag.SemaInvalidUnaryOperand, span, "operator %s cannot be applied to %s", tc.unaryOpLabel(data.Op), tc.typeLabel(operandType))
@@ -342,6 +350,9 @@ func (tc *typeChecker) typeBinary(span source.Span, data *ast.ExprBinaryData) ty
 		default:
 			return types.NoTypeID
 		}
+	}
+	if magic := tc.magicResultForBinary(leftType, data.Op); magic != types.NoTypeID {
+		return magic
 	}
 	tc.report(diag.SemaInvalidBinaryOperands, span, "operator %s is not defined for %s and %s", tc.binaryOpLabel(data.Op), tc.typeLabel(leftType), tc.typeLabel(rightType))
 	return types.NoTypeID
@@ -504,5 +515,191 @@ func (tc *typeChecker) unaryOpLabel(op ast.ExprUnaryOp) string {
 		return "&mut"
 	default:
 		return fmt.Sprintf("op#%d", op)
+	}
+}
+
+func (tc *typeChecker) buildMagicIndex() {
+	tc.magic = make(map[symbols.TypeKey]map[string]*symbols.FunctionSignature)
+	if tc.symbols != nil && tc.symbols.Table != nil && tc.symbols.Table.Symbols != nil {
+		if data := tc.symbols.Table.Symbols.Data(); data != nil {
+			for i := range data {
+				sym := data[i]
+				if sym.Kind != symbols.SymbolFunction || sym.ReceiverKey == "" || sym.Signature == nil {
+					continue
+				}
+				name := tc.symbolName(sym.Name)
+				tc.addMagicEntry(sym.ReceiverKey, name, sym.Signature)
+			}
+		}
+	}
+	for _, exp := range tc.exports {
+		if exp == nil {
+			continue
+		}
+		for _, list := range exp.Symbols {
+			for _, sym := range list {
+				if sym.Kind != symbols.SymbolFunction || sym.ReceiverKey == "" || sym.Signature == nil || sym.Name == "" {
+					continue
+				}
+				tc.addMagicEntry(sym.ReceiverKey, sym.Name, sym.Signature)
+			}
+		}
+	}
+}
+
+func (tc *typeChecker) addMagicEntry(receiver symbols.TypeKey, name string, sig *symbols.FunctionSignature) {
+	if receiver == "" || name == "" || sig == nil {
+		return
+	}
+	if tc.magic == nil {
+		tc.magic = make(map[symbols.TypeKey]map[string]*symbols.FunctionSignature)
+	}
+	methods := tc.magic[receiver]
+	if methods == nil {
+		methods = make(map[string]*symbols.FunctionSignature)
+		tc.magic[receiver] = methods
+	}
+	methods[name] = sig
+}
+
+func (tc *typeChecker) magicResultForUnary(operand types.TypeID, op ast.ExprUnaryOp) types.TypeID {
+	name := magicNameForUnaryOp(op)
+	if name == "" {
+		return types.NoTypeID
+	}
+	key := tc.typeKeyForType(operand)
+	if key == "" {
+		return types.NoTypeID
+	}
+	if sig := tc.lookupMagicMethod(key, name); sig != nil {
+		return tc.typeFromKey(sig.Result)
+	}
+	return types.NoTypeID
+}
+
+func (tc *typeChecker) magicResultForBinary(left types.TypeID, op ast.ExprBinaryOp) types.TypeID {
+	name := magicNameForBinaryOp(op)
+	if name == "" {
+		return types.NoTypeID
+	}
+	key := tc.typeKeyForType(left)
+	if key == "" {
+		return types.NoTypeID
+	}
+	if sig := tc.lookupMagicMethod(key, name); sig != nil {
+		return tc.typeFromKey(sig.Result)
+	}
+	return types.NoTypeID
+}
+
+func (tc *typeChecker) lookupMagicMethod(receiver symbols.TypeKey, name string) *symbols.FunctionSignature {
+	if receiver == "" || name == "" {
+		return nil
+	}
+	if tc.magic == nil {
+		return nil
+	}
+	if methods := tc.magic[receiver]; methods != nil {
+		return methods[name]
+	}
+	return nil
+}
+
+func (tc *typeChecker) symbolName(id source.StringID) string {
+	if tc.builder == nil || tc.builder.StringsInterner == nil || id == source.NoStringID {
+		return ""
+	}
+	return tc.builder.StringsInterner.MustLookup(id)
+}
+
+func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
+	if id == types.NoTypeID || tc.types == nil {
+		return ""
+	}
+	tt, ok := tc.types.Lookup(id)
+	if !ok {
+		return ""
+	}
+	switch tt.Kind {
+	case types.KindBool:
+		return symbols.TypeKey("bool")
+	case types.KindInt:
+		return symbols.TypeKey("int")
+	case types.KindUint:
+		return symbols.TypeKey("uint")
+	case types.KindFloat:
+		return symbols.TypeKey("float")
+	case types.KindString:
+		return symbols.TypeKey("string")
+	case types.KindNothing:
+		return symbols.TypeKey("nothing")
+	case types.KindUnit:
+		return symbols.TypeKey("unit")
+	default:
+		return ""
+	}
+}
+
+func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
+	if key == "" {
+		return types.NoTypeID
+	}
+	switch string(key) {
+	case "bool":
+		return tc.types.Builtins().Bool
+	case "int":
+		return tc.types.Builtins().Int
+	case "uint":
+		return tc.types.Builtins().Uint
+	case "float":
+		return tc.types.Builtins().Float
+	case "string":
+		return tc.types.Builtins().String
+	case "nothing":
+		return tc.types.Builtins().Nothing
+	case "unit":
+		return tc.types.Builtins().Unit
+	default:
+		return types.NoTypeID
+	}
+}
+
+func magicNameForBinaryOp(op ast.ExprBinaryOp) string {
+	switch op {
+	case ast.ExprBinaryAdd:
+		return "__add"
+	case ast.ExprBinarySub:
+		return "__sub"
+	case ast.ExprBinaryMul:
+		return "__mul"
+	case ast.ExprBinaryDiv:
+		return "__div"
+	case ast.ExprBinaryMod:
+		return "__mod"
+	case ast.ExprBinaryEq:
+		return "__eq"
+	case ast.ExprBinaryNotEq:
+		return "__ne"
+	case ast.ExprBinaryLess:
+		return "__lt"
+	case ast.ExprBinaryLessEq:
+		return "__le"
+	case ast.ExprBinaryGreater:
+		return "__gt"
+	case ast.ExprBinaryGreaterEq:
+		return "__ge"
+	default:
+		return ""
+	}
+}
+
+func magicNameForUnaryOp(op ast.ExprUnaryOp) string {
+	switch op {
+	case ast.ExprUnaryPlus:
+		return "__pos"
+	case ast.ExprUnaryMinus:
+		return "__neg"
+	default:
+		return ""
 	}
 }

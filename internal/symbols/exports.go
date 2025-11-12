@@ -7,10 +7,12 @@ import (
 
 // ExportedSymbol captures metadata about a symbol exported from a module.
 type ExportedSymbol struct {
-	Name  string
-	Kind  SymbolKind
-	Flags SymbolFlags
-	Span  source.Span
+	Name        string
+	Kind        SymbolKind
+	Flags       SymbolFlags
+	Span        source.Span
+	Signature   *FunctionSignature
+	ReceiverKey TypeKey
 }
 
 // ModuleExports aggregates exported symbols for a module, preserving overload sets.
@@ -60,10 +62,12 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 		}
 		name := builder.StringsInterner.MustLookup(sym.Name)
 		exports.Add(ExportedSymbol{
-			Name:  name,
-			Kind:  sym.Kind,
-			Flags: sym.Flags,
-			Span:  sym.Span,
+			Name:        name,
+			Kind:        sym.Kind,
+			Flags:       sym.Flags,
+			Span:        sym.Span,
+			Signature:   sym.Signature,
+			ReceiverKey: sym.ReceiverKey,
 		})
 	}
 	return exports

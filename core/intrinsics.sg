@@ -55,6 +55,9 @@ extern<float> {
 
 extern<string> {
     @intrinsic fn __add(self: string, other: string) -> string;
+    @overload fn __add(self: string, other: int) -> string {
+        return self + other.__to_string();
+    }
     @intrinsic fn __eq(self: string, other: string) -> bool;
     @intrinsic fn __ne(self: string, other: string) -> bool;
     @intrinsic fn __to_string(self: string) -> string;
