@@ -82,6 +82,12 @@ const (
 	SemaTypeMismatch          Code = 3015
 	SemaInvalidBinaryOperands Code = 3016
 	SemaInvalidUnaryOperand   Code = 3017
+	SemaBorrowConflict        Code = 3018
+	SemaBorrowMutation        Code = 3019
+	SemaBorrowMove            Code = 3020
+	SemaBorrowThreadEscape    Code = 3021
+	SemaBorrowImmutable       Code = 3022
+	SemaBorrowNonAddressable  Code = 3023
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -168,6 +174,12 @@ var ( // todo расширить описания и использовать к
 		SemaTypeMismatch:            "Type mismatch",
 		SemaInvalidBinaryOperands:   "Invalid operands for binary operator",
 		SemaInvalidUnaryOperand:     "Invalid operand for unary operator",
+		SemaBorrowConflict:          "Borrow conflict",
+		SemaBorrowMutation:          "Mutation while borrowed",
+		SemaBorrowMove:              "Move while borrowed",
+		SemaBorrowThreadEscape:      "Borrow escapes thread boundary",
+		SemaBorrowImmutable:         "Cannot take mutable borrow of immutable value",
+		SemaBorrowNonAddressable:    "Expression is not addressable",
 		IOLoadFileError:             "I/O load file error",
 		ProjInfo:                    "Project information",
 		ProjDuplicateModule:         "Duplicate module definition",
