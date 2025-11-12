@@ -29,6 +29,7 @@ func (p *Parser) parseTagItem(
 	if !ok {
 		return ast.NoItemID, false
 	}
+	nameSpan := p.lastSpan
 
 	generics, genericCommas, genericsTrailing, genericsSpan, ok := p.parseFnGenerics()
 	if !ok {
@@ -102,6 +103,6 @@ func (p *Parser) parseTagItem(
 	}
 
 	itemSpan := startSpan.Cover(p.lastSpan)
-	tagID := p.arenas.NewTag(nameID, generics, genericCommas, genericsTrailing, genericsSpan, tagTok.Span, paramsSpan, semiTok.Span, payload, payloadCommas, payloadTrailing, attrs, visibility, itemSpan)
+	tagID := p.arenas.NewTag(nameID, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, tagTok.Span, paramsSpan, semiTok.Span, payload, payloadCommas, payloadTrailing, attrs, visibility, itemSpan)
 	return tagID, true
 }

@@ -27,6 +27,7 @@ func (m *fnModifiers) extend(sp source.Span) {
 
 type parsedFn struct {
 	name             source.StringID
+	nameSpan         source.Span
 	generics         []source.StringID
 	genericCommas    []source.Span
 	genericsSpan     source.Span
@@ -175,6 +176,7 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 	}
 	fnItemID := p.arenas.NewFn(
 		fnData.name,
+		fnData.nameSpan,
 		fnData.generics,
 		fnData.genericCommas,
 		fnData.genericsTrailing,
@@ -222,6 +224,7 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 	if !ok {
 		return parsedFn{}, false
 	}
+	fnNameSpan := p.lastSpan
 
 	generics := preGenerics
 	genericCommas := preCommas
@@ -346,6 +349,7 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 	}
 
 	result.name = fnNameID
+	result.nameSpan = fnNameSpan
 	result.generics = generics
 	result.genericCommas = genericCommas
 	result.genericsTrailing = genericsTrailing

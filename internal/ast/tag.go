@@ -4,6 +4,7 @@ import "surge/internal/source"
 
 type TagItem struct {
 	Name                  source.StringID
+	NameSpan              source.Span
 	Generics              []source.StringID
 	GenericCommas         []source.Span
 	GenericsTrailingComma bool
@@ -30,6 +31,7 @@ func (i *Items) Tag(id ItemID) (*TagItem, bool) {
 
 func (i *Items) NewTag(
 	name source.StringID,
+	nameSpan source.Span,
 	generics []source.StringID,
 	genericCommas []source.Span,
 	genericsTrailing bool,
@@ -47,6 +49,7 @@ func (i *Items) NewTag(
 	attrStart, attrCount := i.allocateAttrs(attrs)
 	tagPayload := TagItem{
 		Name:                  name,
+		NameSpan:              nameSpan,
 		Generics:              append([]source.StringID(nil), generics...),
 		GenericCommas:         append([]source.Span(nil), genericCommas...),
 		GenericsTrailingComma: genericsTrailing,

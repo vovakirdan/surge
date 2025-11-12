@@ -82,6 +82,7 @@ func (b *Builder) NewFnParam(name source.StringID, typ TypeID, def ExprID, varia
 
 func (b *Builder) NewFn(
 	name source.StringID,
+	nameSpan source.Span,
 	generics []source.StringID,
 	genericCommas []source.Span,
 	genericsTrailing bool,
@@ -99,11 +100,12 @@ func (b *Builder) NewFn(
 	attrs []Attr,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewFn(name, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
+	return b.Items.NewFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
 func (b *Builder) NewExternFn(
 	name source.StringID,
+	nameSpan source.Span,
 	generics []source.StringID,
 	genericCommas []source.Span,
 	genericsTrailing bool,
@@ -121,7 +123,7 @@ func (b *Builder) NewExternFn(
 	attrs []Attr,
 	span source.Span,
 ) PayloadID {
-	return b.Items.NewExternFn(name, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
+	return b.Items.NewExternFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
 func (b *Builder) NewTypeAlias(
@@ -191,6 +193,7 @@ func (b *Builder) NewExtern(
 
 func (b *Builder) NewTag(
 	name source.StringID,
+	nameSpan source.Span,
 	generics []source.StringID,
 	genericCommas []source.Span,
 	genericsTrailing bool,
@@ -205,5 +208,5 @@ func (b *Builder) NewTag(
 	visibility Visibility,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTag(name, generics, genericCommas, genericsTrailing, genericsSpan, tagKwSpan, paramsSpan, semicolonSpan, payload, payloadCommas, payloadTrailing, attrs, visibility, span)
+	return b.Items.NewTag(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, tagKwSpan, paramsSpan, semicolonSpan, payload, payloadCommas, payloadTrailing, attrs, visibility, span)
 }

@@ -51,9 +51,9 @@ func (fr *fileResolver) declareFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 		ASTFile:    fr.fileID,
 		Item:       itemID,
 	}
-	span := fnNameSpan(fnItem)
-	fr.enforceFunctionNameStyle(fnItem.Name, span)
-	if symID, ok := fr.declareFunctionWithAttrs(itemID, fnItem, span, fnItem.FnKeywordSpan, flags, decl); ok {
+	nameSpan := fnNameSpan(fnItem)
+	fr.enforceFunctionNameStyle(fnItem.Name, nameSpan)
+	if symID, ok := fr.declareFunctionWithAttrs(itemID, fnItem, nameSpan, fnItem.FnKeywordSpan, flags, decl); ok {
 		fr.appendItemSymbol(itemID, symID)
 	}
 	fr.walkFn(itemID, fnItem)
@@ -91,9 +91,9 @@ func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
 		ASTFile:    fr.fileID,
 		Item:       itemID,
 	}
-	span := preferSpan(tagItem.TagKeywordSpan, tagItem.Span)
-	fr.enforceTagNameStyle(tagItem.Name, span)
-	if symID, ok := fr.resolver.Declare(tagItem.Name, span, SymbolTag, flags, decl); ok {
+	nameSpan := preferSpan(tagItem.NameSpan, preferSpan(tagItem.TagKeywordSpan, tagItem.Span))
+	fr.enforceTagNameStyle(tagItem.Name, nameSpan)
+	if symID, ok := fr.resolver.Declare(tagItem.Name, nameSpan, SymbolTag, flags, decl); ok {
 		fr.appendItemSymbol(itemID, symID)
 	}
 }

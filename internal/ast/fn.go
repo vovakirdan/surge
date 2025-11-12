@@ -25,6 +25,7 @@ type FnParam struct {
 
 type FnItem struct {
 	Name                  source.StringID
+	NameSpan              source.Span
 	Generics              []source.StringID
 	GenericCommas         []source.Span
 	GenericsTrailingComma bool
@@ -57,6 +58,7 @@ func (i *Items) Fn(id ItemID) (*FnItem, bool) {
 
 func (i *Items) newFnPayload(
 	name source.StringID,
+	nameSpan source.Span,
 	generics []source.StringID,
 	genericCommas []source.Span,
 	genericsTrailing bool,
@@ -78,6 +80,7 @@ func (i *Items) newFnPayload(
 ) PayloadID {
 	payload := i.Fns.Allocate(FnItem{
 		Name:                  name,
+		NameSpan:              nameSpan,
 		Generics:              generics,
 		GenericCommas:         append([]source.Span(nil), genericCommas...),
 		GenericsTrailingComma: genericsTrailing,
@@ -153,6 +156,7 @@ func (i *Items) allocateFnParams(params []FnParam) (startID FnParamID, numberOfP
 
 func (i *Items) newFn(
 	name source.StringID,
+	nameSpan source.Span,
 	generics []source.StringID,
 	genericCommas []source.Span,
 	genericsTrailing bool,
@@ -172,11 +176,12 @@ func (i *Items) newFn(
 ) PayloadID {
 	paramsStart, paramsCount := i.allocateFnParams(params)
 	attrStart, attrCount := i.allocateAttrs(attrs)
-	return i.newFnPayload(name, generics, genericCommas, genericsTrailing, genericsSpan, paramsStart, paramsCount, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrStart, attrCount, span)
+	return i.newFnPayload(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, paramsStart, paramsCount, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrStart, attrCount, span)
 }
 
 func (i *Items) NewFn(
 	name source.StringID,
+	nameSpan source.Span,
 	generics []source.StringID,
 	genericCommas []source.Span,
 	genericsTrailing bool,
@@ -194,12 +199,13 @@ func (i *Items) NewFn(
 	attrs []Attr,
 	span source.Span,
 ) ItemID {
-	payloadID := i.newFn(name, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
+	payloadID := i.newFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 	return i.New(ItemFn, span, payloadID)
 }
 
 func (i *Items) NewExternFn(
 	name source.StringID,
+	nameSpan source.Span,
 	generics []source.StringID,
 	genericCommas []source.Span,
 	genericsTrailing bool,
@@ -217,5 +223,5 @@ func (i *Items) NewExternFn(
 	attrs []Attr,
 	span source.Span,
 ) PayloadID {
-	return i.newFn(name, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
+	return i.newFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }

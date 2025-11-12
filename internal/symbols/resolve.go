@@ -269,6 +269,9 @@ func fnNameSpan(fn *ast.FnItem) source.Span {
 	if fn == nil {
 		return source.Span{}
 	}
+	if fn.NameSpan != (source.Span{}) {
+		return fn.NameSpan
+	}
 	if fn.FnKeywordSpan != (source.Span{}) && fn.ParamsSpan != (source.Span{}) && fn.FnKeywordSpan.File == fn.ParamsSpan.File {
 		if fn.ParamsSpan.Start >= fn.FnKeywordSpan.End {
 			return source.Span{
