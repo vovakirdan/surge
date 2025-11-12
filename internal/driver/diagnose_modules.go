@@ -1,15 +1,15 @@
 package driver
 
 import (
-	"surge/internal/diag"
-	"surge/internal/source"
-	"surge/internal/project"
-	"path/filepath"
 	"errors"
 	"os"
+	"path/filepath"
 	"surge/internal/ast"
-	"surge/internal/symbols"
+	"surge/internal/diag"
+	"surge/internal/project"
 	"surge/internal/project/dag"
+	"surge/internal/source"
+	"surge/internal/symbols"
 )
 
 func analyzeDependencyModule(

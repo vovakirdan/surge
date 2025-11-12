@@ -6,7 +6,6 @@ import (
 	"surge/internal/types"
 )
 
-
 func (tc *typeChecker) buildMagicIndex() {
 	tc.magic = make(map[symbols.TypeKey]map[string]*symbols.FunctionSignature)
 	if tc.symbols != nil && tc.symbols.Table != nil && tc.symbols.Table.Symbols != nil {
@@ -60,22 +59,23 @@ func (tc *typeChecker) magicResultForUnary(operand types.TypeID, op ast.ExprUnar
 	if key == "" {
 		return types.NoTypeID
 	}
-	if sig := tc.lookupMagicMethod(key, name); sig != nil {
+	if sig := tc.lookupMagicMethod(key, name); sig != nil && tc.signatureMatchesUnary(sig, key) {
 		return tc.typeFromKey(sig.Result)
 	}
 	return types.NoTypeID
 }
 
-func (tc *typeChecker) magicResultForBinary(left types.TypeID, op ast.ExprBinaryOp) types.TypeID {
+func (tc *typeChecker) magicResultForBinary(left, right types.TypeID, op ast.ExprBinaryOp) types.TypeID {
 	name := magicNameForBinaryOp(op)
 	if name == "" {
 		return types.NoTypeID
 	}
-	key := tc.typeKeyForType(left)
-	if key == "" {
+	leftKey := tc.typeKeyForType(left)
+	rightKey := tc.typeKeyForType(right)
+	if leftKey == "" || rightKey == "" {
 		return types.NoTypeID
 	}
-	if sig := tc.lookupMagicMethod(key, name); sig != nil {
+	if sig := tc.lookupMagicMethod(leftKey, name); sig != nil && tc.signatureMatchesBinary(sig, leftKey, rightKey) {
 		return tc.typeFromKey(sig.Result)
 	}
 	return types.NoTypeID
@@ -132,4 +132,21 @@ func magicNameForUnaryOp(op ast.ExprUnaryOp) string {
 	default:
 		return ""
 	}
+}
+
+func (tc *typeChecker) signatureMatchesUnary(sig *symbols.FunctionSignature, operand symbols.TypeKey) bool {
+	if sig == nil || operand == "" || len(sig.Params) == 0 {
+		return false
+	}
+	return sig.Params[0] == operand
+}
+
+func (tc *typeChecker) signatureMatchesBinary(sig *symbols.FunctionSignature, left, right symbols.TypeKey) bool {
+	if sig == nil || left == "" || right == "" {
+		return false
+	}
+	if len(sig.Params) < 2 {
+		return false
+	}
+	return sig.Params[0] == left && sig.Params[1] == right
 }

@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	errModuleNotFound = errors.New("module not found")
+	errModuleNotFound        = errors.New("module not found")
 	errCoreNamespaceReserved = errors.New("core namespace reserved")
 )
 

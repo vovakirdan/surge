@@ -351,7 +351,7 @@ func (tc *typeChecker) typeBinary(span source.Span, data *ast.ExprBinaryData) ty
 			return types.NoTypeID
 		}
 	}
-	if magic := tc.magicResultForBinary(leftType, data.Op); magic != types.NoTypeID {
+	if magic := tc.magicResultForBinary(leftType, rightType, data.Op); magic != types.NoTypeID {
 		return magic
 	}
 	tc.report(diag.SemaInvalidBinaryOperands, span, "operator %s is not defined for %s and %s", tc.binaryOpLabel(data.Op), tc.typeLabel(leftType), tc.typeLabel(rightType))
