@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/fatih/color"
 
 	"surge/internal/version"
 )
@@ -34,7 +35,7 @@ type versionPayload struct {
 	BuildDate  string `json:"build_date,omitempty"`
 }
 
-const versionTagline = "forge storms before they land"
+const versionTagline = "\"forge storms before they land\""
 
 var (
 	versionFormat      string
@@ -42,6 +43,11 @@ var (
 	versionShowMessage bool
 	versionShowDate    bool
 	versionShowFull    bool
+	commitColor = color.New(color.FgRed, color.Bold)
+	messageColor = color.New(color.FgWhite, color.Bold)
+	dateColor = color.New(color.FgCyan, color.Bold)
+	unknownColor = color.New(color.FgMagenta)
+	versionTaglineColor = color.New(color.FgWhite, color.Italic)
 )
 
 func init() {
@@ -94,18 +100,17 @@ func collectVersionInfo() versionInfo {
 }
 
 func renderVersionPretty(out io.Writer, info versionInfo, opts versionOptions) {
-	fmt.Fprintf(out, "surge %s — %s\n", info.Version, versionTagline)
+	coloredVersionTagline := versionTaglineColor.Sprint(versionTagline)
+	fmt.Fprintf(out, "surge %s — %s\n", info.Version, coloredVersionTagline)
+
 	if opts.showHash {
-		fmt.Fprintf(out, "commit: %s\n", valueOrUnknown(info.GitCommit))
+		fmt.Fprintf(out, "commit: %s\n", valueOrUnknown(info.GitCommit, commitColor))
 	}
 	if opts.showMessage {
-		fmt.Fprintf(out, "message: %s\n", valueOrUnknown(info.GitMessage))
+		fmt.Fprintf(out, "message: %s\n", valueOrUnknown(info.GitMessage, messageColor))
 	}
 	if opts.showDate {
-		fmt.Fprintf(out, "built:  %s\n", valueOrUnknown(info.BuildDate))
-	}
-	if !opts.showHash && !opts.showMessage && !opts.showDate {
-		fmt.Fprintln(out, "set --hash, --message, --date, or --full for more build trivia")
+		fmt.Fprintf(out, "built:  %s\n", valueOrUnknown(info.BuildDate, dateColor))
 	}
 }
 
@@ -116,22 +121,29 @@ func renderVersionJSON(out io.Writer, info versionInfo, opts versionOptions) err
 		Tagline: versionTagline,
 	}
 	if opts.showHash {
-		payload.GitCommit = valueOrUnknown(info.GitCommit)
+		payload.GitCommit = valueOrUnknownJSON(info.GitCommit)
 	}
 	if opts.showMessage {
-		payload.GitMessage = valueOrUnknown(info.GitMessage)
+		payload.GitMessage = valueOrUnknownJSON(info.GitMessage)
 	}
 	if opts.showDate {
-		payload.BuildDate = valueOrUnknown(info.BuildDate)
+		payload.BuildDate = valueOrUnknownJSON(info.BuildDate)
 	}
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
 	return enc.Encode(payload)
 }
 
-func valueOrUnknown(s string) string {
+func valueOrUnknownJSON(s string) string {
 	if s == "" {
 		return "unknown"
 	}
 	return s
+}
+
+func valueOrUnknown(s string, color *color.Color) string {
+	if s == "" {
+		return unknownColor.Sprint("unknown")
+	}
+	return color.Sprint(s)
 }
