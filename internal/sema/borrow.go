@@ -117,13 +117,7 @@ func (bt *BorrowTable) CanonicalPlace(base symbols.SymbolID, segments []PlaceSeg
 		return Place{}
 	}
 	key := bt.internPath(segments)
-	if _, exists := bt.paths[key]; !exists {
-		if len(segments) > 0 {
-			bt.paths[key] = append([]PlaceSegment(nil), segments...)
-		} else {
-			bt.paths[key] = nil
-		}
-	}
+	bt.ensurePath(key, append([]PlaceSegment(nil), segments...))
 	return Place{
 		Base: base,
 		Path: key,
@@ -150,19 +144,30 @@ func (bt *BorrowTable) internPath(segments []PlaceSegment) placeKey {
 	return placeKey(b.String())
 }
 
-// BeginBorrow registers a borrow originating from expr within scope.
-func (bt *BorrowTable) BeginBorrow(expr ast.ExprID, span source.Span, kind BorrowKind, place Place, scope symbols.ScopeID) (BorrowID, BorrowIssue) {
+func (bt *BorrowTable) ensurePath(key placeKey, segments []PlaceSegment) {
+	if _, exists := bt.paths[key]; exists {
+		return
+	}
+	if len(segments) == 0 {
+		bt.paths[key] = nil
+		return
+	}
+	bt.paths[key] = append([]PlaceSegment(nil), segments...)
+}
+
+// BeginBorrow registers a borrow originating from expr within scope. parent allows reborrows to bypass conflicts with the originating borrow.
+func (bt *BorrowTable) BeginBorrow(expr ast.ExprID, span source.Span, kind BorrowKind, place Place, scope symbols.ScopeID, parent BorrowID) (BorrowID, BorrowIssue) {
 	if bt == nil || !place.IsValid() || !scope.IsValid() || !expr.IsValid() {
 		return NoBorrowID, BorrowIssue{}
 	}
 	combined := bt.combinedState(place)
 	switch kind {
 	case BorrowShared:
-		if combined.mut != NoBorrowID {
+		if combined.mut != NoBorrowID && combined.mut != parent {
 			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: combined.mut}
 		}
 	case BorrowMut:
-		if combined.mut != NoBorrowID {
+		if combined.mut != NoBorrowID && combined.mut != parent {
 			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: combined.mut}
 		}
 		if len(combined.shared) > 0 {
@@ -308,7 +313,8 @@ func (bt *BorrowTable) placeSegments(place Place) []PlaceSegment {
 	if bt == nil {
 		return nil
 	}
-	return bt.paths[place.Path]
+	segs := bt.paths[place.Path]
+	return append([]PlaceSegment(nil), segs...)
 }
 
 func (bt *BorrowTable) combinedState(place Place) borrowState {

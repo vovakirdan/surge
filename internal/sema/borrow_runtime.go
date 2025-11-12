@@ -20,6 +20,42 @@ func (tc *typeChecker) canonicalPlace(desc placeDescriptor) Place {
 	return tc.borrow.CanonicalPlace(desc.Base, desc.Segments)
 }
 
+func (tc *typeChecker) expandPlaceDescriptor(desc placeDescriptor) (placeDescriptor, BorrowID) {
+	if tc == nil || tc.borrow == nil {
+		return desc, NoBorrowID
+	}
+	if tc.bindingBorrow == nil {
+		return desc, NoBorrowID
+	}
+	visited := make(map[symbols.SymbolID]struct{})
+	var parent BorrowID
+	for {
+		if !desc.Base.IsValid() {
+			return desc, parent
+		}
+		if _, ok := visited[desc.Base]; ok {
+			return desc, parent
+		}
+		visited[desc.Base] = struct{}{}
+		bid := tc.bindingBorrow[desc.Base]
+		if bid == NoBorrowID {
+			return desc, parent
+		}
+		info := tc.borrow.Info(bid)
+		if info == nil {
+			return desc, parent
+		}
+		if parent == NoBorrowID {
+			parent = bid
+		}
+		baseSegs := tc.borrow.placeSegments(info.Place)
+		desc = placeDescriptor{
+			Base:     info.Place.Base,
+			Segments: append(baseSegs, desc.Segments...),
+		}
+	}
+}
+
 func (tc *typeChecker) updateStmtBinding(stmtID ast.StmtID, expr ast.ExprID) {
 	if !expr.IsValid() {
 		return
@@ -59,6 +95,7 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	if !ok {
 		return
 	}
+	desc, _ = tc.expandPlaceDescriptor(desc)
 	place := tc.canonicalPlace(desc)
 	if !place.IsValid() {
 		return
@@ -189,6 +226,7 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 		tc.report(diag.SemaBorrowNonAddressable, span, "expression is not addressable")
 		return
 	}
+	desc, parent := tc.expandPlaceDescriptor(desc)
 	place := tc.canonicalPlace(desc)
 	if !place.IsValid() {
 		return
@@ -204,7 +242,7 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 		}
 		kind = BorrowMut
 	}
-	if _, issue := tc.borrow.BeginBorrow(exprID, span, kind, place, scope); issue.Kind != BorrowIssueNone {
+	if _, issue := tc.borrow.BeginBorrow(exprID, span, kind, place, scope, parent); issue.Kind != BorrowIssueNone {
 		tc.reportBorrowConflict(place, span, issue, kind)
 	}
 }
@@ -221,6 +259,7 @@ func (tc *typeChecker) handleAssignment(op ast.ExprBinaryOp, left, right ast.Exp
 	if !ok {
 		return
 	}
+	desc, _ = tc.expandPlaceDescriptor(desc)
 	place := tc.canonicalPlace(desc)
 	if !place.IsValid() {
 		return
