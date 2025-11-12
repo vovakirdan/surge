@@ -6,8 +6,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 
 	"surge/internal/version"
 )
@@ -38,15 +38,15 @@ type versionPayload struct {
 const versionTagline = "\"forge storms before they land\""
 
 var (
-	versionFormat      string
-	versionShowHash    bool
-	versionShowMessage bool
-	versionShowDate    bool
-	versionShowFull    bool
-	commitColor = color.New(color.FgRed, color.Bold)
-	messageColor = color.New(color.FgWhite, color.Bold)
-	dateColor = color.New(color.FgCyan, color.Bold)
-	unknownColor = color.New(color.FgMagenta)
+	versionFormat       string
+	versionShowHash     bool
+	versionShowMessage  bool
+	versionShowDate     bool
+	versionShowFull     bool
+	commitColor         = color.New(color.FgRed, color.Bold)
+	messageColor        = color.New(color.FgWhite, color.Bold)
+	dateColor           = color.New(color.FgCyan, color.Bold)
+	unknownColor        = color.New(color.FgMagenta)
 	versionTaglineColor = color.New(color.FgWhite, color.Italic)
 )
 
@@ -141,9 +141,9 @@ func valueOrUnknownJSON(s string) string {
 	return s
 }
 
-func valueOrUnknown(s string, color *color.Color) string {
+func valueOrUnknown(s string, col *color.Color) string {
 	if s == "" {
 		return unknownColor.Sprint("unknown")
 	}
-	return color.Sprint(s)
+	return col.Sprint(s)
 }

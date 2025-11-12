@@ -250,6 +250,25 @@ func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.
 			return NoSymbolID, false
 		}
 		flags |= SymbolFlagBuiltin
+		existing = nil
+		existingSymbols = nil
+	}
+
+	if len(existing) > 0 && !hasOverride {
+		filteredIDs := make([]SymbolID, 0, len(existing))
+		filteredSyms := make([]*Symbol, 0, len(existingSymbols))
+		for idx, sym := range existingSymbols {
+			if sym == nil {
+				continue
+			}
+			if sym.Flags&SymbolFlagBuiltin != 0 {
+				continue
+			}
+			filteredIDs = append(filteredIDs, existing[idx])
+			filteredSyms = append(filteredSyms, sym)
+		}
+		existing = filteredIDs
+		existingSymbols = filteredSyms
 	}
 
 	if len(existing) > 0 {
