@@ -2,6 +2,7 @@ package sema
 
 import (
 	"fmt"
+	"strings"
 
 	"fortio.org/safecast"
 
@@ -25,23 +26,32 @@ const (
 )
 
 // PlaceKind enumerates addressable locations.
-type PlaceKind uint8
+type placeKey string
+
+// PlaceSegmentKind identifies the kind of projection applied to a base binding.
+type PlaceSegmentKind uint8
 
 const (
-	PlaceInvalid PlaceKind = iota
-	PlaceLocal
+	PlaceSegmentField PlaceSegmentKind = iota
+	PlaceSegmentIndex
+	PlaceSegmentDeref
 )
+
+// PlaceSegment stores one projection step (field/index/deref).
+type PlaceSegment struct {
+	Kind PlaceSegmentKind
+	Name source.StringID // only for fields
+}
 
 // Place describes an addressable location participating in borrows.
 type Place struct {
-	Kind PlaceKind
 	Base symbols.SymbolID
-	// Future extensions may add field/index metadata here.
+	Path placeKey
 }
 
 // IsValid reports whether the place references a known binding.
 func (p Place) IsValid() bool {
-	return p.Kind != PlaceInvalid && p.Base.IsValid()
+	return p.Base.IsValid()
 }
 
 // Interval captures lexical lifetime of a borrow.
@@ -87,6 +97,7 @@ type BorrowTable struct {
 	placeState   map[Place]borrowState
 	exprBorrow   map[ast.ExprID]BorrowID
 	scopeBorrows map[symbols.ScopeID][]BorrowID
+	paths        map[placeKey][]PlaceSegment
 }
 
 // NewBorrowTable builds an empty borrow table ready for tracking.
@@ -96,7 +107,47 @@ func NewBorrowTable() *BorrowTable {
 		placeState:   make(map[Place]borrowState),
 		exprBorrow:   make(map[ast.ExprID]BorrowID),
 		scopeBorrows: make(map[symbols.ScopeID][]BorrowID),
+		paths:        make(map[placeKey][]PlaceSegment),
 	}
+}
+
+// CanonicalPlace interns the provided projection path and returns a comparable place key.
+func (bt *BorrowTable) CanonicalPlace(base symbols.SymbolID, segments []PlaceSegment) Place {
+	if bt == nil || !base.IsValid() {
+		return Place{}
+	}
+	key := bt.internPath(segments)
+	if _, exists := bt.paths[key]; !exists {
+		if len(segments) > 0 {
+			bt.paths[key] = append([]PlaceSegment(nil), segments...)
+		} else {
+			bt.paths[key] = nil
+		}
+	}
+	return Place{
+		Base: base,
+		Path: key,
+	}
+}
+
+func (bt *BorrowTable) internPath(segments []PlaceSegment) placeKey {
+	if len(segments) == 0 {
+		return placeKey("")
+	}
+	var b strings.Builder
+	for _, seg := range segments {
+		switch seg.Kind {
+		case PlaceSegmentField:
+			fmt.Fprintf(&b, "f:%d;", seg.Name)
+		case PlaceSegmentIndex:
+			b.WriteString("i:;")
+		case PlaceSegmentDeref:
+			b.WriteString("d:;")
+		default:
+			b.WriteString("?:;")
+		}
+	}
+	return placeKey(b.String())
 }
 
 // BeginBorrow registers a borrow originating from expr within scope.
@@ -104,20 +155,21 @@ func (bt *BorrowTable) BeginBorrow(expr ast.ExprID, span source.Span, kind Borro
 	if bt == nil || !place.IsValid() || !scope.IsValid() || !expr.IsValid() {
 		return NoBorrowID, BorrowIssue{}
 	}
-	state := bt.placeState[place]
+	combined := bt.combinedState(place)
 	switch kind {
 	case BorrowShared:
-		if state.mut != NoBorrowID {
-			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: state.mut}
+		if combined.mut != NoBorrowID {
+			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: combined.mut}
 		}
 	case BorrowMut:
-		if len(state.shared) > 0 {
-			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictShared, Borrow: state.shared[0]}
+		if combined.mut != NoBorrowID {
+			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: combined.mut}
 		}
-		if state.mut != NoBorrowID {
-			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: state.mut}
+		if len(combined.shared) > 0 {
+			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictShared, Borrow: combined.shared[0]}
 		}
 	}
+	state := bt.placeState[place]
 	value, err := safecast.Conv[uint32](len(bt.infos))
 	if err != nil {
 		panic(fmt.Errorf("borrow table overflow: %w", err))
@@ -151,8 +203,8 @@ func (bt *BorrowTable) MutationAllowed(place Place) BorrowIssue {
 	if bt == nil || !place.IsValid() {
 		return BorrowIssue{}
 	}
-	state, ok := bt.placeState[place]
-	if !ok {
+	state := bt.combinedState(place)
+	if len(state.shared) == 0 && state.mut == NoBorrowID {
 		return BorrowIssue{}
 	}
 	if len(state.shared) > 0 {
@@ -169,8 +221,8 @@ func (bt *BorrowTable) MoveAllowed(place Place) BorrowIssue {
 	if bt == nil || !place.IsValid() {
 		return BorrowIssue{}
 	}
-	state, ok := bt.placeState[place]
-	if !ok {
+	state := bt.combinedState(place)
+	if len(state.shared) == 0 && state.mut == NoBorrowID {
 		return BorrowIssue{}
 	}
 	if len(state.shared) > 0 {
@@ -250,6 +302,79 @@ func (bt *BorrowTable) ExprBorrowSnapshot() map[ast.ExprID]BorrowID {
 		out[k] = v
 	}
 	return out
+}
+
+func (bt *BorrowTable) placeSegments(place Place) []PlaceSegment {
+	if bt == nil {
+		return nil
+	}
+	return bt.paths[place.Path]
+}
+
+func (bt *BorrowTable) combinedState(place Place) borrowState {
+	var combined borrowState
+	for p, state := range bt.placeState {
+		if !bt.placesOverlap(place, p) {
+			continue
+		}
+		if len(state.shared) > 0 {
+			combined.shared = append(combined.shared, state.shared...)
+		}
+		if state.mut != NoBorrowID && combined.mut == NoBorrowID {
+			combined.mut = state.mut
+		}
+	}
+	return combined
+}
+
+func (bt *BorrowTable) placesOverlap(a, b Place) bool {
+	if bt == nil || !a.IsValid() || !b.IsValid() || a.Base != b.Base {
+		return false
+	}
+	aSegs := bt.placeSegments(a)
+	bSegs := bt.placeSegments(b)
+	limit := aSegs
+	if len(bSegs) < len(limit) {
+		limit = bSegs
+	}
+	for i := range limit {
+		aSeg := aSegs[i]
+		bSeg := bSegs[i]
+		if aSeg.Kind != bSeg.Kind || aSeg.Name != bSeg.Name {
+			return false
+		}
+	}
+	return true
+}
+
+func (bt *BorrowTable) formatPlaceLabel(place Place, base string, interner *source.Interner) string {
+	if base == "" {
+		base = "value"
+	}
+	segs := bt.placeSegments(place)
+	if len(segs) == 0 {
+		return base
+	}
+	var b strings.Builder
+	b.WriteString(base)
+	for _, seg := range segs {
+		switch seg.Kind {
+		case PlaceSegmentField:
+			b.WriteByte('.')
+			if interner != nil && seg.Name != source.NoStringID {
+				b.WriteString(interner.MustLookup(seg.Name))
+			} else {
+				fmt.Fprintf(&b, "#%d", seg.Name)
+			}
+		case PlaceSegmentIndex:
+			b.WriteString("[?]")
+		case PlaceSegmentDeref:
+			b.WriteString(".*")
+		default:
+			b.WriteString(".?")
+		}
+	}
+	return b.String()
 }
 
 func dropBorrowID(ids []BorrowID, target BorrowID) []BorrowID {

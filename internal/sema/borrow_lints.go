@@ -9,10 +9,15 @@ import (
 )
 
 func (tc *typeChecker) placeLabel(place Place) string {
-	if !place.Base.IsValid() {
-		return "value"
+	base := tc.symbolLabel(place.Base)
+	if tc.borrow == nil {
+		return base
 	}
-	return tc.symbolLabel(place.Base)
+	strings := tc.builder.StringsInterner
+	if strings == nil && tc.symbols != nil && tc.symbols.Table != nil {
+		strings = tc.symbols.Table.Strings
+	}
+	return tc.borrow.formatPlaceLabel(place, base, strings)
 }
 
 func (tc *typeChecker) symbolLabel(symID symbols.SymbolID) string {

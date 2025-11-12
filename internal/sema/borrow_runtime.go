@@ -8,6 +8,18 @@ import (
 	"surge/internal/types"
 )
 
+type placeDescriptor struct {
+	Base     symbols.SymbolID
+	Segments []PlaceSegment
+}
+
+func (tc *typeChecker) canonicalPlace(desc placeDescriptor) Place {
+	if tc.borrow == nil || !desc.Base.IsValid() {
+		return Place{}
+	}
+	return tc.borrow.CanonicalPlace(desc.Base, desc.Segments)
+}
+
 func (tc *typeChecker) updateStmtBinding(stmtID ast.StmtID, expr ast.ExprID) {
 	if !expr.IsValid() {
 		return
@@ -43,8 +55,12 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	if !expr.IsValid() || tc.borrow == nil {
 		return
 	}
-	place, ok := tc.resolvePlace(expr)
+	desc, ok := tc.resolvePlace(expr)
 	if !ok {
+		return
+	}
+	place := tc.canonicalPlace(desc)
+	if !place.IsValid() {
 		return
 	}
 	issue := tc.borrow.MoveAllowed(place)
@@ -67,30 +83,75 @@ func (tc *typeChecker) exprSpan(id ast.ExprID) source.Span {
 	return expr.Span
 }
 
-func (tc *typeChecker) resolvePlace(expr ast.ExprID) (Place, bool) {
+func (tc *typeChecker) resolvePlace(expr ast.ExprID) (placeDescriptor, bool) {
 	if !expr.IsValid() || tc.builder == nil {
-		return Place{}, false
+		return placeDescriptor{}, false
 	}
 	node := tc.builder.Exprs.Get(expr)
 	if node == nil {
-		return Place{}, false
+		return placeDescriptor{}, false
 	}
 	switch node.Kind {
 	case ast.ExprIdent:
 		symID := tc.symbolForExpr(expr)
 		if !symID.IsValid() {
-			return Place{}, false
+			return placeDescriptor{}, false
 		}
 		sym := tc.symbolFromID(symID)
 		if sym == nil {
-			return Place{}, false
+			return placeDescriptor{}, false
 		}
 		if sym.Kind != symbols.SymbolLet && sym.Kind != symbols.SymbolParam {
-			return Place{}, false
+			return placeDescriptor{}, false
 		}
-		return Place{Kind: PlaceLocal, Base: symID}, true
+		return placeDescriptor{Base: symID}, true
+	case ast.ExprMember:
+		member, ok := tc.builder.Exprs.Member(expr)
+		if !ok || member == nil {
+			return placeDescriptor{}, false
+		}
+		desc, ok := tc.resolvePlace(member.Target)
+		if !ok {
+			return placeDescriptor{}, false
+		}
+		desc.Segments = append(desc.Segments, PlaceSegment{
+			Kind: PlaceSegmentField,
+			Name: member.Field,
+		})
+		return desc, true
+	case ast.ExprIndex:
+		index, ok := tc.builder.Exprs.Index(expr)
+		if !ok || index == nil {
+			return placeDescriptor{}, false
+		}
+		desc, ok := tc.resolvePlace(index.Target)
+		if !ok {
+			return placeDescriptor{}, false
+		}
+		desc.Segments = append(desc.Segments, PlaceSegment{Kind: PlaceSegmentIndex})
+		return desc, true
+	case ast.ExprGroup:
+		group, ok := tc.builder.Exprs.Group(expr)
+		if !ok || group == nil {
+			return placeDescriptor{}, false
+		}
+		return tc.resolvePlace(group.Inner)
+	case ast.ExprUnary:
+		unary, ok := tc.builder.Exprs.Unary(expr)
+		if !ok || unary == nil {
+			return placeDescriptor{}, false
+		}
+		if unary.Op != ast.ExprUnaryDeref {
+			return placeDescriptor{}, false
+		}
+		desc, ok := tc.resolvePlace(unary.Operand)
+		if !ok {
+			return placeDescriptor{}, false
+		}
+		desc.Segments = append(desc.Segments, PlaceSegment{Kind: PlaceSegmentDeref})
+		return desc, true
 	default:
-		return Place{}, false
+		return placeDescriptor{}, false
 	}
 }
 
@@ -123,9 +184,13 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 	if tc.borrow == nil {
 		return
 	}
-	place, ok := tc.resolvePlace(operand)
+	desc, ok := tc.resolvePlace(operand)
 	if !ok {
 		tc.report(diag.SemaBorrowNonAddressable, span, "expression is not addressable")
+		return
+	}
+	place := tc.canonicalPlace(desc)
+	if !place.IsValid() {
 		return
 	}
 	scope := tc.currentScope()
@@ -152,8 +217,12 @@ func (tc *typeChecker) handleAssignmentIfNeeded(op ast.ExprBinaryOp, left, right
 }
 
 func (tc *typeChecker) handleAssignment(op ast.ExprBinaryOp, left, right ast.ExprID, span source.Span) {
-	place, ok := tc.resolvePlace(left)
+	desc, ok := tc.resolvePlace(left)
 	if !ok {
+		return
+	}
+	place := tc.canonicalPlace(desc)
+	if !place.IsValid() {
 		return
 	}
 	if tc.borrow != nil {
