@@ -3,9 +3,8 @@ package driver
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
+	"strings"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
@@ -19,6 +18,11 @@ import (
 	"surge/internal/symbols"
 
 	"fortio.org/safecast"
+)
+
+var (
+	errModuleNotFound = errors.New("module not found")
+	errCoreNamespaceReserved = errors.New("core namespace reserved")
 )
 
 type DiagnoseResult struct {
@@ -317,8 +321,6 @@ type moduleRecord struct {
 	Exports  *symbols.ModuleExports
 }
 
-var errModuleNotFound = errors.New("module not found")
-
 func runModuleGraph(
 	fs *source.FileSet,
 	file *source.File,
@@ -333,10 +335,17 @@ func runModuleGraph(
 	}
 
 	baseDir := fs.BaseDir()
+	stdlibRoot := detectStdlibRoot(baseDir)
 	reporter := &diag.BagReporter{Bag: bag}
 	meta, ok := buildModuleMeta(fs, builder, astFile, baseDir, reporter)
 	if !ok {
 		meta = fallbackModuleMeta(file, baseDir)
+	}
+	if !validateCoreModule(meta, file, stdlibRoot, reporter) {
+		return nil, fmt.Errorf("core namespace reserved")
+	}
+	if !validateCoreModule(meta, file, stdlibRoot, reporter) {
+		return nil, fmt.Errorf("core namespace reserved")
 	}
 
 	records := make(map[string]*moduleRecord)
@@ -370,7 +379,7 @@ func runModuleGraph(
 				continue
 			}
 
-			depRec, err := analyzeDependencyModule(fs, imp.Path, baseDir, opts, cache)
+			depRec, err := analyzeDependencyModule(fs, imp.Path, baseDir, opts, cache, stdlibRoot)
 			if err != nil {
 				if errors.Is(err, errModuleNotFound) {
 					missing[imp.Path] = struct{}{}
@@ -381,6 +390,10 @@ func runModuleGraph(
 			records[depRec.Meta.Path] = depRec
 			queue = append(queue, depRec.Meta.Path)
 		}
+	}
+
+	if err := ensureStdlibModules(fs, records, baseDir, opts, cache, stdlibRoot); err != nil {
+		return nil, err
 	}
 
 	paths := make([]string, 0, len(records))
@@ -427,158 +440,41 @@ func runModuleGraph(
 	return exports, nil
 }
 
-func analyzeDependencyModule(
-	fs *source.FileSet,
-	modulePath string,
-	baseDir string,
-	opts DiagnoseOptions,
-	cache *ModuleCache,
-) (*moduleRecord, error) {
-	filePath := modulePathToFilePath(baseDir, modulePath)
-	fileID, err := fs.Load(filePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, errModuleNotFound
-		}
-		return nil, err
+func markSymbolsBuiltin(res *symbols.Result) {
+	if res == nil || res.Table == nil || res.Table.Symbols == nil {
+		return
 	}
-	file := fs.Get(fileID)
-	// try cache by modulePath + content hash
-	if cache != nil {
-		if m, br, fe, ok := cache.Get(modulePath, file.Hash); ok {
-			return &moduleRecord{
-				Meta:     m,
-				Bag:      diag.NewBag(opts.MaxDiagnostics), // пустой bag для согласованности
-				Broken:   br,
-				FirstErr: fe,
-			}, nil
+	count := res.Table.Symbols.Len()
+	for i := 1; i <= count; i++ {
+		value, convErr := safecast.Conv[uint32](i)
+		if convErr != nil {
+			panic(fmt.Errorf("symbol id overflow: %w", convErr))
+		}
+		id := symbols.SymbolID(value)
+		if sym := res.Table.Symbols.Get(id); sym != nil {
+			sym.Flags |= symbols.SymbolFlagBuiltin
 		}
 	}
-	bag := diag.NewBag(opts.MaxDiagnostics)
-	err = diagnoseTokenize(file, bag)
-	if err != nil {
-		return nil, err
-	}
-	var builder *ast.Builder
-	var astFile ast.FileID
-	builder, astFile, err = diagnoseParse(fs, file, bag)
-	if err != nil {
-		return nil, err
-	}
-	reporter := &diag.BagReporter{Bag: bag}
-	meta, ok := buildModuleMeta(fs, builder, astFile, baseDir, reporter)
-	if !ok {
-		meta = fallbackModuleMeta(file, baseDir)
-	}
-	broken, firstErr := moduleStatus(bag)
-	// fill content hash (на случай fallback)
-	if meta.ContentHash == ([32]byte{}) {
-		meta.ContentHash = file.Hash
-	}
-	if cache != nil {
-		cache.Put(meta, broken, firstErr)
-	}
-	return &moduleRecord{
-		Meta:     meta,
-		Bag:      bag,
-		Broken:   broken,
-		FirstErr: firstErr,
-		Builder:  builder,
-		FileID:   astFile,
-		File:     file,
-	}, nil
 }
 
-func collectModuleExports(
-	records map[string]*moduleRecord,
-	idx dag.ModuleIndex,
-	topo *dag.Topo,
-	baseDir string,
-	rootPath string,
-) map[string]*symbols.ModuleExports {
-	if topo == nil || len(topo.Order) == 0 {
-		return nil
+func validateCoreModule(meta *project.ModuleMeta, file *source.File, stdlibRoot string, reporter diag.Reporter) bool {
+	if meta == nil || file == nil {
+		return true
 	}
-	exports := make(map[string]*symbols.ModuleExports, len(records))
-	for i := len(topo.Order) - 1; i >= 0; i-- {
-		id := topo.Order[i]
-		path := idx.IDToName[int(id)]
-		rec := records[path]
-		if rec == nil {
-			continue
-		}
-		if rec.Exports != nil {
-			exports[path] = rec.Exports
-			continue
-		}
-		if path == rootPath {
-			continue
-		}
-		if rec.Builder == nil || rec.FileID == ast.NoFileID {
-			continue
-		}
-		opts := &symbols.ResolveOptions{
-			Reporter:      nil,
-			Validate:      false,
-			ModulePath:    path,
-			FilePath:      moduleFilePath(rec),
-			BaseDir:       baseDir,
-			ModuleExports: exports,
-		}
-		res := symbols.ResolveFile(rec.Builder, rec.FileID, opts)
-		rec.Exports = symbols.CollectExports(rec.Builder, res, path)
-		if rec.Exports != nil {
-			exports[path] = rec.Exports
+	if !strings.HasPrefix(meta.Path, "core/") {
+		return true
+	}
+	if stdlibRoot != "" && pathWithin(stdlibRoot, file.Path) {
+		return true
+	}
+	if reporter != nil {
+		msg := fmt.Sprintf("module %q is reserved for the standard library", meta.Path)
+		span := source.Span{File: file.ID}
+		if b := diag.ReportError(reporter, diag.ProjInvalidModulePath, span, msg); b != nil {
+			b.Emit()
 		}
 	}
-	return exports
-}
-
-func moduleFilePath(rec *moduleRecord) string {
-	if rec == nil || rec.File == nil {
-		return ""
-	}
-	return rec.File.Path
-}
-
-func moduleStatus(bag *diag.Bag) (bool, *diag.Diagnostic) {
-	if bag == nil {
-		return false, nil
-	}
-	items := bag.Items()
-	for i := range items {
-		if items[i].Severity >= diag.SevError {
-			first := items[i]
-			copyFirst := first
-			return true, copyFirst
-		}
-	}
-	return false, nil
-}
-
-func modulePathToFilePath(baseDir, modulePath string) string {
-	rel := filepath.FromSlash(modulePath) + ".sg"
-	if baseDir == "" {
-		return rel
-	}
-	return filepath.Join(baseDir, rel)
-}
-
-func modulePathForFile(fs *source.FileSet, file *source.File) string {
-	if fs == nil || file == nil {
-		return ""
-	}
-	path := file.Path
-	baseDir := fs.BaseDir()
-	if baseDir != "" {
-		if rel, err := source.RelativePath(path, baseDir); err == nil {
-			path = rel
-		}
-	}
-	if norm, err := project.NormalizeModulePath(path); err == nil {
-		return norm
-	}
-	return ""
+	return false
 }
 
 func fallbackModuleMeta(file *source.File, baseDir string) *project.ModuleMeta {

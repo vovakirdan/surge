@@ -175,6 +175,7 @@ check_directory() {
     
     # Дополнительные сообщения
     if [ $bad_files -gt 0 ]; then
+        exit_code=1
         echo -e "\n${RED}ВНИМАНИЕ: Найдены файлы, требующие рефакторинга!${NC}"
     elif [ $acceptable_files -gt 0 ]; then
         echo -e "\n${YELLOW}ВНИМАНИЕ: Найдены файлы с приемлемым размером, но стоит рассмотреть оптимизацию.${NC}"
