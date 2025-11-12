@@ -261,6 +261,9 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 	case token.KwParallel:
 		return p.parseParallelExpr()
 
+	case token.LBrace:
+		return p.parseStructLiteral(ast.NoTypeID, source.Span{})
+
 	default:
 		// договоримся, что обрабатываем все ошибки до этого момента
 		// p.err(diag.SynExpectExpression, "expected expression")
@@ -508,6 +511,68 @@ func (p *Parser) parseParallelExpr() (ast.ExprID, bool) {
 
 	exprID := p.arenas.Exprs.NewParallelReduce(span, iterableExpr, initExpr, args, bodyExpr)
 	return exprID, true
+}
+
+func (p *Parser) parseStructLiteral(typeID ast.TypeID, typeSpan source.Span) (ast.ExprID, bool) {
+	openTok := p.advance()
+	fields := make([]ast.ExprStructField, 0)
+	var commas []source.Span
+	trailing := false
+
+	for !p.at(token.RBrace) && !p.at(token.EOF) {
+		nameID, ok := p.parseIdent()
+		if !ok {
+			p.resyncStructLiteralField()
+			continue
+		}
+
+		if _, colonOK := p.expect(token.Colon, diag.SynExpectColon, "expected ':' after struct literal field name"); !colonOK {
+			p.resyncStructLiteralField()
+			continue
+		}
+
+		valueExpr, ok := p.parseExpr()
+		if !ok {
+			p.resyncStructLiteralField()
+			continue
+		}
+
+		fields = append(fields, ast.ExprStructField{
+			Name:  nameID,
+			Value: valueExpr,
+		})
+
+		if p.at(token.Comma) {
+			commaTok := p.advance()
+			commas = append(commas, commaTok.Span)
+			if p.at(token.RBrace) {
+				trailing = true
+				break
+			}
+			continue
+		}
+
+		break
+	}
+
+	closeTok, ok := p.expect(token.RBrace, diag.SynUnclosedBrace, "expected '}' to close struct literal", nil)
+	if !ok {
+		return ast.NoExprID, false
+	}
+
+	span := openTok.Span.Cover(closeTok.Span)
+	if typeSpan != (source.Span{}) {
+		span = typeSpan.Cover(span)
+	}
+	exprID := p.arenas.Exprs.NewStruct(span, typeID, fields, commas, trailing)
+	return exprID, true
+}
+
+func (p *Parser) resyncStructLiteralField() {
+	p.resyncUntil(token.Comma, token.RBrace, token.Semicolon, token.EOF)
+	if p.at(token.Comma) {
+		p.advance()
+	}
 }
 
 func (p *Parser) parseParallelArgList() ([]ast.ExprID, source.Span, bool) {

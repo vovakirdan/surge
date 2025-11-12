@@ -24,6 +24,7 @@ const (
 	ExprParallel
 	ExprSpread
 	ExprCompare
+	ExprStruct
 )
 
 type Expr struct {
@@ -173,6 +174,18 @@ type ExprSpreadData struct {
 	Value ExprID
 }
 
+type ExprStructField struct {
+	Name  source.StringID
+	Value ExprID
+}
+
+type ExprStructData struct {
+	Type             TypeID
+	Fields           []ExprStructField
+	FieldCommas      []source.Span
+	HasTrailingComma bool
+}
+
 // ExprSpawnData represents the operand of a `spawn` expression.
 // TODO(sema): enforce async context and Future/Task requirements once sema is in place.
 type ExprSpawnData struct {
@@ -233,6 +246,7 @@ type Exprs struct {
 	Spawns    *Arena[ExprSpawnData]
 	Parallels *Arena[ExprParallelData]
 	Compares  *Arena[ExprCompareData]
+	Structs   *Arena[ExprStructData]
 }
 
 // NewExprs creates a new Exprs with per-kind arenas preallocated using capHint as the initial capacity.
@@ -259,6 +273,7 @@ func NewExprs(capHint uint) *Exprs {
 		Spawns:    NewArena[ExprSpawnData](capHint),
 		Parallels: NewArena[ExprParallelData](capHint),
 		Compares:  NewArena[ExprCompareData](capHint),
+		Structs:   NewArena[ExprStructData](capHint),
 	}
 }
 
@@ -394,6 +409,24 @@ func (e *Exprs) Await(id ExprID) (*ExprAwaitData, bool) {
 		return nil, false
 	}
 	return e.Awaits.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewStruct(span source.Span, typ TypeID, fields []ExprStructField, commas []source.Span, trailing bool) ExprID {
+	payload := e.Structs.Allocate(ExprStructData{
+		Type:             typ,
+		Fields:           append([]ExprStructField(nil), fields...),
+		FieldCommas:      append([]source.Span(nil), commas...),
+		HasTrailingComma: trailing,
+	})
+	return e.new(ExprStruct, span, PayloadID(payload))
+}
+
+func (e *Exprs) Struct(id ExprID) (*ExprStructData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprStruct {
+		return nil, false
+	}
+	return e.Structs.Get(uint32(expr.Payload)), true
 }
 
 func (e *Exprs) NewGroup(span source.Span, inner ExprID) ExprID {

@@ -219,6 +219,28 @@ func TestTupleExpressions(t *testing.T) {
 	}
 }
 
+func TestStructLiteralExpressions(t *testing.T) {
+	input := "type Pair = { x:int, y:int };\nlet x: Pair = { x: foo, y: bar, };"
+	letItem, arenas := parseExprTestInput(t, input)
+	if letItem.Value == ast.NoExprID {
+		t.Fatal("Expected expression value")
+	}
+	expr := arenas.Exprs.Get(letItem.Value)
+	if expr.Kind != ast.ExprStruct {
+		t.Fatalf("expected struct literal expression, got %v", expr.Kind)
+	}
+	data, ok := arenas.Exprs.Struct(letItem.Value)
+	if !ok {
+		t.Fatal("failed to retrieve struct literal data")
+	}
+	if len(data.Fields) != 2 {
+		t.Fatalf("unexpected number of struct literal fields: %d", len(data.Fields))
+	}
+	if data.Fields[0].Name == source.NoStringID || data.Fields[1].Name == source.NoStringID {
+		t.Fatalf("expected field names to be captured")
+	}
+}
+
 func TestCastExpression(t *testing.T) {
 	tests := []struct {
 		name            string

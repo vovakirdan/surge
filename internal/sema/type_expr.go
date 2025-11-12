@@ -104,6 +104,12 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		if spread, ok := tc.builder.Exprs.Spread(id); ok && spread != nil {
 			tc.typeExpr(spread.Value)
 		}
+	case ast.ExprStruct:
+		if data, ok := tc.builder.Exprs.Struct(id); ok && data != nil {
+			for _, field := range data.Fields {
+				tc.typeExpr(field.Value)
+			}
+		}
 	default:
 		// ExprIdent and other unhandled kinds default to unknown.
 	}
