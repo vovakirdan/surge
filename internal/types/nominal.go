@@ -69,7 +69,7 @@ func (in *Interner) RegisterAlias(name source.StringID, decl source.Span) TypeID
 }
 
 // SetAliasTarget sets the aliased target type for the provided alias TypeID.
-func (in *Interner) SetAliasTarget(typeID TypeID, target TypeID) {
+func (in *Interner) SetAliasTarget(typeID, target TypeID) {
 	info := in.aliasInfo(typeID)
 	if info == nil {
 		return

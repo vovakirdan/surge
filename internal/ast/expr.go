@@ -412,7 +412,7 @@ func (e *Exprs) Await(id ExprID) (*ExprAwaitData, bool) {
 	return e.Awaits.Get(uint32(expr.Payload)), true
 }
 
-func (e *Exprs) NewStruct(span source.Span, typ TypeID, fields []ExprStructField, commas []source.Span, trailing bool, positional bool) ExprID {
+func (e *Exprs) NewStruct(span source.Span, typ TypeID, fields []ExprStructField, commas []source.Span, trailing, positional bool) ExprID {
 	payload := e.Structs.Allocate(ExprStructData{
 		Type:             typ,
 		Fields:           append([]ExprStructField(nil), fields...),

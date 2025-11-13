@@ -11,11 +11,6 @@ import (
 	"surge/internal/token"
 )
 
-// parseIdentExpr парсит выражение-идентификатор
-func (p *Parser) parseIdentExpr() (ast.ExprID, bool) {
-	return p.parseIdentOrStructLiteral()
-}
-
 // parseIdentOrStructLiteral parses either a plain identifier expression or a typed struct literal.
 func (p *Parser) parseIdentOrStructLiteral() (ast.ExprID, bool) {
 	tok := p.advance()

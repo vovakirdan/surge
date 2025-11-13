@@ -1,6 +1,10 @@
 package sema
 
 import (
+	"fmt"
+
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -78,8 +82,13 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 	scope := tc.fileScope()
 	if structDecl.FieldsCount > 0 {
 		start := uint32(structDecl.FieldsStart)
-		for offset := uint32(0); offset < structDecl.FieldsCount; offset++ {
-			fieldID := ast.TypeFieldID(start + offset)
+		count := int(structDecl.FieldsCount)
+		for offset := range count {
+			uoff, err := safecast.Conv[uint32](offset)
+			if err != nil {
+				panic(fmt.Errorf("struct field offset overflow: %w", err))
+			}
+			fieldID := ast.TypeFieldID(start + uoff)
 			field := tc.builder.Items.StructField(fieldID)
 			if field == nil {
 				continue
