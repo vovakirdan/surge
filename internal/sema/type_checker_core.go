@@ -20,7 +20,7 @@ type typeChecker struct {
 	result   *Result
 	types    *types.Interner
 	exports  map[string]*symbols.ModuleExports
-	magic    map[symbols.TypeKey]map[string]*symbols.FunctionSignature
+	magic    map[symbols.TypeKey]map[string][]*symbols.FunctionSignature
 	borrow   *BorrowTable
 
 	scopeStack    []symbols.ScopeID

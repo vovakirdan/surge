@@ -7,7 +7,7 @@ import (
 )
 
 func (tc *typeChecker) buildMagicIndex() {
-	tc.magic = make(map[symbols.TypeKey]map[string]*symbols.FunctionSignature)
+	tc.magic = make(map[symbols.TypeKey]map[string][]*symbols.FunctionSignature)
 	if tc.symbols != nil && tc.symbols.Table != nil && tc.symbols.Table.Symbols != nil {
 		if data := tc.symbols.Table.Symbols.Data(); data != nil {
 			for i := range data {
@@ -40,14 +40,14 @@ func (tc *typeChecker) addMagicEntry(receiver symbols.TypeKey, name string, sig 
 		return
 	}
 	if tc.magic == nil {
-		tc.magic = make(map[symbols.TypeKey]map[string]*symbols.FunctionSignature)
+		tc.magic = make(map[symbols.TypeKey]map[string][]*symbols.FunctionSignature)
 	}
 	methods := tc.magic[receiver]
 	if methods == nil {
-		methods = make(map[string]*symbols.FunctionSignature)
+		methods = make(map[string][]*symbols.FunctionSignature)
 		tc.magic[receiver] = methods
 	}
-	methods[name] = sig
+	methods[name] = append(methods[name], sig)
 }
 
 func (tc *typeChecker) magicResultForUnary(operand types.TypeID, op ast.ExprUnaryOp) types.TypeID {
@@ -59,7 +59,10 @@ func (tc *typeChecker) magicResultForUnary(operand types.TypeID, op ast.ExprUnar
 		if cand.key == "" {
 			continue
 		}
-		if sig := tc.lookupMagicMethod(cand.key, name); sig != nil && tc.signatureMatchesUnary(sig, cand.key) {
+		for _, sig := range tc.lookupMagicMethods(cand.key, name) {
+			if sig == nil || !tc.signatureMatchesUnary(sig, cand.key) {
+				continue
+			}
 			res := tc.typeFromKey(sig.Result)
 			return tc.adjustAliasUnaryResult(res, cand)
 		}
@@ -78,30 +81,35 @@ func (tc *typeChecker) magicResultForBinary(left, right types.TypeID, op ast.Exp
 		if lc.key == "" {
 			continue
 		}
-		sig := tc.lookupMagicMethod(lc.key, name)
-		if sig == nil {
+		methods := tc.lookupMagicMethods(lc.key, name)
+		if len(methods) == 0 {
 			continue
 		}
-		for _, rc := range rightCandidates {
-			if rc.key == "" {
+		for _, sig := range methods {
+			if sig == nil {
 				continue
 			}
-			if !tc.signatureMatchesBinary(sig, lc.key, rc.key) {
-				continue
-			}
-			if lc.alias != types.NoTypeID || rc.alias != types.NoTypeID {
-				if !compatibleAliasFallback(lc, rc) {
+			for _, rc := range rightCandidates {
+				if rc.key == "" {
 					continue
 				}
+				if !tc.signatureMatchesBinary(sig, lc.key, rc.key) {
+					continue
+				}
+				if lc.alias != types.NoTypeID || rc.alias != types.NoTypeID {
+					if !compatibleAliasFallback(lc, rc) {
+						continue
+					}
+				}
+				res := tc.typeFromKey(sig.Result)
+				return tc.adjustAliasBinaryResult(res, lc, rc)
 			}
-			res := tc.typeFromKey(sig.Result)
-			return tc.adjustAliasBinaryResult(res, lc, rc)
 		}
 	}
 	return types.NoTypeID
 }
 
-func (tc *typeChecker) lookupMagicMethod(receiver symbols.TypeKey, name string) *symbols.FunctionSignature {
+func (tc *typeChecker) lookupMagicMethods(receiver symbols.TypeKey, name string) []*symbols.FunctionSignature {
 	if receiver == "" || name == "" {
 		return nil
 	}

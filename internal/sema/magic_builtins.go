@@ -81,7 +81,7 @@ func (tc *typeChecker) ensureBuiltinMagic() {
 			continue
 		}
 		recv := symbols.TypeKey(spec.receiver)
-		if tc.lookupMagicMethod(recv, spec.name) != nil {
+		if tc.hasMagicSignature(recv, spec.name, spec.params, spec.result) {
 			continue
 		}
 		sig := &symbols.FunctionSignature{
@@ -93,4 +93,27 @@ func (tc *typeChecker) ensureBuiltinMagic() {
 		}
 		tc.addMagicEntry(recv, spec.name, sig)
 	}
+}
+
+func (tc *typeChecker) hasMagicSignature(receiver symbols.TypeKey, name string, params []string, result string) bool {
+	methods := tc.lookupMagicMethods(receiver, name)
+	for _, sig := range methods {
+		if sig == nil || len(sig.Params) != len(params) {
+			continue
+		}
+		if string(sig.Result) != result {
+			continue
+		}
+		match := true
+		for i, param := range params {
+			if string(sig.Params[i]) != param {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
 }

@@ -219,3 +219,26 @@ func TestAliasBinaryRequiresMatchingTypes(t *testing.T) {
 		t.Fatalf("expected message to reference __add, got %q", items[0].Message)
 	}
 }
+
+func TestStringMulIntrinsicAvailable(t *testing.T) {
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+	file := builder.Files.New(source.Span{})
+
+	strID := builder.StringsInterner.Intern("\"s\"")
+	strLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, strID)
+	intID := builder.StringsInterner.Intern("2")
+	intLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intID)
+	mul := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryMul, strLit, intLit)
+	addTopLevelLet(builder, file, mul)
+
+	bag := diag.NewBag(2)
+	res := Check(builder, file, Options{Reporter: &diag.BagReporter{Bag: bag}})
+	if bag.HasErrors() {
+		t.Fatalf("unexpected diagnostics for string * int: %v", bag.Items())
+	}
+	got := res.ExprTypes[mul]
+	want := res.TypeInterner.Builtins().String
+	if got != want {
+		t.Fatalf("expected string type, got %v", got)
+	}
+}
