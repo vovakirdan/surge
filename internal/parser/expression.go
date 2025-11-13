@@ -228,8 +228,7 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 	switch p.lx.Peek().Kind {
 	case token.Ident:
-		// Идентификатор
-		return p.parseIdentExpr()
+		return p.parseIdentOrStructLiteral()
 
 	case token.IntLit, token.UintLit, token.FloatLit:
 		// Числовые литералы
@@ -518,30 +517,41 @@ func (p *Parser) parseStructLiteral(typeID ast.TypeID, typeSpan source.Span) (as
 	fields := make([]ast.ExprStructField, 0)
 	var commas []source.Span
 	trailing := false
+	positional := false
 
 	for !p.at(token.RBrace) && !p.at(token.EOF) {
-		nameID, ok := p.parseIdent()
+		fieldExpr, ok := p.parseExpr()
 		if !ok {
 			p.resyncStructLiteralField()
 			continue
 		}
 
-		if _, colonOK := p.expect(token.Colon, diag.SynExpectColon, "expected ':' after struct literal field name"); !colonOK {
+		if !positional && p.at(token.Colon) {
+			if ident, ok := p.arenas.Exprs.Ident(fieldExpr); ok && ident != nil {
+				p.advance()
+				valueExpr, valueOK := p.parseExpr()
+				if !valueOK {
+					p.resyncStructLiteralField()
+					continue
+				}
+				fields = append(fields, ast.ExprStructField{
+					Name:  ident.Name,
+					Value: valueExpr,
+				})
+				goto handleComma
+			}
+			p.err(diag.SynExpectIdentifier, "expected identifier before ':' in struct literal")
 			p.resyncStructLiteralField()
 			continue
 		}
 
-		valueExpr, ok := p.parseExpr()
-		if !ok {
-			p.resyncStructLiteralField()
-			continue
-		}
-
+		positional = true
 		fields = append(fields, ast.ExprStructField{
-			Name:  nameID,
-			Value: valueExpr,
+			Name:  source.NoStringID,
+			Value: fieldExpr,
 		})
 
+	handleComma:
 		if p.at(token.Comma) {
 			commaTok := p.advance()
 			commas = append(commas, commaTok.Span)
@@ -564,7 +574,7 @@ func (p *Parser) parseStructLiteral(typeID ast.TypeID, typeSpan source.Span) (as
 	if typeSpan != (source.Span{}) {
 		span = typeSpan.Cover(span)
 	}
-	exprID := p.arenas.Exprs.NewStruct(span, typeID, fields, commas, trailing)
+	exprID := p.arenas.Exprs.NewStruct(span, typeID, fields, commas, trailing, positional)
 	return exprID, true
 }
 

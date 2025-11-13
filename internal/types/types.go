@@ -24,6 +24,8 @@ const (
 	KindPointer
 	KindReference
 	KindOwn
+	KindStruct
+	KindAlias
 )
 
 func (k Kind) String() string {
@@ -52,6 +54,10 @@ func (k Kind) String() string {
 		return "reference"
 	case KindOwn:
 		return "own"
+	case KindStruct:
+		return "struct"
+	case KindAlias:
+		return "alias"
 	default:
 		return fmt.Sprintf("Kind(%d)", k)
 	}
@@ -78,6 +84,7 @@ type Type struct {
 	Count   uint32 // for arrays (ArrayDynamicLength means slice)
 	Width   Width  // for numeric primitives
 	Mutable bool   // for references
+	Payload uint32 // for nominal types (struct/alias metadata index)
 }
 
 // Descriptor helpers ---------------------------------------------------------

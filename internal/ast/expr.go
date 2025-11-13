@@ -184,6 +184,7 @@ type ExprStructData struct {
 	Fields           []ExprStructField
 	FieldCommas      []source.Span
 	HasTrailingComma bool
+	Positional       bool
 }
 
 // ExprSpawnData represents the operand of a `spawn` expression.
@@ -411,12 +412,13 @@ func (e *Exprs) Await(id ExprID) (*ExprAwaitData, bool) {
 	return e.Awaits.Get(uint32(expr.Payload)), true
 }
 
-func (e *Exprs) NewStruct(span source.Span, typ TypeID, fields []ExprStructField, commas []source.Span, trailing bool) ExprID {
+func (e *Exprs) NewStruct(span source.Span, typ TypeID, fields []ExprStructField, commas []source.Span, trailing bool, positional bool) ExprID {
 	payload := e.Structs.Allocate(ExprStructData{
 		Type:             typ,
 		Fields:           append([]ExprStructField(nil), fields...),
 		FieldCommas:      append([]source.Span(nil), commas...),
 		HasTrailingComma: trailing,
+		Positional:       positional,
 	})
 	return e.new(ExprStruct, span, PayloadID(payload))
 }

@@ -23,6 +23,8 @@ type Interner struct {
 	types    []Type
 	index    map[typeKey]TypeID
 	builtins Builtins
+	structs  []StructInfo
+	aliases  []AliasInfo
 }
 
 // NewInterner constructs an interner seeded with built-in primitives.
@@ -30,6 +32,8 @@ func NewInterner() *Interner {
 	in := &Interner{
 		index: make(map[typeKey]TypeID, 64),
 	}
+	in.structs = append(in.structs, StructInfo{}) // reserve 0 as invalid sentinel
+	in.aliases = append(in.aliases, AliasInfo{})
 	in.builtins.Invalid = in.internRaw(Type{Kind: KindInvalid})
 	in.builtins.Unit = in.Intern(Type{Kind: KindUnit})
 	in.builtins.Nothing = in.Intern(Type{Kind: KindNothing})
@@ -94,4 +98,5 @@ type typeKey struct {
 	Count   uint32
 	Width   Width
 	Mutable bool
+	Payload uint32
 }

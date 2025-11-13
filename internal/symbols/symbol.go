@@ -3,6 +3,7 @@ package symbols
 import (
 	"surge/internal/ast"
 	"surge/internal/source"
+	"surge/internal/types"
 )
 
 // SymbolKind classifies the semantic meaning of a symbol.
@@ -88,6 +89,7 @@ type Symbol struct {
 	Span        source.Span
 	Flags       SymbolFlags
 	Decl        SymbolDecl
+	Type        types.TypeID
 	Aliases     []source.StringID
 	Requires    []SymbolID // optional dependencies (e.g., import group)
 	Signature   *FunctionSignature

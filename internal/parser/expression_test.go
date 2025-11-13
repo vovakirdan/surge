@@ -219,6 +219,78 @@ func TestTupleExpressions(t *testing.T) {
 	}
 }
 
+func TestParseTypedStructLiteralNamed(t *testing.T) {
+	letItem, arenas := parseExprTestInput(t, "let p = Person { age: 25, name: \"John\" };")
+	if letItem.Value == ast.NoExprID {
+		t.Fatal("expected struct literal expression")
+	}
+	expr := arenas.Exprs.Get(letItem.Value)
+	if expr.Kind != ast.ExprStruct {
+		t.Fatalf("expected struct literal, got %v", expr.Kind)
+	}
+	data, ok := arenas.Exprs.Struct(letItem.Value)
+	if !ok || data == nil {
+		t.Fatal("missing struct data")
+	}
+	if !data.Type.IsValid() {
+		t.Fatal("expected struct literal to carry type information")
+	}
+	if data.Positional {
+		t.Fatal("expected named struct literal")
+	}
+	if len(data.Fields) != 2 {
+		t.Fatalf("expected 2 fields, got %d", len(data.Fields))
+	}
+}
+
+func TestParseTypedStructLiteralPositional(t *testing.T) {
+	letItem, arenas := parseExprTestInput(t, "let p = Person { 25, \"John\" };")
+	if letItem.Value == ast.NoExprID {
+		t.Fatal("expected struct literal expression")
+	}
+	expr := arenas.Exprs.Get(letItem.Value)
+	if expr.Kind != ast.ExprStruct {
+		t.Fatalf("expected struct literal, got %v", expr.Kind)
+	}
+	data, ok := arenas.Exprs.Struct(letItem.Value)
+	if !ok || data == nil {
+		t.Fatal("missing struct data")
+	}
+	if !data.Type.IsValid() {
+		t.Fatal("expected struct literal to carry type information")
+	}
+	if !data.Positional {
+		t.Fatal("expected positional struct literal")
+	}
+	if len(data.Fields) != 2 {
+		t.Fatalf("expected 2 positional entries, got %d", len(data.Fields))
+	}
+	for i, field := range data.Fields {
+		if field.Name != source.NoStringID {
+			t.Fatalf("expected positional field %d to have no name", i)
+		}
+	}
+}
+
+func TestParseStructLiteralPositionalWithoutExplicitType(t *testing.T) {
+	letItem, arenas := parseExprTestInput(t, "let p = { 25, \"John\" };")
+	if letItem.Value == ast.NoExprID {
+		t.Fatal("expected struct literal expression")
+	}
+	data, ok := arenas.Exprs.Struct(letItem.Value)
+	if !ok || data == nil {
+		t.Fatal("missing struct data")
+	}
+	if !data.Positional {
+		t.Fatal("expected positional literal")
+	}
+	for i, field := range data.Fields {
+		if field.Name != source.NoStringID {
+			t.Fatalf("field %d should have no name in positional literal", i)
+		}
+	}
+}
+
 func TestStructLiteralExpressions(t *testing.T) {
 	input := "type Pair = { x:int, y:int };\nlet x: Pair = { x: foo, y: bar, };"
 	letItem, arenas := parseExprTestInput(t, input)

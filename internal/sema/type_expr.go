@@ -23,6 +23,26 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 	}
 	var ty types.TypeID
 	switch expr.Kind {
+	case ast.ExprIdent:
+		if ident, ok := tc.builder.Exprs.Ident(id); ok && ident != nil {
+			symID := tc.symbolForExpr(id)
+			sym := tc.symbolFromID(symID)
+			switch {
+			case sym == nil:
+				ty = types.NoTypeID
+			case sym.Kind == symbols.SymbolLet || sym.Kind == symbols.SymbolParam:
+				ty = tc.bindingType(symID)
+			case sym.Kind == symbols.SymbolType:
+				name := tc.lookupName(ident.Name)
+				if name == "" {
+					name = "_"
+				}
+				tc.report(diag.SemaTypeMismatch, expr.Span, "type %s cannot be used as a value", name)
+				ty = types.NoTypeID
+			default:
+				ty = sym.Type
+			}
+		}
 	case ast.ExprLit:
 		if lit, ok := tc.builder.Exprs.Literal(id); ok && lit != nil {
 			ty = tc.literalType(lit.Kind)
@@ -49,8 +69,17 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprArray:
 		if arr, ok := tc.builder.Exprs.Array(id); ok && arr != nil {
+			var elemType types.TypeID
 			for _, elem := range arr.Elements {
-				tc.typeExpr(elem)
+				elemTy := tc.typeExpr(elem)
+				if elemType == types.NoTypeID {
+					elemType = elemTy
+				} else if elemTy != types.NoTypeID && elemTy != elemType {
+					tc.report(diag.SemaTypeMismatch, expr.Span, "array elements must have the same type")
+				}
+			}
+			if elemType != types.NoTypeID {
+				ty = tc.types.Intern(types.MakeArray(elemType, types.ArrayDynamicLength))
 			}
 		}
 	case ast.ExprTuple:
@@ -61,12 +90,14 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprIndex:
 		if idx, ok := tc.builder.Exprs.Index(id); ok && idx != nil {
-			tc.typeExpr(idx.Target)
+			container := tc.typeExpr(idx.Target)
 			tc.typeExpr(idx.Index)
+			ty = tc.indexResultType(container, expr.Span)
 		}
 	case ast.ExprMember:
 		if member, ok := tc.builder.Exprs.Member(id); ok && member != nil {
-			tc.typeExpr(member.Target)
+			targetType := tc.typeExpr(member.Target)
+			ty = tc.memberResultType(targetType, member.Field, expr.Span)
 		}
 	case ast.ExprAwait:
 		if awaitData, ok := tc.builder.Exprs.Await(id); ok && awaitData != nil {
@@ -108,6 +139,13 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		if data, ok := tc.builder.Exprs.Struct(id); ok && data != nil {
 			for _, field := range data.Fields {
 				tc.typeExpr(field.Value)
+			}
+			if data.Type.IsValid() {
+				scope := tc.scopeOrFile(tc.currentScope())
+				ty = tc.resolveTypeExprWithScope(data.Type, scope)
+				if ty != types.NoTypeID {
+					tc.validateStructLiteralFields(ty, data, expr.Span)
+				}
 			}
 		}
 	default:
@@ -240,7 +278,11 @@ func (tc *typeChecker) pickNumericResult(left, right types.TypeID) types.TypeID 
 }
 
 func (tc *typeChecker) elementType(id types.TypeID) (types.TypeID, bool) {
-	tt, ok := tc.types.Lookup(id)
+	if tc.types == nil {
+		return types.NoTypeID, false
+	}
+	resolved := tc.resolveAlias(id)
+	tt, ok := tc.types.Lookup(resolved)
 	if !ok {
 		return types.NoTypeID, false
 	}
@@ -256,6 +298,7 @@ func (tc *typeChecker) familyOf(id types.TypeID) types.FamilyMask {
 	if id == types.NoTypeID || tc.types == nil {
 		return types.FamilyNone
 	}
+	id = tc.resolveAlias(id)
 	tt, ok := tc.types.Lookup(id)
 	if !ok {
 		return types.FamilyNone
@@ -277,6 +320,12 @@ func (tc *typeChecker) familyOf(id types.TypeID) types.FamilyMask {
 		return types.FamilyPointer
 	case types.KindReference:
 		return types.FamilyReference
+	case types.KindAlias:
+		target, ok := tc.types.AliasTarget(id)
+		if !ok {
+			return types.FamilyAny
+		}
+		return tc.familyOf(target)
 	default:
 		return types.FamilyAny
 	}
@@ -324,9 +373,185 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 		return fmt.Sprintf("[%s]", tc.typeLabel(tt.Elem))
 	case types.KindOwn:
 		return fmt.Sprintf("own %s", tc.typeLabel(tt.Elem))
+	case types.KindStruct:
+		if info, ok := tc.types.StructInfo(id); ok && info != nil {
+			if name := tc.lookupName(info.Name); name != "" {
+				return name
+			}
+		}
+		return "struct"
+	case types.KindAlias:
+		if info, ok := tc.types.AliasInfo(id); ok && info != nil {
+			if name := tc.lookupName(info.Name); name != "" {
+				return name
+			}
+		}
+		if target, ok := tc.types.AliasTarget(id); ok && target != types.NoTypeID {
+			return tc.typeLabel(target)
+		}
+		return "alias"
 	default:
 		return tt.Kind.String()
 	}
+}
+
+func (tc *typeChecker) indexResultType(container types.TypeID, span source.Span) types.TypeID {
+	if container == types.NoTypeID || tc.types == nil {
+		return types.NoTypeID
+	}
+	base := tc.valueType(container)
+	if base == types.NoTypeID {
+		return types.NoTypeID
+	}
+	tt, ok := tc.types.Lookup(base)
+	if !ok {
+		return types.NoTypeID
+	}
+	switch tt.Kind {
+	case types.KindArray:
+		return tt.Elem
+	case types.KindString:
+		return tc.types.Builtins().Uint
+	default:
+		tc.report(diag.SemaTypeMismatch, span, "%s is not indexable", tc.typeLabel(base))
+		return types.NoTypeID
+	}
+}
+
+func (tc *typeChecker) memberResultType(base types.TypeID, field source.StringID, span source.Span) types.TypeID {
+	if base == types.NoTypeID || field == source.NoStringID {
+		return types.NoTypeID
+	}
+	info, structType := tc.structInfoForType(base)
+	if info == nil {
+		tc.report(diag.SemaTypeMismatch, span, "%s has no fields", tc.typeLabel(base))
+		return types.NoTypeID
+	}
+	for _, f := range info.Fields {
+		if f.Name == field {
+			return f.Type
+		}
+	}
+	tc.report(diag.SemaUnresolvedSymbol, span, "%s has no field %s", tc.typeLabel(structType), tc.lookupName(field))
+	return types.NoTypeID
+}
+
+func (tc *typeChecker) validateStructLiteralFields(structType types.TypeID, data *ast.ExprStructData, span source.Span) {
+	info, normalized := tc.structInfoForType(structType)
+	if info == nil {
+		tc.report(diag.SemaTypeMismatch, span, "%s is not a struct", tc.typeLabel(structType))
+		return
+	}
+	if data.Positional {
+		tc.validatePositionalStructLiteral(normalized, info, data, span)
+		return
+	}
+	fieldMap := make(map[source.StringID]types.StructField, len(info.Fields))
+	for _, f := range info.Fields {
+		fieldMap[f.Name] = f
+	}
+	seen := make(map[source.StringID]struct{}, len(info.Fields))
+	for _, field := range data.Fields {
+		spec, ok := fieldMap[field.Name]
+		if !ok {
+			tc.report(diag.SemaUnresolvedSymbol, span, "%s has no field %s", tc.typeLabel(normalized), tc.lookupName(field.Name))
+			continue
+		}
+		tc.ensureStructFieldType(field.Name, field.Value, spec.Type)
+		if _, dup := seen[field.Name]; dup {
+			tc.report(diag.SemaTypeMismatch, span, "field %s specified multiple times", tc.lookupName(field.Name))
+		} else {
+			seen[field.Name] = struct{}{}
+		}
+	}
+	if len(seen) != len(info.Fields) {
+		tc.report(diag.SemaTypeMismatch, span, "%s literal is missing %d field(s)", tc.typeLabel(normalized), len(info.Fields)-len(seen))
+	}
+}
+
+func (tc *typeChecker) validatePositionalStructLiteral(structType types.TypeID, info *types.StructInfo, data *ast.ExprStructData, span source.Span) {
+	if info == nil {
+		return
+	}
+	if len(data.Fields) != len(info.Fields) {
+		tc.report(diag.SemaTypeMismatch, span, "%s literal expects %d fields, got %d", tc.typeLabel(structType), len(info.Fields), len(data.Fields))
+	}
+	limit := len(data.Fields)
+	if len(info.Fields) < limit {
+		limit = len(info.Fields)
+	}
+	for i := 0; i < limit; i++ {
+		data.Fields[i].Name = info.Fields[i].Name
+		tc.ensureStructFieldType(info.Fields[i].Name, data.Fields[i].Value, info.Fields[i].Type)
+	}
+}
+
+func (tc *typeChecker) ensureStructFieldType(name source.StringID, value ast.ExprID, expected types.TypeID) {
+	if expected == types.NoTypeID || !value.IsValid() {
+		return
+	}
+	actual := tc.typeExpr(value)
+	if actual == types.NoTypeID {
+		return
+	}
+	if tc.valueType(actual) == tc.valueType(expected) {
+		return
+	}
+	fieldName := tc.lookupName(name)
+	tc.report(diag.SemaTypeMismatch, tc.exprSpan(value), "field %s expects %s, got %s", fieldName, tc.typeLabel(expected), tc.typeLabel(actual))
+}
+
+func (tc *typeChecker) structInfoForType(id types.TypeID) (*types.StructInfo, types.TypeID) {
+	if id == types.NoTypeID || tc.types == nil {
+		return nil, types.NoTypeID
+	}
+	val := tc.valueType(id)
+	if val == types.NoTypeID {
+		return nil, types.NoTypeID
+	}
+	info, ok := tc.types.StructInfo(val)
+	if !ok {
+		return nil, val
+	}
+	return info, val
+}
+
+func (tc *typeChecker) valueType(id types.TypeID) types.TypeID {
+	if id == types.NoTypeID || tc.types == nil {
+		return types.NoTypeID
+	}
+	for {
+		id = tc.resolveAlias(id)
+		tt, ok := tc.types.Lookup(id)
+		if !ok {
+			return types.NoTypeID
+		}
+		switch tt.Kind {
+		case types.KindOwn, types.KindReference, types.KindPointer:
+			id = tt.Elem
+		default:
+			return id
+		}
+	}
+}
+
+func (tc *typeChecker) resolveAlias(id types.TypeID) types.TypeID {
+	if id == types.NoTypeID || tc.types == nil {
+		return id
+	}
+	const maxDepth = 32
+	for depth := 0; depth < maxDepth; depth++ {
+		tt, ok := tc.types.Lookup(id)
+		if !ok || tt.Kind != types.KindAlias {
+			return id
+		}
+		target, ok := tc.types.AliasTarget(id)
+		if !ok || target == types.NoTypeID || target == id {
+			return id
+		}
+		id = target
+	}
+	return id
 }
 
 func (tc *typeChecker) report(code diag.Code, span source.Span, format string, args ...interface{}) {

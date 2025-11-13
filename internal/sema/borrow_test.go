@@ -108,9 +108,9 @@ func TestBorrowFieldBlocksMutation(t *testing.T) {
 	builder, fileID := newTestBuilder()
 	p := intern(builder, "p")
 	fieldF := intern(builder, "f")
+	personType := declareStructType(builder, fileID, intern(builder, "Person"), []source.StringID{fieldF})
 
-	init := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0"))
-	stmtP := builder.Stmts.NewLet(source.Span{}, p, ast.NoTypeID, init, true)
+	stmtP := builder.Stmts.NewLet(source.Span{}, p, personType, ast.NoExprID, true)
 
 	fieldBorrowTarget := builder.Exprs.NewMember(source.Span{}, builder.Exprs.NewIdent(source.Span{}, p), fieldF)
 	fieldBorrow := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRefMut, fieldBorrowTarget)
@@ -138,9 +138,9 @@ func TestBorrowFieldIndependentMutation(t *testing.T) {
 	p := intern(builder, "p")
 	fieldF := intern(builder, "f")
 	fieldG := intern(builder, "g")
+	personType := declareStructType(builder, fileID, intern(builder, "Person"), []source.StringID{fieldF, fieldG})
 
-	init := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0"))
-	stmtP := builder.Stmts.NewLet(source.Span{}, p, ast.NoTypeID, init, true)
+	stmtP := builder.Stmts.NewLet(source.Span{}, p, personType, ast.NoExprID, true)
 
 	fieldBorrowTarget := builder.Exprs.NewMember(source.Span{}, builder.Exprs.NewIdent(source.Span{}, p), fieldF)
 	fieldBorrow := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRef, fieldBorrowTarget)
@@ -159,6 +159,9 @@ func TestBorrowFieldIndependentMutation(t *testing.T) {
 
 	diags := runSema(t, builder, fileID)
 	if len(diags.Items()) != 0 {
+		for _, item := range diags.Items() {
+			t.Logf("diag: %s -> %s", item.Code, item.Message)
+		}
 		t.Fatalf("expected no diagnostics, got %v", diagCodes(diags))
 	}
 }
@@ -203,9 +206,9 @@ func TestBorrowParentChildConflict(t *testing.T) {
 	builder, fileID := newTestBuilder()
 	p := intern(builder, "p")
 	field := intern(builder, "f")
+	personType := declareStructType(builder, fileID, intern(builder, "Person"), []source.StringID{field})
 
-	init := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0"))
-	stmtP := builder.Stmts.NewLet(source.Span{}, p, ast.NoTypeID, init, true)
+	stmtP := builder.Stmts.NewLet(source.Span{}, p, personType, ast.NoExprID, true)
 
 	wholeBorrow := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRefMut, builder.Exprs.NewIdent(source.Span{}, p))
 	stmtWhole := builder.Stmts.NewLet(source.Span{}, intern(builder, "whole"), ast.NoTypeID, wholeBorrow, false)
@@ -302,6 +305,38 @@ func addFunction(builder *ast.Builder, file ast.FileID, name string, stmts []ast
 		source.Span{},
 	)
 	builder.PushItem(file, item)
+}
+
+func declareStructType(builder *ast.Builder, file ast.FileID, typeName source.StringID, fields []source.StringID) ast.TypeID {
+	if builder == nil || typeName == source.NoStringID {
+		return ast.NoTypeID
+	}
+	intName := intern(builder, "int")
+	intType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intName}})
+	specs := make([]ast.TypeStructFieldSpec, 0, len(fields))
+	for _, field := range fields {
+		specs = append(specs, ast.TypeStructFieldSpec{Name: field, Type: intType})
+	}
+	item := builder.NewTypeStruct(
+		typeName,
+		nil,
+		nil,
+		false,
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		nil,
+		ast.VisPrivate,
+		ast.NoTypeID,
+		specs,
+		nil,
+		false,
+		source.Span{},
+		source.Span{},
+	)
+	builder.PushItem(file, item)
+	return builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: typeName}})
 }
 
 func runSema(t *testing.T, builder *ast.Builder, file ast.FileID) *diag.Bag {

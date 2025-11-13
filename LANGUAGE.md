@@ -137,6 +137,8 @@ Generic parameters must be declared explicitly with angle brackets: `<T, U, ...>
 * **Struct:** `type Person = { age:int, name:string, @readonly weight:float }`.
 
   * Fields are immutable unless variable is `mut`. `@readonly` forbids writes even through `mut` bindings.
+  * Struct literals may specify the type inline: `let p = Person { age: 25, name: "Alex" };`. The parser only treats `TypeName { ... }` as a typed literal when `TypeName` follows the CamelCase convention so that `while ready { ... }` still parses as a control-flow block.
+  * When the type is known (either via `TypeName { ... }` or an explicit annotation on the binding), the short `{expr1, expr2}` form is allowed; expressions are matched to fields in declaration order. Wrap identifier expressions in parentheses (`{(ageVar), computeName()}`) when using positional literals so they are not mistaken for field names.
 * **Literal enums:** `type Color = "black" | "white";` Only the listed literals are allowed values.
 * **Type alias:** `type Number = int | float;` a type that admits any member type; overload resolution uses the best matching member (§8).
 

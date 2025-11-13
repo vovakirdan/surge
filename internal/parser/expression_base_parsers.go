@@ -1,6 +1,9 @@
 package parser
 
 import (
+	"unicode"
+	"unicode/utf8"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
@@ -10,14 +13,37 @@ import (
 
 // parseIdentExpr парсит выражение-идентификатор
 func (p *Parser) parseIdentExpr() (ast.ExprID, bool) {
+	return p.parseIdentOrStructLiteral()
+}
+
+// parseIdentOrStructLiteral parses either a plain identifier expression or a typed struct literal.
+func (p *Parser) parseIdentOrStructLiteral() (ast.ExprID, bool) {
 	tok := p.advance()
 	if tok.Kind != token.Ident {
 		p.err(diag.SynExpectIdentifier, "expected identifier")
 		return ast.NoExprID, false
 	}
-
 	nameID := p.arenas.StringsInterner.Intern(tok.Text)
+	if p.isTypeLiteralName(tok.Text) && p.at(token.LBrace) {
+		segments := []ast.TypePathSegment{{
+			Name:     nameID,
+			Generics: nil,
+		}}
+		typeID := p.arenas.Types.NewPath(tok.Span, segments)
+		return p.parseStructLiteral(typeID, tok.Span)
+	}
 	return p.arenas.Exprs.NewIdent(tok.Span, nameID), true
+}
+
+func (p *Parser) isTypeLiteralName(name string) bool {
+	if name == "" {
+		return false
+	}
+	r, _ := utf8.DecodeRuneInString(name)
+	if r == utf8.RuneError {
+		return false
+	}
+	return unicode.IsUpper(r)
 }
 
 // parseNumericLiteral парсит числовые литералы

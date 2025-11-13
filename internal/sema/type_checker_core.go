@@ -7,6 +7,11 @@ import (
 	"surge/internal/types"
 )
 
+type typeCacheKey struct {
+	Type  ast.TypeID
+	Scope symbols.ScopeID
+}
+
 type typeChecker struct {
 	builder  *ast.Builder
 	fileID   ast.FileID
@@ -23,6 +28,9 @@ type typeChecker struct {
 	scopeByStmt   map[ast.StmtID]symbols.ScopeID
 	stmtSymbols   map[ast.StmtID]symbols.SymbolID
 	bindingBorrow map[symbols.SymbolID]BorrowID
+	bindingTypes  map[symbols.SymbolID]types.TypeID
+	typeItems     map[ast.ItemID]types.TypeID
+	typeCache     map[typeCacheKey]types.TypeID
 }
 
 func (tc *typeChecker) run() {
@@ -34,10 +42,15 @@ func (tc *typeChecker) run() {
 	tc.buildSymbolIndex()
 	tc.borrow = NewBorrowTable()
 	tc.bindingBorrow = make(map[symbols.SymbolID]BorrowID)
+	tc.bindingTypes = make(map[symbols.SymbolID]types.TypeID)
+	tc.typeItems = make(map[ast.ItemID]types.TypeID)
+	tc.typeCache = make(map[typeCacheKey]types.TypeID)
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {
 		return
 	}
+	tc.registerTypeDecls(file)
+	tc.populateTypeDecls(file)
 	root := tc.fileScope()
 	rootPushed := tc.pushScope(root)
 	for _, itemID := range file.Items {
@@ -57,17 +70,30 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 	switch item.Kind {
 	case ast.ItemLet:
 		letItem, ok := tc.builder.Items.Let(id)
-		if !ok || letItem == nil || !letItem.Value.IsValid() {
+		if !ok || letItem == nil {
 			return
 		}
-		tc.typeExpr(letItem.Value)
+		scope := tc.scopeForItem(id)
+		symID := tc.typeSymbolForItem(id)
+		declaredType := tc.resolveTypeExprWithScope(letItem.Type, scope)
+		if declaredType != types.NoTypeID {
+			tc.setBindingType(symID, declaredType)
+		}
+		if !letItem.Value.IsValid() {
+			return
+		}
+		valueType := tc.typeExpr(letItem.Value)
 		tc.observeMove(letItem.Value, tc.exprSpan(letItem.Value))
+		if declaredType == types.NoTypeID {
+			tc.setBindingType(symID, valueType)
+		}
 		tc.updateItemBinding(id, letItem.Value)
 	case ast.ItemFn:
 		fnItem, ok := tc.builder.Items.Fn(id)
 		if !ok || fnItem == nil || !fnItem.Body.IsValid() {
 			return
 		}
+		tc.registerFnParamTypes(id, fnItem)
 		scope := tc.scopeForItem(id)
 		pushed := tc.pushScope(scope)
 		tc.walkStmt(fnItem.Body)
@@ -97,10 +123,21 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			}
 		}
 	case ast.StmtLet:
-		if letStmt := tc.builder.Stmts.Let(id); letStmt != nil && letStmt.Value.IsValid() {
-			tc.typeExpr(letStmt.Value)
-			tc.observeMove(letStmt.Value, tc.exprSpan(letStmt.Value))
-			tc.updateStmtBinding(id, letStmt.Value)
+		if letStmt := tc.builder.Stmts.Let(id); letStmt != nil {
+			scope := tc.scopeForStmt(id)
+			symID := tc.symbolForStmt(id)
+			declaredType := tc.resolveTypeExprWithScope(letStmt.Type, scope)
+			if declaredType != types.NoTypeID {
+				tc.setBindingType(symID, declaredType)
+			}
+			if letStmt.Value.IsValid() {
+				valueType := tc.typeExpr(letStmt.Value)
+				tc.observeMove(letStmt.Value, tc.exprSpan(letStmt.Value))
+				if declaredType == types.NoTypeID {
+					tc.setBindingType(symID, valueType)
+				}
+				tc.updateStmtBinding(id, letStmt.Value)
+			}
 		}
 	case ast.StmtExpr:
 		if exprStmt := tc.builder.Stmts.Expr(id); exprStmt != nil {
