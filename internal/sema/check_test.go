@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"strings"
 	"testing"
 
 	"surge/internal/ast"
@@ -176,5 +177,45 @@ func TestTypeCheckerStructFieldAccess(t *testing.T) {
 	}
 	if label := res.TypeInterner.MustLookup(memberType).Kind; label != types.KindInt {
 		t.Fatalf("expected member type KindInt, got %v", label)
+	}
+}
+func TestAliasBinaryRequiresMatchingTypes(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	gasName := intern(builder, "Gasoline")
+	stringName := intern(builder, "string")
+
+	stringType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: stringName}})
+	aliasItem := builder.NewTypeAlias(gasName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, stringType, source.Span{})
+	builder.PushItem(fileID, aliasItem)
+
+	gasType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: gasName}})
+
+	aLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "A"))
+	stmtA := builder.Stmts.NewLet(source.Span{}, intern(builder, "a"), gasType, aLit, false)
+
+	bLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "B"))
+	stmtB := builder.Stmts.NewLet(source.Span{}, intern(builder, "b"), gasType, bLit, false)
+
+	aIdent := builder.Exprs.NewIdent(source.Span{}, intern(builder, "a"))
+	bIdent := builder.Exprs.NewIdent(source.Span{}, intern(builder, "b"))
+	sumExpr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryAdd, aIdent, bIdent)
+	stmtGood := builder.Stmts.NewLet(source.Span{}, intern(builder, "fuel"), gasType, sumExpr, false)
+
+	rawLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "raw"))
+	badExpr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryAdd, builder.Exprs.NewIdent(source.Span{}, intern(builder, "a")), rawLit)
+	stmtBad := builder.Stmts.NewLet(source.Span{}, intern(builder, "bad"), gasType, badExpr, false)
+
+	addFunction(builder, fileID, "main", []ast.StmtID{stmtA, stmtB, stmtGood, stmtBad})
+
+	diags := runSema(t, builder, fileID)
+	items := diags.Items()
+	if len(items) != 1 {
+		t.Fatalf("expected one diagnostic, got %v", items)
+	}
+	if items[0].Code != diag.SemaInvalidBinaryOperands {
+		t.Fatalf("expected %v, got %v", diag.SemaInvalidBinaryOperands, items[0].Code)
+	}
+	if !strings.Contains(items[0].Message, "__add") {
+		t.Fatalf("expected message to reference __add, got %q", items[0].Message)
 	}
 }

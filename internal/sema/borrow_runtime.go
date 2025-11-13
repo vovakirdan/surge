@@ -5,7 +5,6 @@ import (
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
-	"surge/internal/types"
 )
 
 type placeDescriptor struct {
@@ -245,13 +244,6 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 	if _, issue := tc.borrow.BeginBorrow(exprID, span, kind, place, scope, parent); issue.Kind != BorrowIssueNone {
 		tc.reportBorrowConflict(place, span, issue, kind)
 	}
-}
-
-func (tc *typeChecker) handleAssignmentIfNeeded(op ast.ExprBinaryOp, left, right ast.ExprID, span source.Span, flags types.BinaryFlags) {
-	if flags&types.BinaryFlagAssignment == 0 {
-		return
-	}
-	tc.handleAssignment(op, left, right, span)
 }
 
 func (tc *typeChecker) handleAssignment(op ast.ExprBinaryOp, left, right ast.ExprID, span source.Span) {

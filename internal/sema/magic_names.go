@@ -55,12 +55,14 @@ func (tc *typeChecker) magicResultForUnary(operand types.TypeID, op ast.ExprUnar
 	if name == "" {
 		return types.NoTypeID
 	}
-	key := tc.typeKeyForType(operand)
-	if key == "" {
-		return types.NoTypeID
-	}
-	if sig := tc.lookupMagicMethod(key, name); sig != nil && tc.signatureMatchesUnary(sig, key) {
-		return tc.typeFromKey(sig.Result)
+	for _, cand := range tc.typeKeyCandidates(operand) {
+		if cand.key == "" {
+			continue
+		}
+		if sig := tc.lookupMagicMethod(cand.key, name); sig != nil && tc.signatureMatchesUnary(sig, cand.key) {
+			res := tc.typeFromKey(sig.Result)
+			return tc.adjustAliasUnaryResult(res, cand)
+		}
 	}
 	return types.NoTypeID
 }
@@ -70,13 +72,31 @@ func (tc *typeChecker) magicResultForBinary(left, right types.TypeID, op ast.Exp
 	if name == "" {
 		return types.NoTypeID
 	}
-	leftKey := tc.typeKeyForType(left)
-	rightKey := tc.typeKeyForType(right)
-	if leftKey == "" || rightKey == "" {
-		return types.NoTypeID
-	}
-	if sig := tc.lookupMagicMethod(leftKey, name); sig != nil && tc.signatureMatchesBinary(sig, leftKey, rightKey) {
-		return tc.typeFromKey(sig.Result)
+	leftCandidates := tc.typeKeyCandidates(left)
+	rightCandidates := tc.typeKeyCandidates(right)
+	for _, lc := range leftCandidates {
+		if lc.key == "" {
+			continue
+		}
+		sig := tc.lookupMagicMethod(lc.key, name)
+		if sig == nil {
+			continue
+		}
+		for _, rc := range rightCandidates {
+			if rc.key == "" {
+				continue
+			}
+			if !tc.signatureMatchesBinary(sig, lc.key, rc.key) {
+				continue
+			}
+			if lc.alias != types.NoTypeID || rc.alias != types.NoTypeID {
+				if !compatibleAliasFallback(lc, rc) {
+					continue
+				}
+			}
+			res := tc.typeFromKey(sig.Result)
+			return tc.adjustAliasBinaryResult(res, lc, rc)
+		}
 	}
 	return types.NoTypeID
 }
@@ -106,6 +126,16 @@ func magicNameForBinaryOp(op ast.ExprBinaryOp) string {
 		return "__div"
 	case ast.ExprBinaryMod:
 		return "__mod"
+	case ast.ExprBinaryBitAnd:
+		return "__bit_and"
+	case ast.ExprBinaryBitOr:
+		return "__bit_or"
+	case ast.ExprBinaryBitXor:
+		return "__bit_xor"
+	case ast.ExprBinaryShiftLeft:
+		return "__shl"
+	case ast.ExprBinaryShiftRight:
+		return "__shr"
 	case ast.ExprBinaryEq:
 		return "__eq"
 	case ast.ExprBinaryNotEq:
@@ -129,6 +159,8 @@ func magicNameForUnaryOp(op ast.ExprUnaryOp) string {
 		return "__pos"
 	case ast.ExprUnaryMinus:
 		return "__neg"
+	case ast.ExprUnaryNot:
+		return "__not"
 	default:
 		return ""
 	}

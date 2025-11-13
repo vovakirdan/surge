@@ -10,6 +10,11 @@ extern<int> {
     @intrinsic fn __mul(self: int, other: int) -> int;
     @intrinsic fn __div(self: int, other: int) -> int;
     @intrinsic fn __mod(self: int, other: int) -> int;
+    @intrinsic fn __bit_and(self: int, other: int) -> int;
+    @intrinsic fn __bit_or(self: int, other: int) -> int;
+    @intrinsic fn __bit_xor(self: int, other: int) -> int;
+    @intrinsic fn __shl(self: int, other: int) -> int;
+    @intrinsic fn __shr(self: int, other: int) -> int;
     @intrinsic fn __lt(self: int, other: int) -> bool;
     @intrinsic fn __le(self: int, other: int) -> bool;
     @intrinsic fn __eq(self: int, other: int) -> bool;
@@ -27,6 +32,11 @@ extern<uint> {
     @intrinsic fn __mul(self: uint, other: uint) -> uint;
     @intrinsic fn __div(self: uint, other: uint) -> uint;
     @intrinsic fn __mod(self: uint, other: uint) -> uint;
+    @intrinsic fn __bit_and(self: uint, other: uint) -> uint;
+    @intrinsic fn __bit_or(self: uint, other: uint) -> uint;
+    @intrinsic fn __bit_xor(self: uint, other: uint) -> uint;
+    @intrinsic fn __shl(self: uint, other: uint) -> uint;
+    @intrinsic fn __shr(self: uint, other: uint) -> uint;
     @intrinsic fn __lt(self: uint, other: uint) -> bool;
     @intrinsic fn __le(self: uint, other: uint) -> bool;
     @intrinsic fn __eq(self: uint, other: uint) -> bool;
@@ -55,6 +65,8 @@ extern<float> {
 
 extern<string> {
     @intrinsic fn __add(self: string, other: string) -> string;
+    @intrinsic fn __mul(self: string, other: int) -> string;
+    @overload fn __mul(self: string, other: uint) -> string;
     @intrinsic fn __eq(self: string, other: string) -> bool;
     @intrinsic fn __ne(self: string, other: string) -> bool;
     @intrinsic fn __to_string(self: string) -> string;
@@ -64,4 +76,5 @@ extern<bool> {
     @intrinsic fn __eq(self: bool, other: bool) -> bool;
     @intrinsic fn __ne(self: bool, other: bool) -> bool;
     @intrinsic fn __to_string(self: bool) -> string;
+    @intrinsic fn __not(self: bool) -> bool;
 }

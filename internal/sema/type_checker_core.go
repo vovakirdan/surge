@@ -31,6 +31,7 @@ type typeChecker struct {
 	bindingTypes  map[symbols.SymbolID]types.TypeID
 	typeItems     map[ast.ItemID]types.TypeID
 	typeCache     map[typeCacheKey]types.TypeID
+	typeKeys      map[string]types.TypeID
 }
 
 func (tc *typeChecker) run() {
@@ -38,6 +39,7 @@ func (tc *typeChecker) run() {
 		return
 	}
 	tc.buildMagicIndex()
+	tc.ensureBuiltinMagic()
 	tc.buildScopeIndex()
 	tc.buildSymbolIndex()
 	tc.borrow = NewBorrowTable()
@@ -45,6 +47,7 @@ func (tc *typeChecker) run() {
 	tc.bindingTypes = make(map[symbols.SymbolID]types.TypeID)
 	tc.typeItems = make(map[ast.ItemID]types.TypeID)
 	tc.typeCache = make(map[typeCacheKey]types.TypeID)
+	tc.typeKeys = make(map[string]types.TypeID)
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {
 		return

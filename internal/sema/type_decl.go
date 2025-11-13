@@ -41,6 +41,11 @@ func (tc *typeChecker) registerTypeDecls(file *ast.File) {
 			continue
 		}
 		tc.typeItems[itemID] = typeID
+		if tc.typeKeys != nil {
+			if name := tc.lookupName(typeItem.Name); name != "" {
+				tc.typeKeys[name] = typeID
+			}
+		}
 		if symID := tc.typeSymbolForItem(itemID); symID.IsValid() {
 			tc.assignSymbolType(symID, typeID)
 		}

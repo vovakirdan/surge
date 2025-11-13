@@ -580,7 +580,7 @@ func (p *Parser) parseStructLiteral(typeID ast.TypeID, typeSpan source.Span) (as
 
 func (p *Parser) resyncStructLiteralField() {
 	p.resyncUntil(token.Comma, token.RBrace, token.Semicolon, token.EOF)
-	if p.at(token.Comma) {
+	if p.at(token.Comma) || p.at(token.Semicolon) {
 		p.advance()
 	}
 }

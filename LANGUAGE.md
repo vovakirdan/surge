@@ -678,7 +678,7 @@ Each file is a module. Folder hierarchy maps to module paths.
 // Safe-navigation (?.) is not part of Surge; prefer compare for Option
 ```
 
-**How operators are implemented.** Every primitive that participates in one of the operators above must expose the matching magic method inside an `extern<T>` block. The standard library ships those implementations in `core/intrinsics.sg`: each method is marked `@intrinsic` so the compiler can lower it straight to the runtime. For example, integer addition is defined as
+**How operators are implemented.** Every primitive that participates in one of the operators above must expose the matching magic method inside an `extern<T>` block. The standard library ships those implementations in `core/intrinsics.sg`: each method is marked `@intrinsic` so the compiler can lower it straight to the runtime. Sema never assumes the result type of `int + int` or `string * uint`—it always resolves the magic method on the left operand (following alias inheritance rules) and uses that signature as the single source of truth. If no method exists, the operator is rejected with `SemaInvalidBinaryOperands`. For example, integer addition is defined as
 
 ```sg
 extern<int> {

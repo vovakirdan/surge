@@ -177,43 +177,28 @@ func (tc *typeChecker) literalType(kind ast.ExprLitKind) types.TypeID {
 
 func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.ExprUnaryData) types.TypeID {
 	operandType := tc.typeExpr(data.Operand)
-	spec, ok := types.UnarySpecFor(data.Op)
-	if !ok {
-		return operandType
-	}
-	if operandType == types.NoTypeID && spec.Result != types.UnaryResultReference {
-		return types.NoTypeID
-	}
-	family := tc.familyOf(operandType)
-	if spec.Result != types.UnaryResultReference && !tc.familyMatches(family, spec.Operand) {
-		tc.report(diag.SemaInvalidUnaryOperand, span, "operator %s cannot be applied to %s", tc.unaryOpLabel(data.Op), tc.typeLabel(operandType))
-		return types.NoTypeID
-	}
-	if magic := tc.magicResultForUnary(operandType, data.Op); magic != types.NoTypeID {
-		return magic
-	}
-	switch spec.Result {
-	case types.UnaryResultNumeric, types.UnaryResultSame:
-		return operandType
-	case types.UnaryResultBool:
-		return tc.types.Builtins().Bool
-	case types.UnaryResultReference:
+	switch data.Op {
+	case ast.ExprUnaryRef, ast.ExprUnaryRefMut:
 		tc.handleBorrow(exprID, span, data.Op, data.Operand)
 		if operandType == types.NoTypeID {
 			return types.NoTypeID
 		}
 		mutable := data.Op == ast.ExprUnaryRefMut
 		return tc.types.Intern(types.MakeReference(operandType, mutable))
-	case types.UnaryResultDeref:
+	case ast.ExprUnaryDeref:
 		elem, ok := tc.elementType(operandType)
 		if !ok {
 			tc.report(diag.SemaInvalidUnaryOperand, span, "cannot dereference %s", tc.typeLabel(operandType))
 			return types.NoTypeID
 		}
 		return elem
-	case types.UnaryResultAwait:
+	case ast.ExprUnaryAwait, ast.ExprUnaryOwn:
 		return operandType
 	default:
+		if magic := tc.magicResultForUnary(operandType, data.Op); magic != types.NoTypeID {
+			return magic
+		}
+		tc.reportMissingUnaryMethod(data.Op, operandType, span)
 		return types.NoTypeID
 	}
 }
@@ -221,60 +206,64 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast.ExprBinaryData) types.TypeID {
 	leftType := tc.typeExpr(data.Left)
 	rightType := tc.typeExpr(data.Right)
+	if data.Op == ast.ExprBinaryAssign {
+		tc.handleAssignment(data.Op, data.Left, data.Right, span)
+		return leftType
+	}
+	if baseOp, ok := tc.assignmentBaseOp(data.Op); ok {
+		return tc.typeCompoundAssignment(baseOp, data.Op, span, data.Left, data.Right, leftType, rightType)
+	}
+	if magic := tc.magicResultForBinary(leftType, rightType, data.Op); magic != types.NoTypeID {
+		return magic
+	}
+	return tc.typeBinaryFallback(span, data, leftType, rightType)
+}
+
+func (tc *typeChecker) typeCompoundAssignment(baseOp, fullOp ast.ExprBinaryOp, span source.Span, leftExpr, rightExpr ast.ExprID, leftType, rightType types.TypeID) types.TypeID {
+	if leftType == types.NoTypeID || rightType == types.NoTypeID {
+		return types.NoTypeID
+	}
+	result := tc.magicResultForBinary(leftType, rightType, baseOp)
+	if result == types.NoTypeID {
+		tc.reportMissingBinaryMethod(fullOp, leftType, rightType, span)
+		return types.NoTypeID
+	}
+	if !tc.sameType(leftType, result) {
+		tc.report(diag.SemaTypeMismatch, span, "operator %s changes type from %s to %s", tc.binaryOpLabel(fullOp), tc.typeLabel(leftType), tc.typeLabel(result))
+		return types.NoTypeID
+	}
+	tc.handleAssignment(fullOp, leftExpr, rightExpr, span)
+	return leftType
+}
+
+func (tc *typeChecker) typeBinaryFallback(span source.Span, data *ast.ExprBinaryData, leftType, rightType types.TypeID) types.TypeID {
 	specs := types.BinarySpecs(data.Op)
 	if len(specs) == 0 {
+		tc.reportMissingBinaryMethod(data.Op, leftType, rightType, span)
 		return types.NoTypeID
 	}
 	leftFamily := tc.familyOf(leftType)
 	rightFamily := tc.familyOf(rightType)
 	for _, spec := range specs {
-		assign := spec.Flags&types.BinaryFlagAssignment != 0
-		if !assign {
-			if leftType == types.NoTypeID || rightType == types.NoTypeID {
-				continue
-			}
-			if !tc.familyMatches(leftFamily, spec.Left) || !tc.familyMatches(rightFamily, spec.Right) {
-				continue
-			}
-			if spec.Flags&types.BinaryFlagSameFamily != 0 && leftFamily != rightFamily {
-				continue
-			}
+		if leftType == types.NoTypeID || rightType == types.NoTypeID {
+			continue
+		}
+		if !tc.familyMatches(leftFamily, spec.Left) || !tc.familyMatches(rightFamily, spec.Right) {
+			continue
 		}
 		switch spec.Result {
 		case types.BinaryResultLeft:
-			tc.handleAssignmentIfNeeded(data.Op, data.Left, data.Right, span, spec.Flags)
 			return leftType
 		case types.BinaryResultRight:
-			tc.handleAssignmentIfNeeded(data.Op, data.Left, data.Right, span, spec.Flags)
 			return rightType
 		case types.BinaryResultBool:
-			tc.handleAssignmentIfNeeded(data.Op, data.Left, data.Right, span, spec.Flags)
 			return tc.types.Builtins().Bool
-		case types.BinaryResultNumeric:
-			tc.handleAssignmentIfNeeded(data.Op, data.Left, data.Right, span, spec.Flags)
-			return tc.pickNumericResult(leftType, rightType)
 		case types.BinaryResultRange:
-			tc.handleAssignmentIfNeeded(data.Op, data.Left, data.Right, span, spec.Flags)
-			return types.NoTypeID
-		default:
 			return types.NoTypeID
 		}
 	}
-	if magic := tc.magicResultForBinary(leftType, rightType, data.Op); magic != types.NoTypeID {
-		return magic
-	}
-	tc.report(diag.SemaInvalidBinaryOperands, span, "operator %s is not defined for %s and %s", tc.binaryOpLabel(data.Op), tc.typeLabel(leftType), tc.typeLabel(rightType))
+	tc.report(diag.SemaInvalidBinaryOperands, span, "operator %s cannot be applied to %s and %s", tc.binaryOpLabel(data.Op), tc.typeLabel(leftType), tc.typeLabel(rightType))
 	return types.NoTypeID
-}
-
-func (tc *typeChecker) pickNumericResult(left, right types.TypeID) types.TypeID {
-	if left != types.NoTypeID {
-		return left
-	}
-	if right != types.NoTypeID {
-		return right
-	}
-	return tc.types.Builtins().Int
 }
 
 func (tc *typeChecker) elementType(id types.TypeID) (types.TypeID, bool) {
@@ -431,6 +420,38 @@ func (tc *typeChecker) binaryOpLabel(op ast.ExprBinaryOp) string {
 		return "<<"
 	case ast.ExprBinaryShiftRight:
 		return ">>"
+	case ast.ExprBinaryAddAssign:
+		return "+="
+	case ast.ExprBinarySubAssign:
+		return "-="
+	case ast.ExprBinaryMulAssign:
+		return "*="
+	case ast.ExprBinaryDivAssign:
+		return "/="
+	case ast.ExprBinaryModAssign:
+		return "%="
+	case ast.ExprBinaryBitAndAssign:
+		return "&="
+	case ast.ExprBinaryBitOrAssign:
+		return "|="
+	case ast.ExprBinaryBitXorAssign:
+		return "^="
+	case ast.ExprBinaryShlAssign:
+		return "<<="
+	case ast.ExprBinaryShrAssign:
+		return ">>="
+	case ast.ExprBinaryAssign:
+		return "="
+	case ast.ExprBinaryNullCoalescing:
+		return "??"
+	case ast.ExprBinaryRange:
+		return ".."
+	case ast.ExprBinaryRangeInclusive:
+		return "..="
+	case ast.ExprBinaryIs:
+		return "is"
+	case ast.ExprBinaryHeir:
+		return "heir"
 	default:
 		return fmt.Sprintf("op#%d", op)
 	}
@@ -450,6 +471,10 @@ func (tc *typeChecker) unaryOpLabel(op ast.ExprUnaryOp) string {
 		return "&"
 	case ast.ExprUnaryRefMut:
 		return "&mut"
+	case ast.ExprUnaryOwn:
+		return "own"
+	case ast.ExprUnaryAwait:
+		return "await"
 	default:
 		return fmt.Sprintf("op#%d", op)
 	}
@@ -482,9 +507,22 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 		return symbols.TypeKey("nothing")
 	case types.KindUnit:
 		return symbols.TypeKey("unit")
+	case types.KindStruct:
+		if info, ok := tc.types.StructInfo(id); ok && info != nil {
+			if name := tc.lookupName(info.Name); name != "" {
+				return symbols.TypeKey(name)
+			}
+		}
+	case types.KindAlias:
+		if info, ok := tc.types.AliasInfo(id); ok && info != nil {
+			if name := tc.lookupName(info.Name); name != "" {
+				return symbols.TypeKey(name)
+			}
+		}
 	default:
 		return ""
 	}
+	return ""
 }
 
 func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
@@ -507,6 +545,73 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 	case "unit":
 		return tc.types.Builtins().Unit
 	default:
+		if tc.typeKeys != nil {
+			if ty := tc.typeKeys[string(key)]; ty != types.NoTypeID {
+				return ty
+			}
+		}
 		return types.NoTypeID
 	}
+}
+
+func binaryAssignmentBaseOp(op ast.ExprBinaryOp) (ast.ExprBinaryOp, bool) {
+	switch op {
+	case ast.ExprBinaryAddAssign:
+		return ast.ExprBinaryAdd, true
+	case ast.ExprBinarySubAssign:
+		return ast.ExprBinarySub, true
+	case ast.ExprBinaryMulAssign:
+		return ast.ExprBinaryMul, true
+	case ast.ExprBinaryDivAssign:
+		return ast.ExprBinaryDiv, true
+	case ast.ExprBinaryModAssign:
+		return ast.ExprBinaryMod, true
+	case ast.ExprBinaryBitAndAssign:
+		return ast.ExprBinaryBitAnd, true
+	case ast.ExprBinaryBitOrAssign:
+		return ast.ExprBinaryBitOr, true
+	case ast.ExprBinaryBitXorAssign:
+		return ast.ExprBinaryBitXor, true
+	case ast.ExprBinaryShlAssign:
+		return ast.ExprBinaryShiftLeft, true
+	case ast.ExprBinaryShrAssign:
+		return ast.ExprBinaryShiftRight, true
+	default:
+		return 0, false
+	}
+}
+
+func (tc *typeChecker) assignmentBaseOp(op ast.ExprBinaryOp) (ast.ExprBinaryOp, bool) {
+	return binaryAssignmentBaseOp(op)
+}
+
+func methodNameForBinaryOp(op ast.ExprBinaryOp) string {
+	if base, ok := binaryAssignmentBaseOp(op); ok {
+		op = base
+	}
+	return magicNameForBinaryOp(op)
+}
+
+func (tc *typeChecker) reportMissingBinaryMethod(op ast.ExprBinaryOp, left, right types.TypeID, span source.Span) {
+	name := methodNameForBinaryOp(op)
+	label := tc.binaryOpLabel(op)
+	if name != "" {
+		tc.report(diag.SemaInvalidBinaryOperands, span, "operator %s (%s) is not defined for %s and %s", label, name, tc.typeLabel(left), tc.typeLabel(right))
+		return
+	}
+	tc.report(diag.SemaInvalidBinaryOperands, span, "operator %s is not defined for %s and %s", label, tc.typeLabel(left), tc.typeLabel(right))
+}
+
+func (tc *typeChecker) reportMissingUnaryMethod(op ast.ExprUnaryOp, operand types.TypeID, span source.Span) {
+	name := magicNameForUnaryOp(op)
+	label := tc.unaryOpLabel(op)
+	if name != "" {
+		tc.report(diag.SemaInvalidUnaryOperand, span, "operator %s (%s) is not defined for %s", label, name, tc.typeLabel(operand))
+		return
+	}
+	tc.report(diag.SemaInvalidUnaryOperand, span, "operator %s is not defined for %s", label, tc.typeLabel(operand))
+}
+
+func (tc *typeChecker) sameType(a, b types.TypeID) bool {
+	return a == b
 }
