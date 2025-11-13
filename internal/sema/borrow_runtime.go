@@ -389,6 +389,24 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 	}
 }
 
+func (tc *typeChecker) handleDrop(expr ast.ExprID, span source.Span) {
+	tc.typeExpr(expr)
+	symID := tc.symbolForExpr(expr)
+	if !symID.IsValid() {
+		tc.report(diag.SemaBorrowNonAddressable, span, "drop target must be a binding")
+		return
+	}
+	bid := tc.bindingBorrow[symID]
+	if bid == NoBorrowID {
+		tc.report(diag.SemaBorrowDropInvalid, span, "no active borrow to drop")
+		return
+	}
+	if tc.borrow != nil {
+		tc.borrow.DropBorrow(bid)
+	}
+	tc.bindingBorrow[symID] = NoBorrowID
+}
+
 func (tc *typeChecker) symbolFromID(id symbols.SymbolID) *symbols.Symbol {
 	if tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Symbols == nil {
 		return nil

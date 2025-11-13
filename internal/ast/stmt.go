@@ -16,6 +16,7 @@ const (
 	StmtWhile
 	StmtForClassic
 	StmtForIn
+	StmtDrop
 )
 
 type Stmt struct {
@@ -37,6 +38,7 @@ type Stmts struct {
 	Whiles      *Arena[WhileStmt]
 	ClassicFors *Arena[ForClassicStmt]
 	ForIns      *Arena[ForInStmt]
+	Drops       *Arena[DropStmt]
 }
 
 // NewStmts creates and returns a new Stmts populated with internal arenas.
@@ -58,6 +60,7 @@ func NewStmts(capHint uint) *Stmts {
 		Whiles:      NewArena[WhileStmt](capHint),
 		ClassicFors: NewArena[ForClassicStmt](capHint),
 		ForIns:      NewArena[ForInStmt](capHint),
+		Drops:       NewArena[DropStmt](capHint),
 	}
 }
 
@@ -85,6 +88,10 @@ type LetStmt struct {
 }
 
 type ExprStmt struct {
+	Expr ExprID
+}
+
+type DropStmt struct {
 	Expr ExprID
 }
 
@@ -169,6 +176,21 @@ func (s *Stmts) Expr(id StmtID) *ExprStmt {
 		return nil
 	}
 	return s.Exprs.Get(uint32(stmt.Payload))
+}
+
+func (s *Stmts) NewDrop(span source.Span, expr ExprID) StmtID {
+	payload := PayloadID(s.Drops.Allocate(DropStmt{
+		Expr: expr,
+	}))
+	return s.New(StmtDrop, span, payload)
+}
+
+func (s *Stmts) Drop(id StmtID) *DropStmt {
+	stmt := s.Get(id)
+	if stmt == nil || stmt.Kind != StmtDrop || !stmt.Payload.IsValid() {
+		return nil
+	}
+	return s.Drops.Get(uint32(stmt.Payload))
 }
 
 func (s *Stmts) NewSignal(span source.Span, name source.StringID, value ExprID) StmtID {

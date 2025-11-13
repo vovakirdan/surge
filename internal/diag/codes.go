@@ -88,6 +88,7 @@ const (
 	SemaBorrowThreadEscape    Code = 3021
 	SemaBorrowImmutable       Code = 3022
 	SemaBorrowNonAddressable  Code = 3023
+	SemaBorrowDropInvalid     Code = 3024
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -180,6 +181,7 @@ var ( // todo расширить описания и использовать к
 		SemaBorrowThreadEscape:      "Borrow escapes thread boundary",
 		SemaBorrowImmutable:         "Cannot take mutable borrow of immutable value",
 		SemaBorrowNonAddressable:    "Expression is not addressable",
+		SemaBorrowDropInvalid:       "Drop target has no active borrow",
 		IOLoadFileError:             "I/O load file error",
 		ProjInfo:                    "Project information",
 		ProjDuplicateModule:         "Duplicate module definition",

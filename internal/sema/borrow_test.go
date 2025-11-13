@@ -222,6 +222,47 @@ func TestBorrowParentChildConflict(t *testing.T) {
 	}
 }
 
+func TestDropReleasesBorrow(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	name := intern(builder, "x")
+	ref := intern(builder, "r")
+
+	init := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0"))
+	stmtLet := builder.Stmts.NewLet(source.Span{}, name, ast.NoTypeID, init, true)
+	borrow := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRef, builder.Exprs.NewIdent(source.Span{}, name))
+	stmtBorrow := builder.Stmts.NewLet(source.Span{}, ref, ast.NoTypeID, borrow, false)
+	stmtDrop := builder.Stmts.NewDrop(source.Span{}, builder.Exprs.NewIdent(source.Span{}, ref))
+	assign := builder.Exprs.NewBinary(
+		source.Span{},
+		ast.ExprBinaryAssign,
+		builder.Exprs.NewIdent(source.Span{}, name),
+		builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1")),
+	)
+	stmtAssign := builder.Stmts.NewExpr(source.Span{}, assign)
+
+	addFunction(builder, fileID, "main", []ast.StmtID{stmtLet, stmtBorrow, stmtDrop, stmtAssign})
+
+	diags := runSema(t, builder, fileID)
+	if len(diags.Items()) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diagCodes(diags))
+	}
+}
+
+func TestDropWithoutBorrowErrors(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	ref := intern(builder, "r")
+
+	stmtLet := builder.Stmts.NewLet(source.Span{}, ref, ast.NoTypeID, builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0")), false)
+	stmtDrop := builder.Stmts.NewDrop(source.Span{}, builder.Exprs.NewIdent(source.Span{}, ref))
+
+	addFunction(builder, fileID, "main", []ast.StmtID{stmtLet, stmtDrop})
+
+	diags := runSema(t, builder, fileID)
+	if !hasCode(diags, diag.SemaBorrowDropInvalid) {
+		t.Fatalf("expected %v diagnostic, got %v", diag.SemaBorrowDropInvalid, diagCodes(diags))
+	}
+}
+
 func newTestBuilder() (*ast.Builder, ast.FileID) {
 	builder := ast.NewBuilder(ast.Hints{}, nil)
 	fileID := builder.Files.New(source.Span{})

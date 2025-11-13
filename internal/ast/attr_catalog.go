@@ -17,6 +17,7 @@ const (
 	AttrTargetType                             // type declarations (struct/union/alias/newtype)
 	AttrTargetField                            // struct fields
 	AttrTargetParam                            // parameters (function/formal parameters)
+	AttrTargetStmt                             // statement-level attributes (e.g. expression statements)
 )
 
 // AttrFlag captures special handling rules beyond the basic applicability matrix.
@@ -75,6 +76,7 @@ var attrRegistry = map[string]AttrSpec{
 	"send":          {Name: "send", Targets: AttrTargetType},
 	"nosend":        {Name: "nosend", Targets: AttrTargetType},
 	"nonblocking":   {Name: "nonblocking", Targets: AttrTargetFn},
+	"drop":          {Name: "drop", Targets: AttrTargetStmt},
 }
 
 // LookupAttr returns metadata for the given attribute name (case-insensitive).

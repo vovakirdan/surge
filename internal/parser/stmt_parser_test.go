@@ -157,6 +157,42 @@ fn foo() -> int { return 42; }
 	}
 }
 
+func TestParseDropStatement(t *testing.T) {
+	input := `
+fn foo() {
+    let x = 1;
+    @drop x;
+}
+`
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diagnosticsSummary(bag))
+	}
+	file := builder.Files.Get(fileID)
+	if file == nil || len(file.Items) == 0 {
+		t.Fatalf("expected function item in file")
+	}
+	item := builder.Items.Get(file.Items[0])
+	if item == nil || item.Kind != ast.ItemFn {
+		t.Fatalf("expected function item")
+	}
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok || fnItem == nil {
+		t.Fatalf("expected fn payload")
+	}
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil || len(block.Stmts) != 2 {
+		t.Fatalf("expected two statements in block, got %d", len(block.Stmts))
+	}
+	dropStmt := builder.Stmts.Get(block.Stmts[1])
+	if dropStmt == nil || dropStmt.Kind != ast.StmtDrop {
+		t.Fatalf("expected drop statement, got %v", dropStmt)
+	}
+	if drop := builder.Stmts.Drop(block.Stmts[1]); drop == nil || !drop.Expr.IsValid() {
+		t.Fatalf("expected drop payload")
+	}
+}
+
 func TestDirectiveIgnoresNonDirectiveDocComment(t *testing.T) {
 	input := `
 /// Note: returns 42

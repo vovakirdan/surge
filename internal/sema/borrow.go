@@ -395,3 +395,31 @@ func dropBorrowID(ids []BorrowID, target BorrowID) []BorrowID {
 	}
 	return ids
 }
+
+func (bt *BorrowTable) DropBorrow(id BorrowID) {
+	if bt == nil || id == NoBorrowID {
+		return
+	}
+	info := bt.Info(id)
+	if info == nil || !info.Place.IsValid() {
+		return
+	}
+	state := bt.placeState[info.Place]
+	switch info.Kind {
+	case BorrowShared:
+		state.shared = dropBorrowID(state.shared, id)
+	case BorrowMut:
+		if state.mut == id {
+			state.mut = NoBorrowID
+		}
+	}
+	if len(state.shared) == 0 && state.mut == NoBorrowID {
+		delete(bt.placeState, info.Place)
+	} else {
+		bt.placeState[info.Place] = state
+	}
+	delete(bt.exprBorrow, info.Life.FromExpr)
+	if scopeList := bt.scopeBorrows[info.Life.ToScope]; len(scopeList) > 0 {
+		bt.scopeBorrows[info.Life.ToScope] = dropBorrowID(scopeList, id)
+	}
+}

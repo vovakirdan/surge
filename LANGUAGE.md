@@ -101,7 +101,7 @@ Borrowing rules:
 
 * While a `&mut T` exists, no other `&` or `&mut` borrows to the same value may exist.
 * While any `&T` borrows exist, mutation of the underlying value is forbidden (the value is frozen).
-* Lifetimes are lexical; the compiler emits diagnostics for aliasing violations.
+* Lifetimes are lexical; the compiler emits diagnostics for aliasing violations. When you need to end a borrow early, use `@drop binding;` — it marks the specific expression statement as a drop point and releases the corresponding borrow before the end of the enclosing block.
 
 **Moves & Copies:**
 
@@ -450,6 +450,7 @@ Attributes are a **closed set** provided by the language. User-defined attribute
 * `@send` *(type)* — type can be safely transferred between tasks/threads (move-safe). Conflicts with `@nosend`.
 * `@nosend` *(type)* — type is forbidden from being transferred between tasks/threads. Conflicts with `@send`.
 * `@nonblocking` *(fn)* — function performs no blocking waits. Conflicts with `@waits_on`.
+* `@drop` *(statement expression)* — terminates the lifetime of the borrowed binding specified in the expression immediately. Only valid on expression statements (`@drop expr;`) and takes no arguments.
 
 All string parameters (`"lock"`, `"cond"`) must be **field names or parameter names**, not expressions or function calls.
 
@@ -459,32 +460,33 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 
 #### Applicability Matrix
 
-| Attribute        |  Fn | Block | Type | Field | Param |
-| ---------------- | :-: | :---: | :--: | :---: | :---: |
-| @pure            |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
-| @overload        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
-| @override        |  ✅* |   ❌   |   ❌  |   ❌   |   ❌   |
-| @intrinsic       |  ✅** |   ❌   |   ❌  |   ❌   |   ❌   |
-| @backend         |  ✅  |   ✅   |   ❌  |   ❌   |   ❌   |
-| @packed          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
-| @align           |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
-| @raii            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |
-| @arena           |  ❌  |   ❌   |   ✅  |   ✅   |   ✅   |
-| @weak            |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
-| @shared          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |
-| @atomic          |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
-| @readonly        |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
-| @hidden          |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
-| @noinherit       |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
-| @sealed          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |
-| @guarded_by      |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |
-| @requires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
-| @acquires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
-| @releases_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
-| @waits_on        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
-| @send            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |
-| @nosend          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |
-| @nonblocking     |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |
+| Attribute        |  Fn | Block | Type | Field | Param | Stmt |
+| ---------------- | :-: | :---: | :--: | :---: | :---: | :--: |
+| @pure            |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
+| @overload        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
+| @override        |  ✅* |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
+| @intrinsic       |  ✅** |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
+| @backend         |  ✅  |   ✅   |   ❌  |   ❌   |   ❌   |  ❌  |
+| @packed          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
+| @align           |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
+| @raii            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |
+| @arena           |  ❌  |   ❌   |   ✅  |   ✅   |   ✅   |  ❌  |
+| @weak            |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
+| @shared          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
+| @atomic          |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
+| @readonly        |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
+| @hidden          |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
+| @noinherit       |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
+| @sealed          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |
+| @guarded_by      |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
+| @requires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
+| @acquires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
+| @releases_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
+| @waits_on        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
+| @send            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |
+| @nosend          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |
+| @nonblocking     |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
+| @drop            |  ❌  |   ❌   |   ❌  |   ❌   |   ❌   |  ✅  |
 
 *`@override` — only within `extern<T>` and `extern<Newtype>` blocks.
 **`@intrinsic` — only on function declarations (FnDecl) without body.

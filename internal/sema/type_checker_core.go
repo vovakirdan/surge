@@ -152,6 +152,10 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		if signal := tc.builder.Stmts.Signal(id); signal != nil {
 			tc.typeExpr(signal.Value)
 		}
+	case ast.StmtDrop:
+		if drop := tc.builder.Stmts.Drop(id); drop != nil {
+			tc.handleDrop(drop.Expr, stmt.Span)
+		}
 	default:
 		// StmtBreak / StmtContinue and others have no expressions to type.
 	}

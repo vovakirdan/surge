@@ -155,33 +155,7 @@ func (p *Parser) parseStmt() (ast.StmtID, bool) {
 		)
 		return p.parseStmt()
 	case token.At:
-		_, attrSpan, ok := p.parseAttributes()
-		if !ok {
-			return ast.NoStmtID, false
-		}
-		p.emitDiagnostic(
-			diag.SynAttributeNotAllowed,
-			diag.SevError,
-			attrSpan,
-			"attributes are not allowed inside blocks",
-			func(b *diag.ReportBuilder) {
-				if b == nil {
-					return
-				}
-				fixID := fix.MakeFixID(diag.SynAttributeNotAllowed, attrSpan)
-				suggestion := fix.DeleteSpan(
-					"remove attribute from statement",
-					attrSpan,
-					"",
-					fix.WithID(fixID),
-					fix.WithKind(diag.FixKindRefactor),
-					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-				)
-				b.WithFixSuggestion(suggestion)
-				b.WithNote(attrSpan, "attributes are restricted to top-level declarations")
-			},
-		)
-		return p.parseStmt()
+		return p.parseAttributedStmt()
 	case token.KwAsync:
 		asyncTok := p.advance()
 		p.emitDiagnostic(
@@ -236,6 +210,102 @@ func (p *Parser) parseStmt() (ast.StmtID, bool) {
 	default:
 		return p.parseExprStmt()
 	}
+}
+
+func (p *Parser) parseAttributedStmt() (ast.StmtID, bool) {
+	attrs, attrSpan, ok := p.parseAttributes()
+	if !ok {
+		return ast.NoStmtID, false
+	}
+	if stmtID, handled := p.tryParseDropStmt(attrs, attrSpan); handled {
+		return stmtID, true
+	}
+	p.emitDiagnostic(
+		diag.SynAttributeNotAllowed,
+		diag.SevError,
+		attrSpan,
+		"attributes are not allowed on statements (except '@drop')",
+		func(b *diag.ReportBuilder) {
+			if b == nil {
+				return
+			}
+			fixID := fix.MakeFixID(diag.SynAttributeNotAllowed, attrSpan)
+			suggestion := fix.DeleteSpan(
+				"remove statement attribute",
+				attrSpan,
+				"",
+				fix.WithID(fixID),
+				fix.WithKind(diag.FixKindRefactor),
+				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+			)
+			b.WithFixSuggestion(suggestion)
+			b.WithNote(attrSpan, "remove unsupported attribute or replace with '@drop'")
+		},
+	)
+	return p.parseStmt()
+}
+
+func (p *Parser) tryParseDropStmt(attrs []ast.Attr, attrSpan source.Span) (ast.StmtID, bool) {
+	if len(attrs) != 1 || p.arenas == nil || p.arenas.StringsInterner == nil {
+		return ast.NoStmtID, false
+	}
+	attr := attrs[0]
+	spec, ok := ast.LookupAttrID(p.arenas.StringsInterner, attr.Name)
+	if !ok || spec.Name != "drop" {
+		return ast.NoStmtID, false
+	}
+	if len(attr.Args) > 0 {
+		p.emitDiagnostic(
+			diag.SynUnexpectedToken,
+			diag.SevError,
+			attr.Span,
+			"'@drop' does not accept arguments",
+			nil,
+		)
+		return ast.NoStmtID, false
+	}
+
+	exprID, ok := p.parseExpr()
+	if !ok {
+		return ast.NoStmtID, true
+	}
+
+	insertSpan := p.lastSpan.ZeroideToEnd()
+	semiTok, semiOK := p.expect(
+		token.Semicolon,
+		diag.SynExpectSemicolon,
+		"expected ';' after @drop expression",
+		func(b *diag.ReportBuilder) {
+			if b == nil {
+				return
+			}
+			fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertSpan)
+			suggestion := fix.InsertText(
+				"insert ';' after @drop expression",
+				insertSpan,
+				";",
+				"",
+				fix.WithID(fixID),
+				fix.WithKind(diag.FixKindRefactor),
+				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+			)
+			b.WithFixSuggestion(suggestion)
+			b.WithNote(insertSpan, "insert missing ';'")
+		},
+	)
+	if !semiOK {
+		return ast.NoStmtID, true
+	}
+
+	stmtSpan := attrSpan
+	if node := p.arenas.Exprs.Get(exprID); node != nil {
+		stmtSpan = stmtSpan.Cover(node.Span)
+	}
+	if semiTok.Kind != token.Invalid {
+		stmtSpan = stmtSpan.Cover(semiTok.Span)
+	}
+	stmtID := p.arenas.Stmts.NewDrop(stmtSpan, exprID)
+	return stmtID, true
 }
 
 func (p *Parser) parseLetStmt() (ast.StmtID, bool) {

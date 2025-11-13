@@ -189,6 +189,10 @@ func (fr *fileResolver) walkStmt(stmtID ast.StmtID) {
 		if signalStmt != nil {
 			fr.walkExpr(signalStmt.Value)
 		}
+	case ast.StmtDrop:
+		if dropStmt := fr.builder.Stmts.Drop(stmtID); dropStmt != nil {
+			fr.walkExpr(dropStmt.Expr)
+		}
 	case ast.StmtReturn:
 		returnStmt := fr.builder.Stmts.Return(stmtID)
 		if returnStmt != nil {
