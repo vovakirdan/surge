@@ -95,6 +95,7 @@ func (tc *typeChecker) leaveScope() {
 	if tc.borrow != nil {
 		tc.borrow.EndScope(top)
 	}
+	tc.releaseScopeBindings(top)
 }
 
 func (tc *typeChecker) currentScope() symbols.ScopeID {
@@ -127,5 +128,24 @@ func (tc *typeChecker) flushBorrowResults() {
 	}
 	if infos := tc.borrow.Infos(); len(infos) > 0 {
 		tc.result.Borrows = infos
+	}
+}
+
+func (tc *typeChecker) releaseScopeBindings(scope symbols.ScopeID) {
+	if tc.bindingBorrow == nil || tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Scopes == nil {
+		return
+	}
+	scopeData := tc.symbols.Table.Scopes.Get(scope)
+	if scopeData == nil {
+		return
+	}
+	for _, symID := range scopeData.Symbols {
+		if symID == symbols.NoSymbolID {
+			continue
+		}
+		if bid := tc.bindingBorrow[symID]; bid != NoBorrowID && tc.borrow != nil {
+			tc.borrow.DropBorrow(bid)
+		}
+		delete(tc.bindingBorrow, symID)
 	}
 }
