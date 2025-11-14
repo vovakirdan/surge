@@ -347,6 +347,100 @@ func checkWithSymbols(t *testing.T, builder *ast.Builder, file ast.FileID) (*Res
 	return &res, &symRes, bag
 }
 
+func TestBinaryIsRequiresTypeOperand(t *testing.T) {
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+	file := builder.Files.New(source.Span{})
+
+	left := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("1"))
+	right := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("2"))
+	isExpr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryIs, left, right)
+	addTopLevelLet(builder, file, isExpr)
+
+	_, _, bag := checkWithSymbols(t, builder, file)
+	items := bag.Items()
+	if len(items) == 0 || items[0].Code != diag.SemaExpectTypeOperand {
+		t.Fatalf("expected %v diagnostic, got %+v", diag.SemaExpectTypeOperand, items)
+	}
+}
+
+func TestBinaryHeirRequiresTypeOperand(t *testing.T) {
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+	file := builder.Files.New(source.Span{})
+
+	left := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("1"))
+	right := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, builder.StringsInterner.Intern("\"s\""))
+	heirExpr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryHeir, left, right)
+	addTopLevelLet(builder, file, heirExpr)
+
+	_, _, bag := checkWithSymbols(t, builder, file)
+	items := bag.Items()
+	if len(items) == 0 || items[0].Code != diag.SemaExpectTypeOperand {
+		t.Fatalf("expected %v diagnostic, got %+v", diag.SemaExpectTypeOperand, items)
+	}
+}
+
+func TestBinaryIsProducesBoolForAlias(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	gasName := intern(builder, "Gasoline")
+	stringName := intern(builder, "string")
+
+	stringType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: stringName}})
+	aliasItem := builder.NewTypeAlias(gasName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, stringType, source.Span{})
+	builder.PushItem(fileID, aliasItem)
+
+	value := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "\"fuel\""))
+	gasType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: gasName}})
+	gasLet := builder.Items.NewLet(intern(builder, "gas"), gasType, value, false, ast.VisPrivate, nil, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{})
+	builder.PushItem(fileID, gasLet)
+
+	gasIdent := builder.Exprs.NewIdent(source.Span{}, intern(builder, "gas"))
+	typeIdent := builder.Exprs.NewIdent(source.Span{}, gasName)
+	isExpr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryIs, gasIdent, typeIdent)
+	addTopLevelLet(builder, fileID, isExpr)
+
+	res, _, bag := checkWithSymbols(t, builder, fileID)
+	if bag.HasErrors() {
+		for _, d := range bag.Items() {
+			t.Logf("diag: %s %s", d.Code, d.Message)
+		}
+		t.Fatalf("unexpected diagnostics: %+v", bag.Items())
+	}
+	if got := res.ExprTypes[isExpr]; got != res.TypeInterner.Builtins().Bool {
+		t.Fatalf("expected bool type, got %v", got)
+	}
+}
+
+func TestBinaryHeirProducesBoolForAliasBase(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	gasName := intern(builder, "Gasoline")
+	stringName := intern(builder, "string")
+
+	stringType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: stringName}})
+	aliasItem := builder.NewTypeAlias(gasName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, stringType, source.Span{})
+	builder.PushItem(fileID, aliasItem)
+
+	value := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "\"fuel\""))
+	gasType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: gasName}})
+	gasLet := builder.Items.NewLet(intern(builder, "gas"), gasType, value, false, ast.VisPrivate, nil, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{})
+	builder.PushItem(fileID, gasLet)
+
+	gasIdent := builder.Exprs.NewIdent(source.Span{}, intern(builder, "gas"))
+	typeIdent := builder.Exprs.NewIdent(source.Span{}, stringName)
+	heirExpr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryHeir, gasIdent, typeIdent)
+	addTopLevelLet(builder, fileID, heirExpr)
+
+	res, _, bag := checkWithSymbols(t, builder, fileID)
+	if bag.HasErrors() {
+		for _, d := range bag.Items() {
+			t.Logf("diag: %s %s", d.Code, d.Message)
+		}
+		t.Fatalf("unexpected diagnostics: %+v", bag.Items())
+	}
+	if got := res.ExprTypes[heirExpr]; got != res.TypeInterner.Builtins().Bool {
+		t.Fatalf("expected bool type, got %v", got)
+	}
+}
+
 func TestLetTypeMismatchProvidesFixes(t *testing.T) {
 	builder := ast.NewBuilder(ast.Hints{}, nil)
 	fileSpan := source.Span{File: source.FileID(1), Start: 0, End: 32}

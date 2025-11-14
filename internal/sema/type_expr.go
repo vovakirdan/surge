@@ -216,11 +216,17 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 
 func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast.ExprBinaryData) types.TypeID {
 	leftType := tc.typeExpr(data.Left)
-	rightType := tc.typeExpr(data.Right)
 	if data.Op == ast.ExprBinaryAssign {
 		tc.handleAssignment(data.Op, data.Left, data.Right, span)
 		return leftType
 	}
+	switch data.Op {
+	case ast.ExprBinaryIs:
+		return tc.typeIsExpr(leftType, data.Right, span, data.Op)
+	case ast.ExprBinaryHeir:
+		return tc.typeHeirExpr(leftType, data.Right, span, data.Op)
+	}
+	rightType := tc.typeExpr(data.Right)
 	if baseOp, ok := tc.assignmentBaseOp(data.Op); ok {
 		return tc.typeCompoundAssignment(baseOp, data.Op, span, data.Left, data.Right, leftType, rightType)
 	}
@@ -228,6 +234,60 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 		return magic
 	}
 	return tc.typeBinaryFallback(span, data, leftType, rightType)
+}
+
+func (tc *typeChecker) typeIsExpr(leftType types.TypeID, rightExpr ast.ExprID, span source.Span, op ast.ExprBinaryOp) types.TypeID {
+	_, _ = tc.resolveTypeOperand(rightExpr, op)
+	if leftType == types.NoTypeID {
+		return types.NoTypeID
+	}
+	return tc.types.Builtins().Bool
+}
+
+func (tc *typeChecker) typeHeirExpr(leftType types.TypeID, rightExpr ast.ExprID, span source.Span, op ast.ExprBinaryOp) types.TypeID {
+	_, _ = tc.resolveTypeOperand(rightExpr, op)
+	if leftType == types.NoTypeID {
+		return types.NoTypeID
+	}
+	return tc.types.Builtins().Bool
+}
+
+func (tc *typeChecker) resolveTypeOperand(exprID ast.ExprID, op ast.ExprBinaryOp) (types.TypeID, bool) {
+	expr := tc.builder.Exprs.Get(exprID)
+	if expr == nil {
+		tc.reportExpectTypeOperand(op, source.Span{})
+		return types.NoTypeID, false
+	}
+	switch expr.Kind {
+	case ast.ExprGroup:
+		if group, ok := tc.builder.Exprs.Group(exprID); ok && group != nil {
+			return tc.resolveTypeOperand(group.Inner, op)
+		}
+	case ast.ExprIdent:
+		if ident, ok := tc.builder.Exprs.Ident(exprID); ok && ident != nil {
+			if symID := tc.symbolForExpr(exprID); symID.IsValid() {
+				if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolType {
+					return sym.Type, true
+				}
+			}
+			literal := tc.lookupName(ident.Name)
+			if builtin := tc.builtinTypeByName(literal); builtin != types.NoTypeID {
+				return builtin, true
+			}
+			scope := tc.scopeOrFile(tc.currentScope())
+			if symID := tc.lookupTypeSymbol(ident.Name, scope); symID.IsValid() {
+				return tc.symbolType(symID), true
+			}
+		}
+	default:
+		// fallthrough to error reporting
+	}
+	tc.reportExpectTypeOperand(op, expr.Span)
+	return types.NoTypeID, false
+}
+
+func (tc *typeChecker) reportExpectTypeOperand(op ast.ExprBinaryOp, span source.Span) {
+	tc.report(diag.SemaExpectTypeOperand, span, "operator %s requires a type operand", tc.binaryOpLabel(op))
 }
 
 func (tc *typeChecker) typeCompoundAssignment(baseOp, fullOp ast.ExprBinaryOp, span source.Span, leftExpr, rightExpr ast.ExprID, leftType, rightType types.TypeID) types.TypeID {
