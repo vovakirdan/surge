@@ -586,17 +586,17 @@ extern<Person> {
 }
 
 extern<Person> {
-  pub fn __to_string(self: &Person) -> string { /* v1 */ }
+  pub fn __to(self: &Person, target: string) -> string { /* v1 */ }
 }
 
 extern<Person> {
   // ✅ OK: maintaining public visibility
   @override
-  pub fn __to_string(self: &Person) -> string { /* v2 */ }
+  pub fn __to(self: &Person, target: string) -> string { /* v2 */ }
   
   // ❌ Error: E_VISIBILITY_REDUCTION
   @override
-  fn __to_string(self: &Person) -> string { /* v3 */ }
+  fn __to(self: &Person, target: string) -> string { /* v3 */ }
 }
 ```
 
@@ -661,7 +661,7 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Indexing: `[]` → `__index __index_set`
 * Unary: `+x -x` → `__pos __neg`
 * Abs: `abs(x)` → `__abs`
-* To-string: used by `print` → `__to_string() -> string`
+* Casting: `expr to Type` → `__to(self, Type)` magic method; `print` simply casts each argument to `string` and concatenates.
 * Range: `for in` → `__range() -> Range<T>` where `Range<T>` yields `T` via `next()`.
 * Result propagation: `expr?` — if `expr` is `Result<T,E>`, yields `T` or returns the value `Error(e)` from the current function (see §11).
 * Compound assignment: `+= -= *= /= %= &= |= ^= <<= >>=` → corresponding operation + assign.
@@ -745,44 +745,40 @@ let c: int16 = a to int16;    // may trap if value > int16 range
 let d: float = 42 to float;   // int→float conversion
 ```
 
-### 6.5. Custom Cast Protocol (`__cast`)
+### 6.5. Custom Cast Protocol (`__to`)
 
-User-defined types can implement custom cast behavior via the `__cast` magic method:
+User-defined types opt into casting by supplying `__to` overloads inside `extern<From>` blocks:
 
 ```sg
 extern<From> {
-  fn __cast<To>(self: From) -> To
+  fn __to(self: From, target: To) -> To
 }
 ```
 
-**Resolution rules:**
+Each target type gets its own overload; primitives in `core/intrinsics.sg` ship `@intrinsic` definitions while user code adds `@overload` bodies. The `to` operator drives resolution:
 
-1. If `From == To` → NOP (no cast needed).
-2. If built-in cast exists → use built-in rule.
-3. Otherwise, search for `__cast<To>` implementation in `extern<From>`.
-4. Multiple implementations → `E_AMBIGUOUS_CAST`.
-5. No implementation found → `E_NO_CAST`.
-
-**Orphan rule:** At least one of `From` or `To` must be local to the current module.
-
-**Overlapping implementations:** Conflicting `__cast` definitions emit `E_CAST_OVERLAP`.
+1. If `From` and `To` (after resolving aliases) are identical, the cast is a no-op.
+2. Built-in numeric rules from §6.4 are consulted first (e.g., dynamic↔fixed conversions).
+3. Otherwise the compiler looks for `__to` on the left operand’s type whose second parameter matches the resolved target type. Alias names participate in the lookup, so `type Gasoline = string` inherits `string -> string` conversions automatically.
+4. Multiple matches yield `E_AMBIGUOUS_CAST`; no match yields `E_NO_CAST`.
 
 **Restrictions:**
-* Direct calls to `__cast` are forbidden; only the `to` operator may invoke it.
-* The `to` operator is the sole interface for casting.
+* Direct calls to `__to` are forbidden; only `expr to Type` may invoke it.
+* Reference and pointer types cannot define or consume casts.
+* Casts never participate in function overload resolution; insert them explicitly when needed.
 
 **Examples:**
 ```sg
 type UserId = uint64;
 
 extern<UserId> {
-  fn __cast<uint64>(self: UserId) -> uint64 {
+  fn __to(self: UserId, target: uint64) -> uint64 {
     return (self: uint64);
   }
 }
 
 extern<uint64> {
-  fn __cast<UserId>(self: uint64) -> UserId {
+  fn __to(self: uint64, target: UserId) -> UserId {
     return (self: UserId);
   }
 }
@@ -954,8 +950,8 @@ async {
 
 ## 10. Standard Library Conventions
 
-* `print(...args)` – variadic, calls `__to_string` on each arg, concatenates with spaces, appends newline.
-* Core protocols provided for primitives and arrays: `__to_string`, `__abs`, numeric ops, comparisons, `__range`, `__index`.
+* `print(...args)` – variadic, casts each argument to `string` via `expr to string`, concatenates with spaces, appends newline.
+* Core protocols provided for primitives and arrays: `__to`, `__abs`, numeric ops, comparisons, `__range`, `__index`.
 * Newtypes can `@override` their magic methods in `extern<NewType>` blocks; built-ins for **primitive** base types are sealed (cannot be overridden for the primitive itself).
 
 ---
@@ -1079,11 +1075,11 @@ let c: int16 = a to int16;    // may trap
 type UserId = uint64;
 
 extern<UserId> {
-  fn __cast<uint64>(self: UserId) -> uint64 { return (self: uint64); }
+  fn __to(self: UserId, target: uint64) -> uint64 { return (self: uint64); }
 }
 
 extern<uint64> {
-  fn __cast<UserId>(self: uint64) -> UserId { return (self: UserId); }
+  fn __to(self: uint64, target: UserId) -> UserId { return (self: UserId); }
 }
 
 let uid: UserId = 42:uint64 to UserId;
@@ -1096,7 +1092,7 @@ type Point2D = { x: float32, y: float32 }
 type Point3D = { x: float32, y: float32, z: float32 = 0.0 }
 
 extern<Point2D> {
-  fn __cast<Point3D>(self: Point2D) -> Point3D {
+  fn __to(self: Point2D, target: Point3D) -> Point3D {
     return { x: self.x, y: self.y, z: 0.0 };
   }
 }
@@ -1865,9 +1861,9 @@ Stable diagnostic codes used by the parser and early semantic checks:
 
 **Cast Operations:**
 
-* `E_NO_CAST(From, To)` — no available cast implementation found from `From` to `To`.
-* `E_AMBIGUOUS_CAST(From, To)` — multiple `__cast` implementations found for the same cast.
-* `E_CAST_OVERLAP(From, To)` — conflicting `__cast` implementations detected.
+* `E_NO_CAST(From, To)` — no available `__to` implementation for `From to To`.
+* `E_AMBIGUOUS_CAST(From, To)` — multiple `__to` overloads match the same cast.
+* `E_CAST_OVERLAP(From, To)` — conflicting `__to` implementations detected.
 * `E_CAST_REF_KIND` — invalid cast attempted on reference or pointer type (`&T`, `&mut T`, `*T`).
 * `E_CAST_OUT_OF_RANGE` — runtime trap: value exceeds target type range during built-in numeric cast.
 
