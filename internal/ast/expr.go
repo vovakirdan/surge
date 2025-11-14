@@ -133,8 +133,9 @@ type ExprUnaryData struct {
 }
 
 type ExprCastData struct {
-	Value ExprID
-	Type  TypeID
+	Value   ExprID
+	Type    TypeID
+	RawType ExprID
 }
 
 type ExprCallData struct {
@@ -342,8 +343,8 @@ func (e *Exprs) Unary(id ExprID) (*ExprUnaryData, bool) {
 	return e.Unaries.Get(uint32(expr.Payload)), true
 }
 
-func (e *Exprs) NewCast(span source.Span, value ExprID, typ TypeID) ExprID {
-	payload := e.Casts.Allocate(ExprCastData{Value: value, Type: typ})
+func (e *Exprs) NewCast(span source.Span, value ExprID, typ TypeID, rawType ExprID) ExprID {
+	payload := e.Casts.Allocate(ExprCastData{Value: value, Type: typ, RawType: rawType})
 	return e.new(ExprCast, span, PayloadID(payload))
 }
 

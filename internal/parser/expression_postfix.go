@@ -116,17 +116,33 @@ func (p *Parser) parseMemberExpr(target ast.ExprID) (ast.ExprID, bool) {
 func (p *Parser) parseCastExpr(value ast.ExprID) (ast.ExprID, bool) {
 	toTok := p.advance() // съедаем 'to'
 
-	typeID, ok := p.parseTypePrefix()
-	if !ok || typeID == ast.NoTypeID {
-		if ok && typeID == ast.NoTypeID {
-			p.err(diag.SynExpectType, "expected type after 'to'")
+	if startsTypeExpr(p.lx.Peek().Kind) {
+		typeID, ok := p.parseTypePrefix()
+		if !ok || typeID == ast.NoTypeID {
+			return ast.NoExprID, false
 		}
-		return ast.NoExprID, false
+		typeSpan := p.arenas.Types.Get(typeID).Span
+		valueSpan := p.arenas.Exprs.Get(value).Span
+		finalSpan := valueSpan.Cover(toTok.Span).Cover(typeSpan)
+		return p.arenas.Exprs.NewCast(finalSpan, value, typeID, ast.NoExprID), true
 	}
 
-	typeSpan := p.arenas.Types.Get(typeID).Span
+	rawExpr, ok := p.parseUnaryExpr()
+	if !ok {
+		return ast.NoExprID, false
+	}
 	valueSpan := p.arenas.Exprs.Get(value).Span
-	finalSpan := valueSpan.Cover(toTok.Span).Cover(typeSpan)
+	rawSpan := p.arenas.Exprs.Get(rawExpr).Span
+	finalSpan := valueSpan.Cover(toTok.Span).Cover(rawSpan)
+	return p.arenas.Exprs.NewCast(finalSpan, value, ast.NoTypeID, rawExpr), true
+}
 
-	return p.arenas.Exprs.NewCast(finalSpan, value, typeID), true
+func startsTypeExpr(kind token.Kind) bool {
+	switch kind {
+	case token.Ident, token.NothingLit, token.LParen, token.KwFn, token.KwOwn,
+		token.Amp, token.AndAnd, token.Star:
+		return true
+	default:
+		return false
+	}
 }

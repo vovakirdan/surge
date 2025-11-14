@@ -275,7 +275,7 @@ func TestCastIntToStringUsesMagic(t *testing.T) {
 
 	intLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("42"))
 	stringPath := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: builder.StringsInterner.Intern("string")}})
-	castExpr := builder.Exprs.NewCast(source.Span{}, intLit, stringPath)
+	castExpr := builder.Exprs.NewCast(source.Span{}, intLit, stringPath, ast.NoExprID)
 	addTopLevelLet(builder, file, castExpr)
 
 	res, _, bag := checkWithSymbols(t, builder, file)
@@ -298,7 +298,7 @@ func TestCastPreservesAliasTarget(t *testing.T) {
 
 	value := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1"))
 	gasType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: gasName}})
-	castExpr := builder.Exprs.NewCast(source.Span{}, value, gasType)
+	castExpr := builder.Exprs.NewCast(source.Span{}, value, gasType, ast.NoExprID)
 	addTopLevelLet(builder, fileID, castExpr)
 
 	res, symRes, bag := checkWithSymbols(t, builder, fileID)
@@ -318,7 +318,7 @@ func TestCastReportsMissingMethod(t *testing.T) {
 
 	boolLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitTrue, builder.StringsInterner.Intern("true"))
 	floatType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: builder.StringsInterner.Intern("float")}})
-	castExpr := builder.Exprs.NewCast(source.Span{}, boolLit, floatType)
+	castExpr := builder.Exprs.NewCast(source.Span{}, boolLit, floatType, ast.NoExprID)
 	addTopLevelLet(builder, file, castExpr)
 
 	_, _, bag := checkWithSymbols(t, builder, file)
@@ -487,5 +487,27 @@ func TestLetTypeMismatchProvidesFixes(t *testing.T) {
 	}
 	if len(castFix.Edits) == 0 || !strings.Contains(castFix.Edits[0].NewText, "to int") {
 		t.Fatalf("expected cast fix to append conversion, got %+v", castFix.Edits)
+	}
+}
+
+func TestCastInvalidOperandSuggestsReplacement(t *testing.T) {
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+	file := builder.Files.New(source.Span{})
+
+	stringLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, builder.StringsInterner.Intern("\"1\""))
+	intLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("1"))
+	castExpr := builder.Exprs.NewCast(source.Span{}, stringLit, ast.NoTypeID, intLit)
+	addTopLevelLet(builder, file, castExpr)
+
+	_, _, bag := checkWithSymbols(t, builder, file)
+	items := bag.Items()
+	if len(items) == 0 {
+		t.Fatalf("expected diagnostics")
+	}
+	if items[0].Code != diag.SemaExpectTypeOperand {
+		t.Fatalf("expected %v, got %v", diag.SemaExpectTypeOperand, items[0].Code)
+	}
+	if len(items[0].Fixes) == 0 {
+		t.Fatalf("expected fix suggestion, got none")
 	}
 }
