@@ -280,6 +280,10 @@ func intern(builder *ast.Builder, s string) source.StringID {
 }
 
 func addFunction(builder *ast.Builder, file ast.FileID, name string, stmts []ast.StmtID) {
+	addFunctionWithReturn(builder, file, name, stmts, ast.NoTypeID)
+}
+
+func addFunctionWithReturn(builder *ast.Builder, file ast.FileID, name string, stmts []ast.StmtID, returnType ast.TypeID) {
 	var body ast.StmtID
 	if len(stmts) > 0 {
 		body = builder.Stmts.NewBlock(source.Span{}, stmts)
@@ -298,7 +302,7 @@ func addFunction(builder *ast.Builder, file ast.FileID, name string, stmts []ast
 		source.Span{},
 		source.Span{},
 		source.Span{},
-		ast.NoTypeID,
+		returnType,
 		body,
 		0,
 		nil,

@@ -511,3 +511,42 @@ func TestCastInvalidOperandSuggestsReplacement(t *testing.T) {
 		t.Fatalf("expected fix suggestion, got none")
 	}
 }
+
+func TestReturnRequiresValue(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	intName := intern(builder, "int")
+	retType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intName}})
+	retStmt := builder.Stmts.NewReturn(source.Span{}, ast.NoExprID)
+	addFunctionWithReturn(builder, fileID, "needs_value", []ast.StmtID{retStmt}, retType)
+
+	diags := runSema(t, builder, fileID)
+	if !hasCode(diags, diag.SemaTypeMismatch) {
+		t.Fatalf("expected %v diagnostic, got %v", diag.SemaTypeMismatch, diagCodes(diags))
+	}
+}
+
+func TestReturnValueInVoidFunction(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	val := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1"))
+	retStmt := builder.Stmts.NewReturn(source.Span{}, val)
+	addFunctionWithReturn(builder, fileID, "void_fn", []ast.StmtID{retStmt}, ast.NoTypeID)
+
+	diags := runSema(t, builder, fileID)
+	if !hasCode(diags, diag.SemaTypeMismatch) {
+		t.Fatalf("expected %v diagnostic, got %v", diag.SemaTypeMismatch, diagCodes(diags))
+	}
+}
+
+func TestReturnTypeMismatch(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	intName := intern(builder, "int")
+	retType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intName}})
+	strLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "\"str\""))
+	retStmt := builder.Stmts.NewReturn(source.Span{}, strLit)
+	addFunctionWithReturn(builder, fileID, "wrong_type", []ast.StmtID{retStmt}, retType)
+
+	diags := runSema(t, builder, fileID)
+	if !hasCode(diags, diag.SemaTypeMismatch) {
+		t.Fatalf("expected %v diagnostic, got %v", diag.SemaTypeMismatch, diagCodes(diags))
+	}
+}

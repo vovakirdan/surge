@@ -36,6 +36,12 @@ type typeChecker struct {
 	typeItems     map[ast.ItemID]types.TypeID
 	typeCache     map[typeCacheKey]types.TypeID
 	typeKeys      map[string]types.TypeID
+	returnStack   []returnContext
+}
+
+type returnContext struct {
+	expected types.TypeID
+	span     source.Span
 }
 
 func (tc *typeChecker) run() {
@@ -101,13 +107,20 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		if !ok || fnItem == nil || !fnItem.Body.IsValid() {
 			return
 		}
-		tc.registerFnParamTypes(id, fnItem)
 		scope := tc.scopeForItem(id)
+		returnType := tc.functionReturnType(fnItem, scope)
+		returnSpan := fnItem.ReturnSpan
+		if returnSpan == (source.Span{}) {
+			returnSpan = fnItem.Span
+		}
+		tc.pushReturnContext(returnType, returnSpan)
+		tc.registerFnParamTypes(id, fnItem)
 		pushed := tc.pushScope(scope)
 		tc.walkStmt(fnItem.Body)
 		if pushed {
 			tc.leaveScope()
 		}
+		tc.popReturnContext()
 	default:
 		// Other item kinds are currently ignored.
 	}
@@ -154,8 +167,12 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		}
 	case ast.StmtReturn:
 		if ret := tc.builder.Stmts.Return(id); ret != nil {
-			tc.typeExpr(ret.Expr)
-			tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
+			var valueType types.TypeID
+			if ret.Expr.IsValid() {
+				valueType = tc.typeExpr(ret.Expr)
+				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
+			}
+			tc.validateReturn(stmt.Span, ret.Expr, valueType)
 		}
 	case ast.StmtIf:
 		if ifStmt := tc.builder.Stmts.If(id); ifStmt != nil {
@@ -275,4 +292,71 @@ func (tc *typeChecker) symbolForStmt(id ast.StmtID) symbols.SymbolID {
 		return symbols.NoSymbolID
 	}
 	return tc.stmtSymbols[id]
+}
+
+func (tc *typeChecker) functionReturnType(fn *ast.FnItem, scope symbols.ScopeID) types.TypeID {
+	if tc.types == nil || fn == nil {
+		return types.NoTypeID
+	}
+	expected := tc.types.Builtins().Nothing
+	if fn.ReturnType.IsValid() {
+		if resolved := tc.resolveTypeExprWithScope(fn.ReturnType, scope); resolved != types.NoTypeID {
+			expected = resolved
+		}
+	}
+	return expected
+}
+
+func (tc *typeChecker) pushReturnContext(expected types.TypeID, span source.Span) {
+	ctx := returnContext{expected: expected, span: span}
+	tc.returnStack = append(tc.returnStack, ctx)
+}
+
+func (tc *typeChecker) popReturnContext() {
+	if len(tc.returnStack) == 0 {
+		return
+	}
+	tc.returnStack = tc.returnStack[:len(tc.returnStack)-1]
+}
+
+func (tc *typeChecker) currentReturnContext() *returnContext {
+	if len(tc.returnStack) == 0 {
+		return nil
+	}
+	return &tc.returnStack[len(tc.returnStack)-1]
+}
+
+func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual types.TypeID) {
+	ctx := tc.currentReturnContext()
+	if ctx == nil || tc.types == nil {
+		return
+	}
+	expected := ctx.expected
+	if expected == types.NoTypeID {
+		expected = tc.types.Builtins().Nothing
+	}
+	nothing := tc.types.Builtins().Nothing
+	if !expr.IsValid() {
+		if expected != nothing {
+			tc.report(diag.SemaTypeMismatch, span, "return value must have type %s", tc.typeLabel(expected))
+		}
+		return
+	}
+	if expected == nothing {
+		tc.report(diag.SemaTypeMismatch, span, "function returning nothing cannot return a value")
+		return
+	}
+	if actual == types.NoTypeID {
+		return
+	}
+	if !tc.typesAssignable(expected, actual) {
+		tc.report(diag.SemaTypeMismatch, span, "return type mismatch: expected %s, got %s", tc.typeLabel(expected), tc.typeLabel(actual))
+	}
+}
+
+func (tc *typeChecker) typesAssignable(expected, actual types.TypeID) bool {
+	if expected == actual {
+		return true
+	}
+	return tc.resolveAlias(expected) == tc.resolveAlias(actual)
 }
