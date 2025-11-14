@@ -268,3 +268,81 @@ func TestStringMulIntrinsicAvailable(t *testing.T) {
 		t.Fatalf("expected string type, got %v", got)
 	}
 }
+
+func TestCastIntToStringUsesMagic(t *testing.T) {
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+	file := builder.Files.New(source.Span{})
+
+	intLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, builder.StringsInterner.Intern("42"))
+	stringPath := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: builder.StringsInterner.Intern("string")}})
+	castExpr := builder.Exprs.NewCast(source.Span{}, intLit, stringPath)
+	addTopLevelLet(builder, file, castExpr)
+
+	res, _, bag := checkWithSymbols(t, builder, file)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %v", bag.Items())
+	}
+	if got := res.ExprTypes[castExpr]; got != res.TypeInterner.Builtins().String {
+		t.Fatalf("expected string type, got %v", got)
+	}
+}
+
+func TestCastPreservesAliasTarget(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	gasName := intern(builder, "Gasoline")
+	stringName := intern(builder, "string")
+
+	stringType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: stringName}})
+	aliasItem := builder.NewTypeAlias(gasName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, stringType, source.Span{})
+	builder.PushItem(fileID, aliasItem)
+
+	value := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1"))
+	gasType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: gasName}})
+	castExpr := builder.Exprs.NewCast(source.Span{}, value, gasType)
+	addTopLevelLet(builder, fileID, castExpr)
+
+	res, symRes, bag := checkWithSymbols(t, builder, fileID)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %v", bag.Items())
+	}
+	symID := symRes.ItemSymbols[aliasItem][0]
+	aliasType := symRes.Table.Symbols.Get(symID).Type
+	if got := res.ExprTypes[castExpr]; got != aliasType {
+		t.Fatalf("expected alias type %v, got %v", aliasType, got)
+	}
+}
+
+func TestCastReportsMissingMethod(t *testing.T) {
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+	file := builder.Files.New(source.Span{})
+
+	boolLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitTrue, builder.StringsInterner.Intern("true"))
+	floatType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: builder.StringsInterner.Intern("float")}})
+	castExpr := builder.Exprs.NewCast(source.Span{}, boolLit, floatType)
+	addTopLevelLet(builder, file, castExpr)
+
+	_, _, bag := checkWithSymbols(t, builder, file)
+	items := bag.Items()
+	if len(items) == 0 {
+		t.Fatalf("expected diagnostics")
+	}
+	if items[0].Code != diag.SemaTypeMismatch {
+		t.Fatalf("expected %v, got %v", diag.SemaTypeMismatch, items[0].Code)
+	}
+	if !strings.Contains(items[0].Message, "__to") {
+		t.Fatalf("expected message to reference __to, got %q", items[0].Message)
+	}
+}
+
+func checkWithSymbols(t *testing.T, builder *ast.Builder, file ast.FileID) (*Result, *symbols.Result, *diag.Bag) {
+	t.Helper()
+	bag := diag.NewBag(16)
+	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+	})
+	res := Check(builder, file, Options{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Symbols:  &symRes,
+	})
+	return &res, &symRes, bag
+}

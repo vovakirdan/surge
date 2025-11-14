@@ -109,6 +109,37 @@ func (tc *typeChecker) magicResultForBinary(left, right types.TypeID, op ast.Exp
 	return types.NoTypeID
 }
 
+func (tc *typeChecker) magicResultForCast(source, target types.TypeID) types.TypeID {
+	if source == types.NoTypeID || target == types.NoTypeID {
+		return types.NoTypeID
+	}
+	targetCandidates := tc.typeKeyCandidates(target)
+	for _, lc := range tc.typeKeyCandidates(source) {
+		if lc.key == "" {
+			continue
+		}
+		methods := tc.lookupMagicMethods(lc.key, "__to")
+		if len(methods) == 0 {
+			continue
+		}
+		for _, sig := range methods {
+			if sig == nil || len(sig.Params) < 2 {
+				continue
+			}
+			for _, rc := range targetCandidates {
+				if rc.key == "" || sig.Params[1] != rc.key {
+					continue
+				}
+				if rc.alias != types.NoTypeID {
+					return rc.alias
+				}
+				return target
+			}
+		}
+	}
+	return types.NoTypeID
+}
+
 func (tc *typeChecker) lookupMagicMethods(receiver symbols.TypeKey, name string) []*symbols.FunctionSignature {
 	if receiver == "" || name == "" {
 		return nil

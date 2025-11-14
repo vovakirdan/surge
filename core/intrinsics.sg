@@ -24,6 +24,9 @@ extern<int> {
     @intrinsic fn __pos(self: int) -> int;
     @intrinsic fn __neg(self: int) -> int;
     @intrinsic fn __to_string(self: int) -> string;
+    @intrinsic fn __to(self: int, target: string) -> string;
+    @intrinsic @overload fn __to(self: int, target: float) -> float;
+    @intrinsic @overload fn __to(self: int, target: uint) -> uint;
 }
 
 extern<uint> {
@@ -45,6 +48,9 @@ extern<uint> {
     @intrinsic fn __gt(self: uint, other: uint) -> bool;
     @intrinsic fn __pos(self: uint) -> uint;
     @intrinsic fn __to_string(self: uint) -> string;
+    @intrinsic fn __to(self: uint, target: string) -> string;
+    @intrinsic @overload fn __to(self: uint, target: int) -> int;
+    @intrinsic @overload fn __to(self: uint, target: float) -> float;
 }
 
 extern<float> {
@@ -61,6 +67,9 @@ extern<float> {
     @intrinsic fn __pos(self: float) -> float;
     @intrinsic fn __neg(self: float) -> float;
     @intrinsic fn __to_string(self: float) -> string;
+    @intrinsic fn __to(self: float, target: string) -> string;
+    @intrinsic @overload fn __to(self: float, target: int) -> int;
+    @intrinsic @overload fn __to(self: float, target: uint) -> uint;
 }
 
 extern<string> {
@@ -72,6 +81,9 @@ extern<string> {
     @intrinsic fn __eq(self: string, other: string) -> bool;
     @intrinsic fn __ne(self: string, other: string) -> bool;
     @intrinsic fn __to_string(self: string) -> string;
+    @intrinsic fn __to(self: string, target: int) -> int;
+    @intrinsic @overload fn __to(self: string, target: uint) -> uint;
+    @intrinsic @overload fn __to(self: string, target: float) -> float;
 }
 
 extern<bool> {
@@ -79,4 +91,5 @@ extern<bool> {
     @intrinsic fn __ne(self: bool, other: bool) -> bool;
     @intrinsic fn __to_string(self: bool) -> string;
     @intrinsic fn __not(self: bool) -> bool;
+    @intrinsic fn __to(self: bool, target: string) -> string;
 }

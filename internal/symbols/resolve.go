@@ -22,6 +22,11 @@ var intrinsicAllowedNamesList = []string{
 	"__mul",
 	"__div",
 	"__mod",
+	"__bit_and",
+	"__bit_or",
+	"__bit_xor",
+	"__shl",
+	"__shr",
 	"__lt",
 	"__le",
 	"__eq",
@@ -30,6 +35,10 @@ var intrinsicAllowedNamesList = []string{
 	"__gt",
 	"__pos",
 	"__neg",
+	"__not",
+	"__to",
+	"__is",
+	"__heir",
 	"__to_string",
 }
 

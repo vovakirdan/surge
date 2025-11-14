@@ -105,7 +105,18 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprCast:
 		if cast, ok := tc.builder.Exprs.Cast(id); ok && cast != nil {
-			ty = tc.typeExpr(cast.Value)
+			sourceType := tc.typeExpr(cast.Value)
+			scope := tc.scopeOrFile(tc.currentScope())
+			targetType := tc.resolveTypeExprWithScope(cast.Type, scope)
+			if sourceType == types.NoTypeID || targetType == types.NoTypeID {
+				ty = types.NoTypeID
+				break
+			}
+			if magic := tc.magicResultForCast(sourceType, targetType); magic != types.NoTypeID {
+				ty = magic
+			} else {
+				tc.reportMissingCastMethod(sourceType, targetType, expr.Span)
+			}
 		}
 	case ast.ExprCompare:
 		if cmp, ok := tc.builder.Exprs.Compare(id); ok && cmp != nil {
@@ -610,6 +621,10 @@ func (tc *typeChecker) reportMissingUnaryMethod(op ast.ExprUnaryOp, operand type
 		return
 	}
 	tc.report(diag.SemaInvalidUnaryOperand, span, "operator %s is not defined for %s", label, tc.typeLabel(operand))
+}
+
+func (tc *typeChecker) reportMissingCastMethod(from, target types.TypeID, span source.Span) {
+	tc.report(diag.SemaTypeMismatch, span, "operator to (__to) is not defined for %s and %s", tc.typeLabel(from), tc.typeLabel(target))
 }
 
 func (tc *typeChecker) sameType(a, b types.TypeID) bool {

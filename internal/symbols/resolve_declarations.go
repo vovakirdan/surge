@@ -238,8 +238,8 @@ func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.
 	}
 
 	if hasIntrinsic {
-		if hasOverload || hasOverride {
-			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicBadContext, "@intrinsic cannot be combined with @overload or @override")
+		if hasOverride {
+			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicBadContext, "@intrinsic cannot be combined with @override")
 			return NoSymbolID, false
 		}
 		if !fr.moduleAllowsIntrinsic() {
