@@ -220,6 +220,32 @@ func TestAliasBinaryRequiresMatchingTypes(t *testing.T) {
 	}
 }
 
+func TestAliasBinaryWithForeignType(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	gasName := intern(builder, "Gasoline")
+	stringName := intern(builder, "string")
+
+	stringType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: stringName}})
+	aliasItem := builder.NewTypeAlias(gasName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, stringType, source.Span{})
+	builder.PushItem(fileID, aliasItem)
+	gasType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: gasName}})
+
+	aLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "Fuel"))
+	stmtA := builder.Stmts.NewLet(source.Span{}, intern(builder, "a"), gasType, aLit, false)
+
+	aIdent := builder.Exprs.NewIdent(source.Span{}, intern(builder, "a"))
+	count := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "2"))
+	mulExpr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryMul, aIdent, count)
+	stmtMul := builder.Stmts.NewLet(source.Span{}, intern(builder, "double"), ast.NoTypeID, mulExpr, false)
+
+	addFunction(builder, fileID, "main", []ast.StmtID{stmtA, stmtMul})
+
+	diags := runSema(t, builder, fileID)
+	if len(diags.Items()) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags.Items())
+	}
+}
+
 func TestStringMulIntrinsicAvailable(t *testing.T) {
 	builder := ast.NewBuilder(ast.Hints{}, nil)
 	file := builder.Files.New(source.Span{})

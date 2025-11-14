@@ -52,13 +52,18 @@ func (tc *typeChecker) aliasBaseType(id types.TypeID) types.TypeID {
 }
 
 func compatibleAliasFallback(left, right typeKeyCandidate) bool {
-	if left.alias == types.NoTypeID && right.alias == types.NoTypeID {
+	switch {
+	case left.alias == types.NoTypeID && right.alias == types.NoTypeID:
 		return true
-	}
-	if left.alias != types.NoTypeID && right.alias != types.NoTypeID {
+	case left.alias != types.NoTypeID && right.alias != types.NoTypeID:
 		return left.alias == right.alias
+	case left.alias != types.NoTypeID:
+		return left.base != right.base
+	case right.alias != types.NoTypeID:
+		return right.base != left.base
+	default:
+		return false
 	}
-	return false
 }
 
 func (tc *typeChecker) adjustAliasUnaryResult(res types.TypeID, cand typeKeyCandidate) types.TypeID {
