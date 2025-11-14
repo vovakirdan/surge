@@ -140,7 +140,7 @@ extern<Person> {
 func TestParseExternItem_OverrideRequiresPub(t *testing.T) {
 	src := `
 extern<Person> {
-	@override fn __to_string(self: &Person) -> string { return ""; }
+	@override fn __to(self: &Person, target: string) -> string { return ""; }
 }
 `
 	builder, fileID, bag := parseSource(t, src)

@@ -28,7 +28,6 @@ var builtinMagic = []builtinMagicSpec{
 	{receiver: "int", name: "__gt", params: []string{"int", "int"}, result: "bool"},
 	{receiver: "int", name: "__pos", params: []string{"int"}, result: "int"},
 	{receiver: "int", name: "__neg", params: []string{"int"}, result: "int"},
-	{receiver: "int", name: "__to_string", params: []string{"int"}, result: "string"},
 	{receiver: "int", name: "__to", params: []string{"int", "string"}, result: "string"},
 	{receiver: "int", name: "__to", params: []string{"int", "float"}, result: "float"},
 	{receiver: "int", name: "__to", params: []string{"int", "uint"}, result: "uint"},
@@ -50,7 +49,6 @@ var builtinMagic = []builtinMagicSpec{
 	{receiver: "uint", name: "__ge", params: []string{"uint", "uint"}, result: "bool"},
 	{receiver: "uint", name: "__gt", params: []string{"uint", "uint"}, result: "bool"},
 	{receiver: "uint", name: "__pos", params: []string{"uint"}, result: "uint"},
-	{receiver: "uint", name: "__to_string", params: []string{"uint"}, result: "string"},
 	{receiver: "uint", name: "__to", params: []string{"uint", "string"}, result: "string"},
 	{receiver: "uint", name: "__to", params: []string{"uint", "int"}, result: "int"},
 	{receiver: "uint", name: "__to", params: []string{"uint", "float"}, result: "float"},
@@ -67,7 +65,6 @@ var builtinMagic = []builtinMagicSpec{
 	{receiver: "float", name: "__gt", params: []string{"float", "float"}, result: "bool"},
 	{receiver: "float", name: "__pos", params: []string{"float"}, result: "float"},
 	{receiver: "float", name: "__neg", params: []string{"float"}, result: "float"},
-	{receiver: "float", name: "__to_string", params: []string{"float"}, result: "string"},
 	{receiver: "float", name: "__to", params: []string{"float", "string"}, result: "string"},
 	{receiver: "float", name: "__to", params: []string{"float", "int"}, result: "int"},
 	{receiver: "float", name: "__to", params: []string{"float", "uint"}, result: "uint"},
@@ -76,16 +73,15 @@ var builtinMagic = []builtinMagicSpec{
 	{receiver: "string", name: "__mul", params: []string{"string", "int"}, result: "string"},
 	{receiver: "string", name: "__eq", params: []string{"string", "string"}, result: "bool"},
 	{receiver: "string", name: "__ne", params: []string{"string", "string"}, result: "bool"},
-	{receiver: "string", name: "__to_string", params: []string{"string"}, result: "string"},
 	{receiver: "string", name: "__to", params: []string{"string", "int"}, result: "int"},
 	{receiver: "string", name: "__to", params: []string{"string", "uint"}, result: "uint"},
 	{receiver: "string", name: "__to", params: []string{"string", "float"}, result: "float"},
 
 	{receiver: "bool", name: "__eq", params: []string{"bool", "bool"}, result: "bool"},
 	{receiver: "bool", name: "__ne", params: []string{"bool", "bool"}, result: "bool"},
-	{receiver: "bool", name: "__to_string", params: []string{"bool"}, result: "string"},
 	{receiver: "bool", name: "__not", params: []string{"bool"}, result: "bool"},
 	{receiver: "bool", name: "__to", params: []string{"bool", "string"}, result: "string"},
+	{receiver: "bool", name: "__to", params: []string{"bool", "int"}, result: "int"},
 }
 
 func (tc *typeChecker) ensureBuiltinMagic() {

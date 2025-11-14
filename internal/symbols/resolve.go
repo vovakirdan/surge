@@ -39,7 +39,6 @@ var intrinsicAllowedNamesList = []string{
 	"__to",
 	"__is",
 	"__heir",
-	"__to_string",
 }
 
 var (
