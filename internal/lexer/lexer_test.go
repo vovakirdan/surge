@@ -196,6 +196,7 @@ func TestKeywords_Lowercase(t *testing.T) {
 		{"to", token.KwTo},
 		{"heir", token.KwHeir},
 		{"is", token.KwIs},
+		{"nothing", token.NothingLit},
 	}
 
 	for _, tt := range tests {
@@ -248,6 +249,7 @@ func TestKeywords_CapitalizedAreIdents(t *testing.T) {
 		"To", "TO",
 		"Heir", "HEIR",
 		"Is", "IS",
+		"Nothing", "NOTHING",
 	}
 
 	for _, input := range tests {

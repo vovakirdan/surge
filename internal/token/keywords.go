@@ -37,6 +37,7 @@ var keywords = map[string]Kind{
 	"to":       KwTo,
 	"heir":     KwHeir,
 	"is":       KwIs,
+	"nothing":  NothingLit,
 }
 
 // LookupKeyword возвращает тип и bool если это ключевое слово.

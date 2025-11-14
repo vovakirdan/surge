@@ -563,6 +563,18 @@ func TestReturnNothingLiteralAllowed(t *testing.T) {
 	}
 }
 
+func TestReturnNothingImplicitFunction(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	none := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitNothing, intern(builder, "nothing"))
+	retStmt := builder.Stmts.NewReturn(source.Span{}, none)
+	addFunction(builder, fileID, "implicit_void", []ast.StmtID{retStmt})
+
+	diags := runSema(t, builder, fileID)
+	if diags.HasErrors() {
+		t.Fatalf("expected no diagnostics, got %v", diagCodes(diags))
+	}
+}
+
 func TestReturnAliasRequiresCast(t *testing.T) {
 	builder, fileID := newTestBuilder()
 	intName := intern(builder, "int")
