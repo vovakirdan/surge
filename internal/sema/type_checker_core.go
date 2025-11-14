@@ -1,8 +1,12 @@
 package sema
 
 import (
+	"fmt"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/fix"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -87,6 +91,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		}
 		valueType := tc.typeExpr(letItem.Value)
 		tc.observeMove(letItem.Value, tc.exprSpan(letItem.Value))
+		tc.ensureBindingTypeMatch(letItem.Type, declaredType, valueType, letItem.Value)
 		if declaredType == types.NoTypeID {
 			tc.setBindingType(symID, valueType)
 		}
@@ -136,6 +141,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			if letStmt.Value.IsValid() {
 				valueType := tc.typeExpr(letStmt.Value)
 				tc.observeMove(letStmt.Value, tc.exprSpan(letStmt.Value))
+				tc.ensureBindingTypeMatch(letStmt.Type, declaredType, valueType, letStmt.Value)
 				if declaredType == types.NoTypeID {
 					tc.setBindingType(symID, valueType)
 				}
@@ -199,6 +205,69 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 	default:
 		// StmtBreak / StmtContinue and others have no expressions to type.
 	}
+}
+
+func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, actual types.TypeID, valueExpr ast.ExprID) {
+	if declared == types.NoTypeID || actual == types.NoTypeID {
+		return
+	}
+	if tc.sameType(declared, actual) {
+		return
+	}
+	if tc.sameType(tc.resolveAlias(declared), tc.resolveAlias(actual)) {
+		return
+	}
+	tc.reportBindingTypeMismatch(typeExpr, declared, actual, valueExpr)
+}
+
+func (tc *typeChecker) reportBindingTypeMismatch(typeExpr ast.TypeID, expected, actual types.TypeID, valueExpr ast.ExprID) {
+	if tc.reporter == nil {
+		return
+	}
+	expectedLabel := tc.typeLabel(expected)
+	actualLabel := tc.typeLabel(actual)
+	primary := tc.exprSpan(valueExpr)
+	if primary == (source.Span{}) {
+		primary = tc.typeSpan(typeExpr)
+	}
+	msg := fmt.Sprintf("cannot assign %s to %s", actualLabel, expectedLabel)
+	b := diag.ReportError(tc.reporter, diag.SemaTypeMismatch, primary, msg)
+	if b == nil {
+		return
+	}
+	if typeSpan := tc.typeSpan(typeExpr); typeSpan != (source.Span{}) {
+		changeType := fix.ReplaceSpan(
+			fmt.Sprintf("change variable type to %s", actualLabel),
+			typeSpan,
+			actualLabel,
+			"",
+			fix.WithKind(diag.FixKindRefactor),
+		)
+		b.WithFixSuggestion(changeType)
+	}
+	if insertSpan := tc.exprSpan(valueExpr); insertSpan != (source.Span{}) {
+		cast := fix.InsertText(
+			fmt.Sprintf("cast expression to %s", expectedLabel),
+			insertSpan.ZeroideToEnd(),
+			" to "+expectedLabel,
+			"",
+			fix.WithKind(diag.FixKindRefactorRewrite),
+			fix.WithApplicability(diag.FixApplicabilityManualReview),
+		)
+		b.WithFixSuggestion(cast)
+	}
+	b.Emit()
+}
+
+func (tc *typeChecker) typeSpan(id ast.TypeID) source.Span {
+	if !id.IsValid() || tc.builder == nil {
+		return source.Span{}
+	}
+	typ := tc.builder.Types.Get(id)
+	if typ == nil {
+		return source.Span{}
+	}
+	return typ.Span
 }
 
 func (tc *typeChecker) symbolForStmt(id ast.StmtID) symbols.SymbolID {

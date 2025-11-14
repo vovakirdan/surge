@@ -346,3 +346,52 @@ func checkWithSymbols(t *testing.T, builder *ast.Builder, file ast.FileID) (*Res
 	})
 	return &res, &symRes, bag
 }
+
+func TestLetTypeMismatchProvidesFixes(t *testing.T) {
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+	fileSpan := source.Span{File: source.FileID(1), Start: 0, End: 32}
+	file := builder.Files.New(fileSpan)
+
+	intName := builder.StringsInterner.Intern("int")
+	typeSpan := source.Span{File: fileSpan.File, Start: 4, End: 7}
+	intType := builder.Types.NewPath(typeSpan, []ast.TypePathSegment{{Name: intName}})
+	valueSpan := source.Span{File: fileSpan.File, Start: 10, End: 17}
+	stringLit := builder.Exprs.NewLiteral(valueSpan, ast.ExprLitString, builder.StringsInterner.Intern("\"text\""))
+
+	letID := builder.Items.NewLet(
+		builder.StringsInterner.Intern("a"),
+		intType,
+		stringLit,
+		false,
+		ast.VisPrivate,
+		nil,
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+	)
+	builder.PushItem(file, letID)
+
+	_, _, bag := checkWithSymbols(t, builder, file)
+	items := bag.Items()
+	if len(items) != 1 {
+		t.Fatalf("expected one diagnostic, got %v", items)
+	}
+	d := items[0]
+	if d.Code != diag.SemaTypeMismatch {
+		t.Fatalf("expected %v, got %v", diag.SemaTypeMismatch, d.Code)
+	}
+	if len(d.Fixes) < 2 {
+		t.Fatalf("expected at least two fixes, got %d", len(d.Fixes))
+	}
+	castFix := d.Fixes[1]
+	if castFix.Applicability != diag.FixApplicabilityManualReview {
+		t.Fatalf("expected cast fix to be manual review, got %v", castFix.Applicability)
+	}
+	if len(castFix.Edits) == 0 || !strings.Contains(castFix.Edits[0].NewText, "to int") {
+		t.Fatalf("expected cast fix to append conversion, got %+v", castFix.Edits)
+	}
+}
