@@ -228,10 +228,7 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 	if declared == types.NoTypeID || actual == types.NoTypeID {
 		return
 	}
-	if tc.sameType(declared, actual) {
-		return
-	}
-	if tc.sameType(tc.resolveAlias(declared), tc.resolveAlias(actual)) {
+	if tc.typesAssignable(declared, actual, true) {
 		return
 	}
 	tc.reportBindingTypeMismatch(typeExpr, declared, actual, valueExpr)
@@ -343,20 +340,26 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		return
 	}
 	if expected == nothing {
+		if actual == nothing {
+			return
+		}
 		tc.report(diag.SemaTypeMismatch, span, "function returning nothing cannot return a value")
 		return
 	}
 	if actual == types.NoTypeID {
 		return
 	}
-	if !tc.typesAssignable(expected, actual) {
+	if !tc.typesAssignable(expected, actual, false) {
 		tc.report(diag.SemaTypeMismatch, span, "return type mismatch: expected %s, got %s", tc.typeLabel(expected), tc.typeLabel(actual))
 	}
 }
 
-func (tc *typeChecker) typesAssignable(expected, actual types.TypeID) bool {
+func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias bool) bool {
 	if expected == actual {
 		return true
 	}
-	return tc.resolveAlias(expected) == tc.resolveAlias(actual)
+	if allowAlias {
+		return tc.resolveAlias(expected) == tc.resolveAlias(actual)
+	}
+	return false
 }

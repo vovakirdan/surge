@@ -550,3 +550,34 @@ func TestReturnTypeMismatch(t *testing.T) {
 		t.Fatalf("expected %v diagnostic, got %v", diag.SemaTypeMismatch, diagCodes(diags))
 	}
 }
+
+func TestReturnNothingLiteralAllowed(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	none := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitNothing, intern(builder, "nothing"))
+	retStmt := builder.Stmts.NewReturn(source.Span{}, none)
+	addFunctionWithReturn(builder, fileID, "void_fn", []ast.StmtID{retStmt}, ast.NoTypeID)
+
+	diags := runSema(t, builder, fileID)
+	if diags.HasErrors() {
+		t.Fatalf("expected no diagnostics, got %v", diagCodes(diags))
+	}
+}
+
+func TestReturnAliasRequiresCast(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	intName := intern(builder, "int")
+	aliasName := intern(builder, "ID")
+	intType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intName}})
+	aliasItem := builder.NewTypeAlias(aliasName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, intType, source.Span{})
+	builder.PushItem(fileID, aliasItem)
+
+	aliasType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: aliasName}})
+	retValue := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1"))
+	retStmt := builder.Stmts.NewReturn(source.Span{}, retValue)
+	addFunctionWithReturn(builder, fileID, "alias_fn", []ast.StmtID{retStmt}, aliasType)
+
+	diags := runSema(t, builder, fileID)
+	if !hasCode(diags, diag.SemaTypeMismatch) {
+		t.Fatalf("expected %v diagnostic, got %v", diag.SemaTypeMismatch, diagCodes(diags))
+	}
+}
