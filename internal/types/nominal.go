@@ -17,21 +17,29 @@ type StructField struct {
 
 // StructInfo stores metadata for a struct type.
 type StructInfo struct {
-	Name   source.StringID
-	Decl   source.Span
-	Fields []StructField
+	Name     source.StringID
+	Decl     source.Span
+	Fields   []StructField
+	TypeArgs []TypeID
 }
 
 // AliasInfo stores metadata for a nominal alias type.
 type AliasInfo struct {
-	Name   source.StringID
-	Decl   source.Span
-	Target TypeID
+	Name     source.StringID
+	Decl     source.Span
+	Target   TypeID
+	TypeArgs []TypeID
 }
 
 // RegisterStruct allocates a nominal struct type slot and returns its TypeID.
 func (in *Interner) RegisterStruct(name source.StringID, decl source.Span) TypeID {
 	slot := in.appendStructInfo(StructInfo{Name: name, Decl: decl})
+	return in.internRaw(Type{Kind: KindStruct, Payload: slot})
+}
+
+// RegisterStructInstance allocates a nominal struct instantiation with type arguments.
+func (in *Interner) RegisterStructInstance(name source.StringID, decl source.Span, args []TypeID) TypeID {
+	slot := in.appendStructInfo(StructInfo{Name: name, Decl: decl, TypeArgs: cloneTypeArgs(args)})
 	return in.internRaw(Type{Kind: KindStruct, Payload: slot})
 }
 
@@ -62,9 +70,24 @@ func (in *Interner) StructFields(typeID TypeID) []StructField {
 	return cloneStructFields(info.Fields)
 }
 
+// StructArgs returns type arguments for the struct instantiation.
+func (in *Interner) StructArgs(typeID TypeID) []TypeID {
+	info := in.structInfo(typeID)
+	if info == nil || len(info.TypeArgs) == 0 {
+		return nil
+	}
+	return cloneTypeArgs(info.TypeArgs)
+}
+
 // RegisterAlias allocates a nominal alias type slot and returns its TypeID.
 func (in *Interner) RegisterAlias(name source.StringID, decl source.Span) TypeID {
 	slot := in.appendAliasInfo(AliasInfo{Name: name, Decl: decl})
+	return in.internRaw(Type{Kind: KindAlias, Payload: slot})
+}
+
+// RegisterAliasInstance allocates a nominal alias instantiation with type arguments.
+func (in *Interner) RegisterAliasInstance(name source.StringID, decl source.Span, args []TypeID) TypeID {
+	slot := in.appendAliasInfo(AliasInfo{Name: name, Decl: decl, TypeArgs: cloneTypeArgs(args)})
 	return in.internRaw(Type{Kind: KindAlias, Payload: slot})
 }
 
@@ -84,6 +107,15 @@ func (in *Interner) AliasTarget(typeID TypeID) (TypeID, bool) {
 		return NoTypeID, false
 	}
 	return info.Target, true
+}
+
+// AliasArgs returns type arguments for the alias instantiation.
+func (in *Interner) AliasArgs(typeID TypeID) []TypeID {
+	info := in.aliasInfo(typeID)
+	if info == nil || len(info.TypeArgs) == 0 {
+		return nil
+	}
+	return cloneTypeArgs(info.TypeArgs)
 }
 
 // AliasInfo returns metadata for the provided alias TypeID.
@@ -128,9 +160,10 @@ func (in *Interner) appendStructInfo(info StructInfo) uint32 {
 		in.structs = append(in.structs, StructInfo{})
 	}
 	in.structs = append(in.structs, StructInfo{
-		Name:   info.Name,
-		Decl:   info.Decl,
-		Fields: cloneStructFields(info.Fields),
+		Name:     info.Name,
+		Decl:     info.Decl,
+		Fields:   cloneStructFields(info.Fields),
+		TypeArgs: cloneTypeArgs(info.TypeArgs),
 	})
 	slot, err := safecast.Conv[uint32](len(in.structs) - 1)
 	if err != nil {
@@ -143,7 +176,12 @@ func (in *Interner) appendAliasInfo(info AliasInfo) uint32 {
 	if in.aliases == nil {
 		in.aliases = append(in.aliases, AliasInfo{})
 	}
-	in.aliases = append(in.aliases, info)
+	in.aliases = append(in.aliases, AliasInfo{
+		Name:     info.Name,
+		Decl:     info.Decl,
+		Target:   info.Target,
+		TypeArgs: cloneTypeArgs(info.TypeArgs),
+	})
 	slot, err := safecast.Conv[uint32](len(in.aliases) - 1)
 	if err != nil {
 		panic(fmt.Errorf("alias info overflow: %w", err))
@@ -156,4 +194,11 @@ func cloneStructFields(fields []StructField) []StructField {
 		return nil
 	}
 	return slices.Clone(fields)
+}
+
+func cloneTypeArgs(args []TypeID) []TypeID {
+	if len(args) == 0 {
+		return nil
+	}
+	return slices.Clone(args)
 }

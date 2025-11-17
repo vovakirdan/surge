@@ -9,11 +9,14 @@ import (
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
+
+	"fortio.org/safecast"
 )
 
 type typeCacheKey struct {
 	Type  ast.TypeID
 	Scope symbols.ScopeID
+	Env   uint32
 }
 
 type typeChecker struct {
@@ -27,16 +30,21 @@ type typeChecker struct {
 	magic    map[symbols.TypeKey]map[string][]*symbols.FunctionSignature
 	borrow   *BorrowTable
 
-	scopeStack    []symbols.ScopeID
-	scopeByItem   map[ast.ItemID]symbols.ScopeID
-	scopeByStmt   map[ast.StmtID]symbols.ScopeID
-	stmtSymbols   map[ast.StmtID]symbols.SymbolID
-	bindingBorrow map[symbols.SymbolID]BorrowID
-	bindingTypes  map[symbols.SymbolID]types.TypeID
-	typeItems     map[ast.ItemID]types.TypeID
-	typeCache     map[typeCacheKey]types.TypeID
-	typeKeys      map[string]types.TypeID
-	returnStack   []returnContext
+	scopeStack         []symbols.ScopeID
+	scopeByItem        map[ast.ItemID]symbols.ScopeID
+	scopeByStmt        map[ast.StmtID]symbols.ScopeID
+	stmtSymbols        map[ast.StmtID]symbols.SymbolID
+	bindingBorrow      map[symbols.SymbolID]BorrowID
+	bindingTypes       map[symbols.SymbolID]types.TypeID
+	typeItems          map[ast.ItemID]types.TypeID
+	typeCache          map[typeCacheKey]types.TypeID
+	typeKeys           map[string]types.TypeID
+	returnStack        []returnContext
+	typeParams         []map[source.StringID]types.TypeID
+	typeParamNames     map[types.TypeID]source.StringID
+	typeParamEnv       []uint32
+	nextParamEnv       uint32
+	typeInstantiations map[string]types.TypeID
 }
 
 type returnContext struct {
@@ -58,6 +66,9 @@ func (tc *typeChecker) run() {
 	tc.typeItems = make(map[ast.ItemID]types.TypeID)
 	tc.typeCache = make(map[typeCacheKey]types.TypeID)
 	tc.typeKeys = make(map[string]types.TypeID)
+	tc.typeParamNames = make(map[types.TypeID]source.StringID)
+	tc.nextParamEnv = 1
+	tc.typeInstantiations = make(map[string]types.TypeID)
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {
 		return
@@ -321,6 +332,64 @@ func (tc *typeChecker) currentReturnContext() *returnContext {
 		return nil
 	}
 	return &tc.returnStack[len(tc.returnStack)-1]
+}
+
+func (tc *typeChecker) pushTypeParams(owner symbols.SymbolID, names []source.StringID, bindings []types.TypeID) bool {
+	if len(names) == 0 || tc.types == nil {
+		return false
+	}
+	if len(bindings) > 0 && len(bindings) != len(names) {
+		return false
+	}
+	scope := make(map[source.StringID]types.TypeID, len(names))
+	for i, name := range names {
+		var id types.TypeID
+		if len(bindings) > 0 {
+			id = bindings[i]
+		} else {
+			ui32, err := safecast.Conv[uint32](i)
+			if err != nil {
+				panic(fmt.Errorf("type param index overflow: %w", err))
+			}
+			id = tc.types.RegisterTypeParam(name, uint32(owner), ui32)
+			tc.typeParamNames[id] = name
+		}
+		scope[name] = id
+	}
+	tc.typeParams = append(tc.typeParams, scope)
+	tc.typeParamEnv = append(tc.typeParamEnv, tc.nextParamEnv)
+	tc.nextParamEnv++
+	return true
+}
+
+func (tc *typeChecker) popTypeParams() {
+	if len(tc.typeParams) == 0 {
+		return
+	}
+	tc.typeParams = tc.typeParams[:len(tc.typeParams)-1]
+	if len(tc.typeParamEnv) > 0 {
+		tc.typeParamEnv = tc.typeParamEnv[:len(tc.typeParamEnv)-1]
+	}
+}
+
+func (tc *typeChecker) currentTypeParamEnv() uint32 {
+	if len(tc.typeParamEnv) == 0 {
+		return 0
+	}
+	return tc.typeParamEnv[len(tc.typeParamEnv)-1]
+}
+
+func (tc *typeChecker) lookupTypeParam(name source.StringID) types.TypeID {
+	if name == source.NoStringID {
+		return types.NoTypeID
+	}
+	for i := len(tc.typeParams) - 1; i >= 0; i-- {
+		scope := tc.typeParams[i]
+		if id, ok := scope[name]; ok {
+			return id
+		}
+	}
+	return types.NoTypeID
 }
 
 func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual types.TypeID) {

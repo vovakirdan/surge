@@ -25,6 +25,7 @@ type Interner struct {
 	builtins Builtins
 	structs  []StructInfo
 	aliases  []AliasInfo
+	params   []TypeParamInfo
 }
 
 // NewInterner constructs an interner seeded with built-in primitives.
@@ -34,6 +35,7 @@ func NewInterner() *Interner {
 	}
 	in.structs = append(in.structs, StructInfo{}) // reserve 0 as invalid sentinel
 	in.aliases = append(in.aliases, AliasInfo{})
+	in.params = append(in.params, TypeParamInfo{})
 	in.builtins.Invalid = in.internRaw(Type{Kind: KindInvalid})
 	in.builtins.Unit = in.Intern(Type{Kind: KindUnit})
 	in.builtins.Nothing = in.Intern(Type{Kind: KindNothing})

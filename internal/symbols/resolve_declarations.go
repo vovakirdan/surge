@@ -54,6 +54,10 @@ func (fr *fileResolver) declareFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 	nameSpan := fnNameSpan(fnItem)
 	fr.enforceFunctionNameStyle(fnItem.Name, nameSpan)
 	if symID, ok := fr.declareFunctionWithAttrs(itemID, fnItem, nameSpan, fnItem.FnKeywordSpan, flags, decl); ok {
+		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
+			sym.TypeParams = append([]source.StringID(nil), fnItem.Generics...)
+			sym.TypeParamSpan = fnItem.GenericsSpan
+		}
 		fr.appendItemSymbol(itemID, symID)
 	}
 	fr.walkFn(itemID, fnItem)
@@ -74,6 +78,10 @@ func (fr *fileResolver) declareType(itemID ast.ItemID, typeItem *ast.TypeItem) {
 	}
 	span := preferSpan(typeItem.TypeKeywordSpan, typeItem.Span)
 	if symID, ok := fr.resolver.Declare(typeItem.Name, span, SymbolType, flags, decl); ok {
+		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
+			sym.TypeParams = append([]source.StringID(nil), typeItem.Generics...)
+			sym.TypeParamSpan = typeItem.GenericsSpan
+		}
 		fr.appendItemSymbol(itemID, symID)
 	}
 }

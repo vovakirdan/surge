@@ -2,6 +2,7 @@ package sema
 
 import (
 	"fmt"
+	"strings"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
@@ -481,6 +482,13 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 		return "string"
 	case types.KindNothing:
 		return "nothing"
+	case types.KindGenericParam:
+		if info, ok := tc.types.TypeParamInfo(id); ok && info != nil {
+			if name := tc.lookupName(info.Name); name != "" {
+				return name
+			}
+		}
+		return "T"
 	case types.KindUnit:
 		return "unit"
 	case types.KindReference:
@@ -498,14 +506,28 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 	case types.KindStruct:
 		if info, ok := tc.types.StructInfo(id); ok && info != nil {
 			if name := tc.lookupName(info.Name); name != "" {
-				return name
+				if len(info.TypeArgs) == 0 {
+					return name
+				}
+				args := make([]string, 0, len(info.TypeArgs))
+				for _, arg := range info.TypeArgs {
+					args = append(args, tc.typeLabel(arg))
+				}
+				return fmt.Sprintf("%s<%s>", name, strings.Join(args, ", "))
 			}
 		}
 		return "struct"
 	case types.KindAlias:
 		if info, ok := tc.types.AliasInfo(id); ok && info != nil {
 			if name := tc.lookupName(info.Name); name != "" {
-				return name
+				if len(info.TypeArgs) == 0 {
+					return name
+				}
+				args := make([]string, 0, len(info.TypeArgs))
+				for _, arg := range info.TypeArgs {
+					args = append(args, tc.typeLabel(arg))
+				}
+				return fmt.Sprintf("%s<%s>", name, strings.Join(args, ", "))
 			}
 		}
 		if target, ok := tc.types.AliasTarget(id); ok && target != types.NoTypeID {

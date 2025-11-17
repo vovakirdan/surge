@@ -83,18 +83,20 @@ type SymbolDecl struct {
 
 // Symbol describes a named entity available in a scope.
 type Symbol struct {
-	Name        source.StringID
-	Kind        SymbolKind
-	Scope       ScopeID
-	Span        source.Span
-	Flags       SymbolFlags
-	Decl        SymbolDecl
-	Type        types.TypeID
-	Aliases     []source.StringID
-	Requires    []SymbolID // optional dependencies (e.g., import group)
-	Signature   *FunctionSignature
-	ModulePath  string
-	ImportName  source.StringID
-	Receiver    ast.TypeID
-	ReceiverKey TypeKey
+	Name          source.StringID
+	Kind          SymbolKind
+	Scope         ScopeID
+	Span          source.Span
+	Flags         SymbolFlags
+	Decl          SymbolDecl
+	Type          types.TypeID
+	Aliases       []source.StringID
+	Requires      []SymbolID // optional dependencies (e.g., import group)
+	Signature     *FunctionSignature
+	ModulePath    string
+	ImportName    source.StringID
+	Receiver      ast.TypeID
+	ReceiverKey   TypeKey
+	TypeParams    []source.StringID
+	TypeParamSpan source.Span
 }

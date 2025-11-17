@@ -16,6 +16,7 @@ const (
 	KindUnit
 	KindNothing
 	KindBool
+	KindGenericParam
 	KindString
 	KindInt
 	KindUint
@@ -36,6 +37,8 @@ func (k Kind) String() string {
 		return "unit"
 	case KindNothing:
 		return "nothing"
+	case KindGenericParam:
+		return "generic"
 	case KindBool:
 		return "bool"
 	case KindString:

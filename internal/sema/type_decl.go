@@ -2,6 +2,8 @@ package sema
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"fortio.org/safecast"
 
@@ -73,7 +75,7 @@ func (tc *typeChecker) populateTypeDecls(file *ast.File) {
 		case ast.TypeDeclStruct:
 			tc.populateStructType(itemID, typeItem, typeID)
 		case ast.TypeDeclAlias:
-			tc.populateAliasType(typeItem, typeID)
+			tc.populateAliasType(itemID, typeItem, typeID)
 		}
 	}
 }
@@ -83,6 +85,13 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 	if structDecl == nil {
 		return
 	}
+	symID := tc.typeSymbolForItem(itemID)
+	pushed := tc.pushTypeParams(symID, typeItem.Generics, nil)
+	defer func() {
+		if pushed {
+			tc.popTypeParams()
+		}
+	}()
 	fields := make([]types.StructField, 0, structDecl.FieldsCount)
 	scope := tc.fileScope()
 	if structDecl.FieldsCount > 0 {
@@ -108,11 +117,18 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 	tc.types.SetStructFields(typeID, fields)
 }
 
-func (tc *typeChecker) populateAliasType(typeItem *ast.TypeItem, typeID types.TypeID) {
+func (tc *typeChecker) populateAliasType(itemID ast.ItemID, typeItem *ast.TypeItem, typeID types.TypeID) {
 	aliasDecl := tc.builder.Items.TypeAlias(typeItem)
 	if aliasDecl == nil {
 		return
 	}
+	symID := tc.typeSymbolForItem(itemID)
+	pushed := tc.pushTypeParams(symID, typeItem.Generics, nil)
+	defer func() {
+		if pushed {
+			tc.popTypeParams()
+		}
+	}()
 	target := tc.resolveTypeExprWithScope(aliasDecl.Target, tc.fileScope())
 	if target == types.NoTypeID {
 		span := typeItem.Span
@@ -153,7 +169,7 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 		return types.NoTypeID
 	}
 	scope = tc.scopeOrFile(scope)
-	key := typeCacheKey{Type: id, Scope: scope}
+	key := typeCacheKey{Type: id, Scope: scope, Env: tc.currentTypeParamEnv()}
 	if tc.typeCache != nil {
 		if cached, ok := tc.typeCache[key]; ok {
 			return cached
@@ -221,14 +237,16 @@ func (tc *typeChecker) resolveTypePath(path *ast.TypePath, span source.Span, sco
 		return types.NoTypeID
 	}
 	seg := path.Segments[0]
-	if len(seg.Generics) > 0 {
-		tc.report(diag.SemaUnresolvedSymbol, span, "generic type arguments are not supported yet")
-		return types.NoTypeID
+	if len(seg.Generics) == 0 {
+		if param := tc.lookupTypeParam(seg.Name); param != types.NoTypeID {
+			return param
+		}
 	}
-	return tc.resolveNamedType(seg.Name, span, scope)
+	args := tc.resolveTypeArgs(seg.Generics, scope)
+	return tc.resolveNamedType(seg.Name, args, span, scope)
 }
 
-func (tc *typeChecker) resolveNamedType(name source.StringID, span source.Span, scope symbols.ScopeID) types.TypeID {
+func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeID, span source.Span, scope symbols.ScopeID) types.TypeID {
 	if name == source.NoStringID {
 		return types.NoTypeID
 	}
@@ -246,7 +264,151 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, span source.Span, 
 		tc.report(diag.SemaUnresolvedSymbol, span, "unknown type %s", literal)
 		return types.NoTypeID
 	}
-	return tc.symbolType(symID)
+	sym := tc.symbolFromID(symID)
+	if sym == nil {
+		return types.NoTypeID
+	}
+	expected := len(sym.TypeParams)
+	if expected == 0 {
+		if len(args) > 0 {
+			tc.report(diag.SemaTypeMismatch, span, "%s does not take type arguments", tc.lookupName(sym.Name))
+			return types.NoTypeID
+		}
+		return tc.symbolType(symID)
+	}
+	if len(args) == 0 {
+		tc.report(diag.SemaTypeMismatch, span, "%s requires %d type argument(s)", tc.lookupName(sym.Name), expected)
+		return types.NoTypeID
+	}
+	if len(args) != expected {
+		tc.report(diag.SemaTypeMismatch, span, "%s expects %d type argument(s), got %d", tc.lookupName(sym.Name), expected, len(args))
+		return types.NoTypeID
+	}
+	return tc.instantiateType(symID, args, span)
+}
+
+func (tc *typeChecker) resolveTypeArgs(typeIDs []ast.TypeID, scope symbols.ScopeID) []types.TypeID {
+	if len(typeIDs) == 0 {
+		return nil
+	}
+	args := make([]types.TypeID, 0, len(typeIDs))
+	for _, tid := range typeIDs {
+		arg := tc.resolveTypeExprWithScope(tid, scope)
+		args = append(args, arg)
+	}
+	return args
+}
+
+func (tc *typeChecker) instantiationKey(symID symbols.SymbolID, args []types.TypeID) string {
+	if !symID.IsValid() {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(strconv.FormatUint(uint64(symID), 10))
+	for _, arg := range args {
+		b.WriteByte('#')
+		b.WriteString(strconv.FormatUint(uint64(arg), 10))
+	}
+	return b.String()
+}
+
+func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.TypeID, span source.Span) types.TypeID {
+	key := tc.instantiationKey(symID, args)
+	if key != "" {
+		if cached, ok := tc.typeInstantiations[key]; ok {
+			return cached
+		}
+	}
+	sym := tc.symbolFromID(symID)
+	if sym == nil {
+		return types.NoTypeID
+	}
+	item := tc.builder.Items.Get(sym.Decl.Item)
+	if item == nil || item.Kind != ast.ItemType {
+		return types.NoTypeID
+	}
+	typeItem, ok := tc.builder.Items.Type(sym.Decl.Item)
+	if !ok || typeItem == nil {
+		return types.NoTypeID
+	}
+
+	var instantiated types.TypeID
+	switch typeItem.Kind {
+	case ast.TypeDeclStruct:
+		instantiated = tc.instantiateStruct(typeItem, symID, args)
+	case ast.TypeDeclAlias:
+		instantiated = tc.instantiateAlias(typeItem, symID, args)
+	default:
+		instantiated = types.NoTypeID
+	}
+	if instantiated != types.NoTypeID && key != "" {
+		tc.typeInstantiations[key] = instantiated
+	}
+	return instantiated
+}
+
+func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.SymbolID, args []types.TypeID) types.TypeID {
+	structDecl := tc.builder.Items.TypeStruct(typeItem)
+	if structDecl == nil {
+		return types.NoTypeID
+	}
+	pushed := tc.pushTypeParams(symID, typeItem.Generics, args)
+	defer func() {
+		if pushed {
+			tc.popTypeParams()
+		}
+	}()
+	fields := make([]types.StructField, 0, structDecl.FieldsCount)
+	scope := tc.fileScope()
+	if structDecl.FieldsCount > 0 {
+		start := uint32(structDecl.FieldsStart)
+		count := int(structDecl.FieldsCount)
+		for offset := range count {
+			uoff, err := safecast.Conv[uint32](offset)
+			if err != nil {
+				panic(fmt.Errorf("struct field offset overflow: %w", err))
+			}
+			fieldID := ast.TypeFieldID(start + uoff)
+			field := tc.builder.Items.StructField(fieldID)
+			if field == nil {
+				continue
+			}
+			fieldType := tc.resolveTypeExprWithScope(field.Type, scope)
+			fields = append(fields, types.StructField{
+				Name: field.Name,
+				Type: fieldType,
+			})
+		}
+	}
+	typeID := tc.types.RegisterStructInstance(typeItem.Name, typeItem.Span, args)
+	tc.types.SetStructFields(typeID, fields)
+	return typeID
+}
+
+func (tc *typeChecker) instantiateAlias(typeItem *ast.TypeItem, symID symbols.SymbolID, args []types.TypeID) types.TypeID {
+	aliasDecl := tc.builder.Items.TypeAlias(typeItem)
+	if aliasDecl == nil {
+		return types.NoTypeID
+	}
+	pushed := tc.pushTypeParams(symID, typeItem.Generics, args)
+	defer func() {
+		if pushed {
+			tc.popTypeParams()
+		}
+	}()
+	target := tc.resolveTypeExprWithScope(aliasDecl.Target, tc.fileScope())
+	if target == types.NoTypeID {
+		span := typeItem.Span
+		name := tc.lookupName(typeItem.Name)
+		if name == "" {
+			name = "_"
+		}
+		tc.report(diag.SemaUnresolvedSymbol, span, "unable to resolve alias target for %s", name)
+		return types.NoTypeID
+	}
+	typeID := tc.types.RegisterAliasInstance(typeItem.Name, typeItem.Span, args)
+	tc.types.SetAliasTarget(typeID, target)
+	return typeID
 }
 
 func (tc *typeChecker) lookupTypeSymbol(name source.StringID, scope symbols.ScopeID) symbols.SymbolID {
