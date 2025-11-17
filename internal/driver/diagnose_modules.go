@@ -82,38 +82,46 @@ func collectModuleExports(
 	baseDir string,
 	rootPath string,
 ) map[string]*symbols.ModuleExports {
-	if topo == nil || len(topo.Order) == 0 {
-		return nil
-	}
 	exports := make(map[string]*symbols.ModuleExports, len(records))
-	for i := len(topo.Order) - 1; i >= 0; i-- {
-		id := topo.Order[i]
-		path := idx.IDToName[int(id)]
-		rec := records[path]
-		if rec == nil {
+	if topo != nil && len(topo.Order) > 0 {
+		for i := len(topo.Order) - 1; i >= 0; i-- {
+			id := topo.Order[i]
+			path := idx.IDToName[int(id)]
+			rec := records[path]
+			if rec == nil {
+				continue
+			}
+			if rec.Exports != nil {
+				exports[path] = rec.Exports
+				continue
+			}
+			if path == rootPath {
+				continue
+			}
+			if rec.Builder == nil || rec.FileID == ast.NoFileID {
+				continue
+			}
+			opts := &symbols.ResolveOptions{
+				Reporter:      nil,
+				Validate:      false,
+				ModulePath:    path,
+				FilePath:      moduleFilePath(rec),
+				BaseDir:       baseDir,
+				ModuleExports: exports,
+			}
+			res := symbols.ResolveFile(rec.Builder, rec.FileID, opts)
+			rec.Exports = symbols.CollectExports(rec.Builder, res, path)
+			if rec.Exports != nil {
+				exports[path] = rec.Exports
+			}
+		}
+	}
+	// include any preloaded records that are outside the graph (e.g., core modules)
+	for path, rec := range records {
+		if _, seen := exports[path]; seen {
 			continue
 		}
-		if rec.Exports != nil {
-			exports[path] = rec.Exports
-			continue
-		}
-		if path == rootPath {
-			continue
-		}
-		if rec.Builder == nil || rec.FileID == ast.NoFileID {
-			continue
-		}
-		opts := &symbols.ResolveOptions{
-			Reporter:      nil,
-			Validate:      false,
-			ModulePath:    path,
-			FilePath:      moduleFilePath(rec),
-			BaseDir:       baseDir,
-			ModuleExports: exports,
-		}
-		res := symbols.ResolveFile(rec.Builder, rec.FileID, opts)
-		rec.Exports = symbols.CollectExports(rec.Builder, res, path)
-		if rec.Exports != nil {
+		if rec != nil && rec.Exports != nil {
 			exports[path] = rec.Exports
 		}
 	}
@@ -131,17 +139,19 @@ func ensureStdlibModules(
 	if stdlibRoot == "" {
 		return nil
 	}
-	if _, ok := records[stdModuleCoreIntrinsics]; ok {
-		return nil
-	}
-	rec, err := loadStdModule(fs, stdModuleCoreIntrinsics, stdlibRoot, opts, cache)
-	if err != nil {
-		if errors.Is(err, errStdModuleMissing) {
-			return nil
+	for _, module := range []string{stdModuleCoreIntrinsics, stdModuleCoreBase} {
+		if _, ok := records[module]; ok {
+			continue
 		}
-		return err
+		rec, err := loadStdModule(fs, module, stdlibRoot, opts, cache)
+		if err != nil {
+			if errors.Is(err, errStdModuleMissing) {
+				continue
+			}
+			return err
+		}
+		records[rec.Meta.Path] = rec
 	}
-	records[rec.Meta.Path] = rec
 	return nil
 }
 

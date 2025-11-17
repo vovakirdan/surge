@@ -123,6 +123,7 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 		aliasModulePaths:    make(map[source.StringID]string),
 		syntheticImportSyms: make(map[string]SymbolID),
 	}
+	fr.injectCoreExports()
 	for _, itemID := range file.Items {
 		fr.handleItem(itemID)
 	}
@@ -379,6 +380,29 @@ func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export
 	}
 	fr.syntheticImportSyms[key] = id
 	return id
+}
+
+func (fr *fileResolver) injectCoreExports() {
+	if fr.moduleExports == nil || fr.builder == nil || fr.result == nil {
+		return
+	}
+	var fileSpan source.Span
+	if file := fr.builder.Files.Get(fr.fileID); file != nil {
+		fileSpan = file.Span
+	}
+	for modulePath, exports := range fr.moduleExports {
+		if !strings.HasPrefix(modulePath, "core/") {
+			continue
+		}
+		for name, overloads := range exports.Symbols {
+			for _, exp := range overloads {
+				if exp.Flags&SymbolFlagPublic == 0 {
+					continue
+				}
+				fr.syntheticSymbolForExport(modulePath, name, exp, fileSpan)
+			}
+		}
+	}
 }
 
 func (fr *fileResolver) reportModuleMemberNotFound(modulePath string, field source.StringID, span source.Span) {

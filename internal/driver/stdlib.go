@@ -7,7 +7,10 @@ import (
 	"strings"
 )
 
-const stdModuleCoreIntrinsics = "core/intrinsics"
+const (
+	stdModuleCoreIntrinsics = "core/intrinsics"
+	stdModuleCoreBase       = "core/base"
+)
 
 func detectStdlibRoot(baseDir string) string {
 	if env := os.Getenv("SURGE_STDLIB"); env != "" {
