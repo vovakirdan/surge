@@ -233,6 +233,14 @@ func (p *Parser) finishTypePath(firstID source.StringID, startSpan source.Span) 
 		Generics: nil,
 	}}
 
+	if p.at(token.Lt) {
+		args, ok := p.parseTypeArgs()
+		if !ok {
+			return ast.NoTypeID, false
+		}
+		segments[0].Generics = args
+	}
+
 	for p.at(token.Dot) {
 		p.advance()
 		if !p.at(token.Ident) {
@@ -243,15 +251,58 @@ func (p *Parser) finishTypePath(firstID source.StringID, startSpan source.Span) 
 		if !ok {
 			return ast.NoTypeID, false
 		}
+		var generics []ast.TypeID
+		if p.at(token.Lt) {
+			generics, ok = p.parseTypeArgs()
+			if !ok {
+				return ast.NoTypeID, false
+			}
+		}
 		segments = append(segments, ast.TypePathSegment{
 			Name:     identID,
-			Generics: nil,
+			Generics: generics,
 		})
 	}
 
 	pathSpan := startSpan.Cover(p.lastSpan)
 	baseType := p.arenas.Types.NewPath(pathSpan, segments)
 	return p.parseTypeSuffix(baseType)
+}
+
+func (p *Parser) parseTypeArgs() ([]ast.TypeID, bool) {
+	if !p.at(token.Lt) {
+		return nil, true
+	}
+	p.advance()
+
+	args := make([]ast.TypeID, 0, 2)
+	for {
+		arg, ok := p.parseTypePrefix()
+		if !ok {
+			p.resyncUntil(token.Gt, token.Comma, token.Semicolon, token.KwLet, token.KwFn, token.KwType, token.KwImport, token.EOF)
+			if p.at(token.Gt) {
+				p.advance()
+			}
+			return nil, false
+		}
+		args = append(args, arg)
+
+		if p.at(token.Comma) {
+			p.advance()
+			if p.at(token.Gt) {
+				p.advance()
+				break
+			}
+			continue
+		}
+		break
+	}
+
+	if _, ok := p.expect(token.Gt, diag.SynUnclosedAngleBracket, "expected '>' after type arguments", nil); !ok {
+		p.resyncUntil(token.Semicolon, token.Comma, token.KwLet, token.KwFn, token.KwType, token.KwImport, token.EOF)
+		return args, false
+	}
+	return args, true
 }
 
 func (p *Parser) parseArraySizeLiteral(tok token.Token) (uint64, bool) {
