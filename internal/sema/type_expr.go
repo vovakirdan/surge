@@ -534,6 +534,20 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 			return tc.typeLabel(target)
 		}
 		return "alias"
+	case types.KindUnion:
+		if info, ok := tc.types.UnionInfo(id); ok && info != nil {
+			if name := tc.lookupName(info.Name); name != "" {
+				if len(info.TypeArgs) == 0 {
+					return name
+				}
+				args := make([]string, 0, len(info.TypeArgs))
+				for _, arg := range info.TypeArgs {
+					args = append(args, tc.typeLabel(arg))
+				}
+				return fmt.Sprintf("%s<%s>", name, strings.Join(args, ", "))
+			}
+		}
+		return "union"
 	default:
 		return tt.Kind.String()
 	}

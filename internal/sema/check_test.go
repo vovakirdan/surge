@@ -593,3 +593,74 @@ func TestReturnAliasRequiresCast(t *testing.T) {
 		t.Fatalf("expected %v diagnostic, got %v", diag.SemaTypeMismatch, diagCodes(diags))
 	}
 }
+
+func TestGenericTypeRequiresArgs(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	optionName := intern(builder, "Option")
+	paramName := intern(builder, "T")
+	intName := intern(builder, "int")
+
+	intType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intName}})
+	optionItem := builder.NewTypeAlias(optionName, []source.StringID{paramName}, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, intType, source.Span{})
+	builder.PushItem(fileID, optionItem)
+
+	optBare := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: optionName}})
+	let := builder.Items.NewLet(
+		intern(builder, "value"),
+		optBare,
+		ast.NoExprID,
+		false,
+		ast.VisPrivate,
+		nil,
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+	)
+	builder.PushItem(fileID, let)
+
+	diags := runSema(t, builder, fileID)
+	if !hasCode(diags, diag.SemaTypeMismatch) {
+		t.Fatalf("expected %v diagnostic, got %v", diag.SemaTypeMismatch, diagCodes(diags))
+	}
+}
+
+func TestGenericTypeAcceptsArgs(t *testing.T) {
+	builder, fileID := newTestBuilder()
+	optionName := intern(builder, "Option")
+	paramName := intern(builder, "T")
+	intName := intern(builder, "int")
+
+	intType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intName}})
+	optionItem := builder.NewTypeAlias(optionName, []source.StringID{paramName}, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, intType, source.Span{})
+	builder.PushItem(fileID, optionItem)
+
+	optInt := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{
+		Name:     optionName,
+		Generics: []ast.TypeID{intType},
+	}})
+	let := builder.Items.NewLet(
+		intern(builder, "value"),
+		optInt,
+		ast.NoExprID,
+		false,
+		ast.VisPrivate,
+		nil,
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+		source.Span{},
+	)
+	builder.PushItem(fileID, let)
+
+	diags := runSema(t, builder, fileID)
+	if diags.HasErrors() {
+		t.Fatalf("expected no diagnostics, got %v", diagCodes(diags))
+	}
+}

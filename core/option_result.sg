@@ -1,0 +1,3 @@
+// Core algebraic data types used by the standard library.
+type Option<T> = Some(T) | nothing;
+type Result<T, E> = Ok(T) | Error(E);

@@ -39,6 +39,8 @@ func (tc *typeChecker) registerTypeDecls(file *ast.File) {
 			typeID = tc.types.RegisterStruct(typeItem.Name, typeItem.Span)
 		case ast.TypeDeclAlias:
 			typeID = tc.types.RegisterAlias(typeItem.Name, typeItem.Span)
+		case ast.TypeDeclUnion:
+			typeID = tc.types.RegisterUnion(typeItem.Name, typeItem.Span)
 		default:
 			continue
 		}
@@ -76,6 +78,8 @@ func (tc *typeChecker) populateTypeDecls(file *ast.File) {
 			tc.populateStructType(itemID, typeItem, typeID)
 		case ast.TypeDeclAlias:
 			tc.populateAliasType(itemID, typeItem, typeID)
+		case ast.TypeDeclUnion:
+			tc.populateUnionType(itemID, typeItem, typeID)
 		}
 	}
 }
@@ -338,6 +342,8 @@ func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.Type
 		instantiated = tc.instantiateStruct(typeItem, symID, args)
 	case ast.TypeDeclAlias:
 		instantiated = tc.instantiateAlias(typeItem, symID, args)
+	case ast.TypeDeclUnion:
+		instantiated = tc.instantiateUnion(typeItem, symID, args)
 	default:
 		instantiated = types.NoTypeID
 	}
@@ -409,6 +415,117 @@ func (tc *typeChecker) instantiateAlias(typeItem *ast.TypeItem, symID symbols.Sy
 	typeID := tc.types.RegisterAliasInstance(typeItem.Name, typeItem.Span, args)
 	tc.types.SetAliasTarget(typeID, target)
 	return typeID
+}
+
+func (tc *typeChecker) instantiateUnion(typeItem *ast.TypeItem, symID symbols.SymbolID, args []types.TypeID) types.TypeID {
+	unionDecl := tc.builder.Items.TypeUnion(typeItem)
+	if unionDecl == nil {
+		return types.NoTypeID
+	}
+	pushed := tc.pushTypeParams(symID, typeItem.Generics, args)
+	defer func() {
+		if pushed {
+			tc.popTypeParams()
+		}
+	}()
+	scope := tc.fileScope()
+	members := make([]types.UnionMember, 0, unionDecl.MembersCount)
+	if unionDecl.MembersCount > 0 {
+		start := uint32(unionDecl.MembersStart)
+		count := int(unionDecl.MembersCount)
+		for offset := range count {
+			uoff, err := safecast.Conv[uint32](offset)
+			if err != nil {
+				panic(fmt.Errorf("union member offset overflow: %w", err))
+			}
+			memberID := ast.TypeUnionMemberID(start + uoff)
+			member := tc.builder.Items.UnionMember(memberID)
+			if member == nil {
+				continue
+			}
+			switch member.Kind {
+			case ast.TypeUnionMemberType:
+				typ := tc.resolveTypeExprWithScope(member.Type, scope)
+				members = append(members, types.UnionMember{
+					Kind: types.UnionMemberType,
+					Type: typ,
+				})
+			case ast.TypeUnionMemberNothing:
+				members = append(members, types.UnionMember{
+					Kind: types.UnionMemberNothing,
+					Type: tc.types.Builtins().Nothing,
+				})
+			case ast.TypeUnionMemberTag:
+				tagArgs := make([]types.TypeID, 0, len(member.TagArgs))
+				for _, arg := range member.TagArgs {
+					tagArgs = append(tagArgs, tc.resolveTypeExprWithScope(arg, scope))
+				}
+				members = append(members, types.UnionMember{
+					Kind:    types.UnionMemberTag,
+					TagName: member.TagName,
+					TagArgs: tagArgs,
+				})
+			}
+		}
+	}
+	typeID := tc.types.RegisterUnionInstance(typeItem.Name, typeItem.Span, args)
+	tc.types.SetUnionMembers(typeID, members)
+	return typeID
+}
+
+func (tc *typeChecker) populateUnionType(itemID ast.ItemID, typeItem *ast.TypeItem, typeID types.TypeID) {
+	unionDecl := tc.builder.Items.TypeUnion(typeItem)
+	if unionDecl == nil {
+		return
+	}
+	symID := tc.typeSymbolForItem(itemID)
+	pushed := tc.pushTypeParams(symID, typeItem.Generics, nil)
+	defer func() {
+		if pushed {
+			tc.popTypeParams()
+		}
+	}()
+	scope := tc.fileScope()
+	members := make([]types.UnionMember, 0, unionDecl.MembersCount)
+	if unionDecl.MembersCount > 0 {
+		start := uint32(unionDecl.MembersStart)
+		count := int(unionDecl.MembersCount)
+		for offset := range count {
+			uoff, err := safecast.Conv[uint32](offset)
+			if err != nil {
+				panic(fmt.Errorf("union member offset overflow: %w", err))
+			}
+			memberID := ast.TypeUnionMemberID(start + uoff)
+			member := tc.builder.Items.UnionMember(memberID)
+			if member == nil {
+				continue
+			}
+			switch member.Kind {
+			case ast.TypeUnionMemberType:
+				typ := tc.resolveTypeExprWithScope(member.Type, scope)
+				members = append(members, types.UnionMember{
+					Kind: types.UnionMemberType,
+					Type: typ,
+				})
+			case ast.TypeUnionMemberNothing:
+				members = append(members, types.UnionMember{
+					Kind: types.UnionMemberNothing,
+					Type: tc.types.Builtins().Nothing,
+				})
+			case ast.TypeUnionMemberTag:
+				tagArgs := make([]types.TypeID, 0, len(member.TagArgs))
+				for _, arg := range member.TagArgs {
+					tagArgs = append(tagArgs, tc.resolveTypeExprWithScope(arg, scope))
+				}
+				members = append(members, types.UnionMember{
+					Kind:    types.UnionMemberTag,
+					TagName: member.TagName,
+					TagArgs: tagArgs,
+				})
+			}
+		}
+	}
+	tc.types.SetUnionMembers(typeID, members)
 }
 
 func (tc *typeChecker) lookupTypeSymbol(name source.StringID, scope symbols.ScopeID) symbols.SymbolID {

@@ -27,6 +27,7 @@ const (
 	KindOwn
 	KindStruct
 	KindAlias
+	KindUnion
 )
 
 func (k Kind) String() string {
@@ -61,6 +62,8 @@ func (k Kind) String() string {
 		return "struct"
 	case KindAlias:
 		return "alias"
+	case KindUnion:
+		return "union"
 	default:
 		return fmt.Sprintf("Kind(%d)", k)
 	}
