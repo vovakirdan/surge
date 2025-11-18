@@ -418,6 +418,7 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 	if actual == types.NoTypeID {
 		return
 	}
+	actual = tc.coerceReturnType(expected, actual)
 	if !tc.typesAssignable(expected, actual, false) {
 		tc.report(diag.SemaTypeMismatch, span, "return type mismatch: expected %s, got %s", tc.typeLabel(expected), tc.typeLabel(actual))
 	}
@@ -431,4 +432,21 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 		return tc.resolveAlias(expected) == tc.resolveAlias(actual)
 	}
 	return false
+}
+
+func (tc *typeChecker) coerceReturnType(expected, actual types.TypeID) types.TypeID {
+	if expected == types.NoTypeID || actual == types.NoTypeID || tc.types == nil {
+		return actual
+	}
+	if elem, ok := tc.optionPayload(expected); ok {
+		if tc.typesAssignable(elem, actual, true) {
+			return expected
+		}
+	}
+	if okType, _, ok := tc.resultPayload(expected); ok {
+		if tc.typesAssignable(okType, actual, true) {
+			return expected
+		}
+	}
+	return actual
 }
