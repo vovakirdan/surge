@@ -365,13 +365,15 @@ func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export
 		span = fallback
 	}
 	sym := Symbol{
-		Name:       nameID,
-		Kind:       export.Kind,
-		Span:       span,
-		Flags:      export.Flags | SymbolFlagImported,
-		Scope:      fr.result.FileScope,
-		ModulePath: modulePath,
-		ImportName: nameID,
+		Name:          nameID,
+		Kind:          export.Kind,
+		Span:          span,
+		Flags:         export.Flags | SymbolFlagImported,
+		Scope:         fr.result.FileScope,
+		ModulePath:    modulePath,
+		ImportName:    nameID,
+		TypeParams:    append([]source.StringID(nil), export.TypeParams...),
+		TypeParamSpan: export.TypeParamSpan,
 	}
 	id := fr.result.Table.Symbols.New(&sym)
 	if scope := fr.result.Table.Scopes.Get(fr.result.FileScope); scope != nil {
