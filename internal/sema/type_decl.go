@@ -445,6 +445,49 @@ func (tc *typeChecker) substituteImportedType(id types.TypeID, args []types.Type
 	}
 }
 
+func (tc *typeChecker) tagSymbolExists(name source.StringID, span source.Span) bool {
+	if name == source.NoStringID || tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Scopes == nil || tc.symbols.Table.Symbols == nil {
+		return false
+	}
+	scope := tc.fileScope()
+	for scope.IsValid() {
+		data := tc.symbols.Table.Scopes.Get(scope)
+		if data == nil {
+			break
+		}
+		if ids := data.NameIndex[name]; len(ids) > 0 {
+			for i := len(ids) - 1; i >= 0; i-- {
+				id := ids[i]
+				sym := tc.symbols.Table.Symbols.Get(id)
+				if sym == nil {
+					continue
+				}
+				if sym.Kind == symbols.SymbolTag {
+					return true
+				}
+			}
+		}
+		scope = data.Parent
+	}
+	tc.report(diag.SemaUnresolvedSymbol, span, "unknown tag %s in union", tc.lookupName(name))
+	return false
+}
+
+func (tc *typeChecker) validateUnionMembers(hasTag, hasNothing bool, typeItem *ast.TypeItem, unionDecl *ast.TypeUnionDecl) {
+	if hasTag || hasNothing || typeItem == nil {
+		return
+	}
+	typeName := tc.lookupName(typeItem.Name)
+	span := typeItem.Span
+	if unionDecl != nil && unionDecl.BodySpan != (source.Span{}) {
+		span = unionDecl.BodySpan
+	}
+	if typeName == "" {
+		typeName = "_"
+	}
+	tc.report(diag.SemaTypeMismatch, span, "%s: pure union of value types is not allowed; use tagged variants instead", typeName)
+}
+
 func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.SymbolID, args []types.TypeID) types.TypeID {
 	structDecl := tc.builder.Items.TypeStruct(typeItem)
 	if structDecl == nil {
@@ -522,6 +565,8 @@ func (tc *typeChecker) instantiateUnion(typeItem *ast.TypeItem, symID symbols.Sy
 	}()
 	scope := tc.fileScope()
 	members := make([]types.UnionMember, 0, unionDecl.MembersCount)
+	hasTag := false
+	hasNothing := false
 	if unionDecl.MembersCount > 0 {
 		start := uint32(unionDecl.MembersStart)
 		count := int(unionDecl.MembersCount)
@@ -543,11 +588,16 @@ func (tc *typeChecker) instantiateUnion(typeItem *ast.TypeItem, symID symbols.Sy
 					Type: typ,
 				})
 			case ast.TypeUnionMemberNothing:
+				hasNothing = true
 				members = append(members, types.UnionMember{
 					Kind: types.UnionMemberNothing,
 					Type: tc.types.Builtins().Nothing,
 				})
 			case ast.TypeUnionMemberTag:
+				hasTag = true
+				if !tc.tagSymbolExists(member.TagName, member.Span) {
+					continue
+				}
 				tagArgs := make([]types.TypeID, 0, len(member.TagArgs))
 				for _, arg := range member.TagArgs {
 					tagArgs = append(tagArgs, tc.resolveTypeExprWithScope(arg, scope))
@@ -560,6 +610,7 @@ func (tc *typeChecker) instantiateUnion(typeItem *ast.TypeItem, symID symbols.Sy
 			}
 		}
 	}
+	tc.validateUnionMembers(hasTag, hasNothing, typeItem, unionDecl)
 	typeID := tc.types.RegisterUnionInstance(typeItem.Name, typeItem.Span, args)
 	tc.types.SetUnionMembers(typeID, members)
 	return typeID
@@ -579,6 +630,8 @@ func (tc *typeChecker) populateUnionType(itemID ast.ItemID, typeItem *ast.TypeIt
 	}()
 	scope := tc.fileScope()
 	members := make([]types.UnionMember, 0, unionDecl.MembersCount)
+	hasTag := false
+	hasNothing := false
 	if unionDecl.MembersCount > 0 {
 		start := uint32(unionDecl.MembersStart)
 		count := int(unionDecl.MembersCount)
@@ -600,11 +653,16 @@ func (tc *typeChecker) populateUnionType(itemID ast.ItemID, typeItem *ast.TypeIt
 					Type: typ,
 				})
 			case ast.TypeUnionMemberNothing:
+				hasNothing = true
 				members = append(members, types.UnionMember{
 					Kind: types.UnionMemberNothing,
 					Type: tc.types.Builtins().Nothing,
 				})
 			case ast.TypeUnionMemberTag:
+				hasTag = true
+				if !tc.tagSymbolExists(member.TagName, member.Span) {
+					continue
+				}
 				tagArgs := make([]types.TypeID, 0, len(member.TagArgs))
 				for _, arg := range member.TagArgs {
 					tagArgs = append(tagArgs, tc.resolveTypeExprWithScope(arg, scope))
@@ -617,6 +675,7 @@ func (tc *typeChecker) populateUnionType(itemID ast.ItemID, typeItem *ast.TypeIt
 			}
 		}
 	}
+	tc.validateUnionMembers(hasTag, hasNothing, typeItem, unionDecl)
 	tc.types.SetUnionMembers(typeID, members)
 }
 

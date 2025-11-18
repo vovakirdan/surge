@@ -62,6 +62,8 @@ func addOptionResultPrelude(builder *ast.Builder, fileID ast.FileID) {
 	tPath := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: tName}})
 	ePath := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: eName}})
 
+	someTag := builder.NewTag(someName, source.Span{}, []source.StringID{tName}, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, []ast.TypeID{tPath}, nil, false, nil, ast.VisPrivate, source.Span{})
+	builder.PushItem(fileID, someTag)
 	optionMembers := []ast.TypeUnionMemberSpec{
 		{Kind: ast.TypeUnionMemberTag, TagName: someName, TagArgs: []ast.TypeID{tPath}},
 		{Kind: ast.TypeUnionMemberNothing},
@@ -69,6 +71,10 @@ func addOptionResultPrelude(builder *ast.Builder, fileID ast.FileID) {
 	optionID := builder.NewTypeUnion(optionName, []source.StringID{tName}, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, optionMembers, source.Span{}, source.Span{})
 	builder.PushItem(fileID, optionID)
 
+	okTag := builder.NewTag(okName, source.Span{}, []source.StringID{tName}, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, []ast.TypeID{tPath}, nil, false, nil, ast.VisPrivate, source.Span{})
+	errTag := builder.NewTag(errName, source.Span{}, []source.StringID{eName}, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, []ast.TypeID{ePath}, nil, false, nil, ast.VisPrivate, source.Span{})
+	builder.PushItem(fileID, okTag)
+	builder.PushItem(fileID, errTag)
 	resultMembers := []ast.TypeUnionMemberSpec{
 		{Kind: ast.TypeUnionMemberTag, TagName: okName, TagArgs: []ast.TypeID{tPath}},
 		{Kind: ast.TypeUnionMemberTag, TagName: errName, TagArgs: []ast.TypeID{ePath}},
