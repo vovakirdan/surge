@@ -337,6 +337,10 @@ func (tc *typeChecker) makeOptionType(elem types.TypeID) types.TypeID {
 	if tc.types == nil || elem == types.NoTypeID {
 		return types.NoTypeID
 	}
+	key := tc.builtinInstantiationKey("Option", elem)
+	if cached := tc.cachedInstantiation(key); cached != types.NoTypeID {
+		return cached
+	}
 	some := tc.builder.StringsInterner.Intern("Some")
 	members := []types.UnionMember{
 		{Kind: types.UnionMemberTag, TagName: some, TagArgs: []types.TypeID{elem}},
@@ -344,12 +348,17 @@ func (tc *typeChecker) makeOptionType(elem types.TypeID) types.TypeID {
 	}
 	typeID := tc.types.RegisterUnionInstance(tc.builder.StringsInterner.Intern("Option"), source.Span{}, []types.TypeID{elem})
 	tc.types.SetUnionMembers(typeID, members)
+	tc.rememberInstantiation(key, typeID)
 	return typeID
 }
 
 func (tc *typeChecker) makeResultType(okType, errType types.TypeID) types.TypeID {
 	if tc.types == nil || okType == types.NoTypeID || errType == types.NoTypeID {
 		return types.NoTypeID
+	}
+	key := tc.builtinInstantiationKey("Result", okType, errType)
+	if cached := tc.cachedInstantiation(key); cached != types.NoTypeID {
+		return cached
 	}
 	okName := tc.builder.StringsInterner.Intern("Ok")
 	errName := tc.builder.StringsInterner.Intern("Error")
@@ -359,6 +368,7 @@ func (tc *typeChecker) makeResultType(okType, errType types.TypeID) types.TypeID
 	}
 	typeID := tc.types.RegisterUnionInstance(tc.builder.StringsInterner.Intern("Result"), source.Span{}, []types.TypeID{okType, errType})
 	tc.types.SetUnionMembers(typeID, members)
+	tc.rememberInstantiation(key, typeID)
 	return typeID
 }
 
@@ -375,12 +385,41 @@ func (tc *typeChecker) instantiationKey(symID symbols.SymbolID, args []types.Typ
 	return b.String()
 }
 
+func (tc *typeChecker) builtinInstantiationKey(name string, args ...types.TypeID) string {
+	if name == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("builtin:")
+	b.WriteString(name)
+	for _, arg := range args {
+		b.WriteByte('#')
+		b.WriteString(strconv.FormatUint(uint64(arg), 10))
+	}
+	return b.String()
+}
+
+func (tc *typeChecker) cachedInstantiation(key string) types.TypeID {
+	if key == "" || tc.typeInstantiations == nil {
+		return types.NoTypeID
+	}
+	if cached, ok := tc.typeInstantiations[key]; ok {
+		return cached
+	}
+	return types.NoTypeID
+}
+
+func (tc *typeChecker) rememberInstantiation(key string, typeID types.TypeID) {
+	if key == "" || typeID == types.NoTypeID || tc.typeInstantiations == nil {
+		return
+	}
+	tc.typeInstantiations[key] = typeID
+}
+
 func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.TypeID, span source.Span) types.TypeID {
 	key := tc.instantiationKey(symID, args)
-	if key != "" {
-		if cached, ok := tc.typeInstantiations[key]; ok {
-			return cached
-		}
+	if cached := tc.cachedInstantiation(key); cached != types.NoTypeID {
+		return cached
 	}
 	sym := tc.symbolFromID(symID)
 	if sym == nil {
@@ -406,9 +445,7 @@ func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.Type
 	default:
 		instantiated = types.NoTypeID
 	}
-	if instantiated != types.NoTypeID && key != "" {
-		tc.typeInstantiations[key] = instantiated
-	}
+	tc.rememberInstantiation(key, instantiated)
 	return instantiated
 }
 

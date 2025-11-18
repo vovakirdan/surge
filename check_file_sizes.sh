@@ -2,9 +2,9 @@
 
 # Скрипт для проверки размера файлов в директории
 # Оценка по количеству строк:
-# <=500 +- 50 OK green
-# 550 - 650 Yellow acceptable  
-# 650+ BAD need refactoring
+# <=525 +- 50 OK green
+# 575 - 675 Yellow acceptable  
+# 675+ BAD need refactoring
 
 # Цветовые коды для вывода
 RED='\033[0;31m'
@@ -16,14 +16,14 @@ NC='\033[0m' # No Color
 EXTENSIONS="go"
 EXCLUDE_TESTS=true
 
-# get_file_rating outputs a colored rating for a file based on its line count: "OK" for 550 lines or fewer, "ACCEPTABLE" for 551–650 lines, and "BAD - need refactoring" for more than 650 lines.
+# get_file_rating outputs a colored rating for a file based on its line count: "OK" for 575 lines or fewer, "ACCEPTABLE" for 576–675 lines, and "BAD - need refactoring" for more than 675 lines.
 get_file_rating() {
     local lines=$1
     local filename=$2
     
-    if [ $lines -le 550 ]; then
+    if [ $lines -le 575 ]; then
         echo -e "${GREEN}OK${NC}"
-    elif [ $lines -le 650 ]; then
+    elif [ $lines -le 675 ]; then
         echo -e "${YELLOW}ACCEPTABLE${NC}"
     else
         echo -e "${RED}BAD - need refactoring${NC}"
@@ -120,9 +120,9 @@ check_directory() {
                     
                     total_files=$((total_files + 1))
                     
-                    if [ $lines -le 550 ]; then
+                    if [ $lines -le 575 ]; then
                         ok_files=$((ok_files + 1))
-                    elif [ $lines -le 650 ]; then
+                    elif [ $lines -le 675 ]; then
                         acceptable_files=$((acceptable_files + 1))
                     else
                         bad_files=$((bad_files + 1))
@@ -135,9 +135,9 @@ check_directory() {
     echo "=================================================="
     echo "Статистика:"
     echo "Всего проверено файлов: $total_files"
-    echo -e "OK (≤550 строк): ${GREEN}$ok_files${NC}"
-    echo -e "Acceptable (551-650 строк): ${YELLOW}$acceptable_files${NC}"
-    echo -e "BAD (>650 строк): ${RED}$bad_files${NC}"
+    echo -e "OK (≤575 строк): ${GREEN}$ok_files${NC}"
+    echo -e "Acceptable (576-675 строк): ${YELLOW}$acceptable_files${NC}"
+    echo -e "BAD (>675 строк): ${RED}$bad_files${NC}"
     
     # Рассчитываем процент "хороших" файлов (OK + ACCEPTABLE)
     local good_files=$((ok_files + acceptable_files))
@@ -191,9 +191,9 @@ show_help() {
     echo "Проверяет размер файлов в указанной директории (по умолчанию текущая)."
     echo ""
     echo "Критерии оценки:"
-    echo "  ≤550 строк    - OK (зеленый)"
-    echo "  551-650 строк - ACCEPTABLE (желтый)"
-    echo "  >650 строк    - BAD - need refactoring (красный)"
+    echo "  ≤575 строк    - OK (зеленый)"
+    echo "  576-675 строк - ACCEPTABLE (желтый)"
+    echo "  >675 строк    - BAD - need refactoring (красный)"
     echo ""
     echo "Опции:"
     echo "  -h, --help              - показать эту справку"
