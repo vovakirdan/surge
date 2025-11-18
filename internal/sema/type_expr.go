@@ -63,10 +63,20 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprCall:
 		if call, ok := tc.builder.Exprs.Call(id); ok && call != nil {
-			tc.typeExpr(call.Target)
-			for _, arg := range call.Args {
-				tc.typeExpr(arg)
-				tc.observeMove(arg, tc.exprSpan(arg))
+			if member, okMem := tc.builder.Exprs.Member(call.Target); okMem && member != nil {
+				receiverType := tc.typeExpr(member.Target)
+				argTypes := make([]types.TypeID, 0, len(call.Args))
+				for _, arg := range call.Args {
+					argTypes = append(argTypes, tc.typeExpr(arg))
+					tc.observeMove(arg, tc.exprSpan(arg))
+				}
+				ty = tc.methodResultType(member, receiverType, argTypes, expr.Span)
+			} else {
+				tc.typeExpr(call.Target)
+				for _, arg := range call.Args {
+					tc.typeExpr(arg)
+					tc.observeMove(arg, tc.exprSpan(arg))
+				}
 			}
 		}
 	case ast.ExprArray:
@@ -600,4 +610,59 @@ func (tc *typeChecker) reportMissingCastMethod(from, target types.TypeID, span s
 
 func (tc *typeChecker) sameType(a, b types.TypeID) bool {
 	return a == b
+}
+
+func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, span source.Span) types.TypeID {
+	if member == nil || tc.magic == nil {
+		return types.NoTypeID
+	}
+	name := tc.lookupExportedName(member.Field)
+	if name == "" {
+		return types.NoTypeID
+	}
+	for _, recvCand := range tc.typeKeyCandidates(recv) {
+		if recvCand.key == "" {
+			continue
+		}
+		methods := tc.lookupMagicMethods(recvCand.key, name)
+		for _, sig := range methods {
+			if sig == nil || len(sig.Params) == 0 || sig.Params[0] != recvCand.key {
+				continue
+			}
+			if len(sig.Params)-1 != len(args) {
+				continue
+			}
+			if !tc.methodParamsMatch(sig.Params[1:], args) {
+				continue
+			}
+			res := tc.typeFromKey(sig.Result)
+			return tc.adjustAliasUnaryResult(res, recvCand)
+		}
+	}
+	tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
+	return types.NoTypeID
+}
+
+func (tc *typeChecker) methodParamsMatch(expected []symbols.TypeKey, args []types.TypeID) bool {
+	if len(expected) != len(args) {
+		return false
+	}
+	for i, arg := range args {
+		if !tc.methodParamMatches(expected[i], arg) {
+			return false
+		}
+	}
+	return true
+}
+
+func (tc *typeChecker) methodParamMatches(expected symbols.TypeKey, arg types.TypeID) bool {
+	if expected == "" {
+		return false
+	}
+	for _, cand := range tc.typeKeyCandidates(arg) {
+		if cand.key == expected {
+			return true
+		}
+	}
+	return false
 }

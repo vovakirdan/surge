@@ -298,11 +298,38 @@ func (p *Parser) parseTypeArgs() ([]ast.TypeID, bool) {
 		break
 	}
 
-	if _, ok := p.expect(token.Gt, diag.SynUnclosedAngleBracket, "expected '>' after type arguments", nil); !ok {
+	if _, ok := p.consumeTypeArgClose(); !ok {
+		p.emitDiagnostic(diag.SynUnclosedAngleBracket, diag.SevError, p.currentErrorSpan(), "expected '>' after type arguments", nil)
 		p.resyncUntil(token.Semicolon, token.Comma, token.KwLet, token.KwFn, token.KwType, token.KwImport, token.EOF)
 		return args, false
 	}
 	return args, true
+}
+
+// consumeTypeArgClose accepts '>' or '>>' (splitting the latter) when closing a type argument list.
+func (p *Parser) consumeTypeArgClose() (token.Token, bool) {
+	if p.at(token.Gt) {
+		return p.advance(), true
+	}
+	if !p.at(token.Shr) {
+		return token.Token{}, false
+	}
+	tok := p.advance()
+	span := tok.Span
+	firstSpan := span
+	secondSpan := span
+	if span.End-span.Start >= 2 {
+		firstSpan.End = span.End - 1
+		secondSpan.Start = firstSpan.End
+	}
+	second := tok
+	second.Kind = token.Gt
+	second.Span = secondSpan
+	p.lx.Push(second)
+
+	tok.Kind = token.Gt
+	tok.Span = firstSpan
+	return tok, true
 }
 
 func (p *Parser) parseArraySizeLiteral(tok token.Token) (uint64, bool) {

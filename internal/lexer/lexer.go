@@ -90,6 +90,11 @@ func (lx *Lexer) Peek() token.Token {
 	return t
 }
 
+// Push injects a token back into the lookahead buffer.
+func (lx *Lexer) Push(tok token.Token) {
+	lx.look = &tok
+}
+
 func (lx *Lexer) EmptySpan() source.Span {
 	return source.Span{File: lx.file.ID, Start: lx.cursor.Off, End: lx.cursor.Off}
 }
