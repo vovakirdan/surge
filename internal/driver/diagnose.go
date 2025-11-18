@@ -16,6 +16,7 @@ import (
 	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/types"
 
 	"fortio.org/safecast"
 )
@@ -85,6 +86,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	loadIdx := begin("load_file")
 	// Создаём FileSet и загружаем файл
 	fs := source.NewFileSet()
+	sharedTypes := types.NewInterner()
 	fileID, err := fs.Load(path)
 	end(loadIdx, "")
 	if err != nil {
@@ -134,7 +136,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 
 		graphIdx := begin("imports_graph")
 		var moduleExports map[string]*symbols.ModuleExports
-		moduleExports, err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache)
+		moduleExports, err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache, sharedTypes)
 		end(graphIdx, "")
 		if err != nil {
 			return nil, err
@@ -158,7 +160,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 			end(symbolIdx, symbolNote)
 
 			semaIdx := begin("sema")
-			semaRes = diagnoseSema(builder, astFile, bag, moduleExports, symbolsRes)
+			semaRes = diagnoseSemaWithTypes(builder, astFile, bag, moduleExports, symbolsRes, sharedTypes)
 			end(semaIdx, "")
 		}
 	}
@@ -225,6 +227,20 @@ func diagnoseSema(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, export
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  symbolsRes,
 		Exports:  exports,
+	}
+	res := sema.Check(builder, fileID, opts)
+	return &res
+}
+
+func diagnoseSemaWithTypes(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, typeInterner *types.Interner) *sema.Result {
+	if builder == nil || fileID == ast.NoFileID {
+		return nil
+	}
+	opts := sema.Options{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Symbols:  symbolsRes,
+		Exports:  exports,
+		Types:    typeInterner,
 	}
 	res := sema.Check(builder, fileID, opts)
 	return &res
@@ -318,6 +334,7 @@ type moduleRecord struct {
 	Builder  *ast.Builder
 	FileID   ast.FileID
 	File     *source.File
+	Sema     *sema.Result
 	Exports  *symbols.ModuleExports
 }
 
@@ -329,6 +346,7 @@ func runModuleGraph(
 	bag *diag.Bag,
 	opts DiagnoseOptions,
 	cache *ModuleCache,
+	typeInterner *types.Interner,
 ) (map[string]*symbols.ModuleExports, error) {
 	if builder == nil {
 		return nil, nil
@@ -379,7 +397,7 @@ func runModuleGraph(
 				continue
 			}
 
-			depRec, err := analyzeDependencyModule(fs, imp.Path, baseDir, opts, cache, stdlibRoot)
+			depRec, err := analyzeDependencyModule(fs, imp.Path, baseDir, opts, cache)
 			if err != nil {
 				if errors.Is(err, errModuleNotFound) {
 					missing[imp.Path] = struct{}{}
@@ -392,7 +410,7 @@ func runModuleGraph(
 		}
 	}
 
-	if err := ensureStdlibModules(fs, records, baseDir, opts, cache, stdlibRoot); err != nil {
+	if err := ensureStdlibModules(fs, records, opts, cache, stdlibRoot, typeInterner); err != nil {
 		return nil, err
 	}
 

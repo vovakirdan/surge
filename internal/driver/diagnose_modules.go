@@ -8,8 +8,10 @@ import (
 	"surge/internal/diag"
 	"surge/internal/project"
 	"surge/internal/project/dag"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 func analyzeDependencyModule(
@@ -18,7 +20,6 @@ func analyzeDependencyModule(
 	baseDir string,
 	opts DiagnoseOptions,
 	cache *ModuleCache,
-	stdlibRoot string,
 ) (*moduleRecord, error) {
 	filePath := modulePathToFilePath(baseDir, modulePath)
 	fileID, err := fs.Load(filePath)
@@ -131,10 +132,10 @@ func collectModuleExports(
 func ensureStdlibModules(
 	fs *source.FileSet,
 	records map[string]*moduleRecord,
-	baseDir string,
 	opts DiagnoseOptions,
 	cache *ModuleCache,
 	stdlibRoot string,
+	typeInterner *types.Interner,
 ) error {
 	if stdlibRoot == "" {
 		return nil
@@ -144,7 +145,7 @@ func ensureStdlibModules(
 		if _, ok := records[module]; ok {
 			continue
 		}
-		rec, err := loadStdModule(fs, module, stdlibRoot, opts, cache, exports)
+		rec, err := loadStdModule(fs, module, stdlibRoot, opts, cache, exports, typeInterner)
 		if err != nil {
 			if errors.Is(err, errStdModuleMissing) {
 				continue
@@ -166,6 +167,7 @@ func loadStdModule(
 	opts DiagnoseOptions,
 	cache *ModuleCache,
 	moduleExports map[string]*symbols.ModuleExports,
+	typeInterner *types.Interner,
 ) (*moduleRecord, error) {
 	if stdlibRoot == "" {
 		return nil, errStdModuleMissing
@@ -208,6 +210,12 @@ func loadStdModule(
 		ModuleExports: moduleExports,
 	})
 	markSymbolsBuiltin(&res)
+	semaRes := sema.Check(builder, astFile, sema.Options{
+		Reporter: reporter,
+		Symbols:  &res,
+		Exports:  moduleExports,
+		Types:    typeInterner,
+	})
 	exports := symbols.CollectExports(builder, res, modulePath)
 	return &moduleRecord{
 		Meta:     meta,
@@ -217,6 +225,7 @@ func loadStdModule(
 		Builder:  builder,
 		FileID:   astFile,
 		File:     file,
+		Sema:     &semaRes,
 		Exports:  exports,
 	}, nil
 }
