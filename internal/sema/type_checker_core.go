@@ -45,6 +45,8 @@ type typeChecker struct {
 	typeParamEnv       []uint32
 	nextParamEnv       uint32
 	typeInstantiations map[string]types.TypeID
+	typeNames          map[types.TypeID]string
+	exportNames        map[source.StringID]string
 }
 
 type returnContext struct {
@@ -60,6 +62,7 @@ func (tc *typeChecker) run() {
 	tc.ensureBuiltinMagic()
 	tc.buildScopeIndex()
 	tc.buildSymbolIndex()
+	tc.buildExportNameIndexes()
 	tc.borrow = NewBorrowTable()
 	tc.bindingBorrow = make(map[symbols.SymbolID]BorrowID)
 	tc.bindingTypes = make(map[symbols.SymbolID]types.TypeID)
@@ -424,6 +427,70 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 	}
 }
 
+func (tc *typeChecker) buildExportNameIndexes() {
+	if tc.exports == nil {
+		return
+	}
+	tc.typeNames = make(map[types.TypeID]string)
+	tc.exportNames = make(map[source.StringID]string)
+	for _, module := range tc.exports {
+		if module == nil {
+			continue
+		}
+		for _, list := range module.Symbols {
+			for _, sym := range list {
+				if sym.NameID != source.NoStringID && sym.Name != "" {
+					if _, ok := tc.exportNames[sym.NameID]; !ok {
+						tc.exportNames[sym.NameID] = sym.Name
+					}
+				}
+				if sym.Kind == symbols.SymbolType && sym.Type != types.NoTypeID {
+					tc.recordTypeName(sym.Type, sym.Name)
+				}
+			}
+		}
+	}
+}
+
+func (tc *typeChecker) lookupTypeName(typeID types.TypeID, nameID source.StringID) string {
+	if tc.typeNames != nil {
+		if name := tc.typeNames[tc.resolveAlias(typeID)]; name != "" {
+			return name
+		}
+	}
+	if tc.exportNames != nil {
+		if name := tc.exportNames[nameID]; name != "" {
+			return name
+		}
+	}
+	if name := tc.lookupName(nameID); name != "" {
+		return name
+	}
+	return ""
+}
+
+func (tc *typeChecker) lookupExportedName(id source.StringID) string {
+	if name := tc.lookupName(id); name != "" {
+		return name
+	}
+	if tc.exportNames != nil {
+		return tc.exportNames[id]
+	}
+	return ""
+}
+
+func (tc *typeChecker) recordTypeName(id types.TypeID, name string) {
+	if id == types.NoTypeID || name == "" {
+		return
+	}
+	if tc.typeNames == nil {
+		tc.typeNames = make(map[types.TypeID]string)
+	}
+	if _, ok := tc.typeNames[id]; !ok {
+		tc.typeNames[id] = name
+	}
+}
+
 func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias bool) bool {
 	if expected == actual {
 		return true
@@ -438,18 +505,48 @@ func (tc *typeChecker) coerceReturnType(expected, actual types.TypeID) types.Typ
 	if expected == types.NoTypeID || actual == types.NoTypeID || tc.types == nil {
 		return actual
 	}
+	actualResolved := tc.resolveAlias(actual)
 	if elem, ok := tc.optionPayload(expected); ok {
-		if actual == tc.types.Builtins().Nothing {
+		if actualResolved == tc.types.Builtins().Nothing {
 			return expected
 		}
-		if tc.typesAssignable(elem, actual, true) {
+		if tc.typesAssignable(elem, actualResolved, true) {
+			return expected
+		}
+		if payload := tc.unwrapTaggedPayload(actualResolved, "Some"); payload != types.NoTypeID && tc.typesAssignable(elem, payload, true) {
 			return expected
 		}
 	}
 	if okType, _, ok := tc.resultPayload(expected); ok {
-		if tc.typesAssignable(okType, actual, true) {
+		if tc.typesAssignable(okType, actualResolved, true) {
+			return expected
+		}
+		if payload := tc.unwrapTaggedPayload(actualResolved, "Ok"); payload != types.NoTypeID && tc.typesAssignable(okType, payload, true) {
 			return expected
 		}
 	}
 	return actual
+}
+
+func (tc *typeChecker) unwrapTaggedPayload(id types.TypeID, tag string) types.TypeID {
+	if id == types.NoTypeID || tc.types == nil || tag == "" {
+		return types.NoTypeID
+	}
+	info, ok := tc.types.UnionInfo(id)
+	if !ok || info == nil {
+		return types.NoTypeID
+	}
+	for _, member := range info.Members {
+		if member.Kind != types.UnionMemberTag {
+			continue
+		}
+		if tc.lookupExportedName(member.TagName) != tag {
+			continue
+		}
+		if len(member.TagArgs) == 0 {
+			return types.NoTypeID
+		}
+		return member.TagArgs[0]
+	}
+	return types.NoTypeID
 }

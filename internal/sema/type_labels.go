@@ -123,19 +123,19 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 		return symbols.TypeKey("unit")
 	case types.KindStruct:
 		if info, ok := tc.types.StructInfo(id); ok && info != nil {
-			if name := tc.lookupName(info.Name); name != "" {
+			if name := tc.lookupTypeName(id, info.Name); name != "" {
 				return symbols.TypeKey(name)
 			}
 		}
 	case types.KindAlias:
 		if info, ok := tc.types.AliasInfo(id); ok && info != nil {
-			if name := tc.lookupName(info.Name); name != "" {
+			if name := tc.lookupTypeName(id, info.Name); name != "" {
 				return symbols.TypeKey(name)
 			}
 		}
 	case types.KindUnion:
 		if info, ok := tc.types.UnionInfo(id); ok && info != nil {
-			if name := tc.lookupName(info.Name); name != "" {
+			if name := tc.lookupTypeName(id, info.Name); name != "" {
 				return symbols.TypeKey(name)
 			}
 		}

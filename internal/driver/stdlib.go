@@ -29,6 +29,17 @@ func detectStdlibRoot(baseDir string) string {
 	if baseDir != "" && hasStdModule(baseDir, stdModuleCoreIntrinsics) {
 		return baseDir
 	}
+	dir := baseDir
+	for dir != "" {
+		next := filepath.Dir(dir)
+		if next == dir {
+			break
+		}
+		dir = next
+		if hasStdModule(dir, stdModuleCoreIntrinsics) {
+			return dir
+		}
+	}
 	return ""
 }
 

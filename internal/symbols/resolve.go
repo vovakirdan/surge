@@ -3,6 +3,7 @@ package symbols
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"surge/internal/ast"
@@ -39,6 +40,7 @@ var intrinsicAllowedNamesList = []string{
 	"__to",
 	"__is",
 	"__heir",
+	"exit",
 }
 
 var (
@@ -102,8 +104,8 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 	fileScope := table.FileRoot(sourceFile, file.Span)
 	result.FileScope = fileScope
 
-	corePrelude := exportsPrelude(opts.ModuleExports)
-	prelude := mergePrelude(append(corePrelude, opts.Prelude...))
+	importsPrelude := exportsPrelude(opts.ModuleExports)
+	prelude := mergePrelude(append(importsPrelude, opts.Prelude...))
 	resolver := NewResolver(table, fileScope, ResolverOptions{
 		Reporter: opts.Reporter,
 		Prelude:  prelude,
@@ -368,6 +370,15 @@ func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export
 	if span == (source.Span{}) {
 		span = fallback
 	}
+	var typeParams []source.StringID
+	if fr.builder != nil && fr.builder.StringsInterner != nil {
+		for _, paramName := range export.TypeParamNames {
+			if paramName == "" {
+				continue
+			}
+			typeParams = append(typeParams, fr.builder.StringsInterner.Intern(paramName))
+		}
+	}
 	sym := Symbol{
 		Name:          nameID,
 		Kind:          export.Kind,
@@ -377,7 +388,7 @@ func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export
 		Scope:         fr.result.FileScope,
 		ModulePath:    modulePath,
 		ImportName:    nameID,
-		TypeParams:    append([]source.StringID(nil), export.TypeParams...),
+		TypeParams:    typeParams,
 		TypeParamSpan: export.TypeParamSpan,
 	}
 	id := fr.result.Table.Symbols.New(&sym)
@@ -470,22 +481,38 @@ func exportsPrelude(exports map[string]*ModuleExports) []PreludeEntry {
 		return nil
 	}
 	entries := make([]PreludeEntry, 0, 8)
+	modulePaths := make([]string, 0, len(exports))
 	for modulePath, moduleExports := range exports {
 		if moduleExports == nil || !strings.HasPrefix(modulePath, "core/") {
 			continue
 		}
-		for name, overloads := range moduleExports.Symbols {
-			for _, exp := range overloads {
+		modulePaths = append(modulePaths, modulePath)
+	}
+	sort.Strings(modulePaths)
+	for _, modulePath := range modulePaths {
+		moduleExports := exports[modulePath]
+		if moduleExports == nil {
+			continue
+		}
+		names := make([]string, 0, len(moduleExports.Symbols))
+		for name := range moduleExports.Symbols {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			for _, exp := range moduleExports.Symbols[name] {
 				if exp.Flags&SymbolFlagPublic == 0 {
 					continue
 				}
 				entries = append(entries, PreludeEntry{
-					Name:      name,
-					Kind:      exp.Kind,
-					Flags:     exp.Flags | SymbolFlagBuiltin | SymbolFlagImported,
-					Span:      exp.Span,
-					Signature: exp.Signature,
-					Type:      exp.Type,
+					Name:          name,
+					Kind:          exp.Kind,
+					Flags:         exp.Flags | SymbolFlagBuiltin | SymbolFlagImported,
+					Span:          exp.Span,
+					Signature:     exp.Signature,
+					Type:          exp.Type,
+					TypeParams:    append([]string(nil), exp.TypeParamNames...),
+					TypeParamSpan: exp.TypeParamSpan,
 				})
 			}
 		}

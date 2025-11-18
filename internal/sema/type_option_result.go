@@ -24,7 +24,7 @@ func (tc *typeChecker) optionPayload(id types.TypeID) (types.TypeID, bool) {
 	if !ok || info == nil || len(info.TypeArgs) != 1 {
 		return types.NoTypeID, false
 	}
-	if tc.lookupName(info.Name) != "Option" {
+	if tc.lookupTypeName(id, info.Name) != "Option" {
 		return types.NoTypeID, false
 	}
 	return info.TypeArgs[0], true
@@ -39,7 +39,7 @@ func (tc *typeChecker) resultPayload(id types.TypeID) (okType, errType types.Typ
 	if !okInfo || info == nil || len(info.TypeArgs) != 2 {
 		return 0, 0, false
 	}
-	if tc.lookupName(info.Name) != "Result" {
+	if tc.lookupTypeName(id, info.Name) != "Result" {
 		return 0, 0, false
 	}
 	return info.TypeArgs[0], info.TypeArgs[1], true

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/project"
@@ -83,20 +84,28 @@ func collectModuleExports(
 	baseDir string,
 	rootPath string,
 ) map[string]*symbols.ModuleExports {
-	exports := make(map[string]*symbols.ModuleExports, len(records))
+	exports := collectedExports(records)
+	if exports == nil {
+		exports = make(map[string]*symbols.ModuleExports, len(records))
+	}
+	normalizedRoot := normalizeExportsKey(rootPath)
 	if topo != nil && len(topo.Order) > 0 {
 		for i := len(topo.Order) - 1; i >= 0; i-- {
 			id := topo.Order[i]
 			path := idx.IDToName[int(id)]
+			normPath := normalizeExportsKey(path)
 			rec := records[path]
+			if rec == nil && normPath != path {
+				rec = records[normPath]
+			}
 			if rec == nil {
 				continue
 			}
 			if rec.Exports != nil {
-				exports[path] = rec.Exports
+				exports[normPath] = rec.Exports
 				continue
 			}
-			if path == rootPath {
+			if normPath == normalizedRoot {
 				continue
 			}
 			if rec.Builder == nil || rec.FileID == ast.NoFileID {
@@ -105,25 +114,26 @@ func collectModuleExports(
 			opts := &symbols.ResolveOptions{
 				Reporter:      nil,
 				Validate:      false,
-				ModulePath:    path,
+				ModulePath:    preferredModulePath(rec, normPath),
 				FilePath:      moduleFilePath(rec),
 				BaseDir:       baseDir,
 				ModuleExports: exports,
 			}
 			res := symbols.ResolveFile(rec.Builder, rec.FileID, opts)
-			rec.Exports = symbols.CollectExports(rec.Builder, res, path)
+			rec.Exports = symbols.CollectExports(rec.Builder, res, opts.ModulePath)
 			if rec.Exports != nil {
-				exports[path] = rec.Exports
+				exports[normPath] = rec.Exports
 			}
 		}
 	}
 	// include any preloaded records that are outside the graph (e.g., core modules)
 	for path, rec := range records {
-		if _, seen := exports[path]; seen {
+		normPath := normalizeExportsKey(path)
+		if _, seen := exports[normPath]; seen {
 			continue
 		}
 		if rec != nil && rec.Exports != nil {
-			exports[path] = rec.Exports
+			exports[normPath] = rec.Exports
 		}
 	}
 	return exports
@@ -153,7 +163,7 @@ func ensureStdlibModules(
 			return err
 		}
 		if rec.Exports != nil {
-			exports[rec.Meta.Path] = rec.Exports
+			exports[normalizeExportsKey(rec.Meta.Path)] = rec.Exports
 		}
 		records[rec.Meta.Path] = rec
 	}
@@ -258,9 +268,25 @@ func collectedExports(records map[string]*moduleRecord) map[string]*symbols.Modu
 		if rec == nil || rec.Exports == nil {
 			continue
 		}
-		exports[path] = rec.Exports
+		exports[normalizeExportsKey(path)] = rec.Exports
 	}
 	return exports
+}
+
+func preferredModulePath(rec *moduleRecord, fallback string) string {
+	if rec != nil && rec.Meta != nil && rec.Meta.Path != "" {
+		if norm := normalizeExportsKey(rec.Meta.Path); norm != "" {
+			return norm
+		}
+	}
+	return fallback
+}
+
+func normalizeExportsKey(path string) string {
+	if norm, err := project.NormalizeModulePath(path); err == nil {
+		return norm
+	}
+	return strings.Trim(path, "/")
 }
 
 func modulePathToFilePath(baseDir, modulePath string) string {

@@ -505,7 +505,7 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 		return fmt.Sprintf("own %s", tc.typeLabel(tt.Elem))
 	case types.KindStruct:
 		if info, ok := tc.types.StructInfo(id); ok && info != nil {
-			if name := tc.lookupName(info.Name); name != "" {
+			if name := tc.lookupTypeName(id, info.Name); name != "" {
 				if len(info.TypeArgs) == 0 {
 					return name
 				}
@@ -519,7 +519,7 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 		return "struct"
 	case types.KindAlias:
 		if info, ok := tc.types.AliasInfo(id); ok && info != nil {
-			if name := tc.lookupName(info.Name); name != "" {
+			if name := tc.lookupTypeName(id, info.Name); name != "" {
 				if len(info.TypeArgs) == 0 {
 					return name
 				}
@@ -536,7 +536,7 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 		return "alias"
 	case types.KindUnion:
 		if info, ok := tc.types.UnionInfo(id); ok && info != nil {
-			if name := tc.lookupName(info.Name); name != "" {
+			if name := tc.lookupTypeName(id, info.Name); name != "" {
 				if len(info.TypeArgs) == 0 {
 					return name
 				}

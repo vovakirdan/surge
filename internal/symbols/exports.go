@@ -8,15 +8,17 @@ import (
 
 // ExportedSymbol captures metadata about a symbol exported from a module.
 type ExportedSymbol struct {
-	Name          string
-	Kind          SymbolKind
-	Flags         SymbolFlags
-	Span          source.Span
-	Signature     *FunctionSignature
-	ReceiverKey   TypeKey
-	TypeParams    []source.StringID
-	TypeParamSpan source.Span
-	Type          types.TypeID
+	Name           string
+	NameID         source.StringID
+	Kind           SymbolKind
+	Flags          SymbolFlags
+	Span           source.Span
+	Signature      *FunctionSignature
+	ReceiverKey    TypeKey
+	TypeParams     []source.StringID
+	TypeParamNames []string
+	TypeParamSpan  source.Span
+	Type           types.TypeID
 }
 
 // ModuleExports aggregates exported symbols for a module, preserving overload sets.
@@ -69,18 +71,34 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 		}
 		name := builder.StringsInterner.MustLookup(sym.Name)
 		exports.Add(&ExportedSymbol{
-			Name:          name,
-			Kind:          sym.Kind,
-			Flags:         sym.Flags,
-			Span:          sym.Span,
-			Type:          sym.Type,
-			Signature:     sym.Signature,
-			ReceiverKey:   sym.ReceiverKey,
-			TypeParams:    append([]source.StringID(nil), sym.TypeParams...),
-			TypeParamSpan: sym.TypeParamSpan,
+			Name:           name,
+			NameID:         sym.Name,
+			Kind:           sym.Kind,
+			Flags:          sym.Flags,
+			Span:           sym.Span,
+			Type:           sym.Type,
+			Signature:      sym.Signature,
+			ReceiverKey:    sym.ReceiverKey,
+			TypeParams:     append([]source.StringID(nil), sym.TypeParams...),
+			TypeParamNames: lookupNames(builder, sym.TypeParams),
+			TypeParamSpan:  sym.TypeParamSpan,
 		})
 	}
 	return exports
+}
+
+func lookupNames(builder *ast.Builder, ids []source.StringID) []string {
+	if builder == nil || builder.StringsInterner == nil || len(ids) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == source.NoStringID {
+			continue
+		}
+		result = append(result, builder.StringsInterner.MustLookup(id))
+	}
+	return result
 }
 
 func isExportableKind(kind SymbolKind) bool {

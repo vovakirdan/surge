@@ -362,9 +362,6 @@ func runModuleGraph(
 	if !validateCoreModule(meta, file, stdlibRoot, reporter) {
 		return nil, fmt.Errorf("core namespace reserved")
 	}
-	if !validateCoreModule(meta, file, stdlibRoot, reporter) {
-		return nil, fmt.Errorf("core namespace reserved")
-	}
 
 	records := make(map[string]*moduleRecord)
 	broken, firstErr := moduleStatus(bag)

@@ -16,12 +16,14 @@ type ResolverOptions struct {
 
 // PreludeEntry describes a symbol injected before source traversal.
 type PreludeEntry struct {
-	Name      string
-	Kind      SymbolKind
-	Flags     SymbolFlags
-	Span      source.Span
-	Signature *FunctionSignature
-	Type      types.TypeID
+	Name          string
+	Kind          SymbolKind
+	Flags         SymbolFlags
+	Span          source.Span
+	Signature     *FunctionSignature
+	Type          types.TypeID
+	TypeParams    []string
+	TypeParamSpan source.Span
 }
 
 // KindMask restricts lookup to specific symbol kinds.
@@ -308,14 +310,23 @@ func (r *Resolver) installPrelude(scopeID ScopeID, entries []PreludeEntry) {
 		nameID := r.table.Strings.Intern(entry.Name)
 		flags := entry.Flags | SymbolFlagBuiltin
 		span := entry.Span
+		params := make([]source.StringID, 0, len(entry.TypeParams))
+		for _, name := range entry.TypeParams {
+			if name == "" {
+				continue
+			}
+			params = append(params, r.table.Strings.Intern(name))
+		}
 		sym := Symbol{
-			Name:      nameID,
-			Kind:      entry.Kind,
-			Scope:     scopeID,
-			Span:      span,
-			Flags:     flags,
-			Type:      entry.Type,
-			Signature: entry.Signature,
+			Name:          nameID,
+			Kind:          entry.Kind,
+			Scope:         scopeID,
+			Span:          span,
+			Flags:         flags,
+			Type:          entry.Type,
+			Signature:     entry.Signature,
+			TypeParams:    params,
+			TypeParamSpan: entry.TypeParamSpan,
 			Decl: SymbolDecl{
 				SourceFile: span.File,
 			},

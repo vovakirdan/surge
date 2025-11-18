@@ -359,6 +359,12 @@ func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.Type
 		return types.NoTypeID
 	}
 	item := tc.builder.Items.Get(sym.Decl.Item)
+	if (item == nil || item.Kind != ast.ItemType) && sym.Flags&symbols.SymbolFlagImported != 0 {
+		if instantiated := tc.instantiateImportedType(sym, args); instantiated != types.NoTypeID {
+			tc.rememberInstantiation(key, instantiated)
+			return instantiated
+		}
+	}
 	if item == nil || item.Kind != ast.ItemType {
 		return types.NoTypeID
 	}
@@ -380,6 +386,63 @@ func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.Type
 	}
 	tc.rememberInstantiation(key, instantiated)
 	return instantiated
+}
+
+func (tc *typeChecker) instantiateImportedType(sym *symbols.Symbol, args []types.TypeID) types.TypeID {
+	if tc.types == nil || sym == nil || sym.Type == types.NoTypeID {
+		return types.NoTypeID
+	}
+	base := tc.resolveAlias(sym.Type)
+	if info, ok := tc.types.UnionInfo(base); ok && info != nil {
+		members := make([]types.UnionMember, len(info.Members))
+		for i, member := range info.Members {
+			members[i] = member
+			members[i].Type = tc.substituteImportedType(member.Type, args)
+			if len(member.TagArgs) > 0 {
+				tagArgs := make([]types.TypeID, len(member.TagArgs))
+				for j, arg := range member.TagArgs {
+					tagArgs[j] = tc.substituteImportedType(arg, args)
+				}
+				members[i].TagArgs = tagArgs
+			}
+		}
+		instantiated := tc.types.RegisterUnionInstance(info.Name, info.Decl, append([]types.TypeID(nil), args...))
+		tc.types.SetUnionMembers(instantiated, members)
+		if name := tc.lookupName(sym.Name); name != "" {
+			tc.recordTypeName(instantiated, name)
+		}
+		return instantiated
+	}
+	return types.NoTypeID
+}
+
+func (tc *typeChecker) substituteImportedType(id types.TypeID, args []types.TypeID) types.TypeID {
+	if id == types.NoTypeID || tc.types == nil {
+		return id
+	}
+	resolved := tc.resolveAlias(id)
+	if info, ok := tc.types.TypeParamInfo(resolved); ok && info != nil {
+		if idx := int(info.Index); idx >= 0 && idx < len(args) && args[idx] != types.NoTypeID {
+			return args[idx]
+		}
+		return id
+	}
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return resolved
+	}
+	switch tt.Kind {
+	case types.KindArray, types.KindPointer, types.KindReference, types.KindOwn:
+		elem := tc.substituteImportedType(tt.Elem, args)
+		if elem == tt.Elem {
+			return resolved
+		}
+		clone := tt
+		clone.Elem = elem
+		return tc.types.Intern(clone)
+	default:
+		return resolved
+	}
 }
 
 func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.SymbolID, args []types.TypeID) types.TypeID {
