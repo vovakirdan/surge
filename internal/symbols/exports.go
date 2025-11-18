@@ -3,6 +3,7 @@ package symbols
 import (
 	"surge/internal/ast"
 	"surge/internal/source"
+	"surge/internal/types"
 )
 
 // ExportedSymbol captures metadata about a symbol exported from a module.
@@ -15,6 +16,7 @@ type ExportedSymbol struct {
 	ReceiverKey   TypeKey
 	TypeParams    []source.StringID
 	TypeParamSpan source.Span
+	Type          types.TypeID
 }
 
 // ModuleExports aggregates exported symbols for a module, preserving overload sets.
@@ -71,6 +73,7 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 			Kind:          sym.Kind,
 			Flags:         sym.Flags,
 			Span:          sym.Span,
+			Type:          sym.Type,
 			Signature:     sym.Signature,
 			ReceiverKey:   sym.ReceiverKey,
 			TypeParams:    append([]source.StringID(nil), sym.TypeParams...),

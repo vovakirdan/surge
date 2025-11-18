@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/diag"
 	"surge/internal/source"
+	"surge/internal/types"
 )
 
 // ResolverOptions configures resolver construction.
@@ -20,6 +21,7 @@ type PreludeEntry struct {
 	Flags     SymbolFlags
 	Span      source.Span
 	Signature *FunctionSignature
+	Type      types.TypeID
 }
 
 // KindMask restricts lookup to specific symbol kinds.
@@ -312,6 +314,7 @@ func (r *Resolver) installPrelude(scopeID ScopeID, entries []PreludeEntry) {
 			Scope:     scopeID,
 			Span:      span,
 			Flags:     flags,
+			Type:      entry.Type,
 			Signature: entry.Signature,
 			Decl: SymbolDecl{
 				SourceFile: span.File,

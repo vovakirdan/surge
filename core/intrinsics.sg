@@ -91,9 +91,9 @@ extern<bool> {
 }
 
 @intrinsic
-fn exit(e: Error) -> nothing;
+pub fn exit(e: Error) -> nothing;
 
-fn panic(msg: string) -> nothing {
+pub fn panic(msg: string) -> nothing {
     let e: Error = { message: msg, code: 1 };
     exit(e);
 }

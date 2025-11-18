@@ -102,7 +102,8 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 	fileScope := table.FileRoot(sourceFile, file.Span)
 	result.FileScope = fileScope
 
-	prelude := mergePrelude(opts.Prelude)
+	corePrelude := exportsPrelude(opts.ModuleExports)
+	prelude := mergePrelude(append(corePrelude, opts.Prelude...))
 	resolver := NewResolver(table, fileScope, ResolverOptions{
 		Reporter: opts.Reporter,
 		Prelude:  prelude,
@@ -372,6 +373,7 @@ func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export
 		Kind:          export.Kind,
 		Span:          span,
 		Flags:         export.Flags | SymbolFlagImported,
+		Type:          export.Type,
 		Scope:         fr.result.FileScope,
 		ModulePath:    modulePath,
 		ImportName:    nameID,
@@ -461,6 +463,34 @@ func isCoreIntrinsicsModule(path string) bool {
 		return false
 	}
 	return strings.Trim(path, "/") == "core/intrinsics"
+}
+
+func exportsPrelude(exports map[string]*ModuleExports) []PreludeEntry {
+	if len(exports) == 0 {
+		return nil
+	}
+	entries := make([]PreludeEntry, 0, 8)
+	for modulePath, moduleExports := range exports {
+		if moduleExports == nil || !strings.HasPrefix(modulePath, "core/") {
+			continue
+		}
+		for name, overloads := range moduleExports.Symbols {
+			for _, exp := range overloads {
+				if exp.Flags&SymbolFlagPublic == 0 {
+					continue
+				}
+				entries = append(entries, PreludeEntry{
+					Name:      name,
+					Kind:      exp.Kind,
+					Flags:     exp.Flags | SymbolFlagBuiltin | SymbolFlagImported,
+					Span:      exp.Span,
+					Signature: exp.Signature,
+					Type:      exp.Type,
+				})
+			}
+		}
+	}
+	return entries
 }
 
 func (fr *fileResolver) intrinsicNameAllowed(name source.StringID) bool {
