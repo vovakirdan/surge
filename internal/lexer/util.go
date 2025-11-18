@@ -24,17 +24,16 @@ func (lx *Lexer) peekRune() (r rune, size int) {
 }
 
 // bumpRune читает текущий байт как руну и перемещает курсор на размер руны
-func (lx *Lexer) bumpRune() (r rune, size int) {
-	r, sz := lx.peekRune()
+func (lx *Lexer) bumpRune() {
+	_, sz := lx.peekRune()
 	if sz == 0 {
-		return utf8.RuneError, 0
+		return
 	}
 	usz, err := safecast.Conv[uint32](sz)
 	if err != nil {
 		panic(fmt.Errorf("bumpRune overflow: %w", err))
 	}
 	lx.cursor.Off += usz
-	return r, sz
 }
 
 // ===== Классификаторы =====

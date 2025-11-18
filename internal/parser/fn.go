@@ -45,14 +45,14 @@ type parsedFn struct {
 	span             source.Span
 }
 
-func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
+func (p *Parser) parseFnModifiers() fnModifiers {
 	mods := fnModifiers{}
 
 	for {
 		tok := p.lx.Peek()
 		switch tok.Kind {
 		case token.KwFn:
-			return mods, true
+			return mods
 		case token.KwPub:
 			tok = p.advance()
 			if mods.seenPub {
@@ -146,12 +146,12 @@ func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
 			mods.extend(tok.Span)
 			continue
 		case token.EOF:
-			return mods, false
+			return mods
 		default:
 			if isTopLevelStarter(tok.Kind) || tok.Kind == token.Semicolon {
-				return mods, false
+				return mods
 			}
-			return mods, false
+			return mods
 		}
 	}
 }
@@ -170,7 +170,7 @@ func (p *Parser) parseFnModifiers() (fnModifiers, bool) {
 // fn @attr fn func() { ... } // с атрибутами и телом
 // modifier fn func() { ... } // с модификаторами и телом
 func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModifiers) (ast.ItemID, bool) {
-	fnData, ok := p.parseFnDefinition(attrs, attrSpan, mods)
+	fnData, ok := p.parseFnDefinition(attrSpan, mods)
 	if !ok {
 		return ast.NoItemID, false
 	}
@@ -197,7 +197,7 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 	return fnItemID, true
 }
 
-func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods fnModifiers) (parsedFn, bool) {
+func (p *Parser) parseFnDefinition(attrSpan source.Span, mods fnModifiers) (parsedFn, bool) {
 	result := parsedFn{}
 
 	fnTok := p.advance() // съедаем KwFn; если мы здесь, то это точно KwFn
@@ -310,7 +310,7 @@ func (p *Parser) parseFnDefinition(attrs []ast.Attr, attrSpan source.Span, mods 
 	}
 
 	if returnType == ast.NoTypeID {
-		returnType = p.makeBuiltinType("nothing", p.lastSpan.ZeroideToEnd())
+		returnType = p.makeNothingType(p.lastSpan.ZeroideToEnd())
 	}
 
 	var bodyStmtID ast.StmtID

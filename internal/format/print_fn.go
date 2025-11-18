@@ -5,7 +5,7 @@ import (
 	"surge/internal/source"
 )
 
-func (p *printer) printFnItem(id ast.ItemID, item *ast.Item, fn *ast.FnItem) {
+func (p *printer) printFnItem(item *ast.Item, fn *ast.FnItem) {
 	if !spanValid(fn.FnKeywordSpan) {
 		p.writer.CopySpan(item.Span)
 		return

@@ -59,7 +59,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprBinary:
 		if data, ok := tc.builder.Exprs.Binary(id); ok && data != nil {
-			ty = tc.typeBinary(id, expr.Span, data)
+			ty = tc.typeBinary(expr.Span, data)
 		}
 	case ast.ExprCall:
 		if call, ok := tc.builder.Exprs.Call(id); ok && call != nil {
@@ -223,7 +223,7 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 	}
 }
 
-func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast.ExprBinaryData) types.TypeID {
+func (tc *typeChecker) typeBinary(span source.Span, data *ast.ExprBinaryData) types.TypeID {
 	leftType := tc.typeExpr(data.Left)
 	if data.Op == ast.ExprBinaryAssign {
 		tc.handleAssignment(data.Op, data.Left, data.Right, span)
@@ -231,9 +231,9 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 	}
 	switch data.Op {
 	case ast.ExprBinaryIs:
-		return tc.typeIsExpr(leftType, data.Right, span, data.Op)
+		return tc.typeIsExpr(leftType, data.Right, data.Op)
 	case ast.ExprBinaryHeir:
-		return tc.typeHeirExpr(leftType, data.Right, span, data.Op)
+		return tc.typeHeirExpr(leftType, data.Right, data.Op)
 	}
 	rightType := tc.typeExpr(data.Right)
 	if baseOp, ok := tc.assignmentBaseOp(data.Op); ok {
@@ -245,7 +245,7 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 	return tc.typeBinaryFallback(span, data, leftType, rightType)
 }
 
-func (tc *typeChecker) typeIsExpr(leftType types.TypeID, rightExpr ast.ExprID, span source.Span, op ast.ExprBinaryOp) types.TypeID {
+func (tc *typeChecker) typeIsExpr(leftType types.TypeID, rightExpr ast.ExprID, op ast.ExprBinaryOp) types.TypeID {
 	if _, ok := tc.resolveTypeOperand(rightExpr, tc.binaryOpLabel(op)); !ok {
 		return types.NoTypeID
 	}
@@ -255,7 +255,7 @@ func (tc *typeChecker) typeIsExpr(leftType types.TypeID, rightExpr ast.ExprID, s
 	return tc.types.Builtins().Bool
 }
 
-func (tc *typeChecker) typeHeirExpr(leftType types.TypeID, rightExpr ast.ExprID, span source.Span, op ast.ExprBinaryOp) types.TypeID {
+func (tc *typeChecker) typeHeirExpr(leftType types.TypeID, rightExpr ast.ExprID, op ast.ExprBinaryOp) types.TypeID {
 	if _, ok := tc.resolveTypeOperand(rightExpr, tc.binaryOpLabel(op)); !ok {
 		return types.NoTypeID
 	}

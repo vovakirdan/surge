@@ -16,17 +16,17 @@ const (
 
 func detectStdlibRoot(baseDir string) string {
 	if env := os.Getenv("SURGE_STDLIB"); env != "" {
-		if hasStdModule(env, stdModuleCoreIntrinsics) {
+		if hasStdModule(env) {
 			return env
 		}
 	}
 	if exe, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exe)
-		if hasStdModule(dir, stdModuleCoreIntrinsics) {
+		if hasStdModule(dir) {
 			return dir
 		}
 	}
-	if baseDir != "" && hasStdModule(baseDir, stdModuleCoreIntrinsics) {
+	if baseDir != "" && hasStdModule(baseDir) {
 		return baseDir
 	}
 	dir := baseDir
@@ -36,18 +36,18 @@ func detectStdlibRoot(baseDir string) string {
 			break
 		}
 		dir = next
-		if hasStdModule(dir, stdModuleCoreIntrinsics) {
+		if hasStdModule(dir) {
 			return dir
 		}
 	}
 	return ""
 }
 
-func hasStdModule(root, module string) bool {
+func hasStdModule(root string) bool {
 	if root == "" {
 		return false
 	}
-	candidate := filepath.Join(root, filepath.FromSlash(module)+".sg")
+	candidate := filepath.Join(root, filepath.FromSlash(stdModuleCoreIntrinsics)+".sg")
 	info, err := os.Stat(candidate)
 	return err == nil && !info.IsDir()
 }

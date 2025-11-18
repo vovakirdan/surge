@@ -94,7 +94,7 @@ func (p *Parser) parseExternMembers() ([]ast.ExternMemberSpec, bool) {
 			continue
 		}
 
-		mods, _ := p.parseFnModifiers()
+		mods := p.parseFnModifiers()
 		if !p.at(token.KwFn) {
 			tok := p.lx.Peek()
 			p.emitDiagnostic(
@@ -112,7 +112,7 @@ func (p *Parser) parseExternMembers() ([]ast.ExternMemberSpec, bool) {
 			continue
 		}
 
-		fnData, ok := p.parseFnDefinition(memberAttrs, attrSpan, mods)
+		fnData, ok := p.parseFnDefinition(attrSpan, mods)
 		if !ok {
 			hasFatalError = true
 			p.resyncExternMember()

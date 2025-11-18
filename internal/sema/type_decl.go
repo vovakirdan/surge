@@ -304,7 +304,7 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 		tc.report(diag.SemaTypeMismatch, span, "%s expects %d type argument(s), got %d", tc.lookupName(sym.Name), expected, len(args))
 		return types.NoTypeID
 	}
-	return tc.instantiateType(symID, args, span)
+	return tc.instantiateType(symID, args)
 }
 
 func (tc *typeChecker) resolveTypeArgs(typeIDs []ast.TypeID, scope symbols.ScopeID) []types.TypeID {
@@ -349,7 +349,7 @@ func (tc *typeChecker) rememberInstantiation(key string, typeID types.TypeID) {
 	tc.typeInstantiations[key] = typeID
 }
 
-func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.TypeID, span source.Span) types.TypeID {
+func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.TypeID) types.TypeID {
 	key := tc.instantiationKey(symID, args)
 	if cached := tc.cachedInstantiation(key); cached != types.NoTypeID {
 		return cached

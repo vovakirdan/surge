@@ -53,7 +53,7 @@ func (fr *fileResolver) declareFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 	}
 	nameSpan := fnNameSpan(fnItem)
 	fr.enforceFunctionNameStyle(fnItem.Name, nameSpan)
-	if symID, ok := fr.declareFunctionWithAttrs(itemID, fnItem, nameSpan, fnItem.FnKeywordSpan, flags, decl); ok {
+	if symID, ok := fr.declareFunctionWithAttrs(fnItem, nameSpan, fnItem.FnKeywordSpan, flags, decl); ok {
 		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
 			sym.TypeParams = append([]source.StringID(nil), fnItem.Generics...)
 			sym.TypeParamSpan = fnItem.GenericsSpan
@@ -185,7 +185,7 @@ func (fr *fileResolver) declareImportName(itemID ast.ItemID, name, original sour
 	}
 }
 
-func (fr *fileResolver) declareExternFn(container ast.ItemID, member *ast.ExternMember, fnItem *ast.FnItem) {
+func (fr *fileResolver) declareExternFn(container ast.ItemID, fnItem *ast.FnItem) {
 	if fnItem.Name == source.NoStringID {
 		return
 	}
@@ -199,7 +199,7 @@ func (fr *fileResolver) declareExternFn(container ast.ItemID, member *ast.Extern
 		Item:       container,
 	}
 	span := fnNameSpan(fnItem)
-	if symID, ok := fr.declareFunctionWithAttrs(container, fnItem, span, fnItem.FnKeywordSpan, flags, decl); ok {
+	if symID, ok := fr.declareFunctionWithAttrs(fnItem, span, fnItem.FnKeywordSpan, flags, decl); ok {
 		if block, _ := fr.builder.Items.Extern(container); block != nil {
 			if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
 				sym.Receiver = block.Target
@@ -210,7 +210,7 @@ func (fr *fileResolver) declareExternFn(container ast.ItemID, member *ast.Extern
 	}
 }
 
-func (fr *fileResolver) declareFunctionWithAttrs(itemID ast.ItemID, fnItem *ast.FnItem, span, keywordSpan source.Span, flags SymbolFlags, decl SymbolDecl) (SymbolID, bool) {
+func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywordSpan source.Span, flags SymbolFlags, decl SymbolDecl) (SymbolID, bool) {
 	attrs := fr.builder.Items.CollectAttrs(fnItem.AttrStart, fnItem.AttrCount)
 	hasOverload := false
 	hasOverride := false

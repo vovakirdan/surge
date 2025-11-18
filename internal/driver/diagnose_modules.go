@@ -49,10 +49,7 @@ func analyzeDependencyModule(
 	}
 	var builder *ast.Builder
 	var astFile ast.FileID
-	builder, astFile, err = diagnoseParse(fs, file, bag)
-	if err != nil {
-		return nil, err
-	}
+	builder, astFile = diagnoseParse(fs, file, bag)
 	reporter := &diag.BagReporter{Bag: bag}
 	meta, ok := buildModuleMeta(fs, builder, astFile, baseDir, reporter)
 	if !ok {
@@ -195,10 +192,7 @@ func loadStdModule(
 	if errTok := diagnoseTokenize(file, bag); errTok != nil {
 		return nil, errTok
 	}
-	builder, astFile, err := diagnoseParse(fs, file, bag)
-	if err != nil {
-		return nil, err
-	}
+	builder, astFile := diagnoseParse(fs, file, bag)
 	reporter := &diag.BagReporter{Bag: bag}
 	meta, ok := buildModuleMeta(fs, builder, astFile, stdlibRoot, reporter)
 	if !ok {

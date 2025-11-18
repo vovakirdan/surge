@@ -176,7 +176,7 @@ func (fr *fileResolver) handleExtern(itemID ast.ItemID, block *ast.ExternBlock) 
 		if fn == nil {
 			continue
 		}
-		fr.declareExternFn(itemID, member, fn)
+		fr.declareExternFn(itemID, fn)
 	}
 }
 
@@ -413,11 +413,12 @@ func (fr *fileResolver) injectCoreExports() {
 			continue
 		}
 		for name, overloads := range exports.Symbols {
-			for _, exp := range overloads {
+			for i := range overloads {
+				exp := &overloads[i]
 				if exp.Flags&SymbolFlagPublic == 0 {
 					continue
 				}
-				fr.syntheticSymbolForExport(modulePath, name, &exp, fileSpan)
+				fr.syntheticSymbolForExport(modulePath, name, exp, fileSpan)
 			}
 		}
 	}
@@ -500,7 +501,8 @@ func exportsPrelude(exports map[string]*ModuleExports) []PreludeEntry {
 		}
 		sort.Strings(names)
 		for _, name := range names {
-			for _, exp := range moduleExports.Symbols[name] {
+			for i := range moduleExports.Symbols[name] {
+				exp := &moduleExports.Symbols[name][i]
 				if exp.Flags&SymbolFlagPublic == 0 {
 					continue
 				}

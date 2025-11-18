@@ -66,32 +66,31 @@ func (p *Parser) expect(k token.Kind, code diag.Code, msg string, augment ...fun
 }
 
 // репортует ошибку и передает текущий спан
-func (p *Parser) err(code diag.Code, msg string) bool {
-	return p.report(code, diag.SevError, p.getDiagnosticSpan(), msg)
+func (p *Parser) err(code diag.Code, msg string) {
+	p.report(code, diag.SevError, p.getDiagnosticSpan(), msg)
 }
 
-func (p *Parser) report(code diag.Code, sev diag.Severity, sp source.Span, msg string) bool {
-	return p.emitDiagnostic(code, sev, sp, msg, nil)
+func (p *Parser) report(code diag.Code, sev diag.Severity, sp source.Span, msg string) {
+	p.emitDiagnostic(code, sev, sp, msg, nil)
 }
 
-func (p *Parser) emitDiagnostic(code diag.Code, sev diag.Severity, sp source.Span, msg string, augment func(*diag.ReportBuilder)) bool {
+func (p *Parser) emitDiagnostic(code diag.Code, sev diag.Severity, sp source.Span, msg string, augment func(*diag.ReportBuilder)) {
 	if p.opts.Reporter == nil {
-		return false
+		return
 	}
 	if sev == diag.SevError {
 		p.opts.CurrentErrors++
 	}
 	if p.opts.Enough() {
-		return false
+		return
 	}
 	if augment == nil {
 		p.opts.Reporter.Report(code, sev, sp, msg, nil, nil)
-		return true
+		return
 	}
 	builder := diag.NewReportBuilder(p.opts.Reporter, sev, code, sp, msg)
 	augment(builder)
 	builder.Emit()
-	return true
 }
 
 // resyncUntil — consume tokens until Peek() matches any stop token or EOF.

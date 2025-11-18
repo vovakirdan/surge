@@ -21,7 +21,7 @@ import (
 )
 
 // makeTestParser — хелпер для создания парсера с тестовой строкой
-func makeTestParser(input string) (*Parser, *source.FileSet, *ast.Builder, *diag.Bag) {
+func makeTestParser(input string) (*Parser, *ast.Builder, *diag.Bag) {
 	fs := source.NewFileSet()
 	fileID := fs.AddVirtual("test.sg", []byte(input))
 	file := fs.Get(fileID)
@@ -47,14 +47,14 @@ func makeTestParser(input string) (*Parser, *source.FileSet, *ast.Builder, *diag
 		opts:   opts,
 	}
 
-	return p, fs, arenas, bag
+	return p, arenas, bag
 }
 
 // parseImportString — хелпер для парсинга одного импорта
 func parseImportString(t *testing.T, input string) (*ast.ImportItem, *diag.Bag, *ast.Builder) {
 	t.Helper()
 
-	p, _, arenas, bag := makeTestParser(input)
+	p, arenas, bag := makeTestParser(input)
 
 	itemID, ok := p.parseImportItem()
 	if !ok {
@@ -650,7 +650,7 @@ func TestParseMultipleImports(t *testing.T) {
 import bar::Baz;
 import qux as Q;`
 
-	p, _, arenas, bag := makeTestParser(input)
+	p, arenas, bag := makeTestParser(input)
 	p.parseItems()
 
 	if bag.HasErrors() {

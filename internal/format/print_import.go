@@ -5,7 +5,7 @@ import (
 	"surge/internal/source"
 )
 
-func (p *printer) printImportItem(item *ast.Item, imp *ast.ImportItem) {
+func (p *printer) printImportItem(imp *ast.ImportItem) {
 	p.writer.WriteString("import ")
 	p.printModulePath(imp.Module)
 

@@ -388,7 +388,7 @@ func (p *Parser) parseAdditionalUnionMembers(initial []ast.TypeUnionMemberSpec, 
 func (p *Parser) parseUnionMember() (ast.TypeUnionMemberSpec, source.Span, bool) {
 	if p.at(token.NothingLit) {
 		tok := p.advance()
-		typeID := p.makeBuiltinType("nothing", tok.Span)
+		typeID := p.makeNothingType(tok.Span)
 		return ast.TypeUnionMemberSpec{Kind: ast.TypeUnionMemberType, Type: typeID, Span: tok.Span}, tok.Span, true
 	}
 

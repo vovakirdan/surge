@@ -91,7 +91,7 @@ func (p *printer) printItem(id ast.ItemID, item *ast.Item) {
 	switch item.Kind {
 	case ast.ItemFn:
 		if fn, ok := p.builder.Items.Fn(id); ok && fn != nil {
-			p.printFnItem(id, item, fn)
+			p.printFnItem(item, fn)
 			return
 		}
 	case ast.ItemType:
@@ -106,7 +106,7 @@ func (p *printer) printItem(id ast.ItemID, item *ast.Item) {
 		}
 	case ast.ItemImport:
 		if imp, ok := p.builder.Items.Import(id); ok && imp != nil {
-			p.printImportItem(item, imp)
+			p.printImportItem(imp)
 			return
 		}
 	case ast.ItemTag:

@@ -438,7 +438,8 @@ func (tc *typeChecker) buildExportNameIndexes() {
 			continue
 		}
 		for _, list := range module.Symbols {
-			for _, sym := range list {
+			for i := range list {
+				sym := &list[i]
 				if sym.NameID != source.NoStringID && sym.Name != "" {
 					if _, ok := tc.exportNames[sym.NameID]; !ok {
 						tc.exportNames[sym.NameID] = sym.Name

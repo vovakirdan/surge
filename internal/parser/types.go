@@ -63,7 +63,7 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 
 	case token.NothingLit:
 		nothingTok := p.advance()
-		return p.parseTypeSuffix(p.makeBuiltinType("nothing", nothingTok.Span))
+		return p.parseTypeSuffix(p.makeNothingType(nothingTok.Span))
 
 	case token.LParen:
 		openTok := p.advance()
@@ -182,7 +182,7 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 				Start: closeTok.Span.End,
 				End:   closeTok.Span.End,
 			}
-			returnType = p.makeBuiltinType("nothing", retSpan)
+			returnType = p.makeNothingType(retSpan)
 		}
 
 		fnType := p.arenas.Types.NewFn(fnSpan, params, returnType)
@@ -218,8 +218,8 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 	}
 }
 
-func (p *Parser) makeBuiltinType(name string, span source.Span) ast.TypeID {
-	nameID := p.arenas.StringsInterner.Intern(name)
+func (p *Parser) makeNothingType(span source.Span) ast.TypeID {
+	nameID := p.arenas.StringsInterner.Intern("nothing")
 	segments := []ast.TypePathSegment{{
 		Name:     nameID,
 		Generics: nil,

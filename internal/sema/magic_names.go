@@ -12,12 +12,12 @@ func (tc *typeChecker) buildMagicIndex() {
 	if tc.symbols != nil && tc.symbols.Table != nil && tc.symbols.Table.Symbols != nil {
 		if data := tc.symbols.Table.Symbols.Data(); data != nil {
 			for i := range data {
-				sym := data[i]
+				sym := &data[i]
 				if sym.Kind != symbols.SymbolFunction || sym.ReceiverKey == "" || sym.Signature == nil {
 					continue
 				}
 				name := tc.symbolName(sym.Name)
-				if name == "__to" && !tc.acceptToSignature(sym.Signature, sym.ReceiverKey, &sym) {
+				if name == "__to" && !tc.acceptToSignature(sym.Signature, sym.ReceiverKey, sym) {
 					continue
 				}
 				tc.addMagicEntry(sym.ReceiverKey, name, sym.Signature)
@@ -29,7 +29,8 @@ func (tc *typeChecker) buildMagicIndex() {
 			continue
 		}
 		for _, list := range exp.Symbols {
-			for _, sym := range list {
+			for i := range list {
+				sym := &list[i]
 				if sym.Kind != symbols.SymbolFunction || sym.ReceiverKey == "" || sym.Signature == nil || sym.Name == "" {
 					continue
 				}

@@ -121,18 +121,15 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 
 	if opts.Stage != DiagnoseStageTokenize {
 		parseIdx := begin("parse")
-		builder, astFile, err = diagnoseParse(fs, file, bag)
+		builder, astFile = diagnoseParse(fs, file, bag)
 		parseNote := ""
-		if timer != nil && err == nil && builder != nil && builder.Files != nil {
+		if timer != nil && builder != nil && builder.Files != nil {
 			fileNode := builder.Files.Get(astFile)
 			if fileNode != nil {
 				parseNote = fmt.Sprintf("items=%d", len(fileNode.Items))
 			}
 		}
 		end(parseIdx, parseNote)
-		if err != nil {
-			return nil, err
-		}
 
 		graphIdx := begin("imports_graph")
 		var moduleExports map[string]*symbols.ModuleExports
@@ -265,7 +262,7 @@ func diagnoseTokenize(file *source.File, bag *diag.Bag) error {
 	return nil
 }
 
-func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) (*ast.Builder, ast.FileID, error) {
+func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) (*ast.Builder, ast.FileID) {
 	lx := lexer.New(file, lexer.Options{})
 	arenas := ast.NewBuilder(ast.Hints{}, nil)
 
@@ -281,7 +278,7 @@ func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) (*ast.B
 
 	result := parser.ParseFile(fs, lx, arenas, opts)
 
-	return arenas, result.File, nil
+	return arenas, result.File
 }
 
 type ParseResult struct {

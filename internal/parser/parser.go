@@ -183,7 +183,7 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 		}
 		return itemID, parsed
 	case token.KwPub, token.KwAsync, token.Ident:
-		mods, _ := p.parseFnModifiers()
+		mods := p.parseFnModifiers()
 		if p.at(token.KwFn) {
 			itemID, parsed := p.parseFnItem(attrs, attrSpan, mods)
 			if parsed {
