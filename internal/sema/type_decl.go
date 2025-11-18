@@ -319,38 +319,12 @@ func (tc *typeChecker) resolveTypeArgs(typeIDs []ast.TypeID, scope symbols.Scope
 	return args
 }
 
-func (tc *typeChecker) resolveBuiltinGeneric(name string, args []types.TypeID, span source.Span) types.TypeID {
-	return types.NoTypeID
-}
-
-func (tc *typeChecker) makeOptionType(elem types.TypeID) types.TypeID {
-	return types.NoTypeID
-}
-
-func (tc *typeChecker) makeResultType(okType, errType types.TypeID) types.TypeID {
-	return types.NoTypeID
-}
-
 func (tc *typeChecker) instantiationKey(symID symbols.SymbolID, args []types.TypeID) string {
 	if !symID.IsValid() {
 		return ""
 	}
 	var b strings.Builder
 	b.WriteString(strconv.FormatUint(uint64(symID), 10))
-	for _, arg := range args {
-		b.WriteByte('#')
-		b.WriteString(strconv.FormatUint(uint64(arg), 10))
-	}
-	return b.String()
-}
-
-func (tc *typeChecker) builtinInstantiationKey(name string, args ...types.TypeID) string {
-	if name == "" {
-		return ""
-	}
-	var b strings.Builder
-	b.WriteString("builtin:")
-	b.WriteString(name)
 	for _, arg := range args {
 		b.WriteByte('#')
 		b.WriteString(strconv.FormatUint(uint64(arg), 10))
