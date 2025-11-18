@@ -32,11 +32,14 @@ func NewModuleExports(path string) *ModuleExports {
 }
 
 // Add registers an exported symbol under its textual name.
-func (m *ModuleExports) Add(sym ExportedSymbol) {
+func (m *ModuleExports) Add(sym *ExportedSymbol) {
 	if m == nil {
 		return
 	}
-	m.Symbols[sym.Name] = append(m.Symbols[sym.Name], sym)
+	if sym == nil {
+		return
+	}
+	m.Symbols[sym.Name] = append(m.Symbols[sym.Name], *sym)
 }
 
 // Lookup returns the overload set for the given name, if any.
@@ -63,7 +66,7 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 			continue
 		}
 		name := builder.StringsInterner.MustLookup(sym.Name)
-		exports.Add(ExportedSymbol{
+		exports.Add(&ExportedSymbol{
 			Name:          name,
 			Kind:          sym.Kind,
 			Flags:         sym.Flags,

@@ -342,15 +342,18 @@ func (fr *fileResolver) resolveModuleMember(exprID ast.ExprID, member *ast.ExprM
 		fr.reportModuleMemberNotPublic(modulePath, member.Field, useSpan, refSpan)
 		return
 	}
-	symID := fr.syntheticSymbolForExport(modulePath, memberName, *candidate, useSpan)
+	symID := fr.syntheticSymbolForExport(modulePath, memberName, candidate, useSpan)
 	if symID.IsValid() {
 		fr.result.ExprSymbols[exprID] = symID
 	}
 }
 
-func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export ExportedSymbol, fallback source.Span) SymbolID {
+func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export *ExportedSymbol, fallback source.Span) SymbolID {
 	if fr.syntheticImportSyms == nil {
 		fr.syntheticImportSyms = make(map[string]SymbolID)
+	}
+	if export == nil {
+		return NoSymbolID
 	}
 	key := modulePath + "::" + name + fmt.Sprintf("#%d", export.Kind)
 	if id, ok := fr.syntheticImportSyms[key]; ok {
@@ -401,7 +404,7 @@ func (fr *fileResolver) injectCoreExports() {
 				if exp.Flags&SymbolFlagPublic == 0 {
 					continue
 				}
-				fr.syntheticSymbolForExport(modulePath, name, exp, fileSpan)
+				fr.syntheticSymbolForExport(modulePath, name, &exp, fileSpan)
 			}
 		}
 	}

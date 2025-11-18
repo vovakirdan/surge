@@ -361,7 +361,7 @@ func TestResolveImportDefaultAlias(t *testing.T) {
 	}
 
 	exports := NewModuleExports("foo/bar")
-	exports.Add(ExportedSymbol{
+	exports.Add(&ExportedSymbol{
 		Name:  "do",
 		Kind:  SymbolFunction,
 		Flags: SymbolFlagPublic,
@@ -393,7 +393,7 @@ func TestResolveImportExplicitAlias(t *testing.T) {
 	}
 
 	exports := NewModuleExports("foo/bar")
-	exports.Add(ExportedSymbol{
+	exports.Add(&ExportedSymbol{
 		Name:  "do",
 		Kind:  SymbolFunction,
 		Flags: SymbolFlagPublic,
@@ -425,7 +425,7 @@ func TestResolveImportSingleItem(t *testing.T) {
 	}
 
 	exports := NewModuleExports("foo/bar")
-	exports.Add(ExportedSymbol{
+	exports.Add(&ExportedSymbol{
 		Name:  "run",
 		Kind:  SymbolFunction,
 		Flags: SymbolFlagPublic,
@@ -501,7 +501,7 @@ func TestResolveModuleMemberUsesExports(t *testing.T) {
 	}
 
 	exports := NewModuleExports("foo")
-	exports.Add(ExportedSymbol{
+	exports.Add(&ExportedSymbol{
 		Name:  "bar",
 		Kind:  SymbolFunction,
 		Flags: SymbolFlagPublic,
@@ -562,7 +562,7 @@ func TestResolveModuleMemberNotPublic(t *testing.T) {
 	}
 
 	exports := NewModuleExports("foo")
-	exports.Add(ExportedSymbol{
+	exports.Add(&ExportedSymbol{
 		Name:  "hidden",
 		Kind:  SymbolFunction,
 		Flags: 0,
