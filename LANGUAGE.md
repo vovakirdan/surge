@@ -1,7 +1,8 @@
-# Surge Language Specification (Draft 5)
+# Surge Language Specification (Draft 6)
 
 > **Status:** Draft for review
 > **Scope:** Full language surface for tokenizer → parser → semantics. VM/runtime details are out of scope here and live in RUNTIME.md / BYTECODE.md.
+> **Alignment:** Synced with the current parser + partial sema; clearly marks pieces that are still planned or only parsed.
 
 ---
 
@@ -15,7 +16,14 @@
 * **Explicit over implicit:** prefer clear, verbose constructs over clever shortcuts that obscure ownership or control flow.
 * **Ownership clarity:** every operation's ownership semantics should be obvious from the syntax.
 
----
+### Implementation Snapshot (Draft 6)
+
+- Keywords match `internal/token/kind.go`: `fn, let, mut, own, if, else, while, for, in, break, continue, return, import, as, type, tag, extern, pub, async, await, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, nothing`.
+- The type checker currently resolves `int`, `uint`, `float`, `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`, `*T`), slices `T[]`, and sized arrays `T[N]` when `N` is a constant numeric literal. Fixed-width numerics (`int8`, `uint64`, `float32`…) are reserved symbols in the prelude but are not backed by concrete `TypeID`s yet.
+- Tuple and function types parse, but sema does not yet lower them; treat them as planned surface.
+- Tags and unions follow the current parser: `tag Name<T>(args...);` declares a tag item; unions accept plain types, `nothing`, or `Tag(args)` members. `Option`/`Result` plus tags `Some`/`Ok`/`Error` are injected via the prelude and resolved without user declarations; exhaustive `compare` checks are still TODO.
+- Diagnostics now use the `Lex*`/`Syn*`/`Sema*` numeric codes from `internal/diag/codes.go` instead of the earlier `E_*` placeholders.
+  Legacy `E_*` labels that remain in examples below are descriptive placeholders; see §21 for the codes the compiler actually emits today.
 
 ## 1. Lexical Structure
 
@@ -40,12 +48,13 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 ### 1.4. Keywords
 
 ```
-pub, fn, let, mut, if, else, while, for, in, break, continue,
-import, type, extern, return, signal, compare, spawn,
-true, false, nothing, is, finally, async, await, macro, pragma,
-@pure, @overload, @override, @backend, @deprecated,
-@packed, @align, @shared, @atomic, @raii, @arena, @weak, @readonly, @hidden, @noinherit, @sealed
+pub, fn, let, mut, own, if, else, while, for, in, break, continue,
+import, as, type, tag, extern, return, signal, compare, spawn, channel,
+parallel, map, reduce, with, to, heir, is, async, await, macro, pragma,
+true, false, nothing
 ```
+
+Attribute names (e.g., `pure`, `override`, `packed`) are identifiers that appear after `@` rather than standalone keywords.
 
 ### 1.5. Literals
 
@@ -63,12 +72,14 @@ Types are written postfixed: `name: Type`.
 
 ### 2.1. Primitive Families
 
+The type checker currently recognises built-in `int`, `uint`, `float`, `bool`, `string`, `nothing`, and `unit`. Fixed-width numerics are reserved identifiers in the prelude but are not yet backed by concrete `TypeID`s in sema (they parse and resolve as names only).
+
 * **Dynamic-width numeric families** (arbitrary width, implementation-defined precision, but stable semantics):
 
   * `int` – signed integer of unbounded width.
   * `uint` – unsigned integer of unbounded width.
   * `float` – floating-point of high precision (≥ IEEE754-64 semantics guaranteed; implementations may be wider).
-* **Fixed-size numerics** (layout-specified):
+* **Fixed-size numerics** (layout-specified, planned):
 
   * `int8, int16, int32, int64`, `uint8, uint16, uint32, uint64`.
   * `float16, float32, float64`.
@@ -76,6 +87,7 @@ Types are written postfixed: `name: Type`.
 
   * `bool` – logical; no implicit cast to/from numeric.
   * `string` – a sequence of Unicode scalar values (code points). Layout: dynamic array of code points.
+  * `unit` – zero-sized marker type, primarily used internally; no literal syntax.
 
 **Coercions:**
 
@@ -85,7 +97,7 @@ Types are written postfixed: `name: Type`.
 
 ### 2.2. Arrays
 
-`T[]` is a growable, indexable sequence of `T` with zero-based indexing.
+`T[]` is a growable, indexable sequence of `T` with zero-based indexing. Fixed-length arrays use `T[N]` where `N` is a constant integer literal; sema rejects non-constant lengths.
 
 * Indexing calls magic methods: `__index(i:int) -> T` and `__index_set(i:int, v:T) -> nothing`.
 * Iterable if `extern<T[]> { __range() -> Range<T> }` is provided (stdlib provides this for arrays).
@@ -158,16 +170,17 @@ let s: PersonSon = p            // patronymic picks the default ""
 - Defaults initialise missing fields; absence of a default requires callers to provide the field explicitly.
 - `@hidden` fields remain hidden outside `extern<Base>` and initialisers. `@readonly` fields stay immutable after construction.
 - Assigning from a child to its base is forbidden (types remain nominal).
-- Field name clashes trigger `E_FIELD_CONFLICT` during expansion.
+- Field name clashes trigger `SynTypeFieldConflict` during parsing.
 - Methods defined in `extern<Base>` are visible on `Child`. Override behaviour lives in `extern<Child>` with `@override` marking intentional replacements.
+- **Implementation note:** the parser already accepts `Base : { ... }`, but sema currently keeps only the explicitly declared fields; structural inheritance/override checks are TODO.
 
 ### 2.6. `nothing` — the single absence value
 
 `nothing` is the sole inhabitant of the type `nothing` and represents "no value" for void returns, null-like states, and explicit absence.
 
 - Functions without an explicit `-> Type` return `nothing`. `fn f() {}` is sugar for `fn f() -> nothing { return nothing; }`.
-- `nothing` has no literal shorthand other than the keyword itself. There is no `unit`/`()` type in Surge.
-- Context must accept the type `nothing`; using `nothing` where the target type cannot absorb it emits `E_AMBIGUOUS_NOTHING`.
+- `nothing` has no literal shorthand other than the keyword itself. A `unit` type exists for zero-sized markers but has no literal/tuple sugar yet.
+- Context must accept the type `nothing`; using it where the surrounding type is incompatible yields a type-mismatch diagnostic once the type checker knows the expected type.
 - Arrays remain homogeneous: `[nothing, nothing]` has type `nothing[]`. Mixing `nothing` with other literals requires an explicit union or alias accommodating both members.
 
 ### 2.7. Tags (`tag`) and tagged unions
@@ -179,10 +192,11 @@ tag Ping();
 tag Pair<A, B>(A, B);
 ```
 
+- Top-level syntax: `tag Name<T>(payload...);` and the semicolon is required.
 - `Name(args...)` constructs a value whose discriminant is `Name` and whose payload tuple matches the declaration.
-- The declaration parentheses list payload types; `tag Ping();` produces a payload-less constructor, `tag Pair<A, B>(A, B);` expects two arguments.
-- Tags live in their own namespace. They are not callable functions and they are not first-class types. To pass a constructor, wrap it in a closure: `fn(x:T) -> Alias<T> { return Name(x); }`.
-- When an identifier resolves both to a tag and to a function and is used in the form `Ident(...)`, resolution fails with `E_AMBIGUOUS_CONSTRUCTOR_OR_FN` (§3.6, §15).
+- Tags share a name slot with functions. If both exist and `Ident(...)` is used, sema reports `SemaAmbiguousCtorOrFn`.
+- Tags are not first-class types. To pass a constructor, wrap it in a closure: `fn(x:T) -> Alias<T> { return Name(x); }`.
+- `Some`, `Ok`, and `Error` are predeclared tag symbols (see `internal/symbols/prelude.go`) and are always in scope without an explicit `tag` item.
 
 Tags participate in alias unions as variants. They may declare generic parameters ahead of the payload list: `tag Some<T>(T);` introduces a tag family parameterised by `T`.
 
@@ -201,8 +215,8 @@ type Either<L, R> = Left(L) | Right(R)
 ```
 
 - Untagged unions rely on runtime type tests: `compare v { x if x is int => ... }`.
-- Tagged unions enable concise and exhaustive pattern matching. For tagged unions the compiler checks that all declared tags are covered in `compare`, unless a `finally` arm is present; missing variants trigger `E_NONEXHAUSTIVE_MATCH`.
-- Mixing many untagged structural types may lead to `E_AMBIGUOUS_UNION_MEMBERS` when the runtime cannot tell members apart (identical or overlapping runtime layout without a discriminant). Prefer tags for evolving APIs and stability.
+- Tagged unions are parsed and lowered into `TypeUnionMemberTag` entries. Exhaustiveness checking for `compare` arms is not implemented yet in sema; treat it as planned validation.
+- Mixing many untagged structural types may still be ambiguous at runtime; prefer tags for evolving APIs and stability.
 
 ### 2.9. Option and Result via tags
 
@@ -238,9 +252,9 @@ compare parse("x") {
 
 Rules:
 
-- There is no auto-wrapping when returning from `-> Result<T, E>`; use `Ok(...)` or `Error(...)`. Returning a bare payload yields `E_EXPECTED_TAGGED_VARIANT`.
-- `Option<T>` also requires explicit constructors. Future toolchains may allow opt-in auto-wrapping, but the base language keeps construction explicit.
-- `nothing` remains the shared absence literal for both Option and other contexts (§2.6).
+- Construction is explicit: use `Some(...)`, `Ok(...)`, or `Error(...)`. There is no auto-wrapping behaviour in the compiler today.
+- `Option`/`Result` are synthesised by sema even without user-declared `type`/`tag` items; tags come from the built-in prelude.
+- `nothing` remains the shared absence literal for both Option and other contexts (§2.6). Exhaustiveness checking for tagged unions is planned but not wired up yet.
 
 ### 2.10. Memory Management Model
 
@@ -320,12 +334,12 @@ for pattern (":" Type)? in Expr { body }
 
 * `pattern` may be an identifier; future iterations may add destructuring.
 * Type annotation is optional: the parser accepts `for item in seq { ... }` and leaves element-type inference to later semantic analysis.
-* When `: Type` is supplied it must describe a valid type; malformed annotations emit `E_FOR_MISSING_TYPE` diagnostics.
+* When `: Type` is supplied it must describe a valid type; malformed annotations surface as syntax errors (`SynExpectType` / `SynExpectExpression`).
 
 Parser diagnostics:
 
-* `E_FOR_MISSING_IN` — `for`-in form lacks `in`.
-* `E_FOR_BAD_HEADER` — mismatched semicolons in C-style `for`.
+* `SynForMissingIn` — `for`-in form lacks `in`.
+* `SynForBadHeader` — mismatched semicolons in C-style `for`.
 
 ### 3.3. Semicolons
 
@@ -381,8 +395,8 @@ Notes:
 
 - Arms are tried top-to-bottom; the first match wins.
 - `=>` separates pattern from result expression and is only valid within `compare` arms and parallel constructs.
-- Tagged unions must cover every declared tag (or provide `finally`) or emit `E_NONEXHAUSTIVE_MATCH`. Untagged unions skip this exhaustiveness check.
-- If both a tag constructor and a function named `Ident` are in scope, using `Ident(...)` emits `E_AMBIGUOUS_CONSTRUCTOR_OR_FN`.
+- Exhaustiveness for tagged unions is planned (compare should cover all declared tags or have `finally`); the current compiler does not enforce this yet. Untagged unions skip this check.
+- If both a tag constructor and a function named `Ident` are in scope, using `Ident(...)` emits `SemaAmbiguousCtorOrFn`.
 
 ---
 
@@ -416,9 +430,9 @@ Attributes are a **closed set** provided by the language. User-defined attribute
 
 * `@pure` *(fn)* — function has no side effects, is deterministic, cannot mutate non-local state. Required for execution in signals and parallel contexts. Violations emit `E_PURE_VIOLATION`.
 * `@overload` *(fn)* — declares an overload of an existing function name with a distinct signature. Must not be used on the first declaration of a function name; doing so emits `E_OVERLOAD_FIRST_DECL`. Incompatible with `@override`.
-* `@override` *(fn)* — replaces an existing implementation for a target type. Only valid within `extern<T>` and `extern<Newtype>` blocks. Attempting to override primitive base types directly emits `E_PRIMITIVE_SEALED` (use newtype instead). Incompatible with `@overload`.
+* `@override` *(fn)* — replaces an existing implementation for a target type. Only valid within `extern<T>` and `extern<Newtype>` blocks. Invalid override contexts surface as `SemaFnOverride`. Incompatible with `@overload`.
 
-  **Exception:** `@override` may be used outside `extern<T>` only if the target symbol is local to the current module (declared earlier in the same module) and previously had no body implementation. This allows completing forward declarations. Attempting to override functions from standard library/imports or any public symbols from other modules emits `E_OVERRIDE_FORBIDDEN_TARGET`.
+  **Exception:** `@override` may be used outside `extern<T>` only if the target symbol is local to the current module (declared earlier in the same module) and previously had no body implementation.
 * `@intrinsic` *(fn)* — marks function as a language intrinsic (implementation provided by runtime/compiler). Intrinsics are declared only as function declarations without body (`fn name(...): Ret;`) in the special module `core/intrinsics` and made available to other code through standard library re-exports. User code cannot declare intrinsics outside `core/intrinsics`. Violations emit errors per §21.
 
 #### B. Code Generation and ABI
@@ -888,7 +902,7 @@ ParallelReduce := "parallel" "reduce" Expr "with" Expr "," ArgList "=>" Expr
 ArgList        := "(" (Expr ("," Expr)*)? ")" | "()"
 ```
 
-Restriction: `=>` is valid only in these `parallel` constructs and within `compare` arms (§3.6). Any other use is a parse error `PARSE_FAT_ARROW_OUTSIDE_PARALLEL`.
+Restriction: `=>` is valid only in these `parallel` constructs and within `compare` arms (§3.6). Any other use triggers `SynFatArrowOutsideParallel`.
 
 ### 9.3. Backend Selection
 
@@ -976,7 +990,7 @@ type Error = { message: string, code: uint }
 type MyError = Error : { path: string }
 ```
 
-- `type Child = Base : { ... }` copies all fields from `Base` and extends the struct with additional fields. Field names must remain unique; conflicts emit `E_FIELD_CONFLICT`.
+- `type Child = Base : { ... }` copies all fields from `Base` and extends the struct with additional fields. Field names must remain unique; conflicts emit `SynTypeFieldConflict`.
 - Fields may provide defaults (`field: T = expr`). Missing defaults require callers to populate the field explicitly.
 - Attributes on inherited fields (`@hidden`, `@readonly`) retain their behaviour. New fields may declare their own attributes.
 - Methods declared in `extern<Base>` apply to `Child`. Overrides live in `extern<Child>` with `@override` for clarity.
@@ -1637,7 +1651,7 @@ Member access `.`, await `.await`, and cast `to Type` are postfix operators and 
 
 ### 15.1. Resolving `Ident(...)`
 
-- In expression or pattern position the form `Ident(...)` is ambiguous if both a tag constructor and a function named `Ident` are visible. The parser emits `E_AMBIGUOUS_CONSTRUCTOR_OR_FN`.
+- In expression or pattern position the form `Ident(...)` is ambiguous if both a tag constructor and a function named `Ident` are visible. The compiler emits `SemaAmbiguousCtorOrFn`.
 
 ---
 
@@ -1834,79 +1848,35 @@ Suffix         := "[]"
 * **Pragma directive**: `pragma directive` marks a module as a directive module. The directive namespace is derived from the import path. In `--directives=off` (default), directive blocks have zero overhead.
 * **Language intrinsics**: Intrinsics constitute a fixed, small set and are declared in the module `core/intrinsics`. Their implementation is described in RUNTIME.md. Using `@intrinsic` outside this module is forbidden. They serve basic memory management operations (`rt_alloc`, `rt_free`, `rt_realloc`) and byte copying (`rt_memcpy`, `rt_memmove`).
 
-## 21. Diagnostics Overview (selected)
+## 21. Diagnostics Overview
 
-Stable diagnostic codes used by the parser and early semantic checks:
+Diagnostics now follow the numeric `diag.Code` families defined in `internal/diag/codes.go`; the old `E_*` mnemonics are retired.
 
-* `E_MISSING_FIELD_DEFAULT` — struct declared without defaults for one or more fields that lack explicit initialisers.
-* `E_UNDEFINED_DEFAULT` — type lacks a well-defined default for zero-initialisation (untagged unions, aliases, tagged unions without explicit value).
-* `E_GENERIC_UNDECLARED` — generic parameter used but not declared.
-* `E_AMBIGUOUS_NOTHING` — `nothing` used without contextual type.
-* `E_AMBIGUOUS_CONSTRUCTOR_OR_FN` — `Ident(...)` could resolve to either a tag constructor or a function.
-* `E_MOVE_BORROWED_TO_THREAD` — cannot move borrowed reference into spawned task.
-* `E_SIGNAL_NOT_PURE` — signals require @pure expression.
-* `PARSE_FAT_ARROW_OUTSIDE_PARALLEL` — `=>` reserved for compare arms and parallel constructs.
-* `E_FOR_MISSING_IN` — `for`-in missing `in` token.
-* `E_FOR_BAD_HEADER` — malformed C-style `for` header.
-* `E_ILLEGAL_ATTRIBUTE_TARGET` — attribute not allowed on this target.
-* `W_UNKNOWN_ATTRIBUTE` — unknown attribute.
-* `E_CYCLIC_TOPLEVEL_INIT` — cyclic top-level initialization.
-* `E_AMBIGUOUS_OVERLOAD` — ambiguous overload resolution.
-* `E_MISMATCH_RESULT_USE` — Result used where plain value expected (use `?` or compare).
-* `E_NONEXHAUSTIVE_MATCH` — tagged union match missing variants without `finally`.
-* `E_EXPECTED_TAGGED_VARIANT` — bare payload returned where a tagged constructor was required.
-* `E_AMBIGUOUS_UNION_MEMBERS` — untagged union members cannot be distinguished at runtime.
-* `E_FIELD_CONFLICT` — field name repeated while extending a struct (`type Child = Base : { ... }`).
-* `E_MACRO_UNSUPPORTED` — `macro` definitions are parsed but not supported in this iteration.
+**Lexical (1000–):**
+- `LexUnknownChar`, `LexUnterminatedString`, `LexUnterminatedBlockComment`, `LexBadNumber`.
 
-**Cast Operations:**
+**Syntax (2000–):**
+- Core: `SynUnexpectedToken`, `SynUnclosedDelimiter` (and specific paren/brace/bracket variants), `SynExpectSemicolon`, `SynPragmaPosition`.
+- Loops: `SynForMissingIn`, `SynForBadHeader`.
+- Modifiers/attributes: `SynModifierNotAllowed`, `SynAttributeNotAllowed`, `SynAsyncNotAllowed`.
+- Types: `SynTypeExpectEquals`, `SynTypeExpectBody`, `SynTypeExpectUnionMember`, `SynTypeFieldConflict`, `SynTypeDuplicateMember`, `SynTypeNotAllowed`.
+- Imports: `SynUnexpectedTopLevel`, `SynExpectIdentifier`, `SynExpectModuleSeg`, `SynExpectItemAfterDbl`, `SynExpectIdentAfterAs`, `SynEmptyImportGroup`.
+- Type expressions: `SynExpectRightBracket`, `SynExpectType`, `SynExpectExpression`, `SynExpectColon`, `SynUnexpectedModifier`.
+- Contextual: `SynIllegalItemInExtern`, `SynVisibilityReduction`, `SynFatArrowOutsideParallel`.
 
-* `E_NO_CAST(From, To)` — no available `__to` implementation for `From to To`.
-* `E_AMBIGUOUS_CAST(From, To)` — multiple `__to` overloads match the same cast.
-* `E_CAST_OVERLAP(From, To)` — conflicting `__to` implementations detected.
-* `E_CAST_REF_KIND` — invalid cast attempted on reference or pointer type (`&T`, `&mut T`, `*T`).
-* `E_CAST_OUT_OF_RANGE` — runtime trap: value exceeds target type range during built-in numeric cast.
+**Semantic (3000–):**
+- Naming: `SemaDuplicateSymbol`, `SemaShadowSymbol`, `SemaUnresolvedSymbol`, `SemaModuleMemberNotFound`, `SemaModuleMemberNotPublic`, style hints `SemaFnNameStyle`/`SemaTagNameStyle`.
+- Functions & intrinsics: `SemaFnOverride`, `SemaIntrinsicBadContext`, `SemaIntrinsicBadName`, `SemaIntrinsicHasBody`, `SemaAmbiguousCtorOrFn`.
+- Types & expressions: `SemaTypeMismatch`, `SemaInvalidBinaryOperands`, `SemaInvalidUnaryOperand`, `SemaExpectTypeOperand`.
+- Borrow checker scaffolding: `SemaBorrowConflict`, `SemaBorrowMutation`, `SemaBorrowMove`, `SemaBorrowThreadEscape`, `SemaBorrowImmutable`, `SemaBorrowNonAddressable`, `SemaBorrowDropInvalid`.
 
-**Attributes & Backend:**
+**I/O (4000–):**
+- `IOLoadFileError`.
 
-* `E_ATTR_CONFLICT` — conflicting attributes (e.g., incompatible `@align` with `@packed`).
-* `E_ATTR_DUPLICATE` — duplicate attribute with incompatible parameters.
-* `E_PRIMITIVE_SEALED` — attempt to `@override` primitive base type (use newtype instead).
-* `E_TYPE_SEALED` — attempt to extend sealed type via `type Child = Base : {...}`.
-* `E_OVERLOAD_FIRST_DECL` — first function declaration marked with `@overload`.
-* `E_PURE_VIOLATION` — violation of `@pure` contract detected during frontend analysis.
-* `W_BACKEND_UNSUPPORTED` — unsupported `@backend` target (warning; escalates to error in strict mode).
+**Project/import graph (5000–):**
+- `ProjDuplicateModule`, `ProjMissingModule`, `ProjSelfImport`, `ProjImportCycle`, `ProjInvalidModulePath`, `ProjInvalidImportPath`, `ProjDependencyFailed`.
 
-**Concurrency Contracts:**
+**Observability (6000–):**
+- `ObsTimings`.
 
-* `E_CONC_UNKNOWN_GUARD` — lock field referenced in concurrency attribute not found.
-* `E_CONC_BAD_GUARD_TYPE` — field referenced by concurrency attribute is not `Mutex` or `RwLock`.
-* `E_CONC_LOCK_CONTRACT` — function call violates `@requires_lock` contract.
-* `E_CONC_CONTRACT_CONFLICT` — conflicting concurrency attributes (e.g., `@send` + `@nosend`, `@nonblocking` + `@waits_on`).
-* `W_CONC_UNVERIFIED` — analyzer cannot prove lock contract compliance (warning; verification deferred to linter or runtime debug).
-
-**Intrinsics & Forward Decls:**
-
-* `E_FN_BODY_MISSING` — function declared as `fn ...;` without body and is not an intrinsic or subsequent implementation in the same module.
-* `E_INTRINSIC_FORBIDDEN_CONTEXT` — `@intrinsic` used outside module `core/intrinsics`.
-* `E_INTRINSIC_DISALLOWED_NAME` — function name under `@intrinsic` not in permitted list (`rt_alloc`, `rt_free`, `rt_realloc`, `rt_memcpy`, `rt_memmove`).
-* `E_INTRINSIC_HAS_BODY` — intrinsic declared with function body.
-* `E_OVERRIDE_FORBIDDEN_TARGET` — `@override` on free function attempts to replace symbol not from current module (std/import).
-* `E_OVERRIDE_REDEFINITION` — repeated `@override` for already implemented function in module.
-
-**Extern Blocks:**
-
-* `E_ILLEGAL_ITEM_IN_EXTERN` — non-function item declared inside `extern<T>` block.
-* `E_VISIBILITY_REDUCTION` — attempt to override a public method with a private one in `extern<T>`.
-
-**Directives:**
-
-* `E_PRAGMA_POSITION` — `pragma directive` not at the top of the file (must be first meaningful line).
-* `E_DIRECTIVE_PARSE` — line inside directive block fails to parse as expression.
-* `E_DIRECTIVE_NOT_IMPORTED` — directive namespace `<ns>` used but no matching import found.
-* `E_DIRECTIVE_NOT_A_DIRECTIVE_MODULE` — imported module for `<ns>` lacks `pragma directive`.
-* `E_DIRECTIVE_UNRESOLVED_FN` — `<ns>.<fn>` not found or not `pub` in directive module.
-* `E_DIRECTIVE_DOMAIN` — directives used outside `///` doc-comment blocks.
-* `W_DIRECTIVE_UNUSED` — directive block present but not processed (incorrect mode).
-
-Note: Channel closure is a runtime condition; `send` returns `Result<nothing, ChannelClosed>`. The corresponding runtime diagnostic lives in RUNTIME.md, not as a compile-time diagnostic.
+Planned diagnostics for directives, concurrency contracts, exhaustive `compare`, and macro/runtime surfaces are not wired up yet in sema.
