@@ -139,7 +139,7 @@ func ensureStdlibModules(
 	if stdlibRoot == "" {
 		return nil
 	}
-	for _, module := range []string{stdModuleCoreIntrinsics, stdModuleCoreBase} {
+	for _, module := range []string{stdModuleCoreIntrinsics, stdModuleCoreBase, stdModuleCoreOption, stdModuleCoreResult} {
 		if _, ok := records[module]; ok {
 			continue
 		}

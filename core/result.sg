@@ -3,5 +3,5 @@
 type Error = { message: string, code: uint };
 
 tag Ok<T>(T);
-tag Error<E>(E);
-type Result<T, E> = Ok(T) | Error(E);
+tag Err<E>(E);
+type Result<T, E> = Ok(T) | Err(E);

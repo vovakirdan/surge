@@ -276,11 +276,6 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 			return builtin
 		}
 	}
-	if literal == "Option" || literal == "Result" {
-		if ty := tc.resolveBuiltinGeneric(literal, args, span); ty != types.NoTypeID {
-			return ty
-		}
-	}
 	symID := tc.lookupTypeSymbol(name, scope)
 	if !symID.IsValid() {
 		if literal == "" {
@@ -325,69 +320,15 @@ func (tc *typeChecker) resolveTypeArgs(typeIDs []ast.TypeID, scope symbols.Scope
 }
 
 func (tc *typeChecker) resolveBuiltinGeneric(name string, args []types.TypeID, span source.Span) types.TypeID {
-	switch name {
-	case "Option":
-		if len(args) == 0 {
-			tc.report(diag.SemaTypeMismatch, span, "Option requires 1 type argument")
-			return types.NoTypeID
-		}
-		if len(args) != 1 {
-			tc.report(diag.SemaTypeMismatch, span, "Option expects 1 type argument, got %d", len(args))
-			return types.NoTypeID
-		}
-		return tc.makeOptionType(args[0])
-	case "Result":
-		if len(args) == 0 {
-			tc.report(diag.SemaTypeMismatch, span, "Result requires 2 type arguments")
-			return types.NoTypeID
-		}
-		if len(args) != 2 {
-			tc.report(diag.SemaTypeMismatch, span, "Result expects 2 type arguments, got %d", len(args))
-			return types.NoTypeID
-		}
-		return tc.makeResultType(args[0], args[1])
-	default:
-		return types.NoTypeID
-	}
+	return types.NoTypeID
 }
 
 func (tc *typeChecker) makeOptionType(elem types.TypeID) types.TypeID {
-	if tc.types == nil || elem == types.NoTypeID {
-		return types.NoTypeID
-	}
-	key := tc.builtinInstantiationKey("Option", elem)
-	if cached := tc.cachedInstantiation(key); cached != types.NoTypeID {
-		return cached
-	}
-	some := tc.builder.StringsInterner.Intern("Some")
-	members := []types.UnionMember{
-		{Kind: types.UnionMemberTag, TagName: some, TagArgs: []types.TypeID{elem}},
-		{Kind: types.UnionMemberNothing, Type: tc.types.Builtins().Nothing},
-	}
-	typeID := tc.types.RegisterUnionInstance(tc.builder.StringsInterner.Intern("Option"), source.Span{}, []types.TypeID{elem})
-	tc.types.SetUnionMembers(typeID, members)
-	tc.rememberInstantiation(key, typeID)
-	return typeID
+	return types.NoTypeID
 }
 
 func (tc *typeChecker) makeResultType(okType, errType types.TypeID) types.TypeID {
-	if tc.types == nil || okType == types.NoTypeID || errType == types.NoTypeID {
-		return types.NoTypeID
-	}
-	key := tc.builtinInstantiationKey("Result", okType, errType)
-	if cached := tc.cachedInstantiation(key); cached != types.NoTypeID {
-		return cached
-	}
-	okName := tc.builder.StringsInterner.Intern("Ok")
-	errName := tc.builder.StringsInterner.Intern("Error")
-	members := []types.UnionMember{
-		{Kind: types.UnionMemberTag, TagName: okName, TagArgs: []types.TypeID{okType}},
-		{Kind: types.UnionMemberTag, TagName: errName, TagArgs: []types.TypeID{errType}},
-	}
-	typeID := tc.types.RegisterUnionInstance(tc.builder.StringsInterner.Intern("Result"), source.Span{}, []types.TypeID{okType, errType})
-	tc.types.SetUnionMembers(typeID, members)
-	tc.rememberInstantiation(key, typeID)
-	return typeID
+	return types.NoTypeID
 }
 
 func (tc *typeChecker) instantiationKey(symID symbols.SymbolID, args []types.TypeID) string {

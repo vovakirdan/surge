@@ -223,10 +223,10 @@ type Either<L, R> = Left(L) | Right(R)
 The standard library defines canonical constructors and aliases; the postfix sugar desugars to them:
 
 ```sg
-tag Some<T>(T); tag Ok<T>(T); tag Error<E>(E);
+tag Some<T>(T); tag Ok<T>(T); tag Err<E>(E);
 
 type Option<T> = Some(T) | nothing
-type Result<T, E> = Ok(T) | Error(E)
+type Result<T, E> = Ok(T) | Err(E)
 
 // sugar:
 let maybe_num: int?      // == Option<int>

@@ -10,6 +10,8 @@ import (
 const (
 	stdModuleCoreIntrinsics = "core/intrinsics"
 	stdModuleCoreBase       = "core/base"
+	stdModuleCoreOption     = "core/option"
+	stdModuleCoreResult     = "core/result"
 )
 
 func detectStdlibRoot(baseDir string) string {
