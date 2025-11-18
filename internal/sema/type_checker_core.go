@@ -439,6 +439,9 @@ func (tc *typeChecker) coerceReturnType(expected, actual types.TypeID) types.Typ
 		return actual
 	}
 	if elem, ok := tc.optionPayload(expected); ok {
+		if actual == tc.types.Builtins().Nothing {
+			return expected
+		}
 		if tc.typesAssignable(elem, actual, true) {
 			return expected
 		}

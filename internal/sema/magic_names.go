@@ -2,6 +2,7 @@ package sema
 
 import (
 	"surge/internal/ast"
+	"surge/internal/diag"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -16,6 +17,9 @@ func (tc *typeChecker) buildMagicIndex() {
 					continue
 				}
 				name := tc.symbolName(sym.Name)
+				if name == "__to" && !tc.acceptToSignature(sym.Signature, sym.ReceiverKey, &sym) {
+					continue
+				}
 				tc.addMagicEntry(sym.ReceiverKey, name, sym.Signature)
 			}
 		}
@@ -28,6 +32,11 @@ func (tc *typeChecker) buildMagicIndex() {
 			for _, sym := range list {
 				if sym.Kind != symbols.SymbolFunction || sym.ReceiverKey == "" || sym.Signature == nil || sym.Name == "" {
 					continue
+				}
+				if sym.Name == "__to" {
+					if ok, _ := validToSignature(sym.Signature, sym.ReceiverKey); !ok {
+						continue
+					}
 				}
 				tc.addMagicEntry(sym.ReceiverKey, sym.Name, sym.Signature)
 			}
@@ -220,4 +229,69 @@ func (tc *typeChecker) signatureMatchesBinary(sig *symbols.FunctionSignature, le
 		return false
 	}
 	return sig.Params[0] == left && sig.Params[1] == right
+}
+
+func (tc *typeChecker) acceptToSignature(sig *symbols.FunctionSignature, receiver symbols.TypeKey, sym *symbols.Symbol) bool {
+	ok, reason := validToSignature(sig, receiver)
+	if ok {
+		return true
+	}
+	tc.reportInvalidToSignature(sym, sig, reason)
+	return false
+}
+
+func validToSignature(sig *symbols.FunctionSignature, receiver symbols.TypeKey) (ok bool, reason string) {
+	if sig == nil {
+		return false, "missing signature"
+	}
+	if receiver == "" {
+		return false, "missing receiver type"
+	}
+	if len(sig.Params) != 2 {
+		return false, "must take exactly two parameters (self, target)"
+	}
+	if len(sig.Variadic) == len(sig.Params) {
+		for _, variadic := range sig.Variadic {
+			if variadic {
+				return false, "variadic parameters are not allowed on __to"
+			}
+		}
+	}
+	if sig.Params[0] != receiver {
+		return false, "first parameter must match extern receiver type"
+	}
+	target := sig.Params[1]
+	if target == "" {
+		return false, "missing target type"
+	}
+	if sig.Result != target {
+		return false, "return type must be the target type"
+	}
+	return true, ""
+}
+
+func (tc *typeChecker) reportInvalidToSignature(sym *symbols.Symbol, sig *symbols.FunctionSignature, reason string) {
+	if sym == nil || tc.reporter == nil {
+		return
+	}
+	self := typeKeyLabel(sym.ReceiverKey)
+	target := "_"
+	if sig != nil && len(sig.Params) >= 2 {
+		target = typeKeyLabel(sig.Params[1])
+	}
+	expected := "__to(self: " + self + ", target: " + target + ") -> " + target
+	msg := "__to must match fn " + expected
+	if reason != "" {
+		msg += ": " + reason
+	}
+	if b := diag.ReportError(tc.reporter, diag.SemaTypeMismatch, sym.Span, msg); b != nil {
+		b.Emit()
+	}
+}
+
+func typeKeyLabel(key symbols.TypeKey) string {
+	if key == "" {
+		return "_"
+	}
+	return string(key)
 }

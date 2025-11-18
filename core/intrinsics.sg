@@ -89,3 +89,11 @@ extern<bool> {
     @intrinsic fn __to(self: bool, target: string) -> string;
     @intrinsic @overload fn __to(self: bool, target: int) -> int;
 }
+
+@intrinsic
+fn exit(e: Error) -> nothing;
+
+fn panic(msg: string) -> nothing {
+    let e: Error = { message: msg, code: 1 };
+    exit(e);
+}

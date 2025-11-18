@@ -5,3 +5,8 @@ pub type Error = { message: string, code: uint };
 pub tag Ok<T>(T);
 pub tag Err<E>(E);
 pub type Result<T, E> = Ok(T) | Err(E);
+
+extern<Result<T, E>> {
+    fn safe(self: Result<T, E>) -> T;
+    fn panic(self: Result<T, E>) -> T;
+}

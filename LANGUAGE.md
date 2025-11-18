@@ -257,9 +257,10 @@ compare parse("x") {
 
 Rules:
 
-- Construction is explicit: use `Some(...)`, `Ok(...)`, or `Error(...)`. There is no auto-wrapping behaviour in the compiler today.
-- `Option`/`Result` are synthesised by sema even without user-declared `type`/`tag` items; tags come from the built-in prelude.
+- Construction is explicit in expressions: use `Some(...)`, `Ok(...)`, or `Error(...)`. In function returns, a bare `T` is accepted as `Some(T)`/`Ok(T)` and `nothing` is accepted for `Option<T>`.
+- `T?` is sugar for `Option<T>`; `T!` is sugar for `Result<T, Error>`; `T!E` is sugar for `Result<T, E>`.
 - `nothing` remains the shared absence literal for both Option and other contexts (§2.6). Exhaustiveness checking for tagged unions is planned but not wired up yet.
+- `panic(msg)` materialises `Error{ message: msg, code: 1 }` and calls intrinsic `exit(Error)`.
 
 ### 2.10. Memory Management Model
 
@@ -766,7 +767,7 @@ let d: float = 42 to float;   // int→float conversion
 
 ### 6.5. Custom Cast Protocol (`__to`)
 
-User-defined types opt into casting by supplying `__to` overloads inside `extern<From>` blocks:
+User-defined types opt into casting by supplying `__to` overloads inside `extern<From>` blocks. The signature is strict: exactly two parameters (`self: From`, `target: To`) and the return type must be the same `To`:
 
 ```sg
 extern<From> {
@@ -778,7 +779,7 @@ Each target type gets its own overload; primitives in `core/intrinsics.sg` ship 
 
 1. If `From` and `To` (after resolving aliases) are identical, the cast is a no-op.
 2. Built-in numeric rules from §6.4 are consulted first (e.g., dynamic↔fixed conversions).
-3. Otherwise the compiler looks for `__to` on the left operand’s type whose second parameter matches the resolved target type. Alias names participate in the lookup, so `type Gasoline = string` inherits `string -> string` conversions automatically.
+3. Otherwise the compiler looks for `__to` on the left operand’s type whose second parameter matches the resolved target type. Alias names participate in the lookup, so `type Gasoline = string` inherits `string -> string` conversions automatically. Any `__to` that adds extra parameters or returns anything other than the target type is rejected with a semantic error.
 4. Multiple matches yield `E_AMBIGUOUS_CAST`; no match yields `E_NO_CAST`.
 
 **Restrictions:**

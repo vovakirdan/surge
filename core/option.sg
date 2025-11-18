@@ -2,3 +2,8 @@
 
 pub tag Some<T>(T);
 pub type Option<T> = Some(T) | nothing;
+
+extern<Option<T>> {
+    fn safe(self: Option<T>) -> T;
+    fn exit(self: Option<T>, msg: string) -> T;
+}
