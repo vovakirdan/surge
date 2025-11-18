@@ -97,7 +97,7 @@ prefixLoop:
 	return currentType, true
 }
 
-// parseTypeSuffix обрабатывает постфиксы: [], [Expr]
+// parseTypeSuffix обрабатывает постфиксы: [], [Expr], ?, !E
 func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 	currentType := baseType
 
@@ -225,6 +225,47 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 			p.advance()
 		}
 		return ast.NoTypeID, false
+	}
+
+	if p.at(token.Question) {
+		questionTok := p.advance()
+		currentSpan := p.arenas.Types.Get(currentType).Span
+		currentType = p.arenas.Types.NewOptional(currentSpan.Cover(questionTok.Span), currentType)
+		if p.at(token.Question) || p.at(token.Bang) {
+			p.err(diag.SynUnexpectedToken, "multiple postfix modifiers are not allowed on a type")
+		}
+		return currentType, true
+	}
+
+	if p.at(token.Bang) {
+		bangTok := p.advance()
+		errType := ast.NoTypeID
+		// допускаем T!E, где E — обычное типовое выражение
+		if !p.at(token.Semicolon) &&
+			!p.at(token.Comma) &&
+			!p.at(token.RParen) &&
+			!p.at(token.RBracket) &&
+			!p.at(token.RBrace) &&
+			!p.at(token.Arrow) &&
+			!p.at(token.FatArrow) {
+			var ok bool
+			errType, ok = p.parseTypePrefix()
+			if !ok {
+				return ast.NoTypeID, false
+			}
+		}
+		currentSpan := p.arenas.Types.Get(currentType).Span
+		if errType.IsValid() {
+			errSpan := p.arenas.Types.Get(errType).Span
+			currentSpan = currentSpan.Cover(errSpan)
+		} else {
+			currentSpan = currentSpan.Cover(bangTok.Span)
+		}
+		currentType = p.arenas.Types.NewErrorable(currentSpan, currentType, errType)
+		if p.at(token.Question) || p.at(token.Bang) {
+			p.err(diag.SynUnexpectedToken, "multiple postfix modifiers are not allowed on a type")
+		}
+		return currentType, true
 	}
 
 	return currentType, true

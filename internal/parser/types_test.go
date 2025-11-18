@@ -252,9 +252,58 @@ func TestWhitespaceVariations(t *testing.T) {
 	}
 }
 
+func TestOptionalAndErrorableTypes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"optional", "let x: int?;", "int?"},
+		{"errorable_any", "let x: Foo!;", "Foo!"},
+		{"errorable_explicit", "let x: Foo!Bar;", "Foo!Bar"},
+		{"array_optional", "let x: int[]?;", "int[]?"},
+		{"owned_errorable", "let x: own Foo!Bar;", "own Foo!Bar"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			letItem, arenas := parseTestInput(t, tt.input)
+			assertSingleLetItem(t, letItem, arenas, tt.expected)
+		})
+	}
+}
+
+func TestInvalidOptionalAndErrorableTypes(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"double_optional", "let x: int??;"},
+		{"optional_then_errorable", "let x: int?!;"},
+		{"double_errorable", "let x: int!!;"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, bag := parseLetWithBag(t, tt.input)
+			if bag.Len() == 0 {
+				t.Fatalf("expected parsing errors for %q, got none", tt.input)
+			}
+		})
+	}
+}
+
 // Helper functions
 
 func parseTestInput(t *testing.T, input string) (*ast.LetItem, *ast.Builder) {
+	letItem, arenas, bag := parseLetWithBag(t, input)
+	if bag.Len() > 0 {
+		t.Fatalf("Parsing failed with errors (count: %d)", bag.Len())
+	}
+	return letItem, arenas
+}
+
+func parseLetWithBag(t *testing.T, input string) (*ast.LetItem, *ast.Builder, *diag.Bag) {
 	// Create a test file and parser using the same pattern as import tests
 	fs := source.NewFileSet()
 	fileID := fs.AddVirtual("test.sg", []byte(input))
@@ -284,10 +333,7 @@ func parseTestInput(t *testing.T, input string) (*ast.LetItem, *ast.Builder) {
 	// Parse a single let item
 	itemID, ok := p.parseLetItem()
 	if !ok {
-		if bag.Len() > 0 {
-			t.Fatalf("Parsing failed with errors (count: %d)", bag.Len())
-		}
-		t.Fatal("Failed to parse let item")
+		return nil, arenas, bag
 	}
 
 	// Get the let item
@@ -301,12 +347,7 @@ func parseTestInput(t *testing.T, input string) (*ast.LetItem, *ast.Builder) {
 		t.Fatal("failed to get let item")
 	}
 
-	// Check for parsing errors
-	if bag.Len() > 0 {
-		t.Fatalf("Parsing failed with errors (count: %d)", bag.Len())
-	}
-
-	return letItem, arenas
+	return letItem, arenas, bag
 }
 
 func assertSingleLetItem(t *testing.T, letItem *ast.LetItem, arenas *ast.Builder, expectedType string) *ast.LetItem {
@@ -417,6 +458,22 @@ func formatType(arenas *ast.Builder, typeID ast.TypeID) string {
 		}
 		retType := formatType(arenas, fn.Return)
 		return "fn(" + strings.Join(params, ", ") + ") -> " + retType
+	case ast.TypeExprOptional:
+		opt, ok := arenas.Types.Optional(typeID)
+		if !ok {
+			return "<invalid optional>"
+		}
+		return formatType(arenas, opt.Inner) + "?"
+	case ast.TypeExprErrorable:
+		errable, ok := arenas.Types.Errorable(typeID)
+		if !ok {
+			return "<invalid errorable>"
+		}
+		base := formatType(arenas, errable.Inner)
+		if errable.Error.IsValid() {
+			return base + "!" + formatType(arenas, errable.Error)
+		}
+		return base + "!"
 
 	default:
 		return "<unknown type>"

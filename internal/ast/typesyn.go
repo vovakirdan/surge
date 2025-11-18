@@ -11,6 +11,8 @@ const (
 	TypeExprArray
 	TypeExprTuple
 	TypeExprFn
+	TypeExprOptional
+	TypeExprErrorable
 )
 
 type TypeExpr struct {
@@ -26,6 +28,8 @@ type TypeExprs struct {
 	Arrays *Arena[TypeArray]
 	Tuples *Arena[TypeTuple]
 	Fns    *Arena[TypeFn]
+	Opts   *Arena[TypeOptional]
+	Errs   *Arena[TypeErrorable]
 }
 
 // NewTypeExprs creates a TypeExprs with arenas for type expression nodes and their payloads initialized.
@@ -42,6 +46,8 @@ func NewTypeExprs(capHint uint) *TypeExprs {
 		Arrays: NewArena[TypeArray](capHint),
 		Tuples: NewArena[TypeTuple](capHint),
 		Fns:    NewArena[TypeFn](capHint),
+		Opts:   NewArena[TypeOptional](capHint),
+		Errs:   NewArena[TypeErrorable](capHint),
 	}
 }
 
@@ -138,6 +144,37 @@ func (t *TypeExprs) Fn(id TypeID) (*TypeFn, bool) {
 	return t.Fns.Get(uint32(typ.Payload)), true
 }
 
+func (t *TypeExprs) NewOptional(span source.Span, inner TypeID) TypeID {
+	payload := t.Opts.Allocate(TypeOptional{
+		Inner: inner,
+	})
+	return t.new(TypeExprOptional, span, PayloadID(payload))
+}
+
+func (t *TypeExprs) Optional(id TypeID) (*TypeOptional, bool) {
+	typ := t.Get(id)
+	if typ == nil || typ.Kind != TypeExprOptional {
+		return nil, false
+	}
+	return t.Opts.Get(uint32(typ.Payload)), true
+}
+
+func (t *TypeExprs) NewErrorable(span source.Span, inner, err TypeID) TypeID {
+	payload := t.Errs.Allocate(TypeErrorable{
+		Inner: inner,
+		Error: err,
+	})
+	return t.new(TypeExprErrorable, span, PayloadID(payload))
+}
+
+func (t *TypeExprs) Errorable(id TypeID) (*TypeErrorable, bool) {
+	typ := t.Get(id)
+	if typ == nil || typ.Kind != TypeExprErrorable {
+		return nil, false
+	}
+	return t.Errs.Get(uint32(typ.Payload)), true
+}
+
 type TypePath struct {
 	Segments []TypePathSegment
 }
@@ -189,4 +226,13 @@ type TypeFnParam struct {
 	Type     TypeID
 	Name     source.StringID
 	Variadic bool
+}
+
+type TypeOptional struct {
+	Inner TypeID
+}
+
+type TypeErrorable struct {
+	Inner TypeID
+	Error TypeID
 }
