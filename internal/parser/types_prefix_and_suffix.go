@@ -227,43 +227,72 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 		return ast.NoTypeID, false
 	}
 
-	if p.at(token.Question) {
-		questionTok := p.advance()
-		currentSpan := p.arenas.Types.Get(currentType).Span
-		currentType = p.arenas.Types.NewOptional(currentSpan.Cover(questionTok.Span), currentType)
-		if p.at(token.Question) || p.at(token.Bang) {
-			p.err(diag.SynUnexpectedToken, "multiple postfix modifiers are not allowed on a type")
-		}
-		return currentType, true
-	}
-
-	if p.at(token.Bang) {
-		bangTok := p.advance()
-		errType := ast.NoTypeID
-		// допускаем T!E, где E — обычное типовое выражение
-		if !p.at(token.Semicolon) &&
-			!p.at(token.Comma) &&
-			!p.at(token.RParen) &&
-			!p.at(token.RBracket) &&
-			!p.at(token.RBrace) &&
-			!p.at(token.Arrow) &&
-			!p.at(token.FatArrow) {
-			var ok bool
-			errType, ok = p.parseTypePrefix()
-			if !ok {
-				return ast.NoTypeID, false
+	if p.at(token.Question) || p.at(token.QuestionQuestion) || p.at(token.Bang) {
+		switch {
+		case p.at(token.Question):
+			questionTok := p.advance()
+			currentSpan := p.arenas.Types.Get(currentType).Span
+			currentType = p.arenas.Types.NewOptional(currentSpan.Cover(questionTok.Span), currentType)
+		case p.at(token.QuestionQuestion):
+			qqTok := p.advance()
+			currentSpan := p.arenas.Types.Get(currentType).Span
+			currentType = p.arenas.Types.NewOptional(currentSpan.Cover(qqTok.Span), currentType)
+			p.emitDiagnostic(
+				diag.SynUnexpectedToken,
+				diag.SevError,
+				qqTok.Span,
+				"type can have only one '?' modifier; replace '??' with '?'",
+				func(b *diag.ReportBuilder) {
+					if b == nil {
+						return
+					}
+					fixID := fix.MakeFixID(diag.SynUnexpectedToken, qqTok.Span)
+					suggestion := fix.ReplaceSpan(
+						"replace '??' with '?'",
+						qqTok.Span,
+						"?",
+						"",
+						fix.WithID(fixID),
+						fix.WithKind(diag.FixKindRefactor),
+						fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						fix.Preferred(),
+					)
+					b.WithFixSuggestion(suggestion)
+				},
+			)
+		default:
+			bangTok := p.advance()
+			errType := ast.NoTypeID
+			// допускаем T!E, где E — обычное типовое выражение
+			if !p.at(token.Semicolon) &&
+				!p.at(token.Comma) &&
+				!p.at(token.RParen) &&
+				!p.at(token.RBracket) &&
+				!p.at(token.RBrace) &&
+				!p.at(token.Arrow) &&
+				!p.at(token.FatArrow) {
+				var ok bool
+				errType, ok = p.parseTypePrefix()
+				if !ok {
+					return ast.NoTypeID, false
+				}
 			}
+			currentSpan := p.arenas.Types.Get(currentType).Span
+			if errType.IsValid() {
+				errSpan := p.arenas.Types.Get(errType).Span
+				currentSpan = currentSpan.Cover(errSpan)
+			} else {
+				currentSpan = currentSpan.Cover(bangTok.Span)
+			}
+			currentType = p.arenas.Types.NewErrorable(currentSpan, currentType, errType)
 		}
-		currentSpan := p.arenas.Types.Get(currentType).Span
-		if errType.IsValid() {
-			errSpan := p.arenas.Types.Get(errType).Span
-			currentSpan = currentSpan.Cover(errSpan)
-		} else {
-			currentSpan = currentSpan.Cover(bangTok.Span)
-		}
-		currentType = p.arenas.Types.NewErrorable(currentSpan, currentType, errType)
+
+		// Дополнительные модификаторы считаем ошибкой и съедаем, чтобы не оставлять их висячими.
 		if p.at(token.Question) || p.at(token.Bang) {
-			p.err(diag.SynUnexpectedToken, "multiple postfix modifiers are not allowed on a type")
+			for p.at(token.Question) || p.at(token.Bang) {
+				p.err(diag.SynUnexpectedToken, "multiple postfix modifiers are not allowed on a type; use a single '?' or '!Error'")
+				p.advance()
+			}
 		}
 		return currentType, true
 	}
