@@ -275,6 +275,26 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 		if builtin := tc.builtinTypeByName(literal); builtin != types.NoTypeID {
 			return builtin
 		}
+		switch literal {
+		case "Option":
+			if len(args) != 1 {
+				tc.report(diag.SemaTypeMismatch, span, "Option requires 1 type argument, got %d", len(args))
+				return types.NoTypeID
+			}
+			return tc.resolveOptionType(args[0], span, scope)
+		case "Result":
+			if len(args) != 2 {
+				tc.report(diag.SemaTypeMismatch, span, "Result requires 2 type arguments, got %d", len(args))
+				return types.NoTypeID
+			}
+			return tc.resolveResultType(args[0], args[1], span, scope)
+		case "Error":
+			if len(args) > 0 {
+				tc.report(diag.SemaTypeMismatch, span, "Error does not take type arguments")
+				return types.NoTypeID
+			}
+			return tc.resolveErrorType(span, scope)
+		}
 	}
 	symID := tc.lookupTypeSymbol(name, scope)
 	if !symID.IsValid() {
@@ -602,23 +622,6 @@ func (tc *typeChecker) builtinTypeByName(name string) types.TypeID {
 	default:
 		return types.NoTypeID
 	}
-}
-
-func (tc *typeChecker) resolveOptionType(inner types.TypeID, span source.Span, scope symbols.ScopeID) types.TypeID {
-	if inner == types.NoTypeID || tc.builder == nil {
-		return types.NoTypeID
-	}
-	name := tc.builder.StringsInterner.Intern("Option")
-	args := []types.TypeID{inner}
-	return tc.resolveNamedType(name, args, span, scope)
-}
-
-func (tc *typeChecker) resolveErrorType(span source.Span, scope symbols.ScopeID) types.TypeID {
-	if tc.builder == nil {
-		return types.NoTypeID
-	}
-	errName := tc.builder.StringsInterner.Intern("Error")
-	return tc.resolveNamedType(errName, nil, span, scope)
 }
 
 func (tc *typeChecker) scopeOrFile(scope symbols.ScopeID) symbols.ScopeID {

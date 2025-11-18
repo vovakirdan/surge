@@ -45,6 +45,9 @@ type typeChecker struct {
 	typeParamEnv       []uint32
 	nextParamEnv       uint32
 	typeInstantiations map[string]types.TypeID
+	optionTypes        map[types.TypeID]types.TypeID
+	resultTypes        map[resultKey]types.TypeID
+	errorType          types.TypeID
 }
 
 type returnContext struct {
@@ -69,6 +72,8 @@ func (tc *typeChecker) run() {
 	tc.typeParamNames = make(map[types.TypeID]source.StringID)
 	tc.nextParamEnv = 1
 	tc.typeInstantiations = make(map[string]types.TypeID)
+	tc.optionTypes = make(map[types.TypeID]types.TypeID)
+	tc.resultTypes = make(map[resultKey]types.TypeID)
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {
 		return

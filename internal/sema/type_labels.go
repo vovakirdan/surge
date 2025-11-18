@@ -133,6 +133,12 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 				return symbols.TypeKey(name)
 			}
 		}
+	case types.KindUnion:
+		if info, ok := tc.types.UnionInfo(id); ok && info != nil {
+			if name := tc.lookupName(info.Name); name != "" {
+				return symbols.TypeKey(name)
+			}
+		}
 	default:
 		return ""
 	}

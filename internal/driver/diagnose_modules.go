@@ -139,16 +139,20 @@ func ensureStdlibModules(
 	if stdlibRoot == "" {
 		return nil
 	}
-	for _, module := range []string{stdModuleCoreIntrinsics, stdModuleCoreBase, stdModuleCoreOption, stdModuleCoreResult} {
+	exports := collectedExports(records)
+	for _, module := range []string{stdModuleCoreResult, stdModuleCoreOption, stdModuleCoreIntrinsics, stdModuleCoreBase} {
 		if _, ok := records[module]; ok {
 			continue
 		}
-		rec, err := loadStdModule(fs, module, stdlibRoot, opts, cache)
+		rec, err := loadStdModule(fs, module, stdlibRoot, opts, cache, exports)
 		if err != nil {
 			if errors.Is(err, errStdModuleMissing) {
 				continue
 			}
 			return err
+		}
+		if rec.Exports != nil {
+			exports[rec.Meta.Path] = rec.Exports
 		}
 		records[rec.Meta.Path] = rec
 	}
@@ -161,6 +165,7 @@ func loadStdModule(
 	stdlibRoot string,
 	opts DiagnoseOptions,
 	cache *ModuleCache,
+	moduleExports map[string]*symbols.ModuleExports,
 ) (*moduleRecord, error) {
 	if stdlibRoot == "" {
 		return nil, errStdModuleMissing
@@ -195,11 +200,12 @@ func loadStdModule(
 		cache.Put(meta, broken, firstErr)
 	}
 	res := symbols.ResolveFile(builder, astFile, &symbols.ResolveOptions{
-		Reporter:   reporter,
-		Validate:   true,
-		ModulePath: modulePath,
-		FilePath:   file.Path,
-		BaseDir:    stdlibRoot,
+		Reporter:      reporter,
+		Validate:      true,
+		ModulePath:    modulePath,
+		FilePath:      file.Path,
+		BaseDir:       stdlibRoot,
+		ModuleExports: moduleExports,
 	})
 	markSymbolsBuiltin(&res)
 	exports := symbols.CollectExports(builder, res, modulePath)
@@ -235,6 +241,17 @@ func moduleStatus(bag *diag.Bag) (bool, *diag.Diagnostic) {
 		}
 	}
 	return false, nil
+}
+
+func collectedExports(records map[string]*moduleRecord) map[string]*symbols.ModuleExports {
+	exports := make(map[string]*symbols.ModuleExports, len(records))
+	for path, rec := range records {
+		if rec == nil || rec.Exports == nil {
+			continue
+		}
+		exports[path] = rec.Exports
+	}
+	return exports
 }
 
 func modulePathToFilePath(baseDir, modulePath string) string {
