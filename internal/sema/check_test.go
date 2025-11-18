@@ -379,6 +379,92 @@ func TestBinaryHeirRequiresTypeOperand(t *testing.T) {
 	}
 }
 
+func TestLowerOptionalTypeToOption(t *testing.T) {
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+	file := builder.Files.New(source.Span{})
+
+	intName := builder.StringsInterner.Intern("int")
+	optType := builder.Types.NewOptional(source.Span{}, builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intName}}))
+	name := builder.StringsInterner.Intern("x")
+	letID := builder.Items.NewLet(name, optType, ast.NoExprID, false, ast.VisPrivate, nil, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{})
+	builder.PushItem(file, letID)
+
+	res, symRes, bag := checkWithSymbols(t, builder, file)
+	if bag.Len() != 0 {
+		var codes []diag.Code
+		for _, it := range bag.Items() {
+			codes = append(codes, it.Code)
+		}
+		t.Fatalf("unexpected diagnostics: codes=%v", codes)
+	}
+	symIDs := symRes.ItemSymbols[letID]
+	if len(symIDs) == 0 {
+		t.Fatalf("expected symbol for let x")
+	}
+	sym := symRes.Table.Symbols.Get(symIDs[0])
+	if sym == nil || sym.Type == types.NoTypeID {
+		t.Fatalf("expected resolved type for let x")
+	}
+	assertUnionType(t, builder, res.TypeInterner, sym.Type, "Option")
+}
+
+func TestLowerErrorableTypeToResult(t *testing.T) {
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+	file := builder.Files.New(source.Span{})
+
+	intName := builder.StringsInterner.Intern("int")
+	errName := builder.StringsInterner.Intern("MyErr")
+	uintName := builder.StringsInterner.Intern("uint")
+	stringName := builder.StringsInterner.Intern("string")
+	// Declare Error type so it can be resolved during lowering.
+	errFields := []ast.TypeStructFieldSpec{
+		{Name: builder.StringsInterner.Intern("message"), Type: builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: stringName}})},
+		{Name: builder.StringsInterner.Intern("code"), Type: builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: uintName}})},
+	}
+	errStruct := builder.NewTypeStruct(errName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, ast.NoTypeID, errFields, nil, false, source.Span{}, source.Span{})
+	builder.PushItem(file, errStruct)
+
+	okType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intName}})
+	errType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: errName}})
+	errorableType := builder.Types.NewErrorable(source.Span{}, okType, errType)
+	name := builder.StringsInterner.Intern("y")
+	letID := builder.Items.NewLet(name, errorableType, ast.NoExprID, false, ast.VisPrivate, nil, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{})
+	builder.PushItem(file, letID)
+
+	res, symRes, bag := checkWithSymbols(t, builder, file)
+	if bag.Len() != 0 {
+		var codes []diag.Code
+		for _, it := range bag.Items() {
+			codes = append(codes, it.Code)
+		}
+		t.Fatalf("unexpected diagnostics: codes=%v", codes)
+	}
+	symIDs := symRes.ItemSymbols[letID]
+	if len(symIDs) == 0 {
+		t.Fatalf("expected symbol for let y")
+	}
+	sym := symRes.Table.Symbols.Get(symIDs[0])
+	if sym == nil || sym.Type == types.NoTypeID {
+		t.Fatalf("expected resolved type for let y")
+	}
+	assertUnionType(t, builder, res.TypeInterner, sym.Type, "Result")
+}
+
+func assertUnionType(t *testing.T, builder *ast.Builder, interner *types.Interner, typeID types.TypeID, wantName string) {
+	t.Helper()
+	info, ok := interner.UnionInfo(typeID)
+	if !ok || info == nil {
+		t.Fatalf("expected union type %s, got %v", wantName, typeID)
+	}
+	gotName, ok := builder.StringsInterner.Lookup(info.Name)
+	if !ok {
+		t.Fatalf("failed to lookup union name for %s", wantName)
+	}
+	if gotName != wantName {
+		t.Fatalf("expected union %s, got %s", wantName, gotName)
+	}
+}
+
 func TestBinaryIsProducesBoolForAlias(t *testing.T) {
 	builder, fileID := newTestBuilder()
 	gasName := intern(builder, "Gasoline")

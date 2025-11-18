@@ -218,9 +218,9 @@ type Either<L, R> = Left(L) | Right(R)
 - Tagged unions are parsed and lowered into `TypeUnionMemberTag` entries. Exhaustiveness checking for `compare` arms is not implemented yet in sema; treat it as planned validation.
 - Mixing many untagged structural types may still be ambiguous at runtime; prefer tags for evolving APIs and stability.
 
-### 2.9. Option and Result via tags
+### 2.9. Option and Result via tags (sugar `T?` / `T!E`)
 
-The standard library defines canonical constructors and aliases:
+The standard library defines canonical constructors and aliases; the postfix sugar desugars to them:
 
 ```sg
 tag Some<T>(T); tag Ok<T>(T); tag Error<E>(E);
@@ -228,15 +228,20 @@ tag Some<T>(T); tag Ok<T>(T); tag Error<E>(E);
 type Option<T> = Some(T) | nothing
 type Result<T, E> = Ok(T) | Error(E)
 
+// sugar:
+let maybe_num: int?      // == Option<int>
+let maybe_fail: int!     // == Result<int, Error>
+let maybe_fail2: int!E   // == Result<int, E>
+
 fn head<T>(xs: T[]) -> Option<T> {
   if (xs.len == 0) { return nothing; }
   return Some(xs[0]);
 }
 
-fn parse(s: string) -> Result<int, Error> {
+fn parse(s: string) -> Result<int, Error> { // also `int!Error` sugar is available
   if (s == "42") { return Ok(42); }
   let e: Error = { message: "bad", code: 1 };
-  return Error(e); // explicit constructor required
+  return Error(e); // explicit constructor required for `Result`
 }
 
 compare head([1, 2, 3]) {

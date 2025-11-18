@@ -1,0 +1,4 @@
+// Core Option type and its constructor.
+
+tag Some<T>(T);
+type Option<T> = Some(T) | nothing;

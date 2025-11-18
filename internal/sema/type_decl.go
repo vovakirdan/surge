@@ -223,6 +223,22 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 				result = tc.types.Intern(types.MakeArray(elem, count))
 			}
 		}
+	case ast.TypeExprOptional:
+		if opt, ok := tc.builder.Types.Optional(id); ok && opt != nil {
+			inner := tc.resolveTypeExprWithScope(opt.Inner, scope)
+			result = tc.resolveOptionType(inner, expr.Span, scope)
+		}
+	case ast.TypeExprErrorable:
+		if errable, ok := tc.builder.Types.Errorable(id); ok && errable != nil {
+			inner := tc.resolveTypeExprWithScope(errable.Inner, scope)
+			var errType types.TypeID
+			if errable.Error.IsValid() {
+				errType = tc.resolveTypeExprWithScope(errable.Error, scope)
+			} else {
+				errType = tc.resolveErrorType(expr.Span, scope)
+			}
+			result = tc.resolveResultType(inner, errType, expr.Span, scope)
+		}
 	default:
 		// other type forms (tuple/fn) are not supported yet
 	}
@@ -261,7 +277,9 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 		}
 	}
 	if literal == "Option" || literal == "Result" {
-		return tc.resolveBuiltinGeneric(literal, args, span)
+		if ty := tc.resolveBuiltinGeneric(literal, args, span); ty != types.NoTypeID {
+			return ty
+		}
 	}
 	symID := tc.lookupTypeSymbol(name, scope)
 	if !symID.IsValid() {
@@ -669,6 +687,32 @@ func (tc *typeChecker) builtinTypeByName(name string) types.TypeID {
 	default:
 		return types.NoTypeID
 	}
+}
+
+func (tc *typeChecker) resolveOptionType(inner types.TypeID, span source.Span, scope symbols.ScopeID) types.TypeID {
+	if inner == types.NoTypeID || tc.builder == nil {
+		return types.NoTypeID
+	}
+	name := tc.builder.StringsInterner.Intern("Option")
+	args := []types.TypeID{inner}
+	return tc.resolveNamedType(name, args, span, scope)
+}
+
+func (tc *typeChecker) resolveErrorType(span source.Span, scope symbols.ScopeID) types.TypeID {
+	if tc.builder == nil {
+		return types.NoTypeID
+	}
+	errName := tc.builder.StringsInterner.Intern("Error")
+	return tc.resolveNamedType(errName, nil, span, scope)
+}
+
+func (tc *typeChecker) resolveResultType(okType, errType types.TypeID, span source.Span, scope symbols.ScopeID) types.TypeID {
+	if okType == types.NoTypeID || errType == types.NoTypeID || tc.builder == nil {
+		return types.NoTypeID
+	}
+	name := tc.builder.StringsInterner.Intern("Result")
+	args := []types.TypeID{okType, errType}
+	return tc.resolveNamedType(name, args, span, scope)
 }
 
 func (tc *typeChecker) scopeOrFile(scope symbols.ScopeID) symbols.ScopeID {

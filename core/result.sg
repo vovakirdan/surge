@@ -1,0 +1,7 @@
+// Core Result type, a tagged union for recoverable errors.
+
+type Error = { message: string, code: uint };
+
+tag Ok<T>(T);
+tag Error<E>(E);
+type Result<T, E> = Ok(T) | Error(E);
