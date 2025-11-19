@@ -204,6 +204,7 @@ func (fr *fileResolver) declareExternFn(container ast.ItemID, fnItem *ast.FnItem
 			if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
 				sym.Receiver = block.Target
 				sym.ReceiverKey = makeTypeKey(fr.builder, block.Target)
+				sym.Flags |= SymbolFlagMethod
 			}
 		}
 		fr.appendItemSymbol(container, symID)

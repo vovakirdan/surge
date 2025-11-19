@@ -28,6 +28,7 @@ const (
 	SymbolFlagMutable
 	SymbolFlagImported
 	SymbolFlagBuiltin
+	SymbolFlagMethod
 )
 
 func (k SymbolKind) String() string {
@@ -68,6 +69,9 @@ func (f SymbolFlags) Strings() []string {
 	}
 	if f&SymbolFlagBuiltin != 0 {
 		labels = append(labels, "builtin")
+	}
+	if f&SymbolFlagMethod != 0 {
+		labels = append(labels, "method")
 	}
 	return labels
 }

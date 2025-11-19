@@ -351,7 +351,17 @@ func (r *Resolver) findShadowing(scopeID ScopeID, name source.StringID) SymbolID
 			break
 		}
 		if ids := parentScope.NameIndex[name]; len(ids) > 0 {
-			return ids[len(ids)-1]
+			for i := len(ids) - 1; i >= 0; i-- {
+				id := ids[i]
+				sym := r.table.Symbols.Get(id)
+				if sym == nil {
+					continue
+				}
+				if sym.Kind == SymbolFunction && (sym.ReceiverKey != "" || sym.Flags&SymbolFlagMethod != 0) {
+					continue
+				}
+				return id
+			}
 		}
 		parent = parentScope.Parent
 	}
