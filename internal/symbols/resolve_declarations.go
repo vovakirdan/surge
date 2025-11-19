@@ -269,23 +269,6 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 		existingSymbols = nil
 	}
 
-	if len(existing) > 0 && !hasOverride {
-		filteredIDs := make([]SymbolID, 0, len(existing))
-		filteredSyms := make([]*Symbol, 0, len(existingSymbols))
-		for idx, sym := range existingSymbols {
-			if sym == nil {
-				continue
-			}
-			if sym.Flags&SymbolFlagBuiltin != 0 {
-				continue
-			}
-			filteredIDs = append(filteredIDs, existing[idx])
-			filteredSyms = append(filteredSyms, sym)
-		}
-		existing = filteredIDs
-		existingSymbols = filteredSyms
-	}
-
 	if len(existing) > 0 {
 		switch {
 		case hasOverload:
