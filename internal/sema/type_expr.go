@@ -72,11 +72,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				}
 				ty = tc.methodResultType(member, receiverType, argTypes, expr.Span)
 			} else {
-				tc.typeExpr(call.Target)
-				for _, arg := range call.Args {
-					tc.typeExpr(arg)
-					tc.observeMove(arg, tc.exprSpan(arg))
-				}
+				ty = tc.callResultType(call)
 			}
 		}
 	case ast.ExprArray:
@@ -610,6 +606,33 @@ func (tc *typeChecker) reportMissingCastMethod(from, target types.TypeID, span s
 
 func (tc *typeChecker) sameType(a, b types.TypeID) bool {
 	return a == b
+}
+
+func (tc *typeChecker) callResultType(call *ast.ExprCallData) types.TypeID {
+	if call == nil {
+		return types.NoTypeID
+	}
+	tc.typeExpr(call.Target)
+	for _, arg := range call.Args {
+		tc.typeExpr(arg)
+		tc.observeMove(arg, tc.exprSpan(arg))
+	}
+	if ident, ok := tc.builder.Exprs.Ident(call.Target); ok && ident != nil {
+		name := tc.lookupName(ident.Name)
+		if name == "default" && len(call.TypeArgs) == 1 {
+			scope := tc.scopeOrFile(tc.currentScope())
+			targetType := tc.resolveTypeExprWithScope(call.TypeArgs[0], scope)
+			if targetType == types.NoTypeID {
+				return types.NoTypeID
+			}
+			if !tc.defaultable(targetType) {
+				tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Target), "default is not defined for %s", tc.typeLabel(targetType))
+				return types.NoTypeID
+			}
+			return targetType
+		}
+	}
+	return types.NoTypeID
 }
 
 func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, span source.Span) types.TypeID {

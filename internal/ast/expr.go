@@ -141,6 +141,7 @@ type ExprCastData struct {
 type ExprCallData struct {
 	Target           ExprID
 	Args             []ExprID
+	TypeArgs         []TypeID
 	ArgCommas        []source.Span
 	HasTrailingComma bool
 }
@@ -356,10 +357,11 @@ func (e *Exprs) Cast(id ExprID) (*ExprCastData, bool) {
 	return e.Casts.Get(uint32(expr.Payload)), true
 }
 
-func (e *Exprs) NewCall(span source.Span, target ExprID, args []ExprID, argCommas []source.Span, trailing bool) ExprID {
+func (e *Exprs) NewCall(span source.Span, target ExprID, args []ExprID, typeArgs []TypeID, argCommas []source.Span, trailing bool) ExprID {
 	payload := e.Calls.Allocate(ExprCallData{
 		Target:           target,
 		Args:             append([]ExprID(nil), args...),
+		TypeArgs:         append([]TypeID(nil), typeArgs...),
 		ArgCommas:        append([]source.Span(nil), argCommas...),
 		HasTrailingComma: trailing,
 	})

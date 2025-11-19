@@ -168,6 +168,12 @@ let s: PersonSon = p            // patronymic picks the default ""
 
 - `type Child = Base : { ... }` inherits all fields from `Base` and appends new ones.
 - Defaults initialise missing fields; absence of a default requires callers to provide the field explicitly.
+- Zero init via `default<T>()` is defined only for types with a canonical zero:
+  * primitives (`int`/`uint`/`float`/`bool`/`string`/`unit`/`nothing`) → `0`, `0.0`, `false`, `""`, `unit`, `nothing`;
+  * pointers `*T` → `nothing`; references `&T`/`&mut T` have no default (compile-time error on `default`);
+  * arrays/slices → element-wise `default<Elem>()`, empty slice for dynamic;
+  * structs/newtypes → recursively default every field/base; aliases unwrap to their target;
+  * unions → only if a `nothing` variant is present (e.g. `Option`).
 - `@hidden` fields remain hidden outside `extern<Base>` and initialisers. `@readonly` fields stay immutable after construction.
 - Assigning from a child to its base is forbidden (types remain nominal).
 - Field name clashes trigger `SynTypeFieldConflict` during parsing.

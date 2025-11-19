@@ -8,7 +8,7 @@ import (
 )
 
 // parseCallExpr парсит вызов функции: expr(args...)
-func (p *Parser) parseCallExpr(target ast.ExprID) (ast.ExprID, bool) {
+func (p *Parser) parseCallExpr(target ast.ExprID, typeArgs []ast.TypeID) (ast.ExprID, bool) {
 	p.advance() // съедаем '('
 
 	var args []ast.ExprID
@@ -61,7 +61,7 @@ func (p *Parser) parseCallExpr(target ast.ExprID) (ast.ExprID, bool) {
 	targetSpan := p.arenas.Exprs.Get(target).Span
 	finalSpan := targetSpan.Cover(closeTok.Span)
 
-	return p.arenas.Exprs.NewCall(finalSpan, target, args, commas, trailing), true
+	return p.arenas.Exprs.NewCall(finalSpan, target, args, typeArgs, commas, trailing), true
 }
 
 // parseIndexExpr парсит индексацию: expr[index]

@@ -41,6 +41,7 @@ var intrinsicAllowedNamesList = []string{
 	"__is",
 	"__heir",
 	"exit",
+	"default",
 }
 
 var (
@@ -515,6 +516,7 @@ func exportsPrelude(exports map[string]*ModuleExports) []PreludeEntry {
 					Type:          exp.Type,
 					TypeParams:    append([]string(nil), exp.TypeParamNames...),
 					TypeParamSpan: exp.TypeParamSpan,
+					ReceiverKey:   exp.ReceiverKey,
 				})
 			}
 		}

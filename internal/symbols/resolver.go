@@ -24,6 +24,7 @@ type PreludeEntry struct {
 	Type          types.TypeID
 	TypeParams    []string
 	TypeParamSpan source.Span
+	ReceiverKey   TypeKey
 }
 
 // KindMask restricts lookup to specific symbol kinds.
@@ -325,6 +326,7 @@ func (r *Resolver) installPrelude(scopeID ScopeID, entries []PreludeEntry) {
 			Flags:         flags,
 			Type:          entry.Type,
 			Signature:     entry.Signature,
+			ReceiverKey:   entry.ReceiverKey,
 			TypeParams:    params,
 			TypeParamSpan: entry.TypeParamSpan,
 			Decl: SymbolDecl{

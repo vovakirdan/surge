@@ -7,6 +7,17 @@ pub tag Err<E>(E);
 pub type Result<T, E> = Ok(T) | Err(E);
 
 extern<Result<T, E>> {
-    fn safe(self: Result<T, E>) -> T;
-    fn panic(self: Result<T, E>) -> T;
+    pub fn safe(self: Result<T, E>) -> T {
+        compare self {
+            Ok(v) => v;
+            Err(_) => default<T>();
+        };
+    }
+
+    pub fn panic(self: Result<T, E>) -> T {
+        compare self {
+            Ok(v) => v;
+            Err(_) => panic("unhandled error");
+        };
+    }
 }

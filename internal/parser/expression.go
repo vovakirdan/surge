@@ -185,9 +185,26 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 	// Обрабатываем постфиксы в цикле
 	for {
 		switch p.lx.Peek().Kind {
+		case token.Lt:
+			if ident, ok := p.arenas.Exprs.Ident(expr); !ok || ident == nil || p.arenas.StringsInterner.MustLookup(ident.Name) != "default" {
+				return expr, true
+			}
+			typeArgs, ok := p.parseTypeArgs()
+			if !ok {
+				return ast.NoExprID, false
+			}
+			if !p.at(token.LParen) {
+				p.err(diag.SynUnexpectedToken, "expected '(' after type arguments")
+				return ast.NoExprID, false
+			}
+			newExpr, ok := p.parseCallExpr(expr, typeArgs)
+			if !ok {
+				return ast.NoExprID, false
+			}
+			expr = newExpr
 		case token.LParen:
 			// Вызов функции: expr(args...)
-			newExpr, ok := p.parseCallExpr(expr)
+			newExpr, ok := p.parseCallExpr(expr, nil)
 			if !ok {
 				return ast.NoExprID, false
 			}

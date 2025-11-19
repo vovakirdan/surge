@@ -445,6 +445,56 @@ func (tc *typeChecker) substituteImportedType(id types.TypeID, args []types.Type
 	}
 }
 
+func (tc *typeChecker) defaultable(id types.TypeID) bool {
+	if id == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	id = tc.resolveAlias(id)
+	tt, ok := tc.types.Lookup(id)
+	if !ok {
+		return false
+	}
+	switch tt.Kind {
+	case types.KindInt, types.KindUint, types.KindFloat, types.KindBool, types.KindString, types.KindNothing, types.KindUnit:
+		return true
+	case types.KindPointer:
+		return true
+	case types.KindReference, types.KindOwn:
+		// references / owns must be explicitly initialized
+		return false
+	case types.KindArray:
+		return tc.defaultable(tt.Elem)
+	case types.KindStruct:
+		if info, ok := tc.types.StructInfo(id); ok && info != nil {
+			for _, field := range info.Fields {
+				if !tc.defaultable(field.Type) {
+					return false
+				}
+			}
+			return true
+		}
+		return false
+	case types.KindAlias:
+		if target, ok := tc.types.AliasTarget(id); ok && target != types.NoTypeID {
+			return tc.defaultable(target)
+		}
+		return false
+	case types.KindUnion:
+		info, ok := tc.types.UnionInfo(id)
+		if !ok || info == nil {
+			return false
+		}
+		for _, m := range info.Members {
+			if m.Kind == types.UnionMemberNothing {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
+}
+
 func (tc *typeChecker) tagSymbolExists(name source.StringID, span source.Span) bool {
 	if name == source.NoStringID || tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Scopes == nil || tc.symbols.Table.Symbols == nil {
 		return false

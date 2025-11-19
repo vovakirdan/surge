@@ -91,6 +91,9 @@ extern<bool> {
 }
 
 @intrinsic
+pub fn default<T>() -> T;
+
+@intrinsic
 pub fn exit(e: Error) -> nothing;
 
 pub fn panic(msg: string) -> nothing {
