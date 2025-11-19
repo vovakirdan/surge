@@ -11,9 +11,9 @@ extern<Option<T>> {
         };
     }
 
-    pub fn panic(self: Option<T>, msg: string) -> T {
+    pub fn panic(self: Option<T>, msg: string) -> nothing {
         compare self {
-            Some(v) => v;
+            Some(_) => return nothing;
             _ => panic(msg);
         };
     }

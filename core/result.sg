@@ -14,10 +14,10 @@ extern<Result<T, E>> {
         };
     }
 
-    pub fn panic(self: Result<T, E>) -> T {
+    pub fn exit(self: Result<T, E>) -> nothing {
         compare self {
-            Ok(v) => v;
-            Err(_) => panic("unhandled error");
+            Ok(_) => return nothing;
+            Err(e) => exit(e);
         };
     }
 }

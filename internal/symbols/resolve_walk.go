@@ -319,11 +319,64 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 		}
 		fr.walkExpr(data.Value)
 		for _, arm := range data.Arms {
-			fr.walkExpr(arm.Pattern)
+			scope := fr.resolver.Enter(ScopeBlock, ScopeOwner{
+				Kind:       ScopeOwnerExpr,
+				SourceFile: fr.sourceFile,
+				ASTFile:    fr.fileID,
+				Expr:       exprID,
+			}, arm.PatternSpan)
+			fr.bindComparePattern(arm.Pattern)
 			fr.walkExpr(arm.Guard)
 			fr.walkExpr(arm.Result)
+			fr.resolver.Leave(scope)
 		}
 	case ast.ExprLit:
+	}
+}
+
+func (fr *fileResolver) bindComparePattern(exprID ast.ExprID) {
+	if !exprID.IsValid() || fr.builder == nil {
+		return
+	}
+	node := fr.builder.Exprs.Get(exprID)
+	if node == nil {
+		return
+	}
+	switch node.Kind {
+	case ast.ExprIdent:
+		ident, _ := fr.builder.Exprs.Ident(exprID)
+		if ident == nil || ident.Name == source.NoStringID {
+			return
+		}
+		if fr.builder.StringsInterner.MustLookup(ident.Name) == "_" {
+			return
+		}
+		decl := SymbolDecl{
+			SourceFile: fr.sourceFile,
+			ASTFile:    fr.fileID,
+		}
+		if symID, ok := fr.resolver.Declare(ident.Name, node.Span, SymbolLet, 0, decl); ok {
+			fr.result.ExprSymbols[exprID] = symID
+		}
+	case ast.ExprCall:
+		call, _ := fr.builder.Exprs.Call(exprID)
+		if call == nil {
+			return
+		}
+		fr.walkExpr(call.Target)
+		for _, arg := range call.Args {
+			fr.bindComparePattern(arg)
+		}
+	case ast.ExprTuple:
+		tuple, _ := fr.builder.Exprs.Tuple(exprID)
+		if tuple == nil {
+			return
+		}
+		for _, elem := range tuple.Elements {
+			fr.bindComparePattern(elem)
+		}
+	default:
+		fr.walkExpr(exprID)
 	}
 }
 
