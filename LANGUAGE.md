@@ -688,6 +688,7 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Unary: `+x -x` → `__pos __neg`
 * Abs: `abs(x)` → `__abs`
 * Casting: `expr to Type` → `__to(self, Type)` magic method; `print` simply casts each argument to `string` and concatenates.
+  * `expr: Type` is shorthand for `expr to Type`. It's especially handy for literal annotations such as `1:int8`.
 * Range: `for in` → `__range() -> Range<T>` where `Range<T>` yields `T` via `next()`.
 * Compound assignment: `+= -= *= /= %= &= |= ^= <<= >>=` → corresponding operation + assign.
 * Ternary: `condition ? true_expr : false_expr` → conditional expression.

@@ -128,6 +128,8 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			}
 			if magic := tc.magicResultForCast(sourceType, targetType); magic != types.NoTypeID {
 				ty = magic
+			} else if cast.Type.IsValid() && tc.literalCoercible(targetType, sourceType) && tc.isLiteralExpr(cast.Value) {
+				ty = targetType
 			} else {
 				tc.reportMissingCastMethod(sourceType, targetType, expr.Span)
 			}

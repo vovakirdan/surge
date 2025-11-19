@@ -321,6 +321,7 @@ func TestCastExpression(t *testing.T) {
 	}{
 		{"simple_cast", "let x = value to int;", ast.ExprIdent},
 		{"chained_cast", "let x = value to int to float;", ast.ExprCast},
+		{"colon_cast", "let x = value:int;", ast.ExprIdent},
 	}
 
 	for _, tt := range tests {

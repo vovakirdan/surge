@@ -507,36 +507,79 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 }
 
 func (tc *typeChecker) coerceLiteralForBinding(declared, actual types.TypeID, expr ast.ExprID) types.TypeID {
-	if declared == types.NoTypeID || actual == types.NoTypeID || tc.builder == nil || tc.types == nil || !expr.IsValid() {
+	if !tc.isLiteralExpr(expr) {
 		return actual
 	}
-	node := tc.builder.Exprs.Get(expr)
-	if node == nil || node.Kind != ast.ExprLit {
-		return actual
-	}
-	declaredInfo, ok := tc.types.Lookup(tc.resolveAlias(declared))
-	if !ok {
-		return actual
-	}
-	actualInfo, ok := tc.types.Lookup(tc.resolveAlias(actual))
-	if !ok {
-		return actual
-	}
-	switch actualInfo.Kind {
-	case types.KindInt:
-		if declaredInfo.Kind == types.KindInt || declaredInfo.Kind == types.KindUint {
-			return declared
-		}
-	case types.KindUint:
-		if declaredInfo.Kind == types.KindUint {
-			return declared
-		}
-	case types.KindFloat:
-		if declaredInfo.Kind == types.KindFloat {
-			return declared
-		}
+	if tc.literalCoercible(declared, actual) {
+		return declared
 	}
 	return actual
+}
+
+func (tc *typeChecker) isLiteralExpr(expr ast.ExprID) bool {
+	if !expr.IsValid() || tc.builder == nil {
+		return false
+	}
+	node := tc.builder.Exprs.Get(expr)
+	if node == nil {
+		return false
+	}
+	switch node.Kind {
+	case ast.ExprLit:
+		return true
+	case ast.ExprGroup:
+		if group, ok := tc.builder.Exprs.Group(expr); ok && group != nil {
+			return tc.isLiteralExpr(group.Inner)
+		}
+	case ast.ExprUnary:
+		if data, ok := tc.builder.Exprs.Unary(expr); ok && data != nil {
+			switch data.Op {
+			case ast.ExprUnaryPlus, ast.ExprUnaryMinus:
+				return tc.isLiteralExpr(data.Operand)
+			}
+		}
+	}
+	return false
+}
+
+func (tc *typeChecker) literalCoercible(target, source types.TypeID) bool {
+	if target == types.NoTypeID || source == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	targetKind, ok := tc.typeKind(target)
+	if !ok {
+		return false
+	}
+	sourceKind, ok := tc.typeKind(source)
+	if !ok {
+		return false
+	}
+	switch sourceKind {
+	case types.KindInt:
+		return targetKind == types.KindInt || targetKind == types.KindUint
+	case types.KindUint:
+		return targetKind == types.KindUint
+	case types.KindFloat:
+		return targetKind == types.KindFloat
+	case types.KindBool:
+		return targetKind == types.KindBool
+	case types.KindString:
+		return targetKind == types.KindString
+	default:
+		return false
+	}
+}
+
+func (tc *typeChecker) typeKind(id types.TypeID) (types.Kind, bool) {
+	if id == types.NoTypeID || tc.types == nil {
+		return types.KindInvalid, false
+	}
+	resolved := tc.resolveAlias(id)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return types.KindInvalid, false
+	}
+	return tt.Kind, true
 }
 
 func (tc *typeChecker) coerceReturnType(expected, actual types.TypeID) types.TypeID {

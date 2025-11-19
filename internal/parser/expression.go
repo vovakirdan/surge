@@ -233,6 +233,20 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 				return ast.NoExprID, false
 			}
 			expr = newExpr
+		case token.Colon:
+			colonTok := p.advance()
+			if !startsTypeExpr(p.lx.Peek().Kind) {
+				p.err(diag.SynExpectType, "expected type after ':'")
+				return ast.NoExprID, false
+			}
+			typeID, ok := p.parseTypePrefix()
+			if !ok || typeID == ast.NoTypeID {
+				return ast.NoExprID, false
+			}
+			typeSpan := p.arenas.Types.Get(typeID).Span
+			exprSpan := p.arenas.Exprs.Get(expr).Span
+			finalSpan := exprSpan.Cover(colonTok.Span).Cover(typeSpan)
+			expr = p.arenas.Exprs.NewCast(finalSpan, expr, typeID, ast.NoExprID)
 
 		default:
 			// Больше постфиксов нет
