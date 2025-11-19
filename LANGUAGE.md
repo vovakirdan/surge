@@ -264,7 +264,7 @@ compare parse("x") {
 Rules:
 
 - Construction is explicit in expressions: use `Some(...)`, `Ok(...)`, or `Error(...)`. In function returns, a bare `T` is accepted as `Some(T)`/`Ok(T)` and `nothing` is accepted for `Option<T>`.
-- `T?` is sugar for `Option<T>`; `T!` is sugar for `Result<T, Error>`; `T!E` is sugar for `Result<T, E>`.
+- `T?` is sugar for `Option<T>`; `T!E` is sugar for `Result<T, E>` (with no automatic propagation).
 - `nothing` remains the shared absence literal for both Option and other contexts (§2.6). Exhaustiveness checking for tagged unions is planned but not wired up yet.
 - `panic(msg)` materialises `Error{ message: msg, code: 1 }` and calls intrinsic `exit(Error)`.
 
@@ -689,7 +689,6 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Abs: `abs(x)` → `__abs`
 * Casting: `expr to Type` → `__to(self, Type)` magic method; `print` simply casts each argument to `string` and concatenates.
 * Range: `for in` → `__range() -> Range<T>` where `Range<T>` yields `T` via `next()`.
-* Result propagation: `expr?` — if `expr` is `Result<T,E>`, yields `T` or returns the value `Error(e)` from the current function (see §11).
 * Compound assignment: `+= -= *= /= %= &= |= ^= <<= >>=` → corresponding operation + assign.
 * Ternary: `condition ? true_expr : false_expr` → conditional expression.
 * Null coalescing: `optional ?? default` → returns default if optional is `nothing`.
@@ -749,7 +748,7 @@ print(z is &int);       // true
 
 The `to` operator performs explicit type conversions with syntax `Expr to Type`.
 
-**Precedence:** Postfix operator with same precedence as `.await`, before `?` (see §14).
+**Precedence:** Postfix operators (`[]`, call, `.`, `.await`, `to Type`) bind tightly before binary operators.
 
 **Built-in cast rules:**
 
@@ -934,16 +933,22 @@ Surge provides structured concurrency with async/await for managing asynchronous
 **Async Functions:**
 ```sg
 async fn fetch_data(url: string) -> Result<Data, Error> {
-    let response = http_get(url).await?;
-    let data = parse_response(response).await?;
-    return Ok(data);
+    let response = http_get(url).await;
+    let response = compare response {
+        Ok(value) => value;
+        Err(err) => return Error(err);
+    };
+    return parse_response(response).await;
 }
 
 async fn process_multiple_urls(urls: string[]) -> Result<Data[], Error> {
-    let results: Result<Data, Error>[] = [];
+    let mut results: Data[] = [];
     for url in urls {
-        let data = fetch_data(url).await?;
-        results.push(Ok(data));
+        let outcome = fetch_data(url).await;
+        compare outcome {
+            Ok(data) => results.push(data);
+            Err(err) => return Error(err);
+        };
     }
     return Ok(results);
 }
@@ -956,9 +961,9 @@ async {
     let task2 = spawn fetch_data("url2");
     let task3 = spawn fetch_data("url3");
 
-    let r1 = task1.await?;
-    let r2 = task2.await?;
-    let r3 = task3.await?;
+    let r1 = task1.await;
+    let r2 = task2.await;
+    let r3 = task3.await;
 
     // automatic cleanup on block exit
     // all spawned tasks are automatically cancelled if not awaited
@@ -1016,24 +1021,6 @@ fn open_file(p: string) -> Result<string, MyError> {
 }
 
 let ok = (MyError heir Error); // true
-```
-
-### Recoverable errors: Result<T, E> and `?` propagation
-
-`Result<T, E>` is defined via tags (§2.9). The `?` operator expects `Result<_, E>` and propagates the `Error(E)` branch: if the operand yields `Error(e)`, the surrounding function returns `Error(e)` immediately.
-
-```sg
-fn parse_int(s: string) -> Result<int, Error> {
-  if (s == "42") { return Ok(42); }
-  let e: Error = { message: "bad int", code: 2 };
-  return Error(e);
-}
-
-fn read_and_parse() -> Result<int, Error> {
-  let line = read_line()?;      // propagates Error(..) if present
-  let v = parse_int(line)?;     // requires parse_int to return Result
-  return Ok(v);
-}
 ```
 
 Returning a bare payload where `Result<T, E>` is expected emits `E_EXPECTED_TAGGED_VARIANT`; use `Ok(...)` / `Error(...)` explicitly.
@@ -1187,8 +1174,7 @@ async fn process_data(urls: string[]) -> Result<Data[], Error> {
 
         let results: Result<Data, Error>[] = [];
         for task in tasks {
-            let result = task.await?;
-            results.push(result);
+            results.push(task.await);
         }
 
         return Ok(results);
@@ -1625,7 +1611,7 @@ surge build --directives=gen --directives-filter=test,benchmark --emit-directive
 
 From highest to lowest:
 
-1. `[]` (index), call `()`, member `.`, await `.await`, `to Type` (cast operator), postfix `?`
+1. `[]` (index), call `()`, member `.`, await `.await`, `to Type` (cast operator)
 2. `+x -x !x` (prefix unary)
 3. `* / %`
 4. `+ -` (binary)
@@ -1652,7 +1638,7 @@ Note: `=>` is not a general expression operator; it is reserved for `parallel ma
 
 ### Member access precedence
 
-Member access `.`, await `.await`, and cast `to Type` are postfix operators and bind tightly together with function calls and indexing. This resolves ambiguous parses, e.g., `a.f()[i].g()` parses as `(((a.f())[i]).g)()`; `future.await?` parses as `((future.await) ?)` with `.await` applied before the postfix `?`; `value to Type?` parses as `((value to Type) ?)`.
+Member access `.`, await `.await`, and cast `to Type` are postfix operators and bind tightly together with function calls and indexing. This resolves ambiguous parses, e.g., `a.f()[i].g()` parses as `(((a.f())[i]).g)()`.
 
 ---
 
