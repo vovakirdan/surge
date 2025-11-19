@@ -242,6 +242,7 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 	if declared == types.NoTypeID || actual == types.NoTypeID {
 		return
 	}
+	actual = tc.coerceLiteralForBinding(declared, actual, valueExpr)
 	if tc.typesAssignable(declared, actual, true) {
 		return
 	}
@@ -503,6 +504,39 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 		return tc.resolveAlias(expected) == tc.resolveAlias(actual)
 	}
 	return false
+}
+
+func (tc *typeChecker) coerceLiteralForBinding(declared, actual types.TypeID, expr ast.ExprID) types.TypeID {
+	if declared == types.NoTypeID || actual == types.NoTypeID || tc.builder == nil || tc.types == nil || !expr.IsValid() {
+		return actual
+	}
+	node := tc.builder.Exprs.Get(expr)
+	if node == nil || node.Kind != ast.ExprLit {
+		return actual
+	}
+	declaredInfo, ok := tc.types.Lookup(tc.resolveAlias(declared))
+	if !ok {
+		return actual
+	}
+	actualInfo, ok := tc.types.Lookup(tc.resolveAlias(actual))
+	if !ok {
+		return actual
+	}
+	switch actualInfo.Kind {
+	case types.KindInt:
+		if declaredInfo.Kind == types.KindInt || declaredInfo.Kind == types.KindUint {
+			return declared
+		}
+	case types.KindUint:
+		if declaredInfo.Kind == types.KindUint {
+			return declared
+		}
+	case types.KindFloat:
+		if declaredInfo.Kind == types.KindFloat {
+			return declared
+		}
+	}
+	return actual
 }
 
 func (tc *typeChecker) coerceReturnType(expected, actual types.TypeID) types.TypeID {

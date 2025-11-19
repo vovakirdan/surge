@@ -28,5 +28,7 @@ fn test_basic_variables() -> int {
     let small_int: int32 = 100;
     let precise_float: float64 = 3.141592653589793;
 
+    let a = 100 to uint8; // should be uint8
+    let b = 3.0:float16; // should be float16, expr:Type is a sugar for expr to Type
     return x;
 }
