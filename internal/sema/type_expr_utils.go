@@ -222,3 +222,37 @@ func (tc *typeChecker) reportMissingCastMethod(from, target types.TypeID, span s
 func (tc *typeChecker) sameType(a, b types.TypeID) bool {
 	return a == b
 }
+
+func (tc *typeChecker) substituteTypeParams(id types.TypeID, mapping map[types.TypeID]types.TypeID) types.TypeID {
+	if id == types.NoTypeID || tc.types == nil || len(mapping) == 0 {
+		return id
+	}
+	resolved := tc.resolveAlias(id)
+	if repl, ok := mapping[resolved]; ok && repl != types.NoTypeID {
+		return repl
+	}
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return resolved
+	}
+	switch tt.Kind {
+	case types.KindPointer, types.KindReference, types.KindOwn:
+		elem := tc.substituteTypeParams(tt.Elem, mapping)
+		if elem == tt.Elem {
+			return resolved
+		}
+		clone := tt
+		clone.Elem = elem
+		return tc.types.Intern(clone)
+	case types.KindArray:
+		elem := tc.substituteTypeParams(tt.Elem, mapping)
+		if elem == tt.Elem {
+			return resolved
+		}
+		clone := tt
+		clone.Elem = elem
+		return tc.types.Intern(clone)
+	default:
+		return resolved
+	}
+}

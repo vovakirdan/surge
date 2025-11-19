@@ -103,6 +103,31 @@ func (tc *typeChecker) instantiateImportedType(sym *symbols.Symbol, args []types
 		}
 		return instantiated
 	}
+	if info, ok := tc.types.StructInfo(base); ok && info != nil {
+		if len(info.TypeParams) == 0 {
+			return base
+		}
+		if len(args) != len(info.TypeParams) {
+			return types.NoTypeID
+		}
+		mapping := make(map[types.TypeID]types.TypeID, len(info.TypeParams))
+		for i, param := range info.TypeParams {
+			mapping[tc.resolveAlias(param)] = args[i]
+		}
+		fields := make([]types.StructField, len(info.Fields))
+		for i, field := range info.Fields {
+			fields[i] = types.StructField{
+				Name: field.Name,
+				Type: tc.substituteTypeParams(field.Type, mapping),
+			}
+		}
+		instantiated := tc.types.RegisterStructInstance(info.Name, info.Decl, args)
+		tc.types.SetStructFields(instantiated, fields)
+		if name := tc.lookupName(sym.Name); name != "" {
+			tc.recordTypeName(instantiated, name)
+		}
+		return instantiated
+	}
 	return types.NoTypeID
 }
 

@@ -17,10 +17,11 @@ type StructField struct {
 
 // StructInfo stores metadata for a struct type.
 type StructInfo struct {
-	Name     source.StringID
-	Decl     source.Span
-	Fields   []StructField
-	TypeArgs []TypeID
+	Name       source.StringID
+	Decl       source.Span
+	Fields     []StructField
+	TypeParams []TypeID
+	TypeArgs   []TypeID
 }
 
 // AliasInfo stores metadata for a nominal alias type.
@@ -33,13 +34,13 @@ type AliasInfo struct {
 
 // RegisterStruct allocates a nominal struct type slot and returns its TypeID.
 func (in *Interner) RegisterStruct(name source.StringID, decl source.Span) TypeID {
-	slot := in.appendStructInfo(StructInfo{Name: name, Decl: decl})
+	slot := in.appendStructInfo(&StructInfo{Name: name, Decl: decl})
 	return in.internRaw(Type{Kind: KindStruct, Payload: slot})
 }
 
 // RegisterStructInstance allocates a nominal struct instantiation with type arguments.
 func (in *Interner) RegisterStructInstance(name source.StringID, decl source.Span, args []TypeID) TypeID {
-	slot := in.appendStructInfo(StructInfo{Name: name, Decl: decl, TypeArgs: cloneTypeArgs(args)})
+	slot := in.appendStructInfo(&StructInfo{Name: name, Decl: decl, TypeArgs: cloneTypeArgs(args)})
 	return in.internRaw(Type{Kind: KindStruct, Payload: slot})
 }
 
@@ -50,6 +51,15 @@ func (in *Interner) SetStructFields(typeID TypeID, fields []StructField) {
 		return
 	}
 	info.Fields = cloneStructFields(fields)
+}
+
+// SetStructTypeParams records the generic parameters used by the struct definition.
+func (in *Interner) SetStructTypeParams(typeID TypeID, params []TypeID) {
+	info := in.structInfo(typeID)
+	if info == nil {
+		return
+	}
+	info.TypeParams = cloneTypeArgs(params)
 }
 
 // StructInfo returns metadata for the provided struct TypeID.
@@ -155,15 +165,19 @@ func (in *Interner) aliasInfo(typeID TypeID) *AliasInfo {
 	return &in.aliases[tt.Payload]
 }
 
-func (in *Interner) appendStructInfo(info StructInfo) uint32 {
+func (in *Interner) appendStructInfo(info *StructInfo) uint32 {
 	if in.structs == nil {
 		in.structs = append(in.structs, StructInfo{})
 	}
+	if info == nil {
+		info = &StructInfo{}
+	}
 	in.structs = append(in.structs, StructInfo{
-		Name:     info.Name,
-		Decl:     info.Decl,
-		Fields:   cloneStructFields(info.Fields),
-		TypeArgs: cloneTypeArgs(info.TypeArgs),
+		Name:       info.Name,
+		Decl:       info.Decl,
+		Fields:     cloneStructFields(info.Fields),
+		TypeParams: cloneTypeArgs(info.TypeParams),
+		TypeArgs:   cloneTypeArgs(info.TypeArgs),
 	})
 	slot, err := safecast.Conv[uint32](len(in.structs) - 1)
 	if err != nil {

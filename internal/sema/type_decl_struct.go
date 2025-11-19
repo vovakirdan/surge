@@ -22,6 +22,13 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 			tc.popTypeParams()
 		}
 	}()
+	if len(typeItem.Generics) > 0 {
+		paramIDs := make([]types.TypeID, 0, len(typeItem.Generics))
+		for _, name := range typeItem.Generics {
+			paramIDs = append(paramIDs, tc.lookupTypeParam(name))
+		}
+		tc.types.SetStructTypeParams(typeID, paramIDs)
+	}
 	fields := make([]types.StructField, 0, structDecl.FieldsCount)
 	scope := tc.fileScope()
 	if structDecl.FieldsCount > 0 {

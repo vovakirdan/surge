@@ -60,6 +60,17 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 	if _, ok := intrinsics.Symbols["exit"]; !ok {
 		t.Fatalf("expected exit in %s exports, have %v", stdModuleCoreIntrinsics, exportKeys(intrinsics.Symbols))
 	}
+	nextExports := intrinsics.Lookup("next")
+	foundMethod := false
+	for _, exp := range nextExports {
+		if exp.ReceiverKey != "" {
+			foundMethod = true
+			break
+		}
+	}
+	if !foundMethod {
+		t.Fatalf("expected method next on Range in %s exports, have %+v", stdModuleCoreIntrinsics, nextExports)
+	}
 }
 
 func exportKeys(m map[string][]symbols.ExportedSymbol) []string {

@@ -11,7 +11,7 @@ pub type Range<T> = {
 };
 
 extern<Range<T>> {
-    @intrinsic fn next(self: &mut Range<T>) -> Option<T>;
+    @intrinsic pub fn next(self: &mut Range<T>) -> Option<T>;
 }
 
 extern<int> {

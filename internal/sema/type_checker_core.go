@@ -447,6 +447,9 @@ func (tc *typeChecker) buildExportNameIndexes() {
 				}
 				if sym.Kind == symbols.SymbolType && sym.Type != types.NoTypeID {
 					tc.recordTypeName(sym.Type, sym.Name)
+					if tc.typeKeys != nil && sym.Name != "" {
+						tc.typeKeys[sym.Name] = sym.Type
+					}
 				}
 			}
 		}

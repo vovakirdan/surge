@@ -22,6 +22,22 @@ func typeKeyEqual(a, b symbols.TypeKey) bool {
 	return canonicalTypeKey(a) == canonicalTypeKey(b)
 }
 
+func normalizeSignatureForReceiver(sig *symbols.FunctionSignature, receiver symbols.TypeKey) *symbols.FunctionSignature {
+	if sig == nil || receiver == "" || len(sig.Params) == 0 {
+		return sig
+	}
+	recv := canonicalTypeKey(receiver)
+	if typeKeyEqual(sig.Params[0], recv) {
+		return sig
+	}
+	clone := *sig
+	params := make([]symbols.TypeKey, len(sig.Params))
+	copy(params, sig.Params)
+	params[0] = recv
+	clone.Params = params
+	return &clone
+}
+
 func (tc *typeChecker) buildMagicIndex() {
 	tc.magic = make(map[symbols.TypeKey]map[string][]*symbols.FunctionSignature)
 	if tc.symbols != nil && tc.symbols.Table != nil && tc.symbols.Table.Symbols != nil {
@@ -35,7 +51,7 @@ func (tc *typeChecker) buildMagicIndex() {
 				if name == "__to" && !tc.acceptToSignature(sym.Signature, sym.ReceiverKey, sym) {
 					continue
 				}
-				tc.addMagicEntry(sym.ReceiverKey, name, sym.Signature)
+				tc.addMagicEntry(sym.ReceiverKey, name, normalizeSignatureForReceiver(sym.Signature, sym.ReceiverKey))
 			}
 		}
 	}
@@ -54,7 +70,7 @@ func (tc *typeChecker) buildMagicIndex() {
 						continue
 					}
 				}
-				tc.addMagicEntry(sym.ReceiverKey, sym.Name, sym.Signature)
+				tc.addMagicEntry(sym.ReceiverKey, sym.Name, normalizeSignatureForReceiver(sym.Signature, sym.ReceiverKey))
 			}
 		}
 	}

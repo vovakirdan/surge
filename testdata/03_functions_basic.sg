@@ -16,13 +16,13 @@ fn multiple_params(x: int, y: float, msg: string) -> string {
 }
 
 // Функция с мутабельными параметрами
-fn modify_value(mut x: int) -> int {
+fn modify_value(x: int) -> int {
     x = x + 10;
     return x;
 }
 
 // Variadic функция
-fn print_many(...args) {
+fn print_many(...args: string) {
     // В будущем: печать всех аргументов
 }
 
