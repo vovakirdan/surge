@@ -117,6 +117,8 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 		return symbols.TypeKey("float")
 	case types.KindString:
 		return symbols.TypeKey("string")
+	case types.KindArray:
+		return symbols.TypeKey("[]")
 	case types.KindNothing:
 		return symbols.TypeKey("nothing")
 	case types.KindUnit:

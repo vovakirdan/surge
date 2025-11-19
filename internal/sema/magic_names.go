@@ -7,6 +7,21 @@ import (
 	"surge/internal/types"
 )
 
+func canonicalTypeKey(key symbols.TypeKey) symbols.TypeKey {
+	if key == "" {
+		return ""
+	}
+	s := string(key)
+	if len(s) >= 2 && s[0] == '[' && s[len(s)-1] == ']' {
+		return symbols.TypeKey("[]")
+	}
+	return key
+}
+
+func typeKeyEqual(a, b symbols.TypeKey) bool {
+	return canonicalTypeKey(a) == canonicalTypeKey(b)
+}
+
 func (tc *typeChecker) buildMagicIndex() {
 	tc.magic = make(map[symbols.TypeKey]map[string][]*symbols.FunctionSignature)
 	if tc.symbols != nil && tc.symbols.Table != nil && tc.symbols.Table.Symbols != nil {
@@ -49,6 +64,7 @@ func (tc *typeChecker) addMagicEntry(receiver symbols.TypeKey, name string, sig 
 	if receiver == "" || name == "" || sig == nil {
 		return
 	}
+	receiver = canonicalTypeKey(receiver)
 	if tc.magic == nil {
 		tc.magic = make(map[symbols.TypeKey]map[string][]*symbols.FunctionSignature)
 	}
@@ -137,7 +153,7 @@ func (tc *typeChecker) magicResultForCast(source, target types.TypeID) types.Typ
 				continue
 			}
 			for _, rc := range targetCandidates {
-				if rc.key == "" || sig.Params[1] != rc.key {
+				if rc.key == "" || !typeKeyEqual(sig.Params[1], rc.key) {
 					continue
 				}
 				if rc.alias != types.NoTypeID {
@@ -150,10 +166,65 @@ func (tc *typeChecker) magicResultForCast(source, target types.TypeID) types.Typ
 	return types.NoTypeID
 }
 
+func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.TypeID {
+	if container == types.NoTypeID {
+		return types.NoTypeID
+	}
+	for _, recv := range tc.typeKeyCandidates(container) {
+		if recv.key == "" {
+			continue
+		}
+		methods := tc.lookupMagicMethods(recv.key, "__index")
+		for _, sig := range methods {
+			if sig == nil || len(sig.Params) < 2 || !typeKeyEqual(sig.Params[0], recv.key) {
+				continue
+			}
+			if !tc.methodParamMatches(sig.Params[1], index) {
+				continue
+			}
+			res := tc.typeFromKey(sig.Result)
+			if res == types.NoTypeID {
+				if elem, ok := tc.elementType(recv.base); ok {
+					return elem
+				}
+				continue
+			}
+			return res
+		}
+	}
+	return types.NoTypeID
+}
+
+func (tc *typeChecker) hasIndexSetter(container, index, value types.TypeID) bool {
+	if container == types.NoTypeID || value == types.NoTypeID {
+		return false
+	}
+	for _, recv := range tc.typeKeyCandidates(container) {
+		if recv.key == "" {
+			continue
+		}
+		methods := tc.lookupMagicMethods(recv.key, "__index_set")
+		for _, sig := range methods {
+			if sig == nil || len(sig.Params) < 3 || !typeKeyEqual(sig.Params[0], recv.key) {
+				continue
+			}
+			if !tc.methodParamMatches(sig.Params[1], index) {
+				continue
+			}
+			if !tc.methodParamMatches(sig.Params[2], value) {
+				continue
+			}
+			return true
+		}
+	}
+	return false
+}
+
 func (tc *typeChecker) lookupMagicMethods(receiver symbols.TypeKey, name string) []*symbols.FunctionSignature {
 	if receiver == "" || name == "" {
 		return nil
 	}
+	receiver = canonicalTypeKey(receiver)
 	if tc.magic == nil {
 		return nil
 	}
@@ -219,17 +290,14 @@ func (tc *typeChecker) signatureMatchesUnary(sig *symbols.FunctionSignature, ope
 	if sig == nil || operand == "" || len(sig.Params) == 0 {
 		return false
 	}
-	return sig.Params[0] == operand
+	return typeKeyEqual(sig.Params[0], operand)
 }
 
 func (tc *typeChecker) signatureMatchesBinary(sig *symbols.FunctionSignature, left, right symbols.TypeKey) bool {
-	if sig == nil || left == "" || right == "" {
+	if sig == nil || left == "" || right == "" || len(sig.Params) < 2 {
 		return false
 	}
-	if len(sig.Params) < 2 {
-		return false
-	}
-	return sig.Params[0] == left && sig.Params[1] == right
+	return typeKeyEqual(sig.Params[0], left) && typeKeyEqual(sig.Params[1], right)
 }
 
 func (tc *typeChecker) acceptToSignature(sig *symbols.FunctionSignature, receiver symbols.TypeKey, sym *symbols.Symbol) bool {

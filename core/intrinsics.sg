@@ -1,8 +1,18 @@
+pub type byte = uint8;
+
 @intrinsic fn rt_alloc(size: uint, align: uint) -> *byte;
 @intrinsic fn rt_free(ptr: *byte, size: uint, align: uint) -> nothing;
 @intrinsic fn rt_realloc(ptr: *byte, old_size: uint, new_size: uint, align: uint) -> *byte;
 @intrinsic fn rt_memcpy(dst: *byte, src: *byte, n: uint) -> nothing;
 @intrinsic fn rt_memmove(dst: *byte, src: *byte, n: uint) -> nothing;
+
+pub type Range<T> = {
+    __state: *byte,
+};
+
+extern<Range<T>> {
+    @intrinsic fn next(self: &mut Range<T>) -> Option<T>;
+}
 
 extern<int> {
     @intrinsic fn __add(self: int, other: int) -> int;
@@ -23,6 +33,7 @@ extern<int> {
     @intrinsic fn __gt(self: int, other: int) -> bool;
     @intrinsic fn __pos(self: int) -> int;
     @intrinsic fn __neg(self: int) -> int;
+    @intrinsic fn __abs(self: int) -> int;
     @intrinsic fn __to(self: int, target: string) -> string;
     @intrinsic @overload fn __to(self: int, target: float) -> float;
     @intrinsic @overload fn __to(self: int, target: uint) -> uint;
@@ -46,6 +57,7 @@ extern<uint> {
     @intrinsic fn __ge(self: uint, other: uint) -> bool;
     @intrinsic fn __gt(self: uint, other: uint) -> bool;
     @intrinsic fn __pos(self: uint) -> uint;
+    @intrinsic fn __abs(self: uint) -> uint;
     @intrinsic fn __to(self: uint, target: string) -> string;
     @intrinsic @overload fn __to(self: uint, target: int) -> int;
     @intrinsic @overload fn __to(self: uint, target: float) -> float;
@@ -56,6 +68,7 @@ extern<float> {
     @intrinsic fn __sub(self: float, other: float) -> float;
     @intrinsic fn __mul(self: float, other: float) -> float;
     @intrinsic fn __div(self: float, other: float) -> float;
+    @intrinsic fn __mod(self: float, other: float) -> float;
     @intrinsic fn __lt(self: float, other: float) -> bool;
     @intrinsic fn __le(self: float, other: float) -> bool;
     @intrinsic fn __eq(self: float, other: float) -> bool;
@@ -64,6 +77,7 @@ extern<float> {
     @intrinsic fn __gt(self: float, other: float) -> bool;
     @intrinsic fn __pos(self: float) -> float;
     @intrinsic fn __neg(self: float) -> float;
+    @intrinsic fn __abs(self: float) -> float;
     @intrinsic fn __to(self: float, target: string) -> string;
     @intrinsic @overload fn __to(self: float, target: int) -> int;
     @intrinsic @overload fn __to(self: float, target: uint) -> uint;
@@ -88,6 +102,13 @@ extern<bool> {
     @intrinsic fn __not(self: bool) -> bool;
     @intrinsic fn __to(self: bool, target: string) -> string;
     @intrinsic @overload fn __to(self: bool, target: int) -> int;
+}
+
+extern<T[]> {
+    @intrinsic fn __add(self: T[], other: T[]) -> T[];
+    @intrinsic fn __index(self: T[], index: int) -> T;
+    @intrinsic fn __index_set(self: T[], index: int, value: T) -> nothing;
+    @intrinsic fn __range(self: T[]) -> Range<T>;
 }
 
 @intrinsic

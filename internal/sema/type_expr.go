@@ -99,8 +99,12 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 	case ast.ExprIndex:
 		if idx, ok := tc.builder.Exprs.Index(id); ok && idx != nil {
 			container := tc.typeExpr(idx.Target)
-			tc.typeExpr(idx.Index)
-			ty = tc.indexResultType(container, expr.Span)
+			indexType := tc.typeExpr(idx.Index)
+			if magic := tc.magicResultForIndex(container, indexType); magic != types.NoTypeID {
+				ty = magic
+			} else {
+				ty = tc.indexResultType(container, expr.Span)
+			}
 		}
 	case ast.ExprMember:
 		if member, ok := tc.builder.Exprs.Member(id); ok && member != nil {
@@ -248,6 +252,7 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 func (tc *typeChecker) typeBinary(span source.Span, data *ast.ExprBinaryData) types.TypeID {
 	leftType := tc.typeExpr(data.Left)
 	if data.Op == ast.ExprBinaryAssign {
+		tc.ensureIndexAssignment(data.Left, leftType, span)
 		tc.handleAssignment(data.Op, data.Left, data.Right, span)
 		return leftType
 	}
@@ -388,8 +393,32 @@ func (tc *typeChecker) typeCompoundAssignment(baseOp, fullOp ast.ExprBinaryOp, s
 		tc.report(diag.SemaTypeMismatch, span, "operator %s changes type from %s to %s", tc.binaryOpLabel(fullOp), tc.typeLabel(leftType), tc.typeLabel(result))
 		return types.NoTypeID
 	}
+	tc.ensureIndexAssignment(leftExpr, leftType, span)
 	tc.handleAssignment(fullOp, leftExpr, rightExpr, span)
 	return leftType
+}
+
+func (tc *typeChecker) ensureIndexAssignment(expr ast.ExprID, value types.TypeID, span source.Span) {
+	if value == types.NoTypeID || !expr.IsValid() || tc.builder == nil {
+		return
+	}
+	node := tc.builder.Exprs.Get(expr)
+	if node == nil || node.Kind != ast.ExprIndex {
+		return
+	}
+	index, ok := tc.builder.Exprs.Index(expr)
+	if !ok || index == nil {
+		return
+	}
+	container := tc.typeExpr(index.Target)
+	if container == types.NoTypeID {
+		return
+	}
+	indexType := tc.typeExpr(index.Index)
+	if tc.hasIndexSetter(container, indexType, value) {
+		return
+	}
+	tc.report(diag.SemaTypeMismatch, span, "%s does not support indexed assignment", tc.typeLabel(container))
 }
 
 func (tc *typeChecker) typeBinaryFallback(span source.Span, data *ast.ExprBinaryData, leftType, rightType types.TypeID) types.TypeID {
@@ -725,7 +754,7 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 		}
 		methods := tc.lookupMagicMethods(recvCand.key, name)
 		for _, sig := range methods {
-			if sig == nil || len(sig.Params) == 0 || sig.Params[0] != recvCand.key {
+			if sig == nil || len(sig.Params) == 0 || !typeKeyEqual(sig.Params[0], recvCand.key) {
 				continue
 			}
 			if len(sig.Params)-1 != len(args) {
@@ -759,7 +788,7 @@ func (tc *typeChecker) methodParamMatches(expected symbols.TypeKey, arg types.Ty
 		return false
 	}
 	for _, cand := range tc.typeKeyCandidates(arg) {
-		if cand.key == expected {
+		if typeKeyEqual(cand.key, expected) {
 			return true
 		}
 	}
