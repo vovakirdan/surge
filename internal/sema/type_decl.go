@@ -759,10 +759,32 @@ func (tc *typeChecker) builtinTypeByName(name string) types.TypeID {
 	switch name {
 	case "int":
 		return tc.types.Builtins().Int
+	case "int8":
+		return tc.types.Builtins().Int8
+	case "int16":
+		return tc.types.Builtins().Int16
+	case "int32":
+		return tc.types.Builtins().Int32
+	case "int64":
+		return tc.types.Builtins().Int64
 	case "uint":
 		return tc.types.Builtins().Uint
+	case "uint8":
+		return tc.types.Builtins().Uint8
+	case "uint16":
+		return tc.types.Builtins().Uint16
+	case "uint32":
+		return tc.types.Builtins().Uint32
+	case "uint64":
+		return tc.types.Builtins().Uint64
 	case "float":
 		return tc.types.Builtins().Float
+	case "float16":
+		return tc.types.Builtins().Float16
+	case "float32":
+		return tc.types.Builtins().Float32
+	case "float64":
+		return tc.types.Builtins().Float64
 	case "bool":
 		return tc.types.Builtins().Bool
 	case "string":

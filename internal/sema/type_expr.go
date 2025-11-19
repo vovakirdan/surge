@@ -524,11 +524,11 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 	case types.KindBool:
 		return "bool"
 	case types.KindInt:
-		return "int"
+		return numericTypeLabel("int", tt.Width)
 	case types.KindUint:
-		return "uint"
+		return numericTypeLabel("uint", tt.Width)
 	case types.KindFloat:
-		return "float"
+		return numericTypeLabel("float", tt.Width)
 	case types.KindString:
 		return "string"
 	case types.KindNothing:
@@ -601,6 +601,17 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 		return "union"
 	default:
 		return tt.Kind.String()
+	}
+}
+
+func numericTypeLabel(base string, width types.Width) string {
+	switch width {
+	case types.WidthAny:
+		return base
+	case types.Width8, types.Width16, types.Width32, types.Width64:
+		return fmt.Sprintf("%s%d", base, width)
+	default:
+		return base
 	}
 }
 

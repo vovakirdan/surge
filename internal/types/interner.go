@@ -14,8 +14,19 @@ type Builtins struct {
 	Bool    TypeID
 	String  TypeID
 	Int     TypeID
+	Int8    TypeID
+	Int16   TypeID
+	Int32   TypeID
+	Int64   TypeID
 	Uint    TypeID
+	Uint8   TypeID
+	Uint16  TypeID
+	Uint32  TypeID
+	Uint64  TypeID
 	Float   TypeID
+	Float16 TypeID
+	Float32 TypeID
+	Float64 TypeID
 }
 
 // Interner provides stable TypeIDs by hashing structural descriptors.
@@ -44,8 +55,19 @@ func NewInterner() *Interner {
 	in.builtins.Bool = in.Intern(Type{Kind: KindBool})
 	in.builtins.String = in.Intern(Type{Kind: KindString})
 	in.builtins.Int = in.Intern(MakeInt(WidthAny))
+	in.builtins.Int8 = in.Intern(MakeInt(Width8))
+	in.builtins.Int16 = in.Intern(MakeInt(Width16))
+	in.builtins.Int32 = in.Intern(MakeInt(Width32))
+	in.builtins.Int64 = in.Intern(MakeInt(Width64))
 	in.builtins.Uint = in.Intern(MakeUint(WidthAny))
+	in.builtins.Uint8 = in.Intern(MakeUint(Width8))
+	in.builtins.Uint16 = in.Intern(MakeUint(Width16))
+	in.builtins.Uint32 = in.Intern(MakeUint(Width32))
+	in.builtins.Uint64 = in.Intern(MakeUint(Width64))
 	in.builtins.Float = in.Intern(MakeFloat(WidthAny))
+	in.builtins.Float16 = in.Intern(MakeFloat(Width16))
+	in.builtins.Float32 = in.Intern(MakeFloat(Width32))
+	in.builtins.Float64 = in.Intern(MakeFloat(Width64))
 	return in
 }
 
