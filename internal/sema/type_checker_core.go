@@ -542,15 +542,15 @@ func (tc *typeChecker) isLiteralExpr(expr ast.ExprID) bool {
 	return false
 }
 
-func (tc *typeChecker) literalCoercible(target, source types.TypeID) bool {
-	if target == types.NoTypeID || source == types.NoTypeID || tc.types == nil {
+func (tc *typeChecker) literalCoercible(target, from types.TypeID) bool {
+	if target == types.NoTypeID || from == types.NoTypeID || tc.types == nil {
 		return false
 	}
 	targetKind, ok := tc.typeKind(target)
 	if !ok {
 		return false
 	}
-	sourceKind, ok := tc.typeKind(source)
+	sourceKind, ok := tc.typeKind(from)
 	if !ok {
 		return false
 	}

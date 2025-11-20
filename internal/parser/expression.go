@@ -234,6 +234,9 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 			}
 			expr = newExpr
 		case token.Colon:
+			if p.suspendColonCast > 0 {
+				return expr, true
+			}
 			colonTok := p.advance()
 			if !startsTypeExpr(p.lx.Peek().Kind) {
 				p.err(diag.SynExpectType, "expected type after ':'")
@@ -551,7 +554,9 @@ func (p *Parser) parseStructLiteral(typeID ast.TypeID, typeSpan source.Span) (as
 	positional := false
 
 	for !p.at(token.RBrace) && !p.at(token.EOF) {
+		p.suspendColonCast++
 		fieldExpr, ok := p.parseExpr()
+		p.suspendColonCast--
 		if !ok {
 			p.resyncStructLiteralField()
 			continue
