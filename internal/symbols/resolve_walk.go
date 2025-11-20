@@ -411,6 +411,9 @@ func (fr *fileResolver) resolveIdent(exprID ast.ExprID, span source.Span, name s
 		return
 	}
 	if symID, ok := fr.resolver.Lookup(name); ok {
+		if fr.tryResolveImportSymbol(exprID, span, symID) {
+			return
+		}
 		fr.result.ExprSymbols[exprID] = symID
 		return
 	}
@@ -487,6 +490,50 @@ func (fr *fileResolver) collectFileScopeSymbols(name source.StringID, kinds ...S
 		}
 	}
 	return out
+}
+
+func (fr *fileResolver) tryResolveImportSymbol(exprID ast.ExprID, span source.Span, symID SymbolID) bool {
+	sym := fr.result.Table.Symbols.Get(symID)
+	if sym == nil || sym.Kind != SymbolImport {
+		return false
+	}
+	modulePath := sym.ModulePath
+	exports := fr.moduleExports[modulePath]
+	name := sym.ImportName
+	if name == source.NoStringID {
+		name = sym.Name
+	}
+	nameStr := fr.lookupString(name)
+	if nameStr == "" {
+		nameStr = "_"
+	}
+	if exports == nil {
+		fr.reportModuleMemberNotFound(modulePath, name, span)
+		return true
+	}
+	exported := exports.Lookup(nameStr)
+	if len(exported) == 0 {
+		fr.reportModuleMemberNotFound(modulePath, name, span)
+		return true
+	}
+	var candidate *ExportedSymbol
+	for i := range exported {
+		if exported[i].Flags&SymbolFlagPublic != 0 {
+			candidate = &exported[i]
+			break
+		}
+	}
+	if candidate == nil {
+		refSpan := exported[0].Span
+		fr.reportModuleMemberNotPublic(modulePath, name, span, refSpan)
+		return true
+	}
+	synth := fr.syntheticSymbolForExport(modulePath, nameStr, candidate, span)
+	if synth.IsValid() {
+		fr.result.ExprSymbols[exprID] = synth
+		return true
+	}
+	return false
 }
 
 func (fr *fileResolver) walkTypeExpr(typeID ast.TypeID) {
