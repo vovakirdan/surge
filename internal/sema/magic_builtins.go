@@ -73,6 +73,19 @@ var builtinMagic = []builtinMagicSpec{
 	{receiver: "uint", name: "__to", params: []string{"uint", "float32"}, result: "float32"},
 	{receiver: "uint", name: "__to", params: []string{"uint", "float64"}, result: "float64"},
 
+	{receiver: "int8", name: "__to", params: []string{"int8", "int"}, result: "int"},
+	{receiver: "int16", name: "__to", params: []string{"int16", "int"}, result: "int"},
+	{receiver: "int32", name: "__to", params: []string{"int32", "int"}, result: "int"},
+	{receiver: "int64", name: "__to", params: []string{"int64", "int"}, result: "int"},
+
+	{receiver: "uint8", name: "__to", params: []string{"uint8", "uint"}, result: "uint"},
+	{receiver: "uint16", name: "__to", params: []string{"uint16", "uint"}, result: "uint"},
+	{receiver: "uint32", name: "__to", params: []string{"uint32", "uint"}, result: "uint"},
+	{receiver: "uint64", name: "__to", params: []string{"uint64", "uint"}, result: "uint"},
+
+	{receiver: "float32", name: "__to", params: []string{"float32", "float"}, result: "float"},
+	{receiver: "float64", name: "__to", params: []string{"float64", "float"}, result: "float"},
+
 	{receiver: "float", name: "__add", params: []string{"float", "float"}, result: "float"},
 	{receiver: "float", name: "__sub", params: []string{"float", "float"}, result: "float"},
 	{receiver: "float", name: "__mul", params: []string{"float", "float"}, result: "float"},

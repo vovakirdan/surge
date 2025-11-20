@@ -83,6 +83,46 @@ extern<uint> {
     @intrinsic @overload fn __to(self: uint, target: float64) -> float64;
 }
 
+extern<int8> {
+    @intrinsic fn __to(self: int8, target: int) -> int;
+}
+
+extern<int16> {
+    @intrinsic fn __to(self: int16, target: int) -> int;
+}
+
+extern<int32> {
+    @intrinsic fn __to(self: int32, target: int) -> int;
+}
+
+extern<int64> {
+    @intrinsic fn __to(self: int64, target: int) -> int;
+}
+
+extern<uint8> {
+    @intrinsic fn __to(self: uint8, target: uint) -> uint;
+}
+
+extern<uint16> {
+    @intrinsic fn __to(self: uint16, target: uint) -> uint;
+}
+
+extern<uint32> {
+    @intrinsic fn __to(self: uint32, target: uint) -> uint;
+}
+
+extern<uint64> {
+    @intrinsic fn __to(self: uint64, target: uint) -> uint;
+}
+
+extern<float32> {
+    @intrinsic fn __to(self: float32, target: float) -> float;
+}
+
+extern<float64> {
+    @intrinsic fn __to(self: float64, target: float) -> float;
+}
+
 extern<float> {
     @intrinsic fn __add(self: float, other: float) -> float;
     @intrinsic fn __sub(self: float, other: float) -> float;

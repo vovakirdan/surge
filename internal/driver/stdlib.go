@@ -12,6 +12,7 @@ const (
 	stdModuleCoreBase       = "core/base"
 	stdModuleCoreOption     = "core/option"
 	stdModuleCoreResult     = "core/result"
+	stdModuleCoreSaturating = "core/saturating_cast"
 )
 
 func detectStdlibRoot(baseDir string) string {

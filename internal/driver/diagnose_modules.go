@@ -148,7 +148,13 @@ func ensureStdlibModules(
 		return nil
 	}
 	exports := collectedExports(records)
-	for _, module := range []string{stdModuleCoreResult, stdModuleCoreOption, stdModuleCoreIntrinsics, stdModuleCoreBase} {
+	for _, module := range []string{
+		stdModuleCoreResult,
+		stdModuleCoreOption,
+		stdModuleCoreIntrinsics,
+		stdModuleCoreBase,
+		stdModuleCoreSaturating,
+	} {
 		if _, ok := records[module]; ok {
 			continue
 		}
