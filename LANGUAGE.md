@@ -755,11 +755,12 @@ The `to` operator performs explicit type conversions with syntax `Expr to Type`.
 
 * **Identical type:** NOP (no operation).
 * **Fixed → dynamic (same family):** Always allowed, e.g., `int32 to int`.
-* **Dynamic → fixed (same family):** Explicit only, may trap at runtime if value exceeds target range.
-* **Between numeric families:** Explicit only with defined semantics:
-  * `int` ↔ `float`: standard conversion with potential precision loss.
-  * `int` ↔ `uint`: may trap on negative values or overflow.
-  * Between fixed types of different sizes: may trap if significant bits are lost.
+* **Dynamic → fixed (same family):** Explicit only; **checked**. If the value does not fit the target range the runtime raises a **trap** (no UB, no wraparound).
+* **Between numeric families:** Explicit only with defined semantics and possible trap if the target cannot represent the value:
+  * `int` ↔ `float`: standard conversion with potential precision loss; out-of-range values trap.
+  * `int` ↔ `uint`: explicit only; negative values trap when casting to `uint`.
+  * `float` ↔ `uint`: explicit only; fractional parts are truncated toward zero; out-of-range traps.
+  * `float` ↔ `int`: explicit only; fractional parts are truncated toward zero; out-of-range traps.
 * **Reference and pointer types:** `&T`, `&mut T`, and `*T` cannot be cast via `to` (compile error).
 * **Tag constructors:** No casting to/from tags; use constructors and `compare` matching.
 
@@ -773,7 +774,7 @@ let d: float = 42 to float;   // int→float conversion
 
 ### 6.5. Custom Cast Protocol (`__to`)
 
-User-defined types opt into casting by supplying `__to` overloads inside `extern<From>` blocks. The signature is strict: exactly two parameters (`self: From`, `target: To`) and the return type must be the same `To`:
+User-defined types opt into casting by supplying `__to` overloads inside `extern<From>` blocks. The signature is strict: exactly two parameters (`self: From`, `target: To`) and the return type must be the same `To`. `__to` is guaranteed to either return a valid `To` or trap (never UB); if you need different behaviour (e.g., saturation/clamping), implement a separate function instead of overloading `__to`:
 
 ```sg
 extern<From> {
@@ -812,6 +813,24 @@ extern<uint64> {
 let uid: UserId = 42:uint64 to UserId;
 let raw: uint64 = uid to uint64;
 ```
+
+### 6.6. Saturating casts
+
+The standard library provides `saturating_cast(from, to_proto)` overloads in `core/saturating_cast.sg` for numeric types. The second argument is only used for its type (`to_proto`) and defines the result type. Semantics:
+
+* For integer targets: clamp to `[MIN..MAX]` of the target type; negative inputs clamp to `0` for unsigned targets.
+* For floats: clamp to the finite range of the target precision.
+* Each overload is concrete (no generics); missing pairs are a compile-time resolution error.
+
+Use cases:
+
+```sg
+let x: int = 1_000;
+let y: int8 = saturating_cast(x, 0:int8);   // 127
+let z: uint8 = saturating_cast(-5, 0:uint8); // 0
+```
+
+If you need custom narrowing behaviour (rounding modes, error returns, etc.), write a dedicated helper; `__to` remains checked-and-trapping.
 
 ---
 
