@@ -13,6 +13,7 @@ type ItemKind uint8
 const (
 	ItemFn ItemKind = iota
 	ItemLet
+	ItemConst
 	ItemType
 	ItemTag
 	ItemExtern
@@ -34,6 +35,7 @@ type Items struct {
 	FnParams         *Arena[FnParam]
 	Attrs            *Arena[Attr]
 	Lets             *Arena[LetItem]
+	Consts           *Arena[ConstItem]
 	Types            *Arena[TypeItem]
 	TypeAliases      *Arena[TypeAliasDecl]
 	TypeStructs      *Arena[TypeStructDecl]
@@ -59,6 +61,7 @@ func NewItems(capHint uint) *Items {
 		FnParams:         NewArena[FnParam](capHint),
 		Attrs:            NewArena[Attr](capHint),
 		Lets:             NewArena[LetItem](capHint),
+		Consts:           NewArena[ConstItem](capHint),
 		Types:            NewArena[TypeItem](capHint),
 		TypeAliases:      NewArena[TypeAliasDecl](capHint),
 		TypeStructs:      NewArena[TypeStructDecl](capHint),

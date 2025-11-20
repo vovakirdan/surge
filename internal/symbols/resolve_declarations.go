@@ -38,6 +38,26 @@ func (fr *fileResolver) declareLet(itemID ast.ItemID, letItem *ast.LetItem) {
 	}
 }
 
+func (fr *fileResolver) declareConstItem(itemID ast.ItemID, constItem *ast.ConstItem) {
+	if constItem == nil || constItem.Name == source.NoStringID {
+		return
+	}
+	flags := SymbolFlags(0)
+	if constItem.Visibility == ast.VisPublic {
+		flags |= SymbolFlagPublic
+	}
+	decl := SymbolDecl{
+		SourceFile: fr.sourceFile,
+		ASTFile:    fr.fileID,
+		Item:       itemID,
+	}
+	span := preferSpan(constItem.NameSpan, constItem.Span)
+	if symID, ok := fr.resolver.Declare(constItem.Name, span, SymbolConst, flags, decl); ok {
+		fr.appendItemSymbol(itemID, symID)
+		return
+	}
+}
+
 func (fr *fileResolver) declareFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 	if fnItem.Name == source.NoStringID {
 		return

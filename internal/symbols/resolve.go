@@ -133,6 +133,7 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 		syntheticImportSyms: make(map[string]SymbolID),
 	}
 	fr.injectCoreExports()
+	fr.predeclareConstItems(file.Items)
 	for _, itemID := range file.Items {
 		fr.handleItem(itemID)
 	}
@@ -239,6 +240,23 @@ func (fr *fileResolver) reportMissingOverload(
 	))
 	fr.attachPreviousNotes(b, existing)
 	b.Emit()
+}
+
+func (fr *fileResolver) predeclareConstItems(items []ast.ItemID) {
+	if fr.builder == nil || fr.resolver == nil {
+		return
+	}
+	for _, itemID := range items {
+		item := fr.builder.Items.Get(itemID)
+		if item == nil || item.Kind != ast.ItemConst {
+			continue
+		}
+		constItem, ok := fr.builder.Items.Const(itemID)
+		if !ok || constItem == nil {
+			continue
+		}
+		fr.declareConstItem(itemID, constItem)
+	}
 }
 
 func (fr *fileResolver) reportInvalidOverride(name source.StringID, span source.Span, message string, existing []SymbolID) {

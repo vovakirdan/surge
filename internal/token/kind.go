@@ -11,6 +11,7 @@ const (
 	Ident
 	KwFn       // fn
 	KwLet      // let
+	KwConst    // const
 	KwMut      // mut
 	KwOwn      // own
 	KwIf       // if

@@ -409,6 +409,16 @@ func (p *Parser) parseForClassic(forTok token.Token) (ast.StmtID, bool) {
 }
 
 func (p *Parser) parseForInitializer() (ast.StmtID, bool) {
+	if p.at(token.KwConst) {
+		constTok := p.advance()
+		binding, ok := p.parseConstBinding()
+		if !ok {
+			return ast.NoStmtID, false
+		}
+		stmtSpan := coverOptional(constTok.Span, binding.Span)
+		stmtID := p.arenas.Stmts.NewConst(stmtSpan, binding.Name, binding.Type, binding.Value)
+		return stmtID, true
+	}
 	if p.at(token.KwLet) {
 		letTok := p.advance()
 		binding, ok := p.parseLetBinding()

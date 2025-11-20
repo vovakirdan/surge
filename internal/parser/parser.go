@@ -155,6 +155,12 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 			p.attachDirectiveBlocks(itemID, directiveBlocks)
 		}
 		return itemID, parsed
+	case token.KwConst:
+		itemID, parsed := p.parseConstItemWithVisibility(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
+		if parsed {
+			p.attachDirectiveBlocks(itemID, directiveBlocks)
+		}
+		return itemID, parsed
 	case token.KwLet:
 		itemID, parsed := p.parseLetItemWithVisibility(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
 		if parsed {
@@ -229,6 +235,46 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 				)
 			}
 			itemID, parsed := p.parseLetItemWithVisibility(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
+			if parsed {
+				p.attachDirectiveBlocks(itemID, directiveBlocks)
+			}
+			return itemID, parsed
+		}
+		if p.at(token.KwConst) {
+			visibility := ast.VisPrivate
+			if mods.flags&ast.FnModifierPublic != 0 {
+				visibility = ast.VisPublic
+			}
+			invalid := mods.flags &^ ast.FnModifierPublic
+			if invalid != 0 {
+				span := mods.span
+				if !mods.hasSpan {
+					span = p.lx.Peek().Span
+				}
+				p.emitDiagnostic(
+					diag.SynUnexpectedModifier,
+					diag.SevError,
+					span,
+					"unexpected modifiers before 'const'",
+					func(b *diag.ReportBuilder) {
+						if b == nil {
+							return
+						}
+						fixID := fix.MakeFixID(diag.SynUnexpectedModifier, span)
+						suggestion := fix.DeleteSpan(
+							"remove the invalid modifiers",
+							span.ExtendRight(p.lx.Peek().Span),
+							"",
+							fix.WithID(fixID),
+							fix.WithKind(diag.FixKindRefactor),
+							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						)
+						b.WithFixSuggestion(suggestion)
+						b.WithNote(span, "only 'pub' modifier is allowed before 'const'")
+					},
+				)
+			}
+			itemID, parsed := p.parseConstItemWithVisibility(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
 			if parsed {
 				p.attachDirectiveBlocks(itemID, directiveBlocks)
 			}
@@ -332,7 +378,7 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 				diag.SynUnexpectedToken,
 				diag.SevError,
 				attrSpan,
-				"attributes must precede a function or let declaration",
+				"attributes must precede a function, let, or const declaration",
 				nil,
 			)
 		}
@@ -357,7 +403,7 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 func (p *Parser) resyncTop() { // todo: использовать resyncUntill - надо явно знать до какого токена прокручивать
 	// Список всех стартеров + semicolon
 	stopTokens := []token.Kind{
-		token.Semicolon, token.KwImport, token.KwLet,
+		token.Semicolon, token.KwImport, token.KwLet, token.KwConst,
 		token.KwFn, token.KwPub, token.KwAsync,
 		token.KwExtern,
 		token.KwType,
@@ -390,7 +436,7 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 func isTopLevelStarter(k token.Kind) bool {
 	switch k {
 	case token.KwImport, token.KwLet, token.KwFn,
-		token.KwPub, token.KwAsync, token.KwExtern, token.KwType, token.KwTag:
+		token.KwPub, token.KwAsync, token.KwExtern, token.KwType, token.KwTag, token.KwConst:
 		return true
 	default:
 		return false

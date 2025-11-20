@@ -181,6 +181,8 @@ func (p *Parser) parseStmt() (ast.StmtID, bool) {
 			},
 		)
 		return p.parseStmt()
+	case token.KwConst:
+		return p.parseConstStmt()
 	case token.KwLet:
 		return p.parseLetStmt()
 	case token.KwSignal:

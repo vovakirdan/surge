@@ -16,7 +16,18 @@ func (fr *fileResolver) handleItem(id ast.ItemID) {
 	switch item.Kind {
 	case ast.ItemLet:
 		if letItem, ok := fr.builder.Items.Let(id); ok && letItem != nil {
+			fr.walkTypeExpr(letItem.Type)
 			fr.declareLet(id, letItem)
+		}
+	case ast.ItemConst:
+		if constItem, ok := fr.builder.Items.Const(id); ok && constItem != nil {
+			fr.walkTypeExpr(constItem.Type)
+			if syms := fr.result.ItemSymbols[id]; len(syms) == 0 {
+				fr.declareConstItem(id, constItem)
+			}
+			if constItem.Value.IsValid() {
+				fr.walkExpr(constItem.Value)
+			}
 		}
 	case ast.ItemFn:
 		if fnItem, ok := fr.builder.Items.Fn(id); ok && fnItem != nil {
@@ -59,6 +70,7 @@ func (fr *fileResolver) walkFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 		if param == nil || param.Name == source.NoStringID {
 			continue
 		}
+		fr.walkTypeExpr(param.Type)
 		span := param.Span
 		if span == (source.Span{}) {
 			span = fnItem.ParamsSpan
@@ -70,6 +82,7 @@ func (fr *fileResolver) walkFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 		}
 		fr.resolver.Declare(param.Name, span, SymbolParam, 0, decl)
 	}
+	fr.walkTypeExpr(fnItem.ReturnType)
 	if fnItem.Body.IsValid() {
 		fr.walkStmt(fnItem.Body)
 	}
@@ -97,6 +110,7 @@ func (fr *fileResolver) walkStmt(stmtID ast.StmtID) {
 			Stmt:       stmtID,
 		}
 		scopeID := fr.resolver.Enter(ScopeBlock, owner, stmt.Span)
+		fr.predeclareConstStmts(block.Stmts)
 		for _, child := range block.Stmts {
 			fr.walkStmt(child)
 		}
@@ -106,6 +120,7 @@ func (fr *fileResolver) walkStmt(stmtID ast.StmtID) {
 		if letStmt == nil || letStmt.Name == source.NoStringID {
 			return
 		}
+		fr.walkTypeExpr(letStmt.Type)
 		if letStmt.Value.IsValid() {
 			fr.walkExpr(letStmt.Value)
 		}
@@ -119,6 +134,15 @@ func (fr *fileResolver) walkStmt(stmtID ast.StmtID) {
 			Stmt:       stmtID,
 		}
 		fr.resolver.Declare(letStmt.Name, stmt.Span, SymbolLet, flags, decl)
+	case ast.StmtConst:
+		constStmt := fr.builder.Stmts.Const(stmtID)
+		if constStmt == nil || constStmt.Name == source.NoStringID {
+			return
+		}
+		fr.walkTypeExpr(constStmt.Type)
+		if constStmt.Value.IsValid() {
+			fr.walkExpr(constStmt.Value)
+		}
 	case ast.StmtIf:
 		ifStmt := fr.builder.Stmts.If(stmtID)
 		if ifStmt == nil {
@@ -148,6 +172,7 @@ func (fr *fileResolver) walkStmt(stmtID ast.StmtID) {
 			Stmt:       stmtID,
 		}
 		scopeID := fr.resolver.Enter(ScopeBlock, owner, stmt.Span)
+		fr.predeclareConstStmt(forStmt.Init)
 		if forStmt.Init.IsValid() {
 			fr.walkStmt(forStmt.Init)
 		}
@@ -167,6 +192,7 @@ func (fr *fileResolver) walkStmt(stmtID ast.StmtID) {
 			Stmt:       stmtID,
 		}
 		scopeID := fr.resolver.Enter(ScopeBlock, owner, stmt.Span)
+		fr.walkTypeExpr(forIn.Type)
 		if forIn.Pattern != source.NoStringID {
 			decl := SymbolDecl{
 				SourceFile: fr.sourceFile,
@@ -461,4 +487,83 @@ func (fr *fileResolver) collectFileScopeSymbols(name source.StringID, kinds ...S
 		}
 	}
 	return out
+}
+
+func (fr *fileResolver) walkTypeExpr(typeID ast.TypeID) {
+	if !typeID.IsValid() {
+		return
+	}
+	typ := fr.builder.Types.Get(typeID)
+	if typ == nil {
+		return
+	}
+	switch typ.Kind {
+	case ast.TypeExprUnary:
+		if unary, ok := fr.builder.Types.UnaryType(typeID); ok && unary != nil {
+			fr.walkTypeExpr(unary.Inner)
+		}
+	case ast.TypeExprArray:
+		if arr, ok := fr.builder.Types.Array(typeID); ok && arr != nil {
+			fr.walkTypeExpr(arr.Elem)
+			if arr.Length.IsValid() {
+				fr.walkExpr(arr.Length)
+			}
+		}
+	case ast.TypeExprTuple:
+		if tuple, ok := fr.builder.Types.Tuple(typeID); ok && tuple != nil {
+			for _, elem := range tuple.Elems {
+				fr.walkTypeExpr(elem)
+			}
+		}
+	case ast.TypeExprFn:
+		if fn, ok := fr.builder.Types.Fn(typeID); ok && fn != nil {
+			for _, param := range fn.Params {
+				fr.walkTypeExpr(param.Type)
+			}
+			fr.walkTypeExpr(fn.Return)
+		}
+	case ast.TypeExprOptional:
+		if opt, ok := fr.builder.Types.Optional(typeID); ok && opt != nil {
+			fr.walkTypeExpr(opt.Inner)
+		}
+	case ast.TypeExprErrorable:
+		if errable, ok := fr.builder.Types.Errorable(typeID); ok && errable != nil {
+			fr.walkTypeExpr(errable.Inner)
+			fr.walkTypeExpr(errable.Error)
+		}
+	case ast.TypeExprPath:
+		if path, ok := fr.builder.Types.Path(typeID); ok && path != nil {
+			for _, seg := range path.Segments {
+				for _, gen := range seg.Generics {
+					fr.walkTypeExpr(gen)
+				}
+			}
+		}
+	}
+}
+
+func (fr *fileResolver) predeclareConstStmts(stmts []ast.StmtID) {
+	for _, stmtID := range stmts {
+		fr.predeclareConstStmt(stmtID)
+	}
+}
+
+func (fr *fileResolver) predeclareConstStmt(stmtID ast.StmtID) {
+	if !stmtID.IsValid() {
+		return
+	}
+	stmt := fr.builder.Stmts.Get(stmtID)
+	if stmt == nil || stmt.Kind != ast.StmtConst {
+		return
+	}
+	constStmt := fr.builder.Stmts.Const(stmtID)
+	if constStmt == nil || constStmt.Name == source.NoStringID {
+		return
+	}
+	decl := SymbolDecl{
+		SourceFile: fr.sourceFile,
+		ASTFile:    fr.fileID,
+		Stmt:       stmtID,
+	}
+	fr.resolver.Declare(constStmt.Name, stmt.Span, SymbolConst, 0, decl)
 }

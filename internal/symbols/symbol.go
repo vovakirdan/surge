@@ -15,6 +15,7 @@ const (
 	SymbolImport
 	SymbolFunction
 	SymbolLet
+	SymbolConst
 	SymbolType
 	SymbolParam
 	SymbolTag
@@ -41,6 +42,8 @@ func (k SymbolKind) String() string {
 		return "function"
 	case SymbolLet:
 		return "let"
+	case SymbolConst:
+		return "const"
 	case SymbolType:
 		return "type"
 	case SymbolParam:

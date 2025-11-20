@@ -8,6 +8,7 @@ func TestLookupKeyword_Positive(t *testing.T) {
 	cases := map[string]Kind{
 		"fn":       KwFn,
 		"let":      KwLet,
+		"const":    KwConst,
 		"return":   KwReturn,
 		"parallel": KwParallel,
 		"map":      KwMap,

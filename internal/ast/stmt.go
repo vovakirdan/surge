@@ -7,6 +7,7 @@ type StmtKind uint8
 const (
 	StmtBlock StmtKind = iota
 	StmtLet
+	StmtConst
 	StmtExpr
 	StmtSignal
 	StmtReturn
@@ -31,6 +32,7 @@ type Stmts struct {
 	Arena       *Arena[Stmt]
 	Blocks      *Arena[BlockStmt]
 	Lets        *Arena[LetStmt]
+	Consts      *Arena[ConstStmt]
 	Exprs       *Arena[ExprStmt]
 	Signals     *Arena[SignalStmt]
 	Returns     *Arena[ReturnStmt]
@@ -53,6 +55,7 @@ func NewStmts(capHint uint) *Stmts {
 		Arena:       NewArena[Stmt](capHint),
 		Blocks:      NewArena[BlockStmt](capHint),
 		Lets:        NewArena[LetStmt](capHint),
+		Consts:      NewArena[ConstStmt](capHint),
 		Exprs:       NewArena[ExprStmt](capHint),
 		Signals:     NewArena[SignalStmt](capHint),
 		Returns:     NewArena[ReturnStmt](capHint),
@@ -85,6 +88,12 @@ type LetStmt struct {
 	Type  TypeID
 	Value ExprID
 	IsMut bool
+}
+
+type ConstStmt struct {
+	Name  source.StringID
+	Type  TypeID
+	Value ExprID
 }
 
 type ExprStmt struct {
@@ -161,6 +170,23 @@ func (s *Stmts) Let(id StmtID) *LetStmt {
 		return nil
 	}
 	return s.Lets.Get(uint32(stmt.Payload))
+}
+
+func (s *Stmts) NewConst(span source.Span, name source.StringID, typ TypeID, value ExprID) StmtID {
+	payload := PayloadID(s.Consts.Allocate(ConstStmt{
+		Name:  name,
+		Type:  typ,
+		Value: value,
+	}))
+	return s.New(StmtConst, span, payload)
+}
+
+func (s *Stmts) Const(id StmtID) *ConstStmt {
+	stmt := s.Get(id)
+	if stmt == nil || stmt.Kind != StmtConst || !stmt.Payload.IsValid() {
+		return nil
+	}
+	return s.Consts.Get(uint32(stmt.Payload))
 }
 
 func (s *Stmts) NewExpr(span source.Span, expr ExprID) StmtID {

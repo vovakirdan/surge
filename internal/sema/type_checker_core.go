@@ -36,6 +36,7 @@ type typeChecker struct {
 	stmtSymbols        map[ast.StmtID]symbols.SymbolID
 	bindingBorrow      map[symbols.SymbolID]BorrowID
 	bindingTypes       map[symbols.SymbolID]types.TypeID
+	constState         map[symbols.SymbolID]constEvalState
 	typeItems          map[ast.ItemID]types.TypeID
 	typeCache          map[typeCacheKey]types.TypeID
 	typeKeys           map[string]types.TypeID
@@ -66,6 +67,7 @@ func (tc *typeChecker) run() {
 	tc.borrow = NewBorrowTable()
 	tc.bindingBorrow = make(map[symbols.SymbolID]BorrowID)
 	tc.bindingTypes = make(map[symbols.SymbolID]types.TypeID)
+	tc.constState = make(map[symbols.SymbolID]constEvalState)
 	tc.typeItems = make(map[ast.ItemID]types.TypeID)
 	tc.typeCache = make(map[typeCacheKey]types.TypeID)
 	tc.typeKeys = make(map[string]types.TypeID)
@@ -116,6 +118,13 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			tc.setBindingType(symID, valueType)
 		}
 		tc.updateItemBinding(id, letItem.Value)
+	case ast.ItemConst:
+		symID := tc.typeSymbolForItem(id)
+		if symID.IsValid() {
+			tc.ensureConstEvaluated(symID)
+		} else if constItem, ok := tc.builder.Items.Const(id); ok && constItem != nil && constItem.Value.IsValid() {
+			tc.typeExpr(constItem.Value)
+		}
 	case ast.ItemFn:
 		fnItem, ok := tc.builder.Items.Fn(id)
 		if !ok || fnItem == nil || !fnItem.Body.IsValid() {
@@ -174,6 +183,13 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 				}
 				tc.updateStmtBinding(id, letStmt.Value)
 			}
+		}
+	case ast.StmtConst:
+		symID := tc.symbolForStmt(id)
+		if symID.IsValid() {
+			tc.ensureConstEvaluated(symID)
+		} else if constStmt := tc.builder.Stmts.Const(id); constStmt != nil && constStmt.Value.IsValid() {
+			tc.typeExpr(constStmt.Value)
 		}
 	case ast.StmtExpr:
 		if exprStmt := tc.builder.Stmts.Expr(id); exprStmt != nil {

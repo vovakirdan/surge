@@ -36,7 +36,7 @@ func (t Token) IsPunctOrOp() bool {
 
 func (t Token) IsKeyword() bool {
 	switch t.Kind {
-	case KwFn, KwLet, KwMut, KwOwn, KwIf, KwElse, KwWhile, KwFor, KwIn, KwBreak, KwContinue, KwReturn,
+	case KwFn, KwLet, KwConst, KwMut, KwOwn, KwIf, KwElse, KwWhile, KwFor, KwIn, KwBreak, KwContinue, KwReturn,
 		KwImport, KwAs, KwType, KwTag, KwExtern, KwPub, KwAsync, KwAwait,
 		KwCompare, KwFinally, KwChannel, KwSpawn, KwTrue, KwFalse, KwSignal, KwParallel, KwMap, KwReduce,
 		KwWith, KwMacro, KwPragma, KwTo, KwHeir, KwIs:

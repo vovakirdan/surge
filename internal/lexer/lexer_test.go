@@ -165,6 +165,7 @@ func TestKeywords_Lowercase(t *testing.T) {
 	}{
 		{"fn", token.KwFn},
 		{"let", token.KwLet},
+		{"const", token.KwConst},
 		{"mut", token.KwMut},
 		{"own", token.KwOwn},
 		{"if", token.KwIf},
@@ -215,6 +216,7 @@ func TestKeywords_CapitalizedAreIdents(t *testing.T) {
 	tests := []string{
 		"Fn", "FN",
 		"Let", "LET",
+		"Const", "CONST",
 		"Mut", "MUT",
 		"Own", "OWN",
 		"If", "IF",

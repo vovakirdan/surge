@@ -29,6 +29,8 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				ty = types.NoTypeID
 			case sym.Kind == symbols.SymbolLet || sym.Kind == symbols.SymbolParam:
 				ty = tc.bindingType(symID)
+			case sym.Kind == symbols.SymbolConst:
+				ty = tc.ensureConstEvaluated(symID)
 			case sym.Kind == symbols.SymbolType:
 				name := tc.lookupName(ident.Name)
 				if name == "" {

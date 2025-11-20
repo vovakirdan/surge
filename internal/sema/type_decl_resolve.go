@@ -51,6 +51,12 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 				count := types.ArrayDynamicLength
 				if arr.Kind == ast.ArraySized {
 					if !arr.HasConstLen {
+						if lenVal, ok := tc.constUintValue(arr.Length, nil); ok {
+							arr.HasConstLen = true
+							arr.ConstLength = lenVal
+						}
+					}
+					if !arr.HasConstLen {
 						tc.report(diag.SemaTypeMismatch, expr.Span, "array length must be a constant")
 						break
 					}

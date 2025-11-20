@@ -91,6 +91,8 @@ const (
 	SemaBorrowNonAddressable  Code = 3023
 	SemaBorrowDropInvalid     Code = 3024
 	SemaExpectTypeOperand     Code = 3025
+	SemaConstNotConstant      Code = 3026
+	SemaConstCycle            Code = 3027
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -186,6 +188,8 @@ var ( // todo расширить описания и использовать к
 		SemaBorrowNonAddressable:    "Expression is not addressable",
 		SemaBorrowDropInvalid:       "Drop target has no active borrow",
 		SemaExpectTypeOperand:       "Expected type operand",
+		SemaConstNotConstant:        "Const initializer is not constant",
+		SemaConstCycle:              "Const cycle detected",
 		IOLoadFileError:             "I/O load file error",
 		ProjInfo:                    "Project information",
 		ProjDuplicateModule:         "Duplicate module definition",

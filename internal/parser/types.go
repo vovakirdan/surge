@@ -279,7 +279,7 @@ func (p *Parser) parseTypeArgs() ([]ast.TypeID, bool) {
 	for {
 		arg, ok := p.parseTypePrefix()
 		if !ok {
-			p.resyncUntil(token.Gt, token.Comma, token.Semicolon, token.KwLet, token.KwFn, token.KwType, token.KwImport, token.EOF)
+			p.resyncUntil(token.Gt, token.Comma, token.Semicolon, token.KwLet, token.KwConst, token.KwFn, token.KwType, token.KwImport, token.EOF)
 			if p.at(token.Gt) {
 				p.advance()
 			}
@@ -300,7 +300,7 @@ func (p *Parser) parseTypeArgs() ([]ast.TypeID, bool) {
 
 	if _, ok := p.consumeTypeArgClose(); !ok {
 		p.emitDiagnostic(diag.SynUnclosedAngleBracket, diag.SevError, p.currentErrorSpan(), "expected '>' after type arguments", nil)
-		p.resyncUntil(token.Semicolon, token.Comma, token.KwLet, token.KwFn, token.KwType, token.KwImport, token.EOF)
+		p.resyncUntil(token.Semicolon, token.Comma, token.KwLet, token.KwConst, token.KwFn, token.KwType, token.KwImport, token.EOF)
 		return args, false
 	}
 	return args, true

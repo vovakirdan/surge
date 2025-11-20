@@ -18,7 +18,7 @@
 
 ### Implementation Snapshot (Draft 6)
 
-- Keywords match `internal/token/kind.go`: `fn, let, mut, own, if, else, while, for, in, break, continue, return, import, as, type, tag, extern, pub, async, await, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, nothing`.
+- Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, tag, extern, pub, async, await, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, nothing`.
 - The type checker currently resolves `int`, `uint`, `float`, `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`, `*T`), slices `T[]`, and sized arrays `T[N]` when `N` is a constant numeric literal. Fixed-width numerics (`int8`, `uint64`, `float32`…) are reserved symbols in the prelude but are not backed by concrete `TypeID`s yet.
 - Tuple and function types parse, but sema does not yet lower them; treat them as planned surface.
 - Tags and unions follow the current parser: `tag Name<T>(args...);` declares a tag item; unions accept plain types, `nothing`, or `Tag(args)` members. `Option`/`Result` plus tags `Some`/`Ok`/`Error` are injected via the prelude and resolved without user declarations; exhaustive `compare` checks are still TODO.
@@ -301,6 +301,7 @@ Surge uses **pure ownership** (similar to Rust) for predictable performance:
 ### 3.1. Variables
 
 * Declaration: `let name: Type = expr;`
+* Const declaration: `const NAME: Type = expr;` initializer is required and must be a compile-time constant; `pub const` exports it from the module.
 * Mutability: `let mut x: Type = expr;` allows assignment `x = expr;` and in-place updates.
 * Declaration without an initializer: `let x: Type;` (see default-initialisation rules below).
 * Top-level `let` is allowed as an item; items are private by default and can be exported with `pub let`.

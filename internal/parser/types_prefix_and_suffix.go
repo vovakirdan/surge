@@ -122,9 +122,12 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 			continue
 		}
 
+		var lengthExpr ast.ExprID
+		hasConstLen := false
+		lengthValue := uint64(0)
 		if p.at(token.IntLit) || p.at(token.UintLit) {
 			sizeTok := p.advance()
-			lengthValue, ok := p.parseArraySizeLiteral(sizeTok)
+			value, ok := p.parseArraySizeLiteral(sizeTok)
 			if !ok {
 				// ошибка уже зарепорчена
 				p.resyncUntil(token.RBracket, token.Semicolon, token.Comma)
@@ -133,98 +136,58 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 				}
 				return ast.NoTypeID, false
 			}
-
-			if !p.at(token.RBracket) {
-				rightBracketSpan := p.currentErrorSpan().ZeroideToStart()
-				p.emitDiagnostic(
-					diag.SynExpectRightBracket,
-					diag.SevError,
-					p.currentErrorSpan(),
-					"expected ']' after array size",
-					func(b *diag.ReportBuilder) {
-						if b == nil {
-							return
-						}
-						// как же не хватает макросов сейчас...
-						fixID := fix.MakeFixID(diag.SynExpectRightBracket, rightBracketSpan)
-						suggestion := fix.InsertText(
-							"insert ']' after array size",
-							rightBracketSpan,
-							"]",
-							"",
-							fix.WithID(fixID),
-							fix.WithKind(diag.FixKindRefactor),
-							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-						)
-						b.WithFixSuggestion(suggestion)
-						b.WithNote(rightBracketSpan, "insert ']' after array size")
-					},
-				)
+			hasConstLen = true
+			lengthValue = value
+		} else {
+			var ok bool
+			lengthExpr, ok = p.parseExpr()
+			if !ok {
 				return ast.NoTypeID, false
 			}
-			closeTok := p.advance()
+		}
 
-			currentTypeSpan := p.arenas.Types.Get(currentType).Span
-			finalSpan := currentTypeSpan.Cover(closeTok.Span)
-
-			currentType = p.arenas.Types.NewArray(
-				finalSpan,
-				currentType,
-				ast.ArraySized,
-				ast.NoExprID,
-				true,
-				lengthValue,
+		if !p.at(token.RBracket) {
+			rightBracketSpan := p.currentErrorSpan().ZeroideToStart()
+			p.emitDiagnostic(
+				diag.SynExpectRightBracket,
+				diag.SevError,
+				p.currentErrorSpan(),
+				"expected ']' after array size",
+				func(b *diag.ReportBuilder) {
+					if b == nil {
+						return
+					}
+					// как же не хватает макросов сейчас...
+					fixID := fix.MakeFixID(diag.SynExpectRightBracket, rightBracketSpan)
+					suggestion := fix.InsertText(
+						"insert ']' after array size",
+						rightBracketSpan,
+						"]",
+						"",
+						fix.WithID(fixID),
+						fix.WithKind(diag.FixKindRefactor),
+						fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+					)
+					b.WithFixSuggestion(suggestion)
+					b.WithNote(rightBracketSpan, "insert ']' after array size")
+				},
 			)
-			continue
+			return ast.NoTypeID, false
 		}
+		closeTok := p.advance()
 
-		errSpan := p.currentErrorSpan()
-		primarySpan := errSpan.ShiftLeft(1)
-		if primarySpan.Start >= primarySpan.End || (primarySpan.Start == errSpan.Start && primarySpan.End == errSpan.End) {
-			primarySpan = errSpan
-		}
-		insertSpan := errSpan.ZeroideToStart()
+		currentTypeSpan := p.arenas.Types.Get(currentType).Span
+		finalSpan := currentTypeSpan.Cover(closeTok.Span)
 
-		p.emitDiagnostic(
-			diag.SynExpectRightBracket,
-			diag.SevError,
-			primarySpan,
-			"expected ']' or array size",
-			func(b *diag.ReportBuilder) {
-				if b == nil {
-					return
-				}
-				fixID := fix.MakeFixID(diag.SynExpectRightBracket, insertSpan)
-				suggestion := fix.InsertText(
-					"insert ']' to close array type",
-					insertSpan,
-					"]",
-					"",
-					fix.WithID(fixID),
-					fix.WithKind(diag.FixKindRefactor),
-					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-					fix.Preferred(),
-				)
-				b.WithFixSuggestion(suggestion)
-				b.WithNote(insertSpan, "insert ']' to close array type")
-			},
+		currentType = p.arenas.Types.NewArray(
+			finalSpan,
+			currentType,
+			ast.ArraySized,
+			lengthExpr,
+			hasConstLen,
+			lengthValue,
 		)
-		p.resyncUntil(
-			token.RBracket,
-			token.Comma,
-			token.Semicolon,
-			token.RParen,
-			token.RBrace,
-			token.KwType,
-			token.KwFn,
-			token.KwImport,
-			token.KwLet,
-			token.EOF,
-		)
-		if p.at(token.RBracket) {
-			p.advance()
-		}
-		return ast.NoTypeID, false
+		continue
 	}
 
 	if p.at(token.Question) || p.at(token.QuestionQuestion) || p.at(token.Bang) {

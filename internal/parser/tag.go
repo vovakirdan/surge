@@ -33,13 +33,13 @@ func (p *Parser) parseTagItem(
 
 	generics, genericCommas, genericsTrailing, genericsSpan, ok := p.parseFnGenerics()
 	if !ok {
-		p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwType, token.KwTag, token.KwImport)
+		p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport)
 		return ast.NoItemID, false
 	}
 
 	openTok, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after tag name")
 	if !ok {
-		p.resyncUntil(token.Semicolon, token.KwFn, token.KwLet, token.KwType, token.KwTag, token.KwImport)
+		p.resyncUntil(token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport)
 		return ast.NoItemID, false
 	}
 
@@ -51,7 +51,7 @@ func (p *Parser) parseTagItem(
 		for {
 			argType, typeOK := p.parseTypePrefix()
 			if !typeOK {
-				p.resyncUntil(token.Comma, token.RParen, token.Semicolon, token.KwFn, token.KwLet, token.KwType, token.KwTag, token.KwImport)
+				p.resyncUntil(token.Comma, token.RParen, token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport)
 				if p.at(token.RParen) {
 					p.advance()
 				}
@@ -75,7 +75,7 @@ func (p *Parser) parseTagItem(
 
 	closeTok, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' to close tag payload list", nil)
 	if !ok {
-		p.resyncUntil(token.Semicolon, token.KwFn, token.KwLet, token.KwType, token.KwTag, token.KwImport)
+		p.resyncUntil(token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport)
 		return ast.NoItemID, false
 	}
 	paramsSpan := openTok.Span.Cover(closeTok.Span)

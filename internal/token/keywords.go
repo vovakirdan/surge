@@ -3,6 +3,7 @@ package token
 var keywords = map[string]Kind{
 	"fn":       KwFn,
 	"let":      KwLet,
+	"const":    KwConst,
 	"mut":      KwMut,
 	"own":      KwOwn,
 	"if":       KwIf,

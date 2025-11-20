@@ -213,7 +213,7 @@ func isBlockRecoveryToken(k token.Kind) bool {
 // isBlockStatementStarter reports whether a token can start a new statement inside a block.
 func isBlockStatementStarter(kind token.Kind) bool {
 	switch kind {
-	case token.LBrace, token.KwLet, token.KwReturn, token.KwIf, token.KwWhile,
+	case token.LBrace, token.KwLet, token.KwConst, token.KwReturn, token.KwIf, token.KwWhile,
 		token.KwFor, token.KwBreak, token.KwContinue, token.KwCompare:
 		return true
 	default:
