@@ -1,9 +1,16 @@
 package lexer
 
 import (
+	"fmt"
+
+	"fortio.org/safecast"
+
+	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/token"
 )
+
+const maxTokenLength = 64 * 1024 // hard limit in bytes to avoid pathological tokens
 
 type Lexer struct {
 	file   *source.File
@@ -79,6 +86,8 @@ func (lx *Lexer) Next() token.Token {
 	tok.Leading = lx.hold
 	lx.hold = nil
 
+	lx.enforceTokenLength(&tok)
+
 	// 6) Вернуть токен
 	return tok
 }
@@ -97,4 +106,24 @@ func (lx *Lexer) Push(tok token.Token) {
 
 func (lx *Lexer) EmptySpan() source.Span {
 	return source.Span{File: lx.file.ID, Start: lx.cursor.Off, End: lx.cursor.Off}
+}
+
+func (lx *Lexer) enforceTokenLength(tok *token.Token) {
+	if tok == nil {
+		return
+	}
+	length := tok.Span.End - tok.Span.Start
+	if length <= maxTokenLength {
+		return
+	}
+	msg := fmt.Sprintf("token length %d exceeds limit %d", length, maxTokenLength)
+	lx.errLex(diag.LexTokenTooLong, tok.Span, msg)
+	tok.Kind = token.Invalid
+	if tok.Text == "" && tok.Span.End > tok.Span.Start && int(tok.Span.End) <= len(lx.file.Content) {
+		tok.Text = string(lx.file.Content[tok.Span.Start:tok.Span.End])
+	}
+	// Fast-forward to EOF to avoid cascading work on a pathological token.
+	if off, err := safecast.Conv[uint32](len(lx.file.Content)); err == nil {
+		lx.cursor.Off = off
+	}
 }

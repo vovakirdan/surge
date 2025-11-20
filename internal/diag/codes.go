@@ -15,6 +15,7 @@ const (
 	LexUnterminatedString       Code = 1002
 	LexUnterminatedBlockComment Code = 1003
 	LexBadNumber                Code = 1004
+	LexTokenTooLong             Code = 1005
 
 	// Парсерные (зарезервируем)
 	SynInfo                    Code = 2000
@@ -117,6 +118,7 @@ var ( // todo расширить описания и использовать к
 		LexUnterminatedString:       "Unterminated string",
 		LexUnterminatedBlockComment: "Unterminated block comment",
 		LexBadNumber:                "Bad number",
+		LexTokenTooLong:             "Token too long",
 		SynInfo:                     "Syntax information",
 		SynUnexpectedToken:          "Unexpected token",
 		SynUnclosedDelimiter:        "Unclosed delimiter",
