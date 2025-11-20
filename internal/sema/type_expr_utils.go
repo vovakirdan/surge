@@ -223,6 +223,23 @@ func (tc *typeChecker) sameType(a, b types.TypeID) bool {
 	return a == b
 }
 
+func (tc *typeChecker) isAddressLike(id types.TypeID) bool {
+	if id == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	resolved := tc.resolveAlias(id)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return false
+	}
+	switch tt.Kind {
+	case types.KindPointer, types.KindReference, types.KindOwn:
+		return true
+	default:
+		return false
+	}
+}
+
 func (tc *typeChecker) substituteTypeParams(id types.TypeID, mapping map[types.TypeID]types.TypeID) types.TypeID {
 	if id == types.NoTypeID || tc.types == nil || len(mapping) == 0 {
 		return id

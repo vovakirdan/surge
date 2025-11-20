@@ -37,6 +37,16 @@ extern<int> {
     @intrinsic fn __to(self: int, target: string) -> string;
     @intrinsic @overload fn __to(self: int, target: float) -> float;
     @intrinsic @overload fn __to(self: int, target: uint) -> uint;
+    @intrinsic @overload fn __to(self: int, target: int8) -> int8;
+    @intrinsic @overload fn __to(self: int, target: int16) -> int16;
+    @intrinsic @overload fn __to(self: int, target: int32) -> int32;
+    @intrinsic @overload fn __to(self: int, target: int64) -> int64;
+    @intrinsic @overload fn __to(self: int, target: uint8) -> uint8;
+    @intrinsic @overload fn __to(self: int, target: uint16) -> uint16;
+    @intrinsic @overload fn __to(self: int, target: uint32) -> uint32;
+    @intrinsic @overload fn __to(self: int, target: uint64) -> uint64;
+    @intrinsic @overload fn __to(self: int, target: float32) -> float32;
+    @intrinsic @overload fn __to(self: int, target: float64) -> float64;
 }
 
 extern<uint> {
@@ -61,6 +71,16 @@ extern<uint> {
     @intrinsic fn __to(self: uint, target: string) -> string;
     @intrinsic @overload fn __to(self: uint, target: int) -> int;
     @intrinsic @overload fn __to(self: uint, target: float) -> float;
+    @intrinsic @overload fn __to(self: uint, target: int8) -> int8;
+    @intrinsic @overload fn __to(self: uint, target: int16) -> int16;
+    @intrinsic @overload fn __to(self: uint, target: int32) -> int32;
+    @intrinsic @overload fn __to(self: uint, target: int64) -> int64;
+    @intrinsic @overload fn __to(self: uint, target: uint8) -> uint8;
+    @intrinsic @overload fn __to(self: uint, target: uint16) -> uint16;
+    @intrinsic @overload fn __to(self: uint, target: uint32) -> uint32;
+    @intrinsic @overload fn __to(self: uint, target: uint64) -> uint64;
+    @intrinsic @overload fn __to(self: uint, target: float32) -> float32;
+    @intrinsic @overload fn __to(self: uint, target: float64) -> float64;
 }
 
 extern<float> {
@@ -81,6 +101,16 @@ extern<float> {
     @intrinsic fn __to(self: float, target: string) -> string;
     @intrinsic @overload fn __to(self: float, target: int) -> int;
     @intrinsic @overload fn __to(self: float, target: uint) -> uint;
+    @intrinsic @overload fn __to(self: float, target: int8) -> int8;
+    @intrinsic @overload fn __to(self: float, target: int16) -> int16;
+    @intrinsic @overload fn __to(self: float, target: int32) -> int32;
+    @intrinsic @overload fn __to(self: float, target: int64) -> int64;
+    @intrinsic @overload fn __to(self: float, target: uint8) -> uint8;
+    @intrinsic @overload fn __to(self: float, target: uint16) -> uint16;
+    @intrinsic @overload fn __to(self: float, target: uint32) -> uint32;
+    @intrinsic @overload fn __to(self: float, target: uint64) -> uint64;
+    @intrinsic @overload fn __to(self: float, target: float32) -> float32;
+    @intrinsic @overload fn __to(self: float, target: float64) -> float64;
 }
 
 extern<string> {

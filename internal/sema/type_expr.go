@@ -126,7 +126,13 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			if targetType == types.NoTypeID {
 				break
 			}
-			if magic := tc.magicResultForCast(sourceType, targetType); magic != types.NoTypeID {
+			if tc.isAddressLike(sourceType) || tc.isAddressLike(targetType) {
+				tc.report(diag.SemaTypeMismatch, expr.Span, "cannot cast %s to %s", tc.typeLabel(sourceType), tc.typeLabel(targetType))
+				break
+			}
+			if numeric := tc.numericCastResult(sourceType, targetType); numeric != types.NoTypeID {
+				ty = numeric
+			} else if magic := tc.magicResultForCast(sourceType, targetType); magic != types.NoTypeID {
 				ty = magic
 			} else if cast.Type.IsValid() && tc.literalCoercible(targetType, sourceType) && tc.isLiteralExpr(cast.Value) {
 				ty = targetType

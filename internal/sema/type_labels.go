@@ -110,11 +110,42 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 	case types.KindBool:
 		return symbols.TypeKey("bool")
 	case types.KindInt:
-		return symbols.TypeKey("int")
+		switch tt.Width {
+		case types.Width8:
+			return symbols.TypeKey("int8")
+		case types.Width16:
+			return symbols.TypeKey("int16")
+		case types.Width32:
+			return symbols.TypeKey("int32")
+		case types.Width64:
+			return symbols.TypeKey("int64")
+		default:
+			return symbols.TypeKey("int")
+		}
 	case types.KindUint:
-		return symbols.TypeKey("uint")
+		switch tt.Width {
+		case types.Width8:
+			return symbols.TypeKey("uint8")
+		case types.Width16:
+			return symbols.TypeKey("uint16")
+		case types.Width32:
+			return symbols.TypeKey("uint32")
+		case types.Width64:
+			return symbols.TypeKey("uint64")
+		default:
+			return symbols.TypeKey("uint")
+		}
 	case types.KindFloat:
-		return symbols.TypeKey("float")
+		switch tt.Width {
+		case types.Width16:
+			return symbols.TypeKey("float16")
+		case types.Width32:
+			return symbols.TypeKey("float32")
+		case types.Width64:
+			return symbols.TypeKey("float64")
+		default:
+			return symbols.TypeKey("float")
+		}
 	case types.KindString:
 		return symbols.TypeKey("string")
 	case types.KindArray:

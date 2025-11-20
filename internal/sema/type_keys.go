@@ -14,17 +14,37 @@ type typeKeyCandidate struct {
 func (tc *typeChecker) typeKeyCandidates(id types.TypeID) []typeKeyCandidate {
 	key := tc.typeKeyForType(id)
 	candidates := []typeKeyCandidate{{key: key, base: id}}
+	candidates = tc.appendFamilyFallback(candidates, id, key, types.NoTypeID)
 	if aliasBase := tc.aliasBaseType(id); aliasBase != types.NoTypeID {
 		baseKey := tc.typeKeyForType(aliasBase)
 		if baseKey != "" {
-			candidates = append(candidates, typeKeyCandidate{
+			cand := typeKeyCandidate{
 				key:   baseKey,
 				alias: id,
 				base:  aliasBase,
-			})
+			}
+			candidates = append(candidates, cand)
+			candidates = tc.appendFamilyFallback(candidates, aliasBase, baseKey, id)
 		}
 	}
 	return candidates
+}
+
+func (tc *typeChecker) appendFamilyFallback(c []typeKeyCandidate, base types.TypeID, key symbols.TypeKey, alias types.TypeID) []typeKeyCandidate {
+	fallback := tc.familyKeyForType(base)
+	if fallback == "" || fallback == key {
+		return c
+	}
+	for _, cand := range c {
+		if cand.key == fallback && cand.alias == alias && cand.base == base {
+			return c
+		}
+	}
+	return append(c, typeKeyCandidate{
+		key:   fallback,
+		alias: alias,
+		base:  base,
+	})
 }
 
 func (tc *typeChecker) aliasBaseType(id types.TypeID) types.TypeID {
@@ -74,6 +94,27 @@ func (tc *typeChecker) adjustAliasUnaryResult(res types.TypeID, cand typeKeyCand
 		return cand.alias
 	}
 	return res
+}
+
+func (tc *typeChecker) familyKeyForType(id types.TypeID) symbols.TypeKey {
+	if id == types.NoTypeID || tc.types == nil {
+		return ""
+	}
+	resolved := tc.resolveAlias(id)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return ""
+	}
+	switch tt.Kind {
+	case types.KindInt:
+		return symbols.TypeKey("int")
+	case types.KindUint:
+		return symbols.TypeKey("uint")
+	case types.KindFloat:
+		return symbols.TypeKey("float")
+	default:
+		return ""
+	}
 }
 
 func (tc *typeChecker) adjustAliasBinaryResult(res types.TypeID, left, right typeKeyCandidate) types.TypeID {

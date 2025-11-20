@@ -501,7 +501,12 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 		return true
 	}
 	if allowAlias {
-		return tc.resolveAlias(expected) == tc.resolveAlias(actual)
+		if tc.resolveAlias(expected) == tc.resolveAlias(actual) {
+			return true
+		}
+	}
+	if tc.numericWidenable(actual, expected) {
+		return true
 	}
 	return false
 }
