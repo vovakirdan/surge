@@ -65,34 +65,40 @@ const (
 	SynUnexpectedModifier Code = 2205
 
 	// Семантические (резервируем)
-	SemaInfo                  Code = 3000
-	SemaError                 Code = 3001
-	SemaDuplicateSymbol       Code = 3002
-	SemaScopeMismatch         Code = 3003
-	SemaShadowSymbol          Code = 3004
-	SemaUnresolvedSymbol      Code = 3005
-	SemaFnOverride            Code = 3006
-	SemaIntrinsicBadContext   Code = 3007
-	SemaIntrinsicBadName      Code = 3008
-	SemaIntrinsicHasBody      Code = 3009
-	SemaAmbiguousCtorOrFn     Code = 3010
-	SemaFnNameStyle           Code = 3011
-	SemaTagNameStyle          Code = 3012
-	SemaModuleMemberNotFound  Code = 3013
-	SemaModuleMemberNotPublic Code = 3014
-	SemaTypeMismatch          Code = 3015
-	SemaInvalidBinaryOperands Code = 3016
-	SemaInvalidUnaryOperand   Code = 3017
-	SemaBorrowConflict        Code = 3018
-	SemaBorrowMutation        Code = 3019
-	SemaBorrowMove            Code = 3020
-	SemaBorrowThreadEscape    Code = 3021
-	SemaBorrowImmutable       Code = 3022
-	SemaBorrowNonAddressable  Code = 3023
-	SemaBorrowDropInvalid     Code = 3024
-	SemaExpectTypeOperand     Code = 3025
-	SemaConstNotConstant      Code = 3026
-	SemaConstCycle            Code = 3027
+	SemaInfo                    Code = 3000
+	SemaError                   Code = 3001
+	SemaDuplicateSymbol         Code = 3002
+	SemaScopeMismatch           Code = 3003
+	SemaShadowSymbol            Code = 3004
+	SemaUnresolvedSymbol        Code = 3005
+	SemaFnOverride              Code = 3006
+	SemaIntrinsicBadContext     Code = 3007
+	SemaIntrinsicBadName        Code = 3008
+	SemaIntrinsicHasBody        Code = 3009
+	SemaAmbiguousCtorOrFn       Code = 3010
+	SemaFnNameStyle             Code = 3011
+	SemaTagNameStyle            Code = 3012
+	SemaModuleMemberNotFound    Code = 3013
+	SemaModuleMemberNotPublic   Code = 3014
+	SemaTypeMismatch            Code = 3015
+	SemaInvalidBinaryOperands   Code = 3016
+	SemaInvalidUnaryOperand     Code = 3017
+	SemaBorrowConflict          Code = 3018
+	SemaBorrowMutation          Code = 3019
+	SemaBorrowMove              Code = 3020
+	SemaBorrowThreadEscape      Code = 3021
+	SemaBorrowImmutable         Code = 3022
+	SemaBorrowNonAddressable    Code = 3023
+	SemaBorrowDropInvalid       Code = 3024
+	SemaExpectTypeOperand       Code = 3025
+	SemaConstNotConstant        Code = 3026
+	SemaConstCycle              Code = 3027
+	SemaContractDuplicateField  Code = 3028
+	SemaContractDuplicateMethod Code = 3029
+	SemaContractMethodBody      Code = 3030
+	SemaContractSelfType        Code = 3031
+	SemaContractUnusedTypeParam Code = 3032
+	SemaContractUnknownAttr     Code = 3033
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -190,6 +196,12 @@ var ( // todo расширить описания и использовать к
 		SemaExpectTypeOperand:       "Expected type operand",
 		SemaConstNotConstant:        "Const initializer is not constant",
 		SemaConstCycle:              "Const cycle detected",
+		SemaContractDuplicateField:  "Duplicate field in contract",
+		SemaContractDuplicateMethod: "Duplicate method in contract",
+		SemaContractMethodBody:      "Contract method must not have a body",
+		SemaContractSelfType:        "Contract method self parameter mismatch",
+		SemaContractUnusedTypeParam: "Unused contract type parameter",
+		SemaContractUnknownAttr:     "Unknown contract attribute",
 		IOLoadFileError:             "I/O load file error",
 		ProjInfo:                    "Project information",
 		ProjDuplicateModule:         "Duplicate module definition",

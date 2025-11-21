@@ -284,6 +284,7 @@ func (p *Parser) parseContractFn(attrs []ast.Attr, attrSpan source.Span, mods fn
 		fnData.returnSpan,
 		fnData.semicolonSpan,
 		fnData.returnType,
+		fnData.body,
 		fnData.flags,
 		attrs,
 		fnData.span,

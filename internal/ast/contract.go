@@ -61,6 +61,7 @@ type ContractFnReq struct {
 	GenericsSpan          source.Span
 	TypeParamsStart       TypeParamID
 	TypeParamsCount       uint32
+	Body                  StmtID
 	ParamsStart           FnParamID
 	ParamsCount           uint32
 	ParamCommas           []source.Span
@@ -165,6 +166,7 @@ func (i *Items) newContractFnPayload(
 	returnSpan source.Span,
 	semicolonSpan source.Span,
 	returnType TypeID,
+	body StmtID,
 	flags FnModifier,
 	attrStart AttrID,
 	attrCount uint32,
@@ -180,6 +182,7 @@ func (i *Items) newContractFnPayload(
 		GenericsSpan:          genericsSpan,
 		TypeParamsStart:       typeParamsStart,
 		TypeParamsCount:       typeParamsCount,
+		Body:                  body,
 		ParamsStart:           paramsStart,
 		ParamsCount:           paramsCount,
 		ParamCommas:           append([]source.Span(nil), paramCommas...),
@@ -213,6 +216,7 @@ func (i *Items) NewContractFn(
 	returnSpan source.Span,
 	semicolonSpan source.Span,
 	returnType TypeID,
+	body StmtID,
 	flags FnModifier,
 	attrs []Attr,
 	span source.Span,
@@ -236,6 +240,7 @@ func (i *Items) NewContractFn(
 		returnSpan,
 		semicolonSpan,
 		returnType,
+		body,
 		flags,
 		attrStart,
 		attrCount,

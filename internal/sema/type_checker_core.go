@@ -144,6 +144,10 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			tc.leaveScope()
 		}
 		tc.popReturnContext()
+	case ast.ItemContract:
+		if contract, ok := tc.builder.Items.Contract(id); ok && contract != nil {
+			tc.checkContract(id, contract)
+		}
 	default:
 		// Other item kinds are currently ignored.
 	}

@@ -157,11 +157,12 @@ func (b *Builder) NewContractFn(
 	returnSpan source.Span,
 	semicolonSpan source.Span,
 	returnType TypeID,
+	body StmtID,
 	flags FnModifier,
 	attrs []Attr,
 	span source.Span,
 ) PayloadID {
-	return b.Items.NewContractFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, flags, attrs, span)
+	return b.Items.NewContractFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
 func (b *Builder) NewContract(
