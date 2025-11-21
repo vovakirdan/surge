@@ -43,8 +43,8 @@ fn bar(e: Error0) -> nothing {
 
 fn main() {
     let e0: Error0 = { msg: "error" };
-    let e1: Error1 = { msg: "error", code: 1, no_such_field: "err" };
-    let e2: Error2 = { msg: "error", code: 1, name: "error" };
+    let e1: Error1 = { msg: "error", code: 1 to uint };
+    let e2: Error2 = { msg: "error", code: 1 to uint, name: "error" };
     // print_err(e0);
     print_err(e1);
     print_err(e2);

@@ -49,9 +49,17 @@ func (tc *typeChecker) processExternBlock(itemID ast.ItemID, block *ast.ExternBl
 
 	scope := tc.scopeForItem(itemID)
 	targetType := tc.resolveTypeExprWithScope(block.Target, scope)
-	key := tc.typeKeyForType(targetType)
+	normalized := tc.valueType(targetType)
+	key := tc.typeKeyForType(normalized)
 	if key == "" {
 		return
+	}
+
+	structFieldSpans := make(map[source.StringID]source.Span)
+	if info, ok := tc.types.StructInfo(normalized); ok && info != nil {
+		for _, f := range info.Fields {
+			structFieldSpans[f.Name] = info.Decl
+		}
 	}
 
 	set := tc.externFields[key]
@@ -78,6 +86,11 @@ func (tc *typeChecker) processExternBlock(itemID ast.ItemID, block *ast.ExternBl
 		}
 
 		name := field.Name
+		if prev, exists := structFieldSpans[name]; exists {
+			tc.report(diag.SemaExternDuplicateField, field.NameSpan, "duplicate extern field '%s'", tc.lookupName(name))
+			tc.report(diag.SemaExternDuplicateField, prev, "previous declaration of '%s' is here", tc.lookupName(name))
+			continue
+		}
 		if prev, exists := seen[name]; exists {
 			tc.report(diag.SemaExternDuplicateField, field.NameSpan, "duplicate extern field '%s'", tc.lookupName(name))
 			tc.report(diag.SemaExternDuplicateField, prev, "previous declaration of '%s' is here", tc.lookupName(name))

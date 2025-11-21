@@ -66,7 +66,7 @@ func (tc *typeChecker) memberResultType(base types.TypeID, field source.StringID
 		tc.report(diag.SemaUnresolvedSymbol, span, "%s has no field %s", tc.typeLabel(base), tc.lookupName(field))
 		return types.NoTypeID
 	}
-	tc.report(diag.SemaTypeMismatch, span, "%s has no fields", tc.typeLabel(base))
+	tc.report(diag.SemaUnresolvedSymbol, span, "%s has no field %s", tc.typeLabel(base), tc.lookupName(field))
 	return types.NoTypeID
 }
 
@@ -84,7 +84,12 @@ func (tc *typeChecker) validateStructLiteralFields(structType types.TypeID, data
 	for _, f := range info.Fields {
 		fieldMap[f.Name] = f
 	}
-	seen := make(map[source.StringID]struct{}, len(info.Fields))
+	for _, f := range tc.externFieldsForType(normalized) {
+		if _, exists := fieldMap[f.Name]; !exists {
+			fieldMap[f.Name] = f
+		}
+	}
+	seen := make(map[source.StringID]struct{}, len(fieldMap))
 	for _, field := range data.Fields {
 		spec, ok := fieldMap[field.Name]
 		if !ok {
@@ -98,8 +103,11 @@ func (tc *typeChecker) validateStructLiteralFields(structType types.TypeID, data
 			seen[field.Name] = struct{}{}
 		}
 	}
-	if len(seen) != len(info.Fields) {
-		tc.report(diag.SemaTypeMismatch, span, "%s literal is missing %d field(s)", tc.typeLabel(normalized), len(info.Fields)-len(seen))
+	for name := range fieldMap {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		tc.report(diag.SemaTypeMismatch, span, "%s is missing required field %s", tc.typeLabel(normalized), tc.lookupName(name))
 	}
 }
 

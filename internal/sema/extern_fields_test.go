@@ -50,7 +50,7 @@ fn takes<T: HasCount>(value: T) -> int {
 }
 
 fn demo() {
-    let foo: Foo = {};
+    let foo: Foo = { count: 0 };
     let _ = takes(foo);
 }
 `

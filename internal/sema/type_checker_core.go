@@ -277,7 +277,13 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 }
 
 func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, actual types.TypeID, valueExpr ast.ExprID) {
-	if declared == types.NoTypeID || actual == types.NoTypeID {
+	if declared == types.NoTypeID {
+		return
+	}
+	if data, ok := tc.builder.Exprs.Struct(valueExpr); ok && data != nil && !data.Type.IsValid() {
+		tc.validateStructLiteralFields(declared, data, tc.exprSpan(valueExpr))
+	}
+	if actual == types.NoTypeID {
 		return
 	}
 	actual = tc.coerceLiteralForBinding(declared, actual, valueExpr)
