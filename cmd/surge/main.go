@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -16,10 +19,17 @@ var rootCmd = &cobra.Command{
 	Long:  `Surge is a programming language compiler with diagnostic tools`,
 }
 
+var (
+	timeoutCancel   context.CancelFunc
+	timeoutDuration time.Duration
+)
+
 // main configures the root CLI command (sets the version, registers subcommands, and defines persistent flags) and then executes it, exiting with status 1 if execution fails.
 func main() {
 	// Устанавливаем версию для автоматического флага --version
 	rootCmd.Version = version.Version
+	rootCmd.PersistentPreRunE = applyTimeout
+	rootCmd.PersistentPostRun = cleanupTimeout
 
 	// Добавляем команды
 	rootCmd.AddCommand(tokenizeCmd)
@@ -39,6 +49,7 @@ func main() {
 	rootCmd.PersistentFlags().String("cpu-profile", "", "write CPU profile to file")
 	rootCmd.PersistentFlags().String("mem-profile", "", "write heap profile to file")
 	rootCmd.PersistentFlags().String("trace", "", "write runtime trace to file")
+	rootCmd.PersistentFlags().Int("timeout", 30, "command timeout in seconds")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -48,4 +59,38 @@ func main() {
 // isTerminal проверяет, является ли файл терминалом
 func isTerminal(f *os.File) bool {
 	return term.IsTerminal(int(f.Fd()))
+}
+
+func applyTimeout(cmd *cobra.Command, _ []string) error {
+	secs, err := cmd.Root().PersistentFlags().GetInt("timeout")
+	if err != nil {
+		return fmt.Errorf("failed to read timeout flag: %w", err)
+	}
+	if secs <= 0 {
+		return fmt.Errorf("timeout must be greater than zero")
+	}
+
+	timeoutDuration = time.Duration(secs) * time.Second
+	ctx, cancel := context.WithTimeout(cmd.Context(), timeoutDuration)
+	timeoutCancel = cancel
+
+	cmd.SetContext(ctx)
+	cmd.Root().SetContext(ctx)
+
+	go func() {
+		<-ctx.Done()
+		if ctx.Err() == context.DeadlineExceeded {
+			fmt.Fprintf(os.Stderr, "surge: command timed out after %s\n", timeoutDuration)
+			os.Exit(1)
+		}
+	}()
+
+	return nil
+}
+
+func cleanupTimeout(*cobra.Command, []string) {
+	if timeoutCancel != nil {
+		timeoutCancel()
+		timeoutCancel = nil
+	}
 }

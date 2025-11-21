@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
@@ -32,8 +33,12 @@ type FormatResult struct {
 // FormatPaths formats provided files or directories (recursively collecting .sg files).
 // When opts.Check is true, files are not modified; Changed indicates whether formatting
 // would update the file contents.
-func FormatPaths(paths []string, opts FormatOptions) ([]FormatResult, error) {
-	files, err := collectSourceFiles(paths)
+func FormatPaths(ctx context.Context, paths []string, opts FormatOptions) ([]FormatResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	files, err := collectSourceFiles(ctx, paths)
 	if err != nil {
 		return nil, err
 	}
@@ -43,6 +48,10 @@ func FormatPaths(paths []string, opts FormatOptions) ([]FormatResult, error) {
 
 	results := make([]FormatResult, 0, len(files))
 	for _, path := range files {
+		if err := ctx.Err(); err != nil {
+			return results, err
+		}
+
 		result := FormatResult{Path: path}
 		formatted, changed, err := formatSingleFile(path, opts)
 		if err != nil {
@@ -110,7 +119,7 @@ func formatSingleFile(path string, opts FormatOptions) (formatted []byte, change
 	return formatted, changed, nil
 }
 
-func collectSourceFiles(paths []string) ([]string, error) {
+func collectSourceFiles(ctx context.Context, paths []string) ([]string, error) {
 	var files []string
 	seen := make(map[string]struct{})
 	addFile := func(path string) {
@@ -122,6 +131,10 @@ func collectSourceFiles(paths []string) ([]string, error) {
 	}
 
 	for _, p := range paths {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		info, err := os.Stat(p)
 		if err != nil {
 			return nil, err
@@ -129,6 +142,9 @@ func collectSourceFiles(paths []string) ([]string, error) {
 		if info.IsDir() {
 			err = filepath.WalkDir(p, func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
+					return err
+				}
+				if err := ctx.Err(); err != nil {
 					return err
 				}
 				if d.IsDir() {

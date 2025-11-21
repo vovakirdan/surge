@@ -46,7 +46,7 @@ func runFmt(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	formatResults, err := driver.FormatPaths(args, driver.FormatOptions{
+	formatResults, err := driver.FormatPaths(cmd.Context(), args, driver.FormatOptions{
 		Check:          check,
 		MaxDiagnostics: maxDiagnostics,
 	})
