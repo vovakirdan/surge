@@ -16,6 +16,8 @@ type TypeItem struct {
 	GenericCommas         []source.Span
 	GenericsTrailingComma bool
 	GenericsSpan          source.Span
+	TypeParamsStart       TypeParamID
+	TypeParamsCount       uint32
 	TypeKeywordSpan       source.Span
 	AssignSpan            source.Span
 	SemicolonSpan         source.Span

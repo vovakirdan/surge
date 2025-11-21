@@ -23,6 +23,8 @@ type ContractDecl struct {
 	GenericsTrailingComma bool
 	GenericsSpan          source.Span
 	ContractKeywordSpan   source.Span
+	TypeParamsStart       TypeParamID
+	TypeParamsCount       uint32
 	BodySpan              source.Span
 	ItemsStart            ContractItemID
 	ItemsCount            uint32
@@ -57,6 +59,8 @@ type ContractFnReq struct {
 	GenericCommas         []source.Span
 	GenericsTrailingComma bool
 	GenericsSpan          source.Span
+	TypeParamsStart       TypeParamID
+	TypeParamsCount       uint32
 	ParamsStart           FnParamID
 	ParamsCount           uint32
 	ParamCommas           []source.Span
@@ -151,6 +155,7 @@ func (i *Items) newContractFnPayload(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	paramsStart FnParamID,
 	paramsCount uint32,
 	paramCommas []source.Span,
@@ -165,6 +170,7 @@ func (i *Items) newContractFnPayload(
 	attrCount uint32,
 	span source.Span,
 ) PayloadID {
+	typeParamsStart, typeParamsCount := i.allocateTypeParams(typeParams)
 	payload := i.ContractFns.Allocate(ContractFnReq{
 		Name:                  name,
 		NameSpan:              nameSpan,
@@ -172,6 +178,8 @@ func (i *Items) newContractFnPayload(
 		GenericCommas:         append([]source.Span(nil), genericCommas...),
 		GenericsTrailingComma: genericsTrailing,
 		GenericsSpan:          genericsSpan,
+		TypeParamsStart:       typeParamsStart,
+		TypeParamsCount:       typeParamsCount,
 		ParamsStart:           paramsStart,
 		ParamsCount:           paramsCount,
 		ParamCommas:           append([]source.Span(nil), paramCommas...),
@@ -196,6 +204,7 @@ func (i *Items) NewContractFn(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	params []FnParam,
 	paramCommas []source.Span,
 	paramsTrailing bool,
@@ -217,6 +226,7 @@ func (i *Items) NewContractFn(
 		genericCommas,
 		genericsTrailing,
 		genericsSpan,
+		typeParams,
 		paramsStart,
 		paramsCount,
 		paramCommas,
@@ -240,6 +250,7 @@ func (i *Items) NewContract(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	contractKwSpan source.Span,
 	bodySpan source.Span,
 	attrs []Attr,
@@ -248,6 +259,7 @@ func (i *Items) NewContract(
 	span source.Span,
 ) ItemID {
 	attrStart, attrCount := i.allocateAttrs(attrs)
+	typeParamsStart, typeParamsCount := i.allocateTypeParams(typeParams)
 
 	var itemsStart ContractItemID
 	itemCount, err := safecast.Conv[uint32](len(items))
@@ -272,6 +284,8 @@ func (i *Items) NewContract(
 		GenericsTrailingComma: genericsTrailing,
 		GenericsSpan:          genericsSpan,
 		ContractKeywordSpan:   contractKwSpan,
+		TypeParamsStart:       typeParamsStart,
+		TypeParamsCount:       typeParamsCount,
 		BodySpan:              bodySpan,
 		ItemsStart:            itemsStart,
 		ItemsCount:            itemCount,

@@ -9,6 +9,8 @@ type TagItem struct {
 	GenericCommas         []source.Span
 	GenericsTrailingComma bool
 	GenericsSpan          source.Span
+	TypeParamsStart       TypeParamID
+	TypeParamsCount       uint32
 	TagKeywordSpan        source.Span
 	ParamsSpan            source.Span
 	SemicolonSpan         source.Span
@@ -36,6 +38,7 @@ func (i *Items) NewTag(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	tagKwSpan source.Span,
 	paramsSpan source.Span,
 	semicolonSpan source.Span,
@@ -47,6 +50,7 @@ func (i *Items) NewTag(
 	span source.Span,
 ) ItemID {
 	attrStart, attrCount := i.allocateAttrs(attrs)
+	typeParamsStart, typeParamsCount := i.allocateTypeParams(typeParams)
 	tagPayload := TagItem{
 		Name:                  name,
 		NameSpan:              nameSpan,
@@ -54,6 +58,8 @@ func (i *Items) NewTag(
 		GenericCommas:         append([]source.Span(nil), genericCommas...),
 		GenericsTrailingComma: genericsTrailing,
 		GenericsSpan:          genericsSpan,
+		TypeParamsStart:       typeParamsStart,
+		TypeParamsCount:       typeParamsCount,
 		TagKeywordSpan:        tagKwSpan,
 		ParamsSpan:            paramsSpan,
 		SemicolonSpan:         semicolonSpan,

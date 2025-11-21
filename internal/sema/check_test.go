@@ -93,7 +93,7 @@ func TestTypeCheckerStructFieldAccess(t *testing.T) {
 		{Name: ageField, Type: intType},
 		{Name: nameField, Type: stringType},
 	}
-	typeItemID := builder.NewTypeStruct(personName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, ast.NoTypeID, fields, nil, false, source.Span{}, source.Span{})
+	typeItemID := builder.NewTypeStruct(personName, nil, nil, false, source.Span{}, nil, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, ast.NoTypeID, fields, nil, false, source.Span{}, source.Span{})
 	builder.PushItem(file, typeItemID)
 
 	intLiteral := builder.StringsInterner.Intern("25")
@@ -185,7 +185,7 @@ func TestAliasBinaryRequiresMatchingTypes(t *testing.T) {
 	stringName := intern(builder, "string")
 
 	stringType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: stringName}})
-	aliasItem := builder.NewTypeAlias(gasName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, stringType, source.Span{})
+	aliasItem := builder.NewTypeAlias(gasName, nil, nil, false, source.Span{}, nil, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, stringType, source.Span{})
 	builder.PushItem(fileID, aliasItem)
 
 	gasType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: gasName}})
@@ -226,7 +226,7 @@ func TestAliasBinaryWithForeignType(t *testing.T) {
 	stringName := intern(builder, "string")
 
 	stringType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: stringName}})
-	aliasItem := builder.NewTypeAlias(gasName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, stringType, source.Span{})
+	aliasItem := builder.NewTypeAlias(gasName, nil, nil, false, source.Span{}, nil, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, stringType, source.Span{})
 	builder.PushItem(fileID, aliasItem)
 	gasType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: gasName}})
 
@@ -293,7 +293,7 @@ func TestCastPreservesAliasTarget(t *testing.T) {
 	stringName := intern(builder, "string")
 
 	stringType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: stringName}})
-	aliasItem := builder.NewTypeAlias(gasName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, stringType, source.Span{})
+	aliasItem := builder.NewTypeAlias(gasName, nil, nil, false, source.Span{}, nil, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, stringType, source.Span{})
 	builder.PushItem(fileID, aliasItem)
 
 	value := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1"))

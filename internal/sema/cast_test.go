@@ -18,7 +18,7 @@ func TestCastAcceptsValidToSignature(t *testing.T) {
 	intType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intName}})
 	myIntType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: myIntName}})
 
-	aliasID := builder.NewTypeAlias(myIntName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, intType, source.Span{})
+	aliasID := builder.NewTypeAlias(myIntName, nil, nil, false, source.Span{}, nil, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, intType, source.Span{})
 	builder.PushItem(fileID, aliasID)
 
 	addExternTo(builder, fileID, myIntType, intType, intType, toName, nil)
@@ -48,7 +48,7 @@ func TestCastRejectsInvalidToSignature(t *testing.T) {
 	intType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intName}})
 	myIntType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: myIntName}})
 
-	aliasID := builder.NewTypeAlias(myIntName, nil, nil, false, source.Span{}, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, intType, source.Span{})
+	aliasID := builder.NewTypeAlias(myIntName, nil, nil, false, source.Span{}, nil, source.Span{}, source.Span{}, source.Span{}, nil, ast.VisPrivate, intType, source.Span{})
 	builder.PushItem(fileID, aliasID)
 
 	uintName := intern(builder, "uint")
@@ -89,6 +89,7 @@ func addExternTo(builder *ast.Builder, fileID ast.FileID, receiverType, targetTy
 		nil,
 		false,
 		source.Span{},
+		nil,
 		params,
 		nil,
 		false,

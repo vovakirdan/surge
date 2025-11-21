@@ -87,6 +87,7 @@ func (b *Builder) NewFn(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	params []FnParam,
 	paramCommas []source.Span,
 	paramsTrailing bool,
@@ -100,7 +101,7 @@ func (b *Builder) NewFn(
 	attrs []Attr,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
+	return b.Items.NewFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
 func (b *Builder) NewExternFn(
@@ -110,6 +111,7 @@ func (b *Builder) NewExternFn(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	params []FnParam,
 	paramCommas []source.Span,
 	paramsTrailing bool,
@@ -123,7 +125,7 @@ func (b *Builder) NewExternFn(
 	attrs []Attr,
 	span source.Span,
 ) PayloadID {
-	return b.Items.NewExternFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
+	return b.Items.NewExternFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
 func (b *Builder) NewContractField(
@@ -146,6 +148,7 @@ func (b *Builder) NewContractFn(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	params []FnParam,
 	paramCommas []source.Span,
 	paramsTrailing bool,
@@ -158,7 +161,7 @@ func (b *Builder) NewContractFn(
 	attrs []Attr,
 	span source.Span,
 ) PayloadID {
-	return b.Items.NewContractFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, flags, attrs, span)
+	return b.Items.NewContractFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, flags, attrs, span)
 }
 
 func (b *Builder) NewContract(
@@ -168,6 +171,7 @@ func (b *Builder) NewContract(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	contractKwSpan source.Span,
 	bodySpan source.Span,
 	attrs []Attr,
@@ -175,7 +179,7 @@ func (b *Builder) NewContract(
 	visibility Visibility,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewContract(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, contractKwSpan, bodySpan, attrs, items, visibility, span)
+	return b.Items.NewContract(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, contractKwSpan, bodySpan, attrs, items, visibility, span)
 }
 
 func (b *Builder) NewTypeAlias(
@@ -184,6 +188,7 @@ func (b *Builder) NewTypeAlias(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	typeKwSpan source.Span,
 	assignSpan source.Span,
 	semicolonSpan source.Span,
@@ -192,7 +197,7 @@ func (b *Builder) NewTypeAlias(
 	target TypeID,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTypeAlias(name, generics, genericCommas, genericsTrailing, genericsSpan, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, target, span)
+	return b.Items.NewTypeAlias(name, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, target, span)
 }
 
 func (b *Builder) NewTypeStruct(
@@ -201,6 +206,7 @@ func (b *Builder) NewTypeStruct(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	typeKwSpan source.Span,
 	assignSpan source.Span,
 	semicolonSpan source.Span,
@@ -213,7 +219,7 @@ func (b *Builder) NewTypeStruct(
 	bodySpan source.Span,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTypeStruct(name, generics, genericCommas, genericsTrailing, genericsSpan, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, base, fields, fieldCommas, hasTrailing, bodySpan, span)
+	return b.Items.NewTypeStruct(name, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, base, fields, fieldCommas, hasTrailing, bodySpan, span)
 }
 
 func (b *Builder) NewTypeUnion(
@@ -222,6 +228,7 @@ func (b *Builder) NewTypeUnion(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	typeKwSpan source.Span,
 	assignSpan source.Span,
 	semicolonSpan source.Span,
@@ -231,7 +238,7 @@ func (b *Builder) NewTypeUnion(
 	bodySpan source.Span,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTypeUnion(name, generics, genericCommas, genericsTrailing, genericsSpan, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, members, bodySpan, span)
+	return b.Items.NewTypeUnion(name, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, members, bodySpan, span)
 }
 
 func (b *Builder) NewExtern(
@@ -250,6 +257,7 @@ func (b *Builder) NewTag(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	tagKwSpan source.Span,
 	paramsSpan source.Span,
 	semicolonSpan source.Span,
@@ -260,5 +268,5 @@ func (b *Builder) NewTag(
 	visibility Visibility,
 	span source.Span,
 ) ItemID {
-	return b.Items.NewTag(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, tagKwSpan, paramsSpan, semicolonSpan, payload, payloadCommas, payloadTrailing, attrs, visibility, span)
+	return b.Items.NewTag(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, tagKwSpan, paramsSpan, semicolonSpan, payload, payloadCommas, payloadTrailing, attrs, visibility, span)
 }

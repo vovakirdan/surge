@@ -20,14 +20,14 @@ func (p *Parser) parseContractItem(attrs []ast.Attr, attrSpan source.Span, visib
 
 	nameID, ok := p.parseIdent()
 	if !ok {
-		p.resyncUntil(token.LParen, token.KwContract, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwType, token.KwTag)
+		p.resyncUntil(token.LBrace, token.KwContract, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwType, token.KwTag)
 		return ast.NoItemID, false
 	}
 	nameSpan := p.lastSpan
 
-	generics, genericCommas, genericsTrailing, genericsSpan, ok := p.parseFnGenerics()
+	typeParams, generics, genericCommas, genericsTrailing, genericsSpan, ok := p.parseFnGenerics()
 	if !ok {
-		p.resyncUntil(token.LParen, token.KwContract, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwType, token.KwTag)
+		p.resyncUntil(token.LBrace, token.KwContract, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwType, token.KwTag)
 		return ast.NoItemID, false
 	}
 
@@ -84,6 +84,7 @@ func (p *Parser) parseContractItem(attrs []ast.Attr, attrSpan source.Span, visib
 		genericCommas,
 		genericsTrailing,
 		genericsSpan,
+		typeParams,
 		contractTok.Span,
 		bodySpan,
 		attrs,
@@ -274,6 +275,7 @@ func (p *Parser) parseContractFn(attrs []ast.Attr, attrSpan source.Span, mods fn
 		fnData.genericCommas,
 		fnData.genericsTrailing,
 		fnData.genericsSpan,
+		fnData.typeParams,
 		fnData.params,
 		fnData.paramCommas,
 		fnData.paramsTrailing,

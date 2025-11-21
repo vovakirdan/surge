@@ -37,6 +37,8 @@ type Items struct {
 	Attrs            *Arena[Attr]
 	Lets             *Arena[LetItem]
 	Consts           *Arena[ConstItem]
+	TypeParams       *Arena[TypeParam]
+	TypeParamBounds  *Arena[TypeParamBound]
 	Contracts        *Arena[ContractDecl]
 	ContractItems    *Arena[ContractItem]
 	ContractFields   *Arena[ContractFieldReq]
@@ -55,7 +57,7 @@ type Items struct {
 // NewItems creates and returns an *Items with per-kind arenas initialized to capHint.
 // If capHint is 0, NewItems uses a default initial capacity of 1<<8.
 // The returned Items contains separate arenas for Item payloads including imports, fn/contract data,
-// attributes, lets/consts, types, externs, and tags.
+// attributes, lets/consts, type parameters, types, externs, and tags.
 func NewItems(capHint uint) *Items {
 	if capHint == 0 {
 		capHint = 1 << 8
@@ -68,6 +70,8 @@ func NewItems(capHint uint) *Items {
 		Attrs:            NewArena[Attr](capHint),
 		Lets:             NewArena[LetItem](capHint),
 		Consts:           NewArena[ConstItem](capHint),
+		TypeParams:       NewArena[TypeParam](capHint),
+		TypeParamBounds:  NewArena[TypeParamBound](capHint),
 		Contracts:        NewArena[ContractDecl](capHint),
 		ContractItems:    NewArena[ContractItem](capHint),
 		ContractFields:   NewArena[ContractFieldReq](capHint),
@@ -181,6 +185,7 @@ func (i *Items) NewTypeAlias(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	typeKwSpan source.Span,
 	assignSpan source.Span,
 	semicolonSpan source.Span,
@@ -190,6 +195,7 @@ func (i *Items) NewTypeAlias(
 	span source.Span,
 ) ItemID {
 	attrStart, attrCount := i.allocateAttrs(attrs)
+	typeParamsStart, typeParamsCount := i.allocateTypeParams(typeParams)
 	payload := i.TypeAliases.Allocate(TypeAliasDecl{Target: target})
 	typeItem := TypeItem{
 		Name:                  name,
@@ -197,6 +203,8 @@ func (i *Items) NewTypeAlias(
 		GenericCommas:         append([]source.Span(nil), genericCommas...),
 		GenericsTrailingComma: genericsTrailing,
 		GenericsSpan:          genericsSpan,
+		TypeParamsStart:       typeParamsStart,
+		TypeParamsCount:       typeParamsCount,
 		TypeKeywordSpan:       typeKwSpan,
 		AssignSpan:            assignSpan,
 		SemicolonSpan:         semicolonSpan,
@@ -217,6 +225,7 @@ func (i *Items) NewTypeStruct(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	typeKwSpan source.Span,
 	assignSpan source.Span,
 	semicolonSpan source.Span,
@@ -230,6 +239,7 @@ func (i *Items) NewTypeStruct(
 	span source.Span,
 ) ItemID {
 	attrStart, attrCount := i.allocateAttrs(attrs)
+	typeParamsStart, typeParamsCount := i.allocateTypeParams(typeParams)
 	var fieldsStart TypeFieldID
 	fieldCount, err := safecast.Conv[uint32](len(fields))
 	if err != nil {
@@ -265,6 +275,8 @@ func (i *Items) NewTypeStruct(
 		GenericCommas:         append([]source.Span(nil), genericCommas...),
 		GenericsTrailingComma: genericsTrailing,
 		GenericsSpan:          genericsSpan,
+		TypeParamsStart:       typeParamsStart,
+		TypeParamsCount:       typeParamsCount,
 		TypeKeywordSpan:       typeKwSpan,
 		AssignSpan:            assignSpan,
 		SemicolonSpan:         semicolonSpan,
@@ -285,6 +297,7 @@ func (i *Items) NewTypeUnion(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	typeKwSpan source.Span,
 	assignSpan source.Span,
 	semicolonSpan source.Span,
@@ -295,6 +308,7 @@ func (i *Items) NewTypeUnion(
 	span source.Span,
 ) ItemID {
 	attrStart, attrCount := i.allocateAttrs(attrs)
+	typeParamsStart, typeParamsCount := i.allocateTypeParams(typeParams)
 	var membersStart TypeUnionMemberID
 	memberCount, err := safecast.Conv[uint32](len(members))
 	if err != nil {
@@ -328,6 +342,8 @@ func (i *Items) NewTypeUnion(
 		GenericCommas:         append([]source.Span(nil), genericCommas...),
 		GenericsTrailingComma: genericsTrailing,
 		GenericsSpan:          genericsSpan,
+		TypeParamsStart:       typeParamsStart,
+		TypeParamsCount:       typeParamsCount,
 		TypeKeywordSpan:       typeKwSpan,
 		AssignSpan:            assignSpan,
 		SemicolonSpan:         semicolonSpan,

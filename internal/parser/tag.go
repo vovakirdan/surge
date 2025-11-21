@@ -31,7 +31,7 @@ func (p *Parser) parseTagItem(
 	}
 	nameSpan := p.lastSpan
 
-	generics, genericCommas, genericsTrailing, genericsSpan, ok := p.parseFnGenerics()
+	typeParams, generics, genericCommas, genericsTrailing, genericsSpan, ok := p.parseFnGenerics()
 	if !ok {
 		p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport)
 		return ast.NoItemID, false
@@ -103,6 +103,6 @@ func (p *Parser) parseTagItem(
 	}
 
 	itemSpan := startSpan.Cover(p.lastSpan)
-	tagID := p.arenas.NewTag(nameID, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, tagTok.Span, paramsSpan, semiTok.Span, payload, payloadCommas, payloadTrailing, attrs, visibility, itemSpan)
+	tagID := p.arenas.NewTag(nameID, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, tagTok.Span, paramsSpan, semiTok.Span, payload, payloadCommas, payloadTrailing, attrs, visibility, itemSpan)
 	return tagID, true
 }

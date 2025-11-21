@@ -32,6 +32,7 @@ type parsedFn struct {
 	genericCommas    []source.Span
 	genericsSpan     source.Span
 	genericsTrailing bool
+	typeParams       []ast.TypeParamSpec
 	params           []ast.FnParam
 	paramCommas      []source.Span
 	paramsTrailing   bool
@@ -181,6 +182,7 @@ func (p *Parser) parseFnItem(attrs []ast.Attr, attrSpan source.Span, mods fnModi
 		fnData.genericCommas,
 		fnData.genericsTrailing,
 		fnData.genericsSpan,
+		fnData.typeParams,
 		fnData.params,
 		fnData.paramCommas,
 		fnData.paramsTrailing,
@@ -214,7 +216,7 @@ func (p *Parser) parseFnDefinition(attrSpan source.Span, mods fnModifiers) (pars
 	flags := mods.flags
 
 	// Допускаем Rust-подобный синтаксис: fn <T, U> name(...)
-	preGenerics, preCommas, preTrailing, preSpan, ok := p.parseFnGenerics()
+	preTypeParams, preGenerics, preCommas, preTrailing, preSpan, ok := p.parseFnGenerics()
 	if !ok {
 		p.resyncUntil(token.Ident, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 		return parsedFn{}, false
@@ -230,6 +232,7 @@ func (p *Parser) parseFnDefinition(attrSpan source.Span, mods fnModifiers) (pars
 	genericCommas := preCommas
 	genericsTrailing := preTrailing
 	genericsSpan := preSpan
+	typeParams := preTypeParams
 
 	if len(generics) > 0 {
 		// Если generics уже были до имени, запрещаем второе объявление.
@@ -243,13 +246,13 @@ func (p *Parser) parseFnDefinition(attrSpan source.Span, mods fnModifiers) (pars
 				nil,
 			)
 			// Пробуем съесть второе объявление, чтобы не застрять.
-			if _, _, _, _, ok = p.parseFnGenerics(); !ok {
+			if _, _, _, _, _, ok = p.parseFnGenerics(); !ok {
 				p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 				return parsedFn{}, false
 			}
 		}
 	} else {
-		generics, genericCommas, genericsTrailing, genericsSpan, ok = p.parseFnGenerics()
+		typeParams, generics, genericCommas, genericsTrailing, genericsSpan, ok = p.parseFnGenerics()
 		if !ok {
 			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 			return parsedFn{}, false
@@ -354,6 +357,7 @@ func (p *Parser) parseFnDefinition(attrSpan source.Span, mods fnModifiers) (pars
 	result.genericCommas = genericCommas
 	result.genericsTrailing = genericsTrailing
 	result.genericsSpan = genericsSpan
+	result.typeParams = typeParams
 	result.params = params
 	result.paramCommas = commas
 	result.paramsTrailing = trailing
@@ -547,27 +551,143 @@ func (p *Parser) parseFnParams() (params []ast.FnParam, commas []source.Span, tr
 	return
 }
 
-func (p *Parser) parseFnGenerics() (generics []source.StringID, commas []source.Span, trailing bool, span source.Span, ok bool) {
+//nolint:gocritic // returning multiple values keeps the parser flow and diagnostics handling explicit.
+func (p *Parser) parseFnGenerics() (params []ast.TypeParamSpec, names []source.StringID, commas []source.Span, trailing bool, span source.Span, ok bool) {
 	if !p.at(token.Lt) {
-		return nil, nil, false, source.Span{}, true
+		return nil, nil, nil, false, source.Span{}, true
 	}
 
 	ltTok := p.advance()
 
-	generics = make([]source.StringID, 0, 2)
+	params = make([]ast.TypeParamSpec, 0, 2)
+	names = make([]source.StringID, 0, 2)
 	commas = make([]source.Span, 0, 2)
 
+	parseBounds := func() ([]ast.TypeParamBoundSpec, []source.Span, source.Span, bool) {
+		bounds := make([]ast.TypeParamBoundSpec, 0, 2)
+		plusSpans := make([]source.Span, 0, 1)
+		var boundsSpan source.Span
+
+		parseOne := func() (ast.TypeParamBoundSpec, bool) {
+			bound := ast.TypeParamBoundSpec{}
+			contractID, ok := p.parseIdent()
+			if !ok {
+				return bound, false
+			}
+			bound.Name = contractID
+			bound.NameSpan = p.lastSpan
+			bound.Span = bound.NameSpan
+
+			if p.at(token.Lt) {
+				argsLtTok := p.advance()
+				typeArgs := make([]ast.TypeID, 0, 2)
+				argCommas := make([]source.Span, 0, 2)
+				var argsSpan source.Span
+				for {
+					typ, ok := p.parseTypePrefix()
+					if !ok {
+						p.resyncUntil(token.Comma, token.Gt, token.Plus, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport, token.KwContract)
+						if p.at(token.Gt) {
+							p.advance()
+						}
+						return bound, false
+					}
+					typeArgs = append(typeArgs, typ)
+					if argsSpan == (source.Span{}) {
+						argsSpan = p.arenas.Types.Get(typ).Span
+					} else {
+						argsSpan = argsSpan.Cover(p.arenas.Types.Get(typ).Span)
+					}
+
+					if p.at(token.Comma) {
+						commaTok := p.advance()
+						argCommas = append(argCommas, commaTok.Span)
+						continue
+					}
+
+					if closeTok, ok := p.consumeTypeArgClose(); ok {
+						argsSpan = argsLtTok.Span.Cover(closeTok.Span)
+						break
+					}
+
+					// If the closing '>' was already consumed by the type parser, accept common follower tokens.
+					switch p.lx.Peek().Kind {
+					case token.Plus, token.Comma, token.RParen, token.Semicolon, token.EOF:
+						argsSpan = argsLtTok.Span.Cover(p.lastSpan)
+					default:
+						p.emitDiagnostic(
+							diag.SynUnclosedAngleBracket,
+							diag.SevError,
+							p.lx.Peek().Span,
+							"expected '>' after contract type arguments",
+							nil,
+						)
+						p.resyncUntil(token.Plus, token.Comma, token.Gt, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport, token.KwContract)
+						return bound, false
+					}
+					break
+				}
+				bound.TypeArgs = typeArgs
+				bound.ArgCommas = argCommas
+				bound.ArgsSpan = argsSpan
+				bound.Span = bound.Span.Cover(argsSpan)
+			}
+
+			return bound, true
+		}
+
+		firstBound, ok := parseOne()
+		if !ok {
+			return nil, nil, source.Span{}, false
+		}
+		bounds = append(bounds, firstBound)
+		boundsSpan = firstBound.Span
+
+		for p.at(token.Plus) {
+			plusTok := p.advance()
+			plusSpans = append(plusSpans, plusTok.Span)
+			next, boundOK := parseOne()
+			if !boundOK {
+				p.resyncUntil(token.Comma, token.Gt, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport, token.KwContract)
+				return nil, nil, source.Span{}, false
+			}
+			bounds = append(bounds, next)
+			boundsSpan = boundsSpan.Cover(next.Span)
+		}
+
+		return bounds, plusSpans, boundsSpan, true
+	}
+
 	for {
+		paramSpec := ast.TypeParamSpec{}
 		nameID, ok := p.parseIdent()
 		if !ok {
 			p.resyncUntil(token.Gt, token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport, token.KwContract)
 			if p.at(token.Gt) {
 				p.advance()
 			}
-			return nil, nil, false, source.Span{}, false
+			return nil, nil, nil, false, source.Span{}, false
 		}
 
-		generics = append(generics, nameID)
+		paramSpec.Name = nameID
+		paramSpec.NameSpan = p.lastSpan
+		paramSpec.Span = paramSpec.NameSpan
+		names = append(names, nameID)
+
+		if p.at(token.Colon) {
+			colonTok := p.advance()
+			paramSpec.ColonSpan = colonTok.Span
+			bounds, plusSpans, boundsSpan, okBounds := parseBounds()
+			if !okBounds {
+				return nil, nil, nil, false, source.Span{}, false
+			}
+			paramSpec.Bounds = bounds
+			paramSpec.PlusSpans = plusSpans
+			paramSpec.BoundsSpan = boundsSpan
+			paramSpec.Span = paramSpec.Span.Cover(boundsSpan)
+		}
+
+		params = append(params, paramSpec)
 
 		if p.at(token.Comma) {
 			commaTok := p.advance()
@@ -599,11 +719,11 @@ func (p *Parser) parseFnGenerics() (generics []source.StringID, commas []source.
 			b.WithNote(insertSpan, "insert '>' to close the generic parameter list")
 		}); !ok {
 			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport, token.KwContract)
-			return generics, commas, trailing, source.Span{}, false
+			return params, names, commas, trailing, source.Span{}, false
 		}
 		break
 	}
 
 	span = ltTok.Span.Cover(p.lastSpan)
-	return generics, commas, trailing, span, true
+	return params, names, commas, trailing, span, true
 }

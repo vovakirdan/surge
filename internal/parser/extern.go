@@ -136,6 +136,7 @@ func (p *Parser) parseExternMembers() ([]ast.ExternMemberSpec, bool) {
 			fnData.genericCommas,
 			fnData.genericsTrailing,
 			fnData.genericsSpan,
+			fnData.typeParams,
 			fnData.params,
 			fnData.paramCommas,
 			fnData.paramsTrailing,

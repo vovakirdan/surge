@@ -30,6 +30,8 @@ type FnItem struct {
 	GenericCommas         []source.Span
 	GenericsTrailingComma bool
 	GenericsSpan          source.Span
+	TypeParamsStart       TypeParamID
+	TypeParamsCount       uint32
 	ParamsStart           FnParamID
 	ParamsCount           uint32
 	// Lossless bits for params list:
@@ -63,6 +65,7 @@ func (i *Items) newFnPayload(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	paramsStart FnParamID,
 	paramsCount uint32,
 	paramCommas []source.Span,
@@ -78,6 +81,7 @@ func (i *Items) newFnPayload(
 	attrCount uint32,
 	span source.Span,
 ) PayloadID {
+	typeParamsStart, typeParamsCount := i.allocateTypeParams(typeParams)
 	payload := i.Fns.Allocate(FnItem{
 		Name:                  name,
 		NameSpan:              nameSpan,
@@ -85,6 +89,8 @@ func (i *Items) newFnPayload(
 		GenericCommas:         append([]source.Span(nil), genericCommas...),
 		GenericsTrailingComma: genericsTrailing,
 		GenericsSpan:          genericsSpan,
+		TypeParamsStart:       typeParamsStart,
+		TypeParamsCount:       typeParamsCount,
 		ParamsStart:           paramsStart,
 		ParamsCount:           paramsCount,
 		ParamCommas:           append([]source.Span(nil), paramCommas...),
@@ -129,6 +135,18 @@ func (i *Items) GetFnParamIDs(fn *FnItem) []FnParamID {
 	return params
 }
 
+func (i *Items) GetFnTypeParamIDs(fn *FnItem) []TypeParamID {
+	if fn == nil || fn.TypeParamsCount == 0 || !fn.TypeParamsStart.IsValid() {
+		return nil
+	}
+	params := make([]TypeParamID, fn.TypeParamsCount)
+	start := uint32(fn.TypeParamsStart)
+	for idx := range fn.TypeParamsCount {
+		params[idx] = TypeParamID(start + uint32(idx))
+	}
+	return params
+}
+
 func (i *Items) FnByPayload(id PayloadID) *FnItem {
 	if !id.IsValid() {
 		return nil
@@ -161,6 +179,7 @@ func (i *Items) newFn(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	params []FnParam,
 	paramCommas []source.Span,
 	paramsTrailing bool,
@@ -176,7 +195,7 @@ func (i *Items) newFn(
 ) PayloadID {
 	paramsStart, paramsCount := i.allocateFnParams(params)
 	attrStart, attrCount := i.allocateAttrs(attrs)
-	return i.newFnPayload(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, paramsStart, paramsCount, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrStart, attrCount, span)
+	return i.newFnPayload(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, paramsStart, paramsCount, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrStart, attrCount, span)
 }
 
 func (i *Items) NewFn(
@@ -186,6 +205,7 @@ func (i *Items) NewFn(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	params []FnParam,
 	paramCommas []source.Span,
 	paramsTrailing bool,
@@ -199,7 +219,7 @@ func (i *Items) NewFn(
 	attrs []Attr,
 	span source.Span,
 ) ItemID {
-	payloadID := i.newFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
+	payloadID := i.newFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 	return i.New(ItemFn, span, payloadID)
 }
 
@@ -210,6 +230,7 @@ func (i *Items) NewExternFn(
 	genericCommas []source.Span,
 	genericsTrailing bool,
 	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
 	params []FnParam,
 	paramCommas []source.Span,
 	paramsTrailing bool,
@@ -223,5 +244,5 @@ func (i *Items) NewExternFn(
 	attrs []Attr,
 	span source.Span,
 ) PayloadID {
-	return i.newFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
+	return i.newFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
