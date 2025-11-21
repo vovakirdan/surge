@@ -31,18 +31,18 @@ func (p *Parser) parseContractItem(attrs []ast.Attr, attrSpan source.Span, visib
 		return ast.NoItemID, false
 	}
 
-	openTok, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' to start contract body")
+	openTok, ok := p.expect(token.LBrace, diag.SynUnexpectedToken, "expected '{' to start contract body")
 	if !ok {
-		p.resyncUntil(token.RParen, token.KwContract, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwType, token.KwTag)
+		p.resyncUntil(token.RBrace, token.KwContract, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwType, token.KwTag)
 		return ast.NoItemID, false
 	}
 
 	members, okMembers := p.parseContractMembers()
 
 	closeTok, ok := p.expect(
-		token.RParen,
+		token.RBrace,
 		diag.SynUnclosedParen,
-		"expected ')' to close contract body",
+		"expected '}' to close contract body",
 		func(b *diag.ReportBuilder) {
 			if b == nil {
 				return
@@ -50,16 +50,16 @@ func (p *Parser) parseContractItem(attrs []ast.Attr, attrSpan source.Span, visib
 			insertSpan := p.lastSpan.ZeroideToEnd()
 			fixID := fix.MakeFixID(diag.SynUnclosedParen, insertSpan)
 			suggestion := fix.InsertText(
-				"insert ')' to close contract body",
+				"insert '}' to close contract body",
 				insertSpan,
-				")",
+				"}",
 				"",
 				fix.WithID(fixID),
 				fix.WithKind(diag.FixKindRefactor),
 				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
 			)
 			b.WithFixSuggestion(suggestion)
-			b.WithNote(insertSpan, "missing ')' after contract items")
+			b.WithNote(insertSpan, "missing '}' after contract items")
 		},
 	)
 	if !ok {
@@ -98,7 +98,7 @@ func (p *Parser) parseContractMembers() ([]ast.ContractItemSpec, bool) {
 	items := make([]ast.ContractItemSpec, 0)
 	hasFatalError := false
 
-	for !p.at(token.RParen) && !p.at(token.EOF) {
+	for !p.at(token.RBrace) && !p.at(token.EOF) {
 		attrs, attrSpan, ok := p.parseAttributes()
 		if !ok {
 			hasFatalError = true
@@ -187,20 +187,20 @@ func (p *Parser) parseContractField(attrs []ast.Attr, attrSpan source.Span) (ast
 
 	nameID, ok := p.parseIdent()
 	if !ok {
-		p.resyncUntil(token.Semicolon, token.RParen, token.KwFn, token.KwField)
+		p.resyncUntil(token.Semicolon, token.RBrace, token.KwFn, token.KwField)
 		return ast.ContractItemSpec{}, false
 	}
 	nameSpan := p.lastSpan
 
 	colonTok, ok := p.expect(token.Colon, diag.SynExpectColon, "expected ':' after contract field name")
 	if !ok {
-		p.resyncUntil(token.Semicolon, token.RParen, token.KwFn, token.KwField)
+		p.resyncUntil(token.Semicolon, token.RBrace, token.KwFn, token.KwField)
 		return ast.ContractItemSpec{}, false
 	}
 
 	fieldType, ok := p.parseTypePrefix()
 	if !ok {
-		p.resyncUntil(token.Semicolon, token.RParen, token.KwFn, token.KwField)
+		p.resyncUntil(token.Semicolon, token.RBrace, token.KwFn, token.KwField)
 		return ast.ContractItemSpec{}, false
 	}
 
@@ -223,7 +223,7 @@ func (p *Parser) parseContractField(attrs []ast.Attr, attrSpan source.Span) (ast
 		b.WithNote(insertSpan, "contract field requirements must end with ';'")
 	})
 	if !ok {
-		p.resyncUntil(token.Semicolon, token.RParen, token.KwFn, token.KwField)
+		p.resyncUntil(token.Semicolon, token.RBrace, token.KwFn, token.KwField)
 		return ast.ContractItemSpec{}, false
 	}
 
@@ -295,7 +295,7 @@ func (p *Parser) parseContractFn(attrs []ast.Attr, attrSpan source.Span, mods fn
 }
 
 func (p *Parser) resyncContractMember() {
-	p.resyncUntil(token.Semicolon, token.RParen, token.KwFn, token.KwField, token.KwPub, token.KwAsync, token.At)
+	p.resyncUntil(token.Semicolon, token.RBrace, token.KwFn, token.KwField, token.KwPub, token.KwAsync, token.At)
 	if p.at(token.Semicolon) {
 		p.advance()
 	}

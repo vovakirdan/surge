@@ -2,10 +2,10 @@
 //  - missing semicolon after a contract field
 //  - function body is not allowed inside contracts
 
-contract MissingSemicolon(
+contract MissingSemicolon{
     field id: int
-)
+}
 
-contract WithBody(
+contract WithBody{
     fn build() {}
-)
+}

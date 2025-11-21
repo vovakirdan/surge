@@ -9,10 +9,10 @@ import (
 
 func TestParseContractWithMembers(t *testing.T) {
 	input := `
-contract ErrorLike<E>(
+contract ErrorLike<E>{
     @readonly field msg: string;
     pub async fn format(self: &E) -> string;
-)
+}
 `
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
@@ -86,9 +86,9 @@ contract ErrorLike<E>(
 
 func TestParseContractVisibility(t *testing.T) {
 	input := `
-pub contract Printable(
+pub contract Printable{
     fn print(self: Printable) -> int;
-)
+}
 `
 	builder, fileID, bag := parseSource(t, input)
 	if bag.HasErrors() {
@@ -109,9 +109,9 @@ pub contract Printable(
 
 func TestContractMissingSemicolon(t *testing.T) {
 	input := `
-contract Bad(
+contract Bad{
     field id: int
-)
+}
 `
 	builder, fileID, bag := parseSource(t, input)
 	if !bag.HasErrors() {
@@ -128,9 +128,9 @@ contract Bad(
 
 func TestContractFunctionBodyError(t *testing.T) {
 	input := `
-contract Bad(
+contract Bad{
     fn make() {}
-)
+}
 `
 	builder, fileID, bag := parseSource(t, input)
 	if !bag.HasErrors() {
