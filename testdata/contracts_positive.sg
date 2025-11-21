@@ -5,6 +5,8 @@ contract ErrorLike<E>{
     @readonly field code: uint;
 
     fn to_string(self: &E) -> string;
+    fn foo();
+    @overload fn foo(self: E);
 }
 
 pub contract Hashable<T>{

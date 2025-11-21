@@ -18,6 +18,7 @@ func TestContractSemantics_Positive(t *testing.T) {
 contract Hashable<T>{
     field data: T;
     fn hash(self: T) -> uint;
+    fn display(self: &T);
 }
 `
 	bag := runContractSema(t, src)
@@ -73,6 +74,19 @@ contract C<T>{
 	bag := runContractSema(t, src)
 	if !hasCodeContract(bag, diag.SemaContractDuplicateMethod) {
 		t.Fatalf("expected duplicate method, got %v", diagnosticsSummary(bag))
+	}
+}
+
+func TestContractSemantics_OverloadAllowed(t *testing.T) {
+	src := `
+contract C<T>{
+    fn foo(self: T) -> int;
+    @overload fn foo(self: &T) -> int;
+}
+`
+	bag := runContractSema(t, src)
+	if hasCodeContract(bag, diag.SemaContractDuplicateMethod) {
+		t.Fatalf("expected overload to allow duplicates, got %v", diagnosticsSummary(bag))
 	}
 }
 

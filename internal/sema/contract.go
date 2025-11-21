@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"strings"
+
 	"fortio.org/safecast"
 
 	"surge/internal/ast"
@@ -37,7 +39,10 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 	}
 
 	fieldNames := make(map[source.StringID]source.Span)
-	methodNames := make(map[source.StringID]source.Span)
+	methodNames := make(map[source.StringID]struct {
+		span     source.Span
+		overload bool
+	})
 
 	members := tc.builder.Items.GetContractItemIDs(decl)
 	for _, cid := range members {
@@ -67,11 +72,17 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 			if fn == nil {
 				continue
 			}
+			currentOverload := tc.hasOverloadAttr(fn.AttrStart, fn.AttrCount)
 			if prev, exists := methodNames[fn.Name]; exists {
-				tc.report(diag.SemaContractDuplicateMethod, fn.NameSpan, "duplicate method '%s'", tc.lookupName(fn.Name))
-				tc.report(diag.SemaContractDuplicateMethod, prev, "previous declaration of '%s' is here", tc.lookupName(fn.Name))
+				if !(prev.overload || currentOverload) {
+					tc.report(diag.SemaContractDuplicateMethod, fn.NameSpan, "duplicate method '%s'", tc.lookupName(fn.Name))
+					tc.report(diag.SemaContractDuplicateMethod, prev.span, "previous declaration of '%s' is here", tc.lookupName(fn.Name))
+				}
 			} else {
-				methodNames[fn.Name] = fn.NameSpan
+				methodNames[fn.Name] = struct {
+					span     source.Span
+					overload bool
+				}{span: fn.NameSpan, overload: currentOverload}
 			}
 			tc.validateAttrs(fn.AttrStart, fn.AttrCount, ast.AttrTargetFn)
 			tc.checkContractMethod(fn, typeParamIDs, scope, markUsage)
@@ -110,24 +121,19 @@ func (tc *typeChecker) checkContractMethod(fn *ast.ContractFnReq, typeParamIDs [
 			expectedSelf = typeParamIDs[0]
 		}
 		first := tc.builder.Items.FnParam(paramIDs[0])
-		selfName := ""
-		selfType := types.NoTypeID
+		name := ""
 		if first != nil {
-			selfName = tc.lookupName(first.Name)
-			if first.Type.IsValid() {
-				selfType = tc.resolveTypeExprWithScope(first.Type, scope)
-				markUsage(first.Type)
-			}
+			name = tc.lookupName(first.Name)
 		}
-		invalidSelf := first == nil || selfName != "self"
-		if first != nil && (first.Default.IsValid() || first.Variadic) {
-			invalidSelf = true
-		}
-		if expectedSelf != types.NoTypeID && selfType != expectedSelf {
-			invalidSelf = true
-		}
-		if invalidSelf {
+		allowedName := name == "self" || name == "_" || name == ""
+		if first == nil || !allowedName || !first.Type.IsValid() || first.Default.IsValid() || first.Variadic {
 			tc.report(diag.SemaContractSelfType, fn.ParamsSpan, "first parameter of method must be 'self: T'")
+		} else {
+			selfType := tc.resolveTypeExprWithScope(first.Type, scope)
+			markUsage(first.Type)
+			if !tc.matchesSelfType(expectedSelf, selfType) {
+				tc.report(diag.SemaContractSelfType, fn.ParamsSpan, "first parameter of method must be 'self: T'")
+			}
 		}
 	}
 
@@ -158,6 +164,19 @@ func (tc *typeChecker) validateAttrs(start ast.AttrID, count uint32, target ast.
 		}
 		tc.report(diag.SemaContractUnknownAttr, attr.Span, "unknown attribute '@%s'", tc.lookupName(attr.Name))
 	}
+}
+
+func (tc *typeChecker) hasOverloadAttr(start ast.AttrID, count uint32) bool {
+	if count == 0 || !start.IsValid() {
+		return false
+	}
+	attrs := tc.builder.Items.CollectAttrs(start, count)
+	for _, attr := range attrs {
+		if strings.EqualFold(tc.lookupName(attr.Name), "overload") {
+			return true
+		}
+	}
+	return false
 }
 
 func (tc *typeChecker) markTypeParamUsage(typeID ast.TypeID, paramNames map[source.StringID]struct{}, usage map[source.StringID]bool) {
@@ -229,4 +248,27 @@ func (tc *typeChecker) getContractFnParamIDs(fn *ast.ContractFnReq) []ast.FnPara
 		params = append(params, base+i)
 	}
 	return params
+}
+
+func (tc *typeChecker) matchesSelfType(expected, actual types.TypeID) bool {
+	if expected == types.NoTypeID || actual == types.NoTypeID || tc.types == nil {
+		return true
+	}
+	curr := actual
+	for {
+		if curr == expected {
+			return true
+		}
+		tt, ok := tc.types.Lookup(curr)
+		if !ok {
+			return false
+		}
+		switch tt.Kind {
+		case types.KindReference, types.KindOwn, types.KindPointer:
+			curr = tt.Elem
+			continue
+		default:
+			return false
+		}
+	}
 }
