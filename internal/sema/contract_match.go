@@ -558,6 +558,81 @@ func (tc *typeChecker) contractTypesEqual(expected, actual types.TypeID) bool {
 	return tc.resolveAlias(expected) == tc.resolveAlias(actual)
 }
 
+func (tc *typeChecker) requirementsForBound(bound symbols.BoundInstance) (contractRequirements, bool) {
+	var empty contractRequirements
+	if !bound.Contract.IsValid() || tc.builder == nil {
+		return empty, false
+	}
+	contractSym := tc.symbolFromID(bound.Contract)
+	if contractSym == nil || contractSym.Kind != symbols.SymbolContract {
+		return empty, false
+	}
+	contractDecl, ok := tc.builder.Items.Contract(contractSym.Decl.Item)
+	if !ok || contractDecl == nil {
+		return empty, false
+	}
+	scope := tc.scopeForItem(contractSym.Decl.Item)
+	pushed := false
+	if len(contractSym.TypeParams) > 0 {
+		pushed = tc.pushTypeParams(bound.Contract, contractSym.TypeParams, bound.GenericArgs)
+	}
+	if pushed {
+		defer tc.popTypeParams()
+	}
+	return tc.contractRequirementSet(contractDecl, scope)
+}
+
+func (tc *typeChecker) boundFieldType(id types.TypeID, name source.StringID) types.TypeID {
+	if id == types.NoTypeID {
+		return types.NoTypeID
+	}
+	for _, bound := range tc.typeParamBounds[id] {
+		if reqs, ok := tc.requirementsForBound(bound); ok {
+			if ty, exists := reqs.fields[name]; exists {
+				return ty
+			}
+		}
+	}
+	return types.NoTypeID
+}
+
+func (tc *typeChecker) boundMethodResult(id types.TypeID, name string, args []types.TypeID) types.TypeID {
+	if id == types.NoTypeID || name == "" {
+		return types.NoTypeID
+	}
+	for _, bound := range tc.typeParamBounds[id] {
+		reqs, ok := tc.requirementsForBound(bound)
+		if !ok {
+			continue
+		}
+		for key, methodReqs := range reqs.methods {
+			if tc.lookupName(key) != name {
+				continue
+			}
+			for idx := range methodReqs {
+				req := methodReqs[idx]
+				if len(req.params) != len(args)+1 {
+					continue
+				}
+				if !tc.contractTypesEqual(req.params[0], id) {
+					continue
+				}
+				match := true
+				for i, arg := range args {
+					if !tc.contractTypesEqual(req.params[i+1], arg) {
+						match = false
+						break
+					}
+				}
+				if match {
+					return req.result
+				}
+			}
+		}
+	}
+	return types.NoTypeID
+}
+
 func joinNames(names []string) string {
 	if len(names) == 0 {
 		return ""

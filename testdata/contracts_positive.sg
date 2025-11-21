@@ -1,9 +1,8 @@
 // Valid contract declarations demonstrating the new 'contract' syntax.
 
 contract ErrorLike{
-    @readonly field msg: string;
-    @readonly field code: uint;
-    field name: string;
+    field msg: string;
+    field code: uint;
 }
 
 pub contract Hashable<T>{
@@ -31,14 +30,22 @@ fn print(s: string) {
 }
 
 fn print_err<E: ErrorLike>(e: E) {
-    // print(e.msg);
+    print(e.msg);
+}
+
+fn foo<H: Hashable<H>>(h: H) -> uint {
+    return h.hash();
+}
+
+fn bar(e: Error0) -> nothing {
+    print(e.msg);
 }
 
 fn main() {
     let e0: Error0 = { msg: "error" };
     let e1: Error1 = { msg: "error", code: 1, no_such_field: "err" };
     let e2: Error2 = { msg: "error", code: 1, name: "error" };
-    print_err(e0);
+    // print_err(e0);
     print_err(e1);
     print_err(e2);
 }

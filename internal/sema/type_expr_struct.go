@@ -34,6 +34,9 @@ func (tc *typeChecker) memberResultType(base types.TypeID, field source.StringID
 	if base == types.NoTypeID || field == source.NoStringID {
 		return types.NoTypeID
 	}
+	if ty := tc.boundFieldType(base, field); ty != types.NoTypeID {
+		return ty
+	}
 	info, structType := tc.structInfoForType(base)
 	if info == nil {
 		tc.report(diag.SemaTypeMismatch, span, "%s has no fields", tc.typeLabel(base))

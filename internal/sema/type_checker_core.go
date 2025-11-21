@@ -48,6 +48,9 @@ type typeChecker struct {
 	typeInstantiations map[string]types.TypeID
 	typeNames          map[types.TypeID]string
 	exportNames        map[source.StringID]string
+	typeParamBounds    map[types.TypeID][]symbols.BoundInstance
+	typeParamStack     []types.TypeID
+	typeParamMarks     []int
 }
 
 type returnContext struct {
@@ -72,6 +75,8 @@ func (tc *typeChecker) run() {
 	tc.typeCache = make(map[typeCacheKey]types.TypeID)
 	tc.typeKeys = make(map[string]types.TypeID)
 	tc.typeParamNames = make(map[types.TypeID]source.StringID)
+	tc.typeParamBounds = make(map[types.TypeID][]symbols.BoundInstance)
+	tc.typeParamMarks = tc.typeParamMarks[:0]
 	tc.nextParamEnv = 1
 	tc.typeInstantiations = make(map[string]types.TypeID)
 	file := tc.builder.Files.Get(tc.fileID)
@@ -376,7 +381,17 @@ func (tc *typeChecker) pushTypeParams(owner symbols.SymbolID, names []source.Str
 	if len(bindings) > 0 && len(bindings) != len(names) {
 		return false
 	}
+	var ownerBounds map[source.StringID][]symbols.BoundInstance
+	if owner.IsValid() {
+		if sym := tc.symbolFromID(owner); sym != nil && len(sym.TypeParamSymbols) > 0 {
+			ownerBounds = make(map[source.StringID][]symbols.BoundInstance, len(sym.TypeParamSymbols))
+			for _, tp := range sym.TypeParamSymbols {
+				ownerBounds[tp.Name] = tp.Bounds
+			}
+		}
+	}
 	scope := make(map[source.StringID]types.TypeID, len(names))
+	tc.typeParamMarks = append(tc.typeParamMarks, len(tc.typeParamStack))
 	for i, name := range names {
 		var id types.TypeID
 		if len(bindings) > 0 {
@@ -390,6 +405,12 @@ func (tc *typeChecker) pushTypeParams(owner symbols.SymbolID, names []source.Str
 			tc.typeParamNames[id] = name
 		}
 		scope[name] = id
+		tc.typeParamStack = append(tc.typeParamStack, id)
+		if ownerBounds != nil {
+			if bounds := ownerBounds[name]; len(bounds) > 0 {
+				tc.typeParamBounds[id] = bounds
+			}
+		}
 	}
 	tc.typeParams = append(tc.typeParams, scope)
 	tc.typeParamEnv = append(tc.typeParamEnv, tc.nextParamEnv)
@@ -404,6 +425,17 @@ func (tc *typeChecker) popTypeParams() {
 	tc.typeParams = tc.typeParams[:len(tc.typeParams)-1]
 	if len(tc.typeParamEnv) > 0 {
 		tc.typeParamEnv = tc.typeParamEnv[:len(tc.typeParamEnv)-1]
+	}
+	if len(tc.typeParamMarks) > 0 {
+		start := tc.typeParamMarks[len(tc.typeParamMarks)-1]
+		tc.typeParamMarks = tc.typeParamMarks[:len(tc.typeParamMarks)-1]
+		if start >= 0 && start <= len(tc.typeParamStack) {
+			for i := len(tc.typeParamStack) - 1; i >= start; i-- {
+				id := tc.typeParamStack[i]
+				delete(tc.typeParamBounds, id)
+			}
+			tc.typeParamStack = tc.typeParamStack[:start]
+		}
 	}
 }
 

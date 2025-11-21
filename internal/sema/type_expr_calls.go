@@ -50,6 +50,11 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 	if name == "" {
 		return types.NoTypeID
 	}
+	if recv != types.NoTypeID {
+		if res := tc.boundMethodResult(recv, name, args); res != types.NoTypeID {
+			return res
+		}
+	}
 	for _, recvCand := range tc.typeKeyCandidates(recv) {
 		if recvCand.key == "" {
 			continue
