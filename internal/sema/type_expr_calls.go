@@ -13,8 +13,10 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData) types.TypeID {
 		return types.NoTypeID
 	}
 	tc.typeExpr(call.Target)
+	argTypes := make([]types.TypeID, 0, len(call.Args))
 	for _, arg := range call.Args {
-		tc.typeExpr(arg)
+		argTy := tc.typeExpr(arg)
+		argTypes = append(argTypes, argTy)
 		tc.observeMove(arg, tc.exprSpan(arg))
 	}
 	if ident, ok := tc.builder.Exprs.Ident(call.Target); ok && ident != nil {
@@ -30,6 +32,11 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData) types.TypeID {
 				return types.NoTypeID
 			}
 			return targetType
+		}
+		if symID := tc.symbolForExpr(call.Target); symID.IsValid() {
+			if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolFunction {
+				tc.validateFunctionCall(symID, sym, call, argTypes)
+			}
 		}
 	}
 	return types.NoTypeID

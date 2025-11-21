@@ -83,6 +83,139 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 	return ok
 }
 
+func (tc *typeChecker) validateFunctionCall(symID symbols.SymbolID, sym *symbols.Symbol, call *ast.ExprCallData, argTypes []types.TypeID) {
+	if sym == nil || call == nil || tc.builder == nil {
+		return
+	}
+	fnItem, ok := tc.builder.Items.Fn(sym.Decl.Item)
+	if !ok || fnItem == nil {
+		return
+	}
+	scope := tc.scopeForItem(sym.Decl.Item)
+	bindings := tc.inferTypeParamBindings(sym, fnItem, argTypes, scope)
+	if len(sym.TypeParamSymbols) > 0 {
+		tc.enforceContractBounds(sym.TypeParamSymbols, bindings, tc.exprSpan(call.Target))
+	}
+}
+
+func (tc *typeChecker) inferTypeParamBindings(sym *symbols.Symbol, fn *ast.FnItem, argTypes []types.TypeID, scope symbols.ScopeID) map[source.StringID]types.TypeID {
+	result := make(map[source.StringID]types.TypeID, len(sym.TypeParams))
+	if sym == nil || fn == nil || len(sym.TypeParams) == 0 || tc.builder == nil {
+		return result
+	}
+	indexByName := make(map[source.StringID]struct{}, len(sym.TypeParams))
+	for _, name := range sym.TypeParams {
+		indexByName[name] = struct{}{}
+	}
+	paramIDs := tc.builder.Items.GetFnParamIDs(fn)
+	for i, pid := range paramIDs {
+		if i >= len(argTypes) {
+			break
+		}
+		argType := argTypes[i]
+		if argType == types.NoTypeID {
+			continue
+		}
+		param := tc.builder.Items.FnParam(pid)
+		if param == nil {
+			continue
+		}
+		if name := tc.paramTypeParamName(param.Type, indexByName); name != source.NoStringID {
+			result[name] = argType
+		}
+	}
+	return result
+}
+
+func (tc *typeChecker) paramTypeParamName(typeID ast.TypeID, allowed map[source.StringID]struct{}) source.StringID {
+	if typeID == ast.NoTypeID || tc.builder == nil {
+		return source.NoStringID
+	}
+	expr := tc.builder.Types.Get(typeID)
+	if expr == nil || expr.Kind != ast.TypeExprPath {
+		return source.NoStringID
+	}
+	path, ok := tc.builder.Types.Path(typeID)
+	if !ok || path == nil || len(path.Segments) != 1 {
+		return source.NoStringID
+	}
+	seg := path.Segments[0]
+	if len(seg.Generics) > 0 {
+		return source.NoStringID
+	}
+	if _, ok := allowed[seg.Name]; ok {
+		return seg.Name
+	}
+	return source.NoStringID
+}
+
+func (tc *typeChecker) enforceContractBounds(params []symbols.TypeParamSymbol, bindings map[source.StringID]types.TypeID, span source.Span) {
+	if len(params) == 0 || tc.reporter == nil {
+		return
+	}
+	for _, param := range params {
+		concrete := bindings[param.Name]
+		if concrete == types.NoTypeID {
+			continue
+		}
+		for _, bound := range param.Bounds {
+			inst := bound
+			inst.GenericArgs = tc.substituteBoundArgs(bound.GenericArgs, bindings)
+			tc.checkContractSatisfaction(concrete, inst)
+		}
+	}
+}
+
+func (tc *typeChecker) substituteBoundArgs(args []types.TypeID, bindings map[source.StringID]types.TypeID) []types.TypeID {
+	if len(args) == 0 {
+		return nil
+	}
+	out := make([]types.TypeID, len(args))
+	for i, arg := range args {
+		out[i] = tc.substituteTypeParamByName(arg, bindings)
+	}
+	return out
+}
+
+func (tc *typeChecker) substituteTypeParamByName(id types.TypeID, bindings map[source.StringID]types.TypeID) types.TypeID {
+	if id == types.NoTypeID || tc.types == nil {
+		return id
+	}
+	resolved := tc.resolveAlias(id)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return resolved
+	}
+	if tt.Kind == types.KindGenericParam {
+		if name := tc.typeParamNames[resolved]; name != source.NoStringID {
+			if concrete := bindings[name]; concrete != types.NoTypeID {
+				return concrete
+			}
+		}
+		return resolved
+	}
+	switch tt.Kind {
+	case types.KindPointer, types.KindReference, types.KindOwn:
+		elem := tc.substituteTypeParamByName(tt.Elem, bindings)
+		if elem == tt.Elem {
+			return resolved
+		}
+		clone := tt
+		clone.Elem = elem
+		return tc.types.Intern(clone)
+	case types.KindArray:
+		elem := tc.substituteTypeParamByName(tt.Elem, bindings)
+		if elem == tt.Elem {
+			return resolved
+		}
+		clone := tt
+		clone.Elem = elem
+		return tc.types.Intern(clone)
+	default:
+		return resolved
+	}
+}
+
 func (tc *typeChecker) contractRequirementSet(contractDecl *ast.ContractDecl, scope symbols.ScopeID) (contractRequirements, bool) {
 	reqs := contractRequirements{
 		fields:  make(map[source.StringID]types.TypeID),
