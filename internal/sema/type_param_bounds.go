@@ -67,19 +67,23 @@ func (tc *typeChecker) resolveBoundsForParam(param *ast.TypeParam, scope symbols
 			continue
 		}
 		seen[bound.Name] = bound.Span
-		if inst, ok := tc.resolveBoundInstance(bound, scope, paramName, contractName); ok {
+		selfType := tc.lookupTypeParam(param.Name)
+		if inst, ok := tc.resolveBoundInstance(bound, scope, paramName, selfType, contractName); ok {
 			result = append(result, inst)
 		}
 	}
 	return result
 }
 
-func (tc *typeChecker) resolveBoundInstance(bound *ast.TypeParamBound, scope symbols.ScopeID, paramName, contractName string) (symbols.BoundInstance, bool) {
+func (tc *typeChecker) resolveBoundInstance(bound *ast.TypeParamBound, scope symbols.ScopeID, paramName string, selfType types.TypeID, contractName string) (symbols.BoundInstance, bool) {
 	var inst symbols.BoundInstance
 	if bound == nil {
 		return inst, false
 	}
 	scope = tc.scopeOrFile(scope)
+	if contractName == "" {
+		contractName = "_"
+	}
 
 	contractID := tc.lookupContractSymbol(bound.Name, scope)
 	if !contractID.IsValid() {
@@ -106,6 +110,18 @@ func (tc *typeChecker) resolveBoundInstance(bound *ast.TypeParamBound, scope sym
 
 	args, ok := tc.resolveBoundArgs(bound, scope)
 	if !ok {
+		return inst, false
+	}
+	expectedArgs := len(sym.TypeParams)
+	if expectedArgs == 1 && len(args) == 0 && selfType != types.NoTypeID {
+		args = []types.TypeID{selfType}
+	}
+	if expectedArgs == 0 && len(args) > 0 {
+		tc.report(diag.SemaTypeMismatch, bound.Span, "%s does not take type arguments", contractName)
+		return inst, false
+	}
+	if expectedArgs != len(args) {
+		tc.report(diag.SemaTypeMismatch, bound.Span, "%s expects %d type argument(s), got %d", contractName, expectedArgs, len(args))
 		return inst, false
 	}
 	inst.Contract = contractID

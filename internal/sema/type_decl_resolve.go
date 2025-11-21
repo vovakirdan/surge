@@ -108,11 +108,11 @@ func (tc *typeChecker) resolveTypePath(path *ast.TypePath, span source.Span, sco
 			return param
 		}
 	}
-	args := tc.resolveTypeArgs(seg.Generics, scope)
-	return tc.resolveNamedType(seg.Name, args, span, scope)
+	args, argSpans := tc.resolveTypeArgs(seg.Generics, scope)
+	return tc.resolveNamedType(seg.Name, args, argSpans, span, scope)
 }
 
-func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeID, span source.Span, scope symbols.ScopeID) types.TypeID {
+func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeID, argSpans []source.Span, span source.Span, scope symbols.ScopeID) types.TypeID {
 	if name == source.NoStringID {
 		return types.NoTypeID
 	}
@@ -150,17 +150,45 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 		tc.report(diag.SemaTypeMismatch, span, "%s expects %d type argument(s), got %d", tc.lookupName(sym.Name), expected, len(args))
 		return types.NoTypeID
 	}
+	tc.enforceTypeArgBounds(sym, args, argSpans, span)
 	return tc.instantiateType(symID, args)
 }
 
-func (tc *typeChecker) resolveTypeArgs(typeIDs []ast.TypeID, scope symbols.ScopeID) []types.TypeID {
+func (tc *typeChecker) resolveTypeArgs(typeIDs []ast.TypeID, scope symbols.ScopeID) ([]types.TypeID, []source.Span) {
 	if len(typeIDs) == 0 {
-		return nil
+		return nil, nil
 	}
 	args := make([]types.TypeID, 0, len(typeIDs))
+	spans := make([]source.Span, 0, len(typeIDs))
 	for _, tid := range typeIDs {
 		arg := tc.resolveTypeExprWithScope(tid, scope)
 		args = append(args, arg)
+		if expr := tc.builder.Types.Get(tid); expr != nil {
+			spans = append(spans, expr.Span)
+		} else {
+			spans = append(spans, source.Span{})
+		}
 	}
-	return args
+	return args, spans
+}
+
+func (tc *typeChecker) enforceTypeArgBounds(sym *symbols.Symbol, args []types.TypeID, argSpans []source.Span, span source.Span) {
+	if sym == nil || len(sym.TypeParamSymbols) == 0 || len(args) == 0 {
+		return
+	}
+	if len(args) != len(sym.TypeParams) {
+		return
+	}
+	bindings := make(map[source.StringID]bindingInfo, len(args))
+	for i, name := range sym.TypeParams {
+		if name == source.NoStringID {
+			continue
+		}
+		b := bindingInfo{typ: args[i], span: span}
+		if i < len(argSpans) && argSpans[i] != (source.Span{}) {
+			b.span = argSpans[i]
+		}
+		bindings[name] = b
+	}
+	tc.enforceContractBounds(sym.TypeParamSymbols, bindings, span)
 }

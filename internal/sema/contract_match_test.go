@@ -264,6 +264,106 @@ func TestContractsPositiveSample(t *testing.T) {
 	}
 }
 
+func TestTypeInstantiationEnforcesContractBounds(t *testing.T) {
+	src := `
+contract HasBar<T> {
+    field bar: string;
+}
+
+type Missing = { baz: int }
+type Box<T: HasBar<T>> = { value: T }
+
+fn demo(value: Missing) {
+    let _ : Box<Missing> = { value: value };
+}
+`
+	builder, fileID, parseBag := parseSource(t, src)
+	if parseBag.HasErrors() {
+		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
+	}
+	syms := resolveSymbols(t, builder, fileID)
+	bag := diag.NewBag(8)
+	Check(builder, fileID, Options{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Symbols:  syms,
+	})
+	if !hasCodeContract(bag, diag.SemaContractMissingField) {
+		t.Fatalf("expected contract satisfaction error, got %s", diagnosticsSummary(bag))
+	}
+}
+
+func TestTypeInstantiationChecksNestedArgs(t *testing.T) {
+	src := `
+contract Eq<T> {
+    fn eq(self: T, other: T) -> bool;
+}
+
+type Pair<A: Eq<A>, B: Eq<B>> = { a: A, b: B }
+
+type Good = {}
+extern<Good> {
+    fn eq(self: Good, other: Good) -> bool { return true; }
+}
+
+type Bad = {}
+
+fn demo() {
+    let good: Pair<Good, Good>;
+    let bad: Pair<Good, Bad>;
+}
+`
+	builder, fileID, parseBag := parseSource(t, src)
+	if parseBag.HasErrors() {
+		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
+	}
+	syms := resolveSymbols(t, builder, fileID)
+	bag := diag.NewBag(8)
+	Check(builder, fileID, Options{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Symbols:  syms,
+	})
+	if !hasCodeContract(bag, diag.SemaContractMissingMethod) {
+		t.Fatalf("expected contract diagnostic for nested args, got %s", diagnosticsSummary(bag))
+	}
+}
+
+func TestContractMatching_ShortFormFunctionCall(t *testing.T) {
+	src := `
+type Foo = { bar: string }
+
+extern<Foo> {
+    fn Bar(self: Foo) -> string { return self.bar; }
+}
+
+contract FooLike<T> {
+    field bar: string;
+    fn Bar(self: T) -> string;
+}
+
+fn join<T: FooLike>(x: T) -> string {
+    let _ = x.bar;
+    return x.Bar();
+}
+
+fn demo() {
+    let _ = join(Foo{ bar: "ok" });
+}
+`
+	builder, fileID, parseBag := parseSource(t, src)
+	if parseBag.HasErrors() {
+		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
+	}
+	syms := resolveSymbols(t, builder, fileID)
+	bag := diag.NewBag(8)
+	Check(builder, fileID, Options{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Symbols:  syms,
+	})
+	if bag.HasErrors() {
+		t.Fatalf("unexpected semantic diagnostics: %s", diagnosticsSummary(bag))
+	}
+}
+
 func mustReadFile(t *testing.T, path string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(path)

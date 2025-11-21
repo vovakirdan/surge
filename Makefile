@@ -41,6 +41,12 @@ fmt:
 	@echo ">> Formatting code"
 	$(GO) fmt ./...
 
+check:
+	@echo ">> Checking code"
+	$(MAKE) test
+	$(MAKE) lint
+	./check_file_sizes.sh | grep BAD
+
 # ===== Lint =====
 $(GOLANGCI_LINT):
 	@echo ">> Installing golangci-lint $(GOLANGCI_LINT_VERSION)"

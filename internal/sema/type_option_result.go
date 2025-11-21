@@ -12,7 +12,7 @@ func (tc *typeChecker) resolveResultType(okType, errType types.TypeID, span sour
 	}
 	name := tc.builder.StringsInterner.Intern("Result")
 	args := []types.TypeID{okType, errType}
-	return tc.resolveNamedType(name, args, span, scope)
+	return tc.resolveNamedType(name, args, nil, span, scope)
 }
 
 func (tc *typeChecker) optionPayload(id types.TypeID) (types.TypeID, bool) {
@@ -51,7 +51,7 @@ func (tc *typeChecker) resolveOptionType(inner types.TypeID, span source.Span, s
 	}
 	name := tc.builder.StringsInterner.Intern("Option")
 	args := []types.TypeID{inner}
-	return tc.resolveNamedType(name, args, span, scope)
+	return tc.resolveNamedType(name, args, nil, span, scope)
 }
 
 func (tc *typeChecker) resolveErrorType(span source.Span, scope symbols.ScopeID) types.TypeID {
@@ -59,5 +59,5 @@ func (tc *typeChecker) resolveErrorType(span source.Span, scope symbols.ScopeID)
 		return types.NoTypeID
 	}
 	errName := tc.builder.StringsInterner.Intern("Error")
-	return tc.resolveNamedType(errName, nil, span, scope)
+	return tc.resolveNamedType(errName, nil, nil, span, scope)
 }
