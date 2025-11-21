@@ -115,3 +115,31 @@ extern<Foo> {
 		t.Fatalf("expected extern attr diagnostic, got %s", diagnosticsSummary(bag))
 	}
 }
+
+func TestExternFieldsRejectPositionalLiterals(t *testing.T) {
+	src := `
+type Foo = {}
+
+extern<Foo> {
+    field a: int;
+    field b: string;
+}
+
+fn demo() {
+    let _ = Foo { 1, "nope" };
+}
+`
+	builder, fileID, parseBag := parseSource(t, src)
+	if parseBag.HasErrors() {
+		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
+	}
+	syms := resolveSymbols(t, builder, fileID)
+	bag := diag.NewBag(4)
+	Check(builder, fileID, Options{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Symbols:  syms,
+	})
+	if !hasCodeContract(bag, diag.SemaTypeMismatch) {
+		t.Fatalf("expected positional literal error, got %s", diagnosticsSummary(bag))
+	}
+}

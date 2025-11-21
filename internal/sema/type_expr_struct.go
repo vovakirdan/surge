@@ -76,7 +76,12 @@ func (tc *typeChecker) validateStructLiteralFields(structType types.TypeID, data
 		tc.report(diag.SemaTypeMismatch, span, "%s is not a struct", tc.typeLabel(structType))
 		return
 	}
+	externFields := tc.externFieldsForType(normalized)
 	if data.Positional {
+		if len(externFields) > 0 {
+			tc.report(diag.SemaTypeMismatch, span, "%s has extern fields; positional literals are not allowed", tc.typeLabel(normalized))
+			return
+		}
 		tc.validatePositionalStructLiteral(normalized, info, data, span)
 		return
 	}
@@ -84,7 +89,7 @@ func (tc *typeChecker) validateStructLiteralFields(structType types.TypeID, data
 	for _, f := range info.Fields {
 		fieldMap[f.Name] = f
 	}
-	for _, f := range tc.externFieldsForType(normalized) {
+	for _, f := range externFields {
 		if _, exists := fieldMap[f.Name]; !exists {
 			fieldMap[f.Name] = f
 		}
