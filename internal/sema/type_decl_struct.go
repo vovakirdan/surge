@@ -34,6 +34,7 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 	if paramIDs := tc.builder.Items.GetTypeParamIDs(typeItem.TypeParamsStart, typeItem.TypeParamsCount); len(paramIDs) > 0 {
 		bounds := tc.resolveTypeParamBounds(paramIDs, scope, nil)
 		tc.attachTypeParamSymbols(symID, bounds)
+		tc.applyTypeParamBounds(symID)
 	}
 	if structDecl.FieldsCount > 0 {
 		start := uint32(structDecl.FieldsStart)

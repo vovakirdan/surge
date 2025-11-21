@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -210,4 +211,64 @@ fn main() {
 	if !found {
 		t.Fatalf("expected contract diagnostic to mention concrete type Error0, got %s", diagnosticsSummary(bag))
 	}
+}
+
+func TestTypeParamBoundsExposeContractFields(t *testing.T) {
+	src := `
+contract ErrorLike {
+    field msg: string;
+}
+
+fn print_err<E: ErrorLike>(e: E) {
+    let _ = e.msg;
+}
+`
+	tc, _, _ := newContractChecker(t, src)
+	var id types.TypeID
+	for tid, name := range tc.typeParamNames {
+		if tc.lookupName(name) == "E" {
+			id = tid
+			break
+		}
+	}
+	if id == types.NoTypeID {
+		t.Fatalf("type param E not registered")
+	}
+	info, ok := tc.result.TypeInterner.TypeParamInfo(id)
+	if !ok || info == nil || info.Owner == 0 {
+		t.Fatalf("type param info missing owner: %+v", info)
+	}
+	bounds := tc.typeParamContractBounds(id)
+	if len(bounds) == 0 {
+		t.Fatalf("type param bounds missing for E")
+	}
+	if ty := tc.boundFieldType(id, tc.builder.StringsInterner.Intern("msg")); ty == types.NoTypeID {
+		t.Fatalf("expected bound field type for msg")
+	}
+}
+
+func TestContractsPositiveSample(t *testing.T) {
+	data := mustReadFile(t, "../../testdata/contracts_positive.sg")
+	builder, fileID, parseBag := parseSource(t, string(data))
+	if parseBag.HasErrors() {
+		t.Fatalf("parse diagnostics: %s", diagnosticsSummary(parseBag))
+	}
+	symRes := resolveSymbols(t, builder, fileID)
+	semaBag := diag.NewBag(32)
+	Check(builder, fileID, Options{
+		Reporter: &diag.BagReporter{Bag: semaBag},
+		Symbols:  symRes,
+	})
+	if semaBag.HasErrors() {
+		t.Fatalf("unexpected semantic diagnostics: %s", diagnosticsSummary(semaBag))
+	}
+}
+
+func mustReadFile(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	return data
 }

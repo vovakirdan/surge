@@ -26,6 +26,12 @@ func (tc *typeChecker) resolveTypeParamBounds(paramIDs []ast.TypeParamID, scope 
 			Span: param.Span,
 		}
 		spec.Bounds = tc.resolveBoundsForParam(param, scope, markUsage)
+		if id := tc.lookupTypeParam(param.Name); id != types.NoTypeID && len(spec.Bounds) > 0 {
+			if tc.typeParamBounds == nil {
+				tc.typeParamBounds = make(map[types.TypeID][]symbols.BoundInstance)
+			}
+			tc.typeParamBounds[id] = spec.Bounds
+		}
 		bounds = append(bounds, spec)
 	}
 	return bounds
