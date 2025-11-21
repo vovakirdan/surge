@@ -1,4 +1,4 @@
-# Surge Language Specification (Draft 6)
+# Surge Language Specification (Draft 7)
 
 > **Status:** Draft for review
 > **Scope:** Full language surface for tokenizer → parser → semantics. VM/runtime details are out of scope here and live in RUNTIME.md / BYTECODE.md.
@@ -16,12 +16,13 @@
 * **Explicit over implicit:** prefer clear, verbose constructs over clever shortcuts that obscure ownership or control flow.
 * **Ownership clarity:** every operation's ownership semantics should be obvious from the syntax.
 
-### Implementation Snapshot (Draft 6)
+### Implementation Snapshot (Draft 7)
 
 - Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, tag, extern, pub, async, await, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, nothing`.
 - The type checker currently resolves `int`, `uint`, `float`, `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`, `*T`), slices `T[]`, and sized arrays `T[N]` when `N` is a constant numeric literal. Fixed-width numerics (`int8`, `uint64`, `float32`…) are reserved symbols in the prelude but are not backed by concrete `TypeID`s yet.
 - Tuple and function types parse, but sema does not yet lower them; treat them as planned surface.
 - Tags and unions follow the current parser: `tag Name<T>(args...);` declares a tag item; unions accept plain types, `nothing`, or `Tag(args)` members. `Option`/`Result` plus tags `Some`/`Ok`/`Error` are injected via the prelude and resolved without user declarations; exhaustive `compare` checks are still TODO.
+- Contracts (trait-like structural interfaces) are parsed and checked in sema: declaration syntax is enforced, bounds on functions/types are resolved, short/long forms are validated by arity, and structural satisfaction (fields/methods) is verified on calls, type instantiations, assignments, and returns.
 - Diagnostics now use the `Lex*`/`Syn*`/`Sema*` numeric codes from `internal/diag/codes.go` instead of the earlier `E_*` placeholders.
   Legacy `E_*` labels that remain in examples below are descriptive placeholders; see §21 for the codes the compiler actually emits today.
 
@@ -293,6 +294,80 @@ Surge uses **pure ownership** (similar to Rust) for predictable performance:
 - Higher learning curve compared to GC languages
 - More explicit lifetime management required
 - Better performance and predictability for target domains
+
+### 2.11. Contracts (structural interfaces) and bounds
+
+**What:** Contracts are structural interfaces that state required fields and method signatures. They are used to constrain generic parameters and to describe APIs types must satisfy. A contract is declared with `contract Name<T, U> { ... }` containing only `field` requirements and `fn` signatures terminated by semicolons—method bodies are forbidden inside contracts (`SynUnexpectedToken`).
+
+**Why:** They provide type-safe ad-hoc polymorphism without nominal inheritance. Bounds on functions and types communicate requirements, drive code completion, and catch mismatches early (missing fields/methods, wrong signatures, or wrong `self` types).
+
+**Who uses this:** Library authors defining reusable behaviours; application code constraining generic functions/types; tooling wanting structured requirements for navigation and diagnostics.
+
+**Declaring contracts**
+
+- Syntax:
+
+  ```sg
+  contract FooLike<T> {
+      field bar: string;
+      fn Bar(self: T) -> string;
+  }
+
+  contract NoParam {
+      fn reset();
+  }
+  ```
+
+- Members are requirements only: `fn ...;` and `field ...;` must end with `;`. Bodies are rejected (`SemaContractMethodBody` / `SynUnexpectedToken`).
+- Duplicate names are illegal unless the later method is explicitly marked `@overload`. Duplicate fields (`SemaContractDuplicateField`) and non-overloaded duplicate methods (`SemaContractDuplicateMethod`) are errors.
+- Attributes are validated against their targets (`field` / `fn`). Unknown or disallowed attributes raise `SemaContractUnknownAttr`.
+- Every generic parameter of the contract must be used in at least one member type (`SemaContractUnusedTypeParam`). Member types must resolve (`SemaUnresolvedSymbol`).
+
+**Bounds and short/long forms**
+
+- Bounds attach to generic parameters with `:` and are combined with `+`: `fn save<T: JsonSerializable + Printable<T>>(x: T);`.
+- Short form (`T: FooLike`) is allowed only for contracts with **0 or 1** type parameter. For single-parameter contracts the bound implicitly supplies the type parameter itself: `T: FooLike` == `T: FooLike<T>`.
+- Multi-parameter contracts require the long form with all arguments: `T: PairOps<T, U>`. Missing/extra args are reported (`SemaTypeMismatch`).
+- Using a non-contract name in bounds produces `SemaContractBoundNotContract` or `SemaContractBoundNotFound`. Unknown type arguments produce `SemaContractBoundTypeError`. Duplicate contracts on the same parameter are rejected (`SemaContractBoundDuplicate`).
+
+**Where bounds apply**
+
+- Functions: `fn f<T: FooLike, U: BarLike<T, U>>(x: T, y: U);`
+- Types: `type Container<T: Clone> = { value: T }`.
+- Multiple bounds per parameter are supported with `+`.
+- Bounds participate in type arg substitution; nested generic args in bounds are resolved and re-checked on instantiation.
+
+**Satisfaction rules (structural matching)**
+
+- Matching checks run whenever a bound is instantiated:
+  - Calling/generic functions (`f<Foo>(...)`), constructing generic types (`Box<Foo>`), returning `T` from a bound function, or assigning to a bound type triggers contract enforcement.
+  - Validation is recursive through nested generic arguments.
+- Fields: the concrete type must define every required field with the exact type (after alias resolution) and matching attributes. Missing fields → `SemaContractMissingField`; type mismatch → `SemaContractFieldTypeError`; attribute mismatch → `SemaContractFieldAttrMismatch`.
+- Methods: the concrete type must provide methods with matching name, parameter list (including `self`), result type, visibility (`pub`) and `async` flag, and matching attributes. Missing → `SemaContractMissingMethod`; signature mismatch → `SemaContractMethodMismatch`; wrong self type → `SemaContractSelfType`; attribute/flag mismatch → `SemaContractMethodAttrMismatch`.
+- Type arguments from the bound are substituted into contract member types, so requirements like `fn swap(self: A, other: B) -> B;` check against the actual `A`/`B` supplied in the bound.
+
+**Diagnostics**
+
+- Unknown contract name / not a contract.
+- Wrong number of generic arguments on the bound or on the contract declaration.
+- Unused contract generic parameters.
+- Missing field/method, incompatible field/method signature, wrong `self`, or attribute mismatch.
+- Short-form misuse on multi-parameter contracts (reports arity mismatch).
+
+**Examples**
+
+```sg
+contract PairOps<A, B> { fn swap(self: A, other: B) -> B; }
+contract C<T> { field v: T; }
+
+fn f<X, Y: PairOps<X, Y>>(x: X, y: Y) -> Y { return x.swap(y); }
+type Box<T: C<T>> = { value: T }
+
+type Foo = { v: int }
+// Box<Foo> fails: Foo lacks field `v` of type Foo (self-substitution requires `v: Foo`)
+```
+
+Contracts with zero parameters can still be used in short form: `fn tick<T: Clock>()`. Multiple bounds compose: `fn render<T: Drawable + Positionable<T>>(x: T);`.
 
 ---
 

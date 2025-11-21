@@ -184,8 +184,13 @@ extern<T[]> {
 @intrinsic
 pub fn default<T>() -> T;
 
+contract ErrorLike{
+    field message: string;
+    field code: uint;
+}
+
 @intrinsic
-pub fn exit(e: Error) -> nothing;
+pub fn exit<E: ErrorLike>(e: E) -> nothing;
 
 pub fn panic(msg: string) -> nothing {
     let e: Error = { message: msg, code: 1 };
