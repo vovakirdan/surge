@@ -38,6 +38,8 @@ type typeChecker struct {
 	typeItems          map[ast.ItemID]types.TypeID
 	typeCache          map[typeCacheKey]types.TypeID
 	typeKeys           map[string]types.TypeID
+	typeIDItems        map[types.TypeID]ast.ItemID
+	structBases        map[types.TypeID]types.TypeID
 	externFields       map[symbols.TypeKey]*externFieldSet
 	returnStack        []returnContext
 	typeParams         []map[source.StringID]types.TypeID
@@ -73,6 +75,8 @@ func (tc *typeChecker) run() {
 	tc.typeItems = make(map[ast.ItemID]types.TypeID)
 	tc.typeCache = make(map[typeCacheKey]types.TypeID)
 	tc.typeKeys = make(map[string]types.TypeID)
+	tc.typeIDItems = make(map[types.TypeID]ast.ItemID)
+	tc.structBases = make(map[types.TypeID]types.TypeID)
 	tc.externFields = make(map[symbols.TypeKey]*externFieldSet)
 	tc.typeParamNames = make(map[types.TypeID]source.StringID)
 	tc.typeParamBounds = make(map[types.TypeID][]symbols.BoundInstance)

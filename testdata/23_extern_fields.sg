@@ -5,9 +5,9 @@ contract Identified<T> {
     pub fn label(self: T) -> string;
 }
 
-type RemoteUser = { name: string }
+type RemoteUser = {}
 
-// type RemoteUserV2 = RemoteUser : { link: string }
+type RemoteUserV2 = RemoteUser : { link: string }
 
 extern<RemoteUser> {
     // Field declarations: attributes for fields are validated just like on structs.
@@ -24,24 +24,21 @@ extern<RemoteUser> {
 fn greet<T: Identified<T>>(value: T) -> string {
     // Extern fields are visible to contract-bound generics.
     let _ = value.id;
-    let _t = value.no_such_field;
     return value.label();
 }
 
-fn foo(user: RemoteUser) {
-    let _ = user.no_such_field;
-}
-
-// fn bar(user: RemoteUserV2) {
-//     let userlink = user.link;
-//     let userName = user.name;
-//     let userLabel = user.label();
+// fn foo(user: RemoteUser) {
+//     let _ = user.no_such_field;
 // }
 
+fn bar(user: RemoteUserV2) {
+    let userlink = user.link;
+    let userName = user.name;
+    let userLabel = user.label();
+}
+
 fn demo() {
-    let user: RemoteUser = {};
-    let user2: RemoteUser = { name: "name", no_such_field: "err" };
-    let user3 = RemoteUser { name: "name" };
+    let user: RemoteUser = { id: 1 to uint64, name: "name" };
     let _ = user.id; // field provided via extern<RemoteUser>
     let message: string = greet(user);
 }

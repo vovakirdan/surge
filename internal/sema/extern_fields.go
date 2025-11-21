@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"fmt"
 	"slices"
 
 	"surge/internal/ast"
@@ -87,18 +88,15 @@ func (tc *typeChecker) processExternBlock(itemID ast.ItemID, block *ast.ExternBl
 
 		name := field.Name
 		if prev, exists := structFieldSpans[name]; exists {
-			tc.report(diag.SemaExternDuplicateField, field.NameSpan, "duplicate extern field '%s'", tc.lookupName(name))
-			tc.report(diag.SemaExternDuplicateField, prev, "previous declaration of '%s' is here", tc.lookupName(name))
+			tc.reportExternDuplicate(field.NameSpan, prev, tc.lookupName(name))
 			continue
 		}
 		if prev, exists := seen[name]; exists {
-			tc.report(diag.SemaExternDuplicateField, field.NameSpan, "duplicate extern field '%s'", tc.lookupName(name))
-			tc.report(diag.SemaExternDuplicateField, prev, "previous declaration of '%s' is here", tc.lookupName(name))
+			tc.reportExternDuplicate(field.NameSpan, prev, tc.lookupName(name))
 			continue
 		}
 		if prev, exists := set.fields[name]; exists {
-			tc.report(diag.SemaExternDuplicateField, field.NameSpan, "duplicate extern field '%s'", tc.lookupName(name))
-			tc.report(diag.SemaExternDuplicateField, prev.span, "previous declaration of '%s' is here", tc.lookupName(name))
+			tc.reportExternDuplicate(field.NameSpan, prev.span, tc.lookupName(name))
 			continue
 		}
 		seen[name] = field.NameSpan
@@ -117,6 +115,21 @@ func (tc *typeChecker) processExternBlock(itemID ast.ItemID, block *ast.ExternBl
 			set.order = append(set.order, info)
 		}
 	}
+}
+
+func (tc *typeChecker) reportExternDuplicate(primary, prev source.Span, name string) {
+	if tc.reporter == nil {
+		return
+	}
+	msg := fmt.Sprintf("duplicate extern field '%s'", name)
+	b := diag.ReportError(tc.reporter, diag.SemaExternDuplicateField, primary, msg)
+	if b == nil {
+		return
+	}
+	if prev != (source.Span{}) {
+		b.WithNote(prev, fmt.Sprintf("previous declaration of '%s' is here", name))
+	}
+	b.Emit()
 }
 
 func (tc *typeChecker) externFieldsForType(id types.TypeID) []types.StructField {

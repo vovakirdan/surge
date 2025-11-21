@@ -36,6 +36,10 @@ func (tc *typeChecker) registerTypeDecls(file *ast.File) {
 			continue
 		}
 		tc.typeItems[itemID] = typeID
+		if tc.typeIDItems == nil {
+			tc.typeIDItems = make(map[types.TypeID]ast.ItemID)
+		}
+		tc.typeIDItems[typeID] = itemID
 		if tc.typeKeys != nil {
 			if name := tc.lookupName(typeItem.Name); name != "" {
 				tc.typeKeys[name] = typeID

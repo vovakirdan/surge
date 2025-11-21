@@ -27,6 +27,23 @@ func (tc *typeChecker) typeKeyCandidates(id types.TypeID) []typeKeyCandidate {
 			candidates = tc.appendFamilyFallback(candidates, aliasBase, baseKey, id)
 		}
 	}
+	if base := tc.structBases[tc.valueType(id)]; base != types.NoTypeID {
+		baseKey := tc.typeKeyForType(base)
+		if baseKey != "" {
+			cand := typeKeyCandidate{key: baseKey, base: base}
+			duplicate := false
+			for _, existing := range candidates {
+				if existing.key == cand.key && existing.base == cand.base {
+					duplicate = true
+					break
+				}
+			}
+			if !duplicate {
+				candidates = append(candidates, cand)
+				candidates = tc.appendFamilyFallback(candidates, base, baseKey, types.NoTypeID)
+			}
+		}
+	}
 	return candidates
 }
 

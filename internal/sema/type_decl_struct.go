@@ -2,10 +2,13 @@ package sema
 
 import (
 	"fmt"
+	"strings"
 
 	"fortio.org/safecast"
 
 	"surge/internal/ast"
+	"surge/internal/diag"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -36,27 +39,21 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 		tc.attachTypeParamSymbols(symID, bounds)
 		tc.applyTypeParamBounds(symID)
 	}
-	if structDecl.FieldsCount > 0 {
-		start := uint32(structDecl.FieldsStart)
-		count := int(structDecl.FieldsCount)
-		for offset := range count {
-			uoff, err := safecast.Conv[uint32](offset)
-			if err != nil {
-				panic(fmt.Errorf("struct field offset overflow: %w", err))
-			}
-			fieldID := ast.TypeFieldID(start + uoff)
-			field := tc.builder.Items.StructField(fieldID)
-			if field == nil {
-				continue
-			}
-			fieldType := tc.resolveTypeExprWithScope(field.Type, scope)
-			attrs := tc.attrNames(field.AttrStart, field.AttrCount)
-			fields = append(fields, types.StructField{
-				Name:  field.Name,
-				Type:  fieldType,
-				Attrs: attrs,
-			})
+	if base := tc.resolveStructBase(structDecl.Base, scope); base != types.NoTypeID {
+		tc.structBases[typeID] = base
+		fields = append(fields, tc.inheritedFields(base)...)
+	}
+	nameSet := make(map[source.StringID]struct{}, len(fields)+int(structDecl.FieldsCount))
+	for _, f := range fields {
+		nameSet[f.Name] = struct{}{}
+	}
+	for _, f := range tc.resolveOwnStructFields(structDecl, scope) {
+		if _, exists := nameSet[f.Name]; exists {
+			tc.report(diag.SemaTypeMismatch, structDecl.BodySpan, "field %s conflicts with inherited field", tc.lookupName(f.Name))
+			continue
 		}
+		fields = append(fields, f)
+		nameSet[f.Name] = struct{}{}
 	}
 	tc.types.SetStructFields(typeID, fields)
 }
@@ -74,6 +71,12 @@ func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.S
 	}()
 	fields := make([]types.StructField, 0, structDecl.FieldsCount)
 	scope := tc.fileScope()
+	base := tc.resolveStructBase(structDecl.Base, scope)
+	if base != types.NoTypeID {
+		for _, f := range tc.inheritedFields(base) {
+			fields = append(fields, tc.instantiateField(f, symID, args))
+		}
+	}
 	if structDecl.FieldsCount > 0 {
 		start := uint32(structDecl.FieldsStart)
 		count := int(structDecl.FieldsCount)
@@ -97,6 +100,128 @@ func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.S
 		}
 	}
 	typeID := tc.types.RegisterStructInstance(typeItem.Name, typeItem.Span, args)
+	if base != types.NoTypeID {
+		tc.structBases[typeID] = base
+	}
 	tc.types.SetStructFields(typeID, fields)
 	return typeID
+}
+
+func (tc *typeChecker) resolveStructBase(base ast.TypeID, scope symbols.ScopeID) types.TypeID {
+	if !base.IsValid() {
+		return types.NoTypeID
+	}
+	baseType := tc.resolveTypeExprWithScope(base, scope)
+	baseVal := tc.valueType(baseType)
+	if baseVal == types.NoTypeID {
+		return types.NoTypeID
+	}
+	if info, ok := tc.types.StructInfo(baseVal); !ok || info == nil {
+		tc.report(diag.SemaTypeMismatch, tc.typeSpan(base), "base type %s is not a struct", tc.typeLabel(baseVal))
+		return types.NoTypeID
+	}
+	if tc.typeHasNoInherit(baseVal) {
+		tc.report(diag.SemaTypeMismatch, tc.typeSpan(base), "type %s is marked @noinherit and cannot be extended", tc.typeLabel(baseVal))
+		return types.NoTypeID
+	}
+	return baseVal
+}
+
+func (tc *typeChecker) resolveOwnStructFields(structDecl *ast.TypeStructDecl, scope symbols.ScopeID) []types.StructField {
+	if structDecl == nil {
+		return nil
+	}
+	fields := make([]types.StructField, 0, structDecl.FieldsCount)
+	if structDecl.FieldsCount == 0 || !structDecl.FieldsStart.IsValid() {
+		return fields
+	}
+	start := uint32(structDecl.FieldsStart)
+	count := int(structDecl.FieldsCount)
+	for offset := range count {
+		uoff, err := safecast.Conv[uint32](offset)
+		if err != nil {
+			panic(fmt.Errorf("struct field offset overflow: %w", err))
+		}
+		fieldID := ast.TypeFieldID(start + uoff)
+		field := tc.builder.Items.StructField(fieldID)
+		if field == nil {
+			continue
+		}
+		fieldType := tc.resolveTypeExprWithScope(field.Type, scope)
+		fields = append(fields, types.StructField{
+			Name:  field.Name,
+			Type:  fieldType,
+			Attrs: tc.attrNames(field.AttrStart, field.AttrCount),
+		})
+	}
+	return fields
+}
+
+func (tc *typeChecker) inheritedFields(base types.TypeID) []types.StructField {
+	if base == types.NoTypeID {
+		return nil
+	}
+	fields := make([]types.StructField, 0)
+	if info, ok := tc.types.StructInfo(base); ok && info != nil {
+		for _, f := range info.Fields {
+			if attrHasNoInherit(tc, f.Attrs) {
+				continue
+			}
+			fields = append(fields, f)
+		}
+	}
+	for _, f := range tc.externFieldsForType(base) {
+		if attrHasNoInherit(tc, f.Attrs) {
+			continue
+		}
+		fields = append(fields, f)
+	}
+	return fields
+}
+
+func (tc *typeChecker) instantiateField(f types.StructField, owner symbols.SymbolID, args []types.TypeID) types.StructField {
+	if len(args) == 0 {
+		return f
+	}
+	bindings := make(map[source.StringID]bindingInfo, len(args))
+	if owner.IsValid() {
+		if sym := tc.symbolFromID(owner); sym != nil && len(sym.TypeParams) == len(args) {
+			for i, name := range sym.TypeParams {
+				bindings[name] = bindingInfo{typ: args[i]}
+			}
+		}
+	}
+	typ := tc.substituteTypeParamByName(f.Type, bindings)
+	return types.StructField{
+		Name:  f.Name,
+		Type:  typ,
+		Attrs: f.Attrs,
+	}
+}
+
+func attrHasNoInherit(tc *typeChecker, attrs []source.StringID) bool {
+	if tc == nil {
+		return false
+	}
+	for _, id := range attrs {
+		if strings.EqualFold(tc.lookupName(id), "noinherit") {
+			return true
+		}
+	}
+	return false
+}
+
+func (tc *typeChecker) typeHasNoInherit(typeID types.TypeID) bool {
+	if typeID == types.NoTypeID || tc.typeIDItems == nil {
+		return false
+	}
+	itemID := tc.typeIDItems[typeID]
+	if !itemID.IsValid() {
+		return false
+	}
+	typeItem, ok := tc.builder.Items.Type(itemID)
+	if !ok || typeItem == nil {
+		return false
+	}
+	return attrHasNoInherit(tc, tc.attrNames(typeItem.AttrStart, typeItem.AttrCount))
 }
