@@ -11,8 +11,9 @@ import (
 
 // StructField describes a single field inside a nominal struct type.
 type StructField struct {
-	Name source.StringID
-	Type TypeID
+	Name  source.StringID
+	Type  TypeID
+	Attrs []source.StringID
 }
 
 // StructInfo stores metadata for a struct type.
@@ -207,7 +208,14 @@ func cloneStructFields(fields []StructField) []StructField {
 	if len(fields) == 0 {
 		return nil
 	}
-	return slices.Clone(fields)
+	clone := make([]StructField, len(fields))
+	for i, f := range fields {
+		clone[i] = f
+		if len(f.Attrs) > 0 {
+			clone[i].Attrs = slices.Clone(f.Attrs)
+		}
+	}
+	return clone
 }
 
 func cloneTypeArgs(args []TypeID) []TypeID {

@@ -49,9 +49,11 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 				continue
 			}
 			fieldType := tc.resolveTypeExprWithScope(field.Type, scope)
+			attrs := tc.attrNames(field.AttrStart, field.AttrCount)
 			fields = append(fields, types.StructField{
-				Name: field.Name,
-				Type: fieldType,
+				Name:  field.Name,
+				Type:  fieldType,
+				Attrs: attrs,
 			})
 		}
 	}
@@ -85,9 +87,11 @@ func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.S
 				continue
 			}
 			fieldType := tc.resolveTypeExprWithScope(field.Type, scope)
+			attrs := tc.attrNames(field.AttrStart, field.AttrCount)
 			fields = append(fields, types.StructField{
-				Name: field.Name,
-				Type: fieldType,
+				Name:  field.Name,
+				Type:  fieldType,
+				Attrs: attrs,
 			})
 		}
 	}

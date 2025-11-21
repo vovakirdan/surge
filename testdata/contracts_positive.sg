@@ -3,6 +3,7 @@
 contract ErrorLike{
     @readonly field msg: string;
     @readonly field code: uint;
+    field name: string;
 }
 
 pub contract Hashable<T>{

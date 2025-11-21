@@ -65,48 +65,50 @@ const (
 	SynUnexpectedModifier Code = 2205
 
 	// Семантические (резервируем)
-	SemaInfo                     Code = 3000
-	SemaError                    Code = 3001
-	SemaDuplicateSymbol          Code = 3002
-	SemaScopeMismatch            Code = 3003
-	SemaShadowSymbol             Code = 3004
-	SemaUnresolvedSymbol         Code = 3005
-	SemaFnOverride               Code = 3006
-	SemaIntrinsicBadContext      Code = 3007
-	SemaIntrinsicBadName         Code = 3008
-	SemaIntrinsicHasBody         Code = 3009
-	SemaAmbiguousCtorOrFn        Code = 3010
-	SemaFnNameStyle              Code = 3011
-	SemaTagNameStyle             Code = 3012
-	SemaModuleMemberNotFound     Code = 3013
-	SemaModuleMemberNotPublic    Code = 3014
-	SemaTypeMismatch             Code = 3015
-	SemaInvalidBinaryOperands    Code = 3016
-	SemaInvalidUnaryOperand      Code = 3017
-	SemaBorrowConflict           Code = 3018
-	SemaBorrowMutation           Code = 3019
-	SemaBorrowMove               Code = 3020
-	SemaBorrowThreadEscape       Code = 3021
-	SemaBorrowImmutable          Code = 3022
-	SemaBorrowNonAddressable     Code = 3023
-	SemaBorrowDropInvalid        Code = 3024
-	SemaExpectTypeOperand        Code = 3025
-	SemaConstNotConstant         Code = 3026
-	SemaConstCycle               Code = 3027
-	SemaContractDuplicateField   Code = 3028
-	SemaContractDuplicateMethod  Code = 3029
-	SemaContractMethodBody       Code = 3030
-	SemaContractSelfType         Code = 3031
-	SemaContractUnusedTypeParam  Code = 3032
-	SemaContractUnknownAttr      Code = 3033
-	SemaContractBoundNotFound    Code = 3034
-	SemaContractBoundNotContract Code = 3035
-	SemaContractBoundDuplicate   Code = 3036
-	SemaContractBoundTypeError   Code = 3037
-	SemaContractMissingField     Code = 3038
-	SemaContractFieldTypeError   Code = 3039
-	SemaContractMissingMethod    Code = 3040
-	SemaContractMethodMismatch   Code = 3041
+	SemaInfo                       Code = 3000
+	SemaError                      Code = 3001
+	SemaDuplicateSymbol            Code = 3002
+	SemaScopeMismatch              Code = 3003
+	SemaShadowSymbol               Code = 3004
+	SemaUnresolvedSymbol           Code = 3005
+	SemaFnOverride                 Code = 3006
+	SemaIntrinsicBadContext        Code = 3007
+	SemaIntrinsicBadName           Code = 3008
+	SemaIntrinsicHasBody           Code = 3009
+	SemaAmbiguousCtorOrFn          Code = 3010
+	SemaFnNameStyle                Code = 3011
+	SemaTagNameStyle               Code = 3012
+	SemaModuleMemberNotFound       Code = 3013
+	SemaModuleMemberNotPublic      Code = 3014
+	SemaTypeMismatch               Code = 3015
+	SemaInvalidBinaryOperands      Code = 3016
+	SemaInvalidUnaryOperand        Code = 3017
+	SemaBorrowConflict             Code = 3018
+	SemaBorrowMutation             Code = 3019
+	SemaBorrowMove                 Code = 3020
+	SemaBorrowThreadEscape         Code = 3021
+	SemaBorrowImmutable            Code = 3022
+	SemaBorrowNonAddressable       Code = 3023
+	SemaBorrowDropInvalid          Code = 3024
+	SemaExpectTypeOperand          Code = 3025
+	SemaConstNotConstant           Code = 3026
+	SemaConstCycle                 Code = 3027
+	SemaContractDuplicateField     Code = 3028
+	SemaContractDuplicateMethod    Code = 3029
+	SemaContractMethodBody         Code = 3030
+	SemaContractSelfType           Code = 3031
+	SemaContractUnusedTypeParam    Code = 3032
+	SemaContractUnknownAttr        Code = 3033
+	SemaContractBoundNotFound      Code = 3034
+	SemaContractBoundNotContract   Code = 3035
+	SemaContractBoundDuplicate     Code = 3036
+	SemaContractBoundTypeError     Code = 3037
+	SemaContractMissingField       Code = 3038
+	SemaContractFieldTypeError     Code = 3039
+	SemaContractMissingMethod      Code = 3040
+	SemaContractMethodMismatch     Code = 3041
+	SemaContractFieldAttrMismatch  Code = 3042
+	SemaContractMethodAttrMismatch Code = 3043
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -128,107 +130,109 @@ const (
 
 var ( // todo расширить описания и использовать как notes
 	codeDescription = map[Code]string{
-		UnknownCode:                  "Unknown error",
-		LexInfo:                      "Lexical information",
-		LexUnknownChar:               "Unknown character",
-		LexUnterminatedString:        "Unterminated string",
-		LexUnterminatedBlockComment:  "Unterminated block comment",
-		LexBadNumber:                 "Bad number",
-		LexTokenTooLong:              "Token too long",
-		SynInfo:                      "Syntax information",
-		SynUnexpectedToken:           "Unexpected token",
-		SynUnclosedDelimiter:         "Unclosed delimiter",
-		SynUnclosedBlockComment:      "Unclosed block comment",
-		SynUnclosedString:            "Unclosed string",
-		SynUnclosedChar:              "Unclosed char",
-		SynUnclosedParen:             "Unclosed parenthesis",
-		SynUnclosedBrace:             "Unclosed brace",
-		SynUnclosedBracket:           "Unclosed bracket",
-		SynUnclosedSquareBracket:     "Unclosed square bracket",
-		SynUnclosedAngleBracket:      "Unclosed angle bracket",
-		SynUnclosedCurlyBracket:      "Unclosed curly bracket",
-		SynInfoImportGroup:           "Import group information",
-		SynUnexpectedTopLevel:        "Unexpected top level",
-		SynExpectSemicolon:           "Expect semicolon",
-		SynForMissingIn:              "Missing 'in' in for-in loop",
-		SynForBadHeader:              "Malformed for-loop header",
-		SynModifierNotAllowed:        "Modifier not allowed here",
-		SynAttributeNotAllowed:       "Attribute not allowed here",
-		SynAsyncNotAllowed:           "'async' not allowed here",
-		SynTypeExpectEquals:          "Expected '=' in type declaration",
-		SynTypeExpectBody:            "Expected type body",
-		SynTypeExpectUnionMember:     "Expected union member",
-		SynTypeFieldConflict:         "Duplicate field in type",
-		SynTypeDuplicateMember:       "Duplicate union member",
-		SynTypeNotAllowed:            "Type declaration is not allowed here",
-		SynIllegalItemInExtern:       "Illegal item inside extern block",
-		SynVisibilityReduction:       "Visibility reduction is not allowed",
-		SynFatArrowOutsideParallel:   "Fat arrow is only allowed in parallel expressions or compare arms",
-		SynPragmaPosition:            "Pragma must appear at the top of the file",
-		SynExpectIdentifier:          "Expect identifier",
-		SynExpectModuleSeg:           "Expect module segment",
-		SynExpectItemAfterDbl:        "Expect item after double colon",
-		SynExpectIdentAfterAs:        "Expect identifier after as",
-		SynEmptyImportGroup:          "Empty import group",
-		SynInfoTypeExpr:              "Type expression information",
-		SynExpectRightBracket:        "Expect right bracket",
-		SynExpectType:                "Expect type",
-		SynExpectExpression:          "Expect expression",
-		SynExpectColon:               "Expect colon",
-		SynUnexpectedModifier:        "Unexpected modifier",
-		SemaInfo:                     "Semantic information",
-		SemaError:                    "Semantic error",
-		SemaDuplicateSymbol:          "Duplicate symbol",
-		SemaScopeMismatch:            "Scope stack mismatch",
-		SemaShadowSymbol:             "Shadowed symbol",
-		SemaUnresolvedSymbol:         "Unresolved symbol",
-		SemaFnOverride:               "Invalid function override",
-		SemaIntrinsicBadContext:      "Intrinsic declaration outside allowed module",
-		SemaIntrinsicBadName:         "Invalid intrinsic name",
-		SemaIntrinsicHasBody:         "Intrinsic must not have a body",
-		SemaAmbiguousCtorOrFn:        "Ambiguous constructor or function call",
-		SemaFnNameStyle:              "Function name style warning",
-		SemaTagNameStyle:             "Tag name style warning",
-		SemaModuleMemberNotFound:     "Module member not found",
-		SemaModuleMemberNotPublic:    "Module member is not public",
-		SemaTypeMismatch:             "Type mismatch",
-		SemaInvalidBinaryOperands:    "Invalid operands for binary operator",
-		SemaInvalidUnaryOperand:      "Invalid operand for unary operator",
-		SemaBorrowConflict:           "Borrow conflict",
-		SemaBorrowMutation:           "Mutation while borrowed",
-		SemaBorrowMove:               "Move while borrowed",
-		SemaBorrowThreadEscape:       "Borrow escapes thread boundary",
-		SemaBorrowImmutable:          "Cannot take mutable borrow of immutable value",
-		SemaBorrowNonAddressable:     "Expression is not addressable",
-		SemaBorrowDropInvalid:        "Drop target has no active borrow",
-		SemaExpectTypeOperand:        "Expected type operand",
-		SemaConstNotConstant:         "Const initializer is not constant",
-		SemaConstCycle:               "Const cycle detected",
-		SemaContractDuplicateField:   "Duplicate field in contract",
-		SemaContractDuplicateMethod:  "Duplicate method in contract",
-		SemaContractMethodBody:       "Contract method must not have a body",
-		SemaContractSelfType:         "Contract method self parameter mismatch",
-		SemaContractUnusedTypeParam:  "Unused contract type parameter",
-		SemaContractUnknownAttr:      "Unknown contract attribute",
-		SemaContractBoundNotFound:    "Contract in bound not found",
-		SemaContractBoundNotContract: "Identifier in bound is not a contract",
-		SemaContractBoundDuplicate:   "Duplicate contract in bounds",
-		SemaContractBoundTypeError:   "Invalid contract type argument",
-		SemaContractMissingField:     "Missing required contract field",
-		SemaContractFieldTypeError:   "Contract field type mismatch",
-		SemaContractMissingMethod:    "Missing required contract method",
-		SemaContractMethodMismatch:   "Contract method signature mismatch",
-		IOLoadFileError:              "I/O load file error",
-		ProjInfo:                     "Project information",
-		ProjDuplicateModule:          "Duplicate module definition",
-		ProjMissingModule:            "Missing module",
-		ProjSelfImport:               "Module imports itself",
-		ProjImportCycle:              "Import cycle detected",
-		ProjInvalidModulePath:        "Invalid module path",
-		ProjInvalidImportPath:        "Invalid import path",
-		ProjDependencyFailed:         "Dependency module has errors",
-		ObsInfo:                      "Observability information",
-		ObsTimings:                   "Pipeline timings",
+		UnknownCode:                    "Unknown error",
+		LexInfo:                        "Lexical information",
+		LexUnknownChar:                 "Unknown character",
+		LexUnterminatedString:          "Unterminated string",
+		LexUnterminatedBlockComment:    "Unterminated block comment",
+		LexBadNumber:                   "Bad number",
+		LexTokenTooLong:                "Token too long",
+		SynInfo:                        "Syntax information",
+		SynUnexpectedToken:             "Unexpected token",
+		SynUnclosedDelimiter:           "Unclosed delimiter",
+		SynUnclosedBlockComment:        "Unclosed block comment",
+		SynUnclosedString:              "Unclosed string",
+		SynUnclosedChar:                "Unclosed char",
+		SynUnclosedParen:               "Unclosed parenthesis",
+		SynUnclosedBrace:               "Unclosed brace",
+		SynUnclosedBracket:             "Unclosed bracket",
+		SynUnclosedSquareBracket:       "Unclosed square bracket",
+		SynUnclosedAngleBracket:        "Unclosed angle bracket",
+		SynUnclosedCurlyBracket:        "Unclosed curly bracket",
+		SynInfoImportGroup:             "Import group information",
+		SynUnexpectedTopLevel:          "Unexpected top level",
+		SynExpectSemicolon:             "Expect semicolon",
+		SynForMissingIn:                "Missing 'in' in for-in loop",
+		SynForBadHeader:                "Malformed for-loop header",
+		SynModifierNotAllowed:          "Modifier not allowed here",
+		SynAttributeNotAllowed:         "Attribute not allowed here",
+		SynAsyncNotAllowed:             "'async' not allowed here",
+		SynTypeExpectEquals:            "Expected '=' in type declaration",
+		SynTypeExpectBody:              "Expected type body",
+		SynTypeExpectUnionMember:       "Expected union member",
+		SynTypeFieldConflict:           "Duplicate field in type",
+		SynTypeDuplicateMember:         "Duplicate union member",
+		SynTypeNotAllowed:              "Type declaration is not allowed here",
+		SynIllegalItemInExtern:         "Illegal item inside extern block",
+		SynVisibilityReduction:         "Visibility reduction is not allowed",
+		SynFatArrowOutsideParallel:     "Fat arrow is only allowed in parallel expressions or compare arms",
+		SynPragmaPosition:              "Pragma must appear at the top of the file",
+		SynExpectIdentifier:            "Expect identifier",
+		SynExpectModuleSeg:             "Expect module segment",
+		SynExpectItemAfterDbl:          "Expect item after double colon",
+		SynExpectIdentAfterAs:          "Expect identifier after as",
+		SynEmptyImportGroup:            "Empty import group",
+		SynInfoTypeExpr:                "Type expression information",
+		SynExpectRightBracket:          "Expect right bracket",
+		SynExpectType:                  "Expect type",
+		SynExpectExpression:            "Expect expression",
+		SynExpectColon:                 "Expect colon",
+		SynUnexpectedModifier:          "Unexpected modifier",
+		SemaInfo:                       "Semantic information",
+		SemaError:                      "Semantic error",
+		SemaDuplicateSymbol:            "Duplicate symbol",
+		SemaScopeMismatch:              "Scope stack mismatch",
+		SemaShadowSymbol:               "Shadowed symbol",
+		SemaUnresolvedSymbol:           "Unresolved symbol",
+		SemaFnOverride:                 "Invalid function override",
+		SemaIntrinsicBadContext:        "Intrinsic declaration outside allowed module",
+		SemaIntrinsicBadName:           "Invalid intrinsic name",
+		SemaIntrinsicHasBody:           "Intrinsic must not have a body",
+		SemaAmbiguousCtorOrFn:          "Ambiguous constructor or function call",
+		SemaFnNameStyle:                "Function name style warning",
+		SemaTagNameStyle:               "Tag name style warning",
+		SemaModuleMemberNotFound:       "Module member not found",
+		SemaModuleMemberNotPublic:      "Module member is not public",
+		SemaTypeMismatch:               "Type mismatch",
+		SemaInvalidBinaryOperands:      "Invalid operands for binary operator",
+		SemaInvalidUnaryOperand:        "Invalid operand for unary operator",
+		SemaBorrowConflict:             "Borrow conflict",
+		SemaBorrowMutation:             "Mutation while borrowed",
+		SemaBorrowMove:                 "Move while borrowed",
+		SemaBorrowThreadEscape:         "Borrow escapes thread boundary",
+		SemaBorrowImmutable:            "Cannot take mutable borrow of immutable value",
+		SemaBorrowNonAddressable:       "Expression is not addressable",
+		SemaBorrowDropInvalid:          "Drop target has no active borrow",
+		SemaExpectTypeOperand:          "Expected type operand",
+		SemaConstNotConstant:           "Const initializer is not constant",
+		SemaConstCycle:                 "Const cycle detected",
+		SemaContractDuplicateField:     "Duplicate field in contract",
+		SemaContractDuplicateMethod:    "Duplicate method in contract",
+		SemaContractMethodBody:         "Contract method must not have a body",
+		SemaContractSelfType:           "Contract method self parameter mismatch",
+		SemaContractUnusedTypeParam:    "Unused contract type parameter",
+		SemaContractUnknownAttr:        "Unknown contract attribute",
+		SemaContractBoundNotFound:      "Contract in bound not found",
+		SemaContractBoundNotContract:   "Identifier in bound is not a contract",
+		SemaContractBoundDuplicate:     "Duplicate contract in bounds",
+		SemaContractBoundTypeError:     "Invalid contract type argument",
+		SemaContractMissingField:       "Missing required contract field",
+		SemaContractFieldTypeError:     "Contract field type mismatch",
+		SemaContractMissingMethod:      "Missing required contract method",
+		SemaContractMethodMismatch:     "Contract method signature mismatch",
+		SemaContractFieldAttrMismatch:  "Contract field attribute mismatch",
+		SemaContractMethodAttrMismatch: "Contract method attribute/modifier mismatch",
+		IOLoadFileError:                "I/O load file error",
+		ProjInfo:                       "Project information",
+		ProjDuplicateModule:            "Duplicate module definition",
+		ProjMissingModule:              "Missing module",
+		ProjSelfImport:                 "Module imports itself",
+		ProjImportCycle:                "Import cycle detected",
+		ProjInvalidModulePath:          "Invalid module path",
+		ProjInvalidImportPath:          "Invalid import path",
+		ProjDependencyFailed:           "Dependency module has errors",
+		ObsInfo:                        "Observability information",
+		ObsTimings:                     "Pipeline timings",
 	}
 )
 
