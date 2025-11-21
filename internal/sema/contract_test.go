@@ -93,12 +93,12 @@ contract C<T>{
 func TestContractSemantics_SelfTypeMismatch(t *testing.T) {
 	src := `
 contract C<T, U>{
-    fn foo(self: U) -> int;
+    fn foo(value: T, other: U) -> T;
 }
 `
 	bag := runContractSema(t, src)
-	if !hasCodeContract(bag, diag.SemaContractSelfType) {
-		t.Fatalf("expected self type error, got %v", diagnosticsSummary(bag))
+	if bag.HasErrors() {
+		t.Fatalf("expected no self type constraint errors, got %v", diagnosticsSummary(bag))
 	}
 }
 
@@ -117,12 +117,12 @@ contract C<T, U>{
 func TestContractSemantics_SelfOrder(t *testing.T) {
 	src := `
 contract C<T>{
-    fn foo(value: T, self: T) -> T;
+    fn foo(value: T, other: T) -> T;
 }
 `
 	bag := runContractSema(t, src)
-	if !hasCodeContract(bag, diag.SemaContractSelfType) {
-		t.Fatalf("expected self order error, got %v", diagnosticsSummary(bag))
+	if bag.HasErrors() {
+		t.Fatalf("expected no self order error, got %v", diagnosticsSummary(bag))
 	}
 }
 

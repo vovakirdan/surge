@@ -107,7 +107,7 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 	}
 }
 
-func (tc *typeChecker) checkContractMethod(fn *ast.ContractFnReq, typeParamIDs []types.TypeID, scope symbols.ScopeID, markUsage func(ast.TypeID)) {
+func (tc *typeChecker) checkContractMethod(fn *ast.ContractFnReq, _ []types.TypeID, scope symbols.ScopeID, markUsage func(ast.TypeID)) {
 	if fn == nil {
 		return
 	}
@@ -122,32 +122,7 @@ func (tc *typeChecker) checkContractMethod(fn *ast.ContractFnReq, typeParamIDs [
 	}
 
 	paramIDs := tc.getContractFnParamIDs(fn)
-	if len(paramIDs) > 0 {
-		expectedSelf := types.NoTypeID
-		if len(typeParamIDs) > 0 {
-			expectedSelf = typeParamIDs[0]
-		}
-		first := tc.builder.Items.FnParam(paramIDs[0])
-		name := ""
-		if first != nil {
-			name = tc.lookupName(first.Name)
-		}
-		allowedName := name == "self" || name == "_" || name == ""
-		if first == nil || !allowedName || !first.Type.IsValid() || first.Default.IsValid() || first.Variadic {
-			tc.report(diag.SemaContractSelfType, fn.ParamsSpan, "first parameter of method must be 'self: T'")
-		} else {
-			selfType := tc.resolveTypeExprWithScope(first.Type, scope)
-			markUsage(first.Type)
-			if !tc.matchesSelfType(expectedSelf, selfType) {
-				tc.report(diag.SemaContractSelfType, fn.ParamsSpan, "first parameter of method must be 'self: T'")
-			}
-		}
-	}
-
-	for idx, pid := range paramIDs {
-		if idx == 0 {
-			continue
-		}
+	for _, pid := range paramIDs {
 		param := tc.builder.Items.FnParam(pid)
 		if param == nil || !param.Type.IsValid() {
 			continue
@@ -255,27 +230,4 @@ func (tc *typeChecker) getContractFnParamIDs(fn *ast.ContractFnReq) []ast.FnPara
 		params = append(params, base+i)
 	}
 	return params
-}
-
-func (tc *typeChecker) matchesSelfType(expected, actual types.TypeID) bool {
-	if expected == types.NoTypeID || actual == types.NoTypeID || tc.types == nil {
-		return true
-	}
-	curr := actual
-	for {
-		if curr == expected {
-			return true
-		}
-		tt, ok := tc.types.Lookup(curr)
-		if !ok {
-			return false
-		}
-		switch tt.Kind {
-		case types.KindReference, types.KindOwn, types.KindPointer:
-			curr = tt.Elem
-			continue
-		default:
-			return false
-		}
-	}
 }

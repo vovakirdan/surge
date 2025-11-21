@@ -1,14 +1,37 @@
 // Valid contract declarations demonstrating the new 'contract' syntax.
 
-contract ErrorLike<E>{
+contract ErrorLike{
     @readonly field msg: string;
     @readonly field code: uint;
-
-    fn to_string(self: &E) -> string;
-    fn foo();
-    @overload fn foo(self: E);
 }
 
 pub contract Hashable<T>{
     pub fn hash(self: T) -> uint;
+}
+
+type Error1 = {
+    msg: string;
+    code: uint;
+}
+
+type Error2 = {
+    msg: string;
+    code: uint;
+    name: string;
+}
+
+// stub for test
+fn print(s: string) {
+    return nothing;
+}
+
+fn print_err<E: ErrorLike>(e: E) {
+    print(e.msg);
+}
+
+fn main() {
+    let e1: Error1 = { msg: "error", code: 1, no_such_field: "err" };
+    let e2: Error2 = { msg: "error", code: 1, name: "error" };
+    print_err(e1);
+    print_err(e2);
 }

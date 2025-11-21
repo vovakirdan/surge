@@ -390,7 +390,7 @@ func (p *Parser) parseTypeStructBody() (fields []ast.TypeStructFieldSpec, commas
 		p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, p.lx.Peek().Span, "expected ',' or '}' in struct body", nil)
 		p.resyncTypeStructField()
 	}
-																																																																																																				}
+}
 
 func (p *Parser) parseAdditionalUnionMembers(initial []ast.TypeUnionMemberSpec, span source.Span) ([]ast.TypeUnionMemberSpec, source.Span, bool) {
 	members := initial
