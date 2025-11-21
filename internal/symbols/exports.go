@@ -103,7 +103,7 @@ func lookupNames(builder *ast.Builder, ids []source.StringID) []string {
 
 func isExportableKind(kind SymbolKind) bool {
 	switch kind {
-	case SymbolFunction, SymbolTag, SymbolType, SymbolLet, SymbolConst:
+	case SymbolFunction, SymbolTag, SymbolType, SymbolLet, SymbolConst, SymbolContract:
 		return true
 	default:
 		return false

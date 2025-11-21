@@ -37,6 +37,10 @@ func (fr *fileResolver) handleItem(id ast.ItemID) {
 		if typeItem, ok := fr.builder.Items.Type(id); ok && typeItem != nil {
 			fr.declareType(id, typeItem)
 		}
+	case ast.ItemContract:
+		if contractItem, ok := fr.builder.Items.Contract(id); ok && contractItem != nil {
+			fr.declareContract(id, contractItem)
+		}
 	case ast.ItemTag:
 		if tagItem, ok := fr.builder.Items.Tag(id); ok && tagItem != nil {
 			fr.declareTag(id, tagItem)

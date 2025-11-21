@@ -127,23 +127,34 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		}
 	case ast.ItemFn:
 		fnItem, ok := tc.builder.Items.Fn(id)
-		if !ok || fnItem == nil || !fnItem.Body.IsValid() {
+		if !ok || fnItem == nil {
 			return
 		}
 		scope := tc.scopeForItem(id)
+		symID := tc.typeSymbolForItem(id)
+		typeParamsPushed := tc.pushTypeParams(symID, fnItem.Generics, nil)
+		if paramIDs := tc.builder.Items.GetFnTypeParamIDs(fnItem); len(paramIDs) > 0 {
+			bounds := tc.resolveTypeParamBounds(paramIDs, scope, nil)
+			tc.attachTypeParamSymbols(symID, bounds)
+		}
 		returnType := tc.functionReturnType(fnItem, scope)
 		returnSpan := fnItem.ReturnSpan
 		if returnSpan == (source.Span{}) {
 			returnSpan = fnItem.Span
 		}
-		tc.pushReturnContext(returnType, returnSpan)
 		tc.registerFnParamTypes(id, fnItem)
-		pushed := tc.pushScope(scope)
-		tc.walkStmt(fnItem.Body)
-		if pushed {
-			tc.leaveScope()
+		if fnItem.Body.IsValid() {
+			tc.pushReturnContext(returnType, returnSpan)
+			pushed := tc.pushScope(scope)
+			tc.walkStmt(fnItem.Body)
+			if pushed {
+				tc.leaveScope()
+			}
+			tc.popReturnContext()
 		}
-		tc.popReturnContext()
+		if typeParamsPushed {
+			tc.popTypeParams()
+		}
 	case ast.ItemContract:
 		if contract, ok := tc.builder.Items.Contract(id); ok && contract != nil {
 			tc.checkContract(id, contract)

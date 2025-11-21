@@ -22,7 +22,8 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 		scope = tc.fileScope()
 	}
 
-	typeParamsPushed := tc.pushTypeParams(symbols.NoSymbolID, decl.Generics, nil)
+	symID := tc.typeSymbolForItem(id)
+	typeParamsPushed := tc.pushTypeParams(symID, decl.Generics, nil)
 	typeParamSet := make(map[source.StringID]struct{}, len(decl.Generics))
 	typeParamUsage := make(map[source.StringID]bool, len(decl.Generics))
 	var typeParamIDs []types.TypeID
@@ -36,6 +37,12 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 
 	markUsage := func(typeID ast.TypeID) {
 		tc.markTypeParamUsage(typeID, typeParamSet, typeParamUsage)
+	}
+
+	paramIDs := tc.builder.Items.GetTypeParamIDs(decl.TypeParamsStart, decl.TypeParamsCount)
+	if len(paramIDs) > 0 {
+		bounds := tc.resolveTypeParamBounds(paramIDs, scope, markUsage)
+		tc.attachTypeParamSymbols(symID, bounds)
 	}
 
 	fieldNames := make(map[source.StringID]source.Span)

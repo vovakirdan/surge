@@ -106,6 +106,29 @@ func (fr *fileResolver) declareType(itemID ast.ItemID, typeItem *ast.TypeItem) {
 	}
 }
 
+func (fr *fileResolver) declareContract(itemID ast.ItemID, contractItem *ast.ContractDecl) {
+	if contractItem == nil || contractItem.Name == source.NoStringID {
+		return
+	}
+	flags := SymbolFlags(0)
+	if contractItem.Visibility == ast.VisPublic {
+		flags |= SymbolFlagPublic
+	}
+	decl := SymbolDecl{
+		SourceFile: fr.sourceFile,
+		ASTFile:    fr.fileID,
+		Item:       itemID,
+	}
+	span := preferSpan(contractItem.NameSpan, preferSpan(contractItem.ContractKeywordSpan, contractItem.Span))
+	if symID, ok := fr.resolver.Declare(contractItem.Name, span, SymbolContract, flags, decl); ok {
+		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
+			sym.TypeParams = append([]source.StringID(nil), contractItem.Generics...)
+			sym.TypeParamSpan = contractItem.GenericsSpan
+		}
+		fr.appendItemSymbol(itemID, symID)
+	}
+}
+
 func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
 	if tagItem.Name == source.NoStringID {
 		return

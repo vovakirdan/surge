@@ -1,0 +1,17 @@
+// Intentional semantic issues in bounds for diagnostics.
+
+// Unknown contract in bound
+fn missing_contract<T: Missing>();
+
+// Using a type instead of a contract
+fn not_a_contract<T: int>();
+
+contract C<T>{
+    fn use(self: T);
+}
+
+// Unknown type argument in contract bound
+fn unknown_type_arg<T: C<Missing>>();
+
+// Duplicate contract in bounds
+fn duplicate_bound<T: C<T> + C<T>>();

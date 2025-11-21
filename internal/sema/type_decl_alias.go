@@ -19,6 +19,10 @@ func (tc *typeChecker) populateAliasType(itemID ast.ItemID, typeItem *ast.TypeIt
 			tc.popTypeParams()
 		}
 	}()
+	if paramIDs := tc.builder.Items.GetTypeParamIDs(typeItem.TypeParamsStart, typeItem.TypeParamsCount); len(paramIDs) > 0 {
+		bounds := tc.resolveTypeParamBounds(paramIDs, tc.fileScope(), nil)
+		tc.attachTypeParamSymbols(symID, bounds)
+	}
 	target := tc.resolveTypeExprWithScope(aliasDecl.Target, tc.fileScope())
 	if target == types.NoTypeID {
 		span := typeItem.Span

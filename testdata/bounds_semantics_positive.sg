@@ -1,0 +1,11 @@
+// Examples of well-formed contract bounds used in functions and types.
+
+contract Printable<T>{
+    fn print(self: T);
+}
+
+contract Equatable{}
+
+fn use_generic<T: Printable<T> + Equatable>(value: T) -> nothing;
+
+type Wrapper<T: Printable<T>> = {};

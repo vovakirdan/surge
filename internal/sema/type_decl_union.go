@@ -25,6 +25,10 @@ func (tc *typeChecker) populateUnionType(itemID ast.ItemID, typeItem *ast.TypeIt
 		}
 	}()
 	scope := tc.fileScope()
+	if paramIDs := tc.builder.Items.GetTypeParamIDs(typeItem.TypeParamsStart, typeItem.TypeParamsCount); len(paramIDs) > 0 {
+		bounds := tc.resolveTypeParamBounds(paramIDs, scope, nil)
+		tc.attachTypeParamSymbols(symID, bounds)
+	}
 	members, hasTag, hasNothing := tc.collectUnionMembers(unionDecl, scope)
 	tc.validateUnionMembers(hasTag, hasNothing, typeItem, unionDecl)
 	tc.types.SetUnionMembers(typeID, members)

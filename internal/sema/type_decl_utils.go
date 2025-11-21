@@ -29,6 +29,17 @@ func (tc *typeChecker) assignSymbolType(symID symbols.SymbolID, typeID types.Typ
 	sym.Type = typeID
 }
 
+func (tc *typeChecker) attachTypeParamSymbols(symID symbols.SymbolID, params []symbols.TypeParamSymbol) {
+	if !symID.IsValid() {
+		return
+	}
+	sym := tc.symbolFromID(symID)
+	if sym == nil {
+		return
+	}
+	sym.TypeParamSymbols = append([]symbols.TypeParamSymbol(nil), params...)
+}
+
 func (tc *typeChecker) defaultable(id types.TypeID) bool {
 	if id == types.NoTypeID || tc.types == nil {
 		return false
@@ -98,6 +109,49 @@ func (tc *typeChecker) lookupTypeSymbol(name source.StringID, scope symbols.Scop
 					return id
 				}
 			}
+		}
+		scope = scopeData.Parent
+	}
+	return symbols.NoSymbolID
+}
+
+func (tc *typeChecker) lookupContractSymbol(name source.StringID, scope symbols.ScopeID) symbols.SymbolID {
+	if name == source.NoStringID || tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Scopes == nil || tc.symbols.Table.Symbols == nil {
+		return symbols.NoSymbolID
+	}
+	for scope = tc.scopeOrFile(scope); scope.IsValid(); {
+		scopeData := tc.symbols.Table.Scopes.Get(scope)
+		if scopeData == nil {
+			break
+		}
+		if ids := scopeData.NameIndex[name]; len(ids) > 0 {
+			for i := len(ids) - 1; i >= 0; i-- {
+				id := ids[i]
+				sym := tc.symbols.Table.Symbols.Get(id)
+				if sym == nil {
+					continue
+				}
+				if sym.Kind == symbols.SymbolContract {
+					return id
+				}
+			}
+		}
+		scope = scopeData.Parent
+	}
+	return symbols.NoSymbolID
+}
+
+func (tc *typeChecker) lookupSymbolAny(name source.StringID, scope symbols.ScopeID) symbols.SymbolID {
+	if name == source.NoStringID || tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Scopes == nil || tc.symbols.Table.Symbols == nil {
+		return symbols.NoSymbolID
+	}
+	for scope = tc.scopeOrFile(scope); scope.IsValid(); {
+		scopeData := tc.symbols.Table.Scopes.Get(scope)
+		if scopeData == nil {
+			break
+		}
+		if ids := scopeData.NameIndex[name]; len(ids) > 0 {
+			return ids[len(ids)-1]
 		}
 		scope = scopeData.Parent
 	}
