@@ -35,7 +35,7 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData) types.TypeID {
 		}
 		if symID := tc.symbolForExpr(call.Target); symID.IsValid() {
 			if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolFunction {
-				tc.validateFunctionCall(symID, sym, call, argTypes)
+				tc.validateFunctionCall(sym, call, argTypes)
 			}
 		}
 	}

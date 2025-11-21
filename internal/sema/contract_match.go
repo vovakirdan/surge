@@ -83,7 +83,7 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 	return ok
 }
 
-func (tc *typeChecker) validateFunctionCall(symID symbols.SymbolID, sym *symbols.Symbol, call *ast.ExprCallData, argTypes []types.TypeID) {
+func (tc *typeChecker) validateFunctionCall(sym *symbols.Symbol, call *ast.ExprCallData, argTypes []types.TypeID) {
 	if sym == nil || call == nil || tc.builder == nil {
 		return
 	}
@@ -91,18 +91,17 @@ func (tc *typeChecker) validateFunctionCall(symID symbols.SymbolID, sym *symbols
 	if !ok || fnItem == nil {
 		return
 	}
-	scope := tc.scopeForItem(sym.Decl.Item)
-	bindings := tc.inferTypeParamBindings(sym, fnItem, argTypes, scope)
+	bindings := tc.inferTypeParamBindings(sym, fnItem, argTypes)
 	if len(sym.TypeParamSymbols) > 0 {
-		tc.enforceContractBounds(sym.TypeParamSymbols, bindings, tc.exprSpan(call.Target))
+		tc.enforceContractBounds(sym.TypeParamSymbols, bindings)
 	}
 }
 
-func (tc *typeChecker) inferTypeParamBindings(sym *symbols.Symbol, fn *ast.FnItem, argTypes []types.TypeID, scope symbols.ScopeID) map[source.StringID]types.TypeID {
-	result := make(map[source.StringID]types.TypeID, len(sym.TypeParams))
+func (tc *typeChecker) inferTypeParamBindings(sym *symbols.Symbol, fn *ast.FnItem, argTypes []types.TypeID) map[source.StringID]types.TypeID {
 	if sym == nil || fn == nil || len(sym.TypeParams) == 0 || tc.builder == nil {
-		return result
+		return nil
 	}
+	result := make(map[source.StringID]types.TypeID, len(sym.TypeParams))
 	indexByName := make(map[source.StringID]struct{}, len(sym.TypeParams))
 	for _, name := range sym.TypeParams {
 		indexByName[name] = struct{}{}
@@ -149,7 +148,7 @@ func (tc *typeChecker) paramTypeParamName(typeID ast.TypeID, allowed map[source.
 	return source.NoStringID
 }
 
-func (tc *typeChecker) enforceContractBounds(params []symbols.TypeParamSymbol, bindings map[source.StringID]types.TypeID, span source.Span) {
+func (tc *typeChecker) enforceContractBounds(params []symbols.TypeParamSymbol, bindings map[source.StringID]types.TypeID) {
 	if len(params) == 0 || tc.reporter == nil {
 		return
 	}
@@ -369,7 +368,7 @@ func (tc *typeChecker) methodsForType(target types.TypeID, name source.StringID)
 		if data := tc.symbols.Table.Symbols.Data(); data != nil {
 			for i := range data {
 				sym := &data[i]
-				if sym == nil || sym.Kind != symbols.SymbolFunction || sym.Signature == nil {
+				if sym.Kind != symbols.SymbolFunction || sym.Signature == nil {
 					continue
 				}
 				if tc.symbolName(sym.Name) != nameLiteral {
