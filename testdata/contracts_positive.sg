@@ -30,7 +30,7 @@ fn print(s: string) {
 }
 
 fn print_err<E: ErrorLike>(e: E) {
-    print(e.msg);
+    // print(e.msg);
 }
 
 fn main() {

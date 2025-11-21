@@ -27,7 +27,12 @@ type methodSignature struct {
 	result types.TypeID
 }
 
-func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symbols.BoundInstance) bool {
+type bindingInfo struct {
+	typ  types.TypeID
+	span source.Span
+}
+
+func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symbols.BoundInstance, hintSpan source.Span) bool {
 	if target == types.NoTypeID || !bound.Contract.IsValid() || tc.builder == nil {
 		return false
 	}
@@ -46,6 +51,14 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 		return false
 	}
 
+	reportSpan := hintSpan
+	if reportSpan == (source.Span{}) {
+		reportSpan = bound.Span
+	}
+	if reportSpan == (source.Span{}) {
+		reportSpan = contractSym.Span
+	}
+
 	scope := tc.scopeForItem(contractSym.Decl.Item)
 	pushed := false
 	if len(contractSym.TypeParams) > 0 {
@@ -59,25 +72,55 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 	ok := okReqs
 
 	fields := tc.collectTypeFields(target)
+	var missingFields []string
 	for name, expected := range reqs.fields {
 		actual, exists := fields[name]
 		if !exists {
-			tc.report(diag.SemaContractMissingField, bound.Span, "missing required field '%s'", tc.lookupName(name))
-			ok = false
+			missingFields = append(missingFields, tc.lookupName(name))
 			continue
 		}
 		if !tc.contractTypesEqual(expected, actual) {
-			tc.report(diag.SemaContractFieldTypeError, bound.Span, "field '%s' has type %s, expected %s", tc.lookupName(name), tc.typeLabel(actual), tc.typeLabel(expected))
+			tc.report(diag.SemaContractFieldTypeError, reportSpan, "type %s field '%s' has type %s, expected %s (contract %s)", tc.typeLabel(target), tc.lookupName(name), tc.typeLabel(actual), tc.typeLabel(expected), tc.lookupName(contractSym.Name))
 			ok = false
 		}
 	}
+	if len(missingFields) > 0 {
+		label := "field"
+		if len(missingFields) > 1 {
+			label = "fields"
+		}
+		tc.report(diag.SemaContractMissingField, reportSpan, "type %s missing required %s by contract %s: %s", tc.typeLabel(target), label, tc.lookupName(contractSym.Name), joinNames(missingFields))
+		ok = false
+	}
 
+	var missingMethods []string
+	var mismatchedMethods []string
 	for name, methods := range reqs.methods {
 		for _, req := range methods {
-			if !tc.ensureMethodSatisfies(target, name, req, bound.Span) {
+			switch tc.ensureMethodSatisfies(target, name, req, reportSpan, tc.lookupName(contractSym.Name)) {
+			case -1:
+				missingMethods = append(missingMethods, tc.lookupName(name))
+				ok = false
+			case 0:
+				mismatchedMethods = append(mismatchedMethods, tc.lookupName(name))
 				ok = false
 			}
 		}
+	}
+
+	if len(missingMethods) > 0 {
+		label := "method"
+		if len(missingMethods) > 1 {
+			label = "methods"
+		}
+		tc.report(diag.SemaContractMissingMethod, reportSpan, "type %s missing required %s by contract %s: %s", tc.typeLabel(target), label, tc.lookupName(contractSym.Name), joinNames(missingMethods))
+	}
+	if len(mismatchedMethods) > 0 {
+		label := "method"
+		if len(mismatchedMethods) > 1 {
+			label = "methods"
+		}
+		tc.report(diag.SemaContractMethodMismatch, reportSpan, "type %s has incompatible %s for contract %s: %s", tc.typeLabel(target), label, tc.lookupName(contractSym.Name), joinNames(mismatchedMethods))
 	}
 
 	return ok
@@ -91,17 +134,17 @@ func (tc *typeChecker) validateFunctionCall(sym *symbols.Symbol, call *ast.ExprC
 	if !ok || fnItem == nil {
 		return
 	}
-	bindings := tc.inferTypeParamBindings(sym, fnItem, argTypes)
+	bindings := tc.inferTypeParamBindings(sym, fnItem, argTypes, call)
 	if len(sym.TypeParamSymbols) > 0 {
-		tc.enforceContractBounds(sym.TypeParamSymbols, bindings)
+		tc.enforceContractBounds(sym.TypeParamSymbols, bindings, tc.exprSpan(call.Target))
 	}
 }
 
-func (tc *typeChecker) inferTypeParamBindings(sym *symbols.Symbol, fn *ast.FnItem, argTypes []types.TypeID) map[source.StringID]types.TypeID {
-	if sym == nil || fn == nil || len(sym.TypeParams) == 0 || tc.builder == nil {
+func (tc *typeChecker) inferTypeParamBindings(sym *symbols.Symbol, fn *ast.FnItem, argTypes []types.TypeID, call *ast.ExprCallData) map[source.StringID]bindingInfo {
+	if sym == nil || fn == nil || len(sym.TypeParams) == 0 || tc.builder == nil || call == nil {
 		return nil
 	}
-	result := make(map[source.StringID]types.TypeID, len(sym.TypeParams))
+	result := make(map[source.StringID]bindingInfo, len(sym.TypeParams))
 	indexByName := make(map[source.StringID]struct{}, len(sym.TypeParams))
 	for _, name := range sym.TypeParams {
 		indexByName[name] = struct{}{}
@@ -115,12 +158,13 @@ func (tc *typeChecker) inferTypeParamBindings(sym *symbols.Symbol, fn *ast.FnIte
 		if argType == types.NoTypeID {
 			continue
 		}
+		argSpan := tc.exprSpan(call.Args[i])
 		param := tc.builder.Items.FnParam(pid)
 		if param == nil {
 			continue
 		}
 		if name := tc.paramTypeParamName(param.Type, indexByName); name != source.NoStringID {
-			result[name] = argType
+			result[name] = bindingInfo{typ: argType, span: argSpan}
 		}
 	}
 	return result
@@ -148,24 +192,29 @@ func (tc *typeChecker) paramTypeParamName(typeID ast.TypeID, allowed map[source.
 	return source.NoStringID
 }
 
-func (tc *typeChecker) enforceContractBounds(params []symbols.TypeParamSymbol, bindings map[source.StringID]types.TypeID) {
+func (tc *typeChecker) enforceContractBounds(params []symbols.TypeParamSymbol, bindings map[source.StringID]bindingInfo, span source.Span) {
 	if len(params) == 0 || tc.reporter == nil {
 		return
 	}
 	for _, param := range params {
-		concrete := bindings[param.Name]
+		binding := bindings[param.Name]
+		concrete := binding.typ
 		if concrete == types.NoTypeID {
 			continue
+		}
+		reportSpan := binding.span
+		if reportSpan == (source.Span{}) {
+			reportSpan = span
 		}
 		for _, bound := range param.Bounds {
 			inst := bound
 			inst.GenericArgs = tc.substituteBoundArgs(bound.GenericArgs, bindings)
-			tc.checkContractSatisfaction(concrete, inst)
+			tc.checkContractSatisfaction(concrete, inst, reportSpan)
 		}
 	}
 }
 
-func (tc *typeChecker) substituteBoundArgs(args []types.TypeID, bindings map[source.StringID]types.TypeID) []types.TypeID {
+func (tc *typeChecker) substituteBoundArgs(args []types.TypeID, bindings map[source.StringID]bindingInfo) []types.TypeID {
 	if len(args) == 0 {
 		return nil
 	}
@@ -176,7 +225,7 @@ func (tc *typeChecker) substituteBoundArgs(args []types.TypeID, bindings map[sou
 	return out
 }
 
-func (tc *typeChecker) substituteTypeParamByName(id types.TypeID, bindings map[source.StringID]types.TypeID) types.TypeID {
+func (tc *typeChecker) substituteTypeParamByName(id types.TypeID, bindings map[source.StringID]bindingInfo) types.TypeID {
 	if id == types.NoTypeID || tc.types == nil {
 		return id
 	}
@@ -187,7 +236,7 @@ func (tc *typeChecker) substituteTypeParamByName(id types.TypeID, bindings map[s
 	}
 	if tt.Kind == types.KindGenericParam {
 		if name := tc.typeParamNames[resolved]; name != source.NoStringID {
-			if concrete := bindings[name]; concrete != types.NoTypeID {
+			if concrete := bindings[name].typ; concrete != types.NoTypeID {
 				return concrete
 			}
 		}
@@ -303,39 +352,30 @@ func (tc *typeChecker) collectTypeFields(target types.TypeID) map[source.StringI
 	return fields
 }
 
-func (tc *typeChecker) ensureMethodSatisfies(target types.TypeID, name source.StringID, req methodRequirement, boundSpan source.Span) bool {
+// returns 1 if satisfied, 0 if signature mismatch, -1 if missing entirely
+func (tc *typeChecker) ensureMethodSatisfies(target types.TypeID, name source.StringID, req methodRequirement, reportSpan source.Span, contractName string) int {
 	if len(req.params) > 0 && !tc.contractTypesEqual(req.params[0], target) {
-		tc.report(diag.SemaContractSelfType, boundSpan, "contract method '%s' must have self of type %s, got %s", tc.lookupName(name), tc.typeLabel(target), tc.typeLabel(req.params[0]))
-		return false
+		tc.report(diag.SemaContractSelfType, reportSpan, "type %s method '%s' must have self %s per contract %s, got %s", tc.typeLabel(target), tc.lookupName(name), tc.typeLabel(target), contractName, tc.typeLabel(req.params[0]))
+		return 0
 	}
 
 	actual := tc.methodsForType(target, name)
 	if len(actual) == 0 {
-		tc.report(diag.SemaContractMissingMethod, boundSpan, "missing required method '%s'", tc.lookupName(name))
-		return false
+		return -1
 	}
 
-	signatureMismatch := false
 	for _, cand := range actual {
 		if len(cand.params) != len(req.params) {
-			signatureMismatch = true
 			continue
 		}
 		if len(cand.params) > 0 && !tc.contractTypesEqual(cand.params[0], target) {
-			signatureMismatch = true
 			continue
 		}
 		if tc.contractSignatureMatches(req, cand) {
-			return true
+			return 1
 		}
-		signatureMismatch = true
 	}
-	if signatureMismatch {
-		tc.report(diag.SemaContractMethodMismatch, boundSpan, "method '%s' has incompatible signature, expected %s", tc.lookupName(name), tc.formatSignature(req))
-	} else {
-		tc.report(diag.SemaContractMissingMethod, boundSpan, "missing required method '%s'", tc.lookupName(name))
-	}
-	return false
+	return 0
 }
 
 func (tc *typeChecker) methodsForType(target types.TypeID, name source.StringID) []methodSignature {
@@ -457,4 +497,15 @@ func joinSignature(parts []string) string {
 		}
 		return result
 	}
+}
+
+func joinNames(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	result := names[0]
+	for _, n := range names[1:] {
+		result += ", " + n
+	}
+	return result
 }
