@@ -103,6 +103,10 @@ const (
 	SemaContractBoundNotContract Code = 3035
 	SemaContractBoundDuplicate   Code = 3036
 	SemaContractBoundTypeError   Code = 3037
+	SemaContractMissingField     Code = 3038
+	SemaContractFieldTypeError   Code = 3039
+	SemaContractMissingMethod    Code = 3040
+	SemaContractMethodMismatch   Code = 3041
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -210,6 +214,10 @@ var ( // todo расширить описания и использовать к
 		SemaContractBoundNotContract: "Identifier in bound is not a contract",
 		SemaContractBoundDuplicate:   "Duplicate contract in bounds",
 		SemaContractBoundTypeError:   "Invalid contract type argument",
+		SemaContractMissingField:     "Missing required contract field",
+		SemaContractFieldTypeError:   "Contract field type mismatch",
+		SemaContractMissingMethod:    "Missing required contract method",
+		SemaContractMethodMismatch:   "Contract method signature mismatch",
 		IOLoadFileError:              "I/O load file error",
 		ProjInfo:                     "Project information",
 		ProjDuplicateModule:          "Duplicate module definition",
