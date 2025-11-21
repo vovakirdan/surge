@@ -32,7 +32,7 @@ run:
 # ===== Test =====
 test:
 	@echo ">> Running tests"
-	$(GO) test ./...
+	$(GO) test ./... --timeout 30s
 
 # ===== Format =====
 format: fmt

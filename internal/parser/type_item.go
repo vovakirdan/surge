@@ -257,22 +257,48 @@ func (p *Parser) parseTypeStructBody() (fields []ast.TypeStructFieldSpec, commas
 	fieldNames := make(map[source.StringID]source.Span)
 	commas = make([]source.Span, 0, 4)
 
-	for !p.at(token.RBrace) && !p.at(token.EOF) {
-		var fieldAttrs []ast.Attr
-		var fieldAttrSpan source.Span
-		fieldAttrs, fieldAttrSpan, ok = p.parseAttributes()
-		if !ok {
-			p.resyncTypeStructField()
-			continue
+	for {
+		tok := p.lx.Peek()
+		switch tok.Kind {
+		case token.RBrace:
+			closeTok := p.advance()
+			bodySpan = openTok.Span.Cover(closeTok.Span)
+			ok = true
+			return
+		case token.EOF:
+			p.emitDiagnostic(diag.SynUnclosedBrace, diag.SevError, tok.Span, "expected '}' to close struct body", nil)
+			bodySpan = openTok.Span
+			return
 		}
 
+		var fieldAttrs []ast.Attr
+		var fieldAttrSpan source.Span
 		var nameID source.StringID
-		nameID, ok = p.parseIdent()
-		if !ok {
-			p.resyncTypeStructField()
-			continue
+		var nameSpan source.Span
+
+		if tok.Kind == token.At {
+			fieldAttrs, fieldAttrSpan, ok = p.parseAttributes()
+			if !ok {
+				p.resyncTypeStructField()
+				continue
+			}
+			nameID, ok = p.parseIdent()
+			if !ok {
+				p.resyncTypeStructField()
+				continue
+			}
+			nameSpan = p.lastSpan
+		} else {
+			tok = p.advance()
+			if tok.Kind != token.Ident && tok.Kind != token.Underscore {
+				p.err(diag.SynExpectIdentifier, fmt.Sprintf("expected identifier, got %q", tok.Text))
+				p.resyncTypeStructField()
+				continue
+			}
+			nameID = p.arenas.StringsInterner.Intern(tok.Text)
+			nameSpan = tok.Span
+			p.lastSpan = nameSpan
 		}
-		nameSpan := p.lastSpan
 
 		if prevSpan, exists := fieldNames[nameID]; exists {
 			fieldName := p.arenas.StringsInterner.MustLookup(nameID)
@@ -332,34 +358,39 @@ func (p *Parser) parseTypeStructBody() (fields []ast.TypeStructFieldSpec, commas
 			Span:    fieldSpan,
 		})
 
+		consumedSemicolon := false
+		for p.at(token.Semicolon) {
+			p.advance()
+			consumedSemicolon = true
+		}
+		if consumedSemicolon {
+			continue
+		}
+
 		if p.at(token.Comma) {
 			commaTok := p.advance()
 			commas = append(commas, commaTok.Span)
 			if p.at(token.RBrace) {
 				trailing = true
-				break
+				closeTok := p.advance()
+				bodySpan = openTok.Span.Cover(closeTok.Span)
+				ok = true
+				return
 			}
 			continue
 		}
 
 		if p.at(token.RBrace) {
-			break
+			closeTok := p.advance()
+			bodySpan = openTok.Span.Cover(closeTok.Span)
+			ok = true
+			return
 		}
 
 		p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, p.lx.Peek().Span, "expected ',' or '}' in struct body", nil)
 		p.resyncTypeStructField()
 	}
-
-	closeTok, ok := p.expect(token.RBrace, diag.SynUnclosedBrace, "expected '}' to close struct body", nil)
-	if !ok {
-		bodySpan = openTok.Span
-		return
-	}
-
-	bodySpan = openTok.Span.Cover(closeTok.Span)
-	ok = true
-	return
-}
+																																																																																																				}
 
 func (p *Parser) parseAdditionalUnionMembers(initial []ast.TypeUnionMemberSpec, span source.Span) ([]ast.TypeUnionMemberSpec, source.Span, bool) {
 	members := initial
@@ -492,7 +523,7 @@ func (p *Parser) extractTagName(typeID ast.TypeID) (source.StringID, bool) {
 
 func (p *Parser) resyncTypeStructField() {
 	p.resyncUntil(token.Comma, token.RBrace, token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract, token.EOF)
-	if p.at(token.Comma) {
+	if p.at(token.Comma) || p.at(token.Semicolon) {
 		p.advance()
 	}
 }
