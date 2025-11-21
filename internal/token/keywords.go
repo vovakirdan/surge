@@ -17,6 +17,7 @@ var keywords = map[string]Kind{
 	"import":   KwImport,
 	"as":       KwAs,
 	"type":     KwType,
+	"contract": KwContract,
 	"tag":      KwTag,
 	"extern":   KwExtern,
 	"pub":      KwPub,
@@ -38,6 +39,7 @@ var keywords = map[string]Kind{
 	"to":       KwTo,
 	"heir":     KwHeir,
 	"is":       KwIs,
+	"field":    KwField,
 	"nothing":  NothingLit,
 }
 

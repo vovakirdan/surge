@@ -195,6 +195,77 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 
 			output.Fields = fields
 		}
+	case ast.ItemContract:
+		if contractItem, ok := builder.Items.Contract(itemID); ok {
+			fields := map[string]any{
+				"name":       lookupStringOr(builder, contractItem.Name, "<anon>"),
+				"visibility": contractItem.Visibility.String(),
+			}
+
+			if len(contractItem.Generics) > 0 {
+				genericNames := make([]string, 0, len(contractItem.Generics))
+				for _, gid := range contractItem.Generics {
+					genericNames = append(genericNames, lookupStringOr(builder, gid, "_"))
+				}
+				fields["generics"] = genericNames
+			}
+
+			if contractItem.AttrCount > 0 {
+				attrs := builder.Items.CollectAttrs(contractItem.AttrStart, contractItem.AttrCount)
+				if len(attrs) > 0 {
+					fields["attributes"] = buildAttrsJSON(builder, attrs)
+				}
+			}
+
+			members := make([]map[string]any, 0, contractItem.ItemsCount)
+			for _, cid := range builder.Items.GetContractItemIDs(contractItem) {
+				member := builder.Items.ContractItem(cid)
+				if member == nil {
+					continue
+				}
+				entry := map[string]any{
+					"kind": formatContractItemKind(member.Kind),
+				}
+				switch member.Kind {
+				case ast.ContractItemField:
+					if field := builder.Items.ContractField(ast.ContractFieldID(member.Payload)); field != nil {
+						entry["name"] = lookupStringOr(builder, field.Name, "<field>")
+						entry["type"] = formatTypeExprInline(builder, field.Type)
+						if field.AttrCount > 0 {
+							attrs := builder.Items.CollectAttrs(field.AttrStart, field.AttrCount)
+							if len(attrs) > 0 {
+								entry["attributes"] = buildAttrsJSON(builder, attrs)
+							}
+						}
+					}
+				case ast.ContractItemFn:
+					if fn := builder.Items.ContractFn(ast.ContractFnID(member.Payload)); fn != nil {
+						entry["name"] = lookupStringOr(builder, fn.Name, "<fn>")
+						entry["params"] = formatContractFnParamsInline(builder, fn)
+						entry["returnType"] = formatTypeExprInline(builder, fn.ReturnType)
+						if fn.AttrCount > 0 {
+							fnAttrs := builder.Items.CollectAttrs(fn.AttrStart, fn.AttrCount)
+							if len(fnAttrs) > 0 {
+								entry["attributes"] = buildAttrsJSON(builder, fnAttrs)
+							}
+						}
+						if fn.Flags&ast.FnModifierPublic != 0 {
+							entry["public"] = true
+						}
+						if fn.Flags&ast.FnModifierAsync != 0 {
+							entry["async"] = true
+						}
+					}
+				}
+				members = append(members, entry)
+			}
+			fields["memberCount"] = contractItem.ItemsCount
+			if len(members) > 0 {
+				fields["members"] = members
+			}
+
+			output.Fields = fields
+		}
 	case ast.ItemTag:
 		if tagItem, ok := builder.Items.Tag(itemID); ok {
 			fields := map[string]any{
@@ -367,6 +438,8 @@ func formatItemKind(kind ast.ItemKind) string {
 		return "Import"
 	case ast.ItemMacro:
 		return "Macro"
+	case ast.ItemContract:
+		return "Contract"
 	default:
 		return fmt.Sprintf("Unknown(%d)", kind)
 	}
@@ -405,6 +478,44 @@ func formatUnionMemberKind(kind ast.TypeUnionMemberKind) string {
 	default:
 		return fmt.Sprintf("UnionMemberKind(%d)", kind)
 	}
+}
+
+func formatContractItemKind(kind ast.ContractItemKind) string {
+	switch kind {
+	case ast.ContractItemField:
+		return "Field"
+	case ast.ContractItemFn:
+		return "Fn"
+	default:
+		return fmt.Sprintf("ContractItemKind(%d)", kind)
+	}
+}
+
+func formatContractFnParamsInline(builder *ast.Builder, fn *ast.ContractFnReq) string {
+	if builder == nil || fn == nil {
+		return "()"
+	}
+	if fn.ParamsCount == 0 || !fn.ParamsStart.IsValid() {
+		return "()"
+	}
+	params := make([]string, 0, fn.ParamsCount)
+	start := uint32(fn.ParamsStart)
+	for idx := range fn.ParamsCount {
+		param := builder.Items.FnParam(ast.FnParamID(start + uint32(idx)))
+		if param == nil {
+			continue
+		}
+		name := lookupStringOr(builder, param.Name, "_")
+		if param.Variadic {
+			name = "..." + name
+		}
+		piece := fmt.Sprintf("%s: %s", name, formatTypeExprInline(builder, param.Type))
+		if param.Default.IsValid() {
+			piece = fmt.Sprintf("%s = %s", piece, formatExprInline(builder, param.Default))
+		}
+		params = append(params, piece)
+	}
+	return fmt.Sprintf("(%s)", strings.Join(params, ", "))
 }
 
 func formatUnionMemberInline(builder *ast.Builder, member *ast.TypeUnionMember, idx int) string {

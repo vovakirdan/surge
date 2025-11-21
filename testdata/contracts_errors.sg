@@ -1,0 +1,11 @@
+// Examples of contract syntax errors that should trigger parser diagnostics:
+//  - missing semicolon after a contract field
+//  - function body is not allowed inside contracts
+
+contract MissingSemicolon(
+    field id: int
+)
+
+contract WithBody(
+    fn build() {}
+)

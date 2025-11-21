@@ -1,0 +1,12 @@
+// Valid contract declarations demonstrating the new 'contract' syntax.
+
+contract ErrorLike<E>(
+    @readonly field msg: string;
+    @readonly field code: uint;
+
+    fn to_string(self: &E) -> string;
+)
+
+pub contract Hashable<T>(
+    pub fn hash(self: T) -> uint;
+)

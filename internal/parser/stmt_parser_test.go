@@ -504,7 +504,7 @@ func TestParseExpressionStatement(t *testing.T) {
 		{"method_call", "fn foo() { obj.method(); }"},
 		{"assignment", "fn foo() { x = 10; }"},
 		{"compound_assignment", "fn foo() { x += 5; }"},
-		{"field_access", "fn foo() { obj.field; }"},
+		{"field_access", "fn foo() { obj.member; }"},
 	}
 
 	for _, tt := range tests {

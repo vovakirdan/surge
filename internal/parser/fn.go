@@ -216,7 +216,7 @@ func (p *Parser) parseFnDefinition(attrSpan source.Span, mods fnModifiers) (pars
 	// Допускаем Rust-подобный синтаксис: fn <T, U> name(...)
 	preGenerics, preCommas, preTrailing, preSpan, ok := p.parseFnGenerics()
 	if !ok {
-		p.resyncUntil(token.Ident, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst)
+		p.resyncUntil(token.Ident, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 		return parsedFn{}, false
 	}
 
@@ -244,27 +244,27 @@ func (p *Parser) parseFnDefinition(attrSpan source.Span, mods fnModifiers) (pars
 			)
 			// Пробуем съесть второе объявление, чтобы не застрять.
 			if _, _, _, _, ok = p.parseFnGenerics(); !ok {
-				p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst)
+				p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 				return parsedFn{}, false
 			}
 		}
 	} else {
 		generics, genericCommas, genericsTrailing, genericsSpan, ok = p.parseFnGenerics()
 		if !ok {
-			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst)
+			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 			return parsedFn{}, false
 		}
 	}
 
 	openParen, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after function name")
 	if !ok {
-		p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst)
+		p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 		return parsedFn{}, false
 	}
 
 	params, commas, trailing, closeParenSpan, ok := p.parseFnParams()
 	if !ok {
-		p.resyncUntil(token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet, token.KwConst)
+		p.resyncUntil(token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 		return parsedFn{}, false
 	}
 	result.paramsSpan = openParen.Span.Cover(closeParenSpan)
@@ -297,12 +297,12 @@ func (p *Parser) parseFnDefinition(attrSpan source.Span, mods fnModifiers) (pars
 					b.WithNote(arrowTok.Span, "remove '->' to simplify the function signature")
 				},
 			)
-			p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst)
+			p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 			return parsedFn{}, false
 		}
 		returnType, ok = p.parseTypePrefix()
 		if !ok {
-			p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst)
+			p.resyncUntil(token.LBrace, token.Semicolon, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 			return parsedFn{}, false
 		}
 		typeSpan := p.arenas.Types.Get(returnType).Span
@@ -493,7 +493,7 @@ func (p *Parser) parseFnParams() (params []ast.FnParam, commas []source.Span, tr
 	for {
 		param, paramOK := p.parseFnParam()
 		if !paramOK {
-			p.resyncUntil(token.RParen, token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet, token.KwConst)
+			p.resyncUntil(token.RParen, token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 			if p.at(token.RParen) {
 				p.advance()
 			}
@@ -526,7 +526,7 @@ func (p *Parser) parseFnParams() (params []ast.FnParam, commas []source.Span, tr
 					"variadic parameter must be the last parameter in the list",
 					nil,
 				)
-				p.resyncUntil(token.RParen, token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet, token.KwConst)
+				p.resyncUntil(token.RParen, token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 				if p.at(token.RParen) {
 					closeTok := p.advance()
 					closeSpan = closeTok.Span
@@ -537,7 +537,7 @@ func (p *Parser) parseFnParams() (params []ast.FnParam, commas []source.Span, tr
 		}
 
 		if !expectClosing() {
-			p.resyncUntil(token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet, token.KwConst)
+			p.resyncUntil(token.Semicolon, token.LBrace, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract)
 			return
 		}
 		break
@@ -560,7 +560,7 @@ func (p *Parser) parseFnGenerics() (generics []source.StringID, commas []source.
 	for {
 		nameID, ok := p.parseIdent()
 		if !ok {
-			p.resyncUntil(token.Gt, token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport)
+			p.resyncUntil(token.Gt, token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport, token.KwContract)
 			if p.at(token.Gt) {
 				p.advance()
 			}
@@ -598,7 +598,7 @@ func (p *Parser) parseFnGenerics() (generics []source.StringID, commas []source.
 			b.WithFixSuggestion(suggestion)
 			b.WithNote(insertSpan, "insert '>' to close the generic parameter list")
 		}); !ok {
-			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport)
+			p.resyncUntil(token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport, token.KwContract)
 			return generics, commas, trailing, source.Span{}, false
 		}
 		break

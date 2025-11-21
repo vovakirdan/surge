@@ -19,6 +19,8 @@ func TestLookupKeyword_Positive(t *testing.T) {
 		"heir":     KwHeir,
 		"true":     KwTrue,
 		"false":    KwFalse,
+		"contract": KwContract,
+		"field":    KwField,
 	}
 
 	for lexeme, want := range cases {

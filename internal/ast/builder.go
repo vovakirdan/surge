@@ -126,6 +126,58 @@ func (b *Builder) NewExternFn(
 	return b.Items.NewExternFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
+func (b *Builder) NewContractField(
+	name source.StringID,
+	nameSpan source.Span,
+	typ TypeID,
+	fieldKwSpan source.Span,
+	colonSpan source.Span,
+	semicolonSpan source.Span,
+	attrs []Attr,
+	span source.Span,
+) PayloadID {
+	return b.Items.NewContractField(name, nameSpan, typ, fieldKwSpan, colonSpan, semicolonSpan, attrs, span)
+}
+
+func (b *Builder) NewContractFn(
+	name source.StringID,
+	nameSpan source.Span,
+	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
+	params []FnParam,
+	paramCommas []source.Span,
+	paramsTrailing bool,
+	fnKwSpan source.Span,
+	paramsSpan source.Span,
+	returnSpan source.Span,
+	semicolonSpan source.Span,
+	returnType TypeID,
+	flags FnModifier,
+	attrs []Attr,
+	span source.Span,
+) PayloadID {
+	return b.Items.NewContractFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, flags, attrs, span)
+}
+
+func (b *Builder) NewContract(
+	name source.StringID,
+	nameSpan source.Span,
+	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
+	contractKwSpan source.Span,
+	bodySpan source.Span,
+	attrs []Attr,
+	items []ContractItemSpec,
+	visibility Visibility,
+	span source.Span,
+) ItemID {
+	return b.Items.NewContract(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, contractKwSpan, bodySpan, attrs, items, visibility, span)
+}
+
 func (b *Builder) NewTypeAlias(
 	name source.StringID,
 	generics []source.StringID,

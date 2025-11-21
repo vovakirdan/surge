@@ -23,13 +23,13 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 
 	nameID, ok := p.parseIdent()
 	if !ok {
-		p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.EOF)
+		p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract, token.EOF)
 		return ast.NoItemID, false
 	}
 
 	generics, genericCommas, genericsTrailing, genericsSpan, ok := p.parseFnGenerics()
 	if !ok {
-		p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.EOF)
+		p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract, token.EOF)
 		return ast.NoItemID, false
 	}
 
@@ -52,7 +52,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 		b.WithNote(insertSpan, "insert missing '='")
 	})
 	if !ok {
-		p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.EOF)
+		p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract, token.EOF)
 		return ast.NoItemID, false
 	}
 	assignSpan := assignTok.Span
@@ -80,7 +80,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 	default:
 		firstType, ok := p.parseTypePrefix()
 		if !ok {
-			p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.EOF)
+			p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract, token.EOF)
 			return ast.NoItemID, false
 		}
 		firstTypeSpan := p.arenas.Types.Get(firstType).Span
@@ -89,7 +89,7 @@ func (p *Parser) parseTypeItem(attrs []ast.Attr, attrSpan source.Span, visibilit
 			colonTok := p.advance()
 			if !p.at(token.LBrace) {
 				p.emitDiagnostic(diag.SynTypeExpectBody, diag.SevError, colonTok.Span.ZeroideToEnd(), "expected '{' to start struct body", nil)
-				p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.EOF)
+				p.resyncUntil(token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract, token.EOF)
 				return ast.NoItemID, false
 			}
 			var fields []ast.TypeStructFieldSpec
@@ -491,14 +491,14 @@ func (p *Parser) extractTagName(typeID ast.TypeID) (source.StringID, bool) {
 }
 
 func (p *Parser) resyncTypeStructField() {
-	p.resyncUntil(token.Comma, token.RBrace, token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.EOF)
+	p.resyncUntil(token.Comma, token.RBrace, token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract, token.EOF)
 	if p.at(token.Comma) {
 		p.advance()
 	}
 }
 
 func (p *Parser) resyncUnionMember() {
-	p.resyncUntil(token.Pipe, token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.EOF)
+	p.resyncUntil(token.Pipe, token.Semicolon, token.KwType, token.KwFn, token.KwImport, token.KwLet, token.KwConst, token.KwContract, token.EOF)
 	if p.at(token.Pipe) {
 		p.advance()
 	}

@@ -40,6 +40,8 @@ func (k Kind) String() string {
 		return "KwAs"
 	case KwType:
 		return "KwType"
+	case KwContract:
+		return "KwContract"
 	case KwTag:
 		return "KwTag"
 	case KwExtern:
@@ -82,6 +84,8 @@ func (k Kind) String() string {
 		return "KwHeir"
 	case KwIs:
 		return "KwIs"
+	case KwField:
+		return "KwField"
 	case NothingLit:
 		return "NothingLit"
 	case IntLit:

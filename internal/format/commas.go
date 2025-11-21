@@ -88,6 +88,28 @@ func NormalizeCommas(sf *source.File, b *ast.Builder, fileID ast.FileID) []byte 
 						addCommaEdit(&edits, content, int(sp.Start), int(sp.End), fn.ParamsTrailingComma && idx == lastIdx)
 					}
 				}
+			case ast.ItemContract:
+				decl, ok := b.Items.Contract(itemID)
+				if !ok || decl == nil {
+					continue
+				}
+				for _, cid := range b.Items.GetContractItemIDs(decl) {
+					member := b.Items.ContractItem(cid)
+					if member == nil || member.Kind != ast.ContractItemFn {
+						continue
+					}
+					fn := b.Items.ContractFn(ast.ContractFnID(member.Payload))
+					if fn == nil {
+						continue
+					}
+					lastIdx := len(fn.ParamCommas) - 1
+					for idx, sp := range fn.ParamCommas {
+						if sp.File != sf.ID {
+							continue
+						}
+						addCommaEdit(&edits, content, int(sp.Start), int(sp.End), fn.ParamsTrailingComma && idx == lastIdx)
+					}
+				}
 			}
 		}
 	}

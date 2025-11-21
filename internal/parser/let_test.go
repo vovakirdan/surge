@@ -239,7 +239,7 @@ func TestParseLetItem_ComplexValues(t *testing.T) {
 		{"function_call", "let x = foo();"},
 		{"method_call", "let x = obj.method();"},
 		{"array_literal", "let x = [1, 2, 3];"},
-		{"field_access", "let x = obj.field;"},
+		{"field_access", "let x = obj.member;"},
 		{"array_index", "let x = arr[0];"},
 		{"unary_expression", "let x = -value;"},
 		{"reference_expression", "let x = &value;"},
@@ -559,7 +559,7 @@ func TestParseLetItem_ValueVariants(t *testing.T) {
 		{"unary_op", "let x = -value;"},
 		{"call_expr", "let x = func();"},
 		{"index_expr", "let x = arr[0];"},
-		{"field_expr", "let x = obj.field;"},
+		{"field_expr", "let x = obj.member;"},
 	}
 
 	for _, tt := range tests {

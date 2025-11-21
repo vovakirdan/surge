@@ -25,6 +25,7 @@ const (
 	KwImport   // import
 	KwAs       // as
 	KwType     // type
+	KwContract // contract
 	KwTag      // tag
 	KwExtern   // extern
 	KwPub      // pub
@@ -46,6 +47,7 @@ const (
 	KwTo       // to
 	KwHeir     // heir
 	KwIs       // is
+	KwField    // field
 
 	// литералы
 	NothingLit

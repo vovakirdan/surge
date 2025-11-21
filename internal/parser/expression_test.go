@@ -130,10 +130,10 @@ func TestComplexExpressions_pt1(t *testing.T) {
 		{"parentheses", "let x = (a + b) * c;"},
 		{"function_call", "let x = func(a, b, c);"},
 		{"array_index", "let x = arr[i];"},
-		{"member_access", "let x = obj.field;"},
-		{"chained_calls", "let x = obj.method().field;"},
+		{"member_access", "let x = obj.member;"},
+		{"chained_calls", "let x = obj.method().member;"},
 		{"nested_index", "let x = matrix[i][j];"},
-		{"complex", "let x = obj.method(a + b)[index].field;"},
+		{"complex", "let x = obj.method(a + b)[index].member;"},
 	}
 
 	for _, tt := range tests {
@@ -184,7 +184,7 @@ func TestTupleExpressions(t *testing.T) {
 		{"three_elements", "let x = (a, b, c);"},
 		{"nested_tuples", "let x = ((a, b), (c, d));"},
 		{"tuple_with_expressions", "let x = (a + b, c * d);"},
-		{"mixed_expressions", "let x = (func(a), arr[i], obj.field);"},
+		{"mixed_expressions", "let x = (func(a), arr[i], obj.member);"},
 		{"trailing_comma", "let x = (a, b, c,);"},
 		{"complex_nested", "let x = (a, (b, c), d);"},
 	}
@@ -927,7 +927,7 @@ func TestPostfixOperators(t *testing.T) {
 		name  string
 		input string
 	}{
-		{"field_access", "let x = a.field;"},
+		{"field_access", "let x = a.member;"},
 		{"chained_field_access", "let x = a.b.c.d;"},
 		{"array_index", "let x = a[0];"},
 		{"array_index_expr", "let x = a[i + 1];"},
@@ -938,7 +938,7 @@ func TestPostfixOperators(t *testing.T) {
 		{"chained_calls", "let x = obj.method1().method2();"},
 		{"index_after_call", "let x = foo()[0];"},
 		{"call_after_index", "let x = arr[0]();"},
-		{"complex_postfix", "let x = obj.field[i].method(a, b).result;"},
+		{"complex_postfix", "let x = obj.member[i].method(a, b).result;"},
 	}
 
 	for _, tt := range tests {

@@ -201,7 +201,7 @@ func (p *Parser) resyncImportGroup() {
 
 func isBlockRecoveryToken(k token.Kind) bool {
 	switch k {
-	case token.KwFn, token.KwImport, token.KwExtern, token.KwTag,
+	case token.KwFn, token.KwImport, token.KwExtern, token.KwTag, token.KwContract,
 		token.KwMacro, token.KwPragma,
 		token.KwElse, token.KwFinally:
 		return true

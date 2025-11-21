@@ -20,6 +20,7 @@ const (
 	ItemPragma
 	ItemImport
 	ItemMacro
+	ItemContract
 )
 
 type Item struct {
@@ -36,6 +37,10 @@ type Items struct {
 	Attrs            *Arena[Attr]
 	Lets             *Arena[LetItem]
 	Consts           *Arena[ConstItem]
+	Contracts        *Arena[ContractDecl]
+	ContractItems    *Arena[ContractItem]
+	ContractFields   *Arena[ContractFieldReq]
+	ContractFns      *Arena[ContractFnReq]
 	Types            *Arena[TypeItem]
 	TypeAliases      *Arena[TypeAliasDecl]
 	TypeStructs      *Arena[TypeStructDecl]
@@ -49,7 +54,8 @@ type Items struct {
 
 // NewItems creates and returns an *Items with per-kind arenas initialized to capHint.
 // If capHint is 0, NewItems uses a default initial capacity of 1<<8.
-// The returned Items contains separate arenas for Item, ImportItem, FnItem, FnParam, Attr, and LetItem.
+// The returned Items contains separate arenas for Item payloads including imports, fn/contract data,
+// attributes, lets/consts, types, externs, and tags.
 func NewItems(capHint uint) *Items {
 	if capHint == 0 {
 		capHint = 1 << 8
@@ -62,6 +68,10 @@ func NewItems(capHint uint) *Items {
 		Attrs:            NewArena[Attr](capHint),
 		Lets:             NewArena[LetItem](capHint),
 		Consts:           NewArena[ConstItem](capHint),
+		Contracts:        NewArena[ContractDecl](capHint),
+		ContractItems:    NewArena[ContractItem](capHint),
+		ContractFields:   NewArena[ContractFieldReq](capHint),
+		ContractFns:      NewArena[ContractFnReq](capHint),
 		Types:            NewArena[TypeItem](capHint),
 		TypeAliases:      NewArena[TypeAliasDecl](capHint),
 		TypeStructs:      NewArena[TypeStructDecl](capHint),
