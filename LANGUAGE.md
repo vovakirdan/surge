@@ -635,23 +635,23 @@ extern<T> {
 
 #### 4.4.1. Contents of `extern<T>` Blocks
 
-**Only function declarations/definitions are allowed inside `extern<T>` blocks.**
+`extern<T>` blocks may declare **methods** and **fields** for a type:
 
-Any item-level elements that are not functions are **prohibited**: `let`, `type/newtype`, alias declarations, literal definitions, `import` statements, nested `extern` blocks, etc. These produce syntax error `E_ILLEGAL_ITEM_IN_EXTERN`.
+* **Field declarations:** `field name: Type;` Attributes for fields (`@readonly`, `@hidden`, `@deprecated`, `@packed`, `@align`, `@arena`, `@weak`, `@shared`, `@atomic`, `@noinherit`, `@guarded_by`) are allowed and validated. A type annotation is required. Duplicated field names for the same target type are rejected (`SemaExternDuplicateField`).
+* **Function definitions:** `fn name(params) -> RetType? { body }`
+* **Function declarations:** `fn name(params) -> RetType?;`
+* **Async functions:** `async fn name(params) -> RetType? { body }`
+* **Attributes on functions:** `@pure`, `@overload`, `@override`, etc.
 
-**Rationale:** `extern<T>` blocks are intended to define methods (including magic methods/operators) for type `T` using static dispatch. Allowing non-function items would break orthogonality and predictability of the model.
-
-**Allowed items:**
-* Function definitions: `fn name(params) -> RetType? { body }`
-* Function declarations: `fn name(params) -> RetType?;`
-* Async functions: `async fn name(params) -> RetType? { body }`
-* Attributes on functions: `@pure`, `@overload`, `@override`, etc.
+Any other item-level elements are **prohibited**: `let`, `type/newtype`, alias declarations, literal definitions, `import` statements, nested `extern` blocks, etc. These produce syntax error `E_ILLEGAL_ITEM_IN_EXTERN`.
 
 **Examples:**
 
 ```sg
 extern<Person> {
   // ✅ Allowed
+  @readonly field id: int;
+
   fn age(self: &Person) -> int { return self.age; }
   
   pub fn name(self: &Person) -> string { return self.name; }

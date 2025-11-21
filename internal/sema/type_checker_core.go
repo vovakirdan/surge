@@ -38,6 +38,7 @@ type typeChecker struct {
 	typeItems          map[ast.ItemID]types.TypeID
 	typeCache          map[typeCacheKey]types.TypeID
 	typeKeys           map[string]types.TypeID
+	externFields       map[symbols.TypeKey]*externFieldSet
 	returnStack        []returnContext
 	typeParams         []map[source.StringID]types.TypeID
 	typeParamNames     map[types.TypeID]source.StringID
@@ -72,6 +73,7 @@ func (tc *typeChecker) run() {
 	tc.typeItems = make(map[ast.ItemID]types.TypeID)
 	tc.typeCache = make(map[typeCacheKey]types.TypeID)
 	tc.typeKeys = make(map[string]types.TypeID)
+	tc.externFields = make(map[symbols.TypeKey]*externFieldSet)
 	tc.typeParamNames = make(map[types.TypeID]source.StringID)
 	tc.typeParamBounds = make(map[types.TypeID][]symbols.BoundInstance)
 	tc.typeParamMarks = tc.typeParamMarks[:0]
@@ -83,6 +85,7 @@ func (tc *typeChecker) run() {
 	}
 	tc.registerTypeDecls(file)
 	tc.populateTypeDecls(file)
+	tc.collectExternFields(file)
 	root := tc.fileScope()
 	rootPushed := tc.pushScope(root)
 	for _, itemID := range file.Items {

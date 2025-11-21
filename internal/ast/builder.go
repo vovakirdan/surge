@@ -251,6 +251,19 @@ func (b *Builder) NewExtern(
 	return b.Items.NewExtern(target, attrs, members, span)
 }
 
+func (b *Builder) NewExternField(
+	name source.StringID,
+	nameSpan source.Span,
+	typ TypeID,
+	fieldKwSpan source.Span,
+	colonSpan source.Span,
+	semicolonSpan source.Span,
+	attrs []Attr,
+	span source.Span,
+) ExternFieldID {
+	return b.Items.NewExternField(name, nameSpan, typ, fieldKwSpan, colonSpan, semicolonSpan, attrs, span)
+}
+
 func (b *Builder) NewTag(
 	name source.StringID,
 	nameSpan source.Span,

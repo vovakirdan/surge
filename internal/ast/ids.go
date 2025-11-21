@@ -18,6 +18,7 @@ type (
 	ContractFnID      uint32
 	AttrID            uint32
 	ExternMemberID    uint32
+	ExternFieldID     uint32
 	ExternBlockID     uint32
 	TypeFieldID       uint32
 	TypeUnionMemberID uint32
@@ -39,6 +40,7 @@ const (
 	NoContractFnID     ContractFnID      = 0
 	NoAttrID           AttrID            = 0
 	NoExternMemberID   ExternMemberID    = 0
+	NoExternFieldID    ExternFieldID     = 0
 	NoExternBlockID    ExternBlockID     = 0
 	NoTypeFieldID      TypeFieldID       = 0
 	NoTypeUnionMember  TypeUnionMemberID = 0
@@ -59,6 +61,7 @@ func (id ContractFieldID) IsValid() bool   { return id != NoContractFieldID }
 func (id ContractFnID) IsValid() bool      { return id != NoContractFnID }
 func (id AttrID) IsValid() bool            { return id != NoAttrID }
 func (id ExternMemberID) IsValid() bool    { return id != NoExternMemberID }
+func (id ExternFieldID) IsValid() bool     { return id != NoExternFieldID }
 func (id ExternBlockID) IsValid() bool     { return id != NoExternBlockID }
 func (id TypeFieldID) IsValid() bool       { return id != NoTypeFieldID }
 func (id TypeUnionMemberID) IsValid() bool { return id != NoTypeUnionMember }

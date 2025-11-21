@@ -12,6 +12,7 @@ type ExternMemberKind uint8
 
 const (
 	ExternMemberFn ExternMemberKind = iota
+	ExternMemberField
 )
 
 type ExternBlock struct {
@@ -24,15 +25,29 @@ type ExternBlock struct {
 }
 
 type ExternMember struct {
-	Kind ExternMemberKind
-	Fn   PayloadID
-	Span source.Span
+	Kind  ExternMemberKind
+	Fn    PayloadID
+	Field ExternFieldID
+	Span  source.Span
 }
 
 type ExternMemberSpec struct {
-	Kind ExternMemberKind
-	Fn   PayloadID
-	Span source.Span
+	Kind  ExternMemberKind
+	Fn    PayloadID
+	Field ExternFieldID
+	Span  source.Span
+}
+
+type ExternField struct {
+	Name             source.StringID
+	NameSpan         source.Span
+	Type             TypeID
+	FieldKeywordSpan source.Span
+	ColonSpan        source.Span
+	SemicolonSpan    source.Span
+	AttrStart        AttrID
+	AttrCount        uint32
+	Span             source.Span
 }
 
 func (i *Items) Extern(id ItemID) (*ExternBlock, bool) {
@@ -48,6 +63,13 @@ func (i *Items) ExternMember(id ExternMemberID) *ExternMember {
 		return nil
 	}
 	return i.ExternMembers.Get(uint32(id))
+}
+
+func (i *Items) ExternField(id ExternFieldID) *ExternField {
+	if !id.IsValid() {
+		return nil
+	}
+	return i.ExternFields.Get(uint32(id))
 }
 
 func (i *Items) NewExtern(
@@ -83,4 +105,29 @@ func (i *Items) NewExtern(
 	})
 
 	return i.New(ItemExtern, span, PayloadID(externPayload))
+}
+
+func (i *Items) NewExternField(
+	name source.StringID,
+	nameSpan source.Span,
+	typ TypeID,
+	fieldKwSpan source.Span,
+	colonSpan source.Span,
+	semicolonSpan source.Span,
+	attrs []Attr,
+	span source.Span,
+) ExternFieldID {
+	attrStart, attrCount := i.allocateAttrs(attrs)
+	field := ExternField{
+		Name:             name,
+		NameSpan:         nameSpan,
+		Type:             typ,
+		FieldKeywordSpan: fieldKwSpan,
+		ColonSpan:        colonSpan,
+		SemicolonSpan:    semicolonSpan,
+		AttrStart:        attrStart,
+		AttrCount:        attrCount,
+		Span:             span,
+	}
+	return ExternFieldID(i.ExternFields.Allocate(field))
 }

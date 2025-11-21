@@ -322,59 +322,86 @@ func formatItemJSON(builder *ast.Builder, itemID ast.ItemID) (ASTNodeOutput, err
 					if member == nil {
 						continue
 					}
-					if member.Kind != ast.ExternMemberFn {
-						continue
-					}
-					fnItem := builder.Items.FnByPayload(member.Fn)
-					if fnItem == nil {
-						continue
-					}
-
-					name := lookupStringOr(builder, fnItem.Name, "<anon>")
-					memberNames = append(memberNames, name)
-
-					memberFields := map[string]any{
-						"name":       name,
-						"returnType": formatTypeExprInline(builder, fnItem.ReturnType),
-						"params":     formatFnParamsInline(builder, fnItem),
-						"hasBody":    fnItem.Body.IsValid(),
-					}
-					if len(fnItem.Generics) > 0 {
-						genericNames := make([]string, 0, len(fnItem.Generics))
-						for _, gid := range fnItem.Generics {
-							genericNames = append(genericNames, lookupStringOr(builder, gid, "_"))
+					switch member.Kind {
+					case ast.ExternMemberFn:
+						fnItem := builder.Items.FnByPayload(member.Fn)
+						if fnItem == nil {
+							continue
 						}
-						memberFields["generics"] = genericNames
-					}
-					if fnItem.AttrCount > 0 {
-						fnAttrs := builder.Items.CollectAttrs(fnItem.AttrStart, fnItem.AttrCount)
-						if len(fnAttrs) > 0 {
-							memberFields["attributes"] = buildAttrsJSON(builder, fnAttrs)
+
+						name := lookupStringOr(builder, fnItem.Name, "<anon>")
+						memberNames = append(memberNames, name)
+
+						memberFields := map[string]any{
+							"name":       name,
+							"returnType": formatTypeExprInline(builder, fnItem.ReturnType),
+							"params":     formatFnParamsInline(builder, fnItem),
+							"hasBody":    fnItem.Body.IsValid(),
 						}
-					}
-					if fnItem.Flags&ast.FnModifierPublic != 0 {
-						memberFields["public"] = true
-					}
-					if fnItem.Flags&ast.FnModifierAsync != 0 {
-						memberFields["async"] = true
-					}
-
-					memberNode := ASTNodeOutput{
-						Type:   "ExternMember",
-						Kind:   "Fn",
-						Span:   member.Span,
-						Fields: memberFields,
-					}
-
-					if fnItem.Body.IsValid() {
-						bodyNode, err := formatStmtJSON(builder, fnItem.Body)
-						if err != nil {
-							return ASTNodeOutput{}, err
+						if len(fnItem.Generics) > 0 {
+							genericNames := make([]string, 0, len(fnItem.Generics))
+							for _, gid := range fnItem.Generics {
+								genericNames = append(genericNames, lookupStringOr(builder, gid, "_"))
+							}
+							memberFields["generics"] = genericNames
 						}
-						memberNode.Children = append(memberNode.Children, bodyNode)
-					}
+						if fnItem.AttrCount > 0 {
+							fnAttrs := builder.Items.CollectAttrs(fnItem.AttrStart, fnItem.AttrCount)
+							if len(fnAttrs) > 0 {
+								memberFields["attributes"] = buildAttrsJSON(builder, fnAttrs)
+							}
+						}
+						if fnItem.Flags&ast.FnModifierPublic != 0 {
+							memberFields["public"] = true
+						}
+						if fnItem.Flags&ast.FnModifierAsync != 0 {
+							memberFields["async"] = true
+						}
 
-					output.Children = append(output.Children, memberNode)
+						memberNode := ASTNodeOutput{
+							Type:   "ExternMember",
+							Kind:   "Fn",
+							Span:   member.Span,
+							Fields: memberFields,
+						}
+
+						if fnItem.Body.IsValid() {
+							bodyNode, err := formatStmtJSON(builder, fnItem.Body)
+							if err != nil {
+								return ASTNodeOutput{}, err
+							}
+							memberNode.Children = append(memberNode.Children, bodyNode)
+						}
+
+						output.Children = append(output.Children, memberNode)
+					case ast.ExternMemberField:
+						field := builder.Items.ExternField(member.Field)
+						if field == nil {
+							continue
+						}
+						name := lookupStringOr(builder, field.Name, "<anon>")
+						memberNames = append(memberNames, name)
+
+						memberFields := map[string]any{
+							"name":     name,
+							"type":     formatTypeExprInline(builder, field.Type),
+							"hasAttrs": field.AttrCount > 0,
+						}
+						if field.AttrCount > 0 {
+							attrs := builder.Items.CollectAttrs(field.AttrStart, field.AttrCount)
+							if len(attrs) > 0 {
+								memberFields["attributes"] = buildAttrsJSON(builder, attrs)
+							}
+						}
+
+						memberNode := ASTNodeOutput{
+							Type:   "ExternMember",
+							Kind:   "Field",
+							Span:   member.Span,
+							Fields: memberFields,
+						}
+						output.Children = append(output.Children, memberNode)
+					}
 				}
 			}
 

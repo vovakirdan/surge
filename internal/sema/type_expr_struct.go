@@ -34,20 +34,39 @@ func (tc *typeChecker) memberResultType(base types.TypeID, field source.StringID
 	if base == types.NoTypeID || field == source.NoStringID {
 		return types.NoTypeID
 	}
+	base = tc.valueType(base)
+	if base == types.NoTypeID {
+		return types.NoTypeID
+	}
 	if ty := tc.boundFieldType(base, field); ty != types.NoTypeID {
 		return ty
 	}
 	info, structType := tc.structInfoForType(base)
-	if info == nil {
-		tc.report(diag.SemaTypeMismatch, span, "%s has no fields", tc.typeLabel(base))
+	externFields := tc.externFieldsForType(base)
+	if info != nil {
+		for _, f := range info.Fields {
+			if f.Name == field {
+				return f.Type
+			}
+		}
+		for _, f := range externFields {
+			if f.Name == field {
+				return f.Type
+			}
+		}
+		tc.report(diag.SemaUnresolvedSymbol, span, "%s has no field %s", tc.typeLabel(structType), tc.lookupName(field))
 		return types.NoTypeID
 	}
-	for _, f := range info.Fields {
+	for _, f := range externFields {
 		if f.Name == field {
 			return f.Type
 		}
 	}
-	tc.report(diag.SemaUnresolvedSymbol, span, "%s has no field %s", tc.typeLabel(structType), tc.lookupName(field))
+	if len(externFields) > 0 {
+		tc.report(diag.SemaUnresolvedSymbol, span, "%s has no field %s", tc.typeLabel(base), tc.lookupName(field))
+		return types.NoTypeID
+	}
+	tc.report(diag.SemaTypeMismatch, span, "%s has no fields", tc.typeLabel(base))
 	return types.NoTypeID
 }
 

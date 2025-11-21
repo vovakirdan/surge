@@ -11,6 +11,7 @@ import (
 func TestParseExternItem_Basic(t *testing.T) {
 	src := `
 extern<Person> {
+	@readonly field id: int;
 	fn age(self: &Person) -> int;
 	pub async fn to_json(self: &Person) -> string {
 		return "{}";
@@ -64,11 +65,47 @@ extern<Person> {
 		t.Fatalf("expected extern target Person, got %s", targetName)
 	}
 
-	if externItem.MembersCount != 2 {
-		t.Fatalf("expected 2 members, got %d", externItem.MembersCount)
+	if externItem.MembersCount != 3 {
+		t.Fatalf("expected 3 members, got %d", externItem.MembersCount)
 	}
 
-	checkMember := func(idx uint32, wantName string, wantPublic, wantAsync, wantBody bool) {
+	checkField := func(idx uint32, wantName string, wantAttr string, wantType string) {
+		member := builder.Items.ExternMember(ast.ExternMemberID(uint32(externItem.MembersStart) + idx))
+		if member == nil {
+			t.Fatalf("member %d missing", idx)
+		}
+		if member.Kind != ast.ExternMemberField {
+			t.Fatalf("member %d unexpected kind %v", idx, member.Kind)
+		}
+		field := builder.Items.ExternField(member.Field)
+		if field == nil {
+			t.Fatalf("member %d field payload missing", idx)
+		}
+		name := builder.StringsInterner.MustLookup(field.Name)
+		if name != wantName {
+			t.Fatalf("field %d name mismatch: got %q want %q", idx, name, wantName)
+		}
+		typ := builder.Types.Get(field.Type)
+		if typ == nil || typ.Kind != ast.TypeExprPath {
+			t.Fatalf("field %d type missing", idx)
+		}
+		path, ok := builder.Types.Path(field.Type)
+		if !ok || len(path.Segments) != 1 {
+			t.Fatalf("field %d unexpected type path %+v", idx, path)
+		}
+		if got := builder.StringsInterner.MustLookup(path.Segments[0].Name); got != wantType {
+			t.Fatalf("field %d type mismatch: got %q want %q", idx, got, wantType)
+		}
+		attrs := builder.Items.CollectAttrs(field.AttrStart, field.AttrCount)
+		if len(attrs) != 1 {
+			t.Fatalf("field %d expected 1 attribute, got %d", idx, len(attrs))
+		}
+		if got := builder.StringsInterner.MustLookup(attrs[0].Name); got != wantAttr {
+			t.Fatalf("field %d attribute mismatch: got %q want %q", idx, got, wantAttr)
+		}
+	}
+
+	checkMemberFn := func(idx uint32, wantName string, wantPublic, wantAsync, wantBody bool) {
 		member := builder.Items.ExternMember(ast.ExternMemberID(uint32(externItem.MembersStart) + idx))
 		if member == nil {
 			t.Fatalf("member %d missing", idx)
@@ -109,8 +146,9 @@ extern<Person> {
 		}
 	}
 
-	checkMember(0, "age", false, false, false)
-	checkMember(1, "to_json", true, true, true)
+	checkField(0, "id", "readonly", "int")
+	checkMemberFn(1, "age", false, false, false)
+	checkMemberFn(2, "to_json", true, true, true)
 }
 
 func TestParseExternItem_IllegalMember(t *testing.T) {
@@ -184,5 +222,27 @@ extern<Person> {
 	}
 	if fnItem.Flags&ast.FnModifierPublic != 0 {
 		t.Fatalf("override without pub should remain non-public in AST")
+	}
+}
+
+func TestParseExternItem_FieldRejectsModifiers(t *testing.T) {
+	src := `
+extern<Person> {
+	pub field id: int;
+}
+`
+	_, _, bag := parseSource(t, src)
+	if !bag.HasErrors() {
+		t.Fatalf("expected diagnostics for field modifiers")
+	}
+	found := false
+	for _, d := range bag.Items() {
+		if d.Code == diag.SynModifierNotAllowed {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected SynModifierNotAllowed diagnostic, got %+v", bag.Items())
 	}
 }

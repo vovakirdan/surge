@@ -69,7 +69,7 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 			} else {
 				fieldNames[field.Name] = field.NameSpan
 			}
-			tc.validateAttrs(field.AttrStart, field.AttrCount, ast.AttrTargetField)
+			tc.validateAttrs(field.AttrStart, field.AttrCount, ast.AttrTargetField, diag.SemaContractUnknownAttr)
 			if field.Type.IsValid() {
 				tc.resolveTypeExprWithScope(field.Type, scope)
 				markUsage(field.Type)
@@ -91,7 +91,7 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 					overload bool
 				}{span: fn.NameSpan, overload: currentOverload}
 			}
-			tc.validateAttrs(fn.AttrStart, fn.AttrCount, ast.AttrTargetFn)
+			tc.validateAttrs(fn.AttrStart, fn.AttrCount, ast.AttrTargetFn, diag.SemaContractUnknownAttr)
 			tc.checkContractMethod(fn, typeParamIDs, scope, markUsage)
 		}
 	}
@@ -132,7 +132,7 @@ func (tc *typeChecker) checkContractMethod(fn *ast.ContractFnReq, _ []types.Type
 	}
 }
 
-func (tc *typeChecker) validateAttrs(start ast.AttrID, count uint32, target ast.AttrTargetMask) {
+func (tc *typeChecker) validateAttrs(start ast.AttrID, count uint32, target ast.AttrTargetMask, code diag.Code) {
 	if count == 0 || !start.IsValid() {
 		return
 	}
@@ -140,11 +140,11 @@ func (tc *typeChecker) validateAttrs(start ast.AttrID, count uint32, target ast.
 	for _, attr := range attrs {
 		if spec, ok := ast.LookupAttrID(tc.builder.StringsInterner, attr.Name); ok {
 			if !spec.Allows(target) {
-				tc.report(diag.SemaContractUnknownAttr, attr.Span, "attribute '@%s' is not allowed here", tc.lookupName(attr.Name))
+				tc.report(code, attr.Span, "attribute '@%s' is not allowed here", tc.lookupName(attr.Name))
 			}
 			continue
 		}
-		tc.report(diag.SemaContractUnknownAttr, attr.Span, "unknown attribute '@%s'", tc.lookupName(attr.Name))
+		tc.report(code, attr.Span, "unknown attribute '@%s'", tc.lookupName(attr.Name))
 	}
 }
 

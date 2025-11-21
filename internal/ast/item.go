@@ -51,6 +51,7 @@ type Items struct {
 	TypeUnionMembers *Arena[TypeUnionMember]
 	Externs          *Arena[ExternBlock]
 	ExternMembers    *Arena[ExternMember]
+	ExternFields     *Arena[ExternField]
 	Tags             *Arena[TagItem]
 }
 
@@ -84,6 +85,7 @@ func NewItems(capHint uint) *Items {
 		TypeUnionMembers: NewArena[TypeUnionMember](capHint),
 		Externs:          NewArena[ExternBlock](capHint),
 		ExternMembers:    NewArena[ExternMember](capHint),
+		ExternFields:     NewArena[ExternField](capHint),
 		Tags:             NewArena[TagItem](capHint),
 	}
 }

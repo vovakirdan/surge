@@ -1,0 +1,30 @@
+// Demonstrates extern<T> fields and how they participate in contracts and field access.
+
+contract Identified<T> {
+    @readonly field id: uint64;
+    pub fn label(self: T) -> string;
+}
+
+type RemoteUser = {}
+
+extern<RemoteUser> {
+    // Field declarations: attributes for fields are validated just like on structs.
+    @readonly field id: uint64;
+    field name: string;
+
+    pub fn label(self: RemoteUser) -> string {
+        return self.name;
+    }
+}
+
+fn greet<T: Identified<T>>(value: T) -> string {
+    // Extern fields are visible to contract-bound generics.
+    let _ = value.id;
+    return value.label();
+}
+
+fn demo() {
+    let user: RemoteUser = {};
+    let _ = user.id; // field provided via extern<RemoteUser>
+    let message: string = greet(user);
+}

@@ -384,24 +384,38 @@ func (tc *typeChecker) contractMethodRequirement(fn *ast.ContractFnReq, scope sy
 
 func (tc *typeChecker) collectTypeFields(target types.TypeID) map[source.StringID]types.TypeID {
 	fields := make(map[source.StringID]types.TypeID)
-	info, _ := tc.structInfoForType(target)
-	if info == nil {
+	target = tc.valueType(target)
+	if target == types.NoTypeID {
 		return fields
 	}
-	for _, field := range info.Fields {
-		fields[field.Name] = field.Type
+	if info, _ := tc.structInfoForType(target); info != nil {
+		for _, field := range info.Fields {
+			fields[field.Name] = field.Type
+		}
+	}
+	for _, field := range tc.externFieldsForType(target) {
+		if _, exists := fields[field.Name]; !exists {
+			fields[field.Name] = field.Type
+		}
 	}
 	return fields
 }
 
 func (tc *typeChecker) collectFieldAttrs(target types.TypeID) map[source.StringID][]source.StringID {
 	attrMap := make(map[source.StringID][]source.StringID)
-	info, _ := tc.structInfoForType(target)
-	if info == nil {
+	target = tc.valueType(target)
+	if target == types.NoTypeID {
 		return attrMap
 	}
-	for _, field := range info.Fields {
-		attrMap[field.Name] = field.Attrs
+	if info, _ := tc.structInfoForType(target); info != nil {
+		for _, field := range info.Fields {
+			attrMap[field.Name] = field.Attrs
+		}
+	}
+	for _, field := range tc.externFieldsForType(target) {
+		if _, exists := attrMap[field.Name]; !exists {
+			attrMap[field.Name] = field.Attrs
+		}
 	}
 	return attrMap
 }
