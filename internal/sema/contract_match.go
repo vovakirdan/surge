@@ -1,8 +1,6 @@
 package sema
 
 import (
-	"fmt"
-
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -30,9 +28,10 @@ type methodSignature struct {
 type bindingInfo struct {
 	typ  types.TypeID
 	span source.Span
+	sym  symbols.SymbolID
 }
 
-func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symbols.BoundInstance, hintSpan source.Span) bool {
+func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symbols.BoundInstance, hintSpan source.Span, typeName string) bool {
 	if target == types.NoTypeID || !bound.Contract.IsValid() || tc.builder == nil {
 		return false
 	}
@@ -59,6 +58,11 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 		reportSpan = contractSym.Span
 	}
 
+	typeLabel := typeName
+	if typeLabel == "" {
+		typeLabel = tc.contractTypeLabel(target)
+	}
+
 	scope := tc.scopeForItem(contractSym.Decl.Item)
 	pushed := false
 	if len(contractSym.TypeParams) > 0 {
@@ -80,16 +84,16 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 			continue
 		}
 		if !tc.contractTypesEqual(expected, actual) {
-			tc.report(diag.SemaContractFieldTypeError, reportSpan, "type %s field '%s' has type %s, expected %s (contract %s)", tc.typeLabel(target), tc.lookupName(name), tc.typeLabel(actual), tc.typeLabel(expected), tc.lookupName(contractSym.Name))
+			tc.report(diag.SemaContractFieldTypeError, reportSpan, "type %s field '%s' has type %s, expected %s (contract %s)", typeLabel, tc.lookupName(name), tc.typeLabel(actual), tc.typeLabel(expected), tc.lookupName(contractSym.Name))
 			ok = false
 		}
 	}
 	if len(missingFields) > 0 {
-		label := "field"
+		fieldLabel := "field"
 		if len(missingFields) > 1 {
-			label = "fields"
+			fieldLabel = "fields"
 		}
-		tc.report(diag.SemaContractMissingField, reportSpan, "type %s missing required %s by contract %s: %s", tc.typeLabel(target), label, tc.lookupName(contractSym.Name), joinNames(missingFields))
+		tc.report(diag.SemaContractMissingField, reportSpan, "type `%s` missing required %s by contract `%s`: %s", typeLabel, fieldLabel, tc.lookupName(contractSym.Name), joinNames(missingFields))
 		ok = false
 	}
 
@@ -109,18 +113,18 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 	}
 
 	if len(missingMethods) > 0 {
-		label := "method"
+		methodLabel := "method"
 		if len(missingMethods) > 1 {
-			label = "methods"
+			methodLabel = "methods"
 		}
-		tc.report(diag.SemaContractMissingMethod, reportSpan, "type %s missing required %s by contract %s: %s", tc.typeLabel(target), label, tc.lookupName(contractSym.Name), joinNames(missingMethods))
+		tc.report(diag.SemaContractMissingMethod, reportSpan, "type %s missing required %s by contract %s: %s", typeLabel, methodLabel, tc.lookupName(contractSym.Name), joinNames(missingMethods))
 	}
 	if len(mismatchedMethods) > 0 {
-		label := "method"
+		methodLabel := "method"
 		if len(mismatchedMethods) > 1 {
-			label = "methods"
+			methodLabel = "methods"
 		}
-		tc.report(diag.SemaContractMethodMismatch, reportSpan, "type %s has incompatible %s for contract %s: %s", tc.typeLabel(target), label, tc.lookupName(contractSym.Name), joinNames(mismatchedMethods))
+		tc.report(diag.SemaContractMethodMismatch, reportSpan, "type %s has incompatible %s for contract %s: %s", typeLabel, methodLabel, tc.lookupName(contractSym.Name), joinNames(mismatchedMethods))
 	}
 
 	return ok
@@ -159,12 +163,19 @@ func (tc *typeChecker) inferTypeParamBindings(sym *symbols.Symbol, fn *ast.FnIte
 			continue
 		}
 		argSpan := tc.exprSpan(call.Args[i])
+		argSym := tc.symbolForExpr(call.Args[i])
+		argValType := tc.valueType(argType)
+		if argSym.IsValid() {
+			if boundType := tc.bindingType(argSym); boundType != types.NoTypeID {
+				argValType = boundType
+			}
+		}
 		param := tc.builder.Items.FnParam(pid)
 		if param == nil {
 			continue
 		}
 		if name := tc.paramTypeParamName(param.Type, indexByName); name != source.NoStringID {
-			result[name] = bindingInfo{typ: argType, span: argSpan}
+			result[name] = bindingInfo{typ: argValType, span: argSpan, sym: argSym}
 		}
 	}
 	return result
@@ -206,10 +217,11 @@ func (tc *typeChecker) enforceContractBounds(params []symbols.TypeParamSymbol, b
 		if reportSpan == (source.Span{}) {
 			reportSpan = span
 		}
+		typeLabel := tc.bindingTypeLabel(binding)
 		for _, bound := range param.Bounds {
 			inst := bound
 			inst.GenericArgs = tc.substituteBoundArgs(bound.GenericArgs, bindings)
-			tc.checkContractSatisfaction(concrete, inst, reportSpan)
+			tc.checkContractSatisfaction(concrete, inst, reportSpan, typeLabel)
 		}
 	}
 }
@@ -355,7 +367,7 @@ func (tc *typeChecker) collectTypeFields(target types.TypeID) map[source.StringI
 // returns 1 if satisfied, 0 if signature mismatch, -1 if missing entirely
 func (tc *typeChecker) ensureMethodSatisfies(target types.TypeID, name source.StringID, req methodRequirement, reportSpan source.Span, contractName string) int {
 	if len(req.params) > 0 && !tc.contractTypesEqual(req.params[0], target) {
-		tc.report(diag.SemaContractSelfType, reportSpan, "type %s method '%s' must have self %s per contract %s, got %s", tc.typeLabel(target), tc.lookupName(name), tc.typeLabel(target), contractName, tc.typeLabel(req.params[0]))
+		tc.report(diag.SemaContractSelfType, reportSpan, "type %s method '%s' must have self %s per contract %s, got %s", tc.contractTypeLabel(target), tc.lookupName(name), tc.typeLabel(target), contractName, tc.typeLabel(req.params[0]))
 		return 0
 	}
 
@@ -474,38 +486,73 @@ func (tc *typeChecker) contractTypesEqual(expected, actual types.TypeID) bool {
 	return tc.resolveAlias(expected) == tc.resolveAlias(actual)
 }
 
-func (tc *typeChecker) formatSignature(req methodRequirement) string {
-	name := tc.lookupName(req.name)
-	parts := make([]string, 0, len(req.params))
-	for _, p := range req.params {
-		parts = append(parts, tc.typeLabel(p))
-	}
-	result := tc.typeLabel(req.result)
-	return fmt.Sprintf("fn %s(%s) -> %s", name, joinSignature(parts), result)
-}
-
-func joinSignature(parts []string) string {
-	switch len(parts) {
-	case 0:
-		return ""
-	case 1:
-		return fmt.Sprintf("self: %s", parts[0])
-	default:
-		result := fmt.Sprintf("self: %s", parts[0])
-		for _, p := range parts[1:] {
-			result += ", " + p
-		}
-		return result
-	}
-}
-
 func joinNames(names []string) string {
 	if len(names) == 0 {
 		return ""
 	}
-	result := names[0]
+	result := "`" + names[0] + "`"
 	for _, n := range names[1:] {
-		result += ", " + n
+		result += ", `" + n + "`"
 	}
 	return result
+}
+
+func (tc *typeChecker) bindingTypeLabel(b bindingInfo) string {
+	if b.sym.IsValid() {
+		if t := tc.bindingType(b.sym); t != types.NoTypeID {
+			if l := tc.contractTypeLabel(t); l != "" && l != "_" {
+				return l
+			}
+		}
+		if sym := tc.symbolFromID(b.sym); sym != nil {
+			if sym.Kind == symbols.SymbolLet && sym.Decl.Stmt.IsValid() {
+				if letStmt := tc.builder.Stmts.Let(sym.Decl.Stmt); letStmt != nil {
+					scope := tc.scopeForStmt(sym.Decl.Stmt)
+					if declType := tc.resolveTypeExprWithScope(letStmt.Type, scope); declType != types.NoTypeID {
+						if l := tc.contractTypeLabel(declType); l != "" && l != "_" {
+							return l
+						}
+					}
+				}
+			}
+		}
+		if sym := tc.symbolFromID(b.sym); sym != nil && sym.Name != source.NoStringID {
+			if name := tc.lookupName(sym.Name); name != "" {
+				return name
+			}
+		}
+	}
+	label := tc.contractTypeLabel(b.typ)
+	if label != "" && label != "_" {
+		return label
+	}
+	return tc.typeLabel(b.typ)
+}
+
+func (tc *typeChecker) contractTypeLabel(id types.TypeID) string {
+	if id == types.NoTypeID || tc.types == nil {
+		return tc.typeLabel(id)
+	}
+	resolved := tc.resolveAlias(id)
+	if info, ok := tc.types.StructInfo(resolved); ok && info != nil && info.Name != source.NoStringID {
+		if name := tc.lookupName(info.Name); name != "" {
+			return name
+		}
+	}
+	if info, ok := tc.types.AliasInfo(resolved); ok && info != nil && info.Name != source.NoStringID {
+		if name := tc.lookupName(info.Name); name != "" {
+			return name
+		}
+	}
+	if info, ok := tc.types.UnionInfo(resolved); ok && info != nil && info.Name != source.NoStringID {
+		if name := tc.lookupName(info.Name); name != "" {
+			return name
+		}
+	}
+	if info, ok := tc.types.TypeParamInfo(resolved); ok && info != nil {
+		if name := tc.lookupName(info.Name); name != "" {
+			return name
+		}
+	}
+	return tc.typeLabel(id)
 }

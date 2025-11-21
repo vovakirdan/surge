@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"strings"
 	"testing"
 
 	"surge/internal/ast"
@@ -38,7 +39,7 @@ extern<Foo> {
 		Span:        contractSym.Span,
 	}
 
-	if !tc.checkContractSatisfaction(fooSym.Type, bound, fooSym.Span) {
+	if !tc.checkContractSatisfaction(fooSym.Type, bound, fooSym.Span, "") {
 		t.Fatalf("expected contract to be satisfied")
 	}
 	if bag.HasErrors() {
@@ -127,7 +128,7 @@ extern<Foo> { fn touch(self: Foo) -> int; }
 				GenericArgs: args,
 				Span:        contractSym.Span,
 			}
-			tc.checkContractSatisfaction(fooSym.Type, bound, contractSym.Span)
+			tc.checkContractSatisfaction(fooSym.Type, bound, contractSym.Span, "")
 			if !hasCodeContract(bag, tt.code) {
 				t.Fatalf("expected diagnostic %v, got %s", tt.code, diagnosticsSummary(bag))
 			}
@@ -167,4 +168,46 @@ func newContractChecker(t *testing.T, src string) (*typeChecker, *diag.Bag, *sym
 	contractBag := diag.NewBag(8)
 	tc.reporter = &diag.BagReporter{Bag: contractBag}
 	return tc, contractBag, symRes
+}
+
+func TestContractMatching_CallUsesConcreteTypeInDiag(t *testing.T) {
+	src := `
+contract ErrorLike {
+    field msg: string;
+    field code: uint;
+}
+
+type Error0 = { msg: string; }
+
+fn print_err<E: ErrorLike>(e: E) {}
+
+fn main() {
+    let e0: Error0 = { msg: "error" };
+    print_err(e0);
+}
+`
+	builder, fileID, parseBag := parseSource(t, src)
+	if parseBag.HasErrors() {
+		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
+	}
+	syms := resolveSymbols(t, builder, fileID)
+	bag := diag.NewBag(8)
+	Check(builder, fileID, Options{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Symbols:  syms,
+	})
+
+	found := false
+	for _, d := range bag.Items() {
+		if d.Code != diag.SemaContractMissingField {
+			continue
+		}
+		if strings.Contains(d.Message, "Error0") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected contract diagnostic to mention concrete type Error0, got %s", diagnosticsSummary(bag))
+	}
 }
