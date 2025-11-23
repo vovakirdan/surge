@@ -66,7 +66,19 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 	exports := NewModuleExports(modulePath)
 	for _, symID := range scope.Symbols {
 		sym := res.Table.Symbols.Get(symID)
-		if sym == nil || !isExportableKind(sym.Kind) {
+		if sym == nil {
+			continue
+		}
+		// Экспортируем только публичные символы, объявленные в этом файле,
+		// чтобы не тащить в exports предлюды и импортированные символы,
+		// которые уже присутствуют в moduleExports других модулей.
+		if sym.Decl.ASTFile != res.File {
+			continue
+		}
+		if sym.Flags&SymbolFlagPublic == 0 {
+			continue
+		}
+		if !isExportableKind(sym.Kind) {
 			continue
 		}
 		name := builder.StringsInterner.MustLookup(sym.Name)

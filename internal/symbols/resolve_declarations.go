@@ -273,6 +273,22 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 
 	scope := fr.resolver.CurrentScope()
 	existing := fr.resolver.lookupInScope(scope, fnItem.Name, SymbolFunction.Mask())
+	if len(existing) > 0 {
+		filtered := make([]SymbolID, 0, len(existing))
+		for _, id := range existing {
+			sym := fr.result.Table.Symbols.Get(id)
+			if sym == nil {
+				continue
+			}
+			// Разрешаем объявлять функции поверх предлюдов/импортов из core,
+			// чтобы они не требовали @override и не блокировали stdlib.
+			if sym.Flags&SymbolFlagImported != 0 && sym.Decl.ASTFile == 0 {
+				continue
+			}
+			filtered = append(filtered, id)
+		}
+		existing = filtered
+	}
 	existingSymbols := make([]*Symbol, 0, len(existing))
 	for _, id := range existing {
 		existingSymbols = append(existingSymbols, fr.result.Table.Symbols.Get(id))

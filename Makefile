@@ -22,6 +22,7 @@ GOLANGCI_LINT_VERSION := v1.62.2
 # ===== Build =====
 build:
 	@echo ">> Building surge"
+	@rm -f surge
 	@$(GO) build -ldflags "$(LDFLAGS)" -o surge ./cmd/surge/
 
 # ===== Run =====
