@@ -14,13 +14,16 @@ func (tc *typeChecker) elementType(id types.TypeID) (types.TypeID, bool) {
 	if tc.types == nil {
 		return types.NoTypeID, false
 	}
+	if elem, ok := tc.arrayElemType(id); ok {
+		return elem, true
+	}
 	resolved := tc.resolveAlias(id)
 	tt, ok := tc.types.Lookup(resolved)
 	if !ok {
 		return types.NoTypeID, false
 	}
 	switch tt.Kind {
-	case types.KindPointer, types.KindReference, types.KindOwn, types.KindArray:
+	case types.KindPointer, types.KindReference, types.KindOwn:
 		return tt.Elem, true
 	default:
 		return types.NoTypeID, false
@@ -32,6 +35,9 @@ func (tc *typeChecker) familyOf(id types.TypeID) types.FamilyMask {
 		return types.FamilyNone
 	}
 	id = tc.resolveAlias(id)
+	if tc.isArrayType(id) {
+		return types.FamilyArray
+	}
 	tt, ok := tc.types.Lookup(id)
 	if !ok {
 		return types.FamilyNone
@@ -47,8 +53,6 @@ func (tc *typeChecker) familyOf(id types.TypeID) types.FamilyMask {
 		return types.FamilyFloat
 	case types.KindString:
 		return types.FamilyString
-	case types.KindArray:
-		return types.FamilyArray
 	case types.KindPointer:
 		return types.FamilyPointer
 	case types.KindReference:
@@ -78,6 +82,9 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 	tt, ok := tc.types.Lookup(id)
 	if !ok {
 		return "unknown"
+	}
+	if elem, ok := tc.arrayElemType(id); ok && tt.Kind != types.KindAlias {
+		return fmt.Sprintf("[%s]", tc.typeLabel(elem))
 	}
 	switch tt.Kind {
 	case types.KindBool:
@@ -109,8 +116,6 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 		return prefix + tc.typeLabel(tt.Elem)
 	case types.KindPointer:
 		return fmt.Sprintf("*%s", tc.typeLabel(tt.Elem))
-	case types.KindArray:
-		return fmt.Sprintf("[%s]", tc.typeLabel(tt.Elem))
 	case types.KindOwn:
 		return fmt.Sprintf("own %s", tc.typeLabel(tt.Elem))
 	case types.KindStruct:
@@ -251,6 +256,15 @@ func (tc *typeChecker) substituteTypeParams(id types.TypeID, mapping map[types.T
 	tt, ok := tc.types.Lookup(resolved)
 	if !ok {
 		return resolved
+	}
+	if tt.Kind == types.KindStruct {
+		if elem, ok := tc.arrayElemType(resolved); ok {
+			inner := tc.substituteTypeParams(elem, mapping)
+			if inner == elem {
+				return resolved
+			}
+			return tc.instantiateArrayType(inner)
+		}
 	}
 	switch tt.Kind {
 	case types.KindPointer, types.KindReference, types.KindOwn:

@@ -48,8 +48,8 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 		if arr, ok := tc.builder.Types.Array(id); ok && arr != nil {
 			elem := tc.resolveTypeExprWithScope(arr.Elem, scope)
 			if elem != types.NoTypeID {
-				count := types.ArrayDynamicLength
 				if arr.Kind == ast.ArraySized {
+					var count uint32
 					if !arr.HasConstLen {
 						if lenVal, ok := tc.constUintValue(arr.Length, nil); ok {
 							arr.HasConstLen = true
@@ -65,8 +65,10 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 						break
 					}
 					count = uint32(arr.ConstLength)
+					result = tc.types.Intern(types.MakeArray(elem, count))
+				} else {
+					result = tc.instantiateArrayType(elem)
 				}
-				result = tc.types.Intern(types.MakeArray(elem, count))
 			}
 		}
 	case ast.TypeExprOptional:

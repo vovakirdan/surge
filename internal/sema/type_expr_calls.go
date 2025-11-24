@@ -306,6 +306,17 @@ func (tc *typeChecker) instantiateTypeKeyWithInference(key symbols.TypeKey, actu
 		bindings[s] = bound
 		return bound
 	}
+	if innerKey, ok := arrayKeyInner(s); ok {
+		elemActual := tc.valueType(actual)
+		if elem, ok := tc.arrayElemType(actual); ok {
+			elemActual = elem
+		}
+		inner := tc.instantiateTypeKeyWithInference(symbols.TypeKey(innerKey), elemActual, bindings, paramNames)
+		if inner == types.NoTypeID {
+			return types.NoTypeID
+		}
+		return tc.instantiateArrayType(inner)
+	}
 	switch {
 	case strings.HasPrefix(s, "&mut "):
 		inner := tc.instantiateTypeKeyWithInference(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "&mut "))), tc.peelReference(actual), bindings, paramNames)
@@ -331,16 +342,6 @@ func (tc *typeChecker) instantiateTypeKeyWithInference(key symbols.TypeKey, actu
 			return types.NoTypeID
 		}
 		return tc.types.Intern(types.MakePointer(inner))
-	case strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]"):
-		elemActual := tc.valueType(actual)
-		if info, ok := tc.types.Lookup(tc.resolveAlias(actual)); ok && info.Kind == types.KindArray {
-			elemActual = info.Elem
-		}
-		inner := tc.instantiateTypeKeyWithInference(symbols.TypeKey(strings.TrimSpace(s[1:len(s)-1])), elemActual, bindings, paramNames)
-		if inner == types.NoTypeID {
-			return types.NoTypeID
-		}
-		return tc.types.Intern(types.MakeArray(inner, types.ArrayDynamicLength))
 	case strings.HasPrefix(s, "Option<") && strings.HasSuffix(s, ">"):
 		content := strings.TrimSuffix(strings.TrimPrefix(s, "Option<"), ">")
 		actualPayload := actual
@@ -389,6 +390,13 @@ func (tc *typeChecker) instantiateResultType(key symbols.TypeKey, bindings map[s
 	if _, ok := paramNames[s]; ok {
 		return types.NoTypeID
 	}
+	if innerKey, ok := arrayKeyInner(s); ok {
+		inner := tc.instantiateResultType(symbols.TypeKey(innerKey), bindings, paramNames)
+		if inner == types.NoTypeID {
+			return types.NoTypeID
+		}
+		return tc.instantiateArrayType(inner)
+	}
 	switch {
 	case strings.HasPrefix(s, "&mut "):
 		inner := tc.instantiateResultType(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "&mut "))), bindings, paramNames)
@@ -414,12 +422,6 @@ func (tc *typeChecker) instantiateResultType(key symbols.TypeKey, bindings map[s
 			return types.NoTypeID
 		}
 		return tc.types.Intern(types.MakePointer(inner))
-	case strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]"):
-		inner := tc.instantiateResultType(symbols.TypeKey(strings.TrimSpace(s[1:len(s)-1])), bindings, paramNames)
-		if inner == types.NoTypeID {
-			return types.NoTypeID
-		}
-		return tc.types.Intern(types.MakeArray(inner, types.ArrayDynamicLength))
 	case strings.HasPrefix(s, "Option<") && strings.HasSuffix(s, ">"):
 		content := strings.TrimSuffix(strings.TrimPrefix(s, "Option<"), ">")
 		inner := tc.instantiateResultType(symbols.TypeKey(content), bindings, paramNames)

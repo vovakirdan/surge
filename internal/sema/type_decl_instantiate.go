@@ -49,7 +49,7 @@ func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.Type
 		return types.NoTypeID
 	}
 	item := tc.builder.Items.Get(sym.Decl.Item)
-	if (item == nil || item.Kind != ast.ItemType) && sym.Flags&symbols.SymbolFlagImported != 0 {
+	if (item == nil || item.Kind != ast.ItemType) && (sym.Flags&symbols.SymbolFlagImported != 0 || sym.Flags&symbols.SymbolFlagBuiltin != 0) {
 		if instantiated := tc.instantiateImportedType(sym, args); instantiated != types.NoTypeID {
 			tc.rememberInstantiation(key, instantiated)
 			return instantiated
@@ -155,6 +155,15 @@ func (tc *typeChecker) substituteImportedType(id types.TypeID, args []types.Type
 		clone := tt
 		clone.Elem = elem
 		return tc.types.Intern(clone)
+	case types.KindStruct:
+		if elem, ok := tc.arrayElemType(resolved); ok {
+			inner := tc.substituteImportedType(elem, args)
+			if inner == elem {
+				return resolved
+			}
+			return tc.instantiateArrayType(inner)
+		}
+		return resolved
 	default:
 		return resolved
 	}

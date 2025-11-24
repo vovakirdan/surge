@@ -107,6 +107,13 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 	if !ok {
 		return ""
 	}
+	if elem, ok := tc.arrayElemType(id); ok && tt.Kind != types.KindAlias {
+		inner := tc.typeKeyForType(elem)
+		if inner == "" {
+			return symbols.TypeKey("[]")
+		}
+		return symbols.TypeKey("[" + string(inner) + "]")
+	}
 	switch tt.Kind {
 	case types.KindBool:
 		return symbols.TypeKey("bool")
@@ -211,6 +218,11 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 		return types.NoTypeID
 	}
 	s := strings.TrimSpace(string(key))
+	if inner, ok := arrayKeyInner(s); ok {
+		if innerType := tc.typeFromKey(symbols.TypeKey(inner)); innerType != types.NoTypeID {
+			return tc.instantiateArrayType(innerType)
+		}
+	}
 	switch {
 	case strings.HasPrefix(s, "&mut "):
 		if inner := tc.typeFromKey(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "&mut ")))); inner != types.NoTypeID {
@@ -227,11 +239,6 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 	case strings.HasPrefix(s, "*"):
 		if inner := tc.typeFromKey(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "*")))); inner != types.NoTypeID {
 			return tc.types.Intern(types.MakePointer(inner))
-		}
-	case strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]"):
-		inner := strings.TrimSpace(s[1 : len(s)-1])
-		if innerType := tc.typeFromKey(symbols.TypeKey(inner)); innerType != types.NoTypeID {
-			return tc.types.Intern(types.MakeArray(innerType, types.ArrayDynamicLength))
 		}
 	case strings.HasPrefix(s, "Option<") && strings.HasSuffix(s, ">"):
 		innerKey := strings.TrimSuffix(strings.TrimPrefix(s, "Option<"), ">")

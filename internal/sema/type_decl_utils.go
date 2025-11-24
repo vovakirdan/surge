@@ -49,6 +49,9 @@ func (tc *typeChecker) defaultable(id types.TypeID) bool {
 	if !ok {
 		return false
 	}
+	if elem, ok := tc.arrayElemType(id); ok {
+		return tc.defaultable(elem)
+	}
 	switch tt.Kind {
 	case types.KindInt, types.KindUint, types.KindFloat, types.KindBool, types.KindString, types.KindNothing, types.KindUnit:
 		return true
@@ -56,8 +59,6 @@ func (tc *typeChecker) defaultable(id types.TypeID) bool {
 		return true
 	case types.KindReference, types.KindOwn:
 		return false
-	case types.KindArray:
-		return tc.defaultable(tt.Elem)
 	case types.KindStruct:
 		if info, ok := tc.types.StructInfo(id); ok && info != nil {
 			for _, field := range info.Fields {

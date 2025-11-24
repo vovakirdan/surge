@@ -279,6 +279,15 @@ func (tc *typeChecker) substituteTypeParamByName(id types.TypeID, bindings map[s
 		}
 		return resolved
 	}
+	if tt.Kind == types.KindStruct {
+		if elem, ok := tc.arrayElemType(resolved); ok {
+			inner := tc.substituteTypeParamByName(elem, bindings)
+			if inner == elem {
+				return resolved
+			}
+			return tc.instantiateArrayType(inner)
+		}
+	}
 	switch tt.Kind {
 	case types.KindPointer, types.KindReference, types.KindOwn:
 		elem := tc.substituteTypeParamByName(tt.Elem, bindings)

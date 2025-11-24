@@ -20,6 +20,7 @@ func builtinPreludeEntries() []PreludeEntry {
 		{Name: "float64", Kind: SymbolType, Flags: SymbolFlagBuiltin},
 		{Name: "string", Kind: SymbolType, Flags: SymbolFlagBuiltin},
 		{Name: "nothing", Kind: SymbolType, Flags: SymbolFlagBuiltin},
+		{Name: "Array", Kind: SymbolType, Flags: SymbolFlagBuiltin, TypeParams: []string{"T"}},
 	}
 }
 

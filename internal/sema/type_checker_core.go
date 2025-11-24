@@ -52,6 +52,9 @@ type typeChecker struct {
 	typeParamBounds    map[types.TypeID][]symbols.BoundInstance
 	typeParamStack     []types.TypeID
 	typeParamMarks     []int
+	arrayName          source.StringID
+	arraySymbol        symbols.SymbolID
+	arrayType          types.TypeID
 }
 
 type returnContext struct {
@@ -87,6 +90,7 @@ func (tc *typeChecker) run() {
 	if file == nil {
 		return
 	}
+	tc.ensureBuiltinArrayType()
 	tc.registerTypeDecls(file)
 	tc.populateTypeDecls(file)
 	tc.collectExternFields(file)

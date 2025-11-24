@@ -110,8 +110,8 @@ func MakeFloat(width Width) Type {
 	return Type{Kind: KindFloat, Width: width}
 }
 
-// MakeArray describes an array/slice of element type. Use ArrayDynamicLength
-// for open-ended slices (T[]).
+// MakeArray describes an array of element type. Use ArrayDynamicLength for
+// open-ended slices when represented as a built-in array kind.
 func MakeArray(elem TypeID, count uint32) Type {
 	return Type{Kind: KindArray, Elem: elem, Count: count}
 }

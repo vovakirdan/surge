@@ -84,7 +84,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				}
 			}
 			if elemType != types.NoTypeID {
-				ty = tc.types.Intern(types.MakeArray(elemType, types.ArrayDynamicLength))
+				ty = tc.instantiateArrayType(elemType)
 			}
 		}
 	case ast.ExprTuple:

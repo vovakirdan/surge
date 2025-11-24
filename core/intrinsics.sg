@@ -174,11 +174,11 @@ extern<bool> {
     @intrinsic @overload fn __to(self: bool, target: int) -> int;
 }
 
-extern<T[]> {
-    @intrinsic fn __add(self: T[], other: T[]) -> T[];
-    @intrinsic fn __index(self: T[], index: int) -> T;
-    @intrinsic fn __index_set(self: T[], index: int, value: T) -> nothing;
-    @intrinsic fn __range(self: T[]) -> Range<T>;
+extern<Array<T>> {
+    @intrinsic fn __add(self: Array<T>, other: Array<T>) -> Array<T>;
+    @intrinsic fn __index(self: Array<T>, index: int) -> T;
+    @intrinsic fn __index_set(self: Array<T>, index: int, value: T) -> nothing;
+    @intrinsic fn __range(self: Array<T>) -> Range<T>;
 }
 
 @intrinsic
@@ -193,6 +193,6 @@ contract ErrorLike{
 pub fn exit<E: ErrorLike>(e: E) -> nothing;
 
 pub fn panic(msg: string) -> nothing {
-    let e: Error = { message: msg, code: 1 };
+    let e: Error = { message: msg, code: 1:uint };
     exit(e);
 }

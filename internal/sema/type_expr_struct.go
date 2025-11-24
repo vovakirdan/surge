@@ -19,9 +19,10 @@ func (tc *typeChecker) indexResultType(container types.TypeID, span source.Span)
 	if !ok {
 		return types.NoTypeID
 	}
+	if elem, ok := tc.arrayElemType(base); ok {
+		return elem
+	}
 	switch tt.Kind {
-	case types.KindArray:
-		return tt.Elem
 	case types.KindString:
 		return tc.types.Builtins().Uint
 	default:

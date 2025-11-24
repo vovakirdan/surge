@@ -31,13 +31,15 @@ type Builtins struct {
 
 // Interner provides stable TypeIDs by hashing structural descriptors.
 type Interner struct {
-	types    []Type
-	index    map[typeKey]TypeID
-	builtins Builtins
-	structs  []StructInfo
-	aliases  []AliasInfo
-	params   []TypeParamInfo
-	unions   []UnionInfo
+	types      []Type
+	index      map[typeKey]TypeID
+	builtins   Builtins
+	structs    []StructInfo
+	aliases    []AliasInfo
+	params     []TypeParamInfo
+	unions     []UnionInfo
+	arrayType  TypeID
+	arrayParam TypeID
 }
 
 // NewInterner constructs an interner seeded with built-in primitives.

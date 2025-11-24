@@ -12,7 +12,7 @@ func canonicalTypeKey(key symbols.TypeKey) symbols.TypeKey {
 		return ""
 	}
 	s := string(key)
-	if len(s) >= 2 && s[0] == '[' && s[len(s)-1] == ']' {
+	if _, ok := arrayKeyInner(s); ok {
 		return symbols.TypeKey("[]")
 	}
 	return key
