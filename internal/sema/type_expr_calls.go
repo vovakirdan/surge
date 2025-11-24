@@ -65,48 +65,37 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 	}
 	typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)
 
-	bestCost := -1
-	bestType := types.NoTypeID
-	bestSym := symbols.NoSymbolID
-	ambiguous := false
-	for _, symID := range candidates {
-		sym := tc.symbolFromID(symID)
-		if sym == nil || sym.Kind != symbols.SymbolFunction || sym.Signature == nil {
-			continue
-		}
-		cost, resType, ok := tc.evaluateFunctionCandidate(sym, args, typeArgs)
-		if !ok {
-			continue
-		}
-		if bestCost == -1 || cost < bestCost {
-			bestCost = cost
-			bestType = resType
-			bestSym = symID
-			ambiguous = false
-		} else if cost == bestCost {
-			ambiguous = true
-		}
+	displayName := name
+	if displayName == "" {
+		displayName = "_"
 	}
-	if bestCost == -1 {
-		if name == "" {
-			name = "_"
-		}
-		tc.report(diag.SemaNoOverload, span, "no matching overload for %s", name)
-		return types.NoTypeID
-	}
+
+	bestSym, bestType, ambiguous, ok := tc.selectBestCandidate(candidates, args, typeArgs, false)
 	if ambiguous {
-		if name == "" {
-			name = "_"
-		}
-		tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for %s", name)
+		tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for %s", displayName)
 		return types.NoTypeID
 	}
-	if bestSym.IsValid() {
+	if ok {
 		if sym := tc.symbolFromID(bestSym); sym != nil {
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 		}
+		return bestType
 	}
-	return bestType
+
+	bestSym, bestType, ambiguous, ok = tc.selectBestCandidate(candidates, args, typeArgs, true)
+	if ambiguous {
+		tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for %s", displayName)
+		return types.NoTypeID
+	}
+	if ok {
+		if sym := tc.symbolFromID(bestSym); sym != nil {
+			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
+		}
+		return bestType
+	}
+
+	tc.report(diag.SemaNoOverload, span, "no matching overload for %s", displayName)
+	return types.NoTypeID
 }
 
 func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.SymbolID {
@@ -244,6 +233,58 @@ func (tc *typeChecker) evaluateFunctionCandidate(sym *symbols.Symbol, args []cal
 
 	resultType := tc.instantiateResultType(sig.Result, bindings, paramSet)
 	return totalCost, resultType, true
+}
+
+func (tc *typeChecker) selectBestCandidate(
+	candidates []symbols.SymbolID,
+	args []callArg,
+	typeArgs []types.TypeID,
+	wantGeneric bool,
+) (symbols.SymbolID, types.TypeID, bool, bool) {
+	bestCost := -1
+	bestType := types.NoTypeID
+	bestSym := symbols.NoSymbolID
+	ambiguous := false
+	for _, symID := range candidates {
+		sym := tc.symbolFromID(symID)
+		if sym == nil || sym.Kind != symbols.SymbolFunction || sym.Signature == nil {
+			continue
+		}
+		if tc.isGenericCandidate(sym, typeArgs) != wantGeneric {
+			continue
+		}
+		cost, resType, ok := tc.evaluateFunctionCandidate(sym, args, typeArgs)
+		if !ok {
+			continue
+		}
+		if bestCost == -1 || cost < bestCost {
+			bestCost = cost
+			bestType = resType
+			bestSym = symID
+			ambiguous = false
+		} else if cost == bestCost {
+			ambiguous = true
+		}
+	}
+	if bestCost == -1 {
+		return symbols.NoSymbolID, types.NoTypeID, false, false
+	}
+	return bestSym, bestType, ambiguous, true
+}
+
+func (tc *typeChecker) isGenericCandidate(sym *symbols.Symbol, typeArgs []types.TypeID) bool {
+	if sym == nil || len(sym.TypeParams) == 0 {
+		return false
+	}
+	if len(typeArgs) != len(sym.TypeParams) {
+		return true
+	}
+	for _, arg := range typeArgs {
+		if arg == types.NoTypeID {
+			return true
+		}
+	}
+	return false
 }
 
 func (tc *typeChecker) instantiateTypeKeyWithInference(key symbols.TypeKey, actual types.TypeID, bindings map[string]types.TypeID, paramNames map[string]struct{}) types.TypeID {

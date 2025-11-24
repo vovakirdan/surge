@@ -964,6 +964,29 @@ Given a call `f(a1, ..., an)` with candidate signatures `Si`:
 
 Union alias `type Number = int | float` participates by expanding to candidates for each member type; the best member is chosen.
 
+### 8.1. Preference of monomorphic overloads
+
+Given a call `f(a1, ..., an)`, the set of candidate function signatures is first split into two groups:
+
+* **Monomorphic candidates** — functions that do not require type argument inference for this call (either they have no type parameters or they are already fully instantiated).
+* **Generic candidates** — functions that require inference of one or more type parameters from the actual arguments.
+
+Overload resolution runs in two stages:
+
+1. **Monomorphic stage.**  
+   The algorithm from steps (1)–(6) above (arity filter, generic instantiation if needed, ownership adjustment, coercion cost graph, best candidate, qualifiers) is applied only to the monomorphic candidates.
+   * If exactly one best candidate is found, it is selected and generic candidates are ignored.
+   * If multiple candidates tie for the minimal total cost, the call is rejected as an ambiguous overload.
+   * If no monomorphic candidate is applicable, proceed to the generic stage.
+
+2. **Generic stage.**  
+   The same algorithm is then applied to the generic candidates only.
+   * If exactly one best candidate is found, it is selected.
+   * If multiple candidates tie for the minimal total cost, the call is rejected as an ambiguous overload.
+   * If no generic candidate is applicable either, the call is rejected with a “no suitable overload” error.
+
+In other words, if at least one monomorphic overload is applicable, generic overloads are never considered for this call.
+
 ### Option conversions
 
 No implicit conversion inserts `Some(...)`; `Option<T>` construction is always explicit (§2.9). Overload resolution treats values of type `Option<T>` distinctly from `T`.
