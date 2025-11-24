@@ -153,7 +153,6 @@ func ensureStdlibModules(
 		stdModuleCoreOption,
 		stdModuleCoreIntrinsics,
 		stdModuleCoreBase,
-		stdModuleCoreSaturating,
 	} {
 		if _, ok := records[module]; ok {
 			continue

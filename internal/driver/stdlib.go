@@ -12,23 +12,19 @@ const (
 	stdModuleCoreBase       = "core/base"
 	stdModuleCoreOption     = "core/option"
 	stdModuleCoreResult     = "core/result"
-	stdModuleCoreSaturating = "core/saturating_cast"
 )
 
 func detectStdlibRoot(baseDir string) string {
-	if env := os.Getenv("SURGE_STDLIB"); env != "" {
-		if hasStdModule(env) {
-			return env
-		}
+	if root := resolveStdlibRoot(os.Getenv("SURGE_STDLIB")); root != "" {
+		return root
 	}
 	if exe, err := os.Executable(); err == nil {
-		dir := filepath.Dir(exe)
-		if hasStdModule(dir) {
-			return dir
+		if root := resolveStdlibRoot(filepath.Dir(exe)); root != "" {
+			return root
 		}
 	}
-	if baseDir != "" && hasStdModule(baseDir) {
-		return baseDir
+	if root := resolveStdlibRoot(baseDir); root != "" {
+		return root
 	}
 	dir := baseDir
 	for dir != "" {
@@ -37,9 +33,23 @@ func detectStdlibRoot(baseDir string) string {
 			break
 		}
 		dir = next
-		if hasStdModule(dir) {
-			return dir
+		if root := resolveStdlibRoot(dir); root != "" {
+			return root
 		}
+	}
+	return ""
+}
+
+func resolveStdlibRoot(candidate string) string {
+	if candidate == "" {
+		return ""
+	}
+	if hasStdModule(candidate) {
+		return candidate
+	}
+	alt := filepath.Join(candidate, "stdlib")
+	if hasStdModule(alt) {
+		return alt
 	}
 	return ""
 }

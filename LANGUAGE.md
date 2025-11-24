@@ -892,7 +892,7 @@ let raw: uint64 = uid to uint64;
 
 ### 6.6. Saturating casts
 
-The standard library provides `saturating_cast(from, to_proto)` overloads in `core/saturating_cast.sg` for numeric types. The second argument is only used for its type (`to_proto`) and defines the result type. Semantics:
+The standard library provides `saturating_cast(from, to_proto)` overloads in `stdlib/saturating_cast.sg` for numeric types. The second argument is only used for its type (`to_proto`) and defines the result type. Semantics:
 
 * For integer targets: clamp to `[MIN..MAX]` of the target type; negative inputs clamp to `0` for unsigned targets.
 * For floats: clamp to the finite range of the target precision.
