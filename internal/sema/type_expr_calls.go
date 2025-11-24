@@ -311,6 +311,11 @@ func (tc *typeChecker) instantiateTypeKeyWithInference(key symbols.TypeKey, actu
 		if elem, ok := tc.arrayElemType(actual); ok {
 			elemActual = elem
 		}
+		if hasLen && lengthKey != "" && length == 0 {
+			if _, fixedLen, ok := tc.arrayFixedInfo(actual); ok && fixedLen > 0 {
+				length = uint64(fixedLen)
+			}
+		}
 		inner := tc.instantiateTypeKeyWithInference(symbols.TypeKey(innerKey), elemActual, bindings, paramNames)
 		if inner == types.NoTypeID {
 			return types.NoTypeID
@@ -417,6 +422,11 @@ func (tc *typeChecker) instantiateResultType(key symbols.TypeKey, bindings map[s
 		}
 		if hasLen {
 			lenType := types.NoTypeID
+			if lengthKey != "" && length == 0 {
+				if _, fixedLen, ok := tc.arrayFixedInfo(inner); ok && fixedLen > 0 {
+					length = uint64(fixedLen)
+				}
+			}
 			if lengthKey != "" {
 				lenType = tc.instantiateResultType(symbols.TypeKey(lengthKey), bindings, paramNames)
 			}

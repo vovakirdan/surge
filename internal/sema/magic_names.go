@@ -18,6 +18,10 @@ func canonicalTypeKey(key symbols.TypeKey) symbols.TypeKey {
 	return key
 }
 
+func isArrayKey(key symbols.TypeKey) bool {
+	return canonicalTypeKey(key) == symbols.TypeKey("[]")
+}
+
 func typeKeyEqual(a, b symbols.TypeKey) bool {
 	return canonicalTypeKey(a) == canonicalTypeKey(b)
 }
@@ -138,12 +142,21 @@ func (tc *typeChecker) magicResultForBinary(left, right types.TypeID, op ast.Exp
 				if !tc.signatureMatchesBinary(sig, lc.key, rc.key) {
 					continue
 				}
+				if tc.arrayMagicInvolves(sig, lc.key, rc.key) && !tc.arrayMagicCompatible(lc.base, rc.base) {
+					continue
+				}
 				if lc.alias != types.NoTypeID || rc.alias != types.NoTypeID {
 					if !compatibleAliasFallback(lc, rc) {
 						continue
 					}
 				}
 				res := tc.typeFromKey(sig.Result)
+				if res == types.NoTypeID {
+					res = tc.magicResultFallback(sig.Result, lc, rc)
+				}
+				if res == types.NoTypeID {
+					continue
+				}
 				return tc.adjustAliasBinaryResult(res, lc, rc)
 			}
 		}
@@ -250,6 +263,19 @@ func (tc *typeChecker) lookupMagicMethods(receiver symbols.TypeKey, name string)
 	return nil
 }
 
+func (tc *typeChecker) magicResultFallback(result symbols.TypeKey, left, right typeKeyCandidate) types.TypeID {
+	if result == "" {
+		return types.NoTypeID
+	}
+	if typeKeyEqual(result, left.key) && left.base != types.NoTypeID {
+		return left.base
+	}
+	if typeKeyEqual(result, right.key) && right.base != types.NoTypeID {
+		return right.base
+	}
+	return types.NoTypeID
+}
+
 func magicNameForBinaryOp(op ast.ExprBinaryOp) string {
 	switch op {
 	case ast.ExprBinaryAdd:
@@ -314,6 +340,28 @@ func (tc *typeChecker) signatureMatchesBinary(sig *symbols.FunctionSignature, le
 		return false
 	}
 	return typeKeyEqual(sig.Params[0], left) && typeKeyEqual(sig.Params[1], right)
+}
+
+func (tc *typeChecker) arrayMagicInvolves(sig *symbols.FunctionSignature, left, right symbols.TypeKey) bool {
+	if sig == nil || len(sig.Params) < 2 {
+		return false
+	}
+	return isArrayKey(sig.Params[0]) && isArrayKey(sig.Params[1]) && isArrayKey(left) && isArrayKey(right)
+}
+
+func (tc *typeChecker) arrayMagicCompatible(left, right types.TypeID) bool {
+	lelem, llen, lfixed, lok := tc.arrayInfo(left)
+	relem, rlen, rfixed, rok := tc.arrayInfo(right)
+	if !lok || !rok {
+		return false
+	}
+	if !tc.typesAssignable(lelem, relem, true) || !tc.typesAssignable(relem, lelem, true) {
+		return false
+	}
+	if lfixed || rfixed {
+		return lfixed && rfixed && llen == rlen
+	}
+	return true
 }
 
 func (tc *typeChecker) acceptToSignature(sig *symbols.FunctionSignature, receiver symbols.TypeKey, sym *symbols.Symbol) bool {

@@ -306,6 +306,22 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 		return
 	}
 	actual = tc.coerceLiteralForBinding(declared, actual, valueExpr)
+	if expElem, expLen, expFixed, okExp := tc.arrayInfo(declared); okExp {
+		if actElem, actLen, actFixed, okAct := tc.arrayInfo(actual); okAct && tc.typesAssignable(expElem, actElem, true) {
+			if expFixed {
+				if actFixed && expLen == actLen {
+					return
+				}
+				if !actFixed && valueExpr.IsValid() {
+					if arr, okArr := tc.builder.Exprs.Array(valueExpr); okArr && arr != nil && uint32(len(arr.Elements)) == expLen {
+						return
+					}
+				}
+			} else {
+				return
+			}
+		}
+	}
 	if tc.typesAssignable(declared, actual, true) {
 		return
 	}
@@ -507,6 +523,14 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 	}
 	if allowAlias {
 		if tc.resolveAlias(expected) == tc.resolveAlias(actual) {
+			return true
+		}
+	}
+	if expElem, expLen, expFixed, okExp := tc.arrayInfo(expected); okExp {
+		if actElem, actLen, actFixed, okAct := tc.arrayInfo(actual); okAct && tc.typesAssignable(expElem, actElem, true) {
+			if expFixed {
+				return actFixed && expLen == actLen
+			}
 			return true
 		}
 	}

@@ -181,6 +181,13 @@ extern<Array<T>> {
     @intrinsic fn __range(self: Array<T>) -> Range<T>;
 }
 
+extern<ArrayFixed<T, N>> {
+    @intrinsic fn __add(self: ArrayFixed<T, N>, other: ArrayFixed<T, N>) -> ArrayFixed<T, N>;
+    @intrinsic fn __index(self: ArrayFixed<T, N>, index: int) -> T;
+    @intrinsic fn __index_set(self: ArrayFixed<T, N>, index: int, value: T) -> nothing;
+    @intrinsic fn __range(self: ArrayFixed<T, N>) -> Range<T>;
+}
+
 @intrinsic
 pub fn default<T>() -> T;
 

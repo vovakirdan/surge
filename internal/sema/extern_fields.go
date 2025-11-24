@@ -42,13 +42,17 @@ func (tc *typeChecker) processExternBlock(itemID ast.ItemID, block *ast.ExternBl
 		return
 	}
 
-	paramNames := tc.externTypeParams(block.Target)
-	pushed := tc.pushTypeParams(symbols.NoSymbolID, specsFromNames(paramNames), nil)
+	scope := tc.scopeForItem(itemID)
+	paramSpecs := tc.externTypeParamSpecs(block.Target, scope)
+	paramNames := make([]source.StringID, 0, len(paramSpecs))
+	for _, spec := range paramSpecs {
+		paramNames = append(paramNames, spec.name)
+	}
+	pushed := tc.pushTypeParams(symbols.NoSymbolID, paramSpecs, nil)
 	if pushed {
 		defer tc.popTypeParams()
 	}
 
-	scope := tc.scopeForItem(itemID)
 	targetType := tc.resolveTypeExprWithScope(block.Target, scope)
 	normalized := tc.valueType(targetType)
 	key := tc.typeKeyForType(normalized)
@@ -196,14 +200,27 @@ func (tc *typeChecker) typeArgsForType(id types.TypeID) []types.TypeID {
 	}
 }
 
-func (tc *typeChecker) externTypeParams(target ast.TypeID) []source.StringID {
+func (tc *typeChecker) externTypeParamSpecs(target ast.TypeID, scope symbols.ScopeID) []genericParamSpec {
 	if tc.builder == nil || !target.IsValid() {
 		return nil
 	}
-	params := make([]source.StringID, 0, 2)
+	scope = tc.scopeOrFile(scope)
+	tc.ensureBuiltinArrayType()
+	tc.ensureBuiltinArrayFixedType()
+
+	var expected []symbols.TypeParamSymbol
+	if path, ok := tc.builder.Types.Path(target); ok && path != nil && len(path.Segments) == 1 {
+		if symID := tc.lookupTypeSymbol(path.Segments[0].Name, scope); symID.IsValid() {
+			if sym := tc.symbolFromID(symID); sym != nil && len(sym.TypeParamSymbols) > 0 {
+				expected = sym.TypeParamSymbols
+			}
+		}
+	}
+
+	specs := make([]genericParamSpec, 0, 2)
 	seen := make(map[source.StringID]struct{})
-	var visit func(ast.TypeID)
-	visit = func(id ast.TypeID) {
+	var visit func(ast.TypeID, []symbols.TypeParamSymbol, genericParamKind, types.TypeID)
+	visit = func(id ast.TypeID, hints []symbols.TypeParamSymbol, kind genericParamKind, constType types.TypeID) {
 		if !id.IsValid() {
 			return
 		}
@@ -218,7 +235,16 @@ func (tc *typeChecker) externTypeParams(target ast.TypeID) []source.StringID {
 				return
 			}
 			for _, seg := range path.Segments {
-				for _, gid := range seg.Generics {
+				for idx, gid := range seg.Generics {
+					gkind := kind
+					gconst := constType
+					if idx < len(hints) && hints[idx].IsConst {
+						gkind = paramKindConst
+						gconst = hints[idx].ConstType
+						if gconst == types.NoTypeID && tc.types != nil {
+							gconst = tc.types.Builtins().Int
+						}
+					}
 					if p, ok := tc.builder.Types.Path(gid); ok && p != nil && len(p.Segments) == 1 && len(p.Segments[0].Generics) == 0 {
 						name := p.Segments[0].Name
 						if name == source.NoStringID || tc.isKnownTypeName(name) {
@@ -226,36 +252,36 @@ func (tc *typeChecker) externTypeParams(target ast.TypeID) []source.StringID {
 						}
 						if _, exists := seen[name]; !exists {
 							seen[name] = struct{}{}
-							params = append(params, name)
+							specs = append(specs, genericParamSpec{name: name, kind: gkind, constType: gconst})
 						}
 						continue
 					}
-					visit(gid)
+					visit(gid, nil, paramKindType, types.NoTypeID)
 				}
 			}
 		case ast.TypeExprUnary:
 			if unary, ok := tc.builder.Types.UnaryType(id); ok && unary != nil {
-				visit(unary.Inner)
+				visit(unary.Inner, hints, kind, constType)
 			}
 		case ast.TypeExprArray:
 			if arr, ok := tc.builder.Types.Array(id); ok && arr != nil {
-				visit(arr.Elem)
+				visit(arr.Elem, hints, kind, constType)
 			}
 		case ast.TypeExprOptional:
 			if opt, ok := tc.builder.Types.Optional(id); ok && opt != nil {
-				visit(opt.Inner)
+				visit(opt.Inner, hints, kind, constType)
 			}
 		case ast.TypeExprErrorable:
 			if errable, ok := tc.builder.Types.Errorable(id); ok && errable != nil {
-				visit(errable.Inner)
+				visit(errable.Inner, hints, kind, constType)
 				if errable.Error.IsValid() {
-					visit(errable.Error)
+					visit(errable.Error, hints, kind, constType)
 				}
 			}
 		}
 	}
-	visit(target)
-	return params
+	visit(target, expected, paramKindType, types.NoTypeID)
+	return specs
 }
 
 func (tc *typeChecker) isKnownTypeName(id source.StringID) bool {

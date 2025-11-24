@@ -203,6 +203,34 @@ func (tc *typeChecker) isArrayType(id types.TypeID) bool {
 	return ok
 }
 
+func (tc *typeChecker) arrayInfo(id types.TypeID) (elem types.TypeID, length uint32, fixed bool, ok bool) {
+	if id == types.NoTypeID || tc.types == nil {
+		return types.NoTypeID, 0, false, false
+	}
+	resolved := tc.resolveAlias(id)
+	tt, found := tc.types.Lookup(resolved)
+	if !found {
+		return types.NoTypeID, 0, false, false
+	}
+	switch tt.Kind {
+	case types.KindArray:
+		elem = tt.Elem
+		if tt.Count != types.ArrayDynamicLength {
+			length = tt.Count
+			fixed = true
+		}
+		return elem, length, fixed, true
+	case types.KindStruct:
+		if e, l, okFixed := tc.arrayFixedInfo(resolved); okFixed {
+			return e, l, true, true
+		}
+		if e, okArr := tc.arrayElemType(resolved); okArr {
+			return e, 0, false, true
+		}
+	}
+	return types.NoTypeID, 0, false, false
+}
+
 func parseArrayKey(raw string) (elem, lengthKey string, length uint64, hasLen, ok bool) {
 	s := strings.TrimSpace(raw)
 	if len(s) >= 2 && s[0] == '[' && s[len(s)-1] == ']' {

@@ -10,6 +10,7 @@ type builtinMagicSpec struct {
 }
 
 var builtinMagic = []builtinMagicSpec{
+	{receiver: "[]", name: "__add", params: []string{"[]", "[]"}, result: "[]"},
 	{receiver: "int", name: "__add", params: []string{"int", "int"}, result: "int"},
 	{receiver: "int", name: "__sub", params: []string{"int", "int"}, result: "int"},
 	{receiver: "int", name: "__mul", params: []string{"int", "int"}, result: "int"},

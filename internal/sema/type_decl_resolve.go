@@ -116,13 +116,21 @@ func (tc *typeChecker) resolveTypePath(path *ast.TypePath, span source.Span, sco
 		tc.report(diag.SemaUnresolvedSymbol, span, "qualified type paths are not supported yet")
 		return types.NoTypeID
 	}
+	tc.ensureBuiltinArrayType()
+	tc.ensureBuiltinArrayFixedType()
 	seg := path.Segments[0]
 	if len(seg.Generics) == 0 {
 		if param := tc.lookupTypeParam(seg.Name); param != types.NoTypeID {
 			return param
 		}
 	}
-	args, argSpans := tc.resolveTypeArgs(seg.Generics, scope)
+	var typeParams []symbols.TypeParamSymbol
+	if symID := tc.lookupTypeSymbol(seg.Name, scope); symID.IsValid() {
+		if sym := tc.symbolFromID(symID); sym != nil && len(sym.TypeParamSymbols) > 0 {
+			typeParams = sym.TypeParamSymbols
+		}
+	}
+	args, argSpans := tc.resolveTypeArgsWithParams(seg.Generics, typeParams, scope)
 	return tc.resolveNamedType(seg.Name, args, argSpans, span, scope)
 }
 
@@ -237,6 +245,81 @@ func (tc *typeChecker) resolveTypeArgs(typeIDs []ast.TypeID, scope symbols.Scope
 		}
 	}
 	return args, spans
+}
+
+func (tc *typeChecker) resolveTypeArgsWithParams(typeIDs []ast.TypeID, params []symbols.TypeParamSymbol, scope symbols.ScopeID) ([]types.TypeID, []source.Span) {
+	if len(params) == 0 {
+		return tc.resolveTypeArgs(typeIDs, scope)
+	}
+	args := make([]types.TypeID, 0, len(typeIDs))
+	spans := make([]source.Span, 0, len(typeIDs))
+	for idx, tid := range typeIDs {
+		arg := types.NoTypeID
+		if idx < len(params) && params[idx].IsConst {
+			arg = tc.resolveConstTypeArg(tid, scope)
+		} else {
+			arg = tc.resolveTypeExprWithScope(tid, scope)
+		}
+		args = append(args, arg)
+		if tc.builder != nil {
+			if expr := tc.builder.Types.Get(tid); expr != nil {
+				spans = append(spans, expr.Span)
+				continue
+			}
+		}
+		spans = append(spans, source.Span{})
+	}
+	return args, spans
+}
+
+func (tc *typeChecker) resolveConstTypeArg(id ast.TypeID, scope symbols.ScopeID) types.TypeID {
+	if !id.IsValid() || tc.builder == nil || tc.types == nil {
+		return types.NoTypeID
+	}
+	expr := tc.builder.Types.Get(id)
+	if expr == nil {
+		return types.NoTypeID
+	}
+	switch expr.Kind {
+	case ast.TypeExprConst:
+		if c, ok := tc.builder.Types.Const(id); ok && c != nil {
+			if val, err := strconv.ParseUint(tc.lookupName(c.Value), 10, 64); err == nil && val <= uint64(^uint32(0)) {
+				return tc.types.Intern(types.MakeConstUint(uint32(val)))
+			}
+		}
+	case ast.TypeExprPath:
+		path, _ := tc.builder.Types.Path(id)
+		if path == nil || len(path.Segments) != 1 || len(path.Segments[0].Generics) != 0 {
+			return types.NoTypeID
+		}
+		name := path.Segments[0].Name
+		if param := tc.lookupTypeParam(name); param != types.NoTypeID {
+			return param
+		}
+		if constSym := tc.lookupConstSymbol(name, scope); constSym.IsValid() {
+			if val, ok := tc.constUintFromSymbol(constSym); ok && val <= uint64(^uint32(0)) {
+				return tc.types.Intern(types.MakeConstUint(uint32(val)))
+			}
+		}
+		if literal := tc.lookupName(name); literal != "" {
+			if builtin := tc.builtinTypeByName(literal); builtin != types.NoTypeID {
+				return builtin
+			}
+		}
+		if symID := tc.lookupTypeSymbol(name, scope); symID.IsValid() {
+			return tc.symbolType(symID)
+		}
+		symID := tc.lookupSymbolAny(name, scope)
+		if !symID.IsValid() {
+			symID = tc.lookupSymbolAny(name, tc.currentScope())
+		}
+		if symID.IsValid() {
+			if ty := tc.bindingType(symID); ty != types.NoTypeID {
+				return ty
+			}
+		}
+	}
+	return types.NoTypeID
 }
 
 func (tc *typeChecker) enforceTypeArgBounds(sym *symbols.Symbol, args []types.TypeID, argSpans []source.Span, span source.Span) {
