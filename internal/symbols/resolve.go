@@ -375,6 +375,20 @@ func (fr *fileResolver) resolveModuleMember(exprID ast.ExprID, member *ast.ExprM
 	}
 }
 
+func signatureKey(sig *FunctionSignature) string {
+	if sig == nil {
+		return "nosig"
+	}
+	b := strings.Builder{}
+	for _, p := range sig.Params {
+		b.WriteString(string(p))
+		b.WriteByte(',')
+	}
+	b.WriteString("->")
+	b.WriteString(string(sig.Result))
+	return b.String()
+}
+
 func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export *ExportedSymbol, fallback source.Span) SymbolID {
 	if fr.syntheticImportSyms == nil {
 		fr.syntheticImportSyms = make(map[string]SymbolID)
@@ -382,7 +396,7 @@ func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export
 	if export == nil {
 		return NoSymbolID
 	}
-	key := modulePath + "::" + name + fmt.Sprintf("#%d", export.Kind)
+	key := modulePath + "::" + name + fmt.Sprintf("#%d:%s", export.Kind, signatureKey(export.Signature))
 	if id, ok := fr.syntheticImportSyms[key]; ok {
 		return id
 	}
@@ -409,6 +423,7 @@ func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export
 		Span:          span,
 		Flags:         export.Flags | SymbolFlagImported,
 		Type:          export.Type,
+		Signature:     export.Signature,
 		Scope:         fr.result.FileScope,
 		ModulePath:    modulePath,
 		ImportName:    nameID,

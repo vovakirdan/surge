@@ -113,6 +113,7 @@ func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.Symbol
 	if name == source.NoStringID || tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Scopes == nil {
 		return nil
 	}
+	seen := make(map[string]struct{})
 	scope := tc.currentScope()
 	if !scope.IsValid() {
 		scope = tc.fileScope()
@@ -127,6 +128,12 @@ func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.Symbol
 			for _, id := range ids {
 				sym := tc.symbolFromID(id)
 				if sym != nil && sym.Kind == symbols.SymbolFunction {
+					if key := tc.candidateKey(sym); key != "" {
+						if _, dup := seen[key]; dup {
+							continue
+						}
+						seen[key] = struct{}{}
+					}
 					out = append(out, id)
 				}
 			}
@@ -137,6 +144,20 @@ func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.Symbol
 		scope = scopeData.Parent
 	}
 	return nil
+}
+
+func (tc *typeChecker) candidateKey(sym *symbols.Symbol) string {
+	if sym == nil || sym.Signature == nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, p := range sym.Signature.Params {
+		b.WriteString(string(p))
+		b.WriteByte('|')
+	}
+	b.WriteString("->")
+	b.WriteString(string(sym.Signature.Result))
+	return b.String()
 }
 
 func (tc *typeChecker) resolveCallTypeArgs(typeArgs []ast.TypeID) []types.TypeID {
@@ -450,10 +471,10 @@ func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral b
 			if aInfo.width != types.WidthAny && eInfo.width == types.WidthAny {
 				return 1, true
 			}
+			if aInfo.width < eInfo.width {
+				return 1, true
+			}
 		}
-	}
-	if tc.typesAssignable(expected, actual, true) {
-		return 0, true
 	}
 	return 0, false
 }

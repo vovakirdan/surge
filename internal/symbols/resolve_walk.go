@@ -520,21 +520,32 @@ func (fr *fileResolver) tryResolveImportSymbol(exprID ast.ExprID, span source.Sp
 		fr.reportModuleMemberNotFound(modulePath, name, span)
 		return true
 	}
-	var candidate *ExportedSymbol
+	publics := make([]*ExportedSymbol, 0, len(exported))
 	for i := range exported {
 		if exported[i].Flags&SymbolFlagPublic != 0 {
-			candidate = &exported[i]
-			break
+			publics = append(publics, &exported[i])
 		}
 	}
-	if candidate == nil {
+	if len(publics) == 0 {
 		refSpan := exported[0].Span
 		fr.reportModuleMemberNotPublic(modulePath, name, span, refSpan)
 		return true
 	}
-	synth := fr.syntheticSymbolForExport(modulePath, nameStr, candidate, span)
-	if synth.IsValid() {
-		fr.result.ExprSymbols[exprID] = synth
+	var first SymbolID
+	for _, cand := range publics {
+		if cand == nil {
+			continue
+		}
+		synth := fr.syntheticSymbolForExport(modulePath, nameStr, cand, span)
+		if !synth.IsValid() {
+			continue
+		}
+		if !first.IsValid() {
+			first = synth
+		}
+	}
+	if first.IsValid() {
+		fr.result.ExprSymbols[exprID] = first
 		return true
 	}
 	return false
