@@ -350,7 +350,7 @@ func runModuleGraph(
 	}
 
 	baseDir := fs.BaseDir()
-	stdlibRoot := detectStdlibRoot(baseDir)
+	stdlibRoot := detectStdlibRoot()
 	reporter := &diag.BagReporter{Bag: bag}
 	meta, ok := buildModuleMeta(fs, builder, astFile, baseDir, reporter)
 	if !ok {

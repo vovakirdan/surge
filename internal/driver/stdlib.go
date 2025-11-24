@@ -14,26 +14,12 @@ const (
 	stdModuleCoreResult     = "core/result"
 )
 
-func detectStdlibRoot(baseDir string) string {
+func detectStdlibRoot() string {
 	if root := resolveStdlibRoot(os.Getenv("SURGE_STDLIB")); root != "" {
 		return root
 	}
 	if exe, err := os.Executable(); err == nil {
 		if root := resolveStdlibRoot(filepath.Dir(exe)); root != "" {
-			return root
-		}
-	}
-	if root := resolveStdlibRoot(baseDir); root != "" {
-		return root
-	}
-	dir := baseDir
-	for dir != "" {
-		next := filepath.Dir(dir)
-		if next == dir {
-			break
-		}
-		dir = next
-		if root := resolveStdlibRoot(dir); root != "" {
 			return root
 		}
 	}

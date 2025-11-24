@@ -84,6 +84,11 @@ install: build
 install-system: build
 	@echo ">> Installing surge to /usr/local/bin (requires sudo)"
 	@sudo cp surge /usr/local/bin/surge
+	@echo ">> Installing standard library to /usr/local/share/surge (requires sudo)"
+	@sudo mkdir -p /usr/local/share/surge
+	@sudo cp -r core stdlib /usr/local/share/surge/
+	@echo ">> Writing /etc/profile.d/surge.sh to export SURGE_STDLIB if unset"
+	@sudo sh -c 'cat >/etc/profile.d/surge.sh <<\"EOF\"\n# surge stdlib path\n: \${SURGE_STDLIB:=/usr/local/share/surge}\nexport SURGE_STDLIB\nEOF'
 	@echo ">> Installed to /usr/local/bin/surge"
 
 # Удаление установленного бинарника
