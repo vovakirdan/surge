@@ -145,6 +145,10 @@ func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
 	nameSpan := preferSpan(tagItem.NameSpan, preferSpan(tagItem.TagKeywordSpan, tagItem.Span))
 	fr.enforceTagNameStyle(tagItem.Name, nameSpan)
 	if symID, ok := fr.resolver.Declare(tagItem.Name, nameSpan, SymbolTag, flags, decl); ok {
+		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
+			sym.TypeParams = append([]source.StringID(nil), tagItem.Generics...)
+			sym.TypeParamSpan = tagItem.GenericsSpan
+		}
 		fr.appendItemSymbol(itemID, symID)
 	}
 }

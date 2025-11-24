@@ -170,6 +170,10 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		if contract, ok := tc.builder.Items.Contract(id); ok && contract != nil {
 			tc.checkContract(id, contract)
 		}
+	case ast.ItemTag:
+		if tag, ok := tc.builder.Items.Tag(id); ok && tag != nil {
+			tc.checkTag(id, tag)
+		}
 	default:
 		// Other item kinds are currently ignored.
 	}

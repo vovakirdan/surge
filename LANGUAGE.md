@@ -139,10 +139,53 @@ This rule simplifies early implementation and preserves soundness of the ownersh
 
 ### 2.4. Generics
 
-Generic parameters must be declared explicitly with angle brackets: `<T, U, ...>`. Implicit type variables (using a bare `T` without declaration) are not supported.
+Generic parameters must be declared explicitly with angle brackets: `<T, U, ...>`.  
+There are no implicit type variables: a bare `T` in a type position is always resolved as a normal type name unless it appears in the generic parameter list of the current declaration.
+
+Supported generic owners:
 
 * Functions: `fn id<T>(x: T) -> T { return x; }`
-* Extern methods/blocks: `extern<T> { ... }`
+* Types (aliases, structs, unions): `type Box<T> = { value: T }`
+* Tags: `tag Some<T>(T);`
+* Contracts: `contract FooLike<T> { field v: T; fn get(self: T) -> T; }`
+* `extern<T>` blocks: `extern<T> { fn len(self: &T) -> int; }`
+
+Resolution rules for a type identifier `Ident` inside a generic owner:
+
+1. If `Ident` matches one of the owner’s type parameters (`<T, U, ...>`), it is treated as a **type parameter**.
+2. Otherwise, `Ident` is resolved as a regular type name (struct, alias, union, newtype, contract, tag, etc.).
+3. If no matching type is found, the compiler reports an unresolved-type error (`SemaUnresolvedSymbol`).
+
+This means that the following code is **invalid**:
+
+```sg
+fn foo(x: T) {}          // error: T is not declared anywhere
+type S = { value: U };   // error: U is not declared anywhere
+```
+
+while this is valid:
+
+```sg
+fn bar<T>(x: T) {}       // T is a type parameter of `bar`
+
+type T = { value: int }; // user-defined type T
+
+fn use_t(x: T) {}        // here T refers to the struct above
+
+fn shadow<T>(x: T) -> T {  // here T is the generic parameter, not the struct
+  return x;
+}
+```
+
+Type parameters form a local scope for their owner:
+
+* In a function `fn f<T, U>(x: T, y: U) -> T`, both `T` and `U` are visible in the parameter list, return type, and the body.
+* In a type declaration `type Box<T> = { value: T }`, `T` is visible only inside the right-hand side of `Box<T>`.
+* In a contract `contract C<T, U> { ... }`, all type parameters are visible in every `field` and `fn` member.
+* In a tag `tag Pair<A, B>(A, B);`, `A` and `B` are only visible in the payload list.
+* In an `extern<T>` block, `T` is the type parameter of that block; methods inside the block may introduce their own `<U, ...>` which shadow outer names.
+
+Generic monomorphization and instantiation are described in §16.1.
 
 ### 2.5. User-defined Types
 
