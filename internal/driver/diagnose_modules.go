@@ -21,6 +21,7 @@ func analyzeDependencyModule(
 	baseDir string,
 	opts DiagnoseOptions,
 	cache *ModuleCache,
+	strings *source.Interner,
 ) (*moduleRecord, error) {
 	filePath := modulePathToFilePath(baseDir, modulePath)
 	fileID, err := fs.Load(filePath)
@@ -49,7 +50,7 @@ func analyzeDependencyModule(
 	}
 	var builder *ast.Builder
 	var astFile ast.FileID
-	builder, astFile = diagnoseParse(fs, file, bag)
+	builder, astFile = diagnoseParseWithStrings(fs, file, bag, strings)
 	reporter := &diag.BagReporter{Bag: bag}
 	meta, ok := buildModuleMeta(fs, builder, astFile, baseDir, reporter)
 	if !ok {
@@ -143,6 +144,7 @@ func ensureStdlibModules(
 	cache *ModuleCache,
 	stdlibRoot string,
 	typeInterner *types.Interner,
+	strings *source.Interner,
 ) error {
 	if stdlibRoot == "" {
 		return nil
@@ -157,7 +159,7 @@ func ensureStdlibModules(
 		if _, ok := records[module]; ok {
 			continue
 		}
-		rec, err := loadStdModule(fs, module, stdlibRoot, opts, cache, exports, typeInterner)
+		rec, err := loadStdModule(fs, module, stdlibRoot, opts, cache, exports, typeInterner, strings)
 		if err != nil {
 			if errors.Is(err, errStdModuleMissing) {
 				continue
@@ -180,6 +182,7 @@ func loadStdModule(
 	cache *ModuleCache,
 	moduleExports map[string]*symbols.ModuleExports,
 	typeInterner *types.Interner,
+	strings *source.Interner,
 ) (*moduleRecord, error) {
 	if stdlibRoot == "" {
 		return nil, errStdModuleMissing
@@ -197,7 +200,7 @@ func loadStdModule(
 	if errTok := diagnoseTokenize(file, bag); errTok != nil {
 		return nil, errTok
 	}
-	builder, astFile := diagnoseParse(fs, file, bag)
+	builder, astFile := diagnoseParseWithStrings(fs, file, bag, strings)
 	reporter := &diag.BagReporter{Bag: bag}
 	meta, ok := buildModuleMeta(fs, builder, astFile, stdlibRoot, reporter)
 	if !ok {

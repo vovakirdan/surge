@@ -30,7 +30,8 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 
 	bag := diag.NewBag(8)
 	lx := lexer.New(file, lexer.Options{})
-	builder := ast.NewBuilder(ast.Hints{}, nil)
+	sharedStrings := source.NewInterner()
+	builder := ast.NewBuilder(ast.Hints{}, sharedStrings)
 	parseRes := parser.ParseFile(fs, lx, builder, parser.Options{
 		Reporter:  &diag.BagReporter{Bag: bag},
 		MaxErrors: 16,
@@ -40,7 +41,7 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 		Stage:          DiagnoseStageSema,
 		MaxDiagnostics: 32,
 	}
-	exports, err := runModuleGraph(fs, file, builder, parseRes.File, bag, opts, NewModuleCache(4), typeInterner)
+	exports, err := runModuleGraph(fs, file, builder, parseRes.File, bag, opts, NewModuleCache(4), typeInterner, sharedStrings)
 	if err != nil {
 		t.Fatalf("runModuleGraph failed: %v", err)
 	}

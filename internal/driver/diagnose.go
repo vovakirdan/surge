@@ -70,6 +70,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	if opts.EnableTimings {
 		timer = observ.NewTimer()
 	}
+	sharedStrings := source.NewInterner()
 	begin := func(name string) int {
 		if timer == nil {
 			return -1
@@ -121,7 +122,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 
 	if opts.Stage != DiagnoseStageTokenize {
 		parseIdx := begin("parse")
-		builder, astFile = diagnoseParse(fs, file, bag)
+		builder, astFile = diagnoseParseWithStrings(fs, file, bag, sharedStrings)
 		parseNote := ""
 		if timer != nil && builder != nil && builder.Files != nil {
 			fileNode := builder.Files.Get(astFile)
@@ -133,7 +134,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 
 		graphIdx := begin("imports_graph")
 		var moduleExports map[string]*symbols.ModuleExports
-		moduleExports, err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache, sharedTypes)
+		moduleExports, err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache, sharedTypes, sharedStrings)
 		end(graphIdx, "")
 		if err != nil {
 			return nil, err
@@ -263,8 +264,20 @@ func diagnoseTokenize(file *source.File, bag *diag.Bag) error {
 }
 
 func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) (*ast.Builder, ast.FileID) {
-	lx := lexer.New(file, lexer.Options{})
 	arenas := ast.NewBuilder(ast.Hints{}, nil)
+	return diagnoseParseWithBuilder(fs, file, bag, arenas)
+}
+
+func diagnoseParseWithStrings(fs *source.FileSet, file *source.File, bag *diag.Bag, strings *source.Interner) (*ast.Builder, ast.FileID) {
+	arenas := ast.NewBuilder(ast.Hints{}, strings)
+	return diagnoseParseWithBuilder(fs, file, bag, arenas)
+}
+
+func diagnoseParseWithBuilder(fs *source.FileSet, file *source.File, bag *diag.Bag, arenas *ast.Builder) (*ast.Builder, ast.FileID) {
+	if arenas == nil {
+		arenas = ast.NewBuilder(ast.Hints{}, nil)
+	}
+	lx := lexer.New(file, lexer.Options{})
 
 	maxErrors := uint(bag.Cap())
 	if maxErrors == 0 {
@@ -344,6 +357,7 @@ func runModuleGraph(
 	opts DiagnoseOptions,
 	cache *ModuleCache,
 	typeInterner *types.Interner,
+	strings *source.Interner,
 ) (map[string]*symbols.ModuleExports, error) {
 	if builder == nil {
 		return nil, nil
@@ -391,7 +405,7 @@ func runModuleGraph(
 				continue
 			}
 
-			depRec, err := analyzeDependencyModule(fs, imp.Path, baseDir, opts, cache)
+			depRec, err := analyzeDependencyModule(fs, imp.Path, baseDir, opts, cache, strings)
 			if err != nil {
 				if errors.Is(err, errModuleNotFound) {
 					missing[imp.Path] = struct{}{}
@@ -404,7 +418,7 @@ func runModuleGraph(
 		}
 	}
 
-	if err := ensureStdlibModules(fs, records, opts, cache, stdlibRoot, typeInterner); err != nil {
+	if err := ensureStdlibModules(fs, records, opts, cache, stdlibRoot, typeInterner, strings); err != nil {
 		return nil, err
 	}
 
