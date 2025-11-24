@@ -110,6 +110,11 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 		tupleType := p.arenas.Types.NewTuple(openTok.Span.Cover(closeTok.Span), elements)
 		return p.parseTypeSuffix(tupleType)
 
+	case token.IntLit, token.UintLit:
+		lit := p.advance()
+		value := p.arenas.StringsInterner.Intern(lit.Text)
+		return p.parseTypeSuffix(p.arenas.Types.NewConst(lit.Span, value))
+
 	case token.KwFn:
 		fnTok := p.advance()
 		if _, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after 'fn' in function type", nil); !ok {

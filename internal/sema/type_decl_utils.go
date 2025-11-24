@@ -55,6 +55,8 @@ func (tc *typeChecker) defaultable(id types.TypeID) bool {
 	switch tt.Kind {
 	case types.KindInt, types.KindUint, types.KindFloat, types.KindBool, types.KindString, types.KindNothing, types.KindUnit:
 		return true
+	case types.KindConst:
+		return true
 	case types.KindPointer:
 		return true
 	case types.KindReference, types.KindOwn:
@@ -107,6 +109,32 @@ func (tc *typeChecker) lookupTypeSymbol(name source.StringID, scope symbols.Scop
 					continue
 				}
 				if sym.Kind == symbols.SymbolType {
+					return id
+				}
+			}
+		}
+		scope = scopeData.Parent
+	}
+	return symbols.NoSymbolID
+}
+
+func (tc *typeChecker) lookupConstSymbol(name source.StringID, scope symbols.ScopeID) symbols.SymbolID {
+	if name == source.NoStringID || tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Scopes == nil || tc.symbols.Table.Symbols == nil {
+		return symbols.NoSymbolID
+	}
+	for scope = tc.scopeOrFile(scope); scope.IsValid(); {
+		scopeData := tc.symbols.Table.Scopes.Get(scope)
+		if scopeData == nil {
+			break
+		}
+		if ids := scopeData.NameIndex[name]; len(ids) > 0 {
+			for i := len(ids) - 1; i >= 0; i-- {
+				id := ids[i]
+				sym := tc.symbols.Table.Symbols.Get(id)
+				if sym == nil {
+					continue
+				}
+				if sym.Kind == symbols.SymbolConst {
 					return id
 				}
 			}

@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/symbols"
@@ -84,7 +86,16 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				}
 			}
 			if elemType != types.NoTypeID {
-				ty = tc.instantiateArrayType(elemType)
+				if len(arr.Elements) > 0 {
+					if len(arr.Elements) > int(^uint32(0)) {
+						tc.report(diag.SemaTypeMismatch, expr.Span, "array literal too large")
+					} else if length, err := safecast.Conv[uint32](len(arr.Elements)); err == nil {
+						ty = tc.instantiateArrayFixed(elemType, length)
+					}
+				}
+				if ty == types.NoTypeID {
+					ty = tc.instantiateArrayType(elemType)
+				}
 			}
 		}
 	case ast.ExprTuple:

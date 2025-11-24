@@ -80,6 +80,10 @@ func makeTypeKey(builder *ast.Builder, typeID ast.TypeID) TypeKey {
 				return TypeKey("*" + inner)
 			}
 		}
+	case ast.TypeExprConst:
+		if c, ok := builder.Types.Const(typeID); ok && c != nil {
+			return TypeKey(builder.StringsInterner.MustLookup(c.Value))
+		}
 	case ast.TypeExprFn:
 		if fn, ok := builder.Types.Fn(typeID); ok {
 			params := make([]string, 0, len(fn.Params))

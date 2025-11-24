@@ -2,6 +2,7 @@ package sema
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"surge/internal/ast"
 	"surge/internal/source"
@@ -230,6 +231,17 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 		return types.NoTypeID
 	}
 	s := strings.TrimSpace(string(key))
+	if n, err := strconv.ParseUint(s, 10, 32); err == nil {
+		return tc.types.Intern(types.MakeConstUint(uint32(n)))
+	}
+	if tc.builder != nil {
+		nameID := tc.builder.StringsInterner.Intern(s)
+		if sym := tc.lookupConstSymbol(nameID, tc.scopeOrFile(tc.currentScope())); sym.IsValid() {
+			if val, ok := tc.constUintFromSymbol(sym); ok && val <= uint64(^uint32(0)) {
+				return tc.types.Intern(types.MakeConstUint(uint32(val)))
+			}
+		}
+	}
 	if inner, lengthKey, length, hasLen, ok := parseArrayKey(s); ok {
 		if innerType := tc.typeFromKey(symbols.TypeKey(inner)); innerType != types.NoTypeID {
 			if hasLen {

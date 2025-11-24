@@ -28,18 +28,20 @@ func TestArrayLiteralUsesNominalArray(t *testing.T) {
 	if arrayType == types.NoTypeID {
 		t.Fatalf("expected array literal to have a type")
 	}
-	desc := res.TypeInterner.MustLookup(arrayType)
-	if desc.Kind != types.KindStruct {
-		t.Fatalf("expected Array to be a nominal struct, got %v", desc.Kind)
-	}
 	info, ok := res.TypeInterner.StructInfo(arrayType)
 	if !ok || info == nil {
 		t.Fatalf("expected struct info for array type")
 	}
-	if name := builder.StringsInterner.MustLookup(info.Name); name != "Array" {
-		t.Fatalf("expected struct named Array, got %s", name)
+	name := builder.StringsInterner.MustLookup(info.Name)
+	if name != "ArrayFixed" && name != "Array" {
+		t.Fatalf("expected struct named Array or ArrayFixed, got %s", name)
 	}
-	if len(info.TypeArgs) != 1 || info.TypeArgs[0] != res.TypeInterner.Builtins().Int {
-		t.Fatalf("expected Array<int>, got args %v", info.TypeArgs)
+	if len(info.TypeArgs) == 0 || info.TypeArgs[0] != res.TypeInterner.Builtins().Int {
+		t.Fatalf("expected element int, got args %v", info.TypeArgs)
+	}
+	if name == "ArrayFixed" {
+		if vals := res.TypeInterner.StructValueArgs(arrayType); len(vals) != 1 || vals[0] != 2 {
+			t.Fatalf("expected fixed length 2, got %v", vals)
+		}
 	}
 }

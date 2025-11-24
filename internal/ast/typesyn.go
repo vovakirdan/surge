@@ -8,6 +8,7 @@ const (
 	TypeExprInvalid TypeExprKind = iota
 	TypeExprPath
 	TypeExprUnary
+	TypeExprConst
 	TypeExprArray
 	TypeExprTuple
 	TypeExprFn
@@ -25,6 +26,7 @@ type TypeExprs struct {
 	Arena  *Arena[TypeExpr]
 	Paths  *Arena[TypePath]
 	Unary  *Arena[TypeUnary]
+	Consts *Arena[TypeConst]
 	Arrays *Arena[TypeArray]
 	Tuples *Arena[TypeTuple]
 	Fns    *Arena[TypeFn]
@@ -43,6 +45,7 @@ func NewTypeExprs(capHint uint) *TypeExprs {
 		Arena:  NewArena[TypeExpr](capHint),
 		Paths:  NewArena[TypePath](capHint),
 		Unary:  NewArena[TypeUnary](capHint),
+		Consts: NewArena[TypeConst](capHint),
 		Arrays: NewArena[TypeArray](capHint),
 		Tuples: NewArena[TypeTuple](capHint),
 		Fns:    NewArena[TypeFn](capHint),
@@ -84,6 +87,19 @@ func (t *TypeExprs) NewUnary(span source.Span, op TypeUnaryOp, inner TypeID) Typ
 		Inner: inner,
 	})
 	return t.new(TypeExprUnary, span, PayloadID(payload))
+}
+
+func (t *TypeExprs) NewConst(span source.Span, value source.StringID) TypeID {
+	payload := t.Consts.Allocate(TypeConst{Value: value})
+	return t.new(TypeExprConst, span, PayloadID(payload))
+}
+
+func (t *TypeExprs) Const(id TypeID) (*TypeConst, bool) {
+	typ := t.Get(id)
+	if typ == nil || typ.Kind != TypeExprConst {
+		return nil, false
+	}
+	return t.Consts.Get(uint32(typ.Payload)), true
 }
 
 func (t *TypeExprs) UnaryType(id TypeID) (*TypeUnary, bool) {
@@ -187,6 +203,10 @@ type TypePathSegment struct {
 type TypeUnary struct {
 	Op    TypeUnaryOp
 	Inner TypeID
+}
+
+type TypeConst struct {
+	Value source.StringID
 }
 
 type TypeUnaryOp uint8

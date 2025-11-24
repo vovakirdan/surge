@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"strconv"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -87,6 +89,16 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 			}
 			result = tc.resolveResultType(inner, errType, expr.Span, scope)
 		}
+	case ast.TypeExprConst:
+		if c, ok := tc.builder.Types.Const(id); ok && c != nil {
+			if val, err := strconv.ParseUint(tc.lookupName(c.Value), 10, 64); err == nil {
+				if val > uint64(^uint32(0)) {
+					tc.report(diag.SemaTypeMismatch, expr.Span, "const value %d exceeds limit", val)
+					break
+				}
+				result = tc.types.Intern(types.MakeConstUint(uint32(val)))
+			}
+		}
 	default:
 		// other type forms (tuple/fn) are not supported yet
 	}
@@ -128,6 +140,15 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 	if !symID.IsValid() {
 		if literal == "" {
 			literal = "_"
+		}
+		if constSym := tc.lookupConstSymbol(name, scope); constSym.IsValid() {
+			if val, ok := tc.constUintFromSymbol(constSym); ok {
+				if val > uint64(^uint32(0)) {
+					tc.report(diag.SemaTypeMismatch, span, "const value %d exceeds limit", val)
+					return types.NoTypeID
+				}
+				return tc.types.Intern(types.MakeConstUint(uint32(val)))
+			}
 		}
 		tc.report(diag.SemaUnresolvedSymbol, span, "unknown type %s", literal)
 		return types.NoTypeID
@@ -193,4 +214,12 @@ func (tc *typeChecker) enforceTypeArgBounds(sym *symbols.Symbol, args []types.Ty
 		bindings[name] = b
 	}
 	tc.enforceContractBounds(sym.TypeParamSymbols, bindings, span)
+}
+
+func (tc *typeChecker) constUintFromSymbol(symID symbols.SymbolID) (uint64, bool) {
+	if !symID.IsValid() || tc.builder == nil {
+		return 0, false
+	}
+	_, exprID, _, _ := tc.constBinding(symID)
+	return tc.constUintValue(exprID, nil)
 }

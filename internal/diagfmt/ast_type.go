@@ -80,6 +80,11 @@ func formatTypeExprInline(builder *ast.Builder, typeID ast.TypeID) string {
 		default:
 			return fmt.Sprintf("%s[<?>]", elem)
 		}
+	case ast.TypeExprConst:
+		if c, ok := builder.Types.Const(typeID); ok && c != nil {
+			return builder.StringsInterner.MustLookup(c.Value)
+		}
+		return "<const>"
 	case ast.TypeExprTuple:
 		tuple, ok := builder.Types.Tuple(typeID)
 		if !ok {
