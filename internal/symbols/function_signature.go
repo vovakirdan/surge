@@ -52,11 +52,33 @@ func makeTypeKey(builder *ast.Builder, typeID ast.TypeID) TypeKey {
 	switch expr.Kind {
 	case ast.TypeExprPath:
 		if path, ok := builder.Types.Path(typeID); ok {
-			names := make([]string, len(path.Segments))
-			for i, seg := range path.Segments {
-				names[i] = builder.StringsInterner.MustLookup(seg.Name)
+			names := make([]string, 0, len(path.Segments))
+			for _, seg := range path.Segments {
+				name := builder.StringsInterner.MustLookup(seg.Name)
+				if len(seg.Generics) > 0 {
+					args := make([]string, 0, len(seg.Generics))
+					for _, gen := range seg.Generics {
+						args = append(args, string(makeTypeKey(builder, gen)))
+					}
+					name = name + "<" + strings.Join(args, ",") + ">"
+				}
+				names = append(names, name)
 			}
 			return TypeKey(strings.Join(names, "::"))
+		}
+	case ast.TypeExprUnary:
+		if unary, ok := builder.Types.UnaryType(typeID); ok {
+			inner := string(makeTypeKey(builder, unary.Inner))
+			switch unary.Op {
+			case ast.TypeUnaryRef:
+				return TypeKey("&" + inner)
+			case ast.TypeUnaryRefMut:
+				return TypeKey("&mut " + inner)
+			case ast.TypeUnaryOwn:
+				return TypeKey("own " + inner)
+			case ast.TypeUnaryPointer:
+				return TypeKey("*" + inner)
+			}
 		}
 	case ast.TypeExprFn:
 		if fn, ok := builder.Types.Fn(typeID); ok {
@@ -77,6 +99,16 @@ func makeTypeKey(builder *ast.Builder, typeID ast.TypeID) TypeKey {
 				elems = append(elems, string(makeTypeKey(builder, elem)))
 			}
 			return TypeKey("(" + strings.Join(elems, ",") + ")")
+		}
+	case ast.TypeExprOptional:
+		if opt, ok := builder.Types.Optional(typeID); ok {
+			return TypeKey("Option<" + string(makeTypeKey(builder, opt.Inner)) + ">")
+		}
+	case ast.TypeExprErrorable:
+		if errTy, ok := builder.Types.Errorable(typeID); ok {
+			okKey := makeTypeKey(builder, errTy.Inner)
+			errKey := makeTypeKey(builder, errTy.Error)
+			return TypeKey("Result<" + string(okKey) + "," + string(errKey) + ">")
 		}
 	}
 	return TypeKey(fmt.Sprintf("type#%d", typeID))

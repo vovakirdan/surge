@@ -2,6 +2,7 @@ package sema
 
 import (
 	"fmt"
+	"strings"
 	"surge/internal/ast"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -148,8 +149,35 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 		}
 	case types.KindString:
 		return symbols.TypeKey("string")
+	case types.KindGenericParam:
+		if name := tc.typeParamNames[id]; name != source.NoStringID {
+			if lookup := tc.lookupName(name); lookup != "" {
+				return symbols.TypeKey(lookup)
+			}
+		}
+	case types.KindReference:
+		inner := tc.typeKeyForType(tt.Elem)
+		if inner != "" {
+			prefix := "&"
+			if tt.Mutable {
+				prefix = "&mut "
+			}
+			return symbols.TypeKey(prefix + string(inner))
+		}
+	case types.KindOwn:
+		if inner := tc.typeKeyForType(tt.Elem); inner != "" {
+			return symbols.TypeKey("own " + string(inner))
+		}
+	case types.KindPointer:
+		if inner := tc.typeKeyForType(tt.Elem); inner != "" {
+			return symbols.TypeKey("*" + string(inner))
+		}
 	case types.KindArray:
-		return symbols.TypeKey("[]")
+		inner := tc.typeKeyForType(tt.Elem)
+		if inner == "" {
+			return symbols.TypeKey("[]")
+		}
+		return symbols.TypeKey("[" + string(inner) + "]")
 	case types.KindNothing:
 		return symbols.TypeKey("nothing")
 	case types.KindUnit:
@@ -179,10 +207,55 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 }
 
 func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
-	if key == "" {
+	if key == "" || tc.types == nil {
 		return types.NoTypeID
 	}
-	switch string(key) {
+	s := strings.TrimSpace(string(key))
+	switch {
+	case strings.HasPrefix(s, "&mut "):
+		if inner := tc.typeFromKey(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "&mut ")))); inner != types.NoTypeID {
+			return tc.types.Intern(types.MakeReference(inner, true))
+		}
+	case strings.HasPrefix(s, "&"):
+		if inner := tc.typeFromKey(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "&")))); inner != types.NoTypeID {
+			return tc.types.Intern(types.MakeReference(inner, false))
+		}
+	case strings.HasPrefix(s, "own "):
+		if inner := tc.typeFromKey(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "own ")))); inner != types.NoTypeID {
+			return tc.types.Intern(types.MakeOwn(inner))
+		}
+	case strings.HasPrefix(s, "*"):
+		if inner := tc.typeFromKey(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "*")))); inner != types.NoTypeID {
+			return tc.types.Intern(types.MakePointer(inner))
+		}
+	case strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]"):
+		inner := strings.TrimSpace(s[1 : len(s)-1])
+		if innerType := tc.typeFromKey(symbols.TypeKey(inner)); innerType != types.NoTypeID {
+			return tc.types.Intern(types.MakeArray(innerType, types.ArrayDynamicLength))
+		}
+	case strings.HasPrefix(s, "Option<") && strings.HasSuffix(s, ">"):
+		innerKey := strings.TrimSuffix(strings.TrimPrefix(s, "Option<"), ">")
+		if innerType := tc.typeFromKey(symbols.TypeKey(innerKey)); innerType != types.NoTypeID {
+			scope := tc.scopeOrFile(tc.currentScope())
+			if opt := tc.resolveOptionType(innerType, source.Span{}, scope); opt != types.NoTypeID {
+				return opt
+			}
+		}
+	case strings.HasPrefix(s, "Result<") && strings.HasSuffix(s, ">"):
+		content := strings.TrimSuffix(strings.TrimPrefix(s, "Result<"), ">")
+		parts := splitTopLevel(content)
+		if len(parts) == 2 {
+			okType := tc.typeFromKey(symbols.TypeKey(parts[0]))
+			errType := tc.typeFromKey(symbols.TypeKey(parts[1]))
+			if okType != types.NoTypeID && errType != types.NoTypeID {
+				scope := tc.scopeOrFile(tc.currentScope())
+				if res := tc.resolveResultType(okType, errType, source.Span{}, scope); res != types.NoTypeID {
+					return res
+				}
+			}
+		}
+	}
+	switch s {
 	case "bool":
 		return tc.types.Builtins().Bool
 	case "int":
@@ -221,12 +294,44 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 		return tc.types.Builtins().Unit
 	default:
 		if tc.typeKeys != nil {
-			if ty := tc.typeKeys[string(key)]; ty != types.NoTypeID {
+			if ty := tc.typeKeys[s]; ty != types.NoTypeID {
 				return ty
 			}
 		}
 		return types.NoTypeID
 	}
+}
+
+func splitTopLevel(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var parts []string
+	depth := 0
+	start := 0
+	for i, r := range s {
+		switch r {
+		case '<', '[', '(':
+			depth++
+		case '>', ']', ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				parts = append(parts, strings.TrimSpace(s[start:i]))
+				start = i + 1
+			}
+		}
+	}
+	parts = append(parts, strings.TrimSpace(s[start:]))
+	filtered := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p != "" {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
 }
 
 func binaryAssignmentBaseOp(op ast.ExprBinaryOp) (ast.ExprBinaryOp, bool) {

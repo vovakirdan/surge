@@ -69,7 +69,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				}
 				ty = tc.methodResultType(member, receiverType, argTypes, expr.Span)
 			} else {
-				ty = tc.callResultType(call)
+				ty = tc.callResultType(call, expr.Span)
 			}
 		}
 	case ast.ExprArray:

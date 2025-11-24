@@ -268,8 +268,8 @@ func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) (*ast.B
 	return diagnoseParseWithBuilder(fs, file, bag, arenas)
 }
 
-func diagnoseParseWithStrings(fs *source.FileSet, file *source.File, bag *diag.Bag, strings *source.Interner) (*ast.Builder, ast.FileID) {
-	arenas := ast.NewBuilder(ast.Hints{}, strings)
+func diagnoseParseWithStrings(fs *source.FileSet, file *source.File, bag *diag.Bag, strs *source.Interner) (*ast.Builder, ast.FileID) {
+	arenas := ast.NewBuilder(ast.Hints{}, strs)
 	return diagnoseParseWithBuilder(fs, file, bag, arenas)
 }
 
@@ -357,7 +357,7 @@ func runModuleGraph(
 	opts DiagnoseOptions,
 	cache *ModuleCache,
 	typeInterner *types.Interner,
-	strings *source.Interner,
+	strs *source.Interner,
 ) (map[string]*symbols.ModuleExports, error) {
 	if builder == nil {
 		return nil, nil
@@ -408,7 +408,7 @@ func runModuleGraph(
 				continue
 			}
 
-			depRec, err := analyzeDependencyModule(fs, imp.Path, baseDir, opts, cache, strings)
+			depRec, err := analyzeDependencyModule(fs, imp.Path, baseDir, opts, cache, strs)
 			if err != nil {
 				if errors.Is(err, errModuleNotFound) {
 					missing[imp.Path] = struct{}{}
@@ -421,7 +421,7 @@ func runModuleGraph(
 		}
 	}
 
-	if err := ensureStdlibModules(fs, records, opts, cache, stdlibRoot, typeInterner, strings); err != nil {
+	if err := ensureStdlibModules(fs, records, opts, cache, stdlibRoot, typeInterner, strs); err != nil {
 		return nil, err
 	}
 

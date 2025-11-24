@@ -111,6 +111,8 @@ const (
 	SemaContractMethodAttrMismatch Code = 3043
 	SemaExternDuplicateField       Code = 3044
 	SemaExternUnknownAttr          Code = 3045
+	SemaNoOverload                 Code = 3046
+	SemaAmbiguousOverload          Code = 3047
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -226,6 +228,8 @@ var ( // todo расширить описания и использовать к
 		SemaContractMethodAttrMismatch: "Contract method attribute/modifier mismatch",
 		SemaExternDuplicateField:       "Duplicate extern field",
 		SemaExternUnknownAttr:          "Unsupported extern attribute",
+		SemaNoOverload:                 "No matching overload found",
+		SemaAmbiguousOverload:          "Ambiguous overload resolution",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",
