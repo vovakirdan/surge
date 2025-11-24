@@ -25,7 +25,8 @@ func (tc *typeChecker) requirementsForBound(bound symbols.BoundInstance) (contra
 	scope := tc.scopeForItem(contractSym.Decl.Item)
 	pushed := false
 	if len(contractSym.TypeParams) > 0 {
-		pushed = tc.pushTypeParams(bound.Contract, contractSym.TypeParams, bound.GenericArgs)
+		paramSpecs := specsFromSymbolParams(contractSym.TypeParamSymbols)
+		pushed = tc.pushTypeParams(bound.Contract, paramSpecs, bound.GenericArgs)
 	}
 	if pushed {
 		defer tc.popTypeParams()

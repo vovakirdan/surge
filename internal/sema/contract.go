@@ -23,15 +23,19 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 	}
 
 	symID := tc.typeSymbolForItem(id)
-	typeParamsPushed := tc.pushTypeParams(symID, decl.Generics, nil)
-	typeParamSet := make(map[source.StringID]struct{}, len(decl.Generics))
-	typeParamUsage := make(map[source.StringID]bool, len(decl.Generics))
+	paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetTypeParamIDs(decl.TypeParamsStart, decl.TypeParamsCount), scope)
+	if len(paramSpecs) == 0 && len(decl.Generics) > 0 {
+		paramSpecs = specsFromNames(decl.Generics)
+	}
+	typeParamsPushed := tc.pushTypeParams(symID, paramSpecs, nil)
+	typeParamSet := make(map[source.StringID]struct{}, len(paramSpecs))
+	typeParamUsage := make(map[source.StringID]bool, len(paramSpecs))
 	var typeParamIDs []types.TypeID
 	if typeParamsPushed {
-		for _, name := range decl.Generics {
-			typeParamSet[name] = struct{}{}
-			typeParamUsage[name] = false
-			typeParamIDs = append(typeParamIDs, tc.lookupTypeParam(name))
+		for _, spec := range paramSpecs {
+			typeParamSet[spec.name] = struct{}{}
+			typeParamUsage[spec.name] = false
+			typeParamIDs = append(typeParamIDs, tc.lookupTypeParam(spec.name))
 		}
 	}
 

@@ -9,17 +9,21 @@ import (
 
 // TypeParamInfo stores metadata about a generic type parameter.
 type TypeParamInfo struct {
-	Name  source.StringID
-	Owner uint32
-	Index uint32
+	Name      source.StringID
+	Owner     uint32
+	Index     uint32
+	IsConst   bool
+	ConstType TypeID
 }
 
 // RegisterTypeParam allocates a new generic parameter descriptor.
-func (in *Interner) RegisterTypeParam(name source.StringID, owner, index uint32) TypeID {
+func (in *Interner) RegisterTypeParam(name source.StringID, owner, index uint32, isConst bool, constType TypeID) TypeID {
 	slot := in.appendTypeParamInfo(TypeParamInfo{
-		Name:  name,
-		Owner: owner,
-		Index: index,
+		Name:      name,
+		Owner:     owner,
+		Index:     index,
+		IsConst:   isConst,
+		ConstType: constType,
 	})
 	return in.internRaw(Type{
 		Kind:    KindGenericParam,

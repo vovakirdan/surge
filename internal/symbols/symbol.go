@@ -91,9 +91,11 @@ type BoundInstance struct {
 
 // TypeParamSymbol describes a generic parameter and its bounds.
 type TypeParamSymbol struct {
-	Name   source.StringID
-	Span   source.Span
-	Bounds []BoundInstance
+	Name      source.StringID
+	Span      source.Span
+	Bounds    []BoundInstance
+	IsConst   bool
+	ConstType types.TypeID
 }
 
 // SymbolDecl focuses on the AST origin for diagnostics.

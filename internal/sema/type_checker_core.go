@@ -149,7 +149,11 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		}
 		scope := tc.scopeForItem(id)
 		symID := tc.typeSymbolForItem(id)
-		typeParamsPushed := tc.pushTypeParams(symID, fnItem.Generics, nil)
+		paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetFnTypeParamIDs(fnItem), scope)
+		if len(paramSpecs) == 0 && len(fnItem.Generics) > 0 {
+			paramSpecs = specsFromNames(fnItem.Generics)
+		}
+		typeParamsPushed := tc.pushTypeParams(symID, paramSpecs, nil)
 		if paramIDs := tc.builder.Items.GetFnTypeParamIDs(fnItem); len(paramIDs) > 0 {
 			bounds := tc.resolveTypeParamBounds(paramIDs, scope, nil)
 			tc.attachTypeParamSymbols(symID, bounds)

@@ -73,7 +73,8 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 	scope := tc.scopeForItem(contractSym.Decl.Item)
 	pushed := false
 	if len(contractSym.TypeParams) > 0 {
-		pushed = tc.pushTypeParams(bound.Contract, contractSym.TypeParams, args)
+		paramSpecs := specsFromSymbolParams(contractSym.TypeParamSymbols)
+		pushed = tc.pushTypeParams(bound.Contract, paramSpecs, args)
 	}
 	if pushed {
 		defer tc.popTypeParams()

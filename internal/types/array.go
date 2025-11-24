@@ -14,7 +14,7 @@ func (in *Interner) EnsureArrayNominal(arrayName, paramName source.StringID, dec
 		}
 		return in.arrayType, in.arrayParam
 	}
-	param = in.RegisterTypeParam(paramName, owner, 0)
+	param = in.RegisterTypeParam(paramName, owner, 0, false, NoTypeID)
 	base = in.RegisterStruct(arrayName, decl)
 	in.SetStructTypeParams(base, []TypeID{param})
 	in.arrayType = base
@@ -23,7 +23,7 @@ func (in *Interner) EnsureArrayNominal(arrayName, paramName source.StringID, dec
 }
 
 // EnsureArrayFixedNominal registers the built-in ArrayFixed<T, N> nominal type if needed.
-func (in *Interner) EnsureArrayFixedNominal(name, elemParam, lenParam source.StringID, decl source.Span, owner uint32) (base TypeID, params [2]TypeID) {
+func (in *Interner) EnsureArrayFixedNominal(name, elemParam, lenParam source.StringID, decl source.Span, owner uint32, constType TypeID) (base TypeID, params [2]TypeID) {
 	if name == source.NoStringID || elemParam == source.NoStringID || lenParam == source.NoStringID {
 		return NoTypeID, params
 	}
@@ -33,8 +33,8 @@ func (in *Interner) EnsureArrayFixedNominal(name, elemParam, lenParam source.Str
 		}
 		return in.arrayFixedType, in.arrayFixedParams
 	}
-	params[0] = in.RegisterTypeParam(elemParam, owner, 0)
-	params[1] = in.RegisterTypeParam(lenParam, owner, 1)
+	params[0] = in.RegisterTypeParam(elemParam, owner, 0, false, NoTypeID)
+	params[1] = in.RegisterTypeParam(lenParam, owner, 1, true, constType)
 	base = in.RegisterStruct(name, decl)
 	in.SetStructTypeParams(base, []TypeID{params[0], params[1]})
 	in.arrayFixedType = base

@@ -25,6 +25,9 @@ func TestReturnAutoWrapsOptionAndNothing(t *testing.T) {
 	addFunctionWithReturn(builder, fileID, "opt_wrong", []ast.StmtID{retBad}, optInt)
 
 	diags := runSema(t, builder, fileID)
+	for _, d := range diags.Items() {
+		t.Logf("%s: %s", d.Code, d.Message)
+	}
 	if codes := diagCodes(diags); len(codes) != 1 || codes[0] != diag.SemaTypeMismatch {
 		t.Fatalf("expected a single type mismatch, got %v", codes)
 	}
@@ -44,6 +47,9 @@ func TestReturnAutoWrapsResultOk(t *testing.T) {
 	addFunctionWithReturn(builder, fileID, "res_bad", []ast.StmtID{retBad}, resultInt)
 
 	diags := runSema(t, builder, fileID)
+	for _, d := range diags.Items() {
+		t.Logf("%s: %s", d.Code, d.Message)
+	}
 	if codes := diagCodes(diags); len(codes) != 1 || codes[0] != diag.SemaTypeMismatch {
 		t.Fatalf("expected a single type mismatch for bad result, got %v", codes)
 	}

@@ -19,7 +19,12 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 		return
 	}
 	symID := tc.typeSymbolForItem(itemID)
-	pushed := tc.pushTypeParams(symID, typeItem.Generics, nil)
+	scope := tc.fileScope()
+	paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetTypeParamIDs(typeItem.TypeParamsStart, typeItem.TypeParamsCount), scope)
+	if len(paramSpecs) == 0 && len(typeItem.Generics) > 0 {
+		paramSpecs = specsFromNames(typeItem.Generics)
+	}
+	pushed := tc.pushTypeParams(symID, paramSpecs, nil)
 	defer func() {
 		if pushed {
 			tc.popTypeParams()
@@ -33,7 +38,6 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 		tc.types.SetStructTypeParams(typeID, paramIDs)
 	}
 	fields := make([]types.StructField, 0, structDecl.FieldsCount)
-	scope := tc.fileScope()
 	if paramIDs := tc.builder.Items.GetTypeParamIDs(typeItem.TypeParamsStart, typeItem.TypeParamsCount); len(paramIDs) > 0 {
 		bounds := tc.resolveTypeParamBounds(paramIDs, scope, nil)
 		tc.attachTypeParamSymbols(symID, bounds)
@@ -63,14 +67,18 @@ func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.S
 	if structDecl == nil {
 		return types.NoTypeID
 	}
-	pushed := tc.pushTypeParams(symID, typeItem.Generics, args)
+	scope := tc.fileScope()
+	paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetTypeParamIDs(typeItem.TypeParamsStart, typeItem.TypeParamsCount), scope)
+	if len(paramSpecs) == 0 && len(typeItem.Generics) > 0 {
+		paramSpecs = specsFromNames(typeItem.Generics)
+	}
+	pushed := tc.pushTypeParams(symID, paramSpecs, args)
 	defer func() {
 		if pushed {
 			tc.popTypeParams()
 		}
 	}()
 	fields := make([]types.StructField, 0, structDecl.FieldsCount)
-	scope := tc.fileScope()
 	base := tc.resolveStructBase(structDecl.Base, scope)
 	if base != types.NoTypeID {
 		for _, f := range tc.inheritedFields(base) {

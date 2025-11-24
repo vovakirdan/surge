@@ -7,6 +7,7 @@ import (
 	"fortio.org/safecast"
 
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -75,7 +76,7 @@ func (tc *typeChecker) ensureBuiltinArrayFixedType() {
 	}
 	elemParam := tc.builder.StringsInterner.Intern("T")
 	lenParam := tc.builder.StringsInterner.Intern("N")
-	base, params := tc.types.EnsureArrayFixedNominal(tc.arrayFixedName, elemParam, lenParam, sym.Span, uint32(tc.arrayFixedSymbol))
+	base, params := tc.types.EnsureArrayFixedNominal(tc.arrayFixedName, elemParam, lenParam, sym.Span, uint32(tc.arrayFixedSymbol), tc.types.Builtins().Int)
 	if base == types.NoTypeID {
 		return
 	}
@@ -91,6 +92,12 @@ func (tc *typeChecker) ensureBuiltinArrayFixedType() {
 		tc.recordTypeName(base, name)
 		if tc.typeKeys != nil {
 			tc.typeKeys[name] = base
+		}
+	}
+	if len(sym.TypeParamSymbols) == 0 {
+		sym.TypeParamSymbols = []symbols.TypeParamSymbol{
+			{Name: elemParam, IsConst: false},
+			{Name: lenParam, IsConst: true, ConstType: tc.types.Builtins().Int},
 		}
 	}
 }

@@ -43,7 +43,7 @@ func (tc *typeChecker) processExternBlock(itemID ast.ItemID, block *ast.ExternBl
 	}
 
 	paramNames := tc.externTypeParams(block.Target)
-	pushed := tc.pushTypeParams(symbols.NoSymbolID, paramNames, nil)
+	pushed := tc.pushTypeParams(symbols.NoSymbolID, specsFromNames(paramNames), nil)
 	if pushed {
 		defer tc.popTypeParams()
 	}

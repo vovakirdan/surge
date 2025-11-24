@@ -5,17 +5,31 @@ import (
 
 	"fortio.org/safecast"
 
+	"surge/internal/ast"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
+type genericParamKind uint8
+
+const (
+	paramKindType genericParamKind = iota
+	paramKindConst
+)
+
+type genericParamSpec struct {
+	name      source.StringID
+	kind      genericParamKind
+	constType types.TypeID
+}
+
 // pushTypeParams installs generic parameters into the current environment and records their bounds.
-func (tc *typeChecker) pushTypeParams(owner symbols.SymbolID, names []source.StringID, bindings []types.TypeID) bool {
-	if len(names) == 0 || tc.types == nil {
+func (tc *typeChecker) pushTypeParams(owner symbols.SymbolID, params []genericParamSpec, bindings []types.TypeID) bool {
+	if len(params) == 0 || tc.types == nil {
 		return false
 	}
-	if len(bindings) > 0 && len(bindings) != len(names) {
+	if len(bindings) > 0 && len(bindings) != len(params) {
 		return false
 	}
 	var ownerBounds map[source.StringID][]symbols.BoundInstance
@@ -27,9 +41,9 @@ func (tc *typeChecker) pushTypeParams(owner symbols.SymbolID, names []source.Str
 			}
 		}
 	}
-	scope := make(map[source.StringID]types.TypeID, len(names))
+	scope := make(map[source.StringID]types.TypeID, len(params))
 	tc.typeParamMarks = append(tc.typeParamMarks, len(tc.typeParamStack))
-	for i, name := range names {
+	for i, param := range params {
 		var id types.TypeID
 		if len(bindings) > 0 {
 			id = bindings[i]
@@ -38,13 +52,14 @@ func (tc *typeChecker) pushTypeParams(owner symbols.SymbolID, names []source.Str
 			if err != nil {
 				panic(fmt.Errorf("type param index overflow: %w", err))
 			}
-			id = tc.types.RegisterTypeParam(name, uint32(owner), ui32)
-			tc.typeParamNames[id] = name
+			isConst := param.kind == paramKindConst
+			id = tc.types.RegisterTypeParam(param.name, uint32(owner), ui32, isConst, param.constType)
+			tc.typeParamNames[id] = param.name
 		}
-		scope[name] = id
+		scope[param.name] = id
 		tc.typeParamStack = append(tc.typeParamStack, id)
 		if ownerBounds != nil {
-			if bounds := ownerBounds[name]; len(bounds) > 0 {
+			if bounds := ownerBounds[param.name]; len(bounds) > 0 {
 				tc.typeParamBounds[id] = bounds
 			}
 		}
@@ -110,4 +125,66 @@ func (tc *typeChecker) lookupTypeParam(name source.StringID) types.TypeID {
 		}
 	}
 	return types.NoTypeID
+}
+
+func specsFromNames(names []source.StringID) []genericParamSpec {
+	if len(names) == 0 {
+		return nil
+	}
+	specs := make([]genericParamSpec, 0, len(names))
+	for _, n := range names {
+		if n == source.NoStringID {
+			continue
+		}
+		specs = append(specs, genericParamSpec{name: n, kind: paramKindType})
+	}
+	return specs
+}
+
+func (tc *typeChecker) specsFromTypeParams(ids []ast.TypeParamID, scope symbols.ScopeID) []genericParamSpec {
+	if tc.builder == nil || len(ids) == 0 {
+		return nil
+	}
+	scope = tc.scopeOrFile(scope)
+	specs := make([]genericParamSpec, 0, len(ids))
+	for _, pid := range ids {
+		param := tc.builder.Items.TypeParam(pid)
+		if param == nil {
+			continue
+		}
+		spec := genericParamSpec{
+			name: param.Name,
+			kind: paramKindType,
+		}
+		if param.IsConst {
+			spec.kind = paramKindConst
+			if param.ConstType.IsValid() {
+				spec.constType = tc.resolveTypeExprWithScope(param.ConstType, scope)
+			}
+			if spec.constType == types.NoTypeID && tc.types != nil {
+				spec.constType = tc.types.Builtins().Int
+			}
+		}
+		specs = append(specs, spec)
+	}
+	return specs
+}
+
+func specsFromSymbolParams(params []symbols.TypeParamSymbol) []genericParamSpec {
+	if len(params) == 0 {
+		return nil
+	}
+	specs := make([]genericParamSpec, 0, len(params))
+	for _, p := range params {
+		kind := paramKindType
+		if p.IsConst {
+			kind = paramKindConst
+		}
+		specs = append(specs, genericParamSpec{
+			name:      p.Name,
+			kind:      kind,
+			constType: p.ConstType,
+		})
+	}
+	return specs
 }

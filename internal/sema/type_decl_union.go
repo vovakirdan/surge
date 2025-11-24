@@ -18,13 +18,17 @@ func (tc *typeChecker) populateUnionType(itemID ast.ItemID, typeItem *ast.TypeIt
 		return
 	}
 	symID := tc.typeSymbolForItem(itemID)
-	pushed := tc.pushTypeParams(symID, typeItem.Generics, nil)
+	scope := tc.fileScope()
+	paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetTypeParamIDs(typeItem.TypeParamsStart, typeItem.TypeParamsCount), scope)
+	if len(paramSpecs) == 0 && len(typeItem.Generics) > 0 {
+		paramSpecs = specsFromNames(typeItem.Generics)
+	}
+	pushed := tc.pushTypeParams(symID, paramSpecs, nil)
 	defer func() {
 		if pushed {
 			tc.popTypeParams()
 		}
 	}()
-	scope := tc.fileScope()
 	if paramIDs := tc.builder.Items.GetTypeParamIDs(typeItem.TypeParamsStart, typeItem.TypeParamsCount); len(paramIDs) > 0 {
 		bounds := tc.resolveTypeParamBounds(paramIDs, scope, nil)
 		tc.attachTypeParamSymbols(symID, bounds)
@@ -40,13 +44,17 @@ func (tc *typeChecker) instantiateUnion(typeItem *ast.TypeItem, symID symbols.Sy
 	if unionDecl == nil {
 		return types.NoTypeID
 	}
-	pushed := tc.pushTypeParams(symID, typeItem.Generics, args)
+	scope := tc.fileScope()
+	paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetTypeParamIDs(typeItem.TypeParamsStart, typeItem.TypeParamsCount), scope)
+	if len(paramSpecs) == 0 && len(typeItem.Generics) > 0 {
+		paramSpecs = specsFromNames(typeItem.Generics)
+	}
+	pushed := tc.pushTypeParams(symID, paramSpecs, args)
 	defer func() {
 		if pushed {
 			tc.popTypeParams()
 		}
 	}()
-	scope := tc.fileScope()
 	members, hasTag, hasNothing := tc.collectUnionMembers(unionDecl, scope)
 	tc.validateUnionMembers(hasTag, hasNothing, typeItem, unionDecl)
 	typeID := tc.types.RegisterUnionInstance(typeItem.Name, typeItem.Span, args)

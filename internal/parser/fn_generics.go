@@ -117,32 +117,62 @@ func (p *Parser) parseFnGenerics() (params []ast.TypeParamSpec, names []source.S
 
 	for {
 		paramSpec := ast.TypeParamSpec{}
-		nameID, ok := p.parseIdent()
-		if !ok {
-			p.resyncUntil(token.Gt, token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport, token.KwContract)
-			if p.at(token.Gt) {
-				p.advance()
-			}
-			return nil, nil, nil, false, source.Span{}, false
-		}
-
-		paramSpec.Name = nameID
-		paramSpec.NameSpan = p.lastSpan
-		paramSpec.Span = paramSpec.NameSpan
-		names = append(names, nameID)
-
-		if p.at(token.Colon) {
-			colonTok := p.advance()
-			paramSpec.ColonSpan = colonTok.Span
-			bounds, plusSpans, boundsSpan, okBounds := parseBounds()
-			if !okBounds {
+		if p.at(token.KwConst) {
+			constTok := p.advance()
+			paramSpec.IsConst = true
+			nameID, okName := p.parseIdent()
+			if !okName {
+				p.resyncUntil(token.Gt, token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport, token.KwContract)
+				if p.at(token.Gt) {
+					p.advance()
+				}
 				return nil, nil, nil, false, source.Span{}, false
 			}
-			paramSpec.Bounds = bounds
-			paramSpec.PlusSpans = plusSpans
-			paramSpec.BoundsSpan = boundsSpan
-			paramSpec.Span = paramSpec.Span.Cover(boundsSpan)
+			paramSpec.Name = nameID
+			paramSpec.NameSpan = p.lastSpan
+			paramSpec.Span = constTok.Span.Cover(paramSpec.NameSpan)
+			if colonTok, okColon := p.expect(token.Colon, diag.SynUnexpectedToken, "expected ':' after const generic name", nil); okColon {
+				paramSpec.ColonSpan = colonTok.Span
+				if typ, okType := p.parseTypePrefix(); okType {
+					paramSpec.ConstType = typ
+					if texpr := p.arenas.Types.Get(typ); texpr != nil {
+						paramSpec.Span = paramSpec.Span.Cover(texpr.Span)
+					}
+				} else {
+					return nil, nil, nil, false, source.Span{}, false
+				}
+			} else {
+				return nil, nil, nil, false, source.Span{}, false
+			}
+		} else {
+			nameID, okName := p.parseIdent()
+			if !okName {
+				p.resyncUntil(token.Gt, token.LParen, token.Semicolon, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport, token.KwContract)
+				if p.at(token.Gt) {
+					p.advance()
+				}
+				return nil, nil, nil, false, source.Span{}, false
+			}
+
+			paramSpec.Name = nameID
+			paramSpec.NameSpan = p.lastSpan
+			paramSpec.Span = paramSpec.NameSpan
+
+			if p.at(token.Colon) {
+				colonTok := p.advance()
+				paramSpec.ColonSpan = colonTok.Span
+				bounds, plusSpans, boundsSpan, okBounds := parseBounds()
+				if !okBounds {
+					return nil, nil, nil, false, source.Span{}, false
+				}
+				paramSpec.Bounds = bounds
+				paramSpec.PlusSpans = plusSpans
+				paramSpec.BoundsSpan = boundsSpan
+				paramSpec.Span = paramSpec.Span.Cover(boundsSpan)
+			}
 		}
+
+		names = append(names, paramSpec.Name)
 
 		params = append(params, paramSpec)
 

@@ -12,6 +12,8 @@ type TypeParam struct {
 	Name       source.StringID
 	NameSpan   source.Span
 	ColonSpan  source.Span
+	IsConst    bool
+	ConstType  TypeID
 	BoundsSpan source.Span
 	Bounds     TypeParamBoundID
 	BoundsNum  uint32
@@ -34,6 +36,8 @@ type TypeParamSpec struct {
 	Name       source.StringID
 	NameSpan   source.Span
 	ColonSpan  source.Span
+	IsConst    bool
+	ConstType  TypeID
 	Bounds     []TypeParamBoundSpec
 	PlusSpans  []source.Span
 	BoundsSpan source.Span
@@ -115,6 +119,8 @@ func (i *Items) allocateTypeParams(params []TypeParamSpec) (start TypeParamID, c
 			Name:       p.Name,
 			NameSpan:   p.NameSpan,
 			ColonSpan:  p.ColonSpan,
+			IsConst:    p.IsConst,
+			ConstType:  p.ConstType,
 			BoundsSpan: p.BoundsSpan,
 			Bounds:     boundStart,
 			BoundsNum:  boundCount,

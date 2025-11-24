@@ -173,8 +173,52 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 		tc.report(diag.SemaTypeMismatch, span, "%s expects %d type argument(s), got %d", tc.lookupName(sym.Name), expected, len(args))
 		return types.NoTypeID
 	}
+	for i, tp := range sym.TypeParamSymbols {
+		if i >= len(args) {
+			break
+		}
+		if tp.IsConst {
+			if !tc.constArgAcceptable(args[i], tp.ConstType) {
+				argLabel := tc.typeLabel(args[i])
+				argSpan := span
+				if i < len(argSpans) && argSpans[i] != (source.Span{}) {
+					argSpan = argSpans[i]
+				}
+				tc.report(diag.SemaTypeMismatch, argSpan, "%s requires const argument %s for %s", tc.lookupName(sym.Name), tc.lookupName(tp.Name), argLabel)
+				return types.NoTypeID
+			}
+		}
+	}
 	tc.enforceTypeArgBounds(sym, args, argSpans, span)
 	return tc.instantiateType(symID, args)
+}
+
+func (tc *typeChecker) constArgAcceptable(arg, expect types.TypeID) bool {
+	if arg == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	resolved := tc.resolveAlias(arg)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return false
+	}
+	switch tt.Kind {
+	case types.KindConst:
+		if expect == types.NoTypeID {
+			return true
+		}
+		if family := tc.familyOf(expect); family == types.FamilySignedInt || family == types.FamilyUnsignedInt || family == types.FamilyAny {
+			return true
+		}
+		return expect == arg
+	case types.KindGenericParam:
+		if info, ok := tc.types.TypeParamInfo(resolved); ok && info != nil {
+			return info.IsConst
+		}
+		return false
+	default:
+		return false
+	}
 }
 
 func (tc *typeChecker) resolveTypeArgs(typeIDs []ast.TypeID, scope symbols.ScopeID) ([]types.TypeID, []source.Span) {
