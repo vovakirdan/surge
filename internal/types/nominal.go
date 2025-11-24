@@ -23,6 +23,7 @@ type StructInfo struct {
 	Fields     []StructField
 	TypeParams []TypeID
 	TypeArgs   []TypeID
+	ValueArgs  []uint64
 }
 
 // AliasInfo stores metadata for a nominal alias type.
@@ -42,6 +43,17 @@ func (in *Interner) RegisterStruct(name source.StringID, decl source.Span) TypeI
 // RegisterStructInstance allocates a nominal struct instantiation with type arguments.
 func (in *Interner) RegisterStructInstance(name source.StringID, decl source.Span, args []TypeID) TypeID {
 	slot := in.appendStructInfo(&StructInfo{Name: name, Decl: decl, TypeArgs: cloneTypeArgs(args)})
+	return in.internRaw(Type{Kind: KindStruct, Payload: slot})
+}
+
+// RegisterStructInstanceWithValues allocates a nominal struct instantiation with type and value arguments.
+func (in *Interner) RegisterStructInstanceWithValues(name source.StringID, decl source.Span, args []TypeID, values []uint64) TypeID {
+	slot := in.appendStructInfo(&StructInfo{
+		Name:      name,
+		Decl:      decl,
+		TypeArgs:  cloneTypeArgs(args),
+		ValueArgs: cloneValueArgs(values),
+	})
 	return in.internRaw(Type{Kind: KindStruct, Payload: slot})
 }
 
@@ -88,6 +100,24 @@ func (in *Interner) StructArgs(typeID TypeID) []TypeID {
 		return nil
 	}
 	return cloneTypeArgs(info.TypeArgs)
+}
+
+// SetStructValueArgs records the value arguments used by the struct instantiation.
+func (in *Interner) SetStructValueArgs(typeID TypeID, args []uint64) {
+	info := in.structInfo(typeID)
+	if info == nil {
+		return
+	}
+	info.ValueArgs = cloneValueArgs(args)
+}
+
+// StructValueArgs returns value arguments for the struct instantiation.
+func (in *Interner) StructValueArgs(typeID TypeID) []uint64 {
+	info := in.structInfo(typeID)
+	if info == nil || len(info.ValueArgs) == 0 {
+		return nil
+	}
+	return cloneValueArgs(info.ValueArgs)
 }
 
 // RegisterAlias allocates a nominal alias type slot and returns its TypeID.
@@ -179,6 +209,7 @@ func (in *Interner) appendStructInfo(info *StructInfo) uint32 {
 		Fields:     cloneStructFields(info.Fields),
 		TypeParams: cloneTypeArgs(info.TypeParams),
 		TypeArgs:   cloneTypeArgs(info.TypeArgs),
+		ValueArgs:  cloneValueArgs(info.ValueArgs),
 	})
 	slot, err := safecast.Conv[uint32](len(in.structs) - 1)
 	if err != nil {
@@ -219,6 +250,13 @@ func cloneStructFields(fields []StructField) []StructField {
 }
 
 func cloneTypeArgs(args []TypeID) []TypeID {
+	if len(args) == 0 {
+		return nil
+	}
+	return slices.Clone(args)
+}
+
+func cloneValueArgs(args []uint64) []uint64 {
 	if len(args) == 0 {
 		return nil
 	}

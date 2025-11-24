@@ -306,7 +306,7 @@ func (tc *typeChecker) instantiateTypeKeyWithInference(key symbols.TypeKey, actu
 		bindings[s] = bound
 		return bound
 	}
-	if innerKey, ok := arrayKeyInner(s); ok {
+	if innerKey, lengthKey, length, hasLen, ok := parseArrayKey(s); ok {
 		elemActual := tc.valueType(actual)
 		if elem, ok := tc.arrayElemType(actual); ok {
 			elemActual = elem
@@ -314,6 +314,26 @@ func (tc *typeChecker) instantiateTypeKeyWithInference(key symbols.TypeKey, actu
 		inner := tc.instantiateTypeKeyWithInference(symbols.TypeKey(innerKey), elemActual, bindings, paramNames)
 		if inner == types.NoTypeID {
 			return types.NoTypeID
+		}
+		if hasLen {
+			lenType := types.NoTypeID
+			if _, actualLen, okLen := tc.arrayFixedInfo(actual); okLen && actualLen > 0 {
+				lenType = tc.types.Intern(types.MakeConstUint(actualLen))
+			}
+			if lengthKey != "" {
+				if bound := bindings[lengthKey]; bound != types.NoTypeID {
+					lenType = bound
+				} else if lenType != types.NoTypeID {
+					bindings[lengthKey] = lenType
+				}
+			}
+			if lenType == types.NoTypeID && length <= uint64(^uint32(0)) {
+				lenType = tc.types.Intern(types.MakeConstUint(uint32(length)))
+			}
+			if lenType == types.NoTypeID {
+				return types.NoTypeID
+			}
+			return tc.instantiateArrayFixedWithArg(inner, lenType)
 		}
 		return tc.instantiateArrayType(inner)
 	}
@@ -390,10 +410,23 @@ func (tc *typeChecker) instantiateResultType(key symbols.TypeKey, bindings map[s
 	if _, ok := paramNames[s]; ok {
 		return types.NoTypeID
 	}
-	if innerKey, ok := arrayKeyInner(s); ok {
+	if innerKey, lengthKey, length, hasLen, ok := parseArrayKey(s); ok {
 		inner := tc.instantiateResultType(symbols.TypeKey(innerKey), bindings, paramNames)
 		if inner == types.NoTypeID {
 			return types.NoTypeID
+		}
+		if hasLen {
+			lenType := types.NoTypeID
+			if lengthKey != "" {
+				lenType = tc.instantiateResultType(symbols.TypeKey(lengthKey), bindings, paramNames)
+			}
+			if lenType == types.NoTypeID && length <= uint64(^uint32(0)) {
+				lenType = tc.types.Intern(types.MakeConstUint(uint32(length)))
+			}
+			if lenType == types.NoTypeID {
+				return types.NoTypeID
+			}
+			return tc.instantiateArrayFixedWithArg(inner, lenType)
 		}
 		return tc.instantiateArrayType(inner)
 	}

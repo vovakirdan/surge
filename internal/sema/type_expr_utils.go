@@ -53,6 +53,8 @@ func (tc *typeChecker) familyOf(id types.TypeID) types.FamilyMask {
 		return types.FamilyFloat
 	case types.KindString:
 		return types.FamilyString
+	case types.KindConst:
+		return types.FamilyUnsignedInt
 	case types.KindPointer:
 		return types.FamilyPointer
 	case types.KindReference:
@@ -83,6 +85,12 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 	if !ok {
 		return "unknown"
 	}
+	if elem, length, ok := tc.arrayFixedInfo(id); ok && tt.Kind != types.KindAlias {
+		if length > 0 {
+			return fmt.Sprintf("[%s; %d]", tc.typeLabel(elem), length)
+		}
+		return fmt.Sprintf("[%s]", tc.typeLabel(elem))
+	}
 	if elem, ok := tc.arrayElemType(id); ok && tt.Kind != types.KindAlias {
 		return fmt.Sprintf("[%s]", tc.typeLabel(elem))
 	}
@@ -106,6 +114,8 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 			}
 		}
 		return "T"
+	case types.KindConst:
+		return fmt.Sprintf("%d", tt.Count)
 	case types.KindUnit:
 		return "unit"
 	case types.KindReference:

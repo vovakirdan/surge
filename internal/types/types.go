@@ -17,6 +17,7 @@ const (
 	KindNothing
 	KindBool
 	KindGenericParam
+	KindConst
 	KindString
 	KindInt
 	KindUint
@@ -40,6 +41,8 @@ func (k Kind) String() string {
 		return "nothing"
 	case KindGenericParam:
 		return "generic"
+	case KindConst:
+		return "const"
 	case KindBool:
 		return "bool"
 	case KindString:
@@ -108,6 +111,11 @@ func MakeUint(width Width) Type {
 // MakeFloat describes a floating-point type.
 func MakeFloat(width Width) Type {
 	return Type{Kind: KindFloat, Width: width}
+}
+
+// MakeConstUint describes a compile-time unsigned integer literal value.
+func MakeConstUint(val uint32) Type {
+	return Type{Kind: KindConst, Count: val, Width: Width32}
 }
 
 // MakeArray describes an array of element type. Use ArrayDynamicLength for

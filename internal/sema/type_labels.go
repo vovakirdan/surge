@@ -107,6 +107,16 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 	if !ok {
 		return ""
 	}
+	if elem, length, ok := tc.arrayFixedInfo(id); ok && tt.Kind != types.KindAlias {
+		inner := tc.typeKeyForType(elem)
+		if inner == "" {
+			return symbols.TypeKey("[]")
+		}
+		if length > 0 {
+			return symbols.TypeKey("[" + string(inner) + "; " + fmt.Sprintf("%d", length) + "]")
+		}
+		return symbols.TypeKey("[" + string(inner) + "]")
+	}
 	if elem, ok := tc.arrayElemType(id); ok && tt.Kind != types.KindAlias {
 		inner := tc.typeKeyForType(elem)
 		if inner == "" {
@@ -162,6 +172,8 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 				return symbols.TypeKey(lookup)
 			}
 		}
+	case types.KindConst:
+		return symbols.TypeKey(fmt.Sprintf("%d", tt.Count))
 	case types.KindReference:
 		inner := tc.typeKeyForType(tt.Elem)
 		if inner != "" {
@@ -218,8 +230,21 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 		return types.NoTypeID
 	}
 	s := strings.TrimSpace(string(key))
-	if inner, ok := arrayKeyInner(s); ok {
+	if inner, lengthKey, length, hasLen, ok := parseArrayKey(s); ok {
 		if innerType := tc.typeFromKey(symbols.TypeKey(inner)); innerType != types.NoTypeID {
+			if hasLen {
+				lenType := types.NoTypeID
+				if lengthKey != "" {
+					lenType = tc.typeFromKey(symbols.TypeKey(lengthKey))
+				}
+				if lenType == types.NoTypeID && length <= uint64(^uint32(0)) {
+					lenType = tc.types.Intern(types.MakeConstUint(uint32(length)))
+				}
+				if lenType == types.NoTypeID {
+					return types.NoTypeID
+				}
+				return tc.instantiateArrayFixedWithArg(innerType, lenType)
+			}
 			return tc.instantiateArrayType(innerType)
 		}
 	}

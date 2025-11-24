@@ -1,7 +1,10 @@
 package sema
 
 import (
+	"strconv"
 	"strings"
+
+	"fortio.org/safecast"
 
 	"surge/internal/source"
 	"surge/internal/types"
@@ -53,6 +56,74 @@ func (tc *typeChecker) instantiateArrayType(elem types.TypeID) types.TypeID {
 	return tc.instantiateType(tc.arraySymbol, []types.TypeID{elem})
 }
 
+func (tc *typeChecker) ensureBuiltinArrayFixedType() {
+	if tc == nil || tc.builder == nil || tc.types == nil {
+		return
+	}
+	if tc.arrayFixedName == source.NoStringID {
+		tc.arrayFixedName = tc.builder.StringsInterner.Intern("ArrayFixed")
+	}
+	if !tc.arrayFixedSymbol.IsValid() {
+		tc.arrayFixedSymbol = tc.lookupTypeSymbol(tc.arrayFixedName, tc.fileScope())
+	}
+	if !tc.arrayFixedSymbol.IsValid() {
+		return
+	}
+	sym := tc.symbolFromID(tc.arrayFixedSymbol)
+	if sym == nil {
+		return
+	}
+	elemParam := tc.builder.StringsInterner.Intern("T")
+	lenParam := tc.builder.StringsInterner.Intern("N")
+	base, params := tc.types.EnsureArrayFixedNominal(tc.arrayFixedName, elemParam, lenParam, sym.Span, uint32(tc.arrayFixedSymbol))
+	if base == types.NoTypeID {
+		return
+	}
+	tc.arrayFixedType = base
+	sym.Type = base
+	if params[0] != types.NoTypeID {
+		tc.typeParamNames[params[0]] = elemParam
+	}
+	if params[1] != types.NoTypeID {
+		tc.typeParamNames[params[1]] = lenParam
+	}
+	if name := tc.lookupName(tc.arrayFixedName); name != "" {
+		tc.recordTypeName(base, name)
+		if tc.typeKeys != nil {
+			tc.typeKeys[name] = base
+		}
+	}
+}
+
+func (tc *typeChecker) instantiateArrayFixed(elem types.TypeID, length uint32) types.TypeID {
+	if elem == types.NoTypeID {
+		return types.NoTypeID
+	}
+	tc.ensureBuiltinArrayFixedType()
+	if !tc.arrayFixedSymbol.IsValid() {
+		return types.NoTypeID
+	}
+	lenConst := tc.types.Intern(types.MakeConstUint(length))
+	return tc.instantiateArrayFixedWithArg(elem, lenConst)
+}
+
+func (tc *typeChecker) instantiateArrayFixedWithArg(elem, length types.TypeID) types.TypeID {
+	if elem == types.NoTypeID || length == types.NoTypeID {
+		return types.NoTypeID
+	}
+	tc.ensureBuiltinArrayFixedType()
+	if !tc.arrayFixedSymbol.IsValid() {
+		return types.NoTypeID
+	}
+	id := tc.instantiateType(tc.arrayFixedSymbol, []types.TypeID{elem, length})
+	if id != types.NoTypeID {
+		if n, ok := tc.constValueFromType(length); ok {
+			tc.types.SetStructValueArgs(id, []uint64{n})
+		}
+	}
+	return id
+}
+
 func (tc *typeChecker) arrayElemType(id types.TypeID) (types.TypeID, bool) {
 	if id == types.NoTypeID || tc.types == nil {
 		return types.NoTypeID, false
@@ -76,8 +147,48 @@ func (tc *typeChecker) arrayElemType(id types.TypeID) (types.TypeID, bool) {
 		if info.Name == tc.arrayName && len(info.TypeArgs) == 1 {
 			return info.TypeArgs[0], true
 		}
+		if tc.arrayFixedName == source.NoStringID && tc.builder != nil {
+			tc.arrayFixedName = tc.builder.StringsInterner.Intern("ArrayFixed")
+		}
+		if info.Name == tc.arrayFixedName && len(info.TypeArgs) >= 1 {
+			return info.TypeArgs[0], true
+		}
 	}
 	return types.NoTypeID, false
+}
+
+func (tc *typeChecker) arrayFixedInfo(id types.TypeID) (elem types.TypeID, length uint32, ok bool) {
+	if id == types.NoTypeID || tc.types == nil {
+		return types.NoTypeID, 0, false
+	}
+	resolved := tc.resolveAlias(id)
+	info, okStruct := tc.types.StructInfo(resolved)
+	if !okStruct || info == nil {
+		return types.NoTypeID, 0, false
+	}
+	if tc.arrayFixedName == source.NoStringID && tc.builder != nil {
+		tc.arrayFixedName = tc.builder.StringsInterner.Intern("ArrayFixed")
+	}
+	if info.Name != tc.arrayFixedName || len(info.TypeArgs) == 0 {
+		return types.NoTypeID, 0, false
+	}
+	elem = info.TypeArgs[0]
+	if vals := tc.types.StructValueArgs(resolved); len(vals) > 0 {
+		if vals[0] <= uint64(^uint32(0)) {
+			if l, err := safecast.Conv[uint32](vals[0]); err == nil {
+				length = l
+			}
+		}
+	} else if len(info.TypeArgs) > 1 {
+		if n, ok := tc.constValueFromType(info.TypeArgs[1]); ok {
+			if n <= uint64(^uint32(0)) {
+				if l, err := safecast.Conv[uint32](n); err == nil {
+					length = l
+				}
+			}
+		}
+	}
+	return elem, length, true
 }
 
 func (tc *typeChecker) isArrayType(id types.TypeID) bool {
@@ -85,13 +196,65 @@ func (tc *typeChecker) isArrayType(id types.TypeID) bool {
 	return ok
 }
 
-func arrayKeyInner(raw string) (string, bool) {
+func parseArrayKey(raw string) (elem, lengthKey string, length uint64, hasLen, ok bool) {
 	s := strings.TrimSpace(raw)
 	if len(s) >= 2 && s[0] == '[' && s[len(s)-1] == ']' {
-		return strings.TrimSpace(s[1 : len(s)-1]), true
+		content := strings.TrimSpace(s[1 : len(s)-1])
+		if parts := strings.Split(content, ";"); len(parts) == 2 {
+			elem = strings.TrimSpace(parts[0])
+			lengthStr := strings.TrimSpace(parts[1])
+			lengthKey = lengthStr
+			hasLen = true
+			if lengthStr != "" {
+				if n, err := parseUint(lengthStr); err == nil {
+					length = n
+					return elem, lengthKey, length, hasLen, true
+				}
+			}
+			return elem, lengthKey, length, hasLen, true
+		}
+		return content, lengthKey, 0, false, true
 	}
 	if strings.HasPrefix(s, "Array<") && strings.HasSuffix(s, ">") {
-		return strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(s, "Array<"), ">")), true
+		content := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(s, "Array<"), ">"))
+		return content, "", 0, false, true
 	}
-	return "", false
+	if strings.HasPrefix(s, "ArrayFixed<") && strings.HasSuffix(s, ">") {
+		content := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(s, "ArrayFixed<"), ">"))
+		if parts := strings.Split(content, ","); len(parts) == 2 {
+			elem = strings.TrimSpace(parts[0])
+			lengthStr := strings.TrimSpace(parts[1])
+			lengthKey = lengthStr
+			hasLen = true
+			if lengthStr != "" {
+				if n, err := parseUint(lengthStr); err == nil {
+					length = n
+					return elem, lengthKey, length, hasLen, true
+				}
+			}
+			return elem, lengthKey, length, hasLen, true
+		}
+		return content, lengthKey, 0, true, true
+	}
+	return "", "", 0, false, false
+}
+
+func arrayKeyInner(raw string) (string, bool) {
+	elem, _, _, _, ok := parseArrayKey(raw)
+	return elem, ok
+}
+
+func parseUint(raw string) (uint64, error) {
+	return strconv.ParseUint(raw, 10, 64)
+}
+
+func (tc *typeChecker) constValueFromType(id types.TypeID) (uint64, bool) {
+	if id == types.NoTypeID || tc.types == nil {
+		return 0, false
+	}
+	tt, ok := tc.types.Lookup(tc.resolveAlias(id))
+	if !ok || tt.Kind != types.KindConst {
+		return 0, false
+	}
+	return uint64(tt.Count), true
 }

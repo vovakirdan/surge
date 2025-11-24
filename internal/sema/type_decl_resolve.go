@@ -65,7 +65,7 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 						break
 					}
 					count = uint32(arr.ConstLength)
-					result = tc.types.Intern(types.MakeArray(elem, count))
+					result = tc.instantiateArrayFixed(elem, count)
 				} else {
 					result = tc.instantiateArrayType(elem)
 				}

@@ -55,6 +55,9 @@ type typeChecker struct {
 	arrayName          source.StringID
 	arraySymbol        symbols.SymbolID
 	arrayType          types.TypeID
+	arrayFixedName     source.StringID
+	arrayFixedSymbol   symbols.SymbolID
+	arrayFixedType     types.TypeID
 }
 
 type returnContext struct {

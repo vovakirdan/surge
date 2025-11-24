@@ -123,6 +123,9 @@ func (tc *typeChecker) instantiateImportedType(sym *symbols.Symbol, args []types
 		}
 		instantiated := tc.types.RegisterStructInstance(info.Name, info.Decl, args)
 		tc.types.SetStructFields(instantiated, fields)
+		if len(info.ValueArgs) > 0 {
+			tc.types.SetStructValueArgs(instantiated, info.ValueArgs)
+		}
 		if name := tc.lookupName(sym.Name); name != "" {
 			tc.recordTypeName(instantiated, name)
 		}
@@ -155,6 +158,8 @@ func (tc *typeChecker) substituteImportedType(id types.TypeID, args []types.Type
 		clone := tt
 		clone.Elem = elem
 		return tc.types.Intern(clone)
+	case types.KindConst:
+		return resolved
 	case types.KindStruct:
 		if elem, ok := tc.arrayElemType(resolved); ok {
 			inner := tc.substituteImportedType(elem, args)

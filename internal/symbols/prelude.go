@@ -21,6 +21,7 @@ func builtinPreludeEntries() []PreludeEntry {
 		{Name: "string", Kind: SymbolType, Flags: SymbolFlagBuiltin},
 		{Name: "nothing", Kind: SymbolType, Flags: SymbolFlagBuiltin},
 		{Name: "Array", Kind: SymbolType, Flags: SymbolFlagBuiltin, TypeParams: []string{"T"}},
+		{Name: "ArrayFixed", Kind: SymbolType, Flags: SymbolFlagBuiltin, TypeParams: []string{"T", "N"}},
 	}
 }
 
