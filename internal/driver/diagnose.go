@@ -365,6 +365,9 @@ func runModuleGraph(
 
 	baseDir := fs.BaseDir()
 	stdlibRoot := detectStdlibRoot()
+	if stdlibRoot == "" && (opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll) {
+		return nil, fmt.Errorf("standard library not found: set SURGE_STDLIB to a directory containing core/intrinsics.sg (e.g. /usr/local/share/surge)")
+	}
 	reporter := &diag.BagReporter{Bag: bag}
 	meta, ok := buildModuleMeta(fs, builder, astFile, baseDir, reporter)
 	if !ok {

@@ -23,6 +23,12 @@ func detectStdlibRoot() string {
 			return root
 		}
 	}
+	if root := resolveStdlibRoot("/usr/local/share/surge"); root != "" {
+		return root
+	}
+	if root := resolveStdlibRoot("/usr/share/surge"); root != "" {
+		return root
+	}
 	return ""
 }
 
