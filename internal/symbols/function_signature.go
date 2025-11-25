@@ -22,10 +22,18 @@ func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSigna
 		return nil
 	}
 	ids := builder.Items.GetFnParamIDs(fn)
+	resultKey := makeTypeKey(builder, fn.ReturnType)
+	if fn.Flags&ast.FnModifierAsync != 0 {
+		if resultKey == "" {
+			resultKey = "Task<nothing>"
+		} else {
+			resultKey = TypeKey("Task<" + string(resultKey) + ">")
+		}
+	}
 	sig := &FunctionSignature{
 		Params:   make([]TypeKey, 0, len(ids)),
 		Variadic: make([]bool, 0, len(ids)),
-		Result:   makeTypeKey(builder, fn.ReturnType),
+		Result:   resultKey,
 		HasBody:  fn.Body.IsValid(),
 	}
 	for _, pid := range ids {

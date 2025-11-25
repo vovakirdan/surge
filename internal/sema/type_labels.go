@@ -298,6 +298,15 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 				}
 			}
 		}
+	case strings.HasPrefix(s, "Task<") && strings.HasSuffix(s, ">"):
+		innerKey := strings.TrimSuffix(strings.TrimPrefix(s, "Task<"), ">")
+		if payload := tc.typeFromKey(symbols.TypeKey(innerKey)); payload != types.NoTypeID {
+			scope := tc.scopeOrFile(tc.currentScope())
+			taskName := tc.builder.StringsInterner.Intern("Task")
+			if ty := tc.resolveNamedType(taskName, []types.TypeID{payload}, nil, source.Span{}, scope); ty != types.NoTypeID {
+				return ty
+			}
+		}
 	}
 	switch s {
 	case "bool":

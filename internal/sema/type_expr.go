@@ -190,12 +190,15 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 	case ast.ExprAsync:
 		if asyncData, ok := tc.builder.Exprs.Async(id); ok && asyncData != nil {
 			tc.walkStmt(asyncData.Body)
+			payload := tc.types.Builtins().Nothing
+			ty = tc.taskType(payload, expr.Span)
 		}
 	case ast.ExprSpawn:
 		if spawn, ok := tc.builder.Exprs.Spawn(id); ok && spawn != nil {
-			ty = tc.typeExpr(spawn.Value)
+			payload := tc.typeExpr(spawn.Value)
 			tc.observeMove(spawn.Value, tc.exprSpan(spawn.Value))
 			tc.enforceSpawn(spawn.Value)
+			ty = tc.taskType(payload, expr.Span)
 		}
 	case ast.ExprSpread:
 		if spread, ok := tc.builder.Exprs.Spread(id); ok && spread != nil {

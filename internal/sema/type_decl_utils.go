@@ -247,3 +247,13 @@ func (tc *typeChecker) symbolType(symID symbols.SymbolID) types.TypeID {
 	}
 	return sym.Type
 }
+
+// taskType wraps the provided payload type into Task<payload> by resolving the nominal Task symbol.
+func (tc *typeChecker) taskType(payload types.TypeID, span source.Span) types.TypeID {
+	if payload == types.NoTypeID || tc.builder == nil || tc.builder.StringsInterner == nil {
+		return types.NoTypeID
+	}
+	nameID := tc.builder.StringsInterner.Intern("Task")
+	scope := tc.scopeOrFile(tc.currentScope())
+	return tc.resolveNamedType(nameID, []types.TypeID{payload}, nil, span, scope)
+}
