@@ -122,7 +122,7 @@ func signaturesEqual(a, b *FunctionSignature) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	if a.Result != b.Result || a.HasBody != b.HasBody {
+	if a.Result != b.Result {
 		return false
 	}
 	if len(a.Params) != len(b.Params) {

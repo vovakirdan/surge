@@ -454,7 +454,7 @@ func (fr *fileResolver) injectCoreExports() {
 		for name, overloads := range exports.Symbols {
 			for i := range overloads {
 				exp := &overloads[i]
-				if exp.Flags&SymbolFlagPublic == 0 {
+				if exp.Flags&SymbolFlagPublic == 0 && exp.Flags&SymbolFlagBuiltin == 0 {
 					continue
 				}
 				fr.syntheticSymbolForExport(modulePath, name, exp, fileSpan)
@@ -516,6 +516,14 @@ func isCoreIntrinsicsModule(path string) bool {
 	return strings.Trim(path, "/") == "core/intrinsics"
 }
 
+func isProtectedModule(path string) bool {
+	if path == "" {
+		return false
+	}
+	trimmed := strings.Trim(path, "/")
+	return trimmed == "core" || strings.HasPrefix(trimmed, "core/") || trimmed == "stdlib" || strings.HasPrefix(trimmed, "stdlib/")
+}
+
 func exportsPrelude(exports map[string]*ModuleExports) []PreludeEntry {
 	if len(exports) == 0 {
 		return nil
@@ -542,7 +550,7 @@ func exportsPrelude(exports map[string]*ModuleExports) []PreludeEntry {
 		for _, name := range names {
 			for i := range moduleExports.Symbols[name] {
 				exp := &moduleExports.Symbols[name][i]
-				if exp.Flags&SymbolFlagPublic == 0 {
+				if exp.Flags&SymbolFlagPublic == 0 && exp.Flags&SymbolFlagBuiltin == 0 {
 					continue
 				}
 				entries = append(entries, PreludeEntry{

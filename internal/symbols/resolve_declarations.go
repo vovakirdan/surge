@@ -284,14 +284,8 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 			if sym == nil {
 				continue
 			}
-			// Разрешаем объявлять функции поверх предлюдов/импортов из core,
-			// чтобы они не требовали @override и не блокировали stdlib.
-			// Встроенные символы (в том числе методы из core/intrinsics) остаются,
-			// чтобы предотвратить их переопределение или дублирование.
-			if sym.Flags&SymbolFlagImported != 0 && sym.Decl.ASTFile == 0 {
-				if sym.Flags&SymbolFlagBuiltin == 0 || sym.Flags&SymbolFlagMethod == 0 || !isCoreIntrinsicsModule(sym.ModulePath) {
-					continue
-				}
+			if sym.ModulePath == fr.modulePath && sym.Decl.ASTFile == 0 {
+				continue
 			}
 			filtered = append(filtered, id)
 		}
@@ -302,6 +296,29 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 		existingSymbols = append(existingSymbols, fr.result.Table.Symbols.Get(id))
 	}
 	newSig := buildFunctionSignature(fr.builder, fnItem)
+	protectedMatch := false
+	if len(existingSymbols) > 0 {
+		filteredSyms := make([]*Symbol, 0, len(existingSymbols))
+		filteredIDs := make([]SymbolID, 0, len(existing))
+		for idx, sym := range existingSymbols {
+			if sym == nil {
+				continue
+			}
+			protected := isProtectedSymbol(sym)
+			if protected {
+				if signaturesEqual(sym.Signature, newSig) {
+					protectedMatch = true
+					filteredSyms = append(filteredSyms, sym)
+					filteredIDs = append(filteredIDs, existing[idx])
+				}
+				continue
+			}
+			filteredSyms = append(filteredSyms, sym)
+			filteredIDs = append(filteredIDs, existing[idx])
+		}
+		existingSymbols = filteredSyms
+		existing = filteredIDs
+	}
 
 	if hasOverload && hasOverride {
 		fr.reportInvalidOverride(fnItem.Name, span, "cannot combine @overload and @override", existing)
@@ -337,6 +354,10 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 	}
 
 	if len(existing) > 0 {
+		if protectedMatch {
+			fr.reportInvalidOverride(fnItem.Name, span, "cannot override core/stdlib symbol", existing)
+			return NoSymbolID, false
+		}
 		switch {
 		case hasOverload:
 			if !signatureDiffersFromAll(newSig, existingSymbols) {
@@ -376,6 +397,16 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 
 func (fr *fileResolver) enforceFunctionNameStyle(name source.StringID, span source.Span) {
 	fr.enforceNameStyle(name, span, diag.SemaFnNameStyle, unicode.ToLower, unicode.IsUpper, "lowercase function name")
+}
+
+func isProtectedSymbol(sym *Symbol) bool {
+	if sym == nil {
+		return false
+	}
+	if isProtectedModule(sym.ModulePath) {
+		return true
+	}
+	return sym.Flags&SymbolFlagBuiltin != 0 && sym.Flags&SymbolFlagImported != 0
 }
 
 func (fr *fileResolver) enforceTagNameStyle(name source.StringID, span source.Span) {

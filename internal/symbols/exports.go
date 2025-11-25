@@ -75,7 +75,7 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 		if sym.Decl.ASTFile != res.File {
 			continue
 		}
-		if sym.Flags&SymbolFlagPublic == 0 {
+		if sym.Flags&SymbolFlagPublic == 0 && sym.Flags&SymbolFlagBuiltin == 0 {
 			continue
 		}
 		if !isExportableKind(sym.Kind) {
