@@ -12,6 +12,7 @@ const (
 	stdModuleCoreBase       = "core/base"
 	stdModuleCoreOption     = "core/option"
 	stdModuleCoreResult     = "core/result"
+	stdModuleCoreTask       = "core/task"
 )
 
 func detectStdlibRoot() string {

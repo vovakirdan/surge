@@ -47,6 +47,7 @@ var intrinsicAllowedNamesList = []string{
 	"__heir",
 	"exit",
 	"default",
+	"await",
 }
 
 var (
@@ -498,6 +499,9 @@ func (fr *fileResolver) reportModuleMemberNotPublic(modulePath string, field sou
 
 func (fr *fileResolver) moduleAllowsIntrinsic() bool {
 	if isCoreIntrinsicsModule(fr.modulePath) {
+		return true
+	}
+	if strings.Trim(fr.modulePath, "/") == "core/task" {
 		return true
 	}
 	if fr.filePath == "" {

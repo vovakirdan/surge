@@ -46,7 +46,7 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 		t.Fatalf("runModuleGraph failed: %v", err)
 	}
 
-	for _, module := range []string{stdModuleCoreIntrinsics, stdModuleCoreOption, stdModuleCoreResult} {
+	for _, module := range []string{stdModuleCoreIntrinsics, stdModuleCoreOption, stdModuleCoreResult, stdModuleCoreTask} {
 		if exports[module] == nil {
 			t.Fatalf("expected exports for %s", module)
 		}
@@ -78,6 +78,23 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 	}
 	if !foundMethod {
 		t.Fatalf("expected method next on Range in %s exports, have %+v", stdModuleCoreIntrinsics, nextExports)
+	}
+
+	taskExports := exports[stdModuleCoreTask]
+	task := taskExports.Lookup("Task")
+	if len(task) == 0 || len(task[0].TypeParams) != 1 {
+		t.Fatalf("expected generic Task export, got %+v", task)
+	}
+	awaitExports := taskExports.Lookup("await")
+	foundAwait := false
+	for _, exp := range awaitExports {
+		if exp.ReceiverKey != "" {
+			foundAwait = true
+			break
+		}
+	}
+	if !foundAwait {
+		t.Fatalf("expected await method on Task, got %+v (available: %v)", awaitExports, exportKeys(taskExports.Symbols))
 	}
 }
 
