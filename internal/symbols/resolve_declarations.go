@@ -286,8 +286,12 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 			}
 			// Разрешаем объявлять функции поверх предлюдов/импортов из core,
 			// чтобы они не требовали @override и не блокировали stdlib.
+			// Встроенные символы (в том числе методы из core/intrinsics) остаются,
+			// чтобы предотвратить их переопределение или дублирование.
 			if sym.Flags&SymbolFlagImported != 0 && sym.Decl.ASTFile == 0 {
-				continue
+				if sym.Flags&SymbolFlagBuiltin == 0 || sym.Flags&SymbolFlagMethod == 0 || !isCoreIntrinsicsModule(sym.ModulePath) {
+					continue
+				}
 			}
 			filtered = append(filtered, id)
 		}

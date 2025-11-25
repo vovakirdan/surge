@@ -737,9 +737,9 @@ func TestResolveIntrinsicBadName(t *testing.T) {
 
 func TestResolveIntrinsicOverrideForbidden(t *testing.T) {
 	src := `
-	    @intrinsic fn __add(a: int, b: int) -> int;
-	    @override fn __add(a: int, b: int) -> int {
-	        return a;
+            @intrinsic fn __add(a: int, b: int) -> int;
+            @override fn __add(a: int, b: int) -> int {
+                return a;
 	    }
 	`
 	builder, fileID, parseBag := parseSnippet(t, src)
@@ -763,11 +763,57 @@ func TestResolveIntrinsicOverrideForbidden(t *testing.T) {
 	}
 }
 
+func TestResolveExternIntrinsicDuplicate(t *testing.T) {
+	src := `
+            extern<ArrayFixed<T, N>> {
+                fn __index(self: ArrayFixed<T, N>, index: int) -> T { return 42; }
+            }
+        `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter:      &diag.BagReporter{Bag: bag},
+		Validate:      true,
+		ModuleExports: coreIntrinsicsExports(builder),
+	})
+
+	if !containsCode(bag, diag.SemaFnOverride) {
+		t.Fatalf("expected SemaFnOverride, got %+v", bag.Items())
+	}
+}
+
+func TestResolveExternOverrideIntrinsicForbidden(t *testing.T) {
+	src := `
+            extern<ArrayFixed<T, N>> {
+                @override pub fn __index(self: ArrayFixed<T, N>, index: int) -> T { return 42; }
+            }
+        `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter:      &diag.BagReporter{Bag: bag},
+		Validate:      true,
+		ModuleExports: coreIntrinsicsExports(builder),
+	})
+
+	if !containsCode(bag, diag.SemaFnOverride) {
+		t.Fatalf("expected SemaFnOverride, got %+v", bag.Items())
+	}
+}
+
 func TestResolveLocalShadowingWarning(t *testing.T) {
 	src := `
-	    fn f(a: int) {
-	        let a = 1;
-	    }
+            fn f(a: int) {
+                let a = 1;
+            }
 	`
 	builder, fileID, parseBag := parseSnippet(t, src)
 	if parseBag.Len() != 0 {
@@ -888,9 +934,9 @@ func TestResolveUnresolvedIdentifier(t *testing.T) {
 
 func TestResolveBuiltinTypes(t *testing.T) {
 	src := `
-	    fn f(a: int) -> bool {
-	        let ok = a is int;
-	        return ok;
+            fn f(a: int) -> bool {
+                let ok = a is int;
+                return ok;
 	    }
 	`
 	builder, fileID, parseBag := parseSnippet(t, src)
@@ -939,6 +985,27 @@ func containsCode(bag *diag.Bag, code diag.Code) bool {
 		}
 	}
 	return false
+}
+
+func coreIntrinsicsExports(builder *ast.Builder) map[string]*ModuleExports {
+	exports := NewModuleExports("core/intrinsics")
+	export := ExportedSymbol{
+		Name:           "__index",
+		Kind:           SymbolFunction,
+		Flags:          SymbolFlagPublic | SymbolFlagBuiltin | SymbolFlagMethod,
+		Signature:      &FunctionSignature{Params: []TypeKey{"ArrayFixed<T,N>", "int"}, Variadic: []bool{false, false}, Result: "T"},
+		ReceiverKey:    "ArrayFixed<T,N>",
+		TypeParamNames: []string{"T", "N"},
+	}
+	if builder != nil && builder.StringsInterner != nil {
+		export.NameID = builder.StringsInterner.Intern(export.Name)
+		export.TypeParams = []source.StringID{
+			builder.StringsInterner.Intern("T"),
+			builder.StringsInterner.Intern("N"),
+		}
+	}
+	exports.Add(&export)
+	return map[string]*ModuleExports{"core/intrinsics": exports}
 }
 
 func expectNoDiagnostics(t *testing.T, bag *diag.Bag) {
