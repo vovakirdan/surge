@@ -254,7 +254,7 @@ func (tc *typeChecker) resolveTypeArgsWithParams(typeIDs []ast.TypeID, params []
 	args := make([]types.TypeID, 0, len(typeIDs))
 	spans := make([]source.Span, 0, len(typeIDs))
 	for idx, tid := range typeIDs {
-		arg := types.NoTypeID
+		var arg types.TypeID
 		if idx < len(params) && params[idx].IsConst {
 			arg = tc.resolveConstTypeArg(tid, scope)
 		} else {

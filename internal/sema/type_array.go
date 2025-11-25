@@ -203,7 +203,7 @@ func (tc *typeChecker) isArrayType(id types.TypeID) bool {
 	return ok
 }
 
-func (tc *typeChecker) arrayInfo(id types.TypeID) (elem types.TypeID, length uint32, fixed bool, ok bool) {
+func (tc *typeChecker) arrayInfo(id types.TypeID) (elem types.TypeID, length uint32, fixed, ok bool) {
 	if id == types.NoTypeID || tc.types == nil {
 		return types.NoTypeID, 0, false, false
 	}

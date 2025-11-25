@@ -180,7 +180,7 @@ func (tc *typeChecker) typeParamNameSet(sym *symbols.Symbol) (names []string, se
 	return names, set
 }
 
-func (tc *typeChecker) evaluateFunctionCandidate(sym *symbols.Symbol, args []callArg, typeArgs []types.TypeID) (int, types.TypeID, []types.TypeID, bool) {
+func (tc *typeChecker) evaluateFunctionCandidate(sym *symbols.Symbol, args []callArg, typeArgs []types.TypeID) (cost int, result types.TypeID, concrete []types.TypeID, ok bool) {
 	if sym == nil || sym.Signature == nil {
 		return 0, types.NoTypeID, nil, false
 	}
@@ -249,12 +249,8 @@ func (tc *typeChecker) selectBestCandidate(
 	args []callArg,
 	typeArgs []types.TypeID,
 	wantGeneric bool,
-) (symbols.SymbolID, types.TypeID, []types.TypeID, bool, bool) {
+) (bestSym symbols.SymbolID, bestType types.TypeID, bestArgs []types.TypeID, ambiguous, ok bool) {
 	bestCost := -1
-	bestType := types.NoTypeID
-	bestSym := symbols.NoSymbolID
-	var bestArgs []types.TypeID
-	ambiguous := false
 	for _, symID := range candidates {
 		sym := tc.symbolFromID(symID)
 		if sym == nil || sym.Kind != symbols.SymbolFunction || sym.Signature == nil {

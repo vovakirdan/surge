@@ -3,6 +3,8 @@ package sema
 import (
 	"fmt"
 
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
@@ -59,27 +61,6 @@ type typeChecker struct {
 	arrayFixedName      source.StringID
 	arrayFixedSymbol    symbols.SymbolID
 	arrayFixedType      types.TypeID
-}
-
-func (tc *typeChecker) rememberFunctionInstantiation(symID symbols.SymbolID, args []types.TypeID) {
-	if !symID.IsValid() || len(args) == 0 || tc.result == nil {
-		return
-	}
-	if tc.fnInstantiationSeen == nil {
-		tc.fnInstantiationSeen = make(map[string]struct{})
-	}
-	key := tc.instantiationKey(symID, args)
-	if key == "" {
-		return
-	}
-	if _, exists := tc.fnInstantiationSeen[key]; exists {
-		return
-	}
-	tc.fnInstantiationSeen[key] = struct{}{}
-	if tc.result.FunctionInstantiations == nil {
-		tc.result.FunctionInstantiations = make(map[symbols.SymbolID][][]types.TypeID)
-	}
-	tc.result.FunctionInstantiations[symID] = append(tc.result.FunctionInstantiations[symID], append([]types.TypeID(nil), args...))
 }
 
 type returnContext struct {
@@ -336,8 +317,10 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 					return
 				}
 				if !actFixed && valueExpr.IsValid() {
-					if arr, okArr := tc.builder.Exprs.Array(valueExpr); okArr && arr != nil && uint32(len(arr.Elements)) == expLen {
-						return
+					if arr, okArr := tc.builder.Exprs.Array(valueExpr); okArr && arr != nil {
+						if l, err := safecast.Conv[uint32](len(arr.Elements)); err == nil && l == expLen {
+							return
+						}
 					}
 				}
 			} else {
