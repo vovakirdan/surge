@@ -28,36 +28,58 @@ type typeChecker struct {
 	magic    map[symbols.TypeKey]map[string][]*symbols.FunctionSignature
 	borrow   *BorrowTable
 
-	scopeStack         []symbols.ScopeID
-	scopeByItem        map[ast.ItemID]symbols.ScopeID
-	scopeByStmt        map[ast.StmtID]symbols.ScopeID
-	stmtSymbols        map[ast.StmtID]symbols.SymbolID
-	bindingBorrow      map[symbols.SymbolID]BorrowID
-	bindingTypes       map[symbols.SymbolID]types.TypeID
-	constState         map[symbols.SymbolID]constEvalState
-	typeItems          map[ast.ItemID]types.TypeID
-	typeCache          map[typeCacheKey]types.TypeID
-	typeKeys           map[string]types.TypeID
-	typeIDItems        map[types.TypeID]ast.ItemID
-	structBases        map[types.TypeID]types.TypeID
-	externFields       map[symbols.TypeKey]*externFieldSet
-	returnStack        []returnContext
-	typeParams         []map[source.StringID]types.TypeID
-	typeParamNames     map[types.TypeID]source.StringID
-	typeParamEnv       []uint32
-	nextParamEnv       uint32
-	typeInstantiations map[string]types.TypeID
-	typeNames          map[types.TypeID]string
-	exportNames        map[source.StringID]string
-	typeParamBounds    map[types.TypeID][]symbols.BoundInstance
-	typeParamStack     []types.TypeID
-	typeParamMarks     []int
-	arrayName          source.StringID
-	arraySymbol        symbols.SymbolID
-	arrayType          types.TypeID
-	arrayFixedName     source.StringID
-	arrayFixedSymbol   symbols.SymbolID
-	arrayFixedType     types.TypeID
+	scopeStack          []symbols.ScopeID
+	scopeByItem         map[ast.ItemID]symbols.ScopeID
+	scopeByStmt         map[ast.StmtID]symbols.ScopeID
+	stmtSymbols         map[ast.StmtID]symbols.SymbolID
+	bindingBorrow       map[symbols.SymbolID]BorrowID
+	bindingTypes        map[symbols.SymbolID]types.TypeID
+	constState          map[symbols.SymbolID]constEvalState
+	typeItems           map[ast.ItemID]types.TypeID
+	typeCache           map[typeCacheKey]types.TypeID
+	typeKeys            map[string]types.TypeID
+	typeIDItems         map[types.TypeID]ast.ItemID
+	structBases         map[types.TypeID]types.TypeID
+	externFields        map[symbols.TypeKey]*externFieldSet
+	returnStack         []returnContext
+	typeParams          []map[source.StringID]types.TypeID
+	typeParamNames      map[types.TypeID]source.StringID
+	typeParamEnv        []uint32
+	nextParamEnv        uint32
+	typeInstantiations  map[string]types.TypeID
+	typeNames           map[types.TypeID]string
+	fnInstantiationSeen map[string]struct{}
+	exportNames         map[source.StringID]string
+	typeParamBounds     map[types.TypeID][]symbols.BoundInstance
+	typeParamStack      []types.TypeID
+	typeParamMarks      []int
+	arrayName           source.StringID
+	arraySymbol         symbols.SymbolID
+	arrayType           types.TypeID
+	arrayFixedName      source.StringID
+	arrayFixedSymbol    symbols.SymbolID
+	arrayFixedType      types.TypeID
+}
+
+func (tc *typeChecker) rememberFunctionInstantiation(symID symbols.SymbolID, args []types.TypeID) {
+	if !symID.IsValid() || len(args) == 0 || tc.result == nil {
+		return
+	}
+	if tc.fnInstantiationSeen == nil {
+		tc.fnInstantiationSeen = make(map[string]struct{})
+	}
+	key := tc.instantiationKey(symID, args)
+	if key == "" {
+		return
+	}
+	if _, exists := tc.fnInstantiationSeen[key]; exists {
+		return
+	}
+	tc.fnInstantiationSeen[key] = struct{}{}
+	if tc.result.FunctionInstantiations == nil {
+		tc.result.FunctionInstantiations = make(map[symbols.SymbolID][][]types.TypeID)
+	}
+	tc.result.FunctionInstantiations[symID] = append(tc.result.FunctionInstantiations[symID], append([]types.TypeID(nil), args...))
 }
 
 type returnContext struct {
@@ -89,6 +111,7 @@ func (tc *typeChecker) run() {
 	tc.typeParamMarks = tc.typeParamMarks[:0]
 	tc.nextParamEnv = 1
 	tc.typeInstantiations = make(map[string]types.TypeID)
+	tc.fnInstantiationSeen = make(map[string]struct{})
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {
 		return

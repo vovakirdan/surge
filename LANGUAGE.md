@@ -278,7 +278,7 @@ tag Some<T>(T); tag Ok<T>(T); tag Err<E>(E);
 type Option<T> = Some(T) | nothing
 type Result<T, E> = Ok(T) | Err(E)
 
-// sugar:
+// sugar (type position only):
 let maybe_num: int?      // == Option<int>
 let maybe_fail: int!     // == Result<int, Error>
 let maybe_fail2: int!E   // == Result<int, E>
@@ -308,7 +308,7 @@ compare parse("x") {
 Rules:
 
 - Construction is explicit in expressions: use `Some(...)`, `Ok(...)`, or `Error(...)`. In function returns, a bare `T` is accepted as `Some(T)`/`Ok(T)` and `nothing` is accepted for `Option<T>`.
-- `T?` is sugar for `Option<T>`; `T!E` is sugar for `Result<T, E>` (with no automatic propagation).
+- `T?` is sugar for `Option<T>`; `T!E` is sugar for `Result<T, E>` (type sugar only; no `expr?` propagation operator).
 - `nothing` remains the shared absence literal for both Option and other contexts (§2.6). Exhaustiveness checking for tagged unions is planned but not wired up yet.
 - `panic(msg)` materialises `Error{ message: msg, code: 1 }` and calls intrinsic `exit(Error)`.
 
