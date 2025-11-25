@@ -1169,6 +1169,11 @@ func TestSpawnExpressionForms(t *testing.T) {
 			input:         "let task = spawn future.await;",
 			wantInnerKind: ast.ExprAwait,
 		},
+		{
+			name:          "async_block_operand",
+			input:         "let task = spawn async { return 1; };",
+			wantInnerKind: ast.ExprAsync,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1198,6 +1203,34 @@ func TestSpawnExpressionForms(t *testing.T) {
 				t.Fatalf("expected inner kind %v, got %v", tt.wantInnerKind, inner.Kind)
 			}
 		})
+	}
+}
+
+func TestAsyncBlockExpression(t *testing.T) {
+	letItem, arenas := parseExprTestInput(t, "let task = async { let x = 1; return x; };")
+	if letItem.Value == ast.NoExprID {
+		t.Fatal("expected expression value")
+	}
+
+	expr := arenas.Exprs.Get(letItem.Value)
+	if expr == nil || expr.Kind != ast.ExprAsync {
+		t.Fatalf("expected async expression, got %v", expr.Kind)
+	}
+
+	data, ok := arenas.Exprs.Async(letItem.Value)
+	if !ok || data == nil {
+		t.Fatal("async payload missing")
+	}
+	stmt := arenas.Stmts.Get(data.Body)
+	if stmt == nil || stmt.Kind != ast.StmtBlock {
+		t.Fatalf("expected block body, got %v", stmt)
+	}
+	body := arenas.Stmts.Block(data.Body)
+	if body == nil {
+		t.Fatal("async block payload missing")
+	}
+	if got := len(body.Stmts); got != 2 {
+		t.Fatalf("expected 2 statements in async block, got %d", got)
 	}
 }
 

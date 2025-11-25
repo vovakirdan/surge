@@ -25,6 +25,7 @@ const (
 	ExprSpread
 	ExprCompare
 	ExprStruct
+	ExprAsync
 )
 
 type Expr struct {
@@ -189,6 +190,12 @@ type ExprStructData struct {
 	Positional       bool
 }
 
+// ExprAsyncData represents an `async { ... }` block expression.
+// Body references the block statement containing its statements.
+type ExprAsyncData struct {
+	Body StmtID
+}
+
 // ExprSpawnData represents the operand of a `spawn` expression.
 // TODO(sema): enforce async context and Future/Task requirements once sema is in place.
 type ExprSpawnData struct {
@@ -250,6 +257,7 @@ type Exprs struct {
 	Parallels *Arena[ExprParallelData]
 	Compares  *Arena[ExprCompareData]
 	Structs   *Arena[ExprStructData]
+	Asyncs    *Arena[ExprAsyncData]
 }
 
 // NewExprs creates a new Exprs with per-kind arenas preallocated using capHint as the initial capacity.
@@ -277,6 +285,7 @@ func NewExprs(capHint uint) *Exprs {
 		Parallels: NewArena[ExprParallelData](capHint),
 		Compares:  NewArena[ExprCompareData](capHint),
 		Structs:   NewArena[ExprStructData](capHint),
+		Asyncs:    NewArena[ExprAsyncData](capHint),
 	}
 }
 
@@ -497,6 +506,19 @@ func (e *Exprs) Spawn(id ExprID) (*ExprSpawnData, bool) {
 		return nil, false
 	}
 	return e.Spawns.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewAsync(span source.Span, body StmtID) ExprID {
+	payload := e.Asyncs.Allocate(ExprAsyncData{Body: body})
+	return e.new(ExprAsync, span, PayloadID(payload))
+}
+
+func (e *Exprs) Async(id ExprID) (*ExprAsyncData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprAsync {
+		return nil, false
+	}
+	return e.Asyncs.Get(uint32(expr.Payload)), true
 }
 
 func (e *Exprs) NewParallelMap(span source.Span, iterable ExprID, args []ExprID, body ExprID) ExprID {

@@ -294,6 +294,9 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 	case token.KwParallel:
 		return p.parseParallelExpr()
 
+	case token.KwAsync:
+		return p.parseAsyncExpr()
+
 	case token.LBrace:
 		return p.parseStructLiteral(ast.NoTypeID, source.Span{})
 
@@ -544,6 +547,26 @@ func (p *Parser) parseParallelExpr() (ast.ExprID, bool) {
 
 	exprID := p.arenas.Exprs.NewParallelReduce(span, iterableExpr, initExpr, args, bodyExpr)
 	return exprID, true
+}
+
+func (p *Parser) parseAsyncExpr() (ast.ExprID, bool) {
+	asyncTok := p.advance()
+
+	if !p.at(token.LBrace) {
+		p.err(diag.SynUnexpectedToken, "expected '{' after 'async'")
+		return ast.NoExprID, false
+	}
+
+	bodyID, ok := p.parseBlock()
+	if !ok {
+		return ast.NoExprID, false
+	}
+
+	span := asyncTok.Span
+	if stmt := p.arenas.Stmts.Get(bodyID); stmt != nil {
+		span = span.Cover(stmt.Span)
+	}
+	return p.arenas.Exprs.NewAsync(span, bodyID), true
 }
 
 func (p *Parser) parseStructLiteral(typeID ast.TypeID, typeSpan source.Span) (ast.ExprID, bool) {

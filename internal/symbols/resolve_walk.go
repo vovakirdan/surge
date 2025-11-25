@@ -331,6 +331,12 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 			return
 		}
 		fr.walkExpr(data.Value)
+	case ast.ExprAsync:
+		data, _ := fr.builder.Exprs.Async(exprID)
+		if data == nil || !data.Body.IsValid() {
+			return
+		}
+		fr.walkStmt(data.Body)
 	case ast.ExprParallel:
 		data, _ := fr.builder.Exprs.Parallel(exprID)
 		if data == nil {

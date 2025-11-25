@@ -187,6 +187,10 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			}
 			tc.typeExpr(par.Body)
 		}
+	case ast.ExprAsync:
+		if asyncData, ok := tc.builder.Exprs.Async(id); ok && asyncData != nil {
+			tc.walkStmt(asyncData.Body)
+		}
 	case ast.ExprSpawn:
 		if spawn, ok := tc.builder.Exprs.Spawn(id); ok && spawn != nil {
 			ty = tc.typeExpr(spawn.Value)

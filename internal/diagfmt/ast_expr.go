@@ -183,6 +183,17 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 		operand := formatExprInlineDepth(builder, data.Value, depth+1)
 		operand = wrapExprIfNeeded(builder, data.Value, operand)
 		return "spawn " + operand
+	case ast.ExprAsync:
+		data, ok := builder.Exprs.Async(exprID)
+		if !ok || data == nil {
+			return "<invalid-async>"
+		}
+		if builder.Stmts != nil && data.Body.IsValid() {
+			if block := builder.Stmts.Block(data.Body); block != nil {
+				return fmt.Sprintf("async { %d stmt(s) }", len(block.Stmts))
+			}
+		}
+		return "async { ... }"
 	case ast.ExprParallel:
 		data, ok := builder.Exprs.Parallel(exprID)
 		if !ok {
@@ -399,6 +410,8 @@ func formatExprKind(kind ast.ExprKind) string {
 		return "Spread"
 	case ast.ExprCompare:
 		return "Compare"
+	case ast.ExprAsync:
+		return "Async"
 	default:
 		return fmt.Sprintf("ExprKind(%d)", kind)
 	}

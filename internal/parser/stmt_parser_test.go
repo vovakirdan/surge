@@ -1257,16 +1257,6 @@ func TestBlockDisallowsPubAsyncAndAttributes(t *testing.T) {
 			wantDiag: diag.SynAttributeNotAllowed,
 		},
 		{
-			name: "async inside block",
-			input: `
-				fn foo() {
-					async {
-					}
-				}
-			`,
-			wantDiag: diag.SynAsyncNotAllowed,
-		},
-		{
 			name: "type declaration inside block",
 			input: `
 				fn foo() {

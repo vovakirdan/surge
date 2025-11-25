@@ -156,31 +156,6 @@ func (p *Parser) parseStmt() (ast.StmtID, bool) {
 		return p.parseStmt()
 	case token.At:
 		return p.parseAttributedStmt()
-	case token.KwAsync:
-		asyncTok := p.advance()
-		p.emitDiagnostic(
-			diag.SynAsyncNotAllowed,
-			diag.SevError,
-			asyncTok.Span,
-			"'async' modifier is not allowed inside blocks",
-			func(b *diag.ReportBuilder) {
-				if b == nil {
-					return
-				}
-				fixID := fix.MakeFixID(diag.SynAsyncNotAllowed, asyncTok.Span)
-				suggestion := fix.DeleteSpan(
-					"remove 'async'",
-					asyncTok.Span,
-					"",
-					fix.WithID(fixID),
-					fix.WithKind(diag.FixKindRefactor),
-					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-				)
-				b.WithFixSuggestion(suggestion)
-				b.WithNote(asyncTok.Span, "move async usage to top-level declarations")
-			},
-		)
-		return p.parseStmt()
 	case token.KwConst:
 		return p.parseConstStmt()
 	case token.KwLet:
