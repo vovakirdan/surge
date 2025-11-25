@@ -355,7 +355,7 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 
 	if len(existing) > 0 {
 		if protectedMatch {
-			fr.reportInvalidOverride(fnItem.Name, span, "cannot override core/stdlib symbol", existing)
+			fr.reportInvalidOverride(fnItem.Name, span, "function already defined in core/stdlib (overrides are forbidden)", existing)
 			return NoSymbolID, false
 		}
 		switch {
