@@ -113,6 +113,8 @@ const (
 	SemaExternUnknownAttr          Code = 3045
 	SemaNoOverload                 Code = 3046
 	SemaAmbiguousOverload          Code = 3047
+	SemaWildcardValue              Code = 3048
+	SemaWildcardMut                Code = 3049
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -230,6 +232,8 @@ var ( // todo расширить описания и использовать к
 		SemaExternUnknownAttr:          "Unsupported extern attribute",
 		SemaNoOverload:                 "No matching overload found",
 		SemaAmbiguousOverload:          "Ambiguous overload resolution",
+		SemaWildcardValue:              "Wildcard used as value",
+		SemaWildcardMut:                "Wildcard mutability",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

@@ -14,12 +14,12 @@ import (
 // parseIdentOrStructLiteral parses either a plain identifier expression or a typed struct literal.
 func (p *Parser) parseIdentOrStructLiteral() (ast.ExprID, bool) {
 	tok := p.advance()
-	if tok.Kind != token.Ident {
+	if tok.Kind != token.Ident && tok.Kind != token.Underscore {
 		p.err(diag.SynExpectIdentifier, "expected identifier")
 		return ast.NoExprID, false
 	}
 	nameID := p.arenas.StringsInterner.Intern(tok.Text)
-	if p.isTypeLiteralName(tok.Text) && p.at(token.LBrace) {
+	if tok.Kind == token.Ident && p.isTypeLiteralName(tok.Text) && p.at(token.LBrace) {
 		segments := []ast.TypePathSegment{{
 			Name:     nameID,
 			Generics: nil,

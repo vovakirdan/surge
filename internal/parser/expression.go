@@ -261,7 +261,7 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 // parsePrimaryExpr парсит основные (атомарные) выражения
 func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 	switch p.lx.Peek().Kind {
-	case token.Ident:
+	case token.Ident, token.Underscore:
 		return p.parseIdentOrStructLiteral()
 
 	case token.IntLit, token.UintLit, token.FloatLit:
