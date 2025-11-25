@@ -42,7 +42,7 @@ func (tc *typeChecker) registerFnParamTypes(fnID ast.ItemID, fnItem *ast.FnItem)
 	paramIDs := tc.builder.Items.GetFnParamIDs(fnItem)
 	for _, pid := range paramIDs {
 		param := tc.builder.Items.FnParam(pid)
-		if param == nil || param.Name == source.NoStringID {
+		if param == nil || param.Name == source.NoStringID || tc.isWildcardName(param.Name) {
 			continue
 		}
 		paramType := tc.resolveTypeExprWithScope(param.Type, scope)
@@ -51,6 +51,10 @@ func (tc *typeChecker) registerFnParamTypes(fnID ast.ItemID, fnItem *ast.FnItem)
 			tc.setBindingType(symID, paramType)
 		}
 	}
+}
+
+func (tc *typeChecker) isWildcardName(name source.StringID) bool {
+	return name != source.NoStringID && tc.lookupName(name) == "_"
 }
 
 func (tc *typeChecker) symbolInScope(scope symbols.ScopeID, name source.StringID, kind symbols.SymbolKind) symbols.SymbolID {

@@ -71,10 +71,13 @@ func (fr *fileResolver) walkFn(owner ScopeOwner, fnItem *ast.FnItem) {
 	paramIDs := fr.builder.Items.GetFnParamIDs(fnItem)
 	for _, pid := range paramIDs {
 		param := fr.builder.Items.FnParam(pid)
-		if param == nil || param.Name == source.NoStringID {
+		if param == nil {
 			continue
 		}
 		fr.walkTypeExpr(param.Type)
+		if param.Name == source.NoStringID || fr.isWildcard(param.Name) {
+			continue
+		}
 		span := param.Span
 		if span == (source.Span{}) {
 			span = fnItem.ParamsSpan
@@ -121,12 +124,18 @@ func (fr *fileResolver) walkStmt(stmtID ast.StmtID) {
 		fr.resolver.Leave(scopeID)
 	case ast.StmtLet:
 		letStmt := fr.builder.Stmts.Let(stmtID)
-		if letStmt == nil || letStmt.Name == source.NoStringID {
+		if letStmt == nil {
 			return
 		}
 		fr.walkTypeExpr(letStmt.Type)
 		if letStmt.Value.IsValid() {
 			fr.walkExpr(letStmt.Value)
+		}
+		if letStmt.Name == source.NoStringID || fr.isWildcard(letStmt.Name) {
+			if letStmt.IsMut {
+				fr.reportWildcardMut(stmt.Span)
+			}
+			return
 		}
 		flags := SymbolFlags(0)
 		if letStmt.IsMut {
@@ -197,7 +206,7 @@ func (fr *fileResolver) walkStmt(stmtID ast.StmtID) {
 		}
 		scopeID := fr.resolver.Enter(ScopeBlock, owner, stmt.Span)
 		fr.walkTypeExpr(forIn.Type)
-		if forIn.Pattern != source.NoStringID {
+		if forIn.Pattern != source.NoStringID && !fr.isWildcard(forIn.Pattern) {
 			decl := SymbolDecl{
 				SourceFile: fr.sourceFile,
 				ASTFile:    fr.fileID,
@@ -420,6 +429,10 @@ func (fr *fileResolver) resolveIdent(exprID ast.ExprID, span source.Span, name s
 	if name == source.NoStringID || fr.resolver == nil {
 		return
 	}
+	if fr.isWildcard(name) {
+		fr.reportWildcardValue(span)
+		return
+	}
 	if symID, ok := fr.resolver.Lookup(name); ok {
 		if fr.tryResolveImportSymbol(exprID, span, symID) {
 			return
@@ -442,6 +455,47 @@ func (fr *fileResolver) reportUnresolved(name source.StringID, span source.Span)
 	if b := diag.ReportError(fr.resolver.reporter, diag.SemaUnresolvedSymbol, span, msg); b != nil {
 		b.Emit()
 	}
+}
+
+func (fr *fileResolver) reportWildcardValue(span source.Span) {
+	if fr.resolver == nil || fr.resolver.reporter == nil {
+		return
+	}
+	if span == (source.Span{}) {
+		span = fr.fileSpan()
+	}
+	if b := diag.ReportError(fr.resolver.reporter, diag.SemaWildcardValue, span, "wildcard '_' cannot be used as a value"); b != nil {
+		b.Emit()
+	}
+}
+
+func (fr *fileResolver) reportWildcardMut(span source.Span) {
+	if fr.resolver == nil || fr.resolver.reporter == nil {
+		return
+	}
+	if span == (source.Span{}) {
+		span = fr.fileSpan()
+	}
+	if b := diag.ReportError(fr.resolver.reporter, diag.SemaWildcardMut, span, "wildcard '_' cannot be mutable"); b != nil {
+		b.Emit()
+	}
+}
+
+func (fr *fileResolver) isWildcard(name source.StringID) bool {
+	if name == source.NoStringID || fr.builder == nil || fr.builder.StringsInterner == nil {
+		return false
+	}
+	return fr.lookupString(name) == "_"
+}
+
+func (fr *fileResolver) fileSpan() source.Span {
+	if fr.builder == nil {
+		return source.Span{}
+	}
+	if file := fr.builder.Files.Get(fr.fileID); file != nil {
+		return file.Span
+	}
+	return source.Span{}
 }
 
 func (fr *fileResolver) checkAmbiguousCall(target ast.ExprID) {

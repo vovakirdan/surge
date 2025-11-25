@@ -20,6 +20,12 @@ func (fr *fileResolver) declareLet(itemID ast.ItemID, letItem *ast.LetItem) {
 	if letItem.Value.IsValid() {
 		fr.walkExpr(letItem.Value)
 	}
+	if fr.isWildcard(letItem.Name) {
+		if letItem.IsMut {
+			fr.reportWildcardMut(preferSpan(letItem.MutSpan, letItem.Span))
+		}
+		return
+	}
 	flags := SymbolFlags(0)
 	if letItem.Visibility == ast.VisPublic {
 		flags |= SymbolFlagPublic
