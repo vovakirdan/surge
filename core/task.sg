@@ -1,9 +1,0 @@
-// Core Task type and its await intrinsic.
-
-pub type Task<T> = {
-    __opaque: int,
-};
-
-extern<Task<T>> {
-    @intrinsic pub fn await(self: Task<T>) -> T;
-}

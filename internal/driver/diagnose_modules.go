@@ -154,7 +154,6 @@ func ensureStdlibModules(
 		stdModuleCoreResult,
 		stdModuleCoreOption,
 		stdModuleCoreIntrinsics,
-		stdModuleCoreTask,
 		stdModuleCoreBase,
 	} {
 		if _, ok := records[module]; ok {

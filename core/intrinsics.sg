@@ -11,7 +11,7 @@ pub type Range<T> = {
 };
 
 extern<Range<T>> {
-    @intrinsic pub fn next(self: &mut Range<T>) -> Option<T>;
+    @intrinsic pub fn next<T>(self: &mut Range<T>) -> Option<T>;
 }
 
 pub type Task<T> = {
@@ -19,7 +19,7 @@ pub type Task<T> = {
 };
 
 extern<Task<T>> {
-    @intrinsic pub fn await(self: Task<T>) -> T;
+    @intrinsic pub fn await<T>(self: Task<T>) -> T;
 }
 
 extern<int> {
@@ -183,17 +183,17 @@ extern<bool> {
 }
 
 extern<Array<T>> {
-    @intrinsic fn __add(self: Array<T>, other: Array<T>) -> Array<T>;
-    @intrinsic fn __index(self: Array<T>, index: int) -> T;
-    @intrinsic fn __index_set(self: Array<T>, index: int, value: T) -> nothing;
-    @intrinsic fn __range(self: Array<T>) -> Range<T>;
+    @intrinsic fn __add<T>(self: Array<T>, other: Array<T>) -> Array<T>;
+    @intrinsic fn __index<T>(self: Array<T>, index: int) -> T;
+    @intrinsic fn __index_set<T>(self: Array<T>, index: int, value: T) -> nothing;
+    @intrinsic fn __range<T>(self: Array<T>) -> Range<T>;
 }
 
 extern<ArrayFixed<T, N>> {
-    @intrinsic fn __add(self: ArrayFixed<T, N>, other: ArrayFixed<T, N>) -> ArrayFixed<T, N>;
-    @intrinsic fn __index(self: ArrayFixed<T, N>, index: int) -> T;
-    @intrinsic fn __index_set(self: ArrayFixed<T, N>, index: int, value: T) -> nothing;
-    @intrinsic fn __range(self: ArrayFixed<T, N>) -> Range<T>;
+    @intrinsic fn __add<T, const N: int>(self: ArrayFixed<T, N>, other: ArrayFixed<T, N>) -> ArrayFixed<T, N>;
+    @intrinsic fn __index<T, const N: int>(self: ArrayFixed<T, N>, index: int) -> T;
+    @intrinsic fn __index_set<T, const N: int>(self: ArrayFixed<T, N>, index: int, value: T) -> nothing;
+    @intrinsic fn __range<T, const N: int>(self: ArrayFixed<T, N>) -> Range<T>;
 }
 
 @intrinsic
