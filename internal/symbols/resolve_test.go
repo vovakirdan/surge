@@ -786,6 +786,29 @@ func TestResolveExternIntrinsicDuplicate(t *testing.T) {
 	}
 }
 
+func TestResolveExternCoreMagicRequiresOverload(t *testing.T) {
+	src := `
+            extern<string> {
+                fn __mul(self: string, other: string) -> string { return ""; }
+            }
+        `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter:      &diag.BagReporter{Bag: bag},
+		Validate:      true,
+		ModuleExports: coreIntrinsicsExports(builder),
+	})
+
+	if !containsCode(bag, diag.SemaFnOverride) {
+		t.Fatalf("expected SemaFnOverride, got %+v", bag.Items())
+	}
+}
+
 func TestResolveExternOverrideIntrinsicForbidden(t *testing.T) {
 	src := `
             extern<ArrayFixed<T, N>> {
@@ -806,6 +829,54 @@ func TestResolveExternOverrideIntrinsicForbidden(t *testing.T) {
 
 	if !containsCode(bag, diag.SemaFnOverride) {
 		t.Fatalf("expected SemaFnOverride, got %+v", bag.Items())
+	}
+}
+
+func TestResolveExternOverridePublicMustStayPublic(t *testing.T) {
+	src := `
+            type Foo = {}
+
+            extern<Foo> { pub fn touch(self: Foo) -> int { return 0; } }
+
+            extern<Foo> { @override fn touch(self: Foo) -> int { return 1; } }
+        `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if !containsCode(bag, diag.SemaFnOverride) {
+		t.Fatalf("expected SemaFnOverride, got %+v", bag.Items())
+	}
+}
+
+func TestResolveExternOverridePrivateAllowed(t *testing.T) {
+	src := `
+            type Foo = {}
+
+            extern<Foo> { fn touch(self: Foo) -> int { return 0; } }
+
+            extern<Foo> { @override fn touch(self: Foo) -> int { return 1; } }
+        `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+
+	if bag.Len() != 0 {
+		t.Fatalf("unexpected diagnostics: %+v", bag.Items())
 	}
 }
 
@@ -989,22 +1060,35 @@ func containsCode(bag *diag.Bag, code diag.Code) bool {
 
 func coreIntrinsicsExports(builder *ast.Builder) map[string]*ModuleExports {
 	exports := NewModuleExports("core/intrinsics")
-	export := ExportedSymbol{
-		Name:           "__index",
-		Kind:           SymbolFunction,
-		Flags:          SymbolFlagPublic | SymbolFlagBuiltin | SymbolFlagMethod,
-		Signature:      &FunctionSignature{Params: []TypeKey{"ArrayFixed<T,N>", "int"}, Variadic: []bool{false, false}, Result: "T"},
-		ReceiverKey:    "ArrayFixed<T,N>",
-		TypeParamNames: []string{"T", "N"},
+	symbols := []ExportedSymbol{
+		{
+			Name:           "__index",
+			Kind:           SymbolFunction,
+			Flags:          SymbolFlagPublic | SymbolFlagBuiltin | SymbolFlagMethod,
+			Signature:      &FunctionSignature{Params: []TypeKey{"ArrayFixed<T,N>", "int"}, Variadic: []bool{false, false}, Result: "T"},
+			ReceiverKey:    "ArrayFixed<T,N>",
+			TypeParamNames: []string{"T", "N"},
+		},
+		{
+			Name:        "__mul",
+			Kind:        SymbolFunction,
+			Flags:       SymbolFlagBuiltin | SymbolFlagMethod,
+			Signature:   &FunctionSignature{Params: []TypeKey{"string", "int"}, Variadic: []bool{false, false}, Result: "string"},
+			ReceiverKey: "string",
+		},
 	}
-	if builder != nil && builder.StringsInterner != nil {
-		export.NameID = builder.StringsInterner.Intern(export.Name)
-		export.TypeParams = []source.StringID{
-			builder.StringsInterner.Intern("T"),
-			builder.StringsInterner.Intern("N"),
+	for i := range symbols {
+		exp := &symbols[i]
+		if builder != nil && builder.StringsInterner != nil {
+			exp.NameID = builder.StringsInterner.Intern(exp.Name)
+			if len(exp.TypeParamNames) > 0 {
+				for _, name := range exp.TypeParamNames {
+					exp.TypeParams = append(exp.TypeParams, builder.StringsInterner.Intern(name))
+				}
+			}
 		}
+		exports.Add(exp)
 	}
-	exports.Add(&export)
 	return map[string]*ModuleExports{"core/intrinsics": exports}
 }
 

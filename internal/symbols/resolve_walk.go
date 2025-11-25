@@ -56,15 +56,15 @@ func (fr *fileResolver) handleItem(id ast.ItemID) {
 	}
 }
 
-func (fr *fileResolver) walkFn(itemID ast.ItemID, fnItem *ast.FnItem) {
+func (fr *fileResolver) walkFn(owner ScopeOwner, fnItem *ast.FnItem) {
 	if fnItem == nil {
 		return
 	}
-	owner := ScopeOwner{
-		Kind:       ScopeOwnerItem,
-		SourceFile: fr.sourceFile,
-		ASTFile:    fr.fileID,
-		Item:       itemID,
+	if owner.SourceFile == 0 {
+		owner.SourceFile = fr.sourceFile
+	}
+	if owner.ASTFile == 0 {
+		owner.ASTFile = fr.fileID
 	}
 	scopeSpan := preferSpan(fnItem.ParamsSpan, fnItem.Span)
 	scopeID := fr.resolver.Enter(ScopeFunction, owner, scopeSpan)
@@ -82,7 +82,7 @@ func (fr *fileResolver) walkFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 		decl := SymbolDecl{
 			SourceFile: fr.sourceFile,
 			ASTFile:    fr.fileID,
-			Item:       itemID,
+			Item:       owner.Item,
 		}
 		fr.resolver.Declare(param.Name, span, SymbolParam, 0, decl)
 	}

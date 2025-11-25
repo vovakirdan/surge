@@ -81,6 +81,7 @@ type Result struct {
 	FileScope   ScopeID
 	ItemSymbols map[ast.ItemID][]SymbolID
 	ExprSymbols map[ast.ExprID]SymbolID
+	ExternSyms  map[ast.ExternMemberID]SymbolID
 }
 
 // ResolveFile walks the AST file and populates the symbol table.
@@ -100,6 +101,7 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 		File:        fileID,
 		ItemSymbols: make(map[ast.ItemID][]SymbolID),
 		ExprSymbols: make(map[ast.ExprID]SymbolID),
+		ExternSyms:  make(map[ast.ExternMemberID]SymbolID),
 	}
 
 	file := builder.Files.Get(fileID)
@@ -173,6 +175,7 @@ func (fr *fileResolver) handleExtern(itemID ast.ItemID, block *ast.ExternBlock) 
 	if block.MembersCount == 0 || !block.MembersStart.IsValid() {
 		return
 	}
+	receiverKey := makeTypeKey(fr.builder, block.Target)
 	start := uint32(block.MembersStart)
 	for offset := range block.MembersCount {
 		memberID := ast.ExternMemberID(start + offset)
@@ -184,7 +187,14 @@ func (fr *fileResolver) handleExtern(itemID ast.ItemID, block *ast.ExternBlock) 
 		if fn == nil {
 			continue
 		}
-		fr.declareExternFn(itemID, fn)
+		fr.declareExternFn(itemID, memberID, receiverKey, fn)
+		fr.walkFn(ScopeOwner{
+			Kind:       ScopeOwnerItem,
+			SourceFile: fr.sourceFile,
+			ASTFile:    fr.fileID,
+			Item:       itemID,
+			Extern:     memberID,
+		}, fn)
 	}
 }
 
@@ -293,6 +303,16 @@ func (fr *fileResolver) appendItemSymbol(item ast.ItemID, id SymbolID) {
 		return
 	}
 	fr.result.ItemSymbols[item] = append(fr.result.ItemSymbols[item], id)
+}
+
+func (fr *fileResolver) appendExternSymbol(member ast.ExternMemberID, id SymbolID) {
+	if !member.IsValid() || !id.IsValid() {
+		return
+	}
+	if fr.result.ExternSyms == nil {
+		fr.result.ExternSyms = make(map[ast.ExternMemberID]SymbolID)
+	}
+	fr.result.ExternSyms[member] = id
 }
 
 func preferSpan(primary, fallback source.Span) source.Span {
@@ -430,6 +450,7 @@ func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export
 		ImportName:    nameID,
 		TypeParams:    typeParams,
 		TypeParamSpan: export.TypeParamSpan,
+		ReceiverKey:   export.ReceiverKey,
 	}
 	id := fr.result.Table.Symbols.New(&sym)
 	if scope := fr.result.Table.Scopes.Get(fr.result.FileScope); scope != nil {

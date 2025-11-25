@@ -73,14 +73,19 @@ func (fr *fileResolver) declareFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 	}
 	nameSpan := fnNameSpan(fnItem)
 	fr.enforceFunctionNameStyle(fnItem.Name, nameSpan)
-	if symID, ok := fr.declareFunctionWithAttrs(fnItem, nameSpan, fnItem.FnKeywordSpan, flags, decl); ok {
+	if symID, ok := fr.declareFunctionWithAttrs(fnItem, nameSpan, fnItem.FnKeywordSpan, flags, decl, ""); ok {
 		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
 			sym.TypeParams = append([]source.StringID(nil), fnItem.Generics...)
 			sym.TypeParamSpan = fnItem.GenericsSpan
 		}
 		fr.appendItemSymbol(itemID, symID)
 	}
-	fr.walkFn(itemID, fnItem)
+	fr.walkFn(ScopeOwner{
+		Kind:       ScopeOwnerItem,
+		SourceFile: fr.sourceFile,
+		ASTFile:    fr.fileID,
+		Item:       itemID,
+	}, fnItem)
 }
 
 func (fr *fileResolver) declareType(itemID ast.ItemID, typeItem *ast.TypeItem) {
@@ -232,7 +237,7 @@ func (fr *fileResolver) declareImportName(itemID ast.ItemID, name, original sour
 	}
 }
 
-func (fr *fileResolver) declareExternFn(container ast.ItemID, fnItem *ast.FnItem) {
+func (fr *fileResolver) declareExternFn(container ast.ItemID, member ast.ExternMemberID, receiverKey TypeKey, fnItem *ast.FnItem) {
 	if fnItem.Name == source.NoStringID {
 		return
 	}
@@ -246,19 +251,26 @@ func (fr *fileResolver) declareExternFn(container ast.ItemID, fnItem *ast.FnItem
 		Item:       container,
 	}
 	span := fnNameSpan(fnItem)
-	if symID, ok := fr.declareFunctionWithAttrs(fnItem, span, fnItem.FnKeywordSpan, flags, decl); ok {
+	if symID, ok := fr.declareFunctionWithAttrs(fnItem, span, fnItem.FnKeywordSpan, flags, decl, receiverKey); ok {
 		if block, _ := fr.builder.Items.Extern(container); block != nil {
 			if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
 				sym.Receiver = block.Target
-				sym.ReceiverKey = makeTypeKey(fr.builder, block.Target)
+				sym.ReceiverKey = receiverKey
 				sym.Flags |= SymbolFlagMethod
 			}
+		}
+		if member.IsValid() {
+			fr.appendExternSymbol(member, symID)
+		}
+		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
+			sym.TypeParams = append([]source.StringID(nil), fnItem.Generics...)
+			sym.TypeParamSpan = fnItem.GenericsSpan
 		}
 		fr.appendItemSymbol(container, symID)
 	}
 }
 
-func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywordSpan source.Span, flags SymbolFlags, decl SymbolDecl) (SymbolID, bool) {
+func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywordSpan source.Span, flags SymbolFlags, decl SymbolDecl, receiverKey TypeKey) (SymbolID, bool) {
 	attrs := fr.builder.Items.CollectAttrs(fnItem.AttrStart, fnItem.AttrCount)
 	hasOverload := false
 	hasOverride := false
@@ -287,6 +299,13 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 			if sym.ModulePath == fr.modulePath && sym.Decl.ASTFile == 0 {
 				continue
 			}
+			if receiverKey != "" {
+				if sym.ReceiverKey != receiverKey {
+					continue
+				}
+			} else if sym.ReceiverKey != "" || sym.Flags&SymbolFlagMethod != 0 {
+				continue
+			}
 			filtered = append(filtered, id)
 		}
 		existing = filtered
@@ -297,27 +316,17 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 	}
 	newSig := buildFunctionSignature(fr.builder, fnItem)
 	protectedMatch := false
-	if len(existingSymbols) > 0 {
-		filteredSyms := make([]*Symbol, 0, len(existingSymbols))
-		filteredIDs := make([]SymbolID, 0, len(existing))
-		for idx, sym := range existingSymbols {
-			if sym == nil {
-				continue
-			}
-			protected := isProtectedSymbol(sym)
-			if protected {
-				if signaturesEqual(sym.Signature, newSig) {
-					protectedMatch = true
-					filteredSyms = append(filteredSyms, sym)
-					filteredIDs = append(filteredIDs, existing[idx])
-				}
-				continue
-			}
-			filteredSyms = append(filteredSyms, sym)
-			filteredIDs = append(filteredIDs, existing[idx])
+	hasPublicAncestor := false
+	for _, sym := range existingSymbols {
+		if sym == nil {
+			continue
 		}
-		existingSymbols = filteredSyms
-		existing = filteredIDs
+		if sym.Flags&SymbolFlagPublic != 0 {
+			hasPublicAncestor = true
+		}
+		if isProtectedSymbol(sym) && signaturesEqual(sym.Signature, newSig) {
+			protectedMatch = true
+		}
 	}
 
 	if hasOverload && hasOverride {
@@ -351,6 +360,11 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 		flags |= SymbolFlagBuiltin
 		existing = nil
 		existingSymbols = nil
+	}
+
+	if hasOverride && len(existing) > 0 && hasPublicAncestor && flags&SymbolFlagPublic == 0 {
+		fr.reportInvalidOverride(fnItem.Name, span, "@override cannot reduce visibility; add 'pub'", existing)
+		return NoSymbolID, false
 	}
 
 	if len(existing) > 0 {

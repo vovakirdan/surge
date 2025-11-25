@@ -33,7 +33,9 @@ type typeChecker struct {
 	scopeStack          []symbols.ScopeID
 	scopeByItem         map[ast.ItemID]symbols.ScopeID
 	scopeByStmt         map[ast.StmtID]symbols.ScopeID
+	scopeByExtern       map[ast.ExternMemberID]symbols.ScopeID
 	stmtSymbols         map[ast.StmtID]symbols.SymbolID
+	externSymbols       map[ast.ExternMemberID]symbols.SymbolID
 	bindingBorrow       map[symbols.SymbolID]BorrowID
 	bindingTypes        map[symbols.SymbolID]types.TypeID
 	constState          map[symbols.SymbolID]constEvalState
@@ -76,6 +78,9 @@ func (tc *typeChecker) run() {
 	tc.ensureBuiltinMagic()
 	tc.buildScopeIndex()
 	tc.buildSymbolIndex()
+	if tc.symbols != nil {
+		tc.externSymbols = tc.symbols.ExternSyms
+	}
 	tc.buildExportNameIndexes()
 	tc.borrow = NewBorrowTable()
 	tc.bindingBorrow = make(map[symbols.SymbolID]BorrowID)
@@ -180,6 +185,10 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		}
 		if typeParamsPushed {
 			tc.popTypeParams()
+		}
+	case ast.ItemExtern:
+		if block, ok := tc.builder.Items.Extern(id); ok && block != nil {
+			tc.checkExternFns(id, block)
 		}
 	case ast.ItemContract:
 		if contract, ok := tc.builder.Items.Contract(id); ok && contract != nil {
@@ -389,6 +398,13 @@ func (tc *typeChecker) symbolForStmt(id ast.StmtID) symbols.SymbolID {
 		return symbols.NoSymbolID
 	}
 	return tc.stmtSymbols[id]
+}
+
+func (tc *typeChecker) symbolForExtern(id ast.ExternMemberID) symbols.SymbolID {
+	if tc.externSymbols == nil {
+		return symbols.NoSymbolID
+	}
+	return tc.externSymbols[id]
 }
 
 func (tc *typeChecker) functionReturnType(fn *ast.FnItem, scope symbols.ScopeID) types.TypeID {

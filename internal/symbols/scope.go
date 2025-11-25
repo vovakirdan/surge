@@ -48,6 +48,7 @@ type ScopeOwner struct {
 	SourceFile source.FileID
 	ASTFile    ast.FileID
 	Item       ast.ItemID
+	Extern     ast.ExternMemberID
 	Stmt       ast.StmtID
 	Expr       ast.ExprID
 }

@@ -14,6 +14,14 @@ extern<Range<T>> {
     @intrinsic pub fn next(self: &mut Range<T>) -> Option<T>;
 }
 
+pub type Task<T> = {
+    __opaque: int,
+};
+
+extern<Task<T>> {
+    @intrinsic pub fn await(self: Task<T>) -> T;
+}
+
 extern<int> {
     @intrinsic fn __add(self: int, other: int) -> int;
     @intrinsic fn __sub(self: int, other: int) -> int;

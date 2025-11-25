@@ -182,18 +182,8 @@ extern<Person> {
 }
 `
 	builder, fileID, bag := parseSource(t, src)
-	if !bag.HasErrors() {
-		t.Fatalf("expected visibility diagnostics")
-	}
-	found := false
-	for _, d := range bag.Items() {
-		if d.Code == diag.SynVisibilityReduction {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("expected SynVisibilityReduction diagnostic, got %+v", bag.Items())
+	if bag.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %+v", bag.Items())
 	}
 
 	file := builder.Files.Get(fileID)

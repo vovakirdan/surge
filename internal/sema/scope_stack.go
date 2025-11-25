@@ -30,6 +30,13 @@ func (tc *typeChecker) buildScopeIndex() {
 		if owner.ASTFile.IsValid() && owner.ASTFile != tc.fileID {
 			continue
 		}
+		if owner.Extern.IsValid() {
+			if tc.scopeByExtern == nil {
+				tc.scopeByExtern = make(map[ast.ExternMemberID]symbols.ScopeID)
+			}
+			tc.scopeByExtern[owner.Extern] = id
+			continue
+		}
 		switch owner.Kind {
 		case symbols.ScopeOwnerItem:
 			if owner.Item.IsValid() {
@@ -117,6 +124,13 @@ func (tc *typeChecker) scopeForStmt(id ast.StmtID) symbols.ScopeID {
 		return symbols.NoScopeID
 	}
 	return tc.scopeByStmt[id]
+}
+
+func (tc *typeChecker) scopeForExtern(id ast.ExternMemberID) symbols.ScopeID {
+	if tc.scopeByExtern == nil {
+		return symbols.NoScopeID
+	}
+	return tc.scopeByExtern[id]
 }
 
 func (tc *typeChecker) flushBorrowResults() {

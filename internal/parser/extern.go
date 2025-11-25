@@ -104,16 +104,6 @@ func (p *Parser) parseExternMembers() ([]ast.ExternMemberSpec, bool) {
 				continue
 			}
 
-			if p.hasOverrideWithoutPub(memberAttrs, fnData.flags) {
-				p.emitDiagnostic(
-					diag.SynVisibilityReduction,
-					diag.SevError,
-					fnData.span,
-					"@override methods must preserve public visibility; add 'pub'",
-					nil,
-				)
-			}
-
 			fnPayload := p.arenas.NewExternFn(
 				fnData.name,
 				fnData.nameSpan,
@@ -190,20 +180,6 @@ func (p *Parser) parseExternMembers() ([]ast.ExternMemberSpec, bool) {
 
 func (p *Parser) resyncExternMember() {
 	p.resyncUntil(token.RBrace, token.KwFn, token.KwField, token.KwPub, token.KwAsync, token.At)
-}
-
-func (p *Parser) hasOverrideWithoutPub(attrs []ast.Attr, flags ast.FnModifier) bool {
-	if flags&ast.FnModifierPublic != 0 {
-		return false
-	}
-
-	for _, attr := range attrs {
-		name := p.arenas.StringsInterner.MustLookup(attr.Name)
-		if name == "override" {
-			return true
-		}
-	}
-	return false
 }
 
 func (p *Parser) parseExternField(attrs []ast.Attr, attrSpan source.Span) (ast.ExternMemberSpec, bool) {
