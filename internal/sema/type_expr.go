@@ -64,6 +64,14 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		if call, ok := tc.builder.Exprs.Call(id); ok && call != nil {
 			if member, okMem := tc.builder.Exprs.Member(call.Target); okMem && member != nil {
 				receiverType := tc.typeExpr(member.Target)
+				if tc.lookupName(member.Field) == "await" {
+					if tc.awaitDepth == 0 {
+						tc.report(diag.SemaIntrinsicBadContext, expr.Span, "await can only be used in async context")
+					}
+					if receiverType != types.NoTypeID && !tc.isTaskType(receiverType) {
+						tc.report(diag.SemaTypeMismatch, expr.Span, "await expects Task<T>, got %s", tc.typeLabel(receiverType))
+					}
+				}
 				argTypes := make([]types.TypeID, 0, len(call.Args))
 				for _, arg := range call.Args {
 					argTypes = append(argTypes, tc.typeExpr(arg))
@@ -189,8 +197,28 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprAsync:
 		if asyncData, ok := tc.builder.Exprs.Async(id); ok && asyncData != nil {
+			var returns []types.TypeID
+			tc.pushReturnContext(types.NoTypeID, expr.Span, &returns)
+			tc.awaitDepth++
 			tc.walkStmt(asyncData.Body)
+			tc.awaitDepth--
+			tc.popReturnContext()
 			payload := tc.types.Builtins().Nothing
+			for _, rt := range returns {
+				if rt == types.NoTypeID {
+					continue
+				}
+				if payload == tc.types.Builtins().Nothing {
+					payload = rt
+					continue
+				}
+				if !tc.typesAssignable(payload, rt, true) && !tc.typesAssignable(rt, payload, true) {
+					payload = types.NoTypeID
+				}
+			}
+			if payload == types.NoTypeID {
+				payload = tc.types.Builtins().Nothing
+			}
 			ty = tc.taskType(payload, expr.Span)
 		}
 	case ast.ExprSpawn:

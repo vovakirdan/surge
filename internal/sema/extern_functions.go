@@ -53,7 +53,7 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 	tc.registerExternParamTypes(scope, fn)
 
 	if fn.Body.IsValid() {
-		tc.pushReturnContext(returnType, returnSpan)
+		tc.pushReturnContext(returnType, returnSpan, nil)
 		pushed := tc.pushScope(scope)
 		tc.walkStmt(fn.Body)
 		if pushed {

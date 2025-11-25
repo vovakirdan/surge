@@ -257,3 +257,17 @@ func (tc *typeChecker) taskType(payload types.TypeID, span source.Span) types.Ty
 	scope := tc.scopeOrFile(tc.currentScope())
 	return tc.resolveNamedType(nameID, []types.TypeID{payload}, nil, span, scope)
 }
+
+func (tc *typeChecker) isTaskType(id types.TypeID) bool {
+	if id == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	resolved := tc.resolveAlias(id)
+	if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
+		return tc.lookupTypeName(resolved, info.Name) == "Task"
+	}
+	if info, ok := tc.types.AliasInfo(resolved); ok && info != nil {
+		return tc.lookupTypeName(resolved, info.Name) == "Task"
+	}
+	return false
+}

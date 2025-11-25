@@ -205,12 +205,30 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 	case types.KindStruct:
 		if info, ok := tc.types.StructInfo(id); ok && info != nil {
 			if name := tc.lookupTypeName(id, info.Name); name != "" {
+				if len(info.TypeArgs) > 0 {
+					args := make([]string, 0, len(info.TypeArgs))
+					for _, arg := range info.TypeArgs {
+						if key := tc.typeKeyForType(arg); key != "" {
+							args = append(args, string(key))
+						}
+					}
+					return symbols.TypeKey(name + "<" + strings.Join(args, ",") + ">")
+				}
 				return symbols.TypeKey(name)
 			}
 		}
 	case types.KindAlias:
 		if info, ok := tc.types.AliasInfo(id); ok && info != nil {
 			if name := tc.lookupTypeName(id, info.Name); name != "" {
+				if len(info.TypeArgs) > 0 {
+					args := make([]string, 0, len(info.TypeArgs))
+					for _, arg := range info.TypeArgs {
+						if key := tc.typeKeyForType(arg); key != "" {
+							args = append(args, string(key))
+						}
+					}
+					return symbols.TypeKey(name + "<" + strings.Join(args, ",") + ">")
+				}
 				return symbols.TypeKey(name)
 			}
 		}

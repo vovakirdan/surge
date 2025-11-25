@@ -45,6 +45,7 @@ type typeChecker struct {
 	typeIDItems         map[types.TypeID]ast.ItemID
 	structBases         map[types.TypeID]types.TypeID
 	externFields        map[symbols.TypeKey]*externFieldSet
+	awaitDepth          int
 	returnStack         []returnContext
 	typeParams          []map[source.StringID]types.TypeID
 	typeParamNames      map[types.TypeID]source.StringID
@@ -68,6 +69,7 @@ type typeChecker struct {
 type returnContext struct {
 	expected types.TypeID
 	span     source.Span
+	collect  *[]types.TypeID
 }
 
 func (tc *typeChecker) run() {
@@ -175,13 +177,19 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		}
 		tc.registerFnParamTypes(id, fnItem)
 		if fnItem.Body.IsValid() {
-			tc.pushReturnContext(returnType, returnSpan)
+			tc.pushReturnContext(returnType, returnSpan, nil)
+			if fnItem.Flags&ast.FnModifierAsync != 0 {
+				tc.awaitDepth++
+			}
 			pushed := tc.pushScope(scope)
 			tc.walkStmt(fnItem.Body)
 			if pushed {
 				tc.leaveScope()
 			}
 			tc.popReturnContext()
+			if fnItem.Flags&ast.FnModifierAsync != 0 {
+				tc.awaitDepth--
+			}
 		}
 		if typeParamsPushed {
 			tc.popTypeParams()
@@ -420,8 +428,8 @@ func (tc *typeChecker) functionReturnType(fn *ast.FnItem, scope symbols.ScopeID)
 	return expected
 }
 
-func (tc *typeChecker) pushReturnContext(expected types.TypeID, span source.Span) {
-	ctx := returnContext{expected: expected, span: span}
+func (tc *typeChecker) pushReturnContext(expected types.TypeID, span source.Span, collect *[]types.TypeID) {
+	ctx := returnContext{expected: expected, span: span, collect: collect}
 	tc.returnStack = append(tc.returnStack, ctx)
 }
 
@@ -442,6 +450,16 @@ func (tc *typeChecker) currentReturnContext() *returnContext {
 func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual types.TypeID) {
 	ctx := tc.currentReturnContext()
 	if ctx == nil || tc.types == nil {
+		return
+	}
+	if ctx.collect != nil && ctx.expected == types.NoTypeID {
+		record := actual
+		if !expr.IsValid() {
+			record = tc.types.Builtins().Nothing
+		}
+		if record != types.NoTypeID {
+			*ctx.collect = append(*ctx.collect, record)
+		}
 		return
 	}
 	expected := ctx.expected
