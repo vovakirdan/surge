@@ -354,40 +354,40 @@ func TestCastExpression(t *testing.T) {
 	}
 }
 
-func TestAwaitPostfixExpressions(t *testing.T) {
+func TestAwaitMemberCalls(t *testing.T) {
 	t.Run("basic", func(t *testing.T) {
-		letItem, arenas := parseExprTestInput(t, "let x = future.await;")
+		letItem, arenas := parseExprTestInput(t, "let x = future.await();")
 		if letItem.Value == ast.NoExprID {
 			t.Fatal("Expected expression value")
 		}
 
 		expr := arenas.Exprs.Get(letItem.Value)
-		if expr.Kind != ast.ExprAwait {
-			t.Fatalf("Expected await expression, got %v", expr.Kind)
+		if expr.Kind != ast.ExprCall {
+			t.Fatalf("Expected await call expression, got %v", expr.Kind)
 		}
 
-		awaitData, ok := arenas.Exprs.Await(letItem.Value)
+		callData, ok := arenas.Exprs.Call(letItem.Value)
 		if !ok {
-			t.Fatal("Failed to get await expression data")
+			t.Fatal("Failed to get await call data")
 		}
 
-		operand := arenas.Exprs.Get(awaitData.Value)
-		if operand.Kind != ast.ExprIdent {
-			t.Fatalf("Expected await operand to be identifier, got %v", operand.Kind)
+		member := arenas.Exprs.Get(callData.Target)
+		if member.Kind != ast.ExprMember {
+			t.Fatalf("Expected await target to be member access, got %v", member.Kind)
 		}
 
-		ident, ok := arenas.Exprs.Ident(awaitData.Value)
+		memberData, ok := arenas.Exprs.Member(callData.Target)
 		if !ok {
-			t.Fatal("Failed to resolve await operand identifier")
+			t.Fatal("Failed to resolve await member")
 		}
 
-		if arenas.StringsInterner.MustLookup(ident.Name) != "future" {
-			t.Fatalf("Expected operand name 'future', got %q", arenas.StringsInterner.MustLookup(ident.Name))
+		if arenas.StringsInterner.MustLookup(memberData.Field) != "await" {
+			t.Fatalf("Expected await member name 'await', got %q", arenas.StringsInterner.MustLookup(memberData.Field))
 		}
 	})
 
 	t.Run("awaitThenCast", func(t *testing.T) {
-		letItem, arenas := parseExprTestInput(t, "let x = future.await to int;")
+		letItem, arenas := parseExprTestInput(t, "let x = future.await() to int;")
 		if letItem.Value == ast.NoExprID {
 			t.Fatal("Expected expression value")
 		}
@@ -403,30 +403,30 @@ func TestAwaitPostfixExpressions(t *testing.T) {
 		}
 
 		awaitExpr := arenas.Exprs.Get(castData.Value)
-		if awaitExpr.Kind != ast.ExprAwait {
-			t.Fatalf("Expected await before cast, got %v", awaitExpr.Kind)
+		if awaitExpr.Kind != ast.ExprCall {
+			t.Fatalf("Expected await call before cast, got %v", awaitExpr.Kind)
 		}
 	})
 
 	t.Run("awaitAfterCall", func(t *testing.T) {
-		letItem, arenas := parseExprTestInput(t, "let x = fetch().await;")
+		letItem, arenas := parseExprTestInput(t, "let x = fetch().await();")
 		if letItem.Value == ast.NoExprID {
 			t.Fatal("Expected expression value")
 		}
 
 		expr := arenas.Exprs.Get(letItem.Value)
-		if expr.Kind != ast.ExprAwait {
-			t.Fatalf("Expected await expression, got %v", expr.Kind)
+		if expr.Kind != ast.ExprCall {
+			t.Fatalf("Expected await call expression, got %v", expr.Kind)
 		}
 
-		awaitData, ok := arenas.Exprs.Await(letItem.Value)
+		awaitData, ok := arenas.Exprs.Call(letItem.Value)
 		if !ok {
-			t.Fatal("Failed to get await expression data")
+			t.Fatal("Failed to get await call data")
 		}
 
-		target := arenas.Exprs.Get(awaitData.Value)
-		if target.Kind != ast.ExprCall {
-			t.Fatalf("Expected await operand to be call, got %v", target.Kind)
+		target := arenas.Exprs.Get(awaitData.Target)
+		if target.Kind != ast.ExprMember {
+			t.Fatalf("Expected await target to be member access, got %v", target.Kind)
 		}
 	})
 
@@ -467,16 +467,16 @@ func TestAwaitPostfixExpressions(t *testing.T) {
 		}
 
 		awaitExpr := arenas.Exprs.Get(callAfterAwaitData.Target)
-		if awaitExpr.Kind != ast.ExprAwait {
-			t.Fatalf("Expected await feeding inner call, got %v", awaitExpr.Kind)
+		if awaitExpr.Kind != ast.ExprMember {
+			t.Fatalf("Expected await call target to be member access, got %v", awaitExpr.Kind)
 		}
 
-		awaitData, ok := arenas.Exprs.Await(callAfterAwaitData.Target)
+		awaitMember, ok := arenas.Exprs.Member(callAfterAwaitData.Target)
 		if !ok {
-			t.Fatal("Failed to get await payload for inner call")
+			t.Fatal("Failed to get await member payload")
 		}
 
-		operand := arenas.Exprs.Get(awaitData.Value)
+		operand := arenas.Exprs.Get(awaitMember.Target)
 		if operand.Kind != ast.ExprIdent {
 			t.Fatalf("Expected await operand to be identifier, got %v", operand.Kind)
 		}
@@ -485,7 +485,7 @@ func TestAwaitPostfixExpressions(t *testing.T) {
 
 func TestAwaitPostfixErrors(t *testing.T) {
 	t.Run("missingLeftOperand", func(t *testing.T) {
-		_, _, bag := parseSource(t, "let x = .await;")
+		_, _, bag := parseSource(t, "let x = .await();")
 		if !bag.HasErrors() {
 			t.Fatal("expected diagnostics, got none")
 		}
@@ -1166,8 +1166,8 @@ func TestSpawnExpressionForms(t *testing.T) {
 		},
 		{
 			name:          "await_operand",
-			input:         "let task = spawn future.await;",
-			wantInnerKind: ast.ExprAwait,
+			input:         "let task = spawn future.await();",
+			wantInnerKind: ast.ExprCall,
 		},
 		{
 			name:          "async_block_operand",

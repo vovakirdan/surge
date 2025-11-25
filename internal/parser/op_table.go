@@ -178,8 +178,6 @@ func (p *Parser) getUnaryOperator(kind token.Kind) (ast.ExprUnaryOp, bool) {
 		return ast.ExprUnaryDeref, true
 	case token.Amp:
 		return ast.ExprUnaryRef, true
-	case token.KwAwait:
-		return ast.ExprUnaryAwait, true
 	default:
 		return ast.ExprUnaryPlus, false // не унарный оператор
 	}
