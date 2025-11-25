@@ -50,8 +50,6 @@ func (k Kind) String() string {
 		return "KwPub"
 	case KwAsync:
 		return "KwAsync"
-	case KwAwait:
-		return "KwAwait"
 	case KwCompare:
 		return "KwCompare"
 	case KwFinally:

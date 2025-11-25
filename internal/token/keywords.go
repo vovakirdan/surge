@@ -22,7 +22,6 @@ var keywords = map[string]Kind{
 	"extern":   KwExtern,
 	"pub":      KwPub,
 	"async":    KwAsync,
-	"await":    KwAwait,
 	"compare":  KwCompare,
 	"finally":  KwFinally,
 	"channel":  KwChannel,

@@ -91,12 +91,9 @@ func (p *Parser) parseMemberExpr(target ast.ExprID) (ast.ExprID, bool) {
 	p.advance() // съедаем '.'
 
 	switch p.lx.Peek().Kind {
-	case token.KwAwait, token.Ident:
+	case token.Ident:
 		fieldTok := p.advance()
 		fieldName := fieldTok.Text
-		if fieldTok.Kind == token.KwAwait {
-			fieldName = "await"
-		}
 		fieldNameID := p.arenas.StringsInterner.Intern(fieldName)
 
 		targetSpan := p.arenas.Exprs.Get(target).Span

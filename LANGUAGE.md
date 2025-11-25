@@ -18,7 +18,7 @@
 
 ### Implementation Snapshot (Draft 7)
 
-- Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, tag, extern, pub, async, await, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, nothing`.
+- Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, tag, extern, pub, async, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, nothing`.
 - The type checker currently resolves `int`, `uint`, `float`, `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`, `*T`), slices `T[]`, and sized arrays `T[N]` when `N` is a constant numeric literal. Fixed-width numerics (`int8`, `uint64`, `float32`…) are reserved symbols in the prelude but are not backed by concrete `TypeID`s yet.
 - Tuple and function types parse, but sema does not yet lower them; treat them as planned surface.
 - Tags and unions follow the current parser: `tag Name<T>(args...);` declares a tag item; unions accept plain types, `nothing`, or `Tag(args)` members. `Option`/`Result` plus tags `Some`/`Ok`/`Error` are injected via the prelude and resolved without user declarations; exhaustive `compare` checks are still TODO.
@@ -51,7 +51,7 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 ```
 pub, fn, let, mut, own, if, else, while, for, in, break, continue,
 import, as, type, tag, extern, return, signal, compare, spawn, channel,
-parallel, map, reduce, with, to, heir, is, async, await, macro, pragma,
+parallel, map, reduce, with, to, heir, is, async, macro, pragma,
 true, false, nothing
 ```
 
@@ -868,7 +868,7 @@ print(z is &int);       // true
 
 The `to` operator performs explicit type conversions with syntax `Expr to Type`.
 
-**Precedence:** Postfix operators (`[]`, call, `.`, `.await`, `to Type`) bind tightly before binary operators.
+**Precedence:** Postfix operators (`[]`, call, `.`, member-call like `.await()`, `to Type`) bind tightly before binary operators.
 
 **Built-in cast rules:**
 
@@ -1095,18 +1095,18 @@ Surge provides structured concurrency with async/await for managing asynchronous
 **Async Functions:**
 ```sg
 async fn fetch_data(url: string) -> Result<Data, Error> {
-    let response = http_get(url).await;
+    let response = http_get(url).await();
     let response = compare response {
         Ok(value) => value;
         Err(err) => return Error(err);
     };
-    return parse_response(response).await;
+    return parse_response(response).await();
 }
 
 async fn process_multiple_urls(urls: string[]) -> Result<Data[], Error> {
     let mut results: Data[] = [];
     for url in urls {
-        let outcome = fetch_data(url).await;
+        let outcome = fetch_data(url).await();
         compare outcome {
             Ok(data) => results.push(data);
             Err(err) => return Error(err);
@@ -1123,9 +1123,9 @@ async {
     let task2 = spawn fetch_data("url2");
     let task3 = spawn fetch_data("url3");
 
-    let r1 = task1.await;
-    let r2 = task2.await;
-    let r3 = task3.await;
+    let r1 = task1.await();
+    let r2 = task2.await();
+    let r3 = task3.await();
 
     // automatic cleanup on block exit
     // all spawned tasks are automatically cancelled if not awaited
@@ -1135,8 +1135,8 @@ async {
 **Key properties:**
 * Async blocks provide automatic resource cleanup
 * Tasks spawned within an async block are automatically cancelled when the block exits
-* `await` can only be used within `async` functions or `async` blocks
-* Async functions return `Future<T>` which must be awaited or spawned
+* `await` is just a method call (`task.await()`) and can only be used within `async` functions or `async` blocks
+* Async functions return `Future<T>`/`Task<T>` which must be awaited or spawned
 * Structured concurrency ensures no "fire-and-forget" tasks that can leak
 
 ---
@@ -1336,7 +1336,7 @@ async fn process_data(urls: string[]) -> Result<Data[], Error> {
 
         let results: Result<Data, Error>[] = [];
         for task in tasks {
-            results.push(task.await);
+            results.push(task.await());
         }
 
         return Ok(results);

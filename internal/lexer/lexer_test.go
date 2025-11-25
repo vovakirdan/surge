@@ -183,7 +183,6 @@ func TestKeywords_Lowercase(t *testing.T) {
 		{"extern", token.KwExtern},
 		{"pub", token.KwPub},
 		{"async", token.KwAsync},
-		{"await", token.KwAwait},
 		{"true", token.KwTrue},
 		{"false", token.KwFalse},
 		{"compare", token.KwCompare},

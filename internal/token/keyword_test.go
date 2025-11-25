@@ -14,7 +14,6 @@ func TestLookupKeyword_Positive(t *testing.T) {
 		"map":      KwMap,
 		"reduce":   KwReduce,
 		"with":     KwWith,
-		"await":    KwAwait,
 		"is":       KwIs,
 		"heir":     KwHeir,
 		"true":     KwTrue,

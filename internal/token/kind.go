@@ -30,7 +30,6 @@ const (
 	KwExtern   // extern
 	KwPub      // pub
 	KwAsync    // async
-	KwAwait    // await
 	KwCompare  // compare
 	KwFinally  // finally
 	KwChannel  // channel
