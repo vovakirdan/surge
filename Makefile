@@ -1,4 +1,5 @@
 .PHONY: build run test vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall completion completion-install completion-install-system
+.PHONY: golden golden-update
 
 # ===== Variables =====
 GO ?= go
@@ -53,6 +54,14 @@ format: fmt
 fmt:
 	@echo ">> Formatting code"
 	$(GO) fmt ./...
+
+golden: build
+	@echo ">> Running golden checks"
+	@./scripts/golden.sh check
+
+golden-update: build
+	@echo ">> Updating golden outputs"
+	@./scripts/golden.sh update
 
 check:
 	@echo ">> Checking code"

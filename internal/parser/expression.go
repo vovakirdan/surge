@@ -190,7 +190,7 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 			calleeSpan := p.arenas.Exprs.Get(expr).Span
 			builder := diag.ReportError(p.opts.Reporter, diag.SynUnexpectedToken, ltTok.Span, "generic type arguments must use '::<' syntax")
 			if builder != nil && calleeSpan != (source.Span{}) {
-				builder.WithFixSuggestion(fix.InsertText("insert '::' for generic call", calleeSpan.ZeroideToEnd(), "::", "", fix.Preferred()))
+				builder.WithFixSuggestion(fix.InsertText("insert '::' for generic call", calleeSpan.ZeroideToEnd().ZeroideToStart(), "::", "", fix.Preferred()))
 				builder.Emit()
 			}
 			return expr, true
