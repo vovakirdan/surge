@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${ROOT_DIR}"
+
+GOLDEN_DIR="${ROOT_DIR}/testdata/golden"
+SURGE_BIN="${SURGE_BIN:-${ROOT_DIR}/surge}"
+
+if [[ ! -x "${SURGE_BIN}" ]]; then
+	if command -v surge >/dev/null 2>&1; then
+		SURGE_BIN="$(command -v surge)"
+	else
+		echo "surge binary not found. Build ./surge or set SURGE_BIN to the binary path." >&2
+		exit 1
+	fi
+fi
+
+find "${GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r -d '' src; do
+	base="$(basename "${src}")"
+	if [[ "${base}" == _* ]]; then
+		continue
+	fi
+
+	dir="$(dirname "${src}")"
+	name="${base%.sg}"
+
+	if ! "${SURGE_BIN}" diag --format short "${src}" > "${dir}/${name}.diag"; then
+		:
+	fi
+
+	"${SURGE_BIN}" tokenize "${src}" > "${dir}/${name}.tokens"
+	"${SURGE_BIN}" parse "${src}" > "${dir}/${name}.ast"
+	if ! "${SURGE_BIN}" fmt --stdout "${src}" > "${dir}/${name}.fmt"; then
+		cp "${src}" "${dir}/${name}.fmt"
+		echo "fmt failed for ${src}, copied original content" >&2
+	fi
+done

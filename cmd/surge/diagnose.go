@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"surge/internal/diag"
 	"surge/internal/diagfmt"
 	"surge/internal/driver"
 	"surge/internal/source"
@@ -24,7 +25,7 @@ var diagCmd = &cobra.Command{
 // It configures output format, diagnostic stages, warning handling, concurrency,
 // note/suggestion inclusion, and whether to emit absolute file paths.
 func init() {
-	diagCmd.Flags().String("format", "pretty", "output format (pretty|json|sarif)")
+	diagCmd.Flags().String("format", "pretty", "output format (pretty|json|sarif|short)")
 	diagCmd.Flags().String("stages", "all", "diagnostic stages to run (tokenize|syntax|sema|all)")
 	diagCmd.Flags().Bool("no-warnings", false, "ignore warnings in diagnostics")
 	diagCmd.Flags().Bool("warnings-as-errors", false, "treat warnings as errors")
@@ -175,6 +176,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 				ShowPreview: preview,
 			}
 			diagfmt.Pretty(os.Stdout, result.Bag, result.FileSet, opts)
+		case "short":
+			output := diag.FormatGoldenDiagnostics(result.Bag.Items(), result.FileSet, withNotes)
+			if output != "" {
+				fmt.Fprintln(os.Stdout, output)
+			}
 		case "json":
 			jsonOpts := diagfmt.JSONOpts{
 				IncludePositions: true,
@@ -258,6 +264,15 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		}
 
 		switch format {
+		case "short":
+			allDiagnostics := make([]*diag.Diagnostic, 0, len(results))
+			for _, r := range results {
+				allDiagnostics = append(allDiagnostics, r.Bag.Items()...)
+			}
+			output := diag.FormatGoldenDiagnostics(allDiagnostics, fs, withNotes)
+			if output != "" {
+				fmt.Fprintln(os.Stdout, output)
+			}
 		case "pretty":
 			for idx, r := range results {
 				if idx > 0 {

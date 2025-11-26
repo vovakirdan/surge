@@ -1,0 +1,3 @@
+extern_duplicate_block.sg (span: 2:1-9:1)
+├─ Item[0]: Extern (span: 2:1-4:2)
+└─ Item[1]: Extern (span: 6:1-8:2)

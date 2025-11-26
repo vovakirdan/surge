@@ -1,0 +1,4 @@
+error SEM3016 testdata/golden/sema/invalid/generic_call_angle_brackets.sg:7:18 operator op#14 (__lt) is not defined for unknown and unknown
+error SEM3016 testdata/golden/sema/invalid/generic_call_angle_brackets.sg:7:18 operator op#16 (__gt) is not defined for unknown and int
+error SYN2001 testdata/golden/sema/invalid/generic_call_angle_brackets.sg:7:20 generic type arguments must use '::<' syntax
+error SEM3015 testdata/golden/sema/invalid/generic_call_angle_brackets.sg:7:21 type int cannot be used as a value

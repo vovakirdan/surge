@@ -1,0 +1,1 @@
+error SEM3016 testdata/golden/sema/invalid/builtin_type_mismatch_arith.sg:3:20 operator + (__add) is not defined for int and string

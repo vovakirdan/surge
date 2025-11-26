@@ -1,0 +1,10 @@
+// scenario: pragma placed after other items should be rejected
+fn first() -> int {
+    return 1;
+}
+
+pragma directive
+
+fn second() -> int {
+    return 2;
+}

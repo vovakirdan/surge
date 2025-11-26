@@ -1,0 +1,9 @@
+pragma_invalid_position.sg (span: 2:1-11:1)
+└─ Item[0]: Fn (span: 2:1-4:2)
+   ├─ Name: first
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:19-4:2)
+         └─ Stmt[0]: Return (span: 3:5-3:14)
+            └─ Expr: expr#1: 1

@@ -1,0 +1,57 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "use_limits" at 2:4-2:14 (leading: Space)
+  3: LParen          "(" at 2:14-2:15
+  4: RParen          ")" at 2:15-2:16
+  5: LBrace          "{" at 2:17-2:18 (leading: Space)
+  6: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+  7: Ident           "a" at 3:9-3:10 (leading: Space)
+  8: Colon           ":" at 3:10-3:11
+  9: Ident           "int" at 3:12-3:15 (leading: Space)
+ 10: Assign          "=" at 3:16-3:17 (leading: Space)
+ 11: Ident           "default" at 3:18-3:25 (leading: Space)
+ 12: ColonColon      "::" at 3:25-3:27
+ 13: Lt              "<" at 3:27-3:28
+ 14: Ident           "int" at 3:28-3:31
+ 15: Gt              ">" at 3:31-3:32
+ 16: LParen          "(" at 3:32-3:33
+ 17: RParen          ")" at 3:33-3:34
+ 18: Semicolon       ";" at 3:34-3:35
+ 19: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 20: Ident           "b" at 4:9-4:10 (leading: Space)
+ 21: Colon           ":" at 4:10-4:11
+ 22: Ident           "int" at 4:12-4:15 (leading: Space)
+ 23: Assign          "=" at 4:16-4:17 (leading: Space)
+ 24: Ident           "MAX" at 4:18-4:21 (leading: Space)
+ 25: ColonColon      "::" at 4:21-4:23
+ 26: Lt              "<" at 4:23-4:24
+ 27: Ident           "int" at 4:24-4:27
+ 28: Gt              ">" at 4:27-4:28
+ 29: LParen          "(" at 4:28-4:29
+ 30: RParen          ")" at 4:29-4:30
+ 31: Semicolon       ";" at 4:30-4:31
+ 32: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 33: Ident           "c" at 5:9-5:10 (leading: Space)
+ 34: Colon           ":" at 5:10-5:11
+ 35: Ident           "int" at 5:12-5:15 (leading: Space)
+ 36: Assign          "=" at 5:16-5:17 (leading: Space)
+ 37: Ident           "MIN" at 5:18-5:21 (leading: Space)
+ 38: ColonColon      "::" at 5:21-5:23
+ 39: Lt              "<" at 5:23-5:24
+ 40: Ident           "int" at 5:24-5:27
+ 41: Gt              ">" at 5:27-5:28
+ 42: LParen          "(" at 5:28-5:29
+ 43: RParen          ")" at 5:29-5:30
+ 44: Semicolon       ";" at 5:30-5:31
+ 45: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
+ 46: Ident           "_sum" at 6:9-6:13 (leading: Space)
+ 47: Colon           ":" at 6:13-6:14
+ 48: Ident           "int" at 6:15-6:18 (leading: Space)
+ 49: Assign          "=" at 6:19-6:20 (leading: Space)
+ 50: Ident           "a" at 6:21-6:22 (leading: Space)
+ 51: Plus            "+" at 6:23-6:24 (leading: Space)
+ 52: Ident           "b" at 6:25-6:26 (leading: Space)
+ 53: Plus            "+" at 6:27-6:28 (leading: Space)
+ 54: Ident           "c" at 6:29-6:30 (leading: Space)
+ 55: Semicolon       ";" at 6:30-6:31
+ 56: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 57: EOF             at 8:1-8:1

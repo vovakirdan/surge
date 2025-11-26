@@ -1,0 +1,99 @@
+  1: KwContract      "contract" at 2:1-2:9 (leading: LineComment, Newline)
+  2: Ident           "Printable" at 2:10-2:19 (leading: Space)
+  3: Lt              "<" at 2:19-2:20
+  4: Ident           "T" at 2:20-2:21
+  5: Gt              ">" at 2:21-2:22
+  6: LBrace          "{" at 2:23-2:24 (leading: Space)
+  7: KwField         "field" at 3:5-3:10 (leading: Newline, Space)
+  8: Ident           "label" at 3:11-3:16 (leading: Space)
+  9: Colon           ":" at 3:16-3:17
+ 10: Ident           "string" at 3:18-3:24 (leading: Space)
+ 11: Semicolon       ";" at 3:24-3:25
+ 12: KwFn            "fn" at 4:5-4:7 (leading: Newline, Space)
+ 13: Ident           "print" at 4:8-4:13 (leading: Space)
+ 14: LParen          "(" at 4:13-4:14
+ 15: Ident           "self" at 4:14-4:18
+ 16: Colon           ":" at 4:18-4:19
+ 17: Ident           "T" at 4:20-4:21 (leading: Space)
+ 18: RParen          ")" at 4:21-4:22
+ 19: Semicolon       ";" at 4:22-4:23
+ 20: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 21: KwType          "type" at 7:1-7:5 (leading: Newline)
+ 22: Ident           "Console" at 7:6-7:13 (leading: Space)
+ 23: Assign          "=" at 7:14-7:15 (leading: Space)
+ 24: LBrace          "{" at 7:16-7:17 (leading: Space)
+ 25: Ident           "label" at 8:5-8:10 (leading: Newline, Space)
+ 26: Colon           ":" at 8:10-8:11
+ 27: Ident           "string" at 8:12-8:18 (leading: Space)
+ 28: Comma           "," at 8:18-8:19
+ 29: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 30: Semicolon       ";" at 9:2-9:3
+ 31: KwExtern        "extern" at 11:1-11:7 (leading: Newline)
+ 32: Lt              "<" at 11:7-11:8
+ 33: Ident           "Console" at 11:8-11:15
+ 34: Gt              ">" at 11:15-11:16
+ 35: LBrace          "{" at 11:17-11:18 (leading: Space)
+ 36: KwFn            "fn" at 12:5-12:7 (leading: Newline, Space)
+ 37: Ident           "print" at 12:8-12:13 (leading: Space)
+ 38: LParen          "(" at 12:13-12:14
+ 39: Ident           "self" at 12:14-12:18
+ 40: Colon           ":" at 12:18-12:19
+ 41: Ident           "Console" at 12:20-12:27 (leading: Space)
+ 42: RParen          ")" at 12:27-12:28
+ 43: LBrace          "{" at 12:29-12:30 (leading: Space)
+ 44: KwLet           "let" at 13:9-13:12 (leading: Newline, Space)
+ 45: Ident           "label" at 13:13-13:18 (leading: Space)
+ 46: Colon           ":" at 13:18-13:19
+ 47: Ident           "string" at 13:20-13:26 (leading: Space)
+ 48: Assign          "=" at 13:27-13:28 (leading: Space)
+ 49: Ident           "self" at 13:29-13:33 (leading: Space)
+ 50: Dot             "." at 13:33-13:34
+ 51: Ident           "label" at 13:34-13:39
+ 52: Semicolon       ";" at 13:39-13:40
+ 53: RBrace          "}" at 14:5-14:6 (leading: Newline, Space)
+ 54: RBrace          "}" at 15:1-15:2 (leading: Newline)
+ 55: KwFn            "fn" at 17:1-17:3 (leading: Newline)
+ 56: Ident           "show" at 17:4-17:8 (leading: Space)
+ 57: Lt              "<" at 17:8-17:9
+ 58: Ident           "T" at 17:9-17:10
+ 59: Colon           ":" at 17:10-17:11
+ 60: Ident           "Printable" at 17:12-17:21 (leading: Space)
+ 61: Lt              "<" at 17:21-17:22
+ 62: Ident           "T" at 17:22-17:23
+ 63: Shr             ">>" at 17:23-17:25
+ 64: LParen          "(" at 17:25-17:26
+ 65: Ident           "value" at 17:26-17:31
+ 66: Colon           ":" at 17:31-17:32
+ 67: Ident           "T" at 17:33-17:34 (leading: Space)
+ 68: RParen          ")" at 17:34-17:35
+ 69: LBrace          "{" at 17:36-17:37 (leading: Space)
+ 70: Ident           "value" at 18:5-18:10 (leading: Newline, Space)
+ 71: Dot             "." at 18:10-18:11
+ 72: Ident           "print" at 18:11-18:16
+ 73: LParen          "(" at 18:16-18:17
+ 74: RParen          ")" at 18:17-18:18
+ 75: Semicolon       ";" at 18:18-18:19
+ 76: RBrace          "}" at 19:1-19:2 (leading: Newline)
+ 77: KwFn            "fn" at 21:1-21:3 (leading: Newline)
+ 78: Ident           "use_console" at 21:4-21:15 (leading: Space)
+ 79: LParen          "(" at 21:15-21:16
+ 80: RParen          ")" at 21:16-21:17
+ 81: LBrace          "{" at 21:18-21:19 (leading: Space)
+ 82: KwLet           "let" at 22:5-22:8 (leading: Newline, Space)
+ 83: Ident           "c" at 22:9-22:10 (leading: Space)
+ 84: Colon           ":" at 22:10-22:11
+ 85: Ident           "Console" at 22:12-22:19 (leading: Space)
+ 86: Assign          "=" at 22:20-22:21 (leading: Space)
+ 87: LBrace          "{" at 22:22-22:23 (leading: Space)
+ 88: Ident           "label" at 22:24-22:29 (leading: Space)
+ 89: Colon           ":" at 22:29-22:30
+ 90: StringLit       "\"out\"" at 22:31-22:36 (leading: Space)
+ 91: RBrace          "}" at 22:37-22:38 (leading: Space)
+ 92: Semicolon       ";" at 22:38-22:39
+ 93: Ident           "show" at 23:5-23:9 (leading: Newline, Space)
+ 94: LParen          "(" at 23:9-23:10
+ 95: Ident           "c" at 23:10-23:11
+ 96: RParen          ")" at 23:11-23:12
+ 97: Semicolon       ";" at 23:12-23:13
+ 98: RBrace          "}" at 24:1-24:2 (leading: Newline)
+ 99: EOF             at 25:1-25:1

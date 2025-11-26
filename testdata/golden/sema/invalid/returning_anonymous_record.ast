@@ -1,0 +1,9 @@
+returning_anonymous_record.sg (span: 4:1-13:1)
+└─ Item[0]: Fn (span: 4:1-6:2)
+   ├─ Name: illegal_return_anonymous_record_v1
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:41-6:2)
+         └─ Stmt[0]: Return (span: 5:5-5:27)
+            └─ Expr: expr#5: <ExprKind(17)>

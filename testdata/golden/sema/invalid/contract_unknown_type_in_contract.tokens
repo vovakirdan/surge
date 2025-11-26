@@ -1,0 +1,10 @@
+  1: KwContract      "contract" at 2:1-2:9 (leading: LineComment, Newline)
+  2: Ident           "UsesMissing" at 2:10-2:21 (leading: Space)
+  3: LBrace          "{" at 2:22-2:23 (leading: Space)
+  4: KwField         "field" at 3:5-3:10 (leading: Newline, Space)
+  5: Ident           "value" at 3:11-3:16 (leading: Space)
+  6: Colon           ":" at 3:16-3:17
+  7: Ident           "MissingType" at 3:18-3:29 (leading: Space)
+  8: Semicolon       ";" at 3:29-3:30
+  9: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 10: EOF             at 5:1-5:1

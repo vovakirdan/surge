@@ -1,0 +1,45 @@
+  1: KwExtern        "extern" at 2:1-2:7 (leading: LineComment, Newline)
+  2: Lt              "<" at 2:7-2:8
+  3: Ident           "int" at 2:8-2:11
+  4: Gt              ">" at 2:11-2:12
+  5: LBrace          "{" at 2:13-2:14 (leading: Space)
+  6: KwFn            "fn" at 3:5-3:7 (leading: Newline, Space)
+  7: Ident           "halve" at 3:8-3:13 (leading: Space)
+  8: LParen          "(" at 3:13-3:14
+  9: Ident           "self" at 3:14-3:18
+ 10: Colon           ":" at 3:18-3:19
+ 11: Ident           "int" at 3:20-3:23 (leading: Space)
+ 12: RParen          ")" at 3:23-3:24
+ 13: Arrow           "->" at 3:25-3:27 (leading: Space)
+ 14: Ident           "int" at 3:28-3:31 (leading: Space)
+ 15: LBrace          "{" at 3:32-3:33 (leading: Space)
+ 16: KwReturn        "return" at 3:34-3:40 (leading: Space)
+ 17: Ident           "self" at 3:41-3:45 (leading: Space)
+ 18: Slash           "/" at 3:46-3:47 (leading: Space)
+ 19: IntLit          "2" at 3:48-3:49 (leading: Space)
+ 20: Semicolon       ";" at 3:49-3:50
+ 21: RBrace          "}" at 3:51-3:52 (leading: Space)
+ 22: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 23: KwExtern        "extern" at 6:1-6:7 (leading: Newline)
+ 24: Lt              "<" at 6:7-6:8
+ 25: Ident           "int" at 6:8-6:11
+ 26: Gt              ">" at 6:11-6:12
+ 27: LBrace          "{" at 6:13-6:14 (leading: Space)
+ 28: KwFn            "fn" at 7:5-7:7 (leading: Newline, Space)
+ 29: Ident           "halve" at 7:8-7:13 (leading: Space)
+ 30: LParen          "(" at 7:13-7:14
+ 31: Ident           "self" at 7:14-7:18
+ 32: Colon           ":" at 7:18-7:19
+ 33: Ident           "int" at 7:20-7:23 (leading: Space)
+ 34: RParen          ")" at 7:23-7:24
+ 35: Arrow           "->" at 7:25-7:27 (leading: Space)
+ 36: Ident           "int" at 7:28-7:31 (leading: Space)
+ 37: LBrace          "{" at 7:32-7:33 (leading: Space)
+ 38: KwReturn        "return" at 7:34-7:40 (leading: Space)
+ 39: Ident           "self" at 7:41-7:45 (leading: Space)
+ 40: Slash           "/" at 7:46-7:47 (leading: Space)
+ 41: IntLit          "2" at 7:48-7:49 (leading: Space)
+ 42: Semicolon       ";" at 7:49-7:50
+ 43: RBrace          "}" at 7:51-7:52 (leading: Space)
+ 44: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 45: EOF             at 9:1-9:1

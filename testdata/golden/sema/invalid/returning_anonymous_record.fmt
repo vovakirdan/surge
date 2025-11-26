@@ -1,0 +1,12 @@
+// scenario: returning an anonymous record is illegal
+
+// can't return an anonymous record without a type annotation
+fn illegal_return_anonymous_record_v1() {
+    return { x: 1, y: 2 };
+}
+
+// can't return an anonymous record with a type annotation
+fn illegal_return_anonymous_record_v2() -> { x: int, y: int } {
+    return { x: 1, y: 2 };
+}
+

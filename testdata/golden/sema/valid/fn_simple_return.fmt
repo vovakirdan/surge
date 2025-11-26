@@ -1,0 +1,4 @@
+// scenario: function with explicit int return
+fn add(a: int, b: int) -> int {
+    return a + b;
+}

@@ -1,0 +1,31 @@
+contract_long_form_ok.sg (span: 2:1-24:1)
+├─ Item[0]: Contract (span: 2:1-4:2)
+├─ Item[1]: Type (span: 6:1-8:3)
+│  ├─ Name: NumberBox
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: value: int
+├─ Item[2]: Extern (span: 10:1-14:2)
+├─ Item[3]: Fn (span: 16:1-18:2)
+│  ├─ Name: apply_swap
+│  ├─ Generics: <T>
+│  ├─ Params: (item: T, text: string)
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 16:71-18:2)
+│        └─ Stmt[0]: Return (span: 17:5-17:28)
+│           └─ Expr: expr#5: item.swap(text)
+└─ Item[4]: Fn (span: 20:1-23:2)
+   ├─ Name: demo
+   ├─ Params: ()
+   ├─ Return: string
+   └─ Body:
+      └─ Stmt[0]: Block (span: 20:21-23:2)
+         ├─ Stmt[0]: Let (span: 21:5-21:39)
+         │  ├─ Name: box
+         │  ├─ Mutable: false
+         │  ├─ Type: NumberBox
+         │  └─ Value: expr#8: <ExprKind(17)>
+         └─ Stmt[1]: Return (span: 22:5-22:47)
+            └─ Expr: expr#12: apply_swap(box, "ok")

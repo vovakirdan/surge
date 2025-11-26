@@ -1,0 +1,12 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "wrong_return" at 2:4-2:16 (leading: Space)
+  3: LParen          "(" at 2:16-2:17
+  4: RParen          ")" at 2:17-2:18
+  5: Arrow           "->" at 2:19-2:21 (leading: Space)
+  6: Ident           "int" at 2:22-2:25 (leading: Space)
+  7: LBrace          "{" at 2:26-2:27 (leading: Space)
+  8: KwReturn        "return" at 3:5-3:11 (leading: Newline, Space)
+  9: StringLit       "\"nope\"" at 3:12-3:18 (leading: Space)
+ 10: Semicolon       ";" at 3:18-3:19
+ 11: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 12: EOF             at 5:1-5:1

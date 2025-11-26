@@ -22,17 +22,20 @@ type FormatOptions struct {
 	Check          bool
 	MaxDiagnostics int
 	Options        format.Options
+	Stdout         bool
 }
 
 type FormatResult struct {
-	Path    string
-	Changed bool
-	Err     error
+	Path      string
+	Changed   bool
+	Err       error
+	Formatted []byte
 }
 
 // FormatPaths formats provided files or directories (recursively collecting .sg files).
 // When opts.Check is true, files are not modified; Changed indicates whether formatting
-// would update the file contents.
+// would update the file contents. When opts.Stdout is true, formatted content is returned
+// in the results without touching files on disk.
 func FormatPaths(ctx context.Context, paths []string, opts FormatOptions) ([]FormatResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -61,6 +64,13 @@ func FormatPaths(ctx context.Context, paths []string, opts FormatOptions) ([]For
 		}
 
 		if opts.Check {
+			result.Changed = changed
+			results = append(results, result)
+			continue
+		}
+
+		if opts.Stdout {
+			result.Formatted = formatted
 			result.Changed = changed
 			results = append(results, result)
 			continue

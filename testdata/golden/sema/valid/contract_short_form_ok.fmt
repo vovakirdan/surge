@@ -1,0 +1,24 @@
+// scenario: contract short-form bound satisfied by a type
+contract Printable<T> {
+    field label: string;
+    fn print(self: T);
+}
+
+type Console = {
+    label: string,
+};
+
+extern<Console> {
+    fn print(self: Console) {
+        let label: string = self.label;
+    }
+}
+
+fn show<T>(value: T) {
+    value.print();
+}
+
+fn use_console() {
+    let c: Console = { label: "out" };
+    show(c);
+}

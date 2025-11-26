@@ -1,0 +1,2 @@
+// scenario: plain untagged union is forbidden
+type Error = int | string;

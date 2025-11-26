@@ -1,0 +1,20 @@
+generic_instantiation_wrong_arity.sg (span: 2:1-10:1)
+├─ Item[0]: Type (span: 2:1-5:3)
+│  ├─ Name: Pair
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Generics: <T, U>
+│  └─ Struct:
+│     ├─ Field[0]: first: T
+│     └─ Field[1]: second: U
+└─ Item[1]: Fn (span: 7:1-9:2)
+   ├─ Name: wrong_arity
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:18-9:2)
+         └─ Stmt[0]: Let (span: 8:5-8:50)
+            ├─ Name: bad
+            ├─ Mutable: false
+            ├─ Type: Pair<int>
+            └─ Value: expr#5: <ExprKind(17)>

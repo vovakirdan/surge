@@ -1,0 +1,18 @@
+// scenario: function declared returning nothing with no explicit return
+fn log_value(x: int) -> nothing {
+    let copy: int = x;
+}
+
+fn return_nothing_no_type() {
+    return nothing;
+}
+
+fn return_nothing_no_return() {
+}
+
+fn return_nothing_with_type() -> nothing {
+}
+
+fn return_nothing_with_type_and_return() -> nothing {
+    return nothing;
+}

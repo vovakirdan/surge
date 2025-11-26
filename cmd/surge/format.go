@@ -20,6 +20,7 @@ var fmtCmd = &cobra.Command{
 func init() {
 	fmtCmd.Flags().Bool("check", false, "check if files are properly formatted")
 	fmtCmd.Flags().String("format", "text", "output format (text|json)")
+	fmtCmd.Flags().Bool("stdout", false, "print formatted code to stdout instead of rewriting files")
 }
 
 func runFmt(cmd *cobra.Command, args []string) error {
@@ -36,6 +37,18 @@ func runFmt(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	writeToStdout, err := cmd.Flags().GetBool("stdout")
+	if err != nil {
+		return err
+	}
+
+	if writeToStdout && check {
+		return fmt.Errorf("fmt: --stdout cannot be used with --check")
+	}
+	if writeToStdout && outputFormat != "text" {
+		return fmt.Errorf("fmt: --stdout is only supported with text output")
+	}
+
 	maxDiagnostics, err := cmd.Root().PersistentFlags().GetInt("max-diagnostics")
 	if err != nil {
 		return err
@@ -49,6 +62,7 @@ func runFmt(cmd *cobra.Command, args []string) error {
 	formatResults, err := driver.FormatPaths(cmd.Context(), args, driver.FormatOptions{
 		Check:          check,
 		MaxDiagnostics: maxDiagnostics,
+		Stdout:         writeToStdout,
 	})
 	if err != nil {
 		return err
@@ -59,6 +73,13 @@ func runFmt(cmd *cobra.Command, args []string) error {
 
 	switch outputFormat {
 	case "text":
+		if writeToStdout {
+			renderFmtStdout(formatResults, &hasErrors)
+			if hasErrors {
+				return fmt.Errorf("fmt: failed to format some files")
+			}
+			return nil
+		}
 		renderFmtText(formatResults, check, quiet, &hasErrors, &hasChanges)
 	case "json":
 		if err := renderFmtJSON(formatResults, check); err != nil {
@@ -75,6 +96,18 @@ func runFmt(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("fmt: formatting changes required")
 	}
 	return nil
+}
+
+func renderFmtStdout(results []driver.FormatResult, hasErrors *bool) {
+	for _, res := range results {
+		if res.Err != nil {
+			*hasErrors = true
+			fmt.Fprintf(os.Stderr, "fmt: %s: %v\n", res.Path, res.Err)
+			continue
+		}
+
+		_, _ = os.Stdout.Write(res.Formatted)
+	}
 }
 
 func renderFmtText(results []driver.FormatResult, check, quiet bool, hasErrors, hasChanges *bool) {

@@ -1,5 +1,5 @@
 .PHONY: build run test vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall completion completion-install completion-install-system
-.PHONY: golden golden-update
+.PHONY: golden golden-update golden-check
 
 # ===== Variables =====
 GO ?= go
@@ -55,13 +55,17 @@ fmt:
 	@echo ">> Formatting code"
 	$(GO) fmt ./...
 
-golden: build
-	@echo ">> Running golden checks"
-	@./scripts/golden.sh check
+golden: golden-check
 
 golden-update: build
-	@echo ">> Updating golden outputs"
-	@./scripts/golden.sh update
+	./scripts/golden_update.sh
+
+golden-check: golden-update
+	@if ! git diff --quiet -- testdata/golden; then \
+		echo "Golden files are out of date. Run 'make golden-update' and commit changes."; \
+		git diff -- testdata/golden; \
+		exit 1; \
+	fi
 
 check:
 	@echo ">> Checking code"

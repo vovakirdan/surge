@@ -1,0 +1,1 @@
+error SEM3005 testdata/golden/sema/invalid/contract_unknown_type_in_contract.sg:3:18 unknown type MissingType

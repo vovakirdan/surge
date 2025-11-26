@@ -1,0 +1,1 @@
+error SEM3006 testdata/golden/sema/invalid/extern_duplicate_method.sg:4:5 function 'touch' redeclared without @overload or @override

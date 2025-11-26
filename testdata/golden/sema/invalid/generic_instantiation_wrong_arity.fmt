@@ -1,0 +1,9 @@
+// scenario: instantiating a generic type with the wrong number of arguments
+type Pair<T, U> = {
+    first: T,
+    second: U,
+};
+
+fn wrong_arity() {
+    let bad: Pair<int> = { first: 1, second: 2 };
+}

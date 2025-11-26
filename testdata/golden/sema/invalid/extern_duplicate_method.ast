@@ -1,0 +1,2 @@
+extern_duplicate_method.sg (span: 2:1-6:1)
+└─ Item[0]: Extern (span: 2:1-5:2)

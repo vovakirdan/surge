@@ -1,0 +1,72 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "int_arith" at 2:4-2:13 (leading: Space)
+  3: LParen          "(" at 2:13-2:14
+  4: Ident           "a" at 2:14-2:15
+  5: Colon           ":" at 2:15-2:16
+  6: Ident           "int" at 2:17-2:20 (leading: Space)
+  7: Comma           "," at 2:20-2:21
+  8: Ident           "b" at 2:22-2:23 (leading: Space)
+  9: Colon           ":" at 2:23-2:24
+ 10: Ident           "int" at 2:25-2:28 (leading: Space)
+ 11: RParen          ")" at 2:28-2:29
+ 12: Arrow           "->" at 2:30-2:32 (leading: Space)
+ 13: Ident           "int" at 2:33-2:36 (leading: Space)
+ 14: LBrace          "{" at 2:37-2:38 (leading: Space)
+ 15: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 16: Ident           "sum" at 3:9-3:12 (leading: Space)
+ 17: Colon           ":" at 3:12-3:13
+ 18: Ident           "int" at 3:14-3:17 (leading: Space)
+ 19: Assign          "=" at 3:18-3:19 (leading: Space)
+ 20: Ident           "a" at 3:20-3:21 (leading: Space)
+ 21: Plus            "+" at 3:22-3:23 (leading: Space)
+ 22: Ident           "b" at 3:24-3:25 (leading: Space)
+ 23: Semicolon       ";" at 3:25-3:26
+ 24: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 25: Ident           "diff" at 4:9-4:13 (leading: Space)
+ 26: Colon           ":" at 4:13-4:14
+ 27: Ident           "int" at 4:15-4:18 (leading: Space)
+ 28: Assign          "=" at 4:19-4:20 (leading: Space)
+ 29: Ident           "a" at 4:21-4:22 (leading: Space)
+ 30: Minus           "-" at 4:23-4:24 (leading: Space)
+ 31: Ident           "b" at 4:25-4:26 (leading: Space)
+ 32: Semicolon       ";" at 4:26-4:27
+ 33: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 34: Ident           "prod" at 5:9-5:13 (leading: Space)
+ 35: Colon           ":" at 5:13-5:14
+ 36: Ident           "int" at 5:15-5:18 (leading: Space)
+ 37: Assign          "=" at 5:19-5:20 (leading: Space)
+ 38: Ident           "a" at 5:21-5:22 (leading: Space)
+ 39: Star            "*" at 5:23-5:24 (leading: Space)
+ 40: Ident           "b" at 5:25-5:26 (leading: Space)
+ 41: Semicolon       ";" at 5:26-5:27
+ 42: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
+ 43: Ident           "quot" at 6:9-6:13 (leading: Space)
+ 44: Colon           ":" at 6:13-6:14
+ 45: Ident           "int" at 6:15-6:18 (leading: Space)
+ 46: Assign          "=" at 6:19-6:20 (leading: Space)
+ 47: Ident           "a" at 6:21-6:22 (leading: Space)
+ 48: Slash           "/" at 6:23-6:24 (leading: Space)
+ 49: Ident           "b" at 6:25-6:26 (leading: Space)
+ 50: Semicolon       ";" at 6:26-6:27
+ 51: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
+ 52: Ident           "rem" at 7:9-7:12 (leading: Space)
+ 53: Colon           ":" at 7:12-7:13
+ 54: Ident           "int" at 7:14-7:17 (leading: Space)
+ 55: Assign          "=" at 7:18-7:19 (leading: Space)
+ 56: Ident           "a" at 7:20-7:21 (leading: Space)
+ 57: Percent         "%" at 7:22-7:23 (leading: Space)
+ 58: Ident           "b" at 7:24-7:25 (leading: Space)
+ 59: Semicolon       ";" at 7:25-7:26
+ 60: KwReturn        "return" at 8:5-8:11 (leading: Newline, Space)
+ 61: Ident           "sum" at 8:12-8:15 (leading: Space)
+ 62: Plus            "+" at 8:16-8:17 (leading: Space)
+ 63: Ident           "diff" at 8:18-8:22 (leading: Space)
+ 64: Plus            "+" at 8:23-8:24 (leading: Space)
+ 65: Ident           "prod" at 8:25-8:29 (leading: Space)
+ 66: Plus            "+" at 8:30-8:31 (leading: Space)
+ 67: Ident           "quot" at 8:32-8:36 (leading: Space)
+ 68: Plus            "+" at 8:37-8:38 (leading: Space)
+ 69: Ident           "rem" at 8:39-8:42 (leading: Space)
+ 70: Semicolon       ";" at 8:42-8:43
+ 71: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 72: EOF             at 10:1-10:1

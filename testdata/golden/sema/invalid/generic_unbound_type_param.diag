@@ -1,0 +1,1 @@
+error SEM3005 testdata/golden/sema/invalid/generic_unbound_type_param.sg:2:19 unknown type T

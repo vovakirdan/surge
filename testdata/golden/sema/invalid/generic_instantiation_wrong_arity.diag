@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/generic_instantiation_wrong_arity.sg:8:14 Pair expects 2 type argument(s), got 1

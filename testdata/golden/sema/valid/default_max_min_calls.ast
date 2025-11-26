@@ -1,0 +1,27 @@
+default_max_min_calls.sg (span: 2:1-8:1)
+└─ Item[0]: Fn (span: 2:1-7:2)
+   ├─ Name: use_limits
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:17-7:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:35)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#2: default()
+         ├─ Stmt[1]: Let (span: 4:5-4:31)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#4: MAX()
+         ├─ Stmt[2]: Let (span: 5:5-5:31)
+         │  ├─ Name: c
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#6: MIN()
+         └─ Stmt[3]: Let (span: 6:5-6:31)
+            ├─ Name: _sum
+            ├─ Mutable: false
+            ├─ Type: int
+            └─ Value: expr#11: (((a + b)) + c)

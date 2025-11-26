@@ -1,0 +1,5 @@
+// scenario: arithmetic with incompatible operand types
+fn bad_addition() -> int {
+    let bad: int = 1 + "one";
+    return bad;
+}

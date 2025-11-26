@@ -1,0 +1,31 @@
+contract_short_form_ok.sg (span: 2:1-25:1)
+├─ Item[0]: Contract (span: 2:1-5:2)
+├─ Item[1]: Type (span: 7:1-9:3)
+│  ├─ Name: Console
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: label: string
+├─ Item[2]: Extern (span: 11:1-15:2)
+├─ Item[3]: Fn (span: 17:1-19:2)
+│  ├─ Name: show
+│  ├─ Generics: <T>
+│  ├─ Params: (value: T)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 17:36-19:2)
+│        └─ Stmt[0]: Expr (span: 18:5-18:19)
+│           └─ Expr: expr#5: value.print()
+└─ Item[4]: Fn (span: 21:1-24:2)
+   ├─ Name: use_console
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 21:18-24:2)
+         ├─ Stmt[0]: Let (span: 22:5-22:39)
+         │  ├─ Name: c
+         │  ├─ Mutable: false
+         │  ├─ Type: Console
+         │  └─ Value: expr#8: <ExprKind(17)>
+         └─ Stmt[1]: Expr (span: 23:5-23:13)
+            └─ Expr: expr#11: show(c)

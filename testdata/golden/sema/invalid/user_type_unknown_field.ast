@@ -1,0 +1,21 @@
+user_type_unknown_field.sg (span: 2:1-11:1)
+├─ Item[0]: Type (span: 2:1-5:3)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+└─ Item[1]: Fn (span: 7:1-10:2)
+   ├─ Name: bad_access
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:24-10:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:35)
+         │  ├─ Name: p
+         │  ├─ Mutable: false
+         │  ├─ Type: Point
+         │  └─ Value: expr#5: <ExprKind(17)>
+         └─ Stmt[1]: Return (span: 9:5-9:16)
+            └─ Expr: expr#7: p.z

@@ -1,0 +1,10 @@
+extern_int_additional_method.sg (span: 2:1-11:1)
+├─ Item[0]: Extern (span: 2:1-6:2)
+└─ Item[1]: Fn (span: 8:1-10:2)
+   ├─ Name: check_number
+   ├─ Params: (n: int)
+   ├─ Return: bool
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:33-10:2)
+         └─ Stmt[0]: Return (span: 9:5-9:28)
+            └─ Expr: expr#6: n.is_positive()

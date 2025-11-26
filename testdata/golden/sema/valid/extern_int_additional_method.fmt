@@ -1,0 +1,10 @@
+// scenario: extern<int> adds a new non-stdlib method
+extern<int> {
+    fn is_positive(self: int) -> bool {
+        return self > 0;
+    }
+}
+
+fn check_number(n: int) -> bool {
+    return n.is_positive();
+}

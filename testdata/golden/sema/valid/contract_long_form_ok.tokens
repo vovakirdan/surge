@@ -1,0 +1,121 @@
+  1: KwContract      "contract" at 2:1-2:9 (leading: LineComment, Newline)
+  2: Ident           "PairOps" at 2:10-2:17 (leading: Space)
+  3: Lt              "<" at 2:17-2:18
+  4: Ident           "A" at 2:18-2:19
+  5: Comma           "," at 2:19-2:20
+  6: Ident           "B" at 2:21-2:22 (leading: Space)
+  7: Gt              ">" at 2:22-2:23
+  8: LBrace          "{" at 2:24-2:25 (leading: Space)
+  9: KwFn            "fn" at 3:5-3:7 (leading: Newline, Space)
+ 10: Ident           "swap" at 3:8-3:12 (leading: Space)
+ 11: LParen          "(" at 3:12-3:13
+ 12: Ident           "self" at 3:13-3:17
+ 13: Colon           ":" at 3:17-3:18
+ 14: Ident           "A" at 3:19-3:20 (leading: Space)
+ 15: Comma           "," at 3:20-3:21
+ 16: Ident           "other" at 3:22-3:27 (leading: Space)
+ 17: Colon           ":" at 3:27-3:28
+ 18: Ident           "B" at 3:29-3:30 (leading: Space)
+ 19: RParen          ")" at 3:30-3:31
+ 20: Arrow           "->" at 3:32-3:34 (leading: Space)
+ 21: Ident           "B" at 3:35-3:36 (leading: Space)
+ 22: Semicolon       ";" at 3:36-3:37
+ 23: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 24: KwType          "type" at 6:1-6:5 (leading: Newline)
+ 25: Ident           "NumberBox" at 6:6-6:15 (leading: Space)
+ 26: Assign          "=" at 6:16-6:17 (leading: Space)
+ 27: LBrace          "{" at 6:18-6:19 (leading: Space)
+ 28: Ident           "value" at 7:5-7:10 (leading: Newline, Space)
+ 29: Colon           ":" at 7:10-7:11
+ 30: Ident           "int" at 7:12-7:15 (leading: Space)
+ 31: Comma           "," at 7:15-7:16
+ 32: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 33: Semicolon       ";" at 8:2-8:3
+ 34: KwExtern        "extern" at 10:1-10:7 (leading: Newline)
+ 35: Lt              "<" at 10:7-10:8
+ 36: Ident           "NumberBox" at 10:8-10:17
+ 37: Gt              ">" at 10:17-10:18
+ 38: LBrace          "{" at 10:19-10:20 (leading: Space)
+ 39: KwFn            "fn" at 11:5-11:7 (leading: Newline, Space)
+ 40: Ident           "swap" at 11:8-11:12 (leading: Space)
+ 41: LParen          "(" at 11:12-11:13
+ 42: Ident           "self" at 11:13-11:17
+ 43: Colon           ":" at 11:17-11:18
+ 44: Ident           "NumberBox" at 11:19-11:28 (leading: Space)
+ 45: Comma           "," at 11:28-11:29
+ 46: Ident           "other" at 11:30-11:35 (leading: Space)
+ 47: Colon           ":" at 11:35-11:36
+ 48: Ident           "string" at 11:37-11:43 (leading: Space)
+ 49: RParen          ")" at 11:43-11:44
+ 50: Arrow           "->" at 11:45-11:47 (leading: Space)
+ 51: Ident           "string" at 11:48-11:54 (leading: Space)
+ 52: LBrace          "{" at 11:55-11:56 (leading: Space)
+ 53: KwReturn        "return" at 12:9-12:15 (leading: Newline, Space)
+ 54: Ident           "other" at 12:16-12:21 (leading: Space)
+ 55: Semicolon       ";" at 12:21-12:22
+ 56: RBrace          "}" at 13:5-13:6 (leading: Newline, Space)
+ 57: RBrace          "}" at 14:1-14:2 (leading: Newline)
+ 58: KwFn            "fn" at 16:1-16:3 (leading: Newline)
+ 59: Ident           "apply_swap" at 16:4-16:14 (leading: Space)
+ 60: Lt              "<" at 16:14-16:15
+ 61: Ident           "T" at 16:15-16:16
+ 62: Colon           ":" at 16:16-16:17
+ 63: Ident           "PairOps" at 16:18-16:25 (leading: Space)
+ 64: Lt              "<" at 16:25-16:26
+ 65: Ident           "T" at 16:26-16:27
+ 66: Comma           "," at 16:27-16:28
+ 67: Ident           "string" at 16:29-16:35 (leading: Space)
+ 68: Shr             ">>" at 16:35-16:37
+ 69: LParen          "(" at 16:37-16:38
+ 70: Ident           "item" at 16:38-16:42
+ 71: Colon           ":" at 16:42-16:43
+ 72: Ident           "T" at 16:44-16:45 (leading: Space)
+ 73: Comma           "," at 16:45-16:46
+ 74: Ident           "text" at 16:47-16:51 (leading: Space)
+ 75: Colon           ":" at 16:51-16:52
+ 76: Ident           "string" at 16:53-16:59 (leading: Space)
+ 77: RParen          ")" at 16:59-16:60
+ 78: Arrow           "->" at 16:61-16:63 (leading: Space)
+ 79: Ident           "string" at 16:64-16:70 (leading: Space)
+ 80: LBrace          "{" at 16:71-16:72 (leading: Space)
+ 81: KwReturn        "return" at 17:5-17:11 (leading: Newline, Space)
+ 82: Ident           "item" at 17:12-17:16 (leading: Space)
+ 83: Dot             "." at 17:16-17:17
+ 84: Ident           "swap" at 17:17-17:21
+ 85: LParen          "(" at 17:21-17:22
+ 86: Ident           "text" at 17:22-17:26
+ 87: RParen          ")" at 17:26-17:27
+ 88: Semicolon       ";" at 17:27-17:28
+ 89: RBrace          "}" at 18:1-18:2 (leading: Newline)
+ 90: KwFn            "fn" at 20:1-20:3 (leading: Newline)
+ 91: Ident           "demo" at 20:4-20:8 (leading: Space)
+ 92: LParen          "(" at 20:8-20:9
+ 93: RParen          ")" at 20:9-20:10
+ 94: Arrow           "->" at 20:11-20:13 (leading: Space)
+ 95: Ident           "string" at 20:14-20:20 (leading: Space)
+ 96: LBrace          "{" at 20:21-20:22 (leading: Space)
+ 97: KwLet           "let" at 21:5-21:8 (leading: Newline, Space)
+ 98: Ident           "box" at 21:9-21:12 (leading: Space)
+ 99: Colon           ":" at 21:12-21:13
+100: Ident           "NumberBox" at 21:14-21:23 (leading: Space)
+101: Assign          "=" at 21:24-21:25 (leading: Space)
+102: LBrace          "{" at 21:26-21:27 (leading: Space)
+103: Ident           "value" at 21:28-21:33 (leading: Space)
+104: Colon           ":" at 21:33-21:34
+105: IntLit          "1" at 21:35-21:36 (leading: Space)
+106: RBrace          "}" at 21:37-21:38 (leading: Space)
+107: Semicolon       ";" at 21:38-21:39
+108: KwReturn        "return" at 22:5-22:11 (leading: Newline, Space)
+109: Ident           "apply_swap" at 22:12-22:22 (leading: Space)
+110: ColonColon      "::" at 22:22-22:24
+111: Lt              "<" at 22:24-22:25
+112: Ident           "NumberBox" at 22:25-22:34
+113: Gt              ">" at 22:34-22:35
+114: LParen          "(" at 22:35-22:36
+115: Ident           "box" at 22:36-22:39
+116: Comma           "," at 22:39-22:40
+117: StringLit       "\"ok\"" at 22:41-22:45 (leading: Space)
+118: RParen          ")" at 22:45-22:46
+119: Semicolon       ";" at 22:46-22:47
+120: RBrace          "}" at 23:1-23:2 (leading: Newline)
+121: EOF             at 24:1-24:1
