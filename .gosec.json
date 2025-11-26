@@ -1,0 +1,10 @@
+{
+    "severity": "medium",
+    "confidence": "medium",
+    "exclude-dir": [
+      "testdata"
+    ],
+    "exclude": [
+    ]
+  }
+  

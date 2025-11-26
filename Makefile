@@ -1,4 +1,4 @@
-.PHONY: build run test format fmt lint pprof-cpu pprof-mem trace install install-system uninstall completion completion-install completion-install-system
+.PHONY: build run test vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall completion completion-install completion-install-system
 
 # ===== Variables =====
 GO ?= go
@@ -19,6 +19,9 @@ LDFLAGS := -X surge/internal/version.GitCommit=$(GIT_COMMIT) \
 GOLANGCI_LINT := $(GOBIN)/golangci-lint
 GOLANGCI_LINT_VERSION := v1.62.2
 
+STATICCHECK := $(GOBIN)/staticcheck
+GOSEC := $(GOBIN)/gosec
+
 # ===== Build =====
 build:
 	@echo ">> Building surge"
@@ -29,6 +32,15 @@ build:
 run:
 	@echo ">> Running surge $(filter-out $@,$(MAKECMDGOALS))"
 	$(GO) run ./cmd/surge/ $(filter-out $@,$(MAKECMDGOALS))
+
+# ===== Vet =====
+vet:
+	@echo ">> Running vet"
+	$(GO) vet ./...
+
+sec:
+	@echo ">> Running gosec"
+	$(GOSEC) ./...
 
 # ===== Test =====
 test:
@@ -56,6 +68,15 @@ $(GOLANGCI_LINT):
 lint: $(GOLANGCI_LINT)
 	@echo ">> Running linters"
 	$(GOLANGCI_LINT) run --config .golangci.yaml
+
+# ===== Staticcheck =====
+$(STATICCHECK):
+	@echo ">> Installing staticcheck"
+	$(GO) install honnef.co/go/tools/cmd/staticcheck@latest
+
+staticcheck: $(STATICCHECK)
+	@echo ">> Running staticcheck"
+	$(STATICCHECK) ./...
 
 # ===== Profiling helpers =====
 pprof-cpu:
