@@ -4,7 +4,24 @@ type Point = {
     y: int,
 };
 
-fn add_coords() -> int {
+extern<Point> {
+    fn __add(self: Point, other: Point) -> Point {
+        return { x: self.x + other.x, y: self.y + other.y };
+    }
+}
+
+fn add_coords() -> Point {
+    // we can use both syntaxes to create a record
     let p: Point = { x: 1, y: 2 };
-    return p.x + p.y;
+    let q = Point { x: 3, y: 4 };
+    return p + q;
+}
+
+fn anonymous_record() {
+    let p = { x: 1, y: 2 };
+    let p_x: int = p.x;
+    let p_y: int = p.y;
+    let _ = p_x + p_y;
+    // but returning an anonymous record is illegal; see invalid/returning_anonymous_record.sg
+    // return { x: 1, y: 2 }; // error: anonymous record type is not allowed as return type
 }

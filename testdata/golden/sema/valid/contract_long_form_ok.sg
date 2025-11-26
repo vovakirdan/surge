@@ -19,5 +19,5 @@ fn apply_swap<T: PairOps<T, string>>(item: T, text: string) -> string {
 
 fn demo() -> string {
     let box: NumberBox = { value: 1 };
-    return apply_swap<NumberBox>(box, "ok");
+    return apply_swap::<NumberBox>(box, "ok");
 }

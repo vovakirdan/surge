@@ -19,6 +19,7 @@ var intrinsicAllowedNamesList = []string{
 	"rt_memcpy",
 	"rt_memmove",
 	"next",
+	"await",
 	"__abs",
 	"__add",
 	"__sub",
@@ -47,7 +48,8 @@ var intrinsicAllowedNamesList = []string{
 	"__heir",
 	"exit",
 	"default",
-	"await",
+	"MIN",
+	"MAX",
 }
 
 var (

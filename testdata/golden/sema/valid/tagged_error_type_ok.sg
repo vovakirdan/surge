@@ -2,9 +2,9 @@
 tag IoError(string);
 tag ParseError(string);
 
-type Error = IoError | ParseError;
+type ErrorTagged = IoError | ParseError;
 
-fn make_error(io_failed: bool) -> Error {
+fn make_error(io_failed: bool) -> ErrorTagged {
     if (io_failed) {
         return IoError("io failure");
     }
