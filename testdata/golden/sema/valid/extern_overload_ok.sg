@@ -1,0 +1,10 @@
+// scenario: extern<int> adds an overload with a different signature
+extern<int> {
+    @overload fn __to(self: int, target: bool) -> bool {
+        return self != 0;
+    }
+}
+
+fn int_to_bool(n: int) -> bool {
+    return n to bool;
+}

@@ -956,6 +956,47 @@ func TestPostfixOperators(t *testing.T) {
 	}
 }
 
+func TestTurbofishCallParsing(t *testing.T) {
+	letItem, arenas := parseExprTestInput(t, "let x = foo::<int>(a);")
+	if letItem.Value == ast.NoExprID {
+		t.Fatal("expected expression value")
+	}
+	call, ok := arenas.Exprs.Call(letItem.Value)
+	if !ok {
+		t.Fatalf("expected call expression, got %v", arenas.Exprs.Get(letItem.Value).Kind)
+	}
+	if len(call.TypeArgs) != 1 {
+		t.Fatalf("expected 1 type arg, got %d", len(call.TypeArgs))
+	}
+	argPath, ok := arenas.Types.Path(call.TypeArgs[0])
+	if !ok || len(argPath.Segments) != 1 {
+		t.Fatalf("expected single-segment type path, got %+v", argPath)
+	}
+	typeName := arenas.StringsInterner.MustLookup(argPath.Segments[0].Name)
+	if typeName != "int" {
+		t.Fatalf("expected type arg int, got %s", typeName)
+	}
+
+	letItem2, arenas2 := parseExprTestInput(t, "let x = ids.foo::<string>();")
+	if letItem2.Value == ast.NoExprID {
+		t.Fatal("expected expression value for member call")
+	}
+	memberCall, ok := arenas2.Exprs.Call(letItem2.Value)
+	if !ok {
+		t.Fatalf("expected call expression, got %v", arenas2.Exprs.Get(letItem2.Value).Kind)
+	}
+	if len(memberCall.TypeArgs) != 1 {
+		t.Fatalf("expected 1 type arg on member call, got %d", len(memberCall.TypeArgs))
+	}
+	path, ok := arenas2.Types.Path(memberCall.TypeArgs[0])
+	if !ok || len(path.Segments) != 1 {
+		t.Fatalf("expected single type segment, got %+v", path)
+	}
+	if arenas2.StringsInterner.MustLookup(path.Segments[0].Name) != "string" {
+		t.Fatalf("expected string type arg, got %s", arenas2.StringsInterner.MustLookup(path.Segments[0].Name))
+	}
+}
+
 func TestExpressionEdgeCases(t *testing.T) {
 	tests := []struct {
 		name  string

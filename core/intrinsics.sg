@@ -199,6 +199,12 @@ extern<ArrayFixed<T, N>> {
 @intrinsic
 pub fn default<T>() -> T;
 
+@intrinsic
+pub fn MAX<T>() -> T;
+
+@intrinsic
+pub fn MIN<T>() -> T;
+
 contract ErrorLike{
     field message: string;
     field code: uint;

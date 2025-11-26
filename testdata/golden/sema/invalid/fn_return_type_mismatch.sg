@@ -1,0 +1,4 @@
+// scenario: returned expression type does not match the function signature
+fn wrong_return() -> int {
+    return "nope";
+}

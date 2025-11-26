@@ -1,0 +1,10 @@
+// scenario: comparison operators over int and float
+fn compare_values(i: int, j: int, f: float) -> bool {
+    let lt: bool = i < j;
+    let le: bool = i <= j;
+    let gt: bool = f > 1.0;
+    let ge: bool = f >= 0.5;
+    let eq: bool = i == j;
+    let ne: bool = f != 0.0;
+    return lt || le || gt || ge || eq || ne;
+}

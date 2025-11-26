@@ -1,0 +1,6 @@
+pragma directive
+// scenario: pragma directive at file start with minimal body
+
+fn directive_stub() -> nothing {
+    return nothing;
+}

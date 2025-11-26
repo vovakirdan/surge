@@ -1,0 +1,12 @@
+// scenario: tagged union defined with explicit tag constructors
+tag IoError(string);
+tag ParseError(string);
+
+type Error = IoError | ParseError;
+
+fn make_error(io_failed: bool) -> Error {
+    if (io_failed) {
+        return IoError("io failure");
+    }
+    return ParseError("parse failure");
+}

@@ -1,0 +1,10 @@
+// scenario: record type creation and field access
+type Point = {
+    x: int,
+    y: int,
+};
+
+fn add_coords() -> int {
+    let p: Point = { x: 1, y: 2 };
+    return p.x + p.y;
+}

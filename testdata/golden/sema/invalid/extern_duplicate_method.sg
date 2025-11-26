@@ -1,0 +1,5 @@
+// scenario: duplicate method signatures inside one extern<int> block
+extern<int> {
+    fn touch(self: int) -> int { return self; }
+    fn touch(self: int) -> int { return self; }
+}

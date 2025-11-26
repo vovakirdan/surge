@@ -1,10 +1,12 @@
 package sema
 
 import (
+	"fmt"
 	"strings"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/fix"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -36,17 +38,8 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 		return types.NoTypeID
 	}
 	name := tc.lookupName(ident.Name)
-	if name == "default" && len(call.TypeArgs) == 1 {
-		scope := tc.scopeOrFile(tc.currentScope())
-		targetType := tc.resolveTypeExprWithScope(call.TypeArgs[0], scope)
-		if targetType == types.NoTypeID {
-			return types.NoTypeID
-		}
-		if !tc.defaultable(targetType) {
-			tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Target), "default is not defined for %s", tc.typeLabel(targetType))
-			return types.NoTypeID
-		}
-		return targetType
+	if name == "default" || name == "MAX" || name == "MIN" {
+		return tc.handleDefaultLikeCall(name, call, span)
 	}
 	candidates := tc.functionCandidates(ident.Name)
 	if len(candidates) == 0 {
@@ -96,6 +89,18 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 		return bestType
 	}
 
+	if len(call.TypeArgs) == 0 {
+		if missing := tc.missingTypeParams(candidates, args); len(missing) > 0 {
+			tc.reportCannotInferTypeParams(displayName, missing, span, call)
+			return types.NoTypeID
+		}
+	} else {
+		if expected := tc.expectedTypeArgCount(candidates); expected > 0 && expected != len(typeArgs) {
+			tc.report(diag.SemaNoOverload, span, "%s expects %d type argument(s)", displayName, expected)
+			return types.NoTypeID
+		}
+	}
+
 	tc.report(diag.SemaNoOverload, span, "no matching overload for %s", displayName)
 	return types.NoTypeID
 }
@@ -135,6 +140,104 @@ func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.Symbol
 		scope = scopeData.Parent
 	}
 	return nil
+}
+
+func (tc *typeChecker) handleDefaultLikeCall(name string, call *ast.ExprCallData, span source.Span) types.TypeID {
+	if call == nil {
+		return types.NoTypeID
+	}
+	if len(call.TypeArgs) == 0 {
+		tc.reportCannotInferTypeParams(name, []string{"T"}, span, call)
+		return types.NoTypeID
+	}
+	if len(call.TypeArgs) != 1 {
+		tc.report(diag.SemaNoOverload, span, "%s expects 1 type argument", name)
+		return types.NoTypeID
+	}
+	if len(call.Args) != 0 {
+		tc.report(diag.SemaNoOverload, span, "%s does not take arguments", name)
+		return types.NoTypeID
+	}
+	scope := tc.scopeOrFile(tc.currentScope())
+	targetType := tc.resolveTypeExprWithScope(call.TypeArgs[0], scope)
+	if targetType == types.NoTypeID {
+		return types.NoTypeID
+	}
+	if name == "default" && !tc.defaultable(targetType) {
+		tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Target), "default is not defined for %s", tc.typeLabel(targetType))
+		return types.NoTypeID
+	}
+	return targetType
+}
+
+func (tc *typeChecker) expectedTypeArgCount(candidates []symbols.SymbolID) int {
+	for _, id := range candidates {
+		if sym := tc.symbolFromID(id); sym != nil && len(sym.TypeParams) > 0 {
+			return len(sym.TypeParams)
+		}
+	}
+	return 0
+}
+
+func (tc *typeChecker) missingTypeParams(candidates []symbols.SymbolID, args []callArg) []string {
+	for _, id := range candidates {
+		if sym := tc.symbolFromID(id); sym != nil {
+			if missing, ok := tc.inferMissingTypeParams(sym, args); ok {
+				return missing
+			}
+		}
+	}
+	return nil
+}
+
+func (tc *typeChecker) inferMissingTypeParams(sym *symbols.Symbol, args []callArg) ([]string, bool) {
+	if sym == nil || sym.Signature == nil || len(sym.TypeParams) == 0 {
+		return nil, false
+	}
+	sig := sym.Signature
+	variadicIndex := -1
+	for i, v := range sig.Variadic {
+		if v {
+			variadicIndex = i
+			break
+		}
+	}
+	paramCount := len(sig.Params)
+	if variadicIndex >= 0 {
+		if len(args) < paramCount-1 {
+			return nil, false
+		}
+	} else if len(args) != paramCount {
+		return nil, false
+	}
+
+	paramNames, paramSet := tc.typeParamNameSet(sym)
+	bindings := make(map[string]types.TypeID)
+	for i, arg := range args {
+		paramIndex := i
+		if variadicIndex >= 0 && i >= variadicIndex {
+			paramIndex = variadicIndex
+		}
+		expectedKey := sig.Params[paramIndex]
+		expectedType := tc.instantiateTypeKeyWithInference(expectedKey, arg.ty, bindings, paramSet)
+		if expectedType == types.NoTypeID {
+			return nil, false
+		}
+		if _, ok := tc.matchArgument(expectedType, arg.ty, arg.isLiteral); !ok {
+			return nil, false
+		}
+	}
+
+	var missing []string
+	for _, name := range paramNames {
+		if bindings[name] == types.NoTypeID {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) == 0 {
+		return nil, false
+	}
+	return missing, true
 }
 
 func (tc *typeChecker) candidateKey(sym *symbols.Symbol) string {
@@ -494,6 +597,30 @@ func (tc *typeChecker) instantiateResultType(key symbols.TypeKey, bindings map[s
 	default:
 		return tc.typeFromKey(symbols.TypeKey(s))
 	}
+}
+
+func (tc *typeChecker) reportCannotInferTypeParams(name string, missing []string, span source.Span, call *ast.ExprCallData) {
+	if tc.reporter == nil || len(missing) == 0 {
+		return
+	}
+	displayName := name
+	if displayName == "" {
+		displayName = "_"
+	}
+	missingLabel := strings.Join(missing, ", ")
+	msg := fmt.Sprintf("cannot infer type parameter %s for %s; use %s::<%s>(...)", missingLabel, displayName, displayName, missingLabel)
+	b := diag.ReportError(tc.reporter, diag.SemaNoOverload, span, msg)
+	if b == nil {
+		return
+	}
+	if call != nil {
+		if targetSpan := tc.exprSpan(call.Target); targetSpan != (source.Span{}) {
+			insert := targetSpan.ZeroideToEnd()
+			title := fmt.Sprintf("insert %s::<%s>", displayName, missingLabel)
+			b.WithFixSuggestion(fix.InsertText(title, insert, "::<"+missingLabel+">", "", fix.Preferred()))
+		}
+	}
+	b.Emit()
 }
 
 func (tc *typeChecker) peelReference(id types.TypeID) types.TypeID {

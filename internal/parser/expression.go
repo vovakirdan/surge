@@ -182,33 +182,34 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 		return ast.NoExprID, false
 	}
 
+	var pendingTypeArgs []ast.TypeID
+
 	// Обрабатываем постфиксы в цикле
 	for {
 		switch p.lx.Peek().Kind {
-		case token.Lt:
-			if ident, ok := p.arenas.Exprs.Ident(expr); !ok || ident == nil || p.arenas.StringsInterner.MustLookup(ident.Name) != "default" {
-				return expr, true
+		case token.ColonColon:
+			doubleColon := p.advance()
+			if !p.at(token.Lt) {
+				p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, doubleColon.Span, "expected '<' after '::' for type arguments", nil)
+				return ast.NoExprID, false
 			}
 			typeArgs, ok := p.parseTypeArgs()
 			if !ok {
 				return ast.NoExprID, false
 			}
+			pendingTypeArgs = typeArgs
 			if !p.at(token.LParen) {
-				p.err(diag.SynUnexpectedToken, "expected '(' after type arguments")
+				p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, p.currentErrorSpan(), "expected '(' after type arguments", nil)
 				return ast.NoExprID, false
 			}
-			newExpr, ok := p.parseCallExpr(expr, typeArgs)
-			if !ok {
-				return ast.NoExprID, false
-			}
-			expr = newExpr
 		case token.LParen:
 			// Вызов функции: expr(args...)
-			newExpr, ok := p.parseCallExpr(expr, nil)
+			newExpr, ok := p.parseCallExpr(expr, pendingTypeArgs)
 			if !ok {
 				return ast.NoExprID, false
 			}
 			expr = newExpr
+			pendingTypeArgs = nil
 
 		case token.LBracket:
 			// Индексация: expr[index]
@@ -253,6 +254,10 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 
 		default:
 			// Больше постфиксов нет
+			if len(pendingTypeArgs) > 0 {
+				p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, p.currentErrorSpan(), "expected '(' after type arguments", nil)
+				return ast.NoExprID, false
+			}
 			return expr, true
 		}
 	}

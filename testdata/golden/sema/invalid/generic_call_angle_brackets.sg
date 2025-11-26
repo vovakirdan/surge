@@ -1,0 +1,8 @@
+// scenario: unsupported generic call syntax id<int>(1)
+fn id<T>(value: T) -> T {
+    return value;
+}
+
+fn usage() {
+    let a: int = id<int>(1);
+}
