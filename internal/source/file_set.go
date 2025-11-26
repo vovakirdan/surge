@@ -48,8 +48,8 @@ func (fileSet *FileSet) BaseDir() string {
 	return fileSet.baseDir
 }
 
-// Добавляет файл из готовых байт (уже нормализованных), считает LineIdx и Hash, возвращает новый FileID.
-// Всегда создает новый FileID, даже если файл с таким путем уже существует.
+// Add stores a file from normalized bytes, computes LineIdx and Hash, and returns a new FileID.
+// It always creates a new FileID even if a file with the same path already exists.
 func (fileSet *FileSet) Add(path string, content []byte, flags FileFlags) FileID {
 	hash := sha256.Sum256(content)
 	lineIdx := buildLineIndex(content)
@@ -73,7 +73,7 @@ func (fileSet *FileSet) Add(path string, content []byte, flags FileFlags) FileID
 	return id
 }
 
-// Читает файл с диска (делает нормализацию CRLF→LF, удаляет BOM), вызывает Add.
+// Load reads a file from disk, normalizes CRLF/BOM, and calls Add.
 func (fileSet *FileSet) Load(path string) (FileID, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -93,7 +93,7 @@ func (fileSet *FileSet) Load(path string) (FileID, error) {
 	return fileSet.Add(path, content, flags), nil
 }
 
-// Добавляет "виртуальный" файл (stdin, тест, автогенерированный), флаг FileVirtual.
+// AddVirtual adds a virtual file (stdin, test, or generated) with the FileVirtual flag.
 func (fileSet *FileSet) AddVirtual(name string, content []byte) FileID {
 	return fileSet.Add(name, content, FileVirtual)
 }
@@ -103,7 +103,7 @@ func (fileSet *FileSet) Get(id FileID) *File {
 	return &fileSet.files[id]
 }
 
-// Возвращает последнюю версию файла по пути, если он существует
+// GetLatest returns the latest file ID for the given path, if it exists.
 func (fileSet *FileSet) GetLatest(path string) (FileID, bool) {
 	id, ok := fileSet.index[normalizePath(path)]
 	return id, ok

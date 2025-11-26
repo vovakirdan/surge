@@ -60,7 +60,7 @@ func (b *Bag) HasWarnings() bool {
 	return false
 }
 
-// длина
+// Len returns the number of diagnostics in the bag.
 func (b *Bag) Len() int {
 	return len(b.items)
 }
@@ -111,7 +111,7 @@ func (b *Bag) Sort() {
 	})
 }
 
-// простая дедупликация (по Code+Primary)
+// Dedup performs a simple de-duplication by Code and Primary span.
 func (b *Bag) Dedup() {
 	seen := make(map[string]bool)
 	newitems := make([]*Diagnostic, 0, len(b.items))

@@ -1,13 +1,13 @@
 package ast
 
 type (
-	// главные сущености
+	// FileID identifies a source file.
 	FileID uint32
 	ItemID uint32
 	StmtID uint32
 	ExprID uint32
 	TypeID uint32
-	// подсущности
+	// PayloadID indexes auxiliary expression payload data.
 	PayloadID         uint32
 	FnParamID         uint32
 	TypeParamID       uint32

@@ -10,5 +10,4 @@
 //
 // Зависимости: internal/source, internal/lexer, internal/parser, internal/diag,
 // internal/ast.
-
 package fuzztests

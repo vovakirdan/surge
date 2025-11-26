@@ -18,7 +18,7 @@ func NewArena[T any](capHint uint) *Arena[T] {
 	}
 }
 
-// Возвращает индекс нового элемента (1-based).
+// Allocate appends a value to the arena and returns its 1-based index.
 func (a *Arena[T]) Allocate(value T) uint32 {
 	elem := new(T)
 	*elem = value
@@ -33,7 +33,7 @@ func (a *Arena[T]) Get(index uint32) *T {
 	return a.data[index-1]
 }
 
-// READONLY
+// Slice returns a copy of the arena contents. `READONLY!`
 func (a *Arena[T]) Slice() []T {
 	result := make([]T, len(a.data))
 	for i, ptr := range a.data {

@@ -102,7 +102,7 @@ func (c *DiskCache) Get(key project.Digest, out *DiskPayload) (bool, error) {
 	return true, nil
 }
 
-// Для удобной инвалидации глобально (например, после смены формата).
+// DropAll invalidates the cache, useful after format changes.
 func (c *DiskCache) DropAll() error {
 	if c == nil {
 		return nil
@@ -115,7 +115,7 @@ func (c *DiskCache) DropAll() error {
 	return os.RemoveAll(old)
 }
 
-// Sanity: поможет убедиться, что Digest действительно 32 байта SHA-256.
+// IsSHA256 performs a basic sanity check that the digest is a non-zero SHA-256 value.
 func IsSHA256(d project.Digest) bool {
 	var z project.Digest
 	if d == z {

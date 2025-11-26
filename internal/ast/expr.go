@@ -34,7 +34,7 @@ type Expr struct {
 	Payload PayloadID
 }
 
-// Типы бинарных операторов
+// ExprBinaryOp enumerates binary operator kinds.
 type ExprBinaryOp uint8
 
 const (
@@ -85,7 +85,7 @@ const (
 	ExprBinaryHeir           // heir
 )
 
-// Типы унарных операторов
+// ExprUnaryOp enumerates unary operator kinds.
 type ExprUnaryOp uint8
 
 const (
@@ -99,7 +99,7 @@ const (
 	ExprUnaryAwait
 )
 
-// Типы литералов
+// ExprLitKind enumerates literal kinds.
 type ExprLitKind uint8
 
 const (
@@ -112,7 +112,7 @@ const (
 	ExprLitNothing
 )
 
-// Детали выражений
+// ExprIdentData holds identifier expression details.
 type ExprIdentData struct {
 	Name source.StringID
 }

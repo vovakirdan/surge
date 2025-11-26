@@ -35,7 +35,7 @@ func (s Span) Cover(other Span) Span {
 	return s
 }
 
-// ExtendUntil расширяет span до начала другого span не включительно
+// ExtendRight расширяет span до начала другого span не включительно.
 func (s Span) ExtendRight(other Span) Span {
 	if s.File != other.File {
 		return s

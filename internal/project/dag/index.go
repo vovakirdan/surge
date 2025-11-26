@@ -16,7 +16,7 @@ type ModuleIndex struct {
 	IDToName []string
 }
 
-// собрать уникальные пути, sort.Strings, раздать ID по порядку
+// BuildIndex collects unique module paths, sorts them, and assigns IDs sequentially.
 func BuildIndex(metas []*project.ModuleMeta) ModuleIndex {
 	uniq := make(map[string]struct{}, len(metas))
 	for _, meta := range metas {
