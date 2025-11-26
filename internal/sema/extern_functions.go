@@ -7,10 +7,12 @@ import (
 	"surge/internal/types"
 )
 
-func (tc *typeChecker) checkExternFns(_ ast.ItemID, block *ast.ExternBlock) {
+func (tc *typeChecker) checkExternFns(itemID ast.ItemID, block *ast.ExternBlock) {
 	if block == nil || !block.MembersStart.IsValid() || block.MembersCount == 0 {
 		return
 	}
+	scope := tc.scopeForItem(itemID)
+	receiverSpecs := tc.externTypeParamSpecs(block.Target, scope)
 	start := uint32(block.MembersStart)
 	for offset := range block.MembersCount {
 		memberID := ast.ExternMemberID(start + offset)
@@ -22,17 +24,18 @@ func (tc *typeChecker) checkExternFns(_ ast.ItemID, block *ast.ExternBlock) {
 		if fn == nil {
 			continue
 		}
-		tc.typecheckExternFn(memberID, fn)
+		tc.typecheckExternFn(memberID, fn, receiverSpecs)
 	}
 }
 
-func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.FnItem) {
+func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.FnItem, receiverSpecs []genericParamSpec) {
 	if fn == nil {
 		return
 	}
 	scope := tc.scopeOrFile(tc.scopeForExtern(memberID))
 	symID := tc.symbolForExtern(memberID)
 
+	receiverParamsPushed := tc.pushTypeParams(symbols.NoSymbolID, receiverSpecs, nil)
 	paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetFnTypeParamIDs(fn), scope)
 	if len(paramSpecs) == 0 && len(fn.Generics) > 0 {
 		paramSpecs = specsFromNames(fn.Generics)
@@ -62,6 +65,9 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 		tc.popReturnContext()
 	}
 	if typeParamsPushed {
+		tc.popTypeParams()
+	}
+	if receiverParamsPushed {
 		tc.popTypeParams()
 	}
 }

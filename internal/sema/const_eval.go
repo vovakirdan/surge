@@ -281,22 +281,30 @@ func (tc *typeChecker) constUintValue(expr ast.ExprID, visited map[symbols.Symbo
 			}
 		}
 	case ast.ExprIdent:
-		symID := tc.symbolForExpr(expr)
-		sym := tc.symbolFromID(symID)
-		if sym == nil || sym.Kind != symbols.SymbolConst {
-			return 0, false
+		if symID := tc.symbolForExpr(expr); symID.IsValid() {
+			sym := tc.symbolFromID(symID)
+			if sym == nil || sym.Kind != symbols.SymbolConst {
+				return 0, false
+			}
+			if visited[symID] {
+				return 0, false
+			}
+			visited[symID] = true
+			defer delete(visited, symID)
+			tc.ensureConstEvaluated(symID)
+			_, valueExpr, _, _ := tc.constBinding(symID)
+			if !valueExpr.IsValid() {
+				return 0, false
+			}
+			return tc.constUintValue(valueExpr, visited)
 		}
-		if visited[symID] {
-			return 0, false
+		if ident, ok := tc.builder.Exprs.Ident(expr); ok && ident != nil {
+			if param := tc.lookupTypeParam(ident.Name); param != types.NoTypeID {
+				if val, okVal := tc.constValueFromType(param); okVal {
+					return val, true
+				}
+			}
 		}
-		visited[symID] = true
-		defer delete(visited, symID)
-		tc.ensureConstEvaluated(symID)
-		_, valueExpr, _, _ := tc.constBinding(symID)
-		if !valueExpr.IsValid() {
-			return 0, false
-		}
-		return tc.constUintValue(valueExpr, visited)
 	}
 	return 0, false
 }

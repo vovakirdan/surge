@@ -51,23 +51,12 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 			elem := tc.resolveTypeExprWithScope(arr.Elem, scope)
 			if elem != types.NoTypeID {
 				if arr.Kind == ast.ArraySized {
-					var count uint32
-					if !arr.HasConstLen {
-						if lenVal, ok := tc.constUintValue(arr.Length, nil); ok {
-							arr.HasConstLen = true
-							arr.ConstLength = lenVal
-						}
-					}
-					if !arr.HasConstLen {
+					lengthArg := tc.resolveArrayLengthArg(arr, expr.Span)
+					if lengthArg == types.NoTypeID {
 						tc.report(diag.SemaTypeMismatch, expr.Span, "array length must be a constant")
 						break
 					}
-					if arr.ConstLength > uint64(^uint32(0)) {
-						tc.report(diag.SemaTypeMismatch, expr.Span, "array length %d exceeds limit", arr.ConstLength)
-						break
-					}
-					count = uint32(arr.ConstLength)
-					result = tc.instantiateArrayFixed(elem, count)
+					result = tc.instantiateArrayFixedWithArg(elem, lengthArg)
 				} else {
 					result = tc.instantiateArrayType(elem)
 				}
@@ -227,6 +216,43 @@ func (tc *typeChecker) constArgAcceptable(arg, expect types.TypeID) bool {
 	default:
 		return false
 	}
+}
+
+func (tc *typeChecker) resolveArrayLengthArg(arr *ast.TypeArray, span source.Span) types.TypeID {
+	if arr == nil || tc.builder == nil || tc.types == nil {
+		return types.NoTypeID
+	}
+	if arr.HasConstLen {
+		if arr.ConstLength > uint64(^uint32(0)) {
+			tc.report(diag.SemaTypeMismatch, span, "array length %d exceeds limit", arr.ConstLength)
+			return types.NoTypeID
+		}
+		return tc.types.Intern(types.MakeConstUint(uint32(arr.ConstLength)))
+	}
+	if lenVal, ok := tc.constUintValue(arr.Length, nil); ok {
+		if lenVal > uint64(^uint32(0)) {
+			tc.report(diag.SemaTypeMismatch, span, "array length %d exceeds limit", lenVal)
+			return types.NoTypeID
+		}
+		arr.HasConstLen = true
+		arr.ConstLength = lenVal
+		return tc.types.Intern(types.MakeConstUint(uint32(lenVal)))
+	}
+	if ident, ok := tc.builder.Exprs.Ident(arr.Length); ok && ident != nil {
+		if param := tc.lookupTypeParam(ident.Name); param != types.NoTypeID {
+			resolved := tc.resolveAlias(param)
+			if info, okInfo := tc.types.TypeParamInfo(resolved); okInfo && info != nil {
+				if info.IsConst {
+					return param
+				}
+				return types.NoTypeID
+			}
+			if tt, okType := tc.types.Lookup(resolved); okType && tt.Kind == types.KindConst {
+				return param
+			}
+		}
+	}
+	return types.NoTypeID
 }
 
 func (tc *typeChecker) resolveTypeArgs(typeIDs []ast.TypeID, scope symbols.ScopeID) ([]types.TypeID, []source.Span) {
