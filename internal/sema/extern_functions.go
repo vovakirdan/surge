@@ -85,8 +85,21 @@ func (tc *typeChecker) registerExternParamTypes(scope symbols.ScopeID, fnItem *a
 		}
 		paramType := tc.resolveTypeExprWithScope(param.Type, scope)
 		symID := tc.symbolInScope(scope, param.Name, symbols.SymbolParam)
-		if paramType != types.NoTypeID {
+		if paramType == types.NoTypeID {
+			continue
+		}
+		if symID.IsValid() {
 			tc.setBindingType(symID, paramType)
+			continue
+		}
+		if tc.symbols != nil && tc.symbols.Table != nil && tc.symbols.Table.Scopes != nil {
+			if scopeData := tc.symbols.Table.Scopes.Get(scope); scopeData != nil {
+				for _, cand := range scopeData.NameIndex[param.Name] {
+					if sym := tc.symbolFromID(cand); sym != nil && sym.Kind == symbols.SymbolParam {
+						tc.setBindingType(cand, paramType)
+					}
+				}
+			}
 		}
 	}
 }

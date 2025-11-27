@@ -1,5 +1,15 @@
 extern_overload_ok.sg (span: 2:1-11:1)
 ├─ Item[0]: Extern (span: 2:1-6:2)
+│  ├─ Target: int
+│  ├─ Members:
+│  │  └─ Fn[0]: __to
+│  │     ├─ Params: (self: int, target: bool)
+│  │     ├─ Return: bool
+│  │     ├─ Attributes: @overload
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 3:56-5:6)
+│  │        └─ Stmt[0]: Return (span: 4:9-4:26)
+│  │           └─ Expr: expr#3: (self != 0)
 └─ Item[1]: Fn (span: 8:1-10:2)
    ├─ Name: int_to_bool
    ├─ Params: (n: int)

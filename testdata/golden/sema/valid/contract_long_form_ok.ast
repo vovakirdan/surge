@@ -7,6 +7,15 @@ contract_long_form_ok.sg (span: 2:1-24:1)
 │  └─ Struct:
 │     └─ Field[0]: value: int
 ├─ Item[2]: Extern (span: 10:1-14:2)
+│  ├─ Target: NumberBox
+│  ├─ Members:
+│  │  └─ Fn[0]: swap
+│  │     ├─ Params: (self: NumberBox, other: string)
+│  │     ├─ Return: string
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 11:55-13:6)
+│  │        └─ Stmt[0]: Return (span: 12:9-12:22)
+│  │           └─ Expr: expr#1: other
 ├─ Item[3]: Fn (span: 16:1-18:2)
 │  ├─ Name: apply_swap
 │  ├─ Generics: <T>

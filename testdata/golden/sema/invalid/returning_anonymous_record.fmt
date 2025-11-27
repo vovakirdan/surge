@@ -9,4 +9,3 @@ fn illegal_return_anonymous_record_v1() {
 fn illegal_return_anonymous_record_v2() -> { x: int, y: int } {
     return { x: 1, y: 2 };
 }
-

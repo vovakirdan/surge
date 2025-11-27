@@ -7,6 +7,18 @@ contract_short_form_ok.sg (span: 2:1-25:1)
 │  └─ Struct:
 │     └─ Field[0]: label: string
 ├─ Item[2]: Extern (span: 11:1-15:2)
+│  ├─ Target: Console
+│  ├─ Members:
+│  │  └─ Fn[0]: print
+│  │     ├─ Params: (self: Console)
+│  │     ├─ Return: nothing
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 12:29-14:6)
+│  │        └─ Stmt[0]: Let (span: 13:9-13:40)
+│  │           ├─ Name: label
+│  │           ├─ Mutable: false
+│  │           ├─ Type: string
+│  │           └─ Value: expr#2: self.label
 ├─ Item[3]: Fn (span: 17:1-19:2)
 │  ├─ Name: show
 │  ├─ Generics: <T>

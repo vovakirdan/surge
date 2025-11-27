@@ -25,6 +25,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 	case ast.ExprIdent:
 		if ident, ok := tc.builder.Exprs.Ident(id); ok && ident != nil {
 			symID := tc.symbolForExpr(id)
+			if symID == symbols.NoSymbolID {
+				symID = tc.lookupValueSymbol(ident.Name, tc.currentScope())
+			}
 			sym := tc.symbolFromID(symID)
 			switch {
 			case sym == nil:

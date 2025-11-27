@@ -444,6 +444,8 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, f.label, f.value)
 			}
 		}
+	case ast.ItemExtern:
+		return formatExternPretty(w, builder, itemID, fs, prefix)
 	case ast.ItemFn:
 		if fnItem, ok := builder.Items.Fn(itemID); ok {
 			type fnField struct {

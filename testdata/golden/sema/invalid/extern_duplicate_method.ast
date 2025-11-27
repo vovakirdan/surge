@@ -1,2 +1,18 @@
 extern_duplicate_method.sg (span: 2:1-6:1)
 └─ Item[0]: Extern (span: 2:1-5:2)
+   ├─ Target: int
+   ├─ Members:
+   │  ├─ Fn[0]: touch
+   │  │  ├─ Params: (self: int)
+   │  │  ├─ Return: int
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 3:32-3:48)
+   │  │     └─ Stmt[0]: Return (span: 3:34-3:46)
+   │  │        └─ Expr: expr#1: self
+   │  └─ Fn[1]: touch
+   │     ├─ Params: (self: int)
+   │     ├─ Return: int
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 4:32-4:48)
+   │        └─ Stmt[0]: Return (span: 4:34-4:46)
+   │           └─ Expr: expr#2: self

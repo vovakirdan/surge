@@ -1,3 +1,21 @@
 extern_duplicate_block.sg (span: 2:1-9:1)
 ├─ Item[0]: Extern (span: 2:1-4:2)
+│  ├─ Target: int
+│  ├─ Members:
+│  │  └─ Fn[0]: halve
+│  │     ├─ Params: (self: int)
+│  │     ├─ Return: int
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 3:32-3:52)
+│  │        └─ Stmt[0]: Return (span: 3:34-3:50)
+│  │           └─ Expr: expr#3: (self / 2)
 └─ Item[1]: Extern (span: 6:1-8:2)
+   ├─ Target: int
+   ├─ Members:
+   │  └─ Fn[0]: halve
+   │     ├─ Params: (self: int)
+   │     ├─ Return: int
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 7:32-7:52)
+   │        └─ Stmt[0]: Return (span: 7:34-7:50)
+   │           └─ Expr: expr#6: (self / 2)

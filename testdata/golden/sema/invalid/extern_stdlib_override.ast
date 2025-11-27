@@ -1,2 +1,19 @@
 extern_stdlib_override.sg (span: 2:1-6:1)
 └─ Item[0]: Extern (span: 2:1-5:2)
+   ├─ Target: int
+   ├─ Members:
+   │  ├─ Fn[0]: __add
+   │  │  ├─ Params: (self: int, other: int)
+   │  │  ├─ Return: int
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 3:44-3:57)
+   │  │     └─ Stmt[0]: Return (span: 3:46-3:55)
+   │  │        └─ Expr: expr#1: 0
+   │  └─ Fn[1]: __sub
+   │     ├─ Params: (self: int, other: int)
+   │     ├─ Return: int
+   │     ├─ Attributes: @override
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 4:54-4:67)
+   │        └─ Stmt[0]: Return (span: 4:56-4:65)
+   │           └─ Expr: expr#2: 0

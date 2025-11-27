@@ -1,5 +1,14 @@
 extern_int_additional_method.sg (span: 2:1-11:1)
 ├─ Item[0]: Extern (span: 2:1-6:2)
+│  ├─ Target: int
+│  ├─ Members:
+│  │  └─ Fn[0]: is_positive
+│  │     ├─ Params: (self: int)
+│  │     ├─ Return: bool
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 3:39-5:6)
+│  │        └─ Stmt[0]: Return (span: 4:9-4:25)
+│  │           └─ Expr: expr#3: (self > 0)
 └─ Item[1]: Fn (span: 8:1-10:2)
    ├─ Name: check_number
    ├─ Params: (n: int)

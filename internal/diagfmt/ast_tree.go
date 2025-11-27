@@ -3,6 +3,9 @@ package diagfmt
 import (
 	"fmt"
 	"strings"
+
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/source"
 )
@@ -131,6 +134,105 @@ func buildItemTreeNode(builder *ast.Builder, itemID ast.ItemID, fs *source.FileS
 				node.children = append(node.children, bodyNode)
 			} else {
 				node.children = append(node.children, &treeNode{label: "Body: <none>"})
+			}
+		}
+	case ast.ItemExtern:
+		if externItem, ok := builder.Items.Extern(itemID); ok {
+			targetNode := &treeNode{label: fmt.Sprintf("Target: %s", formatTypeExprInline(builder, externItem.Target))}
+			node.children = append(node.children, targetNode)
+
+			if externItem.AttrCount > 0 {
+				attrs := builder.Items.CollectAttrs(externItem.AttrStart, externItem.AttrCount)
+				if len(attrs) > 0 {
+					attrStrings := make([]string, 0, len(attrs))
+					for _, attr := range attrs {
+						attrStrings = append(attrStrings, formatAttrInline(builder, attr))
+					}
+					node.children = append(node.children, &treeNode{
+						label: fmt.Sprintf("Attributes: %s", strings.Join(attrStrings, ", ")),
+					})
+				}
+			}
+
+			if externItem.MembersCount > 0 && externItem.MembersStart.IsValid() {
+				membersNode := &treeNode{label: "Members"}
+				start := uint32(externItem.MembersStart)
+				memberCount := int(externItem.MembersCount)
+				for idx := range memberCount {
+					idxUint32, err := safecast.Conv[uint32](idx)
+					if err != nil {
+						panic(fmt.Errorf("extern members count overflow: %w", err))
+					}
+					member := builder.Items.ExternMember(ast.ExternMemberID(start + idxUint32))
+					if member == nil {
+						continue
+					}
+					switch member.Kind {
+					case ast.ExternMemberFn:
+						fnItem := builder.Items.FnByPayload(member.Fn)
+						if fnItem == nil {
+							membersNode.children = append(membersNode.children, &treeNode{
+								label: fmt.Sprintf("Fn[%d]: <nil>", idx),
+							})
+							continue
+						}
+						memberLabel := fmt.Sprintf("Fn[%d]: %s %s -> %s", idx, lookupStringOr(builder, fnItem.Name, "<anon>"), formatFnParamsInline(builder, fnItem), formatTypeExprInline(builder, fnItem.ReturnType))
+						fnNode := &treeNode{label: memberLabel}
+						if len(fnItem.Generics) > 0 {
+							genericNames := make([]string, 0, len(fnItem.Generics))
+							for _, gid := range fnItem.Generics {
+								genericNames = append(genericNames, lookupStringOr(builder, gid, "_"))
+							}
+							fnNode.children = append(fnNode.children, &treeNode{
+								label: fmt.Sprintf("Generics: <%s>", strings.Join(genericNames, ", ")),
+							})
+						}
+						if fnItem.AttrCount > 0 {
+							fnAttrs := builder.Items.CollectAttrs(fnItem.AttrStart, fnItem.AttrCount)
+							if len(fnAttrs) > 0 {
+								attrStrings := make([]string, 0, len(fnAttrs))
+								for _, attr := range fnAttrs {
+									attrStrings = append(attrStrings, formatAttrInline(builder, attr))
+								}
+								fnNode.children = append(fnNode.children, &treeNode{
+									label: fmt.Sprintf("Attributes: %s", strings.Join(attrStrings, ", ")),
+								})
+							}
+						}
+						if fnItem.Body.IsValid() {
+							bodyNode := &treeNode{label: "Body"}
+							bodyNode.children = append(bodyNode.children, buildStmtTreeNode(builder, fnItem.Body, fs, 0))
+							fnNode.children = append(fnNode.children, bodyNode)
+						} else {
+							fnNode.children = append(fnNode.children, &treeNode{label: "Body: <none>"})
+						}
+						membersNode.children = append(membersNode.children, fnNode)
+					case ast.ExternMemberField:
+						field := builder.Items.ExternField(member.Field)
+						if field == nil {
+							membersNode.children = append(membersNode.children, &treeNode{
+								label: fmt.Sprintf("Field[%d]: <nil>", idx),
+							})
+							continue
+						}
+						memberLabel := fmt.Sprintf("Field[%d]: %s: %s", idx, lookupStringOr(builder, field.Name, "<anon>"), formatTypeExprInline(builder, field.Type))
+						fieldNode := &treeNode{label: memberLabel}
+						if field.AttrCount > 0 {
+							attrs := builder.Items.CollectAttrs(field.AttrStart, field.AttrCount)
+							if len(attrs) > 0 {
+								attrStrings := make([]string, 0, len(attrs))
+								for _, attr := range attrs {
+									attrStrings = append(attrStrings, formatAttrInline(builder, attr))
+								}
+								fieldNode.children = append(fieldNode.children, &treeNode{
+									label: fmt.Sprintf("Attributes: %s", strings.Join(attrStrings, ", ")),
+								})
+							}
+						}
+						membersNode.children = append(membersNode.children, fieldNode)
+					}
+				}
+				node.children = append(node.children, membersNode)
 			}
 		}
 	}

@@ -42,4 +42,4 @@
  42: RBrace          "}" at 10:25-10:26 (leading: Space)
  43: Semicolon       ";" at 10:26-10:27
  44: RBrace          "}" at 11:1-11:2 (leading: Newline)
- 45: EOF             at 13:1-13:1
+ 45: EOF             at 12:1-12:1

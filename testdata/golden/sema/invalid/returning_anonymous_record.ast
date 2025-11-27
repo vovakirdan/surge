@@ -1,4 +1,4 @@
-returning_anonymous_record.sg (span: 4:1-13:1)
+returning_anonymous_record.sg (span: 4:1-12:1)
 └─ Item[0]: Fn (span: 4:1-6:2)
    ├─ Name: illegal_return_anonymous_record_v1
    ├─ Params: ()
