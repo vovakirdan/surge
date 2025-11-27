@@ -58,7 +58,7 @@ fmt:
 golden: golden-check
 
 golden-update: build
-	./scripts/golden_update.sh
+	@./scripts/golden_update.sh
 
 golden-check: golden-update
 	@if ! git diff --quiet -- testdata/golden; then \

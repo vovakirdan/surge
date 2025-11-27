@@ -25,14 +25,15 @@ find "${GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r
 	dir="$(dirname "${src}")"
 	name="${base%.sg}"
 
-	if ! "${SURGE_BIN}" diag --format short "${src}" > "${dir}/${name}.diag"; then
-		:
-	fi
+	if ! "${SURGE_BIN}" diag --format short "${src}" > "${dir}/${name}.diag" 2>/dev/null; then :; fi
 
-	"${SURGE_BIN}" tokenize "${src}" > "${dir}/${name}.tokens"
-	"${SURGE_BIN}" parse "${src}" > "${dir}/${name}.ast"
-	if ! "${SURGE_BIN}" fmt --stdout "${src}" > "${dir}/${name}.fmt"; then
+	"${SURGE_BIN}" tokenize "${src}" > "${dir}/${name}.tokens" 2>/dev/null
+	"${SURGE_BIN}" parse "${src}" > "${dir}/${name}.ast" 2>/dev/null
+
+	if ! "${SURGE_BIN}" fmt --stdout "${src}" > "${dir}/${name}.fmt" 2>/dev/null; then
 		cp "${src}" "${dir}/${name}.fmt"
-		echo "fmt failed for ${src}, copied original content" >&2
+		if [[ "${GOLDEN_VERBOSE:-0}" != "0" ]]; then
+			echo "fmt failed for ${src}, copied original content" >&2
+		fi
 	fi
 done
