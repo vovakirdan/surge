@@ -10,3 +10,11 @@ fn make_error(io_failed: bool) -> ErrorTagged {
     }
     return ParseError("parse failure");
 }
+
+tag Number<T>(T);
+
+type Integer<T> = int | Number(T);
+
+fn make_integer<T>(value: T) -> Integer<T> {
+    return Number(value);
+}

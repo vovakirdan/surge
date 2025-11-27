@@ -1,0 +1,53 @@
+tagged_error_type_ok.sg (span: 2:1-21:1)
+├─ Item[0]: Tag (span: 2:1-2:21)
+│  ├─ Name: IoError
+│  ├─ Visibility: private
+│  └─ Payload: string
+├─ Item[1]: Tag (span: 3:1-3:24)
+│  ├─ Name: ParseError
+│  ├─ Visibility: private
+│  └─ Payload: string
+├─ Item[2]: Type (span: 5:1-5:41)
+│  ├─ Name: ErrorTagged
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  └─ Union:
+│     ├─ Member[0]: IoError
+│     └─ Member[1]: ParseError
+├─ Item[3]: Fn (span: 7:1-12:2)
+│  ├─ Name: make_error
+│  ├─ Params: (io_failed: bool)
+│  ├─ Return: ErrorTagged
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:47-12:2)
+│        ├─ Stmt[0]: If (span: 8:5-10:6)
+│        │  ├─ Cond: expr#1: io_failed
+│        │  ├─ Then:
+Block (span: 8:20-10:6)
+│        │  │  └─ Stmt[0]: Return (span: 9:9-9:38)
+│        │  │     └─ Expr: expr#4: IoError("io failure")
+│        │  └─ Else: <none>
+│        └─ Stmt[1]: Return (span: 11:5-11:40)
+│           └─ Expr: expr#7: ParseError("parse failure")
+├─ Item[4]: Tag (span: 14:1-14:18)
+│  ├─ Name: Number
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Payload: T
+├─ Item[5]: Type (span: 16:1-16:35)
+│  ├─ Name: Integer
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Union:
+│     ├─ Member[0]: int
+│     └─ Member[1]: Number(T)
+└─ Item[6]: Fn (span: 18:1-20:2)
+   ├─ Name: make_integer
+   ├─ Generics: <T>
+   ├─ Params: (value: T)
+   ├─ Return: Integer<T>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 18:44-20:2)
+         └─ Stmt[0]: Return (span: 19:5-19:26)
+            └─ Expr: expr#10: Number(value)

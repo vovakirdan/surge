@@ -2,6 +2,7 @@ package sema
 
 import (
 	"fmt"
+	"strings"
 
 	"fortio.org/safecast"
 
@@ -37,6 +38,7 @@ func (tc *typeChecker) populateUnionType(itemID ast.ItemID, typeItem *ast.TypeIt
 	members, hasTag, hasNothing := tc.collectUnionMembers(unionDecl, scope)
 	tc.validateUnionMembers(hasTag, hasNothing, typeItem, unionDecl)
 	tc.types.SetUnionMembers(typeID, members)
+	tc.registerTagConstructors(typeItem, typeID, members)
 }
 
 func (tc *typeChecker) instantiateUnion(typeItem *ast.TypeItem, symID symbols.SymbolID, args []types.TypeID) types.TypeID {
@@ -59,6 +61,7 @@ func (tc *typeChecker) instantiateUnion(typeItem *ast.TypeItem, symID symbols.Sy
 	tc.validateUnionMembers(hasTag, hasNothing, typeItem, unionDecl)
 	typeID := tc.types.RegisterUnionInstance(typeItem.Name, typeItem.Span, args)
 	tc.types.SetUnionMembers(typeID, members)
+	tc.registerTagConstructors(typeItem, typeID, members)
 	return typeID
 }
 
@@ -83,6 +86,22 @@ func (tc *typeChecker) collectUnionMembers(unionDecl *ast.TypeUnionDecl, scope s
 		}
 		switch member.Kind {
 		case ast.TypeUnionMemberType:
+			if path, ok := tc.builder.Types.Path(member.Type); ok && path != nil && len(path.Segments) == 1 {
+				seg := path.Segments[0]
+				if tc.lookupTagSymbol(seg.Name, scope).IsValid() {
+					tagArgs := make([]types.TypeID, 0, len(seg.Generics))
+					for _, arg := range seg.Generics {
+						tagArgs = append(tagArgs, tc.resolveTypeExprWithScope(arg, scope))
+					}
+					members = append(members, types.UnionMember{
+						Kind:    types.UnionMemberTag,
+						TagName: seg.Name,
+						TagArgs: tagArgs,
+					})
+					hasTag = true
+					continue
+				}
+			}
 			typ := tc.resolveTypeExprWithScope(member.Type, scope)
 			members = append(members, types.UnionMember{
 				Kind: types.UnionMemberType,
@@ -129,29 +148,128 @@ func (tc *typeChecker) validateUnionMembers(hasTag, hasNothing bool, typeItem *a
 }
 
 func (tc *typeChecker) tagSymbolExists(name source.StringID, span source.Span) bool {
-	if name == source.NoStringID || tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Scopes == nil || tc.symbols.Table.Symbols == nil {
-		return false
-	}
-	scope := tc.fileScope()
-	for scope.IsValid() {
-		data := tc.symbols.Table.Scopes.Get(scope)
-		if data == nil {
-			break
-		}
-		if ids := data.NameIndex[name]; len(ids) > 0 {
-			for i := len(ids) - 1; i >= 0; i-- {
-				id := ids[i]
-				sym := tc.symbols.Table.Symbols.Get(id)
-				if sym == nil {
-					continue
-				}
-				if sym.Kind == symbols.SymbolTag {
-					return true
-				}
-			}
-		}
-		scope = data.Parent
+	if tc.lookupTagSymbol(name, tc.fileScope()).IsValid() {
+		return true
 	}
 	tc.report(diag.SemaUnresolvedSymbol, span, "unknown tag %s in union", tc.lookupName(name))
 	return false
+}
+
+func (tc *typeChecker) registerTagConstructors(typeItem *ast.TypeItem, unionType types.TypeID, members []types.UnionMember) {
+	if typeItem == nil || unionType == types.NoTypeID || tc.builder == nil {
+		return
+	}
+	unionName := tc.lookupName(typeItem.Name)
+	if unionName == "" {
+		return
+	}
+	resultKey := unionName
+	if len(typeItem.Generics) > 0 {
+		genNames := make([]string, 0, len(typeItem.Generics))
+		for _, gid := range typeItem.Generics {
+			genNames = append(genNames, tc.lookupName(gid))
+		}
+		resultKey = fmt.Sprintf("%s<%s>", unionName, strings.Join(genNames, ","))
+	}
+
+	scope := tc.fileScope()
+	for _, m := range members {
+		if m.Kind != types.UnionMemberTag {
+			continue
+		}
+		symID := tc.lookupTagSymbol(m.TagName, scope)
+		if !symID.IsValid() {
+			continue
+		}
+		sym := tc.symbolFromID(symID)
+		if sym == nil {
+			continue
+		}
+		tagItem, ok := tc.builder.Items.Tag(sym.Decl.Item)
+		if !ok || tagItem == nil {
+			continue
+		}
+
+		params := make([]symbols.TypeKey, 0, len(tagItem.Payload))
+		for _, payload := range tagItem.Payload {
+			params = append(params, typeKeyForTypeExpr(tc.builder, payload))
+		}
+		variadic := make([]bool, len(params))
+
+		sym.Type = unionType
+		if len(sym.TypeParams) == 0 {
+			if len(tagItem.Generics) > 0 {
+				sym.TypeParams = append([]source.StringID(nil), tagItem.Generics...)
+			} else if len(typeItem.Generics) > 0 {
+				sym.TypeParams = append([]source.StringID(nil), typeItem.Generics...)
+			}
+		}
+		sym.Signature = &symbols.FunctionSignature{
+			Params:   params,
+			Variadic: variadic,
+			Result:   symbols.TypeKey(resultKey),
+			HasBody:  true,
+		}
+	}
+}
+
+func typeKeyForTypeExpr(builder *ast.Builder, typeID ast.TypeID) symbols.TypeKey {
+	if builder == nil || !typeID.IsValid() {
+		return ""
+	}
+	expr := builder.Types.Get(typeID)
+	if expr == nil {
+		return ""
+	}
+	switch expr.Kind {
+	case ast.TypeExprPath:
+		if path, ok := builder.Types.Path(typeID); ok && path != nil {
+			segments := make([]string, 0, len(path.Segments))
+			for _, seg := range path.Segments {
+				name := builder.StringsInterner.MustLookup(seg.Name)
+				if len(seg.Generics) > 0 {
+					gen := make([]string, 0, len(seg.Generics))
+					for _, g := range seg.Generics {
+						gen = append(gen, string(typeKeyForTypeExpr(builder, g)))
+					}
+					name = name + "<" + strings.Join(gen, ",") + ">"
+				}
+				segments = append(segments, name)
+			}
+			return symbols.TypeKey(strings.Join(segments, "::"))
+		}
+	case ast.TypeExprUnary:
+		if unary, ok := builder.Types.UnaryType(typeID); ok && unary != nil {
+			inner := string(typeKeyForTypeExpr(builder, unary.Inner))
+			switch unary.Op {
+			case ast.TypeUnaryRef:
+				return symbols.TypeKey("&" + inner)
+			case ast.TypeUnaryRefMut:
+				return symbols.TypeKey("&mut " + inner)
+			case ast.TypeUnaryOwn:
+				return symbols.TypeKey("own " + inner)
+			case ast.TypeUnaryPointer:
+				return symbols.TypeKey("*" + inner)
+			}
+		}
+	case ast.TypeExprConst:
+		if c, ok := builder.Types.Const(typeID); ok && c != nil {
+			return symbols.TypeKey(builder.StringsInterner.MustLookup(c.Value))
+		}
+	case ast.TypeExprArray:
+		if arr, ok := builder.Types.Array(typeID); ok && arr != nil {
+			return symbols.TypeKey("[" + string(typeKeyForTypeExpr(builder, arr.Elem)) + "]")
+		}
+	case ast.TypeExprOptional:
+		if opt, ok := builder.Types.Optional(typeID); ok && opt != nil {
+			return symbols.TypeKey("Option<" + string(typeKeyForTypeExpr(builder, opt.Inner)) + ">")
+		}
+	case ast.TypeExprErrorable:
+		if errable, ok := builder.Types.Errorable(typeID); ok && errable != nil {
+			okKey := typeKeyForTypeExpr(builder, errable.Inner)
+			errKey := typeKeyForTypeExpr(builder, errable.Error)
+			return symbols.TypeKey("Result<" + string(okKey) + "," + string(errKey) + ">")
+		}
+	}
+	return symbols.TypeKey(fmt.Sprintf("type#%d", typeID))
 }

@@ -123,7 +123,7 @@ func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.Symbol
 			out := make([]symbols.SymbolID, 0, len(ids))
 			for _, id := range ids {
 				sym := tc.symbolFromID(id)
-				if sym != nil && sym.Kind == symbols.SymbolFunction {
+				if sym != nil && (sym.Kind == symbols.SymbolFunction || sym.Kind == symbols.SymbolTag) {
 					if key := tc.candidateKey(sym); key != "" {
 						if _, dup := seen[key]; dup {
 							continue
@@ -356,7 +356,7 @@ func (tc *typeChecker) selectBestCandidate(
 	bestCost := -1
 	for _, symID := range candidates {
 		sym := tc.symbolFromID(symID)
-		if sym == nil || sym.Kind != symbols.SymbolFunction || sym.Signature == nil {
+		if sym == nil || (sym.Kind != symbols.SymbolFunction && sym.Kind != symbols.SymbolTag) || sym.Signature == nil {
 			continue
 		}
 		if tc.isGenericCandidate(sym, typeArgs) != wantGeneric {

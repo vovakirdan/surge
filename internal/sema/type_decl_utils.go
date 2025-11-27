@@ -144,6 +144,32 @@ func (tc *typeChecker) lookupConstSymbol(name source.StringID, scope symbols.Sco
 	return symbols.NoSymbolID
 }
 
+func (tc *typeChecker) lookupTagSymbol(name source.StringID, scope symbols.ScopeID) symbols.SymbolID {
+	if name == source.NoStringID || tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Scopes == nil || tc.symbols.Table.Symbols == nil {
+		return symbols.NoSymbolID
+	}
+	for scope = tc.scopeOrFile(scope); scope.IsValid(); {
+		scopeData := tc.symbols.Table.Scopes.Get(scope)
+		if scopeData == nil {
+			break
+		}
+		if ids := scopeData.NameIndex[name]; len(ids) > 0 {
+			for i := len(ids) - 1; i >= 0; i-- {
+				id := ids[i]
+				sym := tc.symbols.Table.Symbols.Get(id)
+				if sym == nil {
+					continue
+				}
+				if sym.Kind == symbols.SymbolTag {
+					return id
+				}
+			}
+		}
+		scope = scopeData.Parent
+	}
+	return symbols.NoSymbolID
+}
+
 func (tc *typeChecker) lookupValueSymbol(name source.StringID, scope symbols.ScopeID) symbols.SymbolID {
 	if name == source.NoStringID || tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Scopes == nil || tc.symbols.Table.Symbols == nil {
 		return symbols.NoSymbolID

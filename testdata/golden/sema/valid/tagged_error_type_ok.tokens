@@ -1,0 +1,94 @@
+  1: KwTag           "tag" at 2:1-2:4 (leading: LineComment, Newline)
+  2: Ident           "IoError" at 2:5-2:12 (leading: Space)
+  3: LParen          "(" at 2:12-2:13
+  4: Ident           "string" at 2:13-2:19
+  5: RParen          ")" at 2:19-2:20
+  6: Semicolon       ";" at 2:20-2:21
+  7: KwTag           "tag" at 3:1-3:4 (leading: Newline)
+  8: Ident           "ParseError" at 3:5-3:15 (leading: Space)
+  9: LParen          "(" at 3:15-3:16
+ 10: Ident           "string" at 3:16-3:22
+ 11: RParen          ")" at 3:22-3:23
+ 12: Semicolon       ";" at 3:23-3:24
+ 13: KwType          "type" at 5:1-5:5 (leading: Newline)
+ 14: Ident           "ErrorTagged" at 5:6-5:17 (leading: Space)
+ 15: Assign          "=" at 5:18-5:19 (leading: Space)
+ 16: Ident           "IoError" at 5:20-5:27 (leading: Space)
+ 17: Pipe            "|" at 5:28-5:29 (leading: Space)
+ 18: Ident           "ParseError" at 5:30-5:40 (leading: Space)
+ 19: Semicolon       ";" at 5:40-5:41
+ 20: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 21: Ident           "make_error" at 7:4-7:14 (leading: Space)
+ 22: LParen          "(" at 7:14-7:15
+ 23: Ident           "io_failed" at 7:15-7:24
+ 24: Colon           ":" at 7:24-7:25
+ 25: Ident           "bool" at 7:26-7:30 (leading: Space)
+ 26: RParen          ")" at 7:30-7:31
+ 27: Arrow           "->" at 7:32-7:34 (leading: Space)
+ 28: Ident           "ErrorTagged" at 7:35-7:46 (leading: Space)
+ 29: LBrace          "{" at 7:47-7:48 (leading: Space)
+ 30: KwIf            "if" at 8:5-8:7 (leading: Newline, Space)
+ 31: LParen          "(" at 8:8-8:9 (leading: Space)
+ 32: Ident           "io_failed" at 8:9-8:18
+ 33: RParen          ")" at 8:18-8:19
+ 34: LBrace          "{" at 8:20-8:21 (leading: Space)
+ 35: KwReturn        "return" at 9:9-9:15 (leading: Newline, Space)
+ 36: Ident           "IoError" at 9:16-9:23 (leading: Space)
+ 37: LParen          "(" at 9:23-9:24
+ 38: StringLit       "\"io failure\"" at 9:24-9:36
+ 39: RParen          ")" at 9:36-9:37
+ 40: Semicolon       ";" at 9:37-9:38
+ 41: RBrace          "}" at 10:5-10:6 (leading: Newline, Space)
+ 42: KwReturn        "return" at 11:5-11:11 (leading: Newline, Space)
+ 43: Ident           "ParseError" at 11:12-11:22 (leading: Space)
+ 44: LParen          "(" at 11:22-11:23
+ 45: StringLit       "\"parse failure\"" at 11:23-11:38
+ 46: RParen          ")" at 11:38-11:39
+ 47: Semicolon       ";" at 11:39-11:40
+ 48: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 49: KwTag           "tag" at 14:1-14:4 (leading: Newline)
+ 50: Ident           "Number" at 14:5-14:11 (leading: Space)
+ 51: Lt              "<" at 14:11-14:12
+ 52: Ident           "T" at 14:12-14:13
+ 53: Gt              ">" at 14:13-14:14
+ 54: LParen          "(" at 14:14-14:15
+ 55: Ident           "T" at 14:15-14:16
+ 56: RParen          ")" at 14:16-14:17
+ 57: Semicolon       ";" at 14:17-14:18
+ 58: KwType          "type" at 16:1-16:5 (leading: Newline)
+ 59: Ident           "Integer" at 16:6-16:13 (leading: Space)
+ 60: Lt              "<" at 16:13-16:14
+ 61: Ident           "T" at 16:14-16:15
+ 62: Gt              ">" at 16:15-16:16
+ 63: Assign          "=" at 16:17-16:18 (leading: Space)
+ 64: Ident           "int" at 16:19-16:22 (leading: Space)
+ 65: Pipe            "|" at 16:23-16:24 (leading: Space)
+ 66: Ident           "Number" at 16:25-16:31 (leading: Space)
+ 67: LParen          "(" at 16:31-16:32
+ 68: Ident           "T" at 16:32-16:33
+ 69: RParen          ")" at 16:33-16:34
+ 70: Semicolon       ";" at 16:34-16:35
+ 71: KwFn            "fn" at 18:1-18:3 (leading: Newline)
+ 72: Ident           "make_integer" at 18:4-18:16 (leading: Space)
+ 73: Lt              "<" at 18:16-18:17
+ 74: Ident           "T" at 18:17-18:18
+ 75: Gt              ">" at 18:18-18:19
+ 76: LParen          "(" at 18:19-18:20
+ 77: Ident           "value" at 18:20-18:25
+ 78: Colon           ":" at 18:25-18:26
+ 79: Ident           "T" at 18:27-18:28 (leading: Space)
+ 80: RParen          ")" at 18:28-18:29
+ 81: Arrow           "->" at 18:30-18:32 (leading: Space)
+ 82: Ident           "Integer" at 18:33-18:40 (leading: Space)
+ 83: Lt              "<" at 18:40-18:41
+ 84: Ident           "T" at 18:41-18:42
+ 85: Gt              ">" at 18:42-18:43
+ 86: LBrace          "{" at 18:44-18:45 (leading: Space)
+ 87: KwReturn        "return" at 19:5-19:11 (leading: Newline, Space)
+ 88: Ident           "Number" at 19:12-19:18 (leading: Space)
+ 89: LParen          "(" at 19:18-19:19
+ 90: Ident           "value" at 19:19-19:24
+ 91: RParen          ")" at 19:24-19:25
+ 92: Semicolon       ";" at 19:25-19:26
+ 93: RBrace          "}" at 20:1-20:2 (leading: Newline)
+ 94: EOF             at 21:1-21:1
