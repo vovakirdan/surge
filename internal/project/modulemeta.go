@@ -80,6 +80,11 @@ func ResolveImportPath(modulePath, basePath string, segments []string) (string, 
 		return "", errors.New("empty import path")
 	}
 
+	joined := strings.Join(segments, "/")
+	if len(segments) > 0 && (segments[0] == "stdlib" || segments[0] == "core") {
+		return NormalizeModulePath(joined)
+	}
+
 	var baseSegments []string
 	if basePath != "" {
 		clean := strings.Trim(basePath, "/")

@@ -1,3 +1,5 @@
+import stdlib/bounded::{min_value, max_value};
+
 // scenario: explicit turbofish required for default/min_value/max_value
 fn use_limits() {
     let a: int = default::<int>();

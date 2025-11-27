@@ -25,7 +25,17 @@ find "${GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r
 	dir="$(dirname "${src}")"
 	name="${base%.sg}"
 
-	if ! "${SURGE_BIN}" diag --format short "${src}" > "${dir}/${name}.diag" 2>/dev/null; then :; fi
+	is_invalid=0
+	if [[ "${src}" == *"/invalid/"* ]]; then
+		is_invalid=1
+	fi
+
+	if ! "${SURGE_BIN}" diag --format short "${src}" > "${dir}/${name}.diag" 2>/dev/null; then
+		if [[ "${is_invalid}" -eq 0 ]]; then
+			echo "diagnostics failed for valid case: ${src}" >&2
+			exit 1
+		fi
+	fi
 
 	"${SURGE_BIN}" tokenize "${src}" > "${dir}/${name}.tokens" 2>/dev/null
 	"${SURGE_BIN}" parse "${src}" > "${dir}/${name}.ast" 2>/dev/null
