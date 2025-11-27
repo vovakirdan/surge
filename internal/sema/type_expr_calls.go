@@ -38,7 +38,7 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 		return types.NoTypeID
 	}
 	name := tc.lookupName(ident.Name)
-	if name == "default" || name == "MAX" || name == "MIN" {
+	if name == "default" {
 		return tc.handleDefaultLikeCall(name, call, span)
 	}
 	candidates := tc.functionCandidates(ident.Name)

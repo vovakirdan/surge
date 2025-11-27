@@ -1,7 +1,7 @@
-// scenario: explicit turbofish required for default/MAX/MIN
+// scenario: explicit turbofish required for default/min_value/max_value
 fn use_limits() {
     let a: int = default::<int>();
-    let b: int = MAX::<int>();
-    let c: int = MIN::<int>();
-    let _sum: int = a + b + c;
+    let b: int8 = max_value::<int8>();
+    let c: int8 = min_value::<int8>();
+    let _sum: int = a + (b to int) + (c to int);
 }

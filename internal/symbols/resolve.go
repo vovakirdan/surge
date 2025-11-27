@@ -43,13 +43,13 @@ var intrinsicAllowedNamesList = []string{
 	"__pos",
 	"__neg",
 	"__not",
+	"__min_value",
+	"__max_value",
 	"__to",
 	"__is",
 	"__heir",
 	"exit",
 	"default",
-	"MIN",
-	"MAX",
 }
 
 var (

@@ -935,10 +935,17 @@ let raw: uint64 = uid to uint64;
 
 ### 6.6. Saturating casts
 
+Fixed-width numerics implement the `Bounded<T>` contract via static methods `__min_value/__max_value` defined in `core/intrinsics.sg`. The stdlib exposes helpers:
+
+```sg
+fn min_value<T: Bounded<T>>() -> T { T.__min_value::<T>() }
+fn max_value<T: Bounded<T>>() -> T { T.__max_value::<T>() }
+```
+
 The standard library provides `saturating_cast(from, to_proto)` overloads in `stdlib/saturating_cast.sg` for numeric types. The second argument is only used for its type (`to_proto`) and defines the result type. Semantics:
 
-* For integer targets: clamp to `[MIN..MAX]` of the target type; negative inputs clamp to `0` for unsigned targets.
-* For floats: clamp to the finite range of the target precision.
+* For integer targets: clamp to `[min_value(target)..max_value(target)]`; negative inputs clamp to the target minimum (zero for unsigned).
+* For floats: clamp to the finite range of the target precision using `min_value/max_value`.
 * Each overload is concrete (no generics); missing pairs are a compile-time resolution error.
 
 Use cases:

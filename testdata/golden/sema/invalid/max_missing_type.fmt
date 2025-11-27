@@ -1,4 +1,4 @@
-// scenario: MAX without explicit type arguments must fail inference
+// scenario: max_value without explicit type arguments must fail inference
 fn usage() {
-    let m = MAX();
+    let m = max_value();
 }

@@ -1,196 +1,230 @@
+import ./bounded::{min_value, max_value};
+
 pub fn saturating_cast(value: int, _: int8) -> int8 {
-    let min = -128;
-    let max = 127;
+    let min_t: int8 = min_value::<int8>();
+    let max_t: int8 = max_value::<int8>();
+    let min: int = min_t to int;
+    let max: int = max_t to int;
     if value < min {
-        return min to int8;
+        return min_t;
     }
     if value > max {
-        return max to int8;
+        return max_t;
     }
     return value to int8;
 }
 
 @overload
 pub fn saturating_cast(value: int, _: int16) -> int16 {
-    let min = -32_768;
-    let max = 32_767;
+    let min_t: int16 = min_value::<int16>();
+    let max_t: int16 = max_value::<int16>();
+    let min: int = min_t to int;
+    let max: int = max_t to int;
     if value < min {
-        return min to int16;
+        return min_t;
     }
     if value > max {
-        return max to int16;
+        return max_t;
     }
     return value to int16;
 }
 
 @overload
 pub fn saturating_cast(value: int, _: int32) -> int32 {
-    let min = -2_147_483_648;
-    let max = 2_147_483_647;
+    let min_t: int32 = min_value::<int32>();
+    let max_t: int32 = max_value::<int32>();
+    let min: int = min_t to int;
+    let max: int = max_t to int;
     if value < min {
-        return min to int32;
+        return min_t;
     }
     if value > max {
-        return max to int32;
+        return max_t;
     }
     return value to int32;
 }
 
 @overload
 pub fn saturating_cast(value: int, _: int64) -> int64 {
-    let min = -9_223_372_036_854_775_808;
-    let max = 9_223_372_036_854_775_807;
+    let min_t: int64 = min_value::<int64>();
+    let max_t: int64 = max_value::<int64>();
+    let min: int = min_t to int;
+    let max: int = max_t to int;
     if value < min {
-        return min to int64;
+        return min_t;
     }
     if value > max {
-        return max to int64;
+        return max_t;
     }
     return value to int64;
 }
 
 @overload
 pub fn saturating_cast(value: int, _: uint8) -> uint8 {
-    let max = 255;
+    let min_t: uint8 = min_value::<uint8>();
+    let max_t: uint8 = max_value::<uint8>();
     if value < 0 {
-        return 0:uint8;
+        return min_t;
     }
-    if value > max {
-        return max to uint8;
+    let as_uint: uint = value to uint;
+    let max_u: uint = max_t to uint;
+    if as_uint > max_u {
+        return max_t;
     }
     return value to uint8;
 }
 
 @overload
 pub fn saturating_cast(value: int, _: uint16) -> uint16 {
-    let max = 65_535;
+    let min_t: uint16 = min_value::<uint16>();
+    let max_t: uint16 = max_value::<uint16>();
     if value < 0 {
-        return 0:uint16;
+        return min_t;
     }
-    if value > max {
-        return max to uint16;
+    let as_uint: uint = value to uint;
+    let max_u: uint = max_t to uint;
+    if as_uint > max_u {
+        return max_t;
     }
     return value to uint16;
 }
 
 @overload
 pub fn saturating_cast(value: int, _: uint32) -> uint32 {
-    let max = 4_294_967_295;
+    let min_t: uint32 = min_value::<uint32>();
+    let max_t: uint32 = max_value::<uint32>();
     if value < 0 {
-        return 0:uint32;
+        return min_t;
     }
-    if value > max {
-        return max to uint32;
+    let as_uint: uint = value to uint;
+    let max_u: uint = max_t to uint;
+    if as_uint > max_u {
+        return max_t;
     }
     return value to uint32;
 }
 
 @overload
 pub fn saturating_cast(value: int, _: uint64) -> uint64 {
-    let max = 18_446_744_073_709_551_615;
+    let min_t: uint64 = min_value::<uint64>();
+    let max_t: uint64 = max_value::<uint64>();
     if value < 0 {
-        return 0:uint64;
+        return min_t;
     }
-    if value > max {
-        return max to uint64;
+    let as_uint: uint = value to uint;
+    let max_u: uint = max_t to uint;
+    if as_uint > max_u {
+        return max_t;
     }
     return value to uint64;
 }
 
 @overload
 pub fn saturating_cast(value: uint, _: int8) -> int8 {
-    let max = 127:uint;
-    if value > max {
-        return 127 to int8;
+    let max_t: int8 = max_value::<int8>();
+    let max_u: uint = (max_t to int) to uint;
+    if value > max_u {
+        return max_t;
     }
     return value to int8;
 }
 
 @overload
 pub fn saturating_cast(value: uint, _: int16) -> int16 {
-    let max = 32_767:uint;
-    if value > max {
-        return 32_767 to int16;
+    let max_t: int16 = max_value::<int16>();
+    let max_u: uint = (max_t to int) to uint;
+    if value > max_u {
+        return max_t;
     }
     return value to int16;
 }
 
 @overload
 pub fn saturating_cast(value: uint, _: int32) -> int32 {
-    let max = 2_147_483_647:uint;
-    if value > max {
-        return 2_147_483_647 to int32;
+    let max_t: int32 = max_value::<int32>();
+    let max_u: uint = (max_t to int) to uint;
+    if value > max_u {
+        return max_t;
     }
     return value to int32;
 }
 
 @overload
 pub fn saturating_cast(value: uint, _: int64) -> int64 {
-    let max = 9_223_372_036_854_775_807:uint;
-    if value > max {
-        return 9_223_372_036_854_775_807 to int64;
+    let max_t: int64 = max_value::<int64>();
+    let max_u: uint = (max_t to int) to uint;
+    if value > max_u {
+        return max_t;
     }
     return value to int64;
 }
 
 @overload
 pub fn saturating_cast(value: uint, _: uint8) -> uint8 {
-    let max = 255:uint;
-    if value > max {
-        return max to uint8;
+    let max_t: uint8 = max_value::<uint8>();
+    let max_u: uint = max_t to uint;
+    if value > max_u {
+        return max_t;
     }
     return value to uint8;
 }
 
 @overload
 pub fn saturating_cast(value: uint, _: uint16) -> uint16 {
-    let max = 65_535:uint;
-    if value > max {
-        return max to uint16;
+    let max_t: uint16 = max_value::<uint16>();
+    let max_u: uint = max_t to uint;
+    if value > max_u {
+        return max_t;
     }
     return value to uint16;
 }
 
 @overload
 pub fn saturating_cast(value: uint, _: uint32) -> uint32 {
-    let max = 4_294_967_295:uint;
-    if value > max {
-        return max to uint32;
+    let max_t: uint32 = max_value::<uint32>();
+    let max_u: uint = max_t to uint;
+    if value > max_u {
+        return max_t;
     }
     return value to uint32;
 }
 
 @overload
 pub fn saturating_cast(value: uint, _: uint64) -> uint64 {
-    let max = 18_446_744_073_709_551_615:uint;
-    if value > max {
-        return max to uint64;
+    let max_t: uint64 = max_value::<uint64>();
+    let max_u: uint = max_t to uint;
+    if value > max_u {
+        return max_t;
     }
     return value to uint64;
 }
 
 @overload
 pub fn saturating_cast(value: float, _: float32) -> float32 {
-    let min = -3.402_823_466_385_2886e+38;
-    let max = 3.402_823_466_385_2886e+38;
+    let min_t: float32 = min_value::<float32>();
+    let max_t: float32 = max_value::<float32>();
+    let min: float = min_t to float;
+    let max: float = max_t to float;
     if value < min {
-        return min to float32;
+        return min_t;
     }
     if value > max {
-        return max to float32;
+        return max_t;
     }
     return value to float32;
 }
 
 @overload
 pub fn saturating_cast(value: float, _: float64) -> float64 {
-    let min = -1.797_693_134_862_3157e+308;
-    let max = 1.797_693_134_862_3157e+308;
+    let min_t: float64 = min_value::<float64>();
+    let max_t: float64 = max_value::<float64>();
+    let min: float = min_t to float;
+    let max: float = max_t to float;
     if value < min {
-        return min to float64;
+        return min_t;
     }
     if value > max {
-        return max to float64;
+        return max_t;
     }
     return value to float64;
 }

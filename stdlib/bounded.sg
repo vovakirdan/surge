@@ -1,0 +1,7 @@
+pub fn min_value<T: Bounded<T>>() -> T {
+    return T.__min_value();
+}
+
+pub fn max_value<T: Bounded<T>>() -> T {
+    return T.__max_value();
+}

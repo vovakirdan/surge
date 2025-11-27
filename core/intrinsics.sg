@@ -22,6 +22,11 @@ extern<Task<T>> {
     @intrinsic pub fn await<T>(self: Task<T>) -> T;
 }
 
+pub contract Bounded<T> {
+    fn __min_value() -> T;
+    fn __max_value() -> T;
+}
+
 extern<int> {
     @intrinsic fn __add(self: int, other: int) -> int;
     @intrinsic fn __sub(self: int, other: int) -> int;
@@ -92,42 +97,62 @@ extern<uint> {
 }
 
 extern<int8> {
+    fn __min_value() -> int8 { return (-128):int8; }
+    fn __max_value() -> int8 { return (127):int8; }
     @intrinsic fn __to(self: int8, target: int) -> int;
 }
 
 extern<int16> {
+    fn __min_value() -> int16 { return (-32_768):int16; }
+    fn __max_value() -> int16 { return (32_767):int16; }
     @intrinsic fn __to(self: int16, target: int) -> int;
 }
 
 extern<int32> {
+    fn __min_value() -> int32 { return (-2_147_483_648):int32; }
+    fn __max_value() -> int32 { return (2_147_483_647):int32; }
     @intrinsic fn __to(self: int32, target: int) -> int;
 }
 
 extern<int64> {
+    fn __min_value() -> int64 { return (-9_223_372_036_854_775_808):int64; }
+    fn __max_value() -> int64 { return (9_223_372_036_854_775_807):int64; }
     @intrinsic fn __to(self: int64, target: int) -> int;
 }
 
 extern<uint8> {
+    fn __min_value() -> uint8 { return (0):uint8; }
+    fn __max_value() -> uint8 { return (255):uint8; }
     @intrinsic fn __to(self: uint8, target: uint) -> uint;
 }
 
 extern<uint16> {
+    fn __min_value() -> uint16 { return (0):uint16; }
+    fn __max_value() -> uint16 { return (65_535):uint16; }
     @intrinsic fn __to(self: uint16, target: uint) -> uint;
 }
 
 extern<uint32> {
+    fn __min_value() -> uint32 { return (0):uint32; }
+    fn __max_value() -> uint32 { return (4_294_967_295):uint32; }
     @intrinsic fn __to(self: uint32, target: uint) -> uint;
 }
 
 extern<uint64> {
+    fn __min_value() -> uint64 { return (0):uint64; }
+    fn __max_value() -> uint64 { return (18_446_744_073_709_551_615):uint64; }
     @intrinsic fn __to(self: uint64, target: uint) -> uint;
 }
 
 extern<float32> {
+    fn __min_value() -> float32 { return (-3.402_823_466_385_2886e+38):float32; }
+    fn __max_value() -> float32 { return (3.402_823_466_385_2886e+38):float32; }
     @intrinsic fn __to(self: float32, target: float) -> float;
 }
 
 extern<float64> {
+    fn __min_value() -> float64 { return (-1.797_693_134_862_3157e+308):float64; }
+    fn __max_value() -> float64 { return (1.797_693_134_862_3157e+308):float64; }
     @intrinsic fn __to(self: float64, target: float) -> float;
 }
 
@@ -198,12 +223,6 @@ extern<ArrayFixed<T, N>> {
 
 @intrinsic
 pub fn default<T>() -> T;
-
-@intrinsic
-pub fn MAX<T>() -> T;
-
-@intrinsic
-pub fn MIN<T>() -> T;
 
 contract ErrorLike{
     field message: string;

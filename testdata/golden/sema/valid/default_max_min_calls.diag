@@ -1,0 +1,4 @@
+error SEM3005 testdata/golden/sema/valid/default_max_min_calls.sg:4:19 cannot resolve 'max_value'
+error SEM3046 testdata/golden/sema/valid/default_max_min_calls.sg:4:19 no matching overload for max_value
+error SEM3005 testdata/golden/sema/valid/default_max_min_calls.sg:5:19 cannot resolve 'min_value'
+error SEM3046 testdata/golden/sema/valid/default_max_min_calls.sg:5:19 no matching overload for min_value
