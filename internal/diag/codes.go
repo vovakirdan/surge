@@ -116,6 +116,7 @@ const (
 	SemaWildcardValue              Code = 3048
 	SemaWildcardMut                Code = 3049
 	SemaInvalidBoolContext         Code = 3050
+	SemaMissingReturn              Code = 3051
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -236,6 +237,7 @@ var ( // todo расширить описания и использовать к
 		SemaWildcardValue:              "Wildcard used as value",
 		SemaWildcardMut:                "Wildcard mutability",
 		SemaInvalidBoolContext:         "Invalid boolean context",
+		SemaMissingReturn:              "Missing return in function",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

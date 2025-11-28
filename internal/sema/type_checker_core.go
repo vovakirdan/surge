@@ -72,6 +72,92 @@ type returnContext struct {
 	collect  *[]types.TypeID
 }
 
+type returnStatus int
+
+const (
+	returnOpen returnStatus = iota
+	returnClosed
+)
+
+func (tc *typeChecker) returnStatus(stmtID ast.StmtID) returnStatus {
+	if !stmtID.IsValid() || tc.builder == nil {
+		return returnOpen
+	}
+	stmt := tc.builder.Stmts.Get(stmtID)
+	if stmt == nil {
+		return returnOpen
+	}
+	switch stmt.Kind {
+	case ast.StmtReturn:
+		return returnClosed
+	case ast.StmtBlock:
+		if block := tc.builder.Stmts.Block(stmtID); block != nil {
+			for _, child := range block.Stmts {
+				if tc.returnStatus(child) == returnClosed {
+					return returnClosed
+				}
+			}
+		}
+		return returnOpen
+	case ast.StmtIf:
+		ifStmt := tc.builder.Stmts.If(stmtID)
+		if ifStmt == nil {
+			return returnOpen
+		}
+		thenStatus := tc.returnStatus(ifStmt.Then)
+		elseStatus := tc.returnStatus(ifStmt.Else)
+		if ifStmt.Else.IsValid() && thenStatus == returnClosed && elseStatus == returnClosed {
+			return returnClosed
+		}
+		return returnOpen
+	case ast.StmtWhile:
+		whileStmt := tc.builder.Stmts.While(stmtID)
+		if whileStmt == nil {
+			return returnOpen
+		}
+		if tc.isBoolLiteralTrue(whileStmt.Cond) && tc.returnStatus(whileStmt.Body) == returnClosed {
+			return returnClosed
+		}
+		return returnOpen
+	case ast.StmtForClassic:
+		forStmt := tc.builder.Stmts.ForClassic(stmtID)
+		if forStmt == nil {
+			return returnOpen
+		}
+		// Classic for can skip the body unless condition is explicitly true/absent.
+		infinite := !forStmt.Cond.IsValid() || tc.isBoolLiteralTrue(forStmt.Cond)
+		if infinite && tc.returnStatus(forStmt.Body) == returnClosed {
+			return returnClosed
+		}
+		return returnOpen
+	case ast.StmtForIn:
+		return returnOpen
+	default:
+		return returnOpen
+	}
+}
+
+func (tc *typeChecker) isBoolLiteralTrue(expr ast.ExprID) bool {
+	if !expr.IsValid() || tc.builder == nil {
+		return false
+	}
+	node := tc.builder.Exprs.Get(expr)
+	if node == nil {
+		return false
+	}
+	switch node.Kind {
+	case ast.ExprLit:
+		if lit, ok := tc.builder.Exprs.Literal(expr); ok && lit != nil {
+			return lit.Kind == ast.ExprLitTrue
+		}
+	case ast.ExprGroup:
+		if grp, ok := tc.builder.Exprs.Group(expr); ok && grp != nil {
+			return tc.isBoolLiteralTrue(grp.Inner)
+		}
+	}
+	return false
+}
+
 func (tc *typeChecker) run() {
 	if tc.builder == nil || tc.result == nil || tc.types == nil {
 		return
@@ -183,6 +269,9 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			}
 			pushed := tc.pushScope(scope)
 			tc.walkStmt(fnItem.Body)
+			if returnType != tc.types.Builtins().Nothing && tc.returnStatus(fnItem.Body) != returnClosed {
+				tc.report(diag.SemaMissingReturn, returnSpan, "function returning %s is missing a return", tc.typeLabel(returnType))
+			}
 			if pushed {
 				tc.leaveScope()
 			}
