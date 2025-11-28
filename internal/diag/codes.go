@@ -117,6 +117,7 @@ const (
 	SemaWildcardMut                Code = 3049
 	SemaInvalidBoolContext         Code = 3050
 	SemaMissingReturn              Code = 3051
+	SemaNoStdlib                   Code = 3052
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -238,6 +239,7 @@ var ( // todo расширить описания и использовать к
 		SemaWildcardMut:                "Wildcard mutability",
 		SemaInvalidBoolContext:         "Invalid boolean context",
 		SemaMissingReturn:              "Missing return in function",
+		SemaNoStdlib:                   "stdlib not available in no_std module",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

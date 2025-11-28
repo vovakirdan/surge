@@ -1,0 +1,12 @@
+pragma no_std
+
+import core/intrinsics::default;
+
+fn make_default() -> int {
+    return default::<int>();
+}
+
+fn main() {
+    let value = make_default();
+    let _ = value;
+}

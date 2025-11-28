@@ -1,4 +1,11 @@
+pragma no_std;
 // Core Option type and its constructor.
+
+// stub for test
+// PLEASE REMOVE THIS IF U COPY TO CORE MODULE
+pub fn default<T>() -> T;
+pub fn panic(msg: string) -> nothing;
+
 
 pub tag Some<T>(T);
 pub type Option<T> = Some(T) | nothing;

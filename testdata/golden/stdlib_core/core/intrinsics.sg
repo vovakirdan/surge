@@ -1,0 +1,245 @@
+pragma no_std;
+// stub for test
+// PLEASE REMOVE THIS IF U COPY TO CORE MODULE
+tag Some<T>(T);
+type Option<T> = Some(T) | nothing;
+type Error = { message: string, code: uint };
+
+pub type byte = uint8;
+
+@intrinsic fn rt_alloc(size: uint, align: uint) -> *byte;
+@intrinsic fn rt_free(ptr: *byte, size: uint, align: uint) -> nothing;
+@intrinsic fn rt_realloc(ptr: *byte, old_size: uint, new_size: uint, align: uint) -> *byte;
+@intrinsic fn rt_memcpy(dst: *byte, src: *byte, n: uint) -> nothing;
+@intrinsic fn rt_memmove(dst: *byte, src: *byte, n: uint) -> nothing;
+
+pub type Range<T> = {
+    __state: *byte,
+};
+
+extern<Range<T>> {
+    @intrinsic pub fn next<T>(self: &mut Range<T>) -> Option<T>;
+}
+
+pub type Task<T> = {
+    __opaque: int,
+};
+
+extern<Task<T>> {
+    @intrinsic pub fn await<T>(self: Task<T>) -> T;
+}
+
+pub contract Bounded<T> {
+    fn __min_value() -> T;
+    fn __max_value() -> T;
+}
+
+extern<int> {
+    @intrinsic fn __add(self: int, other: int) -> int;
+    @intrinsic fn __sub(self: int, other: int) -> int;
+    @intrinsic fn __mul(self: int, other: int) -> int;
+    @intrinsic fn __div(self: int, other: int) -> int;
+    @intrinsic fn __mod(self: int, other: int) -> int;
+    @intrinsic fn __bit_and(self: int, other: int) -> int;
+    @intrinsic fn __bit_or(self: int, other: int) -> int;
+    @intrinsic fn __bit_xor(self: int, other: int) -> int;
+    @intrinsic fn __shl(self: int, other: int) -> int;
+    @intrinsic fn __shr(self: int, other: int) -> int;
+    @intrinsic fn __lt(self: int, other: int) -> bool;
+    @intrinsic fn __le(self: int, other: int) -> bool;
+    @intrinsic fn __eq(self: int, other: int) -> bool;
+    @intrinsic fn __ne(self: int, other: int) -> bool;
+    @intrinsic fn __ge(self: int, other: int) -> bool;
+    @intrinsic fn __gt(self: int, other: int) -> bool;
+    @intrinsic fn __pos(self: int) -> int;
+    @intrinsic fn __neg(self: int) -> int;
+    @intrinsic fn __abs(self: int) -> int;
+    @intrinsic fn __to(self: int, target: string) -> string;
+    @intrinsic @overload fn __to(self: int, target: float) -> float;
+    @intrinsic @overload fn __to(self: int, target: uint) -> uint;
+    @intrinsic @overload fn __to(self: int, target: int8) -> int8;
+    @intrinsic @overload fn __to(self: int, target: int16) -> int16;
+    @intrinsic @overload fn __to(self: int, target: int32) -> int32;
+    @intrinsic @overload fn __to(self: int, target: int64) -> int64;
+    @intrinsic @overload fn __to(self: int, target: uint8) -> uint8;
+    @intrinsic @overload fn __to(self: int, target: uint16) -> uint16;
+    @intrinsic @overload fn __to(self: int, target: uint32) -> uint32;
+    @intrinsic @overload fn __to(self: int, target: uint64) -> uint64;
+    @intrinsic @overload fn __to(self: int, target: float32) -> float32;
+    @intrinsic @overload fn __to(self: int, target: float64) -> float64;
+}
+
+extern<uint> {
+    @intrinsic fn __add(self: uint, other: uint) -> uint;
+    @intrinsic fn __sub(self: uint, other: uint) -> uint;
+    @intrinsic fn __mul(self: uint, other: uint) -> uint;
+    @intrinsic fn __div(self: uint, other: uint) -> uint;
+    @intrinsic fn __mod(self: uint, other: uint) -> uint;
+    @intrinsic fn __bit_and(self: uint, other: uint) -> uint;
+    @intrinsic fn __bit_or(self: uint, other: uint) -> uint;
+    @intrinsic fn __bit_xor(self: uint, other: uint) -> uint;
+    @intrinsic fn __shl(self: uint, other: uint) -> uint;
+    @intrinsic fn __shr(self: uint, other: uint) -> uint;
+    @intrinsic fn __lt(self: uint, other: uint) -> bool;
+    @intrinsic fn __le(self: uint, other: uint) -> bool;
+    @intrinsic fn __eq(self: uint, other: uint) -> bool;
+    @intrinsic fn __ne(self: uint, other: uint) -> bool;
+    @intrinsic fn __ge(self: uint, other: uint) -> bool;
+    @intrinsic fn __gt(self: uint, other: uint) -> bool;
+    @intrinsic fn __pos(self: uint) -> uint;
+    @intrinsic fn __abs(self: uint) -> uint;
+    @intrinsic fn __to(self: uint, target: string) -> string;
+    @intrinsic @overload fn __to(self: uint, target: int) -> int;
+    @intrinsic @overload fn __to(self: uint, target: float) -> float;
+    @intrinsic @overload fn __to(self: uint, target: int8) -> int8;
+    @intrinsic @overload fn __to(self: uint, target: int16) -> int16;
+    @intrinsic @overload fn __to(self: uint, target: int32) -> int32;
+    @intrinsic @overload fn __to(self: uint, target: int64) -> int64;
+    @intrinsic @overload fn __to(self: uint, target: uint8) -> uint8;
+    @intrinsic @overload fn __to(self: uint, target: uint16) -> uint16;
+    @intrinsic @overload fn __to(self: uint, target: uint32) -> uint32;
+    @intrinsic @overload fn __to(self: uint, target: uint64) -> uint64;
+    @intrinsic @overload fn __to(self: uint, target: float32) -> float32;
+    @intrinsic @overload fn __to(self: uint, target: float64) -> float64;
+}
+
+extern<int8> {
+    fn __min_value() -> int8 { return (-128):int8; }
+    fn __max_value() -> int8 { return (127):int8; }
+    @intrinsic fn __to(self: int8, target: int) -> int;
+}
+
+extern<int16> {
+    fn __min_value() -> int16 { return (-32_768):int16; }
+    fn __max_value() -> int16 { return (32_767):int16; }
+    @intrinsic fn __to(self: int16, target: int) -> int;
+}
+
+extern<int32> {
+    fn __min_value() -> int32 { return (-2_147_483_648):int32; }
+    fn __max_value() -> int32 { return (2_147_483_647):int32; }
+    @intrinsic fn __to(self: int32, target: int) -> int;
+}
+
+extern<int64> {
+    fn __min_value() -> int64 { return (-9_223_372_036_854_775_808):int64; }
+    fn __max_value() -> int64 { return (9_223_372_036_854_775_807):int64; }
+    @intrinsic fn __to(self: int64, target: int) -> int;
+}
+
+extern<uint8> {
+    fn __min_value() -> uint8 { return (0):uint8; }
+    fn __max_value() -> uint8 { return (255):uint8; }
+    @intrinsic fn __to(self: uint8, target: uint) -> uint;
+}
+
+extern<uint16> {
+    fn __min_value() -> uint16 { return (0):uint16; }
+    fn __max_value() -> uint16 { return (65_535):uint16; }
+    @intrinsic fn __to(self: uint16, target: uint) -> uint;
+}
+
+extern<uint32> {
+    fn __min_value() -> uint32 { return (0):uint32; }
+    fn __max_value() -> uint32 { return (4_294_967_295):uint32; }
+    @intrinsic fn __to(self: uint32, target: uint) -> uint;
+}
+
+extern<uint64> {
+    fn __min_value() -> uint64 { return (0):uint64; }
+    fn __max_value() -> uint64 { return (18_446_744_073_709_551_615):uint64; }
+    @intrinsic fn __to(self: uint64, target: uint) -> uint;
+}
+
+extern<float32> {
+    fn __min_value() -> float32 { return (-3.402_823_466_385_2886e+38):float32; }
+    fn __max_value() -> float32 { return (3.402_823_466_385_2886e+38):float32; }
+    @intrinsic fn __to(self: float32, target: float) -> float;
+}
+
+extern<float64> {
+    fn __min_value() -> float64 { return (-1.797_693_134_862_3157e+308):float64; }
+    fn __max_value() -> float64 { return (1.797_693_134_862_3157e+308):float64; }
+    @intrinsic fn __to(self: float64, target: float) -> float;
+}
+
+extern<float> {
+    @intrinsic fn __add(self: float, other: float) -> float;
+    @intrinsic fn __sub(self: float, other: float) -> float;
+    @intrinsic fn __mul(self: float, other: float) -> float;
+    @intrinsic fn __div(self: float, other: float) -> float;
+    @intrinsic fn __mod(self: float, other: float) -> float;
+    @intrinsic fn __lt(self: float, other: float) -> bool;
+    @intrinsic fn __le(self: float, other: float) -> bool;
+    @intrinsic fn __eq(self: float, other: float) -> bool;
+    @intrinsic fn __ne(self: float, other: float) -> bool;
+    @intrinsic fn __ge(self: float, other: float) -> bool;
+    @intrinsic fn __gt(self: float, other: float) -> bool;
+    @intrinsic fn __pos(self: float) -> float;
+    @intrinsic fn __neg(self: float) -> float;
+    @intrinsic fn __abs(self: float) -> float;
+    @intrinsic fn __to(self: float, target: string) -> string;
+    @intrinsic @overload fn __to(self: float, target: int) -> int;
+    @intrinsic @overload fn __to(self: float, target: uint) -> uint;
+    @intrinsic @overload fn __to(self: float, target: int8) -> int8;
+    @intrinsic @overload fn __to(self: float, target: int16) -> int16;
+    @intrinsic @overload fn __to(self: float, target: int32) -> int32;
+    @intrinsic @overload fn __to(self: float, target: int64) -> int64;
+    @intrinsic @overload fn __to(self: float, target: uint8) -> uint8;
+    @intrinsic @overload fn __to(self: float, target: uint16) -> uint16;
+    @intrinsic @overload fn __to(self: float, target: uint32) -> uint32;
+    @intrinsic @overload fn __to(self: float, target: uint64) -> uint64;
+    @intrinsic @overload fn __to(self: float, target: float32) -> float32;
+    @intrinsic @overload fn __to(self: float, target: float64) -> float64;
+}
+
+extern<string> {
+    @intrinsic fn __add(self: string, other: string) -> string;
+    @intrinsic fn __mul(self: string, other: int) -> string;
+    @overload fn __mul(self: string, other: uint) -> string {
+        return self * (other to int);
+    }
+    @intrinsic fn __eq(self: string, other: string) -> bool;
+    @intrinsic fn __ne(self: string, other: string) -> bool;
+    @intrinsic fn __to(self: string, target: int) -> int;
+    @intrinsic @overload fn __to(self: string, target: uint) -> uint;
+    @intrinsic @overload fn __to(self: string, target: float) -> float;
+}
+
+extern<bool> {
+    @intrinsic fn __eq(self: bool, other: bool) -> bool;
+    @intrinsic fn __ne(self: bool, other: bool) -> bool;
+    @intrinsic fn __not(self: bool) -> bool;
+    @intrinsic fn __to(self: bool, target: string) -> string;
+    @intrinsic @overload fn __to(self: bool, target: int) -> int;
+}
+
+extern<Array<T>> {
+    @intrinsic fn __add<T>(self: Array<T>, other: Array<T>) -> Array<T>;
+    @intrinsic fn __index<T>(self: Array<T>, index: int) -> T;
+    @intrinsic fn __index_set<T>(self: Array<T>, index: int, value: T) -> nothing;
+    @intrinsic fn __range<T>(self: Array<T>) -> Range<T>;
+}
+
+extern<ArrayFixed<T, N>> {
+    @intrinsic fn __add<T, const N: int>(self: ArrayFixed<T, N>, other: ArrayFixed<T, N>) -> ArrayFixed<T, N>;
+    @intrinsic fn __index<T, const N: int>(self: ArrayFixed<T, N>, index: int) -> T;
+    @intrinsic fn __index_set<T, const N: int>(self: ArrayFixed<T, N>, index: int, value: T) -> nothing;
+    @intrinsic fn __range<T, const N: int>(self: ArrayFixed<T, N>) -> Range<T>;
+}
+
+@intrinsic
+pub fn default<T>() -> T;
+
+contract ErrorLike{
+    field message: string;
+    field code: uint;
+}
+
+@intrinsic
+pub fn exit<E: ErrorLike>(e: E) -> nothing;
+
+pub fn panic(msg: string) -> nothing {
+    let e: Error = { message: msg, code: 1:uint };
+    exit(e);
+}

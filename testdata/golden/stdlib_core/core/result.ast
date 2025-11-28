@@ -1,0 +1,45 @@
+result.sg (span: 3:1-24:1)
+├─ Item[0]: Type (span: 3:1-3:50)
+│  ├─ Name: Error
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  └─ Struct:
+│     ├─ Field[0]: message: string
+│     └─ Field[1]: code: uint
+├─ Item[1]: Tag (span: 5:1-5:18)
+│  ├─ Name: Ok
+│  ├─ Visibility: public
+│  ├─ Generics: <T>
+│  └─ Payload: T
+├─ Item[2]: Tag (span: 6:1-6:19)
+│  ├─ Name: Err
+│  ├─ Visibility: public
+│  ├─ Generics: <E>
+│  └─ Payload: E
+├─ Item[3]: Type (span: 7:1-7:40)
+│  ├─ Name: Result
+│  ├─ Kind: Union
+│  ├─ Visibility: public
+│  ├─ Generics: <T, E>
+│  └─ Union:
+│     ├─ Member[0]: Ok(T)
+│     └─ Member[1]: Err(E)
+└─ Item[4]: Extern (span: 9:1-23:2)
+   ├─ Target: Result<T, E>
+   ├─ Members:
+   │  ├─ Fn[0]: safe
+   │  │  ├─ Params: (self: Result<T, E>)
+   │  │  ├─ Return: T
+   │  │  ├─ Generics: <T, E>
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 10:48-15:6)
+   │  │     └─ Stmt[0]: Expr (span: 11:9-14:11)
+   │  │        └─ Expr: expr#11: compare self { 2 arms }
+   │  └─ Fn[1]: exit
+   │     ├─ Params: (self: Result<T, E>)
+   │     ├─ Return: nothing
+   │     ├─ Generics: <T, E>
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 17:54-22:6)
+   │        └─ Stmt[0]: Expr (span: 18:9-21:11)
+   │           └─ Expr: expr#22: compare self { 1 arms }

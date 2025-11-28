@@ -165,7 +165,7 @@ func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
 }
 
 func (fr *fileResolver) declareImport(itemID ast.ItemID, importItem *ast.ImportItem, itemSpan source.Span) {
-	modulePath := fr.resolveImportModulePath(importItem.Module)
+	modulePath := fr.resolveImportModulePath(importItem.Module, itemSpan)
 	hasItems := importItem.HasOne || len(importItem.Group) > 0
 
 	if !hasItems {
@@ -525,11 +525,12 @@ func (fr *fileResolver) moduleAliasForImport(importItem *ast.ImportItem, allowDe
 	return source.NoStringID
 }
 
-func (fr *fileResolver) resolveImportModulePath(module []source.StringID) string {
+func (fr *fileResolver) resolveImportModulePath(module []source.StringID, span source.Span) string {
 	segs := fr.moduleSegmentsToStrings(module)
 	if len(segs) == 0 {
 		return ""
 	}
+	segs = fr.applyNoStdImportRules(segs, span)
 	base := fr.baseDir
 	if base == "" && fr.filePath != "" {
 		base = filepath.Dir(fr.filePath)
@@ -560,4 +561,19 @@ func (fr *fileResolver) lookupString(id source.StringID) string {
 		return ""
 	}
 	return fr.builder.StringsInterner.MustLookup(id)
+}
+
+func (fr *fileResolver) applyNoStdImportRules(segs []string, span source.Span) []string {
+	if !fr.noStd || len(segs) == 0 || segs[0] != "stdlib" {
+		return segs
+	}
+	replacement := append([]string{"core"}, segs[1:]...)
+	if fr.resolver != nil && fr.resolver.reporter != nil {
+		corePath := strings.Join(replacement, "/")
+		msg := fmt.Sprintf("stdlib is not available in no_std modules; import %q instead", corePath)
+		if b := diag.ReportError(fr.resolver.reporter, diag.SemaNoStdlib, span, msg); b != nil {
+			b.Emit()
+		}
+	}
+	return replacement
 }

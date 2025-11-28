@@ -74,6 +74,7 @@ type ResolveOptions struct {
 	FilePath      string
 	BaseDir       string
 	ModuleExports map[string]*ModuleExports
+	NoStd         bool
 }
 
 // Result captures resolve artefacts for one file.
@@ -90,6 +91,12 @@ type Result struct {
 func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) Result {
 	if opts == nil {
 		opts = &ResolveOptions{}
+	}
+	noStd := opts.NoStd
+	if !noStd && builder != nil {
+		if file := builder.Files.Get(fileID); file != nil && file.Pragma.Flags&ast.PragmaFlagNoStd != 0 {
+			noStd = true
+		}
 	}
 	var table *Table
 	if opts.Table != nil {
@@ -115,8 +122,13 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 	fileScope := table.FileRoot(sourceFile, file.Span)
 	result.FileScope = fileScope
 
-	importsPrelude := exportsPrelude(opts.ModuleExports)
-	prelude := mergePrelude(append(importsPrelude, opts.Prelude...))
+	var prelude []PreludeEntry
+	if noStd {
+		prelude = mergePrelude(opts.Prelude)
+	} else {
+		importsPrelude := exportsPrelude(opts.ModuleExports)
+		prelude = mergePrelude(append(importsPrelude, opts.Prelude...))
+	}
 	resolver := NewResolver(table, fileScope, ResolverOptions{
 		Reporter: opts.Reporter,
 		Prelude:  prelude,
@@ -136,6 +148,7 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 		aliasExports:        make(map[source.StringID]*ModuleExports),
 		aliasModulePaths:    make(map[source.StringID]string),
 		syntheticImportSyms: make(map[string]SymbolID),
+		noStd:               noStd,
 	}
 	fr.injectCoreExports()
 	fr.predeclareConstItems(file.Items)
@@ -171,6 +184,7 @@ type fileResolver struct {
 	aliasExports        map[source.StringID]*ModuleExports
 	aliasModulePaths    map[source.StringID]string
 	syntheticImportSyms map[string]SymbolID
+	noStd               bool
 }
 
 func (fr *fileResolver) handleExtern(itemID ast.ItemID, block *ast.ExternBlock) {
@@ -464,7 +478,7 @@ func (fr *fileResolver) syntheticSymbolForExport(modulePath, name string, export
 }
 
 func (fr *fileResolver) injectCoreExports() {
-	if fr.moduleExports == nil || fr.builder == nil || fr.result == nil {
+	if fr.noStd || fr.moduleExports == nil || fr.builder == nil || fr.result == nil {
 		return
 	}
 	var fileSpan source.Span

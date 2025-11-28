@@ -1,0 +1,1 @@
+error SEM3005 testdata/golden/sema/invalid/pragma_no_std_missing_core_import.sg:4:13 cannot resolve 'default'

@@ -57,6 +57,8 @@ func (tc *typeChecker) defaultable(id types.TypeID) bool {
 		return true
 	case types.KindConst:
 		return true
+	case types.KindGenericParam:
+		return true
 	case types.KindPointer:
 		return true
 	case types.KindReference, types.KindOwn:
