@@ -85,13 +85,14 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 		reqs   contractRequirements
 		okReqs bool
 	)
-	if contractSym.Contract != nil {
-		reqs = tc.instantiateContractRequirements(contractSym, contractSym.Contract, args)
-		okReqs = true
-	} else if okContract && contractDecl != nil {
-		reqs, okReqs = tc.contractRequirementSet(contractDecl, scope)
-	} else {
-		return false
+	switch {
+		case contractSym.Contract != nil:
+			reqs = tc.instantiateContractRequirements(contractSym, contractSym.Contract, args)
+			okReqs = true
+		case okContract && contractDecl != nil:
+			reqs, okReqs = tc.contractRequirementSet(contractDecl, scope)
+		default:
+			return false
 	}
 	ok := okReqs
 

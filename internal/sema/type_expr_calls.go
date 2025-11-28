@@ -33,6 +33,12 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 		})
 		tc.observeMove(arg, tc.exprSpan(arg))
 	}
+	if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
+		if module := tc.moduleSymbolForExpr(member.Target); module != nil {
+			typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)
+			return tc.moduleFunctionResult(module, member.Field, args, typeArgs, span)
+		}
+	}
 	ident, ok := tc.builder.Exprs.Ident(call.Target)
 	if !ok || ident == nil {
 		return types.NoTypeID

@@ -29,6 +29,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				symID = tc.lookupValueSymbol(ident.Name, tc.currentScope())
 			}
 			sym := tc.symbolFromID(symID)
+			if sym != nil && sym.Kind == symbols.SymbolImport {
+				sym = tc.resolveImportedValueSymbol(sym, ident.Name, expr.Span)
+			}
 			switch {
 			case sym == nil:
 				ty = types.NoTypeID
@@ -66,24 +69,26 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 	case ast.ExprCall:
 		if call, ok := tc.builder.Exprs.Call(id); ok && call != nil {
 			if member, okMem := tc.builder.Exprs.Member(call.Target); okMem && member != nil {
-				receiverType := tc.typeExpr(member.Target)
-				if tc.lookupName(member.Field) == "await" {
-					if tc.awaitDepth == 0 {
-						tc.report(diag.SemaIntrinsicBadContext, expr.Span, "await can only be used in async context")
+				if tc.moduleSymbolForExpr(member.Target) == nil {
+					receiverType := tc.typeExpr(member.Target)
+					if tc.lookupName(member.Field) == "await" {
+						if tc.awaitDepth == 0 {
+							tc.report(diag.SemaIntrinsicBadContext, expr.Span, "await can only be used in async context")
+						}
+						if receiverType != types.NoTypeID && !tc.isTaskType(receiverType) {
+							tc.report(diag.SemaTypeMismatch, expr.Span, "await expects Task<T>, got %s", tc.typeLabel(receiverType))
+						}
 					}
-					if receiverType != types.NoTypeID && !tc.isTaskType(receiverType) {
-						tc.report(diag.SemaTypeMismatch, expr.Span, "await expects Task<T>, got %s", tc.typeLabel(receiverType))
+					argTypes := make([]types.TypeID, 0, len(call.Args))
+					for _, arg := range call.Args {
+						argTypes = append(argTypes, tc.typeExpr(arg))
+						tc.observeMove(arg, tc.exprSpan(arg))
 					}
+					ty = tc.methodResultType(member, receiverType, argTypes, expr.Span)
+					break
 				}
-				argTypes := make([]types.TypeID, 0, len(call.Args))
-				for _, arg := range call.Args {
-					argTypes = append(argTypes, tc.typeExpr(arg))
-					tc.observeMove(arg, tc.exprSpan(arg))
-				}
-				ty = tc.methodResultType(member, receiverType, argTypes, expr.Span)
-			} else {
-				ty = tc.callResultType(call, expr.Span)
 			}
+			ty = tc.callResultType(call, expr.Span)
 		}
 	case ast.ExprArray:
 		if arr, ok := tc.builder.Exprs.Array(id); ok && arr != nil {
@@ -127,8 +132,12 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprMember:
 		if member, ok := tc.builder.Exprs.Member(id); ok && member != nil {
-			targetType := tc.typeExpr(member.Target)
-			ty = tc.memberResultType(targetType, member.Field, expr.Span)
+			if module := tc.moduleSymbolForExpr(member.Target); module != nil {
+				ty = tc.typeOfModuleMember(module, member.Field, expr.Span)
+			} else {
+				targetType := tc.typeExpr(member.Target)
+				ty = tc.memberResultType(targetType, member.Field, expr.Span)
+			}
 		}
 	case ast.ExprAwait:
 		if awaitData, ok := tc.builder.Exprs.Await(id); ok && awaitData != nil {

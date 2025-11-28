@@ -167,6 +167,14 @@ func (tc *typeChecker) isConstExpr(expr ast.ExprID) bool {
 				return true
 			}
 		}
+	case ast.ExprMember:
+		if member, ok := tc.builder.Exprs.Member(expr); ok && member != nil {
+			if module := tc.moduleSymbolForExpr(member.Target); module != nil {
+				if exp := tc.lookupModuleExport(module, member.Field, node.Span); exp != nil && exp.Kind == symbols.SymbolConst {
+					return true
+				}
+			}
+		}
 	}
 	return false
 }
