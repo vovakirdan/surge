@@ -1,0 +1,20 @@
+// scenario: import public objects from other modules
+import inner/_stub_const_fn_type_contract;
+import _stub_const_fn_type_contract::{PUBLIC_CONST, publicFunc, PublicContract, PublicType};
+
+fn main() {
+    const public_const = _stub_const_fn_type_contract.INNER_PUBLIC_CONST;
+    const public_const_2 = PUBLIC_CONST; 
+    let _ = publicFunc();
+    let _ = _stub_const_fn_type_contract.inner_publicFunc();
+    let _ = PublicType { value = 1 };
+    let _ = _stub_const_fn_type_contract.InnerPublicType { value = 1 };
+}
+
+fn foo<T: PublicContract>(t: T) {
+    let _ = t.method();
+}
+
+fn bar<T: _stub_const_fn_type_contract.InnerPublicContract>(t: T) {
+    let _ = t.method();
+}

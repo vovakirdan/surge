@@ -1,0 +1,18 @@
+// consts, fns, contracts, and types with different visibility (just for import from other modules)
+
+const INNER_PRIVATE_CONST = 1;
+pub const INNER_PUBLIC_CONST = 2;
+
+fn inner_privateFunc() -> int { return 1; }
+pub fn inner_publicFunc() -> int { return 2; }
+
+contract InnerPrivateContract {
+    fn method() -> int;
+}
+
+pub contract InnerPublicContract {
+    fn method() -> int;
+}
+
+type InnerPrivateType = { value: int }
+pub type InnerPublicType = { value: int }
