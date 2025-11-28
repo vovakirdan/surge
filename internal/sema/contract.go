@@ -103,7 +103,7 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 			tc.validateAttrs(fn.AttrStart, fn.AttrCount, ast.AttrTargetFn, diag.SemaContractUnknownAttr)
 			method, okMethod := tc.checkContractMethod(fn, scope, markUsage)
 			if contractSpec != nil && okMethod && method != nil {
-				contractSpec.AddMethod(*method)
+				contractSpec.AddMethod(method)
 			}
 			if !okMethod {
 				continue

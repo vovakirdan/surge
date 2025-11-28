@@ -51,13 +51,11 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 	if tc.builder != nil {
 		contractDecl, okContract = tc.builder.Items.Contract(contractSym.Decl.Item)
 	}
-
 	args := bound.GenericArgs
 	if len(contractSym.TypeParams) > 0 && len(args) != len(contractSym.TypeParams) {
 		tc.report(diag.SemaTypeMismatch, bound.Span, "%s expects %d type argument(s), got %d", tc.lookupName(contractSym.Name), len(contractSym.TypeParams), len(args))
 		return false
 	}
-
 	reportSpan := hintSpan
 	if reportSpan == (source.Span{}) {
 		reportSpan = bound.Span
@@ -86,13 +84,13 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 		okReqs bool
 	)
 	switch {
-		case contractSym.Contract != nil:
-			reqs = tc.instantiateContractRequirements(contractSym, contractSym.Contract, args)
-			okReqs = true
-		case okContract && contractDecl != nil:
-			reqs, okReqs = tc.contractRequirementSet(contractDecl, scope)
-		default:
-			return false
+	case contractSym.Contract != nil:
+		reqs = tc.instantiateContractRequirements(contractSym, contractSym.Contract, args)
+		okReqs = true
+	case okContract && contractDecl != nil:
+		reqs, okReqs = tc.contractRequirementSet(contractDecl, scope)
+	default:
+		return false
 	}
 	ok := okReqs
 

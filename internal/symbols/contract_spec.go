@@ -44,8 +44,8 @@ func (c *ContractSpec) AddField(name source.StringID, typ types.TypeID, attrs []
 }
 
 // AddMethod registers a method requirement.
-func (c *ContractSpec) AddMethod(m ContractMethod) {
-	if c == nil || m.Name == source.NoStringID {
+func (c *ContractSpec) AddMethod(m *ContractMethod) {
+	if c == nil || m == nil || m.Name == source.NoStringID {
 		return
 	}
 	clone := ContractMethod{
@@ -72,8 +72,8 @@ func cloneContractSpec(spec *ContractSpec) *ContractSpec {
 		out.FieldAttrs[name] = append([]source.StringID(nil), attrs...)
 	}
 	for _, methods := range spec.Methods {
-		for _, m := range methods {
-			out.AddMethod(m)
+		for i := range methods {
+			out.AddMethod(&methods[i])
 		}
 	}
 	return out
