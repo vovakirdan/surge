@@ -268,7 +268,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		}
 	case ast.StmtIf:
 		if ifStmt := tc.builder.Stmts.If(id); ifStmt != nil {
-			tc.typeExpr(ifStmt.Cond)
+			tc.ensureBoolContext(ifStmt.Cond, tc.exprSpan(ifStmt.Cond))
 			tc.walkStmt(ifStmt.Then)
 			if ifStmt.Else.IsValid() {
 				tc.walkStmt(ifStmt.Else)
@@ -276,7 +276,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		}
 	case ast.StmtWhile:
 		if whileStmt := tc.builder.Stmts.While(id); whileStmt != nil {
-			tc.typeExpr(whileStmt.Cond)
+			tc.ensureBoolContext(whileStmt.Cond, tc.exprSpan(whileStmt.Cond))
 			tc.walkStmt(whileStmt.Body)
 		}
 	case ast.StmtForClassic:
@@ -286,7 +286,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			if forStmt.Init.IsValid() {
 				tc.walkStmt(forStmt.Init)
 			}
-			tc.typeExpr(forStmt.Cond)
+			tc.ensureBoolContext(forStmt.Cond, tc.exprSpan(forStmt.Cond))
 			tc.typeExpr(forStmt.Post)
 			tc.walkStmt(forStmt.Body)
 			if pushed {

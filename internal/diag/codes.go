@@ -115,6 +115,7 @@ const (
 	SemaAmbiguousOverload          Code = 3047
 	SemaWildcardValue              Code = 3048
 	SemaWildcardMut                Code = 3049
+	SemaInvalidBoolContext         Code = 3050
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -234,6 +235,7 @@ var ( // todo расширить описания и использовать к
 		SemaAmbiguousOverload:          "Ambiguous overload resolution",
 		SemaWildcardValue:              "Wildcard used as value",
 		SemaWildcardMut:                "Wildcard mutability",
+		SemaInvalidBoolContext:         "Invalid boolean context",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

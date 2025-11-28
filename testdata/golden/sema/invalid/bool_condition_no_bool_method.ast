@@ -1,0 +1,19 @@
+bool_condition_no_bool_method.sg (span: 2:1-8:1)
+└─ Item[0]: Fn (span: 2:1-7:2)
+   ├─ Name: invalid_condition
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:24-7:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:25)
+         │  ├─ Name: number
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         └─ Stmt[1]: If (span: 4:5-6:6)
+            ├─ Cond: expr#2: number
+            ├─ Then:
+Block (span: 4:17-6:6)
+            │  └─ Stmt[0]: Return (span: 5:9-5:16)
+            │     └─ Expr: <none>
+            └─ Else: <none>

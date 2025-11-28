@@ -1,0 +1,22 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "invalid_condition" at 2:4-2:21 (leading: Space)
+  3: LParen          "(" at 2:21-2:22
+  4: RParen          ")" at 2:22-2:23
+  5: LBrace          "{" at 2:24-2:25 (leading: Space)
+  6: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+  7: Ident           "number" at 3:9-3:15 (leading: Space)
+  8: Colon           ":" at 3:15-3:16
+  9: Ident           "int" at 3:17-3:20 (leading: Space)
+ 10: Assign          "=" at 3:21-3:22 (leading: Space)
+ 11: IntLit          "1" at 3:23-3:24 (leading: Space)
+ 12: Semicolon       ";" at 3:24-3:25
+ 13: KwIf            "if" at 4:5-4:7 (leading: Newline, Space)
+ 14: LParen          "(" at 4:8-4:9 (leading: Space)
+ 15: Ident           "number" at 4:9-4:15
+ 16: RParen          ")" at 4:15-4:16
+ 17: LBrace          "{" at 4:17-4:18 (leading: Space)
+ 18: KwReturn        "return" at 5:9-5:15 (leading: Newline, Space)
+ 19: Semicolon       ";" at 5:15-5:16
+ 20: RBrace          "}" at 6:5-6:6 (leading: Newline, Space)
+ 21: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 22: EOF             at 8:1-8:1

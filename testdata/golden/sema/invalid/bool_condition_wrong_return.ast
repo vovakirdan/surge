@@ -1,0 +1,26 @@
+bool_condition_wrong_return.sg (span: 2:1-13:1)
+├─ Item[0]: Type (span: 2:1-2:27)
+│  ├─ Name: Flag
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: value: int
+├─ Item[1]: Extern (span: 4:1-6:2)
+│  ├─ Target: Flag
+│  ├─ Members:
+│  │  └─ Fn[0]: __bool
+│  │     ├─ Params: (self: Flag)
+│  │     └─ Return: int
+└─ Item[2]: Fn (span: 8:1-12:2)
+   ├─ Name: invalid_bool_return
+   ├─ Params: (f: Flag)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:33-12:2)
+         └─ Stmt[0]: If (span: 9:5-11:6)
+            ├─ Cond: expr#1: f
+            ├─ Then:
+Block (span: 9:12-11:6)
+            │  └─ Stmt[0]: Return (span: 10:9-10:16)
+            │     └─ Expr: <none>
+            └─ Else: <none>

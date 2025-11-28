@@ -170,10 +170,8 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			resultType := types.NoTypeID
 			for _, arm := range cmp.Arms {
 				tc.inferComparePatternTypes(arm.Pattern, valueType)
-				if guardType := tc.typeExpr(arm.Guard); guardType != types.NoTypeID {
-					if boolType := tc.types.Builtins().Bool; !tc.typesAssignable(boolType, guardType, true) {
-						tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Guard), "compare guard must be bool, got %s", tc.typeLabel(guardType))
-					}
+				if arm.Guard.IsValid() {
+					tc.ensureBoolContext(arm.Guard, tc.exprSpan(arm.Guard))
 				}
 				armResult := tc.typeExpr(arm.Result)
 				if armResult == types.NoTypeID {

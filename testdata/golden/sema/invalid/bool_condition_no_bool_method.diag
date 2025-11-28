@@ -1,0 +1,1 @@
+error SEM3050 testdata/golden/sema/invalid/bool_condition_no_bool_method.sg:4:9 type int has no method __bool() -> bool

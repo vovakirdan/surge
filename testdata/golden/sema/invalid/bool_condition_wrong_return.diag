@@ -1,0 +1,1 @@
+error SEM3050 testdata/golden/sema/invalid/bool_condition_wrong_return.sg:9:9 __bool for Flag must return bool, got int

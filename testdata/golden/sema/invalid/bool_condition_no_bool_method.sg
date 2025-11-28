@@ -1,0 +1,7 @@
+// using a non-bool expression as condition without __bool
+fn invalid_condition() {
+    let number: int = 1;
+    if (number) {
+        return;
+    }
+}
