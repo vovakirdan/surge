@@ -18,7 +18,9 @@ type ExportedSymbol struct {
 	TypeParams     []source.StringID
 	TypeParamNames []string
 	TypeParamSpan  source.Span
+	TypeParamSyms  []TypeParamSymbol
 	Type           types.TypeID
+	Contract       *ContractSpec
 }
 
 // ModuleExports aggregates exported symbols for a module, preserving overload sets.
@@ -94,6 +96,8 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 			TypeParams:     append([]source.StringID(nil), sym.TypeParams...),
 			TypeParamNames: lookupNames(builder, sym.TypeParams),
 			TypeParamSpan:  sym.TypeParamSpan,
+			TypeParamSyms:  CloneTypeParamSymbols(sym.TypeParamSymbols),
+			Contract:       cloneContractSpec(sym.Contract),
 		})
 	}
 	return exports
@@ -120,4 +124,29 @@ func isExportableKind(kind SymbolKind) bool {
 	default:
 		return false
 	}
+}
+
+func CloneTypeParamSymbols(params []TypeParamSymbol) []TypeParamSymbol {
+	if len(params) == 0 {
+		return nil
+	}
+	out := make([]TypeParamSymbol, 0, len(params))
+	for _, p := range params {
+		copyBounds := make([]BoundInstance, 0, len(p.Bounds))
+		for _, b := range p.Bounds {
+			copyBounds = append(copyBounds, BoundInstance{
+				Contract:    b.Contract,
+				GenericArgs: append([]types.TypeID(nil), b.GenericArgs...),
+				Span:        b.Span,
+			})
+		}
+		out = append(out, TypeParamSymbol{
+			Name:      p.Name,
+			Span:      p.Span,
+			Bounds:    copyBounds,
+			IsConst:   p.IsConst,
+			ConstType: p.ConstType,
+		})
+	}
+	return out
 }

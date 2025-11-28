@@ -30,12 +30,14 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 	typeParamsPushed := tc.pushTypeParams(symID, paramSpecs, nil)
 	typeParamSet := make(map[source.StringID]struct{}, len(paramSpecs))
 	typeParamUsage := make(map[source.StringID]bool, len(paramSpecs))
-	var typeParamIDs []types.TypeID
+	var contractSpec *symbols.ContractSpec
+	if sym := tc.symbolFromID(symID); sym != nil {
+		contractSpec = symbols.NewContractSpec()
+	}
 	if typeParamsPushed {
 		for _, spec := range paramSpecs {
 			typeParamSet[spec.name] = struct{}{}
 			typeParamUsage[spec.name] = false
-			typeParamIDs = append(typeParamIDs, tc.lookupTypeParam(spec.name))
 		}
 	}
 
@@ -75,8 +77,11 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 			}
 			tc.validateAttrs(field.AttrStart, field.AttrCount, ast.AttrTargetField, diag.SemaContractUnknownAttr)
 			if field.Type.IsValid() {
-				tc.resolveTypeExprWithScope(field.Type, scope)
+				fieldType := tc.resolveTypeExprWithScope(field.Type, scope)
 				markUsage(field.Type)
+				if contractSpec != nil && fieldType != types.NoTypeID {
+					contractSpec.AddField(field.Name, fieldType, tc.attrNames(field.AttrStart, field.AttrCount))
+				}
 			}
 		case ast.ContractItemFn:
 			fn := tc.builder.Items.ContractFn(ast.ContractFnID(member.Payload))
@@ -96,7 +101,13 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 				}{span: fn.NameSpan, overload: currentOverload}
 			}
 			tc.validateAttrs(fn.AttrStart, fn.AttrCount, ast.AttrTargetFn, diag.SemaContractUnknownAttr)
-			tc.checkContractMethod(fn, typeParamIDs, scope, markUsage)
+			method, okMethod := tc.checkContractMethod(fn, scope, markUsage)
+			if contractSpec != nil && okMethod && method != nil {
+				contractSpec.AddMethod(*method)
+			}
+			if !okMethod {
+				continue
+			}
 		}
 	}
 
@@ -109,31 +120,54 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 			tc.report(diag.SemaContractUnusedTypeParam, decl.GenericsSpan, "unused generic parameter '%s'", tc.lookupName(name))
 		}
 	}
+	if contractSpec != nil {
+		if sym := tc.symbolFromID(symID); sym != nil {
+			sym.Contract = contractSpec
+		}
+	}
 }
 
-func (tc *typeChecker) checkContractMethod(fn *ast.ContractFnReq, _ []types.TypeID, scope symbols.ScopeID, markUsage func(ast.TypeID)) {
+func (tc *typeChecker) checkContractMethod(fn *ast.ContractFnReq, scope symbols.ScopeID, markUsage func(ast.TypeID)) (*symbols.ContractMethod, bool) {
 	if fn == nil {
-		return
+		return nil, false
 	}
+	ok := true
 	if fn.Body.IsValid() {
 		tc.report(diag.SemaContractMethodBody, fn.Span, "contract methods must not have bodies")
 	}
 
-	// resolve return type
+	method := &symbols.ContractMethod{
+		Name:   fn.Name,
+		Span:   fn.Span,
+		Attrs:  tc.attrNames(fn.AttrStart, fn.AttrCount),
+		Public: fn.Flags&ast.FnModifierPublic != 0,
+		Async:  fn.Flags&ast.FnModifierAsync != 0,
+	}
+
 	if fn.ReturnType.IsValid() {
-		tc.resolveTypeExprWithScope(fn.ReturnType, scope)
+		method.Result = tc.resolveTypeExprWithScope(fn.ReturnType, scope)
 		markUsage(fn.ReturnType)
+		if method.Result == types.NoTypeID {
+			ok = false
+		}
 	}
 
 	paramIDs := tc.getContractFnParamIDs(fn)
 	for _, pid := range paramIDs {
 		param := tc.builder.Items.FnParam(pid)
 		if param == nil || !param.Type.IsValid() {
+			method.Params = append(method.Params, types.NoTypeID)
+			ok = false
 			continue
 		}
-		tc.resolveTypeExprWithScope(param.Type, scope)
+		paramType := tc.resolveTypeExprWithScope(param.Type, scope)
 		markUsage(param.Type)
+		method.Params = append(method.Params, paramType)
+		if paramType == types.NoTypeID {
+			ok = false
+		}
 	}
+	return method, ok
 }
 
 func (tc *typeChecker) validateAttrs(start ast.AttrID, count uint32, target ast.AttrTargetMask, code diag.Code) {

@@ -376,13 +376,15 @@ func (tc *typeChecker) resolveQualifiedContract(path *ast.TypePath, span source.
 	// Synthesize a symbol for the contract so bounds can reference it.
 	nameID := tc.builder.StringsInterner.Intern(candidate.Name)
 	symRecord := symbols.Symbol{
-		Name:          nameID,
-		Kind:          symbols.SymbolContract,
-		Flags:         candidate.Flags | symbols.SymbolFlagImported,
-		Span:          candidate.Span,
-		ModulePath:    modulePath,
-		TypeParams:    candidate.TypeParams,
-		TypeParamSpan: candidate.TypeParamSpan,
+		Name:             nameID,
+		Kind:             symbols.SymbolContract,
+		Flags:            candidate.Flags | symbols.SymbolFlagImported,
+		Span:             candidate.Span,
+		ModulePath:       modulePath,
+		TypeParams:       candidate.TypeParams,
+		TypeParamSpan:    candidate.TypeParamSpan,
+		TypeParamSymbols: symbols.CloneTypeParamSymbols(candidate.TypeParamSyms),
+		Contract:         symbols.CloneContractSpec(candidate.Contract),
 	}
 	id := tc.symbols.Table.Symbols.New(&symRecord)
 	if scopeData := tc.symbols.Table.Scopes.Get(tc.fileScope()); scopeData != nil {
@@ -444,13 +446,15 @@ func (tc *typeChecker) resolveImportContract(sym *symbols.Symbol, name source.St
 		}
 		nameID := name
 		symRecord := symbols.Symbol{
-			Name:          nameID,
-			Kind:          symbols.SymbolContract,
-			Flags:         exp.Flags | symbols.SymbolFlagImported,
-			Span:          exp.Span,
-			ModulePath:    sym.ModulePath,
-			TypeParams:    exp.TypeParams,
-			TypeParamSpan: exp.TypeParamSpan,
+			Name:             nameID,
+			Kind:             symbols.SymbolContract,
+			Flags:            exp.Flags | symbols.SymbolFlagImported,
+			Span:             exp.Span,
+			ModulePath:       sym.ModulePath,
+			TypeParams:       exp.TypeParams,
+			TypeParamSpan:    exp.TypeParamSpan,
+			TypeParamSymbols: symbols.CloneTypeParamSymbols(exp.TypeParamSyms),
+			Contract:         symbols.CloneContractSpec(exp.Contract),
 		}
 		id := tc.symbols.Table.Symbols.New(&symRecord)
 		if scopeData := tc.symbols.Table.Scopes.Get(tc.fileScope()); scopeData != nil {

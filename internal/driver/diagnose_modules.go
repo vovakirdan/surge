@@ -101,14 +101,14 @@ func collectModuleExports(
 			if rec == nil {
 				continue
 			}
-			if rec.Exports != nil {
-				exports[normPath] = rec.Exports
-				continue
-			}
 			if normPath == normalizedRoot {
 				continue
 			}
 			if rec.Builder == nil || rec.FileID == ast.NoFileID {
+				continue
+			}
+			if rec.Exports != nil && rec.Sema != nil && !exportsIncomplete(rec.Exports) {
+				exports[normPath] = rec.Exports
 				continue
 			}
 			bag := rec.Bag
@@ -287,6 +287,24 @@ func collectedExports(records map[string]*moduleRecord) map[string]*symbols.Modu
 		exports[normalizeExportsKey(path)] = rec.Exports
 	}
 	return exports
+}
+
+func exportsIncomplete(exp *symbols.ModuleExports) bool {
+	if exp == nil {
+		return true
+	}
+	for _, set := range exp.Symbols {
+		for i := range set {
+			sym := set[i]
+			if sym.Kind == symbols.SymbolType && sym.Type == types.NoTypeID {
+				return true
+			}
+			if sym.Kind == symbols.SymbolContract && sym.Contract == nil {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func preferredModulePath(rec *moduleRecord, fallback string) string {

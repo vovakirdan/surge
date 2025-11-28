@@ -1,8 +1,0 @@
-error SEM3026 testdata/golden/sema/valid/import_objects.sg:6:26 const 'public_const' initializer must be a compile-time constant
-error SEM3005 testdata/golden/sema/valid/import_objects.sg:9:13 unknown has no method inner_publicFunc
-error SEM3005 testdata/golden/sema/valid/import_objects.sg:10:13 unknown type PublicType
-error SEM3005 testdata/golden/sema/valid/import_objects.sg:11:13 cannot resolve module _stub_const_fn_type_contract
-error SEM3005 testdata/golden/sema/valid/import_objects.sg:15:13 T has no method method
-error SEM3005 testdata/golden/sema/valid/import_objects.sg:18:11 cannot resolve module _stub_const_fn_type_contract
-error SEM3034 testdata/golden/sema/valid/import_objects.sg:18:11 unknown contract 'InnerPublicContract' in bounds of 'T'
-error SEM3005 testdata/golden/sema/valid/import_objects.sg:19:13 T has no method method

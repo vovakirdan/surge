@@ -11,11 +11,17 @@ import (
 // requirementsForBound builds contract requirements for a bound instance.
 func (tc *typeChecker) requirementsForBound(bound symbols.BoundInstance) (contractRequirements, bool) {
 	var empty contractRequirements
-	if !bound.Contract.IsValid() || tc.builder == nil {
+	if !bound.Contract.IsValid() {
 		return empty, false
 	}
 	contractSym := tc.symbolFromID(bound.Contract)
 	if contractSym == nil || contractSym.Kind != symbols.SymbolContract {
+		return empty, false
+	}
+	if contractSym.Contract != nil {
+		return tc.instantiateContractRequirements(contractSym, contractSym.Contract, bound.GenericArgs), true
+	}
+	if tc.builder == nil {
 		return empty, false
 	}
 	contractDecl, ok := tc.builder.Items.Contract(contractSym.Decl.Item)
@@ -79,15 +85,22 @@ func (tc *typeChecker) boundMethodResult(id types.TypeID, name string, args []ty
 			}
 			for idx := range methodReqs {
 				req := methodReqs[idx]
-				if len(req.params) != len(args)+1 {
-					continue
-				}
-				if !tc.contractTypesEqual(req.params[0], id) {
+				expected := len(args)
+				offset := 0
+				switch {
+				case len(req.params) == expected+1:
+					if !tc.contractTypesEqual(req.params[0], id) {
+						continue
+					}
+					offset = 1
+				case len(req.params) == expected:
+					offset = 0
+				default:
 					continue
 				}
 				match := true
 				for i, arg := range args {
-					if !tc.contractTypesEqual(req.params[i+1], arg) {
+					if !tc.contractTypesEqual(req.params[i+offset], arg) {
 						match = false
 						break
 					}

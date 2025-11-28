@@ -126,4 +126,5 @@ type Symbol struct {
 	TypeParams       []source.StringID
 	TypeParamSpan    source.Span
 	TypeParamSymbols []TypeParamSymbol
+	Contract         *ContractSpec
 }

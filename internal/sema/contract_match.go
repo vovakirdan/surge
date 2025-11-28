@@ -46,9 +46,10 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 	if contractSym == nil || contractSym.Kind != symbols.SymbolContract {
 		return false
 	}
-	contractDecl, okContract := tc.builder.Items.Contract(contractSym.Decl.Item)
-	if !okContract || contractDecl == nil {
-		return false
+	var contractDecl *ast.ContractDecl
+	okContract := false
+	if tc.builder != nil {
+		contractDecl, okContract = tc.builder.Items.Contract(contractSym.Decl.Item)
 	}
 
 	args := bound.GenericArgs
@@ -80,7 +81,18 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 		defer tc.popTypeParams()
 	}
 
-	reqs, okReqs := tc.contractRequirementSet(contractDecl, scope)
+	var (
+		reqs   contractRequirements
+		okReqs bool
+	)
+	if contractSym.Contract != nil {
+		reqs = tc.instantiateContractRequirements(contractSym, contractSym.Contract, args)
+		okReqs = true
+	} else if okContract && contractDecl != nil {
+		reqs, okReqs = tc.contractRequirementSet(contractDecl, scope)
+	} else {
+		return false
+	}
 	ok := okReqs
 
 	fields := tc.collectTypeFields(target)
@@ -273,7 +285,16 @@ func (tc *typeChecker) substituteTypeParamByName(id types.TypeID, bindings map[s
 		return resolved
 	}
 	if tt.Kind == types.KindGenericParam {
-		if name := tc.typeParamNames[resolved]; name != source.NoStringID {
+		name := tc.typeParamNames[resolved]
+		if name == source.NoStringID {
+			if info, okInfo := tc.types.TypeParamInfo(resolved); okInfo && info != nil {
+				name = info.Name
+				if name != source.NoStringID {
+					tc.typeParamNames[resolved] = name
+				}
+			}
+		}
+		if name != source.NoStringID {
 			if concrete := bindings[name].typ; concrete != types.NoTypeID {
 				return concrete
 			}
@@ -392,6 +413,73 @@ func (tc *typeChecker) contractMethodRequirement(fn *ast.ContractFnReq, scope sy
 	return req, ok
 }
 
+func requirementsFromSpec(spec *symbols.ContractSpec) contractRequirements {
+	reqs := contractRequirements{
+		fields:     make(map[source.StringID]types.TypeID),
+		fieldAttrs: make(map[source.StringID][]source.StringID),
+		methods:    make(map[source.StringID][]methodRequirement),
+	}
+	if spec == nil {
+		return reqs
+	}
+	for name, ty := range spec.Fields {
+		reqs.fields[name] = ty
+	}
+	for name, attrs := range spec.FieldAttrs {
+		reqs.fieldAttrs[name] = append([]source.StringID(nil), attrs...)
+	}
+	for name, methods := range spec.Methods {
+		for _, m := range methods {
+			reqs.methods[name] = append(reqs.methods[name], methodRequirement{
+				name:   m.Name,
+				params: append([]types.TypeID(nil), m.Params...),
+				result: m.Result,
+				span:   m.Span,
+				attrs:  append([]source.StringID(nil), m.Attrs...),
+				pub:    m.Public,
+				async:  m.Async,
+			})
+		}
+	}
+	return reqs
+}
+
+func (tc *typeChecker) instantiateContractRequirements(sym *symbols.Symbol, spec *symbols.ContractSpec, args []types.TypeID) contractRequirements {
+	reqs := requirementsFromSpec(spec)
+	if tc == nil || sym == nil || spec == nil {
+		return reqs
+	}
+	if len(args) == 0 || len(sym.TypeParams) == 0 {
+		return reqs
+	}
+	bindings := make(map[source.StringID]bindingInfo, len(sym.TypeParams))
+	for idx, name := range sym.TypeParams {
+		if idx >= len(args) {
+			break
+		}
+		if name == source.NoStringID || args[idx] == types.NoTypeID {
+			continue
+		}
+		bindings[name] = bindingInfo{typ: args[idx]}
+	}
+	if len(bindings) == 0 {
+		return reqs
+	}
+	for name, ty := range reqs.fields {
+		reqs.fields[name] = tc.substituteTypeParamByName(ty, bindings)
+	}
+	for mname, methods := range reqs.methods {
+		for idx := range methods {
+			for i := range methods[idx].params {
+				methods[idx].params[i] = tc.substituteTypeParamByName(methods[idx].params[i], bindings)
+			}
+			methods[idx].result = tc.substituteTypeParamByName(methods[idx].result, bindings)
+		}
+		reqs.methods[mname] = methods
+	}
+	return reqs
+}
+
 func (tc *typeChecker) collectTypeFields(target types.TypeID) map[source.StringID]types.TypeID {
 	fields := make(map[source.StringID]types.TypeID)
 	target = tc.valueType(target)
@@ -447,13 +535,20 @@ func (tc *typeChecker) ensureMethodSatisfies(target types.TypeID, name source.St
 
 	attrMismatch := false
 	for _, cand := range actual {
-		if len(cand.params) != len(req.params) {
+		var aligned methodRequirement
+		switch {
+		case len(cand.params) == len(req.params):
+			aligned = *req
+		case len(cand.params) == len(req.params)+1:
+			aligned = *req
+			aligned.params = append([]types.TypeID{target}, req.params...)
+		default:
 			continue
 		}
-		if len(cand.params) > 0 && !tc.contractTypesEqual(cand.params[0], target) {
+		if len(aligned.params) > 0 && !tc.contractTypesEqual(aligned.params[0], target) {
 			continue
 		}
-		if match, attrBad := tc.contractSignatureMatches(req, cand); match {
+		if match, attrBad := tc.contractSignatureMatches(&aligned, cand); match {
 			return 1
 		} else if attrBad {
 			attrMismatch = true
