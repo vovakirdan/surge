@@ -7,8 +7,11 @@ error SEM3046 testdata/golden/sema/invalid/import_private_objects.sg:8:13 no mat
 error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:9:13 unknown has no method inner_privateFunc
 error SEM3013 testdata/golden/sema/invalid/import_private_objects.sg:9:13 module "testdata/golden/sema/invalid/inner/_stub_const_fn_type_contract" has no member "inner_privateFunc"
 error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:10:13 unknown type PrivateType
+error SEM3013 testdata/golden/sema/invalid/import_private_objects.sg:10:13 module "testdata/golden/sema/invalid/_stub_const_fn_type_contract" has no member "PrivateType"
 error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:11:13 unknown type InnerPublicType
+error SEM3013 testdata/golden/sema/invalid/import_private_objects.sg:14:11 module "testdata/golden/sema/invalid/_stub_const_fn_type_contract" has no member "PrivateContract"
 error SEM3035 testdata/golden/sema/invalid/import_private_objects.sg:14:11 'PrivateContract' is not a contract (in bounds of 'T')
 error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:15:13 T has no method method
+error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:18:11 cannot resolve module _stub_const_fn_type_contract
 error SEM3034 testdata/golden/sema/invalid/import_private_objects.sg:18:11 unknown contract 'InnerPrivateContract' in bounds of 'T'
 error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:19:13 T has no method method

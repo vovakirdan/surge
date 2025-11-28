@@ -92,18 +92,34 @@ func (tc *typeChecker) resolveBoundInstance(bound *ast.TypeParamBound, scope sym
 		contractName = "_"
 	}
 
-	contractID := tc.lookupContractSymbol(bound.Name, scope)
+	var contractID symbols.SymbolID
+	if bound.Type.IsValid() {
+		if path, ok := tc.builder.Types.Path(bound.Type); ok && path != nil && len(path.Segments) > 1 {
+			contractID = tc.resolveQualifiedContract(path, bound.Span, scope)
+		}
+	}
+	if !contractID.IsValid() {
+		contractID = tc.lookupContractSymbol(bound.Name, scope)
+	}
 	if !contractID.IsValid() {
 		if alt := tc.lookupSymbolAny(bound.Name, scope); alt.IsValid() {
-			span := bound.NameSpan
-			if span == (source.Span{}) {
-				span = bound.Span
+			if sym := tc.symbolFromID(alt); sym != nil && (sym.Kind == symbols.SymbolImport || sym.Kind == symbols.SymbolModule) {
+				if imported := tc.resolveImportContract(sym, bound.Name, bound.Span); imported.IsValid() {
+					contractID = imported
+				}
 			}
-			tc.report(diag.SemaContractBoundNotContract, span, "'%s' is not a contract (in bounds of '%s')", contractName, paramName)
+			if !contractID.IsValid() {
+				span := bound.NameSpan
+				if span == (source.Span{}) {
+					span = bound.Span
+				}
+				tc.report(diag.SemaContractBoundNotContract, span, "'%s' is not a contract (in bounds of '%s')", contractName, paramName)
+				return inst, false
+			}
+		} else {
+			tc.report(diag.SemaContractBoundNotFound, bound.Span, "unknown contract '%s' in bounds of '%s'", contractName, paramName)
 			return inst, false
 		}
-		tc.report(diag.SemaContractBoundNotFound, bound.Span, "unknown contract '%s' in bounds of '%s'", contractName, paramName)
-		return inst, false
 	}
 	sym := tc.symbolFromID(contractID)
 	if sym == nil || sym.Kind != symbols.SymbolContract {

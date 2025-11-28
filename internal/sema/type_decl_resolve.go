@@ -2,6 +2,7 @@ package sema
 
 import (
 	"strconv"
+	"strings"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
@@ -102,7 +103,9 @@ func (tc *typeChecker) resolveTypePath(path *ast.TypePath, span source.Span, sco
 		return types.NoTypeID
 	}
 	if len(path.Segments) > 1 {
-		tc.report(diag.SemaUnresolvedSymbol, span, "qualified type paths are not supported yet")
+		if qualified := tc.resolveQualifiedTypePath(path, span, scope); qualified != types.NoTypeID {
+			return qualified
+		}
 		return types.NoTypeID
 	}
 	tc.ensureBuiltinArrayType()
@@ -135,6 +138,13 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 	}
 	symID := tc.lookupTypeSymbol(name, scope)
 	if !symID.IsValid() {
+		if symAny := tc.lookupSymbolAny(name, scope); symAny.IsValid() {
+			if sym := tc.symbolFromID(symAny); sym != nil && (sym.Kind == symbols.SymbolImport || sym.Kind == symbols.SymbolModule) {
+				if imported := tc.resolveImportType(sym, name, span); imported != types.NoTypeID {
+					return imported
+				}
+			}
+		}
 		if literal == "" {
 			literal = "_"
 		}
@@ -253,6 +263,204 @@ func (tc *typeChecker) resolveArrayLengthArg(arr *ast.TypeArray, span source.Spa
 		}
 	}
 	return types.NoTypeID
+}
+
+func (tc *typeChecker) resolveQualifiedTypePath(path *ast.TypePath, span source.Span, scope symbols.ScopeID) types.TypeID {
+	if path == nil || len(path.Segments) < 2 || tc.symbols == nil || tc.exports == nil {
+		return types.NoTypeID
+	}
+	first := path.Segments[0]
+	modulePath := ""
+	moduleSym := tc.lookupSymbolAny(first.Name, scope)
+	if moduleSym.IsValid() {
+		if sym := tc.symbolFromID(moduleSym); sym != nil && (sym.Kind == symbols.SymbolImport || sym.Kind == symbols.SymbolModule) {
+			modulePath = sym.ModulePath
+		}
+	}
+	if modulePath == "" {
+		if alias := tc.lookupName(first.Name); alias != "" {
+			for key := range tc.exports {
+				if strings.HasSuffix(key, "/"+alias) || key == alias {
+					modulePath = key
+					break
+				}
+			}
+		}
+	}
+	if modulePath == "" {
+		tc.report(diag.SemaUnresolvedSymbol, span, "cannot resolve module %s", tc.lookupName(first.Name))
+		return types.NoTypeID
+	}
+	exports := tc.exports[modulePath]
+	if exports == nil {
+		tc.report(diag.SemaModuleMemberNotFound, span, "module %q has no exports", modulePath)
+		return types.NoTypeID
+	}
+	last := path.Segments[len(path.Segments)-1]
+	name := tc.lookupName(last.Name)
+	if name == "" {
+		name = "_"
+	}
+	exported := exports.Lookup(name)
+	if len(exported) == 0 {
+		tc.report(diag.SemaModuleMemberNotFound, span, "module %q has no member %q", modulePath, name)
+		return types.NoTypeID
+	}
+	var candidate *symbols.ExportedSymbol
+	for i := range exported {
+		if exported[i].Kind == symbols.SymbolType && exported[i].Flags&symbols.SymbolFlagPublic != 0 {
+			candidate = &exported[i]
+			break
+		}
+	}
+	if candidate == nil {
+		tc.report(diag.SemaModuleMemberNotPublic, span, "member %q of module %q is not public or not a type", name, modulePath)
+		return types.NoTypeID
+	}
+	// TODO: handle generic instantiation on imported types.
+	return candidate.Type
+}
+
+func (tc *typeChecker) resolveQualifiedContract(path *ast.TypePath, span source.Span, scope symbols.ScopeID) symbols.SymbolID {
+	if path == nil || len(path.Segments) < 2 || tc.symbols == nil || tc.exports == nil {
+		return symbols.NoSymbolID
+	}
+	first := path.Segments[0]
+	modulePath := ""
+	moduleSym := tc.lookupSymbolAny(first.Name, scope)
+	if moduleSym.IsValid() {
+		if sym := tc.symbolFromID(moduleSym); sym != nil && (sym.Kind == symbols.SymbolImport || sym.Kind == symbols.SymbolModule) {
+			modulePath = sym.ModulePath
+		}
+	}
+	if modulePath == "" {
+		if alias := tc.lookupName(first.Name); alias != "" {
+			for key := range tc.exports {
+				if strings.HasSuffix(key, "/"+alias) || key == alias {
+					modulePath = key
+					break
+				}
+			}
+		}
+	}
+	if modulePath == "" {
+		tc.report(diag.SemaUnresolvedSymbol, span, "cannot resolve module %s", tc.lookupName(first.Name))
+		return symbols.NoSymbolID
+	}
+	exports := tc.exports[modulePath]
+	if exports == nil {
+		tc.report(diag.SemaModuleMemberNotFound, span, "module %q has no exports", modulePath)
+		return symbols.NoSymbolID
+	}
+	last := path.Segments[len(path.Segments)-1]
+	name := tc.lookupName(last.Name)
+	if name == "" {
+		name = "_"
+	}
+	exported := exports.Lookup(name)
+	if len(exported) == 0 {
+		tc.report(diag.SemaModuleMemberNotFound, span, "module %q has no member %q", modulePath, name)
+		return symbols.NoSymbolID
+	}
+	var candidate *symbols.ExportedSymbol
+	for i := range exported {
+		if exported[i].Kind == symbols.SymbolContract && exported[i].Flags&symbols.SymbolFlagPublic != 0 {
+			candidate = &exported[i]
+			break
+		}
+	}
+	if candidate == nil {
+		tc.report(diag.SemaModuleMemberNotPublic, span, "member %q of module %q is not public or not a contract", name, modulePath)
+		return symbols.NoSymbolID
+	}
+	// Synthesize a symbol for the contract so bounds can reference it.
+	nameID := tc.builder.StringsInterner.Intern(candidate.Name)
+	symRecord := symbols.Symbol{
+		Name:          nameID,
+		Kind:          symbols.SymbolContract,
+		Flags:         candidate.Flags | symbols.SymbolFlagImported,
+		Span:          candidate.Span,
+		ModulePath:    modulePath,
+		TypeParams:    candidate.TypeParams,
+		TypeParamSpan: candidate.TypeParamSpan,
+	}
+	id := tc.symbols.Table.Symbols.New(&symRecord)
+	if scopeData := tc.symbols.Table.Scopes.Get(tc.fileScope()); scopeData != nil {
+		scopeData.Symbols = append(scopeData.Symbols, id)
+		scopeData.NameIndex[nameID] = append(scopeData.NameIndex[nameID], id)
+	}
+	return id
+}
+
+func (tc *typeChecker) resolveImportType(sym *symbols.Symbol, name source.StringID, span source.Span) types.TypeID {
+	if sym == nil || sym.ModulePath == "" || tc.exports == nil {
+		return types.NoTypeID
+	}
+	exports := tc.exports[sym.ModulePath]
+	if exports == nil {
+		tc.report(diag.SemaModuleMemberNotFound, span, "module %q has no exports", sym.ModulePath)
+		return types.NoTypeID
+	}
+	nameStr := tc.lookupName(name)
+	if nameStr == "" {
+		nameStr = "_"
+	}
+	exported := exports.Lookup(nameStr)
+	if len(exported) == 0 {
+		tc.report(diag.SemaModuleMemberNotFound, span, "module %q has no member %q", sym.ModulePath, nameStr)
+		return types.NoTypeID
+	}
+	for i := range exported {
+		if exported[i].Kind == symbols.SymbolType && exported[i].Flags&symbols.SymbolFlagPublic != 0 {
+			return exported[i].Type
+		}
+	}
+	tc.report(diag.SemaModuleMemberNotPublic, span, "member %q of module %q is not public or not a type", nameStr, sym.ModulePath)
+	return types.NoTypeID
+}
+
+func (tc *typeChecker) resolveImportContract(sym *symbols.Symbol, name source.StringID, span source.Span) symbols.SymbolID {
+	if sym == nil || sym.ModulePath == "" || tc.exports == nil {
+		return symbols.NoSymbolID
+	}
+	exports := tc.exports[sym.ModulePath]
+	if exports == nil {
+		tc.report(diag.SemaModuleMemberNotFound, span, "module %q has no exports", sym.ModulePath)
+		return symbols.NoSymbolID
+	}
+	nameStr := tc.lookupName(name)
+	if nameStr == "" {
+		nameStr = "_"
+	}
+	exported := exports.Lookup(nameStr)
+	if len(exported) == 0 {
+		tc.report(diag.SemaModuleMemberNotFound, span, "module %q has no member %q", sym.ModulePath, nameStr)
+		return symbols.NoSymbolID
+	}
+	for i := range exported {
+		exp := exported[i]
+		if exp.Kind != symbols.SymbolContract || exp.Flags&symbols.SymbolFlagPublic == 0 {
+			continue
+		}
+		nameID := name
+		symRecord := symbols.Symbol{
+			Name:          nameID,
+			Kind:          symbols.SymbolContract,
+			Flags:         exp.Flags | symbols.SymbolFlagImported,
+			Span:          exp.Span,
+			ModulePath:    sym.ModulePath,
+			TypeParams:    exp.TypeParams,
+			TypeParamSpan: exp.TypeParamSpan,
+		}
+		id := tc.symbols.Table.Symbols.New(&symRecord)
+		if scopeData := tc.symbols.Table.Scopes.Get(tc.fileScope()); scopeData != nil {
+			scopeData.Symbols = append(scopeData.Symbols, id)
+			scopeData.NameIndex[nameID] = append(scopeData.NameIndex[nameID], id)
+		}
+		return id
+	}
+	tc.report(diag.SemaModuleMemberNotPublic, span, "member %q of module %q is not public or not a contract", nameStr, sym.ModulePath)
+	return symbols.NoSymbolID
 }
 
 func (tc *typeChecker) resolveTypeArgs(typeIDs []ast.TypeID, scope symbols.ScopeID) ([]types.TypeID, []source.Span) {
