@@ -1,0 +1,20 @@
+// scenario: import private objects from other modules - deprecated
+import inner/_stub_const_fn_type_contract;
+import _stub_const_fn_type_contract::{PRIVATE_CONST, privateFunc, PrivateContract, PrivateType};
+
+fn main() {
+    const private_const = _stub_const_fn_type_contract.INNER_PRIVATE_CONST;
+    const private_const_2 = PRIVATE_CONST; 
+    let _ = privateFunc();
+    let _ = _stub_const_fn_type_contract.inner_privateFunc();
+    let _ = PrivateType { value = 1 };
+    let _ = InnerPublicType { value = 1 };
+}
+
+fn foo<T: PrivateContract>(t: T) {
+    let _ = t.method();
+}
+
+fn bar<T: _stub_const_fn_type_contract.InnerPrivateContract>(t: T) {
+    let _ = t.method();
+}

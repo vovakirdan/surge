@@ -1,0 +1,16 @@
+error SEM3013 testdata/golden/sema/invalid/import_private_objects.sg:6:27 module "testdata/golden/sema/invalid/inner/_stub_const_fn_type_contract" has no member "INNER_PRIVATE_CONST"
+error SEM3026 testdata/golden/sema/invalid/import_private_objects.sg:6:27 const 'private_const' initializer must be a compile-time constant
+error SEM3013 testdata/golden/sema/invalid/import_private_objects.sg:7:29 module "testdata/golden/sema/invalid/_stub_const_fn_type_contract" has no member "PRIVATE_CONST"
+error SEM3026 testdata/golden/sema/invalid/import_private_objects.sg:7:29 const 'private_const_2' initializer must be a compile-time constant
+error SEM3013 testdata/golden/sema/invalid/import_private_objects.sg:8:13 module "testdata/golden/sema/invalid/_stub_const_fn_type_contract" has no member "privateFunc"
+error SEM3046 testdata/golden/sema/invalid/import_private_objects.sg:8:13 no matching overload for privateFunc
+error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:9:13 unknown has no method inner_privateFunc
+error SEM3013 testdata/golden/sema/invalid/import_private_objects.sg:9:13 module "testdata/golden/sema/invalid/inner/_stub_const_fn_type_contract" has no member "inner_privateFunc"
+error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:10:13 unknown type PrivateType
+error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:11:13 unknown type InnerPublicType
+error SEM3035 testdata/golden/sema/invalid/import_private_objects.sg:14:11 'PrivateContract' is not a contract (in bounds of 'T')
+error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:15:13 T has no method method
+error SYN2010 testdata/golden/sema/invalid/import_private_objects.sg:18:39 expected '>' after generic parameter list
+error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:19:13 cannot resolve 't'
+error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:19:13 unknown has no method method
+error SYN2101 testdata/golden/sema/invalid/import_private_objects.sg:20:1 unexpected top-level construct

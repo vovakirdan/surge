@@ -41,6 +41,55 @@ func (p *Parser) isTypeLiteralName(name string) bool {
 	return unicode.IsUpper(r)
 }
 
+func (p *Parser) typePathFromExpr(expr ast.ExprID) (ast.TypeID, bool) {
+	if expr == ast.NoExprID || p.arenas == nil {
+		return ast.NoTypeID, false
+	}
+	var segments []ast.TypePathSegment
+	span := source.Span{}
+	current := expr
+	for {
+		node := p.arenas.Exprs.Get(current)
+		if node == nil {
+			return ast.NoTypeID, false
+		}
+		span = node.Span
+		switch node.Kind {
+		case ast.ExprIdent:
+			if ident, ok := p.arenas.Exprs.Ident(current); ok && ident != nil {
+				segments = append(segments, ast.TypePathSegment{Name: ident.Name})
+				goto done
+			}
+			return ast.NoTypeID, false
+		case ast.ExprMember:
+			mem, ok := p.arenas.Exprs.Member(current)
+			if !ok || mem == nil {
+				return ast.NoTypeID, false
+			}
+			segments = append(segments, ast.TypePathSegment{Name: mem.Field})
+			current = mem.Target
+		default:
+			return ast.NoTypeID, false
+		}
+	}
+
+done:
+	// reverse segments to restore left-to-right order
+	for i, j := 0, len(segments)-1; i < j; i, j = i+1, j-1 {
+		segments[i], segments[j] = segments[j], segments[i]
+	}
+	if len(segments) == 0 {
+		return ast.NoTypeID, false
+	}
+	// last segment must look like a type
+	lastName := p.arenas.StringsInterner.MustLookup(segments[len(segments)-1].Name)
+	if !p.isTypeLiteralName(lastName) {
+		return ast.NoTypeID, false
+	}
+	typeID := p.arenas.Types.NewPath(span, segments)
+	return typeID, true
+}
+
 // parseNumericLiteral парсит числовые литералы
 func (p *Parser) parseNumericLiteral() (ast.ExprID, bool) {
 	tok := p.advance()

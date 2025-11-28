@@ -243,6 +243,12 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 				return ast.NoExprID, false
 			}
 			expr = newExpr
+		case token.LBrace:
+			if typeID, ok := p.typePathFromExpr(expr); ok {
+				typeSpan := p.arenas.Types.Get(typeID).Span
+				return p.parseStructLiteral(typeID, typeSpan)
+			}
+			return expr, true
 		case token.Colon:
 			if p.suspendColonCast > 0 {
 				return expr, true
