@@ -464,7 +464,7 @@ func runModuleGraph(
 	}
 	dag.ReportBrokenDeps(idx, slots)
 
-	exports := collectModuleExports(records, idx, topo, baseDir, meta.Path)
+	exports := collectModuleExports(records, idx, topo, baseDir, meta.Path, typeInterner, opts)
 
 	return exports, nil
 }

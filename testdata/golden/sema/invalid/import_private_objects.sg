@@ -8,7 +8,7 @@ fn main() {
     let _ = privateFunc();
     let _ = _stub_const_fn_type_contract.inner_privateFunc();
     let _ = PrivateType { value = 1 };
-    let _ = InnerPublicType { value = 1 };
+    let _ = _stub_const_fn_type_contract.InnerPrivateType { value = 1 };
 }
 
 fn foo<T: PrivateContract>(t: T) {

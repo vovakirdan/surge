@@ -81,6 +81,8 @@ func collectModuleExports(
 	topo *dag.Topo,
 	baseDir string,
 	rootPath string,
+	typeInterner *types.Interner,
+	opts DiagnoseOptions,
 ) map[string]*symbols.ModuleExports {
 	exports := collectedExports(records)
 	if exports == nil {
@@ -109,8 +111,13 @@ func collectModuleExports(
 			if rec.Builder == nil || rec.FileID == ast.NoFileID {
 				continue
 			}
+			bag := rec.Bag
+			if bag == nil {
+				bag = diag.NewBag(opts.MaxDiagnostics)
+			}
+			reporter := &diag.BagReporter{Bag: bag}
 			opts := &symbols.ResolveOptions{
-				Reporter:      nil,
+				Reporter:      reporter,
 				Validate:      false,
 				ModulePath:    preferredModulePath(rec, normPath),
 				FilePath:      moduleFilePath(rec),
@@ -118,6 +125,13 @@ func collectModuleExports(
 				ModuleExports: exports,
 			}
 			res := symbols.ResolveFile(rec.Builder, rec.FileID, opts)
+			semaRes := sema.Check(rec.Builder, rec.FileID, sema.Options{
+				Reporter: reporter,
+				Symbols:  &res,
+				Exports:  exports,
+				Types:    typeInterner,
+			})
+			rec.Sema = &semaRes
 			rec.Exports = symbols.CollectExports(rec.Builder, res, opts.ModulePath)
 			if rec.Exports != nil {
 				exports[normPath] = rec.Exports
