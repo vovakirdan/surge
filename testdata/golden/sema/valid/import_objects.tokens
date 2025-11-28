@@ -54,74 +54,92 @@
  54: RParen          ")" at 9:59-9:60
  55: Semicolon       ";" at 9:60-9:61
  56: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
- 57: Underscore      "_" at 10:9-10:10 (leading: Space)
- 58: Assign          "=" at 10:11-10:12 (leading: Space)
- 59: Ident           "PublicType" at 10:13-10:23 (leading: Space)
- 60: LBrace          "{" at 10:24-10:25 (leading: Space)
- 61: Ident           "value" at 10:26-10:31 (leading: Space)
- 62: Assign          "=" at 10:32-10:33 (leading: Space)
- 63: IntLit          "1" at 10:34-10:35 (leading: Space)
- 64: RBrace          "}" at 10:36-10:37 (leading: Space)
- 65: Semicolon       ";" at 10:37-10:38
+ 57: Ident           "pubType1" at 10:9-10:17 (leading: Space)
+ 58: Assign          "=" at 10:18-10:19 (leading: Space)
+ 59: Ident           "PublicType" at 10:20-10:30 (leading: Space)
+ 60: LBrace          "{" at 10:31-10:32 (leading: Space)
+ 61: Ident           "value" at 10:33-10:38 (leading: Space)
+ 62: Assign          "=" at 10:39-10:40 (leading: Space)
+ 63: IntLit          "1" at 10:41-10:42 (leading: Space)
+ 64: RBrace          "}" at 10:43-10:44 (leading: Space)
+ 65: Semicolon       ";" at 10:44-10:45
  66: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
- 67: Underscore      "_" at 11:9-11:10 (leading: Space)
- 68: Assign          "=" at 11:11-11:12 (leading: Space)
- 69: Ident           "_stub_const_fn_type_contract" at 11:13-11:41 (leading: Space)
- 70: Dot             "." at 11:41-11:42
- 71: Ident           "InnerPublicType" at 11:42-11:57
- 72: LBrace          "{" at 11:58-11:59 (leading: Space)
- 73: Ident           "value" at 11:60-11:65 (leading: Space)
- 74: Assign          "=" at 11:66-11:67 (leading: Space)
- 75: IntLit          "1" at 11:68-11:69 (leading: Space)
- 76: RBrace          "}" at 11:70-11:71 (leading: Space)
- 77: Semicolon       ";" at 11:71-11:72
- 78: RBrace          "}" at 12:1-12:2 (leading: Newline)
- 79: KwFn            "fn" at 14:1-14:3 (leading: Newline)
- 80: Ident           "foo" at 14:4-14:7 (leading: Space)
- 81: Lt              "<" at 14:7-14:8
- 82: Ident           "T" at 14:8-14:9
- 83: Colon           ":" at 14:9-14:10
- 84: Ident           "PublicContract" at 14:11-14:25 (leading: Space)
- 85: Gt              ">" at 14:25-14:26
- 86: LParen          "(" at 14:26-14:27
- 87: Ident           "t" at 14:27-14:28
- 88: Colon           ":" at 14:28-14:29
- 89: Ident           "T" at 14:30-14:31 (leading: Space)
- 90: RParen          ")" at 14:31-14:32
- 91: LBrace          "{" at 14:33-14:34 (leading: Space)
- 92: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
- 93: Underscore      "_" at 15:9-15:10 (leading: Space)
- 94: Assign          "=" at 15:11-15:12 (leading: Space)
- 95: Ident           "t" at 15:13-15:14 (leading: Space)
- 96: Dot             "." at 15:14-15:15
- 97: Ident           "method" at 15:15-15:21
- 98: LParen          "(" at 15:21-15:22
- 99: RParen          ")" at 15:22-15:23
-100: Semicolon       ";" at 15:23-15:24
-101: RBrace          "}" at 16:1-16:2 (leading: Newline)
-102: KwFn            "fn" at 18:1-18:3 (leading: Newline)
-103: Ident           "bar" at 18:4-18:7 (leading: Space)
-104: Lt              "<" at 18:7-18:8
-105: Ident           "T" at 18:8-18:9
-106: Colon           ":" at 18:9-18:10
-107: Ident           "_stub_const_fn_type_contract" at 18:11-18:39 (leading: Space)
-108: Dot             "." at 18:39-18:40
-109: Ident           "InnerPublicContract" at 18:40-18:59
-110: Gt              ">" at 18:59-18:60
-111: LParen          "(" at 18:60-18:61
-112: Ident           "t" at 18:61-18:62
-113: Colon           ":" at 18:62-18:63
-114: Ident           "T" at 18:64-18:65 (leading: Space)
-115: RParen          ")" at 18:65-18:66
-116: LBrace          "{" at 18:67-18:68 (leading: Space)
-117: KwLet           "let" at 19:5-19:8 (leading: Newline, Space)
-118: Underscore      "_" at 19:9-19:10 (leading: Space)
-119: Assign          "=" at 19:11-19:12 (leading: Space)
-120: Ident           "t" at 19:13-19:14 (leading: Space)
-121: Dot             "." at 19:14-19:15
-122: Ident           "method" at 19:15-19:21
-123: LParen          "(" at 19:21-19:22
-124: RParen          ")" at 19:22-19:23
-125: Semicolon       ";" at 19:23-19:24
-126: RBrace          "}" at 20:1-20:2 (leading: Newline)
-127: EOF             at 21:1-21:1
+ 67: Ident           "pubType2" at 11:9-11:17 (leading: Space)
+ 68: Assign          "=" at 11:18-11:19 (leading: Space)
+ 69: Ident           "_stub_const_fn_type_contract" at 11:20-11:48 (leading: Space)
+ 70: Dot             "." at 11:48-11:49
+ 71: Ident           "InnerPublicType" at 11:49-11:64
+ 72: LBrace          "{" at 11:65-11:66 (leading: Space)
+ 73: Ident           "value" at 11:67-11:72 (leading: Space)
+ 74: Assign          "=" at 11:73-11:74 (leading: Space)
+ 75: IntLit          "1" at 11:75-11:76 (leading: Space)
+ 76: RBrace          "}" at 11:77-11:78 (leading: Space)
+ 77: Semicolon       ";" at 11:78-11:79
+ 78: KwLet           "let" at 12:5-12:8 (leading: Newline, Space)
+ 79: Ident           "val1" at 12:9-12:13 (leading: Space)
+ 80: Colon           ":" at 12:13-12:14
+ 81: Ident           "int" at 12:15-12:18 (leading: Space)
+ 82: Assign          "=" at 12:19-12:20 (leading: Space)
+ 83: Ident           "pubType1" at 12:21-12:29 (leading: Space)
+ 84: Dot             "." at 12:29-12:30
+ 85: Ident           "value" at 12:30-12:35
+ 86: Semicolon       ";" at 12:35-12:36
+ 87: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
+ 88: Ident           "val2" at 13:9-13:13 (leading: Space)
+ 89: Colon           ":" at 13:13-13:14
+ 90: Ident           "int" at 13:15-13:18 (leading: Space)
+ 91: Assign          "=" at 13:19-13:20 (leading: Space)
+ 92: Ident           "pubType2" at 13:21-13:29 (leading: Space)
+ 93: Dot             "." at 13:29-13:30
+ 94: Ident           "value" at 13:30-13:35
+ 95: Semicolon       ";" at 13:35-13:36
+ 96: RBrace          "}" at 14:1-14:2 (leading: Newline)
+ 97: KwFn            "fn" at 16:1-16:3 (leading: Newline)
+ 98: Ident           "foo" at 16:4-16:7 (leading: Space)
+ 99: Lt              "<" at 16:7-16:8
+100: Ident           "T" at 16:8-16:9
+101: Colon           ":" at 16:9-16:10
+102: Ident           "PublicContract" at 16:11-16:25 (leading: Space)
+103: Gt              ">" at 16:25-16:26
+104: LParen          "(" at 16:26-16:27
+105: Ident           "t" at 16:27-16:28
+106: Colon           ":" at 16:28-16:29
+107: Ident           "T" at 16:30-16:31 (leading: Space)
+108: RParen          ")" at 16:31-16:32
+109: LBrace          "{" at 16:33-16:34 (leading: Space)
+110: KwLet           "let" at 17:5-17:8 (leading: Newline, Space)
+111: Underscore      "_" at 17:9-17:10 (leading: Space)
+112: Assign          "=" at 17:11-17:12 (leading: Space)
+113: Ident           "t" at 17:13-17:14 (leading: Space)
+114: Dot             "." at 17:14-17:15
+115: Ident           "method" at 17:15-17:21
+116: LParen          "(" at 17:21-17:22
+117: RParen          ")" at 17:22-17:23
+118: Semicolon       ";" at 17:23-17:24
+119: RBrace          "}" at 18:1-18:2 (leading: Newline)
+120: KwFn            "fn" at 20:1-20:3 (leading: Newline)
+121: Ident           "bar" at 20:4-20:7 (leading: Space)
+122: Lt              "<" at 20:7-20:8
+123: Ident           "T" at 20:8-20:9
+124: Colon           ":" at 20:9-20:10
+125: Ident           "_stub_const_fn_type_contract" at 20:11-20:39 (leading: Space)
+126: Dot             "." at 20:39-20:40
+127: Ident           "InnerPublicContract" at 20:40-20:59
+128: Gt              ">" at 20:59-20:60
+129: LParen          "(" at 20:60-20:61
+130: Ident           "t" at 20:61-20:62
+131: Colon           ":" at 20:62-20:63
+132: Ident           "T" at 20:64-20:65 (leading: Space)
+133: RParen          ")" at 20:65-20:66
+134: LBrace          "{" at 20:67-20:68 (leading: Space)
+135: KwLet           "let" at 21:5-21:8 (leading: Newline, Space)
+136: Underscore      "_" at 21:9-21:10 (leading: Space)
+137: Assign          "=" at 21:11-21:12 (leading: Space)
+138: Ident           "t" at 21:13-21:14 (leading: Space)
+139: Dot             "." at 21:14-21:15
+140: Ident           "method" at 21:15-21:21
+141: LParen          "(" at 21:21-21:22
+142: RParen          ")" at 21:22-21:23
+143: Semicolon       ";" at 21:23-21:24
+144: RBrace          "}" at 22:1-22:2 (leading: Newline)
+145: EOF             at 23:1-23:1

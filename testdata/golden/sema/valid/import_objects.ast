@@ -1,4 +1,4 @@
-import_objects.sg (span: 2:1-21:1)
+import_objects.sg (span: 2:1-23:1)
 ├─ Item[0]: Import (span: 2:1-2:45)
 │  └─ Module: .::inner::_stub_const_fn_type_contract
 ├─ Item[1]: Import (span: 3:1-3:95)
@@ -8,12 +8,12 @@ import_objects.sg (span: 2:1-21:1)
 │     ├─ [1] publicFunc
 │     ├─ [2] PublicContract
 │     └─ [3] PublicType
-├─ Item[2]: Fn (span: 5:1-12:2)
+├─ Item[2]: Fn (span: 5:1-14:2)
 │  ├─ Name: main
 │  ├─ Params: ()
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 5:11-12:2)
+│     └─ Stmt[0]: Block (span: 5:11-14:2)
 │        ├─ Stmt[0]: StmtKind(2) (span: 6:5-6:74)
 │        ├─ Stmt[1]: StmtKind(2) (span: 7:5-7:41)
 │        ├─ Stmt[2]: Let (span: 8:5-8:26)
@@ -26,37 +26,47 @@ import_objects.sg (span: 2:1-21:1)
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
 │        │  └─ Value: expr#8: _stub_const_fn_type_contract.inner_publicFunc()
-│        ├─ Stmt[4]: Let (span: 10:5-10:38)
-│        │  ├─ Name: _
+│        ├─ Stmt[4]: Let (span: 10:5-10:45)
+│        │  ├─ Name: pubType1
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
 │        │  └─ Value: expr#12: <ExprKind(17)>
-│        └─ Stmt[5]: Let (span: 11:5-11:72)
-│           ├─ Name: _
+│        ├─ Stmt[5]: Let (span: 11:5-11:79)
+│        │  ├─ Name: pubType2
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#18: <ExprKind(17)>
+│        ├─ Stmt[6]: Let (span: 12:5-12:36)
+│        │  ├─ Name: val1
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#20: pubType1.value
+│        └─ Stmt[7]: Let (span: 13:5-13:36)
+│           ├─ Name: val2
 │           ├─ Mutable: false
-│           ├─ Type: <inferred>
-│           └─ Value: expr#18: <ExprKind(17)>
-├─ Item[3]: Fn (span: 14:1-16:2)
+│           ├─ Type: int
+│           └─ Value: expr#22: pubType2.value
+├─ Item[3]: Fn (span: 16:1-18:2)
 │  ├─ Name: foo
 │  ├─ Generics: <T>
 │  ├─ Params: (t: T)
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 14:33-16:2)
-│        └─ Stmt[0]: Let (span: 15:5-15:24)
+│     └─ Stmt[0]: Block (span: 16:33-18:2)
+│        └─ Stmt[0]: Let (span: 17:5-17:24)
 │           ├─ Name: _
 │           ├─ Mutable: false
 │           ├─ Type: <inferred>
-│           └─ Value: expr#21: t.method()
-└─ Item[4]: Fn (span: 18:1-20:2)
+│           └─ Value: expr#25: t.method()
+└─ Item[4]: Fn (span: 20:1-22:2)
    ├─ Name: bar
    ├─ Generics: <T>
    ├─ Params: (t: T)
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 18:67-20:2)
-         └─ Stmt[0]: Let (span: 19:5-19:24)
+      └─ Stmt[0]: Block (span: 20:67-22:2)
+         └─ Stmt[0]: Let (span: 21:5-21:24)
             ├─ Name: _
             ├─ Mutable: false
             ├─ Type: <inferred>
-            └─ Value: expr#24: t.method()
+            └─ Value: expr#28: t.method()

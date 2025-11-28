@@ -7,8 +7,10 @@ fn main() {
     const public_const_2 = PUBLIC_CONST;
     let _ = publicFunc();
     let _ = _stub_const_fn_type_contract.inner_publicFunc();
-    let _ = PublicType { value = 1 };
-    let _ = _stub_const_fn_type_contract.InnerPublicType { value = 1 };
+    let pubType1 = PublicType { value = 1 };
+    let pubType2 = _stub_const_fn_type_contract.InnerPublicType { value = 1 };
+    let val1: int = pubType1.value;
+    let val2: int = pubType2.value;
 }
 
 fn foo<T>(t: T) {
