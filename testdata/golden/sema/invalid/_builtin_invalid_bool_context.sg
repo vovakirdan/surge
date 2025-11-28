@@ -1,7 +1,0 @@
-// scenario: non-boolean expression used as an if condition
-fn invalid_condition() {
-    let number: int = 1;
-    if (number) {
-        return;
-    }
-}

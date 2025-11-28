@@ -1,0 +1,52 @@
+bool_condition_builtins.sg (span: 2:1-22:1)
+└─ Item[0]: Fn (span: 2:1-21:2)
+   ├─ Name: builtin_conditions
+   ├─ Params: (i: int, u: uint, f: float, s: string, b: bool, i8: int8, u16: uint16, f32: float32)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:3-21:2)
+         ├─ Stmt[0]: If (span: 12:5-12:14)
+         │  ├─ Cond: expr#1: i
+         │  ├─ Then:
+Block (span: 12:12-12:14)
+         │  └─ Else: <none>
+         ├─ Stmt[1]: If (span: 13:5-13:14)
+         │  ├─ Cond: expr#2: u
+         │  ├─ Then:
+Block (span: 13:12-13:14)
+         │  └─ Else: <none>
+         ├─ Stmt[2]: If (span: 14:5-14:14)
+         │  ├─ Cond: expr#3: f
+         │  ├─ Then:
+Block (span: 14:12-14:14)
+         │  └─ Else: <none>
+         ├─ Stmt[3]: If (span: 15:5-15:14)
+         │  ├─ Cond: expr#4: s
+         │  ├─ Then:
+Block (span: 15:12-15:14)
+         │  └─ Else: <none>
+         ├─ Stmt[4]: If (span: 16:5-16:14)
+         │  ├─ Cond: expr#5: b
+         │  ├─ Then:
+Block (span: 16:12-16:14)
+         │  └─ Else: <none>
+         ├─ Stmt[5]: If (span: 17:5-17:20)
+         │  ├─ Cond: expr#6: nothing
+         │  ├─ Then:
+Block (span: 17:18-17:20)
+         │  └─ Else: <none>
+         ├─ Stmt[6]: If (span: 18:5-18:15)
+         │  ├─ Cond: expr#7: i8
+         │  ├─ Then:
+Block (span: 18:13-18:15)
+         │  └─ Else: <none>
+         ├─ Stmt[7]: If (span: 19:5-19:16)
+         │  ├─ Cond: expr#8: u16
+         │  ├─ Then:
+Block (span: 19:14-19:16)
+         │  └─ Else: <none>
+         └─ Stmt[8]: If (span: 20:5-20:16)
+            ├─ Cond: expr#9: f32
+            ├─ Then:
+Block (span: 20:14-20:16)
+            └─ Else: <none>

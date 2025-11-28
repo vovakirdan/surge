@@ -1,19 +1,25 @@
-bool_condition_no_bool_method.sg (span: 2:1-8:1)
-└─ Item[0]: Fn (span: 2:1-7:2)
+bool_condition_no_bool_method.sg (span: 2:1-10:1)
+├─ Item[0]: Type (span: 2:1-2:29)
+│  ├─ Name: NoBool
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: value: int
+└─ Item[1]: Fn (span: 4:1-9:2)
    ├─ Name: invalid_condition
    ├─ Params: ()
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 2:24-7:2)
-         ├─ Stmt[0]: Let (span: 3:5-3:25)
-         │  ├─ Name: number
+      └─ Stmt[0]: Block (span: 4:24-9:2)
+         ├─ Stmt[0]: Let (span: 5:5-5:38)
+         │  ├─ Name: data
          │  ├─ Mutable: false
-         │  ├─ Type: int
-         │  └─ Value: expr#1: 1
-         └─ Stmt[1]: If (span: 4:5-6:6)
-            ├─ Cond: expr#2: number
+         │  ├─ Type: NoBool
+         │  └─ Value: expr#4: <ExprKind(17)>
+         └─ Stmt[1]: If (span: 6:5-8:6)
+            ├─ Cond: expr#5: data
             ├─ Then:
-Block (span: 4:17-6:6)
-            │  └─ Stmt[0]: Return (span: 5:9-5:16)
+Block (span: 6:15-8:6)
+            │  └─ Stmt[0]: Return (span: 7:9-7:16)
             │     └─ Expr: <none>
             └─ Else: <none>

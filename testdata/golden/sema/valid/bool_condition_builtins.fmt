@@ -1,0 +1,12 @@
+// built-in types support __bool via core/base
+fn builtin_conditions(i: int, u: uint, f: float, s: string, b: bool, i8: int8, u16: uint16, f32: float32,) {
+    if (i) {}
+    if (u) {}
+    if (f) {}
+    if (s) {}
+    if (b) {}
+    if (nothing) {}
+    if (i8) {}
+    if (u16) {}
+    if (f32) {}
+}

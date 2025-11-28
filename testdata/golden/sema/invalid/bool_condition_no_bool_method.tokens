@@ -1,22 +1,34 @@
-  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
-  2: Ident           "invalid_condition" at 2:4-2:21 (leading: Space)
-  3: LParen          "(" at 2:21-2:22
-  4: RParen          ")" at 2:22-2:23
-  5: LBrace          "{" at 2:24-2:25 (leading: Space)
-  6: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
-  7: Ident           "number" at 3:9-3:15 (leading: Space)
-  8: Colon           ":" at 3:15-3:16
-  9: Ident           "int" at 3:17-3:20 (leading: Space)
- 10: Assign          "=" at 3:21-3:22 (leading: Space)
- 11: IntLit          "1" at 3:23-3:24 (leading: Space)
- 12: Semicolon       ";" at 3:24-3:25
- 13: KwIf            "if" at 4:5-4:7 (leading: Newline, Space)
- 14: LParen          "(" at 4:8-4:9 (leading: Space)
- 15: Ident           "number" at 4:9-4:15
- 16: RParen          ")" at 4:15-4:16
- 17: LBrace          "{" at 4:17-4:18 (leading: Space)
- 18: KwReturn        "return" at 5:9-5:15 (leading: Newline, Space)
- 19: Semicolon       ";" at 5:15-5:16
- 20: RBrace          "}" at 6:5-6:6 (leading: Newline, Space)
- 21: RBrace          "}" at 7:1-7:2 (leading: Newline)
- 22: EOF             at 8:1-8:1
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "NoBool" at 2:6-2:12 (leading: Space)
+  3: Assign          "=" at 2:13-2:14 (leading: Space)
+  4: LBrace          "{" at 2:15-2:16 (leading: Space)
+  5: Ident           "value" at 2:17-2:22 (leading: Space)
+  6: Colon           ":" at 2:22-2:23
+  7: Ident           "int" at 2:24-2:27 (leading: Space)
+  8: RBrace          "}" at 2:28-2:29 (leading: Space)
+  9: KwFn            "fn" at 4:1-4:3 (leading: Newline)
+ 10: Ident           "invalid_condition" at 4:4-4:21 (leading: Space)
+ 11: LParen          "(" at 4:21-4:22
+ 12: RParen          ")" at 4:22-4:23
+ 13: LBrace          "{" at 4:24-4:25 (leading: Space)
+ 14: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 15: Ident           "data" at 5:9-5:13 (leading: Space)
+ 16: Colon           ":" at 5:13-5:14
+ 17: Ident           "NoBool" at 5:15-5:21 (leading: Space)
+ 18: Assign          "=" at 5:22-5:23 (leading: Space)
+ 19: LBrace          "{" at 5:24-5:25 (leading: Space)
+ 20: Ident           "value" at 5:26-5:31 (leading: Space)
+ 21: Assign          "=" at 5:32-5:33 (leading: Space)
+ 22: IntLit          "1" at 5:34-5:35 (leading: Space)
+ 23: RBrace          "}" at 5:36-5:37 (leading: Space)
+ 24: Semicolon       ";" at 5:37-5:38
+ 25: KwIf            "if" at 6:5-6:7 (leading: Newline, Space)
+ 26: LParen          "(" at 6:8-6:9 (leading: Space)
+ 27: Ident           "data" at 6:9-6:13
+ 28: RParen          ")" at 6:13-6:14
+ 29: LBrace          "{" at 6:15-6:16 (leading: Space)
+ 30: KwReturn        "return" at 7:9-7:15 (leading: Newline, Space)
+ 31: Semicolon       ";" at 7:15-7:16
+ 32: RBrace          "}" at 8:5-8:6 (leading: Newline, Space)
+ 33: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 34: EOF             at 10:1-10:1

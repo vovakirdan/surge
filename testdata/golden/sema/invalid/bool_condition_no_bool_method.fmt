@@ -1,7 +1,9 @@
 // using a non-bool expression as condition without __bool
+type NoBool = { value: int }
+
 fn invalid_condition() {
-    let number: int = 1;
-    if (number) {
+    let data: NoBool = { value = 1 };
+    if (data) {
         return;
     }
 }
