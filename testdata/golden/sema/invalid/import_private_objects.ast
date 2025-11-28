@@ -48,8 +48,15 @@ import_private_objects.sg (span: 2:1-21:1)
 │           ├─ Mutable: false
 │           ├─ Type: <inferred>
 │           └─ Value: expr#19: t.method()
-└─ Item[4]: Let (span: 19:5-19:24)
-   ├─ Name: _
-   ├─ Mutable: false
-   ├─ Visibility: private
-   └─ Value: expr#22: t.method()
+└─ Item[4]: Fn (span: 18:1-20:2)
+   ├─ Name: bar
+   ├─ Generics: <T>
+   ├─ Params: (t: T)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 18:68-20:2)
+         └─ Stmt[0]: Let (span: 19:5-19:24)
+            ├─ Name: _
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#22: t.method()

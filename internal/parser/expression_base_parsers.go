@@ -46,14 +46,12 @@ func (p *Parser) typePathFromExpr(expr ast.ExprID) (ast.TypeID, bool) {
 		return ast.NoTypeID, false
 	}
 	var segments []ast.TypePathSegment
-	span := source.Span{}
 	current := expr
 	for {
 		node := p.arenas.Exprs.Get(current)
 		if node == nil {
 			return ast.NoTypeID, false
 		}
-		span = node.Span
 		switch node.Kind {
 		case ast.ExprIdent:
 			if ident, ok := p.arenas.Exprs.Ident(current); ok && ident != nil {
@@ -86,7 +84,7 @@ done:
 	if !p.isTypeLiteralName(lastName) {
 		return ast.NoTypeID, false
 	}
-	typeID := p.arenas.Types.NewPath(span, segments)
+	typeID := p.arenas.Types.NewPath(p.arenas.Exprs.Get(expr).Span, segments)
 	return typeID, true
 }
 

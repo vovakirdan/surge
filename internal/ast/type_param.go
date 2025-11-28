@@ -24,6 +24,7 @@ type TypeParam struct {
 type TypeParamBound struct {
 	Name      source.StringID
 	NameSpan  source.Span
+	Type      TypeID
 	TypeArgs  []TypeID
 	ArgCommas []source.Span
 	ArgsSpan  source.Span
@@ -47,6 +48,7 @@ type TypeParamSpec struct {
 type TypeParamBoundSpec struct {
 	Name      source.StringID
 	NameSpan  source.Span
+	Type      TypeID
 	TypeArgs  []TypeID
 	ArgCommas []source.Span
 	ArgsSpan  source.Span
@@ -84,11 +86,13 @@ func (i *Items) allocateTypeParamBounds(bounds []TypeParamBoundSpec) (start Type
 	if len(bounds) == 0 {
 		return NoTypeParamBoundID, 0
 	}
-	for idx, b := range bounds {
+	for idx := range bounds {
+		b := &bounds[idx]
 		attrStart, attrCount := i.allocateAttrs(b.Attrs)
 		record := TypeParamBound{
 			Name:      b.Name,
 			NameSpan:  b.NameSpan,
+			Type:      b.Type,
 			TypeArgs:  append([]TypeID(nil), b.TypeArgs...),
 			ArgCommas: append([]source.Span(nil), b.ArgCommas...),
 			ArgsSpan:  b.ArgsSpan,

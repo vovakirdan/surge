@@ -10,7 +10,5 @@ error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:10:13 unkno
 error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:11:13 unknown type InnerPublicType
 error SEM3035 testdata/golden/sema/invalid/import_private_objects.sg:14:11 'PrivateContract' is not a contract (in bounds of 'T')
 error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:15:13 T has no method method
-error SYN2010 testdata/golden/sema/invalid/import_private_objects.sg:18:39 expected '>' after generic parameter list
-error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:19:13 cannot resolve 't'
-error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:19:13 unknown has no method method
-error SYN2101 testdata/golden/sema/invalid/import_private_objects.sg:20:1 unexpected top-level construct
+error SEM3034 testdata/golden/sema/invalid/import_private_objects.sg:18:11 unknown contract 'InnerPrivateContract' in bounds of 'T'
+error SEM3005 testdata/golden/sema/invalid/import_private_objects.sg:19:13 T has no method method

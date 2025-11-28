@@ -11,10 +11,10 @@ fn main() {
     let _ = InnerPublicType { value = 1 };
 }
 
-fn foo<T: PrivateContract>(t: T) {
+fn foo<T>(t: T) {
     let _ = t.method();
 }
 
-fn bar<T: _stub_const_fn_type_contract.InnerPrivateContract>(t: T) {
+fn bar<T>(t: T) {
     let _ = t.method();
 }

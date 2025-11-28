@@ -27,13 +27,17 @@ func (p *Parser) parseFnGenerics() (params []ast.TypeParamSpec, names []source.S
 
 		parseOne := func() (ast.TypeParamBoundSpec, bool) {
 			bound := ast.TypeParamBoundSpec{}
-			contractID, ok := p.parseIdent()
-			if !ok {
+			typ, ok := p.parseTypePrefix()
+			if !ok || typ == ast.NoTypeID {
 				return bound, false
 			}
-			bound.Name = contractID
-			bound.NameSpan = p.lastSpan
-			bound.Span = bound.NameSpan
+			bound.Type = typ
+			if path, okPath := p.arenas.Types.Path(typ); okPath && path != nil && len(path.Segments) > 0 {
+				last := path.Segments[len(path.Segments)-1]
+				bound.Name = last.Name
+				bound.TypeArgs = append(bound.TypeArgs, last.Generics...)
+			}
+			bound.Span = p.arenas.Types.Get(typ).Span
 
 			if p.at(token.Lt) {
 				argsLtTok := p.advance()
@@ -41,7 +45,7 @@ func (p *Parser) parseFnGenerics() (params []ast.TypeParamSpec, names []source.S
 				argCommas := make([]source.Span, 0, 2)
 				var argsSpan source.Span
 				for {
-					typ, ok := p.parseTypePrefix()
+					argTyp, ok := p.parseTypePrefix()
 					if !ok {
 						p.resyncUntil(token.Comma, token.Gt, token.Plus, token.KwFn, token.KwLet, token.KwConst, token.KwType, token.KwTag, token.KwImport, token.KwContract)
 						if p.at(token.Gt) {
@@ -49,11 +53,11 @@ func (p *Parser) parseFnGenerics() (params []ast.TypeParamSpec, names []source.S
 						}
 						return bound, false
 					}
-					typeArgs = append(typeArgs, typ)
+					typeArgs = append(typeArgs, argTyp)
 					if argsSpan == (source.Span{}) {
-						argsSpan = p.arenas.Types.Get(typ).Span
+						argsSpan = p.arenas.Types.Get(argTyp).Span
 					} else {
-						argsSpan = argsSpan.Cover(p.arenas.Types.Get(typ).Span)
+						argsSpan = argsSpan.Cover(p.arenas.Types.Get(argTyp).Span)
 					}
 
 					if p.at(token.Comma) {
