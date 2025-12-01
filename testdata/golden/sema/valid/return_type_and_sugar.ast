@@ -1,0 +1,88 @@
+return_type_and_sugar.sg (span: 1:1-48:5)
+├─ Item[0]: Fn (span: 1:1-3:2)
+│  ├─ Name: maybe_returnV1
+│  ├─ Params: ()
+│  ├─ Return: Option<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:36-3:2)
+│        └─ Stmt[0]: Return (span: 2:5-2:20)
+│           └─ Expr: expr#3: Some(1)
+├─ Item[1]: Fn (span: 5:1-7:2)
+│  ├─ Name: maybe_returnV2
+│  ├─ Params: ()
+│  ├─ Return: Option<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:36-7:2)
+│        └─ Stmt[0]: Return (span: 6:5-6:14)
+│           └─ Expr: expr#4: 1
+├─ Item[2]: Fn (span: 9:1-11:2)
+│  ├─ Name: maybe_returnV3
+│  ├─ Params: ()
+│  ├─ Return: <unknown-type>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:29-11:2)
+│        └─ Stmt[0]: Return (span: 10:5-10:14)
+│           └─ Expr: expr#5: 1
+├─ Item[3]: Fn (span: 13:1-20:2)
+│  ├─ Name: maybe_returnV4
+│  ├─ Params: (flag: bool)
+│  ├─ Return: Result<int, Error>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:53-20:2)
+│        └─ Stmt[0]: If (span: 14:5-19:6)
+│           ├─ Cond: expr#6: flag
+│           ├─ Then:
+Block (span: 14:15-16:6)
+│           │  └─ Stmt[0]: Return (span: 15:9-15:18)
+│           │     └─ Expr: expr#7: 1
+│           └─ Else:
+Block (span: 16:12-19:6)
+│              ├─ Stmt[0]: Let (span: 17:9-17:59)
+│              │  ├─ Name: e
+│              │  ├─ Mutable: false
+│              │  ├─ Type: Error
+│              │  └─ Value: expr#13: <ExprKind(17)>
+│              └─ Stmt[1]: Return (span: 18:9-18:18)
+│                 └─ Expr: expr#14: e
+├─ Item[4]: Fn (span: 22:1-29:2)
+│  ├─ Name: maybe_returnV5
+│  ├─ Params: (flag: bool)
+│  ├─ Return: <unknown-type>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 22:44-29:2)
+│        └─ Stmt[0]: If (span: 23:5-28:6)
+│           ├─ Cond: expr#15: flag
+│           ├─ Then:
+Block (span: 23:15-25:6)
+│           │  └─ Stmt[0]: Return (span: 24:9-24:22)
+│           │     └─ Expr: expr#18: Ok(1)
+│           └─ Else:
+Block (span: 25:12-28:6)
+│              ├─ Stmt[0]: Let (span: 26:9-26:59)
+│              │  ├─ Name: e
+│              │  ├─ Mutable: false
+│              │  ├─ Type: Error
+│              │  └─ Value: expr#24: <ExprKind(17)>
+│              └─ Stmt[1]: Return (span: 27:9-27:18)
+│                 └─ Expr: expr#25: e
+├─ Item[5]: Fn (span: 31:1-37:2)
+│  ├─ Name: maybe_returnV6
+│  ├─ Params: (flag: bool)
+│  ├─ Return: <unknown-type>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 31:39-37:2)
+│        └─ Stmt[0]: If (span: 32:5-36:6)
+│           ├─ Cond: expr#26: flag
+│           ├─ Then:
+Block (span: 32:15-34:6)
+│           │  └─ Stmt[0]: Return (span: 33:9-33:22)
+│           │     └─ Expr: expr#29: Ok(1)
+│           └─ Else:
+Block (span: 34:12-36:6)
+│              └─ Stmt[0]: Return (span: 35:9-35:29)
+│                 └─ Expr: expr#32: Err("error")
+└─ Item[6]: Tag (span: 39:1-39:25)
+   ├─ Name: HttpError
+   ├─ Visibility: public
+   ├─ Generics: <T>
+   └─ Payload: T

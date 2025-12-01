@@ -232,6 +232,7 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 				!p.at(token.RParen) &&
 				!p.at(token.RBracket) &&
 				!p.at(token.RBrace) &&
+				!p.at(token.LBrace) &&
 				!p.at(token.Arrow) &&
 				!p.at(token.FatArrow) {
 				var ok bool
