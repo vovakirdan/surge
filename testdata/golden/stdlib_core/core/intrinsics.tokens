@@ -2735,70 +2735,71 @@
 2735: Arrow           "->" at 225:21-225:23 (leading: Space)
 2736: Ident           "T" at 225:24-225:25 (leading: Space)
 2737: Semicolon       ";" at 225:25-225:26
-2738: KwContract      "contract" at 227:1-227:9 (leading: Newline)
-2739: Ident           "ErrorLike" at 227:10-227:19 (leading: Space)
-2740: LBrace          "{" at 227:19-227:20
-2741: KwField         "field" at 228:5-228:10 (leading: Newline, Space)
-2742: Ident           "message" at 228:11-228:18 (leading: Space)
-2743: Colon           ":" at 228:18-228:19
-2744: Ident           "string" at 228:20-228:26 (leading: Space)
-2745: Semicolon       ";" at 228:26-228:27
-2746: KwField         "field" at 229:5-229:10 (leading: Newline, Space)
-2747: Ident           "code" at 229:11-229:15 (leading: Space)
-2748: Colon           ":" at 229:15-229:16
-2749: Ident           "uint" at 229:17-229:21 (leading: Space)
-2750: Semicolon       ";" at 229:21-229:22
-2751: RBrace          "}" at 230:1-230:2 (leading: Newline)
-2752: At              "@" at 232:1-232:2 (leading: Newline)
-2753: Ident           "intrinsic" at 232:2-232:11
-2754: KwPub           "pub" at 233:1-233:4 (leading: Newline)
-2755: KwFn            "fn" at 233:5-233:7 (leading: Space)
-2756: Ident           "exit" at 233:8-233:12 (leading: Space)
-2757: Lt              "<" at 233:12-233:13
-2758: Ident           "E" at 233:13-233:14
-2759: Colon           ":" at 233:14-233:15
-2760: Ident           "ErrorLike" at 233:16-233:25 (leading: Space)
-2761: Gt              ">" at 233:25-233:26
-2762: LParen          "(" at 233:26-233:27
-2763: Ident           "e" at 233:27-233:28
-2764: Colon           ":" at 233:28-233:29
-2765: Ident           "E" at 233:30-233:31 (leading: Space)
-2766: RParen          ")" at 233:31-233:32
-2767: Arrow           "->" at 233:33-233:35 (leading: Space)
-2768: NothingLit      "nothing" at 233:36-233:43 (leading: Space)
-2769: Semicolon       ";" at 233:43-233:44
-2770: KwPub           "pub" at 235:1-235:4 (leading: Newline)
-2771: KwFn            "fn" at 235:5-235:7 (leading: Space)
-2772: Ident           "panic" at 235:8-235:13 (leading: Space)
-2773: LParen          "(" at 235:13-235:14
-2774: Ident           "msg" at 235:14-235:17
-2775: Colon           ":" at 235:17-235:18
-2776: Ident           "string" at 235:19-235:25 (leading: Space)
-2777: RParen          ")" at 235:25-235:26
-2778: Arrow           "->" at 235:27-235:29 (leading: Space)
-2779: NothingLit      "nothing" at 235:30-235:37 (leading: Space)
-2780: LBrace          "{" at 235:38-235:39 (leading: Space)
-2781: KwLet           "let" at 236:5-236:8 (leading: Newline, Space)
-2782: Ident           "e" at 236:9-236:10 (leading: Space)
-2783: Colon           ":" at 236:10-236:11
-2784: Ident           "Error" at 236:12-236:17 (leading: Space)
-2785: Assign          "=" at 236:18-236:19 (leading: Space)
-2786: LBrace          "{" at 236:20-236:21 (leading: Space)
-2787: Ident           "message" at 236:22-236:29 (leading: Space)
-2788: Colon           ":" at 236:29-236:30
-2789: Ident           "msg" at 236:31-236:34 (leading: Space)
-2790: Comma           "," at 236:34-236:35
-2791: Ident           "code" at 236:36-236:40 (leading: Space)
-2792: Colon           ":" at 236:40-236:41
-2793: IntLit          "1" at 236:42-236:43 (leading: Space)
-2794: Colon           ":" at 236:43-236:44
-2795: Ident           "uint" at 236:44-236:48
-2796: RBrace          "}" at 236:49-236:50 (leading: Space)
-2797: Semicolon       ";" at 236:50-236:51
-2798: Ident           "exit" at 237:5-237:9 (leading: Newline, Space)
-2799: LParen          "(" at 237:9-237:10
-2800: Ident           "e" at 237:10-237:11
-2801: RParen          ")" at 237:11-237:12
-2802: Semicolon       ";" at 237:12-237:13
-2803: RBrace          "}" at 238:1-238:2 (leading: Newline)
-2804: EOF             at 239:1-239:1
+2738: KwPub           "pub" at 227:1-227:4 (leading: Newline)
+2739: KwContract      "contract" at 227:5-227:13 (leading: Space)
+2740: Ident           "ErrorLike" at 227:14-227:23 (leading: Space)
+2741: LBrace          "{" at 227:23-227:24
+2742: KwField         "field" at 228:5-228:10 (leading: Newline, Space)
+2743: Ident           "message" at 228:11-228:18 (leading: Space)
+2744: Colon           ":" at 228:18-228:19
+2745: Ident           "string" at 228:20-228:26 (leading: Space)
+2746: Semicolon       ";" at 228:26-228:27
+2747: KwField         "field" at 229:5-229:10 (leading: Newline, Space)
+2748: Ident           "code" at 229:11-229:15 (leading: Space)
+2749: Colon           ":" at 229:15-229:16
+2750: Ident           "uint" at 229:17-229:21 (leading: Space)
+2751: Semicolon       ";" at 229:21-229:22
+2752: RBrace          "}" at 230:1-230:2 (leading: Newline)
+2753: At              "@" at 232:1-232:2 (leading: Newline)
+2754: Ident           "intrinsic" at 232:2-232:11
+2755: KwPub           "pub" at 233:1-233:4 (leading: Newline)
+2756: KwFn            "fn" at 233:5-233:7 (leading: Space)
+2757: Ident           "exit" at 233:8-233:12 (leading: Space)
+2758: Lt              "<" at 233:12-233:13
+2759: Ident           "E" at 233:13-233:14
+2760: Colon           ":" at 233:14-233:15
+2761: Ident           "ErrorLike" at 233:16-233:25 (leading: Space)
+2762: Gt              ">" at 233:25-233:26
+2763: LParen          "(" at 233:26-233:27
+2764: Ident           "e" at 233:27-233:28
+2765: Colon           ":" at 233:28-233:29
+2766: Ident           "E" at 233:30-233:31 (leading: Space)
+2767: RParen          ")" at 233:31-233:32
+2768: Arrow           "->" at 233:33-233:35 (leading: Space)
+2769: NothingLit      "nothing" at 233:36-233:43 (leading: Space)
+2770: Semicolon       ";" at 233:43-233:44
+2771: KwPub           "pub" at 235:1-235:4 (leading: Newline)
+2772: KwFn            "fn" at 235:5-235:7 (leading: Space)
+2773: Ident           "panic" at 235:8-235:13 (leading: Space)
+2774: LParen          "(" at 235:13-235:14
+2775: Ident           "msg" at 235:14-235:17
+2776: Colon           ":" at 235:17-235:18
+2777: Ident           "string" at 235:19-235:25 (leading: Space)
+2778: RParen          ")" at 235:25-235:26
+2779: Arrow           "->" at 235:27-235:29 (leading: Space)
+2780: NothingLit      "nothing" at 235:30-235:37 (leading: Space)
+2781: LBrace          "{" at 235:38-235:39 (leading: Space)
+2782: KwLet           "let" at 236:5-236:8 (leading: Newline, Space)
+2783: Ident           "e" at 236:9-236:10 (leading: Space)
+2784: Colon           ":" at 236:10-236:11
+2785: Ident           "Error" at 236:12-236:17 (leading: Space)
+2786: Assign          "=" at 236:18-236:19 (leading: Space)
+2787: LBrace          "{" at 236:20-236:21 (leading: Space)
+2788: Ident           "message" at 236:22-236:29 (leading: Space)
+2789: Colon           ":" at 236:29-236:30
+2790: Ident           "msg" at 236:31-236:34 (leading: Space)
+2791: Comma           "," at 236:34-236:35
+2792: Ident           "code" at 236:36-236:40 (leading: Space)
+2793: Colon           ":" at 236:40-236:41
+2794: IntLit          "1" at 236:42-236:43 (leading: Space)
+2795: Colon           ":" at 236:43-236:44
+2796: Ident           "uint" at 236:44-236:48
+2797: RBrace          "}" at 236:49-236:50 (leading: Space)
+2798: Semicolon       ";" at 236:50-236:51
+2799: Ident           "exit" at 237:5-237:9 (leading: Newline, Space)
+2800: LParen          "(" at 237:9-237:10
+2801: Ident           "e" at 237:10-237:11
+2802: RParen          ")" at 237:11-237:12
+2803: Semicolon       ";" at 237:12-237:13
+2804: RBrace          "}" at 238:1-238:2 (leading: Newline)
+2805: EOF             at 239:1-239:1
