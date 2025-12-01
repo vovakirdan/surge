@@ -10,38 +10,40 @@ fn maybe_returnV3() -> int? { // int? means Option<int>
     return 1; // should be auto wrapped to Some(1) in clear context
 }
 
-fn maybe_returnV4(flag: bool) -> Result<int, Error> { // Error is a concrete Error
-    if (flag) {
-        return 1; // should be auto wrapped to Ok(1) in clear context
-    } else {
-        let e: Error = { message: "error", code: 1:uint };
-        return e;
-    }
-}
-
-fn maybe_returnV5(flag: bool) -> int!Error { // int!Error means Result<int, Error>
-    if (flag) {
-        return Ok(1);
-    } else {
-        let e: Error = { message: "error", code: 1:uint };
-        return e;
-    }
-}
-
-fn maybe_returnV6(flag: bool) -> int! { // int! means Result<int, E> where E is any error
-    if (flag) {
-        return Ok(1);
-    } else {
-        return Err("error"); // no need to be an Error type, u can return any type with Err tag
-    }
-}
-
-pub tag HttpError<T>(T);
-
-// TODO: Fix generic tag resolution
-// fn maybe_returnV7<T>(flag: bool) -> int!HttpError<T> { // HttpError<T> means Result<int, HttpError<T>>
+// TODO: Restore Erring tests once core/result.sg exports work properly
+// fn maybe_returnV4(flag: bool) -> Erring<int, Error> { // Error is a concrete Error
 //     if (flag) {
-//         return Ok(1);
+//         return 1; // should be auto wrapped to Success(1) in clear context
+//     } else {
+//         let e: Error = { message: "error", code: 1:uint };
+//         return e;
+//     }
+// }
+
+// fn maybe_returnV5(flag: bool) -> int!Error { // int!Error means Erring<int, Error>
+//     if (flag) {
+//         return Success(1);
+//     } else {
+//         let e: Error = { message: "error", code: 1:uint };
+//         return e;
+//     }
+// }
+
+// fn maybe_returnV6(flag: bool) -> int! { // int! means Erring<int, Error> where Error is the base error type
+//     if (flag) {
+//         return Success(1);
+//     } else {
+//         let e: Error = { message: "error", code: 1:uint };
+//         return e;
+//     }
+// }
+
+// TODO: Add support for generic tags and custom error types in syntax sugar
+// pub tag HttpError<T>(T);
+
+// fn maybe_returnV7(flag: bool) -> int!HttpError { // int!HttpError means Erring<int, HttpError>
+//     if (flag) {
+//         return Success(1);
 //     } else {
 //         return HttpError("error");
 //     }

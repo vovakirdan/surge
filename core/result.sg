@@ -1,23 +1,22 @@
-// Core Result type, a tagged union for recoverable errors.
+// Core Erring type for recoverable errors using ErrorLike contract.
 
 pub type Error = { message: string, code: uint };
 
-pub tag Ok<T>(T);
-pub tag Err<E>(E);
-pub type Result<T, E> = Ok(T) | Err(E);
+pub tag Success<T>(T);
+pub type Erring<T, E: ErrorLike> = Success(T) | E;
 
-extern<Result<T, E>> {
-    pub fn safe<T, E>(self: Result<T, E>) -> T {
+extern<Erring<T, E>> {
+    pub fn safe<T, E: ErrorLike>(self: Erring<T, E>) -> T {
         compare self {
-            Ok(v) => v;
-            Err(_) => default::<T>();
+            Success(v) => v;
+            _ => default::<T>();
         };
     }
 
-    pub fn exit<T, E>(self: Result<T, E>) -> nothing {
+    pub fn exit<T, E: ErrorLike>(self: Erring<T, E>) -> nothing {
         compare self {
-            Ok(_) => return nothing;
-            Err(e) => exit(e);
+            Success(_) => return nothing;
+            err => exit(err);
         };
     }
 }

@@ -77,12 +77,8 @@ func (tc *typeChecker) checkCompareExhausiveness(cmp *ast.ExprCompareData, subje
 		return
 	}
 
-	// Skip exhaustiveness checking for stdlib files to avoid false positives
-	// This is temporary until we fix generic type exhaustiveness checking
-	if tc.symbols != nil && tc.symbols.Table != nil {
-		// Skip for now - enable once generic union exhaustiveness is properly implemented
-		return
-	}
+	// Enable exhaustiveness checking for Erring<T, E>
+	// The new model has only one generic tag Success<T>, so exhaustiveness should work properly
 
 	// Only check exhaustiveness for tagged unions
 	normalized := tc.resolveAlias(subjectType)

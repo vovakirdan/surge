@@ -10,7 +10,7 @@ func (tc *typeChecker) resolveResultType(okType, errType types.TypeID, span sour
 	if okType == types.NoTypeID || errType == types.NoTypeID || tc.builder == nil {
 		return types.NoTypeID
 	}
-	name := tc.builder.StringsInterner.Intern("Result")
+	name := tc.builder.StringsInterner.Intern("Erring")
 	args := []types.TypeID{okType, errType}
 	return tc.resolveNamedType(name, args, nil, span, scope)
 }
@@ -39,7 +39,7 @@ func (tc *typeChecker) resultPayload(id types.TypeID) (okType, errType types.Typ
 	if !okInfo || info == nil || len(info.TypeArgs) != 2 {
 		return 0, 0, false
 	}
-	if tc.lookupTypeName(id, info.Name) != "Result" {
+	if tc.lookupTypeName(id, info.Name) != "Erring" {
 		return 0, 0, false
 	}
 	return info.TypeArgs[0], info.TypeArgs[1], true
