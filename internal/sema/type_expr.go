@@ -194,6 +194,8 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Result), "compare arm type mismatch: expected %s, got %s", tc.typeLabel(resultType), tc.typeLabel(armResult))
 				}
 			}
+			// Check exhaustiveness for tagged unions
+			tc.checkCompareExhausiveness(cmp, valueType, expr.Span)
 			ty = resultType
 		}
 	case ast.ExprParallel:

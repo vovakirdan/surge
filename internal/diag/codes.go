@@ -118,6 +118,8 @@ const (
 	SemaInvalidBoolContext         Code = 3050
 	SemaMissingReturn              Code = 3051
 	SemaNoStdlib                   Code = 3052
+	SemaNonexhaustiveMatch         Code = 3053
+	SemaRedundantFinally           Code = 3054
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -240,6 +242,8 @@ var ( // todo расширить описания и использовать к
 		SemaInvalidBoolContext:         "Invalid boolean context",
 		SemaMissingReturn:              "Missing return in function",
 		SemaNoStdlib:                   "stdlib not available in no_std module",
+		SemaNonexhaustiveMatch:         "non-exhaustive pattern match",
+		SemaRedundantFinally:           "redundant finally clause",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

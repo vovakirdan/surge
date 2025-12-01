@@ -88,6 +88,7 @@ Surge is a systems programming language with:
 - **Type System**: Generics, contracts, tagged unions, extern types
 - **Concurrency**: Async/await, spawn, signals with purity checking
 - **Error Handling**: Option/Result types with exhaustive matching
+- **Pattern Matching**: Compare expressions with exhaustiveness checking for tagged unions
 - **Metaprogramming**: Pragma directives, attributes, compile-time features
 
 ### Testing Strategy
@@ -127,6 +128,13 @@ Surge is a systems programming language with:
 4. Update symbol resolution if needed
 5. Add golden tests for both valid and invalid cases
 6. Update intrinsics in `core/` if needed
+
+#### Recent Semantic Analysis Enhancements
+- **Exhaustiveness Checking**: Implemented in `internal/sema/type_expr_compare.go`
+  - Validates complete pattern coverage in `compare` expressions for tagged unions
+  - Supports wildcard patterns (`_`) and `finally` clauses
+  - Diagnostic codes: `SemaNonexhaustiveMatch` (3053), `SemaRedundantFinally` (3054)
+  - Currently disabled for stdlib files due to generic type handling complexity
 
 #### Fixing Bugs
 1. Add failing test case in appropriate testdata/ directory
