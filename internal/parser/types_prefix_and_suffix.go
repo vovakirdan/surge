@@ -225,29 +225,9 @@ func (p *Parser) parseTypeSuffix(baseType ast.TypeID) (ast.TypeID, bool) {
 			)
 		default:
 			bangTok := p.advance()
+			// T! всегда означает Erring<T, Error> - не поддерживаем T!CustomError
 			errType := ast.NoTypeID
-			// допускаем T!E, где E — обычное типовое выражение
-			if !p.at(token.Semicolon) &&
-				!p.at(token.Comma) &&
-				!p.at(token.RParen) &&
-				!p.at(token.RBracket) &&
-				!p.at(token.RBrace) &&
-				!p.at(token.LBrace) &&
-				!p.at(token.Arrow) &&
-				!p.at(token.FatArrow) {
-				var ok bool
-				errType, ok = p.parseTypePrefix()
-				if !ok {
-					return ast.NoTypeID, false
-				}
-			}
-			currentSpan := p.arenas.Types.Get(currentType).Span
-			if errType.IsValid() {
-				errSpan := p.arenas.Types.Get(errType).Span
-				currentSpan = currentSpan.Cover(errSpan)
-			} else {
-				currentSpan = currentSpan.Cover(bangTok.Span)
-			}
+			currentSpan := p.arenas.Types.Get(currentType).Span.Cover(bangTok.Span)
 			currentType = p.arenas.Types.NewErrorable(currentSpan, currentType, errType)
 		}
 

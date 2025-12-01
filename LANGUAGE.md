@@ -268,30 +268,31 @@ type Either<L, R> = Left(L) | Right(R)
 - Tagged unions are parsed and lowered into `TypeUnionMemberTag` entries. Exhaustiveness checking for `compare` arms is not implemented yet in sema; treat it as planned validation.
 - Mixing many untagged structural types may still be ambiguous at runtime; prefer tags for evolving APIs and stability.
 
-### 2.9. Option and Result via tags (sugar `T?` / `T!E`)
+### 2.9. Option and Erring via tags (sugar `T?` / `T!`)
 
 The standard library defines canonical constructors and aliases; the postfix sugar desugars to them:
 
+**Note:** `Erring<T, E>` is not an analogue of Rust's `Result<T, E>`, but a distinct structure in the Surge language with similar but not identical behavior. Key differences include the use of `Success<T>` instead of `Ok<T>`, direct error value returns without wrapping, and simplified syntax sugar that only supports `T!` (not `T!CustomError`).
+
 ```sg
-tag Some<T>(T); tag Ok<T>(T); tag Err<E>(E);
+tag Some<T>(T); tag Success<T>(T);
 
 type Option<T> = Some(T) | nothing
-type Result<T, E> = Ok(T) | Err(E)
+type Erring<T, E: ErrorLike> = Success(T) | E
 
 // sugar (type position only):
 let maybe_num: int?      // == Option<int>
-let maybe_fail: int!     // == Result<int, Error>
-let maybe_fail2: int!E   // == Result<int, E>
+let maybe_fail: int!     // == Erring<int, Error>
 
 fn head<T>(xs: T[]) -> Option<T> {
   if (xs.len == 0) { return nothing; }
   return Some(xs[0]);
 }
 
-fn parse(s: string) -> Result<int, Error> { // also `int!Error` sugar is available
-  if (s == "42") { return Ok(42); }
+fn parse(s: string) -> Erring<int, Error> { // also `int!` sugar is available
+  if (s == "42") { return Success(42); }
   let e: Error = { message: "bad", code: 1 };
-  return Error(e); // explicit constructor required for `Result`
+  return e; // Error value returned directly
 }
 
 compare head([1, 2, 3]) {
@@ -300,15 +301,15 @@ compare head([1, 2, 3]) {
 }
 
 compare parse("x") {
-  Ok(v)      => print("ok", v),
-  Error(err) => print("err", err)
+  Success(v) => print("ok", v),
+  err        => print("err", err)
 }
 ```
 
 Rules:
 
-- Construction is explicit in expressions: use `Some(...)`, `Ok(...)`, or `Error(...)`. In function returns, a bare `T` is accepted as `Some(T)`/`Ok(T)` and `nothing` is accepted for `Option<T>`.
-- `T?` is sugar for `Option<T>`; `T!E` is sugar for `Result<T, E>` (type sugar only; no `expr?` propagation operator).
+- Construction is explicit in expressions: use `Some(...)` or `Success(...)`. In function returns, a bare `T` is accepted as `Some(T)`/`Success(T)` and `nothing` is accepted for `Option<T>`.
+- `T?` is sugar for `Option<T>`; `T!` is sugar for `Erring<T, Error>` (type sugar only; no `expr?` propagation operator).
 - `nothing` remains the shared absence literal for both Option and other contexts (§2.6). Exhaustiveness checking for tagged unions is planned but not wired up yet.
 - `panic(msg)` materialises `Error{ message: msg, code: 1 }` and calls intrinsic `exit(Error)`.
 
@@ -504,7 +505,7 @@ Patterns (baseline set):
 - `finally` – wildcard, matches anything (default case).
 - Literals – `123`, `"str"`, `true`, `false`.
 - Bindings – `name` binds the matched value in that arm.
-- Tagged constructors – `Tag(p)` such as `Some(x)`, `Ok(v)`, `Error(e)`; payload patterns recurse.
+- Tagged constructors – `Tag(p)` such as `Some(x)`, `Success(v)`, error values; payload patterns recurse.
 - `nothing` – matches the absence literal of type `nothing`.
 - Conditional patterns – `x if x is int` where `x` is bound and condition is checked.
 
@@ -517,8 +518,8 @@ compare v {
 }
 
 compare r {
-  Ok(v)      => print("ok", v),
-  Error(err) => print("err", err)
+  Success(v) => print("ok", v),
+  err        => print("err", err)
 }
 ```
 
@@ -1091,7 +1092,7 @@ Restriction: `=>` is valid only in these `parallel` constructs and within `compa
 ### 9.4. Tasks and spawn semantics
 
 * `spawn expr` launches a new task to evaluate `expr` asynchronously. If `expr` has type `T`, `spawn expr` has type `Task<T>` (a join handle).
-* `join(t: Task<T>) -> Result<T, Cancelled>` waits for completion; on normal completion returns `Ok(value)`, on cooperative cancellation returns `Error(Cancelled)`.
+* `join(t: Task<T>) -> Erring<T, Cancelled>` waits for completion; on normal completion returns `Success(value)`, on cooperative cancellation returns error value.
 * `t.cancel()` requests cooperative cancellation; tasks can check via `task::is_cancelled()`.
 * Moving values into `spawn` consumes them (ownership semantics). Only `own` values may be moved into tasks.
 
@@ -1101,25 +1102,25 @@ Surge provides structured concurrency with async/await for managing asynchronous
 
 **Async Functions:**
 ```sg
-async fn fetch_data(url: string) -> Result<Data, Error> {
+async fn fetch_data(url: string) -> Erring<Data, Error> {
     let response = http_get(url).await();
     let response = compare response {
-        Ok(value) => value;
-        Err(err) => return Error(err);
+        Success(value) => value;
+        err => return err;
     };
     return parse_response(response).await();
 }
 
-async fn process_multiple_urls(urls: string[]) -> Result<Data[], Error> {
+async fn process_multiple_urls(urls: string[]) -> Erring<Data[], Error> {
     let mut results: Data[] = [];
     for url in urls {
         let outcome = fetch_data(url).await();
         compare outcome {
-            Ok(data) => results.push(data);
-            Err(err) => return Error(err);
+            Success(data) => results.push(data);
+            err => return err;
         };
     }
-    return Ok(results);
+    return Success(results);
 }
 ```
 
@@ -1156,46 +1157,176 @@ async {
 
 ---
 
-## 11. Error Handling & Traps (Surface)
+## 11. Error Handling Model
 
-* Casts from dynamic to fixed-size that overflow trap at runtime.
-* Division by zero and invalid numeric operations trap.
-* Index out of bounds traps unless `__index` is overridden to handle it differently.
-* Ambiguous overloads and missing methods are compile-time errors.
+Surge uses a modern error handling model based on the `Erring<T, E>` type, which represents computations that can either succeed with a value of type `T` or fail with an error of type `E`. This model provides explicit, type-safe error management without exceptions.
 
-(Full trap catalogue and error codes live in DIAGNOSTICS.md / RUNTIME.md.)
+### Core Error Types
 
-### Error types and inheritance
+#### ErrorLike Contract
 
-The predicate `(Child heir Base)` is a type-level check surfaced as a boolean expression; implementations may reuse it for future generic constraints.
+All error types must implement the `ErrorLike` contract:
 
 ```sg
-type Error = { message: string, code: uint }
-
-// Derived error with extra data
-type MyError = Error : { path: string }
+pub contract ErrorLike {
+    field message: string;
+    field code: uint;
+}
 ```
 
-- `type Child = Base : { ... }` copies all fields from `Base` and extends the struct with additional fields. Field names must remain unique; conflicts emit `SynTypeFieldConflict`.
-- Fields may provide defaults (`field: T = expr`). Missing defaults require callers to populate the field explicitly.
-- Attributes on inherited fields (`@hidden`, `@readonly`) retain their behaviour. New fields may declare their own attributes.
-- Methods declared in `extern<Base>` apply to `Child`. Overrides live in `extern<Child>` with `@override` for clarity.
-- `(Child heir Base)` is a runtime predicate returning `bool` and captures the declared inheritance chain.
-- `is` remains strictly nominal: `e is Error` is false if `e: MyError`. Use `heir` or tagged results for family checks.
+#### Base Error Type
 
 ```sg
-fn open_file(p: string) -> Result<string, MyError> {
-  let e: MyError = { message: "denied", code: 401, path: p };
-  return Error(e);
+pub type Error = { message: string, code: uint };
+```
+
+#### Success Tag and Erring Type
+
+```sg
+pub tag Success<T>(T);
+pub type Erring<T, E: ErrorLike> = Success(T) | E;
+```
+
+An `Erring<T, E>` value represents either:
+- `Success(value)` - a successful result containing a value of type `T`
+- An error value of type `E` that implements `ErrorLike`
+
+### Syntax Sugar
+
+#### Error Type Syntax
+
+Surge provides convenient syntax sugar for error types:
+
+```sg
+// These are equivalent:
+fn compute() -> int! { ... }
+fn compute() -> Erring<int, Error> { ... }
+```
+
+The `T!` syntax always means "T or Error" where Error is the base error type.
+
+#### Auto-wrapping
+
+In clear contexts, Surge automatically wraps return values:
+
+```sg
+fn maybe_return() -> Erring<int, Error> {
+    if (condition) {
+        return 42;  // Auto-wrapped to Success(42)
+    } else {
+        let e: Error = { message: "failed", code: 1:uint };
+        return e;   // Error values pass through directly
+    }
+}
+```
+
+### Pattern Matching
+
+Use `compare` expressions to handle all possible outcomes:
+
+```sg
+fn handle_result(result: Erring<int, Error>) -> int {
+    return compare result {
+        Success(value) => value;
+        err => {
+            panic("Operation failed: " + err.message);
+            0  // Unreachable but required for type checking
+        };
+    };
 }
 
-let ok = (MyError heir Error); // true
+// Use wildcards to catch all errors:
+fn safe_operation(result: Erring<int, Error>) -> int {
+    return compare result {
+        Success(value) => value;
+        _ => 0;  // Default value for any error
+    };
+}
 ```
 
-Returning a bare payload where `Result<T, E>` is expected emits `E_EXPECTED_TAGGED_VARIANT`; use `Ok(...)` / `Error(...)` explicitly.
+### Built-in Methods
 
-Traps remain for unrecoverable faults (OOB, internal assertion, certain cast traps). A richer effects model may be added later; this draft focuses on explicit tagged results plus traps.
+The `Erring` type provides useful methods:
 
+```sg
+extern<Erring<T, E>> {
+    // Extract value or return default
+    pub fn safe<T, E: ErrorLike>(self: Erring<T, E>) -> T {
+        compare self {
+            Success(v) => v;
+            _ => default::<T>();
+        };
+    }
+
+    // Terminate program on error
+    pub fn exit<T, E: ErrorLike>(self: Erring<T, E>) -> nothing {
+        compare self {
+            Success(_) => return nothing;
+            err => exit(err);
+        };
+    }
+}
+```
+
+### Custom Error Types
+
+Define domain-specific error types:
+
+```sg
+pub type ValidationError = {
+    message: string;
+    code: uint;
+    field: string;
+};
+
+fn validate_input(input: string) -> Erring<string, ValidationError> {
+    if (input.length() == 0) {
+        let err: ValidationError = {
+            message: "Input cannot be empty",
+            code: 400:uint,
+            field: "input"
+        };
+        return err;
+    }
+    return Success(input);
+}
+```
+
+### Error Propagation
+
+Manual error propagation:
+
+```sg
+fn complex_operation() -> Erring<string, Error> {
+    let step1 = parse_input();
+    let value1 = compare step1 {
+        Success(v) => v;
+        err => return err;  // Propagate error
+    };
+
+    let step2 = process_data(value1);
+    let value2 = compare step2 {
+        Success(v) => v;
+        err => return err;
+    };
+
+    return Success(format_output(value2));
+}
+```
+
+### Exhaustiveness Checking
+
+The compiler ensures all cases are handled:
+
+```sg
+fn handle_result(result: Erring<int, Error>) {
+    compare result {
+        Success(value) => print(value to string);
+        // Compiler error if error case is missing
+        _ => print("Error occurred");
+    };
+}
+```
 ---
 
 ## 12. Examples
@@ -1332,21 +1463,21 @@ fn classify_value(value: NumberOrString) {
 
 ```sg
 // Async function with structured concurrency
-async fn process_data(urls: string[]) -> Result<Data[], Error> {
+async fn process_data(urls: string[]) -> Erring<Data[], Error> {
     async {
-        let tasks: Task<Result<Data, Error>>[] = [];
+        let tasks: Task<Erring<Data, Error>>[] = [];
 
         for url in urls {
             let task = spawn fetch_data(url);
             tasks.push(task);
         }
 
-        let results: Result<Data, Error>[] = [];
+        let results: Erring<Data, Error>[] = [];
         for task in tasks {
             results.push(task.await());
         }
 
-        return Ok(results);
+        return Success(results);
     }
 }
 ```
@@ -1569,7 +1700,7 @@ These functions participate in name resolution and type checking. In `run` mode,
 ### 13.4. Built-in (Standard) Directives
 
 * **`test:`** — executes test scenarios; standard conventions:
-  * `test.eq(actual, expected) -> Result<nothing, Error>`
+  * `test.eq(actual, expected) -> Erring<nothing, Error>`
   * `test.le(a, b)`, `test.ok(cond)`, etc.
 * **`benchmark:`** — benchmarking (ignored in release builds by default unless explicitly enabled).
 * **`time:`** — timing measurements (for local analysis, ignored in release builds by default).
@@ -1590,7 +1721,7 @@ Source:
 is equivalent to creating a hidden wrapper function and calling it in the test runner:
 
 ```
-fn __directive_test_SumIsCorrect__() -> Result<nothing, Error> {
+fn __directive_test_SumIsCorrect__() -> Erring<nothing, Error> {
   return test.eq(add(1, 2), 3);
 }
 ```

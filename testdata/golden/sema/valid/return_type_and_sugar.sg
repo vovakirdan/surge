@@ -20,7 +20,7 @@ fn maybe_returnV3() -> int? { // int? means Option<int>
 //     }
 // }
 
-// fn maybe_returnV5(flag: bool) -> int!Error { // int!Error means Erring<int, Error>
+// fn maybe_returnV5(flag: bool) -> int! { // int! means Erring<int, Error>
 //     if (flag) {
 //         return Success(1);
 //     } else {
@@ -29,7 +29,7 @@ fn maybe_returnV3() -> int? { // int? means Option<int>
 //     }
 // }
 
-// fn maybe_returnV6(flag: bool) -> int! { // int! means Erring<int, Error> where Error is the base error type
+// fn maybe_returnV6(flag: bool) -> int! { // int! always means Erring<int, Error>
 //     if (flag) {
 //         return Success(1);
 //     } else {
