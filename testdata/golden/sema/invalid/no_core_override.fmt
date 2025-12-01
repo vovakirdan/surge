@@ -1,0 +1,32 @@
+// scenario: attempt to override a core type
+
+type Error = { foo: int, bar: float } // already defined in core/
+
+fn exit(e: Error) -> nothing {} // already defined in core/
+
+fn panic() -> nothing {}
+
+fn default<T>() -> T {}
+
+fn rt_alloc() {}
+
+fn rt_free() {}
+
+fn rt_realloc() {}
+
+fn rt_memcpy() {}
+
+fn rt_memmove() {}
+
+contract Bounded<T> {
+    fn __min_value() -> T;
+    fn __max_value() -> T;
+}
+
+tag Some<T>(T);
+
+type Option<T> = Some(T) | nothing;
+
+type Task<T> = nothing;
+type Range<T> = nothing;
+pub type byte = string;

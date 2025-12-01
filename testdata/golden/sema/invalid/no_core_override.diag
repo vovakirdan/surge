@@ -1,0 +1,16 @@
+error SEM3002 testdata/golden/sema/invalid/no_core_override.sg:3:1 duplicate declaration of 'Error'
+error SEM3006 testdata/golden/sema/invalid/no_core_override.sg:5:1 function 'exit' redeclared without @overload or @override
+error SEM3006 testdata/golden/sema/invalid/no_core_override.sg:7:1 function 'panic' redeclared without @overload or @override
+error SEM3006 testdata/golden/sema/invalid/no_core_override.sg:9:4 invalid override for 'default': function already defined in core/stdlib (overrides are forbidden)
+error SEM3051 testdata/golden/sema/invalid/no_core_override.sg:9:17 function returning T is missing a return
+error SEM3006 testdata/golden/sema/invalid/no_core_override.sg:11:1 function 'rt_alloc' redeclared without @overload or @override
+error SEM3006 testdata/golden/sema/invalid/no_core_override.sg:13:1 function 'rt_free' redeclared without @overload or @override
+error SEM3006 testdata/golden/sema/invalid/no_core_override.sg:15:1 function 'rt_realloc' redeclared without @overload or @override
+error SEM3006 testdata/golden/sema/invalid/no_core_override.sg:17:1 function 'rt_memcpy' redeclared without @overload or @override
+error SEM3006 testdata/golden/sema/invalid/no_core_override.sg:19:1 function 'rt_memmove' redeclared without @overload or @override
+error SEM3002 testdata/golden/sema/invalid/no_core_override.sg:21:10 duplicate declaration of 'Bounded'
+error SEM3002 testdata/golden/sema/invalid/no_core_override.sg:26:5 duplicate declaration of 'Some'
+error SEM3002 testdata/golden/sema/invalid/no_core_override.sg:28:1 duplicate declaration of 'Option'
+error SEM3002 testdata/golden/sema/invalid/no_core_override.sg:30:1 duplicate declaration of 'Task'
+error SEM3002 testdata/golden/sema/invalid/no_core_override.sg:31:1 duplicate declaration of 'Range'
+error SEM3002 testdata/golden/sema/invalid/no_core_override.sg:32:5 duplicate declaration of 'byte'
