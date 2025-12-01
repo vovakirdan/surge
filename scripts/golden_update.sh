@@ -82,7 +82,7 @@ find "${ROOT_DIR}/core" -maxdepth 1 -type f -name '*.sg' -print0 | sort -z | whi
 	mkdir -p "${out_dir}"
 
 	# Check diagnostics: if non-empty, this is an error (must be valid).
-	if ! "${SURGE_BIN}" diag --format short "${abs_src}" > "${diag_file}" 2>/dev/null; then
+	if ! SURGE_STDLIB="${ROOT_DIR}" "${SURGE_BIN}" diag --format short "${abs_src}" > "${diag_file}" 2>/dev/null; then
 		echo "diagnostics failed for core stdlib file (should be valid): ${abs_src}" >&2
 		exit 1
 	fi
@@ -94,10 +94,10 @@ find "${ROOT_DIR}/core" -maxdepth 1 -type f -name '*.sg' -print0 | sort -z | whi
 		exit 1
 	fi
 
-	"${SURGE_BIN}" tokenize "${abs_src}" > "${out_dir}/${name}.tokens" 2>/dev/null
-	"${SURGE_BIN}" parse "${abs_src}" > "${out_dir}/${name}.ast" 2>/dev/null
+	SURGE_STDLIB="${ROOT_DIR}" "${SURGE_BIN}" tokenize "${abs_src}" > "${out_dir}/${name}.tokens" 2>/dev/null
+	SURGE_STDLIB="${ROOT_DIR}" "${SURGE_BIN}" parse "${abs_src}" > "${out_dir}/${name}.ast" 2>/dev/null
 
-	if ! "${SURGE_BIN}" fmt --stdout "${abs_src}" > "${out_dir}/${name}.fmt" 2>/dev/null; then
+	if ! SURGE_STDLIB="${ROOT_DIR}" "${SURGE_BIN}" fmt --stdout "${abs_src}" > "${out_dir}/${name}.fmt" 2>/dev/null; then
 		cp "${abs_src}" "${out_dir}/${name}.fmt"
 		if [[ "${GOLDEN_VERBOSE:-0}" != "0" ]]; then
 			echo "fmt failed for ${abs_src}, copied original content" >&2
