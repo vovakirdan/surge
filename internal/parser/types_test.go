@@ -260,9 +260,8 @@ func TestOptionalAndErrorableTypes(t *testing.T) {
 	}{
 		{"optional", "let x: int?;", "int?"},
 		{"errorable_any", "let x: Foo!;", "Foo!"},
-		{"errorable_explicit", "let x: Foo!Bar;", "Foo!Bar"},
 		{"array_optional", "let x: int[]?;", "int[]?"},
-		{"owned_errorable", "let x: own Foo!Bar;", "own Foo!Bar"},
+		{"owned_errorable", "let x: own Foo!;", "own Foo!"},
 	}
 
 	for _, tt := range tests {
@@ -281,6 +280,9 @@ func TestInvalidOptionalAndErrorableTypes(t *testing.T) {
 		{"double_optional", "let x: int??;"},
 		{"optional_then_errorable", "let x: int?!;"},
 		{"double_errorable", "let x: int!!;"},
+		// T!CustomError syntax is not supported
+		{"errorable_with_custom_error", "let x: Foo!Bar;"},
+		{"owned_errorable_with_custom_error", "let x: own Foo!Bar;"},
 	}
 
 	for _, tt := range tests {

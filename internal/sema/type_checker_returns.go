@@ -243,14 +243,11 @@ func (tc *typeChecker) coerceReturnType(expected, actual types.TypeID) types.Typ
 		if tc.typesAssignable(okType, actualResolved, true) {
 			return expected
 		}
-		if payload := tc.unwrapTaggedPayload(actualResolved, "Ok"); payload != types.NoTypeID && tc.typesAssignable(okType, payload, true) {
+		if payload := tc.unwrapTaggedPayload(actualResolved, "Success"); payload != types.NoTypeID && tc.typesAssignable(okType, payload, true) {
 			return expected
 		}
-		// Auto-wrap Error types into Err for Result types
+		// Auto-wrap: Error types pass through directly (no tag wrapper needed)
 		if tc.typesAssignable(errType, actualResolved, true) {
-			return expected
-		}
-		if payload := tc.unwrapTaggedPayload(actualResolved, "Err"); payload != types.NoTypeID && tc.typesAssignable(errType, payload, true) {
 			return expected
 		}
 	}
