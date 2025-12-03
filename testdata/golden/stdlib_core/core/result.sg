@@ -6,24 +6,52 @@ pragma no_std;
 pub fn default<T>() -> T;
 pub fn exit<E>(e: E) -> nothing;
 
+pub contract ErrorLike{
+    field message: string;
+    field code: uint;
+}
+
 pub type Error = { message: string, code: uint };
 
-pub tag Ok<T>(T);
-pub tag Err<E>(E);
-pub type Result<T, E> = Ok(T) | Err(E);
+pub tag Success<T>(T);
+pub type Erring<T, E> = Success(T) | E;
 
-extern<Result<T, E>> {
-    pub fn safe<T, E>(self: Result<T, E>) -> T {
+pub tag Some<E>(E);
+pub type Option<E> = Some(E) | nothing;
+
+extern<Erring<T, E>> {
+    pub fn safe<T, E: ErrorLike>(self: Erring<T, E>) -> T {
         compare self {
-            Ok(v) => v;
-            Err(_) => default::<T>();
+            Success(v) => v;
+            _ => default::<T>();
         };
     }
 
-    pub fn exit<T, E>(self: Result<T, E>) -> nothing {
+    pub fn exit<T, E: ErrorLike>(self: Erring<T, E>) -> nothing {
         compare self {
-            Ok(_) => return nothing;
-            Err(e) => exit(e);
+            Success(_) => return nothing;
+            err => exit(err);
+        };
+    }
+
+    pub fn error<T, E: ErrorLike>(self: Erring<T, E>) -> Option<E> {
+        compare self {
+            Success(_) => nothing;
+            err => Some(err);
+        };
+    }
+
+    pub fn is_success(self: Erring<T, E>) -> bool {
+        compare self {
+            Success(_) => true;
+            _ => false;
+        };
+    }
+
+    pub fn is_error(self: Erring<T, E>) -> bool {
+        compare self {
+            Success(_) => false;
+            _ => true;
         };
     }
 }

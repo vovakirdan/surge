@@ -1,4 +1,4 @@
-result.sg (span: 3:1-23:1)
+result.sg (span: 3:1-44:1)
 ├─ Item[0]: Type (span: 3:1-3:50)
 │  ├─ Name: Error
 │  ├─ Kind: Struct
@@ -19,7 +19,7 @@ result.sg (span: 3:1-23:1)
 │  └─ Union:
 │     ├─ Member[0]: Success(T)
 │     └─ Member[1]: E
-└─ Item[3]: Extern (span: 8:1-22:2)
+└─ Item[3]: Extern (span: 8:1-43:2)
    ├─ Target: Erring<T, E>
    ├─ Members:
    │  ├─ Fn[0]: safe
@@ -30,11 +30,32 @@ result.sg (span: 3:1-23:1)
    │  │     Stmt[0]: Block (span: 9:59-14:6)
    │  │     └─ Stmt[0]: Expr (span: 10:9-13:11)
    │  │        └─ Expr: expr#9: compare self { 2 arms }
-   │  └─ Fn[1]: exit
+   │  ├─ Fn[1]: exit
+   │  │  ├─ Params: (self: Erring<T, E>)
+   │  │  ├─ Return: nothing
+   │  │  ├─ Generics: <T, E>
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 16:65-21:6)
+   │  │     └─ Stmt[0]: Expr (span: 17:9-20:11)
+   │  │        └─ Expr: expr#18: compare self { 1 arms }
+   │  ├─ Fn[2]: error
+   │  │  ├─ Params: (self: Erring<T, E>)
+   │  │  ├─ Return: Option<E>
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 23:51-28:6)
+   │  │     └─ Stmt[0]: Expr (span: 24:9-27:11)
+   │  │        └─ Expr: expr#28: compare self { 2 arms }
+   │  ├─ Fn[3]: is_success
+   │  │  ├─ Params: (self: Erring<T, E>)
+   │  │  ├─ Return: bool
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 30:51-35:6)
+   │  │     └─ Stmt[0]: Expr (span: 31:9-34:11)
+   │  │        └─ Expr: expr#36: compare self { 2 arms }
+   │  └─ Fn[4]: is_error
    │     ├─ Params: (self: Erring<T, E>)
-   │     ├─ Return: nothing
-   │     ├─ Generics: <T, E>
+   │     ├─ Return: bool
    │     └─ Body:
-   │        Stmt[0]: Block (span: 16:65-21:6)
-   │        └─ Stmt[0]: Expr (span: 17:9-20:11)
-   │           └─ Expr: expr#18: compare self { 1 arms }
+   │        Stmt[0]: Block (span: 37:49-42:6)
+   │        └─ Stmt[0]: Expr (span: 38:9-41:11)
+   │           └─ Expr: expr#44: compare self { 2 arms }

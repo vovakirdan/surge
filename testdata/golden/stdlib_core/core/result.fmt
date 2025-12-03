@@ -19,4 +19,25 @@ extern<Erring<T, E>> {
             err => exit(err);
         };
     }
+
+    pub fn error(self: Erring<T, E>) -> Option<E> {
+        compare self {
+            Success(_) => nothing;
+            err => Some(err);
+        };
+    }
+
+    pub fn is_success(self: Erring<T, E>) -> bool {
+        compare self {
+            Success(_) => true;
+            _ => false;
+        };
+    }
+
+    pub fn is_error(self: Erring<T, E>) -> bool {
+        compare self {
+            Success(_) => false;
+            _ => true;
+        };
+    }
 }

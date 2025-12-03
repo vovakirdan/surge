@@ -1,4 +1,4 @@
-option.sg (span: 3:1-21:1)
+option.sg (span: 3:1-35:1)
 ├─ Item[0]: Tag (span: 3:1-3:20)
 │  ├─ Name: Some
 │  ├─ Visibility: public
@@ -12,7 +12,7 @@ option.sg (span: 3:1-21:1)
 │  └─ Union:
 │     ├─ Member[0]: Some(T)
 │     └─ Member[1]: nothing
-└─ Item[2]: Extern (span: 6:1-20:2)
+└─ Item[2]: Extern (span: 6:1-34:2)
    ├─ Target: Option<T>
    ├─ Members:
    │  ├─ Fn[0]: safe
@@ -23,11 +23,25 @@ option.sg (span: 3:1-21:1)
    │  │     Stmt[0]: Block (span: 7:42-12:6)
    │  │     └─ Stmt[0]: Expr (span: 8:9-11:11)
    │  │        └─ Expr: expr#9: compare self { 2 arms }
-   │  └─ Fn[1]: panic
-   │     ├─ Params: (self: Option<T>, msg: string)
-   │     ├─ Return: nothing
-   │     ├─ Generics: <T>
+   │  ├─ Fn[1]: panic
+   │  │  ├─ Params: (self: Option<T>, msg: string)
+   │  │  ├─ Return: nothing
+   │  │  ├─ Generics: <T>
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 14:62-19:6)
+   │  │     └─ Stmt[0]: Expr (span: 15:9-18:11)
+   │  │        └─ Expr: expr#18: compare self { 1 arms }
+   │  ├─ Fn[2]: is_some
+   │  │  ├─ Params: (self: Option<T>)
+   │  │  ├─ Return: bool
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 21:45-26:6)
+   │  │     └─ Stmt[0]: Expr (span: 22:9-25:11)
+   │  │        └─ Expr: expr#26: compare self { 2 arms }
+   │  └─ Fn[3]: is_nothing
+   │     ├─ Params: (self: Option<T>)
+   │     ├─ Return: bool
    │     └─ Body:
-   │        Stmt[0]: Block (span: 14:62-19:6)
-   │        └─ Stmt[0]: Expr (span: 15:9-18:11)
-   │           └─ Expr: expr#18: compare self { 1 arms }
+   │        Stmt[0]: Block (span: 28:48-33:6)
+   │        └─ Stmt[0]: Expr (span: 29:9-32:11)
+   │           └─ Expr: expr#34: compare self { 2 arms }

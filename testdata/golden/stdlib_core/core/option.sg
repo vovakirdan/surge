@@ -24,4 +24,18 @@ extern<Option<T>> {
             _ => panic(msg);
         };
     }
+
+    pub fn is_some(self: Option<T>) -> bool {
+        compare self {
+            Some(_) => true;
+            _ => false;
+        };
+    }
+
+    pub fn is_nothing(self: Option<T>) -> bool {
+        compare self {
+            Some(_) => false;
+            _ => true;
+        };
+    }    
 }

@@ -263,3 +263,135 @@ func (tc *typeChecker) emitRedundantFinally(span source.Span) {
 		b.Emit()
 	}
 }
+
+// unionMembers returns a copy of union members for the given type (if any).
+func (tc *typeChecker) unionMembers(subject types.TypeID) []types.UnionMember {
+	if tc.types == nil {
+		return nil
+	}
+	normalized := tc.resolveAlias(subject)
+	info, ok := tc.types.UnionInfo(normalized)
+	if !ok || info == nil || len(info.Members) == 0 {
+		return nil
+	}
+	members := make([]types.UnionMember, len(info.Members))
+	copy(members, info.Members)
+	return members
+}
+
+// narrowCompareSubjectType chooses a more specific subject type for the current arm.
+func (tc *typeChecker) narrowCompareSubjectType(fallback types.TypeID, remaining []types.UnionMember) types.TypeID {
+	if narrowed := tc.narrowUnionMembers(remaining); narrowed != types.NoTypeID {
+		return narrowed
+	}
+	return fallback
+}
+
+// narrowUnionMembers collapses a single-member union to its payload type.
+func (tc *typeChecker) narrowUnionMembers(members []types.UnionMember) types.TypeID {
+	if len(members) != 1 || tc.types == nil {
+		return types.NoTypeID
+	}
+	member := members[0]
+	switch member.Kind {
+	case types.UnionMemberType:
+		return member.Type
+	case types.UnionMemberNothing:
+		return tc.types.Builtins().Nothing
+	default:
+		return types.NoTypeID
+	}
+}
+
+func (tc *typeChecker) consumeCompareMembers(remaining []types.UnionMember, arm ast.ExprCompareArm) []types.UnionMember {
+	if len(remaining) == 0 {
+		return remaining
+	}
+	matched := tc.matchedUnionMembers(arm.Pattern, remaining, arm.IsFinally)
+	if len(matched) == 0 {
+		return remaining
+	}
+	return tc.dropUnionMembers(remaining, matched)
+}
+
+func (tc *typeChecker) matchedUnionMembers(pattern ast.ExprID, members []types.UnionMember, isFinally bool) []int {
+	if len(members) == 0 {
+		return nil
+	}
+	if isFinally || tc.isWildcardPattern(pattern) {
+		indexes := make([]int, 0, len(members))
+		for i := range members {
+			indexes = append(indexes, i)
+		}
+		return indexes
+	}
+	if !pattern.IsValid() || tc.builder == nil {
+		return nil
+	}
+	expr := tc.builder.Exprs.Get(pattern)
+	if expr == nil {
+		return nil
+	}
+	switch expr.Kind {
+	case ast.ExprCall:
+		if call, ok := tc.builder.Exprs.Call(pattern); ok && call != nil {
+			if ident, ok := tc.builder.Exprs.Ident(call.Target); ok && ident != nil {
+				if idxs := tc.matchUnionTagMembers(ident.Name, members); len(idxs) > 0 {
+					return idxs
+				}
+			}
+		}
+	case ast.ExprIdent:
+		if ident, ok := tc.builder.Exprs.Ident(pattern); ok && ident != nil {
+			if idxs := tc.matchUnionTagMembers(ident.Name, members); len(idxs) > 0 {
+				return idxs
+			}
+		}
+	case ast.ExprLit:
+		if lit, ok := tc.builder.Exprs.Literal(pattern); ok && lit != nil && lit.Kind == ast.ExprLitNothing {
+			return tc.matchUnionNothingMembers(members)
+		}
+	}
+	return nil
+}
+
+func (tc *typeChecker) matchUnionTagMembers(tag source.StringID, members []types.UnionMember) []int {
+	if tag == source.NoStringID {
+		return nil
+	}
+	indexes := make([]int, 0, len(members))
+	for i, member := range members {
+		if member.Kind == types.UnionMemberTag && member.TagName == tag {
+			indexes = append(indexes, i)
+		}
+	}
+	return indexes
+}
+
+func (tc *typeChecker) matchUnionNothingMembers(members []types.UnionMember) []int {
+	indexes := make([]int, 0, len(members))
+	for i, member := range members {
+		if member.Kind == types.UnionMemberNothing {
+			indexes = append(indexes, i)
+		}
+	}
+	return indexes
+}
+
+func (tc *typeChecker) dropUnionMembers(members []types.UnionMember, matched []int) []types.UnionMember {
+	if len(members) == 0 || len(matched) == 0 {
+		return members
+	}
+	drop := make(map[int]struct{}, len(matched))
+	for _, idx := range matched {
+		drop[idx] = struct{}{}
+	}
+	filtered := make([]types.UnionMember, 0, len(members)-len(drop))
+	for i, member := range members {
+		if _, ok := drop[i]; ok {
+			continue
+		}
+		filtered = append(filtered, member)
+	}
+	return filtered
+}

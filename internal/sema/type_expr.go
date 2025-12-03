@@ -177,8 +177,17 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		if cmp, ok := tc.builder.Exprs.Compare(id); ok && cmp != nil {
 			valueType := tc.typeExpr(cmp.Value)
 			resultType := types.NoTypeID
+			remainingMembers := tc.unionMembers(valueType)
+			nothingType := types.NoTypeID
+			if tc.types != nil {
+				nothingType = tc.types.Builtins().Nothing
+			}
 			for _, arm := range cmp.Arms {
-				tc.inferComparePatternTypes(arm.Pattern, valueType)
+				armSubject := valueType
+				if narrowed := tc.narrowCompareSubjectType(valueType, remainingMembers); narrowed != types.NoTypeID {
+					armSubject = narrowed
+				}
+				tc.inferComparePatternTypes(arm.Pattern, armSubject)
 				if arm.Guard.IsValid() {
 					tc.ensureBoolContext(arm.Guard, tc.exprSpan(arm.Guard))
 				}
@@ -186,12 +195,23 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				if armResult == types.NoTypeID {
 					continue
 				}
-				if resultType == types.NoTypeID {
+				switch {
+				case resultType == types.NoTypeID:
 					resultType = armResult
-					continue
-				}
-				if !tc.typesAssignable(resultType, armResult, true) {
+				case nothingType != types.NoTypeID && resultType == nothingType:
+					resultType = armResult
+				case nothingType != types.NoTypeID && armResult == nothingType:
+					// nothing can flow into any other arm result
+				case tc.typesAssignable(resultType, armResult, true):
+					// arm result fits the current inferred type
+				case tc.typesAssignable(armResult, resultType, true):
+					// widen the result type to the new arm
+					resultType = armResult
+				default:
 					tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Result), "compare arm type mismatch: expected %s, got %s", tc.typeLabel(resultType), tc.typeLabel(armResult))
+				}
+				if len(remainingMembers) > 0 {
+					remainingMembers = tc.consumeCompareMembers(remainingMembers, arm)
 				}
 			}
 			// Check exhaustiveness for tagged unions
