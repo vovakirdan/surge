@@ -1,0 +1,1 @@
+error PRJ5010 testdata/golden/sema/invalid/module_wrong_import/main.sg:3:1 module is named "testdata/golden/sema/invalid/module_wrong_import/foo/bar", not "testdata/golden/sema/invalid/module_wrong_import/foo/foo"

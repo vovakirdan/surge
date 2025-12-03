@@ -1,2 +1,2 @@
-error PRJ5002 testdata/golden/sema/invalid/pragma_no_std_stdlib_import.sg:3:1 module "testdata/golden/sema/invalid/pragma_no_std_stdlib_import" imports missing module "stdlib/option"
+error PRJ5010 testdata/golden/sema/invalid/pragma_no_std_stdlib_import.sg:3:1 module is named "stdlib/bounded", not "stdlib/option"
 error SEM3052 testdata/golden/sema/invalid/pragma_no_std_stdlib_import.sg:3:1 stdlib is not available in no_std modules; import "core/option" instead

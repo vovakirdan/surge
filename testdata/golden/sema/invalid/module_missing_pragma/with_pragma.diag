@@ -1,0 +1,1 @@
+error PRJ5008 testdata/golden/sema/invalid/module_missing_pragma/no_pragma.sg:1:1 all .sg files in a directory with pragma module/binary must declare a module pragma

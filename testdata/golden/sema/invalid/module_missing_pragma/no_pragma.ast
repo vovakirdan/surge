@@ -1,0 +1,7 @@
+no_pragma.sg (span: 1:1-2:1)
+└─ Item[0]: Fn (span: 1:1-1:16)
+   ├─ Name: missing
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:14-1:16)

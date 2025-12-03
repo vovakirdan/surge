@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"surge/internal/source"
 )
@@ -13,12 +14,49 @@ type ImportMeta struct {
 	Span source.Span
 }
 
+type ModuleKind uint8
+
+const (
+	ModuleKindUnknown ModuleKind = iota
+	ModuleKindModule
+	ModuleKindBinary
+)
+
+type ModuleFileMeta struct {
+	Path string
+	Span source.Span
+	Hash Digest
+}
+
 type ModuleMeta struct {
-	Path        string       // нормализованный путь к модулю: "a/b"
-	Span        source.Span  // span всего файла (или места объявления модуля)
-	Imports     []ImportMeta // нормализованные пути импортов с их спанами
-	ContentHash Digest       // хеш содержимого файла (из FileSet)
-	ModuleHash  Digest       // агрегированный хеш модуля с учётом зависимостей
+	Name            string
+	Path            string     // нормализованный путь к модулю: "a/b"
+	Dir             string     // нормализованный путь к каталогу модуля: "a/b"
+	Kind            ModuleKind // module или binary
+	HasModulePragma bool
+	Span            source.Span  // span всего файла (или места объявления модуля)
+	Imports         []ImportMeta // нормализованные пути импортов с их спанами
+	Files           []ModuleFileMeta
+	ContentHash     Digest // хеш содержимого файла (из FileSet)
+	ModuleHash      Digest // агрегированный хеш модуля с учётом зависимостей
+}
+
+func IsValidModuleIdent(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i, r := range name {
+		if r > unicode.MaxASCII {
+			return false
+		}
+		if i == 0 && r != '_' && !unicode.IsLetter(r) {
+			return false
+		}
+		if i > 0 && r != '_' && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
 }
 
 // NormalizeModulePath приводит путь модуля (импорт/сам файл) к каноническому виду "a/b".

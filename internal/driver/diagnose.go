@@ -3,11 +3,13 @@ package driver
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/fix"
 	"surge/internal/lexer"
 	"surge/internal/observ"
 	"surge/internal/parser"
@@ -134,21 +136,41 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 
 		graphIdx := begin("imports_graph")
 		var moduleExports map[string]*symbols.ModuleExports
-		moduleExports, err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache, sharedTypes, sharedStrings)
+		var rootRec *moduleRecord
+		moduleExports, rootRec, err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache, sharedTypes, sharedStrings)
 		end(graphIdx, "")
 		if err != nil {
 			return nil, err
 		}
+		if rootRec != nil && rootRec.Meta != nil && rootRec.Meta.Path != "" {
+			modulePath = rootRec.Meta.Path
+		}
 		if opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
 			symbolIdx := begin("symbols")
-			filePath := ""
-			if file != nil {
-				filePath = file.Path
+			if rootRec != nil {
+				if moduleExports == nil {
+					moduleExports = make(map[string]*symbols.ModuleExports)
+				}
+				if exp := resolveModuleRecord(rootRec, baseDir, moduleExports, sharedTypes, opts); exp != nil {
+					moduleExports[rootRec.Meta.Path] = exp
+				}
+				if sym, ok := rootRec.Symbols[astFile]; ok {
+					symbolsRes = &sym
+				}
+				if sem, ok := rootRec.Sema[astFile]; ok {
+					semaRes = sem
+				}
 			}
-			symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, filePath, baseDir, moduleExports)
-			if moduleExports != nil && symbolsRes != nil {
-				if rootExports := symbols.CollectExports(builder, *symbolsRes, modulePath); rootExports != nil {
-					moduleExports[modulePath] = rootExports
+			if symbolsRes == nil {
+				filePath := ""
+				if file != nil {
+					filePath = file.Path
+				}
+				symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, filePath, baseDir, moduleExports)
+				if moduleExports != nil && symbolsRes != nil {
+					if rootExports := symbols.CollectExports(builder, *symbolsRes, modulePath); rootExports != nil {
+						moduleExports[modulePath] = rootExports
+					}
 				}
 			}
 			symbolNote := ""
@@ -157,9 +179,11 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 			}
 			end(symbolIdx, symbolNote)
 
-			semaIdx := begin("sema")
-			semaRes = diagnoseSemaWithTypes(builder, astFile, bag, moduleExports, symbolsRes, sharedTypes)
-			end(semaIdx, "")
+			if semaRes == nil {
+				semaIdx := begin("sema")
+				semaRes = diagnoseSemaWithTypes(builder, astFile, bag, moduleExports, symbolsRes, sharedTypes)
+				end(semaIdx, "")
+			}
 		}
 	}
 
@@ -342,9 +366,11 @@ type moduleRecord struct {
 	Broken   bool
 	FirstErr *diag.Diagnostic
 	Builder  *ast.Builder
-	FileID   ast.FileID
-	File     *source.File
-	Sema     *sema.Result
+	Table    *symbols.Table
+	FileIDs  []ast.FileID
+	Files    []*source.File
+	Sema     map[ast.FileID]*sema.Result
+	Symbols  map[ast.FileID]symbols.Result
 	Exports  *symbols.ModuleExports
 }
 
@@ -358,23 +384,45 @@ func runModuleGraph(
 	cache *ModuleCache,
 	typeInterner *types.Interner,
 	strs *source.Interner,
-) (map[string]*symbols.ModuleExports, error) {
+) (map[string]*symbols.ModuleExports, *moduleRecord, error) {
 	if builder == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	baseDir := fs.BaseDir()
 	stdlibRoot := detectStdlibRoot()
 	if stdlibRoot == "" && (opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll) {
-		return nil, fmt.Errorf("standard library not found: set SURGE_STDLIB to a directory containing core/intrinsics.sg (e.g. /usr/local/share/surge)")
+		return nil, nil, fmt.Errorf("standard library not found: set SURGE_STDLIB to a directory containing core/intrinsics.sg (e.g. /usr/local/share/surge)")
 	}
 	reporter := &diag.BagReporter{Bag: bag}
-	meta, ok := buildModuleMeta(fs, builder, astFile, baseDir, reporter)
-	if !ok {
-		meta = fallbackModuleMeta(file, baseDir)
+	dirPath := filepath.Dir(file.Path)
+	preloaded := map[string]ast.FileID{
+		filepath.ToSlash(file.Path): astFile,
+	}
+	builder, rootFileIDs, rootFiles, err := parseModuleDir(fs, dirPath, bag, strs, builder, preloaded)
+	if err != nil {
+		return nil, nil, err
+	}
+	meta, ok := buildModuleMeta(fs, builder, rootFileIDs, baseDir, reporter)
+	if !ok && len(rootFiles) > 0 && rootFiles[0] != nil {
+		meta = fallbackModuleMeta(rootFiles[0], baseDir)
+	}
+	if meta != nil && !meta.HasModulePragma && len(rootFileIDs) > 1 {
+		rootFileIDs = []ast.FileID{astFile}
+		rootFiles = []*source.File{file}
+		meta, ok = buildModuleMeta(fs, builder, rootFileIDs, baseDir, reporter)
+		if !ok {
+			meta = fallbackModuleMeta(file, baseDir)
+		}
+		if bag != nil && file != nil {
+			targetFileID := file.ID
+			bag.Filter(func(d *diag.Diagnostic) bool {
+				return d.Primary.File == targetFileID
+			})
+		}
 	}
 	if !validateCoreModule(meta, file, stdlibRoot, reporter) {
-		return nil, fmt.Errorf("core namespace reserved")
+		return nil, nil, fmt.Errorf("core namespace reserved")
 	}
 
 	records := make(map[string]*moduleRecord)
@@ -385,8 +433,8 @@ func runModuleGraph(
 		Broken:   broken,
 		FirstErr: firstErr,
 		Builder:  builder,
-		FileID:   astFile,
-		File:     file,
+		FileIDs:  rootFileIDs,
+		Files:    rootFiles,
 	}
 	// cache roor
 	if cache != nil {
@@ -400,7 +448,8 @@ func runModuleGraph(
 		cur := queue[0]
 		queue = queue[1:]
 		rec := records[cur]
-		for _, imp := range rec.Meta.Imports {
+		for i := range rec.Meta.Imports {
+			imp := rec.Meta.Imports[i]
 			if _, ok := records[imp.Path]; ok {
 				continue
 			}
@@ -414,7 +463,29 @@ func runModuleGraph(
 					missing[imp.Path] = struct{}{}
 					continue
 				}
-				return nil, err
+				return nil, nil, err
+			}
+			importedPath := normalizeExportsKey(imp.Path)
+			actualPath := normalizeExportsKey(depRec.Meta.Path)
+			if importedPath != "" && actualPath != "" && importedPath != actualPath && rec != nil && rec.Bag != nil {
+				reporter := &diag.BagReporter{Bag: rec.Bag}
+				msg := fmt.Sprintf("module is named %q, not %q", depRec.Meta.Path, imp.Path)
+				if b := diag.ReportError(reporter, diag.ProjWrongModuleNameInImport, imp.Span, msg); b != nil {
+					fixID := fix.MakeFixID(diag.ProjWrongModuleNameInImport, imp.Span)
+					b.WithFixSuggestion(fix.ReplaceSpan(
+						"update import path",
+						imp.Span,
+						depRec.Meta.Path,
+						imp.Path,
+						fix.WithID(fixID),
+						fix.WithKind(diag.FixKindQuickFix),
+						fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+					))
+					b.Emit()
+				}
+			}
+			if actualPath != "" && imp.Path != depRec.Meta.Path {
+				rec.Meta.Imports[i].Path = depRec.Meta.Path
 			}
 			records[depRec.Meta.Path] = depRec
 			queue = append(queue, depRec.Meta.Path)
@@ -422,7 +493,7 @@ func runModuleGraph(
 	}
 
 	if err := ensureStdlibModules(fs, records, opts, cache, stdlibRoot, typeInterner, strs); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	paths := make([]string, 0, len(records))
@@ -466,7 +537,7 @@ func runModuleGraph(
 
 	exports := collectModuleExports(records, idx, topo, baseDir, meta.Path, typeInterner, opts)
 
-	return exports, nil
+	return exports, records[meta.Path], nil
 }
 
 func markSymbolsBuiltin(res *symbols.Result) {
@@ -521,7 +592,10 @@ func fallbackModuleMeta(file *source.File, baseDir string) *project.ModuleMeta {
 		panic(fmt.Errorf("len file content overflow: %w", err))
 	}
 	return &project.ModuleMeta{
+		Name: filepath.Base(path),
 		Path: path,
+		Dir:  filepath.Dir(path),
+		Kind: project.ModuleKindModule,
 		Span: source.Span{File: file.ID, Start: 0, End: lenFileContent},
 	}
 }

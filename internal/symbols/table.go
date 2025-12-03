@@ -17,6 +17,7 @@ type Table struct {
 	Symbols  *Symbols
 	Strings  *source.Interner
 	fileRoot map[source.FileID]ScopeID
+	modRoot  map[string]ScopeID
 }
 
 // NewTable builds a fresh table with optional capacity hints.
@@ -38,6 +39,7 @@ func NewTable(h Hints, strings *source.Interner) *Table {
 		Symbols:  NewSymbols(symCap),
 		Strings:  strings,
 		fileRoot: make(map[source.FileID]ScopeID),
+		modRoot:  make(map[string]ScopeID),
 	}
 }
 
@@ -51,5 +53,21 @@ func (t *Table) FileRoot(file source.FileID, span source.Span) ScopeID {
 		SourceFile: file,
 	}, span)
 	t.fileRoot[file] = scope
+	return scope
+}
+
+// ModuleRoot returns (and creates if needed) a module-level scope identified by moduleKey.
+func (t *Table) ModuleRoot(moduleKey string, span source.Span) ScopeID {
+	if moduleKey != "" {
+		if scope, ok := t.modRoot[moduleKey]; ok {
+			return scope
+		}
+	}
+	scope := t.Scopes.New(ScopeModule, NoScopeID, ScopeOwner{
+		Kind: ScopeOwnerFile,
+	}, span)
+	if moduleKey != "" {
+		t.modRoot[moduleKey] = scope
+	}
 	return scope
 }

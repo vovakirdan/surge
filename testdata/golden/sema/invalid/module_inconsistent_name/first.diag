@@ -1,0 +1,1 @@
+error PRJ5009 testdata/golden/sema/invalid/module_inconsistent_name/first.sg:1:1 inconsistent module names within the same directory

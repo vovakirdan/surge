@@ -274,7 +274,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				meta = m
 				ok = true
 			} else if res.Builder != nil {
-				meta, ok = buildModuleMeta(fileSet, res.Builder, res.ASTFile, baseDir, reporter)
+				meta, ok = buildModuleMeta(fileSet, res.Builder, []ast.FileID{res.ASTFile}, baseDir, reporter)
 			}
 			if !ok {
 				meta = fallbackModuleMeta(file, baseDir)

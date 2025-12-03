@@ -1,0 +1,7 @@
+pragma module;
+
+import foo/foo;
+
+fn use_value() -> int {
+    return 1;
+}

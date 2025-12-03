@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"surge/internal/ast"
 	"surge/internal/diag"
@@ -15,6 +16,107 @@ import (
 	"surge/internal/types"
 )
 
+func resolveModuleDir(modulePath, baseDir string) (string, error) {
+	filePath := modulePathToFilePath(baseDir, modulePath)
+	if st, err := os.Stat(filePath); err == nil && !st.IsDir() {
+		return filepath.Dir(filePath), nil
+	}
+	dirCandidate := filepath.FromSlash(modulePath)
+	if baseDir != "" {
+		dirCandidate = filepath.Join(baseDir, dirCandidate)
+	}
+	if st, err := os.Stat(dirCandidate); err == nil && st.IsDir() {
+		return dirCandidate, nil
+	}
+	if strings.Contains(modulePath, "/") {
+		parent := filepath.Dir(filepath.FromSlash(modulePath))
+		if baseDir != "" {
+			parent = filepath.Join(baseDir, parent)
+		}
+		if st, err := os.Stat(parent); err == nil && st.IsDir() {
+			return parent, nil
+		}
+	}
+	return "", errModuleNotFound
+}
+
+func parseModuleDir(
+	fs *source.FileSet,
+	dir string,
+	bag *diag.Bag,
+	strs *source.Interner,
+	builder *ast.Builder,
+	preloaded map[string]ast.FileID,
+) (*ast.Builder, []ast.FileID, []*source.File, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	paths := make([]string, 0, len(entries))
+	dirNorm := filepath.ToSlash(filepath.Clean(dir))
+	for _, ent := range entries {
+		if ent.IsDir() {
+			continue
+		}
+		if filepath.Ext(ent.Name()) != ".sg" {
+			continue
+		}
+		paths = append(paths, filepath.Join(dir, ent.Name()))
+	}
+	existing := make(map[string]struct{}, len(paths))
+	for _, p := range paths {
+		existing[filepath.ToSlash(p)] = struct{}{}
+	}
+	for key := range preloaded {
+		normKey := filepath.ToSlash(key)
+		keyDir := filepath.ToSlash(filepath.Dir(normKey))
+		if keyDir == "." {
+			keyDir = dirNorm
+		}
+		if keyDir == dirNorm {
+			if _, ok := existing[normKey]; !ok {
+				paths = append(paths, normKey)
+			}
+		}
+	}
+	if len(paths) == 0 {
+		return nil, nil, nil, errModuleNotFound
+	}
+	sort.Strings(paths)
+	if builder == nil {
+		builder = ast.NewBuilder(ast.Hints{}, strs)
+	}
+	fileIDs := make([]ast.FileID, 0, len(paths))
+	files := make([]*source.File, 0, len(paths))
+	for _, p := range paths {
+		normPath := filepath.ToSlash(p)
+		if id, ok := preloaded[normPath]; ok && builder != nil {
+			if existingID, okFile := fs.GetLatest(normPath); okFile {
+				if file := fs.Get(existingID); file != nil {
+					fileIDs = append(fileIDs, id)
+					files = append(files, file)
+					continue
+				}
+			}
+		}
+		fileID, err := fs.Load(p)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		file := fs.Get(fileID)
+		if bag != nil {
+			if errTok := diagnoseTokenize(file, bag); errTok != nil {
+				return nil, nil, nil, errTok
+			}
+		}
+		var parsed ast.FileID
+		builder, parsed = diagnoseParseWithBuilder(fs, file, bag, builder)
+		fileIDs = append(fileIDs, parsed)
+		files = append(files, file)
+	}
+	return builder, fileIDs, files, nil
+}
+
 func analyzeDependencyModule(
 	fs *source.FileSet,
 	modulePath string,
@@ -23,43 +125,59 @@ func analyzeDependencyModule(
 	cache *ModuleCache,
 	strs *source.Interner,
 ) (*moduleRecord, error) {
-	filePath := modulePathToFilePath(baseDir, modulePath)
-	fileID, err := fs.Load(filePath)
+	dirPath, err := resolveModuleDir(modulePath, baseDir)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, errModuleNotFound) {
 			return nil, errModuleNotFound
 		}
 		return nil, err
 	}
-	file := fs.Get(fileID)
-	// try cache by modulePath + content hash
-	if cache != nil {
-		if m, br, fe, ok := cache.Get(modulePath, file.Hash); ok {
-			return &moduleRecord{
-				Meta:     m,
-				Bag:      diag.NewBag(opts.MaxDiagnostics), // пустой bag для согласованности
-				Broken:   br,
-				FirstErr: fe,
-			}, nil
-		}
-	}
 	bag := diag.NewBag(opts.MaxDiagnostics)
-	err = diagnoseTokenize(file, bag)
+	builder, fileIDs, files, err := parseModuleDir(fs, dirPath, bag, strs, nil, nil)
 	if err != nil {
+		if errors.Is(err, errModuleNotFound) {
+			return nil, errModuleNotFound
+		}
 		return nil, err
 	}
-	var builder *ast.Builder
-	var astFile ast.FileID
-	builder, astFile = diagnoseParseWithStrings(fs, file, bag, strs)
 	reporter := &diag.BagReporter{Bag: bag}
-	meta, ok := buildModuleMeta(fs, builder, astFile, baseDir, reporter)
+	meta, ok := buildModuleMeta(fs, builder, fileIDs, baseDir, reporter)
 	if !ok {
-		meta = fallbackModuleMeta(file, baseDir)
+		fallbackFile := files[0]
+		if fallbackFile == nil {
+			return nil, errModuleNotFound
+		}
+		meta = fallbackModuleMeta(fallbackFile, baseDir)
+	}
+	if meta != nil && !meta.HasModulePragma && len(fileIDs) > 1 {
+		targetPath := modulePathToFilePath(baseDir, modulePath)
+		idx := 0
+		normTarget := filepath.ToSlash(targetPath)
+		for i, f := range files {
+			if f == nil {
+				continue
+			}
+			if filepath.ToSlash(f.Path) == normTarget {
+				idx = i
+				break
+			}
+		}
+		fileIDs = []ast.FileID{fileIDs[idx]}
+		files = []*source.File{files[idx]}
+		meta, ok = buildModuleMeta(fs, builder, fileIDs, baseDir, reporter)
+		if !ok {
+			meta = fallbackModuleMeta(files[0], baseDir)
+		}
+		if bag != nil && len(files) > 0 && files[0] != nil {
+			targetID := files[0].ID
+			bag.Filter(func(d *diag.Diagnostic) bool {
+				return d.Primary.File == targetID
+			})
+		}
 	}
 	broken, firstErr := moduleStatus(bag)
-	// fill content hash (на случай fallback)
-	if meta.ContentHash == ([32]byte{}) {
-		meta.ContentHash = file.Hash
+	if meta.ContentHash == ([32]byte{}) && len(files) > 0 && files[0] != nil {
+		meta.ContentHash = files[0].Hash
 	}
 	if cache != nil {
 		cache.Put(meta, broken, firstErr)
@@ -70,9 +188,103 @@ func analyzeDependencyModule(
 		Broken:   broken,
 		FirstErr: firstErr,
 		Builder:  builder,
-		FileID:   astFile,
-		File:     file,
+		FileIDs:  fileIDs,
+		Files:    files,
 	}, nil
+}
+
+func resolveModuleRecord(
+	rec *moduleRecord,
+	baseDir string,
+	moduleExports map[string]*symbols.ModuleExports,
+	typeInterner *types.Interner,
+	opts DiagnoseOptions,
+) *symbols.ModuleExports {
+	if rec == nil || rec.Builder == nil || len(rec.FileIDs) == 0 {
+		return nil
+	}
+	if rec.Exports != nil && rec.Sema != nil && !exportsIncomplete(rec.Exports) {
+		return rec.Exports
+	}
+	bag := rec.Bag
+	if bag == nil {
+		bag = diag.NewBag(opts.MaxDiagnostics)
+	}
+	reporter := diag.NewDedupReporter(&diag.BagReporter{Bag: bag})
+	table := symbols.NewTable(symbols.Hints{}, rec.Builder.StringsInterner)
+	rec.Table = table
+	moduleScope := table.ModuleRoot(rec.Meta.Path, rec.Meta.Span)
+	moduleFiles := make(map[ast.FileID]struct{}, len(rec.FileIDs))
+	fileByID := make(map[ast.FileID]*source.File, len(rec.FileIDs))
+	for i, id := range rec.FileIDs {
+		moduleFiles[id] = struct{}{}
+		if i < len(rec.Files) {
+			fileByID[id] = rec.Files[i]
+		}
+	}
+
+	resolveModulePath := strings.Trim(rec.Meta.Name, "/")
+	if rec.Meta.Dir != "" {
+		resolveModulePath = strings.Trim(strings.Trim(rec.Meta.Dir, "/")+"/"+rec.Meta.Name, "/")
+	}
+
+	// pass 1: declarations
+	for _, fileID := range rec.FileIDs {
+		filePath := ""
+		if f := fileByID[fileID]; f != nil {
+			filePath = f.Path
+		}
+		symbols.ResolveFile(rec.Builder, fileID, &symbols.ResolveOptions{
+			Table:         table,
+			Reporter:      reporter,
+			Validate:      false,
+			ModulePath:    resolveModulePath,
+			FilePath:      filePath,
+			BaseDir:       baseDir,
+			ModuleExports: moduleExports,
+			ModuleScope:   moduleScope,
+			DeclareOnly:   true,
+		})
+	}
+
+	rec.Sema = make(map[ast.FileID]*sema.Result, len(rec.FileIDs))
+	for _, fileID := range rec.FileIDs {
+		filePath := ""
+		if f := fileByID[fileID]; f != nil {
+			filePath = f.Path
+		}
+		res := symbols.ResolveFile(rec.Builder, fileID, &symbols.ResolveOptions{
+			Table:         table,
+			Reporter:      reporter,
+			Validate:      false,
+			ModulePath:    resolveModulePath,
+			FilePath:      filePath,
+			BaseDir:       baseDir,
+			ModuleExports: moduleExports,
+			ModuleScope:   moduleScope,
+			ReuseDecls:    true,
+		})
+		res.ModuleFiles = moduleFiles
+		if rec.Symbols == nil {
+			rec.Symbols = make(map[ast.FileID]symbols.Result)
+		}
+		rec.Symbols[fileID] = res
+		semaRes := sema.Check(rec.Builder, fileID, sema.Options{
+			Reporter: reporter,
+			Symbols:  &res,
+			Exports:  moduleExports,
+			Types:    typeInterner,
+		})
+		rec.Sema[fileID] = &semaRes
+	}
+
+	rec.Exports = symbols.CollectExports(rec.Builder, symbols.Result{
+		Table:       table,
+		FileScope:   moduleScope,
+		ModuleFiles: moduleFiles,
+		File:        rec.FileIDs[0],
+	}, rec.Meta.Path)
+	return rec.Exports
 }
 
 func collectModuleExports(
@@ -98,43 +310,11 @@ func collectModuleExports(
 			if rec == nil && normPath != path {
 				rec = records[normPath]
 			}
-			if rec == nil {
+			if rec == nil || normPath == normalizedRoot {
 				continue
 			}
-			if normPath == normalizedRoot {
-				continue
-			}
-			if rec.Builder == nil || rec.FileID == ast.NoFileID {
-				continue
-			}
-			if rec.Exports != nil && rec.Sema != nil && !exportsIncomplete(rec.Exports) {
-				exports[normPath] = rec.Exports
-				continue
-			}
-			bag := rec.Bag
-			if bag == nil {
-				bag = diag.NewBag(opts.MaxDiagnostics)
-			}
-			reporter := &diag.BagReporter{Bag: bag}
-			opts := &symbols.ResolveOptions{
-				Reporter:      reporter,
-				Validate:      false,
-				ModulePath:    preferredModulePath(rec, normPath),
-				FilePath:      moduleFilePath(rec),
-				BaseDir:       baseDir,
-				ModuleExports: exports,
-			}
-			res := symbols.ResolveFile(rec.Builder, rec.FileID, opts)
-			semaRes := sema.Check(rec.Builder, rec.FileID, sema.Options{
-				Reporter: reporter,
-				Symbols:  &res,
-				Exports:  exports,
-				Types:    typeInterner,
-			})
-			rec.Sema = &semaRes
-			rec.Exports = symbols.CollectExports(rec.Builder, res, opts.ModulePath)
-			if rec.Exports != nil {
-				exports[normPath] = rec.Exports
+			if exp := resolveModuleRecord(rec, baseDir, exports, typeInterner, opts); exp != nil {
+				exports[normPath] = exp
 			}
 		}
 	}
@@ -165,10 +345,10 @@ func ensureStdlibModules(
 	}
 	exports := collectedExports(records)
 	for _, module := range []string{
-		stdModuleCoreResult,
-		stdModuleCoreOption,
 		stdModuleCoreIntrinsics,
 		stdModuleCoreBase,
+		stdModuleCoreOption,
+		stdModuleCoreResult,
 	} {
 		if _, ok := records[module]; ok {
 			continue
@@ -205,62 +385,83 @@ func loadStdModule(
 	if !ok {
 		return nil, errStdModuleMissing
 	}
-	fileID, err := fs.Load(filePath)
+	dirPath := filepath.Dir(filePath)
+	bag := diag.NewBag(opts.MaxDiagnostics)
+	builder, fileIDs, files, err := parseModuleDir(fs, dirPath, bag, strs, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	file := fs.Get(fileID)
-	bag := diag.NewBag(opts.MaxDiagnostics)
-	if errTok := diagnoseTokenize(file, bag); errTok != nil {
-		return nil, errTok
-	}
-	builder, astFile := diagnoseParseWithStrings(fs, file, bag, strs)
 	reporter := &diag.BagReporter{Bag: bag}
-	meta, ok := buildModuleMeta(fs, builder, astFile, stdlibRoot, reporter)
-	if !ok {
-		meta = fallbackModuleMeta(file, stdlibRoot)
+	meta, ok := buildModuleMeta(fs, builder, fileIDs, stdlibRoot, reporter)
+	if !ok && len(files) > 0 && files[0] != nil {
+		meta = fallbackModuleMeta(files[0], stdlibRoot)
 	}
-	if !validateCoreModule(meta, file, stdlibRoot, reporter) {
+	if meta != nil && !meta.HasModulePragma && len(fileIDs) > 1 {
+		normTarget := filepath.ToSlash(filePath)
+		idx := 0
+		for i, f := range files {
+			if f == nil {
+				continue
+			}
+			if filepath.ToSlash(f.Path) == normTarget {
+				idx = i
+				break
+			}
+		}
+		fileIDs = []ast.FileID{fileIDs[idx]}
+		files = []*source.File{files[idx]}
+		meta, ok = buildModuleMeta(fs, builder, fileIDs, stdlibRoot, reporter)
+		if !ok && len(files) > 0 && files[0] != nil {
+			meta = fallbackModuleMeta(files[0], stdlibRoot)
+		}
+		if bag != nil && len(files) > 0 && files[0] != nil {
+			targetID := files[0].ID
+			bag.Filter(func(d *diag.Diagnostic) bool {
+				return d.Primary.File == targetID
+			})
+		}
+	}
+	if len(files) > 0 && !validateCoreModule(meta, files[0], stdlibRoot, reporter) {
 		return nil, errCoreNamespaceReserved
 	}
 	broken, firstErr := moduleStatus(bag)
 	if cache != nil {
 		cache.Put(meta, broken, firstErr)
 	}
-	res := symbols.ResolveFile(builder, astFile, &symbols.ResolveOptions{
+	res := symbols.ResolveFile(builder, fileIDs[0], &symbols.ResolveOptions{
 		Reporter:      reporter,
 		Validate:      true,
-		ModulePath:    modulePath,
-		FilePath:      file.Path,
+		ModulePath:    meta.Path,
+		FilePath:      files[0].Path,
 		BaseDir:       stdlibRoot,
 		ModuleExports: moduleExports,
 	})
 	markSymbolsBuiltin(&res)
-	semaRes := sema.Check(builder, astFile, sema.Options{
+	semaRes := sema.Check(builder, fileIDs[0], sema.Options{
 		Reporter: reporter,
 		Symbols:  &res,
 		Exports:  moduleExports,
 		Types:    typeInterner,
 	})
-	exports := symbols.CollectExports(builder, res, modulePath)
-	return &moduleRecord{
+	exports := symbols.CollectExports(builder, res, meta.Path)
+	rec := &moduleRecord{
 		Meta:     meta,
 		Bag:      bag,
 		Broken:   broken,
 		FirstErr: firstErr,
 		Builder:  builder,
-		FileID:   astFile,
-		File:     file,
-		Sema:     &semaRes,
-		Exports:  exports,
-	}, nil
-}
-
-func moduleFilePath(rec *moduleRecord) string {
-	if rec == nil || rec.File == nil {
-		return ""
+		FileIDs:  fileIDs,
+		Files:    files,
+		Table:    res.Table,
+		Sema: map[ast.FileID]*sema.Result{
+			fileIDs[0]: &semaRes,
+		},
+		Symbols: map[ast.FileID]symbols.Result{
+			fileIDs[0]: res,
+		},
+		Exports: exports,
 	}
-	return rec.File.Path
+	return rec, nil
 }
 
 func moduleStatus(bag *diag.Bag) (bool, *diag.Diagnostic) {
@@ -305,15 +506,6 @@ func exportsIncomplete(exp *symbols.ModuleExports) bool {
 		}
 	}
 	return false
-}
-
-func preferredModulePath(rec *moduleRecord, fallback string) string {
-	if rec != nil && rec.Meta != nil && rec.Meta.Path != "" {
-		if norm := normalizeExportsKey(rec.Meta.Path); norm != "" {
-			return norm
-		}
-	}
-	return fallback
 }
 
 func normalizeExportsKey(path string) string {

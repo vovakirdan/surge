@@ -13,16 +13,20 @@ func (fr *fileResolver) handleItem(id ast.ItemID) {
 	switch item.Kind {
 	case ast.ItemLet:
 		if letItem, ok := fr.builder.Items.Let(id); ok && letItem != nil {
-			fr.walkTypeExpr(letItem.Type)
+			if !fr.declareOnly {
+				fr.walkTypeExpr(letItem.Type)
+			}
 			fr.declareLet(id, letItem)
 		}
 	case ast.ItemConst:
 		if constItem, ok := fr.builder.Items.Const(id); ok && constItem != nil {
-			fr.walkTypeExpr(constItem.Type)
+			if !fr.declareOnly {
+				fr.walkTypeExpr(constItem.Type)
+			}
 			if syms := fr.result.ItemSymbols[id]; len(syms) == 0 {
 				fr.declareConstItem(id, constItem)
 			}
-			if constItem.Value.IsValid() {
+			if !fr.declareOnly && constItem.Value.IsValid() {
 				fr.walkExpr(constItem.Value)
 			}
 		}
@@ -44,6 +48,9 @@ func (fr *fileResolver) handleItem(id ast.ItemID) {
 		}
 	case ast.ItemImport:
 		if importItem, ok := fr.builder.Items.Import(id); ok && importItem != nil {
+			if fr.declareOnly {
+				return
+			}
 			fr.declareImport(id, importItem, item.Span)
 		}
 	case ast.ItemExtern:

@@ -125,14 +125,17 @@ const (
 	IOLoadFileError Code = 4001
 
 	// Ошибки проекта / DAG
-	ProjInfo              Code = 5000
-	ProjDuplicateModule   Code = 5001
-	ProjMissingModule     Code = 5002
-	ProjSelfImport        Code = 5003
-	ProjImportCycle       Code = 5004
-	ProjInvalidModulePath Code = 5005
-	ProjInvalidImportPath Code = 5006
-	ProjDependencyFailed  Code = 5007
+	ProjInfo                    Code = 5000
+	ProjDuplicateModule         Code = 5001
+	ProjMissingModule           Code = 5002
+	ProjSelfImport              Code = 5003
+	ProjImportCycle             Code = 5004
+	ProjInvalidModulePath       Code = 5005
+	ProjInvalidImportPath       Code = 5006
+	ProjDependencyFailed        Code = 5007
+	ProjMissingModulePragma     Code = 5008
+	ProjInconsistentModuleName  Code = 5009
+	ProjWrongModuleNameInImport Code = 5010
 
 	// Observability
 	ObsInfo    Code = 6000
@@ -253,6 +256,9 @@ var ( // todo расширить описания и использовать к
 		ProjInvalidModulePath:          "Invalid module path",
 		ProjInvalidImportPath:          "Invalid import path",
 		ProjDependencyFailed:           "Dependency module has errors",
+		ProjMissingModulePragma:        "Missing module pragma",
+		ProjInconsistentModuleName:     "Inconsistent module name within directory",
+		ProjWrongModuleNameInImport:    "Wrong module name in import",
 		ObsInfo:                        "Observability information",
 		ObsTimings:                     "Pipeline timings",
 	}

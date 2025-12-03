@@ -75,6 +75,9 @@ type ResolveOptions struct {
 	BaseDir       string
 	ModuleExports map[string]*ModuleExports
 	NoStd         bool
+	ModuleScope   ScopeID
+	DeclareOnly   bool
+	ReuseDecls    bool
 }
 
 // Result captures resolve artefacts for one file.
@@ -85,6 +88,7 @@ type Result struct {
 	ItemSymbols map[ast.ItemID][]SymbolID
 	ExprSymbols map[ast.ExprID]SymbolID
 	ExternSyms  map[ast.ExternMemberID]SymbolID
+	ModuleFiles map[ast.FileID]struct{}
 }
 
 // ResolveFile walks the AST file and populates the symbol table.
@@ -119,8 +123,11 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 	}
 
 	sourceFile := file.Span.File
-	fileScope := table.FileRoot(sourceFile, file.Span)
-	result.FileScope = fileScope
+	rootScope := opts.ModuleScope
+	if !rootScope.IsValid() {
+		rootScope = table.FileRoot(sourceFile, file.Span)
+	}
+	result.FileScope = rootScope
 
 	var prelude []PreludeEntry
 	if noStd {
@@ -129,7 +136,7 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 		importsPrelude := exportsPrelude(opts.ModuleExports)
 		prelude = mergePrelude(append(importsPrelude, opts.Prelude...))
 	}
-	resolver := NewResolver(table, fileScope, ResolverOptions{
+	resolver := NewResolver(table, rootScope, ResolverOptions{
 		Reporter: opts.Reporter,
 		Prelude:  prelude,
 	})
@@ -149,6 +156,8 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 		aliasModulePaths:    make(map[source.StringID]string),
 		syntheticImportSyms: make(map[string]SymbolID),
 		noStd:               noStd,
+		declareOnly:         opts.DeclareOnly,
+		reuseDecls:          opts.ReuseDecls,
 	}
 	fr.injectCoreExports()
 	fr.predeclareConstItems(file.Items)
@@ -185,6 +194,8 @@ type fileResolver struct {
 	aliasModulePaths    map[source.StringID]string
 	syntheticImportSyms map[string]SymbolID
 	noStd               bool
+	declareOnly         bool
+	reuseDecls          bool
 }
 
 func (fr *fileResolver) handleExtern(itemID ast.ItemID, block *ast.ExternBlock) {

@@ -1,0 +1,9 @@
+alpha.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 3:1-5:2)
+   ├─ Name: alpha
+   ├─ Params: (x: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:29-5:2)
+         └─ Stmt[0]: Return (span: 4:5-4:18)
+            └─ Expr: expr#3: (x + 1)

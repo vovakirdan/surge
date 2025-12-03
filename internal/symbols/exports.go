@@ -71,10 +71,11 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 		if sym == nil {
 			continue
 		}
-		// Экспортируем только публичные символы, объявленные в этом файле,
-		// чтобы не тащить в exports предлюды и импортированные символы,
-		// которые уже присутствуют в moduleExports других модулей.
-		if sym.Decl.ASTFile != res.File {
+		if res.ModuleFiles != nil {
+			if _, ok := res.ModuleFiles[sym.Decl.ASTFile]; !ok {
+				continue
+			}
+		} else if sym.Decl.ASTFile != res.File {
 			continue
 		}
 		if sym.Flags&SymbolFlagPublic == 0 && sym.Flags&SymbolFlagBuiltin == 0 {

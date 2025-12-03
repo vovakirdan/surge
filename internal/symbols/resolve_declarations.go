@@ -13,12 +13,31 @@ import (
 	"surge/internal/source"
 )
 
+func (fr *fileResolver) findExistingSymbol(name source.StringID, kind SymbolKind, decl SymbolDecl) SymbolID {
+	if !fr.reuseDecls || name == source.NoStringID || fr.result == nil || fr.result.Table == nil {
+		return NoSymbolID
+	}
+	scopeID := fr.resolver.CurrentScope()
+	scope := fr.result.Table.Scopes.Get(scopeID)
+	if scope == nil {
+		return NoSymbolID
+	}
+	candidates := scope.NameIndex[name]
+	for _, id := range candidates {
+		sym := fr.result.Table.Symbols.Get(id)
+		if sym == nil || sym.Kind != kind {
+			continue
+		}
+		if sym.Decl.ASTFile == decl.ASTFile && sym.Decl.Item == decl.Item && sym.Decl.Stmt == decl.Stmt && sym.Decl.Expr == decl.Expr {
+			return id
+		}
+	}
+	return NoSymbolID
+}
+
 func (fr *fileResolver) declareLet(itemID ast.ItemID, letItem *ast.LetItem) {
 	if letItem.Name == source.NoStringID {
 		return
-	}
-	if letItem.Value.IsValid() {
-		fr.walkExpr(letItem.Value)
 	}
 	if fr.isWildcard(letItem.Name) {
 		if letItem.IsMut {
@@ -39,8 +58,16 @@ func (fr *fileResolver) declareLet(itemID ast.ItemID, letItem *ast.LetItem) {
 		Item:       itemID,
 	}
 	span := preferSpan(letItem.NameSpan, letItem.Span)
-	if symID, ok := fr.resolver.Declare(letItem.Name, span, SymbolLet, flags, decl); ok {
+	if reused := fr.findExistingSymbol(letItem.Name, SymbolLet, decl); reused.IsValid() {
+		fr.appendItemSymbol(itemID, reused)
+	} else if symID, ok := fr.resolver.Declare(letItem.Name, span, SymbolLet, flags, decl); ok {
 		fr.appendItemSymbol(itemID, symID)
+	}
+	if fr.declareOnly {
+		return
+	}
+	if letItem.Value.IsValid() {
+		fr.walkExpr(letItem.Value)
 	}
 }
 
@@ -58,6 +85,10 @@ func (fr *fileResolver) declareConstItem(itemID ast.ItemID, constItem *ast.Const
 		Item:       itemID,
 	}
 	span := preferSpan(constItem.NameSpan, constItem.Span)
+	if reused := fr.findExistingSymbol(constItem.Name, SymbolConst, decl); reused.IsValid() {
+		fr.appendItemSymbol(itemID, reused)
+		return
+	}
 	if symID, ok := fr.resolver.Declare(constItem.Name, span, SymbolConst, flags, decl); ok {
 		fr.appendItemSymbol(itemID, symID)
 		return
@@ -79,12 +110,17 @@ func (fr *fileResolver) declareFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 	}
 	nameSpan := fnNameSpan(fnItem)
 	fr.enforceFunctionNameStyle(fnItem.Name, nameSpan)
-	if symID, ok := fr.declareFunctionWithAttrs(fnItem, nameSpan, fnItem.FnKeywordSpan, flags, decl, ""); ok {
+	if reused := fr.findExistingSymbol(fnItem.Name, SymbolFunction, decl); reused.IsValid() {
+		fr.appendItemSymbol(itemID, reused)
+	} else if symID, ok := fr.declareFunctionWithAttrs(fnItem, nameSpan, fnItem.FnKeywordSpan, flags, decl, ""); ok {
 		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
 			sym.TypeParams = append([]source.StringID(nil), fnItem.Generics...)
 			sym.TypeParamSpan = fnItem.GenericsSpan
 		}
 		fr.appendItemSymbol(itemID, symID)
+	}
+	if fr.declareOnly {
+		return
 	}
 	fr.walkFn(ScopeOwner{
 		Kind:       ScopeOwnerItem,
@@ -108,7 +144,9 @@ func (fr *fileResolver) declareType(itemID ast.ItemID, typeItem *ast.TypeItem) {
 		Item:       itemID,
 	}
 	span := preferSpan(typeItem.TypeKeywordSpan, typeItem.Span)
-	if symID, ok := fr.resolver.Declare(typeItem.Name, span, SymbolType, flags, decl); ok {
+	if reused := fr.findExistingSymbol(typeItem.Name, SymbolType, decl); reused.IsValid() {
+		fr.appendItemSymbol(itemID, reused)
+	} else if symID, ok := fr.resolver.Declare(typeItem.Name, span, SymbolType, flags, decl); ok {
 		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
 			sym.TypeParams = append([]source.StringID(nil), typeItem.Generics...)
 			sym.TypeParamSpan = typeItem.GenericsSpan
@@ -131,7 +169,9 @@ func (fr *fileResolver) declareContract(itemID ast.ItemID, contractItem *ast.Con
 		Item:       itemID,
 	}
 	span := preferSpan(contractItem.NameSpan, preferSpan(contractItem.ContractKeywordSpan, contractItem.Span))
-	if symID, ok := fr.resolver.Declare(contractItem.Name, span, SymbolContract, flags, decl); ok {
+	if reused := fr.findExistingSymbol(contractItem.Name, SymbolContract, decl); reused.IsValid() {
+		fr.appendItemSymbol(itemID, reused)
+	} else if symID, ok := fr.resolver.Declare(contractItem.Name, span, SymbolContract, flags, decl); ok {
 		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
 			sym.TypeParams = append([]source.StringID(nil), contractItem.Generics...)
 			sym.TypeParamSpan = contractItem.GenericsSpan
@@ -155,7 +195,9 @@ func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
 	}
 	nameSpan := preferSpan(tagItem.NameSpan, preferSpan(tagItem.TagKeywordSpan, tagItem.Span))
 	fr.enforceTagNameStyle(tagItem.Name, nameSpan)
-	if symID, ok := fr.resolver.Declare(tagItem.Name, nameSpan, SymbolTag, flags, decl); ok {
+	if reused := fr.findExistingSymbol(tagItem.Name, SymbolTag, decl); reused.IsValid() {
+		fr.appendItemSymbol(itemID, reused)
+	} else if symID, ok := fr.resolver.Declare(tagItem.Name, nameSpan, SymbolTag, flags, decl); ok {
 		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
 			sym.TypeParams = append([]source.StringID(nil), tagItem.Generics...)
 			sym.TypeParamSpan = tagItem.GenericsSpan
@@ -257,6 +299,13 @@ func (fr *fileResolver) declareExternFn(container ast.ItemID, member ast.ExternM
 		Item:       container,
 	}
 	span := fnNameSpan(fnItem)
+	if reused := fr.findExistingSymbol(fnItem.Name, SymbolFunction, decl); reused.IsValid() {
+		if member.IsValid() {
+			fr.appendExternSymbol(member, reused)
+		}
+		fr.appendItemSymbol(container, reused)
+		return
+	}
 	if symID, ok := fr.declareFunctionWithAttrs(fnItem, span, fnItem.FnKeywordSpan, flags, decl, receiverKey); ok {
 		if block, _ := fr.builder.Items.Extern(container); block != nil {
 			if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
