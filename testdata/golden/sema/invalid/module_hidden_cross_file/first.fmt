@@ -1,0 +1,10 @@
+pragma module;
+
+@hidden
+fn secret() -> int {
+    return 1;
+}
+
+pub fn reveal() -> int {
+    return secret();
+}

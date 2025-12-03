@@ -137,8 +137,9 @@ func ResolveFile(builder *ast.Builder, fileID ast.FileID, opts *ResolveOptions) 
 		prelude = mergePrelude(append(importsPrelude, opts.Prelude...))
 	}
 	resolver := NewResolver(table, rootScope, ResolverOptions{
-		Reporter: opts.Reporter,
-		Prelude:  prelude,
+		Reporter:    opts.Reporter,
+		Prelude:     prelude,
+		CurrentFile: fileID,
 	})
 
 	fr := fileResolver{

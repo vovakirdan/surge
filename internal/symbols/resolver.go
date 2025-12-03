@@ -3,6 +3,7 @@ package symbols
 import (
 	"fmt"
 
+	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/types"
@@ -10,8 +11,9 @@ import (
 
 // ResolverOptions configures resolver construction.
 type ResolverOptions struct {
-	Reporter diag.Reporter
-	Prelude  []PreludeEntry
+	Reporter    diag.Reporter
+	Prelude     []PreludeEntry
+	CurrentFile ast.FileID
 }
 
 // PreludeEntry describes a symbol injected before source traversal.
@@ -66,6 +68,7 @@ type Resolver struct {
 	reporter              diag.Reporter
 	stack                 []ScopeID
 	scopeMismatchReported map[ScopeID]bool
+	currentFile           ast.FileID
 }
 
 // NewResolver wires a resolver to an existing scope stack. If root is valid it
@@ -76,6 +79,7 @@ func NewResolver(table *Table, root ScopeID, opts ResolverOptions) *Resolver {
 		reporter:              opts.Reporter,
 		stack:                 make([]ScopeID, 0, 8),
 		scopeMismatchReported: make(map[ScopeID]bool),
+		currentFile:           opts.CurrentFile,
 	}
 	if root.IsValid() {
 		r.stack = append(r.stack, root)
@@ -134,6 +138,12 @@ func (r *Resolver) Declare(name source.StringID, span source.Span, kind SymbolKi
 		for _, symID := range existing {
 			sym := r.table.Symbols.Get(symID)
 			if sym == nil {
+				continue
+			}
+			if sym.Flags&SymbolFlagFilePrivate != 0 && sym.Decl.ASTFile != r.currentFile {
+				continue
+			}
+			if flags&SymbolFlagFilePrivate != 0 && sym.Decl.ASTFile != r.currentFile {
 				continue
 			}
 			if canShareName(sym.Kind, kind) {
@@ -231,11 +241,32 @@ func (r *Resolver) lookupInScope(scopeID ScopeID, name source.StringID, mask Kin
 		return nil
 	}
 	if mask == KindMaskAny {
-		return ids
+		filtered := make([]SymbolID, 0, len(ids))
+		for _, id := range ids {
+			sym := r.table.Symbols.Get(id)
+			if sym == nil {
+				continue
+			}
+			if sym.Flags&SymbolFlagFilePrivate != 0 && r.currentFile.IsValid() && sym.Decl.ASTFile != r.currentFile {
+				continue
+			}
+			filtered = append(filtered, id)
+		}
+		if len(filtered) == 0 {
+			return nil
+		}
+		return filtered
 	}
 	filtered := make([]SymbolID, 0, len(ids))
 	for _, id := range ids {
-		if sym := r.table.Symbols.Get(id); sym != nil && matchKind(mask, sym.Kind) {
+		sym := r.table.Symbols.Get(id)
+		if sym == nil {
+			continue
+		}
+		if sym.Flags&SymbolFlagFilePrivate != 0 && r.currentFile.IsValid() && sym.Decl.ASTFile != r.currentFile {
+			continue
+		}
+		if matchKind(mask, sym.Kind) {
 			filtered = append(filtered, id)
 		}
 	}

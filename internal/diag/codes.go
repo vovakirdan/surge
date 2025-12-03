@@ -120,6 +120,7 @@ const (
 	SemaNoStdlib                   Code = 3052
 	SemaNonexhaustiveMatch         Code = 3053
 	SemaRedundantFinally           Code = 3054
+	SemaHiddenPublic               Code = 3055
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -247,6 +248,7 @@ var ( // todo расширить описания и использовать к
 		SemaNoStdlib:                   "stdlib not available in no_std module",
 		SemaNonexhaustiveMatch:         "non-exhaustive pattern match",
 		SemaRedundantFinally:           "redundant finally clause",
+		SemaHiddenPublic:               "@hidden conflicts with pub",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

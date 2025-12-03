@@ -1,0 +1,31 @@
+  1: KwPragma        "pragma" at 1:1-1:7
+  2: Ident           "module" at 1:8-1:14 (leading: Space)
+  3: Semicolon       ";" at 1:14-1:15
+  4: At              "@" at 3:1-3:2 (leading: Newline)
+  5: Ident           "hidden" at 3:2-3:8
+  6: KwFn            "fn" at 4:1-4:3 (leading: Newline)
+  7: Ident           "secret" at 4:4-4:10 (leading: Space)
+  8: LParen          "(" at 4:10-4:11
+  9: RParen          ")" at 4:11-4:12
+ 10: Arrow           "->" at 4:13-4:15 (leading: Space)
+ 11: Ident           "int" at 4:16-4:19 (leading: Space)
+ 12: LBrace          "{" at 4:20-4:21 (leading: Space)
+ 13: KwReturn        "return" at 5:5-5:11 (leading: Newline, Space)
+ 14: IntLit          "1" at 5:12-5:13 (leading: Space)
+ 15: Semicolon       ";" at 5:13-5:14
+ 16: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 17: KwPub           "pub" at 8:1-8:4 (leading: Newline)
+ 18: KwFn            "fn" at 8:5-8:7 (leading: Space)
+ 19: Ident           "reveal" at 8:8-8:14 (leading: Space)
+ 20: LParen          "(" at 8:14-8:15
+ 21: RParen          ")" at 8:15-8:16
+ 22: Arrow           "->" at 8:17-8:19 (leading: Space)
+ 23: Ident           "int" at 8:20-8:23 (leading: Space)
+ 24: LBrace          "{" at 8:24-8:25 (leading: Space)
+ 25: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 26: Ident           "secret" at 9:12-9:18 (leading: Space)
+ 27: LParen          "(" at 9:18-9:19
+ 28: RParen          ")" at 9:19-9:20
+ 29: Semicolon       ";" at 9:20-9:21
+ 30: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 31: EOF             at 11:1-11:1

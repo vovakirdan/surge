@@ -1,0 +1,6 @@
+pragma module;
+
+@hidden
+pub fn foo() -> int {
+    return 0;
+}

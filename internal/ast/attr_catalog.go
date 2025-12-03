@@ -65,7 +65,7 @@ var attrRegistry = map[string]AttrSpec{
 	"shared":        {Name: "shared", Targets: AttrTargetType | AttrTargetField},
 	"atomic":        {Name: "atomic", Targets: AttrTargetField},
 	"readonly":      {Name: "readonly", Targets: AttrTargetField},
-	"hidden":        {Name: "hidden", Targets: AttrTargetField},
+	"hidden":        {Name: "hidden", Targets: AttrTargetFn | AttrTargetType | AttrTargetField},
 	"noinherit":     {Name: "noinherit", Targets: AttrTargetField | AttrTargetType},
 	"sealed":        {Name: "sealed", Targets: AttrTargetType},
 	"guarded_by":    {Name: "guarded_by", Targets: AttrTargetField},

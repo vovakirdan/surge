@@ -35,6 +35,58 @@ func (fr *fileResolver) findExistingSymbol(name source.StringID, kind SymbolKind
 	return NoSymbolID
 }
 
+func (fr *fileResolver) hasHiddenAttr(start ast.AttrID, count uint32) (bool, source.Span) {
+	if count == 0 || !start.IsValid() {
+		return false, source.Span{}
+	}
+	attrs := fr.builder.Items.CollectAttrs(start, count)
+	for _, attr := range attrs {
+		name, ok := fr.builder.StringsInterner.Lookup(attr.Name)
+		if !ok {
+			continue
+		}
+		if strings.EqualFold(name, "hidden") {
+			return true, attr.Span
+		}
+	}
+	return false, source.Span{}
+}
+
+func (fr *fileResolver) applyVisibilityFlags(base SymbolFlags, isPublic, hidden bool, hiddenSpan, itemSpan source.Span) SymbolFlags {
+	flags := base
+	if isPublic {
+		flags |= SymbolFlagPublic
+	}
+	if hidden {
+		flags &^= SymbolFlagPublic
+		flags |= SymbolFlagFilePrivate
+		if isPublic && fr.resolver.reporter != nil {
+			msg := "@hidden makes the declaration file-private; remove 'pub' or '@hidden'"
+			diagSpan := itemSpan
+			if hiddenSpan != (source.Span{}) {
+				if hiddenSpan.File == itemSpan.File {
+					diagSpan = hiddenSpan.Cover(itemSpan)
+				} else {
+					diagSpan = hiddenSpan
+				}
+			}
+			builder := diag.ReportWarning(fr.resolver.reporter, diag.SemaHiddenPublic, diagSpan, msg)
+			if builder != nil {
+				if hiddenSpan != (source.Span{}) {
+					builder.WithFixSuggestion(fix.ReplaceSpan(
+						"remove @hidden",
+						hiddenSpan,
+						"",
+						"",
+					))
+				}
+				builder.Emit()
+			}
+		}
+	}
+	return flags
+}
+
 func (fr *fileResolver) declareLet(itemID ast.ItemID, letItem *ast.LetItem) {
 	if letItem.Name == source.NoStringID {
 		return
@@ -45,10 +97,9 @@ func (fr *fileResolver) declareLet(itemID ast.ItemID, letItem *ast.LetItem) {
 		}
 		return
 	}
-	flags := SymbolFlags(0)
-	if letItem.Visibility == ast.VisPublic {
-		flags |= SymbolFlagPublic
-	}
+	isPublic := letItem.Visibility == ast.VisPublic
+	hidden, hiddenSpan := fr.hasHiddenAttr(letItem.AttrStart, letItem.AttrCount)
+	flags := fr.applyVisibilityFlags(0, isPublic, hidden, hiddenSpan, letItem.Span)
 	if letItem.IsMut {
 		flags |= SymbolFlagMutable
 	}
@@ -75,10 +126,9 @@ func (fr *fileResolver) declareConstItem(itemID ast.ItemID, constItem *ast.Const
 	if constItem == nil || constItem.Name == source.NoStringID {
 		return
 	}
-	flags := SymbolFlags(0)
-	if constItem.Visibility == ast.VisPublic {
-		flags |= SymbolFlagPublic
-	}
+	isPublic := constItem.Visibility == ast.VisPublic
+	hidden, hiddenSpan := fr.hasHiddenAttr(constItem.AttrStart, constItem.AttrCount)
+	flags := fr.applyVisibilityFlags(0, isPublic, hidden, hiddenSpan, constItem.Span)
 	decl := SymbolDecl{
 		SourceFile: fr.sourceFile,
 		ASTFile:    fr.fileID,
@@ -99,10 +149,9 @@ func (fr *fileResolver) declareFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 	if fnItem.Name == source.NoStringID {
 		return
 	}
-	flags := SymbolFlags(0)
-	if fnItem.Flags&ast.FnModifierPublic != 0 {
-		flags |= SymbolFlagPublic
-	}
+	isPublic := fnItem.Flags&ast.FnModifierPublic != 0
+	hidden, hiddenSpan := fr.hasHiddenAttr(fnItem.AttrStart, fnItem.AttrCount)
+	flags := fr.applyVisibilityFlags(0, isPublic, hidden, hiddenSpan, fnItem.Span)
 	decl := SymbolDecl{
 		SourceFile: fr.sourceFile,
 		ASTFile:    fr.fileID,
@@ -134,10 +183,9 @@ func (fr *fileResolver) declareType(itemID ast.ItemID, typeItem *ast.TypeItem) {
 	if typeItem.Name == source.NoStringID {
 		return
 	}
-	flags := SymbolFlags(0)
-	if typeItem.Visibility == ast.VisPublic {
-		flags |= SymbolFlagPublic
-	}
+	isPublic := typeItem.Visibility == ast.VisPublic
+	hidden, hiddenSpan := fr.hasHiddenAttr(typeItem.AttrStart, typeItem.AttrCount)
+	flags := fr.applyVisibilityFlags(0, isPublic, hidden, hiddenSpan, typeItem.Span)
 	decl := SymbolDecl{
 		SourceFile: fr.sourceFile,
 		ASTFile:    fr.fileID,
@@ -159,10 +207,9 @@ func (fr *fileResolver) declareContract(itemID ast.ItemID, contractItem *ast.Con
 	if contractItem == nil || contractItem.Name == source.NoStringID {
 		return
 	}
-	flags := SymbolFlags(0)
-	if contractItem.Visibility == ast.VisPublic {
-		flags |= SymbolFlagPublic
-	}
+	isPublic := contractItem.Visibility == ast.VisPublic
+	hidden, hiddenSpan := fr.hasHiddenAttr(contractItem.AttrStart, contractItem.AttrCount)
+	flags := fr.applyVisibilityFlags(0, isPublic, hidden, hiddenSpan, contractItem.Span)
 	decl := SymbolDecl{
 		SourceFile: fr.sourceFile,
 		ASTFile:    fr.fileID,
@@ -184,10 +231,9 @@ func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
 	if tagItem.Name == source.NoStringID {
 		return
 	}
-	flags := SymbolFlags(0)
-	if tagItem.Visibility == ast.VisPublic {
-		flags |= SymbolFlagPublic
-	}
+	isPublic := tagItem.Visibility == ast.VisPublic
+	hidden, hiddenSpan := fr.hasHiddenAttr(tagItem.AttrStart, tagItem.AttrCount)
+	flags := fr.applyVisibilityFlags(0, isPublic, hidden, hiddenSpan, tagItem.Span)
 	decl := SymbolDecl{
 		SourceFile: fr.sourceFile,
 		ASTFile:    fr.fileID,
@@ -289,10 +335,9 @@ func (fr *fileResolver) declareExternFn(container ast.ItemID, member ast.ExternM
 	if fnItem.Name == source.NoStringID {
 		return
 	}
-	flags := SymbolFlagImported
-	if fnItem.Flags&ast.FnModifierPublic != 0 {
-		flags |= SymbolFlagPublic
-	}
+	isPublic := fnItem.Flags&ast.FnModifierPublic != 0
+	hidden, hiddenSpan := fr.hasHiddenAttr(fnItem.AttrStart, fnItem.AttrCount)
+	flags := fr.applyVisibilityFlags(SymbolFlagImported, isPublic, hidden, hiddenSpan, fnItem.Span)
 	decl := SymbolDecl{
 		SourceFile: fr.sourceFile,
 		ASTFile:    fr.fileID,

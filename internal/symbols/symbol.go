@@ -31,6 +31,7 @@ const (
 	SymbolFlagImported
 	SymbolFlagBuiltin
 	SymbolFlagMethod
+	SymbolFlagFilePrivate
 )
 
 func (k SymbolKind) String() string {
@@ -78,6 +79,9 @@ func (f SymbolFlags) Strings() []string {
 	}
 	if f&SymbolFlagMethod != 0 {
 		labels = append(labels, "method")
+	}
+	if f&SymbolFlagFilePrivate != 0 {
+		labels = append(labels, "file-private")
 	}
 	return labels
 }
