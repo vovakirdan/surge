@@ -1,0 +1,97 @@
+erring_option.sg (span: 3:1-45:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: return_option
+│  ├─ Params: ()
+│  ├─ Return: Option<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:35-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:22)
+│           └─ Expr: expr#3: Some(100)
+├─ Item[1]: Fn (span: 7:1-9:2)
+│  ├─ Name: return_erring
+│  ├─ Params: ()
+│  ├─ Return: Erring<int, Error>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:42-9:2)
+│        └─ Stmt[0]: Return (span: 8:5-8:25)
+│           └─ Expr: expr#6: Success(100)
+├─ Item[2]: Fn (span: 11:1-19:2)
+│  ├─ Name: test_option_safe_method
+│  ├─ Params: ()
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 11:38-19:2)
+│        ├─ Stmt[0]: Let (span: 12:5-12:40)
+│        │  ├─ Name: option
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <unknown-type>
+│        │  └─ Value: expr#8: return_option()
+│        ├─ Stmt[1]: Let (span: 13:5-13:36)
+│        │  ├─ Name: value
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#11: option.safe()
+│        ├─ Stmt[2]: If (span: 15:5-17:6)
+│        │  ├─ Cond: expr#14: (value == 0)
+│        │  ├─ Then:
+Block (span: 15:21-17:6)
+│        │  │  └─ Stmt[0]: Return (span: 16:9-16:22)
+│        │  │     └─ Expr: expr#15: false
+│        │  └─ Else: <none>
+│        └─ Stmt[3]: Return (span: 18:5-18:17)
+│           └─ Expr: expr#16: true
+├─ Item[3]: Fn (span: 21:1-26:2)
+│  ├─ Name: test_option_panic_method
+│  ├─ Params: ()
+│  ├─ Return: <unknown-type>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 21:39-26:2)
+│        ├─ Stmt[0]: Let (span: 22:5-22:40)
+│        │  ├─ Name: option
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <unknown-type>
+│        │  └─ Value: expr#18: return_option()
+│        ├─ Stmt[1]: Expr (span: 23:5-23:39)
+│        │  └─ Expr: expr#22: option.panic("Option is nothing")
+│        └─ Stmt[2]: Return (span: 25:5-25:19)
+│           └─ Expr: expr#23: option
+├─ Item[4]: Fn (span: 28:1-37:2)
+│  ├─ Name: test_erring_safe_method
+│  ├─ Params: ()
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 28:38-37:2)
+│        ├─ Stmt[0]: Let (span: 29:5-29:40)
+│        │  ├─ Name: erring
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <unknown-type>
+│        │  └─ Value: expr#25: return_erring()
+│        ├─ Stmt[1]: Let (span: 30:5-30:36)
+│        │  ├─ Name: value
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#28: erring.safe()
+│        ├─ Stmt[2]: If (span: 33:5-35:6)
+│        │  ├─ Cond: expr#31: (value == 0)
+│        │  ├─ Then:
+Block (span: 33:21-35:6)
+│        │  │  └─ Stmt[0]: Return (span: 34:9-34:22)
+│        │  │     └─ Expr: expr#32: false
+│        │  └─ Else: <none>
+│        └─ Stmt[3]: Return (span: 36:5-36:17)
+│           └─ Expr: expr#33: true
+└─ Item[5]: Fn (span: 39:1-44:2)
+   ├─ Name: test_erring_exit_method
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 39:41-44:2)
+         ├─ Stmt[0]: Let (span: 40:5-40:40)
+         │  ├─ Name: erring
+         │  ├─ Mutable: false
+         │  ├─ Type: <unknown-type>
+         │  └─ Value: expr#35: return_erring()
+         ├─ Stmt[1]: Expr (span: 41:5-41:19)
+         │  └─ Expr: expr#38: erring.exit()
+         └─ Stmt[2]: Return (span: 43:5-43:20)
+            └─ Expr: expr#39: nothing

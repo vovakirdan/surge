@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"strings"
+
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -15,6 +17,22 @@ func (tc *typeChecker) typeKeyCandidates(id types.TypeID) []typeKeyCandidate {
 	key := tc.typeKeyForType(id)
 	candidates := []typeKeyCandidate{{key: key, base: id}}
 	candidates = tc.appendFamilyFallback(candidates, id, key, types.NoTypeID)
+
+	// Добавляем generic fallback для типов с аргументами
+	if genericKey := tc.genericKeyForType(id); genericKey != "" {
+		cand := typeKeyCandidate{key: genericKey, base: id}
+		duplicate := false
+		for _, existing := range candidates {
+			if existing.key == cand.key && existing.base == cand.base {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			candidates = append(candidates, cand)
+		}
+	}
+
 	if aliasBase := tc.aliasBaseType(id); aliasBase != types.NoTypeID {
 		baseKey := tc.typeKeyForType(aliasBase)
 		if baseKey != "" {
@@ -142,4 +160,117 @@ func (tc *typeChecker) adjustAliasBinaryResult(res types.TypeID, left, right typ
 		return left.alias
 	}
 	return res
+}
+
+// genericKeyForType генерирует generic ключ для типа с аргументами (например, "Option<T>" для Option<int>)
+func (tc *typeChecker) genericKeyForType(id types.TypeID) symbols.TypeKey {
+	if id == types.NoTypeID || tc.types == nil {
+		return ""
+	}
+	resolved := tc.resolveAlias(id)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return ""
+	}
+
+	var name string
+	var typeArgs []types.TypeID
+
+	switch tt.Kind {
+	case types.KindUnion:
+		if info, ok := tc.types.UnionInfo(resolved); ok && info != nil {
+			nameStr := tc.lookupTypeName(resolved, info.Name)
+			if nameStr == "" {
+				// Fallback: используем имя из info.Name напрямую
+				nameStr = tc.lookupName(info.Name)
+			}
+			if nameStr != "" {
+				name = nameStr
+				typeArgs = info.TypeArgs
+			}
+		}
+	case types.KindStruct:
+		if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
+			nameStr := tc.lookupTypeName(resolved, info.Name)
+			if nameStr == "" {
+				// Fallback: используем имя из info.Name напрямую
+				nameStr = tc.lookupName(info.Name)
+			}
+			if nameStr != "" {
+				name = nameStr
+				typeArgs = info.TypeArgs
+			}
+		}
+	case types.KindAlias:
+		if info, ok := tc.types.AliasInfo(resolved); ok && info != nil {
+			nameStr := tc.lookupTypeName(resolved, info.Name)
+			if nameStr == "" {
+				// Fallback: используем имя из info.Name напрямую
+				nameStr = tc.lookupName(info.Name)
+			}
+			if nameStr != "" {
+				name = nameStr
+				typeArgs = info.TypeArgs
+			}
+		}
+	default:
+		return ""
+	}
+
+	if name == "" || len(typeArgs) == 0 {
+		return ""
+	}
+
+	// Получаем символ типа для получения имен generic параметров
+	// Используем file scope для поиска символа типа
+	nameID := tc.builder.StringsInterner.Intern(name)
+	scope := tc.fileScope()
+	if !scope.IsValid() {
+		scope = tc.scopeOrFile(tc.currentScope())
+	}
+	symID := tc.lookupTypeSymbol(nameID, scope)
+	if !symID.IsValid() {
+		// Пробуем найти через lookupSymbolAny
+		if anySymID := tc.lookupSymbolAny(nameID, scope); anySymID.IsValid() {
+			if sym := tc.symbolFromID(anySymID); sym != nil && sym.Kind == symbols.SymbolType {
+				symID = anySymID
+			}
+		}
+	}
+
+	var paramNames []string
+	if symID.IsValid() {
+		sym := tc.symbolFromID(symID)
+		if sym != nil && len(sym.TypeParamSymbols) > 0 {
+			// Формируем generic ключ с именами параметров из символа
+			paramNames = make([]string, 0, len(sym.TypeParamSymbols))
+			for _, tp := range sym.TypeParamSymbols {
+				if paramName := tc.lookupName(tp.Name); paramName != "" {
+					paramNames = append(paramNames, paramName)
+				}
+			}
+		}
+	}
+
+	// Fallback для известных типов из core модуля
+	if len(paramNames) == 0 {
+		switch name {
+		case "Option":
+			if len(typeArgs) == 1 {
+				paramNames = []string{"T"}
+			}
+		case "Erring":
+			if len(typeArgs) == 2 {
+				paramNames = []string{"T", "E"}
+			}
+		default:
+			return ""
+		}
+	}
+
+	if len(paramNames) != len(typeArgs) {
+		return ""
+	}
+
+	return symbols.TypeKey(name + "<" + strings.Join(paramNames, ",") + ">")
 }

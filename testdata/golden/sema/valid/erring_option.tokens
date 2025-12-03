@@ -1,0 +1,179 @@
+  1: KwFn            "fn" at 3:1-3:3 (leading: LineComment, Newline)
+  2: Ident           "return_option" at 3:4-3:17 (leading: Space)
+  3: LParen          "(" at 3:17-3:18
+  4: RParen          ")" at 3:18-3:19
+  5: Arrow           "->" at 3:20-3:22 (leading: Space)
+  6: Ident           "Option" at 3:23-3:29 (leading: Space)
+  7: Lt              "<" at 3:29-3:30
+  8: Ident           "int" at 3:30-3:33
+  9: Gt              ">" at 3:33-3:34
+ 10: LBrace          "{" at 3:35-3:36 (leading: Space)
+ 11: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 12: Ident           "Some" at 4:12-4:16 (leading: Space)
+ 13: LParen          "(" at 4:16-4:17
+ 14: IntLit          "100" at 4:17-4:20
+ 15: RParen          ")" at 4:20-4:21
+ 16: Semicolon       ";" at 4:21-4:22
+ 17: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 18: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 19: Ident           "return_erring" at 7:4-7:17 (leading: Space)
+ 20: LParen          "(" at 7:17-7:18
+ 21: RParen          ")" at 7:18-7:19
+ 22: Arrow           "->" at 7:20-7:22 (leading: Space)
+ 23: Ident           "Erring" at 7:23-7:29 (leading: Space)
+ 24: Lt              "<" at 7:29-7:30
+ 25: Ident           "int" at 7:30-7:33
+ 26: Comma           "," at 7:33-7:34
+ 27: Ident           "Error" at 7:35-7:40 (leading: Space)
+ 28: Gt              ">" at 7:40-7:41
+ 29: LBrace          "{" at 7:42-7:43 (leading: Space)
+ 30: KwReturn        "return" at 8:5-8:11 (leading: Newline, Space)
+ 31: Ident           "Success" at 8:12-8:19 (leading: Space)
+ 32: LParen          "(" at 8:19-8:20
+ 33: IntLit          "100" at 8:20-8:23
+ 34: RParen          ")" at 8:23-8:24
+ 35: Semicolon       ";" at 8:24-8:25
+ 36: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 37: KwFn            "fn" at 11:1-11:3 (leading: Newline)
+ 38: Ident           "test_option_safe_method" at 11:4-11:27 (leading: Space)
+ 39: LParen          "(" at 11:27-11:28
+ 40: RParen          ")" at 11:28-11:29
+ 41: Arrow           "->" at 11:30-11:32 (leading: Space)
+ 42: Ident           "bool" at 11:33-11:37 (leading: Space)
+ 43: LBrace          "{" at 11:38-11:39 (leading: Space)
+ 44: KwLet           "let" at 12:5-12:8 (leading: Newline, Space)
+ 45: Ident           "option" at 12:9-12:15 (leading: Space)
+ 46: Colon           ":" at 12:15-12:16
+ 47: Ident           "int" at 12:17-12:20 (leading: Space)
+ 48: Question        "?" at 12:20-12:21
+ 49: Assign          "=" at 12:22-12:23 (leading: Space)
+ 50: Ident           "return_option" at 12:24-12:37 (leading: Space)
+ 51: LParen          "(" at 12:37-12:38
+ 52: RParen          ")" at 12:38-12:39
+ 53: Semicolon       ";" at 12:39-12:40
+ 54: KwLet           "let" at 13:5-13:8 (leading: Space, LineComment, Newline, Space)
+ 55: Ident           "value" at 13:9-13:14 (leading: Space)
+ 56: Colon           ":" at 13:14-13:15
+ 57: Ident           "int" at 13:16-13:19 (leading: Space)
+ 58: Assign          "=" at 13:20-13:21 (leading: Space)
+ 59: Ident           "option" at 13:22-13:28 (leading: Space)
+ 60: Dot             "." at 13:28-13:29
+ 61: Ident           "safe" at 13:29-13:33
+ 62: LParen          "(" at 13:33-13:34
+ 63: RParen          ")" at 13:34-13:35
+ 64: Semicolon       ";" at 13:35-13:36
+ 65: KwIf            "if" at 15:5-15:7 (leading: Space, LineComment, Newline, Space, LineComment, Newline, Space)
+ 66: LParen          "(" at 15:8-15:9 (leading: Space)
+ 67: Ident           "value" at 15:9-15:14
+ 68: EqEq            "==" at 15:15-15:17 (leading: Space)
+ 69: IntLit          "0" at 15:18-15:19 (leading: Space)
+ 70: RParen          ")" at 15:19-15:20
+ 71: LBrace          "{" at 15:21-15:22 (leading: Space)
+ 72: KwReturn        "return" at 16:9-16:15 (leading: Newline, Space)
+ 73: KwFalse         "false" at 16:16-16:21 (leading: Space)
+ 74: Semicolon       ";" at 16:21-16:22
+ 75: RBrace          "}" at 17:5-17:6 (leading: Space, Newline, Space)
+ 76: KwReturn        "return" at 18:5-18:11 (leading: Newline, Space)
+ 77: KwTrue          "true" at 18:12-18:16 (leading: Space)
+ 78: Semicolon       ";" at 18:16-18:17
+ 79: RBrace          "}" at 19:1-19:2 (leading: Newline)
+ 80: KwFn            "fn" at 21:1-21:3 (leading: Newline)
+ 81: Ident           "test_option_panic_method" at 21:4-21:28 (leading: Space)
+ 82: LParen          "(" at 21:28-21:29
+ 83: RParen          ")" at 21:29-21:30
+ 84: Arrow           "->" at 21:31-21:33 (leading: Space)
+ 85: Ident           "int" at 21:34-21:37 (leading: Space)
+ 86: Question        "?" at 21:37-21:38
+ 87: LBrace          "{" at 21:39-21:40 (leading: Space)
+ 88: KwLet           "let" at 22:5-22:8 (leading: Newline, Space)
+ 89: Ident           "option" at 22:9-22:15 (leading: Space)
+ 90: Colon           ":" at 22:15-22:16
+ 91: Ident           "int" at 22:17-22:20 (leading: Space)
+ 92: Question        "?" at 22:20-22:21
+ 93: Assign          "=" at 22:22-22:23 (leading: Space)
+ 94: Ident           "return_option" at 22:24-22:37 (leading: Space)
+ 95: LParen          "(" at 22:37-22:38
+ 96: RParen          ")" at 22:38-22:39
+ 97: Semicolon       ";" at 22:39-22:40
+ 98: Ident           "option" at 23:5-23:11 (leading: Space, LineComment, Newline, Space)
+ 99: Dot             "." at 23:11-23:12
+100: Ident           "panic" at 23:12-23:17
+101: LParen          "(" at 23:17-23:18
+102: StringLit       "\"Option is nothing\"" at 23:18-23:37
+103: RParen          ")" at 23:37-23:38
+104: Semicolon       ";" at 23:38-23:39
+105: KwReturn        "return" at 25:5-25:11 (leading: Space, LineComment, Newline, Space, LineComment, Newline, Space)
+106: Ident           "option" at 25:12-25:18 (leading: Space)
+107: Semicolon       ";" at 25:18-25:19
+108: RBrace          "}" at 26:1-26:2 (leading: Newline)
+109: KwFn            "fn" at 28:1-28:3 (leading: Newline)
+110: Ident           "test_erring_safe_method" at 28:4-28:27 (leading: Space)
+111: LParen          "(" at 28:27-28:28
+112: RParen          ")" at 28:28-28:29
+113: Arrow           "->" at 28:30-28:32 (leading: Space)
+114: Ident           "bool" at 28:33-28:37 (leading: Space)
+115: LBrace          "{" at 28:38-28:39 (leading: Space)
+116: KwLet           "let" at 29:5-29:8 (leading: Newline, Space)
+117: Ident           "erring" at 29:9-29:15 (leading: Space)
+118: Colon           ":" at 29:15-29:16
+119: Ident           "int" at 29:17-29:20 (leading: Space)
+120: Bang            "!" at 29:20-29:21
+121: Assign          "=" at 29:22-29:23 (leading: Space)
+122: Ident           "return_erring" at 29:24-29:37 (leading: Space)
+123: LParen          "(" at 29:37-29:38
+124: RParen          ")" at 29:38-29:39
+125: Semicolon       ";" at 29:39-29:40
+126: KwLet           "let" at 30:5-30:8 (leading: Space, LineComment, Newline, Space)
+127: Ident           "value" at 30:9-30:14 (leading: Space)
+128: Colon           ":" at 30:14-30:15
+129: Ident           "int" at 30:16-30:19 (leading: Space)
+130: Assign          "=" at 30:20-30:21 (leading: Space)
+131: Ident           "erring" at 30:22-30:28 (leading: Space)
+132: Dot             "." at 30:28-30:29
+133: Ident           "safe" at 30:29-30:33
+134: LParen          "(" at 30:33-30:34
+135: RParen          ")" at 30:34-30:35
+136: Semicolon       ";" at 30:35-30:36
+137: KwIf            "if" at 33:5-33:7 (leading: Space, LineComment, Newline, Space, LineComment, Newline, Space, LineComment, Newline, Space)
+138: LParen          "(" at 33:8-33:9 (leading: Space)
+139: Ident           "value" at 33:9-33:14
+140: EqEq            "==" at 33:15-33:17 (leading: Space)
+141: IntLit          "0" at 33:18-33:19 (leading: Space)
+142: RParen          ")" at 33:19-33:20
+143: LBrace          "{" at 33:21-33:22 (leading: Space)
+144: KwReturn        "return" at 34:9-34:15 (leading: Newline, Space)
+145: KwFalse         "false" at 34:16-34:21 (leading: Space)
+146: Semicolon       ";" at 34:21-34:22
+147: RBrace          "}" at 35:5-35:6 (leading: Space, Newline, Space)
+148: KwReturn        "return" at 36:5-36:11 (leading: Newline, Space)
+149: KwTrue          "true" at 36:12-36:16 (leading: Space)
+150: Semicolon       ";" at 36:16-36:17
+151: RBrace          "}" at 37:1-37:2 (leading: Newline)
+152: KwFn            "fn" at 39:1-39:3 (leading: Newline)
+153: Ident           "test_erring_exit_method" at 39:4-39:27 (leading: Space)
+154: LParen          "(" at 39:27-39:28
+155: RParen          ")" at 39:28-39:29
+156: Arrow           "->" at 39:30-39:32 (leading: Space)
+157: NothingLit      "nothing" at 39:33-39:40 (leading: Space)
+158: LBrace          "{" at 39:41-39:42 (leading: Space)
+159: KwLet           "let" at 40:5-40:8 (leading: Newline, Space)
+160: Ident           "erring" at 40:9-40:15 (leading: Space)
+161: Colon           ":" at 40:15-40:16
+162: Ident           "int" at 40:17-40:20 (leading: Space)
+163: Bang            "!" at 40:20-40:21
+164: Assign          "=" at 40:22-40:23 (leading: Space)
+165: Ident           "return_erring" at 40:24-40:37 (leading: Space)
+166: LParen          "(" at 40:37-40:38
+167: RParen          ")" at 40:38-40:39
+168: Semicolon       ";" at 40:39-40:40
+169: Ident           "erring" at 41:5-41:11 (leading: Space, LineComment, Newline, Space)
+170: Dot             "." at 41:11-41:12
+171: Ident           "exit" at 41:12-41:16
+172: LParen          "(" at 41:16-41:17
+173: RParen          ")" at 41:17-41:18
+174: Semicolon       ";" at 41:18-41:19
+175: KwReturn        "return" at 43:5-43:11 (leading: Space, LineComment, Newline, Space, LineComment, Newline, Space)
+176: NothingLit      "nothing" at 43:12-43:19 (leading: Space)
+177: Semicolon       ";" at 43:19-43:20
+178: RBrace          "}" at 44:1-44:2 (leading: Newline)
+179: EOF             at 45:1-45:1
