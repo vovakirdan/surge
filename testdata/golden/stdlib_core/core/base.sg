@@ -1,4 +1,4 @@
-pragma no_std;
+pragma module, no_std;
 
 // Basic magic methods for built-in types.
 

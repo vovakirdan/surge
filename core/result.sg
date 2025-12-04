@@ -22,7 +22,7 @@ extern<Erring<T, E>> {
         };
     }
 
-    pub fn error(self: Erring<T, E>) -> Option<E> {
+    pub fn error<T, E: ErrorLike>(self: Erring<T, E>) -> Option<E> {
         compare self {
             Success(_) => nothing;
             err => Some(err);

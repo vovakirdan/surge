@@ -1,0 +1,9 @@
+// Static methods from contract bounds should work on both generic params and concrete types.
+
+fn generic_min<T>() -> T {
+    return T.__min_value();
+}
+
+fn concrete_max() -> int16 {
+    return int16.__max_value();
+}

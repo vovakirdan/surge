@@ -200,7 +200,7 @@ func (tc *typeChecker) reportCannotInferTypeParams(name string, missing []string
 	b.Emit()
 }
 
-func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, span source.Span) types.TypeID {
+func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, span source.Span, staticReceiver bool) types.TypeID {
 	if member == nil || tc.magic == nil {
 		return types.NoTypeID
 	}
@@ -219,14 +219,24 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 		}
 		methods := tc.lookupMagicMethods(recvCand.key, name)
 		for _, sig := range methods {
-			if sig == nil || len(sig.Params) == 0 || !typeKeyEqual(sig.Params[0], recvCand.key) {
+			if sig == nil {
 				continue
 			}
-			if len(sig.Params)-1 != len(args) {
-				continue
-			}
-			if !tc.methodParamsMatch(sig.Params[1:], args) {
-				continue
+			if len(sig.Params) == 0 {
+				// static/associated method: allowed only when invoked on a type
+				if !staticReceiver || len(args) != 0 {
+					continue
+				}
+			} else {
+				if !typeKeyEqual(sig.Params[0], recvCand.key) {
+					continue
+				}
+				if len(sig.Params)-1 != len(args) {
+					continue
+				}
+				if !tc.methodParamsMatch(sig.Params[1:], args) {
+					continue
+				}
 			}
 			res := tc.typeFromKey(sig.Result)
 			return tc.adjustAliasUnaryResult(res, recvCand)

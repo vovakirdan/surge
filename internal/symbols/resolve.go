@@ -197,6 +197,35 @@ type fileResolver struct {
 	noStd               bool
 	declareOnly         bool
 	reuseDecls          bool
+	typeParamStack      [][]source.StringID
+}
+
+func (fr *fileResolver) pushTypeParams(params []source.StringID) {
+	if len(params) == 0 {
+		return
+	}
+	fr.typeParamStack = append(fr.typeParamStack, params)
+}
+
+func (fr *fileResolver) popTypeParams() {
+	if len(fr.typeParamStack) == 0 {
+		return
+	}
+	fr.typeParamStack = fr.typeParamStack[:len(fr.typeParamStack)-1]
+}
+
+func (fr *fileResolver) hasTypeParam(name source.StringID) bool {
+	if name == source.NoStringID {
+		return false
+	}
+	for i := len(fr.typeParamStack) - 1; i >= 0; i-- {
+		for _, n := range fr.typeParamStack[i] {
+			if n == name {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (fr *fileResolver) handleExtern(itemID ast.ItemID, block *ast.ExternBlock) {

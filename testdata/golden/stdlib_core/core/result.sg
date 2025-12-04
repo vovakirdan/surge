@@ -1,19 +1,4 @@
-pragma no_std;
-// Core Result type, a tagged union for recoverable errors.
-
-// stub for test
-// PLEASE REMOVE THIS IF U COPY TO CORE MODULE
-pub fn default<T>() -> T;
-pub fn exit<E>(e: E) -> nothing;
-
-pub contract ErrorLike{
-    field message: string;
-    field code: uint;
-}
-
-pub tag Some<E>(E);
-pub type Option<E> = Some(E) | nothing;
-// ------------------------------------
+pragma module, no_std;
 
 // Core Erring type for recoverable errors using ErrorLike contract.
 

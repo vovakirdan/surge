@@ -64,6 +64,8 @@ func (fr *fileResolver) walkFn(owner ScopeOwner, fnItem *ast.FnItem) {
 	if fnItem == nil {
 		return
 	}
+	fr.pushTypeParams(fnItem.Generics)
+	defer fr.popTypeParams()
 	if owner.SourceFile == 0 {
 		owner.SourceFile = fr.sourceFile
 	}

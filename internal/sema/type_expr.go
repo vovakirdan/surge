@@ -34,6 +34,13 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			}
 			switch {
 			case sym == nil:
+				if param := tc.lookupTypeParam(ident.Name); param != types.NoTypeID {
+					name := tc.lookupName(ident.Name)
+					if name == "" {
+						name = "_"
+					}
+					tc.report(diag.SemaTypeMismatch, expr.Span, "type %s cannot be used as a value", name)
+				}
 				ty = types.NoTypeID
 			case sym.Kind == symbols.SymbolLet || sym.Kind == symbols.SymbolParam:
 				ty = tc.bindingType(symID)
@@ -70,8 +77,8 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		if call, ok := tc.builder.Exprs.Call(id); ok && call != nil {
 			if member, okMem := tc.builder.Exprs.Member(call.Target); okMem && member != nil {
 				if tc.moduleSymbolForExpr(member.Target) == nil {
-					receiverType := tc.typeExpr(member.Target)
-					if tc.lookupName(member.Field) == "await" {
+					receiverType, receiverIsType := tc.memberReceiverType(member.Target)
+					if !receiverIsType && tc.lookupName(member.Field) == "await" {
 						if tc.awaitDepth == 0 {
 							tc.report(diag.SemaIntrinsicBadContext, expr.Span, "await can only be used in async context")
 						}
@@ -84,7 +91,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 						argTypes = append(argTypes, tc.typeExpr(arg))
 						tc.observeMove(arg, tc.exprSpan(arg))
 					}
-					ty = tc.methodResultType(member, receiverType, argTypes, expr.Span)
+					ty = tc.methodResultType(member, receiverType, argTypes, expr.Span, receiverIsType)
 					break
 				}
 			}
@@ -282,4 +289,14 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 	}
 	tc.result.ExprTypes[id] = ty
 	return ty
+}
+
+// memberReceiverType determines the receiver type for a method call target.
+// It first tries to treat the target as a type operand (for static/associated methods),
+// and falls back to value typing.
+func (tc *typeChecker) memberReceiverType(target ast.ExprID) (types.TypeID, bool) {
+	if t := tc.tryResolveTypeOperand(target); t != types.NoTypeID {
+		return t, true
+	}
+	return tc.typeExpr(target), false
 }

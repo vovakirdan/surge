@@ -69,6 +69,10 @@ func (fr *fileResolver) resolveIdent(exprID ast.ExprID, span source.Span, name s
 		fr.result.ExprSymbols[exprID] = symID
 		return
 	}
+	if fr.hasTypeParam(name) {
+		// Type parameters are handled by the type checker; treat as resolved.
+		return
+	}
 	fr.reportUnresolved(name, span)
 }
 

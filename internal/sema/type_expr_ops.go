@@ -137,6 +137,44 @@ func (tc *typeChecker) resolveTypeOperand(exprID ast.ExprID, opLabel string) (ty
 	return types.NoTypeID, false
 }
 
+// tryResolveTypeOperand attempts to resolve an expression used as a type operand without emitting diagnostics.
+func (tc *typeChecker) tryResolveTypeOperand(exprID ast.ExprID) types.TypeID {
+	if !exprID.IsValid() || tc.builder == nil {
+		return types.NoTypeID
+	}
+	expr := tc.builder.Exprs.Get(exprID)
+	if expr == nil {
+		return types.NoTypeID
+	}
+	switch expr.Kind {
+	case ast.ExprGroup:
+		if group, ok := tc.builder.Exprs.Group(exprID); ok && group != nil {
+			return tc.tryResolveTypeOperand(group.Inner)
+		}
+	case ast.ExprIdent:
+		if ident, ok := tc.builder.Exprs.Ident(exprID); ok && ident != nil {
+			if symID := tc.symbolForExpr(exprID); symID.IsValid() {
+				if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolType && sym.Type != types.NoTypeID {
+					return sym.Type
+				}
+			}
+			if param := tc.lookupTypeParam(ident.Name); param != types.NoTypeID {
+				return param
+			}
+			if literal := tc.lookupName(ident.Name); literal != "" {
+				if builtin := tc.builtinTypeByName(literal); builtin != types.NoTypeID {
+					return builtin
+				}
+			}
+			scope := tc.scopeOrFile(tc.currentScope())
+			if symID := tc.lookupTypeSymbol(ident.Name, scope); symID.IsValid() {
+				return tc.symbolType(symID)
+			}
+		}
+	}
+	return types.NoTypeID
+}
+
 func (tc *typeChecker) reportExpectTypeOperand(opLabel string, operand ast.ExprID) {
 	if tc.reporter == nil {
 		return

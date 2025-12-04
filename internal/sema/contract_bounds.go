@@ -18,6 +18,30 @@ func (tc *typeChecker) requirementsForBound(bound symbols.BoundInstance) (contra
 	if contractSym == nil || contractSym.Kind != symbols.SymbolContract {
 		return empty, false
 	}
+	if contractSym.Contract == nil && tc.builder != nil {
+		// Prelude contracts may arrive without an attached spec (e.g., from precompiled stdlib exports).
+		// Synthesize the minimal requirements needed for Bounded<T> to typecheck static calls.
+		if tc.lookupName(contractSym.Name) == "Bounded" && len(bound.GenericArgs) == 1 {
+			minID := tc.builder.StringsInterner.Intern("__min_value")
+			maxID := tc.builder.StringsInterner.Intern("__max_value")
+			reqs := contractRequirements{
+				fields:     make(map[source.StringID]types.TypeID),
+				fieldAttrs: make(map[source.StringID][]source.StringID),
+				methods:    make(map[source.StringID][]methodRequirement),
+			}
+			reqs.methods[minID] = []methodRequirement{{
+				name:   minID,
+				params: nil,
+				result: bound.GenericArgs[0],
+			}}
+			reqs.methods[maxID] = []methodRequirement{{
+				name:   maxID,
+				params: nil,
+				result: bound.GenericArgs[0],
+			}}
+			return reqs, true
+		}
+	}
 	if contractSym.Contract != nil {
 		return tc.instantiateContractRequirements(contractSym, contractSym.Contract, bound.GenericArgs), true
 	}

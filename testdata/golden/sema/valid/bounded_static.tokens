@@ -1,0 +1,38 @@
+  1: KwFn            "fn" at 3:1-3:3 (leading: LineComment, Newline)
+  2: Ident           "generic_min" at 3:4-3:15 (leading: Space)
+  3: Lt              "<" at 3:15-3:16
+  4: Ident           "T" at 3:16-3:17
+  5: Colon           ":" at 3:17-3:18
+  6: Ident           "Bounded" at 3:19-3:26 (leading: Space)
+  7: Lt              "<" at 3:26-3:27
+  8: Ident           "T" at 3:27-3:28
+  9: Shr             ">>" at 3:28-3:30
+ 10: LParen          "(" at 3:30-3:31
+ 11: RParen          ")" at 3:31-3:32
+ 12: Arrow           "->" at 3:33-3:35 (leading: Space)
+ 13: Ident           "T" at 3:36-3:37 (leading: Space)
+ 14: LBrace          "{" at 3:38-3:39 (leading: Space)
+ 15: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 16: Ident           "T" at 4:12-4:13 (leading: Space)
+ 17: Dot             "." at 4:13-4:14
+ 18: Ident           "__min_value" at 4:14-4:25
+ 19: LParen          "(" at 4:25-4:26
+ 20: RParen          ")" at 4:26-4:27
+ 21: Semicolon       ";" at 4:27-4:28
+ 22: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 23: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 24: Ident           "concrete_max" at 7:4-7:16 (leading: Space)
+ 25: LParen          "(" at 7:16-7:17
+ 26: RParen          ")" at 7:17-7:18
+ 27: Arrow           "->" at 7:19-7:21 (leading: Space)
+ 28: Ident           "int16" at 7:22-7:27 (leading: Space)
+ 29: LBrace          "{" at 7:28-7:29 (leading: Space)
+ 30: KwReturn        "return" at 8:5-8:11 (leading: Newline, Space)
+ 31: Ident           "int16" at 8:12-8:17 (leading: Space)
+ 32: Dot             "." at 8:17-8:18
+ 33: Ident           "__max_value" at 8:18-8:29
+ 34: LParen          "(" at 8:29-8:30
+ 35: RParen          ")" at 8:30-8:31
+ 36: Semicolon       ";" at 8:31-8:32
+ 37: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 38: EOF             at 10:1-10:1
