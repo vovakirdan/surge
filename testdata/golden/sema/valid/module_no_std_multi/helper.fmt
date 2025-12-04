@@ -1,0 +1,5 @@
+pragma module, no_std;
+
+pub fn helper() -> int {
+    return 7;
+}

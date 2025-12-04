@@ -225,6 +225,7 @@ func resolveModuleRecord(
 	if rec.Meta.Dir != "" {
 		resolveModulePath = strings.Trim(strings.Trim(rec.Meta.Dir, "/")+"/"+rec.Meta.Name, "/")
 	}
+	noStd := rec.Meta != nil && rec.Meta.NoStd
 
 	// pass 1: declarations
 	for _, fileID := range rec.FileIDs {
@@ -241,6 +242,7 @@ func resolveModuleRecord(
 			BaseDir:       baseDir,
 			ModuleExports: moduleExports,
 			ModuleScope:   moduleScope,
+			NoStd:         noStd,
 			DeclareOnly:   true,
 		})
 	}
@@ -260,6 +262,7 @@ func resolveModuleRecord(
 			BaseDir:       baseDir,
 			ModuleExports: moduleExports,
 			ModuleScope:   moduleScope,
+			NoStd:         noStd,
 			ReuseDecls:    true,
 		})
 		res.ModuleFiles = moduleFiles

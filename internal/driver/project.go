@@ -53,6 +53,8 @@ func buildModuleMeta(
 	hasPragma := false
 	pragmaKinds := make(map[project.ModuleKind]source.Span)
 	explicitNames := make(map[string]source.Span)
+	hasNoStd := false
+	hasStd := false
 	filesWithPragma := make(map[ast.FileID]source.Span)
 	filesWithExplicit := make(map[ast.FileID]struct{})
 	interner := builder.StringsInterner
@@ -93,9 +95,17 @@ func buildModuleMeta(
 				}
 			}
 		}
+		if node.Pragma.Flags&ast.PragmaFlagNoStd != 0 {
+			hasNoStd = true
+		} else {
+			hasStd = true
+		}
 		if fileHasPragma {
 			filesWithPragma[mf.id] = node.Span
 		}
+	}
+	if hasPragma && hasNoStd && hasStd && reporter != nil {
+		reporter.Report(diag.ProjInconsistentNoStd, diag.SevError, files[0].node.Span, "pragma no_std must be consistent across all files in a module", nil, nil)
 	}
 
 	if hasPragma {
@@ -240,6 +250,7 @@ func buildModuleMeta(
 		Path:            fullPath,
 		Dir:             strings.Trim(filepath.ToSlash(normDir), "/"),
 		Kind:            kind,
+		NoStd:           hasNoStd && !hasStd,
 		HasModulePragma: hasPragma,
 		Span:            files[0].node.Span,
 		Imports:         imports,

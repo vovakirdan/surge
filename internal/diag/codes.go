@@ -141,6 +141,7 @@ const (
 	ProjMissingModulePragma     Code = 5008
 	ProjInconsistentModuleName  Code = 5009
 	ProjWrongModuleNameInImport Code = 5010
+	ProjInconsistentNoStd       Code = 5011
 
 	// Observability
 	ObsInfo    Code = 6000
@@ -269,6 +270,7 @@ var ( // todo расширить описания и использовать к
 		ProjMissingModulePragma:        "Missing module pragma",
 		ProjInconsistentModuleName:     "Inconsistent module name within directory",
 		ProjWrongModuleNameInImport:    "Wrong module name in import",
+		ProjInconsistentNoStd:          "Inconsistent no_std pragmas in module",
 		ObsInfo:                        "Observability information",
 		ObsTimings:                     "Pipeline timings",
 	}

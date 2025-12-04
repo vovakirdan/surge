@@ -1,0 +1,1 @@
+error PRJ5011 testdata/golden/sema/invalid/module_no_std_mixed/a.sg:1:1 pragma no_std must be consistent across all files in a module

@@ -33,6 +33,7 @@ type ModuleMeta struct {
 	Path            string     // нормализованный путь к модулю: "a/b"
 	Dir             string     // нормализованный путь к каталогу модуля: "a/b"
 	Kind            ModuleKind // module или binary
+	NoStd           bool       // признак pragma no_std, согласованный для всего модуля
 	HasModulePragma bool
 	Span            source.Span  // span всего файла (или места объявления модуля)
 	Imports         []ImportMeta // нормализованные пути импортов с их спанами

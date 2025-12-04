@@ -1,0 +1,9 @@
+testdata/golden/sema/valid/module_no_std_multi/main.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 3:1-5:2)
+   ├─ Name: run
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:21-5:2)
+         └─ Stmt[0]: Return (span: 4:5-4:21)
+            └─ Expr: expr#2: helper()

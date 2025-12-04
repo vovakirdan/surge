@@ -2173,6 +2173,8 @@ Diagnostics now follow the numeric `diag.Code` families defined in `internal/dia
 
 **Project/import graph (5000–):**
 - `ProjDuplicateModule`, `ProjMissingModule`, `ProjSelfImport`, `ProjImportCycle`, `ProjInvalidModulePath`, `ProjInvalidImportPath`, `ProjDependencyFailed`.
+- Module pragma consistency: `ProjMissingModulePragma`, `ProjInconsistentModuleName`, `ProjInconsistentNoStd`.
+- Import path hygiene: `ProjWrongModuleNameInImport`.
 
 **Observability (6000–):**
 - `ObsTimings`.
