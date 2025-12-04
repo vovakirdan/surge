@@ -35,58 +35,6 @@ func (fr *fileResolver) findExistingSymbol(name source.StringID, kind SymbolKind
 	return NoSymbolID
 }
 
-func (fr *fileResolver) hasHiddenAttr(start ast.AttrID, count uint32) (bool, source.Span) {
-	if count == 0 || !start.IsValid() {
-		return false, source.Span{}
-	}
-	attrs := fr.builder.Items.CollectAttrs(start, count)
-	for _, attr := range attrs {
-		name, ok := fr.builder.StringsInterner.Lookup(attr.Name)
-		if !ok {
-			continue
-		}
-		if strings.EqualFold(name, "hidden") {
-			return true, attr.Span
-		}
-	}
-	return false, source.Span{}
-}
-
-func (fr *fileResolver) applyVisibilityFlags(base SymbolFlags, isPublic, hidden bool, hiddenSpan, itemSpan source.Span) SymbolFlags {
-	flags := base
-	if isPublic {
-		flags |= SymbolFlagPublic
-	}
-	if hidden {
-		flags &^= SymbolFlagPublic
-		flags |= SymbolFlagFilePrivate
-		if isPublic && fr.resolver.reporter != nil {
-			msg := "@hidden makes the declaration file-private; remove 'pub' or '@hidden'"
-			diagSpan := itemSpan
-			if hiddenSpan != (source.Span{}) {
-				if hiddenSpan.File == itemSpan.File {
-					diagSpan = hiddenSpan.Cover(itemSpan)
-				} else {
-					diagSpan = hiddenSpan
-				}
-			}
-			builder := diag.ReportWarning(fr.resolver.reporter, diag.SemaHiddenPublic, diagSpan, msg)
-			if builder != nil {
-				if hiddenSpan != (source.Span{}) {
-					builder.WithFixSuggestion(fix.ReplaceSpan(
-						"remove @hidden",
-						hiddenSpan,
-						"",
-						"",
-					))
-				}
-				builder.Emit()
-			}
-		}
-	}
-	return flags
-}
-
 func (fr *fileResolver) declareLet(itemID ast.ItemID, letItem *ast.LetItem) {
 	if letItem.Name == source.NoStringID {
 		return
@@ -375,6 +323,7 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 	hasOverload := false
 	hasOverride := false
 	hasIntrinsic := false
+	hasEntrypoint := false
 	for _, attr := range attrs {
 		name := fr.builder.StringsInterner.MustLookup(attr.Name)
 		switch name {
@@ -384,6 +333,8 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 			hasOverride = true
 		case "intrinsic":
 			hasIntrinsic = true
+		case "entrypoint":
+			hasEntrypoint = true
 		}
 	}
 
@@ -461,6 +412,18 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 		existing = nil
 		existingSymbols = nil
 	}
+	if hasEntrypoint && hasIntrinsic {
+		msg := "@entrypoint cannot be combined with @intrinsic"
+		if b := diag.ReportError(fr.resolver.reporter, diag.SemaEntrypointInvalidAttr, span, msg); b != nil {
+			b.Emit()
+		}
+	}
+	if hasEntrypoint && !fnItem.Body.IsValid() {
+		msg := "@entrypoint function must have a body"
+		if b := diag.ReportError(fr.resolver.reporter, diag.SemaEntrypointNoBody, span, msg); b != nil {
+			b.Emit()
+		}
+	}
 
 	if hasOverride && len(existing) > 0 && hasPublicAncestor && flags&SymbolFlagPublic == 0 {
 		fr.reportInvalidOverride(fnItem.Name, span, "@override cannot reduce visibility; add 'pub'", existing)
@@ -500,6 +463,10 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 			fr.reportMissingOverload(fnItem.Name, span, keywordSpan, existing, newSig)
 			return NoSymbolID, false
 		}
+	}
+
+	if hasEntrypoint {
+		flags |= SymbolFlagEntrypoint
 	}
 
 	symID := fr.resolver.declareWithoutChecks(fnItem.Name, span, SymbolFunction, flags, decl, newSig)

@@ -1,0 +1,1 @@
+error SEM3056 testdata/golden/sema/invalid/entrypoint_missing_binary/only.sg:1:1 binary module must declare exactly one @entrypoint

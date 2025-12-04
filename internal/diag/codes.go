@@ -121,6 +121,10 @@ const (
 	SemaNonexhaustiveMatch         Code = 3053
 	SemaRedundantFinally           Code = 3054
 	SemaHiddenPublic               Code = 3055
+	SemaEntrypointNotFound         Code = 3056
+	SemaMultipleEntrypoints        Code = 3057
+	SemaEntrypointNoBody           Code = 3058
+	SemaEntrypointInvalidAttr      Code = 3059
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -249,6 +253,10 @@ var ( // todo расширить описания и использовать к
 		SemaNonexhaustiveMatch:         "non-exhaustive pattern match",
 		SemaRedundantFinally:           "redundant finally clause",
 		SemaHiddenPublic:               "@hidden conflicts with pub",
+		SemaEntrypointNotFound:         "Entrypoint not found",
+		SemaMultipleEntrypoints:        "Multiple entrypoints",
+		SemaEntrypointNoBody:           "Entrypoint requires a body",
+		SemaEntrypointInvalidAttr:      "Invalid entrypoint attribute usage",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

@@ -1,0 +1,7 @@
+pragma module;
+
+@entrypoint
+fn first() {}
+
+@entrypoint
+fn second() {}

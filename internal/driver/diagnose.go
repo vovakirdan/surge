@@ -361,17 +361,18 @@ func Parse(path string, maxDiagnostics int) (*ParseResult, error) {
 }
 
 type moduleRecord struct {
-	Meta     *project.ModuleMeta
-	Bag      *diag.Bag
-	Broken   bool
-	FirstErr *diag.Diagnostic
-	Builder  *ast.Builder
-	Table    *symbols.Table
-	FileIDs  []ast.FileID
-	Files    []*source.File
-	Sema     map[ast.FileID]*sema.Result
-	Symbols  map[ast.FileID]symbols.Result
-	Exports  *symbols.ModuleExports
+	Meta               *project.ModuleMeta
+	Bag                *diag.Bag
+	Broken             bool
+	FirstErr           *diag.Diagnostic
+	Builder            *ast.Builder
+	Table              *symbols.Table
+	FileIDs            []ast.FileID
+	Files              []*source.File
+	Sema               map[ast.FileID]*sema.Result
+	Symbols            map[ast.FileID]symbols.Result
+	Exports            *symbols.ModuleExports
+	checkedEntrypoints bool
 }
 
 func runModuleGraph(
