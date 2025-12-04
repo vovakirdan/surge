@@ -23,9 +23,9 @@ func setupProfiling(cmd *cobra.Command) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get mem-profile flag: %w", err)
 	}
-	tracePath, err := root.PersistentFlags().GetString("trace")
+	tracePath, err := root.PersistentFlags().GetString("runtime-trace")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get trace flag: %w", err)
+		return nil, fmt.Errorf("failed to get runtime-trace flag: %w", err)
 	}
 
 	stopCPU := func() {}
