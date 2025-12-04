@@ -1,0 +1,5 @@
+import scripts/foo;
+
+fn main() {
+    let _ = scripts.foo();
+}

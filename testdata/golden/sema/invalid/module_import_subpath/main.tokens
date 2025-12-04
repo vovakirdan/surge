@@ -1,0 +1,21 @@
+  1: KwImport        "import" at 1:1-1:7
+  2: Ident           "scripts" at 1:8-1:15 (leading: Space)
+  3: Slash           "/" at 1:15-1:16
+  4: Ident           "foo" at 1:16-1:19
+  5: Semicolon       ";" at 1:19-1:20
+  6: KwFn            "fn" at 3:1-3:3 (leading: Newline)
+  7: Ident           "main" at 3:4-3:8 (leading: Space)
+  8: LParen          "(" at 3:8-3:9
+  9: RParen          ")" at 3:9-3:10
+ 10: LBrace          "{" at 3:11-3:12 (leading: Space)
+ 11: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 12: Underscore      "_" at 4:9-4:10 (leading: Space)
+ 13: Assign          "=" at 4:11-4:12 (leading: Space)
+ 14: Ident           "scripts" at 4:13-4:20 (leading: Space)
+ 15: Dot             "." at 4:20-4:21
+ 16: Ident           "foo" at 4:21-4:24
+ 17: LParen          "(" at 4:24-4:25
+ 18: RParen          ")" at 4:25-4:26
+ 19: Semicolon       ";" at 4:26-4:27
+ 20: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 21: EOF             at 6:1-6:1

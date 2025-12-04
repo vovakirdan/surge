@@ -375,6 +375,20 @@ type moduleRecord struct {
 	checkedEntrypoints bool
 }
 
+func moduleHasExplicitName(meta *project.ModuleMeta) bool {
+	if meta == nil {
+		return false
+	}
+	if !meta.HasModulePragma {
+		return false
+	}
+	if meta.Dir == "" {
+		return false
+	}
+	dirBase := filepath.Base(meta.Dir)
+	return dirBase != "" && dirBase != meta.Name
+}
+
 func runModuleGraph(
 	fs *source.FileSet,
 	file *source.File,
@@ -469,24 +483,24 @@ func runModuleGraph(
 			importedPath := normalizeExportsKey(imp.Path)
 			actualPath := normalizeExportsKey(depRec.Meta.Path)
 			if importedPath != "" && actualPath != "" && importedPath != actualPath && rec != nil && rec.Bag != nil {
-				reporter := &diag.BagReporter{Bag: rec.Bag}
-				msg := fmt.Sprintf("module is named %q, not %q", depRec.Meta.Path, imp.Path)
-				if b := diag.ReportError(reporter, diag.ProjWrongModuleNameInImport, imp.Span, msg); b != nil {
-					fixID := fix.MakeFixID(diag.ProjWrongModuleNameInImport, imp.Span)
-					b.WithFixSuggestion(fix.ReplaceSpan(
-						"update import path",
-						imp.Span,
-						depRec.Meta.Path,
-						imp.Path,
-						fix.WithID(fixID),
-						fix.WithKind(diag.FixKindQuickFix),
-						fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-					))
-					b.Emit()
+				if moduleHasExplicitName(depRec.Meta) {
+					reporter := &diag.BagReporter{Bag: rec.Bag}
+					msg := fmt.Sprintf("module is named %q, not %q", depRec.Meta.Path, imp.Path)
+					if b := diag.ReportError(reporter, diag.ProjWrongModuleNameInImport, imp.Span, msg); b != nil {
+						fixID := fix.MakeFixID(diag.ProjWrongModuleNameInImport, imp.Span)
+						b.WithFixSuggestion(fix.ReplaceSpan(
+							"update import path",
+							imp.Span,
+							depRec.Meta.Path,
+							imp.Path,
+							fix.WithID(fixID),
+							fix.WithKind(diag.FixKindQuickFix),
+							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						))
+						b.Emit()
+					}
+					rec.Meta.Imports[i].Path = depRec.Meta.Path
 				}
-			}
-			if actualPath != "" && imp.Path != depRec.Meta.Path {
-				rec.Meta.Imports[i].Path = depRec.Meta.Path
 			}
 			records[depRec.Meta.Path] = depRec
 			queue = append(queue, depRec.Meta.Path)

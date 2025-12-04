@@ -1,0 +1,5 @@
+pragma module;
+
+pub fn foo() -> int {
+    return 1;
+}
