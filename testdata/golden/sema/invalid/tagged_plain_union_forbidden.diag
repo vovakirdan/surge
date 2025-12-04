@@ -1,1 +1,2 @@
+error SEM3002 testdata/golden/sema/invalid/tagged_plain_union_forbidden.sg:2:1 duplicate declaration of 'Error'
 error SEM3015 testdata/golden/sema/invalid/tagged_plain_union_forbidden.sg:2:14 Error: pure union of value types is not allowed; use tagged variants instead
