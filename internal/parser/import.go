@@ -13,6 +13,7 @@ import (
 //	import module;                                	// module/submodule
 //	import module :: Ident ;                      	// конкретный элемент
 //	import module :: Ident as Ident ;             	// элемент с алиасом
+//	import module :: * ;                          	// все публичные элементы модуля
 //	import module/subpath ;                       	// module/submodule с подпапками
 //	import module/subpath :: Ident ;              	// конкретный элемент с подпапками
 //	import module/subpath :: Ident as Ident ;     	// элемент с алиасом с подпапками
@@ -43,6 +44,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		one           ast.ImportOne
 		hasOne        bool
 		pairs         []ast.ImportPair
+		importAll     bool // флаг для "import module::*"
 		needSemicolon = true // флаг для определения нужности `;` в конце
 		groupOpenSpan source.Span
 		trailingComma source.Span
@@ -54,8 +56,12 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 	case token.ColonColon:
 		colonColonTok := p.advance() // съедаем '::'
 
-		// После '::' может быть либо идентификатор, либо группа {Ident, ...}
+		// После '::' может быть либо идентификатор, либо группа {Ident, ...}, либо *
 		switch p.lx.Peek().Kind {
+		case token.Star:
+			// import module::*;
+			p.advance() // съедаем '*'
+			importAll = true
 		case token.Ident:
 			// import module::Ident [as Alias];
 			var nameID source.StringID
@@ -350,7 +356,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 
 	// Финальный span от начала import до точки с запятой
 	span := importTok.Span.Cover(semi.Span)
-	id := p.arenas.NewImport(span, moduleSegs, moduleAlias, one, hasOne, pairs)
+	id := p.arenas.NewImport(span, moduleSegs, moduleAlias, one, hasOne, pairs, importAll)
 	return id, true
 }
 

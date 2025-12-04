@@ -72,8 +72,9 @@ func (b *Builder) NewImport(
 	one ImportOne,
 	hasOne bool,
 	group []ImportPair,
+	importAll bool,
 ) ItemID {
-	return b.Items.NewImport(span, module, moduleAlias, one, hasOne, group)
+	return b.Items.NewImport(span, module, moduleAlias, one, hasOne, group, importAll)
 }
 
 func (b *Builder) NewFnParam(name source.StringID, typ TypeID, def ExprID, variadic bool) FnParamID {

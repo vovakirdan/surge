@@ -202,7 +202,7 @@ func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
 
 func (fr *fileResolver) declareImport(itemID ast.ItemID, importItem *ast.ImportItem, itemSpan source.Span) {
 	modulePath := fr.resolveImportModulePath(importItem.Module, itemSpan)
-	hasItems := importItem.HasOne || len(importItem.Group) > 0
+	hasItems := importItem.HasOne || len(importItem.Group) > 0 || importItem.ImportAll
 
 	if !hasItems {
 		if modulePath != "" {
@@ -228,6 +228,9 @@ func (fr *fileResolver) declareImport(itemID ast.ItemID, importItem *ast.ImportI
 			name = pair.Name
 		}
 		fr.declareImportName(itemID, name, pair.Name, importItem.Module, modulePath, itemSpan)
+	}
+	if importItem.ImportAll {
+		fr.declareImportAll(itemID, importItem.Module, modulePath, itemSpan)
 	}
 }
 
@@ -276,6 +279,26 @@ func (fr *fileResolver) declareImportName(itemID ast.ItemID, name, original sour
 			}
 		}
 		fr.appendItemSymbol(itemID, symID)
+	}
+}
+
+func (fr *fileResolver) declareImportAll(itemID ast.ItemID, module []source.StringID, modulePath string, span source.Span) {
+	if modulePath == "" {
+		return
+	}
+
+	// Получаем экспорты модуля
+	exports := fr.moduleExports[modulePath]
+	if exports == nil {
+		return
+	}
+
+	// Импортируем все публичные символы
+	// @hidden символы уже отфильтрованы в CollectExports
+	for name := range exports.Symbols {
+		// Импортируем символ
+		nameID := fr.builder.StringsInterner.Intern(name)
+		fr.declareImportName(itemID, nameID, nameID, module, modulePath, span)
 	}
 }
 

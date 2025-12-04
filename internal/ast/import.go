@@ -8,6 +8,7 @@ type ImportItem struct {
 	One         ImportOne
 	HasOne      bool
 	Group       []ImportPair
+	ImportAll   bool // true for "import module::*"
 }
 
 type ImportOne struct {
@@ -34,6 +35,7 @@ func (i *Items) newImportPayload(
 	one ImportOne,
 	hasOne bool,
 	group []ImportPair,
+	importAll bool,
 ) PayloadID {
 	payload := i.Imports.Allocate(ImportItem{
 		Module:      append([]source.StringID(nil), module...),
@@ -41,6 +43,7 @@ func (i *Items) newImportPayload(
 		One:         one,
 		HasOne:      hasOne,
 		Group:       append([]ImportPair(nil), group...),
+		ImportAll:   importAll,
 	})
 	return PayloadID(payload)
 }
@@ -52,7 +55,8 @@ func (i *Items) NewImport(
 	one ImportOne,
 	hasOne bool,
 	group []ImportPair,
+	importAll bool,
 ) ItemID {
-	payloadID := i.newImportPayload(module, moduleAlias, one, hasOne, group)
+	payloadID := i.newImportPayload(module, moduleAlias, one, hasOne, group, importAll)
 	return i.New(ItemImport, span, payloadID)
 }

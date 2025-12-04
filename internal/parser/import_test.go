@@ -1044,3 +1044,73 @@ func TestParseImport_RelativePathsWithGroups(t *testing.T) {
 		})
 	}
 }
+
+// TestParseImport_ImportAll тестирует импорт всех публичных символов модуля (import module::*)
+func TestParseImport_ImportAll(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantSegs []string
+	}{
+		{
+			name:     "simple import all",
+			input:    "import foo::*;",
+			wantSegs: []string{"foo"},
+		},
+		{
+			name:     "nested module import all",
+			input:    "import std/io::*;",
+			wantSegs: []string{"std", "io"},
+		},
+		{
+			name:     "deeply nested import all",
+			input:    "import std/io/file::*;",
+			wantSegs: []string{"std", "io", "file"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			imp, bag, arenas := parseImportString(t, tt.input)
+
+			if bag.HasErrors() {
+				t.Fatalf("unexpected errors: %v", bag.Items())
+			}
+
+			if imp == nil {
+				t.Fatal("import item is nil")
+			}
+
+			// Проверяем сегменты модуля
+			actualSegs := idsToStrings(t, arenas.StringsInterner, imp.Module)
+			if len(actualSegs) != len(tt.wantSegs) {
+				t.Errorf("module segments count: got %d, want %d", len(actualSegs), len(tt.wantSegs))
+			}
+
+			for i, seg := range tt.wantSegs {
+				if i >= len(actualSegs) {
+					break
+				}
+				if actualSegs[i] != seg {
+					t.Errorf("segment[%d]: got %q, want %q", i, actualSegs[i], seg)
+				}
+			}
+
+			// Проверяем флаг ImportAll
+			if !imp.ImportAll {
+				t.Error("expected ImportAll to be true")
+			}
+
+			// Проверяем, что нет других элементов импорта
+			if alias, ok := idToString(t, arenas.StringsInterner, imp.ModuleAlias); ok && alias != "" {
+				t.Errorf("expected no alias, got %q", alias)
+			}
+			if imp.HasOne {
+				t.Errorf("expected no One, got %+v", imp.One)
+			}
+			if len(imp.Group) != 0 {
+				t.Errorf("expected no Group, got %+v", imp.Group)
+			}
+		})
+	}
+}
