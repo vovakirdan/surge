@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/project"
@@ -28,13 +30,9 @@ func resolveModuleDir(modulePath, baseDir string) (string, error) {
 	if st, err := os.Stat(dirCandidate); err == nil && st.IsDir() {
 		return dirCandidate, nil
 	}
-	if strings.Contains(modulePath, "/") {
-		parent := filepath.Dir(filepath.FromSlash(modulePath))
-		if baseDir != "" {
-			parent = filepath.Join(baseDir, parent)
-		}
-		if st, err := os.Stat(parent); err == nil && st.IsDir() {
-			return parent, nil
+	if name := filepath.Base(modulePath); name != "" {
+		if dir := findExplicitModuleDir(baseDir, name); dir != "" {
+			return dir, nil
 		}
 	}
 	return "", errModuleNotFound
@@ -418,6 +416,82 @@ func ensureStdlibModules(
 		records[rec.Meta.Path] = rec
 	}
 	return nil
+}
+
+var explicitModuleDirCache struct {
+	mu      sync.Mutex
+	byBase  map[string]map[string]string // baseDir -> name -> dir
+	scanned map[string]bool              // baseDir -> scanned
+}
+
+func findExplicitModuleDir(baseDir, name string) string {
+	if baseDir == "" || name == "" {
+		return ""
+	}
+	cacheKey := baseDir
+	explicitModuleDirCache.mu.Lock()
+	if explicitModuleDirCache.byBase != nil {
+		if m := explicitModuleDirCache.byBase[cacheKey]; m != nil {
+			if dir, ok := m[name]; ok {
+				explicitModuleDirCache.mu.Unlock()
+				return dir
+			}
+		}
+		if explicitModuleDirCache.scanned != nil && explicitModuleDirCache.scanned[cacheKey] {
+			explicitModuleDirCache.mu.Unlock()
+			return ""
+		}
+	}
+	explicitModuleDirCache.mu.Unlock()
+
+	found := make(map[string]string)
+	_ = filepath.WalkDir(baseDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if strings.HasPrefix(d.Name(), ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(d.Name()) != ".sg" {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		dir := filepath.Dir(path)
+		for _, prefix := range []string{"pragma module::", "pragma binary::"} {
+			if strings.Contains(string(content), prefix+name) {
+				if _, ok := found[name]; !ok {
+					found[name] = dir
+				}
+			}
+		}
+		return nil
+	})
+
+	explicitModuleDirCache.mu.Lock()
+	if explicitModuleDirCache.byBase == nil {
+		explicitModuleDirCache.byBase = make(map[string]map[string]string)
+	}
+	if explicitModuleDirCache.scanned == nil {
+		explicitModuleDirCache.scanned = make(map[string]bool)
+	}
+	target := explicitModuleDirCache.byBase[cacheKey]
+	if target == nil {
+		target = make(map[string]string)
+		explicitModuleDirCache.byBase[cacheKey] = target
+	}
+	for k, v := range found {
+		target[k] = v
+	}
+	explicitModuleDirCache.scanned[cacheKey] = true
+	dir := target[name]
+	explicitModuleDirCache.mu.Unlock()
+	return dir
 }
 
 func loadStdModule(

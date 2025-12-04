@@ -336,6 +336,13 @@ func collectImports(
 		}
 
 		baseExists := moduleFileExists(fs, baseDir, normImport)
+		if baseExists {
+			imports = append(imports, project.ImportMeta{
+				Path: normImport,
+				Span: item.Span,
+			})
+			continue
+		}
 
 		// Добавляем кандидатов вида import foo::bar; -> foo/bar, если такой модуль реально существует.
 		if importItem.HasOne {
@@ -378,6 +385,10 @@ func collectImports(
 		}
 
 		if hasCandidate && !baseExists {
+			imports = append(imports, project.ImportMeta{
+				Path: normImport,
+				Span: item.Span,
+			})
 			continue
 		}
 
@@ -406,6 +417,13 @@ func moduleFileExists(fs *source.FileSet, baseDir, modulePath string) bool {
 	}
 
 	if _, err := os.Stat(filePath); err == nil {
+		return true
+	}
+	dirPath := filepath.FromSlash(modulePath)
+	if baseDir != "" {
+		dirPath = filepath.Join(baseDir, dirPath)
+	}
+	if info, err := os.Stat(dirPath); err == nil && info.IsDir() {
 		return true
 	}
 

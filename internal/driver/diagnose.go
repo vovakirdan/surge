@@ -3,6 +3,7 @@ package driver
 import (
 	"errors"
 	"fmt"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -457,14 +458,21 @@ func runModuleGraph(
 	}
 
 	missing := make(map[string]struct{})
+	seen := make(map[string]struct{})
+	processedImports := make(map[string]struct{})
+	aliasExports := make(map[string]string)
 	queue := []string{meta.Path}
 
 	for len(queue) > 0 {
 		cur := queue[0]
 		queue = queue[1:]
+		seen[cur] = struct{}{}
 		rec := records[cur]
 		for i := range rec.Meta.Imports {
 			imp := rec.Meta.Imports[i]
+			if _, ok := processedImports[imp.Path]; ok {
+				continue
+			}
 			if _, ok := records[imp.Path]; ok {
 				continue
 			}
@@ -482,8 +490,8 @@ func runModuleGraph(
 			}
 			importedPath := normalizeExportsKey(imp.Path)
 			actualPath := normalizeExportsKey(depRec.Meta.Path)
-			if importedPath != "" && actualPath != "" && importedPath != actualPath && rec != nil && rec.Bag != nil {
-				if moduleHasExplicitName(depRec.Meta) {
+			if importedPath != "" && actualPath != "" && importedPath != actualPath {
+				if moduleHasExplicitName(depRec.Meta) && rec != nil && rec.Bag != nil && path.Base(importedPath) != depRec.Meta.Name {
 					reporter := &diag.BagReporter{Bag: rec.Bag}
 					msg := fmt.Sprintf("module is named %q, not %q", depRec.Meta.Path, imp.Path)
 					if b := diag.ReportError(reporter, diag.ProjWrongModuleNameInImport, imp.Span, msg); b != nil {
@@ -499,11 +507,17 @@ func runModuleGraph(
 						))
 						b.Emit()
 					}
+				}
+				aliasExports[importedPath] = depRec.Meta.Path
+				if rec != nil {
 					rec.Meta.Imports[i].Path = depRec.Meta.Path
 				}
 			}
+			processedImports[imp.Path] = struct{}{}
 			records[depRec.Meta.Path] = depRec
-			queue = append(queue, depRec.Meta.Path)
+			if _, ok := seen[depRec.Meta.Path]; !ok {
+				queue = append(queue, depRec.Meta.Path)
+			}
 		}
 	}
 
@@ -551,6 +565,11 @@ func runModuleGraph(
 	dag.ReportBrokenDeps(idx, slots)
 
 	exports := collectModuleExports(records, idx, topo, baseDir, meta.Path, typeInterner, opts)
+	for alias, target := range aliasExports {
+		if exp, ok := exports[normalizeExportsKey(target)]; ok {
+			exports[normalizeExportsKey(alias)] = exp
+		}
+	}
 
 	return exports, records[meta.Path], nil
 }
