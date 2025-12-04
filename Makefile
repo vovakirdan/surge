@@ -1,5 +1,5 @@
 .PHONY: build run test vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall completion completion-install completion-install-system
-.PHONY: golden golden-update golden-check
+.PHONY: golden golden-update golden-check stats
 
 # ===== Variables =====
 GO ?= go
@@ -103,6 +103,10 @@ pprof-mem:
 trace:
 	$(GO) run ./cmd/surge diag --trace=trace.out ./test.sg
 	$(GO) tool trace trace.out
+
+# ===== Statistics =====
+stats:
+	@./scripts/code_stats.sh
 
 # ===== Install =====
 # Установка в $GOBIN (обычно ~/go/bin или $GOPATH/bin)

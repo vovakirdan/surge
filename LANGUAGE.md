@@ -153,7 +153,7 @@ Supported generic owners:
 Resolution rules for a type identifier `Ident` inside a generic owner:
 
 1. If `Ident` matches one of the owner’s type parameters (`<T, U, ...>`), it is treated as a **type parameter**.
-2. Otherwise, `Ident` is resolved as a regular type name (struct, alias, union, newtype, contract, tag, etc.).
+2. Otherwise, `Ident` is resolved as a regular type name (struct, alias, union, contract, tag, etc.).
 3. If no matching type is found, the compiler reports an unresolved-type error (`SemaUnresolvedSymbol`).
 
 This means that the following code is **invalid**:
@@ -189,7 +189,7 @@ Generic monomorphization and instantiation are described in §16.1.
 
 ### 2.5. User-defined Types
 
-* **Newtype:** `type MyInt = int;` creates a distinct nominal type that inherits semantics of `int` but can override magic methods via `extern<MyInt>`. (Different from a pure alias.)
+* **Type alias to primitive:** `type MyInt = int;` creates a distinct nominal type that inherits semantics of `int` but can override magic methods via `extern<MyInt>`. (Different from a pure alias.)
 * **Struct:** `type Person = { age:int, name:string, @readonly weight:float }`.
 
   * Fields are immutable unless variable is `mut`. `@readonly` forbids writes even through `mut` bindings.
@@ -216,7 +216,7 @@ let s: PersonSon = p            // patronymic picks the default ""
   * primitives (`int`/`uint`/`float`/`bool`/`string`/`unit`/`nothing`) → `0`, `0.0`, `false`, `""`, `unit`, `nothing`;
   * pointers `*T` → `nothing`; references `&T`/`&mut T` have no default (compile-time error on `default`);
   * arrays/slices → element-wise `default<Elem>()`, empty slice for dynamic;
-  * structs/newtypes → recursively default every field/base; aliases unwrap to their target;
+  * structs → recursively default every field/base; aliases unwrap to their target;
   * unions → only if a `nothing` variant is present (e.g. `Option`).
 - `@hidden` fields remain hidden outside `extern<Base>` and initialisers. `@readonly` fields stay immutable after construction.
 - Assigning from a child to its base is forbidden (types remain nominal).
@@ -562,7 +562,7 @@ Attributes are a **closed set** provided by the language. User-defined attribute
 
 * `@pure` *(fn)* — function has no side effects, is deterministic, cannot mutate non-local state. Required for execution in signals and parallel contexts. Violations emit `E_PURE_VIOLATION`.
 * `@overload` *(fn)* — declares an overload of an existing function name with a distinct signature. Must not be used on the first declaration of a function name; doing so emits `E_OVERLOAD_FIRST_DECL`. Incompatible with `@override`.
-* `@override` *(fn)* — replaces an existing implementation for a target type. Only valid within `extern<T>` and `extern<Newtype>` blocks. Invalid override contexts surface as `SemaFnOverride`. Incompatible with `@overload`.
+* `@override` *(fn)* — replaces an existing implementation for a target type. Only valid within `extern<T>` blocks. Invalid override contexts surface as `SemaFnOverride`. Incompatible with `@overload`.
 
   **Exception:** `@override` may be used outside `extern<T>` only if the target symbol is local to the current module (declared earlier in the same module) and previously had no body implementation.
 * `@intrinsic` *(fn)* — marks function as a language intrinsic (implementation provided by runtime/compiler). Intrinsics are declared only as function declarations without body (`fn name(...): Ret;`) in the special core module (all files under `core/`) and made available to other code through standard library re-exports. User code cannot declare intrinsics outside `core`. Violations emit errors per §21.
@@ -636,7 +636,7 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 | @nonblocking     |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
 | @drop            |  ❌  |   ❌   |   ❌  |   ❌   |   ❌   |  ✅  |
 
-*`@override` — only within `extern<T>` and `extern<Newtype>` blocks.
+*`@override` — only within `extern<T>` blocks.
 **`@intrinsic` — only on function declarations (FnDecl) without body.
 
 #### Typical Conflicts
@@ -687,7 +687,7 @@ extern<T> {
 * **Async functions:** `async fn name(params) -> RetType? { body }`
 * **Attributes on functions:** `@pure`, `@overload`, `@override`, etc.
 
-Any other item-level elements are **prohibited**: `let`, `type/newtype`, alias declarations, literal definitions, `import` statements, nested `extern` blocks, etc. These produce syntax error `E_ILLEGAL_ITEM_IN_EXTERN`.
+Any other item-level elements are **prohibited**: `let`, `type`, alias declarations, literal definitions, `import` statements, nested `extern` blocks, etc. These produce syntax error `E_ILLEGAL_ITEM_IN_EXTERN`.
 
 **Examples:**
 
@@ -803,6 +803,7 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Arithmetic: `+ - * / %` → `__add __sub __mul __div __mod`
 * Comparison: `< <= == != >= >` → `__lt __le __eq __ne __ge __gt` (must return `bool`)
 * Type checking: `is` – checks type identity (see §6.2)
+* Inheritance checking: `heir` – checks inheritance relationship between types (see §6.3)
 * Logical: `&& || !` – short-circuiting; operate only on `bool`.
 * Indexing: `[]` → `__index __index_set`
 * Unary: `+x -x` → `__pos __neg`
@@ -824,7 +825,11 @@ Each file is a module. Folder hierarchy maps to module paths.
 // Safe-navigation (?.) is not part of Surge; prefer compare for Option
 ```
 
-**How operators are implemented.** Every primitive that participates in one of the operators above must expose the matching magic method inside an `extern<T>` block. The standard library ships those implementations in `core/intrinsics.sg` (module `core`): each method is marked `@intrinsic` so the compiler can lower it straight to the runtime. Sema never assumes the result type of `int + int` or `string * uint`—it always resolves the magic method on the left operand (following alias inheritance rules) and uses that signature as the single source of truth. If no method exists, the operator is rejected with `SemaInvalidBinaryOperands`. For example, integer addition is defined as
+**How operators are implemented.** Most operators (arithmetic, comparison, indexing, etc.) are implemented via magic methods that must be exposed inside an `extern<T>` block. The standard library ships those implementations in `core/intrinsics.sg` (module `core`): each method is marked `@intrinsic` so the compiler can lower it straight to the runtime. Sema never assumes the result type of `int + int` or `string * uint`—it always resolves the magic method on the left operand (following alias inheritance rules) and uses that signature as the single source of truth. If no method exists, the operator is rejected with `SemaInvalidBinaryOperands`. 
+
+**Exceptions:** The `is` and `heir` operators are built-in compiler checks and do not use magic methods. They cannot be overridden via `extern<T>` blocks.
+
+For example, integer addition is defined as
 
 ```sg
 extern<int> {
@@ -833,7 +838,7 @@ extern<int> {
 }
 ```
 
-Sema never assumes that `int + int` yields `int`. Instead, it resolves `__add` for the left operand’s type (respecting overrides/newtypes) and uses that signature as the source of truth. User-defined types opt in by providing their own `extern<MyType>` blocks; built-ins rely on the intrinsic versions provided by `core/intrinsics.sg` (module `core`).
+Sema never assumes that `int + int` yields `int`. Instead, it resolves `__add` for the left operand's type (respecting overrides) and uses that signature as the source of truth. User-defined types opt in by providing their own `extern<MyType>` blocks; built-ins rely on the intrinsic versions provided by `core/intrinsics.sg` (module `core`).
 
 ### 6.2. Type Checking Operator (`is`)
 
@@ -861,11 +866,79 @@ print(z is int);        // false
 print(z is &int);       // true
 ```
 
-### 6.3. Assignment
+### 6.3. Inheritance Checking Operator (`heir`)
+
+The `heir` operator checks inheritance relationships between types and returns a `bool`. It verifies whether one type inherits from another. The check is performed both at compile time (for constant expressions) and at runtime (for dynamic checks).
+
+**Syntax:**
+```
+Type1 heir Type2
+```
+
+**Rules:**
+* `Child heir Base` → `true` if `Child` inherits from `Base` through any inheritance mechanism (struct extension, type inheritance, etc.)
+* `T heir T` → `true` (reflexive: every type inherits from itself)
+* Inheritance is transitive: if `A heir B` and `B heir C`, then `A heir C`
+* Both operands must be type names (not values); using values emits `SemaExpectTypeOperand`
+* The operator returns `bool` and can be used in both compile-time constant expressions and runtime checks
+* Works for **any type**: struct extension (`type Child = Base : { ... }`), type aliases, unions, and other type relationships
+
+**Precedence:** `heir` has the same precedence as comparison operators (`<`, `<=`, `==`, `!=`, `>=`, `>`, `is`) and is left-associative.
+
+**Examples:**
+```sg
+type BasePerson = {
+    name: string,
+    age: int
+};
+
+type Employee = BasePerson : {
+    id: uint,
+    department: string
+};
+
+type Manager = Employee : {
+    team_size: int
+};
+
+// Direct inheritance
+let is_employee_base: bool = Employee heir BasePerson;  // true
+
+// Transitive inheritance
+let is_manager_base: bool = Manager heir BasePerson;     // true
+let is_manager_employee: bool = Manager heir Employee;   // true
+
+// Self-inheritance
+let is_self: bool = Employee heir Employee;              // true
+
+// Non-inheritance
+let is_not: bool = BasePerson heir Employee;             // false
+
+// Usage in conditions
+if (Employee heir BasePerson) {
+    print("Employee inherits from BasePerson");
+}
+
+// Works for any type, not just struct extension
+type MyInt = int;
+let is_int: bool = MyInt heir int;  // true (type inherits from base)
+
+type Number = int;
+let is_number: bool = Number heir Number;  // true (reflexive)
+```
+
+**Difference from `is` operator:**
+* `is` checks the **runtime type** of a **value**: `x is int` checks if the value `x` has type `int`
+* `heir` checks the **inheritance relationship** between **types**: `Employee heir BasePerson` checks if type `Employee` inherits from type `BasePerson`
+* `is` operates on values; `heir` operates on type names
+
+**Implementation note:** The `heir` operator is a built-in compiler check, not a magic method. Programmers cannot override this behavior via `extern<T>` blocks or magic methods. The compiler maintains type relationship information (including `structBases` map for struct extension) and performs the check both at compile time (for constant expressions) and at runtime (for dynamic checks). This is not a standard binary operator (`binOp`) but a special type relationship operator built into the language.
+
+### 6.4. Assignment
 
 * `=` move/assign; compound ops `+=` etc. desugar to method + assign if defined.
 
-### 6.4. Cast Operator (`to`)
+### 6.5. Cast Operator (`to`)
 
 The `to` operator performs explicit type conversions with syntax `Expr to Type`.
 
@@ -892,7 +965,7 @@ let c: int16 = a to int16;    // may trap if value > int16 range
 let d: float = 42 to float;   // int→float conversion
 ```
 
-### 6.5. Custom Cast Protocol (`__to`)
+### 6.6. Custom Cast Protocol (`__to`)
 
 User-defined types opt into casting by supplying `__to` overloads inside `extern<From>` blocks. The signature is strict: exactly two parameters (`self: From`, `target: To`) and the return type must be the same `To`. `__to` is guaranteed to either return a valid `To` or trap (never UB); if you need different behaviour (e.g., saturation/clamping), implement a separate function instead of overloading `__to`:
 
@@ -905,7 +978,7 @@ extern<From> {
 Each target type gets its own overload; primitives in `core/intrinsics.sg` (module `core`) ship `@intrinsic` definitions while user code adds `@overload` bodies. The `to` operator drives resolution:
 
 1. If `From` and `To` (after resolving aliases) are identical, the cast is a no-op.
-2. Built-in numeric rules from §6.4 are consulted first (e.g., dynamic↔fixed conversions).
+2. Built-in numeric rules from §6.5 are consulted first (e.g., dynamic↔fixed conversions).
 3. Otherwise the compiler looks for `__to` on the left operand’s type whose second parameter matches the resolved target type. Alias names participate in the lookup, so `type Gasoline = string` inherits `string -> string` conversions automatically. Any `__to` that adds extra parameters or returns anything other than the target type is rejected with a semantic error.
 4. Multiple matches yield `E_AMBIGUOUS_CAST`; no match yields `E_NO_CAST`.
 
@@ -934,7 +1007,7 @@ let uid: UserId = 42:uint64 to UserId;
 let raw: uint64 = uid to uint64;
 ```
 
-### 6.6. Saturating casts
+### 6.7. Saturating casts
 
 Fixed-width numerics implement the `Bounded<T>` contract via static methods `__min_value/__max_value` defined in `core/intrinsics.sg` (module `core`). The stdlib exposes helpers:
 
@@ -1153,7 +1226,7 @@ async {
 
 * `print(...args)` – variadic, casts each argument to `string` via `expr to string`, concatenates with spaces, appends newline.
 * Core protocols provided for primitives and arrays: `__to`, `__abs`, numeric ops, comparisons, `__range`, `__index`.
-* Newtypes can `@override` their magic methods in `extern<NewType>` blocks; built-ins for **primitive** base types are sealed (cannot be overridden for the primitive itself).
+* Types can `@override` their magic methods in `extern<T>` blocks; built-ins for **primitive** base types are sealed (cannot be overridden for the primitive itself).
 
 ---
 
@@ -1347,8 +1420,8 @@ fn demo() {
 ```
 
 ```sg
-// Newtype with override
-newtype MyInt = int;
+// Type alias with override
+type MyInt = int;
 extern<MyInt> {
   @pure @override fn __add(a: MyInt, b: MyInt) -> MyInt { return 42:int; }
 }
@@ -1384,7 +1457,7 @@ let c: int16 = a to int16;    // may trap
 ```
 
 ```sg
-// Custom casting with newtype
+// Custom casting with type alias
 type UserId = uint64;
 
 extern<UserId> {
@@ -1486,6 +1559,31 @@ async fn process_data(urls: string[]) -> Erring<Data[], Error> {
 // @noinherit field example
 type Base = { @noinherit internal_id:uint64, name:string }
 type Public = Base : { display:string } // field internal_id not inherited in Public
+```
+
+```sg
+// Struct inheritance and heir operator
+type BasePerson = { name: string, age: int }
+type Employee = BasePerson : { id: uint, department: string }
+type Manager = Employee : { team_size: int }
+
+fn check_inheritance() -> bool {
+  // Check direct inheritance
+  let is_employee: bool = Employee heir BasePerson;  // true
+  
+  // Check transitive inheritance
+  let is_manager_base: bool = Manager heir BasePerson;  // true
+  
+  // Check self-inheritance
+  let is_self: bool = Employee heir Employee;  // true
+  
+  // Use in conditional
+  if (Manager heir Employee) {
+    print("Manager inherits from Employee");
+  }
+  
+  return is_employee && is_manager_base;
+}
 ```
 
 ```sg
@@ -1918,7 +2016,7 @@ From highest to lowest:
 5. `<< >>` (bitwise shift)
 6. `& ^ |` (bitwise operations)
 7. `..` `..=` (range operators)
-8. `< <= > >= == != is` (all comparison operators have same precedence, left-associative)
+8. `< <= > >= == != is heir` (all comparison and type checking operators have same precedence, left-associative)
 9. `&&`
 10. `||`
 11. `? :` (ternary, right-associative)
@@ -1926,10 +2024,12 @@ From highest to lowest:
 13. `=` `+=` `-=` `*=` `/=` `%=` `&=` `|=` `^=` `<<=` `>>=` (assignment, right-associative)
 
 **Type checking precedence:**
-Type checking with `is` has the same precedence as equality operators. Use parentheses for complex expressions:
+Type checking operators `is` and `heir` have the same precedence as equality operators. Use parentheses for complex expressions:
 ```sg
-x is int && y is string  // OK
-(x is int) == true       // explicit grouping recommended
+x is int && y is string           // OK
+Employee heir BasePerson && flag  // OK
+(x is int) == true                // explicit grouping recommended
+(Employee heir BasePerson) == true // explicit grouping recommended
 ```
 
 Short-circuiting for `&&` and `||` is guaranteed.
@@ -2046,8 +2146,8 @@ let (x, y): (float, float) = get_coordinates();
 Phantom types provide compile-time type safety without runtime overhead:
 
 ```sg
-newtype UserId<T> = int;
-newtype ProductId<T> = int;
+type UserId<T> = int;
+type ProductId<T> = int;
 
 type User = { id: UserId<User>, name: string }
 type Product = { id: ProductId<Product>, name: string }
@@ -2077,7 +2177,7 @@ DirectiveBlock := "///" Namespace ":" Newline
                   ( "///" BodyLine Newline )+
 Namespace  := Ident
 BodyLine   := <Surge expression on single line>
-Item       := Visibility? (Fn | AsyncFn | MacroDef | TagDecl | NewtypeDef | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
+Item       := Visibility? (Fn | AsyncFn | MacroDef | TagDecl | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
 Visibility := "pub"
 Fn         := FnDef | FnDecl
 FnDef      := Attr* "fn" Ident GenericParams? ParamList RetType? Block
@@ -2138,7 +2238,7 @@ Suffix         := "[]"
 
 ## 20. Compatibility Notes
 
-* Built-ins for primitive base types are sealed; you cannot `@override` them directly. Use `type New = int;` and override on the newtype.
+* Built-ins for primitive base types are sealed; you cannot `@override` them directly. Use `type New = int;` and override on the type alias.
 * Dynamic numerics (`int/uint/float`) allow large results; casts to fixed-width may trap.
 * Attributes affecting memory layout and ABI (`@packed`, `@align`) are part of the language specification and cannot be replaced by directives. Directives do not modify type layout or ABI contracts.
 * Concurrency contract attributes describe *analyzable requirements* and do not change language semantics at runtime. Violations may not always be statically checkable; in such cases the compiler emits `W_CONC_UNVERIFIED` and defers verification to linters or runtime debug tools.
