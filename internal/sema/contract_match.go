@@ -258,6 +258,9 @@ func (tc *typeChecker) enforceContractBounds(params []symbols.TypeParamSymbol, b
 		for _, bound := range param.Bounds {
 			inst := bound
 			inst.GenericArgs = tc.substituteBoundArgs(bound.GenericArgs, bindings)
+			if tc.typeParamSatisfiesBound(concrete, inst, bindings) {
+				continue
+			}
 			tc.checkContractSatisfaction(concrete, inst, reportSpan, typeLabel)
 		}
 	}

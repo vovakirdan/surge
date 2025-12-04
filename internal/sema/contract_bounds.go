@@ -40,6 +40,42 @@ func (tc *typeChecker) requirementsForBound(bound symbols.BoundInstance) (contra
 	return tc.contractRequirementSet(contractDecl, scope)
 }
 
+// typeParamSatisfiesBound reports whether the given generic type parameter already has a bound
+// equivalent to the requested contract (after substituting any bound arguments).
+func (tc *typeChecker) typeParamSatisfiesBound(id types.TypeID, bound symbols.BoundInstance, bindings map[source.StringID]bindingInfo) bool {
+	if id == types.NoTypeID || !bound.Contract.IsValid() || tc.types == nil {
+		return false
+	}
+	resolved := tc.resolveAlias(id)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok || tt.Kind != types.KindGenericParam {
+		return false
+	}
+	boundArgs := bound.GenericArgs
+	if len(boundArgs) > 0 {
+		boundArgs = tc.substituteBoundArgs(boundArgs, bindings)
+	}
+	for _, candidate := range tc.typeParamContractBounds(resolved) {
+		if !candidate.Contract.IsValid() || candidate.Contract != bound.Contract {
+			continue
+		}
+		if len(candidate.GenericArgs) != len(boundArgs) {
+			continue
+		}
+		match := true
+		for i := range candidate.GenericArgs {
+			if !tc.contractTypesEqual(candidate.GenericArgs[i], boundArgs[i]) {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
 // boundFieldType resolves a field required by any contract bound on the given type param.
 func (tc *typeChecker) boundFieldType(id types.TypeID, name source.StringID) types.TypeID {
 	if id == types.NoTypeID {

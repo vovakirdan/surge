@@ -11,13 +11,16 @@ pub contract ErrorLike{
     field code: uint;
 }
 
+pub tag Some<E>(E);
+pub type Option<E> = Some(E) | nothing;
+// ------------------------------------
+
+// Core Erring type for recoverable errors using ErrorLike contract.
+
 pub type Error = { message: string, code: uint };
 
 pub tag Success<T>(T);
-pub type Erring<T, E> = Success(T) | E;
-
-pub tag Some<E>(E);
-pub type Option<E> = Some(E) | nothing;
+pub type Erring<T, E: ErrorLike> = Success(T) | E;
 
 extern<Erring<T, E>> {
     pub fn safe<T, E: ErrorLike>(self: Erring<T, E>) -> T {

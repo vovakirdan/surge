@@ -1,66 +1,67 @@
 pragma no_std;
+
 // Basic magic methods for built-in types.
 
 extern<bool> {
-    fn __bool(self: bool) -> bool { return self; }
+    pub fn __bool(self: bool) -> bool { return self; }
 }
 
 extern<int> {
-    fn __bool(self: int) -> bool { return self != 0; }
+    pub fn __bool(self: int) -> bool { return self != 0; }
 }
 
 extern<uint> {
-    fn __bool(self: uint) -> bool { return self != 0:uint; }
+    pub fn __bool(self: uint) -> bool { return self != 0:uint; }
 }
 
 extern<float> {
-    fn __bool(self: float) -> bool { return self != 0.0; }
+    pub fn __bool(self: float) -> bool { return self != 0.0; }
 }
 
 extern<string> {
-    fn __bool(self: string) -> bool { return self != ""; }
+    pub fn __bool(self: string) -> bool { return self != ""; }
 }
 
 extern<nothing> {
-    fn __bool(self: nothing) -> bool { return false; }
+    pub fn __bool(self: nothing) -> bool { return false; }
 }
 
 extern<int8> {
-    fn __bool(self: int8) -> bool { return self != (0):int8; }
+    pub fn __bool(self: int8) -> bool { return self != (0):int8; }
 }
 
 extern<int16> {
-    fn __bool(self: int16) -> bool { return self != (0):int16; }
+    pub fn __bool(self: int16) -> bool { return self != (0):int16; }
 }
 
 extern<int32> {
-    fn __bool(self: int32) -> bool { return self != (0):int32; }
+    pub fn __bool(self: int32) -> bool { return self != (0):int32; }
 }
 
 extern<int64> {
-    fn __bool(self: int64) -> bool { return self != (0):int64; }
+    pub fn __bool(self: int64) -> bool { return self != (0):int64; }
 }
 
 extern<uint8> {
-    fn __bool(self: uint8) -> bool { return self != (0):uint8; }
+    pub fn __bool(self: uint8) -> bool { return self != (0):uint8; }
 }
 
 extern<uint16> {
-    fn __bool(self: uint16) -> bool { return self != (0):uint16; }
+    pub fn __bool(self: uint16) -> bool { return self != (0):uint16; }
 }
 
 extern<uint32> {
-    fn __bool(self: uint32) -> bool { return self != (0):uint32; }
+    pub fn __bool(self: uint32) -> bool { return self != (0):uint32; }
 }
 
 extern<uint64> {
-    fn __bool(self: uint64) -> bool { return self != (0):uint64; }
+    pub fn __bool(self: uint64) -> bool { return self != (0):uint64; }
 }
 
 extern<float32> {
-    fn __bool(self: float32) -> bool { return self != (0.0):float32; }
+    pub fn __bool(self: float32) -> bool { return self != (0.0):float32; }
 }
 
 extern<float64> {
-    fn __bool(self: float64) -> bool { return self != (0.0):float64; }
+    pub fn __bool(self: float64) -> bool { return self != (0.0):float64; }
 }

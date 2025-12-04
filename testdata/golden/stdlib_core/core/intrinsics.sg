@@ -231,7 +231,7 @@ extern<ArrayFixed<T, N>> {
 @intrinsic
 pub fn default<T>() -> T;
 
-contract ErrorLike{
+pub contract ErrorLike{
     field message: string;
     field code: uint;
 }

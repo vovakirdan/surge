@@ -13,6 +13,7 @@ func (tc *typeChecker) checkExternFns(itemID ast.ItemID, block *ast.ExternBlock)
 	}
 	scope := tc.scopeForItem(itemID)
 	receiverSpecs := tc.externTypeParamSpecs(block.Target, scope)
+	receiverOwner := tc.externTargetSymbol(block.Target, scope)
 	start := uint32(block.MembersStart)
 	for offset := range block.MembersCount {
 		memberID := ast.ExternMemberID(start + offset)
@@ -24,18 +25,18 @@ func (tc *typeChecker) checkExternFns(itemID ast.ItemID, block *ast.ExternBlock)
 		if fn == nil {
 			continue
 		}
-		tc.typecheckExternFn(memberID, fn, receiverSpecs)
+		tc.typecheckExternFn(memberID, fn, receiverSpecs, receiverOwner)
 	}
 }
 
-func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.FnItem, receiverSpecs []genericParamSpec) {
+func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.FnItem, receiverSpecs []genericParamSpec, receiverOwner symbols.SymbolID) {
 	if fn == nil {
 		return
 	}
 	scope := tc.scopeOrFile(tc.scopeForExtern(memberID))
 	symID := tc.symbolForExtern(memberID)
 
-	receiverParamsPushed := tc.pushTypeParams(symbols.NoSymbolID, receiverSpecs, nil)
+	receiverParamsPushed := tc.pushTypeParams(receiverOwner, receiverSpecs, nil)
 	paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetFnTypeParamIDs(fn), scope)
 	if len(paramSpecs) == 0 && len(fn.Generics) > 0 {
 		paramSpecs = specsFromNames(fn.Generics)

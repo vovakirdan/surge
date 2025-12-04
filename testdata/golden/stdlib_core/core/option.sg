@@ -7,6 +7,8 @@ pub fn default<T>() -> T;
 pub fn panic(msg: string) -> nothing;
 
 
+// Core Option type and its constructor.
+
 pub tag Some<T>(T);
 pub type Option<T> = Some(T) | nothing;
 
@@ -37,5 +39,5 @@ extern<Option<T>> {
             Some(_) => false;
             _ => true;
         };
-    }    
+    }
 }

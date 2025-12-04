@@ -44,11 +44,12 @@ func (tc *typeChecker) processExternBlock(itemID ast.ItemID, block *ast.ExternBl
 
 	scope := tc.scopeForItem(itemID)
 	paramSpecs := tc.externTypeParamSpecs(block.Target, scope)
+	receiverOwner := tc.externTargetSymbol(block.Target, scope)
 	paramNames := make([]source.StringID, 0, len(paramSpecs))
 	for _, spec := range paramSpecs {
 		paramNames = append(paramNames, spec.name)
 	}
-	pushed := tc.pushTypeParams(symbols.NoSymbolID, paramSpecs, nil)
+	pushed := tc.pushTypeParams(receiverOwner, paramSpecs, nil)
 	if pushed {
 		defer tc.popTypeParams()
 	}
@@ -282,6 +283,17 @@ func (tc *typeChecker) externTypeParamSpecs(target ast.TypeID, scope symbols.Sco
 	}
 	visit(target, expected, paramKindType, types.NoTypeID)
 	return specs
+}
+
+func (tc *typeChecker) externTargetSymbol(target ast.TypeID, scope symbols.ScopeID) symbols.SymbolID {
+	if tc.builder == nil || !target.IsValid() {
+		return symbols.NoSymbolID
+	}
+	scope = tc.scopeOrFile(scope)
+	if path, ok := tc.builder.Types.Path(target); ok && path != nil && len(path.Segments) == 1 {
+		return tc.lookupTypeSymbol(path.Segments[0].Name, scope)
+	}
+	return symbols.NoSymbolID
 }
 
 func (tc *typeChecker) isKnownTypeName(id source.StringID) bool {
