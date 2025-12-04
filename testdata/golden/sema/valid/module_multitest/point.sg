@@ -1,0 +1,3 @@
+pub fn point() -> string {
+    return "point";
+}

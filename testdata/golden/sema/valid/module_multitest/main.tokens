@@ -1,0 +1,65 @@
+  1: KwImport        "import" at 1:1-1:7
+  2: Ident           "scripts" at 1:8-1:15 (leading: Space)
+  3: ColonColon      "::" at 1:15-1:17
+  4: LBrace          "{" at 1:17-1:18
+  5: Ident           "alpha" at 1:18-1:23
+  6: Comma           "," at 1:23-1:24
+  7: Ident           "beta" at 1:25-1:29 (leading: Space)
+  8: RBrace          "}" at 1:29-1:30
+  9: Semicolon       ";" at 1:30-1:31
+ 10: KwImport        "import" at 2:1-2:7 (leading: Newline)
+ 11: Ident           "bar" at 2:8-2:11 (leading: Space)
+ 12: ColonColon      "::" at 2:11-2:13
+ 13: Ident           "hello" at 2:13-2:18
+ 14: Semicolon       ";" at 2:18-2:19
+ 15: KwImport        "import" at 3:1-3:7 (leading: Newline)
+ 16: Ident           "point" at 3:8-3:13 (leading: Space)
+ 17: Semicolon       ";" at 3:13-3:14
+ 18: KwFn            "fn" at 6:1-6:3 (leading: Newline, LineComment, Newline)
+ 19: Ident           "print" at 6:4-6:9 (leading: Space)
+ 20: LParen          "(" at 6:9-6:10
+ 21: Ident           "s" at 6:10-6:11
+ 22: Colon           ":" at 6:11-6:12
+ 23: Ident           "string" at 6:13-6:19 (leading: Space)
+ 24: RParen          ")" at 6:19-6:20
+ 25: LBrace          "{" at 6:21-6:22 (leading: Space)
+ 26: RBrace          "}" at 6:22-6:23
+ 27: At              "@" at 8:1-8:2 (leading: Newline)
+ 28: Ident           "entrypoint" at 8:2-8:12
+ 29: KwFn            "fn" at 9:1-9:3 (leading: Newline)
+ 30: Ident           "main" at 9:4-9:8 (leading: Space)
+ 31: LParen          "(" at 9:8-9:9
+ 32: RParen          ")" at 9:9-9:10
+ 33: LBrace          "{" at 9:11-9:12 (leading: Space)
+ 34: Ident           "print" at 10:5-10:10 (leading: Newline, Space)
+ 35: LParen          "(" at 10:10-10:11
+ 36: Ident           "alpha" at 10:11-10:16
+ 37: LParen          "(" at 10:16-10:17
+ 38: RParen          ")" at 10:17-10:18
+ 39: RParen          ")" at 10:18-10:19
+ 40: Semicolon       ";" at 10:19-10:20
+ 41: Ident           "print" at 11:5-11:10 (leading: Newline, Space)
+ 42: LParen          "(" at 11:10-11:11
+ 43: Ident           "beta" at 11:11-11:15
+ 44: LParen          "(" at 11:15-11:16
+ 45: RParen          ")" at 11:16-11:17
+ 46: RParen          ")" at 11:17-11:18
+ 47: Semicolon       ";" at 11:18-11:19
+ 48: Ident           "print" at 12:5-12:10 (leading: Newline, Space)
+ 49: LParen          "(" at 12:10-12:11
+ 50: Ident           "hello" at 12:11-12:16
+ 51: LParen          "(" at 12:16-12:17
+ 52: RParen          ")" at 12:17-12:18
+ 53: RParen          ")" at 12:18-12:19
+ 54: Semicolon       ";" at 12:19-12:20
+ 55: Ident           "print" at 13:5-13:10 (leading: Newline, Space)
+ 56: LParen          "(" at 13:10-13:11
+ 57: Ident           "point" at 13:11-13:16
+ 58: Dot             "." at 13:16-13:17
+ 59: Ident           "point" at 13:17-13:22
+ 60: LParen          "(" at 13:22-13:23
+ 61: RParen          ")" at 13:23-13:24
+ 62: RParen          ")" at 13:24-13:25
+ 63: Semicolon       ";" at 13:25-13:26
+ 64: RBrace          "}" at 14:1-14:2 (leading: Newline)
+ 65: EOF             at 15:1-15:1

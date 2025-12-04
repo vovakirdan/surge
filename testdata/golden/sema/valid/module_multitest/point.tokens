@@ -1,0 +1,13 @@
+  1: KwPub           "pub" at 1:1-1:4
+  2: KwFn            "fn" at 1:5-1:7 (leading: Space)
+  3: Ident           "point" at 1:8-1:13 (leading: Space)
+  4: LParen          "(" at 1:13-1:14
+  5: RParen          ")" at 1:14-1:15
+  6: Arrow           "->" at 1:16-1:18 (leading: Space)
+  7: Ident           "string" at 1:19-1:25 (leading: Space)
+  8: LBrace          "{" at 1:26-1:27 (leading: Space)
+  9: KwReturn        "return" at 2:5-2:11 (leading: Newline, Space)
+ 10: StringLit       "\"point\"" at 2:12-2:19 (leading: Space)
+ 11: Semicolon       ";" at 2:19-2:20
+ 12: RBrace          "}" at 3:1-3:2 (leading: Newline)
+ 13: EOF             at 4:1-4:1

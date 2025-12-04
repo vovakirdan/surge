@@ -1,0 +1,5 @@
+pragma module; // scripts/alpha.sg -> alpha should be imported as scripts
+
+pub fn alpha() -> string {
+    return "alpha";
+}

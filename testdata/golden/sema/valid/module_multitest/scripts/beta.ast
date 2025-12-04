@@ -1,0 +1,9 @@
+beta.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 3:1-5:2)
+   ├─ Name: beta
+   ├─ Params: ()
+   ├─ Return: string
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:25-5:2)
+         └─ Stmt[0]: Return (span: 4:5-4:19)
+            └─ Expr: expr#1: "beta"
