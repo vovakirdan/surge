@@ -59,16 +59,16 @@ type DiagnoseOptions struct {
 }
 
 // Diagnose запускает диагностику файла до указанного уровня
-func Diagnose(path string, stage DiagnoseStage, maxDiagnostics int) (*DiagnoseResult, error) {
+func Diagnose(filePath string, stage DiagnoseStage, maxDiagnostics int) (*DiagnoseResult, error) {
 	opts := DiagnoseOptions{
 		Stage:          stage,
 		MaxDiagnostics: maxDiagnostics,
 	}
-	return DiagnoseWithOptions(path, opts)
+	return DiagnoseWithOptions(filePath, opts)
 }
 
 // DiagnoseWithOptions запускает диагностику файла с указанными опциями
-func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, error) {
+func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult, error) {
 	var timer *observ.Timer
 	if opts.EnableTimings {
 		timer = observ.NewTimer()
@@ -91,7 +91,7 @@ func DiagnoseWithOptions(path string, opts DiagnoseOptions) (*DiagnoseResult, er
 	// Создаём FileSet и загружаем файл
 	fs := source.NewFileSet()
 	sharedTypes := types.NewInterner()
-	fileID, err := fs.Load(path)
+	fileID, err := fs.Load(filePath)
 	end(loadIdx, "")
 	if err != nil {
 		return nil, err
@@ -327,9 +327,9 @@ type ParseResult struct {
 	Bag     *diag.Bag
 }
 
-func Parse(path string, maxDiagnostics int) (*ParseResult, error) {
+func Parse(filePath string, maxDiagnostics int) (*ParseResult, error) {
 	fs := source.NewFileSet()
-	fileID, err := fs.Load(path)
+	fileID, err := fs.Load(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -612,23 +612,23 @@ func validateCoreModule(meta *project.ModuleMeta, file *source.File, stdlibRoot 
 }
 
 func fallbackModuleMeta(file *source.File, baseDir string) *project.ModuleMeta {
-	path := file.Path
+	filePath := file.Path
 	if baseDir != "" {
-		if rel, err := source.RelativePath(path, baseDir); err == nil {
-			path = rel
+		if rel, err := source.RelativePath(filePath, baseDir); err == nil {
+			filePath = rel
 		}
 	}
-	if norm, err := project.NormalizeModulePath(path); err == nil {
-		path = norm
+	if norm, err := project.NormalizeModulePath(filePath); err == nil {
+		filePath = norm
 	}
 	lenFileContent, err := safecast.Conv[uint32](len(file.Content))
 	if err != nil {
 		panic(fmt.Errorf("len file content overflow: %w", err))
 	}
 	return &project.ModuleMeta{
-		Name: filepath.Base(path),
-		Path: path,
-		Dir:  filepath.Dir(path),
+		Name: filepath.Base(filePath),
+		Path: filePath,
+		Dir:  filepath.Dir(filePath),
 		Kind: project.ModuleKindModule,
 		Span: source.Span{File: file.ID, Start: 0, End: lenFileContent},
 	}

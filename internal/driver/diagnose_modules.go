@@ -445,7 +445,7 @@ func findExplicitModuleDir(baseDir, name string) string {
 	explicitModuleDirCache.mu.Unlock()
 
 	found := make(map[string]string)
-	_ = filepath.WalkDir(baseDir, func(path string, d os.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(baseDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -472,6 +472,9 @@ func findExplicitModuleDir(baseDir, name string) string {
 		}
 		return nil
 	})
+	if walkErr != nil && len(found) == 0 {
+		return ""
+	}
 
 	explicitModuleDirCache.mu.Lock()
 	if explicitModuleDirCache.byBase == nil {
