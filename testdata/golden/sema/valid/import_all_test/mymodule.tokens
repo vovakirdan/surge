@@ -1,0 +1,41 @@
+  1: KwPragma        "pragma" at 2:1-2:7 (leading: LineComment, Newline)
+  2: Ident           "module" at 2:8-2:14 (leading: Space)
+  3: Semicolon       ";" at 2:14-2:15
+  4: KwPub           "pub" at 4:1-4:4 (leading: Newline)
+  5: Kind(5)         "const" at 4:5-4:10 (leading: Space)
+  6: Ident           "MODULE_CONST" at 4:11-4:23 (leading: Space)
+  7: Colon           ":" at 4:23-4:24
+  8: Ident           "int" at 4:25-4:28 (leading: Space)
+  9: Assign          "=" at 4:29-4:30 (leading: Space)
+ 10: IntLit          "42" at 4:31-4:33 (leading: Space)
+ 11: Semicolon       ";" at 4:33-4:34
+ 12: KwPub           "pub" at 5:1-5:4 (leading: Newline)
+ 13: KwFn            "fn" at 5:5-5:7 (leading: Space)
+ 14: Ident           "moduleFunc" at 5:8-5:18 (leading: Space)
+ 15: LParen          "(" at 5:18-5:19
+ 16: RParen          ")" at 5:19-5:20
+ 17: Arrow           "->" at 5:21-5:23 (leading: Space)
+ 18: Ident           "int" at 5:24-5:27 (leading: Space)
+ 19: LBrace          "{" at 5:28-5:29 (leading: Space)
+ 20: KwReturn        "return" at 5:30-5:36 (leading: Space)
+ 21: IntLit          "100" at 5:37-5:40 (leading: Space)
+ 22: Semicolon       ";" at 5:40-5:41
+ 23: RBrace          "}" at 5:42-5:43 (leading: Space)
+ 24: KwPub           "pub" at 6:1-6:4 (leading: Newline)
+ 25: KwType          "type" at 6:5-6:9 (leading: Space)
+ 26: Ident           "ModuleType" at 6:10-6:20 (leading: Space)
+ 27: Assign          "=" at 6:21-6:22 (leading: Space)
+ 28: LBrace          "{" at 6:23-6:24 (leading: Space)
+ 29: Ident           "value" at 6:25-6:30 (leading: Space)
+ 30: Colon           ":" at 6:30-6:31
+ 31: Ident           "int" at 6:32-6:35 (leading: Space)
+ 32: RBrace          "}" at 6:36-6:37 (leading: Space)
+ 33: Semicolon       ";" at 6:37-6:38
+ 34: Kind(5)         "const" at 9:1-9:6 (leading: Newline, LineComment, Newline)
+ 35: Ident           "privateConst" at 9:7-9:19 (leading: Space)
+ 36: Colon           ":" at 9:19-9:20
+ 37: Ident           "int" at 9:21-9:24 (leading: Space)
+ 38: Assign          "=" at 9:25-9:26 (leading: Space)
+ 39: IntLit          "99" at 9:27-9:29 (leading: Space)
+ 40: Semicolon       ";" at 9:29-9:30
+ 41: EOF             at 10:1-10:1

@@ -1,0 +1,20 @@
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:1:1 unknown type Option
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:3:23 unknown type Option
+error SEM3015 testdata/golden/sema/valid/erring_option.sg:4:5 function returning nothing cannot return a value
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:4:12 cannot resolve 'Some'
+error SEM3046 testdata/golden/sema/valid/erring_option.sg:4:12 no matching overload for Some
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:7:23 unknown type Erring
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:7:35 unknown type Error
+error SEM3015 testdata/golden/sema/valid/erring_option.sg:8:5 function returning nothing cannot return a value
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:8:12 cannot resolve 'Success'
+error SEM3046 testdata/golden/sema/valid/erring_option.sg:8:12 no matching overload for Success
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:12:17 unknown type Option
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:13:22 unknown has no method safe
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:21:34 unknown type Option
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:22:17 unknown type Option
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:23:5 unknown has no method panic
+error SEM3015 testdata/golden/sema/valid/erring_option.sg:25:5 function returning nothing cannot return a value
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:29:17 unknown type Error
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:30:22 unknown has no method safe
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:40:17 unknown type Error
+error SEM3005 testdata/golden/sema/valid/erring_option.sg:41:5 unknown has no method exit

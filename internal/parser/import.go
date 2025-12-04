@@ -44,7 +44,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		one           ast.ImportOne
 		hasOne        bool
 		pairs         []ast.ImportPair
-		importAll     bool // флаг для "import module::*"
+		importAll     bool   // флаг для "import module::*"
 		needSemicolon = true // флаг для определения нужности `;` в конце
 		groupOpenSpan source.Span
 		trailingComma source.Span

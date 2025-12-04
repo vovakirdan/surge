@@ -1,0 +1,11 @@
+// Module with private and @hidden symbols for testing import::*
+pragma module;
+
+pub const PUBLIC_CONST: int = 42;
+const PRIVATE_CONST: int = 99;
+
+pub fn publicFunc() -> int { return 1; }
+fn privateFunc() -> int { return 2; }
+
+@hidden pub const HIDDEN_CONST: int = 77;
+@hidden pub fn hiddenFunc() -> int { return 3; }

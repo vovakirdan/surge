@@ -1,0 +1,22 @@
+import_all.sg (span: 2:1-12:1)
+├─ Item[0]: Import (span: 3:1-3:38)
+│  └─ Module: .::import_all_test::mymodule
+└─ Item[1]: Fn (span: 5:1-11:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 5:18-11:2)
+         ├─ Stmt[0]: StmtKind(2) (span: 7:5-7:35)
+         ├─ Stmt[1]: Let (span: 8:5-8:36)
+         │  ├─ Name: result
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#3: moduleFunc()
+         ├─ Stmt[2]: Let (span: 9:5-9:54)
+         │  ├─ Name: obj
+         │  ├─ Mutable: false
+         │  ├─ Type: ModuleType
+         │  └─ Value: expr#7: <ExprKind(17)>
+         └─ Stmt[3]: Return (span: 10:5-10:37)
+            └─ Expr: expr#13: (((val + result)) + obj.value)

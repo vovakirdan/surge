@@ -69,40 +69,5 @@ find "${GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r
 	generate_outputs "${src}" "${dir}" "${is_invalid}" 0
 done
 
-# For stdlib core modules: do NOT recreate (overwrite sources), just make sure diagnostics are empty,
-# and bake tokens/ast/fmt for regression tracking.
-find "${ROOT_DIR}/core" -maxdepth 1 -type f -name '*.sg' -print0 | sort -z | while IFS= read -r -d '' src; do
-	abs_src="$(cd "$(dirname "${src}")" && pwd)/$(basename "${src}")"
-	base="$(basename "${src}")"
-	name="${base%.sg}"
-	out_dir="${CORE_GOLDEN_DIR}"
-
-	diag_file="${out_dir}/${name}.diag"
-
-	mkdir -p "${out_dir}"
-
-	# Check diagnostics: if non-empty, this is an error (must be valid).
-	if ! SURGE_STDLIB="${ROOT_DIR}" "${SURGE_BIN}" diag --format short "${abs_src}" > "${diag_file}" 2>/dev/null; then
-		echo "diagnostics failed for core stdlib file (should be valid): ${abs_src}" >&2
-		exit 1
-	fi
-	if [[ -s "${diag_file}" ]]; then
-		echo "non-empty diagnostics for core stdlib file (should be valid): ${abs_src}" >&2
-		echo "==== diag output ===="
-		cat "${diag_file}" >&2
-		echo "==== end diag output ===="
-		exit 1
-	fi
-
-	SURGE_STDLIB="${ROOT_DIR}" "${SURGE_BIN}" tokenize "${abs_src}" > "${out_dir}/${name}.tokens" 2>/dev/null
-	SURGE_STDLIB="${ROOT_DIR}" "${SURGE_BIN}" parse "${abs_src}" > "${out_dir}/${name}.ast" 2>/dev/null
-
-	if ! SURGE_STDLIB="${ROOT_DIR}" "${SURGE_BIN}" fmt --stdout "${abs_src}" > "${out_dir}/${name}.fmt" 2>/dev/null; then
-		cp "${abs_src}" "${out_dir}/${name}.fmt"
-		if [[ "${GOLDEN_VERBOSE:-0}" != "0" ]]; then
-			echo "fmt failed for ${abs_src}, copied original content" >&2
-		fi
-	fi
-
-	# Do NOT overwrite/copy the source file itself here (don't recreate the .sg in golden/core).
-done
+# Core stdlib files are validated via testdata/golden/stdlib_core/* instead
+# (direct diagnosis of core/* is forbidden due to reserved namespace)

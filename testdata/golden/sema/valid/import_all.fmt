@@ -1,0 +1,11 @@
+// scenario: import all public symbols from a module using import module::*
+pragma no_std;
+import ./import_all_test/mymodule;
+
+fn main() -> int {
+    // All public symbols should be available directly
+    const val: int = MODULE_CONST;
+    let result: int = moduleFunc();
+    let obj: ModuleType = ModuleType { value = 123 };
+    return val + result + obj.value;
+}

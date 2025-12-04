@@ -1,0 +1,28 @@
+privatemodule.sg (span: 2:1-12:1)
+├─ Item[0]: Unknown(2) (span: 4:1-4:34)
+├─ Item[1]: Unknown(2) (span: 5:1-5:31)
+├─ Item[2]: Fn (span: 7:1-7:41)
+│  ├─ Name: publicFunc
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:28-7:41)
+│        └─ Stmt[0]: Return (span: 7:30-7:39)
+│           └─ Expr: expr#3: 1
+├─ Item[3]: Fn (span: 8:1-8:38)
+│  ├─ Name: privateFunc
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:25-8:38)
+│        └─ Stmt[0]: Return (span: 8:27-8:36)
+│           └─ Expr: expr#4: 2
+├─ Item[4]: Unknown(2) (span: 10:1-10:42)
+└─ Item[5]: Fn (span: 11:1-11:49)
+   ├─ Name: hiddenFunc
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:36-11:49)
+         └─ Stmt[0]: Return (span: 11:38-11:47)
+            └─ Expr: expr#6: 3

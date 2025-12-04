@@ -1,0 +1,8 @@
+error SEM3046 core/intrinsics.sg:239:5 no matching overload for exit
+error SEM3038 core/result.sg:10:18 type `E` missing required fields by contract `ErrorLike`: `message`, `code`
+error SEM3038 core/result.sg:11:50 type `E` missing required fields by contract `ErrorLike`: `message`, `code`
+error SEM3038 core/result.sg:18:50 type `E` missing required fields by contract `ErrorLike`: `message`, `code`
+error SEM3038 core/result.sg:21:25 type `Erring` missing required fields by contract `ErrorLike`: `code`, `message`
+error SEM3038 core/result.sg:25:34 type `E` missing required fields by contract `ErrorLike`: `message`, `code`
+error SEM3038 core/result.sg:32:39 type `E` missing required fields by contract `ErrorLike`: `message`, `code`
+error SEM3038 core/result.sg:39:37 type `E` missing required fields by contract `ErrorLike`: `code`, `message`

@@ -1,0 +1,19 @@
+// scenario: import module::* should NOT import private or @hidden symbols
+pragma no_std;
+import ./import_all_private_test/privatemodule::*;
+
+fn main() -> int {
+    // Public symbols should work
+    const pub_val: int = PUBLIC_CONST;
+    let pub_result: int = publicFunc();
+
+    // Private symbols should NOT be available - should cause errors
+    const priv_val: int = PRIVATE_CONST;  // ERROR: undefined
+    let priv_result: int = privateFunc();  // ERROR: undefined
+
+    // @hidden symbols should NOT be available - should cause errors
+    const hidden_val: int = HIDDEN_CONST;  // ERROR: undefined
+    let hidden_result: int = hiddenFunc();  // ERROR: undefined
+
+    return pub_val + pub_result;
+}
