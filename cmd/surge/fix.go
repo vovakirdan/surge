@@ -4,6 +4,7 @@ package main
 // флаг --interactive/--tui включает интерактивный режим замен
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -97,13 +98,13 @@ func runFix(cmd *cobra.Command, args []string) error {
 	}
 
 	if !info.IsDir() {
-		return runFixFile(targetPath, driverOpts, opts)
+		return runFixFile(cmd.Context(), targetPath, driverOpts, opts)
 	}
 	return runFixDir(cmd, targetPath, driverOpts, opts)
 }
 
-func runFixFile(path string, driverOpts driver.DiagnoseOptions, opts fix.ApplyOptions) error {
-	result, err := driver.DiagnoseWithOptions(path, driverOpts)
+func runFixFile(ctx context.Context, path string, driverOpts driver.DiagnoseOptions, opts fix.ApplyOptions) error {
+	result, err := driver.DiagnoseWithOptions(ctx, path, driverOpts)
 	if err != nil {
 		return fmt.Errorf("fix: diagnose failed: %w", err)
 	}

@@ -29,13 +29,14 @@ func (k Kind) String() string {
 }
 
 // Scope indicates the granularity level of the event.
+// Lower numeric values represent higher-level/coarser events.
 type Scope uint8
 
 const (
-	ScopeDriver Scope = iota + 1 // top-level driver operations
-	ScopeModule                   // per-module processing
+	ScopeDriver Scope = iota + 1 // top-level driver operations (highest level)
 	ScopePass                     // compilation passes (lex, parse, sema, borrow)
-	ScopeNode                     // AST node level (future)
+	ScopeModule                   // per-module processing (more detailed)
+	ScopeNode                     // AST node level (most detailed, future)
 )
 
 // String returns the string representation of Scope.
@@ -43,10 +44,10 @@ func (s Scope) String() string {
 	switch s {
 	case ScopeDriver:
 		return "driver"
-	case ScopeModule:
-		return "module"
 	case ScopePass:
 		return "pass"
+	case ScopeModule:
+		return "module"
 	case ScopeNode:
 		return "node"
 	default:

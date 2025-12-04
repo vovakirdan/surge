@@ -70,6 +70,7 @@ func setupTracing(cmd *cobra.Command) (func(), error) {
 	// Attach tracer to context
 	ctx := trace.WithTracer(cmd.Context(), tracer)
 	cmd.SetContext(ctx)
+	cmd.Root().SetContext(ctx)
 
 	// Return cleanup function
 	cleanup := func() {

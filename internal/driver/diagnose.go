@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path"
@@ -19,6 +20,7 @@ import (
 	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/trace"
 	"surge/internal/types"
 
 	"fortio.org/safecast"
@@ -59,16 +61,21 @@ type DiagnoseOptions struct {
 }
 
 // Diagnose запускает диагностику файла до указанного уровня
-func Diagnose(filePath string, stage DiagnoseStage, maxDiagnostics int) (*DiagnoseResult, error) {
+func Diagnose(ctx context.Context, filePath string, stage DiagnoseStage, maxDiagnostics int) (*DiagnoseResult, error) {
 	opts := DiagnoseOptions{
 		Stage:          stage,
 		MaxDiagnostics: maxDiagnostics,
 	}
-	return DiagnoseWithOptions(filePath, opts)
+	return DiagnoseWithOptions(ctx, filePath, opts)
 }
 
 // DiagnoseWithOptions запускает диагностику файла с указанными опциями
-func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult, error) {
+func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOptions) (*DiagnoseResult, error) {
+	// Get tracer from context
+	tracer := trace.FromContext(ctx)
+	diagSpan := trace.Begin(tracer, trace.ScopeDriver, "diagnose", 0)
+	defer diagSpan.End("")
+
 	var timer *observ.Timer
 	if opts.EnableTimings {
 		timer = observ.NewTimer()
@@ -88,10 +95,12 @@ func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult
 	}
 
 	loadIdx := begin("load_file")
+	loadSpan := trace.Begin(tracer, trace.ScopePass, "load_file", diagSpan.ID())
 	// Создаём FileSet и загружаем файл
 	fs := source.NewFileSet()
 	sharedTypes := types.NewInterner()
 	fileID, err := fs.Load(filePath)
+	loadSpan.End("")
 	end(loadIdx, "")
 	if err != nil {
 		return nil, err
@@ -113,11 +122,13 @@ func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult
 	cache := NewModuleCache(256)
 
 	tokenIdx := begin("tokenize")
+	tokenSpan := trace.Begin(tracer, trace.ScopePass, "tokenize", diagSpan.ID())
 	err = diagnoseTokenize(file, bag)
 	tokenNote := ""
 	if timer != nil {
 		tokenNote = fmt.Sprintf("diags=%d", bag.Len())
 	}
+	tokenSpan.End(tokenNote)
 	end(tokenIdx, tokenNote)
 	if err != nil {
 		return nil, err
@@ -125,6 +136,7 @@ func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult
 
 	if opts.Stage != DiagnoseStageTokenize {
 		parseIdx := begin("parse")
+		parseSpan := trace.Begin(tracer, trace.ScopePass, "parse", diagSpan.ID())
 		builder, astFile = diagnoseParseWithStrings(fs, file, bag, sharedStrings)
 		parseNote := ""
 		if timer != nil && builder != nil && builder.Files != nil {
@@ -133,12 +145,15 @@ func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult
 				parseNote = fmt.Sprintf("items=%d", len(fileNode.Items))
 			}
 		}
+		parseSpan.End(parseNote)
 		end(parseIdx, parseNote)
 
 		graphIdx := begin("imports_graph")
+		graphSpan := trace.Begin(tracer, trace.ScopePass, "imports_graph", diagSpan.ID())
 		var moduleExports map[string]*symbols.ModuleExports
 		var rootRec *moduleRecord
 		moduleExports, rootRec, err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache, sharedTypes, sharedStrings)
+		graphSpan.End("")
 		end(graphIdx, "")
 		if err != nil {
 			return nil, err
@@ -148,6 +163,7 @@ func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult
 		}
 		if opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
 			symbolIdx := begin("symbols")
+			symbolSpan := trace.Begin(tracer, trace.ScopePass, "symbols", diagSpan.ID())
 			if rootRec != nil {
 				if moduleExports == nil {
 					moduleExports = make(map[string]*symbols.ModuleExports)
@@ -178,11 +194,14 @@ func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult
 			if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
 				symbolNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
 			}
+			symbolSpan.End(symbolNote)
 			end(symbolIdx, symbolNote)
 
 			if semaRes == nil {
 				semaIdx := begin("sema")
+				semaSpan := trace.Begin(tracer, trace.ScopePass, "sema", diagSpan.ID())
 				semaRes = diagnoseSemaWithTypes(builder, astFile, bag, moduleExports, symbolsRes, sharedTypes)
+				semaSpan.End("")
 				end(semaIdx, "")
 			}
 		}
