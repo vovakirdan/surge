@@ -649,7 +649,7 @@ func TestResolveIntrinsicValid(t *testing.T) {
 	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter:   &diag.BagReporter{Bag: bag},
 		Validate:   true,
-		ModulePath: "core/intrinsics",
+		ModulePath: "core",
 		FilePath:   "core/intrinsics.sg",
 	})
 
@@ -698,7 +698,7 @@ func TestResolveIntrinsicHasBody(t *testing.T) {
 	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter:   &diag.BagReporter{Bag: bag},
 		Validate:   true,
-		ModulePath: "core/intrinsics",
+		ModulePath: "core",
 		FilePath:   "core/intrinsics.sg",
 	})
 
@@ -723,7 +723,7 @@ func TestResolveIntrinsicBadName(t *testing.T) {
 	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter:   &diag.BagReporter{Bag: bag},
 		Validate:   true,
-		ModulePath: "core/intrinsics",
+		ModulePath: "core",
 		FilePath:   "core/intrinsics.sg",
 	})
 
@@ -751,7 +751,7 @@ func TestResolveIntrinsicOverrideForbidden(t *testing.T) {
 	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter:   &diag.BagReporter{Bag: bag},
 		Validate:   true,
-		ModulePath: "core/intrinsics",
+		ModulePath: "core",
 		FilePath:   "core/intrinsics.sg",
 	})
 
@@ -1059,7 +1059,7 @@ func containsCode(bag *diag.Bag, code diag.Code) bool {
 }
 
 func coreIntrinsicsExports(builder *ast.Builder) map[string]*ModuleExports {
-	exports := NewModuleExports("core/intrinsics")
+	exports := NewModuleExports("core")
 	symbols := []ExportedSymbol{
 		{
 			Name:           "__index",
@@ -1089,7 +1089,7 @@ func coreIntrinsicsExports(builder *ast.Builder) map[string]*ModuleExports {
 		}
 		exports.Add(exp)
 	}
-	return map[string]*ModuleExports{"core/intrinsics": exports}
+	return map[string]*ModuleExports{"core": exports}
 }
 
 func expectNoDiagnostics(t *testing.T, bag *diag.Bag) {

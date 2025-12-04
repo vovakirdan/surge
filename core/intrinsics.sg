@@ -1,3 +1,5 @@
+pragma module, no_std;
+
 pub type byte = uint8;
 
 @intrinsic fn rt_alloc(size: uint, align: uint) -> *byte;

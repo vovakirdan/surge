@@ -398,10 +398,7 @@ func ensureStdlibModules(
 	}
 	exports := collectedExports(records)
 	for _, module := range []string{
-		stdModuleCoreIntrinsics,
-		stdModuleCoreBase,
-		stdModuleCoreOption,
-		stdModuleCoreResult,
+		stdModuleCore,
 	} {
 		if _, ok := records[module]; ok {
 			continue
@@ -560,22 +557,6 @@ func loadStdModule(
 	if cache != nil {
 		cache.Put(meta, broken, firstErr)
 	}
-	res := symbols.ResolveFile(builder, fileIDs[0], &symbols.ResolveOptions{
-		Reporter:      reporter,
-		Validate:      true,
-		ModulePath:    meta.Path,
-		FilePath:      files[0].Path,
-		BaseDir:       stdlibRoot,
-		ModuleExports: moduleExports,
-	})
-	markSymbolsBuiltin(&res)
-	semaRes := sema.Check(builder, fileIDs[0], sema.Options{
-		Reporter: reporter,
-		Symbols:  &res,
-		Exports:  moduleExports,
-		Types:    typeInterner,
-	})
-	exports := symbols.CollectExports(builder, res, meta.Path)
 	rec := &moduleRecord{
 		Meta:     meta,
 		Bag:      bag,
@@ -584,14 +565,17 @@ func loadStdModule(
 		Builder:  builder,
 		FileIDs:  fileIDs,
 		Files:    files,
-		Table:    res.Table,
-		Sema: map[ast.FileID]*sema.Result{
-			fileIDs[0]: &semaRes,
-		},
-		Symbols: map[ast.FileID]symbols.Result{
-			fileIDs[0]: res,
-		},
-		Exports: exports,
+	}
+	exports := resolveModuleRecord(rec, stdlibRoot, moduleExports, typeInterner, opts)
+	if exports != nil {
+		rec.Exports = exports
+		if rec.Symbols != nil {
+			for i := range rec.Symbols {
+				res := rec.Symbols[i]
+				markSymbolsBuiltin(&res)
+				rec.Symbols[i] = res
+			}
+		}
 	}
 	return rec, nil
 }

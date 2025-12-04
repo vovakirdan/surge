@@ -565,7 +565,7 @@ Attributes are a **closed set** provided by the language. User-defined attribute
 * `@override` *(fn)* — replaces an existing implementation for a target type. Only valid within `extern<T>` and `extern<Newtype>` blocks. Invalid override contexts surface as `SemaFnOverride`. Incompatible with `@overload`.
 
   **Exception:** `@override` may be used outside `extern<T>` only if the target symbol is local to the current module (declared earlier in the same module) and previously had no body implementation.
-* `@intrinsic` *(fn)* — marks function as a language intrinsic (implementation provided by runtime/compiler). Intrinsics are declared only as function declarations without body (`fn name(...): Ret;`) in the special module `core/intrinsics` and made available to other code through standard library re-exports. User code cannot declare intrinsics outside `core/intrinsics`. Violations emit errors per §21.
+* `@intrinsic` *(fn)* — marks function as a language intrinsic (implementation provided by runtime/compiler). Intrinsics are declared only as function declarations without body (`fn name(...): Ret;`) in the special core module (all files under `core/`) and made available to other code through standard library re-exports. User code cannot declare intrinsics outside `core`. Violations emit errors per §21.
 
 #### B. Code Generation and ABI
 
@@ -652,7 +652,7 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 
 * Target platform and ABI for intrinsics are fixed in RUNTIME.md.
 * List of permitted names is restricted: `rt_alloc`, `rt_free`, `rt_realloc`, `rt_memcpy`, `rt_memmove`. Any other names → error.
-* Intrinsics cannot have body; any attempts to provide implementation or call `@intrinsic` outside `core/intrinsics` → errors (§21).
+* Intrinsics cannot have body; any attempts to provide implementation or call `@intrinsic` outside the `core` module → errors (§21).
 
 Parser behavior:
 
@@ -824,7 +824,7 @@ Each file is a module. Folder hierarchy maps to module paths.
 // Safe-navigation (?.) is not part of Surge; prefer compare for Option
 ```
 
-**How operators are implemented.** Every primitive that participates in one of the operators above must expose the matching magic method inside an `extern<T>` block. The standard library ships those implementations in `core/intrinsics.sg`: each method is marked `@intrinsic` so the compiler can lower it straight to the runtime. Sema never assumes the result type of `int + int` or `string * uint`—it always resolves the magic method on the left operand (following alias inheritance rules) and uses that signature as the single source of truth. If no method exists, the operator is rejected with `SemaInvalidBinaryOperands`. For example, integer addition is defined as
+**How operators are implemented.** Every primitive that participates in one of the operators above must expose the matching magic method inside an `extern<T>` block. The standard library ships those implementations in `core/intrinsics.sg` (module `core`): each method is marked `@intrinsic` so the compiler can lower it straight to the runtime. Sema never assumes the result type of `int + int` or `string * uint`—it always resolves the magic method on the left operand (following alias inheritance rules) and uses that signature as the single source of truth. If no method exists, the operator is rejected with `SemaInvalidBinaryOperands`. For example, integer addition is defined as
 
 ```sg
 extern<int> {
@@ -833,7 +833,7 @@ extern<int> {
 }
 ```
 
-Sema never assumes that `int + int` yields `int`. Instead, it resolves `__add` for the left operand’s type (respecting overrides/newtypes) and uses that signature as the source of truth. User-defined types opt in by providing their own `extern<MyType>` blocks; built-ins rely on the intrinsic versions provided by `core/intrinsics.sg`.
+Sema never assumes that `int + int` yields `int`. Instead, it resolves `__add` for the left operand’s type (respecting overrides/newtypes) and uses that signature as the source of truth. User-defined types opt in by providing their own `extern<MyType>` blocks; built-ins rely on the intrinsic versions provided by `core/intrinsics.sg` (module `core`).
 
 ### 6.2. Type Checking Operator (`is`)
 
@@ -902,7 +902,7 @@ extern<From> {
 }
 ```
 
-Each target type gets its own overload; primitives in `core/intrinsics.sg` ship `@intrinsic` definitions while user code adds `@overload` bodies. The `to` operator drives resolution:
+Each target type gets its own overload; primitives in `core/intrinsics.sg` (module `core`) ship `@intrinsic` definitions while user code adds `@overload` bodies. The `to` operator drives resolution:
 
 1. If `From` and `To` (after resolving aliases) are identical, the cast is a no-op.
 2. Built-in numeric rules from §6.4 are consulted first (e.g., dynamic↔fixed conversions).
@@ -936,7 +936,7 @@ let raw: uint64 = uid to uint64;
 
 ### 6.6. Saturating casts
 
-Fixed-width numerics implement the `Bounded<T>` contract via static methods `__min_value/__max_value` defined in `core/intrinsics.sg`. The stdlib exposes helpers:
+Fixed-width numerics implement the `Bounded<T>` contract via static methods `__min_value/__max_value` defined in `core/intrinsics.sg` (module `core`). The stdlib exposes helpers:
 
 ```sg
 fn min_value<T: Bounded<T>>() -> T { T.__min_value::<T>() }
@@ -1600,7 +1600,7 @@ fn encode_frame(buf:&byte[], out:&mut byte[]) -> uint {
 ```
 
 ```sg
-// core/intrinsics example (only in special module)
+// core/intrinsics example (only in special module core)
 // core/intrinsics.sg
 @intrinsic fn rt_alloc(size:uint, align:uint) -> *byte;
 @intrinsic fn rt_free(ptr:*byte, size:uint, align:uint) -> nothing;
@@ -2144,7 +2144,7 @@ Suffix         := "[]"
 * Concurrency contract attributes describe *analyzable requirements* and do not change language semantics at runtime. Violations may not always be statically checkable; in such cases the compiler emits `W_CONC_UNVERIFIED` and defers verification to linters or runtime debug tools.
 * **Directive vs Attribute distinction**: Attributes are closed-set language features that affect compilation, type checking, or runtime behavior. Directives are extensible annotations that provide metadata for external tools without changing language semantics. Tests, benchmarks, and documentation have been moved from attributes to the directive system to maintain the distinction.
 * **Pragma directive**: `pragma directive` marks a module as a directive module. The directive namespace is derived from the import path. In `--directives=off` (default), directive blocks have zero overhead.
-* **Language intrinsics**: Intrinsics constitute a fixed, small set and are declared in the module `core/intrinsics`. Their implementation is described in RUNTIME.md. Using `@intrinsic` outside this module is forbidden. They serve basic memory management operations (`rt_alloc`, `rt_free`, `rt_realloc`) and byte copying (`rt_memcpy`, `rt_memmove`).
+* **Language intrinsics**: Intrinsics constitute a fixed, small set and are declared in the standard `core` module (files under `core/`). Their implementation is described in RUNTIME.md. Using `@intrinsic` outside this module is forbidden. They serve basic memory management operations (`rt_alloc`, `rt_free`, `rt_realloc`) and byte copying (`rt_memcpy`, `rt_memmove`).
 
 ## 21. Diagnostics Overview
 

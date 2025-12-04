@@ -8,10 +8,7 @@ import (
 )
 
 const (
-	stdModuleCoreIntrinsics = "core/intrinsics"
-	stdModuleCoreBase       = "core/base"
-	stdModuleCoreOption     = "core/option"
-	stdModuleCoreResult     = "core/result"
+	stdModuleCore = "core"
 )
 
 func detectStdlibRoot() string {
@@ -50,13 +47,31 @@ func hasStdModule(root string) bool {
 	if root == "" {
 		return false
 	}
-	candidate := filepath.Join(root, filepath.FromSlash(stdModuleCoreIntrinsics)+".sg")
+	candidate := filepath.Join(root, "core", "intrinsics.sg")
 	info, err := os.Stat(candidate)
 	return err == nil && !info.IsDir()
 }
 
 func stdModuleFilePath(root, module string) (string, bool) {
 	if root == "" {
+		return "", false
+	}
+	if module == stdModuleCore {
+		candidate := filepath.Join(root, "core", "intrinsics.sg")
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate, true
+		}
+		// fallback: pick any .sg in core dir
+		dir := filepath.Join(root, "core")
+		if entries, err := os.ReadDir(dir); err == nil {
+			for _, ent := range entries {
+				if ent.IsDir() || filepath.Ext(ent.Name()) != ".sg" {
+					continue
+				}
+				candidate = filepath.Join(dir, ent.Name())
+				return candidate, true
+			}
+		}
 		return "", false
 	}
 	candidate := filepath.Join(root, filepath.FromSlash(module)+".sg")

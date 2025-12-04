@@ -1,3 +1,5 @@
+pragma module, no_std;
+
 // Core Option type and its constructor.
 
 pub tag Some<T>(T);

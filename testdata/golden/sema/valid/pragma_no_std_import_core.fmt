@@ -1,6 +1,6 @@
 pragma no_std
 
-import core/intrinsics::default;
+import core::default;
 
 fn make_default() -> int {
     return default::<int>();

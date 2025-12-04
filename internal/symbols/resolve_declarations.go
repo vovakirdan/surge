@@ -396,7 +396,7 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 			return NoSymbolID, false
 		}
 		if !fr.moduleAllowsIntrinsic() {
-			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicBadContext, "@intrinsic functions must be declared in module core/intrinsics")
+			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicBadContext, "@intrinsic functions must be declared in module core")
 			return NoSymbolID, false
 		}
 		if fnItem.Body.IsValid() {

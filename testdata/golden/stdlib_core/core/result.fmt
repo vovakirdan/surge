@@ -1,3 +1,5 @@
+pragma module, no_std;
+
 // Core Erring type for recoverable errors using ErrorLike contract.
 
 pub type Error = { message: string, code: uint };

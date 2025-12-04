@@ -498,7 +498,8 @@ func (fr *fileResolver) injectCoreExports() {
 		fileSpan = file.Span
 	}
 	for modulePath, exports := range fr.moduleExports {
-		if !strings.HasPrefix(modulePath, "core/") {
+		trimmed := strings.Trim(modulePath, "/")
+		if trimmed != "core" && !strings.HasPrefix(trimmed, "core/") {
 			continue
 		}
 		for name, overloads := range exports.Symbols {
@@ -559,14 +560,18 @@ func (fr *fileResolver) moduleAllowsIntrinsic() bool {
 	path := filepath.ToSlash(fr.filePath)
 	path = strings.TrimSuffix(path, ".sg")
 	path = strings.TrimSuffix(path, "/")
-	return strings.HasSuffix(path, "/core/intrinsics") || path == "core/intrinsics"
+	if strings.HasSuffix(path, "/core") || strings.HasSuffix(path, "/core/intrinsics") {
+		return true
+	}
+	return path == "core" || path == "core/intrinsics"
 }
 
 func isCoreIntrinsicsModule(path string) bool {
 	if path == "" {
 		return false
 	}
-	return strings.Trim(path, "/") == "core/intrinsics"
+	trimmed := strings.Trim(path, "/")
+	return trimmed == "core" || trimmed == "core/intrinsics"
 }
 
 func isProtectedModule(path string) bool {
@@ -584,7 +589,11 @@ func exportsPrelude(exports map[string]*ModuleExports) []PreludeEntry {
 	entries := make([]PreludeEntry, 0, 8)
 	modulePaths := make([]string, 0, len(exports))
 	for modulePath, moduleExports := range exports {
-		if moduleExports == nil || !strings.HasPrefix(modulePath, "core/") {
+		if moduleExports == nil {
+			continue
+		}
+		trimmed := strings.Trim(modulePath, "/")
+		if trimmed != "core" && !strings.HasPrefix(trimmed, "core/") {
 			continue
 		}
 		modulePaths = append(modulePaths, modulePath)

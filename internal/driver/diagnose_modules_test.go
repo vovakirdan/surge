@@ -46,14 +46,13 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 		t.Fatalf("runModuleGraph failed: %v", err)
 	}
 
-	for _, module := range []string{stdModuleCoreIntrinsics, stdModuleCoreOption, stdModuleCoreResult} {
-		if exports[module] == nil {
-			t.Fatalf("expected exports for %s", module)
-		}
+	if exports[stdModuleCore] == nil {
+		t.Fatalf("expected exports for %s", stdModuleCore)
 	}
 
-	optionExports := exports[stdModuleCoreOption]
+	optionExports := exports[stdModuleCore]
 	option := optionExports.Lookup("Option")
+	t.Logf("core exports: %v", exportKeys(optionExports.Symbols))
 	if len(option) == 0 || len(option[0].TypeParams) == 0 {
 		t.Fatalf("expected generic Option export, got %+v", option)
 	}
@@ -64,9 +63,9 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 		t.Fatalf("expected method safe on Option, got %+v (available: %v, scope=%s)", meth, exportKeys(optionExports.Symbols), dumpOptionScope(fs, exports))
 	}
 
-	intrinsics := exports[stdModuleCoreIntrinsics]
+	intrinsics := exports[stdModuleCore]
 	if _, ok := intrinsics.Symbols["exit"]; !ok {
-		t.Fatalf("expected exit in %s exports, have %v", stdModuleCoreIntrinsics, exportKeys(intrinsics.Symbols))
+		t.Fatalf("expected exit in %s exports, have %v", stdModuleCore, exportKeys(intrinsics.Symbols))
 	}
 	nextExports := intrinsics.Lookup("next")
 	foundMethod := false
@@ -77,12 +76,12 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 		}
 	}
 	if !foundMethod {
-		t.Fatalf("expected method next on Range in %s exports, have %+v", stdModuleCoreIntrinsics, nextExports)
+		t.Fatalf("expected method next on Range in %s exports, have %+v", stdModuleCore, nextExports)
 	}
 
 	intrTask := intrinsics.Lookup("Task")
 	if len(intrTask) == 0 || len(intrTask[0].TypeParams) != 1 {
-		t.Fatalf("expected generic Task export in %s, got %+v", stdModuleCoreIntrinsics, intrTask)
+		t.Fatalf("expected generic Task export in %s, got %+v", stdModuleCore, intrTask)
 	}
 	awaitExports := intrinsics.Lookup("await")
 	foundAwait := false
@@ -93,7 +92,7 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 		}
 	}
 	if !foundAwait {
-		t.Fatalf("expected await method on Task in %s, got %+v (available: %v)", stdModuleCoreIntrinsics, awaitExports, exportKeys(intrinsics.Symbols))
+		t.Fatalf("expected await method on Task in %s, got %+v (available: %v)", stdModuleCore, awaitExports, exportKeys(intrinsics.Symbols))
 	}
 }
 

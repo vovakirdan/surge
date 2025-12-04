@@ -2,44 +2,42 @@
   2: Ident           "no_std" at 1:8-1:14 (leading: Space)
   3: KwImport        "import" at 3:1-3:7 (leading: Newline)
   4: Ident           "core" at 3:8-3:12 (leading: Space)
-  5: Slash           "/" at 3:12-3:13
-  6: Ident           "intrinsics" at 3:13-3:23
-  7: ColonColon      "::" at 3:23-3:25
-  8: Ident           "default" at 3:25-3:32
-  9: Semicolon       ";" at 3:32-3:33
- 10: KwFn            "fn" at 5:1-5:3 (leading: Newline)
- 11: Ident           "make_default" at 5:4-5:16 (leading: Space)
- 12: LParen          "(" at 5:16-5:17
- 13: RParen          ")" at 5:17-5:18
- 14: Arrow           "->" at 5:19-5:21 (leading: Space)
- 15: Ident           "int" at 5:22-5:25 (leading: Space)
- 16: LBrace          "{" at 5:26-5:27 (leading: Space)
- 17: KwReturn        "return" at 6:5-6:11 (leading: Newline, Space)
- 18: Ident           "default" at 6:12-6:19 (leading: Space)
- 19: ColonColon      "::" at 6:19-6:21
- 20: Lt              "<" at 6:21-6:22
- 21: Ident           "int" at 6:22-6:25
- 22: Gt              ">" at 6:25-6:26
- 23: LParen          "(" at 6:26-6:27
- 24: RParen          ")" at 6:27-6:28
- 25: Semicolon       ";" at 6:28-6:29
- 26: RBrace          "}" at 7:1-7:2 (leading: Newline)
- 27: KwFn            "fn" at 9:1-9:3 (leading: Newline)
- 28: Ident           "main" at 9:4-9:8 (leading: Space)
- 29: LParen          "(" at 9:8-9:9
- 30: RParen          ")" at 9:9-9:10
- 31: LBrace          "{" at 9:11-9:12 (leading: Space)
- 32: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
- 33: Ident           "value" at 10:9-10:14 (leading: Space)
- 34: Assign          "=" at 10:15-10:16 (leading: Space)
- 35: Ident           "make_default" at 10:17-10:29 (leading: Space)
- 36: LParen          "(" at 10:29-10:30
- 37: RParen          ")" at 10:30-10:31
- 38: Semicolon       ";" at 10:31-10:32
- 39: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
- 40: Underscore      "_" at 11:9-11:10 (leading: Space)
- 41: Assign          "=" at 11:11-11:12 (leading: Space)
- 42: Ident           "value" at 11:13-11:18 (leading: Space)
- 43: Semicolon       ";" at 11:18-11:19
- 44: RBrace          "}" at 12:1-12:2 (leading: Newline)
- 45: EOF             at 13:1-13:1
+  5: ColonColon      "::" at 3:12-3:14
+  6: Ident           "default" at 3:14-3:21
+  7: Semicolon       ";" at 3:21-3:22
+  8: KwFn            "fn" at 5:1-5:3 (leading: Newline)
+  9: Ident           "make_default" at 5:4-5:16 (leading: Space)
+ 10: LParen          "(" at 5:16-5:17
+ 11: RParen          ")" at 5:17-5:18
+ 12: Arrow           "->" at 5:19-5:21 (leading: Space)
+ 13: Ident           "int" at 5:22-5:25 (leading: Space)
+ 14: LBrace          "{" at 5:26-5:27 (leading: Space)
+ 15: KwReturn        "return" at 6:5-6:11 (leading: Newline, Space)
+ 16: Ident           "default" at 6:12-6:19 (leading: Space)
+ 17: ColonColon      "::" at 6:19-6:21
+ 18: Lt              "<" at 6:21-6:22
+ 19: Ident           "int" at 6:22-6:25
+ 20: Gt              ">" at 6:25-6:26
+ 21: LParen          "(" at 6:26-6:27
+ 22: RParen          ")" at 6:27-6:28
+ 23: Semicolon       ";" at 6:28-6:29
+ 24: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 25: KwFn            "fn" at 9:1-9:3 (leading: Newline)
+ 26: Ident           "main" at 9:4-9:8 (leading: Space)
+ 27: LParen          "(" at 9:8-9:9
+ 28: RParen          ")" at 9:9-9:10
+ 29: LBrace          "{" at 9:11-9:12 (leading: Space)
+ 30: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 31: Ident           "value" at 10:9-10:14 (leading: Space)
+ 32: Assign          "=" at 10:15-10:16 (leading: Space)
+ 33: Ident           "make_default" at 10:17-10:29 (leading: Space)
+ 34: LParen          "(" at 10:29-10:30
+ 35: RParen          ")" at 10:30-10:31
+ 36: Semicolon       ";" at 10:31-10:32
+ 37: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
+ 38: Underscore      "_" at 11:9-11:10 (leading: Space)
+ 39: Assign          "=" at 11:11-11:12 (leading: Space)
+ 40: Ident           "value" at 11:13-11:18 (leading: Space)
+ 41: Semicolon       ";" at 11:18-11:19
+ 42: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 43: EOF             at 13:1-13:1

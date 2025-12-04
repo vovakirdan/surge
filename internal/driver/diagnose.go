@@ -595,7 +595,7 @@ func validateCoreModule(meta *project.ModuleMeta, file *source.File, stdlibRoot 
 	if meta == nil || file == nil {
 		return true
 	}
-	if !strings.HasPrefix(meta.Path, "core/") {
+	if meta.Path != "core" && !strings.HasPrefix(meta.Path, "core/") {
 		return true
 	}
 	if stdlibRoot != "" && pathWithin(stdlibRoot, file.Path) {

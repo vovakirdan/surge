@@ -1,1 +1,1 @@
-error SEM3007 testdata/golden/sema/invalid/entrypoint_intrinsic/only.sg:5:4 invalid intrinsic 'main': @intrinsic functions must be declared in module core/intrinsics
+error SEM3007 testdata/golden/sema/invalid/entrypoint_intrinsic/only.sg:5:4 invalid intrinsic 'main': @intrinsic functions must be declared in module core
