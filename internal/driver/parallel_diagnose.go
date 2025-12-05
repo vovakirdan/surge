@@ -18,6 +18,62 @@ import (
 	"surge/internal/symbols"
 )
 
+// FileClass categorizes files based on their import dependencies
+type FileClass int
+
+const (
+	FileDependent FileClass = iota // Imports project modules
+	FileStdlibOnly                 // Only imports stdlib modules
+	FileFullyIndependent           // No imports
+)
+
+// isStdlibModule checks if a module path is a standard library module
+func isStdlibModule(path string) bool {
+	switch path {
+	case "option", "result", "bounded", "saturating_cast", "core":
+		return true
+	default:
+		return false
+	}
+}
+
+// classifyFile determines the classification of a file based on its imports
+func classifyFile(builder *ast.Builder, astFile ast.FileID) FileClass {
+	if builder == nil || builder.Files == nil {
+		return FileDependent // Conservative default
+	}
+
+	fileNode := builder.Files.Get(astFile)
+	if fileNode == nil {
+		return FileDependent
+	}
+
+	hasImports := false
+	hasProjectImport := false
+
+	for _, itemID := range fileNode.Items {
+		if imp, ok := builder.Items.Import(itemID); ok {
+			hasImports = true
+			// Get module path from first segment
+			if len(imp.Module) > 0 && builder.StringsInterner != nil {
+				modulePath, _ := builder.StringsInterner.Lookup(imp.Module[0])
+				if !isStdlibModule(modulePath) {
+					hasProjectImport = true
+					break
+				}
+			}
+		}
+	}
+
+	if !hasImports {
+		return FileFullyIndependent
+	}
+	if hasProjectImport {
+		return FileDependent
+	}
+	return FileStdlibOnly
+}
+
 func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOptions, jobs int) (*source.FileSet, []DiagnoseDirResult, error) {
 	files, err := listSGFiles(dir)
 	if err != nil {
@@ -248,6 +304,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 		}
 		collectIdx := beginGraph("collect_modules")
 		entries := make([]*entry, 0, len(results))
+		var independentCount, stdlibOnlyCount, dependentCount int
 		// Собираем метаданные: либо из кэша, либо из свежего парсинга, либо fallback.
 		for i := range results {
 			res := &results[i]
@@ -284,21 +341,40 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				}
 			}
 			broken, firstErr := moduleStatus(res.Bag)
-			entries = append(entries, &entry{
-				meta: meta,
-				node: dag.ModuleNode{
-					Meta:     meta,
-					Reporter: reporter,
-					Broken:   broken,
-					FirstErr: firstErr,
-				},
-			})
+
+			// Classify file to determine if it needs module graph processing
+			fileClass := classifyFile(res.Builder, res.ASTFile)
+			switch fileClass {
+			case FileFullyIndependent:
+				independentCount++
+			case FileStdlibOnly:
+				stdlibOnlyCount++
+			case FileDependent:
+				dependentCount++
+			}
+
+			// Only add files with project dependencies to the module graph
+			// Independent and stdlib-only files don't need dependency analysis
+			if fileClass == FileDependent {
+				entries = append(entries, &entry{
+					meta: meta,
+					node: dag.ModuleNode{
+						Meta:     meta,
+						Reporter: reporter,
+						Broken:   broken,
+						FirstErr: firstErr,
+					},
+				})
+			}
+
 			// Положим в in-memory cache (обновление/вставка).
 			mcache.Put(meta, broken, firstErr)
 		}
 		collectNote := ""
 		if opts.EnableTimings {
-			collectNote = fmt.Sprintf("modules=%d", len(entries))
+			collectNote = fmt.Sprintf("total=%d graph=%d (indep=%d stdlib=%d)",
+				independentCount+stdlibOnlyCount+dependentCount, len(entries),
+				independentCount, stdlibOnlyCount)
 		}
 		endGraph(collectIdx, collectNote)
 		var graphErr error
