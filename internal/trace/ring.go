@@ -29,7 +29,7 @@ func NewRingTracer(capacity int, level Level) *RingTracer {
 }
 
 // Emit adds an event to the ring buffer.
-func (t *RingTracer) Emit(ev Event) {
+func (t *RingTracer) Emit(ev *Event) {
 	if !t.level.ShouldEmit(ev.Scope) && ev.Kind != KindHeartbeat {
 		return
 	}
@@ -39,7 +39,7 @@ func (t *RingTracer) Emit(ev Event) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.events[t.head] = ev
+	t.events[t.head] = *ev
 	t.head = (t.head + 1) % t.capacity
 
 	if t.head == 0 {
@@ -71,7 +71,7 @@ func (t *RingTracer) Dump(w io.Writer, format Format) error {
 	events := t.Snapshot()
 
 	for _, ev := range events {
-		data := FormatEvent(ev, format)
+		data := FormatEvent(&ev, format)
 		if _, err := w.Write(data); err != nil {
 			return err
 		}

@@ -52,7 +52,7 @@ func (h *Heartbeat) run() {
 		select {
 		case <-ticker.C:
 			seq++
-			h.tracer.Emit(Event{
+			h.tracer.Emit(&Event{
 				Time:   time.Now(),
 				Seq:    NextSeq(),
 				Kind:   KindHeartbeat,

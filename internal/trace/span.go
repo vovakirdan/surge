@@ -43,7 +43,10 @@ func getGoroutineID() uint64 {
 		return 0
 	}
 
-	gid, _ := strconv.ParseUint(string(buf[:end]), 10, 64)
+	gid, err := strconv.ParseUint(string(buf[:end]), 10, 64)
+	if err != nil {
+		return 0
+	}
 	return gid
 }
 
@@ -75,7 +78,7 @@ func Begin(t Tracer, scope Scope, name string, parent uint64) *Span {
 	gid := getGoroutineID()
 	now := time.Now()
 
-	t.Emit(Event{
+	t.Emit(&Event{
 		Time:     now,
 		Seq:      NextSeq(),
 		Kind:     KindSpanBegin,
@@ -105,7 +108,7 @@ func (s *Span) End(detail string) time.Duration {
 
 	dur := time.Since(s.started)
 
-	s.tracer.Emit(Event{
+	s.tracer.Emit(&Event{
 		Time:     time.Now(),
 		Seq:      NextSeq(),
 		Kind:     KindSpanEnd,

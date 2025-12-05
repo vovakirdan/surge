@@ -15,7 +15,7 @@ const (
 )
 
 // FormatEvent formats an event according to the specified format.
-func FormatEvent(ev Event, format Format) []byte {
+func FormatEvent(ev *Event, format Format) []byte {
 	switch format {
 	case FormatNDJSON:
 		return formatNDJSON(ev)
@@ -27,7 +27,7 @@ func FormatEvent(ev Event, format Format) []byte {
 }
 
 // formatNDJSON formats an event as newline-delimited JSON.
-func formatNDJSON(ev Event) []byte {
+func formatNDJSON(ev *Event) []byte {
 	type jsonEvent struct {
 		Time     string            `json:"time"`
 		Seq      uint64            `json:"seq"`
@@ -54,14 +54,19 @@ func formatNDJSON(ev Event) []byte {
 		Extra:    ev.Extra,
 	}
 
-	data, _ := json.Marshal(j)
+	data, err := json.Marshal(j)
+	if err != nil {
+		// Fallback to empty JSON object if marshal fails
+		data = []byte("{}\n")
+		return data
+	}
 	data = append(data, '\n')
 	return data
 }
 
 // formatText formats an event as human-readable text.
 // Format: [timestamp] [indent]→/← name (detail)
-func formatText(ev Event) []byte {
+func formatText(ev *Event) []byte {
 	var sb strings.Builder
 
 	// Timestamp relative to start (in milliseconds)

@@ -23,7 +23,7 @@ func NewStreamTracer(w io.Writer, level Level, format Format) *StreamTracer {
 }
 
 // Emit writes an event to the output.
-func (t *StreamTracer) Emit(ev Event) {
+func (t *StreamTracer) Emit(ev *Event) {
 	if !t.level.ShouldEmit(ev.Scope) && ev.Kind != KindHeartbeat {
 		return
 	}
@@ -36,7 +36,10 @@ func (t *StreamTracer) Emit(ev Event) {
 	defer t.mu.Unlock()
 
 	// Best-effort write - don't fail the compilation on trace errors
-	_, _ = t.w.Write(data)
+	if _, err := t.w.Write(data); err != nil {
+		// Silently ignore write errors to avoid disrupting compilation
+		_ = err
+	}
 }
 
 // Flush ensures all buffered data is written.

@@ -11,7 +11,7 @@ import (
 // Tracer is the main interface for emitting trace events.
 type Tracer interface {
 	// Emit records a trace event. Must be goroutine-safe.
-	Emit(ev Event)
+	Emit(ev *Event)
 
 	// Flush ensures all buffered events are written.
 	Flush() error
@@ -31,8 +31,8 @@ type StorageMode uint8
 
 const (
 	ModeStream StorageMode = iota + 1 // immediate write
-	ModeRing                           // circular buffer
-	ModeBoth                           // stream + ring
+	ModeRing                          // circular buffer
+	ModeBoth                          // stream + ring
 )
 
 // String returns the string representation of StorageMode.

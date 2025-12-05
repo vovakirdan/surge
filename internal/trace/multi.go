@@ -15,7 +15,7 @@ func NewMultiTracer(level Level, tracers ...Tracer) *MultiTracer {
 }
 
 // Emit sends the event to all underlying tracers.
-func (t *MultiTracer) Emit(ev Event) {
+func (t *MultiTracer) Emit(ev *Event) {
 	for _, tr := range t.tracers {
 		tr.Emit(ev)
 	}

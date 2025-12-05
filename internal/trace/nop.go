@@ -4,7 +4,7 @@ package trace
 type nopTracer struct{}
 
 // Emit does nothing.
-func (nopTracer) Emit(Event) {}
+func (nopTracer) Emit(*Event) {}
 
 // Flush does nothing.
 func (nopTracer) Flush() error { return nil }
