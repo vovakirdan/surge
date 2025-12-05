@@ -1,0 +1,14 @@
+parallel_not_supported.sg (span: 3:1-7:1)
+└─ Item[0]: Fn (span: 3:1-6:2)
+   ├─ Name: test_parallel
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:27-6:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:32)
+         │  ├─ Name: nums
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#6: <ExprKind(8)>
+         └─ Stmt[1]: Return (span: 5:5-5:48)
+            └─ Expr: expr#12: parallel map nums with (x) => ((x * 2))

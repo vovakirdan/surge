@@ -251,12 +251,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprParallel:
 		if par, ok := tc.builder.Exprs.Parallel(id); ok && par != nil {
-			tc.typeExpr(par.Iterable)
-			tc.typeExpr(par.Init)
-			for _, arg := range par.Args {
-				tc.typeExpr(arg)
-			}
-			tc.typeExpr(par.Body)
+			tc.reporter.Report(diag.FutParallelNotSupported, diag.SevError, expr.Span, "'parallel' requires multi-threading (v2+)", nil, nil)
 		}
 	case ast.ExprAsync:
 		if asyncData, ok := tc.builder.Exprs.Async(id); ok && asyncData != nil {

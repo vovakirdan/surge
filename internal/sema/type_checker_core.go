@@ -384,7 +384,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		}
 	case ast.StmtSignal:
 		if signal := tc.builder.Stmts.Signal(id); signal != nil {
-			tc.typeExpr(signal.Value)
+			tc.reporter.Report(diag.FutSignalNotSupported, diag.SevError, stmt.Span, "'signal' is not supported in v1, reserved for future use", nil, nil)
 		}
 	case ast.StmtDrop:
 		if drop := tc.builder.Stmts.Drop(id); drop != nil {

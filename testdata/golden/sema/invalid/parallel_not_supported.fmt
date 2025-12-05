@@ -1,0 +1,6 @@
+// Test that parallel is rejected as v2+ feature
+
+fn test_parallel() -> int {
+    let nums = [1, 2, 3, 4, 5];
+    return parallel map nums with (x) => x * 2;
+}

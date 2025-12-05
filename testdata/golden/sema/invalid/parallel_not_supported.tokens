@@ -1,0 +1,37 @@
+  1: KwFn            "fn" at 3:1-3:3 (leading: LineComment, Newline)
+  2: Ident           "test_parallel" at 3:4-3:17 (leading: Space)
+  3: LParen          "(" at 3:17-3:18
+  4: RParen          ")" at 3:18-3:19
+  5: Arrow           "->" at 3:20-3:22 (leading: Space)
+  6: Ident           "int" at 3:23-3:26 (leading: Space)
+  7: LBrace          "{" at 3:27-3:28 (leading: Space)
+  8: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+  9: Ident           "nums" at 4:9-4:13 (leading: Space)
+ 10: Assign          "=" at 4:14-4:15 (leading: Space)
+ 11: LBracket        "[" at 4:16-4:17 (leading: Space)
+ 12: IntLit          "1" at 4:17-4:18
+ 13: Comma           "," at 4:18-4:19
+ 14: IntLit          "2" at 4:20-4:21 (leading: Space)
+ 15: Comma           "," at 4:21-4:22
+ 16: IntLit          "3" at 4:23-4:24 (leading: Space)
+ 17: Comma           "," at 4:24-4:25
+ 18: IntLit          "4" at 4:26-4:27 (leading: Space)
+ 19: Comma           "," at 4:27-4:28
+ 20: IntLit          "5" at 4:29-4:30 (leading: Space)
+ 21: RBracket        "]" at 4:30-4:31
+ 22: Semicolon       ";" at 4:31-4:32
+ 23: KwReturn        "return" at 5:5-5:11 (leading: Newline, Space)
+ 24: KwParallel      "parallel" at 5:12-5:20 (leading: Space)
+ 25: KwMap           "map" at 5:21-5:24 (leading: Space)
+ 26: Ident           "nums" at 5:25-5:29 (leading: Space)
+ 27: KwWith          "with" at 5:30-5:34 (leading: Space)
+ 28: LParen          "(" at 5:35-5:36 (leading: Space)
+ 29: Ident           "x" at 5:36-5:37
+ 30: RParen          ")" at 5:37-5:38
+ 31: FatArrow        "=>" at 5:39-5:41 (leading: Space)
+ 32: Ident           "x" at 5:42-5:43 (leading: Space)
+ 33: Star            "*" at 5:44-5:45 (leading: Space)
+ 34: IntLit          "2" at 5:46-5:47 (leading: Space)
+ 35: Semicolon       ";" at 5:47-5:48
+ 36: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 37: EOF             at 7:1-7:1

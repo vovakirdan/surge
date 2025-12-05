@@ -146,6 +146,11 @@ const (
 	// Observability
 	ObsInfo    Code = 6000
 	ObsTimings Code = 6001
+
+	// Future/Unsupported Features (v2+)
+	FutSignalNotSupported   Code = 7000
+	FutParallelNotSupported Code = 7001
+	FutMacroNotSupported    Code = 7002
 )
 
 var ( // todo расширить описания и использовать как notes
@@ -273,6 +278,9 @@ var ( // todo расширить описания и использовать к
 		ProjInconsistentNoStd:          "Inconsistent no_std pragmas in module",
 		ObsInfo:                        "Observability information",
 		ObsTimings:                     "Pipeline timings",
+		FutSignalNotSupported:          "'signal' is not supported in v1, reserved for future use",
+		FutParallelNotSupported:        "'parallel' requires multi-threading (v2+)",
+		FutMacroNotSupported:           "'macro' is planned for v2+",
 	}
 )
 
@@ -290,6 +298,8 @@ func (c Code) ID() string {
 		return fmt.Sprintf("PRJ%04d", ic)
 	case ic >= 6000 && ic < 7000:
 		return fmt.Sprintf("OBS%04d", ic)
+	case ic >= 7000 && ic < 8000:
+		return fmt.Sprintf("FUT%04d", ic)
 	}
 	return "E0000"
 }
