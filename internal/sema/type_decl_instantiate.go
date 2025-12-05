@@ -61,6 +61,26 @@ func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.Type
 		}
 		return cached
 	}
+
+	// Detect instantiation cycles (e.g., struct User { id: TypedId<User> })
+	if key != "" && tc.typeInstantiationInProgress != nil {
+		if _, inProgress := tc.typeInstantiationInProgress[key]; inProgress {
+			// Cycle detected - return NoTypeID to break recursion
+			if span != nil {
+				span.WithExtra("cycle_detected", "true")
+			}
+			return types.NoTypeID
+		}
+	}
+
+	// Mark as in progress to detect cycles
+	if key != "" && tc.typeInstantiationInProgress != nil {
+		tc.typeInstantiationInProgress[key] = struct{}{}
+		defer func() {
+			delete(tc.typeInstantiationInProgress, key)
+		}()
+	}
+
 	sym := tc.symbolFromID(symID)
 	if sym == nil {
 		return types.NoTypeID

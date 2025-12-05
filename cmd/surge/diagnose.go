@@ -34,6 +34,7 @@ func init() {
 	diagCmd.Flags().Bool("suggest", false, "include fix suggestions in output")
 	diagCmd.Flags().Bool("preview", false, "preview changes without modifying files")
 	diagCmd.Flags().Bool("fullpath", false, "emit absolute file paths in output")
+	diagCmd.Flags().Bool("disk-cache", false, "enable persistent disk cache for module metadata (experimental)")
 }
 
 // runDiagnose executes the "diag" command: it parses command flags, runs diagnostics
@@ -105,6 +106,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get fullpath flag: %w", err)
 	}
 
+	enableDiskCache, err := cmd.Flags().GetBool("disk-cache")
+	if err != nil {
+		return fmt.Errorf("failed to get disk-cache flag: %w", err)
+	}
+
 	// Конвертируем строку стадии в тип
 	var stage driver.DiagnoseStage
 	switch stagesStr {
@@ -127,6 +133,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		IgnoreWarnings:   noWarnings,
 		WarningsAsErrors: warningsAsErrors,
 		EnableTimings:    showTimings,
+		EnableDiskCache:  enableDiskCache,
 	}
 
 	st, err := os.Stat(filePath)

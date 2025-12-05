@@ -34,40 +34,41 @@ type typeChecker struct {
 	tracer    trace.Tracer // трассировщик для отладки
 	exprDepth int          // глубина рекурсии для typeExpr
 
-	scopeStack          []symbols.ScopeID
-	scopeByItem         map[ast.ItemID]symbols.ScopeID
-	scopeByStmt         map[ast.StmtID]symbols.ScopeID
-	scopeByExtern       map[ast.ExternMemberID]symbols.ScopeID
-	stmtSymbols         map[ast.StmtID]symbols.SymbolID
-	externSymbols       map[ast.ExternMemberID]symbols.SymbolID
-	bindingBorrow       map[symbols.SymbolID]BorrowID
-	bindingTypes        map[symbols.SymbolID]types.TypeID
-	constState          map[symbols.SymbolID]constEvalState
-	typeItems           map[ast.ItemID]types.TypeID
-	typeCache           map[typeCacheKey]types.TypeID
-	typeKeys            map[string]types.TypeID
-	typeIDItems         map[types.TypeID]ast.ItemID
-	structBases         map[types.TypeID]types.TypeID
-	externFields        map[symbols.TypeKey]*externFieldSet
-	awaitDepth          int
-	returnStack         []returnContext
-	typeParams          []map[source.StringID]types.TypeID
-	typeParamNames      map[types.TypeID]source.StringID
-	typeParamEnv        []uint32
-	nextParamEnv        uint32
-	typeInstantiations  map[string]types.TypeID
-	typeNames           map[types.TypeID]string
-	fnInstantiationSeen map[string]struct{}
-	exportNames         map[source.StringID]string
-	typeParamBounds     map[types.TypeID][]symbols.BoundInstance
-	typeParamStack      []types.TypeID
-	typeParamMarks      []int
-	arrayName           source.StringID
-	arraySymbol         symbols.SymbolID
-	arrayType           types.TypeID
-	arrayFixedName      source.StringID
-	arrayFixedSymbol    symbols.SymbolID
-	arrayFixedType      types.TypeID
+	scopeStack                  []symbols.ScopeID
+	scopeByItem                 map[ast.ItemID]symbols.ScopeID
+	scopeByStmt                 map[ast.StmtID]symbols.ScopeID
+	scopeByExtern               map[ast.ExternMemberID]symbols.ScopeID
+	stmtSymbols                 map[ast.StmtID]symbols.SymbolID
+	externSymbols               map[ast.ExternMemberID]symbols.SymbolID
+	bindingBorrow               map[symbols.SymbolID]BorrowID
+	bindingTypes                map[symbols.SymbolID]types.TypeID
+	constState                  map[symbols.SymbolID]constEvalState
+	typeItems                   map[ast.ItemID]types.TypeID
+	typeCache                   map[typeCacheKey]types.TypeID
+	typeKeys                    map[string]types.TypeID
+	typeIDItems                 map[types.TypeID]ast.ItemID
+	structBases                 map[types.TypeID]types.TypeID
+	externFields                map[symbols.TypeKey]*externFieldSet
+	awaitDepth                  int
+	returnStack                 []returnContext
+	typeParams                  []map[source.StringID]types.TypeID
+	typeParamNames              map[types.TypeID]source.StringID
+	typeParamEnv                []uint32
+	nextParamEnv                uint32
+	typeInstantiations          map[string]types.TypeID
+	typeInstantiationInProgress map[string]struct{} // tracks cycles during type instantiation
+	typeNames                   map[types.TypeID]string
+	fnInstantiationSeen         map[string]struct{}
+	exportNames                 map[source.StringID]string
+	typeParamBounds             map[types.TypeID][]symbols.BoundInstance
+	typeParamStack              []types.TypeID
+	typeParamMarks              []int
+	arrayName                   source.StringID
+	arraySymbol                 symbols.SymbolID
+	arrayType                   types.TypeID
+	arrayFixedName              source.StringID
+	arrayFixedSymbol            symbols.SymbolID
+	arrayFixedType              types.TypeID
 }
 
 type returnContext struct {
@@ -147,6 +148,7 @@ func (tc *typeChecker) run() {
 	tc.typeParamMarks = tc.typeParamMarks[:0]
 	tc.nextParamEnv = 1
 	tc.typeInstantiations = make(map[string]types.TypeID)
+	tc.typeInstantiationInProgress = make(map[string]struct{})
 	tc.fnInstantiationSeen = make(map[string]struct{})
 
 	file := tc.builder.Files.Get(tc.fileID)
