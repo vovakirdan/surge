@@ -31,7 +31,7 @@ func resolveModuleDir(modulePath, baseDir string) (string, error) {
 		return dirCandidate, nil
 	}
 	if name := filepath.Base(modulePath); name != "" {
-		if dir := findExplicitModuleDir(baseDir, name); dir != "" {
+		if dir := findExplicitModuleDir(baseDir, modulePath, name); dir != "" {
 			return dir, nil
 		}
 	}
@@ -420,11 +420,11 @@ func ensureStdlibModules(
 
 var explicitModuleDirCache struct {
 	mu      sync.Mutex
-	byBase  map[string]map[string]string // baseDir -> name -> dir
-	scanned map[string]bool              // baseDir -> scanned
+	byBase  map[string]map[string][]string // baseDir -> name -> dirs
+	scanned map[string]bool                // baseDir -> scanned
 }
 
-func findExplicitModuleDir(baseDir, name string) string {
+func findExplicitModuleDir(baseDir, modulePath, name string) string {
 	if baseDir == "" || name == "" {
 		return ""
 	}
@@ -432,9 +432,9 @@ func findExplicitModuleDir(baseDir, name string) string {
 	explicitModuleDirCache.mu.Lock()
 	if explicitModuleDirCache.byBase != nil {
 		if m := explicitModuleDirCache.byBase[cacheKey]; m != nil {
-			if dir, ok := m[name]; ok {
+			if dirs := m[name]; len(dirs) > 0 {
 				explicitModuleDirCache.mu.Unlock()
-				return dir
+				return bestExplicitModuleDir(baseDir, modulePath, dirs)
 			}
 		}
 		if explicitModuleDirCache.scanned != nil && explicitModuleDirCache.scanned[cacheKey] {
@@ -444,7 +444,7 @@ func findExplicitModuleDir(baseDir, name string) string {
 	}
 	explicitModuleDirCache.mu.Unlock()
 
-	found := make(map[string]string)
+	found := make(map[string][]string)
 	walkErr := filepath.WalkDir(baseDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -465,9 +465,8 @@ func findExplicitModuleDir(baseDir, name string) string {
 		dir := filepath.Dir(path)
 		for _, prefix := range []string{"pragma module::", "pragma binary::"} {
 			if strings.Contains(string(content), prefix+name) {
-				if _, ok := found[name]; !ok {
-					found[name] = dir
-				}
+				found[name] = append(found[name], dir)
+				break
 			}
 		}
 		return nil
@@ -478,23 +477,68 @@ func findExplicitModuleDir(baseDir, name string) string {
 
 	explicitModuleDirCache.mu.Lock()
 	if explicitModuleDirCache.byBase == nil {
-		explicitModuleDirCache.byBase = make(map[string]map[string]string)
+		explicitModuleDirCache.byBase = make(map[string]map[string][]string)
 	}
 	if explicitModuleDirCache.scanned == nil {
 		explicitModuleDirCache.scanned = make(map[string]bool)
 	}
 	target := explicitModuleDirCache.byBase[cacheKey]
 	if target == nil {
-		target = make(map[string]string)
+		target = make(map[string][]string)
 		explicitModuleDirCache.byBase[cacheKey] = target
 	}
 	for k, v := range found {
-		target[k] = v
+		target[k] = append(target[k], v...)
 	}
 	explicitModuleDirCache.scanned[cacheKey] = true
-	dir := target[name]
+	dirs := target[name]
 	explicitModuleDirCache.mu.Unlock()
-	return dir
+	return bestExplicitModuleDir(baseDir, modulePath, dirs)
+}
+
+func bestExplicitModuleDir(baseDir, modulePath string, dirs []string) string {
+	if len(dirs) == 0 {
+		return ""
+	}
+	if modulePath == "" {
+		return dirs[0]
+	}
+	targetSegs := splitPathSegments(modulePath)
+	bestDir := ""
+	bestScore := -1
+	bestDepth := 0
+	for _, dir := range dirs {
+		rel := dir
+		if baseDir != "" {
+			if relPath, err := source.RelativePath(dir, baseDir); err == nil {
+				rel = relPath
+			}
+		}
+		seg := splitPathSegments(rel)
+		score := commonPrefixLen(targetSegs, seg)
+		if score > bestScore || (score == bestScore && (bestDir == "" || len(seg) < bestDepth)) {
+			bestScore = score
+			bestDepth = len(seg)
+			bestDir = dir
+		}
+	}
+	return bestDir
+}
+
+func splitPathSegments(path string) []string {
+	path = strings.TrimLeft(filepath.ToSlash(filepath.Clean(path)), "/")
+	if path == "" {
+		return nil
+	}
+	return strings.Split(path, "/")
+}
+
+func commonPrefixLen(a, b []string) int {
+	n := 0
+	for n < len(a) && n < len(b) && a[n] == b[n] {
+		n++
+	}
+	return n
 }
 
 func loadStdModule(
