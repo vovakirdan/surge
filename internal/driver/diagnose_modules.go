@@ -118,9 +118,7 @@ func parseModuleDir(
 		}
 		file := fs.Get(fileID)
 		if bag != nil {
-			if errTok := diagnoseTokenize(file, bag); errTok != nil {
-				return nil, nil, nil, errTok
-			}
+			diagnoseTokenize(file, bag)
 		}
 		var parsed ast.FileID
 		builder, parsed = diagnoseParseWithBuilder(ctx, fs, file, bag, builder)

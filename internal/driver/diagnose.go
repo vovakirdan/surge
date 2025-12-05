@@ -124,16 +124,13 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 
 	tokenIdx := begin("tokenize")
 	tokenSpan := trace.Begin(tracer, trace.ScopePass, "tokenize", diagSpan.ID())
-	err = diagnoseTokenize(file, bag)
+	diagnoseTokenize(file, bag)
 	tokenNote := ""
 	if timer != nil {
 		tokenNote = fmt.Sprintf("diags=%d", bag.Len())
 	}
 	tokenSpan.End(tokenNote)
 	end(tokenIdx, tokenNote)
-	if err != nil {
-		return nil, err
-	}
 
 	if opts.Stage != DiagnoseStageTokenize {
 		parseIdx := begin("parse")
@@ -290,7 +287,7 @@ func diagnoseSemaWithTypes(ctx context.Context, builder *ast.Builder, fileID ast
 }
 
 // diagnoseTokenize выполняет диагностику на уровне лексера
-func diagnoseTokenize(file *source.File, bag *diag.Bag) error {
+func diagnoseTokenize(file *source.File, bag *diag.Bag) {
 	reporterAdapter := &lexer.ReporterAdapter{Bag: bag}
 	opts := lexer.Options{
 		Reporter: reporterAdapter.Reporter(),
@@ -304,8 +301,6 @@ func diagnoseTokenize(file *source.File, bag *diag.Bag) error {
 			break
 		}
 	}
-
-	return nil
 }
 
 func diagnoseParse(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag) (*ast.Builder, ast.FileID) {
