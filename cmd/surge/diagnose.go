@@ -45,6 +45,9 @@ func init() {
 // retrieval failures, unknown flag values, filesystem/stat errors, diagnosis failures,
 // or formatting/encoding errors.
 func runDiagnose(cmd *cobra.Command, args []string) error {
+	// Ensure trace is dumped on panic
+	defer dumpTraceOnPanic()
+
 	filePath := args[0]
 
 	// Получаем флаги
@@ -350,13 +353,14 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		exitCode, resultErr = runDir()
 	}
 
-	cleanup()
-
 	if resultErr != nil {
+		cleanup()
 		return resultErr
 	}
 	if exitCode != 0 {
-		os.Exit(exitCode)
+		cleanup()
+		os.Exit(exitCode) //nolint:gocritic // defer dumpTraceOnPanic is for panic recovery, not normal exit
 	}
+	cleanup()
 	return nil
 }

@@ -40,6 +40,15 @@ func TestDiagnose_NoDependencyErrorForCleanImport(t *testing.T) {
 }
 
 func TestDiagnoseReportsUnresolvedSymbol(t *testing.T) {
+	// Set SURGE_STDLIB to current directory for stdlib access
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	// Go up two levels to project root
+	projectRoot := filepath.Join(wd, "..", "..")
+	t.Setenv("SURGE_STDLIB", projectRoot)
+
 	src := `
         fn demo() -> int {
             return missing;
@@ -48,8 +57,8 @@ func TestDiagnoseReportsUnresolvedSymbol(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "unresolved.sg")
-	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
 	}
 
 	opts := DiagnoseOptions{

@@ -52,3 +52,9 @@ func (t *MultiTracer) Level() Level {
 func (t *MultiTracer) Enabled() bool {
 	return t.level > LevelOff
 }
+
+// Tracers returns the underlying tracers for inspection.
+// This is useful for crash handlers that need to access specific tracer types.
+func (t *MultiTracer) Tracers() []Tracer {
+	return t.tracers
+}

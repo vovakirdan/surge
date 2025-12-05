@@ -96,39 +96,44 @@ In the trace output:
 
 ## Instrumented Components
 
-### Phase 1: Heartbeat
+The tracing system instruments all major compiler subsystems:
+
+### Heartbeat
 - Background goroutine emitting periodic events
 - Continues even if compiler hangs
 - Configurable interval via `--trace-heartbeat`
+- Helps identify hang location by showing last activity before silence
 
-### Phase 2: Module System
+### Module System (Detail level)
 - `parse_module_dir` - Parsing all files in a module directory
 - `analyze_dependency` - Analyzing imported modules
 - `process_module` - Processing module in dependency graph
 - `load_std_module` - Loading standard library modules
 - `resolve_module_record` - Symbol resolution for modules
 
-### Phase 3: Parser (Debug Level)
+### Parser (Debug level)
 - `parse_items` - Top-level item parsing with progress points every 100 items
 - `parse_block` - Block parsing with statement counting
 - `parse_binary_expr` - Binary expression parsing with depth limiting (≤20)
 - `parse_postfix_expr` - Postfix expression parsing with iteration tracking
 - `resync_top` - Error recovery with token skip counting
 
-### Phase 4: Semantic Analysis - Core
-- `sema_check` - Overall semantic analysis with 7 internal phases:
-  - `build_magic_index` - Magic method index construction
-  - `ensure_builtin_magic` - Builtin magic methods setup
-  - `build_scope_index` - Scope hierarchy construction
-  - `build_symbol_index` - Symbol table indexing
-  - `build_export_indexes` - Module export tracking
-  - `register_types` - Type registration
-  - `flush_borrow` - Borrow checker finalization
+### Semantic Analysis (Debug level)
+Core analysis with 7 internal phases:
+- `build_magic_index` - Magic method index construction
+- `ensure_builtin_magic` - Builtin magic methods setup
+- `build_scope_index` - Scope hierarchy construction
+- `build_symbol_index` - Symbol table indexing
+- `build_export_indexes` - Module export tracking
+- `register_types` - Type registration
+- `flush_borrow` - Borrow checker finalization
+
+Per-item and statement analysis:
 - `walk_item` - Per-item semantic checks (Detail level)
 - `walk_stmt` - Statement-level checks (Debug level)
-- `type_expr` - Expression type inference with depth limiting (≤20, Debug level)
+- `type_expr` - Expression type inference with depth limiting (≤20)
 
-### Phase 5: Deep Sema - Complex Operations
+Complex operations:
 - `call_result_type` - Function call resolution with overload selection
   - Tracks: argument count, candidate count
   - Example: `{args=1, candidates=2}`
@@ -345,6 +350,53 @@ export SURGE_TRACE_LEVEL=phase
 surge diag file.sg  # Uses defaults from environment
 ```
 
+## Crash Safety
+
+The tracing system preserves diagnostic data even when compilation is interrupted or crashes.
+
+### Signal Handling (SIGINT/SIGTERM)
+
+When you interrupt compilation with Ctrl+C or send SIGTERM:
+- Ring buffer is dumped to `<output>.interrupt.log`
+- Heartbeat is stopped gracefully
+- Tracer is flushed and closed
+- Process exits with appropriate code (130 for SIGINT, 143 for SIGTERM)
+
+```bash
+# Start compilation
+surge diag --trace=trace.log --trace-mode=ring large_project/ &
+SURGE_PID=$!
+
+# Interrupt it
+kill -INT $SURGE_PID
+
+# Check dump file
+ls -lh trace.interrupt.log
+```
+
+### Panic Recovery
+
+If the compiler panics:
+- `defer dumpTraceOnPanic()` catches the panic
+- Ring buffer is dumped to `<output>.panic.log`
+- Tracer is flushed and closed
+- Panic is re-raised to maintain normal panic behavior
+
+This preserves the last N events before the crash, making it easier to diagnose what went wrong.
+
+### Dump File Naming
+
+- `trace.log` → `trace.interrupt.log` (on SIGINT/SIGTERM)
+- `trace.log` → `trace.panic.log` (on panic)
+- `-` (stderr) → `surge.interrupt.trace` or `surge.panic.trace`
+
+### Testing Crash Safety
+
+Manual testing recommended due to compiler speed:
+1. **SIGINT test**: Start compilation on large project with `--trace-mode=ring`, send SIGINT, verify `.interrupt.log` created
+2. **Panic test**: Modify source to add `panic("test")`, verify `.panic.log` created
+3. **Exit codes**: Verify 130 for SIGINT, 143 for SIGTERM
+
 ## Limitations
 
 1. **No distributed tracing** - Single process only
@@ -353,24 +405,42 @@ surge diag file.sg  # Uses defaults from environment
 4. **Limited aggregation** - No built-in statistics or summaries
 5. **No sampling** - All events captured (except depth/iteration limits)
 
-## Roadmap
+## Features
 
-**Completed:**
-- [x] Phase 1: Heartbeat mechanism (v0.1.0)
-- [x] Phase 2: Module-level spans (v0.1.0)
-- [x] Phase 3: Parser instrumentation (v0.1.0)
-- [x] Phase 4: Sema Core - type checking phases (v0.2.0)
-- [x] Phase 5: Deep Sema - complex operations (v0.2.0)
+### Implemented
 
-**Planned:**
-- [ ] Phase 6: Crash safety improvements (signal handling, panic recovery, ring buffer dump)
-- [ ] Chrome Trace Viewer format export (trace_events JSON)
-- [ ] NDJSON format support for machine-readable output
-- [ ] Sampling mode for lower overhead in production
-- [ ] Built-in trace analysis tools (statistics, bottleneck detection)
-- [ ] Distributed tracing for parallel compilation
-- [ ] WebUI for interactive trace visualization
-- [ ] Flamegraph generation from trace data
+**Core Instrumentation:**
+- Heartbeat mechanism for hang detection
+- Module system tracing (parse, analyze, resolve)
+- Parser instrumentation (items, blocks, expressions)
+- Semantic analysis tracing (7 internal phases)
+- Complex sema operations (calls, contracts, instantiation)
+
+**Crash Safety:**
+- Signal handling (SIGINT/SIGTERM) with ring buffer dump
+- Panic recovery with trace preservation
+- MultiTracer support for extracting RingTracer
+
+**Output Modes:**
+- Stream mode - immediate I/O
+- Ring mode - circular buffer
+- Both mode - combines stream and ring
+
+**Performance:**
+- Zero overhead when disabled (nil checks only)
+- ~0% overhead at phase level
+- 9-18% overhead at detail level
+- 409-509% overhead at debug level
+
+### Planned
+
+- Chrome Trace Viewer format export (trace_events JSON)
+- NDJSON format support for machine-readable output
+- Sampling mode for lower overhead in production
+- Built-in trace analysis tools (statistics, bottleneck detection)
+- Distributed tracing for parallel compilation
+- WebUI for interactive trace visualization
+- Flamegraph generation from trace data
 
 ## Implementation Details
 
@@ -423,20 +493,30 @@ The tracing system is designed for:
 
 ---
 
-For implementation details, see:
-- `internal/trace/` - Core tracing infrastructure
-  - `tracer.go` - Tracer interface and implementations
-  - `heartbeat.go` - Heartbeat mechanism (Phase 1)
-  - `span.go` - Span lifecycle management
-- `cmd/surge/trace_setup.go` - CLI integration and tracer initialization
-- `internal/driver/diagnose.go` - Driver instrumentation (Phase 2)
-- `internal/driver/diagnose_modules.go` - Module system instrumentation (Phase 2)
-- `internal/parser/parser.go` - Parser instrumentation (Phase 3)
-- `internal/parser/expression.go` - Expression parsing instrumentation (Phase 3)
-- `internal/parser/stmt_parser.go` - Statement parsing instrumentation (Phase 3)
-- `internal/sema/check.go` - Sema entry point with context (Phase 4)
-- `internal/sema/type_checker_core.go` - Core sema phases and walk functions (Phase 4)
-- `internal/sema/type_expr.go` - Expression type inference (Phase 4)
-- `internal/sema/type_expr_calls.go` - Function call resolution (Phase 5)
-- `internal/sema/contract_match.go` - Contract checking and method resolution (Phase 5)
-- `internal/sema/type_decl_instantiate.go` - Generic type instantiation (Phase 5)
+### Source Files
+
+**Core Infrastructure:**
+- `internal/trace/tracer.go` - Tracer interface and implementations
+- `internal/trace/heartbeat.go` - Heartbeat mechanism
+- `internal/trace/span.go` - Span lifecycle management
+- `internal/trace/multi.go` - MultiTracer with Tracers() accessor
+
+**CLI Integration:**
+- `cmd/surge/trace_setup.go` - Tracer initialization and crash safety
+  - Signal handling (SIGINT/SIGTERM)
+  - Panic recovery with defer
+  - Ring buffer dump on interruption
+  - findRingTracer() for MultiTracer support
+- `cmd/surge/diagnose.go` - Driver instrumentation with panic recovery
+
+**Compiler Instrumentation:**
+- `internal/driver/diagnose_modules.go` - Module system tracing
+- `internal/parser/parser.go` - Parser spans and progress
+- `internal/parser/expression.go` - Expression parsing
+- `internal/parser/stmt_parser.go` - Statement parsing
+- `internal/sema/check.go` - Sema entry point with context
+- `internal/sema/type_checker_core.go` - Core sema phases and walk functions
+- `internal/sema/type_expr.go` - Expression type inference
+- `internal/sema/type_expr_calls.go` - Function call resolution
+- `internal/sema/contract_match.go` - Contract checking and method resolution
+- `internal/sema/type_decl_instantiate.go` - Generic type instantiation
