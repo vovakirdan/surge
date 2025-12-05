@@ -1,10 +1,13 @@
 package sema
 
 import (
+	"fmt"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/trace"
 	"surge/internal/types"
 )
 
@@ -39,6 +42,18 @@ type bindingInfo struct {
 }
 
 func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symbols.BoundInstance, hintSpan source.Span, typeName string) bool {
+	// Трассировка проверки контракта
+	var span *trace.Span
+	if tc.tracer != nil && tc.tracer.Level() >= trace.LevelDebug {
+		span = trace.Begin(tc.tracer, trace.ScopeNode, "check_contract_satisfaction", 0)
+		span.WithExtra("type", tc.typeLabel(target))
+	}
+	defer func() {
+		if span != nil {
+			span.End("")
+		}
+	}()
+
 	if target == types.NoTypeID || !bound.Contract.IsValid() || tc.builder == nil {
 		return false
 	}
@@ -97,7 +112,9 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 	fields := tc.collectTypeFields(target)
 	fieldAttrs := tc.collectFieldAttrs(target)
 	var missingFields []string
+	fieldCount := 0
 	for name, expected := range reqs.fields {
+		fieldCount++
 		actual, exists := fields[name]
 		if !exists {
 			missingFields = append(missingFields, tc.lookupName(name))
@@ -125,8 +142,10 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 	var missingMethods []string
 	var mismatchedMethods []string
 	var attrMismatchedMethods []string
+	methodCount := 0
 	for name, methods := range reqs.methods {
 		for idx := range methods {
+			methodCount++
 			req := &methods[idx]
 			switch tc.ensureMethodSatisfies(target, name, req, reportSpan, tc.lookupName(contractSym.Name)) {
 			case -1:
@@ -140,6 +159,10 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 				ok = false
 			}
 		}
+	}
+	if span != nil {
+		span.WithExtra("fields_checked", fmt.Sprintf("%d", fieldCount))
+		span.WithExtra("methods_checked", fmt.Sprintf("%d", methodCount))
 	}
 
 	if len(missingMethods) > 0 {
@@ -563,6 +586,18 @@ func (tc *typeChecker) ensureMethodSatisfies(target types.TypeID, name source.St
 }
 
 func (tc *typeChecker) methodsForType(target types.TypeID, name source.StringID) []methodSignature {
+	// Трассировка поиска методов для типа
+	var span *trace.Span
+	if tc.tracer != nil && tc.tracer.Level() >= trace.LevelDebug {
+		span = trace.Begin(tc.tracer, trace.ScopeNode, "methods_for_type", 0)
+		span.WithExtra("type", tc.typeLabel(target))
+	}
+	defer func() {
+		if span != nil {
+			span.End("")
+		}
+	}()
+
 	if target == types.NoTypeID || name == source.NoStringID {
 		return nil
 	}
@@ -619,6 +654,10 @@ func (tc *typeChecker) methodsForType(target types.TypeID, name source.StringID)
 				}
 			}
 		}
+	}
+
+	if span != nil {
+		span.WithExtra("found", fmt.Sprintf("%d", len(methods)))
 	}
 
 	return methods

@@ -1,11 +1,13 @@
 package sema
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
 	"surge/internal/ast"
 	"surge/internal/symbols"
+	"surge/internal/trace"
 	"surge/internal/types"
 )
 
@@ -40,8 +42,23 @@ func (tc *typeChecker) rememberInstantiation(key string, typeID types.TypeID) {
 }
 
 func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.TypeID) types.TypeID {
+	// Трассировка инстанциации generic типа
+	var span *trace.Span
+	if tc.tracer != nil && tc.tracer.Level() >= trace.LevelDebug {
+		span = trace.Begin(tc.tracer, trace.ScopeNode, "instantiate_type", 0)
+		span.WithExtra("args", fmt.Sprintf("%d", len(args)))
+	}
+	defer func() {
+		if span != nil {
+			span.End("")
+		}
+	}()
+
 	key := tc.instantiationKey(symID, args)
 	if cached := tc.cachedInstantiation(key); cached != types.NoTypeID {
+		if span != nil {
+			span.WithExtra("cached", "true")
+		}
 		return cached
 	}
 	sym := tc.symbolFromID(symID)
