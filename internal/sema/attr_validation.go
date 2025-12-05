@@ -12,10 +12,10 @@ import (
 
 // AttrInfo holds information about a parsed attribute including its spec and arguments
 type AttrInfo struct {
-	Spec ast.AttrSpec  // Attribute specification from catalog
-	Attr *ast.Attr     // The actual attribute node
-	Span source.Span   // Source location
-	Args []ast.ExprID  // Argument expressions
+	Spec ast.AttrSpec // Attribute specification from catalog
+	Attr *ast.Attr    // The actual attribute node
+	Span source.Span  // Source location
+	Args []ast.ExprID // Argument expressions
 }
 
 // collectAttrs gathers all attributes from the given range and returns parsed AttrInfo
@@ -36,9 +36,7 @@ func (tc *typeChecker) collectAttrs(start ast.AttrID, count uint32) []AttrInfo {
 
 		// Collect arguments
 		args := make([]ast.ExprID, 0, len(attr.Args))
-		for _, argID := range attr.Args {
-			args = append(args, argID)
-		}
+		args = append(args, attr.Args...)
 
 		result = append(result, AttrInfo{
 			Spec: spec,
@@ -102,11 +100,11 @@ func (tc *typeChecker) validateAllConflicts(infos []AttrInfo) {
 }
 
 // validateAlignParameter validates that @align(N) has a valid power-of-2 argument
-func (tc *typeChecker) validateAlignParameter(info AttrInfo) bool {
+func (tc *typeChecker) validateAlignParameter(info AttrInfo) {
 	if len(info.Args) == 0 {
 		tc.report(diag.SemaAttrMissingParameter, info.Span,
 			"@align requires a numeric argument: @align(8)")
-		return false
+		return
 	}
 
 	// Get the first argument expression
@@ -116,7 +114,7 @@ func (tc *typeChecker) validateAlignParameter(info AttrInfo) bool {
 	if argExpr.Kind != ast.ExprLit {
 		tc.report(diag.SemaAttrAlignInvalidValue, argExpr.Span,
 			"@align requires a numeric literal argument")
-		return false
+		return
 	}
 
 	// Get the literal data
@@ -124,7 +122,7 @@ func (tc *typeChecker) validateAlignParameter(info AttrInfo) bool {
 	if !ok || lit.Kind != ast.ExprLitInt {
 		tc.report(diag.SemaAttrAlignInvalidValue, argExpr.Span,
 			"@align requires an integer literal argument")
-		return false
+		return
 	}
 
 	// Parse the integer value from the string representation
@@ -133,7 +131,7 @@ func (tc *typeChecker) validateAlignParameter(info AttrInfo) bool {
 	if err != nil {
 		tc.report(diag.SemaAttrAlignInvalidValue, argExpr.Span,
 			"@align argument is not a valid integer")
-		return false
+		return
 	}
 
 	// Check if it's a power of 2
@@ -141,10 +139,8 @@ func (tc *typeChecker) validateAlignParameter(info AttrInfo) bool {
 	if value == 0 || (value&(value-1)) != 0 {
 		tc.report(diag.SemaAttrAlignNotPowerOfTwo, argExpr.Span,
 			"@align argument must be a positive power of 2 (1, 2, 4, 8, 16, ...); got %d", value)
-		return false
+		return
 	}
-
-	return true
 }
 
 // validateBackendParameter validates that @backend("target") has a known target
@@ -175,6 +171,8 @@ func (tc *typeChecker) validateBackendParameter(info AttrInfo) bool {
 
 	// Get the string value
 	target := tc.lookupName(lit.Value)
+	// Strip quotes from string literal
+	target = strings.Trim(target, "\"")
 
 	// Known backend targets
 	knownTargets := map[string]bool{
@@ -196,11 +194,10 @@ func (tc *typeChecker) validateBackendParameter(info AttrInfo) bool {
 
 // validateFieldReference validates that an attribute parameter references an existing field
 // Used by @guarded_by("lock"), @requires_lock("lock"), @waits_on("cond")
-// Returns the field name StringID and true if valid, NoStringID and false otherwise
-func (tc *typeChecker) validateFieldReference(info AttrInfo, ownerTypeID types.TypeID, errorCode diag.Code, message string) (source.StringID, bool) {
+func (tc *typeChecker) validateFieldReference(info AttrInfo, ownerTypeID types.TypeID, errorCode diag.Code, message string) {
 	if len(info.Args) == 0 {
 		tc.report(diag.SemaAttrMissingParameter, info.Span, "%s", message)
-		return source.NoStringID, false
+		return
 	}
 
 	// Get the first argument expression
@@ -210,7 +207,7 @@ func (tc *typeChecker) validateFieldReference(info AttrInfo, ownerTypeID types.T
 	if argExpr.Kind != ast.ExprLit {
 		tc.report(diag.SemaAttrInvalidParameter, argExpr.Span,
 			"attribute parameter must be a string literal")
-		return source.NoStringID, false
+		return
 	}
 
 	// Get the literal data
@@ -218,7 +215,7 @@ func (tc *typeChecker) validateFieldReference(info AttrInfo, ownerTypeID types.T
 	if !ok || lit.Kind != ast.ExprLitString {
 		tc.report(diag.SemaAttrInvalidParameter, argExpr.Span,
 			"attribute parameter must be a string literal")
-		return source.NoStringID, false
+		return
 	}
 
 	// Get the field name
@@ -227,14 +224,14 @@ func (tc *typeChecker) validateFieldReference(info AttrInfo, ownerTypeID types.T
 	// Validate that the field exists in ownerTypeID
 	if ownerTypeID == types.NoTypeID {
 		// Can't validate without owner type - skip for now
-		return fieldName, true
+		return
 	}
 
 	// Check if ownerTypeID is a struct and get its info
 	structInfo, ok := tc.types.StructInfo(ownerTypeID)
 	if !ok || structInfo == nil {
 		// Not a struct - can't have fields
-		return fieldName, true
+		return
 	}
 
 	// Look up the field
@@ -250,10 +247,8 @@ func (tc *typeChecker) validateFieldReference(info AttrInfo, ownerTypeID types.T
 		fieldNameStr := tc.lookupName(fieldName)
 		tc.report(errorCode, argExpr.Span,
 			"field '%s' not found in type", fieldNameStr)
-		return source.NoStringID, false
+		return
 	}
-
-	return fieldName, true
 }
 
 // recordTypeAttrs stores attributes for a type for later lookup
@@ -275,7 +270,7 @@ func (tc *typeChecker) typeHasAttr(typeID types.TypeID, attrName string) bool {
 }
 
 // validateTypeAttrs validates all attributes on a type declaration
-func (tc *typeChecker) validateTypeAttrs(itemID ast.ItemID, typeItem *ast.TypeItem, typeID types.TypeID) {
+func (tc *typeChecker) validateTypeAttrs(typeItem *ast.TypeItem, typeID types.TypeID) {
 	// Collect attributes
 	infos := tc.collectAttrs(typeItem.AttrStart, typeItem.AttrCount)
 	if len(infos) == 0 {
@@ -333,14 +328,11 @@ func (tc *typeChecker) validateFieldAttrs(field *ast.TypeStructField, ownerTypeI
 
 	// Validate parameters for @guarded_by
 	if guardedInfo, ok := hasAttr(infos, "guarded_by"); ok {
-		fieldName, ok := tc.validateFieldReference(guardedInfo, ownerTypeID,
+		tc.validateFieldReference(guardedInfo, ownerTypeID,
 			diag.SemaAttrGuardedByNotField,
 			"@guarded_by requires a field name argument: @guarded_by(\"lock\")")
-		if ok {
-			// Could additionally validate that the referenced field is a Mutex/RwLock
-			// but that requires type checking, which might not be available yet
-			_ = fieldName
-		}
+		// Could additionally validate that the referenced field is a Mutex/RwLock
+		// but that requires type checking, which might not be available yet
 	}
 
 	// Validate parameters for @align
@@ -400,4 +392,38 @@ func (tc *typeChecker) checkReadonlyFieldWrite(targetExpr ast.ExprID, span sourc
 	}
 
 	return false
+}
+
+// validateFunctionAttrs validates all attributes on a function declaration
+func (tc *typeChecker) validateFunctionAttrs(fnItem *ast.FnItem, ownerTypeID types.TypeID) {
+	// Collect attributes
+	infos := tc.collectAttrs(fnItem.AttrStart, fnItem.AttrCount)
+	if len(infos) == 0 {
+		return
+	}
+
+	// Validate target applicability
+	tc.validateAttrs(fnItem.AttrStart, fnItem.AttrCount, ast.AttrTargetFn, diag.SemaError)
+
+	// Check conflicts: @nonblocking vs @waits_on
+	tc.checkConflict(infos, "nonblocking", "waits_on", diag.SemaAttrNonblockingWaitsOn)
+
+	// Validate @backend parameter
+	if backendInfo, ok := hasAttr(infos, "backend"); ok {
+		tc.validateBackendParameter(backendInfo)
+	}
+
+	// Validate @waits_on parameter (field reference)
+	if waitsInfo, ok := hasAttr(infos, "waits_on"); ok {
+		tc.validateFieldReference(waitsInfo, ownerTypeID,
+			diag.SemaAttrWaitsOnNotField,
+			"@waits_on requires a field name argument: @waits_on(\"condition\")")
+	}
+
+	// Validate @requires_lock parameter (field reference)
+	if requiresInfo, ok := hasAttr(infos, "requires_lock"); ok {
+		tc.validateFieldReference(requiresInfo, ownerTypeID,
+			diag.SemaAttrRequiresLockNotField,
+			"@requires_lock requires a field name argument: @requires_lock(\"lock\")")
+	}
 }

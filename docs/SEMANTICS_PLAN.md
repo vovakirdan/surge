@@ -106,12 +106,12 @@
 
 # 9) Атрибуты (валидация и конфликты)
 
-* Закрытый набор атрибутов, валидация применимости (`Fn/Type/Field/...`) и конфликтов (`@overload` на первой декларации, `@packed` vs `@align`, `@send` vs `@nosend`, `@nonblocking` vs `@waits_on`, запрет `@override` целей «не отсюда», запечатанные примитивы и типы). 
-* Спец-ограничения для `@intrinsic` (модуль, имена, отсутствие тела). 
+* Закрытый набор атрибутов, валидация применимости (`Fn/Type/Field/...`) и конфликтов (`@overload` на первой декларации, `@packed` vs `@align`, `@send` vs `@nosend`, `@nonblocking` vs `@waits_on`, запрет `@override` целей «не отсюда», запечатанные примитивы и типы).
+* Спец-ограничения для `@intrinsic` (модуль, имена, отсутствие тела).
 
 **Готово, когда:** некорректные атрибуты/места применения и конфликты стабильно диагностируются.
 
-**Статус:** ⚠️ Частично. В `internal/sema/attrs.go` реализован сбор атрибутов из AST, валидируются `@intrinsic/@override/@overload` в рамках объявлений (`SemaIntrinsicBadContext`, `SemaIntrinsicBadName`, `SemaIntrinsicHasBody`, `SemaFnOverride`). Нет полного каталога разрешённых целей, не проверяются конфликтующие атрибуты типа `@send/@pure/@packed/@align`.
+**Статус:** ✅ Готово. Полная валидация всех 27 атрибутов из каталога (`internal/ast/attr_catalog.go`): применимость к целям (Fn/Type/Field/Param/Block/Stmt), конфликты (@packed vs @align, @send vs @nosend, @nonblocking vs @waits_on), параметры (@align(N) - степень 2, @backend("target") - известные цели, @guarded_by("lock")/@requires_lock("lock")/@waits_on("cond") - валидация полей), семантические ограничения (@sealed блокирует расширение, @readonly запрещает запись, @noinherit пропускает наследование). Реализовано в `internal/sema/attr_validation.go` (438 строк), интегрировано в `type_decl_struct.go`, `borrow_runtime.go`, `extern_functions.go`, `type_checker_core.go`. Диагностические коды 3060-3076. Тесты: golden tests в `testdata/golden/sema/invalid/attrs_*` и `testdata/golden/sema/valid/attrs_*`.
 
 # 10) Касты: `to` и `__to`
 

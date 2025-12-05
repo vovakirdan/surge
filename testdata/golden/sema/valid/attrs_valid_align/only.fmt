@@ -1,0 +1,31 @@
+// Test: valid @align values (powers of 2)
+
+@align(1)
+type Align1 = {
+    x: int
+}
+
+@align(2)
+type Align2 = {
+    x: int
+}
+
+@align(4)
+type Align4 = {
+    x: int
+}
+
+@align(8)
+type Align8 = {
+    x: int
+}
+
+@align(16)
+type Align16 = {
+    x: int
+}
+
+@align(256)
+type Align256 = {
+    x: int
+}

@@ -1,0 +1,11 @@
+// Test: cannot extend @sealed type
+
+@sealed
+type Base = {
+    x: int
+}
+
+// This should fail with SEM3074
+type Derived = Base : {
+    y: int
+}

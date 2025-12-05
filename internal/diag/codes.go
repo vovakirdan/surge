@@ -127,23 +127,23 @@ const (
 	SemaEntrypointInvalidAttr      Code = 3059
 
 	// Attribute validation (3060-3076)
-	SemaAttrConflict               Code = 3060 // General attribute conflict
-	SemaAttrPackedAlign            Code = 3061 // @packed conflicts with @align
-	SemaAttrSendNosend             Code = 3062 // @send conflicts with @nosend
-	SemaAttrNonblockingWaitsOn     Code = 3063 // @nonblocking conflicts with @waits_on
-	SemaAttrAlignNotPowerOfTwo     Code = 3064 // @align(N) where N is not power of 2
-	SemaAttrAlignInvalidValue      Code = 3065 // @align with non-numeric argument
-	SemaAttrBackendUnknown         Code = 3066 // @backend with unknown target
-	SemaAttrBackendInvalidArg      Code = 3067 // @backend with non-string argument
-	SemaAttrGuardedByNotField      Code = 3068 // @guarded_by references non-existent field
-	SemaAttrGuardedByNotLock       Code = 3069 // @guarded_by field is not Mutex/RwLock
-	SemaAttrRequiresLockNotField   Code = 3070 // @requires_lock references non-existent field
-	SemaAttrWaitsOnNotField        Code = 3071 // @waits_on references non-existent field
-	SemaAttrMissingParameter       Code = 3072 // Required parameter missing
-	SemaAttrInvalidParameter       Code = 3073 // Invalid parameter value/type
-	SemaAttrSealedExtend           Code = 3074 // Cannot extend @sealed type
-	SemaAttrReadonlyWrite          Code = 3075 // Cannot write to @readonly field
-	SemaAttrPureViolation          Code = 3076 // @pure function has side effects
+	SemaAttrConflict             Code = 3060 // General attribute conflict
+	SemaAttrPackedAlign          Code = 3061 // @packed conflicts with @align
+	SemaAttrSendNosend           Code = 3062 // @send conflicts with @nosend
+	SemaAttrNonblockingWaitsOn   Code = 3063 // @nonblocking conflicts with @waits_on
+	SemaAttrAlignNotPowerOfTwo   Code = 3064 // @align(N) where N is not power of 2
+	SemaAttrAlignInvalidValue    Code = 3065 // @align with non-numeric argument
+	SemaAttrBackendUnknown       Code = 3066 // @backend with unknown target
+	SemaAttrBackendInvalidArg    Code = 3067 // @backend with non-string argument
+	SemaAttrGuardedByNotField    Code = 3068 // @guarded_by references non-existent field
+	SemaAttrGuardedByNotLock     Code = 3069 // @guarded_by field is not Mutex/RwLock
+	SemaAttrRequiresLockNotField Code = 3070 // @requires_lock references non-existent field
+	SemaAttrWaitsOnNotField      Code = 3071 // @waits_on references non-existent field
+	SemaAttrMissingParameter     Code = 3072 // Required parameter missing
+	SemaAttrInvalidParameter     Code = 3073 // Invalid parameter value/type
+	SemaAttrSealedExtend         Code = 3074 // Cannot extend @sealed type
+	SemaAttrReadonlyWrite        Code = 3075 // Cannot write to @readonly field
+	SemaAttrPureViolation        Code = 3076 // @pure function has side effects
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001

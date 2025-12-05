@@ -270,6 +270,8 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 				tc.awaitDepth--
 			}
 		}
+		// Validate function attributes
+		tc.validateFunctionAttrs(fnItem, types.NoTypeID)
 		if typeParamsPushed {
 			tc.popTypeParams()
 		}

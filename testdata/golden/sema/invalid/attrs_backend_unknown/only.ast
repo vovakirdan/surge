@@ -1,0 +1,13 @@
+only.sg (span: 3:1-10:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: quantum_compute
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:22-5:2)
+└─ Item[1]: Fn (span: 7:1-9:2)
+   ├─ Name: fpga_compute
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:19-9:2)

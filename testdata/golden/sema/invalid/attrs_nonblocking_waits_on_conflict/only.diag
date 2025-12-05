@@ -1,0 +1,1 @@
+error SEM3063 testdata/golden/sema/invalid/attrs_nonblocking_waits_on_conflict/only.sg:4:1 attribute '@waits_on' conflicts with '@nonblocking'

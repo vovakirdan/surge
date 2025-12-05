@@ -1,0 +1,14 @@
+  1: At              "@" at 3:1-3:2 (leading: LineComment, Newline)
+  2: Ident           "nonblocking" at 3:2-3:13
+  3: At              "@" at 4:1-4:2 (leading: Newline)
+  4: Ident           "waits_on" at 4:2-4:10
+  5: LParen          "(" at 4:10-4:11
+  6: StringLit       "\"cond\"" at 4:11-4:17
+  7: RParen          ")" at 4:17-4:18
+  8: KwFn            "fn" at 5:1-5:3 (leading: Newline)
+  9: Ident           "conflicting_attrs" at 5:4-5:21 (leading: Space)
+ 10: LParen          "(" at 5:21-5:22
+ 11: RParen          ")" at 5:22-5:23
+ 12: LBrace          "{" at 5:24-5:25 (leading: Space)
+ 13: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 14: EOF             at 7:1-7:1

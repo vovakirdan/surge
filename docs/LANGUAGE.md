@@ -630,9 +630,11 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 | @shared          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
 | @atomic          |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
 | @readonly        |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
-| @hidden          |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
-| @noinherit       |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
+| @deprecated      |  ✅  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
+| @hidden          |  ✅  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
+| @noinherit       |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
 | @sealed          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |
+| @entrypoint      |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
 | @guarded_by      |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
 | @requires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
 | @acquires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
@@ -649,11 +651,11 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 #### Typical Conflicts
 
 * `@overload` + first function declaration → `E_OVERLOAD_FIRST_DECL`
-* `@override` + `@overload` on same declaration → `E_ATTR_CONFLICT`
-* `@packed` + impossible `@align(N)` → `E_ATTR_CONFLICT`
-* `@sealed` + attempt to extend type → `E_TYPE_SEALED`
-* `@send` + `@nosend` on same type → `E_CONC_CONTRACT_CONFLICT`
-* `@nonblocking` + `@waits_on` on same function → `E_CONC_CONTRACT_CONFLICT`
+* `@override` + `@overload` on same declaration → `SemaAttrConflict` (3060)
+* `@packed` + `@align(N)` on same declaration → `SemaAttrPackedAlign` (3061)
+* `@sealed` + attempt to extend type → `SemaAttrSealedExtend` (3074)
+* `@send` + `@nosend` on same type → `SemaAttrSendNosend` (3062)
+* `@nonblocking` + `@waits_on` on same function → `SemaAttrNonblockingWaitsOn` (3063)
 
 #### Limitations for @intrinsic
 

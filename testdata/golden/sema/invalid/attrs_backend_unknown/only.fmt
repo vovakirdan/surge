@@ -1,0 +1,9 @@
+// Test: @backend with unknown target (warning)
+
+@backend("quantum")
+fn quantum_compute() {
+}
+
+@backend("fpga")
+fn fpga_compute() {
+}

@@ -1,0 +1,15 @@
+only.sg (span: 4:1-14:1)
+├─ Item[0]: Type (span: 4:1-7:2)
+│  ├─ Name: InvalidAlign1
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @align(7)
+│  └─ Struct:
+│     └─ Field[0]: x: int
+└─ Item[1]: Type (span: 10:1-13:2)
+   ├─ Name: InvalidAlign2
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @align(3)
+   └─ Struct:
+      └─ Field[0]: x: int

@@ -1,0 +1,2 @@
+error SEM3066 testdata/golden/sema/invalid/attrs_backend_unknown/only.sg:3:10 unknown backend target 'quantum'; known targets: cpu, gpu, tpu, wasm, native
+error SEM3066 testdata/golden/sema/invalid/attrs_backend_unknown/only.sg:7:10 unknown backend target 'fpga'; known targets: cpu, gpu, tpu, wasm, native

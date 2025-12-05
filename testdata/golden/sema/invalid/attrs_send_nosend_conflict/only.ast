@@ -1,0 +1,8 @@
+only.sg (span: 4:1-9:1)
+└─ Item[0]: Type (span: 4:1-8:2)
+   ├─ Name: ConflictType
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @send, @nosend
+   └─ Struct:
+      └─ Field[0]: x: int

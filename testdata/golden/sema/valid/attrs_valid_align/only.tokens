@@ -1,0 +1,79 @@
+  1: At              "@" at 3:1-3:2 (leading: LineComment, Newline)
+  2: Ident           "align" at 3:2-3:7
+  3: LParen          "(" at 3:7-3:8
+  4: IntLit          "1" at 3:8-3:9
+  5: RParen          ")" at 3:9-3:10
+  6: KwType          "type" at 4:1-4:5 (leading: Newline)
+  7: Ident           "Align1" at 4:6-4:12 (leading: Space)
+  8: Assign          "=" at 4:13-4:14 (leading: Space)
+  9: LBrace          "{" at 4:15-4:16 (leading: Space)
+ 10: Ident           "x" at 5:5-5:6 (leading: Newline, Space)
+ 11: Colon           ":" at 5:6-5:7
+ 12: Ident           "int" at 5:8-5:11 (leading: Space)
+ 13: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 14: At              "@" at 8:1-8:2 (leading: Newline)
+ 15: Ident           "align" at 8:2-8:7
+ 16: LParen          "(" at 8:7-8:8
+ 17: IntLit          "2" at 8:8-8:9
+ 18: RParen          ")" at 8:9-8:10
+ 19: KwType          "type" at 9:1-9:5 (leading: Newline)
+ 20: Ident           "Align2" at 9:6-9:12 (leading: Space)
+ 21: Assign          "=" at 9:13-9:14 (leading: Space)
+ 22: LBrace          "{" at 9:15-9:16 (leading: Space)
+ 23: Ident           "x" at 10:5-10:6 (leading: Newline, Space)
+ 24: Colon           ":" at 10:6-10:7
+ 25: Ident           "int" at 10:8-10:11 (leading: Space)
+ 26: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 27: At              "@" at 13:1-13:2 (leading: Newline)
+ 28: Ident           "align" at 13:2-13:7
+ 29: LParen          "(" at 13:7-13:8
+ 30: IntLit          "4" at 13:8-13:9
+ 31: RParen          ")" at 13:9-13:10
+ 32: KwType          "type" at 14:1-14:5 (leading: Newline)
+ 33: Ident           "Align4" at 14:6-14:12 (leading: Space)
+ 34: Assign          "=" at 14:13-14:14 (leading: Space)
+ 35: LBrace          "{" at 14:15-14:16 (leading: Space)
+ 36: Ident           "x" at 15:5-15:6 (leading: Newline, Space)
+ 37: Colon           ":" at 15:6-15:7
+ 38: Ident           "int" at 15:8-15:11 (leading: Space)
+ 39: RBrace          "}" at 16:1-16:2 (leading: Newline)
+ 40: At              "@" at 18:1-18:2 (leading: Newline)
+ 41: Ident           "align" at 18:2-18:7
+ 42: LParen          "(" at 18:7-18:8
+ 43: IntLit          "8" at 18:8-18:9
+ 44: RParen          ")" at 18:9-18:10
+ 45: KwType          "type" at 19:1-19:5 (leading: Newline)
+ 46: Ident           "Align8" at 19:6-19:12 (leading: Space)
+ 47: Assign          "=" at 19:13-19:14 (leading: Space)
+ 48: LBrace          "{" at 19:15-19:16 (leading: Space)
+ 49: Ident           "x" at 20:5-20:6 (leading: Newline, Space)
+ 50: Colon           ":" at 20:6-20:7
+ 51: Ident           "int" at 20:8-20:11 (leading: Space)
+ 52: RBrace          "}" at 21:1-21:2 (leading: Newline)
+ 53: At              "@" at 23:1-23:2 (leading: Newline)
+ 54: Ident           "align" at 23:2-23:7
+ 55: LParen          "(" at 23:7-23:8
+ 56: IntLit          "16" at 23:8-23:10
+ 57: RParen          ")" at 23:10-23:11
+ 58: KwType          "type" at 24:1-24:5 (leading: Newline)
+ 59: Ident           "Align16" at 24:6-24:13 (leading: Space)
+ 60: Assign          "=" at 24:14-24:15 (leading: Space)
+ 61: LBrace          "{" at 24:16-24:17 (leading: Space)
+ 62: Ident           "x" at 25:5-25:6 (leading: Newline, Space)
+ 63: Colon           ":" at 25:6-25:7
+ 64: Ident           "int" at 25:8-25:11 (leading: Space)
+ 65: RBrace          "}" at 26:1-26:2 (leading: Newline)
+ 66: At              "@" at 28:1-28:2 (leading: Newline)
+ 67: Ident           "align" at 28:2-28:7
+ 68: LParen          "(" at 28:7-28:8
+ 69: IntLit          "256" at 28:8-28:11
+ 70: RParen          ")" at 28:11-28:12
+ 71: KwType          "type" at 29:1-29:5 (leading: Newline)
+ 72: Ident           "Align256" at 29:6-29:14 (leading: Space)
+ 73: Assign          "=" at 29:15-29:16 (leading: Space)
+ 74: LBrace          "{" at 29:17-29:18 (leading: Space)
+ 75: Ident           "x" at 30:5-30:6 (leading: Newline, Space)
+ 76: Colon           ":" at 30:6-30:7
+ 77: Ident           "int" at 30:8-30:11 (leading: Space)
+ 78: RBrace          "}" at 31:1-31:2 (leading: Newline)
+ 79: EOF             at 32:1-32:1

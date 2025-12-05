@@ -1,0 +1,23 @@
+  1: At              "@" at 3:1-3:2 (leading: LineComment, Newline)
+  2: Ident           "backend" at 3:2-3:9
+  3: LParen          "(" at 3:9-3:10
+  4: StringLit       "\"quantum\"" at 3:10-3:19
+  5: RParen          ")" at 3:19-3:20
+  6: KwFn            "fn" at 4:1-4:3 (leading: Newline)
+  7: Ident           "quantum_compute" at 4:4-4:19 (leading: Space)
+  8: LParen          "(" at 4:19-4:20
+  9: RParen          ")" at 4:20-4:21
+ 10: LBrace          "{" at 4:22-4:23 (leading: Space)
+ 11: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 12: At              "@" at 7:1-7:2 (leading: Newline)
+ 13: Ident           "backend" at 7:2-7:9
+ 14: LParen          "(" at 7:9-7:10
+ 15: StringLit       "\"fpga\"" at 7:10-7:16
+ 16: RParen          ")" at 7:16-7:17
+ 17: KwFn            "fn" at 8:1-8:3 (leading: Newline)
+ 18: Ident           "fpga_compute" at 8:4-8:16 (leading: Space)
+ 19: LParen          "(" at 8:16-8:17
+ 20: RParen          ")" at 8:17-8:18
+ 21: LBrace          "{" at 8:19-8:20 (leading: Space)
+ 22: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 23: EOF             at 10:1-10:1

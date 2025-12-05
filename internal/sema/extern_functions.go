@@ -65,6 +65,15 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 		}
 		tc.popReturnContext()
 	}
+	// Validate function attributes
+	ownerTypeID := types.NoTypeID
+	if receiverOwner.IsValid() {
+		if sym := tc.symbolFromID(receiverOwner); sym != nil {
+			ownerTypeID = sym.Type
+		}
+	}
+	tc.validateFunctionAttrs(fn, ownerTypeID)
+
 	if typeParamsPushed {
 		tc.popTypeParams()
 	}

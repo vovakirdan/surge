@@ -1,0 +1,13 @@
+  1: At              "@" at 4:1-4:2 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "send" at 4:2-4:6
+  3: At              "@" at 5:1-5:2 (leading: Newline)
+  4: Ident           "nosend" at 5:2-5:8
+  5: KwType          "type" at 6:1-6:5 (leading: Newline)
+  6: Ident           "ConflictType" at 6:6-6:18 (leading: Space)
+  7: Assign          "=" at 6:19-6:20 (leading: Space)
+  8: LBrace          "{" at 6:21-6:22 (leading: Space)
+  9: Ident           "x" at 7:5-7:6 (leading: Newline, Space)
+ 10: Colon           ":" at 7:6-7:7
+ 11: Ident           "int" at 7:8-7:11 (leading: Space)
+ 12: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 13: EOF             at 9:1-9:1

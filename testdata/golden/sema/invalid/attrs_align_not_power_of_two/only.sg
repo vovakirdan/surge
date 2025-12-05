@@ -1,0 +1,13 @@
+// Test: @align argument must be power of 2
+
+// This should fail with SEM3064
+@align(7)
+type InvalidAlign1 = {
+    x: int
+}
+
+// This should also fail with SEM3064
+@align(3)
+type InvalidAlign2 = {
+    x: int
+}

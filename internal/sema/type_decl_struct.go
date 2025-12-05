@@ -88,7 +88,7 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 	}
 
 	// Validate type-level attributes
-	tc.validateTypeAttrs(itemID, typeItem, typeID)
+	tc.validateTypeAttrs(typeItem, typeID)
 }
 
 func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.SymbolID, args []types.TypeID) types.TypeID {

@@ -1,0 +1,20 @@
+  1: At              "@" at 4:1-4:2 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "packed" at 4:2-4:8
+  3: At              "@" at 5:1-5:2 (leading: Newline)
+  4: Ident           "align" at 5:2-5:7
+  5: LParen          "(" at 5:7-5:8
+  6: IntLit          "8" at 5:8-5:9
+  7: RParen          ")" at 5:9-5:10
+  8: KwType          "type" at 6:1-6:5 (leading: Newline)
+  9: Ident           "ConflictType" at 6:6-6:18 (leading: Space)
+ 10: Assign          "=" at 6:19-6:20 (leading: Space)
+ 11: LBrace          "{" at 6:21-6:22 (leading: Space)
+ 12: Ident           "x" at 7:5-7:6 (leading: Newline, Space)
+ 13: Colon           ":" at 7:6-7:7
+ 14: Ident           "int" at 7:8-7:11 (leading: Space)
+ 15: Comma           "," at 7:11-7:12
+ 16: Ident           "y" at 8:5-8:6 (leading: Newline, Space)
+ 17: Colon           ":" at 8:6-8:7
+ 18: Ident           "int" at 8:8-8:11 (leading: Space)
+ 19: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 20: EOF             at 10:1-10:1

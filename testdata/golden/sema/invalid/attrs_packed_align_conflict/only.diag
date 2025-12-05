@@ -1,0 +1,2 @@
+error SEM3061 testdata/golden/sema/invalid/attrs_packed_align_conflict/only.sg:4:1 @packed conflicts with @align on the same declaration
+error SEM3061 testdata/golden/sema/invalid/attrs_packed_align_conflict/only.sg:5:1 @align conflicts with @packed on the same declaration

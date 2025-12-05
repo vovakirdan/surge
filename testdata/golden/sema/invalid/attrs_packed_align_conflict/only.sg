@@ -1,0 +1,9 @@
+// Test: @packed and @align conflict
+
+// This should fail with SEM3061
+@packed
+@align(8)
+type ConflictType = {
+    x: int,
+    y: int
+}
