@@ -43,8 +43,11 @@ func (t *StreamTracer) Emit(ev *Event) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	ev.Seq = NextSeq()
-	data := FormatEvent(ev, t.format)
+	// Make a local copy to avoid mutating the shared Event pointer
+	// (MultiTracer may pass the same pointer to multiple tracers concurrently)
+	localEv := *ev
+	localEv.Seq = NextSeq()
+	data := FormatEvent(&localEv, t.format)
 
 	// For Chrome format, add commas between events
 	if t.format == FormatChrome {
