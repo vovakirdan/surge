@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/vmihailenco/msgpack/v5"
@@ -16,7 +17,9 @@ import (
 
 // DiskCache хранит полезные артефакты по ModuleHash на диске.
 // Сейчас — только заглушка под будущие экспорты семантики.
+// Thread-safe for concurrent access.
 type DiskCache struct {
+	mu  sync.RWMutex
 	dir string
 }
 
@@ -56,6 +59,9 @@ func (c *DiskCache) Put(key project.Digest, payload *DiskPayload) error {
 	if c == nil {
 		return nil
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	p := c.pathFor(key)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
@@ -86,6 +92,9 @@ func (c *DiskCache) Get(key project.Digest, out *DiskPayload) (bool, error) {
 	if c == nil {
 		return false, nil
 	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	p := c.pathFor(key)
 	f, err := os.Open(p)
 	if err != nil {
@@ -107,6 +116,9 @@ func (c *DiskCache) DropAll() error {
 	if c == nil {
 		return nil
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	// тривиально: переименуем каталог и удалим в фоне
 	old := c.dir + ".old-" + time.Now().Format("20060102150405")
 	if err := os.Rename(c.dir, old); err != nil {
