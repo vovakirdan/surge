@@ -20,7 +20,7 @@
 
 - Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, tag, extern, pub, async, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, nothing`.
 - The type checker currently resolves `int`, `uint`, `float`, `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`, `*T`), slices `T[]`, and sized arrays `T[N]` when `N` is a constant numeric literal. Fixed-width numerics (`int8`, `uint64`, `float32`…) are reserved symbols in the prelude but are not backed by concrete `TypeID`s yet.
-- Tuple and function types parse, but sema does not yet lower them; treat them as planned surface.
+- Tuple and function types parse, but sema does not yet lower them. **Planned for v1.1.**
 - Tags and unions follow the current parser: `tag Name<T>(args...);` declares a tag item; unions accept plain types, `nothing`, or `Tag(args)` members. `Option`/`Result` plus tags `Some`/`Ok`/`Error` are injected via the prelude and resolved without user declarations; exhaustive `compare` checks are still TODO.
 - Contracts (trait-like structural interfaces) are parsed and checked in sema: declaration syntax is enforced, bounds on functions/types are resolved, short/long forms are validated by arity, and structural satisfaction (fields/methods) is verified on calls, type instantiations, assignments, and returns.
 - Diagnostics now use the `Lex*`/`Syn*`/`Sema*` numeric codes from `internal/diag/codes.go` instead of the earlier `E_*` placeholders.
@@ -80,7 +80,7 @@ The type checker currently recognises built-in `int`, `uint`, `float`, `bool`, `
   * `int` – signed integer of unbounded width.
   * `uint` – unsigned integer of unbounded width.
   * `float` – floating-point of high precision (≥ IEEE754-64 semantics guaranteed; implementations may be wider).
-* **Fixed-size numerics** (layout-specified, planned):
+* **Fixed-size numerics** (layout-specified, **reserved for v1.1**):
 
   * `int8, int16, int32, int64`, `uint8, uint16, uint32, uint64`.
   * `float16, float32, float64`.
@@ -482,11 +482,18 @@ Parser diagnostics:
 * `arr[i]` desugars to `arr.__index(i)`.
 * `arr[i] = v` desugars to `arr.__index_set(i, v)`.
 
-### 3.5. Signals (Reactive Bindings)
+### 3.5. Signals (Reactive Bindings) — **Future Feature (v2+)**
 
-* `signal name := expr;` binds `name` to the value of `expr`, re-evaluated automatically when any of its dependencies change.
-* Signals are single-assignment; you cannot assign to `name` directly.
-* Update semantics: changes propagate in topological order per turn. The bound expression must be `@pure`; side-effects inside signal evaluation are disallowed. Violations emit `E_SIGNAL_NOT_PURE`.
+> **Status:** Not supported in v1. Reserved for v2+.
+
+* `signal name := expr;` — syntax reserved for reactive bindings
+* Planned: automatic re-evaluation when dependencies change
+* Planned: topological ordering, `@pure` requirement for expressions
+
+**v1 behavior:** Lexer accepts keyword, but semantic analysis rejects with error message:
+- "signal is not supported in v1, reserved for future use"
+
+See §22.1 for detailed future specification.
 
 ### 3.6. Compare (Pattern Matching)
 
@@ -746,7 +753,9 @@ extern<Person> {
 }
 ```
 
-### 4.5. Macros
+### 4.5. Macros — **Future Feature (v2+)**
+
+> **Status:** Not supported in v1. Reserved for v2+.
 
 Macros provide compile-time code generation and metaprogramming capabilities:
 
@@ -776,7 +785,12 @@ fn test_something() {
 * `size_of<T>()` – returns size of type in bytes
 * `align_of<T>()` – returns alignment requirement of type
 
-**Implementation Status:** Macros are reserved for future iterations. The syntax and semantics are specified for completeness, but core implementation work should focus on other features first. Macros will be added after the base language is stable.
+**Implementation Status:** Macros are reserved for future iterations. The syntax and semantics are specified for completeness, but core implementation work should focus on other features first. Macros will be added in v2+ after the base language is stable.
+
+**v1 behavior:** Lexer accepts keyword, but semantic analysis rejects with error message:
+- "macro is planned for v2+"
+
+See §22.2 for complete specification.
 
 ---
 
@@ -1143,13 +1157,36 @@ The following types are provided by the standard library for synchronization and
 
 These types are used in conjunction with concurrency contract attributes (§4.2.E) to express locking requirements and data protection invariants.
 
-### 9.2. Parallel Map / Reduce
+### 9.2. Parallel Map / Reduce — **Future Feature (v2+)**
 
-* `parallel map xs with args => func` executes `func` over `xs` elements concurrently; `func` must be `@pure`.
-* `parallel reduce xs with init, args => func` reduces in parallel; `func` must be associative and `@pure`.
+> **Status:** Not supported in v1. Requires multi-threading (v2+).
 
-Grammar (surface):
+**Reserved syntax:**
+```sg
+parallel map xs with (args) => func
+parallel reduce xs with init, (args) => func
+```
 
+**Planned semantics:**
+- True parallelism on multiple OS threads
+- Work-stealing scheduler
+- Requires `@pure` functions
+- Automatic load balancing
+
+**v1 alternative:** Use `spawn` with channels for concurrent (not parallel) processing:
+```sg
+async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
+    let mut tasks: Task<U>[] = [];
+    for x in xs {
+        tasks.push(spawn f(x));
+    }
+    return await_all(tasks);
+}
+```
+
+**Note:** v1 uses single-threaded cooperative concurrency. See §9.4-9.5 for async/await model.
+
+**Grammar (reserved):**
 ```
 ParallelMap    := "parallel" "map" Expr "with" ArgList "=>" Expr
 ParallelReduce := "parallel" "reduce" Expr "with" Expr "," ArgList "=>" Expr
@@ -1158,67 +1195,254 @@ ArgList        := "(" (Expr ("," Expr)*)? ")" | "()"
 
 Restriction: `=>` is valid only in these `parallel` constructs and within `compare` arms (§3.6). Any other use triggers `SynFatArrowOutsideParallel`.
 
+**v1 behavior:** Lexer/parser accept syntax, but semantic analysis rejects with error:
+- "parallel requires multi-threading (v2+)"
+
+See §22.3 for detailed v2+ specification.
+
 ### 9.3. Backend Selection
 
-`@backend("gpu")`/`@backend("cpu")` may annotate functions or blocks. If the target is unsupported, a diagnostic is emitted or a fallback is chosen by the compiler based on flags.
+`@backend("cpu"|"gpu")` may annotate functions or blocks for execution target hints:
 
-### 9.4. Tasks and spawn semantics
+```sg
+@backend("gpu")
+fn matrix_multiply(a: Matrix, b: Matrix) -> Matrix {
+    // GPU-optimized implementation
+}
+```
 
-* `spawn expr` launches a new task to evaluate `expr` asynchronously. If `expr` has type `T`, `spawn expr` has type `Task<T>` (a join handle).
-* `join(t: Task<T>) -> Erring<T, Cancelled>` waits for completion; on normal completion returns `Success(value)`, on cooperative cancellation returns error value.
-* `t.cancel()` requests cooperative cancellation; tasks can check via `task::is_cancelled()`.
-* Moving values into `spawn` consumes them (ownership semantics). Only `own` values may be moved into tasks.
+**Semantics:**
+- Compiler attempts to lower code for specified backend
+- If backend is unsupported or unavailable:
+  - By default: falls back to CPU implementation with warning
+  - With `--strict-backend`: compile error
+- Backend attribute does not change semantics, only execution target
+
+**v1 support:**
+- `@backend("cpu")` — always supported
+- `@backend("gpu")` — may emit warning if GPU backend unavailable
+
+Future backends may include: `"simd"`, `"opencl"`, `"cuda"`, `"metal"`.
+
+### 9.4. Tasks and Spawn Semantics
+
+**Execution model:** v1 uses single-threaded cooperative scheduling. All tasks run on one OS thread, yielding control at `.await()` points. No preemption — use `checkpoint()` for long CPU work.
+
+#### Spawn Expression
+
+```sg
+spawn expr
+```
+
+* `expr` must be `Task<T>` (result of calling `async fn`)
+* Returns `Task<T>` — a handle to the spawned task
+* Ownership of captured values transfers to the task
+* Only `own T` values may cross task boundaries (no `&T` or `&mut T`)
+
+**Example:**
+```sg
+let data: own Data = load();
+let task: Task<Result> = spawn process(data);  // data moved
+// data is invalid here
+```
+
+#### Task<T> API
+
+```sg
+extern<Task<T>> {
+    // Wait for completion, returns result or Cancelled
+    fn await(self: own Task<T>) -> T;
+
+    // Request cancellation (cooperative)
+    fn cancel(self: &Task<T>) -> nothing;
+
+    // Check if completed (non-blocking)
+    fn is_done(self: &Task<T>) -> bool;
+
+    // Check if cancellation was requested
+    fn is_cancelled(self: &Task<T>) -> bool;
+}
+```
+
+#### Cancellation
+
+Surge uses **interrupt-at-await** cancellation:
+
+1. `task.cancel()` sets a cancellation flag
+2. At the next `.await()` point, the task checks the flag
+3. If cancelled, `.await()` returns `Cancelled` immediately
+4. The task can handle or propagate `Cancelled`
+
+**Cancelled tag:**
+```sg
+tag Cancelled();
+```
+
+**Example:**
+```sg
+async fn worker() {
+    compare some_io().await() {
+        Success(data) => process(data);
+        Cancelled() => {
+            cleanup();
+            return Cancelled();
+        }
+        err => return err;
+    }
+}
+```
+
+#### Checkpoint for CPU-bound Work
+
+Long CPU-bound loops don't yield. Use `checkpoint()`:
+
+```sg
+async fn heavy_compute() -> int {
+    let mut sum = 0;
+    for i in 0..10_000_000 {
+        sum = sum + expensive(i);
+
+        if (i % 1000 == 0) {
+            checkpoint().await();  // Yield + check cancellation
+        }
+    }
+    return sum;
+}
+```
+
+* `checkpoint()` returns `Task<nothing>`
+* Yields to scheduler, allows other tasks to run
+* Checks cancellation flag, returns `Cancelled` if set
+
+**Note:** For complete concurrency specification, see `CONCURRENCY.md`.
 
 ### 9.5. Async/Await Model (Structured Concurrency)
 
-Surge provides structured concurrency with async/await for managing asynchronous operations:
+Surge provides structured concurrency with async/await for cooperative multitasking.
 
-**Async Functions:**
+#### Async Functions
+
 ```sg
-async fn fetch_data(url: string) -> Erring<Data, Error> {
-    let response = http_get(url).await();
-    let response = compare response {
-        Success(value) => value;
-        err => return err;
-    };
-    return parse_response(response).await();
-}
-
-async fn process_multiple_urls(urls: string[]) -> Erring<Data[], Error> {
-    let mut results: Data[] = [];
-    for url in urls {
-        let outcome = fetch_data(url).await();
-        compare outcome {
-            Success(data) => results.push(data);
-            err => return err;
-        };
-    }
-    return Success(results);
+async fn name(params) -> RetType {
+    // can use .await() inside
 }
 ```
 
-**Structured Concurrency Blocks:**
+* `async fn` returns `Task<RetType>` implicitly
+* Caller must `.await()` or `spawn` the result
+* Cannot be called from sync context without `spawn`
+
+**Example:**
+```sg
+async fn fetch_user(id: int) -> Erring<User, Error> {
+    let response = http_get("/users/" + id).await();
+    return parse_user(response);
+}
+
+async fn main() {
+    let user = fetch_user(42).await();  // Direct await
+    let task = spawn fetch_user(42);     // Background task
+}
+```
+
+#### Async Blocks
+
 ```sg
 async {
-    let task1 = spawn fetch_data("url1");
-    let task2 = spawn fetch_data("url2");
-    let task3 = spawn fetch_data("url3");
-
-    let r1 = task1.await();
-    let r2 = task2.await();
-    let r3 = task3.await();
-
-    // automatic cleanup on block exit
-    // all spawned tasks are automatically cancelled if not awaited
+    // statements
 }
 ```
 
-**Key properties:**
-* Async blocks provide automatic resource cleanup
-* Tasks spawned within an async block are automatically cancelled when the block exits
-* `await` is just a method call (`task.await()`) and can only be used within `async` functions or `async` blocks
-* Async functions return `Future<T>`/`Task<T>` which must be awaited or spawned
-* Structured concurrency ensures no "fire-and-forget" tasks that can leak
+* Creates anonymous `Task<T>` where `T` is the block's result type
+* All tasks spawned inside are **owned by the block**
+* Block waits for all spawned tasks before completing (structured concurrency)
+
+**Example:**
+```sg
+async fn process_all(urls: string[]) -> Data[] {
+    async {
+        let mut tasks: Task<Data>[] = [];
+
+        for url in urls {
+            tasks.push(spawn fetch(url));
+        }
+
+        let mut results: Data[] = [];
+        for task in tasks {
+            results.push(task.await());
+        }
+
+        return results;
+    }
+}
+```
+
+#### Structured Concurrency Rules
+
+**Rule 1:** Tasks cannot outlive their spawning scope.
+
+```sg
+async {
+    let t1 = spawn work1();
+    let t2 = spawn work2();
+}  // Implicit: waits for t1 and t2 here
+```
+
+**Rule 2:** Returning a Task from async block transfers ownership.
+
+```sg
+fn start_background() -> Task<int> {
+    return spawn compute();  // Caller owns task
+}
+```
+
+**Rule 3:** Tasks spawned in `async fn` are scoped to that function.
+
+```sg
+async fn example() {
+    let t = spawn work();
+    // Implicit await before return
+}  // t is awaited here
+```
+
+#### @failfast Attribute
+
+For fail-fast error handling without boilerplate:
+
+```sg
+@failfast
+async {
+    let t1 = spawn may_fail();
+    let t2 = spawn also_runs();
+
+    // If any .await() returns Error:
+    // 1. All sibling tasks are cancelled
+    // 2. Block returns that Error immediately
+
+    let r1 = t1.await();
+    let r2 = t2.await();
+
+    return Success((r1, r2));
+}
+```
+
+**Semantics:**
+- On first `Error` from any `.await()`:
+  - All other spawned tasks receive cancel signal
+  - Block returns the error immediately
+- Successful tasks continue normally
+
+#### Single-threaded Execution
+
+**Important:** v1 uses single-threaded cooperative scheduling:
+- All tasks run on one OS thread
+- Tasks yield at `.await()` points only
+- No preemption — long CPU work blocks other tasks
+- Use `checkpoint()` to yield in CPU-bound loops
+
+**Rationale:** Simpler implementation, zero-cost abstraction, prepares for v2+ parallelism.
+
+**See also:** `CONCURRENCY.md` for complete specification with examples.
 
 ---
 
@@ -1444,9 +1668,19 @@ fn birthday(mut p: Person) { p.age = p.age + 1; }
 ```
 
 ```sg
-// Signals
-signal total := sum(prices);
-// any change to prices recomputes total (sum must be @pure)
+// Async/await with error handling
+async fn fetch_with_retry(url: string, retries: int) -> Erring<Data, Error> {
+    for i in 0..retries {
+        let result = fetch_data(url).await();
+        compare result {
+            Success(data) => return Success(data);
+            err => {
+                if (i == retries - 1) { return err; }
+                // Retry
+            }
+        }
+    }
+}
 ```
 
 ```sg
@@ -1535,21 +1769,40 @@ fn classify_value(value: NumberOrString) {
 ```
 
 ```sg
-// Async function with structured concurrency
-async fn process_data(urls: string[]) -> Erring<Data[], Error> {
+// Concurrent data processing with structured concurrency
+async fn process_urls(urls: string[]) -> Erring<Data[], Error> {
     async {
-        let tasks: Task<Erring<Data, Error>>[] = [];
+        let mut tasks: Task<Erring<Data, Error>>[] = [];
 
         for url in urls {
-            let task = spawn fetch_data(url);
-            tasks.push(task);
+            tasks.push(spawn fetch_data(url));
         }
 
-        let results: Erring<Data, Error>[] = [];
+        let mut results: Data[] = [];
         for task in tasks {
-            results.push(task.await());
+            compare task.await() {
+                Success(data) => results.push(data);
+                err => return err;  // Early return on error
+            }
         }
 
+        return Success(results);
+    }
+}
+
+// With @failfast for cleaner error handling
+@failfast
+async fn process_urls_failfast(urls: string[]) -> Erring<Data[], Error> {
+    async {
+        let mut tasks: Task<Erring<Data, Error>>[] = [];
+        for url in urls {
+            tasks.push(spawn fetch_data(url));
+        }
+
+        let mut results: Data[] = [];
+        for task in tasks {
+            results.push(task.await());  // Auto-cancels on error
+        }
         return Success(results);
     }
 }
@@ -2280,3 +2533,168 @@ Diagnostics now follow the numeric `diag.Code` families defined in `internal/dia
 - `ObsTimings`.
 
 Planned diagnostics for directives, concurrency contracts, exhaustive `compare`, and macro/runtime surfaces are not wired up yet in sema.
+
+---
+
+## 22. Future Features (v2+)
+
+The following features are reserved for future versions and are not supported in v1.
+
+### 22.1. Signals (Reactive Bindings)
+
+**Status:** Planned for v2+
+
+**Syntax (reserved):**
+```sg
+signal name := expr;
+```
+
+**Planned semantics:**
+- Reactive values that auto-update when dependencies change
+- Requires `@pure` expressions (no side effects)
+- Topological dependency resolution
+- Update propagation in deterministic order
+
+**Current v1 behavior:**
+- Keyword is lexed but semantic analysis rejects with error
+- "signal is not supported in v1, reserved for future use"
+
+**Rationale:** Signals provide reactive programming capabilities similar to observables or reactive streams. The v2+ implementation will track dependencies automatically and ensure updates propagate in topological order without manual management.
+
+**Example (planned):**
+```sg
+signal price := fetch_price();
+signal tax := price * 0.2;
+signal total := price + tax;
+
+// When price updates, tax and total automatically recompute
+```
+
+### 22.2. Macros (Compile-time Metaprogramming)
+
+**Status:** Planned for v2+
+
+**Syntax (reserved):**
+```sg
+macro name(params...) { body }
+```
+
+**Planned features:**
+- Compile-time code generation
+- Parameter types: `expr`, `ident`, `type`, `block`, `meta`
+- Built-in functions: `stringify()`, `type_name_of<T>()`, `size_of<T>()`, `align_of<T>()`
+- AST manipulation for metaprogramming
+
+**Current v1 behavior:**
+- Keyword is lexed but semantic analysis rejects with error
+- "macro is planned for v2+"
+
+**Rationale:** Macros enable zero-cost abstractions and domain-specific languages. The design follows hygiene principles to avoid accidental variable capture and ensures macro expansion is deterministic.
+
+**Example (planned):**
+```sg
+macro assert_eq(left: expr, right: expr) {
+    if (!(left == right)) {
+        panic("Assertion failed: " + stringify(left) + " != " + stringify(right));
+    }
+}
+
+// Usage
+fn test_something() {
+    assert_eq(2 + 2, 4);  // Expands at compile time
+}
+```
+
+### 22.3. Parallel Map/Reduce (Data Parallelism)
+
+**Status:** Planned for v2+ (requires multi-threading)
+
+**Syntax (reserved):**
+```sg
+parallel map collection with (args) => func
+parallel reduce collection with init, (args) => func
+```
+
+**Planned semantics:**
+- True parallelism on multiple OS threads
+- Requires `@pure` functions (enforced statically)
+- Work-stealing scheduler for automatic load balancing
+- NUMA-aware allocation for performance
+- Automatic chunking based on collection size
+
+**Current v1 behavior:**
+- Keywords are lexed but semantic analysis rejects with error
+- "parallel requires multi-threading (v2+)"
+
+**Rationale:** Data parallelism is essential for high-performance computing and AI backends. The v2+ implementation will use true OS-level threads, unlike v1's single-threaded cooperative concurrency.
+
+**v1 alternative:** Use `spawn` with channels for concurrent (not parallel) processing:
+```sg
+async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
+    let mut tasks: Task<U>[] = [];
+    for x in xs {
+        tasks.push(spawn f(x));
+    }
+
+    let mut results: U[] = [];
+    for task in tasks {
+        results.push(task.await());
+    }
+    return results;
+}
+```
+
+**Note:** v1 uses single-threaded cooperative concurrency. See §9 Concurrency Primitives for async/await, spawn, and channels.
+
+**Example (planned for v2+):**
+```sg
+let nums: int[] = [1, 2, 3, 4, 5];
+
+// Parallel map: process elements on multiple threads
+let squared = parallel map nums with (x) => x * x;
+
+// Parallel reduce: aggregate with associative operation
+let sum = parallel reduce nums with 0, (acc, x) => acc + x;
+```
+
+### 22.4. Comparison: v1 vs v2+
+
+| Feature | v1 (current) | v2+ (planned) |
+|---------|--------------|---------------|
+| Async/await | ✅ Single-threaded | ✅ Single or multi-threaded |
+| Spawn | ✅ Cooperative tasks | ✅ OS threads |
+| Channels | ✅ Message passing | ✅ Thread-safe channels |
+| Signals | ❌ Not supported | ✅ Reactive computations |
+| Parallel map/reduce | ❌ Not supported | ✅ Data parallelism |
+| Macros | ❌ Not supported | ✅ Compile-time codegen |
+| Work-stealing | ❌ N/A | ✅ Automatic load balancing |
+| Lock contracts | ⚠️ Parsed, not enforced | ✅ Static analysis |
+
+### 22.5. Migration Path
+
+When upgrading from v1 to v2+:
+
+**Signals:**
+- Convert manual state updates to `signal` declarations
+- Ensure all signal expressions are `@pure`
+- Remove explicit dependency management code
+
+**Macros:**
+- Replace code-generation scripts with compile-time macros
+- Migrate build-time templating to macro system
+- Use hygiene features to avoid naming conflicts
+
+**Parallel:**
+- Replace `spawn` loops with `parallel map` where appropriate
+- Ensure functions are `@pure` and associative (for reduce)
+- Test with thread sanitizers to catch data races
+
+**Lock contracts:**
+- Add `@guarded_by`, `@requires_lock` annotations
+- Verify static analysis catches lock violations
+- Update code to satisfy lock contracts
+
+**Backward compatibility:**
+- v1 code continues to work in v2+ (no breaking changes)
+- New features are opt-in via explicit syntax
+- Single-threaded mode remains available for predictability
