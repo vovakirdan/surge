@@ -1,0 +1,3 @@
+error SEM3074 testdata/golden/sema/invalid/attrs/semantic_violations.sg:16:16 cannot extend @sealed type 'SealedBase'
+error SEM3015 testdata/golden/sema/invalid/attrs/semantic_violations.sg:26:17 type Standalone is marked @noinherit and cannot be extended
+error SEM3075 testdata/golden/sema/invalid/attrs/semantic_violations.sg:39:5 cannot write to @readonly field 'id'

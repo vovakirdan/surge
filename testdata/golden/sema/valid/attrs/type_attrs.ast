@@ -1,0 +1,83 @@
+type_attrs.sg (span: 4:1-72:1)
+├─ Item[0]: Type (span: 4:1-8:3)
+│  ├─ Name: CompactData
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @packed
+│  └─ Struct:
+│     ├─ Field[0]: flag: bool
+│     └─ Field[1]: value: int32
+├─ Item[1]: Type (span: 11:1-15:3)
+│  ├─ Name: AlignedData
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @align(8)
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+├─ Item[2]: Type (span: 17:1-23:3)
+│  ├─ Name: VectorData
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @align(16)
+│  └─ Struct:
+│     ├─ Field[0]: x: float
+│     ├─ Field[1]: y: float
+│     ├─ Field[2]: z: float
+│     └─ Field[3]: w: float
+├─ Item[3]: Type (span: 26:1-29:3)
+│  ├─ Name: FinalType
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @sealed
+│  └─ Struct:
+│     └─ Field[0]: data: int
+├─ Item[4]: Type (span: 32:1-35:3)
+│  ├─ Name: ThreadSafeData
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @send
+│  └─ Struct:
+│     └─ Field[0]: counter: int
+├─ Item[5]: Type (span: 38:1-41:3)
+│  ├─ Name: LocalOnly
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @nosend
+│  └─ Struct:
+│     └─ Field[0]: ptr: own int
+├─ Item[6]: Type (span: 44:1-47:3)
+│  ├─ Name: Resource
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @raii
+│  └─ Struct:
+│     └─ Field[0]: handle: int
+├─ Item[7]: Type (span: 50:1-53:3)
+│  ├─ Name: SharedResource
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @shared
+│  └─ Struct:
+│     └─ Field[0]: data: int
+├─ Item[8]: Type (span: 56:1-59:3)
+│  ├─ Name: OldAPI
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @deprecated
+│  └─ Struct:
+│     └─ Field[0]: value: int
+├─ Item[9]: Type (span: 62:1-65:3)
+│  ├─ Name: InternalType
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @hidden
+│  └─ Struct:
+│     └─ Field[0]: secret: int
+└─ Item[10]: Type (span: 68:1-71:3)
+   ├─ Name: StandaloneType
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @noinherit
+   └─ Struct:
+      └─ Field[0]: value: int

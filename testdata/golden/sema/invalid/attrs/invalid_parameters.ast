@@ -1,0 +1,67 @@
+invalid_parameters.sg (span: 4:1-52:1)
+├─ Item[0]: Type (span: 4:1-7:3)
+│  ├─ Name: BadAlign1
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @align(7)
+│  └─ Struct:
+│     └─ Field[0]: x: int
+├─ Item[1]: Type (span: 9:1-12:3)
+│  ├─ Name: BadAlign2
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @align(3)
+│  └─ Struct:
+│     └─ Field[0]: y: int
+├─ Item[2]: Type (span: 14:1-17:3)
+│  ├─ Name: BadAlign3
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @align(100)
+│  └─ Struct:
+│     └─ Field[0]: z: int
+├─ Item[3]: Fn (span: 20:1-22:2)
+│  ├─ Name: unknown_backend1
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 21:23-22:2)
+├─ Item[4]: Fn (span: 24:1-26:2)
+│  ├─ Name: unknown_backend2
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 25:23-26:2)
+├─ Item[5]: Type (span: 29:1-31:3)
+│  ├─ Name: BadGuard
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: data: int
+├─ Item[6]: Extern (span: 33:1-37:2)
+│  ├─ Target: BadGuard
+│  ├─ Members:
+│  │  └─ Fn[0]: bad_guard
+│  │     ├─ Params: (self: &BadGuard)
+│  │     ├─ Return: nothing
+│  │     ├─ Attributes: @guarded_by("nonexistent_lock")
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 35:35-36:6)
+├─ Item[7]: Extern (span: 40:1-44:2)
+│  ├─ Target: BadGuard
+│  ├─ Members:
+│  │  └─ Fn[0]: bad_waits
+│  │     ├─ Params: (self: &mut BadGuard)
+│  │     ├─ Return: nothing
+│  │     ├─ Attributes: @waits_on("nonexistent_condition")
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 42:39-43:6)
+└─ Item[8]: Extern (span: 47:1-51:2)
+   ├─ Target: BadGuard
+   ├─ Members:
+   │  └─ Fn[0]: bad_requires
+   │     ├─ Params: (self: &BadGuard)
+   │     ├─ Return: nothing
+   │     ├─ Attributes: @requires_lock("nonexistent_lock")
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 49:38-50:6)

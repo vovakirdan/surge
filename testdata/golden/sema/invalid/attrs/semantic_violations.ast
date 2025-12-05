@@ -1,0 +1,54 @@
+semantic_violations.sg (span: 4:1-42:1)
+├─ Item[0]: Type (span: 4:1-7:3)
+│  ├─ Name: SealedBase
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @sealed
+│  └─ Struct:
+│     └─ Field[0]: x: int
+├─ Item[1]: Extern (span: 9:1-13:2)
+│  ├─ Target: SealedBase
+│  ├─ Members:
+│  │  └─ Fn[0]: violate_sealed
+│  │     ├─ Params: (self: &SealedBase)
+│  │     ├─ Return: nothing
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 11:42-12:6)
+├─ Item[2]: Type (span: 16:1-18:3)
+│  ├─ Name: Derived
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Base: SealedBase
+│     └─ Field[0]: y: int
+├─ Item[3]: Type (span: 20:1-23:2)
+│  ├─ Name: Standalone
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @noinherit
+│  └─ Struct:
+│     └─ Field[0]: x: int
+├─ Item[4]: Type (span: 26:1-28:2)
+│  ├─ Name: Derived2
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Base: Standalone
+│     └─ Field[0]: y: int
+├─ Item[5]: Type (span: 31:1-36:3)
+│  ├─ Name: ReadOnlyContainer
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: id: int [@readonly]
+│     └─ Field[1]: value: int
+└─ Item[6]: Fn (span: 38:1-41:2)
+   ├─ Name: violate_readonly
+   ├─ Params: (c: &mut ReadOnlyContainer)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 38:48-41:2)
+         ├─ Stmt[0]: Expr (span: 39:5-39:15)
+         │  └─ Expr: expr#4: (c.id = 42)
+         └─ Stmt[1]: Expr (span: 40:5-40:19)
+            └─ Expr: expr#8: (c.value = 100)

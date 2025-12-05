@@ -364,6 +364,9 @@ func (tc *typeChecker) checkReadonlyFieldWrite(targetExpr ast.ExprID, span sourc
 		return false
 	}
 
+	// Strip references to get the underlying struct type
+	baseType = tc.valueType(baseType)
+
 	// Get struct info to find field index
 	structInfo, ok := tc.types.StructInfo(baseType)
 	if !ok || structInfo == nil {

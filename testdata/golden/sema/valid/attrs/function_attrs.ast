@@ -1,0 +1,67 @@
+function_attrs.sg (span: 4:1-51:1)
+├─ Item[0]: Fn (span: 4:1-7:2)
+│  ├─ Name: add
+│  ├─ Params: (x: int, y: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:31-7:2)
+│        └─ Stmt[0]: Return (span: 6:5-6:18)
+│           └─ Expr: expr#3: (x + y)
+├─ Item[1]: Fn (span: 10:1-12:2)
+│  ├─ Name: process
+│  ├─ Params: (x: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:27-12:2)
+│        └─ Stmt[0]: Return (span: 11:5-11:18)
+│           └─ Expr: expr#6: (x * 2)
+├─ Item[2]: Fn (span: 14:1-17:2)
+│  ├─ Name: process
+│  ├─ Params: (x: int, y: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 15:35-17:2)
+│        └─ Stmt[0]: Return (span: 16:5-16:18)
+│           └─ Expr: expr#9: (x + y)
+├─ Item[3]: Fn (span: 20:1-22:2)
+│  ├─ Name: main
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 21:11-22:2)
+├─ Item[4]: Fn (span: 25:1-27:2)
+│  ├─ Name: cpu_work
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 26:15-27:2)
+├─ Item[5]: Fn (span: 29:1-31:2)
+│  ├─ Name: gpu_accelerated
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 30:22-31:2)
+├─ Item[6]: Fn (span: 33:1-35:2)
+│  ├─ Name: wasm_function
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 34:20-35:2)
+├─ Item[7]: Fn (span: 38:1-40:2)
+│  ├─ Name: quick_calculation
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 39:24-40:2)
+├─ Item[8]: Fn (span: 43:1-45:2)
+│  ├─ Name: old_api
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 44:14-45:2)
+└─ Item[9]: Fn (span: 48:1-50:2)
+   ├─ Name: internal_helper
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 49:22-50:2)

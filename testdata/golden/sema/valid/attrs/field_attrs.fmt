@@ -1,0 +1,46 @@
+// Valid field attributes
+
+type Container = {
+    // @readonly - field cannot be modified after initialization
+    @readonlyid: int,
+
+    // @hidden - field is hidden from public API
+    @hiddeninternal_state: int,
+
+    // @deprecated - field is deprecated
+    @deprecatedlegacy_field: int,
+
+    // @packed - pack field without padding
+    @packedcompact_data: int32,
+
+    // @align - specify field alignment
+    @align(8)aligned_value: int64,
+
+    // @atomic - field has atomic access semantics
+    @atomiccounter: int,
+
+    // @weak - weak reference
+    @weakweak_ref: own int,
+
+    // @shared - shared ownership
+    @sharedshared_data: int,
+
+    // @noinherit - field not inherited by derived types
+    @noinheritprivate_field: int,
+
+    normal_field: int,
+};
+
+// @guarded_by example (simplified - lock validation not implemented yet)
+type ThreadSafeContainer = {
+    lock_holder: int,  // Placeholder for lock
+
+    protected_data: int,
+};
+
+// @arena - arena allocation
+type ArenaAllocated = {
+    @arena("temp")temporary: int,
+
+    @arena("persistent")persistent: int,
+};

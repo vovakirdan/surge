@@ -1,0 +1,71 @@
+// Valid type attributes
+
+// @packed - pack struct without padding
+@packed
+type CompactData = {
+    flag: bool,
+    value: int32,
+};
+
+// @align - specify alignment
+@align(8)
+type AlignedData = {
+    x: int,
+    y: int,
+};
+
+@align(16)
+type VectorData = {
+    x: float,
+    y: float,
+    z: float,
+    w: float,
+};
+
+// @sealed - prevent type extension
+@sealed
+type FinalType = {
+    data: int,
+};
+
+// @send - type can be sent across threads
+@send
+type ThreadSafeData = {
+    counter: int,
+};
+
+// @nosend - type cannot be sent across threads
+@nosend
+type LocalOnly = {
+    ptr: own int,
+};
+
+// @raii - resource acquisition is initialization
+@raii
+type Resource = {
+    handle: int,
+};
+
+// @shared - shared ownership semantics
+@shared
+type SharedResource = {
+    data: int,
+};
+
+// @deprecated - mark type as deprecated
+@deprecated
+type OldAPI = {
+    value: int,
+};
+
+// @hidden - hide type from public API
+@hidden
+type InternalType = {
+    secret: int,
+};
+
+// @noinherit - prevent inheritance of this type
+@noinherit
+type StandaloneType = {
+    value: int,
+};

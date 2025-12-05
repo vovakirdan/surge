@@ -1,0 +1,40 @@
+// Invalid: semantic violations
+
+// ERROR: Cannot extend @sealed type
+@sealed
+type SealedBase = {
+    x: int,
+};
+
+extern<SealedBase> {
+    // ERROR: Cannot extend @sealed type
+    fn violate_sealed(self: &SealedBase) {
+    }
+}
+
+// sealed type can't be inherited too
+type Derived = SealedBase: {
+    y: int,
+};
+
+@noinherit
+type Standalone = {
+    x: int
+}
+
+// noinherit type can't be inherited, but can be extended
+type Derived2 = Standalone: {
+    y: int
+}
+
+// ERROR: Cannot write to @readonly field
+type ReadOnlyContainer = {
+    @readonlyid: int,
+
+    value: int,
+};
+
+fn violate_readonly(c: &mut ReadOnlyContainer) {
+    c.id = 42;  // ERROR: cannot write to @readonly field
+    c.value = 100;  // OK
+}

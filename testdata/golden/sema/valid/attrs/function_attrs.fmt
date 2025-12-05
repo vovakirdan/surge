@@ -1,0 +1,50 @@
+// Valid function attributes
+
+// @pure - function has no side effects
+@pure
+fn add(x: int, y: int) -> int {
+    return x + y;
+}
+
+// @overload - multiple signatures
+fn process(x: int) -> int {
+    return x * 2;
+}
+
+@overload
+fn process(x: int, y: int) -> int {
+    return x + y;
+}
+
+// @entrypoint - program entry point
+@entrypoint
+fn main() {
+}
+
+// @backend - specify execution backend
+@backend("cpu")
+fn cpu_work() {
+}
+
+@backend("gpu")
+fn gpu_accelerated() {
+}
+
+@backend("wasm")
+fn wasm_function() {
+}
+
+// @nonblocking - function does not block
+@nonblocking
+fn quick_calculation() {
+}
+
+// @deprecated - mark as deprecated
+@deprecated
+fn old_api() {
+}
+
+// @hidden - hide from public API
+@hidden
+fn internal_helper() {
+}

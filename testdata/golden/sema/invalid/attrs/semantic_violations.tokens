@@ -1,0 +1,100 @@
+  1: At              "@" at 4:1-4:2 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "sealed" at 4:2-4:8
+  3: KwType          "type" at 5:1-5:5 (leading: Newline)
+  4: Ident           "SealedBase" at 5:6-5:16 (leading: Space)
+  5: Assign          "=" at 5:17-5:18 (leading: Space)
+  6: LBrace          "{" at 5:19-5:20 (leading: Space)
+  7: Ident           "x" at 6:5-6:6 (leading: Newline, Space)
+  8: Colon           ":" at 6:6-6:7
+  9: Ident           "int" at 6:8-6:11 (leading: Space)
+ 10: Comma           "," at 6:11-6:12
+ 11: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 12: Semicolon       ";" at 7:2-7:3
+ 13: KwExtern        "extern" at 9:1-9:7 (leading: Newline)
+ 14: Lt              "<" at 9:7-9:8
+ 15: Ident           "SealedBase" at 9:8-9:18
+ 16: Gt              ">" at 9:18-9:19
+ 17: LBrace          "{" at 9:20-9:21 (leading: Space)
+ 18: KwFn            "fn" at 11:5-11:7 (leading: Newline, Space, LineComment, Newline, Space)
+ 19: Ident           "violate_sealed" at 11:8-11:22 (leading: Space)
+ 20: LParen          "(" at 11:22-11:23
+ 21: Ident           "self" at 11:23-11:27
+ 22: Colon           ":" at 11:27-11:28
+ 23: Amp             "&" at 11:29-11:30 (leading: Space)
+ 24: Ident           "SealedBase" at 11:30-11:40
+ 25: RParen          ")" at 11:40-11:41
+ 26: LBrace          "{" at 11:42-11:43 (leading: Space)
+ 27: RBrace          "}" at 12:5-12:6 (leading: Newline, Space)
+ 28: RBrace          "}" at 13:1-13:2 (leading: Newline)
+ 29: KwType          "type" at 16:1-16:5 (leading: Newline, LineComment, Newline)
+ 30: Ident           "Derived" at 16:6-16:13 (leading: Space)
+ 31: Assign          "=" at 16:14-16:15 (leading: Space)
+ 32: Ident           "SealedBase" at 16:16-16:26 (leading: Space)
+ 33: Colon           ":" at 16:27-16:28 (leading: Space)
+ 34: LBrace          "{" at 16:29-16:30 (leading: Space)
+ 35: Ident           "y" at 17:5-17:6 (leading: Newline, Space)
+ 36: Colon           ":" at 17:6-17:7
+ 37: Ident           "int" at 17:8-17:11 (leading: Space)
+ 38: Comma           "," at 17:11-17:12
+ 39: RBrace          "}" at 18:1-18:2 (leading: Newline)
+ 40: Semicolon       ";" at 18:2-18:3
+ 41: At              "@" at 20:1-20:2 (leading: Newline)
+ 42: Ident           "noinherit" at 20:2-20:11
+ 43: KwType          "type" at 21:1-21:5 (leading: Newline)
+ 44: Ident           "Standalone" at 21:6-21:16 (leading: Space)
+ 45: Assign          "=" at 21:17-21:18 (leading: Space)
+ 46: LBrace          "{" at 21:19-21:20 (leading: Space)
+ 47: Ident           "x" at 22:5-22:6 (leading: Newline, Space)
+ 48: Colon           ":" at 22:6-22:7
+ 49: Ident           "int" at 22:8-22:11 (leading: Space)
+ 50: RBrace          "}" at 23:1-23:2 (leading: Newline)
+ 51: KwType          "type" at 26:1-26:5 (leading: Newline, LineComment, Newline)
+ 52: Ident           "Derived2" at 26:6-26:14 (leading: Space)
+ 53: Assign          "=" at 26:15-26:16 (leading: Space)
+ 54: Ident           "Standalone" at 26:17-26:27 (leading: Space)
+ 55: Colon           ":" at 26:28-26:29 (leading: Space)
+ 56: LBrace          "{" at 26:30-26:31 (leading: Space)
+ 57: Ident           "y" at 27:5-27:6 (leading: Newline, Space)
+ 58: Colon           ":" at 27:6-27:7
+ 59: Ident           "int" at 27:8-27:11 (leading: Space)
+ 60: RBrace          "}" at 28:1-28:2 (leading: Newline)
+ 61: KwType          "type" at 31:1-31:5 (leading: Newline, LineComment, Newline)
+ 62: Ident           "ReadOnlyContainer" at 31:6-31:23 (leading: Space)
+ 63: Assign          "=" at 31:24-31:25 (leading: Space)
+ 64: LBrace          "{" at 31:26-31:27 (leading: Space)
+ 65: At              "@" at 32:5-32:6 (leading: Newline, Space)
+ 66: Ident           "readonly" at 32:6-32:14
+ 67: Ident           "id" at 33:5-33:7 (leading: Newline, Space)
+ 68: Colon           ":" at 33:7-33:8
+ 69: Ident           "int" at 33:9-33:12 (leading: Space)
+ 70: Comma           "," at 33:12-33:13
+ 71: Ident           "value" at 35:5-35:10 (leading: Newline, Space)
+ 72: Colon           ":" at 35:10-35:11
+ 73: Ident           "int" at 35:12-35:15 (leading: Space)
+ 74: Comma           "," at 35:15-35:16
+ 75: RBrace          "}" at 36:1-36:2 (leading: Newline)
+ 76: Semicolon       ";" at 36:2-36:3
+ 77: KwFn            "fn" at 38:1-38:3 (leading: Newline)
+ 78: Ident           "violate_readonly" at 38:4-38:20 (leading: Space)
+ 79: LParen          "(" at 38:20-38:21
+ 80: Ident           "c" at 38:21-38:22
+ 81: Colon           ":" at 38:22-38:23
+ 82: Amp             "&" at 38:24-38:25 (leading: Space)
+ 83: KwMut           "mut" at 38:25-38:28
+ 84: Ident           "ReadOnlyContainer" at 38:29-38:46 (leading: Space)
+ 85: RParen          ")" at 38:46-38:47
+ 86: LBrace          "{" at 38:48-38:49 (leading: Space)
+ 87: Ident           "c" at 39:5-39:6 (leading: Newline, Space)
+ 88: Dot             "." at 39:6-39:7
+ 89: Ident           "id" at 39:7-39:9
+ 90: Assign          "=" at 39:10-39:11 (leading: Space)
+ 91: IntLit          "42" at 39:12-39:14 (leading: Space)
+ 92: Semicolon       ";" at 39:14-39:15
+ 93: Ident           "c" at 40:5-40:6 (leading: Space, LineComment, Newline, Space)
+ 94: Dot             "." at 40:6-40:7
+ 95: Ident           "value" at 40:7-40:12
+ 96: Assign          "=" at 40:13-40:14 (leading: Space)
+ 97: IntLit          "100" at 40:15-40:18 (leading: Space)
+ 98: Semicolon       ";" at 40:18-40:19
+ 99: RBrace          "}" at 41:1-41:2 (leading: Space, LineComment, Newline)
+100: EOF             at 42:1-42:1

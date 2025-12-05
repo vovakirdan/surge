@@ -1,0 +1,30 @@
+field_attrs.sg (span: 3:1-58:1)
+├─ Item[0]: Type (span: 3:1-41:3)
+│  ├─ Name: Container
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: id: int [@readonly]
+│     ├─ Field[1]: internal_state: int [@hidden]
+│     ├─ Field[2]: legacy_field: int [@deprecated]
+│     ├─ Field[3]: compact_data: int32 [@packed]
+│     ├─ Field[4]: aligned_value: int64 [@align(8)]
+│     ├─ Field[5]: counter: int [@atomic]
+│     ├─ Field[6]: weak_ref: own int [@weak]
+│     ├─ Field[7]: shared_data: int [@shared]
+│     ├─ Field[8]: private_field: int [@noinherit]
+│     └─ Field[9]: normal_field: int
+├─ Item[1]: Type (span: 44:1-48:3)
+│  ├─ Name: ThreadSafeContainer
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock_holder: int
+│     └─ Field[1]: protected_data: int
+└─ Item[2]: Type (span: 51:1-57:3)
+   ├─ Name: ArenaAllocated
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   └─ Struct:
+      ├─ Field[0]: temporary: int [@arena("temp")]
+      └─ Field[1]: persistent: int [@arena("persistent")]

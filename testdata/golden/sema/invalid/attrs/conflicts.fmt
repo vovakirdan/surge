@@ -1,0 +1,27 @@
+// Invalid: attribute conflicts
+
+// ERROR: @packed and @align conflict
+@packed
+@align(16)
+type Conflict1 = {
+    x: int,
+};
+
+// ERROR: @send and @nosend conflict
+@send
+@nosend
+type Conflict2 = {
+    data: int,
+};
+
+// ERROR: @nonblocking and @waits_on conflict
+type Container = {
+    condition: Condition,
+};
+
+extern<Container> {
+    @nonblocking
+    @waits_on("condition")
+    fn conflicting_method(self: &mut Container) {
+    }
+}

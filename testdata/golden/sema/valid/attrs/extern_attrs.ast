@@ -1,0 +1,70 @@
+extern_attrs.sg (span: 3:1-53:1)
+├─ Item[0]: Type (span: 3:1-5:3)
+│  ├─ Name: Counter
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: value: int
+├─ Item[1]: Extern (span: 7:1-44:2)
+│  ├─ Target: Counter
+│  ├─ Members:
+│  │  ├─ Fn[0]: increment
+│  │  │  ├─ Params: (self: &mut Counter)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 9:38-11:6)
+│  │  │     └─ Stmt[0]: Expr (span: 10:9-10:37)
+│  │  │        └─ Expr: expr#7: (self.value = ((self.value + 1)))
+│  │  ├─ Fn[1]: increment
+│  │  │  ├─ Params: (self: &mut Counter, amount: int)
+│  │  │  ├─ Return: nothing
+│  │  │  ├─ Attributes: @overload
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 14:51-16:6)
+│  │  │     └─ Stmt[0]: Expr (span: 15:9-15:42)
+│  │  │        └─ Expr: expr#14: (self.value = ((self.value + amount)))
+│  │  ├─ Fn[2]: double_value
+│  │  │  ├─ Params: (self: &Counter)
+│  │  │  ├─ Return: int
+│  │  │  ├─ Attributes: @pure
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 20:44-22:6)
+│  │  │     └─ Stmt[0]: Return (span: 21:9-21:31)
+│  │  │        └─ Expr: expr#18: (self.value * 2)
+│  │  ├─ Fn[3]: try_increment
+│  │  │  ├─ Params: (self: &mut Counter)
+│  │  │  ├─ Return: bool
+│  │  │  ├─ Attributes: @nonblocking
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 26:50-28:6)
+│  │  │     └─ Stmt[0]: Return (span: 27:9-27:21)
+│  │  │        └─ Expr: expr#19: true
+│  │  ├─ Fn[4]: cpu_process
+│  │  │  ├─ Params: (self: &Counter)
+│  │  │  ├─ Return: nothing
+│  │  │  ├─ Attributes: @backend("cpu")
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 32:36-33:6)
+│  │  ├─ Fn[5]: internal_method
+│  │  │  ├─ Params: (self: &Counter)
+│  │  │  ├─ Return: nothing
+│  │  │  ├─ Attributes: @hidden
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 37:40-38:6)
+│  │  └─ Fn[6]: old_method
+│  │     ├─ Params: (self: &Counter)
+│  │     ├─ Return: nothing
+│  │     ├─ Attributes: @deprecated
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 42:35-43:6)
+└─ Item[2]: Extern (span: 47:1-52:2)
+   ├─ Target: Counter
+   ├─ Attributes: @backend("gpu")
+   ├─ Members:
+   │  └─ Fn[0]: gpu_accelerated_increment
+   │     ├─ Params: (self: &mut Counter)
+   │     ├─ Return: nothing
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 49:54-51:6)
+   │        └─ Stmt[0]: Expr (span: 50:9-50:37)
+   │           └─ Expr: expr#28: (self.value = ((self.value + 1)))

@@ -1,0 +1,51 @@
+// Invalid: attribute parameters
+
+// ERROR: @align not power of 2
+@align(7)
+type BadAlign1 = {
+    x: int,
+};
+
+@align(3)
+type BadAlign2 = {
+    y: int,
+};
+
+@align(100)
+type BadAlign3 = {
+    z: int,
+};
+
+// ERROR: @backend unknown target
+@backend("quantum")
+fn unknown_backend1() {
+}
+
+@backend("fpga")
+fn unknown_backend2() {
+}
+
+// ERROR: @guarded_by field not found
+type BadGuard = {
+    data: int,
+};
+
+extern<BadGuard> {
+    @guarded_by("nonexistent_lock")
+    fn bad_guard(self: &BadGuard) {
+    }
+}
+
+// ERROR: @waits_on field not found
+extern<BadGuard> {
+    @waits_on("nonexistent_condition")
+    fn bad_waits(self: &mut BadGuard) {
+    }
+}
+
+// ERROR: @requires_lock field not found
+extern<BadGuard> {
+    @requires_lock("nonexistent_lock")
+    fn bad_requires(self: &BadGuard) {
+    }
+}
