@@ -22,9 +22,9 @@ import (
 type FileClass int
 
 const (
-	FileDependent FileClass = iota // Imports project modules
-	FileStdlibOnly                 // Only imports stdlib modules
-	FileFullyIndependent           // No imports
+	FileDependent        FileClass = iota // Imports project modules
+	FileStdlibOnly                        // Only imports stdlib modules
+	FileFullyIndependent                  // No imports
 )
 
 // isStdlibModule checks if a module path is a standard library module
@@ -327,11 +327,31 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 			if norm, normErr := project.NormalizeModulePath(modulePath); normErr == nil {
 				modulePath = norm
 			}
-			if m, _, _, hit := mcache.Get(modulePath, file.Hash); hit {
-				meta = m
-				ok = true
-			} else if res.Builder != nil {
-				meta, ok = buildModuleMeta(fileSet, res.Builder, []ast.FileID{res.ASTFile}, baseDir, reporter)
+
+			// Try disk cache first if enabled (cross-run persistence)
+			if opts.EnableDiskCache && dcache != nil && file.Hash != (project.Digest{}) {
+				var payload DiskPayload
+				if hit, err := dcache.Get(file.Hash, &payload); err == nil && hit {
+					// Validate content hash matches
+					if payload.ContentHash == file.Hash {
+						if cached := diskPayloadToModule(&payload); cached != nil {
+							meta = cached
+							ok = true
+							// Also populate in-memory cache for faster subsequent access
+							mcache.Put(meta, payload.Broken, nil)
+						}
+					}
+				}
+			}
+
+			// Fallback to in-memory cache or build fresh
+			if !ok {
+				if m, _, _, hit := mcache.Get(modulePath, file.Hash); hit {
+					meta = m
+					ok = true
+				} else if res.Builder != nil {
+					meta, ok = buildModuleMeta(fileSet, res.Builder, []ast.FileID{res.ASTFile}, baseDir, reporter)
+				}
 			}
 			if !ok {
 				meta = fallbackModuleMeta(file, baseDir)
@@ -369,6 +389,15 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 
 			// Положим в in-memory cache (обновление/вставка).
 			mcache.Put(meta, broken, firstErr)
+
+			// Write to disk cache if enabled (for cross-run persistence)
+			// Note: Disk cache adds I/O overhead (~77% slower for fast operations)
+			// Use --disk-cache flag only for large projects where cross-run caching helps
+			if opts.EnableDiskCache && dcache != nil && ok && meta.ContentHash != (project.Digest{}) {
+				// For now, use zero dependency hash (will be computed in module graph phase)
+				payload := moduleToDiskPayload(meta, broken, project.Digest{})
+				_ = dcache.Put(meta.ContentHash, payload) //nolint:errcheck // Cache is best-effort, errors are acceptable
+			}
 		}
 		collectNote := ""
 		if opts.EnableTimings {

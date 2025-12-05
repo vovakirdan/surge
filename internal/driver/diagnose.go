@@ -58,6 +58,7 @@ type DiagnoseOptions struct {
 	IgnoreWarnings   bool
 	WarningsAsErrors bool
 	EnableTimings    bool
+	EnableDiskCache  bool // Enable persistent disk cache (experimental, adds I/O overhead)
 }
 
 // Diagnose запускает диагностику файла до указанного уровня

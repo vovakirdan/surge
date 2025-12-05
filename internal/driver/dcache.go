@@ -13,7 +13,11 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 
 	"surge/internal/project"
+	"surge/internal/source"
 )
+
+// Current schema version - increment when DiskPayload format changes
+const diskCacheSchemaVersion uint16 = 1
 
 // DiskCache хранит полезные артефакты по ModuleHash на диске.
 // Сейчас — только заглушка под будущие экспорты семантики.
@@ -23,14 +27,35 @@ type DiskCache struct {
 	dir string
 }
 
-// DiskPayload — пример полезной нагрузки, которую позже заменим на экспорты/IR.
+// DiskPayload stores cached module metadata and status for fast recompilation.
 type DiskPayload struct {
-	// Версия схемы, чтобы безопасно инвалидировать.
+	// Schema version for safe invalidation when format changes
 	Schema uint16
-	// Метаданные (минимум) — удобно для отладки.
-	Path       string
-	ModuleHash project.Digest
-	// Зарезервировано под "Exports"/"SemaSummary"/и т.п.
+
+	// Module metadata
+	Name            string
+	Path            string
+	Dir             string
+	Kind            uint8 // ModuleKind
+	NoStd           bool
+	HasModulePragma bool
+
+	// Imports (paths only, spans not cached)
+	ImportPaths []string
+
+	// Files (paths and hashes)
+	FilePaths  []string
+	FileHashes []project.Digest
+
+	// Hashes for validation and invalidation
+	ContentHash    project.Digest // Hash of module's own content
+	ModuleHash     project.Digest // Aggregate hash including dependencies
+	DependencyHash project.Digest // Hash of all dependency exports (for invalidation)
+
+	// Status
+	Broken bool // Whether module has errors
+
+	// Reserved for future expansion (exports, IR, etc.)
 }
 
 func OpenDiskCache(app string) (*DiskCache, error) {
@@ -136,4 +161,80 @@ func IsSHA256(d project.Digest) bool {
 	// не строгое доказательство, но хотя бы исключим нули
 	_ = sha256.BlockSize // "фиксируем" мотивацию через импорт
 	return true
+}
+
+// moduleToDiskPayload converts ModuleMeta to DiskPayload for caching
+func moduleToDiskPayload(meta *project.ModuleMeta, broken bool, depHash project.Digest) *DiskPayload {
+	if meta == nil {
+		return nil
+	}
+
+	payload := &DiskPayload{
+		Schema:          diskCacheSchemaVersion,
+		Name:            meta.Name,
+		Path:            meta.Path,
+		Dir:             meta.Dir,
+		Kind:            uint8(meta.Kind),
+		NoStd:           meta.NoStd,
+		HasModulePragma: meta.HasModulePragma,
+		ContentHash:     meta.ContentHash,
+		ModuleHash:      meta.ModuleHash,
+		DependencyHash:  depHash,
+		Broken:          broken,
+	}
+
+	// Extract import paths
+	payload.ImportPaths = make([]string, len(meta.Imports))
+	for i, imp := range meta.Imports {
+		payload.ImportPaths[i] = imp.Path
+	}
+
+	// Extract file paths and hashes
+	payload.FilePaths = make([]string, len(meta.Files))
+	payload.FileHashes = make([]project.Digest, len(meta.Files))
+	for i, f := range meta.Files {
+		payload.FilePaths[i] = f.Path
+		payload.FileHashes[i] = f.Hash
+	}
+
+	return payload
+}
+
+// diskPayloadToModule converts DiskPayload back to ModuleMeta (without spans)
+func diskPayloadToModule(payload *DiskPayload) *project.ModuleMeta {
+	if payload == nil || payload.Schema != diskCacheSchemaVersion {
+		return nil
+	}
+
+	meta := &project.ModuleMeta{
+		Name:            payload.Name,
+		Path:            payload.Path,
+		Dir:             payload.Dir,
+		Kind:            project.ModuleKind(payload.Kind),
+		NoStd:           payload.NoStd,
+		HasModulePragma: payload.HasModulePragma,
+		ContentHash:     payload.ContentHash,
+		ModuleHash:      payload.ModuleHash,
+	}
+
+	// Restore imports (without spans - use zero spans)
+	meta.Imports = make([]project.ImportMeta, len(payload.ImportPaths))
+	for i, path := range payload.ImportPaths {
+		meta.Imports[i] = project.ImportMeta{
+			Path: path,
+			Span: source.Span{}, // Zero span - not cached
+		}
+	}
+
+	// Restore files (without spans)
+	meta.Files = make([]project.ModuleFileMeta, len(payload.FilePaths))
+	for i := range payload.FilePaths {
+		meta.Files[i] = project.ModuleFileMeta{
+			Path: payload.FilePaths[i],
+			Hash: payload.FileHashes[i],
+			Span: source.Span{}, // Zero span - not cached
+		}
+	}
+
+	return meta
 }
