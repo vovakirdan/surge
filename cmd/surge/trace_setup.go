@@ -34,6 +34,11 @@ func setupTracing(cmd *cobra.Command) (func(), error) {
 		return nil, fmt.Errorf("failed to get trace-ring-size flag: %w", err)
 	}
 
+	heartbeatInterval, err := root.PersistentFlags().GetDuration("trace-heartbeat")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get trace-heartbeat flag: %w", err)
+	}
+
 	// Parse level
 	level, err := trace.ParseLevel(levelStr)
 	if err != nil {
@@ -59,6 +64,7 @@ func setupTracing(cmd *cobra.Command) (func(), error) {
 		Mode:       mode,
 		OutputPath: traceOutput,
 		RingSize:   ringSize,
+		Heartbeat:  heartbeatInterval,
 	}
 
 	// Create tracer
@@ -72,8 +78,19 @@ func setupTracing(cmd *cobra.Command) (func(), error) {
 	cmd.SetContext(ctx)
 	cmd.Root().SetContext(ctx)
 
+	// Start heartbeat if configured
+	var heartbeat *trace.Heartbeat
+	if heartbeatInterval > 0 {
+		heartbeat = trace.StartHeartbeat(tracer, heartbeatInterval)
+	}
+
 	// Return cleanup function
 	cleanup := func() {
+		// Stop heartbeat first
+		if heartbeat != nil {
+			heartbeat.Stop()
+		}
+
 		if err := tracer.Flush(); err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), "trace: flush error: %v\n", err)
 		}

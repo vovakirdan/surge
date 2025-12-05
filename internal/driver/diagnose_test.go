@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,7 +27,7 @@ func TestDiagnose_NoDependencyErrorForCleanImport(t *testing.T) {
 
 	path := filepath.Join("testdata", "test_fixes", "import_fixes", "empty_import_group.sg")
 
-	res, err := DiagnoseWithOptions(path, opts)
+	res, err := DiagnoseWithOptions(context.Background(), path, opts)
 	if err != nil {
 		t.Fatalf("DiagnoseWithOptions error: %v", err)
 	}
@@ -56,7 +57,7 @@ func TestDiagnoseReportsUnresolvedSymbol(t *testing.T) {
 		MaxDiagnostics: 8,
 	}
 
-	res, err := DiagnoseWithOptions(path, opts)
+	res, err := DiagnoseWithOptions(context.Background(), path, opts)
 	if err != nil {
 		t.Fatalf("DiagnoseWithOptions error: %v", err)
 	}
