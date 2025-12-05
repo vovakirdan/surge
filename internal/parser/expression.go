@@ -1,11 +1,15 @@
 package parser
 
 import (
+	"fmt"
+	"time"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
 	"surge/internal/source"
 	"surge/internal/token"
+	"surge/internal/trace"
 )
 
 // parseExpr - главная точка входа для парсинга выражений
@@ -17,6 +21,22 @@ func (p *Parser) parseExpr() (ast.ExprID, bool) {
 // parseBinaryExpr реализует Pratt parsing для бинарных операторов
 // minPrec - минимальный приоритет для текущего уровня
 func (p *Parser) parseBinaryExpr(minPrec int) (ast.ExprID, bool) {
+	// Track recursion depth
+	p.exprDepth++
+	defer func() { p.exprDepth-- }()
+
+	// Only trace if depth < 20 to avoid noise
+	var span *trace.Span
+	if p.tracer != nil && p.tracer.Level() >= trace.LevelDebug && p.exprDepth <= 20 {
+		span = trace.Begin(p.tracer, trace.ScopeNode, "parse_binary_expr", 0)
+		span.WithExtra("depth", fmt.Sprintf("%d", p.exprDepth))
+		defer func() {
+			if span != nil {
+				span.End("")
+			}
+		}()
+	}
+
 	// Парсим левую часть (унарные операторы + primary)
 	left, ok := p.parseUnaryExpr()
 	if !ok {
@@ -176,6 +196,17 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 
 // parsePostfixExpr обрабатывает постфиксные операторы
 func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
+	var span *trace.Span
+	iterations := 0
+	if p.tracer != nil && p.tracer.Level() >= trace.LevelDebug {
+		span = trace.Begin(p.tracer, trace.ScopeNode, "parse_postfix_expr", 0)
+		defer func() {
+			if span != nil {
+				span.End(fmt.Sprintf("iterations=%d", iterations))
+			}
+		}()
+	}
+
 	// Парсим базовое выражение
 	expr, ok := p.parsePrimaryExpr()
 	if !ok {
@@ -186,6 +217,18 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 
 	// Обрабатываем постфиксы в цикле
 	for {
+		iterations++
+
+		// Warning if too many iterations (possible infinite loop)
+		if iterations > 100 && p.tracer != nil && p.tracer.Level() >= trace.LevelDebug {
+			p.tracer.Emit(&trace.Event{
+				Time:   time.Now(),
+				Kind:   trace.KindPoint,
+				Scope:  trace.ScopeNode,
+				Name:   "postfix_loop_warning",
+				Detail: fmt.Sprintf("iterations=%d", iterations),
+			})
+		}
 		if ok, ltTok := p.looksLikeBareGenericCall(expr); ok {
 			calleeSpan := p.arenas.Exprs.Get(expr).Span
 			builder := diag.ReportError(p.opts.Reporter, diag.SynUnexpectedToken, ltTok.Span, "generic type arguments must use '::<' syntax")

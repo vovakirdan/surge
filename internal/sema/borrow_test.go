@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"context"
 	"testing"
 
 	"surge/internal/ast"
@@ -352,7 +353,7 @@ func runSema(t *testing.T, builder *ast.Builder, file ast.FileID) *diag.Bag {
 		Reporter: &diag.BagReporter{Bag: resBag},
 	})
 	semaBag := diag.NewBag(16)
-	Check(builder, file, Options{
+	Check(context.Background(), builder, file, Options{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 		Symbols:  &symRes,
 	})

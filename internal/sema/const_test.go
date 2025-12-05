@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"context"
 	"testing"
 
 	"surge/internal/ast"
@@ -20,7 +21,7 @@ func runConstSema(t *testing.T, src string) *diag.Bag {
 	bag := diag.NewBag(16)
 	builder := ast.NewBuilder(ast.Hints{}, nil)
 	lx := lexer.New(file, lexer.Options{})
-	parseRes := parser.ParseFile(fs, lx, builder, parser.Options{Reporter: &diag.BagReporter{Bag: bag}})
+	parseRes := parser.ParseFile(context.Background(), fs, lx, builder, parser.Options{Reporter: &diag.BagReporter{Bag: bag}})
 	if bag.Len() > 0 {
 		t.Fatalf("unexpected parse diagnostics: %v", bag.Items())
 	}
@@ -30,7 +31,7 @@ func runConstSema(t *testing.T, src string) *diag.Bag {
 		ModulePath: "test",
 		FilePath:   file.Path,
 	})
-	Check(builder, parseRes.File, Options{
+	Check(context.Background(), builder, parseRes.File, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  &res,
 	})

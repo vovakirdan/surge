@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,7 +27,7 @@ func TestDiagnose_NoDependencyErrorForCleanImport(t *testing.T) {
 
 	path := filepath.Join("testdata", "test_fixes", "import_fixes", "empty_import_group.sg")
 
-	res, err := DiagnoseWithOptions(path, opts)
+	res, err := DiagnoseWithOptions(context.Background(), path, opts)
 	if err != nil {
 		t.Fatalf("DiagnoseWithOptions error: %v", err)
 	}
@@ -39,6 +40,15 @@ func TestDiagnose_NoDependencyErrorForCleanImport(t *testing.T) {
 }
 
 func TestDiagnoseReportsUnresolvedSymbol(t *testing.T) {
+	// Set SURGE_STDLIB to current directory for stdlib access
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	// Go up two levels to project root
+	projectRoot := filepath.Join(wd, "..", "..")
+	t.Setenv("SURGE_STDLIB", projectRoot)
+
 	src := `
         fn demo() -> int {
             return missing;
@@ -47,8 +57,8 @@ func TestDiagnoseReportsUnresolvedSymbol(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "unresolved.sg")
-	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
+	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
+		t.Fatalf("write file: %v", writeErr)
 	}
 
 	opts := DiagnoseOptions{
@@ -56,7 +66,7 @@ func TestDiagnoseReportsUnresolvedSymbol(t *testing.T) {
 		MaxDiagnostics: 8,
 	}
 
-	res, err := DiagnoseWithOptions(path, opts)
+	res, err := DiagnoseWithOptions(context.Background(), path, opts)
 	if err != nil {
 		t.Fatalf("DiagnoseWithOptions error: %v", err)
 	}

@@ -1,6 +1,7 @@
 package parser_test
 
 import (
+	"context"
 	"testing"
 
 	"surge/internal/ast"
@@ -19,7 +20,7 @@ func TestParseAllocs(t *testing.T) {
 		builder := ast.NewBuilder(ast.Hints{}, nil)
 		bag := diag.NewBag(0)
 		lx := lexer.New(file, lexer.Options{})
-		parser.ParseFile(fs, lx, builder, parser.Options{
+		parser.ParseFile(context.Background(), fs, lx, builder, parser.Options{
 			Reporter: &diag.BagReporter{Bag: bag},
 		})
 	})

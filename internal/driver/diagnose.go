@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path"
@@ -19,6 +20,7 @@ import (
 	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/trace"
 	"surge/internal/types"
 
 	"fortio.org/safecast"
@@ -56,19 +58,25 @@ type DiagnoseOptions struct {
 	IgnoreWarnings   bool
 	WarningsAsErrors bool
 	EnableTimings    bool
+	EnableDiskCache  bool // Enable persistent disk cache (experimental, adds I/O overhead)
 }
 
 // Diagnose запускает диагностику файла до указанного уровня
-func Diagnose(filePath string, stage DiagnoseStage, maxDiagnostics int) (*DiagnoseResult, error) {
+func Diagnose(ctx context.Context, filePath string, stage DiagnoseStage, maxDiagnostics int) (*DiagnoseResult, error) {
 	opts := DiagnoseOptions{
 		Stage:          stage,
 		MaxDiagnostics: maxDiagnostics,
 	}
-	return DiagnoseWithOptions(filePath, opts)
+	return DiagnoseWithOptions(ctx, filePath, opts)
 }
 
 // DiagnoseWithOptions запускает диагностику файла с указанными опциями
-func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult, error) {
+func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOptions) (*DiagnoseResult, error) {
+	// Get tracer from context
+	tracer := trace.FromContext(ctx)
+	diagSpan := trace.Begin(tracer, trace.ScopeDriver, "diagnose", 0)
+	defer diagSpan.End("")
+
 	var timer *observ.Timer
 	if opts.EnableTimings {
 		timer = observ.NewTimer()
@@ -88,10 +96,12 @@ func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult
 	}
 
 	loadIdx := begin("load_file")
+	loadSpan := trace.Begin(tracer, trace.ScopePass, "load_file", diagSpan.ID())
 	// Создаём FileSet и загружаем файл
 	fs := source.NewFileSet()
 	sharedTypes := types.NewInterner()
 	fileID, err := fs.Load(filePath)
+	loadSpan.End("")
 	end(loadIdx, "")
 	if err != nil {
 		return nil, err
@@ -113,19 +123,19 @@ func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult
 	cache := NewModuleCache(256)
 
 	tokenIdx := begin("tokenize")
-	err = diagnoseTokenize(file, bag)
+	tokenSpan := trace.Begin(tracer, trace.ScopePass, "tokenize", diagSpan.ID())
+	diagnoseTokenize(file, bag)
 	tokenNote := ""
 	if timer != nil {
 		tokenNote = fmt.Sprintf("diags=%d", bag.Len())
 	}
+	tokenSpan.End(tokenNote)
 	end(tokenIdx, tokenNote)
-	if err != nil {
-		return nil, err
-	}
 
 	if opts.Stage != DiagnoseStageTokenize {
 		parseIdx := begin("parse")
-		builder, astFile = diagnoseParseWithStrings(fs, file, bag, sharedStrings)
+		parseSpan := trace.Begin(tracer, trace.ScopePass, "parse", diagSpan.ID())
+		builder, astFile = diagnoseParseWithStrings(ctx, fs, file, bag, sharedStrings)
 		parseNote := ""
 		if timer != nil && builder != nil && builder.Files != nil {
 			fileNode := builder.Files.Get(astFile)
@@ -133,12 +143,15 @@ func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult
 				parseNote = fmt.Sprintf("items=%d", len(fileNode.Items))
 			}
 		}
+		parseSpan.End(parseNote)
 		end(parseIdx, parseNote)
 
 		graphIdx := begin("imports_graph")
+		graphSpan := trace.Begin(tracer, trace.ScopePass, "imports_graph", diagSpan.ID())
 		var moduleExports map[string]*symbols.ModuleExports
 		var rootRec *moduleRecord
-		moduleExports, rootRec, err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache, sharedTypes, sharedStrings)
+		moduleExports, rootRec, err = runModuleGraph(ctx, fs, file, builder, astFile, bag, opts, cache, sharedTypes, sharedStrings)
+		graphSpan.End("")
 		end(graphIdx, "")
 		if err != nil {
 			return nil, err
@@ -148,11 +161,12 @@ func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult
 		}
 		if opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
 			symbolIdx := begin("symbols")
+			symbolSpan := trace.Begin(tracer, trace.ScopePass, "symbols", diagSpan.ID())
 			if rootRec != nil {
 				if moduleExports == nil {
 					moduleExports = make(map[string]*symbols.ModuleExports)
 				}
-				if exp := resolveModuleRecord(rootRec, baseDir, moduleExports, sharedTypes, opts); exp != nil {
+				if exp := resolveModuleRecord(ctx, rootRec, baseDir, moduleExports, sharedTypes, opts); exp != nil {
 					moduleExports[rootRec.Meta.Path] = exp
 				}
 				if sym, ok := rootRec.Symbols[astFile]; ok {
@@ -178,11 +192,14 @@ func DiagnoseWithOptions(filePath string, opts DiagnoseOptions) (*DiagnoseResult
 			if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
 				symbolNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
 			}
+			symbolSpan.End(symbolNote)
 			end(symbolIdx, symbolNote)
 
 			if semaRes == nil {
 				semaIdx := begin("sema")
-				semaRes = diagnoseSemaWithTypes(builder, astFile, bag, moduleExports, symbolsRes, sharedTypes)
+				semaSpan := trace.Begin(tracer, trace.ScopePass, "sema", diagSpan.ID())
+				semaRes = diagnoseSemaWithTypes(ctx, builder, astFile, bag, moduleExports, symbolsRes, sharedTypes)
+				semaSpan.End("")
 				end(semaIdx, "")
 			}
 		}
@@ -242,7 +259,7 @@ func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, mod
 	return &res
 }
 
-func diagnoseSema(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result) *sema.Result {
+func diagnoseSema(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result) *sema.Result {
 	if builder == nil || fileID == ast.NoFileID {
 		return nil
 	}
@@ -251,11 +268,11 @@ func diagnoseSema(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, export
 		Symbols:  symbolsRes,
 		Exports:  exports,
 	}
-	res := sema.Check(builder, fileID, opts)
+	res := sema.Check(ctx, builder, fileID, opts)
 	return &res
 }
 
-func diagnoseSemaWithTypes(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, typeInterner *types.Interner) *sema.Result {
+func diagnoseSemaWithTypes(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, typeInterner *types.Interner) *sema.Result {
 	if builder == nil || fileID == ast.NoFileID {
 		return nil
 	}
@@ -265,12 +282,12 @@ func diagnoseSemaWithTypes(builder *ast.Builder, fileID ast.FileID, bag *diag.Ba
 		Exports:  exports,
 		Types:    typeInterner,
 	}
-	res := sema.Check(builder, fileID, opts)
+	res := sema.Check(ctx, builder, fileID, opts)
 	return &res
 }
 
 // diagnoseTokenize выполняет диагностику на уровне лексера
-func diagnoseTokenize(file *source.File, bag *diag.Bag) error {
+func diagnoseTokenize(file *source.File, bag *diag.Bag) {
 	reporterAdapter := &lexer.ReporterAdapter{Bag: bag}
 	opts := lexer.Options{
 		Reporter: reporterAdapter.Reporter(),
@@ -284,21 +301,19 @@ func diagnoseTokenize(file *source.File, bag *diag.Bag) error {
 			break
 		}
 	}
-
-	return nil
 }
 
-func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) (*ast.Builder, ast.FileID) {
+func diagnoseParse(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag) (*ast.Builder, ast.FileID) {
 	arenas := ast.NewBuilder(ast.Hints{}, nil)
-	return diagnoseParseWithBuilder(fs, file, bag, arenas)
+	return diagnoseParseWithBuilder(ctx, fs, file, bag, arenas)
 }
 
-func diagnoseParseWithStrings(fs *source.FileSet, file *source.File, bag *diag.Bag, strs *source.Interner) (*ast.Builder, ast.FileID) {
+func diagnoseParseWithStrings(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag, strs *source.Interner) (*ast.Builder, ast.FileID) {
 	arenas := ast.NewBuilder(ast.Hints{}, strs)
-	return diagnoseParseWithBuilder(fs, file, bag, arenas)
+	return diagnoseParseWithBuilder(ctx, fs, file, bag, arenas)
 }
 
-func diagnoseParseWithBuilder(fs *source.FileSet, file *source.File, bag *diag.Bag, arenas *ast.Builder) (*ast.Builder, ast.FileID) {
+func diagnoseParseWithBuilder(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag, arenas *ast.Builder) (*ast.Builder, ast.FileID) {
 	if arenas == nil {
 		arenas = ast.NewBuilder(ast.Hints{}, nil)
 	}
@@ -314,7 +329,7 @@ func diagnoseParseWithBuilder(fs *source.FileSet, file *source.File, bag *diag.B
 		MaxErrors: maxErrors,
 	}
 
-	result := parser.ParseFile(fs, lx, arenas, opts)
+	result := parser.ParseFile(ctx, fs, lx, arenas, opts)
 
 	return arenas, result.File
 }
@@ -350,7 +365,7 @@ func Parse(filePath string, maxDiagnostics int) (*ParseResult, error) {
 		MaxErrors: maxErrors,
 	}
 
-	result := parser.ParseFile(fs, lx, builder, opts)
+	result := parser.ParseFile(context.Background(), fs, lx, builder, opts)
 
 	return &ParseResult{
 		FileSet: fs,
@@ -391,6 +406,7 @@ func moduleHasExplicitName(meta *project.ModuleMeta) bool {
 }
 
 func runModuleGraph(
+	ctx context.Context,
 	fs *source.FileSet,
 	file *source.File,
 	builder *ast.Builder,
@@ -405,6 +421,10 @@ func runModuleGraph(
 		return nil, nil, nil
 	}
 
+	tracer := trace.FromContext(ctx)
+	graphSpan := trace.Begin(tracer, trace.ScopeModule, "module_graph", 0)
+	defer graphSpan.End("")
+
 	baseDir := fs.BaseDir()
 	stdlibRoot := detectStdlibRoot()
 	if stdlibRoot == "" && (opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll) {
@@ -415,7 +435,7 @@ func runModuleGraph(
 	preloaded := map[string]ast.FileID{
 		filepath.ToSlash(file.Path): astFile,
 	}
-	builder, rootFileIDs, rootFiles, err := parseModuleDir(fs, dirPath, bag, strs, builder, preloaded)
+	builder, rootFileIDs, rootFiles, err := parseModuleDir(ctx, fs, dirPath, bag, strs, builder, preloaded)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -468,6 +488,11 @@ func runModuleGraph(
 		queue = queue[1:]
 		seen[cur] = struct{}{}
 		rec := records[cur]
+
+		moduleSpan := trace.Begin(tracer, trace.ScopeModule, "process_module", graphSpan.ID())
+		moduleSpan.WithExtra("path", cur)
+
+		importsCount := 0
 		for i := range rec.Meta.Imports {
 			imp := rec.Meta.Imports[i]
 			if _, ok := processedImports[imp.Path]; ok {
@@ -480,7 +505,7 @@ func runModuleGraph(
 				continue
 			}
 
-			depRec, err := analyzeDependencyModule(fs, imp.Path, baseDir, opts, cache, strs)
+			depRec, err := analyzeDependencyModule(ctx, fs, imp.Path, baseDir, opts, cache, strs)
 			if err != nil {
 				if errors.Is(err, errModuleNotFound) {
 					missing[imp.Path] = struct{}{}
@@ -518,10 +543,13 @@ func runModuleGraph(
 			if _, ok := seen[depRec.Meta.Path]; !ok {
 				queue = append(queue, depRec.Meta.Path)
 			}
+			importsCount++
 		}
+
+		moduleSpan.End(fmt.Sprintf("imports=%d", importsCount))
 	}
 
-	if err := ensureStdlibModules(fs, records, opts, cache, stdlibRoot, typeInterner, strs); err != nil {
+	if err := ensureStdlibModules(ctx, fs, records, opts, cache, stdlibRoot, typeInterner, strs); err != nil {
 		return nil, nil, err
 	}
 
@@ -564,7 +592,7 @@ func runModuleGraph(
 	}
 	dag.ReportBrokenDeps(idx, slots)
 
-	exports := collectModuleExports(records, idx, topo, baseDir, meta.Path, typeInterner, opts)
+	exports := collectModuleExports(ctx, records, idx, topo, baseDir, meta.Path, typeInterner, opts)
 	for alias, target := range aliasExports {
 		if exp, ok := exports[normalizeExportsKey(target)]; ok {
 			exports[normalizeExportsKey(alias)] = exp

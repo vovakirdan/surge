@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"runtime"
 	"sort"
+	"sync/atomic"
 
 	"golang.org/x/sync/errgroup"
 
@@ -17,6 +18,137 @@ import (
 	"surge/internal/source"
 	"surge/internal/symbols"
 )
+
+// FileClass categorizes files based on their import dependencies
+type FileClass int
+
+const (
+	FileDependent        FileClass = iota // Imports project modules
+	FileStdlibOnly                        // Only imports stdlib modules
+	FileFullyIndependent                  // No imports
+)
+
+// parallelMetrics tracks performance metrics for parallel processing
+type parallelMetrics struct {
+	// Worker pool metrics
+	workersActive    atomic.Int32 // Currently running workers
+	workersCompleted atomic.Int64 // Total completed tasks
+	workersErrors    atomic.Int64 // Total errors encountered
+
+	// Cache metrics
+	cacheHits   atomic.Int64 // Memory cache hits
+	cacheMisses atomic.Int64 // Memory cache misses
+	diskHits    atomic.Int64 // Disk cache hits
+	diskMisses  atomic.Int64 // Disk cache misses
+
+	// File classification metrics
+	filesIndependent atomic.Int64 // Files with no imports
+	filesStdlibOnly  atomic.Int64 // Files only importing stdlib
+	filesDependent   atomic.Int64 // Files with project dependencies
+
+	// Batch parallelism metrics
+	batchCount     atomic.Int64 // Number of batches processed
+	batchSizeTotal atomic.Int64 // Total module count across all batches
+	batchSizeMax   atomic.Int64 // Largest batch size
+}
+
+// emitMetrics outputs all collected metrics at the end of processing
+func (pm *parallelMetrics) emitMetrics() string {
+	// Worker stats
+	completed := pm.workersCompleted.Load()
+	errors := pm.workersErrors.Load()
+
+	// Cache stats
+	memHits := pm.cacheHits.Load()
+	memMisses := pm.cacheMisses.Load()
+	memTotal := memHits + memMisses
+	memHitRate := 0.0
+	if memTotal > 0 {
+		memHitRate = float64(memHits) / float64(memTotal) * 100
+	}
+
+	diskHits := pm.diskHits.Load()
+	diskMisses := pm.diskMisses.Load()
+	diskTotal := diskHits + diskMisses
+	diskHitRate := 0.0
+	if diskTotal > 0 {
+		diskHitRate = float64(diskHits) / float64(diskTotal) * 100
+	}
+
+	// File classification stats
+	independent := pm.filesIndependent.Load()
+	stdlibOnly := pm.filesStdlibOnly.Load()
+	dependent := pm.filesDependent.Load()
+	totalFiles := independent + stdlibOnly + dependent
+
+	// Batch parallelism stats
+	batchCount := pm.batchCount.Load()
+	batchTotal := pm.batchSizeTotal.Load()
+	batchMax := pm.batchSizeMax.Load()
+	batchAvg := 0.0
+	if batchCount > 0 {
+		batchAvg = float64(batchTotal) / float64(batchCount)
+	}
+
+	return fmt.Sprintf(
+		"workers: %d completed, %d errors | "+
+			"cache: mem=%d/%d (%.1f%%), disk=%d/%d (%.1f%%) | "+
+			"files: %d total (%d indep, %d stdlib, %d dep) | "+
+			"batches: %d (avg=%.1f, max=%d)",
+		completed, errors,
+		memHits, memTotal, memHitRate,
+		diskHits, diskTotal, diskHitRate,
+		totalFiles, independent, stdlibOnly, dependent,
+		batchCount, batchAvg, batchMax,
+	)
+}
+
+// isStdlibModule checks if a module path is a standard library module
+func isStdlibModule(path string) bool {
+	switch path {
+	case "option", "result", "bounded", "saturating_cast", "core":
+		return true
+	default:
+		return false
+	}
+}
+
+// classifyFile determines the classification of a file based on its imports
+func classifyFile(builder *ast.Builder, astFile ast.FileID) FileClass {
+	if builder == nil || builder.Files == nil {
+		return FileDependent // Conservative default
+	}
+
+	fileNode := builder.Files.Get(astFile)
+	if fileNode == nil {
+		return FileDependent
+	}
+
+	hasImports := false
+	hasProjectImport := false
+
+	for _, itemID := range fileNode.Items {
+		if imp, ok := builder.Items.Import(itemID); ok {
+			hasImports = true
+			// Get module path from first segment
+			if len(imp.Module) > 0 && builder.StringsInterner != nil {
+				modulePath, _ := builder.StringsInterner.Lookup(imp.Module[0])
+				if !isStdlibModule(modulePath) {
+					hasProjectImport = true
+					break
+				}
+			}
+		}
+	}
+
+	if !hasImports {
+		return FileFullyIndependent
+	}
+	if hasProjectImport {
+		return FileDependent
+	}
+	return FileStdlibOnly
+}
 
 func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOptions, jobs int) (*source.FileSet, []DiagnoseDirResult, error) {
 	files, err := listSGFiles(dir)
@@ -55,6 +187,9 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 		return nil, nil, err
 	}
 
+	// Metrics for parallel processing (Phase 6)
+	var metrics parallelMetrics
+
 	results := make([]DiagnoseDirResult, len(files))
 	var (
 		graphReport *observ.Report
@@ -71,6 +206,13 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					return gctx.Err()
 				default:
 				}
+
+				// Track worker activation
+				metrics.workersActive.Add(1)
+				defer func() {
+					metrics.workersActive.Add(-1)
+					metrics.workersCompleted.Add(1)
+				}()
 
 				bag := diag.NewBag(opts.MaxDiagnostics)
 				var (
@@ -144,6 +286,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 
 				cacheIdx := begin("cache_lookup")
 				if _, br, fe, hit := mcache.Get(modulePath, file.Hash); hit {
+					metrics.cacheHits.Add(1) // Track memory cache hit
 					end(cacheIdx, "hit")
 					results[i] = DiagnoseDirResult{
 						Path:    path,
@@ -157,18 +300,16 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					reportTimings()
 					return nil
 				}
+				metrics.cacheMisses.Add(1) // Track memory cache miss
 				end(cacheIdx, "miss")
 
 				tokenIdx := begin("tokenize")
-				tokenErr := diagnoseTokenize(file, bag)
+				diagnoseTokenize(file, bag)
 				tokenNote := ""
 				if timer != nil {
 					tokenNote = fmt.Sprintf("diags=%d", bag.Len())
 				}
 				end(tokenIdx, tokenNote)
-				if tokenErr != nil {
-					return tokenErr
-				}
 
 				var (
 					symbolsRes *symbols.Result
@@ -176,7 +317,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				)
 				if opts.Stage != DiagnoseStageTokenize {
 					parseIdx := begin("parse")
-					builder, astFile = diagnoseParse(fileSet, file, bag)
+					builder, astFile = diagnoseParse(ctx, fileSet, file, bag)
 					parseNote := ""
 					if timer != nil && builder != nil && builder.Files != nil {
 						fileNode := builder.Files.Get(astFile)
@@ -195,7 +336,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 						end(symbolIdx, symbolNote)
 
 						semaIdx := begin("sema")
-						semaRes = diagnoseSema(builder, astFile, bag, nil, symbolsRes)
+						semaRes = diagnoseSema(ctx, builder, astFile, bag, nil, symbolsRes)
 						end(semaIdx, "")
 					}
 				}
@@ -248,6 +389,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 		}
 		collectIdx := beginGraph("collect_modules")
 		entries := make([]*entry, 0, len(results))
+		var independentCount, stdlibOnlyCount, dependentCount int
 		// Собираем метаданные: либо из кэша, либо из свежего парсинга, либо fallback.
 		for i := range results {
 			res := &results[i]
@@ -270,11 +412,36 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 			if norm, normErr := project.NormalizeModulePath(modulePath); normErr == nil {
 				modulePath = norm
 			}
-			if m, _, _, hit := mcache.Get(modulePath, file.Hash); hit {
-				meta = m
-				ok = true
-			} else if res.Builder != nil {
-				meta, ok = buildModuleMeta(fileSet, res.Builder, []ast.FileID{res.ASTFile}, baseDir, reporter)
+
+			// Try disk cache first if enabled (cross-run persistence)
+			if opts.EnableDiskCache && dcache != nil && file.Hash != (project.Digest{}) {
+				var payload DiskPayload
+				if hit, err := dcache.Get(file.Hash, &payload); err == nil && hit {
+					// Validate content hash matches
+					if payload.ContentHash == file.Hash {
+						if cached := diskPayloadToModule(&payload); cached != nil {
+							metrics.diskHits.Add(1) // Track disk cache hit
+							meta = cached
+							ok = true
+							// Also populate in-memory cache for faster subsequent access
+							mcache.Put(meta, payload.Broken, nil)
+						}
+					} else {
+						metrics.diskMisses.Add(1) // Hash mismatch = effective miss
+					}
+				} else {
+					metrics.diskMisses.Add(1) // Track disk cache miss
+				}
+			}
+
+			// Fallback to in-memory cache or build fresh
+			if !ok {
+				if m, _, _, hit := mcache.Get(modulePath, file.Hash); hit {
+					meta = m
+					ok = true
+				} else if res.Builder != nil {
+					meta, ok = buildModuleMeta(fileSet, res.Builder, []ast.FileID{res.ASTFile}, baseDir, reporter)
+				}
 			}
 			if !ok {
 				meta = fallbackModuleMeta(file, baseDir)
@@ -284,21 +451,52 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				}
 			}
 			broken, firstErr := moduleStatus(res.Bag)
-			entries = append(entries, &entry{
-				meta: meta,
-				node: dag.ModuleNode{
-					Meta:     meta,
-					Reporter: reporter,
-					Broken:   broken,
-					FirstErr: firstErr,
-				},
-			})
+
+			// Classify file to determine if it needs module graph processing
+			fileClass := classifyFile(res.Builder, res.ASTFile)
+			switch fileClass {
+			case FileFullyIndependent:
+				independentCount++
+				metrics.filesIndependent.Add(1) // Track independent files
+			case FileStdlibOnly:
+				stdlibOnlyCount++
+				metrics.filesStdlibOnly.Add(1) // Track stdlib-only files
+			case FileDependent:
+				dependentCount++
+				metrics.filesDependent.Add(1) // Track dependent files
+			}
+
+			// Only add files with project dependencies to the module graph
+			// Independent and stdlib-only files don't need dependency analysis
+			if fileClass == FileDependent {
+				entries = append(entries, &entry{
+					meta: meta,
+					node: dag.ModuleNode{
+						Meta:     meta,
+						Reporter: reporter,
+						Broken:   broken,
+						FirstErr: firstErr,
+					},
+				})
+			}
+
 			// Положим в in-memory cache (обновление/вставка).
 			mcache.Put(meta, broken, firstErr)
+
+			// Write to disk cache if enabled (for cross-run persistence)
+			// Note: Disk cache adds I/O overhead (~77% slower for fast operations)
+			// Use --disk-cache flag only for large projects where cross-run caching helps
+			if opts.EnableDiskCache && dcache != nil && ok && meta.ContentHash != (project.Digest{}) {
+				// For now, use zero dependency hash (will be computed in module graph phase)
+				payload := moduleToDiskPayload(meta, broken, project.Digest{})
+				_ = dcache.Put(meta.ContentHash, payload) //nolint:errcheck // Cache is best-effort, errors are acceptable
+			}
 		}
 		collectNote := ""
 		if opts.EnableTimings {
-			collectNote = fmt.Sprintf("modules=%d", len(entries))
+			collectNote = fmt.Sprintf("total=%d graph=%d (indep=%d stdlib=%d)",
+				independentCount+stdlibOnlyCount+dependentCount, len(entries),
+				independentCount, stdlibOnlyCount)
 		}
 		endGraph(collectIdx, collectNote)
 		var graphErr error
@@ -330,6 +528,23 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 			endGraph(topoIdx, topoNote)
 			hashIdx := beginGraph("hashes")
 			ComputeModuleHashes(idx, graph, slots, topo)
+
+			// Track batch parallelism metrics (Phase 6)
+			if topo != nil && len(topo.Batches) > 0 {
+				metrics.batchCount.Store(int64(len(topo.Batches)))
+				var maxSize int64
+				var totalSize int64
+				for _, batch := range topo.Batches {
+					size := int64(len(batch))
+					totalSize += size
+					if size > maxSize {
+						maxSize = size
+					}
+				}
+				metrics.batchSizeTotal.Store(totalSize)
+				metrics.batchSizeMax.Store(maxSize)
+			}
+
 			for i := range slots {
 				reporter, ok := slots[i].Reporter.(*diag.BagReporter)
 				if !ok || reporter.Bag == nil {
@@ -428,6 +643,23 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 					Path:    path,
 					TotalMS: graphReport.TotalMS,
 					Phases:  graphReport.Phases,
+				})
+				break
+			}
+		}
+	}
+
+	// Emit metrics summary if timing is enabled (Phase 6)
+	if opts.EnableTimings {
+		metricsStr := metrics.emitMetrics()
+		// Add metrics as informational diagnostic to the first result
+		for i := range results {
+			if results[i].Bag != nil {
+				results[i].Bag.Add(&diag.Diagnostic{
+					Severity: diag.SevInfo,
+					Code:     diag.UnknownCode,
+					Message:  "Parallel processing metrics: " + metricsStr,
+					Primary:  source.Span{},
 				})
 				break
 			}

@@ -1,9 +1,12 @@
 package sema
 
 import (
+	"context"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/symbols"
+	"surge/internal/trace"
 	"surge/internal/types"
 )
 
@@ -26,7 +29,7 @@ type Result struct {
 
 // Check performs semantic analysis (type inference, borrow checks, etc.).
 // At this stage it handles literal typing and basic operator validation.
-func Check(builder *ast.Builder, fileID ast.FileID, opts Options) Result {
+func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Options) Result {
 	res := Result{
 		ExprTypes:              make(map[ast.ExprID]types.TypeID),
 		ExprBorrows:            make(map[ast.ExprID]BorrowID),
@@ -49,6 +52,7 @@ func Check(builder *ast.Builder, fileID ast.FileID, opts Options) Result {
 		result:   &res,
 		types:    res.TypeInterner,
 		exports:  opts.Exports,
+		tracer:   trace.FromContext(ctx),
 	}
 	checker.run()
 	return res

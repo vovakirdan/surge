@@ -278,7 +278,7 @@ func ParseDir(ctx context.Context, dir string, maxDiagnostics, jobs int) (*sourc
 					MaxErrors: maxErrors,
 				}
 
-				result := parser.ParseFile(fileSet, lx, builder, opts)
+				result := parser.ParseFile(ctx, fileSet, lx, builder, opts)
 
 				// Сохраняем результат (мьютекс не нужен — индекс i уникален)
 				results[i] = ParseDirResult{

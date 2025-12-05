@@ -1,11 +1,14 @@
 package sema
 
 import (
+	"fmt"
+
 	"fortio.org/safecast"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/symbols"
+	"surge/internal/trace"
 	"surge/internal/types"
 )
 
@@ -20,7 +23,28 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 	if expr == nil {
 		return types.NoTypeID
 	}
+
+	// Track recursion depth
+	tc.exprDepth++
+	defer func() { tc.exprDepth-- }()
+
+	// Only trace at debug level and limit depth to avoid noise
+	var span *trace.Span
+	if tc.tracer != nil && tc.tracer.Level() >= trace.LevelDebug && tc.exprDepth <= 20 {
+		span = trace.Begin(tc.tracer, trace.ScopeNode, "type_expr", 0)
+		span.WithExtra("kind", fmt.Sprintf("%d", expr.Kind))
+		span.WithExtra("depth", fmt.Sprintf("%d", tc.exprDepth))
+	}
+
 	var ty types.TypeID
+	defer func() {
+		if span != nil {
+			if ty != types.NoTypeID {
+				span.WithExtra("result", tc.typeLabel(ty))
+			}
+			span.End("")
+		}
+	}()
 	switch expr.Kind {
 	case ast.ExprIdent:
 		if ident, ok := tc.builder.Exprs.Ident(id); ok && ident != nil {

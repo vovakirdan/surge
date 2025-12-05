@@ -2,6 +2,7 @@ package parser_test
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"surge/internal/ast"
@@ -49,7 +50,7 @@ func TestParseDoesNotPanicOnBasicCorpus(t *testing.T) {
 		bag := diag.NewBag(256)
 		lx := lexer.New(sf, lexer.Options{Reporter: (&lexer.ReporterAdapter{Bag: bag}).Reporter()})
 		builder := ast.NewBuilder(ast.Hints{}, nil)
-		_ = parser.ParseFile(fs, lx, builder, parser.Options{Reporter: &diag.BagReporter{Bag: bag}, MaxErrors: 128})
+		_ = parser.ParseFile(context.Background(), fs, lx, builder, parser.Options{Reporter: &diag.BagReporter{Bag: bag}, MaxErrors: 128})
 
 		// no hard assertion on diagnostics, only that we didn't crash
 	}
@@ -68,7 +69,7 @@ func TestRoundTrip_DetectsKindMismatch(t *testing.T) {
 	bag1 := diag.NewBag(64)
 	lx1 := lexer.New(sf1, lexer.Options{Reporter: (&lexer.ReporterAdapter{Bag: bag1}).Reporter()})
 	b1 := ast.NewBuilder(ast.Hints{}, nil)
-	r1 := parser.ParseFile(fs1, lx1, b1, parser.Options{Reporter: &diag.BagReporter{Bag: bag1}, MaxErrors: 32})
+	r1 := parser.ParseFile(context.Background(), fs1, lx1, b1, parser.Options{Reporter: &diag.BagReporter{Bag: bag1}, MaxErrors: 32})
 	if r1.File == 0 {
 		t.Fatalf("parse1 failed")
 	}
@@ -80,7 +81,7 @@ func TestRoundTrip_DetectsKindMismatch(t *testing.T) {
 	bag2 := diag.NewBag(64)
 	lx2 := lexer.New(sf2, lexer.Options{Reporter: (&lexer.ReporterAdapter{Bag: bag2}).Reporter()})
 	b2 := ast.NewBuilder(ast.Hints{}, nil)
-	r2 := parser.ParseFile(fs2, lx2, b2, parser.Options{Reporter: &diag.BagReporter{Bag: bag2}, MaxErrors: 32})
+	r2 := parser.ParseFile(context.Background(), fs2, lx2, b2, parser.Options{Reporter: &diag.BagReporter{Bag: bag2}, MaxErrors: 32})
 	if r2.File == 0 {
 		t.Fatalf("parse2 failed")
 	}

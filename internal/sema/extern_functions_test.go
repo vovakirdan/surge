@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"context"
 	"testing"
 
 	"surge/internal/diag"
@@ -27,7 +28,7 @@ extern<string> {
 	}
 
 	bag := diag.NewBag(8)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  &syms,
 	})
@@ -62,7 +63,7 @@ extern<Point> {
 	}
 
 	bag := diag.NewBag(8)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  &syms,
 	})

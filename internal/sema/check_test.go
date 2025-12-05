@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -14,7 +15,7 @@ import (
 func TestCheckInitializesTypeInterner(t *testing.T) {
 	builder := ast.NewBuilder(ast.Hints{}, nil)
 	file := builder.Files.New(source.Span{})
-	res := Check(builder, file, Options{})
+	res := Check(context.Background(), builder, file, Options{})
 	if res.TypeInterner == nil {
 		t.Fatalf("expected type interner")
 	}
@@ -29,7 +30,7 @@ func TestBinaryLiteralTypeInference(t *testing.T) {
 	sum := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryAdd, one, two)
 	addTopLevelLet(builder, file, sum)
 
-	res := Check(builder, file, Options{})
+	res := Check(context.Background(), builder, file, Options{})
 	got := res.ExprTypes[sum]
 	want := res.TypeInterner.Builtins().Int
 	if got != want {
@@ -47,7 +48,7 @@ func TestBinaryTypeMismatchEmitsDiagnostic(t *testing.T) {
 	addTopLevelLet(builder, file, expr)
 
 	bag := diag.NewBag(4)
-	Check(builder, file, Options{Reporter: &diag.BagReporter{Bag: bag}})
+	Check(context.Background(), builder, file, Options{Reporter: &diag.BagReporter{Bag: bag}})
 	items := bag.Items()
 	if len(items) == 0 {
 		t.Fatalf("expected diagnostics")
@@ -170,7 +171,7 @@ func TestTypeCheckerStructFieldAccess(t *testing.T) {
 		},
 	}
 
-	res := Check(builder, file, Options{Symbols: &symRes})
+	res := Check(context.Background(), builder, file, Options{Symbols: &symRes})
 	memberType := res.ExprTypes[memberExpr]
 	if memberType == types.NoTypeID {
 		t.Fatalf("expected member expression to have a type")
@@ -258,7 +259,7 @@ func TestStringMulIntrinsicAvailable(t *testing.T) {
 	addTopLevelLet(builder, file, mul)
 
 	bag := diag.NewBag(2)
-	res := Check(builder, file, Options{Reporter: &diag.BagReporter{Bag: bag}})
+	res := Check(context.Background(), builder, file, Options{Reporter: &diag.BagReporter{Bag: bag}})
 	if bag.HasErrors() {
 		t.Fatalf("unexpected diagnostics for string * int: %v", bag.Items())
 	}
@@ -340,7 +341,7 @@ func checkWithSymbols(t *testing.T, builder *ast.Builder, file ast.FileID) (*Res
 	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: bag},
 	})
-	res := Check(builder, file, Options{
+	res := Check(context.Background(), builder, file, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  &symRes,
 	})

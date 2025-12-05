@@ -11,6 +11,7 @@ import (
 	"surge/internal/diagfmt"
 	"surge/internal/driver"
 	"surge/internal/source"
+	"surge/internal/trace"
 )
 
 var diagCmd = &cobra.Command{
@@ -34,6 +35,7 @@ func init() {
 	diagCmd.Flags().Bool("suggest", false, "include fix suggestions in output")
 	diagCmd.Flags().Bool("preview", false, "preview changes without modifying files")
 	diagCmd.Flags().Bool("fullpath", false, "emit absolute file paths in output")
+	diagCmd.Flags().Bool("disk-cache", false, "enable persistent disk cache for module metadata (experimental)")
 }
 
 // runDiagnose executes the "diag" command: it parses command flags, runs diagnostics
@@ -45,6 +47,9 @@ func init() {
 // retrieval failures, unknown flag values, filesystem/stat errors, diagnosis failures,
 // or formatting/encoding errors.
 func runDiagnose(cmd *cobra.Command, args []string) error {
+	// Ensure trace is dumped on panic
+	defer dumpTraceOnPanic()
+
 	filePath := args[0]
 
 	// Получаем флаги
@@ -102,6 +107,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get fullpath flag: %w", err)
 	}
 
+	enableDiskCache, err := cmd.Flags().GetBool("disk-cache")
+	if err != nil {
+		return fmt.Errorf("failed to get disk-cache flag: %w", err)
+	}
+
 	// Конвертируем строку стадии в тип
 	var stage driver.DiagnoseStage
 	switch stagesStr {
@@ -124,6 +134,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		IgnoreWarnings:   noWarnings,
 		WarningsAsErrors: warningsAsErrors,
 		EnableTimings:    showTimings,
+		EnableDiskCache:  enableDiskCache,
 	}
 
 	st, err := os.Stat(filePath)
@@ -142,7 +153,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	)
 
 	runFile := func() (int, error) {
-		result, err := driver.DiagnoseWithOptions(filePath, opts)
+		result, err := driver.DiagnoseWithOptions(cmd.Context(), filePath, opts)
 		if err != nil {
 			return 0, fmt.Errorf("diagnosis failed: %w", err)
 		}
@@ -350,13 +361,27 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		exitCode, resultErr = runDir()
 	}
 
+	// Always cleanup profiler
 	cleanup()
 
 	if resultErr != nil {
+		// Cleanup tracer explicitly because PersistentPostRun is not called on error
+		if tracer := trace.FromContext(cmd.Context()); tracer != nil && tracer != trace.Nop {
+			_ = tracer.Flush()
+			_ = tracer.Close()
+		}
 		return resultErr
 	}
 	if exitCode != 0 {
-		os.Exit(exitCode)
+		// Cleanup tracer explicitly because PersistentPostRun is not called on error
+		if tracer := trace.FromContext(cmd.Context()); tracer != nil && tracer != trace.Nop {
+			_ = tracer.Flush()
+			_ = tracer.Close()
+		}
+		// Suppress cobra usage output on diagnostic errors
+		cmd.SilenceUsage = true
+		cmd.SilenceErrors = true
+		return fmt.Errorf("") // Silent error - diagnostics already printed
 	}
 	return nil
 }

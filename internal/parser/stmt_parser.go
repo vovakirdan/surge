@@ -1,14 +1,28 @@
 package parser
 
 import (
+	"fmt"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
 	"surge/internal/source"
 	"surge/internal/token"
+	"surge/internal/trace"
 )
 
 func (p *Parser) parseBlock() (ast.StmtID, bool) {
+	var span *trace.Span
+	stmtCount := 0
+	if p.tracer != nil && p.tracer.Level() >= trace.LevelDebug {
+		span = trace.Begin(p.tracer, trace.ScopeNode, "parse_block", 0)
+		defer func() {
+			if span != nil {
+				span.End(fmt.Sprintf("stmts=%d", stmtCount))
+			}
+		}()
+	}
+
 	if !p.at(token.LBrace) {
 		return ast.NoStmtID, false
 	}
@@ -24,6 +38,7 @@ func (p *Parser) parseBlock() (ast.StmtID, bool) {
 		stmtID, ok := p.parseStmt()
 		if ok {
 			stmtIDs = append(stmtIDs, stmtID)
+			stmtCount++
 			continue
 		}
 

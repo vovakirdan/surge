@@ -115,7 +115,7 @@ func formatSingleFile(path string, opts FormatOptions) (formatted []byte, change
 	if convErr != nil {
 		maxErrors = 0
 	}
-	parseRes := parser.ParseFile(fileSet, lx, builder, parser.Options{Reporter: &diag.BagReporter{Bag: bag}, MaxErrors: maxErrors})
+	parseRes := parser.ParseFile(context.Background(), fileSet, lx, builder, parser.Options{Reporter: &diag.BagReporter{Bag: bag}, MaxErrors: maxErrors})
 	if bag.HasErrors() {
 		return nil, false, errors.New("format: parse errors present")
 	}

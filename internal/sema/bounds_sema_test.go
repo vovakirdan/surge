@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"context"
 	"testing"
 
 	"surge/internal/diag"
@@ -25,7 +26,7 @@ fn f<T: A + B<T>>(value: T);
 
 	symRes := resolveSymbols(t, builder, fileID)
 	semaBag := diag.NewBag(8)
-	res := Check(builder, fileID, Options{
+	res := Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 		Symbols:  symRes,
 	})
@@ -83,7 +84,7 @@ type Box<T: C<int>> = {};
 	}
 	symRes := resolveSymbols(t, builder, fileID)
 	semaBag := diag.NewBag(8)
-	res := Check(builder, fileID, Options{
+	res := Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 		Symbols:  symRes,
 	})
@@ -130,7 +131,7 @@ fn f<T: FooLike>(value: T);
 	}
 	symRes := resolveSymbols(t, builder, fileID)
 	semaBag := diag.NewBag(8)
-	res := Check(builder, fileID, Options{
+	res := Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 		Symbols:  symRes,
 	})
@@ -249,7 +250,7 @@ func runBoundsSema(t *testing.T, src string) *diag.Bag {
 	}
 	symRes := resolveSymbols(t, builder, fileID)
 	semaBag := diag.NewBag(16)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 		Symbols:  symRes,
 	})

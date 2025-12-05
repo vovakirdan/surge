@@ -9,6 +9,7 @@ import (
 	"surge/internal/fix"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/trace"
 	"surge/internal/types"
 )
 
@@ -19,6 +20,18 @@ type callArg struct {
 }
 
 func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) types.TypeID {
+	// Трассировка вызова функции
+	var traceSpan *trace.Span
+	if tc.tracer != nil && tc.tracer.Level() >= trace.LevelDebug {
+		traceSpan = trace.Begin(tc.tracer, trace.ScopeNode, "call_result_type", 0)
+		traceSpan.WithExtra("args", fmt.Sprintf("%d", len(call.Args)))
+	}
+	defer func() {
+		if traceSpan != nil {
+			traceSpan.End("")
+		}
+	}()
+
 	if call == nil {
 		return types.NoTypeID
 	}
@@ -48,6 +61,9 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 		return tc.handleDefaultLikeCall(name, call, span)
 	}
 	candidates := tc.functionCandidates(ident.Name)
+	if traceSpan != nil {
+		traceSpan.WithExtra("candidates", fmt.Sprintf("%d", len(candidates)))
+	}
 	if len(candidates) == 0 {
 		if symID := tc.symbolForExpr(call.Target); symID.IsValid() {
 			if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolFunction {

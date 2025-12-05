@@ -22,6 +22,7 @@ var rootCmd = &cobra.Command{
 var (
 	timeoutCancel   context.CancelFunc
 	timeoutDuration time.Duration
+	traceCleanup    func()
 )
 
 // main configures the root CLI command (sets the version, registers subcommands, and defines persistent flags) and then executes it, exiting with status 1 if execution fails.
@@ -48,8 +49,16 @@ func main() {
 	rootCmd.PersistentFlags().Int("max-diagnostics", 100, "maximum number of diagnostics to show")
 	rootCmd.PersistentFlags().String("cpu-profile", "", "write CPU profile to file")
 	rootCmd.PersistentFlags().String("mem-profile", "", "write heap profile to file")
-	rootCmd.PersistentFlags().String("trace", "", "write runtime trace to file")
+	rootCmd.PersistentFlags().String("runtime-trace", "", "write Go runtime trace to file")
 	rootCmd.PersistentFlags().Int("timeout", 30, "command timeout in seconds")
+
+	// Tracing flags
+	rootCmd.PersistentFlags().String("trace", "", "trace output file (- for stderr, empty to disable)")
+	rootCmd.PersistentFlags().String("trace-level", "off", "trace level (off|error|phase|detail|debug)")
+	rootCmd.PersistentFlags().String("trace-mode", "ring", "storage mode (stream|ring|both)")
+	rootCmd.PersistentFlags().String("trace-format", "auto", "output format (auto|text|ndjson|chrome) - auto detects from file extension")
+	rootCmd.PersistentFlags().Int("trace-ring-size", 4096, "ring buffer capacity for trace events")
+	rootCmd.PersistentFlags().Duration("trace-heartbeat", 0, "heartbeat interval (0 to disable, e.g. 1s)")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -85,6 +94,13 @@ func applyTimeout(cmd *cobra.Command, _ []string) error {
 		}
 	}()
 
+	// Setup tracing
+	cleanup, err := setupTracing(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to setup tracing: %w", err)
+	}
+	traceCleanup = cleanup
+
 	return nil
 }
 
@@ -92,5 +108,9 @@ func cleanupTimeout(*cobra.Command, []string) {
 	if timeoutCancel != nil {
 		timeoutCancel()
 		timeoutCancel = nil
+	}
+	if traceCleanup != nil {
+		traceCleanup()
+		traceCleanup = nil
 	}
 }

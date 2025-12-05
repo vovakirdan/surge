@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,7 +33,7 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 	lx := lexer.New(file, lexer.Options{})
 	sharedStrings := source.NewInterner()
 	builder := ast.NewBuilder(ast.Hints{}, sharedStrings)
-	parseRes := parser.ParseFile(fs, lx, builder, parser.Options{
+	parseRes := parser.ParseFile(context.Background(), fs, lx, builder, parser.Options{
 		Reporter:  &diag.BagReporter{Bag: bag},
 		MaxErrors: 16,
 	})
@@ -41,7 +42,7 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 		Stage:          DiagnoseStageSema,
 		MaxDiagnostics: 32,
 	}
-	exports, _, err := runModuleGraph(fs, file, builder, parseRes.File, bag, opts, NewModuleCache(4), typeInterner, sharedStrings)
+	exports, _, err := runModuleGraph(context.Background(), fs, file, builder, parseRes.File, bag, opts, NewModuleCache(4), typeInterner, sharedStrings)
 	if err != nil {
 		t.Fatalf("runModuleGraph failed: %v", err)
 	}
@@ -117,7 +118,7 @@ func dumpOptionScope(fs *source.FileSet, exports map[string]*symbols.ModuleExpor
 	file := fs.Get(fileID)
 	lx := lexer.New(file, lexer.Options{})
 	builder := ast.NewBuilder(ast.Hints{}, nil)
-	parseRes := parser.ParseFile(fs, lx, builder, parser.Options{MaxErrors: 8})
+	parseRes := parser.ParseFile(context.Background(), fs, lx, builder, parser.Options{MaxErrors: 8})
 	externs := 0
 	if file := builder.Files.Get(parseRes.File); file != nil {
 		for _, itemID := range file.Items {
