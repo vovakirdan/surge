@@ -58,6 +58,9 @@ func ComputeModuleHashes(idx dag.ModuleIndex, g dag.Graph, slots []dag.ModuleSlo
 						if !g.Present[int(to)] {
 							continue
 						}
+						if slots[int(to)].Meta == nil {
+							continue
+						}
 						deps = append(deps, slots[int(to)].Meta.ModuleHash)
 					}
 
@@ -77,10 +80,16 @@ func ComputeModuleHashes(idx dag.ModuleIndex, g dag.Graph, slots []dag.ModuleSlo
 			if !slot.Present {
 				continue
 			}
+			if slot.Meta == nil {
+				continue
+			}
 
 			deps := make([]project.Digest, 0, len(g.Edges[int(id)]))
 			for _, to := range g.Edges[int(id)] {
 				if !g.Present[int(to)] {
+					continue
+				}
+				if slots[int(to)].Meta == nil {
 					continue
 				}
 				deps = append(deps, slots[int(to)].Meta.ModuleHash)

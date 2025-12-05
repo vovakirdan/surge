@@ -12,6 +12,7 @@ type StreamTracer struct {
 	level      Level
 	format     Format
 	firstEvent bool // for Chrome format comma handling
+	closed     bool // indicates that Close has been called
 }
 
 // NewStreamTracer creates a new StreamTracer.
@@ -21,6 +22,7 @@ func NewStreamTracer(w io.Writer, level Level, format Format) *StreamTracer {
 		level:      level,
 		format:     format,
 		firstEvent: true,
+		closed:     false,
 	}
 
 	// Write Chrome format header
@@ -73,14 +75,23 @@ func (t *StreamTracer) Flush() error {
 // Close flushes and closes the writer if it implements io.Closer.
 func (t *StreamTracer) Close() error {
 	t.mu.Lock()
+	if t.closed {
+		t.mu.Unlock()
+		return nil
+	}
+	t.closed = true
 	// Write Chrome format footer
 	if t.format == FormatChrome {
 		// Best-effort write - don't fail on footer write errors
 		_, _ = t.w.Write([]byte("\n]}\n")) //nolint:errcheck
 	}
+
+	// Flush while still holding the lock
+	if flusher, ok := t.w.(interface{ Flush() error }); ok {
+		_ = flusher.Flush() //nolint:errcheck
+	}
 	t.mu.Unlock()
 
-	t.Flush()
 	if closer, ok := t.w.(io.Closer); ok {
 		return closer.Close()
 	}
