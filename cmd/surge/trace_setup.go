@@ -67,6 +67,13 @@ func setupTracing(cmd *cobra.Command) (func(), error) {
 		return nil, fmt.Errorf("invalid trace mode: %w", err)
 	}
 
+	// Auto-detect: if output is a file path and mode is ring, use stream instead
+	// Ring mode is designed for in-memory buffering and dump-on-signal scenarios.
+	// When the user specifies a file path, they expect immediate writes.
+	if traceOutput != "" && traceOutput != "-" && mode == trace.ModeRing {
+		mode = trace.ModeStream
+	}
+
 	// Parse format
 	format, err := trace.ParseFormat(formatStr)
 	if err != nil {

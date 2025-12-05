@@ -44,11 +44,13 @@ Writes events immediately to output. Use for:
 - When you need to see progress in real-time
 
 ```bash
-surge diag --trace=trace.log --trace-mode=stream --trace-level=debug file.sg
+surge diag --trace=trace.log --trace-level=debug file.sg
 ```
 
 **Pros:** Immediate visibility, no data loss on crashes
 **Cons:** Higher I/O overhead
+
+**Note:** Stream mode is automatically enabled when `--trace` specifies a file path.
 
 ### Ring Mode (Default)
 
@@ -63,6 +65,8 @@ surge diag --trace=trace.log --trace-mode=ring --trace-ring-size=8192 file.sg
 
 **Pros:** Low overhead, captures last events before crash
 **Cons:** Limited history, events can be overwritten
+
+**Note:** When `--trace` specifies a file path (not `-`), the mode automatically switches from `ring` to `stream` for immediate file writes. This auto-detection ensures trace files are created as expected. To explicitly use ring mode with a file (e.g., for post-mortem debugging), specify `--trace-mode=ring` explicitly.
 
 ### Both Mode
 
@@ -249,10 +253,9 @@ surge diag --trace=trace.log --trace-level=phase --trace-mode=ring --trace-ring-
 ### Debugging Compiler Hangs
 
 ```bash
-# Use heartbeat + debug level + ring mode
+# Use heartbeat + debug level
 surge diag --trace=hang.log --trace-level=debug \
-           --trace-heartbeat=1s --trace-mode=ring \
-           --trace-ring-size=8192 problematic.sg
+           --trace-heartbeat=1s problematic.sg
 
 # After hang, check the trace for last operations before hang
 grep -A 10 -B 10 "heartbeat" hang.log | tail -30
@@ -262,8 +265,7 @@ grep -A 10 -B 10 "heartbeat" hang.log | tail -30
 
 ```bash
 # Phase level is sufficient for high-level profiling
-surge diag --trace=profile.log --trace-level=phase \
-           --trace-mode=stream large_project/
+surge diag --trace=profile.log --trace-level=phase large_project/
 
 # Analyze time spent in each phase
 grep "←" profile.log | sort -k2 -rn | head -20
@@ -273,8 +275,7 @@ grep "←" profile.log | sort -k2 -rn | head -20
 
 ```bash
 # Detail level shows module operations
-surge diag --trace=modules.log --trace-level=detail \
-           --trace-mode=stream project/
+surge diag --trace=modules.log --trace-level=detail project/
 
 # Filter for module operations
 grep -E "(parse_module|resolve_module|analyze_dependency)" modules.log
@@ -284,8 +285,7 @@ grep -E "(parse_module|resolve_module|analyze_dependency)" modules.log
 
 ```bash
 # Debug level required for parser internals
-surge diag --trace=parser.log --trace-level=debug \
-           --trace-mode=stream complex_file.sg
+surge diag --trace=parser.log --trace-level=debug complex_file.sg
 
 # Count parser operations
 grep -oE "parse_[a-z_]+" parser.log | sort | uniq -c | sort -rn
@@ -442,7 +442,6 @@ Manual testing recommended due to compiler speed:
 2. **No filtering** - All events at selected level are captured
 3. **Limited aggregation** - No built-in statistics or summaries
 4. **No sampling** - All events captured (except depth/iteration limits)
-5. **Chrome format requires stream mode** - Use `--trace-mode=stream` with `--trace-format=chrome`
 
 ## Features
 
