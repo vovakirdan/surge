@@ -247,6 +247,11 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 }
 
 func (tc *typeChecker) handleAssignment(op ast.ExprBinaryOp, left, right ast.ExprID, span source.Span) {
+	// Check @readonly attribute before allowing assignment
+	if tc.checkReadonlyFieldWrite(left, span) {
+		return // @readonly violation reported
+	}
+
 	desc, ok := tc.resolvePlace(left)
 	if !ok {
 		return

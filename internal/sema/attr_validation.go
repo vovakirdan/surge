@@ -296,3 +296,108 @@ func (tc *typeChecker) validateTypeAttrs(itemID ast.ItemID, typeItem *ast.TypeIt
 	// Record for later lookup
 	tc.recordTypeAttrs(typeID, infos)
 }
+
+// recordFieldAttrs stores attributes for a field for later lookup
+func (tc *typeChecker) recordFieldAttrs(typeID types.TypeID, fieldIndex int, infos []AttrInfo) {
+	if tc.fieldAttrs == nil {
+		tc.fieldAttrs = make(map[fieldKey][]AttrInfo)
+	}
+	key := fieldKey{TypeID: typeID, FieldIndex: fieldIndex}
+	tc.fieldAttrs[key] = infos
+}
+
+// fieldHasAttr checks if a field has the specified attribute
+func (tc *typeChecker) fieldHasAttr(typeID types.TypeID, fieldIndex int, attrName string) bool {
+	key := fieldKey{TypeID: typeID, FieldIndex: fieldIndex}
+	infos, ok := tc.fieldAttrs[key]
+	if !ok {
+		return false
+	}
+	_, found := hasAttr(infos, attrName)
+	return found
+}
+
+// validateFieldAttrs validates all attributes on a struct field
+func (tc *typeChecker) validateFieldAttrs(field *ast.TypeStructField, ownerTypeID types.TypeID, fieldIndex int) {
+	// Collect attributes
+	infos := tc.collectAttrs(field.AttrStart, field.AttrCount)
+	if len(infos) == 0 {
+		return
+	}
+
+	// Validate target applicability
+	tc.validateAttrs(field.AttrStart, field.AttrCount, ast.AttrTargetField, diag.SemaError)
+
+	// Check conflicts (fields can also have @align/@packed)
+	tc.checkPackedAlignConflict(infos)
+
+	// Validate parameters for @guarded_by
+	if guardedInfo, ok := hasAttr(infos, "guarded_by"); ok {
+		fieldName, ok := tc.validateFieldReference(guardedInfo, ownerTypeID,
+			diag.SemaAttrGuardedByNotField,
+			"@guarded_by requires a field name argument: @guarded_by(\"lock\")")
+		if ok {
+			// Could additionally validate that the referenced field is a Mutex/RwLock
+			// but that requires type checking, which might not be available yet
+			_ = fieldName
+		}
+	}
+
+	// Validate parameters for @align
+	if alignInfo, ok := hasAttr(infos, "align"); ok {
+		tc.validateAlignParameter(alignInfo)
+	}
+
+	// Record for later lookup
+	tc.recordFieldAttrs(ownerTypeID, fieldIndex, infos)
+}
+
+// checkReadonlyFieldWrite checks if an expression is trying to write to a @readonly field
+// Returns true if a @readonly violation was detected and reported
+func (tc *typeChecker) checkReadonlyFieldWrite(targetExpr ast.ExprID, span source.Span) bool {
+	expr := tc.builder.Exprs.Get(targetExpr)
+	if expr.Kind != ast.ExprMember {
+		return false // Not a member access
+	}
+
+	// Get member access details
+	member, ok := tc.builder.Exprs.Member(targetExpr)
+	if !ok {
+		return false
+	}
+
+	// Get the type of the base expression
+	baseType, ok := tc.result.ExprTypes[member.Target]
+	if !ok || baseType == types.NoTypeID {
+		return false
+	}
+
+	// Get struct info to find field index
+	structInfo, ok := tc.types.StructInfo(baseType)
+	if !ok || structInfo == nil {
+		return false
+	}
+
+	// Find the field index by name
+	fieldIndex := -1
+	for i, field := range structInfo.Fields {
+		if field.Name == member.Field {
+			fieldIndex = i
+			break
+		}
+	}
+
+	if fieldIndex < 0 {
+		return false // Field not found
+	}
+
+	// Check if field has @readonly attribute
+	if tc.fieldHasAttr(baseType, fieldIndex, "readonly") {
+		fieldName := tc.lookupName(member.Field)
+		tc.report(diag.SemaAttrReadonlyWrite, span,
+			"cannot write to @readonly field '%s'", fieldName)
+		return true
+	}
+
+	return false
+}

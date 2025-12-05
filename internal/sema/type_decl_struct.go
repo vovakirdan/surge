@@ -68,6 +68,25 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 	}
 	tc.types.SetStructFields(typeID, fields)
 
+	// Validate field-level attributes
+	if structDecl.FieldsCount > 0 && structDecl.FieldsStart.IsValid() {
+		start := uint32(structDecl.FieldsStart)
+		count := int(structDecl.FieldsCount)
+		for offset := range count {
+			uoff, err := safecast.Conv[uint32](offset)
+			if err != nil {
+				panic(fmt.Errorf("struct field offset overflow: %w", err))
+			}
+			fieldID := ast.TypeFieldID(start + uoff)
+			field := tc.builder.Items.StructField(fieldID)
+			if field == nil {
+				continue
+			}
+			// Validate attributes for this field
+			tc.validateFieldAttrs(field, typeID, offset)
+		}
+	}
+
 	// Validate type-level attributes
 	tc.validateTypeAttrs(itemID, typeItem, typeID)
 }

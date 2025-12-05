@@ -20,6 +20,12 @@ type typeCacheKey struct {
 	Env   uint32
 }
 
+// fieldKey uniquely identifies a struct field for attribute storage
+type fieldKey struct {
+	TypeID     types.TypeID
+	FieldIndex int
+}
+
 type typeChecker struct {
 	builder  *ast.Builder
 	fileID   ast.FileID
@@ -50,6 +56,7 @@ type typeChecker struct {
 	structBases                 map[types.TypeID]types.TypeID
 	externFields                map[symbols.TypeKey]*externFieldSet
 	typeAttrs                   map[types.TypeID][]AttrInfo // Type attribute storage
+	fieldAttrs                  map[fieldKey][]AttrInfo     // Field attribute storage
 	awaitDepth                  int
 	returnStack                 []returnContext
 	typeParams                  []map[source.StringID]types.TypeID
