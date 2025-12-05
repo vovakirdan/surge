@@ -11,6 +11,7 @@ import (
 	"surge/internal/diagfmt"
 	"surge/internal/driver"
 	"surge/internal/source"
+	"surge/internal/trace"
 )
 
 var diagCmd = &cobra.Command{
@@ -360,14 +361,27 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		exitCode, resultErr = runDir()
 	}
 
+	// Always cleanup profiler
+	cleanup()
+
 	if resultErr != nil {
-		cleanup()
+		// Cleanup tracer explicitly because PersistentPostRun is not called on error
+		if tracer := trace.FromContext(cmd.Context()); tracer != nil && tracer != trace.Nop {
+			_ = tracer.Flush()
+			_ = tracer.Close()
+		}
 		return resultErr
 	}
 	if exitCode != 0 {
-		cleanup()
-		os.Exit(exitCode) //nolint:gocritic // defer dumpTraceOnPanic is for panic recovery, not normal exit
+		// Cleanup tracer explicitly because PersistentPostRun is not called on error
+		if tracer := trace.FromContext(cmd.Context()); tracer != nil && tracer != trace.Nop {
+			_ = tracer.Flush()
+			_ = tracer.Close()
+		}
+		// Suppress cobra usage output on diagnostic errors
+		cmd.SilenceUsage = true
+		cmd.SilenceErrors = true
+		return fmt.Errorf("") // Silent error - diagnostics already printed
 	}
-	cleanup()
 	return nil
 }

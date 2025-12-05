@@ -67,6 +67,7 @@ func ParseMode(s string) (StorageMode, error) {
 type Config struct {
 	Level      Level         // tracing level
 	Mode       StorageMode   // storage mode
+	Format     Format        // output format (FormatAuto for auto-detection)
 	Output     io.Writer     // for stream mode (if nil, use OutputPath)
 	OutputPath string        // alternative: file path ("-" for stderr)
 	RingSize   int           // for ring mode (default 4096)
@@ -84,11 +85,17 @@ func New(cfg Config) (Tracer, error) {
 		cfg.RingSize = 4096
 	}
 
-	// Determine output format from path
-	format := FormatText // default
-	if cfg.OutputPath != "" && cfg.OutputPath != "-" {
-		if strings.HasSuffix(cfg.OutputPath, ".json") || strings.HasSuffix(cfg.OutputPath, ".ndjson") {
-			format = FormatNDJSON
+	// Determine output format
+	format := cfg.Format
+	if format == FormatAuto {
+		// Auto-detect from file extension
+		format = FormatText // default
+		if cfg.OutputPath != "" && cfg.OutputPath != "-" {
+			if strings.HasSuffix(cfg.OutputPath, ".ndjson") {
+				format = FormatNDJSON
+			} else if strings.HasSuffix(cfg.OutputPath, ".json") || strings.HasSuffix(cfg.OutputPath, ".chrome.json") {
+				format = FormatChrome
+			}
 		}
 	}
 

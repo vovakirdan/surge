@@ -56,6 +56,7 @@ func main() {
 	rootCmd.PersistentFlags().String("trace", "", "trace output file (- for stderr, empty to disable)")
 	rootCmd.PersistentFlags().String("trace-level", "off", "trace level (off|error|phase|detail|debug)")
 	rootCmd.PersistentFlags().String("trace-mode", "ring", "storage mode (stream|ring|both)")
+	rootCmd.PersistentFlags().String("trace-format", "auto", "output format (auto|text|ndjson|chrome) - auto detects from file extension")
 	rootCmd.PersistentFlags().Int("trace-ring-size", 4096, "ring buffer capacity for trace events")
 	rootCmd.PersistentFlags().Duration("trace-heartbeat", 0, "heartbeat interval (0 to disable, e.g. 1s)")
 

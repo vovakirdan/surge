@@ -175,6 +175,8 @@ Complex operations:
 
 ### NDJSON Format (Machine-Readable)
 
+Newline-Delimited JSON format for automated analysis and CI integration:
+
 ```bash
 surge diag --trace=trace.ndjson --trace-format=ndjson --trace-level=debug file.sg
 ```
@@ -184,6 +186,24 @@ Each line is a JSON object:
 {"time":"2025-12-05T12:00:00.123Z","seq":1,"kind":"span_begin","scope":"pass","span_id":42,"parent_id":0,"name":"parse","gid":1}
 {"time":"2025-12-05T12:00:00.125Z","seq":2,"kind":"span_end","scope":"pass","span_id":42,"name":"parse","detail":"items=15","gid":1}
 ```
+
+Format is auto-detected from `.ndjson` extension, or explicitly specified with `--trace-format=ndjson`.
+
+### Chrome Trace Viewer Format
+
+Chrome Trace Event Format for visual performance analysis:
+
+```bash
+surge diag --trace=trace.json --trace-format=chrome --trace-level=detail file.sg
+```
+
+Open `chrome://tracing` in Chrome/Chromium and load the JSON file for interactive visualization:
+- Timeline view of all compilation phases
+- Nested span relationships
+- Per-thread activity (goroutines)
+- Search and filter capabilities
+
+Format is auto-detected from `.json` extension, or explicitly specified with `--trace-format=chrome`.
 
 ## Performance Impact
 
@@ -317,17 +337,27 @@ grep "parse_items_progress" trace.log | tail -1
 
 ## Integration with Other Tools
 
-### ChromeTrace Viewer (Future)
+### Chrome Trace Viewer
 
-Export to Chrome's trace viewer format:
+Visualize compilation timeline interactively:
 ```bash
-surge diag --trace=trace.json --trace-format=chrome file.sg
-# Open chrome://tracing and load trace.json
+surge diag --trace=trace.json --trace-format=chrome --trace-level=detail file.sg
 ```
+
+Then:
+1. Open Chrome/Chromium browser
+2. Navigate to `chrome://tracing`
+3. Click "Load" and select `trace.json`
+4. Use WASD keys to navigate, mouse to zoom
+5. Click on spans to see details
+
+**Tip:** Use `--trace-level=detail` for a good balance between detail and noise. `debug` level can be overwhelming in the viewer.
 
 ### Custom Analysis Scripts
 
-NDJSON format is easily parsed:
+NDJSON format is easily parsed for automated analysis:
+
+**Python example:**
 ```python
 import json
 
@@ -336,6 +366,15 @@ with open('trace.ndjson') as f:
         event = json.loads(line)
         if event['kind'] == 'span_begin':
             print(f"Started {event['name']} at {event['time']}")
+```
+
+**Bash example:**
+```bash
+# Count events by name
+grep '"name":' trace.ndjson | cut -d'"' -f4 | sort | uniq -c | sort -rn
+
+# Extract all span durations
+jq 'select(.kind=="span_end") | {name, detail}' trace.ndjson
 ```
 
 ## Environment Variables
@@ -400,10 +439,10 @@ Manual testing recommended due to compiler speed:
 ## Limitations
 
 1. **No distributed tracing** - Single process only
-2. **Text format only** - NDJSON and Chrome formats planned
-3. **No filtering** - All events at selected level are captured
-4. **Limited aggregation** - No built-in statistics or summaries
-5. **No sampling** - All events captured (except depth/iteration limits)
+2. **No filtering** - All events at selected level are captured
+3. **Limited aggregation** - No built-in statistics or summaries
+4. **No sampling** - All events captured (except depth/iteration limits)
+5. **Chrome format requires stream mode** - Use `--trace-mode=stream` with `--trace-format=chrome`
 
 ## Features
 
@@ -426,6 +465,11 @@ Manual testing recommended due to compiler speed:
 - Ring mode - circular buffer
 - Both mode - combines stream and ring
 
+**Output Formats:**
+- Text format - human-readable with timestamps and indentation
+- NDJSON format - newline-delimited JSON for machine parsing
+- Chrome Trace Viewer format - JSON for chrome://tracing visualization
+
 **Performance:**
 - Zero overhead when disabled (nil checks only)
 - ~0% overhead at phase level
@@ -434,8 +478,6 @@ Manual testing recommended due to compiler speed:
 
 ### Planned
 
-- Chrome Trace Viewer format export (trace_events JSON)
-- NDJSON format support for machine-readable output
 - Sampling mode for lower overhead in production
 - Built-in trace analysis tools (statistics, bottleneck detection)
 - Distributed tracing for parallel compilation

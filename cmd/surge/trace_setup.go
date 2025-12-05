@@ -43,6 +43,11 @@ func setupTracing(cmd *cobra.Command) (func(), error) {
 		return nil, fmt.Errorf("failed to get trace-heartbeat flag: %w", err)
 	}
 
+	formatStr, err := root.PersistentFlags().GetString("trace-format")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get trace-format flag: %w", err)
+	}
+
 	// Parse level
 	level, err := trace.ParseLevel(levelStr)
 	if err != nil {
@@ -62,10 +67,17 @@ func setupTracing(cmd *cobra.Command) (func(), error) {
 		return nil, fmt.Errorf("invalid trace mode: %w", err)
 	}
 
+	// Parse format
+	format, err := trace.ParseFormat(formatStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid trace format: %w", err)
+	}
+
 	// Create tracer config
 	cfg := trace.Config{
 		Level:      level,
 		Mode:       mode,
+		Format:     format,
 		OutputPath: traceOutput,
 		RingSize:   ringSize,
 		Heartbeat:  heartbeatInterval,
