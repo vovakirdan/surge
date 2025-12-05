@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -41,7 +42,7 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 		Stage:          DiagnoseStageSema,
 		MaxDiagnostics: 32,
 	}
-	exports, _, err := runModuleGraph(fs, file, builder, parseRes.File, bag, opts, NewModuleCache(4), typeInterner, sharedStrings)
+	exports, _, err := runModuleGraph(context.Background(), fs, file, builder, parseRes.File, bag, opts, NewModuleCache(4), typeInterner, sharedStrings)
 	if err != nil {
 		t.Fatalf("runModuleGraph failed: %v", err)
 	}

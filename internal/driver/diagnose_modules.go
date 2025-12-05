@@ -1,7 +1,9 @@
 package driver
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -15,6 +17,7 @@ import (
 	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/trace"
 	"surge/internal/types"
 )
 
@@ -39,13 +42,25 @@ func resolveModuleDir(modulePath, baseDir string) (string, error) {
 }
 
 func parseModuleDir(
+	ctx context.Context,
 	fs *source.FileSet,
 	dir string,
 	bag *diag.Bag,
 	strs *source.Interner,
 	builder *ast.Builder,
 	preloaded map[string]ast.FileID,
-) (*ast.Builder, []ast.FileID, []*source.File, error) {
+) (retBuilder *ast.Builder, retFileIDs []ast.FileID, retFiles []*source.File, retErr error) {
+	tracer := trace.FromContext(ctx)
+	span := trace.Begin(tracer, trace.ScopeModule, "parse_module_dir", 0)
+	span.WithExtra("dir", dir)
+	defer func() {
+		if len(retFileIDs) > 0 {
+			span.End(fmt.Sprintf("files=%d", len(retFileIDs)))
+		} else {
+			span.End("")
+		}
+	}()
+
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, nil, nil, err
@@ -116,13 +131,25 @@ func parseModuleDir(
 }
 
 func analyzeDependencyModule(
+	ctx context.Context,
 	fs *source.FileSet,
 	modulePath string,
 	baseDir string,
 	opts DiagnoseOptions,
 	cache *ModuleCache,
 	strs *source.Interner,
-) (*moduleRecord, error) {
+) (retRec *moduleRecord, retErr error) {
+	tracer := trace.FromContext(ctx)
+	span := trace.Begin(tracer, trace.ScopeModule, "analyze_dependency", 0)
+	span.WithExtra("module", modulePath)
+	defer func() {
+		status := "ok"
+		if retRec != nil && retRec.Broken {
+			status = "broken"
+		}
+		span.End(status)
+	}()
+
 	dirPath, err := resolveModuleDir(modulePath, baseDir)
 	if err != nil {
 		if errors.Is(err, errModuleNotFound) {
@@ -131,7 +158,7 @@ func analyzeDependencyModule(
 		return nil, err
 	}
 	bag := diag.NewBag(opts.MaxDiagnostics)
-	builder, fileIDs, files, err := parseModuleDir(fs, dirPath, bag, strs, nil, nil)
+	builder, fileIDs, files, err := parseModuleDir(ctx, fs, dirPath, bag, strs, nil, nil)
 	if err != nil {
 		if errors.Is(err, errModuleNotFound) {
 			return nil, errModuleNotFound
@@ -192,12 +219,21 @@ func analyzeDependencyModule(
 }
 
 func resolveModuleRecord(
+	ctx context.Context,
 	rec *moduleRecord,
 	baseDir string,
 	moduleExports map[string]*symbols.ModuleExports,
 	typeInterner *types.Interner,
 	opts DiagnoseOptions,
 ) *symbols.ModuleExports {
+	tracer := trace.FromContext(ctx)
+	span := trace.Begin(tracer, trace.ScopeModule, "resolve_module_record", 0)
+	if rec != nil && rec.Meta != nil {
+		span.WithExtra("module", rec.Meta.Path)
+		span.WithExtra("files", fmt.Sprintf("%d", len(rec.FileIDs)))
+	}
+	defer span.End("")
+
 	if rec == nil || rec.Builder == nil || len(rec.FileIDs) == 0 {
 		return nil
 	}
@@ -291,6 +327,7 @@ func resolveModuleRecord(
 }
 
 func collectModuleExports(
+	ctx context.Context,
 	records map[string]*moduleRecord,
 	idx dag.ModuleIndex,
 	topo *dag.Topo,
@@ -316,7 +353,7 @@ func collectModuleExports(
 			if rec == nil || normPath == normalizedRoot {
 				continue
 			}
-			if exp := resolveModuleRecord(rec, baseDir, exports, typeInterner, opts); exp != nil {
+			if exp := resolveModuleRecord(ctx, rec, baseDir, exports, typeInterner, opts); exp != nil {
 				exports[normPath] = exp
 			}
 		}
@@ -385,6 +422,7 @@ func enforceEntrypoints(rec *moduleRecord, moduleScope symbols.ScopeID) {
 }
 
 func ensureStdlibModules(
+	ctx context.Context,
 	fs *source.FileSet,
 	records map[string]*moduleRecord,
 	opts DiagnoseOptions,
@@ -403,7 +441,7 @@ func ensureStdlibModules(
 		if _, ok := records[module]; ok {
 			continue
 		}
-		rec, err := loadStdModule(fs, module, stdlibRoot, opts, cache, exports, typeInterner, strs)
+		rec, err := loadStdModule(ctx, fs, module, stdlibRoot, opts, cache, exports, typeInterner, strs)
 		if err != nil {
 			if errors.Is(err, errStdModuleMissing) {
 				continue
@@ -542,6 +580,7 @@ func commonPrefixLen(a, b []string) int {
 }
 
 func loadStdModule(
+	ctx context.Context,
 	fs *source.FileSet,
 	modulePath string,
 	stdlibRoot string,
@@ -550,7 +589,17 @@ func loadStdModule(
 	moduleExports map[string]*symbols.ModuleExports,
 	typeInterner *types.Interner,
 	strs *source.Interner,
-) (*moduleRecord, error) {
+) (retRec *moduleRecord, retErr error) {
+	tracer := trace.FromContext(ctx)
+	span := trace.Begin(tracer, trace.ScopeModule, "load_std_module", 0)
+	span.WithExtra("module", modulePath)
+	defer func() {
+		if retRec != nil && !retRec.Broken {
+			span.End("ok")
+		} else {
+			span.End("broken")
+		}
+	}()
 	if stdlibRoot == "" {
 		return nil, errStdModuleMissing
 	}
@@ -560,7 +609,7 @@ func loadStdModule(
 	}
 	dirPath := filepath.Dir(filePath)
 	bag := diag.NewBag(opts.MaxDiagnostics)
-	builder, fileIDs, files, err := parseModuleDir(fs, dirPath, bag, strs, nil, nil)
+	builder, fileIDs, files, err := parseModuleDir(ctx, fs, dirPath, bag, strs, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -610,7 +659,7 @@ func loadStdModule(
 		FileIDs:  fileIDs,
 		Files:    files,
 	}
-	exports := resolveModuleRecord(rec, stdlibRoot, moduleExports, typeInterner, opts)
+	exports := resolveModuleRecord(ctx, rec, stdlibRoot, moduleExports, typeInterner, opts)
 	if exports != nil {
 		rec.Exports = exports
 		if rec.Symbols != nil {

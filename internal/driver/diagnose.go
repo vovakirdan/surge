@@ -152,7 +152,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 		graphSpan := trace.Begin(tracer, trace.ScopePass, "imports_graph", diagSpan.ID())
 		var moduleExports map[string]*symbols.ModuleExports
 		var rootRec *moduleRecord
-		moduleExports, rootRec, err = runModuleGraph(fs, file, builder, astFile, bag, opts, cache, sharedTypes, sharedStrings)
+		moduleExports, rootRec, err = runModuleGraph(ctx, fs, file, builder, astFile, bag, opts, cache, sharedTypes, sharedStrings)
 		graphSpan.End("")
 		end(graphIdx, "")
 		if err != nil {
@@ -168,7 +168,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 				if moduleExports == nil {
 					moduleExports = make(map[string]*symbols.ModuleExports)
 				}
-				if exp := resolveModuleRecord(rootRec, baseDir, moduleExports, sharedTypes, opts); exp != nil {
+				if exp := resolveModuleRecord(ctx, rootRec, baseDir, moduleExports, sharedTypes, opts); exp != nil {
 					moduleExports[rootRec.Meta.Path] = exp
 				}
 				if sym, ok := rootRec.Symbols[astFile]; ok {
@@ -410,6 +410,7 @@ func moduleHasExplicitName(meta *project.ModuleMeta) bool {
 }
 
 func runModuleGraph(
+	ctx context.Context,
 	fs *source.FileSet,
 	file *source.File,
 	builder *ast.Builder,
@@ -424,6 +425,10 @@ func runModuleGraph(
 		return nil, nil, nil
 	}
 
+	tracer := trace.FromContext(ctx)
+	graphSpan := trace.Begin(tracer, trace.ScopeModule, "module_graph", 0)
+	defer graphSpan.End("")
+
 	baseDir := fs.BaseDir()
 	stdlibRoot := detectStdlibRoot()
 	if stdlibRoot == "" && (opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll) {
@@ -434,7 +439,7 @@ func runModuleGraph(
 	preloaded := map[string]ast.FileID{
 		filepath.ToSlash(file.Path): astFile,
 	}
-	builder, rootFileIDs, rootFiles, err := parseModuleDir(fs, dirPath, bag, strs, builder, preloaded)
+	builder, rootFileIDs, rootFiles, err := parseModuleDir(ctx, fs, dirPath, bag, strs, builder, preloaded)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -487,6 +492,11 @@ func runModuleGraph(
 		queue = queue[1:]
 		seen[cur] = struct{}{}
 		rec := records[cur]
+
+		moduleSpan := trace.Begin(tracer, trace.ScopeModule, "process_module", graphSpan.ID())
+		moduleSpan.WithExtra("path", cur)
+
+		importsCount := 0
 		for i := range rec.Meta.Imports {
 			imp := rec.Meta.Imports[i]
 			if _, ok := processedImports[imp.Path]; ok {
@@ -499,7 +509,7 @@ func runModuleGraph(
 				continue
 			}
 
-			depRec, err := analyzeDependencyModule(fs, imp.Path, baseDir, opts, cache, strs)
+			depRec, err := analyzeDependencyModule(ctx, fs, imp.Path, baseDir, opts, cache, strs)
 			if err != nil {
 				if errors.Is(err, errModuleNotFound) {
 					missing[imp.Path] = struct{}{}
@@ -537,10 +547,13 @@ func runModuleGraph(
 			if _, ok := seen[depRec.Meta.Path]; !ok {
 				queue = append(queue, depRec.Meta.Path)
 			}
+			importsCount++
 		}
+
+		moduleSpan.End(fmt.Sprintf("imports=%d", importsCount))
 	}
 
-	if err := ensureStdlibModules(fs, records, opts, cache, stdlibRoot, typeInterner, strs); err != nil {
+	if err := ensureStdlibModules(ctx, fs, records, opts, cache, stdlibRoot, typeInterner, strs); err != nil {
 		return nil, nil, err
 	}
 
@@ -583,7 +596,7 @@ func runModuleGraph(
 	}
 	dag.ReportBrokenDeps(idx, slots)
 
-	exports := collectModuleExports(records, idx, topo, baseDir, meta.Path, typeInterner, opts)
+	exports := collectModuleExports(ctx, records, idx, topo, baseDir, meta.Path, typeInterner, opts)
 	for alias, target := range aliasExports {
 		if exp, ok := exports[normalizeExportsKey(target)]; ok {
 			exports[normalizeExportsKey(alias)] = exp
