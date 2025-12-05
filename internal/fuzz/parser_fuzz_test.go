@@ -1,6 +1,7 @@
 package fuzztests
 
 import (
+	"context"
 	"testing"
 
 	"surge/internal/ast"
@@ -33,6 +34,6 @@ func FuzzParserBuildsAST(f *testing.F) {
 			MaxErrors: 128,
 		}
 
-		_ = parser.ParseFile(fs, lx, builder, opts)
+		_ = parser.ParseFile(context.Background(), fs, lx, builder, opts)
 	})
 }

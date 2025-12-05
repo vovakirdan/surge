@@ -123,7 +123,7 @@ func parseModuleDir(
 			}
 		}
 		var parsed ast.FileID
-		builder, parsed = diagnoseParseWithBuilder(fs, file, bag, builder)
+		builder, parsed = diagnoseParseWithBuilder(ctx, fs, file, bag, builder)
 		fileIDs = append(fileIDs, parsed)
 		files = append(files, file)
 	}

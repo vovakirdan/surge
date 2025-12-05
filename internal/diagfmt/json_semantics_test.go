@@ -2,6 +2,7 @@ package diagfmt
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -22,7 +23,7 @@ func TestJSONIncludesSemantics(t *testing.T) {
 	bag := diag.NewBag(16)
 	lx := lexer.New(file, lexer.Options{})
 	builder := ast.NewBuilder(ast.Hints{}, nil)
-	parseResult := parser.ParseFile(fs, lx, builder, parser.Options{Reporter: &diag.BagReporter{Bag: bag}})
+	parseResult := parser.ParseFile(context.Background(), fs, lx, builder, parser.Options{Reporter: &diag.BagReporter{Bag: bag}})
 	if parseResult.File == ast.NoFileID {
 		t.Fatalf("parse failed")
 	}

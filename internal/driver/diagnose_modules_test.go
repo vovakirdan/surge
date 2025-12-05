@@ -33,7 +33,7 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 	lx := lexer.New(file, lexer.Options{})
 	sharedStrings := source.NewInterner()
 	builder := ast.NewBuilder(ast.Hints{}, sharedStrings)
-	parseRes := parser.ParseFile(fs, lx, builder, parser.Options{
+	parseRes := parser.ParseFile(context.Background(), fs, lx, builder, parser.Options{
 		Reporter:  &diag.BagReporter{Bag: bag},
 		MaxErrors: 16,
 	})
@@ -118,7 +118,7 @@ func dumpOptionScope(fs *source.FileSet, exports map[string]*symbols.ModuleExpor
 	file := fs.Get(fileID)
 	lx := lexer.New(file, lexer.Options{})
 	builder := ast.NewBuilder(ast.Hints{}, nil)
-	parseRes := parser.ParseFile(fs, lx, builder, parser.Options{MaxErrors: 8})
+	parseRes := parser.ParseFile(context.Background(), fs, lx, builder, parser.Options{MaxErrors: 8})
 	externs := 0
 	if file := builder.Files.Get(parseRes.File); file != nil {
 		for _, itemID := range file.Items {

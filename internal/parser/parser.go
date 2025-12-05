@@ -1,7 +1,10 @@
 package parser
 
 import (
+	"context"
+	"fmt"
 	"slices"
+	"time"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
@@ -9,6 +12,7 @@ import (
 	"surge/internal/lexer"
 	"surge/internal/source"
 	"surge/internal/token"
+	"surge/internal/trace"
 )
 
 type Options struct {
@@ -46,6 +50,8 @@ type Parser struct {
 	// allowFatArrow tracks the nesting depth of constructs where fat arrows are valid (compare arms, parallel expressions).
 	allowFatArrow int
 	pragmaParsed  bool
+	tracer        trace.Tracer // трассировщик для отладки зависаний
+	exprDepth     int          // глубина рекурсии для выражений
 }
 
 type DirectiveMode uint8
@@ -60,6 +66,7 @@ const (
 // ParseFile — входная точка для разбора одного файла.
 // Требует уже созданный lexer (на основе source.File).
 func ParseFile(
+	ctx context.Context,
 	fs *source.FileSet,
 	lx *lexer.Lexer,
 	arenas *ast.Builder,
@@ -72,6 +79,7 @@ func ParseFile(
 		fs:       fs,
 		opts:     opts,
 		lastSpan: lx.EmptySpan(), // инициализируем с пустым span
+		tracer:   trace.FromContext(ctx),
 	}
 
 	p.parseItems()
@@ -99,9 +107,28 @@ func (p *Parser) IsError() bool {
 
 // parseItems — основной цикл верхнего уровня: пока не EOF — parseItem.
 func (p *Parser) parseItems() {
+	var span *trace.Span
+	if p.tracer != nil && p.tracer.Level() >= trace.LevelDebug {
+		span = trace.Begin(p.tracer, trace.ScopeNode, "parse_items", 0)
+		defer span.End("")
+	}
+
 	startSpan := p.lx.Peek().Span
 	p.consumeModulePragma()
+
+	itemCount := 0
 	for !p.at(token.EOF) {
+		// Emit progress point every 100 items
+		if p.tracer != nil && p.tracer.Level() >= trace.LevelDebug && itemCount%100 == 0 && itemCount > 0 {
+			p.tracer.Emit(&trace.Event{
+				Time:   time.Now(),
+				Kind:   trace.KindPoint,
+				Scope:  trace.ScopeNode,
+				Name:   "parse_items_progress",
+				Detail: fmt.Sprintf("item=%d", itemCount),
+			})
+		}
+
 		// Следим за прогрессом: если за итерацию не съели ни одного токена, нужно его форсированно
 		// прокрутить, иначе можно зациклиться на повреждённом вводе.
 		before := p.lx.Peek()
@@ -111,6 +138,7 @@ func (p *Parser) parseItems() {
 			p.resyncTop()
 		} else {
 			p.arenas.PushItem(p.file, itemID)
+			itemCount++
 		}
 
 		if !p.at(token.EOF) {
@@ -447,6 +475,11 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 // resyncTop — восстановление после ошибки на верхнем уровне:
 // прокручиваем до ';' ИЛИ до стартового токена следующего item ИЛИ EOF.
 func (p *Parser) resyncTop() { // todo: использовать resyncUntill - надо явно знать до какого токена прокручивать
+	var span *trace.Span
+	if p.tracer != nil && p.tracer.Level() >= trace.LevelDebug {
+		span = trace.Begin(p.tracer, trace.ScopeNode, "resync_top", 0)
+	}
+
 	// Список всех стартеров + semicolon
 	stopTokens := []token.Kind{
 		token.Semicolon, token.KwImport, token.KwLet, token.KwConst,
@@ -465,15 +498,22 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 
 	p.resyncUntil(stopTokens...)
 
+	tokensSkipped := 0
 	// Если resync не продвинулся (остались на том же токене) и это не EOF, съедаем токен,
 	// чтобы гарантировать прогресс и избежать бесконечного цикла на повреждённом вводе.
 	if !p.at(token.EOF) && p.lx.Peek().Span == prev.Span && p.lx.Peek().Kind == prev.Kind {
 		p.advance()
+		tokensSkipped++
 	}
 
 	// Если нашли semicolon, съедаем его
 	if p.at(token.Semicolon) {
 		p.advance()
+		tokensSkipped++
+	}
+
+	if span != nil {
+		span.End(fmt.Sprintf("tokens_skipped=%d", tokensSkipped))
 	}
 }
 

@@ -1,6 +1,7 @@
 package format
 
 import (
+	"context"
 	"errors"
 
 	"surge/internal/ast"
@@ -156,7 +157,7 @@ func parseOnce(sf *source.File, bag *diag.Bag) (*ast.Builder, ast.FileID) {
 	lx := lexer.New(sf, lexer.Options{Reporter: (&lexer.ReporterAdapter{Bag: bag}).Reporter()})
 	builder := ast.NewBuilder(ast.Hints{}, nil)
 	opts := parser.Options{Reporter: &diag.BagReporter{Bag: bag}, MaxErrors: uint(bag.Cap())}
-	res := parser.ParseFile(source.NewFileSet(), lx, builder, opts)
+	res := parser.ParseFile(context.Background(), source.NewFileSet(), lx, builder, opts)
 	return builder, res.File
 }
 

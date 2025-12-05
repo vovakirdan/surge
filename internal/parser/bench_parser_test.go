@@ -2,6 +2,7 @@ package parser_test
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"surge/internal/ast"
@@ -23,7 +24,7 @@ func benchParse(b *testing.B, program []byte) {
 		builder := ast.NewBuilder(ast.Hints{}, nil)
 		bag := diag.NewBag(0)
 		lx := lexer.New(file, lexer.Options{})
-		parser.ParseFile(fs, lx, builder, parser.Options{
+		parser.ParseFile(context.Background(), fs, lx, builder, parser.Options{
 			Reporter: &diag.BagReporter{Bag: bag},
 		})
 	}

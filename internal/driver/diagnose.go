@@ -137,7 +137,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 	if opts.Stage != DiagnoseStageTokenize {
 		parseIdx := begin("parse")
 		parseSpan := trace.Begin(tracer, trace.ScopePass, "parse", diagSpan.ID())
-		builder, astFile = diagnoseParseWithStrings(fs, file, bag, sharedStrings)
+		builder, astFile = diagnoseParseWithStrings(ctx, fs, file, bag, sharedStrings)
 		parseNote := ""
 		if timer != nil && builder != nil && builder.Files != nil {
 			fileNode := builder.Files.Get(astFile)
@@ -307,17 +307,17 @@ func diagnoseTokenize(file *source.File, bag *diag.Bag) error {
 	return nil
 }
 
-func diagnoseParse(fs *source.FileSet, file *source.File, bag *diag.Bag) (*ast.Builder, ast.FileID) {
+func diagnoseParse(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag) (*ast.Builder, ast.FileID) {
 	arenas := ast.NewBuilder(ast.Hints{}, nil)
-	return diagnoseParseWithBuilder(fs, file, bag, arenas)
+	return diagnoseParseWithBuilder(ctx, fs, file, bag, arenas)
 }
 
-func diagnoseParseWithStrings(fs *source.FileSet, file *source.File, bag *diag.Bag, strs *source.Interner) (*ast.Builder, ast.FileID) {
+func diagnoseParseWithStrings(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag, strs *source.Interner) (*ast.Builder, ast.FileID) {
 	arenas := ast.NewBuilder(ast.Hints{}, strs)
-	return diagnoseParseWithBuilder(fs, file, bag, arenas)
+	return diagnoseParseWithBuilder(ctx, fs, file, bag, arenas)
 }
 
-func diagnoseParseWithBuilder(fs *source.FileSet, file *source.File, bag *diag.Bag, arenas *ast.Builder) (*ast.Builder, ast.FileID) {
+func diagnoseParseWithBuilder(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag, arenas *ast.Builder) (*ast.Builder, ast.FileID) {
 	if arenas == nil {
 		arenas = ast.NewBuilder(ast.Hints{}, nil)
 	}
@@ -333,7 +333,7 @@ func diagnoseParseWithBuilder(fs *source.FileSet, file *source.File, bag *diag.B
 		MaxErrors: maxErrors,
 	}
 
-	result := parser.ParseFile(fs, lx, arenas, opts)
+	result := parser.ParseFile(ctx, fs, lx, arenas, opts)
 
 	return arenas, result.File
 }
@@ -369,7 +369,7 @@ func Parse(filePath string, maxDiagnostics int) (*ParseResult, error) {
 		MaxErrors: maxErrors,
 	}
 
-	result := parser.ParseFile(fs, lx, builder, opts)
+	result := parser.ParseFile(context.Background(), fs, lx, builder, opts)
 
 	return &ParseResult{
 		FileSet: fs,

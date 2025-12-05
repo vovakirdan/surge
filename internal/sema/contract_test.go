@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -164,7 +165,7 @@ func parseSource(t *testing.T, input string) (*ast.Builder, ast.FileID, *diag.Ba
 
 	lx := lexer.New(file, lexer.Options{Reporter: reporter})
 	builder := ast.NewBuilder(ast.Hints{}, nil)
-	result := parser.ParseFile(fs, lx, builder, parser.Options{Reporter: reporter, MaxErrors: 128})
+	result := parser.ParseFile(context.Background(), fs, lx, builder, parser.Options{Reporter: reporter, MaxErrors: 128})
 	if result.Bag == nil {
 		result.Bag = bag
 	}

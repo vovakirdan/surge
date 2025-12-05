@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"context"
 	"testing"
 
 	"surge/internal/ast"
@@ -31,7 +32,7 @@ func parseSourceWithOptions(t *testing.T, input string, opts Options) (*ast.Buil
 	}
 	opts.Reporter = reporter
 
-	result := ParseFile(fs, lx, builder, opts)
+	result := ParseFile(context.Background(), fs, lx, builder, opts)
 	if result.Bag == nil {
 		result.Bag = bag
 	}

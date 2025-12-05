@@ -1,6 +1,7 @@
 package format
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -25,7 +26,7 @@ func parseSource(t *testing.T, src []byte) (*source.FileSet, *source.File, *ast.
 		Reporter:  &diag.BagReporter{Bag: bag},
 		MaxErrors: 128,
 	}
-	result := parser.ParseFile(fs, lx, builder, opts)
+	result := parser.ParseFile(context.Background(), fs, lx, builder, opts)
 	if bag.HasErrors() {
 		issues := make([]string, 0, bag.Len())
 		for _, d := range bag.Items() {

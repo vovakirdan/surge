@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"context"
 	"testing"
 
 	"surge/internal/ast"
@@ -116,7 +117,7 @@ func parseSnippet(t *testing.T, src string) (*ast.Builder, ast.FileID, *diag.Bag
 		Reporter:  &diag.BagReporter{Bag: bag},
 		MaxErrors: uint(bag.Cap()),
 	}
-	result := parser.ParseFile(fs, lx, builder, opts)
+	result := parser.ParseFile(context.Background(), fs, lx, builder, opts)
 
 	return builder, result.File, bag
 }

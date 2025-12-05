@@ -176,7 +176,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 				)
 				if opts.Stage != DiagnoseStageTokenize {
 					parseIdx := begin("parse")
-					builder, astFile = diagnoseParse(fileSet, file, bag)
+					builder, astFile = diagnoseParse(ctx, fileSet, file, bag)
 					parseNote := ""
 					if timer != nil && builder != nil && builder.Files != nil {
 						fileNode := builder.Files.Get(astFile)
