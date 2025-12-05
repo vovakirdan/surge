@@ -43,7 +43,14 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 		tc.attachTypeParamSymbols(symID, bounds)
 		tc.applyTypeParamBounds(symID)
 	}
+	// Check if base type is @sealed before extending
 	if base := tc.resolveStructBase(structDecl.Base, scope); base != types.NoTypeID {
+		// Validate base is not sealed
+		if tc.typeHasAttr(base, "sealed") {
+			baseName := tc.typeLabel(base)
+			tc.report(diag.SemaAttrSealedExtend, tc.typeSpan(structDecl.Base),
+				"cannot extend @sealed type '%s'", baseName)
+		}
 		tc.structBases[typeID] = base
 		fields = append(fields, tc.inheritedFields(base)...)
 	}
@@ -60,6 +67,9 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 		nameSet[f.Name] = struct{}{}
 	}
 	tc.types.SetStructFields(typeID, fields)
+
+	// Validate type-level attributes
+	tc.validateTypeAttrs(itemID, typeItem, typeID)
 }
 
 func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.SymbolID, args []types.TypeID) types.TypeID {

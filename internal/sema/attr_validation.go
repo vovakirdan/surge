@@ -1,0 +1,298 @@
+package sema
+
+import (
+	"strconv"
+	"strings"
+
+	"surge/internal/ast"
+	"surge/internal/diag"
+	"surge/internal/source"
+	"surge/internal/types"
+)
+
+// AttrInfo holds information about a parsed attribute including its spec and arguments
+type AttrInfo struct {
+	Spec ast.AttrSpec  // Attribute specification from catalog
+	Attr *ast.Attr     // The actual attribute node
+	Span source.Span   // Source location
+	Args []ast.ExprID  // Argument expressions
+}
+
+// collectAttrs gathers all attributes from the given range and returns parsed AttrInfo
+func (tc *typeChecker) collectAttrs(start ast.AttrID, count uint32) []AttrInfo {
+	if count == 0 || !start.IsValid() {
+		return nil
+	}
+
+	attrs := tc.builder.Items.CollectAttrs(start, count)
+	result := make([]AttrInfo, 0, len(attrs))
+
+	for _, attr := range attrs {
+		spec, ok := ast.LookupAttrID(tc.builder.StringsInterner, attr.Name)
+		if !ok {
+			// Unknown attribute - will be reported by validateAttrs
+			continue
+		}
+
+		// Collect arguments
+		args := make([]ast.ExprID, 0, len(attr.Args))
+		for _, argID := range attr.Args {
+			args = append(args, argID)
+		}
+
+		result = append(result, AttrInfo{
+			Spec: spec,
+			Attr: &attr,
+			Span: attr.Span,
+			Args: args,
+		})
+	}
+
+	return result
+}
+
+// hasAttr checks if the given attribute name exists in the list
+// Returns the AttrInfo and true if found, zero value and false otherwise
+func hasAttr(infos []AttrInfo, attrName string) (AttrInfo, bool) {
+	for _, info := range infos {
+		if strings.EqualFold(info.Spec.Name, attrName) {
+			return info, true
+		}
+	}
+	return AttrInfo{}, false
+}
+
+// checkConflict detects if two conflicting attributes appear together
+func (tc *typeChecker) checkConflict(infos []AttrInfo, attr1, attr2 string, code diag.Code) {
+	_, has1 := hasAttr(infos, attr1)
+	info2, has2 := hasAttr(infos, attr2)
+
+	if has1 && has2 {
+		tc.report(code, info2.Span,
+			"attribute '@%s' conflicts with '@%s'", attr2, attr1)
+	}
+}
+
+// checkPackedAlignConflict is a special handler for @packed + @align conflicts
+// @packed and @align can coexist if alignment is natural, but we reject them
+// together to keep validation simple
+func (tc *typeChecker) checkPackedAlignConflict(infos []AttrInfo) {
+	packedInfo, hasPacked := hasAttr(infos, "packed")
+	alignInfo, hasAlign := hasAttr(infos, "align")
+
+	if hasPacked && hasAlign {
+		tc.report(diag.SemaAttrPackedAlign, alignInfo.Span,
+			"@align conflicts with @packed on the same declaration")
+		// Also report on packed for clarity
+		tc.report(diag.SemaAttrPackedAlign, packedInfo.Span,
+			"@packed conflicts with @align on the same declaration")
+	}
+}
+
+// validateAllConflicts checks for all known conflicting attribute pairs
+func (tc *typeChecker) validateAllConflicts(infos []AttrInfo) {
+	// @send vs @nosend
+	tc.checkConflict(infos, "send", "nosend", diag.SemaAttrSendNosend)
+
+	// @nonblocking vs @waits_on
+	tc.checkConflict(infos, "nonblocking", "waits_on", diag.SemaAttrNonblockingWaitsOn)
+
+	// @packed vs @align (special handler)
+	tc.checkPackedAlignConflict(infos)
+}
+
+// validateAlignParameter validates that @align(N) has a valid power-of-2 argument
+func (tc *typeChecker) validateAlignParameter(info AttrInfo) bool {
+	if len(info.Args) == 0 {
+		tc.report(diag.SemaAttrMissingParameter, info.Span,
+			"@align requires a numeric argument: @align(8)")
+		return false
+	}
+
+	// Get the first argument expression
+	argExpr := tc.builder.Exprs.Get(info.Args[0])
+
+	// Check if it's a literal
+	if argExpr.Kind != ast.ExprLit {
+		tc.report(diag.SemaAttrAlignInvalidValue, argExpr.Span,
+			"@align requires a numeric literal argument")
+		return false
+	}
+
+	// Get the literal data
+	lit, ok := tc.builder.Exprs.Literal(info.Args[0])
+	if !ok || lit.Kind != ast.ExprLitInt {
+		tc.report(diag.SemaAttrAlignInvalidValue, argExpr.Span,
+			"@align requires an integer literal argument")
+		return false
+	}
+
+	// Parse the integer value from the string representation
+	valueStr := tc.lookupName(lit.Value)
+	value, err := strconv.ParseUint(valueStr, 10, 64)
+	if err != nil {
+		tc.report(diag.SemaAttrAlignInvalidValue, argExpr.Span,
+			"@align argument is not a valid integer")
+		return false
+	}
+
+	// Check if it's a power of 2
+	// A number is a power of 2 if: (value & (value - 1)) == 0 && value != 0
+	if value == 0 || (value&(value-1)) != 0 {
+		tc.report(diag.SemaAttrAlignNotPowerOfTwo, argExpr.Span,
+			"@align argument must be a positive power of 2 (1, 2, 4, 8, 16, ...); got %d", value)
+		return false
+	}
+
+	return true
+}
+
+// validateBackendParameter validates that @backend("target") has a known target
+func (tc *typeChecker) validateBackendParameter(info AttrInfo) bool {
+	if len(info.Args) == 0 {
+		tc.report(diag.SemaAttrMissingParameter, info.Span,
+			"@backend requires a target argument: @backend(\"cpu\")")
+		return false
+	}
+
+	// Get the first argument expression
+	argExpr := tc.builder.Exprs.Get(info.Args[0])
+
+	// Check if it's a literal
+	if argExpr.Kind != ast.ExprLit {
+		tc.report(diag.SemaAttrBackendInvalidArg, argExpr.Span,
+			"@backend requires a string literal argument")
+		return false
+	}
+
+	// Get the literal data
+	lit, ok := tc.builder.Exprs.Literal(info.Args[0])
+	if !ok || lit.Kind != ast.ExprLitString {
+		tc.report(diag.SemaAttrBackendInvalidArg, argExpr.Span,
+			"@backend requires a string literal argument")
+		return false
+	}
+
+	// Get the string value
+	target := tc.lookupName(lit.Value)
+
+	// Known backend targets
+	knownTargets := map[string]bool{
+		"cpu":    true,
+		"gpu":    true,
+		"tpu":    true,
+		"wasm":   true,
+		"native": true,
+	}
+
+	if !knownTargets[target] {
+		// Issue a warning for unknown targets (not an error - might be valid in future)
+		tc.report(diag.SemaAttrBackendUnknown, argExpr.Span,
+			"unknown backend target '%s'; known targets: cpu, gpu, tpu, wasm, native", target)
+	}
+
+	return true
+}
+
+// validateFieldReference validates that an attribute parameter references an existing field
+// Used by @guarded_by("lock"), @requires_lock("lock"), @waits_on("cond")
+// Returns the field name StringID and true if valid, NoStringID and false otherwise
+func (tc *typeChecker) validateFieldReference(info AttrInfo, ownerTypeID types.TypeID, errorCode diag.Code, message string) (source.StringID, bool) {
+	if len(info.Args) == 0 {
+		tc.report(diag.SemaAttrMissingParameter, info.Span, "%s", message)
+		return source.NoStringID, false
+	}
+
+	// Get the first argument expression
+	argExpr := tc.builder.Exprs.Get(info.Args[0])
+
+	// Check if it's a literal
+	if argExpr.Kind != ast.ExprLit {
+		tc.report(diag.SemaAttrInvalidParameter, argExpr.Span,
+			"attribute parameter must be a string literal")
+		return source.NoStringID, false
+	}
+
+	// Get the literal data
+	lit, ok := tc.builder.Exprs.Literal(info.Args[0])
+	if !ok || lit.Kind != ast.ExprLitString {
+		tc.report(diag.SemaAttrInvalidParameter, argExpr.Span,
+			"attribute parameter must be a string literal")
+		return source.NoStringID, false
+	}
+
+	// Get the field name
+	fieldName := lit.Value
+
+	// Validate that the field exists in ownerTypeID
+	if ownerTypeID == types.NoTypeID {
+		// Can't validate without owner type - skip for now
+		return fieldName, true
+	}
+
+	// Check if ownerTypeID is a struct and get its info
+	structInfo, ok := tc.types.StructInfo(ownerTypeID)
+	if !ok || structInfo == nil {
+		// Not a struct - can't have fields
+		return fieldName, true
+	}
+
+	// Look up the field
+	fieldFound := false
+	for _, field := range structInfo.Fields {
+		if field.Name == fieldName {
+			fieldFound = true
+			break
+		}
+	}
+
+	if !fieldFound {
+		fieldNameStr := tc.lookupName(fieldName)
+		tc.report(errorCode, argExpr.Span,
+			"field '%s' not found in type", fieldNameStr)
+		return source.NoStringID, false
+	}
+
+	return fieldName, true
+}
+
+// recordTypeAttrs stores attributes for a type for later lookup
+func (tc *typeChecker) recordTypeAttrs(typeID types.TypeID, infos []AttrInfo) {
+	if tc.typeAttrs == nil {
+		tc.typeAttrs = make(map[types.TypeID][]AttrInfo)
+	}
+	tc.typeAttrs[typeID] = infos
+}
+
+// typeHasAttr checks if a type has the specified attribute
+func (tc *typeChecker) typeHasAttr(typeID types.TypeID, attrName string) bool {
+	infos, ok := tc.typeAttrs[typeID]
+	if !ok {
+		return false
+	}
+	_, found := hasAttr(infos, attrName)
+	return found
+}
+
+// validateTypeAttrs validates all attributes on a type declaration
+func (tc *typeChecker) validateTypeAttrs(itemID ast.ItemID, typeItem *ast.TypeItem, typeID types.TypeID) {
+	// Collect attributes
+	infos := tc.collectAttrs(typeItem.AttrStart, typeItem.AttrCount)
+	if len(infos) == 0 {
+		return
+	}
+
+	// Validate target applicability
+	tc.validateAttrs(typeItem.AttrStart, typeItem.AttrCount, ast.AttrTargetType, diag.SemaError)
+
+	// Check conflicts
+	tc.validateAllConflicts(infos)
+
+	// Validate parameters
+	if alignInfo, ok := hasAttr(infos, "align"); ok {
+		tc.validateAlignParameter(alignInfo)
+	}
+
+	// Record for later lookup
+	tc.recordTypeAttrs(typeID, infos)
+}

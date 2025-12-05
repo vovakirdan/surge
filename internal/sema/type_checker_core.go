@@ -49,6 +49,7 @@ type typeChecker struct {
 	typeIDItems                 map[types.TypeID]ast.ItemID
 	structBases                 map[types.TypeID]types.TypeID
 	externFields                map[symbols.TypeKey]*externFieldSet
+	typeAttrs                   map[types.TypeID][]AttrInfo // Type attribute storage
 	awaitDepth                  int
 	returnStack                 []returnContext
 	typeParams                  []map[source.StringID]types.TypeID
