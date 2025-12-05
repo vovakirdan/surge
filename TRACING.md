@@ -115,12 +115,31 @@ In the trace output:
 - `parse_postfix_expr` - Postfix expression parsing with iteration tracking
 - `resync_top` - Error recovery with token skip counting
 
-### Phase 4: Semantic Analysis (Planned)
-- `sema_check` - Overall semantic analysis phases
-- `walk_item` - Per-item semantic checks
-- `type_expr` - Expression type inference with depth limiting
-- `check_contract_satisfaction` - Contract checking
-- `instantiate_type` - Generic type instantiation
+### Phase 4: Semantic Analysis - Core
+- `sema_check` - Overall semantic analysis with 7 internal phases:
+  - `build_magic_index` - Magic method index construction
+  - `ensure_builtin_magic` - Builtin magic methods setup
+  - `build_scope_index` - Scope hierarchy construction
+  - `build_symbol_index` - Symbol table indexing
+  - `build_export_indexes` - Module export tracking
+  - `register_types` - Type registration
+  - `flush_borrow` - Borrow checker finalization
+- `walk_item` - Per-item semantic checks (Detail level)
+- `walk_stmt` - Statement-level checks (Debug level)
+- `type_expr` - Expression type inference with depth limiting (≤20, Debug level)
+
+### Phase 5: Deep Sema - Complex Operations
+- `call_result_type` - Function call resolution with overload selection
+  - Tracks: argument count, candidate count
+  - Example: `{args=1, candidates=2}`
+- `check_contract_satisfaction` - Contract compliance checking
+  - Tracks: type name, fields checked, methods checked
+  - Example: `{type=Erring<T, E>, fields_checked=2, methods_checked=0}`
+- `methods_for_type` - Method resolution for types (O(n²) complexity)
+  - Tracks: type name, methods found
+- `instantiate_type` - Generic type instantiation with caching
+  - Tracks: type arguments count, cache hits
+  - Example: `{args=1, cached=true}`
 
 ## Trace Output Format
 
@@ -163,21 +182,30 @@ Each line is a JSON object:
 
 ## Performance Impact
 
-| Configuration | Expected Overhead | Notes |
-|--------------|-------------------|-------|
-| `--trace-level=off` | ~0% | Nil checks only, essentially free |
-| `--trace-level=phase` | <1% | Minimal span creation |
-| `--trace-level=detail` | 1-3% | Module-level spans |
-| `--trace-level=debug` | 3-10% | Full instrumentation, depends on code complexity |
-| `--trace-mode=stream` | +1-2% I/O | Additional disk writes |
-| `--trace-mode=ring` | +0.5% | Memory buffer only |
-| `--trace-heartbeat=1s` | <0.1% | Background goroutine |
+**Benchmark setup:** stdlib/saturating_cast.sg, 10 runs averaged, measured on macOS (baseline: 11ms)
 
-**Note:** Overhead percentages are estimates based on typical workloads. Actual overhead depends on:
-- Code complexity (more expressions = more spans)
-- Parse errors (error recovery tracing)
-- I/O speed (for stream mode)
-- Ring buffer size
+| Configuration | Time | Overhead | Notes |
+|--------------|------|----------|-------|
+| `--trace-level=off` | 11ms | 0% | Baseline - nil checks only, essentially free |
+| `--trace-level=phase --trace-mode=stream` | 11ms | ~0% | High-level pipeline spans only |
+| `--trace-level=phase --trace-mode=ring` | 11ms | ~0% | Ring buffer has no measurable overhead |
+| `--trace-level=detail --trace-mode=stream` | 13ms | +18% | Module-level spans + I/O |
+| `--trace-level=detail --trace-mode=ring` | 12ms | +9% | Module-level spans, ring buffer |
+| `--trace-level=debug --trace-mode=stream` | 67ms | +509% | Full AST instrumentation + I/O |
+| `--trace-level=debug --trace-mode=ring` | 56ms | +409% | Full AST instrumentation, ring buffer |
+
+**Key findings:**
+- **Phase level**: Negligible overhead (~0%), safe for production use
+- **Detail level**: Low overhead (9-18%), acceptable for debugging module issues
+- **Debug level**: High overhead (400-500%), use only when debugging parser/sema hangs
+- **Ring vs Stream**: Ring mode is ~10% faster than stream mode at debug level
+- **Heartbeat**: <1% overhead (not shown, measured separately)
+
+**Note:** Actual overhead depends on:
+- Code complexity - more expressions/statements = more spans at debug level
+- Parse errors - error recovery adds tracing overhead
+- I/O speed - stream mode overhead varies with disk performance
+- Ring buffer size - larger buffers slightly increase memory usage
 
 ### Minimizing Overhead
 
@@ -327,14 +355,22 @@ surge diag file.sg  # Uses defaults from environment
 
 ## Roadmap
 
-- [ ] Phase 4: Sema instrumentation (type checking, contract checking)
-- [ ] Phase 5: Deep Sema (instantiation, method resolution)
-- [ ] Phase 6: Crash safety improvements (signal handling, panic recovery)
-- [ ] Chrome Trace Viewer format export
-- [ ] Sampling mode for lower overhead
-- [ ] Built-in trace analysis tools
+**Completed:**
+- [x] Phase 1: Heartbeat mechanism (v0.1.0)
+- [x] Phase 2: Module-level spans (v0.1.0)
+- [x] Phase 3: Parser instrumentation (v0.1.0)
+- [x] Phase 4: Sema Core - type checking phases (v0.2.0)
+- [x] Phase 5: Deep Sema - complex operations (v0.2.0)
+
+**Planned:**
+- [ ] Phase 6: Crash safety improvements (signal handling, panic recovery, ring buffer dump)
+- [ ] Chrome Trace Viewer format export (trace_events JSON)
+- [ ] NDJSON format support for machine-readable output
+- [ ] Sampling mode for lower overhead in production
+- [ ] Built-in trace analysis tools (statistics, bottleneck detection)
 - [ ] Distributed tracing for parallel compilation
-- [ ] WebUI for trace visualization
+- [ ] WebUI for interactive trace visualization
+- [ ] Flamegraph generation from trace data
 
 ## Implementation Details
 
@@ -389,6 +425,18 @@ The tracing system is designed for:
 
 For implementation details, see:
 - `internal/trace/` - Core tracing infrastructure
-- `cmd/surge/trace_setup.go` - CLI integration
-- `internal/parser/parser.go` - Parser instrumentation
-- `internal/driver/diagnose.go` - Driver instrumentation
+  - `tracer.go` - Tracer interface and implementations
+  - `heartbeat.go` - Heartbeat mechanism (Phase 1)
+  - `span.go` - Span lifecycle management
+- `cmd/surge/trace_setup.go` - CLI integration and tracer initialization
+- `internal/driver/diagnose.go` - Driver instrumentation (Phase 2)
+- `internal/driver/diagnose_modules.go` - Module system instrumentation (Phase 2)
+- `internal/parser/parser.go` - Parser instrumentation (Phase 3)
+- `internal/parser/expression.go` - Expression parsing instrumentation (Phase 3)
+- `internal/parser/stmt_parser.go` - Statement parsing instrumentation (Phase 3)
+- `internal/sema/check.go` - Sema entry point with context (Phase 4)
+- `internal/sema/type_checker_core.go` - Core sema phases and walk functions (Phase 4)
+- `internal/sema/type_expr.go` - Expression type inference (Phase 4)
+- `internal/sema/type_expr_calls.go` - Function call resolution (Phase 5)
+- `internal/sema/contract_match.go` - Contract checking and method resolution (Phase 5)
+- `internal/sema/type_decl_instantiate.go` - Generic type instantiation (Phase 5)
