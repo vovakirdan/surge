@@ -569,9 +569,11 @@ Attributes are a **closed set** provided by the language. User-defined attribute
 
 * `@pure` *(fn)* — function has no side effects, is deterministic, cannot mutate non-local state. Required for execution in signals and parallel contexts. Violations emit `E_PURE_VIOLATION`.
 * `@overload` *(fn)* — declares an overload of an existing function name with a distinct signature. Must not be used on the first declaration of a function name; doing so emits `E_OVERLOAD_FIRST_DECL`. Incompatible with `@override`.
-* `@override` *(fn)* — replaces an existing implementation for a target type. Only valid within `extern<T>` blocks. Invalid override contexts surface as `SemaFnOverride`. Incompatible with `@overload`.
+* `@override` *(fn)* — replaces an existing implementation for a function or method. Incompatible with `@overload`.
 
-  **Exception:** `@override` may be used outside `extern<T>` only if the target symbol is local to the current module (declared earlier in the same module) and previously had no body implementation.
+  **Two use cases:**
+  1. **Inside `extern<T>` blocks** — overrides a method for a type.
+  2. **Outside `extern<T>` blocks** — overrides a local function declared earlier in the same module without a body implementation (forward declaration).
 * `@intrinsic` *(fn)* — marks function as a language intrinsic (implementation provided by runtime/compiler). Intrinsics are declared only as function declarations without body (`fn name(...): Ret;`) in the special core module (all files under `core/`) and made available to other code through standard library re-exports. User code cannot declare intrinsics outside `core`. Violations emit errors per §21.
 
 #### B. Code Generation and ABI

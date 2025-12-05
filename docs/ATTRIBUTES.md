@@ -113,10 +113,10 @@ fn process(x: float, y: float) -> float {
 
 ### @override
 
-**Target:** Functions (only in extern<T> blocks)  
+**Target:** Functions
 **Parameters:** None
 
-The method overrides a base type method.
+Overrides an existing function or method implementation.
 
 ```sg
 type Base = { x: int };
@@ -124,15 +124,36 @@ type Derived = Base : { y: int };
 
 extern<Derived> {
     @override
-    fn to_string(self: &Derived) -> String {
+    fn to_string(self: &Derived) -> string {
         return "Derived";
     }
 }
 ```
 
+**Use cases:**
+
+1. **Inside `extern<T>` blocks** — overrides a method for a type
+2. **Outside `extern<T>` blocks** — overrides a local function declared earlier in the same module without a body
+
+**Example of overriding local function:**
+
+```sg
+// Forward declaration (no body)
+fn encode_frame(buf: &byte[], out: &mut byte[]) -> uint;
+
+// ... (other code)
+
+// Local implementation (same module)
+@override
+fn encode_frame(buf: &byte[], out: &mut byte[]) -> uint {
+    // real body
+    return 0:uint;
+}
+```
+
 **Restrictions:**
-- Only inside `extern<T>` blocks
-- Signature must match the base method
+- Signature must match the overridden function/method
+- Incompatible with `@overload`
 
 ---
 
@@ -157,7 +178,7 @@ fn __builtin_add(x: int, y: int) -> int;
 
 ### @entrypoint
 
-**Target:** Functions  
+**Target:** Functions
 **Parameters:** None
 
 Marks a function as the program's entry point (main).
@@ -170,10 +191,23 @@ fn main() {
 ```
 
 **Requirements:**
-- Signature: `fn() -> nothing` or `fn() -> int`
+- Function may have any signature (future versions will support passing command-line arguments)
 - Only one @entrypoint function per module (binary/module)
 - For binary, an @entrypoint function is mandatory
 - For module, an @entrypoint function is not required, but if present, it must be the only @entrypoint in the module
+
+**Example signatures:**
+
+```sg
+@entrypoint
+fn main() { }  // No return value
+
+@entrypoint
+fn main() -> int { return 0; }  // Returns exit code
+
+@entrypoint
+fn main(args: string[]) { }  // With arguments (for future versions)
+```
 
 ---
 
