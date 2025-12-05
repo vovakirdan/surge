@@ -31,7 +31,7 @@ func runConstSema(t *testing.T, src string) *diag.Bag {
 		ModulePath: "test",
 		FilePath:   file.Path,
 	})
-	Check(builder, parseRes.File, Options{
+	Check(context.Background(), builder, parseRes.File, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  &res,
 	})

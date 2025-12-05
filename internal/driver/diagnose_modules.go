@@ -306,7 +306,7 @@ func resolveModuleRecord(
 			rec.Symbols = make(map[ast.FileID]symbols.Result)
 		}
 		rec.Symbols[fileID] = res
-		semaRes := sema.Check(rec.Builder, fileID, sema.Options{
+		semaRes := sema.Check(ctx, rec.Builder, fileID, sema.Options{
 			Reporter: reporter,
 			Symbols:  &res,
 			Exports:  moduleExports,

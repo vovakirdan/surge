@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"context"
 	"testing"
 
 	"surge/internal/ast"
@@ -56,7 +57,7 @@ func TestCallResolverPrefersExactOverCoercion(t *testing.T) {
 		t.Fatalf("unexpected resolve diagnostics: %v", resolveBag.Items())
 	}
 	semaBag := diag.NewBag(8)
-	res := Check(builder, file, Options{
+	res := Check(context.Background(), builder, file, Options{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 		Symbols:  &symRes,
 	})
@@ -142,7 +143,7 @@ func TestCallResolverInfersGenericReturn(t *testing.T) {
 		t.Fatalf("unexpected resolve diagnostics: %v", resolveBag.Items())
 	}
 	semaBag := diag.NewBag(8)
-	res := Check(builder, file, Options{
+	res := Check(context.Background(), builder, file, Options{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 		Symbols:  &symRes,
 	})
@@ -201,7 +202,7 @@ func TestFunctionInstantiationsRecorded(t *testing.T) {
 		t.Fatalf("unexpected resolve diagnostics: %v", resolveBag.Items())
 	}
 	semaBag := diag.NewBag(8)
-	res := Check(builder, file, Options{
+	res := Check(context.Background(), builder, file, Options{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 		Symbols:  &symRes,
 	})

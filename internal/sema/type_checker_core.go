@@ -10,6 +10,7 @@ import (
 	"surge/internal/fix"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/trace"
 	"surge/internal/types"
 )
 
@@ -29,6 +30,9 @@ type typeChecker struct {
 	exports  map[string]*symbols.ModuleExports
 	magic    map[symbols.TypeKey]map[string][]*symbols.FunctionSignature
 	borrow   *BorrowTable
+
+	tracer    trace.Tracer // трассировщик для отладки
+	exprDepth int          // глубина рекурсии для typeExpr
 
 	scopeStack          []symbols.ScopeID
 	scopeByItem         map[ast.ItemID]symbols.ScopeID
@@ -83,14 +87,51 @@ func (tc *typeChecker) run() {
 	if tc.builder == nil || tc.result == nil || tc.types == nil {
 		return
 	}
+
+	// Create root span for sema if tracing is enabled
+	var rootSpan *trace.Span
+	if tc.tracer != nil && tc.tracer.Enabled() {
+		rootSpan = trace.Begin(tc.tracer, trace.ScopePass, "sema_check", 0)
+		defer rootSpan.End("")
+	}
+
+	// Helper для создания phase spans
+	phase := func(name string) func() {
+		if tc.tracer == nil || !tc.tracer.Level().ShouldEmit(trace.ScopePass) {
+			return func() {}
+		}
+		var parentID uint64
+		if rootSpan != nil {
+			parentID = rootSpan.ID()
+		}
+		span := trace.Begin(tc.tracer, trace.ScopePass, name, parentID)
+		return func() { span.End("") }
+	}
+
+	done := phase("build_magic_index")
 	tc.buildMagicIndex()
+	done()
+
+	done = phase("ensure_builtin_magic")
 	tc.ensureBuiltinMagic()
+	done()
+
+	done = phase("build_scope_index")
 	tc.buildScopeIndex()
+	done()
+
+	done = phase("build_symbol_index")
 	tc.buildSymbolIndex()
 	if tc.symbols != nil {
 		tc.externSymbols = tc.symbols.ExternSyms
 	}
+	done()
+
+	done = phase("build_export_indexes")
 	tc.buildExportNameIndexes()
+	done()
+
+	// Initialize state
 	tc.borrow = NewBorrowTable()
 	tc.bindingBorrow = make(map[symbols.SymbolID]BorrowID)
 	tc.bindingTypes = make(map[symbols.SymbolID]types.TypeID)
@@ -107,14 +148,20 @@ func (tc *typeChecker) run() {
 	tc.nextParamEnv = 1
 	tc.typeInstantiations = make(map[string]types.TypeID)
 	tc.fnInstantiationSeen = make(map[string]struct{})
+
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {
 		return
 	}
+
+	done = phase("register_types")
 	tc.ensureBuiltinArrayType()
 	tc.registerTypeDecls(file)
 	tc.populateTypeDecls(file)
 	tc.collectExternFields(file)
+	done()
+
+	done = phase("walk_items")
 	root := tc.fileScope()
 	rootPushed := tc.pushScope(root)
 	for _, itemID := range file.Items {
@@ -123,7 +170,11 @@ func (tc *typeChecker) run() {
 	if rootPushed {
 		tc.leaveScope()
 	}
+	done()
+
+	done = phase("flush_borrow")
 	tc.flushBorrowResults()
+	done()
 }
 
 func (tc *typeChecker) walkItem(id ast.ItemID) {
@@ -131,6 +182,14 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 	if item == nil {
 		return
 	}
+
+	var span *trace.Span
+	if tc.tracer != nil && tc.tracer.Level() >= trace.LevelDetail {
+		span = trace.Begin(tc.tracer, trace.ScopeModule, "walk_item", 0)
+		span.WithExtra("kind", fmt.Sprintf("%d", item.Kind))
+		defer span.End("")
+	}
+
 	switch item.Kind {
 	case ast.ItemLet:
 		letItem, ok := tc.builder.Items.Let(id)
@@ -226,6 +285,14 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 	if stmt == nil {
 		return
 	}
+
+	var span *trace.Span
+	if tc.tracer != nil && tc.tracer.Level() >= trace.LevelDebug {
+		span = trace.Begin(tc.tracer, trace.ScopeNode, "walk_stmt", 0)
+		span.WithExtra("kind", fmt.Sprintf("%d", stmt.Kind))
+		defer span.End("")
+	}
+
 	switch stmt.Kind {
 	case ast.StmtBlock:
 		if block := tc.builder.Stmts.Block(id); block != nil {

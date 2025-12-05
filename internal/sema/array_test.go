@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"context"
 	"testing"
 
 	"surge/internal/ast"
@@ -22,7 +23,7 @@ func TestArrayLiteralUsesNominalArray(t *testing.T) {
 	builder.PushItem(file, letID)
 
 	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{})
-	res := Check(builder, file, Options{Symbols: &symRes})
+	res := Check(context.Background(), builder, file, Options{Symbols: &symRes})
 
 	arrayType := res.ExprTypes[arr]
 	if arrayType == types.NoTypeID {

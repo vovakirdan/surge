@@ -147,7 +147,7 @@ func runContractSema(t *testing.T, src string) *diag.Bag {
 	}
 	symRes := resolveSymbols(t, builder, fileID)
 	semaBag := diag.NewBag(32)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 		Symbols:  symRes,
 	})

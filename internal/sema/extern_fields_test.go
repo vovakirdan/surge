@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"context"
 	"testing"
 
 	"surge/internal/diag"
@@ -24,7 +25,7 @@ fn demo(x: Foo) {
 	}
 	syms := resolveSymbols(t, builder, fileID)
 	bag := diag.NewBag(8)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  syms,
 	})
@@ -60,7 +61,7 @@ fn demo() {
 	}
 	syms := resolveSymbols(t, builder, fileID)
 	bag := diag.NewBag(8)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  syms,
 	})
@@ -84,7 +85,7 @@ extern<Foo> {
 	}
 	syms := resolveSymbols(t, builder, fileID)
 	bag := diag.NewBag(4)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  syms,
 	})
@@ -107,7 +108,7 @@ extern<Foo> {
 	}
 	syms := resolveSymbols(t, builder, fileID)
 	bag := diag.NewBag(4)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  syms,
 	})
@@ -135,7 +136,7 @@ fn demo() {
 	}
 	syms := resolveSymbols(t, builder, fileID)
 	bag := diag.NewBag(4)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  syms,
 	})

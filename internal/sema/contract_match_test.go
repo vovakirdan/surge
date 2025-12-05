@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -193,7 +194,7 @@ fn main() {
 	}
 	syms := resolveSymbols(t, builder, fileID)
 	bag := diag.NewBag(8)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  syms,
 	})
@@ -255,7 +256,7 @@ func TestContractsPositiveSample(t *testing.T) {
 	}
 	symRes := resolveSymbols(t, builder, fileID)
 	semaBag := diag.NewBag(32)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 		Symbols:  symRes,
 	})
@@ -283,7 +284,7 @@ fn demo(value: Missing) {
 	}
 	syms := resolveSymbols(t, builder, fileID)
 	bag := diag.NewBag(8)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  syms,
 	})
@@ -318,7 +319,7 @@ fn demo() {
 	}
 	syms := resolveSymbols(t, builder, fileID)
 	bag := diag.NewBag(8)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  syms,
 	})
@@ -355,7 +356,7 @@ fn demo() {
 	}
 	syms := resolveSymbols(t, builder, fileID)
 	bag := diag.NewBag(8)
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: bag},
 		Symbols:  syms,
 	})

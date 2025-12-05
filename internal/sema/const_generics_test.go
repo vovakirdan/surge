@@ -95,7 +95,7 @@ func runSemaOnSnippet(t *testing.T, src string) (*diag.Bag, *diag.Bag) {
 	symRes := symbols.ResolveFile(builder, fileID, &symbols.ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 	})
-	Check(builder, fileID, Options{
+	Check(context.Background(), builder, fileID, Options{
 		Reporter: &diag.BagReporter{Bag: semaBag},
 		Symbols:  &symRes,
 	})
