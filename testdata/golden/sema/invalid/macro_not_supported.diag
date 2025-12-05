@@ -1,0 +1,1 @@
+error FUT7002 testdata/golden/sema/invalid/macro_not_supported.sg:3:1 'macro' is planned for v2+

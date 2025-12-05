@@ -225,6 +225,18 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 			p.attachDirectiveBlocks(itemID, directiveBlocks)
 		}
 		return itemID, parsed
+	case token.KwMacro:
+		// Macro is reserved for v2+, reject at parser level
+		macroTok := p.advance()
+		p.emitDiagnostic(
+			diag.FutMacroNotSupported,
+			diag.SevError,
+			macroTok.Span,
+			"'macro' is planned for v2+",
+			nil,
+		)
+		p.resyncTop()
+		return ast.NoItemID, false
 	case token.KwPub, token.KwAsync, token.Ident:
 		mods := p.parseFnModifiers()
 		if p.at(token.KwFn) {

@@ -20,7 +20,7 @@
 
 - Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, tag, extern, pub, async, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, nothing`.
 - The type checker currently resolves `int`, `uint`, `float`, `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`, `*T`), slices `T[]`, and sized arrays `T[N]` when `N` is a constant numeric literal. Fixed-width numerics (`int8`, `uint64`, `float32`…) are reserved symbols in the prelude but are not backed by concrete `TypeID`s yet.
-- Tuple and function types parse, but sema does not yet lower them. **Planned for v1.1.**
+- Tuple and function types parse, but sema does not yet lower them. **Part of v1.**
 - Tags and unions follow the current parser: `tag Name<T>(args...);` declares a tag item; unions accept plain types, `nothing`, or `Tag(args)` members. `Option`/`Result` plus tags `Some`/`Ok`/`Error` are injected via the prelude and resolved without user declarations; exhaustive `compare` checks are still TODO.
 - Contracts (trait-like structural interfaces) are parsed and checked in sema: declaration syntax is enforced, bounds on functions/types are resolved, short/long forms are validated by arity, and structural satisfaction (fields/methods) is verified on calls, type instantiations, assignments, and returns.
 - Diagnostics now use the `Lex*`/`Syn*`/`Sema*` numeric codes from `internal/diag/codes.go` instead of the earlier `E_*` placeholders.
@@ -80,7 +80,7 @@ The type checker currently recognises built-in `int`, `uint`, `float`, `bool`, `
   * `int` – signed integer of unbounded width.
   * `uint` – unsigned integer of unbounded width.
   * `float` – floating-point of high precision (≥ IEEE754-64 semantics guaranteed; implementations may be wider).
-* **Fixed-size numerics** (layout-specified, **reserved for v1.1**):
+* **Fixed-size numerics** (layout-specified, **part of v1**):
 
   * `int8, int16, int32, int64`, `uint8, uint16, uint32, uint64`.
   * `float16, float32, float64`.
