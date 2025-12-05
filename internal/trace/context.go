@@ -47,5 +47,8 @@ func CurrentSpan(ctx context.Context) SpanContext {
 
 // WithSpanContext attaches span context.
 func WithSpanContext(ctx context.Context, sc SpanContext) context.Context {
+	if ctx == nil {
+		return nil
+	}
 	return context.WithValue(ctx, spanCtxKey{}, sc)
 }

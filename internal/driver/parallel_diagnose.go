@@ -426,6 +426,8 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOption
 							// Also populate in-memory cache for faster subsequent access
 							mcache.Put(meta, payload.Broken, nil)
 						}
+					} else {
+						metrics.diskMisses.Add(1) // Hash mismatch = effective miss
 					}
 				} else {
 					metrics.diskMisses.Add(1) // Track disk cache miss

@@ -73,6 +73,9 @@ func (fr *fileResolver) reportIntrinsicError(name source.StringID, span source.S
 	if fr.resolver == nil || fr.resolver.reporter == nil {
 		return
 	}
+	if fr.builder == nil || fr.builder.StringsInterner == nil {
+		return
+	}
 	nameStr := fr.builder.StringsInterner.MustLookup(name)
 	msg := fmt.Sprintf("invalid intrinsic '%s': %s", nameStr, detail)
 	if b := diag.ReportError(fr.resolver.reporter, code, span, msg); b != nil {

@@ -160,7 +160,7 @@ func dumpTraceOnPanic() {
 
 		// Dump ring buffer if available
 		if panicTracer != nil {
-			if rt, ok := panicTracer.(*trace.RingTracer); ok && panicOutputPath != "" {
+			if rt := findRingTracer(panicTracer); rt != nil && panicOutputPath != "" {
 				dumpPath := generateDumpPath(panicOutputPath, "panic")
 				if f, err := os.Create(dumpPath); err == nil {
 					if dumpErr := rt.Dump(f, trace.FormatText); dumpErr != nil {

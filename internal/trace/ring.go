@@ -34,12 +34,12 @@ func (t *RingTracer) Emit(ev *Event) {
 		return
 	}
 
-	ev.Seq = NextSeq()
-
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.events[t.head] = *ev
+	stored := *ev
+	stored.Seq = NextSeq()
+	t.events[t.head] = stored
 	t.head = (t.head + 1) % t.capacity
 
 	if t.head == 0 {

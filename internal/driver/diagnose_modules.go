@@ -33,7 +33,9 @@ func analyzeDependencyModule(
 	span.WithExtra("module", modulePath)
 	defer func() {
 		status := "ok"
-		if retRec != nil && retRec.Broken {
+		if retErr != nil {
+			status = "error"
+		} else if retRec != nil && retRec.Broken {
 			status = "broken"
 		}
 		span.End(status)

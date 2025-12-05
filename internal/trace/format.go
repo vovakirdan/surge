@@ -89,10 +89,8 @@ func formatNDJSON(ev *Event) []byte {
 func formatText(ev *Event) []byte {
 	var sb strings.Builder
 
-	// Timestamp relative to start (in milliseconds)
-	// For simplicity, we use the seq number as a proxy for ordering
-	elapsed := float64(ev.Seq) * 0.001 // approximate
-	sb.WriteString(fmt.Sprintf("[%7.3fms] ", elapsed))
+	// Display sequence number for ordering
+	sb.WriteString(fmt.Sprintf("[seq %6d] ", ev.Seq))
 
 	// Indentation based on parent ID (simplified - just use 0 or 2 spaces)
 	if ev.ParentID > 0 {

@@ -32,7 +32,7 @@ func (tc *typeChecker) inferTypeParamBindings(sym *symbols.Symbol, fn *ast.FnIte
 	}
 	paramIDs := tc.builder.Items.GetFnParamIDs(fn)
 	for i, pid := range paramIDs {
-		if i >= len(argTypes) {
+		if i >= len(argTypes) || i >= len(call.Args) {
 			break
 		}
 		argType := argTypes[i]

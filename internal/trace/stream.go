@@ -38,12 +38,11 @@ func (t *StreamTracer) Emit(ev *Event) {
 		return
 	}
 
-	ev.Seq = NextSeq()
-
-	data := FormatEvent(ev, t.format)
-
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	ev.Seq = NextSeq()
+	data := FormatEvent(ev, t.format)
 
 	// For Chrome format, add commas between events
 	if t.format == FormatChrome {

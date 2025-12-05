@@ -48,6 +48,10 @@ func ComputeModuleHashes(idx dag.ModuleIndex, g dag.Graph, slots []dag.ModuleSlo
 						return
 					}
 
+					if slot.Meta == nil {
+						return
+					}
+
 					// Collect dependency hashes
 					deps := make([]project.Digest, 0, len(g.Edges[int(id)]))
 					for _, to := range g.Edges[int(id)] {
