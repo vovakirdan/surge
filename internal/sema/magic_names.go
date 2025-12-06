@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"strings"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/symbols"
@@ -34,6 +36,10 @@ func normalizeSignatureForReceiver(sig *symbols.FunctionSignature, receiver symb
 	if typeKeyEqual(sig.Params[0], recv) {
 		return sig
 	}
+	// For methods (user-defined), preserve the actual self parameter type
+	// This allows implicit borrow checking in selfParamCompatible()
+	// For operators (__add, __sub, etc.), normalize to enforce alias type safety
+	// Operators don't use selfParamCompatible, so they need exact type matching
 	clone := *sig
 	params := make([]symbols.TypeKey, len(sig.Params))
 	copy(params, sig.Params)
@@ -55,7 +61,13 @@ func (tc *typeChecker) buildMagicIndex() {
 				if name == "__to" && !tc.acceptToSignature(sym.Signature, sym.ReceiverKey, sym) {
 					continue
 				}
-				tc.addMagicEntry(sym.ReceiverKey, name, normalizeSignatureForReceiver(sym.Signature, sym.ReceiverKey))
+				// Only normalize operators to enforce alias type safety
+				// Preserve actual self parameter types for user methods (for implicit borrow checking)
+				normalized := sym.Signature
+				if strings.HasPrefix(name, "__") {
+					normalized = normalizeSignatureForReceiver(sym.Signature, sym.ReceiverKey)
+				}
+				tc.addMagicEntry(sym.ReceiverKey, name, normalized)
 			}
 		}
 	}
@@ -74,7 +86,13 @@ func (tc *typeChecker) buildMagicIndex() {
 						continue
 					}
 				}
-				tc.addMagicEntry(sym.ReceiverKey, sym.Name, normalizeSignatureForReceiver(sym.Signature, sym.ReceiverKey))
+				// Only normalize operators to enforce alias type safety
+				// Preserve actual self parameter types for user methods (for implicit borrow checking)
+				normalized := sym.Signature
+				if strings.HasPrefix(sym.Name, "__") {
+					normalized = normalizeSignatureForReceiver(sym.Signature, sym.ReceiverKey)
+				}
+				tc.addMagicEntry(sym.ReceiverKey, sym.Name, normalized)
 			}
 		}
 	}

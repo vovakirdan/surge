@@ -1,0 +1,2 @@
+error SEM3005 testdata/golden/sema/invalid/method_receiver_mismatch.sg:11:13 &Foo has no method consume
+error SEM3005 testdata/golden/sema/invalid/method_receiver_mismatch.sg:12:5 &Foo has no method modify

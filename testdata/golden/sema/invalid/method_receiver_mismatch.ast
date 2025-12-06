@@ -1,0 +1,47 @@
+method_receiver_mismatch.sg (span: 1:1-14:1)
+├─ Item[0]: Type (span: 1:1-1:22)
+│  ├─ Name: Foo
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: a: int
+├─ Item[1]: Extern (span: 3:1-6:2)
+│  ├─ Target: Foo
+│  ├─ Members:
+│  │  ├─ Fn[0]: consume
+│  │  │  ├─ Params: (self: Foo)
+│  │  │  ├─ Return: int
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 4:34-4:52)
+│  │  │     └─ Stmt[0]: Return (span: 4:36-4:50)
+│  │  │        └─ Expr: expr#2: self.a
+│  │  └─ Fn[1]: modify
+│  │     ├─ Params: (self: &mut Foo, v: int)
+│  │     ├─ Return: nothing
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 5:39-5:54)
+│  │        └─ Stmt[0]: Expr (span: 5:41-5:52)
+│  │           └─ Expr: expr#6: (self.a = v)
+└─ Item[2]: Fn (span: 8:1-13:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:11-13:2)
+         ├─ Stmt[0]: Let (span: 9:5-9:28)
+         │  ├─ Name: f
+         │  ├─ Mutable: false
+         │  ├─ Type: Foo
+         │  └─ Value: expr#8: <ExprKind(17)>
+         ├─ Stmt[1]: Let (span: 10:5-10:22)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &Foo
+         │  └─ Value: expr#10: &f
+         ├─ Stmt[2]: Let (span: 11:5-11:25)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#13: r.consume()
+         └─ Stmt[3]: Expr (span: 12:5-12:18)
+            └─ Expr: expr#17: r.modify(10)

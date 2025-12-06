@@ -1,0 +1,13 @@
+type Foo = { a: int }
+
+extern<Foo> {
+    fn consume(self: Foo) -> int { return self.a; }
+    fn modify(self: &mut Foo, v: int) { self.a = v; }
+}
+
+fn main() {
+    let f: Foo = Foo { 0 };
+    let r: &Foo = &f;
+    let _ = r.consume();   // ERROR: &Foo cannot provide Foo
+    r.modify(10);          // ERROR: &Foo cannot provide &mut Foo
+}

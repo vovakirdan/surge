@@ -228,6 +228,12 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 			return res
 		}
 	}
+	// Get actual receiver type key once for compatibility checks
+	actualRecvKey := tc.typeKeyForType(recv)
+	if actualRecvKey == "" {
+		tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
+		return types.NoTypeID
+	}
 	for _, recvCand := range tc.typeKeyCandidates(recv) {
 		if recvCand.key == "" {
 			continue
@@ -243,8 +249,8 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 				if !staticReceiver || len(args) != 0 {
 					continue
 				}
-			case typeKeyEqual(sig.Params[0], recvCand.key):
-				// instance/associated method with explicit self
+			case tc.selfParamCompatible(recv, sig.Params[0], recvCand.key):
+				// instance/associated method with compatible self (handles implicit borrow)
 				if len(sig.Params)-1 != len(args) {
 					continue
 				}
@@ -285,5 +291,77 @@ func (tc *typeChecker) methodParamMatches(expected symbols.TypeKey, arg types.Ty
 			return true
 		}
 	}
+	return false
+}
+
+// selfParamCompatible checks if receiver type can call method with given self parameter.
+// candidateKey is the type key of the candidate we're checking (may be generic like "Option<T>")
+// Implements implicit borrow rules from LANGUAGE.md §8.
+// Note: Mutability checks for implicit &mut borrow are deferred to borrow-checker.
+func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidateKey symbols.TypeKey) bool {
+	// Get actual receiver key for compatibility checks
+	actualRecvKey := tc.typeKeyForType(recv)
+
+	// Exact match with actual receiver key
+	if typeKeyEqual(selfKey, actualRecvKey) {
+		return true
+	}
+
+	selfStr := string(selfKey)
+	recvStr := string(actualRecvKey)
+
+	// Get receiver type info
+	recvTT, ok := tc.types.Lookup(tc.resolveAlias(recv))
+	if !ok {
+		return false
+	}
+
+	// For non-reference/non-pointer types: if self matches candidate key, it's compatible
+	// This handles generics (Option<int> calling self: Option<T> via candidate Option<T>)
+	// and value types calling methods on their base candidate
+	if recvTT.Kind != types.KindReference && recvTT.Kind != types.KindPointer {
+		if typeKeyEqual(selfKey, candidateKey) {
+			return true
+		}
+	}
+
+	// Case: receiver is value T or own T, self is &T or &mut T (implicit borrow)
+	// Borrow-checker will verify mut binding for &mut case
+	if recvTT.Kind != types.KindReference && recvTT.Kind != types.KindPointer {
+		if strings.HasPrefix(selfStr, "&") {
+			innerSelf := strings.TrimPrefix(selfStr, "&mut ")
+			if innerSelf == selfStr {
+				innerSelf = strings.TrimPrefix(selfStr, "&")
+			}
+			innerSelf = strings.TrimSpace(innerSelf)
+			// Check against both candidate key and actual recv key
+			return typeKeyEqual(candidateKey, symbols.TypeKey(innerSelf)) || recvStr == innerSelf
+		}
+	}
+
+	// Case: receiver is &mut T, self is &T (reborrow as shared)
+	if recvTT.Kind == types.KindReference && recvTT.Mutable {
+		if strings.HasPrefix(selfStr, "&") && !strings.HasPrefix(selfStr, "&mut ") {
+			innerSelf := strings.TrimSpace(strings.TrimPrefix(selfStr, "&"))
+			innerRecv := strings.TrimSpace(strings.TrimPrefix(recvStr, "&mut "))
+			return innerSelf == innerRecv
+		}
+	}
+
+	// Case: receiver is own T, self is T, &T, or &mut T
+	if recvTT.Kind == types.KindOwn {
+		innerRecv := tc.typeKeyForType(recvTT.Elem)
+		if typeKeyEqual(selfKey, innerRecv) {
+			return true // self: T, receiver: own T -> move
+		}
+		if strings.HasPrefix(selfStr, "&") {
+			innerSelf := strings.TrimPrefix(selfStr, "&mut ")
+			if innerSelf == selfStr {
+				innerSelf = strings.TrimPrefix(selfStr, "&")
+			}
+			return strings.TrimSpace(innerSelf) == string(innerRecv)
+		}
+	}
+
 	return false
 }
