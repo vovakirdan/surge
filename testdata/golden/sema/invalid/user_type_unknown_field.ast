@@ -16,6 +16,6 @@ user_type_unknown_field.sg (span: 2:1-11:1)
          │  ├─ Name: p
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#5: <ExprKind(17)>
+         │  └─ Value: expr#5: <ExprKind(18)>
          └─ Stmt[1]: Return (span: 9:5-9:16)
             └─ Expr: expr#7: p.z

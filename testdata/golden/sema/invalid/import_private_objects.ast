@@ -30,12 +30,12 @@ import_private_objects.sg (span: 2:1-21:1)
 │        │  ├─ Name: _
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
-│        │  └─ Value: expr#12: <ExprKind(17)>
+│        │  └─ Value: expr#12: <ExprKind(18)>
 │        └─ Stmt[5]: Let (span: 11:5-11:73)
 │           ├─ Name: _
 │           ├─ Mutable: false
 │           ├─ Type: <inferred>
-│           └─ Value: expr#18: <ExprKind(17)>
+│           └─ Value: expr#18: <ExprKind(18)>
 ├─ Item[3]: Fn (span: 14:1-16:2)
 │  ├─ Name: foo
 │  ├─ Generics: <T>

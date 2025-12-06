@@ -63,6 +63,7 @@ const (
 	SynExpectExpression   Code = 2203
 	SynExpectColon        Code = 2204
 	SynUnexpectedModifier Code = 2205
+	SynInvalidTupleIndex  Code = 2206
 
 	// Семантические (резервируем)
 	SemaInfo                       Code = 3000
@@ -161,6 +162,7 @@ const (
 	SemaLockReleasesNotField     Code = 3089 // @releases_lock refs non-existent field
 	SemaIteratorNotImplemented   Code = 3090 // Type does not implement iterator (__range)
 	SemaRangeTypeMismatch        Code = 3091 // Range operands have incompatible types
+	SemaIndexOutOfBounds         Code = 3092 // Index out of bounds
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -239,6 +241,7 @@ var ( // todo расширить описания и использовать к
 		SynExpectExpression:            "Expect expression",
 		SynExpectColon:                 "Expect colon",
 		SynUnexpectedModifier:          "Unexpected modifier",
+		SynInvalidTupleIndex:           "Invalid tuple index",
 		SemaInfo:                       "Semantic information",
 		SemaError:                      "Semantic error",
 		SemaDuplicateSymbol:            "Duplicate symbol",
@@ -331,6 +334,7 @@ var ( // todo расширить описания и использовать к
 		SemaLockReleasesNotField:       "@releases_lock references non-existent field",
 		SemaIteratorNotImplemented:     "type does not implement iterator (missing __range method)",
 		SemaRangeTypeMismatch:          "range operands have incompatible types",
+		SemaIndexOutOfBounds:           "index out of bounds",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

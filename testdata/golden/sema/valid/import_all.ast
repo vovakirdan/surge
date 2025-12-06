@@ -17,6 +17,6 @@ import_all.sg (span: 2:1-12:1)
          │  ├─ Name: obj
          │  ├─ Mutable: false
          │  ├─ Type: ModuleType
-         │  └─ Value: expr#7: <ExprKind(17)>
+         │  └─ Value: expr#7: <ExprKind(18)>
          └─ Stmt[3]: Return (span: 10:5-10:37)
             └─ Expr: expr#13: (((val + result)) + obj.value)

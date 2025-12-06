@@ -16,6 +16,6 @@ nosend_in_spawn.sg (span: 3:1-13:1)
          │  ├─ Name: handle
          │  ├─ Mutable: false
          │  ├─ Type: FileHandle
-         │  └─ Value: expr#3: <ExprKind(17)>
+         │  └─ Value: expr#3: <ExprKind(18)>
          └─ Stmt[1]: Return (span: 11:5-11:28)
             └─ Expr: expr#6: spawn handle.fd

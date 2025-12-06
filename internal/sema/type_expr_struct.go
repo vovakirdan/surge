@@ -71,6 +71,26 @@ func (tc *typeChecker) memberResultType(base types.TypeID, field source.StringID
 	return types.NoTypeID
 }
 
+func (tc *typeChecker) tupleIndexResultType(tupleType types.TypeID, index uint32, span source.Span) types.TypeID {
+	if tupleType == types.NoTypeID {
+		return types.NoTypeID
+	}
+	base := tc.valueType(tupleType)
+	if base == types.NoTypeID {
+		return types.NoTypeID
+	}
+	info, ok := tc.types.TupleInfo(base)
+	if !ok || info == nil {
+		tc.report(diag.SemaTypeMismatch, span, "%s is not a tuple", tc.typeLabel(base))
+		return types.NoTypeID
+	}
+	if int(index) >= len(info.Elems) {
+		tc.report(diag.SemaIndexOutOfBounds, span, "tuple index %d out of bounds (length %d)", index, len(info.Elems))
+		return types.NoTypeID
+	}
+	return info.Elems[index]
+}
+
 func (tc *typeChecker) validateStructLiteralFields(structType types.TypeID, data *ast.ExprStructData, span source.Span) {
 	info, normalized := tc.structInfoForType(structType)
 	if info == nil {

@@ -195,6 +195,11 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				ty = tc.memberResultType(targetType, member.Field, expr.Span)
 			}
 		}
+	case ast.ExprTupleIndex:
+		if data, ok := tc.builder.Exprs.TupleIndex(id); ok && data != nil {
+			targetType := tc.typeExpr(data.Target)
+			ty = tc.tupleIndexResultType(targetType, data.Index, tc.exprSpan(id))
+		}
 	case ast.ExprAwait:
 		if awaitData, ok := tc.builder.Exprs.Await(id); ok && awaitData != nil {
 			ty = tc.typeExpr(awaitData.Value)

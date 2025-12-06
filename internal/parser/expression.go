@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"surge/internal/ast"
@@ -314,6 +315,39 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 			exprSpan := p.arenas.Exprs.Get(expr).Span
 			finalSpan := exprSpan.Cover(colonTok.Span).Cover(typeSpan)
 			expr = p.arenas.Exprs.NewCast(finalSpan, expr, typeID, ast.NoExprID)
+
+		case token.FloatLit:
+			tok := p.lx.Peek()
+			if len(tok.Text) > 1 && tok.Text[0] == '.' {
+				// This is tuple index access like .0, .1
+				// Parse the index from the token text (skip the leading '.')
+				idxStr := tok.Text[1:]
+				var idx uint64
+				var err error
+				// Check if there's a decimal point in the index (like .0.5)
+				hasDot := false
+				for i := range len(idxStr) {
+					if idxStr[i] == '.' {
+						hasDot = true
+						break
+					}
+				}
+				if hasDot {
+					// Not a valid tuple index, return
+					return expr, true
+				}
+				idx, err = strconv.ParseUint(idxStr, 10, 32)
+				if err != nil {
+					p.err(diag.SynInvalidTupleIndex, "invalid tuple index")
+					return ast.NoExprID, false
+				}
+				idxTok := p.advance()
+				targetSpan := p.arenas.Exprs.Get(expr).Span
+				finalSpan := targetSpan.Cover(idxTok.Span)
+				expr = p.arenas.Exprs.NewTupleIndex(finalSpan, expr, uint32(idx))
+				continue
+			}
+			return expr, true
 
 		default:
 			// Больше постфиксов нет

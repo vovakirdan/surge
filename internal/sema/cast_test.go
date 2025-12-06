@@ -26,9 +26,9 @@ func TestCastAcceptsValidToSignature(t *testing.T) {
 	xName := intern(builder, "x")
 	yName := intern(builder, "y")
 
-	stmtX := builder.Stmts.NewLet(source.Span{}, xName, myIntType, builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1")), false)
+	stmtX := builder.Stmts.NewLet(source.Span{}, xName, ast.NoExprID, myIntType, builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1")), false)
 	castExpr := builder.Exprs.NewCast(source.Span{}, builder.Exprs.NewIdent(source.Span{}, xName), intType, ast.NoExprID)
-	stmtY := builder.Stmts.NewLet(source.Span{}, yName, intType, castExpr, false)
+	stmtY := builder.Stmts.NewLet(source.Span{}, yName, ast.NoExprID, intType, castExpr, false)
 	stmtReturn := builder.Stmts.NewReturn(source.Span{}, builder.Exprs.NewIdent(source.Span{}, yName))
 
 	addFunctionWithReturn(builder, fileID, "main", []ast.StmtID{stmtX, stmtY, stmtReturn}, intType)

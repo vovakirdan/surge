@@ -17,13 +17,13 @@ func TestBorrowRejectsDoubleMutable(t *testing.T) {
 	bName := intern(builder, "b")
 
 	initX := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0"))
-	stmtX := builder.Stmts.NewLet(source.Span{}, xName, ast.NoTypeID, initX, true)
+	stmtX := builder.Stmts.NewLet(source.Span{}, xName, ast.NoExprID, ast.NoTypeID, initX, true)
 
 	firstBorrow := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRefMut, builder.Exprs.NewIdent(source.Span{}, xName))
-	stmtA := builder.Stmts.NewLet(source.Span{}, aName, ast.NoTypeID, firstBorrow, false)
+	stmtA := builder.Stmts.NewLet(source.Span{}, aName, ast.NoExprID, ast.NoTypeID, firstBorrow, false)
 
 	secondBorrow := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRefMut, builder.Exprs.NewIdent(source.Span{}, xName))
-	stmtB := builder.Stmts.NewLet(source.Span{}, bName, ast.NoTypeID, secondBorrow, false)
+	stmtB := builder.Stmts.NewLet(source.Span{}, bName, ast.NoExprID, ast.NoTypeID, secondBorrow, false)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtX, stmtA, stmtB})
 
@@ -39,10 +39,10 @@ func TestBorrowBlocksMutationWhileShared(t *testing.T) {
 	rName := intern(builder, "r")
 
 	initX := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0"))
-	stmtX := builder.Stmts.NewLet(source.Span{}, xName, ast.NoTypeID, initX, true)
+	stmtX := builder.Stmts.NewLet(source.Span{}, xName, ast.NoExprID, ast.NoTypeID, initX, true)
 
 	share := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRef, builder.Exprs.NewIdent(source.Span{}, xName))
-	stmtR := builder.Stmts.NewLet(source.Span{}, rName, ast.NoTypeID, share, false)
+	stmtR := builder.Stmts.NewLet(source.Span{}, rName, ast.NoExprID, ast.NoTypeID, share, false)
 
 	assign := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryAssign, builder.Exprs.NewIdent(source.Span{}, xName), builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1")))
 	stmtAssign := builder.Stmts.NewExpr(source.Span{}, assign)
@@ -61,10 +61,10 @@ func TestBorrowMoveDetectedOnCall(t *testing.T) {
 	rName := intern(builder, "r")
 
 	initS := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "hi"))
-	stmtS := builder.Stmts.NewLet(source.Span{}, sName, ast.NoTypeID, initS, true)
+	stmtS := builder.Stmts.NewLet(source.Span{}, sName, ast.NoExprID, ast.NoTypeID, initS, true)
 
 	share := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRef, builder.Exprs.NewIdent(source.Span{}, sName))
-	stmtR := builder.Stmts.NewLet(source.Span{}, rName, ast.NoTypeID, share, false)
+	stmtR := builder.Stmts.NewLet(source.Span{}, rName, ast.NoExprID, ast.NoTypeID, share, false)
 
 	callTarget := builder.Exprs.NewIdent(source.Span{}, intern(builder, "take_owned"))
 	call := builder.Exprs.NewCall(source.Span{}, callTarget, []ast.ExprID{builder.Exprs.NewIdent(source.Span{}, sName)}, nil, nil, false)
@@ -86,15 +86,15 @@ func TestSpawnRejectsReferences(t *testing.T) {
 	tName := intern(builder, "task")
 
 	initX := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0"))
-	stmtX := builder.Stmts.NewLet(source.Span{}, xName, ast.NoTypeID, initX, true)
+	stmtX := builder.Stmts.NewLet(source.Span{}, xName, ast.NoExprID, ast.NoTypeID, initX, true)
 
 	share := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRef, builder.Exprs.NewIdent(source.Span{}, xName))
-	stmtR := builder.Stmts.NewLet(source.Span{}, rName, ast.NoTypeID, share, false)
+	stmtR := builder.Stmts.NewLet(source.Span{}, rName, ast.NoExprID, ast.NoTypeID, share, false)
 
 	useRef := intern(builder, "use_ref")
 	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, useRef), []ast.ExprID{builder.Exprs.NewIdent(source.Span{}, rName)}, nil, nil, false)
 	spawnExpr := builder.Exprs.NewSpawn(source.Span{}, call)
-	stmtSpawn := builder.Stmts.NewLet(source.Span{}, tName, ast.NoTypeID, spawnExpr, false)
+	stmtSpawn := builder.Stmts.NewLet(source.Span{}, tName, ast.NoExprID, ast.NoTypeID, spawnExpr, false)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtX, stmtR, stmtSpawn})
 	addFunction(builder, fileID, "use_ref", nil)
@@ -111,11 +111,11 @@ func TestBorrowFieldBlocksMutation(t *testing.T) {
 	fieldF := intern(builder, "f")
 	personType := declareStructType(builder, fileID, intern(builder, "Person"), []source.StringID{fieldF})
 
-	stmtP := builder.Stmts.NewLet(source.Span{}, p, personType, ast.NoExprID, true)
+	stmtP := builder.Stmts.NewLet(source.Span{}, p, ast.NoExprID, personType, ast.NoExprID, true)
 
 	fieldBorrowTarget := builder.Exprs.NewMember(source.Span{}, builder.Exprs.NewIdent(source.Span{}, p), fieldF)
 	fieldBorrow := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRefMut, fieldBorrowTarget)
-	stmtBorrow := builder.Stmts.NewLet(source.Span{}, intern(builder, "rf"), ast.NoTypeID, fieldBorrow, false)
+	stmtBorrow := builder.Stmts.NewLet(source.Span{}, intern(builder, "rf"), ast.NoExprID, ast.NoTypeID, fieldBorrow, false)
 
 	assignTarget := builder.Exprs.NewMember(source.Span{}, builder.Exprs.NewIdent(source.Span{}, p), fieldF)
 	assignExpr := builder.Exprs.NewBinary(
@@ -141,11 +141,11 @@ func TestBorrowFieldIndependentMutation(t *testing.T) {
 	fieldG := intern(builder, "g")
 	personType := declareStructType(builder, fileID, intern(builder, "Person"), []source.StringID{fieldF, fieldG})
 
-	stmtP := builder.Stmts.NewLet(source.Span{}, p, personType, ast.NoExprID, true)
+	stmtP := builder.Stmts.NewLet(source.Span{}, p, ast.NoExprID, personType, ast.NoExprID, true)
 
 	fieldBorrowTarget := builder.Exprs.NewMember(source.Span{}, builder.Exprs.NewIdent(source.Span{}, p), fieldF)
 	fieldBorrow := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRef, fieldBorrowTarget)
-	stmtBorrow := builder.Stmts.NewLet(source.Span{}, intern(builder, "rf"), ast.NoTypeID, fieldBorrow, false)
+	stmtBorrow := builder.Stmts.NewLet(source.Span{}, intern(builder, "rf"), ast.NoExprID, ast.NoTypeID, fieldBorrow, false)
 
 	assignTarget := builder.Exprs.NewMember(source.Span{}, builder.Exprs.NewIdent(source.Span{}, p), fieldG)
 	assignExpr := builder.Exprs.NewBinary(
@@ -172,7 +172,7 @@ func TestBorrowIndexBlocksMutation(t *testing.T) {
 	arr := intern(builder, "arr")
 
 	init := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0"))
-	stmtArr := builder.Stmts.NewLet(source.Span{}, arr, ast.NoTypeID, init, true)
+	stmtArr := builder.Stmts.NewLet(source.Span{}, arr, ast.NoExprID, ast.NoTypeID, init, true)
 
 	index := builder.Exprs.NewIndex(
 		source.Span{},
@@ -180,7 +180,7 @@ func TestBorrowIndexBlocksMutation(t *testing.T) {
 		builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0")),
 	)
 	borrow := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRefMut, index)
-	stmtBorrow := builder.Stmts.NewLet(source.Span{}, intern(builder, "ri"), ast.NoTypeID, borrow, false)
+	stmtBorrow := builder.Stmts.NewLet(source.Span{}, intern(builder, "ri"), ast.NoExprID, ast.NoTypeID, borrow, false)
 
 	assignIndex := builder.Exprs.NewIndex(
 		source.Span{},
@@ -209,14 +209,14 @@ func TestBorrowParentChildConflict(t *testing.T) {
 	field := intern(builder, "f")
 	personType := declareStructType(builder, fileID, intern(builder, "Person"), []source.StringID{field})
 
-	stmtP := builder.Stmts.NewLet(source.Span{}, p, personType, ast.NoExprID, true)
+	stmtP := builder.Stmts.NewLet(source.Span{}, p, ast.NoExprID, personType, ast.NoExprID, true)
 
 	wholeBorrow := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRefMut, builder.Exprs.NewIdent(source.Span{}, p))
-	stmtWhole := builder.Stmts.NewLet(source.Span{}, intern(builder, "whole"), ast.NoTypeID, wholeBorrow, false)
+	stmtWhole := builder.Stmts.NewLet(source.Span{}, intern(builder, "whole"), ast.NoExprID, ast.NoTypeID, wholeBorrow, false)
 
 	fieldExpr := builder.Exprs.NewMember(source.Span{}, builder.Exprs.NewIdent(source.Span{}, p), field)
 	fieldBorrow := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRefMut, fieldExpr)
-	stmtField := builder.Stmts.NewLet(source.Span{}, intern(builder, "field"), ast.NoTypeID, fieldBorrow, false)
+	stmtField := builder.Stmts.NewLet(source.Span{}, intern(builder, "field"), ast.NoExprID, ast.NoTypeID, fieldBorrow, false)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtP, stmtWhole, stmtField})
 
@@ -232,9 +232,9 @@ func TestDropReleasesBorrow(t *testing.T) {
 	ref := intern(builder, "r")
 
 	init := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0"))
-	stmtLet := builder.Stmts.NewLet(source.Span{}, name, ast.NoTypeID, init, true)
+	stmtLet := builder.Stmts.NewLet(source.Span{}, name, ast.NoExprID, ast.NoTypeID, init, true)
 	borrow := builder.Exprs.NewUnary(source.Span{}, ast.ExprUnaryRef, builder.Exprs.NewIdent(source.Span{}, name))
-	stmtBorrow := builder.Stmts.NewLet(source.Span{}, ref, ast.NoTypeID, borrow, false)
+	stmtBorrow := builder.Stmts.NewLet(source.Span{}, ref, ast.NoExprID, ast.NoTypeID, borrow, false)
 	stmtDrop := builder.Stmts.NewDrop(source.Span{}, builder.Exprs.NewIdent(source.Span{}, ref))
 	assign := builder.Exprs.NewBinary(
 		source.Span{},
@@ -256,7 +256,7 @@ func TestDropWithoutBorrowErrors(t *testing.T) {
 	builder, fileID := newTestBuilder()
 	ref := intern(builder, "r")
 
-	stmtLet := builder.Stmts.NewLet(source.Span{}, ref, ast.NoTypeID, builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0")), false)
+	stmtLet := builder.Stmts.NewLet(source.Span{}, ref, ast.NoExprID, ast.NoTypeID, builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "0")), false)
 	stmtDrop := builder.Stmts.NewDrop(source.Span{}, builder.Exprs.NewIdent(source.Span{}, ref))
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtLet, stmtDrop})

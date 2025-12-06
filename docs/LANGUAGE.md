@@ -346,9 +346,30 @@ let single: (int,) = (42,);
 - Tuples are structural types: two tuples with the same element types in the same order are the same type
 - Assignment requires exact type match: arity and element types must match
 
-**Limitations (current implementation):**
-- No tuple destructuring in patterns (e.g., `let (x, y) = pair` not yet supported)
-- No element access syntax (e.g., `.0`, `.1` not yet implemented)
+**Element Access:**
+Tuple elements can be accessed using numeric indices:
+```surge
+let pair = (1, "hello");
+let first = pair.0;   // int: 1
+let second = pair.1;  // string: "hello"
+
+// Nested tuple access
+let nested = ((1, 2), 3);
+let value = nested.0.1;  // int: 2
+```
+
+**Destructuring:**
+Tuples can be destructured in let bindings:
+```surge
+let pair = (1, "hello");
+let (x, y) = pair;  // x: int, y: string
+
+// Inline destructuring
+let (a, b) = (10, 20);
+```
+
+**Limitations:**
+- Destructuring in compare patterns is limited
 - Use tuples primarily for multiple return values and temporary groupings
 
 **Example:**

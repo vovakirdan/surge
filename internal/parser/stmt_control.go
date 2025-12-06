@@ -426,7 +426,7 @@ func (p *Parser) parseForInitializer() (ast.StmtID, bool) {
 			return ast.NoStmtID, false
 		}
 		stmtSpan := coverOptional(letTok.Span, binding.Span)
-		stmtID := p.arenas.Stmts.NewLet(stmtSpan, binding.Name, binding.Type, binding.Value, binding.IsMut)
+		stmtID := p.arenas.Stmts.NewLet(stmtSpan, binding.Name, ast.NoExprID, binding.Type, binding.Value, binding.IsMut)
 		return stmtID, true
 	}
 

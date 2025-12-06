@@ -137,6 +137,14 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 			field = builder.StringsInterner.MustLookup(data.Field)
 		}
 		return fmt.Sprintf("%s.%s", target, field)
+	case ast.ExprTupleIndex:
+		data, ok := builder.Exprs.TupleIndex(exprID)
+		if !ok {
+			return "<invalid-tuple-index>"
+		}
+		target := formatExprInlineDepth(builder, data.Target, depth+1)
+		target = wrapExprIfNeeded(builder, data.Target, target)
+		return fmt.Sprintf("%s.%d", target, data.Index)
 	case ast.ExprAwait:
 		data, ok := builder.Exprs.Await(exprID)
 		if !ok {
@@ -408,6 +416,8 @@ func formatExprKind(kind ast.ExprKind) string {
 		return "Index"
 	case ast.ExprMember:
 		return "Member"
+	case ast.ExprTupleIndex:
+		return "TupleIndex"
 	case ast.ExprTernary:
 		return "Ternary"
 	case ast.ExprAwait:

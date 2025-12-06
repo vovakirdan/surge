@@ -23,6 +23,6 @@ nosend_nested.sg (span: 3:1-18:1)
          │  ├─ Name: state
          │  ├─ Mutable: false
          │  ├─ Type: AppState
-         │  └─ Value: expr#7: <ExprKind(17)>
+         │  └─ Value: expr#7: <ExprKind(18)>
          └─ Stmt[1]: Return (span: 16:5-16:32)
             └─ Expr: expr#10: spawn state.counter

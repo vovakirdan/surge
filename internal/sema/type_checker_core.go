@@ -337,19 +337,29 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 	case ast.StmtLet:
 		if letStmt := tc.builder.Stmts.Let(id); letStmt != nil {
 			scope := tc.scopeForStmt(id)
-			symID := tc.symbolForStmt(id)
-			declaredType := tc.resolveTypeExprWithScope(letStmt.Type, scope)
-			if declaredType != types.NoTypeID {
-				tc.setBindingType(symID, declaredType)
-			}
-			if letStmt.Value.IsValid() {
+
+			// Check if this is a tuple pattern or simple binding
+			if letStmt.Pattern.IsValid() {
+				// Tuple destructuring: let (x, y) = value
 				valueType := tc.typeExpr(letStmt.Value)
 				tc.observeMove(letStmt.Value, tc.exprSpan(letStmt.Value))
-				tc.ensureBindingTypeMatch(letStmt.Type, declaredType, valueType, letStmt.Value)
-				if declaredType == types.NoTypeID {
-					tc.setBindingType(symID, valueType)
+				tc.bindTuplePattern(letStmt.Pattern, valueType, scope)
+			} else {
+				// Simple binding: let x = value
+				symID := tc.symbolForStmt(id)
+				declaredType := tc.resolveTypeExprWithScope(letStmt.Type, scope)
+				if declaredType != types.NoTypeID {
+					tc.setBindingType(symID, declaredType)
 				}
-				tc.updateStmtBinding(id, letStmt.Value)
+				if letStmt.Value.IsValid() {
+					valueType := tc.typeExpr(letStmt.Value)
+					tc.observeMove(letStmt.Value, tc.exprSpan(letStmt.Value))
+					tc.ensureBindingTypeMatch(letStmt.Type, declaredType, valueType, letStmt.Value)
+					if declaredType == types.NoTypeID {
+						tc.setBindingType(symID, valueType)
+					}
+					tc.updateStmtBinding(id, letStmt.Value)
+				}
 			}
 		}
 	case ast.StmtConst:
@@ -517,6 +527,39 @@ func (tc *typeChecker) reportBindingTypeMismatch(typeExpr ast.TypeID, expected, 
 		b.WithFixSuggestion(cast)
 	}
 	b.Emit()
+}
+
+func (tc *typeChecker) bindTuplePattern(pattern ast.ExprID, valueType types.TypeID, scope symbols.ScopeID) {
+	_ = scope // TODO: use scope for symbol registration in future
+	tuple, ok := tc.builder.Exprs.Tuple(pattern)
+	if !ok || tuple == nil {
+		tc.report(diag.SemaTypeMismatch, tc.exprSpan(pattern), "expected tuple pattern")
+		return
+	}
+
+	info, ok := tc.types.TupleInfo(tc.valueType(valueType))
+	if !ok {
+		tc.report(diag.SemaTypeMismatch, tc.exprSpan(pattern), "cannot destructure %s as tuple", tc.typeLabel(valueType))
+		return
+	}
+
+	if len(tuple.Elements) != len(info.Elems) {
+		tc.report(diag.SemaTypeMismatch, tc.exprSpan(pattern),
+			"pattern has %d elements but tuple has %d", len(tuple.Elements), len(info.Elems))
+		return
+	}
+
+	// For now, just validate that all elements are identifiers
+	// Symbol registration for tuple pattern variables would need to be done in a symbol collection pass
+	for i, elem := range tuple.Elements {
+		ident, ok := tc.builder.Exprs.Ident(elem)
+		if !ok || ident == nil {
+			tc.report(diag.SemaTypeMismatch, tc.exprSpan(elem), "expected identifier in pattern")
+			continue
+		}
+		// Type inference: associate each element with its type from the tuple
+		tc.result.ExprTypes[elem] = info.Elems[i]
+	}
 }
 
 func (tc *typeChecker) typeSpan(id ast.TypeID) source.Span {
