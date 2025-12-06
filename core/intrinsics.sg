@@ -24,6 +24,11 @@ extern<Task<T>> {
     @intrinsic pub fn await<T>(self: Task<T>) -> T;
 }
 
+// Cooperative yield point for CPU-bound work
+// Allows scheduler to check for cancellation and yield to other tasks
+@intrinsic
+pub fn checkpoint() -> Task<nothing>;
+
 pub contract Bounded<T> {
     fn __min_value() -> T;
     fn __max_value() -> T;

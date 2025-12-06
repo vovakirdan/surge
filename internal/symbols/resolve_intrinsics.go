@@ -67,6 +67,8 @@ var intrinsicAllowedNamesList = []string{
 	"acquire",
 	"release",
 	"try_acquire",
+	// Task utilities
+	"checkpoint",
 }
 
 var (
