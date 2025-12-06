@@ -642,6 +642,20 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 			return true
 		}
 	}
+	// Tuple assignability
+	expInfo, expOk := tc.types.TupleInfo(expected)
+	actInfo, actOk := tc.types.TupleInfo(actual)
+	if expOk && actOk {
+		if len(expInfo.Elems) != len(actInfo.Elems) {
+			return false
+		}
+		for i := range expInfo.Elems {
+			if !tc.typesAssignable(expInfo.Elems[i], actInfo.Elems[i], allowAlias) {
+				return false
+			}
+		}
+		return true
+	}
 	if tc.numericWidenable(actual, expected) {
 		return true
 	}

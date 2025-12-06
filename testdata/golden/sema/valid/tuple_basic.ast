@@ -1,0 +1,44 @@
+tuple_basic.sg (span: 2:1-21:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: empty
+│  ├─ Params: ()
+│  ├─ Return: ()
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:18-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:15)
+│           └─ Expr: expr#1: ()
+├─ Item[1]: Fn (span: 6:1-8:2)
+│  ├─ Name: pair
+│  ├─ Params: (a: int, b: string)
+│  ├─ Return: (int, string)
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 6:45-8:2)
+│        └─ Stmt[0]: Return (span: 7:5-7:19)
+│           └─ Expr: expr#4: (a, b)
+├─ Item[2]: Fn (span: 10:1-12:2)
+│  ├─ Name: nested
+│  ├─ Params: ()
+│  ├─ Return: ((int, int), string)
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:37-12:2)
+│        └─ Stmt[0]: Return (span: 11:5-11:31)
+│           └─ Expr: expr#9: ((1, 2), "nested")
+├─ Item[3]: Fn (span: 14:1-16:2)
+│  ├─ Name: let_binding
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 14:18-16:2)
+│        └─ Stmt[0]: Let (span: 15:5-15:37)
+│           ├─ Name: t
+│           ├─ Mutable: false
+│           ├─ Type: (int, bool)
+│           └─ Value: expr#12: (42, true)
+└─ Item[4]: Fn (span: 18:1-20:2)
+   ├─ Name: single_element
+   ├─ Params: ()
+   ├─ Return: (int)
+   └─ Body:
+      └─ Stmt[0]: Block (span: 18:31-20:2)
+         └─ Stmt[0]: Return (span: 19:5-19:17)
+            └─ Expr: expr#14: (1,)

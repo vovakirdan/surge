@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/tuple_mismatch.sg:3:5 return type mismatch: expected (int, string), got (int, int)

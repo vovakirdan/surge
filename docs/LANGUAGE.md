@@ -313,7 +313,61 @@ Rules:
 - `nothing` remains the shared absence literal for both Option and other contexts (§2.6). Exhaustiveness checking for tagged unions is planned but not wired up yet.
 - `panic(msg)` materialises `Error{ message: msg, code: 1 }` and calls intrinsic `exit(Error)`.
 
-### 2.10. Memory Management Model
+### 2.10. Tuple Types
+
+**What:** Tuples are fixed-size heterogeneous collections of values, written as `(T1, T2, ...)`. They allow grouping multiple values together without defining a custom struct.
+
+**Syntax:**
+```surge
+// Type annotations
+fn coordinates() -> (int, int) {
+    return (10, 20);
+}
+
+// Multiple return values
+fn divmod(a: int, b: int) -> (int, int) {
+    return (a / b, a % b);
+}
+
+// Let bindings
+let pair: (string, bool) = ("hello", true);
+
+// Nested tuples
+let nested: ((int, int), string) = ((1, 2), "point");
+
+// Single-element tuple (distinct from grouping)
+let single: (int,) = (42,);
+```
+
+**Rules:**
+- Empty tuple `()` is equivalent to the `unit` type (no-value return)
+- Single-element tuple `(T,)` requires trailing comma to distinguish from grouping `(T)`
+- Tuple elements can be any type, including other tuples, structs, or generic types
+- Tuples are structural types: two tuples with the same element types in the same order are the same type
+- Assignment requires exact type match: arity and element types must match
+
+**Limitations (current implementation):**
+- No tuple destructuring in patterns (e.g., `let (x, y) = pair` not yet supported)
+- No element access syntax (e.g., `.0`, `.1` not yet implemented)
+- Use tuples primarily for multiple return values and temporary groupings
+
+**Example:**
+```surge
+fn min_max(a: int, b: int) -> (int, int) {
+    if a < b {
+        return (a, b);
+    } else {
+        return (b, a);
+    }
+}
+
+fn process() {
+    let result: (int, int) = min_max(5, 3);
+    // result is (3, 5)
+}
+```
+
+### 2.11. Memory Management Model
 
 Surge uses **pure ownership** (similar to Rust) for predictable performance:
 
@@ -339,7 +393,7 @@ Surge uses **pure ownership** (similar to Rust) for predictable performance:
 - More explicit lifetime management required
 - Better performance and predictability for target domains
 
-### 2.11. Contracts (structural interfaces) and bounds
+### 2.12. Contracts (structural interfaces) and bounds
 
 **What:** Contracts are structural interfaces that state required fields and method signatures. They are used to constrain generic parameters and to describe APIs types must satisfy. A contract is declared with `contract Name<T, U> { ... }` containing only `field` requirements and `fn` signatures terminated by semicolons—method bodies are forbidden inside contracts (`SynUnexpectedToken`).
 

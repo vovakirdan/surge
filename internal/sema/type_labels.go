@@ -247,6 +247,17 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 				return symbols.TypeKey(name)
 			}
 		}
+	case types.KindTuple:
+		if info, ok := tc.types.TupleInfo(id); ok && info != nil {
+			elems := make([]string, 0, len(info.Elems))
+			for _, e := range info.Elems {
+				if key := tc.typeKeyForType(e); key != "" {
+					elems = append(elems, string(key))
+				}
+			}
+			return symbols.TypeKey("(" + strings.Join(elems, ",") + ")")
+		}
+		return symbols.TypeKey("()")
 	default:
 		return ""
 	}

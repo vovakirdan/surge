@@ -160,8 +160,20 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprTuple:
 		if tuple, ok := tc.builder.Exprs.Tuple(id); ok && tuple != nil {
+			elems := make([]types.TypeID, 0, len(tuple.Elements))
+			allValid := true
 			for _, elem := range tuple.Elements {
-				tc.typeExpr(elem)
+				elemType := tc.typeExpr(elem)
+				if elemType == types.NoTypeID {
+					allValid = false
+				}
+				elems = append(elems, elemType)
+			}
+			if allValid && len(elems) > 0 {
+				ty = tc.types.RegisterTuple(elems)
+			} else if len(elems) == 0 {
+				// Empty tuple () is unit type
+				ty = tc.types.Builtins().Unit
 			}
 		}
 	case ast.ExprIndex:

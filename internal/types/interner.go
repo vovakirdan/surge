@@ -38,6 +38,7 @@ type Interner struct {
 	aliases          []AliasInfo
 	params           []TypeParamInfo
 	unions           []UnionInfo
+	tuples           []TupleInfo
 	arrayType        TypeID
 	arrayParam       TypeID
 	arrayFixedType   TypeID
