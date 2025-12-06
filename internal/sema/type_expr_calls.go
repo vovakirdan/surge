@@ -70,8 +70,16 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 	}
 	if len(candidates) == 0 {
 		if symID := tc.symbolForExpr(call.Target); symID.IsValid() {
-			if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolFunction {
-				candidates = append(candidates, symID)
+			if sym := tc.symbolFromID(symID); sym != nil {
+				switch sym.Kind {
+				case symbols.SymbolFunction:
+					candidates = append(candidates, symID)
+				case symbols.SymbolLet, symbols.SymbolParam:
+					varType := tc.bindingType(symID)
+					if fnInfo, found := tc.types.FnInfo(varType); found {
+						return tc.callFunctionVariable(fnInfo, args, span)
+					}
+				}
 			}
 		}
 	}
@@ -124,6 +132,31 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 
 	tc.report(diag.SemaNoOverload, span, "no matching overload for %s", displayName)
 	return types.NoTypeID
+}
+
+// callFunctionVariable validates and resolves a call to a function-typed variable.
+// Returns the result type or NoTypeID if the call is invalid.
+func (tc *typeChecker) callFunctionVariable(fnInfo *types.FnInfo, args []callArg, span source.Span) types.TypeID {
+	// Check argument count
+	if len(args) != len(fnInfo.Params) {
+		tc.report(diag.SemaNoOverload, span,
+			"function expects %d argument(s), got %d",
+			len(fnInfo.Params), len(args))
+		return types.NoTypeID
+	}
+
+	// Check each argument type
+	for i, arg := range args {
+		expectedType := fnInfo.Params[i]
+		if !tc.typesAssignable(expectedType, arg.ty, true) {
+			tc.report(diag.SemaTypeMismatch, tc.exprSpan(arg.expr),
+				"expected %s, got %s",
+				tc.typeLabel(expectedType), tc.typeLabel(arg.ty))
+			return types.NoTypeID
+		}
+	}
+
+	return fnInfo.Result
 }
 
 func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.SymbolID {

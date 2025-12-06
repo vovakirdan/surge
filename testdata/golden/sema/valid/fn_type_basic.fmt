@@ -1,7 +1,7 @@
-// scenario: basic function types
-fn accepts_fn_param(f: fn(int) -> int, x: int) {
-    // Just declaring function type parameter works
-    let g: fn(int) -> int = f;
+// scenario: basic function types with calls
+fn accepts_fn_param(f: fn(int) -> int, x: int) -> int {
+    // Call the function-typed parameter
+    return f(x);
 }
 
 fn double(n: int) -> int {

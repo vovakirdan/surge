@@ -2,14 +2,11 @@ fn_type_basic.sg (span: 2:1-17:1)
 ├─ Item[0]: Fn (span: 2:1-5:2)
 │  ├─ Name: accepts_fn_param
 │  ├─ Params: (f: fn(int) -> int, x: int)
-│  ├─ Return: nothing
+│  ├─ Return: int
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 2:48-5:2)
-│        └─ Stmt[0]: Let (span: 4:5-4:31)
-│           ├─ Name: g
-│           ├─ Mutable: false
-│           ├─ Type: fn(int) -> int
-│           └─ Value: expr#1: f
+│     └─ Stmt[0]: Block (span: 2:55-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:17)
+│           └─ Expr: expr#3: f(x)
 ├─ Item[1]: Fn (span: 7:1-9:2)
 │  ├─ Name: double
 │  ├─ Params: (n: int)
@@ -17,7 +14,7 @@ fn_type_basic.sg (span: 2:1-17:1)
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 7:26-9:2)
 │        └─ Stmt[0]: Return (span: 8:5-8:18)
-│           └─ Expr: expr#4: (n * 2)
+│           └─ Expr: expr#6: (n * 2)
 └─ Item[2]: Fn (span: 11:1-16:2)
    ├─ Name: test_fn_type
    ├─ Params: ()
