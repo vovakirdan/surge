@@ -237,21 +237,24 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 			if sig == nil {
 				continue
 			}
-			if len(sig.Params) == 0 {
-				// static/associated method: allowed only when invoked on a type
+			switch {
+			case len(sig.Params) == 0:
+				// static/associated method without explicit params
 				if !staticReceiver || len(args) != 0 {
 					continue
 				}
-			} else {
-				if !typeKeyEqual(sig.Params[0], recvCand.key) {
-					continue
-				}
+			case typeKeyEqual(sig.Params[0], recvCand.key):
+				// instance/associated method with explicit self
 				if len(sig.Params)-1 != len(args) {
 					continue
 				}
 				if !tc.methodParamsMatch(sig.Params[1:], args) {
 					continue
 				}
+			case staticReceiver && tc.methodParamsMatch(sig.Params, args):
+				// static method defined in extern block without self param
+			default:
+				continue
 			}
 			res := tc.typeFromKey(sig.Result)
 			return tc.adjustAliasUnaryResult(res, recvCand)

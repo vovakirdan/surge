@@ -27,7 +27,7 @@ func typeKeyEqual(a, b symbols.TypeKey) bool {
 }
 
 func normalizeSignatureForReceiver(sig *symbols.FunctionSignature, receiver symbols.TypeKey) *symbols.FunctionSignature {
-	if sig == nil || receiver == "" || len(sig.Params) == 0 {
+	if sig == nil || receiver == "" || len(sig.Params) == 0 || !sig.HasSelf {
 		return sig
 	}
 	recv := canonicalTypeKey(receiver)

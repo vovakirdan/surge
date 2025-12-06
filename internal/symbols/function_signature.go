@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"surge/internal/ast"
+	"surge/internal/source"
 )
 
 type TypeKey string
@@ -15,6 +16,7 @@ type FunctionSignature struct {
 	Variadic []bool
 	Result   TypeKey
 	HasBody  bool
+	HasSelf  bool
 }
 
 func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSignature {
@@ -35,13 +37,19 @@ func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSigna
 		Variadic: make([]bool, 0, len(ids)),
 		Result:   resultKey,
 		HasBody:  fn.Body.IsValid(),
+		HasSelf:  false,
 	}
-	for _, pid := range ids {
+	for i, pid := range ids {
 		param := builder.Items.FnParam(pid)
 		if param == nil {
 			sig.Params = append(sig.Params, TypeKey(""))
 			sig.Variadic = append(sig.Variadic, false)
 			continue
+		}
+		if i == 0 && param.Name != source.NoStringID {
+			if builder.StringsInterner.MustLookup(param.Name) == "self" {
+				sig.HasSelf = true
+			}
 		}
 		sig.Params = append(sig.Params, makeTypeKey(builder, param.Type))
 		sig.Variadic = append(sig.Variadic, param.Variadic)
