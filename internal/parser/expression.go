@@ -90,6 +90,11 @@ func (p *Parser) parseBinaryExpr(minPrec int) (ast.ExprID, bool) {
 		left = p.arenas.Exprs.NewBinary(finalSpan, op, left, right)
 	}
 
+	// Check for ternary operator (right-associative, precTernary = 3)
+	if p.at(token.Question) && minPrec <= precTernary {
+		return p.parseTernaryExpr(left)
+	}
+
 	return left, true
 }
 

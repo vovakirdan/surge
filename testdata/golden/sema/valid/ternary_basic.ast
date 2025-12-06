@@ -1,0 +1,30 @@
+ternary_basic.sg (span: 2:1-14:1)
+├─ Item[0]: Fn (span: 2:1-5:2)
+│  ├─ Name: basic
+│  ├─ Params: (flag: bool)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:29-5:2)
+│        ├─ Stmt[0]: Let (span: 3:5-3:36)
+│        │  ├─ Name: result
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#4: flag ? 1 : 0
+│        └─ Stmt[1]: Return (span: 4:5-4:19)
+│           └─ Expr: expr#5: result
+├─ Item[1]: Fn (span: 7:1-9:2)
+│  ├─ Name: in_return
+│  ├─ Params: (cond: bool)
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:36-9:2)
+│        └─ Stmt[0]: Return (span: 8:5-8:32)
+│           └─ Expr: expr#9: cond ? "yes" : "no"
+└─ Item[2]: Fn (span: 11:1-13:2)
+   ├─ Name: with_expressions
+   ├─ Params: (a: int, b: int, flag: bool)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:56-13:2)
+         └─ Stmt[0]: Return (span: 12:5-12:33)
+            └─ Expr: expr#17: flag ? (a + b) : (a * b)

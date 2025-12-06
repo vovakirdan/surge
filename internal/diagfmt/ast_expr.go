@@ -94,6 +94,16 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 		right = wrapExprIfNeeded(builder, data.Right, right)
 		op := formatBinaryOpString(data.Op)
 		return fmt.Sprintf("(%s %s %s)", left, op, right)
+	case ast.ExprTernary:
+		tern, ok := builder.Exprs.Ternary(exprID)
+		if !ok {
+			return "<invalid-ternary>"
+		}
+		cond := formatExprInlineDepth(builder, tern.Cond, depth+1)
+		cond = wrapExprIfNeeded(builder, tern.Cond, cond)
+		trueExpr := formatExprInlineDepth(builder, tern.TrueExpr, depth+1)
+		falseExpr := formatExprInlineDepth(builder, tern.FalseExpr, depth+1)
+		return fmt.Sprintf("%s ? %s : %s", cond, trueExpr, falseExpr)
 	case ast.ExprCall:
 		data, ok := builder.Exprs.Call(exprID)
 		if !ok {

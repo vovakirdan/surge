@@ -1,0 +1,17 @@
+ternary_nested.sg (span: 2:1-9:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: nested
+│  ├─ Params: (x: int)
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:29-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:58)
+│           └─ Expr: expr#11: ((x > 10)) ? "large" : ((x > 5)) ? "medium" : "small"
+└─ Item[1]: Fn (span: 6:1-8:2)
+   ├─ Name: explicit_parens
+   ├─ Params: (x: int)
+   ├─ Return: string
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:38-8:2)
+         └─ Stmt[0]: Return (span: 7:5-7:60)
+            └─ Expr: expr#23: ((x > 10)) ? "large" : (((x > 5)) ? "medium" : "small")

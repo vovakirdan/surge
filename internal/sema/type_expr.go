@@ -7,6 +7,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/trace"
 	"surge/internal/types"
@@ -96,6 +97,18 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 	case ast.ExprBinary:
 		if data, ok := tc.builder.Exprs.Binary(id); ok && data != nil {
 			ty = tc.typeBinary(expr.Span, data)
+		}
+	case ast.ExprTernary:
+		if tern, ok := tc.builder.Exprs.Ternary(id); ok && tern != nil {
+			// 1. Validate condition is boolean
+			tc.ensureBoolContext(tern.Cond, tc.exprSpan(tern.Cond))
+
+			// 2. Type both branches
+			trueType := tc.typeExpr(tern.TrueExpr)
+			falseType := tc.typeExpr(tern.FalseExpr)
+
+			// 3. Unify branch types
+			ty = tc.unifyTernaryBranches(trueType, falseType, expr.Span)
 		}
 	case ast.ExprCall:
 		if call, ok := tc.builder.Exprs.Call(id); ok && call != nil {
@@ -317,4 +330,33 @@ func (tc *typeChecker) memberReceiverType(target ast.ExprID) (types.TypeID, bool
 		return t, true
 	}
 	return tc.typeExpr(target), false
+}
+
+// unifyTernaryBranches determines the result type of a ternary expression
+// by unifying the types of the true and false branches.
+func (tc *typeChecker) unifyTernaryBranches(trueType, falseType types.TypeID, span source.Span) types.TypeID {
+	if trueType == types.NoTypeID || falseType == types.NoTypeID {
+		if trueType != types.NoTypeID {
+			return trueType
+		}
+		return falseType
+	}
+
+	nothingType := tc.types.Builtins().Nothing
+
+	switch {
+	case trueType == nothingType:
+		return falseType
+	case falseType == nothingType:
+		return trueType
+	case tc.typesAssignable(trueType, falseType, true):
+		return trueType
+	case tc.typesAssignable(falseType, trueType, true):
+		return falseType
+	default:
+		tc.report(diag.SemaTypeMismatch, span,
+			"ternary branches have incompatible types: %s and %s",
+			tc.typeLabel(trueType), tc.typeLabel(falseType))
+		return types.NoTypeID
+	}
 }

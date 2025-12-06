@@ -1,0 +1,9 @@
+ternary_type_mismatch.sg (span: 2:1-5:1)
+└─ Item[0]: Fn (span: 2:1-4:2)
+   ├─ Name: mismatch
+   ├─ Params: (flag: bool)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:32-4:2)
+         └─ Stmt[0]: Return (span: 3:5-3:30)
+            └─ Expr: expr#4: flag ? 1 : "zero"

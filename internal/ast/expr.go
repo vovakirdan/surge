@@ -225,6 +225,13 @@ type ExprAwaitData struct {
 	Value ExprID
 }
 
+// ExprTernaryData represents a ternary `cond ? trueExpr : falseExpr` expression.
+type ExprTernaryData struct {
+	Cond      ExprID
+	TrueExpr  ExprID
+	FalseExpr ExprID
+}
+
 type ExprCompareArm struct {
 	Pattern     ExprID
 	PatternSpan source.Span
@@ -249,6 +256,7 @@ type Exprs struct {
 	Indices   *Arena[ExprIndexData]
 	Members   *Arena[ExprMemberData]
 	Awaits    *Arena[ExprAwaitData]
+	Ternaries *Arena[ExprTernaryData]
 	Groups    *Arena[ExprGroupData]
 	Tuples    *Arena[ExprTupleData]
 	Arrays    *Arena[ExprArrayData]
@@ -277,6 +285,7 @@ func NewExprs(capHint uint) *Exprs {
 		Indices:   NewArena[ExprIndexData](capHint),
 		Members:   NewArena[ExprMemberData](capHint),
 		Awaits:    NewArena[ExprAwaitData](capHint),
+		Ternaries: NewArena[ExprTernaryData](capHint),
 		Groups:    NewArena[ExprGroupData](capHint),
 		Tuples:    NewArena[ExprTupleData](capHint),
 		Arrays:    NewArena[ExprArrayData](capHint),
@@ -422,6 +431,23 @@ func (e *Exprs) Await(id ExprID) (*ExprAwaitData, bool) {
 		return nil, false
 	}
 	return e.Awaits.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewTernary(span source.Span, cond, trueExpr, falseExpr ExprID) ExprID {
+	payload := e.Ternaries.Allocate(ExprTernaryData{
+		Cond:      cond,
+		TrueExpr:  trueExpr,
+		FalseExpr: falseExpr,
+	})
+	return e.new(ExprTernary, span, PayloadID(payload))
+}
+
+func (e *Exprs) Ternary(id ExprID) (*ExprTernaryData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprTernary {
+		return nil, false
+	}
+	return e.Ternaries.Get(uint32(expr.Payload)), true
 }
 
 func (e *Exprs) NewStruct(span source.Span, typ TypeID, fields []ExprStructField, commas []source.Span, trailing, positional bool) ExprID {
