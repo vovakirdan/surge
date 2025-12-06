@@ -18,10 +18,17 @@ func (p *Parser) parseCallExpr(target ast.ExprID, typeArgs []ast.TypeID) (ast.Ex
 	// Парсим аргументы
 	if !p.at(token.RParen) {
 		for {
-			// Suspend colon cast to allow name: value syntax
-			p.suspendColonCast++
+			// Suspend colon-as-cast only when the argument starts with an identifier
+			// so named arguments `foo: value` work without breaking typed literals
+			// like `3:uint` inside calls.
+			suspendCast := p.lx.Peek().Kind == token.Ident
+			if suspendCast {
+				p.suspendColonCast++
+			}
 			argExpr, ok := p.parseExpr()
-			p.suspendColonCast--
+			if suspendCast {
+				p.suspendColonCast--
+			}
 			if !ok {
 				// Ошибка парсинга аргумента - восстанавливаемся
 				p.resyncUntil(token.RParen, token.Comma, token.Semicolon, token.LBrace)

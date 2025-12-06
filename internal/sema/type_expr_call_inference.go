@@ -326,6 +326,33 @@ func (tc *typeChecker) instantiateTypeKeyWithInference(key symbols.TypeKey, actu
 		}
 		return tc.instantiateArrayType(inner)
 	}
+	if strings.HasPrefix(s, "(") && strings.HasSuffix(s, ")") {
+		inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(s, "("), ")"))
+		if inner == "" {
+			return tc.types.Builtins().Unit
+		}
+		expectedElems := splitTopLevel(inner)
+		tupleType := tc.valueType(actual)
+		info, ok := tc.types.TupleInfo(tupleType)
+		if !ok || info == nil {
+			return types.NoTypeID
+		}
+		if len(expectedElems) != len(info.Elems) {
+			return types.NoTypeID
+		}
+		elems := make([]types.TypeID, 0, len(expectedElems))
+		for i, part := range expectedElems {
+			elem := tc.instantiateTypeKeyWithInference(symbols.TypeKey(part), info.Elems[i], bindings, paramNames)
+			if elem == types.NoTypeID {
+				return types.NoTypeID
+			}
+			elems = append(elems, elem)
+		}
+		if len(elems) == 0 {
+			return tc.types.Builtins().Unit
+		}
+		return tc.types.RegisterTuple(elems)
+	}
 	switch {
 	case strings.HasPrefix(s, "&mut "):
 		inner := tc.instantiateTypeKeyWithInference(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "&mut "))), tc.peelReference(actual), bindings, paramNames)
@@ -423,6 +450,25 @@ func (tc *typeChecker) instantiateResultType(key symbols.TypeKey, bindings map[s
 			return tc.instantiateArrayFixedWithArg(inner, lenType)
 		}
 		return tc.instantiateArrayType(inner)
+	}
+	if strings.HasPrefix(s, "(") && strings.HasSuffix(s, ")") {
+		inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(s, "("), ")"))
+		if inner == "" {
+			return tc.types.Builtins().Unit
+		}
+		parts := splitTopLevel(inner)
+		elems := make([]types.TypeID, 0, len(parts))
+		for _, part := range parts {
+			elem := tc.instantiateResultType(symbols.TypeKey(part), bindings, paramNames)
+			if elem == types.NoTypeID {
+				return types.NoTypeID
+			}
+			elems = append(elems, elem)
+		}
+		if len(elems) == 0 {
+			return tc.types.Builtins().Unit
+		}
+		return tc.types.RegisterTuple(elems)
 	}
 	switch {
 	case strings.HasPrefix(s, "&mut "):

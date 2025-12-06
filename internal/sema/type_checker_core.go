@@ -530,7 +530,6 @@ func (tc *typeChecker) reportBindingTypeMismatch(typeExpr ast.TypeID, expected, 
 }
 
 func (tc *typeChecker) bindTuplePattern(pattern ast.ExprID, valueType types.TypeID, scope symbols.ScopeID) {
-	_ = scope // TODO: use scope for symbol registration in future
 	tuple, ok := tc.builder.Exprs.Tuple(pattern)
 	if !ok || tuple == nil {
 		tc.report(diag.SemaTypeMismatch, tc.exprSpan(pattern), "expected tuple pattern")
@@ -549,16 +548,33 @@ func (tc *typeChecker) bindTuplePattern(pattern ast.ExprID, valueType types.Type
 		return
 	}
 
-	// For now, just validate that all elements are identifiers
-	// Symbol registration for tuple pattern variables would need to be done in a symbol collection pass
 	for i, elem := range tuple.Elements {
-		ident, ok := tc.builder.Exprs.Ident(elem)
-		if !ok || ident == nil {
-			tc.report(diag.SemaTypeMismatch, tc.exprSpan(elem), "expected identifier in pattern")
+		elemType := info.Elems[i]
+		node := tc.builder.Exprs.Get(elem)
+		if node == nil {
 			continue
 		}
-		// Type inference: associate each element with its type from the tuple
-		tc.result.ExprTypes[elem] = info.Elems[i]
+		switch node.Kind {
+		case ast.ExprIdent:
+			ident, _ := tc.builder.Exprs.Ident(elem)
+			if ident == nil {
+				continue
+			}
+			tc.result.ExprTypes[elem] = elemType
+
+			// Attach type to the bound symbol
+			symID := tc.symbolForExpr(elem)
+			if !symID.IsValid() && scope.IsValid() {
+				symID = tc.symbolInScope(scope, ident.Name, symbols.SymbolLet)
+			}
+			if symID.IsValid() {
+				tc.setBindingType(symID, elemType)
+			}
+		case ast.ExprTuple:
+			tc.bindTuplePattern(elem, elemType, scope)
+		default:
+			tc.report(diag.SemaTypeMismatch, tc.exprSpan(elem), "expected identifier in pattern")
+		}
 	}
 }
 

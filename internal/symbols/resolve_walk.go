@@ -137,6 +137,10 @@ func (fr *fileResolver) walkStmt(stmtID ast.StmtID) {
 		if letStmt.Value.IsValid() {
 			fr.walkExpr(letStmt.Value)
 		}
+		if letStmt.Pattern.IsValid() {
+			fr.bindLetPattern(letStmt.Pattern, letStmt.IsMut, stmt.Span, stmtID)
+			return
+		}
 		if letStmt.Name == source.NoStringID || fr.isWildcard(letStmt.Name) {
 			if letStmt.IsMut {
 				fr.reportWildcardMut(stmt.Span)

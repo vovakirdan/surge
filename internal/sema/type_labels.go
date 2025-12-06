@@ -298,6 +298,25 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 			return tc.instantiateArrayType(innerType)
 		}
 	}
+	if strings.HasPrefix(s, "(") && strings.HasSuffix(s, ")") {
+		inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(s, "("), ")"))
+		if inner == "" {
+			return tc.types.Builtins().Unit
+		}
+		parts := splitTopLevel(inner)
+		elems := make([]types.TypeID, 0, len(parts))
+		for _, part := range parts {
+			elem := tc.typeFromKey(symbols.TypeKey(part))
+			if elem == types.NoTypeID {
+				return types.NoTypeID
+			}
+			elems = append(elems, elem)
+		}
+		if len(elems) == 0 {
+			return tc.types.Builtins().Unit
+		}
+		return tc.types.RegisterTuple(elems)
+	}
 	switch {
 	case strings.HasPrefix(s, "&mut "):
 		if inner := tc.typeFromKey(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "&mut ")))); inner != types.NoTypeID {
