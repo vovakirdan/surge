@@ -127,6 +127,23 @@ func (tc *typeChecker) evaluateFunctionCandidate(sym *symbols.Symbol, args []cal
 		return 0, types.NoTypeID, nil, false
 	}
 	sig := sym.Signature
+
+	// Reorder args if any are named
+	hasNamed := false
+	for _, arg := range args {
+		if arg.name != source.NoStringID {
+			hasNamed = true
+			break
+		}
+	}
+	if hasNamed {
+		reordered, success := tc.reorderArgsForSignature(sig, args)
+		if !success {
+			return 0, types.NoTypeID, nil, false
+		}
+		args = reordered
+	}
+
 	variadicIndex := -1
 	for i, v := range sig.Variadic {
 		if v {
@@ -135,12 +152,30 @@ func (tc *typeChecker) evaluateFunctionCandidate(sym *symbols.Symbol, args []cal
 		}
 	}
 	paramCount := len(sig.Params)
+
+	// Count required params (those without defaults)
+	requiredParams := 0
+	if len(sig.Defaults) == paramCount {
+		for i, hasDefault := range sig.Defaults {
+			if !hasDefault && (variadicIndex < 0 || i != variadicIndex) {
+				requiredParams++
+			}
+		}
+	} else {
+		// Old behavior: no defaults info, all params are required
+		requiredParams = paramCount
+	}
+
+	// Arity check with default parameters support
 	if variadicIndex >= 0 {
 		if len(args) < paramCount-1 {
 			return 0, types.NoTypeID, nil, false
 		}
-	} else if len(args) != paramCount {
-		return 0, types.NoTypeID, nil, false
+	} else {
+		// Check: args >= requiredParams && args <= paramCount
+		if len(args) < requiredParams || len(args) > paramCount {
+			return 0, types.NoTypeID, nil, false
+		}
 	}
 
 	paramNames, paramSet := tc.typeParamNameSet(sym)
@@ -523,4 +558,68 @@ func (tc *typeChecker) collectArgTypes(args []callArg) []types.TypeID {
 		out = append(out, arg.ty)
 	}
 	return out
+}
+
+// reorderArgsForSignature reorders arguments based on parameter names in the signature.
+// Returns false if there are errors (unknown names, duplicates, missing required params).
+func (tc *typeChecker) reorderArgsForSignature(sig *symbols.FunctionSignature, args []callArg) ([]callArg, bool) {
+	if sig == nil || len(sig.ParamNames) != len(sig.Params) {
+		// Can't reorder without param names
+		return nil, false
+	}
+
+	// Build map from parameter name to position
+	paramPos := make(map[source.StringID]int)
+	for i, name := range sig.ParamNames {
+		if name != source.NoStringID {
+			paramPos[name] = i
+		}
+	}
+
+	// Create result array
+	result := make([]callArg, len(sig.Params))
+	filled := make([]bool, len(sig.Params))
+
+	// Process args
+	for i, arg := range args {
+		if arg.name == source.NoStringID {
+			// Positional argument - must come before named args
+			if i < len(result) {
+				result[i] = arg
+				filled[i] = true
+			}
+		} else {
+			// Named argument
+			pos, ok := paramPos[arg.name]
+			if !ok {
+				// Unknown parameter name - skip this candidate
+				return nil, false
+			}
+			if filled[pos] {
+				// Duplicate parameter - skip this candidate
+				return nil, false
+			}
+			result[pos] = arg
+			filled[pos] = true
+		}
+	}
+
+	// Check for missing required parameters (those without defaults)
+	if len(sig.Defaults) == len(sig.Params) {
+		for i, isFilled := range filled {
+			if !isFilled && (i >= len(sig.Defaults) || !sig.Defaults[i]) {
+				// Missing required parameter - skip this candidate
+				return nil, false
+			}
+		}
+	}
+
+	// Trim to actual filled count (for defaults)
+	actualCount := 0
+	for _, isFilled := range filled {
+		if isFilled {
+			actualCount++
+		}
+	}
+	return result[:actualCount], true
 }

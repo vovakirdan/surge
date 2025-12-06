@@ -67,7 +67,7 @@ func TestBorrowMoveDetectedOnCall(t *testing.T) {
 	stmtR := builder.Stmts.NewLet(source.Span{}, rName, ast.NoExprID, ast.NoTypeID, share, false)
 
 	callTarget := builder.Exprs.NewIdent(source.Span{}, intern(builder, "take_owned"))
-	call := builder.Exprs.NewCall(source.Span{}, callTarget, []ast.ExprID{builder.Exprs.NewIdent(source.Span{}, sName)}, nil, nil, false)
+	call := builder.Exprs.NewCall(source.Span{}, callTarget, []ast.CallArg{{Name: source.NoStringID, Value: builder.Exprs.NewIdent(source.Span{}, sName)}}, nil, nil, false)
 	callStmt := builder.Stmts.NewExpr(source.Span{}, call)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtS, stmtR, callStmt})
@@ -92,7 +92,7 @@ func TestSpawnRejectsReferences(t *testing.T) {
 	stmtR := builder.Stmts.NewLet(source.Span{}, rName, ast.NoExprID, ast.NoTypeID, share, false)
 
 	useRef := intern(builder, "use_ref")
-	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, useRef), []ast.ExprID{builder.Exprs.NewIdent(source.Span{}, rName)}, nil, nil, false)
+	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, useRef), []ast.CallArg{{Name: source.NoStringID, Value: builder.Exprs.NewIdent(source.Span{}, rName)}}, nil, nil, false)
 	spawnExpr := builder.Exprs.NewSpawn(source.Span{}, call)
 	stmtSpawn := builder.Stmts.NewLet(source.Span{}, tName, ast.NoExprID, ast.NoTypeID, spawnExpr, false)
 

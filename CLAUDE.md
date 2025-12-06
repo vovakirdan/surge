@@ -201,4 +201,3 @@ If the compiler hangs or runs indefinitely:
 - **Prefer specialized tools**: Use Grep/Glob over bash grep/find commands
 - **File size monitoring**: `check_file_sizes.sh` prevents binary bloat
 - **Incremental compilation**: Module hashing and caching support planned but not yet implemented
-- **SURGE_STDLIB environment variable**: Required when running `./surge` directly; set to project root or use `make` targets

@@ -140,12 +140,28 @@ type ExprCastData struct {
 	RawType ExprID
 }
 
+// CallArg represents a function call argument (positional or named)
+type CallArg struct {
+	Name  source.StringID // NoStringID for positional args
+	Value ExprID
+}
+
 type ExprCallData struct {
 	Target           ExprID
-	Args             []ExprID
+	Args             []CallArg // Changed from []ExprID to support named args
 	TypeArgs         []TypeID
 	ArgCommas        []source.Span
 	HasTrailingComma bool
+}
+
+// HasNamedArgs checks if any argument in the call is named
+func (d *ExprCallData) HasNamedArgs() bool {
+	for _, arg := range d.Args {
+		if arg.Name != source.NoStringID {
+			return true
+		}
+	}
+	return false
 }
 
 type ExprIndexData struct {
@@ -383,10 +399,10 @@ func (e *Exprs) Cast(id ExprID) (*ExprCastData, bool) {
 	return e.Casts.Get(uint32(expr.Payload)), true
 }
 
-func (e *Exprs) NewCall(span source.Span, target ExprID, args []ExprID, typeArgs []TypeID, argCommas []source.Span, trailing bool) ExprID {
+func (e *Exprs) NewCall(span source.Span, target ExprID, args []CallArg, typeArgs []TypeID, argCommas []source.Span, trailing bool) ExprID {
 	payload := e.Calls.Allocate(ExprCallData{
 		Target:           target,
-		Args:             append([]ExprID(nil), args...),
+		Args:             append([]CallArg(nil), args...),
 		TypeArgs:         append([]TypeID(nil), typeArgs...),
 		ArgCommas:        append([]source.Span(nil), argCommas...),
 		HasTrailingComma: trailing,

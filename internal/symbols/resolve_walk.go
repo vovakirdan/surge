@@ -289,7 +289,7 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 		}
 		fr.walkExpr(data.Target)
 		for _, arg := range data.Args {
-			fr.walkExpr(arg)
+			fr.walkExpr(arg.Value)
 		}
 		fr.checkAmbiguousCall(data.Target)
 	case ast.ExprIndex:

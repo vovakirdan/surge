@@ -332,7 +332,7 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 		if data, _ := tc.builder.Exprs.Call(expr); data != nil {
 			tc.scanSpawn(data.Target, seen)
 			for _, arg := range data.Args {
-				tc.scanSpawn(arg, seen)
+				tc.scanSpawn(arg.Value, seen)
 			}
 		}
 	case ast.ExprTuple:

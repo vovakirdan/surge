@@ -39,8 +39,8 @@ func (tc *typeChecker) inferTypeParamBindings(sym *symbols.Symbol, fn *ast.FnIte
 		if argType == types.NoTypeID {
 			continue
 		}
-		argSpan := tc.exprSpan(call.Args[i])
-		argSym := tc.symbolForExpr(call.Args[i])
+		argSpan := tc.exprSpan(call.Args[i].Value)
+		argSym := tc.symbolForExpr(call.Args[i].Value)
 		argValType := tc.valueType(argType)
 		if argSym.IsValid() {
 			if boundType := tc.bindingType(argSym); boundType != types.NoTypeID {

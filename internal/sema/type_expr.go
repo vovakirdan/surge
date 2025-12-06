@@ -125,8 +125,8 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					}
 					argTypes := make([]types.TypeID, 0, len(call.Args))
 					for _, arg := range call.Args {
-						argTypes = append(argTypes, tc.typeExpr(arg))
-						tc.observeMove(arg, tc.exprSpan(arg))
+						argTypes = append(argTypes, tc.typeExpr(arg.Value))
+						tc.observeMove(arg.Value, tc.exprSpan(arg.Value))
 					}
 					ty = tc.methodResultType(member, receiverType, argTypes, expr.Span, receiverIsType)
 					break

@@ -113,7 +113,12 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 		target = wrapExprIfNeeded(builder, data.Target, target)
 		args := make([]string, 0, len(data.Args))
 		for _, arg := range data.Args {
-			args = append(args, formatExprInlineDepth(builder, arg, depth+1))
+			argStr := formatExprInlineDepth(builder, arg.Value, depth+1)
+			if arg.Name != source.NoStringID {
+				name := builder.StringsInterner.MustLookup(arg.Name)
+				argStr = name + ": " + argStr
+			}
+			args = append(args, argStr)
 		}
 		return fmt.Sprintf("%s(%s)", target, strings.Join(args, ", "))
 	case ast.ExprIndex:

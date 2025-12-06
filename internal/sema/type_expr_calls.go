@@ -14,6 +14,7 @@ import (
 )
 
 type callArg struct {
+	name      source.StringID // parameter name if named argument
 	ty        types.TypeID
 	isLiteral bool
 	expr      ast.ExprID
@@ -38,13 +39,14 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 	tc.typeExpr(call.Target)
 	args := make([]callArg, 0, len(call.Args))
 	for _, arg := range call.Args {
-		argTy := tc.typeExpr(arg)
+		argTy := tc.typeExpr(arg.Value)
 		args = append(args, callArg{
+			name:      arg.Name,
 			ty:        argTy,
-			isLiteral: tc.isLiteralExpr(arg),
-			expr:      arg,
+			isLiteral: tc.isLiteralExpr(arg.Value),
+			expr:      arg.Value,
 		})
-		tc.observeMove(arg, tc.exprSpan(arg))
+		tc.observeMove(arg.Value, tc.exprSpan(arg.Value))
 	}
 	if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
 		if module := tc.moduleSymbolForExpr(member.Target); module != nil {

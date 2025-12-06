@@ -39,7 +39,7 @@ func (fr *fileResolver) bindComparePattern(exprID ast.ExprID) {
 		}
 		fr.walkExpr(call.Target)
 		for _, arg := range call.Args {
-			fr.bindComparePattern(arg)
+			fr.bindComparePattern(arg.Value)
 		}
 	case ast.ExprTuple:
 		tuple, _ := fr.builder.Exprs.Tuple(exprID)

@@ -46,7 +46,7 @@ func TestCallResolverPrefersExactOverCoercion(t *testing.T) {
 	addSimpleFn(builder, file, "foo", []ast.FnParam{{Name: paramName, Type: int32Type}}, int32Type, []ast.Attr{{Name: intern(builder, "overload")}})
 
 	lit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1"))
-	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "foo")), []ast.ExprID{lit}, nil, nil, false)
+	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "foo")), []ast.CallArg{{Name: source.NoStringID, Value: lit}}, nil, nil, false)
 	addTopLevelLet(builder, file, call)
 
 	resolveBag := diag.NewBag(8)
@@ -80,7 +80,7 @@ func TestCallResolverReportsAmbiguousOverload(t *testing.T) {
 	addSimpleFn(builder, file, "bar", []ast.FnParam{{Name: paramName, Type: uint32Type}}, uint32Type, []ast.Attr{{Name: intern(builder, "overload")}})
 
 	lit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1"))
-	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "bar")), []ast.ExprID{lit}, nil, nil, false)
+	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "bar")), []ast.CallArg{{Name: source.NoStringID, Value: lit}}, nil, nil, false)
 	addTopLevelLet(builder, file, call)
 
 	semaBag := runSema(t, builder, file)
@@ -96,7 +96,7 @@ func TestCallResolverReportsNoOverload(t *testing.T) {
 	addSimpleFn(builder, file, "baz", []ast.FnParam{{Name: paramName, Type: intType}}, intType, nil)
 
 	strLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "\"hi\""))
-	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "baz")), []ast.ExprID{strLit}, nil, nil, false)
+	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "baz")), []ast.CallArg{{Name: source.NoStringID, Value: strLit}}, nil, nil, false)
 	addTopLevelLet(builder, file, call)
 
 	semaBag := runSema(t, builder, file)
@@ -132,7 +132,7 @@ func TestCallResolverInfersGenericReturn(t *testing.T) {
 	))
 
 	lit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1"))
-	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "id")), []ast.ExprID{lit}, nil, nil, false)
+	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "id")), []ast.CallArg{{Name: source.NoStringID, Value: lit}}, nil, nil, false)
 	addTopLevelLet(builder, file, call)
 
 	resolveBag := diag.NewBag(8)
@@ -183,15 +183,15 @@ func TestFunctionInstantiationsRecorded(t *testing.T) {
 	builder.PushItem(file, genericFn)
 
 	intLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1"))
-	callInt := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "id")), []ast.ExprID{intLit}, nil, nil, false)
+	callInt := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "id")), []ast.CallArg{{Name: source.NoStringID, Value: intLit}}, nil, nil, false)
 	builder.PushItem(file, builder.Items.NewLet(intern(builder, "a"), ast.NoTypeID, callInt, false, ast.VisPrivate, nil, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}))
 
 	strLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "\"s\""))
-	callStr := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "id")), []ast.ExprID{strLit}, nil, nil, false)
+	callStr := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "id")), []ast.CallArg{{Name: source.NoStringID, Value: strLit}}, nil, nil, false)
 	builder.PushItem(file, builder.Items.NewLet(intern(builder, "b"), ast.NoTypeID, callStr, false, ast.VisPrivate, nil, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}))
 
 	otherInt := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "2"))
-	dupCall := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "id")), []ast.ExprID{otherInt}, nil, nil, false)
+	dupCall := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "id")), []ast.CallArg{{Name: source.NoStringID, Value: otherInt}}, nil, nil, false)
 	builder.PushItem(file, builder.Items.NewLet(intern(builder, "c"), ast.NoTypeID, dupCall, false, ast.VisPrivate, nil, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}, source.Span{}))
 
 	resolveBag := diag.NewBag(8)
