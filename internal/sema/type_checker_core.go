@@ -403,7 +403,30 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		if forIn := tc.builder.Stmts.ForIn(id); forIn != nil {
 			scope := tc.scopeForStmt(id)
 			pushed := tc.pushScope(scope)
-			tc.typeExpr(forIn.Iterable)
+
+			// 1. Get iterable type
+			iterableType := tc.typeExpr(forIn.Iterable)
+
+			// 2. Determine element type
+			var elemType types.TypeID
+
+			// 2a. Explicit type annotation
+			if forIn.Type.IsValid() {
+				elemType = tc.resolveTypeExprWithScope(forIn.Type, scope)
+			}
+
+			// 2b. Infer from iterable
+			if elemType == types.NoTypeID && iterableType != types.NoTypeID {
+				elemType = tc.inferForInElementType(iterableType, stmt.Span)
+			}
+
+			// 3. Assign type to loop variable symbol
+			if forIn.Pattern != source.NoStringID {
+				if symID := tc.stmtSymbols[id]; symID.IsValid() && elemType != types.NoTypeID {
+					tc.bindingTypes[symID] = elemType
+				}
+			}
+
 			tc.walkStmt(forIn.Body)
 			if pushed {
 				tc.leaveScope()
@@ -623,4 +646,58 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 		return true
 	}
 	return false
+}
+
+// inferForInElementType extracts the element type from an iterable.
+// It checks for __range method or direct Range<T> type.
+func (tc *typeChecker) inferForInElementType(iterableType types.TypeID, span source.Span) types.TypeID {
+	if iterableType == types.NoTypeID {
+		return types.NoTypeID
+	}
+
+	// Case 1: Iterable is already Range<T>
+	if elem, ok := tc.rangePayload(iterableType); ok {
+		return elem
+	}
+
+	// Case 2: Arrays have known element types
+	if elem, ok := tc.arrayElemType(iterableType); ok {
+		return elem
+	}
+
+	// Case 3: Check for __range magic method
+	rangeType := tc.lookupRangeMethodResult(iterableType)
+	if rangeType != types.NoTypeID {
+		if elem, ok := tc.rangePayload(rangeType); ok {
+			return elem
+		}
+	}
+
+	// If no __range method found, emit diagnostic
+	tc.report(diag.SemaIteratorNotImplemented, span,
+		"type %s does not implement iterator (missing __range method)",
+		tc.typeLabel(iterableType))
+	return types.NoTypeID
+}
+
+// lookupRangeMethodResult looks up the __range method for a type and returns its result type.
+func (tc *typeChecker) lookupRangeMethodResult(containerType types.TypeID) types.TypeID {
+	if containerType == types.NoTypeID {
+		return types.NoTypeID
+	}
+
+	for _, cand := range tc.typeKeyCandidates(containerType) {
+		if cand.key == "" {
+			continue
+		}
+		methods := tc.lookupMagicMethods(cand.key, "__range")
+		for _, sig := range methods {
+			if sig != nil && sig.Result != "" {
+				if res := tc.typeFromKey(sig.Result); res != types.NoTypeID {
+					return res
+				}
+			}
+		}
+	}
+	return types.NoTypeID
 }

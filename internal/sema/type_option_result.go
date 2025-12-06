@@ -61,3 +61,27 @@ func (tc *typeChecker) resolveErrorType(span source.Span, scope symbols.ScopeID)
 	errName := tc.builder.StringsInterner.Intern("Error")
 	return tc.resolveNamedType(errName, nil, nil, span, scope)
 }
+
+func (tc *typeChecker) resolveRangeType(elemType types.TypeID, span source.Span, scope symbols.ScopeID) types.TypeID {
+	if elemType == types.NoTypeID || tc.builder == nil {
+		return types.NoTypeID
+	}
+	name := tc.builder.StringsInterner.Intern("Range")
+	args := []types.TypeID{elemType}
+	return tc.resolveNamedType(name, args, nil, span, scope)
+}
+
+func (tc *typeChecker) rangePayload(id types.TypeID) (types.TypeID, bool) {
+	if id == types.NoTypeID || tc.types == nil {
+		return types.NoTypeID, false
+	}
+	id = tc.resolveAlias(id)
+	info, ok := tc.types.StructInfo(id)
+	if !ok || info == nil || len(info.TypeArgs) != 1 {
+		return types.NoTypeID, false
+	}
+	if tc.lookupTypeName(id, info.Name) != "Range" {
+		return types.NoTypeID, false
+	}
+	return info.TypeArgs[0], true
+}

@@ -159,6 +159,8 @@ const (
 	SemaFailfastNonAsync         Code = 3087 // @failfast on non-async block
 	SemaLockAcquiresNotField     Code = 3088 // @acquires_lock refs non-existent field
 	SemaLockReleasesNotField     Code = 3089 // @releases_lock refs non-existent field
+	SemaIteratorNotImplemented   Code = 3090 // Type does not implement iterator (__range)
+	SemaRangeTypeMismatch        Code = 3091 // Range operands have incompatible types
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -327,6 +329,8 @@ var ( // todo расширить описания и использовать к
 		SemaFailfastNonAsync:           "@failfast can only be applied to async blocks",
 		SemaLockAcquiresNotField:       "@acquires_lock references non-existent field",
 		SemaLockReleasesNotField:       "@releases_lock references non-existent field",
+		SemaIteratorNotImplemented:     "type does not implement iterator (missing __range method)",
+		SemaRangeTypeMismatch:          "range operands have incompatible types",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

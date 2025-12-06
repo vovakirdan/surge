@@ -1,0 +1,7 @@
+fn test_invalid() {
+    // Type does not implement iterator
+    let n: int = 42;
+    for x in n {        // Error: SemaIteratorNotImplemented
+        let y: int = x;
+    }
+}
