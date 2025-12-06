@@ -185,6 +185,19 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 			return "(" + strings.Join(elems, ", ") + ")"
 		}
 		return "()"
+	case types.KindFn:
+		if info, ok := tc.types.FnInfo(id); ok && info != nil {
+			params := make([]string, 0, len(info.Params))
+			for _, p := range info.Params {
+				params = append(params, tc.typeLabel(p))
+			}
+			ret := tc.typeLabel(info.Result)
+			if ret == "()" || ret == "unit" {
+				return fmt.Sprintf("fn(%s)", strings.Join(params, ", "))
+			}
+			return fmt.Sprintf("fn(%s) -> %s", strings.Join(params, ", "), ret)
+		}
+		return "fn"
 	default:
 		return tt.Kind.String()
 	}

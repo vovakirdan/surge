@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/fn_type_param_mismatch.sg:4:29 cannot assign fn(string) -> int to fn(int) -> int

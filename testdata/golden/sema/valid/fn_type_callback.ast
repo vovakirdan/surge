@@ -1,0 +1,20 @@
+fn_type_callback.sg (span: 2:1-10:1)
+├─ Item[0]: Fn (span: 2:1-5:2)
+│  ├─ Name: accepts_mapper
+│  ├─ Params: (arr: int[], mapper: fn(int) -> int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:55-5:2)
+│        └─ Stmt[0]: Let (span: 4:5-4:39)
+│           ├─ Name: copy
+│           ├─ Mutable: false
+│           ├─ Type: fn(int) -> int
+│           └─ Value: expr#1: mapper
+└─ Item[1]: Fn (span: 7:1-9:2)
+   ├─ Name: add_one
+   ├─ Params: (x: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:27-9:2)
+         └─ Stmt[0]: Return (span: 8:5-8:18)
+            └─ Expr: expr#4: (x + 1)

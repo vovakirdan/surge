@@ -699,6 +699,24 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 		}
 		return true
 	}
+	// Function type assignability - INVARIANT (strict equality)
+	// fn(A) -> B only matches fn(A) -> B exactly
+	expFn, expOk := tc.types.FnInfo(expected)
+	actFn, actOk := tc.types.FnInfo(actual)
+	if expOk && actOk {
+		// Parameter count must match
+		if len(expFn.Params) != len(actFn.Params) {
+			return false
+		}
+		// All parameters must match exactly (invariant)
+		for i := range expFn.Params {
+			if !tc.typesAssignable(expFn.Params[i], actFn.Params[i], allowAlias) {
+				return false
+			}
+		}
+		// Return type must match exactly (invariant)
+		return tc.typesAssignable(expFn.Result, actFn.Result, allowAlias)
+	}
 	if tc.numericWidenable(actual, expected) {
 		return true
 	}

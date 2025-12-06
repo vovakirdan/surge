@@ -30,6 +30,7 @@ const (
 	KindAlias
 	KindUnion
 	KindTuple
+	KindFn
 )
 
 func (k Kind) String() string {
@@ -70,6 +71,8 @@ func (k Kind) String() string {
 		return "union"
 	case KindTuple:
 		return "tuple"
+	case KindFn:
+		return "fn"
 	default:
 		return fmt.Sprintf("Kind(%d)", k)
 	}

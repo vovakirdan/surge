@@ -1,0 +1,12 @@
+fn_type_param_mismatch.sg (span: 2:1-6:1)
+└─ Item[0]: Fn (span: 2:1-5:2)
+   ├─ Name: test_assign
+   ├─ Params: (f: fn(int) -> int, g: fn(string) -> int)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:57-5:2)
+         └─ Stmt[0]: Let (span: 4:5-4:31)
+            ├─ Name: x
+            ├─ Mutable: false
+            ├─ Type: fn(int) -> int
+            └─ Value: expr#1: g
