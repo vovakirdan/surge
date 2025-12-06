@@ -166,9 +166,26 @@ func (tc *typeChecker) run() {
 
 	done = phase("register_types")
 	tc.ensureBuiltinArrayType()
-	tc.registerTypeDecls(file)
-	tc.populateTypeDecls(file)
-	tc.collectExternFields(file)
+	files := []*ast.File{file}
+	if tc.symbols != nil && len(tc.symbols.ModuleFiles) > 0 {
+		for fid := range tc.symbols.ModuleFiles {
+			if fid == tc.fileID {
+				continue
+			}
+			if f := tc.builder.Files.Get(fid); f != nil {
+				files = append(files, f)
+			}
+		}
+	}
+	for _, f := range files {
+		tc.registerTypeDecls(f)
+	}
+	for _, f := range files {
+		tc.populateTypeDecls(f)
+	}
+	for _, f := range files {
+		tc.collectExternFields(f)
+	}
 	done()
 
 	done = phase("walk_items")

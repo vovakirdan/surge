@@ -1,0 +1,34 @@
+// Concurrency utilities for Surge
+
+pub fn test_mutex() -> nothing {
+    let mut m: Mutex = Mutex.new();
+    m.lock();
+    // critical section
+    m.unlock();
+}
+
+pub fn test_rwlock() -> nothing {
+    let mut rw: RwLock = RwLock.new();
+    rw.read_lock();
+    // read-only section
+    rw.read_unlock();
+
+    rw.write_lock();
+    // write section
+    rw.write_unlock();
+}
+
+pub fn test_condition() -> nothing {
+    let cond: Condition = Condition.new();
+    let mut mtx: Mutex = Mutex.new();
+
+    cond.notify_one();
+    cond.notify_all();
+}
+
+pub fn test_semaphore() -> nothing {
+    let mut sem: Semaphore = Semaphore.new(3:uint);
+    sem.acquire();
+    // critical section
+    sem.release();
+}

@@ -223,23 +223,22 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					tc.ensureBoolContext(arm.Guard, tc.exprSpan(arm.Guard))
 				}
 				armResult := tc.typeExpr(arm.Result)
-				if armResult == types.NoTypeID {
-					continue
-				}
-				switch {
-				case resultType == types.NoTypeID:
-					resultType = armResult
-				case nothingType != types.NoTypeID && resultType == nothingType:
-					resultType = armResult
-				case nothingType != types.NoTypeID && armResult == nothingType:
-					// nothing can flow into any other arm result
-				case tc.typesAssignable(resultType, armResult, true):
-					// arm result fits the current inferred type
-				case tc.typesAssignable(armResult, resultType, true):
-					// widen the result type to the new arm
-					resultType = armResult
-				default:
-					tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Result), "compare arm type mismatch: expected %s, got %s", tc.typeLabel(resultType), tc.typeLabel(armResult))
+				if armResult != types.NoTypeID {
+					switch {
+					case resultType == types.NoTypeID:
+						resultType = armResult
+					case nothingType != types.NoTypeID && resultType == nothingType:
+						resultType = armResult
+					case nothingType != types.NoTypeID && armResult == nothingType:
+						// nothing can flow into any other arm result
+					case tc.typesAssignable(resultType, armResult, true):
+						// arm result fits the current inferred type
+					case tc.typesAssignable(armResult, resultType, true):
+						// widen the result type to the new arm
+						resultType = armResult
+					default:
+						tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Result), "compare arm type mismatch: expected %s, got %s", tc.typeLabel(resultType), tc.typeLabel(armResult))
+					}
 				}
 				if len(remainingMembers) > 0 {
 					remainingMembers = tc.consumeCompareMembers(remainingMembers, arm)

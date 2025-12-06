@@ -17,7 +17,7 @@ extern<Erring<T, E>> {
 
     pub fn exit<T, E: ErrorLike>(self: Erring<T, E>) -> nothing {
         compare self {
-            Success(_) => return nothing;
+            Success(_) => nothing;
             err => exit(err);
         };
     }

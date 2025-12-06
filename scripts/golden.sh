@@ -46,4 +46,12 @@ find "$root/testdata/golden" -type f -name '*.sg' -print0 | sort -z | while IFS=
   rm -f "$tmp"
 done
 
+core_dir="$root/testdata/golden/stdlib_core/core"
+if [[ -d "$core_dir" ]]; then
+  if ! "$bin" diag --format short "$core_dir" >/dev/null 2>&1; then
+    echo "golden diagnostics failed for stdlib_core/core"
+    status=1
+  fi
+fi
+
 exit $status

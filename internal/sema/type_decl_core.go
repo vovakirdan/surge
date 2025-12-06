@@ -24,16 +24,24 @@ func (tc *typeChecker) registerTypeDecls(file *ast.File) {
 		if _, exists := tc.typeItems[itemID]; exists {
 			continue
 		}
-		var typeID types.TypeID
-		switch typeItem.Kind {
-		case ast.TypeDeclStruct:
-			typeID = tc.types.RegisterStruct(typeItem.Name, typeItem.Span)
-		case ast.TypeDeclAlias:
-			typeID = tc.types.RegisterAlias(typeItem.Name, typeItem.Span)
-		case ast.TypeDeclUnion:
-			typeID = tc.types.RegisterUnion(typeItem.Name, typeItem.Span)
-		default:
-			continue
+		existing := types.NoTypeID
+		if symID := tc.typeSymbolForItem(itemID); symID.IsValid() {
+			if sym := tc.symbolFromID(symID); sym != nil && sym.Type != types.NoTypeID {
+				existing = sym.Type
+			}
+		}
+		typeID := existing
+		if typeID == types.NoTypeID {
+			switch typeItem.Kind {
+			case ast.TypeDeclStruct:
+				typeID = tc.types.RegisterStruct(typeItem.Name, typeItem.Span)
+			case ast.TypeDeclAlias:
+				typeID = tc.types.RegisterAlias(typeItem.Name, typeItem.Span)
+			case ast.TypeDeclUnion:
+				typeID = tc.types.RegisterUnion(typeItem.Name, typeItem.Span)
+			default:
+				continue
+			}
 		}
 		tc.typeItems[itemID] = typeID
 		if tc.typeIDItems == nil {

@@ -75,3 +75,9 @@ done
 
 # Core stdlib files are validated via testdata/golden/stdlib_core/* instead
 # (direct diagnosis of core/* is forbidden due to reserved namespace)
+if [[ -d "${CORE_GOLDEN_DIR}" ]]; then
+	if ! "${SURGE_BIN}" diag --format short "${CORE_GOLDEN_DIR}" >/dev/null 2>&1; then
+		echo "stdlib_core/core diagnostics failed" >&2
+		exit 1
+	fi
+fi

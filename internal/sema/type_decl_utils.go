@@ -9,13 +9,23 @@ import (
 
 func (tc *typeChecker) typeSymbolForItem(itemID ast.ItemID) symbols.SymbolID {
 	if tc.symbols == nil || tc.symbols.ItemSymbols == nil {
-		return symbols.NoSymbolID
+		// fall through to lookup by name
+	} else {
+		syms := tc.symbols.ItemSymbols[itemID]
+		if len(syms) > 0 {
+			return syms[0]
+		}
 	}
-	syms := tc.symbols.ItemSymbols[itemID]
-	if len(syms) == 0 {
-		return symbols.NoSymbolID
+	if tc.builder != nil && tc.symbols != nil && tc.symbols.Table != nil {
+		if typeItem, ok := tc.builder.Items.Type(itemID); ok && typeItem != nil {
+			if scope := tc.fileScope(); scope.IsValid() {
+				if symID := tc.symbolInScope(scope, typeItem.Name, symbols.SymbolType); symID.IsValid() {
+					return symID
+				}
+			}
+		}
 	}
-	return syms[0]
+	return symbols.NoSymbolID
 }
 
 func (tc *typeChecker) assignSymbolType(symID symbols.SymbolID, typeID types.TypeID) {

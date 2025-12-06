@@ -64,6 +64,10 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 	if traceSpan != nil {
 		traceSpan.WithExtra("candidates", fmt.Sprintf("%d", len(candidates)))
 	}
+	displayName := name
+	if displayName == "" {
+		displayName = "_"
+	}
 	if len(candidates) == 0 {
 		if symID := tc.symbolForExpr(call.Target); symID.IsValid() {
 			if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolFunction {
@@ -79,11 +83,6 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 		return types.NoTypeID
 	}
 	typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)
-
-	displayName := name
-	if displayName == "" {
-		displayName = "_"
-	}
 
 	bestSym, bestType, bestArgs, ambiguous, ok := tc.selectBestCandidate(candidates, args, typeArgs, false)
 	if ambiguous {
