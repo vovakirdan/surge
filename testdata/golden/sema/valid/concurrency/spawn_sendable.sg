@@ -1,0 +1,23 @@
+// Testing that sendable types can be used in spawn
+
+pub type Counter = {
+    value: int,
+};
+
+pub fn spawn_with_owned_data(c: Counter) -> Task<int> {
+    // Pass owned data to spawn - this is OK as Counter is not @nosend
+    let result: int = c.value + 1;
+    return spawn result;
+}
+
+pub fn spawn_with_int(x: int) -> Task<int> {
+    // Primitive types are always sendable
+    let doubled: int = x * 2;
+    return spawn doubled;
+}
+
+pub fn spawn_with_bool(b: bool) -> Task<bool> {
+    // Boolean values can be sent to spawn
+    let negated: bool = !b;
+    return spawn negated;
+}

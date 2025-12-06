@@ -1,0 +1,66 @@
+  1: At              "@" at 3:1-3:2 (leading: LineComment, Newline)
+  2: Ident           "nosend" at 3:2-3:8
+  3: KwPub           "pub" at 4:1-4:4 (leading: Newline)
+  4: KwType          "type" at 4:5-4:9 (leading: Space)
+  5: Ident           "Database" at 4:10-4:18 (leading: Space)
+  6: Assign          "=" at 4:19-4:20 (leading: Space)
+  7: LBrace          "{" at 4:21-4:22 (leading: Space)
+  8: Ident           "connection" at 5:5-5:15 (leading: Newline, Space)
+  9: Colon           ":" at 5:15-5:16
+ 10: Ident           "int" at 5:17-5:20 (leading: Space)
+ 11: Comma           "," at 5:20-5:21
+ 12: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 13: Semicolon       ";" at 6:2-6:3
+ 14: KwPub           "pub" at 8:1-8:4 (leading: Newline)
+ 15: KwType          "type" at 8:5-8:9 (leading: Space)
+ 16: Ident           "AppState" at 8:10-8:18 (leading: Space)
+ 17: Assign          "=" at 8:19-8:20 (leading: Space)
+ 18: LBrace          "{" at 8:21-8:22 (leading: Space)
+ 19: Ident           "db" at 9:5-9:7 (leading: Newline, Space)
+ 20: Colon           ":" at 9:7-9:8
+ 21: Ident           "Database" at 9:9-9:17 (leading: Space)
+ 22: Comma           "," at 9:17-9:18
+ 23: Ident           "counter" at 10:5-10:12 (leading: Newline, Space)
+ 24: Colon           ":" at 10:12-10:13
+ 25: Ident           "int" at 10:14-10:17 (leading: Space)
+ 26: Comma           "," at 10:17-10:18
+ 27: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 28: Semicolon       ";" at 11:2-11:3
+ 29: KwPub           "pub" at 13:1-13:4 (leading: Newline)
+ 30: KwFn            "fn" at 13:5-13:7 (leading: Space)
+ 31: Ident           "spawn_with_nested_nosend" at 13:8-13:32 (leading: Space)
+ 32: LParen          "(" at 13:32-13:33
+ 33: RParen          ")" at 13:33-13:34
+ 34: Arrow           "->" at 13:35-13:37 (leading: Space)
+ 35: Ident           "Task" at 13:38-13:42 (leading: Space)
+ 36: Lt              "<" at 13:42-13:43
+ 37: Ident           "int" at 13:43-13:46
+ 38: Gt              ">" at 13:46-13:47
+ 39: LBrace          "{" at 13:48-13:49 (leading: Space)
+ 40: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
+ 41: Ident           "state" at 14:9-14:14 (leading: Space)
+ 42: Colon           ":" at 14:14-14:15
+ 43: Ident           "AppState" at 14:16-14:24 (leading: Space)
+ 44: Assign          "=" at 14:25-14:26 (leading: Space)
+ 45: LBrace          "{" at 14:27-14:28 (leading: Space)
+ 46: Ident           "db" at 14:29-14:31 (leading: Space)
+ 47: Colon           ":" at 14:31-14:32
+ 48: LBrace          "{" at 14:33-14:34 (leading: Space)
+ 49: Ident           "connection" at 14:35-14:45 (leading: Space)
+ 50: Colon           ":" at 14:45-14:46
+ 51: IntLit          "1" at 14:47-14:48 (leading: Space)
+ 52: RBrace          "}" at 14:49-14:50 (leading: Space)
+ 53: Comma           "," at 14:50-14:51
+ 54: Ident           "counter" at 14:52-14:59 (leading: Space)
+ 55: Colon           ":" at 14:59-14:60
+ 56: IntLit          "0" at 14:61-14:62 (leading: Space)
+ 57: RBrace          "}" at 14:63-14:64 (leading: Space)
+ 58: Semicolon       ";" at 14:64-14:65
+ 59: KwReturn        "return" at 16:5-16:11 (leading: Newline, Space, LineComment, Newline, Space)
+ 60: KwSpawn         "spawn" at 16:12-16:17 (leading: Space)
+ 61: Ident           "state" at 16:18-16:23 (leading: Space)
+ 62: Dot             "." at 16:23-16:24
+ 63: Ident           "counter" at 16:24-16:31
+ 64: Semicolon       ";" at 16:31-16:32
+ 65: RBrace          "}" at 17:1-17:2 (leading: Newline)
+ 66: EOF             at 18:1-18:1

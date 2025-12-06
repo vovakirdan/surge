@@ -1,0 +1,98 @@
+  1: KwPub           "pub" at 3:1-3:4 (leading: LineComment, Newline)
+  2: KwFn            "fn" at 3:5-3:7 (leading: Space)
+  3: Ident           "test_condition_notify" at 3:8-3:29 (leading: Space)
+  4: LParen          "(" at 3:29-3:30
+  5: RParen          ")" at 3:30-3:31
+  6: Arrow           "->" at 3:32-3:34 (leading: Space)
+  7: NothingLit      "nothing" at 3:35-3:42 (leading: Space)
+  8: LBrace          "{" at 3:43-3:44 (leading: Space)
+  9: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 10: Ident           "cond" at 4:9-4:13 (leading: Space)
+ 11: Colon           ":" at 4:13-4:14
+ 12: Ident           "Condition" at 4:15-4:24 (leading: Space)
+ 13: Assign          "=" at 4:25-4:26 (leading: Space)
+ 14: Ident           "Condition" at 4:27-4:36 (leading: Space)
+ 15: Dot             "." at 4:36-4:37
+ 16: Ident           "new" at 4:37-4:40
+ 17: LParen          "(" at 4:40-4:41
+ 18: RParen          ")" at 4:41-4:42
+ 19: Semicolon       ";" at 4:42-4:43
+ 20: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 21: KwMut           "mut" at 5:9-5:12 (leading: Space)
+ 22: Ident           "mtx" at 5:13-5:16 (leading: Space)
+ 23: Colon           ":" at 5:16-5:17
+ 24: Ident           "Mutex" at 5:18-5:23 (leading: Space)
+ 25: Assign          "=" at 5:24-5:25 (leading: Space)
+ 26: Ident           "Mutex" at 5:26-5:31 (leading: Space)
+ 27: Dot             "." at 5:31-5:32
+ 28: Ident           "new" at 5:32-5:35
+ 29: LParen          "(" at 5:35-5:36
+ 30: RParen          ")" at 5:36-5:37
+ 31: Semicolon       ";" at 5:37-5:38
+ 32: Ident           "cond" at 7:5-7:9 (leading: Newline, Space)
+ 33: Dot             "." at 7:9-7:10
+ 34: Ident           "notify_one" at 7:10-7:20
+ 35: LParen          "(" at 7:20-7:21
+ 36: RParen          ")" at 7:21-7:22
+ 37: Semicolon       ";" at 7:22-7:23
+ 38: Ident           "cond" at 8:5-8:9 (leading: Newline, Space)
+ 39: Dot             "." at 8:9-8:10
+ 40: Ident           "notify_all" at 8:10-8:20
+ 41: LParen          "(" at 8:20-8:21
+ 42: RParen          ")" at 8:21-8:22
+ 43: Semicolon       ";" at 8:22-8:23
+ 44: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 45: KwPub           "pub" at 11:1-11:4 (leading: Newline)
+ 46: KwFn            "fn" at 11:5-11:7 (leading: Space)
+ 47: Ident           "test_condition_wait" at 11:8-11:27 (leading: Space)
+ 48: LParen          "(" at 11:27-11:28
+ 49: RParen          ")" at 11:28-11:29
+ 50: Arrow           "->" at 11:30-11:32 (leading: Space)
+ 51: NothingLit      "nothing" at 11:33-11:40 (leading: Space)
+ 52: LBrace          "{" at 11:41-11:42 (leading: Space)
+ 53: KwLet           "let" at 12:5-12:8 (leading: Newline, Space)
+ 54: Ident           "cond" at 12:9-12:13 (leading: Space)
+ 55: Colon           ":" at 12:13-12:14
+ 56: Ident           "Condition" at 12:15-12:24 (leading: Space)
+ 57: Assign          "=" at 12:25-12:26 (leading: Space)
+ 58: Ident           "Condition" at 12:27-12:36 (leading: Space)
+ 59: Dot             "." at 12:36-12:37
+ 60: Ident           "new" at 12:37-12:40
+ 61: LParen          "(" at 12:40-12:41
+ 62: RParen          ")" at 12:41-12:42
+ 63: Semicolon       ";" at 12:42-12:43
+ 64: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
+ 65: KwMut           "mut" at 13:9-13:12 (leading: Space)
+ 66: Ident           "mtx" at 13:13-13:16 (leading: Space)
+ 67: Colon           ":" at 13:16-13:17
+ 68: Ident           "Mutex" at 13:18-13:23 (leading: Space)
+ 69: Assign          "=" at 13:24-13:25 (leading: Space)
+ 70: Ident           "Mutex" at 13:26-13:31 (leading: Space)
+ 71: Dot             "." at 13:31-13:32
+ 72: Ident           "new" at 13:32-13:35
+ 73: LParen          "(" at 13:35-13:36
+ 74: RParen          ")" at 13:36-13:37
+ 75: Semicolon       ";" at 13:37-13:38
+ 76: Ident           "mtx" at 15:5-15:8 (leading: Newline, Space)
+ 77: Dot             "." at 15:8-15:9
+ 78: Ident           "lock" at 15:9-15:13
+ 79: LParen          "(" at 15:13-15:14
+ 80: RParen          ")" at 15:14-15:15
+ 81: Semicolon       ";" at 15:15-15:16
+ 82: Ident           "cond" at 16:5-16:9 (leading: Newline, Space)
+ 83: Dot             "." at 16:9-16:10
+ 84: Ident           "wait" at 16:10-16:14
+ 85: LParen          "(" at 16:14-16:15
+ 86: Amp             "&" at 16:15-16:16
+ 87: KwMut           "mut" at 16:16-16:19
+ 88: Ident           "mtx" at 16:20-16:23 (leading: Space)
+ 89: RParen          ")" at 16:23-16:24
+ 90: Semicolon       ";" at 16:24-16:25
+ 91: Ident           "mtx" at 17:5-17:8 (leading: Newline, Space)
+ 92: Dot             "." at 17:8-17:9
+ 93: Ident           "unlock" at 17:9-17:15
+ 94: LParen          "(" at 17:15-17:16
+ 95: RParen          ")" at 17:16-17:17
+ 96: Semicolon       ";" at 17:17-17:18
+ 97: RBrace          "}" at 18:1-18:2 (leading: Newline)
+ 98: EOF             at 19:1-19:1

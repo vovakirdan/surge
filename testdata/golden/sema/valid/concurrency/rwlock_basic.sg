@@ -1,0 +1,24 @@
+// Basic RwLock usage patterns
+
+pub fn test_rwlock_read() -> nothing {
+    let mut rw: RwLock = RwLock.new();
+    rw.read_lock();
+    // read-only section
+    rw.read_unlock();
+}
+
+pub fn test_rwlock_write() -> nothing {
+    let mut rw: RwLock = RwLock.new();
+    rw.write_lock();
+    // write section
+    rw.write_unlock();
+}
+
+pub fn test_rwlock_try_locks() -> bool {
+    let mut rw: RwLock = RwLock.new();
+    let can_read: bool = rw.try_read_lock();
+    if can_read {
+        rw.read_unlock();
+    }
+    return rw.try_write_lock();
+}

@@ -1,0 +1,13 @@
+// Basic Semaphore usage
+
+pub fn test_semaphore() -> nothing {
+    let mut sem: Semaphore = Semaphore.new(3:uint);
+    sem.acquire();
+    // critical section with resource
+    sem.release();
+}
+
+pub fn test_semaphore_try() -> bool {
+    let mut sem: Semaphore = Semaphore.new(1:uint);
+    return sem.try_acquire();
+}
