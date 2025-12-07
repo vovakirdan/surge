@@ -166,6 +166,12 @@ const (
 	SemaRangeTypeMismatch        Code = 3091 // Range operands have incompatible types
 	SemaIndexOutOfBounds         Code = 3092 // Index out of bounds
 
+	// Enum validation (3093-3096)
+	SemaEnumVariantNotFound   Code = 3093 // Enum variant does not exist
+	SemaEnumValueOverflow     Code = 3094 // Enum value overflow
+	SemaEnumValueTypeMismatch Code = 3095 // Enum value type mismatch
+	SemaEnumDuplicateVariant  Code = 3096 // Duplicate enum variant name
+
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
 
@@ -339,6 +345,10 @@ var ( // todo расширить описания и использовать к
 		SemaIteratorNotImplemented:     "type does not implement iterator (missing __range method)",
 		SemaRangeTypeMismatch:          "range operands have incompatible types",
 		SemaIndexOutOfBounds:           "index out of bounds",
+		SemaEnumVariantNotFound:        "enum variant not found",
+		SemaEnumValueOverflow:          "enum value overflow",
+		SemaEnumValueTypeMismatch:      "enum value type mismatch",
+		SemaEnumDuplicateVariant:       "duplicate enum variant name",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",
