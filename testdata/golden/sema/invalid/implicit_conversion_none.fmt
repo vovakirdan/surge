@@ -1,0 +1,31 @@
+type MyType = { dummy: int }
+type OtherType = { value: int }
+
+extern<OtherType> {
+    fn __to(self: OtherType, _: int) -> int {
+        return self.value;
+    }
+}
+
+fn test_no_conversion() {
+    let mt: MyType = MyType { 0 };
+    let s: string = mt;
+}
+
+fn test_wrong_conversion() {
+    let ot: OtherType = OtherType { 42 };
+    let s: string = ot;
+}
+
+fn takes_bool(x: bool) {
+}
+
+fn test_function_arg_no_conversion() {
+    let mt: MyType = MyType { 0 };
+    takes_bool(mt);
+}
+
+fn returns_float() -> float {
+    let mt: MyType = MyType { 0 };
+    return mt;
+}

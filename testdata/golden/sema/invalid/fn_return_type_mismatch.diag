@@ -1,1 +1,1 @@
-error SEM3015 testdata/golden/sema/invalid/fn_return_type_mismatch.sg:3:5 return type mismatch: expected int, got string
+error SEM3015 testdata/golden/sema/invalid/fn_return_type_mismatch.sg:4:5 return type mismatch: expected int, got nothing

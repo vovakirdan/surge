@@ -276,24 +276,58 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 	}
 	actual = tc.coerceLiteralForBinding(declared, actual, valueExpr)
 	if expElem, expLen, expFixed, okExp := tc.arrayInfo(declared); okExp {
-		if actElem, actLen, actFixed, okAct := tc.arrayInfo(actual); okAct && tc.typesAssignable(expElem, actElem, true) {
-			if expFixed {
-				if actFixed && expLen == actLen {
-					return
-				}
-				if !actFixed && valueExpr.IsValid() {
-					if arr, okArr := tc.builder.Exprs.Array(valueExpr); okArr && arr != nil {
-						if l, err := safecast.Conv[uint32](len(arr.Elements)); err == nil && l == expLen {
-							return
+		if actElem, actLen, actFixed, okAct := tc.arrayInfo(actual); okAct {
+			// Check if element types are assignable OR can be implicitly converted
+			elemAssignable := tc.typesAssignable(expElem, actElem, true)
+			var elemConvertible bool
+			if !elemAssignable {
+				_, found, _ := tc.tryImplicitConversion(actElem, expElem)
+				elemConvertible = found
+			}
+
+			if elemAssignable || elemConvertible {
+				if expFixed {
+					if actFixed && expLen == actLen {
+						// Array length matches, record element conversions if needed
+						if valueExpr.IsValid() {
+							if arr, okArr := tc.builder.Exprs.Array(valueExpr); okArr && arr != nil {
+								tc.recordArrayElementConversions(arr, expElem)
+							}
+						}
+						return
+					}
+					if !actFixed && valueExpr.IsValid() {
+						if arr, okArr := tc.builder.Exprs.Array(valueExpr); okArr && arr != nil {
+							if l, err := safecast.Conv[uint32](len(arr.Elements)); err == nil && l == expLen {
+								// Array length matches, record element conversions
+								tc.recordArrayElementConversions(arr, expElem)
+								return
+							}
 						}
 					}
+				} else {
+					// Dynamic array, check for element conversions
+					if valueExpr.IsValid() {
+						if arr, okArr := tc.builder.Exprs.Array(valueExpr); okArr && arr != nil {
+							tc.recordArrayElementConversions(arr, expElem)
+						}
+					}
+					return
 				}
-			} else {
-				return
 			}
 		}
 	}
 	if tc.typesAssignable(declared, actual, true) {
+		return
+	}
+	// Try implicit conversion before reporting error
+	if convType, found, ambiguous := tc.tryImplicitConversion(actual, declared); found {
+		tc.recordImplicitConversion(valueExpr, actual, convType)
+		return
+	} else if ambiguous {
+		tc.report(diag.SemaAmbiguousConversion, tc.exprSpan(valueExpr),
+			"ambiguous conversion from %s to %s: multiple __to methods found",
+			tc.typeLabel(actual), tc.typeLabel(declared))
 		return
 	}
 	tc.reportBindingTypeMismatch(typeExpr, declared, actual, valueExpr)
@@ -590,4 +624,30 @@ func (tc *typeChecker) lookupRangeMethodResult(containerType types.TypeID) types
 		}
 	}
 	return types.NoTypeID
+}
+
+// recordArrayElementConversions records implicit conversions for array elements
+// when the expected element type differs from the actual element types.
+func (tc *typeChecker) recordArrayElementConversions(arr *ast.ExprArrayData, expectedElemType types.TypeID) {
+	if arr == nil || expectedElemType == types.NoTypeID {
+		return
+	}
+
+	for _, elem := range arr.Elements {
+		if !elem.IsValid() {
+			continue
+		}
+		// Get the actual type of this element (should already be typed)
+		actualElemType := tc.result.ExprTypes[elem]
+		if actualElemType == types.NoTypeID {
+			continue
+		}
+
+		// Check if implicit conversion is needed
+		if !tc.typesAssignable(expectedElemType, actualElemType, true) {
+			if convType, found, _ := tc.tryImplicitConversion(actualElemType, expectedElemType); found {
+				tc.recordImplicitConversion(elem, actualElemType, convType)
+			}
+		}
+	}
 }

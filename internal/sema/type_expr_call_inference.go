@@ -592,6 +592,10 @@ func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral b
 			}
 		}
 	}
+	// Try implicit conversion (cost 2, lower priority than other conversions)
+	if _, found, _ := tc.tryImplicitConversion(actual, expected); found {
+		return 2, true
+	}
 	return 0, false
 }
 

@@ -25,6 +25,7 @@ type Result struct {
 	ExprBorrows            map[ast.ExprID]BorrowID
 	Borrows                []BorrowInfo
 	FunctionInstantiations map[symbols.SymbolID][][]types.TypeID
+	ImplicitConversions    map[ast.ExprID]ImplicitConversion // Tracks implicit __to calls
 }
 
 // Check performs semantic analysis (type inference, borrow checks, etc.).
@@ -34,6 +35,7 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 		ExprTypes:              make(map[ast.ExprID]types.TypeID),
 		ExprBorrows:            make(map[ast.ExprID]BorrowID),
 		FunctionInstantiations: make(map[symbols.SymbolID][][]types.TypeID),
+		ImplicitConversions:    make(map[ast.ExprID]ImplicitConversion),
 	}
 	if opts.Types != nil {
 		res.TypeInterner = opts.Types
