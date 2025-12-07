@@ -243,6 +243,30 @@ func (b *Builder) NewTypeUnion(
 	return b.Items.NewTypeUnion(name, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, members, bodySpan, span)
 }
 
+func (b *Builder) NewTypeEnum(
+	name source.StringID,
+	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
+	typeKwSpan source.Span,
+	assignSpan source.Span,
+	semicolonSpan source.Span,
+	attrs []Attr,
+	visibility Visibility,
+	baseType TypeID,
+	baseTypeSpan source.Span,
+	colonSpan source.Span,
+	variants []EnumVariantSpec,
+	variantCommas []source.Span,
+	hasTrailing bool,
+	bodySpan source.Span,
+	span source.Span,
+) ItemID {
+	return b.Items.NewTypeEnum(name, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, baseType, baseTypeSpan, colonSpan, variants, variantCommas, hasTrailing, bodySpan, span)
+}
+
 func (b *Builder) NewExtern(
 	target TypeID,
 	attrs []Attr,

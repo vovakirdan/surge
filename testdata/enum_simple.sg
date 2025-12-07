@@ -1,0 +1,11 @@
+// Simplest enum test
+
+enum Color = {
+    Red,
+    Green,
+    Blue,
+}
+
+fn main() {
+    let x = 0;
+}

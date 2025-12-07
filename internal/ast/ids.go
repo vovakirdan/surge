@@ -22,6 +22,7 @@ type (
 	ExternBlockID     uint32
 	TypeFieldID       uint32
 	TypeUnionMemberID uint32
+	EnumVariantID     uint32
 )
 
 const (
@@ -44,6 +45,7 @@ const (
 	NoExternBlockID    ExternBlockID     = 0
 	NoTypeFieldID      TypeFieldID       = 0
 	NoTypeUnionMember  TypeUnionMemberID = 0
+	NoEnumVariantID    EnumVariantID     = 0
 )
 
 func (id FileID) IsValid() bool            { return id != NoFileID }
@@ -65,3 +67,4 @@ func (id ExternFieldID) IsValid() bool     { return id != NoExternFieldID }
 func (id ExternBlockID) IsValid() bool     { return id != NoExternBlockID }
 func (id TypeFieldID) IsValid() bool       { return id != NoTypeFieldID }
 func (id TypeUnionMemberID) IsValid() bool { return id != NoTypeUnionMember }
+func (id EnumVariantID) IsValid() bool     { return id != NoEnumVariantID }

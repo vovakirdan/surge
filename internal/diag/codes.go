@@ -42,10 +42,12 @@ const (
 	SynTypeFieldConflict       Code = 2021
 	SynTypeDuplicateMember     Code = 2022
 	SynTypeNotAllowed          Code = 2023
-	SynIllegalItemInExtern     Code = 2024
-	SynVisibilityReduction     Code = 2025
-	SynFatArrowOutsideParallel Code = 2026
-	SynPragmaPosition          Code = 2027
+	SynEnumExpectBody          Code = 2024
+	SynEnumExpectRBrace        Code = 2025
+	SynIllegalItemInExtern     Code = 2026
+	SynVisibilityReduction     Code = 2027
+	SynFatArrowOutsideParallel Code = 2028
+	SynPragmaPosition          Code = 2029
 
 	// import errors & warnings
 	SynInfoImportGroup    Code = 2100
@@ -226,6 +228,8 @@ var ( // todo расширить описания и использовать к
 		SynTypeFieldConflict:           "Duplicate field in type",
 		SynTypeDuplicateMember:         "Duplicate union member",
 		SynTypeNotAllowed:              "Type declaration is not allowed here",
+		SynEnumExpectBody:              "Expected '{' for enum body",
+		SynEnumExpectRBrace:            "Expected '}' after enum body",
 		SynIllegalItemInExtern:         "Illegal item inside extern block",
 		SynVisibilityReduction:         "Visibility reduction is not allowed",
 		SynFatArrowOutsideParallel:     "Fat arrow is only allowed in parallel expressions or compare arms",

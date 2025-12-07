@@ -8,6 +8,7 @@ const (
 	TypeDeclAlias TypeDeclKind = iota
 	TypeDeclStruct
 	TypeDeclUnion
+	TypeDeclEnum
 )
 
 type TypeItem struct {
@@ -93,4 +94,31 @@ type TypeUnionMemberSpec struct {
 	HasTrailing bool
 	ArgsSpan    source.Span
 	Span        source.Span
+}
+
+type TypeEnumDecl struct {
+	BaseType      TypeID
+	BaseTypeSpan  source.Span
+	ColonSpan     source.Span
+	VariantsStart EnumVariantID
+	VariantsCount uint32
+	VariantCommas []source.Span
+	HasTrailing   bool
+	BodySpan      source.Span
+}
+
+type EnumVariant struct {
+	Name       source.StringID
+	NameSpan   source.Span
+	Value      ExprID
+	AssignSpan source.Span
+	Span       source.Span
+}
+
+type EnumVariantSpec struct {
+	Name       source.StringID
+	NameSpan   source.Span
+	Value      ExprID
+	AssignSpan source.Span
+	Span       source.Span
 }

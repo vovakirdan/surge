@@ -47,6 +47,7 @@ const (
 	KwHeir     // heir
 	KwIs       // is
 	KwField    // field
+	KwEnum     // enum
 
 	// литералы
 	NothingLit
