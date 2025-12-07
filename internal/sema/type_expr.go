@@ -190,6 +190,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		if member, ok := tc.builder.Exprs.Member(id); ok && member != nil {
 			if module := tc.moduleSymbolForExpr(member.Target); module != nil {
 				ty = tc.typeOfModuleMember(module, member.Field, expr.Span)
+			} else if enumType := tc.enumTypeForExpr(member.Target); enumType != types.NoTypeID {
+				// Type::Variant access for enum
+				ty = tc.typeOfEnumVariant(enumType, member.Field, expr.Span)
 			} else {
 				targetType := tc.typeExpr(member.Target)
 				ty = tc.memberResultType(targetType, member.Field, expr.Span)

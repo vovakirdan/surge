@@ -247,17 +247,29 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 		switch p.lx.Peek().Kind {
 		case token.ColonColon:
 			doubleColon := p.advance()
-			if !p.at(token.Lt) {
-				p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, doubleColon.Span, "expected '<' after '::' for type arguments", nil)
-				return ast.NoExprID, false
-			}
-			typeArgs, ok := p.parseTypeArgs()
-			if !ok {
-				return ast.NoExprID, false
-			}
-			pendingTypeArgs = typeArgs
-			if !p.at(token.LParen) {
-				p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, p.currentErrorSpan(), "expected '(' after type arguments", nil)
+			// После :: может быть либо < для type arguments, либо identifier для enum variant
+			switch p.lx.Peek().Kind {
+			case token.Lt:
+				// Type arguments: expr::<T>(...)
+				typeArgs, ok := p.parseTypeArgs()
+				if !ok {
+					return ast.NoExprID, false
+				}
+				pendingTypeArgs = typeArgs
+				if !p.at(token.LParen) {
+					p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, p.currentErrorSpan(), "expected '(' after type arguments", nil)
+					return ast.NoExprID, false
+				}
+			case token.Ident:
+				// Enum variant or static member: Type::Variant
+				variantTok := p.advance()
+				variantName := variantTok.Text
+				variantNameID := p.arenas.StringsInterner.Intern(variantName)
+				exprSpan := p.arenas.Exprs.Get(expr).Span
+				finalSpan := exprSpan.Cover(doubleColon.Span).Cover(variantTok.Span)
+				expr = p.arenas.Exprs.NewMember(finalSpan, expr, variantNameID)
+			default:
+				p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, doubleColon.Span, "expected '<' or identifier after '::'", nil)
 				return ast.NoExprID, false
 			}
 		case token.LParen:
