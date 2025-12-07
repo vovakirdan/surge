@@ -10,9 +10,11 @@ import (
 
 // EnumVariantInfo stores metadata for a single enum variant.
 type EnumVariantInfo struct {
-	Name  source.StringID
-	Value int64
-	Span  source.Span
+	Name        source.StringID
+	IntValue    int64
+	StringValue source.StringID
+	IsString    bool
+	Span        source.Span
 }
 
 // EnumInfo stores metadata for an enum type.

@@ -1,0 +1,26 @@
+  1: Kind(41)        "enum" at 3:1-3:5 (leading: LineComment, Newline)
+  2: Ident           "Color" at 3:6-3:11 (leading: Space)
+  3: Assign          "=" at 3:12-3:13 (leading: Space)
+  4: LBrace          "{" at 3:14-3:15 (leading: Space)
+  5: Ident           "Red" at 4:5-4:8 (leading: Newline, Space)
+  6: Comma           "," at 4:8-4:9
+  7: Ident           "Green" at 5:5-5:10 (leading: Newline, Space)
+  8: Comma           "," at 5:10-5:11
+  9: Ident           "Blue" at 6:5-6:9 (leading: Newline, Space)
+ 10: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 11: KwFn            "fn" at 9:1-9:3 (leading: Newline)
+ 12: Ident           "test" at 9:4-9:8 (leading: Space)
+ 13: LParen          "(" at 9:8-9:9
+ 14: RParen          ")" at 9:9-9:10
+ 15: LBrace          "{" at 9:11-9:12 (leading: Space)
+ 16: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 17: Ident           "c" at 10:9-10:10 (leading: Space)
+ 18: Colon           ":" at 10:10-10:11
+ 19: Ident           "int" at 10:12-10:15 (leading: Space)
+ 20: Assign          "=" at 10:16-10:17 (leading: Space)
+ 21: Ident           "Color" at 10:18-10:23 (leading: Space)
+ 22: ColonColon      "::" at 10:23-10:25
+ 23: Ident           "Yellow" at 10:25-10:31
+ 24: Semicolon       ";" at 10:31-10:32
+ 25: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 26: EOF             at 12:1-12:1

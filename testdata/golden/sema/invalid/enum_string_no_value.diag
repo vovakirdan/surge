@@ -1,0 +1,1 @@
+error SEM3095 testdata/golden/sema/invalid/enum_string_no_value.sg:5:5 string enum variants must have explicit values

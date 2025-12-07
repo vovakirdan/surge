@@ -1,0 +1,38 @@
+  1: Kind(41)        "enum" at 3:1-3:5 (leading: LineComment, Newline)
+  2: Ident           "Token" at 3:6-3:11 (leading: Space)
+  3: Colon           ":" at 3:11-3:12
+  4: Ident           "string" at 3:13-3:19 (leading: Space)
+  5: Assign          "=" at 3:20-3:21 (leading: Space)
+  6: LBrace          "{" at 3:22-3:23 (leading: Space)
+  7: Ident           "lbrace" at 4:5-4:11 (leading: Newline, Space)
+  8: Assign          "=" at 4:12-4:13 (leading: Space)
+  9: StringLit       "\"{\"" at 4:14-4:17 (leading: Space)
+ 10: Comma           "," at 4:17-4:18
+ 11: Ident           "rbrace" at 5:5-5:11 (leading: Newline, Space)
+ 12: Assign          "=" at 5:12-5:13 (leading: Space)
+ 13: StringLit       "\"}\"" at 5:14-5:17 (leading: Space)
+ 14: Comma           "," at 5:17-5:18
+ 15: Ident           "lparen" at 6:5-6:11 (leading: Newline, Space)
+ 16: Assign          "=" at 6:12-6:13 (leading: Space)
+ 17: StringLit       "\"(\"" at 6:14-6:17 (leading: Space)
+ 18: Comma           "," at 6:17-6:18
+ 19: Ident           "rparen" at 7:5-7:11 (leading: Newline, Space)
+ 20: Assign          "=" at 7:12-7:13 (leading: Space)
+ 21: StringLit       "\")\"" at 7:14-7:17 (leading: Space)
+ 22: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 23: KwFn            "fn" at 10:1-10:3 (leading: Newline)
+ 24: Ident           "test" at 10:4-10:8 (leading: Space)
+ 25: LParen          "(" at 10:8-10:9
+ 26: RParen          ")" at 10:9-10:10
+ 27: LBrace          "{" at 10:11-10:12 (leading: Space)
+ 28: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
+ 29: Ident           "t" at 11:9-11:10 (leading: Space)
+ 30: Colon           ":" at 11:10-11:11
+ 31: Ident           "string" at 11:12-11:18 (leading: Space)
+ 32: Assign          "=" at 11:19-11:20 (leading: Space)
+ 33: Ident           "Token" at 11:21-11:26 (leading: Space)
+ 34: ColonColon      "::" at 11:26-11:28
+ 35: Ident           "lbrace" at 11:28-11:34
+ 36: Semicolon       ";" at 11:34-11:35
+ 37: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 38: EOF             at 13:1-13:1

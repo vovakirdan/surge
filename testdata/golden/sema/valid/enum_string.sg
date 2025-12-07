@@ -1,0 +1,12 @@
+// String enum
+
+enum Token: string = {
+    lbrace = "{",
+    rbrace = "}",
+    lparen = "(",
+    rparen = ")"
+}
+
+fn test() {
+    let t: string = Token::lbrace;
+}

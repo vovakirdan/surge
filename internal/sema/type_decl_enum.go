@@ -38,6 +38,10 @@ func (tc *typeChecker) populateEnumType(itemID ast.ItemID, typeItem *ast.TypeIte
 	nameSet := make(map[source.StringID]source.Span)
 	var nextValue int64 = 0
 
+	// Check if this is a string enum
+	baseTypeDesc, _ := tc.types.Lookup(baseType)
+	isStringEnum := baseTypeDesc.Kind == types.KindString
+
 	for i := range enumDecl.VariantsCount {
 		variantID := ast.EnumVariantID(uint32(enumDecl.VariantsStart) + uint32(i))
 		variant := tc.builder.Items.EnumVariant(variantID)
@@ -54,25 +58,50 @@ func (tc *typeChecker) populateEnumType(itemID ast.ItemID, typeItem *ast.TypeIte
 		nameSet[variant.Name] = variant.NameSpan
 
 		// Compute variant value
-		value := nextValue
+		var variantInfo types.EnumVariantInfo
 		if variant.Value.IsValid() {
 			// Explicit value
-			computedValue, ok := tc.evalEnumValue(variant.Value, baseType)
-			if !ok {
-				// Error already reported by evalEnumValue
+			if isStringEnum {
+				stringVal, ok := tc.evalEnumStringValue(variant.Value)
+				if !ok {
+					continue
+				}
+				variantInfo = types.EnumVariantInfo{
+					Name:        variant.Name,
+					StringValue: stringVal,
+					IsString:    true,
+					Span:        variant.Span,
+				}
+			} else {
+				intVal, ok := tc.evalEnumIntValue(variant.Value, baseType)
+				if !ok {
+					continue
+				}
+				variantInfo = types.EnumVariantInfo{
+					Name:     variant.Name,
+					IntValue: intVal,
+					IsString: false,
+					Span:     variant.Span,
+				}
+				nextValue = intVal + 1
+			}
+		} else {
+			// Auto value
+			if isStringEnum {
+				tc.report(diag.SemaEnumValueTypeMismatch, variant.Span,
+					"string enum variants must have explicit values")
 				continue
 			}
-			value = computedValue
+			variantInfo = types.EnumVariantInfo{
+				Name:     variant.Name,
+				IntValue: nextValue,
+				IsString: false,
+				Span:     variant.Span,
+			}
+			nextValue++
 		}
 
-		variants = append(variants, types.EnumVariantInfo{
-			Name:  variant.Name,
-			Value: value,
-			Span:  variant.Span,
-		})
-
-		// Increment for next variant
-		nextValue = value + 1
+		variants = append(variants, variantInfo)
 	}
 
 	tc.types.SetEnumVariants(typeID, variants)
@@ -114,8 +143,8 @@ func (tc *typeChecker) enumTypeForExpr(id ast.ExprID) types.TypeID {
 	return sym.Type
 }
 
-// evalEnumValue evaluates an enum variant value expression
-func (tc *typeChecker) evalEnumValue(exprID ast.ExprID, baseType types.TypeID) (int64, bool) {
+// evalEnumIntValue evaluates an integer enum variant value expression
+func (tc *typeChecker) evalEnumIntValue(exprID ast.ExprID, baseType types.TypeID) (int64, bool) {
 	if !exprID.IsValid() {
 		return 0, false
 	}
@@ -155,19 +184,39 @@ func (tc *typeChecker) evalEnumLiteral(lit *ast.ExprLiteralData, baseType types.
 		// TODO: Check overflow based on baseType
 		return val, true
 
-	case ast.ExprLitString:
-		// For string enums, we can't really represent as int64
-		// For now, just return 0 and let type checking handle it
-		// In a real implementation, we'd need a different value representation
-		tc.report(diag.SemaEnumValueTypeMismatch, span,
-			"string enum values not yet fully supported")
-		return 0, false
-
 	default:
 		tc.report(diag.SemaEnumValueTypeMismatch, span,
 			"enum value must be an integer or string literal")
 		return 0, false
 	}
+}
+
+// evalEnumStringValue evaluates a string enum variant value expression
+func (tc *typeChecker) evalEnumStringValue(exprID ast.ExprID) (source.StringID, bool) {
+	if !exprID.IsValid() {
+		return source.NoStringID, false
+	}
+
+	expr := tc.builder.Exprs.Get(exprID)
+	if expr == nil {
+		return source.NoStringID, false
+	}
+
+	// Only support string literals
+	if expr.Kind != ast.ExprLit {
+		tc.report(diag.SemaEnumValueTypeMismatch, expr.Span,
+			"string enum value must be a string literal")
+		return source.NoStringID, false
+	}
+
+	lit := tc.builder.Exprs.Literals.Get(uint32(expr.Payload))
+	if lit == nil || lit.Kind != ast.ExprLitString {
+		tc.report(diag.SemaEnumValueTypeMismatch, expr.Span,
+			"string enum value must be a string literal")
+		return source.NoStringID, false
+	}
+
+	return lit.Value, true
 }
 
 // parseIntLiteral parses an integer literal string

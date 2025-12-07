@@ -1,0 +1,18 @@
+// Basic enum with auto-increment values
+
+enum Color = {
+    Red,
+    Green,
+    Blue
+}
+
+enum Status: uint8 = {
+    Unknown = 0,
+    Started = 1,
+    Done = 2
+}
+
+fn test() {
+    let c: int = Color::Red;
+    let s: uint8 = Status::Done;
+}

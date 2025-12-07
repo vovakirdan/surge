@@ -1,0 +1,8 @@
+testdata/golden/sema/invalid/enum_string_no_value.sg:5:5: ERROR SEM3095: string enum variants must have explicit values
+...
+  3 | enum Token: string = {
+  4 |     lbrace = "{",
+  5 |     rbrace
+          ~~~~~^
+  6 | }
+  7 | 
