@@ -1,0 +1,18 @@
+// Test HasLength contract definition
+// Note: __len methods are declared as intrinsics for string, Array, and ArrayFixed
+// but the generic len() function requires more language support for reference contracts
+
+// For now we just verify the contract and intrinsics are defined correctly
+// by checking that the core module compiles
+
+@entrypoint
+fn main() {
+    // The HasLength contract is defined in core/intrinsics.sg
+    // __len intrinsics are defined for string, Array<T>, and ArrayFixed<T, N>
+    let s = "test";
+    let len_s = len(s);
+    let arr: Array<int> = [1, 2, 3];
+    let len_arr = len(arr);
+    let arr_fixed: ArrayFixed<int, 3> = [1, 2, 3];
+    let len_arr_fixed = len(arr_fixed);
+}

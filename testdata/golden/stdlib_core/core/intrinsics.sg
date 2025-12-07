@@ -8,6 +8,19 @@ pub type byte = uint8;
 @intrinsic fn rt_memcpy(dst: *byte, src: *byte, n: uint) -> nothing;
 @intrinsic fn rt_memmove(dst: *byte, src: *byte, n: uint) -> nothing;
 
+// I/O primitives
+@intrinsic fn rt_write_stdout(ptr: *byte, len: uint) -> uint;
+@intrinsic fn rt_read_stdin(buf: *byte, max_len: uint) -> uint;
+
+// String access intrinsics
+@intrinsic fn rt_string_ptr(s: string) -> *byte;
+@intrinsic fn rt_string_len(s: string) -> uint;
+@intrinsic fn rt_string_from_bytes(ptr: *byte, len: uint) -> string;
+
+// Higher-level I/O
+@intrinsic
+pub fn readline() -> string;
+
 pub type Range<T> = {
     __state: *byte,
 };
@@ -24,9 +37,18 @@ extern<Task<T>> {
     @intrinsic pub fn await<T>(self: Task<T>) -> T;
 }
 
+// Cooperative yield point for CPU-bound work
+// Allows scheduler to check for cancellation and yield to other tasks
+@intrinsic
+pub fn checkpoint() -> Task<nothing>;
+
 pub contract Bounded<T> {
     fn __min_value() -> T;
     fn __max_value() -> T;
+}
+
+pub contract HasLength<T> {
+    fn __len(self: &T) -> uint;
 }
 
 extern<int> {
@@ -199,6 +221,7 @@ extern<string> {
     @intrinsic fn __to(self: string, target: int) -> int;
     @intrinsic @overload fn __to(self: string, target: uint) -> uint;
     @intrinsic @overload fn __to(self: string, target: float) -> float;
+    @intrinsic fn __len(self: &string) -> uint;
 }
 
 extern<bool> {
@@ -214,6 +237,7 @@ extern<Array<T>> {
     @intrinsic fn __index<T>(self: Array<T>, index: int) -> T;
     @intrinsic fn __index_set<T>(self: Array<T>, index: int, value: T) -> nothing;
     @intrinsic fn __range<T>(self: Array<T>) -> Range<T>;
+    @intrinsic fn __len<T>(self: &Array<T>) -> uint;
 }
 
 extern<ArrayFixed<T, N>> {
@@ -221,10 +245,17 @@ extern<ArrayFixed<T, N>> {
     @intrinsic fn __index<T, const N: int>(self: ArrayFixed<T, N>, index: int) -> T;
     @intrinsic fn __index_set<T, const N: int>(self: ArrayFixed<T, N>, index: int, value: T) -> nothing;
     @intrinsic fn __range<T, const N: int>(self: ArrayFixed<T, N>) -> Range<T>;
+    @intrinsic fn __len<T, const N: int>(self: &ArrayFixed<T, N>) -> uint;
 }
 
 @intrinsic
 pub fn default<T>() -> T;
+
+@intrinsic
+pub fn size_of<T>() -> uint;
+
+@intrinsic
+pub fn align_of<T>() -> uint;
 
 pub contract ErrorLike{
     field message: string;

@@ -15,6 +15,15 @@ var intrinsicAllowedNamesList = []string{
 	"rt_realloc",
 	"rt_memcpy",
 	"rt_memmove",
+	// I/O primitives
+	"rt_write_stdout",
+	"rt_read_stdin",
+	// String access
+	"rt_string_ptr",
+	"rt_string_len",
+	"rt_string_from_bytes",
+	// High-level I/O
+	"readline",
 	"next",
 	"await",
 	"__abs",
@@ -42,11 +51,15 @@ var intrinsicAllowedNamesList = []string{
 	"__not",
 	"__min_value",
 	"__max_value",
+	"__len",
 	"__to",
 	"__is",
 	"__heir",
 	"exit",
 	"default",
+	// Type introspection
+	"size_of",
+	"align_of",
 	// Concurrency primitives (Mutex, RwLock, Condition, Semaphore)
 	"new",
 	"lock",

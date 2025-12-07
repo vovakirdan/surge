@@ -1,0 +1,28 @@
+// Test size_of and align_of intrinsics
+
+type Point = {
+    x: int,
+    y: int,
+}
+
+fn test_size_of() {
+    let int_size: uint = size_of::<int>();
+    let uint_size: uint = size_of::<uint>();
+    let float_size: uint = size_of::<float>();
+    let bool_size: uint = size_of::<bool>();
+    let point_size: uint = size_of::<Point>();
+}
+
+fn test_align_of() {
+    let int_align: uint = align_of::<int>();
+    let uint_align: uint = align_of::<uint>();
+    let float_align: uint = align_of::<float>();
+    let bool_align: uint = align_of::<bool>();
+    let point_align: uint = align_of::<Point>();
+}
+
+@entrypoint
+fn main() {
+    test_size_of();
+    test_align_of();
+}

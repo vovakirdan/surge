@@ -1,0 +1,37 @@
+prelude_len.sg (span: 8:1-19:1)
+└─ Item[0]: Fn (span: 8:1-18:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 9:11-18:2)
+         ├─ Stmt[0]: Let (span: 12:5-12:20)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#1: "test"
+         ├─ Stmt[1]: Let (span: 13:5-13:24)
+         │  ├─ Name: len_s
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: len(s)
+         ├─ Stmt[2]: Let (span: 14:5-14:37)
+         │  ├─ Name: arr
+         │  ├─ Mutable: false
+         │  ├─ Type: Array<int>
+         │  └─ Value: expr#8: <ExprKind(8)>
+         ├─ Stmt[3]: Let (span: 15:5-15:28)
+         │  ├─ Name: len_arr
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#11: len(arr)
+         ├─ Stmt[4]: Let (span: 16:5-16:51)
+         │  ├─ Name: arr_fixed
+         │  ├─ Mutable: false
+         │  ├─ Type: ArrayFixed<int, 3>
+         │  └─ Value: expr#15: <ExprKind(8)>
+         └─ Stmt[5]: Let (span: 17:5-17:40)
+            ├─ Name: len_arr_fixed
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#18: len(arr_fixed)

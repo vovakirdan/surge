@@ -1,0 +1,80 @@
+prelude_size.sg (span: 3:1-29:1)
+├─ Item[0]: Type (span: 3:1-6:2)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+├─ Item[1]: Fn (span: 8:1-14:2)
+│  ├─ Name: test_size_of
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:19-14:2)
+│        ├─ Stmt[0]: Let (span: 9:5-9:43)
+│        │  ├─ Name: int_size
+│        │  ├─ Mutable: false
+│        │  ├─ Type: uint
+│        │  └─ Value: expr#2: size_of()
+│        ├─ Stmt[1]: Let (span: 10:5-10:45)
+│        │  ├─ Name: uint_size
+│        │  ├─ Mutable: false
+│        │  ├─ Type: uint
+│        │  └─ Value: expr#4: size_of()
+│        ├─ Stmt[2]: Let (span: 11:5-11:47)
+│        │  ├─ Name: float_size
+│        │  ├─ Mutable: false
+│        │  ├─ Type: uint
+│        │  └─ Value: expr#6: size_of()
+│        ├─ Stmt[3]: Let (span: 12:5-12:45)
+│        │  ├─ Name: bool_size
+│        │  ├─ Mutable: false
+│        │  ├─ Type: uint
+│        │  └─ Value: expr#8: size_of()
+│        └─ Stmt[4]: Let (span: 13:5-13:47)
+│           ├─ Name: point_size
+│           ├─ Mutable: false
+│           ├─ Type: uint
+│           └─ Value: expr#10: size_of()
+├─ Item[2]: Fn (span: 16:1-22:2)
+│  ├─ Name: test_align_of
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 16:20-22:2)
+│        ├─ Stmt[0]: Let (span: 17:5-17:45)
+│        │  ├─ Name: int_align
+│        │  ├─ Mutable: false
+│        │  ├─ Type: uint
+│        │  └─ Value: expr#12: align_of()
+│        ├─ Stmt[1]: Let (span: 18:5-18:47)
+│        │  ├─ Name: uint_align
+│        │  ├─ Mutable: false
+│        │  ├─ Type: uint
+│        │  └─ Value: expr#14: align_of()
+│        ├─ Stmt[2]: Let (span: 19:5-19:49)
+│        │  ├─ Name: float_align
+│        │  ├─ Mutable: false
+│        │  ├─ Type: uint
+│        │  └─ Value: expr#16: align_of()
+│        ├─ Stmt[3]: Let (span: 20:5-20:47)
+│        │  ├─ Name: bool_align
+│        │  ├─ Mutable: false
+│        │  ├─ Type: uint
+│        │  └─ Value: expr#18: align_of()
+│        └─ Stmt[4]: Let (span: 21:5-21:49)
+│           ├─ Name: point_align
+│           ├─ Mutable: false
+│           ├─ Type: uint
+│           └─ Value: expr#20: align_of()
+└─ Item[3]: Fn (span: 24:1-28:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 25:11-28:2)
+         ├─ Stmt[0]: Expr (span: 26:5-26:20)
+         │  └─ Expr: expr#22: test_size_of()
+         └─ Stmt[1]: Expr (span: 27:5-27:21)
+            └─ Expr: expr#24: test_align_of()

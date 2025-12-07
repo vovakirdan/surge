@@ -2,9 +2,6 @@ import scripts::{alpha, beta};
 import bar::hello;
 import point;
 
-// stub for test
-fn print(s: string) {}
-
 @entrypoint
 fn main() {
     print(alpha());
