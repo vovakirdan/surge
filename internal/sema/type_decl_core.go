@@ -39,6 +39,8 @@ func (tc *typeChecker) registerTypeDecls(file *ast.File) {
 				typeID = tc.types.RegisterAlias(typeItem.Name, typeItem.Span)
 			case ast.TypeDeclUnion:
 				typeID = tc.types.RegisterUnion(typeItem.Name, typeItem.Span)
+			case ast.TypeDeclEnum:
+				typeID = tc.types.RegisterEnum(typeItem.Name, typeItem.Span)
 			default:
 				continue
 			}
@@ -83,6 +85,8 @@ func (tc *typeChecker) populateTypeDecls(file *ast.File) {
 			tc.populateAliasType(itemID, typeItem, typeID)
 		case ast.TypeDeclUnion:
 			tc.populateUnionType(itemID, typeItem, typeID)
+		case ast.TypeDeclEnum:
+			tc.populateEnumType(itemID, typeItem, typeID)
 		}
 	}
 }

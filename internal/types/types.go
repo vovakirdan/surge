@@ -29,6 +29,7 @@ const (
 	KindStruct
 	KindAlias
 	KindUnion
+	KindEnum
 	KindTuple
 	KindFn
 )
@@ -69,6 +70,8 @@ func (k Kind) String() string {
 		return "alias"
 	case KindUnion:
 		return "union"
+	case KindEnum:
+		return "enum"
 	case KindTuple:
 		return "tuple"
 	case KindFn:
