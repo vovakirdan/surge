@@ -1,0 +1,16 @@
+enum_explicit_values.sg (span: 3:1-13:1)
+├─ Item[0]: Type (span: 3:1-8:2)
+│  ├─ Name: HttpCode
+│  ├─ Kind: TypeDeclKind(3)
+│  └─ Visibility: private
+└─ Item[1]: Fn (span: 10:1-12:2)
+   ├─ Name: test
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:11-12:2)
+         └─ Stmt[0]: Let (span: 11:5-11:40)
+            ├─ Name: code
+            ├─ Mutable: false
+            ├─ Type: int
+            └─ Value: expr#6: HttpCode.NotFound

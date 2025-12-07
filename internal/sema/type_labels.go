@@ -247,6 +247,17 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 				return symbols.TypeKey(name)
 			}
 		}
+	case types.KindTuple:
+		if info, ok := tc.types.TupleInfo(id); ok && info != nil {
+			elems := make([]string, 0, len(info.Elems))
+			for _, e := range info.Elems {
+				if key := tc.typeKeyForType(e); key != "" {
+					elems = append(elems, string(key))
+				}
+			}
+			return symbols.TypeKey("(" + strings.Join(elems, ",") + ")")
+		}
+		return symbols.TypeKey("()")
 	default:
 		return ""
 	}
@@ -286,6 +297,25 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 			}
 			return tc.instantiateArrayType(innerType)
 		}
+	}
+	if strings.HasPrefix(s, "(") && strings.HasSuffix(s, ")") {
+		inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(s, "("), ")"))
+		if inner == "" {
+			return tc.types.Builtins().Unit
+		}
+		parts := splitTopLevel(inner)
+		elems := make([]types.TypeID, 0, len(parts))
+		for _, part := range parts {
+			elem := tc.typeFromKey(symbols.TypeKey(part))
+			if elem == types.NoTypeID {
+				return types.NoTypeID
+			}
+			elems = append(elems, elem)
+		}
+		if len(elems) == 0 {
+			return tc.types.Builtins().Unit
+		}
+		return tc.types.RegisterTuple(elems)
 	}
 	switch {
 	case strings.HasPrefix(s, "&mut "):

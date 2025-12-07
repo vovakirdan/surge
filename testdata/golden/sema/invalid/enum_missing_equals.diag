@@ -1,0 +1,1 @@
+error SYN2018 testdata/golden/sema/invalid/enum_missing_equals.sg:3:11 expected '=' after enum name

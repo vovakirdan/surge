@@ -1,0 +1,12 @@
+// ERROR: @nosend type cannot be sent to spawned task
+
+@nosend
+pub type FileHandle = {
+    fd: int,
+};
+
+pub fn spawn_with_nosend() -> Task<int> {
+    let handle: FileHandle = { fd: 42 };
+    // ERROR SEM3086: cannot send 'handle' of @nosend type 'FileHandle' to spawned task
+    return spawn handle.fd;
+}

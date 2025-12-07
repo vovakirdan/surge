@@ -1,0 +1,9 @@
+colors.sg (span: 2:1-15:1)
+├─ Item[0]: Type (span: 4:1-8:2)
+│  ├─ Name: Color
+│  ├─ Kind: TypeDeclKind(3)
+│  └─ Visibility: public
+└─ Item[1]: Type (span: 10:1-14:2)
+   ├─ Name: Status
+   ├─ Kind: TypeDeclKind(3)
+   └─ Visibility: public

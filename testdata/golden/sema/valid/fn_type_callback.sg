@@ -1,0 +1,9 @@
+// scenario: function type as parameter
+fn accepts_mapper(arr: int[], mapper: fn(int) -> int) {
+    // Function type parameter declaration
+    let copy: fn(int) -> int = mapper;
+}
+
+fn add_one(x: int) -> int {
+    return x + 1;
+}

@@ -1,0 +1,4 @@
+// scenario: ternary with nothing in one branch
+fn with_nothing(flag: bool) -> int? {
+    return flag ? Some(42) : nothing;
+}

@@ -14,6 +14,7 @@ import (
 )
 
 type callArg struct {
+	name      source.StringID // parameter name if named argument
 	ty        types.TypeID
 	isLiteral bool
 	expr      ast.ExprID
@@ -38,13 +39,14 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 	tc.typeExpr(call.Target)
 	args := make([]callArg, 0, len(call.Args))
 	for _, arg := range call.Args {
-		argTy := tc.typeExpr(arg)
+		argTy := tc.typeExpr(arg.Value)
 		args = append(args, callArg{
+			name:      arg.Name,
 			ty:        argTy,
-			isLiteral: tc.isLiteralExpr(arg),
-			expr:      arg,
+			isLiteral: tc.isLiteralExpr(arg.Value),
+			expr:      arg.Value,
 		})
-		tc.observeMove(arg, tc.exprSpan(arg))
+		tc.observeMove(arg.Value, tc.exprSpan(arg.Value))
 	}
 	if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
 		if module := tc.moduleSymbolForExpr(member.Target); module != nil {
@@ -64,10 +66,22 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 	if traceSpan != nil {
 		traceSpan.WithExtra("candidates", fmt.Sprintf("%d", len(candidates)))
 	}
+	displayName := name
+	if displayName == "" {
+		displayName = "_"
+	}
 	if len(candidates) == 0 {
 		if symID := tc.symbolForExpr(call.Target); symID.IsValid() {
-			if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolFunction {
-				candidates = append(candidates, symID)
+			if sym := tc.symbolFromID(symID); sym != nil {
+				switch sym.Kind {
+				case symbols.SymbolFunction:
+					candidates = append(candidates, symID)
+				case symbols.SymbolLet, symbols.SymbolParam:
+					varType := tc.bindingType(symID)
+					if fnInfo, found := tc.types.FnInfo(varType); found {
+						return tc.callFunctionVariable(fnInfo, args, span)
+					}
+				}
 			}
 		}
 	}
@@ -79,11 +93,6 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 		return types.NoTypeID
 	}
 	typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)
-
-	displayName := name
-	if displayName == "" {
-		displayName = "_"
-	}
 
 	bestSym, bestType, bestArgs, ambiguous, ok := tc.selectBestCandidate(candidates, args, typeArgs, false)
 	if ambiguous {
@@ -125,6 +134,31 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 
 	tc.report(diag.SemaNoOverload, span, "no matching overload for %s", displayName)
 	return types.NoTypeID
+}
+
+// callFunctionVariable validates and resolves a call to a function-typed variable.
+// Returns the result type or NoTypeID if the call is invalid.
+func (tc *typeChecker) callFunctionVariable(fnInfo *types.FnInfo, args []callArg, span source.Span) types.TypeID {
+	// Check argument count
+	if len(args) != len(fnInfo.Params) {
+		tc.report(diag.SemaNoOverload, span,
+			"function expects %d argument(s), got %d",
+			len(fnInfo.Params), len(args))
+		return types.NoTypeID
+	}
+
+	// Check each argument type
+	for i, arg := range args {
+		expectedType := fnInfo.Params[i]
+		if !tc.typesAssignable(expectedType, arg.ty, true) {
+			tc.report(diag.SemaTypeMismatch, tc.exprSpan(arg.expr),
+				"expected %s, got %s",
+				tc.typeLabel(expectedType), tc.typeLabel(arg.ty))
+			return types.NoTypeID
+		}
+	}
+
+	return fnInfo.Result
 }
 
 func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.SymbolID {
@@ -229,6 +263,12 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 			return res
 		}
 	}
+	// Get actual receiver type key once for compatibility checks
+	actualRecvKey := tc.typeKeyForType(recv)
+	if actualRecvKey == "" {
+		tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
+		return types.NoTypeID
+	}
 	for _, recvCand := range tc.typeKeyCandidates(recv) {
 		if recvCand.key == "" {
 			continue
@@ -238,21 +278,24 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 			if sig == nil {
 				continue
 			}
-			if len(sig.Params) == 0 {
-				// static/associated method: allowed only when invoked on a type
+			switch {
+			case len(sig.Params) == 0:
+				// static/associated method without explicit params
 				if !staticReceiver || len(args) != 0 {
 					continue
 				}
-			} else {
-				if !typeKeyEqual(sig.Params[0], recvCand.key) {
-					continue
-				}
+			case tc.selfParamCompatible(recv, sig.Params[0], recvCand.key):
+				// instance/associated method with compatible self (handles implicit borrow)
 				if len(sig.Params)-1 != len(args) {
 					continue
 				}
 				if !tc.methodParamsMatch(sig.Params[1:], args) {
 					continue
 				}
+			case staticReceiver && tc.methodParamsMatch(sig.Params, args):
+				// static method defined in extern block without self param
+			default:
+				continue
 			}
 			res := tc.typeFromKey(sig.Result)
 			return tc.adjustAliasUnaryResult(res, recvCand)
@@ -283,5 +326,77 @@ func (tc *typeChecker) methodParamMatches(expected symbols.TypeKey, arg types.Ty
 			return true
 		}
 	}
+	return false
+}
+
+// selfParamCompatible checks if receiver type can call method with given self parameter.
+// candidateKey is the type key of the candidate we're checking (may be generic like "Option<T>")
+// Implements implicit borrow rules from LANGUAGE.md §8.
+// Note: Mutability checks for implicit &mut borrow are deferred to borrow-checker.
+func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidateKey symbols.TypeKey) bool {
+	// Get actual receiver key for compatibility checks
+	actualRecvKey := tc.typeKeyForType(recv)
+
+	// Exact match with actual receiver key
+	if typeKeyEqual(selfKey, actualRecvKey) {
+		return true
+	}
+
+	selfStr := string(selfKey)
+	recvStr := string(actualRecvKey)
+
+	// Get receiver type info
+	recvTT, ok := tc.types.Lookup(tc.resolveAlias(recv))
+	if !ok {
+		return false
+	}
+
+	// For non-reference/non-pointer types: if self matches candidate key, it's compatible
+	// This handles generics (Option<int> calling self: Option<T> via candidate Option<T>)
+	// and value types calling methods on their base candidate
+	if recvTT.Kind != types.KindReference && recvTT.Kind != types.KindPointer {
+		if typeKeyEqual(selfKey, candidateKey) {
+			return true
+		}
+	}
+
+	// Case: receiver is value T or own T, self is &T or &mut T (implicit borrow)
+	// Borrow-checker will verify mut binding for &mut case
+	if recvTT.Kind != types.KindReference && recvTT.Kind != types.KindPointer {
+		if strings.HasPrefix(selfStr, "&") {
+			innerSelf := strings.TrimPrefix(selfStr, "&mut ")
+			if innerSelf == selfStr {
+				innerSelf = strings.TrimPrefix(selfStr, "&")
+			}
+			innerSelf = strings.TrimSpace(innerSelf)
+			// Check against both candidate key and actual recv key
+			return typeKeyEqual(candidateKey, symbols.TypeKey(innerSelf)) || recvStr == innerSelf
+		}
+	}
+
+	// Case: receiver is &mut T, self is &T (reborrow as shared)
+	if recvTT.Kind == types.KindReference && recvTT.Mutable {
+		if strings.HasPrefix(selfStr, "&") && !strings.HasPrefix(selfStr, "&mut ") {
+			innerSelf := strings.TrimSpace(strings.TrimPrefix(selfStr, "&"))
+			innerRecv := strings.TrimSpace(strings.TrimPrefix(recvStr, "&mut "))
+			return innerSelf == innerRecv
+		}
+	}
+
+	// Case: receiver is own T, self is T, &T, or &mut T
+	if recvTT.Kind == types.KindOwn {
+		innerRecv := tc.typeKeyForType(recvTT.Elem)
+		if typeKeyEqual(selfKey, innerRecv) {
+			return true // self: T, receiver: own T -> move
+		}
+		if strings.HasPrefix(selfStr, "&") {
+			innerSelf := strings.TrimPrefix(selfStr, "&mut ")
+			if innerSelf == selfStr {
+				innerSelf = strings.TrimPrefix(selfStr, "&")
+			}
+			return strings.TrimSpace(innerSelf) == string(innerRecv)
+		}
+	}
+
 	return false
 }

@@ -1,0 +1,12 @@
+// Enum with trailing comma
+
+enum Color = {
+    Red,
+    Green,
+    Blue,
+}
+
+enum Status = {
+    Ok,
+    Error,
+}

@@ -38,7 +38,7 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 			if i < len(argTypes) {
 				argType = argTypes[i]
 			}
-			tc.inferComparePatternTypes(arg, argType)
+			tc.inferComparePatternTypes(arg.Value, argType)
 		}
 	case ast.ExprTuple:
 		tuple, _ := tc.builder.Exprs.Tuple(pattern)

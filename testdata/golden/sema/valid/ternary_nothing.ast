@@ -1,0 +1,9 @@
+ternary_nothing.sg (span: 2:1-5:1)
+└─ Item[0]: Fn (span: 2:1-4:2)
+   ├─ Name: with_nothing
+   ├─ Params: (flag: bool)
+   ├─ Return: <unknown-type>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:37-4:2)
+         └─ Stmt[0]: Return (span: 3:5-3:38)
+            └─ Expr: expr#6: flag ? Some(42) : nothing

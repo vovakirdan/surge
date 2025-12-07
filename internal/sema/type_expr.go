@@ -7,6 +7,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/trace"
 	"surge/internal/types"
@@ -97,6 +98,18 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		if data, ok := tc.builder.Exprs.Binary(id); ok && data != nil {
 			ty = tc.typeBinary(expr.Span, data)
 		}
+	case ast.ExprTernary:
+		if tern, ok := tc.builder.Exprs.Ternary(id); ok && tern != nil {
+			// 1. Validate condition is boolean
+			tc.ensureBoolContext(tern.Cond, tc.exprSpan(tern.Cond))
+
+			// 2. Type both branches
+			trueType := tc.typeExpr(tern.TrueExpr)
+			falseType := tc.typeExpr(tern.FalseExpr)
+
+			// 3. Unify branch types
+			ty = tc.unifyTernaryBranches(trueType, falseType, expr.Span)
+		}
 	case ast.ExprCall:
 		if call, ok := tc.builder.Exprs.Call(id); ok && call != nil {
 			if member, okMem := tc.builder.Exprs.Member(call.Target); okMem && member != nil {
@@ -112,8 +125,8 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					}
 					argTypes := make([]types.TypeID, 0, len(call.Args))
 					for _, arg := range call.Args {
-						argTypes = append(argTypes, tc.typeExpr(arg))
-						tc.observeMove(arg, tc.exprSpan(arg))
+						argTypes = append(argTypes, tc.typeExpr(arg.Value))
+						tc.observeMove(arg.Value, tc.exprSpan(arg.Value))
 					}
 					ty = tc.methodResultType(member, receiverType, argTypes, expr.Span, receiverIsType)
 					break
@@ -147,8 +160,20 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprTuple:
 		if tuple, ok := tc.builder.Exprs.Tuple(id); ok && tuple != nil {
+			elems := make([]types.TypeID, 0, len(tuple.Elements))
+			allValid := true
 			for _, elem := range tuple.Elements {
-				tc.typeExpr(elem)
+				elemType := tc.typeExpr(elem)
+				if elemType == types.NoTypeID {
+					allValid = false
+				}
+				elems = append(elems, elemType)
+			}
+			if allValid && len(elems) > 0 {
+				ty = tc.types.RegisterTuple(elems)
+			} else if len(elems) == 0 {
+				// Empty tuple () is unit type
+				ty = tc.types.Builtins().Unit
 			}
 		}
 	case ast.ExprIndex:
@@ -165,10 +190,18 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		if member, ok := tc.builder.Exprs.Member(id); ok && member != nil {
 			if module := tc.moduleSymbolForExpr(member.Target); module != nil {
 				ty = tc.typeOfModuleMember(module, member.Field, expr.Span)
+			} else if enumType := tc.enumTypeForExpr(member.Target); enumType != types.NoTypeID {
+				// Type::Variant access for enum
+				ty = tc.typeOfEnumVariant(enumType, member.Field, expr.Span)
 			} else {
 				targetType := tc.typeExpr(member.Target)
 				ty = tc.memberResultType(targetType, member.Field, expr.Span)
 			}
+		}
+	case ast.ExprTupleIndex:
+		if data, ok := tc.builder.Exprs.TupleIndex(id); ok && data != nil {
+			targetType := tc.typeExpr(data.Target)
+			ty = tc.tupleIndexResultType(targetType, data.Index, tc.exprSpan(id))
 		}
 	case ast.ExprAwait:
 		if awaitData, ok := tc.builder.Exprs.Await(id); ok && awaitData != nil {
@@ -223,23 +256,22 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					tc.ensureBoolContext(arm.Guard, tc.exprSpan(arm.Guard))
 				}
 				armResult := tc.typeExpr(arm.Result)
-				if armResult == types.NoTypeID {
-					continue
-				}
-				switch {
-				case resultType == types.NoTypeID:
-					resultType = armResult
-				case nothingType != types.NoTypeID && resultType == nothingType:
-					resultType = armResult
-				case nothingType != types.NoTypeID && armResult == nothingType:
-					// nothing can flow into any other arm result
-				case tc.typesAssignable(resultType, armResult, true):
-					// arm result fits the current inferred type
-				case tc.typesAssignable(armResult, resultType, true):
-					// widen the result type to the new arm
-					resultType = armResult
-				default:
-					tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Result), "compare arm type mismatch: expected %s, got %s", tc.typeLabel(resultType), tc.typeLabel(armResult))
+				if armResult != types.NoTypeID {
+					switch {
+					case resultType == types.NoTypeID:
+						resultType = armResult
+					case nothingType != types.NoTypeID && resultType == nothingType:
+						resultType = armResult
+					case nothingType != types.NoTypeID && armResult == nothingType:
+						// nothing can flow into any other arm result
+					case tc.typesAssignable(resultType, armResult, true):
+						// arm result fits the current inferred type
+					case tc.typesAssignable(armResult, resultType, true):
+						// widen the result type to the new arm
+						resultType = armResult
+					default:
+						tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Result), "compare arm type mismatch: expected %s, got %s", tc.typeLabel(resultType), tc.typeLabel(armResult))
+					}
 				}
 				if len(remainingMembers) > 0 {
 					remainingMembers = tc.consumeCompareMembers(remainingMembers, arm)
@@ -318,4 +350,33 @@ func (tc *typeChecker) memberReceiverType(target ast.ExprID) (types.TypeID, bool
 		return t, true
 	}
 	return tc.typeExpr(target), false
+}
+
+// unifyTernaryBranches determines the result type of a ternary expression
+// by unifying the types of the true and false branches.
+func (tc *typeChecker) unifyTernaryBranches(trueType, falseType types.TypeID, span source.Span) types.TypeID {
+	if trueType == types.NoTypeID || falseType == types.NoTypeID {
+		if trueType != types.NoTypeID {
+			return trueType
+		}
+		return falseType
+	}
+
+	nothingType := tc.types.Builtins().Nothing
+
+	switch {
+	case trueType == nothingType:
+		return falseType
+	case falseType == nothingType:
+		return trueType
+	case tc.typesAssignable(trueType, falseType, true):
+		return trueType
+	case tc.typesAssignable(falseType, trueType, true):
+		return falseType
+	default:
+		tc.report(diag.SemaTypeMismatch, span,
+			"ternary branches have incompatible types: %s and %s",
+			tc.typeLabel(trueType), tc.typeLabel(falseType))
+		return types.NoTypeID
+	}
 }

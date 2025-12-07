@@ -1,0 +1,43 @@
+  1: At              "@" at 3:1-3:2 (leading: LineComment, Newline)
+  2: Ident           "nosend" at 3:2-3:8
+  3: KwPub           "pub" at 4:1-4:4 (leading: Newline)
+  4: KwType          "type" at 4:5-4:9 (leading: Space)
+  5: Ident           "FileHandle" at 4:10-4:20 (leading: Space)
+  6: Assign          "=" at 4:21-4:22 (leading: Space)
+  7: LBrace          "{" at 4:23-4:24 (leading: Space)
+  8: Ident           "fd" at 5:5-5:7 (leading: Newline, Space)
+  9: Colon           ":" at 5:7-5:8
+ 10: Ident           "int" at 5:9-5:12 (leading: Space)
+ 11: Comma           "," at 5:12-5:13
+ 12: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 13: Semicolon       ";" at 6:2-6:3
+ 14: KwPub           "pub" at 8:1-8:4 (leading: Newline)
+ 15: KwFn            "fn" at 8:5-8:7 (leading: Space)
+ 16: Ident           "spawn_with_nosend" at 8:8-8:25 (leading: Space)
+ 17: LParen          "(" at 8:25-8:26
+ 18: RParen          ")" at 8:26-8:27
+ 19: Arrow           "->" at 8:28-8:30 (leading: Space)
+ 20: Ident           "Task" at 8:31-8:35 (leading: Space)
+ 21: Lt              "<" at 8:35-8:36
+ 22: Ident           "int" at 8:36-8:39
+ 23: Gt              ">" at 8:39-8:40
+ 24: LBrace          "{" at 8:41-8:42 (leading: Space)
+ 25: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 26: Ident           "handle" at 9:9-9:15 (leading: Space)
+ 27: Colon           ":" at 9:15-9:16
+ 28: Ident           "FileHandle" at 9:17-9:27 (leading: Space)
+ 29: Assign          "=" at 9:28-9:29 (leading: Space)
+ 30: LBrace          "{" at 9:30-9:31 (leading: Space)
+ 31: Ident           "fd" at 9:32-9:34 (leading: Space)
+ 32: Colon           ":" at 9:34-9:35
+ 33: IntLit          "42" at 9:36-9:38 (leading: Space)
+ 34: RBrace          "}" at 9:39-9:40 (leading: Space)
+ 35: Semicolon       ";" at 9:40-9:41
+ 36: KwReturn        "return" at 11:5-11:11 (leading: Newline, Space, LineComment, Newline, Space)
+ 37: KwSpawn         "spawn" at 11:12-11:17 (leading: Space)
+ 38: Ident           "handle" at 11:18-11:24 (leading: Space)
+ 39: Dot             "." at 11:24-11:25
+ 40: Ident           "fd" at 11:25-11:27
+ 41: Semicolon       ";" at 11:27-11:28
+ 42: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 43: EOF             at 13:1-13:1

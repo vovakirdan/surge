@@ -1,0 +1,20 @@
+fn test_range() {
+    let r = 0..10;           // Should be Range<int>
+    let ri = 0..=10;         // Should be Range<int> (inclusive)
+
+    // For-in with range
+    for i in 0..10 {
+        let x: int = i;      // Should type-check
+    }
+
+    // For-in with array
+    let arr: int[] = [1, 2, 3];
+    for elem in arr {
+        let y: int = elem;   // Should type-check
+    }
+
+    // With explicit type annotation
+    for x: int in 0..5 {
+        let z: int = x;
+    }
+}

@@ -41,7 +41,7 @@ Block (span: 16:12-19:6)
 │              │  ├─ Name: e
 │              │  ├─ Mutable: false
 │              │  ├─ Type: Error
-│              │  └─ Value: expr#13: <ExprKind(17)>
+│              │  └─ Value: expr#13: <ExprKind(18)>
 │              └─ Stmt[1]: Return (span: 18:9-18:18)
 │                 └─ Expr: expr#14: e
 ├─ Item[4]: Fn (span: 22:1-29:2)
@@ -62,7 +62,7 @@ Block (span: 25:12-28:6)
 │              │  ├─ Name: e
 │              │  ├─ Mutable: false
 │              │  ├─ Type: Error
-│              │  └─ Value: expr#24: <ExprKind(17)>
+│              │  └─ Value: expr#24: <ExprKind(18)>
 │              └─ Stmt[1]: Return (span: 27:9-27:18)
 │                 └─ Expr: expr#25: e
 └─ Item[5]: Fn (span: 31:1-38:2)
@@ -83,6 +83,6 @@ Block (span: 34:12-37:6)
                │  ├─ Name: e
                │  ├─ Mutable: false
                │  ├─ Type: Error
-               │  └─ Value: expr#35: <ExprKind(17)>
+               │  └─ Value: expr#35: <ExprKind(18)>
                └─ Stmt[1]: Return (span: 36:9-36:18)
                   └─ Expr: expr#36: e

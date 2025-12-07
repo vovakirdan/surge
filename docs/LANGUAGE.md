@@ -189,14 +189,50 @@ Generic monomorphization and instantiation are described in §16.1.
 
 ### 2.5. User-defined Types
 
-* **Type alias to primitive:** `type MyInt = int;` creates a distinct nominal type that inherits semantics of `int` but can override magic methods via `extern<MyInt>`. (Different from a pure alias.)
+* **Type alias (single target):** `type MyInt = int;` creates a distinct nominal type that inherits semantics of `int` but can override magic methods via `extern<MyInt>`. Multi-member aliases like `type A = T1 | T2` are **not supported**; use tagged unions instead (§2.8).
 * **Struct:** `type Person = { age:int, name:string, @readonly weight:float }`.
 
   * Fields are immutable unless variable is `mut`. `@readonly` forbids writes even through `mut` bindings.
   * Struct literals may specify the type inline: `let p = Person { age: 25, name: "Alex" };`. The parser only treats `TypeName { ... }` as a typed literal when `TypeName` follows the CamelCase convention so that `while ready { ... }` still parses as a control-flow block.
   * When the type is known (either via `TypeName { ... }` or an explicit annotation on the binding), the short `{expr1, expr2}` form is allowed; expressions are matched to fields in declaration order. Wrap identifier expressions in parentheses (`{(ageVar), computeName()}`) when using positional literals so they are not mistaken for field names.
 * **Literal enums:** `type Color = "black" | "white";` Only the listed literals are allowed values.
-* **Type alias:** `type Number = int | float;` a type that admits any member type; overload resolution uses the best matching member (§8).
+* **Enums:** Named constants with explicit or auto-incremented values.
+
+```sg
+// Integer enum with auto-increment
+enum Color = {
+    Red,      // 0
+    Green,    // 1
+    Blue      // 2
+}
+
+// Integer enum with explicit values
+enum HttpStatus: int = {
+    Ok = 200,
+    NotFound = 404,
+    ServerError = 500
+}
+
+// String enum (requires explicit values)
+enum Status: string = {
+    Active = "active",
+    Inactive = "inactive"
+}
+
+// Usage: qualified names with Type::Variant syntax
+let c: int = Color::Red;
+let status: string = Status::Active;
+
+// Enums can be imported from modules
+import ./mymodule::HttpStatus;
+let code: int = HttpStatus::Ok;
+```
+
+  * Enum variants are accessed via qualified names using `EnumName::VariantName` syntax.
+  * Integer enums support auto-increment (starting from 0) or explicit values.
+  * String enums require explicit values for all variants.
+  * Enum types can be imported from modules and used cross-module.
+  * Enums are lowered to type aliases and internal constants.
 
 #### Struct extension
 
@@ -250,23 +286,19 @@ tag Pair<A, B>(A, B);
 
 Tags participate in alias unions as variants. They may declare generic parameters ahead of the payload list: `tag Some<T>(T);` introduces a tag family parameterised by `T`.
 
-### 2.8. Alias unions
+### 2.8. Tagged unions (aliases)
 
-`type` can describe an alias that builds sum types with or without tags:
+`type` can describe a sum type **only with tagged members**. Plain untagged unions like `type A = T1 | T2` are **not supported**.
 
 ```sg
-// Untagged members (minimal surface)
-type Number = int | float
-type MaybeInt = int | nothing
-
-// Tagged members (recommended for public APIs)
 tag Left(L); tag Right(R);
 type Either<L, R> = Left(L) | Right(R)
 ```
 
-- Untagged unions rely on runtime type tests: `compare v { x if x is int => ... }`.
-- Tagged unions are parsed and lowered into `TypeUnionMemberTag` entries. Exhaustiveness checking for `compare` arms is not implemented yet in sema; treat it as planned validation.
-- Mixing many untagged structural types may still be ambiguous at runtime; prefer tags for evolving APIs and stability.
+Rules:
+- Every member must be a tag constructor or `nothing`.
+- Exhaustiveness checking for `compare` arms is planned but not yet enforced; treat it as a future validation.
+- Use tags for stable, extensible APIs; untagged structural mixes are not allowed.
 
 ### 2.9. Option and Erring via tags (sugar `T?` / `T!`)
 
@@ -313,7 +345,82 @@ Rules:
 - `nothing` remains the shared absence literal for both Option and other contexts (§2.6). Exhaustiveness checking for tagged unions is planned but not wired up yet.
 - `panic(msg)` materialises `Error{ message: msg, code: 1 }` and calls intrinsic `exit(Error)`.
 
-### 2.10. Memory Management Model
+### 2.10. Tuple Types
+
+**What:** Tuples are fixed-size heterogeneous collections of values, written as `(T1, T2, ...)`. They allow grouping multiple values together without defining a custom struct.
+
+**Syntax:**
+```surge
+// Type annotations
+fn coordinates() -> (int, int) {
+    return (10, 20);
+}
+
+// Multiple return values
+fn divmod(a: int, b: int) -> (int, int) {
+    return (a / b, a % b);
+}
+
+// Let bindings
+let pair: (string, bool) = ("hello", true);
+
+// Nested tuples
+let nested: ((int, int), string) = ((1, 2), "point");
+
+// Single-element tuple (distinct from grouping)
+let single: (int,) = (42,);
+```
+
+**Rules:**
+- Empty tuple `()` is equivalent to the `unit` type (no-value return)
+- Single-element tuple `(T,)` requires trailing comma to distinguish from grouping `(T)`
+- Tuple elements can be any type, including other tuples, structs, or generic types
+- Tuples are structural types: two tuples with the same element types in the same order are the same type
+- Assignment requires exact type match: arity and element types must match
+
+**Element Access:**
+Tuple elements can be accessed using numeric indices:
+```surge
+let pair = (1, "hello");
+let first = pair.0;   // int: 1
+let second = pair.1;  // string: "hello"
+
+// Nested tuple access
+let nested = ((1, 2), 3);
+let value = nested.0.1;  // int: 2
+```
+
+**Destructuring:**
+Tuples can be destructured in let bindings:
+```surge
+let pair = (1, "hello");
+let (x, y) = pair;  // x: int, y: string
+
+// Inline destructuring
+let (a, b) = (10, 20);
+```
+
+**Limitations:**
+- Destructuring in compare patterns is limited
+- Use tuples primarily for multiple return values and temporary groupings
+
+**Example:**
+```surge
+fn min_max(a: int, b: int) -> (int, int) {
+    if a < b {
+        return (a, b);
+    } else {
+        return (b, a);
+    }
+}
+
+fn process() {
+    let result: (int, int) = min_max(5, 3);
+    // result is (3, 5)
+}
+```
+
+### 2.11. Memory Management Model
 
 Surge uses **pure ownership** (similar to Rust) for predictable performance:
 
@@ -339,7 +446,7 @@ Surge uses **pure ownership** (similar to Rust) for predictable performance:
 - More explicit lifetime management required
 - Better performance and predictability for target domains
 
-### 2.11. Contracts (structural interfaces) and bounds
+### 2.12. Contracts (structural interfaces) and bounds
 
 **What:** Contracts are structural interfaces that state required fields and method signatures. They are used to constrain generic parameters and to describe APIs types must satisfy. A contract is declared with `contract Name<T, U> { ... }` containing only `field` requirements and `fn` signatures terminated by semicolons—method bodies are forbidden inside contracts (`SynUnexpectedToken`).
 
@@ -430,8 +537,7 @@ Contracts with zero parameters can still be used in short form: `fn tick<T: Cloc
 - Numeric types → `0` / `0.0`; `bool` → `false`; `string` → `""`.
 - Arrays, maps, and other collection literals → empty instance of that container.
 - Structs → every field must have an explicit default; otherwise `let x: Struct;` is rejected (`E_MISSING_FIELD_DEFAULT`).
-- Untagged unions and aliases → declaration without an initializer is rejected unless every member has a well-defined zero/empty default (`E_UNDEFINED_DEFAULT`).
-- Tagged unions (`Option`, `Result`, `Either`, …) → require an explicit initializer (`E_UNDEFINED_DEFAULT`).
+- Tagged unions (`Option`, `Erring`, `Either`, …) → require an explicit initializer (`E_UNDEFINED_DEFAULT`).
 
 Top-level `let` initialization and cycles:
 
@@ -534,7 +640,7 @@ Notes:
 
 - Arms are tried top-to-bottom; the first match wins.
 - `=>` separates pattern from result expression and is only valid within `compare` arms and parallel constructs.
-- Exhaustiveness for tagged unions is planned (compare should cover all declared tags or have `finally`); the current compiler does not enforce this yet. Untagged unions skip this check.
+- Exhaustiveness for tagged unions is planned (compare should cover all declared tags or have `finally`); the current compiler does not enforce this yet. Untagged unions are not supported.
 - If both a tag constructor and a function named `Ident` are in scope, using `Ident(...)` emits `SemaAmbiguousCtorOrFn`.
 
 ---
@@ -717,7 +823,7 @@ extern<Person> {
   // ❌ Errors: E_ILLEGAL_ITEM_IN_EXTERN
   let x = 1;
   type Tmp = { a: int };
-  alias Num = int | float;
+  type Num = int;
 }
 ```
 
@@ -1104,7 +1210,7 @@ Given a call `f(a1, ..., an)` with candidate signatures `Si`:
 
 **Cast operator exclusion:** The `to` operator does **not** participate in overload resolution. Function signature selection happens first, then users may explicitly insert `to` casts as needed. Numeric literal fitting (§7.1) remains a separate rule from explicit casting.
 
-Union alias `type Number = int | float` participates by expanding to candidates for each member type; the best member is chosen.
+Tagged unions are not implicitly expanded by overload resolution; branch explicitly with `compare` on tag payloads.
 
 ### 8.1. Preference of monomorphic overloads
 
@@ -1658,10 +1764,16 @@ extern<MyInt> {
 ```sg
 // Literal enum and union alias
 type Color = "black" | "white";
-type Number = int | float;
+tag IntNum(int); tag FloatNum(float);
+type Number = IntNum(int) | FloatNum(float);
 
 fn show(c: Color) { print(c); }
-fn absn(x: Number) -> Number { return abs(x); }
+fn absn(x: Number) -> Number {
+  return compare x {
+    IntNum(v)   => IntNum(abs(v)),
+    FloatNum(v) => FloatNum(abs(v)),
+  };
+}
 ```
 
 ```sg
@@ -1725,10 +1837,12 @@ let p3 = ({x: 1.0, y: 2.0}: Point2D) to Point3D;
 ```
 
 ```sg
-// Union injection via casting
-type Number = int | float
-let i: int = 42;
-let n: Number = i to Number;  // injection into union
+// Tagged union construction
+tag IntNum(int); tag FloatNum(float);
+type Number = IntNum(int) | FloatNum(float);
+
+let n1: Number = IntNum(42);
+let n2: Number = FloatNum(3.14);
 ```
 
 ```sg
@@ -2357,24 +2471,25 @@ let c = identity(3.14);    // generates identity_float
 
 ### 17.1. Union Types
 
-Union aliases (§2.8) support both untagged and tagged composition. Untagged unions rely on runtime type tests:
+Union aliases (§2.8) use tagged composition only; untagged unions are not supported:
 
 ```sg
-type Number = int | float
+tag IntNum(int); tag FloatNum(float);
+type Number = IntNum(int) | FloatNum(float);
 
 extern<Number> {
   fn __add(a: Number, b: Number) -> Number {
     return compare (a, b) {
-      (x if x is int,   y if y is int)   => (x + y):Number,
-      (x if x is int,   y if y is float) => (x:float + y):Number,
-      (x if x is float, y if y is int)   => (x + y:float):Number,
-      (x if x is float, y if y is float) => (x + y):Number,
+      (IntNum(x),   IntNum(y))   => IntNum(x + y),
+      (IntNum(x),   FloatNum(y)) => FloatNum(x:float + y),
+      (FloatNum(x), IntNum(y))   => FloatNum(x + y:float),
+      (FloatNum(x), FloatNum(y)) => FloatNum(x + y),
     };
   }
 }
 ```
 
-Tagged unions provide exhaustiveness checking and clearer APIs; see §2.7 for constructors and §3.6 for matching rules. If the runtime cannot distinguish untagged members, emit `E_AMBIGUOUS_UNION_MEMBERS`.
+Tagged unions provide clearer APIs and enable exhaustiveness checking; see §2.7 for constructors and §3.6 for matching rules.
 
 ### 17.2. Tuple Types
 
@@ -2455,7 +2570,7 @@ TypeBody   := StructBody | UnionBody | Type
 StructBody := "{" Field ("," Field)* "}"
 Field      := Attr* Ident ":" Type
 UnionBody  := UnionMember ("|" UnionMember)*
-UnionMember:= "nothing" | Ident "(" ParamTypes? ")" | Type
+UnionMember:= "nothing" | Ident "(" ParamTypes? ")"
 ExternBlock:= "extern<" Type ">" Block
 Import     := "import" Path ("::" Ident ("as" Ident)?)? ";"
 Path       := Ident ("/" Ident)*

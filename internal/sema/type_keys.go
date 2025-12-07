@@ -18,6 +18,31 @@ func (tc *typeChecker) typeKeyCandidates(id types.TypeID) []typeKeyCandidate {
 	candidates := []typeKeyCandidate{{key: key, base: id}}
 	candidates = tc.appendFamilyFallback(candidates, id, key, types.NoTypeID)
 
+	// Add base type candidate for references/own types
+	// This allows &Foo to find methods defined in extern<Foo>
+	// Skip for aliases - they're handled separately below with proper alias field
+	if tt, ok := tc.types.Lookup(id); ok && tt.Kind != types.KindAlias {
+		if baseType := tc.valueType(id); baseType != types.NoTypeID && baseType != id {
+			baseKey := tc.typeKeyForType(baseType)
+			if baseKey != "" && baseKey != key {
+				cand := typeKeyCandidate{
+					key:  baseKey,
+					base: baseType,
+				}
+				duplicate := false
+				for _, existing := range candidates {
+					if existing.key == cand.key && existing.base == cand.base {
+						duplicate = true
+						break
+					}
+				}
+				if !duplicate {
+					candidates = append(candidates, cand)
+				}
+			}
+		}
+	}
+
 	// Добавляем generic fallback для типов с аргументами
 	if genericKey := tc.genericKeyForType(id); genericKey != "" {
 		cand := typeKeyCandidate{key: genericKey, base: id}

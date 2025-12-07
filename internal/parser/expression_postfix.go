@@ -7,18 +7,28 @@ import (
 	"surge/internal/token"
 )
 
-// parseCallExpr парсит вызов функции: expr(args...)
+// parseCallExpr парсит вызов функции: expr(args...) с поддержкой именованных аргументов
 func (p *Parser) parseCallExpr(target ast.ExprID, typeArgs []ast.TypeID) (ast.ExprID, bool) {
 	p.advance() // съедаем '('
 
-	var args []ast.ExprID
+	var args []ast.CallArg
 	var commas []source.Span
 	var trailing bool
 
 	// Парсим аргументы
 	if !p.at(token.RParen) {
 		for {
-			arg, ok := p.parseExpr()
+			// Suspend colon-as-cast only when the argument starts with an identifier
+			// so named arguments `foo: value` work without breaking typed literals
+			// like `3:uint` inside calls.
+			suspendCast := p.lx.Peek().Kind == token.Ident
+			if suspendCast {
+				p.suspendColonCast++
+			}
+			argExpr, ok := p.parseExpr()
+			if suspendCast {
+				p.suspendColonCast--
+			}
 			if !ok {
 				// Ошибка парсинга аргумента - восстанавливаемся
 				p.resyncUntil(token.RParen, token.Comma, token.Semicolon, token.LBrace)
@@ -27,14 +37,32 @@ func (p *Parser) parseCallExpr(target ast.ExprID, typeArgs []ast.TypeID) (ast.Ex
 				}
 				return ast.NoExprID, false
 			}
+
+			var argName source.StringID
+			// Check if this is a named argument (ident: value)
+			if p.at(token.Colon) {
+				if ident, isIdent := p.arenas.Exprs.Ident(argExpr); isIdent && ident != nil {
+					argName = ident.Name
+					p.advance() // consume ':'
+					argExpr, ok = p.parseExpr()
+					if !ok {
+						p.resyncUntil(token.RParen, token.Comma, token.Semicolon, token.LBrace)
+						if p.at(token.RParen) {
+							p.advance()
+						}
+						return ast.NoExprID, false
+					}
+				}
+			}
+
 			// Проверяем spread-оператор: expr...
 			if p.at(token.DotDotDot) {
 				spreadTok := p.advance()
-				argSpan := p.arenas.Exprs.Get(arg).Span
-				arg = p.arenas.Exprs.NewSpread(argSpan.Cover(spreadTok.Span), arg)
+				argSpan := p.arenas.Exprs.Get(argExpr).Span
+				argExpr = p.arenas.Exprs.NewSpread(argSpan.Cover(spreadTok.Span), argExpr)
 			}
 
-			args = append(args, arg)
+			args = append(args, ast.CallArg{Name: argName, Value: argExpr})
 
 			if !p.at(token.Comma) {
 				break

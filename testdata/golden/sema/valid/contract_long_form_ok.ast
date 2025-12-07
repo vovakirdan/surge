@@ -35,6 +35,6 @@ contract_long_form_ok.sg (span: 2:1-24:1)
          │  ├─ Name: box
          │  ├─ Mutable: false
          │  ├─ Type: NumberBox
-         │  └─ Value: expr#8: <ExprKind(17)>
+         │  └─ Value: expr#8: <ExprKind(18)>
          └─ Stmt[1]: Return (span: 22:5-22:47)
             └─ Expr: expr#12: apply_swap(box, "ok")

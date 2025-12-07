@@ -42,10 +42,12 @@ const (
 	SynTypeFieldConflict       Code = 2021
 	SynTypeDuplicateMember     Code = 2022
 	SynTypeNotAllowed          Code = 2023
-	SynIllegalItemInExtern     Code = 2024
-	SynVisibilityReduction     Code = 2025
-	SynFatArrowOutsideParallel Code = 2026
-	SynPragmaPosition          Code = 2027
+	SynEnumExpectBody          Code = 2024
+	SynEnumExpectRBrace        Code = 2025
+	SynIllegalItemInExtern     Code = 2026
+	SynVisibilityReduction     Code = 2027
+	SynFatArrowOutsideParallel Code = 2028
+	SynPragmaPosition          Code = 2029
 
 	// import errors & warnings
 	SynInfoImportGroup    Code = 2100
@@ -63,6 +65,7 @@ const (
 	SynExpectExpression   Code = 2203
 	SynExpectColon        Code = 2204
 	SynUnexpectedModifier Code = 2205
+	SynInvalidTupleIndex  Code = 2206
 
 	// Семантические (резервируем)
 	SemaInfo                       Code = 3000
@@ -145,6 +148,31 @@ const (
 	SemaAttrReadonlyWrite        Code = 3075 // Cannot write to @readonly field
 	SemaAttrPureViolation        Code = 3076 // @pure function has side effects
 
+	// Lock analysis and concurrency contracts (3077-3089)
+	SemaLockGuardedByViolation   Code = 3077 // Accessing @guarded_by field without lock
+	SemaLockRequiresNotHeld      Code = 3078 // Calling @requires_lock without holding
+	SemaLockDoubleAcquire        Code = 3079 // Acquiring already-held lock
+	SemaLockReleaseNotHeld       Code = 3080 // Releasing lock not held
+	SemaLockNotReleasedOnExit    Code = 3081 // @acquires_lock but not released
+	SemaLockUnbalanced           Code = 3082 // Lock state differs between branches
+	SemaLockUnverified           Code = 3083 // Cannot verify lock held (warning)
+	SemaLockNonblockingCallsWait Code = 3084 // @nonblocking calls @waits_on
+	SemaLockFieldNotLockType     Code = 3085 // Referenced field not Mutex/RwLock
+	SemaNosendInSpawn            Code = 3086 // @nosend type in spawn
+	SemaFailfastNonAsync         Code = 3087 // @failfast on non-async block
+	SemaLockAcquiresNotField     Code = 3088 // @acquires_lock refs non-existent field
+	SemaLockReleasesNotField     Code = 3089 // @releases_lock refs non-existent field
+	SemaIteratorNotImplemented   Code = 3090 // Type does not implement iterator (__range)
+	SemaRangeTypeMismatch        Code = 3091 // Range operands have incompatible types
+	SemaIndexOutOfBounds         Code = 3092 // Index out of bounds
+
+	// Enum validation (3093-3097)
+	SemaEnumVariantNotFound   Code = 3093 // Enum variant does not exist
+	SemaEnumValueOverflow     Code = 3094 // Enum value overflow
+	SemaEnumValueTypeMismatch Code = 3095 // Enum value type mismatch
+	SemaEnumDuplicateVariant  Code = 3096 // Duplicate enum variant name
+	SemaEnumInvalidBaseType   Code = 3097 // Invalid base type for enum
+
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
 
@@ -207,6 +235,8 @@ var ( // todo расширить описания и использовать к
 		SynTypeFieldConflict:           "Duplicate field in type",
 		SynTypeDuplicateMember:         "Duplicate union member",
 		SynTypeNotAllowed:              "Type declaration is not allowed here",
+		SynEnumExpectBody:              "Expected '{' for enum body",
+		SynEnumExpectRBrace:            "Expected '}' after enum body",
 		SynIllegalItemInExtern:         "Illegal item inside extern block",
 		SynVisibilityReduction:         "Visibility reduction is not allowed",
 		SynFatArrowOutsideParallel:     "Fat arrow is only allowed in parallel expressions or compare arms",
@@ -222,6 +252,7 @@ var ( // todo расширить описания и использовать к
 		SynExpectExpression:            "Expect expression",
 		SynExpectColon:                 "Expect colon",
 		SynUnexpectedModifier:          "Unexpected modifier",
+		SynInvalidTupleIndex:           "Invalid tuple index",
 		SemaInfo:                       "Semantic information",
 		SemaError:                      "Semantic error",
 		SemaDuplicateSymbol:            "Duplicate symbol",
@@ -299,6 +330,27 @@ var ( // todo расширить описания и использовать к
 		SemaAttrSealedExtend:           "Cannot extend @sealed type",
 		SemaAttrReadonlyWrite:          "Cannot write to @readonly field",
 		SemaAttrPureViolation:          "@pure function has side effects",
+		SemaLockGuardedByViolation:     "accessing @guarded_by field without holding lock",
+		SemaLockRequiresNotHeld:        "calling function that requires lock without holding it",
+		SemaLockDoubleAcquire:          "attempting to acquire lock already held",
+		SemaLockReleaseNotHeld:         "attempting to release lock not currently held",
+		SemaLockNotReleasedOnExit:      "lock acquired but not released before function exit",
+		SemaLockUnbalanced:             "lock state differs between branches",
+		SemaLockUnverified:             "cannot statically verify lock is held",
+		SemaLockNonblockingCallsWait:   "@nonblocking context calls function that may block",
+		SemaLockFieldNotLockType:       "lock field is not Mutex or RwLock type",
+		SemaNosendInSpawn:              "cannot send @nosend type to spawned task",
+		SemaFailfastNonAsync:           "@failfast can only be applied to async blocks",
+		SemaLockAcquiresNotField:       "@acquires_lock references non-existent field",
+		SemaLockReleasesNotField:       "@releases_lock references non-existent field",
+		SemaIteratorNotImplemented:     "type does not implement iterator (missing __range method)",
+		SemaRangeTypeMismatch:          "range operands have incompatible types",
+		SemaIndexOutOfBounds:           "index out of bounds",
+		SemaEnumVariantNotFound:        "enum variant not found",
+		SemaEnumValueOverflow:          "enum value overflow",
+		SemaEnumValueTypeMismatch:      "enum value type mismatch",
+		SemaEnumDuplicateVariant:       "duplicate enum variant name",
+		SemaEnumInvalidBaseType:        "invalid base type for enum",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

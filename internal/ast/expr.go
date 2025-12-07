@@ -18,6 +18,7 @@ const (
 	ExprArray
 	ExprIndex
 	ExprMember
+	ExprTupleIndex
 	ExprTernary
 	ExprAwait
 	ExprSpawn
@@ -139,12 +140,28 @@ type ExprCastData struct {
 	RawType ExprID
 }
 
+// CallArg represents a function call argument (positional or named)
+type CallArg struct {
+	Name  source.StringID // NoStringID for positional args
+	Value ExprID
+}
+
 type ExprCallData struct {
 	Target           ExprID
-	Args             []ExprID
+	Args             []CallArg // Changed from []ExprID to support named args
 	TypeArgs         []TypeID
 	ArgCommas        []source.Span
 	HasTrailingComma bool
+}
+
+// HasNamedArgs checks if any argument in the call is named
+func (d *ExprCallData) HasNamedArgs() bool {
+	for _, arg := range d.Args {
+		if arg.Name != source.NoStringID {
+			return true
+		}
+	}
+	return false
 }
 
 type ExprIndexData struct {
@@ -155,6 +172,11 @@ type ExprIndexData struct {
 type ExprMemberData struct {
 	Target ExprID
 	Field  source.StringID
+}
+
+type ExprTupleIndexData struct {
+	Target ExprID
+	Index  uint32
 }
 
 type ExprGroupData struct {
@@ -225,6 +247,13 @@ type ExprAwaitData struct {
 	Value ExprID
 }
 
+// ExprTernaryData represents a ternary `cond ? trueExpr : falseExpr` expression.
+type ExprTernaryData struct {
+	Cond      ExprID
+	TrueExpr  ExprID
+	FalseExpr ExprID
+}
+
 type ExprCompareArm struct {
 	Pattern     ExprID
 	PatternSpan source.Span
@@ -239,25 +268,27 @@ type ExprCompareData struct {
 }
 
 type Exprs struct {
-	Arena     *Arena[Expr]
-	Idents    *Arena[ExprIdentData]
-	Literals  *Arena[ExprLiteralData]
-	Binaries  *Arena[ExprBinaryData]
-	Unaries   *Arena[ExprUnaryData]
-	Casts     *Arena[ExprCastData]
-	Calls     *Arena[ExprCallData]
-	Indices   *Arena[ExprIndexData]
-	Members   *Arena[ExprMemberData]
-	Awaits    *Arena[ExprAwaitData]
-	Groups    *Arena[ExprGroupData]
-	Tuples    *Arena[ExprTupleData]
-	Arrays    *Arena[ExprArrayData]
-	Spreads   *Arena[ExprSpreadData]
-	Spawns    *Arena[ExprSpawnData]
-	Parallels *Arena[ExprParallelData]
-	Compares  *Arena[ExprCompareData]
-	Structs   *Arena[ExprStructData]
-	Asyncs    *Arena[ExprAsyncData]
+	Arena        *Arena[Expr]
+	Idents       *Arena[ExprIdentData]
+	Literals     *Arena[ExprLiteralData]
+	Binaries     *Arena[ExprBinaryData]
+	Unaries      *Arena[ExprUnaryData]
+	Casts        *Arena[ExprCastData]
+	Calls        *Arena[ExprCallData]
+	Indices      *Arena[ExprIndexData]
+	Members      *Arena[ExprMemberData]
+	TupleIndices *Arena[ExprTupleIndexData]
+	Awaits       *Arena[ExprAwaitData]
+	Ternaries    *Arena[ExprTernaryData]
+	Groups       *Arena[ExprGroupData]
+	Tuples       *Arena[ExprTupleData]
+	Arrays       *Arena[ExprArrayData]
+	Spreads      *Arena[ExprSpreadData]
+	Spawns       *Arena[ExprSpawnData]
+	Parallels    *Arena[ExprParallelData]
+	Compares     *Arena[ExprCompareData]
+	Structs      *Arena[ExprStructData]
+	Asyncs       *Arena[ExprAsyncData]
 }
 
 // NewExprs creates a new Exprs with per-kind arenas preallocated using capHint as the initial capacity.
@@ -267,25 +298,27 @@ func NewExprs(capHint uint) *Exprs {
 		capHint = 1 << 8
 	}
 	return &Exprs{
-		Arena:     NewArena[Expr](capHint),
-		Idents:    NewArena[ExprIdentData](capHint),
-		Literals:  NewArena[ExprLiteralData](capHint),
-		Binaries:  NewArena[ExprBinaryData](capHint),
-		Unaries:   NewArena[ExprUnaryData](capHint),
-		Casts:     NewArena[ExprCastData](capHint),
-		Calls:     NewArena[ExprCallData](capHint),
-		Indices:   NewArena[ExprIndexData](capHint),
-		Members:   NewArena[ExprMemberData](capHint),
-		Awaits:    NewArena[ExprAwaitData](capHint),
-		Groups:    NewArena[ExprGroupData](capHint),
-		Tuples:    NewArena[ExprTupleData](capHint),
-		Arrays:    NewArena[ExprArrayData](capHint),
-		Spreads:   NewArena[ExprSpreadData](capHint),
-		Spawns:    NewArena[ExprSpawnData](capHint),
-		Parallels: NewArena[ExprParallelData](capHint),
-		Compares:  NewArena[ExprCompareData](capHint),
-		Structs:   NewArena[ExprStructData](capHint),
-		Asyncs:    NewArena[ExprAsyncData](capHint),
+		Arena:        NewArena[Expr](capHint),
+		Idents:       NewArena[ExprIdentData](capHint),
+		Literals:     NewArena[ExprLiteralData](capHint),
+		Binaries:     NewArena[ExprBinaryData](capHint),
+		Unaries:      NewArena[ExprUnaryData](capHint),
+		Casts:        NewArena[ExprCastData](capHint),
+		Calls:        NewArena[ExprCallData](capHint),
+		Indices:      NewArena[ExprIndexData](capHint),
+		Members:      NewArena[ExprMemberData](capHint),
+		TupleIndices: NewArena[ExprTupleIndexData](capHint),
+		Awaits:       NewArena[ExprAwaitData](capHint),
+		Ternaries:    NewArena[ExprTernaryData](capHint),
+		Groups:       NewArena[ExprGroupData](capHint),
+		Tuples:       NewArena[ExprTupleData](capHint),
+		Arrays:       NewArena[ExprArrayData](capHint),
+		Spreads:      NewArena[ExprSpreadData](capHint),
+		Spawns:       NewArena[ExprSpawnData](capHint),
+		Parallels:    NewArena[ExprParallelData](capHint),
+		Compares:     NewArena[ExprCompareData](capHint),
+		Structs:      NewArena[ExprStructData](capHint),
+		Asyncs:       NewArena[ExprAsyncData](capHint),
 	}
 }
 
@@ -366,10 +399,10 @@ func (e *Exprs) Cast(id ExprID) (*ExprCastData, bool) {
 	return e.Casts.Get(uint32(expr.Payload)), true
 }
 
-func (e *Exprs) NewCall(span source.Span, target ExprID, args []ExprID, typeArgs []TypeID, argCommas []source.Span, trailing bool) ExprID {
+func (e *Exprs) NewCall(span source.Span, target ExprID, args []CallArg, typeArgs []TypeID, argCommas []source.Span, trailing bool) ExprID {
 	payload := e.Calls.Allocate(ExprCallData{
 		Target:           target,
-		Args:             append([]ExprID(nil), args...),
+		Args:             append([]CallArg(nil), args...),
 		TypeArgs:         append([]TypeID(nil), typeArgs...),
 		ArgCommas:        append([]source.Span(nil), argCommas...),
 		HasTrailingComma: trailing,
@@ -411,6 +444,19 @@ func (e *Exprs) Member(id ExprID) (*ExprMemberData, bool) {
 	return e.Members.Get(uint32(expr.Payload)), true
 }
 
+func (e *Exprs) NewTupleIndex(span source.Span, target ExprID, index uint32) ExprID {
+	payload := e.TupleIndices.Allocate(ExprTupleIndexData{Target: target, Index: index})
+	return e.new(ExprTupleIndex, span, PayloadID(payload))
+}
+
+func (e *Exprs) TupleIndex(id ExprID) (*ExprTupleIndexData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprTupleIndex {
+		return nil, false
+	}
+	return e.TupleIndices.Get(uint32(expr.Payload)), true
+}
+
 func (e *Exprs) NewAwait(span source.Span, value ExprID) ExprID {
 	payload := e.Awaits.Allocate(ExprAwaitData{Value: value})
 	return e.new(ExprAwait, span, PayloadID(payload))
@@ -422,6 +468,23 @@ func (e *Exprs) Await(id ExprID) (*ExprAwaitData, bool) {
 		return nil, false
 	}
 	return e.Awaits.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewTernary(span source.Span, cond, trueExpr, falseExpr ExprID) ExprID {
+	payload := e.Ternaries.Allocate(ExprTernaryData{
+		Cond:      cond,
+		TrueExpr:  trueExpr,
+		FalseExpr: falseExpr,
+	})
+	return e.new(ExprTernary, span, PayloadID(payload))
+}
+
+func (e *Exprs) Ternary(id ExprID) (*ExprTernaryData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprTernary {
+		return nil, false
+	}
+	return e.Ternaries.Get(uint32(expr.Payload)), true
 }
 
 func (e *Exprs) NewStruct(span source.Span, typ TypeID, fields []ExprStructField, commas []source.Span, trailing, positional bool) ExprID {

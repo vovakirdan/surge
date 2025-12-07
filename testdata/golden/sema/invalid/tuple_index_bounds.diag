@@ -1,0 +1,1 @@
+error SEM3092 testdata/golden/sema/invalid/tuple_index_bounds.sg:4:13 tuple index 5 out of bounds (length 2)

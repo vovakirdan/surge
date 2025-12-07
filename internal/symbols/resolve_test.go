@@ -80,6 +80,30 @@ func TestResolveFileDuplicateLetReported(t *testing.T) {
 	}
 }
 
+func TestResolveLetTuplePatternDeclaresBindings(t *testing.T) {
+	src := `
+        fn main() {
+            let (a, b, c) = (1, 2, 3);
+            let use_a = a;
+            let use_b = b;
+            let use_c = c;
+        }
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	bag := diag.NewBag(8)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Validate: true,
+	})
+	if bag.Len() != 0 {
+		t.Fatalf("unexpected semantic diagnostics: %v", bag.Items())
+	}
+}
+
 func TestResolveAllowsFunctionOverloads(t *testing.T) {
 	src := `
         fn compute() {}

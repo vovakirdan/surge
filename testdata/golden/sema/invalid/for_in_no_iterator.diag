@@ -1,0 +1,1 @@
+error SEM3090 testdata/golden/sema/invalid/for_in_no_iterator.sg:4:5 type int does not implement iterator (missing __range method)

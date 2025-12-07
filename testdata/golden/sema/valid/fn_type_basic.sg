@@ -1,0 +1,16 @@
+// scenario: basic function types with calls
+fn accepts_fn_param(f: fn(int) -> int, x: int) -> int {
+    // Call the function-typed parameter
+    return f(x);
+}
+
+fn double(n: int) -> int {
+    return n * 2;
+}
+
+fn test_fn_type() {
+    // Declaring function type variables
+    let callback: fn(int) -> int;
+    let action: fn();
+    let transform: fn(string, int) -> bool;
+}

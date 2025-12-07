@@ -1,0 +1,1 @@
+error SEM3086 testdata/golden/sema/invalid/concurrency/nosend_nested.sg:16:18 type 'AppState' contains @nosend field of type 'Database'

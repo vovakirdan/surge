@@ -292,7 +292,26 @@ func (tc *typeChecker) typeBinaryFallback(span source.Span, data *ast.ExprBinary
 		case types.BinaryResultBool:
 			return tc.types.Builtins().Bool
 		case types.BinaryResultRange:
-			return types.NoTypeID
+			// Both operands must have compatible types
+			if leftType == types.NoTypeID || rightType == types.NoTypeID {
+				return types.NoTypeID
+			}
+			// Determine element type from operands
+			var elemType types.TypeID
+			//nolint:gocritic // if-else chain is clearer here than switch
+			if tc.sameType(leftType, rightType) {
+				elemType = leftType
+			} else if tc.typesAssignable(leftType, rightType, true) {
+				elemType = leftType
+			} else if tc.typesAssignable(rightType, leftType, true) {
+				elemType = rightType
+			} else {
+				tc.report(diag.SemaRangeTypeMismatch, span,
+					"range operands have incompatible types %s and %s",
+					tc.typeLabel(leftType), tc.typeLabel(rightType))
+				return types.NoTypeID
+			}
+			return tc.resolveRangeType(elemType, span, tc.currentScope())
 		}
 	}
 	tc.report(diag.SemaInvalidBinaryOperands, span, "operator %s cannot be applied to %s and %s", tc.binaryOpLabel(data.Op), tc.typeLabel(leftType), tc.typeLabel(rightType))

@@ -1,0 +1,11 @@
+// Test enum with invalid float base type
+pragma no_std;
+
+enum Mass: float = {
+    KILOGRAM = 1000.0,
+    GRAM = 1.0
+}
+
+fn main() {
+    let m: float = Mass::KILOGRAM;
+}

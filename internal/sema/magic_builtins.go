@@ -1,6 +1,9 @@
 package sema
 
-import "surge/internal/symbols"
+import (
+	"surge/internal/source"
+	"surge/internal/symbols"
+)
 
 type builtinMagicSpec struct {
 	receiver string
@@ -138,8 +141,11 @@ func (tc *typeChecker) ensureBuiltinMagic() {
 			continue
 		}
 		sig := &symbols.FunctionSignature{
-			Params: make([]symbols.TypeKey, len(spec.params)),
-			Result: symbols.TypeKey(spec.result),
+			Params:     make([]symbols.TypeKey, len(spec.params)),
+			ParamNames: make([]source.StringID, len(spec.params)),
+			Variadic:   make([]bool, len(spec.params)),
+			Defaults:   make([]bool, len(spec.params)),
+			Result:     symbols.TypeKey(spec.result),
 		}
 		for i, param := range spec.params {
 			sig.Params[i] = symbols.TypeKey(param)

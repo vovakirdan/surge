@@ -38,6 +38,9 @@ type Interner struct {
 	aliases          []AliasInfo
 	params           []TypeParamInfo
 	unions           []UnionInfo
+	enums            []EnumInfo
+	tuples           []TupleInfo
+	fns              []FnInfo
 	arrayType        TypeID
 	arrayParam       TypeID
 	arrayFixedType   TypeID
@@ -53,6 +56,8 @@ func NewInterner() *Interner {
 	in.aliases = append(in.aliases, AliasInfo{})
 	in.params = append(in.params, TypeParamInfo{})
 	in.unions = append(in.unions, UnionInfo{})
+	in.enums = append(in.enums, EnumInfo{})
+	in.fns = append(in.fns, FnInfo{})
 	in.builtins.Invalid = in.internRaw(Type{Kind: KindInvalid})
 	in.builtins.Unit = in.Intern(Type{Kind: KindUnit})
 	in.builtins.Nothing = in.Intern(Type{Kind: KindNothing})

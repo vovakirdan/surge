@@ -12,6 +12,12 @@ const (
 )
 
 func detectStdlibRoot() string {
+	// Prefer a local checkout in the current working directory to keep
+	// diagnostics consistent with the sources we edit.
+	if root := resolveStdlibRoot("."); root != "" {
+		return root
+	}
+
 	if root := resolveStdlibRoot(os.Getenv("SURGE_STDLIB")); root != "" {
 		return root
 	}

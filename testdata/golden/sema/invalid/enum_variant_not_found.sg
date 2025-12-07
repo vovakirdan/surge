@@ -1,0 +1,11 @@
+// Error: variant not found
+
+enum Color = {
+    Red,
+    Green,
+    Blue
+}
+
+fn test() {
+    let c: int = Color::Yellow;
+}

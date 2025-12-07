@@ -1,0 +1,93 @@
+  1: KwType          "type" at 1:1-1:5
+  2: Ident           "Foo" at 1:6-1:9 (leading: Space)
+  3: Assign          "=" at 1:10-1:11 (leading: Space)
+  4: LBrace          "{" at 1:12-1:13 (leading: Space)
+  5: Ident           "a" at 1:14-1:15 (leading: Space)
+  6: Colon           ":" at 1:15-1:16
+  7: Ident           "int" at 1:17-1:20 (leading: Space)
+  8: RBrace          "}" at 1:21-1:22 (leading: Space)
+  9: KwExtern        "extern" at 3:1-3:7 (leading: Newline)
+ 10: Lt              "<" at 3:7-3:8
+ 11: Ident           "Foo" at 3:8-3:11
+ 12: Gt              ">" at 3:11-3:12
+ 13: LBrace          "{" at 3:13-3:14 (leading: Space)
+ 14: KwFn            "fn" at 4:5-4:7 (leading: Newline, Space)
+ 15: Ident           "consume" at 4:8-4:15 (leading: Space)
+ 16: LParen          "(" at 4:15-4:16
+ 17: Ident           "self" at 4:16-4:20
+ 18: Colon           ":" at 4:20-4:21
+ 19: Ident           "Foo" at 4:22-4:25 (leading: Space)
+ 20: RParen          ")" at 4:25-4:26
+ 21: Arrow           "->" at 4:27-4:29 (leading: Space)
+ 22: Ident           "int" at 4:30-4:33 (leading: Space)
+ 23: LBrace          "{" at 4:34-4:35 (leading: Space)
+ 24: KwReturn        "return" at 4:36-4:42 (leading: Space)
+ 25: Ident           "self" at 4:43-4:47 (leading: Space)
+ 26: Dot             "." at 4:47-4:48
+ 27: Ident           "a" at 4:48-4:49
+ 28: Semicolon       ";" at 4:49-4:50
+ 29: RBrace          "}" at 4:51-4:52 (leading: Space)
+ 30: KwFn            "fn" at 5:5-5:7 (leading: Newline, Space)
+ 31: Ident           "modify" at 5:8-5:14 (leading: Space)
+ 32: LParen          "(" at 5:14-5:15
+ 33: Ident           "self" at 5:15-5:19
+ 34: Colon           ":" at 5:19-5:20
+ 35: Amp             "&" at 5:21-5:22 (leading: Space)
+ 36: KwMut           "mut" at 5:22-5:25
+ 37: Ident           "Foo" at 5:26-5:29 (leading: Space)
+ 38: Comma           "," at 5:29-5:30
+ 39: Ident           "v" at 5:31-5:32 (leading: Space)
+ 40: Colon           ":" at 5:32-5:33
+ 41: Ident           "int" at 5:34-5:37 (leading: Space)
+ 42: RParen          ")" at 5:37-5:38
+ 43: LBrace          "{" at 5:39-5:40 (leading: Space)
+ 44: Ident           "self" at 5:41-5:45 (leading: Space)
+ 45: Dot             "." at 5:45-5:46
+ 46: Ident           "a" at 5:46-5:47
+ 47: Assign          "=" at 5:48-5:49 (leading: Space)
+ 48: Ident           "v" at 5:50-5:51 (leading: Space)
+ 49: Semicolon       ";" at 5:51-5:52
+ 50: RBrace          "}" at 5:53-5:54 (leading: Space)
+ 51: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 52: KwFn            "fn" at 8:1-8:3 (leading: Newline)
+ 53: Ident           "main" at 8:4-8:8 (leading: Space)
+ 54: LParen          "(" at 8:8-8:9
+ 55: RParen          ")" at 8:9-8:10
+ 56: LBrace          "{" at 8:11-8:12 (leading: Space)
+ 57: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 58: Ident           "f" at 9:9-9:10 (leading: Space)
+ 59: Colon           ":" at 9:10-9:11
+ 60: Ident           "Foo" at 9:12-9:15 (leading: Space)
+ 61: Assign          "=" at 9:16-9:17 (leading: Space)
+ 62: Ident           "Foo" at 9:18-9:21 (leading: Space)
+ 63: LBrace          "{" at 9:22-9:23 (leading: Space)
+ 64: IntLit          "0" at 9:24-9:25 (leading: Space)
+ 65: RBrace          "}" at 9:26-9:27 (leading: Space)
+ 66: Semicolon       ";" at 9:27-9:28
+ 67: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 68: Ident           "r" at 10:9-10:10 (leading: Space)
+ 69: Colon           ":" at 10:10-10:11
+ 70: Amp             "&" at 10:12-10:13 (leading: Space)
+ 71: Ident           "Foo" at 10:13-10:16
+ 72: Assign          "=" at 10:17-10:18 (leading: Space)
+ 73: Amp             "&" at 10:19-10:20 (leading: Space)
+ 74: Ident           "f" at 10:20-10:21
+ 75: Semicolon       ";" at 10:21-10:22
+ 76: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
+ 77: Underscore      "_" at 11:9-11:10 (leading: Space)
+ 78: Assign          "=" at 11:11-11:12 (leading: Space)
+ 79: Ident           "r" at 11:13-11:14 (leading: Space)
+ 80: Dot             "." at 11:14-11:15
+ 81: Ident           "consume" at 11:15-11:22
+ 82: LParen          "(" at 11:22-11:23
+ 83: RParen          ")" at 11:23-11:24
+ 84: Semicolon       ";" at 11:24-11:25
+ 85: Ident           "r" at 12:5-12:6 (leading: Space, LineComment, Newline, Space)
+ 86: Dot             "." at 12:6-12:7
+ 87: Ident           "modify" at 12:7-12:13
+ 88: LParen          "(" at 12:13-12:14
+ 89: IntLit          "10" at 12:14-12:16
+ 90: RParen          ")" at 12:16-12:17
+ 91: Semicolon       ";" at 12:17-12:18
+ 92: RBrace          "}" at 13:1-13:2 (leading: Space, LineComment, Newline)
+ 93: EOF             at 14:1-14:1

@@ -1,0 +1,6 @@
+testdata/golden/sema/invalid/enum_missing_body.sg:3:13: ERROR SYN2024: expected '{' for enum body
+  1 | // Missing body in enum declaration
+  2 | 
+  3 | enum Color =
+                  ^
+  4 | 

@@ -1,0 +1,16 @@
+enum_variant_not_found.sg (span: 3:1-12:1)
+├─ Item[0]: Type (span: 3:1-7:2)
+│  ├─ Name: Color
+│  ├─ Kind: TypeDeclKind(3)
+│  └─ Visibility: private
+└─ Item[1]: Fn (span: 9:1-11:2)
+   ├─ Name: test
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 9:11-11:2)
+         └─ Stmt[0]: Let (span: 10:5-10:32)
+            ├─ Name: c
+            ├─ Mutable: false
+            ├─ Type: int
+            └─ Value: expr#2: Color.Yellow

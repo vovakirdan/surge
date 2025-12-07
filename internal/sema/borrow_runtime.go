@@ -5,6 +5,7 @@ import (
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 type placeDescriptor struct {
@@ -309,6 +310,8 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 			}
 			tc.reportSpawnThreadEscape(symID, node.Span, bid)
 		}
+		// Check @nosend attribute
+		tc.checkSpawnSendability(symID, node.Span)
 		return
 	}
 	switch node.Kind {
@@ -329,7 +332,7 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 		if data, _ := tc.builder.Exprs.Call(expr); data != nil {
 			tc.scanSpawn(data.Target, seen)
 			for _, arg := range data.Args {
-				tc.scanSpawn(arg, seen)
+				tc.scanSpawn(arg.Value, seen)
 			}
 		}
 	case ast.ExprTuple:
@@ -422,4 +425,48 @@ func (tc *typeChecker) lookupName(id source.StringID) string {
 		return tc.symbols.Table.Strings.MustLookup(id)
 	}
 	return ""
+}
+
+// checkSpawnSendability verifies that a symbol's type can be sent to a spawn
+func (tc *typeChecker) checkSpawnSendability(symID symbols.SymbolID, span source.Span) {
+	if !symID.IsValid() {
+		return
+	}
+
+	valueType := tc.bindingType(symID)
+	if valueType == types.NoTypeID {
+		return
+	}
+
+	// Strip ownership/reference modifiers to get base type
+	baseType := tc.valueType(valueType)
+
+	// Check if the base type has @nosend
+	if tc.typeHasAttr(baseType, "nosend") {
+		label := tc.symbolLabel(symID)
+		typeName := tc.typeLabel(baseType)
+		tc.report(diag.SemaNosendInSpawn, span,
+			"cannot send %s of @nosend type '%s' to spawned task", label, typeName)
+	}
+
+	// Recursively check struct fields
+	tc.checkNestedNosend(baseType, span)
+}
+
+// checkNestedNosend recursively checks struct fields for @nosend
+func (tc *typeChecker) checkNestedNosend(typeID types.TypeID, span source.Span) {
+	structInfo, ok := tc.types.StructInfo(typeID)
+	if !ok || structInfo == nil {
+		return
+	}
+
+	for _, field := range structInfo.Fields {
+		fieldType := tc.valueType(field.Type)
+		if tc.typeHasAttr(fieldType, "nosend") {
+			typeName := tc.typeLabel(typeID)
+			fieldTypeName := tc.typeLabel(fieldType)
+			tc.report(diag.SemaNosendInSpawn, span,
+				"type '%s' contains @nosend field of type '%s'", typeName, fieldTypeName)
+		}
+	}
 }

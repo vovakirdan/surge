@@ -1,0 +1,8 @@
+// scenario: nested ternary expressions (right-associative)
+fn nested(x: int) -> string {
+    return x > 10 ? "large" : x > 5 ? "medium" : "small";
+}
+
+fn explicit_parens(x: int) -> string {
+    return x > 10 ? "large" : (x > 5 ? "medium" : "small");
+}

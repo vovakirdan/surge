@@ -1,0 +1,9 @@
+// scenario: tuple destructuring
+fn destruct_pair() {
+    let pair = (1, "hello");
+    let (x, y) = pair;
+}
+
+fn destruct_inline() {
+    let (a, b) = (10, 20);
+}

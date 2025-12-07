@@ -192,19 +192,19 @@ func TestAliasBinaryRequiresMatchingTypes(t *testing.T) {
 	gasType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: gasName}})
 
 	aLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "A"))
-	stmtA := builder.Stmts.NewLet(source.Span{}, intern(builder, "a"), gasType, aLit, false)
+	stmtA := builder.Stmts.NewLet(source.Span{}, intern(builder, "a"), ast.NoExprID, gasType, aLit, false)
 
 	bLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "B"))
-	stmtB := builder.Stmts.NewLet(source.Span{}, intern(builder, "b"), gasType, bLit, false)
+	stmtB := builder.Stmts.NewLet(source.Span{}, intern(builder, "b"), ast.NoExprID, gasType, bLit, false)
 
 	aIdent := builder.Exprs.NewIdent(source.Span{}, intern(builder, "a"))
 	bIdent := builder.Exprs.NewIdent(source.Span{}, intern(builder, "b"))
 	sumExpr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryAdd, aIdent, bIdent)
-	stmtGood := builder.Stmts.NewLet(source.Span{}, intern(builder, "fuel"), gasType, sumExpr, false)
+	stmtGood := builder.Stmts.NewLet(source.Span{}, intern(builder, "fuel"), ast.NoExprID, gasType, sumExpr, false)
 
 	rawLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "raw"))
 	badExpr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryAdd, builder.Exprs.NewIdent(source.Span{}, intern(builder, "a")), rawLit)
-	stmtBad := builder.Stmts.NewLet(source.Span{}, intern(builder, "bad"), gasType, badExpr, false)
+	stmtBad := builder.Stmts.NewLet(source.Span{}, intern(builder, "bad"), ast.NoExprID, gasType, badExpr, false)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtA, stmtB, stmtGood, stmtBad})
 
@@ -232,12 +232,12 @@ func TestAliasBinaryWithForeignType(t *testing.T) {
 	gasType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: gasName}})
 
 	aLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "Fuel"))
-	stmtA := builder.Stmts.NewLet(source.Span{}, intern(builder, "a"), gasType, aLit, false)
+	stmtA := builder.Stmts.NewLet(source.Span{}, intern(builder, "a"), ast.NoExprID, gasType, aLit, false)
 
 	aIdent := builder.Exprs.NewIdent(source.Span{}, intern(builder, "a"))
 	count := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "2"))
 	mulExpr := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryMul, aIdent, count)
-	stmtMul := builder.Stmts.NewLet(source.Span{}, intern(builder, "double"), ast.NoTypeID, mulExpr, false)
+	stmtMul := builder.Stmts.NewLet(source.Span{}, intern(builder, "double"), ast.NoExprID, ast.NoTypeID, mulExpr, false)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtA, stmtMul})
 

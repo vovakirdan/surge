@@ -1,0 +1,23 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "with_nothing" at 2:4-2:16 (leading: Space)
+  3: LParen          "(" at 2:16-2:17
+  4: Ident           "flag" at 2:17-2:21
+  5: Colon           ":" at 2:21-2:22
+  6: Ident           "bool" at 2:23-2:27 (leading: Space)
+  7: RParen          ")" at 2:27-2:28
+  8: Arrow           "->" at 2:29-2:31 (leading: Space)
+  9: Ident           "int" at 2:32-2:35 (leading: Space)
+ 10: Question        "?" at 2:35-2:36
+ 11: LBrace          "{" at 2:37-2:38 (leading: Space)
+ 12: KwReturn        "return" at 3:5-3:11 (leading: Newline, Space)
+ 13: Ident           "flag" at 3:12-3:16 (leading: Space)
+ 14: Question        "?" at 3:17-3:18 (leading: Space)
+ 15: Ident           "Some" at 3:19-3:23 (leading: Space)
+ 16: LParen          "(" at 3:23-3:24
+ 17: IntLit          "42" at 3:24-3:26
+ 18: RParen          ")" at 3:26-3:27
+ 19: Colon           ":" at 3:28-3:29 (leading: Space)
+ 20: NothingLit      "nothing" at 3:30-3:37 (leading: Space)
+ 21: Semicolon       ";" at 3:37-3:38
+ 22: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 23: EOF             at 5:1-5:1

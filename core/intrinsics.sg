@@ -24,6 +24,11 @@ extern<Task<T>> {
     @intrinsic pub fn await<T>(self: Task<T>) -> T;
 }
 
+// Cooperative yield point for CPU-bound work
+// Allows scheduler to check for cancellation and yield to other tasks
+@intrinsic
+pub fn checkpoint() -> Task<nothing>;
+
 pub contract Bounded<T> {
     fn __min_value() -> T;
     fn __max_value() -> T;
@@ -237,4 +242,52 @@ pub fn exit<E: ErrorLike>(e: E) -> nothing;
 pub fn panic(msg: string) -> nothing {
     let e: Error = { message: msg, code: 1:uint };
     exit(e);
+}
+
+pub type Mutex = {
+    __opaque: *byte,
+};
+
+extern<Mutex> {
+    @intrinsic pub fn new() -> Mutex;
+    @intrinsic pub fn lock(self: &mut Mutex) -> nothing;
+    @intrinsic pub fn unlock(self: &mut Mutex) -> nothing;
+    @intrinsic pub fn try_lock(self: &mut Mutex) -> bool;
+}
+
+pub type RwLock = {
+    __opaque: *byte,
+};
+
+extern<RwLock> {
+    @intrinsic pub fn new() -> RwLock;
+    @intrinsic pub fn read_lock(self: &mut RwLock) -> nothing;
+    @intrinsic pub fn read_unlock(self: &mut RwLock) -> nothing;
+    @intrinsic pub fn write_lock(self: &mut RwLock) -> nothing;
+    @intrinsic pub fn write_unlock(self: &mut RwLock) -> nothing;
+    @intrinsic pub fn try_read_lock(self: &mut RwLock) -> bool;
+    @intrinsic pub fn try_write_lock(self: &mut RwLock) -> bool;
+}
+
+pub type Condition = {
+    __opaque: *byte,
+};
+
+extern<Condition> {
+    @intrinsic pub fn new() -> Condition;
+    @intrinsic pub fn wait(self: &Condition, mutex: &mut Mutex) -> nothing;
+    @intrinsic pub fn notify_one(self: &Condition) -> nothing;
+    @intrinsic pub fn notify_all(self: &Condition) -> nothing;
+}
+
+pub type Semaphore = {
+    __opaque: *byte,
+    __count: uint,
+};
+
+extern<Semaphore> {
+    @intrinsic pub fn new(count: uint) -> Semaphore;
+    @intrinsic pub fn acquire(self: &mut Semaphore) -> nothing;
+    @intrinsic pub fn release(self: &mut Semaphore) -> nothing;
+    @intrinsic pub fn try_acquire(self: &mut Semaphore) -> bool;
 }

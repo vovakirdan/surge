@@ -36,6 +36,27 @@ make run [args]    # Run surge with arguments
 ./surge --help     # Show CLI help after building
 ```
 
+### Debugging & Tracing
+```bash
+# Basic tracing (phases only, ~0% overhead)
+surge diag --trace=trace.log --trace-level=phase file.sg
+
+# Full detail tracing (includes parser internals, high overhead)
+surge diag --trace=trace.log --trace-level=debug file.sg
+
+# With heartbeat for hang detection
+surge diag --trace=trace.log --trace-level=debug --trace-heartbeat=1s file.sg
+
+# Chrome trace viewer format for visual analysis
+surge diag --trace=trace.json --trace-format=chrome --trace-level=detail file.sg
+```
+
+See `docs/TRACING.md` for comprehensive documentation on:
+- Trace levels (off, error, phase, detail, debug)
+- Output formats (text, ndjson, chrome)
+- Crash safety (signal handling, panic recovery)
+- Performance impact and optimization tips
+
 ### Profiling
 ```bash
 make pprof-cpu     # Generate CPU profile and open web UI
@@ -78,6 +99,7 @@ make install-system # Install system-wide (requires sudo)
 
 #### Infrastructure
 - **internal/observ/**: Performance timing and observability
+- **internal/trace/**: Compiler tracing system for debugging and performance analysis
 - **internal/fuzz/**: Fuzzing harnesses for lexer and parser
 - **internal/version/**: Build information and version management
 
@@ -85,11 +107,14 @@ make install-system # Install system-wide (requires sudo)
 
 Surge is a systems programming language with:
 - **Memory Safety**: Ownership/borrowing system similar to Rust
-- **Type System**: Generics, contracts, tagged unions, extern types
-- **Concurrency**: Async/await, spawn, signals with purity checking
+- **Type System**: Generics, contracts, tagged unions, extern types, const generics
+- **Concurrency**: Single-threaded cooperative async/await with structured concurrency
+  - `async fn`, `spawn`, `Task<T>.await()`, channels
+  - `checkpoint()` intrinsic for cooperative yielding in CPU-bound work
+  - See `docs/CONCURRENCY.md` for the complete concurrency model
 - **Error Handling**: Option/Result types with exhaustive matching
 - **Pattern Matching**: Compare expressions with exhaustiveness checking for tagged unions
-- **Metaprogramming**: Pragma directives, attributes, compile-time features
+- **Metaprogramming**: Pragma directives, attributes (@intrinsic, @nosend, @failfast, etc.)
 
 ### Testing Strategy
 
@@ -135,6 +160,11 @@ Surge is a systems programming language with:
   - Supports wildcard patterns (`_`) and `finally` clauses
   - Diagnostic codes: `SemaNonexhaustiveMatch` (3053), `SemaRedundantFinally` (3054)
   - Currently disabled for stdlib files due to generic type handling complexity
+- **Iterator Type Checking**: Validates proper Range<T> usage and iterator constraints
+- **Concurrency Features**:
+  - `checkpoint()` intrinsic for cooperative task scheduling in CPU-bound async work
+  - `@nosend` attribute for types that cannot cross task boundaries
+  - Task<T> type checking and validation
 
 #### Fixing Bugs
 1. Add failing test case in appropriate testdata/ directory
@@ -147,6 +177,22 @@ Surge is a systems programming language with:
 2. Check internal/observ/ timing integration
 3. Add benchmarks in `*_test.go` files
 4. Verify no regressions in `make test`
+
+### Debugging Compiler Issues
+
+#### Debugging Compiler Hangs
+If the compiler hangs or runs indefinitely:
+1. Use tracing with heartbeat: `surge diag --trace=hang.log --trace-level=debug --trace-heartbeat=1s file.sg`
+2. The heartbeat continues even when the compiler hangs, making it easy to identify the hang location
+3. Check the trace for the last operations before the hang
+4. See `docs/TRACING.md` for detailed debugging techniques
+
+#### Using the Tracing System
+- **Phase level** (~0% overhead): High-level view of compilation pipeline
+- **Detail level** (9-18% overhead): Module resolution and dependency analysis
+- **Debug level** (400-500% overhead): Full parser/sema instrumentation, use only for debugging hangs
+- Output formats: text (human-readable), ndjson (machine-parseable), chrome (visual timeline)
+- Crash safety: Trace data preserved on panics and signals (SIGINT/SIGTERM)
 
 ### Important Notes
 

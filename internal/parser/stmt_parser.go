@@ -303,8 +303,75 @@ func (p *Parser) tryParseDropStmt(attrs []ast.Attr, attrSpan source.Span) (ast.S
 func (p *Parser) parseLetStmt() (ast.StmtID, bool) {
 	letTok := p.advance()
 
-	binding, ok := p.parseLetBinding()
+	// Check if this is a tuple pattern (starts with '(')
+	// Note: 'let mut (x, y) = ...' is not yet supported
+	var name source.StringID
+	var pattern ast.ExprID
+	var typ ast.TypeID
+	var value ast.ExprID
+	var isMut bool
+
+	if p.at(token.LParen) {
+		// Tuple destructuring: let (x, y) = ...
+		pat, ok := p.parseParenExpr() // parses as ExprTuple or ExprGroup
+		if !ok {
+			return ast.NoStmtID, false
+		}
+		pattern = pat
+	} else {
+		// Simple binding: use parseLetBinding
+		binding, ok := p.parseLetBinding()
+		if !ok {
+			return ast.NoStmtID, false
+		}
+		name = binding.Name
+		typ = binding.Type
+		value = binding.Value
+		isMut = binding.IsMut
+
+		insertSpan := p.lastSpan.ZeroideToEnd()
+		semiTok, semiOK := p.expect(
+			token.Semicolon,
+			diag.SynExpectSemicolon,
+			"expected ';' after let statement",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertSpan)
+				suggestion := fix.InsertText(
+					"insert ';' after let statement",
+					insertSpan,
+					";",
+					"",
+					fix.WithID(fixID),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				)
+				b.WithFixSuggestion(suggestion)
+				b.WithNote(insertSpan, "insert missing semicolon")
+			},
+		)
+		if !semiOK {
+			return ast.NoStmtID, false
+		}
+
+		stmtSpan := coverOptional(letTok.Span, binding.Span)
+		stmtSpan = stmtSpan.Cover(semiTok.Span)
+		stmtID := p.arenas.Stmts.NewLet(stmtSpan, name, pattern, typ, value, isMut)
+		return stmtID, true
+	}
+
+	// For tuple patterns, parse = value
+	if !p.at(token.Assign) {
+		p.err(diag.SynUnexpectedToken, "expected '=' after tuple pattern")
+		return ast.NoStmtID, false
+	}
+	p.advance() // eat '='
+
+	value, ok := p.parseExpr()
 	if !ok {
+		p.err(diag.SynExpectExpression, "expected expression after '='")
 		return ast.NoStmtID, false
 	}
 
@@ -335,9 +402,9 @@ func (p *Parser) parseLetStmt() (ast.StmtID, bool) {
 		return ast.NoStmtID, false
 	}
 
-	stmtSpan := coverOptional(letTok.Span, binding.Span)
-	stmtSpan = stmtSpan.Cover(semiTok.Span)
-	stmtID := p.arenas.Stmts.NewLet(stmtSpan, binding.Name, binding.Type, binding.Value, binding.IsMut)
+	patternSpan := p.arenas.Exprs.Get(pattern).Span
+	stmtSpan := letTok.Span.Cover(patternSpan).Cover(semiTok.Span)
+	stmtID := p.arenas.Stmts.NewLet(stmtSpan, name, pattern, typ, value, isMut)
 	return stmtID, true
 }
 

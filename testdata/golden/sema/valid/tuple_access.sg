@@ -1,0 +1,15 @@
+// scenario: tuple element access
+fn get_first() -> int {
+    let pair = (1, 2);
+    return pair.0;
+}
+
+fn get_second() -> string {
+    let t: (int, string) = (42, "hello");
+    return t.1;
+}
+
+fn nested_access() -> int {
+    let t = ((1, 2), 3);
+    return t.0.1;  // returns 2
+}

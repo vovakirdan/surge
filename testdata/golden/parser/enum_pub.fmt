@@ -1,0 +1,14 @@
+// Public enum
+
+pub enum Visibility = {
+    Public,
+    Private,
+    Protected,
+}
+
+pub enum AccessLevel: uint8 = {
+    None = 0,
+    Read = 1,
+    Write = 2,
+    Admin = 3,
+}

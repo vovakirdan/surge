@@ -205,10 +205,12 @@ func (tc *typeChecker) registerTagConstructors(typeItem *ast.TypeItem, unionType
 			}
 		}
 		sym.Signature = &symbols.FunctionSignature{
-			Params:   params,
-			Variadic: variadic,
-			Result:   symbols.TypeKey(resultKey),
-			HasBody:  true,
+			Params:     params,
+			ParamNames: make([]source.StringID, len(params)),
+			Variadic:   variadic,
+			Defaults:   make([]bool, len(params)),
+			Result:     symbols.TypeKey(resultKey),
+			HasBody:    true,
 		}
 	}
 }

@@ -1,0 +1,21 @@
+nosend_in_spawn.sg (span: 3:1-13:1)
+├─ Item[0]: Type (span: 3:1-6:3)
+│  ├─ Name: FileHandle
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @nosend
+│  └─ Struct:
+│     └─ Field[0]: fd: int
+└─ Item[1]: Fn (span: 8:1-12:2)
+   ├─ Name: spawn_with_nosend
+   ├─ Params: ()
+   ├─ Return: Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:41-12:2)
+         ├─ Stmt[0]: Let (span: 9:5-9:41)
+         │  ├─ Name: handle
+         │  ├─ Mutable: false
+         │  ├─ Type: FileHandle
+         │  └─ Value: expr#3: <ExprKind(18)>
+         └─ Stmt[1]: Return (span: 11:5-11:28)
+            └─ Expr: expr#6: spawn handle.fd

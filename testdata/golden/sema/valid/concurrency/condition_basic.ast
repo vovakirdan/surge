@@ -1,0 +1,43 @@
+condition_basic.sg (span: 3:1-19:1)
+├─ Item[0]: Fn (span: 3:1-9:2)
+│  ├─ Name: test_condition_notify
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:43-9:2)
+│        ├─ Stmt[0]: Let (span: 4:5-4:43)
+│        │  ├─ Name: cond
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Condition
+│        │  └─ Value: expr#3: Condition.new()
+│        ├─ Stmt[1]: Let (span: 5:5-5:38)
+│        │  ├─ Name: mtx
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Mutex
+│        │  └─ Value: expr#6: Mutex.new()
+│        ├─ Stmt[2]: Expr (span: 7:5-7:23)
+│        │  └─ Expr: expr#9: cond.notify_one()
+│        └─ Stmt[3]: Expr (span: 8:5-8:23)
+│           └─ Expr: expr#12: cond.notify_all()
+└─ Item[1]: Fn (span: 11:1-18:2)
+   ├─ Name: test_condition_wait
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:41-18:2)
+         ├─ Stmt[0]: Let (span: 12:5-12:43)
+         │  ├─ Name: cond
+         │  ├─ Mutable: false
+         │  ├─ Type: Condition
+         │  └─ Value: expr#15: Condition.new()
+         ├─ Stmt[1]: Let (span: 13:5-13:38)
+         │  ├─ Name: mtx
+         │  ├─ Mutable: true
+         │  ├─ Type: Mutex
+         │  └─ Value: expr#18: Mutex.new()
+         ├─ Stmt[2]: Expr (span: 15:5-15:16)
+         │  └─ Expr: expr#21: mtx.lock()
+         ├─ Stmt[3]: Expr (span: 16:5-16:25)
+         │  └─ Expr: expr#26: cond.wait(&mut mtx)
+         └─ Stmt[4]: Expr (span: 17:5-17:18)
+            └─ Expr: expr#29: mtx.unlock()

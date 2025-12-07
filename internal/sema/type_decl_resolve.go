@@ -89,8 +89,55 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 				result = tc.types.Intern(types.MakeConstUint(uint32(val)))
 			}
 		}
+	case ast.TypeExprTuple:
+		if tup, ok := tc.builder.Types.Tuple(id); ok && tup != nil {
+			// Empty tuple () is unit type
+			if len(tup.Elems) == 0 {
+				result = tc.types.Builtins().Unit
+				break
+			}
+			elems := make([]types.TypeID, 0, len(tup.Elems))
+			allValid := true
+			for _, elem := range tup.Elems {
+				resolved := tc.resolveTypeExprWithScope(elem, scope)
+				if resolved == types.NoTypeID {
+					allValid = false
+					break
+				}
+				elems = append(elems, resolved)
+			}
+			if allValid {
+				result = tc.types.RegisterTuple(elems)
+			}
+		}
+	case ast.TypeExprFn:
+		if fnType, ok := tc.builder.Types.Fn(id); ok && fnType != nil {
+			// Resolve parameter types
+			params := make([]types.TypeID, 0, len(fnType.Params))
+			allValid := true
+			for _, param := range fnType.Params {
+				resolved := tc.resolveTypeExprWithScope(param.Type, scope)
+				if resolved == types.NoTypeID {
+					allValid = false
+					break
+				}
+				params = append(params, resolved)
+			}
+			if !allValid {
+				break
+			}
+
+			// Resolve return type
+			retType := tc.resolveTypeExprWithScope(fnType.Return, scope)
+			if retType == types.NoTypeID {
+				// Default to unit if return type resolution fails
+				retType = tc.types.Builtins().Unit
+			}
+
+			result = tc.types.RegisterFn(params, retType)
+		}
 	default:
-		// other type forms (tuple/fn) are not supported yet
+		// other type forms are not supported yet
 	}
 	if tc.typeCache != nil {
 		tc.typeCache[key] = result

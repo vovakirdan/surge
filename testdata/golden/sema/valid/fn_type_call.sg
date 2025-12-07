@@ -1,0 +1,17 @@
+// scenario: calling function-typed variables
+fn apply(f: fn(int) -> int, x: int) -> int {
+    return f(x);
+}
+
+fn apply_twice(f: fn(int) -> int, x: int) -> int {
+    let result: int = f(x);
+    return f(result);
+}
+
+fn apply_void(action: fn()) {
+    action();
+}
+
+fn apply_multi(f: fn(int, int) -> int, a: int, b: int) -> int {
+    return f(a, b);
+}

@@ -1,6 +1,9 @@
 package format
 
-import "surge/internal/ast"
+import (
+	"surge/internal/ast"
+	"surge/internal/source"
+)
 
 func (p *printer) printCallExpr(id ast.ExprID, expr *ast.Expr) {
 	call, ok := p.builder.Exprs.Call(id)
@@ -18,7 +21,12 @@ func (p *printer) printCallExpr(id ast.ExprID, expr *ast.Expr) {
 		if i > 0 {
 			p.writer.WriteString(", ")
 		}
-		p.printExpr(arg)
+		// Print named argument if it has a name
+		if arg.Name != source.NoStringID {
+			p.writer.WriteString(p.builder.StringsInterner.MustLookup(arg.Name))
+			p.writer.WriteString(": ")
+		}
+		p.printExpr(arg.Value)
 	}
 	if call.HasTrailingComma && len(call.Args) > 0 {
 		p.writer.WriteString(",")

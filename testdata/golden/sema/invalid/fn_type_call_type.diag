@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/fn_type_call_type.sg:4:20 expected int, got string

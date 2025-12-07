@@ -1,0 +1,28 @@
+nosend_nested.sg (span: 3:1-18:1)
+├─ Item[0]: Type (span: 3:1-6:3)
+│  ├─ Name: Database
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @nosend
+│  └─ Struct:
+│     └─ Field[0]: connection: int
+├─ Item[1]: Type (span: 8:1-11:3)
+│  ├─ Name: AppState
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  └─ Struct:
+│     ├─ Field[0]: db: Database
+│     └─ Field[1]: counter: int
+└─ Item[2]: Fn (span: 13:1-17:2)
+   ├─ Name: spawn_with_nested_nosend
+   ├─ Params: ()
+   ├─ Return: Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 13:48-17:2)
+         ├─ Stmt[0]: Let (span: 14:5-14:65)
+         │  ├─ Name: state
+         │  ├─ Mutable: false
+         │  ├─ Type: AppState
+         │  └─ Value: expr#7: <ExprKind(18)>
+         └─ Stmt[1]: Return (span: 16:5-16:32)
+            └─ Expr: expr#10: spawn state.counter

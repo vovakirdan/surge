@@ -1,0 +1,5 @@
+// scenario: wrong argument type to function-typed variable
+fn test(f: fn(int) -> int) {
+    // Error: expected int, got string
+    let x: int = f("hello");
+}

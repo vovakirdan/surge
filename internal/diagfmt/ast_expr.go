@@ -94,6 +94,16 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 		right = wrapExprIfNeeded(builder, data.Right, right)
 		op := formatBinaryOpString(data.Op)
 		return fmt.Sprintf("(%s %s %s)", left, op, right)
+	case ast.ExprTernary:
+		tern, ok := builder.Exprs.Ternary(exprID)
+		if !ok {
+			return "<invalid-ternary>"
+		}
+		cond := formatExprInlineDepth(builder, tern.Cond, depth+1)
+		cond = wrapExprIfNeeded(builder, tern.Cond, cond)
+		trueExpr := formatExprInlineDepth(builder, tern.TrueExpr, depth+1)
+		falseExpr := formatExprInlineDepth(builder, tern.FalseExpr, depth+1)
+		return fmt.Sprintf("%s ? %s : %s", cond, trueExpr, falseExpr)
 	case ast.ExprCall:
 		data, ok := builder.Exprs.Call(exprID)
 		if !ok {
@@ -103,7 +113,12 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 		target = wrapExprIfNeeded(builder, data.Target, target)
 		args := make([]string, 0, len(data.Args))
 		for _, arg := range data.Args {
-			args = append(args, formatExprInlineDepth(builder, arg, depth+1))
+			argStr := formatExprInlineDepth(builder, arg.Value, depth+1)
+			if arg.Name != source.NoStringID {
+				name := builder.StringsInterner.MustLookup(arg.Name)
+				argStr = name + ": " + argStr
+			}
+			args = append(args, argStr)
 		}
 		return fmt.Sprintf("%s(%s)", target, strings.Join(args, ", "))
 	case ast.ExprIndex:
@@ -127,6 +142,14 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 			field = builder.StringsInterner.MustLookup(data.Field)
 		}
 		return fmt.Sprintf("%s.%s", target, field)
+	case ast.ExprTupleIndex:
+		data, ok := builder.Exprs.TupleIndex(exprID)
+		if !ok {
+			return "<invalid-tuple-index>"
+		}
+		target := formatExprInlineDepth(builder, data.Target, depth+1)
+		target = wrapExprIfNeeded(builder, data.Target, target)
+		return fmt.Sprintf("%s.%d", target, data.Index)
 	case ast.ExprAwait:
 		data, ok := builder.Exprs.Await(exprID)
 		if !ok {
@@ -398,6 +421,8 @@ func formatExprKind(kind ast.ExprKind) string {
 		return "Index"
 	case ast.ExprMember:
 		return "Member"
+	case ast.ExprTupleIndex:
+		return "TupleIndex"
 	case ast.ExprTernary:
 		return "Ternary"
 	case ast.ExprAwait:

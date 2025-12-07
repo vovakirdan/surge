@@ -1,0 +1,18 @@
+// Basic Condition variable usage
+
+pub fn test_condition_notify() -> nothing {
+    let cond: Condition = Condition.new();
+    let mut mtx: Mutex = Mutex.new();
+
+    cond.notify_one();
+    cond.notify_all();
+}
+
+pub fn test_condition_wait() -> nothing {
+    let cond: Condition = Condition.new();
+    let mut mtx: Mutex = Mutex.new();
+
+    mtx.lock();
+    cond.wait(&mut mtx);
+    mtx.unlock();
+}

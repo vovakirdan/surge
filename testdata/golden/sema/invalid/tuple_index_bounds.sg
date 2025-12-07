@@ -1,0 +1,5 @@
+// scenario: tuple index out of bounds
+fn bad_index() {
+    let pair = (1, 2);
+    let x = pair.5;  // error: index 5 out of bounds
+}

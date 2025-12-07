@@ -39,7 +39,7 @@ func (fr *fileResolver) bindComparePattern(exprID ast.ExprID) {
 		}
 		fr.walkExpr(call.Target)
 		for _, arg := range call.Args {
-			fr.bindComparePattern(arg)
+			fr.bindComparePattern(arg.Value)
 		}
 	case ast.ExprTuple:
 		tuple, _ := fr.builder.Exprs.Tuple(exprID)
@@ -51,6 +51,51 @@ func (fr *fileResolver) bindComparePattern(exprID ast.ExprID) {
 		}
 	default:
 		fr.walkExpr(exprID)
+	}
+}
+
+func (fr *fileResolver) bindLetPattern(pattern ast.ExprID, isMut bool, stmtSpan source.Span, stmtID ast.StmtID) {
+	if !pattern.IsValid() || fr.builder == nil {
+		return
+	}
+	node := fr.builder.Exprs.Get(pattern)
+	if node == nil {
+		return
+	}
+	switch node.Kind {
+	case ast.ExprTuple:
+		if tuple, ok := fr.builder.Exprs.Tuple(pattern); ok && tuple != nil {
+			for _, elem := range tuple.Elements {
+				fr.bindLetPattern(elem, isMut, stmtSpan, stmtID)
+			}
+		}
+	case ast.ExprIdent:
+		ident, _ := fr.builder.Exprs.Ident(pattern)
+		if ident == nil || ident.Name == source.NoStringID {
+			return
+		}
+		if fr.isWildcard(ident.Name) {
+			if isMut {
+				fr.reportWildcardMut(stmtSpan)
+			}
+			return
+		}
+		flags := SymbolFlags(0)
+		if isMut {
+			flags |= SymbolFlagMutable
+		}
+		decl := SymbolDecl{
+			SourceFile: fr.sourceFile,
+			ASTFile:    fr.fileID,
+			Stmt:       stmtID,
+		}
+		span := node.Span
+		if symID, ok := fr.resolver.Declare(ident.Name, span, SymbolLet, flags, decl); ok {
+			fr.result.ExprSymbols[pattern] = symID
+		}
+	default:
+		// Fallback: walk the expression to resolve any identifiers inside.
+		fr.walkExpr(pattern)
 	}
 }
 

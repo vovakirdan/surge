@@ -1,0 +1,18 @@
+testdata/golden/sema/invalid/enum_float_base.sg:4:12: ERROR SEM3097: enum base type must be an integer type or string, got 'float'
+...
+  2 | pragma no_std;
+  3 | 
+  4 | enum Mass: float = {
+                 ~~~~^
+  5 |     KILOGRAM = 1000.0,
+  6 |     GRAM = 1.0
+...
+
+testdata/golden/sema/invalid/enum_float_base.sg:10:20: ERROR SEM3093: variant 'KILOGRAM' not found in enum 'Mass'
+...
+  8 | 
+  9 | fn main() {
+ 10 |     let m: float = Mass::KILOGRAM;
+                         ~~~~~~~~~~~~~^
+ 11 | }
+ 12 | 

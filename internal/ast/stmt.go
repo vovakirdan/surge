@@ -84,10 +84,11 @@ type BlockStmt struct {
 }
 
 type LetStmt struct {
-	Name  source.StringID
-	Type  TypeID
-	Value ExprID
-	IsMut bool
+	Name    source.StringID // Used for simple `let x = ...`
+	Pattern ExprID          // Used for `let (x, y) = ...` (ExprTuple of ExprIdent)
+	Type    TypeID
+	Value   ExprID
+	IsMut   bool
 }
 
 type ConstStmt struct {
@@ -154,12 +155,13 @@ func (s *Stmts) Block(id StmtID) *BlockStmt {
 	return s.Blocks.Get(uint32(stmt.Payload))
 }
 
-func (s *Stmts) NewLet(span source.Span, name source.StringID, typ TypeID, value ExprID, isMut bool) StmtID {
+func (s *Stmts) NewLet(span source.Span, name source.StringID, pattern ExprID, typ TypeID, value ExprID, isMut bool) StmtID {
 	payload := PayloadID(s.Lets.Allocate(LetStmt{
-		Name:  name,
-		Type:  typ,
-		Value: value,
-		IsMut: isMut,
+		Name:    name,
+		Pattern: pattern,
+		Type:    typ,
+		Value:   value,
+		IsMut:   isMut,
 	}))
 	return s.New(StmtLet, span, payload)
 }

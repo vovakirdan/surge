@@ -1,0 +1,6 @@
+enum Status: int = {
+    Unknown,
+    Done,
+}
+
+fn main() {}

@@ -1,0 +1,100 @@
+method_receiver_compat.sg (span: 1:1-28:1)
+├─ Item[0]: Type (span: 1:1-1:22)
+│  ├─ Name: Foo
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: a: int
+├─ Item[1]: Extern (span: 3:1-8:2)
+│  ├─ Target: Foo
+│  ├─ Members:
+│  │  ├─ Fn[0]: new
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: Foo
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 4:21-4:42)
+│  │  │     └─ Stmt[0]: Return (span: 4:23-4:40)
+│  │  │        └─ Expr: expr#2: <ExprKind(18)>
+│  │  ├─ Fn[1]: consume
+│  │  │  ├─ Params: (self: Foo)
+│  │  │  ├─ Return: int
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 5:34-5:52)
+│  │  │     └─ Stmt[0]: Return (span: 5:36-5:50)
+│  │  │        └─ Expr: expr#4: self.a
+│  │  ├─ Fn[2]: read
+│  │  │  ├─ Params: (self: &Foo)
+│  │  │  ├─ Return: int
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 6:32-6:50)
+│  │  │     └─ Stmt[0]: Return (span: 6:34-6:48)
+│  │  │        └─ Expr: expr#6: self.a
+│  │  └─ Fn[3]: modify
+│  │     ├─ Params: (self: &mut Foo, v: int)
+│  │     ├─ Return: nothing
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 7:39-7:54)
+│  │        └─ Stmt[0]: Expr (span: 7:41-7:52)
+│  │           └─ Expr: expr#10: (self.a = v)
+├─ Item[2]: Fn (span: 10:1-14:2)
+│  ├─ Name: test_value_receiver
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:26-14:2)
+│        ├─ Stmt[0]: Let (span: 11:5-11:32)
+│        │  ├─ Name: f
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Foo
+│        │  └─ Value: expr#13: Foo.new()
+│        ├─ Stmt[1]: Let (span: 12:5-12:22)
+│        │  ├─ Name: _
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#16: f.read()
+│        └─ Stmt[2]: Expr (span: 13:5-13:18)
+│           └─ Expr: expr#20: f.modify(10)
+├─ Item[3]: Fn (span: 16:1-20:2)
+│  ├─ Name: test_ref_receiver
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 16:24-20:2)
+│        ├─ Stmt[0]: Let (span: 17:5-17:28)
+│        │  ├─ Name: f
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Foo
+│        │  └─ Value: expr#23: Foo.new()
+│        ├─ Stmt[1]: Let (span: 18:5-18:22)
+│        │  ├─ Name: r
+│        │  ├─ Mutable: false
+│        │  ├─ Type: &Foo
+│        │  └─ Value: expr#25: &f
+│        └─ Stmt[2]: Let (span: 19:5-19:22)
+│           ├─ Name: _
+│           ├─ Mutable: false
+│           ├─ Type: <inferred>
+│           └─ Value: expr#28: r.read()
+└─ Item[4]: Fn (span: 22:1-27:2)
+   ├─ Name: test_mut_ref_receiver
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 22:28-27:2)
+         ├─ Stmt[0]: Let (span: 23:5-23:32)
+         │  ├─ Name: f
+         │  ├─ Mutable: true
+         │  ├─ Type: Foo
+         │  └─ Value: expr#31: Foo.new()
+         ├─ Stmt[1]: Let (span: 24:5-24:30)
+         │  ├─ Name: m
+         │  ├─ Mutable: false
+         │  ├─ Type: &mut Foo
+         │  └─ Value: expr#33: &mut f
+         ├─ Stmt[2]: Let (span: 25:5-25:22)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#36: m.read()
+         └─ Stmt[3]: Expr (span: 26:5-26:18)
+            └─ Expr: expr#40: m.modify(20)

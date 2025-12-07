@@ -1,0 +1,11 @@
+// tuple destructuring from function return
+fn produce() -> (int, string, bool) {
+    return (1, "hello", true);
+}
+
+fn main() {
+    let (a, b, c) = produce();
+    let a_val: int = a;
+    let b_val: string = b;
+    let c_val: bool = c;
+}

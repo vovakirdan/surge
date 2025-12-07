@@ -1,0 +1,1 @@
+error SYN2024 testdata/golden/sema/invalid/enum_missing_body.sg:3:13 expected '{' for enum body

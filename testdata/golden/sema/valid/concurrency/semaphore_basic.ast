@@ -1,0 +1,29 @@
+semaphore_basic.sg (span: 3:1-14:1)
+├─ Item[0]: Fn (span: 3:1-8:2)
+│  ├─ Name: test_semaphore
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:36-8:2)
+│        ├─ Stmt[0]: Let (span: 4:5-4:52)
+│        │  ├─ Name: sem
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Semaphore
+│        │  └─ Value: expr#5: Semaphore.new(3 to uint)
+│        ├─ Stmt[1]: Expr (span: 5:5-5:19)
+│        │  └─ Expr: expr#8: sem.acquire()
+│        └─ Stmt[2]: Expr (span: 7:5-7:19)
+│           └─ Expr: expr#11: sem.release()
+└─ Item[1]: Fn (span: 10:1-13:2)
+   ├─ Name: test_semaphore_try
+   ├─ Params: ()
+   ├─ Return: bool
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:37-13:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:52)
+         │  ├─ Name: sem
+         │  ├─ Mutable: true
+         │  ├─ Type: Semaphore
+         │  └─ Value: expr#16: Semaphore.new(1 to uint)
+         └─ Stmt[1]: Return (span: 12:5-12:30)
+            └─ Expr: expr#19: sem.try_acquire()

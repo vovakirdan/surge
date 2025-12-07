@@ -1,0 +1,97 @@
+  1: KwPub           "pub" at 3:1-3:4 (leading: LineComment, Newline)
+  2: KwType          "type" at 3:5-3:9 (leading: Space)
+  3: Ident           "Counter" at 3:10-3:17 (leading: Space)
+  4: Assign          "=" at 3:18-3:19 (leading: Space)
+  5: LBrace          "{" at 3:20-3:21 (leading: Space)
+  6: Ident           "value" at 4:5-4:10 (leading: Newline, Space)
+  7: Colon           ":" at 4:10-4:11
+  8: Ident           "int" at 4:12-4:15 (leading: Space)
+  9: Comma           "," at 4:15-4:16
+ 10: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 11: Semicolon       ";" at 5:2-5:3
+ 12: KwPub           "pub" at 7:1-7:4 (leading: Newline)
+ 13: KwFn            "fn" at 7:5-7:7 (leading: Space)
+ 14: Ident           "spawn_with_owned_data" at 7:8-7:29 (leading: Space)
+ 15: LParen          "(" at 7:29-7:30
+ 16: Ident           "c" at 7:30-7:31
+ 17: Colon           ":" at 7:31-7:32
+ 18: Ident           "Counter" at 7:33-7:40 (leading: Space)
+ 19: RParen          ")" at 7:40-7:41
+ 20: Arrow           "->" at 7:42-7:44 (leading: Space)
+ 21: Ident           "Task" at 7:45-7:49 (leading: Space)
+ 22: Lt              "<" at 7:49-7:50
+ 23: Ident           "int" at 7:50-7:53
+ 24: Gt              ">" at 7:53-7:54
+ 25: LBrace          "{" at 7:55-7:56 (leading: Space)
+ 26: KwLet           "let" at 9:5-9:8 (leading: Newline, Space, LineComment, Newline, Space)
+ 27: Ident           "result" at 9:9-9:15 (leading: Space)
+ 28: Colon           ":" at 9:15-9:16
+ 29: Ident           "int" at 9:17-9:20 (leading: Space)
+ 30: Assign          "=" at 9:21-9:22 (leading: Space)
+ 31: Ident           "c" at 9:23-9:24 (leading: Space)
+ 32: Dot             "." at 9:24-9:25
+ 33: Ident           "value" at 9:25-9:30
+ 34: Plus            "+" at 9:31-9:32 (leading: Space)
+ 35: IntLit          "1" at 9:33-9:34 (leading: Space)
+ 36: Semicolon       ";" at 9:34-9:35
+ 37: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
+ 38: KwSpawn         "spawn" at 10:12-10:17 (leading: Space)
+ 39: Ident           "result" at 10:18-10:24 (leading: Space)
+ 40: Semicolon       ";" at 10:24-10:25
+ 41: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 42: KwPub           "pub" at 13:1-13:4 (leading: Newline)
+ 43: KwFn            "fn" at 13:5-13:7 (leading: Space)
+ 44: Ident           "spawn_with_int" at 13:8-13:22 (leading: Space)
+ 45: LParen          "(" at 13:22-13:23
+ 46: Ident           "x" at 13:23-13:24
+ 47: Colon           ":" at 13:24-13:25
+ 48: Ident           "int" at 13:26-13:29 (leading: Space)
+ 49: RParen          ")" at 13:29-13:30
+ 50: Arrow           "->" at 13:31-13:33 (leading: Space)
+ 51: Ident           "Task" at 13:34-13:38 (leading: Space)
+ 52: Lt              "<" at 13:38-13:39
+ 53: Ident           "int" at 13:39-13:42
+ 54: Gt              ">" at 13:42-13:43
+ 55: LBrace          "{" at 13:44-13:45 (leading: Space)
+ 56: KwLet           "let" at 15:5-15:8 (leading: Newline, Space, LineComment, Newline, Space)
+ 57: Ident           "doubled" at 15:9-15:16 (leading: Space)
+ 58: Colon           ":" at 15:16-15:17
+ 59: Ident           "int" at 15:18-15:21 (leading: Space)
+ 60: Assign          "=" at 15:22-15:23 (leading: Space)
+ 61: Ident           "x" at 15:24-15:25 (leading: Space)
+ 62: Star            "*" at 15:26-15:27 (leading: Space)
+ 63: IntLit          "2" at 15:28-15:29 (leading: Space)
+ 64: Semicolon       ";" at 15:29-15:30
+ 65: KwReturn        "return" at 16:5-16:11 (leading: Newline, Space)
+ 66: KwSpawn         "spawn" at 16:12-16:17 (leading: Space)
+ 67: Ident           "doubled" at 16:18-16:25 (leading: Space)
+ 68: Semicolon       ";" at 16:25-16:26
+ 69: RBrace          "}" at 17:1-17:2 (leading: Newline)
+ 70: KwPub           "pub" at 19:1-19:4 (leading: Newline)
+ 71: KwFn            "fn" at 19:5-19:7 (leading: Space)
+ 72: Ident           "spawn_with_bool" at 19:8-19:23 (leading: Space)
+ 73: LParen          "(" at 19:23-19:24
+ 74: Ident           "b" at 19:24-19:25
+ 75: Colon           ":" at 19:25-19:26
+ 76: Ident           "bool" at 19:27-19:31 (leading: Space)
+ 77: RParen          ")" at 19:31-19:32
+ 78: Arrow           "->" at 19:33-19:35 (leading: Space)
+ 79: Ident           "Task" at 19:36-19:40 (leading: Space)
+ 80: Lt              "<" at 19:40-19:41
+ 81: Ident           "bool" at 19:41-19:45
+ 82: Gt              ">" at 19:45-19:46
+ 83: LBrace          "{" at 19:47-19:48 (leading: Space)
+ 84: KwLet           "let" at 21:5-21:8 (leading: Newline, Space, LineComment, Newline, Space)
+ 85: Ident           "negated" at 21:9-21:16 (leading: Space)
+ 86: Colon           ":" at 21:16-21:17
+ 87: Ident           "bool" at 21:18-21:22 (leading: Space)
+ 88: Assign          "=" at 21:23-21:24 (leading: Space)
+ 89: Bang            "!" at 21:25-21:26 (leading: Space)
+ 90: Ident           "b" at 21:26-21:27
+ 91: Semicolon       ";" at 21:27-21:28
+ 92: KwReturn        "return" at 22:5-22:11 (leading: Newline, Space)
+ 93: KwSpawn         "spawn" at 22:12-22:17 (leading: Space)
+ 94: Ident           "negated" at 22:18-22:25 (leading: Space)
+ 95: Semicolon       ";" at 22:25-22:26
+ 96: RBrace          "}" at 23:1-23:2 (leading: Newline)
+ 97: EOF             at 24:1-24:1

@@ -1,0 +1,96 @@
+  1: KwPragma        "pragma" at 2:1-2:7 (leading: LineComment, Newline)
+  2: Ident           "no_std" at 2:8-2:14 (leading: Space)
+  3: Semicolon       ";" at 2:14-2:15
+  4: Kind(41)        "enum" at 4:1-4:5 (leading: Newline)
+  5: Ident           "Color" at 4:6-4:11 (leading: Space)
+  6: Colon           ":" at 4:11-4:12
+  7: Ident           "int" at 4:13-4:16 (leading: Space)
+  8: Assign          "=" at 4:17-4:18 (leading: Space)
+  9: LBrace          "{" at 4:19-4:20 (leading: Space)
+ 10: Ident           "Red" at 5:5-5:8 (leading: Newline, Space)
+ 11: Assign          "=" at 5:9-5:10 (leading: Space)
+ 12: IntLit          "1" at 5:11-5:12 (leading: Space)
+ 13: Comma           "," at 5:12-5:13
+ 14: Ident           "Green" at 6:5-6:10 (leading: Newline, Space)
+ 15: Assign          "=" at 6:11-6:12 (leading: Space)
+ 16: IntLit          "2" at 6:13-6:14 (leading: Space)
+ 17: Comma           "," at 6:14-6:15
+ 18: Ident           "Blue" at 7:5-7:9 (leading: Newline, Space)
+ 19: Assign          "=" at 7:10-7:11 (leading: Space)
+ 20: IntLit          "3" at 7:12-7:13 (leading: Space)
+ 21: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 22: Kind(41)        "enum" at 10:1-10:5 (leading: Newline)
+ 23: Ident           "Status" at 10:6-10:12 (leading: Space)
+ 24: Colon           ":" at 10:12-10:13
+ 25: Ident           "string" at 10:14-10:20 (leading: Space)
+ 26: Assign          "=" at 10:21-10:22 (leading: Space)
+ 27: LBrace          "{" at 10:23-10:24 (leading: Space)
+ 28: Ident           "Active" at 11:5-11:11 (leading: Newline, Space)
+ 29: Assign          "=" at 11:12-11:13 (leading: Space)
+ 30: StringLit       "\"active\"" at 11:14-11:22 (leading: Space)
+ 31: Comma           "," at 11:22-11:23
+ 32: Ident           "Inactive" at 12:5-12:13 (leading: Newline, Space)
+ 33: Assign          "=" at 12:14-12:15 (leading: Space)
+ 34: StringLit       "\"inactive\"" at 12:16-12:26 (leading: Space)
+ 35: RBrace          "}" at 13:1-13:2 (leading: Newline)
+ 36: KwFn            "fn" at 15:1-15:3 (leading: Newline)
+ 37: Ident           "main" at 15:4-15:8 (leading: Space)
+ 38: LParen          "(" at 15:8-15:9
+ 39: RParen          ")" at 15:9-15:10
+ 40: Arrow           "->" at 15:11-15:13 (leading: Space)
+ 41: Ident           "int" at 15:14-15:17 (leading: Space)
+ 42: LBrace          "{" at 15:18-15:19 (leading: Space)
+ 43: KwLet           "let" at 17:5-17:8 (leading: Newline, Space, LineComment, Newline, Space)
+ 44: Ident           "c1" at 17:9-17:11 (leading: Space)
+ 45: Colon           ":" at 17:11-17:12
+ 46: Ident           "int" at 17:13-17:16 (leading: Space)
+ 47: Assign          "=" at 17:17-17:18 (leading: Space)
+ 48: Ident           "Color" at 17:19-17:24 (leading: Space)
+ 49: ColonColon      "::" at 17:24-17:26
+ 50: Ident           "Red" at 17:26-17:29
+ 51: Semicolon       ";" at 17:29-17:30
+ 52: KwLet           "let" at 18:5-18:8 (leading: Newline, Space)
+ 53: Ident           "c2" at 18:9-18:11 (leading: Space)
+ 54: Colon           ":" at 18:11-18:12
+ 55: Ident           "int" at 18:13-18:16 (leading: Space)
+ 56: Assign          "=" at 18:17-18:18 (leading: Space)
+ 57: Ident           "Color" at 18:19-18:24 (leading: Space)
+ 58: ColonColon      "::" at 18:24-18:26
+ 59: Ident           "Green" at 18:26-18:31
+ 60: Semicolon       ";" at 18:31-18:32
+ 61: KwLet           "let" at 19:5-19:8 (leading: Newline, Space)
+ 62: Ident           "c3" at 19:9-19:11 (leading: Space)
+ 63: Colon           ":" at 19:11-19:12
+ 64: Ident           "int" at 19:13-19:16 (leading: Space)
+ 65: Assign          "=" at 19:17-19:18 (leading: Space)
+ 66: Ident           "Color" at 19:19-19:24 (leading: Space)
+ 67: ColonColon      "::" at 19:24-19:26
+ 68: Ident           "Blue" at 19:26-19:30
+ 69: Semicolon       ";" at 19:30-19:31
+ 70: KwLet           "let" at 21:5-21:8 (leading: Newline, Space)
+ 71: Ident           "s1" at 21:9-21:11 (leading: Space)
+ 72: Colon           ":" at 21:11-21:12
+ 73: Ident           "string" at 21:13-21:19 (leading: Space)
+ 74: Assign          "=" at 21:20-21:21 (leading: Space)
+ 75: Ident           "Status" at 21:22-21:28 (leading: Space)
+ 76: ColonColon      "::" at 21:28-21:30
+ 77: Ident           "Active" at 21:30-21:36
+ 78: Semicolon       ";" at 21:36-21:37
+ 79: KwLet           "let" at 22:5-22:8 (leading: Newline, Space)
+ 80: Ident           "s2" at 22:9-22:11 (leading: Space)
+ 81: Colon           ":" at 22:11-22:12
+ 82: Ident           "string" at 22:13-22:19 (leading: Space)
+ 83: Assign          "=" at 22:20-22:21 (leading: Space)
+ 84: Ident           "Status" at 22:22-22:28 (leading: Space)
+ 85: ColonColon      "::" at 22:28-22:30
+ 86: Ident           "Inactive" at 22:30-22:38
+ 87: Semicolon       ";" at 22:38-22:39
+ 88: KwReturn        "return" at 24:5-24:11 (leading: Newline, Space)
+ 89: Ident           "c1" at 24:12-24:14 (leading: Space)
+ 90: Plus            "+" at 24:15-24:16 (leading: Space)
+ 91: Ident           "c2" at 24:17-24:19 (leading: Space)
+ 92: Plus            "+" at 24:20-24:21 (leading: Space)
+ 93: Ident           "c3" at 24:22-24:24 (leading: Space)
+ 94: Semicolon       ";" at 24:24-24:25
+ 95: RBrace          "}" at 25:1-25:2 (leading: Newline)
+ 96: EOF             at 26:1-26:1

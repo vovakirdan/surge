@@ -207,6 +207,12 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 			p.attachDirectiveBlocks(itemID, directiveBlocks)
 		}
 		return itemID, parsed
+	case token.KwEnum:
+		itemID, parsed := p.parseEnumItem(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
+		if parsed {
+			p.attachDirectiveBlocks(itemID, directiveBlocks)
+		}
+		return itemID, parsed
 	case token.KwContract:
 		itemID, parsed := p.parseContractItem(attrs, attrSpan, ast.VisPrivate, source.Span{}, false)
 		if parsed {
@@ -406,6 +412,46 @@ func (p *Parser) parseItem() (ast.ItemID, bool) {
 			}
 			return itemID, parsed
 		}
+		if p.at(token.KwEnum) {
+			visibility := ast.VisPrivate
+			if mods.flags&ast.FnModifierPublic != 0 {
+				visibility = ast.VisPublic
+			}
+			invalid := mods.flags &^ ast.FnModifierPublic
+			if invalid != 0 {
+				span := mods.span
+				if !mods.hasSpan {
+					span = p.lx.Peek().Span
+				}
+				p.emitDiagnostic(
+					diag.SynUnexpectedModifier,
+					diag.SevError,
+					span,
+					"unexpected modifiers before 'enum'",
+					func(b *diag.ReportBuilder) {
+						if b == nil {
+							return
+						}
+						fixID := fix.MakeFixID(diag.SynUnexpectedModifier, span)
+						suggestion := fix.DeleteSpan(
+							"remove the invalid modifiers",
+							span.ExtendRight(p.lx.Peek().Span),
+							"",
+							fix.WithID(fixID),
+							fix.WithKind(diag.FixKindRefactor),
+							fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+						)
+						b.WithFixSuggestion(suggestion)
+						b.WithNote(span, "only 'pub' modifier is allowed before 'enum'")
+					},
+				)
+			}
+			itemID, parsed := p.parseEnumItem(attrs, attrSpan, visibility, mods.span, mods.hasSpan)
+			if parsed {
+				p.attachDirectiveBlocks(itemID, directiveBlocks)
+			}
+			return itemID, parsed
+		}
 		if p.at(token.KwTag) {
 			visibility := ast.VisPrivate
 			if mods.flags&ast.FnModifierPublic != 0 {
@@ -534,7 +580,7 @@ func (p *Parser) resyncTop() { // todo: использовать resyncUntill - 
 func isTopLevelStarter(k token.Kind) bool {
 	switch k {
 	case token.KwImport, token.KwLet, token.KwFn,
-		token.KwPub, token.KwAsync, token.KwExtern, token.KwType, token.KwContract, token.KwTag, token.KwConst:
+		token.KwPub, token.KwAsync, token.KwExtern, token.KwType, token.KwEnum, token.KwContract, token.KwTag, token.KwConst:
 		return true
 	default:
 		return false

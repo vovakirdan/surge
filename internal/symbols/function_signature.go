@@ -5,16 +5,20 @@ import (
 	"strings"
 
 	"surge/internal/ast"
+	"surge/internal/source"
 )
 
 type TypeKey string
 
 // FunctionSignature captures a simplified view of a function signature.
 type FunctionSignature struct {
-	Params   []TypeKey
-	Variadic []bool
-	Result   TypeKey
-	HasBody  bool
+	Params     []TypeKey
+	ParamNames []source.StringID // Parameter names (for named arguments)
+	Variadic   []bool
+	Defaults   []bool // true if parameter has default value
+	Result     TypeKey
+	HasBody    bool
+	HasSelf    bool
 }
 
 func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSignature {
@@ -31,20 +35,32 @@ func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSigna
 		}
 	}
 	sig := &FunctionSignature{
-		Params:   make([]TypeKey, 0, len(ids)),
-		Variadic: make([]bool, 0, len(ids)),
-		Result:   resultKey,
-		HasBody:  fn.Body.IsValid(),
+		Params:     make([]TypeKey, 0, len(ids)),
+		ParamNames: make([]source.StringID, 0, len(ids)),
+		Variadic:   make([]bool, 0, len(ids)),
+		Defaults:   make([]bool, 0, len(ids)),
+		Result:     resultKey,
+		HasBody:    fn.Body.IsValid(),
+		HasSelf:    false,
 	}
-	for _, pid := range ids {
+	for i, pid := range ids {
 		param := builder.Items.FnParam(pid)
 		if param == nil {
 			sig.Params = append(sig.Params, TypeKey(""))
+			sig.ParamNames = append(sig.ParamNames, source.NoStringID)
 			sig.Variadic = append(sig.Variadic, false)
+			sig.Defaults = append(sig.Defaults, false)
 			continue
 		}
+		if i == 0 && param.Name != source.NoStringID {
+			if builder.StringsInterner.MustLookup(param.Name) == "self" {
+				sig.HasSelf = true
+			}
+		}
 		sig.Params = append(sig.Params, makeTypeKey(builder, param.Type))
+		sig.ParamNames = append(sig.ParamNames, param.Name)
 		sig.Variadic = append(sig.Variadic, param.Variadic)
+		sig.Defaults = append(sig.Defaults, param.Default != ast.NoExprID)
 	}
 	return sig
 }

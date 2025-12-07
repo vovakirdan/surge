@@ -1,0 +1,27 @@
+type Foo = { a: int }
+
+extern<Foo> {
+    fn new() -> Foo { return Foo { 0 }; }
+    fn consume(self: Foo) -> int { return self.a; }
+    fn read(self: &Foo) -> int { return self.a; }
+    fn modify(self: &mut Foo, v: int) { self.a = v; }
+}
+
+fn test_value_receiver() {
+    let mut f: Foo = Foo.new();
+    let _ = f.read();      // implicit &f
+    f.modify(10);          // implicit &mut f
+}
+
+fn test_ref_receiver() {
+    let f: Foo = Foo.new();
+    let r: &Foo = &f;
+    let _ = r.read();      // &Foo matches self: &Foo
+}
+
+fn test_mut_ref_receiver() {
+    let mut f: Foo = Foo.new();
+    let m: &mut Foo = &mut f;
+    let _ = m.read();      // &mut Foo coerces to &Foo
+    m.modify(20);          // &mut Foo matches self: &mut Foo
+}

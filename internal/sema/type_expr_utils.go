@@ -173,6 +173,31 @@ func (tc *typeChecker) typeLabel(id types.TypeID) string {
 			}
 		}
 		return "union"
+	case types.KindTuple:
+		if info, ok := tc.types.TupleInfo(id); ok && info != nil {
+			elems := make([]string, 0, len(info.Elems))
+			for _, e := range info.Elems {
+				elems = append(elems, tc.typeLabel(e))
+			}
+			if len(elems) == 1 {
+				return "(" + elems[0] + ",)"
+			}
+			return "(" + strings.Join(elems, ", ") + ")"
+		}
+		return "()"
+	case types.KindFn:
+		if info, ok := tc.types.FnInfo(id); ok && info != nil {
+			params := make([]string, 0, len(info.Params))
+			for _, p := range info.Params {
+				params = append(params, tc.typeLabel(p))
+			}
+			ret := tc.typeLabel(info.Result)
+			if ret == "()" || ret == "unit" {
+				return fmt.Sprintf("fn(%s)", strings.Join(params, ", "))
+			}
+			return fmt.Sprintf("fn(%s) -> %s", strings.Join(params, ", "), ret)
+		}
+		return "fn"
 	default:
 		return tt.Kind.String()
 	}

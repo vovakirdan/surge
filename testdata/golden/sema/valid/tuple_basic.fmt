@@ -1,0 +1,20 @@
+// scenario: basic tuple types and expressions
+fn empty() -> () {
+    return ();
+}
+
+fn pair(a: int, b: string) -> (int, string) {
+    return (a, b);
+}
+
+fn nested() -> ((int, int), string) {
+    return ((1, 2), "nested");
+}
+
+fn let_binding() {
+    let t: (int, bool) = (42, true);
+}
+
+fn single_element() -> (int,) {
+    return (1,);
+}

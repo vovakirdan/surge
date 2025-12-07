@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"surge/internal/ast"
@@ -88,6 +89,11 @@ func (p *Parser) parseBinaryExpr(minPrec int) (ast.ExprID, bool) {
 		finalSpan := leftSpan.Cover(rightSpan)
 
 		left = p.arenas.Exprs.NewBinary(finalSpan, op, left, right)
+	}
+
+	// Check for ternary operator (right-associative, precTernary = 3)
+	if p.at(token.Question) && minPrec <= precTernary {
+		return p.parseTernaryExpr(left)
 	}
 
 	return left, true
@@ -241,17 +247,29 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 		switch p.lx.Peek().Kind {
 		case token.ColonColon:
 			doubleColon := p.advance()
-			if !p.at(token.Lt) {
-				p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, doubleColon.Span, "expected '<' after '::' for type arguments", nil)
-				return ast.NoExprID, false
-			}
-			typeArgs, ok := p.parseTypeArgs()
-			if !ok {
-				return ast.NoExprID, false
-			}
-			pendingTypeArgs = typeArgs
-			if !p.at(token.LParen) {
-				p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, p.currentErrorSpan(), "expected '(' after type arguments", nil)
+			// После :: может быть либо < для type arguments, либо identifier для enum variant
+			switch p.lx.Peek().Kind {
+			case token.Lt:
+				// Type arguments: expr::<T>(...)
+				typeArgs, ok := p.parseTypeArgs()
+				if !ok {
+					return ast.NoExprID, false
+				}
+				pendingTypeArgs = typeArgs
+				if !p.at(token.LParen) {
+					p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, p.currentErrorSpan(), "expected '(' after type arguments", nil)
+					return ast.NoExprID, false
+				}
+			case token.Ident:
+				// Enum variant or static member: Type::Variant
+				variantTok := p.advance()
+				variantName := variantTok.Text
+				variantNameID := p.arenas.StringsInterner.Intern(variantName)
+				exprSpan := p.arenas.Exprs.Get(expr).Span
+				finalSpan := exprSpan.Cover(doubleColon.Span).Cover(variantTok.Span)
+				expr = p.arenas.Exprs.NewMember(finalSpan, expr, variantNameID)
+			default:
+				p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, doubleColon.Span, "expected '<' or identifier after '::'", nil)
 				return ast.NoExprID, false
 			}
 		case token.LParen:
@@ -309,6 +327,39 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 			exprSpan := p.arenas.Exprs.Get(expr).Span
 			finalSpan := exprSpan.Cover(colonTok.Span).Cover(typeSpan)
 			expr = p.arenas.Exprs.NewCast(finalSpan, expr, typeID, ast.NoExprID)
+
+		case token.FloatLit:
+			tok := p.lx.Peek()
+			if len(tok.Text) > 1 && tok.Text[0] == '.' {
+				// This is tuple index access like .0, .1
+				// Parse the index from the token text (skip the leading '.')
+				idxStr := tok.Text[1:]
+				var idx uint64
+				var err error
+				// Check if there's a decimal point in the index (like .0.5)
+				hasDot := false
+				for i := range len(idxStr) {
+					if idxStr[i] == '.' {
+						hasDot = true
+						break
+					}
+				}
+				if hasDot {
+					// Not a valid tuple index, return
+					return expr, true
+				}
+				idx, err = strconv.ParseUint(idxStr, 10, 32)
+				if err != nil {
+					p.err(diag.SynInvalidTupleIndex, "invalid tuple index")
+					return ast.NoExprID, false
+				}
+				idxTok := p.advance()
+				targetSpan := p.arenas.Exprs.Get(expr).Span
+				finalSpan := targetSpan.Cover(idxTok.Span)
+				expr = p.arenas.Exprs.NewTupleIndex(finalSpan, expr, uint32(idx))
+				continue
+			}
+			return expr, true
 
 		default:
 			// Больше постфиксов нет

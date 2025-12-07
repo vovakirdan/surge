@@ -1,0 +1,29 @@
+mutex_basic.sg (span: 3:1-14:1)
+├─ Item[0]: Fn (span: 3:1-8:2)
+│  ├─ Name: test_mutex_lock_unlock
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:44-8:2)
+│        ├─ Stmt[0]: Let (span: 4:5-4:36)
+│        │  ├─ Name: m
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Mutex
+│        │  └─ Value: expr#3: Mutex.new()
+│        ├─ Stmt[1]: Expr (span: 5:5-5:14)
+│        │  └─ Expr: expr#6: m.lock()
+│        └─ Stmt[2]: Expr (span: 7:5-7:16)
+│           └─ Expr: expr#9: m.unlock()
+└─ Item[1]: Fn (span: 10:1-13:2)
+   ├─ Name: test_mutex_try_lock
+   ├─ Params: ()
+   ├─ Return: bool
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:38-13:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:36)
+         │  ├─ Name: m
+         │  ├─ Mutable: true
+         │  ├─ Type: Mutex
+         │  └─ Value: expr#12: Mutex.new()
+         └─ Stmt[1]: Return (span: 12:5-12:25)
+            └─ Expr: expr#15: m.try_lock()

@@ -49,6 +49,8 @@ type Items struct {
 	TypeFields       *Arena[TypeStructField]
 	TypeUnions       *Arena[TypeUnionDecl]
 	TypeUnionMembers *Arena[TypeUnionMember]
+	TypeEnums        *Arena[TypeEnumDecl]
+	EnumVariants     *Arena[EnumVariant]
 	Externs          *Arena[ExternBlock]
 	ExternMembers    *Arena[ExternMember]
 	ExternFields     *Arena[ExternField]
@@ -83,6 +85,8 @@ func NewItems(capHint uint) *Items {
 		TypeFields:       NewArena[TypeStructField](capHint),
 		TypeUnions:       NewArena[TypeUnionDecl](capHint),
 		TypeUnionMembers: NewArena[TypeUnionMember](capHint),
+		TypeEnums:        NewArena[TypeEnumDecl](capHint),
+		EnumVariants:     NewArena[EnumVariant](capHint),
 		Externs:          NewArena[ExternBlock](capHint),
 		ExternMembers:    NewArena[ExternMember](capHint),
 		ExternFields:     NewArena[ExternField](capHint),
@@ -149,6 +153,13 @@ func (i *Items) TypeUnion(item *TypeItem) *TypeUnionDecl {
 	return i.TypeUnions.Get(uint32(item.Payload))
 }
 
+func (i *Items) TypeEnum(item *TypeItem) *TypeEnumDecl {
+	if item == nil || item.Kind != TypeDeclEnum || !item.Payload.IsValid() {
+		return nil
+	}
+	return i.TypeEnums.Get(uint32(item.Payload))
+}
+
 func (i *Items) StructField(id TypeFieldID) *TypeStructField {
 	if !id.IsValid() {
 		return nil
@@ -161,6 +172,13 @@ func (i *Items) UnionMember(id TypeUnionMemberID) *TypeUnionMember {
 		return nil
 	}
 	return i.TypeUnionMembers.Get(uint32(id))
+}
+
+func (i *Items) EnumVariant(id EnumVariantID) *EnumVariant {
+	if !id.IsValid() {
+		return nil
+	}
+	return i.EnumVariants.Get(uint32(id))
 }
 
 func (i *Items) allocateAttrs(attrs []Attr) (attr AttrID, attrCount uint32) {
@@ -353,6 +371,74 @@ func (i *Items) NewTypeUnion(
 		AttrCount:             attrCount,
 		Kind:                  TypeDeclUnion,
 		Payload:               PayloadID(unionPayload),
+		Visibility:            visibility,
+		Span:                  span,
+	}
+	payloadID := PayloadID(i.Types.Allocate(typeItem))
+	return i.New(ItemType, span, payloadID)
+}
+
+func (i *Items) NewTypeEnum(
+	name source.StringID,
+	generics []source.StringID,
+	genericCommas []source.Span,
+	genericsTrailing bool,
+	genericsSpan source.Span,
+	typeParams []TypeParamSpec,
+	typeKwSpan source.Span,
+	assignSpan source.Span,
+	semicolonSpan source.Span,
+	attrs []Attr,
+	visibility Visibility,
+	baseType TypeID,
+	baseTypeSpan source.Span,
+	colonSpan source.Span,
+	variants []EnumVariantSpec,
+	variantCommas []source.Span,
+	hasTrailing bool,
+	bodySpan source.Span,
+	span source.Span,
+) ItemID {
+	attrStart, attrCount := i.allocateAttrs(attrs)
+	typeParamsStart, typeParamsCount := i.allocateTypeParams(typeParams)
+	var variantsStart EnumVariantID
+	variantCount, err := safecast.Conv[uint32](len(variants))
+	if err != nil {
+		panic(fmt.Errorf("variants count overflow: %w", err))
+	}
+	if variantCount > 0 {
+		for idx, spec := range variants {
+			variantID := EnumVariantID(i.EnumVariants.Allocate(EnumVariant(spec)))
+			if idx == 0 {
+				variantsStart = variantID
+			}
+		}
+	}
+	enumPayload := i.TypeEnums.Allocate(TypeEnumDecl{
+		BaseType:      baseType,
+		BaseTypeSpan:  baseTypeSpan,
+		ColonSpan:     colonSpan,
+		VariantsStart: variantsStart,
+		VariantsCount: variantCount,
+		VariantCommas: append([]source.Span(nil), variantCommas...),
+		HasTrailing:   hasTrailing,
+		BodySpan:      bodySpan,
+	})
+	typeItem := TypeItem{
+		Name:                  name,
+		Generics:              append([]source.StringID(nil), generics...),
+		GenericCommas:         append([]source.Span(nil), genericCommas...),
+		GenericsTrailingComma: genericsTrailing,
+		GenericsSpan:          genericsSpan,
+		TypeParamsStart:       typeParamsStart,
+		TypeParamsCount:       typeParamsCount,
+		TypeKeywordSpan:       typeKwSpan,
+		AssignSpan:            assignSpan,
+		SemicolonSpan:         semicolonSpan,
+		AttrStart:             attrStart,
+		AttrCount:             attrCount,
+		Kind:                  TypeDeclEnum,
+		Payload:               PayloadID(enumPayload),
 		Visibility:            visibility,
 		Span:                  span,
 	}

@@ -47,6 +47,28 @@ var intrinsicAllowedNamesList = []string{
 	"__heir",
 	"exit",
 	"default",
+	// Concurrency primitives (Mutex, RwLock, Condition, Semaphore)
+	"new",
+	"lock",
+	"unlock",
+	"try_lock",
+	"read_lock",
+	"read_unlock",
+	"write_lock",
+	"write_unlock",
+	"try_read_lock",
+	"try_write_lock",
+	// Condition
+	"new",
+	"wait",
+	"notify_one",
+	"notify_all",
+	// Semaphore
+	"acquire",
+	"release",
+	"try_acquire",
+	// Task utilities
+	"checkpoint",
 }
 
 var (
