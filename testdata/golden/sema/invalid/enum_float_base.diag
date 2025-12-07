@@ -1,0 +1,2 @@
+error SEM3097 testdata/golden/sema/invalid/enum_float_base.sg:4:12 enum base type must be an integer type or string, got 'float'
+error SEM3093 testdata/golden/sema/invalid/enum_float_base.sg:10:20 variant 'KILOGRAM' not found in enum 'Mass'

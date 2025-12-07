@@ -26,6 +26,15 @@ func (tc *typeChecker) populateEnumType(itemID ast.ItemID, typeItem *ast.TypeIte
 			baseType = resolved
 		}
 	}
+
+	// Validate that base type is supported (integers or string)
+	resolvedBase := tc.resolveAlias(baseType)
+	if !tc.isValidEnumBaseType(resolvedBase) {
+		tc.report(diag.SemaEnumInvalidBaseType, enumDecl.BaseTypeSpan,
+			"enum base type must be an integer type or string, got '%s'", tc.typeLabel(baseType))
+		return
+	}
+
 	tc.types.SetEnumBaseType(typeID, baseType)
 
 	// Process variants
@@ -38,8 +47,9 @@ func (tc *typeChecker) populateEnumType(itemID ast.ItemID, typeItem *ast.TypeIte
 	nameSet := make(map[source.StringID]source.Span)
 	var nextValue int64 = 0
 
-	// Check if this is a string enum
-	baseTypeDesc, _ := tc.types.Lookup(baseType)
+	// Check if this is a string enum (unwrap type aliases first)
+	resolved := tc.resolveAlias(baseType)
+	baseTypeDesc, _ := tc.types.Lookup(resolved)
 	isStringEnum := baseTypeDesc.Kind == types.KindString
 
 	for i := range enumDecl.VariantsCount {
@@ -299,4 +309,21 @@ func (tc *typeChecker) typeOfEnumVariant(enumType types.TypeID, variantName sour
 
 	// Default to int if no base type specified
 	return tc.types.Builtins().Int
+}
+
+// isValidEnumBaseType checks if the resolved type is a valid enum base type
+// Valid base types: int, uint, int8-64, uint8-64, string
+func (tc *typeChecker) isValidEnumBaseType(resolved types.TypeID) bool {
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return false
+	}
+	switch tt.Kind {
+	case types.KindString:
+		return true
+	case types.KindInt, types.KindUint:
+		return true
+	default:
+		return false
+	}
 }

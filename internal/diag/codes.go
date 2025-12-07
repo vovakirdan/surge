@@ -166,11 +166,12 @@ const (
 	SemaRangeTypeMismatch        Code = 3091 // Range operands have incompatible types
 	SemaIndexOutOfBounds         Code = 3092 // Index out of bounds
 
-	// Enum validation (3093-3096)
+	// Enum validation (3093-3097)
 	SemaEnumVariantNotFound   Code = 3093 // Enum variant does not exist
 	SemaEnumValueOverflow     Code = 3094 // Enum value overflow
 	SemaEnumValueTypeMismatch Code = 3095 // Enum value type mismatch
 	SemaEnumDuplicateVariant  Code = 3096 // Duplicate enum variant name
+	SemaEnumInvalidBaseType   Code = 3097 // Invalid base type for enum
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -349,6 +350,7 @@ var ( // todo расширить описания и использовать к
 		SemaEnumValueOverflow:          "enum value overflow",
 		SemaEnumValueTypeMismatch:      "enum value type mismatch",
 		SemaEnumDuplicateVariant:       "duplicate enum variant name",
+		SemaEnumInvalidBaseType:        "invalid base type for enum",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

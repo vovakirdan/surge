@@ -1,0 +1,22 @@
+// Test enum with type alias as base type
+pragma no_std;
+
+type Keyword = string;
+type IntAlias = int;
+
+enum KW: Keyword = {
+    LET = "let",
+    FN = "fn",
+    TYPE = "type"
+}
+
+enum Priority: IntAlias = {
+    Low = 1,
+    Medium = 5,
+    High = 10
+}
+
+fn main() {
+    let kw: Keyword = KW::LET;
+    let p: IntAlias = Priority::High;
+}
