@@ -408,13 +408,7 @@ func (i *Items) NewTypeEnum(
 	}
 	if variantCount > 0 {
 		for idx, spec := range variants {
-			variantID := EnumVariantID(i.EnumVariants.Allocate(EnumVariant{
-				Name:       spec.Name,
-				NameSpan:   spec.NameSpan,
-				Value:      spec.Value,
-				AssignSpan: spec.AssignSpan,
-				Span:       spec.Span,
-			}))
+			variantID := EnumVariantID(i.EnumVariants.Allocate(EnumVariant(spec)))
 			if idx == 0 {
 				variantsStart = variantID
 			}

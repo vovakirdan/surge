@@ -1,0 +1,9 @@
+testdata/golden/parser/enum_basic.sg (span: 3:1-14:1)
+├─ Item[0]: Type (span: 3:1-7:2)
+│  ├─ Name: Color
+│  ├─ Kind: TypeDeclKind(3)
+│  └─ Visibility: private
+└─ Item[1]: Type (span: 9:1-13:2)
+   ├─ Name: Status
+   ├─ Kind: TypeDeclKind(3)
+   └─ Visibility: private

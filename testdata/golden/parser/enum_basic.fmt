@@ -1,0 +1,13 @@
+// Basic enum parsing test
+
+enum Color = {
+    Red,
+    Green,
+    Blue,
+}
+
+enum Status: int = {
+    Unknown,
+    Started,
+    Done,
+}
