@@ -64,9 +64,10 @@ func (tc *typeChecker) collectToMethods(src, target types.TypeID) []*symbols.Fun
 			if sig == nil || len(sig.Params) < 2 {
 				continue
 			}
-			// Check if second parameter matches target type
+			// Check if second parameter matches target type AND result matches target type
+			// __to signature must be: fn __to(self: source, _: target) -> target
 			for _, tgt := range targetCandidates {
-				if tgt.key != "" && typeKeyEqual(sig.Params[1], tgt.key) {
+				if tgt.key != "" && typeKeyEqual(sig.Params[1], tgt.key) && typeKeyEqual(sig.Result, tgt.key) {
 					// Deduplicate: only add each signature once
 					if _, dup := seen[sig]; !dup {
 						seen[sig] = struct{}{}

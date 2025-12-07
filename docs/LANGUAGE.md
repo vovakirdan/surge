@@ -1107,9 +1107,9 @@ Each target type gets its own overload; primitives in `core/intrinsics.sg` (modu
 4. Multiple matches yield `E_AMBIGUOUS_CAST`; no match yields `E_NO_CAST`.
 
 **Restrictions:**
-* Direct calls to `__to` are forbidden; only `expr to Type` may invoke it.
+* Direct calls to `__to` are forbidden; only `expr to Type` or implicit conversion may invoke it.
 * Reference and pointer types cannot define or consume casts.
-* Casts never participate in function overload resolution; insert them explicitly when needed.
+* Explicit casts (`expr to Type` or `expr: Type`) never participate in function overload resolution; insert them explicitly when needed. However, implicit conversions (§6.6.1) do participate with lower priority.
 
 #### 6.6.1. Implicit Conversions
 
@@ -1142,7 +1142,7 @@ type Feet = float;
 
 extern<Meters> {
   fn __to(self: Meters, _: Feet) -> Feet {
-    return (self * 3.28084) as Feet;
+    return (self * 3.28084): Feet;
   }
 }
 

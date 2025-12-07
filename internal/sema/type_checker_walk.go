@@ -288,31 +288,47 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 			if elemAssignable || elemConvertible {
 				if expFixed {
 					if actFixed && expLen == actLen {
-						// Array length matches, record element conversions if needed
-						if valueExpr.IsValid() {
-							if arr, okArr := tc.builder.Exprs.Array(valueExpr); okArr && arr != nil {
-								tc.recordArrayElementConversions(arr, expElem)
+						// Array length matches
+						if elemConvertible && !elemAssignable {
+							// Element types need conversion - only allowed for array literals
+							if valueExpr.IsValid() {
+								if arr, okArr := tc.builder.Exprs.Array(valueExpr); okArr && arr != nil {
+									tc.recordArrayElementConversions(arr, expElem)
+									return
+								}
 							}
+							// Not an array literal, can't convert elements - fall through to error
+						} else {
+							// Elements are assignable without conversion
+							return
 						}
-						return
 					}
 					if !actFixed && valueExpr.IsValid() {
 						if arr, okArr := tc.builder.Exprs.Array(valueExpr); okArr && arr != nil {
 							if l, err := safecast.Conv[uint32](len(arr.Elements)); err == nil && l == expLen {
-								// Array length matches, record element conversions
-								tc.recordArrayElementConversions(arr, expElem)
+								// Array length matches, record element conversions if needed
+								if elemConvertible && !elemAssignable {
+									tc.recordArrayElementConversions(arr, expElem)
+								}
 								return
 							}
 						}
 					}
 				} else {
-					// Dynamic array, check for element conversions
-					if valueExpr.IsValid() {
-						if arr, okArr := tc.builder.Exprs.Array(valueExpr); okArr && arr != nil {
-							tc.recordArrayElementConversions(arr, expElem)
+					// Dynamic array
+					if elemConvertible && !elemAssignable {
+						// Element types need conversion - only allowed for array literals
+						if valueExpr.IsValid() {
+							if arr, okArr := tc.builder.Exprs.Array(valueExpr); okArr && arr != nil {
+								tc.recordArrayElementConversions(arr, expElem)
+								return
+							}
 						}
+						// Not an array literal, can't convert elements - fall through to error
+					} else {
+						// Elements are assignable without conversion
+						return
 					}
-					return
 				}
 			}
 		}
