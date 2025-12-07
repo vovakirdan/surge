@@ -1,0 +1,14 @@
+// Module with enum definitions for import testing
+pragma no_std;
+
+pub enum Color: int = {
+    Red = 1,
+    Green = 2,
+    Blue = 3
+}
+
+pub enum Status: string = {
+    Active = "active",
+    Inactive = "inactive",
+    Pending = "pending"
+}

@@ -196,6 +196,43 @@ Generic monomorphization and instantiation are described in §16.1.
   * Struct literals may specify the type inline: `let p = Person { age: 25, name: "Alex" };`. The parser only treats `TypeName { ... }` as a typed literal when `TypeName` follows the CamelCase convention so that `while ready { ... }` still parses as a control-flow block.
   * When the type is known (either via `TypeName { ... }` or an explicit annotation on the binding), the short `{expr1, expr2}` form is allowed; expressions are matched to fields in declaration order. Wrap identifier expressions in parentheses (`{(ageVar), computeName()}`) when using positional literals so they are not mistaken for field names.
 * **Literal enums:** `type Color = "black" | "white";` Only the listed literals are allowed values.
+* **Enums:** Named constants with explicit or auto-incremented values.
+
+```sg
+// Integer enum with auto-increment
+enum Color = {
+    Red,      // 0
+    Green,    // 1
+    Blue      // 2
+}
+
+// Integer enum with explicit values
+enum HttpStatus: int = {
+    Ok = 200,
+    NotFound = 404,
+    ServerError = 500
+}
+
+// String enum (requires explicit values)
+enum Status: string = {
+    Active = "active",
+    Inactive = "inactive"
+}
+
+// Usage: qualified names with Type::Variant syntax
+let c: int = Color::Red;
+let status: string = Status::Active;
+
+// Enums can be imported from modules
+import ./mymodule::HttpStatus;
+let code: int = HttpStatus::Ok;
+```
+
+  * Enum variants are accessed via qualified names using `EnumName::VariantName` syntax.
+  * Integer enums support auto-increment (starting from 0) or explicit values.
+  * String enums require explicit values for all variants.
+  * Enum types can be imported from modules and used cross-module.
+  * Enums are lowered to type aliases and internal constants.
 
 #### Struct extension
 
