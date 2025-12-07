@@ -24,18 +24,18 @@ type ImplicitConversion struct {
 //
 // This function only attempts implicit conversion if the types are not already
 // assignable. It does NOT chain conversions (T -> X -> U is not allowed).
-func (tc *typeChecker) tryImplicitConversion(source, target types.TypeID) (types.TypeID, bool, bool) {
-	if source == types.NoTypeID || target == types.NoTypeID {
+func (tc *typeChecker) tryImplicitConversion(src, target types.TypeID) (types.TypeID, bool, bool) {
+	if src == types.NoTypeID || target == types.NoTypeID {
 		return types.NoTypeID, false, false
 	}
 
 	// Fast path: already assignable (don't use conversion)
 	// This ensures we don't apply conversion when types already match
-	if tc.typesAssignable(target, source, true) {
+	if tc.typesAssignable(target, src, true) {
 		return target, false, false // found=false because no conversion needed
 	}
 
-	candidates := tc.collectToMethods(source, target)
+	candidates := tc.collectToMethods(src, target)
 	switch len(candidates) {
 	case 0:
 		return types.NoTypeID, false, false
@@ -50,12 +50,12 @@ func (tc *typeChecker) tryImplicitConversion(source, target types.TypeID) (types
 // It looks up __to functions with signature: fn __to(self: source, _: target) -> target
 // This includes both @intrinsic and user-defined __to functions from the current
 // module and all visible imports.
-func (tc *typeChecker) collectToMethods(source, target types.TypeID) []*symbols.FunctionSignature {
+func (tc *typeChecker) collectToMethods(src, target types.TypeID) []*symbols.FunctionSignature {
 	var results []*symbols.FunctionSignature
 	seen := make(map[*symbols.FunctionSignature]struct{})
 	targetCandidates := tc.typeKeyCandidates(target)
 
-	for _, sc := range tc.typeKeyCandidates(source) {
+	for _, sc := range tc.typeKeyCandidates(src) {
 		if sc.key == "" {
 			continue
 		}
@@ -83,15 +83,15 @@ func (tc *typeChecker) collectToMethods(source, target types.TypeID) []*symbols.
 // recordImplicitConversion records an implicit conversion for codegen.
 // This stores the conversion in Result.ImplicitConversions so that later
 // phases can emit the actual __to function call.
-func (tc *typeChecker) recordImplicitConversion(expr ast.ExprID, source, target types.TypeID) {
-	if !expr.IsValid() || source == types.NoTypeID || target == types.NoTypeID {
+func (tc *typeChecker) recordImplicitConversion(expr ast.ExprID, src, target types.TypeID) {
+	if !expr.IsValid() || src == types.NoTypeID || target == types.NoTypeID {
 		return
 	}
 	if tc.result.ImplicitConversions == nil {
 		tc.result.ImplicitConversions = make(map[ast.ExprID]ImplicitConversion)
 	}
 	tc.result.ImplicitConversions[expr] = ImplicitConversion{
-		Source: source,
+		Source: src,
 		Target: target,
 		Span:   tc.exprSpan(expr),
 	}
