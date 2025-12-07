@@ -5,7 +5,7 @@
   5: LBrace          "{" at 3:18-3:19 (leading: Space)
   6: KwSignal        "signal" at 4:5-4:11 (leading: Newline, Space)
   7: Ident           "x" at 4:12-4:13 (leading: Space)
-  8: Kind(81)        ":=" at 4:14-4:16 (leading: Space)
+  8: Kind(82)        ":=" at 4:14-4:16 (leading: Space)
   9: IntLit          "42" at 4:17-4:19 (leading: Space)
  10: Semicolon       ";" at 4:19-4:20
  11: RBrace          "}" at 5:1-5:2 (leading: Newline)

@@ -1,3 +1,3 @@
-error SYN2027 testdata/golden/sema/invalid/pragma_invalid_position.sg:6:1 pragma must appear before any module items
+error SYN2029 testdata/golden/sema/invalid/pragma_invalid_position.sg:6:1 pragma must appear before any module items
 error SYN2205 testdata/golden/sema/invalid/pragma_invalid_position.sg:8:4 unknown function modifier 'second'
 error SYN2101 testdata/golden/sema/invalid/pragma_invalid_position.sg:10:1 unexpected top-level construct
