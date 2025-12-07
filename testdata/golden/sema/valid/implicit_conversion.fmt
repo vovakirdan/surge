@@ -1,0 +1,56 @@
+type MyInt = { value: int }
+type Wrapper = { data: string }
+
+extern<MyInt> {
+    fn __to(self: MyInt, _: int) -> int {
+        return self.value;
+    }
+}
+
+extern<Wrapper> {
+    fn __to(self: Wrapper, _: string) -> string {
+        return self.data;
+    }
+}
+
+fn test_variable_binding() {
+    let w: Wrapper = Wrapper { "test" };
+    let s: string = w;
+}
+
+fn takes_int(x: int) {
+}
+
+fn test_function_args() {
+    let mi: MyInt = MyInt { 42 };
+    takes_int(mi);
+}
+
+fn returns_string() -> string {
+    let w: Wrapper = Wrapper { "hello" };
+    return w;
+}
+
+type Point = {
+    x: int,
+    y: int,
+}
+
+fn test_struct_field() {
+    let mi: MyInt = MyInt { 10 };
+    let p: Point = Point {
+        x: mi,
+        y: 0,
+    };
+}
+
+fn test_array_elements() {
+    let mi1: MyInt = MyInt { 1 };
+    let mi2: MyInt = MyInt { 2 };
+    let arr: int[2] = [mi1, mi2];
+}
+
+fn test_explicit_conversion() {
+    let w: Wrapper = Wrapper { "explicit" };
+    let s: string = w to string;
+}

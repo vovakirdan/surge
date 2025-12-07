@@ -95,8 +95,9 @@ func TestCallResolverReportsNoOverload(t *testing.T) {
 	paramName := intern(builder, "x")
 	addSimpleFn(builder, file, "baz", []ast.FnParam{{Name: paramName, Type: intType}}, intType, nil)
 
-	strLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitString, intern(builder, "\"hi\""))
-	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "baz")), []ast.CallArg{{Name: source.NoStringID, Value: strLit}}, nil, nil, false)
+	// Use nothing literal - there's no builtin nothing -> int conversion
+	nothingLit := builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitNothing, intern(builder, "nothing"))
+	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "baz")), []ast.CallArg{{Name: source.NoStringID, Value: nothingLit}}, nil, nil, false)
 	addTopLevelLet(builder, file, call)
 
 	semaBag := runSema(t, builder, file)

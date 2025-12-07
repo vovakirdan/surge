@@ -102,6 +102,7 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 	if ok {
 		if sym := tc.symbolFromID(bestSym); sym != nil {
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
+			tc.recordImplicitConversionsForCall(sym, args)
 		}
 		tc.rememberFunctionInstantiation(bestSym, bestArgs)
 		return bestType
@@ -115,6 +116,7 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 	if ok {
 		if sym := tc.symbolFromID(bestSym); sym != nil {
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
+			tc.recordImplicitConversionsForCall(sym, args)
 		}
 		tc.rememberFunctionInstantiation(bestSym, bestArgs)
 		return bestType
@@ -159,6 +161,47 @@ func (tc *typeChecker) callFunctionVariable(fnInfo *types.FnInfo, args []callArg
 	}
 
 	return fnInfo.Result
+}
+
+// recordImplicitConversionsForCall records implicit conversions for function arguments
+// after the best overload has been selected. This must be called AFTER overload resolution.
+func (tc *typeChecker) recordImplicitConversionsForCall(sym *symbols.Symbol, args []callArg) {
+	if sym == nil || sym.Signature == nil {
+		return
+	}
+	sig := sym.Signature
+
+	// Handle variadic functions
+	variadicIndex := -1
+	for i, v := range sig.Variadic {
+		if v {
+			variadicIndex = i
+			break
+		}
+	}
+
+	for i, arg := range args {
+		paramIndex := i
+		if variadicIndex >= 0 && i >= variadicIndex {
+			paramIndex = variadicIndex
+		}
+		if paramIndex >= len(sig.Params) {
+			continue
+		}
+
+		expectedKey := sig.Params[paramIndex]
+		expectedType := tc.typeFromKey(expectedKey)
+		if expectedType == types.NoTypeID {
+			continue
+		}
+
+		// Record implicit conversion if needed
+		if !tc.typesAssignable(expectedType, arg.ty, true) {
+			if convType, found, _ := tc.tryImplicitConversion(arg.ty, expectedType); found {
+				tc.recordImplicitConversion(arg.expr, arg.ty, convType)
+			}
+		}
+	}
 }
 
 func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.SymbolID {

@@ -1107,9 +1107,78 @@ Each target type gets its own overload; primitives in `core/intrinsics.sg` (modu
 4. Multiple matches yield `E_AMBIGUOUS_CAST`; no match yields `E_NO_CAST`.
 
 **Restrictions:**
-* Direct calls to `__to` are forbidden; only `expr to Type` may invoke it.
+* Direct calls to `__to` are forbidden; only `expr to Type` or implicit conversion may invoke it.
 * Reference and pointer types cannot define or consume casts.
-* Casts never participate in function overload resolution; insert them explicitly when needed.
+* Explicit casts (`expr to Type` or `expr: Type`) never participate in function overload resolution; insert them explicitly when needed. However, implicit conversions (§6.6.1) do participate with lower priority.
+
+#### 6.6.1. Implicit Conversions
+
+The compiler automatically applies `__to` conversions in specific coercion sites when the target type is known and exactly one applicable `__to` method exists. This eliminates boilerplate explicit casts while preserving type safety.
+
+**Coercion sites (automatic `__to` application):**
+
+1. **Variable bindings:** `let x: T = expr` where `expr` has type `U` and `__to(U, T)` exists
+2. **Function arguments:** `foo(arg)` where `arg` has type `U`, parameter expects type `T`, and `__to(U, T)` exists
+3. **Return statements:** `return expr` where `expr` has type `U`, function returns `T`, and `__to(U, T)` exists
+4. **Struct field initialization:** `Struct { field: expr }` where `expr` has type `U`, field expects type `T`, and `__to(U, T)` exists
+5. **Array elements:** `[expr1, expr2]` where elements have type `U`, array expects type `T[]`, and `__to(U, T)` exists
+
+**Resolution rules:**
+
+* Only applied when the target type is explicitly known from context (type annotation, function signature, etc.)
+* Exactly one `__to(source, target)` method must exist; ambiguity or absence reports an error
+* No conversion chaining: `T -> U -> V` is never attempted; only single-step `T -> U` conversions
+* Conversions are never applied in binary/unary operator resolution
+* In function overload resolution, implicit conversion has lower priority (cost = 2) than:
+  - Exact type match (cost = 0)
+  - Literal coercion (cost = 1)
+  - Numeric widening (cost = 1)
+
+**Examples:**
+
+```sg
+type Meters = float;
+type Feet = float;
+
+extern<Meters> {
+  fn __to(self: Meters, _: Feet) -> Feet {
+    return (self * 3.28084): Feet;
+  }
+}
+
+// Implicit conversion in variable binding
+let distance_m: Meters = 100.0;
+let distance_ft: Feet = distance_m;  // Calls __to(Meters, Feet) implicitly
+
+// Implicit conversion in function argument
+fn display_feet(f: Feet) { print(f); }
+display_feet(distance_m);  // Calls __to(Meters, Feet) implicitly
+
+// Implicit conversion in return
+fn convert_to_feet(m: Meters) -> Feet {
+  return m;  // Calls __to(Meters, Feet) implicitly
+}
+
+// Implicit conversion in struct field
+type Measurement = { value_ft: Feet };
+let m = Measurement { value_ft: distance_m };  // Calls __to implicitly
+
+// Implicit conversion in array elements
+let measurements: Feet[] = [distance_m, distance_m * 2.0];  // Each element converted
+```
+
+**Diagnostic codes:**
+
+* `SemaNoConversion` (3098): No `__to(T, U)` conversion exists for required coercion
+* `SemaAmbiguousConversion` (3099): Multiple `__to(T, U)` candidates found (should not occur in well-formed code due to Surge's overload/override semantics)
+
+**Built-in implicit conversions:**
+
+The prelude provides `@intrinsic __to` methods for common conversions:
+
+* Numeric: `string -> int/uint/float`, `int -> string/float`, `uint -> string/int/float`, `float -> string/int/uint`, plus fixed-width conversions
+* Boolean: `bool -> string/int`
+* Within numeric families: `intN -> int`, `uintN -> uint`, `floatN -> float` (lossless widening)
 
 **Examples:**
 ```sg

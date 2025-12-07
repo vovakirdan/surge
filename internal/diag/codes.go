@@ -173,6 +173,10 @@ const (
 	SemaEnumDuplicateVariant  Code = 3096 // Duplicate enum variant name
 	SemaEnumInvalidBaseType   Code = 3097 // Invalid base type for enum
 
+	// Implicit conversion errors (3098-3099)
+	SemaNoConversion        Code = 3098 // No conversion from T to U
+	SemaAmbiguousConversion Code = 3099 // Ambiguous conversion from T to U
+
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
 
@@ -351,6 +355,8 @@ var ( // todo расширить описания и использовать к
 		SemaEnumValueTypeMismatch:      "enum value type mismatch",
 		SemaEnumDuplicateVariant:       "duplicate enum variant name",
 		SemaEnumInvalidBaseType:        "invalid base type for enum",
+		SemaNoConversion:               "no conversion from source to target type",
+		SemaAmbiguousConversion:        "ambiguous conversion from source to target type",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

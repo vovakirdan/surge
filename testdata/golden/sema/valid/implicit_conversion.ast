@@ -1,0 +1,141 @@
+implicit_conversion.sg (span: 1:1-57:1)
+├─ Item[0]: Type (span: 1:1-1:28)
+│  ├─ Name: MyInt
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: value: int
+├─ Item[1]: Type (span: 2:1-2:32)
+│  ├─ Name: Wrapper
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: data: string
+├─ Item[2]: Extern (span: 4:1-8:2)
+│  ├─ Target: MyInt
+│  ├─ Members:
+│  │  └─ Fn[0]: __to
+│  │     ├─ Params: (self: MyInt, _: int)
+│  │     ├─ Return: int
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 5:41-7:6)
+│  │        └─ Stmt[0]: Return (span: 6:9-6:27)
+│  │           └─ Expr: expr#2: self.value
+├─ Item[3]: Extern (span: 10:1-14:2)
+│  ├─ Target: Wrapper
+│  ├─ Members:
+│  │  └─ Fn[0]: __to
+│  │     ├─ Params: (self: Wrapper, _: string)
+│  │     ├─ Return: string
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 11:49-13:6)
+│  │        └─ Stmt[0]: Return (span: 12:9-12:26)
+│  │           └─ Expr: expr#4: self.data
+├─ Item[4]: Fn (span: 16:1-19:2)
+│  ├─ Name: test_variable_binding
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 16:28-19:2)
+│        ├─ Stmt[0]: Let (span: 17:5-17:41)
+│        │  ├─ Name: w
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Wrapper
+│        │  └─ Value: expr#6: <ExprKind(18)>
+│        └─ Stmt[1]: Let (span: 18:5-18:23)
+│           ├─ Name: s
+│           ├─ Mutable: false
+│           ├─ Type: string
+│           └─ Value: expr#7: w
+├─ Item[5]: Fn (span: 21:1-22:2)
+│  ├─ Name: takes_int
+│  ├─ Params: (x: int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 21:22-22:2)
+├─ Item[6]: Fn (span: 24:1-27:2)
+│  ├─ Name: test_function_args
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 24:25-27:2)
+│        ├─ Stmt[0]: Let (span: 25:5-25:34)
+│        │  ├─ Name: mi
+│        │  ├─ Mutable: false
+│        │  ├─ Type: MyInt
+│        │  └─ Value: expr#9: <ExprKind(18)>
+│        └─ Stmt[1]: Expr (span: 26:5-26:19)
+│           └─ Expr: expr#12: takes_int(mi)
+├─ Item[7]: Fn (span: 29:1-32:2)
+│  ├─ Name: returns_string
+│  ├─ Params: ()
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 29:31-32:2)
+│        ├─ Stmt[0]: Let (span: 30:5-30:42)
+│        │  ├─ Name: w
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Wrapper
+│        │  └─ Value: expr#14: <ExprKind(18)>
+│        └─ Stmt[1]: Return (span: 31:5-31:14)
+│           └─ Expr: expr#15: w
+├─ Item[8]: Type (span: 34:1-37:2)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+├─ Item[9]: Fn (span: 39:1-45:2)
+│  ├─ Name: test_struct_field
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 39:24-45:2)
+│        ├─ Stmt[0]: Let (span: 40:5-40:34)
+│        │  ├─ Name: mi
+│        │  ├─ Mutable: false
+│        │  ├─ Type: MyInt
+│        │  └─ Value: expr#17: <ExprKind(18)>
+│        └─ Stmt[1]: Let (span: 41:5-44:7)
+│           ├─ Name: p
+│           ├─ Mutable: false
+│           ├─ Type: Point
+│           └─ Value: expr#22: <ExprKind(18)>
+├─ Item[10]: Fn (span: 47:1-51:2)
+│  ├─ Name: test_array_elements
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 47:26-51:2)
+│        ├─ Stmt[0]: Let (span: 48:5-48:34)
+│        │  ├─ Name: mi1
+│        │  ├─ Mutable: false
+│        │  ├─ Type: MyInt
+│        │  └─ Value: expr#24: <ExprKind(18)>
+│        ├─ Stmt[1]: Let (span: 49:5-49:34)
+│        │  ├─ Name: mi2
+│        │  ├─ Mutable: false
+│        │  ├─ Type: MyInt
+│        │  └─ Value: expr#26: <ExprKind(18)>
+│        └─ Stmt[2]: Let (span: 50:5-50:34)
+│           ├─ Name: arr
+│           ├─ Mutable: false
+│           ├─ Type: int[2]
+│           └─ Value: expr#29: <ExprKind(8)>
+└─ Item[11]: Fn (span: 53:1-56:2)
+   ├─ Name: test_explicit_conversion
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 53:31-56:2)
+         ├─ Stmt[0]: Let (span: 54:5-54:45)
+         │  ├─ Name: w
+         │  ├─ Mutable: false
+         │  ├─ Type: Wrapper
+         │  └─ Value: expr#31: <ExprKind(18)>
+         └─ Stmt[1]: Let (span: 55:5-55:33)
+            ├─ Name: s
+            ├─ Mutable: false
+            ├─ Type: string
+            └─ Value: expr#33: w to string

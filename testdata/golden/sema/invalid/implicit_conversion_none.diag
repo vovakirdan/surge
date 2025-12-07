@@ -1,0 +1,4 @@
+error SEM3015 testdata/golden/sema/invalid/implicit_conversion_none.sg:12:21 cannot assign MyType to string
+error SEM3015 testdata/golden/sema/invalid/implicit_conversion_none.sg:17:21 cannot assign OtherType to string
+error SEM3046 testdata/golden/sema/invalid/implicit_conversion_none.sg:25:5 no matching overload for takes_bool
+error SEM3015 testdata/golden/sema/invalid/implicit_conversion_none.sg:30:5 return type mismatch: expected float, got MyType

@@ -165,6 +165,17 @@ func (tc *typeChecker) ensureStructFieldType(name source.StringID, value ast.Exp
 	if tc.valueType(actual) == tc.valueType(expected) {
 		return
 	}
+	// Try implicit conversion before reporting error
+	if convType, found, ambiguous := tc.tryImplicitConversion(actual, expected); found {
+		tc.recordImplicitConversion(value, actual, convType)
+		return
+	} else if ambiguous {
+		fieldName := tc.lookupName(name)
+		tc.report(diag.SemaAmbiguousConversion, tc.exprSpan(value),
+			"field %s: ambiguous conversion from %s to %s: multiple __to methods found",
+			fieldName, tc.typeLabel(actual), tc.typeLabel(expected))
+		return
+	}
 	fieldName := tc.lookupName(name)
 	tc.report(diag.SemaTypeMismatch, tc.exprSpan(value), "field %s expects %s, got %s", fieldName, tc.typeLabel(expected), tc.typeLabel(actual))
 }

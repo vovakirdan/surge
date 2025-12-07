@@ -1,0 +1,31 @@
+type MyInt = { value: int }
+type ChainA = { a: int }
+type ChainB = { b: int }
+
+extern<MyInt> {
+    fn __to(self: MyInt, _: int) -> int {
+        return self.value;
+    }
+}
+
+extern<ChainA> {
+    fn __to(self: ChainA, _: ChainB) -> ChainB {
+        return ChainB { self.a };
+    }
+}
+
+extern<ChainB> {
+    fn __to(self: ChainB, _: int) -> int {
+        return self.b;
+    }
+}
+
+@overload
+fn overloaded(x: int) -> int { return 1; }
+@overload
+fn overloaded(x: string) -> int { return 2; }
+
+fn test_overload_selection() {
+    let mi: MyInt = MyInt { 42 };
+    let result: int = overloaded(mi);
+}
