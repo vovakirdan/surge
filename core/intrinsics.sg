@@ -9,13 +9,13 @@ pub type byte = uint8;
 @intrinsic fn rt_memmove(dst: *byte, src: *byte, n: uint) -> nothing;
 
 // I/O primitives
-@intrinsic fn rt_write_stdout(ptr: *byte, len: uint) -> uint;
+@intrinsic fn rt_write_stdout(ptr: *byte, length: uint) -> uint;
 @intrinsic fn rt_read_stdin(buf: *byte, max_len: uint) -> uint;
 
 // String access intrinsics
 @intrinsic fn rt_string_ptr(s: string) -> *byte;
 @intrinsic fn rt_string_len(s: string) -> uint;
-@intrinsic fn rt_string_from_bytes(ptr: *byte, len: uint) -> string;
+@intrinsic fn rt_string_from_bytes(ptr: *byte, length: uint) -> string;
 
 // Higher-level I/O
 @intrinsic
