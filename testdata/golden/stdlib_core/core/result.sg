@@ -1,8 +1,45 @@
 pragma module, no_std;
 
-// Core Error type for recoverable errors.
+// Core Erring type for recoverable errors using ErrorLike contract.
 
 pub type Error = { message: string, code: uint };
 
-// Note: Erring type with ErrorLike contract is not included in golden tests
-// as it requires more complete contract implementation.
+pub tag Success<T>(T);
+pub type Erring<T, E: ErrorLike> = Success(T) | E;
+
+extern<Erring<T, E>> {
+    pub fn safe<T, E: ErrorLike>(self: Erring<T, E>) -> T {
+        compare self {
+            Success(v) => v;
+            _ => default::<T>();
+        };
+    }
+
+    pub fn exit<T, E: ErrorLike>(self: Erring<T, E>) -> nothing {
+        compare self {
+            Success(_) => nothing;
+            err => exit(err);
+        };
+    }
+
+    pub fn error<T, E: ErrorLike>(self: Erring<T, E>) -> Option<E> {
+        compare self {
+            Success(_) => nothing;
+            err => Some(err);
+        };
+    }
+
+    pub fn is_success(self: Erring<T, E>) -> bool {
+        compare self {
+            Success(_) => true;
+            _ => false;
+        };
+    }
+
+    pub fn is_error(self: Erring<T, E>) -> bool {
+        compare self {
+            Success(_) => false;
+            _ => true;
+        };
+    }
+}
