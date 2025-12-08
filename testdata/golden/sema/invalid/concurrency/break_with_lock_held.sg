@@ -1,0 +1,24 @@
+// Test: Lock held after break from loop
+// Both branches break but lock remains held - should detect double-lock
+
+type BreakResource = {
+    lock: Mutex,
+    value: int
+}
+
+extern<BreakResource> {
+    fn break_both_branches(self: &mut BreakResource) {
+        self.lock.lock();  // Lock acquired
+        while self.value > 0 {
+            if self.value > 10 {
+                break;  // Break with lock held
+            } else {
+                break;  // Break with lock held
+            }
+        }
+        // Lock is still held here!
+        self.lock.lock();  // ERROR: double-lock
+        self.lock.unlock();
+        self.lock.unlock();
+    }
+}

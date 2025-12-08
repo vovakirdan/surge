@@ -235,17 +235,36 @@ func (tc *typeChecker) mergeLockStates(la *lockAnalyzer, s1, s2 *LockState, span
 }
 
 // mergePathsAtJoin performs path-sensitive merging of lock states at branch join points.
-// If one path exits early (return/break/continue), only the continuing path's state is used.
-// Returns the merged state and the combined outcome.
+// Returns the merged state and combined outcome based on how each path exits.
 func (tc *typeChecker) mergePathsAtJoin(
 	la *lockAnalyzer,
 	thenState *LockState, thenOutcome PathOutcome,
 	elseState *LockState, elseOutcome PathOutcome,
 	span source.Span,
 ) (*LockState, PathOutcome) {
-	// Both paths exit early -> unreachable code after this point
+	// Both paths exit early - need to distinguish between different exit types
 	if thenOutcome != PathContinues && elseOutcome != PathContinues {
-		return NewLockState(), PathReturns
+		// Both return -> truly unreachable code after
+		if thenOutcome == PathReturns && elseOutcome == PathReturns {
+			return NewLockState(), PathReturns
+		}
+		// Both break -> code after loop is reachable, merge states
+		if thenOutcome == PathBreaks && elseOutcome == PathBreaks {
+			return tc.mergeLockStates(la, thenState, elseState, span), PathBreaks
+		}
+		// Both continue -> next iteration reachable, merge states
+		if thenOutcome == PathContinuesLoop && elseOutcome == PathContinuesLoop {
+			return tc.mergeLockStates(la, thenState, elseState, span), PathContinuesLoop
+		}
+		// Mixed: one returns, other breaks/continues -> non-return path's state matters
+		if thenOutcome == PathReturns {
+			return elseState, elseOutcome
+		}
+		if elseOutcome == PathReturns {
+			return thenState, thenOutcome
+		}
+		// Mixed break/continue -> conservatively merge, use break (exits loop)
+		return tc.mergeLockStates(la, thenState, elseState, span), PathBreaks
 	}
 
 	// Only then path continues -> use then state
@@ -473,25 +492,6 @@ func (tc *typeChecker) checkExprForLockOps(la *lockAnalyzer, exprID ast.ExprID) 
 
 	// Recursively check sub-expressions
 	tc.walkExprForLockOps(la, exprID)
-}
-
-// isAssignmentOp checks if the binary operator is an assignment operator
-func isAssignmentOp(op ast.ExprBinaryOp) bool {
-	switch op {
-	case ast.ExprBinaryAssign,
-		ast.ExprBinaryAddAssign,
-		ast.ExprBinarySubAssign,
-		ast.ExprBinaryMulAssign,
-		ast.ExprBinaryDivAssign,
-		ast.ExprBinaryModAssign,
-		ast.ExprBinaryBitAndAssign,
-		ast.ExprBinaryBitOrAssign,
-		ast.ExprBinaryBitXorAssign,
-		ast.ExprBinaryShlAssign,
-		ast.ExprBinaryShrAssign:
-		return true
-	}
-	return false
 }
 
 // walkExprForLockOps recursively walks expression children

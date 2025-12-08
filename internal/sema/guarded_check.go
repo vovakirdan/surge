@@ -6,6 +6,25 @@ import (
 	"surge/internal/source"
 )
 
+// isAssignmentOp checks if the binary operator is an assignment operator
+func isAssignmentOp(op ast.ExprBinaryOp) bool {
+	switch op {
+	case ast.ExprBinaryAssign,
+		ast.ExprBinaryAddAssign,
+		ast.ExprBinarySubAssign,
+		ast.ExprBinaryMulAssign,
+		ast.ExprBinaryDivAssign,
+		ast.ExprBinaryModAssign,
+		ast.ExprBinaryBitAndAssign,
+		ast.ExprBinaryBitOrAssign,
+		ast.ExprBinaryBitXorAssign,
+		ast.ExprBinaryShlAssign,
+		ast.ExprBinaryShrAssign:
+		return true
+	}
+	return false
+}
+
 // checkGuardedFieldAccess validates that @guarded_by field is accessed with lock held.
 // isWrite determines if write lock is required (for assignments).
 // Reports SemaLockGuardedByViolation if the appropriate lock is not held.

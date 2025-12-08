@@ -1,0 +1,85 @@
+  1: KwType          "type" at 4:1-4:5 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "BreakResource" at 4:6-4:19 (leading: Space)
+  3: Assign          "=" at 4:20-4:21 (leading: Space)
+  4: LBrace          "{" at 4:22-4:23 (leading: Space)
+  5: Ident           "lock" at 5:5-5:9 (leading: Newline, Space)
+  6: Colon           ":" at 5:9-5:10
+  7: Ident           "Mutex" at 5:11-5:16 (leading: Space)
+  8: Comma           "," at 5:16-5:17
+  9: Ident           "value" at 6:5-6:10 (leading: Newline, Space)
+ 10: Colon           ":" at 6:10-6:11
+ 11: Ident           "int" at 6:12-6:15 (leading: Space)
+ 12: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 13: KwExtern        "extern" at 9:1-9:7 (leading: Newline)
+ 14: Lt              "<" at 9:7-9:8
+ 15: Ident           "BreakResource" at 9:8-9:21
+ 16: Gt              ">" at 9:21-9:22
+ 17: LBrace          "{" at 9:23-9:24 (leading: Space)
+ 18: KwFn            "fn" at 10:5-10:7 (leading: Newline, Space)
+ 19: Ident           "break_both_branches" at 10:8-10:27 (leading: Space)
+ 20: LParen          "(" at 10:27-10:28
+ 21: Ident           "self" at 10:28-10:32
+ 22: Colon           ":" at 10:32-10:33
+ 23: Amp             "&" at 10:34-10:35 (leading: Space)
+ 24: KwMut           "mut" at 10:35-10:38
+ 25: Ident           "BreakResource" at 10:39-10:52 (leading: Space)
+ 26: RParen          ")" at 10:52-10:53
+ 27: LBrace          "{" at 10:54-10:55 (leading: Space)
+ 28: Ident           "self" at 11:9-11:13 (leading: Newline, Space)
+ 29: Dot             "." at 11:13-11:14
+ 30: Ident           "lock" at 11:14-11:18
+ 31: Dot             "." at 11:18-11:19
+ 32: Ident           "lock" at 11:19-11:23
+ 33: LParen          "(" at 11:23-11:24
+ 34: RParen          ")" at 11:24-11:25
+ 35: Semicolon       ";" at 11:25-11:26
+ 36: KwWhile         "while" at 12:9-12:14 (leading: Space, LineComment, Newline, Space)
+ 37: Ident           "self" at 12:15-12:19 (leading: Space)
+ 38: Dot             "." at 12:19-12:20
+ 39: Ident           "value" at 12:20-12:25
+ 40: Gt              ">" at 12:26-12:27 (leading: Space)
+ 41: IntLit          "0" at 12:28-12:29 (leading: Space)
+ 42: LBrace          "{" at 12:30-12:31 (leading: Space)
+ 43: KwIf            "if" at 13:13-13:15 (leading: Newline, Space)
+ 44: Ident           "self" at 13:16-13:20 (leading: Space)
+ 45: Dot             "." at 13:20-13:21
+ 46: Ident           "value" at 13:21-13:26
+ 47: Gt              ">" at 13:27-13:28 (leading: Space)
+ 48: IntLit          "10" at 13:29-13:31 (leading: Space)
+ 49: LBrace          "{" at 13:32-13:33 (leading: Space)
+ 50: KwBreak         "break" at 14:17-14:22 (leading: Newline, Space)
+ 51: Semicolon       ";" at 14:22-14:23
+ 52: RBrace          "}" at 15:13-15:14 (leading: Space, LineComment, Newline, Space)
+ 53: KwElse          "else" at 15:15-15:19 (leading: Space)
+ 54: LBrace          "{" at 15:20-15:21 (leading: Space)
+ 55: KwBreak         "break" at 16:17-16:22 (leading: Newline, Space)
+ 56: Semicolon       ";" at 16:22-16:23
+ 57: RBrace          "}" at 17:13-17:14 (leading: Space, LineComment, Newline, Space)
+ 58: RBrace          "}" at 18:9-18:10 (leading: Newline, Space)
+ 59: Ident           "self" at 20:9-20:13 (leading: Newline, Space, LineComment, Newline, Space)
+ 60: Dot             "." at 20:13-20:14
+ 61: Ident           "lock" at 20:14-20:18
+ 62: Dot             "." at 20:18-20:19
+ 63: Ident           "lock" at 20:19-20:23
+ 64: LParen          "(" at 20:23-20:24
+ 65: RParen          ")" at 20:24-20:25
+ 66: Semicolon       ";" at 20:25-20:26
+ 67: Ident           "self" at 21:9-21:13 (leading: Space, LineComment, Newline, Space)
+ 68: Dot             "." at 21:13-21:14
+ 69: Ident           "lock" at 21:14-21:18
+ 70: Dot             "." at 21:18-21:19
+ 71: Ident           "unlock" at 21:19-21:25
+ 72: LParen          "(" at 21:25-21:26
+ 73: RParen          ")" at 21:26-21:27
+ 74: Semicolon       ";" at 21:27-21:28
+ 75: Ident           "self" at 22:9-22:13 (leading: Newline, Space)
+ 76: Dot             "." at 22:13-22:14
+ 77: Ident           "lock" at 22:14-22:18
+ 78: Dot             "." at 22:18-22:19
+ 79: Ident           "unlock" at 22:19-22:25
+ 80: LParen          "(" at 22:25-22:26
+ 81: RParen          ")" at 22:26-22:27
+ 82: Semicolon       ";" at 22:27-22:28
+ 83: RBrace          "}" at 23:5-23:6 (leading: Newline, Space)
+ 84: RBrace          "}" at 24:1-24:2 (leading: Newline)
+ 85: EOF             at 25:1-25:1

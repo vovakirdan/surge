@@ -1,0 +1,2 @@
+error SEM3079 testdata/golden/sema/invalid/concurrency/break_with_lock_held.sg:20:9 lock 'lock' is already held (acquired at 0:260-276)
+error SEM3080 testdata/golden/sema/invalid/concurrency/break_with_lock_held.sg:22:9 lock 'lock' is not currently held
