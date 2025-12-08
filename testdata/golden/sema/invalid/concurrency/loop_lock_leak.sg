@@ -1,0 +1,20 @@
+// Test: Lock leak in loop - lock acquired but not released before return
+// Simpler case without loop iteration variable issues
+
+type LoopResource = {
+    lock: Mutex,
+    items: int
+}
+
+extern<LoopResource> {
+    // Lock acquired inside condition, return without unlock
+    fn search_with_leak(self: &mut LoopResource) -> int {
+        self.lock.lock();
+        if self.items > 5 {
+            // Found it, but forgot to unlock!
+            return self.items;  // ERROR: lock held at return
+        }
+        self.lock.unlock();
+        return 0;
+    }
+}

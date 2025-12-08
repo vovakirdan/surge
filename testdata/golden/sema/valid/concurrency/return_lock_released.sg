@@ -1,0 +1,29 @@
+// Test: Lock properly released before all returns
+// Path-sensitive analysis should NOT report error
+
+type SafeCounter = {
+    lock: Mutex,
+    value: int
+}
+
+extern<SafeCounter> {
+    // Lock properly released on both paths
+    fn safe_early_return(self: &mut SafeCounter) -> int {
+        self.lock.lock();
+        if self.value > 0 {
+            let result: int = self.value;
+            self.lock.unlock();  // Released before return
+            return result;
+        }
+        self.lock.unlock();  // Released on else path too
+        return 0;
+    }
+
+    // Single path with proper cleanup
+    fn safe_single_path(self: &mut SafeCounter) -> int {
+        self.lock.lock();
+        let v: int = self.value + 1;
+        self.lock.unlock();
+        return v;
+    }
+}

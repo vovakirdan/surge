@@ -13,16 +13,18 @@ import (
 type lockAnalyzer struct {
 	tc               *typeChecker
 	state            *LockState
-	selfSym          symbols.SymbolID // Symbol for 'self' parameter if method
-	receiverTypeName string           // Type name of the receiver (for deadlock detection)
-	hasTryLocks      bool             // True if function uses try_lock methods (skip linear analysis)
+	selfSym          symbols.SymbolID         // Symbol for 'self' parameter if method
+	receiverTypeName string                   // Type name of the receiver (for deadlock detection)
+	hasTryLocks      bool                     // True if function uses try_lock methods (skip linear analysis)
+	exemptLocks      map[source.StringID]bool // Locks exempt from leak checking (contract-managed)
 }
 
 // newLockAnalyzer creates a new lock analyzer for a function
 func (tc *typeChecker) newLockAnalyzer() *lockAnalyzer {
 	return &lockAnalyzer{
-		tc:    tc,
-		state: NewLockState(),
+		tc:          tc,
+		state:       NewLockState(),
+		exemptLocks: make(map[source.StringID]bool),
 	}
 }
 
@@ -63,16 +65,28 @@ func (la *lockAnalyzer) initFromAttributes(fnItem *ast.FnItem, selfSym symbols.S
 
 	// @requires_lock("field") - lock is held on entry (and remains held)
 	// @releases_lock("field") - lock is held on entry (and will be released)
+	// @acquires_lock("field") - lock will be acquired (exempt from leak check at exit)
 	for _, info := range infos {
-		if (info.Spec.Name == "requires_lock" || info.Spec.Name == "releases_lock") && len(info.Args) > 0 {
-			fieldName := la.extractFieldName(info)
-			if fieldName != 0 {
-				key := LockKey{
-					Base:      la.selfSym,
-					FieldName: fieldName,
-					Kind:      LockKindMutex, // Assume mutex for now
+		switch info.Spec.Name {
+		case "requires_lock", "releases_lock":
+			if len(info.Args) > 0 {
+				fieldName := la.extractFieldName(info)
+				if fieldName != 0 {
+					key := LockKey{
+						Base:      la.selfSym,
+						FieldName: fieldName,
+						Kind:      LockKindMutex, // Assume mutex for now
+					}
+					la.state.Acquire(key, info.Span)
+					la.exemptLocks[fieldName] = true
 				}
-				la.state.Acquire(key, info.Span)
+			}
+		case "acquires_lock":
+			if len(info.Args) > 0 {
+				fieldName := la.extractFieldName(info)
+				if fieldName != 0 {
+					la.exemptLocks[fieldName] = true
+				}
 			}
 		}
 	}
@@ -139,7 +153,8 @@ func (tc *typeChecker) analyzeFunctionLocks(fnItem *ast.FnItem, selfSym symbols.
 		}
 	}
 
-	// Check for unreleased locks at function exit
+	// Check for unreleased locks at function exit (end of body, not return statements)
+	// Return statements are checked by checkLocksAtReturn
 	for _, acq := range la.state.HeldLocks() {
 		// Skip locks that are part of the function's contract
 		if exemptLocks[acq.Key.FieldName] {
@@ -148,6 +163,24 @@ func (tc *typeChecker) analyzeFunctionLocks(fnItem *ast.FnItem, selfSym symbols.
 		fieldName := tc.lookupName(acq.Key.FieldName)
 		tc.report(diag.SemaLockNotReleasedOnExit, acq.Span,
 			"lock '%s' acquired here but not released before function exit", fieldName)
+	}
+}
+
+// checkLocksAtReturn checks for unreleased locks at a return statement.
+// Reports SemaLockNotReleasedOnExit for any locks still held.
+func (tc *typeChecker) checkLocksAtReturn(la *lockAnalyzer, returnSpan source.Span) {
+	if la == nil || la.hasTryLocks {
+		return // Skip if using try_lock (requires more sophisticated analysis)
+	}
+
+	for _, acq := range la.state.HeldLocks() {
+		// Skip locks that are part of the function's contract
+		if la.exemptLocks[acq.Key.FieldName] {
+			continue
+		}
+		fieldName := tc.lookupName(acq.Key.FieldName)
+		tc.report(diag.SemaLockNotReleasedOnExit, returnSpan,
+			"lock '%s' not released before return", fieldName)
 	}
 }
 
@@ -376,6 +409,8 @@ func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) Pat
 		if retStmt := tc.builder.Stmts.Return(stmtID); retStmt != nil && retStmt.Expr.IsValid() {
 			tc.checkExprForLockOps(la, retStmt.Expr)
 		}
+		// Check for unreleased locks at this return point
+		tc.checkLocksAtReturn(la, stmt.Span)
 		// Return statement exits the function - this path doesn't continue
 		return PathReturns
 
