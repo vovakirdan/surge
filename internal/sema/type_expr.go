@@ -323,12 +323,22 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprSpawn:
 		if spawn, ok := tc.builder.Exprs.Spawn(id); ok && spawn != nil {
-			payload := tc.typeExpr(spawn.Value)
+			exprType := tc.typeExpr(spawn.Value)
 			tc.observeMove(spawn.Value, tc.exprSpan(spawn.Value))
 			tc.enforceSpawn(spawn.Value)
-			ty = tc.taskType(payload, expr.Span)
+
+			// spawn requires Task<T> — passthrough without re-wrapping
+			if tc.isTaskType(exprType) {
+				ty = exprType
+			} else if exprType != types.NoTypeID {
+				tc.report(diag.SemaSpawnNotTask, expr.Span,
+					"spawn requires async function call or Task<T> expression, got %s",
+					tc.typeLabel(exprType))
+				ty = types.NoTypeID
+			}
+
 			// Track spawned task for structured concurrency
-			if tc.taskTracker != nil {
+			if tc.taskTracker != nil && ty != types.NoTypeID {
 				tc.taskTracker.SpawnTask(id, expr.Span, tc.currentScope())
 			}
 		}

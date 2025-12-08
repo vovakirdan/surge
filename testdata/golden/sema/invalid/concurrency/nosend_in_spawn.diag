@@ -1,1 +1,1 @@
-error SEM3086 testdata/golden/sema/invalid/concurrency/nosend_in_spawn.sg:11:18 cannot send 'handle' of @nosend type 'FileHandle' to spawned task
+error SEM3086 testdata/golden/sema/invalid/concurrency/nosend_in_spawn.sg:16:16 cannot send 'handle' of @nosend type 'FileHandle' to spawned task

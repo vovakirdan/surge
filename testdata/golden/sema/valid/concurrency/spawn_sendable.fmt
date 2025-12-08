@@ -1,23 +1,33 @@
-// Testing that sendable types can be used in spawn
+// Testing that sendable types can be used in async functions with spawn
 
 pub type Counter = {
     value: int,
 };
 
+// Async functions that process sendable types
+async fn process_counter(c: Counter) -> int {
+    return c.value + 1;
+}
+
+async fn double_int(x: int) -> int {
+    return x * 2;
+}
+
+async fn negate_bool(b: bool) -> bool {
+    return !b;
+}
+
+// spawn with owned data passed to async function
 pub fn spawn_with_owned_data(c: Counter) -> Task<int> {
-    // Pass owned data to spawn - this is OK as Counter is not @nosend
-    let result: int = c.value + 1;
-    return spawn result;
+    return spawn process_counter(c);
 }
 
+// spawn with primitive int
 pub fn spawn_with_int(x: int) -> Task<int> {
-    // Primitive types are always sendable
-    let doubled: int = x * 2;
-    return spawn doubled;
+    return spawn double_int(x);
 }
 
+// spawn with primitive bool
 pub fn spawn_with_bool(b: bool) -> Task<bool> {
-    // Boolean values can be sent to spawn
-    let negated: bool = !b;
-    return spawn negated;
+    return spawn negate_bool(b);
 }

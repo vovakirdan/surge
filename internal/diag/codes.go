@@ -195,6 +195,7 @@ const (
 	SemaTaskEscapesScope  Code = 3108 // Task stored in global without detach
 	SemaTaskLeakInAsync   Code = 3109 // Unawaited task at async block exit
 	SemaTaskLifetimeError Code = 3110 // Task outlives spawning scope
+	SemaSpawnNotTask      Code = 3111 // spawn requires Task<T> expression
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -387,6 +388,7 @@ var ( // todo расширить описания и использовать к
 		SemaTaskEscapesScope:             "cannot store Task<T> in global variable without detach",
 		SemaTaskLeakInAsync:              "unawaited task at async block exit",
 		SemaTaskLifetimeError:            "task outlives spawning scope",
+		SemaSpawnNotTask:                 "spawn requires Task<T> expression",
 		IOLoadFileError:                  "I/O load file error",
 		ProjInfo:                         "Project information",
 		ProjDuplicateModule:              "Duplicate module definition",

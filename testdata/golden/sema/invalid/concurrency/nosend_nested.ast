@@ -1,4 +1,4 @@
-nosend_nested.sg (span: 3:1-18:1)
+nosend_nested.sg (span: 3:1-20:1)
 ├─ Item[0]: Type (span: 3:1-6:3)
 │  ├─ Name: Database
 │  ├─ Kind: Struct
@@ -13,16 +13,16 @@ nosend_nested.sg (span: 3:1-18:1)
 │  └─ Struct:
 │     ├─ Field[0]: db: Database
 │     └─ Field[1]: counter: int
-└─ Item[2]: Fn (span: 13:1-17:2)
+└─ Item[2]: Fn (span: 13:1-19:2)
    ├─ Name: spawn_with_nested_nosend
    ├─ Params: ()
    ├─ Return: Task<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 13:48-17:2)
+      └─ Stmt[0]: Block (span: 13:48-19:2)
          ├─ Stmt[0]: Let (span: 14:5-14:65)
          │  ├─ Name: state
          │  ├─ Mutable: false
          │  ├─ Type: AppState
          │  └─ Value: expr#7: <ExprKind(18)>
-         └─ Stmt[1]: Return (span: 16:5-16:32)
-            └─ Expr: expr#10: spawn state.counter
+         └─ Stmt[1]: Return (span: 16:5-18:7)
+            └─ Expr: expr#11: spawn async { 1 stmt(s) }

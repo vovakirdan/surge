@@ -386,6 +386,65 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 		if data, _ := tc.builder.Exprs.Spawn(expr); data != nil {
 			tc.scanSpawn(data.Value, seen)
 		}
+	case ast.ExprAsync:
+		if data, _ := tc.builder.Exprs.Async(expr); data != nil {
+			// Scan async block body for captured @nosend variables
+			tc.scanSpawnStmt(data.Body, seen)
+		}
+	}
+}
+
+// scanSpawnStmt recursively scans statements for @nosend captures
+func (tc *typeChecker) scanSpawnStmt(stmtID ast.StmtID, seen map[symbols.SymbolID]struct{}) {
+	if !stmtID.IsValid() || tc.builder == nil {
+		return
+	}
+	stmt := tc.builder.Stmts.Get(stmtID)
+	if stmt == nil {
+		return
+	}
+	switch stmt.Kind {
+	case ast.StmtBlock:
+		if data := tc.builder.Stmts.Block(stmtID); data != nil {
+			for _, child := range data.Stmts {
+				tc.scanSpawnStmt(child, seen)
+			}
+		}
+	case ast.StmtExpr:
+		if data := tc.builder.Stmts.Expr(stmtID); data != nil {
+			tc.scanSpawn(data.Expr, seen)
+		}
+	case ast.StmtLet:
+		if data := tc.builder.Stmts.Let(stmtID); data != nil {
+			tc.scanSpawn(data.Value, seen)
+		}
+	case ast.StmtReturn:
+		if data := tc.builder.Stmts.Return(stmtID); data != nil {
+			tc.scanSpawn(data.Expr, seen)
+		}
+	case ast.StmtIf:
+		if data := tc.builder.Stmts.If(stmtID); data != nil {
+			tc.scanSpawn(data.Cond, seen)
+			tc.scanSpawnStmt(data.Then, seen)
+			tc.scanSpawnStmt(data.Else, seen)
+		}
+	case ast.StmtWhile:
+		if data := tc.builder.Stmts.While(stmtID); data != nil {
+			tc.scanSpawn(data.Cond, seen)
+			tc.scanSpawnStmt(data.Body, seen)
+		}
+	case ast.StmtForIn:
+		if data := tc.builder.Stmts.ForIn(stmtID); data != nil {
+			tc.scanSpawn(data.Iterable, seen)
+			tc.scanSpawnStmt(data.Body, seen)
+		}
+	case ast.StmtForClassic:
+		if data := tc.builder.Stmts.ForClassic(stmtID); data != nil {
+			tc.scanSpawnStmt(data.Init, seen)
+			tc.scanSpawn(data.Cond, seen)
+			tc.scanSpawn(data.Post, seen)
+			tc.scanSpawnStmt(data.Body, seen)
+		}
 	}
 }
 

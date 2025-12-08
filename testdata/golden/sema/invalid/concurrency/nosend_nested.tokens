@@ -58,9 +58,14 @@
  58: Semicolon       ";" at 14:64-14:65
  59: KwReturn        "return" at 16:5-16:11 (leading: Newline, Space, LineComment, Newline, Space)
  60: KwSpawn         "spawn" at 16:12-16:17 (leading: Space)
- 61: Ident           "state" at 16:18-16:23 (leading: Space)
- 62: Dot             "." at 16:23-16:24
- 63: Ident           "counter" at 16:24-16:31
- 64: Semicolon       ";" at 16:31-16:32
- 65: RBrace          "}" at 17:1-17:2 (leading: Newline)
- 66: EOF             at 18:1-18:1
+ 61: KwAsync         "async" at 16:18-16:23 (leading: Space)
+ 62: LBrace          "{" at 16:24-16:25 (leading: Space)
+ 63: KwReturn        "return" at 17:9-17:15 (leading: Newline, Space)
+ 64: Ident           "state" at 17:16-17:21 (leading: Space)
+ 65: Dot             "." at 17:21-17:22
+ 66: Ident           "counter" at 17:22-17:29
+ 67: Semicolon       ";" at 17:29-17:30
+ 68: RBrace          "}" at 18:5-18:6 (leading: Newline, Space)
+ 69: Semicolon       ";" at 18:6-18:7
+ 70: RBrace          "}" at 19:1-19:2 (leading: Newline)
+ 71: EOF             at 20:1-20:1
