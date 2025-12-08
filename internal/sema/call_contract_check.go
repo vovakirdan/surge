@@ -50,52 +50,55 @@ func (tc *typeChecker) checkCallConcurrencyContract(la *lockAnalyzer, call *ast.
 	}
 
 	// Check @requires_lock contracts
-	for _, fieldName := range summary.RequiresLocks {
+	for _, lockInfo := range summary.RequiresLocks {
+		// For requires_lock, we check if any kind of the lock is held
 		key := LockKey{
 			Base:      receiverSym,
-			FieldName: fieldName,
-			Kind:      LockKindMutex, // Will try all kinds below
+			FieldName: lockInfo.FieldName,
+			Kind:      lockInfo.Kind,
 		}
 
 		if !tc.isAnyLockHeld(la, key) {
-			name := tc.lookupName(fieldName)
+			name := tc.lookupName(lockInfo.FieldName)
 			tc.report(diag.SemaLockRequiresNotHeld, span,
 				"calling function requires holding lock '%s'", name)
 		}
 	}
 
 	// Check @acquires_lock contracts
-	for _, fieldName := range summary.AcquiresLocks {
+	for _, lockInfo := range summary.AcquiresLocks {
+		// For acquires_lock, check if already held (any kind), then acquire with correct kind
 		key := LockKey{
 			Base:      receiverSym,
-			FieldName: fieldName,
-			Kind:      LockKindMutex,
+			FieldName: lockInfo.FieldName,
+			Kind:      lockInfo.Kind,
 		}
 
 		if tc.isAnyLockHeld(la, key) {
-			name := tc.lookupName(fieldName)
+			name := tc.lookupName(lockInfo.FieldName)
 			tc.report(diag.SemaLockDoubleAcquire, span,
 				"function will acquire lock '%s' which is already held", name)
 		} else {
-			// Record that the callee acquires this lock
+			// Record that the callee acquires this lock with the correct kind
 			la.state.Acquire(key, span)
 		}
 	}
 
 	// Check @releases_lock contracts
-	for _, fieldName := range summary.ReleasesLocks {
+	for _, lockInfo := range summary.ReleasesLocks {
+		// For releases_lock, check if held (any kind), then release with correct kind
 		key := LockKey{
 			Base:      receiverSym,
-			FieldName: fieldName,
-			Kind:      LockKindMutex,
+			FieldName: lockInfo.FieldName,
+			Kind:      lockInfo.Kind,
 		}
 
 		if !tc.isAnyLockHeld(la, key) {
-			name := tc.lookupName(fieldName)
+			name := tc.lookupName(lockInfo.FieldName)
 			tc.report(diag.SemaLockReleaseNotHeld, span,
 				"function will release lock '%s' which is not held", name)
 		} else {
-			// Record that the callee releases this lock
+			// Record that the callee releases this lock with the correct kind
 			la.state.Release(key)
 		}
 	}

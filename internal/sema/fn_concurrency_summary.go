@@ -4,22 +4,30 @@ import (
 	"surge/internal/ast"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
+
+// LockFieldInfo stores lock field information including the field name and lock kind.
+// The kind is determined by the field's type: Mutex -> LockKindMutex, RwLock -> LockKindRwWrite.
+type LockFieldInfo struct {
+	FieldName source.StringID
+	Kind      LockKind
+}
 
 // FnConcurrencySummary captures concurrency behavior of a function from its attributes.
 // This is used for inter-procedural lock contract checking at call sites.
 type FnConcurrencySummary struct {
-	// RequiresLocks: field names from @requires_lock attributes.
+	// RequiresLocks: lock fields from @requires_lock attributes.
 	// Caller must hold these locks before calling.
-	RequiresLocks []source.StringID
+	RequiresLocks []LockFieldInfo
 
-	// AcquiresLocks: field names from @acquires_lock attributes.
+	// AcquiresLocks: lock fields from @acquires_lock attributes.
 	// Function acquires these locks; caller must NOT hold them.
-	AcquiresLocks []source.StringID
+	AcquiresLocks []LockFieldInfo
 
-	// ReleasesLocks: field names from @releases_lock attributes.
+	// ReleasesLocks: lock fields from @releases_lock attributes.
 	// Function releases these locks; caller must hold them.
-	ReleasesLocks []source.StringID
+	ReleasesLocks []LockFieldInfo
 
 	// IsNonblocking: true if function has @nonblocking attribute.
 	// Function must not call blocking operations.
@@ -31,8 +39,9 @@ type FnConcurrencySummary struct {
 }
 
 // buildFnConcurrencySummary extracts concurrency attributes from a function declaration.
+// receiverTypeID is used to determine lock kinds from field types.
 // Returns nil if the function has no concurrency-related attributes.
-func (tc *typeChecker) buildFnConcurrencySummary(fnItem *ast.FnItem) *FnConcurrencySummary {
+func (tc *typeChecker) buildFnConcurrencySummary(fnItem *ast.FnItem, receiverTypeID types.TypeID) *FnConcurrencySummary {
 	if fnItem == nil {
 		return nil
 	}
@@ -49,19 +58,22 @@ func (tc *typeChecker) buildFnConcurrencySummary(fnItem *ast.FnItem) *FnConcurre
 		switch info.Spec.Name {
 		case "requires_lock":
 			if fieldName := tc.extractLockAttrFieldName(info); fieldName != 0 {
-				summary.RequiresLocks = append(summary.RequiresLocks, fieldName)
+				kind := tc.getLockKindForField(receiverTypeID, fieldName)
+				summary.RequiresLocks = append(summary.RequiresLocks, LockFieldInfo{fieldName, kind})
 				hasAnyAttr = true
 			}
 
 		case "acquires_lock":
 			if fieldName := tc.extractLockAttrFieldName(info); fieldName != 0 {
-				summary.AcquiresLocks = append(summary.AcquiresLocks, fieldName)
+				kind := tc.getLockKindForField(receiverTypeID, fieldName)
+				summary.AcquiresLocks = append(summary.AcquiresLocks, LockFieldInfo{fieldName, kind})
 				hasAnyAttr = true
 			}
 
 		case "releases_lock":
 			if fieldName := tc.extractLockAttrFieldName(info); fieldName != 0 {
-				summary.ReleasesLocks = append(summary.ReleasesLocks, fieldName)
+				kind := tc.getLockKindForField(receiverTypeID, fieldName)
+				summary.ReleasesLocks = append(summary.ReleasesLocks, LockFieldInfo{fieldName, kind})
 				hasAnyAttr = true
 			}
 
@@ -82,6 +94,34 @@ func (tc *typeChecker) buildFnConcurrencySummary(fnItem *ast.FnItem) *FnConcurre
 	}
 
 	return &summary
+}
+
+// getLockKindForField determines the lock kind based on the field's type.
+// Returns LockKindMutex for Mutex fields, LockKindRwWrite for RwLock fields.
+// For RwLock, we use LockKindRwWrite as the most restrictive kind.
+func (tc *typeChecker) getLockKindForField(ownerTypeID types.TypeID, fieldName source.StringID) LockKind {
+	if ownerTypeID == types.NoTypeID {
+		return LockKindMutex // Default to mutex when type unknown
+	}
+
+	// Look up the field type
+	structInfo, ok := tc.types.StructInfo(ownerTypeID)
+	if !ok || structInfo == nil {
+		return LockKindMutex
+	}
+
+	fieldNameStr := tc.lookupName(fieldName)
+	for _, field := range structInfo.Fields {
+		if tc.lookupName(field.Name) == fieldNameStr {
+			typeName := tc.typeLabel(field.Type)
+			if typeName == "RwLock" {
+				return LockKindRwWrite // Use write lock as the more restrictive kind
+			}
+			return LockKindMutex
+		}
+	}
+
+	return LockKindMutex // Default to mutex if field not found
 }
 
 // extractLockAttrFieldName extracts field name StringID from an attribute argument.
@@ -110,6 +150,41 @@ func (tc *typeChecker) extractLockAttrFieldName(info AttrInfo) source.StringID {
 	return tc.builder.StringsInterner.Intern(fieldNameStr)
 }
 
+// typeIDFromReceiverKey converts a symbol's ReceiverKey to a TypeID.
+// This is used to look up the struct type for determining field lock kinds.
+func (tc *typeChecker) typeIDFromReceiverKey(receiverKey symbols.TypeKey) types.TypeID {
+	if receiverKey == "" {
+		return types.NoTypeID
+	}
+
+	// Strip reference prefix (&mut or &)
+	typeName := string(receiverKey)
+	if len(typeName) > 5 && typeName[:5] == "&mut " {
+		typeName = typeName[5:]
+	} else if len(typeName) > 1 && typeName[0] == '&' {
+		typeName = typeName[1:]
+	}
+
+	// Search for the type symbol by name
+	if tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Symbols == nil {
+		return types.NoTypeID
+	}
+
+	data := tc.symbols.Table.Symbols.Data()
+	for i := range data {
+		sym := &data[i]
+		if sym.Kind != symbols.SymbolType {
+			continue
+		}
+		symName := tc.symbolName(sym.Name)
+		if symName == typeName {
+			return sym.Type
+		}
+	}
+
+	return types.NoTypeID
+}
+
 // getFnConcurrencySummary retrieves or builds the concurrency summary for a function.
 // Returns nil if the function has no concurrency attributes.
 func (tc *typeChecker) getFnConcurrencySummary(symID symbols.SymbolID) *FnConcurrencySummary {
@@ -128,7 +203,16 @@ func (tc *typeChecker) getFnConcurrencySummary(symID symbols.SymbolID) *FnConcur
 		return nil
 	}
 
-	summary := tc.buildFnConcurrencySummary(fnItem)
+	// Get receiver type from symbol's ReceiverKey to determine field lock kinds
+	var receiverTypeID types.TypeID
+	if tc.symbols != nil && tc.symbols.Table != nil && tc.symbols.Table.Symbols != nil {
+		sym := tc.symbols.Table.Symbols.Get(symID)
+		if sym != nil && sym.ReceiverKey != "" {
+			receiverTypeID = tc.typeIDFromReceiverKey(sym.ReceiverKey)
+		}
+	}
+
+	summary := tc.buildFnConcurrencySummary(fnItem, receiverTypeID)
 	tc.fnConcurrencySummaries[symID] = summary
 	return summary
 }
