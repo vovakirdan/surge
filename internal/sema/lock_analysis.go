@@ -346,12 +346,13 @@ func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) Pat
 				elseOutcome = PathContinues
 			}
 
-			// Path-sensitive merge
-			la.state, _ = tc.mergePathsAtJoin(la, thenState, thenOutcome, elseState, elseOutcome, stmt.Span)
+			// Path-sensitive merge - use the merged outcome
+			var mergedOutcome PathOutcome
+			la.state, mergedOutcome = tc.mergePathsAtJoin(la, thenState, thenOutcome, elseState, elseOutcome, stmt.Span)
 
-			// If both branches exit early, the code after is unreachable
-			if thenOutcome != PathContinues && elseOutcome != PathContinues {
-				return PathReturns
+			// Propagate early exit (return/break/continue) from merged paths
+			if mergedOutcome != PathContinues {
+				return mergedOutcome
 			}
 		}
 		return PathContinues
@@ -483,9 +484,7 @@ func (tc *typeChecker) checkExprForLockOps(la *lockAnalyzer, exprID ast.ExprID) 
 			case "unlock", "read_unlock", "write_unlock":
 				tc.handleLockRelease(la, member.Target, expr.Span)
 			case "try_lock", "try_read_lock", "try_write_lock":
-				// try_ methods require branch analysis (Step Б)
-				// Mark that this function uses conditional locking
-				la.hasTryLocks = true
+				la.hasTryLocks = true // Mark conditional locking (branch analysis)
 			}
 		}
 	}

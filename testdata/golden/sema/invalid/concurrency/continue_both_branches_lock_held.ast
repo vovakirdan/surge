@@ -1,0 +1,34 @@
+continue_both_branches_lock_held.sg (span: 4:1-25:1)
+├─ Item[0]: Type (span: 4:1-7:2)
+│  ├─ Name: ContinueBothResource
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: value: int
+└─ Item[1]: Extern (span: 9:1-24:2)
+   ├─ Target: ContinueBothResource
+   ├─ Members:
+   │  └─ Fn[0]: both_branches_continue
+   │     ├─ Params: (self: &mut ContinueBothResource)
+   │     ├─ Return: nothing
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 10:64-23:6)
+   │        └─ Stmt[0]: While (span: 11:9-20:10)
+   │           ├─ Cond: expr#4: (self.value > 0)
+   │           └─ Body:
+Block (span: 11:30-20:10)
+   │              └─ Stmt[0]: If (span: 12:13-18:14)
+   │                 ├─ Cond: expr#8: (self.value > 10)
+   │                 ├─ Then:
+Block (span: 12:32-15:14)
+   │                 │  ├─ Stmt[0]: Expr (span: 13:17-13:34)
+   │                 │  │  └─ Expr: expr#12: self.lock.lock()
+   │                 │  └─ Stmt[1]: Continue (span: 14:17-14:26)
+   │                 │     └─ (no additional data)
+   │                 └─ Else:
+Block (span: 15:20-18:14)
+   │                    ├─ Stmt[0]: Expr (span: 16:17-16:34)
+   │                    │  └─ Expr: expr#16: self.lock.lock()
+   │                    └─ Stmt[1]: Continue (span: 17:17-17:26)
+   │                       └─ (no additional data)

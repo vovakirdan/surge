@@ -1,0 +1,24 @@
+// Test: Both branches continue with lock held - lock state must be merged
+// This tests that PathContinuesLoop is properly propagated from mergePathsAtJoin
+
+type ContinueBothResource = {
+    lock: Mutex,
+    value: int
+}
+
+extern<ContinueBothResource> {
+    fn both_branches_continue(self: &mut ContinueBothResource) {
+        while self.value > 0 {
+            if self.value > 10 {
+                self.lock.lock();  // Lock acquired in then branch
+                continue;
+            } else {
+                self.lock.lock();  // Lock acquired in else branch
+                continue;
+            }
+            // Unreachable - but lock analysis continues from merged continue paths
+        }
+        // After loop: lock state from continue paths is considered
+        // (loop may execute 0 times, so this may not error)
+    }
+}
