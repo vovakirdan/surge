@@ -1,0 +1,19 @@
+// Parser test: turbofish syntax for generic types
+// Both Foo<T> and Foo::<T> should parse correctly
+
+type Box<T> = { value: T };
+type Pair<A, B> = { first: A, second: B };
+
+fn test_type_syntax() {
+    // Standard syntax
+    let a: Box<int> = { value: 1 };
+
+    // Turbofish syntax
+    let b: Box::<int> = { value: 2 };
+
+    // Multiple type args
+    let c: Pair::<int, string> = { first: 1, second: "hi" };
+
+    // Nested with turbofish
+    let d: Box::<Box::<int>> = { value: { value: 3 } };
+}

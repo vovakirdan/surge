@@ -683,7 +683,8 @@ func TestResolveIntrinsicValid(t *testing.T) {
 	}
 }
 
-func TestResolveIntrinsicWrongModule(t *testing.T) {
+func TestResolveIntrinsicAnyModule(t *testing.T) {
+	// @intrinsic is now allowed in any module, not just core/stdlib
 	src := `
 	    @intrinsic fn rt_alloc(size: uint) -> *byte;
 	`
@@ -696,15 +697,12 @@ func TestResolveIntrinsicWrongModule(t *testing.T) {
 	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter:   &diag.BagReporter{Bag: bag},
 		Validate:   true,
-		ModulePath: "mymodule",        // Not core/ or stdlib/ - should fail
-		FilePath:   "mymodule/foo.sg", // Not core/ or stdlib/ - should fail
+		ModulePath: "mymodule", // @intrinsic allowed everywhere
+		FilePath:   "mymodule/foo.sg",
 	})
 
-	if bag.Len() != 1 {
-		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
-	}
-	if bag.Items()[0].Code != diag.SemaIntrinsicBadContext {
-		t.Fatalf("expected SemaIntrinsicBadContext, got %v", bag.Items()[0].Code)
+	if bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %d", bag.Len())
 	}
 }
 

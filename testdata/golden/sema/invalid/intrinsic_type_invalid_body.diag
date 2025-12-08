@@ -1,0 +1,1 @@
+error SEM3009 testdata/golden/sema/invalid/intrinsic_type_invalid_body.sg:4:12 invalid intrinsic 'BadIntrinsic': @intrinsic type must be empty or have only '__opaque' field

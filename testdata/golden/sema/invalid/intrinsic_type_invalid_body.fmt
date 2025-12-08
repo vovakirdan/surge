@@ -1,0 +1,4 @@
+// scenario: @intrinsic type with regular fields should error
+// Expected: @intrinsic type must be empty or have only '__opaque' field
+
+@intrinsic type BadIntrinsic = { value: int };

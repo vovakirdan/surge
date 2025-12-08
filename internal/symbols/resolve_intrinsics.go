@@ -2,7 +2,6 @@ package symbols
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"surge/internal/diag"
@@ -125,23 +124,9 @@ func (fr *fileResolver) reportIntrinsicError(name source.StringID, span source.S
 }
 
 func (fr *fileResolver) moduleAllowsIntrinsic() bool {
-	// Allow @intrinsic in any core/ or stdlib/ module for flexibility
-	trimmed := strings.Trim(fr.modulePath, "/")
-	if trimmed == "core" || strings.HasPrefix(trimmed, "core/") {
-		return true
-	}
-	if trimmed == "stdlib" || strings.HasPrefix(trimmed, "stdlib/") {
-		return true
-	}
-	// Also check file path for flexibility
-	if fr.filePath != "" {
-		path := filepath.ToSlash(fr.filePath)
-		path = strings.TrimSuffix(path, ".sg")
-		if strings.Contains(path, "/core") || strings.Contains(path, "/stdlib") {
-			return true
-		}
-	}
-	return false
+	// Allow @intrinsic everywhere - the attribute validation ensures
+	// intrinsic functions have no body and intrinsic types are valid
+	return true
 }
 
 func isProtectedModule(path string) bool {

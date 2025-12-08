@@ -1,0 +1,42 @@
+// scenario: turbofish syntax for generic type instantiation
+// Tests both standard Foo<T> and turbofish Foo::<T> syntax
+
+type Box<T> = {
+    value: T,
+};
+
+type Pair<A, B> = {
+    first: A,
+    second: B,
+};
+
+fn use_standard_syntax() {
+    // Standard generic syntax (Foo<T>)
+    let box1: Box<int> = { value: 42 };
+    let pair1: Pair<int, string> = { first: 1, second: "a" };
+    let _v1: int = box1.value;
+    let _p1: int = pair1.first;
+}
+
+fn use_turbofish_syntax() {
+    // Turbofish syntax (Foo::<T>)
+    let box2: Box::<int> = { value: 42 };
+    let pair2: Pair::<int, string> = { first: 1, second: "a" };
+    let _v2: int = box2.value;
+    let _p2: int = pair2.first;
+}
+
+fn use_nested_turbofish() {
+    // Nested generic types with turbofish
+    let nested: Box::<Box::<int>> = { value: { value: 42 } };
+    let _inner: Box::<int> = nested.value;
+    let _val: int = _inner.value;
+}
+
+fn use_mixed_syntax() {
+    // Mix standard and turbofish
+    let mixed1: Box::<Pair<int, int>> = { value: { first: 1, second: 2 } };
+    let mixed2: Pair<Box::<int>, string> = { first: { value: 42 }, second: "hi" };
+    let _m1: Pair<int, int> = mixed1.value;
+    let _m2: Box::<int> = mixed2.first;
+}

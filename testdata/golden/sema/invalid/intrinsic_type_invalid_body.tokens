@@ -1,0 +1,12 @@
+  1: At              "@" at 4:1-4:2 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "intrinsic" at 4:2-4:11
+  3: KwType          "type" at 4:12-4:16 (leading: Space)
+  4: Ident           "BadIntrinsic" at 4:17-4:29 (leading: Space)
+  5: Assign          "=" at 4:30-4:31 (leading: Space)
+  6: LBrace          "{" at 4:32-4:33 (leading: Space)
+  7: Ident           "value" at 4:34-4:39 (leading: Space)
+  8: Colon           ":" at 4:39-4:40
+  9: Ident           "int" at 4:41-4:44 (leading: Space)
+ 10: RBrace          "}" at 4:45-4:46 (leading: Space)
+ 11: Semicolon       ";" at 4:46-4:47
+ 12: EOF             at 5:1-5:1

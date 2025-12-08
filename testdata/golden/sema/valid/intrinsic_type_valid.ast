@@ -1,0 +1,54 @@
+intrinsic_type_valid.sg (span: 7:1-25:1)
+├─ Item[0]: Type (span: 7:1-7:37)
+│  ├─ Name: EmptyIntrinsic
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @intrinsic
+│  └─ Struct:
+│     <empty>
+├─ Item[1]: Type (span: 10:1-10:55)
+│  ├─ Name: OpaqueIntrinsic
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @intrinsic
+│  └─ Struct:
+│     └─ Field[0]: __opaque: *byte
+├─ Item[2]: Type (span: 13:1-13:54)
+│  ├─ Name: TestChannel
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  ├─ Attributes: @intrinsic
+│  └─ Struct:
+│     └─ Field[0]: __opaque: *byte
+├─ Item[3]: Type (span: 16:1-16:59)
+│  ├─ Name: TestBiChannel
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Generics: <S, R>
+│  ├─ Attributes: @intrinsic
+│  └─ Struct:
+│     └─ Field[0]: __opaque: *byte
+├─ Item[4]: Type (span: 19:1-19:49)
+│  ├─ Name: RegularType
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: value: int
+│     └─ Field[1]: name: string
+└─ Item[5]: Fn (span: 21:1-24:2)
+   ├─ Name: use_types
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 21:16-24:2)
+         ├─ Stmt[0]: Let (span: 22:5-22:60)
+         │  ├─ Name: regular
+         │  ├─ Mutable: false
+         │  ├─ Type: RegularType
+         │  └─ Value: expr#5: <ExprKind(18)>
+         └─ Stmt[1]: Let (span: 23:5-23:33)
+            ├─ Name: _v
+            ├─ Mutable: false
+            ├─ Type: int
+            └─ Value: expr#7: regular.value
