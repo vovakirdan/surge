@@ -1,1 +1,1 @@
-error SEM3102 testdata/golden/sema/invalid/concurrency/deadlock_three_cycle.sg:15:9 potential deadlock: lock acquisition order cycle: ThreeLocks.lock_b -> ThreeLocks.lock_c -> ThreeLocks.lock_a -> ThreeLocks.lock_b
+error SEM3102 testdata/golden/sema/invalid/concurrency/deadlock_three_cycle.sg:33:9 potential deadlock: lock acquisition order cycle: ThreeLocks.lock_a -> ThreeLocks.lock_b -> ThreeLocks.lock_c -> ThreeLocks.lock_a
