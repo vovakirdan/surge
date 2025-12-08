@@ -58,6 +58,22 @@ func (tc *typeChecker) typeKeyCandidates(id types.TypeID) []typeKeyCandidate {
 		}
 	}
 
+	// Добавляем fallback для generic type definitions (без type args, но с type params)
+	// Это позволяет My.new() найти методы из extern<My<T>>
+	if genericDefKey := tc.genericDefKeyForType(id); genericDefKey != "" {
+		cand := typeKeyCandidate{key: genericDefKey, base: id}
+		duplicate := false
+		for _, existing := range candidates {
+			if existing.key == cand.key && existing.base == cand.base {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			candidates = append(candidates, cand)
+		}
+	}
+
 	if aliasBase := tc.aliasBaseType(id); aliasBase != types.NoTypeID {
 		baseKey := tc.typeKeyForType(aliasBase)
 		if baseKey != "" {
@@ -294,6 +310,98 @@ func (tc *typeChecker) genericKeyForType(id types.TypeID) symbols.TypeKey {
 	}
 
 	if len(paramNames) != len(typeArgs) {
+		return ""
+	}
+
+	return symbols.TypeKey(name + "<" + strings.Join(paramNames, ",") + ">")
+}
+
+// genericDefKeyForType generates a generic key for a type definition (e.g., "My<T>" for type My<T>).
+// This is used when the TypeID represents a generic type definition without instantiation.
+// Unlike genericKeyForType which handles instantiated types (My<int>), this handles the definition itself.
+func (tc *typeChecker) genericDefKeyForType(id types.TypeID) symbols.TypeKey {
+	if id == types.NoTypeID || tc.types == nil || tc.builder == nil {
+		return ""
+	}
+
+	resolved := tc.resolveAlias(id)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return ""
+	}
+
+	var name string
+	var hasTypeArgs bool
+
+	switch tt.Kind {
+	case types.KindStruct:
+		if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
+			name = tc.lookupTypeName(resolved, info.Name)
+			if name == "" {
+				name = tc.lookupName(info.Name)
+			}
+			hasTypeArgs = len(info.TypeArgs) > 0
+		}
+	case types.KindUnion:
+		if info, ok := tc.types.UnionInfo(resolved); ok && info != nil {
+			name = tc.lookupTypeName(resolved, info.Name)
+			if name == "" {
+				name = tc.lookupName(info.Name)
+			}
+			hasTypeArgs = len(info.TypeArgs) > 0
+		}
+	case types.KindAlias:
+		if info, ok := tc.types.AliasInfo(resolved); ok && info != nil {
+			name = tc.lookupTypeName(resolved, info.Name)
+			if name == "" {
+				name = tc.lookupName(info.Name)
+			}
+			hasTypeArgs = len(info.TypeArgs) > 0
+		}
+	default:
+		// Not a struct/union/alias, return empty
+		return ""
+	}
+
+	// If type already has args, use genericKeyForType instead
+	if name == "" || hasTypeArgs {
+		return ""
+	}
+
+	// Look up the type symbol to get its type parameters
+	nameID := tc.builder.StringsInterner.Intern(name)
+	scope := tc.fileScope()
+	if !scope.IsValid() {
+		scope = tc.scopeOrFile(tc.currentScope())
+	}
+
+	symID := tc.lookupTypeSymbol(nameID, scope)
+	if !symID.IsValid() {
+		if anySymID := tc.lookupSymbolAny(nameID, scope); anySymID.IsValid() {
+			if sym := tc.symbolFromID(anySymID); sym != nil && sym.Kind == symbols.SymbolType {
+				symID = anySymID
+			}
+		}
+	}
+
+	if !symID.IsValid() {
+		return ""
+	}
+
+	sym := tc.symbolFromID(symID)
+	if sym == nil || len(sym.TypeParams) == 0 {
+		return ""
+	}
+
+	// Build key with type parameter names
+	paramNames := make([]string, 0, len(sym.TypeParams))
+	for _, param := range sym.TypeParams {
+		if paramName := tc.lookupName(param); paramName != "" {
+			paramNames = append(paramNames, paramName)
+		}
+	}
+
+	if len(paramNames) != len(sym.TypeParams) {
 		return ""
 	}
 
