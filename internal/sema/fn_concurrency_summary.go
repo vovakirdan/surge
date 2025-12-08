@@ -104,6 +104,9 @@ func (tc *typeChecker) extractLockAttrFieldName(info AttrInfo) source.StringID {
 		return 0
 	}
 	fieldNameStr := fieldNameRaw[1 : len(fieldNameRaw)-1] // Remove quotes
+	if fieldNameStr == "" {
+		return 0
+	}
 	return tc.builder.StringsInterner.Intern(fieldNameStr)
 }
 
