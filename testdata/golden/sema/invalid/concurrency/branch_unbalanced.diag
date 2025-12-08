@@ -1,0 +1,2 @@
+error SEM3082 testdata/golden/sema/invalid/concurrency/branch_unbalanced.sg:5:5 lock may be held in one branch but not another
+error SEM3082 testdata/golden/sema/invalid/concurrency/branch_unbalanced.sg:14:5 lock may be held in one branch but not another

@@ -1,0 +1,40 @@
+branch_unbalanced.sg (span: 3:1-21:1)
+├─ Item[0]: Fn (span: 3:1-9:2)
+│  ├─ Name: test_lock_only_in_then
+│  ├─ Params: (cond: bool)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:54-9:2)
+│        ├─ Stmt[0]: Let (span: 4:5-4:38)
+│        │  ├─ Name: mtx
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Mutex
+│        │  └─ Value: expr#3: Mutex.new()
+│        └─ Stmt[1]: If (span: 5:5-7:6)
+│           ├─ Cond: expr#4: cond
+│           ├─ Then:
+Block (span: 5:13-7:6)
+│           │  └─ Stmt[0]: Expr (span: 6:9-6:20)
+│           │     └─ Expr: expr#7: mtx.lock()
+│           └─ Else: <none>
+└─ Item[1]: Fn (span: 11:1-20:2)
+   ├─ Name: test_unlock_only_in_else
+   ├─ Params: (cond: bool)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:56-20:2)
+         ├─ Stmt[0]: Let (span: 12:5-12:38)
+         │  ├─ Name: mtx
+         │  ├─ Mutable: true
+         │  ├─ Type: Mutex
+         │  └─ Value: expr#10: Mutex.new()
+         ├─ Stmt[1]: Expr (span: 13:5-13:16)
+         │  └─ Expr: expr#13: mtx.lock()
+         └─ Stmt[2]: If (span: 14:5-18:6)
+            ├─ Cond: expr#14: cond
+            ├─ Then:
+Block (span: 14:13-16:6)
+            └─ Else:
+Block (span: 16:12-18:6)
+               └─ Stmt[0]: Expr (span: 17:9-17:22)
+                  └─ Expr: expr#17: mtx.unlock()

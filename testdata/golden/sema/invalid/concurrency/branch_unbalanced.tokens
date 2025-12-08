@@ -1,0 +1,78 @@
+  1: KwPub           "pub" at 3:1-3:4 (leading: LineComment, Newline)
+  2: KwFn            "fn" at 3:5-3:7 (leading: Space)
+  3: Ident           "test_lock_only_in_then" at 3:8-3:30 (leading: Space)
+  4: LParen          "(" at 3:30-3:31
+  5: Ident           "cond" at 3:31-3:35
+  6: Colon           ":" at 3:35-3:36
+  7: Ident           "bool" at 3:37-3:41 (leading: Space)
+  8: RParen          ")" at 3:41-3:42
+  9: Arrow           "->" at 3:43-3:45 (leading: Space)
+ 10: NothingLit      "nothing" at 3:46-3:53 (leading: Space)
+ 11: LBrace          "{" at 3:54-3:55 (leading: Space)
+ 12: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 13: KwMut           "mut" at 4:9-4:12 (leading: Space)
+ 14: Ident           "mtx" at 4:13-4:16 (leading: Space)
+ 15: Colon           ":" at 4:16-4:17
+ 16: Ident           "Mutex" at 4:18-4:23 (leading: Space)
+ 17: Assign          "=" at 4:24-4:25 (leading: Space)
+ 18: Ident           "Mutex" at 4:26-4:31 (leading: Space)
+ 19: Dot             "." at 4:31-4:32
+ 20: Ident           "new" at 4:32-4:35
+ 21: LParen          "(" at 4:35-4:36
+ 22: RParen          ")" at 4:36-4:37
+ 23: Semicolon       ";" at 4:37-4:38
+ 24: KwIf            "if" at 5:5-5:7 (leading: Newline, Space)
+ 25: Ident           "cond" at 5:8-5:12 (leading: Space)
+ 26: LBrace          "{" at 5:13-5:14 (leading: Space)
+ 27: Ident           "mtx" at 6:9-6:12 (leading: Newline, Space)
+ 28: Dot             "." at 6:12-6:13
+ 29: Ident           "lock" at 6:13-6:17
+ 30: LParen          "(" at 6:17-6:18
+ 31: RParen          ")" at 6:18-6:19
+ 32: Semicolon       ";" at 6:19-6:20
+ 33: RBrace          "}" at 7:5-7:6 (leading: Newline, Space)
+ 34: RBrace          "}" at 9:1-9:2 (leading: Newline, Space, LineComment, Newline)
+ 35: KwPub           "pub" at 11:1-11:4 (leading: Newline)
+ 36: KwFn            "fn" at 11:5-11:7 (leading: Space)
+ 37: Ident           "test_unlock_only_in_else" at 11:8-11:32 (leading: Space)
+ 38: LParen          "(" at 11:32-11:33
+ 39: Ident           "cond" at 11:33-11:37
+ 40: Colon           ":" at 11:37-11:38
+ 41: Ident           "bool" at 11:39-11:43 (leading: Space)
+ 42: RParen          ")" at 11:43-11:44
+ 43: Arrow           "->" at 11:45-11:47 (leading: Space)
+ 44: NothingLit      "nothing" at 11:48-11:55 (leading: Space)
+ 45: LBrace          "{" at 11:56-11:57 (leading: Space)
+ 46: KwLet           "let" at 12:5-12:8 (leading: Newline, Space)
+ 47: KwMut           "mut" at 12:9-12:12 (leading: Space)
+ 48: Ident           "mtx" at 12:13-12:16 (leading: Space)
+ 49: Colon           ":" at 12:16-12:17
+ 50: Ident           "Mutex" at 12:18-12:23 (leading: Space)
+ 51: Assign          "=" at 12:24-12:25 (leading: Space)
+ 52: Ident           "Mutex" at 12:26-12:31 (leading: Space)
+ 53: Dot             "." at 12:31-12:32
+ 54: Ident           "new" at 12:32-12:35
+ 55: LParen          "(" at 12:35-12:36
+ 56: RParen          ")" at 12:36-12:37
+ 57: Semicolon       ";" at 12:37-12:38
+ 58: Ident           "mtx" at 13:5-13:8 (leading: Newline, Space)
+ 59: Dot             "." at 13:8-13:9
+ 60: Ident           "lock" at 13:9-13:13
+ 61: LParen          "(" at 13:13-13:14
+ 62: RParen          ")" at 13:14-13:15
+ 63: Semicolon       ";" at 13:15-13:16
+ 64: KwIf            "if" at 14:5-14:7 (leading: Newline, Space)
+ 65: Ident           "cond" at 14:8-14:12 (leading: Space)
+ 66: LBrace          "{" at 14:13-14:14 (leading: Space)
+ 67: RBrace          "}" at 16:5-16:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 68: KwElse          "else" at 16:7-16:11 (leading: Space)
+ 69: LBrace          "{" at 16:12-16:13 (leading: Space)
+ 70: Ident           "mtx" at 17:9-17:12 (leading: Newline, Space)
+ 71: Dot             "." at 17:12-17:13
+ 72: Ident           "unlock" at 17:13-17:19
+ 73: LParen          "(" at 17:19-17:20
+ 74: RParen          ")" at 17:20-17:21
+ 75: Semicolon       ";" at 17:21-17:22
+ 76: RBrace          "}" at 18:5-18:6 (leading: Newline, Space)
+ 77: RBrace          "}" at 20:1-20:2 (leading: Newline, Space, LineComment, Newline)
+ 78: EOF             at 21:1-21:1

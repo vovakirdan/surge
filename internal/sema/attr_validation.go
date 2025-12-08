@@ -358,6 +358,36 @@ func (tc *typeChecker) fieldHasAttr(typeID types.TypeID, fieldIndex int, attrNam
 	return found
 }
 
+// getFieldGuardedBy returns the lock field name if the field has @guarded_by attribute.
+// Returns 0 if no @guarded_by attribute exists.
+func (tc *typeChecker) getFieldGuardedBy(typeID types.TypeID, fieldIndex int) source.StringID {
+	key := fieldKey{TypeID: typeID, FieldIndex: fieldIndex}
+	infos, ok := tc.fieldAttrs[key]
+	if !ok {
+		return 0
+	}
+	guardedInfo, found := hasAttr(infos, "guarded_by")
+	if !found || len(guardedInfo.Args) == 0 {
+		return 0
+	}
+	// Extract field name from string literal argument
+	argExpr := tc.builder.Exprs.Get(guardedInfo.Args[0])
+	if argExpr == nil || argExpr.Kind != ast.ExprLit {
+		return 0
+	}
+	lit, ok := tc.builder.Exprs.Literal(guardedInfo.Args[0])
+	if !ok || lit.Kind != ast.ExprLitString {
+		return 0
+	}
+	// Get the field name - strip quotes from string literal
+	fieldNameRaw := tc.lookupName(lit.Value)
+	if len(fieldNameRaw) < 2 {
+		return 0
+	}
+	fieldNameStr := fieldNameRaw[1 : len(fieldNameRaw)-1] // Remove quotes
+	return tc.builder.StringsInterner.Intern(fieldNameStr)
+}
+
 // validateFieldAttrs validates all attributes on a struct field
 func (tc *typeChecker) validateFieldAttrs(field *ast.TypeStructField, ownerTypeID types.TypeID, fieldIndex int) {
 	// Collect attributes

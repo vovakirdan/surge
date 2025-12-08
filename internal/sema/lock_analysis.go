@@ -244,6 +244,56 @@ func (tc *typeChecker) analyzeFunctionLocks(fnItem *ast.FnItem, selfSym symbols.
 	}
 }
 
+// mergeLockStates merges two lock states conservatively.
+// Reports SemaLockUnbalanced if states differ in held locks.
+// Returns the intersection (locks that are held in BOTH states).
+func (tc *typeChecker) mergeLockStates(la *lockAnalyzer, s1, s2 *LockState, span source.Span) *LockState {
+	merged := NewLockState()
+	reported := make(map[LockKey]bool) // Avoid duplicate reports
+
+	// Find locks held in both states
+	for _, acq := range s1.HeldLocks() {
+		if s2.IsHeld(acq.Key) {
+			merged.Acquire(acq.Key, acq.Span)
+		} else if !reported[acq.Key] {
+			// Lock held in s1 but not s2 - report imbalance
+			// Skip reporting for functions using try_lock (deferred to more advanced analysis)
+			if !la.hasTryLocks {
+				fieldName := tc.lookupName(acq.Key.FieldName)
+				if fieldName == "" {
+					// Local variable lock
+					tc.report(diag.SemaLockUnbalanced, span,
+						"lock may be held in one branch but not another")
+				} else {
+					tc.report(diag.SemaLockUnbalanced, span,
+						"lock '%s' may be held in one branch but not another", fieldName)
+				}
+			}
+			reported[acq.Key] = true
+		}
+	}
+
+	// Check for locks in s2 but not s1
+	for _, acq := range s2.HeldLocks() {
+		if !s1.IsHeld(acq.Key) && !reported[acq.Key] {
+			// Skip reporting for functions using try_lock
+			if !la.hasTryLocks {
+				fieldName := tc.lookupName(acq.Key.FieldName)
+				if fieldName == "" {
+					tc.report(diag.SemaLockUnbalanced, span,
+						"lock may be held in one branch but not another")
+				} else {
+					tc.report(diag.SemaLockUnbalanced, span,
+						"lock '%s' may be held in one branch but not another", fieldName)
+				}
+			}
+			reported[acq.Key] = true
+		}
+	}
+
+	return merged
+}
+
 // walkStmtForLocks analyzes a statement for lock operations
 func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) {
 	if !stmtID.IsValid() {
@@ -277,31 +327,80 @@ func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) {
 		}
 
 	case ast.StmtIf:
-		// For Step A (linear), we just walk both branches sequentially
-		// Real branch analysis is Step Б
+		// Branch analysis: clone state, analyze branches, merge conservatively
 		if ifStmt := tc.builder.Stmts.If(stmtID); ifStmt != nil {
+			// Check condition expression for lock ops
+			tc.checkExprForLockOps(la, ifStmt.Cond)
+
+			// Clone state before entering branches
+			stateBefore := la.state.Clone()
+
+			// Analyze then branch
 			tc.walkStmtForLocks(la, ifStmt.Then)
+			thenState := la.state.Clone()
+
+			// Analyze else branch (if exists)
 			if ifStmt.Else.IsValid() {
+				la.state = stateBefore.Clone()
 				tc.walkStmtForLocks(la, ifStmt.Else)
+				elseState := la.state
+
+				// Merge states and check for imbalance
+				la.state = tc.mergeLockStates(la, thenState, elseState, stmt.Span)
+			} else {
+				// No else: merge with original state (as if else was empty)
+				la.state = tc.mergeLockStates(la, thenState, stateBefore, stmt.Span)
 			}
 		}
 
 	case ast.StmtWhile:
-		// Walk while body (linear analysis - no loop semantics)
+		// Branch analysis for loops: loop might execute 0 or more times
 		if whileStmt := tc.builder.Stmts.While(stmtID); whileStmt != nil {
+			// Check condition expression for lock ops
+			tc.checkExprForLockOps(la, whileStmt.Cond)
+
+			// Clone state before loop
+			stateBefore := la.state.Clone()
+
+			// Analyze loop body
 			tc.walkStmtForLocks(la, whileStmt.Body)
+
+			// Merge states: loop might execute 0 or more times
+			la.state = tc.mergeLockStates(la, stateBefore, la.state, stmt.Span)
 		}
 
 	case ast.StmtForClassic:
-		// Walk for body
+		// Branch analysis for loops: loop might execute 0 or more times
 		if forStmt := tc.builder.Stmts.ForClassic(stmtID); forStmt != nil {
+			// Check init, condition, and post expressions
+			tc.walkStmtForLocks(la, forStmt.Init)
+			tc.checkExprForLockOps(la, forStmt.Cond)
+			tc.checkExprForLockOps(la, forStmt.Post)
+
+			// Clone state before loop
+			stateBefore := la.state.Clone()
+
+			// Analyze loop body
 			tc.walkStmtForLocks(la, forStmt.Body)
+
+			// Merge states: loop might execute 0 or more times
+			la.state = tc.mergeLockStates(la, stateBefore, la.state, stmt.Span)
 		}
 
 	case ast.StmtForIn:
-		// Walk for-in body
+		// Branch analysis for loops: loop might execute 0 or more times
 		if forIn := tc.builder.Stmts.ForIn(stmtID); forIn != nil {
+			// Check iterable expression
+			tc.checkExprForLockOps(la, forIn.Iterable)
+
+			// Clone state before loop
+			stateBefore := la.state.Clone()
+
+			// Analyze loop body
 			tc.walkStmtForLocks(la, forIn.Body)
+
+			// Merge states: loop might execute 0 or more times
+			la.state = tc.mergeLockStates(la, stateBefore, la.state, stmt.Span)
 		}
 
 	case ast.StmtReturn:
@@ -360,6 +459,25 @@ func (tc *typeChecker) checkExprForLockOps(la *lockAnalyzer, exprID ast.ExprID) 
 	tc.walkExprForLockOps(la, exprID)
 }
 
+// isAssignmentOp checks if the binary operator is an assignment operator
+func isAssignmentOp(op ast.ExprBinaryOp) bool {
+	switch op {
+	case ast.ExprBinaryAssign,
+		ast.ExprBinaryAddAssign,
+		ast.ExprBinarySubAssign,
+		ast.ExprBinaryMulAssign,
+		ast.ExprBinaryDivAssign,
+		ast.ExprBinaryModAssign,
+		ast.ExprBinaryBitAndAssign,
+		ast.ExprBinaryBitOrAssign,
+		ast.ExprBinaryBitXorAssign,
+		ast.ExprBinaryShlAssign,
+		ast.ExprBinaryShrAssign:
+		return true
+	}
+	return false
+}
+
 // walkExprForLockOps recursively walks expression children
 func (tc *typeChecker) walkExprForLockOps(la *lockAnalyzer, exprID ast.ExprID) {
 	if !exprID.IsValid() {
@@ -383,7 +501,16 @@ func (tc *typeChecker) walkExprForLockOps(la *lockAnalyzer, exprID ast.ExprID) {
 	case ast.ExprBinary:
 		binData, ok := tc.builder.Exprs.Binary(exprID)
 		if ok && binData != nil {
-			tc.checkExprForLockOps(la, binData.Left)
+			// Check for assignment operators - LHS is a write access
+			if isAssignmentOp(binData.Op) {
+				// Check LHS for guarded field write access
+				tc.checkGuardedFieldAccess(la, binData.Left, true, expr.Span)
+				// Walk only the base of the LHS member, not the member itself
+				// This prevents double-reporting (write + spurious read)
+				tc.walkAssignmentTargetBase(la, binData.Left)
+			} else {
+				tc.checkExprForLockOps(la, binData.Left)
+			}
 			tc.checkExprForLockOps(la, binData.Right)
 		}
 
@@ -396,6 +523,8 @@ func (tc *typeChecker) walkExprForLockOps(la *lockAnalyzer, exprID ast.ExprID) {
 	case ast.ExprMember:
 		memberData, ok := tc.builder.Exprs.Member(exprID)
 		if ok && memberData != nil {
+			// Check guarded field read access
+			tc.checkGuardedFieldAccess(la, exprID, false, expr.Span)
 			tc.checkExprForLockOps(la, memberData.Target)
 		}
 
