@@ -696,8 +696,8 @@ func TestResolveIntrinsicWrongModule(t *testing.T) {
 	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter:   &diag.BagReporter{Bag: bag},
 		Validate:   true,
-		ModulePath: "core/runtime",
-		FilePath:   "core/runtime.sg",
+		ModulePath: "mymodule",        // Not core/ or stdlib/ - should fail
+		FilePath:   "mymodule/foo.sg", // Not core/ or stdlib/ - should fail
 	})
 
 	if bag.Len() != 1 {

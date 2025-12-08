@@ -122,6 +122,16 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 						if receiverType != types.NoTypeID && !tc.isTaskType(receiverType) {
 							tc.report(diag.SemaTypeMismatch, expr.Span, "await expects Task<T>, got %s", tc.typeLabel(receiverType))
 						}
+						// Track await for structured concurrency
+						if tc.taskTracker != nil {
+							tc.trackTaskAwait(member.Target)
+						}
+					}
+					// Check channel send for @nosend values
+					methodName := tc.lookupName(member.Field)
+					if !receiverIsType && tc.isChannelType(receiverType) &&
+						(methodName == "send" || methodName == "try_send") && len(call.Args) > 0 {
+						tc.checkChannelSendValue(call.Args[0].Value, expr.Span)
 					}
 					argTypes := make([]types.TypeID, 0, len(call.Args))
 					for _, arg := range call.Args {
@@ -317,6 +327,10 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			tc.observeMove(spawn.Value, tc.exprSpan(spawn.Value))
 			tc.enforceSpawn(spawn.Value)
 			ty = tc.taskType(payload, expr.Span)
+			// Track spawned task for structured concurrency
+			if tc.taskTracker != nil {
+				tc.taskTracker.SpawnTask(id, expr.Span, tc.currentScope())
+			}
 		}
 	case ast.ExprSpread:
 		if spread, ok := tc.builder.Exprs.Spread(id); ok && spread != nil {

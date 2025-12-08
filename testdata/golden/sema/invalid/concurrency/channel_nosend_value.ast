@@ -1,0 +1,16 @@
+channel_nosend_value.sg (span: 3:1-12:1)
+├─ Item[0]: Type (span: 3:1-6:3)
+│  ├─ Name: ThreadLocal
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @nosend
+│  └─ Struct:
+│     └─ Field[0]: data: int
+└─ Item[1]: Fn (span: 8:1-11:2)
+   ├─ Name: try_send_nosend
+   ├─ Params: (ch: &Channel<ThreadLocal>, value: ThreadLocal)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:78-11:2)
+         └─ Stmt[0]: Expr (span: 10:5-10:20)
+            └─ Expr: expr#4: ch.send(value)

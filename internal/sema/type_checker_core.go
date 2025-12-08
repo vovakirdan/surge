@@ -74,6 +74,7 @@ type typeChecker struct {
 	arrayFixedType              types.TypeID
 	fnConcurrencySummaries      map[symbols.SymbolID]*FnConcurrencySummary
 	lockOrderGraph              *LockOrderGraph // Global lock ordering for deadlock detection
+	taskTracker                 *TaskTracker    // Task tracking for structured concurrency
 }
 
 type returnContext struct {
@@ -157,6 +158,7 @@ func (tc *typeChecker) run() {
 	tc.fnInstantiationSeen = make(map[string]struct{})
 	tc.fnConcurrencySummaries = make(map[symbols.SymbolID]*FnConcurrencySummary)
 	tc.lockOrderGraph = NewLockOrderGraph()
+	tc.taskTracker = NewTaskTracker()
 
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {

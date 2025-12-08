@@ -128,13 +128,32 @@ func (tc *typeChecker) boundMethodResult(id types.TypeID, name string, args []ty
 		return types.NoTypeID
 	}
 	resolved := tc.resolveAlias(id)
+
+	// For reference/own/pointer types wrapping a type parameter:
+	// Get the inner type param, find its contract bounds, but match method signatures
+	// against the FULL receiver type (e.g., &T not just T).
+	var innerTypeParam types.TypeID
 	if tt, ok := tc.types.Lookup(resolved); ok {
 		switch tt.Kind {
 		case types.KindReference, types.KindOwn, types.KindPointer:
-			return tc.boundMethodResult(tt.Elem, name, args)
+			// Check if inner type is a type parameter
+			inner := tc.resolveAlias(tt.Elem)
+			if ti, ok := tc.types.Lookup(inner); ok && ti.Kind == types.KindGenericParam {
+				innerTypeParam = inner
+			} else {
+				// Recursively try inner type
+				return tc.boundMethodResult(tt.Elem, name, args)
+			}
+		case types.KindGenericParam:
+			innerTypeParam = resolved
 		}
 	}
-	for _, bound := range tc.typeParamContractBounds(id) {
+	if innerTypeParam == types.NoTypeID {
+		return types.NoTypeID
+	}
+
+	// Search contract bounds on the inner type parameter
+	for _, bound := range tc.typeParamContractBounds(innerTypeParam) {
 		reqs, ok := tc.requirementsForBound(bound)
 		if !ok {
 			continue

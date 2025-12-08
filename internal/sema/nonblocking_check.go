@@ -24,6 +24,10 @@ var blockingMethods = map[string]map[string]bool{
 	"Semaphore": {
 		"acquire": true,
 	},
+	"Channel": {
+		"send": true, // Blocking send - suspends until channel has capacity
+		"recv": true, // Blocking receive - suspends until value available
+	},
 }
 
 // checkNonblockingFunction validates that a @nonblocking function doesn't call

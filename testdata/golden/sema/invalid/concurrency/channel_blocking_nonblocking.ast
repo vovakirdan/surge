@@ -1,0 +1,20 @@
+channel_blocking_nonblocking.sg (span: 3:1-14:1)
+├─ Item[0]: Fn (span: 3:1-7:2)
+│  ├─ Name: bad_send
+│  ├─ Params: (ch: &Channel<int>)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:43-7:2)
+│        └─ Stmt[0]: Expr (span: 6:5-6:17)
+│           └─ Expr: expr#4: ch.send(42)
+└─ Item[1]: Fn (span: 9:1-13:2)
+   ├─ Name: bad_recv
+   ├─ Params: (ch: &Channel<int>)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:43-13:2)
+         └─ Stmt[0]: Let (span: 12:5-12:23)
+            ├─ Name: _
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#7: ch.recv()

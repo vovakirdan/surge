@@ -6,6 +6,7 @@ import (
 	"fortio.org/safecast"
 
 	"surge/internal/ast"
+	"surge/internal/diag"
 	"surge/internal/symbols"
 )
 
@@ -101,6 +102,14 @@ func (tc *typeChecker) leaveScope() {
 	tc.scopeStack = tc.scopeStack[:len(tc.scopeStack)-1]
 	if tc.borrow != nil {
 		tc.borrow.EndScope(top)
+	}
+	// Check for task leaks (structured concurrency)
+	if tc.taskTracker != nil {
+		leaks := tc.taskTracker.EndScope(top)
+		for _, leak := range leaks {
+			tc.report(diag.SemaTaskNotAwaited, leak.Span,
+				"spawned task is neither awaited nor returned")
+		}
 	}
 	tc.releaseScopeBindings(top)
 }

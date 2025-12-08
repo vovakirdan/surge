@@ -1,0 +1,13 @@
+// Test: blocking channel operations not allowed in @nonblocking context
+
+@nonblocking
+fn bad_send(ch: &Channel<int>) -> nothing {
+    // Should error: send is blocking, not allowed in @nonblocking
+    ch.send(42);
+}
+
+@nonblocking
+fn bad_recv(ch: &Channel<int>) -> nothing {
+    // Should error: recv is blocking, not allowed in @nonblocking
+    let _ = ch.recv();
+}

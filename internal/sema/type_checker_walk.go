@@ -174,6 +174,10 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 						tc.setBindingType(symID, valueType)
 					}
 					tc.updateStmtBinding(id, letStmt.Value)
+					// Track task binding for structured concurrency
+					if tc.taskTracker != nil && tc.isTaskType(valueType) {
+						tc.taskTracker.BindTaskByExpr(letStmt.Value, symID)
+					}
 				}
 			}
 		}
@@ -194,6 +198,8 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			if ret.Expr.IsValid() {
 				valueType = tc.typeExpr(ret.Expr)
 				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
+				// Track task return for structured concurrency
+				tc.trackTaskReturn(ret.Expr)
 			}
 			tc.validateReturn(stmt.Span, ret.Expr, valueType)
 		}

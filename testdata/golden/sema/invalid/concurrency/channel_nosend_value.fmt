@@ -1,0 +1,11 @@
+// Test: cannot send @nosend type through channel
+
+@nosend
+type ThreadLocal = {
+    data: int,
+};
+
+fn try_send_nosend(ch: &Channel<ThreadLocal>, value: ThreadLocal) -> nothing {
+    // Should error: cannot send @nosend type through channel
+    ch.send(value);
+}

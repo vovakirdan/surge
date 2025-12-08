@@ -82,6 +82,12 @@ var intrinsicAllowedNamesList = []string{
 	"try_acquire",
 	// Task utilities
 	"checkpoint",
+	// Channel operations
+	"send",
+	"recv",
+	"try_send",
+	"try_recv",
+	"close",
 }
 
 var (
@@ -119,30 +125,23 @@ func (fr *fileResolver) reportIntrinsicError(name source.StringID, span source.S
 }
 
 func (fr *fileResolver) moduleAllowsIntrinsic() bool {
-	if isCoreIntrinsicsModule(fr.modulePath) {
+	// Allow @intrinsic in any core/ or stdlib/ module for flexibility
+	trimmed := strings.Trim(fr.modulePath, "/")
+	if trimmed == "core" || strings.HasPrefix(trimmed, "core/") {
 		return true
 	}
-	if strings.Trim(fr.modulePath, "/") == "core/task" {
+	if trimmed == "stdlib" || strings.HasPrefix(trimmed, "stdlib/") {
 		return true
 	}
-	if fr.filePath == "" {
-		return false
+	// Also check file path for flexibility
+	if fr.filePath != "" {
+		path := filepath.ToSlash(fr.filePath)
+		path = strings.TrimSuffix(path, ".sg")
+		if strings.Contains(path, "/core") || strings.Contains(path, "/stdlib") {
+			return true
+		}
 	}
-	path := filepath.ToSlash(fr.filePath)
-	path = strings.TrimSuffix(path, ".sg")
-	path = strings.TrimSuffix(path, "/")
-	if strings.HasSuffix(path, "/core") || strings.HasSuffix(path, "/core/intrinsics") {
-		return true
-	}
-	return path == "core" || path == "core/intrinsics"
-}
-
-func isCoreIntrinsicsModule(path string) bool {
-	if path == "" {
-		return false
-	}
-	trimmed := strings.Trim(path, "/")
-	return trimmed == "core" || trimmed == "core/intrinsics"
+	return false
 }
 
 func isProtectedModule(path string) bool {

@@ -42,6 +42,26 @@ extern<Task<T>> {
 @intrinsic
 pub fn checkpoint() -> Task<nothing>;
 
+// Typed channel for inter-task communication
+pub type Channel<T> = {
+    __opaque: *byte,
+};
+
+extern<Channel<T>> {
+    // Create a new channel with given capacity (0 = unbuffered)
+    @intrinsic pub fn new<T>(capacity: uint) -> own Channel<T>;
+    // Blocking send - suspends until channel has capacity
+    @intrinsic pub fn send<T>(self: &Channel<T>, value: own T) -> nothing;
+    // Blocking receive - suspends until value available, returns Nothing if closed
+    @intrinsic pub fn recv<T>(self: &Channel<T>) -> Option<T>;
+    // Non-blocking send - returns false if channel full
+    @intrinsic pub fn try_send<T>(self: &Channel<T>, value: own T) -> bool;
+    // Non-blocking receive - returns Nothing if channel empty
+    @intrinsic pub fn try_recv<T>(self: &Channel<T>) -> Option<T>;
+    // Close the channel - no more values can be sent
+    @intrinsic pub fn close<T>(self: &Channel<T>) -> nothing;
+}
+
 pub contract Bounded<T> {
     fn __min_value() -> T;
     fn __max_value() -> T;

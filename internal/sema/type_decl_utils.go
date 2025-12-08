@@ -335,3 +335,18 @@ func (tc *typeChecker) isTaskType(id types.TypeID) bool {
 	}
 	return false
 }
+
+// isChannelType checks if the given type is Channel<T>.
+func (tc *typeChecker) isChannelType(id types.TypeID) bool {
+	if id == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	resolved := tc.resolveAlias(id)
+	if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
+		return tc.lookupTypeName(resolved, info.Name) == "Channel"
+	}
+	if info, ok := tc.types.AliasInfo(resolved); ok && info != nil {
+		return tc.lookupTypeName(resolved, info.Name) == "Channel"
+	}
+	return false
+}

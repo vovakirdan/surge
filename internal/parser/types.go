@@ -238,6 +238,15 @@ func (p *Parser) finishTypePath(firstID source.StringID, startSpan source.Span) 
 		Generics: nil,
 	}}
 
+	// Support turbofish syntax: Foo::<int> in addition to Foo<int>
+	if p.at(token.ColonColon) {
+		p.advance() // consume '::'
+		if !p.at(token.Lt) {
+			// Not turbofish - this is an error (unexpected '::' in type position)
+			p.err(diag.SynUnexpectedToken, "unexpected '::' in type; expected '<' for turbofish syntax")
+			return ast.NoTypeID, false
+		}
+	}
 	if p.at(token.Lt) {
 		args, ok := p.parseTypeArgs()
 		if !ok {
@@ -255,6 +264,14 @@ func (p *Parser) finishTypePath(firstID source.StringID, startSpan source.Span) 
 		identID, ok := p.parseIdent()
 		if !ok {
 			return ast.NoTypeID, false
+		}
+		// Support turbofish syntax for path segments
+		if p.at(token.ColonColon) {
+			p.advance() // consume '::'
+			if !p.at(token.Lt) {
+				p.err(diag.SynUnexpectedToken, "unexpected '::' in type; expected '<' for turbofish syntax")
+				return ast.NoTypeID, false
+			}
 		}
 		var generics []ast.TypeID
 		if p.at(token.Lt) {
