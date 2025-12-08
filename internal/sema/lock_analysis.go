@@ -9,126 +9,22 @@ import (
 	"surge/internal/symbols"
 )
 
-// LockKind represents the type of lock operation
-type LockKind int
-
-const (
-	LockKindMutex   LockKind = iota // Mutex.lock()
-	LockKindRwRead                  // RwLock.read_lock()
-	LockKindRwWrite                 // RwLock.write_lock()
-)
-
-func (k LockKind) String() string {
-	switch k {
-	case LockKindMutex:
-		return "mutex"
-	case LockKindRwRead:
-		return "read"
-	case LockKindRwWrite:
-		return "write"
-	default:
-		return "unknown"
-	}
-}
-
-// LockKey uniquely identifies a held lock
-type LockKey struct {
-	Base      symbols.SymbolID // Root variable (self, parameter, local)
-	FieldName source.StringID  // Field name of the lock
-	Kind      LockKind
-}
-
-// LockAcquisition records where a lock was acquired
-type LockAcquisition struct {
-	Key  LockKey
-	Span source.Span // Location where lock was acquired
-}
-
-// LockState tracks currently held locks within a function
-type LockState struct {
-	held []LockAcquisition // Stack of held locks (in acquisition order)
-}
-
-// NewLockState creates a new empty lock state
-func NewLockState() *LockState {
-	return &LockState{
-		held: make([]LockAcquisition, 0, 4),
-	}
-}
-
-// Clone creates a copy of the lock state (for future branch analysis)
-func (s *LockState) Clone() *LockState {
-	clone := &LockState{
-		held: make([]LockAcquisition, len(s.held)),
-	}
-	copy(clone.held, s.held)
-	return clone
-}
-
-// IsHeld checks if a lock is currently held
-func (s *LockState) IsHeld(key LockKey) bool {
-	for _, acq := range s.held {
-		if acq.Key == key {
-			return true
-		}
-	}
-	return false
-}
-
-// FindAcquisition returns the acquisition info for a held lock, if any
-func (s *LockState) FindAcquisition(key LockKey) (LockAcquisition, bool) {
-	for _, acq := range s.held {
-		if acq.Key == key {
-			return acq, true
-		}
-	}
-	return LockAcquisition{}, false
-}
-
-// Acquire attempts to acquire a lock. Returns error info if double-lock detected.
-func (s *LockState) Acquire(key LockKey, span source.Span) (prevSpan source.Span, doubleLock bool) {
-	if prev, found := s.FindAcquisition(key); found {
-		return prev.Span, true
-	}
-	s.held = append(s.held, LockAcquisition{Key: key, Span: span})
-	return source.Span{}, false
-}
-
-// Release attempts to release a lock. Returns false if lock was not held.
-func (s *LockState) Release(key LockKey) bool {
-	for i, acq := range s.held {
-		if acq.Key == key {
-			// Remove from held list
-			s.held = append(s.held[:i], s.held[i+1:]...)
-			return true
-		}
-	}
-	return false
-}
-
-// HeldLocks returns all currently held locks
-func (s *LockState) HeldLocks() []LockAcquisition {
-	return s.held
-}
-
-// IsEmpty returns true if no locks are held
-func (s *LockState) IsEmpty() bool {
-	return len(s.held) == 0
-}
-
 // lockAnalyzer performs lock analysis on function bodies
 type lockAnalyzer struct {
-	tc          *typeChecker
-	state       *LockState
-	selfSym     symbols.SymbolID // Symbol for 'self' parameter if method
-	hasTryLocks bool             // True if function uses try_lock methods (skip linear analysis)
+	tc               *typeChecker
+	state            *LockState
+	selfSym          symbols.SymbolID         // Symbol for 'self' parameter if method
+	receiverTypeName string                   // Type name of the receiver (for deadlock detection)
+	hasTryLocks      bool                     // True if function uses try_lock methods (skip linear analysis)
+	exemptLocks      map[source.StringID]bool // Locks exempt from leak checking (contract-managed)
 }
 
 // newLockAnalyzer creates a new lock analyzer for a function
 func (tc *typeChecker) newLockAnalyzer() *lockAnalyzer {
 	return &lockAnalyzer{
-		tc:    tc,
-		state: NewLockState(),
+		tc:          tc,
+		state:       NewLockState(),
+		exemptLocks: make(map[source.StringID]bool),
 	}
 }
 
@@ -169,16 +65,28 @@ func (la *lockAnalyzer) initFromAttributes(fnItem *ast.FnItem, selfSym symbols.S
 
 	// @requires_lock("field") - lock is held on entry (and remains held)
 	// @releases_lock("field") - lock is held on entry (and will be released)
+	// @acquires_lock("field") - lock will be acquired (exempt from leak check at exit)
 	for _, info := range infos {
-		if (info.Spec.Name == "requires_lock" || info.Spec.Name == "releases_lock") && len(info.Args) > 0 {
-			fieldName := la.extractFieldName(info)
-			if fieldName != 0 {
-				key := LockKey{
-					Base:      la.selfSym,
-					FieldName: fieldName,
-					Kind:      LockKindMutex, // Assume mutex for now
+		switch info.Spec.Name {
+		case "requires_lock", "releases_lock":
+			if len(info.Args) > 0 {
+				fieldName := la.extractFieldName(info)
+				if fieldName != 0 {
+					key := LockKey{
+						Base:      la.selfSym,
+						FieldName: fieldName,
+						Kind:      LockKindMutex, // Assume mutex for now
+					}
+					la.state.Acquire(key, info.Span)
+					la.exemptLocks[fieldName] = true
 				}
-				la.state.Acquire(key, info.Span)
+			}
+		case "acquires_lock":
+			if len(info.Args) > 0 {
+				fieldName := la.extractFieldName(info)
+				if fieldName != 0 {
+					la.exemptLocks[fieldName] = true
+				}
 			}
 		}
 	}
@@ -219,6 +127,12 @@ func (tc *typeChecker) analyzeFunctionLocks(fnItem *ast.FnItem, selfSym symbols.
 	}
 
 	la := tc.newLockAnalyzer()
+
+	// Get receiver type name for deadlock detection
+	if selfSym.IsValid() {
+		la.receiverTypeName = tc.getSymbolTypeName(selfSym)
+	}
+
 	la.initFromAttributes(fnItem, selfSym)
 
 	// Walk the function body looking for lock/unlock calls
@@ -239,7 +153,8 @@ func (tc *typeChecker) analyzeFunctionLocks(fnItem *ast.FnItem, selfSym symbols.
 		}
 	}
 
-	// Check for unreleased locks at function exit
+	// Check for unreleased locks at function exit (end of body, not return statements)
+	// Return statements are checked by checkLocksAtReturn
 	for _, acq := range la.state.HeldLocks() {
 		// Skip locks that are part of the function's contract
 		if exemptLocks[acq.Key.FieldName] {
@@ -248,6 +163,24 @@ func (tc *typeChecker) analyzeFunctionLocks(fnItem *ast.FnItem, selfSym symbols.
 		fieldName := tc.lookupName(acq.Key.FieldName)
 		tc.report(diag.SemaLockNotReleasedOnExit, acq.Span,
 			"lock '%s' acquired here but not released before function exit", fieldName)
+	}
+}
+
+// checkLocksAtReturn checks for unreleased locks at a return statement.
+// Reports SemaLockNotReleasedOnExit for any locks still held.
+func (tc *typeChecker) checkLocksAtReturn(la *lockAnalyzer, returnSpan source.Span) {
+	if la == nil || la.hasTryLocks {
+		return // Skip if using try_lock (requires more sophisticated analysis)
+	}
+
+	for _, acq := range la.state.HeldLocks() {
+		// Skip locks that are part of the function's contract
+		if la.exemptLocks[acq.Key.FieldName] {
+			continue
+		}
+		fieldName := tc.lookupName(acq.Key.FieldName)
+		tc.report(diag.SemaLockNotReleasedOnExit, returnSpan,
+			"lock '%s' not released before return", fieldName)
 	}
 }
 
@@ -301,15 +234,63 @@ func (tc *typeChecker) mergeLockStates(la *lockAnalyzer, s1, s2 *LockState, span
 	return merged
 }
 
-// walkStmtForLocks analyzes a statement for lock operations
-func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) {
+// mergePathsAtJoin performs path-sensitive merging of lock states at branch join points.
+// Returns the merged state and combined outcome based on how each path exits.
+func (tc *typeChecker) mergePathsAtJoin(
+	la *lockAnalyzer,
+	thenState *LockState, thenOutcome PathOutcome,
+	elseState *LockState, elseOutcome PathOutcome,
+	span source.Span,
+) (*LockState, PathOutcome) {
+	// Both paths exit early - need to distinguish between different exit types
+	if thenOutcome != PathContinues && elseOutcome != PathContinues {
+		// Both return -> truly unreachable code after
+		if thenOutcome == PathReturns && elseOutcome == PathReturns {
+			return NewLockState(), PathReturns
+		}
+		// Both break -> code after loop is reachable, merge states
+		if thenOutcome == PathBreaks && elseOutcome == PathBreaks {
+			return tc.mergeLockStates(la, thenState, elseState, span), PathBreaks
+		}
+		// Both continue -> next iteration reachable, merge states
+		if thenOutcome == PathContinuesLoop && elseOutcome == PathContinuesLoop {
+			return tc.mergeLockStates(la, thenState, elseState, span), PathContinuesLoop
+		}
+		// Mixed: one returns, other breaks/continues -> non-return path's state matters
+		if thenOutcome == PathReturns {
+			return elseState, elseOutcome
+		}
+		if elseOutcome == PathReturns {
+			return thenState, thenOutcome
+		}
+		// Mixed break/continue -> conservatively merge, use break (exits loop)
+		return tc.mergeLockStates(la, thenState, elseState, span), PathBreaks
+	}
+
+	// Only then path continues -> use then state
+	if thenOutcome == PathContinues && elseOutcome != PathContinues {
+		return thenState, PathContinues
+	}
+
+	// Only else path continues -> use else state
+	if thenOutcome != PathContinues && elseOutcome == PathContinues {
+		return elseState, PathContinues
+	}
+
+	// Both paths continue -> conservative merge (existing behavior)
+	return tc.mergeLockStates(la, thenState, elseState, span), PathContinues
+}
+
+// walkStmtForLocks analyzes a statement for lock operations.
+// Returns PathOutcome indicating how the statement exits (continues, returns, etc.)
+func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) PathOutcome {
 	if !stmtID.IsValid() {
-		return
+		return PathContinues
 	}
 
 	stmt := tc.builder.Stmts.Get(stmtID)
 	if stmt == nil {
-		return
+		return PathContinues
 	}
 
 	switch stmt.Kind {
@@ -318,23 +299,29 @@ func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) {
 		if exprStmt := tc.builder.Stmts.Expr(stmtID); exprStmt != nil {
 			tc.checkExprForLockOps(la, exprStmt.Expr)
 		}
+		return PathContinues
 
 	case ast.StmtLet:
 		// Let statement - check initializer for lock calls
 		if letStmt := tc.builder.Stmts.Let(stmtID); letStmt != nil && letStmt.Value.IsValid() {
 			tc.checkExprForLockOps(la, letStmt.Value)
 		}
+		return PathContinues
 
 	case ast.StmtBlock:
-		// Nested block
+		// Nested block - process sequentially, track early exits
 		if block := tc.builder.Stmts.Block(stmtID); block != nil {
 			for _, child := range block.Stmts {
-				tc.walkStmtForLocks(la, child)
+				outcome := tc.walkStmtForLocks(la, child)
+				if outcome != PathContinues {
+					return outcome // Early exit from block
+				}
 			}
 		}
+		return PathContinues
 
 	case ast.StmtIf:
-		// Branch analysis: clone state, analyze branches, merge conservatively
+		// Branch analysis with path-sensitive merging
 		if ifStmt := tc.builder.Stmts.If(stmtID); ifStmt != nil {
 			// Check condition expression for lock ops
 			tc.checkExprForLockOps(la, ifStmt.Cond)
@@ -343,22 +330,32 @@ func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) {
 			stateBefore := la.state.Clone()
 
 			// Analyze then branch
-			tc.walkStmtForLocks(la, ifStmt.Then)
+			thenOutcome := tc.walkStmtForLocks(la, ifStmt.Then)
 			thenState := la.state.Clone()
 
 			// Analyze else branch (if exists)
+			var elseState *LockState
+			var elseOutcome PathOutcome
 			if ifStmt.Else.IsValid() {
 				la.state = stateBefore.Clone()
-				tc.walkStmtForLocks(la, ifStmt.Else)
-				elseState := la.state
-
-				// Merge states and check for imbalance
-				la.state = tc.mergeLockStates(la, thenState, elseState, stmt.Span)
+				elseOutcome = tc.walkStmtForLocks(la, ifStmt.Else)
+				elseState = la.state
 			} else {
-				// No else: merge with original state (as if else was empty)
-				la.state = tc.mergeLockStates(la, thenState, stateBefore, stmt.Span)
+				// No else: implicit else continues with original state
+				elseState = stateBefore
+				elseOutcome = PathContinues
+			}
+
+			// Path-sensitive merge - use the merged outcome
+			var mergedOutcome PathOutcome
+			la.state, mergedOutcome = tc.mergePathsAtJoin(la, thenState, thenOutcome, elseState, elseOutcome, stmt.Span)
+
+			// Propagate early exit (return/break/continue) from merged paths
+			if mergedOutcome != PathContinues {
+				return mergedOutcome
 			}
 		}
+		return PathContinues
 
 	case ast.StmtWhile:
 		// Branch analysis for loops: loop might execute 0 or more times
@@ -369,12 +366,19 @@ func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) {
 			// Clone state before loop
 			stateBefore := la.state.Clone()
 
-			// Analyze loop body
-			tc.walkStmtForLocks(la, whileStmt.Body)
+			// Analyze loop body (ignoring break/continue for now - conservatively treat as may continue)
+			bodyOutcome := tc.walkStmtForLocks(la, whileStmt.Body)
 
-			// Merge states: loop might execute 0 or more times
-			la.state = tc.mergeLockStates(la, stateBefore, la.state, stmt.Span)
+			// For loops: merge with state before (loop might execute 0 times)
+			// Break/continue within loop body exit to after the loop
+			if bodyOutcome == PathContinues || bodyOutcome == PathBreaks || bodyOutcome == PathContinuesLoop {
+				la.state = tc.mergeLockStates(la, stateBefore, la.state, stmt.Span)
+			} else {
+				// Body always returns - but loop condition may be false initially
+				la.state = stateBefore
+			}
 		}
+		return PathContinues
 
 	case ast.StmtForClassic:
 		// Branch analysis for loops: loop might execute 0 or more times
@@ -388,11 +392,16 @@ func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) {
 			stateBefore := la.state.Clone()
 
 			// Analyze loop body
-			tc.walkStmtForLocks(la, forStmt.Body)
+			bodyOutcome := tc.walkStmtForLocks(la, forStmt.Body)
 
-			// Merge states: loop might execute 0 or more times
-			la.state = tc.mergeLockStates(la, stateBefore, la.state, stmt.Span)
+			// Same logic as while loop
+			if bodyOutcome == PathContinues || bodyOutcome == PathBreaks || bodyOutcome == PathContinuesLoop {
+				la.state = tc.mergeLockStates(la, stateBefore, la.state, stmt.Span)
+			} else {
+				la.state = stateBefore
+			}
 		}
+		return PathContinues
 
 	case ast.StmtForIn:
 		// Branch analysis for loops: loop might execute 0 or more times
@@ -404,18 +413,35 @@ func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) {
 			stateBefore := la.state.Clone()
 
 			// Analyze loop body
-			tc.walkStmtForLocks(la, forIn.Body)
+			bodyOutcome := tc.walkStmtForLocks(la, forIn.Body)
 
-			// Merge states: loop might execute 0 or more times
-			la.state = tc.mergeLockStates(la, stateBefore, la.state, stmt.Span)
+			// Same logic as while loop
+			if bodyOutcome == PathContinues || bodyOutcome == PathBreaks || bodyOutcome == PathContinuesLoop {
+				la.state = tc.mergeLockStates(la, stateBefore, la.state, stmt.Span)
+			} else {
+				la.state = stateBefore
+			}
 		}
+		return PathContinues
 
 	case ast.StmtReturn:
 		// Check return expression for lock ops
 		if retStmt := tc.builder.Stmts.Return(stmtID); retStmt != nil && retStmt.Expr.IsValid() {
 			tc.checkExprForLockOps(la, retStmt.Expr)
 		}
-		// Note: unreleased locks at return are handled at function level
+		// Check for unreleased locks at this return point
+		tc.checkLocksAtReturn(la, stmt.Span)
+		// Return statement exits the function - this path doesn't continue
+		return PathReturns
+
+	case ast.StmtBreak:
+		return PathBreaks
+
+	case ast.StmtContinue:
+		return PathContinuesLoop
+
+	default:
+		return PathContinues
 	}
 }
 
@@ -458,34 +484,13 @@ func (tc *typeChecker) checkExprForLockOps(la *lockAnalyzer, exprID ast.ExprID) 
 			case "unlock", "read_unlock", "write_unlock":
 				tc.handleLockRelease(la, member.Target, expr.Span)
 			case "try_lock", "try_read_lock", "try_write_lock":
-				// try_ methods require branch analysis (Step Б)
-				// Mark that this function uses conditional locking
-				la.hasTryLocks = true
+				la.hasTryLocks = true // Mark conditional locking (branch analysis)
 			}
 		}
 	}
 
 	// Recursively check sub-expressions
 	tc.walkExprForLockOps(la, exprID)
-}
-
-// isAssignmentOp checks if the binary operator is an assignment operator
-func isAssignmentOp(op ast.ExprBinaryOp) bool {
-	switch op {
-	case ast.ExprBinaryAssign,
-		ast.ExprBinaryAddAssign,
-		ast.ExprBinarySubAssign,
-		ast.ExprBinaryMulAssign,
-		ast.ExprBinaryDivAssign,
-		ast.ExprBinaryModAssign,
-		ast.ExprBinaryBitAndAssign,
-		ast.ExprBinaryBitOrAssign,
-		ast.ExprBinaryBitXorAssign,
-		ast.ExprBinaryShlAssign,
-		ast.ExprBinaryShrAssign:
-		return true
-	}
-	return false
 }
 
 // walkExprForLockOps recursively walks expression children
@@ -556,6 +561,13 @@ func (tc *typeChecker) handleLockAcquire(la *lockAnalyzer, targetExpr ast.ExprID
 	if !ok {
 		return // Could not determine lock - skip analysis
 	}
+
+	// Record lock ordering edges for deadlock detection
+	newLock := LockIdentity{
+		TypeName:  tc.getLockTypeName(la, key),
+		FieldName: tc.lookupName(key.FieldName),
+	}
+	tc.recordLockOrderEdge(la, newLock, span)
 
 	if prevSpan, doubleLock := la.state.Acquire(key, span); doubleLock {
 		fieldName := tc.lookupName(key.FieldName)

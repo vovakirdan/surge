@@ -1,0 +1,28 @@
+// Test: Deadlock with RwLock - read_lock and write_lock both tracked
+// Mixed read/write lock ordering creates cycle
+
+type RwResource = {
+    rw_a: RwLock,
+    rw_b: RwLock,
+    data: int
+}
+
+extern<RwResource> {
+    // read A -> write B
+    fn reader_then_writer(self: &mut RwResource) {
+        self.rw_a.read_lock();
+        self.rw_b.write_lock();
+        self.data = 1;
+        self.rw_b.write_unlock();
+        self.rw_a.read_unlock();
+    }
+
+    // write B -> read A - cycle!
+    fn writer_then_reader(self: &mut RwResource) {
+        self.rw_b.write_lock();
+        self.rw_a.read_lock();  // DEADLOCK: B -> A closes the cycle
+        self.data = 2;
+        self.rw_a.read_unlock();
+        self.rw_b.write_unlock();
+    }
+}

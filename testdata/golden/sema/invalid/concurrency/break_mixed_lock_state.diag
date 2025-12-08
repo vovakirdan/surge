@@ -1,0 +1,1 @@
+error SEM3082 testdata/golden/sema/invalid/concurrency/break_mixed_lock_state.sg:12:13 lock 'lock' may be held in one branch but not another

@@ -1,0 +1,52 @@
+return_lock_released.sg (span: 4:1-30:1)
+├─ Item[0]: Type (span: 4:1-7:2)
+│  ├─ Name: SafeCounter
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: value: int
+└─ Item[1]: Extern (span: 9:1-29:2)
+   ├─ Target: SafeCounter
+   ├─ Members:
+   │  ├─ Fn[0]: safe_early_return
+   │  │  ├─ Params: (self: &mut SafeCounter)
+   │  │  ├─ Return: int
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 11:57-20:6)
+   │  │     ├─ Stmt[0]: Expr (span: 12:9-12:26)
+   │  │     │  └─ Expr: expr#4: self.lock.lock()
+   │  │     ├─ Stmt[1]: If (span: 13:9-17:10)
+   │  │     │  ├─ Cond: expr#8: (self.value > 0)
+   │  │     │  ├─ Then:
+Block (span: 13:27-17:10)
+   │  │     │  │  ├─ Stmt[0]: Let (span: 14:13-14:42)
+   │  │     │  │  │  ├─ Name: result
+   │  │     │  │  │  ├─ Mutable: false
+   │  │     │  │  │  ├─ Type: int
+   │  │     │  │  │  └─ Value: expr#10: self.value
+   │  │     │  │  ├─ Stmt[1]: Expr (span: 15:13-15:32)
+   │  │     │  │  │  └─ Expr: expr#14: self.lock.unlock()
+   │  │     │  │  └─ Stmt[2]: Return (span: 16:13-16:27)
+   │  │     │  │     └─ Expr: expr#15: result
+   │  │     │  └─ Else: <none>
+   │  │     ├─ Stmt[2]: Expr (span: 18:9-18:28)
+   │  │     │  └─ Expr: expr#19: self.lock.unlock()
+   │  │     └─ Stmt[3]: Return (span: 19:9-19:18)
+   │  │        └─ Expr: expr#20: 0
+   │  └─ Fn[1]: safe_single_path
+   │     ├─ Params: (self: &mut SafeCounter)
+   │     ├─ Return: int
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 23:56-28:6)
+   │        ├─ Stmt[0]: Expr (span: 24:9-24:26)
+   │        │  └─ Expr: expr#24: self.lock.lock()
+   │        ├─ Stmt[1]: Let (span: 25:9-25:37)
+   │        │  ├─ Name: v
+   │        │  ├─ Mutable: false
+   │        │  ├─ Type: int
+   │        │  └─ Value: expr#28: (self.value + 1)
+   │        ├─ Stmt[2]: Expr (span: 26:9-26:28)
+   │        │  └─ Expr: expr#32: self.lock.unlock()
+   │        └─ Stmt[3]: Return (span: 27:9-27:18)
+   │           └─ Expr: expr#33: v

@@ -1,0 +1,32 @@
+break_mixed_lock_state.sg (span: 4:1-24:1)
+├─ Item[0]: Type (span: 4:1-7:2)
+│  ├─ Name: BreakMixedResource
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: value: int
+└─ Item[1]: Extern (span: 9:1-23:2)
+   ├─ Target: BreakMixedResource
+   ├─ Members:
+   │  └─ Fn[0]: break_mixed_states
+   │     ├─ Params: (self: &mut BreakMixedResource)
+   │     ├─ Return: nothing
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 10:58-22:6)
+   │        └─ Stmt[0]: While (span: 11:9-19:10)
+   │           ├─ Cond: expr#4: (self.value > 0)
+   │           └─ Body:
+Block (span: 11:30-19:10)
+   │              └─ Stmt[0]: If (span: 12:13-18:14)
+   │                 ├─ Cond: expr#8: (self.value > 10)
+   │                 ├─ Then:
+Block (span: 12:32-15:14)
+   │                 │  ├─ Stmt[0]: Expr (span: 13:17-13:34)
+   │                 │  │  └─ Expr: expr#12: self.lock.lock()
+   │                 │  └─ Stmt[1]: Break (span: 14:17-14:23)
+   │                 │     └─ (no additional data)
+   │                 └─ Else:
+Block (span: 15:20-18:14)
+   │                    └─ Stmt[0]: Break (span: 17:17-17:23)
+   │                       └─ (no additional data)

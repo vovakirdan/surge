@@ -1,0 +1,1 @@
+error SEM3081 testdata/golden/sema/invalid/concurrency/loop_lock_leak.sg:15:13 lock 'lock' not released before return

@@ -73,6 +73,7 @@ type typeChecker struct {
 	arrayFixedSymbol            symbols.SymbolID
 	arrayFixedType              types.TypeID
 	fnConcurrencySummaries      map[symbols.SymbolID]*FnConcurrencySummary
+	lockOrderGraph              *LockOrderGraph // Global lock ordering for deadlock detection
 }
 
 type returnContext struct {
@@ -155,6 +156,7 @@ func (tc *typeChecker) run() {
 	tc.typeInstantiationInProgress = make(map[string]struct{})
 	tc.fnInstantiationSeen = make(map[string]struct{})
 	tc.fnConcurrencySummaries = make(map[symbols.SymbolID]*FnConcurrencySummary)
+	tc.lockOrderGraph = NewLockOrderGraph()
 
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {
@@ -198,5 +200,9 @@ func (tc *typeChecker) run() {
 
 	done = phase("flush_borrow")
 	tc.flushBorrowResults()
+	done()
+
+	done = phase("check_deadlocks")
+	tc.checkForDeadlocks()
 	done()
 }

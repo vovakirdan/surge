@@ -1,0 +1,19 @@
+// Test: Lock held at return - path-sensitive analysis should detect this
+// Lock is acquired but not released before early return
+
+type Counter = {
+    lock: Mutex,
+    value: int
+}
+
+extern<Counter> {
+    // Lock acquired, early return without unlock - ERROR
+    fn bad_early_return(self: &mut Counter) -> int {
+        self.lock.lock();
+        if self.value > 0 {
+            return self.value;  // Lock still held here!
+        }
+        self.lock.unlock();
+        return 0;
+    }
+}
