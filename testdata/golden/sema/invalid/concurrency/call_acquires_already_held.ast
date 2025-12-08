@@ -1,0 +1,29 @@
+call_acquires_already_held.sg (span: 2:1-16:1)
+├─ Item[0]: Type (span: 2:1-2:32)
+│  ├─ Name: Resource
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: lock: Mutex
+└─ Item[1]: Extern (span: 4:1-15:2)
+   ├─ Target: Resource
+   ├─ Members:
+   │  ├─ Fn[0]: acquire
+   │  │  ├─ Params: (self: &mut Resource)
+   │  │  ├─ Return: nothing
+   │  │  ├─ Attributes: @acquires_lock("lock")
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 6:48-8:6)
+   │  │     └─ Stmt[0]: Expr (span: 7:9-7:26)
+   │  │        └─ Expr: expr#5: self.lock.lock()
+   │  └─ Fn[1]: double_acquire
+   │     ├─ Params: (self: &mut Resource)
+   │     ├─ Return: nothing
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 10:59-14:6)
+   │        ├─ Stmt[0]: Expr (span: 11:9-11:26)
+   │        │  └─ Expr: expr#9: self.lock.lock()
+   │        ├─ Stmt[1]: Expr (span: 12:9-12:24)
+   │        │  └─ Expr: expr#12: self.acquire()
+   │        └─ Stmt[2]: Expr (span: 13:9-13:28)
+   │           └─ Expr: expr#16: self.lock.unlock()

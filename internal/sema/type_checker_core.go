@@ -72,6 +72,7 @@ type typeChecker struct {
 	arrayFixedName              source.StringID
 	arrayFixedSymbol            symbols.SymbolID
 	arrayFixedType              types.TypeID
+	fnConcurrencySummaries      map[symbols.SymbolID]*FnConcurrencySummary
 }
 
 type returnContext struct {
@@ -153,6 +154,7 @@ func (tc *typeChecker) run() {
 	tc.typeInstantiations = make(map[string]types.TypeID)
 	tc.typeInstantiationInProgress = make(map[string]struct{})
 	tc.fnInstantiationSeen = make(map[string]struct{})
+	tc.fnConcurrencySummaries = make(map[symbols.SymbolID]*FnConcurrencySummary)
 
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {

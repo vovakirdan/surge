@@ -1,0 +1,11 @@
+// Valid: @nonblocking function that doesn't call blocking operations
+@nonblocking
+pub fn fast_compute(x: int) -> int {
+    return x * 2;
+}
+
+@nonblocking
+pub fn add_numbers(a: int, b: int) -> int {
+    let result: int = a + b;
+    return result;
+}

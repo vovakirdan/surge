@@ -1,0 +1,77 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "Resource" at 2:6-2:14 (leading: Space)
+  3: Assign          "=" at 2:15-2:16 (leading: Space)
+  4: LBrace          "{" at 2:17-2:18 (leading: Space)
+  5: Ident           "lock" at 2:19-2:23 (leading: Space)
+  6: Colon           ":" at 2:23-2:24
+  7: Ident           "Mutex" at 2:25-2:30 (leading: Space)
+  8: RBrace          "}" at 2:31-2:32 (leading: Space)
+  9: KwExtern        "extern" at 4:1-4:7 (leading: Newline)
+ 10: Lt              "<" at 4:7-4:8
+ 11: Ident           "Resource" at 4:8-4:16
+ 12: Gt              ">" at 4:16-4:17
+ 13: LBrace          "{" at 4:18-4:19 (leading: Space)
+ 14: At              "@" at 5:5-5:6 (leading: Newline, Space)
+ 15: Ident           "acquires_lock" at 5:6-5:19
+ 16: LParen          "(" at 5:19-5:20
+ 17: StringLit       "\"lock\"" at 5:20-5:26
+ 18: RParen          ")" at 5:26-5:27
+ 19: KwFn            "fn" at 6:5-6:7 (leading: Newline, Space)
+ 20: Ident           "acquire" at 6:8-6:15 (leading: Space)
+ 21: LParen          "(" at 6:15-6:16
+ 22: Ident           "self" at 6:16-6:20
+ 23: Colon           ":" at 6:20-6:21
+ 24: Amp             "&" at 6:22-6:23 (leading: Space)
+ 25: KwMut           "mut" at 6:23-6:26
+ 26: Ident           "Resource" at 6:27-6:35 (leading: Space)
+ 27: RParen          ")" at 6:35-6:36
+ 28: Arrow           "->" at 6:37-6:39 (leading: Space)
+ 29: NothingLit      "nothing" at 6:40-6:47 (leading: Space)
+ 30: LBrace          "{" at 6:48-6:49 (leading: Space)
+ 31: Ident           "self" at 7:9-7:13 (leading: Newline, Space)
+ 32: Dot             "." at 7:13-7:14
+ 33: Ident           "lock" at 7:14-7:18
+ 34: Dot             "." at 7:18-7:19
+ 35: Ident           "lock" at 7:19-7:23
+ 36: LParen          "(" at 7:23-7:24
+ 37: RParen          ")" at 7:24-7:25
+ 38: Semicolon       ";" at 7:25-7:26
+ 39: RBrace          "}" at 8:5-8:6 (leading: Newline, Space)
+ 40: KwPub           "pub" at 10:5-10:8 (leading: Newline, Space)
+ 41: KwFn            "fn" at 10:9-10:11 (leading: Space)
+ 42: Ident           "double_acquire" at 10:12-10:26 (leading: Space)
+ 43: LParen          "(" at 10:26-10:27
+ 44: Ident           "self" at 10:27-10:31
+ 45: Colon           ":" at 10:31-10:32
+ 46: Amp             "&" at 10:33-10:34 (leading: Space)
+ 47: KwMut           "mut" at 10:34-10:37
+ 48: Ident           "Resource" at 10:38-10:46 (leading: Space)
+ 49: RParen          ")" at 10:46-10:47
+ 50: Arrow           "->" at 10:48-10:50 (leading: Space)
+ 51: NothingLit      "nothing" at 10:51-10:58 (leading: Space)
+ 52: LBrace          "{" at 10:59-10:60 (leading: Space)
+ 53: Ident           "self" at 11:9-11:13 (leading: Newline, Space)
+ 54: Dot             "." at 11:13-11:14
+ 55: Ident           "lock" at 11:14-11:18
+ 56: Dot             "." at 11:18-11:19
+ 57: Ident           "lock" at 11:19-11:23
+ 58: LParen          "(" at 11:23-11:24
+ 59: RParen          ")" at 11:24-11:25
+ 60: Semicolon       ";" at 11:25-11:26
+ 61: Ident           "self" at 12:9-12:13 (leading: Newline, Space)
+ 62: Dot             "." at 12:13-12:14
+ 63: Ident           "acquire" at 12:14-12:21
+ 64: LParen          "(" at 12:21-12:22
+ 65: RParen          ")" at 12:22-12:23
+ 66: Semicolon       ";" at 12:23-12:24
+ 67: Ident           "self" at 13:9-13:13 (leading: Space, LineComment, Newline, Space)
+ 68: Dot             "." at 13:13-13:14
+ 69: Ident           "lock" at 13:14-13:18
+ 70: Dot             "." at 13:18-13:19
+ 71: Ident           "unlock" at 13:19-13:25
+ 72: LParen          "(" at 13:25-13:26
+ 73: RParen          ")" at 13:26-13:27
+ 74: Semicolon       ";" at 13:27-13:28
+ 75: RBrace          "}" at 14:5-14:6 (leading: Newline, Space)
+ 76: RBrace          "}" at 15:1-15:2 (leading: Newline)
+ 77: EOF             at 16:1-16:1

@@ -89,9 +89,12 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			if returnType != tc.types.Builtins().Nothing && tc.returnStatus(fnItem.Body) != returnClosed {
 				tc.report(diag.SemaMissingReturn, returnSpan, "function returning %s is missing a return", tc.typeLabel(returnType))
 			}
-			// Perform lock analysis after walking the body
+			// Perform lock analysis and check @nonblocking constraint
 			selfSym := tc.findSelfSymbol(fnItem, scope)
 			tc.analyzeFunctionLocks(fnItem, selfSym)
+			if tc.fnHasNonblocking(fnItem) {
+				tc.checkNonblockingFunction(fnItem, fnItem.Span)
+			}
 			if pushed {
 				tc.leaveScope()
 			}

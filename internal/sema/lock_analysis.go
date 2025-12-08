@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"fmt"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -211,6 +213,11 @@ func (tc *typeChecker) analyzeFunctionLocks(fnItem *ast.FnItem, selfSym symbols.
 		return
 	}
 
+	if debugCallContract {
+		fnName := tc.lookupName(fnItem.Name)
+		fmt.Printf("analyzeFunctionLocks: %s\n", fnName)
+	}
+
 	la := tc.newLockAnalyzer()
 	la.initFromAttributes(fnItem, selfSym)
 
@@ -404,8 +411,11 @@ func (tc *typeChecker) walkStmtForLocks(la *lockAnalyzer, stmtID ast.StmtID) {
 		}
 
 	case ast.StmtReturn:
-		// On return, check for unreleased locks
-		// (handled at function level for now)
+		// Check return expression for lock ops
+		if retStmt := tc.builder.Stmts.Return(stmtID); retStmt != nil && retStmt.Expr.IsValid() {
+			tc.checkExprForLockOps(la, retStmt.Expr)
+		}
+		// Note: unreleased locks at return are handled at function level
 	}
 }
 
@@ -493,6 +503,9 @@ func (tc *typeChecker) walkExprForLockOps(la *lockAnalyzer, exprID ast.ExprID) {
 	case ast.ExprCall:
 		call, ok := tc.builder.Exprs.Call(exprID)
 		if ok && call != nil {
+			// Check inter-procedural lock contracts at call site
+			tc.checkCallConcurrencyContract(la, call, expr.Span)
+			// Walk arguments
 			for _, arg := range call.Args {
 				tc.checkExprForLockOps(la, arg.Value)
 			}
