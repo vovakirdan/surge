@@ -1,0 +1,1 @@
+error SEM3079 testdata/golden/sema/invalid/concurrency/call_acquires_already_held.sg:12:9 function will acquire lock 'lock' which is already held

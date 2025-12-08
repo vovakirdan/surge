@@ -1,0 +1,16 @@
+// Valid: calling @requires_lock function while holding the lock
+type Counter = { lock: Mutex, @guarded_by("lock") value: int }
+
+extern<Counter> {
+    @requires_lock("lock")
+    fn get_value(self: &Counter) -> int {
+        return self.value;
+    }
+
+    pub fn safe_get(self: &mut Counter) -> int {
+        self.lock.lock();
+        let v: int = self.get_value();
+        self.lock.unlock();
+        return v;
+    }
+}

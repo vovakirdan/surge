@@ -1,0 +1,35 @@
+call_requires_lock_valid.sg (span: 2:1-17:1)
+├─ Item[0]: Type (span: 2:1-2:63)
+│  ├─ Name: Counter
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: value: int [@guarded_by("lock")]
+└─ Item[1]: Extern (span: 4:1-16:2)
+   ├─ Target: Counter
+   ├─ Members:
+   │  ├─ Fn[0]: get_value
+   │  │  ├─ Params: (self: &Counter)
+   │  │  ├─ Return: int
+   │  │  ├─ Attributes: @requires_lock("lock")
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 6:41-8:6)
+   │  │     └─ Stmt[0]: Return (span: 7:9-7:27)
+   │  │        └─ Expr: expr#4: self.value
+   │  └─ Fn[1]: safe_get
+   │     ├─ Params: (self: &mut Counter)
+   │     ├─ Return: int
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 10:48-15:6)
+   │        ├─ Stmt[0]: Expr (span: 11:9-11:26)
+   │        │  └─ Expr: expr#8: self.lock.lock()
+   │        ├─ Stmt[1]: Let (span: 12:9-12:39)
+   │        │  ├─ Name: v
+   │        │  ├─ Mutable: false
+   │        │  ├─ Type: int
+   │        │  └─ Value: expr#11: self.get_value()
+   │        ├─ Stmt[2]: Expr (span: 13:9-13:28)
+   │        │  └─ Expr: expr#15: self.lock.unlock()
+   │        └─ Stmt[3]: Return (span: 14:9-14:18)
+   │           └─ Expr: expr#16: v

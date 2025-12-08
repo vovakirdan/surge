@@ -63,6 +63,10 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 		// Perform lock analysis after walking the body
 		selfSym := tc.findSelfSymbol(fn, scope)
 		tc.analyzeFunctionLocks(fn, selfSym)
+		// Check @nonblocking constraint
+		if tc.fnHasNonblocking(fn) {
+			tc.checkNonblockingFunction(fn, fn.Span)
+		}
 		if pushed {
 			tc.leaveScope()
 		}

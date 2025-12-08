@@ -1,0 +1,26 @@
+nonblocking_calls_waits_on.sg (span: 2:1-15:1)
+├─ Item[0]: Type (span: 2:1-2:34)
+│  ├─ Name: Worker
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: cond: Condition
+├─ Item[1]: Extern (span: 4:1-9:2)
+│  ├─ Target: Worker
+│  ├─ Members:
+│  │  └─ Fn[0]: wait_signal
+│  │     ├─ Params: (self: &mut Worker, mtx: &mut Mutex)
+│  │     ├─ Return: nothing
+│  │     ├─ Attributes: @waits_on("cond")
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 6:67-8:6)
+│  │        └─ Stmt[0]: Expr (span: 7:9-7:29)
+│  │           └─ Expr: expr#6: self.cond.wait(mtx)
+└─ Item[2]: Fn (span: 11:1-14:2)
+   ├─ Name: bad_wait
+   ├─ Params: (w: &mut Worker, mtx: &mut Mutex)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:61-14:2)
+         └─ Stmt[0]: Expr (span: 13:5-13:24)
+            └─ Expr: expr#10: w.wait_signal(mtx)
