@@ -1,0 +1,28 @@
+// Test: Deadlock detection - simple AB/BA cycle
+// Two functions acquire locks in opposite order, creating potential deadlock
+
+type Resource = {
+    lock_a: Mutex,
+    lock_b: Mutex,
+    data: int
+}
+
+extern<Resource> {
+    // Function that acquires A then B
+    fn acquire_ab(self: &mut Resource) {
+        self.lock_a.lock();
+        self.lock_b.lock();  // Edge: lock_a -> lock_b
+        self.data = 1;
+        self.lock_b.unlock();
+        self.lock_a.unlock();
+    }
+
+    // Function that acquires B then A - creates cycle!
+    fn acquire_ba(self: &mut Resource) {
+        self.lock_b.lock();
+        self.lock_a.lock();  // Edge: lock_b -> lock_a - DEADLOCK!
+        self.data = 2;
+        self.lock_a.unlock();
+        self.lock_b.unlock();
+    }
+}

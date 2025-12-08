@@ -1,0 +1,1 @@
+error SEM3102 testdata/golden/sema/invalid/concurrency/deadlock_simple_cycle.sg:23:9 potential deadlock: lock acquisition order cycle: Resource.lock_a -> Resource.lock_b -> Resource.lock_a
