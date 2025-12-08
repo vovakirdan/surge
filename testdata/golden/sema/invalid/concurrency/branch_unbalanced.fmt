@@ -1,0 +1,20 @@
+// Unbalanced lock state across branches
+
+pub fn test_lock_only_in_then(cond: bool) -> nothing {
+    let mut mtx: Mutex = Mutex.new();
+    if cond {
+        mtx.lock();
+    }
+    // Error: lock may be held in one branch but not another
+}
+
+pub fn test_unlock_only_in_else(cond: bool) -> nothing {
+    let mut mtx: Mutex = Mutex.new();
+    mtx.lock();
+    if cond {
+        // nothing
+    } else {
+        mtx.unlock();
+    }
+    // Error: lock may be held in one branch but not another
+}

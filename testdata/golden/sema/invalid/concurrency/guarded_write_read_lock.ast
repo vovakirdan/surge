@@ -1,0 +1,25 @@
+guarded_write_read_lock.sg (span: 3:1-14:1)
+├─ Item[0]: Type (span: 3:1-6:2)
+│  ├─ Name: SharedData
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: rw: RwLock
+│     └─ Field[1]: data: int [@guarded_by("rw")]
+└─ Item[1]: Fn (span: 8:1-13:2)
+   ├─ Name: test_write_with_read_lock
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:47-13:2)
+         ├─ Stmt[0]: Let (span: 9:5-9:70)
+         │  ├─ Name: s
+         │  ├─ Mutable: true
+         │  ├─ Type: SharedData
+         │  └─ Value: expr#8: <ExprKind(18)>
+         ├─ Stmt[1]: Expr (span: 10:5-10:22)
+         │  └─ Expr: expr#12: s.rw.read_lock()
+         ├─ Stmt[2]: Expr (span: 11:5-11:17)
+         │  └─ Expr: expr#16: (s.data = 42)
+         └─ Stmt[3]: Expr (span: 12:5-12:24)
+            └─ Expr: expr#20: s.rw.read_unlock()

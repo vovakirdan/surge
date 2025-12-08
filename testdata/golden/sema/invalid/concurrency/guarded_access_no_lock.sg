@@ -1,0 +1,16 @@
+// Accessing @guarded_by field without holding lock
+
+type Counter = {
+    lock: Mutex,
+    @guarded_by("lock") value: int,
+}
+
+pub fn test_read_without_lock() -> nothing {
+    let mut c: Counter = Counter { lock: Mutex.new(), value: 0 };
+    let x: int = c.value;  // Error: reading @guarded_by field without lock
+}
+
+pub fn test_write_without_lock() -> nothing {
+    let mut c: Counter = Counter { lock: Mutex.new(), value: 0 };
+    c.value = 42;  // Error: writing @guarded_by field without lock
+}

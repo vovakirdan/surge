@@ -1,0 +1,37 @@
+guarded_access_no_lock.sg (span: 3:1-17:1)
+├─ Item[0]: Type (span: 3:1-6:2)
+│  ├─ Name: Counter
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: value: int [@guarded_by("lock")]
+├─ Item[1]: Fn (span: 8:1-11:2)
+│  ├─ Name: test_read_without_lock
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:44-11:2)
+│        ├─ Stmt[0]: Let (span: 9:5-9:66)
+│        │  ├─ Name: c
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Counter
+│        │  └─ Value: expr#8: <ExprKind(18)>
+│        └─ Stmt[1]: Let (span: 10:5-10:26)
+│           ├─ Name: x
+│           ├─ Mutable: false
+│           ├─ Type: int
+│           └─ Value: expr#10: c.value
+└─ Item[2]: Fn (span: 13:1-16:2)
+   ├─ Name: test_write_without_lock
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 13:45-16:2)
+         ├─ Stmt[0]: Let (span: 14:5-14:66)
+         │  ├─ Name: c
+         │  ├─ Mutable: true
+         │  ├─ Type: Counter
+         │  └─ Value: expr#17: <ExprKind(18)>
+         └─ Stmt[1]: Expr (span: 15:5-15:18)
+            └─ Expr: expr#21: (c.value = 42)

@@ -1,0 +1,13 @@
+// Writing to @guarded_by field with only read lock
+
+type SharedData = {
+    rw: RwLock,
+    @guarded_by("rw")data: int,
+}
+
+pub fn test_write_with_read_lock() -> nothing {
+    let mut s: SharedData = SharedData { rw: RwLock.new(), data: 0 };
+    s.rw.read_lock();
+    s.data = 42;  // Error: writing requires write lock, not read lock
+    s.rw.read_unlock();
+}
