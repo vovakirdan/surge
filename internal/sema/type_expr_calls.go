@@ -317,6 +317,8 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 			continue
 		}
 		methods := tc.lookupMagicMethods(recvCand.key, name)
+		// Build type param substitution map for generic methods
+		subst := tc.buildTypeParamSubst(recv, recvCand.key)
 		for _, sig := range methods {
 			if sig == nil {
 				continue
@@ -332,15 +334,17 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 				if len(sig.Params)-1 != len(args) {
 					continue
 				}
-				if !tc.methodParamsMatch(sig.Params[1:], args) {
+				if !tc.methodParamsMatchWithSubst(sig.Params[1:], args, subst) {
 					continue
 				}
-			case staticReceiver && tc.methodParamsMatch(sig.Params, args):
+			case staticReceiver && tc.methodParamsMatchWithSubst(sig.Params, args, subst):
 				// static method defined in extern block without self param
 			default:
 				continue
 			}
-			res := tc.typeFromKey(sig.Result)
+			// Substitute type params in result type key as well
+			resultKey := substituteTypeKeyParams(sig.Result, subst)
+			res := tc.typeFromKey(resultKey)
 			return tc.adjustAliasUnaryResult(res, recvCand)
 		}
 	}
@@ -348,12 +352,12 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 	return types.NoTypeID
 }
 
-func (tc *typeChecker) methodParamsMatch(expected []symbols.TypeKey, args []types.TypeID) bool {
+func (tc *typeChecker) methodParamsMatchWithSubst(expected []symbols.TypeKey, args []types.TypeID, subst map[string]symbols.TypeKey) bool {
 	if len(expected) != len(args) {
 		return false
 	}
 	for i, arg := range args {
-		if !tc.methodParamMatches(expected[i], arg) {
+		if !tc.methodParamMatchesWithSubst(expected[i], arg, subst) {
 			return false
 		}
 	}
@@ -361,11 +365,29 @@ func (tc *typeChecker) methodParamsMatch(expected []symbols.TypeKey, args []type
 }
 
 func (tc *typeChecker) methodParamMatches(expected symbols.TypeKey, arg types.TypeID) bool {
+	return tc.methodParamMatchesWithSubst(expected, arg, nil)
+}
+
+func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg types.TypeID, subst map[string]symbols.TypeKey) bool {
 	if expected == "" {
 		return false
 	}
+	// Apply type parameter substitution if available
+	substituted := substituteTypeKeyParams(expected, subst)
+	substitutedStr := string(substituted)
+
+	// For "own T" params, we accept both "own T" and "T" (value types can be moved)
+	innerExpected := substituted
+	if strings.HasPrefix(substitutedStr, "own ") {
+		innerExpected = symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(substitutedStr, "own ")))
+	}
+
 	for _, cand := range tc.typeKeyCandidates(arg) {
-		if typeKeyEqual(cand.key, expected) {
+		if typeKeyEqual(cand.key, substituted) {
+			return true
+		}
+		// Also check inner type for "own" params
+		if innerExpected != substituted && typeKeyEqual(cand.key, innerExpected) {
 			return true
 		}
 	}

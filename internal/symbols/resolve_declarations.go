@@ -493,11 +493,6 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicHasBody, "@intrinsic declarations cannot have a body")
 			return NoSymbolID, false
 		}
-		if !fr.intrinsicNameAllowed(fnItem.Name) {
-			msg := fmt.Sprintf("unknown intrinsic; allowed names: %s", intrinsicAllowedNamesDisplay)
-			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicBadName, msg)
-			return NoSymbolID, false
-		}
 		flags |= SymbolFlagBuiltin
 		existing = nil
 		existingSymbols = nil

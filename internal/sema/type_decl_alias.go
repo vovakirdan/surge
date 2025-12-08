@@ -28,6 +28,17 @@ func (tc *typeChecker) populateAliasType(itemID ast.ItemID, typeItem *ast.TypeIt
 		bounds := tc.resolveTypeParamBounds(paramIDs, tc.fileScope(), nil)
 		tc.attachTypeParamSymbols(symID, bounds)
 		tc.applyTypeParamBounds(symID)
+	} else if len(paramSpecs) > 0 && len(typeItem.Generics) > 0 {
+		// Attach type param symbols for generics syntax (<T>)
+		typeParamSyms := make([]symbols.TypeParamSymbol, 0, len(paramSpecs))
+		for _, spec := range paramSpecs {
+			typeParamSyms = append(typeParamSyms, symbols.TypeParamSymbol{
+				Name:      spec.name,
+				IsConst:   spec.kind == paramKindConst,
+				ConstType: spec.constType,
+			})
+		}
+		tc.attachTypeParamSymbols(symID, typeParamSyms)
 	}
 	target := tc.resolveTypeExprWithScope(aliasDecl.Target, tc.fileScope())
 	if target == types.NoTypeID {

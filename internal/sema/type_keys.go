@@ -280,7 +280,7 @@ func (tc *typeChecker) genericKeyForType(id types.TypeID) symbols.TypeKey {
 	// Fallback для известных типов из core модуля
 	if len(paramNames) == 0 {
 		switch name {
-		case "Option":
+		case "Option", "Task", "Channel":
 			if len(typeArgs) == 1 {
 				paramNames = []string{"T"}
 			}
@@ -298,4 +298,107 @@ func (tc *typeChecker) genericKeyForType(id types.TypeID) symbols.TypeKey {
 	}
 
 	return symbols.TypeKey(name + "<" + strings.Join(paramNames, ",") + ">")
+}
+
+// buildTypeParamSubst builds a substitution map from type parameter names to actual type keys.
+// For example, for receiver Channel<int> and candidateKey "Channel<T>", returns {"T": "int"}.
+func (tc *typeChecker) buildTypeParamSubst(recv types.TypeID, candidateKey symbols.TypeKey) map[string]symbols.TypeKey {
+	if recv == types.NoTypeID || candidateKey == "" || tc.types == nil {
+		return nil
+	}
+
+	// Extract type parameter names from candidateKey (e.g., "T" from "Channel<T>")
+	keyStr := string(candidateKey)
+	start := strings.Index(keyStr, "<")
+	end := strings.LastIndex(keyStr, ">")
+	if start < 0 || end <= start {
+		return nil
+	}
+	paramStr := keyStr[start+1 : end]
+	paramNames := strings.Split(paramStr, ",")
+	for i := range paramNames {
+		paramNames[i] = strings.TrimSpace(paramNames[i])
+	}
+
+	// Get actual type arguments from receiver
+	resolved := tc.resolveAlias(recv)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return nil
+	}
+
+	var typeArgs []types.TypeID
+	switch tt.Kind {
+	case types.KindStruct:
+		if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
+			typeArgs = info.TypeArgs
+		}
+	case types.KindUnion:
+		if info, ok := tc.types.UnionInfo(resolved); ok && info != nil {
+			typeArgs = info.TypeArgs
+		}
+	case types.KindAlias:
+		if info, ok := tc.types.AliasInfo(resolved); ok && info != nil {
+			typeArgs = info.TypeArgs
+		}
+	}
+
+	if len(typeArgs) != len(paramNames) {
+		return nil
+	}
+
+	// Build substitution map
+	subst := make(map[string]symbols.TypeKey, len(paramNames))
+	for i, paramName := range paramNames {
+		argKey := tc.typeKeyForType(typeArgs[i])
+		if argKey != "" {
+			subst[paramName] = argKey
+		}
+	}
+	return subst
+}
+
+// substituteTypeKeyParams substitutes type parameter names in a key string.
+// For example, "own T" with {"T": "int"} becomes "own int".
+func substituteTypeKeyParams(key symbols.TypeKey, subst map[string]symbols.TypeKey) symbols.TypeKey {
+	if len(subst) == 0 || key == "" {
+		return key
+	}
+	s := string(key)
+	for param, actual := range subst {
+		// Replace standalone type param names (e.g., "T", "own T", "&T")
+		// Must be careful not to replace partial matches (e.g., "Task" when param is "T")
+		s = replaceTypeParam(s, param, string(actual))
+	}
+	return symbols.TypeKey(s)
+}
+
+// replaceTypeParam replaces a type parameter name with its substitution,
+// being careful to only replace whole words.
+func replaceTypeParam(s, param, replacement string) string {
+	result := ""
+	i := 0
+	for i < len(s) {
+		found := strings.Index(s[i:], param)
+		if found < 0 {
+			result += s[i:]
+			break
+		}
+		pos := i + found
+		// Check if this is a whole word match
+		before := pos == 0 || !isIdentChar(s[pos-1])
+		after := pos+len(param) >= len(s) || !isIdentChar(s[pos+len(param)])
+		if before && after {
+			result += s[i:pos] + replacement
+			i = pos + len(param)
+		} else {
+			result += s[i : pos+1]
+			i = pos + 1
+		}
+	}
+	return result
+}
+
+func isIdentChar(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'
 }
