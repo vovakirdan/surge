@@ -1,0 +1,18 @@
+// Valid @guarded_by usage with Mutex and RwLock
+
+type Counter = {
+    lock: Mutex,
+    @guarded_by("lock")value: int,
+}
+
+type SharedData = {
+    rw: RwLock,
+    @guarded_by("rw")data: string,
+}
+
+pub fn test_counter() -> nothing {
+    let mut c: Counter = Counter { lock: Mutex.new(), value: 0 };
+    c.lock.lock();
+    c.value = c.value + 1;
+    c.lock.unlock();
+}

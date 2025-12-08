@@ -1,0 +1,29 @@
+requires_lock_not_lock.sg (span: 3:1-24:1)
+├─ Item[0]: Type (span: 3:1-6:2)
+│  ├─ Name: BadLocking
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: counter: int
+│     └─ Field[1]: cond: Condition
+└─ Item[1]: Extern (span: 8:1-23:2)
+   ├─ Target: BadLocking
+   ├─ Members:
+   │  ├─ Fn[0]: bad_requires
+   │  │  ├─ Params: (self: &BadLocking)
+   │  │  ├─ Return: nothing
+   │  │  ├─ Attributes: @requires_lock("counter")
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 10:55-12:6)
+   │  ├─ Fn[1]: bad_acquires
+   │  │  ├─ Params: (self: &mut BadLocking)
+   │  │  ├─ Return: nothing
+   │  │  ├─ Attributes: @acquires_lock("cond")
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 15:59-17:6)
+   │  └─ Fn[2]: bad_releases
+   │     ├─ Params: (self: &mut BadLocking)
+   │     ├─ Return: nothing
+   │     ├─ Attributes: @releases_lock("counter")
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 20:59-22:6)

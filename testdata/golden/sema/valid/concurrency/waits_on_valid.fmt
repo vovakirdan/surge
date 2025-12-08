@@ -1,0 +1,18 @@
+// Valid @waits_on usage with Condition and Semaphore
+
+type Monitor = {
+    cond: Condition,
+    sem: Semaphore,
+}
+
+extern<Monitor> {
+    @waits_on("cond")
+    pub fn wait_for_condition(self: &mut Monitor) -> nothing {
+        // Attribute validation: cond is Condition type - valid
+    }
+
+    @waits_on("sem")
+    pub fn wait_for_semaphore(self: &mut Monitor) -> nothing {
+        // Attribute validation: sem is Semaphore type - valid
+    }
+}

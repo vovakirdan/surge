@@ -1,0 +1,18 @@
+// Invalid @waits_on - field is not Condition or Semaphore
+
+type BadMonitor = {
+    lock: Mutex,
+    counter: int,
+}
+
+extern<BadMonitor> {
+    @waits_on("lock")
+    pub fn wait_on_mutex(self: &mut BadMonitor) -> nothing {
+        // Error: lock is Mutex, not Condition/Semaphore
+    }
+
+    @waits_on("counter")
+    pub fn wait_on_int(self: &mut BadMonitor) -> nothing {
+        // Error: counter is int, not Condition/Semaphore
+    }
+}

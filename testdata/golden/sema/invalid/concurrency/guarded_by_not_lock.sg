@@ -1,0 +1,11 @@
+// Invalid @guarded_by usage - field is not Mutex or RwLock
+
+type BadGuard = {
+    counter: int,
+    @guarded_by("counter") value: int,
+}
+
+type BadGuard2 = {
+    name: string,
+    @guarded_by("name") data: int,
+}

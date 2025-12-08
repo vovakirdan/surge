@@ -2,4 +2,3 @@ error SEM3061 testdata/golden/sema/invalid/attrs/conflicts.sg:4:1 @packed confli
 error SEM3061 testdata/golden/sema/invalid/attrs/conflicts.sg:5:1 @align conflicts with @packed on the same declaration
 error SEM3062 testdata/golden/sema/invalid/attrs/conflicts.sg:12:1 attribute '@nosend' conflicts with '@send'
 error SEM3063 testdata/golden/sema/invalid/attrs/conflicts.sg:24:5 attribute '@waits_on' conflicts with '@nonblocking'
-error SEM3071 testdata/golden/sema/invalid/attrs/conflicts.sg:24:15 field '"condition"' not found in type

@@ -1,0 +1,23 @@
+// Invalid @requires_lock/@acquires_lock/@releases_lock - field is not Mutex or RwLock
+
+type BadLocking = {
+    counter: int,
+    cond: Condition,
+}
+
+extern<BadLocking> {
+    @requires_lock("counter")
+    pub fn bad_requires(self: &BadLocking) -> nothing {
+        // Error: counter is int, not Mutex/RwLock
+    }
+
+    @acquires_lock("cond")
+    pub fn bad_acquires(self: &mut BadLocking) -> nothing {
+        // Error: cond is Condition, not Mutex/RwLock
+    }
+
+    @releases_lock("counter")
+    pub fn bad_releases(self: &mut BadLocking) -> nothing {
+        // Error: counter is int, not Mutex/RwLock
+    }
+}

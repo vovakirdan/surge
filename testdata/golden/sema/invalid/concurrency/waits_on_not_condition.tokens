@@ -1,0 +1,58 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline)
+  2: Ident           "BadMonitor" at 3:6-3:16 (leading: Space)
+  3: Assign          "=" at 3:17-3:18 (leading: Space)
+  4: LBrace          "{" at 3:19-3:20 (leading: Space)
+  5: Ident           "lock" at 4:5-4:9 (leading: Newline, Space)
+  6: Colon           ":" at 4:9-4:10
+  7: Ident           "Mutex" at 4:11-4:16 (leading: Space)
+  8: Comma           "," at 4:16-4:17
+  9: Ident           "counter" at 5:5-5:12 (leading: Newline, Space)
+ 10: Colon           ":" at 5:12-5:13
+ 11: Ident           "int" at 5:14-5:17 (leading: Space)
+ 12: Comma           "," at 5:17-5:18
+ 13: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 14: KwExtern        "extern" at 8:1-8:7 (leading: Newline)
+ 15: Lt              "<" at 8:7-8:8
+ 16: Ident           "BadMonitor" at 8:8-8:18
+ 17: Gt              ">" at 8:18-8:19
+ 18: LBrace          "{" at 8:20-8:21 (leading: Space)
+ 19: At              "@" at 9:5-9:6 (leading: Newline, Space)
+ 20: Ident           "waits_on" at 9:6-9:14
+ 21: LParen          "(" at 9:14-9:15
+ 22: StringLit       "\"lock\"" at 9:15-9:21
+ 23: RParen          ")" at 9:21-9:22
+ 24: KwPub           "pub" at 10:5-10:8 (leading: Newline, Space)
+ 25: KwFn            "fn" at 10:9-10:11 (leading: Space)
+ 26: Ident           "wait_on_mutex" at 10:12-10:25 (leading: Space)
+ 27: LParen          "(" at 10:25-10:26
+ 28: Ident           "self" at 10:26-10:30
+ 29: Colon           ":" at 10:30-10:31
+ 30: Amp             "&" at 10:32-10:33 (leading: Space)
+ 31: KwMut           "mut" at 10:33-10:36
+ 32: Ident           "BadMonitor" at 10:37-10:47 (leading: Space)
+ 33: RParen          ")" at 10:47-10:48
+ 34: Arrow           "->" at 10:49-10:51 (leading: Space)
+ 35: NothingLit      "nothing" at 10:52-10:59 (leading: Space)
+ 36: LBrace          "{" at 10:60-10:61 (leading: Space)
+ 37: RBrace          "}" at 12:5-12:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 38: At              "@" at 14:5-14:6 (leading: Newline, Space)
+ 39: Ident           "waits_on" at 14:6-14:14
+ 40: LParen          "(" at 14:14-14:15
+ 41: StringLit       "\"counter\"" at 14:15-14:24
+ 42: RParen          ")" at 14:24-14:25
+ 43: KwPub           "pub" at 15:5-15:8 (leading: Newline, Space)
+ 44: KwFn            "fn" at 15:9-15:11 (leading: Space)
+ 45: Ident           "wait_on_int" at 15:12-15:23 (leading: Space)
+ 46: LParen          "(" at 15:23-15:24
+ 47: Ident           "self" at 15:24-15:28
+ 48: Colon           ":" at 15:28-15:29
+ 49: Amp             "&" at 15:30-15:31 (leading: Space)
+ 50: KwMut           "mut" at 15:31-15:34
+ 51: Ident           "BadMonitor" at 15:35-15:45 (leading: Space)
+ 52: RParen          ")" at 15:45-15:46
+ 53: Arrow           "->" at 15:47-15:49 (leading: Space)
+ 54: NothingLit      "nothing" at 15:50-15:57 (leading: Space)
+ 55: LBrace          "{" at 15:58-15:59 (leading: Space)
+ 56: RBrace          "}" at 17:5-17:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 57: RBrace          "}" at 18:1-18:2 (leading: Newline)
+ 58: EOF             at 19:1-19:1

@@ -1,0 +1,45 @@
+// Valid lock annotation attributes on methods
+
+type SafeCounter = {
+    lock: Mutex,
+    value: int,
+}
+
+extern<SafeCounter> {
+    @requires_lock("lock")
+    pub fn get_value(self: &SafeCounter) -> int {
+        return self.value;
+    }
+
+    @acquires_lock("lock")
+    pub fn acquire(self: &mut SafeCounter) -> nothing {
+        self.lock.lock();
+    }
+
+    @releases_lock("lock")
+    pub fn release(self: &mut SafeCounter) -> nothing {
+        self.lock.unlock();
+    }
+}
+
+type RwCounter = {
+    rw: RwLock,
+    data: string,
+}
+
+extern<RwCounter> {
+    @requires_lock("rw")
+    pub fn read_data(self: &RwCounter) -> string {
+        return self.data;
+    }
+
+    @acquires_lock("rw")
+    pub fn acquire_read(self: &mut RwCounter) -> nothing {
+        self.rw.read_lock();
+    }
+
+    @releases_lock("rw")
+    pub fn release_read(self: &mut RwCounter) -> nothing {
+        self.rw.read_unlock();
+    }
+}
