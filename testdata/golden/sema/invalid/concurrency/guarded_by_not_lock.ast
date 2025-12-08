@@ -1,0 +1,15 @@
+guarded_by_not_lock.sg (span: 3:1-12:1)
+├─ Item[0]: Type (span: 3:1-6:2)
+│  ├─ Name: BadGuard
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: counter: int
+│     └─ Field[1]: value: int [@guarded_by("counter")]
+└─ Item[1]: Type (span: 8:1-11:2)
+   ├─ Name: BadGuard2
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   └─ Struct:
+      ├─ Field[0]: name: string
+      └─ Field[1]: data: int [@guarded_by("name")]

@@ -177,6 +177,10 @@ const (
 	SemaNoConversion        Code = 3098 // No conversion from T to U
 	SemaAmbiguousConversion Code = 3099 // Ambiguous conversion from T to U
 
+	// Additional concurrency attribute validation (3100-3101)
+	SemaAttrWaitsOnNotCondition Code = 3100 // @waits_on field must be Condition/Semaphore
+	SemaAttrAtomicInvalidType   Code = 3101 // @atomic field must be int/uint/bool/*T
+
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
 
@@ -357,6 +361,8 @@ var ( // todo расширить описания и использовать к
 		SemaEnumInvalidBaseType:        "invalid base type for enum",
 		SemaNoConversion:               "no conversion from source to target type",
 		SemaAmbiguousConversion:        "ambiguous conversion from source to target type",
+		SemaAttrWaitsOnNotCondition:    "@waits_on field must be Condition or Semaphore",
+		SemaAttrAtomicInvalidType:      "@atomic field must be int, uint, bool, or *T",
 		IOLoadFileError:                "I/O load file error",
 		ProjInfo:                       "Project information",
 		ProjDuplicateModule:            "Duplicate module definition",

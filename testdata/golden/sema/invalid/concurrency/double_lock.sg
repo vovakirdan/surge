@@ -1,0 +1,22 @@
+// Invalid: double lock acquisition
+
+pub fn test_double_lock() -> nothing {
+    let mut mtx: Mutex = Mutex.new();
+    mtx.lock();
+    mtx.lock();  // Error: already locked
+    mtx.unlock();
+    mtx.unlock();
+}
+
+type Data = {
+    lock: Mutex,
+}
+
+extern<Data> {
+    pub fn bad_double_lock(self: &mut Data) -> nothing {
+        self.lock.lock();
+        self.lock.lock();  // Error: already locked
+        self.lock.unlock();
+        self.lock.unlock();
+    }
+}

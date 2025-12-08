@@ -1,0 +1,32 @@
+atomic_valid.sg (span: 3:1-19:1)
+├─ Item[0]: Type (span: 3:1-7:2)
+│  ├─ Name: AtomicCounter
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: count: int [@atomic]
+│     ├─ Field[1]: flags: uint [@atomic]
+│     └─ Field[2]: active: bool [@atomic]
+├─ Item[1]: Type (span: 9:1-11:2)
+│  ├─ Name: AtomicPointer
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: ptr: *int [@atomic]
+└─ Item[2]: Fn (span: 13:1-18:2)
+   ├─ Name: test_atomic_int
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 13:37-18:2)
+         ├─ Stmt[0]: Let (span: 14:5-14:84)
+         │  ├─ Name: a
+         │  ├─ Mutable: true
+         │  ├─ Type: AtomicCounter
+         │  └─ Value: expr#7: <ExprKind(18)>
+         ├─ Stmt[1]: Expr (span: 15:5-15:17)
+         │  └─ Expr: expr#11: (a.count = 1)
+         ├─ Stmt[2]: Expr (span: 16:5-16:19)
+         │  └─ Expr: expr#15: (a.flags = 255)
+         └─ Stmt[3]: Expr (span: 17:5-17:21)
+            └─ Expr: expr#19: (a.active = true)

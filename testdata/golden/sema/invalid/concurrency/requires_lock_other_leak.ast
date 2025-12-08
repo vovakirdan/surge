@@ -1,0 +1,20 @@
+requires_lock_other_leak.sg (span: 3:1-18:1)
+├─ Item[0]: Type (span: 3:1-7:2)
+│  ├─ Name: MultiLock
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: required_lock: Mutex
+│     ├─ Field[1]: other_lock: Mutex
+│     └─ Field[2]: value: int
+└─ Item[1]: Extern (span: 9:1-17:2)
+   ├─ Target: MultiLock
+   ├─ Members:
+   │  └─ Fn[0]: leaks_other_lock
+   │     ├─ Params: (self: &mut MultiLock)
+   │     ├─ Return: nothing
+   │     ├─ Attributes: @requires_lock("required_lock")
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 13:62-16:6)
+   │        └─ Stmt[0]: Expr (span: 14:9-14:32)
+   │           └─ Expr: expr#5: self.other_lock.lock()

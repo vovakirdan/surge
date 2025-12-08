@@ -1,0 +1,80 @@
+lock_balance_valid.sg (span: 4:1-47:1)
+├─ Item[0]: Fn (span: 4:1-9:2)
+│  ├─ Name: test_simple_lock
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:38-9:2)
+│        ├─ Stmt[0]: Let (span: 5:5-5:38)
+│        │  ├─ Name: mtx
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Mutex
+│        │  └─ Value: expr#3: Mutex.new()
+│        ├─ Stmt[1]: Expr (span: 6:5-6:16)
+│        │  └─ Expr: expr#6: mtx.lock()
+│        └─ Stmt[2]: Expr (span: 8:5-8:18)
+│           └─ Expr: expr#9: mtx.unlock()
+├─ Item[1]: Fn (span: 12:1-21:2)
+│  ├─ Name: test_multiple_locks
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 12:41-21:2)
+│        ├─ Stmt[0]: Let (span: 13:5-13:37)
+│        │  ├─ Name: m1
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Mutex
+│        │  └─ Value: expr#12: Mutex.new()
+│        ├─ Stmt[1]: Let (span: 14:5-14:37)
+│        │  ├─ Name: m2
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Mutex
+│        │  └─ Value: expr#15: Mutex.new()
+│        ├─ Stmt[2]: Expr (span: 16:5-16:15)
+│        │  └─ Expr: expr#18: m1.lock()
+│        ├─ Stmt[3]: Expr (span: 17:5-17:15)
+│        │  └─ Expr: expr#21: m2.lock()
+│        ├─ Stmt[4]: Expr (span: 19:5-19:17)
+│        │  └─ Expr: expr#24: m2.unlock()
+│        └─ Stmt[5]: Expr (span: 20:5-20:17)
+│           └─ Expr: expr#27: m1.unlock()
+├─ Item[2]: Fn (span: 24:1-32:2)
+│  ├─ Name: test_rwlock_patterns
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 24:42-32:2)
+│        ├─ Stmt[0]: Let (span: 25:5-25:39)
+│        │  ├─ Name: rw
+│        │  ├─ Mutable: true
+│        │  ├─ Type: RwLock
+│        │  └─ Value: expr#30: RwLock.new()
+│        ├─ Stmt[1]: Expr (span: 27:5-27:20)
+│        │  └─ Expr: expr#33: rw.read_lock()
+│        ├─ Stmt[2]: Expr (span: 28:5-28:22)
+│        │  └─ Expr: expr#36: rw.read_unlock()
+│        ├─ Stmt[3]: Expr (span: 30:5-30:21)
+│        │  └─ Expr: expr#39: rw.write_lock()
+│        └─ Stmt[4]: Expr (span: 31:5-31:23)
+│           └─ Expr: expr#42: rw.write_unlock()
+├─ Item[3]: Type (span: 35:1-38:2)
+│  ├─ Name: Counter
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: value: int
+└─ Item[4]: Extern (span: 40:1-46:2)
+   ├─ Target: Counter
+   ├─ Members:
+   │  └─ Fn[0]: increment
+   │     ├─ Params: (self: &mut Counter)
+   │     ├─ Return: nothing
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 41:53-45:6)
+   │        ├─ Stmt[0]: Expr (span: 42:9-42:26)
+   │        │  └─ Expr: expr#46: self.lock.lock()
+   │        ├─ Stmt[1]: Expr (span: 43:9-43:37)
+   │        │  └─ Expr: expr#53: (self.value = ((self.value + 1)))
+   │        └─ Stmt[2]: Expr (span: 44:9-44:28)
+   │           └─ Expr: expr#57: self.lock.unlock()

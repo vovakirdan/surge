@@ -4,5 +4,5 @@ error SEM3064 testdata/golden/sema/invalid/attrs/invalid_parameters.sg:14:8 @ali
 error SEM3066 testdata/golden/sema/invalid/attrs/invalid_parameters.sg:20:10 unknown backend target 'quantum'; known targets: cpu, gpu, tpu, wasm, native
 error SEM3066 testdata/golden/sema/invalid/attrs/invalid_parameters.sg:24:10 unknown backend target 'fpga'; known targets: cpu, gpu, tpu, wasm, native
 error SEM3001 testdata/golden/sema/invalid/attrs/invalid_parameters.sg:34:5 attribute '@guarded_by' is not allowed here
-error SEM3071 testdata/golden/sema/invalid/attrs/invalid_parameters.sg:41:15 field '"nonexistent_condition"' not found in type
-error SEM3070 testdata/golden/sema/invalid/attrs/invalid_parameters.sg:48:20 field '"nonexistent_lock"' not found in type
+error SEM3071 testdata/golden/sema/invalid/attrs/invalid_parameters.sg:41:15 field 'nonexistent_condition' not found in type
+error SEM3070 testdata/golden/sema/invalid/attrs/invalid_parameters.sg:48:20 field 'nonexistent_lock' not found in type

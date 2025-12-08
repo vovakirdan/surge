@@ -192,12 +192,61 @@ func (tc *typeChecker) validateBackendParameter(info AttrInfo) bool {
 	return true
 }
 
-// validateFieldReference validates that an attribute parameter references an existing field
+// isLockType checks if a type is Mutex or RwLock
+func (tc *typeChecker) isLockType(typeID types.TypeID) bool {
+	if typeID == types.NoTypeID {
+		return false
+	}
+	typeName := tc.typeLabel(typeID)
+	return typeName == "Mutex" || typeName == "RwLock"
+}
+
+// isConditionOrSemaphore checks if a type is Condition or Semaphore
+func (tc *typeChecker) isConditionOrSemaphore(typeID types.TypeID) bool {
+	if typeID == types.NoTypeID {
+		return false
+	}
+	typeName := tc.typeLabel(typeID)
+	return typeName == "Condition" || typeName == "Semaphore"
+}
+
+// isAtomicCompatibleType checks if a type is valid for @atomic (int, uint, bool, *T)
+func (tc *typeChecker) isAtomicCompatibleType(typeID types.TypeID) bool {
+	if typeID == types.NoTypeID {
+		return false
+	}
+	// Check for pointer types first
+	if t, ok := tc.types.Lookup(typeID); ok && t.Kind == types.KindPointer {
+		return true
+	}
+	// Check primitive types
+	typeName := tc.typeLabel(typeID)
+	return typeName == "int" || typeName == "uint" || typeName == "bool"
+}
+
+// getFieldTypeByIndex returns the type of a field at the given index in a struct.
+// Returns NoTypeID if the struct or field cannot be found.
+func (tc *typeChecker) getFieldTypeByIndex(ownerTypeID types.TypeID, fieldIndex int) types.TypeID {
+	if ownerTypeID == types.NoTypeID {
+		return types.NoTypeID
+	}
+	structInfo, ok := tc.types.StructInfo(ownerTypeID)
+	if !ok || structInfo == nil {
+		return types.NoTypeID
+	}
+	if fieldIndex < 0 || fieldIndex >= len(structInfo.Fields) {
+		return types.NoTypeID
+	}
+	return structInfo.Fields[fieldIndex].Type
+}
+
+// validateFieldReferenceWithType validates that an attribute parameter references an existing field
+// and returns the field type. Returns NoTypeID if validation fails.
 // Used by @guarded_by("lock"), @requires_lock("lock"), @waits_on("cond")
-func (tc *typeChecker) validateFieldReference(info AttrInfo, ownerTypeID types.TypeID, errorCode diag.Code, message string) {
+func (tc *typeChecker) validateFieldReferenceWithType(info AttrInfo, ownerTypeID types.TypeID, errorCode diag.Code, message string) types.TypeID {
 	if len(info.Args) == 0 {
 		tc.report(diag.SemaAttrMissingParameter, info.Span, "%s", message)
-		return
+		return types.NoTypeID
 	}
 
 	// Get the first argument expression
@@ -207,7 +256,7 @@ func (tc *typeChecker) validateFieldReference(info AttrInfo, ownerTypeID types.T
 	if argExpr.Kind != ast.ExprLit {
 		tc.report(diag.SemaAttrInvalidParameter, argExpr.Span,
 			"attribute parameter must be a string literal")
-		return
+		return types.NoTypeID
 	}
 
 	// Get the literal data
@@ -215,40 +264,37 @@ func (tc *typeChecker) validateFieldReference(info AttrInfo, ownerTypeID types.T
 	if !ok || lit.Kind != ast.ExprLitString {
 		tc.report(diag.SemaAttrInvalidParameter, argExpr.Span,
 			"attribute parameter must be a string literal")
-		return
+		return types.NoTypeID
 	}
 
-	// Get the field name
-	fieldName := lit.Value
+	// Get the field name - strip quotes from string literal
+	fieldNameRaw := tc.lookupName(lit.Value)
+	fieldNameStr := strings.Trim(fieldNameRaw, "\"")
 
 	// Validate that the field exists in ownerTypeID
 	if ownerTypeID == types.NoTypeID {
 		// Can't validate without owner type - skip for now
-		return
+		return types.NoTypeID
 	}
 
 	// Check if ownerTypeID is a struct and get its info
 	structInfo, ok := tc.types.StructInfo(ownerTypeID)
 	if !ok || structInfo == nil {
 		// Not a struct - can't have fields
-		return
+		return types.NoTypeID
 	}
 
-	// Look up the field
-	fieldFound := false
+	// Look up the field and get its type
 	for _, field := range structInfo.Fields {
-		if field.Name == fieldName {
-			fieldFound = true
-			break
+		if tc.lookupName(field.Name) == fieldNameStr {
+			return field.Type
 		}
 	}
 
-	if !fieldFound {
-		fieldNameStr := tc.lookupName(fieldName)
-		tc.report(errorCode, argExpr.Span,
-			"field '%s' not found in type", fieldNameStr)
-		return
-	}
+	// Field not found
+	tc.report(errorCode, argExpr.Span,
+		"field '%s' not found in type", fieldNameStr)
+	return types.NoTypeID
 }
 
 // recordTypeAttrs stores attributes for a type for later lookup
@@ -328,16 +374,33 @@ func (tc *typeChecker) validateFieldAttrs(field *ast.TypeStructField, ownerTypeI
 
 	// Validate parameters for @guarded_by
 	if guardedInfo, ok := hasAttr(infos, "guarded_by"); ok {
-		tc.validateFieldReference(guardedInfo, ownerTypeID,
+		// Validate field exists and get its type
+		lockFieldType := tc.validateFieldReferenceWithType(guardedInfo, ownerTypeID,
 			diag.SemaAttrGuardedByNotField,
 			"@guarded_by requires a field name argument: @guarded_by(\"lock\")")
-		// Could additionally validate that the referenced field is a Mutex/RwLock
-		// but that requires type checking, which might not be available yet
+		// Validate that the referenced field is a Mutex/RwLock
+		if lockFieldType != types.NoTypeID && !tc.isLockType(lockFieldType) {
+			argExpr := tc.builder.Exprs.Get(guardedInfo.Args[0])
+			tc.report(diag.SemaAttrGuardedByNotLock, argExpr.Span,
+				"@guarded_by field must be of type Mutex or RwLock, got '%s'",
+				tc.typeLabel(lockFieldType))
+		}
 	}
 
 	// Validate parameters for @align
 	if alignInfo, ok := hasAttr(infos, "align"); ok {
 		tc.validateAlignParameter(alignInfo)
+	}
+
+	// Validate @atomic field type
+	if atomicInfo, ok := hasAttr(infos, "atomic"); ok {
+		// Get the field type from the struct info
+		fieldType := tc.getFieldTypeByIndex(ownerTypeID, fieldIndex)
+		if fieldType != types.NoTypeID && !tc.isAtomicCompatibleType(fieldType) {
+			tc.report(diag.SemaAttrAtomicInvalidType, atomicInfo.Span,
+				"@atomic field must be of type int, uint, bool, or *T; got '%s'",
+				tc.typeLabel(fieldType))
+		}
 	}
 
 	// Record for later lookup
@@ -416,17 +479,59 @@ func (tc *typeChecker) validateFunctionAttrs(fnItem *ast.FnItem, ownerTypeID typ
 		tc.validateBackendParameter(backendInfo)
 	}
 
-	// Validate @waits_on parameter (field reference)
+	// Validate @waits_on parameter (field reference) with type checking
 	if waitsInfo, ok := hasAttr(infos, "waits_on"); ok {
-		tc.validateFieldReference(waitsInfo, ownerTypeID,
+		condFieldType := tc.validateFieldReferenceWithType(waitsInfo, ownerTypeID,
 			diag.SemaAttrWaitsOnNotField,
 			"@waits_on requires a field name argument: @waits_on(\"condition\")")
+		// Validate that the referenced field is a Condition/Semaphore
+		if condFieldType != types.NoTypeID && !tc.isConditionOrSemaphore(condFieldType) {
+			argExpr := tc.builder.Exprs.Get(waitsInfo.Args[0])
+			tc.report(diag.SemaAttrWaitsOnNotCondition, argExpr.Span,
+				"@waits_on field must be of type Condition or Semaphore, got '%s'",
+				tc.typeLabel(condFieldType))
+		}
 	}
 
-	// Validate @requires_lock parameter (field reference)
+	// Validate @requires_lock parameter (field reference) with type checking
 	if requiresInfo, ok := hasAttr(infos, "requires_lock"); ok {
-		tc.validateFieldReference(requiresInfo, ownerTypeID,
+		lockFieldType := tc.validateFieldReferenceWithType(requiresInfo, ownerTypeID,
 			diag.SemaAttrRequiresLockNotField,
 			"@requires_lock requires a field name argument: @requires_lock(\"lock\")")
+		// Validate that the referenced field is a Mutex/RwLock
+		if lockFieldType != types.NoTypeID && !tc.isLockType(lockFieldType) {
+			argExpr := tc.builder.Exprs.Get(requiresInfo.Args[0])
+			tc.report(diag.SemaLockFieldNotLockType, argExpr.Span,
+				"@requires_lock field must be of type Mutex or RwLock, got '%s'",
+				tc.typeLabel(lockFieldType))
+		}
+	}
+
+	// Validate @acquires_lock parameter (field reference) with type checking
+	if acquiresInfo, ok := hasAttr(infos, "acquires_lock"); ok {
+		lockFieldType := tc.validateFieldReferenceWithType(acquiresInfo, ownerTypeID,
+			diag.SemaLockAcquiresNotField,
+			"@acquires_lock requires a field name argument: @acquires_lock(\"lock\")")
+		// Validate that the referenced field is a Mutex/RwLock
+		if lockFieldType != types.NoTypeID && !tc.isLockType(lockFieldType) {
+			argExpr := tc.builder.Exprs.Get(acquiresInfo.Args[0])
+			tc.report(diag.SemaLockFieldNotLockType, argExpr.Span,
+				"@acquires_lock field must be of type Mutex or RwLock, got '%s'",
+				tc.typeLabel(lockFieldType))
+		}
+	}
+
+	// Validate @releases_lock parameter (field reference) with type checking
+	if releasesInfo, ok := hasAttr(infos, "releases_lock"); ok {
+		lockFieldType := tc.validateFieldReferenceWithType(releasesInfo, ownerTypeID,
+			diag.SemaLockReleasesNotField,
+			"@releases_lock requires a field name argument: @releases_lock(\"lock\")")
+		// Validate that the referenced field is a Mutex/RwLock
+		if lockFieldType != types.NoTypeID && !tc.isLockType(lockFieldType) {
+			argExpr := tc.builder.Exprs.Get(releasesInfo.Args[0])
+			tc.report(diag.SemaLockFieldNotLockType, argExpr.Span,
+				"@releases_lock field must be of type Mutex or RwLock, got '%s'",
+				tc.typeLabel(lockFieldType))
+		}
 	}
 }

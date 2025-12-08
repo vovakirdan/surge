@@ -1,0 +1,4 @@
+error SEM3079 testdata/golden/sema/invalid/concurrency/double_lock.sg:6:5 lock '' is already held (acquired at 0:118-128)
+error SEM3080 testdata/golden/sema/invalid/concurrency/double_lock.sg:8:5 lock '' is not currently held
+error SEM3079 testdata/golden/sema/invalid/concurrency/double_lock.sg:18:9 lock 'lock' is already held (acquired at 0:325-341)
+error SEM3080 testdata/golden/sema/invalid/concurrency/double_lock.sg:20:9 lock 'lock' is not currently held

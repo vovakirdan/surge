@@ -1,0 +1,52 @@
+lock_not_released.sg (span: 3:1-29:1)
+├─ Item[0]: Fn (span: 3:1-7:2)
+│  ├─ Name: test_lock_not_released
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:44-7:2)
+│        ├─ Stmt[0]: Let (span: 4:5-4:38)
+│        │  ├─ Name: mtx
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Mutex
+│        │  └─ Value: expr#3: Mutex.new()
+│        └─ Stmt[1]: Expr (span: 5:5-5:16)
+│           └─ Expr: expr#6: mtx.lock()
+├─ Item[1]: Fn (span: 9:1-17:2)
+│  ├─ Name: test_partial_release
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:42-17:2)
+│        ├─ Stmt[0]: Let (span: 10:5-10:37)
+│        │  ├─ Name: m1
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Mutex
+│        │  └─ Value: expr#9: Mutex.new()
+│        ├─ Stmt[1]: Let (span: 11:5-11:37)
+│        │  ├─ Name: m2
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Mutex
+│        │  └─ Value: expr#12: Mutex.new()
+│        ├─ Stmt[2]: Expr (span: 13:5-13:15)
+│        │  └─ Expr: expr#15: m1.lock()
+│        ├─ Stmt[3]: Expr (span: 14:5-14:15)
+│        │  └─ Expr: expr#18: m2.lock()
+│        └─ Stmt[4]: Expr (span: 15:5-15:17)
+│           └─ Expr: expr#21: m2.unlock()
+├─ Item[2]: Type (span: 19:1-21:2)
+│  ├─ Name: Resource
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: lock: Mutex
+└─ Item[3]: Extern (span: 23:1-28:2)
+   ├─ Target: Resource
+   ├─ Members:
+   │  └─ Fn[0]: bad_no_release
+   │     ├─ Params: (self: &mut Resource)
+   │     ├─ Return: nothing
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 24:59-27:6)
+   │        └─ Stmt[0]: Expr (span: 25:9-25:26)
+   │           └─ Expr: expr#25: self.lock.lock()

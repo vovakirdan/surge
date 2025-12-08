@@ -1,0 +1,2 @@
+error SEM3069 testdata/golden/sema/invalid/concurrency/guarded_by_not_lock.sg:5:17 @guarded_by field must be of type Mutex or RwLock, got 'int'
+error SEM3069 testdata/golden/sema/invalid/concurrency/guarded_by_not_lock.sg:10:17 @guarded_by field must be of type Mutex or RwLock, got 'string'

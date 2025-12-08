@@ -1,0 +1,18 @@
+// Valid @atomic field usage with int, uint, bool, and pointer types
+
+type AtomicCounter = {
+    @atomiccount: int,
+    @atomicflags: uint,
+    @atomicactive: bool,
+}
+
+type AtomicPointer = {
+    @atomicptr: *int,
+}
+
+pub fn test_atomic_int() -> nothing {
+    let mut a: AtomicCounter = AtomicCounter { count: 0, flags: 0, active: false };
+    a.count = 1;
+    a.flags = 255;
+    a.active = true;
+}

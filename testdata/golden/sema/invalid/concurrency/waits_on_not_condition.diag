@@ -1,0 +1,2 @@
+error SEM3100 testdata/golden/sema/invalid/concurrency/waits_on_not_condition.sg:9:15 @waits_on field must be of type Condition or Semaphore, got 'Mutex'
+error SEM3100 testdata/golden/sema/invalid/concurrency/waits_on_not_condition.sg:14:15 @waits_on field must be of type Condition or Semaphore, got 'int'

@@ -1,0 +1,32 @@
+guarded_by_valid.sg (span: 3:1-19:1)
+├─ Item[0]: Type (span: 3:1-6:2)
+│  ├─ Name: Counter
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: value: int [@guarded_by("lock")]
+├─ Item[1]: Type (span: 8:1-11:2)
+│  ├─ Name: SharedData
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: rw: RwLock
+│     └─ Field[1]: data: string [@guarded_by("rw")]
+└─ Item[2]: Fn (span: 13:1-18:2)
+   ├─ Name: test_counter
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 13:34-18:2)
+         ├─ Stmt[0]: Let (span: 14:5-14:66)
+         │  ├─ Name: c
+         │  ├─ Mutable: true
+         │  ├─ Type: Counter
+         │  └─ Value: expr#9: <ExprKind(18)>
+         ├─ Stmt[1]: Expr (span: 15:5-15:19)
+         │  └─ Expr: expr#13: c.lock.lock()
+         ├─ Stmt[2]: Expr (span: 16:5-16:27)
+         │  └─ Expr: expr#20: (c.value = ((c.value + 1)))
+         └─ Stmt[3]: Expr (span: 17:5-17:21)
+            └─ Expr: expr#24: c.lock.unlock()
