@@ -1,0 +1,17 @@
+// Test: @requires_lock should NOT exempt other locks from leak check
+
+type MultiLock = {
+    required_lock: Mutex,
+    other_lock: Mutex,
+    value: int,
+}
+
+extern<MultiLock> {
+    // This function requires 'required_lock' to be held
+    // But it acquires 'other_lock' and forgets to release it
+    @requires_lock("required_lock")
+    pub fn leaks_other_lock(self: &mut MultiLock) -> nothing {
+        self.other_lock.lock();
+        // Error: other_lock not released (should NOT be exempted by @requires_lock)
+    }
+}

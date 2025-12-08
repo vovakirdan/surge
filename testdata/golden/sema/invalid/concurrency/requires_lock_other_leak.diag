@@ -1,0 +1,1 @@
+error SEM3081 testdata/golden/sema/invalid/concurrency/requires_lock_other_leak.sg:14:9 lock 'other_lock' acquired here but not released before function exit

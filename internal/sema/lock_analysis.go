@@ -218,22 +218,29 @@ func (tc *typeChecker) analyzeFunctionLocks(fnItem *ast.FnItem, selfSym symbols.
 	tc.walkStmtForLocks(la, fnItem.Body)
 
 	// Check for unreleased locks at function exit
-	// But only if function doesn't have @acquires_lock (which means it intentionally holds)
 	infos := tc.collectAttrs(fnItem.AttrStart, fnItem.AttrCount)
-	_, hasAcquires := hasAttr(infos, "acquires_lock")
 
-	if !hasAcquires {
-		for _, acq := range la.state.HeldLocks() {
-			// Check if this lock was from @requires_lock (those are expected to be held)
-			_, hasRequires := hasAttr(infos, "requires_lock")
-			if hasRequires {
-				// Lock from @requires_lock is expected to remain held
-				continue
+	// Collect field names from @requires_lock, @releases_lock, @acquires_lock
+	// These locks are expected to remain held (or be acquired) as part of the contract
+	exemptLocks := make(map[source.StringID]bool)
+	for _, info := range infos {
+		switch info.Spec.Name {
+		case "requires_lock", "releases_lock", "acquires_lock":
+			if fieldName := la.extractFieldName(info); fieldName != 0 {
+				exemptLocks[fieldName] = true
 			}
-			fieldName := tc.lookupName(acq.Key.FieldName)
-			tc.report(diag.SemaLockNotReleasedOnExit, acq.Span,
-				"lock '%s' acquired here but not released before function exit", fieldName)
 		}
+	}
+
+	// Check for unreleased locks at function exit
+	for _, acq := range la.state.HeldLocks() {
+		// Skip locks that are part of the function's contract
+		if exemptLocks[acq.Key.FieldName] {
+			continue
+		}
+		fieldName := tc.lookupName(acq.Key.FieldName)
+		tc.report(diag.SemaLockNotReleasedOnExit, acq.Span,
+			"lock '%s' acquired here but not released before function exit", fieldName)
 	}
 }
 
