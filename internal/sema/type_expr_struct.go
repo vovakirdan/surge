@@ -1,9 +1,13 @@
 package sema
 
 import (
+	"fmt"
+	"strings"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -89,6 +93,141 @@ func (tc *typeChecker) tupleIndexResultType(tupleType types.TypeID, index uint32
 		return types.NoTypeID
 	}
 	return info.Elems[index]
+}
+
+// inferStructLiteralType attempts to infer generic type arguments for a struct literal
+// from its field expressions. It returns the inferred struct type and a flag indicating
+// whether inference was attempted (and diagnostics, if any, were already produced).
+func (tc *typeChecker) inferStructLiteralType(data *ast.ExprStructData, scope symbols.ScopeID, span source.Span) (types.TypeID, bool) {
+	if data == nil || tc.builder == nil || tc.types == nil || !data.Type.IsValid() {
+		return types.NoTypeID, false
+	}
+	scope = tc.scopeOrFile(scope)
+
+	path, ok := tc.builder.Types.Path(data.Type)
+	if !ok || path == nil || len(path.Segments) == 0 {
+		return types.NoTypeID, false
+	}
+	// Only support unqualified paths for inference; qualified paths fall back to regular resolution.
+	if len(path.Segments) != 1 {
+		return types.NoTypeID, false
+	}
+	seg := path.Segments[0]
+	// If explicit type arguments are provided, let regular resolution handle it.
+	if len(seg.Generics) > 0 {
+		return types.NoTypeID, false
+	}
+
+	symID := tc.lookupTypeSymbol(seg.Name, scope)
+	if !symID.IsValid() {
+		return types.NoTypeID, false
+	}
+	sym := tc.symbolFromID(symID)
+	if sym == nil || len(sym.TypeParams) == 0 {
+		return types.NoTypeID, false
+	}
+
+	info, structType := tc.structInfoForType(tc.symbolType(symID))
+	if info == nil {
+		return types.NoTypeID, false
+	}
+
+	paramNames := make([]string, len(sym.TypeParams))
+	paramSet := make(map[string]struct{}, len(sym.TypeParams))
+	for i, nameID := range sym.TypeParams {
+		name := tc.lookupName(nameID)
+		if name == "" {
+			name = "_"
+		}
+		paramNames[i] = name
+		paramSet[name] = struct{}{}
+	}
+
+	bindings := make(map[string]types.TypeID, len(paramNames))
+
+	externFields := tc.externFieldsForType(structType)
+	expectedByName := make(map[source.StringID]types.TypeID, len(info.Fields)+len(externFields))
+	for _, f := range info.Fields {
+		expectedByName[f.Name] = f.Type
+	}
+	for _, f := range externFields {
+		if _, exists := expectedByName[f.Name]; !exists {
+			expectedByName[f.Name] = f.Type
+		}
+	}
+
+	if data.Positional {
+		limit := len(data.Fields)
+		if len(info.Fields) < limit {
+			limit = len(info.Fields)
+		}
+		for idx := 0; idx < limit; idx++ {
+			tc.bindStructFieldParam(info.Fields[idx].Type, data.Fields[idx].Value, bindings, paramSet)
+		}
+	} else {
+		for _, field := range data.Fields {
+			expected := expectedByName[field.Name]
+			if expected == types.NoTypeID {
+				continue
+			}
+			tc.bindStructFieldParam(expected, field.Value, bindings, paramSet)
+		}
+	}
+
+	missing := make([]string, 0, len(paramNames))
+	args := make([]types.TypeID, len(paramNames))
+	for i, name := range paramNames {
+		arg := bindings[name]
+		args[i] = arg
+		if arg == types.NoTypeID {
+			missing = append(missing, name)
+		}
+	}
+
+	var resultType types.TypeID
+	if len(missing) == 0 {
+		resultType = tc.instantiateType(symID, args)
+	} else {
+		tc.reportStructInferenceFailure(sym.Name, missing, span)
+		resultType = structType
+	}
+	if resultType != types.NoTypeID {
+		tc.validateStructLiteralFields(resultType, data, span)
+	}
+	if len(missing) == 0 {
+		return resultType, true
+	}
+	return types.NoTypeID, true
+}
+
+func (tc *typeChecker) bindStructFieldParam(expected types.TypeID, expr ast.ExprID, bindings map[string]types.TypeID, paramSet map[string]struct{}) {
+	if expected == types.NoTypeID || expr == ast.NoExprID || tc.types == nil {
+		return
+	}
+	actual := tc.typeExpr(expr)
+	if actual == types.NoTypeID {
+		return
+	}
+	key := tc.typeKeyForType(expected)
+	if key == "" {
+		return
+	}
+	tc.instantiateTypeKeyWithInference(key, actual, bindings, paramSet)
+}
+
+func (tc *typeChecker) reportStructInferenceFailure(typeName source.StringID, missing []string, span source.Span) {
+	if tc.reporter == nil || len(missing) == 0 {
+		return
+	}
+	displayName := tc.lookupName(typeName)
+	if displayName == "" {
+		displayName = "_"
+	}
+	missingLabel := strings.Join(missing, ", ")
+	msg := fmt.Sprintf("cannot infer type parameter %s for %s; specify %s::<%s> or provide an explicit type annotation", missingLabel, displayName, displayName, missingLabel)
+	if b := diag.ReportError(tc.reporter, diag.SemaTypeMismatch, span, msg); b != nil {
+		b.Emit()
+	}
 }
 
 func (tc *typeChecker) validateStructLiteralFields(structType types.TypeID, data *ast.ExprStructData, span source.Span) {

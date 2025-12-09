@@ -353,9 +353,13 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			}
 			if data.Type.IsValid() {
 				scope := tc.scopeOrFile(tc.currentScope())
-				ty = tc.resolveTypeExprWithScope(data.Type, scope)
-				if ty != types.NoTypeID {
-					tc.validateStructLiteralFields(ty, data, expr.Span)
+				if inferred, handled := tc.inferStructLiteralType(data, scope, expr.Span); handled {
+					ty = inferred
+				} else {
+					ty = tc.resolveTypeExprWithScope(data.Type, scope)
+					if ty != types.NoTypeID {
+						tc.validateStructLiteralFields(ty, data, expr.Span)
+					}
 				}
 			}
 		}
