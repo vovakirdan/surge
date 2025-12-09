@@ -1,0 +1,1 @@
+error SEM3046 testdata/golden/sema/invalid/concurrency/generic_fn_cannot_infer.sg:11:14 cannot infer type parameter T for make_test_channel; use make_test_channel::<T>(...)

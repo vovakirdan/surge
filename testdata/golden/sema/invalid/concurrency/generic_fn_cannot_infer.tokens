@@ -1,0 +1,50 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "intrinsic" at 1:2-1:11
+  3: KwType          "type" at 2:1-2:5 (leading: Newline)
+  4: Ident           "TestChannel" at 2:6-2:17 (leading: Space)
+  5: Lt              "<" at 2:17-2:18
+  6: Ident           "T" at 2:18-2:19
+  7: Gt              ">" at 2:19-2:20
+  8: Assign          "=" at 2:21-2:22 (leading: Space)
+  9: LBrace          "{" at 2:23-2:24 (leading: Space)
+ 10: Ident           "__opaque" at 3:5-3:13 (leading: Newline, Space)
+ 11: Colon           ":" at 3:13-3:14
+ 12: Star            "*" at 3:15-3:16 (leading: Space)
+ 13: Ident           "byte" at 3:16-3:20
+ 14: Comma           "," at 3:20-3:21
+ 15: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 16: Semicolon       ";" at 4:2-4:3
+ 17: At              "@" at 6:1-6:2 (leading: Newline)
+ 18: Ident           "intrinsic" at 6:2-6:11
+ 19: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 20: Ident           "make_test_channel" at 7:4-7:21 (leading: Space)
+ 21: Lt              "<" at 7:21-7:22
+ 22: Ident           "T" at 7:22-7:23
+ 23: Gt              ">" at 7:23-7:24
+ 24: LParen          "(" at 7:24-7:25
+ 25: Ident           "capacity" at 7:25-7:33
+ 26: Colon           ":" at 7:33-7:34
+ 27: Ident           "uint" at 7:35-7:39 (leading: Space)
+ 28: RParen          ")" at 7:39-7:40
+ 29: Arrow           "->" at 7:41-7:43 (leading: Space)
+ 30: KwOwn           "own" at 7:44-7:47 (leading: Space)
+ 31: Ident           "TestChannel" at 7:48-7:59 (leading: Space)
+ 32: Lt              "<" at 7:59-7:60
+ 33: Ident           "T" at 7:60-7:61
+ 34: Gt              ">" at 7:61-7:62
+ 35: Semicolon       ";" at 7:62-7:63
+ 36: KwFn            "fn" at 9:1-9:3 (leading: Newline)
+ 37: Ident           "main" at 9:4-9:8 (leading: Space)
+ 38: LParen          "(" at 9:8-9:9
+ 39: RParen          ")" at 9:9-9:10
+ 40: LBrace          "{" at 9:11-9:12 (leading: Space)
+ 41: KwLet           "let" at 11:5-11:8 (leading: Newline, Space, LineComment, Newline, Space)
+ 42: Ident           "ch" at 11:9-11:11 (leading: Space)
+ 43: Assign          "=" at 11:12-11:13 (leading: Space)
+ 44: Ident           "make_test_channel" at 11:14-11:31 (leading: Space)
+ 45: LParen          "(" at 11:31-11:32
+ 46: IntLit          "10" at 11:32-11:34
+ 47: RParen          ")" at 11:34-11:35
+ 48: Semicolon       ";" at 11:35-11:36
+ 49: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 50: EOF             at 13:1-13:1
