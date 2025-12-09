@@ -197,6 +197,9 @@ const (
 	SemaTaskLifetimeError Code = 3110 // Task outlives spawning scope
 	SemaSpawnNotTask      Code = 3111 // spawn requires Task<T> expression
 
+	// Generic type parameter errors (3112)
+	SemaTypeParamShadow Code = 3112 // Type parameter shadows outer type parameter in extern
+
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
 

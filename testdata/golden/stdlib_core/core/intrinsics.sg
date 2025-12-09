@@ -26,7 +26,7 @@ pub type Range<T> = {
 };
 
 extern<Range<T>> {
-    @intrinsic pub fn next<T>(self: &mut Range<T>) -> Option<T>;
+    @intrinsic pub fn next(self: &mut Range<T>) -> Option<T>;
 }
 
 pub type Task<T> = {
@@ -34,7 +34,7 @@ pub type Task<T> = {
 };
 
 extern<Task<T>> {
-    @intrinsic pub fn await<T>(self: Task<T>) -> T;
+    @intrinsic pub fn await(self: Task<T>) -> T;
 }
 
 // Cooperative yield point for CPU-bound work
@@ -49,17 +49,17 @@ pub type Channel<T> = {
 
 extern<Channel<T>> {
     // Create a new channel with given capacity (0 = unbuffered)
-    @intrinsic pub fn new<T>(capacity: uint) -> own Channel<T>;
+    @intrinsic pub fn new(capacity: uint) -> own Channel<T>;
     // Blocking send - suspends until channel has capacity
-    @intrinsic pub fn send<T>(self: &Channel<T>, value: own T) -> nothing;
+    @intrinsic pub fn send(self: &Channel<T>, value: own T) -> nothing;
     // Blocking receive - suspends until value available, returns Nothing if closed
-    @intrinsic pub fn recv<T>(self: &Channel<T>) -> Option<T>;
+    @intrinsic pub fn recv(self: &Channel<T>) -> Option<T>;
     // Non-blocking send - returns false if channel full
-    @intrinsic pub fn try_send<T>(self: &Channel<T>, value: own T) -> bool;
+    @intrinsic pub fn try_send(self: &Channel<T>, value: own T) -> bool;
     // Non-blocking receive - returns Nothing if channel empty
-    @intrinsic pub fn try_recv<T>(self: &Channel<T>) -> Option<T>;
+    @intrinsic pub fn try_recv(self: &Channel<T>) -> Option<T>;
     // Close the channel - no more values can be sent
-    @intrinsic pub fn close<T>(self: &Channel<T>) -> nothing;
+    @intrinsic pub fn close(self: &Channel<T>) -> nothing;
 }
 
 pub contract Bounded<T> {
@@ -253,19 +253,19 @@ extern<bool> {
 }
 
 extern<Array<T>> {
-    @intrinsic fn __add<T>(self: Array<T>, other: Array<T>) -> Array<T>;
-    @intrinsic fn __index<T>(self: Array<T>, index: int) -> T;
-    @intrinsic fn __index_set<T>(self: Array<T>, index: int, value: T) -> nothing;
-    @intrinsic fn __range<T>(self: Array<T>) -> Range<T>;
-    @intrinsic fn __len<T>(self: &Array<T>) -> uint;
+    @intrinsic fn __add(self: Array<T>, other: Array<T>) -> Array<T>;
+    @intrinsic fn __index(self: Array<T>, index: int) -> T;
+    @intrinsic fn __index_set(self: Array<T>, index: int, value: T) -> nothing;
+    @intrinsic fn __range(self: Array<T>) -> Range<T>;
+    @intrinsic fn __len(self: &Array<T>) -> uint;
 }
 
 extern<ArrayFixed<T, N>> {
-    @intrinsic fn __add<T, const N: int>(self: ArrayFixed<T, N>, other: ArrayFixed<T, N>) -> ArrayFixed<T, N>;
-    @intrinsic fn __index<T, const N: int>(self: ArrayFixed<T, N>, index: int) -> T;
-    @intrinsic fn __index_set<T, const N: int>(self: ArrayFixed<T, N>, index: int, value: T) -> nothing;
-    @intrinsic fn __range<T, const N: int>(self: ArrayFixed<T, N>) -> Range<T>;
-    @intrinsic fn __len<T, const N: int>(self: &ArrayFixed<T, N>) -> uint;
+    @intrinsic fn __add(self: ArrayFixed<T, N>, other: ArrayFixed<T, N>) -> ArrayFixed<T, N>;
+    @intrinsic fn __index(self: ArrayFixed<T, N>, index: int) -> T;
+    @intrinsic fn __index_set(self: ArrayFixed<T, N>, index: int, value: T) -> nothing;
+    @intrinsic fn __range(self: ArrayFixed<T, N>) -> Range<T>;
+    @intrinsic fn __len(self: &ArrayFixed<T, N>) -> uint;
 }
 
 @intrinsic

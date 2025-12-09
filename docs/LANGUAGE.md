@@ -183,7 +183,77 @@ Type parameters form a local scope for their owner:
 * In a type declaration `type Box<T> = { value: T }`, `T` is visible only inside the right-hand side of `Box<T>`.
 * In a contract `contract C<T, U> { ... }`, all type parameters are visible in every `field` and `fn` member.
 * In a tag `tag Pair<A, B>(A, B);`, `A` and `B` are only visible in the payload list.
-* In an `extern<T>` block, `T` is the type parameter of that block; methods inside the block may introduce their own `<U, ...>` which shadow outer names.
+* In an `extern<Type<T>>` block, `T` is the type parameter from the target type; methods inside the block may introduce their own type parameters `<U, ...>` but **cannot** redeclare the same names as the outer type parameters (shadowing is an error).
+
+#### Type Argument Syntax
+
+In **type annotations**, both standard and turbofish syntax are accepted:
+
+```sg
+let x: Box<int> = ...;      // standard
+let y: Box::<int> = ...;    // turbofish (equivalent)
+```
+
+In **expressions** (function calls, method calls), only turbofish syntax is allowed for explicit type arguments:
+
+```sg
+// Function calls
+let a = make::<int>();      // ok: explicit type arg
+let b = id(42);             // ok: type arg inferred from argument
+let c = make<int>();        // error: use '::<' syntax
+
+// Method calls on generic types
+let d = Foo::<int>.new();   // ok: explicit type arg on receiver
+```
+
+For generic struct literals, the type must be specified via annotation:
+
+```sg
+let e: Box<int> = { value: 42 };  // ok: type from annotation
+let f: Box<int> = { 42 };         // ok: positional form
+```
+
+#### Type Inference Rules
+
+Type parameters for generic functions are inferred **only from call arguments**, never from the expected return type:
+
+```sg
+fn make<T>() -> T;
+fn id<T>(x: T) -> T;
+
+fn test() {
+    let a = id(42);           // ok: T=int inferred from argument
+    let b: int = make();      // error: cannot infer T (no arguments)
+    let c = make::<int>();    // ok: explicit type argument
+}
+```
+
+When type parameters cannot be inferred from arguments, the compiler reports an error with a suggestion to use explicit turbofish syntax.
+
+#### Type Parameters in extern Blocks
+
+Type parameters from `extern<Type<T>>` are available to all methods without redeclaration:
+
+```sg
+type Foo<T> = {};
+
+extern<Foo<T>> {
+    fn new() -> Foo<T>;                    // T from extern
+    fn map<U>(self: &Foo<T>, f: fn(T) -> U) -> Foo<U>;  // T from extern, U is method's own
+}
+
+// Calls:
+Foo::<int>.new()                           // T=int
+Foo::<int>.map::<string>(foo, transform)   // T=int, U=string
+```
+
+Method type parameters **cannot** shadow extern type parameters:
+
+```sg
+extern<Foo<T>> {
+    fn bad<T>(t: T) -> Foo<T>;  // error: T shadows outer T
+}
+```
 
 Generic monomorphization and instantiation are described in §16.1.
 
