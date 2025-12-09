@@ -62,6 +62,9 @@ extern<Channel<T>> {
     @intrinsic pub fn close(self: &Channel<T>) -> nothing;
 }
 
+@intrinsic
+fn make_channel<T>(capacity: uint) -> own Channel<T>;
+
 pub contract Bounded<T> {
     fn __min_value() -> T;
     fn __max_value() -> T;
