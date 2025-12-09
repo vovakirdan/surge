@@ -293,23 +293,43 @@ func (tc *typeChecker) genericKeyForType(id types.TypeID) symbols.TypeKey {
 		}
 	}
 
-	// Fallback для известных типов из core модуля
-	if len(paramNames) == 0 {
-		switch name {
-		case "Option", "Task", "Channel":
-			if len(typeArgs) == 1 {
-				paramNames = []string{"T"}
+	// Fallback: поиск в экспортах модулей (для импортированных типов)
+	if len(paramNames) == 0 && tc.exports != nil {
+		for _, module := range tc.exports {
+			if module == nil {
+				continue
 			}
-		case "Erring":
-			if len(typeArgs) == 2 {
-				paramNames = []string{"T", "E"}
+			for _, syms := range module.Symbols {
+				for i := range syms {
+					exp := &syms[i]
+					if exp.Name == name && exp.Kind == symbols.SymbolType && len(exp.TypeParamSyms) > 0 {
+						paramNames = make([]string, 0, len(exp.TypeParamSyms))
+						for _, tp := range exp.TypeParamSyms {
+							if paramName := tc.lookupName(tp.Name); paramName != "" {
+								paramNames = append(paramNames, paramName)
+							} else if len(exp.TypeParamNames) > 0 {
+								// Use pre-computed names from export
+								paramNames = append(paramNames, exp.TypeParamNames...)
+								break
+							}
+						}
+						if len(paramNames) == len(typeArgs) {
+							break
+						}
+						paramNames = nil
+					}
+				}
+				if len(paramNames) > 0 {
+					break
+				}
 			}
-		default:
-			return ""
+			if len(paramNames) > 0 {
+				break
+			}
 		}
 	}
 
-	if len(paramNames) != len(typeArgs) {
+	if len(paramNames) == 0 || len(paramNames) != len(typeArgs) {
 		return ""
 	}
 

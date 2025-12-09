@@ -161,7 +161,7 @@ func (tc *typeChecker) inferStructLiteralType(data *ast.ExprStructData, scope sy
 		if len(info.Fields) < limit {
 			limit = len(info.Fields)
 		}
-		for idx := 0; idx < limit; idx++ {
+		for idx := range limit {
 			tc.bindStructFieldParam(info.Fields[idx].Type, data.Fields[idx].Value, bindings, paramSet)
 		}
 	} else {
