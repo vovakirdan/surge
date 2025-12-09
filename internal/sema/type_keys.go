@@ -218,6 +218,12 @@ func (tc *typeChecker) genericKeyForType(id types.TypeID) symbols.TypeKey {
 	var typeArgs []types.TypeID
 
 	switch tt.Kind {
+	case types.KindOwn, types.KindReference, types.KindPointer:
+		// For wrapper types (own, &, *), unwrap and recurse
+		if tt.Elem != types.NoTypeID {
+			return tc.genericKeyForType(tt.Elem)
+		}
+		return ""
 	case types.KindUnion:
 		if info, ok := tc.types.UnionInfo(resolved); ok && info != nil {
 			nameStr := tc.lookupTypeName(resolved, info.Name)
@@ -288,6 +294,29 @@ func (tc *typeChecker) genericKeyForType(id types.TypeID) symbols.TypeKey {
 			for _, tp := range sym.TypeParamSymbols {
 				if paramName := tc.lookupName(tp.Name); paramName != "" {
 					paramNames = append(paramNames, paramName)
+				}
+			}
+		}
+	}
+
+	// Fallback: поиск в локальной таблице символов текущего файла
+	if len(paramNames) == 0 && tc.symbols != nil && tc.symbols.Table != nil {
+		if data := tc.symbols.Table.Symbols.Data(); data != nil {
+			for i := range data {
+				sym := &data[i]
+				if sym.Kind != symbols.SymbolType {
+					continue
+				}
+				if symName := tc.lookupName(sym.Name); symName == name {
+					if len(sym.TypeParamSymbols) > 0 {
+						paramNames = make([]string, 0, len(sym.TypeParamSymbols))
+						for _, tp := range sym.TypeParamSymbols {
+							if pn := tc.lookupName(tp.Name); pn != "" {
+								paramNames = append(paramNames, pn)
+							}
+						}
+						break
+					}
 				}
 			}
 		}
@@ -453,6 +482,17 @@ func (tc *typeChecker) buildTypeParamSubst(recv types.TypeID, candidateKey symbo
 	tt, ok := tc.types.Lookup(resolved)
 	if !ok {
 		return nil
+	}
+
+	// Unwrap own/reference/pointer types
+	if tt.Kind == types.KindOwn || tt.Kind == types.KindReference || tt.Kind == types.KindPointer {
+		if tt.Elem != types.NoTypeID {
+			resolved = tc.resolveAlias(tt.Elem)
+			tt, ok = tc.types.Lookup(resolved)
+			if !ok {
+				return nil
+			}
+		}
 	}
 
 	var typeArgs []types.TypeID

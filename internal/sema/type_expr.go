@@ -115,6 +115,14 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			if member, okMem := tc.builder.Exprs.Member(call.Target); okMem && member != nil {
 				if tc.moduleSymbolForExpr(member.Target) == nil {
 					receiverType, receiverIsType := tc.memberReceiverType(member.Target)
+					// For static method calls with type args (e.g., Type::<int>::method()),
+					// instantiate the receiver type with the call's type arguments
+					if receiverIsType && len(call.TypeArgs) > 0 {
+						typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)
+						if instantiated := tc.instantiateGenericType(receiverType, typeArgs); instantiated != types.NoTypeID {
+							receiverType = instantiated
+						}
+					}
 					if !receiverIsType && tc.lookupName(member.Field) == "await" {
 						if tc.awaitDepth == 0 {
 							tc.report(diag.SemaIntrinsicBadContext, expr.Span, "await can only be used in async context")

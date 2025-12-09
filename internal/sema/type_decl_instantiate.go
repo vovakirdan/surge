@@ -210,3 +210,55 @@ func (tc *typeChecker) substituteImportedType(id types.TypeID, args []types.Type
 		return resolved
 	}
 }
+
+// instantiateGenericType instantiates a generic type (given by TypeID) with concrete type arguments.
+// This is used for static method calls like Type::<Args>::method().
+func (tc *typeChecker) instantiateGenericType(baseType types.TypeID, typeArgs []types.TypeID) types.TypeID {
+	if baseType == types.NoTypeID || len(typeArgs) == 0 || tc.types == nil {
+		return types.NoTypeID
+	}
+
+	// Get the type name to find its symbol
+	resolved := tc.resolveAlias(baseType)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return types.NoTypeID
+	}
+
+	var typeName string
+	switch tt.Kind {
+	case types.KindStruct:
+		if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
+			typeName = tc.lookupName(info.Name)
+		}
+	case types.KindUnion:
+		if info, ok := tc.types.UnionInfo(resolved); ok && info != nil {
+			typeName = tc.lookupName(info.Name)
+		}
+	case types.KindAlias:
+		if info, ok := tc.types.AliasInfo(resolved); ok && info != nil {
+			typeName = tc.lookupName(info.Name)
+		}
+	default:
+		return types.NoTypeID
+	}
+
+	if typeName == "" {
+		return types.NoTypeID
+	}
+
+	// Find the symbol for this type
+	nameID := tc.builder.StringsInterner.Intern(typeName)
+	scope := tc.fileScope()
+	if !scope.IsValid() {
+		scope = tc.scopeOrFile(tc.currentScope())
+	}
+
+	symID := tc.lookupTypeSymbol(nameID, scope)
+	if !symID.IsValid() {
+		return types.NoTypeID
+	}
+
+	// Instantiate the type with the given type args
+	return tc.instantiateType(symID, typeArgs)
+}
