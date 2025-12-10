@@ -418,8 +418,20 @@ func (tc *typeChecker) scanSpawnStmt(stmtID ast.StmtID, seen map[symbols.SymbolI
 		if data := tc.builder.Stmts.Let(stmtID); data != nil {
 			tc.scanSpawn(data.Value, seen)
 		}
+	case ast.StmtConst:
+		if data := tc.builder.Stmts.Const(stmtID); data != nil {
+			tc.scanSpawn(data.Value, seen)
+		}
 	case ast.StmtReturn:
 		if data := tc.builder.Stmts.Return(stmtID); data != nil {
+			tc.scanSpawn(data.Expr, seen)
+		}
+	case ast.StmtSignal:
+		if data := tc.builder.Stmts.Signal(stmtID); data != nil {
+			tc.scanSpawn(data.Value, seen)
+		}
+	case ast.StmtDrop:
+		if data := tc.builder.Stmts.Drop(stmtID); data != nil {
 			tc.scanSpawn(data.Expr, seen)
 		}
 	case ast.StmtIf:
