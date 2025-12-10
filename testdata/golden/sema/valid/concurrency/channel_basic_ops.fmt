@@ -1,0 +1,22 @@
+// Test: Channel<T> method resolution for generic types
+// This validates that methods on generic extern types work correctly
+
+fn test_channel_send_recv() {
+    let ch: own Channel<int> = make_channel::<int>(10);
+    ch.send(42);
+    let v: int? = ch.recv();
+    ch.close();
+}
+
+fn test_channel_try_ops() {
+    let ch: own Channel<int> = make_channel::<int>(1);
+    let sent: bool = ch.try_send(42);
+    let received: int? = ch.try_recv();
+}
+
+fn test_channel_string() {
+    let ch: own Channel<string> = make_channel::<string>(5);
+    ch.send("hello");
+    let msg: string? = ch.recv();
+    ch.close();
+}

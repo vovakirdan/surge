@@ -328,28 +328,18 @@ func (tc *typeChecker) genericKeyForType(id types.TypeID) symbols.TypeKey {
 			if module == nil {
 				continue
 			}
-			for _, syms := range module.Symbols {
+			// Прямой поиск по имени типа в map символов модуля
+			if syms, ok := module.Symbols[name]; ok {
 				for i := range syms {
 					exp := &syms[i]
-					if exp.Name == name && exp.Kind == symbols.SymbolType && len(exp.TypeParamSyms) > 0 {
-						paramNames = make([]string, 0, len(exp.TypeParamSyms))
-						for _, tp := range exp.TypeParamSyms {
-							if paramName := tc.lookupName(tp.Name); paramName != "" {
-								paramNames = append(paramNames, paramName)
-							} else if len(exp.TypeParamNames) > 0 {
-								// Use pre-computed names from export
-								paramNames = append(paramNames, exp.TypeParamNames...)
-								break
-							}
-						}
-						if len(paramNames) == len(typeArgs) {
+					if exp.Kind == symbols.SymbolType {
+						// Используем pre-computed TypeParamNames напрямую —
+						// StringID в TypeParamSyms принадлежат другому файлу и не резолвятся здесь
+						if len(exp.TypeParamNames) > 0 && len(exp.TypeParamNames) == len(typeArgs) {
+							paramNames = exp.TypeParamNames
 							break
 						}
-						paramNames = nil
 					}
-				}
-				if len(paramNames) > 0 {
-					break
 				}
 			}
 			if len(paramNames) > 0 {
