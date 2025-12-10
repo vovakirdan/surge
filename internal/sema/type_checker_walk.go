@@ -569,6 +569,10 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 			return true
 		}
 	}
+	// Check if actual is a member of expected union type
+	if tc.isUnionMember(expected, actual) {
+		return true
+	}
 	if expElem, expLen, expFixed, okExp := tc.arrayInfo(expected); okExp {
 		if actElem, actLen, actFixed, okAct := tc.arrayInfo(actual); okAct && tc.typesAssignable(expElem, actElem, true) {
 			if expFixed {
@@ -607,6 +611,82 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 		return true
 	}
 	return false
+}
+
+// isUnionMember checks if actual type is a member of expected union type.
+// This enables assigning union members directly to union variables,
+// e.g. `let x: Option<int> = nothing;` or `let y: Foo = Bar(1);`
+func (tc *typeChecker) isUnionMember(expected, actual types.TypeID) bool {
+	if expected == types.NoTypeID || actual == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	// Resolve aliases first
+	expectedResolved := tc.resolveAlias(expected)
+	actualResolved := tc.resolveAlias(actual)
+
+	info, ok := tc.types.UnionInfo(expectedResolved)
+	if !ok || info == nil {
+		return false
+	}
+
+	for _, member := range info.Members {
+		switch member.Kind {
+		case types.UnionMemberNothing:
+			// `nothing` is a union member
+			if actualResolved == tc.types.Builtins().Nothing {
+				return true
+			}
+		case types.UnionMemberType:
+			// Type member (e.g., `int` in union)
+			if member.Type == actualResolved {
+				return true
+			}
+			// Also check if member type is assignable (for nested unions)
+			if tc.resolveAlias(member.Type) == actualResolved {
+				return true
+			}
+		case types.UnionMemberTag:
+			// Tagged member (e.g., `Some(T)` in Option<T>)
+			// Check if actual is a tag type matching this member
+			if tc.isTagTypeMatch(actualResolved, member.TagName, member.TagArgs) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isTagTypeMatch checks if the given type is a tag type matching the specified tag name and arguments.
+// This is used to check if a value like `Some(1)` matches a union member `Some(T)`.
+func (tc *typeChecker) isTagTypeMatch(typeID types.TypeID, tagName source.StringID, tagArgs []types.TypeID) bool {
+	if typeID == types.NoTypeID || tc.types == nil {
+		return false
+	}
+
+	// Get union info for the type - tag types are represented as single-member unions
+	info, ok := tc.types.UnionInfo(typeID)
+	if !ok || info == nil {
+		return false
+	}
+
+	// Check if this is a tag type by looking at its name
+	typeName := tc.lookupName(info.Name)
+	expectedTagName := tc.lookupName(tagName)
+	if typeName != expectedTagName {
+		return false
+	}
+
+	// Check type arguments match
+	if len(info.TypeArgs) != len(tagArgs) {
+		return false
+	}
+	for i, arg := range info.TypeArgs {
+		if !tc.typesAssignable(tagArgs[i], arg, true) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // inferForInElementType extracts the element type from an iterable.

@@ -718,11 +718,40 @@ func parseGenericTypeKey(s string) (base string, args []string, ok bool) {
 }
 
 // instantiateNamedGenericType creates Type<int, string> from base name and type args.
+// For tag names (e.g., Success, Some), it creates a tag type (single-member union).
 func (tc *typeChecker) instantiateNamedGenericType(base string, args []types.TypeID) types.TypeID {
-	if tc.builder == nil || base == "" || len(args) == 0 {
+	if tc.builder == nil || base == "" {
 		return types.NoTypeID
 	}
 	name := tc.builder.StringsInterner.Intern(base)
 	scope := tc.scopeOrFile(tc.currentScope())
+
+	// First check if this is a tag name - create tag type if so
+	if tagSymID := tc.lookupTagSymbol(name, scope); tagSymID.IsValid() {
+		return tc.instantiateTagType(name, args)
+	}
+
+	// Otherwise resolve as regular named type
+	if len(args) == 0 {
+		return types.NoTypeID
+	}
 	return tc.resolveNamedType(name, args, nil, source.Span{}, scope)
+}
+
+// instantiateTagType creates a tag type (single-member union) for a tag like Success<int>.
+// This is used when a tag constructor returns its own type rather than the full union type.
+func (tc *typeChecker) instantiateTagType(tagName source.StringID, args []types.TypeID) types.TypeID {
+	if tc.types == nil {
+		return types.NoTypeID
+	}
+
+	// Create a union with just this tag as a member
+	typeID := tc.types.RegisterUnionInstance(tagName, source.Span{}, args)
+	members := []types.UnionMember{{
+		Kind:    types.UnionMemberTag,
+		TagName: tagName,
+		TagArgs: args,
+	}}
+	tc.types.SetUnionMembers(typeID, members)
+	return typeID
 }

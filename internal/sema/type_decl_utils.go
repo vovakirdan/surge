@@ -353,6 +353,9 @@ func (tc *typeChecker) isChannelType(id types.TypeID) bool {
 
 // isCheckpointCall checks if the expression is a call to checkpoint().
 func (tc *typeChecker) isCheckpointCall(exprID ast.ExprID) bool {
+	if tc.builder == nil || tc.builder.Exprs == nil {
+		return false
+	}
 	expr := tc.builder.Exprs.Get(exprID)
 	if expr.Kind != ast.ExprCall {
 		return false
