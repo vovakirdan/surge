@@ -67,7 +67,7 @@ Let’s be honest:
 most modern languages fall into two extremes:
 
 * **too permissive** (your mistakes silently become bugs),
-* **or too strict** (your mistakes become 37 compiler errors and existential crysis).
+* **or too strict** (your mistakes become 37 compiler errors and existential crisis).
 
 Surge tries to take the third path:
 
@@ -289,7 +289,7 @@ async fn pipeline(endpoints: Endpoint[]) -> Success<string>[] {
     // When channel closes, recv() returns nothing
     while let Some(msg) = recv(&ch) {
         compare msg {
-            Succuess(v)  => results.push(Success(v));
+            Success(v)  => results.push(Success(v));
             finally => { /* ignore failures */ }
         }
     }
