@@ -485,7 +485,7 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 		return p.parseAsyncExpr()
 
 	case token.LBrace:
-		return p.parseStructLiteral(ast.NoTypeID, source.Span{})
+		return p.parseBraceExpr()
 
 	default:
 		// договоримся, что обрабатываем все ошибки до этого момента

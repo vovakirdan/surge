@@ -382,6 +382,10 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				}
 			}
 		}
+	case ast.ExprBlock:
+		if block, ok := tc.builder.Exprs.Block(id); ok && block != nil {
+			ty = tc.typeBlockExpr(block)
+		}
 	default:
 		// ExprIdent and other unhandled kinds default to unknown.
 	}

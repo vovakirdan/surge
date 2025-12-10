@@ -1,0 +1,23 @@
+block_expr_nothing.sg (span: 2:1-16:1)
+├─ Item[0]: Fn (span: 2:1-8:2)
+│  ├─ Name: test_block_nothing
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:25-8:2)
+│        └─ Stmt[0]: Let (span: 3:5-7:7)
+│           ├─ Name: _
+│           ├─ Mutable: false
+│           ├─ Type: nothing
+│           └─ Value: expr#3: <ExprKind(20)>
+└─ Item[1]: Fn (span: 10:1-15:2)
+   ├─ Name: test_block_nothing_explicit_return
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:41-15:2)
+         └─ Stmt[0]: Let (span: 11:5-14:7)
+            ├─ Name: _
+            ├─ Mutable: false
+            ├─ Type: nothing
+            └─ Value: expr#5: <ExprKind(20)>
