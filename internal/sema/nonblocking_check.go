@@ -25,8 +25,12 @@ var blockingMethods = map[string]map[string]bool{
 		"acquire": true,
 	},
 	"Channel": {
-		"send": true, // Blocking send - suspends until channel has capacity
-		"recv": true, // Blocking receive - suspends until value available
+		"send":  true, // Blocking send - suspends until channel has capacity
+		"recv":  true, // Blocking receive - suspends until value available
+		"close": true, // Закрытие канала синхронизирует отправителей/получателей
+		// NB: try_send/try_recv считаются неблокирующими; try_recv возвращает
+		// Nothing, когда канал пуст (и после закрытия — поведение совпадает с
+		// семантикой runtime/документации).
 	},
 }
 
