@@ -28,6 +28,7 @@ not for people who love to fight compilers.**
 9. [Where Surge Is Going (Architecture & Vision)](#future)
 10. [Documentation](#documentation)
 11. [Status](#status)
+12. [Big thanks to Go language](#thanks-to-go)
 
 ---
 
@@ -46,6 +47,10 @@ It is:
 
 Surge doesn’t expect you to be a compiler engineer.
 Surge expects you to be a programmer.
+
+It’s written by a man who is just a programmer like you and know what it feels like to debug at 3 a.m., to fight a GC pause in the middle of a latency budget, or to wonder why a borrow checker chose violence today. Surge’s answer is: **be explicit, keep the rules small, keep the tone kind.**
+
+It respects the lessons learned from those languages — borrow checking from Rust, clear tooling from Go, and the welcoming ergonomics of Python — while consciously avoiding their dogmas. Surge picks ideas because they serve the user, not because a committee decreed them.
 
 ---
 
@@ -76,6 +81,8 @@ Surge tries to take the third path:
 
 Surge is built on a handful of intentional decisions:
 
+No philosophy slide decks, no mysterious “best practices” — just a language that explains itself while you type. Diagnostics come with numeric codes *and* actionable hints; tracing is built-in; the compiler wants to collaborate, not interrogate.
+
 ---
 
 ## **2.1 No Garbage Collector**
@@ -85,6 +92,10 @@ But Surge is about control. Predictability. Explicit memory ownership.
 
 And ownership doesn’t have to be scary.
 In Surge, it’s *clean, readable, boring* — exactly as it should be.
+
+`own T` means “this value is mine”; `&T` means “I’m only looking”; `&mut T` means “I’m the only one mutating right now”.
+Borrow scopes are lexical and obvious. If you need to end a borrow early, say so with an explicit `@drop binding;` — no hidden lifetimes.
+Only owning values can cross task boundaries, so concurrency stays sound without requiring a theorem prover in your head.
 
 Boring ownership is the best ownership.
 
@@ -96,10 +107,13 @@ Async/await in Surge is predictable:
 
 * tasks don’t outlive their scope,
 * no “spawn-and-forget”,
-* clear ownership across tasks,
-* channels as first-class primitives.
+* clear ownership across tasks (only `own T` crosses the boundary),
+* channels as first-class primitives,
+* cancellation that actually returns a value (`Cancelled`) instead of silently tearing down state.
 
 It’s a “grown-up” model, but expressed very simply.
+
+Single-threaded cooperative scheduling today, a path to parallel backends tomorrow. Tasks are just `Task<T>` values; `.await()` is a method, not a keyword; `async { ... }` blocks enforce structured concurrency by waiting for every spawned task. If you need to yield in a CPU-bound loop, `checkpoint().await()` is there instead of hoping for preemption.
 
 ---
 
@@ -110,6 +124,8 @@ Surge avoids magic except where it’s helpful.
 The only intentional “escape hatch" is the attribute system —
 and even there, attributes don't conjure behind your back.
 They only prompt the compiler, without substituting the behavior.
+
+Even the “magic” operators are honest: operators resolve to explicit magic methods like `__index`, `__add`, `__to`; you can open the stdlib and see their definitions. No hidden coercions, no implicit trait lookups — if the language does something for you, it tells you how.
 
 ---
 
@@ -122,6 +138,8 @@ Surge separates:
 
 It keeps types clean and promotes clarity:
 *what data is, is not coupled with what data does.*
+
+`extern<T>` blocks are single-purpose: fields, functions, attributes. No nested declarations, no random top-level items. Methods are statically dispatched, generic parameters are explicit, and overrides are marked with `@override` so intent is obvious. The type stays a data container; behavior lives nearby, not inside.
 
 ---
 
@@ -148,6 +166,9 @@ It’s a language written with the philosophy:
 
 > **“Don't be afraid to make mistakes. The language will tell you where to go.”**
 
+So Surge meets you where you are: readable syntax, lowercase keywords, diagnostics with context, and a module system you can sketch on a napkin. The goal is to let you focus on architecture and algorithms, not on appeasing a parser spirit.
+Surge respects Rust’s ownership clarity, Go’s approachability, and Python’s readability, while consciously declining to copy their trade-offs wholesale.
+
 ---
 
 # <a name="design-philosophy"></a>3. Design Philosophy
@@ -158,28 +179,40 @@ Surge is guided by a small set of principles:
 
 If something is happening — you see it.
 
+Type annotations are postfix (`name: Type`), casts are spelled out with `to`, and ownership modifiers (`own`, `&`, `&mut`, `*`) live in the type, not hidden behind sigils. Even the sugar (`T?`, `T!`) is strictly type-position-only.
+
 ### **Zero-cost abstractions (but understandable ones)**
 
 If something looks simple — it *is* simple.
+
+Magic methods are just functions; contracts are structural, not class hierarchies; async functions desugar to state machines you could almost write by hand. You can always trace where performance comes from.
 
 ### **Ownership clarity**
 
 If a value moves — it’s visible.
 If it borrows — it’s visible.
 
+Borrow lifetimes are lexical, the borrow checker tells you where the conflict is, and only `own` values cross thread or task boundaries. When you need to end a borrow early, there is a literal `@drop expr;` statement instead of ritual incantations.
+
 ### **Structured concurrency**
 
 Async code shouldn't be smuggled into memory.
+
+`async fn` returns `Task<T>`, `.await()` is explicit, `spawn` returns a handle you must either await or store. No loose tasks leaking into the void. The event loop is cooperative, honest about blocking, and ready for a future parallel runtime without changing user code.
 
 ### **No surprises**
 
 If the code looks like it should work, it works.
 If Surge forbids it, it explains *why*, not “go think.”
 
+Diagnostics carry numeric codes, human text, and fix suggestions. Tracing can be turned on to show every phase of compilation. The goal is transparency over cleverness.
+
 ### **Practical simplicity**
 
 Simple ≠ dumb.
 Simple means “I understand what’s happening here”.
+
+Surge resists clever syntactic contortions. It prefers a couple more characters if they make intent obvious. That’s not minimalism for its own sake; it’s empathy for the reader — including Future You.
 
 ---
 
@@ -217,31 +250,28 @@ Below is a realistic snippet combining:
 And yet — everything reads clearly.
 
 ```sg
-// Tags as simple union types
-tag Ok<T>(value: T);
-tag Err(message: string);
 
 // A simple contract – anything fetchable must implement fetch()
 contract Fetchable {
-    fn fetch(self: &Fetchable) -> Task<Ok<string> | Err>;
+    fn fetch(self: &Fetchable) -> Task<Success<string> | Error>;
 }
 
 // Data type + external behavior
 type Endpoint = { url: string };
 
 extern<Endpoint> {
-    async fn fetch(self: &Endpoint) -> Ok<string> | Err {
+    async fn fetch(self: &Endpoint) -> Erring<string, Error> {
         let result = http_get(self.url).await();
         compare result {
-            Ok(text)  => return Ok(text);
-            Err(msg) => return Err("Network error: " + msg);
+            Success(text)  => return Success(text);
+            err => return Error;
         }
     }
 }
 
 // Worker pipeline using channels
-async fn pipeline(endpoints: Endpoint[]) -> Ok<string>[] {
-    let ch = make_channel<Ok<string> | Err>(10);
+async fn pipeline(endpoints: Endpoint[]) -> Success<string>[] {
+    let ch = make_channel<Success<string> | Error>(10);
 
     // Producer: spawn fetchers
     async {
@@ -253,14 +283,14 @@ async fn pipeline(endpoints: Endpoint[]) -> Ok<string>[] {
         }
     };
 
-    // Consumer: collect only Ok results
-    let mut results: Ok<string>[] = [];
+    // Consumer: collect only Success results
+    let mut results: Success<string>[] = [];
 
     // When channel closes, recv() returns nothing
     while let Some(msg) = recv(&ch) {
         compare msg {
-            Ok(v)  => results.push(Ok(v));
-            Err(_) => { /* ignore failures */ }
+            Succuess(v)  => results.push(Success(v));
+            finally => { /* ignore failures */ }
         }
     }
 
@@ -270,6 +300,10 @@ async fn pipeline(endpoints: Endpoint[]) -> Ok<string>[] {
 
 If this example looks readable —
 that’s the whole point.
+It shows ownership moves (`spawn` takes `ep` by value),
+borrows (`recv(&ch)` is explicit),
+and structural typing (`contract Fetchable`) without ornamentation.
+You can drop `@drop` inside a loop if you need to end a borrow early, or mark the function `@failfast` to auto-cancel tasks on the first error — but only when you ask for it.
 
 ---
 
@@ -288,7 +322,7 @@ Just **a module**.
 Modules are declared implicitly by folder, or explicitly with:
 
 ```sg
-pragma module("my.project.core");
+pragma module::feature;
 ```
 
 A module is simply:
@@ -296,7 +330,10 @@ A module is simply:
 * a named namespace,
 * with its own files,
 * importing other modules,
-* producing either a binary or a library *depending only on presence of @entrypoint*.
+* producing either a binary or a library *depending only on presence of @entrypoint*,
+* optionally unified across multiple files with `pragma module;` in each file when a directory is shared.
+
+You can rename a module (`pragma module::bounded;`), declare `pragma no_std;` to live without the stdlib, or mark the whole directory as a directive module. No implicit “magic folders”; everything is spelled out at the top of the file.
 
 That’s it.
 No hierarchy madness. No guessing.
@@ -333,8 +370,14 @@ Surge includes one of the most transparent tracing systems of any modern compile
 * heartbeat events to locate infinite loops,
 * ndjson output for CI.
 
+
+`--trace-level` ranges from `phase` to `debug`, `--trace-mode` can stream, ring, or both, and a heartbeat keeps ticking even if the compiler stalls so you know where it froze.
+Diagnostics include fix-suggestions where safe, and directive code lives in real Surge so tests and benchmarks are the same language you ship.
+
 It’s not just diagnostics —
 it’s *X-ray vision* for understanding your own code.
+
+Attributes like `@pure` are enforced; concurrency contracts like `@guarded_by` are checked; lock ordering and task leaks are diagnosed. All of that is surfaced through `surge diag` with trace files you can load into Chrome Trace Viewer when you feel like spelunking.
 
 Because a language should help you see more, not hide more.
 
@@ -405,10 +448,15 @@ All detailed docs live in:
     ATTRIBUTES.md
     CONCURRENCY.md
     MODULES.md
+    PRAGMA.md
+    TRACING.md
+    PARALLEL.md
 ```
 
 This README is the philosophy,
 docs are the how-to and the contracts.
+
+If you want to know how ownership rules are enforced, how `extern<T>` behaves, how modules merge across files, or how async tasks are scoped, the `/docs` folder is the canonical, evolving spec. Surge keeps its documentation close to the code so the philosophy and the mechanics stay in sync.
 
 ---
 
@@ -423,6 +471,44 @@ and the compiler is designed with strong correctness guarantees.
 But the journey is just beginning —
 and the main thing about this journey is that it's honest, open, and doesn't require you to be someone else.
 
+Expect rough edges, but also expect the compiler to own them. If something is missing, it will say so. If something is wrong, it will explain. Surge would rather be transparent and slightly unfinished than opaque and “done”.
+
 Write the code.
 Be yourself.
 Surge will back you up.
+
+# <a name="thanks-to-go"></a> 12. **✨ Thanks to Go**
+
+Surge owes a quiet but enormous debt to **Go**, and it deserves to be said explicitly.
+
+Go taught me that a programming language can be **simple without being simplistic**, clean without being sterile, and powerful without performing acrobatics. It showed that developer experience matters just as much as raw performance — and sometimes even more.
+
+Surge wouldn't look the way it does without Go’s influence:
+
+* **Goroutines** inspired the structured concurrency model.
+  Not by copying, but by understanding the value of lightweight, honest tasks.
+
+* **The Go toolchain** demonstrated what “one tool, many commands” can feel like.
+  No fragmented ecosystem, no guessing which binary to invoke.
+
+* **Cobra** gave Surge’s CLI the confidence and ergonomics it needed.
+  No hand-rolled parsers, no accidental complexity, no layers of ceremony.
+
+* **Go’s project layout** taught us that a filesystem can *be* a module system,
+  if the language is disciplined enough.
+
+* **The testing and benchmarking framework** reminded us that correctness and performance
+  should live right next to the code, not in a distant CI pipeline.
+
+* **Go’s fuzzing tools** helped find parser edge cases long before the language had a name.
+
+This isn’t about comparing languages or declaring spiritual successors.
+It’s about gratitude.
+
+Surge learns from Go the same way it learns from Rust and Python:
+by taking the things that make life better,
+and leaving behind everything that gets in the way of clarity.
+
+**So yes — thank you, Go.
+You helped shape Surge more than you know.**
+
