@@ -664,3 +664,36 @@ func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 		}
 	}
 }
+
+// trackTaskPassedAsArg marks a task as passed to a function as argument (ownership transfer).
+// When a Task<T> is passed as a function argument, ownership transfers to the callee,
+// who becomes responsible for awaiting the task.
+func (tc *typeChecker) trackTaskPassedAsArg(argExpr ast.ExprID) {
+	if tc.taskTracker == nil || !argExpr.IsValid() {
+		return
+	}
+
+	// Check if argument is Task<T> type
+	argType := tc.result.ExprTypes[argExpr]
+	if !tc.isTaskType(argType) {
+		return
+	}
+
+	expr := tc.builder.Exprs.Get(argExpr)
+	if expr == nil {
+		return
+	}
+
+	// Case 1: Direct spawn expression (foo(spawn compute()))
+	if expr.Kind == ast.ExprSpawn {
+		tc.taskTracker.MarkPassedByExpr(argExpr)
+		return
+	}
+
+	// Case 2: Variable reference (foo(task) where let task = spawn ...)
+	if expr.Kind == ast.ExprIdent {
+		if symID := tc.symbolForExpr(argExpr); symID.IsValid() {
+			tc.taskTracker.MarkPassed(symID)
+		}
+	}
+}

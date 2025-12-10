@@ -129,6 +129,17 @@ func (tt *TaskTracker) MarkReturnedByExpr(expr ast.ExprID) {
 	}
 }
 
+// MarkPassed marks a task as passed to another function (ownership transfer).
+// Semantically equivalent to MarkReturned - the callee is now responsible for awaiting.
+func (tt *TaskTracker) MarkPassed(binding symbols.SymbolID) {
+	tt.MarkReturned(binding)
+}
+
+// MarkPassedByExpr marks a task as passed using its spawn expression.
+func (tt *TaskTracker) MarkPassedByExpr(expr ast.ExprID) {
+	tt.MarkReturnedByExpr(expr)
+}
+
 // EndScope checks for task leaks when leaving a scope.
 // Returns all tasks that were spawned in this scope but not awaited or returned.
 func (tt *TaskTracker) EndScope(scope symbols.ScopeID) []TaskInfo {

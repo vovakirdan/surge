@@ -47,6 +47,7 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 			expr:      arg.Value,
 		})
 		tc.observeMove(arg.Value, tc.exprSpan(arg.Value))
+		tc.trackTaskPassedAsArg(arg.Value) // Track Task ownership transfer to callee
 	}
 	if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
 		if module := tc.moduleSymbolForExpr(member.Target); module != nil {
