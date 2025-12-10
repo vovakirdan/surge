@@ -620,6 +620,17 @@ func (tc *typeChecker) isUnionMember(expected, actual types.TypeID) bool {
 	if expected == types.NoTypeID || actual == types.NoTypeID || tc.types == nil {
 		return false
 	}
+
+	// Защита от бесконечной рекурсии при взаимно-рекурсивных типах
+	// (e.g., type A = union<Tag1<B>>, type B = union<Tag2<A>>)
+	key := assignabilityKey{Expected: expected, Actual: actual}
+	if tc.assignabilityInProgress != nil {
+		if _, inProgress := tc.assignabilityInProgress[key]; inProgress {
+			return false // Прерываем рекурсию
+		}
+		tc.assignabilityInProgress[key] = struct{}{}
+		defer delete(tc.assignabilityInProgress, key)
+	}
 	// Resolve aliases first
 	expectedResolved := tc.resolveAlias(expected)
 	actualResolved := tc.resolveAlias(actual)

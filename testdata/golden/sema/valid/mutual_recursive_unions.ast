@@ -1,0 +1,61 @@
+mutual_recursive_unions.sg (span: 4:1-19:1)
+├─ Item[0]: Tag (span: 4:1-4:16)
+│  ├─ Name: LeafA
+│  ├─ Visibility: private
+│  └─ Payload: int
+├─ Item[1]: Tag (span: 5:1-5:17)
+│  ├─ Name: NodeA
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Payload: T
+├─ Item[2]: Tag (span: 7:1-7:16)
+│  ├─ Name: LeafB
+│  ├─ Visibility: private
+│  └─ Payload: int
+├─ Item[3]: Tag (span: 8:1-8:17)
+│  ├─ Name: NodeB
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Payload: T
+├─ Item[4]: Type (span: 10:1-10:50)
+│  ├─ Name: TreeA
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  └─ Union:
+│     ├─ Member[0]: LeafA(int)
+│     ├─ Member[1]: NodeA(TreeB)
+│     └─ Member[2]: nothing
+├─ Item[5]: Type (span: 11:1-11:50)
+│  ├─ Name: TreeB
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  └─ Union:
+│     ├─ Member[0]: LeafB(int)
+│     ├─ Member[1]: NodeB(TreeA)
+│     └─ Member[2]: nothing
+└─ Item[6]: Fn (span: 13:1-18:2)
+   ├─ Name: test_mutual_unions
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 13:25-18:2)
+         ├─ Stmt[0]: Let (span: 14:5-14:29)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: TreeA
+         │  └─ Value: expr#3: LeafA(1)
+         ├─ Stmt[1]: Let (span: 15:5-15:29)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: TreeB
+         │  └─ Value: expr#6: LeafB(2)
+         ├─ Stmt[2]: Let (span: 16:5-16:34)
+         │  ├─ Name: empty_a
+         │  ├─ Mutable: false
+         │  ├─ Type: TreeA
+         │  └─ Value: expr#7: nothing
+         └─ Stmt[3]: Let (span: 17:5-17:34)
+            ├─ Name: empty_b
+            ├─ Mutable: false
+            ├─ Type: TreeB
+            └─ Value: expr#8: nothing
