@@ -1,4 +1,0 @@
-error SEM3005 testdata/golden/sema/invalid/concurrency/channel_blocking_nonblocking.sg:6:5 &Channel<int> has no method send
-error SEM3084 testdata/golden/sema/invalid/concurrency/channel_blocking_nonblocking.sg:6:5 @nonblocking function cannot call blocking method Channel.send
-error SEM3005 testdata/golden/sema/invalid/concurrency/channel_blocking_nonblocking.sg:12:13 &Channel<int> has no method recv
-error SEM3084 testdata/golden/sema/invalid/concurrency/channel_blocking_nonblocking.sg:12:13 @nonblocking function cannot call blocking method Channel.recv

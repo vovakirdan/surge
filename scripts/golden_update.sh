@@ -12,6 +12,9 @@ CORE_GOLDEN_DIR="${GOLDEN_DIR}/stdlib_core/core"
 # Always use local stdlib for golden tests, ignore any pre-existing SURGE_STDLIB
 export SURGE_STDLIB="${ROOT_DIR}"
 
+# Очищаем старые артефакты перед регенерацией, чтобы убрать лишние файлы
+find "${GOLDEN_DIR}" -type f ! -name '*.sg' -delete
+
 if [[ ! -x "${SURGE_BIN}" ]]; then
 	if command -v surge >/dev/null 2>&1; then
 		SURGE_BIN="$(command -v surge)"
@@ -26,6 +29,7 @@ generate_outputs() {
 	local out_dir="$2"
 	local is_invalid="$3"
 	local copy_src="${4:-0}"
+	local diag_path
 
 	local base name dir
 	base="$(basename "${src}")"
@@ -37,11 +41,17 @@ generate_outputs() {
 		cp "${src}" "${dir}/${base}"
 	fi
 
-	if ! "${SURGE_BIN}" diag --format short "${src}" > "${dir}/${name}.diag" 2>/dev/null; then
+	diag_path="${dir}/${name}.diag"
+	if ! "${SURGE_BIN}" diag --format short "${src}" > "${diag_path}" 2>/dev/null; then
 		if [[ "${is_invalid}" -eq 0 ]]; then
 			echo "diagnostics failed for valid case: ${src}" >&2
 			exit 1
 		fi
+	fi
+
+	if [[ "${is_invalid}" -eq 1 && ! -s "${diag_path}" ]]; then
+		echo "diagnostics missing for invalid case: ${src}" >&2
+		exit 1
 	fi
 
 	"${SURGE_BIN}" tokenize "${src}" > "${dir}/${name}.tokens" 2>/dev/null
@@ -76,8 +86,19 @@ done
 # Core stdlib files are validated via testdata/golden/stdlib_core/* instead
 # (direct diagnosis of core/* is forbidden due to reserved namespace)
 if [[ -d "${CORE_GOLDEN_DIR}" ]]; then
-	if ! "${SURGE_BIN}" diag --format short "${CORE_GOLDEN_DIR}" >/dev/null 2>&1; then
+	core_dir_diag="${CORE_GOLDEN_DIR}/core.diag"
+	if ! "${SURGE_BIN}" diag --format short "${CORE_GOLDEN_DIR}" > "${core_dir_diag}" 2>/dev/null; then
 		echo "stdlib_core/core diagnostics failed" >&2
 		exit 1
 	fi
+
+	find "${CORE_GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r -d '' src; do
+		dir="$(dirname "${src}")"
+		is_invalid=0
+		if [[ "${src}" == *"/invalid/"* ]]; then
+			is_invalid=1
+		fi
+
+		generate_outputs "${src}" "${dir}" "${is_invalid}" 0
+	done
 fi

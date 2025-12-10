@@ -1,8 +1,8 @@
   1: KwImport        "import" at 1:1-1:7
   2: Ident           "scripts" at 1:8-1:15 (leading: Space)
   3: Slash           "/" at 1:15-1:16
-  4: Ident           "foo" at 1:16-1:19
-  5: Semicolon       ";" at 1:19-1:20
+  4: Ident           "_foo" at 1:16-1:20
+  5: Semicolon       ";" at 1:20-1:21
   6: KwFn            "fn" at 3:1-3:3 (leading: Newline)
   7: Ident           "main" at 3:4-3:8 (leading: Space)
   8: LParen          "(" at 3:8-3:9

@@ -1,1 +1,0 @@
-error SEM3005 testdata/golden/sema/invalid/concurrency/channel_nosend_value.sg:10:5 &Channel<ThreadLocal> has no method send

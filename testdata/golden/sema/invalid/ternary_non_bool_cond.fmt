@@ -1,5 +1,0 @@
-// scenario: ternary with non-boolean condition
-fn bad_cond() -> int {
-    let x: int = 42;
-    return x ? 1 : 0;
-}

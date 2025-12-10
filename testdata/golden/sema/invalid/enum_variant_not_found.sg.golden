@@ -1,8 +1,0 @@
-testdata/golden/sema/invalid/enum_variant_not_found.sg:10:18: ERROR SEM3093: variant 'Yellow' not found in enum 'Color'
-...
-  8 | 
-  9 | fn test() {
- 10 |     let c: int = Color::Yellow;
-                       ~~~~~~~~~~~~^
- 11 | }
- 12 | 
