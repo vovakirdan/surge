@@ -1,0 +1,37 @@
+is_value_operand.sg (span: 4:1-17:1)
+├─ Item[0]: Fn (span: 4:1-9:2)
+│  ├─ Name: test_is_value
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:20-9:2)
+│        ├─ Stmt[0]: Let (span: 5:5-5:15)
+│        │  ├─ Name: x
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#1: 1
+│        └─ Stmt[1]: If (span: 6:5-8:6)
+│           ├─ Cond: expr#4: (x is 2)
+│           ├─ Then:
+Block (span: 6:15-8:6)
+│           │  └─ Stmt[0]: Return (span: 7:9-7:16)
+│           │     └─ Expr: <none>
+│           └─ Else: <none>
+└─ Item[1]: Fn (span: 11:1-16:2)
+   ├─ Name: test_is_string_literal
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:29-16:2)
+         ├─ Stmt[0]: Let (span: 12:5-12:21)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#5: "hello"
+         └─ Stmt[1]: If (span: 13:5-15:6)
+            ├─ Cond: expr#8: (x is "world")
+            ├─ Then:
+Block (span: 13:21-15:6)
+            │  └─ Stmt[0]: Return (span: 14:9-14:16)
+            │     └─ Expr: <none>
+            └─ Else: <none>

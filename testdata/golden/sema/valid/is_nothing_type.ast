@@ -1,0 +1,78 @@
+is_nothing_type.sg (span: 4:1-33:1)
+├─ Item[0]: Fn (span: 4:1-9:2)
+│  ├─ Name: test_is_nothing
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:22-9:2)
+│        ├─ Stmt[0]: Let (span: 5:5-5:21)
+│        │  ├─ Name: x
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#1: nothing
+│        └─ Stmt[1]: If (span: 6:5-8:6)
+│           ├─ Cond: expr#4: (x is nothing)
+│           ├─ Then:
+Block (span: 6:21-8:6)
+│           │  └─ Stmt[0]: Return (span: 7:9-7:16)
+│           │     └─ Expr: <none>
+│           └─ Else: <none>
+├─ Item[1]: Type (span: 11:1-11:26)
+│  ├─ Name: MyNothing
+│  ├─ Kind: Alias
+│  ├─ Visibility: private
+│  └─ Target: nothing
+├─ Item[2]: Fn (span: 13:1-18:2)
+│  ├─ Name: test_is_type_alias
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:25-18:2)
+│        ├─ Stmt[0]: Let (span: 14:5-14:32)
+│        │  ├─ Name: x
+│        │  ├─ Mutable: false
+│        │  ├─ Type: MyNothing
+│        │  └─ Value: expr#5: nothing
+│        └─ Stmt[1]: If (span: 15:5-17:6)
+│           ├─ Cond: expr#8: (x is MyNothing)
+│           ├─ Then:
+Block (span: 15:23-17:6)
+│           │  └─ Stmt[0]: Return (span: 16:9-16:16)
+│           │     └─ Expr: <none>
+│           └─ Else: <none>
+├─ Item[3]: Fn (span: 20:1-25:2)
+│  ├─ Name: test_is_with_parens
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 20:26-25:2)
+│        ├─ Stmt[0]: Let (span: 21:5-21:21)
+│        │  ├─ Name: x
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#9: nothing
+│        └─ Stmt[1]: If (span: 22:5-24:6)
+│           ├─ Cond: expr#12: (x is nothing)
+│           ├─ Then:
+Block (span: 22:23-24:6)
+│           │  └─ Stmt[0]: Return (span: 23:9-23:16)
+│           │     └─ Expr: <none>
+│           └─ Else: <none>
+└─ Item[4]: Fn (span: 27:1-32:2)
+   ├─ Name: test_is_builtin_types
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 27:28-32:2)
+         ├─ Stmt[0]: Let (span: 28:5-28:21)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#13: 42
+         └─ Stmt[1]: If (span: 29:5-31:6)
+            ├─ Cond: expr#16: (x is int)
+            ├─ Then:
+Block (span: 29:17-31:6)
+            │  └─ Stmt[0]: Return (span: 30:9-30:16)
+            │     └─ Expr: <none>
+            └─ Else: <none>

@@ -19,7 +19,9 @@ func (p *Parser) parseIdentOrStructLiteral() (ast.ExprID, bool) {
 		return ast.NoExprID, false
 	}
 	nameID := p.arenas.StringsInterner.Intern(tok.Text)
-	if tok.Kind == token.Ident && p.isTypeLiteralName(tok.Text) && p.at(token.LBrace) {
+	// Don't parse as struct literal in type operand context (e.g., 'x is MyType')
+	// to avoid treating 'MyType {' as struct literal when followed by if-block
+	if p.inTypeOperandContext == 0 && tok.Kind == token.Ident && p.isTypeLiteralName(tok.Text) && p.at(token.LBrace) {
 		segments := []ast.TypePathSegment{{
 			Name:     nameID,
 			Generics: nil,

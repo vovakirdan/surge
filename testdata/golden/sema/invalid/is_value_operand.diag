@@ -1,0 +1,2 @@
+error SEM3025 testdata/golden/sema/invalid/is_value_operand.sg:6:13 operator is requires a type operand
+error SEM3025 testdata/golden/sema/invalid/is_value_operand.sg:13:13 operator is requires a type operand

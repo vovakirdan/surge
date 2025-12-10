@@ -137,6 +137,13 @@ func (tc *typeChecker) resolveTypeOperand(exprID ast.ExprID, opLabel string) (ty
 				return tc.symbolType(symID), true
 			}
 		}
+	case ast.ExprLit:
+		// Handle 'nothing' literal as type operand
+		if lit, ok := tc.builder.Exprs.Literal(exprID); ok && lit != nil {
+			if lit.Kind == ast.ExprLitNothing {
+				return tc.types.Builtins().Nothing, true
+			}
+		}
 	default:
 		// fallthrough to error reporting
 	}
@@ -176,6 +183,13 @@ func (tc *typeChecker) tryResolveTypeOperand(exprID ast.ExprID) types.TypeID {
 			scope := tc.scopeOrFile(tc.currentScope())
 			if symID := tc.lookupTypeSymbol(ident.Name, scope); symID.IsValid() {
 				return tc.symbolType(symID)
+			}
+		}
+	case ast.ExprLit:
+		// Handle 'nothing' literal as type operand
+		if lit, ok := tc.builder.Exprs.Literal(exprID); ok && lit != nil {
+			if lit.Kind == ast.ExprLitNothing {
+				return tc.types.Builtins().Nothing
 			}
 		}
 	}

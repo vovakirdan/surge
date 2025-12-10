@@ -1,0 +1,16 @@
+// Test: 'is' operator requires type operand, not value
+// Should produce SEM3025 error
+
+fn test_is_value() {
+    let x = 1;
+    if x is 2 {
+        return;
+    }
+}
+
+fn test_is_string_literal() {
+    let x = "hello";
+    if x is "world" {
+        return;
+    }
+}

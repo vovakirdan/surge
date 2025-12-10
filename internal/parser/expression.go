@@ -75,8 +75,21 @@ func (p *Parser) parseBinaryExpr(minPrec int) (ast.ExprID, bool) {
 			nextMinPrec = prec
 		}
 
+		// For 'is' and 'heir' operators, the right operand is a type, not an expression.
+		// Set context flag to prevent struct literal parsing (e.g., 'x is MyType {' should not
+		// parse 'MyType {' as struct literal when followed by if-block).
+		isTypeOperator := opTok.Kind == token.KwIs || opTok.Kind == token.KwHeir
+		if isTypeOperator {
+			p.inTypeOperandContext++
+		}
+
 		// Парсим правую часть
 		right, ok := p.parseBinaryExpr(nextMinPrec)
+
+		if isTypeOperator {
+			p.inTypeOperandContext--
+		}
+
 		if !ok {
 			p.err(diag.SynExpectExpression, "expected expression after binary operator")
 			return ast.NoExprID, false
@@ -309,6 +322,10 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 			}
 			expr = newExpr
 		case token.LBrace:
+			// Don't parse as struct literal in type operand context (e.g., 'x is MyType')
+			if p.inTypeOperandContext > 0 {
+				return expr, true
+			}
 			if typeID, ok := p.typePathFromExpr(expr); ok {
 				typeSpan := p.arenas.Types.Get(typeID).Span
 				return p.parseStructLiteral(typeID, typeSpan)

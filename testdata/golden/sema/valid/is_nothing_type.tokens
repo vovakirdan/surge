@@ -1,0 +1,88 @@
+  1: KwFn            "fn" at 4:1-4:3 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "test_is_nothing" at 4:4-4:19 (leading: Space)
+  3: LParen          "(" at 4:19-4:20
+  4: RParen          ")" at 4:20-4:21
+  5: LBrace          "{" at 4:22-4:23 (leading: Space)
+  6: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+  7: Ident           "x" at 5:9-5:10 (leading: Space)
+  8: Assign          "=" at 5:11-5:12 (leading: Space)
+  9: NothingLit      "nothing" at 5:13-5:20 (leading: Space)
+ 10: Semicolon       ";" at 5:20-5:21
+ 11: KwIf            "if" at 6:5-6:7 (leading: Newline, Space)
+ 12: Ident           "x" at 6:8-6:9 (leading: Space)
+ 13: KwIs            "is" at 6:10-6:12 (leading: Space)
+ 14: NothingLit      "nothing" at 6:13-6:20 (leading: Space)
+ 15: LBrace          "{" at 6:21-6:22 (leading: Space)
+ 16: KwReturn        "return" at 7:9-7:15 (leading: Newline, Space)
+ 17: Semicolon       ";" at 7:15-7:16
+ 18: RBrace          "}" at 8:5-8:6 (leading: Newline, Space)
+ 19: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 20: KwType          "type" at 11:1-11:5 (leading: Newline)
+ 21: Ident           "MyNothing" at 11:6-11:15 (leading: Space)
+ 22: Assign          "=" at 11:16-11:17 (leading: Space)
+ 23: NothingLit      "nothing" at 11:18-11:25 (leading: Space)
+ 24: Semicolon       ";" at 11:25-11:26
+ 25: KwFn            "fn" at 13:1-13:3 (leading: Newline)
+ 26: Ident           "test_is_type_alias" at 13:4-13:22 (leading: Space)
+ 27: LParen          "(" at 13:22-13:23
+ 28: RParen          ")" at 13:23-13:24
+ 29: LBrace          "{" at 13:25-13:26 (leading: Space)
+ 30: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
+ 31: Ident           "x" at 14:9-14:10 (leading: Space)
+ 32: Colon           ":" at 14:10-14:11
+ 33: Ident           "MyNothing" at 14:12-14:21 (leading: Space)
+ 34: Assign          "=" at 14:22-14:23 (leading: Space)
+ 35: NothingLit      "nothing" at 14:24-14:31 (leading: Space)
+ 36: Semicolon       ";" at 14:31-14:32
+ 37: KwIf            "if" at 15:5-15:7 (leading: Newline, Space)
+ 38: Ident           "x" at 15:8-15:9 (leading: Space)
+ 39: KwIs            "is" at 15:10-15:12 (leading: Space)
+ 40: Ident           "MyNothing" at 15:13-15:22 (leading: Space)
+ 41: LBrace          "{" at 15:23-15:24 (leading: Space)
+ 42: KwReturn        "return" at 16:9-16:15 (leading: Newline, Space)
+ 43: Semicolon       ";" at 16:15-16:16
+ 44: RBrace          "}" at 17:5-17:6 (leading: Newline, Space)
+ 45: RBrace          "}" at 18:1-18:2 (leading: Newline)
+ 46: KwFn            "fn" at 20:1-20:3 (leading: Newline)
+ 47: Ident           "test_is_with_parens" at 20:4-20:23 (leading: Space)
+ 48: LParen          "(" at 20:23-20:24
+ 49: RParen          ")" at 20:24-20:25
+ 50: LBrace          "{" at 20:26-20:27 (leading: Space)
+ 51: KwLet           "let" at 21:5-21:8 (leading: Newline, Space)
+ 52: Ident           "x" at 21:9-21:10 (leading: Space)
+ 53: Assign          "=" at 21:11-21:12 (leading: Space)
+ 54: NothingLit      "nothing" at 21:13-21:20 (leading: Space)
+ 55: Semicolon       ";" at 21:20-21:21
+ 56: KwIf            "if" at 22:5-22:7 (leading: Newline, Space)
+ 57: LParen          "(" at 22:8-22:9 (leading: Space)
+ 58: Ident           "x" at 22:9-22:10
+ 59: KwIs            "is" at 22:11-22:13 (leading: Space)
+ 60: NothingLit      "nothing" at 22:14-22:21 (leading: Space)
+ 61: RParen          ")" at 22:21-22:22
+ 62: LBrace          "{" at 22:23-22:24 (leading: Space)
+ 63: KwReturn        "return" at 23:9-23:15 (leading: Newline, Space)
+ 64: Semicolon       ";" at 23:15-23:16
+ 65: RBrace          "}" at 24:5-24:6 (leading: Newline, Space)
+ 66: RBrace          "}" at 25:1-25:2 (leading: Newline)
+ 67: KwFn            "fn" at 27:1-27:3 (leading: Newline)
+ 68: Ident           "test_is_builtin_types" at 27:4-27:25 (leading: Space)
+ 69: LParen          "(" at 27:25-27:26
+ 70: RParen          ")" at 27:26-27:27
+ 71: LBrace          "{" at 27:28-27:29 (leading: Space)
+ 72: KwLet           "let" at 28:5-28:8 (leading: Newline, Space)
+ 73: Ident           "x" at 28:9-28:10 (leading: Space)
+ 74: Colon           ":" at 28:10-28:11
+ 75: Ident           "int" at 28:12-28:15 (leading: Space)
+ 76: Assign          "=" at 28:16-28:17 (leading: Space)
+ 77: IntLit          "42" at 28:18-28:20 (leading: Space)
+ 78: Semicolon       ";" at 28:20-28:21
+ 79: KwIf            "if" at 29:5-29:7 (leading: Newline, Space)
+ 80: Ident           "x" at 29:8-29:9 (leading: Space)
+ 81: KwIs            "is" at 29:10-29:12 (leading: Space)
+ 82: Ident           "int" at 29:13-29:16 (leading: Space)
+ 83: LBrace          "{" at 29:17-29:18 (leading: Space)
+ 84: KwReturn        "return" at 30:9-30:15 (leading: Newline, Space)
+ 85: Semicolon       ";" at 30:15-30:16
+ 86: RBrace          "}" at 31:5-31:6 (leading: Newline, Space)
+ 87: RBrace          "}" at 32:1-32:2 (leading: Newline)
+ 88: EOF             at 33:1-33:1

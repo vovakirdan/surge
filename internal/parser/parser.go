@@ -49,9 +49,12 @@ type Parser struct {
 	suspendColonCast int
 	// allowFatArrow tracks the nesting depth of constructs where fat arrows are valid (compare arms, parallel expressions).
 	allowFatArrow int
-	pragmaParsed  bool
-	tracer        trace.Tracer // трассировщик для отладки зависаний
-	exprDepth     int          // глубина рекурсии для выражений
+	// inTypeOperandContext > 0 indicates we're parsing a type operand (right side of 'is'/'heir').
+	// In this context, we should not parse 'TypeName {' as struct literal.
+	inTypeOperandContext int
+	pragmaParsed         bool
+	tracer               trace.Tracer // трассировщик для отладки зависаний
+	exprDepth            int          // глубина рекурсии для выражений
 }
 
 type DirectiveMode uint8
