@@ -342,7 +342,9 @@ extern<Semaphore> {
 }
 
 // Atomic operations for @atomic fields
-// These intrinsics provide thread-safe access to atomic fields
+// These intrinsics provide thread-safe access to atomic fields.
+// All operations use sequentially-consistent (SeqCst) memory ordering,
+// providing the strongest guarantees for cross-task visibility.
 
 // Atomic load - read a value atomically
 @intrinsic

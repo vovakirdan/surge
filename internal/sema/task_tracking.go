@@ -153,11 +153,12 @@ func (tt *TaskTracker) EndScope(scope symbols.ScopeID) []TaskInfo {
 }
 
 // GetTask retrieves task info by ID.
-func (tt *TaskTracker) GetTask(id uint32) *TaskInfo {
+// Returns a copy of the TaskInfo to avoid pointer invalidation if the tasks slice grows.
+func (tt *TaskTracker) GetTask(id uint32) (TaskInfo, bool) {
 	if id == 0 || int(id) >= len(tt.tasks) {
-		return nil
+		return TaskInfo{}, false
 	}
-	return &tt.tasks[id]
+	return tt.tasks[id], true
 }
 
 // HasTasks returns true if there are any tracked tasks.

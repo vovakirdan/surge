@@ -514,6 +514,15 @@ func (tc *typeChecker) checkSpawnSendability(symID symbols.SymbolID, span source
 
 // checkNestedNosend recursively checks struct fields for @nosend
 func (tc *typeChecker) checkNestedNosend(typeID types.TypeID, span source.Span) {
+	tc.checkNestedNosendWithVisited(typeID, span, make(map[types.TypeID]struct{}))
+}
+
+func (tc *typeChecker) checkNestedNosendWithVisited(typeID types.TypeID, span source.Span, visited map[types.TypeID]struct{}) {
+	if _, seen := visited[typeID]; seen {
+		return
+	}
+	visited[typeID] = struct{}{}
+
 	structInfo, ok := tc.types.StructInfo(typeID)
 	if !ok || structInfo == nil {
 		return
@@ -527,6 +536,8 @@ func (tc *typeChecker) checkNestedNosend(typeID types.TypeID, span source.Span) 
 			tc.report(diag.SemaNosendInSpawn, span,
 				"type '%s' contains @nosend field of type '%s'", typeName, fieldTypeName)
 		}
+		// Recurse into nested structs
+		tc.checkNestedNosendWithVisited(fieldType, span, visited)
 	}
 }
 
@@ -558,6 +569,15 @@ func (tc *typeChecker) checkChannelSendValue(valueExpr ast.ExprID, span source.S
 
 // checkNestedNosendForChannel recursively checks struct fields for @nosend when sending to channel.
 func (tc *typeChecker) checkNestedNosendForChannel(typeID types.TypeID, span source.Span) {
+	tc.checkNestedNosendForChannelWithVisited(typeID, span, make(map[types.TypeID]struct{}))
+}
+
+func (tc *typeChecker) checkNestedNosendForChannelWithVisited(typeID types.TypeID, span source.Span, visited map[types.TypeID]struct{}) {
+	if _, seen := visited[typeID]; seen {
+		return
+	}
+	visited[typeID] = struct{}{}
+
 	structInfo, ok := tc.types.StructInfo(typeID)
 	if !ok || structInfo == nil {
 		return
@@ -571,6 +591,8 @@ func (tc *typeChecker) checkNestedNosendForChannel(typeID types.TypeID, span sou
 			tc.report(diag.SemaChannelNosendValue, span,
 				"type '%s' contains @nosend field of type '%s'", typeName, fieldTypeName)
 		}
+		// Recurse into nested structs
+		tc.checkNestedNosendForChannelWithVisited(fieldType, span, visited)
 	}
 }
 

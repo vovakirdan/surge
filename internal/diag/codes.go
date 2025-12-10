@@ -398,6 +398,7 @@ var ( // todo расширить описания и использовать к
 		SemaSpawnNotTask:                 "spawn requires Task<T> expression",
 		SemaSendContainsNonsend:          "@send type contains non-sendable field",
 		SemaAtomicDirectAccess:           "@atomic field must be accessed via atomic operations",
+		SemaTypeParamShadow:              "type parameter shadows outer type parameter",
 		IOLoadFileError:                  "I/O load file error",
 		ProjInfo:                         "Project information",
 		ProjDuplicateModule:              "Duplicate module definition",
