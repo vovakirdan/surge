@@ -214,6 +214,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			} else {
 				targetType := tc.typeExpr(member.Target)
 				ty = tc.memberResultType(targetType, member.Field, expr.Span)
+				// Check @atomic field direct access (skip if this is operand of address-of)
+				_, isAddressOfOperand := tc.addressOfOperands[id]
+				tc.checkAtomicFieldDirectAccess(id, isAddressOfOperand, expr.Span)
 			}
 		}
 	case ast.ExprTupleIndex:

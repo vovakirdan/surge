@@ -1,0 +1,20 @@
+atomic_direct_read.sg (span: 3:1-11:1)
+├─ Item[0]: Type (span: 3:1-5:3)
+│  ├─ Name: Counter
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: value: int [@atomic]
+└─ Item[1]: Fn (span: 7:1-10:2)
+   ├─ Name: bad_read
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:26-10:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:43)
+         │  ├─ Name: c
+         │  ├─ Mutable: false
+         │  ├─ Type: Counter
+         │  └─ Value: expr#3: <ExprKind(18)>
+         └─ Stmt[1]: Return (span: 9:5-9:20)
+            └─ Expr: expr#5: c.value

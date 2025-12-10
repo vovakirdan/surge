@@ -340,3 +340,71 @@ extern<Semaphore> {
     @intrinsic pub fn release(self: &mut Semaphore) -> nothing;
     @intrinsic pub fn try_acquire(self: &mut Semaphore) -> bool;
 }
+
+// Atomic operations for @atomic fields
+// These intrinsics provide thread-safe access to atomic fields
+
+// Atomic load - read a value atomically
+@intrinsic
+pub fn atomic_load(ptr: *int) -> int;
+
+@intrinsic
+@overload
+pub fn atomic_load(ptr: *uint) -> uint;
+
+@intrinsic
+@overload
+pub fn atomic_load(ptr: *bool) -> bool;
+
+// Atomic store - write a value atomically
+@intrinsic
+pub fn atomic_store(ptr: *int, value: int) -> nothing;
+
+@intrinsic
+@overload
+pub fn atomic_store(ptr: *uint, value: uint) -> nothing;
+
+@intrinsic
+@overload
+pub fn atomic_store(ptr: *bool, value: bool) -> nothing;
+
+// Atomic exchange - atomically replace value and return old value
+@intrinsic
+pub fn atomic_exchange(ptr: *int, new_val: int) -> int;
+
+@intrinsic
+@overload
+pub fn atomic_exchange(ptr: *uint, new_val: uint) -> uint;
+
+@intrinsic
+@overload
+pub fn atomic_exchange(ptr: *bool, new_val: bool) -> bool;
+
+// Atomic compare and exchange - atomically compare and swap
+// Returns true if exchange succeeded (value was expected)
+@intrinsic
+pub fn atomic_compare_exchange(ptr: *int, expected: int, desired: int) -> bool;
+
+@intrinsic
+@overload
+pub fn atomic_compare_exchange(ptr: *uint, expected: uint, desired: uint) -> bool;
+
+@intrinsic
+@overload
+pub fn atomic_compare_exchange(ptr: *bool, expected: bool, desired: bool) -> bool;
+
+// Atomic fetch and add - atomically add to value and return old value
+@intrinsic
+pub fn atomic_fetch_add(ptr: *int, delta: int) -> int;
+
+@intrinsic
+@overload
+pub fn atomic_fetch_add(ptr: *uint, delta: uint) -> uint;
+
+// Atomic fetch and subtract - atomically subtract from value and return old value
+@intrinsic
+pub fn atomic_fetch_sub(ptr: *int, delta: int) -> int;
+
+@intrinsic
+@overload
+pub fn atomic_fetch_sub(ptr: *uint, delta: uint) -> uint;

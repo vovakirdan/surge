@@ -200,6 +200,10 @@ const (
 	// Generic type parameter errors (3112)
 	SemaTypeParamShadow Code = 3112 // Type parameter shadows outer type parameter in extern
 
+	// @send/@atomic validation (3113-3114)
+	SemaSendContainsNonsend Code = 3113 // @send type contains non-sendable field
+	SemaAtomicDirectAccess  Code = 3114 // @atomic field accessed without atomic operation
+
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
 
@@ -392,6 +396,8 @@ var ( // todo расширить описания и использовать к
 		SemaTaskLeakInAsync:              "unawaited task at async block exit",
 		SemaTaskLifetimeError:            "task outlives spawning scope",
 		SemaSpawnNotTask:                 "spawn requires Task<T> expression",
+		SemaSendContainsNonsend:          "@send type contains non-sendable field",
+		SemaAtomicDirectAccess:           "@atomic field must be accessed via atomic operations",
 		IOLoadFileError:                  "I/O load file error",
 		ProjInfo:                         "Project information",
 		ProjDuplicateModule:              "Duplicate module definition",

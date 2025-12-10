@@ -336,6 +336,88 @@ func (tc *typeChecker) validateTypeAttrs(typeItem *ast.TypeItem, typeID types.Ty
 
 	// Record for later lookup
 	tc.recordTypeAttrs(typeID, infos)
+
+	// Validate @send type field composition
+	tc.validateSendTypeFields(typeID, typeItem.Span)
+}
+
+// validateSendTypeFields checks that @send types only contain sendable fields
+func (tc *typeChecker) validateSendTypeFields(typeID types.TypeID, span source.Span) {
+	// Only validate types with @send attribute
+	if !tc.typeHasAttr(typeID, "send") {
+		return
+	}
+
+	structInfo, ok := tc.types.StructInfo(typeID)
+	if !ok || structInfo == nil {
+		return // Not a struct, nothing to validate
+	}
+
+	for i, field := range structInfo.Fields {
+		fieldType := tc.valueType(field.Type)
+
+		// Check if field is @atomic or @guarded_by (these are considered safe for @send)
+		if tc.fieldHasAttr(typeID, i, "atomic") || tc.fieldHasAttr(typeID, i, "guarded_by") {
+			continue
+		}
+
+		// Check if field type is sendable
+		if !tc.isSendableType(fieldType) {
+			fieldName := tc.lookupName(field.Name)
+			fieldTypeName := tc.typeLabel(fieldType)
+			tc.report(diag.SemaSendContainsNonsend, span,
+				"type marked as @send but field '%s' has non-sendable type '%s'",
+				fieldName, fieldTypeName)
+		}
+	}
+}
+
+// isSendableType checks if a type can be safely sent between tasks/threads
+func (tc *typeChecker) isSendableType(typeID types.TypeID) bool {
+	if typeID == types.NoTypeID {
+		return false
+	}
+
+	// Primitives are always sendable
+	typeName := tc.typeLabel(typeID)
+	switch typeName {
+	case "int", "uint", "float", "bool", "string", "nothing", "unit":
+		return true
+	}
+
+	// Check if type has @nosend - not sendable
+	if tc.typeHasAttr(typeID, "nosend") {
+		return false
+	}
+
+	// Check if type has @send - explicitly sendable
+	if tc.typeHasAttr(typeID, "send") {
+		return true
+	}
+
+	// Check pointer types - pointer to @nosend is not sendable
+	if t, ok := tc.types.Lookup(typeID); ok && t.Kind == types.KindPointer {
+		elemType := t.Elem
+		if tc.typeHasAttr(elemType, "nosend") {
+			return false
+		}
+		// Check if element type itself is sendable
+		return tc.isSendableType(elemType)
+	}
+
+	// Struct without @send/@nosend: check all fields recursively
+	structInfo, ok := tc.types.StructInfo(typeID)
+	if ok && structInfo != nil {
+		for _, field := range structInfo.Fields {
+			if !tc.isSendableType(tc.valueType(field.Type)) {
+				return false
+			}
+		}
+		return true
+	}
+
+	// Default: consider sendable (primitives, aliases to primitives, etc.)
+	return true
 }
 
 // recordFieldAttrs stores attributes for a field for later lookup
@@ -435,6 +517,68 @@ func (tc *typeChecker) validateFieldAttrs(field *ast.TypeStructField, ownerTypeI
 
 	// Record for later lookup
 	tc.recordFieldAttrs(ownerTypeID, fieldIndex, infos)
+}
+
+// checkAtomicFieldDirectAccess checks if an @atomic field is being accessed directly
+// (without using atomic intrinsics). Returns true if a violation was detected.
+// The isAddressOf parameter indicates if the parent expression is taking the address
+// of the field (which is allowed, as atomic intrinsics take pointers).
+func (tc *typeChecker) checkAtomicFieldDirectAccess(targetExpr ast.ExprID, isAddressOf bool, span source.Span) bool {
+	expr := tc.builder.Exprs.Get(targetExpr)
+	if expr == nil || expr.Kind != ast.ExprMember {
+		return false // Not a member access
+	}
+
+	// Get member access details
+	member, ok := tc.builder.Exprs.Member(targetExpr)
+	if !ok || member == nil {
+		return false
+	}
+
+	// Get the type of the base expression
+	baseType, ok := tc.result.ExprTypes[member.Target]
+	if !ok || baseType == types.NoTypeID {
+		return false
+	}
+
+	// Strip references to get the underlying struct type
+	baseType = tc.valueType(baseType)
+
+	// Get struct info to find field index
+	structInfo, ok := tc.types.StructInfo(baseType)
+	if !ok || structInfo == nil {
+		return false
+	}
+
+	// Find the field index by name
+	fieldIndex := -1
+	for i, field := range structInfo.Fields {
+		if field.Name == member.Field {
+			fieldIndex = i
+			break
+		}
+	}
+
+	if fieldIndex < 0 {
+		return false // Field not found
+	}
+
+	// Check if field has @atomic attribute
+	if !tc.fieldHasAttr(baseType, fieldIndex, "atomic") {
+		return false // Not atomic, normal access is fine
+	}
+
+	// Address-of on @atomic field is allowed (for use with atomic intrinsics)
+	if isAddressOf {
+		return false
+	}
+
+	// Direct access to @atomic field is forbidden
+	fieldName := tc.lookupName(member.Field)
+	tc.report(diag.SemaAtomicDirectAccess, span,
+		"@atomic field '%s' must be accessed via atomic operations (atomic_load, atomic_store, etc.)",
+		fieldName)
+	return true
 }
 
 // checkReadonlyFieldWrite checks if an expression is trying to write to a @readonly field

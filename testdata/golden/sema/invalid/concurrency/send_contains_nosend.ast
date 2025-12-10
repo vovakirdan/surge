@@ -1,0 +1,16 @@
+send_contains_nosend.sg (span: 3:1-11:1)
+├─ Item[0]: Type (span: 3:1-4:31)
+│  ├─ Name: FileHandle
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @nosend
+│  └─ Struct:
+│     └─ Field[0]: fd: int
+└─ Item[1]: Type (span: 6:1-10:3)
+   ├─ Name: BadSendType
+   ├─ Kind: Struct
+   ├─ Visibility: private
+   ├─ Attributes: @send
+   └─ Struct:
+      ├─ Field[0]: name: string
+      └─ Field[1]: handle: FileHandle

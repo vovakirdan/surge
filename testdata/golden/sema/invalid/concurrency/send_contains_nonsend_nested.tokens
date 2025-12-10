@@ -1,0 +1,33 @@
+  1: At              "@" at 3:1-3:2 (leading: LineComment, Newline)
+  2: Ident           "nosend" at 3:2-3:8
+  3: KwType          "type" at 4:1-4:5 (leading: Newline)
+  4: Ident           "Connection" at 4:6-4:16 (leading: Space)
+  5: Assign          "=" at 4:17-4:18 (leading: Space)
+  6: LBrace          "{" at 4:19-4:20 (leading: Space)
+  7: Ident           "socket" at 4:21-4:27 (leading: Space)
+  8: Colon           ":" at 4:27-4:28
+  9: Ident           "int" at 4:29-4:32 (leading: Space)
+ 10: RBrace          "}" at 4:33-4:34 (leading: Space)
+ 11: Semicolon       ";" at 4:34-4:35
+ 12: KwType          "type" at 6:1-6:5 (leading: Newline)
+ 13: Ident           "Client" at 6:6-6:12 (leading: Space)
+ 14: Assign          "=" at 6:13-6:14 (leading: Space)
+ 15: LBrace          "{" at 6:15-6:16 (leading: Space)
+ 16: Ident           "conn" at 6:17-6:21 (leading: Space)
+ 17: Colon           ":" at 6:21-6:22
+ 18: Ident           "Connection" at 6:23-6:33 (leading: Space)
+ 19: RBrace          "}" at 6:34-6:35 (leading: Space)
+ 20: Semicolon       ";" at 6:35-6:36
+ 21: At              "@" at 8:1-8:2 (leading: Newline)
+ 22: Ident           "send" at 8:2-8:6
+ 23: KwType          "type" at 9:1-9:5 (leading: Newline)
+ 24: Ident           "Service" at 9:6-9:13 (leading: Space)
+ 25: Assign          "=" at 9:14-9:15 (leading: Space)
+ 26: LBrace          "{" at 9:16-9:17 (leading: Space)
+ 27: Ident           "client" at 10:5-10:11 (leading: Newline, Space)
+ 28: Colon           ":" at 10:11-10:12
+ 29: Ident           "Client" at 10:13-10:19 (leading: Space)
+ 30: Comma           "," at 10:19-10:20
+ 31: RBrace          "}" at 11:1-11:2 (leading: Space, LineComment, Newline)
+ 32: Semicolon       ";" at 11:2-11:3
+ 33: EOF             at 12:1-12:1

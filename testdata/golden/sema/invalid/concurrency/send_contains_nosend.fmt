@@ -1,0 +1,10 @@
+// ERROR: @send type contains @nosend field
+
+@nosend
+type FileHandle = { fd: int };
+
+@send
+type BadSendType = {
+    name: string,
+    handle: FileHandle,  // ERROR: @nosend field in @send type
+};

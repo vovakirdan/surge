@@ -32,6 +32,13 @@ func (tc *typeChecker) literalType(kind ast.ExprLitKind) types.TypeID {
 }
 
 func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.ExprUnaryData) types.TypeID {
+	// Mark address-of operands for @atomic validation
+	if data.Op == ast.ExprUnaryRef || data.Op == ast.ExprUnaryRefMut {
+		if tc.addressOfOperands == nil {
+			tc.addressOfOperands = make(map[ast.ExprID]struct{})
+		}
+		tc.addressOfOperands[data.Operand] = struct{}{}
+	}
 	operandType := tc.typeExpr(data.Operand)
 	switch data.Op {
 	case ast.ExprUnaryRef, ast.ExprUnaryRefMut:

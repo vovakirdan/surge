@@ -1,0 +1,10 @@
+// ERROR: Direct write to @atomic field without atomic_store
+
+type Counter = {
+    @atomicvalue: int,
+};
+
+pub fn bad_write() -> nothing {
+    let mut c: Counter = Counter { value: 0 };
+    c.value = 42;  // ERROR: must use atomic_store
+}

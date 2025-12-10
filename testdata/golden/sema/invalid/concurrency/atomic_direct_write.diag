@@ -1,0 +1,1 @@
+error SEM3114 testdata/golden/sema/invalid/concurrency/atomic_direct_write.sg:9:5 @atomic field 'value' must be accessed via atomic operations (atomic_load, atomic_store, etc.)

@@ -1,0 +1,24 @@
+// Valid: @send type with only sendable fields
+
+@send
+type Message = {
+    id: int,
+    content: string,
+    timestamp: uint,
+};
+
+@send
+type SafeData = {
+    @atomiccount: int,    // @atomic fields are considered safe for @send
+    data: int,
+};
+
+// Test that primitives are sendable
+@send
+type AllPrimitives = {
+    a: int,
+    b: uint,
+    c: bool,
+    d: float,
+    e: string,
+};

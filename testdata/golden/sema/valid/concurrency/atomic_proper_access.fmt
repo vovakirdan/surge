@@ -1,0 +1,52 @@
+// Valid: @atomic field accessed via atomic intrinsics
+
+type Counter = {
+    @atomicvalue: int,
+    @atomicucount: uint,
+};
+
+pub fn proper_read() -> int {
+    let c: Counter = Counter { value: 42, ucount: 0 };
+    return atomic_load(&c.value);
+}
+
+pub fn proper_write() -> nothing {
+    let mut c: Counter = Counter { value: 0, ucount: 0 };
+    atomic_store(&mut c.value, 42);
+}
+
+pub fn proper_increment() -> int {
+    let mut c: Counter = Counter { value: 0, ucount: 0 };
+    return atomic_fetch_add(&mut c.value, 1);
+}
+
+pub fn proper_cas() -> bool {
+    let mut c: Counter = Counter { value: 0, ucount: 0 };
+    return atomic_compare_exchange(&mut c.value, 0, 1);
+}
+
+pub fn proper_exchange() -> int {
+    let mut c: Counter = Counter { value: 0, ucount: 0 };
+    return atomic_exchange(&mut c.value, 100);
+}
+
+pub fn proper_decrement() -> int {
+    let mut c: Counter = Counter { value: 10, ucount: 0 };
+    return atomic_fetch_sub(&mut c.value, 1);
+}
+
+// Test with uint type
+pub fn test_uint_atomic_read() -> uint {
+    let c: Counter = Counter { value: 0, ucount: 100 };
+    return atomic_load(&c.ucount);
+}
+
+pub fn test_uint_atomic_write() -> nothing {
+    let mut c: Counter = Counter { value: 0, ucount: 0 };
+    atomic_store(&mut c.ucount, 100);
+}
+
+pub fn test_uint_fetch_add() -> uint {
+    let mut c: Counter = Counter { value: 0, ucount: 0 };
+    return atomic_fetch_add(&mut c.ucount, 1);
+}
