@@ -1,0 +1,57 @@
+// some tests for block expressions
+
+fn test_block_expr() -> int {
+    return {
+        return 1;
+    };
+}
+
+fn test_block_expr_2() -> int {
+    let x: Option<int> = {
+        return Some(1);
+    };
+    let y: Option<int> = {
+        return nothing;
+    };
+    return x.safe();
+}
+
+fn test_block_expr_3() -> int {
+    let x: Erring<int, Error> = {
+        return Success(1);
+    };
+    return x.safe();
+}
+
+fn test_block_expr_4() -> int {
+    let x: int = {
+        let y: int = 1;
+        return {
+            let z: int = y + 1;
+            return z;
+        };
+    };
+    return x;
+}
+
+
+fn test_block_expr_5() -> bool {
+    let x: nothing = {
+        let _ = 1 + 1;
+    };
+    if !(x is int) {
+        return false;
+    }
+    return true;
+}
+
+tag Bar<T>(T);
+
+type Foo<T> = Bar(T) | int;
+
+fn test_block_expr_6() -> nothing {
+    let x: Foo<int> = {
+        return Bar(1);
+    };
+    return nothing;
+}
