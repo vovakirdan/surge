@@ -1,0 +1,17 @@
+struct_literal_return_generic_missing.sg (span: 2:1-10:1)
+├─ Item[0]: Type (span: 2:1-5:2)
+│  ├─ Name: Pair
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Generics: <T, U>
+│  └─ Struct:
+│     ├─ Field[0]: first: T
+│     └─ Field[1]: second: U
+└─ Item[1]: Fn (span: 7:1-9:2)
+   ├─ Name: test_generic_missing
+   ├─ Params: ()
+   ├─ Return: Pair<int, string>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:48-9:2)
+         └─ Stmt[0]: Return (span: 8:5-8:23)
+            └─ Expr: expr#3: <ExprKind(18)>

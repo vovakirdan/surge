@@ -1,1 +1,2 @@
-error SEM3007 testdata/golden/sema/invalid/entrypoint_intrinsic/only.sg:5:4 invalid intrinsic 'main': @intrinsic functions must be declared in module core
+error SEM3058 testdata/golden/sema/invalid/entrypoint_intrinsic/only.sg:5:4 @entrypoint function must have a body
+error SEM3059 testdata/golden/sema/invalid/entrypoint_intrinsic/only.sg:5:4 @entrypoint cannot be combined with @intrinsic

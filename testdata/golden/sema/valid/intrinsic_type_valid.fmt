@@ -1,0 +1,24 @@
+// scenario: @intrinsic types with valid bodies
+// @intrinsic types must have either:
+// 1. Empty struct body {}
+// 2. Only an __opaque field
+
+// Valid: empty body
+@intrinsic type EmptyIntrinsic = {};
+
+// Valid: only __opaque field
+@intrinsic type OpaqueIntrinsic = { __opaque: *byte };
+
+// Valid: generic with __opaque
+@intrinsic type TestChannel<T> = { __opaque: *byte };
+
+// Valid: multiple type params with __opaque
+@intrinsic type TestBiChannel<S, R> = { __opaque: *byte };
+
+// Non-intrinsic types can have any body
+type RegularType = { value: int, name: string };
+
+fn use_types() {
+    let regular: RegularType = { value: 42, name: "test" };
+    let _v: int = regular.value;
+}

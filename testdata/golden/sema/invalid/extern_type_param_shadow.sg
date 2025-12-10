@@ -1,0 +1,24 @@
+// Type parameter shadowing in extern blocks
+
+type Foo<T> = {};
+
+extern<Foo<T>> {
+    // error: T shadows outer T from extern block
+    fn bad<T>(t: T) -> Foo<T>;
+
+    // ok: U is a different name
+    fn ok<U>(u: U) -> Foo<U>;
+}
+
+type Pair<A, B> = { a: A, b: B };
+
+extern<Pair<A, B>> {
+    // error: A shadows outer A
+    fn shadow_a<A>(a: A) -> A;
+
+    // error: B shadows outer B
+    fn shadow_b<B>(b: B) -> B;
+
+    // ok: C is different
+    fn no_shadow<C>(c: C) -> C;
+}

@@ -1,8 +1,0 @@
-error SEM3050 testdata/golden/sema/valid/bool_condition_builtins.sg:12:9 type int has no method __bool() -> bool
-error SEM3050 testdata/golden/sema/valid/bool_condition_builtins.sg:13:9 type uint has no method __bool() -> bool
-error SEM3050 testdata/golden/sema/valid/bool_condition_builtins.sg:14:9 type float has no method __bool() -> bool
-error SEM3050 testdata/golden/sema/valid/bool_condition_builtins.sg:15:9 type string has no method __bool() -> bool
-error SEM3050 testdata/golden/sema/valid/bool_condition_builtins.sg:17:9 type nothing has no method __bool() -> bool
-error SEM3050 testdata/golden/sema/valid/bool_condition_builtins.sg:18:9 type int8 has no method __bool() -> bool
-error SEM3050 testdata/golden/sema/valid/bool_condition_builtins.sg:19:9 type uint16 has no method __bool() -> bool
-error SEM3050 testdata/golden/sema/valid/bool_condition_builtins.sg:20:9 type float32 has no method __bool() -> bool

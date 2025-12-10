@@ -1,5 +1,0 @@
-pragma module::bar;
-
-pub fn value() -> int {
-    return 1;
-}

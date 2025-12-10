@@ -115,6 +115,14 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			if member, okMem := tc.builder.Exprs.Member(call.Target); okMem && member != nil {
 				if tc.moduleSymbolForExpr(member.Target) == nil {
 					receiverType, receiverIsType := tc.memberReceiverType(member.Target)
+					// For static method calls with type args (e.g., Type::<int>::method()),
+					// instantiate the receiver type with the call's type arguments
+					if receiverIsType && len(call.TypeArgs) > 0 {
+						typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)
+						if instantiated := tc.instantiateGenericType(receiverType, typeArgs); instantiated != types.NoTypeID {
+							receiverType = instantiated
+						}
+					}
 					if !receiverIsType && tc.lookupName(member.Field) == "await" {
 						if tc.awaitDepth == 0 {
 							tc.report(diag.SemaIntrinsicBadContext, expr.Span, "await can only be used in async context")
@@ -122,6 +130,16 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 						if receiverType != types.NoTypeID && !tc.isTaskType(receiverType) {
 							tc.report(diag.SemaTypeMismatch, expr.Span, "await expects Task<T>, got %s", tc.typeLabel(receiverType))
 						}
+						// Track await for structured concurrency
+						if tc.taskTracker != nil {
+							tc.trackTaskAwait(member.Target)
+						}
+					}
+					// Check channel send for @nosend values
+					methodName := tc.lookupName(member.Field)
+					if !receiverIsType && tc.isChannelType(receiverType) &&
+						(methodName == "send" || methodName == "try_send") && len(call.Args) > 0 {
+						tc.checkChannelSendValue(call.Args[0].Value, expr.Span)
 					}
 					argTypes := make([]types.TypeID, 0, len(call.Args))
 					for _, arg := range call.Args {
@@ -196,6 +214,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			} else {
 				targetType := tc.typeExpr(member.Target)
 				ty = tc.memberResultType(targetType, member.Field, expr.Span)
+				// Check @atomic field direct access (skip if this is operand of address-of)
+				_, isAddressOfOperand := tc.addressOfOperands[id]
+				tc.checkAtomicFieldDirectAccess(id, isAddressOfOperand, expr.Span)
 			}
 		}
 	case ast.ExprTupleIndex:
@@ -290,7 +311,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			var returns []types.TypeID
 			tc.pushReturnContext(types.NoTypeID, expr.Span, &returns)
 			tc.awaitDepth++
+			tc.asyncBlockDepth++
 			tc.walkStmt(asyncData.Body)
+			tc.asyncBlockDepth--
 			tc.awaitDepth--
 			tc.popReturnContext()
 			payload := tc.types.Builtins().Nothing
@@ -313,10 +336,30 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprSpawn:
 		if spawn, ok := tc.builder.Exprs.Spawn(id); ok && spawn != nil {
-			payload := tc.typeExpr(spawn.Value)
+			exprType := tc.typeExpr(spawn.Value)
 			tc.observeMove(spawn.Value, tc.exprSpan(spawn.Value))
 			tc.enforceSpawn(spawn.Value)
-			ty = tc.taskType(payload, expr.Span)
+
+			// spawn requires Task<T> — passthrough without re-wrapping
+			if tc.isTaskType(exprType) {
+				ty = exprType
+				// Warn if spawning checkpoint() - it has no useful effect
+				if tc.isCheckpointCall(spawn.Value) {
+					tc.warn(diag.SemaSpawnCheckpointUseless, expr.Span,
+						"spawn checkpoint() has no effect; use checkpoint().await() or ignore the result")
+				}
+			} else if exprType != types.NoTypeID {
+				tc.report(diag.SemaSpawnNotTask, expr.Span,
+					"spawn requires async function call or Task<T> expression, got %s",
+					tc.typeLabel(exprType))
+				ty = types.NoTypeID
+			}
+
+			// Track spawned task for structured concurrency
+			if tc.taskTracker != nil && ty != types.NoTypeID {
+				inAsyncBlock := tc.asyncBlockDepth > 0
+				tc.taskTracker.SpawnTask(id, expr.Span, tc.currentScope(), inAsyncBlock)
+			}
 		}
 	case ast.ExprSpread:
 		if spread, ok := tc.builder.Exprs.Spread(id); ok && spread != nil {
@@ -329,11 +372,19 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			}
 			if data.Type.IsValid() {
 				scope := tc.scopeOrFile(tc.currentScope())
-				ty = tc.resolveTypeExprWithScope(data.Type, scope)
-				if ty != types.NoTypeID {
-					tc.validateStructLiteralFields(ty, data, expr.Span)
+				if inferred, handled := tc.inferStructLiteralType(data, scope, expr.Span); handled {
+					ty = inferred
+				} else {
+					ty = tc.resolveTypeExprWithScope(data.Type, scope)
+					if ty != types.NoTypeID {
+						tc.validateStructLiteralFields(ty, data, expr.Span)
+					}
 				}
 			}
+		}
+	case ast.ExprBlock:
+		if block, ok := tc.builder.Exprs.Block(id); ok && block != nil {
+			ty = tc.typeBlockExpr(block)
 		}
 	default:
 		// ExprIdent and other unhandled kinds default to unknown.

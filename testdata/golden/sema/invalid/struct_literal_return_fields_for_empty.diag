@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/struct_literal_return_fields_for_empty.sg:5:12 Empty literal expects 0 fields, got 2

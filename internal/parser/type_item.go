@@ -420,7 +420,7 @@ func (p *Parser) parseUnionMember() (ast.TypeUnionMemberSpec, source.Span, bool)
 	if p.at(token.NothingLit) {
 		tok := p.advance()
 		typeID := p.makeNothingType(tok.Span)
-		return ast.TypeUnionMemberSpec{Kind: ast.TypeUnionMemberType, Type: typeID, Span: tok.Span}, tok.Span, true
+		return ast.TypeUnionMemberSpec{Kind: ast.TypeUnionMemberNothing, Type: typeID, Span: tok.Span}, tok.Span, true
 	}
 
 	typeID, ok := p.parseTypePrefix()

@@ -89,6 +89,29 @@ is_text_file() {
     return 0
 }
 
+# count_effective_lines считает строки для оценки:
+# - для go-тестов исключает пустые строки и строки-комментарии, начинающиеся с //
+# - для остальных файлов использует обычный подсчет строк
+count_effective_lines() {
+    local file=$1
+    local ext="${file##*.}"
+
+    if [[ "$ext" = "go" ]]; then
+        # Для go-файлов считаем только строки с кодом (без пустых и чисто //)
+        local count=$(awk '
+            /^[[:space:]]*$/ {next}
+            /^[[:space:]]*\/\// {next}
+            {c++}
+            END {print c+0}
+        ' "$file" 2>/dev/null)
+        echo "${count:-0}"
+    else
+        # Используем awk, чтобы учитывать последнюю строку без завершающего \n
+        local lines=$(awk 'END {print NR+0}' "$file" 2>/dev/null)
+        echo "${lines:-0}"
+    fi
+}
+
 # check_directory scans a directory recursively, filters files by configured extensions and test-file settings, counts lines for each text file, prints a per-file rating and aggregated statistics, and exits with code 0 unless the percentage of good files (OK or ACCEPTABLE) is below 60% (then exits 1).
 check_directory() {
     local dir=${1:-.}
@@ -113,8 +136,8 @@ check_directory() {
             
             # Проверяем, что это текстовый файл
             if is_text_file "$file"; then
-                local lines=$(wc -l < "$file" 2>/dev/null)
-                if [ $? -eq 0 ] && [ $lines -gt 0 ]; then
+                local lines=$(count_effective_lines "$file")
+                if [ -n "$lines" ] && [ "$lines" -gt 0 ]; then
                     local rating=$(get_file_rating $lines "$file")
                     printf "%-50s %-8d %s\n" "$file" "$lines" "$rating"
                     

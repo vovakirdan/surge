@@ -134,6 +134,23 @@ func (fr *fileResolver) declareType(itemID ast.ItemID, typeItem *ast.TypeItem) {
 	isPublic := typeItem.Visibility == ast.VisPublic
 	hidden, hiddenSpan := fr.hasHiddenAttr(typeItem.AttrStart, typeItem.AttrCount)
 	flags := fr.applyVisibilityFlags(0, isPublic, hidden, hiddenSpan, typeItem.Span)
+
+	// Check for @intrinsic attribute on types
+	if hasIntrinsic := fr.hasIntrinsicAttr(typeItem.AttrStart, typeItem.AttrCount); hasIntrinsic {
+		if !fr.moduleAllowsIntrinsic() {
+			span := preferSpan(typeItem.TypeKeywordSpan, typeItem.Span)
+			fr.reportIntrinsicError(typeItem.Name, span, diag.SemaIntrinsicBadContext, "@intrinsic types must be declared in core or stdlib module")
+			return
+		}
+		// Validate: @intrinsic type must be empty struct or have only __opaque field
+		if !fr.isValidIntrinsicType(typeItem) {
+			span := preferSpan(typeItem.TypeKeywordSpan, typeItem.Span)
+			fr.reportIntrinsicError(typeItem.Name, span, diag.SemaIntrinsicHasBody, "@intrinsic type must be empty or have only '__opaque' field")
+			return
+		}
+		flags |= SymbolFlagBuiltin
+	}
+
 	decl := SymbolDecl{
 		SourceFile: fr.sourceFile,
 		ASTFile:    fr.fileID,
@@ -149,6 +166,56 @@ func (fr *fileResolver) declareType(itemID ast.ItemID, typeItem *ast.TypeItem) {
 		}
 		fr.appendItemSymbol(itemID, symID)
 	}
+}
+
+// hasIntrinsicAttr checks if the given attribute list contains @intrinsic.
+func (fr *fileResolver) hasIntrinsicAttr(start ast.AttrID, count uint32) bool {
+	if count == 0 || !start.IsValid() {
+		return false
+	}
+	attrs := fr.builder.Items.CollectAttrs(start, count)
+	for _, attr := range attrs {
+		name, ok := fr.builder.StringsInterner.Lookup(attr.Name)
+		if !ok {
+			continue
+		}
+		if name == "intrinsic" {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidIntrinsicType checks if the type is valid for @intrinsic:
+// - Empty struct, OR
+// - Struct with only __opaque field
+func (fr *fileResolver) isValidIntrinsicType(typeItem *ast.TypeItem) bool {
+	if typeItem == nil {
+		return false
+	}
+	// Only struct types can be @intrinsic
+	if typeItem.Kind != ast.TypeDeclStruct {
+		return false
+	}
+	structDecl := fr.builder.Items.TypeStruct(typeItem)
+	if structDecl == nil {
+		return false
+	}
+	// Empty struct is valid
+	if structDecl.FieldsCount == 0 {
+		return true
+	}
+	// Single field must be named __opaque
+	if structDecl.FieldsCount == 1 {
+		field := fr.builder.Items.StructField(structDecl.FieldsStart)
+		if field != nil {
+			fieldName, ok := fr.builder.StringsInterner.Lookup(field.Name)
+			if ok && fieldName == "__opaque" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (fr *fileResolver) declareContract(itemID ast.ItemID, contractItem *ast.ContractDecl) {
@@ -424,11 +491,6 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 		}
 		if fnItem.Body.IsValid() {
 			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicHasBody, "@intrinsic declarations cannot have a body")
-			return NoSymbolID, false
-		}
-		if !fr.intrinsicNameAllowed(fnItem.Name) {
-			msg := fmt.Sprintf("unknown intrinsic; allowed names: %s", intrinsicAllowedNamesDisplay)
-			fr.reportIntrinsicError(fnItem.Name, span, diag.SemaIntrinsicBadName, msg)
 			return NoSymbolID, false
 		}
 		flags |= SymbolFlagBuiltin

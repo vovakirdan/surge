@@ -71,121 +71,50 @@ func (tc *typeChecker) unionTagPayloadTypes(subject types.TypeID, tag source.Str
 	return nil
 }
 
-// checkCompareExhausiveness validates that all variants of tagged unions are covered
+// checkCompareExhausiveness validates that all variants of unions are covered
 func (tc *typeChecker) checkCompareExhausiveness(cmp *ast.ExprCompareData, subjectType types.TypeID, span source.Span) {
 	if cmp == nil || tc.types == nil {
 		return
 	}
 
-	// Enable exhaustiveness checking for Erring<T, E>
-	// The new model has only one generic tag Success<T>, so exhaustiveness should work properly
-
-	// Only check exhaustiveness for tagged unions
+	// Get union info - skip non-unions
 	normalized := tc.resolveAlias(subjectType)
 	unionInfo, ok := tc.types.UnionInfo(normalized)
-	if !ok || unionInfo == nil {
+	if !ok || unionInfo == nil || len(unionInfo.Members) == 0 {
 		return
 	}
 
-	// Collect all tagged variants from the union
-	allTags := make(map[source.StringID]bool)
-	hasOnlyTags := true
-	for _, member := range unionInfo.Members {
-		if member.Kind == types.UnionMemberTag {
-			allTags[member.TagName] = true
-		} else {
-			hasOnlyTags = false
-		}
-	}
-
-	// Only check exhaustiveness for unions that contain only tags
-	if !hasOnlyTags || len(allTags) == 0 {
-		return
-	}
-
-	// Collect covered patterns and check for finally/wildcard
-	coveredTags := make(map[source.StringID]bool)
+	// Track remaining members through all arms
+	remaining := tc.unionMembers(subjectType)
 	hasFinally := false
-	hasWildcard := false
 
 	for _, arm := range cmp.Arms {
 		if arm.IsFinally {
 			hasFinally = true
-			continue
+			remaining = nil
+			break
 		}
-
-		if tc.isWildcardPattern(arm.Pattern) {
-			hasWildcard = true
-			continue
-		}
-
-		if tagName := tc.extractTagPattern(arm.Pattern); tagName != source.NoStringID {
-			coveredTags[tagName] = true
-		}
-	}
-
-	// Find missing tags
-	var missingTags []source.StringID
-	for tagName := range allTags {
-		if !coveredTags[tagName] {
-			missingTags = append(missingTags, tagName)
-		}
-	}
-
-	// Debug: log what we found
-	if tc.reporter != nil && len(allTags) > 0 {
-		var allTagNames, coveredTagNames []string
-		for tag := range allTags {
-			allTagNames = append(allTagNames, tc.lookupName(tag))
-		}
-		for tag := range coveredTags {
-			coveredTagNames = append(coveredTagNames, tc.lookupName(tag))
-		}
-		// This debug info would go in logs if we had them
-		_ = allTagNames
-		_ = coveredTagNames
+		remaining = tc.consumeCompareMembers(remaining, arm)
 	}
 
 	// Check for non-exhaustive match
-	if len(missingTags) > 0 && !hasFinally && !hasWildcard {
-		tc.emitNonExhaustiveMatch(span, missingTags)
+	if len(remaining) > 0 && !hasFinally {
+		tc.emitNonExhaustiveMatchForMembers(span, remaining)
 	}
 
-	// Check for redundant finally or wildcard
-	if len(missingTags) == 0 && hasFinally {
-		tc.emitRedundantFinally(span)
-	}
-}
-
-// extractTagPattern attempts to extract a tag name from a pattern expression
-func (tc *typeChecker) extractTagPattern(pattern ast.ExprID) source.StringID {
-	if !pattern.IsValid() || tc.builder == nil {
-		return source.NoStringID
-	}
-
-	expr := tc.builder.Exprs.Get(pattern)
-	if expr == nil {
-		return source.NoStringID
-	}
-
-	switch expr.Kind {
-	case ast.ExprIdent:
-		if ident, ok := tc.builder.Exprs.Ident(pattern); ok && ident != nil {
-			// Check if this identifier resolves to a tag constructor
-			if tc.isTagConstructor(ident.Name) {
-				return ident.Name
+	// Check for redundant finally (all members already matched before finally)
+	if hasFinally {
+		remainingWithoutFinally := tc.unionMembers(subjectType)
+		for _, arm := range cmp.Arms {
+			if arm.IsFinally {
+				break
 			}
+			remainingWithoutFinally = tc.consumeCompareMembers(remainingWithoutFinally, arm)
 		}
-	case ast.ExprCall:
-		if call, ok := tc.builder.Exprs.Call(pattern); ok && call != nil {
-			if ident, ok := tc.builder.Exprs.Ident(call.Target); ok && ident != nil {
-				// This handles patterns like Ok(v), Err(_), etc.
-				return ident.Name
-			}
+		if len(remainingWithoutFinally) == 0 {
+			tc.emitRedundantFinally(span)
 		}
 	}
-
-	return source.NoStringID
 }
 
 // isWildcardPattern checks if the pattern is a wildcard that matches everything
@@ -226,23 +155,63 @@ func (tc *typeChecker) isTagConstructor(name source.StringID) bool {
 		}
 	}
 
-	// For now, also accept any valid name as potentially being a tag
-	// This is a fallback for cases where symbol resolution isn't complete
-	return true
+	return false
 }
 
-// emitNonExhaustiveMatch reports a diagnostic for missing patterns
-func (tc *typeChecker) emitNonExhaustiveMatch(span source.Span, missingTags []source.StringID) {
-	if tc.reporter == nil || len(missingTags) == 0 {
+// isNamedBindingPattern checks if the pattern is a named binding (catches all remaining members)
+func (tc *typeChecker) isNamedBindingPattern(pattern ast.ExprID) bool {
+	if !pattern.IsValid() || tc.builder == nil {
+		return false
+	}
+
+	expr := tc.builder.Exprs.Get(pattern)
+	if expr == nil || expr.Kind != ast.ExprIdent {
+		return false
+	}
+
+	ident, ok := tc.builder.Exprs.Ident(pattern)
+	if !ok || ident == nil {
+		return false
+	}
+
+	name := tc.lookupName(ident.Name)
+	if name == "_" {
+		return false // wildcard handled separately
+	}
+	if name == "nothing" {
+		return false // nothing literal handled separately
+	}
+
+	return !tc.isTagConstructor(ident.Name)
+}
+
+// emitNonExhaustiveMatchForMembers reports a diagnostic for uncovered union members (tags, types, or nothing)
+func (tc *typeChecker) emitNonExhaustiveMatchForMembers(span source.Span, missing []types.UnionMember) {
+	if tc.reporter == nil || len(missing) == 0 {
 		return
 	}
 
-	tagNames := make([]string, 0, len(missingTags))
-	for _, tag := range missingTags {
-		tagNames = append(tagNames, tc.lookupName(tag))
+	var parts []string
+	for _, member := range missing {
+		switch member.Kind {
+		case types.UnionMemberTag:
+			tagName := tc.lookupName(member.TagName)
+			if tagName != "" {
+				parts = append(parts, tagName)
+			}
+		case types.UnionMemberType:
+			typeName := tc.typeLabel(member.Type)
+			parts = append(parts, fmt.Sprintf("type %s", typeName))
+		case types.UnionMemberNothing:
+			parts = append(parts, "nothing")
+		}
 	}
 
-	message := fmt.Sprintf("non-exhaustive pattern match: missing patterns for %s", strings.Join(tagNames, ", "))
+	if len(parts) == 0 {
+		return
+	}
+
+	message := fmt.Sprintf("non-exhaustive pattern match: missing patterns for %s", strings.Join(parts, ", "))
 
 	if b := diag.ReportError(tc.reporter, diag.SemaNonexhaustiveMatch, span, message); b != nil {
 		b.WithNote(span, "consider adding patterns for the missing variants or a 'finally' clause")
@@ -318,7 +287,8 @@ func (tc *typeChecker) matchedUnionMembers(pattern ast.ExprID, members []types.U
 	if len(members) == 0 {
 		return nil
 	}
-	if isFinally || tc.isWildcardPattern(pattern) {
+	// Wildcards, finally, and named bindings all match everything remaining
+	if isFinally || tc.isWildcardPattern(pattern) || tc.isNamedBindingPattern(pattern) {
 		indexes := make([]int, 0, len(members))
 		for i := range members {
 			indexes = append(indexes, i)
@@ -343,6 +313,10 @@ func (tc *typeChecker) matchedUnionMembers(pattern ast.ExprID, members []types.U
 		}
 	case ast.ExprIdent:
 		if ident, ok := tc.builder.Exprs.Ident(pattern); ok && ident != nil {
+			// Check for "nothing" identifier (matches nothing member)
+			if tc.lookupName(ident.Name) == "nothing" {
+				return tc.matchUnionNothingMembers(members)
+			}
 			if idxs := tc.matchUnionTagMembers(ident.Name, members); len(idxs) > 0 {
 				return idxs
 			}

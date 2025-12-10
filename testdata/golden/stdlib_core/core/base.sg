@@ -75,3 +75,7 @@ pub fn print(s: string) -> nothing {
     let newline = "\n";
     rt_write_stdout(rt_string_ptr(newline), 1:uint);
 }
+
+pub fn len<T: HasLength<T>>(self: &T) -> uint {
+    return self.__len();
+}

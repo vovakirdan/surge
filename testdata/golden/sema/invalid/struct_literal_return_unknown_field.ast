@@ -1,0 +1,15 @@
+struct_literal_return_unknown_field.sg (span: 2:1-9:1)
+├─ Item[0]: Type (span: 2:1-4:2)
+│  ├─ Name: Bar
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: value: int
+└─ Item[1]: Fn (span: 6:1-8:2)
+   ├─ Name: test_unknown_field
+   ├─ Params: ()
+   ├─ Return: Bar
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:32-8:2)
+         └─ Stmt[0]: Return (span: 7:5-7:45)
+            └─ Expr: expr#5: <ExprKind(18)>

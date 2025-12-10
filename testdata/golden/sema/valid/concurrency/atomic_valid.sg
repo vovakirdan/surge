@@ -1,4 +1,5 @@
 // Valid @atomic field usage with int, uint, bool, and pointer types
+// @atomic fields must be accessed via atomic intrinsics
 
 type AtomicCounter = {
     @atomic count: int,
@@ -10,9 +11,34 @@ type AtomicPointer = {
     @atomic ptr: *int,
 }
 
-pub fn test_atomic_int() -> nothing {
+pub fn test_atomic_store() -> nothing {
     let mut a: AtomicCounter = AtomicCounter { count: 0, flags: 0, active: false };
-    a.count = 1;
-    a.flags = 255;
-    a.active = true;
+    // Use atomic_store to write to @atomic fields
+    atomic_store(&mut a.count, 1);
+    atomic_store(&mut a.flags, 255);
+    atomic_store(&mut a.active, true);
+}
+
+pub fn test_atomic_load() -> int {
+    let a: AtomicCounter = AtomicCounter { count: 42, flags: 0, active: false };
+    // Use atomic_load to read from @atomic fields
+    return atomic_load(&a.count);
+}
+
+pub fn test_atomic_fetch_add() -> int {
+    let mut a: AtomicCounter = AtomicCounter { count: 0, flags: 0, active: false };
+    // Use atomic_fetch_add for atomic increment
+    return atomic_fetch_add(&mut a.count, 1);
+}
+
+pub fn test_atomic_compare_exchange() -> bool {
+    let mut a: AtomicCounter = AtomicCounter { count: 0, flags: 0, active: false };
+    // Use atomic_compare_exchange for CAS
+    return atomic_compare_exchange(&mut a.count, 0, 1);
+}
+
+pub fn test_atomic_exchange() -> int {
+    let mut a: AtomicCounter = AtomicCounter { count: 0, flags: 0, active: false };
+    // Use atomic_exchange to atomically swap values
+    return atomic_exchange(&mut a.count, 42);
 }

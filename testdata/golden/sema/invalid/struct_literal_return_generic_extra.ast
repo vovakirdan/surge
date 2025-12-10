@@ -1,0 +1,16 @@
+struct_literal_return_generic_extra.sg (span: 2:1-9:1)
+├─ Item[0]: Type (span: 2:1-4:2)
+│  ├─ Name: Box
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Struct:
+│     └─ Field[0]: value: T
+└─ Item[1]: Fn (span: 6:1-8:2)
+   ├─ Name: test_generic_extra
+   ├─ Params: ()
+   ├─ Return: Box<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:37-8:2)
+         └─ Stmt[0]: Return (span: 7:5-7:22)
+            └─ Expr: expr#4: <ExprKind(18)>

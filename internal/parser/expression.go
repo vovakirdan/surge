@@ -256,8 +256,12 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 					return ast.NoExprID, false
 				}
 				pendingTypeArgs = typeArgs
-				if !p.at(token.LParen) {
-					p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, p.currentErrorSpan(), "expected '(' after type arguments", nil)
+				// After type args, we can have:
+				// - '(' for function call: Type::<int>(args)
+				// - '::' for static member access: Type::<int>::new()
+				// - '{' for struct literal: Type::<int>{ fields }
+				if !p.at(token.LParen) && !p.at(token.ColonColon) && !p.at(token.LBrace) {
+					p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, p.currentErrorSpan(), "expected '(', '::' or '{' after type arguments", nil)
 					return ast.NoExprID, false
 				}
 			case token.Ident:
@@ -481,7 +485,7 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 		return p.parseAsyncExpr()
 
 	case token.LBrace:
-		return p.parseStructLiteral(ast.NoTypeID, source.Span{})
+		return p.parseBraceExpr()
 
 	default:
 		// договоримся, что обрабатываем все ошибки до этого момента

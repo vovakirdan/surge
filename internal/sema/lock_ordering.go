@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"sort"
+
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -77,14 +79,17 @@ func (g *LockOrderGraph) DetectCycles() []LockCycle {
 	dfs = func(node LockIdentity) {
 		state[node] = 1 // Mark as in-path
 
-		for neighbor := range g.edges[node] {
-			if state[neighbor] == 1 {
+		for _, neighbor := range g.sortedNeighbors(node) {
+			switch state[neighbor] {
+			case 1:
 				// Found a back edge -> cycle detected
 				cycle := g.reconstructCycle(node, neighbor, parent)
 				cycles = append(cycles, cycle)
-			} else if state[neighbor] == 0 {
+			case 0:
 				parent[neighbor] = node
 				dfs(neighbor)
+			default:
+				// already visited
 			}
 		}
 
@@ -92,13 +97,54 @@ func (g *LockOrderGraph) DetectCycles() []LockCycle {
 	}
 
 	// Run DFS from each unvisited node
-	for lock := range g.locks {
+	for _, lock := range g.sortedLocks() {
 		if state[lock] == 0 {
 			dfs(lock)
 		}
 	}
 
 	return cycles
+}
+
+// sortedNeighbors returns neighbors in a deterministic order to stabilize diagnostics.
+func (g *LockOrderGraph) sortedNeighbors(node LockIdentity) []LockIdentity {
+	neighborsMap := g.edges[node]
+	if len(neighborsMap) == 0 {
+		return nil
+	}
+
+	neighbors := make([]LockIdentity, 0, len(neighborsMap))
+	for lock := range neighborsMap {
+		neighbors = append(neighbors, lock)
+	}
+
+	sort.Slice(neighbors, func(i, j int) bool {
+		return lockIdentityLess(neighbors[i], neighbors[j])
+	})
+
+	return neighbors
+}
+
+// sortedLocks returns all known locks in deterministic order.
+func (g *LockOrderGraph) sortedLocks() []LockIdentity {
+	locks := make([]LockIdentity, 0, len(g.locks))
+	for lock := range g.locks {
+		locks = append(locks, lock)
+	}
+
+	sort.Slice(locks, func(i, j int) bool {
+		return lockIdentityLess(locks[i], locks[j])
+	})
+
+	return locks
+}
+
+// lockIdentityLess defines ordering for deterministic traversal.
+func lockIdentityLess(a, b LockIdentity) bool {
+	if a.TypeName == b.TypeName {
+		return a.FieldName < b.FieldName
+	}
+	return a.TypeName < b.TypeName
 }
 
 // reconstructCycle builds a cycle from the DFS state.

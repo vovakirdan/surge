@@ -1,0 +1,8 @@
+error SEM3005 testdata/golden/sema/invalid/concurrency/await_non_task.sg:10:18 int has no method await
+error SEM3015 testdata/golden/sema/invalid/concurrency/await_non_task.sg:10:18 await expects Task<T>, got int
+error SEM3005 testdata/golden/sema/invalid/concurrency/await_non_task.sg:15:23 int has no method await
+error SEM3015 testdata/golden/sema/invalid/concurrency/await_non_task.sg:15:23 await expects Task<T>, got int
+error SEM3005 testdata/golden/sema/invalid/concurrency/await_non_task.sg:20:21 string has no method await
+error SEM3015 testdata/golden/sema/invalid/concurrency/await_non_task.sg:20:21 await expects Task<T>, got string
+error SEM3005 testdata/golden/sema/invalid/concurrency/await_non_task.sg:25:19 bool has no method await
+error SEM3015 testdata/golden/sema/invalid/concurrency/await_non_task.sg:25:19 await expects Task<T>, got bool

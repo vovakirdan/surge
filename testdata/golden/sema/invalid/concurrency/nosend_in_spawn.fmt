@@ -5,8 +5,14 @@ pub type FileHandle = {
     fd: int,
 };
 
+async fn process_fd(fd: int) -> int {
+    return fd + 1;
+}
+
 pub fn spawn_with_nosend() -> Task<int> {
     let handle: FileHandle = { fd: 42 };
     // ERROR SEM3086: cannot send 'handle' of @nosend type 'FileHandle' to spawned task
-    return spawn handle.fd;
+    return spawn async {
+        return handle.fd;
+    };
 }

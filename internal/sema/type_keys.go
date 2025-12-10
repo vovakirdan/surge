@@ -58,6 +58,22 @@ func (tc *typeChecker) typeKeyCandidates(id types.TypeID) []typeKeyCandidate {
 		}
 	}
 
+	// Добавляем fallback для generic type definitions (без type args, но с type params)
+	// Это позволяет My.new() найти методы из extern<My<T>>
+	if genericDefKey := tc.genericDefKeyForType(id); genericDefKey != "" {
+		cand := typeKeyCandidate{key: genericDefKey, base: id}
+		duplicate := false
+		for _, existing := range candidates {
+			if existing.key == cand.key && existing.base == cand.base {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			candidates = append(candidates, cand)
+		}
+	}
+
 	if aliasBase := tc.aliasBaseType(id); aliasBase != types.NoTypeID {
 		baseKey := tc.typeKeyForType(aliasBase)
 		if baseKey != "" {
@@ -202,6 +218,12 @@ func (tc *typeChecker) genericKeyForType(id types.TypeID) symbols.TypeKey {
 	var typeArgs []types.TypeID
 
 	switch tt.Kind {
+	case types.KindOwn, types.KindReference, types.KindPointer:
+		// For wrapper types (own, &, *), unwrap and recurse
+		if tt.Elem != types.NoTypeID {
+			return tc.genericKeyForType(tt.Elem)
+		}
+		return ""
 	case types.KindUnion:
 		if info, ok := tc.types.UnionInfo(resolved); ok && info != nil {
 			nameStr := tc.lookupTypeName(resolved, info.Name)
@@ -277,25 +299,264 @@ func (tc *typeChecker) genericKeyForType(id types.TypeID) symbols.TypeKey {
 		}
 	}
 
-	// Fallback для известных типов из core модуля
-	if len(paramNames) == 0 {
-		switch name {
-		case "Option":
-			if len(typeArgs) == 1 {
-				paramNames = []string{"T"}
+	// Fallback: поиск в локальной таблице символов текущего файла
+	if len(paramNames) == 0 && tc.symbols != nil && tc.symbols.Table != nil {
+		if data := tc.symbols.Table.Symbols.Data(); data != nil {
+			for i := range data {
+				sym := &data[i]
+				if sym.Kind != symbols.SymbolType {
+					continue
+				}
+				if symName := tc.lookupName(sym.Name); symName == name {
+					if len(sym.TypeParamSymbols) > 0 {
+						paramNames = make([]string, 0, len(sym.TypeParamSymbols))
+						for _, tp := range sym.TypeParamSymbols {
+							if pn := tc.lookupName(tp.Name); pn != "" {
+								paramNames = append(paramNames, pn)
+							}
+						}
+						break
+					}
+				}
 			}
-		case "Erring":
-			if len(typeArgs) == 2 {
-				paramNames = []string{"T", "E"}
-			}
-		default:
-			return ""
 		}
 	}
 
-	if len(paramNames) != len(typeArgs) {
+	// Fallback: поиск в экспортах модулей (для импортированных типов)
+	if len(paramNames) == 0 && tc.exports != nil {
+		for _, module := range tc.exports {
+			if module == nil {
+				continue
+			}
+			// Прямой поиск по имени типа в map символов модуля
+			if syms, ok := module.Symbols[name]; ok {
+				for i := range syms {
+					exp := &syms[i]
+					if exp.Kind == symbols.SymbolType {
+						// Используем pre-computed TypeParamNames напрямую —
+						// StringID в TypeParamSyms принадлежат другому файлу и не резолвятся здесь
+						if len(exp.TypeParamNames) > 0 && len(exp.TypeParamNames) == len(typeArgs) {
+							paramNames = exp.TypeParamNames
+							break
+						}
+					}
+				}
+			}
+			if len(paramNames) > 0 {
+				break
+			}
+		}
+	}
+
+	if len(paramNames) == 0 || len(paramNames) != len(typeArgs) {
 		return ""
 	}
 
 	return symbols.TypeKey(name + "<" + strings.Join(paramNames, ",") + ">")
+}
+
+// genericDefKeyForType generates a generic key for a type definition (e.g., "My<T>" for type My<T>).
+// This is used when the TypeID represents a generic type definition without instantiation.
+// Unlike genericKeyForType which handles instantiated types (My<int>), this handles the definition itself.
+func (tc *typeChecker) genericDefKeyForType(id types.TypeID) symbols.TypeKey {
+	if id == types.NoTypeID || tc.types == nil || tc.builder == nil {
+		return ""
+	}
+
+	resolved := tc.resolveAlias(id)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return ""
+	}
+
+	var name string
+	var hasTypeArgs bool
+
+	switch tt.Kind {
+	case types.KindStruct:
+		if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
+			name = tc.lookupTypeName(resolved, info.Name)
+			if name == "" {
+				name = tc.lookupName(info.Name)
+			}
+			hasTypeArgs = len(info.TypeArgs) > 0
+		}
+	case types.KindUnion:
+		if info, ok := tc.types.UnionInfo(resolved); ok && info != nil {
+			name = tc.lookupTypeName(resolved, info.Name)
+			if name == "" {
+				name = tc.lookupName(info.Name)
+			}
+			hasTypeArgs = len(info.TypeArgs) > 0
+		}
+	case types.KindAlias:
+		if info, ok := tc.types.AliasInfo(resolved); ok && info != nil {
+			name = tc.lookupTypeName(resolved, info.Name)
+			if name == "" {
+				name = tc.lookupName(info.Name)
+			}
+			hasTypeArgs = len(info.TypeArgs) > 0
+		}
+	default:
+		// Not a struct/union/alias, return empty
+		return ""
+	}
+
+	// If type already has args, use genericKeyForType instead
+	if name == "" || hasTypeArgs {
+		return ""
+	}
+
+	// Look up the type symbol to get its type parameters
+	nameID := tc.builder.StringsInterner.Intern(name)
+	scope := tc.fileScope()
+	if !scope.IsValid() {
+		scope = tc.scopeOrFile(tc.currentScope())
+	}
+
+	symID := tc.lookupTypeSymbol(nameID, scope)
+	if !symID.IsValid() {
+		if anySymID := tc.lookupSymbolAny(nameID, scope); anySymID.IsValid() {
+			if sym := tc.symbolFromID(anySymID); sym != nil && sym.Kind == symbols.SymbolType {
+				symID = anySymID
+			}
+		}
+	}
+
+	if !symID.IsValid() {
+		return ""
+	}
+
+	sym := tc.symbolFromID(symID)
+	if sym == nil || len(sym.TypeParams) == 0 {
+		return ""
+	}
+
+	// Build key with type parameter names
+	paramNames := make([]string, 0, len(sym.TypeParams))
+	for _, param := range sym.TypeParams {
+		if paramName := tc.lookupName(param); paramName != "" {
+			paramNames = append(paramNames, paramName)
+		}
+	}
+
+	if len(paramNames) != len(sym.TypeParams) {
+		return ""
+	}
+
+	return symbols.TypeKey(name + "<" + strings.Join(paramNames, ",") + ">")
+}
+
+// buildTypeParamSubst builds a substitution map from type parameter names to actual type keys.
+// For example, for receiver Channel<int> and candidateKey "Channel<T>", returns {"T": "int"}.
+func (tc *typeChecker) buildTypeParamSubst(recv types.TypeID, candidateKey symbols.TypeKey) map[string]symbols.TypeKey {
+	if recv == types.NoTypeID || candidateKey == "" || tc.types == nil {
+		return nil
+	}
+
+	// Extract type parameter names from candidateKey (e.g., "T" from "Channel<T>")
+	keyStr := string(candidateKey)
+	start := strings.Index(keyStr, "<")
+	end := strings.LastIndex(keyStr, ">")
+	if start < 0 || end <= start {
+		return nil
+	}
+	paramStr := keyStr[start+1 : end]
+	paramNames := strings.Split(paramStr, ",")
+	for i := range paramNames {
+		paramNames[i] = strings.TrimSpace(paramNames[i])
+	}
+
+	// Get actual type arguments from receiver
+	resolved := tc.resolveAlias(recv)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return nil
+	}
+
+	// Unwrap own/reference/pointer types
+	if tt.Kind == types.KindOwn || tt.Kind == types.KindReference || tt.Kind == types.KindPointer {
+		if tt.Elem != types.NoTypeID {
+			resolved = tc.resolveAlias(tt.Elem)
+			tt, ok = tc.types.Lookup(resolved)
+			if !ok {
+				return nil
+			}
+		}
+	}
+
+	var typeArgs []types.TypeID
+	switch tt.Kind {
+	case types.KindStruct:
+		if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
+			typeArgs = info.TypeArgs
+		}
+	case types.KindUnion:
+		if info, ok := tc.types.UnionInfo(resolved); ok && info != nil {
+			typeArgs = info.TypeArgs
+		}
+	case types.KindAlias:
+		if info, ok := tc.types.AliasInfo(resolved); ok && info != nil {
+			typeArgs = info.TypeArgs
+		}
+	}
+
+	if len(typeArgs) != len(paramNames) {
+		return nil
+	}
+
+	// Build substitution map
+	subst := make(map[string]symbols.TypeKey, len(paramNames))
+	for i, paramName := range paramNames {
+		argKey := tc.typeKeyForType(typeArgs[i])
+		if argKey != "" {
+			subst[paramName] = argKey
+		}
+	}
+	return subst
+}
+
+// substituteTypeKeyParams substitutes type parameter names in a key string.
+// For example, "own T" with {"T": "int"} becomes "own int".
+func substituteTypeKeyParams(key symbols.TypeKey, subst map[string]symbols.TypeKey) symbols.TypeKey {
+	if len(subst) == 0 || key == "" {
+		return key
+	}
+	s := string(key)
+	for param, actual := range subst {
+		// Replace standalone type param names (e.g., "T", "own T", "&T")
+		// Must be careful not to replace partial matches (e.g., "Task" when param is "T")
+		s = replaceTypeParam(s, param, string(actual))
+	}
+	return symbols.TypeKey(s)
+}
+
+// replaceTypeParam replaces a type parameter name with its substitution,
+// being careful to only replace whole words.
+func replaceTypeParam(s, param, replacement string) string {
+	result := ""
+	i := 0
+	for i < len(s) {
+		found := strings.Index(s[i:], param)
+		if found < 0 {
+			result += s[i:]
+			break
+		}
+		pos := i + found
+		// Check if this is a whole word match
+		before := pos == 0 || !isIdentChar(s[pos-1])
+		after := pos+len(param) >= len(s) || !isIdentChar(s[pos+len(param)])
+		if before && after {
+			result += s[i:pos] + replacement
+			i = pos + len(param)
+		} else {
+			result += s[i : pos+1]
+			i = pos + 1
+		}
+	}
+	return result
+}
+
+func isIdentChar(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'
 }

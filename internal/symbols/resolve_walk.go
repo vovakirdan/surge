@@ -356,6 +356,23 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 			return
 		}
 		fr.walkStmt(data.Body)
+	case ast.ExprBlock:
+		data, _ := fr.builder.Exprs.Block(exprID)
+		if data == nil {
+			return
+		}
+		// Create a scope for the block expression
+		owner := ScopeOwner{
+			Kind:       ScopeOwnerExpr,
+			SourceFile: fr.sourceFile,
+			ASTFile:    fr.fileID,
+			Expr:       exprID,
+		}
+		scopeID := fr.resolver.Enter(ScopeBlock, owner, expr.Span)
+		for _, stmtID := range data.Stmts {
+			fr.walkStmt(stmtID)
+		}
+		fr.resolver.Leave(scopeID)
 	case ast.ExprParallel:
 		data, _ := fr.builder.Exprs.Parallel(exprID)
 		if data == nil {

@@ -1,0 +1,9 @@
+// scenario: generic struct literal in return with missing field
+type Pair<T, U> = {
+    first: T,
+    second: U
+}
+
+fn test_generic_missing() -> Pair<int, string> {
+    return {first: 1};  // ERROR: Pair<int, string> is missing required field second
+}

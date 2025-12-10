@@ -1,0 +1,1 @@
+error SEM3109 testdata/golden/sema/invalid/concurrency/task_leak_async_block.sg:9:17 unawaited task at async block exit - all tasks must be awaited in async blocks

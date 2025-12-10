@@ -1,4 +1,4 @@
-import scripts/foo;
+import scripts/_foo;
 
 fn main() {
     let _ = scripts.foo();

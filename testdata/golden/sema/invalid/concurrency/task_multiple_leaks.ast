@@ -1,0 +1,37 @@
+task_multiple_leaks.sg (span: 3:1-16:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:24-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:15)
+│           └─ Expr: expr#1: 42
+└─ Item[1]: Fn (span: 7:1-15:2)
+   ├─ Name: test_multiple_leaks
+   ├─ Params: ()
+   ├─ Return: Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:49-15:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:27)
+         │  ├─ Name: t1
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: spawn work()
+         ├─ Stmt[1]: Let (span: 9:5-9:27)
+         │  ├─ Name: t2
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#7: spawn work()
+         ├─ Stmt[2]: Let (span: 10:5-10:27)
+         │  ├─ Name: t3
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#10: spawn work()
+         ├─ Stmt[3]: Let (span: 12:5-12:24)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#13: t1.await()
+         └─ Stmt[4]: Return (span: 13:5-13:15)
+            └─ Expr: expr#14: t3

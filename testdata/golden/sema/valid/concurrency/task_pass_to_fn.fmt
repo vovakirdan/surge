@@ -1,0 +1,36 @@
+// Valid: Task passed to function (ownership transfer)
+// When a Task<T> is passed as argument, caller transfers ownership to callee
+
+async fn compute() -> int {
+    return 42;
+}
+
+// Async function that receives and awaits a task
+async fn drain_task(t: Task<int>) -> int {
+    return t.await();
+}
+
+// Valid: task passed to drain, then await drainer
+pub async fn test_pass_and_await_drainer() -> int {
+    let task = spawn compute();
+    let drainer = spawn drain_task(task);  // ownership of 'task' transferred to drain_task
+    return drainer.await();
+}
+
+// Valid: direct spawn passed without intermediate binding
+pub async fn test_direct_pass() -> int {
+    let drainer = spawn drain_task(spawn compute());
+    return drainer.await();
+}
+
+// Valid: multiple tasks passed to different functions
+async fn sum_tasks(t1: Task<int>, t2: Task<int>) -> int {
+    return t1.await() + t2.await();
+}
+
+pub async fn test_multiple_pass() -> int {
+    let a = spawn compute();
+    let b = spawn compute();
+    let summer = spawn sum_tasks(a, b);  // both a and b transferred
+    return summer.await();
+}

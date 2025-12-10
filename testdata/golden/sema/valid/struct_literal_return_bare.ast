@@ -1,0 +1,61 @@
+struct_literal_return_bare.sg (span: 2:1-32:1)
+├─ Item[0]: Type (span: 2:1-5:2)
+│  ├─ Name: Foo
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: value: int
+│     └─ Field[1]: name: string
+├─ Item[1]: Type (span: 7:1-7:16)
+│  ├─ Name: Empty
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     <empty>
+├─ Item[2]: Type (span: 9:1-11:2)
+│  ├─ Name: Box
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Struct:
+│     └─ Field[0]: value: T
+├─ Item[3]: Fn (span: 13:1-15:2)
+│  ├─ Name: test_named_fields
+│  ├─ Params: ()
+│  ├─ Return: Foo
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:31-15:2)
+│        └─ Stmt[0]: Return (span: 14:5-14:38)
+│           └─ Expr: expr#5: <ExprKind(18)>
+├─ Item[4]: Fn (span: 17:1-19:2)
+│  ├─ Name: test_positional_fields
+│  ├─ Params: ()
+│  ├─ Return: Foo
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 17:36-19:2)
+│        └─ Stmt[0]: Return (span: 18:5-18:26)
+│           └─ Expr: expr#8: <ExprKind(18)>
+├─ Item[5]: Fn (span: 21:1-23:2)
+│  ├─ Name: test_empty_struct
+│  ├─ Params: ()
+│  ├─ Return: Empty
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 21:33-23:2)
+│        └─ Stmt[0]: Return (span: 22:5-22:15)
+│           └─ Expr: expr#9: <ExprKind(18)>
+├─ Item[6]: Fn (span: 25:1-27:2)
+│  ├─ Name: test_generic_positional
+│  ├─ Params: ()
+│  ├─ Return: Box<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 25:42-27:2)
+│        └─ Stmt[0]: Return (span: 26:5-26:18)
+│           └─ Expr: expr#11: <ExprKind(18)>
+└─ Item[7]: Fn (span: 29:1-31:2)
+   ├─ Name: test_generic_named
+   ├─ Params: ()
+   ├─ Return: Box<string>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 29:40-31:2)
+         └─ Stmt[0]: Return (span: 30:5-30:28)
+            └─ Expr: expr#14: <ExprKind(18)>

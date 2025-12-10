@@ -1,0 +1,501 @@
+spec_alignment.sg (span: 9:1-299:1)
+├─ Item[0]: Fn (span: 9:1-11:2)
+│  ├─ Name: simple_async_fn
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:35-11:2)
+│        └─ Stmt[0]: Return (span: 10:5-10:15)
+│           └─ Expr: expr#1: 42
+├─ Item[1]: Fn (span: 13:1-15:2)
+│  ├─ Name: async_fn_with_params
+│  ├─ Params: (x: int, y: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:54-15:2)
+│        └─ Stmt[0]: Return (span: 14:5-14:18)
+│           └─ Expr: expr#4: (x + y)
+├─ Item[2]: Fn (span: 19:1-22:2)
+│  ├─ Name: test_spawn_basic
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 19:33-22:2)
+│        ├─ Stmt[0]: Let (span: 20:5-20:48)
+│        │  ├─ Name: t
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Task<int>
+│        │  └─ Value: expr#7: spawn simple_async_fn()
+│        └─ Stmt[1]: Let (span: 21:5-21:33)
+│           ├─ Name: result
+│           ├─ Mutable: false
+│           ├─ Type: int
+│           └─ Value: expr#10: t.await()
+├─ Item[3]: Fn (span: 25:1-27:2)
+│  ├─ Name: sync_fn_returns_task
+│  ├─ Params: ()
+│  ├─ Return: Task<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 25:44-27:2)
+│        └─ Stmt[0]: Return (span: 26:5-26:36)
+│           └─ Expr: expr#13: spawn simple_async_fn()
+├─ Item[4]: Fn (span: 31:1-33:2)
+│  ├─ Name: test_await_basic
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 31:33-33:2)
+│        └─ Stmt[0]: Let (span: 32:5-32:49)
+│           ├─ Name: result
+│           ├─ Mutable: false
+│           ├─ Type: int
+│           └─ Value: expr#17: simple_async_fn().await()
+├─ Item[5]: Fn (span: 35:1-38:2)
+│  ├─ Name: test_await_chained
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 35:35-38:2)
+│        ├─ Stmt[0]: Let (span: 36:5-36:48)
+│        │  ├─ Name: t
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Task<int>
+│        │  └─ Value: expr#20: spawn simple_async_fn()
+│        └─ Stmt[1]: Let (span: 37:5-37:32)
+│           ├─ Name: value
+│           ├─ Mutable: false
+│           ├─ Type: int
+│           └─ Value: expr#23: t.await()
+├─ Item[6]: Fn (span: 42:1-45:2)
+│  ├─ Name: test_async_block
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 42:40-45:2)
+│        ├─ Stmt[0]: Let (span: 43:5-43:46)
+│        │  ├─ Name: t
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Task<int>
+│        │  └─ Value: expr#25: async { 1 stmt(s) }
+│        └─ Stmt[1]: Return (span: 44:5-44:22)
+│           └─ Expr: expr#28: t.await()
+├─ Item[7]: Fn (span: 47:1-54:2)
+│  ├─ Name: test_async_block_with_spawn
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 47:44-54:2)
+│        └─ Stmt[0]: Expr (span: 48:5-53:7)
+│           └─ Expr: expr#41: async { 4 stmt(s) }
+├─ Item[8]: Fn (span: 58:1-60:2)
+│  ├─ Name: test_checkpoint
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 58:32-60:2)
+│        └─ Stmt[0]: Expr (span: 59:5-59:26)
+│           └─ Expr: expr#45: checkpoint().await()
+├─ Item[9]: Fn (span: 62:1-70:2)
+│  ├─ Name: test_checkpoint_in_loop
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 62:40-70:2)
+│        ├─ Stmt[0]: Let (span: 63:5-63:24)
+│        │  ├─ Name: i
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#46: 0
+│        └─ Stmt[1]: While (span: 64:5-69:6)
+│           ├─ Cond: expr#49: (i < 100)
+│           └─ Body:
+Block (span: 64:19-69:6)
+│              ├─ Stmt[0]: If (span: 65:9-67:10)
+│              │  ├─ Cond: expr#54: (((i % 10)) == 0)
+│              │  ├─ Then:
+Block (span: 65:24-67:10)
+│              │  │  └─ Stmt[0]: Expr (span: 66:13-66:34)
+│              │  │     └─ Expr: expr#58: checkpoint().await()
+│              │  └─ Else: <none>
+│              └─ Stmt[1]: Expr (span: 68:9-68:19)
+│                 └─ Expr: expr#63: (i = ((i + 1)))
+├─ Item[10]: Fn (span: 74:1-78:2)
+│  ├─ Name: test_mutex_operations
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 74:32-78:2)
+│        ├─ Stmt[0]: Let (span: 75:5-75:36)
+│        │  ├─ Name: m
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Mutex
+│        │  └─ Value: expr#66: Mutex.new()
+│        ├─ Stmt[1]: Expr (span: 76:5-76:14)
+│        │  └─ Expr: expr#69: m.lock()
+│        └─ Stmt[2]: Expr (span: 77:5-77:16)
+│           └─ Expr: expr#72: m.unlock()
+├─ Item[11]: Fn (span: 80:1-83:2)
+│  ├─ Name: test_mutex_try_lock
+│  ├─ Params: ()
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 80:38-83:2)
+│        ├─ Stmt[0]: Let (span: 81:5-81:36)
+│        │  ├─ Name: m
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Mutex
+│        │  └─ Value: expr#75: Mutex.new()
+│        └─ Stmt[1]: Return (span: 82:5-82:25)
+│           └─ Expr: expr#78: m.try_lock()
+├─ Item[12]: Fn (span: 87:1-91:2)
+│  ├─ Name: test_rwlock_read
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 87:27-91:2)
+│        ├─ Stmt[0]: Let (span: 88:5-88:39)
+│        │  ├─ Name: rw
+│        │  ├─ Mutable: true
+│        │  ├─ Type: RwLock
+│        │  └─ Value: expr#81: RwLock.new()
+│        ├─ Stmt[1]: Expr (span: 89:5-89:20)
+│        │  └─ Expr: expr#84: rw.read_lock()
+│        └─ Stmt[2]: Expr (span: 90:5-90:22)
+│           └─ Expr: expr#87: rw.read_unlock()
+├─ Item[13]: Fn (span: 93:1-97:2)
+│  ├─ Name: test_rwlock_write
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 93:28-97:2)
+│        ├─ Stmt[0]: Let (span: 94:5-94:39)
+│        │  ├─ Name: rw
+│        │  ├─ Mutable: true
+│        │  ├─ Type: RwLock
+│        │  └─ Value: expr#90: RwLock.new()
+│        ├─ Stmt[1]: Expr (span: 95:5-95:21)
+│        │  └─ Expr: expr#93: rw.write_lock()
+│        └─ Stmt[2]: Expr (span: 96:5-96:23)
+│           └─ Expr: expr#96: rw.write_unlock()
+├─ Item[14]: Fn (span: 99:1-103:2)
+│  ├─ Name: test_rwlock_try_ops
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 99:30-103:2)
+│        ├─ Stmt[0]: Let (span: 100:5-100:39)
+│        │  ├─ Name: rw
+│        │  ├─ Mutable: true
+│        │  ├─ Type: RwLock
+│        │  └─ Value: expr#99: RwLock.new()
+│        ├─ Stmt[1]: Let (span: 101:5-101:38)
+│        │  ├─ Name: r
+│        │  ├─ Mutable: false
+│        │  ├─ Type: bool
+│        │  └─ Value: expr#102: rw.try_read_lock()
+│        └─ Stmt[2]: Let (span: 102:5-102:39)
+│           ├─ Name: w
+│           ├─ Mutable: false
+│           ├─ Type: bool
+│           └─ Value: expr#105: rw.try_write_lock()
+├─ Item[15]: Fn (span: 107:1-111:2)
+│  ├─ Name: test_condition_basic
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 107:31-111:2)
+│        ├─ Stmt[0]: Let (span: 108:5-108:43)
+│        │  ├─ Name: cond
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Condition
+│        │  └─ Value: expr#108: Condition.new()
+│        ├─ Stmt[1]: Expr (span: 109:5-109:23)
+│        │  └─ Expr: expr#111: cond.notify_one()
+│        └─ Stmt[2]: Expr (span: 110:5-110:23)
+│           └─ Expr: expr#114: cond.notify_all()
+├─ Item[16]: Fn (span: 115:1-119:2)
+│  ├─ Name: test_semaphore_operations
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 115:36-119:2)
+│        ├─ Stmt[0]: Let (span: 116:5-116:52)
+│        │  ├─ Name: sem
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Semaphore
+│        │  └─ Value: expr#119: Semaphore.new(5 to uint)
+│        ├─ Stmt[1]: Expr (span: 117:5-117:19)
+│        │  └─ Expr: expr#122: sem.acquire()
+│        └─ Stmt[2]: Expr (span: 118:5-118:19)
+│           └─ Expr: expr#125: sem.release()
+├─ Item[17]: Fn (span: 121:1-124:2)
+│  ├─ Name: test_semaphore_try
+│  ├─ Params: ()
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 121:37-124:2)
+│        ├─ Stmt[0]: Let (span: 122:5-122:52)
+│        │  ├─ Name: sem
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Semaphore
+│        │  └─ Value: expr#130: Semaphore.new(1 to uint)
+│        └─ Stmt[1]: Return (span: 123:5-123:30)
+│           └─ Expr: expr#133: sem.try_acquire()
+├─ Item[18]: Type (span: 137:1-140:3)
+│  ├─ Name: GuardedStruct
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: data: int [@guarded_by("lock")]
+├─ Item[19]: Fn (span: 142:1-148:2)
+│  ├─ Name: test_guarded_access
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 142:30-148:2)
+│        ├─ Stmt[0]: Let (span: 143:5-143:77)
+│        │  ├─ Name: s
+│        │  ├─ Mutable: true
+│        │  ├─ Type: GuardedStruct
+│        │  └─ Value: expr#141: <ExprKind(18)>
+│        ├─ Stmt[1]: Expr (span: 144:5-144:19)
+│        │  └─ Expr: expr#145: s.lock.lock()
+│        ├─ Stmt[2]: Expr (span: 145:5-145:17)
+│        │  └─ Expr: expr#149: (s.data = 42)
+│        ├─ Stmt[3]: Let (span: 146:5-146:25)
+│        │  ├─ Name: v
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#151: s.data
+│        └─ Stmt[4]: Expr (span: 147:5-147:21)
+│           └─ Expr: expr#155: s.lock.unlock()
+├─ Item[20]: Type (span: 152:1-155:3)
+│  ├─ Name: RwGuardedStruct
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: rw: RwLock
+│     └─ Field[1]: data: string [@guarded_by("rw")]
+├─ Item[21]: Fn (span: 157:1-162:2)
+│  ├─ Name: test_rwlock_guarded_read
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 157:35-162:2)
+│        ├─ Stmt[0]: Let (span: 158:5-158:86)
+│        │  ├─ Name: s
+│        │  ├─ Mutable: true
+│        │  ├─ Type: RwGuardedStruct
+│        │  └─ Value: expr#163: <ExprKind(18)>
+│        ├─ Stmt[1]: Expr (span: 159:5-159:22)
+│        │  └─ Expr: expr#167: s.rw.read_lock()
+│        ├─ Stmt[2]: Let (span: 160:5-160:28)
+│        │  ├─ Name: v
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#169: s.data
+│        └─ Stmt[3]: Expr (span: 161:5-161:24)
+│           └─ Expr: expr#173: s.rw.read_unlock()
+├─ Item[22]: Fn (span: 164:1-169:2)
+│  ├─ Name: test_rwlock_guarded_write
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 164:36-169:2)
+│        ├─ Stmt[0]: Let (span: 165:5-165:86)
+│        │  ├─ Name: s
+│        │  ├─ Mutable: true
+│        │  ├─ Type: RwGuardedStruct
+│        │  └─ Value: expr#180: <ExprKind(18)>
+│        ├─ Stmt[1]: Expr (span: 166:5-166:23)
+│        │  └─ Expr: expr#184: s.rw.write_lock()
+│        ├─ Stmt[2]: Expr (span: 167:5-167:22)
+│        │  └─ Expr: expr#188: (s.data = "world")
+│        └─ Stmt[3]: Expr (span: 168:5-168:25)
+│           └─ Expr: expr#192: s.rw.write_unlock()
+├─ Item[23]: Type (span: 173:1-176:3)
+│  ├─ Name: ContractStruct
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     └─ Field[1]: value: int
+├─ Item[24]: Extern (span: 178:1-193:2)
+│  ├─ Target: ContractStruct
+│  ├─ Members:
+│  │  ├─ Fn[0]: requires_test
+│  │  │  ├─ Params: (self: &ContractStruct)
+│  │  │  ├─ Return: int
+│  │  │  ├─ Attributes: @requires_lock("lock")
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 180:56-182:6)
+│  │  │     └─ Stmt[0]: Return (span: 181:9-181:27)
+│  │  │        └─ Expr: expr#195: self.value
+│  │  ├─ Fn[1]: acquires_test
+│  │  │  ├─ Params: (self: &mut ContractStruct)
+│  │  │  ├─ Return: nothing
+│  │  │  ├─ Attributes: @acquires_lock("lock")
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 185:53-187:6)
+│  │  │     └─ Stmt[0]: Expr (span: 186:9-186:26)
+│  │  │        └─ Expr: expr#200: self.lock.lock()
+│  │  └─ Fn[2]: releases_test
+│  │     ├─ Params: (self: &mut ContractStruct)
+│  │     ├─ Return: nothing
+│  │     ├─ Attributes: @releases_lock("lock")
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 190:53-192:6)
+│  │        └─ Stmt[0]: Expr (span: 191:9-191:28)
+│  │           └─ Expr: expr#205: self.lock.unlock()
+├─ Item[25]: Type (span: 197:1-201:3)
+│  ├─ Name: WaiterStruct
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: lock: Mutex
+│     ├─ Field[1]: cond: Condition
+│     └─ Field[2]: ready: bool
+├─ Item[26]: Extern (span: 203:1-209:2)
+│  ├─ Target: WaiterStruct
+│  ├─ Members:
+│  │  └─ Fn[0]: wait_for_signal
+│  │     ├─ Params: (self: &mut WaiterStruct)
+│  │     ├─ Return: nothing
+│  │     ├─ Attributes: @waits_on("cond")
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 205:53-208:6)
+├─ Item[27]: Fn (span: 213:1-216:2)
+│  ├─ Name: nonblocking_fn
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 214:32-216:2)
+│        └─ Stmt[0]: Return (span: 215:5-215:15)
+│           └─ Expr: expr#207: 42
+├─ Item[28]: Type (span: 226:1-230:3)
+│  ├─ Name: AtomicStruct
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: counter: int [@atomic]
+│     ├─ Field[1]: flag: bool [@atomic]
+│     └─ Field[2]: uvalue: uint [@atomic]
+├─ Item[29]: Fn (span: 232:1-235:2)
+│  ├─ Name: test_atomic_load
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 232:34-235:2)
+│        ├─ Stmt[0]: Let (span: 233:5-233:79)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: false
+│        │  ├─ Type: AtomicStruct
+│        │  └─ Value: expr#214: <ExprKind(18)>
+│        └─ Stmt[1]: Return (span: 234:5-234:36)
+│           └─ Expr: expr#219: atomic_load(&a.counter)
+├─ Item[30]: Fn (span: 237:1-240:2)
+│  ├─ Name: test_atomic_store
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 237:28-240:2)
+│        ├─ Stmt[0]: Let (span: 238:5-238:83)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: true
+│        │  ├─ Type: AtomicStruct
+│        │  └─ Value: expr#226: <ExprKind(18)>
+│        └─ Stmt[1]: Expr (span: 239:5-239:39)
+│           └─ Expr: expr#232: atomic_store(&mut a.counter, 100)
+├─ Item[31]: Fn (span: 242:1-245:2)
+│  ├─ Name: test_atomic_exchange
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 242:38-245:2)
+│        ├─ Stmt[0]: Let (span: 243:5-243:83)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: true
+│        │  ├─ Type: AtomicStruct
+│        │  └─ Value: expr#239: <ExprKind(18)>
+│        └─ Stmt[1]: Return (span: 244:5-244:48)
+│           └─ Expr: expr#245: atomic_exchange(&mut a.counter, 50)
+├─ Item[32]: Fn (span: 247:1-250:2)
+│  ├─ Name: test_atomic_compare_exchange
+│  ├─ Params: ()
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 247:47-250:2)
+│        ├─ Stmt[0]: Let (span: 248:5-248:83)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: true
+│        │  ├─ Type: AtomicStruct
+│        │  └─ Value: expr#252: <ExprKind(18)>
+│        └─ Stmt[1]: Return (span: 249:5-249:58)
+│           └─ Expr: expr#259: atomic_compare_exchange(&mut a.counter, 0, 1)
+├─ Item[33]: Fn (span: 252:1-255:2)
+│  ├─ Name: test_atomic_fetch_add
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 252:39-255:2)
+│        ├─ Stmt[0]: Let (span: 253:5-253:83)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: true
+│        │  ├─ Type: AtomicStruct
+│        │  └─ Value: expr#266: <ExprKind(18)>
+│        └─ Stmt[1]: Return (span: 254:5-254:49)
+│           └─ Expr: expr#272: atomic_fetch_add(&mut a.counter, 10)
+├─ Item[34]: Fn (span: 257:1-260:2)
+│  ├─ Name: test_atomic_fetch_sub
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 257:39-260:2)
+│        ├─ Stmt[0]: Let (span: 258:5-258:85)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: true
+│        │  ├─ Type: AtomicStruct
+│        │  └─ Value: expr#279: <ExprKind(18)>
+│        └─ Stmt[1]: Return (span: 259:5-259:48)
+│           └─ Expr: expr#285: atomic_fetch_sub(&mut a.counter, 5)
+├─ Item[35]: Type (span: 264:1-269:3)
+│  ├─ Name: SendableData
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @send
+│  └─ Struct:
+│     ├─ Field[0]: id: int
+│     ├─ Field[1]: name: string
+│     └─ Field[2]: active: bool
+├─ Item[36]: Type (span: 271:1-274:3)
+│  ├─ Name: NonSendableData
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @nosend
+│  └─ Struct:
+│     └─ Field[0]: internal_ptr: *int
+├─ Item[37]: Type (span: 277:1-281:3)
+│  ├─ Name: SendWithAtomic
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @send
+│  └─ Struct:
+│     ├─ Field[0]: counter: int [@atomic]
+│     └─ Field[1]: data: int
+├─ Item[38]: Fn (span: 286:1-293:2)
+│  ├─ Name: test_structured_concurrency
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 286:44-293:2)
+│        └─ Stmt[0]: Expr (span: 287:5-292:7)
+│           └─ Expr: expr#298: async { 4 stmt(s) }
+└─ Item[39]: Fn (span: 296:1-298:2)
+   ├─ Name: transfer_task_ownership
+   ├─ Params: ()
+   ├─ Return: Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 296:47-298:2)
+         └─ Stmt[0]: Return (span: 297:5-297:36)
+            └─ Expr: expr#301: spawn simple_async_fn()

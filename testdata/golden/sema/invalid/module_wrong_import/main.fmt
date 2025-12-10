@@ -1,6 +1,6 @@
 pragma module;
 
-import foo/foo;
+import foo/_foo;
 
 fn use_value() -> int {
     return 1;

@@ -219,5 +219,53 @@ func (tc *typeChecker) contractTypesEqual(expected, actual types.TypeID) bool {
 	if expected == types.NoTypeID || actual == types.NoTypeID {
 		return false
 	}
-	return tc.resolveAlias(expected) == tc.resolveAlias(actual)
+	expectedRes := tc.resolveAlias(expected)
+	actualRes := tc.resolveAlias(actual)
+	if expectedRes == actualRes {
+		return true
+	}
+	// Structural comparison for wrapper types
+	if tc.types == nil {
+		return false
+	}
+	expInfo, okExp := tc.types.Lookup(expectedRes)
+	actInfo, okAct := tc.types.Lookup(actualRes)
+	if !okExp || !okAct {
+		return false
+	}
+	if expInfo.Kind != actInfo.Kind {
+		return false
+	}
+	switch expInfo.Kind {
+	case types.KindReference, types.KindPointer, types.KindOwn:
+		// Recursively compare inner element types
+		return tc.contractTypesEqual(expInfo.Elem, actInfo.Elem)
+	case types.KindGenericParam:
+		// Compare generic params by name - they may be structurally equivalent
+		// even if registered with different IDs
+		expName := tc.typeParamName(expectedRes)
+		actName := tc.typeParamName(actualRes)
+		return expName != source.NoStringID && expName == actName
+	case types.KindArray:
+		// Arrays need same element type and count
+		if expInfo.Count != actInfo.Count {
+			return false
+		}
+		return tc.contractTypesEqual(expInfo.Elem, actInfo.Elem)
+	}
+	return false
+}
+
+// typeParamName returns the name of a type parameter, using cache or TypeParamInfo.
+func (tc *typeChecker) typeParamName(id types.TypeID) source.StringID {
+	if name := tc.typeParamNames[id]; name != source.NoStringID {
+		return name
+	}
+	if info, ok := tc.types.TypeParamInfo(id); ok && info != nil {
+		if info.Name != source.NoStringID {
+			tc.typeParamNames[id] = info.Name
+		}
+		return info.Name
+	}
+	return source.NoStringID
 }

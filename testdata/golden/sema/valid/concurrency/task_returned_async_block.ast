@@ -1,0 +1,35 @@
+task_returned_async_block.sg (span: 3:1-27:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:24-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:15)
+│           └─ Expr: expr#1: 42
+├─ Item[1]: Fn (span: 8:1-14:2)
+│  ├─ Name: test_await_in_async_block
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:49-14:2)
+│        ├─ Stmt[0]: Let (span: 9:5-12:7)
+│        │  ├─ Name: result
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#8: async { 2 stmt(s) }
+│        └─ Stmt[1]: Return (span: 13:5-13:27)
+│           └─ Expr: expr#11: result.await()
+└─ Item[2]: Fn (span: 17:1-26:2)
+   ├─ Name: test_nested_async
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 17:41-26:2)
+         ├─ Stmt[0]: Let (span: 18:5-24:7)
+         │  ├─ Name: outer
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#22: async { 2 stmt(s) }
+         └─ Stmt[1]: Return (span: 25:5-25:26)
+            └─ Expr: expr#25: outer.await()

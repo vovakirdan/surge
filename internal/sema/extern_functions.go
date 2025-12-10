@@ -2,6 +2,7 @@ package sema
 
 import (
 	"surge/internal/ast"
+	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -41,6 +42,8 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 	if len(paramSpecs) == 0 && len(fn.Generics) > 0 {
 		paramSpecs = specsFromNames(fn.Generics)
 	}
+	// Check for type parameter shadowing: method's type params must not shadow extern's type params
+	tc.checkTypeParamShadowing(fn, paramSpecs, receiverSpecs)
 	typeParamsPushed := tc.pushTypeParams(symID, paramSpecs, nil)
 	if paramIDs := tc.builder.Items.GetFnTypeParamIDs(fn); len(paramIDs) > 0 {
 		bounds := tc.resolveTypeParamBounds(paramIDs, scope, nil)
@@ -117,6 +120,37 @@ func (tc *typeChecker) registerExternParamTypes(scope symbols.ScopeID, fnItem *a
 					}
 				}
 			}
+		}
+	}
+}
+
+// checkTypeParamShadowing reports an error if any method type parameter
+// shadows an outer type parameter from the extern block.
+func (tc *typeChecker) checkTypeParamShadowing(fn *ast.FnItem, methodSpecs, receiverSpecs []genericParamSpec) {
+	if fn == nil || len(methodSpecs) == 0 || len(receiverSpecs) == 0 {
+		return
+	}
+	// Build a set of receiver type parameter names
+	receiverNames := make(map[source.StringID]struct{}, len(receiverSpecs))
+	for _, spec := range receiverSpecs {
+		if spec.name != source.NoStringID {
+			receiverNames[spec.name] = struct{}{}
+		}
+	}
+	// Check each method type parameter against receiver names
+	for _, spec := range methodSpecs {
+		if spec.name == source.NoStringID {
+			continue
+		}
+		if _, shadows := receiverNames[spec.name]; shadows {
+			// Get the string representation of the name
+			nameStr := tc.lookupName(spec.name)
+			span := fn.GenericsSpan
+			if span == (source.Span{}) {
+				span = fn.Span
+			}
+			tc.report(diag.SemaTypeParamShadow, span,
+				"type parameter '%s' shadows outer type parameter from extern block", nameStr)
 		}
 	}
 }

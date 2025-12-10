@@ -11,33 +11,55 @@
  11: Comma           "," at 5:12-5:13
  12: RBrace          "}" at 6:1-6:2 (leading: Newline)
  13: Semicolon       ";" at 6:2-6:3
- 14: KwPub           "pub" at 8:1-8:4 (leading: Newline)
- 15: KwFn            "fn" at 8:5-8:7 (leading: Space)
- 16: Ident           "spawn_with_nosend" at 8:8-8:25 (leading: Space)
- 17: LParen          "(" at 8:25-8:26
- 18: RParen          ")" at 8:26-8:27
- 19: Arrow           "->" at 8:28-8:30 (leading: Space)
- 20: Ident           "Task" at 8:31-8:35 (leading: Space)
- 21: Lt              "<" at 8:35-8:36
- 22: Ident           "int" at 8:36-8:39
- 23: Gt              ">" at 8:39-8:40
- 24: LBrace          "{" at 8:41-8:42 (leading: Space)
- 25: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
- 26: Ident           "handle" at 9:9-9:15 (leading: Space)
- 27: Colon           ":" at 9:15-9:16
- 28: Ident           "FileHandle" at 9:17-9:27 (leading: Space)
- 29: Assign          "=" at 9:28-9:29 (leading: Space)
- 30: LBrace          "{" at 9:30-9:31 (leading: Space)
- 31: Ident           "fd" at 9:32-9:34 (leading: Space)
- 32: Colon           ":" at 9:34-9:35
- 33: IntLit          "42" at 9:36-9:38 (leading: Space)
- 34: RBrace          "}" at 9:39-9:40 (leading: Space)
- 35: Semicolon       ";" at 9:40-9:41
- 36: KwReturn        "return" at 11:5-11:11 (leading: Newline, Space, LineComment, Newline, Space)
- 37: KwSpawn         "spawn" at 11:12-11:17 (leading: Space)
- 38: Ident           "handle" at 11:18-11:24 (leading: Space)
- 39: Dot             "." at 11:24-11:25
- 40: Ident           "fd" at 11:25-11:27
- 41: Semicolon       ";" at 11:27-11:28
- 42: RBrace          "}" at 12:1-12:2 (leading: Newline)
- 43: EOF             at 13:1-13:1
+ 14: KwAsync         "async" at 8:1-8:6 (leading: Newline)
+ 15: KwFn            "fn" at 8:7-8:9 (leading: Space)
+ 16: Ident           "process_fd" at 8:10-8:20 (leading: Space)
+ 17: LParen          "(" at 8:20-8:21
+ 18: Ident           "fd" at 8:21-8:23
+ 19: Colon           ":" at 8:23-8:24
+ 20: Ident           "int" at 8:25-8:28 (leading: Space)
+ 21: RParen          ")" at 8:28-8:29
+ 22: Arrow           "->" at 8:30-8:32 (leading: Space)
+ 23: Ident           "int" at 8:33-8:36 (leading: Space)
+ 24: LBrace          "{" at 8:37-8:38 (leading: Space)
+ 25: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 26: Ident           "fd" at 9:12-9:14 (leading: Space)
+ 27: Plus            "+" at 9:15-9:16 (leading: Space)
+ 28: IntLit          "1" at 9:17-9:18 (leading: Space)
+ 29: Semicolon       ";" at 9:18-9:19
+ 30: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 31: KwPub           "pub" at 12:1-12:4 (leading: Newline)
+ 32: KwFn            "fn" at 12:5-12:7 (leading: Space)
+ 33: Ident           "spawn_with_nosend" at 12:8-12:25 (leading: Space)
+ 34: LParen          "(" at 12:25-12:26
+ 35: RParen          ")" at 12:26-12:27
+ 36: Arrow           "->" at 12:28-12:30 (leading: Space)
+ 37: Ident           "Task" at 12:31-12:35 (leading: Space)
+ 38: Lt              "<" at 12:35-12:36
+ 39: Ident           "int" at 12:36-12:39
+ 40: Gt              ">" at 12:39-12:40
+ 41: LBrace          "{" at 12:41-12:42 (leading: Space)
+ 42: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
+ 43: Ident           "handle" at 13:9-13:15 (leading: Space)
+ 44: Colon           ":" at 13:15-13:16
+ 45: Ident           "FileHandle" at 13:17-13:27 (leading: Space)
+ 46: Assign          "=" at 13:28-13:29 (leading: Space)
+ 47: LBrace          "{" at 13:30-13:31 (leading: Space)
+ 48: Ident           "fd" at 13:32-13:34 (leading: Space)
+ 49: Colon           ":" at 13:34-13:35
+ 50: IntLit          "42" at 13:36-13:38 (leading: Space)
+ 51: RBrace          "}" at 13:39-13:40 (leading: Space)
+ 52: Semicolon       ";" at 13:40-13:41
+ 53: KwReturn        "return" at 15:5-15:11 (leading: Newline, Space, LineComment, Newline, Space)
+ 54: KwSpawn         "spawn" at 15:12-15:17 (leading: Space)
+ 55: KwAsync         "async" at 15:18-15:23 (leading: Space)
+ 56: LBrace          "{" at 15:24-15:25 (leading: Space)
+ 57: KwReturn        "return" at 16:9-16:15 (leading: Newline, Space)
+ 58: Ident           "handle" at 16:16-16:22 (leading: Space)
+ 59: Dot             "." at 16:22-16:23
+ 60: Ident           "fd" at 16:23-16:25
+ 61: Semicolon       ";" at 16:25-16:26
+ 62: RBrace          "}" at 17:5-17:6 (leading: Newline, Space)
+ 63: Semicolon       ";" at 17:6-17:7
+ 64: RBrace          "}" at 18:1-18:2 (leading: Newline)
+ 65: EOF             at 19:1-19:1

@@ -1,8 +1,0 @@
-testdata/golden/sema/invalid/enum_missing_equals.sg:3:11: ERROR SYN2018: expected '=' after enum name
-  1 | // Missing '=' in enum declaration
-  2 | 
-  3 | enum Color {
-                ^
-  4 |     Red,
-  5 |     Green,
-...

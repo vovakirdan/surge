@@ -1,0 +1,15 @@
+struct_literal_return_fields_for_empty.sg (span: 2:1-7:1)
+├─ Item[0]: Type (span: 2:1-2:16)
+│  ├─ Name: Empty
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     <empty>
+└─ Item[1]: Fn (span: 4:1-6:2)
+   ├─ Name: test_fields_for_empty
+   ├─ Params: ()
+   ├─ Return: Empty
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:37-6:2)
+         └─ Stmt[0]: Return (span: 5:5-5:19)
+            └─ Expr: expr#3: <ExprKind(18)>

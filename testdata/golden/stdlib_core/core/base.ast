@@ -1,4 +1,4 @@
-base.sg (span: 1:1-68:1)
+base.sg (span: 1:1-82:1)
 ├─ Item[0]: Extern (span: 5:1-7:2)
 │  ├─ Target: bool
 │  ├─ Members:
@@ -6,8 +6,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: bool)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 6:35-6:51)
-│  │        └─ Stmt[0]: Return (span: 6:37-6:49)
+│  │        Stmt[0]: Block (span: 6:39-6:55)
+│  │        └─ Stmt[0]: Return (span: 6:41-6:53)
 │  │           └─ Expr: expr#1: self
 ├─ Item[1]: Extern (span: 9:1-11:2)
 │  ├─ Target: int
@@ -16,8 +16,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: int)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 10:34-10:55)
-│  │        └─ Stmt[0]: Return (span: 10:36-10:53)
+│  │        Stmt[0]: Block (span: 10:38-10:59)
+│  │        └─ Stmt[0]: Return (span: 10:40-10:57)
 │  │           └─ Expr: expr#4: (self != 0)
 ├─ Item[2]: Extern (span: 13:1-15:2)
 │  ├─ Target: uint
@@ -26,8 +26,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: uint)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 14:35-14:61)
-│  │        └─ Stmt[0]: Return (span: 14:37-14:59)
+│  │        Stmt[0]: Block (span: 14:39-14:65)
+│  │        └─ Stmt[0]: Return (span: 14:41-14:63)
 │  │           └─ Expr: expr#8: (self != (0 to uint))
 ├─ Item[3]: Extern (span: 17:1-19:2)
 │  ├─ Target: float
@@ -36,8 +36,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: float)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 18:36-18:59)
-│  │        └─ Stmt[0]: Return (span: 18:38-18:57)
+│  │        Stmt[0]: Block (span: 18:40-18:63)
+│  │        └─ Stmt[0]: Return (span: 18:42-18:61)
 │  │           └─ Expr: expr#11: (self != 0.0)
 ├─ Item[4]: Extern (span: 21:1-23:2)
 │  ├─ Target: string
@@ -46,8 +46,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: string)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 22:37-22:59)
-│  │        └─ Stmt[0]: Return (span: 22:39-22:57)
+│  │        Stmt[0]: Block (span: 22:41-22:63)
+│  │        └─ Stmt[0]: Return (span: 22:43-22:61)
 │  │           └─ Expr: expr#14: (self != "")
 ├─ Item[5]: Extern (span: 25:1-27:2)
 │  ├─ Target: nothing
@@ -56,8 +56,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: nothing)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 26:38-26:55)
-│  │        └─ Stmt[0]: Return (span: 26:40-26:53)
+│  │        Stmt[0]: Block (span: 26:42-26:59)
+│  │        └─ Stmt[0]: Return (span: 26:44-26:57)
 │  │           └─ Expr: expr#15: false
 ├─ Item[6]: Extern (span: 29:1-31:2)
 │  ├─ Target: int8
@@ -66,8 +66,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: int8)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 30:35-30:63)
-│  │        └─ Stmt[0]: Return (span: 30:37-30:61)
+│  │        Stmt[0]: Block (span: 30:39-30:67)
+│  │        └─ Stmt[0]: Return (span: 30:41-30:65)
 │  │           └─ Expr: expr#20: (self != ((0) to int8))
 ├─ Item[7]: Extern (span: 33:1-35:2)
 │  ├─ Target: int16
@@ -76,8 +76,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: int16)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 34:36-34:65)
-│  │        └─ Stmt[0]: Return (span: 34:38-34:63)
+│  │        Stmt[0]: Block (span: 34:40-34:69)
+│  │        └─ Stmt[0]: Return (span: 34:42-34:67)
 │  │           └─ Expr: expr#25: (self != ((0) to int16))
 ├─ Item[8]: Extern (span: 37:1-39:2)
 │  ├─ Target: int32
@@ -86,8 +86,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: int32)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 38:36-38:65)
-│  │        └─ Stmt[0]: Return (span: 38:38-38:63)
+│  │        Stmt[0]: Block (span: 38:40-38:69)
+│  │        └─ Stmt[0]: Return (span: 38:42-38:67)
 │  │           └─ Expr: expr#30: (self != ((0) to int32))
 ├─ Item[9]: Extern (span: 41:1-43:2)
 │  ├─ Target: int64
@@ -96,8 +96,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: int64)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 42:36-42:65)
-│  │        └─ Stmt[0]: Return (span: 42:38-42:63)
+│  │        Stmt[0]: Block (span: 42:40-42:69)
+│  │        └─ Stmt[0]: Return (span: 42:42-42:67)
 │  │           └─ Expr: expr#35: (self != ((0) to int64))
 ├─ Item[10]: Extern (span: 45:1-47:2)
 │  ├─ Target: uint8
@@ -106,8 +106,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: uint8)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 46:36-46:65)
-│  │        └─ Stmt[0]: Return (span: 46:38-46:63)
+│  │        Stmt[0]: Block (span: 46:40-46:69)
+│  │        └─ Stmt[0]: Return (span: 46:42-46:67)
 │  │           └─ Expr: expr#40: (self != ((0) to uint8))
 ├─ Item[11]: Extern (span: 49:1-51:2)
 │  ├─ Target: uint16
@@ -116,8 +116,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: uint16)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 50:37-50:67)
-│  │        └─ Stmt[0]: Return (span: 50:39-50:65)
+│  │        Stmt[0]: Block (span: 50:41-50:71)
+│  │        └─ Stmt[0]: Return (span: 50:43-50:69)
 │  │           └─ Expr: expr#45: (self != ((0) to uint16))
 ├─ Item[12]: Extern (span: 53:1-55:2)
 │  ├─ Target: uint32
@@ -126,8 +126,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: uint32)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 54:37-54:67)
-│  │        └─ Stmt[0]: Return (span: 54:39-54:65)
+│  │        Stmt[0]: Block (span: 54:41-54:71)
+│  │        └─ Stmt[0]: Return (span: 54:43-54:69)
 │  │           └─ Expr: expr#50: (self != ((0) to uint32))
 ├─ Item[13]: Extern (span: 57:1-59:2)
 │  ├─ Target: uint64
@@ -136,8 +136,8 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: uint64)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 58:37-58:67)
-│  │        └─ Stmt[0]: Return (span: 58:39-58:65)
+│  │        Stmt[0]: Block (span: 58:41-58:71)
+│  │        └─ Stmt[0]: Return (span: 58:43-58:69)
 │  │           └─ Expr: expr#55: (self != ((0) to uint64))
 ├─ Item[14]: Extern (span: 61:1-63:2)
 │  ├─ Target: float32
@@ -146,16 +146,50 @@ base.sg (span: 1:1-68:1)
 │  │     ├─ Params: (self: float32)
 │  │     ├─ Return: bool
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 62:38-62:71)
-│  │        └─ Stmt[0]: Return (span: 62:40-62:69)
+│  │        Stmt[0]: Block (span: 62:42-62:75)
+│  │        └─ Stmt[0]: Return (span: 62:44-62:73)
 │  │           └─ Expr: expr#60: (self != ((0.0) to float32))
-└─ Item[15]: Extern (span: 65:1-67:2)
-   ├─ Target: float64
-   ├─ Members:
-   │  └─ Fn[0]: __bool
-   │     ├─ Params: (self: float64)
-   │     ├─ Return: bool
-   │     └─ Body:
-   │        Stmt[0]: Block (span: 66:38-66:71)
-   │        └─ Stmt[0]: Return (span: 66:40-66:69)
-   │           └─ Expr: expr#65: (self != ((0.0) to float64))
+├─ Item[15]: Extern (span: 65:1-67:2)
+│  ├─ Target: float64
+│  ├─ Members:
+│  │  └─ Fn[0]: __bool
+│  │     ├─ Params: (self: float64)
+│  │     ├─ Return: bool
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 66:42-66:75)
+│  │        └─ Stmt[0]: Return (span: 66:44-66:73)
+│  │           └─ Expr: expr#65: (self != ((0.0) to float64))
+├─ Item[16]: Fn (span: 71:1-77:2)
+│  ├─ Name: print
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 71:36-77:2)
+│        ├─ Stmt[0]: Let (span: 72:5-72:32)
+│        │  ├─ Name: ptr
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#68: rt_string_ptr(s)
+│        ├─ Stmt[1]: Let (span: 73:5-73:33)
+│        │  ├─ Name: slen
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#71: rt_string_len(s)
+│        ├─ Stmt[2]: Expr (span: 74:5-74:32)
+│        │  └─ Expr: expr#75: rt_write_stdout(ptr, slen)
+│        ├─ Stmt[3]: Let (span: 75:5-75:24)
+│        │  ├─ Name: newline
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#76: "\n"
+│        └─ Stmt[4]: Expr (span: 76:5-76:53)
+│           └─ Expr: expr#83: rt_write_stdout(rt_string_ptr(newline), 1 to uint)
+└─ Item[17]: Fn (span: 79:1-81:2)
+   ├─ Name: len
+   ├─ Generics: <T>
+   ├─ Params: (self: &T)
+   ├─ Return: uint
+   └─ Body:
+      └─ Stmt[0]: Block (span: 79:47-81:2)
+         └─ Stmt[0]: Return (span: 80:5-80:25)
+            └─ Expr: expr#86: self.__len()

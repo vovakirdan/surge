@@ -1,0 +1,115 @@
+type_turbofish_syntax.sg (span: 4:1-43:1)
+├─ Item[0]: Type (span: 4:1-6:3)
+│  ├─ Name: Box
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Struct:
+│     └─ Field[0]: value: T
+├─ Item[1]: Type (span: 8:1-11:3)
+│  ├─ Name: Pair
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Generics: <A, B>
+│  └─ Struct:
+│     ├─ Field[0]: first: A
+│     └─ Field[1]: second: B
+├─ Item[2]: Fn (span: 13:1-19:2)
+│  ├─ Name: use_standard_syntax
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:26-19:2)
+│        ├─ Stmt[0]: Let (span: 15:5-15:40)
+│        │  ├─ Name: box1
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Box<int>
+│        │  └─ Value: expr#3: <ExprKind(18)>
+│        ├─ Stmt[1]: Let (span: 16:5-16:62)
+│        │  ├─ Name: pair1
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Pair<int, string>
+│        │  └─ Value: expr#8: <ExprKind(18)>
+│        ├─ Stmt[2]: Let (span: 17:5-17:31)
+│        │  ├─ Name: _v1
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#10: box1.value
+│        └─ Stmt[3]: Let (span: 18:5-18:32)
+│           ├─ Name: _p1
+│           ├─ Mutable: false
+│           ├─ Type: int
+│           └─ Value: expr#12: pair1.first
+├─ Item[3]: Fn (span: 21:1-27:2)
+│  ├─ Name: use_turbofish_syntax
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 21:27-27:2)
+│        ├─ Stmt[0]: Let (span: 23:5-23:42)
+│        │  ├─ Name: box2
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Box<int>
+│        │  └─ Value: expr#15: <ExprKind(18)>
+│        ├─ Stmt[1]: Let (span: 24:5-24:64)
+│        │  ├─ Name: pair2
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Pair<int, string>
+│        │  └─ Value: expr#20: <ExprKind(18)>
+│        ├─ Stmt[2]: Let (span: 25:5-25:31)
+│        │  ├─ Name: _v2
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#22: box2.value
+│        └─ Stmt[3]: Let (span: 26:5-26:32)
+│           ├─ Name: _p2
+│           ├─ Mutable: false
+│           ├─ Type: int
+│           └─ Value: expr#24: pair2.first
+├─ Item[4]: Fn (span: 29:1-34:2)
+│  ├─ Name: use_nested_turbofish
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 29:27-34:2)
+│        ├─ Stmt[0]: Let (span: 31:5-31:62)
+│        │  ├─ Name: nested
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Box<Box<int>>
+│        │  └─ Value: expr#29: <ExprKind(18)>
+│        ├─ Stmt[1]: Let (span: 32:5-32:43)
+│        │  ├─ Name: _inner
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Box<int>
+│        │  └─ Value: expr#31: nested.value
+│        └─ Stmt[2]: Let (span: 33:5-33:34)
+│           ├─ Name: _val
+│           ├─ Mutable: false
+│           ├─ Type: int
+│           └─ Value: expr#33: _inner.value
+└─ Item[5]: Fn (span: 36:1-42:2)
+   ├─ Name: use_mixed_syntax
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 36:23-42:2)
+         ├─ Stmt[0]: Let (span: 38:5-38:76)
+         │  ├─ Name: mixed1
+         │  ├─ Mutable: false
+         │  ├─ Type: Box<Pair<int, int>>
+         │  └─ Value: expr#40: <ExprKind(18)>
+         ├─ Stmt[1]: Let (span: 39:5-39:83)
+         │  ├─ Name: mixed2
+         │  ├─ Mutable: false
+         │  ├─ Type: Pair<Box<int>, string>
+         │  └─ Value: expr#47: <ExprKind(18)>
+         ├─ Stmt[2]: Let (span: 40:5-40:44)
+         │  ├─ Name: _m1
+         │  ├─ Mutable: false
+         │  ├─ Type: Pair<int, int>
+         │  └─ Value: expr#49: mixed1.value
+         └─ Stmt[3]: Let (span: 41:5-41:40)
+            ├─ Name: _m2
+            ├─ Mutable: false
+            ├─ Type: Box<int>
+            └─ Value: expr#51: mixed2.first

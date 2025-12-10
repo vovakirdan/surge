@@ -1,0 +1,10 @@
+// ERROR: Direct read of @atomic field without atomic_load
+
+type Counter = {
+    @atomic value: int,
+};
+
+pub fn bad_read() -> int {
+    let c: Counter = Counter { value: 0 };
+    return c.value;  // ERROR: must use atomic_load
+}

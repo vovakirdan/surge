@@ -1,0 +1,31 @@
+// scenario: valid bare struct literals in return statements
+type Foo = {
+    value: int,
+    name: string
+}
+
+type Empty = {}
+
+type Box<T> = {
+    value: T
+}
+
+fn test_named_fields() -> Foo {
+    return {value: 1, name: "hello"};
+}
+
+fn test_positional_fields() -> Foo {
+    return {42, "world"};
+}
+
+fn test_empty_struct() -> Empty {
+    return {};
+}
+
+fn test_generic_positional() -> Box<int> {
+    return {100};
+}
+
+fn test_generic_named() -> Box<string> {
+    return {value: "test"};
+}

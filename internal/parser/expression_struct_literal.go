@@ -9,6 +9,13 @@ import (
 
 func (p *Parser) parseStructLiteral(typeID ast.TypeID, typeSpan source.Span) (ast.ExprID, bool) {
 	openTok := p.advance()
+	return p.parseStructLiteralBody(typeID, typeSpan, openTok)
+}
+
+// parseStructLiteralBody parses struct literal content after '{' has been consumed.
+// This variant is used when the caller has already consumed the opening brace
+// (e.g., when distinguishing between block expressions and struct literals).
+func (p *Parser) parseStructLiteralBody(typeID ast.TypeID, typeSpan source.Span, openTok token.Token) (ast.ExprID, bool) {
 	fields := make([]ast.ExprStructField, 0)
 	var commas []source.Span
 	trailing := false

@@ -34,6 +34,17 @@ func (tc *typeChecker) populateUnionType(itemID ast.ItemID, typeItem *ast.TypeIt
 		bounds := tc.resolveTypeParamBounds(paramIDs, scope, nil)
 		tc.attachTypeParamSymbols(symID, bounds)
 		tc.applyTypeParamBounds(symID)
+	} else if len(paramSpecs) > 0 && len(typeItem.Generics) > 0 {
+		// Attach type param symbols for generics syntax (<T>)
+		typeParamSyms := make([]symbols.TypeParamSymbol, 0, len(paramSpecs))
+		for _, spec := range paramSpecs {
+			typeParamSyms = append(typeParamSyms, symbols.TypeParamSymbol{
+				Name:      spec.name,
+				IsConst:   spec.kind == paramKindConst,
+				ConstType: spec.constType,
+			})
+		}
+		tc.attachTypeParamSymbols(symID, typeParamSyms)
 	}
 	members, hasTag, hasNothing := tc.collectUnionMembers(unionDecl, scope)
 	tc.validateUnionMembers(hasTag, hasNothing, typeItem, unionDecl)
@@ -163,14 +174,6 @@ func (tc *typeChecker) registerTagConstructors(typeItem *ast.TypeItem, unionType
 	if unionName == "" {
 		return
 	}
-	resultKey := unionName
-	if len(typeItem.Generics) > 0 {
-		genNames := make([]string, 0, len(typeItem.Generics))
-		for _, gid := range typeItem.Generics {
-			genNames = append(genNames, tc.lookupName(gid))
-		}
-		resultKey = fmt.Sprintf("%s<%s>", unionName, strings.Join(genNames, ","))
-	}
 
 	scope := tc.fileScope()
 	for _, m := range members {
@@ -197,13 +200,34 @@ func (tc *typeChecker) registerTagConstructors(typeItem *ast.TypeItem, unionType
 		variadic := make([]bool, len(params))
 
 		sym.Type = unionType
-		if len(sym.TypeParams) == 0 {
-			if len(tagItem.Generics) > 0 {
-				sym.TypeParams = append([]source.StringID(nil), tagItem.Generics...)
-			} else if len(typeItem.Generics) > 0 {
-				sym.TypeParams = append([]source.StringID(nil), typeItem.Generics...)
-			}
+
+		// Determine which type params the tag uses
+		// If tag has its own generics (e.g., `tag Success<T>(T)`), use those
+		// Otherwise, use the union's generics
+		var tagTypeParams []source.StringID
+		if len(tagItem.Generics) > 0 {
+			tagTypeParams = tagItem.Generics
+		} else if len(typeItem.Generics) > 0 {
+			tagTypeParams = typeItem.Generics
 		}
+
+		if len(sym.TypeParams) == 0 {
+			sym.TypeParams = append([]source.StringID(nil), tagTypeParams...)
+		}
+
+		// Build result key using TAG name (not union name)
+		// Tag constructors return their own tag type, e.g., Success(1) returns Success<int>
+		// isUnionMember will then check if Success<int> is a member of Erring<int, Error>
+		tagName := tc.lookupName(m.TagName)
+		resultKey := tagName
+		if len(tagTypeParams) > 0 {
+			genNames := make([]string, 0, len(tagTypeParams))
+			for _, gid := range tagTypeParams {
+				genNames = append(genNames, tc.lookupName(gid))
+			}
+			resultKey = fmt.Sprintf("%s<%s>", tagName, strings.Join(genNames, ","))
+		}
+
 		sym.Signature = &symbols.FunctionSignature{
 			Params:     params,
 			ParamNames: make([]source.StringID, len(params)),

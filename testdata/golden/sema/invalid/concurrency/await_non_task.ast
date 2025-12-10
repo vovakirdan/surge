@@ -1,0 +1,58 @@
+await_non_task.sg (span: 3:1-27:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: get_int
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:21-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:15)
+│           └─ Expr: expr#1: 42
+├─ Item[1]: Fn (span: 8:1-11:2)
+│  ├─ Name: await_int
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:26-11:2)
+│        ├─ Stmt[0]: Let (span: 9:5-9:21)
+│        │  ├─ Name: x
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#2: 42
+│        └─ Stmt[1]: Let (span: 10:5-10:28)
+│           ├─ Name: y
+│           ├─ Mutable: false
+│           ├─ Type: int
+│           └─ Value: expr#5: x.await()
+├─ Item[2]: Fn (span: 14:1-16:2)
+│  ├─ Name: await_fn_result
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 14:32-16:2)
+│        └─ Stmt[0]: Let (span: 15:5-15:41)
+│           ├─ Name: result
+│           ├─ Mutable: false
+│           ├─ Type: int
+│           └─ Value: expr#9: get_int().await()
+├─ Item[3]: Fn (span: 19:1-21:2)
+│  ├─ Name: await_string
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 19:29-21:2)
+│        └─ Stmt[0]: Let (span: 20:5-20:37)
+│           ├─ Name: s
+│           ├─ Mutable: false
+│           ├─ Type: string
+│           └─ Value: expr#12: "hello".await()
+└─ Item[4]: Fn (span: 24:1-26:2)
+   ├─ Name: await_bool
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 24:27-26:2)
+         └─ Stmt[0]: Let (span: 25:5-25:32)
+            ├─ Name: b
+            ├─ Mutable: false
+            ├─ Type: bool
+            └─ Value: expr#15: true.await()

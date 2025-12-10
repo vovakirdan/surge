@@ -1,0 +1,8 @@
+// scenario: struct literal in return statement with unknown field name
+type Bar = {
+    value: int
+}
+
+fn test_unknown_field() -> Bar {
+    return {value: 1, other_field: "hello"};  // ERROR: Bar has no field other_field
+}

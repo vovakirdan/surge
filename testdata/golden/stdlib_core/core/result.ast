@@ -25,37 +25,35 @@ result.sg (span: 1:1-46:1)
    │  ├─ Fn[0]: safe
    │  │  ├─ Params: (self: Erring<T, E>)
    │  │  ├─ Return: T
-   │  │  ├─ Generics: <T, E>
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 11:59-16:6)
+   │  │     Stmt[0]: Block (span: 11:42-16:6)
    │  │     └─ Stmt[0]: Expr (span: 12:9-15:11)
    │  │        └─ Expr: expr#9: compare self { 2 arms }
    │  ├─ Fn[1]: exit
    │  │  ├─ Params: (self: Erring<T, E>)
    │  │  ├─ Return: nothing
-   │  │  ├─ Generics: <T, E>
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 18:65-23:6)
+   │  │     Stmt[0]: Block (span: 18:48-23:6)
    │  │     └─ Stmt[0]: Expr (span: 19:9-22:11)
-   │  │        └─ Expr: expr#18: compare self { 1 arms }
+   │  │        └─ Expr: expr#19: compare self { 2 arms }
    │  ├─ Fn[2]: error
    │  │  ├─ Params: (self: Erring<T, E>)
    │  │  ├─ Return: Option<E>
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 25:51-30:6)
    │  │     └─ Stmt[0]: Expr (span: 26:9-29:11)
-   │  │        └─ Expr: expr#28: compare self { 2 arms }
+   │  │        └─ Expr: expr#29: compare self { 2 arms }
    │  ├─ Fn[3]: is_success
    │  │  ├─ Params: (self: Erring<T, E>)
    │  │  ├─ Return: bool
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 32:51-37:6)
    │  │     └─ Stmt[0]: Expr (span: 33:9-36:11)
-   │  │        └─ Expr: expr#36: compare self { 2 arms }
+   │  │        └─ Expr: expr#37: compare self { 2 arms }
    │  └─ Fn[4]: is_error
    │     ├─ Params: (self: Erring<T, E>)
    │     ├─ Return: bool
    │     └─ Body:
    │        Stmt[0]: Block (span: 39:49-44:6)
    │        └─ Stmt[0]: Expr (span: 40:9-43:11)
-   │           └─ Expr: expr#44: compare self { 2 arms }
+   │           └─ Expr: expr#45: compare self { 2 arms }

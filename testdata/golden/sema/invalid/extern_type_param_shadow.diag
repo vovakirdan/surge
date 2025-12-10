@@ -1,0 +1,3 @@
+error SEM3112 testdata/golden/sema/invalid/extern_type_param_shadow.sg:7:11 type parameter 'T' shadows outer type parameter from extern block
+error SEM3112 testdata/golden/sema/invalid/extern_type_param_shadow.sg:17:16 type parameter 'A' shadows outer type parameter from extern block
+error SEM3112 testdata/golden/sema/invalid/extern_type_param_shadow.sg:20:16 type parameter 'B' shadows outer type parameter from extern block

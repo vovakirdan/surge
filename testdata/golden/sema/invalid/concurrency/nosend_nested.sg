@@ -13,5 +13,7 @@ pub type AppState = {
 pub fn spawn_with_nested_nosend() -> Task<int> {
     let state: AppState = { db: { connection: 1 }, counter: 0 };
     // ERROR SEM3086: type 'AppState' contains @nosend field of type 'Database'
-    return spawn state.counter;
+    return spawn async {
+        return state.counter;
+    };
 }

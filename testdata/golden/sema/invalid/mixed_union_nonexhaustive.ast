@@ -1,0 +1,63 @@
+mixed_union_nonexhaustive.sg (span: 3:1-35:1)
+├─ Item[0]: Tag (span: 3:1-3:14)
+│  ├─ Name: Ok
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Payload: T
+├─ Item[1]: Type (span: 4:1-4:31)
+│  ├─ Name: Result
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  ├─ Generics: <T, E>
+│  └─ Union:
+│     ├─ Member[0]: Ok(T)
+│     └─ Member[1]: E
+├─ Item[2]: Fn (span: 7:1-11:2)
+│  ├─ Name: test_missing_type_member
+│  ├─ Params: (x: Result<int, string>)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:60-11:2)
+│        └─ Stmt[0]: Return (span: 8:5-10:7)
+│           └─ Expr: expr#6: compare x { 1 arms }
+├─ Item[3]: Tag (span: 14:1-14:16)
+│  ├─ Name: Http
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Payload: T
+├─ Item[4]: Tag (span: 15:1-15:14)
+│  ├─ Name: IO
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Payload: T
+├─ Item[5]: Tag (span: 16:1-16:15)
+│  ├─ Name: CPU
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Payload: T
+├─ Item[6]: Type (span: 17:1-17:56)
+│  ├─ Name: ErrorKind
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Union:
+│     ├─ Member[0]: Http(T)
+│     ├─ Member[1]: IO(T)
+│     ├─ Member[2]: CPU(T)
+│     └─ Member[3]: nothing
+├─ Item[7]: Fn (span: 20:1-26:2)
+│  ├─ Name: test_complex_missing_nothing
+│  ├─ Params: (x: ErrorKind<string>)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 20:62-26:2)
+│        └─ Stmt[0]: Return (span: 21:5-25:7)
+│           └─ Expr: expr#20: compare x { 3 arms }
+└─ Item[8]: Fn (span: 29:1-34:2)
+   ├─ Name: test_complex_missing_tags
+   ├─ Params: (x: ErrorKind<string>)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 29:59-34:2)
+         └─ Stmt[0]: Return (span: 30:5-33:7)
+            └─ Expr: expr#28: compare x { 2 arms }

@@ -1,0 +1,8 @@
+// scenario: generic struct literal in return with extra positional fields
+type Box<T> = {
+    value: T
+}
+
+fn test_generic_extra() -> Box<int> {
+    return {1, 2, 3};  // ERROR: Box<int> literal expects 1 fields, got 3
+}

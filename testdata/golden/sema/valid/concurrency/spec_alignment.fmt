@@ -1,0 +1,298 @@
+// =============================================
+// SPEC ALIGNMENT TEST
+// Examples from CONCURRENCY.md adapted to actual syntax
+// Verifies implementation matches specification
+// =============================================
+
+// --- Section 3.1: Async Functions ---
+
+async fn simple_async_fn() -> int {
+    return 42;
+}
+
+async fn async_fn_with_params(x: int, y: int) -> int {
+    return x + y;
+}
+
+// --- Section 3.2: Spawn ---
+
+pub async fn test_spawn_basic() {
+    let t: Task<int> = spawn simple_async_fn();
+    let result: int = t.await();
+}
+
+// spawn from sync function returning Task (Rule 2)
+pub fn sync_fn_returns_task() -> Task<int> {
+    return spawn simple_async_fn();
+}
+
+// --- Section 3.3: Await ---
+
+pub async fn test_await_basic() {
+    let result: int = simple_async_fn().await();
+}
+
+pub async fn test_await_chained() {
+    let t: Task<int> = spawn simple_async_fn();
+    let value: int = t.await();
+}
+
+// --- Section 3.4: Async Blocks ---
+
+pub async fn test_async_block() -> int {
+    let t: Task<int> = async { return 100; };
+    return t.await();
+}
+
+pub async fn test_async_block_with_spawn() {
+    async {
+        let t1: Task<int> = spawn simple_async_fn();
+        let t2: Task<int> = spawn simple_async_fn();
+        let r1: int = t1.await();
+        let r2: int = t2.await();
+    };
+}
+
+// --- Section 6.3: Checkpoint ---
+
+pub async fn test_checkpoint() {
+    checkpoint().await();
+}
+
+pub async fn test_checkpoint_in_loop() {
+    let mut i: int = 0;
+    while i < 100 {
+        if i % 10 == 0 {
+            checkpoint().await();
+        }
+        i = i + 1;
+    }
+}
+
+// --- Mutex (from core/intrinsics.sg) ---
+
+pub fn test_mutex_operations() {
+    let mut m: Mutex = Mutex.new();
+    m.lock();
+    m.unlock();
+}
+
+pub fn test_mutex_try_lock() -> bool {
+    let mut m: Mutex = Mutex.new();
+    return m.try_lock();
+}
+
+// --- RwLock (from core/intrinsics.sg) ---
+
+pub fn test_rwlock_read() {
+    let mut rw: RwLock = RwLock.new();
+    rw.read_lock();
+    rw.read_unlock();
+}
+
+pub fn test_rwlock_write() {
+    let mut rw: RwLock = RwLock.new();
+    rw.write_lock();
+    rw.write_unlock();
+}
+
+pub fn test_rwlock_try_ops() {
+    let mut rw: RwLock = RwLock.new();
+    let r: bool = rw.try_read_lock();
+    let w: bool = rw.try_write_lock();
+}
+
+// --- Condition (from core/intrinsics.sg) ---
+
+pub fn test_condition_basic() {
+    let cond: Condition = Condition.new();
+    cond.notify_one();
+    cond.notify_all();
+}
+
+// --- Semaphore (from core/intrinsics.sg) ---
+
+pub fn test_semaphore_operations() {
+    let mut sem: Semaphore = Semaphore.new(5:uint);
+    sem.acquire();
+    sem.release();
+}
+
+pub fn test_semaphore_try() -> bool {
+    let mut sem: Semaphore = Semaphore.new(1:uint);
+    return sem.try_acquire();
+}
+
+// --- Channel (from core/intrinsics.sg) ---
+// NOTE: Channel methods have known issues with method resolution on generic types.
+// See SEM3005 errors in existing tests. Skipping channel tests until fixed.
+// Specification says:
+//   let ch: Channel<int> = Channel.new(10);
+//   ch.send(42);
+//   let v: int? = ch.recv();
+//   ch.close();
+
+// --- @guarded_by Attribute ---
+
+type GuardedStruct = {
+    lock: Mutex,
+    @guarded_by("lock")data: int,
+};
+
+pub fn test_guarded_access() {
+    let mut s: GuardedStruct = GuardedStruct { lock: Mutex.new(), data: 0 };
+    s.lock.lock();
+    s.data = 42;
+    let v: int = s.data;
+    s.lock.unlock();
+}
+
+// --- @guarded_by with RwLock ---
+
+type RwGuardedStruct = {
+    rw: RwLock,
+    @guarded_by("rw")data: string,
+};
+
+pub fn test_rwlock_guarded_read() {
+    let mut s: RwGuardedStruct = RwGuardedStruct { rw: RwLock.new(), data: "hello" };
+    s.rw.read_lock();
+    let v: string = s.data;
+    s.rw.read_unlock();
+}
+
+pub fn test_rwlock_guarded_write() {
+    let mut s: RwGuardedStruct = RwGuardedStruct { rw: RwLock.new(), data: "hello" };
+    s.rw.write_lock();
+    s.data = "world";
+    s.rw.write_unlock();
+}
+
+// --- Lock Contract Attributes ---
+
+type ContractStruct = {
+    lock: Mutex,
+    value: int,
+};
+
+extern<ContractStruct> {
+    @requires_lock("lock")
+    pub fn requires_test(self: &ContractStruct) -> int {
+        return self.value;
+    }
+
+    @acquires_lock("lock")
+    pub fn acquires_test(self: &mut ContractStruct) {
+        self.lock.lock();
+    }
+
+    @releases_lock("lock")
+    pub fn releases_test(self: &mut ContractStruct) {
+        self.lock.unlock();
+    }
+}
+
+// --- @waits_on Attribute ---
+
+type WaiterStruct = {
+    lock: Mutex,
+    cond: Condition,
+    ready: bool,
+};
+
+extern<WaiterStruct> {
+    @waits_on("cond")
+    pub fn wait_for_signal(self: &mut WaiterStruct) {
+        // Attribute validation: cond is Condition type - valid
+        // Full implementation requires careful borrow handling
+    }
+}
+
+// --- @nonblocking Attribute ---
+
+@nonblocking
+pub fn nonblocking_fn() -> int {
+    return 42;
+}
+
+// NOTE: Channel methods have issues, see above
+// @nonblocking
+// pub fn nonblocking_with_try(ch: &Channel<int>) -> int? {
+//     return ch.try_recv();
+// }
+
+// --- @atomic Attribute ---
+
+type AtomicStruct = {
+    @atomiccounter: int,
+    @atomicflag: bool,
+    @atomicuvalue: uint,
+};
+
+pub fn test_atomic_load() -> int {
+    let a: AtomicStruct = AtomicStruct { counter: 0, flag: false, uvalue: 0 };
+    return atomic_load(&a.counter);
+}
+
+pub fn test_atomic_store() {
+    let mut a: AtomicStruct = AtomicStruct { counter: 0, flag: false, uvalue: 0 };
+    atomic_store(&mut a.counter, 100);
+}
+
+pub fn test_atomic_exchange() -> int {
+    let mut a: AtomicStruct = AtomicStruct { counter: 0, flag: false, uvalue: 0 };
+    return atomic_exchange(&mut a.counter, 50);
+}
+
+pub fn test_atomic_compare_exchange() -> bool {
+    let mut a: AtomicStruct = AtomicStruct { counter: 0, flag: false, uvalue: 0 };
+    return atomic_compare_exchange(&mut a.counter, 0, 1);
+}
+
+pub fn test_atomic_fetch_add() -> int {
+    let mut a: AtomicStruct = AtomicStruct { counter: 0, flag: false, uvalue: 0 };
+    return atomic_fetch_add(&mut a.counter, 10);
+}
+
+pub fn test_atomic_fetch_sub() -> int {
+    let mut a: AtomicStruct = AtomicStruct { counter: 100, flag: false, uvalue: 0 };
+    return atomic_fetch_sub(&mut a.counter, 5);
+}
+
+// --- @send / @nosend Attributes ---
+
+@send
+type SendableData = {
+    id: int,
+    name: string,
+    active: bool,
+};
+
+@nosend
+type NonSendableData = {
+    internal_ptr: *int,
+};
+
+// @send type with @atomic fields is valid
+@send
+type SendWithAtomic = {
+    @atomiccounter: int,
+    data: int,
+};
+
+// --- Structured Concurrency (Section 4) ---
+
+// All spawned tasks in async block are awaited before block exits
+pub async fn test_structured_concurrency() {
+    async {
+        let t1: Task<int> = spawn simple_async_fn();
+        let t2: Task<int> = spawn simple_async_fn();
+        let r1: int = t1.await();
+        let r2: int = t2.await();
+    };
+}
+
+// Returning Task from function transfers ownership
+pub fn transfer_task_ownership() -> Task<int> {
+    return spawn simple_async_fn();
+}

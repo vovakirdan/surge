@@ -1,0 +1,68 @@
+// Test exhaustiveness checking for mixed unions (tag + type members)
+
+tag Ok<T>(T);
+type Result<T, E> = Ok(T) | E;
+
+// Exhaustive: tag pattern + named binding
+fn test_exhaustive_with_binding(x: Result<int, string>) -> int {
+    return compare x {
+        Ok(v) => v;
+        err => 0;
+    };
+}
+
+// Exhaustive: tag pattern + wildcard
+fn test_exhaustive_with_wildcard(x: Result<int, string>) -> int {
+    return compare x {
+        Ok(v) => v;
+        _ => 0;
+    };
+}
+
+// Exhaustive: just named binding (catches everything)
+fn test_exhaustive_just_binding(x: Result<int, string>) -> int {
+    return compare x {
+        any => 0;
+    };
+}
+
+// Exhaustive: finally clause
+fn test_exhaustive_with_finally(x: Result<int, string>) -> int {
+    return compare x {
+        Ok(v) => v;
+        finally => 0;
+    };
+}
+
+// Complex case: multiple tags + nothing
+tag Http<T>(T);
+tag IO<T>(T);
+tag CPU<T>(T);
+type ErrorKind<T> = Http(T) | IO(T) | CPU(T) | nothing;
+
+// Exhaustive: all tags + nothing literal
+fn test_complex_all_tags(x: ErrorKind<string>) -> int {
+    return compare x {
+        Http(msg) => 1;
+        IO(msg) => 2;
+        CPU(msg) => 3;
+        nothing => 0;
+    };
+}
+
+// Exhaustive: some tags + wildcard for rest
+fn test_complex_partial_with_wildcard(x: ErrorKind<string>) -> int {
+    return compare x {
+        Http(msg) => 1;
+        _ => 0;
+    };
+}
+
+// Exhaustive: some tags + named binding for rest
+fn test_complex_partial_with_binding(x: ErrorKind<string>) -> int {
+    return compare x {
+        Http(msg) => 1;
+        IO(msg) => 2;
+        other => 0;
+    };
+}

@@ -1,46 +1,55 @@
-spawn_sendable.sg (span: 3:1-24:1)
+spawn_sendable.sg (span: 3:1-34:1)
 ├─ Item[0]: Type (span: 3:1-5:3)
 │  ├─ Name: Counter
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
 │  └─ Struct:
 │     └─ Field[0]: value: int
-├─ Item[1]: Fn (span: 7:1-11:2)
+├─ Item[1]: Fn (span: 8:1-10:2)
+│  ├─ Name: process_counter
+│  ├─ Params: (c: Counter)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:45-10:2)
+│        └─ Stmt[0]: Return (span: 9:5-9:24)
+│           └─ Expr: expr#4: (c.value + 1)
+├─ Item[2]: Fn (span: 12:1-14:2)
+│  ├─ Name: double_int
+│  ├─ Params: (x: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 12:36-14:2)
+│        └─ Stmt[0]: Return (span: 13:5-13:18)
+│           └─ Expr: expr#7: (x * 2)
+├─ Item[3]: Fn (span: 16:1-18:2)
+│  ├─ Name: negate_bool
+│  ├─ Params: (b: bool)
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 16:39-18:2)
+│        └─ Stmt[0]: Return (span: 17:5-17:15)
+│           └─ Expr: expr#9: !b
+├─ Item[4]: Fn (span: 21:1-23:2)
 │  ├─ Name: spawn_with_owned_data
 │  ├─ Params: (c: Counter)
 │  ├─ Return: Task<int>
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 7:55-11:2)
-│        ├─ Stmt[0]: Let (span: 9:5-9:35)
-│        │  ├─ Name: result
-│        │  ├─ Mutable: false
-│        │  ├─ Type: int
-│        │  └─ Value: expr#4: (c.value + 1)
-│        └─ Stmt[1]: Return (span: 10:5-10:25)
-│           └─ Expr: expr#6: spawn result
-├─ Item[2]: Fn (span: 13:1-17:2)
+│     └─ Stmt[0]: Block (span: 21:55-23:2)
+│        └─ Stmt[0]: Return (span: 22:5-22:37)
+│           └─ Expr: expr#13: spawn process_counter(c)
+├─ Item[5]: Fn (span: 26:1-28:2)
 │  ├─ Name: spawn_with_int
 │  ├─ Params: (x: int)
 │  ├─ Return: Task<int>
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 13:44-17:2)
-│        ├─ Stmt[0]: Let (span: 15:5-15:30)
-│        │  ├─ Name: doubled
-│        │  ├─ Mutable: false
-│        │  ├─ Type: int
-│        │  └─ Value: expr#9: (x * 2)
-│        └─ Stmt[1]: Return (span: 16:5-16:26)
-│           └─ Expr: expr#11: spawn doubled
-└─ Item[3]: Fn (span: 19:1-23:2)
+│     └─ Stmt[0]: Block (span: 26:44-28:2)
+│        └─ Stmt[0]: Return (span: 27:5-27:32)
+│           └─ Expr: expr#17: spawn double_int(x)
+└─ Item[6]: Fn (span: 31:1-33:2)
    ├─ Name: spawn_with_bool
    ├─ Params: (b: bool)
    ├─ Return: Task<bool>
    └─ Body:
-      └─ Stmt[0]: Block (span: 19:47-23:2)
-         ├─ Stmt[0]: Let (span: 21:5-21:28)
-         │  ├─ Name: negated
-         │  ├─ Mutable: false
-         │  ├─ Type: bool
-         │  └─ Value: expr#13: !b
-         └─ Stmt[1]: Return (span: 22:5-22:26)
-            └─ Expr: expr#15: spawn negated
+      └─ Stmt[0]: Block (span: 31:47-33:2)
+         └─ Stmt[0]: Return (span: 32:5-32:33)
+            └─ Expr: expr#21: spawn negate_bool(b)

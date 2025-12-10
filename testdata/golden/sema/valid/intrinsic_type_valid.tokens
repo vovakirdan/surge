@@ -1,0 +1,96 @@
+  1: At              "@" at 7:1-7:2 (leading: LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  2: Ident           "intrinsic" at 7:2-7:11
+  3: KwType          "type" at 7:12-7:16 (leading: Space)
+  4: Ident           "EmptyIntrinsic" at 7:17-7:31 (leading: Space)
+  5: Assign          "=" at 7:32-7:33 (leading: Space)
+  6: LBrace          "{" at 7:34-7:35 (leading: Space)
+  7: RBrace          "}" at 7:35-7:36
+  8: Semicolon       ";" at 7:36-7:37
+  9: At              "@" at 10:1-10:2 (leading: Newline, LineComment, Newline)
+ 10: Ident           "intrinsic" at 10:2-10:11
+ 11: KwType          "type" at 10:12-10:16 (leading: Space)
+ 12: Ident           "OpaqueIntrinsic" at 10:17-10:32 (leading: Space)
+ 13: Assign          "=" at 10:33-10:34 (leading: Space)
+ 14: LBrace          "{" at 10:35-10:36 (leading: Space)
+ 15: Ident           "__opaque" at 10:37-10:45 (leading: Space)
+ 16: Colon           ":" at 10:45-10:46
+ 17: Star            "*" at 10:47-10:48 (leading: Space)
+ 18: Ident           "byte" at 10:48-10:52
+ 19: RBrace          "}" at 10:53-10:54 (leading: Space)
+ 20: Semicolon       ";" at 10:54-10:55
+ 21: At              "@" at 13:1-13:2 (leading: Newline, LineComment, Newline)
+ 22: Ident           "intrinsic" at 13:2-13:11
+ 23: KwType          "type" at 13:12-13:16 (leading: Space)
+ 24: Ident           "TestChannel" at 13:17-13:28 (leading: Space)
+ 25: Lt              "<" at 13:28-13:29
+ 26: Ident           "T" at 13:29-13:30
+ 27: Gt              ">" at 13:30-13:31
+ 28: Assign          "=" at 13:32-13:33 (leading: Space)
+ 29: LBrace          "{" at 13:34-13:35 (leading: Space)
+ 30: Ident           "__opaque" at 13:36-13:44 (leading: Space)
+ 31: Colon           ":" at 13:44-13:45
+ 32: Star            "*" at 13:46-13:47 (leading: Space)
+ 33: Ident           "byte" at 13:47-13:51
+ 34: RBrace          "}" at 13:52-13:53 (leading: Space)
+ 35: Semicolon       ";" at 13:53-13:54
+ 36: At              "@" at 16:1-16:2 (leading: Newline, LineComment, Newline)
+ 37: Ident           "intrinsic" at 16:2-16:11
+ 38: KwType          "type" at 16:12-16:16 (leading: Space)
+ 39: Ident           "TestBiChannel" at 16:17-16:30 (leading: Space)
+ 40: Lt              "<" at 16:30-16:31
+ 41: Ident           "S" at 16:31-16:32
+ 42: Comma           "," at 16:32-16:33
+ 43: Ident           "R" at 16:34-16:35 (leading: Space)
+ 44: Gt              ">" at 16:35-16:36
+ 45: Assign          "=" at 16:37-16:38 (leading: Space)
+ 46: LBrace          "{" at 16:39-16:40 (leading: Space)
+ 47: Ident           "__opaque" at 16:41-16:49 (leading: Space)
+ 48: Colon           ":" at 16:49-16:50
+ 49: Star            "*" at 16:51-16:52 (leading: Space)
+ 50: Ident           "byte" at 16:52-16:56
+ 51: RBrace          "}" at 16:57-16:58 (leading: Space)
+ 52: Semicolon       ";" at 16:58-16:59
+ 53: KwType          "type" at 19:1-19:5 (leading: Newline, LineComment, Newline)
+ 54: Ident           "RegularType" at 19:6-19:17 (leading: Space)
+ 55: Assign          "=" at 19:18-19:19 (leading: Space)
+ 56: LBrace          "{" at 19:20-19:21 (leading: Space)
+ 57: Ident           "value" at 19:22-19:27 (leading: Space)
+ 58: Colon           ":" at 19:27-19:28
+ 59: Ident           "int" at 19:29-19:32 (leading: Space)
+ 60: Comma           "," at 19:32-19:33
+ 61: Ident           "name" at 19:34-19:38 (leading: Space)
+ 62: Colon           ":" at 19:38-19:39
+ 63: Ident           "string" at 19:40-19:46 (leading: Space)
+ 64: RBrace          "}" at 19:47-19:48 (leading: Space)
+ 65: Semicolon       ";" at 19:48-19:49
+ 66: KwFn            "fn" at 21:1-21:3 (leading: Newline)
+ 67: Ident           "use_types" at 21:4-21:13 (leading: Space)
+ 68: LParen          "(" at 21:13-21:14
+ 69: RParen          ")" at 21:14-21:15
+ 70: LBrace          "{" at 21:16-21:17 (leading: Space)
+ 71: KwLet           "let" at 22:5-22:8 (leading: Newline, Space)
+ 72: Ident           "regular" at 22:9-22:16 (leading: Space)
+ 73: Colon           ":" at 22:16-22:17
+ 74: Ident           "RegularType" at 22:18-22:29 (leading: Space)
+ 75: Assign          "=" at 22:30-22:31 (leading: Space)
+ 76: LBrace          "{" at 22:32-22:33 (leading: Space)
+ 77: Ident           "value" at 22:34-22:39 (leading: Space)
+ 78: Colon           ":" at 22:39-22:40
+ 79: IntLit          "42" at 22:41-22:43 (leading: Space)
+ 80: Comma           "," at 22:43-22:44
+ 81: Ident           "name" at 22:45-22:49 (leading: Space)
+ 82: Colon           ":" at 22:49-22:50
+ 83: StringLit       "\"test\"" at 22:51-22:57 (leading: Space)
+ 84: RBrace          "}" at 22:58-22:59 (leading: Space)
+ 85: Semicolon       ";" at 22:59-22:60
+ 86: KwLet           "let" at 23:5-23:8 (leading: Newline, Space)
+ 87: Ident           "_v" at 23:9-23:11 (leading: Space)
+ 88: Colon           ":" at 23:11-23:12
+ 89: Ident           "int" at 23:13-23:16 (leading: Space)
+ 90: Assign          "=" at 23:17-23:18 (leading: Space)
+ 91: Ident           "regular" at 23:19-23:26 (leading: Space)
+ 92: Dot             "." at 23:26-23:27
+ 93: Ident           "value" at 23:27-23:32
+ 94: Semicolon       ";" at 23:32-23:33
+ 95: RBrace          "}" at 24:1-24:2 (leading: Newline)
+ 96: EOF             at 25:1-25:1

@@ -386,6 +386,77 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 		if data, _ := tc.builder.Exprs.Spawn(expr); data != nil {
 			tc.scanSpawn(data.Value, seen)
 		}
+	case ast.ExprAsync:
+		if data, _ := tc.builder.Exprs.Async(expr); data != nil {
+			// Scan async block body for captured @nosend variables
+			tc.scanSpawnStmt(data.Body, seen)
+		}
+	}
+}
+
+// scanSpawnStmt recursively scans statements for @nosend captures
+func (tc *typeChecker) scanSpawnStmt(stmtID ast.StmtID, seen map[symbols.SymbolID]struct{}) {
+	if !stmtID.IsValid() || tc.builder == nil {
+		return
+	}
+	stmt := tc.builder.Stmts.Get(stmtID)
+	if stmt == nil {
+		return
+	}
+	switch stmt.Kind {
+	case ast.StmtBlock:
+		if data := tc.builder.Stmts.Block(stmtID); data != nil {
+			for _, child := range data.Stmts {
+				tc.scanSpawnStmt(child, seen)
+			}
+		}
+	case ast.StmtExpr:
+		if data := tc.builder.Stmts.Expr(stmtID); data != nil {
+			tc.scanSpawn(data.Expr, seen)
+		}
+	case ast.StmtLet:
+		if data := tc.builder.Stmts.Let(stmtID); data != nil {
+			tc.scanSpawn(data.Value, seen)
+		}
+	case ast.StmtConst:
+		if data := tc.builder.Stmts.Const(stmtID); data != nil {
+			tc.scanSpawn(data.Value, seen)
+		}
+	case ast.StmtReturn:
+		if data := tc.builder.Stmts.Return(stmtID); data != nil {
+			tc.scanSpawn(data.Expr, seen)
+		}
+	case ast.StmtSignal:
+		if data := tc.builder.Stmts.Signal(stmtID); data != nil {
+			tc.scanSpawn(data.Value, seen)
+		}
+	case ast.StmtDrop:
+		if data := tc.builder.Stmts.Drop(stmtID); data != nil {
+			tc.scanSpawn(data.Expr, seen)
+		}
+	case ast.StmtIf:
+		if data := tc.builder.Stmts.If(stmtID); data != nil {
+			tc.scanSpawn(data.Cond, seen)
+			tc.scanSpawnStmt(data.Then, seen)
+			tc.scanSpawnStmt(data.Else, seen)
+		}
+	case ast.StmtWhile:
+		if data := tc.builder.Stmts.While(stmtID); data != nil {
+			tc.scanSpawn(data.Cond, seen)
+			tc.scanSpawnStmt(data.Body, seen)
+		}
+	case ast.StmtForIn:
+		if data := tc.builder.Stmts.ForIn(stmtID); data != nil {
+			tc.scanSpawn(data.Iterable, seen)
+			tc.scanSpawnStmt(data.Body, seen)
+		}
+	case ast.StmtForClassic:
+		if data := tc.builder.Stmts.ForClassic(stmtID); data != nil {
+			tc.scanSpawnStmt(data.Init, seen)
+			tc.scanSpawn(data.Cond, seen)
+			tc.scanSpawn(data.Post, seen)
+			tc.scanSpawnStmt(data.Body, seen)
+		}
 	}
 }
 
@@ -455,6 +526,15 @@ func (tc *typeChecker) checkSpawnSendability(symID symbols.SymbolID, span source
 
 // checkNestedNosend recursively checks struct fields for @nosend
 func (tc *typeChecker) checkNestedNosend(typeID types.TypeID, span source.Span) {
+	tc.checkNestedNosendWithVisited(typeID, span, make(map[types.TypeID]struct{}))
+}
+
+func (tc *typeChecker) checkNestedNosendWithVisited(typeID types.TypeID, span source.Span, visited map[types.TypeID]struct{}) {
+	if _, seen := visited[typeID]; seen {
+		return
+	}
+	visited[typeID] = struct{}{}
+
 	structInfo, ok := tc.types.StructInfo(typeID)
 	if !ok || structInfo == nil {
 		return
@@ -467,6 +547,153 @@ func (tc *typeChecker) checkNestedNosend(typeID types.TypeID, span source.Span) 
 			fieldTypeName := tc.typeLabel(fieldType)
 			tc.report(diag.SemaNosendInSpawn, span,
 				"type '%s' contains @nosend field of type '%s'", typeName, fieldTypeName)
+		}
+		// Recurse into nested structs
+		tc.checkNestedNosendWithVisited(fieldType, span, visited)
+	}
+}
+
+// checkChannelSendValue checks if a value being sent to a channel has @nosend attribute.
+func (tc *typeChecker) checkChannelSendValue(valueExpr ast.ExprID, span source.Span) {
+	if !valueExpr.IsValid() {
+		return
+	}
+
+	valueType := tc.result.ExprTypes[valueExpr]
+	if valueType == types.NoTypeID {
+		return
+	}
+
+	// Strip ownership/reference modifiers to get base type
+	baseType := tc.valueType(valueType)
+
+	// Check if the base type has @nosend
+	if tc.typeHasAttr(baseType, "nosend") {
+		typeName := tc.typeLabel(baseType)
+		tc.report(diag.SemaChannelNosendValue, span,
+			"cannot send @nosend type '%s' through channel", typeName)
+		return
+	}
+
+	// Recursively check struct fields for @nosend
+	tc.checkNestedNosendForChannel(baseType, span)
+}
+
+// checkNestedNosendForChannel recursively checks struct fields for @nosend when sending to channel.
+func (tc *typeChecker) checkNestedNosendForChannel(typeID types.TypeID, span source.Span) {
+	tc.checkNestedNosendForChannelWithVisited(typeID, span, make(map[types.TypeID]struct{}))
+}
+
+func (tc *typeChecker) checkNestedNosendForChannelWithVisited(typeID types.TypeID, span source.Span, visited map[types.TypeID]struct{}) {
+	if _, seen := visited[typeID]; seen {
+		return
+	}
+	visited[typeID] = struct{}{}
+
+	structInfo, ok := tc.types.StructInfo(typeID)
+	if !ok || structInfo == nil {
+		return
+	}
+
+	for _, field := range structInfo.Fields {
+		fieldType := tc.valueType(field.Type)
+		if tc.typeHasAttr(fieldType, "nosend") {
+			typeName := tc.typeLabel(typeID)
+			fieldTypeName := tc.typeLabel(fieldType)
+			tc.report(diag.SemaChannelNosendValue, span,
+				"type '%s' contains @nosend field of type '%s'", typeName, fieldTypeName)
+		}
+		// Recurse into nested structs
+		tc.checkNestedNosendForChannelWithVisited(fieldType, span, visited)
+	}
+}
+
+// trackTaskAwait marks a task as awaited for structured concurrency tracking.
+// It handles both direct spawn expressions (spawn foo().await()) and bound variables (let t = spawn foo(); t.await()).
+func (tc *typeChecker) trackTaskAwait(targetExpr ast.ExprID) {
+	if tc.taskTracker == nil || !targetExpr.IsValid() {
+		return
+	}
+
+	expr := tc.builder.Exprs.Get(targetExpr)
+	if expr == nil {
+		return
+	}
+
+	// Case 1: Direct spawn expression (spawn foo().await())
+	if expr.Kind == ast.ExprSpawn {
+		tc.taskTracker.MarkAwaitedByExpr(targetExpr)
+		return
+	}
+
+	// Case 2: Variable reference (t.await() where let t = spawn foo())
+	if expr.Kind == ast.ExprIdent {
+		if symID := tc.symbolForExpr(targetExpr); symID.IsValid() {
+			tc.taskTracker.MarkAwaited(symID)
+		}
+	}
+}
+
+// trackTaskReturn marks a task as returned for structured concurrency tracking.
+func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
+	if tc.taskTracker == nil || !returnExpr.IsValid() {
+		return
+	}
+
+	// Check if the returned expression is a Task<T>
+	returnType := tc.result.ExprTypes[returnExpr]
+	if !tc.isTaskType(returnType) {
+		return
+	}
+
+	expr := tc.builder.Exprs.Get(returnExpr)
+	if expr == nil {
+		return
+	}
+
+	// Case 1: Direct spawn expression (return spawn foo())
+	if expr.Kind == ast.ExprSpawn {
+		tc.taskTracker.MarkReturnedByExpr(returnExpr)
+		return
+	}
+
+	// Case 2: Variable reference (return t where let t = spawn foo())
+	if expr.Kind == ast.ExprIdent {
+		if symID := tc.symbolForExpr(returnExpr); symID.IsValid() {
+			tc.taskTracker.MarkReturned(symID)
+		}
+	}
+}
+
+// trackTaskPassedAsArg marks a task as passed to a function as argument (ownership transfer).
+// When a Task<T> is passed as a function argument, ownership transfers to the callee,
+// who becomes responsible for awaiting the task.
+func (tc *typeChecker) trackTaskPassedAsArg(argExpr ast.ExprID) {
+	if tc.taskTracker == nil || !argExpr.IsValid() {
+		return
+	}
+
+	// Check if argument is Task<T> type
+	argType := tc.result.ExprTypes[argExpr]
+	if !tc.isTaskType(argType) {
+		return
+	}
+
+	expr := tc.builder.Exprs.Get(argExpr)
+	if expr == nil {
+		return
+	}
+
+	// Case 1: Direct spawn expression (foo(spawn compute()))
+	if expr.Kind == ast.ExprSpawn {
+		tc.taskTracker.MarkPassedByExpr(argExpr)
+		return
+	}
+
+	// Case 2: Variable reference (foo(task) where let task = spawn ...)
+	if expr.Kind == ast.ExprIdent {
+		if symID := tc.symbolForExpr(argExpr); symID.IsValid() {
+			tc.taskTracker.MarkPassed(symID)
 		}
 	}
 }

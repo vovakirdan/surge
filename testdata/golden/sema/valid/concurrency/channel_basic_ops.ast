@@ -1,0 +1,62 @@
+channel_basic_ops.sg (span: 4:1-23:1)
+├─ Item[0]: Fn (span: 4:1-9:2)
+│  ├─ Name: test_channel_send_recv
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:29-9:2)
+│        ├─ Stmt[0]: Let (span: 5:5-5:56)
+│        │  ├─ Name: ch
+│        │  ├─ Mutable: false
+│        │  ├─ Type: own Channel<int>
+│        │  └─ Value: expr#3: make_channel(10)
+│        ├─ Stmt[1]: Expr (span: 6:5-6:17)
+│        │  └─ Expr: expr#7: ch.send(42)
+│        ├─ Stmt[2]: Let (span: 7:5-7:29)
+│        │  ├─ Name: v
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <unknown-type>
+│        │  └─ Value: expr#10: ch.recv()
+│        └─ Stmt[3]: Expr (span: 8:5-8:16)
+│           └─ Expr: expr#13: ch.close()
+├─ Item[1]: Fn (span: 11:1-15:2)
+│  ├─ Name: test_channel_try_ops
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 11:27-15:2)
+│        ├─ Stmt[0]: Let (span: 12:5-12:55)
+│        │  ├─ Name: ch
+│        │  ├─ Mutable: false
+│        │  ├─ Type: own Channel<int>
+│        │  └─ Value: expr#16: make_channel(1)
+│        ├─ Stmt[1]: Let (span: 13:5-13:38)
+│        │  ├─ Name: sent
+│        │  ├─ Mutable: false
+│        │  ├─ Type: bool
+│        │  └─ Value: expr#20: ch.try_send(42)
+│        └─ Stmt[2]: Let (span: 14:5-14:40)
+│           ├─ Name: received
+│           ├─ Mutable: false
+│           ├─ Type: <unknown-type>
+│           └─ Value: expr#23: ch.try_recv()
+└─ Item[2]: Fn (span: 17:1-22:2)
+   ├─ Name: test_channel_string
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 17:26-22:2)
+         ├─ Stmt[0]: Let (span: 18:5-18:61)
+         │  ├─ Name: ch
+         │  ├─ Mutable: false
+         │  ├─ Type: own Channel<string>
+         │  └─ Value: expr#26: make_channel(5)
+         ├─ Stmt[1]: Expr (span: 19:5-19:22)
+         │  └─ Expr: expr#30: ch.send("hello")
+         ├─ Stmt[2]: Let (span: 20:5-20:34)
+         │  ├─ Name: msg
+         │  ├─ Mutable: false
+         │  ├─ Type: <unknown-type>
+         │  └─ Value: expr#33: ch.recv()
+         └─ Stmt[3]: Expr (span: 21:5-21:16)
+            └─ Expr: expr#36: ch.close()

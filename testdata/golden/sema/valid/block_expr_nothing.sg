@@ -1,0 +1,15 @@
+// scenario: block expressions with nothing type
+fn test_block_nothing() {
+    let _: nothing = {
+        let x: int = 1;
+        let y: int = 2;
+        // no return needed for nothing
+    };
+}
+
+fn test_block_nothing_explicit_return() {
+    let _: nothing = {
+        let x: int = 1;
+        return;
+    };
+}

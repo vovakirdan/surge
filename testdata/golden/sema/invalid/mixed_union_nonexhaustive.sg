@@ -1,0 +1,34 @@
+// Test non-exhaustive pattern matching for mixed unions (tag + type members)
+
+tag Ok<T>(T);
+type Result<T, E> = Ok(T) | E;
+
+// Non-exhaustive: missing type member
+fn test_missing_type_member(x: Result<int, string>) -> int {
+    return compare x {
+        Ok(v) => v;
+    };
+}
+
+// Complex case: multiple tags + nothing
+tag Http<T>(T);
+tag IO<T>(T);
+tag CPU<T>(T);
+type ErrorKind<T> = Http(T) | IO(T) | CPU(T) | nothing;
+
+// Non-exhaustive: missing nothing
+fn test_complex_missing_nothing(x: ErrorKind<string>) -> int {
+    return compare x {
+        Http(msg) => 1;
+        IO(msg) => 2;
+        CPU(msg) => 3;
+    };
+}
+
+// Non-exhaustive: missing multiple tags
+fn test_complex_missing_tags(x: ErrorKind<string>) -> int {
+    return compare x {
+        Http(msg) => 1;
+        nothing => 0;
+    };
+}

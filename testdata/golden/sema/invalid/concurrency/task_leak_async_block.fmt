@@ -1,0 +1,12 @@
+// ERROR: Task leak in async block
+
+async fn compute() -> int {
+    return 42;
+}
+
+pub async fn test_async_block_leak() {
+    async {
+        let t = spawn compute();
+        // ERROR SEM3109: unawaited task at async block exit
+    };
+}

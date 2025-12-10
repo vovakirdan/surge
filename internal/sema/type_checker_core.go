@@ -21,6 +21,12 @@ type fieldKey struct {
 	FieldIndex int
 }
 
+// assignabilityKey uniquely identifies a type assignability check to prevent infinite recursion
+type assignabilityKey struct {
+	Expected types.TypeID
+	Actual   types.TypeID
+}
+
 type typeChecker struct {
 	builder  *ast.Builder
 	fileID   ast.FileID
@@ -53,13 +59,15 @@ type typeChecker struct {
 	typeAttrs                   map[types.TypeID][]AttrInfo // Type attribute storage
 	fieldAttrs                  map[fieldKey][]AttrInfo     // Field attribute storage
 	awaitDepth                  int
+	asyncBlockDepth             int // Track nesting level of async blocks for error differentiation
 	returnStack                 []returnContext
 	typeParams                  []map[source.StringID]types.TypeID
 	typeParamNames              map[types.TypeID]source.StringID
 	typeParamEnv                []uint32
 	nextParamEnv                uint32
 	typeInstantiations          map[string]types.TypeID
-	typeInstantiationInProgress map[string]struct{} // tracks cycles during type instantiation
+	typeInstantiationInProgress map[string]struct{}           // tracks cycles during type instantiation
+	assignabilityInProgress     map[assignabilityKey]struct{} // tracks cycles during type assignability checks
 	typeNames                   map[types.TypeID]string
 	fnInstantiationSeen         map[string]struct{}
 	exportNames                 map[source.StringID]string
@@ -73,7 +81,9 @@ type typeChecker struct {
 	arrayFixedSymbol            symbols.SymbolID
 	arrayFixedType              types.TypeID
 	fnConcurrencySummaries      map[symbols.SymbolID]*FnConcurrencySummary
-	lockOrderGraph              *LockOrderGraph // Global lock ordering for deadlock detection
+	lockOrderGraph              *LockOrderGraph         // Global lock ordering for deadlock detection
+	taskTracker                 *TaskTracker            // Task tracking for structured concurrency
+	addressOfOperands           map[ast.ExprID]struct{} // Tracks operands of & expressions (for @atomic validation)
 }
 
 type returnContext struct {
@@ -154,9 +164,11 @@ func (tc *typeChecker) run() {
 	tc.nextParamEnv = 1
 	tc.typeInstantiations = make(map[string]types.TypeID)
 	tc.typeInstantiationInProgress = make(map[string]struct{})
+	tc.assignabilityInProgress = make(map[assignabilityKey]struct{})
 	tc.fnInstantiationSeen = make(map[string]struct{})
 	tc.fnConcurrencySummaries = make(map[symbols.SymbolID]*FnConcurrencySummary)
 	tc.lockOrderGraph = NewLockOrderGraph()
+	tc.taskTracker = NewTaskTracker()
 
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {

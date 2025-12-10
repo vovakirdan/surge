@@ -1,9 +1,0 @@
-testdata/golden/parser/enum_pub.sg (span: 3:1-15:1)
-├─ Item[0]: Type (span: 3:1-7:2)
-│  ├─ Name: Visibility
-│  ├─ Kind: TypeDeclKind(3)
-│  └─ Visibility: public
-└─ Item[1]: Type (span: 9:1-14:2)
-   ├─ Name: AccessLevel
-   ├─ Kind: TypeDeclKind(3)
-   └─ Visibility: public

@@ -1,0 +1,4 @@
+warning SEM3054 testdata/golden/sema/invalid/redundant_finally.sg:8:12 redundant 'finally' clause: all variants are already covered
+warning SEM3004 testdata/golden/sema/invalid/redundant_finally.sg:9:9 declaration of 'A' shadows previous binding
+warning SEM3054 testdata/golden/sema/invalid/redundant_finally.sg:17:12 redundant 'finally' clause: all variants are already covered
+warning SEM3054 testdata/golden/sema/invalid/redundant_finally.sg:25:12 redundant 'finally' clause: all variants are already covered

@@ -8,16 +8,16 @@ pub tag Success<T>(T);
 pub type Erring<T, E> = Success(T) | E;
 
 extern<Erring<T, E>> {
-    pub fn safe<T, E: ErrorLike>(self: Erring<T, E>) -> T {
+    pub fn safe(self: Erring<T, E>) -> T {
         compare self {
             Success(v) => v;
             _ => default::<T>();
         };
     }
 
-    pub fn exit<T, E: ErrorLike>(self: Erring<T, E>) -> nothing {
+    pub fn exit(self: Erring<T, E>) -> nothing {
         compare self {
-            Success(_) => return nothing;
+            Success(_) => nothing;
             err => exit(err);
         };
     }

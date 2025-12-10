@@ -1,0 +1,147 @@
+  1: KwFn            "fn" at 4:1-4:3 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "test_channel_send_recv" at 4:4-4:26 (leading: Space)
+  3: LParen          "(" at 4:26-4:27
+  4: RParen          ")" at 4:27-4:28
+  5: LBrace          "{" at 4:29-4:30 (leading: Space)
+  6: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+  7: Ident           "ch" at 5:9-5:11 (leading: Space)
+  8: Colon           ":" at 5:11-5:12
+  9: KwOwn           "own" at 5:13-5:16 (leading: Space)
+ 10: Ident           "Channel" at 5:17-5:24 (leading: Space)
+ 11: Lt              "<" at 5:24-5:25
+ 12: Ident           "int" at 5:25-5:28
+ 13: Gt              ">" at 5:28-5:29
+ 14: Assign          "=" at 5:30-5:31 (leading: Space)
+ 15: Ident           "make_channel" at 5:32-5:44 (leading: Space)
+ 16: ColonColon      "::" at 5:44-5:46
+ 17: Lt              "<" at 5:46-5:47
+ 18: Ident           "int" at 5:47-5:50
+ 19: Gt              ">" at 5:50-5:51
+ 20: LParen          "(" at 5:51-5:52
+ 21: IntLit          "10" at 5:52-5:54
+ 22: RParen          ")" at 5:54-5:55
+ 23: Semicolon       ";" at 5:55-5:56
+ 24: Ident           "ch" at 6:5-6:7 (leading: Newline, Space)
+ 25: Dot             "." at 6:7-6:8
+ 26: Ident           "send" at 6:8-6:12
+ 27: LParen          "(" at 6:12-6:13
+ 28: IntLit          "42" at 6:13-6:15
+ 29: RParen          ")" at 6:15-6:16
+ 30: Semicolon       ";" at 6:16-6:17
+ 31: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
+ 32: Ident           "v" at 7:9-7:10 (leading: Space)
+ 33: Colon           ":" at 7:10-7:11
+ 34: Ident           "int" at 7:12-7:15 (leading: Space)
+ 35: Question        "?" at 7:15-7:16
+ 36: Assign          "=" at 7:17-7:18 (leading: Space)
+ 37: Ident           "ch" at 7:19-7:21 (leading: Space)
+ 38: Dot             "." at 7:21-7:22
+ 39: Ident           "recv" at 7:22-7:26
+ 40: LParen          "(" at 7:26-7:27
+ 41: RParen          ")" at 7:27-7:28
+ 42: Semicolon       ";" at 7:28-7:29
+ 43: Ident           "ch" at 8:5-8:7 (leading: Newline, Space)
+ 44: Dot             "." at 8:7-8:8
+ 45: Ident           "close" at 8:8-8:13
+ 46: LParen          "(" at 8:13-8:14
+ 47: RParen          ")" at 8:14-8:15
+ 48: Semicolon       ";" at 8:15-8:16
+ 49: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 50: KwFn            "fn" at 11:1-11:3 (leading: Newline)
+ 51: Ident           "test_channel_try_ops" at 11:4-11:24 (leading: Space)
+ 52: LParen          "(" at 11:24-11:25
+ 53: RParen          ")" at 11:25-11:26
+ 54: LBrace          "{" at 11:27-11:28 (leading: Space)
+ 55: KwLet           "let" at 12:5-12:8 (leading: Newline, Space)
+ 56: Ident           "ch" at 12:9-12:11 (leading: Space)
+ 57: Colon           ":" at 12:11-12:12
+ 58: KwOwn           "own" at 12:13-12:16 (leading: Space)
+ 59: Ident           "Channel" at 12:17-12:24 (leading: Space)
+ 60: Lt              "<" at 12:24-12:25
+ 61: Ident           "int" at 12:25-12:28
+ 62: Gt              ">" at 12:28-12:29
+ 63: Assign          "=" at 12:30-12:31 (leading: Space)
+ 64: Ident           "make_channel" at 12:32-12:44 (leading: Space)
+ 65: ColonColon      "::" at 12:44-12:46
+ 66: Lt              "<" at 12:46-12:47
+ 67: Ident           "int" at 12:47-12:50
+ 68: Gt              ">" at 12:50-12:51
+ 69: LParen          "(" at 12:51-12:52
+ 70: IntLit          "1" at 12:52-12:53
+ 71: RParen          ")" at 12:53-12:54
+ 72: Semicolon       ";" at 12:54-12:55
+ 73: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
+ 74: Ident           "sent" at 13:9-13:13 (leading: Space)
+ 75: Colon           ":" at 13:13-13:14
+ 76: Ident           "bool" at 13:15-13:19 (leading: Space)
+ 77: Assign          "=" at 13:20-13:21 (leading: Space)
+ 78: Ident           "ch" at 13:22-13:24 (leading: Space)
+ 79: Dot             "." at 13:24-13:25
+ 80: Ident           "try_send" at 13:25-13:33
+ 81: LParen          "(" at 13:33-13:34
+ 82: IntLit          "42" at 13:34-13:36
+ 83: RParen          ")" at 13:36-13:37
+ 84: Semicolon       ";" at 13:37-13:38
+ 85: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
+ 86: Ident           "received" at 14:9-14:17 (leading: Space)
+ 87: Colon           ":" at 14:17-14:18
+ 88: Ident           "int" at 14:19-14:22 (leading: Space)
+ 89: Question        "?" at 14:22-14:23
+ 90: Assign          "=" at 14:24-14:25 (leading: Space)
+ 91: Ident           "ch" at 14:26-14:28 (leading: Space)
+ 92: Dot             "." at 14:28-14:29
+ 93: Ident           "try_recv" at 14:29-14:37
+ 94: LParen          "(" at 14:37-14:38
+ 95: RParen          ")" at 14:38-14:39
+ 96: Semicolon       ";" at 14:39-14:40
+ 97: RBrace          "}" at 15:1-15:2 (leading: Newline)
+ 98: KwFn            "fn" at 17:1-17:3 (leading: Newline)
+ 99: Ident           "test_channel_string" at 17:4-17:23 (leading: Space)
+100: LParen          "(" at 17:23-17:24
+101: RParen          ")" at 17:24-17:25
+102: LBrace          "{" at 17:26-17:27 (leading: Space)
+103: KwLet           "let" at 18:5-18:8 (leading: Newline, Space)
+104: Ident           "ch" at 18:9-18:11 (leading: Space)
+105: Colon           ":" at 18:11-18:12
+106: KwOwn           "own" at 18:13-18:16 (leading: Space)
+107: Ident           "Channel" at 18:17-18:24 (leading: Space)
+108: Lt              "<" at 18:24-18:25
+109: Ident           "string" at 18:25-18:31
+110: Gt              ">" at 18:31-18:32
+111: Assign          "=" at 18:33-18:34 (leading: Space)
+112: Ident           "make_channel" at 18:35-18:47 (leading: Space)
+113: ColonColon      "::" at 18:47-18:49
+114: Lt              "<" at 18:49-18:50
+115: Ident           "string" at 18:50-18:56
+116: Gt              ">" at 18:56-18:57
+117: LParen          "(" at 18:57-18:58
+118: IntLit          "5" at 18:58-18:59
+119: RParen          ")" at 18:59-18:60
+120: Semicolon       ";" at 18:60-18:61
+121: Ident           "ch" at 19:5-19:7 (leading: Newline, Space)
+122: Dot             "." at 19:7-19:8
+123: Ident           "send" at 19:8-19:12
+124: LParen          "(" at 19:12-19:13
+125: StringLit       "\"hello\"" at 19:13-19:20
+126: RParen          ")" at 19:20-19:21
+127: Semicolon       ";" at 19:21-19:22
+128: KwLet           "let" at 20:5-20:8 (leading: Newline, Space)
+129: Ident           "msg" at 20:9-20:12 (leading: Space)
+130: Colon           ":" at 20:12-20:13
+131: Ident           "string" at 20:14-20:20 (leading: Space)
+132: Question        "?" at 20:20-20:21
+133: Assign          "=" at 20:22-20:23 (leading: Space)
+134: Ident           "ch" at 20:24-20:26 (leading: Space)
+135: Dot             "." at 20:26-20:27
+136: Ident           "recv" at 20:27-20:31
+137: LParen          "(" at 20:31-20:32
+138: RParen          ")" at 20:32-20:33
+139: Semicolon       ";" at 20:33-20:34
+140: Ident           "ch" at 21:5-21:7 (leading: Newline, Space)
+141: Dot             "." at 21:7-21:8
+142: Ident           "close" at 21:8-21:13
+143: LParen          "(" at 21:13-21:14
+144: RParen          ")" at 21:14-21:15
+145: Semicolon       ";" at 21:15-21:16
+146: RBrace          "}" at 22:1-22:2 (leading: Newline)
+147: EOF             at 23:1-23:1

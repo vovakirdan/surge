@@ -1,0 +1,10 @@
+// ERROR: Task leaked from function scope (not async block)
+
+async fn work() -> int {
+    return 42;
+}
+
+pub fn test_fn_scope_leak() {
+    let t = spawn work();
+    // ERROR SEM3107: spawned task is neither awaited nor returned
+}

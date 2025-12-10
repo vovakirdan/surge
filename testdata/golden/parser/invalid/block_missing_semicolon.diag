@@ -1,0 +1,2 @@
+error SYN2012 testdata/golden/parser/invalid/block_missing_semicolon.sg:5:19 expected ';' after let statement
+error SYN2012 testdata/golden/parser/invalid/block_missing_semicolon.sg:10:10 expected ';' after expression statement

@@ -6,14 +6,14 @@ pub tag Some<T>(T);
 pub type Option<T> = Some(T) | nothing;
 
 extern<Option<T>> {
-    pub fn safe<T>(self: Option<T>) -> T {
+    pub fn safe(self: Option<T>) -> T {
         compare self {
             Some(v) => v;
             _ => default::<T>();
         };
     }
 
-    pub fn panic<T>(self: Option<T>, msg: string) -> nothing {
+    pub fn panic(self: Option<T>, msg: string) -> nothing {
         compare self {
             Some(_) => return nothing;
             _ => panic(msg);

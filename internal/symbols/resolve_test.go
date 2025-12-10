@@ -683,7 +683,8 @@ func TestResolveIntrinsicValid(t *testing.T) {
 	}
 }
 
-func TestResolveIntrinsicWrongModule(t *testing.T) {
+func TestResolveIntrinsicAnyModule(t *testing.T) {
+	// @intrinsic is now allowed in any module, not just core/stdlib
 	src := `
 	    @intrinsic fn rt_alloc(size: uint) -> *byte;
 	`
@@ -696,15 +697,12 @@ func TestResolveIntrinsicWrongModule(t *testing.T) {
 	_ = ResolveFile(builder, fileID, &ResolveOptions{
 		Reporter:   &diag.BagReporter{Bag: bag},
 		Validate:   true,
-		ModulePath: "core/runtime",
-		FilePath:   "core/runtime.sg",
+		ModulePath: "mymodule", // @intrinsic allowed everywhere
+		FilePath:   "mymodule/foo.sg",
 	})
 
-	if bag.Len() != 1 {
-		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
-	}
-	if bag.Items()[0].Code != diag.SemaIntrinsicBadContext {
-		t.Fatalf("expected SemaIntrinsicBadContext, got %v", bag.Items()[0].Code)
+	if bag.Len() != 0 {
+		t.Fatalf("expected no diagnostics, got %d", bag.Len())
 	}
 }
 
@@ -732,31 +730,6 @@ func TestResolveIntrinsicHasBody(t *testing.T) {
 	}
 	if bag.Items()[0].Code != diag.SemaIntrinsicHasBody {
 		t.Fatalf("expected SemaIntrinsicHasBody, got %v", bag.Items()[0].Code)
-	}
-}
-
-func TestResolveIntrinsicBadName(t *testing.T) {
-	src := `
-	    @intrinsic fn foo() -> nothing;
-	`
-	builder, fileID, parseBag := parseSnippet(t, src)
-	if parseBag.Len() != 0 {
-		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
-	}
-
-	bag := diag.NewBag(8)
-	_ = ResolveFile(builder, fileID, &ResolveOptions{
-		Reporter:   &diag.BagReporter{Bag: bag},
-		Validate:   true,
-		ModulePath: "core",
-		FilePath:   "core/intrinsics.sg",
-	})
-
-	if bag.Len() != 1 {
-		t.Fatalf("expected 1 diagnostic, got %d", bag.Len())
-	}
-	if bag.Items()[0].Code != diag.SemaIntrinsicBadName {
-		t.Fatalf("expected SemaIntrinsicBadName, got %v", bag.Items()[0].Code)
 	}
 }
 

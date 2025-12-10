@@ -6,6 +6,7 @@ import (
 	"fortio.org/safecast"
 
 	"surge/internal/ast"
+	"surge/internal/diag"
 	"surge/internal/symbols"
 )
 
@@ -101,6 +102,19 @@ func (tc *typeChecker) leaveScope() {
 	tc.scopeStack = tc.scopeStack[:len(tc.scopeStack)-1]
 	if tc.borrow != nil {
 		tc.borrow.EndScope(top)
+	}
+	// Check for task leaks (structured concurrency)
+	if tc.taskTracker != nil {
+		leaks := tc.taskTracker.EndScope(top)
+		for _, leak := range leaks {
+			if leak.InAsyncBlock {
+				tc.report(diag.SemaTaskLeakInAsync, leak.Span,
+					"unawaited task at async block exit - all tasks must be awaited in async blocks")
+			} else {
+				tc.report(diag.SemaTaskNotAwaited, leak.Span,
+					"spawned task is neither awaited nor returned")
+			}
+		}
 	}
 	tc.releaseScopeBindings(top)
 }

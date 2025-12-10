@@ -1,0 +1,27 @@
+block_expr_basic.sg (span: 2:1-22:1)
+├─ Item[0]: Fn (span: 2:1-9:2)
+│  ├─ Name: test_block_expr
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:29-9:2)
+│        ├─ Stmt[0]: Let (span: 3:5-7:7)
+│        │  ├─ Name: x
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#6: <ExprKind(20)>
+│        └─ Stmt[1]: Return (span: 8:5-8:14)
+│           └─ Expr: expr#7: x
+└─ Item[1]: Fn (span: 11:1-21:2)
+   ├─ Name: test_nested_block_expr
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:36-21:2)
+         ├─ Stmt[0]: Let (span: 13:5-19:7)
+         │  ├─ Name: y
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#14: <ExprKind(20)>
+         └─ Stmt[1]: Return (span: 20:5-20:14)
+            └─ Expr: expr#15: y

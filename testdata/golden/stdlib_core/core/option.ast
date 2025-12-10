@@ -18,17 +18,15 @@ option.sg (span: 1:1-37:1)
    │  ├─ Fn[0]: safe
    │  │  ├─ Params: (self: Option<T>)
    │  │  ├─ Return: T
-   │  │  ├─ Generics: <T>
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 9:42-14:6)
+   │  │     Stmt[0]: Block (span: 9:39-14:6)
    │  │     └─ Stmt[0]: Expr (span: 10:9-13:11)
    │  │        └─ Expr: expr#9: compare self { 2 arms }
    │  ├─ Fn[1]: panic
    │  │  ├─ Params: (self: Option<T>, msg: string)
    │  │  ├─ Return: nothing
-   │  │  ├─ Generics: <T>
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 16:62-21:6)
+   │  │     Stmt[0]: Block (span: 16:59-21:6)
    │  │     └─ Stmt[0]: Expr (span: 17:9-20:11)
    │  │        └─ Expr: expr#18: compare self { 1 arms }
    │  ├─ Fn[2]: is_some

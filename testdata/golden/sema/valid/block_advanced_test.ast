@@ -1,0 +1,99 @@
+block_advanced_test.sg (span: 3:1-58:1)
+├─ Item[0]: Fn (span: 3:1-7:2)
+│  ├─ Name: test_block_expr
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:29-7:2)
+│        └─ Stmt[0]: Return (span: 4:5-6:7)
+│           └─ Expr: expr#2: <ExprKind(20)>
+├─ Item[1]: Fn (span: 9:1-17:2)
+│  ├─ Name: test_block_expr_2
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:31-17:2)
+│        ├─ Stmt[0]: Let (span: 10:5-12:7)
+│        │  ├─ Name: x
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Option<int>
+│        │  └─ Value: expr#6: <ExprKind(20)>
+│        ├─ Stmt[1]: Let (span: 13:5-15:7)
+│        │  ├─ Name: y
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Option<int>
+│        │  └─ Value: expr#8: <ExprKind(20)>
+│        └─ Stmt[2]: Return (span: 16:5-16:21)
+│           └─ Expr: expr#11: x.safe()
+├─ Item[2]: Fn (span: 19:1-24:2)
+│  ├─ Name: test_block_expr_3
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 19:31-24:2)
+│        ├─ Stmt[0]: Let (span: 20:5-22:7)
+│        │  ├─ Name: x
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Erring<int, Error>
+│        │  └─ Value: expr#15: <ExprKind(20)>
+│        └─ Stmt[1]: Return (span: 23:5-23:21)
+│           └─ Expr: expr#18: x.safe()
+├─ Item[3]: Fn (span: 26:1-35:2)
+│  ├─ Name: test_block_expr_4
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 26:31-35:2)
+│        ├─ Stmt[0]: Let (span: 27:5-33:7)
+│        │  ├─ Name: x
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#25: <ExprKind(20)>
+│        └─ Stmt[1]: Return (span: 34:5-34:14)
+│           └─ Expr: expr#26: x
+├─ Item[4]: Fn (span: 38:1-46:2)
+│  ├─ Name: test_block_expr_5
+│  ├─ Params: ()
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 38:32-46:2)
+│        ├─ Stmt[0]: Let (span: 39:5-41:7)
+│        │  ├─ Name: x
+│        │  ├─ Mutable: false
+│        │  ├─ Type: nothing
+│        │  └─ Value: expr#30: <ExprKind(20)>
+│        ├─ Stmt[1]: If (span: 42:5-44:6)
+│        │  ├─ Cond: expr#35: !((x is int))
+│        │  ├─ Then:
+Block (span: 42:20-44:6)
+│        │  │  └─ Stmt[0]: Return (span: 43:9-43:22)
+│        │  │     └─ Expr: expr#36: false
+│        │  └─ Else: <none>
+│        └─ Stmt[2]: Return (span: 45:5-45:17)
+│           └─ Expr: expr#37: true
+├─ Item[5]: Tag (span: 48:1-48:15)
+│  ├─ Name: Bar
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Payload: T
+├─ Item[6]: Type (span: 50:1-50:28)
+│  ├─ Name: Foo
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  ├─ Generics: <T>
+│  └─ Union:
+│     ├─ Member[0]: Bar(T)
+│     └─ Member[1]: int
+└─ Item[7]: Fn (span: 52:1-57:2)
+   ├─ Name: test_block_expr_6
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 52:35-57:2)
+         ├─ Stmt[0]: Let (span: 53:5-55:7)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: Foo<int>
+         │  └─ Value: expr#41: <ExprKind(20)>
+         └─ Stmt[1]: Return (span: 56:5-56:20)
+            └─ Expr: expr#42: nothing

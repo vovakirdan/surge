@@ -1,0 +1,18 @@
+// Test: mutual recursive union types should not cause infinite recursion
+// This tests the recursion protection in isUnionMember/isTagTypeMatch
+
+tag LeafA(int);
+tag NodeA<T>(T);
+
+tag LeafB(int);
+tag NodeB<T>(T);
+
+type TreeA = LeafA(int) | NodeA(TreeB) | nothing;
+type TreeB = LeafB(int) | NodeB(TreeA) | nothing;
+
+fn test_mutual_unions() {
+    let a: TreeA = LeafA(1);
+    let b: TreeB = LeafB(2);
+    let empty_a: TreeA = nothing;
+    let empty_b: TreeB = nothing;
+}

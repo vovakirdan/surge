@@ -27,6 +27,7 @@ const (
 	ExprCompare
 	ExprStruct
 	ExprAsync
+	ExprBlock
 )
 
 type Expr struct {
@@ -218,6 +219,12 @@ type ExprAsyncData struct {
 	Body StmtID
 }
 
+// ExprBlockData represents a block expression `{ stmts; return expr; }`.
+// The block must end with a return statement (unless type is nothing).
+type ExprBlockData struct {
+	Stmts []StmtID
+}
+
 // ExprSpawnData represents the operand of a `spawn` expression.
 // TODO(sema): enforce async context and Future/Task requirements once sema is in place.
 type ExprSpawnData struct {
@@ -289,6 +296,7 @@ type Exprs struct {
 	Compares     *Arena[ExprCompareData]
 	Structs      *Arena[ExprStructData]
 	Asyncs       *Arena[ExprAsyncData]
+	Blocks       *Arena[ExprBlockData]
 }
 
 // NewExprs creates a new Exprs with per-kind arenas preallocated using capHint as the initial capacity.
@@ -319,6 +327,7 @@ func NewExprs(capHint uint) *Exprs {
 		Compares:     NewArena[ExprCompareData](capHint),
 		Structs:      NewArena[ExprStructData](capHint),
 		Asyncs:       NewArena[ExprAsyncData](capHint),
+		Blocks:       NewArena[ExprBlockData](capHint),
 	}
 }
 
@@ -636,4 +645,19 @@ func (e *Exprs) Compare(id ExprID) (*ExprCompareData, bool) {
 		return nil, false
 	}
 	return e.Compares.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewBlock(span source.Span, stmts []StmtID) ExprID {
+	payload := e.Blocks.Allocate(ExprBlockData{
+		Stmts: append([]StmtID(nil), stmts...),
+	})
+	return e.new(ExprBlock, span, PayloadID(payload))
+}
+
+func (e *Exprs) Block(id ExprID) (*ExprBlockData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprBlock || !expr.Payload.IsValid() {
+		return nil, false
+	}
+	return e.Blocks.Get(uint32(expr.Payload)), true
 }
