@@ -1,0 +1,13 @@
+// Valid: Task returned from function (ownership transfer)
+
+async fn work() -> int {
+    return 42;
+}
+
+pub fn start_work() -> Task<int> {
+    return spawn work();
+}
+
+pub async fn start_nested() -> Task<int> {
+    return spawn work();
+}

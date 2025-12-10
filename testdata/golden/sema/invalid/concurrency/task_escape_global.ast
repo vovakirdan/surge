@@ -1,0 +1,15 @@
+task_escape_global.sg (span: 3:1-9:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:24-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:15)
+│           └─ Expr: expr#1: 42
+└─ Item[1]: Let (span: 8:1-8:47)
+   ├─ Name: GLOBAL_TASK
+   ├─ Mutable: false
+   ├─ Visibility: public
+   ├─ Type: Task<int>
+   └─ Value: expr#4: spawn work()

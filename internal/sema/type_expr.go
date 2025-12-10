@@ -308,7 +308,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			var returns []types.TypeID
 			tc.pushReturnContext(types.NoTypeID, expr.Span, &returns)
 			tc.awaitDepth++
+			tc.asyncBlockDepth++
 			tc.walkStmt(asyncData.Body)
+			tc.asyncBlockDepth--
 			tc.awaitDepth--
 			tc.popReturnContext()
 			payload := tc.types.Builtins().Nothing
@@ -347,7 +349,8 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 
 			// Track spawned task for structured concurrency
 			if tc.taskTracker != nil && ty != types.NoTypeID {
-				tc.taskTracker.SpawnTask(id, expr.Span, tc.currentScope())
+				inAsyncBlock := tc.asyncBlockDepth > 0
+				tc.taskTracker.SpawnTask(id, expr.Span, tc.currentScope(), inAsyncBlock)
 			}
 		}
 	case ast.ExprSpread:

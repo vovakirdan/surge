@@ -1,0 +1,1 @@
+error SEM3107 testdata/golden/sema/invalid/concurrency/task_multiple_leaks.sg:9:14 spawned task is neither awaited nor returned

@@ -1,0 +1,17 @@
+// Valid: All tasks properly awaited
+
+async fn compute(x: int) -> int {
+    return x * 2;
+}
+
+pub async fn test_all_awaited() -> int {
+    let t1 = spawn compute(1);
+    let t2 = spawn compute(2);
+    let t3 = spawn compute(3);
+
+    let r1 = t1.await();
+    let r2 = t2.await();
+    let r3 = t3.await();
+
+    return r1 + r2 + r3;
+}

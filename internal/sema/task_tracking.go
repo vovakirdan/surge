@@ -8,13 +8,14 @@ import (
 
 // TaskInfo tracks a spawned task within a scope for structured concurrency enforcement.
 type TaskInfo struct {
-	ID        uint32           // Unique task identifier
-	SpawnExpr ast.ExprID       // The spawn expression that created this task
-	Span      source.Span      // Location of the spawn
-	Binding   symbols.SymbolID // If assigned to a variable (for await tracking)
-	Scope     symbols.ScopeID  // The scope where this task was spawned
-	Awaited   bool             // Whether .await() was called on this task
-	Returned  bool             // Whether the task was returned from the scope
+	ID           uint32           // Unique task identifier
+	SpawnExpr    ast.ExprID       // The spawn expression that created this task
+	Span         source.Span      // Location of the spawn
+	Binding      symbols.SymbolID // If assigned to a variable (for await tracking)
+	Scope        symbols.ScopeID  // The scope where this task was spawned
+	Awaited      bool             // Whether .await() was called on this task
+	Returned     bool             // Whether the task was returned from the scope
+	InAsyncBlock bool             // Whether task was spawned inside async block (for error differentiation)
 }
 
 // TaskTracker manages task lifecycle within scopes for structured concurrency.
@@ -39,16 +40,18 @@ func NewTaskTracker() *TaskTracker {
 }
 
 // SpawnTask records a new task spawned in the given scope.
+// inAsyncBlock indicates whether the spawn occurred inside an async block (for error differentiation).
 // Returns the task ID for later binding/tracking.
-func (tt *TaskTracker) SpawnTask(expr ast.ExprID, span source.Span, scope symbols.ScopeID) uint32 {
+func (tt *TaskTracker) SpawnTask(expr ast.ExprID, span source.Span, scope symbols.ScopeID, inAsyncBlock bool) uint32 {
 	id := tt.nextID
 	tt.nextID++
 
 	info := TaskInfo{
-		ID:        id,
-		SpawnExpr: expr,
-		Span:      span,
-		Scope:     scope,
+		ID:           id,
+		SpawnExpr:    expr,
+		Span:         span,
+		Scope:        scope,
+		InAsyncBlock: inAsyncBlock,
 	}
 	tt.tasks = append(tt.tasks, info)
 	tt.scopeTasks[scope] = append(tt.scopeTasks[scope], id)

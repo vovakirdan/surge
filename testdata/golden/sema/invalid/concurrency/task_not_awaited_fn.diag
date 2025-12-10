@@ -1,0 +1,1 @@
+error SEM3107 testdata/golden/sema/invalid/concurrency/task_not_awaited_fn.sg:8:13 spawned task is neither awaited nor returned

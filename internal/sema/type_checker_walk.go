@@ -45,6 +45,11 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		valueType := tc.typeExpr(letItem.Value)
 		tc.observeMove(letItem.Value, tc.exprSpan(letItem.Value))
 		tc.ensureBindingTypeMatch(letItem.Type, declaredType, valueType, letItem.Value)
+		// Check for Task<T> escape to global scope - module-level let bindings
+		if tc.isTaskType(valueType) {
+			tc.report(diag.SemaTaskEscapesScope, tc.exprSpan(letItem.Value),
+				"cannot store Task<T> in module-level variable - tasks must be scoped to functions or async blocks")
+		}
 		if declaredType == types.NoTypeID {
 			tc.setBindingType(symID, valueType)
 		}

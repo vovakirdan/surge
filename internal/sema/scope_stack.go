@@ -107,8 +107,13 @@ func (tc *typeChecker) leaveScope() {
 	if tc.taskTracker != nil {
 		leaks := tc.taskTracker.EndScope(top)
 		for _, leak := range leaks {
-			tc.report(diag.SemaTaskNotAwaited, leak.Span,
-				"spawned task is neither awaited nor returned")
+			if leak.InAsyncBlock {
+				tc.report(diag.SemaTaskLeakInAsync, leak.Span,
+					"unawaited task at async block exit - all tasks must be awaited in async blocks")
+			} else {
+				tc.report(diag.SemaTaskNotAwaited, leak.Span,
+					"spawned task is neither awaited nor returned")
+			}
 		}
 	}
 	tc.releaseScopeBindings(top)

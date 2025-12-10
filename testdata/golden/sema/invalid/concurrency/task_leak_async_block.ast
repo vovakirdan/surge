@@ -1,0 +1,17 @@
+task_leak_async_block.sg (span: 3:1-13:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: compute
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:27-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:15)
+│           └─ Expr: expr#1: 42
+└─ Item[1]: Fn (span: 7:1-12:2)
+   ├─ Name: test_async_block_leak
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:38-12:2)
+         └─ Stmt[0]: Expr (span: 8:5-11:7)
+            └─ Expr: expr#5: async { 1 stmt(s) }

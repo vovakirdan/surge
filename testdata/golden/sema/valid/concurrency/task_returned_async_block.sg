@@ -1,0 +1,26 @@
+// Valid: Task awaited in async block (proper structured concurrency)
+
+async fn work() -> int {
+    return 42;
+}
+
+// Direct await in async block - all tasks awaited
+pub async fn test_await_in_async_block() -> int {
+    let result = async {
+        let t = spawn work();
+        return t.await();
+    };
+    return result.await();
+}
+
+// Nested async blocks with proper awaiting
+pub async fn test_nested_async() -> int {
+    let outer = async {
+        let inner = async {
+            let t = spawn work();
+            return t.await();
+        };
+        return inner.await();
+    };
+    return outer.await();
+}

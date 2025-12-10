@@ -53,6 +53,7 @@ type typeChecker struct {
 	typeAttrs                   map[types.TypeID][]AttrInfo // Type attribute storage
 	fieldAttrs                  map[fieldKey][]AttrInfo     // Field attribute storage
 	awaitDepth                  int
+	asyncBlockDepth             int // Track nesting level of async blocks for error differentiation
 	returnStack                 []returnContext
 	typeParams                  []map[source.StringID]types.TypeID
 	typeParamNames              map[types.TypeID]source.StringID
