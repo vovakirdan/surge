@@ -1,0 +1,20 @@
+// ERROR: await can only be used in async context
+
+async fn async_task() -> int {
+    return 42;
+}
+
+// ERROR SEM3007: await in non-async function
+fn sync_fn_with_await() -> int {
+    let t: Task<int> = spawn async_task();
+    return t.await();
+}
+
+// ERROR: await in regular block (not async block)
+fn sync_fn_await_in_block() -> int {
+    let result: int = {
+        let t: Task<int> = spawn async_task();
+        t.await()
+    };
+    return result;
+}

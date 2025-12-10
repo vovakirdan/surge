@@ -1,0 +1,78 @@
+  1: KwAsync         "async" at 3:1-3:6 (leading: LineComment, Newline)
+  2: KwFn            "fn" at 3:7-3:9 (leading: Space)
+  3: Ident           "async_task" at 3:10-3:20 (leading: Space)
+  4: LParen          "(" at 3:20-3:21
+  5: RParen          ")" at 3:21-3:22
+  6: Arrow           "->" at 3:23-3:25 (leading: Space)
+  7: Ident           "int" at 3:26-3:29 (leading: Space)
+  8: LBrace          "{" at 3:30-3:31 (leading: Space)
+  9: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 10: IntLit          "42" at 4:12-4:14 (leading: Space)
+ 11: Semicolon       ";" at 4:14-4:15
+ 12: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 13: KwFn            "fn" at 8:1-8:3 (leading: Newline, LineComment, Newline)
+ 14: Ident           "sync_fn_with_await" at 8:4-8:22 (leading: Space)
+ 15: LParen          "(" at 8:22-8:23
+ 16: RParen          ")" at 8:23-8:24
+ 17: Arrow           "->" at 8:25-8:27 (leading: Space)
+ 18: Ident           "int" at 8:28-8:31 (leading: Space)
+ 19: LBrace          "{" at 8:32-8:33 (leading: Space)
+ 20: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 21: Ident           "t" at 9:9-9:10 (leading: Space)
+ 22: Colon           ":" at 9:10-9:11
+ 23: Ident           "Task" at 9:12-9:16 (leading: Space)
+ 24: Lt              "<" at 9:16-9:17
+ 25: Ident           "int" at 9:17-9:20
+ 26: Gt              ">" at 9:20-9:21
+ 27: Assign          "=" at 9:22-9:23 (leading: Space)
+ 28: KwSpawn         "spawn" at 9:24-9:29 (leading: Space)
+ 29: Ident           "async_task" at 9:30-9:40 (leading: Space)
+ 30: LParen          "(" at 9:40-9:41
+ 31: RParen          ")" at 9:41-9:42
+ 32: Semicolon       ";" at 9:42-9:43
+ 33: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
+ 34: Ident           "t" at 10:12-10:13 (leading: Space)
+ 35: Dot             "." at 10:13-10:14
+ 36: Ident           "await" at 10:14-10:19
+ 37: LParen          "(" at 10:19-10:20
+ 38: RParen          ")" at 10:20-10:21
+ 39: Semicolon       ";" at 10:21-10:22
+ 40: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 41: KwFn            "fn" at 14:1-14:3 (leading: Newline, LineComment, Newline)
+ 42: Ident           "sync_fn_await_in_block" at 14:4-14:26 (leading: Space)
+ 43: LParen          "(" at 14:26-14:27
+ 44: RParen          ")" at 14:27-14:28
+ 45: Arrow           "->" at 14:29-14:31 (leading: Space)
+ 46: Ident           "int" at 14:32-14:35 (leading: Space)
+ 47: LBrace          "{" at 14:36-14:37 (leading: Space)
+ 48: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
+ 49: Ident           "result" at 15:9-15:15 (leading: Space)
+ 50: Colon           ":" at 15:15-15:16
+ 51: Ident           "int" at 15:17-15:20 (leading: Space)
+ 52: Assign          "=" at 15:21-15:22 (leading: Space)
+ 53: LBrace          "{" at 15:23-15:24 (leading: Space)
+ 54: KwLet           "let" at 16:9-16:12 (leading: Newline, Space)
+ 55: Ident           "t" at 16:13-16:14 (leading: Space)
+ 56: Colon           ":" at 16:14-16:15
+ 57: Ident           "Task" at 16:16-16:20 (leading: Space)
+ 58: Lt              "<" at 16:20-16:21
+ 59: Ident           "int" at 16:21-16:24
+ 60: Gt              ">" at 16:24-16:25
+ 61: Assign          "=" at 16:26-16:27 (leading: Space)
+ 62: KwSpawn         "spawn" at 16:28-16:33 (leading: Space)
+ 63: Ident           "async_task" at 16:34-16:44 (leading: Space)
+ 64: LParen          "(" at 16:44-16:45
+ 65: RParen          ")" at 16:45-16:46
+ 66: Semicolon       ";" at 16:46-16:47
+ 67: Ident           "t" at 17:9-17:10 (leading: Newline, Space)
+ 68: Dot             "." at 17:10-17:11
+ 69: Ident           "await" at 17:11-17:16
+ 70: LParen          "(" at 17:16-17:17
+ 71: RParen          ")" at 17:17-17:18
+ 72: RBrace          "}" at 18:5-18:6 (leading: Newline, Space)
+ 73: Semicolon       ";" at 18:6-18:7
+ 74: KwReturn        "return" at 19:5-19:11 (leading: Newline, Space)
+ 75: Ident           "result" at 19:12-19:18 (leading: Space)
+ 76: Semicolon       ";" at 19:18-19:19
+ 77: RBrace          "}" at 20:1-20:2 (leading: Newline)
+ 78: EOF             at 21:1-21:1
