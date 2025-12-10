@@ -78,19 +78,19 @@ func (p *Parser) emitDiagnostic(code diag.Code, sev diag.Severity, sp source.Spa
 	if p.opts.Reporter == nil {
 		return
 	}
-	if sev == diag.SevError {
-		p.opts.CurrentErrors++
-	}
 	if p.opts.Enough() {
 		return
 	}
 	if augment == nil {
 		p.opts.Reporter.Report(code, sev, sp, msg, nil, nil)
-		return
+	} else {
+		builder := diag.NewReportBuilder(p.opts.Reporter, sev, code, sp, msg)
+		augment(builder)
+		builder.Emit()
 	}
-	builder := diag.NewReportBuilder(p.opts.Reporter, sev, code, sp, msg)
-	augment(builder)
-	builder.Emit()
+	if sev == diag.SevError {
+		p.opts.CurrentErrors++
+	}
 }
 
 // resyncUntil — consume tokens until Peek() matches any stop token or EOF.
