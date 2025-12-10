@@ -1,0 +1,109 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "Foo" at 2:6-2:9 (leading: Space)
+  3: Assign          "=" at 2:10-2:11 (leading: Space)
+  4: LBrace          "{" at 2:12-2:13 (leading: Space)
+  5: Ident           "value" at 3:5-3:10 (leading: Newline, Space)
+  6: Colon           ":" at 3:10-3:11
+  7: Ident           "int" at 3:12-3:15 (leading: Space)
+  8: Comma           "," at 3:15-3:16
+  9: Ident           "name" at 4:5-4:9 (leading: Newline, Space)
+ 10: Colon           ":" at 4:9-4:10
+ 11: Ident           "string" at 4:11-4:17 (leading: Space)
+ 12: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 13: KwType          "type" at 7:1-7:5 (leading: Newline)
+ 14: Ident           "Empty" at 7:6-7:11 (leading: Space)
+ 15: Assign          "=" at 7:12-7:13 (leading: Space)
+ 16: LBrace          "{" at 7:14-7:15 (leading: Space)
+ 17: RBrace          "}" at 7:15-7:16
+ 18: KwType          "type" at 9:1-9:5 (leading: Newline)
+ 19: Ident           "Box" at 9:6-9:9 (leading: Space)
+ 20: Lt              "<" at 9:9-9:10
+ 21: Ident           "T" at 9:10-9:11
+ 22: Gt              ">" at 9:11-9:12
+ 23: Assign          "=" at 9:13-9:14 (leading: Space)
+ 24: LBrace          "{" at 9:15-9:16 (leading: Space)
+ 25: Ident           "value" at 10:5-10:10 (leading: Newline, Space)
+ 26: Colon           ":" at 10:10-10:11
+ 27: Ident           "T" at 10:12-10:13 (leading: Space)
+ 28: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 29: KwFn            "fn" at 13:1-13:3 (leading: Newline)
+ 30: Ident           "test_named_fields" at 13:4-13:21 (leading: Space)
+ 31: LParen          "(" at 13:21-13:22
+ 32: RParen          ")" at 13:22-13:23
+ 33: Arrow           "->" at 13:24-13:26 (leading: Space)
+ 34: Ident           "Foo" at 13:27-13:30 (leading: Space)
+ 35: LBrace          "{" at 13:31-13:32 (leading: Space)
+ 36: KwReturn        "return" at 14:5-14:11 (leading: Newline, Space)
+ 37: LBrace          "{" at 14:12-14:13 (leading: Space)
+ 38: Ident           "value" at 14:13-14:18
+ 39: Colon           ":" at 14:18-14:19
+ 40: IntLit          "1" at 14:20-14:21 (leading: Space)
+ 41: Comma           "," at 14:21-14:22
+ 42: Ident           "name" at 14:23-14:27 (leading: Space)
+ 43: Colon           ":" at 14:27-14:28
+ 44: StringLit       "\"hello\"" at 14:29-14:36 (leading: Space)
+ 45: RBrace          "}" at 14:36-14:37
+ 46: Semicolon       ";" at 14:37-14:38
+ 47: RBrace          "}" at 15:1-15:2 (leading: Newline)
+ 48: KwFn            "fn" at 17:1-17:3 (leading: Newline)
+ 49: Ident           "test_positional_fields" at 17:4-17:26 (leading: Space)
+ 50: LParen          "(" at 17:26-17:27
+ 51: RParen          ")" at 17:27-17:28
+ 52: Arrow           "->" at 17:29-17:31 (leading: Space)
+ 53: Ident           "Foo" at 17:32-17:35 (leading: Space)
+ 54: LBrace          "{" at 17:36-17:37 (leading: Space)
+ 55: KwReturn        "return" at 18:5-18:11 (leading: Newline, Space)
+ 56: LBrace          "{" at 18:12-18:13 (leading: Space)
+ 57: IntLit          "42" at 18:13-18:15
+ 58: Comma           "," at 18:15-18:16
+ 59: StringLit       "\"world\"" at 18:17-18:24 (leading: Space)
+ 60: RBrace          "}" at 18:24-18:25
+ 61: Semicolon       ";" at 18:25-18:26
+ 62: RBrace          "}" at 19:1-19:2 (leading: Newline)
+ 63: KwFn            "fn" at 21:1-21:3 (leading: Newline)
+ 64: Ident           "test_empty_struct" at 21:4-21:21 (leading: Space)
+ 65: LParen          "(" at 21:21-21:22
+ 66: RParen          ")" at 21:22-21:23
+ 67: Arrow           "->" at 21:24-21:26 (leading: Space)
+ 68: Ident           "Empty" at 21:27-21:32 (leading: Space)
+ 69: LBrace          "{" at 21:33-21:34 (leading: Space)
+ 70: KwReturn        "return" at 22:5-22:11 (leading: Newline, Space)
+ 71: LBrace          "{" at 22:12-22:13 (leading: Space)
+ 72: RBrace          "}" at 22:13-22:14
+ 73: Semicolon       ";" at 22:14-22:15
+ 74: RBrace          "}" at 23:1-23:2 (leading: Newline)
+ 75: KwFn            "fn" at 25:1-25:3 (leading: Newline)
+ 76: Ident           "test_generic_positional" at 25:4-25:27 (leading: Space)
+ 77: LParen          "(" at 25:27-25:28
+ 78: RParen          ")" at 25:28-25:29
+ 79: Arrow           "->" at 25:30-25:32 (leading: Space)
+ 80: Ident           "Box" at 25:33-25:36 (leading: Space)
+ 81: Lt              "<" at 25:36-25:37
+ 82: Ident           "int" at 25:37-25:40
+ 83: Gt              ">" at 25:40-25:41
+ 84: LBrace          "{" at 25:42-25:43 (leading: Space)
+ 85: KwReturn        "return" at 26:5-26:11 (leading: Newline, Space)
+ 86: LBrace          "{" at 26:12-26:13 (leading: Space)
+ 87: IntLit          "100" at 26:13-26:16
+ 88: RBrace          "}" at 26:16-26:17
+ 89: Semicolon       ";" at 26:17-26:18
+ 90: RBrace          "}" at 27:1-27:2 (leading: Newline)
+ 91: KwFn            "fn" at 29:1-29:3 (leading: Newline)
+ 92: Ident           "test_generic_named" at 29:4-29:22 (leading: Space)
+ 93: LParen          "(" at 29:22-29:23
+ 94: RParen          ")" at 29:23-29:24
+ 95: Arrow           "->" at 29:25-29:27 (leading: Space)
+ 96: Ident           "Box" at 29:28-29:31 (leading: Space)
+ 97: Lt              "<" at 29:31-29:32
+ 98: Ident           "string" at 29:32-29:38
+ 99: Gt              ">" at 29:38-29:39
+100: LBrace          "{" at 29:40-29:41 (leading: Space)
+101: KwReturn        "return" at 30:5-30:11 (leading: Newline, Space)
+102: LBrace          "{" at 30:12-30:13 (leading: Space)
+103: Ident           "value" at 30:13-30:18
+104: Colon           ":" at 30:18-30:19
+105: StringLit       "\"test\"" at 30:20-30:26 (leading: Space)
+106: RBrace          "}" at 30:26-30:27
+107: Semicolon       ";" at 30:27-30:28
+108: RBrace          "}" at 31:1-31:2 (leading: Newline)
+109: EOF             at 32:1-32:1

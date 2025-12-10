@@ -1,0 +1,9 @@
+// scenario: struct literal in return statement with duplicate named field
+type Foo = {
+    value: int,
+    name: string
+}
+
+fn test_duplicate_field() -> Foo {
+    return {value: 1, name: "hello", name: "world"};  // ERROR: field name specified multiple times
+}
