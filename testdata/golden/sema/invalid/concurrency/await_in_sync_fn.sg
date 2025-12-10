@@ -10,11 +10,7 @@ fn sync_fn_with_await() -> int {
     return t.await();
 }
 
-// ERROR: await in regular block (not async block)
-fn sync_fn_await_in_block() -> int {
-    let result: int = {
-        let t: Task<int> = spawn async_task();
-        t.await()
-    };
-    return result;
+// ERROR SEM3007: await directly on async fn call in sync context
+fn sync_fn_direct_await() -> int {
+    return async_task().await();
 }

@@ -343,6 +343,11 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			// spawn requires Task<T> — passthrough without re-wrapping
 			if tc.isTaskType(exprType) {
 				ty = exprType
+				// Warn if spawning checkpoint() - it has no useful effect
+				if tc.isCheckpointCall(spawn.Value) {
+					tc.warn(diag.SemaSpawnCheckpointUseless, expr.Span,
+						"spawn checkpoint() has no effect; use checkpoint().await() or ignore the result")
+				}
 			} else if exprType != types.NoTypeID {
 				tc.report(diag.SemaSpawnNotTask, expr.Span,
 					"spawn requires async function call or Task<T> expression, got %s",

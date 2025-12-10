@@ -1,4 +1,2 @@
 error SEM3007 testdata/golden/sema/invalid/concurrency/await_in_sync_fn.sg:10:12 await can only be used in async context
-error SEM3015 testdata/golden/sema/invalid/concurrency/await_in_sync_fn.sg:15:23 int is not a struct
-error SEM3005 testdata/golden/sema/invalid/concurrency/await_in_sync_fn.sg:17:9 unknown has no method await
-error SEM3007 testdata/golden/sema/invalid/concurrency/await_in_sync_fn.sg:17:9 await can only be used in async context
+error SEM3007 testdata/golden/sema/invalid/concurrency/await_in_sync_fn.sg:15:12 await can only be used in async context

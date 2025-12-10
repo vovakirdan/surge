@@ -224,6 +224,16 @@ func (tc *typeChecker) report(code diag.Code, span source.Span, format string, a
 	}
 }
 
+func (tc *typeChecker) warn(code diag.Code, span source.Span, format string, args ...interface{}) {
+	if tc.reporter == nil {
+		return
+	}
+	msg := fmt.Sprintf(format, args...)
+	if b := diag.ReportWarning(tc.reporter, code, span, msg); b != nil {
+		b.Emit()
+	}
+}
+
 func (tc *typeChecker) assignmentBaseOp(op ast.ExprBinaryOp) (ast.ExprBinaryOp, bool) {
 	return binaryAssignmentBaseOp(op)
 }

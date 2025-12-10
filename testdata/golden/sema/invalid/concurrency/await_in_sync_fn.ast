@@ -1,4 +1,4 @@
-await_in_sync_fn.sg (span: 3:1-21:1)
+await_in_sync_fn.sg (span: 3:1-17:1)
 ├─ Item[0]: Fn (span: 3:1-5:2)
 │  ├─ Name: async_task
 │  ├─ Params: ()
@@ -20,16 +20,11 @@ await_in_sync_fn.sg (span: 3:1-21:1)
 │        │  └─ Value: expr#4: spawn async_task()
 │        └─ Stmt[1]: Return (span: 10:5-10:22)
 │           └─ Expr: expr#7: t.await()
-└─ Item[2]: Fn (span: 14:1-20:2)
-   ├─ Name: sync_fn_await_in_block
+└─ Item[2]: Fn (span: 14:1-16:2)
+   ├─ Name: sync_fn_direct_await
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 14:36-20:2)
-         ├─ Stmt[0]: Let (span: 15:5-18:7)
-         │  ├─ Name: result
-         │  ├─ Mutable: false
-         │  ├─ Type: int
-         │  └─ Value: expr#11: <ExprKind(18)>
-         └─ Stmt[1]: Return (span: 19:5-19:19)
-            └─ Expr: expr#12: result
+      └─ Stmt[0]: Block (span: 14:34-16:2)
+         └─ Stmt[0]: Return (span: 15:5-15:33)
+            └─ Expr: expr#11: async_task().await()

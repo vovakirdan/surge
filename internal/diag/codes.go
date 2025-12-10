@@ -204,6 +204,9 @@ const (
 	SemaSendContainsNonsend Code = 3113 // @send type contains non-sendable field
 	SemaAtomicDirectAccess  Code = 3114 // @atomic field accessed without atomic operation
 
+	// Spawn warnings (3115)
+	SemaSpawnCheckpointUseless Code = 3115 // spawn checkpoint() has no effect
+
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
 

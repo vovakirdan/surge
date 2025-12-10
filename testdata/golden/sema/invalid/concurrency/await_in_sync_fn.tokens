@@ -39,40 +39,20 @@
  39: Semicolon       ";" at 10:21-10:22
  40: RBrace          "}" at 11:1-11:2 (leading: Newline)
  41: KwFn            "fn" at 14:1-14:3 (leading: Newline, LineComment, Newline)
- 42: Ident           "sync_fn_await_in_block" at 14:4-14:26 (leading: Space)
- 43: LParen          "(" at 14:26-14:27
- 44: RParen          ")" at 14:27-14:28
- 45: Arrow           "->" at 14:29-14:31 (leading: Space)
- 46: Ident           "int" at 14:32-14:35 (leading: Space)
- 47: LBrace          "{" at 14:36-14:37 (leading: Space)
- 48: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
- 49: Ident           "result" at 15:9-15:15 (leading: Space)
- 50: Colon           ":" at 15:15-15:16
- 51: Ident           "int" at 15:17-15:20 (leading: Space)
- 52: Assign          "=" at 15:21-15:22 (leading: Space)
- 53: LBrace          "{" at 15:23-15:24 (leading: Space)
- 54: KwLet           "let" at 16:9-16:12 (leading: Newline, Space)
- 55: Ident           "t" at 16:13-16:14 (leading: Space)
- 56: Colon           ":" at 16:14-16:15
- 57: Ident           "Task" at 16:16-16:20 (leading: Space)
- 58: Lt              "<" at 16:20-16:21
- 59: Ident           "int" at 16:21-16:24
- 60: Gt              ">" at 16:24-16:25
- 61: Assign          "=" at 16:26-16:27 (leading: Space)
- 62: KwSpawn         "spawn" at 16:28-16:33 (leading: Space)
- 63: Ident           "async_task" at 16:34-16:44 (leading: Space)
- 64: LParen          "(" at 16:44-16:45
- 65: RParen          ")" at 16:45-16:46
- 66: Semicolon       ";" at 16:46-16:47
- 67: Ident           "t" at 17:9-17:10 (leading: Newline, Space)
- 68: Dot             "." at 17:10-17:11
- 69: Ident           "await" at 17:11-17:16
- 70: LParen          "(" at 17:16-17:17
- 71: RParen          ")" at 17:17-17:18
- 72: RBrace          "}" at 18:5-18:6 (leading: Newline, Space)
- 73: Semicolon       ";" at 18:6-18:7
- 74: KwReturn        "return" at 19:5-19:11 (leading: Newline, Space)
- 75: Ident           "result" at 19:12-19:18 (leading: Space)
- 76: Semicolon       ";" at 19:18-19:19
- 77: RBrace          "}" at 20:1-20:2 (leading: Newline)
- 78: EOF             at 21:1-21:1
+ 42: Ident           "sync_fn_direct_await" at 14:4-14:24 (leading: Space)
+ 43: LParen          "(" at 14:24-14:25
+ 44: RParen          ")" at 14:25-14:26
+ 45: Arrow           "->" at 14:27-14:29 (leading: Space)
+ 46: Ident           "int" at 14:30-14:33 (leading: Space)
+ 47: LBrace          "{" at 14:34-14:35 (leading: Space)
+ 48: KwReturn        "return" at 15:5-15:11 (leading: Newline, Space)
+ 49: Ident           "async_task" at 15:12-15:22 (leading: Space)
+ 50: LParen          "(" at 15:22-15:23
+ 51: RParen          ")" at 15:23-15:24
+ 52: Dot             "." at 15:24-15:25
+ 53: Ident           "await" at 15:25-15:30
+ 54: LParen          "(" at 15:30-15:31
+ 55: RParen          ")" at 15:31-15:32
+ 56: Semicolon       ";" at 15:32-15:33
+ 57: RBrace          "}" at 16:1-16:2 (leading: Newline)
+ 58: EOF             at 17:1-17:1
