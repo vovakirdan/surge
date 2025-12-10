@@ -45,9 +45,20 @@ func (p *Parser) parseBlockExprBody(openTok token.Token) (ast.ExprID, bool) {
 	var stmts []ast.StmtID
 
 	for !p.at(token.RBrace) && !p.at(token.EOF) {
+		// Защита от бесконечного цикла: запоминаем позицию до парсинга
+		before := p.lx.Peek()
+
 		stmtID, ok := p.parseStmt()
 		if !ok {
 			p.resyncStatement()
+
+			// Гарантируем прогресс: если токен не сдвинулся, принудительно продвигаемся
+			if !p.at(token.EOF) && !p.at(token.RBrace) {
+				after := p.lx.Peek()
+				if after.Kind == before.Kind && after.Span == before.Span {
+					p.advance()
+				}
+			}
 			continue
 		}
 		stmts = append(stmts, stmtID)
