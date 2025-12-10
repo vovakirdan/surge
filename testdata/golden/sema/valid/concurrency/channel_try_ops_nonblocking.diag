@@ -1,1 +1,0 @@
-error SEM3005 testdata/golden/sema/valid/concurrency/channel_try_ops_nonblocking.sg:6:18 &Channel<int> has no method try_recv
