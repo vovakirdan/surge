@@ -1,0 +1,8 @@
+// Test: benchmark directive module
+// Expected: No errors
+import stdlib/directives/benchmark;
+
+/// benchmark:
+/// benchmark.throughput("test", 100, do_work);
+
+fn do_work() -> nothing { return nothing; }

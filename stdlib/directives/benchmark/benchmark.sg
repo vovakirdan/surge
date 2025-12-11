@@ -1,0 +1,43 @@
+// stdlib/directives/benchmark/benchmark.sg
+// Benchmark directive module for microbenchmarking in Surge.
+// Use with /// benchmark: directive blocks.
+pragma module::benchmark, directive;
+
+import stdlib/time;
+
+// Result of a benchmark run.
+pub type BenchmarkResult = {
+    name: string,
+    iterations: int,
+    total_duration: time.Duration,
+};
+
+// Run a throughput benchmark.
+// Executes the given function `iters` times and measures total duration.
+//
+// Parameters:
+//   name  - identifier for this benchmark
+//   iters - number of iterations to run
+//   f     - function to benchmark (takes no arguments, returns nothing)
+//
+// Returns: BenchmarkResult with timing information
+pub fn throughput(name: string, iters: int, f: fn() -> nothing) -> BenchmarkResult {
+    // Stage 2: stub implementation - actual timing will be added in Stage 3
+    let result: BenchmarkResult = {
+        name: name,
+        iterations: iters,
+        total_duration: time.monotonic_now(),
+    };
+    return result;
+}
+
+// Run a single-shot benchmark.
+// Executes the function once and returns timing.
+pub fn single(name: string, f: fn() -> nothing) -> BenchmarkResult {
+    return throughput(name, 1, f);
+}
+
+// Mark a benchmark as skipped.
+pub fn skip(reason: string) -> nothing {
+    return nothing;
+}

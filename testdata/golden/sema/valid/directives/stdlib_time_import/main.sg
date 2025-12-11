@@ -1,0 +1,7 @@
+// Test: stdlib time module import and Duration usage
+// Expected: No errors
+import stdlib/time;
+
+fn measure() -> time.Duration {
+    return time.monotonic_now();
+}

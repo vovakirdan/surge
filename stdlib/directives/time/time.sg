@@ -1,0 +1,41 @@
+// stdlib/directives/time/time.sg
+// Time/profiling directive module for function timing in Surge.
+// Use with /// time: directive blocks.
+pragma module::time, directive;
+
+import stdlib/time as stdtime;
+
+// Result of a profiling run.
+pub type ProfileResult = {
+    name: string,
+    iterations: int,
+    total_duration: stdtime.Duration,
+};
+
+// Profile a function over multiple iterations.
+//
+// Parameters:
+//   name  - identifier for this profile
+//   iters - number of iterations to run
+//   f     - function to profile
+//
+// Returns: ProfileResult with timing information
+pub fn profile_fn(name: string, iters: int, f: fn() -> nothing) -> ProfileResult {
+    // Stage 2: stub implementation
+    let result: ProfileResult = {
+        name: name,
+        iterations: iters,
+        total_duration: stdtime.monotonic_now(),
+    };
+    return result;
+}
+
+// Profile a single execution.
+pub fn profile_once(name: string, f: fn() -> nothing) -> ProfileResult {
+    return profile_fn(name, 1, f);
+}
+
+// Skip this profile.
+pub fn skip(reason: string) -> nothing {
+    return nothing;
+}

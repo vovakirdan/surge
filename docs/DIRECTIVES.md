@@ -653,9 +653,76 @@ pub fn skip(reason: string) -> nothing { return nothing; }
 
 ## Next Steps
 
-- Stage 2: Directive body parsing and semantic validation
 - Stage 3: Directive execution engine
 - Stage 4: Assertion evaluation and test result reporting
+
+---
+
+# 14.1 Stage 2 Implementation
+
+Stage 2 adds the `benchmark` and `time` directive modules with supporting infrastructure.
+
+## stdlib/time Module
+
+The `stdlib/time` module provides the `Duration` opaque type for time measurements:
+
+```sg
+import stdlib/time;
+
+let start: time.Duration = time.monotonic_now();
+// ... work ...
+let end: time.Duration = time.monotonic_now();
+let elapsed: time.Duration = end.sub(start);
+let seconds: float = elapsed.as_seconds();
+```
+
+**Duration Methods:**
+- `sub(other: Duration) -> Duration` — Subtract durations
+- `as_seconds() -> float` — Convert to seconds
+- `as_millis() -> float` — Convert to milliseconds
+- `as_micros() -> float` — Convert to microseconds
+- `as_nanos() -> float` — Convert to nanoseconds
+
+## Benchmark Directive Module
+
+```sg
+import stdlib/directives/benchmark;
+
+/// benchmark:
+/// benchmark.throughput("parse_json", 1000, parse_small_json);
+```
+
+**Functions:**
+- `throughput(name, iters, f)` — Run function `iters` times
+- `single(name, f)` — Run function once
+- `skip(reason)` — Skip benchmark
+
+## Time/Profile Directive Module
+
+```sg
+import stdlib/directives/time;
+
+/// time:
+/// time.profile_fn("algorithm", 100, run_algorithm);
+```
+
+**Functions:**
+- `profile_fn(name, iters, f)` — Profile with statistics
+- `profile_once(name, f)` — Single execution profile
+- `skip(reason)` — Skip profiling
+
+## Usage
+
+```bash
+# Run benchmark directives
+surge diag --directives=run --directives-filter=benchmark file.sg
+
+# Run time/profile directives
+surge diag --directives=run --directives-filter=time file.sg
+
+# Run all directives
+surge diag --directives=run file.sg
+```
 
 ---
 

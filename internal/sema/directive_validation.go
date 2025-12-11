@@ -42,7 +42,9 @@ func (tc *typeChecker) validateDirectiveBlock(block *ast.DirectiveBlock) {
 	}
 
 	// Look for module by last path segment matching namespace
+	// If multiple modules match, prefer the one with pragma directive
 	var foundExports *symbols.ModuleExports
+	var foundPath string
 	for path, exp := range tc.exports {
 		// Extract last segment of module path
 		lastSeg := path
@@ -50,10 +52,18 @@ func (tc *typeChecker) validateDirectiveBlock(block *ast.DirectiveBlock) {
 			lastSeg = path[idx+1:]
 		}
 		if lastSeg == namespace {
-			foundExports = exp
-			break
+			// Prefer directive modules over non-directive modules
+			if foundExports == nil {
+				foundExports = exp
+				foundPath = path
+			} else if exp.PragmaFlags&ast.PragmaFlagDirective != 0 {
+				// This module has pragma directive, prefer it
+				foundExports = exp
+				foundPath = path
+			}
 		}
 	}
+	_ = foundPath // Used for debugging, may be removed later
 
 	if foundExports == nil {
 		tc.reportDirectiveError(
