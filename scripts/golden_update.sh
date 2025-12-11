@@ -64,6 +64,11 @@ generate_outputs() {
 			echo "fmt failed for ${src}, copied original content" >&2
 		fi
 	fi
+
+	# Generate HIR output for files in hir directory
+	if [[ "${src}" == *"/hir/"* ]]; then
+		"${SURGE_BIN}" diag --emit-hir "${src}" > "${dir}/${name}.hir" 2>&1 || true
+	fi
 }
 
 find "${GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r -d '' src; do

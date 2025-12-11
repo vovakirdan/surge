@@ -1,0 +1,13 @@
+
+== HIR ==
+module 
+
+fn add(a: int [copy], b: int [copy]) -> int (id=1, sym=518) {
+  return (a + b): int
+}
+
+fn main() -> nothing (id=2, sym=519) {
+  let x: int [copy] = add(1, 2): int
+  let y: int [copy] = (x + 3): int
+}
+

@@ -87,6 +87,82 @@ const (
 	ExprBinaryHeir           // heir
 )
 
+// String returns the symbol representation of a binary operator.
+func (op ExprBinaryOp) String() string {
+	switch op {
+	case ExprBinaryAdd:
+		return "+"
+	case ExprBinarySub:
+		return "-"
+	case ExprBinaryMul:
+		return "*"
+	case ExprBinaryDiv:
+		return "/"
+	case ExprBinaryMod:
+		return "%"
+	case ExprBinaryBitAnd:
+		return "&"
+	case ExprBinaryBitOr:
+		return "|"
+	case ExprBinaryBitXor:
+		return "^"
+	case ExprBinaryShiftLeft:
+		return "<<"
+	case ExprBinaryShiftRight:
+		return ">>"
+	case ExprBinaryLogicalAnd:
+		return "&&"
+	case ExprBinaryLogicalOr:
+		return "||"
+	case ExprBinaryEq:
+		return "=="
+	case ExprBinaryNotEq:
+		return "!="
+	case ExprBinaryLess:
+		return "<"
+	case ExprBinaryLessEq:
+		return "<="
+	case ExprBinaryGreater:
+		return ">"
+	case ExprBinaryGreaterEq:
+		return ">="
+	case ExprBinaryAssign:
+		return "="
+	case ExprBinaryAddAssign:
+		return "+="
+	case ExprBinarySubAssign:
+		return "-="
+	case ExprBinaryMulAssign:
+		return "*="
+	case ExprBinaryDivAssign:
+		return "/="
+	case ExprBinaryModAssign:
+		return "%="
+	case ExprBinaryBitAndAssign:
+		return "&="
+	case ExprBinaryBitOrAssign:
+		return "|="
+	case ExprBinaryBitXorAssign:
+		return "^="
+	case ExprBinaryShlAssign:
+		return "<<="
+	case ExprBinaryShrAssign:
+		return ">>="
+	case ExprBinaryNullCoalescing:
+		return "??"
+	case ExprBinaryRange:
+		return ".."
+	case ExprBinaryRangeInclusive:
+		return "..="
+	case ExprBinaryIs:
+		return "is"
+	case ExprBinaryHeir:
+		return "heir"
+	default:
+		return "?"
+	}
+}
+
 // ExprUnaryOp enumerates unary operator kinds.
 type ExprUnaryOp uint8
 
@@ -100,6 +176,30 @@ const (
 	ExprUnaryOwn
 	ExprUnaryAwait
 )
+
+// String returns the symbol representation of a unary operator.
+func (op ExprUnaryOp) String() string {
+	switch op {
+	case ExprUnaryPlus:
+		return "+"
+	case ExprUnaryMinus:
+		return "-"
+	case ExprUnaryNot:
+		return "!"
+	case ExprUnaryDeref:
+		return "*"
+	case ExprUnaryRef:
+		return "&"
+	case ExprUnaryRefMut:
+		return "&mut"
+	case ExprUnaryOwn:
+		return "own"
+	case ExprUnaryAwait:
+		return "await"
+	default:
+		return "?"
+	}
+}
 
 // ExprLitKind enumerates literal kinds.
 type ExprLitKind uint8

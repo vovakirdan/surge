@@ -1,0 +1,25 @@
+simple_func.sg (span: 1:1-9:1)
+├─ Item[0]: Fn (span: 1:1-3:2)
+│  ├─ Name: add
+│  ├─ Params: (a: int, b: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:31-3:2)
+│        └─ Stmt[0]: Return (span: 2:5-2:18)
+│           └─ Expr: expr#3: (a + b)
+└─ Item[1]: Fn (span: 5:1-8:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 5:11-8:2)
+         ├─ Stmt[0]: Let (span: 6:5-6:23)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#7: add(1, 2)
+         └─ Stmt[1]: Let (span: 7:5-7:19)
+            ├─ Name: y
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#10: (x + 3)

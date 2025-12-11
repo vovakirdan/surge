@@ -26,6 +26,8 @@ type Result struct {
 	Borrows                []BorrowInfo
 	FunctionInstantiations map[symbols.SymbolID][][]types.TypeID
 	ImplicitConversions    map[ast.ExprID]ImplicitConversion // Tracks implicit __to calls
+	BindingTypes           map[symbols.SymbolID]types.TypeID // Maps symbol IDs to their resolved types
+	ItemScopes             map[ast.ItemID]symbols.ScopeID    // Maps items to their scopes (for HIR lowering)
 }
 
 // Check performs semantic analysis (type inference, borrow checks, etc.).

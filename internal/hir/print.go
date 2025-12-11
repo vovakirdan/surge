@@ -199,7 +199,7 @@ func (p *Printer) printStmt(s *Stmt) {
 			p.printf(" = ")
 			p.printExpr(data.Value)
 		}
-		p.printf(" (sym=%d)\n", data.SymbolID)
+		p.printf("\n")
 
 	case StmtExpr:
 		data := s.Data.(ExprStmtData)
@@ -334,10 +334,18 @@ func (p *Printer) printStmtInline(s *Stmt) {
 }
 
 func (p *Printer) printExpr(e *Expr) {
+	p.printExprWithType(e, true)
+}
+
+// printExprWithType prints an expression, optionally with type annotation.
+func (p *Printer) printExprWithType(e *Expr, showType bool) {
 	if e == nil {
 		p.printf("<nil>")
 		return
 	}
+
+	// Don't show type on simple literals to reduce noise
+	skipType := false
 
 	switch e.Kind {
 	case ExprLiteral:
@@ -356,37 +364,39 @@ func (p *Printer) printExpr(e *Expr) {
 		default:
 			p.printf("<literal>")
 		}
+		// Skip type for literals unless it's non-obvious
+		skipType = true
 
 	case ExprVarRef:
 		data := e.Data.(VarRefData)
 		p.printf("%s", data.Name)
-		if data.SymbolID != 0 {
-			p.printf("/*sym=%d*/", data.SymbolID)
-		}
+		// Skip type on variable references - context shows type already
+		skipType = true
 
 	case ExprUnaryOp:
 		data := e.Data.(UnaryOpData)
 		p.printf("(%v ", data.Op)
-		p.printExpr(data.Operand)
+		p.printExprWithType(data.Operand, false) // Skip type on operand
 		p.printf(")")
 
 	case ExprBinaryOp:
 		data := e.Data.(BinaryOpData)
 		p.printf("(")
-		p.printExpr(data.Left)
+		p.printExprWithType(data.Left, false) // Skip type on operands
 		p.printf(" %v ", data.Op)
-		p.printExpr(data.Right)
+		p.printExprWithType(data.Right, false) // Skip type on operands
 		p.printf(")")
 
 	case ExprCall:
 		data := e.Data.(CallData)
-		p.printExpr(data.Callee)
+		// Print callee without type annotation for cleaner output
+		p.printExprWithType(data.Callee, false)
 		p.printf("(")
 		for i, arg := range data.Args {
 			if i > 0 {
 				p.printf(", ")
 			}
-			p.printExpr(arg)
+			p.printExprWithType(arg, false) // Skip types on args for cleaner output
 		}
 		p.printf(")")
 
@@ -507,8 +517,8 @@ func (p *Printer) printExpr(e *Expr) {
 		p.printf("<%s>", e.Kind)
 	}
 
-	// Optionally add type annotation
-	if e.Type != types.NoTypeID {
+	// Optionally add type annotation (skip for simple literals to reduce noise)
+	if showType && !skipType && e.Type != types.NoTypeID {
 		p.printf(": %s", p.typeStr(e.Type))
 	}
 }

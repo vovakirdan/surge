@@ -1,0 +1,15 @@
+fn abs(x: int) -> int {
+    if x < 0 {
+        return -x;
+    } else {
+        return x;
+    }
+}
+
+fn countdown(n: int) -> int {
+    let mut i: int = n;
+    while i > 0 {
+        i = i - 1;
+    }
+    return i;
+}

@@ -2,6 +2,7 @@ package hir
 
 import (
 	"surge/internal/ast"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -48,12 +49,10 @@ func (l *lowerer) lowerFnItem(itemID ast.ItemID) *Func {
 	fn.GenericParams = l.lowerGenericParams(fnItem)
 
 	// Process function parameters
-	fn.Params = l.lowerFnParams(fnItem)
+	fn.Params = l.lowerFnParams(itemID, fnItem)
 
-	// Process return type
-	if fnItem.ReturnType.IsValid() {
-		fn.Result = l.lookupTypeFromAST(fnItem.ReturnType)
-	}
+	// Process return type from function symbol's type
+	fn.Result = l.getFunctionReturnType(symID)
 
 	// Process body
 	if fnItem.Body.IsValid() {
@@ -117,10 +116,16 @@ func (l *lowerer) lowerGenericParams(fnItem *ast.FnItem) []GenericParam {
 }
 
 // lowerFnParams lowers function parameters.
-func (l *lowerer) lowerFnParams(fnItem *ast.FnItem) []Param {
+func (l *lowerer) lowerFnParams(fnItemID ast.ItemID, fnItem *ast.FnItem) []Param {
 	paramIDs := l.builder.Items.GetFnParamIDs(fnItem)
 	if len(paramIDs) == 0 {
 		return nil
+	}
+
+	// Get function scope to look up parameter symbols
+	var fnScope symbols.ScopeID
+	if l.semaRes != nil && l.semaRes.ItemScopes != nil {
+		fnScope = l.semaRes.ItemScopes[fnItemID]
 	}
 
 	params := make([]Param, 0, len(paramIDs))
@@ -132,11 +137,24 @@ func (l *lowerer) lowerFnParams(fnItem *ast.FnItem) []Param {
 
 		p := Param{
 			Name:       l.lookupString(param.Name),
-			Type:       l.lookupTypeFromAST(param.Type),
-			Ownership:  l.inferOwnership(l.lookupTypeFromAST(param.Type)),
 			Span:       param.Span,
 			HasDefault: param.Default.IsValid(),
 		}
+
+		// Try to get parameter type from sema bindings
+		if fnScope.IsValid() && param.Name != 0 {
+			symID := l.symbolInScope(fnScope, param.Name, symbols.SymbolParam)
+			if symID.IsValid() && l.semaRes != nil && l.semaRes.BindingTypes != nil {
+				p.Type = l.semaRes.BindingTypes[symID]
+			}
+		}
+
+		// Fallback to AST type if sema type not found
+		if p.Type == types.NoTypeID {
+			p.Type = l.lookupTypeFromAST(param.Type)
+		}
+
+		p.Ownership = l.inferOwnership(p.Type)
 
 		if param.Default.IsValid() {
 			p.Default = l.lowerExpr(param.Default)
@@ -145,6 +163,49 @@ func (l *lowerer) lowerFnParams(fnItem *ast.FnItem) []Param {
 		params = append(params, p)
 	}
 	return params
+}
+
+// symbolInScope finds a symbol by name and kind in the given scope.
+func (l *lowerer) symbolInScope(scope symbols.ScopeID, name source.StringID, kind symbols.SymbolKind) symbols.SymbolID {
+	if !scope.IsValid() || name == source.NoStringID || l.symRes == nil || l.symRes.Table == nil {
+		return symbols.NoSymbolID
+	}
+	scopeData := l.symRes.Table.Scopes.Get(scope)
+	if scopeData == nil {
+		return symbols.NoSymbolID
+	}
+	ids := scopeData.NameIndex[name]
+	for i := len(ids) - 1; i >= 0; i-- {
+		symID := ids[i]
+		sym := l.symRes.Table.Symbols.Get(symID)
+		if sym == nil {
+			continue
+		}
+		if sym.Kind == kind {
+			return symID
+		}
+	}
+	return symbols.NoSymbolID
+}
+
+// getFunctionReturnType extracts return type from a function symbol's type.
+func (l *lowerer) getFunctionReturnType(symID symbols.SymbolID) types.TypeID {
+	if !symID.IsValid() || l.symRes == nil || l.symRes.Table == nil || l.semaRes == nil || l.semaRes.TypeInterner == nil {
+		return types.NoTypeID
+	}
+
+	// Get function symbol's type from symbol table
+	sym := l.symRes.Table.Symbols.Get(symID)
+	if sym == nil || sym.Type == types.NoTypeID {
+		return types.NoTypeID
+	}
+
+	// Extract return type from function type
+	fnInfo, ok := l.semaRes.TypeInterner.FnInfo(sym.Type)
+	if !ok || fnInfo == nil {
+		return types.NoTypeID
+	}
+	return fnInfo.Result
 }
 
 // lowerLetItem lowers a top-level let declaration.

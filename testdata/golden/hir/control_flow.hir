@@ -1,0 +1,20 @@
+
+== HIR ==
+module 
+
+fn abs(x: int [copy]) -> int (id=1, sym=518) {
+  if (x < 0): bool {
+    return (- x): int
+  } else {
+    return x
+  }
+}
+
+fn countdown(n: int [copy]) -> int (id=2, sym=519) {
+  let mut i: int [copy] = n
+  while (i > 0): bool {
+    (i = (i - 1)): int
+  }
+  return i
+}
+

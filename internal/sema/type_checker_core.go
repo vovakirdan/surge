@@ -223,4 +223,8 @@ func (tc *typeChecker) run() {
 	done = phase("validate_directives")
 	tc.validateDirectiveNamespaces()
 	done()
+
+	// Export binding types and scopes to result for use by HIR lowering
+	tc.result.BindingTypes = tc.bindingTypes
+	tc.result.ItemScopes = tc.scopeByItem
 }
