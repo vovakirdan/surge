@@ -1,0 +1,91 @@
+copy_primitives.sg (span: 2:1-28:1)
+├─ Item[0]: Fn (span: 2:1-7:2)
+│  ├─ Name: test_copy_int
+│  ├─ Params: ()
+│  ├─ Return: int32
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:29-7:2)
+│        ├─ Stmt[0]: Let (span: 3:5-3:23)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#1: 10
+│        ├─ Stmt[1]: Let (span: 4:5-4:22)
+│        │  ├─ Name: b
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#2: a
+│        ├─ Stmt[2]: Let (span: 5:5-5:22)
+│        │  ├─ Name: c
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#3: a
+│        └─ Stmt[3]: Return (span: 6:5-6:22)
+│           └─ Expr: expr#8: (((a + b)) + c)
+├─ Item[1]: Fn (span: 9:1-14:2)
+│  ├─ Name: test_copy_bool
+│  ├─ Params: ()
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:29-14:2)
+│        ├─ Stmt[0]: Let (span: 10:5-10:24)
+│        │  ├─ Name: x
+│        │  ├─ Mutable: false
+│        │  ├─ Type: bool
+│        │  └─ Value: expr#9: true
+│        ├─ Stmt[1]: Let (span: 11:5-11:21)
+│        │  ├─ Name: y
+│        │  ├─ Mutable: false
+│        │  ├─ Type: bool
+│        │  └─ Value: expr#10: x
+│        ├─ Stmt[2]: Let (span: 12:5-12:21)
+│        │  ├─ Name: z
+│        │  ├─ Mutable: false
+│        │  ├─ Type: bool
+│        │  └─ Value: expr#11: x
+│        └─ Stmt[3]: Return (span: 13:5-13:24)
+│           └─ Expr: expr#16: (((x && y)) && z)
+├─ Item[2]: Fn (span: 16:1-21:2)
+│  ├─ Name: test_copy_float
+│  ├─ Params: ()
+│  ├─ Return: float64
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 16:33-21:2)
+│        ├─ Stmt[0]: Let (span: 17:5-17:27)
+│        │  ├─ Name: f
+│        │  ├─ Mutable: false
+│        │  ├─ Type: float64
+│        │  └─ Value: expr#17: 3.14
+│        ├─ Stmt[1]: Let (span: 18:5-18:24)
+│        │  ├─ Name: g
+│        │  ├─ Mutable: false
+│        │  ├─ Type: float64
+│        │  └─ Value: expr#18: f
+│        ├─ Stmt[2]: Let (span: 19:5-19:24)
+│        │  ├─ Name: h
+│        │  ├─ Mutable: false
+│        │  ├─ Type: float64
+│        │  └─ Value: expr#19: f
+│        └─ Stmt[3]: Return (span: 20:5-20:22)
+│           └─ Expr: expr#24: (((f + g)) + h)
+└─ Item[3]: Fn (span: 23:1-27:2)
+   ├─ Name: test_copy_unit
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 23:21-27:2)
+         ├─ Stmt[0]: Let (span: 24:5-24:20)
+         │  ├─ Name: u
+         │  ├─ Mutable: false
+         │  ├─ Type: ()
+         │  └─ Value: expr#25: ()
+         ├─ Stmt[1]: Let (span: 25:5-25:19)
+         │  ├─ Name: v
+         │  ├─ Mutable: false
+         │  ├─ Type: ()
+         │  └─ Value: expr#26: u
+         └─ Stmt[2]: Let (span: 26:5-26:19)
+            ├─ Name: w
+            ├─ Mutable: false
+            ├─ Type: ()
+            └─ Value: expr#27: u

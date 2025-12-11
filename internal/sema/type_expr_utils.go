@@ -273,6 +273,17 @@ func (tc *typeChecker) sameType(a, b types.TypeID) bool {
 	return a == b
 }
 
+// isCopyType returns true if values of the given type can be implicitly copied.
+// Copy types do not require move tracking - the original value remains valid after copying.
+func (tc *typeChecker) isCopyType(id types.TypeID) bool {
+	if tc.types == nil {
+		return false
+	}
+	// Resolve alias to get underlying type
+	resolved := tc.resolveAlias(id)
+	return tc.types.IsCopy(resolved)
+}
+
 func (tc *typeChecker) isAddressLike(id types.TypeID) bool {
 	if id == types.NoTypeID || tc.types == nil {
 		return false
