@@ -311,8 +311,8 @@ func (tc *typeChecker) handleCloneCall(args []callArg, span source.Span) types.T
 	// Validate that __clone returns the same type
 	// Signature should be: fn __clone(self: &T) -> T
 	for _, sig := range methods {
-		if sig.Result != "" {
-			// Found a valid __clone method
+		if sig.Result != "" && typeKeyEqual(sig.Result, typeKey) {
+			// Found a valid __clone method with correct return type
 			return innerType
 		}
 	}
@@ -432,8 +432,8 @@ func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg
 
 	// For "own T" params, we accept both "own T" and "T" (value types can be moved)
 	innerExpected := substituted
-	if strings.HasPrefix(substitutedStr, "own ") {
-		innerExpected = symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(substitutedStr, "own ")))
+	if after, found := strings.CutPrefix(substitutedStr, "own "); found {
+		innerExpected = symbols.TypeKey(strings.TrimSpace(after))
 	}
 
 	for _, cand := range tc.typeKeyCandidates(arg) {

@@ -79,6 +79,7 @@ var attrRegistry = map[string]AttrSpec{
 	"nonblocking":   {Name: "nonblocking", Targets: AttrTargetFn},
 	"drop":          {Name: "drop", Targets: AttrTargetStmt},
 	"failfast":      {Name: "failfast", Targets: AttrTargetBlock},
+	"copy":          {Name: "copy", Targets: AttrTargetType},
 }
 
 // LookupAttr returns metadata for the given attribute name (case-insensitive).

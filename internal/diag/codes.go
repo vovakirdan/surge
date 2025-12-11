@@ -210,6 +210,10 @@ const (
 	// Clone errors (3116)
 	SemaTypeNotClonable Code = 3116 // Type does not have __clone method
 
+	// @copy attribute errors (3117-3118)
+	SemaAttrCopyNonCopyField Code = 3117 // @copy type has non-Copy field
+	SemaAttrCopyCyclicDep    Code = 3118 // @copy types have cyclic dependency
+
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
 
@@ -406,6 +410,8 @@ var ( // todo расширить описания и использовать к
 		SemaAtomicDirectAccess:           "@atomic field must be accessed via atomic operations",
 		SemaTypeParamShadow:              "type parameter shadows outer type parameter",
 		SemaTypeNotClonable:              "type is not clonable (no __clone method)",
+		SemaAttrCopyNonCopyField:         "@copy type has non-Copy field",
+		SemaAttrCopyCyclicDep:            "@copy types have cyclic dependency",
 		IOLoadFileError:                  "I/O load file error",
 		ProjInfo:                         "Project information",
 		ProjDuplicateModule:              "Duplicate module definition",

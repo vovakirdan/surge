@@ -53,7 +53,7 @@ func (tc *typeChecker) tryImplicitConversion(src, target types.TypeID) (types.Ty
 func (tc *typeChecker) collectToMethods(src, target types.TypeID) []*symbols.FunctionSignature {
 	var results []*symbols.FunctionSignature
 	seen := make(map[*symbols.FunctionSignature]struct{})
-	targetCandidates := tc.typeKeyCandidates(target)
+	targetCandidates := tc.filterTargetCandidates(tc.typeKeyCandidates(target))
 
 	for _, sc := range tc.typeKeyCandidates(src) {
 		if sc.key == "" {
@@ -79,6 +79,26 @@ func (tc *typeChecker) collectToMethods(src, target types.TypeID) []*symbols.Fun
 		}
 	}
 	return results
+}
+
+// filterTargetCandidates removes family fallbacks (e.g., uint8 -> uint) so that
+// implicit conversions only match the exact requested target type.
+func (tc *typeChecker) filterTargetCandidates(candidates []typeKeyCandidate) []typeKeyCandidate {
+	if len(candidates) == 0 {
+		return candidates
+	}
+	filtered := make([]typeKeyCandidate, 0, len(candidates))
+	for _, cand := range candidates {
+		if cand.key == "" {
+			continue
+		}
+		baseKey := tc.typeKeyForType(cand.base)
+		if family := tc.familyKeyForType(cand.base); family != "" && cand.key == family && baseKey != "" && baseKey != cand.key {
+			continue
+		}
+		filtered = append(filtered, cand)
+	}
+	return filtered
 }
 
 // recordImplicitConversion records an implicit conversion for codegen.

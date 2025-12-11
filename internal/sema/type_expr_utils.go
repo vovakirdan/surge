@@ -275,13 +275,26 @@ func (tc *typeChecker) sameType(a, b types.TypeID) bool {
 
 // isCopyType returns true if values of the given type can be implicitly copied.
 // Copy types do not require move tracking - the original value remains valid after copying.
+// This includes builtin Copy types (primitives, &T, *T, fn) and user types with @copy attribute.
 func (tc *typeChecker) isCopyType(id types.TypeID) bool {
 	if tc.types == nil {
 		return false
 	}
 	// Resolve alias to get underlying type
 	resolved := tc.resolveAlias(id)
-	return tc.types.IsCopy(resolved)
+
+	// Check builtin Copy types
+	if tc.types.IsCopy(resolved) {
+		return true
+	}
+
+	// Check for @copy attribute on user types
+	// Validation of @copy (that all fields are Copy) happens at type declaration time
+	if tc.typeHasAttr(resolved, "copy") {
+		return true
+	}
+
+	return false
 }
 
 func (tc *typeChecker) isAddressLike(id types.TypeID) bool {

@@ -1,0 +1,15 @@
+// scenario: __clone method with wrong return type should be rejected
+type MyType = { value: int }
+type Other = { data: int }
+
+extern<MyType> {
+    // Wrong return type - returns Other instead of MyType
+    fn __clone(self: &MyType) -> Other {
+        return Other { data: self.value };
+    }
+}
+
+fn test() -> nothing {
+    let m: MyType = MyType { value: 1 };
+    let n = clone(&m);  // ERROR: type MyType has __clone but with invalid signature
+}

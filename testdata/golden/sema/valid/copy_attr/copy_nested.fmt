@@ -1,0 +1,19 @@
+// scenario: @copy type with nested @copy fields
+@copy
+type Point = { x: int32, y: int32 }
+
+@copy
+type Rect = { origin: Point, size: Point }
+
+@copy
+type Transform = { position: Point, scale: Point, rotation: float32 }
+
+fn test_nested_copy() -> int32 {
+    let r1: Rect = Rect {
+        origin: Point { x: 0, y: 0 },
+        size: Point { x: 100, y: 50 }
+    };
+    let r2 = r1;  // Copy, not move
+    let r3 = r1;  // r1 still valid
+    return r1.origin.x + r2.size.x + r3.size.y;
+}

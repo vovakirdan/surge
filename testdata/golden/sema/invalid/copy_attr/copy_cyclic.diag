@@ -1,0 +1,1 @@
+error SEM3117 testdata/golden/sema/invalid/copy_attr/copy_cyclic.sg:2:1 @copy type 'NodeA' has non-Copy field 'b' of type 'NodeB'
