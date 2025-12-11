@@ -12,6 +12,7 @@ import (
 	"surge/internal/diagfmt"
 	"surge/internal/directive"
 	"surge/internal/driver"
+	"surge/internal/hir"
 	"surge/internal/parser"
 	"surge/internal/source"
 	"surge/internal/trace"
@@ -41,6 +42,7 @@ func init() {
 	diagCmd.Flags().Bool("disk-cache", false, "enable persistent disk cache for module metadata (experimental)")
 	diagCmd.Flags().String("directives", "off", "directive processing mode (off|collect|gen|run)")
 	diagCmd.Flags().String("directives-filter", "test", "comma-separated directive namespaces to process")
+	diagCmd.Flags().Bool("emit-hir", false, "emit HIR (High-level IR) representation after successful analysis")
 }
 
 // runDiagnose executes the "diag" command: it parses command flags, runs diagnostics
@@ -127,6 +129,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get directives-filter flag: %w", err)
 	}
 
+	emitHIR, err := cmd.Flags().GetBool("emit-hir")
+	if err != nil {
+		return fmt.Errorf("failed to get emit-hir flag: %w", err)
+	}
+
 	// Parse comma-separated filter
 	var directiveFilter []string
 	for _, ns := range strings.Split(directivesFilterStr, ",") {
@@ -176,6 +183,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		EnableDiskCache:  enableDiskCache,
 		DirectiveMode:    directiveMode,
 		DirectiveFilter:  directiveFilter,
+		EmitHIR:          emitHIR,
 	}
 
 	st, err := os.Stat(filePath)
@@ -272,6 +280,15 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			runResult := runner.Run()
 			if runResult.Failed > 0 {
 				exit = 1
+			}
+		}
+
+		// Emit HIR if requested
+		if emitHIR && result.HIR != nil && result.Sema != nil {
+			fmt.Fprintln(os.Stdout, "\n== HIR ==")
+			var interner = result.Sema.TypeInterner
+			if err := hir.Dump(os.Stdout, result.HIR, interner); err != nil {
+				return 0, fmt.Errorf("failed to dump HIR: %w", err)
 			}
 		}
 

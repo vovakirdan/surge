@@ -13,6 +13,7 @@ import (
 	"surge/internal/diag"
 	"surge/internal/directive"
 	"surge/internal/fix"
+	"surge/internal/hir"
 	"surge/internal/lexer"
 	"surge/internal/observ"
 	"surge/internal/parser"
@@ -41,6 +42,7 @@ type DiagnoseResult struct {
 	Symbols           *symbols.Result
 	Sema              *sema.Result
 	DirectiveRegistry *directive.Registry // Collected directive scenarios
+	HIR               *hir.Module         // HIR module (if EmitHIR is enabled)
 }
 
 // DiagnoseStage определяет уровень диагностики
@@ -63,6 +65,7 @@ type DiagnoseOptions struct {
 	EnableDiskCache  bool                 // Enable persistent disk cache (experimental, adds I/O overhead)
 	DirectiveMode    parser.DirectiveMode // Directive processing mode (off, collect, gen, run)
 	DirectiveFilter  []string             // Directive namespaces to process (empty = all)
+	EmitHIR          bool                 // Build HIR (High-level IR) from AST + sema
 }
 
 // Diagnose запускает диагностику файла до указанного уровня
@@ -244,6 +247,16 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 		directiveRegistry.CollectFromFile(builder, astFile, modulePath, filePath)
 	}
 
+	// Build HIR if requested and sema succeeded
+	var hirModule *hir.Module
+	if opts.EmitHIR && semaRes != nil && builder != nil && astFile != ast.NoFileID && !bag.HasErrors() {
+		hirIdx := begin("hir")
+		hirSpan := trace.Begin(tracer, trace.ScopePass, "hir", diagSpan.ID())
+		hirModule, _ = hir.Lower(builder, astFile, semaRes, symbolsRes) //nolint:errcheck // HIR errors are non-fatal
+		hirSpan.End("")
+		end(hirIdx, "")
+	}
+
 	return &DiagnoseResult{
 		FileSet:           fs,
 		File:              file,
@@ -253,6 +266,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 		Symbols:           symbolsRes,
 		Sema:              semaRes,
 		DirectiveRegistry: directiveRegistry,
+		HIR:               hirModule,
 	}, nil
 }
 
