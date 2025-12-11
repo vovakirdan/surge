@@ -40,3 +40,4 @@ helloworld/
 
 surge
 !cmd/surge
+!stdlib/directives/test/test.sg

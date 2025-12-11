@@ -1,0 +1,36 @@
+// stdlib/directives/test/test.sg
+// Test directive module for unit testing in Surge.
+// Use with /// test: directive blocks.
+pragma module::test, directive;
+
+/// Asserts that two values are equal.
+/// If assertion fails, the test is marked as failed.
+pub fn eq<T>(actual: T, expected: T) -> nothing {
+    // Stage 1: stub implementation
+    return nothing;
+}
+
+/// Asserts that a condition is true.
+pub fn assert(condition: bool) -> nothing {
+    return nothing;
+}
+
+/// Asserts that a condition is true, with a message on failure.
+pub fn assert_msg(condition: bool, message: string) -> nothing {
+    return nothing;
+}
+
+/// Asserts that two values are not equal.
+pub fn ne<T>(actual: T, expected: T) -> nothing {
+    return nothing;
+}
+
+/// Marks the current test as explicitly failed with a message.
+pub fn fail(message: string) -> nothing {
+    return nothing;
+}
+
+/// Marks the current test as skipped.
+pub fn skip(reason: string) -> nothing {
+    return nothing;
+}
