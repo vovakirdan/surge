@@ -601,7 +601,65 @@ When macros arrive in v2+, directives become the “declarative” layer that co
 
 ---
 
-# 14. Closing Notes
+# 14. Current Implementation Status (Stage 1)
+
+Stage 1 provides foundational infrastructure for the directive system:
+
+## Implemented Features
+
+1. **Directive Parsing**: `DirectiveBlock` AST with namespace, lines, span, and owner
+2. **Directive Modes**: `--directives=off|collect|gen|run` CLI flag
+3. **Namespace Validation**: Semantic checks for directive namespace validity
+4. **Directive Scenarios Registry**: Collection of directive blocks for execution
+5. **Stub Runner**: Prints test names without actual execution
+6. **Filter Support**: `--directives-filter=test,benchmark` flag
+7. **stdlib/directives/test Module**: Standard test directive module
+
+## Usage
+
+```bash
+# Run directive scenarios (stub mode - prints names only)
+surge diag --directives=run file.sg
+
+# Filter to specific namespaces
+surge diag --directives=run --directives-filter=test file.sg
+
+# Collect without running (for tooling)
+surge diag --directives=collect file.sg
+```
+
+## Example Output
+
+```
+Running test: example.sg#0 (test) ... SKIPPED (execution not implemented)
+Running test: example.sg#1 (test) ... SKIPPED (execution not implemented)
+
+Directive execution summary: 2 total, 2 skipped, 0 passed, 0 failed
+```
+
+## Test Directive Module
+
+The `stdlib/directives/test/test.sg` module provides stub implementations:
+
+```sg
+pragma module::test, directive;
+
+pub fn eq<T>(actual: T, expected: T) -> nothing { return nothing; }
+pub fn assert(condition: bool) -> nothing { return nothing; }
+pub fn ne<T>(actual: T, expected: T) -> nothing { return nothing; }
+pub fn fail(message: string) -> nothing { return nothing; }
+pub fn skip(reason: string) -> nothing { return nothing; }
+```
+
+## Next Steps
+
+- Stage 2: Directive body parsing and semantic validation
+- Stage 3: Directive execution engine
+- Stage 4: Assertion evaluation and test result reporting
+
+---
+
+# 15. Closing Notes
 
 Directives are intentionally designed to evolve:
 

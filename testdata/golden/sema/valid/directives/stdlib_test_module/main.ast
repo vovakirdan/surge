@@ -1,0 +1,11 @@
+main.sg (span: 3:1-12:1)
+├─ Item[0]: Import (span: 3:1-3:31)
+│  └─ Module: stdlib::directives::test
+└─ Item[1]: Fn (span: 11:1-11:48)
+   ├─ Name: add
+   ├─ Params: (a: int, b: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:31-11:48)
+         └─ Stmt[0]: Return (span: 11:33-11:46)
+            └─ Expr: expr#3: (a + b)

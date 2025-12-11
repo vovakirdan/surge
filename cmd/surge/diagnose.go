@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"surge/internal/diag"
 	"surge/internal/diagfmt"
+	"surge/internal/directive"
 	"surge/internal/driver"
 	"surge/internal/parser"
 	"surge/internal/source"
@@ -38,6 +40,7 @@ func init() {
 	diagCmd.Flags().Bool("fullpath", false, "emit absolute file paths in output")
 	diagCmd.Flags().Bool("disk-cache", false, "enable persistent disk cache for module metadata (experimental)")
 	diagCmd.Flags().String("directives", "off", "directive processing mode (off|collect|gen|run)")
+	diagCmd.Flags().String("directives-filter", "test", "comma-separated directive namespaces to process")
 }
 
 // runDiagnose executes the "diag" command: it parses command flags, runs diagnostics
@@ -119,6 +122,20 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get directives flag: %w", err)
 	}
 
+	directivesFilterStr, err := cmd.Flags().GetString("directives-filter")
+	if err != nil {
+		return fmt.Errorf("failed to get directives-filter flag: %w", err)
+	}
+
+	// Parse comma-separated filter
+	var directiveFilter []string
+	for _, ns := range strings.Split(directivesFilterStr, ",") {
+		ns = strings.TrimSpace(ns)
+		if ns != "" {
+			directiveFilter = append(directiveFilter, ns)
+		}
+	}
+
 	// Конвертируем строку стадии в тип
 	var stage driver.DiagnoseStage
 	switch stagesStr {
@@ -158,6 +175,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		EnableTimings:    showTimings,
 		EnableDiskCache:  enableDiskCache,
 		DirectiveMode:    directiveMode,
+		DirectiveFilter:  directiveFilter,
 	}
 
 	st, err := os.Stat(filePath)
@@ -243,6 +261,18 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			diagfmt.Sarif(os.Stdout, result.Bag, result.FileSet, meta)
 		default:
 			return 0, fmt.Errorf("unknown format: %s", format)
+		}
+
+		// Run directive scenarios if requested
+		if directiveMode == parser.DirectiveModeRun && result.DirectiveRegistry != nil {
+			runner := directive.NewRunner(result.DirectiveRegistry, directive.RunnerConfig{
+				Filter: directiveFilter,
+				Output: os.Stdout,
+			})
+			runResult := runner.Run()
+			if runResult.Failed > 0 {
+				exit = 1
+			}
 		}
 
 		return exit, nil

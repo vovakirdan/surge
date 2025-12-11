@@ -11,6 +11,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/directive"
 	"surge/internal/fix"
 	"surge/internal/lexer"
 	"surge/internal/observ"
@@ -32,13 +33,14 @@ var (
 )
 
 type DiagnoseResult struct {
-	FileSet *source.FileSet
-	File    *source.File
-	FileID  ast.FileID
-	Bag     *diag.Bag
-	Builder *ast.Builder
-	Symbols *symbols.Result
-	Sema    *sema.Result
+	FileSet           *source.FileSet
+	File              *source.File
+	FileID            ast.FileID
+	Bag               *diag.Bag
+	Builder           *ast.Builder
+	Symbols           *symbols.Result
+	Sema              *sema.Result
+	DirectiveRegistry *directive.Registry // Collected directive scenarios
 }
 
 // DiagnoseStage определяет уровень диагностики
@@ -60,6 +62,7 @@ type DiagnoseOptions struct {
 	EnableTimings    bool
 	EnableDiskCache  bool                 // Enable persistent disk cache (experimental, adds I/O overhead)
 	DirectiveMode    parser.DirectiveMode // Directive processing mode (off, collect, gen, run)
+	DirectiveFilter  []string             // Directive namespaces to process (empty = all)
 }
 
 // Diagnose запускает диагностику файла до указанного уровня
@@ -178,11 +181,11 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 				}
 			}
 			if symbolsRes == nil {
-				filePath := ""
+				symFilePath := ""
 				if file != nil {
-					filePath = file.Path
+					symFilePath = file.Path
 				}
-				symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, filePath, baseDir, moduleExports)
+				symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, symFilePath, baseDir, moduleExports)
 				if moduleExports != nil && symbolsRes != nil {
 					if rootExports := symbols.CollectExports(builder, *symbolsRes, modulePath); rootExports != nil {
 						moduleExports[modulePath] = rootExports
@@ -234,14 +237,22 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 		})
 	}
 
+	// Collect directive scenarios if directives are enabled
+	var directiveRegistry *directive.Registry
+	if opts.DirectiveMode >= parser.DirectiveModeCollect && builder != nil && astFile != ast.NoFileID {
+		directiveRegistry = directive.NewRegistry()
+		directiveRegistry.CollectFromFile(builder, astFile, modulePath, filePath)
+	}
+
 	return &DiagnoseResult{
-		FileSet: fs,
-		File:    file,
-		FileID:  astFile,
-		Bag:     bag,
-		Builder: builder,
-		Symbols: symbolsRes,
-		Sema:    semaRes,
+		FileSet:           fs,
+		File:              file,
+		FileID:            astFile,
+		Bag:               bag,
+		Builder:           builder,
+		Symbols:           symbolsRes,
+		Sema:              semaRes,
+		DirectiveRegistry: directiveRegistry,
 	}, nil
 }
 

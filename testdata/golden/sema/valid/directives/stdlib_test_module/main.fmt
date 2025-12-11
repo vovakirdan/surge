@@ -1,0 +1,11 @@
+// Test: stdlib test directive module import
+// Expected: No errors - import resolves correctly
+import stdlib/directives/test;
+
+/// test:
+/// test.eq(add(1, 2), 3);
+
+/// test:
+/// test.assert(true);
+
+fn add(a: int, b: int) -> int { return a + b; }
