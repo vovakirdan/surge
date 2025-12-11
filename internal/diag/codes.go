@@ -207,6 +207,9 @@ const (
 	// Spawn warnings (3115)
 	SemaSpawnCheckpointUseless Code = 3115 // spawn checkpoint() has no effect
 
+	// Clone errors (3116)
+	SemaTypeNotClonable Code = 3116 // Type does not have __clone method
+
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
 
@@ -402,6 +405,7 @@ var ( // todo расширить описания и использовать к
 		SemaSendContainsNonsend:          "@send type contains non-sendable field",
 		SemaAtomicDirectAccess:           "@atomic field must be accessed via atomic operations",
 		SemaTypeParamShadow:              "type parameter shadows outer type parameter",
+		SemaTypeNotClonable:              "type is not clonable (no __clone method)",
 		IOLoadFileError:                  "I/O load file error",
 		ProjInfo:                         "Project information",
 		ProjDuplicateModule:              "Duplicate module definition",

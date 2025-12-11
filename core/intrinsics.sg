@@ -245,6 +245,7 @@ extern<string> {
     @intrinsic @overload fn __to(self: string, target: uint) -> uint;
     @intrinsic @overload fn __to(self: string, target: float) -> float;
     @intrinsic fn __len(self: &string) -> uint;
+    @intrinsic fn __clone(self: &string) -> string;
 }
 
 extern<bool> {

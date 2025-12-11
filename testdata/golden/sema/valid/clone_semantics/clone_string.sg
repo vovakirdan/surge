@@ -1,0 +1,7 @@
+// scenario: Clone for string (has __clone intrinsic)
+fn test_clone_string() -> string {
+    let s1: string = "hello";
+    let s2: string = clone(&s1);  // deep copy via __clone
+    // s1 still usable after clone
+    return s2;
+}
