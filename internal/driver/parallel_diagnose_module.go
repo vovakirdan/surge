@@ -8,6 +8,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/parser"
 	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -107,7 +108,7 @@ func diagnoseModuleDirectory(
 	}
 
 	bag := diag.NewBag(opts.MaxDiagnostics)
-	builder, fileIDs, files, err := parseModuleDir(ctx, fileSet, dir, bag, source.NewInterner(), nil, nil)
+	builder, fileIDs, files, err := parseModuleDir(ctx, fileSet, dir, bag, source.NewInterner(), nil, nil, parser.DirectiveModeOff)
 	if err != nil {
 		if errors.Is(err, errModuleNotFound) {
 			return nil, nil

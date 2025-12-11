@@ -80,6 +80,26 @@ func stdModuleFilePath(root, module string) (string, bool) {
 		}
 		return "", false
 	}
+
+	// Handle nested stdlib paths like "stdlib/directives/test"
+	moduleParts := strings.Split(module, "/")
+	if len(moduleParts) >= 2 && moduleParts[0] == "stdlib" {
+		dirPath := filepath.Join(root, filepath.FromSlash(module))
+		baseName := moduleParts[len(moduleParts)-1]
+
+		// Try <baseName>.sg (e.g., stdlib/directives/test/test.sg)
+		candidate := filepath.Join(dirPath, baseName+".sg")
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate, true
+		}
+
+		// Try _<baseName>.sg (underscore prefix convention)
+		candidate = filepath.Join(dirPath, "_"+baseName+".sg")
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate, true
+		}
+	}
+
 	candidate := filepath.Join(root, filepath.FromSlash(module)+".sg")
 	info, err := os.Stat(candidate)
 	if err != nil || info.IsDir() {

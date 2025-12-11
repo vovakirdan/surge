@@ -379,3 +379,149 @@ func TestBinaryHeirRequiresTypeOperand(t *testing.T) {
 		t.Fatalf("expected %v diagnostic, got %+v", diag.SemaExpectTypeOperand, items)
 	}
 }
+
+func TestDirectiveValidationUnknownNamespace(t *testing.T) {
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+	file := builder.Files.New(source.Span{})
+
+	// Add a directive block with unknown namespace
+	fileNode := builder.Files.Get(file)
+	if fileNode == nil {
+		t.Fatal("expected file node")
+	}
+	nsID := builder.StringsInterner.Intern("unknown_directive")
+	lineID := builder.StringsInterner.Intern("unknown_directive.test()")
+	fileNode.Directives = []ast.DirectiveBlock{{
+		Namespace: nsID,
+		Lines: []ast.DirectiveLine{{
+			Text: lineID,
+			Span: source.Span{},
+		}},
+		Span:  source.Span{},
+		Owner: ast.NoItemID,
+	}}
+
+	bag := diag.NewBag(16)
+	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+	})
+	Check(context.Background(), builder, file, Options{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Symbols:  &symRes,
+		Exports:  nil, // No imports
+	})
+
+	items := bag.Items()
+	found := false
+	for _, item := range items {
+		if item.Code == diag.SemaDirectiveUnknownNamespace {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected SemaDirectiveUnknownNamespace diagnostic, got %+v", items)
+	}
+}
+
+func TestDirectiveValidationNotDirectiveModule(t *testing.T) {
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+	file := builder.Files.New(source.Span{})
+
+	// Add a directive block with namespace matching a non-directive module
+	fileNode := builder.Files.Get(file)
+	if fileNode == nil {
+		t.Fatal("expected file node")
+	}
+	nsID := builder.StringsInterner.Intern("regular_module")
+	lineID := builder.StringsInterner.Intern("regular_module.test()")
+	fileNode.Directives = []ast.DirectiveBlock{{
+		Namespace: nsID,
+		Lines: []ast.DirectiveLine{{
+			Text: lineID,
+			Span: source.Span{},
+		}},
+		Span:  source.Span{},
+		Owner: ast.NoItemID,
+	}}
+
+	// Create exports with a module that doesn't have pragma directive
+	exports := map[string]*symbols.ModuleExports{
+		"regular_module": {
+			Path:        "regular_module",
+			Symbols:     make(map[string][]symbols.ExportedSymbol),
+			PragmaFlags: 0, // No directive flag
+		},
+	}
+
+	bag := diag.NewBag(16)
+	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+	})
+	Check(context.Background(), builder, file, Options{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Symbols:  &symRes,
+		Exports:  exports,
+	})
+
+	items := bag.Items()
+	found := false
+	for _, item := range items {
+		if item.Code == diag.SemaDirectiveNotDirectiveModule {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected SemaDirectiveNotDirectiveModule diagnostic, got %+v", items)
+	}
+}
+
+func TestDirectiveValidationValidDirectiveModule(t *testing.T) {
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+	file := builder.Files.New(source.Span{})
+
+	// Add a directive block with namespace matching a directive module
+	fileNode := builder.Files.Get(file)
+	if fileNode == nil {
+		t.Fatal("expected file node")
+	}
+	nsID := builder.StringsInterner.Intern("test_directive")
+	lineID := builder.StringsInterner.Intern("test_directive.eq(1, 1)")
+	fileNode.Directives = []ast.DirectiveBlock{{
+		Namespace: nsID,
+		Lines: []ast.DirectiveLine{{
+			Text: lineID,
+			Span: source.Span{},
+		}},
+		Span:  source.Span{},
+		Owner: ast.NoItemID,
+	}}
+
+	// Create exports with a module that HAS pragma directive
+	exports := map[string]*symbols.ModuleExports{
+		"test_directive": {
+			Path:        "test_directive",
+			Symbols:     make(map[string][]symbols.ExportedSymbol),
+			PragmaFlags: ast.PragmaFlagDirective, // Has directive flag
+		},
+	}
+
+	bag := diag.NewBag(16)
+	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: bag},
+	})
+	Check(context.Background(), builder, file, Options{
+		Reporter: &diag.BagReporter{Bag: bag},
+		Symbols:  &symRes,
+		Exports:  exports,
+	})
+
+	// Should have no directive-related errors
+	items := bag.Items()
+	for _, item := range items {
+		if item.Code == diag.SemaDirectiveUnknownNamespace || item.Code == diag.SemaDirectiveNotDirectiveModule {
+			t.Fatalf("unexpected directive diagnostic: %+v", item)
+		}
+	}
+}

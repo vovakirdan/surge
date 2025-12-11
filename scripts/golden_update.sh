@@ -29,6 +29,7 @@ generate_outputs() {
 	local out_dir="$2"
 	local is_invalid="$3"
 	local copy_src="${4:-0}"
+	local directives_mode="${5:-off}"
 	local diag_path
 
 	local base name dir
@@ -42,7 +43,7 @@ generate_outputs() {
 	fi
 
 	diag_path="${dir}/${name}.diag"
-	if ! "${SURGE_BIN}" diag --format short "${src}" > "${diag_path}" 2>/dev/null; then
+	if ! "${SURGE_BIN}" diag --format short --directives="${directives_mode}" "${src}" > "${diag_path}" 2>/dev/null; then
 		if [[ "${is_invalid}" -eq 0 ]]; then
 			echo "diagnostics failed for valid case: ${src}" >&2
 			exit 1
@@ -80,7 +81,13 @@ find "${GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r
 		is_invalid=1
 	fi
 
-	generate_outputs "${src}" "${dir}" "${is_invalid}" 0
+	# Use --directives=collect for directive test directories
+	directives_mode="off"
+	if [[ "${src}" == *"/directives/"* ]]; then
+		directives_mode="collect"
+	fi
+
+	generate_outputs "${src}" "${dir}" "${is_invalid}" 0 "${directives_mode}"
 done
 
 # Core stdlib files are validated via testdata/golden/stdlib_core/* instead

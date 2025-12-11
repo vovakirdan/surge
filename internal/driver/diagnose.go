@@ -11,6 +11,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/directive"
 	"surge/internal/fix"
 	"surge/internal/lexer"
 	"surge/internal/observ"
@@ -32,13 +33,14 @@ var (
 )
 
 type DiagnoseResult struct {
-	FileSet *source.FileSet
-	File    *source.File
-	FileID  ast.FileID
-	Bag     *diag.Bag
-	Builder *ast.Builder
-	Symbols *symbols.Result
-	Sema    *sema.Result
+	FileSet           *source.FileSet
+	File              *source.File
+	FileID            ast.FileID
+	Bag               *diag.Bag
+	Builder           *ast.Builder
+	Symbols           *symbols.Result
+	Sema              *sema.Result
+	DirectiveRegistry *directive.Registry // Collected directive scenarios
 }
 
 // DiagnoseStage определяет уровень диагностики
@@ -58,7 +60,9 @@ type DiagnoseOptions struct {
 	IgnoreWarnings   bool
 	WarningsAsErrors bool
 	EnableTimings    bool
-	EnableDiskCache  bool // Enable persistent disk cache (experimental, adds I/O overhead)
+	EnableDiskCache  bool                 // Enable persistent disk cache (experimental, adds I/O overhead)
+	DirectiveMode    parser.DirectiveMode // Directive processing mode (off, collect, gen, run)
+	DirectiveFilter  []string             // Directive namespaces to process (empty = all)
 }
 
 // Diagnose запускает диагностику файла до указанного уровня
@@ -135,7 +139,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 	if opts.Stage != DiagnoseStageTokenize {
 		parseIdx := begin("parse")
 		parseSpan := trace.Begin(tracer, trace.ScopePass, "parse", diagSpan.ID())
-		builder, astFile = diagnoseParseWithStrings(ctx, fs, file, bag, sharedStrings)
+		builder, astFile = diagnoseParseWithStrings(ctx, fs, file, bag, sharedStrings, opts.DirectiveMode)
 		parseNote := ""
 		if timer != nil && builder != nil && builder.Files != nil {
 			fileNode := builder.Files.Get(astFile)
@@ -177,11 +181,11 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 				}
 			}
 			if symbolsRes == nil {
-				filePath := ""
+				symFilePath := ""
 				if file != nil {
-					filePath = file.Path
+					symFilePath = file.Path
 				}
-				symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, filePath, baseDir, moduleExports)
+				symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, symFilePath, baseDir, moduleExports)
 				if moduleExports != nil && symbolsRes != nil {
 					if rootExports := symbols.CollectExports(builder, *symbolsRes, modulePath); rootExports != nil {
 						moduleExports[modulePath] = rootExports
@@ -233,14 +237,22 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 		})
 	}
 
+	// Collect directive scenarios if directives are enabled
+	var directiveRegistry *directive.Registry
+	if opts.DirectiveMode >= parser.DirectiveModeCollect && builder != nil && astFile != ast.NoFileID {
+		directiveRegistry = directive.NewRegistry()
+		directiveRegistry.CollectFromFile(builder, astFile, modulePath, filePath)
+	}
+
 	return &DiagnoseResult{
-		FileSet: fs,
-		File:    file,
-		FileID:  astFile,
-		Bag:     bag,
-		Builder: builder,
-		Symbols: symbolsRes,
-		Sema:    semaRes,
+		FileSet:           fs,
+		File:              file,
+		FileID:            astFile,
+		Bag:               bag,
+		Builder:           builder,
+		Symbols:           symbolsRes,
+		Sema:              semaRes,
+		DirectiveRegistry: directiveRegistry,
 	}, nil
 }
 
@@ -303,17 +315,17 @@ func diagnoseTokenize(file *source.File, bag *diag.Bag) {
 	}
 }
 
-func diagnoseParse(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag) (*ast.Builder, ast.FileID) {
+func diagnoseParse(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag, directiveMode parser.DirectiveMode) (*ast.Builder, ast.FileID) {
 	arenas := ast.NewBuilder(ast.Hints{}, nil)
-	return diagnoseParseWithBuilder(ctx, fs, file, bag, arenas)
+	return diagnoseParseWithBuilder(ctx, fs, file, bag, arenas, directiveMode)
 }
 
-func diagnoseParseWithStrings(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag, strs *source.Interner) (*ast.Builder, ast.FileID) {
+func diagnoseParseWithStrings(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag, strs *source.Interner, directiveMode parser.DirectiveMode) (*ast.Builder, ast.FileID) {
 	arenas := ast.NewBuilder(ast.Hints{}, strs)
-	return diagnoseParseWithBuilder(ctx, fs, file, bag, arenas)
+	return diagnoseParseWithBuilder(ctx, fs, file, bag, arenas, directiveMode)
 }
 
-func diagnoseParseWithBuilder(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag, arenas *ast.Builder) (*ast.Builder, ast.FileID) {
+func diagnoseParseWithBuilder(ctx context.Context, fs *source.FileSet, file *source.File, bag *diag.Bag, arenas *ast.Builder, directiveMode parser.DirectiveMode) (*ast.Builder, ast.FileID) {
 	if arenas == nil {
 		arenas = ast.NewBuilder(ast.Hints{}, nil)
 	}
@@ -325,8 +337,9 @@ func diagnoseParseWithBuilder(ctx context.Context, fs *source.FileSet, file *sou
 	}
 
 	opts := parser.Options{
-		Reporter:  &diag.BagReporter{Bag: bag},
-		MaxErrors: maxErrors,
+		Reporter:      &diag.BagReporter{Bag: bag},
+		MaxErrors:     maxErrors,
+		DirectiveMode: directiveMode,
 	}
 
 	result := parser.ParseFile(ctx, fs, lx, arenas, opts)
@@ -435,7 +448,7 @@ func runModuleGraph(
 	preloaded := map[string]ast.FileID{
 		filepath.ToSlash(file.Path): astFile,
 	}
-	builder, rootFileIDs, rootFiles, err := parseModuleDir(ctx, fs, dirPath, bag, strs, builder, preloaded)
+	builder, rootFileIDs, rootFiles, err := parseModuleDir(ctx, fs, dirPath, bag, strs, builder, preloaded, opts.DirectiveMode)
 	if err != nil {
 		return nil, nil, err
 	}

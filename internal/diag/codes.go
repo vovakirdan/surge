@@ -214,6 +214,10 @@ const (
 	SemaAttrCopyNonCopyField Code = 3117 // @copy type has non-Copy field
 	SemaAttrCopyCyclicDep    Code = 3118 // @copy types have cyclic dependency
 
+	// Directive validation errors (3119-3120)
+	SemaDirectiveUnknownNamespace   Code = 3119 // Directive namespace not imported
+	SemaDirectiveNotDirectiveModule Code = 3120 // Module lacks pragma directive
+
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
 
@@ -412,6 +416,8 @@ var ( // todo расширить описания и использовать к
 		SemaTypeNotClonable:              "type is not clonable (no __clone method)",
 		SemaAttrCopyNonCopyField:         "@copy type has non-Copy field",
 		SemaAttrCopyCyclicDep:            "@copy types have cyclic dependency",
+		SemaDirectiveUnknownNamespace:    "directive namespace is not an imported module",
+		SemaDirectiveNotDirectiveModule:  "directive namespace module lacks 'pragma directive'",
 		IOLoadFileError:                  "I/O load file error",
 		ProjInfo:                         "Project information",
 		ProjDuplicateModule:              "Duplicate module definition",

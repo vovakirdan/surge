@@ -9,6 +9,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/parser"
 	"surge/internal/source"
 	"surge/internal/trace"
 )
@@ -23,6 +24,7 @@ func parseModuleDir(
 	strs *source.Interner,
 	builder *ast.Builder,
 	preloaded map[string]ast.FileID,
+	directiveMode parser.DirectiveMode,
 ) (retBuilder *ast.Builder, retFileIDs []ast.FileID, retFiles []*source.File, retErr error) {
 	tracer := trace.FromContext(ctx)
 	span := trace.Begin(tracer, trace.ScopeModule, "parse_module_dir", 0)
@@ -95,7 +97,7 @@ func parseModuleDir(
 			diagnoseTokenize(file, bag)
 		}
 		var parsed ast.FileID
-		builder, parsed = diagnoseParseWithBuilder(ctx, fs, file, bag, builder)
+		builder, parsed = diagnoseParseWithBuilder(ctx, fs, file, bag, builder, directiveMode)
 		fileIDs = append(fileIDs, parsed)
 		files = append(files, file)
 	}

@@ -1,0 +1,9 @@
+unknown_namespace.sg (span: 7:1-8:1)
+└─ Item[0]: Fn (span: 7:1-7:30)
+   ├─ Name: foo
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:17-7:30)
+         └─ Stmt[0]: Return (span: 7:19-7:28)
+            └─ Expr: expr#1: 1

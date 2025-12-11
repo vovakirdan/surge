@@ -107,7 +107,8 @@ The compiler supports multiple directive modes:
 ### 4.2. `--directives=collect`
 
 * Parser collects directive blocks.
-* No typechecking, no execution.
+* Semantic validation ensures namespaces are valid (see Section 4.6).
+* No directive body typechecking, no execution.
 * Useful for IDEs and tooling.
 
 ### 4.3. `--directives=gen`
@@ -125,6 +126,51 @@ The compiler supports multiple directive modes:
 
 `--directives-filter=test,benchmark,time`
 Only these directive namespaces will be compiled/checked/run.
+
+### 4.6. Namespace Validation
+
+When `--directives=collect|gen|run`, the compiler performs semantic validation on directive namespaces:
+
+1. **Namespace must be an imported module**: Each directive block's namespace (e.g., `test` in `/// test:`) must correspond to an imported module. The namespace is matched against the last path segment of imported modules.
+
+   ```sg
+   import stdlib/directives/test;  // "test" is the last segment
+
+   /// test:                       // Valid - matches import
+   /// test.eq(1, 1);
+   ```
+
+2. **Module must have `pragma directive`**: The imported module must declare `pragma directive` to be used as a directive namespace. This ensures only purpose-built modules serve as directive namespaces.
+
+   ```sg
+   // stdlib/directives/test.sg
+   pragma directive;
+
+   pub fn eq<T>(a: T, b: T) -> bool { return a == b; }
+   ```
+
+**Diagnostic Codes:**
+
+| Code | Error |
+|------|-------|
+| `SEM3119` | Directive namespace is not an imported module |
+| `SEM3120` | Directive namespace module lacks `pragma directive` |
+
+**Example Errors:**
+
+```sg
+// Error SEM3119: "my_directive" is not imported
+/// my_directive:
+/// my_directive.stuff();
+```
+
+```sg
+import helper;  // helper.sg does NOT have "pragma directive"
+
+// Error SEM3120: module "helper" does not have 'pragma directive'
+/// helper:
+/// helper.do_something();
+```
 
 ---
 
@@ -555,7 +601,132 @@ When macros arrive in v2+, directives become the “declarative” layer that co
 
 ---
 
-# 14. Closing Notes
+# 14. Current Implementation Status (Stage 1)
+
+Stage 1 provides foundational infrastructure for the directive system:
+
+## Implemented Features
+
+1. **Directive Parsing**: `DirectiveBlock` AST with namespace, lines, span, and owner
+2. **Directive Modes**: `--directives=off|collect|gen|run` CLI flag
+3. **Namespace Validation**: Semantic checks for directive namespace validity
+4. **Directive Scenarios Registry**: Collection of directive blocks for execution
+5. **Stub Runner**: Prints test names without actual execution
+6. **Filter Support**: `--directives-filter=test,benchmark` flag
+7. **stdlib/directives/test Module**: Standard test directive module
+
+## Usage
+
+```bash
+# Run directive scenarios (stub mode - prints names only)
+surge diag --directives=run file.sg
+
+# Filter to specific namespaces
+surge diag --directives=run --directives-filter=test file.sg
+
+# Collect without running (for tooling)
+surge diag --directives=collect file.sg
+```
+
+## Example Output
+
+```
+Running test: example.sg#0 (test) ... SKIPPED (execution not implemented)
+Running test: example.sg#1 (test) ... SKIPPED (execution not implemented)
+
+Directive execution summary: 2 total, 2 skipped, 0 passed, 0 failed
+```
+
+## Test Directive Module
+
+The `stdlib/directives/test/test.sg` module provides stub implementations:
+
+```sg
+pragma module::test, directive;
+
+pub fn eq<T>(actual: T, expected: T) -> nothing { return nothing; }
+pub fn assert(condition: bool) -> nothing { return nothing; }
+pub fn ne<T>(actual: T, expected: T) -> nothing { return nothing; }
+pub fn fail(message: string) -> nothing { return nothing; }
+pub fn skip(reason: string) -> nothing { return nothing; }
+```
+
+## Next Steps
+
+- Stage 3: Directive execution engine
+- Stage 4: Assertion evaluation and test result reporting
+
+---
+
+# 14.1 Stage 2 Implementation
+
+Stage 2 adds the `benchmark` and `time` directive modules with supporting infrastructure.
+
+## stdlib/time Module
+
+The `stdlib/time` module provides the `Duration` opaque type for time measurements:
+
+```sg
+import stdlib/time;
+
+let start: time.Duration = time.monotonic_now();
+// ... work ...
+let end: time.Duration = time.monotonic_now();
+let elapsed: time.Duration = end.sub(start);
+let seconds: float = elapsed.as_seconds();
+```
+
+**Duration Methods:**
+- `sub(other: Duration) -> Duration` — Subtract durations
+- `as_seconds() -> float` — Convert to seconds
+- `as_millis() -> float` — Convert to milliseconds
+- `as_micros() -> float` — Convert to microseconds
+- `as_nanos() -> float` — Convert to nanoseconds
+
+## Benchmark Directive Module
+
+```sg
+import stdlib/directives/benchmark;
+
+/// benchmark:
+/// benchmark.throughput("parse_json", 1000, parse_small_json);
+```
+
+**Functions:**
+- `throughput(name, iters, f)` — Run function `iters` times
+- `single(name, f)` — Run function once
+- `skip(reason)` — Skip benchmark
+
+## Time/Profile Directive Module
+
+```sg
+import stdlib/directives/time;
+
+/// time:
+/// time.profile_fn("algorithm", 100, run_algorithm);
+```
+
+**Functions:**
+- `profile_fn(name, iters, f)` — Profile with statistics
+- `profile_once(name, f)` — Single execution profile
+- `skip(reason)` — Skip profiling
+
+## Usage
+
+```bash
+# Run benchmark directives
+surge diag --directives=run --directives-filter=benchmark file.sg
+
+# Run time/profile directives
+surge diag --directives=run --directives-filter=time file.sg
+
+# Run all directives
+surge diag --directives=run file.sg
+```
+
+---
+
+# 15. Closing Notes
 
 Directives are intentionally designed to evolve:
 

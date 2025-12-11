@@ -1,0 +1,38 @@
+// stdlib/time/time.sg
+// Time utilities for Surge: Duration type and monotonic clock access.
+
+// Duration represents a time span with nanosecond precision.
+// Stored internally as nanoseconds in an int64.
+@intrinsic
+pub type Duration = {
+    __opaque: int64,
+};
+
+// Get the current monotonic time as a Duration.
+// Used for measuring elapsed time; not wall-clock time.
+// Stage 2: stub implementation - returns zero duration.
+@intrinsic
+pub fn monotonic_now() -> Duration;
+
+extern<Duration> {
+    // Subtract another duration from this one.
+    // Returns self - other.
+    @intrinsic
+    pub fn sub(self: Duration, other: Duration) -> Duration;
+
+    // Convert duration to floating-point seconds.
+    @intrinsic
+    pub fn as_seconds(self: Duration) -> float;
+
+    // Convert duration to floating-point milliseconds.
+    @intrinsic
+    pub fn as_millis(self: Duration) -> float;
+
+    // Convert duration to floating-point microseconds.
+    @intrinsic
+    pub fn as_micros(self: Duration) -> float;
+
+    // Convert duration to floating-point nanoseconds.
+    @intrinsic
+    pub fn as_nanos(self: Duration) -> float;
+}

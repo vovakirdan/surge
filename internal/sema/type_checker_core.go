@@ -143,6 +143,9 @@ func (tc *typeChecker) run() {
 	}
 	done()
 
+	// Prepare type name indexes before consuming exports
+	tc.typeKeys = make(map[string]types.TypeID)
+
 	done = phase("build_export_indexes")
 	tc.buildExportNameIndexes()
 	done()
@@ -154,7 +157,6 @@ func (tc *typeChecker) run() {
 	tc.constState = make(map[symbols.SymbolID]constEvalState)
 	tc.typeItems = make(map[ast.ItemID]types.TypeID)
 	tc.typeCache = make(map[typeCacheKey]types.TypeID)
-	tc.typeKeys = make(map[string]types.TypeID)
 	tc.typeIDItems = make(map[types.TypeID]ast.ItemID)
 	tc.structBases = make(map[types.TypeID]types.TypeID)
 	tc.externFields = make(map[symbols.TypeKey]*externFieldSet)
@@ -216,5 +218,9 @@ func (tc *typeChecker) run() {
 
 	done = phase("check_deadlocks")
 	tc.checkForDeadlocks()
+	done()
+
+	done = phase("validate_directives")
+	tc.validateDirectiveNamespaces()
 	done()
 }

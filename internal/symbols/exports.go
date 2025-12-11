@@ -25,8 +25,9 @@ type ExportedSymbol struct {
 
 // ModuleExports aggregates exported symbols for a module, preserving overload sets.
 type ModuleExports struct {
-	Path    string
-	Symbols map[string][]ExportedSymbol
+	Path        string
+	Symbols     map[string][]ExportedSymbol
+	PragmaFlags ast.PragmaFlags // Pragma flags from the module (e.g., PragmaFlagDirective)
 }
 
 // NewModuleExports creates an exports container for the given module path.
@@ -66,6 +67,12 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 		return nil
 	}
 	exports := NewModuleExports(modulePath)
+
+	// Capture pragma flags from the file for directive validation
+	if file := builder.Files.Get(res.File); file != nil {
+		exports.PragmaFlags = file.Pragma.Flags
+	}
+
 	for _, symID := range scope.Symbols {
 		sym := res.Table.Symbols.Get(symID)
 		if sym == nil {
