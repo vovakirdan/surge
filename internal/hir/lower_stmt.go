@@ -1,0 +1,355 @@
+package hir
+
+import (
+	"surge/internal/ast"
+	"surge/internal/types"
+)
+
+// lowerBlockStmt lowers a block statement to an HIR Block.
+func (l *lowerer) lowerBlockStmt(stmtID ast.StmtID) *Block {
+	blockData := l.builder.Stmts.Block(stmtID)
+	if blockData == nil {
+		return &Block{}
+	}
+
+	stmt := l.builder.Stmts.Get(stmtID)
+	block := &Block{
+		Span: stmt.Span,
+	}
+
+	for _, childID := range blockData.Stmts {
+		if s := l.lowerStmt(childID); s != nil {
+			block.Stmts = append(block.Stmts, *s)
+		}
+	}
+
+	return block
+}
+
+// lowerStmt lowers an AST statement to HIR.
+func (l *lowerer) lowerStmt(stmtID ast.StmtID) *Stmt {
+	stmt := l.builder.Stmts.Get(stmtID)
+	if stmt == nil {
+		return nil
+	}
+
+	switch stmt.Kind {
+	case ast.StmtBlock:
+		block := l.lowerBlockStmt(stmtID)
+		return &Stmt{
+			Kind: StmtBlock,
+			Span: stmt.Span,
+			Data: BlockStmtData{Block: block},
+		}
+
+	case ast.StmtLet:
+		return l.lowerLetStmt(stmtID, stmt)
+
+	case ast.StmtConst:
+		return l.lowerConstStmt(stmtID, stmt)
+
+	case ast.StmtExpr:
+		exprStmt := l.builder.Stmts.Expr(stmtID)
+		if exprStmt == nil {
+			return nil
+		}
+		return &Stmt{
+			Kind: StmtExpr,
+			Span: stmt.Span,
+			Data: ExprStmtData{Expr: l.lowerExpr(exprStmt.Expr)},
+		}
+
+	case ast.StmtReturn:
+		retStmt := l.builder.Stmts.Return(stmtID)
+		var value *Expr
+		if retStmt != nil && retStmt.Expr.IsValid() {
+			value = l.lowerExpr(retStmt.Expr)
+		}
+		return &Stmt{
+			Kind: StmtReturn,
+			Span: stmt.Span,
+			Data: ReturnData{Value: value},
+		}
+
+	case ast.StmtBreak:
+		return &Stmt{
+			Kind: StmtBreak,
+			Span: stmt.Span,
+			Data: BreakData{},
+		}
+
+	case ast.StmtContinue:
+		return &Stmt{
+			Kind: StmtContinue,
+			Span: stmt.Span,
+			Data: ContinueData{},
+		}
+
+	case ast.StmtIf:
+		return l.lowerIfStmt(stmtID, stmt)
+
+	case ast.StmtWhile:
+		return l.lowerWhileStmt(stmtID, stmt)
+
+	case ast.StmtForClassic:
+		return l.lowerForClassicStmt(stmtID, stmt)
+
+	case ast.StmtForIn:
+		return l.lowerForInStmt(stmtID, stmt)
+
+	case ast.StmtDrop:
+		dropStmt := l.builder.Stmts.Drop(stmtID)
+		if dropStmt == nil {
+			return nil
+		}
+		return &Stmt{
+			Kind: StmtDrop,
+			Span: stmt.Span,
+			Data: DropData{Value: l.lowerExpr(dropStmt.Expr)},
+		}
+
+	case ast.StmtSignal:
+		// Signal is reserved for v2+, skip
+		return nil
+
+	default:
+		return nil
+	}
+}
+
+// lowerLetStmt lowers a let statement.
+func (l *lowerer) lowerLetStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
+	letStmt := l.builder.Stmts.Let(stmtID)
+	if letStmt == nil {
+		return nil
+	}
+
+	data := LetData{
+		Name:    l.lookupString(letStmt.Name),
+		IsMut:   letStmt.IsMut,
+		IsConst: false,
+	}
+
+	if letStmt.Type.IsValid() {
+		data.Type = l.lookupTypeFromAST(letStmt.Type)
+	}
+
+	if letStmt.Value.IsValid() {
+		data.Value = l.lowerExpr(letStmt.Value)
+		// If no explicit type, try to get from sema
+		if data.Type == types.NoTypeID && data.Value != nil {
+			data.Type = data.Value.Type
+		}
+	}
+
+	if letStmt.Pattern.IsValid() {
+		data.Pattern = l.lowerExpr(letStmt.Pattern)
+	}
+
+	data.Ownership = l.inferOwnership(data.Type)
+
+	return &Stmt{
+		Kind: StmtLet,
+		Span: stmt.Span,
+		Data: data,
+	}
+}
+
+// lowerConstStmt lowers a const statement.
+func (l *lowerer) lowerConstStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
+	constStmt := l.builder.Stmts.Const(stmtID)
+	if constStmt == nil {
+		return nil
+	}
+
+	data := LetData{
+		Name:    l.lookupString(constStmt.Name),
+		IsMut:   false,
+		IsConst: true,
+	}
+
+	if constStmt.Type.IsValid() {
+		data.Type = l.lookupTypeFromAST(constStmt.Type)
+	}
+
+	if constStmt.Value.IsValid() {
+		data.Value = l.lowerExpr(constStmt.Value)
+		if data.Type == types.NoTypeID && data.Value != nil {
+			data.Type = data.Value.Type
+		}
+	}
+
+	data.Ownership = l.inferOwnership(data.Type)
+
+	return &Stmt{
+		Kind: StmtLet, // Const is lowered to immutable let
+		Span: stmt.Span,
+		Data: data,
+	}
+}
+
+// lowerIfStmt lowers an if statement.
+func (l *lowerer) lowerIfStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
+	ifStmt := l.builder.Stmts.If(stmtID)
+	if ifStmt == nil {
+		return nil
+	}
+
+	data := IfStmtData{
+		Cond: l.lowerExpr(ifStmt.Cond),
+	}
+
+	if ifStmt.Then.IsValid() {
+		data.Then = l.lowerBlockOrWrap(ifStmt.Then)
+	}
+
+	if ifStmt.Else.IsValid() {
+		data.Else = l.lowerBlockOrWrap(ifStmt.Else)
+	}
+
+	return &Stmt{
+		Kind: StmtIf,
+		Span: stmt.Span,
+		Data: data,
+	}
+}
+
+// lowerWhileStmt lowers a while statement.
+func (l *lowerer) lowerWhileStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
+	whileStmt := l.builder.Stmts.While(stmtID)
+	if whileStmt == nil {
+		return nil
+	}
+
+	data := WhileData{
+		Cond: l.lowerExpr(whileStmt.Cond),
+	}
+
+	if whileStmt.Body.IsValid() {
+		data.Body = l.lowerBlockOrWrap(whileStmt.Body)
+	}
+
+	return &Stmt{
+		Kind: StmtWhile,
+		Span: stmt.Span,
+		Data: data,
+	}
+}
+
+// lowerForClassicStmt lowers a classic for statement.
+func (l *lowerer) lowerForClassicStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
+	forStmt := l.builder.Stmts.ForClassic(stmtID)
+	if forStmt == nil {
+		return nil
+	}
+
+	data := ForData{
+		Kind: ForClassic,
+	}
+
+	if forStmt.Init.IsValid() {
+		data.Init = l.lowerStmt(forStmt.Init)
+	}
+	if forStmt.Cond.IsValid() {
+		data.Cond = l.lowerExpr(forStmt.Cond)
+	}
+	if forStmt.Post.IsValid() {
+		data.Post = l.lowerExpr(forStmt.Post)
+	}
+	if forStmt.Body.IsValid() {
+		data.Body = l.lowerBlockOrWrap(forStmt.Body)
+	}
+
+	return &Stmt{
+		Kind: StmtFor,
+		Span: stmt.Span,
+		Data: data,
+	}
+}
+
+// lowerForInStmt lowers a for-in statement.
+func (l *lowerer) lowerForInStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
+	forStmt := l.builder.Stmts.ForIn(stmtID)
+	if forStmt == nil {
+		return nil
+	}
+
+	data := ForData{
+		Kind:    ForIn,
+		VarName: l.lookupString(forStmt.Pattern),
+	}
+
+	if forStmt.Type.IsValid() {
+		data.VarType = l.lookupTypeFromAST(forStmt.Type)
+	}
+	if forStmt.Iterable.IsValid() {
+		data.Iterable = l.lowerExpr(forStmt.Iterable)
+	}
+	if forStmt.Body.IsValid() {
+		data.Body = l.lowerBlockOrWrap(forStmt.Body)
+	}
+
+	return &Stmt{
+		Kind: StmtFor,
+		Span: stmt.Span,
+		Data: data,
+	}
+}
+
+// lowerBlockOrWrap ensures a statement is wrapped in a block if needed.
+func (l *lowerer) lowerBlockOrWrap(stmtID ast.StmtID) *Block {
+	stmt := l.builder.Stmts.Get(stmtID)
+	if stmt == nil {
+		return &Block{}
+	}
+
+	if stmt.Kind == ast.StmtBlock {
+		return l.lowerBlockStmt(stmtID)
+	}
+
+	// Wrap single statement in a block
+	s := l.lowerStmt(stmtID)
+	if s == nil {
+		return &Block{}
+	}
+	return &Block{
+		Stmts: []Stmt{*s},
+		Span:  stmt.Span,
+	}
+}
+
+// ensureExplicitReturn inserts explicit return if the last expression
+// in a non-void function is not a return statement.
+func (l *lowerer) ensureExplicitReturn(fn *Func) {
+	if fn.Body == nil || fn.Body.IsEmpty() {
+		return
+	}
+
+	// Check if function returns void/nothing
+	if fn.Result == types.NoTypeID {
+		return
+	}
+
+	lastStmt := fn.Body.LastStmt()
+	if lastStmt == nil {
+		return
+	}
+
+	// If last statement is already a return, nothing to do
+	if lastStmt.Kind == StmtReturn {
+		return
+	}
+
+	// If last statement is an expression statement, convert to return
+	if lastStmt.Kind == StmtExpr {
+		exprData, ok := lastStmt.Data.(ExprStmtData)
+		if ok && exprData.Expr != nil {
+			// Replace the last statement with a return
+			fn.Body.Stmts[len(fn.Body.Stmts)-1] = Stmt{
+				Kind: StmtReturn,
+				Span: lastStmt.Span,
+				Data: ReturnData{Value: exprData.Expr},
+			}
+		}
+	}
+}
