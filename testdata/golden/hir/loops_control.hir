@@ -1,0 +1,25 @@
+
+== HIR ==
+module 
+
+fn find_first_positive(arr: type#262) -> int (id=1, sym=518) {
+  for i: ? in (0 .. 5): type#265 {
+    if (arr[i] < 0): bool {
+      continue
+    }
+    return arr[i]: int
+  }
+  return 0
+}
+
+fn sum_until_zero(arr: type#262) -> int (id=2, sym=519) {
+  let mut total: int [copy] = 0
+  for i: ? in (0 .. 5): type#265 {
+    if (arr[i] == 0): bool {
+      break
+    }
+    (total = (total + arr[i])): int
+  }
+  return total
+}
+

@@ -1,0 +1,12 @@
+
+== HIR ==
+module 
+
+fn classify(x: int [copy]) -> int (id=1, sym=518) {
+  return compare x {
+    0 => 0
+    n if (n > 0): bool => 1
+    _ => (- 1): int
+  }: int
+}
+

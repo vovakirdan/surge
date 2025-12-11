@@ -1,0 +1,14 @@
+
+== HIR ==
+module 
+
+type Point <struct> (sym=518, type=0)
+
+fn origin() -> type#261 (id=1, sym=519) {
+  return  { x = 0, y = 0 }: type#261
+}
+
+fn move_point(p: type#261, dx: int [copy], dy: int [copy]) -> type#261 (id=2, sym=520) {
+  return  { x = (p.x + dx): int, y = (p.y + dy): int }: type#261
+}
+

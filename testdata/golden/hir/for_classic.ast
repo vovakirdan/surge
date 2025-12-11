@@ -1,0 +1,27 @@
+for_classic.sg (span: 1:1-8:1)
+└─ Item[0]: Fn (span: 1:1-7:2)
+   ├─ Name: sum_to
+   ├─ Params: (n: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:26-7:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:28)
+         │  ├─ Name: total
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 0
+         ├─ Stmt[1]: ForClassic (span: 3:5-5:6)
+         │  ├─ Init:
+Let (span: 3:10-3:28)
+         │  │  ├─ Name: i
+         │  │  ├─ Mutable: true
+         │  │  ├─ Type: int
+         │  │  └─ Value: expr#2: 0
+         │  ├─ Cond: expr#5: (i < n)
+         │  ├─ Post: expr#10: (i = ((i + 1)))
+         │  └─ Body:
+Block (span: 3:48-5:6)
+         │     └─ Stmt[0]: Expr (span: 4:9-4:27)
+         │        └─ Expr: expr#15: (total = ((total + i)))
+         └─ Stmt[2]: Return (span: 6:5-6:18)
+            └─ Expr: expr#16: total

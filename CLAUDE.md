@@ -201,3 +201,17 @@ If the compiler hangs or runs indefinitely:
 - **Prefer specialized tools**: Use Grep/Glob over bash grep/find commands
 - **File size monitoring**: `check_file_sizes.sh` prevents binary bloat
 - **Incremental compilation**: Module hashing and caching support planned but not yet implemented
+
+### CRITICAL: Before Writing Surge Code
+
+**ALWAYS** read `README.md` and `docs/LANGUAGE.md` before writing Surge code to ensure correct syntax.
+
+**NEVER set SURGE_STDLIB environment variable** - the driver auto-resolves stdlib location (see `internal/driver/stdlib.go`).
+
+**Surge is NOT Rust** - key syntax differences:
+- Arrays: `T[]` (dynamic) and `T[N]` (fixed-size), NOT `[T; N]`
+- Example: `fn first(arr: int[3]) -> int` NOT `fn first(arr: [int; 3]) -> int`
+- Postfix type syntax: `name: Type` everywhere
+- Cast operator: `x to float` NOT `x as float`
+- Optional type: `T?` NOT `Option<T>` (though `Option<T>` also works)
+- Erring type: `T!` NOT `Result<T, E>` (though `Erring<T, E>` also works)

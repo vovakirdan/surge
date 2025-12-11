@@ -1,0 +1,20 @@
+
+== HIR ==
+module 
+
+fn block_scope() -> int (id=1, sym=518) {
+  let x: int [copy] = 1
+  {
+    let y: int [copy] = 2
+    let z: int [copy] = (x + y): int
+  }
+  return x
+}
+
+async fn with_async_block() -> nothing (id=2, sym=519) {
+  let task: type#263 = async {
+    let x: int [copy] = 1
+    let y: int [copy] = (x + 1): int
+  }: type#263
+}
+

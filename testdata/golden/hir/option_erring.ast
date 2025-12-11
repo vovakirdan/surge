@@ -1,0 +1,24 @@
+option_erring.sg (span: 1:1-9:1)
+├─ Item[0]: Fn (span: 1:1-4:2)
+│  ├─ Name: maybe
+│  ├─ Params: (x: int)
+│  ├─ Return: <unknown-type>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:26-4:2)
+│        ├─ Stmt[0]: If (span: 2:5-2:29)
+│        │  ├─ Cond: expr#3: (x > 0)
+│        │  ├─ Then:
+Block (span: 2:16-2:29)
+│        │  │  └─ Stmt[0]: Return (span: 2:18-2:27)
+│        │  │     └─ Expr: expr#4: x
+│        │  └─ Else: <none>
+│        └─ Stmt[1]: Return (span: 3:5-3:20)
+│           └─ Expr: expr#5: nothing
+└─ Item[1]: Fn (span: 6:1-8:2)
+   ├─ Name: get_value
+   ├─ Params: (opt: <unknown-type>)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:32-8:2)
+         └─ Stmt[0]: Return (span: 7:5-7:23)
+            └─ Expr: expr#8: opt.safe()

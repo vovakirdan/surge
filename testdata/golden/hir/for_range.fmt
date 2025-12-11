@@ -1,0 +1,7 @@
+fn sum_range(n: int) -> int {
+    let mut total: int = 0;
+    for i: int in 0..n {
+        total = total + i;
+    }
+    return total;
+}

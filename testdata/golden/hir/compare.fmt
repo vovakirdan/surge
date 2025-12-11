@@ -1,0 +1,7 @@
+fn classify(x: int) -> int {
+    return compare x {
+        0 => 0;
+        n if n > 0 => 1;
+        _ => -1;
+    };
+}

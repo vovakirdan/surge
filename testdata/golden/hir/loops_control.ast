@@ -1,0 +1,52 @@
+loops_control.sg (span: 1:1-21:1)
+├─ Item[0]: Fn (span: 1:1-9:2)
+│  ├─ Name: find_first_positive
+│  ├─ Params: (arr: int[5])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:44-9:2)
+│        ├─ Stmt[0]: ForIn (span: 2:5-7:6)
+│        │  ├─ Pattern: i
+│        │  ├─ Type: int
+│        │  ├─ Iterable: expr#3: (0 .. 5)
+│        │  └─ Body:
+Block (span: 2:24-7:6)
+│        │     ├─ Stmt[0]: If (span: 3:9-5:10)
+│        │     │  ├─ Cond: expr#8: (arr[i] < 0)
+│        │     │  ├─ Then:
+Block (span: 3:23-5:10)
+│        │     │  │  └─ Stmt[0]: Continue (span: 4:13-4:22)
+│        │     │  │     └─ (no additional data)
+│        │     │  └─ Else: <none>
+│        │     └─ Stmt[1]: Return (span: 6:9-6:23)
+│        │        └─ Expr: expr#11: arr[i]
+│        └─ Stmt[1]: Return (span: 8:5-8:14)
+│           └─ Expr: expr#12: 0
+└─ Item[1]: Fn (span: 11:1-20:2)
+   ├─ Name: sum_until_zero
+   ├─ Params: (arr: int[5])
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:39-20:2)
+         ├─ Stmt[0]: Let (span: 12:5-12:28)
+         │  ├─ Name: total
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#13: 0
+         ├─ Stmt[1]: ForIn (span: 13:5-18:6)
+         │  ├─ Pattern: i
+         │  ├─ Type: int
+         │  ├─ Iterable: expr#16: (0 .. 5)
+         │  └─ Body:
+Block (span: 13:24-18:6)
+         │     ├─ Stmt[0]: If (span: 14:9-16:10)
+         │     │  ├─ Cond: expr#21: (arr[i] == 0)
+         │     │  ├─ Then:
+Block (span: 14:24-16:10)
+         │     │  │  └─ Stmt[0]: Break (span: 15:13-15:19)
+         │     │  │     └─ (no additional data)
+         │     │  └─ Else: <none>
+         │     └─ Stmt[1]: Expr (span: 17:9-17:32)
+         │        └─ Expr: expr#28: (total = ((total + arr[i])))
+         └─ Stmt[2]: Return (span: 19:5-19:18)
+            └─ Expr: expr#29: total

@@ -1,0 +1,7 @@
+fn increment(x: &mut int) {
+    *x = *x + 1;
+}
+
+fn read_ref(x: &int) -> int {
+    return *x;
+}

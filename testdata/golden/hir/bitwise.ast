@@ -1,0 +1,42 @@
+bitwise.sg (span: 1:1-13:1)
+├─ Item[0]: Fn (span: 1:1-8:2)
+│  ├─ Name: bit_ops
+│  ├─ Params: (a: int, b: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:35-8:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:28)
+│        │  ├─ Name: and_result
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#3: (a & b)
+│        ├─ Stmt[1]: Let (span: 3:5-3:27)
+│        │  ├─ Name: or_result
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#6: (a | b)
+│        ├─ Stmt[2]: Let (span: 4:5-4:28)
+│        │  ├─ Name: xor_result
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#9: (a ^ b)
+│        ├─ Stmt[3]: Let (span: 5:5-5:29)
+│        │  ├─ Name: shift_left
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#12: (a << 2)
+│        ├─ Stmt[4]: Let (span: 6:5-6:30)
+│        │  ├─ Name: shift_right
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#15: (b >> 1)
+│        └─ Stmt[5]: Return (span: 7:5-7:35)
+│           └─ Expr: expr#18: (and_result | or_result)
+└─ Item[1]: Fn (span: 10:1-12:2)
+   ├─ Name: logical_ops
+   ├─ Params: (a: bool, b: bool)
+   ├─ Return: bool
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:42-12:2)
+         └─ Stmt[0]: Return (span: 11:5-11:29)
+            └─ Expr: expr#26: (((a && b)) || (!a))

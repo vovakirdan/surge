@@ -1,0 +1,9 @@
+type Point = { x: int, y: int }
+
+fn origin() -> Point {
+    return Point { x: 0, y: 0 };
+}
+
+fn move_point(p: Point, dx: int, dy: int) -> Point {
+    return Point { x: p.x + dx, y: p.y + dy };
+}

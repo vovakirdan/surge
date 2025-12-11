@@ -1,0 +1,8 @@
+fn maybe(x: int) -> int? {
+    if (x > 0) { return x; }
+    return nothing;
+}
+
+fn get_value(opt: int?) -> int {
+    return opt.safe();
+}

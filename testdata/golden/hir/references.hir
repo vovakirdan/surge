@@ -1,0 +1,12 @@
+
+== HIR ==
+module 
+
+fn increment(x: &mut int [&mut]) -> nothing (id=1, sym=518) {
+  return ((* x) = ((* x) + 1)): int
+}
+
+fn read_ref(x: &int [&]) -> int (id=2, sym=519) {
+  return (* x): int
+}
+

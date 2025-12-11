@@ -1,0 +1,33 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "to_float" at 1:4-1:12 (leading: Space)
+  3: LParen          "(" at 1:12-1:13
+  4: Ident           "x" at 1:13-1:14
+  5: Colon           ":" at 1:14-1:15
+  6: Ident           "int" at 1:16-1:19 (leading: Space)
+  7: RParen          ")" at 1:19-1:20
+  8: Arrow           "->" at 1:21-1:23 (leading: Space)
+  9: Ident           "float" at 1:24-1:29 (leading: Space)
+ 10: LBrace          "{" at 1:30-1:31 (leading: Space)
+ 11: KwReturn        "return" at 2:5-2:11 (leading: Newline, Space)
+ 12: Ident           "x" at 2:12-2:13 (leading: Space)
+ 13: KwTo            "to" at 2:14-2:16 (leading: Space)
+ 14: Ident           "float" at 2:17-2:22 (leading: Space)
+ 15: Semicolon       ";" at 2:22-2:23
+ 16: RBrace          "}" at 3:1-3:2 (leading: Newline)
+ 17: KwFn            "fn" at 5:1-5:3 (leading: Newline)
+ 18: Ident           "explicit_int" at 5:4-5:16 (leading: Space)
+ 19: LParen          "(" at 5:16-5:17
+ 20: Ident           "x" at 5:17-5:18
+ 21: Colon           ":" at 5:18-5:19
+ 22: Ident           "int" at 5:20-5:23 (leading: Space)
+ 23: RParen          ")" at 5:23-5:24
+ 24: Arrow           "->" at 5:25-5:27 (leading: Space)
+ 25: Ident           "int" at 5:28-5:31 (leading: Space)
+ 26: LBrace          "{" at 5:32-5:33 (leading: Space)
+ 27: KwReturn        "return" at 6:5-6:11 (leading: Newline, Space)
+ 28: Ident           "x" at 6:12-6:13 (leading: Space)
+ 29: Colon           ":" at 6:13-6:14
+ 30: Ident           "int" at 6:14-6:17
+ 31: Semicolon       ";" at 6:17-6:18
+ 32: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 33: EOF             at 8:1-8:1

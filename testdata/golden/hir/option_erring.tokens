@@ -1,0 +1,46 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "maybe" at 1:4-1:9 (leading: Space)
+  3: LParen          "(" at 1:9-1:10
+  4: Ident           "x" at 1:10-1:11
+  5: Colon           ":" at 1:11-1:12
+  6: Ident           "int" at 1:13-1:16 (leading: Space)
+  7: RParen          ")" at 1:16-1:17
+  8: Arrow           "->" at 1:18-1:20 (leading: Space)
+  9: Ident           "int" at 1:21-1:24 (leading: Space)
+ 10: Question        "?" at 1:24-1:25
+ 11: LBrace          "{" at 1:26-1:27 (leading: Space)
+ 12: KwIf            "if" at 2:5-2:7 (leading: Newline, Space)
+ 13: LParen          "(" at 2:8-2:9 (leading: Space)
+ 14: Ident           "x" at 2:9-2:10
+ 15: Gt              ">" at 2:11-2:12 (leading: Space)
+ 16: IntLit          "0" at 2:13-2:14 (leading: Space)
+ 17: RParen          ")" at 2:14-2:15
+ 18: LBrace          "{" at 2:16-2:17 (leading: Space)
+ 19: KwReturn        "return" at 2:18-2:24 (leading: Space)
+ 20: Ident           "x" at 2:25-2:26 (leading: Space)
+ 21: Semicolon       ";" at 2:26-2:27
+ 22: RBrace          "}" at 2:28-2:29 (leading: Space)
+ 23: KwReturn        "return" at 3:5-3:11 (leading: Newline, Space)
+ 24: NothingLit      "nothing" at 3:12-3:19 (leading: Space)
+ 25: Semicolon       ";" at 3:19-3:20
+ 26: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 27: KwFn            "fn" at 6:1-6:3 (leading: Newline)
+ 28: Ident           "get_value" at 6:4-6:13 (leading: Space)
+ 29: LParen          "(" at 6:13-6:14
+ 30: Ident           "opt" at 6:14-6:17
+ 31: Colon           ":" at 6:17-6:18
+ 32: Ident           "int" at 6:19-6:22 (leading: Space)
+ 33: Question        "?" at 6:22-6:23
+ 34: RParen          ")" at 6:23-6:24
+ 35: Arrow           "->" at 6:25-6:27 (leading: Space)
+ 36: Ident           "int" at 6:28-6:31 (leading: Space)
+ 37: LBrace          "{" at 6:32-6:33 (leading: Space)
+ 38: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
+ 39: Ident           "opt" at 7:12-7:15 (leading: Space)
+ 40: Dot             "." at 7:15-7:16
+ 41: Ident           "safe" at 7:16-7:20
+ 42: LParen          "(" at 7:20-7:21
+ 43: RParen          ")" at 7:21-7:22
+ 44: Semicolon       ";" at 7:22-7:23
+ 45: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 46: EOF             at 9:1-9:1

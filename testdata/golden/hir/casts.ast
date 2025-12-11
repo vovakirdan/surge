@@ -1,0 +1,17 @@
+casts.sg (span: 1:1-8:1)
+├─ Item[0]: Fn (span: 1:1-3:2)
+│  ├─ Name: to_float
+│  ├─ Params: (x: int)
+│  ├─ Return: float
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:30-3:2)
+│        └─ Stmt[0]: Return (span: 2:5-2:23)
+│           └─ Expr: expr#2: x to float
+└─ Item[1]: Fn (span: 5:1-7:2)
+   ├─ Name: explicit_int
+   ├─ Params: (x: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 5:32-7:2)
+         └─ Stmt[0]: Return (span: 6:5-6:18)
+            └─ Expr: expr#4: x to int

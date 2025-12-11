@@ -1,0 +1,12 @@
+
+== HIR ==
+module 
+
+fn first(arr: type#262) -> int (id=1, sym=518) {
+  return arr[0]: int
+}
+
+fn make_array() -> type#262 (id=2, sym=519) {
+  return [1, 2, 3]: type#262
+}
+

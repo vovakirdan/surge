@@ -1,0 +1,9 @@
+compare.sg (span: 1:1-8:1)
+└─ Item[0]: Fn (span: 1:1-7:2)
+   ├─ Name: classify
+   ├─ Params: (x: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:28-7:2)
+         └─ Stmt[0]: Return (span: 2:5-6:7)
+            └─ Expr: expr#12: compare x { 3 arms }

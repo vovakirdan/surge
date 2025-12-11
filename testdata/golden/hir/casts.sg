@@ -1,0 +1,7 @@
+fn to_float(x: int) -> float {
+    return x to float;
+}
+
+fn explicit_int(x: int) -> int {
+    return x:int;
+}

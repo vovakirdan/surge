@@ -1,0 +1,41 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "first" at 1:4-1:9 (leading: Space)
+  3: LParen          "(" at 1:9-1:10
+  4: Ident           "arr" at 1:10-1:13
+  5: Colon           ":" at 1:13-1:14
+  6: Ident           "int" at 1:15-1:18 (leading: Space)
+  7: LBracket        "[" at 1:18-1:19
+  8: IntLit          "3" at 1:19-1:20
+  9: RBracket        "]" at 1:20-1:21
+ 10: RParen          ")" at 1:21-1:22
+ 11: Arrow           "->" at 1:23-1:25 (leading: Space)
+ 12: Ident           "int" at 1:26-1:29 (leading: Space)
+ 13: LBrace          "{" at 1:30-1:31 (leading: Space)
+ 14: KwReturn        "return" at 2:5-2:11 (leading: Newline, Space)
+ 15: Ident           "arr" at 2:12-2:15 (leading: Space)
+ 16: LBracket        "[" at 2:15-2:16
+ 17: IntLit          "0" at 2:16-2:17
+ 18: RBracket        "]" at 2:17-2:18
+ 19: Semicolon       ";" at 2:18-2:19
+ 20: RBrace          "}" at 3:1-3:2 (leading: Newline)
+ 21: KwFn            "fn" at 5:1-5:3 (leading: Newline)
+ 22: Ident           "make_array" at 5:4-5:14 (leading: Space)
+ 23: LParen          "(" at 5:14-5:15
+ 24: RParen          ")" at 5:15-5:16
+ 25: Arrow           "->" at 5:17-5:19 (leading: Space)
+ 26: Ident           "int" at 5:20-5:23 (leading: Space)
+ 27: LBracket        "[" at 5:23-5:24
+ 28: IntLit          "3" at 5:24-5:25
+ 29: RBracket        "]" at 5:25-5:26
+ 30: LBrace          "{" at 5:27-5:28 (leading: Space)
+ 31: KwReturn        "return" at 6:5-6:11 (leading: Newline, Space)
+ 32: LBracket        "[" at 6:12-6:13 (leading: Space)
+ 33: IntLit          "1" at 6:13-6:14
+ 34: Comma           "," at 6:14-6:15
+ 35: IntLit          "2" at 6:16-6:17 (leading: Space)
+ 36: Comma           "," at 6:17-6:18
+ 37: IntLit          "3" at 6:19-6:20 (leading: Space)
+ 38: RBracket        "]" at 6:20-6:21
+ 39: Semicolon       ";" at 6:21-6:22
+ 40: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 41: EOF             at 8:1-8:1

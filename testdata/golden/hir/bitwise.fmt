@@ -1,0 +1,12 @@
+fn bit_ops(a: int, b: int) -> int {
+    let and_result = a & b;
+    let or_result = a | b;
+    let xor_result = a ^ b;
+    let shift_left = a << 2;
+    let shift_right = b >> 1;
+    return and_result | or_result;
+}
+
+fn logical_ops(a: bool, b: bool) -> bool {
+    return (a && b) || (!a);
+}

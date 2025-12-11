@@ -1,0 +1,17 @@
+
+== HIR ==
+module 
+
+fn bit_ops(a: int [copy], b: int [copy]) -> int (id=1, sym=518) {
+  let and_result: int [copy] = (a & b): int
+  let or_result: int [copy] = (a | b): int
+  let xor_result: int [copy] = (a ^ b): int
+  let shift_left: int [copy] = (a << 2): int
+  let shift_right: int [copy] = (b >> 1): int
+  return (and_result | or_result): int
+}
+
+fn logical_ops(a: bool [copy], b: bool [copy]) -> bool (id=2, sym=519) {
+  return ((a && b) || (! a)): bool
+}
+

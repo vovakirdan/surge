@@ -1,0 +1,7 @@
+fn sum_to(n: int) -> int {
+    let mut total: int = 0;
+    for (let mut i: int = 0; i < n; i = i + 1) {
+        total = total + i;
+    }
+    return total;
+}

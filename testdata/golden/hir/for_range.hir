@@ -1,0 +1,12 @@
+
+== HIR ==
+module 
+
+fn sum_range(n: int [copy]) -> int (id=1, sym=518) {
+  let mut total: int [copy] = 0
+  for i: ? in (0 .. n): type#263 {
+    (total = (total + i)): int
+  }
+  return total
+}
+

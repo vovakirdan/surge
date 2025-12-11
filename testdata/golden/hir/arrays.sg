@@ -1,0 +1,7 @@
+fn first(arr: int[3]) -> int {
+    return arr[0];
+}
+
+fn make_array() -> int[3] {
+    return [1, 2, 3];
+}

@@ -1,0 +1,12 @@
+
+== HIR ==
+module 
+
+fn swap(a: int [copy], b: int [copy]) -> type#261 (id=1, sym=518) {
+  return (b, a): type#263
+}
+
+fn get_first(t: type#264) -> int (id=2, sym=519) {
+  return t.: int
+}
+
