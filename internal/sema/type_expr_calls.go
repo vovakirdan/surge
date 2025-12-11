@@ -311,6 +311,9 @@ func (tc *typeChecker) handleCloneCall(args []callArg, span source.Span) types.T
 	// Validate that __clone returns the same type
 	// Signature should be: fn __clone(self: &T) -> T
 	for _, sig := range methods {
+		if sig == nil {
+			continue
+		}
 		if sig.Result != "" && typeKeyEqual(sig.Result, typeKey) {
 			// Found a valid __clone method with correct return type
 			return innerType
