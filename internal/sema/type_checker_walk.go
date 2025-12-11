@@ -84,6 +84,27 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			returnSpan = fnItem.Span
 		}
 		tc.registerFnParamTypes(id, fnItem)
+		if len(paramSpecs) == 0 && symID.IsValid() && tc.types != nil {
+			paramIDs := tc.builder.Items.GetFnParamIDs(fnItem)
+			paramTypes := make([]types.TypeID, 0, len(paramIDs))
+			allParamsValid := true
+			for _, pid := range paramIDs {
+				param := tc.builder.Items.FnParam(pid)
+				if param == nil {
+					continue
+				}
+				paramType := tc.resolveTypeExprWithScope(param.Type, scope)
+				if paramType == types.NoTypeID {
+					allParamsValid = false
+					break
+				}
+				paramTypes = append(paramTypes, paramType)
+			}
+			if allParamsValid {
+				fnType := tc.types.RegisterFn(paramTypes, returnType)
+				tc.assignSymbolType(symID, fnType)
+			}
+		}
 		if fnItem.Body.IsValid() {
 			tc.pushReturnContext(returnType, returnSpan, nil)
 			if fnItem.Flags&ast.FnModifierAsync != 0 {

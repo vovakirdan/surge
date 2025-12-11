@@ -361,6 +361,47 @@ func (tc *typeChecker) instantiateTypeKeyWithInference(key symbols.TypeKey, actu
 		}
 		return tc.types.RegisterTuple(elems)
 	}
+	if strings.HasPrefix(s, "fn(") {
+		parts := strings.SplitN(strings.TrimPrefix(s, "fn("), ")->", 2)
+		if len(parts) != 2 {
+			return types.NoTypeID
+		}
+		paramsPart := strings.TrimSuffix(parts[0], ")")
+		resultPart := strings.TrimSpace(parts[1])
+
+		var actualParams []types.TypeID
+		var actualResult types.TypeID
+		if fnInfo, ok := tc.types.FnInfo(tc.valueType(actual)); ok && fnInfo != nil {
+			actualParams = fnInfo.Params
+			actualResult = fnInfo.Result
+		}
+
+		var paramTypes []types.TypeID
+		if trimmed := strings.TrimSpace(paramsPart); trimmed != "" {
+			paramKeys := splitTopLevel(trimmed)
+			if len(actualParams) > 0 && len(actualParams) != len(paramKeys) {
+				return types.NoTypeID
+			}
+			paramTypes = make([]types.TypeID, 0, len(paramKeys))
+			for i, pk := range paramKeys {
+				actualParam := types.NoTypeID
+				if i < len(actualParams) {
+					actualParam = actualParams[i]
+				}
+				paramType := tc.instantiateTypeKeyWithInference(symbols.TypeKey(pk), actualParam, bindings, paramNames)
+				if paramType == types.NoTypeID {
+					return types.NoTypeID
+				}
+				paramTypes = append(paramTypes, paramType)
+			}
+		}
+
+		resolvedResult := tc.instantiateTypeKeyWithInference(symbols.TypeKey(resultPart), actualResult, bindings, paramNames)
+		if resolvedResult == types.NoTypeID {
+			return types.NoTypeID
+		}
+		return tc.types.RegisterFn(paramTypes, resolvedResult)
+	}
 	switch {
 	case strings.HasPrefix(s, "&mut "):
 		inner := tc.instantiateTypeKeyWithInference(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "&mut "))), tc.peelReference(actual), bindings, paramNames)
@@ -478,6 +519,33 @@ func (tc *typeChecker) instantiateResultType(key symbols.TypeKey, bindings map[s
 		}
 		return tc.types.RegisterTuple(elems)
 	}
+	if strings.HasPrefix(s, "fn(") {
+		parts := strings.SplitN(strings.TrimPrefix(s, "fn("), ")->", 2)
+		if len(parts) != 2 {
+			return types.NoTypeID
+		}
+		paramsPart := strings.TrimSuffix(parts[0], ")")
+		resultPart := strings.TrimSpace(parts[1])
+
+		var paramTypes []types.TypeID
+		if trimmed := strings.TrimSpace(paramsPart); trimmed != "" {
+			paramKeys := splitTopLevel(trimmed)
+			paramTypes = make([]types.TypeID, 0, len(paramKeys))
+			for _, pk := range paramKeys {
+				paramType := tc.instantiateResultType(symbols.TypeKey(pk), bindings, paramNames)
+				if paramType == types.NoTypeID {
+					return types.NoTypeID
+				}
+				paramTypes = append(paramTypes, paramType)
+			}
+		}
+
+		resultType := tc.instantiateResultType(symbols.TypeKey(resultPart), bindings, paramNames)
+		if resultType == types.NoTypeID {
+			return types.NoTypeID
+		}
+		return tc.types.RegisterFn(paramTypes, resultType)
+	}
 	switch {
 	case strings.HasPrefix(s, "&mut "):
 		inner := tc.instantiateResultType(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "&mut "))), bindings, paramNames)
@@ -582,6 +650,22 @@ func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral b
 	expected = tc.resolveAlias(expected)
 	if actual == expected {
 		return 0, true
+	}
+	if actInfo, okA := tc.types.FnInfo(actual); okA {
+		if expInfo, okE := tc.types.FnInfo(expected); okE {
+			if len(actInfo.Params) == len(expInfo.Params) && actInfo.Result == expInfo.Result {
+				match := true
+				for i := range actInfo.Params {
+					if actInfo.Params[i] != expInfo.Params[i] {
+						match = false
+						break
+					}
+				}
+				if match {
+					return 0, true
+				}
+			}
+		}
 	}
 	if info, ok := tc.types.UnionInfo(expected); ok && info != nil {
 		best := -1

@@ -317,6 +317,33 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 		}
 		return tc.types.RegisterTuple(elems)
 	}
+	if strings.HasPrefix(s, "fn(") {
+		parts := strings.SplitN(strings.TrimPrefix(s, "fn("), ")->", 2)
+		if len(parts) != 2 {
+			return types.NoTypeID
+		}
+		paramsPart := strings.TrimSuffix(parts[0], ")")
+		resultPart := strings.TrimSpace(parts[1])
+
+		var paramTypes []types.TypeID
+		if trimmed := strings.TrimSpace(paramsPart); trimmed != "" {
+			paramKeys := splitTopLevel(trimmed)
+			paramTypes = make([]types.TypeID, 0, len(paramKeys))
+			for _, pk := range paramKeys {
+				paramType := tc.typeFromKey(symbols.TypeKey(pk))
+				if paramType == types.NoTypeID {
+					return types.NoTypeID
+				}
+				paramTypes = append(paramTypes, paramType)
+			}
+		}
+
+		resultType := tc.typeFromKey(symbols.TypeKey(resultPart))
+		if resultType == types.NoTypeID {
+			return types.NoTypeID
+		}
+		return tc.types.RegisterFn(paramTypes, resultType)
+	}
 	switch {
 	case strings.HasPrefix(s, "&mut "):
 		if inner := tc.typeFromKey(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "&mut ")))); inner != types.NoTypeID {
