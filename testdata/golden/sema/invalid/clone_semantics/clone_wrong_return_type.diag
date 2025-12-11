@@ -1,0 +1,1 @@
+error SEM3116 testdata/golden/sema/invalid/clone_semantics/clone_wrong_return_type.sg:14:13 type MyType has __clone but with invalid signature

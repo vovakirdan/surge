@@ -135,3 +135,34 @@ type typeKey struct {
 	Mutable bool
 	Payload uint32
 }
+
+// IsCopy reports whether values of type id can be implicitly copied.
+// Copy types include: bool, int/uint (all widths), float (all widths),
+// unit, nothing, raw pointers (*T), shared references (&T), function types, and enums.
+// Mutable references (&mut T), strings, structs, unions, arrays, and tuples are NOT Copy.
+func (in *Interner) IsCopy(id TypeID) bool {
+	if id == NoTypeID {
+		return false
+	}
+	tt, ok := in.Lookup(id)
+	if !ok {
+		return false
+	}
+	switch tt.Kind {
+	case KindBool, KindInt, KindUint, KindFloat, KindConst, KindUnit, KindNothing:
+		return true
+	case KindPointer:
+		return true // Raw pointers are Copy
+	case KindReference:
+		return !tt.Mutable // &T is Copy, &mut T is NOT Copy
+	case KindFn:
+		return true // Function pointers are Copy
+	case KindEnum:
+		return true // Enums are just integers
+	case KindOwn:
+		return in.IsCopy(tt.Elem) // own T is Copy if T is Copy
+	default:
+		// KindString, KindStruct, KindUnion, KindArray, KindTuple, KindAlias, KindGenericParam
+		return false
+	}
+}

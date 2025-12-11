@@ -339,6 +339,9 @@ func (tc *typeChecker) validateTypeAttrs(typeItem *ast.TypeItem, typeID types.Ty
 
 	// Validate @send type field composition
 	tc.validateSendTypeFields(typeID, typeItem.Span)
+
+	// Validate @copy attribute (all fields must be Copy)
+	tc.validateCopyAttr(typeID, typeItem.Span)
 }
 
 // validateSendTypeFields checks that @send types only contain sendable fields
@@ -629,6 +632,119 @@ func (tc *typeChecker) checkReadonlyFieldWrite(targetExpr ast.ExprID, span sourc
 		tc.report(diag.SemaAttrReadonlyWrite, span,
 			"cannot write to @readonly field '%s'", fieldName)
 		return true
+	}
+
+	return false
+}
+
+// validateCopyAttr validates @copy attribute on a type declaration
+// Checks that all fields are Copy types (recursively)
+func (tc *typeChecker) validateCopyAttr(typeID types.TypeID, span source.Span) {
+	if !tc.typeHasAttr(typeID, "copy") {
+		return
+	}
+	// Use a map to track visited types: false = in progress, true = validated
+	visited := make(map[types.TypeID]bool)
+	tc.validateCopyFields(typeID, span, visited)
+}
+
+// validateCopyFields recursively checks that all fields of a @copy type are Copy
+func (tc *typeChecker) validateCopyFields(typeID types.TypeID, span source.Span, visited map[types.TypeID]bool) bool {
+	// Check for cycles: if we've seen this type before
+	if done, inProgress := visited[typeID]; inProgress {
+		if !done {
+			// Cycle detected - we're still processing this type
+			tc.report(diag.SemaAttrCopyCyclicDep, span,
+				"@copy type '%s' has cyclic dependency", tc.typeLabel(typeID))
+			return false
+		}
+		// Already validated successfully
+		return true
+	}
+
+	// Mark as in progress
+	visited[typeID] = false
+
+	// Get struct info
+	structInfo, ok := tc.types.StructInfo(typeID)
+	if !ok || structInfo == nil {
+		// Not a struct - check union
+		unionInfo, ok := tc.types.UnionInfo(typeID)
+		if ok && unionInfo != nil {
+			// Validate union members
+			for _, member := range unionInfo.Members {
+				switch member.Kind {
+				case types.UnionMemberType:
+					if !tc.isExpandedCopyType(member.Type, span, visited) {
+						typeName := tc.typeLabel(typeID)
+						memberTypeName := tc.typeLabel(member.Type)
+						tc.report(diag.SemaAttrCopyNonCopyField, span,
+							"@copy union '%s' has non-Copy member of type '%s'",
+							typeName, memberTypeName)
+						return false
+					}
+				case types.UnionMemberTag:
+					for _, tagArg := range member.TagArgs {
+						if tc.isExpandedCopyType(tagArg, span, visited) {
+							continue
+						}
+						typeName := tc.typeLabel(typeID)
+						tagName := tc.lookupName(member.TagName)
+						argTypeName := tc.typeLabel(tagArg)
+						tc.report(diag.SemaAttrCopyNonCopyField, span,
+							"@copy union '%s' tag '%s' contains non-Copy type '%s'",
+							typeName, tagName, argTypeName)
+						return false
+					}
+				case types.UnionMemberNothing:
+					// nothing is always Copy
+					continue
+				}
+			}
+		}
+		// Mark as validated
+		visited[typeID] = true
+		return true
+	}
+
+	// Validate struct fields
+	for _, field := range structInfo.Fields {
+		fieldType := tc.valueType(field.Type)
+		if !tc.isExpandedCopyType(fieldType, span, visited) {
+			typeName := tc.typeLabel(typeID)
+			fieldName := tc.lookupName(field.Name)
+			fieldTypeName := tc.typeLabel(fieldType)
+			tc.report(diag.SemaAttrCopyNonCopyField, span,
+				"@copy type '%s' has non-Copy field '%s' of type '%s'",
+				typeName, fieldName, fieldTypeName)
+			return false
+		}
+	}
+
+	// Mark as validated
+	visited[typeID] = true
+	return true
+}
+
+// isExpandedCopyType checks if a type is Copy in the expanded sense:
+// either a builtin Copy type or a user type with @copy attribute
+func (tc *typeChecker) isExpandedCopyType(typeID types.TypeID, span source.Span, visited map[types.TypeID]bool) bool {
+	if typeID == types.NoTypeID {
+		return false
+	}
+
+	// Resolve alias
+	resolved := tc.resolveAlias(typeID)
+
+	// Check builtin Copy types first
+	if tc.types != nil && tc.types.IsCopy(resolved) {
+		return true
+	}
+
+	// Check for @copy attribute on user types
+	if tc.typeHasAttr(resolved, "copy") {
+		// Recursively validate the @copy type
+		return tc.validateCopyFields(resolved, span, visited)
 	}
 
 	return false

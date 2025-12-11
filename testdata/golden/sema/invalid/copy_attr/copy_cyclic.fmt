@@ -1,0 +1,5 @@
+// scenario: @copy type with non-Copy field (another @copy type that references back)
+@copy
+type NodeA = { b: NodeB }  // ERROR: NodeB is not @copy, so NodeA can't be @copy
+
+type NodeB = { a: NodeA }  // NodeB is not @copy

@@ -1,0 +1,19 @@
+clone_string.sg (span: 2:1-8:1)
+└─ Item[0]: Fn (span: 2:1-7:2)
+   ├─ Name: test_clone_string
+   ├─ Params: ()
+   ├─ Return: string
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:34-7:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:30)
+         │  ├─ Name: s1
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#1: "hello"
+         ├─ Stmt[1]: Let (span: 4:5-4:33)
+         │  ├─ Name: s2
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#5: clone(&s1)
+         └─ Stmt[2]: Return (span: 6:5-6:15)
+            └─ Expr: expr#6: s2

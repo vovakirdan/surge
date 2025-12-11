@@ -63,6 +63,13 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 	if name == "default" {
 		return tc.handleDefaultLikeCall(name, call, span)
 	}
+	if name == "clone" {
+		if result := tc.handleCloneCall(args, span); result != types.NoTypeID {
+			return result
+		}
+		// If handleCloneCall returns NoTypeID, fall through to normal resolution
+		// which will report "no matching overload" or similar error
+	}
 	candidates := tc.functionCandidates(ident.Name)
 	if traceSpan != nil {
 		traceSpan.WithExtra("candidates", fmt.Sprintf("%d", len(candidates)))
@@ -270,6 +277,55 @@ func (tc *typeChecker) handleDefaultLikeCall(name string, call *ast.ExprCallData
 	return targetType
 }
 
+// handleCloneCall handles special semantics for clone<T>(&value) -> T.
+// For Copy types, this is a simple bitwise copy (no __clone lookup).
+// For non-Copy types, this looks up the __clone magic method.
+func (tc *typeChecker) handleCloneCall(args []callArg, span source.Span) types.TypeID {
+	if len(args) != 1 {
+		// Let normal overload resolution handle the error
+		return types.NoTypeID
+	}
+
+	argType := args[0].ty
+	// Get the inner type (strip reference if present)
+	innerType := tc.valueType(argType)
+	if innerType == types.NoTypeID {
+		innerType = argType
+	}
+
+	// For Copy types, just return the type (simple bitwise copy)
+	if tc.isCopyType(innerType) {
+		return innerType
+	}
+
+	// For non-Copy types, look up __clone magic method
+	typeKey := tc.typeKeyForType(innerType)
+	methods := tc.lookupMagicMethods(typeKey, "__clone")
+
+	if len(methods) == 0 {
+		tc.report(diag.SemaTypeNotClonable, span,
+			"type %s is not clonable (no __clone method defined)", tc.typeLabel(innerType))
+		return types.NoTypeID
+	}
+
+	// Validate that __clone returns the same type
+	// Signature should be: fn __clone(self: &T) -> T
+	for _, sig := range methods {
+		if sig == nil {
+			continue
+		}
+		if sig.Result != "" && typeKeyEqual(sig.Result, typeKey) {
+			// Found a valid __clone method with correct return type
+			return innerType
+		}
+	}
+
+	// Method found but signature invalid
+	tc.report(diag.SemaTypeNotClonable, span,
+		"type %s has __clone but with invalid signature", tc.typeLabel(innerType))
+	return types.NoTypeID
+}
+
 func (tc *typeChecker) reportCannotInferTypeParams(name string, missing []string, span source.Span, call *ast.ExprCallData) {
 	if tc.reporter == nil || len(missing) == 0 {
 		return
@@ -379,8 +435,8 @@ func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg
 
 	// For "own T" params, we accept both "own T" and "T" (value types can be moved)
 	innerExpected := substituted
-	if strings.HasPrefix(substitutedStr, "own ") {
-		innerExpected = symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(substitutedStr, "own ")))
+	if after, found := strings.CutPrefix(substitutedStr, "own "); found {
+		innerExpected = symbols.TypeKey(strings.TrimSpace(after))
 	}
 
 	for _, cand := range tc.typeKeyCandidates(arg) {

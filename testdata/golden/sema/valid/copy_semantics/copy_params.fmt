@@ -1,0 +1,23 @@
+// scenario: Copy types can be passed to functions multiple times
+fn takes_int(x: int32) -> int32 {
+    return x * 2;
+}
+
+fn takes_bool(b: bool) -> bool {
+    return !b;
+}
+
+fn test_copy_params() -> int32 {
+    let a: int32 = 42;
+    let b: int32 = takes_int(a);  // a is copied, not moved
+    let c: int32 = takes_int(a);  // a still usable
+    let d: int32 = takes_int(a);  // still ok
+    return b + c + d;
+}
+
+fn test_bool_params() -> bool {
+    let flag: bool = true;
+    let r1: bool = takes_bool(flag);  // copy
+    let r2: bool = takes_bool(flag);  // still ok
+    return r1 && r2 && flag;
+}

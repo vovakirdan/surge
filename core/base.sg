@@ -79,3 +79,10 @@ pub fn print(s: string) -> nothing {
 pub fn len<T: HasLength<T>>(self: &T) -> uint {
     return self.__len();
 }
+
+// Clone creates a deep copy of a value.
+// For Copy types, this is a simple bitwise copy.
+// For non-Copy types, this calls the __clone magic method.
+pub fn clone<T>(value: &T) -> T {
+    return value.__clone();
+}

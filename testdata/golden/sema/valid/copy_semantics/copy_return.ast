@@ -1,0 +1,63 @@
+copy_return.sg (span: 2:1-23:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: get_int
+│  ├─ Params: ()
+│  ├─ Return: int32
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:23-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:15)
+│           └─ Expr: expr#1: 42
+├─ Item[1]: Fn (span: 6:1-8:2)
+│  ├─ Name: get_bool
+│  ├─ Params: ()
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 6:23-8:2)
+│        └─ Stmt[0]: Return (span: 7:5-7:17)
+│           └─ Expr: expr#2: true
+├─ Item[2]: Fn (span: 10:1-15:2)
+│  ├─ Name: test_copy_return
+│  ├─ Params: ()
+│  ├─ Return: int32
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:32-15:2)
+│        ├─ Stmt[0]: Let (span: 11:5-11:30)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#4: get_int()
+│        ├─ Stmt[1]: Let (span: 12:5-12:22)
+│        │  ├─ Name: b
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#5: a
+│        ├─ Stmt[2]: Let (span: 13:5-13:22)
+│        │  ├─ Name: c
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#6: a
+│        └─ Stmt[3]: Return (span: 14:5-14:22)
+│           └─ Expr: expr#11: (((a + b)) + c)
+└─ Item[3]: Fn (span: 17:1-22:2)
+   ├─ Name: test_copy_return_bool
+   ├─ Params: ()
+   ├─ Return: bool
+   └─ Body:
+      └─ Stmt[0]: Block (span: 17:36-22:2)
+         ├─ Stmt[0]: Let (span: 18:5-18:30)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#13: get_bool()
+         ├─ Stmt[1]: Let (span: 19:5-19:21)
+         │  ├─ Name: y
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#14: x
+         ├─ Stmt[2]: Let (span: 20:5-20:21)
+         │  ├─ Name: z
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#15: x
+         └─ Stmt[3]: Return (span: 21:5-21:24)
+            └─ Expr: expr#20: (((x && y)) && z)

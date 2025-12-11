@@ -1,0 +1,11 @@
+  1: At              "@" at 2:1-2:2 (leading: LineComment, Newline)
+  2: Ident           "copy" at 2:2-2:6
+  3: KwType          "type" at 3:1-3:5 (leading: Newline)
+  4: Ident           "BadConfig" at 3:6-3:15 (leading: Space)
+  5: Assign          "=" at 3:16-3:17 (leading: Space)
+  6: LBrace          "{" at 3:18-3:19 (leading: Space)
+  7: Ident           "name" at 3:20-3:24 (leading: Space)
+  8: Colon           ":" at 3:24-3:25
+  9: Ident           "string" at 3:26-3:32 (leading: Space)
+ 10: RBrace          "}" at 3:33-3:34 (leading: Space)
+ 11: EOF             at 4:1-4:1

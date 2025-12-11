@@ -91,6 +91,14 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	if !expr.IsValid() || tc.borrow == nil {
 		return
 	}
+
+	// Skip move tracking for Copy types - they can be implicitly copied
+	// and the original value remains valid after the "copy".
+	exprType := tc.result.ExprTypes[expr]
+	if tc.isCopyType(exprType) {
+		return
+	}
+
 	desc, ok := tc.resolvePlace(expr)
 	if !ok {
 		return

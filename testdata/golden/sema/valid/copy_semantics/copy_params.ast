@@ -1,0 +1,68 @@
+copy_params.sg (span: 2:1-24:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: takes_int
+│  ├─ Params: (x: int32)
+│  ├─ Return: int32
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:33-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:18)
+│           └─ Expr: expr#3: (x * 2)
+├─ Item[1]: Fn (span: 6:1-8:2)
+│  ├─ Name: takes_bool
+│  ├─ Params: (b: bool)
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 6:32-8:2)
+│        └─ Stmt[0]: Return (span: 7:5-7:15)
+│           └─ Expr: expr#5: !b
+├─ Item[2]: Fn (span: 10:1-16:2)
+│  ├─ Name: test_copy_params
+│  ├─ Params: ()
+│  ├─ Return: int32
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:32-16:2)
+│        ├─ Stmt[0]: Let (span: 11:5-11:23)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#6: 42
+│        ├─ Stmt[1]: Let (span: 12:5-12:33)
+│        │  ├─ Name: b
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#9: takes_int(a)
+│        ├─ Stmt[2]: Let (span: 13:5-13:33)
+│        │  ├─ Name: c
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#12: takes_int(a)
+│        ├─ Stmt[3]: Let (span: 14:5-14:33)
+│        │  ├─ Name: d
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int32
+│        │  └─ Value: expr#15: takes_int(a)
+│        └─ Stmt[4]: Return (span: 15:5-15:22)
+│           └─ Expr: expr#20: (((b + c)) + d)
+└─ Item[3]: Fn (span: 18:1-23:2)
+   ├─ Name: test_bool_params
+   ├─ Params: ()
+   ├─ Return: bool
+   └─ Body:
+      └─ Stmt[0]: Block (span: 18:31-23:2)
+         ├─ Stmt[0]: Let (span: 19:5-19:27)
+         │  ├─ Name: flag
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#21: true
+         ├─ Stmt[1]: Let (span: 20:5-20:37)
+         │  ├─ Name: r1
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#24: takes_bool(flag)
+         ├─ Stmt[2]: Let (span: 21:5-21:37)
+         │  ├─ Name: r2
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#27: takes_bool(flag)
+         └─ Stmt[3]: Return (span: 22:5-22:29)
+            └─ Expr: expr#32: (((r1 && r2)) && flag)
