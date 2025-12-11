@@ -822,6 +822,8 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 | @nosend          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |
 | @nonblocking     |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
 | @drop            |  ❌  |   ❌   |   ❌  |   ❌   |   ❌   |  ✅  |
+| @failfast        |  ❌  |   ❌   |   ❌  |   ❌   |   ❌   |  ✅  |
+| @copy            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |
 
 *`@override` — only within `extern<T>` blocks.
 **`@intrinsic` — only on function declarations (FnDecl) without body.

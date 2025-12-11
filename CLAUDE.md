@@ -204,7 +204,7 @@ If the compiler hangs or runs indefinitely:
 
 ### CRITICAL: Before Writing Surge Code
 
-**ALWAYS** read `README.md` and `docs/LANGUAGE.md` before writing Surge code to ensure correct syntax.
+**ALWAYS** read `README.md` and `docs/LANGUAGE.md` and `docs/SURGE_IS_NOT.md` before writing Surge code to ensure correct syntax.
 
 **NEVER set SURGE_STDLIB environment variable** - the driver auto-resolves stdlib location (see `internal/driver/stdlib.go`).
 
