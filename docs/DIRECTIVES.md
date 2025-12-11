@@ -107,7 +107,8 @@ The compiler supports multiple directive modes:
 ### 4.2. `--directives=collect`
 
 * Parser collects directive blocks.
-* No typechecking, no execution.
+* Semantic validation ensures namespaces are valid (see Section 4.6).
+* No directive body typechecking, no execution.
 * Useful for IDEs and tooling.
 
 ### 4.3. `--directives=gen`
@@ -125,6 +126,51 @@ The compiler supports multiple directive modes:
 
 `--directives-filter=test,benchmark,time`
 Only these directive namespaces will be compiled/checked/run.
+
+### 4.6. Namespace Validation
+
+When `--directives=collect|gen|run`, the compiler performs semantic validation on directive namespaces:
+
+1. **Namespace must be an imported module**: Each directive block's namespace (e.g., `test` in `/// test:`) must correspond to an imported module. The namespace is matched against the last path segment of imported modules.
+
+   ```sg
+   import stdlib/directives/test;  // "test" is the last segment
+
+   /// test:                       // Valid - matches import
+   /// test.eq(1, 1);
+   ```
+
+2. **Module must have `pragma directive`**: The imported module must declare `pragma directive` to be used as a directive namespace. This ensures only purpose-built modules serve as directive namespaces.
+
+   ```sg
+   // stdlib/directives/test.sg
+   pragma directive;
+
+   pub fn eq<T>(a: T, b: T) -> bool { return a == b; }
+   ```
+
+**Diagnostic Codes:**
+
+| Code | Error |
+|------|-------|
+| `SEM3119` | Directive namespace is not an imported module |
+| `SEM3120` | Directive namespace module lacks `pragma directive` |
+
+**Example Errors:**
+
+```sg
+// Error SEM3119: "my_directive" is not imported
+/// my_directive:
+/// my_directive.stuff();
+```
+
+```sg
+import helper;  // helper.sg does NOT have "pragma directive"
+
+// Error SEM3120: module "helper" does not have 'pragma directive'
+/// helper:
+/// helper.do_something();
+```
 
 ---
 

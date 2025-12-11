@@ -1,0 +1,24 @@
+  1: KwImport        "import" at 3:1-3:7 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "test_dir" at 3:8-3:16 (leading: Space)
+  3: Semicolon       ";" at 3:16-3:17
+  4: KwFn            "fn" at 8:1-8:3 (leading: Newline, DocLine, Newline, DocLine, Newline)
+  5: Ident           "add" at 8:4-8:7 (leading: Space)
+  6: LParen          "(" at 8:7-8:8
+  7: Ident           "a" at 8:8-8:9
+  8: Colon           ":" at 8:9-8:10
+  9: Ident           "int" at 8:11-8:14 (leading: Space)
+ 10: Comma           "," at 8:14-8:15
+ 11: Ident           "b" at 8:16-8:17 (leading: Space)
+ 12: Colon           ":" at 8:17-8:18
+ 13: Ident           "int" at 8:19-8:22 (leading: Space)
+ 14: RParen          ")" at 8:22-8:23
+ 15: Arrow           "->" at 8:24-8:26 (leading: Space)
+ 16: Ident           "int" at 8:27-8:30 (leading: Space)
+ 17: LBrace          "{" at 8:31-8:32 (leading: Space)
+ 18: KwReturn        "return" at 8:33-8:39 (leading: Space)
+ 19: Ident           "a" at 8:40-8:41 (leading: Space)
+ 20: Plus            "+" at 8:42-8:43 (leading: Space)
+ 21: Ident           "b" at 8:44-8:45 (leading: Space)
+ 22: Semicolon       ";" at 8:45-8:46
+ 23: RBrace          "}" at 8:47-8:48 (leading: Space)
+ 24: EOF             at 9:1-9:1

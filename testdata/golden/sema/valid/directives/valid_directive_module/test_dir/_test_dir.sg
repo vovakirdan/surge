@@ -1,0 +1,4 @@
+// Directive module with pragma directive
+pragma module::test_dir, directive;
+
+pub fn eq(a: int, b: int) -> bool { return a == b; }

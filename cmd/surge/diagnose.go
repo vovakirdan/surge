@@ -10,6 +10,7 @@ import (
 	"surge/internal/diag"
 	"surge/internal/diagfmt"
 	"surge/internal/driver"
+	"surge/internal/parser"
 	"surge/internal/source"
 	"surge/internal/trace"
 )
@@ -36,6 +37,7 @@ func init() {
 	diagCmd.Flags().Bool("preview", false, "preview changes without modifying files")
 	diagCmd.Flags().Bool("fullpath", false, "emit absolute file paths in output")
 	diagCmd.Flags().Bool("disk-cache", false, "enable persistent disk cache for module metadata (experimental)")
+	diagCmd.Flags().String("directives", "off", "directive processing mode (off|collect|gen|run)")
 }
 
 // runDiagnose executes the "diag" command: it parses command flags, runs diagnostics
@@ -112,6 +114,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get disk-cache flag: %w", err)
 	}
 
+	directivesStr, err := cmd.Flags().GetString("directives")
+	if err != nil {
+		return fmt.Errorf("failed to get directives flag: %w", err)
+	}
+
 	// Конвертируем строку стадии в тип
 	var stage driver.DiagnoseStage
 	switch stagesStr {
@@ -127,6 +134,21 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown stages value: %s", stagesStr)
 	}
 
+	// Конвертируем строку режима директив в тип
+	var directiveMode parser.DirectiveMode
+	switch directivesStr {
+	case "off":
+		directiveMode = parser.DirectiveModeOff
+	case "collect":
+		directiveMode = parser.DirectiveModeCollect
+	case "gen":
+		directiveMode = parser.DirectiveModeGen
+	case "run":
+		directiveMode = parser.DirectiveModeRun
+	default:
+		return fmt.Errorf("unknown directives value: %s", directivesStr)
+	}
+
 	// Создаём опции диагностики
 	opts := driver.DiagnoseOptions{
 		Stage:            stage,
@@ -135,6 +157,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		WarningsAsErrors: warningsAsErrors,
 		EnableTimings:    showTimings,
 		EnableDiskCache:  enableDiskCache,
+		DirectiveMode:    directiveMode,
 	}
 
 	st, err := os.Stat(filePath)

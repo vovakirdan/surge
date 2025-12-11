@@ -217,4 +217,8 @@ func (tc *typeChecker) run() {
 	done = phase("check_deadlocks")
 	tc.checkForDeadlocks()
 	done()
+
+	done = phase("validate_directives")
+	tc.validateDirectiveNamespaces()
+	done()
 }

@@ -1,0 +1,5 @@
+// Helper module WITHOUT pragma directive
+// This module should not be usable as directive namespace
+pragma module::helper;
+
+pub fn do_something() -> int { return 42; }

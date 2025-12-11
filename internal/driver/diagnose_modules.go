@@ -9,6 +9,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/parser"
 	"surge/internal/project/dag"
 	"surge/internal/sema"
 	"surge/internal/source"
@@ -49,7 +50,7 @@ func analyzeDependencyModule(
 		return nil, err
 	}
 	bag := diag.NewBag(opts.MaxDiagnostics)
-	builder, fileIDs, files, err := parseModuleDir(ctx, fs, dirPath, bag, strs, nil, nil)
+	builder, fileIDs, files, err := parseModuleDir(ctx, fs, dirPath, bag, strs, nil, nil, parser.DirectiveModeOff)
 	if err != nil {
 		if errors.Is(err, errModuleNotFound) {
 			return nil, errModuleNotFound
