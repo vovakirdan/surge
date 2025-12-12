@@ -1,5 +1,5 @@
 error SEM3005 testdata/golden/sema/invalid/alien_hints/go_defer.sg:2:5 cannot resolve 'defer'
 error SEM3046 testdata/golden/sema/invalid/alien_hints/go_defer.sg:2:5 no matching overload for defer
-info ALN8004 testdata/golden/sema/invalid/alien_hints/go_defer.sg:2:5 Go `defer` detected. Surge doesn’t have `defer`; use explicit scope/cleanup (or a `@raii` type).
+info ALN8004 testdata/golden/sema/invalid/alien_hints/go_defer.sg:2:5 Oh hey, Gopher. I see `defer`. Surge doesn’t have `defer`; use explicit cleanup or a `@raii` type. ```sg @raii type Resource = { handle: int }; ```
 error SEM3005 testdata/golden/sema/invalid/alien_hints/go_defer.sg:2:11 cannot resolve 'foo'
 error SEM3046 testdata/golden/sema/invalid/alien_hints/go_defer.sg:2:11 no matching overload for foo

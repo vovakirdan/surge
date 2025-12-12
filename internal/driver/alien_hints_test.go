@@ -4,35 +4,83 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"surge/internal/diag"
 )
 
 func TestDiagnose_NoAlienHintsFlagSuppressesAlienDiagnostics(t *testing.T) {
-	origWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd: %v", err)
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatalf("runtime.Caller failed")
 	}
-	projectRoot := filepath.Clean(filepath.Join(origWD, "..", ".."))
-	if err := os.Chdir(projectRoot); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
-	defer func() { _ = os.Chdir(origWD) }()
+	projectRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
 
 	t.Setenv("SURGE_STDLIB", projectRoot)
 
 	fixtures := []struct {
-		Path       string
+		Name       string
+		Src        string
 		WantErrors bool
 	}{
-		{Path: filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "rust_impl_modifier.sg"), WantErrors: true},
-		{Path: filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "rust_attribute_hash.sg"), WantErrors: true},
-		{Path: filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "rust_println_macro.sg"), WantErrors: true},
-		{Path: filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "go_defer.sg"), WantErrors: true},
-		{Path: filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "ts_interface_extends.sg"), WantErrors: true},
-		{Path: filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "python_none_type.sg"), WantErrors: true},
-		{Path: filepath.Join("testdata", "golden", "sema", "valid", "alien_hints", "python_none_alias.sg"), WantErrors: false},
+		{
+			Name: "rust_impl_modifier",
+			Src: `impl fn demo() -> int {
+    return 1;
+}
+`,
+			WantErrors: true,
+		},
+		{
+			Name: "rust_attribute_hash",
+			Src: `#[align]
+type Foo = { x: int };
+`,
+			WantErrors: true,
+		},
+		{
+			Name: "rust_println_macro",
+			Src: `fn main() -> nothing {
+    println!("hi");
+    return nothing;
+}
+`,
+			WantErrors: true,
+		},
+		{
+			Name: "go_defer",
+			Src: `fn main() -> nothing {
+    defer(foo());
+    return nothing;
+}
+`,
+			WantErrors: true,
+		},
+		{
+			Name:       "ts_interface_extends",
+			Src:        "interface Foo extends Bar { }\n",
+			WantErrors: true,
+		},
+		{
+			Name: "python_none_type",
+			Src: `fn foo() -> None {
+    return nothing;
+}
+`,
+			WantErrors: true,
+		},
+		{
+			Name: "python_none_alias",
+			Src: `type None = nothing;
+
+fn foo() -> None {
+    let x: None = nothing;
+    return x;
+}
+`,
+			WantErrors: false,
+		},
 	}
 
 	optsEnabled := DiagnoseOptions{
@@ -42,9 +90,15 @@ func TestDiagnose_NoAlienHintsFlagSuppressesAlienDiagnostics(t *testing.T) {
 	optsDisabled := optsEnabled
 	optsDisabled.NoAlienHints = true
 
+	dir := t.TempDir()
 	for _, fixture := range fixtures {
-		t.Run(fixture.Path, func(t *testing.T) {
-			resEnabled, err := DiagnoseWithOptions(context.Background(), fixture.Path, optsEnabled)
+		t.Run(fixture.Name, func(t *testing.T) {
+			path := filepath.Join(dir, fixture.Name+".sg")
+			if err := os.WriteFile(path, []byte(fixture.Src), 0o600); err != nil {
+				t.Fatalf("write fixture: %v", err)
+			}
+
+			resEnabled, err := DiagnoseWithOptions(context.Background(), path, optsEnabled)
 			if err != nil {
 				t.Fatalf("DiagnoseWithOptions(enabled) error: %v", err)
 			}
@@ -58,7 +112,7 @@ func TestDiagnose_NoAlienHintsFlagSuppressesAlienDiagnostics(t *testing.T) {
 				t.Fatalf("expected no errors for valid fixture, got errors: %+v", resEnabled.Bag.Items())
 			}
 
-			resDisabled, err := DiagnoseWithOptions(context.Background(), fixture.Path, optsDisabled)
+			resDisabled, err := DiagnoseWithOptions(context.Background(), path, optsDisabled)
 			if err != nil {
 				t.Fatalf("DiagnoseWithOptions(disabled) error: %v", err)
 			}

@@ -189,7 +189,11 @@ func isRustImplTraitHint(h dialect.Hint) bool {
 }
 
 func rustImplTraitMessage(dialect.Hint) string {
-	return "Looks like Rust `impl`/`trait` syntax. In Surge, use `contract` + `extern<T>`."
+	return dialect.RenderAlienHint(dialect.DialectRust, dialect.RenderInput{
+		Kind:         dialect.AlienHintImplTrait,
+		Detected:     "`impl` / `trait` syntax",
+		SurgeExample: "contract Derive<T> { fn derive(self: T) -> string; } extern<Foo> { fn derive(self: &Foo) -> string { return \"\"; } }",
+	})
 }
 
 func isRustAttributeHint(h dialect.Hint) bool {
@@ -197,7 +201,11 @@ func isRustAttributeHint(h dialect.Hint) bool {
 }
 
 func rustAttributeMessage(dialect.Hint) string {
-	return "Rust attribute syntax `#[...]` detected. Surge uses `@name(args)` (e.g. `@align(8)`)."
+	return dialect.RenderAlienHint(dialect.DialectRust, dialect.RenderInput{
+		Kind:         dialect.AlienHintAttribute,
+		Detected:     "attribute syntax `#[...]`",
+		SurgeExample: "@align(8) type Foo = { x: int };",
+	})
 }
 
 func isRustMacroHint(h dialect.Hint) bool {
@@ -209,9 +217,17 @@ func isRustMacroHint(h dialect.Hint) bool {
 
 func rustMacroMessage(h dialect.Hint) string {
 	if strings.Contains(h.Reason, "`println!`") {
-		return "Rust macro call `println!(...)` detected. In Surge, use `print(...)`."
+		return dialect.RenderAlienHint(dialect.DialectRust, dialect.RenderInput{
+			Kind:         dialect.AlienHintMacroCall,
+			Detected:     "macro call `println!(...)`",
+			SurgeExample: "print(\"hi\");",
+		})
 	}
-	return "Rust macro call syntax `ident!(...)` detected. Surge doesn’t have `!` macros; try a normal call `name(...)`."
+	return dialect.RenderAlienHint(dialect.DialectRust, dialect.RenderInput{
+		Kind:         dialect.AlienHintMacroCall,
+		Detected:     "macro call syntax `name!(...)`",
+		SurgeExample: "name();",
+	})
 }
 
 func isGoDeferHint(h dialect.Hint) bool {
@@ -219,7 +235,11 @@ func isGoDeferHint(h dialect.Hint) bool {
 }
 
 func goDeferMessage(dialect.Hint) string {
-	return "Go `defer` detected. Surge doesn’t have `defer`; use explicit scope/cleanup (or a `@raii` type)."
+	return dialect.RenderAlienHint(dialect.DialectGo, dialect.RenderInput{
+		Kind:         dialect.AlienHintGoDefer,
+		Detected:     "`defer`",
+		SurgeExample: "@raii type Resource = { handle: int };",
+	})
 }
 
 func isTSInterfaceHint(h dialect.Hint) bool {
@@ -227,7 +247,11 @@ func isTSInterfaceHint(h dialect.Hint) bool {
 }
 
 func tsInterfaceMessage(dialect.Hint) string {
-	return "TypeScript `interface`/`extends` style detected. In Surge, use `contract` (structural) and `type Foo = { ... };` for data."
+	return dialect.RenderAlienHint(dialect.DialectTypeScript, dialect.RenderInput{
+		Kind:         dialect.AlienHintTSInterface,
+		Detected:     "`interface` / `extends`",
+		SurgeExample: "contract FooLike<T> { fn foo(self: T) -> int; } type Foo = { foo: int };",
+	})
 }
 
 func maybeEmitAlienHintPythonNoneType(emitted map[diag.Code]struct{}, reporter diag.Reporter, e *dialect.Evidence, errs []*diag.Diagnostic) {
@@ -246,7 +270,12 @@ func maybeEmitAlienHintPythonNoneType(emitted map[diag.Code]struct{}, reporter d
 	if !anyUnknownTypeNoneError(errs, hint.Span) {
 		return
 	}
-	diag.ReportInfo(reporter, diag.AlnPythonNoneType, hint.Span, "Python `None` used as a type. In Surge, the absence type/value is `nothing` (or `type None = nothing;`).").Emit()
+	msg := dialect.RenderAlienHint(dialect.DialectPython, dialect.RenderInput{
+		Kind:         dialect.AlienHintPythonNoneType,
+		Detected:     "`None`",
+		SurgeExample: "fn foo() -> nothing { return; }",
+	})
+	diag.ReportInfo(reporter, diag.AlnPythonNoneType, hint.Span, msg).Emit()
 	emitted[diag.AlnPythonNoneType] = struct{}{}
 }
 
@@ -291,7 +320,12 @@ func maybeEmitAlienHintPythonNoneAlias(
 	if !ok {
 		return
 	}
-	diag.ReportInfo(reporter, diag.AlnPythonNoneAlias, span, "Python-style `None` alias detected. In Surge, the built-in absence type/value is `nothing` (the alias is optional).").Emit()
+	msg := dialect.RenderAlienHint(dialect.DialectPython, dialect.RenderInput{
+		Kind:         dialect.AlienHintPythonNoneAlias,
+		Detected:     "`None` alias",
+		SurgeExample: "fn foo() -> nothing { return; }",
+	})
+	diag.ReportInfo(reporter, diag.AlnPythonNoneAlias, span, msg).Emit()
 	emitted[diag.AlnPythonNoneAlias] = struct{}{}
 }
 

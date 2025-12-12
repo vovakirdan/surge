@@ -1,1 +1,1 @@
-info ALN8050 testdata/golden/sema/valid/alien_hints/python_none_alias.sg:5:13 Python-style `None` alias detected. In Surge, the built-in absence type/value is `nothing` (the alias is optional).
+info ALN8050 testdata/golden/sema/valid/alien_hints/python_none_alias.sg:5:13 None of that here. Python `None` alias detected. `nothing` is already built in; the `None` alias is optional. ```sg fn foo() -> nothing { return; } ```
