@@ -88,6 +88,9 @@ func ParseFile(
 	if file := arenas.Files.Get(p.file); file != nil && file.DialectEvidence == nil {
 		file.DialectEvidence = dialect.NewEvidence()
 	}
+	if file := arenas.Files.Get(p.file); file != nil {
+		p.lx.SetDialectEvidence(file.DialectEvidence)
+	}
 
 	p.parseItems()
 	var bag *diag.Bag
