@@ -16,6 +16,10 @@ type Options struct {
 	Symbols  *symbols.Result
 	Types    *types.Interner
 	Exports  map[string]*symbols.ModuleExports
+	// AlienHints toggles emission of optional "alien hints" diagnostics.
+	// When false, semantic diagnostics must behave exactly as before.
+	AlienHints bool
+	Bag        *diag.Bag
 }
 
 // Result stores semantic artefacts produced by the checker.
@@ -59,5 +63,8 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 		tracer:   trace.FromContext(ctx),
 	}
 	checker.run()
+	if opts.AlienHints {
+		emitAlienHints(builder, fileID, opts)
+	}
 	return res
 }

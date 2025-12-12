@@ -6,6 +6,7 @@ import (
 	"fortio.org/safecast"
 
 	"surge/internal/diag"
+	"surge/internal/dialect"
 	"surge/internal/source"
 	"surge/internal/token"
 )
@@ -13,11 +14,13 @@ import (
 const maxTokenLength = 64 * 1024 // hard limit in bytes to avoid pathological tokens
 
 type Lexer struct {
-	file   *source.File
-	cursor Cursor
-	opts   Options
-	look   *token.Token   // 1 элементный буфер для токена
-	hold   []token.Trivia // накопленные leading trivia
+	file    *source.File
+	cursor  Cursor
+	opts    Options
+	look    *token.Token   // 1 элементный буфер для токена
+	hold    []token.Trivia // накопленные leading trivia
+	last    token.Token
+	hasLast bool
 }
 
 func New(file *source.File, opts Options) *Lexer {
@@ -37,6 +40,8 @@ func (lx *Lexer) Next() token.Token {
 	if lx.look != nil {
 		tok := *lx.look
 		lx.look = nil
+		lx.last = tok
+		lx.hasLast = true
 		return tok
 	}
 
@@ -87,6 +92,12 @@ func (lx *Lexer) Next() token.Token {
 	lx.hold = nil
 
 	lx.enforceTokenLength(&tok)
+
+	if lx.opts.DialectEvidence != nil && lx.hasLast {
+		dialect.ObserveTokenPair(lx.opts.DialectEvidence, lx.last, tok)
+	}
+	lx.last = tok
+	lx.hasLast = true
 
 	// 6) Вернуть токен
 	return tok

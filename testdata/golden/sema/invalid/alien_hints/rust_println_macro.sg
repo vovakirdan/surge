@@ -1,0 +1,4 @@
+fn main() -> nothing {
+    println!("hi");
+    return nothing;
+}

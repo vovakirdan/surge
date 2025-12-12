@@ -1,0 +1,7 @@
+  1: Ident           "interface" at 1:1-1:10
+  2: Ident           "Foo" at 1:11-1:14 (leading: Space)
+  3: Ident           "extends" at 1:15-1:22 (leading: Space)
+  4: Ident           "Bar" at 1:23-1:26 (leading: Space)
+  5: LBrace          "{" at 1:27-1:28 (leading: Space)
+  6: RBrace          "}" at 1:29-1:30 (leading: Space)
+  7: EOF             at 3:1-3:1

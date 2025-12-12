@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"surge/internal/dialect"
 	"surge/internal/token"
 )
 
@@ -48,14 +49,17 @@ func (lx *Lexer) scanIdentOrKeyword() token.Token {
 
 	sp := lx.cursor.SpanFrom(start)
 	lex := lx.file.Content[sp.Start:sp.End]
+	text := string(lex)
 
 	if len(lex) == 1 && lex[0] == '_' {
-		return token.Token{Kind: token.Underscore, Span: sp, Text: string(lex)}
+		return token.Token{Kind: token.Underscore, Span: sp, Text: text}
 	}
 
 	// Проверка на ключевое слово (регистрозависимо)
-	if k, ok := token.LookupKeyword(string(lex)); ok {
-		return token.Token{Kind: k, Span: sp, Text: string(lex)}
+	if k, ok := token.LookupKeyword(text); ok {
+		return token.Token{Kind: k, Span: sp, Text: text}
 	}
-	return token.Token{Kind: token.Ident, Span: sp, Text: string(lex)}
+
+	dialect.RecordIdent(lx.opts.DialectEvidence, text, sp)
+	return token.Token{Kind: token.Ident, Span: sp, Text: text}
 }

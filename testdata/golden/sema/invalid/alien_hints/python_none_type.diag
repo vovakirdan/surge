@@ -1,0 +1,2 @@
+error SEM3005 testdata/golden/sema/invalid/alien_hints/python_none_type.sg:1:13 unknown type None
+info ALN8010 testdata/golden/sema/invalid/alien_hints/python_none_type.sg:1:13 None of that here. Python `None` detected. In Surge, the absence type/value is `nothing`. ```sg fn foo() -> nothing { return; } ```

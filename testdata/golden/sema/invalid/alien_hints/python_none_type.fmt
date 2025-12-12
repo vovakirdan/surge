@@ -1,0 +1,4 @@
+fn foo() -> None {
+    return nothing;
+}
+

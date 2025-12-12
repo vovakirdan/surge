@@ -34,6 +34,7 @@ func init() {
 	diagCmd.Flags().String("stages", "all", "diagnostic stages to run (tokenize|syntax|sema|all)")
 	diagCmd.Flags().Bool("no-warnings", false, "ignore warnings in diagnostics")
 	diagCmd.Flags().Bool("warnings-as-errors", false, "treat warnings as errors")
+	diagCmd.Flags().Bool("no-alien-hints", false, "disable extra alien-hint diagnostics (enabled by default)")
 	diagCmd.Flags().Int("jobs", 0, "max parallel workers for directory processing (0=auto)")
 	diagCmd.Flags().Bool("with-notes", false, "include diagnostic notes in output")
 	diagCmd.Flags().Bool("suggest", false, "include fix suggestions in output")
@@ -88,6 +89,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	warningsAsErrors, err := cmd.Flags().GetBool("warnings-as-errors")
 	if err != nil {
 		return fmt.Errorf("failed to get warnings-as-errors flag: %w", err)
+	}
+
+	noAlienHints, err := cmd.Flags().GetBool("no-alien-hints")
+	if err != nil {
+		return fmt.Errorf("failed to get no-alien-hints flag: %w", err)
 	}
 
 	if noWarnings && warningsAsErrors {
@@ -179,6 +185,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		MaxDiagnostics:   maxDiagnostics,
 		IgnoreWarnings:   noWarnings,
 		WarningsAsErrors: warningsAsErrors,
+		NoAlienHints:     noAlienHints,
 		EnableTimings:    showTimings,
 		EnableDiskCache:  enableDiskCache,
 		DirectiveMode:    directiveMode,

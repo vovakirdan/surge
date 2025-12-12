@@ -1,0 +1,9 @@
+rust_impl_modifier.sg (span: 1:1-5:1)
+└─ Item[0]: Fn (span: 1:1-3:2)
+   ├─ Name: demo
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:23-3:2)
+         └─ Stmt[0]: Return (span: 2:5-2:14)
+            └─ Expr: expr#1: 1
