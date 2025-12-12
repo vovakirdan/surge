@@ -1,0 +1,3 @@
+error LEX1001 testdata/golden/sema/invalid/alien_hints/rust_attribute_hash.sg:1:1 unknown character '#' (0x23)
+error SYN2101 testdata/golden/sema/invalid/alien_hints/rust_attribute_hash.sg:1:1 unexpected top-level construct
+info ALN8002 testdata/golden/sema/invalid/alien_hints/rust_attribute_hash.sg:1:1 Rust attribute syntax `#[...]` detected. Surge uses `@name(args)` (e.g. `@align(8)`).

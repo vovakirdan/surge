@@ -1,0 +1,2 @@
+info ALN8003 testdata/golden/sema/invalid/alien_hints/rust_println_macro.sg:2:5 Rust macro call `println!(...)` detected. In Surge, use `print(...)`.
+error SYN2012 testdata/golden/sema/invalid/alien_hints/rust_println_macro.sg:2:12 expected ';' after expression statement

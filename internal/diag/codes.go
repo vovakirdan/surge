@@ -243,6 +243,14 @@ const (
 	FutSignalNotSupported   Code = 7000
 	FutParallelNotSupported Code = 7001
 	FutMacroNotSupported    Code = 7002
+
+	// Alien hints (8000-series; optional extra diagnostics)
+	AlnRustImplTrait  Code = 8001
+	AlnRustAttribute  Code = 8002
+	AlnRustMacroCall  Code = 8003
+	AlnGoDefer        Code = 8004
+	AlnTSInterface    Code = 8005
+	AlnPythonNoneType Code = 8010
 )
 
 var ( // todo расширить описания и использовать как notes
@@ -436,6 +444,12 @@ var ( // todo расширить описания и использовать к
 		FutSignalNotSupported:            "'signal' is not supported in v1, reserved for future use",
 		FutParallelNotSupported:          "'parallel' requires multi-threading (v2+)",
 		FutMacroNotSupported:             "'macro' is planned for v2+",
+		AlnRustImplTrait:                 "alien hint: rust impl/trait",
+		AlnRustAttribute:                 "alien hint: rust attribute syntax",
+		AlnRustMacroCall:                 "alien hint: rust macro call",
+		AlnGoDefer:                       "alien hint: go defer",
+		AlnTSInterface:                   "alien hint: typescript interface",
+		AlnPythonNoneType:                "alien hint: python None type",
 	}
 )
 
@@ -455,6 +469,8 @@ func (c Code) ID() string {
 		return fmt.Sprintf("OBS%04d", ic)
 	case ic >= 7000 && ic < 8000:
 		return fmt.Sprintf("FUT%04d", ic)
+	case ic >= 8000 && ic < 9000:
+		return fmt.Sprintf("ALN%04d", ic)
 	}
 	return "E0000"
 }

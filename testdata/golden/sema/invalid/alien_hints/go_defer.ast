@@ -1,0 +1,11 @@
+go_defer.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 1:1-4:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:22-4:2)
+         ├─ Stmt[0]: Expr (span: 2:5-2:18)
+         │  └─ Expr: expr#4: defer(foo())
+         └─ Stmt[1]: Return (span: 3:5-3:20)
+            └─ Expr: expr#5: nothing

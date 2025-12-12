@@ -296,6 +296,7 @@ func diagnoseSema(ctx context.Context, builder *ast.Builder, fileID ast.FileID, 
 		Symbols:    symbolsRes,
 		Exports:    exports,
 		AlienHints: alienHints,
+		Bag:        bag,
 	}
 	res := sema.Check(ctx, builder, fileID, opts)
 	return &res
@@ -311,6 +312,7 @@ func diagnoseSemaWithTypes(ctx context.Context, builder *ast.Builder, fileID ast
 		Exports:    exports,
 		Types:      typeInterner,
 		AlienHints: alienHints,
+		Bag:        bag,
 	}
 	res := sema.Check(ctx, builder, fileID, opts)
 	return &res

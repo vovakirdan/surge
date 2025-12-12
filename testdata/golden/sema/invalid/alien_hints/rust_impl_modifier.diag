@@ -1,0 +1,2 @@
+error SYN2205 testdata/golden/sema/invalid/alien_hints/rust_impl_modifier.sg:1:1 unknown function modifier 'impl'
+info ALN8001 testdata/golden/sema/invalid/alien_hints/rust_impl_modifier.sg:1:1 Looks like Rust `impl`/`trait` syntax. In Surge, use `contract` + `extern<T>`.

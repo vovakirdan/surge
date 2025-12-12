@@ -204,6 +204,7 @@ func resolveModuleRecord(
 			Exports:    moduleExports,
 			Types:      typeInterner,
 			AlienHints: !opts.NoAlienHints,
+			Bag:        bag,
 		})
 		rec.Sema[fileID] = &semaRes
 	}
