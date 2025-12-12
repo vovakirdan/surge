@@ -22,13 +22,17 @@ func TestDiagnose_NoAlienHintsFlagSuppressesAlienDiagnostics(t *testing.T) {
 
 	t.Setenv("SURGE_STDLIB", projectRoot)
 
-	fixtures := []string{
-		filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "rust_impl_modifier.sg"),
-		filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "rust_attribute_hash.sg"),
-		filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "rust_println_macro.sg"),
-		filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "go_defer.sg"),
-		filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "ts_interface_extends.sg"),
-		filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "python_none_type.sg"),
+	fixtures := []struct {
+		Path       string
+		WantErrors bool
+	}{
+		{Path: filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "rust_impl_modifier.sg"), WantErrors: true},
+		{Path: filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "rust_attribute_hash.sg"), WantErrors: true},
+		{Path: filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "rust_println_macro.sg"), WantErrors: true},
+		{Path: filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "go_defer.sg"), WantErrors: true},
+		{Path: filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "ts_interface_extends.sg"), WantErrors: true},
+		{Path: filepath.Join("testdata", "golden", "sema", "invalid", "alien_hints", "python_none_type.sg"), WantErrors: true},
+		{Path: filepath.Join("testdata", "golden", "sema", "valid", "alien_hints", "python_none_alias.sg"), WantErrors: false},
 	}
 
 	optsEnabled := DiagnoseOptions{
@@ -39,21 +43,33 @@ func TestDiagnose_NoAlienHintsFlagSuppressesAlienDiagnostics(t *testing.T) {
 	optsDisabled.NoAlienHints = true
 
 	for _, fixture := range fixtures {
-		t.Run(fixture, func(t *testing.T) {
-			resEnabled, err := DiagnoseWithOptions(context.Background(), fixture, optsEnabled)
+		t.Run(fixture.Path, func(t *testing.T) {
+			resEnabled, err := DiagnoseWithOptions(context.Background(), fixture.Path, optsEnabled)
 			if err != nil {
 				t.Fatalf("DiagnoseWithOptions(enabled) error: %v", err)
 			}
-			if resEnabled.Bag == nil || !resEnabled.Bag.HasErrors() {
+			if resEnabled.Bag == nil {
+				t.Fatalf("missing diagnostic bag for enabled run: %+v", resEnabled)
+			}
+			if fixture.WantErrors && !resEnabled.Bag.HasErrors() {
 				t.Fatalf("expected base errors for fixture, got none: %+v", resEnabled)
 			}
+			if !fixture.WantErrors && resEnabled.Bag.HasErrors() {
+				t.Fatalf("expected no errors for valid fixture, got errors: %+v", resEnabled.Bag.Items())
+			}
 
-			resDisabled, err := DiagnoseWithOptions(context.Background(), fixture, optsDisabled)
+			resDisabled, err := DiagnoseWithOptions(context.Background(), fixture.Path, optsDisabled)
 			if err != nil {
 				t.Fatalf("DiagnoseWithOptions(disabled) error: %v", err)
 			}
-			if resDisabled.Bag == nil || !resDisabled.Bag.HasErrors() {
+			if resDisabled.Bag == nil {
+				t.Fatalf("missing diagnostic bag for disabled run: %+v", resDisabled)
+			}
+			if fixture.WantErrors && !resDisabled.Bag.HasErrors() {
 				t.Fatalf("expected base errors for fixture with --no-alien-hints, got none: %+v", resDisabled)
+			}
+			if !fixture.WantErrors && resDisabled.Bag.HasErrors() {
+				t.Fatalf("expected no errors for valid fixture with --no-alien-hints, got errors: %+v", resDisabled.Bag.Items())
 			}
 
 			enabledAlienCount := countAlienHintDiagnostics(resEnabled.Bag.Items())

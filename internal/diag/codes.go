@@ -245,12 +245,13 @@ const (
 	FutMacroNotSupported    Code = 7002
 
 	// Alien hints (8000-series; optional extra diagnostics)
-	AlnRustImplTrait  Code = 8001
-	AlnRustAttribute  Code = 8002
-	AlnRustMacroCall  Code = 8003
-	AlnGoDefer        Code = 8004
-	AlnTSInterface    Code = 8005
-	AlnPythonNoneType Code = 8010
+	AlnRustImplTrait   Code = 8001
+	AlnRustAttribute   Code = 8002
+	AlnRustMacroCall   Code = 8003
+	AlnGoDefer         Code = 8004
+	AlnTSInterface     Code = 8005
+	AlnPythonNoneType  Code = 8010
+	AlnPythonNoneAlias Code = 8050
 )
 
 var ( // todo расширить описания и использовать как notes
@@ -450,6 +451,7 @@ var ( // todo расширить описания и использовать к
 		AlnGoDefer:                       "alien hint: go defer",
 		AlnTSInterface:                   "alien hint: typescript interface",
 		AlnPythonNoneType:                "alien hint: python None type",
+		AlnPythonNoneAlias:               "alien hint: python None alias",
 	}
 )
 

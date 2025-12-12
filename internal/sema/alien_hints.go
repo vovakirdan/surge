@@ -36,34 +36,33 @@ func emitAlienHints(builder *ast.Builder, fileID ast.FileID, opts Options) {
 	}
 
 	file := builder.Files.Get(fileID)
-	if file == nil || file.DialectEvidence == nil {
+	if file == nil {
 		return
 	}
 	srcFileID := file.Span.File
 
 	errs := errorsInFile(bag, srcFileID)
-	if len(errs) == 0 {
-		return
+	emitted := make(map[diag.Code]struct{}, 6)
+
+	if len(errs) > 0 && file.DialectEvidence != nil {
+		classification := (dialect.Classifier{}).Classify(file.DialectEvidence)
+		if alienHintsEligible(classification) {
+			switch classification.Kind {
+			case dialect.DialectRust:
+				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustImplTrait, file.DialectEvidence, errs, isRustImplTraitHint, rustImplTraitMessage)
+				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustAttribute, file.DialectEvidence, errs, isRustAttributeHint, rustAttributeMessage)
+				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustMacroCall, file.DialectEvidence, errs, isRustMacroHint, rustMacroMessage)
+			case dialect.DialectGo:
+				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnGoDefer, file.DialectEvidence, errs, isGoDeferHint, goDeferMessage)
+			case dialect.DialectTypeScript:
+				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnTSInterface, file.DialectEvidence, errs, isTSInterfaceHint, tsInterfaceMessage)
+			case dialect.DialectPython:
+				maybeEmitAlienHintPythonNoneType(emitted, opts.Reporter, file.DialectEvidence, errs)
+			}
+		}
 	}
 
-	classification := (dialect.Classifier{}).Classify(file.DialectEvidence)
-	if !alienHintsEligible(classification) {
-		return
-	}
-
-	emitted := make(map[diag.Code]struct{}, 4)
-	switch classification.Kind {
-	case dialect.DialectRust:
-		maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustImplTrait, file.DialectEvidence, errs, isRustImplTraitHint, rustImplTraitMessage)
-		maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustAttribute, file.DialectEvidence, errs, isRustAttributeHint, rustAttributeMessage)
-		maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustMacroCall, file.DialectEvidence, errs, isRustMacroHint, rustMacroMessage)
-	case dialect.DialectGo:
-		maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnGoDefer, file.DialectEvidence, errs, isGoDeferHint, goDeferMessage)
-	case dialect.DialectTypeScript:
-		maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnTSInterface, file.DialectEvidence, errs, isTSInterfaceHint, tsInterfaceMessage)
-	case dialect.DialectPython:
-		maybeEmitAlienHintPythonNoneType(emitted, opts.Reporter, file.DialectEvidence, errs)
-	}
+	maybeEmitAlienHintPythonNoneAlias(emitted, opts.Reporter, builder, file, errs)
 }
 
 func errorsInFile(bag *diag.Bag, fileID source.FileID) []*diag.Diagnostic {
@@ -267,4 +266,94 @@ func anyUnknownTypeNoneError(errs []*diag.Diagnostic, sp source.Span) bool {
 		}
 	}
 	return false
+}
+
+func maybeEmitAlienHintPythonNoneAlias(
+	emitted map[diag.Code]struct{},
+	reporter diag.Reporter,
+	builder *ast.Builder,
+	file *ast.File,
+	errs []*diag.Diagnostic,
+) {
+	if reporter == nil || builder == nil || file == nil {
+		return
+	}
+	if _, ok := emitted[diag.AlnPythonNoneAlias]; ok {
+		return
+	}
+	if len(errs) != 0 {
+		return
+	}
+	if !hasTypeAliasNoneToNothing(builder, file) {
+		return
+	}
+	span, ok := firstExplicitReturnTypeSpan(builder, file, "None")
+	if !ok {
+		return
+	}
+	diag.ReportInfo(reporter, diag.AlnPythonNoneAlias, span, "Python-style `None` alias detected. In Surge, the built-in absence type/value is `nothing` (the alias is optional).").Emit()
+	emitted[diag.AlnPythonNoneAlias] = struct{}{}
+}
+
+func hasTypeAliasNoneToNothing(builder *ast.Builder, file *ast.File) bool {
+	if builder == nil || builder.Items == nil || builder.Types == nil || builder.StringsInterner == nil || file == nil {
+		return false
+	}
+	for _, itemID := range file.Items {
+		typeItem, ok := builder.Items.Type(itemID)
+		if !ok || typeItem.Kind != ast.TypeDeclAlias {
+			continue
+		}
+		name, ok := builder.StringsInterner.Lookup(typeItem.Name)
+		if !ok || name != "None" {
+			continue
+		}
+		alias := builder.Items.TypeAlias(typeItem)
+		if alias == nil {
+			continue
+		}
+		if typeExprIsBarePath(builder, alias.Target, "nothing") {
+			return true
+		}
+	}
+	return false
+}
+
+func firstExplicitReturnTypeSpan(builder *ast.Builder, file *ast.File, typeName string) (source.Span, bool) {
+	if builder == nil || builder.Items == nil || builder.Types == nil || file == nil {
+		return source.Span{}, false
+	}
+	for _, itemID := range file.Items {
+		fn, ok := builder.Items.Fn(itemID)
+		if !ok || fn == nil {
+			continue
+		}
+		if fn.ReturnSpan == (source.Span{}) {
+			continue
+		}
+		if !typeExprIsBarePath(builder, fn.ReturnType, typeName) {
+			continue
+		}
+		if typeExpr := builder.Types.Get(fn.ReturnType); typeExpr != nil {
+			return typeExpr.Span, true
+		}
+		return fn.ReturnSpan, true
+	}
+	return source.Span{}, false
+}
+
+func typeExprIsBarePath(builder *ast.Builder, typeID ast.TypeID, name string) bool {
+	if builder == nil || builder.Types == nil || builder.StringsInterner == nil || typeID == ast.NoTypeID {
+		return false
+	}
+	path, ok := builder.Types.Path(typeID)
+	if !ok || len(path.Segments) != 1 {
+		return false
+	}
+	seg := path.Segments[0]
+	if len(seg.Generics) != 0 {
+		return false
+	}
+	segName, ok := builder.StringsInterner.Lookup(seg.Name)
+	return ok && segName == name
 }
