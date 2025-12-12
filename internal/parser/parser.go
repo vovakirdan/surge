@@ -8,6 +8,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/dialect"
 	"surge/internal/fix"
 	"surge/internal/lexer"
 	"surge/internal/source"
@@ -83,6 +84,9 @@ func ParseFile(
 		opts:     opts,
 		lastSpan: lx.EmptySpan(), // инициализируем с пустым span
 		tracer:   trace.FromContext(ctx),
+	}
+	if file := arenas.Files.Get(p.file); file != nil && file.DialectEvidence == nil {
+		file.DialectEvidence = dialect.NewEvidence()
 	}
 
 	p.parseItems()

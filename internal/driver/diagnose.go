@@ -61,6 +61,7 @@ type DiagnoseOptions struct {
 	MaxDiagnostics   int
 	IgnoreWarnings   bool
 	WarningsAsErrors bool
+	NoAlienHints     bool // Disable extra alien-hint diagnostics (enabled by default)
 	EnableTimings    bool
 	EnableDiskCache  bool                 // Enable persistent disk cache (experimental, adds I/O overhead)
 	DirectiveMode    parser.DirectiveMode // Directive processing mode (off, collect, gen, run)
@@ -88,6 +89,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 	if opts.EnableTimings {
 		timer = observ.NewTimer()
 	}
+	alienHintsEnabled := !opts.NoAlienHints
 	sharedStrings := source.NewInterner()
 	begin := func(name string) int {
 		if timer == nil {
@@ -205,7 +207,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 			if semaRes == nil {
 				semaIdx := begin("sema")
 				semaSpan := trace.Begin(tracer, trace.ScopePass, "sema", diagSpan.ID())
-				semaRes = diagnoseSemaWithTypes(ctx, builder, astFile, bag, moduleExports, symbolsRes, sharedTypes)
+				semaRes = diagnoseSemaWithTypes(ctx, builder, astFile, bag, moduleExports, symbolsRes, sharedTypes, alienHintsEnabled)
 				semaSpan.End("")
 				end(semaIdx, "")
 			}
@@ -285,28 +287,30 @@ func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, mod
 	return &res
 }
 
-func diagnoseSema(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result) *sema.Result {
+func diagnoseSema(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, alienHints bool) *sema.Result {
 	if builder == nil || fileID == ast.NoFileID {
 		return nil
 	}
 	opts := sema.Options{
-		Reporter: &diag.BagReporter{Bag: bag},
-		Symbols:  symbolsRes,
-		Exports:  exports,
+		Reporter:   &diag.BagReporter{Bag: bag},
+		Symbols:    symbolsRes,
+		Exports:    exports,
+		AlienHints: alienHints,
 	}
 	res := sema.Check(ctx, builder, fileID, opts)
 	return &res
 }
 
-func diagnoseSemaWithTypes(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, typeInterner *types.Interner) *sema.Result {
+func diagnoseSemaWithTypes(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, typeInterner *types.Interner, alienHints bool) *sema.Result {
 	if builder == nil || fileID == ast.NoFileID {
 		return nil
 	}
 	opts := sema.Options{
-		Reporter: &diag.BagReporter{Bag: bag},
-		Symbols:  symbolsRes,
-		Exports:  exports,
-		Types:    typeInterner,
+		Reporter:   &diag.BagReporter{Bag: bag},
+		Symbols:    symbolsRes,
+		Exports:    exports,
+		Types:      typeInterner,
+		AlienHints: alienHints,
 	}
 	res := sema.Check(ctx, builder, fileID, opts)
 	return &res

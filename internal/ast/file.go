@@ -1,14 +1,18 @@
 package ast
 
 import (
+	"surge/internal/dialect"
 	"surge/internal/source"
 )
 
 type File struct {
-	Span       source.Span
-	Items      []ItemID
-	Pragma     Pragma
-	Directives []DirectiveBlock
+	Span source.Span
+	// DialectEvidence records "alien dialect" signals collected during parsing.
+	// It is always safe to ignore; it never affects parsing or semantic behavior.
+	DialectEvidence *dialect.Evidence
+	Items           []ItemID
+	Pragma          Pragma
+	Directives      []DirectiveBlock
 }
 
 type Files struct {

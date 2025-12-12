@@ -199,10 +199,11 @@ func resolveModuleRecord(
 		}
 		rec.Symbols[fileID] = res
 		semaRes := sema.Check(ctx, rec.Builder, fileID, sema.Options{
-			Reporter: reporter,
-			Symbols:  &res,
-			Exports:  moduleExports,
-			Types:    typeInterner,
+			Reporter:   reporter,
+			Symbols:    &res,
+			Exports:    moduleExports,
+			Types:      typeInterner,
+			AlienHints: !opts.NoAlienHints,
 		})
 		rec.Sema[fileID] = &semaRes
 	}

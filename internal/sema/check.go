@@ -16,6 +16,9 @@ type Options struct {
 	Symbols  *symbols.Result
 	Types    *types.Interner
 	Exports  map[string]*symbols.ModuleExports
+	// AlienHints toggles emission of optional "alien hints" diagnostics.
+	// When false, semantic diagnostics must behave exactly as before.
+	AlienHints bool
 }
 
 // Result stores semantic artefacts produced by the checker.
