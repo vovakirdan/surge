@@ -1,0 +1,20 @@
+drop_releases_borrow.sg (span: 1:1-8:1)
+└─ Item[0]: Fn (span: 1:1-6:2)
+   ├─ Name: t
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:8-6:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:24)
+         │  ├─ Name: x
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         ├─ Stmt[1]: Let (span: 3:5-3:22)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &int
+         │  └─ Value: expr#3: &x
+         ├─ Stmt[2]: StmtKind(12) (span: 4:5-4:13)
+         └─ Stmt[3]: Expr (span: 5:5-5:11)
+            └─ Expr: expr#7: (x = 2)

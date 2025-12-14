@@ -144,6 +144,7 @@ func (l *lowerer) lowerFnParams(fnItemID ast.ItemID, fnItem *ast.FnItem) []Param
 		// Try to get parameter type from sema bindings
 		if fnScope.IsValid() && param.Name != 0 {
 			symID := l.symbolInScope(fnScope, param.Name, symbols.SymbolParam)
+			p.SymbolID = symID
 			if symID.IsValid() && l.semaRes != nil && l.semaRes.BindingTypes != nil {
 				p.Type = l.semaRes.BindingTypes[symID]
 			}

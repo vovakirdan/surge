@@ -1,0 +1,22 @@
+mut_borrow_excludes_other.sg (span: 1:1-7:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: t
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:8-5:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:24)
+         │  ├─ Name: x
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         ├─ Stmt[1]: Let (span: 3:5-3:30)
+         │  ├─ Name: m
+         │  ├─ Mutable: false
+         │  ├─ Type: &mut int
+         │  └─ Value: expr#3: &mut x
+         └─ Stmt[2]: Let (span: 4:5-4:22)
+            ├─ Name: r
+            ├─ Mutable: false
+            ├─ Type: &int
+            └─ Value: expr#5: &x

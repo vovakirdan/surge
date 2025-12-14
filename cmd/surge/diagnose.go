@@ -44,6 +44,7 @@ func init() {
 	diagCmd.Flags().String("directives", "off", "directive processing mode (off|collect|gen|run)")
 	diagCmd.Flags().String("directives-filter", "test", "comma-separated directive namespaces to process")
 	diagCmd.Flags().Bool("emit-hir", false, "emit HIR (High-level IR) representation after successful analysis")
+	diagCmd.Flags().Bool("emit-borrow", false, "emit borrow graph + move plan (requires HIR)")
 }
 
 // runDiagnose executes the "diag" command: it parses command flags, runs diagnostics
@@ -138,6 +139,13 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	emitHIR, err := cmd.Flags().GetBool("emit-hir")
 	if err != nil {
 		return fmt.Errorf("failed to get emit-hir flag: %w", err)
+	}
+	emitBorrow, err := cmd.Flags().GetBool("emit-borrow")
+	if err != nil {
+		return fmt.Errorf("failed to get emit-borrow flag: %w", err)
+	}
+	if emitBorrow {
+		emitHIR = true
 	}
 
 	// Parse comma-separated filter
@@ -290,11 +298,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		// Emit HIR if requested
+		// Emit HIR (+ optional borrow artefacts) if requested
 		if emitHIR && result.HIR != nil && result.Sema != nil {
 			fmt.Fprintln(os.Stdout, "\n== HIR ==")
 			var interner = result.Sema.TypeInterner
-			if err := hir.Dump(os.Stdout, result.HIR, interner); err != nil {
+			if err := hir.DumpWithOptions(os.Stdout, result.HIR, interner, hir.DumpOptions{EmitBorrow: emitBorrow}); err != nil {
 				return 0, fmt.Errorf("failed to dump HIR: %w", err)
 			}
 		}

@@ -1,0 +1,30 @@
+spawn_escape.sg (span: 1:1-9:1)
+├─ Item[0]: Fn (span: 1:1-1:29)
+│  ├─ Name: use_ref
+│  ├─ Params: (x: &int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:27-1:29)
+└─ Item[1]: Fn (span: 3:1-8:2)
+   ├─ Name: t
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:14-8:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:24)
+         │  ├─ Name: x
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         ├─ Stmt[1]: Let (span: 5:5-5:22)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &int
+         │  └─ Value: expr#3: &x
+         ├─ Stmt[2]: Let (span: 6:5-6:33)
+         │  ├─ Name: task
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#7: spawn use_ref(r)
+         └─ Stmt[3]: Expr (span: 7:5-7:18)
+            └─ Expr: expr#10: task.await()

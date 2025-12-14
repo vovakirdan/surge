@@ -1,0 +1,1 @@
+error SEM3018 testdata/golden/hir_borrow/invalid/mut_borrow_excludes_other.sg:4:19 cannot take shared borrow of 'x' while an exclusive borrow is active

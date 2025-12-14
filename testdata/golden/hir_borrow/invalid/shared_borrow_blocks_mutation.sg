@@ -1,0 +1,6 @@
+fn t() {
+    let mut x: int = 1;
+    let r: &int = &x;
+    x = 2;
+}
+

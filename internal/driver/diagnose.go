@@ -251,10 +251,10 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 
 	// Build HIR if requested and sema succeeded
 	var hirModule *hir.Module
-	if opts.EmitHIR && semaRes != nil && builder != nil && astFile != ast.NoFileID && !bag.HasErrors() {
+	if opts.EmitHIR && semaRes != nil && builder != nil && astFile != ast.NoFileID {
 		hirIdx := begin("hir")
 		hirSpan := trace.Begin(tracer, trace.ScopePass, "hir", diagSpan.ID())
-		hirModule, _ = hir.Lower(builder, astFile, semaRes, symbolsRes) //nolint:errcheck // HIR errors are non-fatal
+		hirModule, _ = hir.Lower(ctx, builder, astFile, semaRes, symbolsRes) //nolint:errcheck // HIR errors are non-fatal
 		hirSpan.End("")
 		end(hirIdx, "")
 	}

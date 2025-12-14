@@ -211,6 +211,6 @@ func parseAndLower(t *testing.T, src string) (*hir.Module, *types.Interner, erro
 	semaRes := sema.Check(context.Background(), builder, result.File, semaOpts)
 
 	// Lower to HIR
-	module, err := hir.Lower(builder, result.File, &semaRes, &symbolsRes)
+	module, err := hir.Lower(context.Background(), builder, result.File, &semaRes, &symbolsRes)
 	return module, typeInterner, err
 }

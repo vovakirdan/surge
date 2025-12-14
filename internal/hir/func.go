@@ -82,6 +82,10 @@ type Func struct {
 	Result        types.TypeID     // Return type (NoTypeID for void/nothing)
 	Flags         FuncFlags        // Function modifiers
 	Body          *Block           // Function body (nil for intrinsics/externals)
+
+	// Borrow and MovePlan are derived artefacts produced from sema borrow checker data.
+	Borrow   *BorrowGraph
+	MovePlan *MovePlan
 }
 
 // IsAsync returns true if this is an async function.

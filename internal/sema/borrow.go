@@ -271,6 +271,19 @@ func (bt *BorrowTable) EndScope(scope symbols.ScopeID) {
 	delete(bt.scopeBorrows, scope)
 }
 
+// ScopeBorrows returns borrows whose lexical lifetime ends at scope.
+// The returned slice is a copy and is safe to retain.
+func (bt *BorrowTable) ScopeBorrows(scope symbols.ScopeID) []BorrowID {
+	if bt == nil || !scope.IsValid() {
+		return nil
+	}
+	ids := bt.scopeBorrows[scope]
+	if len(ids) == 0 {
+		return nil
+	}
+	return append([]BorrowID(nil), ids...)
+}
+
 // Info returns metadata for the borrow.
 func (bt *BorrowTable) Info(id BorrowID) *BorrowInfo {
 	if bt == nil || id == NoBorrowID || int(id) >= len(bt.infos) {

@@ -1,0 +1,1 @@
+error SEM3021 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:30 cannot send 'r' to a spawned task

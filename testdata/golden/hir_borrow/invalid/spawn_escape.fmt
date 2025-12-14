@@ -1,0 +1,8 @@
+async fn use_ref(x: &int) {}
+
+async fn t() {
+    let mut x: int = 1;
+    let r: &int = &x;
+    let task = spawn use_ref(r);
+    task.await();
+}

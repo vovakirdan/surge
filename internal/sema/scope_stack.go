@@ -8,6 +8,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 func (tc *typeChecker) buildScopeIndex() {
@@ -101,6 +102,26 @@ func (tc *typeChecker) leaveScope() {
 	top := tc.scopeStack[len(tc.scopeStack)-1]
 	tc.scopeStack = tc.scopeStack[:len(tc.scopeStack)-1]
 	if tc.borrow != nil {
+		if ids := tc.borrow.ScopeBorrows(top); len(ids) > 0 {
+			for _, id := range ids {
+				var place Place
+				if info := tc.borrow.Info(id); info != nil {
+					place = info.Place
+				}
+				var binding symbols.SymbolID
+				if tc.borrowBindings != nil {
+					binding = tc.borrowBindings[id]
+				}
+				tc.recordBorrowEvent(&BorrowEvent{
+					Kind:    BorrowEvBorrowEnd,
+					Borrow:  id,
+					Place:   place,
+					Binding: binding,
+					Scope:   top,
+					Note:    "scope_end",
+				})
+			}
+		}
 		tc.borrow.EndScope(top)
 	}
 	// Check for task leaks (structured concurrency)
@@ -156,6 +177,23 @@ func (tc *typeChecker) flushBorrowResults() {
 	}
 	if infos := tc.borrow.Infos(); len(infos) > 0 {
 		tc.result.Borrows = infos
+	}
+	if len(tc.borrowEvents) > 0 {
+		tc.result.BorrowEvents = append([]BorrowEvent(nil), tc.borrowEvents...)
+	}
+	if len(tc.borrowBindings) > 0 {
+		out := make(map[BorrowID]symbols.SymbolID, len(tc.borrowBindings))
+		for k, v := range tc.borrowBindings {
+			out[k] = v
+		}
+		tc.result.BorrowBindings = out
+	}
+	if len(tc.copyTypes) > 0 {
+		out := make(map[types.TypeID]struct{}, len(tc.copyTypes))
+		for k, v := range tc.copyTypes {
+			out[k] = v
+		}
+		tc.result.CopyTypes = out
 	}
 }
 

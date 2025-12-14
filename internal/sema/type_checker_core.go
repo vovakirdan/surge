@@ -28,15 +28,18 @@ type assignabilityKey struct {
 }
 
 type typeChecker struct {
-	builder  *ast.Builder
-	fileID   ast.FileID
-	reporter diag.Reporter
-	symbols  *symbols.Result
-	result   *Result
-	types    *types.Interner
-	exports  map[string]*symbols.ModuleExports
-	magic    map[symbols.TypeKey]map[string][]*symbols.FunctionSignature
-	borrow   *BorrowTable
+	builder        *ast.Builder
+	fileID         ast.FileID
+	reporter       diag.Reporter
+	symbols        *symbols.Result
+	result         *Result
+	types          *types.Interner
+	exports        map[string]*symbols.ModuleExports
+	magic          map[symbols.TypeKey]map[string][]*symbols.FunctionSignature
+	borrow         *BorrowTable
+	borrowEvents   []BorrowEvent
+	borrowBindings map[BorrowID]symbols.SymbolID
+	copyTypes      map[types.TypeID]struct{}
 
 	tracer    trace.Tracer // трассировщик для отладки
 	exprDepth int          // глубина рекурсии для typeExpr
@@ -154,6 +157,9 @@ func (tc *typeChecker) run() {
 	tc.borrow = NewBorrowTable()
 	tc.bindingBorrow = make(map[symbols.SymbolID]BorrowID)
 	tc.bindingTypes = make(map[symbols.SymbolID]types.TypeID)
+	tc.borrowBindings = make(map[BorrowID]symbols.SymbolID)
+	tc.borrowEvents = tc.borrowEvents[:0]
+	tc.copyTypes = make(map[types.TypeID]struct{})
 	tc.constState = make(map[symbols.SymbolID]constEvalState)
 	tc.typeItems = make(map[ast.ItemID]types.TypeID)
 	tc.typeCache = make(map[typeCacheKey]types.TypeID)

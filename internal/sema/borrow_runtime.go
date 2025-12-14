@@ -85,6 +85,11 @@ func (tc *typeChecker) updateBindingValue(symID symbols.SymbolID, expr ast.ExprI
 	}
 	bid := tc.borrow.ExprBorrow(expr)
 	tc.bindingBorrow[symID] = bid
+	if bid != NoBorrowID && tc.borrowBindings != nil {
+		if _, exists := tc.borrowBindings[bid]; !exists {
+			tc.borrowBindings[bid] = symID
+		}
+	}
 }
 
 func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
@@ -109,9 +114,21 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 		return
 	}
 	issue := tc.borrow.MoveAllowed(place)
+	evSpan := span
+	if evSpan == (source.Span{}) {
+		evSpan = tc.exprSpan(expr)
+	}
+	tc.recordBorrowEvent(&BorrowEvent{
+		Kind:        BorrowEvMove,
+		Place:       place,
+		Span:        evSpan,
+		Scope:       tc.currentScope(),
+		Issue:       issue.Kind,
+		IssueBorrow: issue.Borrow,
+	})
 	if issue.Kind != BorrowIssueNone {
 		if span == (source.Span{}) {
-			span = tc.exprSpan(expr)
+			span = evSpan
 		}
 		tc.reportBorrowMove(place, span, issue)
 	}
@@ -250,7 +267,18 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 		}
 		kind = BorrowMut
 	}
-	if _, issue := tc.borrow.BeginBorrow(exprID, span, kind, place, scope, parent); issue.Kind != BorrowIssueNone {
+	bid, issue := tc.borrow.BeginBorrow(exprID, span, kind, place, scope, parent)
+	tc.recordBorrowEvent(&BorrowEvent{
+		Kind:        BorrowEvBorrowStart,
+		Borrow:      bid,
+		BorrowKind:  kind,
+		Place:       place,
+		Span:        span,
+		Scope:       scope,
+		Issue:       issue.Kind,
+		IssueBorrow: issue.Borrow,
+	})
+	if issue.Kind != BorrowIssueNone {
 		tc.reportBorrowConflict(place, span, issue, kind)
 	}
 }
@@ -270,8 +298,18 @@ func (tc *typeChecker) handleAssignment(op ast.ExprBinaryOp, left, right ast.Exp
 	if !place.IsValid() {
 		return
 	}
+	var issue BorrowIssue
 	if tc.borrow != nil {
-		if issue := tc.borrow.MutationAllowed(place); issue.Kind != BorrowIssueNone {
+		issue = tc.borrow.MutationAllowed(place)
+		tc.recordBorrowEvent(&BorrowEvent{
+			Kind:        BorrowEvWrite,
+			Place:       place,
+			Span:        span,
+			Scope:       tc.currentScope(),
+			Issue:       issue.Kind,
+			IssueBorrow: issue.Borrow,
+		})
+		if issue.Kind != BorrowIssueNone {
 			tc.reportBorrowMutation(place, span, issue)
 		}
 	}
@@ -316,6 +354,20 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 			if seen != nil {
 				seen[symID] = struct{}{}
 			}
+			var place Place
+			if tc.borrow != nil {
+				if info := tc.borrow.Info(bid); info != nil {
+					place = info.Place
+				}
+			}
+			tc.recordBorrowEvent(&BorrowEvent{
+				Kind:    BorrowEvSpawnEscape,
+				Borrow:  bid,
+				Place:   place,
+				Binding: symID,
+				Span:    node.Span,
+				Scope:   tc.currentScope(),
+			})
 			tc.reportSpawnThreadEscape(symID, node.Span, bid)
 		}
 		// Check @nosend attribute
@@ -477,13 +529,50 @@ func (tc *typeChecker) handleDrop(expr ast.ExprID, span source.Span) {
 	}
 	bid := tc.bindingBorrow[symID]
 	if bid == NoBorrowID {
+		tc.recordBorrowEvent(&BorrowEvent{
+			Kind:    BorrowEvDrop,
+			Binding: symID,
+			Span:    span,
+			Scope:   tc.currentScope(),
+			Note:    "invalid_drop_no_active_borrow",
+		})
 		tc.report(diag.SemaBorrowDropInvalid, span, "no active borrow to drop")
 		return
 	}
+	var place Place
+	if tc.borrow != nil {
+		if info := tc.borrow.Info(bid); info != nil {
+			place = info.Place
+		}
+	}
+	tc.recordBorrowEvent(&BorrowEvent{
+		Kind:    BorrowEvDrop,
+		Borrow:  bid,
+		Place:   place,
+		Binding: symID,
+		Span:    span,
+		Scope:   tc.currentScope(),
+	})
 	if tc.borrow != nil {
 		tc.borrow.DropBorrow(bid)
 	}
 	tc.bindingBorrow[symID] = NoBorrowID
+	tc.recordBorrowEvent(&BorrowEvent{
+		Kind:    BorrowEvBorrowEnd,
+		Borrow:  bid,
+		Place:   place,
+		Binding: symID,
+		Span:    span,
+		Scope:   tc.currentScope(),
+		Note:    "drop",
+	})
+}
+
+func (tc *typeChecker) recordBorrowEvent(ev *BorrowEvent) {
+	if tc == nil || ev == nil {
+		return
+	}
+	tc.borrowEvents = append(tc.borrowEvents, *ev)
 }
 
 func (tc *typeChecker) symbolFromID(id symbols.SymbolID) *symbols.Symbol {

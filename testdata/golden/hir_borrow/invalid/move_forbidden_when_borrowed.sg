@@ -1,0 +1,6 @@
+fn t() {
+    let x: string = "hi";
+    let r: &string = &x;
+    let y: string = x;
+}
+

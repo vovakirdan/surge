@@ -9,24 +9,34 @@ import (
 	"surge/internal/types"
 )
 
+type DumpOptions struct {
+	EmitBorrow bool
+}
+
 // Printer is used to dump HIR to text format.
 type Printer struct {
 	w        io.Writer
 	interner *types.Interner
 	indent   int
+	opts     DumpOptions
 }
 
 // NewPrinter creates a new HIR printer.
 func NewPrinter(w io.Writer, interner *types.Interner) *Printer {
-	return &Printer{
-		w:        w,
-		interner: interner,
-	}
+	return NewPrinterWithOptions(w, interner, DumpOptions{})
+}
+
+func NewPrinterWithOptions(w io.Writer, interner *types.Interner, opts DumpOptions) *Printer {
+	return &Printer{w: w, interner: interner, opts: opts}
 }
 
 // Dump writes the HIR module to the writer.
 func Dump(w io.Writer, m *Module, interner *types.Interner) error {
-	p := NewPrinter(w, interner)
+	return DumpWithOptions(w, m, interner, DumpOptions{})
+}
+
+func DumpWithOptions(w io.Writer, m *Module, interner *types.Interner, opts DumpOptions) error {
+	p := NewPrinterWithOptions(w, interner, opts)
 	return p.PrintModule(m)
 }
 
@@ -164,6 +174,10 @@ func (p *Printer) PrintFunc(f *Func) error {
 	}
 
 	p.printf("\n")
+
+	if p.opts.EmitBorrow {
+		p.printBorrowAndMovePlan(f)
+	}
 	return nil
 }
 

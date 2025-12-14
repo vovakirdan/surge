@@ -303,6 +303,12 @@ func (tc *typeChecker) recordTypeAttrs(typeID types.TypeID, infos []AttrInfo) {
 		tc.typeAttrs = make(map[types.TypeID][]AttrInfo)
 	}
 	tc.typeAttrs[typeID] = infos
+	if _, ok := hasAttr(infos, "copy"); ok && typeID != types.NoTypeID {
+		if tc.copyTypes == nil {
+			tc.copyTypes = make(map[types.TypeID]struct{})
+		}
+		tc.copyTypes[typeID] = struct{}{}
+	}
 }
 
 // typeHasAttr checks if a type has the specified attribute

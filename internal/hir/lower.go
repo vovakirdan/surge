@@ -1,6 +1,11 @@
 package hir
 
 import (
+	"context"
+	"fmt"
+
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/sema"
 	"surge/internal/source"
@@ -14,6 +19,7 @@ import (
 //
 // The lowering preserves high-level constructs like compare, for, async/spawn.
 func Lower(
+	ctx context.Context,
 	builder *ast.Builder,
 	fileID ast.FileID,
 	semaRes *sema.Result,
@@ -24,6 +30,7 @@ func Lower(
 	}
 
 	l := &lowerer{
+		ctx:      ctx,
 		builder:  builder,
 		semaRes:  semaRes,
 		symRes:   symRes,
@@ -31,20 +38,69 @@ func Lower(
 		nextFnID: 1,
 		module:   &Module{SourceAST: fileID},
 	}
+	l.stmtSymbols = buildStmtSymbolIndex(symRes, fileID)
 
 	l.lowerFile(fileID)
+
+	// Lift borrow checker artefacts into stable HIR-side structures.
+	for _, fn := range l.module.Funcs {
+		borrow, movePlan, _ := BuildBorrowGraph(ctx, fn, semaRes) //nolint:errcheck // best-effort debug artefact
+		fn.Borrow = borrow
+		fn.MovePlan = movePlan
+	}
 
 	return l.module, nil
 }
 
 // lowerer holds context for the lowering pass.
 type lowerer struct {
-	builder  *ast.Builder
-	semaRes  *sema.Result
-	symRes   *symbols.Result
-	strings  *source.Interner
-	module   *Module
-	nextFnID FuncID
+	ctx         context.Context
+	builder     *ast.Builder
+	semaRes     *sema.Result
+	symRes      *symbols.Result
+	strings     *source.Interner
+	module      *Module
+	nextFnID    FuncID
+	stmtSymbols map[ast.StmtID]symbols.SymbolID
+}
+
+func buildStmtSymbolIndex(symRes *symbols.Result, fileID ast.FileID) map[ast.StmtID]symbols.SymbolID {
+	if symRes == nil || symRes.Table == nil || symRes.Table.Symbols == nil {
+		return nil
+	}
+	data := symRes.Table.Symbols.Data()
+	if len(data) == 0 {
+		return nil
+	}
+	out := make(map[ast.StmtID]symbols.SymbolID)
+	for idx := range data {
+		sym := data[idx]
+		value, err := safecast.Conv[uint32](idx + 1)
+		if err != nil {
+			panic(fmt.Errorf("symbol index overflow: %w", err))
+		}
+		id := symbols.SymbolID(value)
+		if sym.Decl.ASTFile.IsValid() && sym.Decl.ASTFile != fileID {
+			continue
+		}
+		if sym.Decl.Stmt.IsValid() {
+			if _, exists := out[sym.Decl.Stmt]; exists {
+				continue
+			}
+			out[sym.Decl.Stmt] = id
+		}
+	}
+	return out
+}
+
+func (l *lowerer) symbolForStmt(id ast.StmtID) symbols.SymbolID {
+	if l == nil || l.stmtSymbols == nil {
+		return symbols.NoSymbolID
+	}
+	if sym, ok := l.stmtSymbols[id]; ok {
+		return sym
+	}
+	return symbols.NoSymbolID
 }
 
 // lowerFile processes all items in an AST file.

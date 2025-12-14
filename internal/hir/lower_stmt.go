@@ -125,9 +125,10 @@ func (l *lowerer) lowerLetStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
 	}
 
 	data := LetData{
-		Name:    l.lookupString(letStmt.Name),
-		IsMut:   letStmt.IsMut,
-		IsConst: false,
+		Name:     l.lookupString(letStmt.Name),
+		SymbolID: l.symbolForStmt(stmtID),
+		IsMut:    letStmt.IsMut,
+		IsConst:  false,
 	}
 
 	if letStmt.Type.IsValid() {
@@ -163,9 +164,10 @@ func (l *lowerer) lowerConstStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
 	}
 
 	data := LetData{
-		Name:    l.lookupString(constStmt.Name),
-		IsMut:   false,
-		IsConst: true,
+		Name:     l.lookupString(constStmt.Name),
+		SymbolID: l.symbolForStmt(stmtID),
+		IsMut:    false,
+		IsConst:  true,
 	}
 
 	if constStmt.Type.IsValid() {

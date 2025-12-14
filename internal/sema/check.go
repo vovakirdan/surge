@@ -24,10 +24,19 @@ type Options struct {
 
 // Result stores semantic artefacts produced by the checker.
 type Result struct {
-	TypeInterner           *types.Interner
-	ExprTypes              map[ast.ExprID]types.TypeID
-	ExprBorrows            map[ast.ExprID]BorrowID
-	Borrows                []BorrowInfo
+	TypeInterner *types.Interner
+	ExprTypes    map[ast.ExprID]types.TypeID
+	ExprBorrows  map[ast.ExprID]BorrowID
+	Borrows      []BorrowInfo
+	// BorrowBindings maps an active borrow (BorrowID) to the binding symbol that
+	// holds the reference value (best-effort, for debug/analysis passes).
+	BorrowBindings map[BorrowID]symbols.SymbolID
+	// BorrowEvents is a best-effort event log produced by the borrow checker
+	// (borrow start/end, moves, writes, drops, spawn escapes).
+	BorrowEvents []BorrowEvent
+	// CopyTypes records nominal types marked as Copy via @copy attribute.
+	// Builtin Copy-ness is queried via TypeInterner.
+	CopyTypes              map[types.TypeID]struct{}
 	FunctionInstantiations map[symbols.SymbolID][][]types.TypeID
 	ImplicitConversions    map[ast.ExprID]ImplicitConversion // Tracks implicit __to calls
 	BindingTypes           map[symbols.SymbolID]types.TypeID // Maps symbol IDs to their resolved types

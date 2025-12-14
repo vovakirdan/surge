@@ -1,0 +1,22 @@
+move_forbidden_when_borrowed.sg (span: 1:1-7:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: t
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:8-5:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:26)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#1: "hi"
+         ├─ Stmt[1]: Let (span: 3:5-3:25)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &string
+         │  └─ Value: expr#3: &x
+         └─ Stmt[2]: Let (span: 4:5-4:23)
+            ├─ Name: y
+            ├─ Mutable: false
+            ├─ Type: string
+            └─ Value: expr#4: x

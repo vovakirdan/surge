@@ -67,7 +67,12 @@ generate_outputs() {
 
 	# Generate HIR output for files in hir directory
 	if [[ "${src}" == *"/hir/"* ]]; then
-		"${SURGE_BIN}" diag --emit-hir "${src}" > "${dir}/${name}.hir" 2>&1 || true
+		"${SURGE_BIN}" diag --format short --emit-hir "${src}" > "${dir}/${name}.hir" 2>&1 || true
+	fi
+
+	# Generate HIR+borrow output for files in hir_borrow directory
+	if [[ "${src}" == *"/hir_borrow/"* ]]; then
+		"${SURGE_BIN}" diag --format short --emit-hir --emit-borrow "${src}" > "${dir}/${name}.hir" 2>&1 || true
 	fi
 }
 

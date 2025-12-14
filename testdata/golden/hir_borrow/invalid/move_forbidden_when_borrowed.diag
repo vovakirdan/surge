@@ -1,0 +1,1 @@
+error SEM3020 testdata/golden/hir_borrow/invalid/move_forbidden_when_borrowed.sg:4:21 cannot move 'x' while it is shared-borrowed

@@ -1,0 +1,33 @@
+error SEM3021 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:30 cannot send 'r' to a spawned task
+
+== HIR ==
+module 
+
+async fn use_ref(x: &int [&]) -> nothing (id=1, sym=518) {
+}
+
+borrow edges:
+  <none>
+events:
+  <none>
+move plan:
+  L1037(x): MoveCopy (copy type)
+
+async fn t() -> nothing (id=2, sym=519) {
+  let mut x: int [copy] = 1
+  let r: &int [&] = (& x): &int
+  let task: type#264 = spawn use_ref(r): type#264: type#264
+  return task.await(): nothing
+}
+
+borrow edges:
+  L1039(r) (&) borrows L1038(x) at 0:87-89 scope=S5
+events:
+  borrow_start L1039(r) -> L1038(x) (&) at 0:87-89 scope=S5 note="B1"
+  spawn_escape L1039(r) -> L1038(x) at 0:120-121 scope=S5 note="B1"
+  borrow_end L1039(r) -> L1038(x) scope=S5 note="scope_end B1"
+move plan:
+  L1038(x): MoveCopy (copy type)
+  L1039(r): MoveForbidden (spawn escape)
+  L1040(task): MoveNeedsDrop (non-copy (drop))
+
