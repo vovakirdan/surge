@@ -112,7 +112,11 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 			tc.recordImplicitConversionsForCall(sym, args)
 		}
-		tc.rememberFunctionInstantiation(bestSym, bestArgs)
+		note := "call"
+		if sym := tc.symbolFromID(bestSym); sym != nil && sym.Kind == symbols.SymbolTag {
+			note = "tag"
+		}
+		tc.rememberFunctionInstantiation(bestSym, bestArgs, span, note)
 		return bestType
 	}
 
@@ -126,7 +130,11 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 			tc.recordImplicitConversionsForCall(sym, args)
 		}
-		tc.rememberFunctionInstantiation(bestSym, bestArgs)
+		note := "call"
+		if sym := tc.symbolFromID(bestSym); sym != nil && sym.Kind == symbols.SymbolTag {
+			note = "tag"
+		}
+		tc.rememberFunctionInstantiation(bestSym, bestArgs, span, note)
 		return bestType
 	}
 

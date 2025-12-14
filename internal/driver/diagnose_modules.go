@@ -117,6 +117,7 @@ func resolveModuleRecord(
 	moduleExports map[string]*symbols.ModuleExports,
 	typeInterner *types.Interner,
 	opts DiagnoseOptions,
+	insts sema.InstantiationRecorder,
 ) *symbols.ModuleExports {
 	tracer := trace.FromContext(ctx)
 	span := trace.Begin(tracer, trace.ScopeModule, "resolve_module_record", 0)
@@ -199,12 +200,13 @@ func resolveModuleRecord(
 		}
 		rec.Symbols[fileID] = res
 		semaRes := sema.Check(ctx, rec.Builder, fileID, sema.Options{
-			Reporter:   reporter,
-			Symbols:    &res,
-			Exports:    moduleExports,
-			Types:      typeInterner,
-			AlienHints: !opts.NoAlienHints,
-			Bag:        bag,
+			Reporter:       reporter,
+			Symbols:        &res,
+			Exports:        moduleExports,
+			Types:          typeInterner,
+			AlienHints:     !opts.NoAlienHints,
+			Bag:            bag,
+			Instantiations: insts,
 		})
 		rec.Sema[fileID] = &semaRes
 	}
@@ -247,7 +249,7 @@ func collectModuleExports(
 			if rec == nil || normPath == normalizedRoot {
 				continue
 			}
-			if exp := resolveModuleRecord(ctx, rec, baseDir, exports, typeInterner, opts); exp != nil {
+			if exp := resolveModuleRecord(ctx, rec, baseDir, exports, typeInterner, opts, nil); exp != nil {
 				exports[normPath] = exp
 			}
 		}

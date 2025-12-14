@@ -1,0 +1,6 @@
+
+== INSTANTIATIONS ==
+fn id::<string>  uses=1
+  - at testdata/golden/instantiations/implicit_type_args.sg:5:13 caller=main note=call
+fn id::<int>  uses=1
+  - at testdata/golden/instantiations/implicit_type_args.sg:4:13 caller=main note=call

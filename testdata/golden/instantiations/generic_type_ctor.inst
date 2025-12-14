@@ -1,0 +1,4 @@
+
+== INSTANTIATIONS ==
+type Box::<int>  uses=1
+  - at testdata/golden/instantiations/generic_type_ctor.sg:4:13 caller=main note=ctor

@@ -119,7 +119,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					// instantiate the receiver type with the call's type arguments
 					if receiverIsType && len(call.TypeArgs) > 0 {
 						typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)
-						if instantiated := tc.instantiateGenericType(receiverType, typeArgs); instantiated != types.NoTypeID {
+						if instantiated := tc.instantiateGenericType(receiverType, typeArgs, expr.Span); instantiated != types.NoTypeID {
 							receiverType = instantiated
 						}
 					}

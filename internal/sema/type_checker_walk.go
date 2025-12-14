@@ -68,6 +68,8 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		}
 		scope := tc.scopeForItem(id)
 		symID := tc.typeSymbolForItem(id)
+		popFn := tc.pushFnSym(symID)
+		defer popFn()
 		paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetFnTypeParamIDs(fnItem), scope)
 		if len(paramSpecs) == 0 && len(fnItem.Generics) > 0 {
 			paramSpecs = specsFromNames(fnItem.Generics)

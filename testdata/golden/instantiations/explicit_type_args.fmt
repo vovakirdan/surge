@@ -1,0 +1,7 @@
+fn id<T>(x: T) -> T { return x; }
+
+fn main() {
+    let a = id::<int>(1);
+    let b = id::<string>("x");
+}
+

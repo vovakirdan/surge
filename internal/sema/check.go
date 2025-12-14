@@ -16,6 +16,8 @@ type Options struct {
 	Symbols  *symbols.Result
 	Types    *types.Interner
 	Exports  map[string]*symbols.ModuleExports
+	// Instantiations records generic instantiation use-sites (optional).
+	Instantiations InstantiationRecorder
 	// AlienHints toggles emission of optional "alien hints" diagnostics.
 	// When false, semantic diagnostics must behave exactly as before.
 	AlienHints bool
@@ -69,6 +71,7 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 		result:   &res,
 		types:    res.TypeInterner,
 		exports:  opts.Exports,
+		insts:    opts.Instantiations,
 		tracer:   trace.FromContext(ctx),
 	}
 	checker.run()

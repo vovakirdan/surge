@@ -40,6 +40,7 @@ type typeChecker struct {
 	borrowEvents   []BorrowEvent
 	borrowBindings map[BorrowID]symbols.SymbolID
 	copyTypes      map[types.TypeID]struct{}
+	insts          InstantiationRecorder
 
 	tracer    trace.Tracer // трассировщик для отладки
 	exprDepth int          // глубина рекурсии для typeExpr
@@ -64,6 +65,7 @@ type typeChecker struct {
 	awaitDepth                  int
 	asyncBlockDepth             int // Track nesting level of async blocks for error differentiation
 	returnStack                 []returnContext
+	fnSymStack                  []symbols.SymbolID // current function (for instantiation use-sites)
 	typeParams                  []map[source.StringID]types.TypeID
 	typeParamNames              map[types.TypeID]source.StringID
 	typeParamEnv                []uint32

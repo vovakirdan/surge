@@ -1,14 +1,25 @@
 package sema
 
 import (
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
-func (tc *typeChecker) rememberFunctionInstantiation(symID symbols.SymbolID, args []types.TypeID) {
+func (tc *typeChecker) rememberFunctionInstantiation(symID symbols.SymbolID, args []types.TypeID, site source.Span, note string) {
 	if !symID.IsValid() || len(args) == 0 || tc.result == nil {
 		return
 	}
+
+	if tc.insts != nil {
+		caller := tc.currentFnSym()
+		if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolTag {
+			tc.insts.RecordTagInstantiation(symID, args, site, caller, note)
+		} else {
+			tc.insts.RecordFnInstantiation(symID, args, site, caller, note)
+		}
+	}
+
 	if tc.fnInstantiationSeen == nil {
 		tc.fnInstantiationSeen = make(map[string]struct{})
 	}

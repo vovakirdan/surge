@@ -74,6 +74,11 @@ generate_outputs() {
 	if [[ "${src}" == *"/hir_borrow/"* ]]; then
 		"${SURGE_BIN}" diag --format short --emit-hir --emit-borrow "${src}" > "${dir}/${name}.hir" 2>&1 || true
 	fi
+
+	# Generate instantiation map output for files in instantiations directory
+	if [[ "${src}" == *"/instantiations/"* ]]; then
+		"${SURGE_BIN}" diag --format short --emit-instantiations "${src}" > "${dir}/${name}.inst" 2>&1 || true
+	fi
 }
 
 find "${GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r -d '' src; do

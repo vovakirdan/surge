@@ -139,7 +139,7 @@ func diagnoseModuleDirectory(
 	if moduleExports == nil {
 		moduleExports = make(map[string]*symbols.ModuleExports)
 	}
-	if exp := resolveModuleRecord(ctx, rec, fileSet.BaseDir(), moduleExports, typeInterner, opts); exp != nil {
+	if exp := resolveModuleRecord(ctx, rec, fileSet.BaseDir(), moduleExports, typeInterner, opts, nil); exp != nil {
 		moduleExports[normalizeExportsKey(meta.Path)] = exp
 	}
 

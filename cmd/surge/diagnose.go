@@ -13,6 +13,7 @@ import (
 	"surge/internal/directive"
 	"surge/internal/driver"
 	"surge/internal/hir"
+	"surge/internal/mono"
 	"surge/internal/parser"
 	"surge/internal/source"
 	"surge/internal/trace"
@@ -45,6 +46,7 @@ func init() {
 	diagCmd.Flags().String("directives-filter", "test", "comma-separated directive namespaces to process")
 	diagCmd.Flags().Bool("emit-hir", false, "emit HIR (High-level IR) representation after successful analysis")
 	diagCmd.Flags().Bool("emit-borrow", false, "emit borrow graph + move plan (requires HIR)")
+	diagCmd.Flags().Bool("emit-instantiations", false, "emit generic instantiation map (requires sema)")
 }
 
 // runDiagnose executes the "diag" command: it parses command flags, runs diagnostics
@@ -147,6 +149,10 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	if emitBorrow {
 		emitHIR = true
 	}
+	emitInstantiations, err := cmd.Flags().GetBool("emit-instantiations")
+	if err != nil {
+		return fmt.Errorf("failed to get emit-instantiations flag: %w", err)
+	}
 
 	// Parse comma-separated filter
 	var directiveFilter []string
@@ -171,6 +177,9 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	default:
 		return fmt.Errorf("unknown stages value: %s", stagesStr)
 	}
+	if emitInstantiations && stage != driver.DiagnoseStageSema && stage != driver.DiagnoseStageAll {
+		return fmt.Errorf("--emit-instantiations requires --stages sema|all")
+	}
 
 	// Конвертируем строку режима директив в тип
 	var directiveMode parser.DirectiveMode
@@ -189,16 +198,17 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 	// Создаём опции диагностики
 	opts := driver.DiagnoseOptions{
-		Stage:            stage,
-		MaxDiagnostics:   maxDiagnostics,
-		IgnoreWarnings:   noWarnings,
-		WarningsAsErrors: warningsAsErrors,
-		NoAlienHints:     noAlienHints,
-		EnableTimings:    showTimings,
-		EnableDiskCache:  enableDiskCache,
-		DirectiveMode:    directiveMode,
-		DirectiveFilter:  directiveFilter,
-		EmitHIR:          emitHIR,
+		Stage:              stage,
+		MaxDiagnostics:     maxDiagnostics,
+		IgnoreWarnings:     noWarnings,
+		WarningsAsErrors:   warningsAsErrors,
+		NoAlienHints:       noAlienHints,
+		EnableTimings:      showTimings,
+		EnableDiskCache:    enableDiskCache,
+		DirectiveMode:      directiveMode,
+		DirectiveFilter:    directiveFilter,
+		EmitHIR:            emitHIR,
+		EmitInstantiations: emitInstantiations,
 	}
 
 	st, err := os.Stat(filePath)
@@ -304,6 +314,14 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			var interner = result.Sema.TypeInterner
 			if err := hir.DumpWithOptions(os.Stdout, result.HIR, interner, hir.DumpOptions{EmitBorrow: emitBorrow}); err != nil {
 				return 0, fmt.Errorf("failed to dump HIR: %w", err)
+			}
+		}
+
+		// Emit instantiation map if requested
+		if emitInstantiations && result.Instantiations != nil && result.Sema != nil && result.Symbols != nil && result.Builder != nil {
+			fmt.Fprintln(os.Stdout, "\n== INSTANTIATIONS ==")
+			if err := mono.Dump(os.Stdout, result.Instantiations, result.FileSet, result.Symbols, result.Builder.StringsInterner, result.Sema.TypeInterner, mono.DumpOptions{PathMode: "relative"}); err != nil {
+				return 0, fmt.Errorf("failed to dump instantiations: %w", err)
 			}
 		}
 

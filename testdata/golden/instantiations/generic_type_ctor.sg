@@ -1,0 +1,6 @@
+type Box<T> = { v: T }
+
+fn main() {
+    let b = Box { v: 1 };
+}
+

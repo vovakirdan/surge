@@ -131,7 +131,7 @@ func loadStdModule(
 		FileIDs:  fileIDs,
 		Files:    files,
 	}
-	exports := resolveModuleRecord(ctx, rec, stdlibRoot, moduleExports, typeInterner, opts)
+	exports := resolveModuleRecord(ctx, rec, stdlibRoot, moduleExports, typeInterner, opts, nil)
 	if exports != nil {
 		rec.Exports = exports
 		if rec.Symbols != nil {

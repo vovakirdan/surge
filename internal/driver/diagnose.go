@@ -15,6 +15,7 @@ import (
 	"surge/internal/fix"
 	"surge/internal/hir"
 	"surge/internal/lexer"
+	"surge/internal/mono"
 	"surge/internal/observ"
 	"surge/internal/parser"
 	"surge/internal/project"
@@ -41,6 +42,7 @@ type DiagnoseResult struct {
 	Builder           *ast.Builder
 	Symbols           *symbols.Result
 	Sema              *sema.Result
+	Instantiations    *mono.InstantiationMap
 	DirectiveRegistry *directive.Registry // Collected directive scenarios
 	HIR               *hir.Module         // HIR module (if EmitHIR is enabled)
 }
@@ -57,16 +59,17 @@ const (
 
 // DiagnoseOptions содержит опции для диагностики
 type DiagnoseOptions struct {
-	Stage            DiagnoseStage
-	MaxDiagnostics   int
-	IgnoreWarnings   bool
-	WarningsAsErrors bool
-	NoAlienHints     bool // Disable extra alien-hint diagnostics (enabled by default)
-	EnableTimings    bool
-	EnableDiskCache  bool                 // Enable persistent disk cache (experimental, adds I/O overhead)
-	DirectiveMode    parser.DirectiveMode // Directive processing mode (off, collect, gen, run)
-	DirectiveFilter  []string             // Directive namespaces to process (empty = all)
-	EmitHIR          bool                 // Build HIR (High-level IR) from AST + sema
+	Stage              DiagnoseStage
+	MaxDiagnostics     int
+	IgnoreWarnings     bool
+	WarningsAsErrors   bool
+	NoAlienHints       bool // Disable extra alien-hint diagnostics (enabled by default)
+	EnableTimings      bool
+	EnableDiskCache    bool                 // Enable persistent disk cache (experimental, adds I/O overhead)
+	DirectiveMode      parser.DirectiveMode // Directive processing mode (off, collect, gen, run)
+	DirectiveFilter    []string             // Directive namespaces to process (empty = all)
+	EmitHIR            bool                 // Build HIR (High-level IR) from AST + sema
+	EmitInstantiations bool                 // Capture generic instantiation map (sema artefact)
 }
 
 // Diagnose запускает диагностику файла до указанного уровня
@@ -128,6 +131,12 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 		symbolsRes *symbols.Result
 		semaRes    *sema.Result
 	)
+	var instMap *mono.InstantiationMap
+	var instRecorder sema.InstantiationRecorder
+	if opts.EmitInstantiations && (opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll) {
+		instMap = mono.NewInstantiationMap()
+		instRecorder = mono.NewInstantiationMapRecorder(instMap)
+	}
 	// per-call cache (следующим шагом добавим его в параллельный обход директорий)
 	cache := NewModuleCache(256)
 
@@ -175,7 +184,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 				if moduleExports == nil {
 					moduleExports = make(map[string]*symbols.ModuleExports)
 				}
-				if exp := resolveModuleRecord(ctx, rootRec, baseDir, moduleExports, sharedTypes, opts); exp != nil {
+				if exp := resolveModuleRecord(ctx, rootRec, baseDir, moduleExports, sharedTypes, opts, instRecorder); exp != nil {
 					moduleExports[rootRec.Meta.Path] = exp
 				}
 				if sym, ok := rootRec.Symbols[astFile]; ok {
@@ -207,7 +216,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 			if semaRes == nil {
 				semaIdx := begin("sema")
 				semaSpan := trace.Begin(tracer, trace.ScopePass, "sema", diagSpan.ID())
-				semaRes = diagnoseSemaWithTypes(ctx, builder, astFile, bag, moduleExports, symbolsRes, sharedTypes, alienHintsEnabled)
+				semaRes = diagnoseSemaWithTypes(ctx, builder, astFile, bag, moduleExports, symbolsRes, sharedTypes, alienHintsEnabled, instRecorder)
 				semaSpan.End("")
 				end(semaIdx, "")
 			}
@@ -267,6 +276,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 		Builder:           builder,
 		Symbols:           symbolsRes,
 		Sema:              semaRes,
+		Instantiations:    instMap,
 		DirectiveRegistry: directiveRegistry,
 		HIR:               hirModule,
 	}, nil
@@ -287,32 +297,34 @@ func diagnoseSymbols(builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, mod
 	return &res
 }
 
-func diagnoseSema(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, alienHints bool) *sema.Result {
+func diagnoseSema(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, alienHints bool, insts sema.InstantiationRecorder) *sema.Result {
 	if builder == nil || fileID == ast.NoFileID {
 		return nil
 	}
 	opts := sema.Options{
-		Reporter:   &diag.BagReporter{Bag: bag},
-		Symbols:    symbolsRes,
-		Exports:    exports,
-		AlienHints: alienHints,
-		Bag:        bag,
+		Reporter:       &diag.BagReporter{Bag: bag},
+		Symbols:        symbolsRes,
+		Exports:        exports,
+		AlienHints:     alienHints,
+		Bag:            bag,
+		Instantiations: insts,
 	}
 	res := sema.Check(ctx, builder, fileID, opts)
 	return &res
 }
 
-func diagnoseSemaWithTypes(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, typeInterner *types.Interner, alienHints bool) *sema.Result {
+func diagnoseSemaWithTypes(ctx context.Context, builder *ast.Builder, fileID ast.FileID, bag *diag.Bag, exports map[string]*symbols.ModuleExports, symbolsRes *symbols.Result, typeInterner *types.Interner, alienHints bool, insts sema.InstantiationRecorder) *sema.Result {
 	if builder == nil || fileID == ast.NoFileID {
 		return nil
 	}
 	opts := sema.Options{
-		Reporter:   &diag.BagReporter{Bag: bag},
-		Symbols:    symbolsRes,
-		Exports:    exports,
-		Types:      typeInterner,
-		AlienHints: alienHints,
-		Bag:        bag,
+		Reporter:       &diag.BagReporter{Bag: bag},
+		Symbols:        symbolsRes,
+		Exports:        exports,
+		Types:          typeInterner,
+		AlienHints:     alienHints,
+		Bag:            bag,
+		Instantiations: insts,
 	}
 	res := sema.Check(ctx, builder, fileID, opts)
 	return &res

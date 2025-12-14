@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"surge/internal/ast"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/trace"
 	"surge/internal/types"
@@ -41,7 +42,7 @@ func (tc *typeChecker) rememberInstantiation(key string, typeID types.TypeID) {
 	tc.typeInstantiations[key] = typeID
 }
 
-func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.TypeID) types.TypeID {
+func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.TypeID, site source.Span, note string) types.TypeID {
 	// Трассировка инстанциации generic типа
 	var span *trace.Span
 	if tc.tracer != nil && tc.tracer.Level() >= trace.LevelDebug {
@@ -53,6 +54,10 @@ func (tc *typeChecker) instantiateType(symID symbols.SymbolID, args []types.Type
 			span.End("")
 		}
 	}()
+
+	if tc.insts != nil && symID.IsValid() && len(args) > 0 {
+		tc.insts.RecordTypeInstantiation(symID, args, site, tc.currentFnSym(), note)
+	}
 
 	key := tc.instantiationKey(symID, args)
 	if cached := tc.cachedInstantiation(key); cached != types.NoTypeID {
@@ -213,7 +218,7 @@ func (tc *typeChecker) substituteImportedType(id types.TypeID, args []types.Type
 
 // instantiateGenericType instantiates a generic type (given by TypeID) with concrete type arguments.
 // This is used for static method calls like Type::<Args>::method().
-func (tc *typeChecker) instantiateGenericType(baseType types.TypeID, typeArgs []types.TypeID) types.TypeID {
+func (tc *typeChecker) instantiateGenericType(baseType types.TypeID, typeArgs []types.TypeID, site source.Span) types.TypeID {
 	if baseType == types.NoTypeID || len(typeArgs) == 0 || tc.types == nil {
 		return types.NoTypeID
 	}
@@ -260,5 +265,5 @@ func (tc *typeChecker) instantiateGenericType(baseType types.TypeID, typeArgs []
 	}
 
 	// Instantiate the type with the given type args
-	return tc.instantiateType(symID, typeArgs)
+	return tc.instantiateType(symID, typeArgs, site, "type")
 }

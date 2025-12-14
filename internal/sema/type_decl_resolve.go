@@ -244,7 +244,7 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 		}
 	}
 	tc.enforceTypeArgBounds(sym, args, argSpans, span)
-	return tc.instantiateType(symID, args)
+	return tc.instantiateType(symID, args, span, "type")
 }
 
 func (tc *typeChecker) constArgAcceptable(arg, expect types.TypeID) bool {

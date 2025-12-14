@@ -54,7 +54,7 @@ func (tc *typeChecker) instantiateArrayType(elem types.TypeID) types.TypeID {
 	if !tc.arraySymbol.IsValid() {
 		return types.NoTypeID
 	}
-	return tc.instantiateType(tc.arraySymbol, []types.TypeID{elem})
+	return tc.instantiateType(tc.arraySymbol, []types.TypeID{elem}, source.Span{}, "type")
 }
 
 func (tc *typeChecker) ensureBuiltinArrayFixedType() {
@@ -122,7 +122,7 @@ func (tc *typeChecker) instantiateArrayFixedWithArg(elem, length types.TypeID) t
 	if !tc.arrayFixedSymbol.IsValid() {
 		return types.NoTypeID
 	}
-	id := tc.instantiateType(tc.arrayFixedSymbol, []types.TypeID{elem, length})
+	id := tc.instantiateType(tc.arrayFixedSymbol, []types.TypeID{elem, length}, source.Span{}, "type")
 	if id != types.NoTypeID {
 		if n, ok := tc.constValueFromType(length); ok {
 			tc.types.SetStructValueArgs(id, []uint64{n})
