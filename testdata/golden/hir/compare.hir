@@ -3,10 +3,19 @@
 module 
 
 fn classify(x: int [copy]) -> int (id=1, sym=518) {
-  return compare x {
-    0 => 0
-    n if (n > 0): bool => 1
-    _ => (- 1): int
+  return {
+    let __cmp1: int [copy] = x
+    if (__cmp1 == 0): bool {
+      return 0
+    }
+    {
+      let n: int [copy] = __cmp1
+      if (n > 0): bool {
+        return 1
+      }
+    }
+    return (- 1): int
+    return default(): int
   }: int
 }
 

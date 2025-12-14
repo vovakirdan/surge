@@ -137,14 +137,22 @@ func (l *lowerer) lowerLetStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
 
 	if letStmt.Value.IsValid() {
 		data.Value = l.lowerExpr(letStmt.Value)
-		// If no explicit type, try to get from sema
-		if data.Type == types.NoTypeID && data.Value != nil {
-			data.Type = data.Value.Type
-		}
 	}
 
 	if letStmt.Pattern.IsValid() {
 		data.Pattern = l.lowerExpr(letStmt.Pattern)
+	}
+
+	// Prefer the binding type from sema (covers explicit annotations and pattern bindings).
+	if data.SymbolID.IsValid() && l.semaRes != nil && l.semaRes.BindingTypes != nil {
+		if ty := l.semaRes.BindingTypes[data.SymbolID]; ty != types.NoTypeID {
+			data.Type = ty
+		}
+	}
+
+	// Fallback to initializer type if sema type is not available.
+	if data.Type == types.NoTypeID && data.Value != nil {
+		data.Type = data.Value.Type
 	}
 
 	data.Ownership = l.inferOwnership(data.Type)
@@ -176,9 +184,15 @@ func (l *lowerer) lowerConstStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
 
 	if constStmt.Value.IsValid() {
 		data.Value = l.lowerExpr(constStmt.Value)
-		if data.Type == types.NoTypeID && data.Value != nil {
-			data.Type = data.Value.Type
+	}
+
+	if data.SymbolID.IsValid() && l.semaRes != nil && l.semaRes.BindingTypes != nil {
+		if ty := l.semaRes.BindingTypes[data.SymbolID]; ty != types.NoTypeID {
+			data.Type = ty
 		}
+	}
+	if data.Type == types.NoTypeID && data.Value != nil {
+		data.Type = data.Value.Type
 	}
 
 	data.Ownership = l.inferOwnership(data.Type)
@@ -281,8 +295,15 @@ func (l *lowerer) lowerForInStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
 		VarName: l.lookupString(forStmt.Pattern),
 	}
 
+	data.VarSym = l.symbolForStmt(stmtID)
+
 	if forStmt.Type.IsValid() {
 		data.VarType = l.lookupTypeFromAST(forStmt.Type)
+	}
+	if data.VarSym.IsValid() && l.semaRes != nil && l.semaRes.BindingTypes != nil {
+		if ty := l.semaRes.BindingTypes[data.VarSym]; ty != types.NoTypeID {
+			data.VarType = ty
+		}
 	}
 	if forStmt.Iterable.IsValid() {
 		data.Iterable = l.lowerExpr(forStmt.Iterable)

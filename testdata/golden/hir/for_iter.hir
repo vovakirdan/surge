@@ -1,0 +1,20 @@
+
+== HIR ==
+module 
+
+fn sum(arr: type#262) -> int (id=1, sym=518) {
+  let mut total: int [copy] = 0
+  {
+    let mut __iter1: ? = iter_init(arr)
+    while true {
+      let __next2: ? = iter_next(__iter1)
+      if tag_test(__next2, nothing): bool {
+        break
+      }
+      let x: int [copy] = tag_payload(__next2, Some, 0): int
+      (total = (total + x)): int
+    }
+  }
+  return total
+}
+

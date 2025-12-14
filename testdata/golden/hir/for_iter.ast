@@ -1,0 +1,22 @@
+for_iter.sg (span: 1:1-8:1)
+└─ Item[0]: Fn (span: 1:1-7:2)
+   ├─ Name: sum
+   ├─ Params: (arr: int[5])
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:28-7:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:28)
+         │  ├─ Name: total
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 0
+         ├─ Stmt[1]: ForIn (span: 3:5-5:6)
+         │  ├─ Pattern: x
+         │  ├─ Type: int
+         │  ├─ Iterable: expr#2: arr
+         │  └─ Body:
+Block (span: 3:23-5:6)
+         │     └─ Stmt[0]: Expr (span: 4:9-4:27)
+         │        └─ Expr: expr#7: (total = ((total + x)))
+         └─ Stmt[2]: Return (span: 6:5-6:18)
+            └─ Expr: expr#8: total

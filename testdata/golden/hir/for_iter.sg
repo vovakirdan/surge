@@ -1,0 +1,7 @@
+fn sum(arr: int[5]) -> int {
+    let mut total: int = 0;
+    for x: int in arr {
+        total = total + x;
+    }
+    return total;
+}

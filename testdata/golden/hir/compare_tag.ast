@@ -1,0 +1,9 @@
+compare_tag.sg (span: 1:1-7:1)
+└─ Item[0]: Fn (span: 1:1-6:2)
+   ├─ Name: unwrap_or_zero
+   ├─ Params: (x: <unknown-type>)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:35-6:2)
+         └─ Stmt[0]: Return (span: 2:5-5:7)
+            └─ Expr: expr#8: compare x { 2 arms }

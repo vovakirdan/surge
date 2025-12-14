@@ -17,7 +17,8 @@ import (
 // - Inserts explicit return for last expression in non-void functions
 // - Removes ExprGroup (parentheses) by unwrapping
 //
-// The lowering preserves high-level constructs like compare, for, async/spawn.
+// Lower returns normalized HIR: `compare` and `for` are desugared into a smaller core,
+// while async/spawn remain as separate nodes (lowered later).
 func Lower(
 	ctx context.Context,
 	builder *ast.Builder,
@@ -36,11 +37,20 @@ func Lower(
 		symRes:   symRes,
 		strings:  builder.StringsInterner,
 		nextFnID: 1,
-		module:   &Module{SourceAST: fileID},
+		module: &Module{
+			SourceAST:    fileID,
+			TypeInterner: semaRes.TypeInterner,
+			BindingTypes: semaRes.BindingTypes,
+			Symbols:      symRes,
+		},
 	}
 	l.stmtSymbols = buildStmtSymbolIndex(symRes, fileID)
 
 	l.lowerFile(fileID)
+
+	// Normalize HIR by desugaring high-level constructs (compare, for, etc).
+	// This must run before lifting borrow artefacts so that LocalID mappings stay coherent.
+	_ = NormalizeModule(l.module) //nolint:errcheck // best-effort debug artefact
 
 	// Lift borrow checker artefacts into stable HIR-side structures.
 	for _, fn := range l.module.Funcs {

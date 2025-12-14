@@ -3,22 +3,35 @@
 module 
 
 fn find_first_positive(arr: type#262) -> int (id=1, sym=518) {
-  for i: ? in (0 .. 5): type#265 {
-    if (arr[i] < 0): bool {
-      continue
+  {
+    let mut i: int [copy] = 0
+    let __end1: int [copy] = 5
+    while (i < __end1): bool {
+      if (arr[i] < 0): bool {
+        {
+          i = (i + 1): int
+          continue
+        }
+      }
+      return arr[i]: int
+      i = (i + 1): int
     }
-    return arr[i]: int
   }
   return 0
 }
 
 fn sum_until_zero(arr: type#262) -> int (id=2, sym=519) {
   let mut total: int [copy] = 0
-  for i: ? in (0 .. 5): type#265 {
-    if (arr[i] == 0): bool {
-      break
+  {
+    let mut i: int [copy] = 0
+    let __end1: int [copy] = 5
+    while (i < __end1): bool {
+      if (arr[i] == 0): bool {
+        break
+      }
+      (total = (total + arr[i])): int
+      i = (i + 1): int
     }
-    (total = (total + arr[i])): int
   }
   return total
 }

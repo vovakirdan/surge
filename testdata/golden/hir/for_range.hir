@@ -4,8 +4,13 @@ module
 
 fn sum_range(n: int [copy]) -> int (id=1, sym=518) {
   let mut total: int [copy] = 0
-  for i: ? in (0 .. n): type#263 {
-    (total = (total + i)): int
+  {
+    let mut i: int [copy] = 0
+    let __end1: int [copy] = n
+    while (i < __end1): bool {
+      (total = (total + i)): int
+      i = (i + 1): int
+    }
   }
   return total
 }

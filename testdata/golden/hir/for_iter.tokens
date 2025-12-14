@@ -1,0 +1,40 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "sum" at 1:4-1:7 (leading: Space)
+  3: LParen          "(" at 1:7-1:8
+  4: Ident           "arr" at 1:8-1:11
+  5: Colon           ":" at 1:11-1:12
+  6: Ident           "int" at 1:13-1:16 (leading: Space)
+  7: LBracket        "[" at 1:16-1:17
+  8: IntLit          "5" at 1:17-1:18
+  9: RBracket        "]" at 1:18-1:19
+ 10: RParen          ")" at 1:19-1:20
+ 11: Arrow           "->" at 1:21-1:23 (leading: Space)
+ 12: Ident           "int" at 1:24-1:27 (leading: Space)
+ 13: LBrace          "{" at 1:28-1:29 (leading: Space)
+ 14: KwLet           "let" at 2:5-2:8 (leading: Newline, Space)
+ 15: KwMut           "mut" at 2:9-2:12 (leading: Space)
+ 16: Ident           "total" at 2:13-2:18 (leading: Space)
+ 17: Colon           ":" at 2:18-2:19
+ 18: Ident           "int" at 2:20-2:23 (leading: Space)
+ 19: Assign          "=" at 2:24-2:25 (leading: Space)
+ 20: IntLit          "0" at 2:26-2:27 (leading: Space)
+ 21: Semicolon       ";" at 2:27-2:28
+ 22: KwFor           "for" at 3:5-3:8 (leading: Newline, Space)
+ 23: Ident           "x" at 3:9-3:10 (leading: Space)
+ 24: Colon           ":" at 3:10-3:11
+ 25: Ident           "int" at 3:12-3:15 (leading: Space)
+ 26: KwIn            "in" at 3:16-3:18 (leading: Space)
+ 27: Ident           "arr" at 3:19-3:22 (leading: Space)
+ 28: LBrace          "{" at 3:23-3:24 (leading: Space)
+ 29: Ident           "total" at 4:9-4:14 (leading: Newline, Space)
+ 30: Assign          "=" at 4:15-4:16 (leading: Space)
+ 31: Ident           "total" at 4:17-4:22 (leading: Space)
+ 32: Plus            "+" at 4:23-4:24 (leading: Space)
+ 33: Ident           "x" at 4:25-4:26 (leading: Space)
+ 34: Semicolon       ";" at 4:26-4:27
+ 35: RBrace          "}" at 5:5-5:6 (leading: Newline, Space)
+ 36: KwReturn        "return" at 6:5-6:11 (leading: Newline, Space)
+ 37: Ident           "total" at 6:12-6:17 (leading: Space)
+ 38: Semicolon       ";" at 6:17-6:18
+ 39: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 40: EOF             at 8:1-8:1

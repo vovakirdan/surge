@@ -35,6 +35,14 @@ const (
 	// ExprCompare represents pattern matching (compare expr { ... }).
 	// Preserved as-is, desugaring happens in later stages.
 	ExprCompare
+	// ExprTagTest checks whether a union value matches a tag or the `nothing` variant.
+	ExprTagTest
+	// ExprTagPayload extracts a payload component from a tagged union value.
+	ExprTagPayload
+	// ExprIterInit lowers `for x in xs` iteration initialization into an intrinsic iterator value.
+	ExprIterInit
+	// ExprIterNext lowers iterator advancement into an intrinsic next operation yielding Option<T>.
+	ExprIterNext
 	// ExprIf represents conditional expression (ternary or if-expression).
 	ExprIf
 	// ExprAwait represents .await() on a Task<T>.
@@ -74,6 +82,14 @@ func (k ExprKind) String() string {
 		return "TupleLit"
 	case ExprCompare:
 		return "Compare"
+	case ExprTagTest:
+		return "TagTest"
+	case ExprTagPayload:
+		return "TagPayload"
+	case ExprIterInit:
+		return "IterInit"
+	case ExprIterNext:
+		return "IterNext"
 	case ExprIf:
 		return "If"
 	case ExprAwait:
@@ -223,6 +239,37 @@ type CompareData struct {
 }
 
 func (CompareData) exprData() {}
+
+// TagTestData holds data for ExprTagTest.
+type TagTestData struct {
+	Value   *Expr
+	TagName string // e.g. "Some" or "nothing"
+}
+
+func (TagTestData) exprData() {}
+
+// TagPayloadData holds data for ExprTagPayload.
+type TagPayloadData struct {
+	Value   *Expr
+	TagName string // e.g. "Some"
+	Index   int    // payload slot
+}
+
+func (TagPayloadData) exprData() {}
+
+// IterInitData holds data for ExprIterInit.
+type IterInitData struct {
+	Iterable *Expr
+}
+
+func (IterInitData) exprData() {}
+
+// IterNextData holds data for ExprIterNext.
+type IterNextData struct {
+	Iter *Expr
+}
+
+func (IterNextData) exprData() {}
 
 // IfData holds data for ExprIf (conditional expression).
 type IfData struct {

@@ -417,7 +417,13 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 	case ExprFieldAccess:
 		data := e.Data.(FieldAccessData)
 		p.printExpr(data.Object)
-		p.printf(".%s", data.FieldName)
+		if data.FieldName != "" {
+			p.printf(".%s", data.FieldName)
+		} else if data.FieldIdx >= 0 {
+			p.printf(".%d", data.FieldIdx)
+		} else {
+			p.printf(".?")
+		}
 
 	case ExprIndex:
 		data := e.Data.(IndexData)
@@ -480,6 +486,30 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 		p.indent--
 		p.printIndent()
 		p.printf("}")
+
+	case ExprTagTest:
+		data := e.Data.(TagTestData)
+		p.printf("tag_test(")
+		p.printExprWithType(data.Value, false)
+		p.printf(", %s)", data.TagName)
+
+	case ExprTagPayload:
+		data := e.Data.(TagPayloadData)
+		p.printf("tag_payload(")
+		p.printExprWithType(data.Value, false)
+		p.printf(", %s, %d)", data.TagName, data.Index)
+
+	case ExprIterInit:
+		data := e.Data.(IterInitData)
+		p.printf("iter_init(")
+		p.printExprWithType(data.Iterable, false)
+		p.printf(")")
+
+	case ExprIterNext:
+		data := e.Data.(IterNextData)
+		p.printf("iter_next(")
+		p.printExprWithType(data.Iter, false)
+		p.printf(")")
 
 	case ExprIf:
 		data := e.Data.(IfData)

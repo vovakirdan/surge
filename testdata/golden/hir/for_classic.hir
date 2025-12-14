@@ -4,8 +4,12 @@ module
 
 fn sum_to(n: int [copy]) -> int (id=1, sym=518) {
   let mut total: int [copy] = 0
-  for let mut i: int = 0; (i < n): bool; (i = (i + 1)): int {
-    (total = (total + i)): int
+  {
+    let mut i: int [copy] = 0
+    while (i < n): bool {
+      (total = (total + i)): int
+      (i = (i + 1)): int
+    }
   }
   return total
 }

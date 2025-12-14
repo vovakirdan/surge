@@ -16,6 +16,15 @@ type Module struct {
 	Types     []TypeDecl  // Type declarations
 	Consts    []ConstDecl // Top-level constants
 	Globals   []VarDecl   // Top-level let bindings
+
+	// TypeInterner and BindingTypes are borrowed from sema results to support
+	// HIR-side analysis and normalization passes without re-running sema.
+	TypeInterner *types.Interner
+	BindingTypes map[symbols.SymbolID]types.TypeID
+
+	// Symbols holds the resolver table used when lowering/normalizing.
+	// It is optional and used on a best-effort basis for debug-only passes.
+	Symbols *symbols.Result
 }
 
 // TypeDecl represents a type declaration in HIR.
