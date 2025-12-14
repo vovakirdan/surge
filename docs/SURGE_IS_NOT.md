@@ -21,7 +21,7 @@ In Rust:
 
 ```rust
 let xs: [i32; 3] = [1, 2, 3];
-````
+```
 
 In Surge:
 
@@ -215,7 +215,7 @@ fn id<T>(x: T) -> T {
 
 let a = id(42);    // T is inferred as int
 let b = id("hi");  // T is inferred as string
-````
+```
 
 Where it's obvious — the compiler infers types itself.
 Where it's not obvious — it honestly says: "I'm not sure, please write `::<int>` yourself".
