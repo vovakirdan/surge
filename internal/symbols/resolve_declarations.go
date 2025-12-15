@@ -2,17 +2,15 @@ package symbols
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
-	"unicode"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
-	"surge/internal/fix"
-	"surge/internal/project"
 	"surge/internal/source"
 )
 
+// findExistingSymbol ищет существующий символ в текущей области видимости.
+// Используется для переиспользования символов при повторной обработке файла.
 func (fr *fileResolver) findExistingSymbol(name source.StringID, kind SymbolKind, decl SymbolDecl) SymbolID {
 	if !fr.reuseDecls || name == source.NoStringID || fr.result == nil || fr.result.Table == nil {
 		return NoSymbolID
@@ -35,6 +33,8 @@ func (fr *fileResolver) findExistingSymbol(name source.StringID, kind SymbolKind
 	return NoSymbolID
 }
 
+// declareLet объявляет let-переменную в текущей области видимости.
+// Обрабатывает мутабельные и иммутабельные переменные, а также wildcard-имена.
 func (fr *fileResolver) declareLet(itemID ast.ItemID, letItem *ast.LetItem) {
 	if letItem.Name == source.NoStringID {
 		return
@@ -70,6 +70,7 @@ func (fr *fileResolver) declareLet(itemID ast.ItemID, letItem *ast.LetItem) {
 	}
 }
 
+// declareConstItem объявляет константу в текущей области видимости.
 func (fr *fileResolver) declareConstItem(itemID ast.ItemID, constItem *ast.ConstItem) {
 	if constItem == nil || constItem.Name == source.NoStringID {
 		return
@@ -93,6 +94,8 @@ func (fr *fileResolver) declareConstItem(itemID ast.ItemID, constItem *ast.Const
 	}
 }
 
+// declareFn объявляет функцию в текущей области видимости.
+// Проверяет стиль именования и обрабатывает атрибуты функции.
 func (fr *fileResolver) declareFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 	if fnItem.Name == source.NoStringID {
 		return
@@ -127,6 +130,8 @@ func (fr *fileResolver) declareFn(itemID ast.ItemID, fnItem *ast.FnItem) {
 	}, fnItem)
 }
 
+// declareType объявляет тип в текущей области видимости.
+// Проверяет атрибут @intrinsic для типов и валидирует структуру intrinsic-типов.
 func (fr *fileResolver) declareType(itemID ast.ItemID, typeItem *ast.TypeItem) {
 	if typeItem.Name == source.NoStringID {
 		return
@@ -168,7 +173,7 @@ func (fr *fileResolver) declareType(itemID ast.ItemID, typeItem *ast.TypeItem) {
 	}
 }
 
-// hasIntrinsicAttr checks if the given attribute list contains @intrinsic.
+// hasIntrinsicAttr проверяет, содержит ли список атрибутов @intrinsic.
 func (fr *fileResolver) hasIntrinsicAttr(start ast.AttrID, count uint32) bool {
 	if count == 0 || !start.IsValid() {
 		return false
@@ -186,9 +191,8 @@ func (fr *fileResolver) hasIntrinsicAttr(start ast.AttrID, count uint32) bool {
 	return false
 }
 
-// isValidIntrinsicType checks if the type is valid for @intrinsic:
-// - Empty struct, OR
-// - Struct with only __opaque field
+// isValidIntrinsicType проверяет, является ли тип валидным для @intrinsic.
+// Валидными являются: пустая структура или структура с единственным полем __opaque.
 func (fr *fileResolver) isValidIntrinsicType(typeItem *ast.TypeItem) bool {
 	if typeItem == nil {
 		return false
@@ -218,6 +222,7 @@ func (fr *fileResolver) isValidIntrinsicType(typeItem *ast.TypeItem) bool {
 	return false
 }
 
+// declareContract объявляет контракт в текущей области видимости.
 func (fr *fileResolver) declareContract(itemID ast.ItemID, contractItem *ast.ContractDecl) {
 	if contractItem == nil || contractItem.Name == source.NoStringID {
 		return
@@ -242,6 +247,8 @@ func (fr *fileResolver) declareContract(itemID ast.ItemID, contractItem *ast.Con
 	}
 }
 
+// declareTag объявляет тег в текущей области видимости.
+// Проверяет стиль именования тегов (должны начинаться с большой буквы).
 func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
 	if tagItem.Name == source.NoStringID {
 		return
@@ -267,108 +274,8 @@ func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
 	}
 }
 
-func (fr *fileResolver) declareImport(itemID ast.ItemID, importItem *ast.ImportItem, itemSpan source.Span) {
-	modulePath := fr.resolveImportModulePath(importItem.Module, itemSpan)
-	hasItems := importItem.HasOne || len(importItem.Group) > 0 || importItem.ImportAll
-
-	if !hasItems {
-		if modulePath != "" {
-			if !fr.trackModuleImport(modulePath, itemSpan) {
-				return
-			}
-		}
-		if alias := fr.moduleAliasForImport(importItem, true); alias != source.NoStringID {
-			fr.declareModuleAlias(itemID, alias, modulePath, itemSpan)
-		}
-	}
-
-	if importItem.HasOne {
-		name := importItem.One.Alias
-		if name == source.NoStringID {
-			name = importItem.One.Name
-		}
-		fr.declareImportName(itemID, name, importItem.One.Name, importItem.Module, modulePath, itemSpan)
-	}
-	for _, pair := range importItem.Group {
-		name := pair.Alias
-		if name == source.NoStringID {
-			name = pair.Name
-		}
-		fr.declareImportName(itemID, name, pair.Name, importItem.Module, modulePath, itemSpan)
-	}
-	if importItem.ImportAll {
-		fr.declareImportAll(itemID, importItem.Module, modulePath, itemSpan)
-	}
-}
-
-func (fr *fileResolver) declareModuleAlias(itemID ast.ItemID, alias source.StringID, modulePath string, span source.Span) {
-	if alias == source.NoStringID {
-		return
-	}
-	decl := SymbolDecl{
-		SourceFile: fr.sourceFile,
-		ASTFile:    fr.fileID,
-		Item:       itemID,
-	}
-	if symID, ok := fr.resolver.Declare(alias, span, SymbolModule, SymbolFlagImported, decl); ok {
-		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
-			sym.ModulePath = modulePath
-		}
-		if fr.aliasModulePaths != nil {
-			fr.aliasModulePaths[alias] = modulePath
-		}
-		if exports := fr.moduleExports[modulePath]; exports != nil && fr.aliasExports != nil {
-			fr.aliasExports[alias] = exports
-		}
-		fr.appendItemSymbol(itemID, symID)
-	}
-}
-
-func (fr *fileResolver) declareImportName(itemID ast.ItemID, name, original source.StringID, module []source.StringID, modulePath string, span source.Span) {
-	if name == source.NoStringID {
-		return
-	}
-	decl := SymbolDecl{
-		SourceFile: fr.sourceFile,
-		ASTFile:    fr.fileID,
-		Item:       itemID,
-	}
-	if symID, ok := fr.resolver.Declare(name, span, SymbolImport, SymbolFlagImported, decl); ok {
-		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
-			sym.ModulePath = modulePath
-			sym.ImportName = original
-			if len(module) > 0 {
-				path := append([]source.StringID(nil), module...)
-				sym.Aliases = append(sym.Aliases, path...)
-			}
-			if original != source.NoStringID && original != name {
-				sym.Aliases = append(sym.Aliases, original)
-			}
-		}
-		fr.appendItemSymbol(itemID, symID)
-	}
-}
-
-func (fr *fileResolver) declareImportAll(itemID ast.ItemID, module []source.StringID, modulePath string, span source.Span) {
-	if modulePath == "" {
-		return
-	}
-
-	// Получаем экспорты модуля
-	exports := fr.moduleExports[modulePath]
-	if exports == nil {
-		return
-	}
-
-	// Импортируем все публичные символы
-	// @hidden символы уже отфильтрованы в CollectExports
-	for name := range exports.Symbols {
-		// Импортируем символ
-		nameID := fr.builder.StringsInterner.Intern(name)
-		fr.declareImportName(itemID, nameID, nameID, module, modulePath, span)
-	}
-}
-
+// declareExternFn объявляет внешнюю функцию из extern-блока.
+// Обрабатывает методы с получателями и обычные функции.
 func (fr *fileResolver) declareExternFn(container ast.ItemID, member ast.ExternMemberID, receiverKey TypeKey, fnItem *ast.FnItem) {
 	if fnItem.Name == source.NoStringID {
 		return
@@ -408,6 +315,9 @@ func (fr *fileResolver) declareExternFn(container ast.ItemID, member ast.ExternM
 	}
 }
 
+// declareFunctionWithAttrs объявляет функцию с обработкой атрибутов.
+// Поддерживает атрибуты @overload, @override, @intrinsic и @entrypoint.
+// Выполняет проверку сигнатур и валидацию совместимости атрибутов.
 func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywordSpan source.Span, flags SymbolFlags, decl SymbolDecl, receiverKey TypeKey) (SymbolID, bool) {
 	attrs := fr.builder.Items.CollectAttrs(fnItem.AttrStart, fnItem.AttrCount)
 	hasOverload := false
@@ -574,9 +484,9 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 	return symID, true
 }
 
-// parseEntrypointMode extracts the mode from an @entrypoint attribute.
-// Returns EntrypointModeNone if no argument, or the parsed mode.
-// Reports errors for invalid/unknown modes.
+// parseEntrypointMode извлекает режим из атрибута @entrypoint.
+// Возвращает EntrypointModeNone, если аргумент отсутствует, или распарсенный режим.
+// Сообщает об ошибках для невалидных/неизвестных режимов.
 func (fr *fileResolver) parseEntrypointMode(attr *ast.Attr, _ source.Span) EntrypointMode {
 	if attr == nil || len(attr.Args) == 0 {
 		return EntrypointModeNone
@@ -622,10 +532,8 @@ func (fr *fileResolver) parseEntrypointMode(attr *ast.Attr, _ source.Span) Entry
 	}
 }
 
-func (fr *fileResolver) enforceFunctionNameStyle(name source.StringID, span source.Span) {
-	fr.enforceNameStyle(name, span, diag.SemaFnNameStyle, unicode.ToLower, unicode.IsUpper, "lowercase function name")
-}
-
+// isProtectedSymbol проверяет, является ли символ защищенным.
+// Защищенными считаются символы из защищенных модулей (core, stdlib) или встроенные импортированные символы.
 func isProtectedSymbol(sym *Symbol) bool {
 	if sym == nil {
 		return false
@@ -634,153 +542,4 @@ func isProtectedSymbol(sym *Symbol) bool {
 		return true
 	}
 	return sym.Flags&SymbolFlagBuiltin != 0 && sym.Flags&SymbolFlagImported != 0
-}
-
-func (fr *fileResolver) enforceTagNameStyle(name source.StringID, span source.Span) {
-	fr.enforceNameStyle(name, span, diag.SemaTagNameStyle, unicode.ToUpper, unicode.IsLower, "capitalize tag name")
-}
-
-func (fr *fileResolver) enforceNameStyle(name source.StringID, span source.Span, code diag.Code, convert func(rune) rune, trigger func(rune) bool, fixTitle string) {
-	if name == source.NoStringID || fr.resolver == nil || fr.resolver.reporter == nil || fr.builder == nil {
-		return
-	}
-	nameStr := fr.builder.StringsInterner.MustLookup(name)
-	runes := []rune(nameStr)
-	idx := firstLetterIndex(runes)
-	if idx == -1 {
-		return
-	}
-	r := runes[idx]
-	if !trigger(r) {
-		return
-	}
-	original := nameStr
-	runes[idx] = convert(r)
-	newName := string(runes)
-	msg := fmt.Sprintf("consider renaming '%s' to '%s' to follow naming conventions", original, newName)
-	builder := diag.ReportWarning(fr.resolver.reporter, code, span, msg)
-	if builder == nil {
-		return
-	}
-	fixID := fix.MakeFixID(code, span)
-	builder.WithFixSuggestion(fix.ReplaceSpan(
-		fixTitle,
-		span,
-		newName,
-		original,
-		fix.WithID(fixID),
-		fix.WithKind(diag.FixKindRefactor),
-		fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-	))
-	builder.Emit()
-}
-
-func firstLetterIndex(runes []rune) int {
-	for i, r := range runes {
-		if unicode.IsLetter(r) {
-			return i
-		}
-	}
-	return -1
-}
-
-func (fr *fileResolver) trackModuleImport(modulePath string, span source.Span) bool {
-	if modulePath == "" {
-		return true
-	}
-	if prev, ok := fr.moduleImports[modulePath]; ok {
-		fr.reportDuplicateModuleImport(modulePath, span, prev)
-		return false
-	}
-	fr.moduleImports[modulePath] = span
-	return true
-}
-
-func (fr *fileResolver) reportDuplicateModuleImport(modulePath string, span, prev source.Span) {
-	if fr.resolver == nil || fr.resolver.reporter == nil {
-		return
-	}
-	msg := fmt.Sprintf("module %q already imported", modulePath)
-	builder := diag.ReportError(fr.resolver.reporter, diag.SemaDuplicateSymbol, span, msg)
-	if builder == nil {
-		return
-	}
-	if prev != (source.Span{}) {
-		builder.WithNote(prev, "previous import here")
-	}
-	builder.Emit()
-}
-
-func (fr *fileResolver) moduleAliasForImport(importItem *ast.ImportItem, allowDefault bool) source.StringID {
-	if importItem == nil {
-		return source.NoStringID
-	}
-	if importItem.ModuleAlias != source.NoStringID {
-		return importItem.ModuleAlias
-	}
-	if !allowDefault {
-		return source.NoStringID
-	}
-	for i := len(importItem.Module) - 1; i >= 0; i-- {
-		seg := importItem.Module[i]
-		segStr := fr.lookupString(seg)
-		if segStr == "" || segStr == "." || segStr == ".." {
-			continue
-		}
-		return seg
-	}
-	return source.NoStringID
-}
-
-func (fr *fileResolver) resolveImportModulePath(module []source.StringID, span source.Span) string {
-	segs := fr.moduleSegmentsToStrings(module)
-	if len(segs) == 0 {
-		return ""
-	}
-	segs = fr.applyNoStdImportRules(segs, span)
-	base := fr.baseDir
-	if base == "" && fr.filePath != "" {
-		base = filepath.Dir(fr.filePath)
-	}
-	if norm, err := project.ResolveImportPath(fr.modulePath, base, segs); err == nil {
-		return norm
-	}
-	joined := strings.Join(segs, "/")
-	if norm, err := project.NormalizeModulePath(joined); err == nil {
-		return norm
-	}
-	return joined
-}
-
-func (fr *fileResolver) moduleSegmentsToStrings(module []source.StringID) []string {
-	if len(module) == 0 || fr.builder == nil || fr.builder.StringsInterner == nil {
-		return nil
-	}
-	out := make([]string, 0, len(module))
-	for _, seg := range module {
-		out = append(out, fr.lookupString(seg))
-	}
-	return out
-}
-
-func (fr *fileResolver) lookupString(id source.StringID) string {
-	if id == source.NoStringID || fr.builder == nil || fr.builder.StringsInterner == nil {
-		return ""
-	}
-	return fr.builder.StringsInterner.MustLookup(id)
-}
-
-func (fr *fileResolver) applyNoStdImportRules(segs []string, span source.Span) []string {
-	if !fr.noStd || len(segs) == 0 || segs[0] != "stdlib" {
-		return segs
-	}
-	replacement := append([]string{"core"}, segs[1:]...)
-	if fr.resolver != nil && fr.resolver.reporter != nil {
-		corePath := strings.Join(replacement, "/")
-		msg := fmt.Sprintf("stdlib is not available in no_std modules; import %q instead", corePath)
-		if b := diag.ReportError(fr.resolver.reporter, diag.SemaNoStdlib, span, msg); b != nil {
-			b.Emit()
-		}
-	}
-	return replacement
 }
