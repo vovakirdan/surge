@@ -388,6 +388,11 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 				return 0, fmt.Errorf("failed to lower MIR: %w", err)
 			}
 
+			// SimplifyCFG before Validate
+			for _, f := range mirMod.Funcs {
+				mir.SimplifyCFG(f)
+			}
+
 			// Validate MIR before dumping
 			if err := mir.Validate(mirMod, result.Sema.TypeInterner); err != nil {
 				return 0, fmt.Errorf("MIR validation failed: %w", err)

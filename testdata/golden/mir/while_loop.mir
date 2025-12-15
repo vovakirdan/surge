@@ -22,21 +22,13 @@ fn main:
     L3 = (copy L0 + const 1)
     L0 = copy L3
     L4 = (copy L0 == const 3)
-    if copy L4 then bb4 else bb5
+    if copy L4 then bb1 else bb4
   bb3:
     return copy L1
   bb4:
-    goto bb1
-  bb5:
-    goto bb6
-  bb6:
     L5 = (copy L0 == const 5)
-    if copy L5 then bb7 else bb8
-  bb7:
-    goto bb3
-  bb8:
-    goto bb9
-  bb9:
+    if copy L5 then bb3 else bb5
+  bb5:
     L6 = (copy L1 + copy L0)
     L1 = copy L6
     goto bb1

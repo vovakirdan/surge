@@ -23,14 +23,10 @@ fn unwrap_or_zero:
     L1 = copy L4
     goto bb1
   bb3:
-    goto bb4
-  bb4:
     L6 = tag_test copy L2 is nothing
-    if copy L6 then bb5 else bb6
-  bb5:
+    if copy L6 then bb4 else bb5
+  bb4:
     L1 = const 0
     goto bb1
-  bb6:
-    goto bb7
-  bb7:
+  bb5:
     unreachable
