@@ -35,7 +35,7 @@ func BuildSurgeStart(mm *mono.MonoModule, semaRes *sema.Result, typesIn *types.I
 	mode := getEntrypointMode(entryMF, mm)
 
 	// Build the synthetic function
-	return buildSurgeStartFunc(entryMF, mode, typesIn, nextID)
+	return buildSurgeStartFunc(entryMF, mode, typesIn, mm, nextID)
 }
 
 // findEntrypoint finds the function marked with @entrypoint.
@@ -82,11 +82,12 @@ func getEntrypointMode(mf *mono.MonoFunc, mm *mono.MonoModule) symbols.Entrypoin
 }
 
 // buildSurgeStartFunc creates the MIR function for __surge_start.
-func buildSurgeStartFunc(entryMF *mono.MonoFunc, mode symbols.EntrypointMode, typesIn *types.Interner, nextID FuncID) (*Func, error) {
+func buildSurgeStartFunc(entryMF *mono.MonoFunc, mode symbols.EntrypointMode, typesIn *types.Interner, mm *mono.MonoModule, nextID FuncID) (*Func, error) {
 	b := &surgeStartBuilder{
 		entryMF: entryMF,
 		mode:    mode,
 		typesIn: typesIn,
+		mm:      mm,
 		f: &Func{
 			ID:     nextID,
 			Sym:    symbols.NoSymbolID, // synthetic function
@@ -106,6 +107,7 @@ type surgeStartBuilder struct {
 	entryMF *mono.MonoFunc
 	mode    symbols.EntrypointMode
 	typesIn *types.Interner
+	mm      *mono.MonoModule // for __to method lookup via mm.Source.Symbols
 	f       *Func
 
 	// Current block being built
@@ -169,17 +171,25 @@ func (b *surgeStartBuilder) build() error {
 		})
 	default:
 		// other -> code = call __to(ret, int)
-		// TODO: implement proper __to call lookup, for now use 0
-		b.emitAssign(codeLocal, &RValue{
-			Kind: RValueUse,
-			Use: Operand{
-				Kind: OperandConst,
-				Const: Const{
-					Kind:     ConstInt,
-					IntValue: 0,
+		toSymID := b.findToMethod(entryReturnType, b.intType())
+		if toSymID.IsValid() {
+			// Emit: code = call __to(move entry_ret)
+			b.emitCall(codeLocal, toSymID, "__to", []Operand{
+				{Kind: OperandMove, Place: Place{Local: retLocal}},
+			})
+		} else {
+			// Fallback: no __to found, use 0
+			b.emitAssign(codeLocal, &RValue{
+				Kind: RValueUse,
+				Use: Operand{
+					Kind: OperandConst,
+					Const: Const{
+						Kind:     ConstInt,
+						IntValue: 0,
+					},
 				},
-			},
-		})
+			})
+		}
 	}
 
 	// Call rt_exit(code)
@@ -227,7 +237,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		// For now, emit a placeholder call to rt_parse_arg intrinsic
 		argLocal := b.newLocal(param.Name, param.Type, b.localFlags(param.Type))
 		b.emitCallIntrinsic(argLocal, "rt_parse_arg", []Operand{
-			{Kind: OperandCopy, Place: Place{Local: argStrLocal}},
+			{Kind: OperandMove, Place: Place{Local: argStrLocal}},
 		})
 
 		args = append(args, Operand{Kind: OperandMove, Place: Place{Local: argLocal}})
@@ -257,16 +267,16 @@ func (b *surgeStartBuilder) prepareArgsStdin() []Operand {
 		argLocal := b.newLocal(param.Name, param.Type, b.localFlags(param.Type))
 
 		if param.Type == b.stringType() {
-			// For string, just copy stdin content
+			// For string, just move stdin content
 			b.emitAssign(argLocal, &RValue{
 				Kind: RValueUse,
-				Use:  Operand{Kind: OperandCopy, Place: Place{Local: stdinLocal}},
+				Use:  Operand{Kind: OperandMove, Place: Place{Local: stdinLocal}},
 			})
 		} else {
 			// Parse from stdin using placeholder intrinsic
 			// TODO: implement proper T.from_str call
 			b.emitCallIntrinsic(argLocal, "rt_parse_arg", []Operand{
-				{Kind: OperandCopy, Place: Place{Local: stdinLocal}},
+				{Kind: OperandMove, Place: Place{Local: stdinLocal}},
 			})
 		}
 
@@ -455,6 +465,97 @@ func (b *surgeStartBuilder) stringArrayType() types.TypeID {
 	if b.typesIn == nil {
 		return types.NoTypeID
 	}
-	// Dynamic array of strings (count=0 means dynamic)
-	return b.typesIn.Intern(types.MakeArray(b.stringType(), 0))
+	// Dynamic array of strings (ArrayDynamicLength for slice/dynamic array)
+	return b.typesIn.Intern(types.MakeArray(b.stringType(), types.ArrayDynamicLength))
+}
+
+// findToMethod looks up a __to method that converts srcType to targetType.
+// Returns NoSymbolID if not found.
+func (b *surgeStartBuilder) findToMethod(srcType, targetType types.TypeID) symbols.SymbolID {
+	if b.mm == nil || b.mm.Source == nil || b.mm.Source.Symbols == nil {
+		return symbols.NoSymbolID
+	}
+
+	table := b.mm.Source.Symbols.Table
+	if table == nil || table.Symbols == nil {
+		return symbols.NoSymbolID
+	}
+
+	// Get source type key for matching receiver
+	srcTypeKey := b.typeKeyForType(srcType)
+	if srcTypeKey == "" {
+		return symbols.NoSymbolID
+	}
+
+	// Search for __to method with matching signature
+	for i := range table.Symbols.Len() {
+		raw, err := safecast.Conv[uint32](i + 1) // +1 because SymbolID 0 is NoSymbolID
+		if err != nil {
+			continue
+		}
+		symID := symbols.SymbolID(raw)
+		sym := table.Symbols.Get(symID)
+		if sym == nil || sym.Kind != symbols.SymbolFunction {
+			continue
+		}
+
+		// Check name is "__to"
+		name, ok := table.Strings.Lookup(sym.Name)
+		if !ok || name != "__to" {
+			continue
+		}
+
+		// Check receiver matches source type
+		if sym.ReceiverKey != srcTypeKey {
+			continue
+		}
+
+		// Check signature: (self, target) -> target
+		sig := sym.Signature
+		if sig == nil || len(sig.Params) != 2 {
+			continue
+		}
+
+		// Params[1] should be the target type, Result should equal target
+		targetTypeKey := b.typeKeyForType(targetType)
+		if sig.Params[1] == targetTypeKey && sig.Result == targetTypeKey {
+			return symID
+		}
+	}
+
+	return symbols.NoSymbolID
+}
+
+// typeKeyForType returns the TypeKey string for a given TypeID.
+func (b *surgeStartBuilder) typeKeyForType(id types.TypeID) symbols.TypeKey {
+	if b.typesIn == nil || id == types.NoTypeID {
+		return ""
+	}
+	tt, ok := b.typesIn.Lookup(id)
+	if !ok {
+		return ""
+	}
+	// For builtin types, use the kind name
+	switch tt.Kind {
+	case types.KindInt:
+		return "int"
+	case types.KindUint:
+		return "uint"
+	case types.KindFloat:
+		return "float"
+	case types.KindBool:
+		return "bool"
+	case types.KindString:
+		return "string"
+	case types.KindStruct:
+		// For structs, get name from StructInfo
+		info, ok := b.typesIn.StructInfo(id)
+		if ok && info != nil && b.mm != nil && b.mm.Source != nil && b.mm.Source.Symbols != nil && b.mm.Source.Symbols.Table != nil {
+			name, ok := b.mm.Source.Symbols.Table.Strings.Lookup(info.Name)
+			if ok {
+				return symbols.TypeKey(name)
+			}
+		}
+	}
+	return ""
 }

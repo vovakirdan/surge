@@ -1,0 +1,20 @@
+
+== MIR ==
+funcs=2
+
+fn __surge_start:
+  locals:
+    L0: type#314 name=entry_ret
+    L1: int [copy] name=code
+  bb0:
+    L0 = call main()
+    L1 = call __to(move L0)
+    call rt_exit(copy L1)
+    return
+
+fn main:
+  locals:
+    L0: type#314 name=tmp_struct1
+  bb0:
+    L0 = struct_lit type#314 {code=const 42}
+    return move L0

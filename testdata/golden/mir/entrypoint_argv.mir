@@ -4,7 +4,7 @@ funcs=2
 
 fn __surge_start:
   locals:
-    L0: [string; 0] name=argv
+    L0: [string] name=argv
     L1: string name=arg_str0
     L2: int [copy] name=x
     L3: int name=entry_ret
@@ -12,7 +12,7 @@ fn __surge_start:
   bb0:
     L0 = call rt_argv()
     L1 = index copy L0[const 0]
-    L2 = call rt_parse_arg(copy L1)
+    L2 = call rt_parse_arg(move L1)
     L3 = call main(move L2)
     L4 = copy L3
     call rt_exit(copy L4)

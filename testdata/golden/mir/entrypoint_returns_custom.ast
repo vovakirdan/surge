@@ -1,0 +1,25 @@
+entrypoint_returns_custom.sg (span: 2:1-16:1)
+├─ Item[0]: Type (span: 2:1-4:2)
+│  ├─ Name: MyExitCode
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: code: int
+├─ Item[1]: Extern (span: 6:1-10:2)
+│  ├─ Target: MyExitCode
+│  ├─ Members:
+│  │  └─ Fn[0]: __to
+│  │     ├─ Params: (self: MyExitCode, _target: int)
+│  │     ├─ Return: int
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 7:52-9:6)
+│  │        └─ Stmt[0]: Return (span: 8:9-8:26)
+│  │           └─ Expr: expr#2: self.code
+└─ Item[2]: Fn (span: 12:1-15:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: MyExitCode
+   └─ Body:
+      └─ Stmt[0]: Block (span: 13:25-15:2)
+         └─ Stmt[0]: Return (span: 14:5-14:37)
+            └─ Expr: expr#5: <ExprKind(18)>

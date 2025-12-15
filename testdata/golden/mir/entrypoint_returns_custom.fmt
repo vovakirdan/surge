@@ -1,0 +1,15 @@
+// Test: __surge_start for entrypoint returning custom type with __to conversion
+type MyExitCode = {
+    code: int,
+}
+
+extern<MyExitCode> {
+    fn __to(self: MyExitCode, _target: int) -> int {
+        return self.code;
+    }
+}
+
+@entrypoint
+fn main() -> MyExitCode {
+    return MyExitCode { code = 42 };
+}

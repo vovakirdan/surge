@@ -10,7 +10,7 @@ fn __surge_start:
     L3: int [copy] name=code
   bb0:
     L0 = call rt_stdin_read_all()
-    L1 = call rt_parse_arg(copy L0)
+    L1 = call rt_parse_arg(move L0)
     L2 = call main(move L1)
     L3 = copy L2
     call rt_exit(copy L3)
