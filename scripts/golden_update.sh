@@ -79,6 +79,11 @@ generate_outputs() {
 	if [[ "${src}" == *"/instantiations/"* ]]; then
 		"${SURGE_BIN}" diag --format short --emit-instantiations "${src}" > "${dir}/${name}.inst" 2>&1 || true
 	fi
+
+	# Generate monomorphized output for files in mono directory
+	if [[ "${src}" == *"/mono/"* ]]; then
+		"${SURGE_BIN}" diag --format short --emit-mono "${src}" > "${dir}/${name}.mono" 2>&1 || true
+	fi
 }
 
 find "${GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r -d '' src; do

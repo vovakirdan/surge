@@ -1,0 +1,22 @@
+
+== MONO ==
+funcs=6 types=0
+fn id::<T>(x: type#262) (id=2147483654, sym=2415919110) {
+  return x
+}
+fn id::<string>(x: string) (id=2147483653, sym=2415919109) {
+  return x
+}
+fn id::<int>(x: int [copy]) (id=2147483651, sym=2415919107) {
+  return x
+}
+fn wrap::<string>(x: string) (id=2147483652, sym=2415919108) {
+  return id::<string>(x): string
+}
+fn wrap::<int>(x: int [copy]) (id=2147483650, sym=2415919106) {
+  return id::<int>(x): int
+}
+fn main() -> nothing (id=2147483649, sym=2415919105) {
+  let a: int [copy] = wrap::<int>(1): int
+  let b: string = wrap::<string>("\"x\""): string
+}

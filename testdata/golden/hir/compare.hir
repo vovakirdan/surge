@@ -15,7 +15,6 @@ fn classify(x: int [copy]) -> int (id=1, sym=518) {
       }
     }
     return (- 1): int
-    return default(): int
   }: int
 }
 

@@ -1,0 +1,13 @@
+
+== MONO ==
+funcs=3 types=0
+fn id::<string>(x: string) (id=2147483651, sym=2415919107) {
+  return x
+}
+fn id::<int>(x: int [copy]) (id=2147483650, sym=2415919106) {
+  return x
+}
+fn main() -> nothing (id=2147483649, sym=2415919105) {
+  let a: int [copy] = id::<int>(1): int
+  let b: string = id::<string>("\"x\""): string
+}

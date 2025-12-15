@@ -47,6 +47,9 @@ func init() {
 	diagCmd.Flags().Bool("emit-hir", false, "emit HIR (High-level IR) representation after successful analysis")
 	diagCmd.Flags().Bool("emit-borrow", false, "emit borrow graph + move plan (requires HIR)")
 	diagCmd.Flags().Bool("emit-instantiations", false, "emit generic instantiation map (requires sema)")
+	diagCmd.Flags().Bool("emit-mono", false, "emit monomorphized HIR (requires sema)")
+	diagCmd.Flags().Bool("mono-dce", false, "enable DCE for monomorphized output (experimental)")
+	diagCmd.Flags().Int("mono-max-depth", 64, "max monomorphization recursion depth")
 }
 
 // runDiagnose executes the "diag" command: it parses command flags, runs diagnostics
@@ -153,6 +156,18 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get emit-instantiations flag: %w", err)
 	}
+	emitMono, err := cmd.Flags().GetBool("emit-mono")
+	if err != nil {
+		return fmt.Errorf("failed to get emit-mono flag: %w", err)
+	}
+	monoDCE, err := cmd.Flags().GetBool("mono-dce")
+	if err != nil {
+		return fmt.Errorf("failed to get mono-dce flag: %w", err)
+	}
+	monoMaxDepth, err := cmd.Flags().GetInt("mono-max-depth")
+	if err != nil {
+		return fmt.Errorf("failed to get mono-max-depth flag: %w", err)
+	}
 
 	// Parse comma-separated filter
 	var directiveFilter []string
@@ -180,6 +195,9 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	if emitInstantiations && stage != driver.DiagnoseStageSema && stage != driver.DiagnoseStageAll {
 		return fmt.Errorf("--emit-instantiations requires --stages sema|all")
 	}
+	if emitMono && stage != driver.DiagnoseStageSema && stage != driver.DiagnoseStageAll {
+		return fmt.Errorf("--emit-mono requires --stages sema|all")
+	}
 
 	// Конвертируем строку режима директив в тип
 	var directiveMode parser.DirectiveMode
@@ -197,6 +215,9 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	}
 
 	// Создаём опции диагностики
+	printHIR := emitHIR || emitBorrow
+	buildHIR := printHIR || emitMono
+	buildInstantiations := emitInstantiations || emitMono
 	opts := driver.DiagnoseOptions{
 		Stage:              stage,
 		MaxDiagnostics:     maxDiagnostics,
@@ -207,13 +228,16 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		EnableDiskCache:    enableDiskCache,
 		DirectiveMode:      directiveMode,
 		DirectiveFilter:    directiveFilter,
-		EmitHIR:            emitHIR,
-		EmitInstantiations: emitInstantiations,
+		EmitHIR:            buildHIR,
+		EmitInstantiations: buildInstantiations,
 	}
 
 	st, err := os.Stat(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to stat path: %w", err)
+	}
+	if st.IsDir() && emitMono {
+		return fmt.Errorf("--emit-mono is only supported for single files")
 	}
 
 	cleanup, err := setupProfiling(cmd)
@@ -309,7 +333,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		}
 
 		// Emit HIR (+ optional borrow artefacts) if requested
-		if emitHIR && result.HIR != nil && result.Sema != nil {
+		if printHIR && result.HIR != nil && result.Sema != nil {
 			fmt.Fprintln(os.Stdout, "\n== HIR ==")
 			var interner = result.Sema.TypeInterner
 			if err := hir.DumpWithOptions(os.Stdout, result.HIR, interner, hir.DumpOptions{EmitBorrow: emitBorrow}); err != nil {
@@ -322,6 +346,21 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			fmt.Fprintln(os.Stdout, "\n== INSTANTIATIONS ==")
 			if err := mono.Dump(os.Stdout, result.Instantiations, result.FileSet, result.Symbols, result.Builder.StringsInterner, result.Sema.TypeInterner, mono.DumpOptions{PathMode: "relative"}); err != nil {
 				return 0, fmt.Errorf("failed to dump instantiations: %w", err)
+			}
+		}
+
+		// Emit monomorphized HIR if requested
+		if emitMono && result.HIR != nil && result.Instantiations != nil && result.Sema != nil {
+			fmt.Fprintln(os.Stdout, "\n== MONO ==")
+			mm, err := mono.MonomorphizeModule(result.HIR, result.Instantiations, result.Sema, mono.Options{
+				MaxDepth:  monoMaxDepth,
+				EnableDCE: monoDCE,
+			})
+			if err != nil {
+				return 0, fmt.Errorf("failed to monomorphize: %w", err)
+			}
+			if err := mono.DumpMonoModule(os.Stdout, mm, mono.MonoDumpOptions{}); err != nil {
+				return 0, fmt.Errorf("failed to dump mono: %w", err)
 			}
 		}
 

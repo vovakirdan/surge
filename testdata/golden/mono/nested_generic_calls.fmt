@@ -1,0 +1,11 @@
+fn id<T>(x: T) -> T { return x; }
+
+fn wrap<T>(x: T) -> T {
+    return id(x);
+}
+
+fn main() {
+    let a = wrap(1);
+    let b = wrap("x");
+}
+

@@ -12,7 +12,6 @@ fn unwrap_or_zero(x: type#261) -> int (id=1, sym=518) {
     if tag_test(__cmp1, nothing): bool {
       return 0
     }
-    return default(): int
   }: int
 }
 

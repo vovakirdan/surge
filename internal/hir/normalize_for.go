@@ -241,6 +241,14 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 		return nil, nil
 	}
 
+	elemTy := data.VarType
+	if elemTy == types.NoTypeID && data.VarSym.IsValid() {
+		elemTy = ctx.bindingType(data.VarSym)
+	}
+
+	iterTy := iterRangeType(ctx, elemTy)
+	nextTy := iterNextType(ctx, elemTy)
+
 	iterSym, iterName := ctx.newTemp("iter")
 	iterLet := Stmt{
 		Kind: StmtLet,
@@ -248,16 +256,16 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 		Data: LetData{
 			Name:      iterName,
 			SymbolID:  iterSym,
-			Type:      types.NoTypeID,
-			Value:     &Expr{Kind: ExprIterInit, Type: types.NoTypeID, Span: span, Data: IterInitData{Iterable: data.Iterable}},
+			Type:      iterTy,
+			Value:     &Expr{Kind: ExprIterInit, Type: iterTy, Span: span, Data: IterInitData{Iterable: data.Iterable}},
 			IsMut:     true,
 			IsConst:   false,
-			Ownership: OwnershipNone,
+			Ownership: ctx.inferOwnership(iterTy),
 		},
 	}
 
 	nextSym, nextName := ctx.newTemp("next")
-	nextRef := ctx.varRef(nextName, nextSym, types.NoTypeID, span)
+	nextRef := ctx.varRef(nextName, nextSym, nextTy, span)
 
 	nextLet := Stmt{
 		Kind: StmtLet,
@@ -265,11 +273,11 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 		Data: LetData{
 			Name:      nextName,
 			SymbolID:  nextSym,
-			Type:      types.NoTypeID,
-			Value:     &Expr{Kind: ExprIterNext, Type: types.NoTypeID, Span: span, Data: IterNextData{Iter: ctx.varRef(iterName, iterSym, types.NoTypeID, span)}},
+			Type:      nextTy,
+			Value:     &Expr{Kind: ExprIterNext, Type: nextTy, Span: span, Data: IterNextData{Iter: ctx.varRef(iterName, iterSym, iterTy, span)}},
 			IsMut:     false,
 			IsConst:   false,
-			Ownership: OwnershipNone,
+			Ownership: ctx.inferOwnership(nextTy),
 		},
 	}
 
@@ -322,6 +330,158 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 	outer := &Block{Span: span}
 	outer.Stmts = append(outer.Stmts, iterLet, whileStmt)
 	return []Stmt{{Kind: StmtBlock, Span: span, Data: BlockStmtData{Block: outer}}}, nil
+}
+
+func iterRangeType(ctx *normCtx, elem types.TypeID) types.TypeID {
+	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || elem == types.NoTypeID {
+		return types.NoTypeID
+	}
+	strs := ctx.mod.Symbols
+	if strs == nil || strs.Table == nil || strs.Table.Strings == nil {
+		return types.NoTypeID
+	}
+	rangeName := strs.Table.Strings.Intern("Range")
+
+	if id, ok := ctx.mod.TypeInterner.FindStructInstance(rangeName, []types.TypeID{elem}); ok {
+		return id
+	}
+
+	baseID, ok := ctx.mod.TypeInterner.FindStructInstance(rangeName, nil)
+	if !ok {
+		return types.NoTypeID
+	}
+	baseInfo, ok := ctx.mod.TypeInterner.StructInfo(baseID)
+	if !ok || baseInfo == nil {
+		return types.NoTypeID
+	}
+
+	instID := ctx.mod.TypeInterner.RegisterStructInstance(rangeName, baseInfo.Decl, []types.TypeID{elem})
+	fields := ctx.mod.TypeInterner.StructFields(baseID)
+	if len(fields) > 0 {
+		for i := range fields {
+			fields[i].Type = substTypeParamIndex(ctx.mod.TypeInterner, fields[i].Type, []types.TypeID{elem})
+		}
+		ctx.mod.TypeInterner.SetStructFields(instID, fields)
+	}
+	if vals := ctx.mod.TypeInterner.StructValueArgs(baseID); len(vals) > 0 {
+		ctx.mod.TypeInterner.SetStructValueArgs(instID, vals)
+	}
+	return instID
+}
+
+func iterNextType(ctx *normCtx, elem types.TypeID) types.TypeID {
+	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || elem == types.NoTypeID {
+		return types.NoTypeID
+	}
+	strs := ctx.mod.Symbols
+	if strs == nil || strs.Table == nil || strs.Table.Strings == nil {
+		return types.NoTypeID
+	}
+	optionName := strs.Table.Strings.Intern("Option")
+
+	if id, ok := ctx.mod.TypeInterner.FindUnionInstance(optionName, []types.TypeID{elem}); ok {
+		return id
+	}
+
+	baseID, ok := ctx.mod.TypeInterner.FindUnionInstance(optionName, nil)
+	if !ok {
+		return types.NoTypeID
+	}
+	baseInfo, ok := ctx.mod.TypeInterner.UnionInfo(baseID)
+	if !ok || baseInfo == nil {
+		return types.NoTypeID
+	}
+
+	instID := ctx.mod.TypeInterner.RegisterUnionInstance(optionName, baseInfo.Decl, []types.TypeID{elem})
+	if len(baseInfo.Members) > 0 {
+		members := make([]types.UnionMember, len(baseInfo.Members))
+		copy(members, baseInfo.Members)
+		for i := range members {
+			members[i].Type = substTypeParamIndex(ctx.mod.TypeInterner, members[i].Type, []types.TypeID{elem})
+			if len(members[i].TagArgs) > 0 {
+				tagArgs := make([]types.TypeID, len(members[i].TagArgs))
+				for j := range members[i].TagArgs {
+					tagArgs[j] = substTypeParamIndex(ctx.mod.TypeInterner, members[i].TagArgs[j], []types.TypeID{elem})
+				}
+				members[i].TagArgs = tagArgs
+			}
+		}
+		ctx.mod.TypeInterner.SetUnionMembers(instID, members)
+	}
+	return instID
+}
+
+func substTypeParamIndex(typesIn *types.Interner, id types.TypeID, args []types.TypeID) types.TypeID {
+	if typesIn == nil || id == types.NoTypeID || len(args) == 0 {
+		return id
+	}
+	tt, ok := typesIn.Lookup(id)
+	if !ok {
+		return id
+	}
+
+	switch tt.Kind {
+	case types.KindGenericParam:
+		info, ok := typesIn.TypeParamInfo(id)
+		if !ok || info == nil {
+			return id
+		}
+		idx := int(info.Index)
+		if idx >= 0 && idx < len(args) && args[idx] != types.NoTypeID {
+			return args[idx]
+		}
+		return id
+	case types.KindPointer, types.KindReference, types.KindOwn:
+		elem := substTypeParamIndex(typesIn, tt.Elem, args)
+		if elem == tt.Elem {
+			return id
+		}
+		clone := tt
+		clone.Elem = elem
+		return typesIn.Intern(clone)
+	case types.KindArray:
+		elem := substTypeParamIndex(typesIn, tt.Elem, args)
+		if elem == tt.Elem {
+			return id
+		}
+		clone := tt
+		clone.Elem = elem
+		return typesIn.Intern(clone)
+	case types.KindTuple:
+		info, ok := typesIn.TupleInfo(id)
+		if !ok || info == nil || len(info.Elems) == 0 {
+			return id
+		}
+		elems := make([]types.TypeID, len(info.Elems))
+		changed := false
+		for i := range info.Elems {
+			elems[i] = substTypeParamIndex(typesIn, info.Elems[i], args)
+			changed = changed || elems[i] != info.Elems[i]
+		}
+		if !changed {
+			return id
+		}
+		return typesIn.RegisterTuple(elems)
+	case types.KindFn:
+		info, ok := typesIn.FnInfo(id)
+		if !ok || info == nil {
+			return id
+		}
+		params := make([]types.TypeID, len(info.Params))
+		changed := false
+		for i := range info.Params {
+			params[i] = substTypeParamIndex(typesIn, info.Params[i], args)
+			changed = changed || params[i] != info.Params[i]
+		}
+		result := substTypeParamIndex(typesIn, info.Result, args)
+		changed = changed || result != info.Result
+		if !changed {
+			return id
+		}
+		return typesIn.RegisterFn(params, result)
+	default:
+		return id
+	}
 }
 
 func rewriteContinues(b *Block, inject []Stmt, depth int) {

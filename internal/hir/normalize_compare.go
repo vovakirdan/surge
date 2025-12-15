@@ -65,29 +65,31 @@ func normalizeCompareExpr(ctx *normCtx, e *Expr) error {
 		stmts = append(stmts, armStmts...)
 	}
 
-	// When no arm matches, fall back to a default value of the compare expression type.
-	// This keeps the normalized HIR well-typed without introducing new semantic checks.
-	stmts = append(stmts, Stmt{
-		Kind: StmtReturn,
-		Span: e.Span,
-		Data: ReturnData{
-			Value: &Expr{
-				Kind: ExprCall,
-				Type: e.Type,
-				Span: e.Span,
-				Data: CallData{
-					Callee: &Expr{
-						Kind: ExprVarRef,
-						Type: types.NoTypeID,
-						Span: e.Span,
-						Data: VarRefData{Name: "default", SymbolID: symbols.NoSymbolID},
+	if !compareExhaustive(ctx, valueTy, data.Arms) {
+		// When no arm matches, fall back to a default value of the compare expression type.
+		// This keeps the normalized HIR well-typed without introducing new semantic checks.
+		stmts = append(stmts, Stmt{
+			Kind: StmtReturn,
+			Span: e.Span,
+			Data: ReturnData{
+				Value: &Expr{
+					Kind: ExprCall,
+					Type: e.Type,
+					Span: e.Span,
+					Data: CallData{
+						Callee: &Expr{
+							Kind: ExprVarRef,
+							Type: types.NoTypeID,
+							Span: e.Span,
+							Data: VarRefData{Name: "default", SymbolID: symbols.NoSymbolID},
+						},
+						Args:     nil,
+						SymbolID: symbols.NoSymbolID,
 					},
-					Args:     nil,
-					SymbolID: symbols.NoSymbolID,
 				},
 			},
-		},
-	})
+		})
+	}
 
 	e.Kind = ExprBlock
 	e.Data = BlockExprData{Block: &Block{Stmts: stmts, Span: e.Span}}
@@ -228,6 +230,114 @@ func tuplePattern(p *Expr) ([]*Expr, bool) {
 	}
 	data := p.Data.(TupleLitData)
 	return data.Elements, true
+}
+
+func compareExhaustive(ctx *normCtx, subjectTy types.TypeID, arms []CompareArm) bool {
+	if ctx == nil {
+		return false
+	}
+	for _, arm := range arms {
+		if arm.Guard != nil {
+			continue
+		}
+		if arm.IsFinally || isWildcardPattern(arm.Pattern) {
+			return true
+		}
+		if _, _, ok := bindingPattern(ctx, arm.Pattern); ok {
+			return true
+		}
+	}
+
+	if ctx.mod == nil || ctx.mod.TypeInterner == nil || ctx.mod.Symbols == nil || ctx.mod.Symbols.Table == nil || ctx.mod.Symbols.Table.Strings == nil {
+		return false
+	}
+	subjectTy = resolveAlias(ctx.mod.TypeInterner, subjectTy, 0)
+	info, ok := ctx.mod.TypeInterner.UnionInfo(subjectTy)
+	if !ok || info == nil || len(info.Members) == 0 {
+		return false
+	}
+
+	needTags := make(map[source.StringID]struct{})
+	needNothing := false
+	for _, m := range info.Members {
+		switch m.Kind {
+		case types.UnionMemberTag:
+			if m.TagName != source.NoStringID {
+				needTags[m.TagName] = struct{}{}
+			}
+		case types.UnionMemberNothing:
+			needNothing = true
+		default:
+			return false
+		}
+	}
+
+	coveredTags := make(map[source.StringID]struct{})
+	coveredNothing := false
+	for _, arm := range arms {
+		if arm.Guard != nil {
+			continue
+		}
+		if isNothingPattern(arm.Pattern) {
+			coveredNothing = true
+			continue
+		}
+		tagName, payloadPats, ok := tagPattern(ctx, arm.Pattern)
+		if !ok {
+			continue
+		}
+		if !payloadPatternsCoverAll(ctx, payloadPats) {
+			continue
+		}
+		coveredTags[ctx.mod.Symbols.Table.Strings.Intern(tagName)] = struct{}{}
+	}
+
+	if needNothing && !coveredNothing {
+		return false
+	}
+	for tag := range needTags {
+		if _, ok := coveredTags[tag]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func payloadPatternsCoverAll(ctx *normCtx, payload []*Expr) bool {
+	if ctx == nil || len(payload) == 0 {
+		return true
+	}
+	for _, pat := range payload {
+		if pat == nil {
+			continue
+		}
+		if isWildcardPattern(pat) {
+			continue
+		}
+		if _, _, ok := bindingPattern(ctx, pat); ok {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func resolveAlias(typesIn *types.Interner, id types.TypeID, depth int) types.TypeID {
+	if typesIn == nil || id == types.NoTypeID {
+		return id
+	}
+	if depth > 64 {
+		return id
+	}
+	tt, ok := typesIn.Lookup(id)
+	if !ok || tt.Kind != types.KindAlias {
+		return id
+	}
+	target, ok := typesIn.AliasTarget(id)
+	if !ok || target == types.NoTypeID {
+		return id
+	}
+	return resolveAlias(typesIn, target, depth+1)
 }
 
 func mkReturn(span source.Span, value *Expr) Stmt {

@@ -5,9 +5,9 @@ module
 fn sum(arr: type#262) -> int (id=1, sym=518) {
   let mut total: int [copy] = 0
   {
-    let mut __iter1: ? = iter_init(arr)
+    let mut __iter1: type#264 = iter_init(arr): type#264
     while true {
-      let __next2: ? = iter_next(__iter1)
+      let __next2: type#265 = iter_next(__iter1): type#265
       if tag_test(__next2, nothing): bool {
         break
       }
