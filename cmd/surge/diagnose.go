@@ -383,11 +383,17 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 		// Emit MIR if requested
 		if emitMIR && mm != nil && result.Sema != nil {
-			fmt.Fprintln(os.Stdout, "\n== MIR ==")
 			mirMod, err := mir.LowerModule(mm, result.Sema)
 			if err != nil {
 				return 0, fmt.Errorf("failed to lower MIR: %w", err)
 			}
+
+			// Validate MIR before dumping
+			if err := mir.Validate(mirMod, result.Sema.TypeInterner); err != nil {
+				return 0, fmt.Errorf("MIR validation failed: %w", err)
+			}
+
+			fmt.Fprintln(os.Stdout, "\n== MIR ==")
 			if dumpErr := mir.DumpModule(os.Stdout, mirMod, result.Sema.TypeInterner, mir.DumpOptions{}); dumpErr != nil {
 				return 0, fmt.Errorf("failed to dump MIR: %w", dumpErr)
 			}
