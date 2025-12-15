@@ -1,0 +1,3 @@
+// Test: __surge_start for entrypoint returning nothing
+@entrypoint
+fn main() { }

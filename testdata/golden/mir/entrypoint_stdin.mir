@@ -1,0 +1,23 @@
+
+== MIR ==
+funcs=2
+
+fn __surge_start:
+  locals:
+    L0: string name=stdin
+    L1: int [copy] name=x
+    L2: int name=entry_ret
+    L3: int [copy] name=code
+  bb0:
+    L0 = call rt_stdin_read_all()
+    L1 = call rt_parse_arg(copy L0)
+    L2 = call main(move L1)
+    L3 = copy L2
+    call rt_exit(copy L3)
+    return
+
+fn main:
+  locals:
+    L0: int [copy] name=x
+  bb0:
+    return copy L0

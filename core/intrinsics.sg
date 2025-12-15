@@ -433,3 +433,22 @@ pub fn atomic_fetch_sub(ptr: *int, delta: int) -> int;
 @intrinsic
 @overload
 pub fn atomic_fetch_sub(ptr: *uint, delta: uint) -> uint;
+
+// Runtime intrinsics for __surge_start entrypoint wrapper
+
+// Get command-line arguments as string array
+@intrinsic
+pub fn rt_argv() -> string[];
+
+// Read all content from stdin
+@intrinsic
+pub fn rt_stdin_read_all() -> string;
+
+// Exit with integer exit code (for __surge_start)
+@intrinsic
+pub fn rt_exit(code: int) -> nothing;
+
+// Parse argument from string (placeholder for from_str)
+// TODO: replace with proper T.from_str call in __surge_start
+@intrinsic
+pub fn rt_parse_arg<T>(s: string) -> T;

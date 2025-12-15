@@ -86,6 +86,16 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 		}
 	}
 
+	// Build __surge_start if there's an entrypoint
+	surgeStart, err := BuildSurgeStart(mm, semaRes, typesIn, nextID)
+	if err != nil {
+		return nil, fmt.Errorf("building __surge_start: %w", err)
+	}
+	if surgeStart != nil {
+		out.Funcs[surgeStart.ID] = surgeStart
+		// __surge_start has no symbol, so don't add to FuncBySym
+	}
+
 	return out, nil
 }
 

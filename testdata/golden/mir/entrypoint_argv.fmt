@@ -1,0 +1,5 @@
+// Test: __surge_start for entrypoint with argv mode
+@entrypoint("argv")
+fn main(x: int) -> int {
+    return x;
+}

@@ -2,7 +2,7 @@
 == HIR ==
 module 
 
-fn t() -> nothing (id=1, sym=558) {
+fn t() -> nothing (id=1, sym=566) {
   let mut x: int [copy] = 1
   let r: &int [&] = (& x): &int
   drop r
@@ -10,13 +10,13 @@ fn t() -> nothing (id=1, sym=558) {
 }
 
 borrow edges:
-  L1117(r) (&) borrows L1116(x) at 0:51-53 scope=S3
+  L1133(r) (&) borrows L1132(x) at 0:51-53 scope=S3
 events:
-  borrow_start L1117(r) -> L1116(x) (&) at 0:51-53 scope=S3 note="B1"
-  drop L1117(r) -> L1116(x) at 0:59-67 scope=S3 note="B1"
-  borrow_end L1117(r) -> L1116(x) at 0:59-67 scope=S3 note="drop B1"
-  write L1116(x) at 0:72-77 scope=S3
+  borrow_start L1133(r) -> L1132(x) (&) at 0:51-53 scope=S3 note="B1"
+  drop L1133(r) -> L1132(x) at 0:59-67 scope=S3 note="B1"
+  borrow_end L1133(r) -> L1132(x) at 0:59-67 scope=S3 note="drop B1"
+  write L1132(x) at 0:72-77 scope=S3
 move plan:
-  L1116(x): MoveCopy (copy type)
-  L1117(r): MoveCopy (copy type)
+  L1132(x): MoveCopy (copy type)
+  L1133(r): MoveCopy (copy type)
 

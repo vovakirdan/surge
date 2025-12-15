@@ -4,9 +4,9 @@ funcs=1
 
 fn unwrap_or_zero:
   locals:
-    L0: type#309 name=x
+    L0: type#314 name=x
     L1: int [copy] name=tmp_block1
-    L2: type#309 name=__cmp1
+    L2: type#314 name=__cmp1
     L3: bool [copy] name=tmp_tagtest2
     L4: int [copy] name=v
     L5: int [copy] name=tmp_payload3

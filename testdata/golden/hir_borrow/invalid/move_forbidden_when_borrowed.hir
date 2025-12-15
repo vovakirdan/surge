@@ -3,20 +3,20 @@ error SEM3020 testdata/golden/hir_borrow/invalid/move_forbidden_when_borrowed.sg
 == HIR ==
 module 
 
-fn t() -> nothing (id=1, sym=558) {
+fn t() -> nothing (id=1, sym=566) {
   let x: string = "\"hi\""
   let r: &string [&] = (& x): &string
   let y: string = x
 }
 
 borrow edges:
-  L1117(r) (&) borrows L1116(x) at 0:56-58 scope=S3
+  L1133(r) (&) borrows L1132(x) at 0:56-58 scope=S3
 events:
-  borrow_start L1117(r) -> L1116(x) (&) at 0:56-58 scope=S3 note="B1"
-  move L1116(x) at 0:80-81 scope=S3 note="issue=frozen borrow=B1"
-  borrow_end L1117(r) -> L1116(x) scope=S3 note="scope_end B1"
+  borrow_start L1133(r) -> L1132(x) (&) at 0:56-58 scope=S3 note="B1"
+  move L1132(x) at 0:80-81 scope=S3 note="issue=frozen borrow=B1"
+  borrow_end L1133(r) -> L1132(x) scope=S3 note="scope_end B1"
 move plan:
-  L1116(x): MoveForbidden (move blocked by frozen (B1))
-  L1117(r): MoveCopy (copy type)
-  L1118(y): MoveNeedsDrop (non-copy (drop))
+  L1132(x): MoveForbidden (move blocked by frozen (B1))
+  L1133(r): MoveCopy (copy type)
+  L1134(y): MoveNeedsDrop (non-copy (drop))
 

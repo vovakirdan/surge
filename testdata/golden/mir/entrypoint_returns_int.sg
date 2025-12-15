@@ -1,0 +1,5 @@
+// Test: __surge_start for entrypoint returning int
+@entrypoint
+fn main() -> int {
+    return 42;
+}

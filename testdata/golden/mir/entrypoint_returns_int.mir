@@ -1,0 +1,18 @@
+
+== MIR ==
+funcs=2
+
+fn __surge_start:
+  locals:
+    L0: int name=entry_ret
+    L1: int [copy] name=code
+  bb0:
+    L0 = call main()
+    L1 = copy L0
+    call rt_exit(copy L1)
+    return
+
+fn main:
+  locals:
+  bb0:
+    return const 42
