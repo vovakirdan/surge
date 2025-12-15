@@ -12,6 +12,7 @@ const (
 	InstrAssign InstrKind = iota
 	InstrCall
 	InstrDrop
+	InstrEndBorrow
 	InstrAwait
 	InstrSpawn
 	InstrNop
@@ -20,11 +21,12 @@ const (
 type Instr struct {
 	Kind InstrKind
 
-	Assign AssignInstr
-	Call   CallInstr
-	Drop   DropInstr
-	Await  AwaitInstr
-	Spawn  SpawnInstr
+	Assign    AssignInstr
+	Call      CallInstr
+	Drop      DropInstr
+	EndBorrow EndBorrowInstr
+	Await     AwaitInstr
+	Spawn     SpawnInstr
 }
 
 type AssignInstr struct {
@@ -54,6 +56,10 @@ type CallInstr struct {
 }
 
 type DropInstr struct {
+	Place Place
+}
+
+type EndBorrowInstr struct {
 	Place Place
 }
 

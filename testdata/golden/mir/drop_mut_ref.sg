@@ -1,0 +1,7 @@
+fn main() -> nothing {
+    let mut x: int = 1;
+    let r: &mut int = &mut x;
+    @drop r;
+    x = 2;
+    return;
+}

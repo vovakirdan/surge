@@ -132,6 +132,8 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 		return fmt.Sprintf("%scall %s(%s)", dst, formatCallee(&ins.Call.Callee), formatOperands(ins.Call.Args))
 	case InstrDrop:
 		return fmt.Sprintf("drop %s", formatPlace(ins.Drop.Place))
+	case InstrEndBorrow:
+		return fmt.Sprintf("end_borrow %s", formatPlace(ins.EndBorrow.Place))
 	case InstrAwait:
 		return fmt.Sprintf("%s = await %s", formatPlace(ins.Await.Dst), formatOperand(ins.Await.Task))
 	case InstrSpawn:

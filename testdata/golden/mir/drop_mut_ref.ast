@@ -1,0 +1,22 @@
+drop_mut_ref.sg (span: 1:1-8:1)
+└─ Item[0]: Fn (span: 1:1-7:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:22-7:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:24)
+         │  ├─ Name: x
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         ├─ Stmt[1]: Let (span: 3:5-3:30)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &mut int
+         │  └─ Value: expr#3: &mut x
+         ├─ Stmt[2]: StmtKind(12) (span: 4:5-4:13)
+         ├─ Stmt[3]: Expr (span: 5:5-5:11)
+         │  └─ Expr: expr#7: (x = 2)
+         └─ Stmt[4]: Return (span: 6:5-6:12)
+            └─ Expr: <none>

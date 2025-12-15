@@ -261,6 +261,10 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		if data.Value == nil {
 			return nil
 		}
+
+		// Get the type of the value being dropped
+		ty := data.Value.Type
+
 		place, err := l.lowerPlace(data.Value)
 		if err != nil {
 			// Not a place: lower into a temp and drop it.
@@ -282,7 +286,25 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 			})
 			place = Place{Local: tmp}
 		}
-		l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: place}})
+
+		// Determine instruction based on type:
+		// - &T or &mut T → EndBorrow
+		// - non-copy → Drop
+		// - copy → nothing
+		isRef := false
+		if l.types != nil && ty != types.NoTypeID {
+			resolved := resolveAlias(l.types, ty)
+			if tt, ok := l.types.Lookup(resolved); ok {
+				isRef = (tt.Kind == types.KindReference)
+			}
+		}
+
+		if isRef {
+			l.emit(&Instr{Kind: InstrEndBorrow, EndBorrow: EndBorrowInstr{Place: place}})
+		} else if !l.isCopyType(ty) {
+			l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: place}})
+		}
+		// else: copy type → emit nothing
 		return nil
 
 	default:
