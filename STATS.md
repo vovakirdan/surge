@@ -4,15 +4,15 @@
 
 ## 📊 Main code (without tests)
 
-- **Files:** 341
-- **Lines of code:** 64873
+- **Files:** 342
+- **Lines of code:** 65083
 
 ## 📁 Directory breakdown
 
 | Directory | Files | Lines |
 |------------|--------|-------|
-| `cmd/` | 11 | 2098 |
-| `internal/` | 330 | 62775 |
+| `cmd/` | 11 | 2109 |
+| `internal/` | 331 | 62974 |
 
 ## 🏆 Top 10 packages by size
 
@@ -26,18 +26,18 @@
 | 6 | `internal/symbols` | 3833 |
 | 7 | `internal/ast` | 3759 |
 | 8 | `internal/mono` | 3383 |
-| 9 | `internal/mir` | 2850 |
-| 10 | `cmd/surge` | 2098 |
+| 9 | `internal/mir` | 3049 |
+| 10 | `cmd/surge` | 2109 |
 
 ## 🧪 Test files
 
-- **Files:** 72
-- **Lines of code:** 18722
+- **Files:** 73
+- **Lines of code:** 19002
 
 ## 📈 Total volume (code + tests)
 
-- **Files:** 413
-- **Lines of code:** 83595
+- **Files:** 415
+- **Lines of code:** 84085
 
 ## 📊 Percentage breakdown
 

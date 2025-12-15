@@ -388,7 +388,18 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 				return 0, fmt.Errorf("failed to lower MIR: %w", err)
 			}
 
-			// SimplifyCFG before Validate
+			// SimplifyCFG first to remove trivial goto blocks
+			for _, f := range mirMod.Funcs {
+				mir.SimplifyCFG(f)
+			}
+
+			// RecognizeSwitchTag converts tag_test+if chains to switch_tag
+			// (runs after SimplifyCFG so chains are contiguous)
+			for _, f := range mirMod.Funcs {
+				mir.RecognizeSwitchTag(f)
+			}
+
+			// SimplifyCFG again to clean up blocks made unreachable by switch conversion
 			for _, f := range mirMod.Funcs {
 				mir.SimplifyCFG(f)
 			}

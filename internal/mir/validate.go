@@ -104,7 +104,14 @@ func validateBlockTargets(f *Func) error {
 				errs = append(errs, fmt.Errorf("bb%d: if else target bb%d does not exist", i, bb.Term.If.Else))
 			}
 		case TermSwitchTag:
+			// Check for duplicate tag names
+			seenTags := make(map[string]bool)
 			for j, c := range bb.Term.SwitchTag.Cases {
+				if seenTags[c.TagName] {
+					errs = append(errs, fmt.Errorf("bb%d: switch_tag has duplicate case for tag %s", i, c.TagName))
+				}
+				seenTags[c.TagName] = true
+
 				if !blockExists(c.Target) {
 					errs = append(errs, fmt.Errorf("bb%d: switch_tag case %d (%s) target bb%d does not exist",
 						i, j, c.TagName, c.Target))

@@ -13,8 +13,7 @@ fn unwrap_or_zero:
     L6: bool [copy] name=tmp_tagtest4
   bb0:
     L2 = move L0
-    L3 = tag_test copy L2 is Some
-    if copy L3 then bb2 else bb3
+    switch_tag copy L2 { Some -> bb2; nothing -> bb3; default -> bb4; }
   bb1:
     return copy L1
   bb2:
@@ -23,10 +22,7 @@ fn unwrap_or_zero:
     L1 = copy L4
     goto bb1
   bb3:
-    L6 = tag_test copy L2 is nothing
-    if copy L6 then bb4 else bb5
-  bb4:
     L1 = const 0
     goto bb1
-  bb5:
+  bb4:
     unreachable
