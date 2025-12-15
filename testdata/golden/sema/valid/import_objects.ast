@@ -30,22 +30,22 @@ import_objects.sg (span: 2:1-23:1)
 │        │  ├─ Name: pubType1
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
-│        │  └─ Value: expr#12: <ExprKind(18)>
+│        │  └─ Value: expr#11: <ExprKind(18)>
 │        ├─ Stmt[5]: Let (span: 11:5-11:79)
 │        │  ├─ Name: pubType2
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
-│        │  └─ Value: expr#18: <ExprKind(18)>
+│        │  └─ Value: expr#16: <ExprKind(18)>
 │        ├─ Stmt[6]: Let (span: 12:5-12:36)
 │        │  ├─ Name: val1
 │        │  ├─ Mutable: false
 │        │  ├─ Type: int
-│        │  └─ Value: expr#20: pubType1.value
+│        │  └─ Value: expr#18: pubType1.value
 │        └─ Stmt[7]: Let (span: 13:5-13:36)
 │           ├─ Name: val2
 │           ├─ Mutable: false
 │           ├─ Type: int
-│           └─ Value: expr#22: pubType2.value
+│           └─ Value: expr#20: pubType2.value
 ├─ Item[3]: Fn (span: 16:1-18:2)
 │  ├─ Name: foo
 │  ├─ Generics: <T>
@@ -57,7 +57,7 @@ import_objects.sg (span: 2:1-23:1)
 │           ├─ Name: _
 │           ├─ Mutable: false
 │           ├─ Type: <inferred>
-│           └─ Value: expr#25: t.method()
+│           └─ Value: expr#23: t.method()
 └─ Item[4]: Fn (span: 20:1-22:2)
    ├─ Name: bar
    ├─ Generics: <T>
@@ -69,4 +69,4 @@ import_objects.sg (span: 2:1-23:1)
             ├─ Name: _
             ├─ Mutable: false
             ├─ Type: <inferred>
-            └─ Value: expr#28: t.method()
+            └─ Value: expr#26: t.method()

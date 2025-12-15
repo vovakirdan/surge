@@ -1,0 +1,7 @@
+fn unwrap_or_zero(x: int?) -> int {
+    return compare x {
+        Some(v) => v;
+        nothing => 0;
+    };
+}
+

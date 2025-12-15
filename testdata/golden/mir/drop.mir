@@ -1,0 +1,14 @@
+
+== MIR ==
+funcs=1
+
+fn main:
+  locals:
+    L0: int [copy] name=x
+    L1: &int [copy,ref] name=r
+  bb0:
+    L0 = const 1
+    L1 = addr_of L0
+    drop L1
+    L0 = const 2
+    return

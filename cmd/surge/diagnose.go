@@ -13,6 +13,7 @@ import (
 	"surge/internal/directive"
 	"surge/internal/driver"
 	"surge/internal/hir"
+	"surge/internal/mir"
 	"surge/internal/mono"
 	"surge/internal/parser"
 	"surge/internal/source"
@@ -48,6 +49,7 @@ func init() {
 	diagCmd.Flags().Bool("emit-borrow", false, "emit borrow graph + move plan (requires HIR)")
 	diagCmd.Flags().Bool("emit-instantiations", false, "emit generic instantiation map (requires sema)")
 	diagCmd.Flags().Bool("emit-mono", false, "emit monomorphized HIR (requires sema)")
+	diagCmd.Flags().Bool("emit-mir", false, "emit MIR (Mid-level IR) for monomorphized program (requires sema)")
 	diagCmd.Flags().Bool("mono-dce", false, "enable DCE for monomorphized output (experimental)")
 	diagCmd.Flags().Int("mono-max-depth", 64, "max monomorphization recursion depth")
 }
@@ -160,6 +162,10 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get emit-mono flag: %w", err)
 	}
+	emitMIR, err := cmd.Flags().GetBool("emit-mir")
+	if err != nil {
+		return fmt.Errorf("failed to get emit-mir flag: %w", err)
+	}
 	monoDCE, err := cmd.Flags().GetBool("mono-dce")
 	if err != nil {
 		return fmt.Errorf("failed to get mono-dce flag: %w", err)
@@ -198,6 +204,9 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	if emitMono && stage != driver.DiagnoseStageSema && stage != driver.DiagnoseStageAll {
 		return fmt.Errorf("--emit-mono requires --stages sema|all")
 	}
+	if emitMIR && stage != driver.DiagnoseStageSema && stage != driver.DiagnoseStageAll {
+		return fmt.Errorf("--emit-mir requires --stages sema|all")
+	}
 
 	// Конвертируем строку режима директив в тип
 	var directiveMode parser.DirectiveMode
@@ -216,8 +225,8 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 	// Создаём опции диагностики
 	printHIR := emitHIR || emitBorrow
-	buildHIR := printHIR || emitMono
-	buildInstantiations := emitInstantiations || emitMono
+	buildHIR := printHIR || emitMono || emitMIR
+	buildInstantiations := emitInstantiations || emitMono || emitMIR
 	opts := driver.DiagnoseOptions{
 		Stage:              stage,
 		MaxDiagnostics:     maxDiagnostics,
@@ -238,6 +247,9 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	}
 	if st.IsDir() && emitMono {
 		return fmt.Errorf("--emit-mono is only supported for single files")
+	}
+	if st.IsDir() && emitMIR {
+		return fmt.Errorf("--emit-mir is only supported for single files")
 	}
 
 	cleanup, err := setupProfiling(cmd)
@@ -336,31 +348,48 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		if printHIR && result.HIR != nil && result.Sema != nil {
 			fmt.Fprintln(os.Stdout, "\n== HIR ==")
 			var interner = result.Sema.TypeInterner
-			if err := hir.DumpWithOptions(os.Stdout, result.HIR, interner, hir.DumpOptions{EmitBorrow: emitBorrow}); err != nil {
-				return 0, fmt.Errorf("failed to dump HIR: %w", err)
+			if dumpErr := hir.DumpWithOptions(os.Stdout, result.HIR, interner, hir.DumpOptions{EmitBorrow: emitBorrow}); dumpErr != nil {
+				return 0, fmt.Errorf("failed to dump HIR: %w", dumpErr)
 			}
 		}
 
 		// Emit instantiation map if requested
 		if emitInstantiations && result.Instantiations != nil && result.Sema != nil && result.Symbols != nil && result.Builder != nil {
 			fmt.Fprintln(os.Stdout, "\n== INSTANTIATIONS ==")
-			if err := mono.Dump(os.Stdout, result.Instantiations, result.FileSet, result.Symbols, result.Builder.StringsInterner, result.Sema.TypeInterner, mono.DumpOptions{PathMode: "relative"}); err != nil {
-				return 0, fmt.Errorf("failed to dump instantiations: %w", err)
+			if dumpErr := mono.Dump(os.Stdout, result.Instantiations, result.FileSet, result.Symbols, result.Builder.StringsInterner, result.Sema.TypeInterner, mono.DumpOptions{PathMode: "relative"}); dumpErr != nil {
+				return 0, fmt.Errorf("failed to dump instantiations: %w", dumpErr)
 			}
 		}
 
 		// Emit monomorphized HIR if requested
-		if emitMono && result.HIR != nil && result.Instantiations != nil && result.Sema != nil {
-			fmt.Fprintln(os.Stdout, "\n== MONO ==")
-			mm, err := mono.MonomorphizeModule(result.HIR, result.Instantiations, result.Sema, mono.Options{
+		var mm *mono.MonoModule
+		if (emitMono || emitMIR) && result.HIR != nil && result.Instantiations != nil && result.Sema != nil {
+			mm, err = mono.MonomorphizeModule(result.HIR, result.Instantiations, result.Sema, mono.Options{
 				MaxDepth:  monoMaxDepth,
 				EnableDCE: monoDCE,
 			})
 			if err != nil {
 				return 0, fmt.Errorf("failed to monomorphize: %w", err)
 			}
-			if err := mono.DumpMonoModule(os.Stdout, mm, mono.MonoDumpOptions{}); err != nil {
-				return 0, fmt.Errorf("failed to dump mono: %w", err)
+		}
+
+		// Emit monomorphized HIR if requested
+		if emitMono && mm != nil {
+			fmt.Fprintln(os.Stdout, "\n== MONO ==")
+			if dumpErr := mono.DumpMonoModule(os.Stdout, mm, mono.MonoDumpOptions{}); dumpErr != nil {
+				return 0, fmt.Errorf("failed to dump mono: %w", dumpErr)
+			}
+		}
+
+		// Emit MIR if requested
+		if emitMIR && mm != nil && result.Sema != nil {
+			fmt.Fprintln(os.Stdout, "\n== MIR ==")
+			mirMod, err := mir.LowerModule(mm, result.Sema)
+			if err != nil {
+				return 0, fmt.Errorf("failed to lower MIR: %w", err)
+			}
+			if dumpErr := mir.DumpModule(os.Stdout, mirMod, result.Sema.TypeInterner, mir.DumpOptions{}); dumpErr != nil {
+				return 0, fmt.Errorf("failed to dump MIR: %w", dumpErr)
 			}
 		}
 

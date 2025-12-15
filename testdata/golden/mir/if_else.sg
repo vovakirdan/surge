@@ -1,0 +1,6 @@
+fn main() -> int {
+    let x: int = 1;
+    let y: int = x == 0 ? 10 : 20;
+    return y;
+}
+

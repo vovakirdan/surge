@@ -1,0 +1,19 @@
+if_else.sg (span: 1:1-7:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:18-5:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:20)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         ├─ Stmt[1]: Let (span: 3:5-3:35)
+         │  ├─ Name: y
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#7: ((x == 0)) ? 10 : 20
+         └─ Stmt[2]: Return (span: 4:5-4:14)
+            └─ Expr: expr#8: y

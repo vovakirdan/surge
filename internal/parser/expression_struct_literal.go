@@ -23,14 +23,16 @@ func (p *Parser) parseStructLiteralBody(typeID ast.TypeID, typeSpan source.Span,
 
 	for !p.at(token.RBrace) && !p.at(token.EOF) {
 		p.suspendColonCast++
-		fieldExpr, ok := p.parseExpr()
+		// Parse a potential field key without consuming assignment operators, so we can
+		// recognize `field = value` (and legacy `field: value`) in struct literals.
+		fieldExpr, ok := p.parseBinaryExpr(precNullCoalescing)
 		p.suspendColonCast--
 		if !ok {
 			p.resyncStructLiteralField()
 			continue
 		}
 
-		if !positional && p.at(token.Colon) {
+		if !positional && (p.at(token.Assign) || p.at(token.Colon)) {
 			if ident, ok := p.arenas.Exprs.Ident(fieldExpr); ok && ident != nil {
 				p.advance()
 				valueExpr, valueOK := p.parseExpr()

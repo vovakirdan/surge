@@ -1,0 +1,16 @@
+fn main() -> int {
+    let mut i: int = 0;
+    let mut sum: int = 0;
+    while i < 5 {
+        i = i + 1;
+        if i == 3 {
+            continue;
+        }
+        if i == 5 {
+            break;
+        }
+        sum = sum + i;
+    }
+    return sum;
+}
+

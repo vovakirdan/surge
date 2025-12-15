@@ -1,0 +1,44 @@
+
+== MIR ==
+funcs=5
+
+fn id::<int>:
+  locals:
+    L0: int [copy] name=x
+  bb0:
+    return copy L0
+
+fn id::<string>:
+  locals:
+    L0: string name=x
+  bb0:
+    return move L0
+
+fn main:
+  locals:
+    L0: int [copy] name=a
+    L1: int [copy] name=tmp_call1
+    L2: string name=b
+    L3: string name=tmp_call2
+  bb0:
+    L1 = call wrap::<int>(const 1)
+    L0 = copy L1
+    L3 = call wrap::<string>(const "\"x\"")
+    L2 = move L3
+    return
+
+fn wrap::<int>:
+  locals:
+    L0: int [copy] name=x
+    L1: int [copy] name=tmp_call1
+  bb0:
+    L1 = call id::<int>(copy L0)
+    return copy L1
+
+fn wrap::<string>:
+  locals:
+    L0: string name=x
+    L1: string name=tmp_call1
+  bb0:
+    L1 = call id::<string>(move L0)
+    return move L1

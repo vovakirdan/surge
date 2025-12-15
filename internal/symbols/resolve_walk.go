@@ -310,12 +310,26 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 		}
 		fr.walkExpr(data.Target)
 		fr.resolveMember(exprID, data)
+	case ast.ExprTupleIndex:
+		data, _ := fr.builder.Exprs.TupleIndex(exprID)
+		if data == nil {
+			return
+		}
+		fr.walkExpr(data.Target)
 	case ast.ExprAwait:
 		data, _ := fr.builder.Exprs.Await(exprID)
 		if data == nil {
 			return
 		}
 		fr.walkExpr(data.Value)
+	case ast.ExprTernary:
+		data, _ := fr.builder.Exprs.Ternary(exprID)
+		if data == nil {
+			return
+		}
+		fr.walkExpr(data.Cond)
+		fr.walkExpr(data.TrueExpr)
+		fr.walkExpr(data.FalseExpr)
 	case ast.ExprGroup:
 		data, _ := fr.builder.Exprs.Group(exprID)
 		if data == nil {
@@ -401,6 +415,17 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 			fr.walkExpr(arm.Guard)
 			fr.walkExpr(arm.Result)
 			fr.resolver.Leave(scope)
+		}
+	case ast.ExprStruct:
+		data, _ := fr.builder.Exprs.Struct(exprID)
+		if data == nil {
+			return
+		}
+		if data.Type.IsValid() {
+			fr.walkTypeExpr(data.Type)
+		}
+		for _, f := range data.Fields {
+			fr.walkExpr(f.Value)
 		}
 	case ast.ExprLit:
 	}

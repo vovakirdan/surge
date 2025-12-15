@@ -1,0 +1,36 @@
+
+== MIR ==
+funcs=1
+
+fn unwrap_or_zero:
+  locals:
+    L0: type#261 name=x
+    L1: int [copy] name=tmp_block1
+    L2: type#261 name=__cmp1
+    L3: bool [copy] name=tmp_tagtest2
+    L4: int [copy] name=v
+    L5: int [copy] name=tmp_payload3
+    L6: bool [copy] name=tmp_tagtest4
+  bb0:
+    L2 = move L0
+    L3 = tag_test copy L2 is Some
+    if copy L3 then bb2 else bb3
+  bb1:
+    return copy L1
+  bb2:
+    L5 = tag_payload copy L2.Some[0]
+    L4 = copy L5
+    L1 = copy L4
+    goto bb1
+  bb3:
+    goto bb4
+  bb4:
+    L6 = tag_test copy L2 is nothing
+    if copy L6 then bb5 else bb6
+  bb5:
+    L1 = const 0
+    goto bb1
+  bb6:
+    goto bb7
+  bb7:
+    unreachable

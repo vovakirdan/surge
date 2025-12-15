@@ -1,0 +1,41 @@
+while_loop.sg (span: 1:1-17:1)
+└─ Item[0]: Fn (span: 1:1-15:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:18-15:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:24)
+         │  ├─ Name: i
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 0
+         ├─ Stmt[1]: Let (span: 3:5-3:26)
+         │  ├─ Name: sum
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#2: 0
+         ├─ Stmt[2]: While (span: 4:5-13:6)
+         │  ├─ Cond: expr#5: (i < 5)
+         │  └─ Body:
+Block (span: 4:17-13:6)
+         │     ├─ Stmt[0]: Expr (span: 5:9-5:19)
+         │     │  └─ Expr: expr#10: (i = ((i + 1)))
+         │     ├─ Stmt[1]: If (span: 6:9-8:10)
+         │     │  ├─ Cond: expr#13: (i == 3)
+         │     │  ├─ Then:
+Block (span: 6:19-8:10)
+         │     │  │  └─ Stmt[0]: Continue (span: 7:13-7:22)
+         │     │  │     └─ (no additional data)
+         │     │  └─ Else: <none>
+         │     ├─ Stmt[2]: If (span: 9:9-11:10)
+         │     │  ├─ Cond: expr#16: (i == 5)
+         │     │  ├─ Then:
+Block (span: 9:19-11:10)
+         │     │  │  └─ Stmt[0]: Break (span: 10:13-10:19)
+         │     │  │     └─ (no additional data)
+         │     │  └─ Else: <none>
+         │     └─ Stmt[3]: Expr (span: 12:9-12:23)
+         │        └─ Expr: expr#21: (sum = ((sum + i)))
+         └─ Stmt[3]: Return (span: 14:5-14:16)
+            └─ Expr: expr#22: sum
