@@ -1,0 +1,1 @@
+error FUT7004 testdata/golden/sema/invalid/entrypoint/mode_config.sg:3:1 @entrypoint("config") mode is reserved for future use; use "argv" or "stdin"

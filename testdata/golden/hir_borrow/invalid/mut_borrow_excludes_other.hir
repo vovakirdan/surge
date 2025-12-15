@@ -3,20 +3,20 @@ error SEM3018 testdata/golden/hir_borrow/invalid/mut_borrow_excludes_other.sg:4:
 == HIR ==
 module 
 
-fn t() -> nothing (id=1, sym=518) {
+fn t() -> nothing (id=1, sym=558) {
   let mut x: int [copy] = 1
   let m: &mut int [&mut] = (&mut x): &mut int
   let r: &int [&] = (& x): &int
 }
 
 borrow edges:
-  L1037(m) (&mut) borrows L1036(x) at 0:55-61 scope=S3
+  L1117(m) (&mut) borrows L1116(x) at 0:55-61 scope=S3
 events:
-  borrow_start L1037(m) -> L1036(x) (&mut) at 0:55-61 scope=S3 note="B1"
-  borrow_start _ -> L1036(x) at 0:81-83 scope=S3 note="issue=conflict_mut borrow=B1"
-  borrow_end L1037(m) -> L1036(x) scope=S3 note="scope_end B1"
+  borrow_start L1117(m) -> L1116(x) (&mut) at 0:55-61 scope=S3 note="B1"
+  borrow_start _ -> L1116(x) at 0:81-83 scope=S3 note="issue=conflict_mut borrow=B1"
+  borrow_end L1117(m) -> L1116(x) scope=S3 note="scope_end B1"
 move plan:
-  L1036(x): MoveCopy (copy type)
-  L1037(m): MoveAllowed (non-copy reference)
-  L1038(r): MoveCopy (copy type)
+  L1116(x): MoveCopy (copy type)
+  L1117(m): MoveAllowed (non-copy reference)
+  L1118(r): MoveCopy (copy type)
 

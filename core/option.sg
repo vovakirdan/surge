@@ -33,4 +33,12 @@ extern<Option<T>> {
             _ => true;
         };
     }
+
+    // Convert Option to exit code: Some => 0, nothing => 1
+    pub fn __to(self: Option<T>, target: int) -> int {
+        compare self {
+            Some(_) => 0;
+            _ => 1;
+        };
+    }
 }

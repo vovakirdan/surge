@@ -414,7 +414,10 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 	hasOverride := false
 	hasIntrinsic := false
 	hasEntrypoint := false
-	for _, attr := range attrs {
+	entrypointMode := EntrypointModeNone
+	var entrypointAttr *ast.Attr
+	for i := range attrs {
+		attr := &attrs[i]
 		name := fr.builder.StringsInterner.MustLookup(attr.Name)
 		switch name {
 		case "overload":
@@ -425,6 +428,8 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 			hasIntrinsic = true
 		case "entrypoint":
 			hasEntrypoint = true
+			entrypointAttr = attr
+			entrypointMode = fr.parseEntrypointMode(attr, span)
 		}
 	}
 
@@ -558,7 +563,63 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 	if !symID.IsValid() {
 		return NoSymbolID, false
 	}
+
+	// Store entrypoint mode on the symbol
+	if hasEntrypoint && entrypointAttr != nil {
+		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
+			sym.EntrypointMode = entrypointMode
+		}
+	}
+
 	return symID, true
+}
+
+// parseEntrypointMode extracts the mode from an @entrypoint attribute.
+// Returns EntrypointModeNone if no argument, or the parsed mode.
+// Reports errors for invalid/unknown modes.
+func (fr *fileResolver) parseEntrypointMode(attr *ast.Attr, _ source.Span) EntrypointMode {
+	if attr == nil || len(attr.Args) == 0 {
+		return EntrypointModeNone
+	}
+	argID := attr.Args[0]
+	lit, ok := fr.builder.Exprs.Literal(argID)
+	if !ok || lit == nil || lit.Kind != ast.ExprLitString {
+		// Attribute argument must be a string literal
+		if b := diag.ReportError(fr.resolver.reporter, diag.SemaEntrypointModeInvalid, attr.Span,
+			"@entrypoint mode must be a string literal"); b != nil {
+			b.Emit()
+		}
+		return EntrypointModeNone
+	}
+	modeStr := fr.builder.StringsInterner.MustLookup(lit.Value)
+	// Remove surrounding quotes if present (literal includes quotes in some representations)
+	modeStr = strings.Trim(modeStr, "\"")
+	switch modeStr {
+	case "argv":
+		return EntrypointModeArgv
+	case "stdin":
+		return EntrypointModeStdin
+	case "env":
+		// Report future/unsupported error
+		if b := diag.ReportError(fr.resolver.reporter, diag.FutEntrypointModeEnv, attr.Span,
+			"@entrypoint(\"env\") mode is reserved for future use; use \"argv\" or \"stdin\""); b != nil {
+			b.Emit()
+		}
+		return EntrypointModeEnv
+	case "config":
+		// Report future/unsupported error
+		if b := diag.ReportError(fr.resolver.reporter, diag.FutEntrypointModeConfig, attr.Span,
+			"@entrypoint(\"config\") mode is reserved for future use; use \"argv\" or \"stdin\""); b != nil {
+			b.Emit()
+		}
+		return EntrypointModeConfig
+	default:
+		if b := diag.ReportError(fr.resolver.reporter, diag.SemaEntrypointModeInvalid, attr.Span,
+			fmt.Sprintf("unknown @entrypoint mode %q; valid modes are 'argv', 'stdin'", modeStr)); b != nil {
+			b.Emit()
+		}
+		return EntrypointModeNone
+	}
 }
 
 func (fr *fileResolver) enforceFunctionNameStyle(name source.StringID, span source.Span) {

@@ -1,0 +1,32 @@
+  1: KwType          "type" at 4:1-4:5 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "Data" at 4:6-4:10 (leading: Space)
+  3: Assign          "=" at 4:11-4:12 (leading: Space)
+  4: LBrace          "{" at 4:13-4:14 (leading: Space)
+  5: Ident           "value" at 5:5-5:10 (leading: Newline, Space)
+  6: Colon           ":" at 5:10-5:11
+  7: Ident           "int" at 5:12-5:15 (leading: Space)
+  8: Comma           "," at 5:15-5:16
+  9: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 10: Semicolon       ";" at 6:2-6:3
+ 11: At              "@" at 8:1-8:2 (leading: Newline)
+ 12: Ident           "entrypoint" at 8:2-8:12
+ 13: LParen          "(" at 8:12-8:13
+ 14: StringLit       "\"stdin\"" at 8:13-8:20
+ 15: RParen          ")" at 8:20-8:21
+ 16: KwFn            "fn" at 9:1-9:3 (leading: Newline)
+ 17: Ident           "main" at 9:4-9:8 (leading: Space)
+ 18: LParen          "(" at 9:8-9:9
+ 19: Ident           "d" at 9:9-9:10
+ 20: Colon           ":" at 9:10-9:11
+ 21: Ident           "Data" at 9:12-9:16 (leading: Space)
+ 22: RParen          ")" at 9:16-9:17
+ 23: Arrow           "->" at 9:18-9:20 (leading: Space)
+ 24: Ident           "int" at 9:21-9:24 (leading: Space)
+ 25: LBrace          "{" at 9:25-9:26 (leading: Space)
+ 26: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
+ 27: Ident           "d" at 10:12-10:13 (leading: Space)
+ 28: Dot             "." at 10:13-10:14
+ 29: Ident           "value" at 10:14-10:19
+ 30: Semicolon       ";" at 10:19-10:20
+ 31: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 32: EOF             at 12:1-12:1

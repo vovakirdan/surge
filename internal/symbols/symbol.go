@@ -35,6 +35,34 @@ const (
 	SymbolFlagEntrypoint
 )
 
+// EntrypointMode describes how an @entrypoint function receives its arguments.
+type EntrypointMode uint8
+
+const (
+	EntrypointModeNone   EntrypointMode = iota // No mode: function must be callable with no args
+	EntrypointModeArgv                         // @entrypoint("argv"): args parsed from command-line
+	EntrypointModeStdin                        // @entrypoint("stdin"): args parsed from stdin
+	EntrypointModeEnv                          // @entrypoint("env"): reserved for future
+	EntrypointModeConfig                       // @entrypoint("config"): reserved for future
+)
+
+func (m EntrypointMode) String() string {
+	switch m {
+	case EntrypointModeNone:
+		return "none"
+	case EntrypointModeArgv:
+		return "argv"
+	case EntrypointModeStdin:
+		return "stdin"
+	case EntrypointModeEnv:
+		return "env"
+	case EntrypointModeConfig:
+		return "config"
+	default:
+		return "unknown"
+	}
+}
+
 func (k SymbolKind) String() string {
 	switch k {
 	case SymbolModule:
@@ -135,4 +163,5 @@ type Symbol struct {
 	TypeParamSpan    source.Span
 	TypeParamSymbols []TypeParamSymbol
 	Contract         *ContractSpec
+	EntrypointMode   EntrypointMode // Mode for @entrypoint functions (argv/stdin/etc.)
 }

@@ -1,0 +1,1 @@
+error SEM3124 testdata/golden/sema/invalid/entrypoint/argv_no_fromargv.sg:10:9 parameter 'p' of type 'Point' does not implement FromArgv contract (missing from_str method)

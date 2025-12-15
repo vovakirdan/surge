@@ -1,0 +1,15 @@
+  1: At              "@" at 2:1-2:2 (leading: LineComment, Newline)
+  2: Ident           "entrypoint" at 2:2-2:12
+  3: KwFn            "fn" at 3:1-3:3 (leading: Newline)
+  4: Ident           "main" at 3:4-3:8 (leading: Space)
+  5: LParen          "(" at 3:8-3:9
+  6: RParen          ")" at 3:9-3:10
+  7: Arrow           "->" at 3:11-3:13 (leading: Space)
+  8: Ident           "int" at 3:14-3:17 (leading: Space)
+  9: Question        "?" at 3:17-3:18
+ 10: LBrace          "{" at 3:19-3:20 (leading: Space)
+ 11: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 12: NothingLit      "nothing" at 4:12-4:19 (leading: Space)
+ 13: Semicolon       ";" at 4:19-4:20
+ 14: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 15: EOF             at 6:1-6:1

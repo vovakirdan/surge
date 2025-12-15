@@ -1,0 +1,11 @@
+// Test: @entrypoint("stdin") with custom type lacking from_str is invalid
+// Expected: SEM3125
+
+type Data = {
+    value: int,
+};
+
+@entrypoint("stdin")
+fn main(d: Data) -> int {
+    return d.value;
+}

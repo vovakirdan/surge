@@ -1,0 +1,21 @@
+pragma module, no_std;
+
+// Contracts for entrypoint parameter parsing and exit code conversion.
+
+// Contract for types that can be parsed from a command-line argument string.
+// Types implementing this contract can be used as parameters in @entrypoint("argv") functions.
+pub contract FromArgv<T> {
+    pub fn from_str(s: string) -> Erring<T, Error>;
+}
+
+// Contract for types that can be parsed from stdin text.
+// Types implementing this contract can be used as parameters in @entrypoint("stdin") functions.
+pub contract FromStdin<T> {
+    pub fn from_stdin(text: string) -> Erring<T, Error>;
+}
+
+// Contract for types that can be converted to an exit code (int).
+// Types implementing this contract can be returned from @entrypoint functions.
+pub contract ExitCode<T> {
+    pub fn __to(self: T, target: int) -> int;
+}

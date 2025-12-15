@@ -107,6 +107,8 @@ extern<int> {
     @intrinsic @overload fn __to(self: int, target: uint64) -> uint64;
     @intrinsic @overload fn __to(self: int, target: float32) -> float32;
     @intrinsic @overload fn __to(self: int, target: float64) -> float64;
+    // Parse int from string (for @entrypoint("argv") support)
+    @intrinsic pub fn from_str(s: string) -> Erring<int, Error>;
 }
 
 extern<uint> {
@@ -141,66 +143,78 @@ extern<uint> {
     @intrinsic @overload fn __to(self: uint, target: uint64) -> uint64;
     @intrinsic @overload fn __to(self: uint, target: float32) -> float32;
     @intrinsic @overload fn __to(self: uint, target: float64) -> float64;
+    // Parse uint from string (for @entrypoint("argv") support)
+    @intrinsic pub fn from_str(s: string) -> Erring<uint, Error>;
 }
 
 extern<int8> {
     pub fn __min_value() -> int8 { return (-128):int8; }
     pub fn __max_value() -> int8 { return (127):int8; }
     @intrinsic fn __to(self: int8, target: int) -> int;
+    @intrinsic pub fn from_str(s: string) -> Erring<int8, Error>;
 }
 
 extern<int16> {
     pub fn __min_value() -> int16 { return (-32_768):int16; }
     pub fn __max_value() -> int16 { return (32_767):int16; }
     @intrinsic fn __to(self: int16, target: int) -> int;
+    @intrinsic pub fn from_str(s: string) -> Erring<int16, Error>;
 }
 
 extern<int32> {
     pub fn __min_value() -> int32 { return (-2_147_483_648):int32; }
     pub fn __max_value() -> int32 { return (2_147_483_647):int32; }
     @intrinsic fn __to(self: int32, target: int) -> int;
+    @intrinsic pub fn from_str(s: string) -> Erring<int32, Error>;
 }
 
 extern<int64> {
     pub fn __min_value() -> int64 { return (-9_223_372_036_854_775_808):int64; }
     pub fn __max_value() -> int64 { return (9_223_372_036_854_775_807):int64; }
     @intrinsic fn __to(self: int64, target: int) -> int;
+    @intrinsic pub fn from_str(s: string) -> Erring<int64, Error>;
 }
 
 extern<uint8> {
     pub fn __min_value() -> uint8 { return (0):uint8; }
     pub fn __max_value() -> uint8 { return (255):uint8; }
     @intrinsic fn __to(self: uint8, target: uint) -> uint;
+    @intrinsic pub fn from_str(s: string) -> Erring<uint8, Error>;
 }
 
 extern<uint16> {
     pub fn __min_value() -> uint16 { return (0):uint16; }
     pub fn __max_value() -> uint16 { return (65_535):uint16; }
     @intrinsic fn __to(self: uint16, target: uint) -> uint;
+    @intrinsic pub fn from_str(s: string) -> Erring<uint16, Error>;
 }
 
 extern<uint32> {
     pub fn __min_value() -> uint32 { return (0):uint32; }
     pub fn __max_value() -> uint32 { return (4_294_967_295):uint32; }
     @intrinsic fn __to(self: uint32, target: uint) -> uint;
+    @intrinsic pub fn from_str(s: string) -> Erring<uint32, Error>;
 }
 
 extern<uint64> {
     pub fn __min_value() -> uint64 { return (0):uint64; }
     pub fn __max_value() -> uint64 { return (18_446_744_073_709_551_615):uint64; }
     @intrinsic fn __to(self: uint64, target: uint) -> uint;
+    @intrinsic pub fn from_str(s: string) -> Erring<uint64, Error>;
 }
 
 extern<float32> {
     pub fn __min_value() -> float32 { return (-3.402_823_466_385_2886e+38):float32; }
     pub fn __max_value() -> float32 { return (3.402_823_466_385_2886e+38):float32; }
     @intrinsic fn __to(self: float32, target: float) -> float;
+    @intrinsic pub fn from_str(s: string) -> Erring<float32, Error>;
 }
 
 extern<float64> {
     pub fn __min_value() -> float64 { return (-1.797_693_134_862_3157e+308):float64; }
     pub fn __max_value() -> float64 { return (1.797_693_134_862_3157e+308):float64; }
     @intrinsic fn __to(self: float64, target: float) -> float;
+    @intrinsic pub fn from_str(s: string) -> Erring<float64, Error>;
 }
 
 extern<float> {
@@ -231,6 +245,8 @@ extern<float> {
     @intrinsic @overload fn __to(self: float, target: uint64) -> uint64;
     @intrinsic @overload fn __to(self: float, target: float32) -> float32;
     @intrinsic @overload fn __to(self: float, target: float64) -> float64;
+    // Parse float from string (for @entrypoint("argv") support)
+    @intrinsic pub fn from_str(s: string) -> Erring<float, Error>;
 }
 
 extern<string> {
@@ -246,6 +262,10 @@ extern<string> {
     @intrinsic @overload fn __to(self: string, target: float) -> float;
     @intrinsic fn __len(self: &string) -> uint;
     @intrinsic fn __clone(self: &string) -> string;
+    // String identity (for @entrypoint("argv") support)
+    pub fn from_str(s: string) -> Erring<string, Error> {
+        return Success(s);
+    }
 }
 
 extern<bool> {
@@ -254,6 +274,8 @@ extern<bool> {
     @intrinsic fn __not(self: bool) -> bool;
     @intrinsic fn __to(self: bool, target: string) -> string;
     @intrinsic @overload fn __to(self: bool, target: int) -> int;
+    // Parse bool from string (for @entrypoint("argv") support)
+    @intrinsic pub fn from_str(s: string) -> Erring<bool, Error>;
 }
 
 extern<Array<T>> {

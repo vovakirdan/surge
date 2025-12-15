@@ -1,0 +1,6 @@
+// Test: @entrypoint("argv") with some default params is valid
+// Only params without defaults need from_str
+@entrypoint("argv")
+fn main(x: int, y: int = 5) -> int {
+    return x + y;
+}

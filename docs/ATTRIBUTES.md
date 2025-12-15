@@ -179,7 +179,7 @@ fn __builtin_add(x: int, y: int) -> int;
 ### @entrypoint
 
 **Target:** Functions
-**Parameters:** None
+**Parameters:** Optional string — mode (`"argv"`, `"stdin"`)
 
 Marks a function as the program's entry point (main).
 
@@ -190,24 +190,75 @@ fn main() {
 }
 ```
 
-**Requirements:**
-- Function may have any signature (future versions will support passing command-line arguments)
-- Only one @entrypoint function per module (binary/module)
-- For binary, an @entrypoint function is mandatory
-- For module, an @entrypoint function is not required, but if present, it must be the only @entrypoint in the module
+**Modes:**
+
+- **No mode** (`@entrypoint`): Function must be callable with no arguments. All parameters must have default values.
+- **`"argv"`** (`@entrypoint("argv")`): Parameters without defaults must implement `FromArgv` contract (have `from_str(string) -> Erring<T, Error>` method).
+- **`"stdin"`** (`@entrypoint("stdin")`): Parameters without defaults must implement `FromStdin` contract (have `from_str(string) -> Erring<T, Error>` method).
+- **`"env"`**, **`"config"`**: Reserved for future use (will produce FUT7003/FUT7004 errors).
+
+**Return type requirements:**
+
+The return type must be one of:
+- `nothing` (void)
+- `int` (direct exit code)
+- Any type implementing `ExitCode` contract (has `__to(self, int) -> int` method)
+
+Built-in types with `ExitCode`:
+- `Option<T>`: `Some(_)` → 0, `nothing` → 1
+- `Erring<T, E>`: `Success(_)` → 0, `Error` → error code
 
 **Example signatures:**
 
 ```sg
+// No arguments
 @entrypoint
-fn main() { }  // No return value
+fn main() { }
 
+// Return exit code
 @entrypoint
-fn main() -> int { return 0; }  // Returns exit code
+fn main() -> int { return 0; }
 
+// Return Option (0 on success, 1 on nothing)
 @entrypoint
-fn main(args: string[]) { }  // With arguments (for future versions)
+fn main() -> int? { return Some(42); }
+
+// Return Erring (0 on success, error code on failure)
+@entrypoint
+fn main() -> int! { return Success(0); }
+
+// With command-line arguments (argv mode)
+@entrypoint("argv")
+fn main(count: int, name: string) -> int {
+    // count and name are parsed from argv
+    return 0;
+}
+
+// With default values (no mode needed)
+@entrypoint
+fn main(verbose: bool = false) { }
+
+// Mixed: some from argv, some with defaults
+@entrypoint("argv")
+fn main(required: int, optional: string = "default") -> int {
+    return required;
+}
 ```
+
+**Built-in types with `from_str`:**
+
+The following types have built-in `from_str` implementations for `argv`/`stdin` modes:
+- `int`, `uint`, `float`, `bool`, `string`
+- Sized variants: `int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`, `uint32`, `uint64`, `float32`, `float64`
+
+**Diagnostic codes:**
+- **SEM3121** — Unknown entrypoint mode
+- **SEM3122** — `@entrypoint` without mode requires all parameters to have defaults
+- **SEM3123** — Return type not convertible to exit code
+- **SEM3124** — Parameter type missing `FromArgv` contract
+- **SEM3125** — Parameter type missing `FromStdin` contract
+- **FUT7003** — `@entrypoint("env")` reserved for future
+- **FUT7004** — `@entrypoint("config")` reserved for future
 
 ---
 
@@ -788,6 +839,19 @@ extern<T> {
 - **SEM3074** — Attempt to extend @sealed type
 - **SEM3075** — Attempt to write to @readonly field
 - **SEM3076** — @pure violation: side effects
+
+### Entrypoint Validation (3121-3125)
+
+- **SEM3121** — Unknown @entrypoint mode (valid: `"argv"`, `"stdin"`)
+- **SEM3122** — @entrypoint without mode requires all parameters to have default values
+- **SEM3123** — Return type must be `nothing`, `int`, or implement `ExitCode` contract
+- **SEM3124** — Parameter type does not implement `FromArgv` contract
+- **SEM3125** — Parameter type does not implement `FromStdin` contract
+
+### Future/Unsupported (7003-7004)
+
+- **FUT7003** — @entrypoint("env") mode is reserved for future use
+- **FUT7004** — @entrypoint("config") mode is reserved for future use
 
 ---
 

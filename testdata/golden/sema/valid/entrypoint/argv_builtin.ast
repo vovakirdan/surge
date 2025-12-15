@@ -1,0 +1,9 @@
+argv_builtin.sg (span: 2:1-6:1)
+└─ Item[0]: Fn (span: 2:1-5:2)
+   ├─ Name: main
+   ├─ Params: (x: int, y: string)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:35-5:2)
+         └─ Stmt[0]: Return (span: 4:5-4:14)
+            └─ Expr: expr#2: x

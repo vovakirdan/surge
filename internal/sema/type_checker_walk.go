@@ -129,6 +129,10 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			}
 		}
 		tc.validateFunctionAttrs(fnItem, types.NoTypeID)
+		// Validate entrypoint constraints if this is an entrypoint function
+		if sym := tc.symbolFromID(symID); sym != nil && sym.Flags&symbols.SymbolFlagEntrypoint != 0 {
+			tc.validateEntrypoint(fnItem, sym)
+		}
 		if typeParamsPushed {
 			tc.popTypeParams()
 		}
