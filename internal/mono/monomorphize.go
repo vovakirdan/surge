@@ -159,7 +159,7 @@ func (b *monoBuilder) seed() error {
 		}
 	}
 
-	// 2) Instantiate every recorded generic fn/tag instantiation (concrete or generic-arg).
+	// 2) Instantiate every recorded generic fn/tag instantiation with concrete type args.
 	if b.inst != nil {
 		entries := make([]*InstEntry, 0, len(b.inst.Entries))
 		for _, e := range b.inst.Entries {
@@ -184,6 +184,9 @@ func (b *monoBuilder) seed() error {
 			return slices.Compare(a.TypeArgs, c.TypeArgs)
 		})
 		for _, e := range entries {
+			if !typeArgsAreConcrete(b.types, e.TypeArgs) {
+				continue
+			}
 			if _, err := b.ensureFunc(e.Key.Sym, e.TypeArgs, nil); err != nil {
 				return err
 			}
@@ -209,12 +212,19 @@ func (b *monoBuilder) seed() error {
 			return slices.Compare(a.TypeArgs, c.TypeArgs)
 		})
 		for _, e := range entries {
+			if !typeArgsAreConcrete(b.types, e.TypeArgs) {
+				continue
+			}
 			b.ensureTypeBySymbol(e.Key.Sym, e.TypeArgs)
 		}
 	}
 
 	// 4) Collect nominal types referenced by monomorphized functions.
 	b.collectTypesFromFuncs()
+
+	if err := validateMonoModuleNoTypeParams(b.mm, b.types); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -294,6 +304,16 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 	}
 
 	normalized := NormalizeTypeArgs(b.types, typeArgs)
+	expectedTypeArgs := b.symbolTypeParamCount(origSym)
+	switch {
+	case expectedTypeArgs == 0 && len(normalized) > 0:
+		return nil, fmt.Errorf("mono: non-generic symbol %d cannot be instantiated with type args", origSym)
+	case expectedTypeArgs > 0 && len(normalized) != expectedTypeArgs:
+		return nil, fmt.Errorf("mono: symbol %d expects %d type args, got %d", origSym, expectedTypeArgs, len(normalized))
+	}
+	if len(normalized) > 0 && !typeArgsAreConcrete(b.types, normalized) {
+		return nil, fmt.Errorf("mono: non-concrete type args for symbol %d", origSym)
+	}
 	key := MonoKey{Sym: origSym, ArgsKey: argsKeyFromTypes(normalized)}
 	if existing := b.mm.Funcs[key]; existing != nil {
 		return existing, nil
@@ -324,8 +344,13 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 		return out, nil
 	}
 
-	if origFn.IsGeneric() && len(normalized) == 0 {
-		return nil, fmt.Errorf("mono: missing type args for generic function %s", origFn.Name)
+	if origFn.IsGeneric() {
+		if len(normalized) == 0 {
+			return nil, fmt.Errorf("mono: missing type args for generic function %s", origFn.Name)
+		}
+		if len(normalized) != len(origFn.GenericParams) {
+			return nil, fmt.Errorf("mono: generic function %s expects %d type args, got %d", origFn.Name, len(origFn.GenericParams), len(normalized))
+		}
 	}
 
 	clone := cloneFunc(origFn)
@@ -397,6 +422,17 @@ func (b *monoBuilder) isGenericSymbol(sym symbols.SymbolID) bool {
 	}
 	s := b.mod.Symbols.Table.Symbols.Get(sym)
 	return s != nil && len(s.TypeParams) > 0
+}
+
+func (b *monoBuilder) symbolTypeParamCount(sym symbols.SymbolID) int {
+	if b == nil || b.mod == nil || b.mod.Symbols == nil || b.mod.Symbols.Table == nil || b.mod.Symbols.Table.Symbols == nil || !sym.IsValid() {
+		return -1
+	}
+	s := b.mod.Symbols.Table.Symbols.Get(sym)
+	if s == nil {
+		return -1
+	}
+	return len(s.TypeParams)
 }
 
 func (b *monoBuilder) rewriteCallsInFunc(fn *hir.Func, callerSym symbols.SymbolID, subst *Subst, stack []MonoKey) error {

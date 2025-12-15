@@ -1,9 +1,6 @@
 
 == MONO ==
-funcs=6 types=0
-fn id::<T>(x: type#262) (id=2147483654, sym=2415919110) {
-  return x
-}
+funcs=5 types=0
 fn id::<string>(x: string) (id=2147483653, sym=2415919109) {
   return x
 }
