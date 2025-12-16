@@ -41,6 +41,7 @@ func main() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(buildCmd)
+	rootCmd.AddCommand(runCmd)
 
 	// Глобальные флаги
 	rootCmd.PersistentFlags().String("color", "auto", "colorize output (auto|on|off)")

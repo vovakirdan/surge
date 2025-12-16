@@ -71,6 +71,8 @@ check:
 	@echo ">> Checking code"
 	$(MAKE) test
 	$(MAKE) lint
+	@echo ">> Checking file sizes"
+	@echo "It may take a while... please wait..."
 	./check_file_sizes.sh | grep BAD
 
 # ===== Lint =====

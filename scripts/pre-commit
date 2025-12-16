@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# Pre-commit hook для автоматического обновления STATS.md
+
+# Определяем корень репозитория
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+STATS_SCRIPT="$REPO_ROOT/scripts/code_stats_md.sh"
+STATS_FILE="$REPO_ROOT/STATS.md"
+
+# Проверяем наличие скрипта и обновляем статистику
+if [ -f "$STATS_SCRIPT" ] && [ -x "$STATS_SCRIPT" ]; then
+    # Запускаем скрипт и сохраняем результат в STATS.md
+    if "$STATS_SCRIPT" > "$STATS_FILE" 2>/dev/null; then
+        # Добавляем обновленный файл в staging area
+        git add "$STATS_FILE" 2>/dev/null || true
+    else
+        echo "Warning: Failed to update STATS.md" >&2
+    fi
+fi
+
+# Всегда разрешаем коммит (не блокируем)
+exit 0
