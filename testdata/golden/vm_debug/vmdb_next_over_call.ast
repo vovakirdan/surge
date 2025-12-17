@@ -1,4 +1,4 @@
-testdata/golden/vm_debug/vmdb_next_over_call.sg (span: 1:1-12:1)
+vmdb_next_over_call.sg (span: 1:1-12:1)
 ├─ Item[0]: Fn (span: 1:1-3:2)
 │  ├─ Name: helper
 │  ├─ Params: ()

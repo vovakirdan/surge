@@ -1,4 +1,4 @@
-testdata/golden/vm_replay/vm_record_replay_stdin.sg (span: 1:1-4:1)
+vm_record_replay_stdin.sg (span: 1:1-4:1)
 └─ Item[0]: Fn (span: 1:1-2:37)
    ├─ Name: main
    ├─ Params: (x: int)
