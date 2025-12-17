@@ -1,0 +1,19 @@
+testdata/golden/vm_debug/vmdb_break_file_line.sg (span: 1:1-8:1)
+└─ Item[0]: Fn (span: 1:1-6:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-6:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:20)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         ├─ Stmt[1]: Let (span: 4:5-4:20)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#2: 2
+         └─ Stmt[2]: Return (span: 5:5-5:18)
+            └─ Expr: expr#5: (a + b)

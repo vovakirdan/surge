@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -23,6 +25,10 @@ var runCmd = &cobra.Command{
 func init() {
 	runCmd.Flags().String("backend", "vm", "execution backend (vm)")
 	runCmd.Flags().Bool("vm-trace", false, "enable VM execution tracing")
+	runCmd.Flags().Bool("vm-debug", false, "enable VM debugger")
+	runCmd.Flags().String("vm-debug-script", "", "run VM debugger commands from file")
+	runCmd.Flags().StringArray("vm-break", nil, "add VM breakpoint <file:line> (repeatable)")
+	runCmd.Flags().StringArray("vm-break-fn", nil, "add VM function breakpoint <name> (repeatable)")
 }
 
 func runExecution(cmd *cobra.Command, args []string) error {
@@ -37,6 +43,27 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	vmTrace, err := cmd.Flags().GetBool("vm-trace")
 	if err != nil {
 		return fmt.Errorf("failed to get vm-trace flag: %w", err)
+	}
+
+	vmDebug, err := cmd.Flags().GetBool("vm-debug")
+	if err != nil {
+		return fmt.Errorf("failed to get vm-debug flag: %w", err)
+	}
+	vmDebugScript, err := cmd.Flags().GetString("vm-debug-script")
+	if err != nil {
+		return fmt.Errorf("failed to get vm-debug-script flag: %w", err)
+	}
+	vmBreaks, err := cmd.Flags().GetStringArray("vm-break")
+	if err != nil {
+		return fmt.Errorf("failed to get vm-break flag: %w", err)
+	}
+	vmBreakFns, err := cmd.Flags().GetStringArray("vm-break-fn")
+	if err != nil {
+		return fmt.Errorf("failed to get vm-break-fn flag: %w", err)
+	}
+
+	if !vmDebug && (vmDebugScript != "" || len(vmBreaks) > 0 || len(vmBreakFns) > 0) {
+		return fmt.Errorf("--vm-debug is required when using --vm-debug-script/--vm-break/--vm-break-fn")
 	}
 
 	// Only VM backend supported for now
@@ -112,14 +139,51 @@ func runExecution(cmd *cobra.Command, args []string) error {
 
 	vmInstance := vm.New(mirMod, rt, result.FileSet, result.Sema.TypeInterner, tracer)
 
-	// Execute
+	if vmDebug {
+		interactive := vmDebugScript == ""
+		var in io.Reader = os.Stdin
+		if !interactive {
+			script, err := os.ReadFile(vmDebugScript)
+			if err != nil {
+				return fmt.Errorf("failed to open vm-debug-script: %w", err)
+			}
+			in = bytes.NewReader(script)
+		}
+
+		dbg := vm.NewDebugger(vmInstance, in, os.Stdout, interactive)
+		bps := dbg.Breakpoints()
+		for _, spec := range vmBreaks {
+			file, line, err := vm.ParseFileLineSpec(spec)
+			if err != nil {
+				return fmt.Errorf("invalid --vm-break %q: %w", spec, err)
+			}
+			if _, err := bps.AddFileLine(file, line); err != nil {
+				return fmt.Errorf("invalid --vm-break %q: %w", spec, err)
+			}
+		}
+		for _, name := range vmBreakFns {
+			if _, err := bps.AddFuncEntry(name); err != nil {
+				return fmt.Errorf("invalid --vm-break-fn %q: %w", name, err)
+			}
+		}
+
+		res, vmErr := dbg.Run()
+		if vmErr != nil {
+			fmt.Fprint(os.Stderr, vmErr.FormatWithFiles(result.FileSet))
+			os.Exit(1)
+		}
+		if res.Quit {
+			os.Exit(125)
+		}
+		os.Exit(res.ExitCode)
+	}
+
+	// Execute (non-debug mode).
 	if vmErr := vmInstance.Run(); vmErr != nil {
-		// Print panic with backtrace
 		fmt.Fprint(os.Stderr, vmErr.FormatWithFiles(result.FileSet))
 		os.Exit(1)
 	}
 
-	// Return with exit code from runtime
 	os.Exit(vmInstance.ExitCode)
 	return nil
 }

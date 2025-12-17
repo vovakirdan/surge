@@ -13,6 +13,7 @@
 
 # Code coverage profiles and other test artifacts
 *.out
+!testdata/golden/**/*.out
 coverage.*
 *.coverprofile
 profile.cov

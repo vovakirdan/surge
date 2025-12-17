@@ -21,6 +21,12 @@ func NewTracer(w io.Writer, files *source.FileSet) *Tracer {
 	return &Tracer{w: w, files: files}
 }
 
+// NewFormatter creates a tracer configured for deterministic formatting only.
+// The returned tracer does not write any output (its writer is nil).
+func NewFormatter(vm *VM, files *source.FileSet) *Tracer {
+	return &Tracer{files: files, vm: vm}
+}
+
 // LocalWrite records a local variable modification.
 type LocalWrite struct {
 	LocalID mir.LocalID

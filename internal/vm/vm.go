@@ -29,6 +29,7 @@ type VM struct {
 	tagLayouts *TagLayouts
 	ExitCode   int
 	Halted     bool
+	started    bool
 
 	eb *errorBuilder // for creating errors with backtrace
 }
@@ -59,9 +60,56 @@ func New(m *mir.Module, rt Runtime, files *source.FileSet, typeInterner *types.I
 	return vm
 }
 
+// StopPoint describes the current instruction/terminator that would execute next.
+type StopPoint struct {
+	FuncName string
+	BB       mir.BlockID
+	IP       int
+	Span     source.Span
+
+	IsTerm bool
+	Instr  *mir.Instr
+	Term   *mir.Terminator
+}
+
 // Run executes the program starting from __surge_start.
 // Returns a VMError if execution fails, nil on successful completion.
 func (vm *VM) Run() (vmErr *VMError) {
+	if vmErr := vm.Start(); vmErr != nil {
+		return vmErr
+	}
+	for !vm.Halted && len(vm.Stack) > 0 {
+		if vmErr := vm.Step(); vmErr != nil {
+			return vmErr
+		}
+	}
+	return nil
+}
+
+// Start initializes execution by pushing the initial __surge_start frame.
+func (vm *VM) Start() *VMError {
+	if vm.started || vm.Halted {
+		return nil
+	}
+	if len(vm.Stack) != 0 {
+		vm.started = true
+		return nil
+	}
+
+	// Find __surge_start.
+	startFn := vm.findFunction("__surge_start")
+	if startFn == nil {
+		return vm.eb.makeError(PanicUnimplemented, "no entrypoint: __surge_start not found")
+	}
+
+	vm.Stack = append(vm.Stack, *NewFrame(startFn))
+	vm.started = true
+	return nil
+}
+
+// Step executes exactly one instruction or terminator transition.
+// It returns a VMError if execution fails.
+func (vm *VM) Step() (vmErr *VMError) {
 	defer func() {
 		if r := recover(); r != nil {
 			if e, ok := r.(*VMError); ok {
@@ -72,39 +120,116 @@ func (vm *VM) Run() (vmErr *VMError) {
 		}
 	}()
 
-	// Find __surge_start
-	startFn := vm.findFunction("__surge_start")
-	if startFn == nil {
-		return vm.eb.makeError(PanicUnimplemented, "no entrypoint: __surge_start not found")
+	if vm.Halted || len(vm.Stack) == 0 {
+		return nil
 	}
 
-	// Push initial frame
-	vm.Stack = append(vm.Stack, *NewFrame(startFn))
-
-	// Main execution loop
-	for !vm.Halted && len(vm.Stack) > 0 {
-		frame := &vm.Stack[len(vm.Stack)-1]
-		block := frame.CurrentBlock()
-		if block == nil {
-			return vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("invalid block id: %d", frame.BB))
-		}
-
-		if frame.AtTerminator() {
-			// Execute terminator
-			if vmErr := vm.execTerminator(frame, &block.Term); vmErr != nil {
-				return vmErr
-			}
-		} else {
-			// Execute instruction
-			instr := frame.CurrentInstr()
-			if vmErr := vm.execInstr(frame, instr); vmErr != nil {
-				return vmErr
-			}
-			frame.IP++
-		}
+	preDepth := len(vm.Stack)
+	frameIdx := preDepth - 1
+	frame := &vm.Stack[frameIdx]
+	block := frame.CurrentBlock()
+	if block == nil {
+		return vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("invalid block id: %d", frame.BB))
 	}
 
+	if frame.AtTerminator() {
+		return vm.execTerminator(frame, &block.Term)
+	}
+
+	instr := frame.CurrentInstr()
+	if instr == nil {
+		return vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("invalid instruction pointer: ip=%d", frame.IP))
+	}
+	vm.setSpanForInstr(frame, instr)
+
+	advanceIP, pushFrame, vmErr := vm.execInstr(frame, instr)
+	if vmErr != nil {
+		return vmErr
+	}
+	if pushFrame != nil {
+		vm.Stack = append(vm.Stack, *pushFrame)
+		return nil
+	}
+	if advanceIP && !vm.Halted && len(vm.Stack) == preDepth {
+		vm.Stack[frameIdx].IP++
+	}
 	return nil
+}
+
+// StopPoint returns the next instruction/terminator that would execute.
+// ok=false indicates the VM is halted or has finished execution.
+func (vm *VM) StopPoint() (sp StopPoint, ok bool) {
+	if vm == nil || vm.Halted || len(vm.Stack) == 0 {
+		return StopPoint{}, false
+	}
+
+	frame := &vm.Stack[len(vm.Stack)-1]
+	block := frame.CurrentBlock()
+	if block == nil {
+		return StopPoint{}, false
+	}
+
+	sp = StopPoint{
+		FuncName: frame.Func.Name,
+		BB:       frame.BB,
+		IP:       frame.IP,
+		Span:     frame.Span,
+	}
+
+	if frame.AtTerminator() {
+		sp.IsTerm = true
+		sp.Term = &block.Term
+		return sp, true
+	}
+
+	instr := frame.CurrentInstr()
+	if instr == nil {
+		return StopPoint{}, false
+	}
+	vm.setSpanForInstr(frame, instr)
+	sp.Span = frame.Span
+	sp.Instr = instr
+	return sp, true
+}
+
+func (vm *VM) setSpanForInstr(frame *Frame, instr *mir.Instr) {
+	if frame == nil || frame.Func == nil || instr == nil {
+		return
+	}
+	switch instr.Kind {
+	case mir.InstrAssign:
+		localID := instr.Assign.Dst.Local
+		if int(localID) < len(frame.Func.Locals) {
+			frame.Span = frame.Func.Locals[localID].Span
+		}
+	case mir.InstrCall:
+		if instr.Call.HasDst {
+			localID := instr.Call.Dst.Local
+			if int(localID) < len(frame.Func.Locals) {
+				frame.Span = frame.Func.Locals[localID].Span
+			}
+		}
+	}
+}
+
+// RunUntilStop runs the VM until it halts, panics, or stopFn returns true for the current stop point.
+// When stopFn triggers, the VM is stopped *before* executing that stop point.
+func (vm *VM) RunUntilStop(stopFn func(StopPoint) (breakID int, ok bool)) (stop StopPoint, breakID int, stopped bool, vmErr *VMError) {
+	for !vm.Halted && len(vm.Stack) > 0 {
+		sp, ok := vm.StopPoint()
+		if !ok {
+			break
+		}
+		if stopFn != nil {
+			if id, hit := stopFn(sp); hit {
+				return sp, id, true, nil
+			}
+		}
+		if vmErr := vm.Step(); vmErr != nil {
+			return StopPoint{}, 0, false, vmErr
+		}
+	}
+	return StopPoint{}, 0, false, nil
 }
 
 func (vm *VM) panic(code PanicCode, msg string) {
@@ -130,17 +255,7 @@ func (vm *VM) findFunctionBySym(sym symbols.SymbolID) *mir.Func {
 }
 
 // execInstr executes a single instruction.
-func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) *VMError {
-	// Update current span for error reporting
-	// Span is attached to locals, not instructions directly
-	// Use the destination local's span if available
-	if instr.Kind == mir.InstrAssign {
-		localID := instr.Assign.Dst.Local
-		if int(localID) < len(frame.Func.Locals) {
-			frame.Span = frame.Func.Locals[localID].Span
-		}
-	}
-
+func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFrame *Frame, vmErr *VMError) {
 	var writes []LocalWrite
 	var (
 		storeLoc Location
@@ -152,14 +267,14 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) *VMError {
 	case mir.InstrAssign:
 		val, vmErr := vm.evalRValue(frame, &instr.Assign.Src)
 		if vmErr != nil {
-			return vmErr
+			return false, nil, vmErr
 		}
 		dst := instr.Assign.Dst
 		if len(dst.Proj) == 0 {
 			localID := dst.Local
 			vmErr = vm.writeLocal(frame, localID, val)
 			if vmErr != nil {
-				return vmErr
+				return false, nil, vmErr
 			}
 			stored := frame.Locals[localID].V
 			writes = append(writes, LocalWrite{
@@ -170,10 +285,10 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) *VMError {
 		} else {
 			loc, vmErr := vm.EvalPlace(frame, dst)
 			if vmErr != nil {
-				return vmErr
+				return false, nil, vmErr
 			}
 			if vmErr := vm.storeLocation(loc, val); vmErr != nil {
-				return vmErr
+				return false, nil, vmErr
 			}
 			storeLoc = loc
 			storeVal = val
@@ -181,22 +296,25 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) *VMError {
 		}
 
 	case mir.InstrCall:
-		vmErr := vm.execCall(frame, &instr.Call, &writes)
+		newFrame, vmErr := vm.execCall(frame, &instr.Call, &writes)
 		if vmErr != nil {
-			return vmErr
+			return false, nil, vmErr
+		}
+		if newFrame != nil {
+			pushFrame = newFrame
 		}
 
 	case mir.InstrDrop:
 		localID := instr.Drop.Place.Local
 		vmErr := vm.execDrop(frame, localID)
 		if vmErr != nil {
-			return vmErr
+			return false, nil, vmErr
 		}
 
 	case mir.InstrEndBorrow:
 		localID := instr.EndBorrow.Place.Local
 		if int(localID) < 0 || int(localID) >= len(frame.Locals) {
-			return vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("invalid local id %d", localID))
+			return false, nil, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("invalid local id %d", localID))
 		}
 		slot := &frame.Locals[localID]
 		slot.V = Value{}
@@ -207,7 +325,7 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) *VMError {
 		// Nothing to do
 
 	default:
-		return vm.eb.unimplemented(fmt.Sprintf("instruction kind %d", instr.Kind))
+		return false, nil, vm.eb.unimplemented(fmt.Sprintf("instruction kind %d", instr.Kind))
 	}
 
 	// Trace the instruction
@@ -218,14 +336,17 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) *VMError {
 		}
 	}
 
-	return nil
+	if pushFrame != nil {
+		return false, pushFrame, nil
+	}
+	return true, nil, nil
 }
 
 // execCall executes a call instruction.
-func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) (*Frame, *VMError) {
 	// Check if this is an intrinsic (no symbol ID)
 	if call.Callee.Kind == mir.CalleeSym && !call.Callee.Sym.IsValid() {
-		return vm.callIntrinsic(frame, call, writes)
+		return nil, vm.callIntrinsic(frame, call, writes)
 	}
 
 	// Find the function to call
@@ -238,7 +359,7 @@ func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 	}
 	if targetFn == nil {
 		// Support selected intrinsics and extern calls that are not lowered into MIR.
-		return vm.callIntrinsic(frame, call, writes)
+		return nil, vm.callIntrinsic(frame, call, writes)
 	}
 
 	// Evaluate arguments
@@ -246,7 +367,7 @@ func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 	for i := range call.Args {
 		val, vmErr := vm.evalOperand(frame, &call.Args[i])
 		if vmErr != nil {
-			return vmErr
+			return nil, vmErr
 		}
 		args[i] = val
 	}
@@ -256,21 +377,19 @@ func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 
 	// Pass arguments as first locals (params)
 	if len(args) > len(newFrame.Locals) {
-		return vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("too many arguments: got %d, expected at most %d", len(args), len(newFrame.Locals)))
+		return nil, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("too many arguments: got %d, expected at most %d", len(args), len(newFrame.Locals)))
 	}
 	for i, arg := range args {
 		localID, err := safecast.Conv[mir.LocalID](i)
 		if err != nil {
-			return vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("invalid argument index %d", i))
+			return nil, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("invalid argument index %d", i))
 		}
 		if vmErr := vm.writeLocal(newFrame, localID, arg); vmErr != nil {
-			return vmErr
+			return nil, vmErr
 		}
 	}
 
-	vm.Stack = append(vm.Stack, *newFrame)
-
-	return nil
+	return newFrame, nil
 }
 
 // execTerminator executes a block terminator.

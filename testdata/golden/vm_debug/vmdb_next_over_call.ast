@@ -1,0 +1,27 @@
+testdata/golden/vm_debug/vmdb_next_over_call.sg (span: 1:1-12:1)
+├─ Item[0]: Fn (span: 1:1-3:2)
+│  ├─ Name: helper
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:20-3:2)
+│        └─ Stmt[0]: Return (span: 2:5-2:14)
+│           └─ Expr: expr#1: 3
+└─ Item[1]: Fn (span: 5:1-10:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:18-10:2)
+         ├─ Stmt[0]: Let (span: 7:5-7:27)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#3: helper()
+         ├─ Stmt[1]: Let (span: 8:5-8:20)
+         │  ├─ Name: y
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#4: x
+         └─ Stmt[2]: Return (span: 9:5-9:14)
+            └─ Expr: expr#5: y
