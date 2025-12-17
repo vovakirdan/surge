@@ -17,7 +17,8 @@ async fn t() -> nothing (id=2, sym=567) {
   let mut x: int [copy] = 1
   let r: &int [&] = (& x): &int
   let task: type#317 = spawn use_ref(r): type#317: type#317
-  return task.await(): nothing
+  task.await(): nothing
+  return
 }
 
 borrow edges:

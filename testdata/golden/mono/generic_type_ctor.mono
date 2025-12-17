@@ -3,6 +3,7 @@
 funcs=1 types=1
 fn main() -> nothing (id=2147483649, sym=2415919105) {
   let b: type#317 =  { v = 1 }: type#317
+  return
 }
 
 types:

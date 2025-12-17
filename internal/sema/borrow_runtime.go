@@ -5,6 +5,7 @@ import (
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 type placeDescriptor struct {
@@ -292,13 +293,23 @@ func (tc *typeChecker) handleAssignment(op ast.ExprBinaryOp, left, right ast.Exp
 	if !ok {
 		return
 	}
-	desc, _ = tc.expandPlaceDescriptor(desc)
+
+	// Check if this is a write through a mutable reference binding (*r = value).
+	// In this case, we should NOT expand through the borrow because writing
+	// through &mut is allowed - that's the whole point of exclusive borrows.
+	writeThroughMutRef := tc.isWriteThroughMutRef(desc)
+
+	if !writeThroughMutRef {
+		desc, _ = tc.expandPlaceDescriptor(desc)
+	}
 	place := tc.canonicalPlace(desc)
 	if !place.IsValid() {
 		return
 	}
 	var issue BorrowIssue
-	if tc.borrow != nil {
+	if tc.borrow != nil && !writeThroughMutRef {
+		// Only check for mutation conflicts if not writing through a &mut reference.
+		// Writes through &mut references are allowed by design.
 		issue = tc.borrow.MutationAllowed(place)
 		tc.recordBorrowEvent(&BorrowEvent{
 			Kind:        BorrowEvWrite,
@@ -311,15 +322,65 @@ func (tc *typeChecker) handleAssignment(op ast.ExprBinaryOp, left, right ast.Exp
 		if issue.Kind != BorrowIssueNone {
 			tc.reportBorrowMutation(place, span, issue)
 		}
+	} else if tc.borrow != nil {
+		// Still record the write event for diagnostics/debugging
+		tc.recordBorrowEvent(&BorrowEvent{
+			Kind:  BorrowEvWrite,
+			Place: place,
+			Span:  span,
+			Scope: tc.currentScope(),
+			Note:  "write_through_mut_ref",
+		})
 	}
 	if op == ast.ExprBinaryAssign {
 		tc.observeMove(right, tc.exprSpan(right))
-		tc.updateBindingValue(place.Base, right)
+		if !writeThroughMutRef {
+			tc.updateBindingValue(place.Base, right)
+		}
 		return
 	}
-	if tc.bindingBorrow != nil {
+	if tc.bindingBorrow != nil && !writeThroughMutRef {
 		tc.bindingBorrow[place.Base] = NoBorrowID
 	}
+}
+
+// isWriteThroughMutRef checks if the place descriptor represents a write through
+// a mutable reference binding (i.e., *r = value where r: &mut T).
+// This is allowed even when the underlying value has an active exclusive borrow,
+// because the reference IS that borrow.
+func (tc *typeChecker) isWriteThroughMutRef(desc placeDescriptor) bool {
+	if !desc.Base.IsValid() || len(desc.Segments) == 0 {
+		return false
+	}
+	// Check if the first segment is a deref (i.e., *base)
+	if desc.Segments[0].Kind != PlaceSegmentDeref {
+		return false
+	}
+	// Check if the base binding has a mutable reference type
+	sym := tc.symbolFromID(desc.Base)
+	if sym == nil {
+		return false
+	}
+	ty := tc.result.BindingTypes[desc.Base]
+	if ty == types.NoTypeID {
+		ty = sym.Type
+	}
+	if ty == types.NoTypeID {
+		return false
+	}
+	return tc.isMutRefType(ty)
+}
+
+// isMutRefType checks if a type is &mut T.
+func (tc *typeChecker) isMutRefType(ty types.TypeID) bool {
+	if tc.types == nil || ty == types.NoTypeID {
+		return false
+	}
+	tt, ok := tc.types.Lookup(ty)
+	if !ok {
+		return false
+	}
+	return tt.Kind == types.KindReference && tt.Mutable
 }
 
 func (tc *typeChecker) enforceSpawn(expr ast.ExprID) {

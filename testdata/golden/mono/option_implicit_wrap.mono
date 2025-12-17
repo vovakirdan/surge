@@ -4,6 +4,7 @@ funcs=2 types=2
 fn main() -> nothing (id=2147483649, sym=2415919105) {
   let x: type#315 = Some::<int>(1): type#315
   let y: type#315 = Some::<int>(42): type#315
+  return
 }
 fn Some::<int> (sym=2415919106)
 

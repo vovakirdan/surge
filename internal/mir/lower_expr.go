@@ -156,7 +156,18 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 		}
 		resultTy := e.Type
 		if resultTy == types.NoTypeID {
-			resultTy = operand.Type
+			// For deref operations, get the element type from the operand's reference/pointer type
+			if data.Op == ast.ExprUnaryDeref && operand.Type != types.NoTypeID && l.types != nil {
+				if tt, ok := l.types.Lookup(operand.Type); ok {
+					if tt.Kind == types.KindReference || tt.Kind == types.KindPointer || tt.Kind == types.KindOwn {
+						resultTy = tt.Elem
+					}
+				}
+			}
+			// Fallback to operand type if deref extraction didn't work
+			if resultTy == types.NoTypeID {
+				resultTy = operand.Type
+			}
 		}
 		tmp := l.newTemp(resultTy, "un", e.Span)
 		l.emit(&Instr{
@@ -189,10 +200,18 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 		}
 		resultTy := e.Type
 		if resultTy == types.NoTypeID {
-			if leftTy := l.exprType(data.Left); leftTy != types.NoTypeID {
-				resultTy = leftTy
-			} else if rightTy := l.exprType(data.Right); rightTy != types.NoTypeID {
-				resultTy = rightTy
+			// Fallback: use the operand types (already computed from lowering)
+			if left.Type != types.NoTypeID {
+				resultTy = left.Type
+			} else if right.Type != types.NoTypeID {
+				resultTy = right.Type
+			} else {
+				// Further fallback: try to get type from HIR expressions
+				if data.Left != nil && data.Left.Type != types.NoTypeID {
+					resultTy = data.Left.Type
+				} else if data.Right != nil && data.Right.Type != types.NoTypeID {
+					resultTy = data.Right.Type
+				}
 			}
 		}
 		tmp := l.newTemp(resultTy, "bin", e.Span)
