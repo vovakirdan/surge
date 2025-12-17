@@ -57,7 +57,7 @@ func (vm *VM) dropAllFrames() {
 
 func (vm *VM) dropValue(v Value) {
 	switch v.Kind {
-	case VKHandleString, VKHandleArray, VKHandleStruct:
+	case VKHandleString, VKHandleArray, VKHandleStruct, VKHandleTag:
 		if v.H != 0 {
 			vm.Heap.Free(v.H)
 		}
@@ -87,6 +87,8 @@ func (vm *VM) localOwnsHeap(local mir.Local) bool {
 			return true
 		case types.KindArray:
 			return tt.Count == types.ArrayDynamicLength
+		case types.KindUnion:
+			return true
 		default:
 			return false
 		}
@@ -128,6 +130,8 @@ func (vm *VM) objectKindLabel(k ObjectKind) string {
 		return "array"
 	case OKStruct:
 		return "struct"
+	case OKTag:
+		return "tag"
 	default:
 		return "object"
 	}

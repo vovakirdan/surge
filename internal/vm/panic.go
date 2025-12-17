@@ -25,6 +25,13 @@ const (
 	PanicInvalidHandle      PanicCode = 1203 // VM1203: invalid handle
 	PanicUseAfterFree       PanicCode = 1204 // VM1204: use after free
 
+	PanicSwitchTagMissingDefault   PanicCode = 2001 // VM2001: switch_tag missing default
+	PanicSwitchTagOnNonTag         PanicCode = 2002 // VM2002: switch_tag on non-tag value
+	PanicTagPayloadOnNonTag        PanicCode = 2003 // VM2003: tag_payload on non-tag value
+	PanicTagPayloadTagMismatch     PanicCode = 2004 // VM2004: tag_payload tag mismatch
+	PanicTagPayloadIndexOutOfRange PanicCode = 2005 // VM2005: tag_payload index out of range
+	PanicUnknownTagLayout          PanicCode = 2006 // VM2006: unknown tag in layout / metadata missing
+
 	PanicUnimplemented PanicCode = 1999 // VM1999: unimplemented opcode/terminator
 )
 
@@ -146,6 +153,33 @@ func (eb *errorBuilder) unsupportedParseType(typeName string) *VMError {
 
 func (eb *errorBuilder) intOverflow() *VMError {
 	return eb.makeError(PanicIntOverflow, "integer overflow")
+}
+
+func (eb *errorBuilder) switchTagMissingDefault() *VMError {
+	return eb.makeError(PanicSwitchTagMissingDefault, "switch_tag missing default")
+}
+
+func (eb *errorBuilder) switchTagOnNonTag(got string) *VMError {
+	return eb.makeError(PanicSwitchTagOnNonTag, fmt.Sprintf("switch_tag on non-tag value (got %s)", got))
+}
+
+func (eb *errorBuilder) tagPayloadOnNonTag(got string) *VMError {
+	return eb.makeError(PanicTagPayloadOnNonTag, fmt.Sprintf("tag_payload on non-tag value (got %s)", got))
+}
+
+func (eb *errorBuilder) tagPayloadTagMismatch(expected, got string) *VMError {
+	if got == "" {
+		got = "<unknown>"
+	}
+	return eb.makeError(PanicTagPayloadTagMismatch, fmt.Sprintf("tag_payload tag mismatch: expected %s, got %s", expected, got))
+}
+
+func (eb *errorBuilder) tagPayloadIndexOutOfRange(index, length int) *VMError {
+	return eb.makeError(PanicTagPayloadIndexOutOfRange, fmt.Sprintf("tag_payload index %d out of range for length %d", index, length))
+}
+
+func (eb *errorBuilder) unknownTagLayout(msg string) *VMError {
+	return eb.makeError(PanicUnknownTagLayout, msg)
 }
 
 func (eb *errorBuilder) unimplemented(what string) *VMError {

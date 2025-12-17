@@ -11,6 +11,10 @@ import (
 func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	name := call.Callee.Name
 
+	if handled, vmErr := vm.callTagConstructor(frame, call, writes); handled {
+		return vmErr
+	}
+
 	switch name {
 	case "rt_argv":
 		argv := vm.RT.Argv()

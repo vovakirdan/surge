@@ -3,6 +3,7 @@ package vm
 import (
 	"fmt"
 
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -71,6 +72,16 @@ func (h *Heap) AllocStruct(typeID types.TypeID, fields []Value) Handle {
 	return handle
 }
 
+func (h *Heap) AllocTag(typeID types.TypeID, tagSym symbols.SymbolID, fields []Value) Handle {
+	handle, obj := h.alloc(OKTag, typeID)
+	obj.Tag.TagSym = tagSym
+	obj.Tag.Fields = append([]Value(nil), fields...)
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
+	}
+	return handle
+}
+
 func (h *Heap) Get(handle Handle) *Object {
 	h.initIfNeeded()
 	if handle == 0 {
@@ -118,13 +129,19 @@ func (h *Heap) Free(handle Handle) {
 		obj.Fields = nil
 	case OKString:
 		obj.Str = ""
+	case OKTag:
+		for _, v := range obj.Tag.Fields {
+			h.freeContainedValue(v)
+		}
+		obj.Tag.Fields = nil
+		obj.Tag.TagSym = 0
 	default:
 	}
 }
 
 func (h *Heap) freeContainedValue(v Value) {
 	switch v.Kind {
-	case VKHandleString, VKHandleArray, VKHandleStruct:
+	case VKHandleString, VKHandleArray, VKHandleStruct, VKHandleTag:
 		if v.H != 0 {
 			h.Free(v.H)
 		}

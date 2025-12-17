@@ -1,6 +1,9 @@
 package vm
 
-import "surge/internal/types"
+import (
+	"surge/internal/symbols"
+	"surge/internal/types"
+)
 
 // Handle is a stable, monotonically increasing reference to a heap object.
 // Handle(0) is always invalid.
@@ -13,7 +16,13 @@ const (
 	OKString ObjectKind = iota
 	OKArray
 	OKStruct
+	OKTag
 )
+
+type TagObject struct {
+	TagSym symbols.SymbolID
+	Fields []Value
+}
 
 // Object is a typed heap object.
 type Object struct {
@@ -25,4 +34,5 @@ type Object struct {
 	Str    string
 	Arr    []Value
 	Fields []Value
+	Tag    TagObject
 }

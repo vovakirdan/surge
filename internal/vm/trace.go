@@ -58,6 +58,8 @@ func (t *Tracer) TraceHeapAlloc(kind ObjectKind, h Handle, obj *Object) {
 		fmt.Fprintf(t.w, "[heap] alloc array#%d\n", h)
 	case OKStruct:
 		fmt.Fprintf(t.w, "[heap] alloc struct#%d\n", h)
+	case OKTag:
+		fmt.Fprintf(t.w, "[heap] alloc tag#%d\n", h)
 	default:
 		fmt.Fprintf(t.w, "[heap] alloc handle#%d\n", h)
 	}
@@ -82,6 +84,17 @@ func (t *Tracer) TraceTerm(depth int, fn *mir.Func, bb mir.BlockID, term *mir.Te
 
 	fmt.Fprintf(t.w, "[depth=%d] %s bb%d:term %s @ %s\n",
 		depth, fn.Name, bb, termStr, spanStr)
+}
+
+func (t *Tracer) TraceSwitchTagDecision(tagName string, target mir.BlockID) {
+	if t == nil || t.w == nil {
+		return
+	}
+	if tagName == "default" {
+		fmt.Fprintf(t.w, "    switch_tag -> default bb%d\n", target)
+		return
+	}
+	fmt.Fprintf(t.w, "    switch_tag -> case %s bb%d\n", tagName, target)
 }
 
 // formatSpan formats a span as "file:line:col" or "<no-span>".
@@ -150,6 +163,10 @@ func (t *Tracer) formatRValue(rv *mir.RValue) string {
 			return fmt.Sprintf("%s.#%d", t.formatOperand(&rv.Field.Object), rv.Field.FieldIdx)
 		}
 		return fmt.Sprintf("%s.%s", t.formatOperand(&rv.Field.Object), rv.Field.FieldName)
+	case mir.RValueTagTest:
+		return fmt.Sprintf("tag_test %s is %s", t.formatOperand(&rv.TagTest.Value), rv.TagTest.TagName)
+	case mir.RValueTagPayload:
+		return fmt.Sprintf("tag_payload %s.%s[%d]", t.formatOperand(&rv.TagPayload.Value), rv.TagPayload.TagName, rv.TagPayload.Index)
 	default:
 		return fmt.Sprintf("<?rvalue:%d>", rv.Kind)
 	}
@@ -237,6 +254,32 @@ func (t *Tracer) formatValue(v Value) string {
 			return fmt.Sprintf("struct#%d(<freed>)", v.H)
 		}
 		return fmt.Sprintf("struct#%d(type=type#%d)", v.H, obj.TypeID)
+
+	case VKHandleTag:
+		if v.H == 0 {
+			return "tag#0(<invalid>)"
+		}
+		obj := t.lookup(v.H)
+		if obj == nil {
+			return fmt.Sprintf("tag#%d(<invalid>)", v.H)
+		}
+		if !obj.Alive {
+			return fmt.Sprintf("tag#%d(<freed>)", v.H)
+		}
+		tagName := "<unknown>"
+		if obj.Kind == OKTag && t.vm != nil && t.vm.tagLayouts != nil {
+			if layout, ok := t.vm.tagLayouts.Layout(t.vm.valueType(obj.TypeID)); ok && layout != nil {
+				if tc, ok := layout.CaseBySym(obj.Tag.TagSym); ok && tc.TagName != "" {
+					tagName = tc.TagName
+				}
+			}
+			if tagName == "<unknown>" && obj.Tag.TagSym.IsValid() {
+				if name, ok := t.vm.tagLayouts.AnyTagName(obj.Tag.TagSym); ok {
+					tagName = name
+				}
+			}
+		}
+		return fmt.Sprintf("tag#%d(type#%d, %s)", v.H, obj.TypeID, tagName)
 
 	default:
 		return v.String()

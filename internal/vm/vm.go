@@ -3,6 +3,8 @@ package vm
 import (
 	"fmt"
 
+	"fortio.org/safecast"
+
 	"surge/internal/mir"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -16,16 +18,17 @@ type Options struct {
 
 // VM is a direct MIR interpreter.
 type VM struct {
-	M        *mir.Module
-	Stack    []Frame
-	RT       Runtime
-	Trace    *Tracer
-	Files    *source.FileSet
-	Types    *types.Interner
-	Heap     *Heap
-	layouts  *layoutCache
-	ExitCode int
-	Halted   bool
+	M          *mir.Module
+	Stack      []Frame
+	RT         Runtime
+	Trace      *Tracer
+	Files      *source.FileSet
+	Types      *types.Interner
+	Heap       *Heap
+	layouts    *layoutCache
+	tagLayouts *TagLayouts
+	ExitCode   int
+	Halted     bool
 
 	eb *errorBuilder // for creating errors with backtrace
 }
@@ -49,6 +52,7 @@ func New(m *mir.Module, rt Runtime, files *source.FileSet, typeInterner *types.I
 		vm:          vm,
 	}
 	vm.layouts = newLayoutCache(vm)
+	vm.tagLayouts = NewTagLayouts(m)
 	if vm.Trace != nil {
 		vm.Trace.vm = vm
 	}
@@ -150,10 +154,11 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) *VMError {
 		if vmErr != nil {
 			return vmErr
 		}
+		stored := frame.Locals[localID].V
 		writes = append(writes, LocalWrite{
 			LocalID: localID,
 			Name:    frame.Locals[localID].Name,
-			Value:   val,
+			Value:   stored,
 		})
 
 	case mir.InstrCall:
@@ -226,8 +231,13 @@ func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 		return vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("too many arguments: got %d, expected at most %d", len(args), len(newFrame.Locals)))
 	}
 	for i, arg := range args {
-		newFrame.Locals[i].V = arg
-		newFrame.Locals[i].IsInit = true
+		localID, err := safecast.Conv[mir.LocalID](i)
+		if err != nil {
+			return vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("invalid argument index %d", i))
+		}
+		if vmErr := vm.writeLocal(newFrame, localID, arg); vmErr != nil {
+			return vmErr
+		}
 	}
 
 	vm.Stack = append(vm.Stack, *newFrame)
@@ -300,7 +310,7 @@ func (vm *VM) execTerminator(frame *Frame, term *mir.Terminator) *VMError {
 		frame.IP = 0
 
 	case mir.TermSwitchTag:
-		return vm.eb.unimplemented("switch_tag terminator")
+		return vm.execSwitchTag(frame, &term.SwitchTag)
 
 	case mir.TermUnreachable:
 		return vm.eb.makeError(PanicUnimplemented, "unreachable code executed")
@@ -335,6 +345,16 @@ func (vm *VM) readLocal(frame *Frame, id mir.LocalID) (Value, *VMError) {
 func (vm *VM) writeLocal(frame *Frame, id mir.LocalID, val Value) *VMError {
 	if int(id) < 0 || int(id) >= len(frame.Locals) {
 		return vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("invalid local id %d", id))
+	}
+
+	expectedType := frame.Locals[id].TypeID
+	if val.Kind == VKNothing && expectedType != types.NoTypeID && vm.tagLayouts != nil {
+		if layout, ok := vm.tagLayouts.Layout(vm.valueType(expectedType)); ok && layout != nil {
+			if tc, ok := layout.CaseByName("nothing"); ok {
+				h := vm.Heap.AllocTag(expectedType, tc.TagSym, nil)
+				val = MakeHandleTag(h, expectedType)
+			}
+		}
 	}
 
 	slot := &frame.Locals[id]

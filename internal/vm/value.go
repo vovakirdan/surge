@@ -19,6 +19,7 @@ const (
 	VKHandleString
 	VKHandleArray
 	VKHandleStruct
+	VKHandleTag
 )
 
 // String returns a human-readable name for the value kind.
@@ -38,6 +39,8 @@ func (k ValueKind) String() string {
 		return "array"
 	case VKHandleStruct:
 		return "struct"
+	case VKHandleTag:
+		return "tag"
 	default:
 		return fmt.Sprintf("ValueKind(%d)", k)
 	}
@@ -77,6 +80,8 @@ func (v Value) String() string {
 		return fmt.Sprintf("array#%d", v.H)
 	case VKHandleStruct:
 		return fmt.Sprintf("struct#%d", v.H)
+	case VKHandleTag:
+		return fmt.Sprintf("tag#%d", v.H)
 	default:
 		return fmt.Sprintf("<unknown:%d>", v.Kind)
 	}
@@ -127,6 +132,14 @@ func MakeHandleStruct(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
 		Kind:   VKHandleStruct,
+		H:      h,
+	}
+}
+
+func MakeHandleTag(h Handle, typeID types.TypeID) Value {
+	return Value{
+		TypeID: typeID,
+		Kind:   VKHandleTag,
 		H:      h,
 	}
 }

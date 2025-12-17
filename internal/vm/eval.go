@@ -53,6 +53,12 @@ func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
 	case mir.RValueField:
 		return vm.evalFieldAccess(frame, &rv.Field)
 
+	case mir.RValueTagTest:
+		return vm.evalTagTest(frame, &rv.TagTest)
+
+	case mir.RValueTagPayload:
+		return vm.evalTagPayload(frame, &rv.TagPayload)
+
 	default:
 		return Value{}, vm.eb.unimplemented(fmt.Sprintf("rvalue kind %d", rv.Kind))
 	}
@@ -103,6 +109,14 @@ func (vm *VM) evalConst(c *mir.Const) Value {
 		h := vm.Heap.AllocString(c.Type, s)
 		return MakeHandleString(h, c.Type)
 	case mir.ConstNothing:
+		if c.Type != types.NoTypeID && vm.tagLayouts != nil {
+			if layout, ok := vm.tagLayouts.Layout(vm.valueType(c.Type)); ok && layout != nil {
+				if tc, ok := layout.CaseByName("nothing"); ok {
+					h := vm.Heap.AllocTag(c.Type, tc.TagSym, nil)
+					return MakeHandleTag(h, c.Type)
+				}
+			}
+		}
 		return MakeNothing()
 	default:
 		return Value{Kind: VKInvalid}
@@ -326,7 +340,7 @@ func (vm *VM) evalFieldAccess(frame *Frame, fa *mir.FieldAccess) (Value, *VMErro
 	sobj := vm.Heap.Get(obj.H)
 	if sobj == nil {
 		return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid struct handle")
-	}	
+	}
 	if sobj.Kind != OKStruct {
 		return Value{}, vm.eb.typeMismatch("struct", fmt.Sprintf("%v", sobj.Kind))
 	}
