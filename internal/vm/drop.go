@@ -39,6 +39,9 @@ func (vm *VM) dropFrameLocals(frame *Frame) {
 		if !slot.IsInit || slot.IsMoved {
 			continue
 		}
+		if id >= len(frame.Func.Locals) {
+			continue
+		}
 		if !vm.localOwnsHeap(frame.Func.Locals[id]) {
 			continue
 		}

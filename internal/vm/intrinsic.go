@@ -44,6 +44,9 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 				Name:    frame.Locals[localID].Name,
 				Value:   val,
 			})
+		} else {
+			// No destination; free the array and its string elements.
+			vm.Heap.Free(arrH)
 		}
 
 	case "rt_stdin_read_all":
@@ -65,6 +68,9 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 				Name:    frame.Locals[localID].Name,
 				Value:   val,
 			})
+		} else {
+			// No destination; free the string.
+			vm.Heap.Free(h)
 		}
 
 	case "rt_exit":

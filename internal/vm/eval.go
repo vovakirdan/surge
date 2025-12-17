@@ -129,7 +129,7 @@ func (vm *VM) evalConst(c *mir.Const) Value {
 		intVal, err := safecast.Convert[int64](c.UintValue)
 		if err != nil {
 			// For now, saturate to max int64.
-			intVal = math.MaxInt64
+			return Value{Kind: VKInvalid}
 		}
 		return MakeInt(intVal, c.Type)
 	case mir.ConstBool:
