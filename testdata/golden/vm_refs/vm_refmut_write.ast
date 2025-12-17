@@ -1,4 +1,4 @@
-testdata/golden/vm_refs/vm_refmut_write.sg (span: 1:1-12:1)
+vm_refmut_write.sg (span: 1:1-12:1)
 ├─ Item[0]: Fn (span: 1:1-4:2)
 │  ├─ Name: set
 │  ├─ Params: (x: &mut int)

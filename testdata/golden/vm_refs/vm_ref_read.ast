@@ -1,4 +1,4 @@
-testdata/golden/vm_refs/vm_ref_read.sg (span: 1:1-7:1)
+vm_ref_read.sg (span: 1:1-7:1)
 └─ Item[0]: Fn (span: 1:1-6:2)
    ├─ Name: main
    ├─ Params: ()
