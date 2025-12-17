@@ -142,6 +142,11 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) *VMError {
 	}
 
 	var writes []LocalWrite
+	var (
+		storeLoc Location
+		storeVal Value
+		hasStore bool
+	)
 
 	switch instr.Kind {
 	case mir.InstrAssign:
@@ -149,17 +154,31 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) *VMError {
 		if vmErr != nil {
 			return vmErr
 		}
-		localID := instr.Assign.Dst.Local
-		vmErr = vm.writeLocal(frame, localID, val)
-		if vmErr != nil {
-			return vmErr
+		dst := instr.Assign.Dst
+		if len(dst.Proj) == 0 {
+			localID := dst.Local
+			vmErr = vm.writeLocal(frame, localID, val)
+			if vmErr != nil {
+				return vmErr
+			}
+			stored := frame.Locals[localID].V
+			writes = append(writes, LocalWrite{
+				LocalID: localID,
+				Name:    frame.Locals[localID].Name,
+				Value:   stored,
+			})
+		} else {
+			loc, vmErr := vm.EvalPlace(frame, dst)
+			if vmErr != nil {
+				return vmErr
+			}
+			if vmErr := vm.storeLocation(loc, val); vmErr != nil {
+				return vmErr
+			}
+			storeLoc = loc
+			storeVal = val
+			hasStore = true
 		}
-		stored := frame.Locals[localID].V
-		writes = append(writes, LocalWrite{
-			LocalID: localID,
-			Name:    frame.Locals[localID].Name,
-			Value:   stored,
-		})
 
 	case mir.InstrCall:
 		vmErr := vm.execCall(frame, &instr.Call, &writes)
@@ -175,8 +194,14 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) *VMError {
 		}
 
 	case mir.InstrEndBorrow:
-		// No-op in Step 0, but trace it
-		// In full implementation would end borrow lifetime
+		localID := instr.EndBorrow.Place.Local
+		if int(localID) < 0 || int(localID) >= len(frame.Locals) {
+			return vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("invalid local id %d", localID))
+		}
+		slot := &frame.Locals[localID]
+		slot.V = Value{}
+		slot.IsInit = false
+		slot.IsMoved = false
 
 	case mir.InstrNop:
 		// Nothing to do
@@ -188,6 +213,9 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) *VMError {
 	// Trace the instruction
 	if vm.Trace != nil {
 		vm.Trace.TraceInstr(len(vm.Stack), frame.Func, frame.BB, frame.IP, instr, frame.Span, writes)
+		if hasStore {
+			vm.Trace.TraceStore(storeLoc, storeVal)
+		}
 	}
 
 	return nil
@@ -348,6 +376,9 @@ func (vm *VM) writeLocal(frame *Frame, id mir.LocalID, val Value) *VMError {
 	}
 
 	expectedType := frame.Locals[id].TypeID
+	if val.TypeID == types.NoTypeID && expectedType != types.NoTypeID {
+		val.TypeID = expectedType
+	}
 	if val.Kind == VKNothing && expectedType != types.NoTypeID && vm.tagLayouts != nil {
 		if layout, ok := vm.tagLayouts.Layout(vm.valueType(expectedType)); ok && layout != nil {
 			if tc, ok := layout.CaseByName("nothing"); ok {
@@ -358,6 +389,11 @@ func (vm *VM) writeLocal(frame *Frame, id mir.LocalID, val Value) *VMError {
 	}
 
 	slot := &frame.Locals[id]
+	if slot.IsInit && !slot.IsMoved && frame.Func != nil {
+		if vm.localOwnsHeap(frame.Func.Locals[id]) {
+			vm.dropValue(slot.V)
+		}
+	}
 	slot.V = val
 	slot.IsInit = true
 	slot.IsMoved = false

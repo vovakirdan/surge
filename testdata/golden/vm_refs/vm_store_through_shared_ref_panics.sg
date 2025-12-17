@@ -1,0 +1,11 @@
+fn set(x: &int) -> nothing {
+    *x = 2;
+    return;
+}
+
+@entrypoint
+fn main() -> int {
+    let x: int = 1;
+    set(&x);
+    return 0;
+}

@@ -50,6 +50,9 @@ func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
 	case mir.RValueStructLit:
 		return vm.evalStructLit(frame, &rv.StructLit)
 
+	case mir.RValueArrayLit:
+		return vm.evalArrayLit(frame, &rv.ArrayLit)
+
 	case mir.RValueField:
 		return vm.evalFieldAccess(frame, &rv.Field)
 
@@ -71,19 +74,46 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 		return vm.evalConst(&op.Const), nil
 
 	case mir.OperandCopy:
-		val, vmErr := vm.readLocal(frame, op.Place.Local)
+		if len(op.Place.Proj) == 0 {
+			val, vmErr := vm.readLocal(frame, op.Place.Local)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return val, nil
+		}
+		loc, vmErr := vm.EvalPlace(frame, op.Place)
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		return val, nil
+		return vm.loadLocationRaw(loc)
 
 	case mir.OperandMove:
-		val, vmErr := vm.readLocal(frame, op.Place.Local)
+		if len(op.Place.Proj) == 0 {
+			val, vmErr := vm.readLocal(frame, op.Place.Local)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			vm.moveLocal(frame, op.Place.Local)
+			return val, nil
+		}
+		return Value{}, vm.eb.unimplemented("move from projected place")
+
+	case mir.OperandAddrOf:
+		loc, vmErr := vm.EvalPlace(frame, op.Place)
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		vm.moveLocal(frame, op.Place.Local)
-		return val, nil
+		return MakeRef(loc, op.Type), nil
+
+	case mir.OperandAddrOfMut:
+		loc, vmErr := vm.EvalPlace(frame, op.Place)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if !loc.IsMut {
+			return Value{}, vm.eb.invalidLocation("addr_of_mut of non-mutable location")
+		}
+		return MakeRefMut(loc, op.Type), nil
 
 	default:
 		return Value{}, vm.eb.unimplemented(fmt.Sprintf("operand kind %d", op.Kind))
@@ -262,9 +292,34 @@ func (vm *VM) evalUnaryOp(op ast.ExprUnaryOp, operand Value) (Value, *VMError) {
 		}
 		return operand, nil
 
+	case ast.ExprUnaryDeref:
+		switch operand.Kind {
+		case VKRef, VKRefMut:
+			return vm.loadLocationRaw(operand.Loc)
+		default:
+			return Value{}, vm.eb.derefOnNonRef(operand.Kind.String())
+		}
+
 	default:
 		return Value{}, vm.eb.unimplemented(fmt.Sprintf("unary op %s", op))
 	}
+}
+
+func (vm *VM) evalArrayLit(frame *Frame, lit *mir.ArrayLit) (Value, *VMError) {
+	if lit == nil {
+		return Value{}, vm.eb.makeError(PanicUnimplemented, "nil array literal")
+	}
+	elems := make([]Value, 0, len(lit.Elems))
+	for i := range lit.Elems {
+		v, vmErr := vm.evalOperand(frame, &lit.Elems[i])
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		elems = append(elems, v)
+	}
+
+	h := vm.Heap.AllocArray(types.NoTypeID, elems)
+	return MakeHandleArray(h, types.NoTypeID), nil
 }
 
 // evalIndex evaluates an index operation.

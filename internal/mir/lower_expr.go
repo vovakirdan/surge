@@ -14,21 +14,84 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 	if l == nil || e == nil {
 		return Place{Local: NoLocalID}, fmt.Errorf("mir: expected place, got <nil>")
 	}
-	if e.Kind != hir.ExprVarRef {
+	switch e.Kind {
+	case hir.ExprVarRef:
+		data, ok := e.Data.(hir.VarRefData)
+		if !ok {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: var ref: unexpected payload %T", e.Data)
+		}
+		if !data.SymbolID.IsValid() {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: var ref %q has no symbol id", data.Name)
+		}
+		local, ok := l.symToLocal[data.SymbolID]
+		if !ok {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: unknown local symbol %d (%s)", data.SymbolID, data.Name)
+		}
+		return Place{Local: local}, nil
+
+	case hir.ExprUnaryOp:
+		data, ok := e.Data.(hir.UnaryOpData)
+		if !ok {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: unary: unexpected payload %T", e.Data)
+		}
+		if data.Op != ast.ExprUnaryDeref {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: expected place, got UnaryOp %s", data.Op)
+		}
+		base, err := l.lowerPlace(data.Operand)
+		if err != nil {
+			return Place{Local: NoLocalID}, err
+		}
+		base.Proj = append(base.Proj, PlaceProj{Kind: PlaceProjDeref})
+		return base, nil
+
+	case hir.ExprFieldAccess:
+		data, ok := e.Data.(hir.FieldAccessData)
+		if !ok {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: field: unexpected payload %T", e.Data)
+		}
+		base, err := l.lowerPlace(data.Object)
+		if err != nil {
+			return Place{Local: NoLocalID}, err
+		}
+		base.Proj = append(base.Proj, PlaceProj{
+			Kind:      PlaceProjField,
+			FieldName: data.FieldName,
+			FieldIdx:  data.FieldIdx,
+		})
+		return base, nil
+
+	case hir.ExprIndex:
+		data, ok := e.Data.(hir.IndexData)
+		if !ok {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: index: unexpected payload %T", e.Data)
+		}
+		base, err := l.lowerPlace(data.Object)
+		if err != nil {
+			return Place{Local: NoLocalID}, err
+		}
+		idxOp, err := l.lowerExpr(data.Index, true)
+		if err != nil {
+			return Place{Local: NoLocalID}, err
+		}
+
+		idxTmp := l.newTemp(idxOp.Type, "idx", e.Span)
+		l.emit(&Instr{
+			Kind: InstrAssign,
+			Assign: AssignInstr{
+				Dst: Place{Local: idxTmp},
+				Src: RValue{Kind: RValueUse, Use: idxOp},
+			},
+		})
+
+		base.Proj = append(base.Proj, PlaceProj{
+			Kind:       PlaceProjIndex,
+			IndexLocal: idxTmp,
+		})
+		return base, nil
+
+	default:
 		return Place{Local: NoLocalID}, fmt.Errorf("mir: expected place, got %s", e.Kind)
 	}
-	data, ok := e.Data.(hir.VarRefData)
-	if !ok {
-		return Place{Local: NoLocalID}, fmt.Errorf("mir: var ref: unexpected payload %T", e.Data)
-	}
-	if !data.SymbolID.IsValid() {
-		return Place{Local: NoLocalID}, fmt.Errorf("mir: var ref %q has no symbol id", data.Name)
-	}
-	local, ok := l.symToLocal[data.SymbolID]
-	if !ok {
-		return Place{Local: NoLocalID}, fmt.Errorf("mir: unknown local symbol %d (%s)", data.SymbolID, data.Name)
-	}
-	return Place{Local: local}, nil
 }
 
 func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {

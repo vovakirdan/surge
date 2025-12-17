@@ -135,9 +135,9 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 	case InstrEndBorrow:
 		return fmt.Sprintf("end_borrow %s", formatPlace(ins.EndBorrow.Place))
 	case InstrAwait:
-		return fmt.Sprintf("%s = await %s", formatPlace(ins.Await.Dst), formatOperand(ins.Await.Task))
+		return fmt.Sprintf("%s = await %s", formatPlace(ins.Await.Dst), formatOperand(&ins.Await.Task))
 	case InstrSpawn:
-		return fmt.Sprintf("%s = spawn %s", formatPlace(ins.Spawn.Dst), formatOperand(ins.Spawn.Value))
+		return fmt.Sprintf("%s = spawn %s", formatPlace(ins.Spawn.Dst), formatOperand(&ins.Spawn.Value))
 	case InstrNop:
 		return "nop"
 	default:
@@ -156,13 +156,13 @@ func formatTerm(term *Terminator) string {
 		if !term.Return.HasValue {
 			return "return"
 		}
-		return fmt.Sprintf("return %s", formatOperand(term.Return.Value))
+		return fmt.Sprintf("return %s", formatOperand(&term.Return.Value))
 	case TermGoto:
 		return fmt.Sprintf("goto bb%d", term.Goto.Target)
 	case TermIf:
-		return fmt.Sprintf("if %s then bb%d else bb%d", formatOperand(term.If.Cond), term.If.Then, term.If.Else)
+		return fmt.Sprintf("if %s then bb%d else bb%d", formatOperand(&term.If.Cond), term.If.Then, term.If.Else)
 	case TermSwitchTag:
-		out := fmt.Sprintf("switch_tag %s {", formatOperand(term.SwitchTag.Value))
+		out := fmt.Sprintf("switch_tag %s {", formatOperand(&term.SwitchTag.Value))
 		for _, c := range term.SwitchTag.Cases {
 			out += fmt.Sprintf(" %s -> bb%d;", c.TagName, c.Target)
 		}
@@ -179,21 +179,49 @@ func formatPlace(p Place) string {
 	if !p.IsValid() {
 		return "L?"
 	}
-	return fmt.Sprintf("L%d", p.Local)
+	out := fmt.Sprintf("L%d", p.Local)
+	for _, proj := range p.Proj {
+		switch proj.Kind {
+		case PlaceProjDeref:
+			out = fmt.Sprintf("(*%s)", out)
+		case PlaceProjField:
+			if proj.FieldIdx >= 0 {
+				out += fmt.Sprintf(".#%d", proj.FieldIdx)
+				continue
+			}
+			if proj.FieldName != "" {
+				out += "." + proj.FieldName
+			} else {
+				out += ".<?>"
+			}
+		case PlaceProjIndex:
+			if proj.IndexLocal != NoLocalID {
+				out += fmt.Sprintf("[L%d]", proj.IndexLocal)
+			} else {
+				out += "[?]"
+			}
+		default:
+			out += ".<?>"
+		}
+	}
+	return out
 }
 
 func formatOperands(ops []Operand) string {
 	if len(ops) == 0 {
 		return ""
 	}
-	out := formatOperand(ops[0])
+	out := formatOperand(&ops[0])
 	for i := 1; i < len(ops); i++ {
-		out += ", " + formatOperand(ops[i])
+		out += ", " + formatOperand(&ops[i])
 	}
 	return out
 }
 
-func formatOperand(op Operand) string {
+func formatOperand(op *Operand) string {
+	if op == nil {
+		return "<op?>"
+	}
 	switch op.Kind {
 	case OperandConst:
 		return formatConst(&op.Const)
@@ -246,7 +274,7 @@ func formatCallee(c *Callee) string {
 		}
 		return fmt.Sprintf("sym#%d", c.Sym)
 	case CalleeValue:
-		return formatOperand(c.Value)
+		return formatOperand(&c.Value)
 	default:
 		return "<callee?>"
 	}
@@ -258,58 +286,59 @@ func formatRValue(typesIn *types.Interner, rv *RValue) string {
 	}
 	switch rv.Kind {
 	case RValueUse:
-		return formatOperand(rv.Use)
+		return formatOperand(&rv.Use)
 	case RValueUnaryOp:
-		return fmt.Sprintf("(%v %s)", rv.Unary.Op, formatOperand(rv.Unary.Operand))
+		return fmt.Sprintf("(%v %s)", rv.Unary.Op, formatOperand(&rv.Unary.Operand))
 	case RValueBinaryOp:
-		return fmt.Sprintf("(%s %v %s)", formatOperand(rv.Binary.Left), rv.Binary.Op, formatOperand(rv.Binary.Right))
+		return fmt.Sprintf("(%s %v %s)", formatOperand(&rv.Binary.Left), rv.Binary.Op, formatOperand(&rv.Binary.Right))
 	case RValueCast:
-		return fmt.Sprintf("cast %s to %s", formatOperand(rv.Cast.Value), typeStr(typesIn, rv.Cast.TargetTy))
+		return fmt.Sprintf("cast %s to %s", formatOperand(&rv.Cast.Value), typeStr(typesIn, rv.Cast.TargetTy))
 	case RValueStructLit:
 		out := fmt.Sprintf("struct_lit %s {", typeStr(typesIn, rv.StructLit.TypeID))
-		for i, f := range rv.StructLit.Fields {
+		for i := range rv.StructLit.Fields {
 			if i > 0 {
 				out += ", "
 			}
-			out += fmt.Sprintf("%s=%s", f.Name, formatOperand(f.Value))
+			f := &rv.StructLit.Fields[i]
+			out += fmt.Sprintf("%s=%s", f.Name, formatOperand(&f.Value))
 		}
 		out += "}"
 		return out
 	case RValueArrayLit:
 		out := "array_lit ["
-		for i, el := range rv.ArrayLit.Elems {
+		for i := range rv.ArrayLit.Elems {
 			if i > 0 {
 				out += ", "
 			}
-			out += formatOperand(el)
+			out += formatOperand(&rv.ArrayLit.Elems[i])
 		}
 		out += "]"
 		return out
 	case RValueTupleLit:
 		out := "tuple_lit ("
-		for i, el := range rv.TupleLit.Elems {
+		for i := range rv.TupleLit.Elems {
 			if i > 0 {
 				out += ", "
 			}
-			out += formatOperand(el)
+			out += formatOperand(&rv.TupleLit.Elems[i])
 		}
 		out += ")"
 		return out
 	case RValueField:
 		if rv.Field.FieldName != "" {
-			return fmt.Sprintf("field %s.%s", formatOperand(rv.Field.Object), rv.Field.FieldName)
+			return fmt.Sprintf("field %s.%s", formatOperand(&rv.Field.Object), rv.Field.FieldName)
 		}
-		return fmt.Sprintf("field %s.%d", formatOperand(rv.Field.Object), rv.Field.FieldIdx)
+		return fmt.Sprintf("field %s.%d", formatOperand(&rv.Field.Object), rv.Field.FieldIdx)
 	case RValueIndex:
-		return fmt.Sprintf("index %s[%s]", formatOperand(rv.Index.Object), formatOperand(rv.Index.Index))
+		return fmt.Sprintf("index %s[%s]", formatOperand(&rv.Index.Object), formatOperand(&rv.Index.Index))
 	case RValueTagTest:
-		return fmt.Sprintf("tag_test %s is %s", formatOperand(rv.TagTest.Value), rv.TagTest.TagName)
+		return fmt.Sprintf("tag_test %s is %s", formatOperand(&rv.TagTest.Value), rv.TagTest.TagName)
 	case RValueTagPayload:
-		return fmt.Sprintf("tag_payload %s.%s[%d]", formatOperand(rv.TagPayload.Value), rv.TagPayload.TagName, rv.TagPayload.Index)
+		return fmt.Sprintf("tag_payload %s.%s[%d]", formatOperand(&rv.TagPayload.Value), rv.TagPayload.TagName, rv.TagPayload.Index)
 	case RValueIterInit:
-		return fmt.Sprintf("iter_init %s", formatOperand(rv.IterInit.Iterable))
+		return fmt.Sprintf("iter_init %s", formatOperand(&rv.IterInit.Iterable))
 	case RValueIterNext:
-		return fmt.Sprintf("iter_next %s", formatOperand(rv.IterNext.Iter))
+		return fmt.Sprintf("iter_next %s", formatOperand(&rv.IterNext.Iter))
 	default:
 		return "<rvalue?>"
 	}

@@ -16,6 +16,9 @@ const (
 	VKBool              // boolean
 	VKNothing           // nothing/unit value
 
+	VKRef
+	VKRefMut
+
 	VKHandleString
 	VKHandleArray
 	VKHandleStruct
@@ -33,6 +36,10 @@ func (k ValueKind) String() string {
 		return "bool"
 	case VKNothing:
 		return "nothing"
+	case VKRef:
+		return "ref"
+	case VKRefMut:
+		return "refmut"
 	case VKHandleString:
 		return "string"
 	case VKHandleArray:
@@ -53,6 +60,7 @@ type Value struct {
 	Int    int64        // For VKInt
 	Bool   bool         // For VKBool
 	H      Handle       // For VKHandle*
+	Loc    Location     // For VKRef/VKRefMut
 }
 
 // IsZero returns true if this is a zero/invalid value.
@@ -74,6 +82,10 @@ func (v Value) String() string {
 		return "false"
 	case VKNothing:
 		return "nothing"
+	case VKRef:
+		return fmt.Sprintf("&%s", v.Loc)
+	case VKRefMut:
+		return fmt.Sprintf("&mut %s", v.Loc)
 	case VKHandleString:
 		return fmt.Sprintf("string#%d", v.H)
 	case VKHandleArray:
@@ -109,6 +121,24 @@ func MakeBool(b bool, typeID types.TypeID) Value {
 func MakeNothing() Value {
 	return Value{
 		Kind: VKNothing,
+	}
+}
+
+func MakeRef(loc Location, typeID types.TypeID) Value {
+	loc.IsMut = false
+	return Value{
+		TypeID: typeID,
+		Kind:   VKRef,
+		Loc:    loc,
+	}
+}
+
+func MakeRefMut(loc Location, typeID types.TypeID) Value {
+	loc.IsMut = true
+	return Value{
+		TypeID: typeID,
+		Kind:   VKRefMut,
+		Loc:    loc,
 	}
 }
 

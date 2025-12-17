@@ -97,6 +97,13 @@ func (t *Tracer) TraceSwitchTagDecision(tagName string, target mir.BlockID) {
 	fmt.Fprintf(t.w, "    switch_tag -> case %s bb%d\n", tagName, target)
 }
 
+func (t *Tracer) TraceStore(loc Location, v Value) {
+	if t == nil || t.w == nil {
+		return
+	}
+	fmt.Fprintf(t.w, "    store %s = %s\n", t.formatLocation(loc), t.formatValue(v))
+}
+
 // formatSpan formats a span as "file:line:col" or "<no-span>".
 func (t *Tracer) formatSpan(span source.Span) string {
 	if t.files == nil || (span.Start == 0 && span.End == 0) {
@@ -116,7 +123,7 @@ func (t *Tracer) formatSpan(span source.Span) string {
 func (t *Tracer) formatInstr(instr *mir.Instr) string {
 	switch instr.Kind {
 	case mir.InstrAssign:
-		return fmt.Sprintf("L%d = %s", instr.Assign.Dst.Local, t.formatRValue(&instr.Assign.Src))
+		return fmt.Sprintf("%s = %s", t.formatPlace(instr.Assign.Dst), t.formatRValue(&instr.Assign.Src))
 	case mir.InstrCall:
 		call := &instr.Call
 		if call.HasDst {
@@ -124,9 +131,9 @@ func (t *Tracer) formatInstr(instr *mir.Instr) string {
 		}
 		return fmt.Sprintf("call %s(%s)", call.Callee.Name, t.formatArgs(call.Args))
 	case mir.InstrDrop:
-		return fmt.Sprintf("drop L%d", instr.Drop.Place.Local)
+		return fmt.Sprintf("drop %s", t.formatPlace(instr.Drop.Place))
 	case mir.InstrEndBorrow:
-		return fmt.Sprintf("end_borrow L%d", instr.EndBorrow.Place.Local)
+		return fmt.Sprintf("end_borrow %s", t.formatPlace(instr.EndBorrow.Place))
 	case mir.InstrNop:
 		return "nop"
 	default:
@@ -158,6 +165,16 @@ func (t *Tracer) formatRValue(rv *mir.RValue) string {
 		}
 		out += "}"
 		return out
+	case mir.RValueArrayLit:
+		out := "array_lit ["
+		for i, el := range rv.ArrayLit.Elems {
+			if i > 0 {
+				out += ", "
+			}
+			out += t.formatOperand(&el)
+		}
+		out += "]"
+		return out
 	case mir.RValueField:
 		if rv.Field.FieldIdx >= 0 {
 			return fmt.Sprintf("%s.#%d", t.formatOperand(&rv.Field.Object), rv.Field.FieldIdx)
@@ -178,16 +195,48 @@ func (t *Tracer) formatOperand(op *mir.Operand) string {
 	case mir.OperandConst:
 		return t.formatConst(&op.Const)
 	case mir.OperandCopy:
-		return fmt.Sprintf("copy L%d", op.Place.Local)
+		return fmt.Sprintf("copy %s", t.formatPlace(op.Place))
 	case mir.OperandMove:
-		return fmt.Sprintf("move L%d", op.Place.Local)
+		return fmt.Sprintf("move %s", t.formatPlace(op.Place))
 	case mir.OperandAddrOf:
-		return fmt.Sprintf("&L%d", op.Place.Local)
+		return fmt.Sprintf("addr_of %s", t.formatPlace(op.Place))
 	case mir.OperandAddrOfMut:
-		return fmt.Sprintf("&mut L%d", op.Place.Local)
+		return fmt.Sprintf("addr_of_mut %s", t.formatPlace(op.Place))
 	default:
 		return fmt.Sprintf("<?op:%d>", op.Kind)
 	}
+}
+
+func (t *Tracer) formatPlace(p mir.Place) string {
+	if !p.IsValid() {
+		return "L?"
+	}
+	out := fmt.Sprintf("L%d", p.Local)
+	for _, proj := range p.Proj {
+		switch proj.Kind {
+		case mir.PlaceProjDeref:
+			out = fmt.Sprintf("(*%s)", out)
+		case mir.PlaceProjField:
+			if proj.FieldIdx >= 0 {
+				out += fmt.Sprintf(".#%d", proj.FieldIdx)
+				continue
+			}
+			if proj.FieldName != "" {
+				out += "." + proj.FieldName
+			} else {
+				out += ".<?>"
+			}
+		case mir.PlaceProjIndex:
+			if proj.IndexLocal != mir.NoLocalID {
+				out += fmt.Sprintf("[L%d]", proj.IndexLocal)
+			} else {
+				out += "[?]"
+			}
+		default:
+			out += ".<?>"
+		}
+	}
+	return out
 }
 
 // formatConst formats a constant for tracing.
@@ -215,6 +264,12 @@ func (t *Tracer) formatConst(c *mir.Const) string {
 
 func (t *Tracer) formatValue(v Value) string {
 	switch v.Kind {
+	case VKRef:
+		return "&" + t.formatLocation(v.Loc)
+
+	case VKRefMut:
+		return "&mut " + t.formatLocation(v.Loc)
+
 	case VKHandleString:
 		if v.H == 0 {
 			return "string#0(<invalid>)"
@@ -283,6 +338,26 @@ func (t *Tracer) formatValue(v Value) string {
 
 	default:
 		return v.String()
+	}
+}
+
+func (t *Tracer) formatLocation(loc Location) string {
+	switch loc.Kind {
+	case LKLocal:
+		name := "?"
+		if t.vm != nil && loc.Frame >= 0 && loc.Frame < len(t.vm.Stack) {
+			frame := &t.vm.Stack[loc.Frame]
+			if loc.Local >= 0 && loc.Local < len(frame.Locals) && frame.Locals[loc.Local].Name != "" {
+				name = frame.Locals[loc.Local].Name
+			}
+		}
+		return fmt.Sprintf("L%d(%s)", loc.Local, name)
+	case LKStructField:
+		return fmt.Sprintf("struct#%d.field[%d]", loc.Handle, loc.Index)
+	case LKArrayElem:
+		return fmt.Sprintf("array#%d[%d]", loc.Handle, loc.Index)
+	default:
+		return "<invalid-loc>"
 	}
 }
 

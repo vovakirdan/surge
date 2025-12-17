@@ -32,6 +32,13 @@ const (
 	PanicTagPayloadIndexOutOfRange PanicCode = 2005 // VM2005: tag_payload index out of range
 	PanicUnknownTagLayout          PanicCode = 2006 // VM2006: unknown tag in layout / metadata missing
 
+	PanicDerefOnNonRef          PanicCode = 2101 // VM2101: deref of non-ref value
+	PanicStoreThroughNonMutRef  PanicCode = 2102 // VM2102: store through non-mutable reference
+	PanicInvalidLocation        PanicCode = 2103 // VM2103: invalid location
+	PanicFieldIndexOutOfRange   PanicCode = 2104 // VM2104: field index out of range
+	PanicArrayIndexOutOfRange   PanicCode = 2105 // VM2105: array index out of range
+	PanicReferenceToFreedObject PanicCode = 2106 // VM2106: reference to freed object
+
 	PanicUnimplemented PanicCode = 1999 // VM1999: unimplemented opcode/terminator
 )
 
@@ -180,6 +187,30 @@ func (eb *errorBuilder) tagPayloadIndexOutOfRange(index, length int) *VMError {
 
 func (eb *errorBuilder) unknownTagLayout(msg string) *VMError {
 	return eb.makeError(PanicUnknownTagLayout, msg)
+}
+
+func (eb *errorBuilder) derefOnNonRef(got string) *VMError {
+	return eb.makeError(PanicDerefOnNonRef, fmt.Sprintf("deref of non-ref value (got %s)", got))
+}
+
+func (eb *errorBuilder) storeThroughNonMutRef() *VMError {
+	return eb.makeError(PanicStoreThroughNonMutRef, "store through non-mutable reference")
+}
+
+func (eb *errorBuilder) invalidLocation(msg string) *VMError {
+	return eb.makeError(PanicInvalidLocation, msg)
+}
+
+func (eb *errorBuilder) fieldIndexOutOfRange(index, length int) *VMError {
+	return eb.makeError(PanicFieldIndexOutOfRange, fmt.Sprintf("field index %d out of range for length %d", index, length))
+}
+
+func (eb *errorBuilder) arrayIndexOutOfRange(index, length int) *VMError {
+	return eb.makeError(PanicArrayIndexOutOfRange, fmt.Sprintf("array index %d out of range for length %d", index, length))
+}
+
+func (eb *errorBuilder) referenceToFreedObject(msg string) *VMError {
+	return eb.makeError(PanicReferenceToFreedObject, msg)
 }
 
 func (eb *errorBuilder) unimplemented(what string) *VMError {
