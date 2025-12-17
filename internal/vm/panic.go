@@ -39,6 +39,10 @@ const (
 	PanicArrayIndexOutOfRange   PanicCode = 2105 // VM2105: array index out of range
 	PanicReferenceToFreedObject PanicCode = 2106 // VM2106: reference to freed object
 
+	PanicReplayLogExhausted     PanicCode = 3001 // VM3001: replay log exhausted
+	PanicReplayMismatch         PanicCode = 3002 // VM3002: replay mismatch
+	PanicInvalidReplayLogFormat PanicCode = 3003 // VM3003: invalid replay log format/version
+
 	PanicUnimplemented PanicCode = 1999 // VM1999: unimplemented opcode/terminator
 )
 
@@ -215,4 +219,25 @@ func (eb *errorBuilder) referenceToFreedObject(msg string) *VMError {
 
 func (eb *errorBuilder) unimplemented(what string) *VMError {
 	return eb.makeError(PanicUnimplemented, fmt.Sprintf("unimplemented: %s", what))
+}
+
+func (eb *errorBuilder) replayLogExhausted(msg string) *VMError {
+	if msg == "" {
+		msg = "replay log exhausted"
+	}
+	return eb.makeError(PanicReplayLogExhausted, msg)
+}
+
+func (eb *errorBuilder) replayMismatch(msg string) *VMError {
+	if msg == "" {
+		msg = "replay mismatch"
+	}
+	return eb.makeError(PanicReplayMismatch, msg)
+}
+
+func (eb *errorBuilder) invalidReplayLogFormat(msg string) *VMError {
+	if msg == "" {
+		msg = "invalid replay log format/version"
+	}
+	return eb.makeError(PanicInvalidReplayLogFormat, msg)
 }

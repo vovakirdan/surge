@@ -21,6 +21,8 @@ type VM struct {
 	M          *mir.Module
 	Stack      []Frame
 	RT         Runtime
+	Recorder   *Recorder
+	Replayer   *Replayer
 	Trace      *Tracer
 	Files      *source.FileSet
 	Types      *types.Interner
@@ -79,9 +81,24 @@ func (vm *VM) Run() (vmErr *VMError) {
 		return vmErr
 	}
 	for !vm.Halted && len(vm.Stack) > 0 {
-		if vmErr := vm.Step(); vmErr != nil {
+		if stepErr := vm.Step(); stepErr != nil {
+			if vm.Replayer != nil {
+				stepErr = vm.Replayer.CheckPanic(vm, stepErr)
+			}
+			if vm.Recorder != nil {
+				vm.Recorder.RecordPanic(stepErr, vm.Files)
+			}
+			return stepErr
+		}
+	}
+
+	if vm.Replayer != nil {
+		if vmErr := vm.Replayer.FinalizeExit(vm, vm.ExitCode); vmErr != nil {
 			return vmErr
 		}
+	}
+	if vm.Recorder != nil && !vm.Recorder.Done() {
+		vm.Recorder.RecordExit(vm.ExitCode)
 	}
 	return nil
 }
@@ -104,6 +121,12 @@ func (vm *VM) Start() *VMError {
 
 	vm.Stack = append(vm.Stack, *NewFrame(startFn))
 	vm.started = true
+
+	if vm.Replayer != nil {
+		if err := vm.Replayer.Validate(); err != nil {
+			return vm.eb.invalidReplayLogFormat(err.Error())
+		}
+	}
 	return nil
 }
 

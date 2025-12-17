@@ -29,6 +29,8 @@ func init() {
 	runCmd.Flags().String("vm-debug-script", "", "run VM debugger commands from file")
 	runCmd.Flags().StringArray("vm-break", nil, "add VM breakpoint <file:line> (repeatable)")
 	runCmd.Flags().StringArray("vm-break-fn", nil, "add VM function breakpoint <name> (repeatable)")
+	runCmd.Flags().String("vm-record", "", "record VM run to NDJSON log")
+	runCmd.Flags().String("vm-replay", "", "replay VM run from NDJSON log")
 }
 
 func runExecution(cmd *cobra.Command, args []string) error {
@@ -62,8 +64,23 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get vm-break-fn flag: %w", err)
 	}
 
+	vmRecordPath, err := cmd.Flags().GetString("vm-record")
+	if err != nil {
+		return fmt.Errorf("failed to get vm-record flag: %w", err)
+	}
+	vmReplayPath, err := cmd.Flags().GetString("vm-replay")
+	if err != nil {
+		return fmt.Errorf("failed to get vm-replay flag: %w", err)
+	}
+	if vmRecordPath != "" && vmReplayPath != "" {
+		return fmt.Errorf("--vm-record and --vm-replay are mutually exclusive")
+	}
+
 	if !vmDebug && (vmDebugScript != "" || len(vmBreaks) > 0 || len(vmBreakFns) > 0) {
 		return fmt.Errorf("--vm-debug is required when using --vm-debug-script/--vm-break/--vm-break-fn")
+	}
+	if vmDebug && (vmRecordPath != "" || vmReplayPath != "") {
+		return fmt.Errorf("--vm-record/--vm-replay are not supported with --vm-debug")
 	}
 
 	// Only VM backend supported for now
@@ -130,7 +147,13 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create VM
-	rt := vm.NewDefaultRuntime()
+	var rt vm.Runtime = vm.NewDefaultRuntime()
+	var recordBuf bytes.Buffer
+	var recorder *vm.Recorder
+	if vmRecordPath != "" {
+		recorder = vm.NewRecorder(&recordBuf)
+		rt = vm.NewRecordingRuntime(rt, recorder)
+	}
 
 	var tracer *vm.Tracer
 	if vmTrace {
@@ -138,6 +161,18 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	}
 
 	vmInstance := vm.New(mirMod, rt, result.FileSet, result.Sema.TypeInterner, tracer)
+	if recorder != nil {
+		vmInstance.Recorder = recorder
+	}
+	if vmReplayPath != "" {
+		logBytes, err := os.ReadFile(vmReplayPath)
+		if err != nil {
+			return fmt.Errorf("failed to read vm-replay log: %w", err)
+		}
+		rp := vm.NewReplayerFromBytes(logBytes)
+		vmInstance.Replayer = rp
+		vmInstance.RT = vm.NewReplayRuntime(vmInstance, rp)
+	}
 
 	if vmDebug {
 		interactive := vmDebugScript == ""
@@ -179,7 +214,18 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	}
 
 	// Execute (non-debug mode).
-	if vmErr := vmInstance.Run(); vmErr != nil {
+	vmErr := vmInstance.Run()
+	if recorder != nil {
+		if err := recorder.Err(); err != nil {
+			fmt.Fprintf(os.Stderr, "vm record failed: %v\n", err)
+			os.Exit(1)
+		}
+		if err := os.WriteFile(vmRecordPath, recordBuf.Bytes(), 0o600); err != nil {
+			fmt.Fprintf(os.Stderr, "vm record write failed: %v\n", err)
+			os.Exit(1)
+		}
+	}
+	if vmErr != nil {
 		fmt.Fprint(os.Stderr, vmErr.FormatWithFiles(result.FileSet))
 		os.Exit(1)
 	}

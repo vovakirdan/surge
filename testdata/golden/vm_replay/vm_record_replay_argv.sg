@@ -1,0 +1,3 @@
+@entrypoint("argv")
+fn main(x: int) -> int { return x; }
+
