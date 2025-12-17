@@ -2,6 +2,7 @@ package hir
 
 import (
 	"surge/internal/ast"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -9,6 +10,25 @@ import (
 
 // lowerExpr lowers an AST expression to HIR.
 func (l *lowerer) lowerExpr(exprID ast.ExprID) *Expr {
+	result := l.lowerExprCore(exprID)
+
+	// Check for implicit tag injection (Some/Success wrapping)
+	if result != nil && l.semaRes != nil && l.semaRes.ImplicitConversions != nil {
+		if conv, ok := l.semaRes.ImplicitConversions[exprID]; ok {
+			switch conv.Kind {
+			case sema.ImplicitConversionSome:
+				result = l.wrapInSome(result, conv.Target)
+			case sema.ImplicitConversionSuccess:
+				result = l.wrapInSuccess(result, conv.Target)
+			}
+		}
+	}
+
+	return result
+}
+
+// lowerExprCore does the actual lowering without implicit conversion handling.
+func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 	if !exprID.IsValid() {
 		return nil
 	}
@@ -574,4 +594,64 @@ func parseFloatLiteral(s string) float64 {
 		}
 	}
 	return result
+}
+
+// wrapInSome wraps an expression in a Some() tag constructor call.
+// This is used for implicit tag injection: let x: int? = 1 becomes Some(1).
+func (l *lowerer) wrapInSome(inner *Expr, targetType types.TypeID) *Expr {
+	return l.wrapInTagConstructor(inner, targetType, "Some")
+}
+
+// wrapInSuccess wraps an expression in a Success() tag constructor call.
+// This is used for implicit tag injection: let x: int! = 1 becomes Success(1).
+func (l *lowerer) wrapInSuccess(inner *Expr, targetType types.TypeID) *Expr {
+	return l.wrapInTagConstructor(inner, targetType, "Success")
+}
+
+// wrapInTagConstructor creates a call to a tag constructor wrapping the inner expression.
+func (l *lowerer) wrapInTagConstructor(inner *Expr, targetType types.TypeID, tagName string) *Expr {
+	if inner == nil {
+		return nil
+	}
+
+	// Look up the tag symbol for the constructor
+	var tagSymID symbols.SymbolID
+	if l.symRes != nil && l.symRes.Table != nil && l.strings != nil {
+		nameID := l.strings.Intern(tagName)
+		// Look up tag in file scope
+		if l.symRes.Table.Scopes != nil && l.symRes.FileScope.IsValid() {
+			scopeData := l.symRes.Table.Scopes.Get(l.symRes.FileScope)
+			if scopeData != nil {
+				if ids := scopeData.NameIndex[nameID]; len(ids) > 0 {
+					for _, id := range ids {
+						sym := l.symRes.Table.Symbols.Get(id)
+						if sym != nil && sym.Kind == symbols.SymbolTag {
+							tagSymID = id
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Create a call expression that wraps the inner expression
+	return &Expr{
+		Kind: ExprCall,
+		Type: targetType,
+		Span: inner.Span,
+		Data: CallData{
+			Callee: &Expr{
+				Kind: ExprVarRef,
+				Type: types.NoTypeID, // Callee type doesn't matter for dispatch
+				Span: inner.Span,
+				Data: VarRefData{
+					Name:     tagName,
+					SymbolID: tagSymID,
+				},
+			},
+			Args:     []*Expr{inner},
+			SymbolID: tagSymID,
+		},
+	}
 }

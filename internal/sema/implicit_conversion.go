@@ -7,13 +7,26 @@ import (
 	"surge/internal/types"
 )
 
-// ImplicitConversion records an implicit __to call for an expression.
-// This information is used by later compilation phases (such as codegen) to emit
-// the actual __to function call.
+// ImplicitConversionKind distinguishes different types of implicit conversions.
+type ImplicitConversionKind int
+
+const (
+	// ImplicitConversionTo represents a __to method call (e.g., int to string)
+	ImplicitConversionTo ImplicitConversionKind = iota
+	// ImplicitConversionSome represents wrapping in Some() for Option<T>
+	ImplicitConversionSome
+	// ImplicitConversionSuccess represents wrapping in Success() for Erring<T, E>
+	ImplicitConversionSuccess
+)
+
+// ImplicitConversion records an implicit conversion for an expression.
+// This information is used by later compilation phases (such as HIR lowering
+// and codegen) to emit the actual conversion code.
 type ImplicitConversion struct {
-	Source types.TypeID // Original type T
-	Target types.TypeID // Target type U
-	Span   source.Span  // Location of the expression
+	Kind   ImplicitConversionKind // Type of conversion
+	Source types.TypeID           // Original type T
+	Target types.TypeID           // Target type U (Option<T> or Erring<T, E>)
+	Span   source.Span            // Location of the expression
 }
 
 // tryImplicitConversion attempts to find a __to conversion from source to target.
@@ -101,10 +114,50 @@ func (tc *typeChecker) filterTargetCandidates(candidates []typeKeyCandidate) []t
 	return filtered
 }
 
-// recordImplicitConversion records an implicit conversion for codegen.
+// tryTagInjection attempts implicit tag wrapping for Option<T> and Erring<T, E> types.
+// This enables syntax like: let x: int? = 1; (instead of let x: int? = Some(1);)
+//
+// For Option<T>:
+//   - If expected is Option<T> and actual is T, return (target, ImplicitConversionSome, true)
+//
+// For Erring<T, E>:
+//   - If expected is Erring<T, E> and actual is T, return (target, ImplicitConversionSuccess, true)
+//   - If expected is Erring<T, E> and actual is E, wrapping to Error is NOT implicit
+//     (we only wrap success values, not errors, to avoid ambiguity)
+//
+// Returns (NoTypeID, 0, false) if no tag injection is possible.
+func (tc *typeChecker) tryTagInjection(src, target types.TypeID) (types.TypeID, ImplicitConversionKind, bool) {
+	if src == types.NoTypeID || target == types.NoTypeID {
+		return types.NoTypeID, 0, false
+	}
+
+	// Try Option<T>: if target is Option<T> and src is assignable to T
+	if payload, ok := tc.optionPayload(target); ok {
+		if tc.typesAssignable(payload, src, true) {
+			return target, ImplicitConversionSome, true
+		}
+	}
+
+	// Try Erring<T, E>: if target is Erring<T, E> and src is assignable to T
+	// Note: we do NOT implicitly wrap errors (E) - only success values (T)
+	if okType, _, ok := tc.resultPayload(target); ok {
+		if tc.typesAssignable(okType, src, true) {
+			return target, ImplicitConversionSuccess, true
+		}
+	}
+
+	return types.NoTypeID, 0, false
+}
+
+// recordImplicitConversion records an implicit __to conversion for codegen.
 // This stores the conversion in Result.ImplicitConversions so that later
 // phases can emit the actual __to function call.
 func (tc *typeChecker) recordImplicitConversion(expr ast.ExprID, src, target types.TypeID) {
+	tc.recordImplicitConversionWithKind(expr, src, target, ImplicitConversionTo)
+}
+
+// recordImplicitConversionWithKind records an implicit conversion of any kind.
+func (tc *typeChecker) recordImplicitConversionWithKind(expr ast.ExprID, src, target types.TypeID, kind ImplicitConversionKind) {
 	if !expr.IsValid() || src == types.NoTypeID || target == types.NoTypeID {
 		return
 	}
@@ -112,8 +165,44 @@ func (tc *typeChecker) recordImplicitConversion(expr ast.ExprID, src, target typ
 		tc.result.ImplicitConversions = make(map[ast.ExprID]ImplicitConversion)
 	}
 	tc.result.ImplicitConversions[expr] = ImplicitConversion{
+		Kind:   kind,
 		Source: src,
 		Target: target,
 		Span:   tc.exprSpan(expr),
 	}
+
+	// For tag injection (Some/Success), we need to register the instantiation
+	// so that mono knows about this tag constructor call.
+	if kind == ImplicitConversionSome || kind == ImplicitConversionSuccess {
+		tc.recordTagInstantiationForInjection(kind, src, tc.exprSpan(expr))
+	}
+}
+
+// recordTagInstantiationForInjection registers a tag instantiation for implicit tag injection.
+// This ensures mono knows about the Some<T> or Success<T> call we'll generate.
+func (tc *typeChecker) recordTagInstantiationForInjection(kind ImplicitConversionKind, payloadType types.TypeID, span source.Span) {
+	if tc.builder == nil || tc.builder.StringsInterner == nil {
+		return
+	}
+
+	var tagName string
+	switch kind {
+	case ImplicitConversionSome:
+		tagName = "Some"
+	case ImplicitConversionSuccess:
+		tagName = "Success"
+	default:
+		return
+	}
+
+	nameID := tc.builder.StringsInterner.Intern(tagName)
+	scope := tc.scopeOrFile(tc.currentScope())
+	tagSymID := tc.lookupTagSymbol(nameID, scope)
+	if !tagSymID.IsValid() {
+		return
+	}
+
+	// Register the instantiation with the payload type as the type argument
+	args := []types.TypeID{payloadType}
+	tc.rememberFunctionInstantiation(tagSymID, args, span, "tag-injection")
 }

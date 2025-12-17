@@ -1,4 +1,4 @@
-testdata/golden/vm_tags/vm_option_match_nothing.sg (span: 1:1-13:1)
+vm_option_match_nothing.sg (span: 1:1-13:1)
 ├─ Item[0]: Fn (span: 1:1-6:2)
 │  ├─ Name: unwrap_or_zero
 │  ├─ Params: (x: <unknown-type>)
@@ -17,6 +17,6 @@ testdata/golden/vm_tags/vm_option_match_nothing.sg (span: 1:1-13:1)
          │  ├─ Name: x
          │  ├─ Mutable: false
          │  ├─ Type: <unknown-type>
-         │  └─ Value: expr#9: nothing
+         │  └─ Value: expr#11: Some(1)
          └─ Stmt[1]: Return (span: 11:5-11:30)
-            └─ Expr: expr#12: unwrap_or_zero(x)
+            └─ Expr: expr#14: unwrap_or_zero(x)

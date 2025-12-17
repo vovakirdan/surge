@@ -128,7 +128,12 @@ func collectTypesFromExpr(e *hir.Expr, visit func(id types.TypeID)) {
 		if !ok {
 			return
 		}
-		collectTypesFromExpr(data.Callee, visit)
+		// Note: We intentionally skip collecting the callee's type here.
+		// For tag constructors like Some(1), the callee (the "Some" identifier)
+		// has its type set to the generic union type (e.g., Option<T>), which
+		// contains type parameters. Since we have data.SymbolID for dispatch
+		// and e.Type for the result, we don't need the callee's type.
+		// Collecting it would cause "type parameter leaked" errors in mono.
 		for _, a := range data.Args {
 			collectTypesFromExpr(a, visit)
 		}

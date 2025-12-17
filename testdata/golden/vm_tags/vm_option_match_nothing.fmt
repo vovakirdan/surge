@@ -7,6 +7,6 @@ fn unwrap_or_zero(x: int?) -> int {
 
 @entrypoint
 fn main() -> int {
-    let x: int? = nothing;
+    let x: int? = Some(1);
     return unwrap_or_zero(x);
 }

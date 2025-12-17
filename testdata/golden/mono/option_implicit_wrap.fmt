@@ -1,0 +1,5 @@
+// Tests implicit tag injection: let x: int? = 1; becomes Some(1).
+fn main() {
+    let x: int? = 1;
+    let y: int? = 42;
+}
