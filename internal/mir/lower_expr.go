@@ -201,7 +201,7 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 		resultTy := e.Type
 		if resultTy == types.NoTypeID {
 			// Fallback: use the operand types (already computed from lowering)
-			if left.Type != types.NoTypeID {
+			if left.Type != types.NoTypeID { //nolint:gocritic // if-else chain is clearer here than switch
 				resultTy = left.Type
 			} else if right.Type != types.NoTypeID {
 				resultTy = right.Type

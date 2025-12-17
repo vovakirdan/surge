@@ -368,7 +368,7 @@ func (l *lowerer) ensureExplicitReturn(fn *Func) {
 		fn.Body.Stmts = append(fn.Body.Stmts, Stmt{
 			Kind: StmtReturn,
 			Span: fn.Body.Span.ZeroideToEnd(),
-			Data: ReturnData{Value: nil}, // return nothing
+			Data: ReturnData{Value: nil},
 		})
 		return
 	}
