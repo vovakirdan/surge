@@ -1,0 +1,5 @@
+stopped: breakpoint #1
+at main bb0:ip1 @ testdata/golden/vm_debug/vmdb_break_file_line.sg:4:5
+stack:
+  0: main @ testdata/golden/vm_debug/vmdb_break_file_line.sg:4:5
+  1: __surge_start @ <no-span>

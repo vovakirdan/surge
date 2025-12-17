@@ -1,0 +1,5 @@
+break testdata/golden/vm_debug/vmdb_break_file_line.sg:4
+continue
+stack
+quit
+

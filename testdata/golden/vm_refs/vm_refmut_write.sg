@@ -1,0 +1,11 @@
+fn set(x: &mut int) -> nothing {
+    *x = 9;
+    return;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut v: int = 1;
+    set(&mut v);
+    return v;
+}

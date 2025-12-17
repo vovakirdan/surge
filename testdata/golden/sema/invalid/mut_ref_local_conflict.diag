@@ -1,0 +1,1 @@
+error SEM3018 testdata/golden/sema/invalid/mut_ref_local_conflict.sg:5:19 cannot take shared borrow of 'x' while an exclusive borrow is active

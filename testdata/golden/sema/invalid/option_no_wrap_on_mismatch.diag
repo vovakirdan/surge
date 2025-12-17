@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/option_no_wrap_on_mismatch.sg:3:19 cannot assign string to Option<int>

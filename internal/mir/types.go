@@ -34,8 +34,25 @@ type Local struct {
 	Span  source.Span
 }
 
+type PlaceProjKind uint8
+
+const (
+	PlaceProjDeref PlaceProjKind = iota
+	PlaceProjField
+	PlaceProjIndex
+)
+
+type PlaceProj struct {
+	Kind PlaceProjKind
+
+	FieldName  string
+	FieldIdx   int
+	IndexLocal LocalID
+}
+
 type Place struct {
 	Local LocalID
+	Proj  []PlaceProj
 }
 
 func (p Place) IsValid() bool { return p.Local != NoLocalID }

@@ -341,30 +341,40 @@ func (l *lowerer) lowerBlockOrWrap(stmtID ast.StmtID) *Block {
 	}
 }
 
-// ensureExplicitReturn inserts explicit return if the last expression
-// in a non-void function is not a return statement.
+// ensureExplicitReturn handles function return semantics:
+// - For functions returning nothing: adds implicit "return" (no value) if missing
+// - For functions returning a value: converts last expression to return (Rust-style tail return)
+//
+// Surge semantics: missing return means "return nothing", NOT "return last expression".
+// Tail return conversion only applies to non-nothing functions.
 func (l *lowerer) ensureExplicitReturn(fn *Func) {
 	if fn.Body == nil || fn.Body.IsEmpty() {
 		return
 	}
 
 	// Check if function returns void/nothing
-	if fn.Result == types.NoTypeID {
-		return
-	}
+	isNothingReturn := fn.Result == types.NoTypeID || l.isNothingType(fn.Result)
 
 	lastStmt := fn.Body.LastStmt()
-	if lastStmt == nil {
-		return
-	}
 
 	// If last statement is already a return, nothing to do
-	if lastStmt.Kind == StmtReturn {
+	if lastStmt != nil && lastStmt.Kind == StmtReturn {
 		return
 	}
 
-	// If last statement is an expression statement, convert to return
-	if lastStmt.Kind == StmtExpr {
+	if isNothingReturn {
+		// For nothing-returning functions: add implicit "return" (no value)
+		// Expression statements stay as statements, we just add return at end
+		fn.Body.Stmts = append(fn.Body.Stmts, Stmt{
+			Kind: StmtReturn,
+			Span: fn.Body.Span.ZeroideToEnd(),
+			Data: ReturnData{Value: nil},
+		})
+		return
+	}
+
+	// For non-nothing functions: convert last expression to return (tail return)
+	if lastStmt != nil && lastStmt.Kind == StmtExpr {
 		exprData, ok := lastStmt.Data.(ExprStmtData)
 		if ok && exprData.Expr != nil {
 			// Replace the last statement with a return
@@ -375,4 +385,19 @@ func (l *lowerer) ensureExplicitReturn(fn *Func) {
 			}
 		}
 	}
+}
+
+// isNothingType checks if the given type is the "nothing" type.
+func (l *lowerer) isNothingType(ty types.TypeID) bool {
+	if ty == types.NoTypeID {
+		return false
+	}
+	if l.semaRes == nil || l.semaRes.TypeInterner == nil {
+		return false
+	}
+	t, ok := l.semaRes.TypeInterner.Lookup(ty)
+	if !ok {
+		return false
+	}
+	return t.Kind == types.KindNothing
 }

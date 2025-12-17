@@ -1,0 +1,9 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 1:13-1:15 (leading: Space)
+  4: Ident           "main" at 1:16-1:20 (leading: Space)
+  5: LParen          "(" at 1:20-1:21
+  6: RParen          ")" at 1:21-1:22
+  7: LBrace          "{" at 1:23-1:24 (leading: Space)
+  8: RBrace          "}" at 1:25-1:26 (leading: Space)
+  9: EOF             at 2:1-2:1

@@ -53,7 +53,7 @@ func detectTagTestChain(f *Func, bb *Block) *tagTestChain {
 	}
 
 	// Check if the if condition references the tag_test result local
-	if !isOperandForLocal(bb.Term.If.Cond, testLocal) {
+	if !isOperandForLocal(&bb.Term.If.Cond, testLocal) {
 		return nil
 	}
 
@@ -98,14 +98,14 @@ func detectTagTestChain(f *Func, bb *Block) *tagTestChain {
 		}
 
 		// Check if testing the same value
-		if !operandsEqual(nextTagTest.Value, chain.value) {
+		if !operandsEqual(&nextTagTest.Value, &chain.value) {
 			// Different value, chain broken
 			chain.defBlock = elseBlock
 			break
 		}
 
 		// Check if the if condition uses the tag_test result
-		if !isOperandForLocal(nextBB.Term.If.Cond, nextTestLocal) {
+		if !isOperandForLocal(&nextBB.Term.If.Cond, nextTestLocal) {
 			chain.defBlock = elseBlock
 			break
 		}
@@ -152,8 +152,14 @@ func extractTagTest(bb *Block) (*TagTest, LocalID) {
 }
 
 // isOperandForLocal checks if an operand references the given local.
-func isOperandForLocal(op Operand, local LocalID) bool {
+func isOperandForLocal(op *Operand, local LocalID) bool {
+	if op == nil {
+		return false
+	}
 	if op.Kind != OperandCopy && op.Kind != OperandMove {
+		return false
+	}
+	if len(op.Place.Proj) != 0 {
 		return false
 	}
 	return op.Place.Local == local
@@ -161,16 +167,39 @@ func isOperandForLocal(op Operand, local LocalID) bool {
 
 // operandsEqual checks if two operands refer to the same value.
 // For our purposes, we check if they refer to the same local.
-func operandsEqual(a, b Operand) bool {
+func operandsEqual(a, b *Operand) bool {
+	if a == nil || b == nil {
+		return false
+	}
 	if a.Kind != b.Kind {
 		return false
 	}
 	switch a.Kind {
 	case OperandCopy, OperandMove:
-		return a.Place.Local == b.Place.Local
+		return placesEqual(a.Place, b.Place)
 	default:
 		return false
 	}
+}
+
+func placesEqual(a, b Place) bool {
+	if a.Local != b.Local {
+		return false
+	}
+	if len(a.Proj) != len(b.Proj) {
+		return false
+	}
+	for i := range a.Proj {
+		ap := a.Proj[i]
+		bp := b.Proj[i]
+		if ap.Kind != bp.Kind {
+			return false
+		}
+		if ap.FieldName != bp.FieldName || ap.FieldIdx != bp.FieldIdx || ap.IndexLocal != bp.IndexLocal {
+			return false
+		}
+	}
+	return true
 }
 
 // convertToSwitchTag replaces the block's terminator with switch_tag.

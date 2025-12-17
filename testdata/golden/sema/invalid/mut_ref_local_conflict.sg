@@ -1,0 +1,7 @@
+// scenario: shared borrow conflicts with active exclusive borrow
+fn main() -> nothing {
+    let mut x: int = 1;
+    let r: &mut int = &mut x;
+    let s: &int = &x;
+    return;
+}

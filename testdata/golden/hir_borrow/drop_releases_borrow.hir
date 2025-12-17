@@ -6,7 +6,8 @@ fn t() -> nothing (id=1, sym=566) {
   let mut x: int [copy] = 1
   let r: &int [&] = (& x): &int
   drop r
-  return (x = 2): int
+  (x = 2): int
+  return
 }
 
 borrow edges:

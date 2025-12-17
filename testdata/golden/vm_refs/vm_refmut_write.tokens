@@ -1,0 +1,49 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "set" at 1:4-1:7 (leading: Space)
+  3: LParen          "(" at 1:7-1:8
+  4: Ident           "x" at 1:8-1:9
+  5: Colon           ":" at 1:9-1:10
+  6: Amp             "&" at 1:11-1:12 (leading: Space)
+  7: KwMut           "mut" at 1:12-1:15
+  8: Ident           "int" at 1:16-1:19 (leading: Space)
+  9: RParen          ")" at 1:19-1:20
+ 10: Arrow           "->" at 1:21-1:23 (leading: Space)
+ 11: NothingLit      "nothing" at 1:24-1:31 (leading: Space)
+ 12: LBrace          "{" at 1:32-1:33 (leading: Space)
+ 13: Star            "*" at 2:5-2:6 (leading: Newline, Space)
+ 14: Ident           "x" at 2:6-2:7
+ 15: Assign          "=" at 2:8-2:9 (leading: Space)
+ 16: IntLit          "9" at 2:10-2:11 (leading: Space)
+ 17: Semicolon       ";" at 2:11-2:12
+ 18: KwReturn        "return" at 3:5-3:11 (leading: Newline, Space)
+ 19: Semicolon       ";" at 3:11-3:12
+ 20: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 21: At              "@" at 6:1-6:2 (leading: Newline)
+ 22: Ident           "entrypoint" at 6:2-6:12
+ 23: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 24: Ident           "main" at 7:4-7:8 (leading: Space)
+ 25: LParen          "(" at 7:8-7:9
+ 26: RParen          ")" at 7:9-7:10
+ 27: Arrow           "->" at 7:11-7:13 (leading: Space)
+ 28: Ident           "int" at 7:14-7:17 (leading: Space)
+ 29: LBrace          "{" at 7:18-7:19 (leading: Space)
+ 30: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 31: KwMut           "mut" at 8:9-8:12 (leading: Space)
+ 32: Ident           "v" at 8:13-8:14 (leading: Space)
+ 33: Colon           ":" at 8:14-8:15
+ 34: Ident           "int" at 8:16-8:19 (leading: Space)
+ 35: Assign          "=" at 8:20-8:21 (leading: Space)
+ 36: IntLit          "1" at 8:22-8:23 (leading: Space)
+ 37: Semicolon       ";" at 8:23-8:24
+ 38: Ident           "set" at 9:5-9:8 (leading: Newline, Space)
+ 39: LParen          "(" at 9:8-9:9
+ 40: Amp             "&" at 9:9-9:10
+ 41: KwMut           "mut" at 9:10-9:13
+ 42: Ident           "v" at 9:14-9:15 (leading: Space)
+ 43: RParen          ")" at 9:15-9:16
+ 44: Semicolon       ";" at 9:16-9:17
+ 45: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
+ 46: Ident           "v" at 10:12-10:13 (leading: Space)
+ 47: Semicolon       ";" at 10:13-10:14
+ 48: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 49: EOF             at 12:1-12:1

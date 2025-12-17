@@ -1,0 +1,9 @@
+vm_entrypoint_argv_int.sg (span: 1:1-2:1)
+└─ Item[0]: Fn (span: 1:1-1:57)
+   ├─ Name: main
+   ├─ Params: (x: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:44-1:57)
+         └─ Stmt[0]: Return (span: 1:46-1:55)
+            └─ Expr: expr#2: x

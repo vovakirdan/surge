@@ -1,0 +1,4 @@
+// Tests that explicit Some(1) tag constructor works after mono fix.
+fn main() {
+    let x: int? = Some(1);
+}

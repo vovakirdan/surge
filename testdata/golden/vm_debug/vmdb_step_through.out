@@ -1,0 +1,19 @@
+stopped: breakpoint #1
+at main bb0:ip0 @ testdata/golden/vm_debug/vmdb_step_through.sg:3:5
+locals:
+  L0(x): <uninit>
+  L1(y): <uninit>
+  L2(z): <uninit>
+  L3(tmp_bin1): <uninit>
+step: main bb0:ip1 L1 = const 2 @ testdata/golden/vm_debug/vmdb_step_through.sg:4:5
+locals:
+  L0(x): 1
+  L1(y): <uninit>
+  L2(z): <uninit>
+  L3(tmp_bin1): <uninit>
+step: main bb0:ip2 L3 = (copy L0 + copy L1) @ testdata/golden/vm_debug/vmdb_step_through.sg:5:18
+locals:
+  L0(x): 1
+  L1(y): 2
+  L2(z): <uninit>
+  L3(tmp_bin1): <uninit>

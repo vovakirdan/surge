@@ -7,6 +7,7 @@ fn t() -> nothing (id=1, sym=566) {
   let x: string = "\"hi\""
   let r: &string [&] = (& x): &string
   let y: string = x
+  return
 }
 
 borrow edges:

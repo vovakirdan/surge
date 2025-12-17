@@ -1,0 +1,17 @@
+option_implicit_wrap.sg (span: 2:1-6:1)
+└─ Item[0]: Fn (span: 2:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:11-5:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:21)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: <unknown-type>
+         │  └─ Value: expr#1: 1
+         └─ Stmt[1]: Let (span: 4:5-4:22)
+            ├─ Name: y
+            ├─ Mutable: false
+            ├─ Type: <unknown-type>
+            └─ Value: expr#2: 42

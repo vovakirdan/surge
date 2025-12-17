@@ -1,0 +1,26 @@
+vm_array_elem_write.sg (span: 1:1-12:1)
+├─ Item[0]: Fn (span: 1:1-4:2)
+│  ├─ Name: set
+│  ├─ Params: (x: &mut int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:32-4:2)
+│        ├─ Stmt[0]: Expr (span: 2:5-2:12)
+│        │  └─ Expr: expr#4: (*x = 9)
+│        └─ Stmt[1]: Return (span: 3:5-3:12)
+│           └─ Expr: <none>
+└─ Item[1]: Fn (span: 6:1-11:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:18-11:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:34)
+         │  ├─ Name: a
+         │  ├─ Mutable: true
+         │  ├─ Type: int[]
+         │  └─ Value: expr#8: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 9:5-9:20)
+         │  └─ Expr: expr#14: set(&mut a[1])
+         └─ Stmt[2]: Return (span: 10:5-10:17)
+            └─ Expr: expr#17: a[1]

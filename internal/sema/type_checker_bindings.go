@@ -126,6 +126,13 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 		return
 	}
 
+	// Try implicit tag injection for Option<T> and Erring<T, E>
+	// This enables: let x: int? = 1; (implicitly becomes Some(1))
+	if convType, kind, found := tc.tryTagInjection(actual, declared); found {
+		tc.recordImplicitConversionWithKind(valueExpr, actual, convType, kind)
+		return
+	}
+
 	// No compatible types found - report the mismatch
 	tc.reportBindingTypeMismatch(typeExpr, declared, actual, valueExpr)
 }

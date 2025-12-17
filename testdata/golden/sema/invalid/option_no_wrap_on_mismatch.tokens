@@ -1,0 +1,15 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "main" at 2:4-2:8 (leading: Space)
+  3: LParen          "(" at 2:8-2:9
+  4: RParen          ")" at 2:9-2:10
+  5: LBrace          "{" at 2:11-2:12 (leading: Space)
+  6: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+  7: Ident           "x" at 3:9-3:10 (leading: Space)
+  8: Colon           ":" at 3:10-3:11
+  9: Ident           "int" at 3:12-3:15 (leading: Space)
+ 10: Question        "?" at 3:15-3:16
+ 11: Assign          "=" at 3:17-3:18 (leading: Space)
+ 12: StringLit       "\"hello\"" at 3:19-3:26 (leading: Space)
+ 13: Semicolon       ";" at 3:26-3:27
+ 14: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 15: EOF             at 5:1-5:1

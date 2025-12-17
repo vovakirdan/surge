@@ -138,6 +138,11 @@ func validateLocalIDs(f *Func) error {
 		if p.Local != NoLocalID && !localExists(p.Local) {
 			errs = append(errs, fmt.Errorf("%s: local L%d does not exist", context, p.Local))
 		}
+		for _, proj := range p.Proj {
+			if proj.Kind == PlaceProjIndex && proj.IndexLocal != NoLocalID && !localExists(proj.IndexLocal) {
+				errs = append(errs, fmt.Errorf("%s: index local L%d does not exist", context, proj.IndexLocal))
+			}
+		}
 	}
 
 	checkOperand := func(op Operand, context string) {

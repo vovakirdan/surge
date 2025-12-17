@@ -1,0 +1,4 @@
+// scenario: implicit tag injection should not wrap mismatched types
+fn main() {
+    let x: int? = "hello";
+}

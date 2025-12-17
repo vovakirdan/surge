@@ -1,0 +1,7 @@
+vm_entrypoint_returns_nothing.sg (span: 1:1-2:1)
+└─ Item[0]: Fn (span: 1:1-1:26)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:23-1:26)
