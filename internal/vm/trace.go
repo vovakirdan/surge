@@ -3,6 +3,7 @@ package vm
 import (
 	"fmt"
 	"io"
+	"unicode/utf8"
 
 	"surge/internal/mir"
 	"surge/internal/source"
@@ -12,6 +13,7 @@ import (
 type Tracer struct {
 	w     io.Writer
 	files *source.FileSet
+	vm    *VM
 }
 
 // NewTracer creates a new tracer that writes to w.
@@ -41,8 +43,31 @@ func (t *Tracer) TraceInstr(depth int, fn *mir.Func, bb mir.BlockID, ip int, ins
 
 	// Print local writes
 	for _, w := range writes {
-		fmt.Fprintf(t.w, "    write L%d(%s) = %s\n", w.LocalID, w.Name, w.Value.String())
+		fmt.Fprintf(t.w, "    write L%d(%s) = %s\n", w.LocalID, w.Name, t.formatValue(w.Value))
 	}
+}
+
+func (t *Tracer) TraceHeapAlloc(kind ObjectKind, h Handle, obj *Object) {
+	if t == nil || t.w == nil {
+		return
+	}
+	switch kind {
+	case OKString:
+		fmt.Fprintf(t.w, "[heap] alloc string#%d\n", h)
+	case OKArray:
+		fmt.Fprintf(t.w, "[heap] alloc array#%d\n", h)
+	case OKStruct:
+		fmt.Fprintf(t.w, "[heap] alloc struct#%d\n", h)
+	default:
+		fmt.Fprintf(t.w, "[heap] alloc handle#%d\n", h)
+	}
+}
+
+func (t *Tracer) TraceHeapFree(h Handle) {
+	if t == nil || t.w == nil {
+		return
+	}
+	fmt.Fprintf(t.w, "[heap] free handle#%d\n", h)
 }
 
 // TraceTerm traces execution of a terminator.
@@ -110,6 +135,21 @@ func (t *Tracer) formatRValue(rv *mir.RValue) string {
 		return fmt.Sprintf("(%s %s)", rv.Unary.Op, t.formatOperand(&rv.Unary.Operand))
 	case mir.RValueIndex:
 		return fmt.Sprintf("%s[%s]", t.formatOperand(&rv.Index.Object), t.formatOperand(&rv.Index.Index))
+	case mir.RValueStructLit:
+		out := fmt.Sprintf("struct_lit type#%d {", rv.StructLit.TypeID)
+		for i, f := range rv.StructLit.Fields {
+			if i > 0 {
+				out += ", "
+			}
+			out += fmt.Sprintf("%s=%s", f.Name, t.formatOperand(&f.Value))
+		}
+		out += "}"
+		return out
+	case mir.RValueField:
+		if rv.Field.FieldIdx >= 0 {
+			return fmt.Sprintf("%s.#%d", t.formatOperand(&rv.Field.Object), rv.Field.FieldIdx)
+		}
+		return fmt.Sprintf("%s.%s", t.formatOperand(&rv.Field.Object), rv.Field.FieldName)
 	default:
 		return fmt.Sprintf("<?rvalue:%d>", rv.Kind)
 	}
@@ -154,6 +194,78 @@ func (t *Tracer) formatConst(c *mir.Const) string {
 	default:
 		return fmt.Sprintf("<?const:%d>", c.Kind)
 	}
+}
+
+func (t *Tracer) formatValue(v Value) string {
+	switch v.Kind {
+	case VKHandleString:
+		if v.H == 0 {
+			return "string#0(<invalid>)"
+		}
+		obj := t.lookup(v.H)
+		if obj == nil {
+			return fmt.Sprintf("string#%d(<invalid>)", v.H)
+		}
+		if !obj.Alive {
+			return fmt.Sprintf("string#%d(<freed>)", v.H)
+		}
+		preview := truncateRunes(obj.Str, 32)
+		return fmt.Sprintf("string#%d(%q)", v.H, preview)
+
+	case VKHandleArray:
+		if v.H == 0 {
+			return "array#0(<invalid>)"
+		}
+		obj := t.lookup(v.H)
+		if obj == nil {
+			return fmt.Sprintf("array#%d(<invalid>)", v.H)
+		}
+		if !obj.Alive {
+			return fmt.Sprintf("array#%d(<freed>)", v.H)
+		}
+		return fmt.Sprintf("array#%d(len=%d)", v.H, len(obj.Arr))
+
+	case VKHandleStruct:
+		if v.H == 0 {
+			return "struct#0(<invalid>)"
+		}
+		obj := t.lookup(v.H)
+		if obj == nil {
+			return fmt.Sprintf("struct#%d(<invalid>)", v.H)
+		}
+		if !obj.Alive {
+			return fmt.Sprintf("struct#%d(<freed>)", v.H)
+		}
+		return fmt.Sprintf("struct#%d(type=type#%d)", v.H, obj.TypeID)
+
+	default:
+		return v.String()
+	}
+}
+
+func (t *Tracer) lookup(h Handle) *Object {
+	if t == nil || t.vm == nil || t.vm.Heap == nil {
+		return nil
+	}
+	obj, _ := t.vm.Heap.lookup(h)
+	return obj
+}
+
+func truncateRunes(s string, limit int) string {
+	if limit <= 0 || s == "" {
+		return ""
+	}
+	if utf8.RuneCountInString(s) <= limit {
+		return s
+	}
+	out := make([]rune, 0, limit)
+	for _, r := range s {
+		out = append(out, r)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return string(out)
 }
 
 // formatArgs formats call arguments.

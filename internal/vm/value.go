@@ -11,12 +11,14 @@ import (
 type ValueKind uint8
 
 const (
-	VKInvalid     ValueKind = iota
-	VKInt                   // signed integer
-	VKBool                  // boolean
-	VKNothing               // nothing/unit value
-	VKStringConst           // string literal constant
-	VKStringSlice           // slice of strings (for argv)
+	VKInvalid ValueKind = iota
+	VKInt               // signed integer
+	VKBool              // boolean
+	VKNothing           // nothing/unit value
+
+	VKHandleString
+	VKHandleArray
+	VKHandleStruct
 )
 
 // String returns a human-readable name for the value kind.
@@ -30,10 +32,12 @@ func (k ValueKind) String() string {
 		return "bool"
 	case VKNothing:
 		return "nothing"
-	case VKStringConst:
+	case VKHandleString:
 		return "string"
-	case VKStringSlice:
-		return "[]string"
+	case VKHandleArray:
+		return "array"
+	case VKHandleStruct:
+		return "struct"
 	default:
 		return fmt.Sprintf("ValueKind(%d)", k)
 	}
@@ -45,8 +49,7 @@ type Value struct {
 	Kind   ValueKind    // Runtime value kind
 	Int    int64        // For VKInt
 	Bool   bool         // For VKBool
-	Str    string       // For VKStringConst
-	Strs   []string     // For VKStringSlice (argv)
+	H      Handle       // For VKHandle*
 }
 
 // IsZero returns true if this is a zero/invalid value.
@@ -68,10 +71,12 @@ func (v Value) String() string {
 		return "false"
 	case VKNothing:
 		return "nothing"
-	case VKStringConst:
-		return fmt.Sprintf("%q", v.Str)
-	case VKStringSlice:
-		return fmt.Sprintf("%v", v.Strs)
+	case VKHandleString:
+		return fmt.Sprintf("string#%d", v.H)
+	case VKHandleArray:
+		return fmt.Sprintf("array#%d", v.H)
+	case VKHandleStruct:
+		return fmt.Sprintf("struct#%d", v.H)
 	default:
 		return fmt.Sprintf("<unknown:%d>", v.Kind)
 	}
@@ -102,20 +107,26 @@ func MakeNothing() Value {
 	}
 }
 
-// MakeString creates a string constant value.
-func MakeString(s string, typeID types.TypeID) Value {
+func MakeHandleString(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
-		Kind:   VKStringConst,
-		Str:    s,
+		Kind:   VKHandleString,
+		H:      h,
 	}
 }
 
-// MakeStringSlice creates a string slice value (for argv).
-func MakeStringSlice(strs []string, typeID types.TypeID) Value {
+func MakeHandleArray(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
-		Kind:   VKStringSlice,
-		Strs:   strs,
+		Kind:   VKHandleArray,
+		H:      h,
+	}
+}
+
+func MakeHandleStruct(h Handle, typeID types.TypeID) Value {
+	return Value{
+		TypeID: typeID,
+		Kind:   VKHandleStruct,
+		H:      h,
 	}
 }

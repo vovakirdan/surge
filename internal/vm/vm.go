@@ -2,11 +2,7 @@ package vm
 
 import (
 	"fmt"
-	"math"
 
-	"fortio.org/safecast"
-
-	"surge/internal/ast"
 	"surge/internal/mir"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -26,6 +22,8 @@ type VM struct {
 	Trace    *Tracer
 	Files    *source.FileSet
 	Types    *types.Interner
+	Heap     *Heap
+	layouts  *layoutCache
 	ExitCode int
 	Halted   bool
 
@@ -44,12 +42,32 @@ func New(m *mir.Module, rt Runtime, files *source.FileSet, typeInterner *types.I
 		Halted:   false,
 	}
 	vm.eb = &errorBuilder{vm: vm}
+	vm.Heap = &Heap{
+		next:        1,
+		nextAllocID: 1,
+		objs:        make(map[Handle]*Object, 128),
+		vm:          vm,
+	}
+	vm.layouts = newLayoutCache(vm)
+	if vm.Trace != nil {
+		vm.Trace.vm = vm
+	}
 	return vm
 }
 
 // Run executes the program starting from __surge_start.
 // Returns a VMError if execution fails, nil on successful completion.
-func (vm *VM) Run() *VMError {
+func (vm *VM) Run() (vmErr *VMError) {
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(*VMError); ok {
+				vmErr = e
+				return
+			}
+			panic(r)
+		}
+	}()
+
 	// Find __surge_start
 	startFn := vm.findFunction("__surge_start")
 	if startFn == nil {
@@ -83,6 +101,10 @@ func (vm *VM) Run() *VMError {
 	}
 
 	return nil
+}
+
+func (vm *VM) panic(code PanicCode, msg string) {
+	panic(vm.eb.makeError(code, msg))
 }
 
 // findFunction finds a function by name.
@@ -141,8 +163,11 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) *VMError {
 		}
 
 	case mir.InstrDrop:
-		// No-op in Step 0, but trace it
-		// In full implementation would run destructors
+		localID := instr.Drop.Place.Local
+		vmErr := vm.execDrop(frame, localID)
+		if vmErr != nil {
+			return vmErr
+		}
 
 	case mir.InstrEndBorrow:
 		// No-op in Step 0, but trace it
@@ -179,7 +204,8 @@ func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 		targetFn = vm.findFunction(call.Callee.Name)
 	}
 	if targetFn == nil {
-		return vm.eb.unsupportedIntrinsic(call.Callee.Name)
+		// Support selected intrinsics and extern calls that are not lowered into MIR.
+		return vm.callIntrinsic(frame, call, writes)
 	}
 
 	// Evaluate arguments
@@ -209,106 +235,6 @@ func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 	return nil
 }
 
-// callIntrinsic handles runtime intrinsic calls.
-func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
-	name := call.Callee.Name
-
-	switch name {
-	case "rt_argv":
-		argv := vm.RT.Argv()
-		val := MakeStringSlice(argv, types.NoTypeID)
-		if call.HasDst {
-			localID := call.Dst.Local
-			vmErr := vm.writeLocal(frame, localID, val)
-			if vmErr != nil {
-				return vmErr
-			}
-			*writes = append(*writes, LocalWrite{
-				LocalID: localID,
-				Name:    frame.Locals[localID].Name,
-				Value:   val,
-			})
-		}
-
-	case "rt_stdin_read_all":
-		stdin := vm.RT.StdinReadAll()
-		val := MakeString(stdin, types.NoTypeID)
-		if call.HasDst {
-			localID := call.Dst.Local
-			vmErr := vm.writeLocal(frame, localID, val)
-			if vmErr != nil {
-				return vmErr
-			}
-			*writes = append(*writes, LocalWrite{
-				LocalID: localID,
-				Name:    frame.Locals[localID].Name,
-				Value:   val,
-			})
-		}
-
-	case "rt_exit":
-		if len(call.Args) > 0 {
-			val, vmErr := vm.evalOperand(frame, &call.Args[0])
-			if vmErr != nil {
-				return vmErr
-			}
-			if val.Kind != VKInt {
-				return vm.eb.typeMismatch("int", val.Kind.String())
-			}
-			vm.ExitCode = int(val.Int)
-			vm.RT.Exit(int(val.Int))
-		}
-		vm.Halted = true
-
-	case "rt_parse_arg":
-		if len(call.Args) == 0 {
-			return vm.eb.makeError(PanicTypeMismatch, "rt_parse_arg requires 1 argument")
-		}
-		strVal, vmErr := vm.evalOperand(frame, &call.Args[0])
-		if vmErr != nil {
-			return vmErr
-		}
-		if strVal.Kind != VKStringConst {
-			return vm.eb.typeMismatch("string", strVal.Kind.String())
-		}
-
-		// For Step 0, only support int parsing
-		// Check if destination type is int
-		if call.HasDst {
-			localID := call.Dst.Local
-			localType := frame.Locals[localID].TypeID
-
-			// Check if target type is int
-			if vm.Types != nil {
-				tt, ok := vm.Types.Lookup(localType)
-				if ok && tt.Kind != types.KindInt {
-					return vm.eb.unsupportedParseType(tt.Kind.String())
-				}
-			}
-
-			intVal, err := vm.RT.ParseArgInt(strVal.Str)
-			if err != nil {
-				return vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as int: %v", strVal.Str, err))
-			}
-			val := MakeInt(int64(intVal), localType)
-			vmErr := vm.writeLocal(frame, localID, val)
-			if vmErr != nil {
-				return vmErr
-			}
-			*writes = append(*writes, LocalWrite{
-				LocalID: localID,
-				Name:    frame.Locals[localID].Name,
-				Value:   val,
-			})
-		}
-
-	default:
-		return vm.eb.unsupportedIntrinsic(name)
-	}
-
-	return nil
-}
-
 // execTerminator executes a block terminator.
 func (vm *VM) execTerminator(frame *Frame, term *mir.Terminator) *VMError {
 	// Trace terminator before execution
@@ -327,6 +253,9 @@ func (vm *VM) execTerminator(frame *Frame, term *mir.Terminator) *VMError {
 			}
 			retVal = val
 		}
+
+		// Implicit drops before returning.
+		vm.dropFrameLocals(frame)
 
 		// Pop current frame
 		vm.Stack = vm.Stack[:len(vm.Stack)-1]
@@ -383,235 +312,6 @@ func (vm *VM) execTerminator(frame *Frame, term *mir.Terminator) *VMError {
 	return nil
 }
 
-// evalRValue evaluates an rvalue to a Value.
-func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
-	switch rv.Kind {
-	case mir.RValueUse:
-		return vm.evalOperand(frame, &rv.Use)
-
-	case mir.RValueBinaryOp:
-		left, vmErr := vm.evalOperand(frame, &rv.Binary.Left)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		right, vmErr := vm.evalOperand(frame, &rv.Binary.Right)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		return vm.evalBinaryOp(rv.Binary.Op, left, right)
-
-	case mir.RValueUnaryOp:
-		operand, vmErr := vm.evalOperand(frame, &rv.Unary.Operand)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		return vm.evalUnaryOp(rv.Unary.Op, operand)
-
-	case mir.RValueIndex:
-		obj, vmErr := vm.evalOperand(frame, &rv.Index.Object)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		idx, vmErr := vm.evalOperand(frame, &rv.Index.Index)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		return vm.evalIndex(obj, idx)
-
-	default:
-		return Value{}, vm.eb.unimplemented(fmt.Sprintf("rvalue kind %d", rv.Kind))
-	}
-}
-
-// evalOperand evaluates an operand to a Value.
-func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
-	switch op.Kind {
-	case mir.OperandConst:
-		return vm.evalConst(&op.Const), nil
-
-	case mir.OperandCopy:
-		val, vmErr := vm.readLocal(frame, op.Place.Local)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		return val, nil
-
-	case mir.OperandMove:
-		val, vmErr := vm.readLocal(frame, op.Place.Local)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		vm.moveLocal(frame, op.Place.Local)
-		return val, nil
-
-	default:
-		return Value{}, vm.eb.unimplemented(fmt.Sprintf("operand kind %d", op.Kind))
-	}
-}
-
-// evalConst converts a MIR constant to a Value.
-func (vm *VM) evalConst(c *mir.Const) Value {
-	switch c.Kind {
-	case mir.ConstInt:
-		return MakeInt(c.IntValue, c.Type)
-	case mir.ConstUint:
-		intVal, err := safecast.Convert[int64](c.UintValue)
-		if err != nil {
-			// Could return error here if strict overflow checking is desired
-			// For now, saturate to max int64
-			intVal = math.MaxInt64
-		}
-		return MakeInt(intVal, c.Type)
-	case mir.ConstBool:
-		return MakeBool(c.BoolValue, c.Type)
-	case mir.ConstString:
-		return MakeString(c.StringValue, c.Type)
-	case mir.ConstNothing:
-		return MakeNothing()
-	default:
-		return Value{Kind: VKInvalid}
-	}
-}
-
-// evalBinaryOp evaluates a binary operation.
-func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMError) {
-	switch op {
-	case ast.ExprBinaryAdd:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
-		}
-		return MakeInt(left.Int+right.Int, left.TypeID), nil
-
-	case ast.ExprBinarySub:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
-		}
-		return MakeInt(left.Int-right.Int, left.TypeID), nil
-
-	case ast.ExprBinaryMul:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
-		}
-		return MakeInt(left.Int*right.Int, left.TypeID), nil
-
-	case ast.ExprBinaryDiv:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
-		}
-		if right.Int == 0 {
-			return Value{}, vm.eb.makeError(PanicOutOfBounds, "division by zero")
-		}
-		return MakeInt(left.Int/right.Int, left.TypeID), nil
-
-	case ast.ExprBinaryEq:
-		if left.Kind != right.Kind {
-			return Value{}, vm.eb.typeMismatch(left.Kind.String(), right.Kind.String())
-		}
-		var result bool
-		switch left.Kind {
-		case VKInt:
-			result = left.Int == right.Int
-		case VKBool:
-			result = left.Bool == right.Bool
-		case VKStringConst:
-			result = left.Str == right.Str
-		default:
-			result = false
-		}
-		return MakeBool(result, types.NoTypeID), nil
-
-	case ast.ExprBinaryNotEq:
-		if left.Kind != right.Kind {
-			return Value{}, vm.eb.typeMismatch(left.Kind.String(), right.Kind.String())
-		}
-		var result bool
-		switch left.Kind {
-		case VKInt:
-			result = left.Int != right.Int
-		case VKBool:
-			result = left.Bool != right.Bool
-		case VKStringConst:
-			result = left.Str != right.Str
-		default:
-			result = true
-		}
-		return MakeBool(result, types.NoTypeID), nil
-
-	case ast.ExprBinaryLess:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
-		}
-		return MakeBool(left.Int < right.Int, types.NoTypeID), nil
-
-	case ast.ExprBinaryLessEq:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
-		}
-		return MakeBool(left.Int <= right.Int, types.NoTypeID), nil
-
-	case ast.ExprBinaryGreater:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
-		}
-		return MakeBool(left.Int > right.Int, types.NoTypeID), nil
-
-	case ast.ExprBinaryGreaterEq:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
-		}
-		return MakeBool(left.Int >= right.Int, types.NoTypeID), nil
-
-	default:
-		return Value{}, vm.eb.unimplemented(fmt.Sprintf("binary op %s", op))
-	}
-}
-
-// evalUnaryOp evaluates a unary operation.
-func (vm *VM) evalUnaryOp(op ast.ExprUnaryOp, operand Value) (Value, *VMError) {
-	switch op {
-	case ast.ExprUnaryMinus:
-		if operand.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", operand.Kind.String())
-		}
-		return MakeInt(-operand.Int, operand.TypeID), nil
-
-	case ast.ExprUnaryNot:
-		if operand.Kind != VKBool {
-			return Value{}, vm.eb.typeMismatch("bool", operand.Kind.String())
-		}
-		return MakeBool(!operand.Bool, operand.TypeID), nil
-
-	case ast.ExprUnaryPlus:
-		// Unary plus is a no-op for integers
-		if operand.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", operand.Kind.String())
-		}
-		return operand, nil
-
-	default:
-		return Value{}, vm.eb.unimplemented(fmt.Sprintf("unary op %s", op))
-	}
-}
-
-// evalIndex evaluates an index operation.
-func (vm *VM) evalIndex(obj, idx Value) (Value, *VMError) {
-	if idx.Kind != VKInt {
-		return Value{}, vm.eb.typeMismatch("int", idx.Kind.String())
-	}
-	index := int(idx.Int)
-
-	switch obj.Kind {
-	case VKStringSlice:
-		if index < 0 || index >= len(obj.Strs) {
-			return Value{}, vm.eb.outOfBounds(index, len(obj.Strs))
-		}
-		return MakeString(obj.Strs[index], types.NoTypeID), nil
-
-	default:
-		return Value{}, vm.eb.unimplemented(fmt.Sprintf("indexing %s", obj.Kind))
-	}
-}
-
 // readLocal reads a local variable, checking initialization and move status.
 func (vm *VM) readLocal(frame *Frame, id mir.LocalID) (Value, *VMError) {
 	if int(id) < 0 || int(id) >= len(frame.Locals) {
@@ -650,4 +350,31 @@ func (vm *VM) moveLocal(frame *Frame, id mir.LocalID) {
 		return
 	}
 	frame.Locals[id].IsMoved = true
+}
+
+func (vm *VM) valueType(id types.TypeID) types.TypeID {
+	if id == types.NoTypeID || vm.Types == nil {
+		return id
+	}
+	seen := 0
+	for id != types.NoTypeID && seen < 32 {
+		seen++
+		tt, ok := vm.Types.Lookup(id)
+		if !ok {
+			return id
+		}
+		switch tt.Kind {
+		case types.KindAlias:
+			target, ok := vm.Types.AliasTarget(id)
+			if !ok || target == types.NoTypeID || target == id {
+				return id
+			}
+			id = target
+		case types.KindOwn, types.KindReference, types.KindPointer:
+			id = tt.Elem
+		default:
+			return id
+		}
+	}
+	return id
 }

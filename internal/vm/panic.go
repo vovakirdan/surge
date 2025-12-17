@@ -18,7 +18,14 @@ const (
 	PanicOutOfBounds          PanicCode = 1004 // VM1004: out of bounds
 	PanicUnsupportedIntrinsic PanicCode = 1005 // VM1005: unsupported intrinsic
 	PanicUnsupportedParseType PanicCode = 1006 // VM1006: unsupported parse type
-	PanicUnimplemented        PanicCode = 1999 // VM1999: unimplemented opcode/terminator
+
+	PanicIntOverflow        PanicCode = 1101 // VM1101: integer overflow
+	PanicMemoryLeakDetected PanicCode = 1201 // VM1201: memory leak detected
+	PanicDoubleFree         PanicCode = 1202 // VM1202: double free
+	PanicInvalidHandle      PanicCode = 1203 // VM1203: invalid handle
+	PanicUseAfterFree       PanicCode = 1204 // VM1204: use after free
+
+	PanicUnimplemented PanicCode = 1999 // VM1999: unimplemented opcode/terminator
 )
 
 // String returns the code as "VM1001" format.
@@ -135,6 +142,10 @@ func (eb *errorBuilder) unsupportedIntrinsic(name string) *VMError {
 
 func (eb *errorBuilder) unsupportedParseType(typeName string) *VMError {
 	return eb.makeError(PanicUnsupportedParseType, fmt.Sprintf("rt_parse_arg only supports int, got %s", typeName))
+}
+
+func (eb *errorBuilder) intOverflow() *VMError {
+	return eb.makeError(PanicIntOverflow, "integer overflow")
 }
 
 func (eb *errorBuilder) unimplemented(what string) *VMError {
