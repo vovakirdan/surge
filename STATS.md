@@ -4,15 +4,15 @@
 
 ## 📊 Main code (without tests)
 
-- **Files:** 381
-- **Lines of code:** 75369
+- **Files:** 382
+- **Lines of code:** 75411
 
 ## 📁 Directory breakdown
 
 | Directory | Files | Lines |
 |------------|--------|-------|
 | `cmd/` | 12 | 2347 |
-| `internal/` | 369 | 73022 |
+| `internal/` | 370 | 73064 |
 
 ## 🏆 Top 10 packages by size
 
@@ -36,8 +36,8 @@
 
 ## 📈 Total volume (code + tests)
 
-- **Files:** 464
-- **Lines of code:** 96131
+- **Files:** 465
+- **Lines of code:** 96173
 
 ## 📊 Percentage breakdown
 

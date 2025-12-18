@@ -1,0 +1,41 @@
+parse_roundtrip_int.sg (span: 1:1-15:1)
+├─ Item[0]: Fn (span: 1:1-7:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:37-7:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:33)
+│        │  ├─ Name: ptr
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#4: rt_string_ptr(&s)
+│        ├─ Stmt[1]: Let (span: 3:5-3:34)
+│        │  ├─ Name: slen
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#8: rt_string_len(&s)
+│        ├─ Stmt[2]: Expr (span: 4:5-4:32)
+│        │  └─ Expr: expr#12: rt_write_stdout(ptr, slen)
+│        ├─ Stmt[3]: Let (span: 5:5-5:24)
+│        │  ├─ Name: newline
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#13: "\n"
+│        └─ Stmt[4]: Expr (span: 6:5-6:54)
+│           └─ Expr: expr#21: rt_write_stdout(rt_string_ptr(&newline), 1 to uint)
+└─ Item[1]: Fn (span: 9:1-14:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:18-14:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:244)
+         │  ├─ Name: n
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#24: rt_parse_arg("-100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007")
+         ├─ Stmt[1]: Expr (span: 12:5-12:29)
+         │  └─ Expr: expr#28: write_line(n to string)
+         └─ Stmt[2]: Return (span: 13:5-13:14)
+            └─ Expr: expr#29: 0
