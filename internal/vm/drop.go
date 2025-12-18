@@ -111,6 +111,11 @@ func (vm *VM) checkLeaksOrPanic() {
 		if !ok || obj == nil || !obj.Alive {
 			continue
 		}
+		switch obj.Kind {
+		case OKBigInt, OKBigUint, OKBigFloat:
+			continue
+		default:
+		}
 		aliveCount++
 		if len(list) < maxList {
 			list = append(list, fmt.Sprintf("%s#%d(type=type#%d)", vm.objectKindLabel(obj.Kind), h, obj.TypeID))
@@ -136,6 +141,12 @@ func (vm *VM) objectKindLabel(k ObjectKind) string {
 		return "struct"
 	case OKTag:
 		return "tag"
+	case OKBigInt:
+		return "bigint"
+	case OKBigUint:
+		return "biguint"
+	case OKBigFloat:
+		return "bigfloat"
 	default:
 		return "object"
 	}

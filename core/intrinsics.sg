@@ -13,8 +13,8 @@ pub type byte = uint8;
 @intrinsic fn rt_read_stdin(buf: *byte, max_len: uint) -> uint;
 
 // String access intrinsics
-@intrinsic fn rt_string_ptr(s: string) -> *byte;
-@intrinsic fn rt_string_len(s: string) -> uint;
+@intrinsic fn rt_string_ptr(s: &string) -> *byte;
+@intrinsic fn rt_string_len(s: &string) -> uint;
 @intrinsic fn rt_string_from_bytes(ptr: *byte, length: uint) -> string;
 
 // Higher-level I/O

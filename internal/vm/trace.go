@@ -7,6 +7,7 @@ import (
 
 	"surge/internal/mir"
 	"surge/internal/source"
+	"surge/internal/vm/bignum"
 )
 
 // Tracer outputs execution traces for debugging.
@@ -163,7 +164,8 @@ func (t *Tracer) formatRValue(rv *mir.RValue) string {
 		return fmt.Sprintf("%s[%s]", t.formatOperand(&rv.Index.Object), t.formatOperand(&rv.Index.Index))
 	case mir.RValueStructLit:
 		out := fmt.Sprintf("struct_lit type#%d {", rv.StructLit.TypeID)
-		for i, f := range rv.StructLit.Fields {
+		for i := range rv.StructLit.Fields {
+			f := &rv.StructLit.Fields[i]
 			if i > 0 {
 				out += ", "
 			}
@@ -173,11 +175,12 @@ func (t *Tracer) formatRValue(rv *mir.RValue) string {
 		return out
 	case mir.RValueArrayLit:
 		out := "array_lit ["
-		for i, el := range rv.ArrayLit.Elems {
+		for i := range rv.ArrayLit.Elems {
+			el := &rv.ArrayLit.Elems[i]
 			if i > 0 {
 				out += ", "
 			}
-			out += t.formatOperand(&el)
+			out += t.formatOperand(el)
 		}
 		out += "]"
 		return out
@@ -341,6 +344,40 @@ func (t *Tracer) formatValue(v Value) string {
 			}
 		}
 		return fmt.Sprintf("tag#%d(type#%d, %s)", v.H, obj.TypeID, tagName)
+
+	case VKBigInt:
+		if v.H == 0 {
+			return "0"
+		}
+		obj := t.lookup(v.H)
+		if obj == nil || !obj.Alive || obj.Kind != OKBigInt {
+			return fmt.Sprintf("bigint#%d(<invalid>)", v.H)
+		}
+		return bignum.FormatInt(obj.BigInt)
+
+	case VKBigUint:
+		if v.H == 0 {
+			return "0"
+		}
+		obj := t.lookup(v.H)
+		if obj == nil || !obj.Alive || obj.Kind != OKBigUint {
+			return fmt.Sprintf("biguint#%d(<invalid>)", v.H)
+		}
+		return bignum.FormatUint(obj.BigUint)
+
+	case VKBigFloat:
+		if v.H == 0 {
+			return "0"
+		}
+		obj := t.lookup(v.H)
+		if obj == nil || !obj.Alive || obj.Kind != OKBigFloat {
+			return fmt.Sprintf("bigfloat#%d(<invalid>)", v.H)
+		}
+		s, err := bignum.FormatFloat(obj.BigFloat)
+		if err != nil {
+			return fmt.Sprintf("bigfloat#%d(<%v>)", v.H, err)
+		}
+		return s
 
 	default:
 		return v.String()

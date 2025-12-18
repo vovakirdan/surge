@@ -134,6 +134,7 @@ const (
 // LiteralData holds data for ExprLiteral.
 type LiteralData struct {
 	Kind        LiteralKind
+	Text        string // Raw literal text for numeric literals (int/float).
 	IntValue    int64
 	FloatValue  float64
 	BoolValue   bool

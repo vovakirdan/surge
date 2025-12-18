@@ -3,6 +3,7 @@ package vm
 import (
 	"surge/internal/symbols"
 	"surge/internal/types"
+	"surge/internal/vm/bignum"
 )
 
 // Handle is a stable, monotonically increasing reference to a heap object.
@@ -17,6 +18,9 @@ const (
 	OKArray
 	OKStruct
 	OKTag
+	OKBigInt
+	OKBigUint
+	OKBigFloat
 )
 
 type TagObject struct {
@@ -35,4 +39,8 @@ type Object struct {
 	Arr    []Value
 	Fields []Value
 	Tag    TagObject
+
+	BigInt   bignum.BigInt
+	BigUint  bignum.BigUint
+	BigFloat bignum.BigFloat
 }

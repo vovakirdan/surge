@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/symbols"
 	"surge/internal/types"
+	"surge/internal/vm/bignum"
 )
 
 // Heap stores all owned runtime objects for the VM.
@@ -76,6 +77,33 @@ func (h *Heap) AllocTag(typeID types.TypeID, tagSym symbols.SymbolID, fields []V
 	handle, obj := h.alloc(OKTag, typeID)
 	obj.Tag.TagSym = tagSym
 	obj.Tag.Fields = append([]Value(nil), fields...)
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
+	}
+	return handle
+}
+
+func (h *Heap) AllocBigInt(typeID types.TypeID, v bignum.BigInt) Handle {
+	handle, obj := h.alloc(OKBigInt, typeID)
+	obj.BigInt = v
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
+	}
+	return handle
+}
+
+func (h *Heap) AllocBigUint(typeID types.TypeID, v bignum.BigUint) Handle {
+	handle, obj := h.alloc(OKBigUint, typeID)
+	obj.BigUint = v
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
+	}
+	return handle
+}
+
+func (h *Heap) AllocBigFloat(typeID types.TypeID, v bignum.BigFloat) Handle {
+	handle, obj := h.alloc(OKBigFloat, typeID)
+	obj.BigFloat = v
 	if h.vm != nil && h.vm.Trace != nil {
 		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
 	}

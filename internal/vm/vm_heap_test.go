@@ -101,8 +101,8 @@ func TestVMHeapOOBPanics(t *testing.T) {
 	}
 }
 
-func TestVMHeapOverflowPanics(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_heap", "vm_overflow_panics.sg")
+func TestVMHeapDivByZeroPanics(t *testing.T) {
+	filePath := filepath.Join("testdata", "golden", "vm_heap", "vm_div_by_zero_panics.sg")
 
 	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
 		t.Fatalf("failed to change directory: %v", err)
@@ -116,15 +116,15 @@ func TestVMHeapOverflowPanics(t *testing.T) {
 	if vmErr == nil {
 		t.Fatal("expected panic, got nil")
 	}
-	if vmErr.Code != vm.PanicIntOverflow {
-		t.Fatalf("expected %v, got %v", vm.PanicIntOverflow, vmErr.Code)
+	if vmErr.Code != vm.PanicDivisionByZero {
+		t.Fatalf("expected %v, got %v", vm.PanicDivisionByZero, vmErr.Code)
 	}
 
 	out := vmErr.FormatWithFiles(files)
-	if !strings.Contains(out, "panic VM1101") {
+	if !strings.Contains(out, "panic VM3203") {
 		t.Fatalf("expected panic code in output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "testdata/golden/vm_heap/vm_overflow_panics.sg:") {
+	if !strings.Contains(out, "testdata/golden/vm_heap/vm_div_by_zero_panics.sg:") {
 		t.Fatalf("expected span with file path in output, got:\n%s", out)
 	}
 }

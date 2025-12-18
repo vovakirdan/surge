@@ -139,8 +139,8 @@ func TestVMRecordReplayArgvSeparator(t *testing.T) {
 	}
 }
 
-func TestVMRecordReplayPanicOverflow(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_replay", "vm_record_replay_panic_overflow.sg")
+func TestVMRecordReplayPanicDivByZero(t *testing.T) {
+	filePath := filepath.Join("testdata", "golden", "vm_replay", "vm_record_replay_panic_div_by_zero.sg")
 
 	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
 		t.Fatalf("failed to change directory: %v", err)
@@ -159,8 +159,8 @@ func TestVMRecordReplayPanicOverflow(t *testing.T) {
 	if vmErr1 == nil {
 		t.Fatal("expected panic, got nil")
 	}
-	if vmErr1.Code != vm.PanicIntOverflow {
-		t.Fatalf("expected %v, got %v", vm.PanicIntOverflow, vmErr1.Code)
+	if vmErr1.Code != vm.PanicDivisionByZero {
+		t.Fatalf("expected %v, got %v", vm.PanicDivisionByZero, vmErr1.Code)
 	}
 
 	rp := vm.NewReplayerFromBytes(recBuf.Bytes())
@@ -171,8 +171,8 @@ func TestVMRecordReplayPanicOverflow(t *testing.T) {
 	if vmErr2 == nil {
 		t.Fatal("expected replay panic, got nil")
 	}
-	if vmErr2.Code != vm.PanicIntOverflow {
-		t.Fatalf("expected %v, got %v", vm.PanicIntOverflow, vmErr2.Code)
+	if vmErr2.Code != vm.PanicDivisionByZero {
+		t.Fatalf("expected %v, got %v", vm.PanicDivisionByZero, vmErr2.Code)
 	}
 
 	if vmErr2.FormatWithFiles(files) != vmErr1.FormatWithFiles(files) {

@@ -8,6 +8,7 @@ const (
 	LKLocal LocKind = iota
 	LKStructField
 	LKArrayElem
+	LKStringBytes
 )
 
 type Location struct {
@@ -32,6 +33,8 @@ func (l Location) String() string {
 		return fmt.Sprintf("struct#%d.field[%d]", l.Handle, l.Index)
 	case LKArrayElem:
 		return fmt.Sprintf("array#%d[%d]", l.Handle, l.Index)
+	case LKStringBytes:
+		return fmt.Sprintf("string#%d.bytes+%d", l.Handle, l.ByteOffset)
 	default:
 		return "<invalid-loc>"
 	}

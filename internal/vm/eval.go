@@ -10,6 +10,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/mir"
 	"surge/internal/types"
+	"surge/internal/vm/bignum"
 )
 
 // evalRValue evaluates an rvalue to a Value.
@@ -79,71 +80,11 @@ func (vm *VM) evalCast(v Value, target types.TypeID) (Value, *VMError) {
 		return v, nil
 	}
 
-	// Most numeric values in the v1 VM are represented as VKInt.
-	switch v.Kind {
-	case VKInt:
-		if vm.Types == nil {
-			v.TypeID = target
-			return v, nil
-		}
-		tt, ok := vm.Types.Lookup(vm.valueType(target))
-		if !ok {
-			v.TypeID = target
-			return v, nil
-		}
-		switch tt.Kind {
-		case types.KindBool:
-			return MakeBool(v.Int != 0, target), nil
-		case types.KindInt:
-			if tt.Width != types.WidthAny {
-				return MakeInt(castIntWidth(v.Int, int(tt.Width), true), target), nil
-			}
-			return MakeInt(v.Int, target), nil
-		case types.KindUint:
-			if tt.Width != types.WidthAny {
-				return MakeInt(castIntWidth(v.Int, int(tt.Width), false), target), nil
-			}
-			return MakeInt(v.Int, target), nil
-		default:
-			return Value{}, vm.eb.unimplemented("cast to non-numeric type")
-		}
-
-	case VKBool:
-		if vm.Types == nil {
-			return Value{}, vm.eb.unimplemented("cast without types")
-		}
-		tt, ok := vm.Types.Lookup(vm.valueType(target))
-		if !ok {
-			return Value{}, vm.eb.unimplemented("cast to unknown type")
-		}
-		switch tt.Kind {
-		case types.KindBool:
-			return MakeBool(v.Bool, target), nil
-		case types.KindInt, types.KindUint:
-			n := int64(0)
-			if v.Bool {
-				n = 1
-			}
-			return MakeInt(n, target), nil
-		default:
-			return Value{}, vm.eb.unimplemented("cast from bool to non-numeric type")
-		}
-
-	default:
-		return Value{}, vm.eb.unimplemented(fmt.Sprintf("cast from %s", v.Kind))
+	if vm.Types == nil {
+		v.TypeID = target
+		return v, nil
 	}
-}
-
-func castIntWidth(n int64, bits int, signed bool) int64 {
-	if bits <= 0 || bits >= 64 {
-		return n
-	}
-	if signed {
-		shift := 64 - bits
-		return (n << shift) >> shift
-	}
-	mask := ^(^int64(0) << bits)
-	return n & mask
+	return vm.evalIntrinsicTo(v, target)
 }
 
 // evalOperand evaluates an operand to a Value.
@@ -203,14 +144,56 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 func (vm *VM) evalConst(c *mir.Const) Value {
 	switch c.Kind {
 	case mir.ConstInt:
+		if kind, width, ok := vm.numericKind(c.Type); ok && kind == types.KindInt && width == types.WidthAny {
+			var (
+				i   bignum.BigInt
+				err error
+			)
+			if c.Text != "" {
+				i, err = bignum.ParseIntLiteral(c.Text)
+			} else {
+				i = bignum.IntFromInt64(c.IntValue)
+			}
+			if err != nil {
+				vm.panic(PanicInvalidNumericConversion, fmt.Sprintf("invalid int literal %q: %v", c.Text, err))
+			}
+			return vm.makeBigInt(c.Type, i)
+		}
 		return MakeInt(c.IntValue, c.Type)
 	case mir.ConstUint:
+		if kind, width, ok := vm.numericKind(c.Type); ok && kind == types.KindUint && width == types.WidthAny {
+			var (
+				u   bignum.BigUint
+				err error
+			)
+			if c.Text != "" {
+				u, err = bignum.ParseUintLiteral(c.Text)
+			} else {
+				u = bignum.UintFromUint64(c.UintValue)
+			}
+			if err != nil {
+				vm.panic(PanicInvalidNumericConversion, fmt.Sprintf("invalid uint literal %q: %v", c.Text, err))
+			}
+			return vm.makeBigUint(c.Type, u)
+		}
 		intVal, err := safecast.Convert[int64](c.UintValue)
 		if err != nil {
-			// For now, saturate to max int64.
 			return Value{Kind: VKInvalid}
 		}
 		return MakeInt(intVal, c.Type)
+	case mir.ConstFloat:
+		if kind, width, ok := vm.numericKind(c.Type); ok && kind == types.KindFloat && width == types.WidthAny {
+			if c.Text == "" {
+				vm.panic(PanicFloatUnsupported, "missing float literal text")
+			}
+			f, err := bignum.ParseFloat(c.Text)
+			if err != nil {
+				vm.panic(PanicInvalidNumericConversion, fmt.Sprintf("invalid float literal %q: %v", c.Text, err))
+			}
+			return vm.makeBigFloat(c.Type, f)
+		}
+		vm.panic(PanicFloatUnsupported, "float constant evaluation is not supported")
+		return Value{Kind: VKInvalid}
 	case mir.ConstBool:
 		return MakeBool(c.BoolValue, c.Type)
 	case mir.ConstString:
@@ -236,43 +219,258 @@ func (vm *VM) evalConst(c *mir.Const) Value {
 func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMError) {
 	switch op {
 	case ast.ExprBinaryAdd:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
+		switch {
+		case left.Kind == VKBigInt && right.Kind == VKBigInt:
+			a, vmErr := vm.mustBigInt(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigInt(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			res, err := bignum.IntAdd(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigInt(left.TypeID, res), nil
+		case left.Kind == VKBigUint && right.Kind == VKBigUint:
+			a, vmErr := vm.mustBigUint(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigUint(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			res, err := bignum.UintAdd(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigUint(left.TypeID, res), nil
+		case left.Kind == VKBigFloat && right.Kind == VKBigFloat:
+			a, vmErr := vm.mustBigFloat(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigFloat(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			res, err := bignum.FloatAdd(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigFloat(left.TypeID, res), nil
+		case left.Kind == VKInt && right.Kind == VKInt:
+			res, ok := AddInt64Checked(left.Int, right.Int)
+			if !ok {
+				return Value{}, vm.eb.intOverflow()
+			}
+			return MakeInt(res, left.TypeID), nil
+		default:
+			return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 		}
-		res, ok := AddInt64Checked(left.Int, right.Int)
-		if !ok {
-			return Value{}, vm.eb.intOverflow()
-		}
-		return MakeInt(res, left.TypeID), nil
 
 	case ast.ExprBinarySub:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
+		switch {
+		case left.Kind == VKBigInt && right.Kind == VKBigInt:
+			a, vmErr := vm.mustBigInt(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigInt(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			res, err := bignum.IntSub(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigInt(left.TypeID, res), nil
+		case left.Kind == VKBigUint && right.Kind == VKBigUint:
+			a, vmErr := vm.mustBigUint(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigUint(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			res, err := bignum.UintSub(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigUint(left.TypeID, res), nil
+		case left.Kind == VKBigFloat && right.Kind == VKBigFloat:
+			a, vmErr := vm.mustBigFloat(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigFloat(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			res, err := bignum.FloatSub(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigFloat(left.TypeID, res), nil
+		case left.Kind == VKInt && right.Kind == VKInt:
+			res, ok := SubInt64Checked(left.Int, right.Int)
+			if !ok {
+				return Value{}, vm.eb.intOverflow()
+			}
+			return MakeInt(res, left.TypeID), nil
+		default:
+			return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 		}
-		res, ok := SubInt64Checked(left.Int, right.Int)
-		if !ok {
-			return Value{}, vm.eb.intOverflow()
-		}
-		return MakeInt(res, left.TypeID), nil
 
 	case ast.ExprBinaryMul:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
+		switch {
+		case left.Kind == VKBigInt && right.Kind == VKBigInt:
+			a, vmErr := vm.mustBigInt(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigInt(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			res, err := bignum.IntMul(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigInt(left.TypeID, res), nil
+		case left.Kind == VKBigUint && right.Kind == VKBigUint:
+			a, vmErr := vm.mustBigUint(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigUint(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			res, err := bignum.UintMul(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigUint(left.TypeID, res), nil
+		case left.Kind == VKBigFloat && right.Kind == VKBigFloat:
+			a, vmErr := vm.mustBigFloat(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigFloat(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			res, err := bignum.FloatMul(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigFloat(left.TypeID, res), nil
+		case left.Kind == VKInt && right.Kind == VKInt:
+			res, ok := MulInt64Checked(left.Int, right.Int)
+			if !ok {
+				return Value{}, vm.eb.intOverflow()
+			}
+			return MakeInt(res, left.TypeID), nil
+		default:
+			return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 		}
-		res, ok := MulInt64Checked(left.Int, right.Int)
-		if !ok {
-			return Value{}, vm.eb.intOverflow()
-		}
-		return MakeInt(res, left.TypeID), nil
 
 	case ast.ExprBinaryDiv:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
+		switch {
+		case left.Kind == VKBigInt && right.Kind == VKBigInt:
+			a, vmErr := vm.mustBigInt(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigInt(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			q, _, err := bignum.IntDivMod(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigInt(left.TypeID, q), nil
+		case left.Kind == VKBigUint && right.Kind == VKBigUint:
+			a, vmErr := vm.mustBigUint(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigUint(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			q, _, err := bignum.UintDivMod(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigUint(left.TypeID, q), nil
+		case left.Kind == VKBigFloat && right.Kind == VKBigFloat:
+			a, vmErr := vm.mustBigFloat(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigFloat(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			res, err := bignum.FloatDiv(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigFloat(left.TypeID, res), nil
+		case left.Kind == VKInt && right.Kind == VKInt:
+			if right.Int == 0 {
+				return Value{}, vm.eb.divisionByZero()
+			}
+			return MakeInt(left.Int/right.Int, left.TypeID), nil
+		default:
+			return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 		}
-		if right.Int == 0 {
-			return Value{}, vm.eb.makeError(PanicOutOfBounds, "division by zero")
+
+	case ast.ExprBinaryMod:
+		switch {
+		case left.Kind == VKBigInt && right.Kind == VKBigInt:
+			a, vmErr := vm.mustBigInt(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigInt(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			_, r, err := bignum.IntDivMod(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigInt(left.TypeID, r), nil
+		case left.Kind == VKBigUint && right.Kind == VKBigUint:
+			a, vmErr := vm.mustBigUint(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigUint(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			_, r, err := bignum.UintDivMod(a, b)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigUint(left.TypeID, r), nil
+		case left.Kind == VKInt && right.Kind == VKInt:
+			if right.Int == 0 {
+				return Value{}, vm.eb.divisionByZero()
+			}
+			return MakeInt(left.Int%right.Int, left.TypeID), nil
+		default:
+			return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 		}
-		return MakeInt(left.Int/right.Int, left.TypeID), nil
 
 	case ast.ExprBinaryEq:
 		if left.Kind != right.Kind {
@@ -282,6 +480,36 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 		switch left.Kind {
 		case VKInt:
 			result = left.Int == right.Int
+		case VKBigInt:
+			a, vmErr := vm.mustBigInt(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigInt(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			result = a.Cmp(b) == 0
+		case VKBigUint:
+			a, vmErr := vm.mustBigUint(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigUint(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			result = a.Cmp(b) == 0
+		case VKBigFloat:
+			a, vmErr := vm.mustBigFloat(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigFloat(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			result = a.Cmp(b) == 0
 		case VKBool:
 			result = left.Bool == right.Bool
 		case VKHandleString:
@@ -304,6 +532,36 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 		switch left.Kind {
 		case VKInt:
 			result = left.Int != right.Int
+		case VKBigInt:
+			a, vmErr := vm.mustBigInt(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigInt(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			result = a.Cmp(b) != 0
+		case VKBigUint:
+			a, vmErr := vm.mustBigUint(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigUint(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			result = a.Cmp(b) != 0
+		case VKBigFloat:
+			a, vmErr := vm.mustBigFloat(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigFloat(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			result = a.Cmp(b) != 0
 		case VKBool:
 			result = left.Bool != right.Bool
 		case VKHandleString:
@@ -319,28 +577,156 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 		return MakeBool(result, types.NoTypeID), nil
 
 	case ast.ExprBinaryLess:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
+		switch {
+		case left.Kind == VKBigInt && right.Kind == VKBigInt:
+			a, vmErr := vm.mustBigInt(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigInt(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return MakeBool(a.Cmp(b) < 0, types.NoTypeID), nil
+		case left.Kind == VKBigUint && right.Kind == VKBigUint:
+			a, vmErr := vm.mustBigUint(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigUint(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return MakeBool(a.Cmp(b) < 0, types.NoTypeID), nil
+		case left.Kind == VKBigFloat && right.Kind == VKBigFloat:
+			a, vmErr := vm.mustBigFloat(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigFloat(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return MakeBool(a.Cmp(b) < 0, types.NoTypeID), nil
+		case left.Kind == VKInt && right.Kind == VKInt:
+			return MakeBool(left.Int < right.Int, types.NoTypeID), nil
+		default:
+			return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 		}
-		return MakeBool(left.Int < right.Int, types.NoTypeID), nil
 
 	case ast.ExprBinaryLessEq:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
+		switch {
+		case left.Kind == VKBigInt && right.Kind == VKBigInt:
+			a, vmErr := vm.mustBigInt(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigInt(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return MakeBool(a.Cmp(b) <= 0, types.NoTypeID), nil
+		case left.Kind == VKBigUint && right.Kind == VKBigUint:
+			a, vmErr := vm.mustBigUint(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigUint(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return MakeBool(a.Cmp(b) <= 0, types.NoTypeID), nil
+		case left.Kind == VKBigFloat && right.Kind == VKBigFloat:
+			a, vmErr := vm.mustBigFloat(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigFloat(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return MakeBool(a.Cmp(b) <= 0, types.NoTypeID), nil
+		case left.Kind == VKInt && right.Kind == VKInt:
+			return MakeBool(left.Int <= right.Int, types.NoTypeID), nil
+		default:
+			return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 		}
-		return MakeBool(left.Int <= right.Int, types.NoTypeID), nil
 
 	case ast.ExprBinaryGreater:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
+		switch {
+		case left.Kind == VKBigInt && right.Kind == VKBigInt:
+			a, vmErr := vm.mustBigInt(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigInt(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return MakeBool(a.Cmp(b) > 0, types.NoTypeID), nil
+		case left.Kind == VKBigUint && right.Kind == VKBigUint:
+			a, vmErr := vm.mustBigUint(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigUint(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return MakeBool(a.Cmp(b) > 0, types.NoTypeID), nil
+		case left.Kind == VKBigFloat && right.Kind == VKBigFloat:
+			a, vmErr := vm.mustBigFloat(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigFloat(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return MakeBool(a.Cmp(b) > 0, types.NoTypeID), nil
+		case left.Kind == VKInt && right.Kind == VKInt:
+			return MakeBool(left.Int > right.Int, types.NoTypeID), nil
+		default:
+			return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 		}
-		return MakeBool(left.Int > right.Int, types.NoTypeID), nil
 
 	case ast.ExprBinaryGreaterEq:
-		if left.Kind != VKInt || right.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
+		switch {
+		case left.Kind == VKBigInt && right.Kind == VKBigInt:
+			a, vmErr := vm.mustBigInt(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigInt(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return MakeBool(a.Cmp(b) >= 0, types.NoTypeID), nil
+		case left.Kind == VKBigUint && right.Kind == VKBigUint:
+			a, vmErr := vm.mustBigUint(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigUint(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return MakeBool(a.Cmp(b) >= 0, types.NoTypeID), nil
+		case left.Kind == VKBigFloat && right.Kind == VKBigFloat:
+			a, vmErr := vm.mustBigFloat(left)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			b, vmErr := vm.mustBigFloat(right)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return MakeBool(a.Cmp(b) >= 0, types.NoTypeID), nil
+		case left.Kind == VKInt && right.Kind == VKInt:
+			return MakeBool(left.Int >= right.Int, types.NoTypeID), nil
+		default:
+			return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 		}
-		return MakeBool(left.Int >= right.Int, types.NoTypeID), nil
 
 	default:
 		return Value{}, vm.eb.unimplemented(fmt.Sprintf("binary op %s", op))
@@ -351,13 +737,27 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 func (vm *VM) evalUnaryOp(op ast.ExprUnaryOp, operand Value) (Value, *VMError) {
 	switch op {
 	case ast.ExprUnaryMinus:
-		if operand.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", operand.Kind.String())
+		switch operand.Kind {
+		case VKBigInt:
+			i, vmErr := vm.mustBigInt(operand)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return vm.makeBigInt(operand.TypeID, i.Negated()), nil
+		case VKBigFloat:
+			f, vmErr := vm.mustBigFloat(operand)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return vm.makeBigFloat(operand.TypeID, bignum.FloatNeg(f)), nil
+		case VKInt:
+			if operand.Int == math.MinInt64 {
+				return Value{}, vm.eb.intOverflow()
+			}
+			return MakeInt(-operand.Int, operand.TypeID), nil
+		default:
+			return Value{}, vm.eb.typeMismatch("numeric", operand.Kind.String())
 		}
-		if operand.Int == math.MinInt64 {
-			return Value{}, vm.eb.intOverflow()
-		}
-		return MakeInt(-operand.Int, operand.TypeID), nil
 
 	case ast.ExprUnaryNot:
 		if operand.Kind != VKBool {
@@ -366,10 +766,12 @@ func (vm *VM) evalUnaryOp(op ast.ExprUnaryOp, operand Value) (Value, *VMError) {
 		return MakeBool(!operand.Bool, operand.TypeID), nil
 
 	case ast.ExprUnaryPlus:
-		if operand.Kind != VKInt {
-			return Value{}, vm.eb.typeMismatch("int", operand.Kind.String())
+		switch operand.Kind {
+		case VKBigInt, VKBigUint, VKBigFloat, VKInt:
+			return operand, nil
+		default:
+			return Value{}, vm.eb.typeMismatch("numeric", operand.Kind.String())
 		}
-		return operand, nil
 
 	case ast.ExprUnaryDeref:
 		switch operand.Kind {
@@ -403,13 +805,51 @@ func (vm *VM) evalArrayLit(frame *Frame, lit *mir.ArrayLit) (Value, *VMError) {
 
 // evalIndex evaluates an index operation.
 func (vm *VM) evalIndex(obj, idx Value) (Value, *VMError) {
-	if idx.Kind != VKInt {
+	maxIndex := int(^uint(0) >> 1)
+	maxInt := int64(maxIndex)
+	maxUint := uint64(^uint(0) >> 1)
+	var index int
+	switch idx.Kind {
+	case VKInt:
+		if idx.Int < 0 || idx.Int > maxInt {
+			return Value{}, vm.eb.outOfBounds(maxIndex, 0)
+		}
+		n, err := safecast.Conv[int](idx.Int)
+		if err != nil {
+			return Value{}, vm.eb.outOfBounds(maxIndex, 0)
+		}
+		index = n
+	case VKBigInt:
+		i, vmErr := vm.mustBigInt(idx)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		n, ok := i.Int64()
+		if !ok || n < 0 || n > maxInt {
+			return Value{}, vm.eb.outOfBounds(maxIndex, 0)
+		}
+		ni, err := safecast.Conv[int](n)
+		if err != nil {
+			return Value{}, vm.eb.outOfBounds(maxIndex, 0)
+		}
+		index = ni
+	case VKBigUint:
+		u, vmErr := vm.mustBigUint(idx)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		n, ok := u.Uint64()
+		if !ok || n > maxUint {
+			return Value{}, vm.eb.outOfBounds(maxIndex, 0)
+		}
+		ni, err := safecast.Conv[int](n)
+		if err != nil {
+			return Value{}, vm.eb.outOfBounds(maxIndex, 0)
+		}
+		index = ni
+	default:
 		return Value{}, vm.eb.typeMismatch("int", idx.Kind.String())
 	}
-	if idx.Int < 0 || idx.Int > int64(^uint(0)>>1) {
-		return Value{}, vm.eb.outOfBounds(int(idx.Int), 0)
-	}
-	index := int(idx.Int)
 
 	if obj.Kind != VKHandleArray {
 		return Value{}, vm.eb.typeMismatch("array", obj.Kind.String())
@@ -439,7 +879,8 @@ func (vm *VM) evalStructLit(frame *Frame, lit *mir.StructLit) (Value, *VMError) 
 	for i := range fields {
 		fields[i] = Value{Kind: VKInvalid}
 	}
-	for _, f := range lit.Fields {
+	for i := range lit.Fields {
+		f := &lit.Fields[i]
 		val, vmErr := vm.evalOperand(frame, &f.Value)
 		if vmErr != nil {
 			return Value{}, vmErr

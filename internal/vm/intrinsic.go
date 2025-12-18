@@ -2,10 +2,14 @@ package vm
 
 import (
 	"fmt"
+	"os"
 	"strings"
+
+	"fortio.org/safecast"
 
 	"surge/internal/mir"
 	"surge/internal/types"
+	"surge/internal/vm/bignum"
 )
 
 // callIntrinsic handles runtime intrinsic calls (and selected extern calls not lowered into MIR).
@@ -46,7 +50,11 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 		dstLocal := call.Dst.Local
 		dstType := frame.Locals[dstLocal].TypeID
-		val := MakeInt(int64(n), dstType)
+		u64, err := safecast.Conv[uint64](n)
+		if err != nil {
+			return vm.eb.invalidNumericConversion("size/align out of range")
+		}
+		val := vm.makeBigUint(dstType, bignum.UintFromUint64(u64))
 		if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
 			return vmErr
 		}
@@ -113,6 +121,173 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			vm.Heap.Free(h)
 		}
 
+	case "rt_string_ptr":
+		if !call.HasDst {
+			return nil
+		}
+		if len(call.Args) != 1 {
+			return vm.eb.makeError(PanicTypeMismatch, "rt_string_ptr requires 1 argument")
+		}
+		arg, vmErr := vm.evalOperand(frame, &call.Args[0])
+		if vmErr != nil {
+			return vmErr
+		}
+		var strVal Value
+		switch arg.Kind {
+		case VKHandleString:
+			strVal = arg
+		case VKRef, VKRefMut:
+			v, vmErr := vm.loadLocationRaw(arg.Loc)
+			if vmErr != nil {
+				return vmErr
+			}
+			strVal = v
+		default:
+			return vm.eb.typeMismatch("&string", arg.Kind.String())
+		}
+		if strVal.Kind != VKHandleString {
+			return vm.eb.typeMismatch("string", strVal.Kind.String())
+		}
+		dstLocal := call.Dst.Local
+		dstType := frame.Locals[dstLocal].TypeID
+		ptr := MakePtr(Location{Kind: LKStringBytes, Handle: strVal.H}, dstType)
+		if vmErr := vm.writeLocal(frame, dstLocal, ptr); vmErr != nil {
+			return vmErr
+		}
+		*writes = append(*writes, LocalWrite{
+			LocalID: dstLocal,
+			Name:    frame.Locals[dstLocal].Name,
+			Value:   ptr,
+		})
+
+	case "rt_string_len":
+		if !call.HasDst {
+			return nil
+		}
+		if len(call.Args) != 1 {
+			return vm.eb.makeError(PanicTypeMismatch, "rt_string_len requires 1 argument")
+		}
+		arg, vmErr := vm.evalOperand(frame, &call.Args[0])
+		if vmErr != nil {
+			return vmErr
+		}
+		var strVal Value
+		switch arg.Kind {
+		case VKHandleString:
+			strVal = arg
+		case VKRef, VKRefMut:
+			v, vmErr := vm.loadLocationRaw(arg.Loc)
+			if vmErr != nil {
+				return vmErr
+			}
+			strVal = v
+		default:
+			return vm.eb.typeMismatch("&string", arg.Kind.String())
+		}
+		if strVal.Kind != VKHandleString {
+			return vm.eb.typeMismatch("string", strVal.Kind.String())
+		}
+		s := vm.Heap.Get(strVal.H).Str
+		dstLocal := call.Dst.Local
+		dstType := frame.Locals[dstLocal].TypeID
+		u64, err := safecast.Conv[uint64](len(s))
+		if err != nil {
+			return vm.eb.invalidNumericConversion("string length out of range")
+		}
+		val := vm.makeBigUint(dstType, bignum.UintFromUint64(u64))
+		if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+			return vmErr
+		}
+		*writes = append(*writes, LocalWrite{
+			LocalID: dstLocal,
+			Name:    frame.Locals[dstLocal].Name,
+			Value:   val,
+		})
+
+	case "rt_write_stdout":
+		if len(call.Args) != 2 {
+			return vm.eb.makeError(PanicTypeMismatch, "rt_write_stdout requires 2 arguments")
+		}
+		ptrVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+		if vmErr != nil {
+			return vmErr
+		}
+		if ptrVal.Kind != VKPtr {
+			return vm.eb.typeMismatch("*byte", ptrVal.Kind.String())
+		}
+		lenVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+		if vmErr != nil {
+			return vmErr
+		}
+
+		maxInt := int64(int(^uint(0) >> 1))
+		maxUint := uint64(^uint(0) >> 1)
+		n := 0
+		switch lenVal.Kind {
+		case VKInt:
+			if lenVal.Int < 0 || lenVal.Int > maxInt {
+				return vm.eb.invalidNumericConversion("stdout write length out of range")
+			}
+			ni, err := safecast.Conv[int](lenVal.Int)
+			if err != nil {
+				return vm.eb.invalidNumericConversion("stdout write length out of range")
+			}
+			n = ni
+		case VKBigUint:
+			u, vmErr := vm.mustBigUint(lenVal)
+			if vmErr != nil {
+				return vmErr
+			}
+			uv, ok := u.Uint64()
+			if !ok || uv > maxUint {
+				return vm.eb.invalidNumericConversion("stdout write length out of range")
+			}
+			ni, err := safecast.Conv[int](uv)
+			if err != nil {
+				return vm.eb.invalidNumericConversion("stdout write length out of range")
+			}
+			n = ni
+		default:
+			return vm.eb.typeMismatch("uint", lenVal.Kind.String())
+		}
+
+		if ptrVal.Loc.Kind != LKStringBytes {
+			return vm.eb.invalidLocation("rt_write_stdout: unsupported pointer kind")
+		}
+		obj := vm.Heap.Get(ptrVal.Loc.Handle)
+		if obj.Kind != OKString {
+			return vm.eb.typeMismatch("string bytes pointer", fmt.Sprintf("%v", obj.Kind))
+		}
+		s := obj.Str
+		off := int(ptrVal.Loc.ByteOffset)
+		end64 := int64(off) + int64(n)
+		if off < 0 || off > len(s) || end64 < 0 || end64 > int64(len(s)) {
+			return vm.eb.outOfBounds(int(end64), len(s))
+		}
+		end := int(end64)
+		written, err := os.Stdout.WriteString(s[off:end])
+		if err != nil {
+			written = 0
+		}
+
+		if call.HasDst {
+			dstLocal := call.Dst.Local
+			dstType := frame.Locals[dstLocal].TypeID
+			u64, err := safecast.Conv[uint64](written)
+			if err != nil {
+				return vm.eb.invalidNumericConversion("stdout written count out of range")
+			}
+			val := vm.makeBigUint(dstType, bignum.UintFromUint64(u64))
+			if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+				return vmErr
+			}
+			*writes = append(*writes, LocalWrite{
+				LocalID: dstLocal,
+				Name:    frame.Locals[dstLocal].Name,
+				Value:   val,
+			})
+		}
+
 	case "rt_exit":
 		code := 0
 		if len(call.Args) > 0 {
@@ -120,10 +295,22 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			if vmErr != nil {
 				return vmErr
 			}
-			if val.Kind != VKInt {
+			switch val.Kind {
+			case VKInt:
+				code = int(val.Int)
+			case VKBigInt:
+				i, vmErr := vm.mustBigInt(val)
+				if vmErr != nil {
+					return vmErr
+				}
+				n, ok := i.Int64()
+				if !ok {
+					return vm.eb.invalidNumericConversion("exit code out of range")
+				}
+				code = int(n)
+			default:
 				return vm.eb.typeMismatch("int", val.Kind.String())
 			}
-			code = int(val.Int)
 		}
 		vm.ExitCode = code
 		vm.RT.Exit(code)
@@ -147,41 +334,109 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			return vm.eb.typeMismatch("string", strVal.Kind.String())
 		}
 
-		s := vm.Heap.Get(strVal.H).Str
-		// Argument is moved into rt_parse_arg; it is always consumed.
-		vm.Heap.Free(strVal.H)
-
 		if !call.HasDst {
+			vm.Heap.Free(strVal.H)
 			return nil
 		}
 
-		// For Step 0, only support int parsing
-		// Check if destination type is int
-		localID := call.Dst.Local
-		localType := frame.Locals[localID].TypeID
+		dstLocal := call.Dst.Local
+		dstType := frame.Locals[dstLocal].TypeID
+		dstValueType := vm.valueType(dstType)
+		if vm.Types == nil {
+			return vm.eb.makeError(PanicUnimplemented, "rt_parse_arg requires type information")
+		}
+		tt, ok := vm.Types.Lookup(dstValueType)
+		if !ok {
+			return vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("rt_parse_arg: unknown destination type type#%d", dstValueType))
+		}
 
-		// Check if target type is int
-		if vm.Types != nil {
-			tt, ok := vm.Types.Lookup(localType)
-			if ok && tt.Kind != types.KindInt {
-				return vm.eb.unsupportedParseType(tt.Kind.String())
+		switch tt.Kind {
+		case types.KindString:
+			strVal.TypeID = dstType
+			vmErr = vm.writeLocal(frame, dstLocal, strVal)
+			if vmErr != nil {
+				return vmErr
 			}
-		}
+			*writes = append(*writes, LocalWrite{
+				LocalID: dstLocal,
+				Name:    frame.Locals[dstLocal].Name,
+				Value:   strVal,
+			})
+			return nil
 
-		intVal, err := vm.RT.ParseArgInt(s)
-		if err != nil {
-			return vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as int: %v", s, err))
+		case types.KindInt:
+			if tt.Width != types.WidthAny {
+				vm.Heap.Free(strVal.H)
+				return vm.eb.unsupportedParseType("fixed-width int")
+			}
+			s := vm.Heap.Get(strVal.H).Str
+			vm.Heap.Free(strVal.H)
+			i, err := bignum.ParseInt(s)
+			if err != nil {
+				return vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as int: %v", s, err))
+			}
+			val := vm.makeBigInt(dstType, i)
+			vmErr = vm.writeLocal(frame, dstLocal, val)
+			if vmErr != nil {
+				return vmErr
+			}
+			*writes = append(*writes, LocalWrite{
+				LocalID: dstLocal,
+				Name:    frame.Locals[dstLocal].Name,
+				Value:   val,
+			})
+			return nil
+
+		case types.KindUint:
+			if tt.Width != types.WidthAny {
+				vm.Heap.Free(strVal.H)
+				return vm.eb.unsupportedParseType("fixed-width uint")
+			}
+			s := vm.Heap.Get(strVal.H).Str
+			vm.Heap.Free(strVal.H)
+			u, err := bignum.ParseUint(s)
+			if err != nil {
+				return vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as uint: %v", s, err))
+			}
+			val := vm.makeBigUint(dstType, u)
+			vmErr = vm.writeLocal(frame, dstLocal, val)
+			if vmErr != nil {
+				return vmErr
+			}
+			*writes = append(*writes, LocalWrite{
+				LocalID: dstLocal,
+				Name:    frame.Locals[dstLocal].Name,
+				Value:   val,
+			})
+			return nil
+
+		case types.KindFloat:
+			if tt.Width != types.WidthAny {
+				vm.Heap.Free(strVal.H)
+				return vm.eb.unsupportedParseType("fixed-width float")
+			}
+			s := vm.Heap.Get(strVal.H).Str
+			vm.Heap.Free(strVal.H)
+			f, err := bignum.ParseFloat(s)
+			if err != nil {
+				return vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as float: %v", s, err))
+			}
+			val := vm.makeBigFloat(dstType, f)
+			vmErr = vm.writeLocal(frame, dstLocal, val)
+			if vmErr != nil {
+				return vmErr
+			}
+			*writes = append(*writes, LocalWrite{
+				LocalID: dstLocal,
+				Name:    frame.Locals[dstLocal].Name,
+				Value:   val,
+			})
+			return nil
+
+		default:
+			vm.Heap.Free(strVal.H)
+			return vm.eb.unsupportedParseType(tt.Kind.String())
 		}
-		val := MakeInt(int64(intVal), localType)
-		vmErr = vm.writeLocal(frame, localID, val)
-		if vmErr != nil {
-			return vmErr
-		}
-		*writes = append(*writes, LocalWrite{
-			LocalID: localID,
-			Name:    frame.Locals[localID].Name,
-			Value:   val,
-		})
 
 	case "__to":
 		if !call.HasDst {
@@ -219,29 +474,242 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 }
 
 func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError) {
+	if dstType == types.NoTypeID {
+		return src, nil
+	}
+	if vm.Types == nil {
+		return Value{}, vm.eb.makeError(PanicUnimplemented, "__to requires type information")
+	}
+
 	dstValTy := vm.valueType(dstType)
-	if vm.Types != nil {
-		if dstValTy == vm.Types.Builtins().Int && src.Kind == VKHandleStruct {
-			obj := vm.Heap.Get(src.H)
-			layout, vmErr := vm.layouts.Struct(obj.TypeID)
+	dstTT, ok := vm.Types.Lookup(dstValTy)
+	if !ok {
+		return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("__to: unknown destination type type#%d", dstValTy))
+	}
+
+	// Legacy: allow custom exit code structs with `code: int`.
+	if dstValTy == vm.Types.Builtins().Int && src.Kind == VKHandleStruct {
+		obj := vm.Heap.Get(src.H)
+		layout, vmErr := vm.layouts.Struct(obj.TypeID)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		idx, ok := layout.IndexByName["code"]
+		if !ok {
+			return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("type#%d has no field \"code\" for __to(int)", obj.TypeID))
+		}
+		if idx < 0 || idx >= len(obj.Fields) {
+			return Value{}, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("field index %d out of bounds for type#%d", idx, obj.TypeID))
+		}
+		field := obj.Fields[idx]
+		switch field.Kind {
+		case VKBigInt:
+			// __to consumes its argument.
+			vm.Heap.Free(src.H)
+			field.TypeID = dstType
+			return field, nil
+		case VKInt:
+			vm.Heap.Free(src.H)
+			return vm.makeBigInt(dstType, bignum.IntFromInt64(field.Int)), nil
+		default:
+			return Value{}, vm.eb.typeMismatch("int", field.Kind.String())
+		}
+	}
+
+	switch dstTT.Kind {
+	case types.KindString:
+		strTy := dstType
+		switch src.Kind {
+		case VKHandleString:
+			src.TypeID = strTy
+			return src, nil
+		case VKBigInt:
+			i, vmErr := vm.mustBigInt(src)
 			if vmErr != nil {
 				return Value{}, vmErr
 			}
-			idx, ok := layout.IndexByName["code"]
-			if !ok {
-				return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("type#%d has no field \"code\" for __to(int)", obj.TypeID))
+			h := vm.Heap.AllocString(strTy, bignum.FormatInt(i))
+			return MakeHandleString(h, strTy), nil
+		case VKBigUint:
+			u, vmErr := vm.mustBigUint(src)
+			if vmErr != nil {
+				return Value{}, vmErr
 			}
-			if idx < 0 || idx >= len(obj.Fields) {
-				return Value{}, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("field index %d out of bounds for type#%d", idx, obj.TypeID))
+			h := vm.Heap.AllocString(strTy, bignum.FormatUint(u))
+			return MakeHandleString(h, strTy), nil
+		case VKBigFloat:
+			f, vmErr := vm.mustBigFloat(src)
+			if vmErr != nil {
+				return Value{}, vmErr
 			}
-			field := obj.Fields[idx]
-			if field.Kind != VKInt {
-				return Value{}, vm.eb.typeMismatch("int", field.Kind.String())
+			s, err := bignum.FormatFloat(f)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
 			}
-			// __to consumes its argument.
-			vm.Heap.Free(src.H)
-			return MakeInt(field.Int, dstType), nil
+			h := vm.Heap.AllocString(strTy, s)
+			return MakeHandleString(h, strTy), nil
+		case VKBool:
+			s := "false"
+			if src.Bool {
+				s = "true"
+			}
+			h := vm.Heap.AllocString(strTy, s)
+			return MakeHandleString(h, strTy), nil
+		case VKInt:
+			h := vm.Heap.AllocString(strTy, bignum.FormatInt(bignum.IntFromInt64(src.Int)))
+			return MakeHandleString(h, strTy), nil
+		default:
+			return Value{}, vm.eb.unimplemented("__to to string")
 		}
+
+	case types.KindInt:
+		if dstTT.Width != types.WidthAny {
+			return Value{}, vm.eb.unimplemented("__to to fixed-width int")
+		}
+		switch src.Kind {
+		case VKBigInt:
+			src.TypeID = dstType
+			return src, nil
+		case VKBigUint:
+			u, vmErr := vm.mustBigUint(src)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			return vm.makeBigInt(dstType, bignum.BigInt{Limbs: u.Limbs}), nil
+		case VKBigFloat:
+			f, vmErr := vm.mustBigFloat(src)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			i, err := bignum.FloatToIntTrunc(f)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigInt(dstType, i), nil
+		case VKHandleString:
+			s := vm.Heap.Get(src.H).Str
+			i, err := bignum.ParseInt(s)
+			if err != nil {
+				return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as int: %v", s, err))
+			}
+			return vm.makeBigInt(dstType, i), nil
+		case VKInt:
+			return vm.makeBigInt(dstType, bignum.IntFromInt64(src.Int)), nil
+		case VKBool:
+			n := int64(0)
+			if src.Bool {
+				n = 1
+			}
+			return vm.makeBigInt(dstType, bignum.IntFromInt64(n)), nil
+		default:
+			return Value{}, vm.eb.unimplemented("__to to int")
+		}
+
+	case types.KindUint:
+		if dstTT.Width != types.WidthAny {
+			return Value{}, vm.eb.unimplemented("__to to fixed-width uint")
+		}
+		switch src.Kind {
+		case VKBigUint:
+			src.TypeID = dstType
+			return src, nil
+		case VKBigInt:
+			i, vmErr := vm.mustBigInt(src)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			if i.Neg && !i.IsZero() {
+				return Value{}, vm.eb.invalidNumericConversion("cannot convert negative int to uint")
+			}
+			return vm.makeBigUint(dstType, i.Abs()), nil
+		case VKBigFloat:
+			f, vmErr := vm.mustBigFloat(src)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			u, err := bignum.FloatToUintTrunc(f)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigUint(dstType, u), nil
+		case VKHandleString:
+			s := vm.Heap.Get(src.H).Str
+			u, err := bignum.ParseUint(s)
+			if err != nil {
+				return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as uint: %v", s, err))
+			}
+			return vm.makeBigUint(dstType, u), nil
+		case VKInt:
+			if src.Int < 0 {
+				return Value{}, vm.eb.invalidNumericConversion("cannot convert negative int to uint")
+			}
+			return vm.makeBigUint(dstType, bignum.UintFromUint64(uint64(src.Int))), nil
+		case VKBool:
+			n := uint64(0)
+			if src.Bool {
+				n = 1
+			}
+			return vm.makeBigUint(dstType, bignum.UintFromUint64(n)), nil
+		default:
+			return Value{}, vm.eb.unimplemented("__to to uint")
+		}
+
+	case types.KindFloat:
+		if dstTT.Width != types.WidthAny {
+			return Value{}, vm.eb.unimplemented("__to to fixed-width float")
+		}
+		switch src.Kind {
+		case VKBigFloat:
+			src.TypeID = dstType
+			return src, nil
+		case VKBigInt:
+			i, vmErr := vm.mustBigInt(src)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			f, err := bignum.FloatFromInt(i)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigFloat(dstType, f), nil
+		case VKBigUint:
+			u, vmErr := vm.mustBigUint(src)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			f, err := bignum.FloatFromUint(u)
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigFloat(dstType, f), nil
+		case VKHandleString:
+			s := vm.Heap.Get(src.H).Str
+			f, err := bignum.ParseFloat(s)
+			if err != nil {
+				return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as float: %v", s, err))
+			}
+			return vm.makeBigFloat(dstType, f), nil
+		case VKInt:
+			f, err := bignum.FloatFromInt(bignum.IntFromInt64(src.Int))
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigFloat(dstType, f), nil
+		case VKBool:
+			n := int64(0)
+			if src.Bool {
+				n = 1
+			}
+			f, err := bignum.FloatFromInt(bignum.IntFromInt64(n))
+			if err != nil {
+				return Value{}, vm.bignumErr(err)
+			}
+			return vm.makeBigFloat(dstType, f), nil
+		default:
+			return Value{}, vm.eb.unimplemented("__to to float")
+		}
+
+	default:
+		return Value{}, vm.eb.unimplemented("__to conversion")
 	}
-	return Value{}, vm.eb.unimplemented("__to conversion")
 }

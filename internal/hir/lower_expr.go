@@ -158,9 +158,11 @@ func (l *lowerer) lowerLiteralExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 	switch litData.Kind {
 	case ast.ExprLitInt, ast.ExprLitUint:
 		data.Kind = LiteralInt
+		data.Text = rawValue
 		data.IntValue = parseIntLiteral(rawValue)
 	case ast.ExprLitFloat:
 		data.Kind = LiteralFloat
+		data.Text = rawValue
 		data.FloatValue = parseFloatLiteral(rawValue)
 	case ast.ExprLitString:
 		data.Kind = LiteralString

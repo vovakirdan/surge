@@ -44,6 +44,12 @@ const (
 	PanicInvalidReplayLogFormat PanicCode = 3003 // VM3003: invalid replay log format/version
 
 	PanicUnimplemented PanicCode = 1999 // VM1999: unimplemented opcode/terminator
+
+	PanicNumericSizeLimitExceeded PanicCode = 3201 // VM3201: numeric size limit exceeded
+	PanicInvalidNumericConversion PanicCode = 3202 // VM3202: invalid numeric conversion
+	PanicDivisionByZero           PanicCode = 3203 // VM3203: division by zero
+	PanicFloatUnsupported         PanicCode = 3204 // VM3204: float parse/format unsupported
+	PanicNumericOpTypeMismatch    PanicCode = 3205 // VM3205: numeric op type mismatch (internal error)
 )
 
 // String returns the code as "VM1001" format.
@@ -159,11 +165,33 @@ func (eb *errorBuilder) unsupportedIntrinsic(name string) *VMError {
 }
 
 func (eb *errorBuilder) unsupportedParseType(typeName string) *VMError {
-	return eb.makeError(PanicUnsupportedParseType, fmt.Sprintf("rt_parse_arg only supports int, got %s", typeName))
+	return eb.makeError(PanicUnsupportedParseType, fmt.Sprintf("rt_parse_arg only supports int/uint/float/string, got %s", typeName))
 }
 
 func (eb *errorBuilder) intOverflow() *VMError {
 	return eb.makeError(PanicIntOverflow, "integer overflow")
+}
+
+func (eb *errorBuilder) numericSizeLimitExceeded() *VMError {
+	return eb.makeError(PanicNumericSizeLimitExceeded, "numeric size limit exceeded")
+}
+
+func (eb *errorBuilder) invalidNumericConversion(msg string) *VMError {
+	if msg == "" {
+		msg = "invalid numeric conversion"
+	}
+	return eb.makeError(PanicInvalidNumericConversion, msg)
+}
+
+func (eb *errorBuilder) divisionByZero() *VMError {
+	return eb.makeError(PanicDivisionByZero, "division by zero")
+}
+
+func (eb *errorBuilder) numericOpTypeMismatch(msg string) *VMError {
+	if msg == "" {
+		msg = "numeric op type mismatch"
+	}
+	return eb.makeError(PanicNumericOpTypeMismatch, msg)
 }
 
 func (eb *errorBuilder) switchTagMissingDefault() *VMError {

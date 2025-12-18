@@ -123,14 +123,51 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 			if vmErr != nil {
 				return Location{}, vmErr
 			}
-			if idxVal.Kind != VKInt {
+			maxIndex := int(^uint(0) >> 1)
+			maxInt := int64(maxIndex)
+			maxUint := uint64(^uint(0) >> 1)
+			var idx int
+			switch idxVal.Kind {
+			case VKInt:
+				if idxVal.Int < 0 || idxVal.Int > maxInt {
+					return Location{}, vm.eb.arrayIndexOutOfRange(maxIndex, len(obj.Arr))
+				}
+				ni, err := safecast.Conv[int](idxVal.Int)
+				if err != nil {
+					return Location{}, vm.eb.arrayIndexOutOfRange(maxIndex, len(obj.Arr))
+				}
+				idx = ni
+			case VKBigInt:
+				i, vmErr := vm.mustBigInt(idxVal)
+				if vmErr != nil {
+					return Location{}, vmErr
+				}
+				n, ok := i.Int64()
+				if !ok || n < 0 || n > maxInt {
+					return Location{}, vm.eb.arrayIndexOutOfRange(maxIndex, len(obj.Arr))
+				}
+				ni, err := safecast.Conv[int](n)
+				if err != nil {
+					return Location{}, vm.eb.arrayIndexOutOfRange(maxIndex, len(obj.Arr))
+				}
+				idx = ni
+			case VKBigUint:
+				u, vmErr := vm.mustBigUint(idxVal)
+				if vmErr != nil {
+					return Location{}, vmErr
+				}
+				n, ok := u.Uint64()
+				if !ok || n > maxUint {
+					return Location{}, vm.eb.arrayIndexOutOfRange(maxIndex, len(obj.Arr))
+				}
+				ni, err := safecast.Conv[int](n)
+				if err != nil {
+					return Location{}, vm.eb.arrayIndexOutOfRange(maxIndex, len(obj.Arr))
+				}
+				idx = ni
+			default:
 				return Location{}, vm.eb.typeMismatch("int", idxVal.Kind.String())
 			}
-			maxInt := int64(^uint(0) >> 1)
-			if idxVal.Int < 0 || idxVal.Int > maxInt {
-				return Location{}, vm.eb.arrayIndexOutOfRange(int(idxVal.Int), len(obj.Arr))
-			}
-			idx := int(idxVal.Int)
 			if idx < 0 || idx >= len(obj.Arr) {
 				return Location{}, vm.eb.arrayIndexOutOfRange(idx, len(obj.Arr))
 			}

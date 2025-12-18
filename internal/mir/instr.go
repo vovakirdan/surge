@@ -106,6 +106,10 @@ type Const struct {
 	Kind ConstKind
 	Type types.TypeID
 
+	// Text preserves raw literal text for numeric constants when available.
+	// For v1 VM, this is the source of truth for dynamic-sized numbers.
+	Text string
+
 	IntValue    int64
 	UintValue   uint64
 	FloatValue  float64

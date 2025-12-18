@@ -240,12 +240,16 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 		if resultTy == types.NoTypeID {
 			resultTy = data.TargetTy
 		}
+		targetTy := data.TargetTy
+		if targetTy == types.NoTypeID {
+			targetTy = resultTy
+		}
 		tmp := l.newTemp(resultTy, "cast", e.Span)
 		l.emit(&Instr{
 			Kind: InstrAssign,
 			Assign: AssignInstr{
 				Dst: Place{Local: tmp},
-				Src: RValue{Kind: RValueCast, Cast: CastOp{Value: value, TargetTy: data.TargetTy}},
+				Src: RValue{Kind: RValueCast, Cast: CastOp{Value: value, TargetTy: targetTy}},
 			},
 		})
 		return l.placeOperand(Place{Local: tmp}, resultTy, consume), nil
@@ -507,6 +511,7 @@ func (l *funcLowerer) lowerLiteral(ty types.TypeID, lit hir.LiteralData) Operand
 
 	switch lit.Kind {
 	case hir.LiteralInt:
+		out.Const.Text = lit.Text
 		isUint := false
 		if l.types != nil && ty != types.NoTypeID {
 			if tt, ok := l.types.Lookup(resolveAlias(l.types, ty)); ok && tt.Kind == types.KindUint {
@@ -527,6 +532,7 @@ func (l *funcLowerer) lowerLiteral(ty types.TypeID, lit hir.LiteralData) Operand
 			out.Const.IntValue = lit.IntValue
 		}
 	case hir.LiteralFloat:
+		out.Const.Text = lit.Text
 		out.Const.Kind = ConstFloat
 		out.Const.FloatValue = lit.FloatValue
 	case hir.LiteralBool:

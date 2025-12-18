@@ -154,8 +154,10 @@ func (b *surgeStartBuilder) build() error {
 			Kind: RValueUse,
 			Use: Operand{
 				Kind: OperandConst,
+				Type: b.intType(),
 				Const: Const{
 					Kind:     ConstInt,
+					Type:     b.intType(),
 					IntValue: 0,
 				},
 			},
@@ -183,8 +185,10 @@ func (b *surgeStartBuilder) build() error {
 				Kind: RValueUse,
 				Use: Operand{
 					Kind: OperandConst,
+					Type: b.intType(),
 					Const: Const{
 						Kind:     ConstInt,
+						Type:     b.intType(),
 						IntValue: 0,
 					},
 				},
@@ -390,8 +394,10 @@ func (b *surgeStartBuilder) emitIndex(dst, arr LocalID, idx int) {
 			Object: Operand{Kind: OperandCopy, Place: Place{Local: arr}},
 			Index: Operand{
 				Kind: OperandConst,
+				Type: b.intType(),
 				Const: Const{
 					Kind:     ConstInt,
+					Type:     b.intType(),
 					IntValue: int64(idx),
 				},
 			},
