@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"strings"
 
 	"surge/internal/mir"
 	"surge/internal/types"
@@ -9,13 +10,52 @@ import (
 
 // callIntrinsic handles runtime intrinsic calls (and selected extern calls not lowered into MIR).
 func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
-	name := call.Callee.Name
+	fullName := call.Callee.Name
+	name := fullName
+	if idx := strings.Index(fullName, "::<"); idx >= 0 {
+		name = fullName[:idx]
+	}
 
 	if handled, vmErr := vm.callTagConstructor(frame, call, writes); handled {
 		return vmErr
 	}
 
 	switch name {
+	case "size_of", "align_of":
+		if !call.HasDst {
+			return nil
+		}
+		if vm.Layout == nil {
+			return vm.eb.makeError(PanicUnimplemented, "no layout engine for size_of/align_of")
+		}
+		if vm.M == nil || vm.M.Meta == nil || len(vm.M.Meta.FuncTypeArgs) == 0 || !call.Callee.Sym.IsValid() {
+			return vm.eb.makeError(PanicUnimplemented, "missing type arguments for size_of/align_of")
+		}
+		typeArgs, ok := vm.M.Meta.FuncTypeArgs[call.Callee.Sym]
+		if !ok || len(typeArgs) != 1 || typeArgs[0] == types.NoTypeID {
+			return vm.eb.makeError(PanicUnimplemented, "invalid type arguments for size_of/align_of")
+		}
+		tArg := typeArgs[0]
+
+		n := 0
+		if name == "size_of" {
+			n = vm.Layout.SizeOf(tArg)
+		} else {
+			n = vm.Layout.AlignOf(tArg)
+		}
+
+		dstLocal := call.Dst.Local
+		dstType := frame.Locals[dstLocal].TypeID
+		val := MakeInt(int64(n), dstType)
+		if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+			return vmErr
+		}
+		*writes = append(*writes, LocalWrite{
+			LocalID: dstLocal,
+			Name:    frame.Locals[dstLocal].Name,
+			Value:   val,
+		})
+
 	case "rt_argv":
 		argv := vm.RT.Argv()
 		strTy := types.NoTypeID

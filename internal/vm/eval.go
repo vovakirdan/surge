@@ -36,6 +36,13 @@ func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
 		}
 		return vm.evalUnaryOp(rv.Unary.Op, operand)
 
+	case mir.RValueCast:
+		v, vmErr := vm.evalOperand(frame, &rv.Cast.Value)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		return vm.evalCast(v, rv.Cast.TargetTy)
+
 	case mir.RValueIndex:
 		obj, vmErr := vm.evalOperand(frame, &rv.Index.Object)
 		if vmErr != nil {
@@ -65,6 +72,78 @@ func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
 	default:
 		return Value{}, vm.eb.unimplemented(fmt.Sprintf("rvalue kind %d", rv.Kind))
 	}
+}
+
+func (vm *VM) evalCast(v Value, target types.TypeID) (Value, *VMError) {
+	if target == types.NoTypeID {
+		return v, nil
+	}
+
+	// Most numeric values in the v1 VM are represented as VKInt.
+	switch v.Kind {
+	case VKInt:
+		if vm.Types == nil {
+			v.TypeID = target
+			return v, nil
+		}
+		tt, ok := vm.Types.Lookup(vm.valueType(target))
+		if !ok {
+			v.TypeID = target
+			return v, nil
+		}
+		switch tt.Kind {
+		case types.KindBool:
+			return MakeBool(v.Int != 0, target), nil
+		case types.KindInt:
+			if tt.Width != types.WidthAny {
+				return MakeInt(castIntWidth(v.Int, int(tt.Width), true), target), nil
+			}
+			return MakeInt(v.Int, target), nil
+		case types.KindUint:
+			if tt.Width != types.WidthAny {
+				return MakeInt(castIntWidth(v.Int, int(tt.Width), false), target), nil
+			}
+			return MakeInt(v.Int, target), nil
+		default:
+			return Value{}, vm.eb.unimplemented("cast to non-numeric type")
+		}
+
+	case VKBool:
+		if vm.Types == nil {
+			return Value{}, vm.eb.unimplemented("cast without types")
+		}
+		tt, ok := vm.Types.Lookup(vm.valueType(target))
+		if !ok {
+			return Value{}, vm.eb.unimplemented("cast to unknown type")
+		}
+		switch tt.Kind {
+		case types.KindBool:
+			return MakeBool(v.Bool, target), nil
+		case types.KindInt, types.KindUint:
+			n := int64(0)
+			if v.Bool {
+				n = 1
+			}
+			return MakeInt(n, target), nil
+		default:
+			return Value{}, vm.eb.unimplemented("cast from bool to non-numeric type")
+		}
+
+	default:
+		return Value{}, vm.eb.unimplemented(fmt.Sprintf("cast from %s", v.Kind))
+	}
+}
+
+func castIntWidth(n int64, bits int, signed bool) int64 {
+	if bits <= 0 || bits >= 64 {
+		return n
+	}
+	if signed {
+		shift := 64 - bits
+		return (n << shift) >> shift
+	}
+	mask := ^(^int64(0) << bits)
+	return n & mask
 }
 
 // evalOperand evaluates an operand to a Value.

@@ -11,12 +11,15 @@ const (
 )
 
 type Location struct {
-	Kind  LocKind
-	Frame int
+	Frame int32
 
-	Local  int
-	Handle Handle
-	Index  int
+	Local int32
+	Index int32
+	// ByteOffset is the ABI byte offset of the projected location within its base object.
+	// It is used for layout-consistent addressing (even if the VM stores values differently).
+	ByteOffset int32
+	Handle     Handle
+	Kind       LocKind
 
 	IsMut bool
 }

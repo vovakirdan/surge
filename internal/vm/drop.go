@@ -34,7 +34,8 @@ func (vm *VM) dropFrameLocals(frame *Frame) {
 	if frame == nil || frame.Func == nil {
 		return
 	}
-	for id := range frame.Locals {
+	// Contract: implicit drops run in strictly reverse local order.
+	for id := len(frame.Locals) - 1; id >= 0; id-- {
 		slot := &frame.Locals[id]
 		if !slot.IsInit || slot.IsMoved {
 			continue
