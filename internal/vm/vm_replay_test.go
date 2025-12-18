@@ -10,14 +10,10 @@ import (
 )
 
 func TestVMRecordReplayArgv(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_replay", "vm_record_replay_argv.sg")
-
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint("argv")
+fn main(x: int) -> int { return x; }
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 
 	var recBuf bytes.Buffer
 	rec := vm.NewRecorder(&recBuf)
@@ -58,14 +54,10 @@ func TestVMRecordReplayArgv(t *testing.T) {
 }
 
 func TestVMRecordReplayStdin(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_replay", "vm_record_replay_stdin.sg")
-
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint("stdin")
+fn main(x: int) -> int { return x; }
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 
 	var recBuf bytes.Buffer
 	rec := vm.NewRecorder(&recBuf)
@@ -99,14 +91,10 @@ func TestVMRecordReplayStdin(t *testing.T) {
 // which is the constructor used by the CLI when processing the "--" separator.
 // This verifies that program args (after "--") are correctly recorded and replayed.
 func TestVMRecordReplayArgvSeparator(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_replay", "vm_record_replay_argv.sg")
-
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint("argv")
+fn main(x: int) -> int { return x; }
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 
 	// Record with programArgs = ["7"] (simulates: surge run file.sg -- 7)
 	var recBuf bytes.Buffer
@@ -140,14 +128,12 @@ func TestVMRecordReplayArgvSeparator(t *testing.T) {
 }
 
 func TestVMRecordReplayPanicDivByZero(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_replay", "vm_record_replay_panic_div_by_zero.sg")
-
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint
+fn main() -> int {
+    return 1 / 0;
+}
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 
 	var recBuf bytes.Buffer
 	rec := vm.NewRecorder(&recBuf)

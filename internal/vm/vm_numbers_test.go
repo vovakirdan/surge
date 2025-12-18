@@ -1,8 +1,6 @@
 package vm_test
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,14 +8,12 @@ import (
 )
 
 func TestVMNumbersDivByZeroPanics(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_numbers", "div_by_zero_panics.sg")
-
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint
+fn main() -> int {
+    return 1 / 0;
+}
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	_, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
 
@@ -32,7 +28,7 @@ func TestVMNumbersDivByZeroPanics(t *testing.T) {
 	if !strings.Contains(out, "panic VM3203") {
 		t.Fatalf("expected panic code in output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "testdata/golden/vm_numbers/div_by_zero_panics.sg:") {
+	if !strings.Contains(out, ".sg:") {
 		t.Fatalf("expected span with file path in output, got:\n%s", out)
 	}
 }

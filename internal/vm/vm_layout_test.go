@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"testing"
@@ -16,14 +15,49 @@ import (
 )
 
 func TestVMLayoutSizeAlignPrimitives(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_layout", "size_align_primitives.sg")
+	sourceCode := `@entrypoint
+fn main() -> int {
+    if (size_of::<bool>() != 1:uint) { return 1; }
+    if (align_of::<bool>() != 1:uint) { return 2; }
 
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
+    if (size_of::<int8>() != 1:uint) { return 10; }
+    if (align_of::<int8>() != 1:uint) { return 11; }
+    if (size_of::<int16>() != 2:uint) { return 12; }
+    if (align_of::<int16>() != 2:uint) { return 13; }
+    if (size_of::<int32>() != 4:uint) { return 14; }
+    if (align_of::<int32>() != 4:uint) { return 15; }
+    if (size_of::<int64>() != 8:uint) { return 16; }
+    if (align_of::<int64>() != 8:uint) { return 17; }
 
-	mirMod, files, types := compileToMIR(t, filePath)
+    if (size_of::<uint8>() != 1:uint) { return 20; }
+    if (align_of::<uint8>() != 1:uint) { return 21; }
+    if (size_of::<uint16>() != 2:uint) { return 22; }
+    if (align_of::<uint16>() != 2:uint) { return 23; }
+    if (size_of::<uint32>() != 4:uint) { return 24; }
+    if (align_of::<uint32>() != 4:uint) { return 25; }
+    if (size_of::<uint64>() != 8:uint) { return 26; }
+    if (align_of::<uint64>() != 8:uint) { return 27; }
+
+    // "int/uint/float" are dynamic-sized objects in the v1 ABI contract.
+    if (size_of::<int>() != 8:uint) { return 30; }
+    if (align_of::<int>() != 8:uint) { return 31; }
+    if (size_of::<uint>() != 8:uint) { return 32; }
+    if (align_of::<uint>() != 8:uint) { return 33; }
+    if (size_of::<float>() != 8:uint) { return 34; }
+    if (align_of::<float>() != 8:uint) { return 35; }
+
+    if (size_of::<float32>() != 4:uint) { return 40; }
+    if (align_of::<float32>() != 4:uint) { return 41; }
+    if (size_of::<float64>() != 8:uint) { return 42; }
+    if (align_of::<float64>() != 8:uint) { return 43; }
+
+    if (size_of::<*byte>() != 8:uint) { return 50; }
+    if (align_of::<*byte>() != 8:uint) { return 51; }
+
+    return 0;
+}
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
 	if vmErr != nil {
@@ -35,14 +69,37 @@ func TestVMLayoutSizeAlignPrimitives(t *testing.T) {
 }
 
 func TestVMLayoutSizeAlignStruct(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_layout", "size_align_struct.sg")
+	sourceCode := `fn align_up(x: uint, align: uint) -> uint {
+    return (x + align - 1:uint) / align * align;
+}
 
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
+type S = {
+    a: uint8,
+    b: uint64,
+    c: uint16,
+}
 
-	mirMod, files, types := compileToMIR(t, filePath)
+// Prefixes for deriving offsets using ABI size/align.
+type S0 = { a: uint8 }
+type S1 = { a: uint8, b: uint64 }
+
+@entrypoint
+fn main() -> int {
+    let size_s: uint = size_of::<S>();
+    let align_s: uint = align_of::<S>();
+
+    let off_b: uint = align_up(size_of::<S0>(), align_of::<uint64>());
+    let off_c: uint = align_up(size_of::<S1>(), align_of::<uint16>());
+
+    if (!(off_b == 8:uint)) { return 1; }
+    if (!(off_c == 16:uint)) { return 2; }
+    if (!(align_s == 8:uint)) { return 3; }
+    if (!(size_s == 24:uint)) { return 4; }
+
+    return 0;
+}
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
 	if vmErr != nil {
@@ -54,14 +111,38 @@ func TestVMLayoutSizeAlignStruct(t *testing.T) {
 }
 
 func TestVMLayoutSizeAlignArrayFixed(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_layout", "size_align_array_fixed.sg")
+	sourceCode := `fn align_up(x: uint, align: uint) -> uint {
+    return (x + align - 1:uint) / align * align;
+}
 
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
+type A = int32[3];
 
-	mirMod, files, types := compileToMIR(t, filePath)
+type S = {
+    x: uint8,
+    a: A,
+    y: uint16,
+}
+
+type S0 = { x: uint8 }
+type S1 = { x: uint8, a: A }
+
+@entrypoint
+fn main() -> int {
+    if (!(size_of::<A>() == 12:uint)) { return 1; }
+    if (!(align_of::<A>() == 4:uint)) { return 2; }
+
+    let off_a: uint = align_up(size_of::<S0>(), align_of::<A>());
+    let off_y: uint = align_up(size_of::<S1>(), align_of::<uint16>());
+    if (!(off_a == 4:uint)) { return 3; }
+    if (!(off_y == 16:uint)) { return 4; }
+
+    if (!(align_of::<S>() == 4:uint)) { return 5; }
+    if (!(size_of::<S>() == 20:uint)) { return 6; }
+
+    return 0;
+}
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
 	if vmErr != nil {
@@ -73,14 +154,23 @@ func TestVMLayoutSizeAlignArrayFixed(t *testing.T) {
 }
 
 func TestVMLayoutPackedStruct(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_layout", "layout_packed_struct.sg")
+	sourceCode := `@packed
+type S = {
+    a: uint8,
+    b: uint64,
+}
 
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
+@entrypoint
+fn main() -> int {
+    let size_s: uint = size_of::<S>();
+    let align_s: uint = align_of::<S>();
 
-	mirMod, files, types := compileToMIR(t, filePath)
+    if (!(size_s == 9:uint)) { return 1; }
+    if (!(align_s == 1:uint)) { return 2; }
+    return 0;
+}
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
 	if vmErr != nil {
@@ -92,14 +182,23 @@ func TestVMLayoutPackedStruct(t *testing.T) {
 }
 
 func TestVMLayoutAlignType(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_layout", "layout_align_type.sg")
+	sourceCode := `@align(16)
+type S = {
+    a: uint8,
+    b: uint64,
+}
 
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
+@entrypoint
+fn main() -> int {
+    let size_s: uint = size_of::<S>();
+    let align_s: uint = align_of::<S>();
 
-	mirMod, files, types := compileToMIR(t, filePath)
+    if (!(align_s == 16:uint)) { return 1; }
+    if (!(((size_s / 16:uint) * 16:uint) == size_s)) { return 2; }
+    return 0;
+}
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
 	if vmErr != nil {
@@ -111,14 +210,23 @@ func TestVMLayoutAlignType(t *testing.T) {
 }
 
 func TestVMLayoutAlignField(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_layout", "layout_align_field.sg")
+	sourceCode := `type S = {
+    a: uint8,
+    @align(8)
+    b: uint8,
+}
 
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
+@entrypoint
+fn main() -> int {
+    let size_s: uint = size_of::<S>();
+    let align_s: uint = align_of::<S>();
 
-	mirMod, files, types := compileToMIR(t, filePath)
+    if (!(align_s == 8:uint)) { return 1; }
+    if (!(size_s == 16:uint)) { return 2; }
+    return 0;
+}
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
 	if vmErr != nil {
@@ -130,17 +238,43 @@ func TestVMLayoutAlignField(t *testing.T) {
 }
 
 func TestVMLayoutAlignFieldOffset(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_layout", "layout_align_field.sg")
+	sourceCode := `type S = {
+    a: uint8,
+    @align(8)
+    b: uint8,
+}
 
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
+@entrypoint
+fn main() -> int {
+    let size_s: uint = size_of::<S>();
+    let align_s: uint = align_of::<S>();
+
+    if (!(align_s == 8:uint)) { return 1; }
+    if (!(size_s == 16:uint)) { return 2; }
+    return 0;
+}
+`
+	var err error
+	var tmpFile *os.File
+	// Create temp file for driver.DiagnoseWithOptions
+	tmpFile, err = os.CreateTemp("", "test_*.sg")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
+	defer os.Remove(tmpFile.Name())
+
+	if _, err = tmpFile.WriteString(sourceCode); err != nil {
+		tmpFile.Close()
+		t.Fatalf("failed to write source code: %v", err)
+	}
+	if err = tmpFile.Close(); err != nil {
+		t.Fatalf("failed to close temp file: %v", err)
+	}
 
 	opts := driver.DiagnoseOptions{
 		Stage: driver.DiagnoseStageSema,
 	}
-	result, err := driver.DiagnoseWithOptions(context.Background(), filePath, opts)
+	result, err := driver.DiagnoseWithOptions(context.Background(), tmpFile.Name(), opts)
 	if err != nil {
 		t.Fatalf("compilation failed: %v", err)
 	}
@@ -171,14 +305,14 @@ func TestVMLayoutAlignFieldOffset(t *testing.T) {
 }
 
 func TestVMDropOrderReverseLocals(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_layout", "drop_order_reverse_locals.sg")
-
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, types := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint
+fn main() -> int {
+    let a: string = "a";
+    let b: string = "b";
+    return 0;
+}
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 
 	var traceBuf bytes.Buffer
 	tracer := vm.NewTracer(&traceBuf, files)

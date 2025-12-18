@@ -1,8 +1,6 @@
 package vm_test
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,14 +9,9 @@ import (
 )
 
 func TestVMHeapArgvRoundtrip(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_heap", "vm_argv_roundtrip.sg")
-
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint("argv") fn main(x: int) -> int { return x; }
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime([]string{"7"}, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
 
@@ -31,14 +24,13 @@ func TestVMHeapArgvRoundtrip(t *testing.T) {
 }
 
 func TestVMHeapStringLiteralNoLeaks(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_heap", "vm_string_literal.sg")
-
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint
+fn main() -> int {
+    let s: string = "x";
+    return 0;
+}
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
 
@@ -51,14 +43,22 @@ func TestVMHeapStringLiteralNoLeaks(t *testing.T) {
 }
 
 func TestVMHeapStructLitAndTo(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_heap", "vm_struct_lit_and_to.sg")
+	sourceCode := `type MyExitCode = {
+    code: int,
+}
 
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
+extern<MyExitCode> {
+    fn __to(self: MyExitCode, _target: int) -> int {
+        return self.code;
+    }
+}
 
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+@entrypoint
+fn main() -> MyExitCode {
+    return MyExitCode { code = 42 };
+}
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
 
@@ -71,14 +71,14 @@ func TestVMHeapStructLitAndTo(t *testing.T) {
 }
 
 func TestVMHeapOOBPanics(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_heap", "vm_oob_panics.sg")
-
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint
+fn main() -> int {
+    let argv: string[] = rt_argv();
+    let s: string = argv[0];
+    return 0;
+}
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	_, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
 
@@ -93,7 +93,7 @@ func TestVMHeapOOBPanics(t *testing.T) {
 	if !strings.Contains(out, "panic VM1004") {
 		t.Fatalf("expected panic code in output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "testdata/golden/vm_heap/vm_oob_panics.sg:") {
+	if !strings.Contains(out, ".sg:") {
 		t.Fatalf("expected span with file path in output, got:\n%s", out)
 	}
 	if !strings.Contains(out, "backtrace:") || !strings.Contains(out, "main") {
@@ -102,14 +102,12 @@ func TestVMHeapOOBPanics(t *testing.T) {
 }
 
 func TestVMHeapDivByZeroPanics(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_heap", "vm_div_by_zero_panics.sg")
-
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint
+fn main() -> int {
+    return 1 / 0;
+}
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	_, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
 
@@ -124,7 +122,7 @@ func TestVMHeapDivByZeroPanics(t *testing.T) {
 	if !strings.Contains(out, "panic VM3203") {
 		t.Fatalf("expected panic code in output, got:\n%s", out)
 	}
-	if !strings.Contains(out, "testdata/golden/vm_heap/vm_div_by_zero_panics.sg:") {
+	if !strings.Contains(out, ".sg:") {
 		t.Fatalf("expected span with file path in output, got:\n%s", out)
 	}
 }
