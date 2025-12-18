@@ -91,7 +91,7 @@ func (e *LayoutEngine) computeLayout(id types.TypeID) TypeLayout {
 			// Dynamic Array<T> is a handle in the v1 VM/ABI contract.
 			return e.ptrLayout()
 		}
-		return e.structLayout(id)
+		return e.structLayoutWithAttrs(id)
 
 	case types.KindTuple:
 		return e.tupleLayout(id)
@@ -174,22 +174,48 @@ func (e *LayoutEngine) arrayFixedLayout(elem types.TypeID, length uint32) TypeLa
 	}
 }
 
-func (e *LayoutEngine) structLayout(id types.TypeID) TypeLayout {
+func (e *LayoutEngine) structLayoutWithAttrs(id types.TypeID) TypeLayout {
 	if e == nil || e.Types == nil {
 		return TypeLayout{Size: 0, Align: 1}
 	}
-	fields := e.Types.StructFields(id)
-	if len(fields) == 0 {
+
+	attrs, _ := e.Types.TypeLayoutAttrs(id)
+	if attrs.Packed && attrs.AlignOverride != nil {
+		panic("invalid layout attrs: @packed conflicts with @align")
+	}
+
+	info, ok := e.Types.StructInfo(id)
+	if !ok || info == nil || len(info.Fields) == 0 {
 		return TypeLayout{Size: 0, Align: 1}
 	}
+	fields := info.Fields
 	offsets := make([]int, len(fields))
 	aligns := make([]int, len(fields))
+
+	if attrs.Packed {
+		size := 0
+		for i := range fields {
+			fl := e.LayoutOf(fields[i].Type)
+			offsets[i] = size
+			aligns[i] = 1
+			size += fl.Size
+		}
+		return TypeLayout{
+			Size:         size,
+			Align:        1,
+			FieldOffsets: offsets,
+			FieldAligns:  aligns,
+		}
+	}
 
 	size := 0
 	align := 1
 	for i := range fields {
 		fl := e.LayoutOf(fields[i].Type)
 		fAlign := fl.Align
+		if fields[i].Layout.AlignOverride != nil {
+			fAlign = maxInt(fAlign, *fields[i].Layout.AlignOverride)
+		}
 		if fAlign <= 0 {
 			fAlign = 1
 		}
@@ -200,6 +226,11 @@ func (e *LayoutEngine) structLayout(id types.TypeID) TypeLayout {
 		align = maxInt(align, fAlign)
 	}
 	size = roundUp(size, align)
+
+	if attrs.AlignOverride != nil {
+		align = maxInt(align, *attrs.AlignOverride)
+		size = roundUp(size, align)
+	}
 	return TypeLayout{
 		Size:         size,
 		Align:        align,

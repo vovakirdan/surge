@@ -1,6 +1,10 @@
 package layout
 
-import "surge/internal/types"
+import (
+	"fortio.org/safecast"
+
+	"surge/internal/types"
+)
 
 // TypeLayout is the ABI layout of a type for a specific Target.
 type TypeLayout struct {
@@ -40,11 +44,12 @@ func (e *LayoutEngine) LayoutOf(t types.TypeID) TypeLayout {
 		e.cache = newCache()
 	}
 	canon := canonicalType(e.Types, t)
-	if cached, ok := e.cache.get(canon); ok {
+	key := cacheKey{Type: canon, Attrs: e.attrsFingerprint(canon)}
+	if cached, ok := e.cache.get(key); ok {
 		return cached
 	}
 	layout := e.computeLayout(canon)
-	e.cache.put(canon, &layout)
+	e.cache.put(key, &layout)
 	return layout
 }
 
@@ -62,4 +67,64 @@ func (e *LayoutEngine) FieldOffset(structT types.TypeID, fieldIdx int) int {
 		return 0
 	}
 	return l.FieldOffsets[fieldIdx]
+}
+
+func (e *LayoutEngine) attrsFingerprint(id types.TypeID) uint64 {
+	if e == nil || e.Types == nil || id == types.NoTypeID {
+		return 0
+	}
+
+	const (
+		fnvOffset64 = 1469598103934665603
+		fnvPrime64  = 1099511628211
+	)
+
+	hash := uint64(fnvOffset64)
+	mix := func(x uint64) {
+		hash ^= x
+		hash *= fnvPrime64
+	}
+
+	attrs, ok := e.Types.TypeLayoutAttrs(id)
+	if ok {
+		if attrs.Packed {
+			mix(1)
+		} else {
+			mix(0)
+		}
+		if attrs.AlignOverride != nil {
+			if n, err := safecast.Conv[uint64](*attrs.AlignOverride); err == nil {
+				mix(n)
+			} else {
+				mix(0)
+			}
+		} else {
+			mix(0)
+		}
+	}
+
+	tt, ok := e.Types.Lookup(id)
+	if !ok {
+		return hash
+	}
+	if tt.Kind != types.KindStruct {
+		return hash
+	}
+	info, ok := e.Types.StructInfo(id)
+	if !ok || info == nil || len(info.Fields) == 0 {
+		return hash
+	}
+	mix(uint64(len(info.Fields)))
+	for _, f := range info.Fields {
+		if f.Layout.AlignOverride != nil {
+			if n, err := safecast.Conv[uint64](*f.Layout.AlignOverride); err == nil {
+				mix(n)
+			} else {
+				mix(0)
+			}
+		} else {
+			mix(0)
+		}
+	}
+	return hash
 }

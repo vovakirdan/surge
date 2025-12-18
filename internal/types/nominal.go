@@ -11,9 +11,10 @@ import (
 
 // StructField describes a single field inside a nominal struct type.
 type StructField struct {
-	Name  source.StringID
-	Type  TypeID
-	Attrs []source.StringID
+	Name   source.StringID
+	Type   TypeID
+	Attrs  []source.StringID
+	Layout FieldLayoutAttrs
 }
 
 // StructInfo stores metadata for a struct type.

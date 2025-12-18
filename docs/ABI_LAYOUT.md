@@ -39,6 +39,30 @@ Given fields in declaration order:
 2. Struct alignment is `max(field aligns)`.
 3. Struct size is rounded up to struct alignment.
 
+### Layout attributes
+
+The v1 ABI layout respects only the following layout-affecting attributes:
+
+- `@packed` (type)
+- `@align(N)` (type, field)
+
+#### `@packed` on a struct type
+
+- Field offsets are sequential, with **no rounding** to field alignment.
+- Struct alignment is `1`.
+- Struct size is `sum(size(field_i))` with **no tail padding**.
+
+#### `@align(N)` on a type
+
+- `align(type) = max(naturalAlign, N)`
+- `size(type) = roundUp(size(type), align(type))`
+
+#### `@align(N)` on a field
+
+- `fieldAlign = max(naturalAlign(fieldType), N)`
+- `fieldOffset = roundUp(prevOffset, fieldAlign)`
+- Struct alignment is `max(fieldAligns)`
+
 ## Fixed arrays (`ArrayFixed<T, N>` / `T[N]`)
 
 - `align = align(T)`
@@ -55,4 +79,3 @@ For `union` layout queries:
 - Payload alignment: `max(align(payload_i))`
 - Union alignment: `max(tagAlign, payloadAlign)`
 - Union size: `roundUp(payloadOffset + maxPayloadSize, unionAlign)`
-

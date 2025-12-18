@@ -1,0 +1,15 @@
+type S = {
+    a: uint8,
+    @align(8)b: uint8,
+}
+
+@entrypoint
+fn main() -> int {
+    let size_s: uint = size_of::<S>();
+    let align_s: uint = align_of::<S>();
+
+    if (!(align_s == 8:uint)) { return 1; }
+    if (!(size_s == 16:uint)) { return 2; }
+    return 0;
+}
+

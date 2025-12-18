@@ -2,29 +2,34 @@ package layout
 
 import "surge/internal/types"
 
+type cacheKey struct {
+	Type  types.TypeID
+	Attrs uint64
+}
+
 type cache struct {
-	byType map[types.TypeID]TypeLayout
+	byType map[cacheKey]TypeLayout
 }
 
 func newCache() *cache {
-	return &cache{byType: make(map[types.TypeID]TypeLayout, 256)}
+	return &cache{byType: make(map[cacheKey]TypeLayout, 256)}
 }
 
-func (c *cache) get(id types.TypeID) (TypeLayout, bool) {
+func (c *cache) get(key cacheKey) (TypeLayout, bool) {
 	if c == nil {
 		return TypeLayout{}, false
 	}
-	l, ok := c.byType[id]
+	l, ok := c.byType[key]
 	return l, ok
 }
 
-func (c *cache) put(id types.TypeID, l *TypeLayout) {
+func (c *cache) put(key cacheKey, l *TypeLayout) {
 	if c == nil {
 		return
 	}
 	if l == nil {
-		delete(c.byType, id)
+		delete(c.byType, key)
 		return
 	}
-	c.byType[id] = *l
+	c.byType[key] = *l
 }

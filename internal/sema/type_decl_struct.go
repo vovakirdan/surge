@@ -139,11 +139,13 @@ func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.S
 				continue
 			}
 			fieldType := tc.resolveTypeExprWithScope(field.Type, scope)
+			infos := tc.collectAttrs(field.AttrStart, field.AttrCount)
 			attrs := tc.attrNames(field.AttrStart, field.AttrCount)
 			fields = append(fields, types.StructField{
-				Name:  field.Name,
-				Type:  fieldType,
-				Attrs: attrs,
+				Name:   field.Name,
+				Type:   fieldType,
+				Attrs:  attrs,
+				Layout: tc.fieldLayoutAttrsFromInfos(infos),
 			})
 		}
 	}
@@ -152,6 +154,11 @@ func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.S
 		tc.structBases[typeID] = base
 	}
 	tc.types.SetStructFields(typeID, fields)
+	if sym := tc.symbolFromID(symID); sym != nil && sym.Type != types.NoTypeID {
+		if attrs, ok := tc.types.TypeLayoutAttrs(sym.Type); ok {
+			tc.types.SetTypeLayoutAttrs(typeID, attrs)
+		}
+	}
 	return typeID
 }
 
@@ -196,10 +203,12 @@ func (tc *typeChecker) resolveOwnStructFields(structDecl *ast.TypeStructDecl, sc
 			continue
 		}
 		fieldType := tc.resolveTypeExprWithScope(field.Type, scope)
+		infos := tc.collectAttrs(field.AttrStart, field.AttrCount)
 		fields = append(fields, types.StructField{
-			Name:  field.Name,
-			Type:  fieldType,
-			Attrs: tc.attrNames(field.AttrStart, field.AttrCount),
+			Name:   field.Name,
+			Type:   fieldType,
+			Attrs:  tc.attrNames(field.AttrStart, field.AttrCount),
+			Layout: tc.fieldLayoutAttrsFromInfos(infos),
 		})
 	}
 	return fields
@@ -241,9 +250,10 @@ func (tc *typeChecker) instantiateField(f types.StructField, owner symbols.Symbo
 	}
 	typ := tc.substituteTypeParamByName(f.Type, bindings)
 	return types.StructField{
-		Name:  f.Name,
-		Type:  typ,
-		Attrs: f.Attrs,
+		Name:   f.Name,
+		Type:   typ,
+		Attrs:  f.Attrs,
+		Layout: f.Layout,
 	}
 }
 

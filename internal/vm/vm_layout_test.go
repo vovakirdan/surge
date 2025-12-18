@@ -2,12 +2,16 @@ package vm_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"testing"
 
+	"surge/internal/driver"
+	"surge/internal/layout"
+	"surge/internal/symbols"
 	"surge/internal/vm"
 )
 
@@ -65,6 +69,104 @@ func TestVMLayoutSizeAlignArrayFixed(t *testing.T) {
 	}
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+}
+
+func TestVMLayoutPackedStruct(t *testing.T) {
+	filePath := filepath.Join("testdata", "golden", "vm_layout", "layout_packed_struct.sg")
+
+	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+	defer os.Chdir(filepath.Join("internal", "vm"))
+
+	mirMod, files, types := compileToMIR(t, filePath)
+	rt := vm.NewTestRuntime(nil, "")
+	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
+	if vmErr != nil {
+		t.Fatalf("unexpected error: %v", vmErr.Error())
+	}
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+}
+
+func TestVMLayoutAlignType(t *testing.T) {
+	filePath := filepath.Join("testdata", "golden", "vm_layout", "layout_align_type.sg")
+
+	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+	defer os.Chdir(filepath.Join("internal", "vm"))
+
+	mirMod, files, types := compileToMIR(t, filePath)
+	rt := vm.NewTestRuntime(nil, "")
+	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
+	if vmErr != nil {
+		t.Fatalf("unexpected error: %v", vmErr.Error())
+	}
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+}
+
+func TestVMLayoutAlignField(t *testing.T) {
+	filePath := filepath.Join("testdata", "golden", "vm_layout", "layout_align_field.sg")
+
+	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+	defer os.Chdir(filepath.Join("internal", "vm"))
+
+	mirMod, files, types := compileToMIR(t, filePath)
+	rt := vm.NewTestRuntime(nil, "")
+	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
+	if vmErr != nil {
+		t.Fatalf("unexpected error: %v", vmErr.Error())
+	}
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+}
+
+func TestVMLayoutAlignFieldOffset(t *testing.T) {
+	filePath := filepath.Join("testdata", "golden", "vm_layout", "layout_align_field.sg")
+
+	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+	defer os.Chdir(filepath.Join("internal", "vm"))
+
+	opts := driver.DiagnoseOptions{
+		Stage: driver.DiagnoseStageSema,
+	}
+	result, err := driver.DiagnoseWithOptions(context.Background(), filePath, opts)
+	if err != nil {
+		t.Fatalf("compilation failed: %v", err)
+	}
+	if result.Bag.HasErrors() {
+		t.Fatalf("compilation errors: %v", result.Bag.Items())
+	}
+	if result.Sema == nil || result.Symbols == nil {
+		t.Fatal("missing sema/symbols result")
+	}
+
+	nameID := result.Symbols.Table.Strings.Intern("S")
+	resolver := symbols.NewResolver(result.Symbols.Table, result.Symbols.FileScope, symbols.ResolverOptions{
+		CurrentFile: result.FileID,
+	})
+	symID, ok := resolver.LookupOne(nameID, symbols.SymbolType.Mask())
+	if !ok {
+		t.Fatal("type symbol S not found")
+	}
+	sym := result.Symbols.Table.Symbols.Get(symID)
+	if sym == nil {
+		t.Fatal("invalid symbol for S")
+	}
+
+	le := layout.New(layout.X86_64LinuxGNU(), result.Sema.TypeInterner)
+	if got := le.FieldOffset(sym.Type, 1); got != 8 {
+		t.Fatalf("expected field offset 8, got %d", got)
 	}
 }
 
