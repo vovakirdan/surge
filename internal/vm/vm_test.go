@@ -170,6 +170,35 @@ func TestVMEntrypointStdinInt(t *testing.T) {
 	}
 }
 
+// TestVMEmptyArgvBoundsCheck verifies that accessing argv[0] when no "--" args
+// are provided causes a bounds panic. This tests the behavior of:
+//
+//	surge run file.sg   (no "--")
+//
+// where rt_argv returns empty [] and indexing panics.
+func TestVMEmptyArgvBoundsCheck(t *testing.T) {
+	// Use the argv_int test file which expects an argument
+	filePath := filepath.Join("testdata", "golden", "vm", "vm_entrypoint_argv_int.sg")
+
+	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+	defer os.Chdir(filepath.Join("internal", "vm"))
+
+	mirMod, files, types := compileToMIR(t, filePath)
+	// Empty argv - simulates running without "--" separator
+	rt := vm.NewRuntimeWithArgs(nil)
+	_, vmErr := runVM(mirMod, rt, files, types, nil)
+
+	if vmErr == nil {
+		t.Fatal("expected panic with empty argv, got nil")
+	}
+	// Should panic with out of bounds
+	if vmErr.Code != vm.PanicOutOfBounds {
+		t.Fatalf("expected PanicOutOfBounds (VM1004), got %v", vmErr.Code)
+	}
+}
+
 func TestVMTraceSmokeTest(t *testing.T) {
 	filePath := filepath.Join("testdata", "golden", "vm", "vm_trace_smoke.sg")
 

@@ -95,6 +95,50 @@ func TestVMRecordReplayStdin(t *testing.T) {
 	}
 }
 
+// TestVMRecordReplayArgvSeparator tests record/replay with NewRuntimeWithArgs,
+// which is the constructor used by the CLI when processing the "--" separator.
+// This verifies that program args (after "--") are correctly recorded and replayed.
+func TestVMRecordReplayArgvSeparator(t *testing.T) {
+	filePath := filepath.Join("testdata", "golden", "vm_replay", "vm_record_replay_argv.sg")
+
+	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+	defer os.Chdir(filepath.Join("internal", "vm"))
+
+	mirMod, files, typesInterner := compileToMIR(t, filePath)
+
+	// Record with programArgs = ["7"] (simulates: surge run file.sg -- 7)
+	var recBuf bytes.Buffer
+	rec := vm.NewRecorder(&recBuf)
+	rt := vm.NewRecordingRuntime(vm.NewRuntimeWithArgs([]string{"7"}), rec)
+
+	vm1 := vm.New(mirMod, rt, files, typesInterner, nil)
+	vm1.Recorder = rec
+	if vmErr := vm1.Run(); vmErr != nil {
+		t.Fatalf("unexpected error: %v", vmErr.Error())
+	}
+	if vm1.ExitCode != 7 {
+		t.Fatalf("expected exit code 7, got %d", vm1.ExitCode)
+	}
+
+	// Replay with different args = ["999"] (simulates: surge run --vm-replay file.sg -- 999)
+	// Should still get exit code 7 because replay uses recorded argv
+	rp := vm.NewReplayerFromBytes(recBuf.Bytes())
+	vm2 := vm.New(mirMod, vm.NewRuntimeWithArgs([]string{"999"}), files, typesInterner, nil)
+	vm2.Replayer = rp
+	vm2.RT = vm.NewReplayRuntime(vm2, rp)
+	if vmErr := vm2.Run(); vmErr != nil {
+		t.Fatalf("unexpected replay error: %v", vmErr.Error())
+	}
+	if vm2.ExitCode != 7 {
+		t.Fatalf("expected exit code 7 (from recorded args), got %d", vm2.ExitCode)
+	}
+	if rp.Remaining() != 0 {
+		t.Fatalf("expected replay log fully consumed, remaining=%d", rp.Remaining())
+	}
+}
+
 func TestVMRecordReplayPanicOverflow(t *testing.T) {
 	filePath := filepath.Join("testdata", "golden", "vm_replay", "vm_record_replay_panic_overflow.sg")
 

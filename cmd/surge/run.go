@@ -15,11 +15,12 @@ import (
 )
 
 var runCmd = &cobra.Command{
-	Use:   "run [flags] <file.sg>",
+	Use:   "run [flags] <file.sg> [-- <program-args>...]",
 	Short: "Compile and execute a Surge program",
-	Long:  `Compile a Surge source file to MIR and execute it using the VM backend`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  runExecution,
+	Long: `Compile a Surge source file to MIR and execute it using the VM backend.
+Arguments after "--" are passed to the program via rt_argv().`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: runExecution,
 }
 
 func init() {
@@ -35,6 +36,7 @@ func init() {
 
 func runExecution(cmd *cobra.Command, args []string) error {
 	filePath := args[0]
+	programArgs := args[1:] // Arguments after "--" are passed by cobra in args[1:]
 
 	// Get flags
 	backend, err := cmd.Flags().GetString("backend")
@@ -147,7 +149,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create VM
-	var rt vm.Runtime = vm.NewDefaultRuntime()
+	var rt vm.Runtime = vm.NewRuntimeWithArgs(programArgs)
 	var recordBuf bytes.Buffer
 	var recorder *vm.Recorder
 	if vmRecordPath != "" {
