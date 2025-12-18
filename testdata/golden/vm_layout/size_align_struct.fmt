@@ -1,0 +1,29 @@
+fn align_up(x: uint, align: uint) -> uint {
+    return (x + align - 1:uint) / align * align;
+}
+
+type S = {
+    a: uint8,
+    b: uint64,
+    c: uint16,
+}
+
+// Prefixes for deriving offsets using ABI size/align.
+type S0 = { a: uint8 }
+type S1 = { a: uint8, b: uint64 }
+
+@entrypoint
+fn main() -> int {
+    let size_s: uint = size_of::<S>();
+    let align_s: uint = align_of::<S>();
+
+    let off_b: uint = align_up(size_of::<S0>(), align_of::<uint64>());
+    let off_c: uint = align_up(size_of::<S1>(), align_of::<uint16>());
+
+    if (!(off_b == 8:uint)) { return 1; }
+    if (!(off_c == 16:uint)) { return 2; }
+    if (!(align_s == 8:uint)) { return 3; }
+    if (!(size_s == 24:uint)) { return 4; }
+
+    return 0;
+}

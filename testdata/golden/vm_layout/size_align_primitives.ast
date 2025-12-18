@@ -1,0 +1,219 @@
+size_align_primitives.sg (span: 1:1-42:1)
+└─ Item[0]: Fn (span: 1:1-41:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-41:2)
+         ├─ Stmt[0]: If (span: 3:5-3:51)
+         │  ├─ Cond: expr#5: (size_of() != (1 to uint))
+         │  ├─ Then:
+Block (span: 3:38-3:51)
+         │  │  └─ Stmt[0]: Return (span: 3:40-3:49)
+         │  │     └─ Expr: expr#6: 1
+         │  └─ Else: <none>
+         ├─ Stmt[1]: If (span: 4:5-4:52)
+         │  ├─ Cond: expr#11: (align_of() != (1 to uint))
+         │  ├─ Then:
+Block (span: 4:39-4:52)
+         │  │  └─ Stmt[0]: Return (span: 4:41-4:50)
+         │  │     └─ Expr: expr#12: 2
+         │  └─ Else: <none>
+         ├─ Stmt[2]: If (span: 6:5-6:52)
+         │  ├─ Cond: expr#17: (size_of() != (1 to uint))
+         │  ├─ Then:
+Block (span: 6:38-6:52)
+         │  │  └─ Stmt[0]: Return (span: 6:40-6:50)
+         │  │     └─ Expr: expr#18: 10
+         │  └─ Else: <none>
+         ├─ Stmt[3]: If (span: 7:5-7:53)
+         │  ├─ Cond: expr#23: (align_of() != (1 to uint))
+         │  ├─ Then:
+Block (span: 7:39-7:53)
+         │  │  └─ Stmt[0]: Return (span: 7:41-7:51)
+         │  │     └─ Expr: expr#24: 11
+         │  └─ Else: <none>
+         ├─ Stmt[4]: If (span: 8:5-8:53)
+         │  ├─ Cond: expr#29: (size_of() != (2 to uint))
+         │  ├─ Then:
+Block (span: 8:39-8:53)
+         │  │  └─ Stmt[0]: Return (span: 8:41-8:51)
+         │  │     └─ Expr: expr#30: 12
+         │  └─ Else: <none>
+         ├─ Stmt[5]: If (span: 9:5-9:54)
+         │  ├─ Cond: expr#35: (align_of() != (2 to uint))
+         │  ├─ Then:
+Block (span: 9:40-9:54)
+         │  │  └─ Stmt[0]: Return (span: 9:42-9:52)
+         │  │     └─ Expr: expr#36: 13
+         │  └─ Else: <none>
+         ├─ Stmt[6]: If (span: 10:5-10:53)
+         │  ├─ Cond: expr#41: (size_of() != (4 to uint))
+         │  ├─ Then:
+Block (span: 10:39-10:53)
+         │  │  └─ Stmt[0]: Return (span: 10:41-10:51)
+         │  │     └─ Expr: expr#42: 14
+         │  └─ Else: <none>
+         ├─ Stmt[7]: If (span: 11:5-11:54)
+         │  ├─ Cond: expr#47: (align_of() != (4 to uint))
+         │  ├─ Then:
+Block (span: 11:40-11:54)
+         │  │  └─ Stmt[0]: Return (span: 11:42-11:52)
+         │  │     └─ Expr: expr#48: 15
+         │  └─ Else: <none>
+         ├─ Stmt[8]: If (span: 12:5-12:53)
+         │  ├─ Cond: expr#53: (size_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 12:39-12:53)
+         │  │  └─ Stmt[0]: Return (span: 12:41-12:51)
+         │  │     └─ Expr: expr#54: 16
+         │  └─ Else: <none>
+         ├─ Stmt[9]: If (span: 13:5-13:54)
+         │  ├─ Cond: expr#59: (align_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 13:40-13:54)
+         │  │  └─ Stmt[0]: Return (span: 13:42-13:52)
+         │  │     └─ Expr: expr#60: 17
+         │  └─ Else: <none>
+         ├─ Stmt[10]: If (span: 15:5-15:53)
+         │  ├─ Cond: expr#65: (size_of() != (1 to uint))
+         │  ├─ Then:
+Block (span: 15:39-15:53)
+         │  │  └─ Stmt[0]: Return (span: 15:41-15:51)
+         │  │     └─ Expr: expr#66: 20
+         │  └─ Else: <none>
+         ├─ Stmt[11]: If (span: 16:5-16:54)
+         │  ├─ Cond: expr#71: (align_of() != (1 to uint))
+         │  ├─ Then:
+Block (span: 16:40-16:54)
+         │  │  └─ Stmt[0]: Return (span: 16:42-16:52)
+         │  │     └─ Expr: expr#72: 21
+         │  └─ Else: <none>
+         ├─ Stmt[12]: If (span: 17:5-17:54)
+         │  ├─ Cond: expr#77: (size_of() != (2 to uint))
+         │  ├─ Then:
+Block (span: 17:40-17:54)
+         │  │  └─ Stmt[0]: Return (span: 17:42-17:52)
+         │  │     └─ Expr: expr#78: 22
+         │  └─ Else: <none>
+         ├─ Stmt[13]: If (span: 18:5-18:55)
+         │  ├─ Cond: expr#83: (align_of() != (2 to uint))
+         │  ├─ Then:
+Block (span: 18:41-18:55)
+         │  │  └─ Stmt[0]: Return (span: 18:43-18:53)
+         │  │     └─ Expr: expr#84: 23
+         │  └─ Else: <none>
+         ├─ Stmt[14]: If (span: 19:5-19:54)
+         │  ├─ Cond: expr#89: (size_of() != (4 to uint))
+         │  ├─ Then:
+Block (span: 19:40-19:54)
+         │  │  └─ Stmt[0]: Return (span: 19:42-19:52)
+         │  │     └─ Expr: expr#90: 24
+         │  └─ Else: <none>
+         ├─ Stmt[15]: If (span: 20:5-20:55)
+         │  ├─ Cond: expr#95: (align_of() != (4 to uint))
+         │  ├─ Then:
+Block (span: 20:41-20:55)
+         │  │  └─ Stmt[0]: Return (span: 20:43-20:53)
+         │  │     └─ Expr: expr#96: 25
+         │  └─ Else: <none>
+         ├─ Stmt[16]: If (span: 21:5-21:54)
+         │  ├─ Cond: expr#101: (size_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 21:40-21:54)
+         │  │  └─ Stmt[0]: Return (span: 21:42-21:52)
+         │  │     └─ Expr: expr#102: 26
+         │  └─ Else: <none>
+         ├─ Stmt[17]: If (span: 22:5-22:55)
+         │  ├─ Cond: expr#107: (align_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 22:41-22:55)
+         │  │  └─ Stmt[0]: Return (span: 22:43-22:53)
+         │  │     └─ Expr: expr#108: 27
+         │  └─ Else: <none>
+         ├─ Stmt[18]: If (span: 25:5-25:51)
+         │  ├─ Cond: expr#113: (size_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 25:37-25:51)
+         │  │  └─ Stmt[0]: Return (span: 25:39-25:49)
+         │  │     └─ Expr: expr#114: 30
+         │  └─ Else: <none>
+         ├─ Stmt[19]: If (span: 26:5-26:52)
+         │  ├─ Cond: expr#119: (align_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 26:38-26:52)
+         │  │  └─ Stmt[0]: Return (span: 26:40-26:50)
+         │  │     └─ Expr: expr#120: 31
+         │  └─ Else: <none>
+         ├─ Stmt[20]: If (span: 27:5-27:52)
+         │  ├─ Cond: expr#125: (size_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 27:38-27:52)
+         │  │  └─ Stmt[0]: Return (span: 27:40-27:50)
+         │  │     └─ Expr: expr#126: 32
+         │  └─ Else: <none>
+         ├─ Stmt[21]: If (span: 28:5-28:53)
+         │  ├─ Cond: expr#131: (align_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 28:39-28:53)
+         │  │  └─ Stmt[0]: Return (span: 28:41-28:51)
+         │  │     └─ Expr: expr#132: 33
+         │  └─ Else: <none>
+         ├─ Stmt[22]: If (span: 29:5-29:53)
+         │  ├─ Cond: expr#137: (size_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 29:39-29:53)
+         │  │  └─ Stmt[0]: Return (span: 29:41-29:51)
+         │  │     └─ Expr: expr#138: 34
+         │  └─ Else: <none>
+         ├─ Stmt[23]: If (span: 30:5-30:54)
+         │  ├─ Cond: expr#143: (align_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 30:40-30:54)
+         │  │  └─ Stmt[0]: Return (span: 30:42-30:52)
+         │  │     └─ Expr: expr#144: 35
+         │  └─ Else: <none>
+         ├─ Stmt[24]: If (span: 32:5-32:55)
+         │  ├─ Cond: expr#149: (size_of() != (4 to uint))
+         │  ├─ Then:
+Block (span: 32:41-32:55)
+         │  │  └─ Stmt[0]: Return (span: 32:43-32:53)
+         │  │     └─ Expr: expr#150: 40
+         │  └─ Else: <none>
+         ├─ Stmt[25]: If (span: 33:5-33:56)
+         │  ├─ Cond: expr#155: (align_of() != (4 to uint))
+         │  ├─ Then:
+Block (span: 33:42-33:56)
+         │  │  └─ Stmt[0]: Return (span: 33:44-33:54)
+         │  │     └─ Expr: expr#156: 41
+         │  └─ Else: <none>
+         ├─ Stmt[26]: If (span: 34:5-34:55)
+         │  ├─ Cond: expr#161: (size_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 34:41-34:55)
+         │  │  └─ Stmt[0]: Return (span: 34:43-34:53)
+         │  │     └─ Expr: expr#162: 42
+         │  └─ Else: <none>
+         ├─ Stmt[27]: If (span: 35:5-35:56)
+         │  ├─ Cond: expr#167: (align_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 35:42-35:56)
+         │  │  └─ Stmt[0]: Return (span: 35:44-35:54)
+         │  │     └─ Expr: expr#168: 43
+         │  └─ Else: <none>
+         ├─ Stmt[28]: If (span: 37:5-37:53)
+         │  ├─ Cond: expr#173: (size_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 37:39-37:53)
+         │  │  └─ Stmt[0]: Return (span: 37:41-37:51)
+         │  │     └─ Expr: expr#174: 50
+         │  └─ Else: <none>
+         ├─ Stmt[29]: If (span: 38:5-38:54)
+         │  ├─ Cond: expr#179: (align_of() != (8 to uint))
+         │  ├─ Then:
+Block (span: 38:40-38:54)
+         │  │  └─ Stmt[0]: Return (span: 38:42-38:52)
+         │  │     └─ Expr: expr#180: 51
+         │  └─ Else: <none>
+         └─ Stmt[30]: Return (span: 40:5-40:14)
+            └─ Expr: expr#181: 0
