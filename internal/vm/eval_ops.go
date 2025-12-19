@@ -570,7 +570,14 @@ func (vm *VM) evalUnaryOp(op ast.ExprUnaryOp, operand Value) (Value, *VMError) {
 	case ast.ExprUnaryDeref:
 		switch operand.Kind {
 		case VKRef, VKRefMut:
-			return vm.loadLocationRaw(operand.Loc)
+			v, vmErr := vm.loadLocationRaw(operand.Loc)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			if v.IsHeap() && v.H != 0 {
+				vm.Heap.Retain(v.H)
+			}
+			return v, nil
 		default:
 			return Value{}, vm.eb.derefOnNonRef(operand.Kind.String())
 		}

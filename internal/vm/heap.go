@@ -37,9 +37,12 @@ func (h *Heap) alloc(kind ObjectKind, typeID types.TypeID) (Handle, *Object) {
 	allocID := h.nextAllocID
 	h.nextAllocID++
 	obj := &Object{
-		Kind:    kind,
+		HeapHeader: HeapHeader{
+			Kind:     kind,
+			RefCount: 1,
+			Freed:    false,
+		},
 		TypeID:  typeID,
-		Alive:   true,
 		AllocID: allocID,
 	}
 	h.objs[handle] = obj
@@ -119,10 +122,55 @@ func (h *Heap) Get(handle Handle) *Object {
 	if !ok || obj == nil {
 		h.panic(PanicInvalidHandle, fmt.Sprintf("invalid handle %d", handle))
 	}
-	if !obj.Alive {
-		h.panic(PanicUseAfterFree, fmt.Sprintf("use after free: handle %d (alloc=%d)", handle, obj.AllocID))
+	if obj.Freed || obj.RefCount == 0 {
+		h.panic(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: handle %d (alloc=%d)", handle, obj.AllocID))
 	}
 	return obj
+}
+
+func (h *Heap) Retain(handle Handle) {
+	h.initIfNeeded()
+	if handle == 0 {
+		h.panic(PanicInvalidHandle, "invalid handle 0")
+	}
+	obj, ok := h.objs[handle]
+	if !ok || obj == nil {
+		h.panic(PanicInvalidHandle, fmt.Sprintf("invalid handle %d", handle))
+	}
+	if obj.Freed || obj.RefCount == 0 {
+		h.panic(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: handle %d (alloc=%d)", handle, obj.AllocID))
+	}
+
+	obj.RefCount++
+	if obj.RefCount == 0 {
+		h.panic(PanicUnimplemented, fmt.Sprintf("refcount overflow: handle %d (alloc=%d)", handle, obj.AllocID))
+	}
+
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapRetain(obj.Kind, handle, obj.RefCount)
+	}
+}
+
+func (h *Heap) Release(handle Handle) {
+	h.initIfNeeded()
+	if handle == 0 {
+		h.panic(PanicInvalidHandle, "invalid handle 0")
+	}
+	obj, ok := h.objs[handle]
+	if !ok || obj == nil {
+		h.panic(PanicInvalidHandle, fmt.Sprintf("invalid handle %d", handle))
+	}
+	if obj.Freed || obj.RefCount == 0 {
+		h.panic(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: handle %d (alloc=%d)", handle, obj.AllocID))
+	}
+
+	obj.RefCount--
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapRelease(obj.Kind, handle, obj.RefCount)
+	}
+	if obj.RefCount == 0 {
+		h.Free(handle)
+	}
 }
 
 func (h *Heap) Free(handle Handle) {
@@ -134,11 +182,14 @@ func (h *Heap) Free(handle Handle) {
 	if !ok || obj == nil {
 		h.panic(PanicInvalidHandle, fmt.Sprintf("invalid handle %d", handle))
 	}
-	if !obj.Alive {
-		h.panic(PanicDoubleFree, fmt.Sprintf("double free: handle %d (alloc=%d)", handle, obj.AllocID))
+	if obj.Freed {
+		h.panic(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: handle %d (alloc=%d)", handle, obj.AllocID))
+	}
+	if obj.RefCount != 0 {
+		h.panic(PanicUnimplemented, fmt.Sprintf("free called with non-zero refcount: handle %d rc=%d (alloc=%d)", handle, obj.RefCount, obj.AllocID))
 	}
 
-	obj.Alive = false
+	obj.Freed = true
 
 	if h.vm != nil && h.vm.Trace != nil {
 		h.vm.Trace.TraceHeapFree(handle)
@@ -147,31 +198,37 @@ func (h *Heap) Free(handle Handle) {
 	switch obj.Kind {
 	case OKArray:
 		for _, v := range obj.Arr {
-			h.freeContainedValue(v)
+			h.releaseContainedValue(v)
 		}
 		obj.Arr = nil
 	case OKStruct:
 		for _, v := range obj.Fields {
-			h.freeContainedValue(v)
+			h.releaseContainedValue(v)
 		}
 		obj.Fields = nil
 	case OKString:
 		obj.Str = ""
 	case OKTag:
 		for _, v := range obj.Tag.Fields {
-			h.freeContainedValue(v)
+			h.releaseContainedValue(v)
 		}
 		obj.Tag.Fields = nil
 		obj.Tag.TagSym = 0
+	case OKBigInt:
+		obj.BigInt = bignum.BigInt{}
+	case OKBigUint:
+		obj.BigUint = bignum.BigUint{}
+	case OKBigFloat:
+		obj.BigFloat = bignum.BigFloat{}
 	default:
 	}
 }
 
-func (h *Heap) freeContainedValue(v Value) {
+func (h *Heap) releaseContainedValue(v Value) {
 	switch v.Kind {
-	case VKHandleString, VKHandleArray, VKHandleStruct, VKHandleTag:
+	case VKHandleString, VKHandleArray, VKHandleStruct, VKHandleTag, VKBigInt, VKBigUint, VKBigFloat:
 		if v.H != 0 {
-			h.Free(v.H)
+			h.Release(v.H)
 		}
 	}
 }

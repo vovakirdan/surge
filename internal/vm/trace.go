@@ -72,11 +72,46 @@ func (t *Tracer) TraceHeapAlloc(kind ObjectKind, h Handle, obj *Object) {
 	}
 }
 
+func (t *Tracer) TraceHeapRetain(kind ObjectKind, h Handle, rc uint32) {
+	if t == nil || t.w == nil {
+		return
+	}
+	fmt.Fprintf(t.w, "[heap] retain %s#%d rc=%d\n", kindLabel(kind), h, rc)
+}
+
+func (t *Tracer) TraceHeapRelease(kind ObjectKind, h Handle, rc uint32) {
+	if t == nil || t.w == nil {
+		return
+	}
+	fmt.Fprintf(t.w, "[heap] release %s#%d rc=%d\n", kindLabel(kind), h, rc)
+}
+
 func (t *Tracer) TraceHeapFree(h Handle) {
 	if t == nil || t.w == nil {
 		return
 	}
 	fmt.Fprintf(t.w, "[heap] free handle#%d\n", h)
+}
+
+func kindLabel(kind ObjectKind) string {
+	switch kind {
+	case OKString:
+		return "string"
+	case OKArray:
+		return "array"
+	case OKStruct:
+		return "struct"
+	case OKTag:
+		return "tag"
+	case OKBigInt:
+		return "bigint"
+	case OKBigUint:
+		return "biguint"
+	case OKBigFloat:
+		return "bigfloat"
+	default:
+		return "handle"
+	}
 }
 
 // TraceTerm traces execution of a terminator.
@@ -287,11 +322,11 @@ func (t *Tracer) formatValue(v Value) string {
 		if obj == nil {
 			return fmt.Sprintf("string#%d(<invalid>)", v.H)
 		}
-		if !obj.Alive {
-			return fmt.Sprintf("string#%d(<freed>)", v.H)
+		if obj.Freed || obj.RefCount == 0 {
+			return fmt.Sprintf("string#%d(rc=0,<freed>)", v.H)
 		}
 		preview := truncateRunes(obj.Str, 32)
-		return fmt.Sprintf("string#%d(%q)", v.H, preview)
+		return fmt.Sprintf("string#%d(rc=%d,%q)", v.H, obj.RefCount, preview)
 
 	case VKHandleArray:
 		if v.H == 0 {
@@ -301,10 +336,10 @@ func (t *Tracer) formatValue(v Value) string {
 		if obj == nil {
 			return fmt.Sprintf("array#%d(<invalid>)", v.H)
 		}
-		if !obj.Alive {
-			return fmt.Sprintf("array#%d(<freed>)", v.H)
+		if obj.Freed || obj.RefCount == 0 {
+			return fmt.Sprintf("array#%d(rc=0,<freed>)", v.H)
 		}
-		return fmt.Sprintf("array#%d(len=%d)", v.H, len(obj.Arr))
+		return fmt.Sprintf("array#%d(rc=%d,len=%d)", v.H, obj.RefCount, len(obj.Arr))
 
 	case VKHandleStruct:
 		if v.H == 0 {
@@ -314,10 +349,10 @@ func (t *Tracer) formatValue(v Value) string {
 		if obj == nil {
 			return fmt.Sprintf("struct#%d(<invalid>)", v.H)
 		}
-		if !obj.Alive {
-			return fmt.Sprintf("struct#%d(<freed>)", v.H)
+		if obj.Freed || obj.RefCount == 0 {
+			return fmt.Sprintf("struct#%d(rc=0,<freed>)", v.H)
 		}
-		return fmt.Sprintf("struct#%d(type=type#%d)", v.H, obj.TypeID)
+		return fmt.Sprintf("struct#%d(rc=%d,type=type#%d)", v.H, obj.RefCount, obj.TypeID)
 
 	case VKHandleTag:
 		if v.H == 0 {
@@ -327,8 +362,8 @@ func (t *Tracer) formatValue(v Value) string {
 		if obj == nil {
 			return fmt.Sprintf("tag#%d(<invalid>)", v.H)
 		}
-		if !obj.Alive {
-			return fmt.Sprintf("tag#%d(<freed>)", v.H)
+		if obj.Freed || obj.RefCount == 0 {
+			return fmt.Sprintf("tag#%d(rc=0,<freed>)", v.H)
 		}
 		tagName := "<unknown>"
 		if obj.Kind == OKTag && t.vm != nil && t.vm.tagLayouts != nil {
@@ -343,41 +378,41 @@ func (t *Tracer) formatValue(v Value) string {
 				}
 			}
 		}
-		return fmt.Sprintf("tag#%d(type#%d, %s)", v.H, obj.TypeID, tagName)
+		return fmt.Sprintf("tag#%d(rc=%d,type#%d,%s)", v.H, obj.RefCount, obj.TypeID, tagName)
 
 	case VKBigInt:
 		if v.H == 0 {
 			return "0"
 		}
 		obj := t.lookup(v.H)
-		if obj == nil || !obj.Alive || obj.Kind != OKBigInt {
+		if obj == nil || obj.Freed || obj.RefCount == 0 || obj.Kind != OKBigInt {
 			return fmt.Sprintf("bigint#%d(<invalid>)", v.H)
 		}
-		return bignum.FormatInt(obj.BigInt)
+		return fmt.Sprintf("bigint#%d(rc=%d,%s)", v.H, obj.RefCount, bignum.FormatInt(obj.BigInt))
 
 	case VKBigUint:
 		if v.H == 0 {
 			return "0"
 		}
 		obj := t.lookup(v.H)
-		if obj == nil || !obj.Alive || obj.Kind != OKBigUint {
+		if obj == nil || obj.Freed || obj.RefCount == 0 || obj.Kind != OKBigUint {
 			return fmt.Sprintf("biguint#%d(<invalid>)", v.H)
 		}
-		return bignum.FormatUint(obj.BigUint)
+		return fmt.Sprintf("biguint#%d(rc=%d,%s)", v.H, obj.RefCount, bignum.FormatUint(obj.BigUint))
 
 	case VKBigFloat:
 		if v.H == 0 {
 			return "0"
 		}
 		obj := t.lookup(v.H)
-		if obj == nil || !obj.Alive || obj.Kind != OKBigFloat {
+		if obj == nil || obj.Freed || obj.RefCount == 0 || obj.Kind != OKBigFloat {
 			return fmt.Sprintf("bigfloat#%d(<invalid>)", v.H)
 		}
 		s, err := bignum.FormatFloat(obj.BigFloat)
 		if err != nil {
 			return fmt.Sprintf("bigfloat#%d(<%v>)", v.H, err)
 		}
-		return s
+		return fmt.Sprintf("bigfloat#%d(rc=%d,%s)", v.H, obj.RefCount, s)
 
 	default:
 		return v.String()

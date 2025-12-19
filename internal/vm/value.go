@@ -81,6 +81,15 @@ func (v Value) IsZero() bool {
 	return v.Kind == VKInvalid
 }
 
+func (v Value) IsHeap() bool {
+	switch v.Kind {
+	case VKHandleString, VKHandleArray, VKHandleStruct, VKHandleTag, VKBigInt, VKBigUint, VKBigFloat:
+		return true
+	default:
+		return false
+	}
+}
+
 // String returns a human-readable representation of the value.
 func (v Value) String() string {
 	switch v.Kind {

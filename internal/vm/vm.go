@@ -350,6 +350,7 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 		slot.V = Value{}
 		slot.IsInit = false
 		slot.IsMoved = false
+		slot.IsDropped = false
 
 	case mir.InstrNop:
 		// Nothing to do
@@ -511,6 +512,10 @@ func (vm *VM) readLocal(frame *Frame, id mir.LocalID) (Value, *VMError) {
 		return Value{}, vm.eb.useBeforeInit(slot.Name)
 	}
 
+	if slot.IsDropped {
+		return Value{}, vm.eb.makeError(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: local %q used after drop", slot.Name))
+	}
+
 	if slot.IsMoved {
 		return Value{}, vm.eb.useAfterMove(slot.Name)
 	}
@@ -538,14 +543,13 @@ func (vm *VM) writeLocal(frame *Frame, id mir.LocalID, val Value) *VMError {
 	}
 
 	slot := &frame.Locals[id]
-	if slot.IsInit && !slot.IsMoved && frame.Func != nil {
-		if vm.localOwnsHeap(frame.Func.Locals[id]) {
-			vm.dropValue(slot.V)
-		}
+	if slot.IsInit && !slot.IsMoved && !slot.IsDropped {
+		vm.dropValue(slot.V)
 	}
 	slot.V = val
 	slot.IsInit = true
 	slot.IsMoved = false
+	slot.IsDropped = false
 	return nil
 }
 

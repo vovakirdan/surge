@@ -346,8 +346,8 @@ func (vm *VM) heapAliveForRef(h Handle) (*Object, *VMError) {
 	if !ok || obj == nil {
 		return nil, vm.eb.invalidLocation(fmt.Sprintf("invalid handle %d", h))
 	}
-	if !obj.Alive {
-		return nil, vm.eb.referenceToFreedObject(fmt.Sprintf("reference to freed object: handle %d (alloc=%d)", h, obj.AllocID))
+	if obj.Freed || obj.RefCount == 0 {
+		return nil, vm.eb.makeError(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: handle %d (alloc=%d)", h, obj.AllocID))
 	}
 	return obj, nil
 }

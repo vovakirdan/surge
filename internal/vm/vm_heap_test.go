@@ -130,13 +130,13 @@ fn main() -> int {
 func TestVMHeapDoubleFreePanics(t *testing.T) {
 	h := &vm.Heap{}
 	handle := h.AllocString(types.NoTypeID, "x")
-	h.Free(handle)
+	h.Release(handle)
 
 	defer func() {
 		if r := recover(); r != nil {
 			if err, ok := r.(*vm.VMError); ok {
-				if err.Code != vm.PanicDoubleFree {
-					t.Fatalf("expected %v, got %v", vm.PanicDoubleFree, err.Code)
+				if err.Code != vm.PanicRCUseAfterFree {
+					t.Fatalf("expected %v, got %v", vm.PanicRCUseAfterFree, err.Code)
 				}
 				return
 			}
@@ -144,5 +144,5 @@ func TestVMHeapDoubleFreePanics(t *testing.T) {
 		}
 		t.Fatal("expected panic, got nil")
 	}()
-	h.Free(handle)
+	h.Release(handle)
 }

@@ -132,6 +132,7 @@ func (vm *VM) evalFieldAccess(frame *Frame, fa *mir.FieldAccess) (Value, *VMErro
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
+	defer vm.dropValue(obj)
 	if obj.Kind != VKHandleStruct {
 		return Value{}, vm.eb.typeMismatch("struct", obj.Kind.String())
 	}
@@ -157,17 +158,11 @@ func (vm *VM) evalFieldAccess(frame *Frame, fa *mir.FieldAccess) (Value, *VMErro
 }
 
 func (vm *VM) cloneForShare(v Value) (Value, *VMError) {
-	switch v.Kind {
-	case VKHandleString:
-		obj := vm.Heap.Get(v.H)
-		if obj == nil {
-			return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid string handle")
-		}
-		h := vm.Heap.AllocString(obj.TypeID, obj.Str)
-		return MakeHandleString(h, obj.TypeID), nil
-	case VKHandleArray, VKHandleStruct:
-		return Value{}, vm.eb.unimplemented(fmt.Sprintf("cloning %s", v.Kind))
-	default:
+	if vm == nil || vm.Heap == nil {
 		return v, nil
 	}
+	if v.IsHeap() && v.H != 0 {
+		vm.Heap.Retain(v.H)
+	}
+	return v, nil
 }

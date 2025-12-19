@@ -94,7 +94,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			})
 		} else {
 			// No destination; free the array and its string elements.
-			vm.Heap.Free(arrH)
+			vm.Heap.Release(arrH)
 		}
 
 	case "rt_stdin_read_all":
@@ -118,7 +118,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			})
 		} else {
 			// No destination; free the string.
-			vm.Heap.Free(h)
+			vm.Heap.Release(h)
 		}
 
 	case "rt_string_ptr":
@@ -132,6 +132,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		if vmErr != nil {
 			return vmErr
 		}
+		defer vm.dropValue(arg)
 		var strVal Value
 		switch arg.Kind {
 		case VKHandleString:
@@ -171,6 +172,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		if vmErr != nil {
 			return vmErr
 		}
+		defer vm.dropValue(arg)
 		var strVal Value
 		switch arg.Kind {
 		case VKHandleString:
@@ -212,6 +214,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		if vmErr != nil {
 			return vmErr
 		}
+		defer vm.dropValue(ptrVal)
 		if ptrVal.Kind != VKPtr {
 			return vm.eb.typeMismatch("*byte", ptrVal.Kind.String())
 		}
@@ -219,6 +222,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		if vmErr != nil {
 			return vmErr
 		}
+		defer vm.dropValue(lenVal)
 
 		maxInt := int64(int(^uint(0) >> 1))
 		maxUint := uint64(^uint(0) >> 1)
@@ -309,8 +313,11 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 				}
 				code = int(n)
 			default:
+				vm.dropValue(val)
 				return vm.eb.typeMismatch("int", val.Kind.String())
 			}
+			// Ensure the exit code value doesn't keep heap objects alive across leak checking.
+			vm.dropValue(val)
 		}
 		vm.ExitCode = code
 		vm.RT.Exit(code)
@@ -331,11 +338,12 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			return vmErr
 		}
 		if strVal.Kind != VKHandleString {
+			vm.dropValue(strVal)
 			return vm.eb.typeMismatch("string", strVal.Kind.String())
 		}
 
 		if !call.HasDst {
-			vm.Heap.Free(strVal.H)
+			vm.dropValue(strVal)
 			return nil
 		}
 
@@ -355,6 +363,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			strVal.TypeID = dstType
 			vmErr = vm.writeLocal(frame, dstLocal, strVal)
 			if vmErr != nil {
+				vm.dropValue(strVal)
 				return vmErr
 			}
 			*writes = append(*writes, LocalWrite{
@@ -366,11 +375,11 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 		case types.KindInt:
 			if tt.Width != types.WidthAny {
-				vm.Heap.Free(strVal.H)
+				vm.dropValue(strVal)
 				return vm.eb.unsupportedParseType("fixed-width int")
 			}
 			s := vm.Heap.Get(strVal.H).Str
-			vm.Heap.Free(strVal.H)
+			vm.dropValue(strVal)
 			i, err := bignum.ParseInt(s)
 			if err != nil {
 				return vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as int: %v", s, err))
@@ -389,11 +398,11 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 		case types.KindUint:
 			if tt.Width != types.WidthAny {
-				vm.Heap.Free(strVal.H)
+				vm.dropValue(strVal)
 				return vm.eb.unsupportedParseType("fixed-width uint")
 			}
 			s := vm.Heap.Get(strVal.H).Str
-			vm.Heap.Free(strVal.H)
+			vm.dropValue(strVal)
 			u, err := bignum.ParseUint(s)
 			if err != nil {
 				return vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as uint: %v", s, err))
@@ -412,11 +421,11 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 		case types.KindFloat:
 			if tt.Width != types.WidthAny {
-				vm.Heap.Free(strVal.H)
+				vm.dropValue(strVal)
 				return vm.eb.unsupportedParseType("fixed-width float")
 			}
 			s := vm.Heap.Get(strVal.H).Str
-			vm.Heap.Free(strVal.H)
+			vm.dropValue(strVal)
 			f, err := bignum.ParseFloat(s)
 			if err != nil {
 				return vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as float: %v", s, err))
@@ -434,7 +443,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			return nil
 
 		default:
-			vm.Heap.Free(strVal.H)
+			vm.dropValue(strVal)
 			return vm.eb.unsupportedParseType(tt.Kind.String())
 		}
 
@@ -454,10 +463,14 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 		converted, vmErr := vm.evalIntrinsicTo(srcVal, dstTy)
 		if vmErr != nil {
+			vm.dropValue(srcVal)
 			return vmErr
 		}
 		vmErr = vm.writeLocal(frame, dstLocal, converted)
 		if vmErr != nil {
+			if !(srcVal.IsHeap() && converted.IsHeap() && srcVal.Kind == converted.Kind && srcVal.H == converted.H) {
+				vm.dropValue(srcVal)
+			}
 			return vmErr
 		}
 		*writes = append(*writes, LocalWrite{
@@ -465,6 +478,9 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			Name:    frame.Locals[dstLocal].Name,
 			Value:   converted,
 		})
+		if !(srcVal.IsHeap() && converted.IsHeap() && srcVal.Kind == converted.Kind && srcVal.H == converted.H) {
+			vm.dropValue(srcVal)
+		}
 
 	default:
 		return vm.eb.unsupportedIntrinsic(name)
@@ -504,12 +520,14 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 		field := obj.Fields[idx]
 		switch field.Kind {
 		case VKBigInt:
-			// __to consumes its argument.
-			vm.Heap.Free(src.H)
-			field.TypeID = dstType
-			return field, nil
+			// Convert by retaining the field, then letting the caller drop the struct.
+			out, vmErr := vm.cloneForShare(field)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			out.TypeID = dstType
+			return out, nil
 		case VKInt:
-			vm.Heap.Free(src.H)
 			return vm.makeBigInt(dstType, bignum.IntFromInt64(field.Int)), nil
 		default:
 			return Value{}, vm.eb.typeMismatch("int", field.Kind.String())

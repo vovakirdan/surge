@@ -28,11 +28,16 @@ type TagObject struct {
 	Fields []Value
 }
 
+type HeapHeader struct {
+	Kind     ObjectKind
+	RefCount uint32
+	Freed    bool
+}
+
 // Object is a typed heap object.
 type Object struct {
-	Kind    ObjectKind
+	HeapHeader
 	TypeID  types.TypeID
-	Alive   bool
 	AllocID uint64
 
 	Str    string

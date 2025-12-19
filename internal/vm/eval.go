@@ -24,23 +24,43 @@ func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
 		}
 		right, vmErr := vm.evalOperand(frame, &rv.Binary.Right)
 		if vmErr != nil {
+			vm.dropValue(left)
 			return Value{}, vmErr
 		}
-		return vm.evalBinaryOp(rv.Binary.Op, left, right)
+		res, vmErr := vm.evalBinaryOp(rv.Binary.Op, left, right)
+		vm.dropValue(right)
+		vm.dropValue(left)
+		return res, vmErr
 
 	case mir.RValueUnaryOp:
 		operand, vmErr := vm.evalOperand(frame, &rv.Unary.Operand)
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		return vm.evalUnaryOp(rv.Unary.Op, operand)
+		res, vmErr := vm.evalUnaryOp(rv.Unary.Op, operand)
+		if vmErr != nil {
+			vm.dropValue(operand)
+			return Value{}, vmErr
+		}
+		if res != operand {
+			vm.dropValue(operand)
+		}
+		return res, nil
 
 	case mir.RValueCast:
 		v, vmErr := vm.evalOperand(frame, &rv.Cast.Value)
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		return vm.evalCast(v, rv.Cast.TargetTy)
+		res, vmErr := vm.evalCast(v, rv.Cast.TargetTy)
+		if vmErr != nil {
+			vm.dropValue(v)
+			return Value{}, vmErr
+		}
+		if !(v.IsHeap() && res.IsHeap() && v.Kind == res.Kind && v.H == res.H) {
+			vm.dropValue(v)
+		}
+		return res, nil
 
 	case mir.RValueIndex:
 		obj, vmErr := vm.evalOperand(frame, &rv.Index.Object)
@@ -49,9 +69,13 @@ func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
 		}
 		idx, vmErr := vm.evalOperand(frame, &rv.Index.Index)
 		if vmErr != nil {
+			vm.dropValue(obj)
 			return Value{}, vmErr
 		}
-		return vm.evalIndex(obj, idx)
+		res, vmErr := vm.evalIndex(obj, idx)
+		vm.dropValue(idx)
+		vm.dropValue(obj)
+		return res, vmErr
 
 	case mir.RValueStructLit:
 		return vm.evalStructLit(frame, &rv.StructLit)
@@ -97,13 +121,23 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 			if vmErr != nil {
 				return Value{}, vmErr
 			}
+			if val.IsHeap() && val.H != 0 {
+				vm.Heap.Retain(val.H)
+			}
 			return val, nil
 		}
 		loc, vmErr := vm.EvalPlace(frame, op.Place)
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		return vm.loadLocationRaw(loc)
+		val, vmErr := vm.loadLocationRaw(loc)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if val.IsHeap() && val.H != 0 {
+			vm.Heap.Retain(val.H)
+		}
+		return val, nil
 
 	case mir.OperandMove:
 		if len(op.Place.Proj) == 0 {

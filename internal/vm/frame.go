@@ -8,11 +8,12 @@ import (
 
 // LocalSlot holds the runtime state of a local variable.
 type LocalSlot struct {
-	V       Value        // Current value
-	IsInit  bool         // True if initialized (assigned at least once)
-	IsMoved bool         // True if value has been moved out
-	Name    string       // Debug name from MIR
-	TypeID  types.TypeID // Static type from MIR
+	V         Value        // Current value
+	IsInit    bool         // True if initialized (assigned at least once)
+	IsMoved   bool         // True if value has been moved out
+	IsDropped bool         // True if value has been dropped (@drop)
+	Name      string       // Debug name from MIR
+	TypeID    types.TypeID // Static type from MIR
 }
 
 // Frame represents a function activation record on the call stack.
@@ -29,10 +30,11 @@ func NewFrame(fn *mir.Func) *Frame {
 	locals := make([]LocalSlot, len(fn.Locals))
 	for i, local := range fn.Locals {
 		locals[i] = LocalSlot{
-			Name:    local.Name,
-			TypeID:  local.Type,
-			IsInit:  false,
-			IsMoved: false,
+			Name:      local.Name,
+			TypeID:    local.Type,
+			IsInit:    false,
+			IsMoved:   false,
+			IsDropped: false,
 		}
 	}
 	return &Frame{

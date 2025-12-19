@@ -76,7 +76,7 @@ func (i *Inspector) Heap() {
 	}
 	for h := Handle(1); h < i.vm.Heap.next; h++ {
 		obj, ok := i.vm.Heap.lookup(h)
-		if !ok || obj == nil || !obj.Alive {
+		if !ok || obj == nil || obj.Freed || obj.RefCount == 0 {
 			continue
 		}
 		switch obj.Kind {
