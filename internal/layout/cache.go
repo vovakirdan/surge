@@ -7,29 +7,34 @@ type cacheKey struct {
 	Attrs uint64
 }
 
+type cacheEntry struct {
+	Layout TypeLayout
+	Err    *LayoutError
+}
+
 type cache struct {
-	byType map[cacheKey]TypeLayout
+	byType map[cacheKey]cacheEntry
 }
 
 func newCache() *cache {
-	return &cache{byType: make(map[cacheKey]TypeLayout, 256)}
+	return &cache{byType: make(map[cacheKey]cacheEntry, 256)}
 }
 
-func (c *cache) get(key cacheKey) (TypeLayout, bool) {
+func (c *cache) get(key cacheKey) (cacheEntry, bool) {
 	if c == nil {
-		return TypeLayout{}, false
+		return cacheEntry{}, false
 	}
-	l, ok := c.byType[key]
-	return l, ok
+	e, ok := c.byType[key]
+	return e, ok
 }
 
-func (c *cache) put(key cacheKey, l *TypeLayout) {
+func (c *cache) put(key cacheKey, entry *cacheEntry) {
 	if c == nil {
 		return
 	}
-	if l == nil {
+	if entry == nil {
 		delete(c.byType, key)
 		return
 	}
-	c.byType[key] = *l
+	c.byType[key] = *entry
 }

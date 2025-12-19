@@ -1,0 +1,7 @@
+@entrypoint
+fn main() -> int {
+    let a = "hello";
+    @drop a;
+    let b = a; // illegal
+    return 0;
+}

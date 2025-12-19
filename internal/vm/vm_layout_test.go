@@ -299,7 +299,11 @@ fn main() -> int {
 	}
 
 	le := layout.New(layout.X86_64LinuxGNU(), result.Sema.TypeInterner)
-	if got := le.FieldOffset(sym.Type, 1); got != 8 {
+	got, err := le.FieldOffset(sym.Type, 1)
+	if err != nil {
+		t.Fatalf("layout error: %v", err)
+	}
+	if got != 8 {
 		t.Fatalf("expected field offset 8, got %d", got)
 	}
 }

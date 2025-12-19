@@ -1,101 +1,105 @@
-  1: KwTag           "tag" at 4:1-4:4 (leading: LineComment, Newline, LineComment, Newline)
-  2: Ident           "LeafA" at 4:5-4:10 (leading: Space)
-  3: LParen          "(" at 4:10-4:11
-  4: Ident           "int" at 4:11-4:14
-  5: RParen          ")" at 4:14-4:15
-  6: Semicolon       ";" at 4:15-4:16
-  7: KwTag           "tag" at 5:1-5:4 (leading: Newline)
-  8: Ident           "NodeA" at 5:5-5:10 (leading: Space)
-  9: Lt              "<" at 5:10-5:11
- 10: Ident           "T" at 5:11-5:12
- 11: Gt              ">" at 5:12-5:13
- 12: LParen          "(" at 5:13-5:14
- 13: Ident           "T" at 5:14-5:15
- 14: RParen          ")" at 5:15-5:16
- 15: Semicolon       ";" at 5:16-5:17
- 16: KwTag           "tag" at 7:1-7:4 (leading: Newline)
- 17: Ident           "LeafB" at 7:5-7:10 (leading: Space)
- 18: LParen          "(" at 7:10-7:11
- 19: Ident           "int" at 7:11-7:14
- 20: RParen          ")" at 7:14-7:15
- 21: Semicolon       ";" at 7:15-7:16
- 22: KwTag           "tag" at 8:1-8:4 (leading: Newline)
- 23: Ident           "NodeB" at 8:5-8:10 (leading: Space)
- 24: Lt              "<" at 8:10-8:11
- 25: Ident           "T" at 8:11-8:12
- 26: Gt              ">" at 8:12-8:13
- 27: LParen          "(" at 8:13-8:14
- 28: Ident           "T" at 8:14-8:15
- 29: RParen          ")" at 8:15-8:16
- 30: Semicolon       ";" at 8:16-8:17
- 31: KwType          "type" at 10:1-10:5 (leading: Newline)
- 32: Ident           "TreeA" at 10:6-10:11 (leading: Space)
- 33: Assign          "=" at 10:12-10:13 (leading: Space)
- 34: Ident           "LeafA" at 10:14-10:19 (leading: Space)
- 35: LParen          "(" at 10:19-10:20
- 36: Ident           "int" at 10:20-10:23
- 37: RParen          ")" at 10:23-10:24
- 38: Pipe            "|" at 10:25-10:26 (leading: Space)
- 39: Ident           "NodeA" at 10:27-10:32 (leading: Space)
- 40: LParen          "(" at 10:32-10:33
- 41: Ident           "TreeB" at 10:33-10:38
- 42: RParen          ")" at 10:38-10:39
- 43: Pipe            "|" at 10:40-10:41 (leading: Space)
- 44: NothingLit      "nothing" at 10:42-10:49 (leading: Space)
- 45: Semicolon       ";" at 10:49-10:50
- 46: KwType          "type" at 11:1-11:5 (leading: Newline)
- 47: Ident           "TreeB" at 11:6-11:11 (leading: Space)
- 48: Assign          "=" at 11:12-11:13 (leading: Space)
- 49: Ident           "LeafB" at 11:14-11:19 (leading: Space)
- 50: LParen          "(" at 11:19-11:20
- 51: Ident           "int" at 11:20-11:23
- 52: RParen          ")" at 11:23-11:24
- 53: Pipe            "|" at 11:25-11:26 (leading: Space)
- 54: Ident           "NodeB" at 11:27-11:32 (leading: Space)
- 55: LParen          "(" at 11:32-11:33
- 56: Ident           "TreeA" at 11:33-11:38
- 57: RParen          ")" at 11:38-11:39
- 58: Pipe            "|" at 11:40-11:41 (leading: Space)
- 59: NothingLit      "nothing" at 11:42-11:49 (leading: Space)
- 60: Semicolon       ";" at 11:49-11:50
- 61: KwFn            "fn" at 13:1-13:3 (leading: Newline)
- 62: Ident           "test_mutual_unions" at 13:4-13:22 (leading: Space)
- 63: LParen          "(" at 13:22-13:23
- 64: RParen          ")" at 13:23-13:24
- 65: LBrace          "{" at 13:25-13:26 (leading: Space)
- 66: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
- 67: Ident           "a" at 14:9-14:10 (leading: Space)
- 68: Colon           ":" at 14:10-14:11
- 69: Ident           "TreeA" at 14:12-14:17 (leading: Space)
- 70: Assign          "=" at 14:18-14:19 (leading: Space)
- 71: Ident           "LeafA" at 14:20-14:25 (leading: Space)
- 72: LParen          "(" at 14:25-14:26
- 73: IntLit          "1" at 14:26-14:27
- 74: RParen          ")" at 14:27-14:28
- 75: Semicolon       ";" at 14:28-14:29
- 76: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
- 77: Ident           "b" at 15:9-15:10 (leading: Space)
- 78: Colon           ":" at 15:10-15:11
- 79: Ident           "TreeB" at 15:12-15:17 (leading: Space)
- 80: Assign          "=" at 15:18-15:19 (leading: Space)
- 81: Ident           "LeafB" at 15:20-15:25 (leading: Space)
- 82: LParen          "(" at 15:25-15:26
- 83: IntLit          "2" at 15:26-15:27
- 84: RParen          ")" at 15:27-15:28
- 85: Semicolon       ";" at 15:28-15:29
- 86: KwLet           "let" at 16:5-16:8 (leading: Newline, Space)
- 87: Ident           "empty_a" at 16:9-16:16 (leading: Space)
- 88: Colon           ":" at 16:16-16:17
- 89: Ident           "TreeA" at 16:18-16:23 (leading: Space)
- 90: Assign          "=" at 16:24-16:25 (leading: Space)
- 91: NothingLit      "nothing" at 16:26-16:33 (leading: Space)
- 92: Semicolon       ";" at 16:33-16:34
- 93: KwLet           "let" at 17:5-17:8 (leading: Newline, Space)
- 94: Ident           "empty_b" at 17:9-17:16 (leading: Space)
- 95: Colon           ":" at 17:16-17:17
- 96: Ident           "TreeB" at 17:18-17:23 (leading: Space)
- 97: Assign          "=" at 17:24-17:25 (leading: Space)
- 98: NothingLit      "nothing" at 17:26-17:33 (leading: Space)
- 99: Semicolon       ";" at 17:33-17:34
-100: RBrace          "}" at 18:1-18:2 (leading: Newline)
-101: EOF             at 19:1-19:1
+  1: KwTag           "tag" at 3:1-3:4 (leading: LineComment, Newline)
+  2: Ident           "LeafA" at 3:5-3:10 (leading: Space)
+  3: LParen          "(" at 3:10-3:11
+  4: Ident           "int" at 3:11-3:14
+  5: RParen          ")" at 3:14-3:15
+  6: Semicolon       ";" at 3:15-3:16
+  7: KwTag           "tag" at 4:1-4:4 (leading: Newline)
+  8: Ident           "NodeA" at 4:5-4:10 (leading: Space)
+  9: Lt              "<" at 4:10-4:11
+ 10: Ident           "T" at 4:11-4:12
+ 11: Gt              ">" at 4:12-4:13
+ 12: LParen          "(" at 4:13-4:14
+ 13: Ident           "T" at 4:14-4:15
+ 14: RParen          ")" at 4:15-4:16
+ 15: Semicolon       ";" at 4:16-4:17
+ 16: KwTag           "tag" at 6:1-6:4 (leading: Newline)
+ 17: Ident           "LeafB" at 6:5-6:10 (leading: Space)
+ 18: LParen          "(" at 6:10-6:11
+ 19: Ident           "int" at 6:11-6:14
+ 20: RParen          ")" at 6:14-6:15
+ 21: Semicolon       ";" at 6:15-6:16
+ 22: KwTag           "tag" at 7:1-7:4 (leading: Newline)
+ 23: Ident           "NodeB" at 7:5-7:10 (leading: Space)
+ 24: Lt              "<" at 7:10-7:11
+ 25: Ident           "T" at 7:11-7:12
+ 26: Gt              ">" at 7:12-7:13
+ 27: LParen          "(" at 7:13-7:14
+ 28: Ident           "T" at 7:14-7:15
+ 29: RParen          ")" at 7:15-7:16
+ 30: Semicolon       ";" at 7:16-7:17
+ 31: KwType          "type" at 9:1-9:5 (leading: Newline)
+ 32: Ident           "TreeA" at 9:6-9:11 (leading: Space)
+ 33: Assign          "=" at 9:12-9:13 (leading: Space)
+ 34: Ident           "LeafA" at 9:14-9:19 (leading: Space)
+ 35: LParen          "(" at 9:19-9:20
+ 36: Ident           "int" at 9:20-9:23
+ 37: RParen          ")" at 9:23-9:24
+ 38: Pipe            "|" at 9:25-9:26 (leading: Space)
+ 39: Ident           "NodeA" at 9:27-9:32 (leading: Space)
+ 40: LParen          "(" at 9:32-9:33
+ 41: Ident           "TreeB" at 9:33-9:38
+ 42: LBracket        "[" at 9:38-9:39
+ 43: RBracket        "]" at 9:39-9:40
+ 44: RParen          ")" at 9:40-9:41
+ 45: Pipe            "|" at 9:42-9:43 (leading: Space)
+ 46: NothingLit      "nothing" at 9:44-9:51 (leading: Space)
+ 47: Semicolon       ";" at 9:51-9:52
+ 48: KwType          "type" at 10:1-10:5 (leading: Newline)
+ 49: Ident           "TreeB" at 10:6-10:11 (leading: Space)
+ 50: Assign          "=" at 10:12-10:13 (leading: Space)
+ 51: Ident           "LeafB" at 10:14-10:19 (leading: Space)
+ 52: LParen          "(" at 10:19-10:20
+ 53: Ident           "int" at 10:20-10:23
+ 54: RParen          ")" at 10:23-10:24
+ 55: Pipe            "|" at 10:25-10:26 (leading: Space)
+ 56: Ident           "NodeB" at 10:27-10:32 (leading: Space)
+ 57: LParen          "(" at 10:32-10:33
+ 58: Ident           "TreeA" at 10:33-10:38
+ 59: LBracket        "[" at 10:38-10:39
+ 60: RBracket        "]" at 10:39-10:40
+ 61: RParen          ")" at 10:40-10:41
+ 62: Pipe            "|" at 10:42-10:43 (leading: Space)
+ 63: NothingLit      "nothing" at 10:44-10:51 (leading: Space)
+ 64: Semicolon       ";" at 10:51-10:52
+ 65: KwFn            "fn" at 12:1-12:3 (leading: Newline)
+ 66: Ident           "test_mutual_unions" at 12:4-12:22 (leading: Space)
+ 67: LParen          "(" at 12:22-12:23
+ 68: RParen          ")" at 12:23-12:24
+ 69: LBrace          "{" at 12:25-12:26 (leading: Space)
+ 70: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
+ 71: Ident           "a" at 13:9-13:10 (leading: Space)
+ 72: Colon           ":" at 13:10-13:11
+ 73: Ident           "TreeA" at 13:12-13:17 (leading: Space)
+ 74: Assign          "=" at 13:18-13:19 (leading: Space)
+ 75: Ident           "LeafA" at 13:20-13:25 (leading: Space)
+ 76: LParen          "(" at 13:25-13:26
+ 77: IntLit          "1" at 13:26-13:27
+ 78: RParen          ")" at 13:27-13:28
+ 79: Semicolon       ";" at 13:28-13:29
+ 80: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
+ 81: Ident           "b" at 14:9-14:10 (leading: Space)
+ 82: Colon           ":" at 14:10-14:11
+ 83: Ident           "TreeB" at 14:12-14:17 (leading: Space)
+ 84: Assign          "=" at 14:18-14:19 (leading: Space)
+ 85: Ident           "LeafB" at 14:20-14:25 (leading: Space)
+ 86: LParen          "(" at 14:25-14:26
+ 87: IntLit          "2" at 14:26-14:27
+ 88: RParen          ")" at 14:27-14:28
+ 89: Semicolon       ";" at 14:28-14:29
+ 90: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
+ 91: Ident           "empty_a" at 15:9-15:16 (leading: Space)
+ 92: Colon           ":" at 15:16-15:17
+ 93: Ident           "TreeA" at 15:18-15:23 (leading: Space)
+ 94: Assign          "=" at 15:24-15:25 (leading: Space)
+ 95: NothingLit      "nothing" at 15:26-15:33 (leading: Space)
+ 96: Semicolon       ";" at 15:33-15:34
+ 97: KwLet           "let" at 16:5-16:8 (leading: Newline, Space)
+ 98: Ident           "empty_b" at 16:9-16:16 (leading: Space)
+ 99: Colon           ":" at 16:16-16:17
+100: Ident           "TreeB" at 16:18-16:23 (leading: Space)
+101: Assign          "=" at 16:24-16:25 (leading: Space)
+102: NothingLit      "nothing" at 16:26-16:33 (leading: Space)
+103: Semicolon       ";" at 16:33-16:34
+104: RBrace          "}" at 17:1-17:2 (leading: Newline)
+105: EOF             at 18:1-18:1

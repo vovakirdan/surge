@@ -1,0 +1,2 @@
+// scenario: recursive type via array indirection is sized
+type Node = { next: Node[] };

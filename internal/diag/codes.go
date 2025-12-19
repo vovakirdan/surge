@@ -224,6 +224,7 @@ const (
 	SemaEntrypointReturnNotConvertible Code = 3123 // Return type not convertible to int (no ExitCode)
 	SemaEntrypointParamNoFromArgv      Code = 3124 // Parameter lacks FromArgv implementation
 	SemaEntrypointParamNoFromStdin     Code = 3125 // Parameter lacks FromStdin implementation
+	SemaRecursiveUnsized               Code = 3126 // Recursive value type has infinite size
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -441,6 +442,7 @@ var ( // todo расширить описания и использовать к
 		SemaEntrypointReturnNotConvertible: "@entrypoint return type must be 'nothing' or convertible to int",
 		SemaEntrypointParamNoFromArgv:      "parameter type does not implement FromArgv contract",
 		SemaEntrypointParamNoFromStdin:     "parameter type does not implement FromStdin contract",
+		SemaRecursiveUnsized:               "recursive value type has infinite size",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",

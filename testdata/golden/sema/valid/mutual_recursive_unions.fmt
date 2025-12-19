@@ -1,5 +1,4 @@
-// Test: mutual recursive union types should not cause infinite recursion
-// This tests the recursion protection in isUnionMember/isTagTypeMatch
+// Test: mutual recursion via indirection should be sized
 
 tag LeafA(int);
 tag NodeA<T>(T);
@@ -7,8 +6,8 @@ tag NodeA<T>(T);
 tag LeafB(int);
 tag NodeB<T>(T);
 
-type TreeA = LeafA(int) | NodeA(TreeB) | nothing;
-type TreeB = LeafB(int) | NodeB(TreeA) | nothing;
+type TreeA = LeafA(int) | NodeA(TreeB[]) | nothing;
+type TreeB = LeafB(int) | NodeB(TreeA[]) | nothing;
 
 fn test_mutual_unions() {
     let a: TreeA = LeafA(1);

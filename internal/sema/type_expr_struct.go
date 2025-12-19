@@ -299,7 +299,11 @@ func (tc *typeChecker) ensureStructFieldType(name source.StringID, value ast.Exp
 	}
 	actual := tc.typeExpr(value)
 	if actual == types.NoTypeID {
-		return
+		if tc.applyExpectedType(value, expected) {
+			actual = tc.result.ExprTypes[value]
+		} else {
+			return
+		}
 	}
 	if tc.valueType(actual) == tc.valueType(expected) {
 		return

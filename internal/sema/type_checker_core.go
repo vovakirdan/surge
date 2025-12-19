@@ -209,6 +209,10 @@ func (tc *typeChecker) run() {
 	}
 	done()
 
+	done = phase("validate_layout")
+	tc.validateTypeLayouts()
+	done()
+
 	done = phase("walk_items")
 	root := tc.fileScope()
 	rootPushed := tc.pushScope(root)

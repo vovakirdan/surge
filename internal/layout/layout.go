@@ -36,37 +36,95 @@ func New(target Target, typesIn *types.Interner) *LayoutEngine {
 	}
 }
 
-func (e *LayoutEngine) LayoutOf(t types.TypeID) TypeLayout {
+type layoutState struct {
+	stack []cacheKey
+	index map[cacheKey]int
+}
+
+func newLayoutState() *layoutState {
+	return &layoutState{
+		stack: nil,
+		index: make(map[cacheKey]int, 32),
+	}
+}
+
+func (e *LayoutEngine) LayoutOf(t types.TypeID) (TypeLayout, error) {
 	if e == nil {
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 	}
 	if e.cache == nil {
 		e.cache = newCache()
 	}
+	state := newLayoutState()
+	layout, err := e.layoutOf(t, state)
+	if err != nil {
+		return layout, err
+	}
+	return layout, nil
+}
+
+func (e *LayoutEngine) layoutOf(t types.TypeID, state *layoutState) (TypeLayout, *LayoutError) {
+	if e == nil {
+		return TypeLayout{Size: 0, Align: 1}, nil
+	}
+	if state == nil {
+		state = newLayoutState()
+	}
 	canon := canonicalType(e.Types, t)
 	key := cacheKey{Type: canon, Attrs: e.attrsFingerprint(canon)}
 	if cached, ok := e.cache.get(key); ok {
-		return cached
+		return cached.Layout, cached.Err
 	}
-	layout := e.computeLayout(canon)
-	e.cache.put(key, &layout)
-	return layout
+
+	if idx, ok := state.index[key]; ok {
+		cycleKeys := append([]cacheKey(nil), state.stack[idx:]...)
+		cycleKeys = append(cycleKeys, key)
+		cycle := make([]types.TypeID, 0, len(cycleKeys))
+		for _, k := range cycleKeys {
+			cycle = append(cycle, k.Type)
+		}
+		err := &LayoutError{
+			Kind:  LayoutErrRecursiveUnsized,
+			Type:  key.Type,
+			Cycle: cycle,
+		}
+		if e.cache != nil {
+			e.cache.put(key, &cacheEntry{Layout: TypeLayout{Size: 0, Align: 1}, Err: err})
+		}
+		return TypeLayout{Size: 0, Align: 1}, err
+	}
+
+	state.index[key] = len(state.stack)
+	state.stack = append(state.stack, key)
+	layout, err := e.computeLayout(canon, state)
+	state.stack = state.stack[:len(state.stack)-1]
+	delete(state.index, key)
+
+	if e.cache != nil {
+		e.cache.put(key, &cacheEntry{Layout: layout, Err: err})
+	}
+	return layout, err
 }
 
-func (e *LayoutEngine) SizeOf(t types.TypeID) int {
-	return e.LayoutOf(t).Size
+func (e *LayoutEngine) SizeOf(t types.TypeID) (int, error) {
+	l, err := e.LayoutOf(t)
+	return l.Size, err
 }
 
-func (e *LayoutEngine) AlignOf(t types.TypeID) int {
-	return e.LayoutOf(t).Align
+func (e *LayoutEngine) AlignOf(t types.TypeID) (int, error) {
+	l, err := e.LayoutOf(t)
+	return l.Align, err
 }
 
-func (e *LayoutEngine) FieldOffset(structT types.TypeID, fieldIdx int) int {
-	l := e.LayoutOf(structT)
+func (e *LayoutEngine) FieldOffset(structT types.TypeID, fieldIdx int) (int, error) {
+	l, err := e.LayoutOf(structT)
+	if err != nil {
+		return 0, err
+	}
 	if fieldIdx < 0 || fieldIdx >= len(l.FieldOffsets) {
-		return 0
+		return 0, nil
 	}
-	return l.FieldOffsets[fieldIdx]
+	return l.FieldOffsets[fieldIdx], nil
 }
 
 func (e *LayoutEngine) attrsFingerprint(id types.TypeID) uint64 {

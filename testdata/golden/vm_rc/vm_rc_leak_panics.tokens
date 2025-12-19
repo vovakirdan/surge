@@ -1,0 +1,117 @@
+  1: KwType          "type" at 1:1-1:5
+  2: Ident           "Node" at 1:6-1:10 (leading: Space)
+  3: Assign          "=" at 1:11-1:12 (leading: Space)
+  4: LBrace          "{" at 1:13-1:14 (leading: Space)
+  5: Ident           "next" at 1:15-1:19 (leading: Space)
+  6: Colon           ":" at 1:19-1:20
+  7: Ident           "Node" at 1:21-1:25 (leading: Space)
+  8: LBracket        "[" at 1:25-1:26
+  9: RBracket        "]" at 1:26-1:27
+ 10: RBrace          "}" at 1:28-1:29 (leading: Space)
+ 11: Semicolon       ";" at 1:29-1:30
+ 12: At              "@" at 3:1-3:2 (leading: Newline)
+ 13: Ident           "entrypoint" at 3:2-3:12
+ 14: KwFn            "fn" at 4:1-4:3 (leading: Newline)
+ 15: Ident           "main" at 4:4-4:8 (leading: Space)
+ 16: LParen          "(" at 4:8-4:9
+ 17: RParen          ")" at 4:9-4:10
+ 18: Arrow           "->" at 4:11-4:13 (leading: Space)
+ 19: Ident           "int" at 4:14-4:17 (leading: Space)
+ 20: LBrace          "{" at 4:18-4:19 (leading: Space)
+ 21: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 22: KwMut           "mut" at 5:9-5:12 (leading: Space)
+ 23: Ident           "a" at 5:13-5:14 (leading: Space)
+ 24: Colon           ":" at 5:14-5:15
+ 25: Ident           "Node" at 5:16-5:20 (leading: Space)
+ 26: LBracket        "[" at 5:20-5:21
+ 27: RBracket        "]" at 5:21-5:22
+ 28: Assign          "=" at 5:23-5:24 (leading: Space)
+ 29: LBracket        "[" at 5:25-5:26 (leading: Space)
+ 30: LBrace          "{" at 5:27-5:28 (leading: Space)
+ 31: Ident           "next" at 5:29-5:33 (leading: Space)
+ 32: Colon           ":" at 5:33-5:34
+ 33: LBracket        "[" at 5:35-5:36 (leading: Space)
+ 34: RBracket        "]" at 5:36-5:37
+ 35: RBrace          "}" at 5:38-5:39 (leading: Space)
+ 36: RBracket        "]" at 5:40-5:41 (leading: Space)
+ 37: Semicolon       ";" at 5:41-5:42
+ 38: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
+ 39: KwMut           "mut" at 6:9-6:12 (leading: Space)
+ 40: Ident           "b" at 6:13-6:14 (leading: Space)
+ 41: Colon           ":" at 6:14-6:15
+ 42: Ident           "Node" at 6:16-6:20 (leading: Space)
+ 43: LBracket        "[" at 6:20-6:21
+ 44: RBracket        "]" at 6:21-6:22
+ 45: Assign          "=" at 6:23-6:24 (leading: Space)
+ 46: LBracket        "[" at 6:25-6:26 (leading: Space)
+ 47: LBrace          "{" at 6:27-6:28 (leading: Space)
+ 48: Ident           "next" at 6:29-6:33 (leading: Space)
+ 49: Colon           ":" at 6:33-6:34
+ 50: LBracket        "[" at 6:35-6:36 (leading: Space)
+ 51: RBracket        "]" at 6:36-6:37
+ 52: RBrace          "}" at 6:38-6:39 (leading: Space)
+ 53: RBracket        "]" at 6:40-6:41 (leading: Space)
+ 54: Semicolon       ";" at 6:41-6:42
+ 55: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
+ 56: Ident           "a_ref" at 7:9-7:14 (leading: Space)
+ 57: Assign          "=" at 7:15-7:16 (leading: Space)
+ 58: Amp             "&" at 7:17-7:18 (leading: Space)
+ 59: Ident           "a" at 7:18-7:19
+ 60: Semicolon       ";" at 7:19-7:20
+ 61: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 62: Ident           "a_copy" at 8:9-8:15 (leading: Space)
+ 63: Colon           ":" at 8:15-8:16
+ 64: Ident           "Node" at 8:17-8:21 (leading: Space)
+ 65: LBracket        "[" at 8:21-8:22
+ 66: RBracket        "]" at 8:22-8:23
+ 67: Assign          "=" at 8:24-8:25 (leading: Space)
+ 68: Star            "*" at 8:26-8:27 (leading: Space)
+ 69: Ident           "a_ref" at 8:27-8:32
+ 70: Semicolon       ";" at 8:32-8:33
+ 71: At              "@" at 9:5-9:6 (leading: Newline, Space)
+ 72: Ident           "drop" at 9:6-9:10
+ 73: Ident           "a_ref" at 9:11-9:16 (leading: Space)
+ 74: Semicolon       ";" at 9:16-9:17
+ 75: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 76: Ident           "b_ref" at 10:9-10:14 (leading: Space)
+ 77: Assign          "=" at 10:15-10:16 (leading: Space)
+ 78: Amp             "&" at 10:17-10:18 (leading: Space)
+ 79: Ident           "b" at 10:18-10:19
+ 80: Semicolon       ";" at 10:19-10:20
+ 81: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
+ 82: Ident           "b_copy" at 11:9-11:15 (leading: Space)
+ 83: Colon           ":" at 11:15-11:16
+ 84: Ident           "Node" at 11:17-11:21 (leading: Space)
+ 85: LBracket        "[" at 11:21-11:22
+ 86: RBracket        "]" at 11:22-11:23
+ 87: Assign          "=" at 11:24-11:25 (leading: Space)
+ 88: Star            "*" at 11:26-11:27 (leading: Space)
+ 89: Ident           "b_ref" at 11:27-11:32
+ 90: Semicolon       ";" at 11:32-11:33
+ 91: At              "@" at 12:5-12:6 (leading: Newline, Space)
+ 92: Ident           "drop" at 12:6-12:10
+ 93: Ident           "b_ref" at 12:11-12:16 (leading: Space)
+ 94: Semicolon       ";" at 12:16-12:17
+ 95: Ident           "a" at 13:5-13:6 (leading: Newline, Space)
+ 96: LBracket        "[" at 13:6-13:7
+ 97: IntLit          "0" at 13:7-13:8
+ 98: RBracket        "]" at 13:8-13:9
+ 99: Dot             "." at 13:9-13:10
+100: Ident           "next" at 13:10-13:14
+101: Assign          "=" at 13:15-13:16 (leading: Space)
+102: Ident           "b_copy" at 13:17-13:23 (leading: Space)
+103: Semicolon       ";" at 13:23-13:24
+104: Ident           "b" at 14:5-14:6 (leading: Newline, Space)
+105: LBracket        "[" at 14:6-14:7
+106: IntLit          "0" at 14:7-14:8
+107: RBracket        "]" at 14:8-14:9
+108: Dot             "." at 14:9-14:10
+109: Ident           "next" at 14:10-14:14
+110: Assign          "=" at 14:15-14:16 (leading: Space)
+111: Ident           "a_copy" at 14:17-14:23 (leading: Space)
+112: Semicolon       ";" at 14:23-14:24
+113: KwReturn        "return" at 15:5-15:11 (leading: Newline, Space)
+114: IntLit          "0" at 15:12-15:13 (leading: Space)
+115: Semicolon       ";" at 15:13-15:14
+116: RBrace          "}" at 16:1-16:2 (leading: Newline)
+117: EOF             at 17:1-17:1

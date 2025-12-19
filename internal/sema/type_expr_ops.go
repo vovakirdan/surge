@@ -69,6 +69,8 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 func (tc *typeChecker) typeBinary(span source.Span, data *ast.ExprBinaryData) types.TypeID {
 	leftType := tc.typeExpr(data.Left)
 	if data.Op == ast.ExprBinaryAssign {
+		rightType := tc.typeExpr(data.Right)
+		tc.ensureBindingTypeMatch(ast.NoTypeID, leftType, rightType, data.Right)
 		tc.ensureIndexAssignment(data.Left, leftType, span)
 		tc.handleAssignment(data.Op, data.Left, data.Right, span)
 		return leftType

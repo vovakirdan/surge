@@ -36,86 +36,87 @@ func canonicalType(typesIn *types.Interner, id types.TypeID) types.TypeID {
 	return id
 }
 
-func (e *LayoutEngine) computeLayout(id types.TypeID) TypeLayout {
+func (e *LayoutEngine) computeLayout(id types.TypeID, state *layoutState) (TypeLayout, *LayoutError) {
 	if id == types.NoTypeID {
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 	}
 	if e == nil {
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 	}
 	typesIn := e.Types
 	if typesIn == nil {
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 	}
 	tt, ok := typesIn.Lookup(id)
 	if !ok {
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 	}
 
 	switch tt.Kind {
 	case types.KindUnit, types.KindNothing:
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 
 	case types.KindBool:
-		return TypeLayout{Size: 1, Align: 1}
+		return TypeLayout{Size: 1, Align: 1}, nil
 
 	case types.KindInt:
 		if tt.Width == types.WidthAny {
-			return e.ptrLayout()
+			return e.ptrLayout(), nil
 		}
-		return scalarLayoutBytes(int(tt.Width) / 8)
+		return scalarLayoutBytes(int(tt.Width) / 8), nil
 
 	case types.KindUint:
 		if tt.Width == types.WidthAny {
-			return e.ptrLayout()
+			return e.ptrLayout(), nil
 		}
-		return scalarLayoutBytes(int(tt.Width) / 8)
+		return scalarLayoutBytes(int(tt.Width) / 8), nil
 
 	case types.KindFloat:
 		if tt.Width == types.WidthAny {
-			return e.ptrLayout()
+			return e.ptrLayout(), nil
 		}
-		return scalarLayoutBytes(int(tt.Width) / 8)
+		return scalarLayoutBytes(int(tt.Width) / 8), nil
 
 	case types.KindString:
-		return e.ptrLayout()
+		return e.ptrLayout(), nil
 
 	case types.KindPointer, types.KindReference, types.KindFn:
-		return e.ptrLayout()
+		return e.ptrLayout(), nil
 
 	case types.KindStruct:
 		if elem, length, ok := typesIn.ArrayFixedInfo(id); ok {
-			return e.arrayFixedLayout(elem, length)
+			return e.arrayFixedLayout(elem, length, state)
 		}
 		if _, ok := typesIn.ArrayInfo(id); ok {
 			// Dynamic Array<T> is a handle in the v1 VM/ABI contract.
-			return e.ptrLayout()
+			return e.ptrLayout(), nil
 		}
-		return e.structLayoutWithAttrs(id)
+		return e.structLayoutWithAttrs(id, state)
 
 	case types.KindTuple:
-		return e.tupleLayout(id)
+		return e.tupleLayout(id, state)
 
 	case types.KindUnion:
-		return e.tagUnionLayout(id)
+		return e.tagUnionLayout(id, state)
 
 	case types.KindEnum:
 		if info, ok := typesIn.EnumInfo(id); ok && info != nil && info.BaseType != types.NoTypeID {
-			return e.LayoutOf(info.BaseType)
+			l, err := e.layoutOf(info.BaseType, state)
+			return l, err
 		}
-		return scalarLayoutBytes(4) // default v1: uint32
+		return scalarLayoutBytes(4), nil // default v1: uint32
 
 	case types.KindConst, types.KindGenericParam:
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 
 	case types.KindArray:
 		if tt.Count == types.ArrayDynamicLength {
-			return e.ptrLayout()
+			return e.ptrLayout(), nil
 		}
-		return e.arrayFixedLayout(tt.Elem, tt.Count)
+		return e.arrayFixedLayout(tt.Elem, tt.Count, state)
 
 	default:
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 	}
 }
 
@@ -156,27 +157,30 @@ func maxInt(a, b int) int {
 	return b
 }
 
-func (e *LayoutEngine) arrayFixedLayout(elem types.TypeID, length uint32) TypeLayout {
-	elemLayout := e.LayoutOf(elem)
+func (e *LayoutEngine) arrayFixedLayout(elem types.TypeID, length uint32, state *layoutState) (TypeLayout, *LayoutError) {
+	elemLayout, err := e.layoutOf(elem, state)
+	if err != nil {
+		return TypeLayout{Size: 0, Align: 1}, err
+	}
 	elemSize := elemLayout.Size
 	elemAlign := elemLayout.Align
 	if elemAlign <= 0 {
 		elemAlign = 1
 	}
 	stride := roundUp(elemSize, elemAlign)
-	n, err := safecast.Conv[int](length)
-	if err != nil || n < 0 {
+	n, convErr := safecast.Conv[int](length)
+	if convErr != nil || n < 0 {
 		n = 0
 	}
 	return TypeLayout{
 		Size:  stride * n,
 		Align: elemAlign,
-	}
+	}, nil
 }
 
-func (e *LayoutEngine) structLayoutWithAttrs(id types.TypeID) TypeLayout {
+func (e *LayoutEngine) structLayoutWithAttrs(id types.TypeID, state *layoutState) (TypeLayout, *LayoutError) {
 	if e == nil || e.Types == nil {
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 	}
 
 	attrs, _ := e.Types.TypeLayoutAttrs(id)
@@ -186,7 +190,7 @@ func (e *LayoutEngine) structLayoutWithAttrs(id types.TypeID) TypeLayout {
 
 	info, ok := e.Types.StructInfo(id)
 	if !ok || info == nil || len(info.Fields) == 0 {
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 	}
 	fields := info.Fields
 	offsets := make([]int, len(fields))
@@ -195,7 +199,10 @@ func (e *LayoutEngine) structLayoutWithAttrs(id types.TypeID) TypeLayout {
 	if attrs.Packed {
 		size := 0
 		for i := range fields {
-			fl := e.LayoutOf(fields[i].Type)
+			fl, err := e.layoutOf(fields[i].Type, state)
+			if err != nil {
+				return TypeLayout{Size: 0, Align: 1}, err
+			}
 			offsets[i] = size
 			aligns[i] = 1
 			size += fl.Size
@@ -205,13 +212,16 @@ func (e *LayoutEngine) structLayoutWithAttrs(id types.TypeID) TypeLayout {
 			Align:        1,
 			FieldOffsets: offsets,
 			FieldAligns:  aligns,
-		}
+		}, nil
 	}
 
 	size := 0
 	align := 1
 	for i := range fields {
-		fl := e.LayoutOf(fields[i].Type)
+		fl, err := e.layoutOf(fields[i].Type, state)
+		if err != nil {
+			return TypeLayout{Size: 0, Align: 1}, err
+		}
 		fAlign := fl.Align
 		if fields[i].Layout.AlignOverride != nil {
 			fAlign = maxInt(fAlign, *fields[i].Layout.AlignOverride)
@@ -236,21 +246,24 @@ func (e *LayoutEngine) structLayoutWithAttrs(id types.TypeID) TypeLayout {
 		Align:        align,
 		FieldOffsets: offsets,
 		FieldAligns:  aligns,
-	}
+	}, nil
 }
 
-func (e *LayoutEngine) tupleLayout(id types.TypeID) TypeLayout {
+func (e *LayoutEngine) tupleLayout(id types.TypeID, state *layoutState) (TypeLayout, *LayoutError) {
 	if e == nil || e.Types == nil {
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 	}
 	info, ok := e.Types.TupleInfo(id)
 	if !ok || info == nil || len(info.Elems) == 0 {
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 	}
 	size := 0
 	align := 1
 	for _, elem := range info.Elems {
-		el := e.LayoutOf(elem)
+		el, err := e.layoutOf(elem, state)
+		if err != nil {
+			return TypeLayout{Size: 0, Align: 1}, err
+		}
 		a := el.Align
 		if a <= 0 {
 			a = 1
@@ -260,16 +273,16 @@ func (e *LayoutEngine) tupleLayout(id types.TypeID) TypeLayout {
 		align = maxInt(align, a)
 	}
 	size = roundUp(size, align)
-	return TypeLayout{Size: size, Align: align}
+	return TypeLayout{Size: size, Align: align}, nil
 }
 
-func (e *LayoutEngine) tagUnionLayout(id types.TypeID) TypeLayout {
+func (e *LayoutEngine) tagUnionLayout(id types.TypeID, state *layoutState) (TypeLayout, *LayoutError) {
 	if e == nil || e.Types == nil {
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 	}
 	info, ok := e.Types.UnionInfo(id)
 	if !ok || info == nil || len(info.Members) == 0 {
-		return TypeLayout{Size: 0, Align: 1}
+		return TypeLayout{Size: 0, Align: 1}, nil
 	}
 
 	maxPayloadSize := 0
@@ -279,7 +292,10 @@ func (e *LayoutEngine) tagUnionLayout(id types.TypeID) TypeLayout {
 		case types.UnionMemberNothing:
 			// payload: size 0 align 1
 		case types.UnionMemberType:
-			pl := e.LayoutOf(m.Type)
+			pl, err := e.layoutOf(m.Type, state)
+			if err != nil {
+				return TypeLayout{Size: 0, Align: 1}, err
+			}
 			maxPayloadSize = maxInt(maxPayloadSize, pl.Size)
 			payloadAlign = maxInt(payloadAlign, pl.Align)
 		case types.UnionMemberTag:
@@ -287,7 +303,10 @@ func (e *LayoutEngine) tagUnionLayout(id types.TypeID) TypeLayout {
 				continue
 			}
 			if len(m.TagArgs) == 1 {
-				pl := e.LayoutOf(m.TagArgs[0])
+				pl, err := e.layoutOf(m.TagArgs[0], state)
+				if err != nil {
+					return TypeLayout{Size: 0, Align: 1}, err
+				}
 				maxPayloadSize = maxInt(maxPayloadSize, pl.Size)
 				payloadAlign = maxInt(payloadAlign, pl.Align)
 				continue
@@ -296,7 +315,10 @@ func (e *LayoutEngine) tagUnionLayout(id types.TypeID) TypeLayout {
 			size := 0
 			align := 1
 			for _, a := range m.TagArgs {
-				al := e.LayoutOf(a)
+				al, err := e.layoutOf(a, state)
+				if err != nil {
+					return TypeLayout{Size: 0, Align: 1}, err
+				}
 				size = roundUp(size, maxInt(1, al.Align))
 				size += al.Size
 				align = maxInt(align, maxInt(1, al.Align))
@@ -323,5 +345,5 @@ func (e *LayoutEngine) tagUnionLayout(id types.TypeID) TypeLayout {
 		TagSize:       tagSize,
 		TagAlign:      tagAlign,
 		PayloadOffset: payloadOffset,
-	}
+	}, nil
 }

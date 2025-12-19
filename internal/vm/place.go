@@ -86,7 +86,10 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 
 			var byteOffset int32
 			if vm.Layout != nil {
-				off := vm.Layout.FieldOffset(obj.TypeID, fieldIdx)
+				off, err := vm.Layout.FieldOffset(obj.TypeID, fieldIdx)
+				if err != nil {
+					return Location{}, vm.eb.invalidLocation(fmt.Sprintf("field projection: %v", err))
+				}
 				bo, err := safecast.Conv[int32](off)
 				if err != nil {
 					return Location{}, vm.eb.invalidLocation("field projection: byte offset overflow")
@@ -189,7 +192,10 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 					elemType = tt.Elem
 				}
 				if elemType != types.NoTypeID {
-					el := vm.Layout.LayoutOf(elemType)
+					el, err := vm.Layout.LayoutOf(elemType)
+					if err != nil {
+						return Location{}, vm.eb.invalidLocation(fmt.Sprintf("index projection: %v", err))
+					}
 					stride := roundUp(el.Size, maxIntValue(1, el.Align))
 					off := stride * idx
 					bo, err := safecast.Conv[int32](off)
