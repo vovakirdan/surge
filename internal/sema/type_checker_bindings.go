@@ -335,6 +335,7 @@ func (tc *typeChecker) applyExpectedType(expr ast.ExprID, expected types.TypeID)
 			if length, err := safecast.Conv[uint32](len(arr.Elements)); err == nil && expLen != length {
 				tc.report(diag.SemaTypeMismatch, tc.exprSpan(expr),
 					"array literal length %d does not match expected length %d", length, expLen)
+				return false
 			}
 		}
 		for _, elem := range arr.Elements {

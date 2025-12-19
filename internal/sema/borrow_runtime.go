@@ -138,7 +138,7 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 }
 
 func (tc *typeChecker) isSharedRefDeref(expr ast.ExprID) bool {
-	if !expr.IsValid() || tc.builder == nil || tc.types == nil {
+	if !expr.IsValid() || tc.builder == nil || tc.types == nil || tc.result == nil {
 		return false
 	}
 	node := tc.builder.Exprs.Get(expr)

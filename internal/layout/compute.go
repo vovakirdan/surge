@@ -169,8 +169,19 @@ func (e *LayoutEngine) arrayFixedLayout(elem types.TypeID, length uint32, state 
 	}
 	stride := roundUp(elemSize, elemAlign)
 	n, convErr := safecast.Conv[int](length)
-	if convErr != nil || n < 0 {
-		n = 0
+	if convErr != nil {
+		return TypeLayout{Size: 0, Align: 1}, &LayoutError{
+			Kind: LayoutErrLengthConversion,
+			Type: elem,
+			Err:  convErr,
+		}
+	}
+	if n < 0 {
+		return TypeLayout{Size: 0, Align: 1}, &LayoutError{
+			Kind:  LayoutErrNegativeLength,
+			Type:  elem,
+			Value: int64(n),
+		}
 	}
 	return TypeLayout{
 		Size:  stride * n,

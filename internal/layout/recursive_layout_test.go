@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -99,18 +100,11 @@ fn main() -> int { return 0; }
 func diagnoseSemaFromSource(t *testing.T, sourceCode string, allowErrors bool) *driver.DiagnoseResult {
 	t.Helper()
 
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err = os.Chdir("../.."); err != nil {
-		t.Fatalf("chdir to repo root: %v", err)
-	}
-	defer func() {
-		_ = os.Chdir(wd)
-	}()
+	// Создаём временную директорию для теста
+	tmpDir := t.TempDir()
 
-	tmpFile, err := os.CreateTemp(".", "layout_recursive_*.sg")
+	// Создаём временный файл с исходным кодом
+	tmpFile, err := os.CreateTemp(tmpDir, "layout_recursive_*.sg")
 	if err != nil {
 		t.Fatalf("create temp file: %v", err)
 	}
@@ -124,7 +118,13 @@ func diagnoseSemaFromSource(t *testing.T, sourceCode string, allowErrors bool) *
 		t.Fatalf("close temp file: %v", err)
 	}
 
-	res, err := driver.DiagnoseWithOptions(context.Background(), tmpFile.Name(), driver.DiagnoseOptions{
+	// Получаем абсолютный путь к файлу
+	absPath, err := filepath.Abs(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("get absolute path: %v", err)
+	}
+
+	res, err := driver.DiagnoseWithOptions(context.Background(), absPath, driver.DiagnoseOptions{
 		Stage:          driver.DiagnoseStageSema,
 		MaxDiagnostics: 100,
 	})
