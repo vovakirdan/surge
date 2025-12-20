@@ -2,12 +2,12 @@
 == MONO ==
 funcs=2 types=2
 fn main() -> nothing (id=2147483649, sym=2415919105) {
-  let x: type#315 = Some::<int>(1): type#315
-  let y: type#315 = Some::<int>(42): type#315
+  let x: type#320 = Some::<int>(1): type#320
+  let y: type#320 = Some::<int>(42): type#320
   return
 }
 fn Some::<int> (sym=2415919106)
 
 types:
-  type Option::<int> = type#315
-  type Option::<int> = type#315
+  type Option::<int> = type#320
+  type Option::<int> = type#320

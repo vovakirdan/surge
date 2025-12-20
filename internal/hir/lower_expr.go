@@ -77,6 +77,9 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 	case ast.ExprArray:
 		return l.lowerArrayExpr(expr, ty)
 
+	case ast.ExprRangeLit:
+		return l.lowerRangeLitExpr(expr, ty)
+
 	case ast.ExprStruct:
 		return l.lowerStructExpr(expr, ty)
 
@@ -118,6 +121,76 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 
 	default:
 		return nil
+	}
+}
+
+func (l *lowerer) intrinsicSymbolID(name string) symbols.SymbolID {
+	if l == nil || l.symRes == nil || l.symRes.Table == nil || !l.symRes.FileScope.IsValid() {
+		return symbols.NoSymbolID
+	}
+	nameID := l.strings.Intern(name)
+	return l.symbolInScope(l.symRes.FileScope, nameID, symbols.SymbolFunction)
+}
+
+func (l *lowerer) intrinsicCallee(name string, span source.Span) (*Expr, symbols.SymbolID) {
+	symID := l.intrinsicSymbolID(name)
+	return &Expr{
+		Kind: ExprVarRef,
+		Type: types.NoTypeID,
+		Span: span,
+		Data: VarRefData{Name: name, SymbolID: symID},
+	}, symID
+}
+
+func (l *lowerer) boolLiteralExpr(span source.Span, value bool) *Expr {
+	boolType := types.NoTypeID
+	if l != nil && l.module != nil && l.module.TypeInterner != nil {
+		boolType = l.module.TypeInterner.Builtins().Bool
+	}
+	return &Expr{
+		Kind: ExprLiteral,
+		Type: boolType,
+		Span: span,
+		Data: LiteralData{Kind: LiteralBool, BoolValue: value},
+	}
+}
+
+func (l *lowerer) lowerRangeLitExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+	rangeData := l.builder.Exprs.RangeLits.Get(uint32(expr.Payload))
+	if rangeData == nil {
+		return nil
+	}
+
+	var (
+		name string
+		args []*Expr
+	)
+
+	switch {
+	case rangeData.Start.IsValid() && rangeData.End.IsValid():
+		name = "rt_range_int_new"
+		args = append(args, l.lowerExpr(rangeData.Start), l.lowerExpr(rangeData.End), l.boolLiteralExpr(expr.Span, rangeData.Inclusive))
+	case rangeData.Start.IsValid():
+		name = "rt_range_int_from_start"
+		args = append(args, l.lowerExpr(rangeData.Start), l.boolLiteralExpr(expr.Span, rangeData.Inclusive))
+	case rangeData.End.IsValid():
+		name = "rt_range_int_to_end"
+		args = append(args, l.lowerExpr(rangeData.End), l.boolLiteralExpr(expr.Span, rangeData.Inclusive))
+	default:
+		name = "rt_range_int_full"
+		args = append(args, l.boolLiteralExpr(expr.Span, rangeData.Inclusive))
+	}
+
+	callee, symID := l.intrinsicCallee(name, expr.Span)
+	return &Expr{
+		Kind: ExprCall,
+		Type: ty,
+		Span: expr.Span,
+		Data: CallData{
+			Callee:   callee,
+			Args:     args,
+			SymbolID: symID,
+		},
 	}
 }
 

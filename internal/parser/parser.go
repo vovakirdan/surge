@@ -53,9 +53,15 @@ type Parser struct {
 	// inTypeOperandContext > 0 indicates we're parsing a type operand (right side of 'is'/'heir').
 	// In this context, we should not parse 'TypeName {' as struct literal.
 	inTypeOperandContext int
-	pragmaParsed         bool
-	tracer               trace.Tracer // трассировщик для отладки зависаний
-	exprDepth            int          // глубина рекурсии для выражений
+	// rangeLiteralExprDepth enables missing-end handling for range literals at a specific expr depth.
+	rangeLiteralExprDepth int
+	rangeLiteralPending   bool
+	rangeLiteralStart     ast.ExprID
+	rangeLiteralInclusive bool
+	rangeLiteralSpan      source.Span
+	pragmaParsed          bool
+	tracer                trace.Tracer // трассировщик для отладки зависаний
+	exprDepth             int          // глубина рекурсии для выражений
 }
 
 type DirectiveMode uint8

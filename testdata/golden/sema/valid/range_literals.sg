@@ -1,0 +1,19 @@
+type Box = {
+    value: int;
+};
+
+extern<Box> {
+    fn __index(self: Box, r: Range<int>) -> int;
+}
+
+fn test() {
+    let r1: Range<int> = [..];
+    let r2 = [1..];
+    let r3 = [..3];
+    let r4 = [..=3];
+    let r5 = [1..3];
+    let r6 = [1..=3];
+
+    let b = Box { value = 1 };
+    let x = b[r5];
+}

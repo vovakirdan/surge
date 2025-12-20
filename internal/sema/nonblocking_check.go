@@ -172,6 +172,12 @@ func (tc *typeChecker) walkExprForBlockingCalls(exprID ast.ExprID, fnSpan source
 			tc.walkExprForBlockingCalls(indexData.Target, fnSpan)
 			tc.walkExprForBlockingCalls(indexData.Index, fnSpan)
 		}
+	case ast.ExprRangeLit:
+		rangeData, ok := tc.builder.Exprs.RangeLit(exprID)
+		if ok && rangeData != nil {
+			tc.walkExprForBlockingCalls(rangeData.Start, fnSpan)
+			tc.walkExprForBlockingCalls(rangeData.End, fnSpan)
+		}
 	}
 }
 

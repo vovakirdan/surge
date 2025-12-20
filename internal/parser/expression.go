@@ -91,6 +91,16 @@ func (p *Parser) parseBinaryExpr(minPrec int) (ast.ExprID, bool) {
 		}
 
 		if !ok {
+			if (opTok.Kind == token.DotDot || opTok.Kind == token.DotDotEq) &&
+				p.rangeLiteralExprDepth != 0 &&
+				p.rangeLiteralExprDepth == p.exprDepth &&
+				p.at(token.RBracket) {
+				p.rangeLiteralPending = true
+				p.rangeLiteralStart = left
+				p.rangeLiteralInclusive = opTok.Kind == token.DotDotEq
+				p.rangeLiteralSpan = opTok.Span
+				return left, true
+			}
 			p.err(diag.SynExpectExpression, "expected expression after binary operator")
 			return ast.NoExprID, false
 		}

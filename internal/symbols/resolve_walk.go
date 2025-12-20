@@ -352,6 +352,13 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 		for _, elem := range data.Elements {
 			fr.walkExpr(elem)
 		}
+	case ast.ExprRangeLit:
+		data, _ := fr.builder.Exprs.RangeLit(exprID)
+		if data == nil {
+			return
+		}
+		fr.walkExpr(data.Start)
+		fr.walkExpr(data.End)
 	case ast.ExprSpread:
 		data, _ := fr.builder.Exprs.Spread(exprID)
 		if data == nil {

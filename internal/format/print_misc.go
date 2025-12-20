@@ -40,6 +40,8 @@ func (p *printer) printExpr(id ast.ExprID) {
 		p.printTupleExpr(id, expr)
 	case ast.ExprArray:
 		p.printArrayExpr(id, expr)
+	case ast.ExprRangeLit:
+		p.printRangeExpr(id, expr)
 	default:
 		p.writer.CopySpan(expr.Span)
 	}
@@ -92,6 +94,36 @@ func (p *printer) printArrayExpr(id ast.ExprID, expr *ast.Expr) {
 
 	if array.HasTrailingComma && len(array.Elements) > 0 {
 		p.writer.WriteString(",")
+	}
+
+	if err := p.writer.WriteByte(']'); err != nil {
+		panic(err)
+	}
+}
+
+func (p *printer) printRangeExpr(id ast.ExprID, expr *ast.Expr) {
+	rng, ok := p.builder.Exprs.RangeLit(id)
+	if !ok || rng == nil {
+		p.writer.CopySpan(expr.Span)
+		return
+	}
+
+	if err := p.writer.WriteByte('['); err != nil {
+		panic(err)
+	}
+
+	if rng.Start.IsValid() {
+		p.printExpr(rng.Start)
+	}
+
+	if rng.Inclusive {
+		p.writer.WriteString("..=")
+	} else {
+		p.writer.WriteString("..")
+	}
+
+	if rng.End.IsValid() {
+		p.printExpr(rng.End)
 	}
 
 	if err := p.writer.WriteByte(']'); err != nil {

@@ -1,0 +1,7 @@
+range_literal_inclusive_missing_end.sg (span: 1:1-5:1)
+└─ Item[0]: Fn (span: 1:1-4:2)
+   ├─ Name: test
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:11-4:2)

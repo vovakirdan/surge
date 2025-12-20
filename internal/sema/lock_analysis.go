@@ -552,6 +552,12 @@ func (tc *typeChecker) walkExprForLockOps(la *lockAnalyzer, exprID ast.ExprID) {
 			tc.checkExprForLockOps(la, indexData.Target)
 			tc.checkExprForLockOps(la, indexData.Index)
 		}
+	case ast.ExprRangeLit:
+		rangeData, ok := tc.builder.Exprs.RangeLit(exprID)
+		if ok && rangeData != nil {
+			tc.checkExprForLockOps(la, rangeData.Start)
+			tc.checkExprForLockOps(la, rangeData.End)
+		}
 	}
 }
 

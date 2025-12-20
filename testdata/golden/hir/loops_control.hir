@@ -2,7 +2,7 @@
 == HIR ==
 module 
 
-fn find_first_positive(arr: type#315) -> int (id=1, sym=566) {
+fn find_first_positive(arr: type#320) -> int (id=1, sym=574) {
   {
     let mut i: int [copy] = 0
     let __end1: int [copy] = 5
@@ -20,7 +20,7 @@ fn find_first_positive(arr: type#315) -> int (id=1, sym=566) {
   return 0
 }
 
-fn sum_until_zero(arr: type#315) -> int (id=2, sym=567) {
+fn sum_until_zero(arr: type#320) -> int (id=2, sym=575) {
   let mut total: int [copy] = 0
   {
     let mut i: int [copy] = 0

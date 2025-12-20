@@ -4,7 +4,7 @@ funcs=2
 
 fn __surge_start:
   locals:
-    L0: type#314 name=entry_ret
+    L0: type#319 name=entry_ret
     L1: int [copy] name=code
   bb0:
     L0 = call main()
@@ -14,7 +14,7 @@ fn __surge_start:
 
 fn main:
   locals:
-    L0: type#314 name=tmp_struct1
+    L0: type#319 name=tmp_struct1
   bb0:
-    L0 = struct_lit type#314 {code=const 42}
+    L0 = struct_lit type#319 {code=const 42}
     return move L0

@@ -25,6 +25,12 @@ pub type Range<T> = {
     __state: *byte,
 };
 
+// Range literal constructors (descriptor-only, not iterator ranges).
+@intrinsic pub fn rt_range_int_new(start: int, end: int, inclusive: bool) -> Range<int>;
+@intrinsic pub fn rt_range_int_from_start(start: int, inclusive: bool) -> Range<int>;
+@intrinsic pub fn rt_range_int_to_end(end: int, inclusive: bool) -> Range<int>;
+@intrinsic pub fn rt_range_int_full(inclusive: bool) -> Range<int>;
+
 extern<Range<T>> {
     @intrinsic pub fn next(self: &mut Range<T>) -> Option<T>;
 }

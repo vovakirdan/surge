@@ -494,6 +494,11 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 				tc.scanSpawn(elem, seen)
 			}
 		}
+	case ast.ExprRangeLit:
+		if data, _ := tc.builder.Exprs.RangeLit(expr); data != nil {
+			tc.scanSpawn(data.Start, seen)
+			tc.scanSpawn(data.End, seen)
+		}
 	case ast.ExprIndex:
 		if data, _ := tc.builder.Exprs.Index(expr); data != nil {
 			tc.scanSpawn(data.Target, seen)

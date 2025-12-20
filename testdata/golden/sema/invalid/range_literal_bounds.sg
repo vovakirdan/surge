@@ -1,0 +1,3 @@
+fn test() {
+    let r = [..(1:uint)];
+}

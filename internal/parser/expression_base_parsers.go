@@ -221,6 +221,19 @@ func (p *Parser) parseParenExpr() (ast.ExprID, bool) {
 func (p *Parser) parseArrayExpr() (ast.ExprID, bool) {
 	openTok := p.advance() // съедаем '['
 
+	prevRangeLiteralExprDepth := p.rangeLiteralExprDepth
+	prevRangeLiteralPending := p.rangeLiteralPending
+	prevRangeLiteralStart := p.rangeLiteralStart
+	prevRangeLiteralInclusive := p.rangeLiteralInclusive
+	prevRangeLiteralSpan := p.rangeLiteralSpan
+	defer func() {
+		p.rangeLiteralExprDepth = prevRangeLiteralExprDepth
+		p.rangeLiteralPending = prevRangeLiteralPending
+		p.rangeLiteralStart = prevRangeLiteralStart
+		p.rangeLiteralInclusive = prevRangeLiteralInclusive
+		p.rangeLiteralSpan = prevRangeLiteralSpan
+	}()
+
 	// проверяем на пустой массив
 
 	if p.at(token.RBracket) {
@@ -229,9 +242,57 @@ func (p *Parser) parseArrayExpr() (ast.ExprID, bool) {
 		return p.arenas.Exprs.NewArray(finalSpan, []ast.ExprID{}, nil, false), true
 	}
 
+	if p.at(token.DotDot) || p.at(token.DotDotEq) {
+		opTok := p.advance()
+		inclusive := opTok.Kind == token.DotDotEq
+		if p.at(token.RBracket) {
+			closeTok := p.advance()
+			if inclusive {
+				p.emitDiagnostic(
+					diag.SynExpectExpression,
+					diag.SevError,
+					opTok.Span,
+					"inclusive end requires an end bound",
+					nil,
+				)
+				return ast.NoExprID, false
+			}
+			finalSpan := openTok.Span.Cover(closeTok.Span)
+			return p.arenas.Exprs.NewRangeLit(finalSpan, ast.NoExprID, ast.NoExprID, false), true
+		}
+		beforeErrors := p.opts.CurrentErrors
+		end, ok := p.parseExpr()
+		if !ok {
+			if p.opts.CurrentErrors == beforeErrors {
+				errSpan := p.currentErrorSpan()
+				p.emitDiagnostic(
+					diag.SynExpectExpression,
+					diag.SevError,
+					errSpan,
+					"expected expression after range operator",
+					nil,
+				)
+			}
+			p.resyncUntil(token.RBracket, token.Semicolon)
+			return ast.NoExprID, false
+		}
+		closeTok, closeOK := p.expect(token.RBracket, diag.SynUnclosedSquareBracket, "expected ']' after range literal", nil)
+		if !closeOK {
+			return ast.NoExprID, false
+		}
+		finalSpan := openTok.Span.Cover(closeTok.Span)
+		return p.arenas.Exprs.NewRangeLit(finalSpan, ast.NoExprID, end, inclusive), true
+	}
+
 	// Парсим первое выражение
 	beforeErrors := p.opts.CurrentErrors
+	p.rangeLiteralExprDepth = p.exprDepth + 1
+	p.rangeLiteralPending = false
+	p.rangeLiteralStart = ast.NoExprID
+	p.rangeLiteralInclusive = false
+	p.rangeLiteralSpan = source.Span{}
 	first, ok := p.parseExpr()
+	p.rangeLiteralExprDepth = 0
 	if !ok {
 		if p.opts.CurrentErrors == beforeErrors {
 			errSpan := p.currentErrorSpan()
@@ -246,6 +307,45 @@ func (p *Parser) parseArrayExpr() (ast.ExprID, bool) {
 		p.resyncUntil(token.RBracket, token.Semicolon)
 		// попытаемся продолжить, чтобы зафиксировать ошибку закрывающей скобки
 		return ast.NoExprID, false
+	}
+
+	if p.rangeLiteralPending {
+		start := p.rangeLiteralStart
+		inclusive := p.rangeLiteralInclusive
+		opSpan := p.rangeLiteralSpan
+		p.rangeLiteralPending = false
+		p.rangeLiteralStart = ast.NoExprID
+		if inclusive {
+			p.emitDiagnostic(
+				diag.SynExpectExpression,
+				diag.SevError,
+				opSpan,
+				"inclusive end requires an end bound",
+				nil,
+			)
+			if p.at(token.RBracket) {
+				p.advance()
+			}
+			return ast.NoExprID, false
+		}
+		closeTok, closeOK := p.expect(token.RBracket, diag.SynUnclosedSquareBracket, "expected ']' after range literal", nil)
+		if !closeOK {
+			return ast.NoExprID, false
+		}
+		finalSpan := openTok.Span.Cover(closeTok.Span)
+		return p.arenas.Exprs.NewRangeLit(finalSpan, start, ast.NoExprID, false), true
+	}
+
+	if bin, binOK := p.arenas.Exprs.Binary(first); binOK && bin != nil {
+		if (bin.Op == ast.ExprBinaryRange || bin.Op == ast.ExprBinaryRangeInclusive) && !p.at(token.Comma) {
+			closeTok, closeOK := p.expect(token.RBracket, diag.SynUnclosedSquareBracket, "expected ']' after range literal", nil)
+			if !closeOK {
+				return ast.NoExprID, false
+			}
+			finalSpan := openTok.Span.Cover(closeTok.Span)
+			inclusive := bin.Op == ast.ExprBinaryRangeInclusive
+			return p.arenas.Exprs.NewRangeLit(finalSpan, bin.Left, bin.Right, inclusive), true
+		}
 	}
 
 	// парсим элементы массива циклом

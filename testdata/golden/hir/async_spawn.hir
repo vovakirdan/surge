@@ -2,12 +2,12 @@
 == HIR ==
 module 
 
-async fn inc(x: int [copy]) -> int (id=1, sym=566) {
+async fn inc(x: int [copy]) -> int (id=1, sym=574) {
   return (x + 1): int
 }
 
-async fn test() -> int (id=2, sym=567) {
-  let task: type#316 = spawn inc(5): type#316: type#316
+async fn test() -> int (id=2, sym=575) {
+  let task: type#321 = spawn inc(5): type#321: type#321
   return task.await(): int
 }
 

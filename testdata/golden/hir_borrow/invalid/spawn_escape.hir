@@ -3,7 +3,7 @@ error SEM3021 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:30 cannot sen
 == HIR ==
 module 
 
-async fn use_ref(x: &int [&]) -> nothing (id=1, sym=566) {
+async fn use_ref(x: &int [&]) -> nothing (id=1, sym=574) {
 }
 
 borrow edges:
@@ -11,24 +11,24 @@ borrow edges:
 events:
   <none>
 move plan:
-  L1133(x): MoveCopy (copy type)
+  L1149(x): MoveCopy (copy type)
 
-async fn t() -> nothing (id=2, sym=567) {
+async fn t() -> nothing (id=2, sym=575) {
   let mut x: int [copy] = 1
   let r: &int [&] = (& x): &int
-  let task: type#317 = spawn use_ref(r): type#317: type#317
+  let task: type#322 = spawn use_ref(r): type#322: type#322
   task.await(): nothing
   return
 }
 
 borrow edges:
-  L1135(r) (&) borrows L1134(x) at 0:87-89 scope=S5
+  L1151(r) (&) borrows L1150(x) at 0:87-89 scope=S5
 events:
-  borrow_start L1135(r) -> L1134(x) (&) at 0:87-89 scope=S5 note="B1"
-  spawn_escape L1135(r) -> L1134(x) at 0:120-121 scope=S5 note="B1"
-  borrow_end L1135(r) -> L1134(x) scope=S5 note="scope_end B1"
+  borrow_start L1151(r) -> L1150(x) (&) at 0:87-89 scope=S5 note="B1"
+  spawn_escape L1151(r) -> L1150(x) at 0:120-121 scope=S5 note="B1"
+  borrow_end L1151(r) -> L1150(x) scope=S5 note="scope_end B1"
 move plan:
-  L1134(x): MoveCopy (copy type)
-  L1135(r): MoveForbidden (spawn escape)
-  L1136(task): MoveNeedsDrop (non-copy (drop))
+  L1150(x): MoveCopy (copy type)
+  L1151(r): MoveForbidden (spawn escape)
+  L1152(task): MoveNeedsDrop (non-copy (drop))
 
