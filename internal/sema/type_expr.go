@@ -147,6 +147,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 						tc.observeMove(arg.Value, tc.exprSpan(arg.Value))
 					}
 					ty = tc.methodResultType(member, receiverType, argTypes, expr.Span, receiverIsType)
+					tc.recordMethodCallSymbol(id, member, receiverType, argTypes, receiverIsType)
 					break
 				}
 			}
@@ -220,7 +221,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			if magic := tc.magicResultForIndex(container, indexType); magic != types.NoTypeID {
 				ty = magic
 			} else {
-				ty = tc.indexResultType(container, expr.Span)
+				ty = tc.indexResultType(container, indexType, expr.Span)
 			}
 		}
 	case ast.ExprMember:

@@ -141,7 +141,25 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 		if data.Op == ast.ExprUnaryRef || data.Op == ast.ExprUnaryRefMut {
 			place, err := l.lowerPlace(data.Operand)
 			if err != nil {
-				return Operand{}, err
+				val, valErr := l.lowerExpr(data.Operand, false)
+				if valErr != nil {
+					return Operand{}, err
+				}
+				tmpType := val.Type
+				if tmpType == types.NoTypeID && l.types != nil && e.Type != types.NoTypeID {
+					if tt, ok := l.types.Lookup(e.Type); ok && tt.Kind == types.KindReference {
+						tmpType = tt.Elem
+					}
+				}
+				tmp := l.newTemp(tmpType, "ref", e.Span)
+				l.emit(&Instr{
+					Kind: InstrAssign,
+					Assign: AssignInstr{
+						Dst: Place{Local: tmp},
+						Src: RValue{Kind: RValueUse, Use: val},
+					},
+				})
+				place = Place{Local: tmp}
 			}
 			kind := OperandAddrOf
 			if data.Op == ast.ExprUnaryRefMut {

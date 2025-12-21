@@ -70,7 +70,7 @@ extern<float64> {
 
 pub fn print(s: string) -> nothing {
     let ptr = rt_string_ptr(&s);
-    let slen = rt_string_len(&s);
+    let slen = rt_string_len_bytes(&s);
     rt_write_stdout(ptr, slen);
     let newline = "\n";
     rt_write_stdout(rt_string_ptr(&newline), 1:uint);

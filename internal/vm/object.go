@@ -21,11 +21,20 @@ const (
 	OKBigInt
 	OKBigUint
 	OKBigFloat
+	OKRange
 )
 
 type TagObject struct {
 	TagSym symbols.SymbolID
 	Fields []Value
+}
+
+type RangeObject struct {
+	Start     Value
+	End       Value
+	HasStart  bool
+	HasEnd    bool
+	Inclusive bool
 }
 
 type HeapHeader struct {
@@ -40,10 +49,13 @@ type Object struct {
 	TypeID  types.TypeID
 	AllocID uint64
 
-	Str    string
-	Arr    []Value
-	Fields []Value
-	Tag    TagObject
+	Str           string
+	StrCPLen      int
+	StrCPLenKnown bool
+	Arr           []Value
+	Fields        []Value
+	Tag           TagObject
+	Range         RangeObject
 
 	BigInt   bignum.BigInt
 	BigUint  bignum.BigUint

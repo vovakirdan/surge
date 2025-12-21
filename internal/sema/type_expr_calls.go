@@ -417,6 +417,79 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 	return types.NoTypeID
 }
 
+func (tc *typeChecker) recordMethodCallSymbol(callID ast.ExprID, member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, staticReceiver bool) {
+	if callID == ast.NoExprID || member == nil || tc.symbols == nil {
+		return
+	}
+	if tc.symbols.ExprSymbols == nil {
+		return
+	}
+	symID := tc.resolveMethodCallSymbol(member, recv, args, staticReceiver)
+	if symID.IsValid() {
+		tc.symbols.ExprSymbols[callID] = symID
+	}
+}
+
+func (tc *typeChecker) resolveMethodCallSymbol(member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, staticReceiver bool) symbols.SymbolID {
+	if member == nil || recv == types.NoTypeID {
+		return symbols.NoSymbolID
+	}
+	if tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Symbols == nil {
+		return symbols.NoSymbolID
+	}
+	name := tc.lookupExportedName(member.Field)
+	if name == "" {
+		return symbols.NoSymbolID
+	}
+	data := tc.symbols.Table.Symbols.Data()
+	if data == nil {
+		return symbols.NoSymbolID
+	}
+	for _, recvCand := range tc.typeKeyCandidates(recv) {
+		if recvCand.key == "" {
+			continue
+		}
+		subst := tc.buildTypeParamSubst(recv, recvCand.key)
+		for i := range data {
+			sym := &data[i]
+			if sym.Kind != symbols.SymbolFunction || sym.ReceiverKey == "" || sym.Signature == nil {
+				continue
+			}
+			if tc.symbolName(sym.Name) != name {
+				continue
+			}
+			if !typeKeyEqual(sym.ReceiverKey, recvCand.key) {
+				continue
+			}
+			sig := sym.Signature
+			switch {
+			case sig.HasSelf:
+				if !tc.selfParamCompatible(recv, sig.Params[0], recvCand.key) {
+					continue
+				}
+				if len(sig.Params)-1 != len(args) {
+					continue
+				}
+				if !tc.methodParamsMatchWithSubst(sig.Params[1:], args, subst) {
+					continue
+				}
+			case staticReceiver:
+				if len(sig.Params) != len(args) {
+					continue
+				}
+				if !tc.methodParamsMatchWithSubst(sig.Params, args, subst) {
+					continue
+				}
+			default:
+				continue
+			}
+			// Symbol IDs are bounded by the arena size, which is always < MaxUint32.
+			return symbols.SymbolID(i + 1) //nolint:gosec // Add 1 because Data() returns s.data[1:]
+		}
+	}
+	return symbols.NoSymbolID
+}
+
 func (tc *typeChecker) methodParamsMatchWithSubst(expected []symbols.TypeKey, args []types.TypeID, subst map[string]symbols.TypeKey) bool {
 	if len(expected) != len(args) {
 		return false

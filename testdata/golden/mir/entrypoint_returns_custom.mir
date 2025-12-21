@@ -1,10 +1,10 @@
 
 == MIR ==
-funcs=2
+funcs=3
 
 fn __surge_start:
   locals:
-    L0: type#319 name=entry_ret
+    L0: type#331 name=entry_ret
     L1: int [copy] name=code
   bb0:
     L0 = call main()
@@ -12,9 +12,18 @@ fn __surge_start:
     call rt_exit(copy L1)
     return
 
+fn __to:
+  locals:
+    L0: type#331 name=self
+    L1: int [copy] name=_target
+    L2: int [copy] name=tmp_field1
+  bb0:
+    L2 = field copy L0.code
+    return copy L2
+
 fn main:
   locals:
-    L0: type#319 name=tmp_struct1
+    L0: type#331 name=tmp_struct1
   bb0:
-    L0 = struct_lit type#319 {code=const 42}
+    L0 = struct_lit type#331 {code=const 42}
     return move L0

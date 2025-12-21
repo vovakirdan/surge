@@ -12,6 +12,20 @@ import (
 // evalBinaryOp evaluates a binary operation.
 func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMError) {
 	switch op {
+	case ast.ExprBinaryRange, ast.ExprBinaryRangeInclusive:
+		inclusive := op == ast.ExprBinaryRangeInclusive
+		startVal, vmErr := vm.cloneForShare(left)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		endVal, vmErr := vm.cloneForShare(right)
+		if vmErr != nil {
+			vm.dropValue(startVal)
+			return Value{}, vmErr
+		}
+		h := vm.Heap.AllocRange(types.NoTypeID, startVal, endVal, true, true, inclusive)
+		return MakeHandleRange(h, types.NoTypeID), nil
+
 	case ast.ExprBinaryAdd:
 		switch {
 		case left.Kind == VKBigInt && right.Kind == VKBigInt:

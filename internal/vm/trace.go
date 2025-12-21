@@ -67,6 +67,8 @@ func (t *Tracer) TraceHeapAlloc(kind ObjectKind, h Handle, obj *Object) {
 		fmt.Fprintf(t.w, "[heap] alloc struct#%d\n", h)
 	case OKTag:
 		fmt.Fprintf(t.w, "[heap] alloc tag#%d\n", h)
+	case OKRange:
+		fmt.Fprintf(t.w, "[heap] alloc range#%d\n", h)
 	default:
 		fmt.Fprintf(t.w, "[heap] alloc handle#%d\n", h)
 	}
@@ -103,6 +105,8 @@ func kindLabel(kind ObjectKind) string {
 		return "struct"
 	case OKTag:
 		return "tag"
+	case OKRange:
+		return "range"
 	case OKBigInt:
 		return "bigint"
 	case OKBigUint:
@@ -380,6 +384,19 @@ func (t *Tracer) formatValue(v Value) string {
 		}
 		return fmt.Sprintf("tag#%d(rc=%d,type#%d,%s)", v.H, obj.RefCount, obj.TypeID, tagName)
 
+	case VKHandleRange:
+		if v.H == 0 {
+			return "range#0(<invalid>)"
+		}
+		obj := t.lookup(v.H)
+		if obj == nil {
+			return fmt.Sprintf("range#%d(<invalid>)", v.H)
+		}
+		if obj.Freed || obj.RefCount == 0 {
+			return fmt.Sprintf("range#%d(rc=0,<freed>)", v.H)
+		}
+		return fmt.Sprintf("range#%d(rc=%d)", v.H, obj.RefCount)
+
 	case VKBigInt:
 		if v.H == 0 {
 			return "0"
@@ -438,6 +455,8 @@ func (t *Tracer) formatLocation(loc Location) string {
 		return fmt.Sprintf("struct#%d.field[%d]", loc.Handle, loc.Index)
 	case LKArrayElem:
 		return fmt.Sprintf("array#%d[%d]", loc.Handle, loc.Index)
+	case LKStringBytes:
+		return fmt.Sprintf("string#%d.bytes+%d", loc.Handle, loc.ByteOffset)
 	default:
 		return "<invalid-loc>"
 	}

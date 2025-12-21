@@ -1,0 +1,11 @@
+
+== HIR ==
+module 
+
+type Box <struct> (sym=596, type=0)
+
+fn test() -> int (id=1, sym=600) {
+  let b: type#331 =  { value = 1 }: type#331
+  return b[rt_range_int_new(1, 2, false): type#333]: int
+}
+

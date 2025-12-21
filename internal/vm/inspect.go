@@ -88,6 +88,8 @@ func (i *Inspector) Heap() {
 			fmt.Fprintf(i.out, "  struct#%d type=type#%d\n", h, obj.TypeID)
 		case OKTag:
 			fmt.Fprintf(i.out, "  tag#%d type=type#%d tag=%s\n", h, obj.TypeID, i.tagName(obj))
+		case OKRange:
+			fmt.Fprintf(i.out, "  range#%d\n", h)
 		default:
 			fmt.Fprintf(i.out, "  object#%d type=type#%d\n", h, obj.TypeID)
 		}

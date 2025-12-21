@@ -1,0 +1,12 @@
+type Box = {
+    value: int;
+};
+
+extern<Box> {
+    fn __index(self: Box, r: Range<int>) -> int;
+}
+
+fn test() -> int {
+    let b = Box { value = 1 };
+    return b[[1..2]];
+}

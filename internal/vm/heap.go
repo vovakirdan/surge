@@ -52,6 +52,34 @@ func (h *Heap) alloc(kind ObjectKind, typeID types.TypeID) (Handle, *Object) {
 func (h *Heap) AllocString(typeID types.TypeID, s string) Handle {
 	handle, obj := h.alloc(OKString, typeID)
 	obj.Str = s
+	obj.StrCPLen = 0
+	obj.StrCPLenKnown = false
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
+	}
+	return handle
+}
+
+func (h *Heap) AllocStringWithCPLen(typeID types.TypeID, s string, cpLen int) Handle {
+	handle, obj := h.alloc(OKString, typeID)
+	obj.Str = s
+	obj.StrCPLen = cpLen
+	obj.StrCPLenKnown = true
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
+	}
+	return handle
+}
+
+func (h *Heap) AllocRange(typeID types.TypeID, start, end Value, hasStart, hasEnd, inclusive bool) Handle {
+	handle, obj := h.alloc(OKRange, typeID)
+	obj.Range = RangeObject{
+		Start:     start,
+		End:       end,
+		HasStart:  hasStart,
+		HasEnd:    hasEnd,
+		Inclusive: inclusive,
+	}
 	if h.vm != nil && h.vm.Trace != nil {
 		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
 	}
@@ -208,12 +236,22 @@ func (h *Heap) Free(handle Handle) {
 		obj.Fields = nil
 	case OKString:
 		obj.Str = ""
+		obj.StrCPLen = 0
+		obj.StrCPLenKnown = false
 	case OKTag:
 		for _, v := range obj.Tag.Fields {
 			h.releaseContainedValue(v)
 		}
 		obj.Tag.Fields = nil
 		obj.Tag.TagSym = 0
+	case OKRange:
+		if obj.Range.HasStart {
+			h.releaseContainedValue(obj.Range.Start)
+		}
+		if obj.Range.HasEnd {
+			h.releaseContainedValue(obj.Range.End)
+		}
+		obj.Range = RangeObject{}
 	case OKBigInt:
 		obj.BigInt = bignum.BigInt{}
 	case OKBigUint:
@@ -226,7 +264,7 @@ func (h *Heap) Free(handle Handle) {
 
 func (h *Heap) releaseContainedValue(v Value) {
 	switch v.Kind {
-	case VKHandleString, VKHandleArray, VKHandleStruct, VKHandleTag, VKBigInt, VKBigUint, VKBigFloat:
+	case VKHandleString, VKHandleArray, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
 		if v.H != 0 {
 			h.Release(v.H)
 		}

@@ -106,6 +106,8 @@ func (vm *VM) objectKindLabel(k ObjectKind) string {
 		return "struct"
 	case OKTag:
 		return "tag"
+	case OKRange:
+		return "range"
 	case OKBigInt:
 		return "bigint"
 	case OKBigUint:
