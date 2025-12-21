@@ -185,6 +185,9 @@ func (vm *VM) evalBytesViewIndex(obj, idx Value) (Value, bool, *VMError) {
 		return Value{}, true, vm.eb.invalidLocation("bytes view pointer is not string bytes")
 	}
 	strObj := vm.Heap.Get(ptrVal.Loc.Handle)
+	if strObj == nil {
+		return Value{}, true, vm.eb.makeError(PanicOutOfBounds, "invalid string handle in bytes view")
+	}
 	if strObj.Kind != OKString {
 		return Value{}, true, vm.eb.typeMismatch("string bytes pointer", fmt.Sprintf("%v", strObj.Kind))
 	}
@@ -207,6 +210,9 @@ func (vm *VM) rangeFromValue(v Value) (*RangeObject, *VMError) {
 		return nil, vm.eb.typeMismatch("range", v.Kind.String())
 	}
 	obj := vm.Heap.Get(v.H)
+	if obj == nil {
+		return nil, vm.eb.makeError(PanicOutOfBounds, "invalid range handle")
+	}
 	if obj.Kind != OKRange {
 		return nil, vm.eb.typeMismatch("range", fmt.Sprintf("%v", obj.Kind))
 	}

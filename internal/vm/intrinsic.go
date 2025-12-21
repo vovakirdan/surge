@@ -402,6 +402,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		h := vm.Heap.AllocStruct(info.layout.TypeID, fields)
 		val := MakeHandleStruct(h, dstType)
 		if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+			vm.Heap.Release(h)
 			return vmErr
 		}
 		*writes = append(*writes, LocalWrite{
@@ -449,6 +450,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		h := vm.Heap.AllocRange(dstType, startStored, endStored, true, true, incVal.Bool)
 		val := MakeHandleRange(h, dstType)
 		if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+			vm.Heap.Release(h)
 			return vmErr
 		}
 		*writes = append(*writes, LocalWrite{
@@ -486,6 +488,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		h := vm.Heap.AllocRange(dstType, startStored, Value{}, true, false, incVal.Bool)
 		val := MakeHandleRange(h, dstType)
 		if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+			vm.Heap.Release(h)
 			return vmErr
 		}
 		*writes = append(*writes, LocalWrite{
@@ -523,6 +526,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		h := vm.Heap.AllocRange(dstType, Value{}, endStored, false, true, incVal.Bool)
 		val := MakeHandleRange(h, dstType)
 		if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+			vm.Heap.Release(h)
 			return vmErr
 		}
 		*writes = append(*writes, LocalWrite{
@@ -551,6 +555,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		h := vm.Heap.AllocRange(dstType, Value{}, Value{}, false, false, incVal.Bool)
 		val := MakeHandleRange(h, dstType)
 		if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+			vm.Heap.Release(h)
 			return vmErr
 		}
 		*writes = append(*writes, LocalWrite{
