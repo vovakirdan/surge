@@ -78,6 +78,20 @@ func (h *Heap) AllocStringWithCPLen(typeID types.TypeID, s string, cpLen int) Ha
 }
 
 func (h *Heap) AllocStringConcat(typeID types.TypeID, left, right Handle, byteLen, cpLen int, cpLenKnown bool) Handle {
+	// Validate handles before retaining to avoid partial retain on panic
+	if left != 0 {
+		leftObj := h.Get(left)
+		if leftObj.Kind != OKString {
+			h.panic(PanicTypeMismatch, "left handle must be a string")
+		}
+	}
+	if right != 0 {
+		rightObj := h.Get(right)
+		if rightObj.Kind != OKString {
+			h.panic(PanicTypeMismatch, "right handle must be a string")
+		}
+	}
+
 	handle, obj := h.alloc(OKString, typeID)
 	obj.StrKind = StringConcat
 	obj.StrFlatKnown = false
@@ -99,6 +113,14 @@ func (h *Heap) AllocStringConcat(typeID types.TypeID, left, right Handle, byteLe
 }
 
 func (h *Heap) AllocStringSlice(typeID types.TypeID, base Handle, startCP, cpLen, byteLen int) Handle {
+	// Validate base handle before retaining
+	if base != 0 {
+		baseObj := h.Get(base)
+		if baseObj.Kind != OKString {
+			h.panic(PanicTypeMismatch, "base handle must be a string")
+		}
+	}
+
 	handle, obj := h.alloc(OKString, typeID)
 	obj.StrKind = StringSlice
 	obj.StrFlatKnown = false
