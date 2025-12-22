@@ -49,11 +49,11 @@ func (vm *VM) handleLen(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite)
 			Value:   val,
 		})
 	case VKHandleArray:
-		obj := vm.Heap.Get(arg.H)
-		if obj.Kind != OKArray {
-			return vm.eb.typeMismatch("array", fmt.Sprintf("%v", obj.Kind))
+		view, vmErr := vm.arrayViewFromHandle(arg.H)
+		if vmErr != nil {
+			return vmErr
 		}
-		u64, err := safecast.Conv[uint64](len(obj.Arr))
+		u64, err := safecast.Conv[uint64](view.length)
 		if err != nil {
 			return vm.eb.invalidNumericConversion("array length out of range")
 		}

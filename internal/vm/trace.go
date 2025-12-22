@@ -63,6 +63,8 @@ func (t *Tracer) TraceHeapAlloc(kind ObjectKind, h Handle, obj *Object) {
 		fmt.Fprintf(t.w, "[heap] alloc string#%d\n", h)
 	case OKArray:
 		fmt.Fprintf(t.w, "[heap] alloc array#%d\n", h)
+	case OKArraySlice:
+		fmt.Fprintf(t.w, "[heap] alloc array_slice#%d\n", h)
 	case OKStruct:
 		fmt.Fprintf(t.w, "[heap] alloc struct#%d\n", h)
 	case OKTag:
@@ -101,6 +103,8 @@ func kindLabel(kind ObjectKind) string {
 		return "string"
 	case OKArray:
 		return "array"
+	case OKArraySlice:
+		return "array_slice"
 	case OKStruct:
 		return "struct"
 	case OKTag:
@@ -347,7 +351,14 @@ func (t *Tracer) formatValue(v Value) string {
 		if obj.Freed || obj.RefCount == 0 {
 			return fmt.Sprintf("array#%d(rc=0,<freed>)", v.H)
 		}
-		return fmt.Sprintf("array#%d(rc=%d,len=%d)", v.H, obj.RefCount, len(obj.Arr))
+		switch obj.Kind {
+		case OKArray:
+			return fmt.Sprintf("array#%d(rc=%d,len=%d)", v.H, obj.RefCount, len(obj.Arr))
+		case OKArraySlice:
+			return fmt.Sprintf("array_slice#%d(rc=%d,len=%d,base=%d,start=%d)", v.H, obj.RefCount, obj.ArrSliceLen, obj.ArrSliceBase, obj.ArrSliceStart)
+		default:
+			return fmt.Sprintf("array#%d(rc=%d,kind=%v)", v.H, obj.RefCount, obj.Kind)
+		}
 
 	case VKHandleStruct:
 		if v.H == 0 {

@@ -302,7 +302,7 @@ extern<bool> {
 extern<Array<T>> {
     @intrinsic fn __add(self: Array<T>, other: Array<T>) -> Array<T>;
     @intrinsic fn __index(self: Array<T>, index: int) -> T;
-    @intrinsic @overload fn __index(self: Array<T>, index: Range<int>) -> Array<T>;
+    @intrinsic @overload fn __index(self: &Array<T>, index: Range<int>) -> Array<T>;
     @intrinsic fn __index_set(self: Array<T>, index: int, value: T) -> nothing;
     @intrinsic fn __range(self: Array<T>) -> Range<T>;
     @intrinsic fn __len(self: &Array<T>) -> uint;
@@ -311,7 +311,7 @@ extern<Array<T>> {
 extern<ArrayFixed<T, N>> {
     @intrinsic fn __add(self: ArrayFixed<T, N>, other: ArrayFixed<T, N>) -> ArrayFixed<T, N>;
     @intrinsic fn __index(self: ArrayFixed<T, N>, index: int) -> T;
-    @intrinsic @overload fn __index(self: ArrayFixed<T, N>, index: Range<int>) -> Array<T>;
+    @intrinsic @overload fn __index(self: &ArrayFixed<T, N>, index: Range<int>) -> Array<T>;
     @intrinsic fn __index_set(self: ArrayFixed<T, N>, index: int, value: T) -> nothing;
     @intrinsic fn __range(self: ArrayFixed<T, N>) -> Range<T>;
     @intrinsic fn __len(self: &ArrayFixed<T, N>) -> uint;

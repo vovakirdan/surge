@@ -117,65 +117,26 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 			if vmErr != nil {
 				return Location{}, vmErr
 			}
-			if obj.Kind != OKArray {
-				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("index projection on %v", obj.Kind))
-			}
 
 			idxLocal := proj.IndexLocal
 			idxVal, vmErr := vm.readLocal(frame, idxLocal)
 			if vmErr != nil {
 				return Location{}, vmErr
 			}
-			maxIndex := int(^uint(0) >> 1)
-			maxInt := int64(maxIndex)
-			maxUint := uint64(^uint(0) >> 1)
-			var idx int
-			switch idxVal.Kind {
-			case VKInt:
-				if idxVal.Int < 0 || idxVal.Int > maxInt {
-					return Location{}, vm.eb.arrayIndexOutOfRange(maxIndex, len(obj.Arr))
-				}
-				ni, err := safecast.Conv[int](idxVal.Int)
-				if err != nil {
-					return Location{}, vm.eb.arrayIndexOutOfRange(maxIndex, len(obj.Arr))
-				}
-				idx = ni
-			case VKBigInt:
-				i, vmErr := vm.mustBigInt(idxVal)
-				if vmErr != nil {
-					return Location{}, vmErr
-				}
-				n, ok := i.Int64()
-				if !ok || n < 0 || n > maxInt {
-					return Location{}, vm.eb.arrayIndexOutOfRange(maxIndex, len(obj.Arr))
-				}
-				ni, err := safecast.Conv[int](n)
-				if err != nil {
-					return Location{}, vm.eb.arrayIndexOutOfRange(maxIndex, len(obj.Arr))
-				}
-				idx = ni
-			case VKBigUint:
-				u, vmErr := vm.mustBigUint(idxVal)
-				if vmErr != nil {
-					return Location{}, vmErr
-				}
-				n, ok := u.Uint64()
-				if !ok || n > maxUint {
-					return Location{}, vm.eb.arrayIndexOutOfRange(maxIndex, len(obj.Arr))
-				}
-				ni, err := safecast.Conv[int](n)
-				if err != nil {
-					return Location{}, vm.eb.arrayIndexOutOfRange(maxIndex, len(obj.Arr))
-				}
-				idx = ni
-			default:
-				return Location{}, vm.eb.typeMismatch("int", idxVal.Kind.String())
+			if obj.Kind != OKArray && obj.Kind != OKArraySlice {
+				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("index projection on %v", obj.Kind))
 			}
-			if idx < 0 || idx >= len(obj.Arr) {
-				return Location{}, vm.eb.arrayIndexOutOfRange(idx, len(obj.Arr))
+			view, vmErr := vm.arrayViewFromHandle(v.H)
+			if vmErr != nil {
+				return Location{}, vmErr
+			}
+			idx, vmErr := vm.arrayIndexFromValue(idxVal, view.length)
+			if vmErr != nil {
+				return Location{}, vmErr
 			}
 
-			idx32, err := safecast.Conv[int32](idx)
+			baseIdx := view.start + idx
+			idx32, err := safecast.Conv[int32](baseIdx)
 			if err != nil {
 				return Location{}, vm.eb.invalidLocation("index projection: index overflow")
 			}
@@ -197,7 +158,7 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 						return Location{}, vm.eb.invalidLocation(fmt.Sprintf("index projection: %v", err))
 					}
 					stride := roundUp(el.Size, maxIntValue(1, el.Align))
-					off := stride * idx
+					off := stride * baseIdx
 					bo, err := safecast.Conv[int32](off)
 					if err != nil {
 						return Location{}, vm.eb.invalidLocation("index projection: byte offset overflow")
@@ -207,7 +168,7 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 			}
 			loc = Location{
 				Kind:       LKArrayElem,
-				Handle:     v.H,
+				Handle:     view.baseHandle,
 				Index:      idx32,
 				ByteOffset: byteOffset,
 				IsMut:      loc.IsMut,
@@ -272,14 +233,18 @@ func (vm *VM) loadLocationRaw(loc Location) (Value, *VMError) {
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		if obj.Kind != OKArray {
+		if obj.Kind != OKArray && obj.Kind != OKArraySlice {
 			return Value{}, vm.eb.invalidLocation(fmt.Sprintf("expected array handle, got %v", obj.Kind))
 		}
-		idx := int(loc.Index)
-		if loc.Index < 0 || idx < 0 || idx >= len(obj.Arr) {
-			return Value{}, vm.eb.arrayIndexOutOfRange(idx, len(obj.Arr))
+		view, vmErr := vm.arrayViewFromHandle(loc.Handle)
+		if vmErr != nil {
+			return Value{}, vmErr
 		}
-		return obj.Arr[idx], nil
+		idx := int(loc.Index)
+		if loc.Index < 0 || idx < 0 || idx >= view.length {
+			return Value{}, vm.eb.arrayIndexOutOfRange(idx, view.length)
+		}
+		return view.baseObj.Arr[view.start+idx], nil
 
 	default:
 		return Value{}, vm.eb.invalidLocation("unknown location kind")
@@ -325,15 +290,20 @@ func (vm *VM) storeLocation(loc Location, val Value) *VMError {
 		if vmErr != nil {
 			return vmErr
 		}
-		if obj.Kind != OKArray {
+		if obj.Kind != OKArray && obj.Kind != OKArraySlice {
 			return vm.eb.invalidLocation(fmt.Sprintf("expected array handle, got %v", obj.Kind))
 		}
-		idx := int(loc.Index)
-		if loc.Index < 0 || idx < 0 || idx >= len(obj.Arr) {
-			return vm.eb.arrayIndexOutOfRange(idx, len(obj.Arr))
+		view, vmErr := vm.arrayViewFromHandle(loc.Handle)
+		if vmErr != nil {
+			return vmErr
 		}
-		vm.dropValue(obj.Arr[idx])
-		obj.Arr[idx] = val
+		idx := int(loc.Index)
+		if loc.Index < 0 || idx < 0 || idx >= view.length {
+			return vm.eb.arrayIndexOutOfRange(idx, view.length)
+		}
+		baseIdx := view.start + idx
+		vm.dropValue(view.baseObj.Arr[baseIdx])
+		view.baseObj.Arr[baseIdx] = val
 		return nil
 
 	default:

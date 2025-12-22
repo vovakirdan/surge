@@ -23,18 +23,19 @@ func (vm *VM) readBytesFromPointer(ptrVal Value, n int) ([]byte, *VMError) {
 		}
 		return []byte(s[off:end]), nil
 	case LKArrayElem:
-		obj := vm.Heap.Get(ptrVal.Loc.Handle)
-		if obj.Kind != OKArray {
-			return nil, vm.eb.typeMismatch("array bytes pointer", fmt.Sprintf("%v", obj.Kind))
+		view, vmErr := vm.arrayViewFromHandle(ptrVal.Loc.Handle)
+		if vmErr != nil {
+			return nil, vmErr
 		}
 		start := int(ptrVal.Loc.Index)
 		end := start + n
-		if start < 0 || end < start || end > len(obj.Arr) {
-			return nil, vm.eb.outOfBounds(end, len(obj.Arr))
+		if start < 0 || end < start || end > view.length {
+			return nil, vm.eb.outOfBounds(end, view.length)
 		}
+		baseStart := view.start + start
 		out := make([]byte, n)
 		for i := range n {
-			b, vmErr := vm.valueToUint8(obj.Arr[start+i])
+			b, vmErr := vm.valueToUint8(view.baseObj.Arr[baseStart+i])
 			if vmErr != nil {
 				return nil, vmErr
 			}
@@ -53,18 +54,19 @@ func (vm *VM) readUint16sFromPointer(ptrVal Value, n int) ([]uint16, *VMError) {
 	}
 	switch ptrVal.Loc.Kind {
 	case LKArrayElem:
-		obj := vm.Heap.Get(ptrVal.Loc.Handle)
-		if obj.Kind != OKArray {
-			return nil, vm.eb.typeMismatch("array uint16 pointer", fmt.Sprintf("%v", obj.Kind))
+		view, vmErr := vm.arrayViewFromHandle(ptrVal.Loc.Handle)
+		if vmErr != nil {
+			return nil, vmErr
 		}
 		start := int(ptrVal.Loc.Index)
 		end := start + n
-		if start < 0 || end < start || end > len(obj.Arr) {
-			return nil, vm.eb.outOfBounds(end, len(obj.Arr))
+		if start < 0 || end < start || end > view.length {
+			return nil, vm.eb.outOfBounds(end, view.length)
 		}
+		baseStart := view.start + start
 		out := make([]uint16, n)
 		for i := range n {
-			u, vmErr := vm.valueToUint16(obj.Arr[start+i])
+			u, vmErr := vm.valueToUint16(view.baseObj.Arr[baseStart+i])
 			if vmErr != nil {
 				return nil, vmErr
 			}

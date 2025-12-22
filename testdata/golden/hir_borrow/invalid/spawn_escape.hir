@@ -16,7 +16,7 @@ move plan:
 async fn t() -> nothing (id=2, sym=637) {
   let mut x: int [copy] = 1
   let r: &int [&] = (& x): &int
-  let task: type#369 = spawn use_ref(r): type#369: type#369
+  let task: type#371 = spawn use_ref(r): type#371: type#371
   await(task): nothing
   return
 }

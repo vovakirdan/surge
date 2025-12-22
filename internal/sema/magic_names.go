@@ -227,6 +227,10 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 	if container == types.NoTypeID {
 		return types.NoTypeID
 	}
+	intType := types.NoTypeID
+	if tc.types != nil {
+		intType = tc.types.Builtins().Int
+	}
 	for _, recv := range tc.typeKeyCandidates(container) {
 		if recv.key == "" {
 			continue
@@ -245,6 +249,9 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 			res := tc.typeFromKey(sig.Result)
 			if res == types.NoTypeID {
 				if elem, ok := tc.elementType(recv.base); ok {
+					if payload, ok := tc.rangePayload(index); ok && intType != types.NoTypeID && tc.sameType(payload, intType) {
+						return tc.instantiateArrayType(elem)
+					}
 					return elem
 				}
 				continue
@@ -258,6 +265,12 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 func (tc *typeChecker) hasIndexSetter(container, index, value types.TypeID) bool {
 	if container == types.NoTypeID || value == types.NoTypeID {
 		return false
+	}
+	if elem, ok := tc.arrayElemType(container); ok && tc.types != nil {
+		intType := tc.types.Builtins().Int
+		if index != types.NoTypeID && intType != types.NoTypeID && tc.sameType(index, intType) {
+			return tc.typesAssignable(elem, value, true)
+		}
 	}
 	for _, recv := range tc.typeKeyCandidates(container) {
 		if recv.key == "" {

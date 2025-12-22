@@ -3,10 +3,10 @@
 funcs=2 types=2
 fn Some::<int> (sym=2415919106)
 fn main() -> nothing (id=2147483649, sym=2415919105) {
-  let x: type#367 = Some::<int>(1): type#368
+  let x: type#369 = Some::<int>(1): type#370
   return
 }
 
 types:
-  type Option::<int> = type#367
-  type Option::<int> = type#367
+  type Option::<int> = type#369
+  type Option::<int> = type#369
