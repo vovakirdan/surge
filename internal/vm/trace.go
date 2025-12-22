@@ -7,6 +7,7 @@ import (
 
 	"surge/internal/mir"
 	"surge/internal/source"
+	"surge/internal/vm/bignum"
 )
 
 // Tracer outputs execution traces for debugging.
@@ -66,9 +67,25 @@ func (t *Tracer) TraceHeapAlloc(kind ObjectKind, h Handle, obj *Object) {
 		fmt.Fprintf(t.w, "[heap] alloc struct#%d\n", h)
 	case OKTag:
 		fmt.Fprintf(t.w, "[heap] alloc tag#%d\n", h)
+	case OKRange:
+		fmt.Fprintf(t.w, "[heap] alloc range#%d\n", h)
 	default:
 		fmt.Fprintf(t.w, "[heap] alloc handle#%d\n", h)
 	}
+}
+
+func (t *Tracer) TraceHeapRetain(kind ObjectKind, h Handle, rc uint32) {
+	if t == nil || t.w == nil {
+		return
+	}
+	fmt.Fprintf(t.w, "[heap] retain %s#%d rc=%d\n", kindLabel(kind), h, rc)
+}
+
+func (t *Tracer) TraceHeapRelease(kind ObjectKind, h Handle, rc uint32) {
+	if t == nil || t.w == nil {
+		return
+	}
+	fmt.Fprintf(t.w, "[heap] release %s#%d rc=%d\n", kindLabel(kind), h, rc)
 }
 
 func (t *Tracer) TraceHeapFree(h Handle) {
@@ -76,6 +93,29 @@ func (t *Tracer) TraceHeapFree(h Handle) {
 		return
 	}
 	fmt.Fprintf(t.w, "[heap] free handle#%d\n", h)
+}
+
+func kindLabel(kind ObjectKind) string {
+	switch kind {
+	case OKString:
+		return "string"
+	case OKArray:
+		return "array"
+	case OKStruct:
+		return "struct"
+	case OKTag:
+		return "tag"
+	case OKRange:
+		return "range"
+	case OKBigInt:
+		return "bigint"
+	case OKBigUint:
+		return "biguint"
+	case OKBigFloat:
+		return "bigfloat"
+	default:
+		return "handle"
+	}
 }
 
 // TraceTerm traces execution of a terminator.
@@ -163,7 +203,8 @@ func (t *Tracer) formatRValue(rv *mir.RValue) string {
 		return fmt.Sprintf("%s[%s]", t.formatOperand(&rv.Index.Object), t.formatOperand(&rv.Index.Index))
 	case mir.RValueStructLit:
 		out := fmt.Sprintf("struct_lit type#%d {", rv.StructLit.TypeID)
-		for i, f := range rv.StructLit.Fields {
+		for i := range rv.StructLit.Fields {
+			f := &rv.StructLit.Fields[i]
 			if i > 0 {
 				out += ", "
 			}
@@ -173,11 +214,12 @@ func (t *Tracer) formatRValue(rv *mir.RValue) string {
 		return out
 	case mir.RValueArrayLit:
 		out := "array_lit ["
-		for i, el := range rv.ArrayLit.Elems {
+		for i := range rv.ArrayLit.Elems {
+			el := &rv.ArrayLit.Elems[i]
 			if i > 0 {
 				out += ", "
 			}
-			out += t.formatOperand(&el)
+			out += t.formatOperand(el)
 		}
 		out += "]"
 		return out
@@ -284,11 +326,15 @@ func (t *Tracer) formatValue(v Value) string {
 		if obj == nil {
 			return fmt.Sprintf("string#%d(<invalid>)", v.H)
 		}
-		if !obj.Alive {
-			return fmt.Sprintf("string#%d(<freed>)", v.H)
+		if obj.Freed || obj.RefCount == 0 {
+			return fmt.Sprintf("string#%d(rc=0,<freed>)", v.H)
 		}
-		preview := truncateRunes(obj.Str, 32)
-		return fmt.Sprintf("string#%d(%q)", v.H, preview)
+		preview := obj.Str
+		if t.vm != nil {
+			preview = t.vm.stringBytes(obj)
+		}
+		preview = truncateRunes(preview, 32)
+		return fmt.Sprintf("string#%d(rc=%d,%q)", v.H, obj.RefCount, preview)
 
 	case VKHandleArray:
 		if v.H == 0 {
@@ -298,10 +344,10 @@ func (t *Tracer) formatValue(v Value) string {
 		if obj == nil {
 			return fmt.Sprintf("array#%d(<invalid>)", v.H)
 		}
-		if !obj.Alive {
-			return fmt.Sprintf("array#%d(<freed>)", v.H)
+		if obj.Freed || obj.RefCount == 0 {
+			return fmt.Sprintf("array#%d(rc=0,<freed>)", v.H)
 		}
-		return fmt.Sprintf("array#%d(len=%d)", v.H, len(obj.Arr))
+		return fmt.Sprintf("array#%d(rc=%d,len=%d)", v.H, obj.RefCount, len(obj.Arr))
 
 	case VKHandleStruct:
 		if v.H == 0 {
@@ -311,10 +357,10 @@ func (t *Tracer) formatValue(v Value) string {
 		if obj == nil {
 			return fmt.Sprintf("struct#%d(<invalid>)", v.H)
 		}
-		if !obj.Alive {
-			return fmt.Sprintf("struct#%d(<freed>)", v.H)
+		if obj.Freed || obj.RefCount == 0 {
+			return fmt.Sprintf("struct#%d(rc=0,<freed>)", v.H)
 		}
-		return fmt.Sprintf("struct#%d(type=type#%d)", v.H, obj.TypeID)
+		return fmt.Sprintf("struct#%d(rc=%d,type=type#%d)", v.H, obj.RefCount, obj.TypeID)
 
 	case VKHandleTag:
 		if v.H == 0 {
@@ -324,8 +370,8 @@ func (t *Tracer) formatValue(v Value) string {
 		if obj == nil {
 			return fmt.Sprintf("tag#%d(<invalid>)", v.H)
 		}
-		if !obj.Alive {
-			return fmt.Sprintf("tag#%d(<freed>)", v.H)
+		if obj.Freed || obj.RefCount == 0 {
+			return fmt.Sprintf("tag#%d(rc=0,<freed>)", v.H)
 		}
 		tagName := "<unknown>"
 		if obj.Kind == OKTag && t.vm != nil && t.vm.tagLayouts != nil {
@@ -340,7 +386,54 @@ func (t *Tracer) formatValue(v Value) string {
 				}
 			}
 		}
-		return fmt.Sprintf("tag#%d(type#%d, %s)", v.H, obj.TypeID, tagName)
+		return fmt.Sprintf("tag#%d(rc=%d,type#%d,%s)", v.H, obj.RefCount, obj.TypeID, tagName)
+
+	case VKHandleRange:
+		if v.H == 0 {
+			return "range#0(<invalid>)"
+		}
+		obj := t.lookup(v.H)
+		if obj == nil {
+			return fmt.Sprintf("range#%d(<invalid>)", v.H)
+		}
+		if obj.Freed || obj.RefCount == 0 {
+			return fmt.Sprintf("range#%d(rc=0,<freed>)", v.H)
+		}
+		return fmt.Sprintf("range#%d(rc=%d)", v.H, obj.RefCount)
+
+	case VKBigInt:
+		if v.H == 0 {
+			return "0"
+		}
+		obj := t.lookup(v.H)
+		if obj == nil || obj.Freed || obj.RefCount == 0 || obj.Kind != OKBigInt {
+			return fmt.Sprintf("bigint#%d(<invalid>)", v.H)
+		}
+		return fmt.Sprintf("bigint#%d(rc=%d,%s)", v.H, obj.RefCount, bignum.FormatInt(obj.BigInt))
+
+	case VKBigUint:
+		if v.H == 0 {
+			return "0"
+		}
+		obj := t.lookup(v.H)
+		if obj == nil || obj.Freed || obj.RefCount == 0 || obj.Kind != OKBigUint {
+			return fmt.Sprintf("biguint#%d(<invalid>)", v.H)
+		}
+		return fmt.Sprintf("biguint#%d(rc=%d,%s)", v.H, obj.RefCount, bignum.FormatUint(obj.BigUint))
+
+	case VKBigFloat:
+		if v.H == 0 {
+			return "0"
+		}
+		obj := t.lookup(v.H)
+		if obj == nil || obj.Freed || obj.RefCount == 0 || obj.Kind != OKBigFloat {
+			return fmt.Sprintf("bigfloat#%d(<invalid>)", v.H)
+		}
+		s, err := bignum.FormatFloat(obj.BigFloat)
+		if err != nil {
+			return fmt.Sprintf("bigfloat#%d(<%v>)", v.H, err)
+		}
+		return fmt.Sprintf("bigfloat#%d(rc=%d,%s)", v.H, obj.RefCount, s)
 
 	default:
 		return v.String()
@@ -351,10 +444,14 @@ func (t *Tracer) formatLocation(loc Location) string {
 	switch loc.Kind {
 	case LKLocal:
 		name := "?"
-		if t.vm != nil && loc.Frame >= 0 && loc.Frame < len(t.vm.Stack) {
-			frame := &t.vm.Stack[loc.Frame]
-			if loc.Local >= 0 && loc.Local < len(frame.Locals) && frame.Locals[loc.Local].Name != "" {
-				name = frame.Locals[loc.Local].Name
+		if t.vm != nil {
+			stackIdx := int(loc.Frame)
+			if loc.Frame >= 0 && stackIdx >= 0 && stackIdx < len(t.vm.Stack) {
+				frame := &t.vm.Stack[stackIdx]
+				localIdx := int(loc.Local)
+				if loc.Local >= 0 && localIdx >= 0 && localIdx < len(frame.Locals) && frame.Locals[localIdx].Name != "" {
+					name = frame.Locals[localIdx].Name
+				}
 			}
 		}
 		return fmt.Sprintf("L%d(%s)", loc.Local, name)
@@ -362,6 +459,8 @@ func (t *Tracer) formatLocation(loc Location) string {
 		return fmt.Sprintf("struct#%d.field[%d]", loc.Handle, loc.Index)
 	case LKArrayElem:
 		return fmt.Sprintf("array#%d[%d]", loc.Handle, loc.Index)
+	case LKStringBytes:
+		return fmt.Sprintf("string#%d.bytes+%d", loc.Handle, loc.ByteOffset)
 	default:
 		return "<invalid-loc>"
 	}

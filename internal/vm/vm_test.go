@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -50,7 +49,15 @@ func compileToMIR(t *testing.T, filePath string) (*mir.Module, *source.FileSet, 
 		t.Fatal("semantic analysis result not available")
 	}
 
-	mm, err := mono.MonomorphizeModule(result.HIR, result.Instantiations, result.Sema, mono.Options{
+	hirModule, err := driver.CombineHIRWithCore(context.Background(), result)
+	if err != nil {
+		t.Fatalf("HIR merge failed: %v", err)
+	}
+	if hirModule == nil {
+		hirModule = result.HIR
+	}
+
+	mm, err := mono.MonomorphizeModule(hirModule, result.Instantiations, result.Sema, mono.Options{
 		MaxDepth: 64,
 	})
 	if err != nil {
@@ -75,6 +82,39 @@ func compileToMIR(t *testing.T, filePath string) (*mir.Module, *source.FileSet, 
 	return mirMod, result.FileSet, result.Sema.TypeInterner
 }
 
+// compileToMIRFromSource compiles source code from a string via temp file.
+// Note: Changes to project root temporarily because driver.DiagnoseWithOptions
+// requires it for stdlib resolution.
+func compileToMIRFromSource(t *testing.T, sourceCode string) (*mir.Module, *source.FileSet, *types.Interner) {
+	t.Helper()
+
+	// Change to project root for driver
+	if err := os.Chdir("../.."); err != nil {
+		t.Fatalf("failed to change to project root: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir("internal/vm"); err != nil {
+			t.Errorf("failed to restore working directory: %v", err)
+		}
+	}()
+
+	tmpFile, err := os.CreateTemp(".", "test_*.sg")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(sourceCode); err != nil {
+		tmpFile.Close()
+		t.Fatalf("failed to write source code: %v", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("failed to close temp file: %v", err)
+	}
+
+	return compileToMIR(t, tmpFile.Name())
+}
+
 // runVM executes the MIR with the given runtime and returns exit code and any error.
 func runVM(mirMod *mir.Module, rt vm.Runtime, files *source.FileSet, types *types.Interner, tracer *vm.Tracer) (int, *vm.VMError) {
 	vmInstance := vm.New(mirMod, rt, files, types, tracer)
@@ -83,15 +123,9 @@ func runVM(mirMod *mir.Module, rt vm.Runtime, files *source.FileSet, types *type
 }
 
 func TestVMEntrypointReturnsNothing(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm", "vm_entrypoint_returns_nothing.sg")
-
-	// Change to project root
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, types := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint fn main() { }
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
 
@@ -105,15 +139,9 @@ func TestVMEntrypointReturnsNothing(t *testing.T) {
 }
 
 func TestVMEntrypointReturnsInt(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm", "vm_entrypoint_returns_int.sg")
-
-	// Change to project root
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, types := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint fn main() -> int { return 42; }
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
 
@@ -127,15 +155,9 @@ func TestVMEntrypointReturnsInt(t *testing.T) {
 }
 
 func TestVMEntrypointArgvInt(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm", "vm_entrypoint_argv_int.sg")
-
-	// Change to project root
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, types := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint("argv") fn main(x: int) -> int { return x; }
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime([]string{"7"}, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
 
@@ -149,15 +171,9 @@ func TestVMEntrypointArgvInt(t *testing.T) {
 }
 
 func TestVMEntrypointStdinInt(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm", "vm_entrypoint_stdin_int.sg")
-
-	// Change to project root
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, types := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint("stdin") fn main(x: int) -> int { return x; }
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "9")
 	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
 
@@ -170,16 +186,37 @@ func TestVMEntrypointStdinInt(t *testing.T) {
 	}
 }
 
-func TestVMTraceSmokeTest(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm", "vm_trace_smoke.sg")
+// TestVMEmptyArgvBoundsCheck verifies that accessing argv[0] when no "--" args
+// are provided causes a bounds panic. This tests the behavior of:
+//
+//	surge run file.sg   (no "--")
+//
+// where rt_argv returns empty [] and indexing panics.
+func TestVMEmptyArgvBoundsCheck(t *testing.T) {
+	sourceCode := `@entrypoint("argv") fn main(x: int) -> int { return x; }
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
+	// Empty argv - simulates running without "--" separator
+	rt := vm.NewRuntimeWithArgs(nil)
+	_, vmErr := runVM(mirMod, rt, files, types, nil)
 
-	// Change to project root
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
+	if vmErr == nil {
+		t.Fatal("expected panic with empty argv, got nil")
 	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
+	// Should panic with out of bounds
+	if vmErr.Code != vm.PanicOutOfBounds {
+		t.Fatalf("expected PanicOutOfBounds (VM1004), got %v", vmErr.Code)
+	}
+}
 
-	mirMod, files, types := compileToMIR(t, filePath)
+func TestVMTraceSmokeTest(t *testing.T) {
+	sourceCode := `@entrypoint fn main() -> int {
+    let a: int = 1;
+    let b: int = 2;
+    return a + b;
+}
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 
 	var traceBuf bytes.Buffer
 	tracer := vm.NewTracer(&traceBuf, files)

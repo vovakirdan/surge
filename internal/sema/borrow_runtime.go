@@ -103,6 +103,9 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	if tc.isCopyType(exprType) {
 		return
 	}
+	if tc.isSharedRefDeref(expr) {
+		return
+	}
 
 	desc, ok := tc.resolvePlace(expr)
 	if !ok {
@@ -132,6 +135,30 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 		}
 		tc.reportBorrowMove(place, span, issue)
 	}
+}
+
+func (tc *typeChecker) isSharedRefDeref(expr ast.ExprID) bool {
+	if !expr.IsValid() || tc.builder == nil || tc.types == nil || tc.result == nil {
+		return false
+	}
+	node := tc.builder.Exprs.Get(expr)
+	if node == nil || node.Kind != ast.ExprUnary {
+		return false
+	}
+	unary, ok := tc.builder.Exprs.Unary(expr)
+	if !ok || unary == nil || unary.Op != ast.ExprUnaryDeref {
+		return false
+	}
+	operandType := tc.result.ExprTypes[unary.Operand]
+	if operandType == types.NoTypeID {
+		return false
+	}
+	operandType = tc.resolveAlias(operandType)
+	tt, ok := tc.types.Lookup(operandType)
+	if !ok || tt.Kind != types.KindReference {
+		return false
+	}
+	return !tt.Mutable
 }
 
 func (tc *typeChecker) exprSpan(id ast.ExprID) source.Span {
@@ -467,6 +494,11 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 				tc.scanSpawn(elem, seen)
 			}
 		}
+	case ast.ExprRangeLit:
+		if data, _ := tc.builder.Exprs.RangeLit(expr); data != nil {
+			tc.scanSpawn(data.Start, seen)
+			tc.scanSpawn(data.End, seen)
+		}
 	case ast.ExprIndex:
 		if data, _ := tc.builder.Exprs.Index(expr); data != nil {
 			tc.scanSpawn(data.Target, seen)
@@ -594,9 +626,8 @@ func (tc *typeChecker) handleDrop(expr ast.ExprID, span source.Span) {
 			Binding: symID,
 			Span:    span,
 			Scope:   tc.currentScope(),
-			Note:    "invalid_drop_no_active_borrow",
+			Note:    "drop",
 		})
-		tc.report(diag.SemaBorrowDropInvalid, span, "no active borrow to drop")
 		return
 	}
 	var place Place

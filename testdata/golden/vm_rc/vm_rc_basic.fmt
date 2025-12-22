@@ -1,0 +1,7 @@
+@entrypoint
+fn main() -> int {
+    let a: int = 100000000000000000000;
+    let b = a; // copy
+    @drop b;
+    return 0;
+}

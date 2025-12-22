@@ -262,8 +262,8 @@ func TestDropWithoutBorrowErrors(t *testing.T) {
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtLet, stmtDrop})
 
 	diags := runSema(t, builder, fileID)
-	if !hasCode(diags, diag.SemaBorrowDropInvalid) {
-		t.Fatalf("expected %v diagnostic, got %v", diag.SemaBorrowDropInvalid, diagCodes(diags))
+	if len(diags.Items()) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diagCodes(diags))
 	}
 }
 

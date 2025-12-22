@@ -1,0 +1,51 @@
+vm_rc_leak_panics.sg (span: 1:1-17:1)
+├─ Item[0]: Type (span: 1:1-1:30)
+│  ├─ Name: Node
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: next: Node[]
+└─ Item[1]: Fn (span: 3:1-16:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:18-16:2)
+         ├─ Stmt[0]: Let (span: 5:5-5:42)
+         │  ├─ Name: a
+         │  ├─ Mutable: true
+         │  ├─ Type: Node[]
+         │  └─ Value: expr#4: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 6:5-6:42)
+         │  ├─ Name: b
+         │  ├─ Mutable: true
+         │  ├─ Type: Node[]
+         │  └─ Value: expr#8: <ExprKind(8)>
+         ├─ Stmt[2]: Let (span: 7:5-7:20)
+         │  ├─ Name: a_ref
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#10: &a
+         ├─ Stmt[3]: Let (span: 8:5-8:33)
+         │  ├─ Name: a_copy
+         │  ├─ Mutable: false
+         │  ├─ Type: Node[]
+         │  └─ Value: expr#12: *a_ref
+         ├─ Stmt[4]: StmtKind(12) (span: 9:5-9:17)
+         ├─ Stmt[5]: Let (span: 10:5-10:20)
+         │  ├─ Name: b_ref
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#15: &b
+         ├─ Stmt[6]: Let (span: 11:5-11:33)
+         │  ├─ Name: b_copy
+         │  ├─ Mutable: false
+         │  ├─ Type: Node[]
+         │  └─ Value: expr#17: *b_ref
+         ├─ Stmt[7]: StmtKind(12) (span: 12:5-12:17)
+         ├─ Stmt[8]: Expr (span: 13:5-13:24)
+         │  └─ Expr: expr#24: (a[0].next = b_copy)
+         ├─ Stmt[9]: Expr (span: 14:5-14:24)
+         │  └─ Expr: expr#30: (b[0].next = a_copy)
+         └─ Stmt[10]: Return (span: 15:5-15:14)
+            └─ Expr: expr#31: 0

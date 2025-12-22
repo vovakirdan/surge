@@ -18,11 +18,17 @@ const (
 
 	VKRef
 	VKRefMut
+	VKPtr
 
 	VKHandleString
 	VKHandleArray
 	VKHandleStruct
 	VKHandleTag
+	VKHandleRange
+
+	VKBigInt
+	VKBigUint
+	VKBigFloat
 )
 
 // String returns a human-readable name for the value kind.
@@ -40,6 +46,8 @@ func (k ValueKind) String() string {
 		return "ref"
 	case VKRefMut:
 		return "refmut"
+	case VKPtr:
+		return "ptr"
 	case VKHandleString:
 		return "string"
 	case VKHandleArray:
@@ -48,6 +56,14 @@ func (k ValueKind) String() string {
 		return "struct"
 	case VKHandleTag:
 		return "tag"
+	case VKHandleRange:
+		return "range"
+	case VKBigInt:
+		return "bigint"
+	case VKBigUint:
+		return "biguint"
+	case VKBigFloat:
+		return "bigfloat"
 	default:
 		return fmt.Sprintf("ValueKind(%d)", k)
 	}
@@ -60,12 +76,21 @@ type Value struct {
 	Int    int64        // For VKInt
 	Bool   bool         // For VKBool
 	H      Handle       // For VKHandle*
-	Loc    Location     // For VKRef/VKRefMut
+	Loc    Location     // For VKRef/VKRefMut/VKPtr
 }
 
 // IsZero returns true if this is a zero/invalid value.
 func (v Value) IsZero() bool {
 	return v.Kind == VKInvalid
+}
+
+func (v Value) IsHeap() bool {
+	switch v.Kind {
+	case VKHandleString, VKHandleArray, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
+		return true
+	default:
+		return false
+	}
 }
 
 // String returns a human-readable representation of the value.
@@ -86,6 +111,8 @@ func (v Value) String() string {
 		return fmt.Sprintf("&%s", v.Loc)
 	case VKRefMut:
 		return fmt.Sprintf("&mut %s", v.Loc)
+	case VKPtr:
+		return fmt.Sprintf("*%s", v.Loc)
 	case VKHandleString:
 		return fmt.Sprintf("string#%d", v.H)
 	case VKHandleArray:
@@ -94,6 +121,14 @@ func (v Value) String() string {
 		return fmt.Sprintf("struct#%d", v.H)
 	case VKHandleTag:
 		return fmt.Sprintf("tag#%d", v.H)
+	case VKHandleRange:
+		return fmt.Sprintf("range#%d", v.H)
+	case VKBigInt:
+		return fmt.Sprintf("bigint#%d", v.H)
+	case VKBigUint:
+		return fmt.Sprintf("biguint#%d", v.H)
+	case VKBigFloat:
+		return fmt.Sprintf("bigfloat#%d", v.H)
 	default:
 		return fmt.Sprintf("<unknown:%d>", v.Kind)
 	}
@@ -142,6 +177,15 @@ func MakeRefMut(loc Location, typeID types.TypeID) Value {
 	}
 }
 
+func MakePtr(loc Location, typeID types.TypeID) Value {
+	loc.IsMut = false
+	return Value{
+		TypeID: typeID,
+		Kind:   VKPtr,
+		Loc:    loc,
+	}
+}
+
 func MakeHandleString(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
@@ -170,6 +214,38 @@ func MakeHandleTag(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
 		Kind:   VKHandleTag,
+		H:      h,
+	}
+}
+
+func MakeHandleRange(h Handle, typeID types.TypeID) Value {
+	return Value{
+		TypeID: typeID,
+		Kind:   VKHandleRange,
+		H:      h,
+	}
+}
+
+func MakeBigInt(h Handle, typeID types.TypeID) Value {
+	return Value{
+		TypeID: typeID,
+		Kind:   VKBigInt,
+		H:      h,
+	}
+}
+
+func MakeBigUint(h Handle, typeID types.TypeID) Value {
+	return Value{
+		TypeID: typeID,
+		Kind:   VKBigUint,
+		H:      h,
+	}
+}
+
+func MakeBigFloat(h Handle, typeID types.TypeID) Value {
+	return Value{
+		TypeID: typeID,
+		Kind:   VKBigFloat,
 		H:      h,
 	}
 }

@@ -147,6 +147,8 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 						tc.observeMove(arg.Value, tc.exprSpan(arg.Value))
 					}
 					ty = tc.methodResultType(member, receiverType, argTypes, expr.Span, receiverIsType)
+					symID := tc.recordMethodCallSymbol(id, member, receiverType, argTypes, receiverIsType)
+					tc.recordMethodCallInstantiation(symID, call, receiverType, expr.Span)
 					break
 				}
 			}
@@ -176,6 +178,25 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				}
 			}
 		}
+	case ast.ExprRangeLit:
+		if rng, ok := tc.builder.Exprs.RangeLit(id); ok && rng != nil {
+			intType := tc.types.Builtins().Int
+			if rng.Start.IsValid() {
+				startType := tc.typeExpr(rng.Start)
+				if startType != types.NoTypeID && !tc.sameType(startType, intType) {
+					tc.report(diag.SemaTypeMismatch, tc.exprSpan(rng.Start),
+						"range bound must be int, got %s", tc.typeLabel(startType))
+				}
+			}
+			if rng.End.IsValid() {
+				endType := tc.typeExpr(rng.End)
+				if endType != types.NoTypeID && !tc.sameType(endType, intType) {
+					tc.report(diag.SemaTypeMismatch, tc.exprSpan(rng.End),
+						"range bound must be int, got %s", tc.typeLabel(endType))
+				}
+			}
+			ty = tc.resolveRangeType(intType, expr.Span, tc.currentScope())
+		}
 	case ast.ExprTuple:
 		if tuple, ok := tc.builder.Exprs.Tuple(id); ok && tuple != nil {
 			elems := make([]types.TypeID, 0, len(tuple.Elements))
@@ -201,7 +222,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			if magic := tc.magicResultForIndex(container, indexType); magic != types.NoTypeID {
 				ty = magic
 			} else {
-				ty = tc.indexResultType(container, expr.Span)
+				ty = tc.indexResultType(container, indexType, expr.Span)
 			}
 		}
 	case ast.ExprMember:

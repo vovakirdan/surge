@@ -28,6 +28,7 @@ const (
 	ExprStruct
 	ExprAsync
 	ExprBlock
+	ExprRangeLit
 )
 
 type Expr struct {
@@ -296,6 +297,12 @@ type ExprArrayData struct {
 	HasTrailingComma bool
 }
 
+type ExprRangeLitData struct {
+	Start     ExprID
+	End       ExprID
+	Inclusive bool
+}
+
 type ExprSpreadData struct {
 	Value ExprID
 }
@@ -390,6 +397,7 @@ type Exprs struct {
 	Groups       *Arena[ExprGroupData]
 	Tuples       *Arena[ExprTupleData]
 	Arrays       *Arena[ExprArrayData]
+	RangeLits    *Arena[ExprRangeLitData]
 	Spreads      *Arena[ExprSpreadData]
 	Spawns       *Arena[ExprSpawnData]
 	Parallels    *Arena[ExprParallelData]
@@ -421,6 +429,7 @@ func NewExprs(capHint uint) *Exprs {
 		Groups:       NewArena[ExprGroupData](capHint),
 		Tuples:       NewArena[ExprTupleData](capHint),
 		Arrays:       NewArena[ExprArrayData](capHint),
+		RangeLits:    NewArena[ExprRangeLitData](capHint),
 		Spreads:      NewArena[ExprSpreadData](capHint),
 		Spawns:       NewArena[ExprSpawnData](capHint),
 		Parallels:    NewArena[ExprParallelData](capHint),
@@ -660,6 +669,23 @@ func (e *Exprs) Array(id ExprID) (*ExprArrayData, bool) {
 		return nil, false
 	}
 	return e.Arrays.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewRangeLit(span source.Span, start, end ExprID, inclusive bool) ExprID {
+	payload := e.RangeLits.Allocate(ExprRangeLitData{
+		Start:     start,
+		End:       end,
+		Inclusive: inclusive,
+	})
+	return e.new(ExprRangeLit, span, PayloadID(payload))
+}
+
+func (e *Exprs) RangeLit(id ExprID) (*ExprRangeLitData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprRangeLit {
+		return nil, false
+	}
+	return e.RangeLits.Get(uint32(expr.Payload)), true
 }
 
 func (e *Exprs) NewSpread(span source.Span, value ExprID) ExprID {

@@ -5,6 +5,7 @@ import (
 
 	"fortio.org/safecast"
 
+	"surge/internal/layout"
 	"surge/internal/mir"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -26,6 +27,7 @@ type VM struct {
 	Trace      *Tracer
 	Files      *source.FileSet
 	Types      *types.Interner
+	Layout     *layout.LayoutEngine
 	Heap       *Heap
 	layouts    *layoutCache
 	tagLayouts *TagLayouts
@@ -46,6 +48,11 @@ func New(m *mir.Module, rt Runtime, files *source.FileSet, typeInterner *types.I
 		Trace:    trace,
 		ExitCode: 0,
 		Halted:   false,
+	}
+	if m != nil && m.Meta != nil && m.Meta.Layout != nil {
+		vm.Layout = m.Meta.Layout
+	} else {
+		vm.Layout = layout.New(layout.X86_64LinuxGNU(), typeInterner)
 	}
 	vm.eb = &errorBuilder{vm: vm}
 	vm.Heap = &Heap{
@@ -343,6 +350,7 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 		slot.V = Value{}
 		slot.IsInit = false
 		slot.IsMoved = false
+		slot.IsDropped = false
 
 	case mir.InstrNop:
 		// Nothing to do
@@ -504,6 +512,10 @@ func (vm *VM) readLocal(frame *Frame, id mir.LocalID) (Value, *VMError) {
 		return Value{}, vm.eb.useBeforeInit(slot.Name)
 	}
 
+	if slot.IsDropped {
+		return Value{}, vm.eb.makeError(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: local %q used after drop", slot.Name))
+	}
+
 	if slot.IsMoved {
 		return Value{}, vm.eb.useAfterMove(slot.Name)
 	}
@@ -522,8 +534,8 @@ func (vm *VM) writeLocal(frame *Frame, id mir.LocalID, val Value) *VMError {
 		val.TypeID = expectedType
 	}
 	if val.Kind == VKNothing && expectedType != types.NoTypeID && vm.tagLayouts != nil {
-		if layout, ok := vm.tagLayouts.Layout(vm.valueType(expectedType)); ok && layout != nil {
-			if tc, ok := layout.CaseByName("nothing"); ok {
+		if tagLayout, ok := vm.tagLayouts.Layout(vm.valueType(expectedType)); ok && tagLayout != nil {
+			if tc, ok := tagLayout.CaseByName("nothing"); ok {
 				h := vm.Heap.AllocTag(expectedType, tc.TagSym, nil)
 				val = MakeHandleTag(h, expectedType)
 			}
@@ -531,14 +543,13 @@ func (vm *VM) writeLocal(frame *Frame, id mir.LocalID, val Value) *VMError {
 	}
 
 	slot := &frame.Locals[id]
-	if slot.IsInit && !slot.IsMoved && frame.Func != nil {
-		if vm.localOwnsHeap(frame.Func.Locals[id]) {
-			vm.dropValue(slot.V)
-		}
+	if slot.IsInit && !slot.IsMoved && !slot.IsDropped {
+		vm.dropValue(slot.V)
 	}
 	slot.V = val
 	slot.IsInit = true
 	slot.IsMoved = false
+	slot.IsDropped = false
 	return nil
 }
 

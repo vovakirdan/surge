@@ -33,15 +33,12 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 	if declared == types.NoTypeID {
 		return
 	}
-
-	// Special handling for struct literals without explicit type annotation:
-	// validate that field names and types match the expected struct type
-	if data, ok := tc.builder.Exprs.Struct(valueExpr); ok && data != nil && !data.Type.IsValid() {
-		tc.validateStructLiteralFields(declared, data, tc.exprSpan(valueExpr))
-	}
-
 	if actual == types.NoTypeID {
-		return
+		if tc.applyExpectedType(valueExpr, declared) {
+			actual = tc.result.ExprTypes[valueExpr]
+		} else {
+			return
+		}
 	}
 
 	// Apply literal coercion (e.g., untyped int literal to specific int type)
@@ -291,4 +288,66 @@ func (tc *typeChecker) recordArrayElementConversions(arr *ast.ExprArrayData, exp
 			}
 		}
 	}
+}
+
+func (tc *typeChecker) applyExpectedType(expr ast.ExprID, expected types.TypeID) bool {
+	if expected == types.NoTypeID || !expr.IsValid() || tc.builder == nil {
+		return false
+	}
+	if tc.result.ExprTypes[expr] != types.NoTypeID {
+		return false
+	}
+	node := tc.builder.Exprs.Get(expr)
+	if node == nil {
+		return false
+	}
+	switch node.Kind {
+	case ast.ExprGroup:
+		group, ok := tc.builder.Exprs.Group(expr)
+		if !ok || group == nil {
+			return false
+		}
+		if tc.applyExpectedType(group.Inner, expected) {
+			tc.result.ExprTypes[expr] = tc.result.ExprTypes[group.Inner]
+			return true
+		}
+	case ast.ExprStruct:
+		data, ok := tc.builder.Exprs.Struct(expr)
+		if !ok || data == nil || data.Type.IsValid() {
+			return false
+		}
+		if info, _ := tc.structInfoForType(expected); info == nil {
+			return false
+		}
+		tc.validateStructLiteralFields(expected, data, tc.exprSpan(expr))
+		tc.result.ExprTypes[expr] = expected
+		return true
+	case ast.ExprArray:
+		arr, ok := tc.builder.Exprs.Array(expr)
+		if !ok || arr == nil {
+			return false
+		}
+		expElem, expLen, expFixed, ok := tc.arrayInfo(expected)
+		if !ok {
+			return false
+		}
+		if expFixed {
+			if length, err := safecast.Conv[uint32](len(arr.Elements)); err == nil && expLen != length {
+				tc.report(diag.SemaTypeMismatch, tc.exprSpan(expr),
+					"array literal length %d does not match expected length %d", length, expLen)
+				return false
+			}
+		}
+		for _, elem := range arr.Elements {
+			if !elem.IsValid() {
+				continue
+			}
+			if tc.result.ExprTypes[elem] == types.NoTypeID {
+				tc.applyExpectedType(elem, expElem)
+			}
+		}
+		tc.result.ExprTypes[expr] = expected
+		return true
+	}
+	return false
 }

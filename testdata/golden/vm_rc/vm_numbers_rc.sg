@@ -1,0 +1,12 @@
+@entrypoint
+fn main() -> int {
+    let a: int = 100000000000000000000;
+    let b = a; // copy
+
+    let c: float = 1.234567890123456789;
+    let d = c; // copy
+
+    @drop b;
+    @drop d;
+    return 0;
+}

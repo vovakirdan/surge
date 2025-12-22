@@ -69,11 +69,11 @@ extern<float64> {
 // I/O functions
 
 pub fn print(s: string) -> nothing {
-    let ptr = rt_string_ptr(s);
-    let slen = rt_string_len(s);
+    let ptr = rt_string_ptr(&s);
+    let slen = rt_string_len_bytes(&s);
     rt_write_stdout(ptr, slen);
     let newline = "\n";
-    rt_write_stdout(rt_string_ptr(newline), 1:uint);
+    rt_write_stdout(rt_string_ptr(&newline), 1:uint);
 }
 
 pub fn len<T: HasLength<T>>(self: &T) -> uint {

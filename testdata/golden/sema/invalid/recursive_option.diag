@@ -1,0 +1,1 @@
+error SEM3126 testdata/golden/sema/invalid/recursive_option.sg:2:1 recursive value type Node has infinite size: Node -> Option<Node> -> Node

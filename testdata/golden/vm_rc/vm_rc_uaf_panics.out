@@ -1,0 +1,5 @@
+panic VM3301: use-after-free: local "a" used after drop
+at testdata/golden/vm_rc/vm_rc_uaf_panics.sg:5:5
+backtrace:
+  0: main at testdata/golden/vm_rc/vm_rc_uaf_panics.sg:5:5
+  1: __surge_start at <no-span>

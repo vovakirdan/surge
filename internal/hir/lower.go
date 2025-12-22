@@ -94,9 +94,7 @@ func buildStmtSymbolIndex(symRes *symbols.Result, fileID ast.FileID) map[ast.Stm
 			continue
 		}
 		if sym.Decl.Stmt.IsValid() {
-			if _, exists := out[sym.Decl.Stmt]; exists {
-				continue
-			}
+			// Prefer the latest symbol when a stmt is re-resolved (locals aren't reused).
 			out[sym.Decl.Stmt] = id
 		}
 	}
@@ -131,6 +129,10 @@ func (l *lowerer) lowerFile(fileID ast.FileID) {
 			if fn := l.lowerFnItem(itemID); fn != nil {
 				l.module.Funcs = append(l.module.Funcs, fn)
 			}
+		case ast.ItemExtern:
+			if block, ok := l.builder.Items.Extern(itemID); ok && block != nil {
+				l.lowerExternBlock(itemID, block)
+			}
 		case ast.ItemLet:
 			if v := l.lowerLetItem(itemID); v != nil {
 				l.module.Globals = append(l.module.Globals, *v)
@@ -151,7 +153,7 @@ func (l *lowerer) lowerFile(fileID ast.FileID) {
 			if c := l.lowerContractItem(itemID); c != nil {
 				l.module.Types = append(l.module.Types, *c)
 			}
-			// ItemImport, ItemPragma, ItemExtern, ItemMacro are not lowered to HIR
+			// ItemImport, ItemPragma, ItemMacro are not lowered to HIR
 		}
 	}
 }

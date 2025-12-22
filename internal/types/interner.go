@@ -36,6 +36,7 @@ type Interner struct {
 	builtins         Builtins
 	structs          []StructInfo
 	aliases          []AliasInfo
+	typeLayoutAttrs  map[TypeID]LayoutAttrs
 	params           []TypeParamInfo
 	unions           []UnionInfo
 	enums            []EnumInfo

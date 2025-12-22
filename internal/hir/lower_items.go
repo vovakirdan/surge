@@ -1,6 +1,8 @@
 package hir
 
 import (
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -65,6 +67,68 @@ func (l *lowerer) lowerFnItem(itemID ast.ItemID) *Func {
 	return fn
 }
 
+func (l *lowerer) lowerExternBlock(_ ast.ItemID, block *ast.ExternBlock) {
+	if block == nil || !block.MembersStart.IsValid() || block.MembersCount == 0 {
+		return
+	}
+	start := uint32(block.MembersStart)
+	for offset := range block.MembersCount {
+		memberID := ast.ExternMemberID(start + offset)
+		member := l.builder.Items.ExternMember(memberID)
+		if member == nil || member.Kind != ast.ExternMemberFn {
+			continue
+		}
+		fnItem := l.builder.Items.FnByPayload(member.Fn)
+		if fnItem == nil || !fnItem.Body.IsValid() {
+			continue
+		}
+		if fn := l.lowerExternFn(memberID, fnItem); fn != nil {
+			l.module.Funcs = append(l.module.Funcs, fn)
+		}
+	}
+}
+
+func (l *lowerer) lowerExternFn(memberID ast.ExternMemberID, fnItem *ast.FnItem) *Func {
+	if fnItem == nil {
+		return nil
+	}
+	name := l.lookupString(fnItem.Name)
+	fnID := l.nextFnID
+	l.nextFnID++
+
+	var symID symbols.SymbolID
+	if l.symRes != nil {
+		symID = l.symRes.ExternSyms[memberID]
+	}
+
+	fn := &Func{
+		ID:       fnID,
+		Name:     name,
+		SymbolID: symID,
+		Span:     fnItem.Span,
+		Result:   types.NoTypeID,
+	}
+
+	if fnItem.Flags&ast.FnModifierAsync != 0 {
+		fn.Flags |= FuncAsync
+	}
+	if fnItem.Flags&ast.FnModifierPublic != 0 {
+		fn.Flags |= FuncPublic
+	}
+
+	fn.Flags |= l.extractFnFlags(fnItem)
+	fn.GenericParams = l.lowerGenericParams(fnItem)
+	fn.Params = l.lowerExternFnParams(memberID, fnItem)
+	fn.Result = l.getFunctionReturnType(symID)
+
+	if fnItem.Body.IsValid() {
+		fn.Body = l.lowerBlockStmt(fnItem.Body)
+		l.ensureExplicitReturn(fn)
+	}
+
+	return fn
+}
+
 // extractFnFlags extracts function flags from attributes.
 func (l *lowerer) extractFnFlags(fnItem *ast.FnItem) FuncFlags {
 	var flags FuncFlags
@@ -117,15 +181,22 @@ func (l *lowerer) lowerGenericParams(fnItem *ast.FnItem) []GenericParam {
 
 // lowerFnParams lowers function parameters.
 func (l *lowerer) lowerFnParams(fnItemID ast.ItemID, fnItem *ast.FnItem) []Param {
-	paramIDs := l.builder.Items.GetFnParamIDs(fnItem)
-	if len(paramIDs) == 0 {
-		return nil
-	}
-
-	// Get function scope to look up parameter symbols
 	var fnScope symbols.ScopeID
 	if l.semaRes != nil && l.semaRes.ItemScopes != nil {
 		fnScope = l.semaRes.ItemScopes[fnItemID]
+	}
+	return l.lowerFnParamsWithScope(fnScope, fnItem)
+}
+
+func (l *lowerer) lowerExternFnParams(memberID ast.ExternMemberID, fnItem *ast.FnItem) []Param {
+	fnScope := l.scopeForExtern(memberID)
+	return l.lowerFnParamsWithScope(fnScope, fnItem)
+}
+
+func (l *lowerer) lowerFnParamsWithScope(fnScope symbols.ScopeID, fnItem *ast.FnItem) []Param {
+	paramIDs := l.builder.Items.GetFnParamIDs(fnItem)
+	if len(paramIDs) == 0 {
+		return nil
 	}
 
 	params := make([]Param, 0, len(paramIDs))
@@ -147,6 +218,14 @@ func (l *lowerer) lowerFnParams(fnItemID ast.ItemID, fnItem *ast.FnItem) []Param
 			p.SymbolID = symID
 			if symID.IsValid() && l.semaRes != nil && l.semaRes.BindingTypes != nil {
 				p.Type = l.semaRes.BindingTypes[symID]
+			}
+		}
+		if !p.SymbolID.IsValid() && param.Name != 0 {
+			if symID := l.findParamSymbol(param, fnItem); symID.IsValid() {
+				p.SymbolID = symID
+				if p.Type == types.NoTypeID && l.semaRes != nil && l.semaRes.BindingTypes != nil {
+					p.Type = l.semaRes.BindingTypes[symID]
+				}
 			}
 		}
 
@@ -187,6 +266,71 @@ func (l *lowerer) symbolInScope(scope symbols.ScopeID, name source.StringID, kin
 		}
 	}
 	return symbols.NoSymbolID
+}
+
+func (l *lowerer) findParamSymbol(param *ast.FnParam, fnItem *ast.FnItem) symbols.SymbolID {
+	if param == nil || param.Name == source.NoStringID || l.symRes == nil || l.symRes.Table == nil || l.symRes.Table.Symbols == nil {
+		return symbols.NoSymbolID
+	}
+
+	paramSpan := param.Span
+	if paramSpan == (source.Span{}) && fnItem != nil {
+		paramSpan = fnItem.ParamsSpan
+		if paramSpan == (source.Span{}) {
+			paramSpan = fnItem.Span
+		}
+	}
+
+	symMax, err := safecast.Conv[uint32](l.symRes.Table.Symbols.Len())
+	if err != nil {
+		return symbols.NoSymbolID
+	}
+	for symID := symbols.SymbolID(symMax); symID != 0; symID-- {
+		sym := l.symRes.Table.Symbols.Get(symID)
+		if sym == nil || sym.Kind != symbols.SymbolParam || sym.Name != param.Name {
+			continue
+		}
+		if l.module != nil && l.module.SourceAST.IsValid() && sym.Decl.ASTFile.IsValid() && sym.Decl.ASTFile != l.module.SourceAST {
+			continue
+		}
+		if param.Span != (source.Span{}) {
+			if sym.Span == param.Span {
+				return symID
+			}
+			continue
+		}
+		if spanWithin(sym.Span, paramSpan) {
+			return symID
+		}
+	}
+	return symbols.NoSymbolID
+}
+
+func spanWithin(span, container source.Span) bool {
+	if span == (source.Span{}) || container == (source.Span{}) {
+		return false
+	}
+	if span.File != container.File {
+		return false
+	}
+	return span.Start >= container.Start && span.End <= container.End
+}
+
+func (l *lowerer) scopeForExtern(memberID ast.ExternMemberID) symbols.ScopeID {
+	if !memberID.IsValid() || l.symRes == nil || l.symRes.Table == nil || l.symRes.Table.Scopes == nil {
+		return symbols.NoScopeID
+	}
+	scopeMax, err := safecast.Conv[uint32](l.symRes.Table.Scopes.Len())
+	if err != nil {
+		return symbols.NoScopeID
+	}
+	for id := symbols.ScopeID(scopeMax); id != 0; id-- {
+		scope := l.symRes.Table.Scopes.Get(id)
+		if scope != nil && scope.Kind == symbols.ScopeFunction && scope.Owner.Extern == memberID {
+			return id
+		}
+	}
+	return symbols.NoScopeID
 }
 
 // getFunctionReturnType extracts return type from a function symbol's type.

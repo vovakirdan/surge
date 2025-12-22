@@ -1,0 +1,54 @@
+bigint_add_mul_div.sg (span: 1:1-22:1)
+├─ Item[0]: Fn (span: 1:1-7:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:37-7:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:33)
+│        │  ├─ Name: ptr
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#4: rt_string_ptr(&s)
+│        ├─ Stmt[1]: Let (span: 3:5-3:34)
+│        │  ├─ Name: slen
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#8: rt_string_len(&s)
+│        ├─ Stmt[2]: Expr (span: 4:5-4:32)
+│        │  └─ Expr: expr#12: rt_write_stdout(ptr, slen)
+│        ├─ Stmt[3]: Let (span: 5:5-5:24)
+│        │  ├─ Name: newline
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#13: "\n"
+│        └─ Stmt[4]: Expr (span: 6:5-6:54)
+│           └─ Expr: expr#21: rt_write_stdout(rt_string_ptr(&newline), 1 to uint)
+└─ Item[1]: Fn (span: 9:1-21:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:18-21:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:220)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#22: 300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000026
+         ├─ Stmt[1]: Let (span: 12:5-12:221)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#24: -100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007
+         ├─ Stmt[2]: Expr (span: 14:5-14:35)
+         │  └─ Expr: expr#31: write_line(((a + b)) to string)
+         ├─ Stmt[3]: Expr (span: 15:5-15:35)
+         │  └─ Expr: expr#38: write_line(((a - b)) to string)
+         ├─ Stmt[4]: Expr (span: 16:5-16:35)
+         │  └─ Expr: expr#45: write_line(((a * b)) to string)
+         ├─ Stmt[5]: Expr (span: 17:5-17:35)
+         │  └─ Expr: expr#52: write_line(((a / b)) to string)
+         ├─ Stmt[6]: Expr (span: 18:5-18:35)
+         │  └─ Expr: expr#59: write_line(((a % b)) to string)
+         └─ Stmt[7]: Return (span: 20:5-20:14)
+            └─ Expr: expr#60: 0

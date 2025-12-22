@@ -164,8 +164,8 @@ func validateLocalIDs(f *Func) error {
 		case RValueCast:
 			checkOperand(rv.Cast.Value, context)
 		case RValueStructLit:
-			for _, field := range rv.StructLit.Fields {
-				checkOperand(field.Value, context)
+			for i := range rv.StructLit.Fields {
+				checkOperand(rv.StructLit.Fields[i].Value, context)
 			}
 		case RValueArrayLit:
 			for _, elem := range rv.ArrayLit.Elems {

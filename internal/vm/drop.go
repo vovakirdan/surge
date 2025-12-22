@@ -2,10 +2,10 @@ package vm
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"surge/internal/mir"
-	"surge/internal/types"
 )
 
 func (vm *VM) execDrop(frame *Frame, localID mir.LocalID) *VMError {
@@ -19,14 +19,12 @@ func (vm *VM) execDrop(frame *Frame, localID mir.LocalID) *VMError {
 	if slot.IsMoved {
 		return vm.eb.useAfterMove(slot.Name)
 	}
-
-	if vm.localOwnsHeap(frame.Func.Locals[localID]) {
-		vm.dropValue(slot.V)
+	if slot.IsDropped {
+		return vm.eb.makeError(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: local %q used after drop", slot.Name))
 	}
 
-	slot.V = Value{}
-	slot.IsInit = false
-	slot.IsMoved = false
+	vm.dropValue(slot.V)
+	slot.IsDropped = true
 	return nil
 }
 
@@ -34,21 +32,17 @@ func (vm *VM) dropFrameLocals(frame *Frame) {
 	if frame == nil || frame.Func == nil {
 		return
 	}
-	for id := range frame.Locals {
+	// Contract: implicit drops run in strictly reverse local order.
+	for id := len(frame.Locals) - 1; id >= 0; id-- {
 		slot := &frame.Locals[id]
-		if !slot.IsInit || slot.IsMoved {
-			continue
-		}
-		if id >= len(frame.Func.Locals) {
-			continue
-		}
-		if !vm.localOwnsHeap(frame.Func.Locals[id]) {
+		if !slot.IsInit || slot.IsMoved || slot.IsDropped {
 			continue
 		}
 		vm.dropValue(slot.V)
 		slot.V = Value{}
 		slot.IsInit = false
 		slot.IsMoved = false
+		slot.IsDropped = false
 	}
 }
 
@@ -59,70 +53,47 @@ func (vm *VM) dropAllFrames() {
 }
 
 func (vm *VM) dropValue(v Value) {
-	switch v.Kind {
-	case VKHandleString, VKHandleArray, VKHandleStruct, VKHandleTag:
-		if v.H != 0 {
-			vm.Heap.Free(v.H)
-		}
+	if vm == nil || vm.Heap == nil || !v.IsHeap() || v.H == 0 {
+		return
 	}
-}
-
-func (vm *VM) localOwnsHeap(local mir.Local) bool {
-	if local.Flags&(mir.LocalFlagRef|mir.LocalFlagRefMut|mir.LocalFlagPtr) != 0 {
-		return false
-	}
-	if local.Flags&mir.LocalFlagCopy != 0 {
-		return false
-	}
-	switch localTy := vm.valueType(local.Type); {
-	case localTy == types.NoTypeID:
-		return false
-	default:
-		if vm.Types == nil {
-			return true
-		}
-		tt, ok := vm.Types.Lookup(localTy)
-		if !ok {
-			return true
-		}
-		switch tt.Kind {
-		case types.KindString, types.KindStruct:
-			return true
-		case types.KindArray:
-			return tt.Count == types.ArrayDynamicLength
-		case types.KindUnion:
-			return true
-		default:
-			return false
-		}
-	}
+	vm.Heap.Release(v.H)
 }
 
 func (vm *VM) checkLeaksOrPanic() {
 	if vm.Heap == nil {
 		return
 	}
-	aliveCount := 0
+	leakCount := 0
+	kindCounts := make(map[ObjectKind]int, 8)
 	const maxList = 8
 	list := make([]string, 0, maxList)
 	for h := Handle(1); h < vm.Heap.next; h++ {
 		obj, ok := vm.Heap.lookup(h)
-		if !ok || obj == nil || !obj.Alive {
+		if !ok || obj == nil || obj.RefCount == 0 {
 			continue
 		}
-		aliveCount++
+		leakCount++
+		kindCounts[obj.Kind]++
 		if len(list) < maxList {
-			list = append(list, fmt.Sprintf("%s#%d(type=type#%d)", vm.objectKindLabel(obj.Kind), h, obj.TypeID))
+			list = append(list, fmt.Sprintf("%s#%d(rc=%d,type=type#%d)", vm.objectKindLabel(obj.Kind), h, obj.RefCount, obj.TypeID))
 		}
 	}
-	if aliveCount == 0 {
+	if leakCount == 0 {
 		return
 	}
-	msg := fmt.Sprintf("memory leak detected: %d objects still alive", aliveCount)
+	msg := fmt.Sprintf("heap leak detected: %d objects still alive", leakCount)
+	kindList := make([]string, 0, len(kindCounts))
+	for kind := range kindCounts {
+		kindList = append(kindList, fmt.Sprintf("%s=%d", vm.objectKindLabel(kind), kindCounts[kind]))
+	}
+	sort.Strings(kindList)
+	if len(kindList) > 0 {
+		msg += " (" + strings.Join(kindList, ", ") + ")"
+	}
 	if len(list) > 0 {
 		msg += ": " + strings.Join(list, ", ")
 	}
-	vm.panic(PanicMemoryLeakDetected, msg)
+	vm.panic(PanicRCHeapLeakDetected, msg)
 }
 
 func (vm *VM) objectKindLabel(k ObjectKind) string {
@@ -135,6 +106,14 @@ func (vm *VM) objectKindLabel(k ObjectKind) string {
 		return "struct"
 	case OKTag:
 		return "tag"
+	case OKRange:
+		return "range"
+	case OKBigInt:
+		return "bigint"
+	case OKBigUint:
+		return "biguint"
+	case OKBigFloat:
+		return "bigfloat"
 	default:
 		return "object"
 	}

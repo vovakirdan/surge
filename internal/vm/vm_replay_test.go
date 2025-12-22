@@ -10,14 +10,10 @@ import (
 )
 
 func TestVMRecordReplayArgv(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_replay", "vm_record_replay_argv.sg")
-
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint("argv")
+fn main(x: int) -> int { return x; }
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 
 	var recBuf bytes.Buffer
 	rec := vm.NewRecorder(&recBuf)
@@ -58,14 +54,10 @@ func TestVMRecordReplayArgv(t *testing.T) {
 }
 
 func TestVMRecordReplayStdin(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_replay", "vm_record_replay_stdin.sg")
-
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+	sourceCode := `@entrypoint("stdin")
+fn main(x: int) -> int { return x; }
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 
 	var recBuf bytes.Buffer
 	rec := vm.NewRecorder(&recBuf)
@@ -95,15 +87,53 @@ func TestVMRecordReplayStdin(t *testing.T) {
 	}
 }
 
-func TestVMRecordReplayPanicOverflow(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_replay", "vm_record_replay_panic_overflow.sg")
+// TestVMRecordReplayArgvSeparator tests record/replay with NewRuntimeWithArgs,
+// which is the constructor used by the CLI when processing the "--" separator.
+// This verifies that program args (after "--") are correctly recorded and replayed.
+func TestVMRecordReplayArgvSeparator(t *testing.T) {
+	sourceCode := `@entrypoint("argv")
+fn main(x: int) -> int { return x; }
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
+	// Record with programArgs = ["7"] (simulates: surge run file.sg -- 7)
+	var recBuf bytes.Buffer
+	rec := vm.NewRecorder(&recBuf)
+	rt := vm.NewRecordingRuntime(vm.NewRuntimeWithArgs([]string{"7"}), rec)
+
+	vm1 := vm.New(mirMod, rt, files, typesInterner, nil)
+	vm1.Recorder = rec
+	if vmErr := vm1.Run(); vmErr != nil {
+		t.Fatalf("unexpected error: %v", vmErr.Error())
 	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
+	if vm1.ExitCode != 7 {
+		t.Fatalf("expected exit code 7, got %d", vm1.ExitCode)
+	}
 
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+	// Replay with different args = ["999"] (simulates: surge run --vm-replay file.sg -- 999)
+	// Should still get exit code 7 because replay uses recorded argv
+	rp := vm.NewReplayerFromBytes(recBuf.Bytes())
+	vm2 := vm.New(mirMod, vm.NewRuntimeWithArgs([]string{"999"}), files, typesInterner, nil)
+	vm2.Replayer = rp
+	vm2.RT = vm.NewReplayRuntime(vm2, rp)
+	if vmErr := vm2.Run(); vmErr != nil {
+		t.Fatalf("unexpected replay error: %v", vmErr.Error())
+	}
+	if vm2.ExitCode != 7 {
+		t.Fatalf("expected exit code 7 (from recorded args), got %d", vm2.ExitCode)
+	}
+	if rp.Remaining() != 0 {
+		t.Fatalf("expected replay log fully consumed, remaining=%d", rp.Remaining())
+	}
+}
+
+func TestVMRecordReplayPanicDivByZero(t *testing.T) {
+	sourceCode := `@entrypoint
+fn main() -> int {
+    return 1 / 0;
+}
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 
 	var recBuf bytes.Buffer
 	rec := vm.NewRecorder(&recBuf)
@@ -115,8 +145,8 @@ func TestVMRecordReplayPanicOverflow(t *testing.T) {
 	if vmErr1 == nil {
 		t.Fatal("expected panic, got nil")
 	}
-	if vmErr1.Code != vm.PanicIntOverflow {
-		t.Fatalf("expected %v, got %v", vm.PanicIntOverflow, vmErr1.Code)
+	if vmErr1.Code != vm.PanicDivisionByZero {
+		t.Fatalf("expected %v, got %v", vm.PanicDivisionByZero, vmErr1.Code)
 	}
 
 	rp := vm.NewReplayerFromBytes(recBuf.Bytes())
@@ -127,8 +157,8 @@ func TestVMRecordReplayPanicOverflow(t *testing.T) {
 	if vmErr2 == nil {
 		t.Fatal("expected replay panic, got nil")
 	}
-	if vmErr2.Code != vm.PanicIntOverflow {
-		t.Fatalf("expected %v, got %v", vm.PanicIntOverflow, vmErr2.Code)
+	if vmErr2.Code != vm.PanicDivisionByZero {
+		t.Fatalf("expected %v, got %v", vm.PanicDivisionByZero, vmErr2.Code)
 	}
 
 	if vmErr2.FormatWithFiles(files) != vmErr1.FormatWithFiles(files) {

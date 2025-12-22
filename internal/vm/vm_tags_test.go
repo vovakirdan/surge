@@ -1,8 +1,6 @@
 package vm_test
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"surge/internal/mir"
@@ -360,14 +358,20 @@ func TestVMTagsSwitchOnNonTagPanics(t *testing.T) {
 }
 
 func TestVMTagsOptionMatchNothingFromSource(t *testing.T) {
-	filePath := filepath.Join("testdata", "golden", "vm_tags", "vm_option_match_nothing.sg")
+	sourceCode := `fn unwrap_or_zero(x: int?) -> int {
+    return compare x {
+        Some(v) => v;
+        nothing => 0;
+    };
+}
 
-	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer os.Chdir(filepath.Join("internal", "vm"))
-
-	mirMod, files, typesInterner := compileToMIR(t, filePath)
+@entrypoint
+fn main() -> int {
+    let x: int? = nothing;
+    return unwrap_or_zero(x);
+}
+`
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 	rt := vm.NewTestRuntime(nil, "")
 	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
 

@@ -2,6 +2,7 @@ package sema
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -159,12 +160,17 @@ func (tc *typeChecker) instantiateImportedType(sym *symbols.Symbol, args []types
 		fields := make([]types.StructField, len(info.Fields))
 		for i, field := range info.Fields {
 			fields[i] = types.StructField{
-				Name: field.Name,
-				Type: tc.substituteTypeParams(field.Type, mapping),
+				Name:   field.Name,
+				Type:   tc.substituteTypeParams(field.Type, mapping),
+				Attrs:  slices.Clone(field.Attrs),
+				Layout: field.Layout,
 			}
 		}
 		instantiated := tc.types.RegisterStructInstance(info.Name, info.Decl, args)
 		tc.types.SetStructFields(instantiated, fields)
+		if attrs, ok := tc.types.TypeLayoutAttrs(base); ok {
+			tc.types.SetTypeLayoutAttrs(instantiated, attrs)
+		}
 		if len(info.ValueArgs) > 0 {
 			tc.types.SetStructValueArgs(instantiated, info.ValueArgs)
 		}

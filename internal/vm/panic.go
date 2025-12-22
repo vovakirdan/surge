@@ -32,18 +32,26 @@ const (
 	PanicTagPayloadIndexOutOfRange PanicCode = 2005 // VM2005: tag_payload index out of range
 	PanicUnknownTagLayout          PanicCode = 2006 // VM2006: unknown tag in layout / metadata missing
 
-	PanicDerefOnNonRef          PanicCode = 2101 // VM2101: deref of non-ref value
-	PanicStoreThroughNonMutRef  PanicCode = 2102 // VM2102: store through non-mutable reference
-	PanicInvalidLocation        PanicCode = 2103 // VM2103: invalid location
-	PanicFieldIndexOutOfRange   PanicCode = 2104 // VM2104: field index out of range
-	PanicArrayIndexOutOfRange   PanicCode = 2105 // VM2105: array index out of range
-	PanicReferenceToFreedObject PanicCode = 2106 // VM2106: reference to freed object
+	PanicDerefOnNonRef         PanicCode = 2101 // VM2101: deref of non-ref value
+	PanicStoreThroughNonMutRef PanicCode = 2102 // VM2102: store through non-mutable reference
+	PanicInvalidLocation       PanicCode = 2103 // VM2103: invalid location
+	PanicFieldIndexOutOfRange  PanicCode = 2104 // VM2104: field index out of range
+	PanicArrayIndexOutOfRange  PanicCode = 2105 // VM2105: array index out of range
 
 	PanicReplayLogExhausted     PanicCode = 3001 // VM3001: replay log exhausted
 	PanicReplayMismatch         PanicCode = 3002 // VM3002: replay mismatch
 	PanicInvalidReplayLogFormat PanicCode = 3003 // VM3003: invalid replay log format/version
 
 	PanicUnimplemented PanicCode = 1999 // VM1999: unimplemented opcode/terminator
+
+	PanicNumericSizeLimitExceeded PanicCode = 3201 // VM3201: numeric size limit exceeded
+	PanicInvalidNumericConversion PanicCode = 3202 // VM3202: invalid numeric conversion
+	PanicDivisionByZero           PanicCode = 3203 // VM3203: division by zero
+	PanicFloatUnsupported         PanicCode = 3204 // VM3204: float parse/format unsupported
+	PanicNumericOpTypeMismatch    PanicCode = 3205 // VM3205: numeric op type mismatch (internal error)
+
+	PanicRCUseAfterFree     PanicCode = 3301 // VM3301: use-after-free (RC heap)
+	PanicRCHeapLeakDetected PanicCode = 3302 // VM3302: heap leak detected (RC heap)
 )
 
 // String returns the code as "VM1001" format.
@@ -159,11 +167,33 @@ func (eb *errorBuilder) unsupportedIntrinsic(name string) *VMError {
 }
 
 func (eb *errorBuilder) unsupportedParseType(typeName string) *VMError {
-	return eb.makeError(PanicUnsupportedParseType, fmt.Sprintf("rt_parse_arg only supports int, got %s", typeName))
+	return eb.makeError(PanicUnsupportedParseType, fmt.Sprintf("rt_parse_arg only supports int/uint/float/string, got %s", typeName))
 }
 
 func (eb *errorBuilder) intOverflow() *VMError {
 	return eb.makeError(PanicIntOverflow, "integer overflow")
+}
+
+func (eb *errorBuilder) numericSizeLimitExceeded() *VMError {
+	return eb.makeError(PanicNumericSizeLimitExceeded, "numeric size limit exceeded")
+}
+
+func (eb *errorBuilder) invalidNumericConversion(msg string) *VMError {
+	if msg == "" {
+		msg = "invalid numeric conversion"
+	}
+	return eb.makeError(PanicInvalidNumericConversion, msg)
+}
+
+func (eb *errorBuilder) divisionByZero() *VMError {
+	return eb.makeError(PanicDivisionByZero, "division by zero")
+}
+
+func (eb *errorBuilder) numericOpTypeMismatch(msg string) *VMError {
+	if msg == "" {
+		msg = "numeric op type mismatch"
+	}
+	return eb.makeError(PanicNumericOpTypeMismatch, msg)
 }
 
 func (eb *errorBuilder) switchTagMissingDefault() *VMError {
@@ -211,10 +241,6 @@ func (eb *errorBuilder) fieldIndexOutOfRange(index, length int) *VMError {
 
 func (eb *errorBuilder) arrayIndexOutOfRange(index, length int) *VMError {
 	return eb.makeError(PanicArrayIndexOutOfRange, fmt.Sprintf("array index %d out of range for length %d", index, length))
-}
-
-func (eb *errorBuilder) referenceToFreedObject(msg string) *VMError {
-	return eb.makeError(PanicReferenceToFreedObject, msg)
 }
 
 func (eb *errorBuilder) unimplemented(what string) *VMError {

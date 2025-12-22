@@ -34,6 +34,7 @@ func (vm *VM) evalTagTest(frame *Frame, tt *mir.TagTest) (Value, *VMError) {
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
+	defer vm.dropValue(val)
 	if val.Kind != VKHandleTag {
 		return Value{}, vm.eb.switchTagOnNonTag(val.Kind.String())
 	}
@@ -60,6 +61,7 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
+	defer vm.dropValue(val)
 	if val.Kind != VKHandleTag {
 		return Value{}, vm.eb.tagPayloadOnNonTag(val.Kind.String())
 	}
@@ -103,6 +105,7 @@ func (vm *VM) execSwitchTag(frame *Frame, st *mir.SwitchTagTerm) *VMError {
 	if vmErr != nil {
 		return vmErr
 	}
+	defer vm.dropValue(val)
 	if val.Kind != VKHandleTag {
 		return vm.eb.switchTagOnNonTag(val.Kind.String())
 	}
@@ -200,7 +203,7 @@ func (vm *VM) callTagConstructor(frame *Frame, call *mir.CallInstr, writes *[]Lo
 	}
 
 	// Tag value is unused; drop it to consume moved arguments deterministically.
-	vm.Heap.Free(h)
+	vm.Heap.Release(h)
 	return true, nil
 }
 

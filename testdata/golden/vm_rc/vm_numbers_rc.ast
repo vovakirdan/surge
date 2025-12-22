@@ -1,0 +1,31 @@
+vm_numbers_rc.sg (span: 1:1-13:1)
+└─ Item[0]: Fn (span: 1:1-12:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-12:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:40)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 100000000000000000000
+         ├─ Stmt[1]: Let (span: 4:5-4:15)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#2: a
+         ├─ Stmt[2]: Let (span: 6:5-6:41)
+         │  ├─ Name: c
+         │  ├─ Mutable: false
+         │  ├─ Type: float
+         │  └─ Value: expr#3: 1.234567890123456789
+         ├─ Stmt[3]: Let (span: 7:5-7:15)
+         │  ├─ Name: d
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: c
+         ├─ Stmt[4]: StmtKind(12) (span: 9:5-9:13)
+         ├─ Stmt[5]: StmtKind(12) (span: 10:5-10:13)
+         └─ Stmt[6]: Return (span: 11:5-11:14)
+            └─ Expr: expr#7: 0

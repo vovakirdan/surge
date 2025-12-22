@@ -1,6 +1,8 @@
 package hir
 
 import (
+	"strings"
+
 	"surge/internal/ast"
 	"surge/internal/sema"
 	"surge/internal/source"
@@ -77,6 +79,9 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 	case ast.ExprArray:
 		return l.lowerArrayExpr(expr, ty)
 
+	case ast.ExprRangeLit:
+		return l.lowerRangeLitExpr(expr, ty)
+
 	case ast.ExprStruct:
 		return l.lowerStructExpr(expr, ty)
 
@@ -121,6 +126,76 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 	}
 }
 
+func (l *lowerer) intrinsicSymbolID(name string) symbols.SymbolID {
+	if l == nil || l.symRes == nil || l.symRes.Table == nil || !l.symRes.FileScope.IsValid() {
+		return symbols.NoSymbolID
+	}
+	nameID := l.strings.Intern(name)
+	return l.symbolInScope(l.symRes.FileScope, nameID, symbols.SymbolFunction)
+}
+
+func (l *lowerer) intrinsicCallee(name string, span source.Span) (*Expr, symbols.SymbolID) {
+	symID := l.intrinsicSymbolID(name)
+	return &Expr{
+		Kind: ExprVarRef,
+		Type: types.NoTypeID,
+		Span: span,
+		Data: VarRefData{Name: name, SymbolID: symID},
+	}, symID
+}
+
+func (l *lowerer) boolLiteralExpr(span source.Span, value bool) *Expr {
+	boolType := types.NoTypeID
+	if l != nil && l.module != nil && l.module.TypeInterner != nil {
+		boolType = l.module.TypeInterner.Builtins().Bool
+	}
+	return &Expr{
+		Kind: ExprLiteral,
+		Type: boolType,
+		Span: span,
+		Data: LiteralData{Kind: LiteralBool, BoolValue: value},
+	}
+}
+
+func (l *lowerer) lowerRangeLitExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+	rangeData := l.builder.Exprs.RangeLits.Get(uint32(expr.Payload))
+	if rangeData == nil {
+		return nil
+	}
+
+	var (
+		name string
+		args []*Expr
+	)
+
+	switch {
+	case rangeData.Start.IsValid() && rangeData.End.IsValid():
+		name = "rt_range_int_new"
+		args = append(args, l.lowerExpr(rangeData.Start), l.lowerExpr(rangeData.End), l.boolLiteralExpr(expr.Span, rangeData.Inclusive))
+	case rangeData.Start.IsValid():
+		name = "rt_range_int_from_start"
+		args = append(args, l.lowerExpr(rangeData.Start), l.boolLiteralExpr(expr.Span, rangeData.Inclusive))
+	case rangeData.End.IsValid():
+		name = "rt_range_int_to_end"
+		args = append(args, l.lowerExpr(rangeData.End), l.boolLiteralExpr(expr.Span, rangeData.Inclusive))
+	default:
+		name = "rt_range_int_full"
+		args = append(args, l.boolLiteralExpr(expr.Span, rangeData.Inclusive))
+	}
+
+	callee, symID := l.intrinsicCallee(name, expr.Span)
+	return &Expr{
+		Kind: ExprCall,
+		Type: ty,
+		Span: expr.Span,
+		Data: CallData{
+			Callee:   callee,
+			Args:     args,
+			SymbolID: symID,
+		},
+	}
+}
+
 // lowerIdentExpr lowers an identifier expression.
 func (l *lowerer) lowerIdentExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	identData := l.builder.Exprs.Idents.Get(uint32(expr.Payload))
@@ -158,9 +233,11 @@ func (l *lowerer) lowerLiteralExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 	switch litData.Kind {
 	case ast.ExprLitInt, ast.ExprLitUint:
 		data.Kind = LiteralInt
+		data.Text = rawValue
 		data.IntValue = parseIntLiteral(rawValue)
 	case ast.ExprLitFloat:
 		data.Kind = LiteralFloat
+		data.Text = rawValue
 		data.FloatValue = parseFloatLiteral(rawValue)
 	case ast.ExprLitString:
 		data.Kind = LiteralString
@@ -227,7 +304,6 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 		return nil
 	}
 
-	callee := l.lowerExpr(callData.Target)
 	args := make([]*Expr, len(callData.Args))
 	for i, arg := range callData.Args {
 		args[i] = l.lowerExpr(arg.Value)
@@ -238,6 +314,43 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 		symID = l.symRes.ExprSymbols[exprID]
 	}
 
+	if member, ok := l.builder.Exprs.Member(callData.Target); ok && member != nil {
+		if symID.IsValid() {
+			recv := l.lowerExpr(member.Target)
+			if recv != nil && recv.Type != types.NoTypeID {
+				recv = l.applySelfBorrow(symID, recv)
+				args = append([]*Expr{recv}, args...)
+			}
+			callee := l.varRefForSymbol(symID, expr.Span)
+			return &Expr{
+				Kind: ExprCall,
+				Type: ty,
+				Span: expr.Span,
+				Data: CallData{
+					Callee:   callee,
+					Args:     args,
+					SymbolID: symID,
+				},
+			}
+		}
+		if l.symRes != nil {
+			if memberSym := l.symRes.ExprSymbols[callData.Target]; memberSym.IsValid() {
+				callee := l.varRefForSymbol(memberSym, expr.Span)
+				return &Expr{
+					Kind: ExprCall,
+					Type: ty,
+					Span: expr.Span,
+					Data: CallData{
+						Callee:   callee,
+						Args:     args,
+						SymbolID: memberSym,
+					},
+				}
+			}
+		}
+	}
+
+	callee := l.lowerExpr(callData.Target)
 	return &Expr{
 		Kind: ExprCall,
 		Type: ty,
@@ -519,6 +632,90 @@ func (l *lowerer) lookupString(id source.StringID) string {
 	}
 	s, _ := l.strings.Lookup(id)
 	return s
+}
+
+func (l *lowerer) varRefForSymbol(symID symbols.SymbolID, span source.Span) *Expr {
+	if !symID.IsValid() {
+		return nil
+	}
+	name := ""
+	ty := types.NoTypeID
+	if l.symRes != nil && l.symRes.Table != nil && l.symRes.Table.Symbols != nil {
+		if sym := l.symRes.Table.Symbols.Get(symID); sym != nil {
+			if sym.Name != source.NoStringID {
+				name = l.lookupString(sym.Name)
+			}
+			if sym.Type != types.NoTypeID {
+				ty = sym.Type
+			}
+		}
+	}
+	return &Expr{
+		Kind: ExprVarRef,
+		Type: ty,
+		Span: span,
+		Data: VarRefData{
+			Name:     name,
+			SymbolID: symID,
+		},
+	}
+}
+
+func (l *lowerer) applySelfBorrow(symID symbols.SymbolID, recv *Expr) *Expr {
+	if recv == nil || !symID.IsValid() {
+		return recv
+	}
+	if l.symRes == nil || l.symRes.Table == nil || l.symRes.Table.Symbols == nil {
+		return recv
+	}
+	sym := l.symRes.Table.Symbols.Get(symID)
+	if sym == nil || sym.Signature == nil || !sym.Signature.HasSelf || len(sym.Signature.Params) == 0 {
+		return recv
+	}
+	selfKey := string(sym.Signature.Params[0])
+	mut := false
+	switch {
+	case strings.HasPrefix(selfKey, "&mut "):
+		mut = true
+	case strings.HasPrefix(selfKey, "&"):
+	default:
+		return recv
+	}
+	if l.isReferenceType(recv.Type) {
+		return recv
+	}
+	refType := l.referenceType(recv.Type, mut)
+	op := ast.ExprUnaryRef
+	if mut {
+		op = ast.ExprUnaryRefMut
+	}
+	return &Expr{
+		Kind: ExprUnaryOp,
+		Type: refType,
+		Span: recv.Span,
+		Data: UnaryOpData{
+			Op:      op,
+			Operand: recv,
+		},
+	}
+}
+
+func (l *lowerer) isReferenceType(id types.TypeID) bool {
+	if id == types.NoTypeID || l.semaRes == nil || l.semaRes.TypeInterner == nil {
+		return false
+	}
+	tt, ok := l.semaRes.TypeInterner.Lookup(id)
+	if !ok {
+		return false
+	}
+	return tt.Kind == types.KindReference
+}
+
+func (l *lowerer) referenceType(elem types.TypeID, mutable bool) types.TypeID {
+	if elem == types.NoTypeID || l.semaRes == nil || l.semaRes.TypeInterner == nil {
+		return types.NoTypeID
+	}
+	return l.semaRes.TypeInterner.Intern(types.MakeReference(elem, mutable))
 }
 
 func (l *lowerer) lookupTypeFromAST(_ ast.TypeID) types.TypeID {

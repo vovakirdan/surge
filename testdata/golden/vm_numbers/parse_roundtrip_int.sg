@@ -1,0 +1,14 @@
+fn write_line(s: string) -> nothing {
+    let ptr = rt_string_ptr(&s);
+    let slen = rt_string_len(&s);
+    rt_write_stdout(ptr, slen);
+    let newline = "\n";
+    rt_write_stdout(rt_string_ptr(&newline), 1:uint);
+}
+
+@entrypoint
+fn main() -> int {
+    let n: int = rt_parse_arg::<int>("-100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007");
+    write_line(n to string);
+    return 0;
+}

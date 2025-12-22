@@ -87,7 +87,7 @@ The type checker currently recognises built-in `int`, `uint`, `float`, `bool`, `
 * **Other primitives**:
 
   * `bool` – logical; no implicit cast to/from numeric.
-  * `string` – a sequence of Unicode scalar values (code points). Layout: dynamic array of code points.
+  * `string` – immutable UTF-8 bytes with Unicode code point semantics (length and indexing are by code point).
   * `unit` – zero-sized marker type, primarily used internally; no literal syntax.
 
 **Coercions:**
@@ -657,6 +657,11 @@ Parser diagnostics:
 
 * `arr[i]` desugars to `arr.__index(i)`.
 * `arr[i] = v` desugars to `arr.__index_set(i, v)`.
+* Range operands use overload resolution: `s[a..b]` resolves `__index(self, r: Range<int>)`.
+  Range literals are bracketed, so this can also appear as `s[[a..b]]` without a dedicated slice syntax.
+* For strings, `s[i]` returns a `uint32` code point (code point indexing, not byte indexing).
+* `[..=]` is invalid (inclusive end requires an end bound).
+* `[1..3,]` is an array literal (single element), not a range literal.
 
 ### 3.5. Signals (Reactive Bindings) — **Future Feature (v2+)**
 
@@ -1010,7 +1015,8 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Compound assignment: `+= -= *= /= %= &= |= ^= <<= >>=` → corresponding operation + assign.
 * Ternary: `condition ? true_expr : false_expr` → conditional expression.
 * Null coalescing: `optional ?? default` → returns default if optional is `nothing`.
-* Range creation: `start..end`, `start..=end`, `..end`, `start..` → range operators.
+* Range creation: `start..end`, `start..=end` (binary operators) and range literals
+  `[start..end]`, `[start..=end]`, `[start..]`, `[..end]`, `[..=end]`, `[..]`.
 * String operators: `string * count` → string repetition, `string + string` → concatenation.
 * Array operators: `array + array` → concatenation, `array[index]` → element access.
 
@@ -1307,29 +1313,57 @@ If you need custom narrowing behaviour (rounding modes, error returns, etc.), wr
 * Float literals default to `float`.
 * Suffixes allowed: `123:int32`, `1.0:float32` to select fixed types.
 
-### 7.2. String Implementation
+### 7.2. Range Literals
 
-* `string` stores Unicode scalar values (code points); `"\u{1F600}"` represents a single code point.
-* **Default indexing:** `s[i]` uses char-based (Unicode code points) access
-* **Implementation:** Hybrid approach using rope data structure with position caching for O(1) amortized performance
-* **Indexing complexity:** O(1) amortized for most access patterns, O(n) worst case for random access
+Range literals use square brackets and optional bounds:
 
-**String methods:**
-* `len_chars() -> int` – length in Unicode code points (default)
-* `len_bytes() -> int` – length in UTF-8 bytes
-* `len_graphemes() -> int` – length in user-perceived characters (grapheme clusters)
-* `char_at(i: int) -> Option<char>` – get character at code point index
-* `byte_at(i: int) -> Option<uint8>` – get byte at byte index
-* `grapheme_at(i: int) -> Option<string>` – get grapheme cluster at grapheme index
+* `[..]`
+* `[start..]`
+* `[..end]`
+* `[..=end]`
+* `[start..end]`
+* `[start..=end]`
+
+Bounds are expressions; when present they must be `int` (no implicit casts).  
+Inclusive end requires an end bound, so `[..=]` is invalid.  
+A trailing comma turns it into an array literal: `[1..3,]` is a single-element array containing `1..3`.
+
+### 7.3. Strings
+
+* `string` stores UTF-8 bytes; constructors validate UTF-8 and normalize to NFC.
+* `len(&s)` returns the number of Unicode code points.
+* `s[i]` returns the code point at index `i` as `uint32` (negative indices count from the end).
+* `s[[a..b]]` slices by code point indices and returns `string`. Omitted bounds default to `0`/`len`.
+  Inclusive `..=` adds one to the end bound, indices are clamped, and `start > end` yields `""`.
+* `bytes()` returns a `BytesView` over UTF-8 bytes. `len(&view)` returns byte length; `view[i]` returns `uint8`.
+* Implementation detail: strings may be stored as a rope internally. Concatenation and slicing can return views, and byte access materializes a flat UTF-8 buffer lazily.
 
 **Examples:**
 ```sg
 let text = "Hello 👋 World";
-print(text.len_chars());      // 13 (code points)
-print(text.len_bytes());      // 15 (UTF-8 bytes, emoji takes 4 bytes)
-print(text.len_graphemes());  // 13 (user-perceived characters)
-print(text[6]);               // 👋 (7th code point)
+print(len(&text) to string);          // 13 (code points)
+print((text[6] to uint) to string);   // code point value for 👋
+print(text[[1..4]]);                  // "ell"
+
+let view = text.bytes();
+print(len(&view) to string);          // 15 (UTF-8 bytes)
+print((view[0] to uint) to string);   // 72 ('H')
 ```
+
+### 7.4. String standard methods
+
+The core prelude defines common string helpers as methods on `string`:
+
+* `contains(needle: string) -> bool` — true if `needle` occurs.
+* `find(needle: string) -> int` — first code point index, or `-1` if missing.
+* `rfind(needle: string) -> int` — last code point index, or `-1` if missing.
+* `starts_with(prefix: string) -> bool`, `ends_with(suffix: string) -> bool`.
+* `split(sep: string) -> string[]` — empty `sep` splits into code points.
+* `join(parts: string[]) -> string` — uses `self` as the separator.
+* `trim()`, `trim_start()`, `trim_end()` — remove ASCII whitespace (`space`, `\\t`, `\\n`, `\\r`).
+* `replace(old: string, new: string) -> string` — if `old` is empty, returns the original string.
+* `reverse() -> string` — reverses by code points.
+* `levenshtein(other: string) -> uint` — edit distance by code points.
 
 ---
 

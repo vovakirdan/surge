@@ -1,39 +1,11 @@
 package vm_test
 
 import (
-	"os"
 	"strings"
 	"testing"
 
-	"surge/internal/mir"
-	"surge/internal/source"
-	"surge/internal/types"
 	"surge/internal/vm"
 )
-
-// compileToMIRFromSource компилирует код из строки через временный файл
-func compileToMIRFromSource(t *testing.T, sourceCode string) (*mir.Module, *source.FileSet, *types.Interner) {
-	t.Helper()
-
-	// Создаём временный файл
-	tmpFile, err := os.CreateTemp("", "test_*.sg")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpFile.Name())
-	defer tmpFile.Close()
-
-	// Записываем код в файл
-	if _, err := tmpFile.WriteString(sourceCode); err != nil {
-		t.Fatalf("failed to write source code: %v", err)
-	}
-	if err := tmpFile.Close(); err != nil {
-		t.Fatalf("failed to close temp file: %v", err)
-	}
-
-	// Компилируем через существующую функцию
-	return compileToMIR(t, tmpFile.Name())
-}
 
 func TestVMRefsRead(t *testing.T) {
 	sourceCode := `@entrypoint

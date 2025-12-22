@@ -72,9 +72,7 @@ func (tc *typeChecker) buildSymbolIndex() {
 			continue
 		}
 		if sym.Decl.Stmt.IsValid() {
-			if existing, ok := tc.stmtSymbols[sym.Decl.Stmt]; ok && existing.IsValid() {
-				continue
-			}
+			// Prefer the latest symbol when a stmt is re-resolved (locals aren't reused).
 			tc.stmtSymbols[sym.Decl.Stmt] = id
 		}
 	}

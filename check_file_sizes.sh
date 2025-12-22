@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Скрипт для проверки размера файлов в директории
+# Скрипт для проверки размера незакоммиченных файлов в git репозитории
 # Оценка по количеству строк:
 # <=525 +- 50 OK green
 # 575 - 675 Yellow acceptable  
@@ -15,6 +15,7 @@ NC='\033[0m' # No Color
 # Настройки по умолчанию
 EXTENSIONS="go"
 EXCLUDE_TESTS=true
+CHECK_ALL_FILES=false  # Если true, проверяет все файлы, иначе только незакоммиченные
 
 # get_file_rating outputs a colored rating for a file based on its line count: "OK" for 575 lines or fewer, "ACCEPTABLE" for 576–675 lines, and "BAD - need refactoring" for more than 675 lines.
 get_file_rating() {
@@ -65,6 +66,39 @@ is_test_file() {
     return 1
 }
 
+# check_git_repo проверяет, что текущая директория является git репозиторием
+# Возвращает 0 если это git репозиторий, 1 в противном случае
+check_git_repo() {
+    if ! command -v git >/dev/null 2>&1; then
+        echo -e "${RED}ОШИБКА: git не установлен или не найден в PATH${NC}" >&2
+        return 1
+    fi
+    
+    if ! git rev-parse --git-dir >/dev/null 2>&1; then
+        echo -e "${RED}ОШИБКА: текущая директория не является git репозиторием${NC}" >&2
+        return 1
+    fi
+    
+    return 0
+}
+
+# get_uncommitted_files получает список незакоммиченных файлов (modified, staged, untracked)
+# Возвращает список файлов через stdout, каждый файл на новой строке, без дубликатов
+get_uncommitted_files() {
+    local dir=${1:-.}
+    
+    {
+        # Получаем staged файлы (добавленные в индекс)
+        git diff --cached --name-only --diff-filter=ACMR 2>/dev/null
+        
+        # Получаем modified файлы (измененные, но не staged)
+        git diff --name-only --diff-filter=ACMR 2>/dev/null
+        
+        # Получаем неотслеживаемые файлы (untracked)
+        git ls-files --others --exclude-standard 2>/dev/null
+    } | sort -u
+}
+
 # is_text_file checks whether the given path is a regular text file and returns success if it is.
 is_text_file() {
     local file=$1
@@ -112,7 +146,9 @@ count_effective_lines() {
     fi
 }
 
-# check_directory scans a directory recursively, filters files by configured extensions and test-file settings, counts lines for each text file, prints a per-file rating and aggregated statistics, and exits with code 0 unless the percentage of good files (OK or ACCEPTABLE) is below 60% (then exits 1).
+# check_directory проверяет размер файлов (незакоммиченных или всех), фильтрует по расширениям и настройкам тестов,
+# считает строки для каждого текстового файла, выводит рейтинг по файлам и агрегированную статистику,
+# и завершается с кодом 0, если процент хороших файлов (OK или ACCEPTABLE) не ниже 60% (иначе 1).
 check_directory() {
     local dir=${1:-.}
     local total_files=0
@@ -120,13 +156,56 @@ check_directory() {
     local acceptable_files=0
     local bad_files=0
     
-    echo "Проверка размера файлов в директории: $dir"
+    # Определяем режим работы и заголовок
+    local header_text=""
+    local files_to_check=""
+    
+    if [ "$CHECK_ALL_FILES" = true ]; then
+        # Режим проверки всех файлов
+        header_text="Проверка размера всех файлов в директории: $dir"
+        # Получаем все файлы через find
+        files_to_check=$(find "$dir" -type f -print0 2>/dev/null | tr '\0' '\n')
+    else
+        # Режим проверки только незакоммиченных файлов
+        # Проверяем, что мы в git репозитории
+        if ! check_git_repo; then
+            exit 1
+        fi
+        
+        header_text="Проверка размера незакоммиченных файлов в git репозитории"
+        # Получаем список незакоммиченных файлов
+        files_to_check=$(get_uncommitted_files "$dir")
+        
+        if [ -z "$files_to_check" ]; then
+            echo "Незакоммиченных файлов не найдено."
+            echo "=================================================="
+            exit 0
+        fi
+    fi
+    
+    echo "$header_text"
     echo "=================================================="
+    
+    # Проверяем, есть ли файлы для проверки
+    if [ -z "$files_to_check" ]; then
+        echo "Файлов для проверки не найдено."
+        echo "=================================================="
+        exit 0
+    fi
+    
     printf "%-50s %-8s %-20s\n" "Файл" "Строки" "Оценка"
     echo "--------------------------------------------------"
     
-    # Проходим по всем файлам в директории рекурсивно
-    while IFS= read -r -d '' file; do
+    # Проходим по файлам
+    while IFS= read -r file; do
+        # Пропускаем пустые строки
+        [ -z "$file" ] && continue
+        
+        # Проверяем, что файл существует (может быть удален)
+        if [ ! -f "$file" ]; then
+            continue
+        fi
+        
         # Проверяем расширение файла
         if has_allowed_extension "$file"; then
             # Проверяем, нужно ли исключить тестовые файлы
@@ -153,14 +232,14 @@ check_directory() {
                 fi
             fi
         fi
-    done < <(find "$dir" -type f -print0 2>/dev/null)
+    done <<< "$files_to_check"
     
     echo "=================================================="
     echo "Статистика:"
     echo "Всего проверено файлов: $total_files"
-    echo -e "OK (≤575 строк): ${GREEN}$ok_files${NC}"
-    echo -e "Acceptable (576-675 строк): ${YELLOW}$acceptable_files${NC}"
-    echo -e "BAD (>675 строк): ${RED}$bad_files${NC}"
+    echo -e "(≤575 строк): ${GREEN}$ok_files${NC}"
+    echo -e "(576-675 строк): ${YELLOW}$acceptable_files${NC}"
+    echo -e "(>675 строк): ${RED}$bad_files${NC}"
     
     # Рассчитываем процент "хороших" файлов (OK + ACCEPTABLE)
     local good_files=$((ok_files + acceptable_files))
@@ -211,7 +290,9 @@ check_directory() {
 show_help() {
     echo "Использование: $0 [опции] [директория]"
     echo ""
-    echo "Проверяет размер файлов в указанной директории (по умолчанию текущая)."
+    echo "Проверяет размер файлов в указанной директории."
+    echo "По умолчанию проверяет только незакоммиченные файлы в git репозитории."
+    echo "Проверяются только файлы с расширением .go (по умолчанию)."
     echo ""
     echo "Критерии оценки:"
     echo "  ≤575 строк    - OK (зеленый)"
@@ -223,7 +304,8 @@ show_help() {
     echo "  -e, --extensions EXT    - расширения файлов (по умолчанию: go)"
     echo "                           пример: -e 'go,js,ts' или -e 'go'"
     echo "  -t, --include-tests     - включить тестовые файлы (по умолчанию исключены)"
-    echo "  -a, --all-files         - проверить все текстовые файлы (игнорировать расширения)"
+    echo "  -a, --all               - проверить все файлы в директории (полная проверка)"
+    echo "                           по умолчанию проверяются только незакоммиченные файлы"
     echo ""
     echo "Общая оценка:"
     echo "  ≥90% хороших файлов     - ОТЛИЧНО (зеленый)"
@@ -232,11 +314,12 @@ show_help() {
     echo "  <60% хороших файлов     - ТРЕБУЕТ УЛУЧШЕНИЯ (красный)"
     echo ""
     echo "Примеры:"
-    echo "  $0                                    # проверить .go файлы (тесты исключены)"
-    echo "  $0 -t                                 # проверить .go файлы, включив тесты"
-    echo "  $0 -e 'go,js,ts'                     # проверить .go, .js, .ts файлы"
-    echo "  $0 -a                                 # проверить все текстовые файлы"
-    echo "  $0 -t -e 'go' /path/to/project       # проверить .go файлы в /path/to/project, включив тесты"
+    echo "  $0                                    # проверить незакоммиченные .go файлы (тесты исключены)"
+    echo "  $0 -t                                 # проверить незакоммиченные .go файлы, включив тесты"
+    echo "  $0 -a                                 # проверить все .go файлы в текущей директории"
+    echo "  $0 -a -t                              # проверить все .go файлы, включив тесты"
+    echo "  $0 -e 'go,js,ts'                     # проверить незакоммиченные .go, .js, .ts файлы"
+    echo "  $0 -a /path/to/project                # проверить все .go файлы в /path/to/project"
 }
 
 # Парсинг аргументов
@@ -254,8 +337,8 @@ while [[ $# -gt 0 ]]; do
             EXCLUDE_TESTS=false
             shift
             ;;
-        -a|--all-files)
-            EXTENSIONS=""
+        -a|--all)
+            CHECK_ALL_FILES=true
             shift
             ;;
         -*)

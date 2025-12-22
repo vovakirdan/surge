@@ -7,6 +7,7 @@ import (
 	"fortio.org/safecast"
 
 	"surge/internal/hir"
+	"surge/internal/layout"
 	"surge/internal/mono"
 	"surge/internal/sema"
 	"surge/internal/source"
@@ -29,6 +30,14 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 	}
 	if typesIn == nil && mm.Source != nil {
 		typesIn = mm.Source.TypeInterner
+	}
+
+	funcTypeArgs := make(map[symbols.SymbolID][]types.TypeID, len(mm.Funcs))
+	for _, mf := range mm.Funcs {
+		if mf == nil || !mf.InstanceSym.IsValid() || len(mf.TypeArgs) == 0 {
+			continue
+		}
+		funcTypeArgs[mf.InstanceSym] = slices.Clone(mf.TypeArgs)
 	}
 
 	monoFuncs := make([]*mono.MonoFunc, 0, len(mm.Funcs))
@@ -66,6 +75,9 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 		if mf == nil || mf.Func == nil {
 			continue
 		}
+		if mf.Func.IsIntrinsic() {
+			continue
+		}
 		id := nextID
 		nextID++
 		fl := &funcLowerer{
@@ -96,9 +108,14 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 		// __surge_start has no symbol, so don't add to FuncBySym
 	}
 
+	out.Meta = &ModuleMeta{
+		Layout:       layout.New(layout.X86_64LinuxGNU(), typesIn),
+		FuncTypeArgs: funcTypeArgs,
+	}
+
 	if mm.Source != nil {
 		if tagLayouts := buildTagLayouts(out, mm.Source, typesIn); len(tagLayouts) != 0 {
-			out.Meta = &ModuleMeta{TagLayouts: tagLayouts}
+			out.Meta.TagLayouts = tagLayouts
 		}
 	}
 

@@ -151,7 +151,10 @@ func (b *monoBuilder) seed() error {
 
 	// 1) Instantiate every non-generic function definition.
 	for _, fn := range b.mod.Funcs {
-		if fn == nil || fn.IsGeneric() || !fn.SymbolID.IsValid() {
+		if fn == nil || !fn.SymbolID.IsValid() {
+			continue
+		}
+		if fn.IsGeneric() || b.symbolTypeParamCount(fn.SymbolID) > 0 {
 			continue
 		}
 		if _, err := b.ensureFunc(fn.SymbolID, nil, nil); err != nil {

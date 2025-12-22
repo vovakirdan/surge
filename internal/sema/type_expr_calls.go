@@ -61,7 +61,8 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 	}
 	name := tc.lookupName(ident.Name)
 	if name == "default" {
-		return tc.handleDefaultLikeCall(name, call, span)
+		symID := tc.symbolForExpr(call.Target)
+		return tc.handleDefaultLikeCall(name, symID, call, span)
 	}
 	if name == "clone" {
 		if result := tc.handleCloneCall(args, span); result != types.NoTypeID {
@@ -257,7 +258,7 @@ func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.Symbol
 	return nil
 }
 
-func (tc *typeChecker) handleDefaultLikeCall(name string, call *ast.ExprCallData, span source.Span) types.TypeID {
+func (tc *typeChecker) handleDefaultLikeCall(name string, symID symbols.SymbolID, call *ast.ExprCallData, span source.Span) types.TypeID {
 	if call == nil {
 		return types.NoTypeID
 	}
@@ -281,6 +282,21 @@ func (tc *typeChecker) handleDefaultLikeCall(name string, call *ast.ExprCallData
 	if name == "default" && !tc.defaultable(targetType) {
 		tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Target), "default is not defined for %s", tc.typeLabel(targetType))
 		return types.NoTypeID
+	}
+	if symID.IsValid() {
+		if sym := tc.symbolFromID(symID); sym == nil || (sym.Kind != symbols.SymbolFunction && sym.Kind != symbols.SymbolTag) {
+			symID = symbols.NoSymbolID
+		}
+	}
+	if !symID.IsValid() && tc.builder != nil {
+		if ident, ok := tc.builder.Exprs.Ident(call.Target); ok && ident != nil {
+			if candidates := tc.functionCandidates(ident.Name); len(candidates) > 0 {
+				symID = candidates[0]
+			}
+		}
+	}
+	if symID.IsValid() {
+		tc.rememberFunctionInstantiation(symID, []types.TypeID{targetType}, span, "call")
 	}
 	return targetType
 }
@@ -415,6 +431,114 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 	}
 	tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
 	return types.NoTypeID
+}
+
+func (tc *typeChecker) recordMethodCallSymbol(callID ast.ExprID, member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, staticReceiver bool) symbols.SymbolID {
+	if callID == ast.NoExprID || member == nil || tc.symbols == nil {
+		return symbols.NoSymbolID
+	}
+	if tc.symbols.ExprSymbols == nil {
+		return symbols.NoSymbolID
+	}
+	symID := tc.resolveMethodCallSymbol(member, recv, args, staticReceiver)
+	if symID.IsValid() {
+		tc.symbols.ExprSymbols[callID] = symID
+	}
+	return symID
+}
+
+func (tc *typeChecker) recordMethodCallInstantiation(symID symbols.SymbolID, call *ast.ExprCallData, recv types.TypeID, span source.Span) {
+	if call == nil || !symID.IsValid() {
+		return
+	}
+	sym := tc.symbolFromID(symID)
+	if sym == nil || len(sym.TypeParams) == 0 {
+		return
+	}
+	recvArgs := tc.receiverTypeArgs(recv)
+	explicitArgs := tc.resolveCallTypeArgs(call.TypeArgs)
+	typeArgs := append(recvArgs, explicitArgs...)
+	if len(typeArgs) == 0 || len(typeArgs) != len(sym.TypeParams) {
+		return
+	}
+	tc.rememberFunctionInstantiation(symID, typeArgs, span, "call")
+}
+
+func (tc *typeChecker) receiverTypeArgs(recv types.TypeID) []types.TypeID {
+	if recv == types.NoTypeID || tc.types == nil {
+		return nil
+	}
+	resolved := tc.resolveAlias(recv)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return nil
+	}
+	if tt.Kind == types.KindOwn || tt.Kind == types.KindReference || tt.Kind == types.KindPointer {
+		if tt.Elem != types.NoTypeID {
+			resolved = tc.resolveAlias(tt.Elem)
+		}
+	}
+	return tc.typeArgsForType(resolved)
+}
+
+func (tc *typeChecker) resolveMethodCallSymbol(member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, staticReceiver bool) symbols.SymbolID {
+	if member == nil || recv == types.NoTypeID {
+		return symbols.NoSymbolID
+	}
+	if tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Symbols == nil {
+		return symbols.NoSymbolID
+	}
+	name := tc.lookupExportedName(member.Field)
+	if name == "" {
+		return symbols.NoSymbolID
+	}
+	data := tc.symbols.Table.Symbols.Data()
+	if data == nil {
+		return symbols.NoSymbolID
+	}
+	for _, recvCand := range tc.typeKeyCandidates(recv) {
+		if recvCand.key == "" {
+			continue
+		}
+		subst := tc.buildTypeParamSubst(recv, recvCand.key)
+		for i := range data {
+			sym := &data[i]
+			if sym.Kind != symbols.SymbolFunction || sym.ReceiverKey == "" || sym.Signature == nil {
+				continue
+			}
+			if tc.symbolName(sym.Name) != name {
+				continue
+			}
+			if !typeKeyEqual(sym.ReceiverKey, recvCand.key) {
+				continue
+			}
+			sig := sym.Signature
+			switch {
+			case sig.HasSelf:
+				if !tc.selfParamCompatible(recv, sig.Params[0], recvCand.key) {
+					continue
+				}
+				if len(sig.Params)-1 != len(args) {
+					continue
+				}
+				if !tc.methodParamsMatchWithSubst(sig.Params[1:], args, subst) {
+					continue
+				}
+			case staticReceiver:
+				if len(sig.Params) != len(args) {
+					continue
+				}
+				if !tc.methodParamsMatchWithSubst(sig.Params, args, subst) {
+					continue
+				}
+			default:
+				continue
+			}
+			// Symbol IDs are bounded by the arena size, which is always < MaxUint32.
+			return symbols.SymbolID(i + 1) //nolint:gosec // Add 1 because Data() returns s.data[1:]
+		}
+	}
+	return symbols.NoSymbolID
 }
 
 func (tc *typeChecker) methodParamsMatchWithSubst(expected []symbols.TypeKey, args []types.TypeID, subst map[string]symbols.TypeKey) bool {

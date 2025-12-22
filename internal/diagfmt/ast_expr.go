@@ -181,6 +181,26 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 			return fmt.Sprintf("(%s,)", elems[0])
 		}
 		return fmt.Sprintf("(%s)", strings.Join(elems, ", "))
+	case ast.ExprRangeLit:
+		data, ok := builder.Exprs.RangeLit(exprID)
+		if !ok || data == nil {
+			return "<invalid-range>"
+		}
+		start := ""
+		if data.Start.IsValid() {
+			start = formatExprInlineDepth(builder, data.Start, depth+1)
+			start = wrapExprIfNeeded(builder, data.Start, start)
+		}
+		end := ""
+		if data.End.IsValid() {
+			end = formatExprInlineDepth(builder, data.End, depth+1)
+			end = wrapExprIfNeeded(builder, data.End, end)
+		}
+		op := ".."
+		if data.Inclusive {
+			op = "..="
+		}
+		return fmt.Sprintf("[%s%s%s]", start, op, end)
 	case ast.ExprCast:
 		data, ok := builder.Exprs.Cast(exprID)
 		if !ok {
@@ -437,6 +457,8 @@ func formatExprKind(kind ast.ExprKind) string {
 		return "Compare"
 	case ast.ExprAsync:
 		return "Async"
+	case ast.ExprRangeLit:
+		return "RangeLit"
 	default:
 		return fmt.Sprintf("ExprKind(%d)", kind)
 	}

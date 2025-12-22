@@ -45,6 +45,8 @@ type DiagnoseResult struct {
 	Instantiations    *mono.InstantiationMap
 	DirectiveRegistry *directive.Registry // Collected directive scenarios
 	HIR               *hir.Module         // HIR module (if EmitHIR is enabled)
+	rootRecord        *moduleRecord
+	moduleRecords     map[string]*moduleRecord
 }
 
 // DiagnoseStage определяет уровень диагностики
@@ -126,10 +128,12 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 	bag := diag.NewBag(opts.MaxDiagnostics)
 
 	var (
-		builder    *ast.Builder
-		astFile    ast.FileID
-		symbolsRes *symbols.Result
-		semaRes    *sema.Result
+		builder       *ast.Builder
+		astFile       ast.FileID
+		symbolsRes    *symbols.Result
+		semaRes       *sema.Result
+		rootRec       *moduleRecord
+		moduleRecords map[string]*moduleRecord
 	)
 	var instMap *mono.InstantiationMap
 	var instRecorder sema.InstantiationRecorder
@@ -167,8 +171,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 		graphIdx := begin("imports_graph")
 		graphSpan := trace.Begin(tracer, trace.ScopePass, "imports_graph", diagSpan.ID())
 		var moduleExports map[string]*symbols.ModuleExports
-		var rootRec *moduleRecord
-		moduleExports, rootRec, err = runModuleGraph(ctx, fs, file, builder, astFile, bag, opts, cache, sharedTypes, sharedStrings)
+		moduleExports, rootRec, moduleRecords, err = runModuleGraph(ctx, fs, file, builder, astFile, bag, opts, cache, sharedTypes, sharedStrings)
 		graphSpan.End("")
 		end(graphIdx, "")
 		if err != nil {
@@ -279,6 +282,8 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 		Instantiations:    instMap,
 		DirectiveRegistry: directiveRegistry,
 		HIR:               hirModule,
+		rootRecord:        rootRec,
+		moduleRecords:     moduleRecords,
 	}, nil
 }
 
@@ -461,9 +466,9 @@ func runModuleGraph(
 	cache *ModuleCache,
 	typeInterner *types.Interner,
 	strs *source.Interner,
-) (map[string]*symbols.ModuleExports, *moduleRecord, error) {
+) (map[string]*symbols.ModuleExports, *moduleRecord, map[string]*moduleRecord, error) {
 	if builder == nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	tracer := trace.FromContext(ctx)
@@ -473,7 +478,7 @@ func runModuleGraph(
 	baseDir := fs.BaseDir()
 	stdlibRoot := detectStdlibRoot()
 	if stdlibRoot == "" && (opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll) {
-		return nil, nil, fmt.Errorf("standard library not found: set SURGE_STDLIB to a directory containing core/intrinsics.sg (e.g. /usr/local/share/surge)")
+		return nil, nil, nil, fmt.Errorf("standard library not found: set SURGE_STDLIB to a directory containing core/intrinsics.sg (e.g. /usr/local/share/surge)")
 	}
 	reporter := &diag.BagReporter{Bag: bag}
 	dirPath := filepath.Dir(file.Path)
@@ -482,7 +487,7 @@ func runModuleGraph(
 	}
 	builder, rootFileIDs, rootFiles, err := parseModuleDir(ctx, fs, dirPath, bag, strs, builder, preloaded, opts.DirectiveMode)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	meta, ok := buildModuleMeta(fs, builder, rootFileIDs, baseDir, reporter)
 	if !ok && len(rootFiles) > 0 && rootFiles[0] != nil {
@@ -503,7 +508,7 @@ func runModuleGraph(
 		}
 	}
 	if !validateCoreModule(meta, file, stdlibRoot, reporter) {
-		return nil, nil, fmt.Errorf("core namespace reserved")
+		return nil, nil, nil, fmt.Errorf("core namespace reserved")
 	}
 
 	records := make(map[string]*moduleRecord)
@@ -556,7 +561,7 @@ func runModuleGraph(
 					missing[imp.Path] = struct{}{}
 					continue
 				}
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			importedPath := normalizeExportsKey(imp.Path)
 			actualPath := normalizeExportsKey(depRec.Meta.Path)
@@ -595,7 +600,7 @@ func runModuleGraph(
 	}
 
 	if err := ensureStdlibModules(ctx, fs, records, opts, cache, stdlibRoot, typeInterner, strs); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	paths := make([]string, 0, len(records))
@@ -644,7 +649,7 @@ func runModuleGraph(
 		}
 	}
 
-	return exports, records[meta.Path], nil
+	return exports, records[meta.Path], records, nil
 }
 
 func markSymbolsBuiltin(res *symbols.Result) {

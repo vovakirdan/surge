@@ -1,0 +1,27 @@
+vm_rc_chain.sg (span: 1:1-11:1)
+└─ Item[0]: Fn (span: 1:1-10:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-10:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:33)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: string[]
+         │  └─ Value: expr#2: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 4:5-4:18)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#5: a[0]
+         ├─ Stmt[2]: Let (span: 5:5-5:18)
+         │  ├─ Name: c
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#8: a[0]
+         ├─ Stmt[3]: StmtKind(12) (span: 6:5-6:13)
+         ├─ Stmt[4]: StmtKind(12) (span: 7:5-7:13)
+         ├─ Stmt[5]: StmtKind(12) (span: 8:5-8:13)
+         └─ Stmt[6]: Return (span: 9:5-9:14)
+            └─ Expr: expr#12: 0

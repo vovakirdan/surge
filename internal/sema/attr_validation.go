@@ -303,6 +303,9 @@ func (tc *typeChecker) recordTypeAttrs(typeID types.TypeID, infos []AttrInfo) {
 		tc.typeAttrs = make(map[types.TypeID][]AttrInfo)
 	}
 	tc.typeAttrs[typeID] = infos
+	if tc.types != nil && typeID != types.NoTypeID {
+		tc.types.SetTypeLayoutAttrs(typeID, tc.typeLayoutAttrsFromInfos(infos))
+	}
 	if _, ok := hasAttr(infos, "copy"); ok && typeID != types.NoTypeID {
 		if tc.copyTypes == nil {
 			tc.copyTypes = make(map[types.TypeID]struct{})

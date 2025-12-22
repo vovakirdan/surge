@@ -73,7 +73,7 @@ check:
 	$(MAKE) lint
 	@echo ">> Checking file sizes"
 	@echo "It may take a while... please wait..."
-	./check_file_sizes.sh | grep BAD
+	./check_file_sizes.sh | grep BAD || echo "No files need refactoring"
 
 # ===== Lint =====
 $(GOLANGCI_LINT):

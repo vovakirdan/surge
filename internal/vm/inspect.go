@@ -76,18 +76,24 @@ func (i *Inspector) Heap() {
 	}
 	for h := Handle(1); h < i.vm.Heap.next; h++ {
 		obj, ok := i.vm.Heap.lookup(h)
-		if !ok || obj == nil || !obj.Alive {
+		if !ok || obj == nil || obj.Freed || obj.RefCount == 0 {
 			continue
 		}
 		switch obj.Kind {
 		case OKString:
-			fmt.Fprintf(i.out, "  string#%d len=%d\n", h, len(obj.Str))
+			byteLen := 0
+			if i.vm != nil {
+				byteLen = i.vm.stringByteLen(obj)
+			}
+			fmt.Fprintf(i.out, "  string#%d len=%d\n", h, byteLen)
 		case OKArray:
 			fmt.Fprintf(i.out, "  array#%d len=%d\n", h, len(obj.Arr))
 		case OKStruct:
 			fmt.Fprintf(i.out, "  struct#%d type=type#%d\n", h, obj.TypeID)
 		case OKTag:
 			fmt.Fprintf(i.out, "  tag#%d type=type#%d tag=%s\n", h, obj.TypeID, i.tagName(obj))
+		case OKRange:
+			fmt.Fprintf(i.out, "  range#%d\n", h)
 		default:
 			fmt.Fprintf(i.out, "  object#%d type=type#%d\n", h, obj.TypeID)
 		}

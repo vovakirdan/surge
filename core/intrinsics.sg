@@ -13,9 +13,15 @@ pub type byte = uint8;
 @intrinsic fn rt_read_stdin(buf: *byte, max_len: uint) -> uint;
 
 // String access intrinsics
-@intrinsic fn rt_string_ptr(s: string) -> *byte;
-@intrinsic fn rt_string_len(s: string) -> uint;
+@intrinsic fn rt_string_ptr(s: &string) -> *byte;
+// Returns Unicode code point length (not bytes).
+@intrinsic fn rt_string_len(s: &string) -> uint;
+@intrinsic fn rt_string_len_bytes(s: &string) -> uint;
 @intrinsic fn rt_string_from_bytes(ptr: *byte, length: uint) -> string;
+@intrinsic fn rt_string_from_utf16(ptr: *uint16, length: uint) -> string;
+@intrinsic fn rt_string_bytes_view(s: &string) -> BytesView;
+// Test-only hook: materialize flat UTF-8 bytes for a rope/slice string.
+@intrinsic fn rt_string_force_flatten(s: &string) -> nothing;
 
 // Higher-level I/O
 @intrinsic
@@ -24,6 +30,12 @@ pub fn readline() -> string;
 pub type Range<T> = {
     __state: *byte,
 };
+
+// Range literal constructors (descriptor-only, not iterator ranges).
+@intrinsic pub fn rt_range_int_new(start: int, end: int, inclusive: bool) -> Range<int>;
+@intrinsic pub fn rt_range_int_from_start(start: int, inclusive: bool) -> Range<int>;
+@intrinsic pub fn rt_range_int_to_end(end: int, inclusive: bool) -> Range<int>;
+@intrinsic pub fn rt_range_int_full(inclusive: bool) -> Range<int>;
 
 extern<Range<T>> {
     @intrinsic pub fn next(self: &mut Range<T>) -> Option<T>;
@@ -262,10 +274,19 @@ extern<string> {
     @intrinsic @overload fn __to(self: string, target: float) -> float;
     @intrinsic fn __len(self: &string) -> uint;
     @intrinsic fn __clone(self: &string) -> string;
-    // String identity (for @entrypoint("argv") support)
-    pub fn from_str(s: string) -> Erring<string, Error> {
-        return Success(s);
-    }
+    @intrinsic @overload fn __index(self: &string, index: int) -> uint32;
+    @intrinsic @overload fn __index(self: &string, index: Range<int>) -> string;
+}
+
+pub type BytesView = {
+    owner: string,
+    ptr: *byte,
+    len: uint,
+};
+
+extern<BytesView> {
+    @intrinsic fn __len(self: &BytesView) -> uint;
+    @intrinsic fn __index(self: &BytesView, index: int) -> uint8;
 }
 
 extern<bool> {
@@ -281,6 +302,7 @@ extern<bool> {
 extern<Array<T>> {
     @intrinsic fn __add(self: Array<T>, other: Array<T>) -> Array<T>;
     @intrinsic fn __index(self: Array<T>, index: int) -> T;
+    @intrinsic @overload fn __index(self: Array<T>, index: Range<int>) -> Array<T>;
     @intrinsic fn __index_set(self: Array<T>, index: int, value: T) -> nothing;
     @intrinsic fn __range(self: Array<T>) -> Range<T>;
     @intrinsic fn __len(self: &Array<T>) -> uint;
@@ -289,6 +311,7 @@ extern<Array<T>> {
 extern<ArrayFixed<T, N>> {
     @intrinsic fn __add(self: ArrayFixed<T, N>, other: ArrayFixed<T, N>) -> ArrayFixed<T, N>;
     @intrinsic fn __index(self: ArrayFixed<T, N>, index: int) -> T;
+    @intrinsic @overload fn __index(self: ArrayFixed<T, N>, index: Range<int>) -> Array<T>;
     @intrinsic fn __index_set(self: ArrayFixed<T, N>, index: int, value: T) -> nothing;
     @intrinsic fn __range(self: ArrayFixed<T, N>) -> Range<T>;
     @intrinsic fn __len(self: &ArrayFixed<T, N>) -> uint;

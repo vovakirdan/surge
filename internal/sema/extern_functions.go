@@ -36,8 +36,13 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 	}
 	scope := tc.scopeOrFile(tc.scopeForExtern(memberID))
 	symID := tc.symbolForExtern(memberID)
+	popFn := tc.pushFnSym(symID)
+	defer popFn()
 
-	receiverParamsPushed := tc.pushTypeParams(receiverOwner, receiverSpecs, nil)
+	receiverParamsPushed := tc.pushTypeParams(symID, receiverSpecs, nil)
+	if receiverOwner.IsValid() && receiverParamsPushed {
+		tc.applyTypeParamBounds(receiverOwner)
+	}
 	paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetFnTypeParamIDs(fn), scope)
 	if len(paramSpecs) == 0 && len(fn.Generics) > 0 {
 		paramSpecs = specsFromNames(fn.Generics)

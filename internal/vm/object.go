@@ -3,6 +3,7 @@ package vm
 import (
 	"surge/internal/symbols"
 	"surge/internal/types"
+	"surge/internal/vm/bignum"
 )
 
 // Handle is a stable, monotonically increasing reference to a heap object.
@@ -17,6 +18,18 @@ const (
 	OKArray
 	OKStruct
 	OKTag
+	OKBigInt
+	OKBigUint
+	OKBigFloat
+	OKRange
+)
+
+type StringKind uint8
+
+const (
+	StringFlat StringKind = iota
+	StringConcat
+	StringSlice
 )
 
 type TagObject struct {
@@ -24,15 +37,43 @@ type TagObject struct {
 	Fields []Value
 }
 
+type RangeObject struct {
+	Start     Value
+	End       Value
+	HasStart  bool
+	HasEnd    bool
+	Inclusive bool
+}
+
+type HeapHeader struct {
+	Kind     ObjectKind
+	RefCount uint32
+	Freed    bool
+}
+
 // Object is a typed heap object.
 type Object struct {
-	Kind    ObjectKind
+	HeapHeader
 	TypeID  types.TypeID
-	Alive   bool
 	AllocID uint64
 
-	Str    string
-	Arr    []Value
-	Fields []Value
-	Tag    TagObject
+	Str           string
+	StrKind       StringKind
+	StrFlatKnown  bool
+	StrByteLen    int
+	StrCPLen      int
+	StrCPLenKnown bool
+	StrLeft       Handle
+	StrRight      Handle
+	StrSliceBase  Handle
+	StrSliceStart int
+	StrSliceLen   int
+	Arr           []Value
+	Fields        []Value
+	Tag           TagObject
+	Range         RangeObject
+
+	BigInt   bignum.BigInt
+	BigUint  bignum.BigUint
+	BigFloat bignum.BigFloat
 }

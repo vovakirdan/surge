@@ -1,0 +1,334 @@
+pragma module, no_std;
+
+pub fn string_len_int(s: &string) -> int {
+    return s.__len() to int;
+}
+
+pub fn string_is_trim_space(cp: uint32) -> bool {
+    return cp == (32):uint32 || cp == (9):uint32 || cp == (10):uint32 || cp == (13):uint32;
+}
+
+pub fn string_find_from(hay: &string, needle: &string, start: int) -> int {
+    let hay_len: int = string_len_int(hay);
+    let needle_len: int = string_len_int(needle);
+    let mut from: int = start;
+
+    if needle_len == 0 {
+        if from < 0 {
+            return 0;
+        }
+        if from > hay_len {
+            return hay_len;
+        }
+        return from;
+    }
+    if from < 0 {
+        from = 0;
+    }
+    if needle_len > hay_len {
+        return -1;
+    }
+    let last: int = hay_len - needle_len;
+    if from > last {
+        return -1;
+    }
+
+    let mut i: int = from;
+    while i <= last {
+        let mut j: int = 0;
+        let mut ok: bool = true;
+        while j < needle_len {
+            if hay[i + j] != needle[j] {
+                ok = false;
+                break;
+            }
+            j = j + 1;
+        }
+        if ok {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+pub fn string_rfind(hay: &string, needle: &string) -> int {
+    let hay_len: int = string_len_int(hay);
+    let needle_len: int = string_len_int(needle);
+    if needle_len == 0 {
+        return hay_len;
+    }
+    if needle_len > hay_len {
+        return -1;
+    }
+    let mut i: int = hay_len - needle_len;
+    while i >= 0 {
+        let mut j: int = 0;
+        let mut ok: bool = true;
+        while j < needle_len {
+            if hay[i + j] != needle[j] {
+                ok = false;
+                break;
+            }
+            j = j + 1;
+        }
+        if ok {
+            return i;
+        }
+        if i == 0 {
+            break;
+        }
+        i = i - 1;
+    }
+    return -1;
+}
+
+pub fn string_min_u(a: uint, b: uint) -> uint {
+    if a < b {
+        return a;
+    }
+    return b;
+}
+
+pub fn string_min3_u(a: uint, b: uint, c: uint) -> uint {
+    return string_min_u(string_min_u(a, b), c);
+}
+
+extern<string> {
+    pub fn bytes(self: &string) -> BytesView { return rt_string_bytes_view(self); }
+    pub fn contains(self: &string, needle: string) -> bool {
+        return self.find(needle) >= 0;
+    }
+    pub fn find(self: &string, needle: string) -> int {
+        return string_find_from(self, &needle, 0);
+    }
+    pub fn rfind(self: &string, needle: string) -> int {
+        return string_rfind(self, &needle);
+    }
+    pub fn starts_with(self: &string, prefix: string) -> bool {
+        let hay_len: int = string_len_int(self);
+        let pre_len: int = string_len_int(&prefix);
+        if pre_len == 0 {
+            return true;
+        }
+        if pre_len > hay_len {
+            return false;
+        }
+        let mut i: int = 0;
+        while i < pre_len {
+            if self[i] != prefix[i] {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+    pub fn ends_with(self: &string, suffix: string) -> bool {
+        let hay_len: int = string_len_int(self);
+        let suf_len: int = string_len_int(&suffix);
+        if suf_len == 0 {
+            return true;
+        }
+        if suf_len > hay_len {
+            return false;
+        }
+        let start: int = hay_len - suf_len;
+        let mut i: int = 0;
+        while i < suf_len {
+            if self[start + i] != suffix[i] {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+    pub fn split(self: &string, sep: string) -> string[] {
+        let sep_len: int = string_len_int(&sep);
+        let hay_len: int = string_len_int(self);
+        let mut parts: string[] = [];
+        if sep_len == 0 {
+            let mut i: int = 0;
+            while i < hay_len {
+                let piece = self[[i..i + 1]];
+                let one: string[] = [piece];
+                parts = parts + one;
+                i = i + 1;
+            }
+            return parts;
+        }
+
+        let mut start: int = 0;
+        while start <= hay_len {
+            let idx: int = string_find_from(self, &sep, start);
+            if idx < 0 {
+                break;
+            }
+            let piece = self[[start..idx]];
+            let one: string[] = [piece];
+            parts = parts + one;
+            start = idx + sep_len;
+        }
+        let tail = self[[start..hay_len]];
+        let one: string[] = [tail];
+        parts = parts + one;
+        return parts;
+    }
+    pub fn join(self: &string, parts: string[]) -> string {
+        let count: int = parts.__len() to int;
+        if count == 0 {
+            return "";
+        }
+        let mut out: string = parts[0];
+        let mut i: int = 1;
+        while i < count {
+            out = out + self.__clone() + parts[i];
+            i = i + 1;
+        }
+        return out;
+    }
+    pub fn trim(self: &string) -> string {
+        let len: int = string_len_int(self);
+        if len <= 0 {
+            return "";
+        }
+        let mut start: int = 0;
+        while start < len {
+            if !string_is_trim_space(self[start]) {
+                break;
+            }
+            start = start + 1;
+        }
+        if start >= len {
+            return "";
+        }
+        let mut end: int = len - 1;
+        while end >= start {
+            if !string_is_trim_space(self[end]) {
+                break;
+            }
+            if end == 0 {
+                break;
+            }
+            end = end - 1;
+        }
+        return self[[start..end + 1]];
+    }
+    pub fn trim_start(self: &string) -> string {
+        let len: int = string_len_int(self);
+        let mut start: int = 0;
+        while start < len {
+            if !string_is_trim_space(self[start]) {
+                break;
+            }
+            start = start + 1;
+        }
+        return self[[start..len]];
+    }
+    pub fn trim_end(self: &string) -> string {
+        let len: int = string_len_int(self);
+        if len <= 0 {
+            return "";
+        }
+        let mut end: int = len - 1;
+        while end >= 0 {
+            if !string_is_trim_space(self[end]) {
+                break;
+            }
+            if end == 0 {
+                break;
+            }
+            end = end - 1;
+        }
+        if string_is_trim_space(self[end]) {
+            return "";
+        }
+        return self[[0..end + 1]];
+    }
+    pub fn replace(self: &string, old: string, new: string) -> string {
+        let old_len: int = string_len_int(&old);
+        if old_len == 0 {
+            return self.__clone();
+        }
+        let hay_len: int = string_len_int(self);
+        let mut start: int = 0;
+        let mut out: string = "";
+        let mut changed: bool = false;
+        while start <= hay_len - old_len {
+            let idx: int = string_find_from(self, &old, start);
+            if idx < 0 {
+                break;
+            }
+            changed = true;
+            out = out + self[[start..idx]] + new.__clone();
+            start = idx + old_len;
+        }
+        if !changed {
+            return self.__clone();
+        }
+        out = out + self[[start..hay_len]];
+        return out;
+    }
+    pub fn reverse(self: &string) -> string {
+        let len: int = string_len_int(self);
+        if len <= 1 {
+            return self.__clone();
+        }
+        let mut out: string = "";
+        let mut i: int = len - 1;
+        while i >= 0 {
+            out = out + self[[i..i + 1]];
+            if i == 0 {
+                break;
+            }
+            i = i - 1;
+        }
+        return out;
+    }
+    pub fn levenshtein(self: &string, other: string) -> uint {
+        let a_len: int = string_len_int(self);
+        let b_len: int = string_len_int(&other);
+        if a_len == 0 {
+            return b_len to uint;
+        }
+        if b_len == 0 {
+            return a_len to uint;
+        }
+
+        let mut prev: uint[] = [];
+        let mut j: int = 0;
+        while j <= b_len {
+            let value: uint = j to uint;
+            let one: uint[] = [value];
+            prev = prev + one;
+            j = j + 1;
+        }
+
+        let mut i: int = 1;
+        while i <= a_len {
+            let mut curr: uint[] = [];
+            let first: uint[] = [i to uint];
+            curr = curr + first;
+            j = 1;
+            while j <= b_len {
+                let mut cost: uint = 1:uint;
+                if self[i - 1] == other[j - 1] {
+                    cost = 0:uint;
+                }
+                let del: uint = prev[j] + 1:uint;
+                let ins: uint = curr[j - 1] + 1:uint;
+                let sub: uint = prev[j - 1] + cost;
+                let best: uint = string_min3_u(del, ins, sub);
+                let one: uint[] = [best];
+                curr = curr + one;
+                j = j + 1;
+            }
+            prev = curr;
+            i = i + 1;
+        }
+        return prev[b_len];
+    }
+    // String identity (for @entrypoint("argv") support)
+    pub fn from_str(s: string) -> Erring<string, Error> {
+        return Success(s);
+    }
+}

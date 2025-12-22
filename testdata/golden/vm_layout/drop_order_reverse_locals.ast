@@ -1,0 +1,19 @@
+drop_order_reverse_locals.sg (span: 1:1-8:1)
+└─ Item[0]: Fn (span: 1:1-6:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-6:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:25)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#1: "a"
+         ├─ Stmt[1]: Let (span: 4:5-4:25)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#2: "b"
+         └─ Stmt[2]: Return (span: 5:5-5:14)
+            └─ Expr: expr#3: 0

@@ -11,7 +11,7 @@ import (
 	"surge/internal/types"
 )
 
-func (tc *typeChecker) indexResultType(container types.TypeID, span source.Span) types.TypeID {
+func (tc *typeChecker) indexResultType(container, index types.TypeID, span source.Span) types.TypeID {
 	if container == types.NoTypeID || tc.types == nil {
 		return types.NoTypeID
 	}
@@ -19,15 +19,24 @@ func (tc *typeChecker) indexResultType(container types.TypeID, span source.Span)
 	if base == types.NoTypeID {
 		return types.NoTypeID
 	}
+	intType := tc.types.Builtins().Int
+	if elem, ok := tc.arrayElemType(base); ok {
+		if index != types.NoTypeID && intType != types.NoTypeID && !tc.sameType(index, intType) {
+			tc.report(diag.SemaTypeMismatch, span, "array index must be int, got %s", tc.typeLabel(index))
+			return types.NoTypeID
+		}
+		return elem
+	}
 	tt, ok := tc.types.Lookup(base)
 	if !ok {
 		return types.NoTypeID
 	}
-	if elem, ok := tc.arrayElemType(base); ok {
-		return elem
-	}
 	switch tt.Kind {
 	case types.KindString:
+		if index != types.NoTypeID && intType != types.NoTypeID && !tc.sameType(index, intType) {
+			tc.report(diag.SemaTypeMismatch, span, "string index must be int, got %s", tc.typeLabel(index))
+			return types.NoTypeID
+		}
 		return tc.types.Builtins().Uint
 	default:
 		tc.report(diag.SemaTypeMismatch, span, "%s is not indexable", tc.typeLabel(base))
@@ -299,7 +308,11 @@ func (tc *typeChecker) ensureStructFieldType(name source.StringID, value ast.Exp
 	}
 	actual := tc.typeExpr(value)
 	if actual == types.NoTypeID {
-		return
+		if tc.applyExpectedType(value, expected) {
+			actual = tc.result.ExprTypes[value]
+		} else {
+			return
+		}
 	}
 	if tc.valueType(actual) == tc.valueType(expected) {
 		return

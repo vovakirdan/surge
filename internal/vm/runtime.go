@@ -31,20 +31,23 @@ type Runtime interface {
 
 // DefaultRuntime implements Runtime using OS facilities.
 type DefaultRuntime struct {
+	argv     []string // program arguments (after --)
 	exitCode int
 	exited   bool
 }
 
-// NewDefaultRuntime creates a runtime using OS facilities.
+// NewDefaultRuntime creates a runtime with program arguments from os.Args.
 func NewDefaultRuntime() *DefaultRuntime {
-	return &DefaultRuntime{exitCode: -1}
+	return &DefaultRuntime{argv: os.Args[1:], exitCode: -1}
+}
+
+// NewRuntimeWithArgs creates a runtime with the specified program arguments.
+func NewRuntimeWithArgs(argv []string) *DefaultRuntime {
+	return &DefaultRuntime{argv: argv, exitCode: -1}
 }
 
 func (r *DefaultRuntime) Argv() []string {
-	if len(os.Args) > 1 {
-		return os.Args[1:]
-	}
-	return nil
+	return r.argv
 }
 
 func (r *DefaultRuntime) StdinReadAll() string {
