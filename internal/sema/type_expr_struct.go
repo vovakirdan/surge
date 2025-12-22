@@ -64,8 +64,10 @@ func (tc *typeChecker) memberResultType(base types.TypeID, field source.StringID
 	info, structType := tc.structInfoForType(base)
 	externFields := tc.externFieldsForType(base)
 	if info != nil {
-		for _, f := range info.Fields {
+		for i, f := range info.Fields {
 			if f.Name == field {
+				// Check for deprecated field usage
+				tc.checkDeprecatedField(structType, i, field, span)
 				return f.Type
 			}
 		}

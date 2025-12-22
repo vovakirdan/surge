@@ -113,6 +113,8 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 			tc.recordImplicitConversionsForCall(sym, args)
 		}
+		// Check for deprecated function usage
+		tc.checkDeprecatedSymbol(bestSym, "function", span)
 		note := "call"
 		if sym := tc.symbolFromID(bestSym); sym != nil && sym.Kind == symbols.SymbolTag {
 			note = "tag"
@@ -131,6 +133,8 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 			tc.recordImplicitConversionsForCall(sym, args)
 		}
+		// Check for deprecated function usage
+		tc.checkDeprecatedSymbol(bestSym, "function", span)
 		note := "call"
 		if sym := tc.symbolFromID(bestSym); sym != nil && sym.Kind == symbols.SymbolTag {
 			note = "tag"
@@ -296,6 +300,8 @@ func (tc *typeChecker) handleDefaultLikeCall(name string, symID symbols.SymbolID
 		}
 	}
 	if symID.IsValid() {
+		// Check for deprecated function usage
+		tc.checkDeprecatedSymbol(symID, "function", span)
 		tc.rememberFunctionInstantiation(symID, []types.TypeID{targetType}, span, "call")
 	}
 	return targetType
@@ -451,6 +457,8 @@ func (tc *typeChecker) recordMethodCallInstantiation(symID symbols.SymbolID, cal
 	if call == nil || !symID.IsValid() {
 		return
 	}
+	// Check for deprecated method usage
+	tc.checkDeprecatedSymbol(symID, "function", span)
 	sym := tc.symbolFromID(symID)
 	if sym == nil || len(sym.TypeParams) == 0 {
 		return

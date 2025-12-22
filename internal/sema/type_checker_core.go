@@ -60,8 +60,9 @@ type typeChecker struct {
 	typeIDItems                 map[types.TypeID]ast.ItemID
 	structBases                 map[types.TypeID]types.TypeID
 	externFields                map[symbols.TypeKey]*externFieldSet
-	typeAttrs                   map[types.TypeID][]AttrInfo // Type attribute storage
-	fieldAttrs                  map[fieldKey][]AttrInfo     // Field attribute storage
+	typeAttrs                   map[types.TypeID][]AttrInfo     // Type attribute storage
+	fieldAttrs                  map[fieldKey][]AttrInfo         // Field attribute storage
+	symbolAttrs                 map[symbols.SymbolID][]AttrInfo // Symbol attribute storage (functions, let, const)
 	awaitDepth                  int
 	asyncBlockDepth             int // Track nesting level of async blocks for error differentiation
 	returnStack                 []returnContext

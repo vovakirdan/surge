@@ -1,0 +1,12 @@
+warning SEM3127 testdata/golden/sema/invalid/attrs/deprecated_usage.sg:41:5 function 'old_func' deprecated.
+warning SEM3127 testdata/golden/sema/invalid/attrs/deprecated_usage.sg:42:5 function 'old_func_msg' deprecated. Use new_func instead
+warning SEM3127 testdata/golden/sema/invalid/attrs/deprecated_usage.sg:45:12 type 'OldType' deprecated.
+warning SEM3127 testdata/golden/sema/invalid/attrs/deprecated_usage.sg:45:22 type 'OldType' deprecated.
+warning SEM3127 testdata/golden/sema/invalid/attrs/deprecated_usage.sg:46:12 type 'OldTypeMsg' deprecated. Use NewType instead
+warning SEM3127 testdata/golden/sema/invalid/attrs/deprecated_usage.sg:46:25 type 'OldTypeMsg' deprecated. Use NewType instead
+warning SEM3127 testdata/golden/sema/invalid/attrs/deprecated_usage.sg:50:13 field 'field1' deprecated.
+warning SEM3127 testdata/golden/sema/invalid/attrs/deprecated_usage.sg:53:13 field 'old_field' deprecated. Use field2 instead
+warning SEM3127 testdata/golden/sema/invalid/attrs/deprecated_usage.sg:56:13 variable 'OLD_VAR' deprecated.
+warning SEM3127 testdata/golden/sema/invalid/attrs/deprecated_usage.sg:57:13 variable 'OLD_VAR_MSG' deprecated. Use NEW_VAR instead
+warning SEM3127 testdata/golden/sema/invalid/attrs/deprecated_usage.sg:60:13 constant 'OLD_CONST' deprecated.
+warning SEM3127 testdata/golden/sema/invalid/attrs/deprecated_usage.sg:61:13 constant 'OLD_CONST_MSG' deprecated. Use NEW_CONST instead

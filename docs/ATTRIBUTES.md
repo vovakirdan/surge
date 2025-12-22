@@ -398,26 +398,30 @@ extern<Waitable> {
 
 ### @deprecated
 
-**Target:** Functions, types, fields  
-**Parameters:** None (optionally: message)
+**Target:** Functions, types, fields, let, const
+**Parameters:** Optional string message
 
-Marks the element as deprecated. Compiler generates a warning on usage.
+Marks the element as deprecated. Compiler generates a warning (SEM3127) when the deprecated element is used.
 
 ```sg
-@deprecated
-fn old_api() {
+@deprecated fn old_api() {
     // Deprecated function
 }
 
-@deprecated
-type OldType = { ... };
+@deprecated("Use NewType instead") type OldType = { ... };
+
+@deprecated let LEGACY_VALUE: int = 42;
 ```
+
+When used:
+- Without message: `function 'old_api' deprecated.`
+- With message: `type 'OldType' deprecated. Use NewType instead`
 
 ---
 
 ### @hidden
 
-**Target:** Functions, types, fields  
+**Target:** Functions, types, fields, let, const
 **Parameters:** None
 
 Hides the element from the module's public API.

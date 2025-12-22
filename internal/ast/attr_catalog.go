@@ -18,6 +18,7 @@ const (
 	AttrTargetField                            // struct fields
 	AttrTargetParam                            // parameters (function/formal parameters)
 	AttrTargetStmt                             // statement-level attributes (e.g. expression statements)
+	AttrTargetLet                              // let and const declarations
 )
 
 // AttrFlag captures special handling rules beyond the basic applicability matrix.
@@ -57,7 +58,7 @@ var attrRegistry = map[string]AttrSpec{
 	"intrinsic":     {Name: "intrinsic", Targets: AttrTargetFn | AttrTargetType, Flags: AttrFlagFnDeclOnly},
 	"entrypoint":    {Name: "entrypoint", Targets: AttrTargetFn},
 	"backend":       {Name: "backend", Targets: AttrTargetFn | AttrTargetBlock},
-	"deprecated":    {Name: "deprecated", Targets: AttrTargetFn | AttrTargetType | AttrTargetField},
+	"deprecated":    {Name: "deprecated", Targets: AttrTargetFn | AttrTargetType | AttrTargetField | AttrTargetLet},
 	"packed":        {Name: "packed", Targets: AttrTargetType | AttrTargetField},
 	"align":         {Name: "align", Targets: AttrTargetType | AttrTargetField},
 	"raii":          {Name: "raii", Targets: AttrTargetType},
@@ -66,7 +67,7 @@ var attrRegistry = map[string]AttrSpec{
 	"shared":        {Name: "shared", Targets: AttrTargetType | AttrTargetField},
 	"atomic":        {Name: "atomic", Targets: AttrTargetField},
 	"readonly":      {Name: "readonly", Targets: AttrTargetField},
-	"hidden":        {Name: "hidden", Targets: AttrTargetFn | AttrTargetType | AttrTargetField},
+	"hidden":        {Name: "hidden", Targets: AttrTargetFn | AttrTargetType | AttrTargetField | AttrTargetLet},
 	"noinherit":     {Name: "noinherit", Targets: AttrTargetField | AttrTargetType},
 	"sealed":        {Name: "sealed", Targets: AttrTargetType},
 	"guarded_by":    {Name: "guarded_by", Targets: AttrTargetField},

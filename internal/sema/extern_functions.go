@@ -87,7 +87,7 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 			ownerTypeID = sym.Type
 		}
 	}
-	tc.validateFunctionAttrs(fn, ownerTypeID)
+	tc.validateFunctionAttrs(fn, symID, ownerTypeID)
 
 	if typeParamsPushed {
 		tc.popTypeParams()

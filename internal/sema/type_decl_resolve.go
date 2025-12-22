@@ -217,7 +217,10 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 			tc.report(diag.SemaTypeMismatch, span, "%s does not take type arguments", tc.lookupName(sym.Name))
 			return types.NoTypeID
 		}
-		return tc.symbolType(symID)
+		typeID := tc.symbolType(symID)
+		// Check for deprecated type usage
+		tc.checkDeprecatedType(typeID, span)
+		return typeID
 	}
 	if len(args) == 0 {
 		tc.report(diag.SemaTypeMismatch, span, "%s requires %d type argument(s)", tc.lookupName(sym.Name), expected)
@@ -244,6 +247,8 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 		}
 	}
 	tc.enforceTypeArgBounds(sym, args, argSpans, span)
+	// Check for deprecated type usage (base type for generics)
+	tc.checkDeprecatedType(sym.Type, span)
 	return tc.instantiateType(symID, args, span, "type")
 }
 

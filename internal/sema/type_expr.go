@@ -69,8 +69,14 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				ty = types.NoTypeID
 			case sym.Kind == symbols.SymbolLet || sym.Kind == symbols.SymbolParam:
 				ty = tc.bindingType(symID)
+				// Check for deprecated variable usage (let only, params are local)
+				if sym.Kind == symbols.SymbolLet {
+					tc.checkDeprecatedSymbol(symID, "variable", expr.Span)
+				}
 			case sym.Kind == symbols.SymbolConst:
 				ty = tc.ensureConstEvaluated(symID)
+				// Check for deprecated constant usage
+				tc.checkDeprecatedSymbol(symID, "constant", expr.Span)
 			case sym.Kind == symbols.SymbolType:
 				name := tc.lookupName(ident.Name)
 				if name == "" {

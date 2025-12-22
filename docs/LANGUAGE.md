@@ -800,37 +800,37 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 
 #### Applicability Matrix
 
-| Attribute        |  Fn | Block | Type | Field | Param | Stmt |
-| ---------------- | :-: | :---: | :--: | :---: | :---: | :--: |
-| @pure            |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
-| @overload        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
-| @override        |  ✅* |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
-| @intrinsic       |  ✅** |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
-| @backend         |  ✅  |   ✅   |   ❌  |   ❌   |   ❌   |  ❌  |
-| @packed          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
-| @align           |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
-| @raii            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |
-| @arena           |  ❌  |   ❌   |   ✅  |   ✅   |   ✅   |  ❌  |
-| @weak            |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
-| @shared          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
-| @atomic          |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
-| @readonly        |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
-| @deprecated      |  ✅  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
-| @hidden          |  ✅  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
-| @noinherit       |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |
-| @sealed          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |
-| @entrypoint      |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
-| @guarded_by      |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |
-| @requires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
-| @acquires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
-| @releases_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
-| @waits_on        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
-| @send            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |
-| @nosend          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |
-| @nonblocking     |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |
-| @drop            |  ❌  |   ❌   |   ❌  |   ❌   |   ❌   |  ✅  |
-| @failfast        |  ❌  |   ❌   |   ❌  |   ❌   |   ❌   |  ✅  |
-| @copy            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |
+| Attribute        |  Fn | Block | Type | Field | Param | Stmt | Let |
+| ---------------- | :-: | :---: | :--: | :---: | :---: | :--: | :-: |
+| @pure            |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @overload        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @override        |  ✅* |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @intrinsic       |  ✅** |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @backend         |  ✅  |   ✅   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @packed          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |  ❌  |
+| @align           |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |  ❌  |
+| @raii            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @arena           |  ❌  |   ❌   |   ✅  |   ✅   |   ✅   |  ❌  |  ❌  |
+| @weak            |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |  ❌  |
+| @shared          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |  ❌  |
+| @atomic          |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |  ❌  |
+| @readonly        |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |  ❌  |
+| @deprecated      |  ✅  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |  ✅  |
+| @hidden          |  ✅  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |  ✅  |
+| @noinherit       |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |  ❌  |
+| @sealed          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @entrypoint      |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @guarded_by      |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |  ❌  |
+| @requires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @acquires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @releases_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @waits_on        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @send            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @nosend          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @nonblocking     |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @drop            |  ❌  |   ❌   |   ❌  |   ❌   |   ❌   |  ✅  |  ❌  |
+| @failfast        |  ❌  |   ❌   |   ❌  |   ❌   |   ❌   |  ✅  |  ❌  |
+| @copy            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |  ❌  |
 
 *`@override` — only within `extern<T>` blocks.
 **`@intrinsic` — only on function declarations (FnDecl) without body.
