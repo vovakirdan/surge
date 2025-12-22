@@ -6,7 +6,6 @@ cd "${ROOT_DIR}"
 
 GOLDEN_DIR="${ROOT_DIR}/testdata/golden"
 SURGE_BIN="${SURGE_BIN:-${ROOT_DIR}/surge}"
-CORE_GOLDEN_DIR="${GOLDEN_DIR}/stdlib_core/core"
 
 # Set SURGE_STDLIB to use local stdlib during golden file generation
 # Always use local stdlib for golden tests, ignore any pre-existing SURGE_STDLIB
@@ -97,9 +96,6 @@ find "${GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r
 	if [[ "${base}" == _* ]]; then
 		continue
 	fi
-	if [[ "${src}" == "${CORE_GOLDEN_DIR}"/* ]]; then
-		continue
-	fi
 
 	dir="$(dirname "${src}")"
 	is_invalid=0
@@ -115,23 +111,3 @@ find "${GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r
 
 	generate_outputs "${src}" "${dir}" "${is_invalid}" 0 "${directives_mode}"
 done
-
-# Core stdlib files are validated via testdata/golden/stdlib_core/* instead
-# (direct diagnosis of core/* is forbidden due to reserved namespace)
-if [[ -d "${CORE_GOLDEN_DIR}" ]]; then
-	core_dir_diag="${CORE_GOLDEN_DIR}/core.diag"
-	if ! "${SURGE_BIN}" diag --format short "${CORE_GOLDEN_DIR}" > "${core_dir_diag}" 2>/dev/null; then
-		echo "stdlib_core/core diagnostics failed" >&2
-		exit 1
-	fi
-
-	find "${CORE_GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r -d '' src; do
-		dir="$(dirname "${src}")"
-		is_invalid=0
-		if [[ "${src}" == *"/invalid/"* ]]; then
-			is_invalid=1
-		fi
-
-		generate_outputs "${src}" "${dir}" "${is_invalid}" 0
-	done
-fi

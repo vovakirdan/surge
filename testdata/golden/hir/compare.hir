@@ -2,7 +2,7 @@
 == HIR ==
 module 
 
-fn classify(x: int [copy]) -> int (id=1, sym=598) {
+fn classify(x: int [copy]) -> int (id=1, sym=636) {
   return {
     let __cmp1: int [copy] = x
     if (__cmp1 == 0): bool {
