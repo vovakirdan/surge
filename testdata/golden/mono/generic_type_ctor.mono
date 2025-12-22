@@ -2,9 +2,9 @@
 == MONO ==
 funcs=1 types=1
 fn main() -> nothing (id=2147483649, sym=2415919105) {
-  let b: type#334 =  { v = 1 }: type#334
+  let b: type#335 =  { v = 1 }: type#335
   return
 }
 
 types:
-  type Box::<int> = type#334
+  type Box::<int> = type#335

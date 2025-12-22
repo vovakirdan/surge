@@ -349,6 +349,45 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			Value:   val,
 		})
 
+	case "rt_string_force_flatten":
+		if len(call.Args) != 1 {
+			return vm.eb.makeError(PanicTypeMismatch, "rt_string_force_flatten requires 1 argument")
+		}
+		arg, vmErr := vm.evalOperand(frame, &call.Args[0])
+		if vmErr != nil {
+			return vmErr
+		}
+		defer vm.dropValue(arg)
+		var strVal Value
+		switch arg.Kind {
+		case VKHandleString:
+			strVal = arg
+		case VKRef, VKRefMut:
+			v, loadErr := vm.loadLocationRaw(arg.Loc)
+			if loadErr != nil {
+				return loadErr
+			}
+			strVal = v
+		default:
+			return vm.eb.typeMismatch("&string", arg.Kind.String())
+		}
+		if strVal.Kind != VKHandleString {
+			return vm.eb.typeMismatch("string", strVal.Kind.String())
+		}
+		_ = vm.stringBytes(vm.Heap.Get(strVal.H))
+		if call.HasDst {
+			dstLocal := call.Dst.Local
+			val := MakeNothing()
+			if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+				return vmErr
+			}
+			*writes = append(*writes, LocalWrite{
+				LocalID: dstLocal,
+				Name:    frame.Locals[dstLocal].Name,
+				Value:   val,
+			})
+		}
+
 	case "rt_string_bytes_view":
 		if !call.HasDst {
 			return nil

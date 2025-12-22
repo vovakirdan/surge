@@ -20,6 +20,8 @@ pub type byte = uint8;
 @intrinsic fn rt_string_from_bytes(ptr: *byte, length: uint) -> string;
 @intrinsic fn rt_string_from_utf16(ptr: *uint16, length: uint) -> string;
 @intrinsic fn rt_string_bytes_view(s: &string) -> BytesView;
+// Test-only hook: materialize flat UTF-8 bytes for a rope/slice string.
+@intrinsic fn rt_string_force_flatten(s: &string) -> nothing;
 
 // Higher-level I/O
 @intrinsic

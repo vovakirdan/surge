@@ -2,12 +2,12 @@
 == HIR ==
 module 
 
-fn increment(x: &mut int [&mut]) -> nothing (id=1, sym=596) {
+fn increment(x: &mut int [&mut]) -> nothing (id=1, sym=598) {
   ((* x) = ((* x) + 1)): int
   return
 }
 
-fn read_ref(x: &int [&]) -> int (id=2, sym=597) {
+fn read_ref(x: &int [&]) -> int (id=2, sym=599) {
   return (* x): int
 }
 
