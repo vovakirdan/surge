@@ -329,7 +329,11 @@ func (t *Tracer) formatValue(v Value) string {
 		if obj.Freed || obj.RefCount == 0 {
 			return fmt.Sprintf("string#%d(rc=0,<freed>)", v.H)
 		}
-		preview := truncateRunes(obj.Str, 32)
+		preview := obj.Str
+		if t.vm != nil {
+			preview = t.vm.stringBytes(obj)
+		}
+		preview = truncateRunes(preview, 32)
 		return fmt.Sprintf("string#%d(rc=%d,%q)", v.H, obj.RefCount, preview)
 
 	case VKHandleArray:

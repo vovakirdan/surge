@@ -52,6 +52,9 @@ func (h *Heap) alloc(kind ObjectKind, typeID types.TypeID) (Handle, *Object) {
 func (h *Heap) AllocString(typeID types.TypeID, s string) Handle {
 	handle, obj := h.alloc(OKString, typeID)
 	obj.Str = s
+	obj.StrKind = StringFlat
+	obj.StrFlatKnown = true
+	obj.StrByteLen = len(s)
 	obj.StrCPLen = 0
 	obj.StrCPLenKnown = false
 	if h.vm != nil && h.vm.Trace != nil {
@@ -63,8 +66,51 @@ func (h *Heap) AllocString(typeID types.TypeID, s string) Handle {
 func (h *Heap) AllocStringWithCPLen(typeID types.TypeID, s string, cpLen int) Handle {
 	handle, obj := h.alloc(OKString, typeID)
 	obj.Str = s
+	obj.StrKind = StringFlat
+	obj.StrFlatKnown = true
+	obj.StrByteLen = len(s)
 	obj.StrCPLen = cpLen
 	obj.StrCPLenKnown = true
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
+	}
+	return handle
+}
+
+func (h *Heap) AllocStringConcat(typeID types.TypeID, left, right Handle, byteLen, cpLen int, cpLenKnown bool) Handle {
+	handle, obj := h.alloc(OKString, typeID)
+	obj.StrKind = StringConcat
+	obj.StrFlatKnown = false
+	obj.StrByteLen = byteLen
+	obj.StrCPLen = cpLen
+	obj.StrCPLenKnown = cpLenKnown
+	obj.StrLeft = left
+	obj.StrRight = right
+	if left != 0 {
+		h.Retain(left)
+	}
+	if right != 0 {
+		h.Retain(right)
+	}
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
+	}
+	return handle
+}
+
+func (h *Heap) AllocStringSlice(typeID types.TypeID, base Handle, startCP, cpLen, byteLen int) Handle {
+	handle, obj := h.alloc(OKString, typeID)
+	obj.StrKind = StringSlice
+	obj.StrFlatKnown = false
+	obj.StrByteLen = byteLen
+	obj.StrCPLen = cpLen
+	obj.StrCPLenKnown = true
+	obj.StrSliceBase = base
+	obj.StrSliceStart = startCP
+	obj.StrSliceLen = cpLen
+	if base != 0 {
+		h.Retain(base)
+	}
 	if h.vm != nil && h.vm.Trace != nil {
 		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
 	}
@@ -235,9 +281,26 @@ func (h *Heap) Free(handle Handle) {
 		}
 		obj.Fields = nil
 	case OKString:
+		if obj.StrLeft != 0 {
+			h.Release(obj.StrLeft)
+		}
+		if obj.StrRight != 0 {
+			h.Release(obj.StrRight)
+		}
+		if obj.StrSliceBase != 0 {
+			h.Release(obj.StrSliceBase)
+		}
 		obj.Str = ""
+		obj.StrKind = StringFlat
+		obj.StrFlatKnown = false
+		obj.StrByteLen = 0
 		obj.StrCPLen = 0
 		obj.StrCPLenKnown = false
+		obj.StrLeft = 0
+		obj.StrRight = 0
+		obj.StrSliceBase = 0
+		obj.StrSliceStart = 0
+		obj.StrSliceLen = 0
 	case OKTag:
 		for _, v := range obj.Tag.Fields {
 			h.releaseContainedValue(v)

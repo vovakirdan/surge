@@ -105,9 +105,12 @@ func (vm *VM) evalStringIndex(obj, idx Value) (Value, *VMError) {
 		if start > end {
 			start = end
 		}
-		byteStart, byteEnd := byteOffsetsForCodePoints(strObj.Str, start, end)
-		sub := strObj.Str[byteStart:byteEnd]
-		h := vm.Heap.AllocStringWithCPLen(obj.TypeID, sub, end-start)
+		if start == end {
+			h := vm.Heap.AllocStringWithCPLen(obj.TypeID, "", 0)
+			return MakeHandleString(h, obj.TypeID), nil
+		}
+		byteLen := vm.byteLenForRange(strObj, start, end)
+		h := vm.Heap.AllocStringSlice(obj.TypeID, obj.H, start, end-start, byteLen)
 		return MakeHandleString(h, obj.TypeID), nil
 	}
 
@@ -136,7 +139,7 @@ func (vm *VM) evalStringIndex(obj, idx Value) (Value, *VMError) {
 	if index64 < 0 || index64 >= int64(cpLen) {
 		return Value{}, vm.eb.outOfBounds(int(index64), cpLen)
 	}
-	r, ok := codePointAt(strObj.Str, int(index64))
+	r, ok := vm.codePointAtObj(strObj, int(index64))
 	if !ok {
 		return Value{}, vm.eb.outOfBounds(int(index64), cpLen)
 	}
@@ -194,10 +197,11 @@ func (vm *VM) evalBytesViewIndex(obj, idx Value) (Value, bool, *VMError) {
 	offset := int(ptrVal.Loc.ByteOffset)
 	pos := offset + index
 	end := offset + length
-	if offset < 0 || pos < 0 || end < offset || end > len(strObj.Str) {
-		return Value{}, true, vm.eb.outOfBounds(pos, len(strObj.Str))
+	s := vm.stringBytes(strObj)
+	if offset < 0 || pos < 0 || end < offset || end > len(s) {
+		return Value{}, true, vm.eb.outOfBounds(pos, len(s))
 	}
-	b := strObj.Str[pos]
+	b := s[pos]
 	typeID := types.NoTypeID
 	if vm.Types != nil {
 		typeID = vm.Types.Builtins().Uint8

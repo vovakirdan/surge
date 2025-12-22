@@ -1336,6 +1336,7 @@ A trailing comma turns it into an array literal: `[1..3,]` is a single-element a
 * `s[[a..b]]` slices by code point indices and returns `string`. Omitted bounds default to `0`/`len`.
   Inclusive `..=` adds one to the end bound, indices are clamped, and `start > end` yields `""`.
 * `bytes()` returns a `BytesView` over UTF-8 bytes. `len(&view)` returns byte length; `view[i]` returns `uint8`.
+* Implementation detail: strings may be stored as a rope internally. Concatenation and slicing can return views, and byte access materializes a flat UTF-8 buffer lazily.
 
 **Examples:**
 ```sg

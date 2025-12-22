@@ -28,6 +28,8 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 
 	case ast.ExprBinaryAdd:
 		switch {
+		case left.Kind == VKHandleString && right.Kind == VKHandleString:
+			return vm.concatStringValues(left, right)
 		case left.Kind == VKBigInt && right.Kind == VKBigInt:
 			a, vmErr := vm.mustBigInt(left)
 			if vmErr != nil {
@@ -326,7 +328,7 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 			if lObj == nil || rObj == nil {
 				return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid string handle")
 			}
-			result = lObj.Str == rObj.Str
+			result = vm.stringBytes(lObj) == vm.stringBytes(rObj)
 		default:
 			result = left.H == right.H
 		}
@@ -378,7 +380,7 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 			if lObj == nil || rObj == nil {
 				return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid string handle")
 			}
-			result = lObj.Str != rObj.Str
+			result = vm.stringBytes(lObj) != vm.stringBytes(rObj)
 		default:
 			result = left.H != right.H
 		}

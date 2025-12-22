@@ -155,6 +155,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		if strVal.Kind != VKHandleString {
 			return vm.eb.typeMismatch("string", strVal.Kind.String())
 		}
+		vm.stringBytes(vm.Heap.Get(strVal.H))
 		dstLocal := call.Dst.Local
 		dstType := frame.Locals[dstLocal].TypeID
 		ptr := MakePtr(Location{Kind: LKStringBytes, Handle: strVal.H}, dstType)
@@ -240,10 +241,10 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		if strVal.Kind != VKHandleString {
 			return vm.eb.typeMismatch("string", strVal.Kind.String())
 		}
-		s := vm.Heap.Get(strVal.H).Str
+		sz := vm.stringByteLen(vm.Heap.Get(strVal.H))
 		dstLocal := call.Dst.Local
 		dstType := frame.Locals[dstLocal].TypeID
-		u64, err := safecast.Conv[uint64](len(s))
+		u64, err := safecast.Conv[uint64](sz)
 		if err != nil {
 			return vm.eb.invalidNumericConversion("string length out of range")
 		}
@@ -392,7 +393,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		}
 		fields[info.ownerIdx] = ownerVal
 		fields[info.ptrIdx] = MakePtr(Location{Kind: LKStringBytes, Handle: strVal.H}, info.layout.FieldTypes[info.ptrIdx])
-		length := len(vm.Heap.Get(strVal.H).Str)
+		length := vm.stringByteLen(vm.Heap.Get(strVal.H))
 		u64, err := safecast.Conv[uint64](length)
 		if err != nil {
 			vm.dropValue(ownerVal)
@@ -620,7 +621,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		if obj.Kind != OKString {
 			return vm.eb.typeMismatch("string bytes pointer", fmt.Sprintf("%v", obj.Kind))
 		}
-		s := obj.Str
+		s := vm.stringBytes(obj)
 		off := int(ptrVal.Loc.ByteOffset)
 		end64 := int64(off) + int64(n)
 		if off < 0 || off > len(s) || end64 < 0 || end64 > int64(len(s)) {
@@ -736,7 +737,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 				vm.dropValue(strVal)
 				return vm.eb.unsupportedParseType("fixed-width int")
 			}
-			s := vm.Heap.Get(strVal.H).Str
+			s := vm.stringBytes(vm.Heap.Get(strVal.H))
 			vm.dropValue(strVal)
 			i, err := bignum.ParseInt(s)
 			if err != nil {
@@ -759,7 +760,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 				vm.dropValue(strVal)
 				return vm.eb.unsupportedParseType("fixed-width uint")
 			}
-			s := vm.Heap.Get(strVal.H).Str
+			s := vm.stringBytes(vm.Heap.Get(strVal.H))
 			vm.dropValue(strVal)
 			u, err := bignum.ParseUint(s)
 			if err != nil {
@@ -782,7 +783,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 				vm.dropValue(strVal)
 				return vm.eb.unsupportedParseType("fixed-width float")
 			}
-			s := vm.Heap.Get(strVal.H).Str
+			s := vm.stringBytes(vm.Heap.Get(strVal.H))
 			vm.dropValue(strVal)
 			f, err := bignum.ParseFloat(s)
 			if err != nil {
@@ -989,12 +990,13 @@ func (vm *VM) readBytesFromPointer(ptrVal Value, n int) ([]byte, *VMError) {
 		if obj.Kind != OKString {
 			return nil, vm.eb.typeMismatch("string bytes pointer", fmt.Sprintf("%v", obj.Kind))
 		}
+		s := vm.stringBytes(obj)
 		off := int(ptrVal.Loc.ByteOffset)
 		end := off + n
-		if off < 0 || end < off || end > len(obj.Str) {
-			return nil, vm.eb.outOfBounds(end, len(obj.Str))
+		if off < 0 || end < off || end > len(s) {
+			return nil, vm.eb.outOfBounds(end, len(s))
 		}
-		return []byte(obj.Str[off:end]), nil
+		return []byte(s[off:end]), nil
 	case LKArrayElem:
 		obj := vm.Heap.Get(ptrVal.Loc.Handle)
 		if obj.Kind != OKArray {

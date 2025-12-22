@@ -1,0 +1,38 @@
+fn write_str(s: string) -> nothing {
+    let ptr = rt_string_ptr(&s);
+    let n = rt_string_len_bytes(&s);
+    rt_write_stdout(ptr, n);
+}
+
+fn write_line(s: string) -> nothing {
+    write_str(s);
+    let nl = "\n";
+    rt_write_stdout(rt_string_ptr(&nl), 1:uint);
+}
+
+fn print_uint(u: uint) -> nothing {
+    write_line(u to string);
+}
+
+@entrypoint
+fn main() -> int {
+    let mut s: string = "";
+    let mut i: int = 0;
+    while i < 200 {
+        s = s + "a";
+        i = i + 1;
+    }
+
+    write_line(s[[0..3]]);
+    write_line(s[[-3..]]);
+    write_line(s[[10..20]]);
+    write_line(s[[0..=1]]);
+
+    let bv = rt_string_bytes_view(&s);
+    print_uint(bv.__len());
+    let b0: uint = bv[0] to uint;
+    print_uint(b0);
+    print_uint(rt_string_len(&s));
+
+    return 0;
+}

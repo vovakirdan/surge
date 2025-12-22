@@ -123,7 +123,7 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 			}
 			return vm.makeBigInt(dstType, i), nil
 		case VKHandleString:
-			s := vm.Heap.Get(src.H).Str
+			s := vm.stringBytes(vm.Heap.Get(src.H))
 			i, err := bignum.ParseInt(s)
 			if err != nil {
 				return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as int: %v", s, err))
@@ -169,7 +169,7 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 			}
 			return vm.makeBigUint(dstType, u), nil
 		case VKHandleString:
-			s := vm.Heap.Get(src.H).Str
+			s := vm.stringBytes(vm.Heap.Get(src.H))
 			u, err := bignum.ParseUint(s)
 			if err != nil {
 				return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as uint: %v", s, err))
@@ -219,7 +219,7 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 			}
 			return vm.makeBigFloat(dstType, f), nil
 		case VKHandleString:
-			s := vm.Heap.Get(src.H).Str
+			s := vm.stringBytes(vm.Heap.Get(src.H))
 			f, err := bignum.ParseFloat(s)
 			if err != nil {
 				return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as float: %v", s, err))

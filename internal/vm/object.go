@@ -24,6 +24,14 @@ const (
 	OKRange
 )
 
+type StringKind uint8
+
+const (
+	StringFlat StringKind = iota
+	StringConcat
+	StringSlice
+)
+
 type TagObject struct {
 	TagSym symbols.SymbolID
 	Fields []Value
@@ -50,8 +58,16 @@ type Object struct {
 	AllocID uint64
 
 	Str           string
+	StrKind       StringKind
+	StrFlatKnown  bool
+	StrByteLen    int
 	StrCPLen      int
 	StrCPLenKnown bool
+	StrLeft       Handle
+	StrRight      Handle
+	StrSliceBase  Handle
+	StrSliceStart int
+	StrSliceLen   int
 	Arr           []Value
 	Fields        []Value
 	Tag           TagObject

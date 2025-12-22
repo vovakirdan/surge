@@ -81,7 +81,11 @@ func (i *Inspector) Heap() {
 		}
 		switch obj.Kind {
 		case OKString:
-			fmt.Fprintf(i.out, "  string#%d len=%d\n", h, len(obj.Str))
+			byteLen := 0
+			if i.vm != nil {
+				byteLen = i.vm.stringByteLen(obj)
+			}
+			fmt.Fprintf(i.out, "  string#%d len=%d\n", h, byteLen)
 		case OKArray:
 			fmt.Fprintf(i.out, "  array#%d len=%d\n", h, len(obj.Arr))
 		case OKStruct:

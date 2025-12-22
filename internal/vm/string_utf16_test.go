@@ -81,8 +81,8 @@ func TestStringUTF16ConstructorParity(t *testing.T) {
 	if utf16Val.Kind != VKHandleString || utf8Val.Kind != VKHandleString {
 		t.Fatalf("expected string handles, got %v and %v", utf16Val.Kind, utf8Val.Kind)
 	}
-	s16 := vmInstance.Heap.Get(utf16Val.H).Str
-	s8 := vmInstance.Heap.Get(utf8Val.H).Str
+	s16 := vmInstance.stringBytes(vmInstance.Heap.Get(utf16Val.H))
+	s8 := vmInstance.stringBytes(vmInstance.Heap.Get(utf8Val.H))
 	if s16 != s8 {
 		t.Fatalf("utf16/utf8 mismatch: %q vs %q", s16, s8)
 	}

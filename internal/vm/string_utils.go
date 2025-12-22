@@ -1,22 +1,133 @@
 package vm
 
 import (
+	"fmt"
 	"math"
+	"strings"
 	"unicode/utf8"
 
 	"fortio.org/safecast"
 )
 
+const stringRopeThresholdBytes = 128
+
 func (vm *VM) stringCPLen(obj *Object) int {
 	if obj == nil {
 		return 0
 	}
+	if obj.StrKind == StringSlice {
+		obj.StrCPLen = obj.StrSliceLen
+		obj.StrCPLenKnown = true
+		return obj.StrSliceLen
+	}
 	if obj.StrCPLenKnown {
 		return obj.StrCPLen
 	}
-	obj.StrCPLen = utf8.RuneCountInString(obj.Str)
-	obj.StrCPLenKnown = true
-	return obj.StrCPLen
+	switch obj.StrKind {
+	case StringFlat:
+		obj.StrCPLen = utf8.RuneCountInString(obj.Str)
+		obj.StrCPLenKnown = true
+		return obj.StrCPLen
+	case StringConcat:
+		left := vm.Heap.Get(obj.StrLeft)
+		right := vm.Heap.Get(obj.StrRight)
+		leftLen := vm.stringCPLen(left)
+		rightLen := vm.stringCPLen(right)
+		obj.StrCPLen = leftLen + rightLen
+		obj.StrCPLenKnown = true
+		return obj.StrCPLen
+	default:
+		obj.StrCPLen = utf8.RuneCountInString(obj.Str)
+		obj.StrCPLenKnown = true
+		return obj.StrCPLen
+	}
+}
+
+func (vm *VM) concatStringValues(left, right Value) (Value, *VMError) {
+	if left.Kind != VKHandleString || right.Kind != VKHandleString {
+		return Value{}, vm.eb.typeMismatch("string", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
+	}
+	leftObj := vm.Heap.Get(left.H)
+	rightObj := vm.Heap.Get(right.H)
+	if leftObj == nil || rightObj == nil {
+		return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid string handle")
+	}
+
+	leftBytes := vm.stringByteLen(leftObj)
+	rightBytes := vm.stringByteLen(rightObj)
+	totalBytes := leftBytes + rightBytes
+
+	leftCP := vm.stringCPLen(leftObj)
+	rightCP := vm.stringCPLen(rightObj)
+	totalCP := leftCP + rightCP
+
+	typeID := left.TypeID
+	if totalBytes <= stringRopeThresholdBytes {
+		leftStr := vm.stringBytes(leftObj)
+		rightStr := vm.stringBytes(rightObj)
+		joined := leftStr + rightStr
+		h := vm.Heap.AllocStringWithCPLen(typeID, joined, totalCP)
+		return MakeHandleString(h, typeID), nil
+	}
+
+	h := vm.Heap.AllocStringConcat(typeID, left.H, right.H, totalBytes, totalCP, true)
+	return MakeHandleString(h, typeID), nil
+}
+
+func (vm *VM) stringByteLen(obj *Object) int {
+	if obj == nil {
+		return 0
+	}
+	if obj.StrByteLen > 0 || (obj.StrKind == StringFlat && obj.StrFlatKnown) {
+		if obj.StrByteLen == 0 {
+			obj.StrByteLen = len(obj.Str)
+		}
+		return obj.StrByteLen
+	}
+	switch obj.StrKind {
+	case StringConcat:
+		left := vm.Heap.Get(obj.StrLeft)
+		right := vm.Heap.Get(obj.StrRight)
+		obj.StrByteLen = vm.stringByteLen(left) + vm.stringByteLen(right)
+	case StringSlice:
+		base := vm.Heap.Get(obj.StrSliceBase)
+		start := obj.StrSliceStart
+		end := start + obj.StrSliceLen
+		obj.StrByteLen = vm.byteLenForRange(base, start, end)
+	default:
+		obj.StrByteLen = len(obj.Str)
+	}
+	return obj.StrByteLen
+}
+
+func (vm *VM) stringBytes(obj *Object) string {
+	if obj == nil {
+		return ""
+	}
+	if obj.StrFlatKnown {
+		return obj.Str
+	}
+	switch obj.StrKind {
+	case StringFlat:
+		obj.StrFlatKnown = true
+		obj.StrByteLen = len(obj.Str)
+		return obj.Str
+	default:
+	}
+	cpLen := vm.stringCPLen(obj)
+	if cpLen <= 0 {
+		obj.Str = ""
+		obj.StrFlatKnown = true
+		obj.StrByteLen = 0
+		return obj.Str
+	}
+	var b strings.Builder
+	b.Grow(vm.stringByteLen(obj))
+	vm.appendStringBytesRange(&b, obj, 0, cpLen)
+	obj.Str = b.String()
+	obj.StrFlatKnown = true
+	obj.StrByteLen = len(obj.Str)
+	return obj.Str
 }
 
 func codePointAt(s string, idx int) (rune, bool) {
@@ -31,6 +142,29 @@ func codePointAt(s string, idx int) (rune, bool) {
 		count++
 	}
 	return 0, false
+}
+
+func (vm *VM) codePointAtObj(obj *Object, idx int) (rune, bool) {
+	if obj == nil || idx < 0 {
+		return 0, false
+	}
+	switch obj.StrKind {
+	case StringFlat:
+		return codePointAt(obj.Str, idx)
+	case StringConcat:
+		left := vm.Heap.Get(obj.StrLeft)
+		leftLen := vm.stringCPLen(left)
+		if idx < leftLen {
+			return vm.codePointAtObj(left, idx)
+		}
+		right := vm.Heap.Get(obj.StrRight)
+		return vm.codePointAtObj(right, idx-leftLen)
+	case StringSlice:
+		base := vm.Heap.Get(obj.StrSliceBase)
+		return vm.codePointAtObj(base, obj.StrSliceStart+idx)
+	default:
+		return codePointAt(vm.stringBytes(obj), idx)
+	}
 }
 
 func byteOffsetsForCodePoints(s string, start, end int) (startByte, endByte int) {
@@ -56,6 +190,103 @@ func byteOffsetsForCodePoints(s string, start, end int) (startByte, endByte int)
 		startByte = len(s)
 	}
 	return startByte, endByte
+}
+
+func (vm *VM) appendStringBytesRange(b *strings.Builder, obj *Object, start, end int) {
+	if b == nil || obj == nil || start >= end {
+		return
+	}
+	switch obj.StrKind {
+	case StringFlat:
+		cpLen := vm.stringCPLen(obj)
+		if start <= 0 && end >= cpLen {
+			b.WriteString(obj.Str)
+			return
+		}
+		byteStart, byteEnd := byteOffsetsForCodePoints(obj.Str, start, end)
+		if byteStart < 0 {
+			byteStart = 0
+		}
+		if byteEnd > len(obj.Str) {
+			byteEnd = len(obj.Str)
+		}
+		if byteStart < byteEnd {
+			b.WriteString(obj.Str[byteStart:byteEnd])
+		}
+	case StringConcat:
+		left := vm.Heap.Get(obj.StrLeft)
+		right := vm.Heap.Get(obj.StrRight)
+		leftLen := vm.stringCPLen(left)
+		if start < leftLen {
+			leftEnd := minInt(end, leftLen)
+			vm.appendStringBytesRange(b, left, start, leftEnd)
+		}
+		if end > leftLen {
+			rightStart := maxInt(0, start-leftLen)
+			rightEnd := end - leftLen
+			vm.appendStringBytesRange(b, right, rightStart, rightEnd)
+		}
+	case StringSlice:
+		base := vm.Heap.Get(obj.StrSliceBase)
+		sliceStart := obj.StrSliceStart
+		vm.appendStringBytesRange(b, base, sliceStart+start, sliceStart+end)
+	default:
+		s := vm.stringBytes(obj)
+		byteStart, byteEnd := byteOffsetsForCodePoints(s, start, end)
+		if byteStart < 0 {
+			byteStart = 0
+		}
+		if byteEnd > len(s) {
+			byteEnd = len(s)
+		}
+		if byteStart < byteEnd {
+			b.WriteString(s[byteStart:byteEnd])
+		}
+	}
+}
+
+func (vm *VM) byteLenForRange(obj *Object, start, end int) int {
+	if obj == nil || start >= end {
+		return 0
+	}
+	switch obj.StrKind {
+	case StringFlat:
+		cpLen := vm.stringCPLen(obj)
+		if start <= 0 && end >= cpLen {
+			return len(obj.Str)
+		}
+		byteStart, byteEnd := byteOffsetsForCodePoints(obj.Str, start, end)
+		if byteEnd < byteStart {
+			return 0
+		}
+		return byteEnd - byteStart
+	case StringConcat:
+		left := vm.Heap.Get(obj.StrLeft)
+		right := vm.Heap.Get(obj.StrRight)
+		leftLen := vm.stringCPLen(left)
+		total := 0
+		if start < leftLen {
+			leftEnd := minInt(end, leftLen)
+			total += vm.byteLenForRange(left, start, leftEnd)
+		}
+		if end > leftLen {
+			rightStart := maxInt(0, start-leftLen)
+			rightEnd := end - leftLen
+			total += vm.byteLenForRange(right, rightStart, rightEnd)
+		}
+		return total
+	case StringSlice:
+		base := vm.Heap.Get(obj.StrSliceBase)
+		sliceStart := obj.StrSliceStart
+		return vm.byteLenForRange(base, sliceStart+start, sliceStart+end)
+	default:
+		s := vm.stringBytes(obj)
+		byteStart, byteEnd := byteOffsetsForCodePoints(s, start, end)
+		if byteEnd < byteStart {
+			return 0
+		}
+		return byteEnd - byteStart
+	}
 }
 
 func (vm *VM) rangeBounds(r *RangeObject, length int) (start, end int, err *VMError) {
@@ -104,6 +335,20 @@ func (vm *VM) rangeBounds(r *RangeObject, length int) (start, end int, err *VMEr
 		endInt = length
 	}
 	return startInt, endInt, nil
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func (vm *VM) rangeIndexFromValue(v Value, length int) (int64, *VMError) {
