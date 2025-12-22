@@ -1,0 +1,57 @@
+fn write_str(s: string) -> nothing {
+    let ptr = rt_string_ptr(&s);
+    let n = rt_string_len_bytes(&s);
+    rt_write_stdout(ptr, n);
+}
+
+fn write_line(s: string) -> nothing {
+    write_str(s);
+    let nl = "\n";
+    rt_write_stdout(rt_string_ptr(&nl), 1:uint);
+}
+
+fn print_int(i: int) -> nothing {
+    write_line(i to string);
+}
+
+fn print_uint(u: uint) -> nothing {
+    write_line(u to string);
+}
+
+@entrypoint
+fn main() -> int {
+    let s = "hello world";
+    write_line((s.contains("world")) to string);
+    write_line((s.contains("zzz")) to string);
+    print_int(s.find("lo"));
+    print_int(s.find("zz"));
+    print_int(s.rfind("l"));
+    write_line((s.starts_with("hell")) to string);
+    write_line((s.starts_with("ello")) to string);
+    write_line((s.ends_with("world")) to string);
+    write_line((s.ends_with("wor")) to string);
+
+    let u = "a🙂b🙂c";
+    print_int(u.find("🙂"));
+    print_int(u.rfind("🙂"));
+
+    let parts = "a,b,c".split(",");
+    write_line("-".join(parts));
+
+    let chars = "a🙂b".split("");
+    write_line("|".join(chars));
+
+    let spaced = "  hi  ";
+    write_line("[" + spaced.trim() + "]");
+    write_line("[" + spaced.trim_start() + "]");
+    write_line("[" + spaced.trim_end() + "]");
+
+    write_line("abab".replace("ab", "x"));
+    write_line("stressed".reverse());
+    write_line("a🙂b".reverse());
+
+    print_uint("kitten".levenshtein("sitting"));
+    print_uint("a🙂b".levenshtein("🙂a"));
+
+    return 0;
+}

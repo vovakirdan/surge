@@ -1350,6 +1350,21 @@ print(len(&view) to string);          // 15 (UTF-8 bytes)
 print((view[0] to uint) to string);   // 72 ('H')
 ```
 
+### 7.4. String standard methods
+
+The core prelude defines common string helpers as methods on `string`:
+
+* `contains(needle: string) -> bool` — true if `needle` occurs.
+* `find(needle: string) -> int` — first code point index, or `-1` if missing.
+* `rfind(needle: string) -> int` — last code point index, or `-1` if missing.
+* `starts_with(prefix: string) -> bool`, `ends_with(suffix: string) -> bool`.
+* `split(sep: string) -> string[]` — empty `sep` splits into code points.
+* `join(parts: string[]) -> string` — uses `self` as the separator.
+* `trim()`, `trim_start()`, `trim_end()` — remove ASCII whitespace (`space`, `\\t`, `\\n`, `\\r`).
+* `replace(old: string, new: string) -> string` — if `old` is empty, returns the original string.
+* `reverse() -> string` — reverses by code points.
+* `levenshtein(other: string) -> uint` — edit distance by code points.
+
 ---
 
 ## 8. Overload Resolution & Conversions

@@ -61,7 +61,8 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 	}
 	name := tc.lookupName(ident.Name)
 	if name == "default" {
-		return tc.handleDefaultLikeCall(name, call, span)
+		symID := tc.symbolForExpr(call.Target)
+		return tc.handleDefaultLikeCall(name, symID, call, span)
 	}
 	if name == "clone" {
 		if result := tc.handleCloneCall(args, span); result != types.NoTypeID {
@@ -257,7 +258,7 @@ func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.Symbol
 	return nil
 }
 
-func (tc *typeChecker) handleDefaultLikeCall(name string, call *ast.ExprCallData, span source.Span) types.TypeID {
+func (tc *typeChecker) handleDefaultLikeCall(name string, symID symbols.SymbolID, call *ast.ExprCallData, span source.Span) types.TypeID {
 	if call == nil {
 		return types.NoTypeID
 	}
@@ -281,6 +282,21 @@ func (tc *typeChecker) handleDefaultLikeCall(name string, call *ast.ExprCallData
 	if name == "default" && !tc.defaultable(targetType) {
 		tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Target), "default is not defined for %s", tc.typeLabel(targetType))
 		return types.NoTypeID
+	}
+	if symID.IsValid() {
+		if sym := tc.symbolFromID(symID); sym == nil || (sym.Kind != symbols.SymbolFunction && sym.Kind != symbols.SymbolTag) {
+			symID = symbols.NoSymbolID
+		}
+	}
+	if !symID.IsValid() && tc.builder != nil {
+		if ident, ok := tc.builder.Exprs.Ident(call.Target); ok && ident != nil {
+			if candidates := tc.functionCandidates(ident.Name); len(candidates) > 0 {
+				symID = candidates[0]
+			}
+		}
+	}
+	if symID.IsValid() {
+		tc.rememberFunctionInstantiation(symID, []types.TypeID{targetType}, span, "call")
 	}
 	return targetType
 }

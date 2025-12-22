@@ -122,8 +122,16 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("semantic analysis result not available")
 	}
 
+	hirModule, err := driver.CombineHIRWithCore(cmd.Context(), result)
+	if err != nil {
+		return fmt.Errorf("HIR merge failed: %w", err)
+	}
+	if hirModule == nil {
+		hirModule = result.HIR
+	}
+
 	// Monomorphize
-	mm, err := mono.MonomorphizeModule(result.HIR, result.Instantiations, result.Sema, mono.Options{
+	mm, err := mono.MonomorphizeModule(hirModule, result.Instantiations, result.Sema, mono.Options{
 		MaxDepth: 64,
 	})
 	if err != nil {

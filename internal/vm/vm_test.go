@@ -49,7 +49,15 @@ func compileToMIR(t *testing.T, filePath string) (*mir.Module, *source.FileSet, 
 		t.Fatal("semantic analysis result not available")
 	}
 
-	mm, err := mono.MonomorphizeModule(result.HIR, result.Instantiations, result.Sema, mono.Options{
+	hirModule, err := driver.CombineHIRWithCore(context.Background(), result)
+	if err != nil {
+		t.Fatalf("HIR merge failed: %v", err)
+	}
+	if hirModule == nil {
+		hirModule = result.HIR
+	}
+
+	mm, err := mono.MonomorphizeModule(hirModule, result.Instantiations, result.Sema, mono.Options{
 		MaxDepth: 64,
 	})
 	if err != nil {

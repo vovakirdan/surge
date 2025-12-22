@@ -42,7 +42,7 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 		Stage:          DiagnoseStageSema,
 		MaxDiagnostics: 32,
 	}
-	exports, _, err := runModuleGraph(context.Background(), fs, file, builder, parseRes.File, bag, opts, NewModuleCache(4), typeInterner, sharedStrings)
+	exports, _, _, err := runModuleGraph(context.Background(), fs, file, builder, parseRes.File, bag, opts, NewModuleCache(4), typeInterner, sharedStrings)
 	if err != nil {
 		t.Fatalf("runModuleGraph failed: %v", err)
 	}

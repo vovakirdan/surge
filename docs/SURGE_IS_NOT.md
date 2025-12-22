@@ -561,6 +561,12 @@ We have `__add`, `__index`, `__to` and others — also "magic", but:
 * you can read them, override them in `extern<T>`,
 * built-ins for primitives are sealed, but aliases can be extended.
 
+### Surge strings
+
+Python strings are famously flexible and come with `s[a:b]` slicing and a huge built-in API.
+Surge strings stay explicit: UTF-8 storage with **code point** indexing, range slicing via `s[[a..b]]`, and a focused standard method set (`contains`, `find`, `split`, `trim`, `replace`, `reverse`, `levenshtein`).
+Same idea — different rules, fewer surprises.
+
 Surge is not Python: we love readability, but in exchange we ask for a bit of discipline.
 
 ---

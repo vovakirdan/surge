@@ -276,11 +276,6 @@ extern<string> {
     @intrinsic fn __clone(self: &string) -> string;
     @intrinsic @overload fn __index(self: &string, index: int) -> uint32;
     @intrinsic @overload fn __index(self: &string, index: Range<int>) -> string;
-    pub fn bytes(self: &string) -> BytesView { return rt_string_bytes_view(self); }
-    // String identity (for @entrypoint("argv") support)
-    pub fn from_str(s: string) -> Erring<string, Error> {
-        return Success(s);
-    }
 }
 
 pub type BytesView = {
