@@ -30,6 +30,48 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 		switch {
 		case left.Kind == VKHandleString && right.Kind == VKHandleString:
 			return vm.concatStringValues(left, right)
+		case left.Kind == VKHandleArray && right.Kind == VKHandleArray:
+			leftObj := vm.Heap.Get(left.H)
+			if leftObj == nil {
+				return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid array handle")
+			}
+			if leftObj.Kind != OKArray {
+				return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("expected array handle, got %v", leftObj.Kind))
+			}
+			rightObj := vm.Heap.Get(right.H)
+			if rightObj == nil {
+				return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid array handle")
+			}
+			if rightObj.Kind != OKArray {
+				return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("expected array handle, got %v", rightObj.Kind))
+			}
+			elems := make([]Value, 0, len(leftObj.Arr)+len(rightObj.Arr))
+			for i := range leftObj.Arr {
+				v, vmErr := vm.cloneForShare(leftObj.Arr[i])
+				if vmErr != nil {
+					for _, el := range elems {
+						vm.dropValue(el)
+					}
+					return Value{}, vmErr
+				}
+				elems = append(elems, v)
+			}
+			for i := range rightObj.Arr {
+				v, vmErr := vm.cloneForShare(rightObj.Arr[i])
+				if vmErr != nil {
+					for _, el := range elems {
+						vm.dropValue(el)
+					}
+					return Value{}, vmErr
+				}
+				elems = append(elems, v)
+			}
+			arrType := left.TypeID
+			if arrType == types.NoTypeID {
+				arrType = right.TypeID
+			}
+			h := vm.Heap.AllocArray(arrType, elems)
+			return MakeHandleArray(h, arrType), nil
 		case left.Kind == VKBigInt && right.Kind == VKBigInt:
 			a, vmErr := vm.mustBigInt(left)
 			if vmErr != nil {
@@ -135,6 +177,18 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 		default:
 			return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 		}
+
+	case ast.ExprBinaryLogicalAnd:
+		if left.Kind != VKBool || right.Kind != VKBool {
+			return Value{}, vm.eb.typeMismatch("bool", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
+		}
+		return MakeBool(left.Bool && right.Bool, left.TypeID), nil
+
+	case ast.ExprBinaryLogicalOr:
+		if left.Kind != VKBool || right.Kind != VKBool {
+			return Value{}, vm.eb.typeMismatch("bool", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
+		}
+		return MakeBool(left.Bool || right.Bool, left.TypeID), nil
 
 	case ast.ExprBinaryMul:
 		switch {

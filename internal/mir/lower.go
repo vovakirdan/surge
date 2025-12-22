@@ -75,6 +75,9 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 		if mf == nil || mf.Func == nil {
 			continue
 		}
+		if mf.Func.IsIntrinsic() {
+			continue
+		}
 		id := nextID
 		nextID++
 		fl := &funcLowerer{

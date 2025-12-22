@@ -179,6 +179,7 @@ func (fr *fileResolver) handleExtern(itemID ast.ItemID, block *ast.ExternBlock) 
 		return
 	}
 	receiverKey := makeTypeKey(fr.builder, block.Target)
+	receiverParams := fr.externReceiverTypeParams(block.Target)
 	start := uint32(block.MembersStart)
 	for offset := range block.MembersCount {
 		memberID := ast.ExternMemberID(start + offset)
@@ -190,7 +191,10 @@ func (fr *fileResolver) handleExtern(itemID ast.ItemID, block *ast.ExternBlock) 
 		if fn == nil {
 			continue
 		}
-		fr.declareExternFn(itemID, memberID, receiverKey, fn)
+		fr.declareExternFn(itemID, memberID, receiverKey, receiverParams, fn)
+		if fr.declareOnly {
+			continue
+		}
 		fr.walkFn(ScopeOwner{
 			Kind:       ScopeOwnerItem,
 			SourceFile: fr.sourceFile,

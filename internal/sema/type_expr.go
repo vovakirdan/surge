@@ -147,7 +147,8 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 						tc.observeMove(arg.Value, tc.exprSpan(arg.Value))
 					}
 					ty = tc.methodResultType(member, receiverType, argTypes, expr.Span, receiverIsType)
-					tc.recordMethodCallSymbol(id, member, receiverType, argTypes, receiverIsType)
+					symID := tc.recordMethodCallSymbol(id, member, receiverType, argTypes, receiverIsType)
+					tc.recordMethodCallInstantiation(symID, call, receiverType, expr.Span)
 					break
 				}
 			}

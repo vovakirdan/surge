@@ -94,9 +94,7 @@ func buildStmtSymbolIndex(symRes *symbols.Result, fileID ast.FileID) map[ast.Stm
 			continue
 		}
 		if sym.Decl.Stmt.IsValid() {
-			if _, exists := out[sym.Decl.Stmt]; exists {
-				continue
-			}
+			// Prefer the latest symbol when a stmt is re-resolved (locals aren't reused).
 			out[sym.Decl.Stmt] = id
 		}
 	}

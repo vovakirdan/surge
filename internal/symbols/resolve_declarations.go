@@ -276,7 +276,7 @@ func (fr *fileResolver) declareTag(itemID ast.ItemID, tagItem *ast.TagItem) {
 
 // declareExternFn объявляет внешнюю функцию из extern-блока.
 // Обрабатывает методы с получателями и обычные функции.
-func (fr *fileResolver) declareExternFn(container ast.ItemID, member ast.ExternMemberID, receiverKey TypeKey, fnItem *ast.FnItem) {
+func (fr *fileResolver) declareExternFn(container ast.ItemID, member ast.ExternMemberID, receiverKey TypeKey, receiverParams []source.StringID, fnItem *ast.FnItem) {
 	if fnItem.Name == source.NoStringID {
 		return
 	}
@@ -308,7 +308,12 @@ func (fr *fileResolver) declareExternFn(container ast.ItemID, member ast.ExternM
 			fr.appendExternSymbol(member, symID)
 		}
 		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
-			sym.TypeParams = append([]source.StringID(nil), fnItem.Generics...)
+			if len(receiverParams) > 0 {
+				sym.TypeParams = append([]source.StringID(nil), receiverParams...)
+				sym.TypeParams = append(sym.TypeParams, fnItem.Generics...)
+			} else {
+				sym.TypeParams = append([]source.StringID(nil), fnItem.Generics...)
+			}
 			sym.TypeParamSpan = fnItem.GenericsSpan
 		}
 		fr.appendItemSymbol(container, symID)

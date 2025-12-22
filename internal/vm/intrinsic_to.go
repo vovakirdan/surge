@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"math"
 
 	"surge/internal/types"
 	"surge/internal/vm/bignum"
@@ -100,7 +101,18 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 
 	case types.KindInt:
 		if dstTT.Width != types.WidthAny {
-			return Value{}, vm.eb.unimplemented("__to to fixed-width int")
+			value, vmErr := vm.toInt64ForCast(src)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			minVal, maxVal, ok := intRangeForWidth(dstTT.Width)
+			if !ok {
+				return Value{}, vm.eb.unimplemented("__to to fixed-width int")
+			}
+			if value < minVal || value > maxVal {
+				return Value{}, vm.eb.invalidNumericConversion("integer overflow")
+			}
+			return MakeInt(value, dstType), nil
 		}
 		switch src.Kind {
 		case VKBigInt:
@@ -143,7 +155,18 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 
 	case types.KindUint:
 		if dstTT.Width != types.WidthAny {
-			return Value{}, vm.eb.unimplemented("__to to fixed-width uint")
+			value, vmErr := vm.toUint64ForCast(src)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			maxVal, ok := uintMaxForWidth(dstTT.Width)
+			if !ok {
+				return Value{}, vm.eb.unimplemented("__to to fixed-width uint")
+			}
+			if value > maxVal || value > math.MaxInt64 {
+				return Value{}, vm.eb.invalidNumericConversion("unsigned overflow")
+			}
+			return MakeInt(int64(value), dstType), nil
 		}
 		switch src.Kind {
 		case VKBigUint:
@@ -247,5 +270,164 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 
 	default:
 		return Value{}, vm.eb.unimplemented("__to conversion")
+	}
+}
+
+func intRangeForWidth(width types.Width) (int64, int64, bool) {
+	switch width {
+	case types.Width8:
+		return math.MinInt8, math.MaxInt8, true
+	case types.Width16:
+		return math.MinInt16, math.MaxInt16, true
+	case types.Width32:
+		return math.MinInt32, math.MaxInt32, true
+	case types.Width64:
+		return math.MinInt64, math.MaxInt64, true
+	default:
+		return 0, 0, false
+	}
+}
+
+func uintMaxForWidth(width types.Width) (uint64, bool) {
+	switch width {
+	case types.Width8:
+		return math.MaxUint8, true
+	case types.Width16:
+		return math.MaxUint16, true
+	case types.Width32:
+		return math.MaxUint32, true
+	case types.Width64:
+		return math.MaxUint64, true
+	default:
+		return 0, false
+	}
+}
+
+func (vm *VM) toInt64ForCast(src Value) (int64, *VMError) {
+	switch src.Kind {
+	case VKInt:
+		return src.Int, nil
+	case VKBigInt:
+		i, vmErr := vm.mustBigInt(src)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		val, ok := i.Int64()
+		if !ok {
+			return 0, vm.eb.invalidNumericConversion("integer overflow")
+		}
+		return val, nil
+	case VKBigUint:
+		u, vmErr := vm.mustBigUint(src)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		val, ok := u.Uint64()
+		if !ok || val > math.MaxInt64 {
+			return 0, vm.eb.invalidNumericConversion("integer overflow")
+		}
+		return int64(val), nil
+	case VKBigFloat:
+		f, vmErr := vm.mustBigFloat(src)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		i, err := bignum.FloatToIntTrunc(f)
+		if err != nil {
+			return 0, vm.bignumErr(err)
+		}
+		val, ok := i.Int64()
+		if !ok {
+			return 0, vm.eb.invalidNumericConversion("integer overflow")
+		}
+		return val, nil
+	case VKHandleString:
+		s := vm.stringBytes(vm.Heap.Get(src.H))
+		i, err := bignum.ParseInt(s)
+		if err != nil {
+			return 0, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as int: %v", s, err))
+		}
+		val, ok := i.Int64()
+		if !ok {
+			return 0, vm.eb.invalidNumericConversion("integer overflow")
+		}
+		return val, nil
+	case VKBool:
+		if src.Bool {
+			return 1, nil
+		}
+		return 0, nil
+	default:
+		return 0, vm.eb.unimplemented("__to to fixed-width int")
+	}
+}
+
+func (vm *VM) toUint64ForCast(src Value) (uint64, *VMError) {
+	switch src.Kind {
+	case VKInt:
+		if src.Int < 0 {
+			return 0, vm.eb.invalidNumericConversion("cannot convert negative int to uint")
+		}
+		return uint64(src.Int), nil
+	case VKBigInt:
+		i, vmErr := vm.mustBigInt(src)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		if i.Neg && !i.IsZero() {
+			return 0, vm.eb.invalidNumericConversion("cannot convert negative int to uint")
+		}
+		u := i.Abs()
+		val, ok := u.Uint64()
+		if !ok {
+			return 0, vm.eb.invalidNumericConversion("unsigned overflow")
+		}
+		return val, nil
+	case VKBigUint:
+		u, vmErr := vm.mustBigUint(src)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		val, ok := u.Uint64()
+		if !ok {
+			return 0, vm.eb.invalidNumericConversion("unsigned overflow")
+		}
+		return val, nil
+	case VKBigFloat:
+		f, vmErr := vm.mustBigFloat(src)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		i, err := bignum.FloatToIntTrunc(f)
+		if err != nil {
+			return 0, vm.bignumErr(err)
+		}
+		if i.Neg && !i.IsZero() {
+			return 0, vm.eb.invalidNumericConversion("cannot convert negative float to uint")
+		}
+		u := i.Abs()
+		val, ok := u.Uint64()
+		if !ok {
+			return 0, vm.eb.invalidNumericConversion("unsigned overflow")
+		}
+		return val, nil
+	case VKHandleString:
+		s := vm.stringBytes(vm.Heap.Get(src.H))
+		u, err := bignum.ParseUint(s)
+		if err != nil {
+			return 0, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as uint: %v", s, err))
+		}
+		val, ok := u.Uint64()
+		if !ok {
+			return 0, vm.eb.invalidNumericConversion("unsigned overflow")
+		}
+		return val, nil
+	case VKBool:
+		if src.Bool {
+			return 1, nil
+		}
+		return 0, nil
+	default:
+		return 0, vm.eb.unimplemented("__to to fixed-width uint")
 	}
 }

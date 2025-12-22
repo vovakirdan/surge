@@ -1,8 +1,6 @@
 package sema
 
 import (
-	"strings"
-
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/symbols"
@@ -61,10 +59,10 @@ func (tc *typeChecker) buildMagicIndex() {
 				if name == "__to" && !tc.acceptToSignature(sym.Signature, sym.ReceiverKey, sym) {
 					continue
 				}
-				// Only normalize operators to enforce alias type safety
-				// Preserve actual self parameter types for user methods (for implicit borrow checking)
+				// Only normalize operators to enforce alias type safety.
+				// Preserve actual self parameter types for user methods (for implicit borrow checking).
 				normalized := sym.Signature
-				if strings.HasPrefix(name, "__") {
+				if isOperatorMagicName(name) {
 					normalized = normalizeSignatureForReceiver(sym.Signature, sym.ReceiverKey)
 				}
 				tc.addMagicEntry(sym.ReceiverKey, name, normalized)
@@ -86,15 +84,27 @@ func (tc *typeChecker) buildMagicIndex() {
 						continue
 					}
 				}
-				// Only normalize operators to enforce alias type safety
-				// Preserve actual self parameter types for user methods (for implicit borrow checking)
+				// Only normalize operators to enforce alias type safety.
+				// Preserve actual self parameter types for user methods (for implicit borrow checking).
 				normalized := sym.Signature
-				if strings.HasPrefix(sym.Name, "__") {
+				if isOperatorMagicName(sym.Name) {
 					normalized = normalizeSignatureForReceiver(sym.Signature, sym.ReceiverKey)
 				}
 				tc.addMagicEntry(sym.ReceiverKey, sym.Name, normalized)
 			}
 		}
+	}
+}
+
+func isOperatorMagicName(name string) bool {
+	switch name {
+	case "__add", "__sub", "__mul", "__div", "__mod",
+		"__bit_and", "__bit_or", "__bit_xor", "__shl", "__shr",
+		"__eq", "__ne", "__lt", "__le", "__gt", "__ge",
+		"__pos", "__neg", "__not":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -223,7 +233,10 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 		}
 		methods := tc.lookupMagicMethods(recv.key, "__index")
 		for _, sig := range methods {
-			if sig == nil || len(sig.Params) < 2 || !typeKeyEqual(sig.Params[0], recv.key) {
+			if sig == nil || len(sig.Params) < 2 {
+				continue
+			}
+			if !tc.selfParamCompatible(container, sig.Params[0], recv.key) {
 				continue
 			}
 			if !tc.methodParamMatches(sig.Params[1], index) {
@@ -252,7 +265,10 @@ func (tc *typeChecker) hasIndexSetter(container, index, value types.TypeID) bool
 		}
 		methods := tc.lookupMagicMethods(recv.key, "__index_set")
 		for _, sig := range methods {
-			if sig == nil || len(sig.Params) < 3 || !typeKeyEqual(sig.Params[0], recv.key) {
+			if sig == nil || len(sig.Params) < 3 {
+				continue
+			}
+			if !tc.selfParamCompatible(container, sig.Params[0], recv.key) {
 				continue
 			}
 			if !tc.methodParamMatches(sig.Params[1], index) {

@@ -26,6 +26,13 @@ func (vm *VM) evalArrayLit(frame *Frame, lit *mir.ArrayLit) (Value, *VMError) {
 
 // evalIndex evaluates an index operation.
 func (vm *VM) evalIndex(obj, idx Value) (Value, *VMError) {
+	if obj.Kind == VKRef || obj.Kind == VKRefMut {
+		v, loadErr := vm.loadLocationRaw(obj.Loc)
+		if loadErr != nil {
+			return Value{}, loadErr
+		}
+		obj = v
+	}
 	switch obj.Kind {
 	case VKHandleArray:
 		return vm.evalArrayIndex(obj, idx)

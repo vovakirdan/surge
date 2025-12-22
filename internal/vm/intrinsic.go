@@ -933,6 +933,43 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			return vm.eb.typeMismatch("len-compatible", arg.Kind.String())
 		}
 
+	case "__clone":
+		if !call.HasDst {
+			return vm.eb.makeError(PanicTypeMismatch, "__clone requires a destination")
+		}
+		if len(call.Args) != 1 {
+			return vm.eb.makeError(PanicTypeMismatch, "__clone requires 1 argument")
+		}
+		arg, vmErr := vm.evalOperand(frame, &call.Args[0])
+		if vmErr != nil {
+			return vmErr
+		}
+		defer vm.dropValue(arg)
+		if arg.Kind == VKRef || arg.Kind == VKRefMut {
+			v, loadErr := vm.loadLocationRaw(arg.Loc)
+			if loadErr != nil {
+				return loadErr
+			}
+			arg = v
+		}
+		if arg.Kind != VKHandleString {
+			return vm.eb.typeMismatch("string", arg.Kind.String())
+		}
+		clone, vmErr := vm.cloneForShare(arg)
+		if vmErr != nil {
+			return vmErr
+		}
+		dstLocal := call.Dst.Local
+		if vmErr := vm.writeLocal(frame, dstLocal, clone); vmErr != nil {
+			vm.dropValue(clone)
+			return vmErr
+		}
+		*writes = append(*writes, LocalWrite{
+			LocalID: dstLocal,
+			Name:    frame.Locals[dstLocal].Name,
+			Value:   clone,
+		})
+
 	case "__index":
 		if !call.HasDst {
 			return vm.eb.makeError(PanicTypeMismatch, "__index requires a destination")

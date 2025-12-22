@@ -433,17 +433,52 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 	return types.NoTypeID
 }
 
-func (tc *typeChecker) recordMethodCallSymbol(callID ast.ExprID, member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, staticReceiver bool) {
+func (tc *typeChecker) recordMethodCallSymbol(callID ast.ExprID, member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, staticReceiver bool) symbols.SymbolID {
 	if callID == ast.NoExprID || member == nil || tc.symbols == nil {
-		return
+		return symbols.NoSymbolID
 	}
 	if tc.symbols.ExprSymbols == nil {
-		return
+		return symbols.NoSymbolID
 	}
 	symID := tc.resolveMethodCallSymbol(member, recv, args, staticReceiver)
 	if symID.IsValid() {
 		tc.symbols.ExprSymbols[callID] = symID
 	}
+	return symID
+}
+
+func (tc *typeChecker) recordMethodCallInstantiation(symID symbols.SymbolID, call *ast.ExprCallData, recv types.TypeID, span source.Span) {
+	if call == nil || !symID.IsValid() {
+		return
+	}
+	sym := tc.symbolFromID(symID)
+	if sym == nil || len(sym.TypeParams) == 0 {
+		return
+	}
+	recvArgs := tc.receiverTypeArgs(recv)
+	explicitArgs := tc.resolveCallTypeArgs(call.TypeArgs)
+	typeArgs := append(recvArgs, explicitArgs...)
+	if len(typeArgs) == 0 || len(typeArgs) != len(sym.TypeParams) {
+		return
+	}
+	tc.rememberFunctionInstantiation(symID, typeArgs, span, "call")
+}
+
+func (tc *typeChecker) receiverTypeArgs(recv types.TypeID) []types.TypeID {
+	if recv == types.NoTypeID || tc.types == nil {
+		return nil
+	}
+	resolved := tc.resolveAlias(recv)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return nil
+	}
+	if tt.Kind == types.KindOwn || tt.Kind == types.KindReference || tt.Kind == types.KindPointer {
+		if tt.Elem != types.NoTypeID {
+			resolved = tc.resolveAlias(tt.Elem)
+		}
+	}
+	return tc.typeArgsForType(resolved)
 }
 
 func (tc *typeChecker) resolveMethodCallSymbol(member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, staticReceiver bool) symbols.SymbolID {

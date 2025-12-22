@@ -48,6 +48,23 @@ func (in *Interner) TypeParamInfo(id TypeID) (*TypeParamInfo, bool) {
 	return &info, true
 }
 
+// RemapTypeParamOwners updates generic param owner IDs using the provided mapping.
+// The mapping is keyed by old owner IDs and yields new owner IDs.
+func (in *Interner) RemapTypeParamOwners(mapping map[uint32]uint32) {
+	if in == nil || len(mapping) == 0 {
+		return
+	}
+	for i := range in.params {
+		if i == 0 {
+			continue
+		}
+		owner := in.params[i].Owner
+		if mapped, ok := mapping[owner]; ok {
+			in.params[i].Owner = mapped
+		}
+	}
+}
+
 func (in *Interner) appendTypeParamInfo(info TypeParamInfo) uint32 {
 	if in.params == nil {
 		in.params = append(in.params, TypeParamInfo{})

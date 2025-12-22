@@ -43,6 +43,7 @@ func CombineHIRWithCore(ctx context.Context, res *DiagnoseResult) (*hir.Module, 
 	if err := appendCoreInstantiations(ctx, res, coreRec, mapping); err != nil {
 		return nil, err
 	}
+	remapTypeParamOwners(res.Sema, mapping)
 
 	combined := &hir.Module{
 		Name:         res.HIR.Name,
@@ -87,6 +88,17 @@ func CombineHIRWithCore(ctx context.Context, res *DiagnoseResult) (*hir.Module, 
 	}
 
 	return combined, nil
+}
+
+func remapTypeParamOwners(semaRes *sema.Result, mapping map[symbols.SymbolID]symbols.SymbolID) {
+	if semaRes == nil || semaRes.TypeInterner == nil || len(mapping) == 0 {
+		return
+	}
+	owners := make(map[uint32]uint32, len(mapping))
+	for from, to := range mapping {
+		owners[uint32(from)] = uint32(to)
+	}
+	semaRes.TypeInterner.RemapTypeParamOwners(owners)
 }
 
 func findCoreRecord(records map[string]*moduleRecord) *moduleRecord {
