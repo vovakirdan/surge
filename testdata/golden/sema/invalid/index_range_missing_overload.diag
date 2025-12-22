@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/index_range_missing_overload.sg:13:15 Box is not indexable

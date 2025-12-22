@@ -1,0 +1,6 @@
+fn test() {
+    let a: int[] = [1, 2, 3, 4];
+    let x = a[1];
+    let y = a[-1];
+    let slice = a[[1..3]];
+}

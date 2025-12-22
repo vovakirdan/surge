@@ -1,0 +1,53 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "test" at 1:4-1:8 (leading: Space)
+  3: LParen          "(" at 1:8-1:9
+  4: RParen          ")" at 1:9-1:10
+  5: LBrace          "{" at 1:11-1:12 (leading: Space)
+  6: KwLet           "let" at 2:5-2:8 (leading: Newline, Space)
+  7: Ident           "a" at 2:9-2:10 (leading: Space)
+  8: Colon           ":" at 2:10-2:11
+  9: Ident           "int" at 2:12-2:15 (leading: Space)
+ 10: LBracket        "[" at 2:15-2:16
+ 11: RBracket        "]" at 2:16-2:17
+ 12: Assign          "=" at 2:18-2:19 (leading: Space)
+ 13: LBracket        "[" at 2:20-2:21 (leading: Space)
+ 14: IntLit          "1" at 2:21-2:22
+ 15: Comma           "," at 2:22-2:23
+ 16: IntLit          "2" at 2:24-2:25 (leading: Space)
+ 17: Comma           "," at 2:25-2:26
+ 18: IntLit          "3" at 2:27-2:28 (leading: Space)
+ 19: Comma           "," at 2:28-2:29
+ 20: IntLit          "4" at 2:30-2:31 (leading: Space)
+ 21: RBracket        "]" at 2:31-2:32
+ 22: Semicolon       ";" at 2:32-2:33
+ 23: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 24: Ident           "x" at 3:9-3:10 (leading: Space)
+ 25: Assign          "=" at 3:11-3:12 (leading: Space)
+ 26: Ident           "a" at 3:13-3:14 (leading: Space)
+ 27: LBracket        "[" at 3:14-3:15
+ 28: IntLit          "1" at 3:15-3:16
+ 29: RBracket        "]" at 3:16-3:17
+ 30: Semicolon       ";" at 3:17-3:18
+ 31: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 32: Ident           "y" at 4:9-4:10 (leading: Space)
+ 33: Assign          "=" at 4:11-4:12 (leading: Space)
+ 34: Ident           "a" at 4:13-4:14 (leading: Space)
+ 35: LBracket        "[" at 4:14-4:15
+ 36: Minus           "-" at 4:15-4:16
+ 37: IntLit          "1" at 4:16-4:17
+ 38: RBracket        "]" at 4:17-4:18
+ 39: Semicolon       ";" at 4:18-4:19
+ 40: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 41: Ident           "slice" at 5:9-5:14 (leading: Space)
+ 42: Assign          "=" at 5:15-5:16 (leading: Space)
+ 43: Ident           "a" at 5:17-5:18 (leading: Space)
+ 44: LBracket        "[" at 5:18-5:19
+ 45: LBracket        "[" at 5:19-5:20
+ 46: IntLit          "1" at 5:20-5:21
+ 47: DotDot          ".." at 5:21-5:23
+ 48: IntLit          "3" at 5:23-5:24
+ 49: RBracket        "]" at 5:24-5:25
+ 50: RBracket        "]" at 5:25-5:26
+ 51: Semicolon       ";" at 5:26-5:27
+ 52: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 53: EOF             at 7:1-7:1
