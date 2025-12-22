@@ -273,7 +273,7 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 	}
 }
 
-func intRangeForWidth(width types.Width) (int64, int64, bool) {
+func intRangeForWidth(width types.Width) (minVal, maxVal int64, ok bool) {
 	switch width {
 	case types.Width8:
 		return math.MinInt8, math.MaxInt8, true

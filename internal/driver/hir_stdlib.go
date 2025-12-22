@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"fortio.org/safecast"
+
 	"surge/internal/diag"
 	"surge/internal/hir"
 	"surge/internal/mono"
@@ -134,7 +136,10 @@ func buildCoreSymbolRemap(rootSyms *symbols.Result, coreRec *moduleRecord) map[s
 	rootMap := make(map[string]symbols.SymbolID)
 	rootSymsLen := rootSyms.Table.Symbols.Len()
 	for i := 1; i <= rootSymsLen; i++ {
-		id := symbols.SymbolID(i)
+		id, err := safecast.Conv[symbols.SymbolID](i)
+		if err != nil {
+			panic(fmt.Errorf("symbol id overflow: %w", err))
+		}
 		sym := rootSyms.Table.Symbols.Get(id)
 		if sym == nil || sym.Flags&symbols.SymbolFlagImported == 0 {
 			continue
@@ -152,7 +157,10 @@ func buildCoreSymbolRemap(rootSyms *symbols.Result, coreRec *moduleRecord) map[s
 	mapping := make(map[symbols.SymbolID]symbols.SymbolID)
 	coreSymsLen := coreRec.Table.Symbols.Len()
 	for i := 1; i <= coreSymsLen; i++ {
-		id := symbols.SymbolID(i)
+		id, err := safecast.Conv[symbols.SymbolID](i)
+		if err != nil {
+			panic(fmt.Errorf("symbol id overflow: %w", err))
+		}
 		sym := coreRec.Table.Symbols.Get(id)
 		if sym == nil {
 			continue
@@ -268,14 +276,13 @@ func signatureKey(sig *symbols.FunctionSignature) string {
 	return b.String()
 }
 
-func maxFuncID(funcs []*hir.Func) hir.FuncID {
-	var max hir.FuncID
+func maxFuncID(funcs []*hir.Func) (maxFID hir.FuncID) {
 	for _, fn := range funcs {
-		if fn != nil && fn.ID > max {
-			max = fn.ID
+		if fn != nil && fn.ID > maxFID {
+			maxFID = fn.ID
 		}
 	}
-	return max
+	return maxFID
 }
 
 func remapSymbol(id symbols.SymbolID, mapping map[symbols.SymbolID]symbols.SymbolID) symbols.SymbolID {

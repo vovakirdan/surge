@@ -457,7 +457,9 @@ func (tc *typeChecker) recordMethodCallInstantiation(symID symbols.SymbolID, cal
 	}
 	recvArgs := tc.receiverTypeArgs(recv)
 	explicitArgs := tc.resolveCallTypeArgs(call.TypeArgs)
-	typeArgs := append(recvArgs, explicitArgs...)
+	typeArgs := make([]types.TypeID, 0, len(recvArgs)+len(explicitArgs))
+	typeArgs = append(typeArgs, recvArgs...)
+	typeArgs = append(typeArgs, explicitArgs...)
 	if len(typeArgs) == 0 || len(typeArgs) != len(sym.TypeParams) {
 		return
 	}
