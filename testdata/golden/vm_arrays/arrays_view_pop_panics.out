@@ -1,0 +1,5 @@
+panic VM1003: array view is not resizable
+at testdata/golden/vm_arrays/arrays_view_pop_panics.sg:5:5
+backtrace:
+  0: main at testdata/golden/vm_arrays/arrays_view_pop_panics.sg:5:5
+  1: __surge_start at <no-span>

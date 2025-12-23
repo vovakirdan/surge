@@ -2,7 +2,7 @@
 == HIR ==
 module 
 
-fn sum_range(n: int [copy]) -> int (id=1, sym=636) {
+fn sum_range(n: int [copy]) -> int (id=1, sym=642) {
   let mut total: int [copy] = 0
   {
     let mut i: int [copy] = 0

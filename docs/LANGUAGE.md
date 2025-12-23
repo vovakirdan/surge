@@ -660,6 +660,7 @@ Parser diagnostics:
 * Range operands use overload resolution: `s[a..b]` resolves `__index(self, r: Range<int>)`.
   Range literals are bracketed, so this can also appear as `s[[a..b]]` without a dedicated slice syntax.
 * Array slicing via ranges returns a view, not a copy; mutations through the view affect the base array.
+* Array views are not resizable; push/pop/reserve operations panic.
 * For strings, `s[i]` returns a `uint32` code point (code point indexing, not byte indexing).
 * Negative indices count from the end for arrays and strings.
 * `[..=]` is invalid (inclusive end requires an end bound).

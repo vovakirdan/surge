@@ -2,13 +2,13 @@
 == HIR ==
 module 
 
-type Point <struct> (sym=636, type=0)
+type Point <struct> (sym=642, type=0)
 
-fn origin() -> type#368 (id=1, sym=637) {
-  return  { x = 0, y = 0 }: type#368
+fn origin() -> type#378 (id=1, sym=643) {
+  return  { x = 0, y = 0 }: type#378
 }
 
-fn move_point(p: type#368, dx: int [copy], dy: int [copy]) -> type#368 (id=2, sym=638) {
-  return  { x = (p.x + dx): int, y = (p.y + dy): int }: type#368
+fn move_point(p: type#378, dx: int [copy], dy: int [copy]) -> type#378 (id=2, sym=644) {
+  return  { x = (p.x + dx): int, y = (p.y + dy): int }: type#378
 }
 

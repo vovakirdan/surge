@@ -1,4 +1,4 @@
-panic VM3302: heap leak detected: 4 objects still alive (array=2, struct=2): struct#2(rc=1,type=type#368), array#3(rc=1,type=type#0), struct#5(rc=1,type=type#368), array#6(rc=1,type=type#0)
+panic VM3302: heap leak detected: 4 objects still alive (array=2, struct=2): struct#2(rc=1,type=type#378), array#3(rc=1,type=type#0), struct#5(rc=1,type=type#378), array#6(rc=1,type=type#0)
 at <no-span>
 backtrace:
   0: __surge_start at <no-span>

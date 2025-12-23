@@ -306,6 +306,9 @@ extern<Array<T>> {
     @intrinsic fn __index_set(self: Array<T>, index: int, value: T) -> nothing;
     @intrinsic fn __range(self: Array<T>) -> Range<T>;
     @intrinsic fn __len(self: &Array<T>) -> uint;
+    @intrinsic pub fn rt_array_reserve(self: &mut Array<T>, new_cap: uint) -> nothing;
+    @intrinsic pub fn rt_array_push(self: &mut Array<T>, value: T) -> nothing;
+    @intrinsic pub fn rt_array_pop(self: &mut Array<T>) -> Option<T>;
 }
 
 extern<ArrayFixed<T, N>> {

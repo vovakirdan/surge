@@ -1,0 +1,21 @@
+arrays_view_push_panics.sg (span: 1:1-8:1)
+└─ Item[0]: Fn (span: 1:1-7:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-7:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:34)
+         │  ├─ Name: a
+         │  ├─ Mutable: true
+         │  ├─ Type: int[]
+         │  └─ Value: expr#4: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 4:5-4:27)
+         │  ├─ Name: v
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#10: a[[1..3]]
+         ├─ Stmt[2]: Expr (span: 5:5-5:30)
+         │  └─ Expr: expr#15: rt_array_push(&mut v, 4)
+         └─ Stmt[3]: Return (span: 6:5-6:14)
+            └─ Expr: expr#16: 0

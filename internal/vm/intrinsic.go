@@ -61,6 +61,15 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_range_int_full":
 		return vm.handleRangeIntFull(frame, call, writes)
 
+	case "rt_array_reserve":
+		return vm.handleArrayReserve(frame, call, writes)
+
+	case "rt_array_push":
+		return vm.handleArrayPush(frame, call, writes)
+
+	case "rt_array_pop":
+		return vm.handleArrayPop(frame, call, writes)
+
 	case "rt_write_stdout":
 		return vm.handleWriteStdout(frame, call, writes)
 

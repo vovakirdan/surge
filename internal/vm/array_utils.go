@@ -129,3 +129,41 @@ func (vm *VM) arrayIndexFromValue(idx Value, length int) (int, *VMError) {
 	}
 	return ni, nil
 }
+
+func (vm *VM) arrayOwnedFromValue(val Value) (*Object, *VMError) {
+	if val.Kind == VKRef || val.Kind == VKRefMut {
+		loaded, vmErr := vm.loadLocationRaw(val.Loc)
+		if vmErr != nil {
+			return nil, vmErr
+		}
+		val = loaded
+	}
+	if val.Kind != VKHandleArray {
+		return nil, vm.eb.typeMismatch("array", val.Kind.String())
+	}
+	obj, vmErr := vm.heapAliveForRef(val.H)
+	if vmErr != nil {
+		return nil, vmErr
+	}
+	switch obj.Kind {
+	case OKArray:
+		return obj, nil
+	case OKArraySlice:
+		return nil, vm.eb.makeError(PanicTypeMismatch, "array view is not resizable")
+	default:
+		return nil, vm.eb.typeMismatch("array", fmt.Sprintf("%v", obj.Kind))
+	}
+}
+
+func growArrayCapacity(current, minCap int) int {
+	if minCap <= current {
+		return current
+	}
+	if current < 1 {
+		current = 1
+	}
+	for current < minCap {
+		current *= 2
+	}
+	return current
+}
