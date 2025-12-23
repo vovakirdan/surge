@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/term"
 
+	"surge/internal/debug"
 	"surge/internal/version"
 )
 
@@ -61,6 +62,13 @@ func main() {
 	rootCmd.PersistentFlags().Int("trace-ring-size", 4096, "ring buffer capacity for trace events")
 	rootCmd.PersistentFlags().Duration("trace-heartbeat", 0, "heartbeat interval (0 to disable, e.g. 1s)")
 
+	// Debug flags
+	rootCmd.PersistentFlags().String("debug", "", "debug scope path (e.g., sema/const_eval, sema/const_eval/ensureConstEvaluated)")
+	rootCmd.PersistentFlags().String("debug-depth", "func", "debug depth (off|func|calls|loops|all)")
+	rootCmd.PersistentFlags().String("debug-level", "debug", "debug log level (trace|debug|info|warn|error)")
+	rootCmd.PersistentFlags().String("debug-format", "pretty", "debug output format (pretty|json)")
+	rootCmd.PersistentFlags().String("debug-out", "", "debug output file (empty=stderr)")
+
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -102,6 +110,11 @@ func applyTimeout(cmd *cobra.Command, _ []string) error {
 	}
 	traceCleanup = cleanup
 
+	// Setup debug
+	if err := setupDebug(cmd); err != nil {
+		return fmt.Errorf("failed to setup debug: %w", err)
+	}
+
 	return nil
 }
 
@@ -114,4 +127,27 @@ func cleanupTimeout(*cobra.Command, []string) {
 		traceCleanup()
 		traceCleanup = nil
 	}
+}
+
+func setupDebug(cmd *cobra.Command) error {
+	flags := cmd.Root().PersistentFlags()
+
+	path, _ := flags.GetString("debug")
+	if path == "" {
+		return nil
+	}
+
+	depth, _ := flags.GetString("debug-depth")
+	level, _ := flags.GetString("debug-level")
+	format, _ := flags.GetString("debug-format")
+	out, _ := flags.GetString("debug-out")
+
+	return debug.Init(debug.Config{
+		Enabled: true,
+		Path:    path,
+		Depth:   depth,
+		Level:   level,
+		Format:  format,
+		OutPath: out,
+	})
 }

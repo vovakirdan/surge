@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"surge/internal/ast"
+	"surge/internal/debug"
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -22,56 +23,90 @@ const (
 	constStateDone
 )
 
+const scopeConstEval = "sema.const_eval"
+
 func (tc *typeChecker) ensureConstEvaluated(symID symbols.SymbolID) types.TypeID {
+	scope := debug.Fn(scopeConstEval, "ensureConstEvaluated")
+	done := debug.FuncSpan(scope, "ensureConstEvaluated", "symID_valid", symID.IsValid())
+	defer done()
+
 	if !symID.IsValid() {
+		debug.Point(scope, debug.DepthCalls, "symID invalid -> NoTypeID")
 		return types.NoTypeID
 	}
-	switch tc.constState[symID] {
+
+	st := tc.constState[symID]
+	debug.Dump(scope, debug.DepthCalls, "const_state", st)
+
+	switch st {
 	case constStateDone:
+		debug.Point(scope, debug.DepthCalls, "state=done -> return cached")
 		return tc.bindingType(symID)
 	case constStateVisiting:
+		debug.Point(scope, debug.DepthCalls, "state=visiting -> cycle detected")
 		tc.reportConstCycle(symID)
 		return types.NoTypeID
 	}
-	tc.constState[symID] = constStateVisiting
 
-	typeID, valueID, scope, span := tc.constBinding(symID)
-	scope = tc.scopeOrFile(scope)
+	tc.constState[symID] = constStateVisiting
+	debug.Point(scope, debug.DepthCalls, "state -> visiting")
+
+	typeID, valueID, scopeID, span := tc.constBinding(symID)
+	scopeID = tc.scopeOrFile(scopeID)
+	debug.Dump(scope, debug.DepthCalls, "binding", map[string]any{
+		"typeID_valid":  typeID.IsValid(),
+		"valueID_valid": valueID.IsValid(),
+		"scopeID_valid": scopeID.IsValid(),
+	})
+
 	declaredType := types.NoTypeID
 	if typeID.IsValid() {
-		declaredType = tc.resolveTypeExprWithScope(typeID, scope)
+		declaredType = tc.resolveTypeExprWithScope(typeID, scopeID)
 		if declaredType != types.NoTypeID {
 			tc.setBindingType(symID, declaredType)
+			debug.Point(scope, debug.DepthCalls, "set declaredType")
 		}
 	}
 
 	valueType := types.NoTypeID
 	if valueID.IsValid() {
 		valueType = tc.typeExpr(valueID)
+		debug.Point(scope, debug.DepthCalls, "evaluated valueType")
 	}
 	if declaredType != types.NoTypeID && valueType != types.NoTypeID {
+		debug.Point(scope, debug.DepthCalls, "ensureBindingTypeMatch")
 		tc.ensureBindingTypeMatch(typeID, declaredType, valueType, valueID)
 	}
 	if declaredType == types.NoTypeID {
 		tc.setBindingType(symID, valueType)
+		debug.Point(scope, debug.DepthCalls, "set binding type = valueType")
 	}
 	if valueID.IsValid() {
+		debug.Point(scope, debug.DepthCalls, "requireConstExpr")
 		tc.requireConstExpr(valueID, symID, span)
 	}
 	tc.constState[symID] = constStateDone
+	debug.Point(scope, debug.DepthCalls, "state -> done")
 	return tc.bindingType(symID)
 }
 
 func (tc *typeChecker) constBinding(symID symbols.SymbolID) (ast.TypeID, ast.ExprID, symbols.ScopeID, source.Span) {
+	scope := debug.Fn(scopeConstEval, "constBinding")
+	done := debug.FuncSpan(scope, "constBinding", "symID_valid", symID.IsValid())
+	defer done()
+
 	sym := tc.symbolFromID(symID)
 	if sym == nil || sym.Kind != symbols.SymbolConst {
+		debug.Point(scope, debug.DepthCalls, "invalid symbol or not const", "sym_nil", sym == nil)
 		return ast.NoTypeID, ast.NoExprID, symbols.NoScopeID, source.Span{}
 	}
 	if tc.builder == nil {
+		debug.Point(scope, debug.DepthCalls, "builder is nil")
 		return ast.NoTypeID, ast.NoExprID, symbols.NoScopeID, source.Span{}
 	}
 	if sym.Decl.Item.IsValid() {
 		if constItem, ok := tc.builder.Items.Const(sym.Decl.Item); ok && constItem != nil {
+			debug.Point(scope, debug.DepthCalls, "found binding from item")
 			return constItem.Type, constItem.Value, tc.scopeForItem(sym.Decl.Item), constItem.Span
 		}
 	}
@@ -81,9 +116,11 @@ func (tc *typeChecker) constBinding(symID symbols.SymbolID) (ast.TypeID, ast.Exp
 			if stmt := tc.builder.Stmts.Get(sym.Decl.Stmt); stmt != nil {
 				span = stmt.Span
 			}
+			debug.Point(scope, debug.DepthCalls, "found binding from stmt")
 			return constStmt.Type, constStmt.Value, tc.scopeForStmt(sym.Decl.Stmt), span
 		}
 	}
+	debug.Point(scope, debug.DepthCalls, "fallback to sym span")
 	return ast.NoTypeID, ast.NoExprID, symbols.NoScopeID, sym.Span
 }
 
@@ -130,6 +167,10 @@ func (tc *typeChecker) constSymbolName(symID symbols.SymbolID) string {
 }
 
 func (tc *typeChecker) isConstExpr(expr ast.ExprID) bool {
+	scope := debug.Fn(scopeConstEval, "isConstExpr")
+	// Only log at DepthLoops or higher — this function is called frequently
+	debug.Point(scope, debug.DepthLoops, "check expr", "expr_valid", expr.IsValid())
+
 	if !expr.IsValid() || tc.builder == nil {
 		return false
 	}
@@ -137,6 +178,8 @@ func (tc *typeChecker) isConstExpr(expr ast.ExprID) bool {
 	if node == nil {
 		return false
 	}
+	debug.Dump(scope, debug.DepthAll, "expr_kind", node.Kind)
+
 	switch node.Kind {
 	case ast.ExprLit:
 		return true
@@ -201,6 +244,10 @@ func (tc *typeChecker) isConstBinaryOp(op ast.ExprBinaryOp) bool {
 }
 
 func (tc *typeChecker) constUintValue(expr ast.ExprID, visited map[symbols.SymbolID]bool) (uint64, bool) {
+	scope := debug.Fn(scopeConstEval, "constUintValue")
+	done := debug.FuncSpan(scope, "constUintValue", "expr_valid", expr.IsValid())
+	defer done()
+
 	if !expr.IsValid() || tc.builder == nil {
 		return 0, false
 	}
@@ -211,6 +258,8 @@ func (tc *typeChecker) constUintValue(expr ast.ExprID, visited map[symbols.Symbo
 	if node == nil {
 		return 0, false
 	}
+	debug.Dump(scope, debug.DepthLoops, "expr_kind", node.Kind)
+
 	switch node.Kind {
 	case ast.ExprLit:
 		lit, _ := tc.builder.Exprs.Literal(expr)
