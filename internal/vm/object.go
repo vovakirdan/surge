@@ -16,6 +16,7 @@ type ObjectKind uint8
 const (
 	OKString ObjectKind = iota
 	OKArray
+	OKArraySlice
 	OKStruct
 	OKTag
 	OKBigInt
@@ -69,6 +70,10 @@ type Object struct {
 	StrSliceStart int
 	StrSliceLen   int
 	Arr           []Value
+	ArrSliceBase  Handle
+	ArrSliceStart int
+	ArrSliceLen   int
+	ArrSliceCap   int
 	Fields        []Value
 	Tag           TagObject
 	Range         RangeObject

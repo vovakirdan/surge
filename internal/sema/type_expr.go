@@ -69,8 +69,14 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				ty = types.NoTypeID
 			case sym.Kind == symbols.SymbolLet || sym.Kind == symbols.SymbolParam:
 				ty = tc.bindingType(symID)
+				// Check for deprecated variable usage (let only, params are local)
+				if sym.Kind == symbols.SymbolLet {
+					tc.checkDeprecatedSymbol(symID, "variable", expr.Span)
+				}
 			case sym.Kind == symbols.SymbolConst:
 				ty = tc.ensureConstEvaluated(symID)
+				// Check for deprecated constant usage
+				tc.checkDeprecatedSymbol(symID, "constant", expr.Span)
 			case sym.Kind == symbols.SymbolType:
 				name := tc.lookupName(ident.Name)
 				if name == "" {
@@ -149,10 +155,14 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					ty = tc.methodResultType(member, receiverType, argTypes, expr.Span, receiverIsType)
 					symID := tc.recordMethodCallSymbol(id, member, receiverType, argTypes, receiverIsType)
 					tc.recordMethodCallInstantiation(symID, call, receiverType, expr.Span)
+					if !receiverIsType {
+						tc.checkArrayViewResizeMethod(member.Target, methodName, receiverType, expr.Span)
+						tc.markArrayViewMethodCall(id, methodName, receiverType, argTypes)
+					}
 					break
 				}
 			}
-			ty = tc.callResultType(call, expr.Span)
+			ty = tc.callResultType(id, call, expr.Span)
 		}
 	case ast.ExprArray:
 		if arr, ok := tc.builder.Exprs.Array(id); ok && arr != nil {
@@ -223,6 +233,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				ty = magic
 			} else {
 				ty = tc.indexResultType(container, indexType, expr.Span)
+			}
+			if tc.isArrayRangeIndex(container, indexType) {
+				tc.markArrayViewExpr(id)
 			}
 		}
 	case ast.ExprMember:

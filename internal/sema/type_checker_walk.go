@@ -32,6 +32,8 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		}
 		scope := tc.scopeForItem(id)
 		symID := tc.typeSymbolForItem(id)
+		// Validate and record let item attributes
+		tc.validateLetAttrs(letItem, symID)
 		declaredType := tc.resolveTypeExprWithScope(letItem.Type, scope)
 		if declaredType != types.NoTypeID {
 			tc.setBindingType(symID, declaredType)
@@ -51,8 +53,13 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			tc.setBindingType(symID, valueType)
 		}
 		tc.updateItemBinding(id, letItem.Value)
+		tc.markArrayViewBinding(symID, tc.isArrayViewExpr(letItem.Value))
 	case ast.ItemConst:
 		symID := tc.typeSymbolForItem(id)
+		// Validate and record const item attributes
+		if constItem, ok := tc.builder.Items.Const(id); ok && constItem != nil {
+			tc.validateConstAttrs(constItem, symID)
+		}
 		if symID.IsValid() {
 			tc.ensureConstEvaluated(symID)
 		} else if constItem, ok := tc.builder.Items.Const(id); ok && constItem != nil && constItem.Value.IsValid() {
@@ -128,7 +135,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 				tc.awaitDepth--
 			}
 		}
-		tc.validateFunctionAttrs(fnItem, types.NoTypeID)
+		tc.validateFunctionAttrs(fnItem, symID, types.NoTypeID)
 		// Validate entrypoint constraints if this is an entrypoint function
 		if sym := tc.symbolFromID(symID); sym != nil && sym.Flags&symbols.SymbolFlagEntrypoint != 0 {
 			tc.validateEntrypoint(fnItem, sym)
@@ -203,6 +210,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 						tc.setBindingType(symID, valueType)
 					}
 					tc.updateStmtBinding(id, letStmt.Value)
+					tc.markArrayViewBinding(symID, tc.isArrayViewExpr(letStmt.Value))
 					// Track task binding for structured concurrency
 					if tc.taskTracker != nil && tc.isTaskType(valueType) {
 						tc.taskTracker.BindTaskByExpr(letStmt.Value, symID)

@@ -466,7 +466,7 @@ func runModuleGraph(
 	cache *ModuleCache,
 	typeInterner *types.Interner,
 	strs *source.Interner,
-) (map[string]*symbols.ModuleExports, *moduleRecord, map[string]*moduleRecord, error) {
+) (exports map[string]*symbols.ModuleExports, rootRec *moduleRecord, moduleRecords map[string]*moduleRecord, err error) {
 	if builder == nil {
 		return nil, nil, nil, nil
 	}
@@ -642,7 +642,7 @@ func runModuleGraph(
 	}
 	dag.ReportBrokenDeps(idx, slots)
 
-	exports := collectModuleExports(ctx, records, idx, topo, baseDir, meta.Path, typeInterner, opts)
+	exports = collectModuleExports(ctx, records, idx, topo, baseDir, meta.Path, typeInterner, opts)
 	for alias, target := range aliasExports {
 		if exp, ok := exports[normalizeExportsKey(target)]; ok {
 			exports[normalizeExportsKey(alias)] = exp

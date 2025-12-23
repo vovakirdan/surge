@@ -1,0 +1,30 @@
+fn write_str(s: string) -> nothing {
+    let ptr = rt_string_ptr(&s);
+    let slen = rt_string_len_bytes(&s);
+    rt_write_stdout(ptr, slen);
+}
+
+fn write_line(s: string) -> nothing {
+    write_str(s);
+    let nl = "\n";
+    rt_write_stdout(rt_string_ptr(&nl), 1:uint);
+}
+
+@entrypoint
+fn main() -> int {
+    let mut a: string[] = rt_argv();
+    { rt_array_reserve(&mut a, 4:uint); }
+    { rt_array_push(&mut a, "one"); }
+    { rt_array_push(&mut a, "two"); }
+    { let v: string? = rt_array_pop(&mut a); print_opt(v); }
+    { let v: string? = rt_array_pop(&mut a); print_opt(v); }
+    { let v: string? = rt_array_pop(&mut a); print_opt(v); }
+    return 0;
+}
+
+fn print_opt(v: string?) -> nothing {
+    compare v {
+        Some(x) => write_line(x);
+        nothing => write_line("nothing");
+    };
+}

@@ -106,6 +106,9 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	if tc.isSharedRefDeref(expr) {
 		return
 	}
+	if tc.isRefReborrow(expr) {
+		return
+	}
 
 	desc, ok := tc.resolvePlace(expr)
 	if !ok {
@@ -159,6 +162,41 @@ func (tc *typeChecker) isSharedRefDeref(expr ast.ExprID) bool {
 		return false
 	}
 	return !tt.Mutable
+}
+
+func (tc *typeChecker) isRefReborrow(expr ast.ExprID) bool {
+	if !expr.IsValid() || tc.builder == nil || tc.types == nil || tc.result == nil {
+		return false
+	}
+	node := tc.builder.Exprs.Get(expr)
+	if node == nil || node.Kind != ast.ExprUnary {
+		return false
+	}
+	unary, ok := tc.builder.Exprs.Unary(expr)
+	if !ok || unary == nil {
+		return false
+	}
+	if unary.Op != ast.ExprUnaryRef && unary.Op != ast.ExprUnaryRefMut {
+		return false
+	}
+	innerNode := tc.builder.Exprs.Get(unary.Operand)
+	if innerNode == nil || innerNode.Kind != ast.ExprUnary {
+		return false
+	}
+	innerUnary, ok := tc.builder.Exprs.Unary(unary.Operand)
+	if !ok || innerUnary == nil || innerUnary.Op != ast.ExprUnaryDeref {
+		return false
+	}
+	operandType := tc.result.ExprTypes[innerUnary.Operand]
+	if operandType == types.NoTypeID {
+		return false
+	}
+	operandType = tc.resolveAlias(operandType)
+	tt, ok := tc.types.Lookup(operandType)
+	if !ok || tt.Kind != types.KindReference {
+		return false
+	}
+	return true
 }
 
 func (tc *typeChecker) exprSpan(id ast.ExprID) source.Span {

@@ -2,9 +2,9 @@
 == HIR ==
 module 
 
-fn unwrap_or_zero(x: type#366) -> int (id=1, sym=636) {
+fn unwrap_or_zero(x: type#770) -> int (id=1, sym=682) {
   return {
-    let __cmp1: type#366 = x
+    let __cmp1: type#770 = x
     if tag_test(__cmp1, Some): bool {
       let v: int [copy] = tag_payload(__cmp1, Some, 0): int
       return v

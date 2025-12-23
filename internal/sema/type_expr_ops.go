@@ -73,6 +73,7 @@ func (tc *typeChecker) typeBinary(span source.Span, data *ast.ExprBinaryData) ty
 		tc.ensureBindingTypeMatch(ast.NoTypeID, leftType, rightType, data.Right)
 		tc.ensureIndexAssignment(data.Left, leftType, span)
 		tc.handleAssignment(data.Op, data.Left, data.Right, span)
+		tc.updateArrayViewBindingFromAssign(data.Left, data.Right)
 		return leftType
 	}
 	switch data.Op {

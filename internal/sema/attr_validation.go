@@ -7,6 +7,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -760,11 +761,16 @@ func (tc *typeChecker) isExpandedCopyType(typeID types.TypeID, span source.Span,
 }
 
 // validateFunctionAttrs validates all attributes on a function declaration
-func (tc *typeChecker) validateFunctionAttrs(fnItem *ast.FnItem, ownerTypeID types.TypeID) {
+func (tc *typeChecker) validateFunctionAttrs(fnItem *ast.FnItem, symID symbols.SymbolID, ownerTypeID types.TypeID) {
 	// Collect attributes
 	infos := tc.collectAttrs(fnItem.AttrStart, fnItem.AttrCount)
 	if len(infos) == 0 {
 		return
+	}
+
+	// Record for later lookup (for deprecation checks)
+	if symID.IsValid() {
+		tc.recordSymbolAttrs(symID, infos)
 	}
 
 	// Validate target applicability
@@ -833,4 +839,131 @@ func (tc *typeChecker) validateFunctionAttrs(fnItem *ast.FnItem, ownerTypeID typ
 				tc.typeLabel(lockFieldType))
 		}
 	}
+}
+
+// recordSymbolAttrs stores attributes for a symbol (function, let, const) for later lookup
+func (tc *typeChecker) recordSymbolAttrs(symID symbols.SymbolID, infos []AttrInfo) {
+	if tc.symbolAttrs == nil {
+		tc.symbolAttrs = make(map[symbols.SymbolID][]AttrInfo)
+	}
+	tc.symbolAttrs[symID] = infos
+}
+
+// getDeprecatedMessage extracts the optional message from @deprecated("msg") attribute
+func (tc *typeChecker) getDeprecatedMessage(attrs []AttrInfo) string {
+	info, ok := hasAttr(attrs, "deprecated")
+	if !ok {
+		return ""
+	}
+	if len(info.Args) == 0 {
+		return ""
+	}
+	argExpr := tc.builder.Exprs.Get(info.Args[0])
+	if argExpr.Kind != ast.ExprLit {
+		return ""
+	}
+	lit, ok := tc.builder.Exprs.Literal(info.Args[0])
+	if !ok || lit.Kind != ast.ExprLitString {
+		return ""
+	}
+	msg := tc.lookupName(lit.Value)
+	return strings.Trim(msg, "\"")
+}
+
+// checkDeprecatedSymbol emits a warning if the symbol is deprecated
+func (tc *typeChecker) checkDeprecatedSymbol(symID symbols.SymbolID, kind string, usageSpan source.Span) {
+	if !symID.IsValid() {
+		return
+	}
+	attrs, ok := tc.symbolAttrs[symID]
+	if !ok {
+		return
+	}
+	if _, deprecated := hasAttr(attrs, "deprecated"); !deprecated {
+		return
+	}
+	sym := tc.symbolFromID(symID)
+	if sym == nil {
+		return
+	}
+	name := tc.lookupName(sym.Name)
+	msg := tc.getDeprecatedMessage(attrs)
+	if msg != "" {
+		tc.warn(diag.SemaDeprecatedUsage, usageSpan,
+			"%s '%s' deprecated. %s", kind, name, msg)
+	} else {
+		tc.warn(diag.SemaDeprecatedUsage, usageSpan,
+			"%s '%s' deprecated.", kind, name)
+	}
+}
+
+// checkDeprecatedType emits a warning if the type is deprecated
+func (tc *typeChecker) checkDeprecatedType(typeID types.TypeID, usageSpan source.Span) {
+	attrs, ok := tc.typeAttrs[typeID]
+	if !ok {
+		return
+	}
+	if _, deprecated := hasAttr(attrs, "deprecated"); !deprecated {
+		return
+	}
+	typeName := tc.typeLabel(typeID)
+	msg := tc.getDeprecatedMessage(attrs)
+	if msg != "" {
+		tc.warn(diag.SemaDeprecatedUsage, usageSpan,
+			"type '%s' deprecated. %s", typeName, msg)
+	} else {
+		tc.warn(diag.SemaDeprecatedUsage, usageSpan,
+			"type '%s' deprecated.", typeName)
+	}
+}
+
+// checkDeprecatedField emits a warning if the field is deprecated
+func (tc *typeChecker) checkDeprecatedField(baseType types.TypeID, fieldIndex int, fieldName source.StringID, usageSpan source.Span) {
+	key := fieldKey{TypeID: baseType, FieldIndex: fieldIndex}
+	attrs, ok := tc.fieldAttrs[key]
+	if !ok {
+		return
+	}
+	if _, deprecated := hasAttr(attrs, "deprecated"); !deprecated {
+		return
+	}
+	name := tc.lookupName(fieldName)
+	msg := tc.getDeprecatedMessage(attrs)
+	if msg != "" {
+		tc.warn(diag.SemaDeprecatedUsage, usageSpan,
+			"field '%s' deprecated. %s", name, msg)
+	} else {
+		tc.warn(diag.SemaDeprecatedUsage, usageSpan,
+			"field '%s' deprecated.", name)
+	}
+}
+
+// validateLetAttrs validates all attributes on a let/const declaration
+func (tc *typeChecker) validateLetAttrs(letItem *ast.LetItem, symID symbols.SymbolID) {
+	// Collect attributes
+	infos := tc.collectAttrs(letItem.AttrStart, letItem.AttrCount)
+	if len(infos) == 0 {
+		return
+	}
+
+	// Validate target applicability
+	tc.validateAttrs(letItem.AttrStart, letItem.AttrCount, ast.AttrTargetLet, diag.SemaError)
+
+	// Record for later lookup (for deprecation checks)
+	tc.recordSymbolAttrs(symID, infos)
+}
+
+// validateConstAttrs validates all attributes on a const declaration
+func (tc *typeChecker) validateConstAttrs(constItem *ast.ConstItem, symID symbols.SymbolID) {
+	// Collect attributes
+	infos := tc.collectAttrs(constItem.AttrStart, constItem.AttrCount)
+	if len(infos) == 0 {
+		return
+	}
+
+	// Validate target applicability
+	tc.validateAttrs(constItem.AttrStart, constItem.AttrCount, ast.AttrTargetLet, diag.SemaError)
+
+	// Record for later lookup (for deprecation checks)
+	tc.recordSymbolAttrs(symID, infos)
 }

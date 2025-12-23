@@ -85,12 +85,12 @@ fn main() -> int {
 	if vmErr == nil {
 		t.Fatal("expected panic, got nil")
 	}
-	if vmErr.Code != vm.PanicOutOfBounds {
-		t.Fatalf("expected %v, got %v", vm.PanicOutOfBounds, vmErr.Code)
+	if vmErr.Code != vm.PanicArrayIndexOutOfRange {
+		t.Fatalf("expected %v, got %v", vm.PanicArrayIndexOutOfRange, vmErr.Code)
 	}
 
 	out := vmErr.FormatWithFiles(files)
-	if !strings.Contains(out, "panic VM1004") {
+	if !strings.Contains(out, "panic VM2105") {
 		t.Fatalf("expected panic code in output, got:\n%s", out)
 	}
 	if !strings.Contains(out, ".sg:") {

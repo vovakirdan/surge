@@ -31,23 +31,17 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 		case left.Kind == VKHandleString && right.Kind == VKHandleString:
 			return vm.concatStringValues(left, right)
 		case left.Kind == VKHandleArray && right.Kind == VKHandleArray:
-			leftObj := vm.Heap.Get(left.H)
-			if leftObj == nil {
-				return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid array handle")
+			leftView, vmErr := vm.arrayViewFromHandle(left.H)
+			if vmErr != nil {
+				return Value{}, vmErr
 			}
-			if leftObj.Kind != OKArray {
-				return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("expected array handle, got %v", leftObj.Kind))
+			rightView, vmErr := vm.arrayViewFromHandle(right.H)
+			if vmErr != nil {
+				return Value{}, vmErr
 			}
-			rightObj := vm.Heap.Get(right.H)
-			if rightObj == nil {
-				return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid array handle")
-			}
-			if rightObj.Kind != OKArray {
-				return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("expected array handle, got %v", rightObj.Kind))
-			}
-			elems := make([]Value, 0, len(leftObj.Arr)+len(rightObj.Arr))
-			for i := range leftObj.Arr {
-				v, vmErr := vm.cloneForShare(leftObj.Arr[i])
+			elems := make([]Value, 0, leftView.length+rightView.length)
+			for i := range leftView.length {
+				v, vmErr := vm.cloneForShare(leftView.baseObj.Arr[leftView.start+i])
 				if vmErr != nil {
 					for _, el := range elems {
 						vm.dropValue(el)
@@ -56,8 +50,8 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				}
 				elems = append(elems, v)
 			}
-			for i := range rightObj.Arr {
-				v, vmErr := vm.cloneForShare(rightObj.Arr[i])
+			for i := range rightView.length {
+				v, vmErr := vm.cloneForShare(rightView.baseObj.Arr[rightView.start+i])
 				if vmErr != nil {
 					for _, el := range elems {
 						vm.dropValue(el)

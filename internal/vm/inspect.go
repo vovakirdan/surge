@@ -88,6 +88,8 @@ func (i *Inspector) Heap() {
 			fmt.Fprintf(i.out, "  string#%d len=%d\n", h, byteLen)
 		case OKArray:
 			fmt.Fprintf(i.out, "  array#%d len=%d\n", h, len(obj.Arr))
+		case OKArraySlice:
+			fmt.Fprintf(i.out, "  array_slice#%d len=%d base=%d start=%d\n", h, obj.ArrSliceLen, obj.ArrSliceBase, obj.ArrSliceStart)
 		case OKStruct:
 			fmt.Fprintf(i.out, "  struct#%d type=type#%d\n", h, obj.TypeID)
 		case OKTag:

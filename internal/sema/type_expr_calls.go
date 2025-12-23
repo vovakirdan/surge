@@ -20,7 +20,7 @@ type callArg struct {
 	expr      ast.ExprID
 }
 
-func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) types.TypeID {
+func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData, span source.Span) types.TypeID {
 	// Трассировка вызова функции
 	var traceSpan *trace.Span
 	if tc.tracer != nil && tc.tracer.Level() >= trace.LevelDebug {
@@ -62,10 +62,12 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 	name := tc.lookupName(ident.Name)
 	if name == "default" {
 		symID := tc.symbolForExpr(call.Target)
+		tc.recordCallSymbol(callID, symID)
 		return tc.handleDefaultLikeCall(name, symID, call, span)
 	}
 	if name == "clone" {
 		if result := tc.handleCloneCall(args, span); result != types.NoTypeID {
+			tc.recordCallSymbol(callID, tc.symbolForExpr(call.Target))
 			return result
 		}
 		// If handleCloneCall returns NoTypeID, fall through to normal resolution
@@ -113,11 +115,15 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 			tc.recordImplicitConversionsForCall(sym, args)
 		}
+		// Check for deprecated function usage
+		tc.checkDeprecatedSymbol(bestSym, "function", span)
 		note := "call"
 		if sym := tc.symbolFromID(bestSym); sym != nil && sym.Kind == symbols.SymbolTag {
 			note = "tag"
 		}
 		tc.rememberFunctionInstantiation(bestSym, bestArgs, span, note)
+		tc.recordCallSymbol(callID, bestSym)
+		tc.checkArrayViewResizeCall(name, args, span)
 		return bestType
 	}
 
@@ -131,11 +137,15 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 			tc.recordImplicitConversionsForCall(sym, args)
 		}
+		// Check for deprecated function usage
+		tc.checkDeprecatedSymbol(bestSym, "function", span)
 		note := "call"
 		if sym := tc.symbolFromID(bestSym); sym != nil && sym.Kind == symbols.SymbolTag {
 			note = "tag"
 		}
 		tc.rememberFunctionInstantiation(bestSym, bestArgs, span, note)
+		tc.recordCallSymbol(callID, bestSym)
+		tc.checkArrayViewResizeCall(name, args, span)
 		return bestType
 	}
 
@@ -153,6 +163,18 @@ func (tc *typeChecker) callResultType(call *ast.ExprCallData, span source.Span) 
 
 	tc.report(diag.SemaNoOverload, span, "no matching overload for %s", displayName)
 	return types.NoTypeID
+}
+
+func (tc *typeChecker) recordCallSymbol(callID ast.ExprID, symID symbols.SymbolID) {
+	if callID == ast.NoExprID || !symID.IsValid() || tc.symbols == nil || tc.symbols.ExprSymbols == nil {
+		return
+	}
+	if sym := tc.symbolFromID(symID); sym != nil {
+		if sym.Kind != symbols.SymbolFunction && sym.Kind != symbols.SymbolTag {
+			return
+		}
+	}
+	tc.symbols.ExprSymbols[callID] = symID
 }
 
 // callFunctionVariable validates and resolves a call to a function-typed variable.
@@ -237,7 +259,8 @@ func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.Symbol
 		}
 		if ids := scopeData.NameIndex[name]; len(ids) > 0 {
 			out := make([]symbols.SymbolID, 0, len(ids))
-			for _, id := range ids {
+			for i := len(ids) - 1; i >= 0; i-- {
+				id := ids[i]
 				sym := tc.symbolFromID(id)
 				if sym != nil && (sym.Kind == symbols.SymbolFunction || sym.Kind == symbols.SymbolTag) {
 					if key := tc.candidateKey(sym); key != "" {
@@ -296,6 +319,8 @@ func (tc *typeChecker) handleDefaultLikeCall(name string, symID symbols.SymbolID
 		}
 	}
 	if symID.IsValid() {
+		// Check for deprecated function usage
+		tc.checkDeprecatedSymbol(symID, "function", span)
 		tc.rememberFunctionInstantiation(symID, []types.TypeID{targetType}, span, "call")
 	}
 	return targetType
@@ -398,12 +423,12 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 			continue
 		}
 		methods := tc.lookupMagicMethods(recvCand.key, name)
-		// Build type param substitution map for generic methods
-		subst := tc.buildTypeParamSubst(recv, recvCand.key)
 		for _, sig := range methods {
 			if sig == nil {
 				continue
 			}
+			// Build type param substitution map for generic methods.
+			subst := tc.methodSubst(recv, recvCand.key, sig)
 			switch {
 			case len(sig.Params) == 0:
 				// static/associated method without explicit params
@@ -451,13 +476,17 @@ func (tc *typeChecker) recordMethodCallInstantiation(symID symbols.SymbolID, cal
 	if call == nil || !symID.IsValid() {
 		return
 	}
+	// Check for deprecated method usage
+	tc.checkDeprecatedSymbol(symID, "function", span)
 	sym := tc.symbolFromID(symID)
 	if sym == nil || len(sym.TypeParams) == 0 {
 		return
 	}
 	recvArgs := tc.receiverTypeArgs(recv)
 	explicitArgs := tc.resolveCallTypeArgs(call.TypeArgs)
-	typeArgs := append(recvArgs, explicitArgs...)
+	typeArgs := make([]types.TypeID, 0, len(recvArgs)+len(explicitArgs))
+	typeArgs = append(typeArgs, recvArgs...)
+	typeArgs = append(typeArgs, explicitArgs...)
 	if len(typeArgs) == 0 || len(typeArgs) != len(sym.TypeParams) {
 		return
 	}
@@ -500,8 +529,7 @@ func (tc *typeChecker) resolveMethodCallSymbol(member *ast.ExprMemberData, recv 
 		if recvCand.key == "" {
 			continue
 		}
-		subst := tc.buildTypeParamSubst(recv, recvCand.key)
-		for i := range data {
+		for i := len(data) - 1; i >= 0; i-- {
 			sym := &data[i]
 			if sym.Kind != symbols.SymbolFunction || sym.ReceiverKey == "" || sym.Signature == nil {
 				continue
@@ -513,6 +541,7 @@ func (tc *typeChecker) resolveMethodCallSymbol(member *ast.ExprMemberData, recv 
 				continue
 			}
 			sig := sym.Signature
+			subst := tc.methodSubst(recv, recvCand.key, sig)
 			switch {
 			case sig.HasSelf:
 				if !tc.selfParamCompatible(recv, sig.Params[0], recvCand.key) {
@@ -539,6 +568,15 @@ func (tc *typeChecker) resolveMethodCallSymbol(member *ast.ExprMemberData, recv 
 		}
 	}
 	return symbols.NoSymbolID
+}
+
+func (tc *typeChecker) methodSubst(recv types.TypeID, recvKey symbols.TypeKey, sig *symbols.FunctionSignature) map[string]symbols.TypeKey {
+	if sig != nil && sig.HasSelf && len(sig.Params) > 0 {
+		if subst := tc.buildTypeParamSubst(recv, sig.Params[0]); len(subst) > 0 {
+			return subst
+		}
+	}
+	return tc.buildTypeParamSubst(recv, recvKey)
 }
 
 func (tc *typeChecker) methodParamsMatchWithSubst(expected []symbols.TypeKey, args []types.TypeID, subst map[string]symbols.TypeKey) bool {
@@ -624,7 +662,7 @@ func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidate
 			}
 			innerSelf = strings.TrimSpace(innerSelf)
 			// Check against both candidate key and actual recv key
-			return typeKeyEqual(candidateKey, symbols.TypeKey(innerSelf)) || recvStr == innerSelf
+			return typeKeyEqual(candidateKey, symbols.TypeKey(innerSelf)) || typeKeyEqual(actualRecvKey, symbols.TypeKey(innerSelf))
 		}
 	}
 
@@ -633,7 +671,7 @@ func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidate
 		if strings.HasPrefix(selfStr, "&") && !strings.HasPrefix(selfStr, "&mut ") {
 			innerSelf := strings.TrimSpace(strings.TrimPrefix(selfStr, "&"))
 			innerRecv := strings.TrimSpace(strings.TrimPrefix(recvStr, "&mut "))
-			return innerSelf == innerRecv
+			return typeKeyEqual(symbols.TypeKey(innerSelf), symbols.TypeKey(innerRecv))
 		}
 	}
 
@@ -648,7 +686,7 @@ func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidate
 			if innerSelf == selfStr {
 				innerSelf = strings.TrimPrefix(selfStr, "&")
 			}
-			return strings.TrimSpace(innerSelf) == string(innerRecv)
+			return typeKeyEqual(symbols.TypeKey(strings.TrimSpace(innerSelf)), innerRecv)
 		}
 	}
 

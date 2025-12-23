@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"strings"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/symbols"
@@ -11,15 +13,48 @@ func canonicalTypeKey(key symbols.TypeKey) symbols.TypeKey {
 	if key == "" {
 		return ""
 	}
-	s := string(key)
-	if _, ok := arrayKeyInner(s); ok {
-		return symbols.TypeKey("[]")
+	s := strings.TrimSpace(string(key))
+	prefix := ""
+	switch {
+	case strings.HasPrefix(s, "&mut "):
+		prefix = "&mut "
+		s = strings.TrimSpace(strings.TrimPrefix(s, "&mut "))
+	case strings.HasPrefix(s, "&"):
+		prefix = "&"
+		s = strings.TrimSpace(strings.TrimPrefix(s, "&"))
+	case strings.HasPrefix(s, "own "):
+		prefix = "own "
+		s = strings.TrimSpace(strings.TrimPrefix(s, "own "))
+	case strings.HasPrefix(s, "*"):
+		prefix = "*"
+		s = strings.TrimSpace(strings.TrimPrefix(s, "*"))
 	}
-	return key
+	if _, _, _, hasLen, ok := parseArrayKey(s); ok {
+		if hasLen {
+			return symbols.TypeKey(prefix + "[;]")
+		}
+		return symbols.TypeKey(prefix + "[]")
+	}
+	return symbols.TypeKey(prefix + s)
 }
 
 func isArrayKey(key symbols.TypeKey) bool {
-	return canonicalTypeKey(key) == symbols.TypeKey("[]")
+	if key == "" {
+		return false
+	}
+	s := strings.TrimSpace(string(key))
+	switch {
+	case strings.HasPrefix(s, "&mut "):
+		s = strings.TrimSpace(strings.TrimPrefix(s, "&mut "))
+	case strings.HasPrefix(s, "&"):
+		s = strings.TrimSpace(strings.TrimPrefix(s, "&"))
+	case strings.HasPrefix(s, "own "):
+		s = strings.TrimSpace(strings.TrimPrefix(s, "own "))
+	case strings.HasPrefix(s, "*"):
+		s = strings.TrimSpace(strings.TrimPrefix(s, "*"))
+	}
+	_, _, _, _, ok := parseArrayKey(s)
+	return ok
 }
 
 func typeKeyEqual(a, b symbols.TypeKey) bool {
@@ -227,6 +262,10 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 	if container == types.NoTypeID {
 		return types.NoTypeID
 	}
+	intType := types.NoTypeID
+	if tc.types != nil {
+		intType = tc.types.Builtins().Int
+	}
 	for _, recv := range tc.typeKeyCandidates(container) {
 		if recv.key == "" {
 			continue
@@ -245,6 +284,9 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 			res := tc.typeFromKey(sig.Result)
 			if res == types.NoTypeID {
 				if elem, ok := tc.elementType(recv.base); ok {
+					if payload, ok := tc.rangePayload(index); ok && intType != types.NoTypeID && tc.sameType(payload, intType) {
+						return tc.instantiateArrayType(elem)
+					}
 					return elem
 				}
 				continue
@@ -258,6 +300,13 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 func (tc *typeChecker) hasIndexSetter(container, index, value types.TypeID) bool {
 	if container == types.NoTypeID || value == types.NoTypeID {
 		return false
+	}
+	base := tc.valueType(container)
+	if elem, ok := tc.arrayElemType(base); ok && tc.types != nil {
+		intType := tc.types.Builtins().Int
+		if index != types.NoTypeID && intType != types.NoTypeID && tc.sameType(index, intType) {
+			return tc.typesAssignable(elem, value, true)
+		}
 	}
 	for _, recv := range tc.typeKeyCandidates(container) {
 		if recv.key == "" {

@@ -44,6 +44,11 @@ func (tc *typeChecker) ensureBuiltinArrayType() {
 			tc.typeKeys[name] = base
 		}
 	}
+	if len(sym.TypeParamSymbols) == 0 {
+		sym.TypeParamSymbols = []symbols.TypeParamSymbol{
+			{Name: paramName, IsConst: false},
+		}
+	}
 }
 
 func (tc *typeChecker) instantiateArrayType(elem types.TypeID) types.TypeID {
@@ -272,11 +277,6 @@ func parseArrayKey(raw string) (elem, lengthKey string, length uint64, hasLen, o
 		return content, lengthKey, 0, true, true
 	}
 	return "", "", 0, false, false
-}
-
-func arrayKeyInner(raw string) (string, bool) {
-	elem, _, _, _, ok := parseArrayKey(raw)
-	return elem, ok
 }
 
 func parseUint(raw string) (uint64, error) {

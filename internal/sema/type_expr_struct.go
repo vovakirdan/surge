@@ -21,8 +21,14 @@ func (tc *typeChecker) indexResultType(container, index types.TypeID, span sourc
 	}
 	intType := tc.types.Builtins().Int
 	if elem, ok := tc.arrayElemType(base); ok {
-		if index != types.NoTypeID && intType != types.NoTypeID && !tc.sameType(index, intType) {
-			tc.report(diag.SemaTypeMismatch, span, "array index must be int, got %s", tc.typeLabel(index))
+		if index != types.NoTypeID && intType != types.NoTypeID {
+			if tc.sameType(index, intType) {
+				return elem
+			}
+			if payload, ok := tc.rangePayload(index); ok && tc.sameType(payload, intType) {
+				return tc.instantiateArrayType(elem)
+			}
+			tc.report(diag.SemaTypeMismatch, span, "array index must be int or Range<int>, got %s", tc.typeLabel(index))
 			return types.NoTypeID
 		}
 		return elem
@@ -58,8 +64,10 @@ func (tc *typeChecker) memberResultType(base types.TypeID, field source.StringID
 	info, structType := tc.structInfoForType(base)
 	externFields := tc.externFieldsForType(base)
 	if info != nil {
-		for _, f := range info.Fields {
+		for i, f := range info.Fields {
 			if f.Name == field {
+				// Check for deprecated field usage
+				tc.checkDeprecatedField(structType, i, field, span)
 				return f.Type
 			}
 		}

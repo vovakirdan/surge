@@ -134,6 +134,16 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 			return nil
 		}
 
+		if l.f != nil && l.isNothingType(l.f.Result) {
+			if data.Value != nil {
+				if _, err := l.lowerExpr(data.Value, false); err != nil {
+					return err
+				}
+			}
+			l.setTerm(&Terminator{Kind: TermReturn})
+			return nil
+		}
+
 		if data.Value == nil {
 			l.setTerm(&Terminator{Kind: TermReturn})
 			return nil

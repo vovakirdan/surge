@@ -48,47 +48,34 @@ func (vm *VM) evalIndex(obj, idx Value) (Value, *VMError) {
 }
 
 func (vm *VM) evalArrayIndex(obj, idx Value) (Value, *VMError) {
-	arrObj := vm.Heap.Get(obj.H)
-	if arrObj == nil {
-		return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid array handle")
-	}
-	if arrObj.Kind != OKArray {
-		return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("expected array handle, got %v", arrObj.Kind))
+	view, vmErr := vm.arrayViewFromHandle(obj.H)
+	if vmErr != nil {
+		return Value{}, vmErr
 	}
 	if idx.Kind == VKHandleRange {
-		r, vmErr := vm.rangeFromValue(idx)
-		if vmErr != nil {
-			return Value{}, vmErr
+		r, rangeErr := vm.rangeFromValue(idx)
+		if rangeErr != nil {
+			return Value{}, rangeErr
 		}
-		start, end, vmErr := vm.rangeBounds(r, len(arrObj.Arr))
-		if vmErr != nil {
-			return Value{}, vmErr
+		start, end, rangeErr := vm.rangeBounds(r, view.length)
+		if rangeErr != nil {
+			return Value{}, rangeErr
 		}
 		if start > end {
 			start = end
 		}
-		elems := make([]Value, 0, end-start)
-		for i := start; i < end; i++ {
-			v, vmErr := vm.cloneForShare(arrObj.Arr[i])
-			if vmErr != nil {
-				for _, el := range elems {
-					vm.dropValue(el)
-				}
-				return Value{}, vmErr
-			}
-			elems = append(elems, v)
-		}
-		h := vm.Heap.AllocArray(types.NoTypeID, elems)
+		baseStart := view.start + start
+		length := end - start
+		capacity := view.length - start
+		h := vm.Heap.AllocArraySlice(types.NoTypeID, view.baseHandle, baseStart, length, capacity)
 		return MakeHandleArray(h, types.NoTypeID), nil
 	}
-	index, vmErr := vm.nonNegativeIndexValue(idx)
+	index, vmErr := vm.arrayIndexFromValue(idx, view.length)
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	if index < 0 || index >= len(arrObj.Arr) {
-		return Value{}, vm.eb.outOfBounds(index, len(arrObj.Arr))
-	}
-	return vm.cloneForShare(arrObj.Arr[index])
+	baseIndex := view.start + index
+	return vm.cloneForShare(view.baseObj.Arr[baseIndex])
 }
 
 func (vm *VM) evalStringIndex(obj, idx Value) (Value, *VMError) {

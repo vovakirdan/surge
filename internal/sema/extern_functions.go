@@ -63,6 +63,27 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 	}
 
 	tc.registerExternParamTypes(scope, fn)
+	if symID.IsValid() && tc.types != nil {
+		paramIDs := tc.builder.Items.GetFnParamIDs(fn)
+		paramTypes := make([]types.TypeID, 0, len(paramIDs))
+		allParamsValid := true
+		for _, pid := range paramIDs {
+			param := tc.builder.Items.FnParam(pid)
+			if param == nil {
+				continue
+			}
+			paramType := tc.resolveTypeExprWithScope(param.Type, scope)
+			if paramType == types.NoTypeID {
+				allParamsValid = false
+				break
+			}
+			paramTypes = append(paramTypes, paramType)
+		}
+		if allParamsValid {
+			fnType := tc.types.RegisterFn(paramTypes, returnType)
+			tc.assignSymbolType(symID, fnType)
+		}
+	}
 
 	if fn.Body.IsValid() {
 		tc.pushReturnContext(returnType, returnSpan, nil)
@@ -87,7 +108,7 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 			ownerTypeID = sym.Type
 		}
 	}
-	tc.validateFunctionAttrs(fn, ownerTypeID)
+	tc.validateFunctionAttrs(fn, symID, ownerTypeID)
 
 	if typeParamsPushed {
 		tc.popTypeParams()

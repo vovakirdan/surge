@@ -1,0 +1,27 @@
+array_indexing.sg (span: 1:1-7:1)
+└─ Item[0]: Fn (span: 1:1-6:2)
+   ├─ Name: test
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:11-6:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:33)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#5: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 3:5-3:18)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#8: a[1]
+         ├─ Stmt[2]: Let (span: 4:5-4:19)
+         │  ├─ Name: y
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#12: a[-1]
+         └─ Stmt[3]: Let (span: 5:5-5:27)
+            ├─ Name: slice
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#18: a[[1..3]]

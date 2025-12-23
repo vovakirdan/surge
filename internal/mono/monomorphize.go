@@ -500,6 +500,11 @@ func (b *monoBuilder) rewriteCallsInFunc(fn *hir.Func, callerSym symbols.SymbolI
 			}
 		}
 
+		if kind == InstTag {
+			_, err := b.ensureFunc(calleeSym, concreteArgs, stack)
+			return err
+		}
+
 		target, err := b.ensureFunc(calleeSym, concreteArgs, stack)
 		if err != nil {
 			return err

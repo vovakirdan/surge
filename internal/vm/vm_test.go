@@ -204,8 +204,8 @@ func TestVMEmptyArgvBoundsCheck(t *testing.T) {
 		t.Fatal("expected panic with empty argv, got nil")
 	}
 	// Should panic with out of bounds
-	if vmErr.Code != vm.PanicOutOfBounds {
-		t.Fatalf("expected PanicOutOfBounds (VM1004), got %v", vmErr.Code)
+	if vmErr.Code != vm.PanicArrayIndexOutOfRange {
+		t.Fatalf("expected PanicArrayIndexOutOfRange (VM2105), got %v", vmErr.Code)
 	}
 }
 

@@ -1,0 +1,174 @@
+pragma module, no_std;
+
+// Array helpers built on rt_array_* intrinsics.
+
+pub fn array_reserve<T>(a: &mut Array<T>, new_cap: uint) -> nothing {
+    rt_array_reserve(a, new_cap);
+}
+
+pub fn array_push<T>(a: &mut Array<T>, value: T) -> nothing {
+    rt_array_push(a, value);
+}
+
+pub fn array_pop<T>(a: &mut Array<T>) -> Option<T> {
+    return rt_array_pop(a);
+}
+
+extern<Array<T>> {
+    pub fn reserve(self: &mut Array<T>, new_cap: uint) -> nothing {
+        array_reserve(self, new_cap);
+    }
+
+    pub fn push(self: &mut Array<T>, value: T) -> nothing {
+        array_push(self, value);
+    }
+
+    pub fn pop(self: &mut Array<T>) -> Option<T> {
+        return array_pop(self);
+    }
+
+    pub fn extend(self: &mut Array<T>, other: &Array<T>) -> nothing {
+        let extra: uint = other.__len();
+        if extra == 0:uint {
+            return nothing;
+        }
+        let new_cap: uint = self.__len() + extra;
+        self.reserve(new_cap);
+        let count: int = extra to int;
+        let mut i: int = 0;
+        while i < count {
+            self.push(other[i]);
+            i = i + 1;
+        }
+        return nothing;
+    }
+
+    pub fn slice(self: &Array<T>, r: Range<int>) -> Array<T> {
+        return self[r];
+    }
+
+    pub fn reverse_in_place(self: &mut Array<T>) -> nothing {
+        let len: int = self.__len() to int;
+        if len <= 1 {
+            return nothing;
+        }
+        let mut i: int = 0;
+        let mut j: int = len - 1;
+        while i < j {
+            let tmp: T = self[i];
+            self[i] = self[j];
+            self[j] = tmp;
+            i = i + 1;
+            j = j - 1;
+        }
+        return nothing;
+    }
+}
+
+// contains/find are currently specialized for primitive element types.
+extern<Array<int>> {
+    pub fn contains(self: &Array<int>, value: &int) -> bool {
+        return self.find(value).is_some();
+    }
+
+    pub fn find(self: &Array<int>, value: &int) -> Option<uint> {
+        let len: int = self.__len() to int;
+        let mut i: int = 0;
+        while i < len {
+            if self[i] == *value {
+                return Some(i to uint);
+            }
+            i = i + 1;
+        }
+        return nothing;
+    }
+}
+
+extern<Array<uint>> {
+    pub fn contains(self: &Array<uint>, value: &uint) -> bool {
+        return self.find(value).is_some();
+    }
+
+    pub fn find(self: &Array<uint>, value: &uint) -> Option<uint> {
+        let len: int = self.__len() to int;
+        let mut i: int = 0;
+        while i < len {
+            if self[i] == *value {
+                return Some(i to uint);
+            }
+            i = i + 1;
+        }
+        return nothing;
+    }
+}
+
+extern<Array<float>> {
+    pub fn contains(self: &Array<float>, value: &float) -> bool {
+        return self.find(value).is_some();
+    }
+
+    pub fn find(self: &Array<float>, value: &float) -> Option<uint> {
+        let len: int = self.__len() to int;
+        let mut i: int = 0;
+        while i < len {
+            if self[i] == *value {
+                return Some(i to uint);
+            }
+            i = i + 1;
+        }
+        return nothing;
+    }
+}
+
+extern<Array<bool>> {
+    pub fn contains(self: &Array<bool>, value: &bool) -> bool {
+        return self.find(value).is_some();
+    }
+
+    pub fn find(self: &Array<bool>, value: &bool) -> Option<uint> {
+        let len: int = self.__len() to int;
+        let mut i: int = 0;
+        while i < len {
+            if self[i] == *value {
+                return Some(i to uint);
+            }
+            i = i + 1;
+        }
+        return nothing;
+    }
+}
+
+extern<Array<string>> {
+    pub fn contains(self: &Array<string>, value: &string) -> bool {
+        return self.find(value).is_some();
+    }
+
+    pub fn find(self: &Array<string>, value: &string) -> Option<uint> {
+        let len: int = self.__len() to int;
+        let mut i: int = 0;
+        while i < len {
+            if self[i] == *value {
+                return Some(i to uint);
+            }
+            i = i + 1;
+        }
+        return nothing;
+    }
+}
+
+extern<ArrayFixed<T, N>> {
+    pub fn to_array(self: &ArrayFixed<T, N>) -> Array<T> {
+        let len: int = self.__len() to int;
+        let mut out: Array<T> = [];
+        {
+            let out_ref: &mut Array<T> = &mut out;
+            out_ref.reserve(self.__len());
+            let mut i: int = 0;
+            while i < len {
+                out_ref.push(self[i]);
+                i = i + 1;
+            }
+        }
+        return out;
+    }
+}

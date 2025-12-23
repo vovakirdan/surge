@@ -1,0 +1,5 @@
+panic VM2105: array index 4 out of range for length 4
+at testdata/golden/vm_arrays/arrays_positive_index_panics.sg:4:13
+backtrace:
+  0: main at testdata/golden/vm_arrays/arrays_positive_index_panics.sg:4:13
+  1: __surge_start at <no-span>
