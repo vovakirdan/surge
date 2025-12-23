@@ -113,8 +113,17 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 		if inner == "" {
 			return symbols.TypeKey("[]")
 		}
-		if length > 0 {
-			return symbols.TypeKey("[" + string(inner) + "; " + fmt.Sprintf("%d", length) + "]")
+		lengthKey := ""
+		if info, ok := tc.types.StructInfo(tc.resolveAlias(id)); ok && info != nil && len(info.TypeArgs) > 1 {
+			if key := tc.typeKeyForType(info.TypeArgs[1]); key != "" {
+				lengthKey = string(key)
+			}
+		}
+		if lengthKey == "" && length > 0 {
+			lengthKey = fmt.Sprintf("%d", length)
+		}
+		if lengthKey != "" {
+			return symbols.TypeKey("[" + string(inner) + "; " + lengthKey + "]")
 		}
 		return symbols.TypeKey("[" + string(inner) + "]")
 	}

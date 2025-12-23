@@ -1,21 +1,75 @@
-arrays_view_push_panics.sg (span: 1:1-8:1)
-└─ Item[0]: Fn (span: 1:1-7:2)
+arrays_view_push_panics.sg (span: 1:1-32:1)
+├─ Item[0]: Fn (span: 1:1-3:2)
+│  ├─ Name: print_int
+│  ├─ Params: (n: int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:33-3:2)
+│        └─ Stmt[0]: Expr (span: 2:5-2:24)
+│           └─ Expr: expr#4: print(n to string)
+├─ Item[1]: Fn (span: 5:1-10:2)
+│  ├─ Name: print_opt_int
+│  ├─ Params: (v: <unknown-type>)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:38-10:2)
+│        └─ Stmt[0]: Expr (span: 6:5-9:7)
+│           └─ Expr: expr#16: compare v { 2 arms }
+└─ Item[2]: Fn (span: 12:1-31:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 2:18-7:2)
-         ├─ Stmt[0]: Let (span: 3:5-3:34)
+      └─ Stmt[0]: Block (span: 13:18-31:2)
+         ├─ Stmt[0]: Let (span: 14:5-14:27)
          │  ├─ Name: a
          │  ├─ Mutable: true
          │  ├─ Type: int[]
-         │  └─ Value: expr#4: <ExprKind(8)>
-         ├─ Stmt[1]: Let (span: 4:5-4:27)
-         │  ├─ Name: v
-         │  ├─ Mutable: true
-         │  ├─ Type: <inferred>
-         │  └─ Value: expr#10: a[[1..3]]
-         ├─ Stmt[2]: Expr (span: 5:5-5:30)
-         │  └─ Expr: expr#15: rt_array_push(&mut v, 4)
-         └─ Stmt[3]: Return (span: 6:5-6:14)
-            └─ Expr: expr#16: 0
+         │  └─ Value: expr#17: <ExprKind(8)>
+         ├─ Stmt[1]: Block (span: 15:5-15:39)
+         │  └─ Stmt[0]: Expr (span: 15:7-15:37)
+         │     └─ Expr: expr#23: array_reserve(&mut a, 4 to uint)
+         ├─ Stmt[2]: Block (span: 16:5-16:31)
+         │  └─ Stmt[0]: Expr (span: 16:7-16:29)
+         │     └─ Expr: expr#28: array_push(&mut a, 1)
+         ├─ Stmt[3]: Block (span: 17:5-17:19)
+         │  └─ Stmt[0]: Expr (span: 17:7-17:17)
+         │     └─ Expr: expr#32: a.push(2)
+         ├─ Stmt[4]: Block (span: 18:5-18:19)
+         │  └─ Stmt[0]: Expr (span: 18:7-18:17)
+         │     └─ Expr: expr#36: a.push(3)
+         ├─ Stmt[5]: Let (span: 20:5-20:27)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#39: <ExprKind(8)>
+         ├─ Stmt[6]: Block (span: 21:5-21:22)
+         │  └─ Stmt[0]: Expr (span: 21:7-21:20)
+         │     └─ Expr: expr#44: a.extend(&b)
+         ├─ Stmt[7]: Expr (span: 22:5-22:33)
+         │  └─ Expr: expr#50: print_int(a.__len() to int)
+         ├─ Stmt[8]: Block (span: 24:5-24:30)
+         │  └─ Stmt[0]: Expr (span: 24:7-24:28)
+         │     └─ Expr: expr#53: a.reverse_in_place()
+         ├─ Stmt[9]: Expr (span: 25:5-25:21)
+         │  └─ Expr: expr#58: print_int(a[0])
+         ├─ Stmt[10]: Expr (span: 26:5-26:21)
+         │  └─ Expr: expr#63: print_int(a[4])
+         ├─ Stmt[11]: Block (span: 28:5-28:49)
+         │  ├─ Stmt[0]: Let (span: 28:7-28:29)
+         │  │  ├─ Name: v
+         │  │  ├─ Mutable: false
+         │  │  ├─ Type: <unknown-type>
+         │  │  └─ Value: expr#66: a.pop()
+         │  └─ Stmt[1]: Expr (span: 28:30-28:47)
+         │     └─ Expr: expr#69: print_opt_int(v)
+         ├─ Stmt[12]: Block (span: 29:5-29:59)
+         │  ├─ Stmt[0]: Let (span: 29:7-29:39)
+         │  │  ├─ Name: v
+         │  │  ├─ Mutable: false
+         │  │  ├─ Type: <unknown-type>
+         │  │  └─ Value: expr#73: array_pop(&mut a)
+         │  └─ Stmt[1]: Expr (span: 29:40-29:57)
+         │     └─ Expr: expr#76: print_opt_int(v)
+         └─ Stmt[13]: Return (span: 30:5-30:14)
+            └─ Expr: expr#77: 0

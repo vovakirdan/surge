@@ -139,7 +139,22 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) map[ty
 		if sym == nil || sym.Kind != symbols.SymbolTag || sym.Name == source.NoStringID {
 			continue
 		}
-		if _, exists := tagSymByName[sym.Name]; exists {
+		if existingID, exists := tagSymByName[sym.Name]; exists {
+			existing := src.Symbols.Table.Symbols.Get(existingID)
+			replace := false
+			switch {
+			case existing == nil:
+				replace = true
+			case sym.ModulePath == "core" && existing.ModulePath != "core":
+				replace = true
+			case sym.ModulePath != "" && existing.ModulePath == "":
+				replace = true
+			case sym.ModulePath == existing.ModulePath && id > existingID:
+				replace = true
+			}
+			if replace {
+				tagSymByName[sym.Name] = id
+			}
 			continue
 		}
 		tagSymByName[sym.Name] = id

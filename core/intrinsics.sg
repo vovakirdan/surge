@@ -23,6 +23,11 @@ pub type byte = uint8;
 // Test-only hook: materialize flat UTF-8 bytes for a rope/slice string.
 @intrinsic fn rt_string_force_flatten(s: &string) -> nothing;
 
+// Array access intrinsics
+@intrinsic fn rt_array_reserve<T>(a: &mut Array<T>, new_cap: uint) -> nothing;
+@intrinsic fn rt_array_push<T>(a: &mut Array<T>, value: T) -> nothing;
+@intrinsic fn rt_array_pop<T>(a: &mut Array<T>) -> Option<T>;
+
 // Higher-level I/O
 @intrinsic
 pub fn readline() -> string;
@@ -306,9 +311,6 @@ extern<Array<T>> {
     @intrinsic fn __index_set(self: Array<T>, index: int, value: T) -> nothing;
     @intrinsic fn __range(self: Array<T>) -> Range<T>;
     @intrinsic fn __len(self: &Array<T>) -> uint;
-    @intrinsic pub fn rt_array_reserve(self: &mut Array<T>, new_cap: uint) -> nothing;
-    @intrinsic pub fn rt_array_push(self: &mut Array<T>, value: T) -> nothing;
-    @intrinsic pub fn rt_array_pop(self: &mut Array<T>) -> Option<T>;
 }
 
 extern<ArrayFixed<T, N>> {

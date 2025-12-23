@@ -1,0 +1,7 @@
+error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:5:5 array view is not resizable; push requires an owned array
+error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:11:13 array view is not resizable; pop requires an owned array
+error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:17:5 array view is not resizable; reserve requires an owned array
+error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:23:16 array view is not resizable; array_push requires an owned array
+error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:29:23 array view is not resizable; array_pop requires an owned array
+error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:35:19 array view is not resizable; array_reserve requires an owned array
+error SEM3015 testdata/golden/sema/invalid/array_view_resize.sg:41:19 array view is not resizable; rt_array_push requires an owned array

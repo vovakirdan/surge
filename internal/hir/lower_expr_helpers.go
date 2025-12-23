@@ -44,18 +44,6 @@ func (l *lowerer) varRefForSymbol(symID symbols.SymbolID, span source.Span) *Exp
 	}
 }
 
-// isReferenceType checks if a type is a reference type.
-func (l *lowerer) isReferenceType(id types.TypeID) bool {
-	if id == types.NoTypeID || l.semaRes == nil || l.semaRes.TypeInterner == nil {
-		return false
-	}
-	tt, ok := l.semaRes.TypeInterner.Lookup(id)
-	if !ok {
-		return false
-	}
-	return tt.Kind == types.KindReference
-}
-
 // referenceType creates a reference type for the given element type.
 func (l *lowerer) referenceType(elem types.TypeID, mutable bool) types.TypeID {
 	if elem == types.NoTypeID || l.semaRes == nil || l.semaRes.TypeInterner == nil {

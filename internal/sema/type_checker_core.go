@@ -90,6 +90,8 @@ type typeChecker struct {
 	lockOrderGraph              *LockOrderGraph         // Global lock ordering for deadlock detection
 	taskTracker                 *TaskTracker            // Task tracking for structured concurrency
 	addressOfOperands           map[ast.ExprID]struct{} // Tracks operands of & expressions (for @atomic validation)
+	arrayViewExprs              map[ast.ExprID]struct{}
+	arrayViewBindings           map[symbols.SymbolID]struct{}
 }
 
 type returnContext struct {
@@ -180,6 +182,8 @@ func (tc *typeChecker) run() {
 	tc.fnConcurrencySummaries = make(map[symbols.SymbolID]*FnConcurrencySummary)
 	tc.lockOrderGraph = NewLockOrderGraph()
 	tc.taskTracker = NewTaskTracker()
+	tc.arrayViewExprs = make(map[ast.ExprID]struct{})
+	tc.arrayViewBindings = make(map[symbols.SymbolID]struct{})
 
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {

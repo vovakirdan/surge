@@ -64,8 +64,33 @@ func (l *lowerer) applySelfBorrow(symID symbols.SymbolID, recv *Expr) *Expr {
 	default:
 		return recv
 	}
-	if l.isReferenceType(recv.Type) {
-		return recv
+	if elem, ok, recvMut := l.referenceInfo(recv.Type); ok {
+		if mut && !recvMut {
+			return recv
+		}
+		deref := &Expr{
+			Kind: ExprUnaryOp,
+			Type: elem,
+			Span: recv.Span,
+			Data: UnaryOpData{
+				Op:      ast.ExprUnaryDeref,
+				Operand: recv,
+			},
+		}
+		refType := l.referenceType(elem, mut)
+		op := ast.ExprUnaryRef
+		if mut {
+			op = ast.ExprUnaryRefMut
+		}
+		return &Expr{
+			Kind: ExprUnaryOp,
+			Type: refType,
+			Span: recv.Span,
+			Data: UnaryOpData{
+				Op:      op,
+				Operand: deref,
+			},
+		}
 	}
 	refType := l.referenceType(recv.Type, mut)
 	op := ast.ExprUnaryRef
@@ -81,6 +106,17 @@ func (l *lowerer) applySelfBorrow(symID symbols.SymbolID, recv *Expr) *Expr {
 			Operand: recv,
 		},
 	}
+}
+
+func (l *lowerer) referenceInfo(id types.TypeID) (elem types.TypeID, ok, mut bool) {
+	if id == types.NoTypeID || l.semaRes == nil || l.semaRes.TypeInterner == nil {
+		return types.NoTypeID, false, false
+	}
+	tt, found := l.semaRes.TypeInterner.Lookup(id)
+	if !found || tt.Kind != types.KindReference {
+		return types.NoTypeID, false, false
+	}
+	return tt.Elem, true, tt.Mutable
 }
 
 // wrapInSome wraps an expression in a Some() tag constructor call.

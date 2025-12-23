@@ -144,14 +144,19 @@ func buildCoreSymbolRemap(rootSyms *symbols.Result, coreRec *moduleRecord) map[s
 		if sym == nil || sym.Flags&symbols.SymbolFlagImported == 0 {
 			continue
 		}
-		if !isCoreModulePath(sym.ModulePath) {
-			continue
-		}
 		key := symbolKey(sym, rootSyms.Table.Strings)
 		if key == "" {
 			continue
 		}
-		rootMap[key] = id
+		if sym.ModulePath != "" && isCoreModulePath(sym.ModulePath) {
+			rootMap[key] = id
+			continue
+		}
+		if sym.ModulePath == "" && sym.Flags&symbols.SymbolFlagBuiltin != 0 {
+			if _, exists := rootMap[key]; !exists {
+				rootMap[key] = id
+			}
+		}
 	}
 
 	mapping := make(map[symbols.SymbolID]symbols.SymbolID)

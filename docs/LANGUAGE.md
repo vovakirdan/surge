@@ -660,7 +660,7 @@ Parser diagnostics:
 * Range operands use overload resolution: `s[a..b]` resolves `__index(self, r: Range<int>)`.
   Range literals are bracketed, so this can also appear as `s[[a..b]]` without a dedicated slice syntax.
 * Array slicing via ranges returns a view, not a copy; mutations through the view affect the base array.
-* Array views are not resizable; push/pop/reserve operations panic.
+* Array views are not resizable; push/pop/reserve operations are rejected at compile time (and still panic if bypassed).
 * For strings, `s[i]` returns a `uint32` code point (code point indexing, not byte indexing).
 * Negative indices count from the end for arrays and strings.
 * `[..=]` is invalid (inclusive end requires an end bound).
@@ -1367,6 +1367,22 @@ The core prelude defines common string helpers as methods on `string`:
 * `replace(old: string, new: string) -> string` — if `old` is empty, returns the original string.
 * `reverse() -> string` — reverses by code points.
 * `levenshtein(other: string) -> uint` — edit distance by code points.
+
+---
+
+### 7.5. Array standard methods
+
+The core prelude defines array helpers as methods on `Array<T>`:
+
+* `push(value: T) -> nothing`, `pop() -> Option<T>`, `reserve(new_cap: uint) -> nothing`
+* `extend(other: &Array<T>) -> nothing`
+* `slice(r: Range<int>) -> Array<T>` — thin wrapper over `self[r]` (view)
+* `contains(value: &T) -> bool`, `find(value: &T) -> Option<uint>` (requires `__eq` on `T`; currently provided for `Array<int>`, `Array<uint>`, `Array<float>`, `Array<bool>`, `Array<string>`)
+* `reverse_in_place() -> nothing`
+
+Top-level helpers `array_push/array_pop/array_reserve` mirror the intrinsic operations.
+
+For fixed-size arrays, `ArrayFixed<T, N>` provides `to_array() -> Array<T>`.
 
 ---
 
