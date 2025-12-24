@@ -226,6 +226,7 @@ const (
 	SemaEntrypointParamNoFromStdin     Code = 3125 // Parameter lacks FromStdin implementation
 	SemaRecursiveUnsized               Code = 3126 // Recursive value type has infinite size
 	SemaDeprecatedUsage                Code = 3127 // Usage of deprecated element (warning)
+	SemaIntLiteralOutOfRange           Code = 3128 // Integer literal out of range for target type
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -445,6 +446,7 @@ var ( // todo расширить описания и использовать к
 		SemaEntrypointParamNoFromStdin:     "parameter type does not implement FromStdin contract",
 		SemaRecursiveUnsized:               "recursive value type has infinite size",
 		SemaDeprecatedUsage:                "usage of deprecated element",
+		SemaIntLiteralOutOfRange:           "integer literal out of range",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",

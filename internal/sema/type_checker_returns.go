@@ -145,6 +145,18 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		}
 		return
 	}
+	if applied, ok := tc.materializeNumericLiteral(expr, expected); applied {
+		actual = tc.result.ExprTypes[expr]
+		if !ok {
+			return
+		}
+	}
+	if applied, ok := tc.materializeArrayLiteral(expr, expected); applied {
+		if !ok {
+			return
+		}
+		actual = tc.result.ExprTypes[expr]
+	}
 	actual = tc.coerceReturnType(expected, actual)
 	if !tc.typesAssignable(expected, actual, false) {
 		// Try implicit conversion before reporting error

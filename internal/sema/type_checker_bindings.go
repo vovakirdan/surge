@@ -41,6 +41,19 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 		}
 	}
 
+	if applied, ok := tc.materializeNumericLiteral(valueExpr, declared); applied {
+		actual = tc.result.ExprTypes[valueExpr]
+		if !ok {
+			return
+		}
+	}
+	if applied, ok := tc.materializeArrayLiteral(valueExpr, declared); applied {
+		if !ok {
+			return
+		}
+		actual = tc.result.ExprTypes[valueExpr]
+	}
+
 	// Apply literal coercion (e.g., untyped int literal to specific int type)
 	actual = tc.coerceLiteralForBinding(declared, actual, valueExpr)
 

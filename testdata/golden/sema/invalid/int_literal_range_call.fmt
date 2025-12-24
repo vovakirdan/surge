@@ -1,0 +1,7 @@
+fn f(i: int8) { }
+
+@entrypoint
+fn main() -> int {
+    f(1000);
+    return 0;
+}

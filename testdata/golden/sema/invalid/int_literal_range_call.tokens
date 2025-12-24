@@ -1,0 +1,28 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "f" at 1:4-1:5 (leading: Space)
+  3: LParen          "(" at 1:5-1:6
+  4: Ident           "i" at 1:6-1:7
+  5: Colon           ":" at 1:7-1:8
+  6: Ident           "int8" at 1:9-1:13 (leading: Space)
+  7: RParen          ")" at 1:13-1:14
+  8: LBrace          "{" at 1:15-1:16 (leading: Space)
+  9: RBrace          "}" at 1:17-1:18 (leading: Space)
+ 10: At              "@" at 3:1-3:2 (leading: Newline)
+ 11: Ident           "entrypoint" at 3:2-3:12
+ 12: KwFn            "fn" at 4:1-4:3 (leading: Newline)
+ 13: Ident           "main" at 4:4-4:8 (leading: Space)
+ 14: LParen          "(" at 4:8-4:9
+ 15: RParen          ")" at 4:9-4:10
+ 16: Arrow           "->" at 4:11-4:13 (leading: Space)
+ 17: Ident           "int" at 4:14-4:17 (leading: Space)
+ 18: LBrace          "{" at 4:18-4:19 (leading: Space)
+ 19: Ident           "f" at 5:5-5:6 (leading: Newline, Space)
+ 20: LParen          "(" at 5:6-5:7
+ 21: IntLit          "1000" at 5:7-5:11
+ 22: RParen          ")" at 5:11-5:12
+ 23: Semicolon       ";" at 5:12-5:13
+ 24: KwReturn        "return" at 6:5-6:11 (leading: Newline, Space)
+ 25: IntLit          "0" at 6:12-6:13 (leading: Space)
+ 26: Semicolon       ";" at 6:13-6:14
+ 27: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 28: EOF             at 8:1-8:1

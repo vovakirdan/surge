@@ -110,6 +110,7 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 	}
 	if ok {
 		if sym := tc.symbolFromID(bestSym); sym != nil {
+			tc.materializeCallArguments(sym, args, bestArgs)
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 			tc.recordImplicitConversionsForCall(sym, args)
 		}
@@ -132,6 +133,7 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 	}
 	if ok {
 		if sym := tc.symbolFromID(bestSym); sym != nil {
+			tc.materializeCallArguments(sym, args, bestArgs)
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 			tc.recordImplicitConversionsForCall(sym, args)
 		}

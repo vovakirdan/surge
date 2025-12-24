@@ -78,6 +78,71 @@ func (tc *typeChecker) recordImplicitConversionsForCall(sym *symbols.Symbol, arg
 	}
 }
 
+// materializeCallArguments applies expected types to literal arguments after overload resolution.
+// This ensures numeric literals are range-checked and typed to the selected parameter types.
+func (tc *typeChecker) materializeCallArguments(sym *symbols.Symbol, args []callArg, concreteArgs []types.TypeID) {
+	if sym == nil || sym.Signature == nil || tc.builder == nil {
+		return
+	}
+	sig := sym.Signature
+
+	hasNamed := false
+	for _, arg := range args {
+		if arg.name != source.NoStringID {
+			hasNamed = true
+			break
+		}
+	}
+	ordered := args
+	if hasNamed {
+		if reordered, ok := tc.reorderArgsForSignature(sig, args); ok {
+			ordered = reordered
+		} else {
+			return
+		}
+	}
+
+	paramNames, paramSet := tc.typeParamNameSet(sym)
+	bindings := make(map[string]types.TypeID)
+	if len(paramNames) > 0 && len(concreteArgs) == len(paramNames) {
+		for i, name := range paramNames {
+			if name != "" {
+				bindings[name] = concreteArgs[i]
+			}
+		}
+	}
+
+	variadicIndex := -1
+	for i, v := range sig.Variadic {
+		if v {
+			variadicIndex = i
+			break
+		}
+	}
+
+	for i, arg := range ordered {
+		paramIndex := i
+		if variadicIndex >= 0 && i >= variadicIndex {
+			paramIndex = variadicIndex
+		}
+		if paramIndex >= len(sig.Params) {
+			continue
+		}
+		expectedType := tc.instantiateResultType(sig.Params[paramIndex], bindings, paramSet)
+		if expectedType == types.NoTypeID {
+			continue
+		}
+		tc.materializeNumericLiteral(arg.expr, expectedType)
+		tc.materializeArrayLiteral(arg.expr, expectedType)
+	}
+
+	for i := range args {
+		if ty := tc.result.ExprTypes[args[i].expr]; ty != types.NoTypeID {
+			args[i].ty = ty
+		}
+	}
+}
+
 func (tc *typeChecker) callAllowsImplicitTo(sym *symbols.Symbol, paramIndex int) bool {
 	if sym == nil {
 		return false

@@ -1,0 +1,14 @@
+int_literal_range_assign.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-5:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:24)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: uint8
+         │  └─ Value: expr#1: 256
+         └─ Stmt[1]: Return (span: 4:5-4:14)
+            └─ Expr: expr#2: 0

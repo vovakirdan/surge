@@ -12,7 +12,7 @@ if [[ ! -x "$bin" ]]; then
 fi
 
 status=0
-find "$root/testdata/golden" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r -d '' file; do
+find "$root/testdata/golden" -path "$root/testdata/golden/spec_audit" -prune -o -type f -name '*.sg' -print0 | sort -z | while IFS= read -r -d '' file; do
   base="$(basename "$file")"
   [[ "$base" == _* ]] && continue
 

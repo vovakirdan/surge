@@ -1,0 +1,11 @@
+@entrypoint
+fn main() -> int {
+    let a: int8 = 127;
+    let b: int8 = 128;
+    let c: int8 = -128;
+    let d: int8 = -129;
+    let e: uint8 = 255;
+    let f: uint8 = 256;
+    let g: uint8 = -1;
+    return 0;
+}

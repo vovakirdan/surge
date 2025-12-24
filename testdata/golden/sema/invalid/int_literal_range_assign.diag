@@ -1,0 +1,1 @@
+error SEM3128 testdata/golden/sema/invalid/int_literal_range_assign.sg:3:20 integer literal out of range for uint8: 256 (allowed 0..255)

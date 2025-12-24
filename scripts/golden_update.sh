@@ -13,7 +13,7 @@ export SURGE_STDLIB="${ROOT_DIR}"
 
 # Очищаем старые артефакты перед регенерацией, чтобы убрать лишние файлы
 # Keep debugger golden inputs/outputs.
-find "${GOLDEN_DIR}" -type f ! -name '*.sg' ! -name '*.script' ! -name '*.out' ! -name '*.code' ! -name '*.args' ! -name '*.stdin' -delete
+find "${GOLDEN_DIR}" -path "${GOLDEN_DIR}/spec_audit" -prune -o -type f ! -name '*.sg' ! -name '*.script' ! -name '*.out' ! -name '*.code' ! -name '*.args' ! -name '*.stdin' -delete
 
 if [[ ! -x "${SURGE_BIN}" ]]; then
 	if command -v surge >/dev/null 2>&1; then
@@ -91,7 +91,7 @@ generate_outputs() {
 	fi
 }
 
-find "${GOLDEN_DIR}" -type f -name '*.sg' -print0 | sort -z | while IFS= read -r -d '' src; do
+find "${GOLDEN_DIR}" -path "${GOLDEN_DIR}/spec_audit" -prune -o -type f -name '*.sg' -print0 | sort -z | while IFS= read -r -d '' src; do
 	base="$(basename "${src}")"
 	if [[ "${base}" == _* ]]; then
 		continue

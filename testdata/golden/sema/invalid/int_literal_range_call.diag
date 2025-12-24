@@ -1,0 +1,1 @@
+error SEM3128 testdata/golden/sema/invalid/int_literal_range_call.sg:5:7 integer literal out of range for int8: 1000 (allowed -128..127)

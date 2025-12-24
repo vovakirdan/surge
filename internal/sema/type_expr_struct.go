@@ -322,6 +322,18 @@ func (tc *typeChecker) ensureStructFieldType(name source.StringID, value ast.Exp
 			return
 		}
 	}
+	if applied, ok := tc.materializeNumericLiteral(value, expected); applied {
+		actual = tc.result.ExprTypes[value]
+		if !ok {
+			return
+		}
+	}
+	if applied, ok := tc.materializeArrayLiteral(value, expected); applied {
+		if !ok {
+			return
+		}
+		actual = tc.result.ExprTypes[value]
+	}
 	if tc.valueType(actual) == tc.valueType(expected) {
 		return
 	}
