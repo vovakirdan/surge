@@ -166,10 +166,6 @@ func (eb *errorBuilder) unsupportedIntrinsic(name string) *VMError {
 	return eb.makeError(PanicUnsupportedIntrinsic, fmt.Sprintf("unsupported intrinsic: %s", name))
 }
 
-func (eb *errorBuilder) unsupportedParseType(typeName string) *VMError {
-	return eb.makeError(PanicUnsupportedParseType, fmt.Sprintf("rt_parse_arg only supports int/uint/float/string, got %s", typeName))
-}
-
 func (eb *errorBuilder) intOverflow() *VMError {
 	return eb.makeError(PanicIntOverflow, "integer overflow")
 }

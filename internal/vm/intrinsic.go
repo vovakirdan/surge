@@ -94,8 +94,11 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_exit":
 		return vm.handleRtExit(frame, call)
 
-	case "rt_parse_arg":
-		return vm.handleParseArg(frame, call, writes)
+	case "exit":
+		return vm.handleExit(frame, call)
+
+	case "from_str":
+		return vm.handleFromStr(frame, call, writes)
 
 	case "__len":
 		return vm.handleLen(frame, call, writes)

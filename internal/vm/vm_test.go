@@ -198,14 +198,13 @@ func TestVMEmptyArgvBoundsCheck(t *testing.T) {
 	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
 	// Empty argv - simulates running without "--" separator
 	rt := vm.NewRuntimeWithArgs(nil)
-	_, vmErr := runVM(mirMod, rt, files, types, nil)
+	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
 
-	if vmErr == nil {
-		t.Fatal("expected panic with empty argv, got nil")
+	if vmErr != nil {
+		t.Fatalf("unexpected error: %v", vmErr.Error())
 	}
-	// Should panic with out of bounds
-	if vmErr.Code != vm.PanicArrayIndexOutOfRange {
-		t.Fatalf("expected PanicArrayIndexOutOfRange (VM2105), got %v", vmErr.Code)
+	if exitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d", exitCode)
 	}
 }
 

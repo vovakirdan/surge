@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -18,9 +17,6 @@ type Runtime interface {
 
 	// Exit signals the VM to halt with the given exit code.
 	Exit(code int)
-
-	// ParseArgInt parses a string as an integer.
-	ParseArgInt(s string) (int, error)
 
 	// ExitCode returns the exit code set by Exit, or -1 if not set.
 	ExitCode() int
@@ -63,11 +59,6 @@ func (r *DefaultRuntime) Exit(code int) {
 	r.exited = true
 }
 
-func (r *DefaultRuntime) ParseArgInt(s string) (int, error) {
-	s = strings.TrimSpace(s)
-	return strconv.Atoi(s)
-}
-
 func (r *DefaultRuntime) ExitCode() int {
 	return r.exitCode
 }
@@ -104,11 +95,6 @@ func (r *TestRuntime) StdinReadAll() string {
 func (r *TestRuntime) Exit(code int) {
 	r.exitCode = code
 	r.exited = true
-}
-
-func (r *TestRuntime) ParseArgInt(s string) (int, error) {
-	s = strings.TrimSpace(s)
-	return strconv.Atoi(s)
 }
 
 func (r *TestRuntime) ExitCode() int {
@@ -158,20 +144,6 @@ func (r *RecordingRuntime) Exit(code int) {
 	if r.rt != nil {
 		r.rt.Exit(code)
 	}
-}
-
-func (r *RecordingRuntime) ParseArgInt(s string) (int, error) {
-	if r == nil || r.rt == nil {
-		return 0, fmt.Errorf("no runtime")
-	}
-	n, err := r.rt.ParseArgInt(s)
-	if err != nil {
-		return 0, err
-	}
-	if r.rec != nil {
-		r.rec.RecordIntrinsic("rt_parse_arg<int>", []LogValue{LogString(s)}, LogInt(n))
-	}
-	return n, nil
 }
 
 func (r *RecordingRuntime) ExitCode() int {
@@ -233,40 +205,6 @@ func (r *ReplayRuntime) Exit(code int) {
 	r.rp.ConsumeExit(r.vm, code)
 	r.exitCode = code
 	r.exited = true
-}
-
-func (r *ReplayRuntime) ParseArgInt(s string) (int, error) {
-	if r == nil || r.vm == nil || r.rp == nil {
-		return 0, fmt.Errorf("no replay runtime")
-	}
-	if kind, ok := r.rp.PeekKind(); ok && kind == "panic" {
-		if r.rp.next >= len(r.rp.events) || r.rp.events[r.rp.next].Panic == nil {
-			r.vm.panic(PanicInvalidReplayLogFormat, "invalid panic event")
-		}
-		p := r.rp.events[r.rp.next].Panic
-		code, ok := ParsePanicCode(p.Code)
-		if !ok {
-			r.vm.panic(PanicInvalidReplayLogFormat, "invalid panic code")
-		}
-		r.vm.panic(code, p.Msg)
-	}
-
-	ev := r.rp.ConsumeIntrinsic(r.vm, "rt_parse_arg<int>")
-	if len(ev.Args) != 1 {
-		r.vm.panic(PanicInvalidReplayLogFormat, "invalid rt_parse_arg<int> args")
-	}
-	arg0, err := MustDecodeString(ev.Args[0])
-	if err != nil {
-		r.vm.panic(PanicInvalidReplayLogFormat, fmt.Sprintf("invalid rt_parse_arg<int> arg: %v", err))
-	}
-	if arg0 != s {
-		r.vm.panic(PanicReplayMismatch, fmt.Sprintf("replay mismatch: expected rt_parse_arg<int>(%q), got (%q)", arg0, s))
-	}
-	n, err := MustDecodeInt(ev.Ret)
-	if err != nil {
-		r.vm.panic(PanicInvalidReplayLogFormat, fmt.Sprintf("invalid rt_parse_arg<int> ret: %v", err))
-	}
-	return n, nil
 }
 
 func (r *ReplayRuntime) ExitCode() int {

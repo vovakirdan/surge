@@ -284,7 +284,6 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) map[ty
 			continue
 		}
 		cases := make([]TagCaseMeta, 0, len(info.Members))
-		supported := true
 		for _, member := range info.Members {
 			switch member.Kind {
 			case types.UnionMemberTag:
@@ -300,14 +299,13 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) map[ty
 				})
 			case types.UnionMemberNothing:
 				cases = append(cases, TagCaseMeta{TagName: "nothing"})
+			case types.UnionMemberType:
+				continue
 			default:
-				supported = false
-			}
-			if !supported {
-				break
+				cases = nil
 			}
 		}
-		if !supported || len(cases) == 0 {
+		if len(cases) == 0 {
 			continue
 		}
 		layouts[typeID] = cases

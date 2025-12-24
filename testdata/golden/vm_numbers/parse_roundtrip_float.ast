@@ -34,8 +34,8 @@ parse_roundtrip_float.sg (span: 1:1-15:1)
          │  ├─ Name: f
          │  ├─ Mutable: false
          │  ├─ Type: float
-         │  └─ Value: expr#24: rt_parse_arg("-12345.6789e12")
+         │  └─ Value: expr#27: float.from_str("-12345.6789e12").safe()
          ├─ Stmt[1]: Expr (span: 12:5-12:29)
-         │  └─ Expr: expr#28: write_line(f to string)
+         │  └─ Expr: expr#31: write_line(f to string)
          └─ Stmt[2]: Return (span: 13:5-13:14)
-            └─ Expr: expr#29: 0
+            └─ Expr: expr#32: 0

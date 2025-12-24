@@ -8,7 +8,7 @@ fn write_line(s: string) -> nothing {
 
 @entrypoint
 fn main() -> int {
-    let f: float = rt_parse_arg::<float>("-12345.6789e12");
+    let f: float = float.from_str("-12345.6789e12").safe();
     write_line(f to string);
     return 0;
 }

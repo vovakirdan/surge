@@ -1,0 +1,9 @@
+argv_parse_error.sg (span: 1:1-5:1)
+└─ Item[0]: Fn (span: 1:1-4:2)
+   ├─ Name: main
+   ├─ Params: (x: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:24-4:2)
+         └─ Stmt[0]: Return (span: 3:5-3:14)
+            └─ Expr: expr#2: x

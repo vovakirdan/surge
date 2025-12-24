@@ -5,17 +5,39 @@ funcs=2
 fn __surge_start:
   locals:
     L0: [string] name=argv
-    L1: string name=arg_str0
+    L1: uint [copy] name=argv_len
     L2: int [copy] name=x
-    L3: int name=entry_ret
-    L4: int [copy] name=code
+    L3: bool [copy] name=has_arg0
+    L4: string name=arg_str0
+    L5: type#368 name=arg_parsed0
+    L6: bool [copy] name=arg_ok0
+    L7: type#31 name=entry_err
+    L8: int name=entry_ret
+    L9: int [copy] name=code
   bb0:
     L0 = call rt_argv()
-    L1 = index copy L0[const 0]
-    L2 = call rt_parse_arg(move L1)
-    L3 = call main(move L2)
-    L4 = copy L3
-    call rt_exit(copy L4)
+    L1 = call __len(copy L0)
+    L3 = (const 0:uint < copy L1)
+    if copy L3 then bb1 else bb2
+  bb1:
+    L4 = index copy L0[const 0]
+    L5 = call from_str(move L4)
+    L6 = tag_test copy L5 is Success
+    if copy L6 then bb4 else bb5
+  bb2:
+    L7 = struct_lit type#31 {message=const "missing argv argument \"x\"", code=const 1:uint}
+    call exit(move L7)
+    return
+  bb3:
+    L8 = call main(move L2)
+    L9 = copy L8
+    call rt_exit(copy L9)
+    return
+  bb4:
+    L2 = tag_payload copy L5.Success[0]
+    goto bb3
+  bb5:
+    call exit(move L5)
     return
 
 fn main:

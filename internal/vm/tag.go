@@ -36,7 +36,7 @@ func (vm *VM) evalTagTest(frame *Frame, tt *mir.TagTest) (Value, *VMError) {
 	}
 	defer vm.dropValue(val)
 	if val.Kind != VKHandleTag {
-		return Value{}, vm.eb.switchTagOnNonTag(val.Kind.String())
+		return MakeBool(false, types.NoTypeID), nil
 	}
 	layout, vmErr := vm.tagLayoutFor(val.TypeID)
 	if vmErr != nil {

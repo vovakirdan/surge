@@ -475,8 +475,3 @@ pub fn rt_stdin_read_all() -> string;
 // Exit with integer exit code (for __surge_start)
 @intrinsic
 pub fn rt_exit(code: int) -> nothing;
-
-// Parse argument from string (placeholder for from_str)
-// TODO: replace with proper T.from_str call in __surge_start
-@intrinsic
-pub fn rt_parse_arg<T>(s: string) -> T;

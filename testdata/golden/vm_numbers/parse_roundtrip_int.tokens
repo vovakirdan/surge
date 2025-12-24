@@ -66,24 +66,26 @@
  66: Colon           ":" at 11:10-11:11
  67: Ident           "int" at 11:12-11:15 (leading: Space)
  68: Assign          "=" at 11:16-11:17 (leading: Space)
- 69: Ident           "rt_parse_arg" at 11:18-11:30 (leading: Space)
- 70: ColonColon      "::" at 11:30-11:32
- 71: Lt              "<" at 11:32-11:33
- 72: Ident           "int" at 11:33-11:36
- 73: Gt              ">" at 11:36-11:37
- 74: LParen          "(" at 11:37-11:38
- 75: StringLit       "\"-100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007\"" at 11:38-11:242
- 76: RParen          ")" at 11:242-11:243
- 77: Semicolon       ";" at 11:243-11:244
- 78: Ident           "write_line" at 12:5-12:15 (leading: Newline, Space)
- 79: LParen          "(" at 12:15-12:16
- 80: Ident           "n" at 12:16-12:17
- 81: KwTo            "to" at 12:18-12:20 (leading: Space)
- 82: Ident           "string" at 12:21-12:27 (leading: Space)
- 83: RParen          ")" at 12:27-12:28
- 84: Semicolon       ";" at 12:28-12:29
- 85: KwReturn        "return" at 13:5-13:11 (leading: Newline, Space)
- 86: IntLit          "0" at 13:12-13:13 (leading: Space)
- 87: Semicolon       ";" at 13:13-13:14
- 88: RBrace          "}" at 14:1-14:2 (leading: Newline)
- 89: EOF             at 15:1-15:1
+ 69: Ident           "int" at 11:18-11:21 (leading: Space)
+ 70: Dot             "." at 11:21-11:22
+ 71: Ident           "from_str" at 11:22-11:30
+ 72: LParen          "(" at 11:30-11:31
+ 73: StringLit       "\"-100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007\"" at 11:31-11:235
+ 74: RParen          ")" at 11:235-11:236
+ 75: Dot             "." at 11:236-11:237
+ 76: Ident           "safe" at 11:237-11:241
+ 77: LParen          "(" at 11:241-11:242
+ 78: RParen          ")" at 11:242-11:243
+ 79: Semicolon       ";" at 11:243-11:244
+ 80: Ident           "write_line" at 12:5-12:15 (leading: Newline, Space)
+ 81: LParen          "(" at 12:15-12:16
+ 82: Ident           "n" at 12:16-12:17
+ 83: KwTo            "to" at 12:18-12:20 (leading: Space)
+ 84: Ident           "string" at 12:21-12:27 (leading: Space)
+ 85: RParen          ")" at 12:27-12:28
+ 86: Semicolon       ";" at 12:28-12:29
+ 87: KwReturn        "return" at 13:5-13:11 (leading: Newline, Space)
+ 88: IntLit          "0" at 13:12-13:13 (leading: Space)
+ 89: Semicolon       ";" at 13:13-13:14
+ 90: RBrace          "}" at 14:1-14:2 (leading: Newline)
+ 91: EOF             at 15:1-15:1

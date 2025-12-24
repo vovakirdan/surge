@@ -6,14 +6,25 @@ fn __surge_start:
   locals:
     L0: string name=stdin
     L1: int [copy] name=x
-    L2: int name=entry_ret
-    L3: int [copy] name=code
+    L2: type#368 name=stdin_parsed
+    L3: bool [copy] name=stdin_ok
+    L4: int name=entry_ret
+    L5: int [copy] name=code
   bb0:
     L0 = call rt_stdin_read_all()
-    L1 = call rt_parse_arg(move L0)
-    L2 = call main(move L1)
-    L3 = copy L2
-    call rt_exit(copy L3)
+    L2 = call from_str(move L0)
+    L3 = tag_test copy L2 is Success
+    if copy L3 then bb1 else bb2
+  bb1:
+    L1 = tag_payload copy L2.Success[0]
+    goto bb3
+  bb2:
+    call exit(move L2)
+    return
+  bb3:
+    L4 = call main(move L1)
+    L5 = copy L4
+    call rt_exit(copy L5)
     return
 
 fn main:

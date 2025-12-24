@@ -197,6 +197,12 @@ fn main() {
 - **`"stdin"`** (`@entrypoint("stdin")`): Parameters without defaults must implement `FromStdin` contract (have `from_str(string) -> Erring<T, Error>` method).
 - **`"env"`**, **`"config"`**: Reserved for future use (will produce FUT7003/FUT7004 errors).
 
+**Runtime behavior (v1):**
+- **argv**: positional arguments; missing required args exits with an `Error` (code 1) and message.
+- **Parsing**: uses `T.from_str`; parse failures exit with the returned `Error`.
+- **stdin**: only one parameter is supported; more than one exits with code `7001`.
+- **no mode**: defaults are evaluated for all parameters.
+
 **Return type requirements:**
 
 The return type must be one of:

@@ -377,22 +377,25 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 
 // execCall executes a call instruction.
 func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) (*Frame, *VMError) {
-	// Check if this is an intrinsic (no symbol ID)
-	if call.Callee.Kind == mir.CalleeSym && !call.Callee.Sym.IsValid() {
-		return nil, vm.callIntrinsic(frame, call, writes)
-	}
-
-	// Find the function to call
+	// Find the function to call.
 	var targetFn *mir.Func
-	if call.Callee.Kind == mir.CalleeSym {
+	switch call.Callee.Kind {
+	case mir.CalleeSym:
+		if !call.Callee.Sym.IsValid() {
+			return nil, vm.callIntrinsic(frame, call, writes)
+		}
 		targetFn = vm.findFunctionBySym(call.Callee.Sym)
-	}
-	if targetFn == nil {
+		if targetFn == nil {
+			// Support selected intrinsics and extern calls that are not lowered into MIR.
+			return nil, vm.callIntrinsic(frame, call, writes)
+		}
+	case mir.CalleeValue:
 		targetFn = vm.findFunction(call.Callee.Name)
-	}
-	if targetFn == nil {
-		// Support selected intrinsics and extern calls that are not lowered into MIR.
-		return nil, vm.callIntrinsic(frame, call, writes)
+		if targetFn == nil {
+			return nil, vm.callIntrinsic(frame, call, writes)
+		}
+	default:
+		return nil, vm.eb.unimplemented("unknown call target")
 	}
 
 	// Evaluate arguments
