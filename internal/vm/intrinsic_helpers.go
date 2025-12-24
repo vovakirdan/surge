@@ -22,6 +22,25 @@ func (vm *VM) readBytesFromPointer(ptrVal Value, n int) ([]byte, *VMError) {
 			return nil, vm.eb.outOfBounds(end, len(s))
 		}
 		return []byte(s[off:end]), nil
+	case LKRawBytes:
+		if ptrVal.Loc.Handle == 0 {
+			if n == 0 {
+				return []byte{}, nil
+			}
+			return nil, vm.eb.makeError(PanicInvalidHandle, "invalid raw handle 0")
+		}
+		alloc, vmErr := vm.rawGet(ptrVal.Loc.Handle)
+		if vmErr != nil {
+			return nil, vmErr
+		}
+		off := int(ptrVal.Loc.ByteOffset)
+		end := off + n
+		if off < 0 || end < off || end > len(alloc.data) {
+			return nil, vm.eb.outOfBounds(end, len(alloc.data))
+		}
+		out := make([]byte, n)
+		copy(out, alloc.data[off:end])
+		return out, nil
 	case LKArrayElem:
 		view, vmErr := vm.arrayViewFromHandle(ptrVal.Loc.Handle)
 		if vmErr != nil {
@@ -53,6 +72,30 @@ func (vm *VM) readUint16sFromPointer(ptrVal Value, n int) ([]uint16, *VMError) {
 		return nil, vm.eb.invalidNumericConversion("uint16 length out of range")
 	}
 	switch ptrVal.Loc.Kind {
+	case LKRawBytes:
+		if ptrVal.Loc.Handle == 0 {
+			if n == 0 {
+				return []uint16{}, nil
+			}
+			return nil, vm.eb.makeError(PanicInvalidHandle, "invalid raw handle 0")
+		}
+		alloc, vmErr := vm.rawGet(ptrVal.Loc.Handle)
+		if vmErr != nil {
+			return nil, vmErr
+		}
+		off := int(ptrVal.Loc.ByteOffset)
+		byteLen := n * 2
+		end := off + byteLen
+		if off < 0 || end < off || end > len(alloc.data) {
+			return nil, vm.eb.outOfBounds(end, len(alloc.data))
+		}
+		out := make([]uint16, n)
+		for i := range n {
+			b0 := uint16(alloc.data[off+i*2])
+			b1 := uint16(alloc.data[off+i*2+1])
+			out[i] = b0 | (b1 << 8)
+		}
+		return out, nil
 	case LKArrayElem:
 		view, vmErr := vm.arrayViewFromHandle(ptrVal.Loc.Handle)
 		if vmErr != nil {

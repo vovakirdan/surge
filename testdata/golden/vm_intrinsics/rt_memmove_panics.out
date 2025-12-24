@@ -1,5 +1,0 @@
-panic VM1005: unsupported intrinsic: rt_memmove
-at testdata/golden/vm_intrinsics/rt_memmove_panics.sg:5:22
-backtrace:
-  0: main at testdata/golden/vm_intrinsics/rt_memmove_panics.sg:5:22
-  1: __surge_start at <no-span>

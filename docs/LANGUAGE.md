@@ -324,6 +324,7 @@ let s: PersonSon = p            // patronymic picks the default ""
   * arrays/slices → element-wise `default<Elem>()`, empty slice for dynamic;
   * structs → recursively default every field/base; aliases unwrap to their target;
   * unions → only if a `nothing` variant is present (e.g. `Option`).
+  * **VM:** `default<T>()` is supported in the v1 runtime.
 - `@hidden` fields remain hidden outside `extern<Base>` and initialisers. `@readonly` fields stay immutable after construction.
 - Assigning from a child to its base is forbidden (types remain nominal).
 - Field name clashes trigger `SynTypeFieldConflict` during parsing.
@@ -619,7 +620,7 @@ Top-level `let` initialization and cycles:
 * If: `if (cond) { ... } else if (cond) { ... } else { ... }`
 * While: `while (cond) { ... }`
 * For counter: `for (init; cond; step) { ... }` where each part may be empty.
-* For-in iteration: `for item:T in xs:T[] { ... }` requires `__range()`.
+* For-in iteration: `for item:T in xs:T[] { ... }` requires `__range()`. **VM:** array iteration uses `__range()` + `Range.next()` and is supported in v1.
 * `break`, `continue`, `return expr?;`.
 
 For loops (two syntactic forms):
@@ -2273,6 +2274,8 @@ fn encode_frame(buf:&byte[], out:&mut byte[]) -> uint {
 
 // Note: intrinsics have no function bodies
 ```
+
+**VM behavior:** `rt_memcpy` panics on overlapping ranges; use `rt_memmove` when overlap is possible.
 
 ```sg
 // Benchmark directive example

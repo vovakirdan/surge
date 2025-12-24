@@ -38,12 +38,25 @@ type TagObject struct {
 	Fields []Value
 }
 
+type RangeKind uint8
+
+const (
+	RangeDescriptor RangeKind = iota
+	RangeArrayIter
+)
+
 type RangeObject struct {
+	Kind      RangeKind
 	Start     Value
 	End       Value
 	HasStart  bool
 	HasEnd    bool
 	Inclusive bool
+
+	ArrayBase  Handle
+	ArrayStart int
+	ArrayLen   int
+	ArrayIndex int
 }
 
 type HeapHeader struct {

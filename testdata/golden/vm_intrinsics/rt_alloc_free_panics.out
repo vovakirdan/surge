@@ -1,5 +1,0 @@
-panic VM1005: unsupported intrinsic: rt_alloc
-at testdata/golden/vm_intrinsics/rt_alloc_free_panics.sg:3:13
-backtrace:
-  0: main at testdata/golden/vm_intrinsics/rt_alloc_free_panics.sg:3:13
-  1: __surge_start at <no-span>

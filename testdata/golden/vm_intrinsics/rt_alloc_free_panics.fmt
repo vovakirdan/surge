@@ -1,6 +1,0 @@
-@entrypoint
-fn main() -> int {
-    let p = rt_alloc(8:uint, 1:uint);
-    rt_free(p, 8:uint, 1:uint);
-    return 0;
-}

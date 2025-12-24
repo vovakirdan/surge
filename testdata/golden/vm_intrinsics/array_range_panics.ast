@@ -1,24 +1,136 @@
-array_range_panics.sg (span: 1:1-8:1)
-└─ Item[0]: Fn (span: 1:1-7:2)
+array_range_panics.sg (span: 1:1-55:1)
+├─ Item[0]: Fn (span: 1:1-5:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:37-5:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:19)
+│        │  ├─ Name: nl
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#1: "\n"
+│        ├─ Stmt[1]: Expr (span: 3:5-3:65)
+│        │  └─ Expr: expr#11: rt_write_stdout(rt_string_ptr(&s), rt_string_len_bytes(&s))
+│        └─ Stmt[2]: Expr (span: 4:5-4:49)
+│           └─ Expr: expr#19: rt_write_stdout(rt_string_ptr(&nl), 1 to uint)
+├─ Item[1]: Fn (span: 7:1-9:2)
+│  ├─ Name: print_int
+│  ├─ Params: (n: int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:33-9:2)
+│        └─ Stmt[0]: Expr (span: 8:5-8:29)
+│           └─ Expr: expr#23: write_line(n to string)
+├─ Item[2]: Fn (span: 11:1-25:2)
+│  ├─ Name: sum_range
+│  ├─ Params: (r: Range<int>)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 11:36-25:2)
+│        ├─ Stmt[0]: Let (span: 12:5-12:32)
+│        │  ├─ Name: it
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Range<int>
+│        │  └─ Value: expr#24: r
+│        ├─ Stmt[1]: Let (span: 13:5-13:28)
+│        │  ├─ Name: total
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#25: 0
+│        ├─ Stmt[2]: While (span: 14:5-23:6)
+│        │  ├─ Cond: expr#26: true
+│        │  └─ Body:
+Block (span: 14:16-23:6)
+│        │     ├─ Stmt[0]: Let (span: 15:9-18:11)
+│        │     │  ├─ Name: v
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: int
+│        │     │  └─ Value: expr#37: compare it.next() { 2 arms }
+│        │     ├─ Stmt[1]: If (span: 19:9-21:10)
+│        │     │  ├─ Cond: expr#40: (v < 0)
+│        │     │  ├─ Then:
+Block (span: 19:18-21:10)
+│        │     │  │  └─ Stmt[0]: Break (span: 20:13-20:19)
+│        │     │  │     └─ (no additional data)
+│        │     │  └─ Else: <none>
+│        │     └─ Stmt[2]: Expr (span: 22:9-22:27)
+│        │        └─ Expr: expr#45: (total = ((total + v)))
+│        └─ Stmt[3]: Return (span: 24:5-24:18)
+│           └─ Expr: expr#46: total
+└─ Item[3]: Fn (span: 27:1-54:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 2:18-7:2)
-         ├─ Stmt[0]: Let (span: 3:5-3:30)
-         │  ├─ Name: a
+      └─ Stmt[0]: Block (span: 28:18-54:2)
+         ├─ Stmt[0]: Let (span: 29:5-29:34)
+         │  ├─ Name: a0
          │  ├─ Mutable: false
          │  ├─ Type: int[]
-         │  └─ Value: expr#4: <ExprKind(8)>
-         ├─ Stmt[1]: Let (span: 4:5-4:41)
-         │  ├─ Name: r
-         │  ├─ Mutable: true
-         │  ├─ Type: Range<int>
-         │  └─ Value: expr#7: a.__range()
-         ├─ Stmt[2]: Let (span: 5:5-5:22)
-         │  ├─ Name: _
+         │  └─ Value: expr#51: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 30:5-30:40)
+         │  └─ Expr: expr#58: print_int(sum_range(a0.__range()))
+         ├─ Stmt[2]: Let (span: 31:5-31:34)
+         │  ├─ Name: a1
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#63: <ExprKind(8)>
+         ├─ Stmt[3]: Let (span: 32:5-32:27)
+         │  ├─ Name: view
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#10: r.next()
-         └─ Stmt[3]: Return (span: 6:5-6:14)
-            └─ Expr: expr#11: 0
+         │  └─ Value: expr#69: a1[[1..3]]
+         ├─ Stmt[4]: Expr (span: 33:5-33:42)
+         │  └─ Expr: expr#76: print_int(sum_range(view.__range()))
+         ├─ Stmt[5]: Let (span: 34:5-34:31)
+         │  ├─ Name: f
+         │  ├─ Mutable: false
+         │  ├─ Type: int[3]
+         │  └─ Value: expr#80: <ExprKind(8)>
+         ├─ Stmt[6]: Expr (span: 35:5-35:39)
+         │  └─ Expr: expr#87: print_int(sum_range(f.__range()))
+         ├─ Stmt[7]: Let (span: 36:5-36:34)
+         │  ├─ Name: a2
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#92: <ExprKind(8)>
+         ├─ Stmt[8]: Let (span: 37:5-37:43)
+         │  ├─ Name: it
+         │  ├─ Mutable: true
+         │  ├─ Type: Range<int>
+         │  └─ Value: expr#95: a2.__range()
+         ├─ Stmt[9]: Let (span: 38:5-38:24)
+         │  ├─ Name: s
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#96: 0
+         ├─ Stmt[10]: While (span: 39:5-51:6)
+         │  ├─ Cond: expr#97: true
+         │  └─ Body:
+Block (span: 39:16-51:6)
+         │     ├─ Stmt[0]: Let (span: 40:9-43:11)
+         │     │  ├─ Name: v
+         │     │  ├─ Mutable: false
+         │     │  ├─ Type: int
+         │     │  └─ Value: expr#108: compare it.next() { 2 arms }
+         │     ├─ Stmt[1]: If (span: 44:9-46:10)
+         │     │  ├─ Cond: expr#111: (v < 0)
+         │     │  ├─ Then:
+Block (span: 44:18-46:10)
+         │     │  │  └─ Stmt[0]: Break (span: 45:13-45:19)
+         │     │  │     └─ (no additional data)
+         │     │  └─ Else: <none>
+         │     ├─ Stmt[2]: Expr (span: 47:9-47:19)
+         │     │  └─ Expr: expr#116: (s = ((s + v)))
+         │     └─ Stmt[3]: If (span: 48:9-50:10)
+         │        ├─ Cond: expr#119: (s > 3)
+         │        ├─ Then:
+Block (span: 48:18-50:10)
+         │        │  └─ Stmt[0]: Break (span: 49:13-49:19)
+         │        │     └─ (no additional data)
+         │        └─ Else: <none>
+         ├─ Stmt[11]: Expr (span: 52:5-52:18)
+         │  └─ Expr: expr#122: print_int(s)
+         └─ Stmt[12]: Return (span: 53:5-53:14)
+            └─ Expr: expr#123: 0

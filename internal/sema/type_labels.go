@@ -400,6 +400,32 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 				return ty
 			}
 		}
+	case strings.Contains(s, "<") && strings.HasSuffix(s, ">"):
+		idx := strings.Index(s, "<")
+		if idx < 0 {
+			break
+		}
+		base := strings.TrimSpace(s[:idx])
+		argsPart := strings.TrimSuffix(s[idx+1:], ">")
+		args := splitTopLevel(argsPart)
+		if len(args) > 0 && tc.builder != nil {
+			typeArgs := make([]types.TypeID, 0, len(args))
+			for _, arg := range args {
+				argType := tc.typeFromKey(symbols.TypeKey(arg))
+				if argType == types.NoTypeID {
+					typeArgs = nil
+					break
+				}
+				typeArgs = append(typeArgs, argType)
+			}
+			if len(typeArgs) > 0 {
+				scope := tc.scopeOrFile(tc.currentScope())
+				nameID := tc.builder.StringsInterner.Intern(strings.TrimSpace(base))
+				if ty := tc.resolveNamedType(nameID, typeArgs, nil, source.Span{}, scope); ty != types.NoTypeID {
+					return ty
+				}
+			}
+		}
 	}
 	switch s {
 	case "bool":

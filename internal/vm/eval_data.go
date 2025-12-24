@@ -214,6 +214,9 @@ func (vm *VM) rangeFromValue(v Value) (*RangeObject, *VMError) {
 	if obj.Kind != OKRange {
 		return nil, vm.eb.typeMismatch("range", fmt.Sprintf("%v", obj.Kind))
 	}
+	if obj.Range.Kind != RangeDescriptor {
+		return nil, vm.eb.typeMismatch("range descriptor", "range iterator")
+	}
 	return &obj.Range, nil
 }
 

@@ -1,7 +1,0 @@
-@entrypoint
-fn main() -> int {
-    let s = "x";
-    let p = rt_string_ptr(&s);
-    rt_memcpy(p, p, 0:uint);
-    return 0;
-}

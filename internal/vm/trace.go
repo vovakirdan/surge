@@ -472,6 +472,8 @@ func (t *Tracer) formatLocation(loc Location) string {
 		return fmt.Sprintf("array#%d[%d]", loc.Handle, loc.Index)
 	case LKStringBytes:
 		return fmt.Sprintf("string#%d.bytes+%d", loc.Handle, loc.ByteOffset)
+	case LKRawBytes:
+		return fmt.Sprintf("raw#%d+%d", loc.Handle, loc.ByteOffset)
 	default:
 		return "<invalid-loc>"
 	}

@@ -22,6 +22,9 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "size_of", "align_of":
 		return vm.handleSizeOfAlignOf(frame, call, writes, name)
 
+	case "default":
+		return vm.handleDefault(frame, call, writes)
+
 	case "rt_argv":
 		return vm.handleRtArgv(frame, call, writes)
 
@@ -61,6 +64,21 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_range_int_full":
 		return vm.handleRangeIntFull(frame, call, writes)
 
+	case "rt_alloc":
+		return vm.handleRtAlloc(frame, call, writes)
+
+	case "rt_free":
+		return vm.handleRtFree(frame, call, writes)
+
+	case "rt_realloc":
+		return vm.handleRtRealloc(frame, call, writes)
+
+	case "rt_memcpy":
+		return vm.handleRtMemcpy(frame, call, writes)
+
+	case "rt_memmove":
+		return vm.handleRtMemmove(frame, call, writes)
+
 	case "rt_array_reserve":
 		return vm.handleArrayReserve(frame, call, writes)
 
@@ -81,6 +99,12 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 	case "__len":
 		return vm.handleLen(frame, call, writes)
+
+	case "__range":
+		return vm.handleArrayRange(frame, call, writes)
+
+	case "next":
+		return vm.handleRangeNext(frame, call, writes)
 
 	case "__clone":
 		return vm.handleClone(frame, call, writes)

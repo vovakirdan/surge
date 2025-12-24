@@ -142,11 +142,29 @@ func (h *Heap) AllocStringSlice(typeID types.TypeID, base Handle, startCP, cpLen
 func (h *Heap) AllocRange(typeID types.TypeID, start, end Value, hasStart, hasEnd, inclusive bool) Handle {
 	handle, obj := h.alloc(OKRange, typeID)
 	obj.Range = RangeObject{
+		Kind:      RangeDescriptor,
 		Start:     start,
 		End:       end,
 		HasStart:  hasStart,
 		HasEnd:    hasEnd,
 		Inclusive: inclusive,
+	}
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
+	}
+	return handle
+}
+
+func (h *Heap) AllocArrayIterRange(typeID types.TypeID, base Handle, start, length int) Handle {
+	handle, obj := h.alloc(OKRange, typeID)
+	obj.Range = RangeObject{
+		Kind:       RangeArrayIter,
+		ArrayBase:  base,
+		ArrayStart: start,
+		ArrayLen:   length,
+	}
+	if base != 0 {
+		h.Retain(base)
 	}
 	if h.vm != nil && h.vm.Trace != nil {
 		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
@@ -359,11 +377,17 @@ func (h *Heap) Free(handle Handle) {
 		obj.Tag.Fields = nil
 		obj.Tag.TagSym = 0
 	case OKRange:
-		if obj.Range.HasStart {
-			h.releaseContainedValue(obj.Range.Start)
-		}
-		if obj.Range.HasEnd {
-			h.releaseContainedValue(obj.Range.End)
+		if obj.Range.Kind == RangeArrayIter {
+			if obj.Range.ArrayBase != 0 {
+				h.Release(obj.Range.ArrayBase)
+			}
+		} else {
+			if obj.Range.HasStart {
+				h.releaseContainedValue(obj.Range.Start)
+			}
+			if obj.Range.HasEnd {
+				h.releaseContainedValue(obj.Range.End)
+			}
 		}
 		obj.Range = RangeObject{}
 	case OKBigInt:

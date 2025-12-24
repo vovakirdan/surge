@@ -1,5 +1,0 @@
-@entrypoint
-fn main() -> int {
-    let _x: int = default::<int>();
-    return 0;
-}

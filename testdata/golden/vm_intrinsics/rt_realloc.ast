@@ -1,0 +1,50 @@
+rt_realloc.sg (span: 1:1-18:1)
+├─ Item[0]: Fn (span: 1:1-5:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:37-5:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:19)
+│        │  ├─ Name: nl
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#1: "\n"
+│        ├─ Stmt[1]: Expr (span: 3:5-3:65)
+│        │  └─ Expr: expr#11: rt_write_stdout(rt_string_ptr(&s), rt_string_len_bytes(&s))
+│        └─ Stmt[2]: Expr (span: 4:5-4:49)
+│           └─ Expr: expr#19: rt_write_stdout(rt_string_ptr(&nl), 1 to uint)
+└─ Item[1]: Fn (span: 7:1-17:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:18-17:2)
+         ├─ Stmt[0]: Let (span: 9:5-9:21)
+         │  ├─ Name: src
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#20: "hey"
+         ├─ Stmt[1]: Let (span: 10:5-10:38)
+         │  ├─ Name: p
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#26: rt_alloc(3 to uint, 1 to uint)
+         ├─ Stmt[2]: Expr (span: 11:5-11:47)
+         │  └─ Expr: expr#35: rt_memcpy(p, rt_string_ptr(&src), 3 to uint)
+         ├─ Stmt[3]: Let (span: 12:5-12:52)
+         │  ├─ Name: p2
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#44: rt_realloc(p, 3 to uint, 5 to uint, 1 to uint)
+         ├─ Stmt[4]: Let (span: 13:5-13:48)
+         │  ├─ Name: out
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#49: rt_string_from_bytes(p2, 3 to uint)
+         ├─ Stmt[5]: Expr (span: 14:5-14:33)
+         │  └─ Expr: expr#56: rt_free(p2, 5 to uint, 1 to uint)
+         ├─ Stmt[6]: Expr (span: 15:5-15:21)
+         │  └─ Expr: expr#59: write_line(out)
+         └─ Stmt[7]: Return (span: 16:5-16:14)
+            └─ Expr: expr#60: 0

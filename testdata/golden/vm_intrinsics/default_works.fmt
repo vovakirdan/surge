@@ -1,0 +1,53 @@
+fn write_line(s: string) -> nothing {
+    let nl = "\n";
+    rt_write_stdout(rt_string_ptr(&s), rt_string_len_bytes(&s));
+    rt_write_stdout(rt_string_ptr(&nl), 1:uint);
+}
+
+fn print_int(n: int) -> nothing {
+    write_line(n to string);
+}
+
+fn print_bool(b: bool) -> nothing {
+    write_line(b to string);
+}
+
+type Foo = { a: int, s: string };
+
+@entrypoint
+fn main() -> int {
+    let i: int = default::<int>();
+    print_int(i);
+
+    let b: bool = default::<bool>();
+    print_bool(b);
+
+    let s: string = default::<string>();
+    print_int(rt_string_len(&s) to int);
+
+    let a: int[] = default::<int[]>();
+    print_int(a.__len() to int);
+
+    let f: int[3] = default::<int[3]>();
+    print_int(f.__len() to int);
+    let mut sum: int = 0;
+    let mut idx: int = 0;
+    let len: int = f.__len() to int;
+    while idx < len {
+        sum = sum + f[idx];
+        idx = idx + 1;
+    }
+    print_int(sum);
+
+    let foo: Foo = default::<Foo>();
+    print_int(foo.a);
+    print_int(rt_string_len(&foo.s) to int);
+
+    let opt: int? = default::<int?>();
+    let is_none: bool = compare opt {
+        nothing => true;
+        _ => false;
+    };
+    print_bool(is_none);
+    return 0;
+}

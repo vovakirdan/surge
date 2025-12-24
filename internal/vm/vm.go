@@ -29,6 +29,7 @@ type VM struct {
 	Types      *types.Interner
 	Layout     *layout.LayoutEngine
 	Heap       *Heap
+	rawMem     *rawMemory
 	layouts    *layoutCache
 	tagLayouts *TagLayouts
 	ExitCode   int
@@ -61,6 +62,7 @@ func New(m *mir.Module, rt Runtime, files *source.FileSet, typeInterner *types.I
 		objs:        make(map[Handle]*Object, 128),
 		vm:          vm,
 	}
+	vm.rawMem = newRawMemory()
 	vm.layouts = newLayoutCache(vm)
 	vm.tagLayouts = NewTagLayouts(m)
 	if vm.Trace != nil {
