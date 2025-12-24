@@ -1,0 +1,31 @@
+// §2.5 User-defined Types Audit
+
+// Struct
+type Person = { age: int, name: string }
+
+// Struct with @readonly field
+type ImmutablePerson = { age: int, @readonly name: string }
+
+// NOTE: These features are NOT IMPLEMENTED:
+// - Literal enum: type Color = "black" | "white"
+// - Integer enum: enum HttpStatus: int = { Ok = 200 }
+// - Auto-increment enum: enum Direction = { Up, Down }
+// - Struct extension: type Employee = Person : { id: uint }
+
+@entrypoint
+fn main() {
+    // Struct literal
+    let p: Person = { age: 25, name: "Alice" };
+    print("Person: " + p.name + ", age " + p.age to string);
+
+    // Struct with @readonly
+    let ip: ImmutablePerson = { age: 30, name: "Bob" };
+    print("ImmutablePerson: " + ip.name);
+
+    print("§2.5 User-defined Types: PARTIAL");
+    print("  - Structs: PASS");
+    print("  - @readonly fields: PASS");
+    print("  - Literal enums: NOT IMPLEMENTED");
+    print("  - Integer enums: NOT IMPLEMENTED");
+    print("  - Struct extension: NOT IMPLEMENTED");
+}

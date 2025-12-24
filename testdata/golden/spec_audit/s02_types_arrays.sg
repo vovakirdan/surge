@@ -1,0 +1,19 @@
+// §2.2 Arrays Audit
+
+@entrypoint
+fn main() {
+    // Growable array T[]
+    let arr: int[] = [1, 2, 3];
+
+    // Fixed-length array T[N] - spec says N must be constant literal
+    let fixed: int[3] = [1, 2, 3];
+
+    // Array indexing
+    let first: int = arr[0];
+
+    // NOTE: len(arr) fails at MIR - "unknown type" bug
+    // let length: int = len(arr);
+
+    print("Array first: " + first to string);
+    print("§2.2 Arrays: PASS (len() has MIR bug)");
+}

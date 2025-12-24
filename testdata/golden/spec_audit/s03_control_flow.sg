@@ -1,0 +1,62 @@
+// §3.2 Control Flow Audit
+
+@entrypoint
+fn main() {
+    // If statement
+    let x: int = 10;
+    if (x > 5) {
+        print("if: x > 5");
+    }
+
+    // If-else
+    if (x < 5) {
+        print("if-else: x < 5");
+    } else {
+        print("if-else: x >= 5");
+    }
+
+    // If-else if-else
+    if (x < 5) {
+        print("if-elseif: x < 5");
+    } else if (x < 15) {
+        print("if-elseif: x < 15");
+    } else {
+        print("if-elseif: x >= 15");
+    }
+
+    // While loop
+    let mut i: int = 0;
+    while (i < 3) {
+        print("while: " + i to string);
+        i = i + 1;
+    }
+
+    // C-style for loop
+    for (let mut j: int = 0; j < 3; j = j + 1) {
+        print("for: " + j to string);
+    }
+
+    // break and continue
+    let mut k: int = 0;
+    while (true) {
+        if (k == 2) {
+            k = k + 1;
+            continue;
+        }
+        if (k >= 4) {
+            break;
+        }
+        print("break/continue: " + k to string);
+        k = k + 1;
+    }
+
+    // return
+    let res: int = test_return();
+    print("return result: " + res to string);
+
+    print("§3.2 Control Flow: PASS");
+}
+
+fn test_return() -> int {
+    return 42;
+}

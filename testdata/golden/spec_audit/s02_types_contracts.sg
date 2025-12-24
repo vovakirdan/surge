@@ -1,0 +1,45 @@
+// §2.12 Contracts Audit
+
+// Contract with field requirement
+contract HasName {
+    field name: string;
+}
+
+// Contract with method requirement
+contract Printable<T> {
+    fn to_string(self: T) -> string;
+}
+
+// Contract with both
+contract Entity<T> {
+    field id: int;
+    fn describe(self: T) -> string;
+}
+
+// Type satisfying HasName
+type Person = { name: string, age: int }
+
+// Type satisfying Entity
+type User = { id: int, username: string }
+
+extern<User> {
+    fn describe(self: User) -> string {
+        return "User#" + self.id to string;
+    }
+}
+
+// Function with contract bound
+fn greet<T: HasName>(x: T) -> string {
+    return "Hello, " + x.name;
+}
+
+// NOTE: sema parses contracts but full checking may be incomplete
+
+@entrypoint
+fn main() {
+    let p: Person = { name: "Alice", age: 30 };
+    let greeting: string = greet(p);  // Contract check
+    print(greeting);
+
+    print("§2.12 Contracts: PASS");
+}

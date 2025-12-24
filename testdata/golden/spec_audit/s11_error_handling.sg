@@ -1,0 +1,55 @@
+// §11 Error Handling Model Audit
+
+// Erring type with Success tag
+fn maybe_fail(succeed: bool) -> Erring<int, Error> {
+    if (succeed) {
+        return Success(42);
+    }
+    let e: Error = { message: "failed", code: 1:uint };
+    return e;
+}
+
+// Option type
+fn maybe_value(has: bool) -> Option<int> {
+    if (has) {
+        return Some(10);
+    }
+    return nothing;
+}
+
+@entrypoint
+fn main() {
+    // Test Success case
+    let r1: Erring<int, Error> = maybe_fail(true);
+    let v1: string = compare r1 {
+        Success(v) => "Success: " + v to string;
+        err => "Error: " + err.message;
+    };
+    print("Erring success: " + v1);
+
+    // NOTE: Error case has MIR issues, tested in s02_types_tags_option.sg
+
+    // Test Option
+    let o1: Option<int> = maybe_value(true);
+    let v2: string = compare o1 {
+        Some(v) => "Some: " + v to string;
+        nothing => "None";
+    };
+    print("Option some: " + v2);
+
+    let o2: Option<int> = maybe_value(false);
+    let v3: string = compare o2 {
+        Some(v) => "Some: " + v to string;
+        nothing => "None";
+    };
+    print("Option none: " + v3);
+
+    // §11 T! sugar (has MIR issues)
+    // fn try_parse() -> int! { return Success(42); }
+
+    print("§11 Error Handling: PARTIAL");
+    print("  - Erring Success: PASS");
+    print("  - Erring Error: MIR BUG (Error struct)");
+    print("  - Option: PASS");
+    print("  - T!/T? sugar: MIR BUG");
+}

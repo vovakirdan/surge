@@ -1,0 +1,36 @@
+// §3.4 Indexing & Slicing Audit
+
+@entrypoint
+fn main() {
+    let arr: int[] = [10, 20, 30, 40, 50];
+
+    // Basic indexing
+    let first: int = arr[0];
+    let third: int = arr[2];
+    print("arr[0]: " + first to string);
+    print("arr[2]: " + third to string);
+
+    // Index assignment
+    let mut marr: int[] = [1, 2, 3];
+    marr[1] = 100;
+    print("marr[1] after assign: " + marr[1] to string);
+
+    // Negative indexing (spec says counts from end)
+    // let last: int = arr[-1];  // Should be 50
+    // print("arr[-1]: " + last to string);
+
+    // String indexing (returns code point as uint32)
+    let s: string = "hello";
+    let ch: uint = s[0] to uint;
+    print("s[0] code point: " + ch to string);
+
+    // Range literals - spec says [start..end]
+    // let range_arr = arr[[1..3]];
+
+    print("§3.4 Indexing: PARTIAL");
+    print("  - Array indexing: PASS");
+    print("  - Index assignment: PASS");
+    print("  - String indexing: PASS");
+    print("  - Negative indexing: NOT TESTED");
+    print("  - Range slicing: NOT TESTED");
+}

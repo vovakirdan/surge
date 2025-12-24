@@ -1,0 +1,18 @@
+// §2.1 Primitive Families Audit
+
+@entrypoint
+fn main() {
+    // Dynamic-width numeric families
+    let i: int = 42;
+    let u: uint = 100;
+    let f: float = 3.14;
+
+    // Other primitives
+    let b: bool = true;
+    let s: string = "hello";
+
+    // nothing type
+    let n: nothing = nothing;
+
+    print("§2.1 Primitives: PASS");
+}

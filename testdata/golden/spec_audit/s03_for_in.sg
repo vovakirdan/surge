@@ -1,0 +1,18 @@
+// §3.2 For-in Iteration Audit
+
+@entrypoint
+fn main() {
+    let arr: int[] = [10, 20, 30];
+
+    // For-in iteration
+    for item in arr {
+        print("for-in item: " + item to string);
+    }
+
+    // For-in with type annotation (spec says optional)
+    for item: int in arr {
+        print("for-in typed: " + item to string);
+    }
+
+    print("§3.2 For-in: SEMA PASS, VM NOT IMPLEMENTED");
+}

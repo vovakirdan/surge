@@ -1,0 +1,28 @@
+// §4.1 Function Declarations Audit
+
+fn add(a: int, b: int) -> int {
+    return a + b;
+}
+
+fn no_return() {
+    print("no return type = nothing");
+}
+
+fn with_nothing_return() -> nothing {
+    return nothing;
+}
+
+// Variadic (spec says ...args)
+// fn print_all(...args) { ... }  // Test separately
+
+@entrypoint
+fn main() {
+    let sum: int = add(1, 2);
+    print("add(1, 2): " + sum to string);
+
+    no_return();
+
+    with_nothing_return();
+
+    print("§4.1 Functions: PASS");
+}

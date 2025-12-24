@@ -1,0 +1,16 @@
+// §10 Standard Library Conventions Audit
+
+@entrypoint
+fn main() {
+    // §10 print variadic (already tested extensively)
+    print("Testing print variadic...");
+    print("Multi", "arg", "print");
+
+    // §10 to string casting for print
+    let n: int = 42;
+    print("Number: " + n to string);
+
+    print("§10 Stdlib Conventions: PARTIAL");
+    print("  - print single arg: PASS");
+    print("  - print multi arg: NOT WORKING (spec says space-separated)");
+}

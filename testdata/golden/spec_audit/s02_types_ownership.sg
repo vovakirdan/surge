@@ -1,0 +1,21 @@
+// §2.3 Ownership & References Audit
+
+// NOTE: Ownership modifiers create distinct types from base types
+// own int != int, &int != int
+// Casting &T to string not supported
+
+@entrypoint
+fn main() {
+    // Basic reference creation
+    let val: int = 10;
+    let ref_val: &int = &val;
+
+    // &mut T - exclusive mutable borrow
+    let mut mutable_val: int = 5;
+    let mut_ref: &mut int = &mut mutable_val;
+
+    // Raw pointer - spec says *T
+    // let ptr: *int = ...; // how to create?
+
+    print("§2.3 Ownership: SEMA PASS (ref types work)");
+}

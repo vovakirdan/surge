@@ -1,0 +1,80 @@
+// §6 Operators & Magic Methods Audit
+
+@entrypoint
+fn main() {
+    // §6.1 Arithmetic operators
+    let a: int = 10;
+    let b: int = 3;
+    print("10 + 3 = " + (a + b) to string);
+    print("10 - 3 = " + (a - b) to string);
+    print("10 * 3 = " + (a * b) to string);
+    print("10 / 3 = " + (a / b) to string);
+    print("10 % 3 = " + (a % b) to string);
+
+    // §6.1 Comparison operators
+    print("10 < 3 = " + (a < b) to string);
+    print("10 <= 10 = " + (a <= 10) to string);
+    print("10 == 10 = " + (a == 10) to string);
+    print("10 != 3 = " + (a != b) to string);
+    print("10 >= 3 = " + (a >= b) to string);
+    print("10 > 3 = " + (a > b) to string);
+
+    // §6.1 Logical operators
+    let t: bool = true;
+    let f: bool = false;
+    print("true && false = " + (t && f) to string);
+    print("true || false = " + (t || f) to string);
+    print("!true = " + (!t) to string);
+
+    // §6.1 Unary operators
+    let n: int = -5;
+    print("-(-5) = " + (-n) to string);
+
+    // §6.1 Compound assignment
+    let mut x: int = 10;
+    x += 5;
+    print("10 += 5 = " + x to string);
+    x -= 3;
+    print("15 -= 3 = " + x to string);
+    x *= 2;
+    print("12 *= 2 = " + x to string);
+
+    // §6.1 Ternary
+    let cond: bool = true;
+    let result: int = cond ? 1 : 0;
+    print("true ? 1 : 0 = " + result to string);
+
+    // §6.1 Null coalescing - VM NOT IMPLEMENTED
+    // let maybe: Option<int> = nothing;
+    // let value: int = maybe ?? 42;
+    // print("nothing ?? 42 = " + value to string);
+
+    // §6.1 String operators
+    let s1: string = "hello";
+    let s2: string = "world";
+    print("concat: " + s1 + " " + s2);
+    // NOTE: string * count not implemented
+    // print("repeat: " + (s1 * 2:uint));
+
+    // §6.2 Type checking (is) - MIR BUG
+    // let i: int = 42;
+    // print("42 is int = " + (i is int) to string);
+    // print("nothing is nothing = " + (nothing is nothing) to string);
+
+    // §6.5 Cast operator (to)
+    let fl: float = 3.14;
+    let intval: int = fl to int;
+    print("3.14 to int = " + intval to string);
+
+    print("§6 Operators: PARTIAL");
+    print("  - Arithmetic: PASS");
+    print("  - Comparison: PASS");
+    print("  - Logical: PASS");
+    print("  - Compound assign: PASS");
+    print("  - Ternary: PASS");
+    print("  - String concat: PASS");
+    print("  - Cast (to): PASS");
+    print("  - Null coalescing (??): VM NOT IMPLEMENTED");
+    print("  - is operator: MIR BUG");
+    print("  - string * count: NOT IMPLEMENTED");
+}

@@ -1,0 +1,41 @@
+// §2.10 Tuple Types Audit
+
+fn get_pair() -> (int, string) {
+    return (42, "hello");
+}
+
+fn divmod(a: int, b: int) -> (int, int) {
+    return (a / b, a % b);
+}
+
+@entrypoint
+fn main() {
+    // Tuple type annotation
+    let pair: (int, string) = (1, "test");
+    print("Tuple created");
+
+    // Function returning tuple
+    let result: (int, string) = get_pair();
+    print("Function returned tuple");
+
+    // Tuple element access with .0, .1
+    let first: int = result.0;
+    let second: string = result.1;
+    print("Tuple.0: " + first to string);
+    print("Tuple.1: " + second);
+
+    // Nested tuples
+    let nested: ((int, int), string) = ((1, 2), "point");
+    let inner: (int, int) = nested.0;
+    print("Nested tuple works");
+
+    // Destructuring
+    let (x, y) = (10, 20);
+    print("Destructured: x=" + x to string + ", y=" + y to string);
+
+    // Single-element tuple (trailing comma)
+    let single: (int,) = (42,);
+    print("Single-element tuple");
+
+    print("§2.10 Tuples: SEMA PASS, VM NOT IMPLEMENTED");
+}

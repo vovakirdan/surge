@@ -1,0 +1,32 @@
+// §2.4 Generics Audit
+
+// Generic function
+fn identity<T>(x: T) -> T {
+    return x;
+}
+
+// Generic type alias
+type Box<T> = { value: T }
+
+// Generic tag - NOTE: generic tags don't work as types in sema
+// tag Wrapper<T>(T);
+
+@entrypoint
+fn main() {
+    // Generic function call with inference
+    let a: int = identity(42);
+    print("identity(42): " + a to string);
+
+    // Generic function call with turbofish
+    let b: string = identity::<string>("hello");
+    print("identity::<string>: " + b);
+
+    // Generic struct literal with type annotation
+    let box_int: Box<int> = { value: 100 };
+    print("Box<int>.value: " + box_int.value to string);
+
+    // NOTE: Generic tags don't work as types in let bindings
+    // let wrapped: Wrapper<int> = Wrapper(42);
+
+    print("§2.4 Generics: PARTIAL (generic tags as types fail)");
+}

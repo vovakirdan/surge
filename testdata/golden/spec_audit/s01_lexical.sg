@@ -1,0 +1,48 @@
+// §1 Lexical Structure Audit
+// Tests: comments, identifiers, keywords, literals
+
+// §1.2 Comments
+// Line comment
+/* Block comment */
+// NOTE: Nested block comments /* Nested /* block */ comment */ - SPEC SAYS ALLOWED, BUT FAILS
+
+// §1.3 Identifiers
+fn test_identifiers() {
+    let snake_case: int = 1;
+    let CamelCase: int = 2;
+    let _underscore: int = 3;
+    let a123: int = 4;
+}
+
+// §1.5 Literals
+fn test_literals() {
+    // Integer literals
+    let dec: int = 123;
+    let hex: int = 0xFF;
+    let bin: int = 0b1010;
+    let underscore_num: int = 1_000_000;
+
+    // Float literals
+    let f1: float = 1.0;
+    let f2: float = 0.5;
+    let f3: float = 1e-9;
+    let f4: float = 2.5e+10;
+
+    // String literals
+    let s1: string = "hello";
+    let s2: string = "escape\n\t\\\"";
+
+    // Bool literals
+    let b1: bool = true;
+    let b2: bool = false;
+
+    // Absence value
+    let n: nothing = nothing;
+}
+
+@entrypoint
+fn main() {
+    test_identifiers();
+    test_literals();
+    print("§1 Lexical: PASS");
+}

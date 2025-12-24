@@ -1,0 +1,28 @@
+// §2.6 nothing, §2.7 Tags, §2.8 Tagged unions, §2.9 Option and Erring Audit
+
+@entrypoint
+fn main() {
+    // §2.6 nothing type
+    let n: nothing = nothing;
+    print("nothing assigned");
+
+    // §2.9 Option - prelude tags Some, nothing
+    let some_val: Option<int> = Some(42);
+    let none_val: Option<int> = nothing;
+    print("Option<int> values created");
+
+    // §2.9 Sugar: T? for Option<T>
+    let maybe: int? = Some(5);
+    print("int? sugar works");
+
+    // NOTE: Erring with Error struct has MIR issues
+    // let success_val: Erring<int, Error> = Success(100);
+    // let error_val: Erring<int, Error> = { message: "fail", code: 1:uint };
+    // let erring: int! = Success(10);
+
+    print("§2.6-2.9: PARTIAL");
+    print("  - nothing: PASS");
+    print("  - Option: PASS");
+    print("  - Sugar T?: PASS");
+    print("  - Erring/T!: MIR BUG");
+}

@@ -1,0 +1,31 @@
+// §4.4 Methods via extern<T> Audit
+
+type Point = { x: int, y: int }
+
+// NOTE: &self methods cause VM panic "expected struct, got ref"
+// Value self moves the struct
+extern<Point> {
+    fn distance_from_origin(self: Point) -> int {
+        return self.x * self.x + self.y * self.y;
+    }
+
+    pub fn describe(self: Point) -> string {
+        return "Point(" + self.x to string + ", " + self.y to string + ")";
+    }
+}
+
+@entrypoint
+fn main() {
+    // Create struct directly
+    let p1: Point = { x: 3, y: 4 };
+    print("Created: " + p1.describe());
+
+    // Need new struct for second method call (value self moves)
+    let p2: Point = { x: 3, y: 4 };
+    let dist: int = p2.distance_from_origin();
+    print("Distance squared: " + dist to string);
+
+    print("§4.4 extern<T>: PARTIAL");
+    print("  - Instance methods (value self): PASS");
+    print("  - Instance methods (&self): VM BUG");
+}

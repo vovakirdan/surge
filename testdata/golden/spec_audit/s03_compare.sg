@@ -1,0 +1,49 @@
+// §3.6 Compare (Pattern Matching) Audit
+
+// NOTE: compare on int literals causes VM bug "expected bigint, got int"
+
+@entrypoint
+fn main() {
+    // finally (wildcard)
+    let y: int = 100;
+    let result2: string = compare y {
+        finally => "default";
+    };
+    print("compare finally: " + result2);
+
+    // Binding pattern
+    let z: int = 5;
+    let result3: string = compare z {
+        val => "bound: " + val to string;
+    };
+    print("compare binding: " + result3);
+
+    // Option matching with Some/nothing
+    let opt: Option<int> = Some(10);
+    let result4: string = compare opt {
+        Some(v) => "Some: " + v to string;
+        nothing => "none";
+    };
+    print("compare Option Some: " + result4);
+
+    let opt2: Option<int> = nothing;
+    let result5: string = compare opt2 {
+        Some(v) => "Some: " + v to string;
+        nothing => "none";
+    };
+    print("compare Option nothing: " + result5);
+
+    // Boolean patterns - may have same issue
+    // let b: bool = true;
+    // let result6: string = compare b {
+    //     true => "yes";
+    //     false => "no";
+    // };
+
+    print("§3.6 Compare: PARTIAL");
+    print("  - finally pattern: PASS");
+    print("  - binding pattern: PASS");
+    print("  - Some/nothing: PASS");
+    print("  - int literal patterns: VM BUG");
+    print("  - bool literal patterns: NOT TESTED");
+}

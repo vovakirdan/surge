@@ -1,0 +1,39 @@
+// §8 Overload Resolution Audit
+
+// Multiple overloads with different types
+fn process(x: int) -> string {
+    return "int: " + x to string;
+}
+
+@overload
+fn process(x: string) -> string {
+    return "string: " + x;
+}
+
+@overload
+fn process(x: float) -> string {
+    return "float: " + x to string;
+}
+
+// Generic function
+fn identity<T>(x: T) -> T {
+    return x;
+}
+
+@entrypoint
+fn main() {
+    // §8 Overload resolution by type
+    let r1: string = process(42);
+    let r2: string = process("hello");
+    let r3: string = process(3.14);
+    print("process(42): " + r1);
+    print("process(\"hello\"): " + r2);
+    print("process(3.14): " + r3);
+
+    // §8.1 Preference of monomorphic over generic
+    // If both monomorphic and generic match, prefer monomorphic
+    let r4: int = identity(10);
+    print("identity(10): " + r4 to string);
+
+    print("§8 Overload Resolution: PASS");
+}

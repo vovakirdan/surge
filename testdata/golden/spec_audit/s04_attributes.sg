@@ -1,0 +1,44 @@
+// §4.2 Attributes Audit
+
+// @pure attribute
+@pure
+fn pure_add(a: int, b: int) -> int {
+    return a + b;
+}
+
+// @overload attribute
+fn process(x: int) -> string {
+    return "int: " + x to string;
+}
+
+@overload
+fn process(x: string) -> string {
+    return "string: " + x;
+}
+
+// @allow_to attribute - on function or parameter
+@allow_to
+fn accepts_converted(x: int) -> int {
+    return x;
+}
+
+// @entrypoint already tested in all files
+
+@entrypoint
+fn main() {
+    // @pure function call
+    let r1: int = pure_add(1, 2);
+    print("@pure function: " + r1 to string);
+
+    // @overload function calls
+    let r2: string = process(42);
+    let r3: string = process("hello");
+    print("@overload int: " + r2);
+    print("@overload string: " + r3);
+
+    print("§4.2 Attributes: PASS");
+    print("  - @pure: PASS");
+    print("  - @overload: PASS");
+    print("  - @entrypoint: PASS");
+    print("  - @allow_to: SEMA ONLY");
+}

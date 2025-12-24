@@ -1,0 +1,21 @@
+// §5 Modules & Imports Audit
+
+// Import specific item
+import ./helper/math::sum_two;
+
+// Import with alias
+import ./helper/math::multiply as mult;
+
+@entrypoint
+fn main() {
+    let sum: int = sum_two(1, 2);
+    print("sum_two(1, 2): " + sum to string);
+
+    let product: int = mult(3, 4);
+    print("mult(3, 4): " + product to string);
+
+    print("§5 Modules: SEMA PASS, VM BUG");
+    print("  - import item: SEMA PASS");
+    print("  - import as: SEMA PASS");
+    print("  - VM: unsupported intrinsic error for imported functions");
+}
