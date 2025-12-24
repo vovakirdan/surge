@@ -367,11 +367,17 @@ func (tc *typeChecker) recordImplicitConversionsForCall(sym *symbols.Symbol, arg
 	}
 }
 
-func (tc *typeChecker) callAllowsImplicitTo(sym *symbols.Symbol, _ int) bool {
+func (tc *typeChecker) callAllowsImplicitTo(sym *symbols.Symbol, paramIndex int) bool {
 	if sym == nil {
 		return false
 	}
-	return sym.Flags&symbols.SymbolFlagAllowTo != 0
+	if sym.Flags&symbols.SymbolFlagAllowTo != 0 {
+		return true
+	}
+	if sym.Signature == nil || paramIndex < 0 || paramIndex >= len(sym.Signature.AllowTo) {
+		return false
+	}
+	return sym.Signature.AllowTo[paramIndex]
 }
 
 func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.SymbolID {

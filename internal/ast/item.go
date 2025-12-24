@@ -124,6 +124,11 @@ func (i *Items) CollectAttrs(attrStart AttrID, attrCount uint32) []Attr {
 	return result
 }
 
+// AllocateAttrs stores attributes in the arena and returns the start ID and count.
+func (i *Items) AllocateAttrs(attrs []Attr) (start AttrID, count uint32) {
+	return i.allocateAttrs(attrs)
+}
+
 func (i *Items) Type(itemID ItemID) (*TypeItem, bool) {
 	item := i.Get(itemID)
 	if item == nil || item.Kind != ItemType || !item.Payload.IsValid() {

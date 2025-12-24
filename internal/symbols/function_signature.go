@@ -16,6 +16,7 @@ type FunctionSignature struct {
 	ParamNames []source.StringID // Parameter names (for named arguments)
 	Variadic   []bool
 	Defaults   []bool // true if parameter has default value
+	AllowTo    []bool // true if parameter allows implicit __to conversion
 	Result     TypeKey
 	HasBody    bool
 	HasSelf    bool
@@ -39,6 +40,7 @@ func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSigna
 		ParamNames: make([]source.StringID, 0, len(ids)),
 		Variadic:   make([]bool, 0, len(ids)),
 		Defaults:   make([]bool, 0, len(ids)),
+		AllowTo:    make([]bool, 0, len(ids)),
 		Result:     resultKey,
 		HasBody:    fn.Body.IsValid(),
 		HasSelf:    false,
@@ -50,6 +52,7 @@ func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSigna
 			sig.ParamNames = append(sig.ParamNames, source.NoStringID)
 			sig.Variadic = append(sig.Variadic, false)
 			sig.Defaults = append(sig.Defaults, false)
+			sig.AllowTo = append(sig.AllowTo, false)
 			continue
 		}
 		if i == 0 && param.Name != source.NoStringID {
@@ -57,10 +60,22 @@ func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSigna
 				sig.HasSelf = true
 			}
 		}
+		allowTo := false
+		if param.AttrCount > 0 && param.AttrStart.IsValid() {
+			attrs := builder.Items.CollectAttrs(param.AttrStart, param.AttrCount)
+			for _, attr := range attrs {
+				name := builder.StringsInterner.MustLookup(attr.Name)
+				if strings.EqualFold(name, "allow_to") {
+					allowTo = true
+					break
+				}
+			}
+		}
 		sig.Params = append(sig.Params, makeTypeKey(builder, param.Type))
 		sig.ParamNames = append(sig.ParamNames, param.Name)
 		sig.Variadic = append(sig.Variadic, param.Variadic)
 		sig.Defaults = append(sig.Defaults, param.Default != ast.NoExprID)
+		sig.AllowTo = append(sig.AllowTo, allowTo)
 	}
 	return sig
 }

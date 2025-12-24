@@ -754,7 +754,7 @@ Attributes are a **closed set** provided by the language. User-defined attribute
 
 * `@pure` *(fn)* — function has no side effects, is deterministic, cannot mutate non-local state. Required for execution in signals and parallel contexts. Violations emit `E_PURE_VIOLATION`.
 * `@overload` *(fn)* — declares an overload of an existing function name with a distinct signature. Must not be used on the first declaration of a function name; doing so emits `E_OVERLOAD_FIRST_DECL`. Incompatible with `@override`.
-* `@allow_to` *(fn)* — allows implicit `__to` conversion for function arguments when the exact type does not match.
+* `@allow_to` *(fn|param)* — allows implicit `__to` conversion for function arguments when the exact type does not match.
 * `@override` *(fn)* — replaces an existing implementation for a function or method. Incompatible with `@overload`.
 
   **Two use cases:**
@@ -807,7 +807,7 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 | ---------------- | :-: | :---: | :--: | :---: | :---: | :--: | :-: |
 | @pure            |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
 | @overload        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @allow_to        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @allow_to        |  ✅  |   ❌   |   ❌  |   ❌   |   ✅   |  ❌  |  ❌  |
 | @override        |  ✅* |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
 | @intrinsic       |  ✅** |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
 | @backend         |  ✅  |   ✅   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
@@ -1197,12 +1197,12 @@ Each target type gets its own overload; primitives in `core/intrinsics.sg` (modu
 
 #### 6.6.1. Implicit Conversions
 
-The compiler automatically applies `__to` conversions in specific coercion sites when the target type is known and exactly one applicable `__to` method exists. This eliminates boilerplate explicit casts while preserving type safety. For function arguments, implicit `__to` is opt-in via `@allow_to` on the callee.
+The compiler automatically applies `__to` conversions in specific coercion sites when the target type is known and exactly one applicable `__to` method exists. This eliminates boilerplate explicit casts while preserving type safety. For function arguments, implicit `__to` is opt-in via `@allow_to` on the callee or the specific parameter.
 
 **Coercion sites (automatic `__to` application):**
 
 1. **Variable bindings:** `let x: T = expr` where `expr` has type `U` and `__to(U, T)` exists
-2. **Function arguments:** `foo(arg)` where `arg` has type `U`, parameter expects type `T`, the callee allows `@allow_to`, and `__to(U, T)` exists
+2. **Function arguments:** `foo(arg)` where `arg` has type `U`, parameter expects type `T`, the callee or parameter allows `@allow_to`, and `__to(U, T)` exists
 3. **Return statements:** `return expr` where `expr` has type `U`, function returns `T`, and `__to(U, T)` exists
 4. **Struct field initialization:** `Struct { field: expr }` where `expr` has type `U`, field expects type `T`, and `__to(U, T)` exists
 5. **Array elements:** `[expr1, expr2]` where elements have type `U`, array expects type `T[]`, and `__to(U, T)` exists

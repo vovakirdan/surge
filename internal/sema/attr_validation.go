@@ -532,6 +532,21 @@ func (tc *typeChecker) validateFieldAttrs(field *ast.TypeStructField, ownerTypeI
 	tc.recordFieldAttrs(ownerTypeID, fieldIndex, infos)
 }
 
+// validateParamAttrs validates attributes on function parameters.
+func (tc *typeChecker) validateParamAttrs(fnItem *ast.FnItem) {
+	if tc.builder == nil || fnItem == nil {
+		return
+	}
+	paramIDs := tc.builder.Items.GetFnParamIDs(fnItem)
+	for _, pid := range paramIDs {
+		param := tc.builder.Items.FnParam(pid)
+		if param == nil || param.AttrCount == 0 || !param.AttrStart.IsValid() {
+			continue
+		}
+		tc.validateAttrs(param.AttrStart, param.AttrCount, ast.AttrTargetParam, diag.SemaError)
+	}
+}
+
 // checkAtomicFieldDirectAccess checks if an @atomic field is being accessed directly
 // (without using atomic intrinsics). Returns true if a violation was detected.
 // The isAddressOf parameter indicates if the parent expression is taking the address
@@ -765,6 +780,7 @@ func (tc *typeChecker) validateFunctionAttrs(fnItem *ast.FnItem, symID symbols.S
 	// Collect attributes
 	infos := tc.collectAttrs(fnItem.AttrStart, fnItem.AttrCount)
 	if len(infos) == 0 {
+		tc.validateParamAttrs(fnItem)
 		return
 	}
 
@@ -775,6 +791,7 @@ func (tc *typeChecker) validateFunctionAttrs(fnItem *ast.FnItem, symID symbols.S
 
 	// Validate target applicability
 	tc.validateAttrs(fnItem.AttrStart, fnItem.AttrCount, ast.AttrTargetFn, diag.SemaError)
+	tc.validateParamAttrs(fnItem)
 
 	// Check conflicts: @nonblocking vs @waits_on
 	tc.checkConflict(infos, "nonblocking", "waits_on", diag.SemaAttrNonblockingWaitsOn)

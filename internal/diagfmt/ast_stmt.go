@@ -444,6 +444,14 @@ func formatFnParamsInline(builder *ast.Builder, fn *ast.FnItem) string {
 		}
 		typ := formatTypeExprInline(builder, param.Type)
 		piece := fmt.Sprintf("%s: %s", name, typ)
+		attrs := builder.Items.CollectAttrs(param.AttrStart, param.AttrCount)
+		if len(attrs) > 0 {
+			attrStrings := make([]string, 0, len(attrs))
+			for _, attr := range attrs {
+				attrStrings = append(attrStrings, formatAttrInline(builder, attr))
+			}
+			piece = strings.Join(attrStrings, " ") + " " + piece
+		}
 		if param.Default.IsValid() {
 			piece = fmt.Sprintf("%s = %s", piece, formatExprInline(builder, param.Default))
 		}

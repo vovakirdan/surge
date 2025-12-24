@@ -6,8 +6,7 @@ extern<Foo> {
     }
 }
 
-@allow_to
-fn takes_string(s: string) -> int { return 0; }
+fn takes_string(@allow_to s: string) -> int { return 0; }
 
 fn test_allow_to() -> int {
     let f: Foo = Foo { 1 };

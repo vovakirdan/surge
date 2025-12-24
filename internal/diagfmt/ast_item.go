@@ -537,6 +537,14 @@ func formatContractFnParamsInline(builder *ast.Builder, fn *ast.ContractFnReq) s
 			name = "..." + name
 		}
 		piece := fmt.Sprintf("%s: %s", name, formatTypeExprInline(builder, param.Type))
+		attrs := builder.Items.CollectAttrs(param.AttrStart, param.AttrCount)
+		if len(attrs) > 0 {
+			attrStrings := make([]string, 0, len(attrs))
+			for _, attr := range attrs {
+				attrStrings = append(attrStrings, formatAttrInline(builder, attr))
+			}
+			piece = strings.Join(attrStrings, " ") + " " + piece
+		}
 		if param.Default.IsValid() {
 			piece = fmt.Sprintf("%s = %s", piece, formatExprInline(builder, param.Default))
 		}

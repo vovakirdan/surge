@@ -47,12 +47,12 @@
  47: Semicolon       ";" at 9:55-9:56
  48: RBrace          "}" at 9:57-9:58 (leading: Space)
  49: KwFn            "fn" at 11:1-11:3 (leading: Newline)
- 50: Ident           "test_allow_to" at 11:4-11:17 (leading: Space)
- 51: LParen          "(" at 11:17-11:18
- 52: RParen          ")" at 11:18-11:19
- 53: Arrow           "->" at 11:20-11:22 (leading: Space)
- 54: Ident           "int" at 11:23-11:26 (leading: Space)
- 55: LBrace          "{" at 11:27-11:28 (leading: Space)
+ 50: Ident           "test_allow_to_param" at 11:4-11:23 (leading: Space)
+ 51: LParen          "(" at 11:23-11:24
+ 52: RParen          ")" at 11:24-11:25
+ 53: Arrow           "->" at 11:26-11:28 (leading: Space)
+ 54: Ident           "int" at 11:29-11:32 (leading: Space)
+ 55: LBrace          "{" at 11:33-11:34 (leading: Space)
  56: KwLet           "let" at 12:5-12:8 (leading: Newline, Space)
  57: Ident           "f" at 12:9-12:10 (leading: Space)
  58: Colon           ":" at 12:10-12:11

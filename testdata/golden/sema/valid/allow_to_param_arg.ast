@@ -1,4 +1,4 @@
-allow_to_conversion.sg (span: 1:1-15:1)
+allow_to_param_arg.sg (span: 1:1-15:1)
 ├─ Item[0]: Type (span: 1:1-1:26)
 │  ├─ Name: Foo
 │  ├─ Kind: Struct
@@ -24,11 +24,11 @@ allow_to_conversion.sg (span: 1:1-15:1)
 │        └─ Stmt[0]: Return (span: 9:47-9:56)
 │           └─ Expr: expr#2: 0
 └─ Item[3]: Fn (span: 11:1-14:2)
-   ├─ Name: test_allow_to
+   ├─ Name: test_allow_to_param
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 11:27-14:2)
+      └─ Stmt[0]: Block (span: 11:33-14:2)
          ├─ Stmt[0]: Let (span: 12:5-12:28)
          │  ├─ Name: f
          │  ├─ Mutable: false

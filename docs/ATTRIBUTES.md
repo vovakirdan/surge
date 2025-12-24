@@ -113,10 +113,10 @@ fn process(x: float, y: float) -> float {
 
 ### @allow_to
 
-**Target:** Functions  
+**Target:** Functions, Parameters  
 **Parameters:** None
 
-Opts a function into implicit `__to` conversion for its arguments. The compiler first checks for an exact type match; if that fails, it tries to resolve `__to(source, target) -> target` for the parameter type. If no conversion exists, the call is rejected with a type mismatch error.
+Opts a function or a specific parameter into implicit `__to` conversion for its arguments. The compiler first checks for an exact type match; if that fails, it tries to resolve `__to(source, target) -> target` for the parameter type. If no conversion exists, the call is rejected with a type mismatch error.
 
 ```sg
 type Foo = { value: int }
@@ -125,8 +125,7 @@ extern<Foo> {
     fn __to(self: Foo, _: string) -> string { return "Foo"; }
 }
 
-@allow_to
-fn takes_string(s: string) {}
+fn takes_string(@allow_to s: string) {}
 
 fn example() {
     let f: Foo = Foo { 1 };

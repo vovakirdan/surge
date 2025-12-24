@@ -103,6 +103,12 @@ func (p *printer) printFnParams(fn *ast.FnItem) {
 			continue
 		}
 
+		attrs := p.builder.Items.CollectAttrs(param.AttrStart, param.AttrCount)
+		if len(attrs) > 0 {
+			p.printAttrsInline(attrs)
+			p.writer.Space()
+		}
+
 		if param.Variadic {
 			p.writer.WriteString("...")
 		}
@@ -119,6 +125,27 @@ func (p *printer) printFnParams(fn *ast.FnItem) {
 
 	if fn.ParamsTrailingComma && len(paramIDs) > 0 {
 		p.writer.WriteString(",")
+	}
+}
+
+func (p *printer) printAttrsInline(attrs []ast.Attr) {
+	for idx, attr := range attrs {
+		if idx > 0 {
+			p.writer.Space()
+		}
+		p.writer.WriteString("@")
+		p.writer.WriteString(p.string(attr.Name))
+		if len(attr.Args) == 0 {
+			continue
+		}
+		p.writer.WriteString("(")
+		for argIdx, arg := range attr.Args {
+			if argIdx > 0 {
+				p.writer.WriteString(", ")
+			}
+			p.printExpr(arg)
+		}
+		p.writer.WriteString(")")
 	}
 }
 

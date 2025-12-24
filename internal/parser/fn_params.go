@@ -10,13 +10,27 @@ import (
 
 func (p *Parser) parseFnParam() (ast.FnParam, bool) {
 	param := ast.FnParam{}
+	attrs, attrSpan, ok := p.parseAttributes()
+	if !ok {
+		return param, false
+	}
+	if len(attrs) > 0 {
+		param.AttrStart, param.AttrCount = p.arenas.Items.AllocateAttrs(attrs)
+	}
 	variadic := false
 
 	startSpan := source.Span{}
+	if attrSpan.End > attrSpan.Start {
+		startSpan = attrSpan
+	}
 	if p.at(token.DotDotDot) {
 		variadic = true
 		dotsTok := p.advance()
-		startSpan = dotsTok.Span
+		if startSpan.End > startSpan.Start {
+			startSpan = startSpan.Cover(dotsTok.Span)
+		} else {
+			startSpan = dotsTok.Span
+		}
 	}
 
 	nameID, ok := p.parseIdent()
@@ -26,7 +40,9 @@ func (p *Parser) parseFnParam() (ast.FnParam, bool) {
 	param.Name = nameID
 	param.Variadic = variadic
 	nameSpan := p.lastSpan
-	if !variadic {
+	if startSpan.End > startSpan.Start {
+		startSpan = startSpan.Cover(nameSpan)
+	} else {
 		startSpan = nameSpan
 	}
 

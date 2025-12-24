@@ -16,11 +16,13 @@ const (
 )
 
 type FnParam struct {
-	Name     source.StringID // может быть source.NoStringID для `_`
-	Type     TypeID          // обязательная аннотация
-	Default  ExprID          // ast.NoExprID, если нет значения
-	Variadic bool
-	Span     source.Span
+	Name      source.StringID // может быть source.NoStringID для `_`
+	Type      TypeID          // обязательная аннотация
+	Default   ExprID          // ast.NoExprID, если нет значения
+	Variadic  bool
+	AttrStart AttrID
+	AttrCount uint32
+	Span      source.Span
 }
 
 type FnItem struct {
@@ -111,11 +113,13 @@ func (i *Items) newFnPayload(
 
 func (i *Items) NewFnParam(name source.StringID, typ TypeID, def ExprID, variadic bool) FnParamID {
 	return FnParamID(i.FnParams.Allocate(FnParam{
-		Name:     name,
-		Type:     typ,
-		Default:  def,
-		Variadic: variadic,
-		Span:     source.Span{},
+		Name:      name,
+		Type:      typ,
+		Default:   def,
+		Variadic:  variadic,
+		AttrStart: NoAttrID,
+		AttrCount: 0,
+		Span:      source.Span{},
 	}))
 }
 
