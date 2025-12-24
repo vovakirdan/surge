@@ -116,6 +116,9 @@ func (tc *typeChecker) moduleFunctionResult(module *symbols.Symbol, name source.
 	if bestType != types.NoTypeID {
 		return bestType
 	}
+	if len(candidates) == 1 && tc.reportCallArgumentMismatch(candidates[0], args, typeArgs) {
+		return types.NoTypeID
+	}
 	tc.report(diag.SemaNoOverload, span, "no matching overload for %s", bestName)
 	return types.NoTypeID
 }

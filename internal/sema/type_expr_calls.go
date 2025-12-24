@@ -161,8 +161,132 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 		}
 	}
 
+	if tc.reportSingleCandidateCallMismatch(candidates, args, typeArgs) {
+		return types.NoTypeID
+	}
+
 	tc.report(diag.SemaNoOverload, span, "no matching overload for %s", displayName)
 	return types.NoTypeID
+}
+
+func (tc *typeChecker) reportSingleCandidateCallMismatch(candidates []symbols.SymbolID, args []callArg, typeArgs []types.TypeID) bool {
+	if len(candidates) != 1 {
+		return false
+	}
+	sym := tc.symbolFromID(candidates[0])
+	if sym == nil || sym.Signature == nil || (sym.Kind != symbols.SymbolFunction && sym.Kind != symbols.SymbolTag) {
+		return false
+	}
+	return tc.reportCallArgumentMismatch(sym, args, typeArgs)
+}
+
+func (tc *typeChecker) reportCallArgumentMismatch(sym *symbols.Symbol, args []callArg, typeArgs []types.TypeID) bool {
+	if sym == nil || sym.Signature == nil {
+		return false
+	}
+	sig := sym.Signature
+
+	hasNamed := false
+	for _, arg := range args {
+		if arg.name != source.NoStringID {
+			hasNamed = true
+			break
+		}
+	}
+	if hasNamed {
+		reordered, ok := tc.reorderArgsForSignature(sig, args)
+		if !ok {
+			return false
+		}
+		args = reordered
+	}
+
+	variadicIndex := -1
+	for i, v := range sig.Variadic {
+		if v {
+			variadicIndex = i
+			break
+		}
+	}
+	paramCount := len(sig.Params)
+
+	requiredParams := 0
+	if len(sig.Defaults) == paramCount {
+		for i, hasDefault := range sig.Defaults {
+			if !hasDefault && (variadicIndex < 0 || i != variadicIndex) {
+				requiredParams++
+			}
+		}
+	} else {
+		requiredParams = paramCount
+	}
+
+	if variadicIndex >= 0 {
+		if len(args) < paramCount-1 {
+			return false
+		}
+	} else if len(args) < requiredParams || len(args) > paramCount {
+		return false
+	}
+
+	paramNames, paramSet := tc.typeParamNameSet(sym)
+	bindings := make(map[string]types.TypeID)
+	if len(typeArgs) > 0 {
+		if len(typeArgs) != len(paramNames) {
+			return false
+		}
+		for i, name := range paramNames {
+			if name == "" || typeArgs[i] == types.NoTypeID {
+				return false
+			}
+			bindings[name] = typeArgs[i]
+		}
+	}
+
+	for i, arg := range args {
+		paramIndex := i
+		if variadicIndex >= 0 && i >= variadicIndex {
+			paramIndex = variadicIndex
+		}
+		expectedKey := sig.Params[paramIndex]
+		expectedType := tc.instantiateTypeKeyWithInference(expectedKey, arg.ty, bindings, paramSet)
+		if expectedType == types.NoTypeID {
+			return false
+		}
+		allowImplicitTo := tc.callAllowsImplicitTo(sym, paramIndex)
+		if _, ok := tc.matchArgument(expectedType, arg.ty, arg.isLiteral, allowImplicitTo); !ok {
+			tc.reportCallArgumentTypeMismatch(expectedType, arg.ty, arg.expr, allowImplicitTo)
+			return true
+		}
+	}
+
+	for _, name := range paramNames {
+		if bindings[name] == types.NoTypeID {
+			return false
+		}
+	}
+	return false
+}
+
+func (tc *typeChecker) reportCallArgumentTypeMismatch(expected, actual types.TypeID, expr ast.ExprID, allowImplicitTo bool) {
+	span := tc.exprSpan(expr)
+	expectedLabel := tc.typeLabel(expected)
+	actualLabel := tc.typeLabel(actual)
+	if !allowImplicitTo {
+		tc.report(diag.SemaTypeMismatch, span, "expected %s, got %s", expectedLabel, actualLabel)
+		return
+	}
+
+	if _, _, ambiguous := tc.tryImplicitConversion(actual, expected); ambiguous {
+		tc.report(diag.SemaAmbiguousConversion, span,
+			"ambiguous conversion from %s to %s: multiple __to methods found",
+			actualLabel, expectedLabel)
+		return
+	}
+
+	tc.report(diag.SemaTypeMismatch, span,
+		"expected %s, got %s; no implicit __to(%s, %s) -> %s",
+		expectedLabel, actualLabel, actualLabel, expectedLabel, expectedLabel)
 }
 
 func (tc *typeChecker) recordCallSymbol(callID ast.ExprID, symID symbols.SymbolID) {
@@ -235,12 +359,19 @@ func (tc *typeChecker) recordImplicitConversionsForCall(sym *symbols.Symbol, arg
 		}
 
 		// Record implicit conversion if needed
-		if !tc.typesAssignable(expectedType, arg.ty, true) {
+		if !tc.typesAssignable(expectedType, arg.ty, true) && tc.callAllowsImplicitTo(sym, paramIndex) {
 			if convType, found, _ := tc.tryImplicitConversion(arg.ty, expectedType); found {
 				tc.recordImplicitConversion(arg.expr, arg.ty, convType)
 			}
 		}
 	}
+}
+
+func (tc *typeChecker) callAllowsImplicitTo(sym *symbols.Symbol, _ int) bool {
+	if sym == nil {
+		return false
+	}
+	return sym.Flags&symbols.SymbolFlagAllowTo != 0
 }
 
 func (tc *typeChecker) functionCandidates(name source.StringID) []symbols.SymbolID {

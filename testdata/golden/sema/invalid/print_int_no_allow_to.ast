@@ -1,0 +1,11 @@
+print_int_no_allow_to.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-5:2)
+         ├─ Stmt[0]: Expr (span: 3:5-3:15)
+         │  └─ Expr: expr#3: print(42)
+         └─ Stmt[1]: Return (span: 4:5-4:14)
+            └─ Expr: expr#4: 0

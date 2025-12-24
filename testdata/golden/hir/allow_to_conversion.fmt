@@ -1,0 +1,15 @@
+type Foo = { value: int }
+
+extern<Foo> {
+    fn __to(self: Foo, _: string) -> string {
+        return "Foo";
+    }
+}
+
+@allow_to
+fn takes_string(s: string) -> int { return 0; }
+
+fn test_allow_to() -> int {
+    let f: Foo = Foo { 1 };
+    return takes_string(f);
+}

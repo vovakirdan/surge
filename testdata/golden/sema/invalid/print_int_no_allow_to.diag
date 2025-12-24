@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/print_int_no_allow_to.sg:3:11 expected string, got int

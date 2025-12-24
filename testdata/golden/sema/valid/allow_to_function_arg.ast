@@ -1,0 +1,38 @@
+allow_to_function_arg.sg (span: 1:1-16:1)
+├─ Item[0]: Type (span: 1:1-1:26)
+│  ├─ Name: Foo
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: value: int
+├─ Item[1]: Extern (span: 3:1-7:2)
+│  ├─ Target: Foo
+│  ├─ Members:
+│  │  └─ Fn[0]: __to
+│  │     ├─ Params: (self: Foo, _: string)
+│  │     ├─ Return: string
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 4:45-6:6)
+│  │        └─ Stmt[0]: Return (span: 5:9-5:22)
+│  │           └─ Expr: expr#1: "Foo"
+├─ Item[2]: Fn (span: 9:1-10:48)
+│  ├─ Name: takes_string
+│  ├─ Params: (s: string)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:35-10:48)
+│        └─ Stmt[0]: Return (span: 10:37-10:46)
+│           └─ Expr: expr#2: 0
+└─ Item[3]: Fn (span: 12:1-15:2)
+   ├─ Name: test_allow_to
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:27-15:2)
+         ├─ Stmt[0]: Let (span: 13:5-13:28)
+         │  ├─ Name: f
+         │  ├─ Mutable: false
+         │  ├─ Type: Foo
+         │  └─ Value: expr#4: <ExprKind(18)>
+         └─ Stmt[1]: Return (span: 14:5-14:28)
+            └─ Expr: expr#7: takes_string(f)

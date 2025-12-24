@@ -62,7 +62,8 @@ func (tc *typeChecker) inferMissingTypeParams(sym *symbols.Symbol, args []callAr
 		if expectedType == types.NoTypeID {
 			return nil, false
 		}
-		if _, ok := tc.matchArgument(expectedType, arg.ty, arg.isLiteral); !ok {
+		allowImplicitTo := tc.callAllowsImplicitTo(sym, paramIndex)
+		if _, ok := tc.matchArgument(expectedType, arg.ty, arg.isLiteral, allowImplicitTo); !ok {
 			return nil, false
 		}
 	}
@@ -203,7 +204,8 @@ func (tc *typeChecker) evaluateFunctionCandidate(sym *symbols.Symbol, args []cal
 		if expectedType == types.NoTypeID {
 			return 0, types.NoTypeID, nil, false
 		}
-		cost, ok := tc.matchArgument(expectedType, arg.ty, arg.isLiteral)
+		allowImplicitTo := tc.callAllowsImplicitTo(sym, paramIndex)
+		cost, ok := tc.matchArgument(expectedType, arg.ty, arg.isLiteral, allowImplicitTo)
 		if !ok {
 			return 0, types.NoTypeID, nil, false
 		}
@@ -279,7 +281,7 @@ func (tc *typeChecker) isGenericCandidate(sym *symbols.Symbol, typeArgs []types.
 	return false
 }
 
-func (tc *typeChecker) matchArgument(expected, actual types.TypeID, isLiteral bool) (int, bool) {
+func (tc *typeChecker) matchArgument(expected, actual types.TypeID, isLiteral, allowImplicitTo bool) (int, bool) {
 	if expected == types.NoTypeID || actual == types.NoTypeID || tc.types == nil {
 		return 0, false
 	}
@@ -290,14 +292,14 @@ func (tc *typeChecker) matchArgument(expected, actual types.TypeID, isLiteral bo
 			if expInfo.Mutable && !actInfo.Mutable {
 				return 0, false
 			}
-			return tc.conversionCost(actInfo.Elem, expInfo.Elem, isLiteral)
+			return tc.conversionCost(actInfo.Elem, expInfo.Elem, isLiteral, allowImplicitTo)
 		}
-		return tc.conversionCost(actual, expInfo.Elem, isLiteral)
+		return tc.conversionCost(actual, expInfo.Elem, isLiteral, allowImplicitTo)
 	}
-	return tc.conversionCost(actual, expected, isLiteral)
+	return tc.conversionCost(actual, expected, isLiteral, allowImplicitTo)
 }
 
-func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral bool) (int, bool) {
+func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral, allowImplicitTo bool) (int, bool) {
 	if actual == types.NoTypeID || expected == types.NoTypeID || tc.types == nil {
 		return 0, false
 	}
@@ -328,7 +330,7 @@ func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral b
 			if member.Kind != types.UnionMemberType {
 				continue
 			}
-			if cost, ok := tc.conversionCost(actual, member.Type, isLiteral); ok {
+			if cost, ok := tc.conversionCost(actual, member.Type, isLiteral, allowImplicitTo); ok {
 				if best == -1 || cost < best {
 					best = cost
 				}
@@ -352,8 +354,10 @@ func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral b
 		}
 	}
 	// Try implicit conversion (cost 2, lower priority than other conversions)
-	if _, found, _ := tc.tryImplicitConversion(actual, expected); found {
-		return 2, true
+	if allowImplicitTo {
+		if _, found, _ := tc.tryImplicitConversion(actual, expected); found {
+			return 2, true
+		}
 	}
 	return 0, false
 }

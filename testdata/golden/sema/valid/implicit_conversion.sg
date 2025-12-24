@@ -18,6 +18,7 @@ fn test_variable_binding() {
     let s: string = w;
 }
 
+@allow_to
 fn takes_int(x: int) {
 }
 

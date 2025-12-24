@@ -1,4 +1,4 @@
-implicit_conversion.sg (span: 1:1-57:1)
+implicit_conversion.sg (span: 1:1-58:1)
 ├─ Item[0]: Type (span: 1:1-1:28)
 │  ├─ Name: MyInt
 │  ├─ Kind: Struct
@@ -47,94 +47,94 @@ implicit_conversion.sg (span: 1:1-57:1)
 │           ├─ Mutable: false
 │           ├─ Type: string
 │           └─ Value: expr#7: w
-├─ Item[5]: Fn (span: 21:1-22:2)
+├─ Item[5]: Fn (span: 21:1-23:2)
 │  ├─ Name: takes_int
 │  ├─ Params: (x: int)
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 21:22-22:2)
-├─ Item[6]: Fn (span: 24:1-27:2)
+│     └─ Stmt[0]: Block (span: 22:22-23:2)
+├─ Item[6]: Fn (span: 25:1-28:2)
 │  ├─ Name: test_function_args
 │  ├─ Params: ()
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 24:25-27:2)
-│        ├─ Stmt[0]: Let (span: 25:5-25:34)
+│     └─ Stmt[0]: Block (span: 25:25-28:2)
+│        ├─ Stmt[0]: Let (span: 26:5-26:34)
 │        │  ├─ Name: mi
 │        │  ├─ Mutable: false
 │        │  ├─ Type: MyInt
 │        │  └─ Value: expr#9: <ExprKind(18)>
-│        └─ Stmt[1]: Expr (span: 26:5-26:19)
+│        └─ Stmt[1]: Expr (span: 27:5-27:19)
 │           └─ Expr: expr#12: takes_int(mi)
-├─ Item[7]: Fn (span: 29:1-32:2)
+├─ Item[7]: Fn (span: 30:1-33:2)
 │  ├─ Name: returns_string
 │  ├─ Params: ()
 │  ├─ Return: string
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 29:31-32:2)
-│        ├─ Stmt[0]: Let (span: 30:5-30:42)
+│     └─ Stmt[0]: Block (span: 30:31-33:2)
+│        ├─ Stmt[0]: Let (span: 31:5-31:42)
 │        │  ├─ Name: w
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Wrapper
 │        │  └─ Value: expr#14: <ExprKind(18)>
-│        └─ Stmt[1]: Return (span: 31:5-31:14)
+│        └─ Stmt[1]: Return (span: 32:5-32:14)
 │           └─ Expr: expr#15: w
-├─ Item[8]: Type (span: 34:1-37:2)
+├─ Item[8]: Type (span: 35:1-38:2)
 │  ├─ Name: Point
 │  ├─ Kind: Struct
 │  ├─ Visibility: private
 │  └─ Struct:
 │     ├─ Field[0]: x: int
 │     └─ Field[1]: y: int
-├─ Item[9]: Fn (span: 39:1-45:2)
+├─ Item[9]: Fn (span: 40:1-46:2)
 │  ├─ Name: test_struct_field
 │  ├─ Params: ()
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 39:24-45:2)
-│        ├─ Stmt[0]: Let (span: 40:5-40:34)
+│     └─ Stmt[0]: Block (span: 40:24-46:2)
+│        ├─ Stmt[0]: Let (span: 41:5-41:34)
 │        │  ├─ Name: mi
 │        │  ├─ Mutable: false
 │        │  ├─ Type: MyInt
 │        │  └─ Value: expr#17: <ExprKind(18)>
-│        └─ Stmt[1]: Let (span: 41:5-44:7)
+│        └─ Stmt[1]: Let (span: 42:5-45:7)
 │           ├─ Name: p
 │           ├─ Mutable: false
 │           ├─ Type: Point
 │           └─ Value: expr#22: <ExprKind(18)>
-├─ Item[10]: Fn (span: 47:1-51:2)
+├─ Item[10]: Fn (span: 48:1-52:2)
 │  ├─ Name: test_array_elements
 │  ├─ Params: ()
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 47:26-51:2)
-│        ├─ Stmt[0]: Let (span: 48:5-48:34)
+│     └─ Stmt[0]: Block (span: 48:26-52:2)
+│        ├─ Stmt[0]: Let (span: 49:5-49:34)
 │        │  ├─ Name: mi1
 │        │  ├─ Mutable: false
 │        │  ├─ Type: MyInt
 │        │  └─ Value: expr#24: <ExprKind(18)>
-│        ├─ Stmt[1]: Let (span: 49:5-49:34)
+│        ├─ Stmt[1]: Let (span: 50:5-50:34)
 │        │  ├─ Name: mi2
 │        │  ├─ Mutable: false
 │        │  ├─ Type: MyInt
 │        │  └─ Value: expr#26: <ExprKind(18)>
-│        └─ Stmt[2]: Let (span: 50:5-50:34)
+│        └─ Stmt[2]: Let (span: 51:5-51:34)
 │           ├─ Name: arr
 │           ├─ Mutable: false
 │           ├─ Type: int[2]
 │           └─ Value: expr#29: <ExprKind(8)>
-└─ Item[11]: Fn (span: 53:1-56:2)
+└─ Item[11]: Fn (span: 54:1-57:2)
    ├─ Name: test_explicit_conversion
    ├─ Params: ()
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 53:31-56:2)
-         ├─ Stmt[0]: Let (span: 54:5-54:45)
+      └─ Stmt[0]: Block (span: 54:31-57:2)
+         ├─ Stmt[0]: Let (span: 55:5-55:45)
          │  ├─ Name: w
          │  ├─ Mutable: false
          │  ├─ Type: Wrapper
          │  └─ Value: expr#31: <ExprKind(18)>
-         └─ Stmt[1]: Let (span: 55:5-55:33)
+         └─ Stmt[1]: Let (span: 56:5-56:33)
             ├─ Name: s
             ├─ Mutable: false
             ├─ Type: string

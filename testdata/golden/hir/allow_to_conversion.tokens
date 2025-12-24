@@ -1,0 +1,73 @@
+  1: KwType          "type" at 1:1-1:5
+  2: Ident           "Foo" at 1:6-1:9 (leading: Space)
+  3: Assign          "=" at 1:10-1:11 (leading: Space)
+  4: LBrace          "{" at 1:12-1:13 (leading: Space)
+  5: Ident           "value" at 1:14-1:19 (leading: Space)
+  6: Colon           ":" at 1:19-1:20
+  7: Ident           "int" at 1:21-1:24 (leading: Space)
+  8: RBrace          "}" at 1:25-1:26 (leading: Space)
+  9: KwExtern        "extern" at 3:1-3:7 (leading: Newline)
+ 10: Lt              "<" at 3:7-3:8
+ 11: Ident           "Foo" at 3:8-3:11
+ 12: Gt              ">" at 3:11-3:12
+ 13: LBrace          "{" at 3:13-3:14 (leading: Space)
+ 14: KwFn            "fn" at 4:5-4:7 (leading: Newline, Space)
+ 15: Ident           "__to" at 4:8-4:12 (leading: Space)
+ 16: LParen          "(" at 4:12-4:13
+ 17: Ident           "self" at 4:13-4:17
+ 18: Colon           ":" at 4:17-4:18
+ 19: Ident           "Foo" at 4:19-4:22 (leading: Space)
+ 20: Comma           "," at 4:22-4:23
+ 21: Underscore      "_" at 4:24-4:25 (leading: Space)
+ 22: Colon           ":" at 4:25-4:26
+ 23: Ident           "string" at 4:27-4:33 (leading: Space)
+ 24: RParen          ")" at 4:33-4:34
+ 25: Arrow           "->" at 4:35-4:37 (leading: Space)
+ 26: Ident           "string" at 4:38-4:44 (leading: Space)
+ 27: LBrace          "{" at 4:45-4:46 (leading: Space)
+ 28: KwReturn        "return" at 5:9-5:15 (leading: Newline, Space)
+ 29: StringLit       "\"Foo\"" at 5:16-5:21 (leading: Space)
+ 30: Semicolon       ";" at 5:21-5:22
+ 31: RBrace          "}" at 6:5-6:6 (leading: Newline, Space)
+ 32: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 33: At              "@" at 9:1-9:2 (leading: Newline)
+ 34: Ident           "allow_to" at 9:2-9:10
+ 35: KwFn            "fn" at 10:1-10:3 (leading: Newline)
+ 36: Ident           "takes_string" at 10:4-10:16 (leading: Space)
+ 37: LParen          "(" at 10:16-10:17
+ 38: Ident           "s" at 10:17-10:18
+ 39: Colon           ":" at 10:18-10:19
+ 40: Ident           "string" at 10:20-10:26 (leading: Space)
+ 41: RParen          ")" at 10:26-10:27
+ 42: Arrow           "->" at 10:28-10:30 (leading: Space)
+ 43: Ident           "int" at 10:31-10:34 (leading: Space)
+ 44: LBrace          "{" at 10:35-10:36 (leading: Space)
+ 45: KwReturn        "return" at 10:37-10:43 (leading: Space)
+ 46: IntLit          "0" at 10:44-10:45 (leading: Space)
+ 47: Semicolon       ";" at 10:45-10:46
+ 48: RBrace          "}" at 10:47-10:48 (leading: Space)
+ 49: KwFn            "fn" at 12:1-12:3 (leading: Newline)
+ 50: Ident           "test_allow_to" at 12:4-12:17 (leading: Space)
+ 51: LParen          "(" at 12:17-12:18
+ 52: RParen          ")" at 12:18-12:19
+ 53: Arrow           "->" at 12:20-12:22 (leading: Space)
+ 54: Ident           "int" at 12:23-12:26 (leading: Space)
+ 55: LBrace          "{" at 12:27-12:28 (leading: Space)
+ 56: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
+ 57: Ident           "f" at 13:9-13:10 (leading: Space)
+ 58: Colon           ":" at 13:10-13:11
+ 59: Ident           "Foo" at 13:12-13:15 (leading: Space)
+ 60: Assign          "=" at 13:16-13:17 (leading: Space)
+ 61: Ident           "Foo" at 13:18-13:21 (leading: Space)
+ 62: LBrace          "{" at 13:22-13:23 (leading: Space)
+ 63: IntLit          "1" at 13:24-13:25 (leading: Space)
+ 64: RBrace          "}" at 13:26-13:27 (leading: Space)
+ 65: Semicolon       ";" at 13:27-13:28
+ 66: KwReturn        "return" at 14:5-14:11 (leading: Newline, Space)
+ 67: Ident           "takes_string" at 14:12-14:24 (leading: Space)
+ 68: LParen          "(" at 14:24-14:25
+ 69: Ident           "f" at 14:25-14:26
+ 70: RParen          ")" at 14:26-14:27
+ 71: Semicolon       ";" at 14:27-14:28
+ 72: RBrace          "}" at 15:1-15:2 (leading: Newline)
+ 73: EOF             at 16:1-16:1

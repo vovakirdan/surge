@@ -1,4 +1,4 @@
-implicit_conversion_not_applied.sg (span: 1:1-32:1)
+implicit_conversion_not_applied.sg (span: 1:1-33:1)
 ├─ Item[0]: Type (span: 1:1-1:28)
 │  ├─ Name: MyInt
 │  ├─ Kind: Struct
@@ -47,34 +47,34 @@ implicit_conversion_not_applied.sg (span: 1:1-32:1)
 │  │        Stmt[0]: Block (span: 18:42-20:6)
 │  │        └─ Stmt[0]: Return (span: 19:9-19:23)
 │  │           └─ Expr: expr#7: self.b
-├─ Item[6]: Fn (span: 23:1-24:43)
+├─ Item[6]: Fn (span: 23:1-25:43)
 │  ├─ Name: overloaded
 │  ├─ Params: (x: int)
 │  ├─ Return: int
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 24:30-24:43)
-│        └─ Stmt[0]: Return (span: 24:32-24:41)
+│     └─ Stmt[0]: Block (span: 25:30-25:43)
+│        └─ Stmt[0]: Return (span: 25:32-25:41)
 │           └─ Expr: expr#8: 1
-├─ Item[7]: Fn (span: 25:1-26:46)
+├─ Item[7]: Fn (span: 26:1-27:46)
 │  ├─ Name: overloaded
 │  ├─ Params: (x: string)
 │  ├─ Return: int
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 26:33-26:46)
-│        └─ Stmt[0]: Return (span: 26:35-26:44)
+│     └─ Stmt[0]: Block (span: 27:33-27:46)
+│        └─ Stmt[0]: Return (span: 27:35-27:44)
 │           └─ Expr: expr#9: 2
-└─ Item[8]: Fn (span: 28:1-31:2)
+└─ Item[8]: Fn (span: 29:1-32:2)
    ├─ Name: test_overload_selection
    ├─ Params: ()
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 28:30-31:2)
-         ├─ Stmt[0]: Let (span: 29:5-29:34)
+      └─ Stmt[0]: Block (span: 29:30-32:2)
+         ├─ Stmt[0]: Let (span: 30:5-30:34)
          │  ├─ Name: mi
          │  ├─ Mutable: false
          │  ├─ Type: MyInt
          │  └─ Value: expr#11: <ExprKind(18)>
-         └─ Stmt[1]: Let (span: 30:5-30:38)
+         └─ Stmt[1]: Let (span: 31:5-31:38)
             ├─ Name: result
             ├─ Mutable: false
             ├─ Type: int

@@ -754,6 +754,7 @@ Attributes are a **closed set** provided by the language. User-defined attribute
 
 * `@pure` *(fn)* — function has no side effects, is deterministic, cannot mutate non-local state. Required for execution in signals and parallel contexts. Violations emit `E_PURE_VIOLATION`.
 * `@overload` *(fn)* — declares an overload of an existing function name with a distinct signature. Must not be used on the first declaration of a function name; doing so emits `E_OVERLOAD_FIRST_DECL`. Incompatible with `@override`.
+* `@allow_to` *(fn)* — allows implicit `__to` conversion for function arguments when the exact type does not match.
 * `@override` *(fn)* — replaces an existing implementation for a function or method. Incompatible with `@overload`.
 
   **Two use cases:**
@@ -806,6 +807,7 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 | ---------------- | :-: | :---: | :--: | :---: | :---: | :--: | :-: |
 | @pure            |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
 | @overload        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
+| @allow_to        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
 | @override        |  ✅* |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
 | @intrinsic       |  ✅** |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
 | @backend         |  ✅  |   ✅   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
@@ -1013,7 +1015,7 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Indexing: `[]` → `__index __index_set`
 * Unary: `+x -x` → `__pos __neg`
 * Abs: `abs(x)` → `__abs`
-* Casting: `expr to Type` → `__to(self, Type)` magic method; `print` simply casts each argument to `string` and concatenates.
+* Casting: `expr to Type` → `__to(self, Type)` magic method; `print` expects `string` arguments (use an explicit cast for non-strings).
   * `expr: Type` is shorthand for `expr to Type`. It's especially handy for literal annotations such as `1:int8`.
 * Range: `for in` → `__range() -> Range<T>` where `Range<T>` yields `T` via `next()`.
 * Compound assignment: `+= -= *= /= %= &= |= ^= <<= >>=` → corresponding operation + assign.
@@ -1195,12 +1197,12 @@ Each target type gets its own overload; primitives in `core/intrinsics.sg` (modu
 
 #### 6.6.1. Implicit Conversions
 
-The compiler automatically applies `__to` conversions in specific coercion sites when the target type is known and exactly one applicable `__to` method exists. This eliminates boilerplate explicit casts while preserving type safety.
+The compiler automatically applies `__to` conversions in specific coercion sites when the target type is known and exactly one applicable `__to` method exists. This eliminates boilerplate explicit casts while preserving type safety. For function arguments, implicit `__to` is opt-in via `@allow_to` on the callee.
 
 **Coercion sites (automatic `__to` application):**
 
 1. **Variable bindings:** `let x: T = expr` where `expr` has type `U` and `__to(U, T)` exists
-2. **Function arguments:** `foo(arg)` where `arg` has type `U`, parameter expects type `T`, and `__to(U, T)` exists
+2. **Function arguments:** `foo(arg)` where `arg` has type `U`, parameter expects type `T`, the callee allows `@allow_to`, and `__to(U, T)` exists
 3. **Return statements:** `return expr` where `expr` has type `U`, function returns `T`, and `__to(U, T)` exists
 4. **Struct field initialization:** `Struct { field: expr }` where `expr` has type `U`, field expects type `T`, and `__to(U, T)` exists
 5. **Array elements:** `[expr1, expr2]` where elements have type `U`, array expects type `T[]`, and `__to(U, T)` exists
@@ -1211,7 +1213,7 @@ The compiler automatically applies `__to` conversions in specific coercion sites
 * Exactly one `__to(source, target)` method must exist; ambiguity or absence reports an error
 * No conversion chaining: `T -> U -> V` is never attempted; only single-step `T -> U` conversions
 * Conversions are never applied in binary/unary operator resolution
-* In function overload resolution, implicit conversion has lower priority (cost = 2) than:
+* In function overload resolution (when `@allow_to` is enabled), implicit conversion has lower priority (cost = 2) than:
   - Exact type match (cost = 0)
   - Literal coercion (cost = 1)
   - Numeric widening (cost = 1)
@@ -1232,7 +1234,8 @@ extern<Meters> {
 let distance_m: Meters = 100.0;
 let distance_ft: Feet = distance_m;  // Calls __to(Meters, Feet) implicitly
 
-// Implicit conversion in function argument
+// Implicit conversion in function argument (opt-in)
+@allow_to
 fn display_feet(f: Feet) { print(f); }
 display_feet(distance_m);  // Calls __to(Meters, Feet) implicitly
 
@@ -2756,7 +2759,7 @@ MacroDef   := "macro" Ident MacroParamList Block
 MacroParamList := "(" (MacroParam ("," MacroParam)*)? ")"
 MacroParam := Ident ":" MacroType | "..." Ident ":" MacroType
 MacroType  := "expr" | "ident" | "type" | "block" | "meta"
-Attr       := "@pure" | "@overload" | "@override" | "@intrinsic" | "@backend(" Str ")" | "@deprecated(" Str ")" | "@packed" | "@align(" Int ")" | "@shared" | "@atomic" | "@raii" | "@arena" | "@weak" | "@readonly" | "@hidden" | "@noinherit" | "@sealed"
+Attr       := "@pure" | "@overload" | "@allow_to" | "@override" | "@intrinsic" | "@backend(" Str ")" | "@deprecated(" Str ")" | "@packed" | "@align(" Int ")" | "@shared" | "@atomic" | "@raii" | "@arena" | "@weak" | "@readonly" | "@hidden" | "@noinherit" | "@sealed"
 GenericParams := "<" Ident ("," Ident)* ">"
 ParamList  := "(" (Param ("," Param)*)? ")"
 Param      := Ident ":" Type | "..."

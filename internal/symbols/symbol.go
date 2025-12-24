@@ -33,6 +33,7 @@ const (
 	SymbolFlagMethod
 	SymbolFlagFilePrivate
 	SymbolFlagEntrypoint
+	SymbolFlagAllowTo
 )
 
 // EntrypointMode describes how an @entrypoint function receives its arguments.
@@ -114,6 +115,9 @@ func (f SymbolFlags) Strings() []string {
 	}
 	if f&SymbolFlagEntrypoint != 0 {
 		labels = append(labels, "entrypoint")
+	}
+	if f&SymbolFlagAllowTo != 0 {
+		labels = append(labels, "allow-to")
 	}
 	return labels
 }

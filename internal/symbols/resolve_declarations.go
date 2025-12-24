@@ -329,6 +329,7 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 	hasOverride := false
 	hasIntrinsic := false
 	hasEntrypoint := false
+	hasAllowTo := false
 	entrypointMode := EntrypointModeNone
 	var entrypointAttr *ast.Attr
 	for i := range attrs {
@@ -345,6 +346,8 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 			hasEntrypoint = true
 			entrypointAttr = attr
 			entrypointMode = fr.parseEntrypointMode(attr, span)
+		case "allow_to":
+			hasAllowTo = true
 		}
 	}
 
@@ -472,6 +475,9 @@ func (fr *fileResolver) declareFunctionWithAttrs(fnItem *ast.FnItem, span, keywo
 
 	if hasEntrypoint {
 		flags |= SymbolFlagEntrypoint
+	}
+	if hasAllowTo {
+		flags |= SymbolFlagAllowTo
 	}
 
 	symID := fr.resolver.declareWithoutChecks(fnItem.Name, span, SymbolFunction, flags, decl, newSig)

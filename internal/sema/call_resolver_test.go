@@ -101,8 +101,8 @@ func TestCallResolverReportsNoOverload(t *testing.T) {
 	addTopLevelLet(builder, file, call)
 
 	semaBag := runSema(t, builder, file)
-	if !hasCode(semaBag, diag.SemaNoOverload) {
-		t.Fatalf("expected no overload diagnostic, got %v", diagCodes(semaBag))
+	if !hasCode(semaBag, diag.SemaTypeMismatch) {
+		t.Fatalf("expected type mismatch diagnostic, got %v", diagCodes(semaBag))
 	}
 }
 

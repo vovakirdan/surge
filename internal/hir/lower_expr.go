@@ -19,6 +19,16 @@ func (l *lowerer) lowerExpr(exprID ast.ExprID) *Expr {
 				result = l.wrapInSome(result, conv.Target)
 			case sema.ImplicitConversionSuccess:
 				result = l.wrapInSuccess(result, conv.Target)
+			case sema.ImplicitConversionTo:
+				result = &Expr{
+					Kind: ExprCast,
+					Type: conv.Target,
+					Span: result.Span,
+					Data: CastData{
+						Value:    result,
+						TargetTy: conv.Target,
+					},
+				}
 			}
 		}
 	}

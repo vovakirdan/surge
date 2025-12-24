@@ -57,6 +57,7 @@ var attrRegistry = map[string]AttrSpec{
 	"override":      {Name: "override", Targets: AttrTargetFn, Flags: AttrFlagExternOnly},
 	"intrinsic":     {Name: "intrinsic", Targets: AttrTargetFn | AttrTargetType, Flags: AttrFlagFnDeclOnly},
 	"entrypoint":    {Name: "entrypoint", Targets: AttrTargetFn},
+	"allow_to":      {Name: "allow_to", Targets: AttrTargetFn},
 	"backend":       {Name: "backend", Targets: AttrTargetFn | AttrTargetBlock},
 	"deprecated":    {Name: "deprecated", Targets: AttrTargetFn | AttrTargetType | AttrTargetField | AttrTargetLet},
 	"packed":        {Name: "packed", Targets: AttrTargetType | AttrTargetField},

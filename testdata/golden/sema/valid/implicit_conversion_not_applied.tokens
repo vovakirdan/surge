@@ -104,61 +104,63 @@
 104: RBrace          "}" at 20:5-20:6 (leading: Newline, Space)
 105: RBrace          "}" at 21:1-21:2 (leading: Newline)
 106: At              "@" at 23:1-23:2 (leading: Newline)
-107: Ident           "overload" at 23:2-23:10
-108: KwFn            "fn" at 24:1-24:3 (leading: Newline)
-109: Ident           "overloaded" at 24:4-24:14 (leading: Space)
-110: LParen          "(" at 24:14-24:15
-111: Ident           "x" at 24:15-24:16
-112: Colon           ":" at 24:16-24:17
-113: Ident           "int" at 24:18-24:21 (leading: Space)
-114: RParen          ")" at 24:21-24:22
-115: Arrow           "->" at 24:23-24:25 (leading: Space)
-116: Ident           "int" at 24:26-24:29 (leading: Space)
-117: LBrace          "{" at 24:30-24:31 (leading: Space)
-118: KwReturn        "return" at 24:32-24:38 (leading: Space)
-119: IntLit          "1" at 24:39-24:40 (leading: Space)
-120: Semicolon       ";" at 24:40-24:41
-121: RBrace          "}" at 24:42-24:43 (leading: Space)
-122: At              "@" at 25:1-25:2 (leading: Newline)
-123: Ident           "overload" at 25:2-25:10
-124: KwFn            "fn" at 26:1-26:3 (leading: Newline)
-125: Ident           "overloaded" at 26:4-26:14 (leading: Space)
-126: LParen          "(" at 26:14-26:15
-127: Ident           "x" at 26:15-26:16
-128: Colon           ":" at 26:16-26:17
-129: Ident           "string" at 26:18-26:24 (leading: Space)
-130: RParen          ")" at 26:24-26:25
-131: Arrow           "->" at 26:26-26:28 (leading: Space)
-132: Ident           "int" at 26:29-26:32 (leading: Space)
-133: LBrace          "{" at 26:33-26:34 (leading: Space)
-134: KwReturn        "return" at 26:35-26:41 (leading: Space)
-135: IntLit          "2" at 26:42-26:43 (leading: Space)
-136: Semicolon       ";" at 26:43-26:44
-137: RBrace          "}" at 26:45-26:46 (leading: Space)
-138: KwFn            "fn" at 28:1-28:3 (leading: Newline)
-139: Ident           "test_overload_selection" at 28:4-28:27 (leading: Space)
-140: LParen          "(" at 28:27-28:28
-141: RParen          ")" at 28:28-28:29
-142: LBrace          "{" at 28:30-28:31 (leading: Space)
-143: KwLet           "let" at 29:5-29:8 (leading: Newline, Space)
-144: Ident           "mi" at 29:9-29:11 (leading: Space)
-145: Colon           ":" at 29:11-29:12
-146: Ident           "MyInt" at 29:13-29:18 (leading: Space)
-147: Assign          "=" at 29:19-29:20 (leading: Space)
-148: Ident           "MyInt" at 29:21-29:26 (leading: Space)
-149: LBrace          "{" at 29:27-29:28 (leading: Space)
-150: IntLit          "42" at 29:29-29:31 (leading: Space)
-151: RBrace          "}" at 29:32-29:33 (leading: Space)
-152: Semicolon       ";" at 29:33-29:34
-153: KwLet           "let" at 30:5-30:8 (leading: Newline, Space)
-154: Ident           "result" at 30:9-30:15 (leading: Space)
-155: Colon           ":" at 30:15-30:16
-156: Ident           "int" at 30:17-30:20 (leading: Space)
-157: Assign          "=" at 30:21-30:22 (leading: Space)
-158: Ident           "overloaded" at 30:23-30:33 (leading: Space)
-159: LParen          "(" at 30:33-30:34
-160: Ident           "mi" at 30:34-30:36
-161: RParen          ")" at 30:36-30:37
-162: Semicolon       ";" at 30:37-30:38
-163: RBrace          "}" at 31:1-31:2 (leading: Newline)
-164: EOF             at 32:1-32:1
+107: Ident           "allow_to" at 23:2-23:10
+108: At              "@" at 24:1-24:2 (leading: Newline)
+109: Ident           "overload" at 24:2-24:10
+110: KwFn            "fn" at 25:1-25:3 (leading: Newline)
+111: Ident           "overloaded" at 25:4-25:14 (leading: Space)
+112: LParen          "(" at 25:14-25:15
+113: Ident           "x" at 25:15-25:16
+114: Colon           ":" at 25:16-25:17
+115: Ident           "int" at 25:18-25:21 (leading: Space)
+116: RParen          ")" at 25:21-25:22
+117: Arrow           "->" at 25:23-25:25 (leading: Space)
+118: Ident           "int" at 25:26-25:29 (leading: Space)
+119: LBrace          "{" at 25:30-25:31 (leading: Space)
+120: KwReturn        "return" at 25:32-25:38 (leading: Space)
+121: IntLit          "1" at 25:39-25:40 (leading: Space)
+122: Semicolon       ";" at 25:40-25:41
+123: RBrace          "}" at 25:42-25:43 (leading: Space)
+124: At              "@" at 26:1-26:2 (leading: Newline)
+125: Ident           "overload" at 26:2-26:10
+126: KwFn            "fn" at 27:1-27:3 (leading: Newline)
+127: Ident           "overloaded" at 27:4-27:14 (leading: Space)
+128: LParen          "(" at 27:14-27:15
+129: Ident           "x" at 27:15-27:16
+130: Colon           ":" at 27:16-27:17
+131: Ident           "string" at 27:18-27:24 (leading: Space)
+132: RParen          ")" at 27:24-27:25
+133: Arrow           "->" at 27:26-27:28 (leading: Space)
+134: Ident           "int" at 27:29-27:32 (leading: Space)
+135: LBrace          "{" at 27:33-27:34 (leading: Space)
+136: KwReturn        "return" at 27:35-27:41 (leading: Space)
+137: IntLit          "2" at 27:42-27:43 (leading: Space)
+138: Semicolon       ";" at 27:43-27:44
+139: RBrace          "}" at 27:45-27:46 (leading: Space)
+140: KwFn            "fn" at 29:1-29:3 (leading: Newline)
+141: Ident           "test_overload_selection" at 29:4-29:27 (leading: Space)
+142: LParen          "(" at 29:27-29:28
+143: RParen          ")" at 29:28-29:29
+144: LBrace          "{" at 29:30-29:31 (leading: Space)
+145: KwLet           "let" at 30:5-30:8 (leading: Newline, Space)
+146: Ident           "mi" at 30:9-30:11 (leading: Space)
+147: Colon           ":" at 30:11-30:12
+148: Ident           "MyInt" at 30:13-30:18 (leading: Space)
+149: Assign          "=" at 30:19-30:20 (leading: Space)
+150: Ident           "MyInt" at 30:21-30:26 (leading: Space)
+151: LBrace          "{" at 30:27-30:28 (leading: Space)
+152: IntLit          "42" at 30:29-30:31 (leading: Space)
+153: RBrace          "}" at 30:32-30:33 (leading: Space)
+154: Semicolon       ";" at 30:33-30:34
+155: KwLet           "let" at 31:5-31:8 (leading: Newline, Space)
+156: Ident           "result" at 31:9-31:15 (leading: Space)
+157: Colon           ":" at 31:15-31:16
+158: Ident           "int" at 31:17-31:20 (leading: Space)
+159: Assign          "=" at 31:21-31:22 (leading: Space)
+160: Ident           "overloaded" at 31:23-31:33 (leading: Space)
+161: LParen          "(" at 31:33-31:34
+162: Ident           "mi" at 31:34-31:36
+163: RParen          ")" at 31:36-31:37
+164: Semicolon       ";" at 31:37-31:38
+165: RBrace          "}" at 32:1-32:2 (leading: Newline)
+166: EOF             at 33:1-33:1
