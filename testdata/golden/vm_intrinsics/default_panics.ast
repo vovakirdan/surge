@@ -1,0 +1,14 @@
+default_panics.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-5:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:36)
+         │  ├─ Name: _x
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#2: default()
+         └─ Stmt[1]: Return (span: 4:5-4:14)
+            └─ Expr: expr#3: 0

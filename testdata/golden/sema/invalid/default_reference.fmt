@@ -1,0 +1,5 @@
+fn main() {
+    let x: int = 1;
+    let _ = default::<&int>();
+    let _y = x;
+}

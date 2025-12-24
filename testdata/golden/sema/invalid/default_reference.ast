@@ -1,0 +1,22 @@
+default_reference.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:11-5:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:20)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         ├─ Stmt[1]: Let (span: 3:5-3:31)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#3: default()
+         └─ Stmt[2]: Let (span: 4:5-4:16)
+            ├─ Name: _y
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#4: x

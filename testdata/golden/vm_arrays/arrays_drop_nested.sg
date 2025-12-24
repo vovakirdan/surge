@@ -1,0 +1,134 @@
+fn write_str(s: string) -> nothing {
+    let ptr = rt_string_ptr(&s);
+    let n = rt_string_len_bytes(&s);
+    rt_write_stdout(ptr, n);
+}
+
+fn write_line(s: string) -> nothing {
+    write_str(s);
+    let nl = "\n";
+    rt_write_stdout(rt_string_ptr(&nl), 1:uint);
+}
+
+fn print_int(n: int) -> nothing {
+    write_line(n to string);
+}
+
+fn print_uint(u: uint) -> nothing {
+    write_line(u to string);
+}
+
+type Foo = { name: string, n: int }
+type Bar = { items: string[], nums: int[] }
+
+fn print_foo_opt(v: Foo?) -> nothing {
+    compare v {
+        Some(x) => write_line(x.name);
+        _ => write_line("<nothing>");
+    };
+}
+
+fn sum_foo_n(a: Foo[]) -> int {
+    let n: int = a.__len() to int;
+    let mut total: int = 0;
+    let mut i: int = 0;
+    while i < n {
+        let v: Foo = a[i];
+        total = total + v.n;
+        i = i + 1;
+    }
+    return total;
+}
+
+fn sum_int(a: int[]) -> int {
+    let n: int = a.__len() to int;
+    let mut s: int = 0;
+    let mut i: int = 0;
+    while i < n {
+        s = s + a[i];
+        i = i + 1;
+    }
+    return s;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut foos: Foo[] = [
+        Foo { name = "a", n = 1 },
+        Foo { name = "b", n = 2 },
+        Foo { name = "c", n = 3 },
+    ];
+    let mut view = foos[[1..3]];
+    view[0] = Foo { name = "bb", n = 20 };
+    write_line(foos[1].name);
+    print_int(foos[1].n);
+    write_line(foos[-1].name);
+
+    let mut held: Foo[] = [];
+    {
+        let base: Foo[] = [
+            Foo { name = "inner", n = 9 },
+            Foo { name = "inner2", n = 10 },
+        ];
+        held = base[[0..1]];
+    }
+    held[0] = Foo { name = "inner_mut", n = 11 };
+    write_line(held[0].name);
+
+    let mut list: Foo[] = [];
+    list.push(Foo { name = "x", n = 1 });
+    list.push(Foo { name = "y", n = 2 });
+    let other: Foo[] = [Foo { name = "z", n = 3 }];
+    list.extend(&other);
+    list.reverse_in_place();
+    print_int(list.__len() to int);
+    write_line(list[0].name);
+    print_foo_opt(list.pop());
+    print_int(sum_foo_n(list));
+
+    let fixed: Foo[2] = [
+        Foo { name = "f1", n = 7 },
+        Foo { name = "f2", n = 8 },
+    ];
+    let dyn = fixed.to_array();
+    print_int(dyn.__len() to int);
+    write_line(dyn[1].name);
+
+    let mut bars: Bar[] = [
+        Bar { items = ["a", "b"].to_array(), nums = [1, 2, 3].to_array() },
+        Bar { items = ["c"].to_array(), nums = [4, 5].to_array() },
+    ];
+    let mut bar_view = bars[[0..2]];
+    bar_view[0].nums[1] = 99;
+    bar_view[1].items[0] = "cc";
+    print_int(bars[0].nums[1]);
+    write_line(bars[1].items[0]);
+
+    let mut grid: int[][] = [[1, 2].to_array(), [3, 4, 5].to_array()];
+    let mut row0 = grid[0];
+    row0[1] = 77;
+    print_int(grid[0][1]);
+    let mut outer_view = grid[[0..2]];
+    outer_view[1][0] = 88;
+    print_int(grid[1][0]);
+    let inner_view = grid[1][[1..3]];
+    print_int(sum_int(inner_view));
+
+    let mut rope: string = "";
+    let mut i: int = 0;
+    while i < 20 {
+        rope = rope + "ab";
+        i = i + 1;
+    }
+    let mut strs: string[] = [rope.__clone(), rope.__clone() + "z"];
+    let mut sview = strs[[0..1]];
+    sview[0] = rope.__clone() + "x";
+    write_line(strs[0][[0..2]]);
+    let slice = strs[0][[1..5]];
+    write_line(slice.__clone());
+    rt_string_force_flatten(&slice);
+    print_uint(rt_string_len(&slice));
+    print_uint(rt_string_len_bytes(&slice));
+
+    return 0;
+}

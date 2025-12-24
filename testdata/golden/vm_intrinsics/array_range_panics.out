@@ -1,0 +1,5 @@
+panic VM1005: unsupported intrinsic: __range
+at testdata/golden/vm_intrinsics/array_range_panics.sg:3:5
+backtrace:
+  0: main at testdata/golden/vm_intrinsics/array_range_panics.sg:3:5
+  1: __surge_start at <no-span>

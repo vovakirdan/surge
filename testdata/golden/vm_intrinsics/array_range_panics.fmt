@@ -1,0 +1,7 @@
+@entrypoint
+fn main() -> int {
+    let a: int[] = [1, 2, 3];
+    let mut r: Range<int> = a.__range();
+    let _ = r.next();
+    return 0;
+}

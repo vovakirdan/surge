@@ -1,0 +1,315 @@
+arrays_drop_nested.sg (span: 1:1-135:1)
+├─ Item[0]: Fn (span: 1:1-5:2)
+│  ├─ Name: write_str
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:36-5:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:33)
+│        │  ├─ Name: ptr
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#4: rt_string_ptr(&s)
+│        ├─ Stmt[1]: Let (span: 3:5-3:37)
+│        │  ├─ Name: n
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#8: rt_string_len_bytes(&s)
+│        └─ Stmt[2]: Expr (span: 4:5-4:29)
+│           └─ Expr: expr#12: rt_write_stdout(ptr, n)
+├─ Item[1]: Fn (span: 7:1-11:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:37-11:2)
+│        ├─ Stmt[0]: Expr (span: 8:5-8:18)
+│        │  └─ Expr: expr#15: write_str(s)
+│        ├─ Stmt[1]: Let (span: 9:5-9:19)
+│        │  ├─ Name: nl
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#16: "\n"
+│        └─ Stmt[2]: Expr (span: 10:5-10:49)
+│           └─ Expr: expr#24: rt_write_stdout(rt_string_ptr(&nl), 1 to uint)
+├─ Item[2]: Fn (span: 13:1-15:2)
+│  ├─ Name: print_int
+│  ├─ Params: (n: int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:33-15:2)
+│        └─ Stmt[0]: Expr (span: 14:5-14:29)
+│           └─ Expr: expr#28: write_line(n to string)
+├─ Item[3]: Fn (span: 17:1-19:2)
+│  ├─ Name: print_uint
+│  ├─ Params: (u: uint)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 17:35-19:2)
+│        └─ Stmt[0]: Expr (span: 18:5-18:29)
+│           └─ Expr: expr#32: write_line(u to string)
+├─ Item[4]: Type (span: 21:1-21:36)
+│  ├─ Name: Foo
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: name: string
+│     └─ Field[1]: n: int
+├─ Item[5]: Type (span: 22:1-22:44)
+│  ├─ Name: Bar
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: items: string[]
+│     └─ Field[1]: nums: int[]
+├─ Item[6]: Fn (span: 24:1-29:2)
+│  ├─ Name: print_foo_opt
+│  ├─ Params: (v: <unknown-type>)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 24:38-29:2)
+│        └─ Stmt[0]: Expr (span: 25:5-28:7)
+│           └─ Expr: expr#45: compare v { 2 arms }
+├─ Item[7]: Fn (span: 31:1-41:2)
+│  ├─ Name: sum_foo_n
+│  ├─ Params: (a: Foo[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 31:31-41:2)
+│        ├─ Stmt[0]: Let (span: 32:5-32:35)
+│        │  ├─ Name: n
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#49: a.__len() to int
+│        ├─ Stmt[1]: Let (span: 33:5-33:28)
+│        │  ├─ Name: total
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#50: 0
+│        ├─ Stmt[2]: Let (span: 34:5-34:24)
+│        │  ├─ Name: i
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#51: 0
+│        ├─ Stmt[3]: While (span: 35:5-39:6)
+│        │  ├─ Cond: expr#54: (i < n)
+│        │  └─ Body:
+Block (span: 35:17-39:6)
+│        │     ├─ Stmt[0]: Let (span: 36:9-36:27)
+│        │     │  ├─ Name: v
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: Foo
+│        │     │  └─ Value: expr#57: a[i]
+│        │     ├─ Stmt[1]: Expr (span: 37:9-37:29)
+│        │     │  └─ Expr: expr#63: (total = ((total + v.n)))
+│        │     └─ Stmt[2]: Expr (span: 38:9-38:19)
+│        │        └─ Expr: expr#68: (i = ((i + 1)))
+│        └─ Stmt[4]: Return (span: 40:5-40:18)
+│           └─ Expr: expr#69: total
+├─ Item[8]: Fn (span: 43:1-52:2)
+│  ├─ Name: sum_int
+│  ├─ Params: (a: int[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 43:29-52:2)
+│        ├─ Stmt[0]: Let (span: 44:5-44:35)
+│        │  ├─ Name: n
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int
+│        │  └─ Value: expr#73: a.__len() to int
+│        ├─ Stmt[1]: Let (span: 45:5-45:24)
+│        │  ├─ Name: s
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#74: 0
+│        ├─ Stmt[2]: Let (span: 46:5-46:24)
+│        │  ├─ Name: i
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#75: 0
+│        ├─ Stmt[3]: While (span: 47:5-50:6)
+│        │  ├─ Cond: expr#78: (i < n)
+│        │  └─ Body:
+Block (span: 47:17-50:6)
+│        │     ├─ Stmt[0]: Expr (span: 48:9-48:22)
+│        │     │  └─ Expr: expr#85: (s = ((s + a[i])))
+│        │     └─ Stmt[1]: Expr (span: 49:9-49:19)
+│        │        └─ Expr: expr#90: (i = ((i + 1)))
+│        └─ Stmt[4]: Return (span: 51:5-51:14)
+│           └─ Expr: expr#91: s
+└─ Item[9]: Fn (span: 54:1-134:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 55:18-134:2)
+         ├─ Stmt[0]: Let (span: 56:5-60:7)
+         │  ├─ Name: foos
+         │  ├─ Mutable: true
+         │  ├─ Type: Foo[]
+         │  └─ Value: expr#107: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 61:5-61:33)
+         │  ├─ Name: view
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#113: foos[[1..3]]
+         ├─ Stmt[2]: Expr (span: 62:5-62:43)
+         │  └─ Expr: expr#122: (view[0] = <ExprKind(18)>)
+         ├─ Stmt[3]: Expr (span: 63:5-63:30)
+         │  └─ Expr: expr#128: write_line(foos[1].name)
+         ├─ Stmt[4]: Expr (span: 64:5-64:26)
+         │  └─ Expr: expr#134: print_int(foos[1].n)
+         ├─ Stmt[5]: Expr (span: 65:5-65:31)
+         │  └─ Expr: expr#141: write_line(foos[-1].name)
+         ├─ Stmt[6]: Let (span: 67:5-67:30)
+         │  ├─ Name: held
+         │  ├─ Mutable: true
+         │  ├─ Type: Foo[]
+         │  └─ Value: expr#142: <ExprKind(8)>
+         ├─ Stmt[7]: Block (span: 68:5-74:6)
+         │  ├─ Stmt[0]: Let (span: 69:9-72:11)
+         │  │  ├─ Name: base
+         │  │  ├─ Mutable: false
+         │  │  ├─ Type: Foo[]
+         │  │  └─ Value: expr#153: <ExprKind(8)>
+         │  └─ Stmt[1]: Expr (span: 73:9-73:29)
+         │     └─ Expr: expr#161: (held = base[[0..1]])
+         ├─ Stmt[8]: Expr (span: 75:5-75:50)
+         │  └─ Expr: expr#170: (held[0] = <ExprKind(18)>)
+         ├─ Stmt[9]: Expr (span: 76:5-76:30)
+         │  └─ Expr: expr#176: write_line(held[0].name)
+         ├─ Stmt[10]: Let (span: 78:5-78:30)
+         │  ├─ Name: list
+         │  ├─ Mutable: true
+         │  ├─ Type: Foo[]
+         │  └─ Value: expr#177: <ExprKind(8)>
+         ├─ Stmt[11]: Expr (span: 79:5-79:42)
+         │  └─ Expr: expr#185: list.push(<ExprKind(18)>)
+         ├─ Stmt[12]: Expr (span: 80:5-80:42)
+         │  └─ Expr: expr#193: list.push(<ExprKind(18)>)
+         ├─ Stmt[13]: Let (span: 81:5-81:52)
+         │  ├─ Name: other
+         │  ├─ Mutable: false
+         │  ├─ Type: Foo[]
+         │  └─ Value: expr#199: <ExprKind(8)>
+         ├─ Stmt[14]: Expr (span: 82:5-82:25)
+         │  └─ Expr: expr#204: list.extend(&other)
+         ├─ Stmt[15]: Expr (span: 83:5-83:29)
+         │  └─ Expr: expr#207: list.reverse_in_place()
+         ├─ Stmt[16]: Expr (span: 84:5-84:36)
+         │  └─ Expr: expr#213: print_int(list.__len() to int)
+         ├─ Stmt[17]: Expr (span: 85:5-85:30)
+         │  └─ Expr: expr#219: write_line(list[0].name)
+         ├─ Stmt[18]: Expr (span: 86:5-86:31)
+         │  └─ Expr: expr#224: print_foo_opt(list.pop())
+         ├─ Stmt[19]: Expr (span: 87:5-87:32)
+         │  └─ Expr: expr#229: print_int(sum_foo_n(list))
+         ├─ Stmt[20]: Let (span: 89:5-92:7)
+         │  ├─ Name: fixed
+         │  ├─ Mutable: false
+         │  ├─ Type: Foo[2]
+         │  └─ Value: expr#240: <ExprKind(8)>
+         ├─ Stmt[21]: Let (span: 93:5-93:32)
+         │  ├─ Name: dyn
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#243: fixed.to_array()
+         ├─ Stmt[22]: Expr (span: 94:5-94:35)
+         │  └─ Expr: expr#249: print_int(dyn.__len() to int)
+         ├─ Stmt[23]: Expr (span: 95:5-95:29)
+         │  └─ Expr: expr#255: write_line(dyn[1].name)
+         ├─ Stmt[24]: Let (span: 97:5-100:7)
+         │  ├─ Name: bars
+         │  ├─ Mutable: true
+         │  ├─ Type: Bar[]
+         │  └─ Value: expr#282: <ExprKind(8)>
+         ├─ Stmt[25]: Let (span: 101:5-101:37)
+         │  ├─ Name: bar_view
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#288: bars[[0..2]]
+         ├─ Stmt[26]: Expr (span: 102:5-102:30)
+         │  └─ Expr: expr#296: (bar_view[0].nums[1] = 99)
+         ├─ Stmt[27]: Expr (span: 103:5-103:33)
+         │  └─ Expr: expr#304: (bar_view[1].items[0] = "cc")
+         ├─ Stmt[28]: Expr (span: 104:5-104:32)
+         │  └─ Expr: expr#312: print_int(bars[0].nums[1])
+         ├─ Stmt[29]: Expr (span: 105:5-105:34)
+         │  └─ Expr: expr#320: write_line(bars[1].items[0])
+         ├─ Stmt[30]: Let (span: 107:5-107:71)
+         │  ├─ Name: grid
+         │  ├─ Mutable: true
+         │  ├─ Type: int[][]
+         │  └─ Value: expr#332: <ExprKind(8)>
+         ├─ Stmt[31]: Let (span: 108:5-108:28)
+         │  ├─ Name: row0
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#335: grid[0]
+         ├─ Stmt[32]: Expr (span: 109:5-109:18)
+         │  └─ Expr: expr#340: (row0[1] = 77)
+         ├─ Stmt[33]: Expr (span: 110:5-110:27)
+         │  └─ Expr: expr#347: print_int(grid[0][1])
+         ├─ Stmt[34]: Let (span: 111:5-111:39)
+         │  ├─ Name: outer_view
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#353: grid[[0..2]]
+         ├─ Stmt[35]: Expr (span: 112:5-112:27)
+         │  └─ Expr: expr#360: (outer_view[1][0] = 88)
+         ├─ Stmt[36]: Expr (span: 113:5-113:27)
+         │  └─ Expr: expr#367: print_int(grid[1][0])
+         ├─ Stmt[37]: Let (span: 114:5-114:38)
+         │  ├─ Name: inner_view
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#375: grid[1][[1..3]]
+         ├─ Stmt[38]: Expr (span: 115:5-115:36)
+         │  └─ Expr: expr#380: print_int(sum_int(inner_view))
+         ├─ Stmt[39]: Let (span: 117:5-117:31)
+         │  ├─ Name: rope
+         │  ├─ Mutable: true
+         │  ├─ Type: string
+         │  └─ Value: expr#381: ""
+         ├─ Stmt[40]: Let (span: 118:5-118:24)
+         │  ├─ Name: i
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#382: 0
+         ├─ Stmt[41]: While (span: 119:5-122:6)
+         │  ├─ Cond: expr#385: (i < 20)
+         │  └─ Body:
+Block (span: 119:18-122:6)
+         │     ├─ Stmt[0]: Expr (span: 120:9-120:28)
+         │     │  └─ Expr: expr#390: (rope = ((rope + "ab")))
+         │     └─ Stmt[1]: Expr (span: 121:9-121:19)
+         │        └─ Expr: expr#395: (i = ((i + 1)))
+         ├─ Stmt[42]: Let (span: 123:5-123:69)
+         │  ├─ Name: strs
+         │  ├─ Mutable: true
+         │  ├─ Type: string[]
+         │  └─ Value: expr#404: <ExprKind(8)>
+         ├─ Stmt[43]: Let (span: 124:5-124:34)
+         │  ├─ Name: sview
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#410: strs[[0..1]]
+         ├─ Stmt[44]: Expr (span: 125:5-125:37)
+         │  └─ Expr: expr#419: (sview[0] = ((rope.__clone() + "x")))
+         ├─ Stmt[45]: Expr (span: 126:5-126:33)
+         │  └─ Expr: expr#429: write_line(strs[0][[0..2]])
+         ├─ Stmt[46]: Let (span: 127:5-127:33)
+         │  ├─ Name: slice
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#437: strs[0][[1..5]]
+         ├─ Stmt[47]: Expr (span: 128:5-128:33)
+         │  └─ Expr: expr#442: write_line(slice.__clone())
+         ├─ Stmt[48]: Expr (span: 129:5-129:37)
+         │  └─ Expr: expr#446: rt_string_force_flatten(&slice)
+         ├─ Stmt[49]: Expr (span: 130:5-130:39)
+         │  └─ Expr: expr#452: print_uint(rt_string_len(&slice))
+         ├─ Stmt[50]: Expr (span: 131:5-131:45)
+         │  └─ Expr: expr#458: print_uint(rt_string_len_bytes(&slice))
+         └─ Stmt[51]: Return (span: 133:5-133:14)
+            └─ Expr: expr#459: 0

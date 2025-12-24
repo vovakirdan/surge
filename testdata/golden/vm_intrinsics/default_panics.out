@@ -1,0 +1,5 @@
+panic VM1005: unsupported intrinsic: default
+at testdata/golden/vm_intrinsics/default_panics.sg:3:19
+backtrace:
+  0: main at testdata/golden/vm_intrinsics/default_panics.sg:3:19
+  1: __surge_start at <no-span>

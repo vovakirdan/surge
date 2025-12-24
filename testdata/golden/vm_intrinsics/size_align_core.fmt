@@ -1,0 +1,26 @@
+fn write_line(s: string) -> nothing {
+    let nl = "\n";
+    rt_write_stdout(rt_string_ptr(&s), rt_string_len_bytes(&s));
+    rt_write_stdout(rt_string_ptr(&nl), 1:uint);
+}
+
+fn print_uint(u: uint) -> nothing {
+    write_line(u to string);
+}
+
+type Mix = { a: int, b: string, c: int[] }
+
+@entrypoint
+fn main() -> int {
+    print_uint(size_of::<string>());
+    print_uint(align_of::<string>());
+    print_uint(size_of::<BytesView>());
+    print_uint(align_of::<BytesView>());
+    print_uint(size_of::<int[]>());
+    print_uint(align_of::<int[]>());
+    print_uint(size_of::<int[3]>());
+    print_uint(align_of::<int[3]>());
+    print_uint(size_of::<Mix>());
+    print_uint(align_of::<Mix>());
+    return 0;
+}

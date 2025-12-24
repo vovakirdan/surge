@@ -1,0 +1,60 @@
+size_align_core.sg (span: 1:1-27:1)
+├─ Item[0]: Fn (span: 1:1-5:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:37-5:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:19)
+│        │  ├─ Name: nl
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#1: "\n"
+│        ├─ Stmt[1]: Expr (span: 3:5-3:65)
+│        │  └─ Expr: expr#11: rt_write_stdout(rt_string_ptr(&s), rt_string_len_bytes(&s))
+│        └─ Stmt[2]: Expr (span: 4:5-4:49)
+│           └─ Expr: expr#19: rt_write_stdout(rt_string_ptr(&nl), 1 to uint)
+├─ Item[1]: Fn (span: 7:1-9:2)
+│  ├─ Name: print_uint
+│  ├─ Params: (u: uint)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:35-9:2)
+│        └─ Stmt[0]: Expr (span: 8:5-8:29)
+│           └─ Expr: expr#23: write_line(u to string)
+├─ Item[2]: Type (span: 11:1-11:43)
+│  ├─ Name: Mix
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: a: int
+│     ├─ Field[1]: b: string
+│     └─ Field[2]: c: int[]
+└─ Item[3]: Fn (span: 13:1-26:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 14:18-26:2)
+         ├─ Stmt[0]: Expr (span: 15:5-15:37)
+         │  └─ Expr: expr#27: print_uint(size_of())
+         ├─ Stmt[1]: Expr (span: 16:5-16:38)
+         │  └─ Expr: expr#31: print_uint(align_of())
+         ├─ Stmt[2]: Expr (span: 17:5-17:40)
+         │  └─ Expr: expr#35: print_uint(size_of())
+         ├─ Stmt[3]: Expr (span: 18:5-18:41)
+         │  └─ Expr: expr#39: print_uint(align_of())
+         ├─ Stmt[4]: Expr (span: 19:5-19:36)
+         │  └─ Expr: expr#43: print_uint(size_of())
+         ├─ Stmt[5]: Expr (span: 20:5-20:37)
+         │  └─ Expr: expr#47: print_uint(align_of())
+         ├─ Stmt[6]: Expr (span: 21:5-21:37)
+         │  └─ Expr: expr#51: print_uint(size_of())
+         ├─ Stmt[7]: Expr (span: 22:5-22:38)
+         │  └─ Expr: expr#55: print_uint(align_of())
+         ├─ Stmt[8]: Expr (span: 23:5-23:34)
+         │  └─ Expr: expr#59: print_uint(size_of())
+         ├─ Stmt[9]: Expr (span: 24:5-24:35)
+         │  └─ Expr: expr#63: print_uint(align_of())
+         └─ Stmt[10]: Return (span: 25:5-25:14)
+            └─ Expr: expr#64: 0

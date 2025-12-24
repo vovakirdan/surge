@@ -308,6 +308,35 @@ fn main() -> int {
 	}
 }
 
+func TestVMLayoutSizeAlignCoreTypes(t *testing.T) {
+	sourceCode := `type Mix = { a: int, b: string, c: int[] }
+
+@entrypoint
+fn main() -> int {
+    if (size_of::<string>() != 8:uint) { return 1; }
+    if (align_of::<string>() != 8:uint) { return 2; }
+    if (size_of::<BytesView>() != 24:uint) { return 3; }
+    if (align_of::<BytesView>() != 8:uint) { return 4; }
+    if (size_of::<int[]>() != 8:uint) { return 5; }
+    if (align_of::<int[]>() != 8:uint) { return 6; }
+    if (size_of::<int[3]>() != 24:uint) { return 7; }
+    if (align_of::<int[3]>() != 8:uint) { return 8; }
+    if (size_of::<Mix>() != 24:uint) { return 9; }
+    if (align_of::<Mix>() != 8:uint) { return 10; }
+    return 0;
+}
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
+	rt := vm.NewTestRuntime(nil, "")
+	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
+	if vmErr != nil {
+		t.Fatalf("unexpected error: %v", vmErr.Error())
+	}
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+}
+
 func TestVMDropOrderReverseLocals(t *testing.T) {
 	sourceCode := `@entrypoint
 fn main() -> int {

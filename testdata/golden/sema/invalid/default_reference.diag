@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/default_reference.sg:3:13 default is not defined for &int

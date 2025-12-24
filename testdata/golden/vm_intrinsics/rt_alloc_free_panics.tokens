@@ -1,0 +1,41 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "main" at 2:4-2:8 (leading: Space)
+  5: LParen          "(" at 2:8-2:9
+  6: RParen          ")" at 2:9-2:10
+  7: Arrow           "->" at 2:11-2:13 (leading: Space)
+  8: Ident           "int" at 2:14-2:17 (leading: Space)
+  9: LBrace          "{" at 2:18-2:19 (leading: Space)
+ 10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 11: Ident           "p" at 3:9-3:10 (leading: Space)
+ 12: Assign          "=" at 3:11-3:12 (leading: Space)
+ 13: Ident           "rt_alloc" at 3:13-3:21 (leading: Space)
+ 14: LParen          "(" at 3:21-3:22
+ 15: IntLit          "8" at 3:22-3:23
+ 16: Colon           ":" at 3:23-3:24
+ 17: Ident           "uint" at 3:24-3:28
+ 18: Comma           "," at 3:28-3:29
+ 19: IntLit          "1" at 3:30-3:31 (leading: Space)
+ 20: Colon           ":" at 3:31-3:32
+ 21: Ident           "uint" at 3:32-3:36
+ 22: RParen          ")" at 3:36-3:37
+ 23: Semicolon       ";" at 3:37-3:38
+ 24: Ident           "rt_free" at 4:5-4:12 (leading: Newline, Space)
+ 25: LParen          "(" at 4:12-4:13
+ 26: Ident           "p" at 4:13-4:14
+ 27: Comma           "," at 4:14-4:15
+ 28: IntLit          "8" at 4:16-4:17 (leading: Space)
+ 29: Colon           ":" at 4:17-4:18
+ 30: Ident           "uint" at 4:18-4:22
+ 31: Comma           "," at 4:22-4:23
+ 32: IntLit          "1" at 4:24-4:25 (leading: Space)
+ 33: Colon           ":" at 4:25-4:26
+ 34: Ident           "uint" at 4:26-4:30
+ 35: RParen          ")" at 4:30-4:31
+ 36: Semicolon       ";" at 4:31-4:32
+ 37: KwReturn        "return" at 5:5-5:11 (leading: Newline, Space)
+ 38: IntLit          "0" at 5:12-5:13 (leading: Space)
+ 39: Semicolon       ";" at 5:13-5:14
+ 40: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 41: EOF             at 7:1-7:1
