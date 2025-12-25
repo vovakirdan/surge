@@ -65,7 +65,7 @@ func (tc *typeChecker) validateEntrypointNoMode(fnItem *ast.FnItem, sym *symbols
 
 // validateEntrypointReturn checks that return type is nothing, int, or implements ExitCode.
 func (tc *typeChecker) validateEntrypointReturn(fnItem *ast.FnItem, _ *symbols.Symbol, scope symbols.ScopeID) {
-	returnType := tc.functionReturnType(fnItem, scope)
+	returnType := tc.functionReturnType(fnItem, scope, false)
 	nothingType := tc.types.Builtins().Nothing
 	intType := tc.types.Builtins().Int
 

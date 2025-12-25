@@ -1,0 +1,9 @@
+type C = {};
+
+extern<C> {
+    fn memcpy(dst: *byte, src: *byte, n: uint) -> nothing;
+}
+
+fn main() -> int {
+    return 0;
+}

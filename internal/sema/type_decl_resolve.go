@@ -15,6 +15,9 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 	if !id.IsValid() || tc.builder == nil {
 		return types.NoTypeID
 	}
+	if !tc.allowRawPointer {
+		tc.checkRawPointerTypeExpr(id)
+	}
 	scope = tc.scopeOrFile(scope)
 	key := typeCacheKey{Type: id, Scope: scope, Env: tc.currentTypeParamEnv()}
 	if tc.typeCache != nil {

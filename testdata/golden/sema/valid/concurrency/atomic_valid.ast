@@ -1,4 +1,4 @@
-atomic_valid.sg (span: 4:1-45:1)
+atomic_valid.sg (span: 4:1-41:1)
 ├─ Item[0]: Type (span: 4:1-8:2)
 │  ├─ Name: AtomicCounter
 │  ├─ Kind: Struct
@@ -7,78 +7,72 @@ atomic_valid.sg (span: 4:1-45:1)
 │     ├─ Field[0]: count: int [@atomic]
 │     ├─ Field[1]: flags: uint [@atomic]
 │     └─ Field[2]: active: bool [@atomic]
-├─ Item[1]: Type (span: 10:1-12:2)
-│  ├─ Name: AtomicPointer
-│  ├─ Kind: Struct
-│  ├─ Visibility: private
-│  └─ Struct:
-│     └─ Field[0]: ptr: *int [@atomic]
-├─ Item[2]: Fn (span: 14:1-20:2)
+├─ Item[1]: Fn (span: 10:1-16:2)
 │  ├─ Name: test_atomic_store
 │  ├─ Params: ()
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 14:39-20:2)
-│        ├─ Stmt[0]: Let (span: 15:5-15:84)
+│     └─ Stmt[0]: Block (span: 10:39-16:2)
+│        ├─ Stmt[0]: Let (span: 11:5-11:84)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicCounter
 │        │  └─ Value: expr#7: <ExprKind(18)>
-│        ├─ Stmt[1]: Expr (span: 17:5-17:35)
+│        ├─ Stmt[1]: Expr (span: 13:5-13:35)
 │        │  └─ Expr: expr#13: atomic_store(&mut a.count, 1)
-│        ├─ Stmt[2]: Expr (span: 18:5-18:37)
+│        ├─ Stmt[2]: Expr (span: 14:5-14:37)
 │        │  └─ Expr: expr#19: atomic_store(&mut a.flags, 255)
-│        └─ Stmt[3]: Expr (span: 19:5-19:39)
+│        └─ Stmt[3]: Expr (span: 15:5-15:39)
 │           └─ Expr: expr#25: atomic_store(&mut a.active, true)
-├─ Item[3]: Fn (span: 22:1-26:2)
+├─ Item[2]: Fn (span: 18:1-22:2)
 │  ├─ Name: test_atomic_load
 │  ├─ Params: ()
 │  ├─ Return: int
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 22:34-26:2)
-│        ├─ Stmt[0]: Let (span: 23:5-23:81)
+│     └─ Stmt[0]: Block (span: 18:34-22:2)
+│        ├─ Stmt[0]: Let (span: 19:5-19:81)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: false
 │        │  ├─ Type: AtomicCounter
 │        │  └─ Value: expr#32: <ExprKind(18)>
-│        └─ Stmt[1]: Return (span: 25:5-25:34)
+│        └─ Stmt[1]: Return (span: 21:5-21:34)
 │           └─ Expr: expr#37: atomic_load(&a.count)
-├─ Item[4]: Fn (span: 28:1-32:2)
+├─ Item[3]: Fn (span: 24:1-28:2)
 │  ├─ Name: test_atomic_fetch_add
 │  ├─ Params: ()
 │  ├─ Return: int
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 28:39-32:2)
-│        ├─ Stmt[0]: Let (span: 29:5-29:84)
+│     └─ Stmt[0]: Block (span: 24:39-28:2)
+│        ├─ Stmt[0]: Let (span: 25:5-25:84)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicCounter
 │        │  └─ Value: expr#44: <ExprKind(18)>
-│        └─ Stmt[1]: Return (span: 31:5-31:46)
+│        └─ Stmt[1]: Return (span: 27:5-27:46)
 │           └─ Expr: expr#50: atomic_fetch_add(&mut a.count, 1)
-├─ Item[5]: Fn (span: 34:1-38:2)
+├─ Item[4]: Fn (span: 30:1-34:2)
 │  ├─ Name: test_atomic_compare_exchange
 │  ├─ Params: ()
 │  ├─ Return: bool
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 34:47-38:2)
-│        ├─ Stmt[0]: Let (span: 35:5-35:84)
+│     └─ Stmt[0]: Block (span: 30:47-34:2)
+│        ├─ Stmt[0]: Let (span: 31:5-31:84)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicCounter
 │        │  └─ Value: expr#57: <ExprKind(18)>
-│        └─ Stmt[1]: Return (span: 37:5-37:56)
+│        └─ Stmt[1]: Return (span: 33:5-33:56)
 │           └─ Expr: expr#64: atomic_compare_exchange(&mut a.count, 0, 1)
-└─ Item[6]: Fn (span: 40:1-44:2)
+└─ Item[5]: Fn (span: 36:1-40:2)
    ├─ Name: test_atomic_exchange
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 40:38-44:2)
-         ├─ Stmt[0]: Let (span: 41:5-41:84)
+      └─ Stmt[0]: Block (span: 36:38-40:2)
+         ├─ Stmt[0]: Let (span: 37:5-37:84)
          │  ├─ Name: a
          │  ├─ Mutable: true
          │  ├─ Type: AtomicCounter
          │  └─ Value: expr#71: <ExprKind(18)>
-         └─ Stmt[1]: Return (span: 43:5-43:46)
+         └─ Stmt[1]: Return (span: 39:5-39:46)
             └─ Expr: expr#77: atomic_exchange(&mut a.count, 42)

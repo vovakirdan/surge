@@ -56,6 +56,8 @@ type typeChecker struct {
 	constState                  map[symbols.SymbolID]constEvalState
 	typeItems                   map[ast.ItemID]types.TypeID
 	typeCache                   map[typeCacheKey]types.TypeID
+	rawPointerChecked           map[ast.TypeID]struct{}
+	allowRawPointer             bool
 	typeKeys                    map[string]types.TypeID
 	typeIDItems                 map[types.TypeID]ast.ItemID
 	structBases                 map[types.TypeID]types.TypeID
@@ -168,6 +170,7 @@ func (tc *typeChecker) run() {
 	tc.constState = make(map[symbols.SymbolID]constEvalState)
 	tc.typeItems = make(map[ast.ItemID]types.TypeID)
 	tc.typeCache = make(map[typeCacheKey]types.TypeID)
+	tc.rawPointerChecked = make(map[ast.TypeID]struct{})
 	tc.typeIDItems = make(map[types.TypeID]ast.ItemID)
 	tc.structBases = make(map[types.TypeID]types.TypeID)
 	tc.externFields = make(map[symbols.TypeKey]*externFieldSet)

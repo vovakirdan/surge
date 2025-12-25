@@ -265,9 +265,9 @@ func (vm *VM) evalFieldAccess(frame *Frame, fa *mir.FieldAccess) (Value, *VMErro
 	defer vm.dropValue(obj)
 	target := obj
 	if obj.Kind == VKRef || obj.Kind == VKRefMut {
-		v, vmErr := vm.loadLocationRaw(obj.Loc)
-		if vmErr != nil {
-			return Value{}, vmErr
+		v, loadErr := vm.loadLocationRaw(obj.Loc)
+		if loadErr != nil {
+			return Value{}, loadErr
 		}
 		target = v
 	}

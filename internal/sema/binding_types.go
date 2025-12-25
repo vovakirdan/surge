@@ -34,7 +34,7 @@ func (tc *typeChecker) bindingType(symID symbols.SymbolID) types.TypeID {
 	return sym.Type
 }
 
-func (tc *typeChecker) registerFnParamTypes(fnID ast.ItemID, fnItem *ast.FnItem) {
+func (tc *typeChecker) registerFnParamTypes(fnID ast.ItemID, fnItem *ast.FnItem, allowRawPointer bool) {
 	if tc.builder == nil || fnItem == nil {
 		return
 	}
@@ -45,7 +45,7 @@ func (tc *typeChecker) registerFnParamTypes(fnID ast.ItemID, fnItem *ast.FnItem)
 		if param == nil || param.Name == source.NoStringID || tc.isWildcardName(param.Name) {
 			continue
 		}
-		paramType := tc.resolveTypeExprWithScope(param.Type, scope)
+		paramType := tc.resolveTypeExprWithScopeAllowPointer(param.Type, scope, allowRawPointer)
 		symID := tc.symbolInScope(scope, param.Name, symbols.SymbolParam)
 		if paramType != types.NoTypeID {
 			tc.setBindingType(symID, paramType)

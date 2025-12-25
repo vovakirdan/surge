@@ -539,48 +539,8 @@
 539: IntLit          "43" at 35:51-35:53 (leading: Space)
 540: Semicolon       ";" at 35:53-35:54
 541: RBrace          "}" at 35:55-35:56 (leading: Space)
-542: KwIf            "if" at 37:5-37:7 (leading: Newline, Space)
-543: LParen          "(" at 37:8-37:9 (leading: Space)
-544: Ident           "size_of" at 37:9-37:16
-545: ColonColon      "::" at 37:16-37:18
-546: Lt              "<" at 37:18-37:19
-547: Star            "*" at 37:19-37:20
-548: Ident           "byte" at 37:20-37:24
-549: Gt              ">" at 37:24-37:25
-550: LParen          "(" at 37:25-37:26
-551: RParen          ")" at 37:26-37:27
-552: BangEq          "!=" at 37:28-37:30 (leading: Space)
-553: IntLit          "8" at 37:31-37:32 (leading: Space)
-554: Colon           ":" at 37:32-37:33
-555: Ident           "uint" at 37:33-37:37
-556: RParen          ")" at 37:37-37:38
-557: LBrace          "{" at 37:39-37:40 (leading: Space)
-558: KwReturn        "return" at 37:41-37:47 (leading: Space)
-559: IntLit          "50" at 37:48-37:50 (leading: Space)
-560: Semicolon       ";" at 37:50-37:51
-561: RBrace          "}" at 37:52-37:53 (leading: Space)
-562: KwIf            "if" at 38:5-38:7 (leading: Newline, Space)
-563: LParen          "(" at 38:8-38:9 (leading: Space)
-564: Ident           "align_of" at 38:9-38:17
-565: ColonColon      "::" at 38:17-38:19
-566: Lt              "<" at 38:19-38:20
-567: Star            "*" at 38:20-38:21
-568: Ident           "byte" at 38:21-38:25
-569: Gt              ">" at 38:25-38:26
-570: LParen          "(" at 38:26-38:27
-571: RParen          ")" at 38:27-38:28
-572: BangEq          "!=" at 38:29-38:31 (leading: Space)
-573: IntLit          "8" at 38:32-38:33 (leading: Space)
-574: Colon           ":" at 38:33-38:34
-575: Ident           "uint" at 38:34-38:38
-576: RParen          ")" at 38:38-38:39
-577: LBrace          "{" at 38:40-38:41 (leading: Space)
-578: KwReturn        "return" at 38:42-38:48 (leading: Space)
-579: IntLit          "51" at 38:49-38:51 (leading: Space)
-580: Semicolon       ";" at 38:51-38:52
-581: RBrace          "}" at 38:53-38:54 (leading: Space)
-582: KwReturn        "return" at 40:5-40:11 (leading: Newline, Space)
-583: IntLit          "0" at 40:12-40:13 (leading: Space)
-584: Semicolon       ";" at 40:13-40:14
-585: RBrace          "}" at 41:1-41:2 (leading: Newline)
-586: EOF             at 42:1-42:1
+542: KwReturn        "return" at 37:5-37:11 (leading: Newline, Space)
+543: IntLit          "0" at 37:12-37:13 (leading: Space)
+544: Semicolon       ";" at 37:13-37:14
+545: RBrace          "}" at 38:1-38:2 (leading: Newline)
+546: EOF             at 39:1-39:1

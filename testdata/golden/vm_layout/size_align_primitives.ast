@@ -1,10 +1,10 @@
-size_align_primitives.sg (span: 1:1-42:1)
-└─ Item[0]: Fn (span: 1:1-41:2)
+size_align_primitives.sg (span: 1:1-39:1)
+└─ Item[0]: Fn (span: 1:1-38:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 2:18-41:2)
+      └─ Stmt[0]: Block (span: 2:18-38:2)
          ├─ Stmt[0]: If (span: 3:5-3:51)
          │  ├─ Cond: expr#5: (size_of() != (1 to uint))
          │  ├─ Then:
@@ -201,19 +201,5 @@ Block (span: 35:42-35:56)
          │  │  └─ Stmt[0]: Return (span: 35:44-35:54)
          │  │     └─ Expr: expr#168: 43
          │  └─ Else: <none>
-         ├─ Stmt[28]: If (span: 37:5-37:53)
-         │  ├─ Cond: expr#173: (size_of() != (8 to uint))
-         │  ├─ Then:
-Block (span: 37:39-37:53)
-         │  │  └─ Stmt[0]: Return (span: 37:41-37:51)
-         │  │     └─ Expr: expr#174: 50
-         │  └─ Else: <none>
-         ├─ Stmt[29]: If (span: 38:5-38:54)
-         │  ├─ Cond: expr#179: (align_of() != (8 to uint))
-         │  ├─ Then:
-Block (span: 38:40-38:54)
-         │  │  └─ Stmt[0]: Return (span: 38:42-38:52)
-         │  │     └─ Expr: expr#180: 51
-         │  └─ Else: <none>
-         └─ Stmt[30]: Return (span: 40:5-40:14)
-            └─ Expr: expr#181: 0
+         └─ Stmt[28]: Return (span: 37:5-37:14)
+            └─ Expr: expr#169: 0

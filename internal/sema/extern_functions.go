@@ -56,13 +56,13 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 		tc.applyTypeParamBounds(symID)
 	}
 
-	returnType := tc.functionReturnType(fn, scope)
+	returnType := tc.functionReturnType(fn, scope, true)
 	returnSpan := fn.ReturnSpan
 	if returnSpan == (source.Span{}) {
 		returnSpan = fn.Span
 	}
 
-	tc.registerExternParamTypes(scope, fn)
+	tc.registerExternParamTypes(scope, fn, true)
 	if symID.IsValid() && tc.types != nil {
 		paramIDs := tc.builder.Items.GetFnParamIDs(fn)
 		paramTypes := make([]types.TypeID, 0, len(paramIDs))
@@ -72,7 +72,7 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 			if param == nil {
 				continue
 			}
-			paramType := tc.resolveTypeExprWithScope(param.Type, scope)
+			paramType := tc.resolveTypeExprWithScopeAllowPointer(param.Type, scope, true)
 			if paramType == types.NoTypeID {
 				allParamsValid = false
 				break
@@ -118,7 +118,7 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 	}
 }
 
-func (tc *typeChecker) registerExternParamTypes(scope symbols.ScopeID, fnItem *ast.FnItem) {
+func (tc *typeChecker) registerExternParamTypes(scope symbols.ScopeID, fnItem *ast.FnItem, allowRawPointer bool) {
 	if tc.builder == nil || fnItem == nil {
 		return
 	}
@@ -129,7 +129,7 @@ func (tc *typeChecker) registerExternParamTypes(scope symbols.ScopeID, fnItem *a
 		if param == nil || param.Name == source.NoStringID {
 			continue
 		}
-		paramType := tc.resolveTypeExprWithScope(param.Type, scope)
+		paramType := tc.resolveTypeExprWithScopeAllowPointer(param.Type, scope, allowRawPointer)
 		symID := tc.symbolInScope(scope, param.Name, symbols.SymbolParam)
 		if paramType == types.NoTypeID {
 			continue

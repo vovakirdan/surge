@@ -37,6 +37,7 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 		}
 		tc.types.SetStructTypeParams(typeID, paramIDs)
 	}
+	allowRawPointer := tc.hasIntrinsicAttr(typeItem.AttrStart, typeItem.AttrCount)
 	fields := make([]types.StructField, 0, structDecl.FieldsCount)
 	if paramIDs := tc.builder.Items.GetTypeParamIDs(typeItem.TypeParamsStart, typeItem.TypeParamsCount); len(paramIDs) > 0 {
 		bounds := tc.resolveTypeParamBounds(paramIDs, scope, nil)
@@ -69,7 +70,7 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 	for _, f := range fields {
 		nameSet[f.Name] = struct{}{}
 	}
-	for _, f := range tc.resolveOwnStructFields(structDecl, scope) {
+	for _, f := range tc.resolveOwnStructFields(structDecl, scope, allowRawPointer) {
 		if _, exists := nameSet[f.Name]; exists {
 			tc.report(diag.SemaTypeMismatch, structDecl.BodySpan, "field %s conflicts with inherited field", tc.lookupName(f.Name))
 			continue
@@ -108,6 +109,7 @@ func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.S
 		return types.NoTypeID
 	}
 	scope := tc.fileScope()
+	allowRawPointer := tc.hasIntrinsicAttr(typeItem.AttrStart, typeItem.AttrCount)
 	paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetTypeParamIDs(typeItem.TypeParamsStart, typeItem.TypeParamsCount), scope)
 	if len(paramSpecs) == 0 && len(typeItem.Generics) > 0 {
 		paramSpecs = specsFromNames(typeItem.Generics)
@@ -138,7 +140,7 @@ func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.S
 			if field == nil {
 				continue
 			}
-			fieldType := tc.resolveTypeExprWithScope(field.Type, scope)
+			fieldType := tc.resolveTypeExprWithScopeAllowPointer(field.Type, scope, allowRawPointer)
 			infos := tc.collectAttrs(field.AttrStart, field.AttrCount)
 			attrs := tc.attrNames(field.AttrStart, field.AttrCount)
 			fields = append(fields, types.StructField{
@@ -182,7 +184,7 @@ func (tc *typeChecker) resolveStructBase(base ast.TypeID, scope symbols.ScopeID)
 	return baseVal
 }
 
-func (tc *typeChecker) resolveOwnStructFields(structDecl *ast.TypeStructDecl, scope symbols.ScopeID) []types.StructField {
+func (tc *typeChecker) resolveOwnStructFields(structDecl *ast.TypeStructDecl, scope symbols.ScopeID, allowRawPointer bool) []types.StructField {
 	if structDecl == nil {
 		return nil
 	}
@@ -202,7 +204,7 @@ func (tc *typeChecker) resolveOwnStructFields(structDecl *ast.TypeStructDecl, sc
 		if field == nil {
 			continue
 		}
-		fieldType := tc.resolveTypeExprWithScope(field.Type, scope)
+		fieldType := tc.resolveTypeExprWithScopeAllowPointer(field.Type, scope, allowRawPointer)
 		infos := tc.collectAttrs(field.AttrStart, field.AttrCount)
 		fields = append(fields, types.StructField{
 			Name:   field.Name,

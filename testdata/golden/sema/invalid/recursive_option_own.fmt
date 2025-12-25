@@ -1,0 +1,7 @@
+// scenario: recursive by-value type should be rejected (even with Option<own T>)
+type Node = {
+    next: Option<own Node>,
+    data: int,
+}
+
+fn main() -> int { return 0; }

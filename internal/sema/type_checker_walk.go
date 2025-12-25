@@ -74,6 +74,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		symID := tc.typeSymbolForItem(id)
 		popFn := tc.pushFnSym(symID)
 		defer popFn()
+		allowRawPointer := tc.hasIntrinsicAttr(fnItem.AttrStart, fnItem.AttrCount)
 		paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetFnTypeParamIDs(fnItem), scope)
 		if len(paramSpecs) == 0 && len(fnItem.Generics) > 0 {
 			paramSpecs = specsFromNames(fnItem.Generics)
@@ -84,12 +85,12 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			tc.attachTypeParamSymbols(symID, bounds)
 			tc.applyTypeParamBounds(symID)
 		}
-		returnType := tc.functionReturnType(fnItem, scope)
+		returnType := tc.functionReturnType(fnItem, scope, allowRawPointer)
 		returnSpan := fnItem.ReturnSpan
 		if returnSpan == (source.Span{}) {
 			returnSpan = fnItem.Span
 		}
-		tc.registerFnParamTypes(id, fnItem)
+		tc.registerFnParamTypes(id, fnItem, allowRawPointer)
 		if len(paramSpecs) == 0 && symID.IsValid() && tc.types != nil {
 			paramIDs := tc.builder.Items.GetFnParamIDs(fnItem)
 			paramTypes := make([]types.TypeID, 0, len(paramIDs))
@@ -99,7 +100,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 				if param == nil {
 					continue
 				}
-				paramType := tc.resolveTypeExprWithScope(param.Type, scope)
+				paramType := tc.resolveTypeExprWithScopeAllowPointer(param.Type, scope, allowRawPointer)
 				if paramType == types.NoTypeID {
 					allParamsValid = false
 					break
@@ -338,13 +339,13 @@ func (tc *typeChecker) symbolForExtern(id ast.ExternMemberID) symbols.SymbolID {
 	return tc.externSymbols[id]
 }
 
-func (tc *typeChecker) functionReturnType(fn *ast.FnItem, scope symbols.ScopeID) types.TypeID {
+func (tc *typeChecker) functionReturnType(fn *ast.FnItem, scope symbols.ScopeID, allowRawPointer bool) types.TypeID {
 	if tc.types == nil || fn == nil {
 		return types.NoTypeID
 	}
 	expected := tc.types.Builtins().Nothing
 	if fn.ReturnType.IsValid() {
-		if resolved := tc.resolveTypeExprWithScope(fn.ReturnType, scope); resolved != types.NoTypeID {
+		if resolved := tc.resolveTypeExprWithScopeAllowPointer(fn.ReturnType, scope, allowRawPointer); resolved != types.NoTypeID {
 			expected = resolved
 		}
 	}

@@ -1,0 +1,17 @@
+fn_signature_ptr.sg (span: 1:1-6:1)
+├─ Item[0]: Fn (span: 1:1-1:36)
+│  ├─ Name: f
+│  ├─ Params: (p: *int)
+│  ├─ Return: *int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:23-1:36)
+│        └─ Stmt[0]: Return (span: 1:25-1:34)
+│           └─ Expr: expr#1: p
+└─ Item[1]: Fn (span: 3:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:18-5:2)
+         └─ Stmt[0]: Return (span: 4:5-4:14)
+            └─ Expr: expr#2: 0

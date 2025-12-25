@@ -78,8 +78,8 @@ fn main() -> int { return 0; }
 	}
 }
 
-func TestLayoutEngine_RecursivePointerStructIsSized(t *testing.T) {
-	sourceCode := `type Node = { next: *Node }
+func TestLayoutEngine_RecursiveReferenceStructIsSized(t *testing.T) {
+	sourceCode := `type Node = { next: &Node }
 
 @entrypoint
 fn main() -> int { return 0; }

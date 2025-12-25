@@ -1,0 +1,44 @@
+// scenario: recursive structures via handles + storage array
+
+type NodeId = uint;
+
+type Node = {
+    next: NodeId?,
+    data: int,
+}
+
+type Nodes = Node[];
+
+fn walk(nodes: &Node[], start: NodeId?) -> nothing {
+    let mut id: NodeId? = start;
+    while true {
+        compare id {
+            Some(i) => {
+                let n: Node = nodes[(i to int)];
+                print(n.data to string);
+                id = n.next;
+            }
+            nothing => { return nothing; }
+        };
+    }
+}
+
+fn main() -> int {
+    let mut nodes: Nodes = [];
+    let mut next: NodeId? = nothing;
+
+    let first: NodeId = len(nodes);
+    nodes.push(Node { next: next, data: 1 });
+    next = first;
+
+    let second: NodeId = len(nodes);
+    nodes.push(Node { next: next, data: 2 });
+    next = second;
+
+    let third: NodeId = len(nodes);
+    nodes.push(Node { next: next, data: 3 });
+    next = third;
+
+    walk(&nodes, next);
+    return 0;
+}

@@ -227,6 +227,7 @@ const (
 	SemaRecursiveUnsized               Code = 3126 // Recursive value type has infinite size
 	SemaDeprecatedUsage                Code = 3127 // Usage of deprecated element (warning)
 	SemaIntLiteralOutOfRange           Code = 3128 // Integer literal out of range for target type
+	SemaRawPointerNotAllowed           Code = 3129 // Raw pointer types are backend-only
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -447,6 +448,7 @@ var ( // todo расширить описания и использовать к
 		SemaRecursiveUnsized:               "recursive value type has infinite size",
 		SemaDeprecatedUsage:                "usage of deprecated element",
 		SemaIntLiteralOutOfRange:           "integer literal out of range",
+		SemaRawPointerNotAllowed:           "raw pointers are backend-only",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",

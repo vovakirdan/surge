@@ -19,7 +19,7 @@
 ### Implementation Snapshot (Draft 7)
 
 - Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, tag, extern, pub, async, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, nothing`.
-- The type checker currently resolves `int`, `uint`, `float`, `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`, `*T`), slices `T[]`, and sized arrays `T[N]` when `N` is a constant numeric literal. Fixed-width numerics (`int8`, `uint64`, `float32`…) are reserved symbols in the prelude but are not backed by concrete `TypeID`s yet.
+- The type checker currently resolves `int`, `uint`, `float`, `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`) plus raw pointers (`*T`, backend-only; rejected in user code), slices `T[]`, and sized arrays `T[N]` when `N` is a constant numeric literal. Fixed-width numerics (`int8`, `uint64`, `float32`…) are reserved symbols in the prelude but are not backed by concrete `TypeID`s yet.
 - Tuple and function types parse, but sema does not yet lower them. **Part of v1.**
 - Tags and unions follow the current parser: `tag Name<T>(args...);` declares a tag item; unions accept plain types, `nothing`, or `Tag(args)` members. `Option`/`Result` plus tags `Some`/`Ok`/`Error` are injected via the prelude and resolved without user declarations; exhaustive `compare` checks are still TODO.
 - Contracts (trait-like structural interfaces) are parsed and checked in sema: declaration syntax is enforced, bounds on functions/types are resolved, short/long forms are validated by arity, and structural satisfaction (fields/methods) is verified on calls, type instantiations, assignments, and returns.
@@ -108,7 +108,9 @@ The type checker currently recognises built-in `int`, `uint`, `float`, `bool`, `
 * `own T` – owning value, moved by default.
 * `&T` – shared immutable borrow (read-only view).
 * `&mut T` – exclusive mutable borrow.
-* `*T` – raw pointer (unsafe operations; deref requires explicit `deref(*p)` call).
+* `*T` – raw pointer (backend-only; unmanaged, no ownership or lifetime guarantees).
+
+**Raw pointers (restricted):** `*T` exists syntactically but is reserved for backend/FFI use. In v1/v2, raw pointers are **not permitted in user code**; only `extern<...>` signatures and `@intrinsic` declarations may mention them. A future version may enable `*T` behind `unsafe {}` blocks (out of scope here).
 
 Borrowing rules:
 
@@ -126,7 +128,7 @@ Borrowing rules:
 * `fn f(x: own T)`: takes ownership.
 * `fn f(x: &T)`: shared-borrows; caller retains ownership; lifetime is lexical.
 * `fn f(x: &mut T)`: exclusive mutable borrow.
-* `fn f(x: *T)`: raw; callee must not assume safety.
+* `fn f(x: *T)`: raw pointer parameter (backend-only; allowed only in `extern`/`@intrinsic` declarations).
 
 ### Ownership and threads
 
@@ -304,6 +306,47 @@ let code: int = HttpStatus::Ok;
   * Enum types can be imported from modules and used cross-module.
   * Enums are lowered to type aliases and internal constants.
 
+#### Recursive data structures
+
+Recursive value types are not supported in v1/v2, even through wrappers like `Option<own T>`. Value layouts must be finite, and `own T` does not introduce indirection.
+
+Use explicit handles (indices) and an external storage container instead. This keeps ownership simple and makes lists/trees/graphs safe and predictable.
+
+```sg
+type NodeId = uint;
+
+type Node = {
+    next: NodeId?,   // Option<NodeId>
+    data: int,
+}
+
+type Nodes = Node[]; // storage
+
+fn push(nodes: &mut Node[], data: int, next: NodeId?) -> NodeId {
+    let id: NodeId = len(nodes);
+    nodes.push(Node { next: next, data: data });
+    return id;
+}
+```
+
+```sg
+fn walk(nodes: &Node[], start: NodeId?) -> nothing {
+    let mut id: NodeId? = start;
+    while true {
+        compare id {
+            Some(i) => {
+                let n: Node = nodes[(i to int)];
+                print(n.data to string);
+                id = n.next;
+            }
+            nothing => { return nothing; }
+        };
+    }
+}
+```
+
+Future versions may add explicit heap indirection or `unsafe`-gated pointers, but those are out of scope for v1/v2.
+
 #### Struct extension
 
 ```sg
@@ -320,7 +363,7 @@ let s: PersonSon = p            // patronymic picks the default ""
 - Defaults initialise missing fields; absence of a default requires callers to provide the field explicitly.
 - Zero init via `default<T>()` is defined only for types with a canonical zero:
   * primitives (`int`/`uint`/`float`/`bool`/`string`/`unit`/`nothing`) → `0`, `0.0`, `false`, `""`, `unit`, `nothing`;
-  * pointers `*T` → `nothing`; references `&T`/`&mut T` have no default (compile-time error on `default`);
+  * raw pointers (`*T`, backend-only) → `nothing`; references `&T`/`&mut T` have no default (compile-time error on `default`);
   * arrays/slices → element-wise `default<Elem>()`, empty slice for dynamic;
   * structs → recursively default every field/base; aliases unwrap to their target;
   * unions → only if a `nothing` variant is present (e.g. `Option`).
@@ -1059,7 +1102,7 @@ The `is` operator performs runtime type checking and returns a `bool`. It checks
 * `own T is T` → `true` (ownership doesn't change type essence)
 * Mutability of a binding does not affect `is`: `let mut x:T; (x is T) == true`.
 * `&T is T` → `false` (reference is different type)
-* `*T is T` → `false` (pointer is different type)
+* `*T is T` → `false` (raw pointer is a distinct type; backend-only)
 
 **Examples:**
 ```sg
@@ -1162,7 +1205,7 @@ The `to` operator performs explicit type conversions with syntax `Expr to Type`.
   * `int` ↔ `uint`: explicit only; negative values trap when casting to `uint`.
   * `float` ↔ `uint`: explicit only; fractional parts are truncated toward zero; out-of-range traps.
   * `float` ↔ `int`: explicit only; fractional parts are truncated toward zero; out-of-range traps.
-* **Reference and pointer types:** `&T`, `&mut T`, and `*T` cannot be cast via `to` (compile error).
+* **Reference and pointer types:** `&T` and `&mut T` cannot be cast via `to` (compile error). Raw pointers `*T` are backend-only and have no `to` casts in user code.
 * **Tag constructors:** No casting to/from tags; use constructors and `compare` matching.
 
 **Examples:**
@@ -1192,7 +1235,7 @@ Each target type gets its own overload; primitives in `core/intrinsics.sg` (modu
 
 **Restrictions:**
 * Direct calls to `__to` are forbidden; only `expr to Type` or implicit conversion may invoke it.
-* Reference and pointer types cannot define or consume casts.
+* Reference types cannot define or consume casts; raw pointers `*T` are backend-only and not part of the cast system.
 * Explicit casts (`expr to Type` or `expr: Type`) never participate in function overload resolution; insert them explicitly when needed. However, implicit conversions (§6.6.1) do participate with lower priority.
 
 #### 6.6.1. Implicit Conversions
@@ -2732,7 +2775,7 @@ fn get_user(id: UserId<User>) -> Option<User> { ... }
 
 * Should `string` be `Copy` for small sizes or always `own`? (Proposed: always `own`.)
 * Exact GPU backend surface (kernels, memory spaces). For now, `@backend` is a hint.
-* Raw pointers `*T`: do we gate deref behind an `@unsafe` block? (Proposed: yes in later iteration; tokenizer still recognizes `*T`.)
+* Raw pointers `*T`: reserved for backend/FFI in v1/v2; future work may gate them behind `unsafe {}` blocks.
 
 ---
 

@@ -1,14 +1,10 @@
-// Valid @atomic field usage with int, uint, bool, and pointer types
+// Valid @atomic field usage with int, uint, and bool types
 // @atomic fields must be accessed via atomic intrinsics
 
 type AtomicCounter = {
     @atomiccount: int,
     @atomicflags: uint,
     @atomicactive: bool,
-}
-
-type AtomicPointer = {
-    @atomicptr: *int,
 }
 
 pub fn test_atomic_store() -> nothing {

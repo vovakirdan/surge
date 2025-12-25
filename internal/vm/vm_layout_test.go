@@ -51,9 +51,6 @@ fn main() -> int {
     if (size_of::<float64>() != 8:uint) { return 42; }
     if (align_of::<float64>() != 8:uint) { return 43; }
 
-    if (size_of::<*byte>() != 8:uint) { return 50; }
-    if (align_of::<*byte>() != 8:uint) { return 51; }
-
     return 0;
 }
 `

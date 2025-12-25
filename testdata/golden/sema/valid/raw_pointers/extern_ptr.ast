@@ -1,0 +1,21 @@
+extern_ptr.sg (span: 1:1-10:1)
+├─ Item[0]: Type (span: 1:1-1:13)
+│  ├─ Name: C
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     <empty>
+├─ Item[1]: Extern (span: 3:1-5:2)
+│  ├─ Target: C
+│  ├─ Members:
+│  │  └─ Fn[0]: memcpy
+│  │     ├─ Params: (dst: *byte, src: *byte, n: uint)
+│  │     └─ Return: nothing
+└─ Item[2]: Fn (span: 7:1-9:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:18-9:2)
+         └─ Stmt[0]: Return (span: 8:5-8:14)
+            └─ Expr: expr#1: 0

@@ -1,0 +1,234 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline)
+  2: Ident           "NodeId" at 3:6-3:12 (leading: Space)
+  3: Assign          "=" at 3:13-3:14 (leading: Space)
+  4: Ident           "uint" at 3:15-3:19 (leading: Space)
+  5: Semicolon       ";" at 3:19-3:20
+  6: KwType          "type" at 5:1-5:5 (leading: Newline)
+  7: Ident           "Node" at 5:6-5:10 (leading: Space)
+  8: Assign          "=" at 5:11-5:12 (leading: Space)
+  9: LBrace          "{" at 5:13-5:14 (leading: Space)
+ 10: Ident           "next" at 6:5-6:9 (leading: Newline, Space)
+ 11: Colon           ":" at 6:9-6:10
+ 12: Ident           "NodeId" at 6:11-6:17 (leading: Space)
+ 13: Question        "?" at 6:17-6:18
+ 14: Comma           "," at 6:18-6:19
+ 15: Ident           "data" at 7:5-7:9 (leading: Newline, Space)
+ 16: Colon           ":" at 7:9-7:10
+ 17: Ident           "int" at 7:11-7:14 (leading: Space)
+ 18: Comma           "," at 7:14-7:15
+ 19: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 20: KwType          "type" at 10:1-10:5 (leading: Newline)
+ 21: Ident           "Nodes" at 10:6-10:11 (leading: Space)
+ 22: Assign          "=" at 10:12-10:13 (leading: Space)
+ 23: Ident           "Node" at 10:14-10:18 (leading: Space)
+ 24: LBracket        "[" at 10:18-10:19
+ 25: RBracket        "]" at 10:19-10:20
+ 26: Semicolon       ";" at 10:20-10:21
+ 27: KwFn            "fn" at 12:1-12:3 (leading: Newline)
+ 28: Ident           "walk" at 12:4-12:8 (leading: Space)
+ 29: LParen          "(" at 12:8-12:9
+ 30: Ident           "nodes" at 12:9-12:14
+ 31: Colon           ":" at 12:14-12:15
+ 32: Amp             "&" at 12:16-12:17 (leading: Space)
+ 33: Ident           "Node" at 12:17-12:21
+ 34: LBracket        "[" at 12:21-12:22
+ 35: RBracket        "]" at 12:22-12:23
+ 36: Comma           "," at 12:23-12:24
+ 37: Ident           "start" at 12:25-12:30 (leading: Space)
+ 38: Colon           ":" at 12:30-12:31
+ 39: Ident           "NodeId" at 12:32-12:38 (leading: Space)
+ 40: Question        "?" at 12:38-12:39
+ 41: RParen          ")" at 12:39-12:40
+ 42: Arrow           "->" at 12:41-12:43 (leading: Space)
+ 43: NothingLit      "nothing" at 12:44-12:51 (leading: Space)
+ 44: LBrace          "{" at 12:52-12:53 (leading: Space)
+ 45: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
+ 46: KwMut           "mut" at 13:9-13:12 (leading: Space)
+ 47: Ident           "id" at 13:13-13:15 (leading: Space)
+ 48: Colon           ":" at 13:15-13:16
+ 49: Ident           "NodeId" at 13:17-13:23 (leading: Space)
+ 50: Question        "?" at 13:23-13:24
+ 51: Assign          "=" at 13:25-13:26 (leading: Space)
+ 52: Ident           "start" at 13:27-13:32 (leading: Space)
+ 53: Semicolon       ";" at 13:32-13:33
+ 54: KwWhile         "while" at 14:5-14:10 (leading: Newline, Space)
+ 55: KwTrue          "true" at 14:11-14:15 (leading: Space)
+ 56: LBrace          "{" at 14:16-14:17 (leading: Space)
+ 57: KwCompare       "compare" at 15:9-15:16 (leading: Newline, Space)
+ 58: Ident           "id" at 15:17-15:19 (leading: Space)
+ 59: LBrace          "{" at 15:20-15:21 (leading: Space)
+ 60: Ident           "Some" at 16:13-16:17 (leading: Newline, Space)
+ 61: LParen          "(" at 16:17-16:18
+ 62: Ident           "i" at 16:18-16:19
+ 63: RParen          ")" at 16:19-16:20
+ 64: FatArrow        "=>" at 16:21-16:23 (leading: Space)
+ 65: LBrace          "{" at 16:24-16:25 (leading: Space)
+ 66: KwLet           "let" at 17:17-17:20 (leading: Newline, Space)
+ 67: Ident           "n" at 17:21-17:22 (leading: Space)
+ 68: Colon           ":" at 17:22-17:23
+ 69: Ident           "Node" at 17:24-17:28 (leading: Space)
+ 70: Assign          "=" at 17:29-17:30 (leading: Space)
+ 71: Ident           "nodes" at 17:31-17:36 (leading: Space)
+ 72: LBracket        "[" at 17:36-17:37
+ 73: LParen          "(" at 17:37-17:38
+ 74: Ident           "i" at 17:38-17:39
+ 75: KwTo            "to" at 17:40-17:42 (leading: Space)
+ 76: Ident           "int" at 17:43-17:46 (leading: Space)
+ 77: RParen          ")" at 17:46-17:47
+ 78: RBracket        "]" at 17:47-17:48
+ 79: Semicolon       ";" at 17:48-17:49
+ 80: Ident           "print" at 18:17-18:22 (leading: Newline, Space)
+ 81: LParen          "(" at 18:22-18:23
+ 82: Ident           "n" at 18:23-18:24
+ 83: Dot             "." at 18:24-18:25
+ 84: Ident           "data" at 18:25-18:29
+ 85: KwTo            "to" at 18:30-18:32 (leading: Space)
+ 86: Ident           "string" at 18:33-18:39 (leading: Space)
+ 87: RParen          ")" at 18:39-18:40
+ 88: Semicolon       ";" at 18:40-18:41
+ 89: Ident           "id" at 19:17-19:19 (leading: Newline, Space)
+ 90: Assign          "=" at 19:20-19:21 (leading: Space)
+ 91: Ident           "n" at 19:22-19:23 (leading: Space)
+ 92: Dot             "." at 19:23-19:24
+ 93: Ident           "next" at 19:24-19:28
+ 94: Semicolon       ";" at 19:28-19:29
+ 95: RBrace          "}" at 20:13-20:14 (leading: Newline, Space)
+ 96: NothingLit      "nothing" at 21:13-21:20 (leading: Newline, Space)
+ 97: FatArrow        "=>" at 21:21-21:23 (leading: Space)
+ 98: LBrace          "{" at 21:24-21:25 (leading: Space)
+ 99: KwReturn        "return" at 21:26-21:32 (leading: Space)
+100: NothingLit      "nothing" at 21:33-21:40 (leading: Space)
+101: Semicolon       ";" at 21:40-21:41
+102: RBrace          "}" at 21:42-21:43 (leading: Space)
+103: RBrace          "}" at 22:9-22:10 (leading: Newline, Space)
+104: Semicolon       ";" at 22:10-22:11
+105: RBrace          "}" at 23:5-23:6 (leading: Newline, Space)
+106: RBrace          "}" at 24:1-24:2 (leading: Newline)
+107: KwFn            "fn" at 26:1-26:3 (leading: Newline)
+108: Ident           "main" at 26:4-26:8 (leading: Space)
+109: LParen          "(" at 26:8-26:9
+110: RParen          ")" at 26:9-26:10
+111: Arrow           "->" at 26:11-26:13 (leading: Space)
+112: Ident           "int" at 26:14-26:17 (leading: Space)
+113: LBrace          "{" at 26:18-26:19 (leading: Space)
+114: KwLet           "let" at 27:5-27:8 (leading: Newline, Space)
+115: KwMut           "mut" at 27:9-27:12 (leading: Space)
+116: Ident           "nodes" at 27:13-27:18 (leading: Space)
+117: Colon           ":" at 27:18-27:19
+118: Ident           "Nodes" at 27:20-27:25 (leading: Space)
+119: Assign          "=" at 27:26-27:27 (leading: Space)
+120: LBracket        "[" at 27:28-27:29 (leading: Space)
+121: RBracket        "]" at 27:29-27:30
+122: Semicolon       ";" at 27:30-27:31
+123: KwLet           "let" at 28:5-28:8 (leading: Newline, Space)
+124: KwMut           "mut" at 28:9-28:12 (leading: Space)
+125: Ident           "next" at 28:13-28:17 (leading: Space)
+126: Colon           ":" at 28:17-28:18
+127: Ident           "NodeId" at 28:19-28:25 (leading: Space)
+128: Question        "?" at 28:25-28:26
+129: Assign          "=" at 28:27-28:28 (leading: Space)
+130: NothingLit      "nothing" at 28:29-28:36 (leading: Space)
+131: Semicolon       ";" at 28:36-28:37
+132: KwLet           "let" at 30:5-30:8 (leading: Newline, Space)
+133: Ident           "first" at 30:9-30:14 (leading: Space)
+134: Colon           ":" at 30:14-30:15
+135: Ident           "NodeId" at 30:16-30:22 (leading: Space)
+136: Assign          "=" at 30:23-30:24 (leading: Space)
+137: Ident           "len" at 30:25-30:28 (leading: Space)
+138: LParen          "(" at 30:28-30:29
+139: Ident           "nodes" at 30:29-30:34
+140: RParen          ")" at 30:34-30:35
+141: Semicolon       ";" at 30:35-30:36
+142: Ident           "nodes" at 31:5-31:10 (leading: Newline, Space)
+143: Dot             "." at 31:10-31:11
+144: Ident           "push" at 31:11-31:15
+145: LParen          "(" at 31:15-31:16
+146: Ident           "Node" at 31:16-31:20
+147: LBrace          "{" at 31:21-31:22 (leading: Space)
+148: Ident           "next" at 31:23-31:27 (leading: Space)
+149: Colon           ":" at 31:27-31:28
+150: Ident           "next" at 31:29-31:33 (leading: Space)
+151: Comma           "," at 31:33-31:34
+152: Ident           "data" at 31:35-31:39 (leading: Space)
+153: Colon           ":" at 31:39-31:40
+154: IntLit          "1" at 31:41-31:42 (leading: Space)
+155: RBrace          "}" at 31:43-31:44 (leading: Space)
+156: RParen          ")" at 31:44-31:45
+157: Semicolon       ";" at 31:45-31:46
+158: Ident           "next" at 32:5-32:9 (leading: Newline, Space)
+159: Assign          "=" at 32:10-32:11 (leading: Space)
+160: Ident           "first" at 32:12-32:17 (leading: Space)
+161: Semicolon       ";" at 32:17-32:18
+162: KwLet           "let" at 34:5-34:8 (leading: Newline, Space)
+163: Ident           "second" at 34:9-34:15 (leading: Space)
+164: Colon           ":" at 34:15-34:16
+165: Ident           "NodeId" at 34:17-34:23 (leading: Space)
+166: Assign          "=" at 34:24-34:25 (leading: Space)
+167: Ident           "len" at 34:26-34:29 (leading: Space)
+168: LParen          "(" at 34:29-34:30
+169: Ident           "nodes" at 34:30-34:35
+170: RParen          ")" at 34:35-34:36
+171: Semicolon       ";" at 34:36-34:37
+172: Ident           "nodes" at 35:5-35:10 (leading: Newline, Space)
+173: Dot             "." at 35:10-35:11
+174: Ident           "push" at 35:11-35:15
+175: LParen          "(" at 35:15-35:16
+176: Ident           "Node" at 35:16-35:20
+177: LBrace          "{" at 35:21-35:22 (leading: Space)
+178: Ident           "next" at 35:23-35:27 (leading: Space)
+179: Colon           ":" at 35:27-35:28
+180: Ident           "next" at 35:29-35:33 (leading: Space)
+181: Comma           "," at 35:33-35:34
+182: Ident           "data" at 35:35-35:39 (leading: Space)
+183: Colon           ":" at 35:39-35:40
+184: IntLit          "2" at 35:41-35:42 (leading: Space)
+185: RBrace          "}" at 35:43-35:44 (leading: Space)
+186: RParen          ")" at 35:44-35:45
+187: Semicolon       ";" at 35:45-35:46
+188: Ident           "next" at 36:5-36:9 (leading: Newline, Space)
+189: Assign          "=" at 36:10-36:11 (leading: Space)
+190: Ident           "second" at 36:12-36:18 (leading: Space)
+191: Semicolon       ";" at 36:18-36:19
+192: KwLet           "let" at 38:5-38:8 (leading: Newline, Space)
+193: Ident           "third" at 38:9-38:14 (leading: Space)
+194: Colon           ":" at 38:14-38:15
+195: Ident           "NodeId" at 38:16-38:22 (leading: Space)
+196: Assign          "=" at 38:23-38:24 (leading: Space)
+197: Ident           "len" at 38:25-38:28 (leading: Space)
+198: LParen          "(" at 38:28-38:29
+199: Ident           "nodes" at 38:29-38:34
+200: RParen          ")" at 38:34-38:35
+201: Semicolon       ";" at 38:35-38:36
+202: Ident           "nodes" at 39:5-39:10 (leading: Newline, Space)
+203: Dot             "." at 39:10-39:11
+204: Ident           "push" at 39:11-39:15
+205: LParen          "(" at 39:15-39:16
+206: Ident           "Node" at 39:16-39:20
+207: LBrace          "{" at 39:21-39:22 (leading: Space)
+208: Ident           "next" at 39:23-39:27 (leading: Space)
+209: Colon           ":" at 39:27-39:28
+210: Ident           "next" at 39:29-39:33 (leading: Space)
+211: Comma           "," at 39:33-39:34
+212: Ident           "data" at 39:35-39:39 (leading: Space)
+213: Colon           ":" at 39:39-39:40
+214: IntLit          "3" at 39:41-39:42 (leading: Space)
+215: RBrace          "}" at 39:43-39:44 (leading: Space)
+216: RParen          ")" at 39:44-39:45
+217: Semicolon       ";" at 39:45-39:46
+218: Ident           "next" at 40:5-40:9 (leading: Newline, Space)
+219: Assign          "=" at 40:10-40:11 (leading: Space)
+220: Ident           "third" at 40:12-40:17 (leading: Space)
+221: Semicolon       ";" at 40:17-40:18
+222: Ident           "walk" at 42:5-42:9 (leading: Newline, Space)
+223: LParen          "(" at 42:9-42:10
+224: Amp             "&" at 42:10-42:11
+225: Ident           "nodes" at 42:11-42:16
+226: Comma           "," at 42:16-42:17
+227: Ident           "next" at 42:18-42:22 (leading: Space)
+228: RParen          ")" at 42:22-42:23
+229: Semicolon       ";" at 42:23-42:24
+230: KwReturn        "return" at 43:5-43:11 (leading: Newline, Space)
+231: IntLit          "0" at 43:12-43:13 (leading: Space)
+232: Semicolon       ";" at 43:13-43:14
+233: RBrace          "}" at 44:1-44:2 (leading: Newline)
+234: EOF             at 45:1-45:1

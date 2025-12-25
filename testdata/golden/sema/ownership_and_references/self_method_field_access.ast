@@ -1,4 +1,4 @@
-testdata/golden/sema/ownership_and_references/self_method_field_access.sg (span: 3:1-15:1)
+self_method_field_access.sg (span: 3:1-15:1)
 ├─ Item[0]: Type (span: 3:1-3:32)
 │  ├─ Name: Point
 │  ├─ Kind: Struct

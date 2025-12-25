@@ -474,7 +474,7 @@ Block (span: 65:24-67:10)
 │  ├─ Visibility: private
 │  ├─ Attributes: @nosend
 │  └─ Struct:
-│     └─ Field[0]: internal_ptr: *int
+│     └─ Field[0]: internal_id: int
 ├─ Item[37]: Type (span: 277:1-281:3)
 │  ├─ Name: SendWithAtomic
 │  ├─ Kind: Struct

@@ -270,7 +270,7 @@ type SendableData = {
 
 @nosend
 type NonSendableData = {
-    internal_ptr: *int,
+    internal_id: int,
 };
 
 // @send type with @atomic fields is valid

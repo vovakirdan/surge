@@ -1,0 +1,4 @@
+fn main() -> int {
+    let p: *int = nothing;
+    return 0;
+}

@@ -1,0 +1,2 @@
+error SEM3129 testdata/golden/sema/invalid/raw_pointers/fn_signature_ptr.sg:1:9 raw pointers are backend-only; use ownership/borrows or expose an intrinsic/extern API
+error SEM3129 testdata/golden/sema/invalid/raw_pointers/fn_signature_ptr.sg:1:18 raw pointers are backend-only; use ownership/borrows or expose an intrinsic/extern API
