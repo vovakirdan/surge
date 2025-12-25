@@ -1,0 +1,8 @@
+fn main() -> int {
+    let a: int = 1;
+    let b: int8 = 2;
+    let c: int = a + (b to int);
+    let d: float = (a to float) + 0.1;
+    let e: int16 = ((1:int8) to int16) + ((2:int8) to int16);
+    return (c + (d to int) + (e to int));
+}

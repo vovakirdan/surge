@@ -1,0 +1,135 @@
+fixed_width_ops.sg (span: 1:1-45:1)
+├─ Item[0]: Fn (span: 1:1-7:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:37-7:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:33)
+│        │  ├─ Name: ptr
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#4: rt_string_ptr(&s)
+│        ├─ Stmt[1]: Let (span: 3:5-3:34)
+│        │  ├─ Name: slen
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#8: rt_string_len(&s)
+│        ├─ Stmt[2]: Expr (span: 4:5-4:32)
+│        │  └─ Expr: expr#12: rt_write_stdout(ptr, slen)
+│        ├─ Stmt[3]: Let (span: 5:5-5:24)
+│        │  ├─ Name: newline
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#13: "\n"
+│        └─ Stmt[4]: Expr (span: 6:5-6:54)
+│           └─ Expr: expr#21: rt_write_stdout(rt_string_ptr(&newline), 1 to uint)
+└─ Item[1]: Fn (span: 9:1-44:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:18-44:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:25)
+         │  ├─ Name: i8a
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#22: 120
+         ├─ Stmt[1]: Let (span: 12:5-12:23)
+         │  ├─ Name: i8b
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#23: 7
+         ├─ Stmt[2]: Expr (span: 13:5-13:48)
+         │  └─ Expr: expr#32: write_line((((i8a + i8b)) to int) to string)
+         ├─ Stmt[3]: Let (span: 14:5-14:45)
+         │  ├─ Name: i8and
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#40: ((-(1 to int8)) & (15 to int8))
+         ├─ Stmt[4]: Expr (span: 15:5-15:44)
+         │  └─ Expr: expr#47: write_line(((i8and) to int) to string)
+         ├─ Stmt[5]: Let (span: 16:5-16:45)
+         │  ├─ Name: i8shr
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#55: ((-(2 to int8)) >> (1 to int8))
+         ├─ Stmt[6]: Expr (span: 17:5-17:44)
+         │  └─ Expr: expr#62: write_line(((i8shr) to int) to string)
+         ├─ Stmt[7]: Let (span: 18:5-18:33)
+         │  ├─ Name: i8cmp
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#65: (i8a > i8b)
+         ├─ Stmt[8]: Expr (span: 19:5-19:33)
+         │  └─ Expr: expr#69: write_line(i8cmp to string)
+         ├─ Stmt[9]: Let (span: 21:5-21:26)
+         │  ├─ Name: u8a
+         │  ├─ Mutable: false
+         │  ├─ Type: uint8
+         │  └─ Value: expr#70: 250
+         ├─ Stmt[10]: Let (span: 22:5-22:24)
+         │  ├─ Name: u8b
+         │  ├─ Mutable: false
+         │  ├─ Type: uint8
+         │  └─ Value: expr#71: 5
+         ├─ Stmt[11]: Expr (span: 23:5-23:49)
+         │  └─ Expr: expr#80: write_line((((u8a + u8b)) to uint) to string)
+         ├─ Stmt[12]: Let (span: 24:5-24:51)
+         │  ├─ Name: u8or
+         │  ├─ Mutable: false
+         │  ├─ Type: uint8
+         │  └─ Value: expr#87: ((0xF0 to uint8) | (0x0F to uint8))
+         ├─ Stmt[13]: Expr (span: 25:5-25:44)
+         │  └─ Expr: expr#94: write_line(((u8or) to uint) to string)
+         ├─ Stmt[14]: Let (span: 26:5-26:47)
+         │  ├─ Name: u8shl
+         │  ├─ Mutable: false
+         │  ├─ Type: uint8
+         │  └─ Value: expr#101: ((1 to uint8) << (4 to uint8))
+         ├─ Stmt[15]: Expr (span: 27:5-27:45)
+         │  └─ Expr: expr#108: write_line(((u8shl) to uint) to string)
+         ├─ Stmt[16]: Let (span: 28:5-28:33)
+         │  ├─ Name: u8cmp
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#111: (u8a > u8b)
+         ├─ Stmt[17]: Expr (span: 29:5-29:33)
+         │  └─ Expr: expr#115: write_line(u8cmp to string)
+         ├─ Stmt[18]: Let (span: 31:5-31:43)
+         │  ├─ Name: cast_i8
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#119: (123 to int) to int8
+         ├─ Stmt[19]: Expr (span: 32:5-32:46)
+         │  └─ Expr: expr#126: write_line(((cast_i8) to int) to string)
+         ├─ Stmt[20]: Let (span: 33:5-33:46)
+         │  ├─ Name: cast_u8
+         │  ├─ Mutable: false
+         │  ├─ Type: uint8
+         │  └─ Value: expr#130: (250 to uint) to uint8
+         ├─ Stmt[21]: Expr (span: 34:5-34:47)
+         │  └─ Expr: expr#137: write_line(((cast_u8) to uint) to string)
+         ├─ Stmt[22]: Let (span: 36:5-36:58)
+         │  ├─ Name: f16_sum
+         │  ├─ Mutable: false
+         │  ├─ Type: float16
+         │  └─ Value: expr#144: ((1.5 to float16) + (0.5 to float16))
+         ├─ Stmt[23]: Expr (span: 37:5-37:48)
+         │  └─ Expr: expr#151: write_line(((f16_sum to float) to string))
+         ├─ Stmt[24]: Let (span: 38:5-38:59)
+         │  ├─ Name: f32_mul
+         │  ├─ Mutable: false
+         │  ├─ Type: float32
+         │  └─ Value: expr#158: ((1.25 to float32) * (4.0 to float32))
+         ├─ Stmt[25]: Expr (span: 39:5-39:48)
+         │  └─ Expr: expr#165: write_line(((f32_mul to float) to string))
+         ├─ Stmt[26]: Let (span: 40:5-40:58)
+         │  ├─ Name: f64_div
+         │  ├─ Mutable: false
+         │  ├─ Type: float64
+         │  └─ Value: expr#172: ((8.0 to float64) / (2.0 to float64))
+         ├─ Stmt[27]: Expr (span: 41:5-41:48)
+         │  └─ Expr: expr#179: write_line(((f64_div to float) to string))
+         └─ Stmt[28]: Return (span: 43:5-43:14)
+            └─ Expr: expr#180: 0

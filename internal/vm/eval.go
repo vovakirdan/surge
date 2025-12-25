@@ -207,7 +207,7 @@ func (vm *VM) evalConst(c *mir.Const) Value {
 			}
 			return vm.makeBigUint(c.Type, u)
 		}
-		return MakeInt(int64(c.UintValue), c.Type)
+		return MakeInt(asInt64(c.UintValue), c.Type)
 	case mir.ConstFloat:
 		if kind, width, ok := vm.numericKind(c.Type); ok && kind == types.KindFloat {
 			text := c.Text

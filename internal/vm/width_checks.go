@@ -57,15 +57,15 @@ func maskForWidth(width types.Width) uint64 {
 func signExtendUnsigned(value uint64, width types.Width) int64 {
 	bits, ok := widthBits(width)
 	if !ok || bits >= 64 {
-		return int64(value)
+		return asInt64(value)
 	}
 	mask := (uint64(1) << bits) - 1
 	value &= mask
 	signBit := uint64(1) << (bits - 1)
 	if value&signBit == 0 {
-		return int64(value)
+		return asInt64(value)
 	}
-	return int64(value | ^mask)
+	return asInt64(value | ^mask)
 }
 
 func (vm *VM) checkFloatWidth(value bignum.BigFloat, typeID types.TypeID) *VMError {

@@ -14,7 +14,7 @@ func UintAnd(a, b BigUint) BigUint {
 		n = len(bl)
 	}
 	out := make([]uint32, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		out[i] = al[i] & bl[i]
 	}
 	out = trimLimbs(out)
@@ -33,7 +33,7 @@ func UintOr(a, b BigUint) BigUint {
 		return BigUint{}
 	}
 	out := make([]uint32, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		var av, bv uint32
 		if i < len(al) {
 			av = al[i]
@@ -59,7 +59,7 @@ func UintXor(a, b BigUint) BigUint {
 		return BigUint{}
 	}
 	out := make([]uint32, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		var av, bv uint32
 		if i < len(al) {
 			av = al[i]

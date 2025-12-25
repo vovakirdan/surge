@@ -1,0 +1,5 @@
+panic VM1101: integer overflow
+at testdata/golden/vm_numbers/vm_int8_overflow_add.sg:5:13
+backtrace:
+  0: main at testdata/golden/vm_numbers/vm_int8_overflow_add.sg:5:13
+  1: __surge_start at <no-span>

@@ -1,0 +1,16 @@
+fn write_line(s: string) -> nothing {
+    let ptr = rt_string_ptr(&s);
+    let slen = rt_string_len(&s);
+    rt_write_stdout(ptr, slen);
+    let newline = "\n";
+    rt_write_stdout(rt_string_ptr(&newline), 1:uint);
+}
+
+@entrypoint
+fn main() -> int {
+    write_line(((2 / 3) to string));
+    write_line(((-2 / 3) to string));
+    write_line(((2 / -3) to string));
+    write_line(((-2 / -3) to string));
+    return 0;
+}

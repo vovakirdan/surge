@@ -43,7 +43,7 @@ Categories:
 | `int`, `uint`, `float` | ✅ PASS | |
 | `bool`, `string` | ✅ PASS | |
 | `nothing` | ✅ PASS | |
-| Fixed-width numerics | ✅ PASS | Sema + VM support for `int8`, `uint64`, `float32`, etc. |
+| Fixed-width numerics | ✅ PASS | Sema + VM support for `int8`, `uint64`, `float32`, etc.; checked arithmetic, explicit same-type ops |
 
 ### §2.2 Arrays
 | Feature | Status | Notes |
@@ -298,7 +298,7 @@ Categories:
 5. **Nested block comments** - spec says allowed, parser rejects
 
 ### 🟢 Low (Future features)
-1. **Fixed-width numerics** - parse only
+1. ✅ fixed: **Fixed-width numerics** - sema+VM with checked arithmetic
 2. **async/spawn/await** - sema only
 3. **Channels** - not implemented
 4. **parallel map/reduce** - v2+ feature

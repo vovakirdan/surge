@@ -1076,6 +1076,34 @@ Each file is a module. Folder hierarchy maps to module paths.
 // Safe-navigation (?.) is not part of Surge; prefer compare for Option
 ```
 
+### 6.1.1. Numeric Arithmetic Rules
+
+**Rule A: No implicit promotions.** Numeric operators require operands of the **same type**. Mixed arithmetic is a semantic error (int vs intN, int vs float, floatN vs intN, int8 vs int16, etc.).
+
+Invalid:
+```sg
+let a: int = 1;
+let b: int8 = 2;
+let _ = a + b; // error
+
+let _ = 1 + 0.1; // error (int + float)
+let _ = (1:int8) + (2:int16); // error (different fixed widths)
+```
+
+Explicit conversions are required:
+```sg
+let c: int = a + (b to int);
+let d: float = (a to float) + 0.1;
+```
+
+**Rule B: Integer division.** `int / int -> int` truncates toward zero:
+* `2 / 3 == 0`
+* `-2 / 3 == 0`
+* `2 / -3 == 0`
+* `-2 / -3 == 0`
+
+**Rule C: Fixed-size checked arithmetic.** For `intN`/`uintN`, arithmetic is checked. If the exact result does not fit the destination type, the runtime **panics** (same philosophy as `to`). Division by zero also panics. Safe wrappers (checked/saturating) will be provided later in a math package.
+
 **How operators are implemented.** Most operators (arithmetic, comparison, indexing, etc.) are implemented via magic methods that must be exposed inside an `extern<T>` block. The standard library ships those implementations in `core/intrinsics.sg` (module `core`): each method is marked `@intrinsic` so the compiler can lower it straight to the runtime. Sema never assumes the result type of `int + int` or `string * uint`—it always resolves the magic method on the left operand (following alias inheritance rules) and uses that signature as the single source of truth. If no method exists, the operator is rejected with `SemaInvalidBinaryOperands`. 
 
 **Exceptions:** The `is` and `heir` operators are built-in compiler checks and do not use magic methods. They cannot be overridden via `extern<T>` blocks.
@@ -1362,6 +1390,7 @@ If you need custom narrowing behaviour (rounding modes, error returns, etc.), wr
 * Integer literals default to `int`.
 * Float literals default to `float`.
 * Suffixes allowed: `123:int32`, `1.0:float32` to select fixed types.
+* In a fixed-size context (annotation, parameter type, etc.), a literal is accepted only if the value fits; otherwise it is a compile-time error.
 
 ### 7.2. Range Literals
 

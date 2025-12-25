@@ -118,11 +118,11 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
 			if kind == types.KindUint {
-				sum, carry := bits.Add64(uint64(left.Int), uint64(right.Int), 0)
+				sum, carry := bits.Add64(asUint64(left.Int), asUint64(right.Int), 0)
 				if carry != 0 || !checkUnsignedWidth(sum, width) {
 					return Value{}, vm.eb.intOverflow()
 				}
-				return MakeInt(int64(sum), left.TypeID), nil
+				return MakeInt(asInt64(sum), left.TypeID), nil
 			}
 			res, ok := AddInt64Checked(left.Int, right.Int)
 			if !ok || !checkSignedWidth(res, width) {
@@ -186,8 +186,8 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
 			if kind == types.KindUint {
-				ua := uint64(left.Int)
-				ub := uint64(right.Int)
+				ua := asUint64(left.Int)
+				ub := asUint64(right.Int)
 				if ua < ub {
 					return Value{}, vm.eb.intOverflow()
 				}
@@ -195,7 +195,7 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				if !checkUnsignedWidth(res, width) {
 					return Value{}, vm.eb.intOverflow()
 				}
-				return MakeInt(int64(res), left.TypeID), nil
+				return MakeInt(asInt64(res), left.TypeID), nil
 			}
 			res, ok := SubInt64Checked(left.Int, right.Int)
 			if !ok || !checkSignedWidth(res, width) {
@@ -271,11 +271,11 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
 			if kind == types.KindUint {
-				hi, lo := bits.Mul64(uint64(left.Int), uint64(right.Int))
+				hi, lo := bits.Mul64(asUint64(left.Int), asUint64(right.Int))
 				if hi != 0 || !checkUnsignedWidth(lo, width) {
 					return Value{}, vm.eb.intOverflow()
 				}
-				return MakeInt(int64(lo), left.TypeID), nil
+				return MakeInt(asInt64(lo), left.TypeID), nil
 			}
 			res, ok := MulInt64Checked(left.Int, right.Int)
 			if !ok || !checkSignedWidth(res, width) {
@@ -339,8 +339,8 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
 			if kind == types.KindUint {
-				ua := uint64(left.Int)
-				ub := uint64(right.Int)
+				ua := asUint64(left.Int)
+				ub := asUint64(right.Int)
 				if ub == 0 {
 					return Value{}, vm.eb.divisionByZero()
 				}
@@ -348,15 +348,15 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				if !checkUnsignedWidth(res, width) {
 					return Value{}, vm.eb.intOverflow()
 				}
-				return MakeInt(int64(res), left.TypeID), nil
+				return MakeInt(asInt64(res), left.TypeID), nil
 			}
 			if right.Int == 0 {
 				return Value{}, vm.eb.divisionByZero()
 			}
 			minVal := int64(math.MinInt64)
 			if width != types.WidthAny {
-				if min, _, ok := intRangeForWidth(width); ok {
-					minVal = min
+				if minValRange, _, ok := intRangeForWidth(width); ok {
+					minVal = minValRange
 				}
 			}
 			if right.Int == -1 && left.Int == minVal {
@@ -436,8 +436,8 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
 			if kind == types.KindUint {
-				ua := uint64(left.Int)
-				ub := uint64(right.Int)
+				ua := asUint64(left.Int)
+				ub := asUint64(right.Int)
 				if ub == 0 {
 					return Value{}, vm.eb.divisionByZero()
 				}
@@ -445,7 +445,7 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				if !checkUnsignedWidth(res, width) {
 					return Value{}, vm.eb.intOverflow()
 				}
-				return MakeInt(int64(res), left.TypeID), nil
+				return MakeInt(asInt64(res), left.TypeID), nil
 			}
 			if right.Int == 0 {
 				return Value{}, vm.eb.divisionByZero()
@@ -488,9 +488,9 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
 			mask := maskForWidth(width)
-			res := (uint64(left.Int) & uint64(right.Int)) & mask
+			res := (asUint64(left.Int) & asUint64(right.Int)) & mask
 			if kind == types.KindUint {
-				return MakeInt(int64(res), left.TypeID), nil
+				return MakeInt(asInt64(res), left.TypeID), nil
 			}
 			return MakeInt(signExtendUnsigned(res, width), left.TypeID), nil
 		default:
@@ -530,9 +530,9 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
 			mask := maskForWidth(width)
-			res := (uint64(left.Int) | uint64(right.Int)) & mask
+			res := (asUint64(left.Int) | asUint64(right.Int)) & mask
 			if kind == types.KindUint {
-				return MakeInt(int64(res), left.TypeID), nil
+				return MakeInt(asInt64(res), left.TypeID), nil
 			}
 			return MakeInt(signExtendUnsigned(res, width), left.TypeID), nil
 		default:
@@ -572,9 +572,9 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
 			mask := maskForWidth(width)
-			res := (uint64(left.Int) ^ uint64(right.Int)) & mask
+			res := (asUint64(left.Int) ^ asUint64(right.Int)) & mask
 			if kind == types.KindUint {
-				return MakeInt(int64(res), left.TypeID), nil
+				return MakeInt(asInt64(res), left.TypeID), nil
 			}
 			return MakeInt(signExtendUnsigned(res, width), left.TypeID), nil
 		default:
@@ -624,24 +624,40 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 			if !ok {
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
-			bits, _ := widthBits(width)
-			if right.Int < 0 || right.Int >= int64(bits) {
+			bitWidth, _ := widthBits(width)
+			if right.Int < 0 || right.Int >= int64(bitWidth) {
 				return Value{}, vm.eb.intOverflow()
 			}
 			shift := uint(right.Int)
-			mask := maskForWidth(width)
-			val := uint64(left.Int) & mask
-			res := val << shift
 			if kind == types.KindUint {
-				if !checkUnsignedWidth(res, width) {
+				val := asUint64(left.Int)
+				if maxVal, ok := uintMaxForWidth(width); ok {
+					if shift > 0 && val > maxVal>>shift {
+						return Value{}, vm.eb.intOverflow()
+					}
+				} else if shift > 0 && val > math.MaxUint64>>shift {
 					return Value{}, vm.eb.intOverflow()
 				}
-				return MakeInt(int64(res), left.TypeID), nil
+				return MakeInt(asInt64(val<<shift), left.TypeID), nil
 			}
-			if res&^mask != 0 {
+			minVal := int64(math.MinInt64)
+			maxVal := int64(math.MaxInt64)
+			if width != types.WidthAny {
+				if minValRange, maxValRange, ok := intRangeForWidth(width); ok {
+					minVal = minValRange
+					maxVal = maxValRange
+				}
+			}
+			if shift > 0 {
+				if left.Int > maxVal>>shift || left.Int < minVal>>shift {
+					return Value{}, vm.eb.intOverflow()
+				}
+			}
+			res := left.Int << shift
+			if !checkSignedWidth(res, width) {
 				return Value{}, vm.eb.intOverflow()
 			}
-			return MakeInt(signExtendUnsigned(res, width), left.TypeID), nil
+			return MakeInt(res, left.TypeID), nil
 		default:
 			return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 		}
@@ -689,18 +705,18 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 			if !ok {
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
-			bits, _ := widthBits(width)
-			if right.Int < 0 || right.Int >= int64(bits) {
+			bitWidth, _ := widthBits(width)
+			if right.Int < 0 || right.Int >= int64(bitWidth) {
 				return Value{}, vm.eb.intOverflow()
 			}
 			shift := uint(right.Int)
 			mask := maskForWidth(width)
 			if kind == types.KindUint {
-				val := uint64(left.Int) & mask
+				val := asUint64(left.Int) & mask
 				res := val >> shift
-				return MakeInt(int64(res), left.TypeID), nil
+				return MakeInt(asInt64(res), left.TypeID), nil
 			}
-			val := signExtendUnsigned(uint64(left.Int)&mask, width)
+			val := signExtendUnsigned(asUint64(left.Int)&mask, width)
 			return MakeInt(val>>shift, left.TypeID), nil
 		default:
 			return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
@@ -848,7 +864,7 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
 			if kind == types.KindUint {
-				return MakeBool(uint64(left.Int) < uint64(right.Int), types.NoTypeID), nil
+				return MakeBool(asUint64(left.Int) < asUint64(right.Int), types.NoTypeID), nil
 			}
 			return MakeBool(left.Int < right.Int, types.NoTypeID), nil
 		default:
@@ -893,7 +909,7 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
 			if kind == types.KindUint {
-				return MakeBool(uint64(left.Int) <= uint64(right.Int), types.NoTypeID), nil
+				return MakeBool(asUint64(left.Int) <= asUint64(right.Int), types.NoTypeID), nil
 			}
 			return MakeBool(left.Int <= right.Int, types.NoTypeID), nil
 		default:
@@ -938,7 +954,7 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
 			if kind == types.KindUint {
-				return MakeBool(uint64(left.Int) > uint64(right.Int), types.NoTypeID), nil
+				return MakeBool(asUint64(left.Int) > asUint64(right.Int), types.NoTypeID), nil
 			}
 			return MakeBool(left.Int > right.Int, types.NoTypeID), nil
 		default:
@@ -983,7 +999,7 @@ func (vm *VM) evalBinaryOp(op ast.ExprBinaryOp, left, right Value) (Value, *VMEr
 				return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 			}
 			if kind == types.KindUint {
-				return MakeBool(uint64(left.Int) >= uint64(right.Int), types.NoTypeID), nil
+				return MakeBool(asUint64(left.Int) >= asUint64(right.Int), types.NoTypeID), nil
 			}
 			return MakeBool(left.Int >= right.Int, types.NoTypeID), nil
 		default:
@@ -1022,8 +1038,8 @@ func (vm *VM) evalUnaryOp(op ast.ExprUnaryOp, operand Value) (Value, *VMError) {
 			}
 			minVal := int64(math.MinInt64)
 			if width != types.WidthAny {
-				if min, _, ok := intRangeForWidth(width); ok {
-					minVal = min
+				if minValRange, _, ok := intRangeForWidth(width); ok {
+					minVal = minValRange
 				}
 			}
 			if operand.Int == minVal {

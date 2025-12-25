@@ -83,6 +83,14 @@ func (tc *typeChecker) typeBinary(span source.Span, data *ast.ExprBinaryData) ty
 		return tc.typeHeirExpr(leftType, data.Right, data.Op)
 	}
 	rightType := tc.typeExpr(data.Right)
+	var ok bool
+	leftType, rightType, ok = tc.materializeNumericBinaryLiterals(data.Op, data.Left, data.Right, leftType, rightType)
+	if !ok {
+		return types.NoTypeID
+	}
+	if !tc.enforceSameNumericOperands(data.Op, leftType, rightType, span) {
+		return types.NoTypeID
+	}
 	if baseOp, ok := tc.assignmentBaseOp(data.Op); ok {
 		return tc.typeCompoundAssignment(baseOp, data.Op, span, data.Left, data.Right, leftType, rightType)
 	}
@@ -340,4 +348,89 @@ func (tc *typeChecker) typeBinaryFallback(span source.Span, data *ast.ExprBinary
 	}
 	tc.report(diag.SemaInvalidBinaryOperands, span, "operator %s cannot be applied to %s and %s", tc.binaryOpLabel(data.Op), tc.typeLabel(leftType), tc.typeLabel(rightType))
 	return types.NoTypeID
+}
+
+func (tc *typeChecker) materializeNumericBinaryLiterals(
+	op ast.ExprBinaryOp,
+	leftExpr, rightExpr ast.ExprID,
+	leftType, rightType types.TypeID,
+) (leftOut, rightOut types.TypeID, ok bool) {
+	if !isNumericBinaryOp(op) {
+		return leftType, rightType, true
+	}
+	if leftType == types.NoTypeID || rightType == types.NoTypeID {
+		return leftType, rightType, true
+	}
+	if tc.sameType(leftType, rightType) {
+		return leftType, rightType, true
+	}
+	if applied, ok := tc.materializeNumericLiteral(leftExpr, rightType); applied {
+		if !ok {
+			return leftType, rightType, false
+		}
+		leftType = rightType
+	}
+	if applied, ok := tc.materializeNumericLiteral(rightExpr, leftType); applied {
+		if !ok {
+			return leftType, rightType, false
+		}
+		rightType = leftType
+	}
+	return leftType, rightType, true
+}
+
+func (tc *typeChecker) enforceSameNumericOperands(op ast.ExprBinaryOp, leftType, rightType types.TypeID, span source.Span) bool {
+	if !isNumericBinaryOp(op) {
+		return true
+	}
+	if leftType == types.NoTypeID || rightType == types.NoTypeID {
+		return false
+	}
+	if !tc.isNumericType(leftType) || !tc.isNumericType(rightType) {
+		return true
+	}
+	if tc.sameType(leftType, rightType) {
+		return true
+	}
+	tc.report(diag.SemaInvalidBinaryOperands, span,
+		"operator %s requires operands of the same type, got %s and %s",
+		tc.binaryOpLabel(op),
+		tc.typeLabel(leftType),
+		tc.typeLabel(rightType),
+	)
+	return false
+}
+
+func isNumericBinaryOp(op ast.ExprBinaryOp) bool {
+	switch op {
+	case ast.ExprBinaryAdd,
+		ast.ExprBinarySub,
+		ast.ExprBinaryMul,
+		ast.ExprBinaryDiv,
+		ast.ExprBinaryMod,
+		ast.ExprBinaryBitAnd,
+		ast.ExprBinaryBitOr,
+		ast.ExprBinaryBitXor,
+		ast.ExprBinaryShiftLeft,
+		ast.ExprBinaryShiftRight,
+		ast.ExprBinaryEq,
+		ast.ExprBinaryNotEq,
+		ast.ExprBinaryLess,
+		ast.ExprBinaryLessEq,
+		ast.ExprBinaryGreater,
+		ast.ExprBinaryGreaterEq,
+		ast.ExprBinaryAddAssign,
+		ast.ExprBinarySubAssign,
+		ast.ExprBinaryMulAssign,
+		ast.ExprBinaryDivAssign,
+		ast.ExprBinaryModAssign,
+		ast.ExprBinaryBitAndAssign,
+		ast.ExprBinaryBitOrAssign,
+		ast.ExprBinaryBitXorAssign,
+		ast.ExprBinaryShlAssign,
+		ast.ExprBinaryShrAssign:
+		return true
+	default:
+		return false
+	}
 }

@@ -24,7 +24,7 @@ func mustParseFloat(text string) bignum.BigFloat {
 	return f
 }
 
-func floatBounds(width types.Width) (min, max bignum.BigFloat, ok bool) {
+func floatBounds(width types.Width) (minVal, maxVal bignum.BigFloat, ok bool) {
 	switch width {
 	case types.Width16:
 		return float16MinVal, float16MaxVal, true
@@ -41,9 +41,9 @@ func floatFitsWidth(value bignum.BigFloat, width types.Width) bool {
 	if width == types.WidthAny {
 		return true
 	}
-	min, max, ok := floatBounds(width)
+	minVal, maxVal, ok := floatBounds(width)
 	if !ok {
 		return true
 	}
-	return value.Cmp(min) >= 0 && value.Cmp(max) <= 0
+	return value.Cmp(minVal) >= 0 && value.Cmp(maxVal) <= 0
 }

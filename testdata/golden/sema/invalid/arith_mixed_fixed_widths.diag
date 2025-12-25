@@ -1,0 +1,1 @@
+error SEM3016 testdata/golden/sema/invalid/arith_mixed_fixed_widths.sg:4:13 operator + requires operands of the same type, got int8 and int16
