@@ -52,6 +52,11 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 		if err != nil {
 			return Place{Local: NoLocalID}, err
 		}
+		if l.types != nil && data.Object != nil && data.Object.Type != types.NoTypeID {
+			if tt, ok := l.types.Lookup(data.Object.Type); ok && tt.Kind == types.KindReference {
+				base.Proj = append(base.Proj, PlaceProj{Kind: PlaceProjDeref})
+			}
+		}
 		base.Proj = append(base.Proj, PlaceProj{
 			Kind:      PlaceProjField,
 			FieldName: data.FieldName,

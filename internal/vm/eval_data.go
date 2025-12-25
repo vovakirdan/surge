@@ -263,10 +263,18 @@ func (vm *VM) evalFieldAccess(frame *Frame, fa *mir.FieldAccess) (Value, *VMErro
 		return Value{}, vmErr
 	}
 	defer vm.dropValue(obj)
-	if obj.Kind != VKHandleStruct {
-		return Value{}, vm.eb.typeMismatch("struct", obj.Kind.String())
+	target := obj
+	if obj.Kind == VKRef || obj.Kind == VKRefMut {
+		v, vmErr := vm.loadLocationRaw(obj.Loc)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		target = v
 	}
-	sobj := vm.Heap.Get(obj.H)
+	if target.Kind != VKHandleStruct {
+		return Value{}, vm.eb.typeMismatch("struct", target.Kind.String())
+	}
+	sobj := vm.Heap.Get(target.H)
 	if sobj == nil {
 		return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid struct handle")
 	}

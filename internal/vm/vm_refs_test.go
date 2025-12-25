@@ -82,6 +82,32 @@ fn main() -> int {
 	}
 }
 
+func TestVMRefsStructFieldReadThroughRef(t *testing.T) {
+	sourceCode := `type S = { a: int }
+
+fn get(s: &S) -> int {
+    return s.a;
+}
+
+@entrypoint
+fn main() -> int {
+    let s: S = S { a = 7 };
+    return get(&s);
+}
+`
+
+	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
+	rt := vm.NewTestRuntime(nil, "")
+	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
+
+	if vmErr != nil {
+		t.Fatalf("unexpected error: %v", vmErr.Error())
+	}
+	if exitCode != 7 {
+		t.Fatalf("expected exit code 7, got %d", exitCode)
+	}
+}
+
 func TestVMRefsArrayElemWrite(t *testing.T) {
 	sourceCode := `fn set(x: &mut int) -> nothing {
     *x = 9;
