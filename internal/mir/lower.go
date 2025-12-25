@@ -70,6 +70,8 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 		return 0
 	})
 
+	consts := buildConstMap(mm.Source)
+
 	nextID := FuncID(1)
 	for _, mf := range monoFuncs {
 		if mf == nil || mf.Func == nil {
@@ -87,6 +89,7 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 			types:      typesIn,
 			symToLocal: make(map[symbols.SymbolID]LocalID),
 			nextTemp:   1,
+			consts:     consts,
 		}
 		f, err := fl.lowerFunc(id, mf.Func)
 		if err != nil {
@@ -314,6 +317,21 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) map[ty
 	return layouts
 }
 
+func buildConstMap(src *hir.Module) map[symbols.SymbolID]*hir.ConstDecl {
+	if src == nil || len(src.Consts) == 0 {
+		return nil
+	}
+	out := make(map[symbols.SymbolID]*hir.ConstDecl, len(src.Consts))
+	for i := range src.Consts {
+		decl := &src.Consts[i]
+		if !decl.SymbolID.IsValid() {
+			continue
+		}
+		out[decl.SymbolID] = decl
+	}
+	return out
+}
+
 func canonicalType(typesIn *types.Interner, id types.TypeID) types.TypeID {
 	if id == types.NoTypeID || typesIn == nil {
 		return id
@@ -366,6 +384,9 @@ type funcLowerer struct {
 
 	loopStack   []loopCtx
 	returnStack []returnCtx
+
+	consts     map[symbols.SymbolID]*hir.ConstDecl
+	constStack map[symbols.SymbolID]bool
 }
 
 func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {

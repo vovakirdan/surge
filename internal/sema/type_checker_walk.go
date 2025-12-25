@@ -39,6 +39,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			tc.setBindingType(symID, declaredType)
 		}
 		if !letItem.Value.IsValid() {
+			tc.handleLetDefaultInit(scope, letItem.Type, declaredType, item.Span)
 			return
 		}
 		valueType := tc.typeExpr(letItem.Value)
@@ -203,6 +204,10 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 				if declaredType != types.NoTypeID {
 					tc.setBindingType(symID, declaredType)
 				}
+				if !letStmt.Value.IsValid() {
+					tc.handleLetDefaultInit(scope, letStmt.Type, declaredType, stmt.Span)
+					return
+				}
 				if letStmt.Value.IsValid() {
 					valueType := tc.typeExpr(letStmt.Value)
 					tc.observeMove(letStmt.Value, tc.exprSpan(letStmt.Value))
@@ -323,6 +328,28 @@ func (tc *typeChecker) typeSpan(id ast.TypeID) source.Span {
 		return source.Span{}
 	}
 	return typ.Span
+}
+
+func (tc *typeChecker) handleLetDefaultInit(scope symbols.ScopeID, typeExpr ast.TypeID, declaredType types.TypeID, span source.Span) {
+	if declaredType == types.NoTypeID {
+		return
+	}
+	if !tc.defaultable(declaredType) {
+		reportSpan := tc.typeSpan(typeExpr)
+		if reportSpan == (source.Span{}) {
+			reportSpan = span
+		}
+		tc.report(diag.SemaTypeMismatch, reportSpan, "default is not defined for %s", tc.typeLabel(declaredType))
+		return
+	}
+	if tc.builder == nil {
+		return
+	}
+	nameID := tc.builder.StringsInterner.Intern("default")
+	symID := tc.symbolInScope(tc.scopeOrFile(scope), nameID, symbols.SymbolFunction)
+	if symID.IsValid() {
+		tc.rememberFunctionInstantiation(symID, []types.TypeID{declaredType}, span, "default-init")
+	}
 }
 
 func (tc *typeChecker) symbolForStmt(id ast.StmtID) symbols.SymbolID {

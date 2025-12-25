@@ -241,6 +241,7 @@ func (b *surgeStartBuilder) lowerDefaultExpr(expr *hir.Expr) (Operand, error) {
 		symToLocal: make(map[symbols.SymbolID]LocalID, len(b.paramLocals)),
 		nextTemp:   1,
 		cur:        b.cur,
+		consts:     buildConstMap(b.mm.Source),
 	}
 	for sym, local := range b.paramLocals {
 		lowerer.symToLocal[sym] = local

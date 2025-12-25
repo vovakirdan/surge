@@ -1,0 +1,4 @@
+fn main() -> int {
+    let r: &int;
+    return 0;
+}

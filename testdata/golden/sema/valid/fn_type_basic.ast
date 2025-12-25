@@ -1,4 +1,4 @@
-fn_type_basic.sg (span: 2:1-17:1)
+fn_type_basic.sg (span: 2:1-23:1)
 ├─ Item[0]: Fn (span: 2:1-5:2)
 │  ├─ Name: accepts_fn_param
 │  ├─ Params: (f: fn(int) -> int, x: int)
@@ -15,24 +15,38 @@ fn_type_basic.sg (span: 2:1-17:1)
 │     └─ Stmt[0]: Block (span: 7:26-9:2)
 │        └─ Stmt[0]: Return (span: 8:5-8:18)
 │           └─ Expr: expr#6: (n * 2)
-└─ Item[2]: Fn (span: 11:1-16:2)
+├─ Item[2]: Fn (span: 11:1-11:13)
+│  ├─ Name: noop
+│  ├─ Params: ()
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 11:11-11:13)
+├─ Item[3]: Fn (span: 13:1-15:2)
+│  ├─ Name: ok_transform
+│  ├─ Params: (_s: string, _i: int)
+│  ├─ Return: bool
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:46-15:2)
+│        └─ Stmt[0]: Return (span: 14:5-14:17)
+│           └─ Expr: expr#7: true
+└─ Item[4]: Fn (span: 17:1-22:2)
    ├─ Name: test_fn_type
    ├─ Params: ()
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 11:19-16:2)
-         ├─ Stmt[0]: Let (span: 13:5-13:34)
+      └─ Stmt[0]: Block (span: 17:19-22:2)
+         ├─ Stmt[0]: Let (span: 19:5-19:43)
          │  ├─ Name: callback
          │  ├─ Mutable: false
          │  ├─ Type: fn(int) -> int
-         │  └─ Value: <none>
-         ├─ Stmt[1]: Let (span: 14:5-14:22)
+         │  └─ Value: expr#8: double
+         ├─ Stmt[1]: Let (span: 20:5-20:29)
          │  ├─ Name: action
          │  ├─ Mutable: false
          │  ├─ Type: fn() -> nothing
-         │  └─ Value: <none>
-         └─ Stmt[2]: Let (span: 15:5-15:44)
+         │  └─ Value: expr#9: noop
+         └─ Stmt[2]: Let (span: 21:5-21:59)
             ├─ Name: transform
             ├─ Mutable: false
             ├─ Type: fn(string, int) -> bool
-            └─ Value: <none>
+            └─ Value: expr#10: ok_transform

@@ -22,6 +22,11 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 		if !data.SymbolID.IsValid() {
 			return Place{Local: NoLocalID}, fmt.Errorf("mir: var ref %q has no symbol id", data.Name)
 		}
+		if l.consts != nil {
+			if decl := l.consts[data.SymbolID]; decl != nil {
+				return Place{Local: NoLocalID}, fmt.Errorf("mir: const %q is not assignable", decl.Name)
+			}
+		}
 		local, ok := l.symToLocal[data.SymbolID]
 		if !ok {
 			return Place{Local: NoLocalID}, fmt.Errorf("mir: unknown local symbol %d (%s)", data.SymbolID, data.Name)
@@ -130,6 +135,9 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 		}
 		local, ok := l.symToLocal[data.SymbolID]
 		if !ok {
+			if op, handled, err := l.lowerConstValue(data.SymbolID, consume); handled {
+				return op, err
+			}
 			return Operand{}, fmt.Errorf("mir: unknown local symbol %d (%s)", data.SymbolID, data.Name)
 		}
 		ty := e.Type

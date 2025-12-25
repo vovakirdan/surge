@@ -122,9 +122,9 @@ Categories:
 |---------|--------|-------|
 | `let` declaration | ✅ PASS | |
 | `let mut` | ✅ PASS | |
-| `const` | 🐛 MIR BUG | `unknown local symbol` |
-| Top-level `let` | 🐛 MIR BUG | Same issue |
-| Default initialization | 📋 SPEC ISSUE | Spec says "0 for int", VM panics "used before initialization" |
+| `const` | ✅ PASS | Fixed: const refs lower to values in MIR |
+| Top-level `let` | 🐛 MIR BUG | Globals not supported in MIR/VM |
+| Default initialization | ✅ PASS | Implicit `default<T>()`; refs are a sema error |
 
 ### §3.2 Control Flow
 | Feature | Status | Notes |
@@ -279,7 +279,7 @@ Categories:
 ## Priority Issues
 
 ### 🔴 Critical (Blocks basic usage)
-1. **MIR `unknown type` bug** - affects `len()`, `const`, top-level `let`, generics
+1. **MIR `unknown type` bug** - affects `len()`, top-level `let`, generics
 2. **VM `expected struct, got ref`** - ✅ fixed; `&self` methods now work
 3. **VM `unsupported intrinsic`** - blocks module imports at runtime
 

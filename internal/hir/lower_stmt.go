@@ -155,6 +155,10 @@ func (l *lowerer) lowerLetStmt(stmtID ast.StmtID, stmt *ast.Stmt) *Stmt {
 		data.Type = data.Value.Type
 	}
 
+	if data.Value == nil && data.Pattern == nil && data.Type != types.NoTypeID {
+		data.Value = l.defaultValueExpr(stmt.Span, data.Type)
+	}
+
 	data.Ownership = l.inferOwnership(data.Type)
 
 	return &Stmt{

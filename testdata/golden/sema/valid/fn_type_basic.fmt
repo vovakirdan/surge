@@ -8,9 +8,15 @@ fn double(n: int) -> int {
     return n * 2;
 }
 
+fn noop() {}
+
+fn ok_transform(_s: string, _i: int) -> bool {
+    return true;
+}
+
 fn test_fn_type() {
     // Declaring function type variables
-    let callback: fn(int) -> int;
-    let action: fn();
-    let transform: fn(string, int) -> bool;
+    let callback: fn(int) -> int = double;
+    let action: fn() = noop;
+    let transform: fn(string, int) -> bool = ok_transform;
 }

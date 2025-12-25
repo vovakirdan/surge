@@ -44,6 +44,23 @@ func (l *lowerer) varRefForSymbol(symID symbols.SymbolID, span source.Span) *Exp
 	}
 }
 
+func (l *lowerer) defaultValueExpr(span source.Span, typeID types.TypeID) *Expr {
+	if l == nil || typeID == types.NoTypeID {
+		return nil
+	}
+	callee, symID := l.intrinsicCallee("default", span)
+	return &Expr{
+		Kind: ExprCall,
+		Type: typeID,
+		Span: span,
+		Data: CallData{
+			Callee:   callee,
+			Args:     nil,
+			SymbolID: symID,
+		},
+	}
+}
+
 // referenceType creates a reference type for the given element type.
 func (l *lowerer) referenceType(elem types.TypeID, mutable bool) types.TypeID {
 	if elem == types.NoTypeID || l.semaRes == nil || l.semaRes.TypeInterner == nil {

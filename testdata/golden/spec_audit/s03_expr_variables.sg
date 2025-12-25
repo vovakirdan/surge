@@ -1,7 +1,7 @@
 // §3.1 Variables Audit
 
-// NOTE: const and top-level let have MIR issues
-// const CONSTANT: int = 42;
+// NOTE: top-level let has MIR issues
+const CONSTANT: int = 42;
 // let top_level: int = 10;
 
 @entrypoint
@@ -15,15 +15,17 @@ fn main() {
     y = 3;
     print("mut y after assign: " + y to string);
 
-    // Declaration without initializer - NOT WORKING
-    // Spec says default init to 0, but VM panics "used before initialization"
-    // let z: int;
-    // print("z default: " + z to string);
+    // Declaration without initializer
+    let z: int;
+    print("z default: " + z to string);
+
+    // Constant value
+    print("const: " + CONSTANT to string);
 
     print("§3.1 Variables: PARTIAL");
     print("  - let: PASS");
     print("  - let mut: PASS");
-    print("  - default init: NOT WORKING (spec says 0, VM panics)");
-    print("  - const: MIR BUG");
+    print("  - default init: PASS");
+    print("  - const: PASS");
     print("  - top-level let: MIR BUG");
 }

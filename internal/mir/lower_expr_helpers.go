@@ -1,10 +1,13 @@
 package mir
 
 import (
+	"fmt"
+
 	"fortio.org/safecast"
 
 	"surge/internal/ast"
 	"surge/internal/hir"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -66,6 +69,35 @@ func (l *funcLowerer) placeOperand(place Place, ty types.TypeID, consume bool) O
 		kind = OperandMove
 	}
 	return Operand{Kind: kind, Type: ty, Place: place}
+}
+
+func (l *funcLowerer) lowerConstValue(symID symbols.SymbolID, consume bool) (Operand, bool, error) {
+	if l == nil || !symID.IsValid() || l.consts == nil {
+		return Operand{}, false, nil
+	}
+	decl := l.consts[symID]
+	if decl == nil {
+		return Operand{}, false, nil
+	}
+	if decl.Value == nil {
+		return Operand{}, true, fmt.Errorf("mir: const %q has no value", decl.Name)
+	}
+	if l.constStack == nil {
+		l.constStack = make(map[symbols.SymbolID]bool)
+	}
+	if l.constStack[symID] {
+		return Operand{}, true, fmt.Errorf("mir: cyclic const evaluation for %q", decl.Name)
+	}
+	l.constStack[symID] = true
+	op, err := l.lowerExpr(decl.Value, consume)
+	delete(l.constStack, symID)
+	if err != nil {
+		return Operand{}, true, err
+	}
+	if op.Type == types.NoTypeID && decl.Type != types.NoTypeID {
+		op.Type = decl.Type
+	}
+	return op, true, nil
 }
 
 // lowerCallExpr lowers a HIR call expression to MIR.

@@ -1,0 +1,14 @@
+default_uninit_ref.sg (span: 1:1-5:1)
+└─ Item[0]: Fn (span: 1:1-4:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:18-4:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:17)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &int
+         │  └─ Value: <none>
+         └─ Stmt[1]: Return (span: 3:5-3:14)
+            └─ Expr: expr#1: 0
