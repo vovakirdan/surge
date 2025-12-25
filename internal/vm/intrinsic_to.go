@@ -93,6 +93,10 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 			h := vm.Heap.AllocString(strTy, s)
 			return MakeHandleString(h, strTy), nil
 		case VKInt:
+			if kind, _, ok := vm.numericKind(src.TypeID); ok && kind == types.KindUint {
+				h := vm.Heap.AllocString(strTy, bignum.FormatUint(bignum.UintFromUint64(uint64(src.Int))))
+				return MakeHandleString(h, strTy), nil
+			}
 			h := vm.Heap.AllocString(strTy, bignum.FormatInt(bignum.IntFromInt64(src.Int)))
 			return MakeHandleString(h, strTy), nil
 		default:
@@ -142,6 +146,10 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 			}
 			return vm.makeBigInt(dstType, i), nil
 		case VKInt:
+			if kind, _, ok := vm.numericKind(src.TypeID); ok && kind == types.KindUint {
+				u := bignum.UintFromUint64(uint64(src.Int))
+				return vm.makeBigInt(dstType, bignum.BigInt{Limbs: u.Limbs}), nil
+			}
 			return vm.makeBigInt(dstType, bignum.IntFromInt64(src.Int)), nil
 		case VKBool:
 			n := int64(0)
@@ -163,7 +171,7 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 			if !ok {
 				return Value{}, vm.eb.unimplemented("__to to fixed-width uint")
 			}
-			if value > maxVal || value > math.MaxInt64 {
+			if value > maxVal {
 				return Value{}, vm.eb.invalidNumericConversion("unsigned overflow")
 			}
 			return MakeInt(int64(value), dstType), nil
@@ -199,6 +207,9 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 			}
 			return vm.makeBigUint(dstType, u), nil
 		case VKInt:
+			if kind, _, ok := vm.numericKind(src.TypeID); ok && kind == types.KindUint {
+				return vm.makeBigUint(dstType, bignum.UintFromUint64(uint64(src.Int))), nil
+			}
 			if src.Int < 0 {
 				return Value{}, vm.eb.invalidNumericConversion("cannot convert negative int to uint")
 			}
@@ -215,7 +226,25 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 
 	case types.KindFloat:
 		if dstTT.Width != types.WidthAny {
-			return Value{}, vm.eb.unimplemented("__to to fixed-width float")
+			if src.Kind == VKBigFloat {
+				f, vmErr := vm.mustBigFloat(src)
+				if vmErr != nil {
+					return Value{}, vmErr
+				}
+				if !floatFitsWidth(f, dstTT.Width) {
+					return Value{}, vm.eb.invalidNumericConversion("float overflow")
+				}
+				src.TypeID = dstType
+				return src, nil
+			}
+			f, vmErr := vm.toBigFloatForCast(src)
+			if vmErr != nil {
+				return Value{}, vmErr
+			}
+			if !floatFitsWidth(f, dstTT.Width) {
+				return Value{}, vm.eb.invalidNumericConversion("float overflow")
+			}
+			return vm.makeBigFloat(dstType, f), nil
 		}
 		switch src.Kind {
 		case VKBigFloat:
@@ -249,6 +278,13 @@ func (vm *VM) evalIntrinsicTo(src Value, dstType types.TypeID) (Value, *VMError)
 			}
 			return vm.makeBigFloat(dstType, f), nil
 		case VKInt:
+			if kind, _, ok := vm.numericKind(src.TypeID); ok && kind == types.KindUint {
+				f, err := bignum.FloatFromUint(bignum.UintFromUint64(uint64(src.Int)))
+				if err != nil {
+					return Value{}, vm.bignumErr(err)
+				}
+				return vm.makeBigFloat(dstType, f), nil
+			}
 			f, err := bignum.FloatFromInt(bignum.IntFromInt64(src.Int))
 			if err != nil {
 				return Value{}, vm.bignumErr(err)
@@ -306,6 +342,13 @@ func uintMaxForWidth(width types.Width) (uint64, bool) {
 func (vm *VM) toInt64ForCast(src Value) (int64, *VMError) {
 	switch src.Kind {
 	case VKInt:
+		if kind, _, ok := vm.numericKind(src.TypeID); ok && kind == types.KindUint {
+			val := uint64(src.Int)
+			if val > math.MaxInt64 {
+				return 0, vm.eb.invalidNumericConversion("integer overflow")
+			}
+			return int64(val), nil
+		}
 		return src.Int, nil
 	case VKBigInt:
 		i, vmErr := vm.mustBigInt(src)
@@ -365,6 +408,9 @@ func (vm *VM) toInt64ForCast(src Value) (int64, *VMError) {
 func (vm *VM) toUint64ForCast(src Value) (uint64, *VMError) {
 	switch src.Kind {
 	case VKInt:
+		if kind, _, ok := vm.numericKind(src.TypeID); ok && kind == types.KindUint {
+			return uint64(src.Int), nil
+		}
 		if src.Int < 0 {
 			return 0, vm.eb.invalidNumericConversion("cannot convert negative int to uint")
 		}
@@ -429,5 +475,68 @@ func (vm *VM) toUint64ForCast(src Value) (uint64, *VMError) {
 		return 0, nil
 	default:
 		return 0, vm.eb.unimplemented("__to to fixed-width uint")
+	}
+}
+
+func (vm *VM) toBigFloatForCast(src Value) (bignum.BigFloat, *VMError) {
+	switch src.Kind {
+	case VKBigFloat:
+		f, vmErr := vm.mustBigFloat(src)
+		if vmErr != nil {
+			return bignum.BigFloat{}, vmErr
+		}
+		return f, nil
+	case VKBigInt:
+		i, vmErr := vm.mustBigInt(src)
+		if vmErr != nil {
+			return bignum.BigFloat{}, vmErr
+		}
+		f, err := bignum.FloatFromInt(i)
+		if err != nil {
+			return bignum.BigFloat{}, vm.bignumErr(err)
+		}
+		return f, nil
+	case VKBigUint:
+		u, vmErr := vm.mustBigUint(src)
+		if vmErr != nil {
+			return bignum.BigFloat{}, vmErr
+		}
+		f, err := bignum.FloatFromUint(u)
+		if err != nil {
+			return bignum.BigFloat{}, vm.bignumErr(err)
+		}
+		return f, nil
+	case VKHandleString:
+		s := vm.stringBytes(vm.Heap.Get(src.H))
+		f, err := bignum.ParseFloat(s)
+		if err != nil {
+			return bignum.BigFloat{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("failed to parse %q as float: %v", s, err))
+		}
+		return f, nil
+	case VKInt:
+		if kind, _, ok := vm.numericKind(src.TypeID); ok && kind == types.KindUint {
+			f, err := bignum.FloatFromUint(bignum.UintFromUint64(uint64(src.Int)))
+			if err != nil {
+				return bignum.BigFloat{}, vm.bignumErr(err)
+			}
+			return f, nil
+		}
+		f, err := bignum.FloatFromInt(bignum.IntFromInt64(src.Int))
+		if err != nil {
+			return bignum.BigFloat{}, vm.bignumErr(err)
+		}
+		return f, nil
+	case VKBool:
+		n := int64(0)
+		if src.Bool {
+			n = 1
+		}
+		f, err := bignum.FloatFromInt(bignum.IntFromInt64(n))
+		if err != nil {
+			return bignum.BigFloat{}, vm.bignumErr(err)
+		}
+		return f, nil
+	default:
+		return bignum.BigFloat{}, vm.eb.unimplemented("__to to fixed-width float")
 	}
 }

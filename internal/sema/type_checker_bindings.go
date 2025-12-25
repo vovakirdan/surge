@@ -121,6 +121,9 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 
 	// Standard type assignability check
 	if tc.typesAssignable(declared, actual, true) {
+		if tc.recordNumericWidening(valueExpr, actual, declared) {
+			return
+		}
 		return
 	}
 
@@ -295,6 +298,9 @@ func (tc *typeChecker) recordArrayElementConversions(arr *ast.ExprArrayData, exp
 		}
 
 		// Check if implicit conversion is needed
+		if tc.recordNumericWidening(elem, actualElemType, expectedElemType) {
+			continue
+		}
 		if !tc.typesAssignable(expectedElemType, actualElemType, true) {
 			if convType, found, _ := tc.tryImplicitConversion(actualElemType, expectedElemType); found {
 				tc.recordImplicitConversion(elem, actualElemType, convType)

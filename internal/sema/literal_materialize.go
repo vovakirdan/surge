@@ -292,6 +292,9 @@ func (tc *typeChecker) materializeArrayLiteral(expr ast.ExprID, expected types.T
 			continue
 		}
 		if tc.typesAssignable(expElem, elemType, true) {
+			if tc.needsNumericWidening(elemType, expElem) {
+				needsConversion = true
+			}
 			continue
 		}
 		if _, found, ambiguous := tc.tryImplicitConversion(elemType, expElem); found {

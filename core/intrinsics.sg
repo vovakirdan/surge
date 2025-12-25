@@ -122,6 +122,7 @@ extern<int> {
     @intrinsic @overload fn __to(self: int, target: uint16) -> uint16;
     @intrinsic @overload fn __to(self: int, target: uint32) -> uint32;
     @intrinsic @overload fn __to(self: int, target: uint64) -> uint64;
+    @intrinsic @overload fn __to(self: int, target: float16) -> float16;
     @intrinsic @overload fn __to(self: int, target: float32) -> float32;
     @intrinsic @overload fn __to(self: int, target: float64) -> float64;
     // Parse int from string (for @entrypoint("argv") support)
@@ -158,6 +159,7 @@ extern<uint> {
     @intrinsic @overload fn __to(self: uint, target: uint16) -> uint16;
     @intrinsic @overload fn __to(self: uint, target: uint32) -> uint32;
     @intrinsic @overload fn __to(self: uint, target: uint64) -> uint64;
+    @intrinsic @overload fn __to(self: uint, target: float16) -> float16;
     @intrinsic @overload fn __to(self: uint, target: float32) -> float32;
     @intrinsic @overload fn __to(self: uint, target: float64) -> float64;
     // Parse uint from string (for @entrypoint("argv") support)
@@ -167,70 +169,297 @@ extern<uint> {
 extern<int8> {
     pub fn __min_value() -> int8 { return (-128):int8; }
     pub fn __max_value() -> int8 { return (127):int8; }
+    @intrinsic fn __add(self: int8, other: int8) -> int8;
+    @intrinsic fn __sub(self: int8, other: int8) -> int8;
+    @intrinsic fn __mul(self: int8, other: int8) -> int8;
+    @intrinsic fn __div(self: int8, other: int8) -> int8;
+    @intrinsic fn __mod(self: int8, other: int8) -> int8;
+    @intrinsic fn __bit_and(self: int8, other: int8) -> int8;
+    @intrinsic fn __bit_or(self: int8, other: int8) -> int8;
+    @intrinsic fn __bit_xor(self: int8, other: int8) -> int8;
+    @intrinsic fn __shl(self: int8, other: int8) -> int8;
+    @intrinsic fn __shr(self: int8, other: int8) -> int8;
+    @intrinsic fn __lt(self: int8, other: int8) -> bool;
+    @intrinsic fn __le(self: int8, other: int8) -> bool;
+    @intrinsic fn __eq(self: int8, other: int8) -> bool;
+    @intrinsic fn __ne(self: int8, other: int8) -> bool;
+    @intrinsic fn __ge(self: int8, other: int8) -> bool;
+    @intrinsic fn __gt(self: int8, other: int8) -> bool;
+    @intrinsic fn __pos(self: int8) -> int8;
+    @intrinsic fn __neg(self: int8) -> int8;
+    @intrinsic fn __abs(self: int8) -> int8;
     @intrinsic fn __to(self: int8, target: int) -> int;
+    @intrinsic @overload fn __to(self: int8, target: int16) -> int16;
+    @intrinsic @overload fn __to(self: int8, target: int32) -> int32;
+    @intrinsic @overload fn __to(self: int8, target: int64) -> int64;
     @intrinsic pub fn from_str(s: string) -> Erring<int8, Error>;
 }
 
 extern<int16> {
     pub fn __min_value() -> int16 { return (-32_768):int16; }
     pub fn __max_value() -> int16 { return (32_767):int16; }
+    @intrinsic fn __add(self: int16, other: int16) -> int16;
+    @intrinsic fn __sub(self: int16, other: int16) -> int16;
+    @intrinsic fn __mul(self: int16, other: int16) -> int16;
+    @intrinsic fn __div(self: int16, other: int16) -> int16;
+    @intrinsic fn __mod(self: int16, other: int16) -> int16;
+    @intrinsic fn __bit_and(self: int16, other: int16) -> int16;
+    @intrinsic fn __bit_or(self: int16, other: int16) -> int16;
+    @intrinsic fn __bit_xor(self: int16, other: int16) -> int16;
+    @intrinsic fn __shl(self: int16, other: int16) -> int16;
+    @intrinsic fn __shr(self: int16, other: int16) -> int16;
+    @intrinsic fn __lt(self: int16, other: int16) -> bool;
+    @intrinsic fn __le(self: int16, other: int16) -> bool;
+    @intrinsic fn __eq(self: int16, other: int16) -> bool;
+    @intrinsic fn __ne(self: int16, other: int16) -> bool;
+    @intrinsic fn __ge(self: int16, other: int16) -> bool;
+    @intrinsic fn __gt(self: int16, other: int16) -> bool;
+    @intrinsic fn __pos(self: int16) -> int16;
+    @intrinsic fn __neg(self: int16) -> int16;
+    @intrinsic fn __abs(self: int16) -> int16;
     @intrinsic fn __to(self: int16, target: int) -> int;
+    @intrinsic @overload fn __to(self: int16, target: int8) -> int8;
+    @intrinsic @overload fn __to(self: int16, target: int32) -> int32;
+    @intrinsic @overload fn __to(self: int16, target: int64) -> int64;
     @intrinsic pub fn from_str(s: string) -> Erring<int16, Error>;
 }
 
 extern<int32> {
     pub fn __min_value() -> int32 { return (-2_147_483_648):int32; }
     pub fn __max_value() -> int32 { return (2_147_483_647):int32; }
+    @intrinsic fn __add(self: int32, other: int32) -> int32;
+    @intrinsic fn __sub(self: int32, other: int32) -> int32;
+    @intrinsic fn __mul(self: int32, other: int32) -> int32;
+    @intrinsic fn __div(self: int32, other: int32) -> int32;
+    @intrinsic fn __mod(self: int32, other: int32) -> int32;
+    @intrinsic fn __bit_and(self: int32, other: int32) -> int32;
+    @intrinsic fn __bit_or(self: int32, other: int32) -> int32;
+    @intrinsic fn __bit_xor(self: int32, other: int32) -> int32;
+    @intrinsic fn __shl(self: int32, other: int32) -> int32;
+    @intrinsic fn __shr(self: int32, other: int32) -> int32;
+    @intrinsic fn __lt(self: int32, other: int32) -> bool;
+    @intrinsic fn __le(self: int32, other: int32) -> bool;
+    @intrinsic fn __eq(self: int32, other: int32) -> bool;
+    @intrinsic fn __ne(self: int32, other: int32) -> bool;
+    @intrinsic fn __ge(self: int32, other: int32) -> bool;
+    @intrinsic fn __gt(self: int32, other: int32) -> bool;
+    @intrinsic fn __pos(self: int32) -> int32;
+    @intrinsic fn __neg(self: int32) -> int32;
+    @intrinsic fn __abs(self: int32) -> int32;
     @intrinsic fn __to(self: int32, target: int) -> int;
+    @intrinsic @overload fn __to(self: int32, target: int8) -> int8;
+    @intrinsic @overload fn __to(self: int32, target: int16) -> int16;
+    @intrinsic @overload fn __to(self: int32, target: int64) -> int64;
     @intrinsic pub fn from_str(s: string) -> Erring<int32, Error>;
 }
 
 extern<int64> {
     pub fn __min_value() -> int64 { return (-9_223_372_036_854_775_808):int64; }
     pub fn __max_value() -> int64 { return (9_223_372_036_854_775_807):int64; }
+    @intrinsic fn __add(self: int64, other: int64) -> int64;
+    @intrinsic fn __sub(self: int64, other: int64) -> int64;
+    @intrinsic fn __mul(self: int64, other: int64) -> int64;
+    @intrinsic fn __div(self: int64, other: int64) -> int64;
+    @intrinsic fn __mod(self: int64, other: int64) -> int64;
+    @intrinsic fn __bit_and(self: int64, other: int64) -> int64;
+    @intrinsic fn __bit_or(self: int64, other: int64) -> int64;
+    @intrinsic fn __bit_xor(self: int64, other: int64) -> int64;
+    @intrinsic fn __shl(self: int64, other: int64) -> int64;
+    @intrinsic fn __shr(self: int64, other: int64) -> int64;
+    @intrinsic fn __lt(self: int64, other: int64) -> bool;
+    @intrinsic fn __le(self: int64, other: int64) -> bool;
+    @intrinsic fn __eq(self: int64, other: int64) -> bool;
+    @intrinsic fn __ne(self: int64, other: int64) -> bool;
+    @intrinsic fn __ge(self: int64, other: int64) -> bool;
+    @intrinsic fn __gt(self: int64, other: int64) -> bool;
+    @intrinsic fn __pos(self: int64) -> int64;
+    @intrinsic fn __neg(self: int64) -> int64;
+    @intrinsic fn __abs(self: int64) -> int64;
     @intrinsic fn __to(self: int64, target: int) -> int;
+    @intrinsic @overload fn __to(self: int64, target: int8) -> int8;
+    @intrinsic @overload fn __to(self: int64, target: int16) -> int16;
+    @intrinsic @overload fn __to(self: int64, target: int32) -> int32;
     @intrinsic pub fn from_str(s: string) -> Erring<int64, Error>;
 }
 
 extern<uint8> {
     pub fn __min_value() -> uint8 { return (0):uint8; }
     pub fn __max_value() -> uint8 { return (255):uint8; }
+    @intrinsic fn __add(self: uint8, other: uint8) -> uint8;
+    @intrinsic fn __sub(self: uint8, other: uint8) -> uint8;
+    @intrinsic fn __mul(self: uint8, other: uint8) -> uint8;
+    @intrinsic fn __div(self: uint8, other: uint8) -> uint8;
+    @intrinsic fn __mod(self: uint8, other: uint8) -> uint8;
+    @intrinsic fn __bit_and(self: uint8, other: uint8) -> uint8;
+    @intrinsic fn __bit_or(self: uint8, other: uint8) -> uint8;
+    @intrinsic fn __bit_xor(self: uint8, other: uint8) -> uint8;
+    @intrinsic fn __shl(self: uint8, other: uint8) -> uint8;
+    @intrinsic fn __shr(self: uint8, other: uint8) -> uint8;
+    @intrinsic fn __lt(self: uint8, other: uint8) -> bool;
+    @intrinsic fn __le(self: uint8, other: uint8) -> bool;
+    @intrinsic fn __eq(self: uint8, other: uint8) -> bool;
+    @intrinsic fn __ne(self: uint8, other: uint8) -> bool;
+    @intrinsic fn __ge(self: uint8, other: uint8) -> bool;
+    @intrinsic fn __gt(self: uint8, other: uint8) -> bool;
+    @intrinsic fn __pos(self: uint8) -> uint8;
+    @intrinsic fn __abs(self: uint8) -> uint8;
     @intrinsic fn __to(self: uint8, target: uint) -> uint;
+    @intrinsic @overload fn __to(self: uint8, target: uint16) -> uint16;
+    @intrinsic @overload fn __to(self: uint8, target: uint32) -> uint32;
+    @intrinsic @overload fn __to(self: uint8, target: uint64) -> uint64;
     @intrinsic pub fn from_str(s: string) -> Erring<uint8, Error>;
 }
 
 extern<uint16> {
     pub fn __min_value() -> uint16 { return (0):uint16; }
     pub fn __max_value() -> uint16 { return (65_535):uint16; }
+    @intrinsic fn __add(self: uint16, other: uint16) -> uint16;
+    @intrinsic fn __sub(self: uint16, other: uint16) -> uint16;
+    @intrinsic fn __mul(self: uint16, other: uint16) -> uint16;
+    @intrinsic fn __div(self: uint16, other: uint16) -> uint16;
+    @intrinsic fn __mod(self: uint16, other: uint16) -> uint16;
+    @intrinsic fn __bit_and(self: uint16, other: uint16) -> uint16;
+    @intrinsic fn __bit_or(self: uint16, other: uint16) -> uint16;
+    @intrinsic fn __bit_xor(self: uint16, other: uint16) -> uint16;
+    @intrinsic fn __shl(self: uint16, other: uint16) -> uint16;
+    @intrinsic fn __shr(self: uint16, other: uint16) -> uint16;
+    @intrinsic fn __lt(self: uint16, other: uint16) -> bool;
+    @intrinsic fn __le(self: uint16, other: uint16) -> bool;
+    @intrinsic fn __eq(self: uint16, other: uint16) -> bool;
+    @intrinsic fn __ne(self: uint16, other: uint16) -> bool;
+    @intrinsic fn __ge(self: uint16, other: uint16) -> bool;
+    @intrinsic fn __gt(self: uint16, other: uint16) -> bool;
+    @intrinsic fn __pos(self: uint16) -> uint16;
+    @intrinsic fn __abs(self: uint16) -> uint16;
     @intrinsic fn __to(self: uint16, target: uint) -> uint;
+    @intrinsic @overload fn __to(self: uint16, target: uint8) -> uint8;
+    @intrinsic @overload fn __to(self: uint16, target: uint32) -> uint32;
+    @intrinsic @overload fn __to(self: uint16, target: uint64) -> uint64;
     @intrinsic pub fn from_str(s: string) -> Erring<uint16, Error>;
 }
 
 extern<uint32> {
     pub fn __min_value() -> uint32 { return (0):uint32; }
     pub fn __max_value() -> uint32 { return (4_294_967_295):uint32; }
+    @intrinsic fn __add(self: uint32, other: uint32) -> uint32;
+    @intrinsic fn __sub(self: uint32, other: uint32) -> uint32;
+    @intrinsic fn __mul(self: uint32, other: uint32) -> uint32;
+    @intrinsic fn __div(self: uint32, other: uint32) -> uint32;
+    @intrinsic fn __mod(self: uint32, other: uint32) -> uint32;
+    @intrinsic fn __bit_and(self: uint32, other: uint32) -> uint32;
+    @intrinsic fn __bit_or(self: uint32, other: uint32) -> uint32;
+    @intrinsic fn __bit_xor(self: uint32, other: uint32) -> uint32;
+    @intrinsic fn __shl(self: uint32, other: uint32) -> uint32;
+    @intrinsic fn __shr(self: uint32, other: uint32) -> uint32;
+    @intrinsic fn __lt(self: uint32, other: uint32) -> bool;
+    @intrinsic fn __le(self: uint32, other: uint32) -> bool;
+    @intrinsic fn __eq(self: uint32, other: uint32) -> bool;
+    @intrinsic fn __ne(self: uint32, other: uint32) -> bool;
+    @intrinsic fn __ge(self: uint32, other: uint32) -> bool;
+    @intrinsic fn __gt(self: uint32, other: uint32) -> bool;
+    @intrinsic fn __pos(self: uint32) -> uint32;
+    @intrinsic fn __abs(self: uint32) -> uint32;
     @intrinsic fn __to(self: uint32, target: uint) -> uint;
+    @intrinsic @overload fn __to(self: uint32, target: uint8) -> uint8;
+    @intrinsic @overload fn __to(self: uint32, target: uint16) -> uint16;
+    @intrinsic @overload fn __to(self: uint32, target: uint64) -> uint64;
     @intrinsic pub fn from_str(s: string) -> Erring<uint32, Error>;
 }
 
 extern<uint64> {
     pub fn __min_value() -> uint64 { return (0):uint64; }
     pub fn __max_value() -> uint64 { return (18_446_744_073_709_551_615):uint64; }
+    @intrinsic fn __add(self: uint64, other: uint64) -> uint64;
+    @intrinsic fn __sub(self: uint64, other: uint64) -> uint64;
+    @intrinsic fn __mul(self: uint64, other: uint64) -> uint64;
+    @intrinsic fn __div(self: uint64, other: uint64) -> uint64;
+    @intrinsic fn __mod(self: uint64, other: uint64) -> uint64;
+    @intrinsic fn __bit_and(self: uint64, other: uint64) -> uint64;
+    @intrinsic fn __bit_or(self: uint64, other: uint64) -> uint64;
+    @intrinsic fn __bit_xor(self: uint64, other: uint64) -> uint64;
+    @intrinsic fn __shl(self: uint64, other: uint64) -> uint64;
+    @intrinsic fn __shr(self: uint64, other: uint64) -> uint64;
+    @intrinsic fn __lt(self: uint64, other: uint64) -> bool;
+    @intrinsic fn __le(self: uint64, other: uint64) -> bool;
+    @intrinsic fn __eq(self: uint64, other: uint64) -> bool;
+    @intrinsic fn __ne(self: uint64, other: uint64) -> bool;
+    @intrinsic fn __ge(self: uint64, other: uint64) -> bool;
+    @intrinsic fn __gt(self: uint64, other: uint64) -> bool;
+    @intrinsic fn __pos(self: uint64) -> uint64;
+    @intrinsic fn __abs(self: uint64) -> uint64;
     @intrinsic fn __to(self: uint64, target: uint) -> uint;
+    @intrinsic @overload fn __to(self: uint64, target: uint8) -> uint8;
+    @intrinsic @overload fn __to(self: uint64, target: uint16) -> uint16;
+    @intrinsic @overload fn __to(self: uint64, target: uint32) -> uint32;
     @intrinsic pub fn from_str(s: string) -> Erring<uint64, Error>;
+}
+
+extern<float16> {
+    pub fn __min_value() -> float16 { return (-65504.0):float16; }
+    pub fn __max_value() -> float16 { return (65504.0):float16; }
+    @intrinsic fn __add(self: float16, other: float16) -> float16;
+    @intrinsic fn __sub(self: float16, other: float16) -> float16;
+    @intrinsic fn __mul(self: float16, other: float16) -> float16;
+    @intrinsic fn __div(self: float16, other: float16) -> float16;
+    @intrinsic fn __mod(self: float16, other: float16) -> float16;
+    @intrinsic fn __lt(self: float16, other: float16) -> bool;
+    @intrinsic fn __le(self: float16, other: float16) -> bool;
+    @intrinsic fn __eq(self: float16, other: float16) -> bool;
+    @intrinsic fn __ne(self: float16, other: float16) -> bool;
+    @intrinsic fn __ge(self: float16, other: float16) -> bool;
+    @intrinsic fn __gt(self: float16, other: float16) -> bool;
+    @intrinsic fn __pos(self: float16) -> float16;
+    @intrinsic fn __neg(self: float16) -> float16;
+    @intrinsic fn __abs(self: float16) -> float16;
+    @intrinsic fn __to(self: float16, target: float) -> float;
+    @intrinsic @overload fn __to(self: float16, target: float32) -> float32;
+    @intrinsic @overload fn __to(self: float16, target: float64) -> float64;
+    @intrinsic pub fn from_str(s: string) -> Erring<float16, Error>;
 }
 
 extern<float32> {
     pub fn __min_value() -> float32 { return (-3.402_823_466_385_2886e+38):float32; }
     pub fn __max_value() -> float32 { return (3.402_823_466_385_2886e+38):float32; }
+    @intrinsic fn __add(self: float32, other: float32) -> float32;
+    @intrinsic fn __sub(self: float32, other: float32) -> float32;
+    @intrinsic fn __mul(self: float32, other: float32) -> float32;
+    @intrinsic fn __div(self: float32, other: float32) -> float32;
+    @intrinsic fn __mod(self: float32, other: float32) -> float32;
+    @intrinsic fn __lt(self: float32, other: float32) -> bool;
+    @intrinsic fn __le(self: float32, other: float32) -> bool;
+    @intrinsic fn __eq(self: float32, other: float32) -> bool;
+    @intrinsic fn __ne(self: float32, other: float32) -> bool;
+    @intrinsic fn __ge(self: float32, other: float32) -> bool;
+    @intrinsic fn __gt(self: float32, other: float32) -> bool;
+    @intrinsic fn __pos(self: float32) -> float32;
+    @intrinsic fn __neg(self: float32) -> float32;
+    @intrinsic fn __abs(self: float32) -> float32;
     @intrinsic fn __to(self: float32, target: float) -> float;
+    @intrinsic @overload fn __to(self: float32, target: float16) -> float16;
+    @intrinsic @overload fn __to(self: float32, target: float64) -> float64;
     @intrinsic pub fn from_str(s: string) -> Erring<float32, Error>;
 }
 
 extern<float64> {
     pub fn __min_value() -> float64 { return (-1.797_693_134_862_3157e+308):float64; }
     pub fn __max_value() -> float64 { return (1.797_693_134_862_3157e+308):float64; }
+    @intrinsic fn __add(self: float64, other: float64) -> float64;
+    @intrinsic fn __sub(self: float64, other: float64) -> float64;
+    @intrinsic fn __mul(self: float64, other: float64) -> float64;
+    @intrinsic fn __div(self: float64, other: float64) -> float64;
+    @intrinsic fn __mod(self: float64, other: float64) -> float64;
+    @intrinsic fn __lt(self: float64, other: float64) -> bool;
+    @intrinsic fn __le(self: float64, other: float64) -> bool;
+    @intrinsic fn __eq(self: float64, other: float64) -> bool;
+    @intrinsic fn __ne(self: float64, other: float64) -> bool;
+    @intrinsic fn __ge(self: float64, other: float64) -> bool;
+    @intrinsic fn __gt(self: float64, other: float64) -> bool;
+    @intrinsic fn __pos(self: float64) -> float64;
+    @intrinsic fn __neg(self: float64) -> float64;
+    @intrinsic fn __abs(self: float64) -> float64;
     @intrinsic fn __to(self: float64, target: float) -> float;
+    @intrinsic @overload fn __to(self: float64, target: float16) -> float16;
+    @intrinsic @overload fn __to(self: float64, target: float32) -> float32;
     @intrinsic pub fn from_str(s: string) -> Erring<float64, Error>;
 }
 
@@ -260,6 +489,7 @@ extern<float> {
     @intrinsic @overload fn __to(self: float, target: uint16) -> uint16;
     @intrinsic @overload fn __to(self: float, target: uint32) -> uint32;
     @intrinsic @overload fn __to(self: float, target: uint64) -> uint64;
+    @intrinsic @overload fn __to(self: float, target: float16) -> float16;
     @intrinsic @overload fn __to(self: float, target: float32) -> float32;
     @intrinsic @overload fn __to(self: float, target: float64) -> float64;
     // Parse float from string (for @entrypoint("argv") support)

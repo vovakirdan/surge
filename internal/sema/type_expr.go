@@ -115,6 +115,10 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 
 			// 3. Unify branch types
 			ty = tc.unifyTernaryBranches(trueType, falseType, expr.Span)
+			if ty != types.NoTypeID {
+				tc.recordNumericWidening(tern.TrueExpr, trueType, ty)
+				tc.recordNumericWidening(tern.FalseExpr, falseType, ty)
+			}
 		}
 	case ast.ExprCall:
 		if call, ok := tc.builder.Exprs.Call(id); ok && call != nil {
@@ -301,7 +305,8 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			if tc.types != nil {
 				nothingType = tc.types.Builtins().Nothing
 			}
-			for _, arm := range cmp.Arms {
+			armTypes := make([]types.TypeID, len(cmp.Arms))
+			for i, arm := range cmp.Arms {
 				armSubject := valueType
 				if narrowed := tc.narrowCompareSubjectType(valueType, remainingMembers); narrowed != types.NoTypeID {
 					armSubject = narrowed
@@ -311,6 +316,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					tc.ensureBoolContext(arm.Guard, tc.exprSpan(arm.Guard))
 				}
 				armResult := tc.typeExpr(arm.Result)
+				armTypes[i] = armResult
 				if armResult != types.NoTypeID {
 					switch {
 					case resultType == types.NoTypeID:
@@ -330,6 +336,11 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				}
 				if len(remainingMembers) > 0 {
 					remainingMembers = tc.consumeCompareMembers(remainingMembers, arm)
+				}
+			}
+			if resultType != types.NoTypeID {
+				for i, arm := range cmp.Arms {
+					tc.recordNumericWidening(arm.Result, armTypes[i], resultType)
 				}
 			}
 			// Check exhaustiveness for tagged unions

@@ -2,9 +2,8 @@ package vm
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
-
-	"fortio.org/safecast"
 
 	"surge/internal/mir"
 	"surge/internal/types"
@@ -208,19 +207,19 @@ func (vm *VM) evalConst(c *mir.Const) Value {
 			}
 			return vm.makeBigUint(c.Type, u)
 		}
-		intVal, err := safecast.Convert[int64](c.UintValue)
-		if err != nil {
-			return Value{Kind: VKInvalid}
-		}
-		return MakeInt(intVal, c.Type)
+		return MakeInt(int64(c.UintValue), c.Type)
 	case mir.ConstFloat:
-		if kind, width, ok := vm.numericKind(c.Type); ok && kind == types.KindFloat && width == types.WidthAny {
-			if c.Text == "" {
-				vm.panic(PanicFloatUnsupported, "missing float literal text")
+		if kind, width, ok := vm.numericKind(c.Type); ok && kind == types.KindFloat {
+			text := c.Text
+			if text == "" {
+				text = strconv.FormatFloat(c.FloatValue, 'g', -1, 64)
 			}
-			f, err := bignum.ParseFloat(c.Text)
+			f, err := bignum.ParseFloat(text)
 			if err != nil {
-				vm.panic(PanicInvalidNumericConversion, fmt.Sprintf("invalid float literal %q: %v", c.Text, err))
+				vm.panic(PanicInvalidNumericConversion, fmt.Sprintf("invalid float literal %q: %v", text, err))
+			}
+			if width != types.WidthAny && !floatFitsWidth(f, width) {
+				vm.panic(PanicInvalidNumericConversion, "float literal out of range")
 			}
 			return vm.makeBigFloat(c.Type, f)
 		}

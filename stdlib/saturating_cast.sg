@@ -200,6 +200,21 @@ pub fn saturating_cast(value: uint, _: uint64) -> uint64 {
 }
 
 @overload
+pub fn saturating_cast(value: float, _: float16) -> float16 {
+    let min_t: float16 = min_value::<float16>();
+    let max_t: float16 = max_value::<float16>();
+    let min: float = min_t to float;
+    let max: float = max_t to float;
+    if value < min {
+        return min_t;
+    }
+    if value > max {
+        return max_t;
+    }
+    return value to float16;
+}
+
+@overload
 pub fn saturating_cast(value: float, _: float32) -> float32 {
     let min_t: float32 = min_value::<float32>();
     let max_t: float32 = max_value::<float32>();
@@ -227,4 +242,369 @@ pub fn saturating_cast(value: float, _: float64) -> float64 {
         return max_t;
     }
     return value to float64;
+}
+
+@overload
+pub fn saturating_cast(value: int8, target: int8) -> int8 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int8, target: int16) -> int16 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int8, target: int32) -> int32 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int8, target: int64) -> int64 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int8, target: uint8) -> uint8 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int8, target: uint16) -> uint16 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int8, target: uint32) -> uint32 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int8, target: uint64) -> uint64 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int16, target: int8) -> int8 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int16, target: int16) -> int16 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int16, target: int32) -> int32 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int16, target: int64) -> int64 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int16, target: uint8) -> uint8 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int16, target: uint16) -> uint16 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int16, target: uint32) -> uint32 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int16, target: uint64) -> uint64 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int32, target: int8) -> int8 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int32, target: int16) -> int16 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int32, target: int32) -> int32 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int32, target: int64) -> int64 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int32, target: uint8) -> uint8 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int32, target: uint16) -> uint16 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int32, target: uint32) -> uint32 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int32, target: uint64) -> uint64 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int64, target: int8) -> int8 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int64, target: int16) -> int16 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int64, target: int32) -> int32 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int64, target: int64) -> int64 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int64, target: uint8) -> uint8 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int64, target: uint16) -> uint16 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int64, target: uint32) -> uint32 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: int64, target: uint64) -> uint64 {
+    return saturating_cast(value to int, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint8, target: int8) -> int8 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint8, target: int16) -> int16 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint8, target: int32) -> int32 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint8, target: int64) -> int64 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint8, target: uint8) -> uint8 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint8, target: uint16) -> uint16 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint8, target: uint32) -> uint32 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint8, target: uint64) -> uint64 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint16, target: int8) -> int8 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint16, target: int16) -> int16 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint16, target: int32) -> int32 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint16, target: int64) -> int64 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint16, target: uint8) -> uint8 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint16, target: uint16) -> uint16 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint16, target: uint32) -> uint32 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint16, target: uint64) -> uint64 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint32, target: int8) -> int8 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint32, target: int16) -> int16 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint32, target: int32) -> int32 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint32, target: int64) -> int64 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint32, target: uint8) -> uint8 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint32, target: uint16) -> uint16 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint32, target: uint32) -> uint32 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint32, target: uint64) -> uint64 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint64, target: int8) -> int8 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint64, target: int16) -> int16 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint64, target: int32) -> int32 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint64, target: int64) -> int64 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint64, target: uint8) -> uint8 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint64, target: uint16) -> uint16 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint64, target: uint32) -> uint32 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: uint64, target: uint64) -> uint64 {
+    return saturating_cast(value to uint, target);
+}
+
+@overload
+pub fn saturating_cast(value: float16, target: float16) -> float16 {
+    return saturating_cast(value to float, target);
+}
+
+@overload
+pub fn saturating_cast(value: float16, target: float32) -> float32 {
+    return saturating_cast(value to float, target);
+}
+
+@overload
+pub fn saturating_cast(value: float16, target: float64) -> float64 {
+    return saturating_cast(value to float, target);
+}
+
+@overload
+pub fn saturating_cast(value: float32, target: float16) -> float16 {
+    return saturating_cast(value to float, target);
+}
+
+@overload
+pub fn saturating_cast(value: float32, target: float32) -> float32 {
+    return saturating_cast(value to float, target);
+}
+
+@overload
+pub fn saturating_cast(value: float32, target: float64) -> float64 {
+    return saturating_cast(value to float, target);
+}
+
+@overload
+pub fn saturating_cast(value: float64, target: float16) -> float16 {
+    return saturating_cast(value to float, target);
+}
+
+@overload
+pub fn saturating_cast(value: float64, target: float32) -> float32 {
+    return saturating_cast(value to float, target);
+}
+
+@overload
+pub fn saturating_cast(value: float64, target: float64) -> float64 {
+    return saturating_cast(value to float, target);
 }

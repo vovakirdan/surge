@@ -4,22 +4,22 @@
 
 ## 📊 Main code (without tests)
 
-- **Files:** 423
-- **Lines of code:** 82966
+- **Files:** 427
+- **Lines of code:** 84146
 
 ## 📁 Directory breakdown
 
 | Directory | Files | Lines |
 |------------|--------|-------|
 | `cmd/` | 12 | 2355 |
-| `internal/` | 411 | 80611 |
+| `internal/` | 415 | 81791 |
 
 ## 🏆 Top 10 packages by size
 
 | # | Package | Lines |
 |---|-------|-------|
-| 1 | `internal/sema` | 20368 |
-| 2 | `internal/vm` | 9970 |
+| 1 | `internal/sema` | 20671 |
+| 2 | `internal/vm` | 10647 |
 | 3 | `internal/parser` | 7992 |
 | 4 | `internal/hir` | 5787 |
 | 5 | `internal/mir` | 4686 |
@@ -36,11 +36,11 @@
 
 ## 📈 Total volume (code + tests)
 
-- **Files:** 518
-- **Lines of code:** 105262
+- **Files:** 522
+- **Lines of code:** 106442
 
 ## 📊 Percentage breakdown
 
-- **Main code:** 78%
-- **Tests:** 21%
+- **Main code:** 79%
+- **Tests:** 20%
 

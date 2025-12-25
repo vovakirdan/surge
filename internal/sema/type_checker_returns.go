@@ -158,19 +158,23 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		actual = tc.result.ExprTypes[expr]
 	}
 	actual = tc.coerceReturnType(expected, actual)
-	if !tc.typesAssignable(expected, actual, false) {
-		// Try implicit conversion before reporting error
-		if convType, found, ambiguous := tc.tryImplicitConversion(actual, expected); found {
-			tc.recordImplicitConversion(expr, actual, convType)
-			return
-		} else if ambiguous {
-			tc.report(diag.SemaAmbiguousConversion, span,
-				"ambiguous conversion from %s to %s: multiple __to methods found",
-				tc.typeLabel(actual), tc.typeLabel(expected))
+	if tc.typesAssignable(expected, actual, false) {
+		if tc.recordNumericWidening(expr, actual, expected) {
 			return
 		}
-		tc.report(diag.SemaTypeMismatch, span, "return type mismatch: expected %s, got %s", tc.typeLabel(expected), tc.typeLabel(actual))
+		return
 	}
+	// Try implicit conversion before reporting error
+	if convType, found, ambiguous := tc.tryImplicitConversion(actual, expected); found {
+		tc.recordImplicitConversion(expr, actual, convType)
+		return
+	} else if ambiguous {
+		tc.report(diag.SemaAmbiguousConversion, span,
+			"ambiguous conversion from %s to %s: multiple __to methods found",
+			tc.typeLabel(actual), tc.typeLabel(expected))
+		return
+	}
+	tc.report(diag.SemaTypeMismatch, span, "return type mismatch: expected %s, got %s", tc.typeLabel(expected), tc.typeLabel(actual))
 }
 
 func (tc *typeChecker) coerceLiteralForBinding(declared, actual types.TypeID, expr ast.ExprID) types.TypeID {

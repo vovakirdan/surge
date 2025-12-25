@@ -47,6 +47,9 @@ func (tc *typeChecker) tryImplicitConversion(src, target types.TypeID) (types.Ty
 	if tc.typesAssignable(target, src, true) {
 		return target, false, false // found=false because no conversion needed
 	}
+	if tc.isNumericType(src) && tc.isNumericType(target) {
+		return types.NoTypeID, false, false
+	}
 
 	candidates := tc.collectToMethods(src, target)
 	switch len(candidates) {

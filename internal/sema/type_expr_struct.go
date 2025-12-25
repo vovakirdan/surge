@@ -337,6 +337,9 @@ func (tc *typeChecker) ensureStructFieldType(name source.StringID, value ast.Exp
 	if tc.valueType(actual) == tc.valueType(expected) {
 		return
 	}
+	if tc.recordNumericWidening(value, actual, expected) {
+		return
+	}
 	// Try implicit conversion before reporting error
 	if convType, found, ambiguous := tc.tryImplicitConversion(actual, expected); found {
 		tc.recordImplicitConversion(value, actual, convType)

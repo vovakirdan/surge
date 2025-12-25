@@ -43,7 +43,7 @@ Categories:
 | `int`, `uint`, `float` | ✅ PASS | |
 | `bool`, `string` | ✅ PASS | |
 | `nothing` | ✅ PASS | |
-| Fixed-width numerics | ❌ NOT IMPLEMENTED | `int8`, `uint64`, etc. parse as names only |
+| Fixed-width numerics | ✅ PASS | Sema + VM support for `int8`, `uint64`, `float32`, etc. |
 
 ### §2.2 Arrays
 | Feature | Status | Notes |

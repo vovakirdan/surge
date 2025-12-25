@@ -26,12 +26,14 @@ func (tc *typeChecker) callFunctionVariable(fnInfo *types.FnInfo, args []callArg
 	// Check each argument type
 	for i, arg := range args {
 		expectedType := fnInfo.Params[i]
-		if !tc.typesAssignable(expectedType, arg.ty, true) {
-			tc.report(diag.SemaTypeMismatch, tc.exprSpan(arg.expr),
-				"expected %s, got %s",
-				tc.typeLabel(expectedType), tc.typeLabel(arg.ty))
-			return types.NoTypeID
+		if tc.typesAssignable(expectedType, arg.ty, true) {
+			tc.recordNumericWidening(arg.expr, arg.ty, expectedType)
+			continue
 		}
+		tc.report(diag.SemaTypeMismatch, tc.exprSpan(arg.expr),
+			"expected %s, got %s",
+			tc.typeLabel(expectedType), tc.typeLabel(arg.ty))
+		return types.NoTypeID
 	}
 
 	return fnInfo.Result
@@ -70,6 +72,9 @@ func (tc *typeChecker) recordImplicitConversionsForCall(sym *symbols.Symbol, arg
 		}
 
 		// Record implicit conversion if needed
+		if tc.recordNumericWidening(arg.expr, arg.ty, expectedType) {
+			continue
+		}
 		if !tc.typesAssignable(expectedType, arg.ty, true) && tc.callAllowsImplicitTo(sym, paramIndex) {
 			if convType, found, _ := tc.tryImplicitConversion(arg.ty, expectedType); found {
 				tc.recordImplicitConversion(arg.expr, arg.ty, convType)
