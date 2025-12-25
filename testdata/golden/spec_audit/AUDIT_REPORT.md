@@ -59,7 +59,7 @@ Categories:
 | `own T` | ⚠️ PARTIAL | Sema works, distinct from `T` |
 | `&T` (shared borrow) | ⚠️ PARTIAL | Sema works |
 | `&mut T` | ⚠️ PARTIAL | Sema works |
-| `*T` (raw pointer) | ❌ NOT TESTED | |
+| `*T` (raw pointer) | 🚫 RESTRICTED | Backend-only (`extern`/`@intrinsic`); rejected in user code (covered by sema raw-pointer tests) |
 | Method with `&self` | ✅ PASS | Fixed: VM derefs ref receiver |
 
 ### §2.4 Generics

@@ -22,8 +22,7 @@ fn main() {
     let mut mutable_val: int = 5;
     let mut_ref: &mut int = &mut mutable_val;
 
-    // Raw pointer - spec says *T
-    // let ptr: *int = ...; // how to create?
+    // Raw pointers (*T) are backend-only; not permitted in user code (v1/v2).
 
     // &self methods should work at runtime
     let p: Point = { x: 2, y: 3 };
