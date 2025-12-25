@@ -4,6 +4,14 @@
 // own int != int, &int != int
 // Casting &T to string not supported
 
+type Point = { x: int, y: int }
+
+extern<Point> {
+    fn sum(self: &Point) -> int {
+        return self.x + self.y;
+    }
+}
+
 @entrypoint
 fn main() {
     // Basic reference creation
@@ -17,5 +25,10 @@ fn main() {
     // Raw pointer - spec says *T
     // let ptr: *int = ...; // how to create?
 
-    print("§2.3 Ownership: SEMA PASS (ref types work)");
+    // &self methods should work at runtime
+    let p: Point = { x: 2, y: 3 };
+    let total: int = p.sum();
+    print("Sum: " + total to string);
+
+    print("§2.3 Ownership: PASS (refs + &self methods)");
 }

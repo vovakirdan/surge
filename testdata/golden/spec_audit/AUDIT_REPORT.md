@@ -60,7 +60,7 @@ Categories:
 | `&T` (shared borrow) | ⚠️ PARTIAL | Sema works |
 | `&mut T` | ⚠️ PARTIAL | Sema works |
 | `*T` (raw pointer) | ❌ NOT TESTED | |
-| Method with `&self` | 🐛 VM BUG | `expected struct, got ref` |
+| Method with `&self` | ✅ PASS | Fixed: VM derefs ref receiver |
 
 ### §2.4 Generics
 | Feature | Status | Notes |
@@ -180,7 +180,7 @@ Categories:
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Instance methods (value self) | ✅ PASS | |
-| Instance methods (`&self`) | 🐛 VM BUG | `expected struct, got ref` |
+| Instance methods (`&self`) | ✅ PASS | Fixed: VM derefs ref receiver |
 | Static methods returning struct | 🐛 MIR BUG | |
 | `pub` visibility | ✅ PASS | |
 
@@ -280,7 +280,7 @@ Categories:
 
 ### 🔴 Critical (Blocks basic usage)
 1. **MIR `unknown type` bug** - affects `len()`, `const`, top-level `let`, generics
-2. **VM `expected struct, got ref`** - blocks `&self` methods
+2. **VM `expected struct, got ref`** - ✅ fixed; `&self` methods now work
 3. **VM `unsupported intrinsic`** - blocks module imports at runtime
 
 ### 🟠 High (Common features broken)
@@ -314,7 +314,7 @@ Categories:
 
 ### 🔧 Implementation Fixes Needed
 1. **MIR type resolution** - Many issues stem from unknown type in MIR phase
-2. **VM reference handling** - `&self` methods need proper ref dereferencing
+2. **VM reference handling** - ✅ fixed for `&self` methods
 3. **VM module linking** - Imported functions marked as unsupported intrinsic
 4. **VM for-in loop** - rvalue kind 11 not implemented
 5. **VM tuples** - rvalue kind 6 not implemented
@@ -326,7 +326,7 @@ Categories:
 2. Struct extension
 3. For-in loops (VM)
 4. Tuples (VM)
-5. `&self` method calls (VM)
+5. ✅ fixed: `&self` method calls (VM)
 
 ---
 

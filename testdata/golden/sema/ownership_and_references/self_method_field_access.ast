@@ -1,0 +1,31 @@
+testdata/golden/sema/ownership_and_references/self_method_field_access.sg (span: 3:1-15:1)
+├─ Item[0]: Type (span: 3:1-3:32)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+├─ Item[1]: Extern (span: 5:1-9:2)
+│  ├─ Target: Point
+│  ├─ Members:
+│  │  └─ Fn[0]: sum
+│  │     ├─ Params: (self: &Point)
+│  │     ├─ Return: int
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 6:33-8:6)
+│  │        └─ Stmt[0]: Return (span: 7:9-7:32)
+│  │           └─ Expr: expr#5: (self.x + self.y)
+└─ Item[2]: Fn (span: 11:1-14:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:18-14:2)
+         ├─ Stmt[0]: Let (span: 12:5-12:43)
+         │  ├─ Name: p
+         │  ├─ Mutable: false
+         │  ├─ Type: Point
+         │  └─ Value: expr#10: <ExprKind(18)>
+         └─ Stmt[1]: Return (span: 13:5-13:20)
+            └─ Expr: expr#13: p.sum()

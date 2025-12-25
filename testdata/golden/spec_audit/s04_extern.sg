@@ -2,11 +2,14 @@
 
 type Point = { x: int, y: int }
 
-// NOTE: &self methods cause VM panic "expected struct, got ref"
 // Value self moves the struct
 extern<Point> {
     fn distance_from_origin(self: Point) -> int {
         return self.x * self.x + self.y * self.y;
+    }
+
+    fn sum(self: &Point) -> int {
+        return self.x + self.y;
     }
 
     pub fn describe(self: Point) -> string {
@@ -18,6 +21,8 @@ extern<Point> {
 fn main() {
     // Create struct directly
     let p1: Point = { x: 3, y: 4 };
+    let sum: int = p1.sum();
+    print("Sum: " + sum to string);
     print("Created: " + p1.describe());
 
     // Need new struct for second method call (value self moves)
@@ -25,7 +30,7 @@ fn main() {
     let dist: int = p2.distance_from_origin();
     print("Distance squared: " + dist to string);
 
-    print("§4.4 extern<T>: PARTIAL");
+    print("§4.4 extern<T>: PASS");
     print("  - Instance methods (value self): PASS");
-    print("  - Instance methods (&self): VM BUG");
+    print("  - Instance methods (&self): PASS");
 }
