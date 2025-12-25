@@ -886,7 +886,7 @@ Attributes are a **closed set** defined by the language. Tests, benchmarks, and 
 * `@overload` + first function declaration → `E_OVERLOAD_FIRST_DECL`
 * `@override` + `@overload` on same declaration → `SemaAttrConflict` (3060)
 * `@packed` + `@align(N)` on same declaration → `SemaAttrPackedAlign` (3061)
-* `@sealed` + attempt to extend type → `SemaAttrSealedExtend` (3074)
+* `@sealed` + attempt to extend type (`Base : { ... }` or `extern<T>`) → `SemaAttrSealedExtend` (3074)
 * `@send` + `@nosend` on same type → `SemaAttrSendNosend` (3062)
 * `@nonblocking` + `@waits_on` on same function → `SemaAttrNonblockingWaitsOn` (3063)
 
