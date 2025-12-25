@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"fortio.org/safecast"
+
+	"surge/internal/source"
 )
 
 // Builtins stores TypeIDs for common primitive types.
@@ -36,6 +38,7 @@ type Interner struct {
 	builtins         Builtins
 	structs          []StructInfo
 	aliases          []AliasInfo
+	Strings          *source.Interner
 	typeLayoutAttrs  map[TypeID]LayoutAttrs
 	params           []TypeParamInfo
 	unions           []UnionInfo

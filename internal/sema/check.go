@@ -62,6 +62,9 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 	if builder == nil || fileID == ast.NoFileID {
 		return res
 	}
+	if res.TypeInterner != nil && res.TypeInterner.Strings == nil && builder.StringsInterner != nil {
+		res.TypeInterner.Strings = builder.StringsInterner
+	}
 
 	checker := typeChecker{
 		builder:  builder,

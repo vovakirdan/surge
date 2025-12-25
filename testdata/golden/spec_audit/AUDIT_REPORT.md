@@ -76,10 +76,10 @@ Categories:
 |---------|--------|-------|
 | Struct | ✅ PASS | |
 | `@readonly` fields | ✅ PASS | |
-| Literal enum | ❌ NOT IMPLEMENTED | `type Color = "black" \| "white"` |
-| Integer enum | ❌ NOT IMPLEMENTED | `enum HttpStatus: int` |
-| Auto-increment enum | ❌ NOT IMPLEMENTED | `enum Direction` |
-| Struct extension | ❌ NOT IMPLEMENTED | `type Child = Parent : { ... }` |
+| Literal enum | 📋 SPEC FIXED | Spec uses `enum ...` declarations (no literal union syntax) |
+| Integer enum | ✅ PASS | `enum HttpStatus: int` |
+| Auto-increment enum | ✅ PASS | `enum Direction` |
+| Struct extension | ✅ PASS | `type Child = Parent : { ... }` |
 
 ### §2.6-2.9 nothing, Tags, Option, Erring
 | Feature | Status | Notes |
@@ -291,11 +291,10 @@ Categories:
 5. **compare int literal patterns** - VM bug
 
 ### 🟡 Medium (Spec features missing)
-1. **Literal enums** - not implemented
-2. **Integer enums** - not implemented
-3. **Struct extension** - not implemented
-4. **String repeat `*`** - not implemented
-5. **Nested block comments** - spec says allowed, parser rejects
+1. ✅ fixed: **Enums (auto/int/string)** - implemented via `enum` declarations
+2. ✅ fixed: **Struct extension** - inherited fields work
+3. **String repeat `*`** - not implemented
+4. **Nested block comments** - spec says allowed, parser rejects
 
 ### 🟢 Low (Future features)
 1. ✅ fixed: **Fixed-width numerics** - sema+VM with checked arithmetic
@@ -322,10 +321,10 @@ Categories:
 7. **compare literal patterns** - bigint/int type mismatch
 
 ### 🚀 Features to Implement (Priority Order)
-1. Enums (literal, integer, auto-increment)
-2. Struct extension
-3. For-in loops (VM)
-4. Tuples (VM)
+1. For-in loops (VM)
+2. Tuples (VM)
+3. ✅ fixed: Enums (auto/int/string)
+4. ✅ fixed: Struct extension
 5. ✅ fixed: `&self` method calls (VM)
 
 ---
@@ -339,7 +338,7 @@ Categories:
 | `s02_types_arrays.sg` | §2.2 | ⚠️ PARTIAL |
 | `s02_types_ownership.sg` | §2.3 | ⚠️ PARTIAL |
 | `s02_types_generics.sg` | §2.4 | ⚠️ PARTIAL |
-| `s02_types_userdefined.sg` | §2.5 | ⚠️ PARTIAL |
+| `s02_types_userdefined.sg` | §2.5 | ✅ PASS |
 | `s02_types_tags_option.sg` | §2.6-2.9 | ⚠️ PARTIAL |
 | `s02_types_tuples.sg` | §2.10 | 🐛 VM BUG |
 | `s02_types_contracts.sg` | §2.12 | ✅ PASS |

@@ -1,8 +1,11 @@
 package hir
 
 import (
+	"strconv"
+
 	"surge/internal/ast"
 	"surge/internal/sema"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -347,6 +350,10 @@ func (l *lowerer) lowerMemberExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 		return nil
 	}
 
+	if lit := l.enumVariantLiteral(memberData, ty, expr.Span); lit != nil {
+		return lit
+	}
+
 	return &Expr{
 		Kind: ExprFieldAccess,
 		Type: ty,
@@ -357,6 +364,52 @@ func (l *lowerer) lowerMemberExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 			FieldIdx:  -1,
 		},
 	}
+}
+
+func (l *lowerer) enumVariantLiteral(member *ast.ExprMemberData, ty types.TypeID, span source.Span) *Expr {
+	if l == nil || member == nil || l.symRes == nil || l.symRes.Table == nil || l.semaRes == nil || l.semaRes.TypeInterner == nil {
+		return nil
+	}
+	symID, ok := l.symRes.ExprSymbols[member.Target]
+	if !ok || !symID.IsValid() {
+		return nil
+	}
+	sym := l.symRes.Table.Symbols.Get(symID)
+	if sym == nil || sym.Kind != symbols.SymbolType || sym.Type == types.NoTypeID {
+		return nil
+	}
+	enumInfo, ok := l.semaRes.TypeInterner.EnumInfo(sym.Type)
+	if !ok || enumInfo == nil {
+		return nil
+	}
+	for _, variant := range enumInfo.Variants {
+		if variant.Name != member.Field {
+			continue
+		}
+		if variant.IsString {
+			return &Expr{
+				Kind: ExprLiteral,
+				Type: ty,
+				Span: span,
+				Data: LiteralData{
+					Kind:        LiteralString,
+					StringValue: l.lookupString(variant.StringValue),
+				},
+			}
+		}
+		text := strconv.FormatInt(variant.IntValue, 10)
+		return &Expr{
+			Kind: ExprLiteral,
+			Type: ty,
+			Span: span,
+			Data: LiteralData{
+				Kind:     LiteralInt,
+				Text:     text,
+				IntValue: variant.IntValue,
+			},
+		}
+	}
+	return nil
 }
 
 // lowerIndexExpr lowers an index expression.

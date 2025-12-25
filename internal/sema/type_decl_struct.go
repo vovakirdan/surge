@@ -155,6 +155,19 @@ func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.S
 	if base != types.NoTypeID {
 		tc.structBases[typeID] = base
 	}
+	if externFields := tc.externFieldsForType(typeID); len(externFields) > 0 {
+		nameSet := make(map[source.StringID]struct{}, len(fields)+len(externFields))
+		for _, f := range fields {
+			nameSet[f.Name] = struct{}{}
+		}
+		for _, f := range externFields {
+			if _, exists := nameSet[f.Name]; exists {
+				continue
+			}
+			fields = append(fields, f)
+			nameSet[f.Name] = struct{}{}
+		}
+	}
 	tc.types.SetStructFields(typeID, fields)
 	if sym := tc.symbolFromID(symID); sym != nil && sym.Type != types.NoTypeID {
 		if attrs, ok := tc.types.TypeLayoutAttrs(sym.Type); ok {
@@ -228,12 +241,6 @@ func (tc *typeChecker) inheritedFields(base types.TypeID) []types.StructField {
 			}
 			fields = append(fields, f)
 		}
-	}
-	for _, f := range tc.externFieldsForType(base) {
-		if attrHasNoInherit(tc, f.Attrs) {
-			continue
-		}
-		fields = append(fields, f)
 	}
 	return fields
 }

@@ -37,8 +37,44 @@ func (tc *typeChecker) collectExternFields(file *ast.File) {
 	}
 }
 
+func (tc *typeChecker) externTargetIsSealed(itemID ast.ItemID, block *ast.ExternBlock) bool {
+	if block == nil {
+		return false
+	}
+	if tc.externSealedBlocks != nil {
+		if _, ok := tc.externSealedBlocks[itemID]; ok {
+			return true
+		}
+	}
+	scope := tc.scopeForItem(itemID)
+	paramSpecs := tc.externTypeParamSpecs(block.Target, scope)
+	receiverOwner := tc.externTargetSymbol(block.Target, scope)
+	pushed := tc.pushTypeParams(receiverOwner, paramSpecs, nil)
+	if pushed {
+		defer tc.popTypeParams()
+	}
+
+	targetType := tc.resolveTypeExprWithScope(block.Target, scope)
+	normalized := tc.valueType(targetType)
+	if normalized == types.NoTypeID {
+		return false
+	}
+	if tc.typeHasAttr(normalized, "sealed") {
+		tc.report(diag.SemaAttrSealedExtend, tc.typeSpan(block.Target),
+			"cannot extend @sealed type '%s'", tc.typeLabel(normalized))
+		if tc.externSealedBlocks != nil {
+			tc.externSealedBlocks[itemID] = struct{}{}
+		}
+		return true
+	}
+	return false
+}
+
 func (tc *typeChecker) processExternBlock(itemID ast.ItemID, block *ast.ExternBlock) {
 	if block == nil || block.MembersCount == 0 || !block.MembersStart.IsValid() {
+		return
+	}
+	if tc.externTargetIsSealed(itemID, block) {
 		return
 	}
 
@@ -314,4 +350,93 @@ func (tc *typeChecker) isKnownTypeName(id source.StringID) bool {
 		}
 	}
 	return false
+}
+
+func (tc *typeChecker) mergeExternFieldsIntoStructs() {
+	if tc.builder == nil || tc.types == nil || tc.typeIDItems == nil {
+		return
+	}
+	visited := make(map[types.TypeID]struct{}, len(tc.typeIDItems))
+	var visit func(types.TypeID)
+	visit = func(id types.TypeID) {
+		if id == types.NoTypeID {
+			return
+		}
+		if _, ok := visited[id]; ok {
+			return
+		}
+		visited[id] = struct{}{}
+		if base := tc.structBases[id]; base != types.NoTypeID {
+			visit(base)
+		}
+		tc.mergeExternFieldsIntoStruct(id)
+	}
+	for id := range tc.typeIDItems {
+		tt, ok := tc.types.Lookup(id)
+		if !ok || tt.Kind != types.KindStruct {
+			continue
+		}
+		visit(id)
+	}
+}
+
+func (tc *typeChecker) mergeExternFieldsIntoStruct(typeID types.TypeID) {
+	itemID := tc.typeIDItems[typeID]
+	typeItem, ok := tc.builder.Items.Type(itemID)
+	if !ok || typeItem == nil || typeItem.Kind != ast.TypeDeclStruct {
+		return
+	}
+	structDecl := tc.builder.Items.TypeStruct(typeItem)
+	if structDecl == nil {
+		return
+	}
+	info, ok := tc.types.StructInfo(typeID)
+	if !ok || info == nil {
+		return
+	}
+
+	orig := append([]types.StructField(nil), info.Fields...)
+	ownCount := int(structDecl.FieldsCount)
+	if ownCount < 0 {
+		ownCount = 0
+	}
+	if ownCount > len(orig) {
+		ownCount = len(orig)
+	}
+	ownFields := orig[len(orig)-ownCount:]
+
+	externFields := tc.externFieldsForType(typeID)
+	fields := make([]types.StructField, 0, len(orig)+len(externFields))
+	nameSet := make(map[source.StringID]struct{}, len(orig)+len(externFields))
+
+	if base := tc.structBases[typeID]; base != types.NoTypeID {
+		for _, f := range tc.types.StructFields(base) {
+			if attrHasNoInherit(tc, f.Attrs) {
+				continue
+			}
+			if _, exists := nameSet[f.Name]; exists {
+				continue
+			}
+			fields = append(fields, f)
+			nameSet[f.Name] = struct{}{}
+		}
+	}
+
+	for _, f := range ownFields {
+		if _, exists := nameSet[f.Name]; exists {
+			continue
+		}
+		fields = append(fields, f)
+		nameSet[f.Name] = struct{}{}
+	}
+
+	for _, f := range externFields {
+		if _, exists := nameSet[f.Name]; exists {
+			continue
+		}
+		fields = append(fields, f)
+		nameSet[f.Name] = struct{}{}
+	}
+
+	tc.types.SetStructFields(typeID, fields)
 }

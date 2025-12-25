@@ -12,6 +12,9 @@ func (tc *typeChecker) checkExternFns(itemID ast.ItemID, block *ast.ExternBlock)
 	if block == nil || !block.MembersStart.IsValid() || block.MembersCount == 0 {
 		return
 	}
+	if tc.externTargetIsSealed(itemID, block) {
+		return
+	}
 	scope := tc.scopeForItem(itemID)
 	receiverSpecs := tc.externTypeParamSpecs(block.Target, scope)
 	receiverOwner := tc.externTargetSymbol(block.Target, scope)

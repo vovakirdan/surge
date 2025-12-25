@@ -46,25 +46,28 @@ func (lc *layoutCache) Struct(typeID types.TypeID) (*StructLayout, *VMError) {
 	if !ok || info == nil {
 		return nil, lc.vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing struct info for type#%d", typeID))
 	}
-	if lc.vm.Files == nil {
-		return nil, lc.vm.eb.makeError(PanicUnimplemented, "no fileset for struct layout")
-	}
-	file := lc.vm.Files.Get(info.Decl.File)
-	if file == nil {
-		return nil, lc.vm.eb.makeError(PanicUnimplemented, "missing source file for struct layout")
-	}
-	if int(info.Decl.End) > len(file.Content) || info.Decl.Start > info.Decl.End {
-		return nil, lc.vm.eb.makeError(PanicUnimplemented, "invalid struct decl span")
-	}
-	decl := file.Content[info.Decl.Start:info.Decl.End]
-
-	body, ok := extractFirstBracedBody(decl)
-	if !ok {
-		return nil, lc.vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("failed to parse struct layout for type#%d", typeID))
-	}
-	names := parseStructFieldNames(body)
 
 	fields := lc.vm.Types.StructFields(typeID)
+	names, ok := lc.structFieldNames(fields)
+	if !ok {
+		if lc.vm.Files == nil {
+			return nil, lc.vm.eb.makeError(PanicUnimplemented, "no fileset for struct layout")
+		}
+		file := lc.vm.Files.Get(info.Decl.File)
+		if file == nil {
+			return nil, lc.vm.eb.makeError(PanicUnimplemented, "missing source file for struct layout")
+		}
+		if int(info.Decl.End) > len(file.Content) || info.Decl.Start > info.Decl.End {
+			return nil, lc.vm.eb.makeError(PanicUnimplemented, "invalid struct decl span")
+		}
+		decl := file.Content[info.Decl.Start:info.Decl.End]
+
+		body, ok := extractFirstBracedBody(decl)
+		if !ok {
+			return nil, lc.vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("failed to parse struct layout for type#%d", typeID))
+		}
+		names = parseStructFieldNames(body)
+	}
 	if len(names) != len(fields) {
 		return nil, lc.vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("struct layout mismatch for type#%d: parsed %d fields, interner has %d", typeID, len(names), len(fields)))
 	}
@@ -86,6 +89,24 @@ func (lc *layoutCache) Struct(typeID types.TypeID) (*StructLayout, *VMError) {
 	}
 	lc.structs[typeID] = layout
 	return layout, nil
+}
+
+func (lc *layoutCache) structFieldNames(fields []types.StructField) ([]string, bool) {
+	if lc == nil || lc.vm == nil || lc.vm.Types == nil || lc.vm.Types.Strings == nil {
+		return nil, false
+	}
+	if len(fields) == 0 {
+		return nil, true
+	}
+	names := make([]string, len(fields))
+	for i, f := range fields {
+		name, ok := lc.vm.Types.Strings.Lookup(f.Name)
+		if !ok || name == "" {
+			return nil, false
+		}
+		names[i] = name
+	}
+	return names, true
 }
 
 // skipStringOrComment skips over a string literal or comment starting at position i.

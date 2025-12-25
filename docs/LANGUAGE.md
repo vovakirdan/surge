@@ -267,8 +267,7 @@ Generic monomorphization and instantiation are described in §16.1.
   * Fields are immutable unless variable is `mut`. `@readonly` forbids writes even through `mut` bindings.
   * Struct literals may specify the type inline: `let p = Person { age: 25, name: "Alex" };`. The parser only treats `TypeName { ... }` as a typed literal when `TypeName` follows the CamelCase convention so that `while ready { ... }` still parses as a control-flow block.
   * When the type is known (either via `TypeName { ... }` or an explicit annotation on the binding), the short `{expr1, expr2}` form is allowed; expressions are matched to fields in declaration order. Wrap identifier expressions in parentheses (`{(ageVar), computeName()}`) when using positional literals so they are not mistaken for field names.
-* **Literal enums:** `type Color = "black" | "white";` Only the listed literals are allowed values.
-* **Enums:** Named constants with explicit or auto-incremented values.
+* **Enums:** `enum Name = { ... }` for integer enums (auto or explicit) and `enum Name: string = { ... }` for string enums.
 
 ```sg
 // Integer enum with auto-increment
@@ -304,7 +303,7 @@ let code: int = HttpStatus::Ok;
   * Integer enums support auto-increment (starting from 0) or explicit values.
   * String enums require explicit values for all variants.
   * Enum types can be imported from modules and used cross-module.
-  * Enums are lowered to type aliases and internal constants.
+  * Enum variants are constants of the base type; `Enum::Variant` yields a value of that base type.
 
 #### Recursive data structures
 
@@ -372,7 +371,7 @@ let s: PersonSon = p            // patronymic picks the default ""
 - Assigning from a child to its base is forbidden (types remain nominal).
 - Field name clashes trigger `SynTypeFieldConflict` during parsing.
 - Methods defined in `extern<Base>` are visible on `Child`. Override behaviour lives in `extern<Child>` with `@override` marking intentional replacements.
-- **Implementation note:** the parser already accepts `Base : { ... }`, but sema currently keeps only the explicitly declared fields; structural inheritance/override checks are TODO.
+- Struct extensions resolve inherited fields (including extern fields) during semantic analysis, and the resulting layout includes them.
 
 ### 2.6. `nothing` — the single absence value
 
@@ -824,7 +823,7 @@ Attributes are a **closed set** provided by the language. User-defined attribute
 * `@readonly` *(field)* — field cannot be written even through `mut` bindings.
 * `@hidden` *(field)* — field is hidden outside `extern<Base>` blocks and initializers.
 * `@noinherit` *(field)* — field is **not inherited** when extending types via `type Child = Base : {...}`.
-* `@sealed` *(type)* — type cannot be extended through `Base : {...}` inheritance. Attempting extension emits `E_TYPE_SEALED`.
+* `@sealed` *(type)* — type cannot be extended through `Base : {...}` inheritance or `extern<T>` extension (methods/fields). Attempting either emits `E_TYPE_SEALED`.
 
 #### E. Concurrency Contracts
 
@@ -929,6 +928,7 @@ extern<T> {
 * **Function declarations:** `fn name(params) -> RetType?;`
 * **Async functions:** `async fn name(params) -> RetType? { body }`
 * **Attributes on functions:** `@pure`, `@overload`, `@override`, etc.
+* **Sealed types:** `extern<T>` is forbidden when `T` is marked `@sealed`.
 
 Any other item-level elements are **prohibited**: `let`, `type`, alias declarations, literal definitions, `import` statements, nested `extern` blocks, etc. These produce syntax error `E_ILLEGAL_ITEM_IN_EXTERN`.
 
@@ -2032,12 +2032,15 @@ extern<MyInt> {
 ```
 
 ```sg
-// Literal enum and union alias
-type Color = "black" | "white";
+// Enum and tagged union
+enum Color: string = {
+  Black = "black",
+  White = "white",
+}
 tag IntNum(int); tag FloatNum(float);
 type Number = IntNum(int) | FloatNum(float);
 
-fn show(c: Color) { print(c); }
+fn show(c: string) { print(c); }
 fn absn(x: Number) -> Number {
   return compare x {
     IntNum(v)   => IntNum(abs(v)),

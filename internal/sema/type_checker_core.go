@@ -62,6 +62,7 @@ type typeChecker struct {
 	typeIDItems                 map[types.TypeID]ast.ItemID
 	structBases                 map[types.TypeID]types.TypeID
 	externFields                map[symbols.TypeKey]*externFieldSet
+	externSealedBlocks          map[ast.ItemID]struct{}
 	typeAttrs                   map[types.TypeID][]AttrInfo     // Type attribute storage
 	fieldAttrs                  map[fieldKey][]AttrInfo         // Field attribute storage
 	symbolAttrs                 map[symbols.SymbolID][]AttrInfo // Symbol attribute storage (functions, let, const)
@@ -174,6 +175,7 @@ func (tc *typeChecker) run() {
 	tc.typeIDItems = make(map[types.TypeID]ast.ItemID)
 	tc.structBases = make(map[types.TypeID]types.TypeID)
 	tc.externFields = make(map[symbols.TypeKey]*externFieldSet)
+	tc.externSealedBlocks = make(map[ast.ItemID]struct{})
 	tc.typeParamNames = make(map[types.TypeID]source.StringID)
 	tc.typeParamBounds = make(map[types.TypeID][]symbols.BoundInstance)
 	tc.typeParamMarks = tc.typeParamMarks[:0]
@@ -215,6 +217,7 @@ func (tc *typeChecker) run() {
 	for _, f := range files {
 		tc.collectExternFields(f)
 	}
+	tc.mergeExternFieldsIntoStructs()
 	done()
 
 	done = phase("validate_layout")
