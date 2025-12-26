@@ -151,6 +151,9 @@ func makeTypeKey(builder *ast.Builder, typeID ast.TypeID) TypeKey {
 		if errTy, ok := builder.Types.Errorable(typeID); ok {
 			okKey := makeTypeKey(builder, errTy.Inner)
 			errKey := makeTypeKey(builder, errTy.Error)
+			if errKey == "" {
+				errKey = "Error"
+			}
 			return TypeKey("Result<" + string(okKey) + "," + string(errKey) + ">")
 		}
 	}

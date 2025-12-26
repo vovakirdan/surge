@@ -156,6 +156,51 @@ func TestCallResolverInfersGenericReturn(t *testing.T) {
 	}
 }
 
+func TestCallResolverErrorableDefaultError(t *testing.T) {
+	builder, file := newTestBuilder()
+	addOptionResultPrelude(builder, file)
+
+	intType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intern(builder, "int")}})
+	errableType := builder.Types.NewErrorable(source.Span{}, intType, ast.NoTypeID)
+
+	addSimpleFn(builder, file, "foo", nil, errableType, nil)
+
+	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, intern(builder, "foo")), nil, nil, nil, false)
+	addTopLevelLet(builder, file, call)
+
+	resolveBag := diag.NewBag(8)
+	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: resolveBag},
+	})
+	if len(resolveBag.Items()) > 0 {
+		t.Fatalf("unexpected resolve diagnostics: %v", resolveBag.Items())
+	}
+	semaBag := diag.NewBag(8)
+	res := Check(context.Background(), builder, file, Options{
+		Reporter: &diag.BagReporter{Bag: semaBag},
+		Symbols:  &symRes,
+	})
+	if len(semaBag.Items()) > 0 {
+		t.Fatalf("unexpected diagnostics: %v", semaBag.Items())
+	}
+
+	got := res.ExprTypes[call]
+	if got == types.NoTypeID {
+		t.Fatal("expected call type for errorable return, got NoTypeID")
+	}
+	info, ok := res.TypeInterner.UnionInfo(got)
+	if !ok || info == nil {
+		t.Fatalf("expected Erring union return type, got %v", got)
+	}
+	if info.Name != intern(builder, "Erring") {
+		name, _ := builder.StringsInterner.Lookup(info.Name)
+		t.Fatalf("expected Erring union return type, got name %q", name)
+	}
+	if len(info.TypeArgs) != 2 || info.TypeArgs[0] != res.TypeInterner.Builtins().Int {
+		t.Fatalf("unexpected Erring type args: %v", info.TypeArgs)
+	}
+}
+
 func TestFunctionInstantiationsRecorded(t *testing.T) {
 	builder, file := newTestBuilder()
 	tName := intern(builder, "T")

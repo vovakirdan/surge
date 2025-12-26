@@ -88,9 +88,9 @@ Categories:
 | Custom tag declaration | ✅ PASS | Tag names are valid types in bindings |
 | `Option<T>` | ✅ PASS | |
 | `Some(v)` / `nothing` | ✅ PASS | |
-| `Erring<T, Error>` | 🐛 MIR BUG | Error struct causes MIR issues |
+| `Erring<T, Error>` | ✅ PASS | |
 | `T?` sugar | ✅ PASS | |
-| `T!` sugar | 🐛 MIR BUG | Error struct involved |
+| `T!` sugar | ✅ PASS | |
 
 ### §2.10 Tuples
 | Feature | Status | Notes |
@@ -267,7 +267,7 @@ Categories:
 | `print()` single arg | ✅ PASS | |
 | `to string` casts | ✅ PASS | |
 | `Erring<T, Error>` Success | ✅ PASS | |
-| `Erring<T, Error>` Error | 🐛 MIR BUG | Error struct issues |
+| `Erring<T, Error>` Error | ✅ PASS | |
 | `Option<T>` | ✅ PASS | |
 
 **Test files:** `s10_stdlib.sg`, `s11_error_handling.sg`

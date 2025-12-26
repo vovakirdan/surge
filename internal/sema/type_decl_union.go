@@ -294,6 +294,9 @@ func typeKeyForTypeExpr(builder *ast.Builder, typeID ast.TypeID) symbols.TypeKey
 		if errable, ok := builder.Types.Errorable(typeID); ok && errable != nil {
 			okKey := typeKeyForTypeExpr(builder, errable.Inner)
 			errKey := typeKeyForTypeExpr(builder, errable.Error)
+			if errKey == "" {
+				errKey = "Error"
+			}
 			return symbols.TypeKey("Result<" + string(okKey) + "," + string(errKey) + ">")
 		}
 	}
