@@ -129,7 +129,51 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 	} else {
 		// Dynamic callee or unresolved intrinsic.
 		name := ""
-		if data.Callee != nil && data.Callee.Kind == hir.ExprVarRef {
+		if data.Callee != nil && data.Callee.Kind == hir.ExprFieldAccess {
+			if fa, ok := data.Callee.Data.(hir.FieldAccessData); ok && fa.Object != nil && fa.FieldName == "__len" {
+				recvType := fa.Object.Type
+				isRef := false
+				if l.types != nil && recvType != types.NoTypeID {
+					if tt, ok := l.types.Lookup(resolveAlias(l.types, recvType)); ok && tt.Kind == types.KindReference {
+						isRef = true
+					}
+				}
+				var recvOp Operand
+				if isRef {
+					op, err := l.lowerExpr(fa.Object, true)
+					if err != nil {
+						return Operand{}, err
+					}
+					recvOp = op
+				} else {
+					place, err := l.lowerPlace(fa.Object)
+					if err != nil {
+						val, valErr := l.lowerExpr(fa.Object, false)
+						if valErr != nil {
+							return Operand{}, err
+						}
+						tmp := l.newTemp(val.Type, "ref", e.Span)
+						l.emit(&Instr{
+							Kind: InstrAssign,
+							Assign: AssignInstr{
+								Dst: Place{Local: tmp},
+								Src: RValue{Kind: RValueUse, Use: val},
+							},
+						})
+						place = Place{Local: tmp}
+						recvType = val.Type
+					}
+					refType := recvType
+					if l.types != nil && recvType != types.NoTypeID {
+						refType = l.types.Intern(types.MakeReference(recvType, false))
+					}
+					recvOp = Operand{Kind: OperandAddrOf, Type: refType, Place: place}
+				}
+				args = append([]Operand{recvOp}, args...)
+				name = fa.FieldName
+			}
+		}
+		if name == "" && data.Callee != nil && data.Callee.Kind == hir.ExprVarRef {
 			if vr, ok := data.Callee.Data.(hir.VarRefData); ok {
 				name = vr.Name
 			}

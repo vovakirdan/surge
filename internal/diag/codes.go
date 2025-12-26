@@ -251,11 +251,11 @@ const (
 	ObsTimings Code = 6001
 
 	// Future/Unsupported Features (v2+)
-	FutSignalNotSupported   Code = 7000
-	FutParallelNotSupported Code = 7001
-	FutMacroNotSupported    Code = 7002
-	FutEntrypointModeEnv    Code = 7003 // @entrypoint("env") reserved for future
-	FutEntrypointModeConfig Code = 7004 // @entrypoint("config") reserved for future
+	FutSignalNotSupported         Code = 7000
+	FutParallelNotSupported       Code = 7001
+	FutMacroNotSupported          Code = 7002
+	FutEntrypointModeEnv          Code = 7003 // @entrypoint("env") reserved for future
+	FutEntrypointModeConfig       Code = 7004 // @entrypoint("config") reserved for future
 	FutNullCoalescingNotSupported Code = 7005
 
 	// Alien hints (8000-series; optional extra diagnostics)

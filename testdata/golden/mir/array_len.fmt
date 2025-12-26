@@ -1,0 +1,5 @@
+fn main() -> uint {
+    let arr: int[] = [1, 2, 3];
+    let len_arr = len(arr);
+    return len_arr;
+}

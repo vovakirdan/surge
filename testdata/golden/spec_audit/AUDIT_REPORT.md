@@ -51,7 +51,7 @@ Categories:
 | Growable array `T[]` | ✅ PASS | |
 | Fixed-length `T[N]` | ✅ PASS | |
 | Array indexing | ✅ PASS | |
-| `len(arr)` | 🐛 MIR BUG | `MIR validation failed: unknown type` |
+| `len(arr)` | ✅ PASS | |
 
 ### §2.3 Ownership & References
 | Feature | Status | Notes |
@@ -279,7 +279,7 @@ Categories:
 ## Priority Issues
 
 ### 🔴 Critical (Blocks basic usage)
-1. **MIR `unknown type` bug** - affects `len()`, top-level `let`, generics
+1. **MIR `unknown type` bug** - affects top-level `let` globals
 2. **VM `expected struct, got ref`** - ✅ fixed; `&self` methods now work
 3. **VM `unsupported intrinsic`** - blocks module imports at runtime
 

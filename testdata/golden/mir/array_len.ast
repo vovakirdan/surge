@@ -1,0 +1,19 @@
+array_len.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: uint
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:19-5:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:32)
+         │  ├─ Name: arr
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#4: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 3:5-3:28)
+         │  ├─ Name: len_arr
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#7: len(arr)
+         └─ Stmt[2]: Return (span: 4:5-4:20)
+            └─ Expr: expr#8: len_arr

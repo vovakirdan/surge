@@ -11,9 +11,9 @@ fn main() {
     // Array indexing
     let first: int = arr[0];
 
-    // NOTE: len(arr) fails at MIR - "unknown type" bug
-    // let length: int = len(arr);
+    let length: uint = len(arr);
 
     print("Array first: " + first to string);
-    print("§2.2 Arrays: PASS (len() has MIR bug)");
+    print("Array length: " + length to string);
+    print("§2.2 Arrays: PASS");
 }
