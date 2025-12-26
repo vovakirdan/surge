@@ -16,7 +16,7 @@ fn test_channel_try_ops() {
 
 fn test_channel_string() {
     let ch: own Channel<string> = make_channel::<string>(5);
-    ch.send("hello");
+    ch.send(own "hello");
     let msg: string? = ch.recv();
     ch.close();
 }

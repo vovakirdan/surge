@@ -1,4 +1,4 @@
-testdata/golden/sema/ownership_and_references/explicit_own_move.sg (span: 3:1-21:1)
+explicit_own_move.sg (span: 3:1-21:1)
 └─ Item[0]: Fn (span: 3:1-20:2)
    ├─ Name: main
    ├─ Params: ()

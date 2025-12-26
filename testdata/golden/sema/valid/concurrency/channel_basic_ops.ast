@@ -51,12 +51,12 @@ channel_basic_ops.sg (span: 4:1-23:1)
          │  ├─ Mutable: false
          │  ├─ Type: own Channel<string>
          │  └─ Value: expr#26: make_channel(5)
-         ├─ Stmt[1]: Expr (span: 19:5-19:22)
-         │  └─ Expr: expr#30: ch.send("hello")
+         ├─ Stmt[1]: Expr (span: 19:5-19:26)
+         │  └─ Expr: expr#31: ch.send(own "hello")
          ├─ Stmt[2]: Let (span: 20:5-20:34)
          │  ├─ Name: msg
          │  ├─ Mutable: false
          │  ├─ Type: <unknown-type>
-         │  └─ Value: expr#33: ch.recv()
+         │  └─ Value: expr#34: ch.recv()
          └─ Stmt[3]: Expr (span: 21:5-21:16)
-            └─ Expr: expr#36: ch.close()
+            └─ Expr: expr#37: ch.close()

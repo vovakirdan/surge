@@ -1,4 +1,4 @@
-testdata/golden/parser/valid/nested_block_comments.sg (span: 3:1-8:1)
+nested_block_comments.sg (span: 3:1-8:1)
 └─ Item[0]: Fn (span: 3:1-7:2)
    ├─ Name: nested_block_comments
    ├─ Params: ()
