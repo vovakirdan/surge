@@ -20,16 +20,26 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 		return Location{}, vm.eb.invalidLocation("invalid place")
 	}
 
-	frameIdx, err := safecast.Conv[int32](len(vm.Stack) - 1)
-	if err != nil {
-		return Location{}, vm.eb.invalidLocation("invalid place: stack too deep")
-	}
-	loc := Location{
-		Kind:       LKLocal,
-		Frame:      frameIdx,
-		Local:      int32(p.Local),
-		ByteOffset: 0,
-		IsMut:      true,
+	var loc Location
+	if p.Kind == mir.PlaceGlobal {
+		loc = Location{
+			Kind:       LKGlobal,
+			Global:     int32(p.Global),
+			ByteOffset: 0,
+			IsMut:      true,
+		}
+	} else {
+		frameIdx, err := safecast.Conv[int32](len(vm.Stack) - 1)
+		if err != nil {
+			return Location{}, vm.eb.invalidLocation("invalid place: stack too deep")
+		}
+		loc = Location{
+			Kind:       LKLocal,
+			Frame:      frameIdx,
+			Local:      int32(p.Local),
+			ByteOffset: 0,
+			IsMut:      true,
+		}
 	}
 
 	for _, proj := range p.Proj {
@@ -214,6 +224,13 @@ func (vm *VM) loadLocationRaw(loc Location) (Value, *VMError) {
 		}
 		return vm.readLocal(frame, localID)
 
+	case LKGlobal:
+		globalID, err := safecast.Conv[mir.GlobalID](loc.Global)
+		if err != nil {
+			return Value{}, vm.eb.invalidLocation(fmt.Sprintf("invalid global id %d", loc.Global))
+		}
+		return vm.readGlobal(globalID)
+
 	case LKStructField:
 		obj, vmErr := vm.heapAliveForRef(loc.Handle)
 		if vmErr != nil {
@@ -268,6 +285,13 @@ func (vm *VM) storeLocation(loc Location, val Value) *VMError {
 			return vm.eb.invalidLocation(fmt.Sprintf("invalid local id %d", loc.Local))
 		}
 		return vm.writeLocal(frame, localID, val)
+
+	case LKGlobal:
+		globalID, err := safecast.Conv[mir.GlobalID](loc.Global)
+		if err != nil {
+			return vm.eb.invalidLocation(fmt.Sprintf("invalid global id %d", loc.Global))
+		}
+		return vm.writeGlobal(globalID, val)
 
 	case LKStructField:
 		obj, vmErr := vm.heapAliveForRef(loc.Handle)

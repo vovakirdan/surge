@@ -47,6 +47,7 @@ func (vm *VM) handleExit(frame *Frame, call *mir.CallInstr) *VMError {
 	vm.RT.Exit(code)
 
 	vm.dropAllFrames()
+	vm.dropGlobals()
 	vm.checkLeaksOrPanic()
 
 	vm.Halted = true

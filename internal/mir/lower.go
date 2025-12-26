@@ -70,6 +70,9 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 		return 0
 	})
 
+	globals, symToGlobal := buildGlobalMap(mm.Source)
+	out.Globals = globals
+
 	consts := buildConstMap(mm.Source)
 
 	nextID := FuncID(1)
@@ -83,13 +86,14 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 		id := nextID
 		nextID++
 		fl := &funcLowerer{
-			out:        out,
-			mf:         mf,
-			sema:       semaRes,
-			types:      typesIn,
-			symToLocal: make(map[symbols.SymbolID]LocalID),
-			nextTemp:   1,
-			consts:     consts,
+			out:         out,
+			mf:          mf,
+			sema:        semaRes,
+			types:       typesIn,
+			symToLocal:  make(map[symbols.SymbolID]LocalID),
+			symToGlobal: symToGlobal,
+			nextTemp:    1,
+			consts:      consts,
 		}
 		f, err := fl.lowerFunc(id, mf.Func)
 		if err != nil {
@@ -102,7 +106,7 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 	}
 
 	// Build __surge_start if there's an entrypoint
-	surgeStart, err := BuildSurgeStart(mm, semaRes, typesIn, nextID)
+	surgeStart, err := BuildSurgeStart(mm, semaRes, typesIn, nextID, out.Globals, symToGlobal)
 	if err != nil {
 		return nil, fmt.Errorf("building __surge_start: %w", err)
 	}
@@ -332,6 +336,37 @@ func buildConstMap(src *hir.Module) map[symbols.SymbolID]*hir.ConstDecl {
 	return out
 }
 
+func buildGlobalMap(src *hir.Module) ([]Global, map[symbols.SymbolID]GlobalID) {
+	if src == nil || len(src.Globals) == 0 {
+		return nil, nil
+	}
+	out := make([]Global, 0, len(src.Globals))
+	symToGlobal := make(map[symbols.SymbolID]GlobalID, len(src.Globals))
+	for i := range src.Globals {
+		decl := &src.Globals[i]
+		if decl == nil || !decl.SymbolID.IsValid() {
+			continue
+		}
+		ty := decl.Type
+		if ty == types.NoTypeID && decl.Value != nil {
+			ty = decl.Value.Type
+		}
+		id := GlobalID(len(out))
+		out = append(out, Global{
+			Sym:   decl.SymbolID,
+			Type:  ty,
+			Name:  decl.Name,
+			IsMut: decl.IsMut,
+			Span:  decl.Span,
+		})
+		symToGlobal[decl.SymbolID] = id
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, symToGlobal
+}
+
 func canonicalType(typesIn *types.Interner, id types.TypeID) types.TypeID {
 	if id == types.NoTypeID || typesIn == nil {
 		return id
@@ -379,8 +414,9 @@ type funcLowerer struct {
 	f   *Func
 	cur BlockID
 
-	symToLocal map[symbols.SymbolID]LocalID
-	nextTemp   uint32
+	symToLocal  map[symbols.SymbolID]LocalID
+	symToGlobal map[symbols.SymbolID]GlobalID
+	nextTemp    uint32
 
 	loopStack   []loopCtx
 	returnStack []returnCtx

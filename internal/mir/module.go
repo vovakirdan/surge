@@ -2,6 +2,7 @@ package mir
 
 import (
 	"surge/internal/layout"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -23,8 +24,17 @@ type TagCaseMeta struct {
 	PayloadTypes []types.TypeID
 }
 
+type Global struct {
+	Sym   symbols.SymbolID
+	Type  types.TypeID
+	Name  string
+	IsMut bool
+	Span  source.Span
+}
+
 type Module struct {
 	Funcs     map[FuncID]*Func
 	FuncBySym map[symbols.SymbolID]FuncID
+	Globals   []Global
 	Meta      *ModuleMeta
 }

@@ -390,6 +390,22 @@ func (l *lowerer) lowerLetItem(itemID ast.ItemID) *VarDecl {
 		}
 	}
 
+	// Prefer the binding type from sema (covers explicit annotations and inferred bindings).
+	if decl.SymbolID.IsValid() && l.semaRes != nil && l.semaRes.BindingTypes != nil {
+		if ty := l.semaRes.BindingTypes[decl.SymbolID]; ty != types.NoTypeID {
+			decl.Type = ty
+		}
+	}
+
+	// Fallback to initializer type if sema type is not available.
+	if decl.Type == types.NoTypeID && decl.Value != nil {
+		decl.Type = decl.Value.Type
+	}
+
+	if decl.Value == nil && decl.Type != types.NoTypeID {
+		decl.Value = l.defaultValueExpr(item.Span, decl.Type)
+	}
+
 	return decl
 }
 

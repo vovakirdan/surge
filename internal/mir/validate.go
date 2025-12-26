@@ -14,18 +14,21 @@ func Validate(m *Module, typesIn *types.Interner) error {
 		return nil
 	}
 	var errs []error
+	if err := validateGlobalTypes(m.Globals, typesIn); err != nil {
+		errs = append(errs, err)
+	}
 	for _, f := range m.Funcs {
 		if f == nil {
 			continue
 		}
-		if err := validateFunc(f, typesIn); err != nil {
+		if err := validateFunc(f, typesIn, m.Globals); err != nil {
 			errs = append(errs, fmt.Errorf("function %s: %w", f.Name, err))
 		}
 	}
 	return errors.Join(errs...)
 }
 
-func validateFunc(f *Func, typesIn *types.Interner) error {
+func validateFunc(f *Func, typesIn *types.Interner, globals []Global) error {
 	if f == nil {
 		return nil
 	}
@@ -43,7 +46,7 @@ func validateFunc(f *Func, typesIn *types.Interner) error {
 	}
 
 	// 3. Check local IDs exist in instructions
-	if err := validateLocalIDs(f); err != nil {
+	if err := validateLocalIDs(f, globals); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -58,12 +61,12 @@ func validateFunc(f *Func, typesIn *types.Interner) error {
 	}
 
 	// 7. Check EndBorrow validity
-	if err := validateEndBorrow(f); err != nil {
+	if err := validateEndBorrow(f, globals); err != nil {
 		errs = append(errs, err)
 	}
 
 	// 8. Check Drop validity
-	if err := validateDrop(f); err != nil {
+	if err := validateDrop(f, globals); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -126,17 +129,27 @@ func validateBlockTargets(f *Func) error {
 	return errors.Join(errs...)
 }
 
-// validateLocalIDs checks that all LocalID references are valid.
-func validateLocalIDs(f *Func) error {
+// validateLocalIDs checks that all LocalID/global references are valid.
+func validateLocalIDs(f *Func, globals []Global) error {
 	var errs []error
 
 	localExists := func(id LocalID) bool {
 		return id >= 0 && int(id) < len(f.Locals)
 	}
+	globalExists := func(id GlobalID) bool {
+		return id >= 0 && int(id) < len(globals)
+	}
 
 	checkPlace := func(p Place, context string) {
-		if p.Local != NoLocalID && !localExists(p.Local) {
-			errs = append(errs, fmt.Errorf("%s: local L%d does not exist", context, p.Local))
+		switch p.Kind {
+		case PlaceGlobal:
+			if p.Global != NoGlobalID && !globalExists(p.Global) {
+				errs = append(errs, fmt.Errorf("%s: global G%d does not exist", context, p.Global))
+			}
+		default:
+			if p.Local != NoLocalID && !localExists(p.Local) {
+				errs = append(errs, fmt.Errorf("%s: local L%d does not exist", context, p.Local))
+			}
 		}
 		for _, proj := range p.Proj {
 			if proj.Kind == PlaceProjIndex && proj.IndexLocal != NoLocalID && !localExists(proj.IndexLocal) {
@@ -269,6 +282,19 @@ func validateTypes(f *Func, typesIn *types.Interner) error {
 	return errors.Join(errs...)
 }
 
+func validateGlobalTypes(globals []Global, typesIn *types.Interner) error {
+	var errs []error
+	for i, g := range globals {
+		if g.Type == types.NoTypeID {
+			errs = append(errs, fmt.Errorf("global G%d (%s): unknown type", i, g.Name))
+		}
+		if typesIn != nil && typeContainsParam(typesIn, g.Type, nil) {
+			errs = append(errs, fmt.Errorf("global G%d (%s): type contains generic parameter", i, g.Name))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // typeContainsParam recursively checks if a type contains any generic parameter.
 func typeContainsParam(typesIn *types.Interner, id types.TypeID, seen map[types.TypeID]struct{}) bool {
 	if typesIn == nil || id == types.NoTypeID {
@@ -377,7 +403,7 @@ func isNothingType(typesIn *types.Interner, id types.TypeID) bool {
 }
 
 // validateEndBorrow checks that EndBorrow is only used on reference locals.
-func validateEndBorrow(f *Func) error {
+func validateEndBorrow(f *Func, globals []Global) error {
 	var errs []error
 
 	for i := range f.Blocks {
@@ -388,7 +414,15 @@ func validateEndBorrow(f *Func) error {
 				continue
 			}
 
-			localID := ins.EndBorrow.Place.Local
+			place := ins.EndBorrow.Place
+			if place.Kind == PlaceGlobal {
+				if place.Global < 0 || int(place.Global) >= len(globals) {
+					continue // Already reported by validateLocalIDs
+				}
+				continue
+			}
+
+			localID := place.Local
 			if localID < 0 || int(localID) >= len(f.Locals) {
 				continue // Already reported by validateLocalIDs
 			}
@@ -405,7 +439,7 @@ func validateEndBorrow(f *Func) error {
 }
 
 // validateDrop checks that Drop is only used on non-copy, non-reference locals.
-func validateDrop(f *Func) error {
+func validateDrop(f *Func, globals []Global) error {
 	var errs []error
 
 	for i := range f.Blocks {
@@ -416,7 +450,15 @@ func validateDrop(f *Func) error {
 				continue
 			}
 
-			localID := ins.Drop.Place.Local
+			place := ins.Drop.Place
+			if place.Kind == PlaceGlobal {
+				if place.Global < 0 || int(place.Global) >= len(globals) {
+					continue // Already reported by validateLocalIDs
+				}
+				continue
+			}
+
+			localID := place.Local
 			if localID < 0 || int(localID) >= len(f.Locals) {
 				continue // Already reported by validateLocalIDs
 			}

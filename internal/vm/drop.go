@@ -28,6 +28,26 @@ func (vm *VM) execDrop(frame *Frame, localID mir.LocalID) *VMError {
 	return nil
 }
 
+func (vm *VM) execDropGlobal(globalID mir.GlobalID) *VMError {
+	if int(globalID) < 0 || int(globalID) >= len(vm.Globals) {
+		return vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("invalid global id %d", globalID))
+	}
+	slot := &vm.Globals[globalID]
+	if !slot.IsInit {
+		return vm.eb.useBeforeInit(slot.Name)
+	}
+	if slot.IsMoved {
+		return vm.eb.useAfterMove(slot.Name)
+	}
+	if slot.IsDropped {
+		return vm.eb.makeError(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: global %q used after drop", slot.Name))
+	}
+
+	vm.dropValue(slot.V)
+	slot.IsDropped = true
+	return nil
+}
+
 func (vm *VM) dropFrameLocals(frame *Frame) {
 	if frame == nil || frame.Func == nil {
 		return
@@ -49,6 +69,20 @@ func (vm *VM) dropFrameLocals(frame *Frame) {
 func (vm *VM) dropAllFrames() {
 	for i := len(vm.Stack) - 1; i >= 0; i-- {
 		vm.dropFrameLocals(&vm.Stack[i])
+	}
+}
+
+func (vm *VM) dropGlobals() {
+	for i := len(vm.Globals) - 1; i >= 0; i-- {
+		slot := &vm.Globals[i]
+		if !slot.IsInit || slot.IsMoved || slot.IsDropped {
+			continue
+		}
+		vm.dropValue(slot.V)
+		slot.V = Value{}
+		slot.IsInit = false
+		slot.IsMoved = false
+		slot.IsDropped = false
 	}
 }
 

@@ -28,10 +28,15 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 			}
 		}
 		local, ok := l.symToLocal[data.SymbolID]
-		if !ok {
-			return Place{Local: NoLocalID}, fmt.Errorf("mir: unknown local symbol %d (%s)", data.SymbolID, data.Name)
+		if ok {
+			return Place{Local: local}, nil
 		}
-		return Place{Local: local}, nil
+		if l.symToGlobal != nil {
+			if global, ok := l.symToGlobal[data.SymbolID]; ok {
+				return Place{Kind: PlaceGlobal, Global: global}, nil
+			}
+		}
+		return Place{Local: NoLocalID}, fmt.Errorf("mir: unknown local symbol %d (%s)", data.SymbolID, data.Name)
 
 	case hir.ExprUnaryOp:
 		data, ok := e.Data.(hir.UnaryOpData)
@@ -134,22 +139,36 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 			return Operand{}, fmt.Errorf("mir: unsupported global value reference %q", data.Name)
 		}
 		local, ok := l.symToLocal[data.SymbolID]
-		if !ok {
-			if op, handled, err := l.lowerConstValue(data.SymbolID, consume); handled {
-				return op, err
-			}
-			return Operand{}, fmt.Errorf("mir: unknown local symbol %d (%s)", data.SymbolID, data.Name)
-		}
-		ty := e.Type
-		if ty == types.NoTypeID && l.f != nil {
-			idx := int(local)
-			if idx >= 0 && idx < len(l.f.Locals) {
-				if lty := l.f.Locals[idx].Type; lty != types.NoTypeID {
-					ty = lty
+		if ok {
+			ty := e.Type
+			if ty == types.NoTypeID && l.f != nil {
+				idx := int(local)
+				if idx >= 0 && idx < len(l.f.Locals) {
+					if lty := l.f.Locals[idx].Type; lty != types.NoTypeID {
+						ty = lty
+					}
 				}
 			}
+			return l.placeOperand(Place{Local: local}, ty, consume), nil
 		}
-		return l.placeOperand(Place{Local: local}, ty, consume), nil
+		if l.symToGlobal != nil {
+			if global, ok := l.symToGlobal[data.SymbolID]; ok {
+				ty := e.Type
+				if ty == types.NoTypeID && l.out != nil {
+					idx := int(global)
+					if idx >= 0 && idx < len(l.out.Globals) {
+						if gty := l.out.Globals[idx].Type; gty != types.NoTypeID {
+							ty = gty
+						}
+					}
+				}
+				return l.placeOperand(Place{Kind: PlaceGlobal, Global: global}, ty, consume), nil
+			}
+		}
+		if op, handled, err := l.lowerConstValue(data.SymbolID, consume); handled {
+			return op, err
+		}
+		return Operand{}, fmt.Errorf("mir: unknown local symbol %d (%s)", data.SymbolID, data.Name)
 
 	case hir.ExprUnaryOp:
 		return l.lowerUnaryOpExpr(e, consume)

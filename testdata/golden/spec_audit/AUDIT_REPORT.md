@@ -123,7 +123,7 @@ Categories:
 | `let` declaration | ✅ PASS | |
 | `let mut` | ✅ PASS | |
 | `const` | ✅ PASS | Fixed: const refs lower to values in MIR |
-| Top-level `let` | 🐛 MIR BUG | Globals not supported in MIR/VM |
+| Top-level `let` | ✅ PASS | |
 | Default initialization | ✅ PASS | Implicit `default<T>()`; refs are a sema error |
 
 ### §3.2 Control Flow
@@ -210,7 +210,6 @@ Categories:
 | Unary `-` | ✅ PASS | |
 | Compound assign `+= -= *= /= %=` | ✅ PASS | |
 | Ternary `? :` | ✅ PASS | |
-| Null coalescing `??` | 🐛 VM BUG | `unimplemented: binary op ??` |
 | String concat `+` | ✅ PASS | |
 | String repeat `*` | ❌ NOT IMPLEMENTED | |
 | `is` operator | ✅ PASS | Supports union tags |
@@ -266,7 +265,6 @@ Categories:
 | Feature | Status | Notes |
 |---------|--------|-------|
 | `print()` single arg | ✅ PASS | |
-| `print()` multi arg | 📋 SPEC ISSUE | Spec says space-separated, only first arg printed |
 | `to string` casts | ✅ PASS | |
 | `Erring<T, Error>` Success | ✅ PASS | |
 | `Erring<T, Error>` Error | 🐛 MIR BUG | Error struct issues |
@@ -279,15 +277,13 @@ Categories:
 ## Priority Issues
 
 ### 🔴 Critical (Blocks basic usage)
-1. **MIR `unknown type` bug** - affects top-level `let` globals
-2. **VM `expected struct, got ref`** - ✅ fixed; `&self` methods now work
-3. **VM `unsupported intrinsic`** - blocks module imports at runtime
+1. **VM `expected struct, got ref`** - ✅ fixed; `&self` methods now work
+2. **VM `unsupported intrinsic`** - blocks module imports at runtime
 
 ### 🟠 High (Common features broken)
 1. **for...in loop** - VM not implemented
 2. **Tuples** - VM not implemented
-3. **Null coalescing `??`** - VM not implemented
-4. **compare int literal patterns** - VM bug
+3. **compare int literal patterns** - VM bug
 
 ### 🟡 Medium (Spec features missing)
 1. ✅ fixed: **Enums (auto/int/string)** - implemented via `enum` declarations
@@ -308,16 +304,13 @@ Categories:
 ### 📝 Spec Updates Needed
 1. ✅ fixed: **Nested block comments** - implemented in lexer
 2. **Default initialization** - Update spec to clarify variables require initialization
-3. **print() variadic** - Update spec if multi-arg is intentionally first-only
 
 ### 🔧 Implementation Fixes Needed
-1. **MIR type resolution** - Many issues stem from unknown type in MIR phase
-2. **VM reference handling** - ✅ fixed for `&self` methods
-3. **VM module linking** - Imported functions marked as unsupported intrinsic
-4. **VM for-in loop** - rvalue kind 11 not implemented
-5. **VM tuples** - rvalue kind 6 not implemented
-6. **VM null coalescing** - binary op ?? not implemented
-7. **compare literal patterns** - bigint/int type mismatch
+1. **VM reference handling** - ✅ fixed for `&self` methods
+2. **VM module linking** - Imported functions marked as unsupported intrinsic
+3. **VM for-in loop** - rvalue kind 11 not implemented
+4. **VM tuples** - rvalue kind 6 not implemented
+5. **compare literal patterns** - bigint/int type mismatch
 
 ### 🚀 Features to Implement (Priority Order)
 1. For-in loops (VM)
@@ -334,14 +327,14 @@ Categories:
 |------|---------|--------|
 | `s01_lexical.sg` | §1 | ✅ PASS (except nested comments) |
 | `s02_types_primitives.sg` | §2.1 | ✅ PASS |
-| `s02_types_arrays.sg` | §2.2 | ⚠️ PARTIAL |
+| `s02_types_arrays.sg` | §2.2 | ✅ PASS |
 | `s02_types_ownership.sg` | §2.3 | ✅ PASS |
 | `s02_types_generics.sg` | §2.4 | ⚠️ PARTIAL |
 | `s02_types_userdefined.sg` | §2.5 | ✅ PASS |
 | `s02_types_tags_option.sg` | §2.6-2.9 | ⚠️ PARTIAL |
 | `s02_types_tuples.sg` | §2.10 | 🐛 VM BUG |
 | `s02_types_contracts.sg` | §2.12 | ✅ PASS |
-| `s03_expr_variables.sg` | §3.1 | ⚠️ PARTIAL |
+| `s03_expr_variables.sg` | §3.1 | ✅ PASS |
 | `s03_control_flow.sg` | §3.2 | ✅ PASS |
 | `s03_for_in.sg` | §3.2 | 🐛 VM BUG |
 | `s03_indexing.sg` | §3.4 | ✅ PASS |

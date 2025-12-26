@@ -267,7 +267,13 @@ func (t *Tracer) formatPlace(p mir.Place) string {
 	if !p.IsValid() {
 		return "L?"
 	}
-	out := fmt.Sprintf("L%d", p.Local)
+	out := ""
+	switch p.Kind {
+	case mir.PlaceGlobal:
+		out = fmt.Sprintf("G%d", p.Global)
+	default:
+		out = fmt.Sprintf("L%d", p.Local)
+	}
 	for _, proj := range p.Proj {
 		switch proj.Kind {
 		case mir.PlaceProjDeref:
@@ -470,6 +476,15 @@ func (t *Tracer) formatLocation(loc Location) string {
 			}
 		}
 		return fmt.Sprintf("L%d(%s)", loc.Local, name)
+	case LKGlobal:
+		name := "?"
+		if t.vm != nil {
+			idx := int(loc.Global)
+			if loc.Global >= 0 && idx >= 0 && idx < len(t.vm.Globals) && t.vm.Globals[idx].Name != "" {
+				name = t.vm.Globals[idx].Name
+			}
+		}
+		return fmt.Sprintf("G%d(%s)", loc.Global, name)
 	case LKStructField:
 		return fmt.Sprintf("struct#%d.field[%d]", loc.Handle, loc.Index)
 	case LKArrayElem:

@@ -120,14 +120,26 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 
 	case mir.OperandCopy:
 		if len(op.Place.Proj) == 0 {
-			val, vmErr := vm.readLocal(frame, op.Place.Local)
-			if vmErr != nil {
-				return Value{}, vmErr
+			switch op.Place.Kind {
+			case mir.PlaceGlobal:
+				val, vmErr := vm.readGlobal(op.Place.Global)
+				if vmErr != nil {
+					return Value{}, vmErr
+				}
+				if val.IsHeap() && val.H != 0 {
+					vm.Heap.Retain(val.H)
+				}
+				return val, nil
+			default:
+				val, vmErr := vm.readLocal(frame, op.Place.Local)
+				if vmErr != nil {
+					return Value{}, vmErr
+				}
+				if val.IsHeap() && val.H != 0 {
+					vm.Heap.Retain(val.H)
+				}
+				return val, nil
 			}
-			if val.IsHeap() && val.H != 0 {
-				vm.Heap.Retain(val.H)
-			}
-			return val, nil
 		}
 		loc, vmErr := vm.EvalPlace(frame, op.Place)
 		if vmErr != nil {
@@ -144,12 +156,22 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 
 	case mir.OperandMove:
 		if len(op.Place.Proj) == 0 {
-			val, vmErr := vm.readLocal(frame, op.Place.Local)
-			if vmErr != nil {
-				return Value{}, vmErr
+			switch op.Place.Kind {
+			case mir.PlaceGlobal:
+				val, vmErr := vm.readGlobal(op.Place.Global)
+				if vmErr != nil {
+					return Value{}, vmErr
+				}
+				vm.moveGlobal(op.Place.Global)
+				return val, nil
+			default:
+				val, vmErr := vm.readLocal(frame, op.Place.Local)
+				if vmErr != nil {
+					return Value{}, vmErr
+				}
+				vm.moveLocal(frame, op.Place.Local)
+				return val, nil
 			}
-			vm.moveLocal(frame, op.Place.Local)
-			return val, nil
 		}
 		return Value{}, vm.eb.unimplemented("move from projected place")
 

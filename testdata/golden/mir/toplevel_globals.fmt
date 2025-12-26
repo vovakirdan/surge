@@ -1,0 +1,7 @@
+let a: int = 1;
+let b: int = a + 2;
+
+@entrypoint
+fn main() -> int {
+    return b;
+}

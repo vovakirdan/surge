@@ -28,7 +28,7 @@ func TestBuildSurgeStart_NoEntrypoint(t *testing.T) {
 		Func: &hir.Func{Name: "regular", SymbolID: symbols.SymbolID(1)},
 	}
 
-	f, err := mir.BuildSurgeStart(mm, nil, typeInterner, 1)
+	f, err := mir.BuildSurgeStart(mm, nil, typeInterner, 1, nil, nil)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestBuildSurgeStart_ReturnsNothing(t *testing.T) {
 		},
 	}
 
-	f, err := mir.BuildSurgeStart(mm, nil, typeInterner, 1)
+	f, err := mir.BuildSurgeStart(mm, nil, typeInterner, 1, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestBuildSurgeStart_ReturnsInt(t *testing.T) {
 		},
 	}
 
-	f, err := mir.BuildSurgeStart(mm, nil, typeInterner, 1)
+	f, err := mir.BuildSurgeStart(mm, nil, typeInterner, 1, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestBuildSurgeStart_ReturnsInt(t *testing.T) {
 func TestBuildSurgeStart_NilModule(t *testing.T) {
 	typeInterner := types.NewInterner()
 
-	f, err := mir.BuildSurgeStart(nil, nil, typeInterner, 1)
+	f, err := mir.BuildSurgeStart(nil, nil, typeInterner, 1, nil, nil)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

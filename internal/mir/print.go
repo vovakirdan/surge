@@ -15,6 +15,22 @@ func DumpModule(w io.Writer, m *Module, typesIn *types.Interner, _ DumpOptions) 
 		return nil
 	}
 
+	if len(m.Globals) > 0 {
+		fmt.Fprintf(w, "globals=%d\n", len(m.Globals))
+		for i := range m.Globals {
+			g := m.Globals[i]
+			name := g.Name
+			if name == "" {
+				name = "_"
+			}
+			flags := ""
+			if g.IsMut {
+				flags = " mut"
+			}
+			fmt.Fprintf(w, "  G%d: %s%s name=%s\n", i, typeStr(typesIn, g.Type), flags, name)
+		}
+	}
+
 	funcs := make([]*Func, 0, len(m.Funcs))
 	for _, f := range m.Funcs {
 		if f != nil {
@@ -179,7 +195,13 @@ func formatPlace(p Place) string {
 	if !p.IsValid() {
 		return "L?"
 	}
-	out := fmt.Sprintf("L%d", p.Local)
+	out := ""
+	switch p.Kind {
+	case PlaceGlobal:
+		out = fmt.Sprintf("G%d", p.Global)
+	default:
+		out = fmt.Sprintf("L%d", p.Local)
+	}
 	for _, proj := range p.Proj {
 		switch proj.Kind {
 		case PlaceProjDeref:

@@ -6,6 +6,7 @@ type LocKind uint8
 
 const (
 	LKLocal LocKind = iota
+	LKGlobal
 	LKStructField
 	LKArrayElem
 	LKStringBytes
@@ -15,8 +16,9 @@ const (
 type Location struct {
 	Frame int32
 
-	Local int32
-	Index int32
+	Local  int32
+	Global int32
+	Index  int32
 	// ByteOffset is the ABI byte offset of the projected location within its base object.
 	// It is used for layout-consistent addressing (even if the VM stores values differently).
 	ByteOffset int32
@@ -30,6 +32,8 @@ func (l Location) String() string {
 	switch l.Kind {
 	case LKLocal:
 		return fmt.Sprintf("L%d", l.Local)
+	case LKGlobal:
+		return fmt.Sprintf("G%d", l.Global)
 	case LKStructField:
 		return fmt.Sprintf("struct#%d.field[%d]", l.Handle, l.Index)
 	case LKArrayElem:
