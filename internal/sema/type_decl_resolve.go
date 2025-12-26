@@ -124,6 +124,9 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 					allValid = false
 					break
 				}
+				if param.Variadic {
+					resolved = tc.instantiateArrayType(resolved)
+				}
 				params = append(params, resolved)
 			}
 			if !allValid {

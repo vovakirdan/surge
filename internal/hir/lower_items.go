@@ -234,6 +234,12 @@ func (l *lowerer) lowerFnParamsWithScope(fnScope symbols.ScopeID, fnItem *ast.Fn
 			p.Type = l.lookupTypeFromAST(param.Type)
 		}
 
+		if param.Variadic && !l.isArrayType(p.Type) {
+			if arrayType := l.arrayTypeFromElem(p.Type); arrayType != types.NoTypeID {
+				p.Type = arrayType
+			}
+		}
+
 		p.Ownership = l.inferOwnership(p.Type)
 
 		if param.Default.IsValid() {

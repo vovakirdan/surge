@@ -365,7 +365,7 @@ func TestParseFnItem_Errors(t *testing.T) {
 		{
 			name:          "parameter after variadic",
 			input:         "fn foo(...args: int, y: int) {}",
-			wantErrorCode: diag.SynUnexpectedToken,
+			wantErrorCode: diag.SynVariadicMustBeLast,
 			description:   "variadic parameter must be last",
 		},
 	}

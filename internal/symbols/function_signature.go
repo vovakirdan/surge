@@ -127,7 +127,11 @@ func makeTypeKey(builder *ast.Builder, typeID ast.TypeID) TypeKey {
 		if fn, ok := builder.Types.Fn(typeID); ok {
 			params := make([]string, 0, len(fn.Params))
 			for _, p := range fn.Params {
-				params = append(params, string(makeTypeKey(builder, p.Type)))
+				paramKey := string(makeTypeKey(builder, p.Type))
+				if p.Variadic {
+					paramKey = "[" + paramKey + "]"
+				}
+				params = append(params, paramKey)
 			}
 			return TypeKey("fn(" + strings.Join(params, ",") + ")->" + string(makeTypeKey(builder, fn.Return)))
 		}

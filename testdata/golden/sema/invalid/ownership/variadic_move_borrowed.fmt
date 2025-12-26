@@ -1,0 +1,9 @@
+// Variadic args are moved into an array, so borrowing should forbid the call.
+
+fn take_all(...args: string) {}
+
+fn main() {
+    let s: string = "hi";
+    let r: &string = &s;
+    take_all(s);
+}

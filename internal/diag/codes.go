@@ -67,6 +67,7 @@ const (
 	SynExpectColon        Code = 2204
 	SynUnexpectedModifier Code = 2205
 	SynInvalidTupleIndex  Code = 2206
+	SynVariadicMustBeLast Code = 2207
 
 	// Семантические (резервируем)
 	SemaInfo                       Code = 3000
@@ -324,6 +325,7 @@ var ( // todo расширить описания и использовать к
 		SynExpectColon:                     "Expect colon",
 		SynUnexpectedModifier:              "Unexpected modifier",
 		SynInvalidTupleIndex:               "Invalid tuple index",
+		SynVariadicMustBeLast:              "Variadic parameter must be last",
 		SemaInfo:                           "Semantic information",
 		SemaError:                          "Semantic error",
 		SemaDuplicateSymbol:                "Duplicate symbol",

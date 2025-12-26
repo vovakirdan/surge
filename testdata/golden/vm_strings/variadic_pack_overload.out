@@ -1,0 +1,5 @@
+empty=
+one=a
+many=a|b|c
+f1=exact
+f2=variadic

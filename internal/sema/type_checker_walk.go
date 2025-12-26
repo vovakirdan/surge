@@ -106,6 +106,9 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 					allParamsValid = false
 					break
 				}
+				if param.Variadic {
+					paramType = tc.instantiateArrayType(paramType)
+				}
 				paramTypes = append(paramTypes, paramType)
 			}
 			if allParamsValid {

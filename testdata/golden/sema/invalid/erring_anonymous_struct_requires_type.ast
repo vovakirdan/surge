@@ -1,4 +1,4 @@
-testdata/golden/sema/invalid/erring_anonymous_struct_requires_type.sg (span: 2:1-5:1)
+erring_anonymous_struct_requires_type.sg (span: 2:1-5:1)
 └─ Item[0]: Fn (span: 2:1-4:2)
    ├─ Name: usage
    ├─ Params: ()

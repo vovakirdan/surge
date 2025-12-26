@@ -1,0 +1,12 @@
+fn f(...args: int) -> string {
+    return "int";
+}
+
+@overload
+fn f(...args: uint) -> string {
+    return "uint";
+}
+
+fn main() {
+    f();
+}

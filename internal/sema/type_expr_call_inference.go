@@ -85,8 +85,11 @@ func (tc *typeChecker) candidateKey(sym *symbols.Symbol) string {
 		return ""
 	}
 	var b strings.Builder
-	for _, p := range sym.Signature.Params {
+	for i, p := range sym.Signature.Params {
 		b.WriteString(string(p))
+		if i < len(sym.Signature.Variadic) && sym.Signature.Variadic[i] {
+			b.WriteString("...")
+		}
 		b.WriteByte('|')
 	}
 	b.WriteString("->")
@@ -210,6 +213,10 @@ func (tc *typeChecker) evaluateFunctionCandidate(sym *symbols.Symbol, args []cal
 			return 0, types.NoTypeID, nil, false
 		}
 		totalCost += cost
+	}
+	if variadicIndex >= 0 {
+		// Penalize variadic candidates so exact-arity overloads win.
+		totalCost += 1 + 2*len(args)
 	}
 
 	// Check that all type params were inferred from arguments

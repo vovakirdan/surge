@@ -1,0 +1,33 @@
+fn join(...args: string) -> string {
+    let mut out: string = "";
+    let mut i: int = 0;
+    let n: int = args.__len() to int;
+    while i < n {
+        if i > 0 {
+            out = out + "|";
+        }
+        let part: string = args[i];
+        out = out + part;
+        i = i + 1;
+    }
+    return out;
+}
+
+fn f(x: int) -> string {
+    return "exact";
+}
+
+@overload
+fn f(...args: int) -> string {
+    return "variadic";
+}
+
+@entrypoint
+fn main() -> int {
+    print("empty=" + join());
+    print("one=" + join("a"));
+    print("many=" + join("a", "b", "c"));
+    print("f1=" + f(1));
+    print("f2=" + f(1, 2));
+    return 0;
+}

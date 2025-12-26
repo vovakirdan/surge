@@ -306,6 +306,47 @@ func (l *lowerer) lowerUnaryExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 	}
 }
 
+func (l *lowerer) packVariadicArgs(symID symbols.SymbolID, args []*Expr, span source.Span) []*Expr {
+	if l == nil || !symID.IsValid() || l.symRes == nil || l.symRes.Table == nil {
+		return args
+	}
+	sym := l.symRes.Table.Symbols.Get(symID)
+	if sym == nil || sym.Signature == nil {
+		return args
+	}
+	variadicIndex := -1
+	for i, v := range sym.Signature.Variadic {
+		if v {
+			variadicIndex = i
+			break
+		}
+	}
+	if variadicIndex < 0 || variadicIndex > len(args) {
+		return args
+	}
+
+	arrayType := l.variadicParamArrayType(symID, variadicIndex)
+	if arrayType == types.NoTypeID && variadicIndex < len(args) && args[variadicIndex] != nil {
+		arrayType = l.arrayTypeFromElem(args[variadicIndex].Type)
+	}
+	arraySpan := span
+	if variadicIndex < len(args) && args[variadicIndex] != nil {
+		arraySpan = args[variadicIndex].Span
+		if last := args[len(args)-1]; last != nil {
+			arraySpan = arraySpan.Cover(last.Span)
+		}
+	}
+	arrayExpr := &Expr{
+		Kind: ExprArrayLit,
+		Type: arrayType,
+		Span: arraySpan,
+		Data: ArrayLitData{Elements: args[variadicIndex:]},
+	}
+	packed := append([]*Expr(nil), args[:variadicIndex]...)
+	packed = append(packed, arrayExpr)
+	return packed
+}
+
 // lowerCallExpr lowers a function call expression.
 func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	callData := l.builder.Exprs.Calls.Get(uint32(expr.Payload))
@@ -330,6 +371,7 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 				recv = l.applySelfBorrow(symID, recv)
 				args = append([]*Expr{recv}, args...)
 			}
+			args = l.packVariadicArgs(symID, args, expr.Span)
 			callee := l.varRefForSymbol(symID, expr.Span)
 			return &Expr{
 				Kind: ExprCall,
@@ -344,6 +386,7 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 		}
 		if l.symRes != nil {
 			if memberSym := l.symRes.ExprSymbols[callData.Target]; memberSym.IsValid() {
+				args = l.packVariadicArgs(memberSym, args, expr.Span)
 				callee := l.varRefForSymbol(memberSym, expr.Span)
 				return &Expr{
 					Kind: ExprCall,
@@ -360,6 +403,7 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 	}
 
 	callee := l.lowerExpr(callData.Target)
+	args = l.packVariadicArgs(symID, args, expr.Span)
 	return &Expr{
 		Kind: ExprCall,
 		Type: ty,

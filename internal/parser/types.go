@@ -137,7 +137,7 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 						Variadic: true,
 					})
 					if p.at(token.Comma) {
-						p.err(diag.SynUnexpectedToken, "variadic parameter must be last in function type")
+						p.err(diag.SynVariadicMustBeLast, "variadic parameter must be last in function type")
 						p.advance()
 					}
 					break

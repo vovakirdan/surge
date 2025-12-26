@@ -1,4 +1,4 @@
-testdata/golden/parser/invalid/nested_fn_not_supported.sg (span: 1:1-6:1)
+nested_fn_not_supported.sg (span: 1:1-6:1)
 └─ Item[0]: Fn (span: 1:1-5:2)
    ├─ Name: main
    ├─ Params: ()

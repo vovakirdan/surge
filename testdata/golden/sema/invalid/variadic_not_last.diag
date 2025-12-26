@@ -1,0 +1,1 @@
+error SYN2207 testdata/golden/sema/invalid/variadic_not_last.sg:1:20 variadic parameter must be the last parameter in the list

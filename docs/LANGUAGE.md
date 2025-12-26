@@ -785,7 +785,11 @@ params := name:Type (, ...)* | ... (variadic)
 * Variadics: `fn log(...args) { ... }`
 * Nested function declarations inside blocks are not supported yet (FUT7006). Declare functions at module scope or inside `extern<T>` blocks.
 
-Variadics: `...args` denotes a variadic parameter and desugars to an array parameter (e.g., `args: T[]`). Overload resolution treats variadic candidates as matching variable arity with an added cost versus exact-arity matches.
+Variadics:
+* `...args: T` is allowed only as the last parameter.
+* It desugars to `args: T[]` (owning). For borrowed arrays, write `args: &T[]` explicitly.
+* At call sites, trailing arguments are packed into a `T[]`.
+* Overload resolution treats variadic candidates as matching variable arity with an added cost versus exact-arity matches.
 
 **Return type semantics:**
 

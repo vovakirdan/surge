@@ -179,7 +179,7 @@ func (p *Parser) parseFnParams() (params []ast.FnParam, commas []source.Span, tr
 			}
 			if sawVariadic {
 				p.emitDiagnostic(
-					diag.SynUnexpectedToken,
+					diag.SynVariadicMustBeLast,
 					diag.SevError,
 					commaTok.Span,
 					"variadic parameter must be the last parameter in the list",

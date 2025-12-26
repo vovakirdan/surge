@@ -12,6 +12,21 @@ fn with_nothing_return() -> nothing {
     return nothing;
 }
 
+fn join(...args: string) -> string {
+    let mut out: string = "";
+    let mut i: int = 0;
+    let n: int = args.__len() to int;
+    while i < n {
+        if i > 0 {
+            out = out + "|";
+        }
+        let part: string = args[i];
+        out = out + part;
+        i = i + 1;
+    }
+    return out;
+}
+
 // Variadic (spec says ...args)
 // fn print_all(...args) { ... }  // Test separately
 
@@ -23,6 +38,9 @@ fn main() {
     no_return();
 
     with_nothing_return();
+
+    print("join(): " + join());
+    print("join: " + join("a", "b", "c"));
 
     print("§4.1 Functions: PASS");
 }

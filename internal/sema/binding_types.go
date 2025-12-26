@@ -46,6 +46,9 @@ func (tc *typeChecker) registerFnParamTypes(fnID ast.ItemID, fnItem *ast.FnItem,
 			continue
 		}
 		paramType := tc.resolveTypeExprWithScopeAllowPointer(param.Type, scope, allowRawPointer)
+		if param.Variadic {
+			paramType = tc.instantiateArrayType(paramType)
+		}
 		symID := tc.symbolInScope(scope, param.Name, symbols.SymbolParam)
 		if paramType != types.NoTypeID {
 			tc.setBindingType(symID, paramType)
