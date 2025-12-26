@@ -31,6 +31,24 @@ func (tc *typeChecker) literalType(kind ast.ExprLitKind) types.TypeID {
 	}
 }
 
+type IsOperandKind uint8
+
+const (
+	IsOperandType IsOperandKind = iota
+	IsOperandTag
+)
+
+type IsOperand struct {
+	Kind IsOperandKind
+	Type types.TypeID
+	Tag  source.StringID
+}
+
+type HeirOperand struct {
+	Left  types.TypeID
+	Right types.TypeID
+}
+
 func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.ExprUnaryData) types.TypeID {
 	// Mark address-of operands for @atomic validation
 	if data.Op == ast.ExprUnaryRef || data.Op == ast.ExprUnaryRefMut {
@@ -75,7 +93,10 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 	}
 }
 
-func (tc *typeChecker) typeBinary(span source.Span, data *ast.ExprBinaryData) types.TypeID {
+func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast.ExprBinaryData) types.TypeID {
+	if data.Op == ast.ExprBinaryHeir {
+		return tc.typeHeirExpr(exprID, data.Left, data.Right, data.Op)
+	}
 	leftType := tc.typeExpr(data.Left)
 	if data.Op == ast.ExprBinaryAssign {
 		rightType := tc.typeExpr(data.Right)
@@ -85,11 +106,8 @@ func (tc *typeChecker) typeBinary(span source.Span, data *ast.ExprBinaryData) ty
 		tc.updateArrayViewBindingFromAssign(data.Left, data.Right)
 		return leftType
 	}
-	switch data.Op {
-	case ast.ExprBinaryIs:
-		return tc.typeIsExpr(leftType, data.Right, data.Op)
-	case ast.ExprBinaryHeir:
-		return tc.typeHeirExpr(leftType, data.Right, data.Op)
+	if data.Op == ast.ExprBinaryIs {
+		return tc.typeIsExpr(exprID, leftType, data.Right, data.Op)
 	}
 	rightType := tc.typeExpr(data.Right)
 	var ok bool
@@ -109,24 +127,190 @@ func (tc *typeChecker) typeBinary(span source.Span, data *ast.ExprBinaryData) ty
 	return tc.typeBinaryFallback(span, data, leftType, rightType)
 }
 
-func (tc *typeChecker) typeIsExpr(leftType types.TypeID, rightExpr ast.ExprID, op ast.ExprBinaryOp) types.TypeID {
-	if _, ok := tc.resolveTypeOperand(rightExpr, tc.binaryOpLabel(op)); !ok {
+func (tc *typeChecker) typeIsExpr(exprID ast.ExprID, leftType types.TypeID, rightExpr ast.ExprID, op ast.ExprBinaryOp) types.TypeID {
+	operand, ok := tc.resolveIsOperand(leftType, rightExpr, tc.binaryOpLabel(op))
+	if !ok {
 		return types.NoTypeID
 	}
+	tc.recordIsOperand(exprID, operand)
 	if leftType == types.NoTypeID {
 		return types.NoTypeID
 	}
 	return tc.types.Builtins().Bool
 }
 
-func (tc *typeChecker) typeHeirExpr(leftType types.TypeID, rightExpr ast.ExprID, op ast.ExprBinaryOp) types.TypeID {
-	if _, ok := tc.resolveTypeOperand(rightExpr, tc.binaryOpLabel(op)); !ok {
+func (tc *typeChecker) typeHeirExpr(exprID, leftExpr, rightExpr ast.ExprID, op ast.ExprBinaryOp) types.TypeID {
+	leftType, okLeft := tc.resolveTypeOperand(leftExpr, tc.binaryOpLabel(op))
+	rightType, okRight := tc.resolveTypeOperand(rightExpr, tc.binaryOpLabel(op))
+	if !okLeft || !okRight {
 		return types.NoTypeID
 	}
-	if leftType == types.NoTypeID {
-		return types.NoTypeID
-	}
+	tc.recordHeirOperand(exprID, leftType, rightType)
 	return tc.types.Builtins().Bool
+}
+
+func (tc *typeChecker) recordIsOperand(exprID ast.ExprID, operand IsOperand) {
+	if tc.result == nil {
+		return
+	}
+	if tc.result.IsOperands == nil {
+		tc.result.IsOperands = make(map[ast.ExprID]IsOperand)
+	}
+	tc.result.IsOperands[exprID] = operand
+}
+
+func (tc *typeChecker) recordHeirOperand(exprID ast.ExprID, leftType, rightType types.TypeID) {
+	if tc.result == nil {
+		return
+	}
+	if tc.result.HeirOperands == nil {
+		tc.result.HeirOperands = make(map[ast.ExprID]HeirOperand)
+	}
+	tc.result.HeirOperands[exprID] = HeirOperand{Left: leftType, Right: rightType}
+}
+
+func (tc *typeChecker) resolveIsOperand(leftType types.TypeID, rightExpr ast.ExprID, opLabel string) (IsOperand, bool) {
+	if tc.builder == nil || !rightExpr.IsValid() {
+		tc.reportExpectTypeOperand(opLabel, rightExpr)
+		return IsOperand{}, false
+	}
+	expr := tc.builder.Exprs.Get(rightExpr)
+	if expr == nil {
+		tc.reportExpectTypeOperand(opLabel, rightExpr)
+		return IsOperand{}, false
+	}
+	switch expr.Kind {
+	case ast.ExprGroup:
+		if group, ok := tc.builder.Exprs.Group(rightExpr); ok && group != nil {
+			return tc.resolveIsOperand(leftType, group.Inner, opLabel)
+		}
+	case ast.ExprIdent:
+		if ident, ok := tc.builder.Exprs.Ident(rightExpr); ok && ident != nil {
+			if tag, ok := tc.resolveTagOperand(rightExpr, ident.Name); ok {
+				if tc.validateIsTagOperand(leftType, tag, rightExpr) {
+					return IsOperand{Kind: IsOperandTag, Tag: tag}, true
+				}
+				return IsOperand{}, false
+			}
+		}
+	case ast.ExprLit:
+		if lit, ok := tc.builder.Exprs.Literal(rightExpr); ok && lit != nil && lit.Kind == ast.ExprLitNothing {
+			if tc.isUnionNothingOperand(leftType) {
+				return IsOperand{Kind: IsOperandTag, Tag: tc.builder.StringsInterner.Intern("nothing")}, true
+			}
+			return IsOperand{Kind: IsOperandType, Type: tc.types.Builtins().Nothing}, true
+		}
+	}
+	if ty, ok := tc.resolveTypeOperand(rightExpr, opLabel); ok {
+		return IsOperand{Kind: IsOperandType, Type: ty}, true
+	}
+	return IsOperand{}, false
+}
+
+func (tc *typeChecker) resolveTagOperand(exprID ast.ExprID, name source.StringID) (source.StringID, bool) {
+	if name == source.NoStringID || tc.builder == nil || tc.symbols == nil {
+		return source.NoStringID, false
+	}
+	if symID := tc.symbolForExpr(exprID); symID.IsValid() {
+		if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolTag {
+			return sym.Name, true
+		}
+		return source.NoStringID, false
+	}
+	scope := tc.scopeOrFile(tc.currentScope())
+	if symID := tc.lookupTagSymbol(name, scope); symID.IsValid() {
+		if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolTag {
+			return sym.Name, true
+		}
+	}
+	return source.NoStringID, false
+}
+
+func (tc *typeChecker) validateIsTagOperand(leftType types.TypeID, tag source.StringID, exprID ast.ExprID) bool {
+	if leftType == types.NoTypeID || tc.types == nil {
+		return true
+	}
+	info, unionType := tc.unionInfoForIs(leftType)
+	if info == nil {
+		tc.report(diag.SemaTypeMismatch, tc.exprSpan(exprID),
+			"tag %s requires a union value, got %s",
+			tc.lookupName(tag), tc.typeLabel(leftType))
+		return false
+	}
+	if !tc.unionHasTag(info, tag) {
+		tc.report(diag.SemaTypeMismatch, tc.exprSpan(exprID),
+			"tag %s is not a member of %s",
+			tc.lookupName(tag), tc.typeLabel(unionType))
+		return false
+	}
+	return true
+}
+
+func (tc *typeChecker) isUnionNothingOperand(leftType types.TypeID) bool {
+	if leftType == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	info, _ := tc.unionInfoForIs(leftType)
+	if info == nil {
+		return false
+	}
+	return tc.unionHasNothing(info)
+}
+
+func (tc *typeChecker) unionInfoForIs(leftType types.TypeID) (*types.UnionInfo, types.TypeID) {
+	normalized := tc.stripOwnType(leftType)
+	normalized = tc.resolveAlias(normalized)
+	normalized = tc.stripOwnType(normalized)
+	if normalized == types.NoTypeID || tc.types == nil {
+		return nil, types.NoTypeID
+	}
+	tt, ok := tc.types.Lookup(normalized)
+	if !ok || tt.Kind != types.KindUnion {
+		return nil, normalized
+	}
+	info, ok := tc.types.UnionInfo(normalized)
+	if !ok || info == nil {
+		return nil, normalized
+	}
+	return info, normalized
+}
+
+func (tc *typeChecker) unionHasTag(info *types.UnionInfo, tag source.StringID) bool {
+	if info == nil || tag == source.NoStringID {
+		return false
+	}
+	for _, member := range info.Members {
+		if member.Kind == types.UnionMemberTag && member.TagName == tag {
+			return true
+		}
+	}
+	return false
+}
+
+func (tc *typeChecker) unionHasNothing(info *types.UnionInfo) bool {
+	if info == nil {
+		return false
+	}
+	for _, member := range info.Members {
+		if member.Kind == types.UnionMemberNothing {
+			return true
+		}
+	}
+	return false
+}
+
+func (tc *typeChecker) stripOwnType(id types.TypeID) types.TypeID {
+	if id == types.NoTypeID || tc.types == nil {
+		return id
+	}
+	for range 32 {
+		tt, ok := tc.types.Lookup(id)
+		if !ok || tt.Kind != types.KindOwn {
+			return id
+		}
+		id = tt.Elem
+	}
+	return id
 }
 
 func (tc *typeChecker) resolveTypeOperand(exprID ast.ExprID, opLabel string) (types.TypeID, bool) {
@@ -139,6 +323,24 @@ func (tc *typeChecker) resolveTypeOperand(exprID ast.ExprID, opLabel string) (ty
 	case ast.ExprGroup:
 		if group, ok := tc.builder.Exprs.Group(exprID); ok && group != nil {
 			return tc.resolveTypeOperand(group.Inner, opLabel)
+		}
+	case ast.ExprUnary:
+		if unary, ok := tc.builder.Exprs.Unary(exprID); ok && unary != nil {
+			switch unary.Op {
+			case ast.ExprUnaryOwn:
+				if inner, ok := tc.resolveTypeOperand(unary.Operand, opLabel); ok {
+					return tc.types.Intern(types.MakeOwn(inner)), true
+				}
+			case ast.ExprUnaryRef, ast.ExprUnaryRefMut:
+				if inner, ok := tc.resolveTypeOperand(unary.Operand, opLabel); ok {
+					mutable := unary.Op == ast.ExprUnaryRefMut
+					return tc.types.Intern(types.MakeReference(inner, mutable)), true
+				}
+			case ast.ExprUnaryDeref:
+				if inner, ok := tc.resolveTypeOperand(unary.Operand, opLabel); ok {
+					return tc.types.Intern(types.MakePointer(inner)), true
+				}
+			}
 		}
 	case ast.ExprIdent:
 		if ident, ok := tc.builder.Exprs.Ident(exprID); ok && ident != nil {
@@ -184,6 +386,24 @@ func (tc *typeChecker) tryResolveTypeOperand(exprID ast.ExprID) types.TypeID {
 	case ast.ExprGroup:
 		if group, ok := tc.builder.Exprs.Group(exprID); ok && group != nil {
 			return tc.tryResolveTypeOperand(group.Inner)
+		}
+	case ast.ExprUnary:
+		if unary, ok := tc.builder.Exprs.Unary(exprID); ok && unary != nil {
+			switch unary.Op {
+			case ast.ExprUnaryOwn:
+				if inner := tc.tryResolveTypeOperand(unary.Operand); inner != types.NoTypeID {
+					return tc.types.Intern(types.MakeOwn(inner))
+				}
+			case ast.ExprUnaryRef, ast.ExprUnaryRefMut:
+				if inner := tc.tryResolveTypeOperand(unary.Operand); inner != types.NoTypeID {
+					mutable := unary.Op == ast.ExprUnaryRefMut
+					return tc.types.Intern(types.MakeReference(inner, mutable))
+				}
+			case ast.ExprUnaryDeref:
+				if inner := tc.tryResolveTypeOperand(unary.Operand); inner != types.NoTypeID {
+					return tc.types.Intern(types.MakePointer(inner))
+				}
+			}
 		}
 	case ast.ExprIdent:
 		if ident, ok := tc.builder.Exprs.Ident(exprID); ok && ident != nil {

@@ -28,6 +28,10 @@ type Options struct {
 type Result struct {
 	TypeInterner *types.Interner
 	ExprTypes    map[ast.ExprID]types.TypeID
+	// IsOperands captures resolved right operands for `is` expressions.
+	IsOperands map[ast.ExprID]IsOperand
+	// HeirOperands captures resolved operands for `heir` expressions.
+	HeirOperands map[ast.ExprID]HeirOperand
 	ExprBorrows  map[ast.ExprID]BorrowID
 	Borrows      []BorrowInfo
 	// BorrowBindings maps an active borrow (BorrowID) to the binding symbol that
@@ -50,6 +54,8 @@ type Result struct {
 func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Options) Result {
 	res := Result{
 		ExprTypes:              make(map[ast.ExprID]types.TypeID),
+		IsOperands:             make(map[ast.ExprID]IsOperand),
+		HeirOperands:           make(map[ast.ExprID]HeirOperand),
 		ExprBorrows:            make(map[ast.ExprID]BorrowID),
 		FunctionInstantiations: make(map[symbols.SymbolID][][]types.TypeID),
 		ImplicitConversions:    make(map[ast.ExprID]ImplicitConversion),

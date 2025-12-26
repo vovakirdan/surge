@@ -293,6 +293,52 @@ func (l *funcLowerer) lowerBinaryOpExpr(e *hir.Expr, consume bool) (Operand, err
 	if !ok {
 		return Operand{}, fmt.Errorf("mir: binary: unexpected payload %T", e.Data)
 	}
+	if data.Op == ast.ExprBinaryIs {
+		if data.TypeRight == types.NoTypeID {
+			return Operand{}, fmt.Errorf("mir: is missing type operand")
+		}
+		left, err := l.lowerExpr(data.Left, false)
+		if err != nil {
+			return Operand{}, err
+		}
+		resultTy := e.Type
+		if resultTy == types.NoTypeID && l.types != nil {
+			resultTy = l.types.Builtins().Bool
+		}
+		tmp := l.newTemp(resultTy, "is", e.Span)
+		l.emit(&Instr{
+			Kind: InstrAssign,
+			Assign: AssignInstr{
+				Dst: Place{Local: tmp},
+				Src: RValue{
+					Kind:     RValueTypeTest,
+					TypeTest: TypeTest{Value: left, TargetTy: data.TypeRight},
+				},
+			},
+		})
+		return l.placeOperand(Place{Local: tmp}, resultTy, consume), nil
+	}
+	if data.Op == ast.ExprBinaryHeir {
+		if data.TypeLeft == types.NoTypeID || data.TypeRight == types.NoTypeID {
+			return Operand{}, fmt.Errorf("mir: heir missing type operands")
+		}
+		resultTy := e.Type
+		if resultTy == types.NoTypeID && l.types != nil {
+			resultTy = l.types.Builtins().Bool
+		}
+		tmp := l.newTemp(resultTy, "heir", e.Span)
+		l.emit(&Instr{
+			Kind: InstrAssign,
+			Assign: AssignInstr{
+				Dst: Place{Local: tmp},
+				Src: RValue{
+					Kind:     RValueHeirTest,
+					HeirTest: HeirTest{LeftTy: data.TypeLeft, RightTy: data.TypeRight},
+				},
+			},
+		})
+		return l.placeOperand(Place{Local: tmp}, resultTy, consume), nil
+	}
 	if data.Op == ast.ExprBinaryAssign {
 		return l.lowerAssignExpr(e, data, consume)
 	}

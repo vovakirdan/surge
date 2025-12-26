@@ -236,6 +236,10 @@ func (t *Tracer) formatRValue(rv *mir.RValue) string {
 		return fmt.Sprintf("tag_test %s is %s", t.formatOperand(&rv.TagTest.Value), rv.TagTest.TagName)
 	case mir.RValueTagPayload:
 		return fmt.Sprintf("tag_payload %s.%s[%d]", t.formatOperand(&rv.TagPayload.Value), rv.TagPayload.TagName, rv.TagPayload.Index)
+	case mir.RValueTypeTest:
+		return fmt.Sprintf("type_test %s is %d", t.formatOperand(&rv.TypeTest.Value), rv.TypeTest.TargetTy)
+	case mir.RValueHeirTest:
+		return fmt.Sprintf("heir_test %d heir %d", rv.HeirTest.LeftTy, rv.HeirTest.RightTy)
 	default:
 		return fmt.Sprintf("<?rvalue:%d>", rv.Kind)
 	}

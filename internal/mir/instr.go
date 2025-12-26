@@ -133,6 +133,8 @@ const (
 	RValueTagPayload
 	RValueIterInit
 	RValueIterNext
+	RValueTypeTest
+	RValueHeirTest
 )
 
 type RValue struct {
@@ -151,6 +153,8 @@ type RValue struct {
 	TagPayload TagPayload
 	IterInit   IterInit
 	IterNext   IterNext
+	TypeTest   TypeTest
+	HeirTest   HeirTest
 }
 
 type UnaryOp struct {
@@ -207,6 +211,16 @@ type TagPayload struct {
 	Value   Operand
 	TagName string
 	Index   int
+}
+
+type TypeTest struct {
+	Value    Operand
+	TargetTy types.TypeID
+}
+
+type HeirTest struct {
+	LeftTy  types.TypeID
+	RightTy types.TypeID
 }
 
 type IterInit struct {

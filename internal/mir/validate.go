@@ -188,6 +188,10 @@ func validateLocalIDs(f *Func) error {
 			checkOperand(rv.IterInit.Iterable, context)
 		case RValueIterNext:
 			checkOperand(rv.IterNext.Iter, context)
+		case RValueTypeTest:
+			checkOperand(rv.TypeTest.Value, context)
+		case RValueHeirTest:
+			// no operand checks needed
 		}
 	}
 

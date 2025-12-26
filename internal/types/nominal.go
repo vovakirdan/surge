@@ -25,6 +25,7 @@ type StructInfo struct {
 	TypeParams []TypeID
 	TypeArgs   []TypeID
 	ValueArgs  []uint64
+	BaseType   TypeID
 }
 
 // AliasInfo stores metadata for a nominal alias type.
@@ -65,6 +66,24 @@ func (in *Interner) SetStructFields(typeID TypeID, fields []StructField) {
 		return
 	}
 	info.Fields = cloneStructFields(fields)
+}
+
+// SetStructBase records the base type for struct extension.
+func (in *Interner) SetStructBase(typeID, base TypeID) {
+	info := in.structInfo(typeID)
+	if info == nil {
+		return
+	}
+	info.BaseType = base
+}
+
+// StructBase returns the base type for a struct, if any.
+func (in *Interner) StructBase(typeID TypeID) (TypeID, bool) {
+	info := in.structInfo(typeID)
+	if info == nil || info.BaseType == NoTypeID {
+		return NoTypeID, false
+	}
+	return info.BaseType, true
 }
 
 // SetStructTypeParams records the generic parameters used by the struct definition.
@@ -211,6 +230,7 @@ func (in *Interner) appendStructInfo(info *StructInfo) uint32 {
 		TypeParams: cloneTypeArgs(info.TypeParams),
 		TypeArgs:   cloneTypeArgs(info.TypeArgs),
 		ValueArgs:  cloneValueArgs(info.ValueArgs),
+		BaseType:   info.BaseType,
 	})
 	slot, err := safecast.Conv[uint32](len(in.structs) - 1)
 	if err != nil {

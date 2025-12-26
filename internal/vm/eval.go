@@ -90,6 +90,10 @@ func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
 
 	case mir.RValueTagPayload:
 		return vm.evalTagPayload(frame, &rv.TagPayload)
+	case mir.RValueTypeTest:
+		return vm.evalTypeTest(frame, &rv.TypeTest)
+	case mir.RValueHeirTest:
+		return vm.evalHeirTest(&rv.HeirTest)
 
 	default:
 		return Value{}, vm.eb.unimplemented(fmt.Sprintf("rvalue kind %d", rv.Kind))

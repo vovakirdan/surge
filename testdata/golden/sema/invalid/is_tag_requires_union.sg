@@ -1,0 +1,10 @@
+// Test: `is` tag operand requires a union value.
+
+tag Foo(int);
+
+fn test_is_tag_requires_union() {
+    let x: int = 1;
+    if x is Foo {
+        return;
+    }
+}

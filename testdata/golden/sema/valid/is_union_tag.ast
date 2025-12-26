@@ -1,0 +1,37 @@
+is_union_tag.sg (span: 3:1-13:1)
+└─ Item[0]: Fn (span: 3:1-12:2)
+   ├─ Name: test_is_union_tag
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:24-12:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:37)
+         │  ├─ Name: some
+         │  ├─ Mutable: false
+         │  ├─ Type: Option<int>
+         │  └─ Value: expr#3: Some(1)
+         ├─ Stmt[1]: Let (span: 5:5-5:37)
+         │  ├─ Name: none
+         │  ├─ Mutable: false
+         │  ├─ Type: Option<int>
+         │  └─ Value: expr#4: nothing
+         ├─ Stmt[2]: Let (span: 7:5-7:32)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#7: (some is Some)
+         ├─ Stmt[3]: Let (span: 8:5-8:35)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: bool
+         │  └─ Value: expr#10: (none is nothing)
+         ├─ Stmt[4]: Let (span: 10:5-10:15)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#11: a
+         └─ Stmt[5]: Let (span: 11:5-11:15)
+            ├─ Name: _
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#12: b

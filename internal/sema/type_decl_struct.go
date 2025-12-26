@@ -64,6 +64,7 @@ func (tc *typeChecker) populateStructType(itemID ast.ItemID, typeItem *ast.TypeI
 				"cannot extend @sealed type '%s'", baseName)
 		}
 		tc.structBases[typeID] = base
+		tc.types.SetStructBase(typeID, base)
 		fields = append(fields, tc.inheritedFields(base)...)
 	}
 	nameSet := make(map[source.StringID]struct{}, len(fields)+int(structDecl.FieldsCount))
@@ -154,6 +155,7 @@ func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.S
 	typeID := tc.types.RegisterStructInstance(typeItem.Name, typeItem.Span, args)
 	if base != types.NoTypeID {
 		tc.structBases[typeID] = base
+		tc.types.SetStructBase(typeID, base)
 	}
 	if externFields := tc.externFieldsForType(typeID); len(externFields) > 0 {
 		nameSet := make(map[source.StringID]struct{}, len(fields)+len(externFields))

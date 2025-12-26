@@ -56,10 +56,14 @@ fn main() {
     // NOTE: string * count not implemented
     // print("repeat: " + (s1 * 2:uint));
 
-    // §6.2 Type checking (is) - MIR BUG
-    // let i: int = 42;
-    // print("42 is int = " + (i is int) to string);
-    // print("nothing is nothing = " + (nothing is nothing) to string);
+    // §6.2 Type checking (is)
+    let i: int = 42;
+    print("42 is int = " + (i is int) to string);
+    print("nothing is nothing = " + (nothing is nothing) to string);
+    let opt: Option<int> = Some(42);
+    let none: Option<int> = nothing;
+    print("Some is Some = " + (opt is Some) to string);
+    print("none is nothing = " + (none is nothing) to string);
 
     // §6.5 Cast operator (to)
     let fl: float = 3.14;
@@ -75,6 +79,6 @@ fn main() {
     print("  - String concat: PASS");
     print("  - Cast (to): PASS");
     print("  - Null coalescing (??): VM NOT IMPLEMENTED");
-    print("  - is operator: MIR BUG");
+    print("  - is operator: PASS");
     print("  - string * count: NOT IMPLEMENTED");
 }

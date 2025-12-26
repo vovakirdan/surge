@@ -69,7 +69,7 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 		return l.lowerLiteralExpr(expr, ty)
 
 	case ast.ExprBinary:
-		return l.lowerBinaryExpr(expr, ty)
+		return l.lowerBinaryExpr(exprID, expr, ty)
 
 	case ast.ExprUnary:
 		return l.lowerUnaryExpr(expr, ty)
@@ -241,21 +241,50 @@ func (l *lowerer) lowerLiteralExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 }
 
 // lowerBinaryExpr lowers a binary expression.
-func (l *lowerer) lowerBinaryExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+func (l *lowerer) lowerBinaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	binData := l.builder.Exprs.Binaries.Get(uint32(expr.Payload))
 	if binData == nil {
 		return nil
+	}
+
+	left := l.lowerExpr(binData.Left)
+	right := l.lowerExpr(binData.Right)
+	data := BinaryOpData{
+		Op:    binData.Op,
+		Left:  left,
+		Right: right,
+	}
+
+	if binData.Op == ast.ExprBinaryIs && l.semaRes != nil && l.semaRes.IsOperands != nil {
+		if operand, ok := l.semaRes.IsOperands[exprID]; ok {
+			if operand.Kind == sema.IsOperandTag {
+				tagName := l.lookupString(operand.Tag)
+				return &Expr{
+					Kind: ExprTagTest,
+					Type: ty,
+					Span: expr.Span,
+					Data: TagTestData{
+						Value:   left,
+						TagName: tagName,
+					},
+				}
+			}
+			data.TypeRight = operand.Type
+		}
+	}
+
+	if binData.Op == ast.ExprBinaryHeir && l.semaRes != nil && l.semaRes.HeirOperands != nil {
+		if operand, ok := l.semaRes.HeirOperands[exprID]; ok {
+			data.TypeLeft = operand.Left
+			data.TypeRight = operand.Right
+		}
 	}
 
 	return &Expr{
 		Kind: ExprBinaryOp,
 		Type: ty,
 		Span: expr.Span,
-		Data: BinaryOpData{
-			Op:    binData.Op,
-			Left:  l.lowerExpr(binData.Left),
-			Right: l.lowerExpr(binData.Right),
-		},
+		Data: data,
 	}
 }
 

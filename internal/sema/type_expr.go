@@ -102,7 +102,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprBinary:
 		if data, ok := tc.builder.Exprs.Binary(id); ok && data != nil {
-			ty = tc.typeBinary(expr.Span, data)
+			ty = tc.typeBinary(id, expr.Span, data)
 		}
 	case ast.ExprTernary:
 		if tern, ok := tc.builder.Exprs.Ternary(id); ok && tern != nil {

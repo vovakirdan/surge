@@ -1,15 +1,23 @@
 // §6.3 Inheritance Checking (heir) Audit
 
-// NOTE: heir requires struct extension which is not implemented
-// type Base = { x: int }
-// type Derived = Base : { y: int }
-// let check: bool = Derived heir Base;  // true
+tag SomeInt(int);
 
-// Test self-inheritance (T heir T should be true)
-// let self_check: bool = int heir int;
+type Base = { x: int };
+
+type Child = Base : { y: int };
+
+type AliasInt = int;
+
+type Mixed = SomeInt(int) | int;
 
 @entrypoint
 fn main() {
-    print("§6.3 heir operator: NOT TESTABLE");
-    print("  - Requires struct extension (not implemented)");
+    print("Child heir Base = " + (Child heir Base) to string);
+    print("Base heir Child = " + (Base heir Child) to string);
+    print("AliasInt heir int = " + (AliasInt heir int) to string);
+    print("own Child heir Base = " + (own Child heir Base) to string);
+    print("int heir Mixed = " + (int heir Mixed) to string);
+    print("nothing heir Mixed = " + (nothing heir Mixed) to string);
+
+    print("§6.3 heir operator: PASS");
 }

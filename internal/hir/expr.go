@@ -161,9 +161,11 @@ func (UnaryOpData) exprData() {}
 
 // BinaryOpData holds data for ExprBinaryOp.
 type BinaryOpData struct {
-	Op    ast.ExprBinaryOp
-	Left  *Expr
-	Right *Expr
+	Op        ast.ExprBinaryOp
+	Left      *Expr
+	Right     *Expr
+	TypeLeft  types.TypeID
+	TypeRight types.TypeID
 }
 
 func (BinaryOpData) exprData() {}

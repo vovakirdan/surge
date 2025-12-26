@@ -213,8 +213,8 @@ Categories:
 | Null coalescing `??` | 🐛 VM BUG | `unimplemented: binary op ??` |
 | String concat `+` | ✅ PASS | |
 | String repeat `*` | ❌ NOT IMPLEMENTED | |
-| `is` operator | 🐛 MIR BUG | `unknown local symbol` |
-| `heir` operator | ❌ NOT TESTABLE | Requires struct extension |
+| `is` operator | ✅ PASS | Supports union tags |
+| `heir` operator | ✅ PASS | Struct extension + union members |
 | Cast `to` | ✅ PASS | |
 
 **Test files:** `s06_*.sg`
@@ -287,8 +287,7 @@ Categories:
 1. **for...in loop** - VM not implemented
 2. **Tuples** - VM not implemented
 3. **Null coalescing `??`** - VM not implemented
-4. **`is` operator** - MIR bug
-5. **compare int literal patterns** - VM bug
+4. **compare int literal patterns** - VM bug
 
 ### 🟡 Medium (Spec features missing)
 1. ✅ fixed: **Enums (auto/int/string)** - implemented via `enum` declarations
@@ -352,7 +351,7 @@ Categories:
 | `s04_extern.sg` | §4.4 | ⚠️ PARTIAL |
 | `s05_modules.sg` | §5 | 🐛 VM BUG |
 | `s06_operators.sg` | §6 | ⚠️ PARTIAL |
-| `s06_heir.sg` | §6.3 | ❌ NOT TESTABLE |
+| `s06_heir.sg` | §6.3 | ✅ PASS |
 | `s07_literals.sg` | §7 | ⚠️ PARTIAL |
 | `s08_overload.sg` | §8 | ✅ PASS |
 | `s09_concurrency_sema.sg` | §9 | ✅ SEMA PASS |

@@ -1,0 +1,12 @@
+// Test: `is` supports tagged union variants.
+
+fn test_is_union_tag() {
+    let some: Option<int> = Some(1);
+    let none: Option<int> = nothing;
+
+    let a: bool = some is Some;
+    let b: bool = none is nothing;
+
+    let _ = a;
+    let _ = b;
+}
