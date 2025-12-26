@@ -1058,7 +1058,7 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Arithmetic: `+ - * / %` → `__add __sub __mul __div __mod`
 * Comparison: `< <= == != >= >` → `__lt __le __eq __ne __ge __gt` (must return `bool`)
 * Type checking: `is` – checks type identity (see §6.2)
-* Inheritance checking: `heir` – checks inheritance relationship between types (see §6.3)
+* Inheritance checking: `heir` – checks inheritance between a value's type and a target type (see §6.3)
 * Logical: `&& || !` – short-circuiting; operate only on `bool`.
 * Indexing: `[]` → `__index __index_set`
 * Unary: `+x -x` → `__pos __neg`
@@ -1126,7 +1126,7 @@ Sema never assumes that `int + int` yields `int`. Instead, it resolves `__add` f
 
 ### 6.2. Type Checking Operator (`is`)
 
-The `is` operator performs runtime type checking and returns a `bool`. It checks the essential type identity, ignoring ownership modifiers:
+The `is` operator performs runtime type checking and returns a `bool`. It checks the essential type identity of a **value**, ignoring ownership modifiers:
 
 **Rules:**
 * `42 is int` → `true`
@@ -1136,6 +1136,8 @@ The `is` operator performs runtime type checking and returns a `bool`. It checks
 * Mutability of a binding does not affect `is`: `let mut x:T; (x is T) == true`.
 * `&T is T` → `false` (reference is different type)
 * `*T is T` → `false` (raw pointer is a distinct type; backend-only)
+* Left operand must be a **value**; `T is T` is invalid because types are not values.
+* Right operand must be a **type** (or a tag name when checking a tagged union).
 
 **Examples:**
 ```sg
@@ -1152,18 +1154,19 @@ print(z is &int);       // true
 
 ### 6.3. Inheritance Checking Operator (`heir`)
 
-The `heir` operator checks inheritance relationships between types and returns a `bool`. It verifies whether one type inherits from another. The check is performed both at compile time (for constant expressions) and at runtime (for dynamic checks).
+The `heir` operator checks inheritance relationships between a **value's type** and a target type, returning a `bool`. The check is performed both at compile time (for constant expressions) and at runtime (for dynamic checks).
 
 **Syntax:**
 ```
-Type1 heir Type2
+Expr heir Type
 ```
 
 **Rules:**
-* `Child heir Base` → `true` if `Child` inherits from `Base` through any inheritance mechanism (struct extension, type inheritance, etc.)
-* `T heir T` → `true` (reflexive: every type inherits from itself)
-* Inheritance is transitive: if `A heir B` and `B heir C`, then `A heir C`
-* Both operands must be type names (not values); using values emits `SemaExpectTypeOperand`
+* `value heir Base` → `true` if the type of `value` inherits from `Base` through any inheritance mechanism (struct extension, aliases, unions, etc.)
+* `x heir T` → `true` when `x` has type `T` (reflexive)
+* Inheritance is transitive: if a value has type `A`, `A` inherits `B`, and `B` inherits `C`, then the value is `heir C`
+* Left operand must be a **value**; using a type name on the left emits `type X cannot be used as a value`
+* Right operand must be a **type**; using a value on the right emits `SemaExpectTypeOperand`
 * The operator returns `bool` and can be used in both compile-time constant expressions and runtime checks
 * Works for **any type**: struct extension (`type Child = Base : { ... }`), type aliases, unions, and other type relationships
 
@@ -1185,36 +1188,42 @@ type Manager = Employee : {
     team_size: int
 };
 
+let employee: Employee = { name: "A", age: 0, id: 1, department: "X" };
+let manager: Manager = { name: "B", age: 0, id: 2, department: "Y", team_size: 5 };
+
 // Direct inheritance
-let is_employee_base: bool = Employee heir BasePerson;  // true
+let is_employee_base: bool = employee heir BasePerson;  // true
 
 // Transitive inheritance
-let is_manager_base: bool = Manager heir BasePerson;     // true
-let is_manager_employee: bool = Manager heir Employee;   // true
+let is_manager_base: bool = manager heir BasePerson;     // true
+let is_manager_employee: bool = manager heir Employee;   // true
 
 // Self-inheritance
-let is_self: bool = Employee heir Employee;              // true
+let is_self: bool = employee heir Employee;              // true
 
 // Non-inheritance
-let is_not: bool = BasePerson heir Employee;             // false
+let base: BasePerson = { name: "C", age: 0 };
+let is_not: bool = base heir Employee;                   // false
 
 // Usage in conditions
-if (Employee heir BasePerson) {
+if (employee heir BasePerson) {
     print("Employee inherits from BasePerson");
 }
 
 // Works for any type, not just struct extension
 type MyInt = int;
-let is_int: bool = MyInt heir int;  // true (type inherits from base)
+let n: MyInt = 0;
+let is_int: bool = n heir int;  // true (alias inherits from base)
 
 type Number = int;
-let is_number: bool = Number heir Number;  // true (reflexive)
+let num: Number = 0;
+let is_number: bool = num heir Number;  // true (reflexive)
 ```
 
 **Difference from `is` operator:**
 * `is` checks the **runtime type** of a **value**: `x is int` checks if the value `x` has type `int`
-* `heir` checks the **inheritance relationship** between **types**: `Employee heir BasePerson` checks if type `Employee` inherits from type `BasePerson`
-* `is` operates on values; `heir` operates on type names
+* `heir` checks the **inheritance relationship** between a **value's type** and a target type: `employee heir BasePerson` checks if the type of `employee` inherits from `BasePerson`
+* Both operators take a value on the left; `is` checks type identity while `heir` checks inheritance
 
 **Implementation note:** The `heir` operator is a built-in compiler check, not a magic method. Programmers cannot override this behavior via `extern<T>` blocks or magic methods. The compiler maintains type relationship information (including `structBases` map for struct extension) and performs the check both at compile time (for constant expressions) and at runtime (for dynamic checks). This is not a standard binary operator (`binOp`) but a special type relationship operator built into the language.
 
@@ -2217,21 +2226,26 @@ type Employee = BasePerson : { id: uint, department: string }
 type Manager = Employee : { team_size: int }
 
 fn check_inheritance() -> bool {
+  let employee: Employee = { name: "A", age: 0, id: 1, department: "X" };
+  let manager: Manager = { name: "B", age: 0, id: 2, department: "Y", team_size: 5 };
+  let base: BasePerson = { name: "C", age: 0 };
+
   // Check direct inheritance
-  let is_employee: bool = Employee heir BasePerson;  // true
+  let is_employee: bool = employee heir BasePerson;  // true
   
   // Check transitive inheritance
-  let is_manager_base: bool = Manager heir BasePerson;  // true
+  let is_manager_base: bool = manager heir BasePerson;  // true
   
   // Check self-inheritance
-  let is_self: bool = Employee heir Employee;  // true
+  let is_self: bool = employee heir Employee;  // true
+  let is_not: bool = base heir Employee;  // false
   
   // Use in conditional
-  if (Manager heir Employee) {
+  if (manager heir Employee) {
     print("Manager inherits from Employee");
   }
   
-  return is_employee && is_manager_base;
+  return is_employee && is_manager_base && is_self && !is_not;
 }
 ```
 
@@ -2678,9 +2692,9 @@ From highest to lowest:
 Type checking operators `is` and `heir` have the same precedence as equality operators. Use parentheses for complex expressions:
 ```sg
 x is int && y is string           // OK
-Employee heir BasePerson && flag  // OK
+employee heir BasePerson && flag  // OK
 (x is int) == true                // explicit grouping recommended
-(Employee heir BasePerson) == true // explicit grouping recommended
+(employee heir BasePerson) == true // explicit grouping recommended
 ```
 
 Short-circuiting for `&&` and `||` is guaranteed.
@@ -2864,7 +2878,7 @@ Return     := "return" Expr?
 Signal     := "signal" Ident ":=" Expr
 Async      := "async" "{" Stmt* "}"
 Expr       := Compare | Spawn | TypeHeirPred | TupleLit | ... (standard precedence)
-TypeHeirPred := "(" CoreType " heir " CoreType ")"
+TypeHeirPred := "(" Expr " heir " CoreType ")"
 TupleLit   := "(" Expr ("," Expr)+ ")"
 AwaitExpr  := Expr "." "await"           // awaits a Future; only valid in async fn/block
 Spawn      := "spawn" Expr

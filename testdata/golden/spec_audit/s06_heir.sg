@@ -12,11 +12,17 @@ type Mixed = SomeInt(int) | int;
 
 @entrypoint
 fn main() {
-    print("Child heir Base = " + (Child heir Base) to string);
-    print("Base heir Child = " + (Base heir Child) to string);
-    print("AliasInt heir int = " + (AliasInt heir int) to string);
-    print("own Child heir Base = " + (own Child heir Base) to string);
-    print("int heir Mixed = " + (int heir Mixed) to string);
+    let child: Child = { x: 1, y: 2 };
+    let base: Base = { x: 1 };
+    let alias_value: AliasInt = 1;
+    let owned: own Child = own child;
+    let int_value: int = 1;
+
+    print("Child heir Base = " + (child heir Base) to string);
+    print("Base heir Child = " + (base heir Child) to string);
+    print("AliasInt heir int = " + (alias_value heir int) to string);
+    print("own Child heir Base = " + (owned heir Base) to string);
+    print("int heir Mixed = " + (int_value heir Mixed) to string);
     print("nothing heir Mixed = " + (nothing heir Mixed) to string);
 
     print("§6.3 heir operator: PASS");

@@ -342,7 +342,7 @@ func formatRValue(typesIn *types.Interner, rv *RValue) string {
 	case RValueTypeTest:
 		return fmt.Sprintf("type_test %s is %s", formatOperand(&rv.TypeTest.Value), typeStr(typesIn, rv.TypeTest.TargetTy))
 	case RValueHeirTest:
-		return fmt.Sprintf("heir_test %s heir %s", typeStr(typesIn, rv.HeirTest.LeftTy), typeStr(typesIn, rv.HeirTest.RightTy))
+		return fmt.Sprintf("heir_test %s heir %s", formatOperand(&rv.HeirTest.Value), typeStr(typesIn, rv.HeirTest.TargetTy))
 	default:
 		return "<rvalue?>"
 	}

@@ -94,9 +94,6 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 }
 
 func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast.ExprBinaryData) types.TypeID {
-	if data.Op == ast.ExprBinaryHeir {
-		return tc.typeHeirExpr(exprID, data.Left, data.Right, data.Op)
-	}
 	leftType := tc.typeExpr(data.Left)
 	if data.Op == ast.ExprBinaryAssign {
 		rightType := tc.typeExpr(data.Right)
@@ -108,6 +105,9 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 	}
 	if data.Op == ast.ExprBinaryIs {
 		return tc.typeIsExpr(exprID, leftType, data.Right, data.Op)
+	}
+	if data.Op == ast.ExprBinaryHeir {
+		return tc.typeHeirExpr(exprID, leftType, data.Right, data.Op)
 	}
 	rightType := tc.typeExpr(data.Right)
 	var ok bool
@@ -139,10 +139,12 @@ func (tc *typeChecker) typeIsExpr(exprID ast.ExprID, leftType types.TypeID, righ
 	return tc.types.Builtins().Bool
 }
 
-func (tc *typeChecker) typeHeirExpr(exprID, leftExpr, rightExpr ast.ExprID, op ast.ExprBinaryOp) types.TypeID {
-	leftType, okLeft := tc.resolveTypeOperand(leftExpr, tc.binaryOpLabel(op))
+func (tc *typeChecker) typeHeirExpr(exprID ast.ExprID, leftType types.TypeID, rightExpr ast.ExprID, op ast.ExprBinaryOp) types.TypeID {
 	rightType, okRight := tc.resolveTypeOperand(rightExpr, tc.binaryOpLabel(op))
-	if !okLeft || !okRight {
+	if !okRight {
+		return types.NoTypeID
+	}
+	if leftType == types.NoTypeID {
 		return types.NoTypeID
 	}
 	tc.recordHeirOperand(exprID, leftType, rightType)

@@ -93,7 +93,7 @@ func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
 	case mir.RValueTypeTest:
 		return vm.evalTypeTest(frame, &rv.TypeTest)
 	case mir.RValueHeirTest:
-		return vm.evalHeirTest(&rv.HeirTest)
+		return vm.evalHeirTest(frame, &rv.HeirTest)
 
 	default:
 		return Value{}, vm.eb.unimplemented(fmt.Sprintf("rvalue kind %d", rv.Kind))

@@ -20,11 +20,17 @@ func (vm *VM) evalTypeTest(frame *Frame, tt *mir.TypeTest) (Value, *VMError) {
 	return MakeBool(ok, types.NoTypeID), nil
 }
 
-func (vm *VM) evalHeirTest(ht *mir.HeirTest) (Value, *VMError) {
+func (vm *VM) evalHeirTest(frame *Frame, ht *mir.HeirTest) (Value, *VMError) {
 	if ht == nil {
 		return Value{}, vm.eb.unimplemented("nil heir_test")
 	}
-	ok := vm.typeHeir(ht.LeftTy, ht.RightTy)
+	val, vmErr := vm.evalOperand(frame, &ht.Value)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	defer vm.dropValue(val)
+	leftType := vm.valueTypeForTest(val)
+	ok := vm.typeHeir(leftType, ht.TargetTy)
 	return MakeBool(ok, types.NoTypeID), nil
 }
 

@@ -45,75 +45,112 @@
  45: RParen          ")" at 13:14-13:15
  46: LBrace          "{" at 13:16-13:17 (leading: Space)
  47: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
- 48: Ident           "a" at 14:9-14:10 (leading: Space)
- 49: Colon           ":" at 14:10-14:11
- 50: Ident           "bool" at 14:12-14:16 (leading: Space)
- 51: Assign          "=" at 14:17-14:18 (leading: Space)
- 52: Ident           "Child" at 14:19-14:24 (leading: Space)
- 53: KwHeir          "heir" at 14:25-14:29 (leading: Space)
- 54: Ident           "Base" at 14:30-14:34 (leading: Space)
- 55: Semicolon       ";" at 14:34-14:35
- 56: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
- 57: Ident           "b" at 15:9-15:10 (leading: Space)
- 58: Colon           ":" at 15:10-15:11
- 59: Ident           "bool" at 15:12-15:16 (leading: Space)
- 60: Assign          "=" at 15:17-15:18 (leading: Space)
- 61: Ident           "AliasInt" at 15:19-15:27 (leading: Space)
- 62: KwHeir          "heir" at 15:28-15:32 (leading: Space)
- 63: Ident           "int" at 15:33-15:36 (leading: Space)
- 64: Semicolon       ";" at 15:36-15:37
- 65: KwLet           "let" at 16:5-16:8 (leading: Newline, Space)
- 66: Ident           "c" at 16:9-16:10 (leading: Space)
- 67: Colon           ":" at 16:10-16:11
- 68: Ident           "bool" at 16:12-16:16 (leading: Space)
- 69: Assign          "=" at 16:17-16:18 (leading: Space)
- 70: KwOwn           "own" at 16:19-16:22 (leading: Space)
- 71: Ident           "Child" at 16:23-16:28 (leading: Space)
- 72: KwHeir          "heir" at 16:29-16:33 (leading: Space)
- 73: Ident           "Base" at 16:34-16:38 (leading: Space)
- 74: Semicolon       ";" at 16:38-16:39
- 75: KwLet           "let" at 17:5-17:8 (leading: Newline, Space)
- 76: Ident           "d" at 17:9-17:10 (leading: Space)
- 77: Colon           ":" at 17:10-17:11
- 78: Ident           "bool" at 17:12-17:16 (leading: Space)
- 79: Assign          "=" at 17:17-17:18 (leading: Space)
- 80: Ident           "int" at 17:19-17:22 (leading: Space)
- 81: KwHeir          "heir" at 17:23-17:27 (leading: Space)
- 82: Ident           "Mixed" at 17:28-17:33 (leading: Space)
- 83: Semicolon       ";" at 17:33-17:34
- 84: KwLet           "let" at 18:5-18:8 (leading: Newline, Space)
- 85: Ident           "e" at 18:9-18:10 (leading: Space)
- 86: Colon           ":" at 18:10-18:11
- 87: Ident           "bool" at 18:12-18:16 (leading: Space)
- 88: Assign          "=" at 18:17-18:18 (leading: Space)
- 89: NothingLit      "nothing" at 18:19-18:26 (leading: Space)
- 90: KwHeir          "heir" at 18:27-18:31 (leading: Space)
- 91: Ident           "Mixed" at 18:32-18:37 (leading: Space)
- 92: Semicolon       ";" at 18:37-18:38
- 93: KwLet           "let" at 20:5-20:8 (leading: Newline, Space)
- 94: Underscore      "_" at 20:9-20:10 (leading: Space)
- 95: Assign          "=" at 20:11-20:12 (leading: Space)
- 96: Ident           "a" at 20:13-20:14 (leading: Space)
- 97: Semicolon       ";" at 20:14-20:15
- 98: KwLet           "let" at 21:5-21:8 (leading: Newline, Space)
- 99: Underscore      "_" at 21:9-21:10 (leading: Space)
-100: Assign          "=" at 21:11-21:12 (leading: Space)
-101: Ident           "b" at 21:13-21:14 (leading: Space)
-102: Semicolon       ";" at 21:14-21:15
-103: KwLet           "let" at 22:5-22:8 (leading: Newline, Space)
-104: Underscore      "_" at 22:9-22:10 (leading: Space)
-105: Assign          "=" at 22:11-22:12 (leading: Space)
-106: Ident           "c" at 22:13-22:14 (leading: Space)
-107: Semicolon       ";" at 22:14-22:15
-108: KwLet           "let" at 23:5-23:8 (leading: Newline, Space)
-109: Underscore      "_" at 23:9-23:10 (leading: Space)
-110: Assign          "=" at 23:11-23:12 (leading: Space)
-111: Ident           "d" at 23:13-23:14 (leading: Space)
-112: Semicolon       ";" at 23:14-23:15
-113: KwLet           "let" at 24:5-24:8 (leading: Newline, Space)
-114: Underscore      "_" at 24:9-24:10 (leading: Space)
-115: Assign          "=" at 24:11-24:12 (leading: Space)
-116: Ident           "e" at 24:13-24:14 (leading: Space)
-117: Semicolon       ";" at 24:14-24:15
-118: RBrace          "}" at 25:1-25:2 (leading: Newline)
-119: EOF             at 26:1-26:1
+ 48: Ident           "child" at 14:9-14:14 (leading: Space)
+ 49: Colon           ":" at 14:14-14:15
+ 50: Ident           "Child" at 14:16-14:21 (leading: Space)
+ 51: Assign          "=" at 14:22-14:23 (leading: Space)
+ 52: LBrace          "{" at 14:24-14:25 (leading: Space)
+ 53: Ident           "x" at 14:26-14:27 (leading: Space)
+ 54: Colon           ":" at 14:27-14:28
+ 55: IntLit          "1" at 14:29-14:30 (leading: Space)
+ 56: Comma           "," at 14:30-14:31
+ 57: Ident           "y" at 14:32-14:33 (leading: Space)
+ 58: Colon           ":" at 14:33-14:34
+ 59: IntLit          "2" at 14:35-14:36 (leading: Space)
+ 60: RBrace          "}" at 14:37-14:38 (leading: Space)
+ 61: Semicolon       ";" at 14:38-14:39
+ 62: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
+ 63: Ident           "alias_value" at 15:9-15:20 (leading: Space)
+ 64: Colon           ":" at 15:20-15:21
+ 65: Ident           "AliasInt" at 15:22-15:30 (leading: Space)
+ 66: Assign          "=" at 15:31-15:32 (leading: Space)
+ 67: IntLit          "1" at 15:33-15:34 (leading: Space)
+ 68: Semicolon       ";" at 15:34-15:35
+ 69: KwLet           "let" at 16:5-16:8 (leading: Newline, Space)
+ 70: Ident           "owned" at 16:9-16:14 (leading: Space)
+ 71: Colon           ":" at 16:14-16:15
+ 72: KwOwn           "own" at 16:16-16:19 (leading: Space)
+ 73: Ident           "Child" at 16:20-16:25 (leading: Space)
+ 74: Assign          "=" at 16:26-16:27 (leading: Space)
+ 75: KwOwn           "own" at 16:28-16:31 (leading: Space)
+ 76: Ident           "child" at 16:32-16:37 (leading: Space)
+ 77: Semicolon       ";" at 16:37-16:38
+ 78: KwLet           "let" at 17:5-17:8 (leading: Newline, Space)
+ 79: Ident           "int_value" at 17:9-17:18 (leading: Space)
+ 80: Colon           ":" at 17:18-17:19
+ 81: Ident           "int" at 17:20-17:23 (leading: Space)
+ 82: Assign          "=" at 17:24-17:25 (leading: Space)
+ 83: IntLit          "1" at 17:26-17:27 (leading: Space)
+ 84: Semicolon       ";" at 17:27-17:28
+ 85: KwLet           "let" at 19:5-19:8 (leading: Newline, Space)
+ 86: Ident           "a" at 19:9-19:10 (leading: Space)
+ 87: Colon           ":" at 19:10-19:11
+ 88: Ident           "bool" at 19:12-19:16 (leading: Space)
+ 89: Assign          "=" at 19:17-19:18 (leading: Space)
+ 90: Ident           "child" at 19:19-19:24 (leading: Space)
+ 91: KwHeir          "heir" at 19:25-19:29 (leading: Space)
+ 92: Ident           "Base" at 19:30-19:34 (leading: Space)
+ 93: Semicolon       ";" at 19:34-19:35
+ 94: KwLet           "let" at 20:5-20:8 (leading: Newline, Space)
+ 95: Ident           "b" at 20:9-20:10 (leading: Space)
+ 96: Colon           ":" at 20:10-20:11
+ 97: Ident           "bool" at 20:12-20:16 (leading: Space)
+ 98: Assign          "=" at 20:17-20:18 (leading: Space)
+ 99: Ident           "alias_value" at 20:19-20:30 (leading: Space)
+100: KwHeir          "heir" at 20:31-20:35 (leading: Space)
+101: Ident           "int" at 20:36-20:39 (leading: Space)
+102: Semicolon       ";" at 20:39-20:40
+103: KwLet           "let" at 21:5-21:8 (leading: Newline, Space)
+104: Ident           "c" at 21:9-21:10 (leading: Space)
+105: Colon           ":" at 21:10-21:11
+106: Ident           "bool" at 21:12-21:16 (leading: Space)
+107: Assign          "=" at 21:17-21:18 (leading: Space)
+108: Ident           "owned" at 21:19-21:24 (leading: Space)
+109: KwHeir          "heir" at 21:25-21:29 (leading: Space)
+110: Ident           "Base" at 21:30-21:34 (leading: Space)
+111: Semicolon       ";" at 21:34-21:35
+112: KwLet           "let" at 22:5-22:8 (leading: Newline, Space)
+113: Ident           "d" at 22:9-22:10 (leading: Space)
+114: Colon           ":" at 22:10-22:11
+115: Ident           "bool" at 22:12-22:16 (leading: Space)
+116: Assign          "=" at 22:17-22:18 (leading: Space)
+117: Ident           "int_value" at 22:19-22:28 (leading: Space)
+118: KwHeir          "heir" at 22:29-22:33 (leading: Space)
+119: Ident           "Mixed" at 22:34-22:39 (leading: Space)
+120: Semicolon       ";" at 22:39-22:40
+121: KwLet           "let" at 23:5-23:8 (leading: Newline, Space)
+122: Ident           "e" at 23:9-23:10 (leading: Space)
+123: Colon           ":" at 23:10-23:11
+124: Ident           "bool" at 23:12-23:16 (leading: Space)
+125: Assign          "=" at 23:17-23:18 (leading: Space)
+126: NothingLit      "nothing" at 23:19-23:26 (leading: Space)
+127: KwHeir          "heir" at 23:27-23:31 (leading: Space)
+128: Ident           "Mixed" at 23:32-23:37 (leading: Space)
+129: Semicolon       ";" at 23:37-23:38
+130: KwLet           "let" at 25:5-25:8 (leading: Newline, Space)
+131: Underscore      "_" at 25:9-25:10 (leading: Space)
+132: Assign          "=" at 25:11-25:12 (leading: Space)
+133: Ident           "a" at 25:13-25:14 (leading: Space)
+134: Semicolon       ";" at 25:14-25:15
+135: KwLet           "let" at 26:5-26:8 (leading: Newline, Space)
+136: Underscore      "_" at 26:9-26:10 (leading: Space)
+137: Assign          "=" at 26:11-26:12 (leading: Space)
+138: Ident           "b" at 26:13-26:14 (leading: Space)
+139: Semicolon       ";" at 26:14-26:15
+140: KwLet           "let" at 27:5-27:8 (leading: Newline, Space)
+141: Underscore      "_" at 27:9-27:10 (leading: Space)
+142: Assign          "=" at 27:11-27:12 (leading: Space)
+143: Ident           "c" at 27:13-27:14 (leading: Space)
+144: Semicolon       ";" at 27:14-27:15
+145: KwLet           "let" at 28:5-28:8 (leading: Newline, Space)
+146: Underscore      "_" at 28:9-28:10 (leading: Space)
+147: Assign          "=" at 28:11-28:12 (leading: Space)
+148: Ident           "d" at 28:13-28:14 (leading: Space)
+149: Semicolon       ";" at 28:14-28:15
+150: KwLet           "let" at 29:5-29:8 (leading: Newline, Space)
+151: Underscore      "_" at 29:9-29:10 (leading: Space)
+152: Assign          "=" at 29:11-29:12 (leading: Space)
+153: Ident           "e" at 29:13-29:14 (leading: Space)
+154: Semicolon       ";" at 29:14-29:15
+155: RBrace          "}" at 30:1-30:2 (leading: Newline)
+156: EOF             at 31:1-31:1

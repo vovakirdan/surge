@@ -56,10 +56,10 @@
  56: Colon           ":" at 11:10-11:11
  57: Ident           "bool" at 11:12-11:16 (leading: Space)
  58: Assign          "=" at 11:17-11:18 (leading: Space)
- 59: Ident           "Child" at 11:19-11:24 (leading: Space)
- 60: KwHeir          "heir" at 11:25-11:29 (leading: Space)
- 61: Ident           "Base" at 11:30-11:34 (leading: Space)
- 62: Semicolon       ";" at 11:34-11:35
+ 59: Ident           "x" at 11:19-11:20 (leading: Space)
+ 60: KwHeir          "heir" at 11:21-11:25 (leading: Space)
+ 61: Ident           "Base" at 11:26-11:30 (leading: Space)
+ 62: Semicolon       ";" at 11:30-11:31
  63: KwIf            "if" at 12:5-12:7 (leading: Newline, Space)
  64: Ident           "a" at 12:8-12:9 (leading: Space)
  65: AndAnd          "&&" at 12:10-12:12 (leading: Space)

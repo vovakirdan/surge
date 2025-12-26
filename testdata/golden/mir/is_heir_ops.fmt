@@ -8,7 +8,7 @@ type Child = Base: { y: int };
 fn main() -> int {
     let x: Child = { x: 1, y: 2 };
     let a: bool = x is Child;
-    let b: bool = Child heir Base;
+    let b: bool = x heir Base;
     if a && b {
         return 1;
     }

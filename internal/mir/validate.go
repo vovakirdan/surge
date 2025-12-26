@@ -191,7 +191,7 @@ func validateLocalIDs(f *Func) error {
 		case RValueTypeTest:
 			checkOperand(rv.TypeTest.Value, context)
 		case RValueHeirTest:
-			// no operand checks needed
+			checkOperand(rv.HeirTest.Value, context)
 		}
 	}
 

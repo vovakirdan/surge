@@ -239,7 +239,7 @@ func (t *Tracer) formatRValue(rv *mir.RValue) string {
 	case mir.RValueTypeTest:
 		return fmt.Sprintf("type_test %s is %d", t.formatOperand(&rv.TypeTest.Value), rv.TypeTest.TargetTy)
 	case mir.RValueHeirTest:
-		return fmt.Sprintf("heir_test %d heir %d", rv.HeirTest.LeftTy, rv.HeirTest.RightTy)
+		return fmt.Sprintf("heir_test %s heir %d", t.formatOperand(&rv.HeirTest.Value), rv.HeirTest.TargetTy)
 	default:
 		return fmt.Sprintf("<?rvalue:%d>", rv.Kind)
 	}

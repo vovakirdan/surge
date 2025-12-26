@@ -1,0 +1,2 @@
+error SEM3015 testdata/golden/sema/invalid/is_heir_left_type.sg:6:19 type Foo cannot be used as a value
+error SEM3015 testdata/golden/sema/invalid/is_heir_left_type.sg:7:19 type Foo cannot be used as a value

@@ -331,7 +331,7 @@ func (l *funcLowerer) lowerBinaryOpExpr(e *hir.Expr, consume bool) (Operand, err
 		if resultTy == types.NoTypeID && l.types != nil {
 			resultTy = l.types.Builtins().Bool
 		}
-		if data.TypeLeft == types.NoTypeID || data.TypeRight == types.NoTypeID {
+		if data.TypeRight == types.NoTypeID {
 			return Operand{
 				Kind: OperandConst,
 				Type: resultTy,
@@ -342,6 +342,10 @@ func (l *funcLowerer) lowerBinaryOpExpr(e *hir.Expr, consume bool) (Operand, err
 				},
 			}, nil
 		}
+		left, err := l.lowerExpr(data.Left, false)
+		if err != nil {
+			return Operand{}, err
+		}
 		tmp := l.newTemp(resultTy, "heir", e.Span)
 		l.emit(&Instr{
 			Kind: InstrAssign,
@@ -349,7 +353,7 @@ func (l *funcLowerer) lowerBinaryOpExpr(e *hir.Expr, consume bool) (Operand, err
 				Dst: Place{Local: tmp},
 				Src: RValue{
 					Kind:     RValueHeirTest,
-					HeirTest: HeirTest{LeftTy: data.TypeLeft, RightTy: data.TypeRight},
+					HeirTest: HeirTest{Value: left, TargetTy: data.TypeRight},
 				},
 			},
 		})

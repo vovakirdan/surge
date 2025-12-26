@@ -26,7 +26,7 @@ fn main:
     L0 = move L1
     L3 = type_test copy L0 is type#1166
     L2 = copy L3
-    L5 = heir_test type#1166 heir type#1165
+    L5 = heir_test copy L0 heir type#1165
     L4 = copy L5
     L6 = (copy L2 && copy L4)
     if copy L6 then bb1 else bb2

@@ -11,10 +11,15 @@ type AliasInt = int;
 type Mixed = SomeInt(int) | int;
 
 fn test_heir() {
-    let a: bool = Child heir Base;
-    let b: bool = AliasInt heir int;
-    let c: bool = own Child heir Base;
-    let d: bool = int heir Mixed;
+    let child: Child = { x: 1, y: 2 };
+    let alias_value: AliasInt = 1;
+    let owned: own Child = own child;
+    let int_value: int = 1;
+
+    let a: bool = child heir Base;
+    let b: bool = alias_value heir int;
+    let c: bool = owned heir Base;
+    let d: bool = int_value heir Mixed;
     let e: bool = nothing heir Mixed;
 
     let _ = a;

@@ -219,8 +219,8 @@ type TypeTest struct {
 }
 
 type HeirTest struct {
-	LeftTy  types.TypeID
-	RightTy types.TypeID
+	Value    Operand
+	TargetTy types.TypeID
 }
 
 type IterInit struct {
