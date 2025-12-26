@@ -42,6 +42,7 @@ func main() {
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(philosophyCmd)
 
 	// Глобальные флаги
 	rootCmd.PersistentFlags().String("color", "auto", "colorize output (auto|on|off)")
