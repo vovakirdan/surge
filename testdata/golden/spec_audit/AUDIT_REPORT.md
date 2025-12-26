@@ -69,7 +69,7 @@ Categories:
 | Generic types | ✅ PASS | `type Box<T> = { value: T }` |
 | Turbofish syntax | ✅ PASS | `id::<int>(42)` |
 | Type inference | ✅ PASS | From arguments |
-| Generic tags as types | 🐛 SEMA BUG | `let x: Tag<T>` fails |
+| Generic tags as types | ✅ PASS | `let x: Tag<T>` works |
 
 ### §2.5 User-defined Types
 | Feature | Status | Notes |
@@ -85,7 +85,7 @@ Categories:
 | Feature | Status | Notes |
 |---------|--------|-------|
 | `nothing` type | ✅ PASS | |
-| Custom tag declaration | ⚠️ PARTIAL | Parses but can't use as type in bindings |
+| Custom tag declaration | ✅ PASS | Tag names are valid types in bindings |
 | `Option<T>` | ✅ PASS | |
 | `Some(v)` / `nothing` | ✅ PASS | |
 | `Erring<T, Error>` | 🐛 MIR BUG | Error struct causes MIR issues |

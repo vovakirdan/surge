@@ -171,6 +171,10 @@ func (tc *typeChecker) resolveTypePath(path *ast.TypePath, span source.Span, sco
 		if sym := tc.symbolFromID(symID); sym != nil && len(sym.TypeParamSymbols) > 0 {
 			typeParams = sym.TypeParamSymbols
 		}
+	} else if tagID := tc.lookupTagSymbol(seg.Name, scope); tagID.IsValid() {
+		if sym := tc.symbolFromID(tagID); sym != nil && len(sym.TypeParamSymbols) > 0 {
+			typeParams = sym.TypeParamSymbols
+		}
 	}
 	args, argSpans := tc.resolveTypeArgsWithParams(seg.Generics, typeParams, scope)
 	return tc.resolveNamedType(seg.Name, args, argSpans, span, scope)
@@ -188,9 +192,12 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 	}
 	symID := tc.lookupTypeSymbol(name, scope)
 	if !symID.IsValid() {
+		if tagSymID := tc.lookupTagSymbol(name, scope); tagSymID.IsValid() {
+			return tc.resolveTagType(tagSymID, name, args, argSpans, span)
+		}
 		if symAny := tc.lookupSymbolAny(name, scope); symAny.IsValid() {
 			if sym := tc.symbolFromID(symAny); sym != nil && (sym.Kind == symbols.SymbolImport || sym.Kind == symbols.SymbolModule) {
-				if imported := tc.resolveImportType(sym, name, span); imported != types.NoTypeID {
+				if imported := tc.resolveImportType(sym, name, args, argSpans, span); imported != types.NoTypeID {
 					return imported
 				}
 			}
@@ -362,18 +369,30 @@ func (tc *typeChecker) resolveQualifiedTypePath(path *ast.TypePath, span source.
 		return types.NoTypeID
 	}
 	var candidate *symbols.ExportedSymbol
+	var tagCandidate *symbols.ExportedSymbol
 	for i := range exported {
-		if exported[i].Kind == symbols.SymbolType && exported[i].Flags&symbols.SymbolFlagPublic != 0 {
+		exp := exported[i]
+		if exp.Flags&symbols.SymbolFlagPublic == 0 {
+			continue
+		}
+		if exp.Kind == symbols.SymbolType && candidate == nil {
 			candidate = &exported[i]
-			break
+			continue
+		}
+		if exp.Kind == symbols.SymbolTag && tagCandidate == nil {
+			tagCandidate = &exported[i]
 		}
 	}
-	if candidate == nil {
-		tc.report(diag.SemaModuleMemberNotPublic, span, "member %q of module %q is not public or not a type", name, modulePath)
-		return types.NoTypeID
+	if candidate != nil {
+		// TODO: handle generic instantiation on imported types.
+		return candidate.Type
 	}
-	// TODO: handle generic instantiation on imported types.
-	return candidate.Type
+	if tagCandidate != nil {
+		args, argSpans := tc.resolveTypeArgsWithParams(last.Generics, tagCandidate.TypeParamSyms, scope)
+		return tc.resolveImportedTagType(tagCandidate, last.Name, args, argSpans, span)
+	}
+	tc.report(diag.SemaModuleMemberNotPublic, span, "member %q of module %q is not public or not a type", name, modulePath)
+	return types.NoTypeID
 }
 
 func (tc *typeChecker) resolveQualifiedContract(path *ast.TypePath, span source.Span, scope symbols.ScopeID) symbols.SymbolID {
@@ -449,7 +468,7 @@ func (tc *typeChecker) resolveQualifiedContract(path *ast.TypePath, span source.
 	return id
 }
 
-func (tc *typeChecker) resolveImportType(sym *symbols.Symbol, name source.StringID, span source.Span) types.TypeID {
+func (tc *typeChecker) resolveImportType(sym *symbols.Symbol, name source.StringID, args []types.TypeID, argSpans []source.Span, span source.Span) types.TypeID {
 	if sym == nil || sym.ModulePath == "" || tc.exports == nil {
 		return types.NoTypeID
 	}
@@ -467,10 +486,26 @@ func (tc *typeChecker) resolveImportType(sym *symbols.Symbol, name source.String
 		tc.report(diag.SemaModuleMemberNotFound, span, "module %q has no member %q", sym.ModulePath, nameStr)
 		return types.NoTypeID
 	}
+	var typeCandidate *symbols.ExportedSymbol
+	var tagCandidate *symbols.ExportedSymbol
 	for i := range exported {
-		if exported[i].Kind == symbols.SymbolType && exported[i].Flags&symbols.SymbolFlagPublic != 0 {
-			return exported[i].Type
+		exp := exported[i]
+		if exp.Flags&symbols.SymbolFlagPublic == 0 {
+			continue
 		}
+		if exp.Kind == symbols.SymbolType && typeCandidate == nil {
+			typeCandidate = &exported[i]
+			continue
+		}
+		if exp.Kind == symbols.SymbolTag && tagCandidate == nil {
+			tagCandidate = &exported[i]
+		}
+	}
+	if typeCandidate != nil {
+		return typeCandidate.Type
+	}
+	if tagCandidate != nil {
+		return tc.resolveImportedTagType(tagCandidate, name, args, argSpans, span)
 	}
 	tc.report(diag.SemaModuleMemberNotPublic, span, "member %q of module %q is not public or not a type", nameStr, sym.ModulePath)
 	return types.NoTypeID

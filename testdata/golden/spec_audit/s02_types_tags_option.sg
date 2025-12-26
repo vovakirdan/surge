@@ -1,5 +1,8 @@
 // §2.6 nothing, §2.7 Tags, §2.8 Tagged unions, §2.9 Option and Erring Audit
 
+tag Wrap<T>(T);
+type WrapUnion<T> = Wrap(T);
+
 @entrypoint
 fn main() {
     // §2.6 nothing type
@@ -10,6 +13,12 @@ fn main() {
     let some_val: Option<int> = Some(42);
     let none_val: Option<int> = nothing;
     print("Option<int> values created");
+
+    // §2.7 Tags as types
+    let some_tag: Some<int> = Some(7);
+    let wrapped: Wrap<int> = Wrap(9);
+    let wrapped_union: WrapUnion<int> = Wrap(11);
+    print("Tag types work");
 
     // §2.9 Sugar: T? for Option<T>
     let maybe: int? = Some(5);
@@ -22,6 +31,7 @@ fn main() {
 
     print("§2.6-2.9: PARTIAL");
     print("  - nothing: PASS");
+    print("  - tag types: PASS");
     print("  - Option: PASS");
     print("  - Sugar T?: PASS");
     print("  - Erring/T!: MIR BUG");

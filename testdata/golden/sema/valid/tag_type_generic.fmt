@@ -1,0 +1,11 @@
+// Test: generic tag names can be used as types.
+
+tag Wrap<T>(T);
+type WrapUnion<T> = Wrap(T);
+
+fn test_tag_type() {
+    let x: Wrap<int> = Wrap(1);
+    let y: WrapUnion<int> = Wrap(2);
+    let _ = x;
+    let _ = y;
+}
