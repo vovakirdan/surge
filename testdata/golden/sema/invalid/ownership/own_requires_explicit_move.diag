@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/ownership/own_requires_explicit_move.sg:5:26 cannot assign string to own string

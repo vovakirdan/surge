@@ -55,8 +55,17 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 			return types.NoTypeID
 		}
 		return elem
-	case ast.ExprUnaryAwait, ast.ExprUnaryOwn:
+	case ast.ExprUnaryAwait:
 		return operandType
+	case ast.ExprUnaryOwn:
+		if operandType == types.NoTypeID || tc.types == nil {
+			return types.NoTypeID
+		}
+		resolved := tc.resolveAlias(operandType)
+		if tt, ok := tc.types.Lookup(resolved); ok && tt.Kind == types.KindOwn {
+			return operandType
+		}
+		return tc.types.Intern(types.MakeOwn(operandType))
 	default:
 		if magic := tc.magicResultForUnary(operandType, data.Op); magic != types.NoTypeID {
 			return magic

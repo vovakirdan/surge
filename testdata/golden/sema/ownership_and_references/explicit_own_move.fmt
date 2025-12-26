@@ -1,0 +1,20 @@
+// Explicit ownership moves and copy-only compatibility.
+
+fn main() {
+    let s: string = "hi";
+    let os: own string = own s;
+    let os2: own string = own "ok";
+
+    let n: int = 1;
+    let on: own int = n;
+    let n2: int = on;
+
+    let mut x: int = 1;
+    let r: &int = &x;
+    @drop r;
+    x = 2;
+
+    let mut y: int = 3;
+    let m: &mut int = &mut y;
+    *m = 4;
+}

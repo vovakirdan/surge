@@ -21,6 +21,22 @@ fn main() {
     // &mut T - exclusive mutable borrow
     let mut mutable_val: int = 5;
     let mut_ref: &mut int = &mut mutable_val;
+    *mut_ref = 6;
+
+    // Explicit ownership move for non-Copy
+    let s: string = "hello";
+    let os: own string = own s;
+
+    // Copy compatibility between T and own T
+    let c: int = 10;
+    let oc: own int = c;
+    let c2: int = oc;
+
+    // @drop ends borrow early
+    let mut z: int = 1;
+    let rz: &int = &z;
+    @drop rz;
+    z = 2;
 
     // Raw pointers (*T) are backend-only; not permitted in user code (v1/v2).
 

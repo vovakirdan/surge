@@ -1,0 +1,17 @@
+testdata/golden/sema/invalid/ownership/own_to_plain_noncopy.sg (span: 3:1-7:1)
+└─ Item[0]: Fn (span: 3:1-6:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:11-6:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:34)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: own string
+         │  └─ Value: expr#2: own "hi"
+         └─ Stmt[1]: Let (span: 5:5-5:23)
+            ├─ Name: t
+            ├─ Mutable: false
+            ├─ Type: string
+            └─ Value: expr#3: s

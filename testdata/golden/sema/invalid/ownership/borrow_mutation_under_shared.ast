@@ -1,0 +1,19 @@
+testdata/golden/sema/invalid/ownership/borrow_mutation_under_shared.sg (span: 3:1-8:1)
+└─ Item[0]: Fn (span: 3:1-7:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:11-7:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:24)
+         │  ├─ Name: x
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 1
+         ├─ Stmt[1]: Let (span: 5:5-5:22)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &int
+         │  └─ Value: expr#3: &x
+         └─ Stmt[2]: Expr (span: 6:5-6:11)
+            └─ Expr: expr#6: (x = 2)

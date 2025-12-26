@@ -1,0 +1,1 @@
+error SEM3020 testdata/golden/sema/invalid/ownership/move_borrowed_value.sg:6:26 cannot move 's' while it is shared-borrowed

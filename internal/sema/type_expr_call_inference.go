@@ -294,6 +294,9 @@ func (tc *typeChecker) matchArgument(expected, actual types.TypeID, isLiteral, a
 			}
 			return tc.conversionCost(actInfo.Elem, expInfo.Elem, isLiteral, allowImplicitTo)
 		}
+		if actInfo, okAct := tc.types.Lookup(actual); okAct && actInfo.Kind == types.KindOwn {
+			return tc.conversionCost(actInfo.Elem, expInfo.Elem, isLiteral, allowImplicitTo)
+		}
 		return tc.conversionCost(actual, expInfo.Elem, isLiteral, allowImplicitTo)
 	}
 	return tc.conversionCost(actual, expected, isLiteral, allowImplicitTo)
@@ -307,6 +310,18 @@ func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral, 
 	expected = tc.resolveAlias(expected)
 	if actual == expected {
 		return 0, true
+	}
+	if tc.types != nil {
+		expInfo, okExp := tc.types.Lookup(expected)
+		actInfo, okAct := tc.types.Lookup(actual)
+		if okExp && okAct {
+			if expInfo.Kind == types.KindOwn && actual == expInfo.Elem && tc.isCopyType(actual) {
+				return 1, true
+			}
+			if actInfo.Kind == types.KindOwn && expected == actInfo.Elem && tc.isCopyType(expected) {
+				return 1, true
+			}
+		}
 	}
 	if actInfo, okA := tc.types.FnInfo(actual); okA {
 		if expInfo, okE := tc.types.FnInfo(expected); okE {

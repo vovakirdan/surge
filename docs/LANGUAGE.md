@@ -110,6 +110,10 @@ The type checker currently recognises built-in `int`, `uint`, `float`, `bool`, `
 * `&mut T` – exclusive mutable borrow.
 * `*T` – raw pointer (backend-only; unmanaged, no ownership or lifetime guarantees).
 
+`own expr` is an explicit move: it produces a value of type `own T` from an expression of type `T`.
+For non-`Copy` types, `own` is required when assigning or passing into `own T` slots.
+For `Copy` types, `T` and `own T` are compatible without an explicit `own`.
+
 **Raw pointers (restricted):** `*T` exists syntactically but is reserved for backend/FFI use. In v1/v2, raw pointers are **not permitted in user code**; only `extern<...>` signatures and `@intrinsic` declarations may mention them. A future version may enable `*T` behind `unsafe {}` blocks (out of scope here).
 
 Borrowing rules:
@@ -121,6 +125,7 @@ Borrowing rules:
 **Moves & Copies:**
 
 * Primitive fixed-size types and `bool` are `Copy`; `string` and arrays are `own` by default (move). The compiler may optimize small-string copies, but semantics are move.
+* `T` and `own T` are distinct in the type system; implicit compatibility exists only for `Copy` types.
 * Assignment `x = y;` moves if `y` is `own` and `T` not `Copy`. Borrowing uses `&`/`&mut` operators: `let r: &T = &x;`, `let m: &mut T = &mut x;`.
 
 **Function parameters:**

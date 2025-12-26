@@ -214,7 +214,15 @@ func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg
 	substituted := substituteTypeKeyParams(expected, subst)
 	substitutedStr := string(substituted)
 
-	// For "own T" params, we accept both "own T" and "T" (value types can be moved)
+	argCopy := tc.isCopyType(arg)
+	argOwnNonCopy := false
+	if tc.types != nil {
+		if tt, ok := tc.types.Lookup(tc.resolveAlias(arg)); ok && tt.Kind == types.KindOwn && !argCopy {
+			argOwnNonCopy = true
+		}
+	}
+
+	// For "own T" params, we accept both "own T" and "T" only for Copy types.
 	innerExpected := substituted
 	if after, found := strings.CutPrefix(substitutedStr, "own "); found {
 		innerExpected = symbols.TypeKey(strings.TrimSpace(after))
@@ -222,11 +230,16 @@ func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg
 
 	for _, cand := range tc.typeKeyCandidates(arg) {
 		if typeKeyEqual(cand.key, substituted) {
+			if argOwnNonCopy && !strings.HasPrefix(substitutedStr, "own ") {
+				continue
+			}
 			return true
 		}
 		// Also check inner type for "own" params
 		if innerExpected != substituted && typeKeyEqual(cand.key, innerExpected) {
-			return true
+			if argCopy {
+				return true
+			}
 		}
 	}
 	return false
@@ -257,7 +270,11 @@ func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidate
 	// For non-reference/non-pointer types: if self matches candidate key, it's compatible
 	// This handles generics (Option<int> calling self: Option<T> via candidate Option<T>)
 	// and value types calling methods on their base candidate
-	if recvTT.Kind != types.KindReference && recvTT.Kind != types.KindPointer {
+	if recvTT.Kind == types.KindOwn {
+		if typeKeyEqual(selfKey, candidateKey) {
+			return tc.isCopyType(recvTT.Elem)
+		}
+	} else if recvTT.Kind != types.KindReference && recvTT.Kind != types.KindPointer {
 		if typeKeyEqual(selfKey, candidateKey) {
 			return true
 		}
@@ -290,7 +307,7 @@ func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidate
 	if recvTT.Kind == types.KindOwn {
 		innerRecv := tc.typeKeyForType(recvTT.Elem)
 		if typeKeyEqual(selfKey, innerRecv) {
-			return true // self: T, receiver: own T -> move
+			return tc.isCopyType(recvTT.Elem)
 		}
 		if strings.HasPrefix(selfStr, "&") {
 			innerSelf := strings.TrimPrefix(selfStr, "&mut ")

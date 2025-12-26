@@ -1,11 +1,11 @@
 // Ownership и borrowing
 fn test_ownership() -> int {
     // Owned values
-    let owned_string: own string = "Hello";
+    let owned_string: own string = own "Hello";
     let owned_number: own int = 42;
 
     // Move ownership
-    let moved_string: own string = owned_string;
+    let moved_string: own string = own owned_string;
     // owned_string больше недоступен
 
     // Borrowing - shared references
@@ -35,14 +35,14 @@ fn borrow_mutable(data: &mut int) {
 }
 
 fn test_function_parameters() -> int {
-    let owned_text: own string = "Test";
+    let owned_text: own string = own "Test";
     let mut number: int = 50;
 
     // Передача ownership
     let length: int = take_ownership(owned_text);
     // owned_text больше недоступен
 
-    let another_text: own string = "Another";
+    let another_text: own string = own "Another";
 
     // Передача borrow
     let length2: int = borrow_immutable(&another_text);

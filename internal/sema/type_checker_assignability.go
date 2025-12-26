@@ -32,6 +32,24 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 			return true
 		}
 	}
+	expectedResolved := expected
+	actualResolved := actual
+	if allowAlias {
+		expectedResolved = tc.resolveAlias(expected)
+		actualResolved = tc.resolveAlias(actual)
+	}
+	if tc.types != nil {
+		expInfo, okExp := tc.types.Lookup(expectedResolved)
+		actInfo, okAct := tc.types.Lookup(actualResolved)
+		if okExp && okAct {
+			if expInfo.Kind == types.KindOwn && actualResolved == expInfo.Elem && tc.isCopyType(expInfo.Elem) {
+				return true
+			}
+			if actInfo.Kind == types.KindOwn && expectedResolved == actInfo.Elem && tc.isCopyType(expectedResolved) {
+				return true
+			}
+		}
+	}
 
 	// Check if actual is a member of expected union type.
 	// This enables constructs like: let x: Option<int> = nothing

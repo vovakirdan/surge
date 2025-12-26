@@ -123,6 +123,9 @@ func (tc *typeChecker) resolvePlace(expr ast.ExprID) (placeDescriptor, bool) {
 		if !ok || unary == nil {
 			return placeDescriptor{}, false
 		}
+		if unary.Op == ast.ExprUnaryOwn {
+			return tc.resolvePlace(unary.Operand)
+		}
 		if unary.Op != ast.ExprUnaryDeref {
 			return placeDescriptor{}, false
 		}

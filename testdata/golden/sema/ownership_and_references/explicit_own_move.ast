@@ -1,0 +1,62 @@
+testdata/golden/sema/ownership_and_references/explicit_own_move.sg (span: 3:1-21:1)
+└─ Item[0]: Fn (span: 3:1-20:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:11-20:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:26)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#1: "hi"
+         ├─ Stmt[1]: Let (span: 5:5-5:32)
+         │  ├─ Name: os
+         │  ├─ Mutable: false
+         │  ├─ Type: own string
+         │  └─ Value: expr#3: own s
+         ├─ Stmt[2]: Let (span: 6:5-6:36)
+         │  ├─ Name: os2
+         │  ├─ Mutable: false
+         │  ├─ Type: own string
+         │  └─ Value: expr#5: own "ok"
+         ├─ Stmt[3]: Let (span: 8:5-8:20)
+         │  ├─ Name: n
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#6: 1
+         ├─ Stmt[4]: Let (span: 9:5-9:25)
+         │  ├─ Name: on
+         │  ├─ Mutable: false
+         │  ├─ Type: own int
+         │  └─ Value: expr#7: n
+         ├─ Stmt[5]: Let (span: 10:5-10:22)
+         │  ├─ Name: n2
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#8: on
+         ├─ Stmt[6]: Let (span: 12:5-12:24)
+         │  ├─ Name: x
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#9: 1
+         ├─ Stmt[7]: Let (span: 13:5-13:22)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &int
+         │  └─ Value: expr#11: &x
+         ├─ Stmt[8]: StmtKind(12) (span: 14:5-14:13)
+         ├─ Stmt[9]: Expr (span: 15:5-15:11)
+         │  └─ Expr: expr#15: (x = 2)
+         ├─ Stmt[10]: Let (span: 17:5-17:24)
+         │  ├─ Name: y
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#16: 3
+         ├─ Stmt[11]: Let (span: 18:5-18:30)
+         │  ├─ Name: m
+         │  ├─ Mutable: false
+         │  ├─ Type: &mut int
+         │  └─ Value: expr#18: &mut y
+         └─ Stmt[12]: Expr (span: 19:5-19:12)
+            └─ Expr: expr#22: (*m = 4)

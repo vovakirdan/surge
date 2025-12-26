@@ -5,11 +5,11 @@ fn test_basic_ownership() -> int {
     let stack_array: int[5] = [1, 2, 3, 4, 5];
 
     // Heap allocation с explicit ownership
-    let owned_string: own string = "Hello, World!";
-    let owned_vector: own int[] = [1, 2, 3, 4, 5];
+    let owned_string: own string = own "Hello, World!";
+    let owned_vector: own int[] = own [1, 2, 3, 4, 5];
 
     // Move semantics
-    let moved_string: own string = owned_string;
+    let moved_string: own string = own owned_string;
     // owned_string больше не доступен
 
     return stack_value + moved_string.len_chars();

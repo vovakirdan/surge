@@ -102,7 +102,7 @@ spawn expr
 * Ownership of captured values transfers to the task
 
 ```sg
-let url: own string = "https://api.example.com";
+let url: own string = own "https://api.example.com";
 let task: Task<Data> = spawn fetch(url);  // url moved into task
 // url is no longer valid here
 ```
@@ -308,7 +308,7 @@ close(ch: &channel<T>) -> nothing;                 // Signal no more values
 ```sg
 let ch = make_channel<string>(10);
 
-let msg: own string = "hello";
+let msg: own string = own "hello";
 send(&ch, msg);     // msg moved into channel
 // msg invalid here
 

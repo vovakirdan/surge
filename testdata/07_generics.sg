@@ -32,7 +32,7 @@ fn test_generics() -> int {
     let another_pair: string = pair<bool, float>(true, 2.5);
 
     // Generic с ownership
-    let owned_data: own string = "test";
+    let owned_data: own string = own "test";
     let moved_data: own string = identity<own string>(owned_data);
 
     return int_val + inferred_int;

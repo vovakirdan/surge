@@ -56,9 +56,9 @@ Categories:
 ### §2.3 Ownership & References
 | Feature | Status | Notes |
 |---------|--------|-------|
-| `own T` | ⚠️ PARTIAL | Sema works, distinct from `T` |
-| `&T` (shared borrow) | ⚠️ PARTIAL | Sema works |
-| `&mut T` | ⚠️ PARTIAL | Sema works |
+| `own T` | ✅ PASS | Distinct from `T`; non-Copy requires explicit `own expr`, Copy has compatibility |
+| `&T` (shared borrow) | ✅ PASS | Borrow rules + `@drop` verified |
+| `&mut T` | ✅ PASS | Exclusive borrow rules verified |
 | `*T` (raw pointer) | 🚫 RESTRICTED | Backend-only (`extern`/`@intrinsic`); rejected in user code (covered by sema raw-pointer tests) |
 | Method with `&self` | ✅ PASS | Fixed: VM derefs ref receiver |
 
@@ -294,7 +294,7 @@ Categories:
 1. ✅ fixed: **Enums (auto/int/string)** - implemented via `enum` declarations
 2. ✅ fixed: **Struct extension** - inherited fields work
 3. **String repeat `*`** - not implemented
-4. **Nested block comments** - spec says allowed, parser rejects
+4. ✅ fixed: **Nested block comments** - implemented in lexer
 
 ### 🟢 Low (Future features)
 1. ✅ fixed: **Fixed-width numerics** - sema+VM with checked arithmetic
@@ -307,7 +307,7 @@ Categories:
 ## Recommendations
 
 ### 📝 Spec Updates Needed
-1. **Nested block comments** - Either implement or update spec to say not supported
+1. ✅ fixed: **Nested block comments** - implemented in lexer
 2. **Default initialization** - Update spec to clarify variables require initialization
 3. **print() variadic** - Update spec if multi-arg is intentionally first-only
 
@@ -336,7 +336,7 @@ Categories:
 | `s01_lexical.sg` | §1 | ✅ PASS (except nested comments) |
 | `s02_types_primitives.sg` | §2.1 | ✅ PASS |
 | `s02_types_arrays.sg` | §2.2 | ⚠️ PARTIAL |
-| `s02_types_ownership.sg` | §2.3 | ⚠️ PARTIAL |
+| `s02_types_ownership.sg` | §2.3 | ✅ PASS |
 | `s02_types_generics.sg` | §2.4 | ⚠️ PARTIAL |
 | `s02_types_userdefined.sg` | §2.5 | ✅ PASS |
 | `s02_types_tags_option.sg` | §2.6-2.9 | ⚠️ PARTIAL |

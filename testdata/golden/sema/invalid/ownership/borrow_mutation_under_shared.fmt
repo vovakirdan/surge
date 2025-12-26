@@ -1,0 +1,7 @@
+// Cannot mutate while shared borrow is active.
+
+fn main() {
+    let mut x: int = 1;
+    let r: &int = &x;
+    x = 2;
+}
