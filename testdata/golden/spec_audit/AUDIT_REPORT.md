@@ -1,6 +1,6 @@
 # Surge Language Specification Audit Report
 
-**Date:** 2025-12-24
+**Date:** 2025-12-26
 **Spec Version:** Draft 7 (docs/LANGUAGE.md)
 **Test Location:** testdata/golden/spec_audit/
 
@@ -142,8 +142,8 @@ Categories:
 | Array indexing | ✅ PASS | |
 | Index assignment | ✅ PASS | |
 | String indexing | ✅ PASS | Returns code point |
-| Negative indices | ❌ NOT TESTED | |
-| Range slicing | ❌ NOT TESTED | |
+| Negative indices | ✅ PASS | Covered by `vm_arrays/arrays_negative_index.sg`, `vm_strings/strings_basic.sg` |
+| Range slicing | ✅ PASS | Covered by `vm_arrays/arrays_slice_view.sg`, `vm_strings/strings_basic.sg` |
 
 ### §3.6 Compare (Pattern Matching)
 | Feature | Status | Notes |
@@ -152,7 +152,7 @@ Categories:
 | Binding pattern | ✅ PASS | |
 | `Some(v)`/`nothing` | ✅ PASS | |
 | Int literal patterns | 🐛 VM BUG | `expected bigint, got int` |
-| Bool literal patterns | ❌ NOT TESTED | |
+| Bool literal patterns | ✅ PASS | Manual run OK (`surge run` minimal compare snippet) |
 
 **Test files:** `s03_*.sg`
 
@@ -165,7 +165,7 @@ Categories:
 |---------|--------|-------|
 | Basic functions | ✅ PASS | |
 | No return type (nothing) | ✅ PASS | |
-| Variadic `...args` | ❌ NOT TESTED | |
+| Variadic `...args` | 🐛 VM BUG | Sema accepts variadic signatures, but VM panics on extra args; `...args` still typed as element |
 
 ### §4.2 Attributes
 | Feature | Status | Notes |
@@ -227,9 +227,9 @@ Categories:
 |---------|--------|-------|
 | Numeric defaults | ✅ PASS | int, float |
 | String indexing | ✅ PASS | |
-| Range literals | ❌ NOT TESTED | |
-| String methods | ❌ NOT TESTED | |
-| Array methods | ❌ NOT TESTED | |
+| Range literals | ✅ PASS | Sema coverage in `sema/valid/range_literals.sg`; VM exercised via slicing |
+| String methods | ✅ PASS | Covered by `vm_strings/strings_std.sg`, `vm_strings/strings_rope_std.sg` |
+| Array methods | ✅ PASS | Covered by `vm_arrays/arrays_push_pop.sg`, `vm_arrays/arrays_view_pop_panics.sg` |
 
 **Test file:** `s07_literals.sg`
 
@@ -254,7 +254,7 @@ Categories:
 | `@backend` attribute | ✅ SEMA PASS | |
 | `spawn` expression | ✅ SEMA ONLY | VM not implemented |
 | `.await()` method | ✅ SEMA ONLY | VM not implemented |
-| Channels | ❌ NOT TESTED | VM not implemented |
+| Channels | ✅ SEMA PASS | Covered by `sema/valid/concurrency/channel_basic_ops.sg`; VM not implemented |
 | `parallel map/reduce` | ❌ v2+ FEATURE | |
 
 **Test file:** `s09_concurrency_sema.sg`
