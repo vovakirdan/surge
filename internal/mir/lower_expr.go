@@ -294,16 +294,24 @@ func (l *funcLowerer) lowerBinaryOpExpr(e *hir.Expr, consume bool) (Operand, err
 		return Operand{}, fmt.Errorf("mir: binary: unexpected payload %T", e.Data)
 	}
 	if data.Op == ast.ExprBinaryIs {
+		resultTy := e.Type
+		if resultTy == types.NoTypeID && l.types != nil {
+			resultTy = l.types.Builtins().Bool
+		}
 		if data.TypeRight == types.NoTypeID {
-			return Operand{}, fmt.Errorf("mir: is missing type operand")
+			return Operand{
+				Kind: OperandConst,
+				Type: resultTy,
+				Const: Const{
+					Kind:      ConstBool,
+					Type:      resultTy,
+					BoolValue: false,
+				},
+			}, nil
 		}
 		left, err := l.lowerExpr(data.Left, false)
 		if err != nil {
 			return Operand{}, err
-		}
-		resultTy := e.Type
-		if resultTy == types.NoTypeID && l.types != nil {
-			resultTy = l.types.Builtins().Bool
 		}
 		tmp := l.newTemp(resultTy, "is", e.Span)
 		l.emit(&Instr{
@@ -319,12 +327,20 @@ func (l *funcLowerer) lowerBinaryOpExpr(e *hir.Expr, consume bool) (Operand, err
 		return l.placeOperand(Place{Local: tmp}, resultTy, consume), nil
 	}
 	if data.Op == ast.ExprBinaryHeir {
-		if data.TypeLeft == types.NoTypeID || data.TypeRight == types.NoTypeID {
-			return Operand{}, fmt.Errorf("mir: heir missing type operands")
-		}
 		resultTy := e.Type
 		if resultTy == types.NoTypeID && l.types != nil {
 			resultTy = l.types.Builtins().Bool
+		}
+		if data.TypeLeft == types.NoTypeID || data.TypeRight == types.NoTypeID {
+			return Operand{
+				Kind: OperandConst,
+				Type: resultTy,
+				Const: Const{
+					Kind:      ConstBool,
+					Type:      resultTy,
+					BoolValue: false,
+				},
+			}, nil
 		}
 		tmp := l.newTemp(resultTy, "heir", e.Span)
 		l.emit(&Instr{
