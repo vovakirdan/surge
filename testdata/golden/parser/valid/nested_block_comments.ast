@@ -1,0 +1,17 @@
+testdata/golden/parser/valid/nested_block_comments.sg (span: 3:1-8:1)
+└─ Item[0]: Fn (span: 3:1-7:2)
+   ├─ Name: nested_block_comments
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:28-7:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:15)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#1: 1
+         └─ Stmt[1]: Let (span: 6:5-6:15)
+            ├─ Name: y
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#2: 2

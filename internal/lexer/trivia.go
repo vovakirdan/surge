@@ -9,7 +9,7 @@ import (
 // - ' ' и '\t' коалесцируются в один TriviaSpace
 // - последовательные '\n' коалесцируются в один TriviaNewline
 // - //... до \n -> TriviaLineComment
-// - /* ... */ -> TriviaBlockComment (если не закрыта — репорт и обрезаем на EOF)
+// - /* ... */ -> TriviaBlockComment (поддерживает вложенность; если не закрыта — репорт и обрезаем на EOF)
 // - /// ... до \n -> TriviaDocLine (ДИРЕКТИВЫ ПОКА НЕ РАЗБИРАЕМ)
 func (lx *Lexer) collectLeadingTrivia() {
 	lx.hold = lx.hold[:0]
@@ -89,23 +89,28 @@ func (lx *Lexer) scanCommentOrDocLineIntoHold() bool {
 		})
 		return true
 
-	case '*': // "/* ... */"
+	case '*': // "/* ... */" (with nesting)
 		lx.cursor.Bump()
-		closed := false
-		for !lx.cursor.EOF() {
-			if lx.cursor.Peek() == '*' {
-				lx.cursor.Bump()
-				if lx.cursor.Peek() == '/' {
+		depth := 1
+		for !lx.cursor.EOF() && depth > 0 {
+			if b0, b1, ok := lx.cursor.Peek2(); ok {
+				if b0 == '/' && b1 == '*' {
 					lx.cursor.Bump()
-					closed = true
-					break
+					lx.cursor.Bump()
+					depth++
+					continue
 				}
-				continue
+				if b0 == '*' && b1 == '/' {
+					lx.cursor.Bump()
+					lx.cursor.Bump()
+					depth--
+					continue
+				}
 			}
 			lx.cursor.Bump()
 		}
 		sp := lx.cursor.SpanFrom(start)
-		if !closed {
+		if depth > 0 {
 			lx.errLex(diag.LexUnterminatedBlockComment, sp, "unterminated block comment")
 		}
 		lx.hold = append(lx.hold, token.Trivia{

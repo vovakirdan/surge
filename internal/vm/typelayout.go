@@ -164,13 +164,23 @@ func skipStringOrComment(src []byte, i int) int {
 			return i
 		}
 		if i+1 < len(src) && src[i+1] == '*' {
-			// Block comment
+			// Block comment (with nesting)
 			i += 2
-			for i+1 < len(src) && !(src[i] == '*' && src[i+1] == '/') {
+			depth := 1
+			for i < len(src) && depth > 0 {
+				if i+1 < len(src) {
+					if src[i] == '/' && src[i+1] == '*' {
+						depth++
+						i += 2
+						continue
+					}
+					if src[i] == '*' && src[i+1] == '/' {
+						depth--
+						i += 2
+						continue
+					}
+				}
 				i++
-			}
-			if i+1 < len(src) {
-				i += 2
 			}
 			return i
 		}
@@ -295,11 +305,21 @@ func skipSpaceAndComments(src []byte, i int) int {
 			}
 			if i+1 < len(src) && src[i+1] == '*' {
 				i += 2
-				for i+1 < len(src) && !(src[i] == '*' && src[i+1] == '/') {
+				depth := 1
+				for i < len(src) && depth > 0 {
+					if i+1 < len(src) {
+						if src[i] == '/' && src[i+1] == '*' {
+							depth++
+							i += 2
+							continue
+						}
+						if src[i] == '*' && src[i+1] == '/' {
+							depth--
+							i += 2
+							continue
+						}
+					}
 					i++
-				}
-				if i+1 < len(src) {
-					i += 2
 				}
 				continue
 			}

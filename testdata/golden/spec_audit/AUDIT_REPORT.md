@@ -22,7 +22,7 @@ Categories:
 |---------|--------|-------|
 | Line comments `//` | ✅ PASS | |
 | Block comments `/* */` | ✅ PASS | |
-| Nested block comments | 📋 SPEC ISSUE | Spec says "nesting allowed" but `/* Nested /* block */ comment */` fails to parse |
+| Nested block comments | ✅ PASS | Fixed: nested block comments are treated as trivia |
 | Identifiers | ✅ PASS | |
 | Keywords | ✅ PASS | |
 | Integer literals | ✅ PASS | dec, hex, bin, underscores |
