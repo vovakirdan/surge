@@ -37,6 +37,10 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 		if tc.applyExpectedType(valueExpr, declared) {
 			actual = tc.result.ExprTypes[valueExpr]
 		} else {
+			if data, ok := tc.anonymousStructLiteral(valueExpr); ok && data != nil {
+				tc.report(diag.SemaTypeMismatch, tc.exprSpan(valueExpr),
+					"struct literal requires explicit type when assigning to %s", tc.typeLabel(declared))
+			}
 			return
 		}
 	}
@@ -369,4 +373,35 @@ func (tc *typeChecker) applyExpectedType(expr ast.ExprID, expected types.TypeID)
 		return true
 	}
 	return false
+}
+
+func (tc *typeChecker) anonymousStructLiteral(expr ast.ExprID) (*ast.ExprStructData, bool) {
+	if !expr.IsValid() || tc.builder == nil {
+		return nil, false
+	}
+	cur := expr
+	for cur.IsValid() {
+		node := tc.builder.Exprs.Get(cur)
+		if node == nil {
+			return nil, false
+		}
+		switch node.Kind {
+		case ast.ExprGroup:
+			group, ok := tc.builder.Exprs.Group(cur)
+			if !ok || group == nil {
+				return nil, false
+			}
+			cur = group.Inner
+			continue
+		case ast.ExprStruct:
+			data, ok := tc.builder.Exprs.Struct(cur)
+			if !ok || data == nil || data.Type.IsValid() {
+				return nil, false
+			}
+			return data, true
+		default:
+			return nil, false
+		}
+	}
+	return nil, false
 }

@@ -331,7 +331,7 @@ Categories:
 | `s02_types_ownership.sg` | §2.3 | ✅ PASS |
 | `s02_types_generics.sg` | §2.4 | ⚠️ PARTIAL |
 | `s02_types_userdefined.sg` | §2.5 | ✅ PASS |
-| `s02_types_tags_option.sg` | §2.6-2.9 | ⚠️ PARTIAL |
+| `s02_types_tags_option.sg` | §2.6-2.9 | ✅ PASS |
 | `s02_types_tuples.sg` | §2.10 | 🐛 VM BUG |
 | `s02_types_contracts.sg` | §2.12 | ✅ PASS |
 | `s03_expr_variables.sg` | §3.1 | ✅ PASS |
@@ -349,4 +349,4 @@ Categories:
 | `s08_overload.sg` | §8 | ✅ PASS |
 | `s09_concurrency_sema.sg` | §9 | ✅ SEMA PASS |
 | `s10_stdlib.sg` | §10 | ⚠️ PARTIAL |
-| `s11_error_handling.sg` | §11 | ⚠️ PARTIAL |
+| `s11_error_handling.sg` | §11 | ✅ PASS |

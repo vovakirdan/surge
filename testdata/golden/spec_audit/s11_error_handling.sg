@@ -17,6 +17,10 @@ fn maybe_value(has: bool) -> Option<int> {
     return nothing;
 }
 
+fn try_parse() -> int! {
+    return Success(42);
+}
+
 @entrypoint
 fn main() {
     // Test Success case
@@ -27,29 +31,40 @@ fn main() {
     };
     print("Erring success: " + v1);
 
-    // NOTE: Error case has MIR issues, tested in s02_types_tags_option.sg
+    // Test Error case
+    let r2: Erring<int, Error> = maybe_fail(false);
+    let v2: string = compare r2 {
+        Success(v) => "Success: " + v to string;
+        err => "Error: " + err.message;
+    };
+    print("Erring error: " + v2);
 
     // Test Option
     let o1: Option<int> = maybe_value(true);
-    let v2: string = compare o1 {
+    let v3: string = compare o1 {
         Some(v) => "Some: " + v to string;
         nothing => "None";
     };
-    print("Option some: " + v2);
+    print("Option some: " + v3);
 
     let o2: Option<int> = maybe_value(false);
-    let v3: string = compare o2 {
+    let v4: string = compare o2 {
         Some(v) => "Some: " + v to string;
         nothing => "None";
     };
-    print("Option none: " + v3);
+    print("Option none: " + v4);
 
-    // §11 T! sugar (has MIR issues)
-    // fn try_parse() -> int! { return Success(42); }
+    // §11 T! sugar
+    let r3: int! = try_parse();
+    let v5: string = compare r3 {
+        Success(v) => "Success: " + v to string;
+        err => "Error: " + err.message;
+    };
+    print("T! sugar: " + v5);
 
-    print("§11 Error Handling: PARTIAL");
+    print("§11 Error Handling: PASS");
     print("  - Erring Success: PASS");
-    print("  - Erring Error: MIR BUG (Error struct)");
+    print("  - Erring Error: PASS");
     print("  - Option: PASS");
-    print("  - T!/T? sugar: MIR BUG");
+    print("  - T!/T? sugar: PASS");
 }

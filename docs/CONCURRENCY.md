@@ -646,7 +646,7 @@ async fn with_timeout() -> Erring<Data, Error> {
     
     compare timeout(task, 5000).await() {
         Success(data) => return Success(data);
-        Timeout() => return { message: "Operation timed out", code: 408 };
+        Timeout() => return Error { message: "Operation timed out", code: 408 };
     }
 }
 ```

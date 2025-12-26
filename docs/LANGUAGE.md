@@ -271,6 +271,7 @@ Generic monomorphization and instantiation are described in §16.1.
 
   * Fields are immutable unless variable is `mut`. `@readonly` forbids writes even through `mut` bindings.
   * Struct literals may specify the type inline: `let p = Person { age: 25, name: "Alex" };`. The parser only treats `TypeName { ... }` as a typed literal when `TypeName` follows the CamelCase convention so that `while ready { ... }` still parses as a control-flow block.
+  * Struct literals without an inline type require an unambiguous expected struct type. For unions like `Erring<T, Error>`, write `Error { ... }` or add a binding annotation (e.g., `let e: Error = { ... };`).
   * When the type is known (either via `TypeName { ... }` or an explicit annotation on the binding), the short `{expr1, expr2}` form is allowed; expressions are matched to fields in declaration order. Wrap identifier expressions in parentheses (`{(ageVar), computeName()}`) when using positional literals so they are not mistaken for field names.
 * **Enums:** `enum Name = { ... }` for integer enums (auto or explicit) and `enum Name: string = { ... }` for string enums.
 
@@ -782,6 +783,7 @@ params := name:Type (, ...)* | ... (variadic)
 
 * Example: `fn add(a:int, b:int) -> int { return a + b; }`
 * Variadics: `fn log(...args) { ... }`
+* Nested function declarations inside blocks are not supported yet (FUT7006). Declare functions at module scope or inside `extern<T>` blocks.
 
 Variadics: `...args` denotes a variadic parameter and desugars to an array parameter (e.g., `args: T[]`). Overload resolution treats variadic candidates as matching variable arity with an added cost versus exact-arity matches.
 

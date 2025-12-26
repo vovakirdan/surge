@@ -1,0 +1,29 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "usage" at 2:4-2:9 (leading: Space)
+  3: LParen          "(" at 2:9-2:10
+  4: RParen          ")" at 2:10-2:11
+  5: LBrace          "{" at 2:12-2:13 (leading: Space)
+  6: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+  7: Ident           "result" at 3:9-3:15 (leading: Space)
+  8: Colon           ":" at 3:15-3:16
+  9: Ident           "Erring" at 3:17-3:23 (leading: Space)
+ 10: Lt              "<" at 3:23-3:24
+ 11: Ident           "int" at 3:24-3:27
+ 12: Comma           "," at 3:27-3:28
+ 13: Ident           "Error" at 3:29-3:34 (leading: Space)
+ 14: Gt              ">" at 3:34-3:35
+ 15: Assign          "=" at 3:36-3:37 (leading: Space)
+ 16: LBrace          "{" at 3:38-3:39 (leading: Space)
+ 17: Ident           "message" at 3:40-3:47 (leading: Space)
+ 18: Colon           ":" at 3:47-3:48
+ 19: StringLit       "\"boom\"" at 3:49-3:55 (leading: Space)
+ 20: Comma           "," at 3:55-3:56
+ 21: Ident           "code" at 3:57-3:61 (leading: Space)
+ 22: Colon           ":" at 3:61-3:62
+ 23: IntLit          "1" at 3:63-3:64 (leading: Space)
+ 24: Colon           ":" at 3:64-3:65
+ 25: Ident           "uint" at 3:65-3:69
+ 26: RBrace          "}" at 3:70-3:71 (leading: Space)
+ 27: Semicolon       ";" at 3:71-3:72
+ 28: RBrace          "}" at 4:1-4:2 (leading: Newline)
+ 29: EOF             at 5:1-5:1

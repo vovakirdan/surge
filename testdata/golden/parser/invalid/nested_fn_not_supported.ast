@@ -1,0 +1,9 @@
+testdata/golden/parser/invalid/nested_fn_not_supported.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:11-5:2)
+         └─ Stmt[0]: Expr (span: 4:5-4:17)
+            └─ Expr: expr#3: print("ok")

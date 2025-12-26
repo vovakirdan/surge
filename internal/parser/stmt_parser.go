@@ -211,6 +211,16 @@ func (p *Parser) parseStmt() (ast.StmtID, bool) {
 			nil,
 		)
 		return ast.NoStmtID, false
+	case token.KwFn:
+		fnTok := p.advance()
+		p.emitDiagnostic(
+			diag.FutNestedFnNotSupported,
+			diag.SevError,
+			fnTok.Span,
+			"nested function declarations are not supported yet",
+			nil,
+		)
+		return ast.NoStmtID, false
 	default:
 		return p.parseExprStmt()
 	}

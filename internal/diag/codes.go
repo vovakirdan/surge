@@ -48,6 +48,7 @@ const (
 	SynVisibilityReduction     Code = 2027
 	SynFatArrowOutsideParallel Code = 2028
 	SynPragmaPosition          Code = 2029
+	SynFnNotAllowed            Code = 2030
 
 	// import errors & warnings
 	SynInfoImportGroup    Code = 2100
@@ -257,6 +258,7 @@ const (
 	FutEntrypointModeEnv          Code = 7003 // @entrypoint("env") reserved for future
 	FutEntrypointModeConfig       Code = 7004 // @entrypoint("config") reserved for future
 	FutNullCoalescingNotSupported Code = 7005
+	FutNestedFnNotSupported       Code = 7006
 
 	// Alien hints (8000-series; optional extra diagnostics)
 	AlnRustImplTrait   Code = 8001
@@ -309,6 +311,7 @@ var ( // todo расширить описания и использовать к
 		SynVisibilityReduction:             "Visibility reduction is not allowed",
 		SynFatArrowOutsideParallel:         "Fat arrow is only allowed in parallel expressions or compare arms",
 		SynPragmaPosition:                  "Pragma must appear at the top of the file",
+		SynFnNotAllowed:                    "Function declaration is not allowed here",
 		SynExpectIdentifier:                "Expect identifier",
 		SynExpectModuleSeg:                 "Expect module segment",
 		SynExpectItemAfterDbl:              "Expect item after double colon",
@@ -471,6 +474,7 @@ var ( // todo расширить описания и использовать к
 		FutEntrypointModeEnv:               "@entrypoint(\"env\") mode is reserved for future use",
 		FutEntrypointModeConfig:            "@entrypoint(\"config\") mode is reserved for future use",
 		FutNullCoalescingNotSupported:      "null coalescing '??' is not supported in v1",
+		FutNestedFnNotSupported:            "nested function declarations are not supported yet",
 		AlnRustImplTrait:                   "alien hint: rust impl/trait",
 		AlnRustAttribute:                   "alien hint: rust attribute syntax",
 		AlnRustMacroCall:                   "alien hint: rust macro call",
