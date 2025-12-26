@@ -781,7 +781,7 @@ params := name:Type (, ...)* | ... (variadic)
 ```
 
 * Example: `fn add(a:int, b:int) -> int { return a + b; }`
-* Variadics: `fn print(...args) { ... }`
+* Variadics: `fn log(...args) { ... }`
 
 Variadics: `...args` denotes a variadic parameter and desugars to an array parameter (e.g., `args: T[]`). Overload resolution treats variadic candidates as matching variable arity with an added cost versus exact-arity matches.
 
@@ -1063,12 +1063,11 @@ Each file is a module. Folder hierarchy maps to module paths.
 * Indexing: `[]` → `__index __index_set`
 * Unary: `+x -x` → `__pos __neg`
 * Abs: `abs(x)` → `__abs`
-* Casting: `expr to Type` → `__to(self, Type)` magic method; `print` expects `string` arguments (use an explicit cast for non-strings).
+* Casting: `expr to Type` → `__to(self, Type)` magic method; `print` expects a single `string` argument (use an explicit cast for non-strings).
   * `expr: Type` is shorthand for `expr to Type`. It's especially handy for literal annotations such as `1:int8`.
 * Range: `for in` → `__range() -> Range<T>` where `Range<T>` yields `T` via `next()`.
 * Compound assignment: `+= -= *= /= %= &= |= ^= <<= >>=` → corresponding operation + assign.
 * Ternary: `condition ? true_expr : false_expr` → conditional expression.
-* Null coalescing: `optional ?? default` → returns default if optional is `nothing`.
 * Range creation: `start..end`, `start..=end` (binary operators) and range literals
   `[start..end]`, `[start..=end]`, `[start..]`, `[..end]`, `[..=end]`, `[..]`.
 * String operators: `string * count` → string repetition, `string + string` → concatenation.
@@ -1842,7 +1841,7 @@ async {
 
 ## 10. Standard Library Conventions
 
-* `print(...args)` – variadic, casts each argument to `string` via `expr to string`, concatenates with spaces, appends newline.
+* `print(value: string)` – prints a single string with newline.
 * Core protocols provided for primitives and arrays: `__to`, `__abs`, numeric ops, comparisons, `__range`, `__index`.
 * Types can `@override` their magic methods in `extern<T>` blocks; built-ins for **primitive** base types are sealed (cannot be overridden for the primitive itself).
 
@@ -2685,8 +2684,7 @@ From highest to lowest:
 9. `&&`
 10. `||`
 11. `? :` (ternary, right-associative)
-12. `??` (null coalescing)
-13. `=` `+=` `-=` `*=` `/=` `%=` `&=` `|=` `^=` `<<=` `>>=` (assignment, right-associative)
+12. `=` `+=` `-=` `*=` `/=` `%=` `&=` `|=` `^=` `<<=` `>>=` (assignment, right-associative)
 
 **Type checking precedence:**
 Type checking operators `is` and `heir` have the same precedence as equality operators. Use parentheses for complex expressions:

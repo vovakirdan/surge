@@ -1,0 +1,3 @@
+fn test() {
+    let value = nothing ?? nothing;
+}

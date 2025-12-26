@@ -1,0 +1,14 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "test" at 1:4-1:8 (leading: Space)
+  3: LParen          "(" at 1:8-1:9
+  4: RParen          ")" at 1:9-1:10
+  5: LBrace          "{" at 1:11-1:12 (leading: Space)
+  6: KwLet           "let" at 2:5-2:8 (leading: Newline, Space)
+  7: Ident           "value" at 2:9-2:14 (leading: Space)
+  8: Assign          "=" at 2:15-2:16 (leading: Space)
+  9: NothingLit      "nothing" at 2:17-2:24 (leading: Space)
+ 10: Kind(79)        "??" at 2:25-2:27 (leading: Space)
+ 11: NothingLit      "nothing" at 2:28-2:35 (leading: Space)
+ 12: Semicolon       ";" at 2:35-2:36
+ 13: RBrace          "}" at 3:1-3:2 (leading: Newline)
+ 14: EOF             at 4:1-4:1

@@ -68,6 +68,15 @@ func (p *Parser) parseBinaryExpr(minPrec int) (ast.ExprID, bool) {
 
 		// Съедаем оператор
 		opTok := p.advance()
+		if opTok.Kind == token.QuestionQuestion {
+			p.emitDiagnostic(
+				diag.FutNullCoalescingNotSupported,
+				diag.SevError,
+				opTok.Span,
+				"null coalescing '??' is not supported in the language",
+				nil,
+			)
+		}
 
 		// Вычисляем приоритет для правой части
 		nextMinPrec := prec + 1

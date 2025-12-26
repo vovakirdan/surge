@@ -62,7 +62,6 @@ func TestBinaryOperators(t *testing.T) {
 		{"xor_assign", "let x = a ^= b;"},
 		{"shl_assign", "let x = a <<= b;"},
 		{"shr_assign", "let x = a >>= b;"},
-		{"null_coalescing", "let x = a ?? b;"},
 		{"range", "let x = a..b;"},
 		{"range_inclusive", "let x = a..=b;"},
 		{"type_check", "let x = a is int;"},
@@ -523,6 +522,21 @@ func TestAwaitPostfixErrors(t *testing.T) {
 	})
 }
 
+func TestNullCoalescingNotSupported(t *testing.T) {
+	_, _, bag := parseSource(t, "let x = a ?? b;")
+	if !bag.HasErrors() {
+		t.Fatal("expected diagnostics, got none")
+	}
+
+	for _, d := range bag.Items() {
+		if d.Code == diag.FutNullCoalescingNotSupported {
+			return
+		}
+	}
+
+	t.Fatalf("expected FutNullCoalescingNotSupported diagnostic, got %s", diagnosticsSummary(bag))
+}
+
 // Helper function для парсинга выражений в тестах
 func parseExprTestInput(t *testing.T, input string) (*ast.LetItem, *ast.Builder) {
 	t.Helper()
@@ -676,11 +690,6 @@ func TestBinaryOperators_Precedence(t *testing.T) {
 			name:  "assignment_right_associative",
 			input: "let x = a = b = c;",
 			desc:  "assignment is right-associative",
-		},
-		{
-			name:  "null_coalescing",
-			input: "let x = a ?? b ?? c;",
-			desc:  "null coalescing operator",
 		},
 		{
 			name:  "range_operators",
@@ -895,10 +904,6 @@ func TestComplexExpressions_pt2(t *testing.T) {
 		{
 			name:  "assignment_in_expression",
 			input: "let x = a = b + c * d;",
-		},
-		{
-			name:  "null_coalescing_chain",
-			input: "let x = a ?? b ?? c ?? d;",
 		},
 		{
 			name:  "range_with_arithmetic",
@@ -1176,7 +1181,6 @@ func TestBooleanAndNothingLiterals(t *testing.T) {
 		{"false_literal", "let x = false;"},
 		{"nothing_literal", "let x = nothing;"},
 		{"bool_in_expression", "let x = true && false;"},
-		{"nothing_with_null_coalescing", "let x = nothing ?? value;"},
 	}
 
 	for _, tt := range tests {

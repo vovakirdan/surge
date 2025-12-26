@@ -44,11 +44,6 @@ fn main() {
     let result: int = cond ? 1 : 0;
     print("true ? 1 : 0 = " + result to string);
 
-    // §6.1 Null coalescing - VM NOT IMPLEMENTED
-    // let maybe: Option<int> = nothing;
-    // let value: int = maybe ?? 42;
-    // print("nothing ?? 42 = " + value to string);
-
     // §6.1 String operators
     let s1: string = "hello";
     let s2: string = "world";
@@ -78,7 +73,6 @@ fn main() {
     print("  - Ternary: PASS");
     print("  - String concat: PASS");
     print("  - Cast (to): PASS");
-    print("  - Null coalescing (??): VM NOT IMPLEMENTED");
     print("  - is operator: PASS");
     print("  - string * count: NOT IMPLEMENTED");
 }

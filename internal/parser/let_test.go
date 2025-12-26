@@ -246,7 +246,6 @@ func TestParseLetItem_ComplexValues(t *testing.T) {
 		{"dereference", "let x = *ptr;"},
 		{"boolean_expression", "let x = a && b || c;"},
 		{"comparison", "let x = a < b;"},
-		{"null_coalescing", "let x = a ?? b;"},
 		{"range", "let x = 0..10;"},
 		{"parenthesized", "let x = (a + b) * c;"},
 	}
@@ -313,6 +312,12 @@ func TestParseLetItem_Errors(t *testing.T) {
 			input:         "let x = ;",
 			wantErrorCode: diag.SynExpectExpression,
 			description:   "expected expression after '='",
+		},
+		{
+			name:          "null coalescing not supported",
+			input:         "let x = a ?? b;",
+			wantErrorCode: diag.FutNullCoalescingNotSupported,
+			description:   "null coalescing is not supported",
 		},
 	}
 
