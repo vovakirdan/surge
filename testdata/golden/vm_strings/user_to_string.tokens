@@ -1,0 +1,81 @@
+  1: KwType          "type" at 3:1-3:5 (leading: LineComment, Newline)
+  2: Ident           "Point" at 3:6-3:11 (leading: Space)
+  3: Assign          "=" at 3:12-3:13 (leading: Space)
+  4: LBrace          "{" at 3:14-3:15 (leading: Space)
+  5: Ident           "x" at 4:5-4:6 (leading: Newline, Space)
+  6: Colon           ":" at 4:6-4:7
+  7: Ident           "int" at 4:8-4:11 (leading: Space)
+  8: Comma           "," at 4:11-4:12
+  9: Ident           "y" at 5:5-5:6 (leading: Newline, Space)
+ 10: Colon           ":" at 5:6-5:7
+ 11: Ident           "int" at 5:8-5:11 (leading: Space)
+ 12: Comma           "," at 5:11-5:12
+ 13: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 14: KwExtern        "extern" at 8:1-8:7 (leading: Newline)
+ 15: Lt              "<" at 8:7-8:8
+ 16: Ident           "Point" at 8:8-8:13
+ 17: Gt              ">" at 8:13-8:14
+ 18: LBrace          "{" at 8:15-8:16 (leading: Space)
+ 19: KwFn            "fn" at 9:5-9:7 (leading: Newline, Space)
+ 20: Ident           "__to" at 9:8-9:12 (leading: Space)
+ 21: LParen          "(" at 9:12-9:13
+ 22: Ident           "self" at 9:13-9:17
+ 23: Colon           ":" at 9:17-9:18
+ 24: Ident           "Point" at 9:19-9:24 (leading: Space)
+ 25: Comma           "," at 9:24-9:25
+ 26: Underscore      "_" at 9:26-9:27 (leading: Space)
+ 27: Colon           ":" at 9:27-9:28
+ 28: Ident           "string" at 9:29-9:35 (leading: Space)
+ 29: RParen          ")" at 9:35-9:36
+ 30: Arrow           "->" at 9:37-9:39 (leading: Space)
+ 31: Ident           "string" at 9:40-9:46 (leading: Space)
+ 32: LBrace          "{" at 9:47-9:48 (leading: Space)
+ 33: KwReturn        "return" at 10:9-10:15 (leading: Newline, Space)
+ 34: StringLit       "\"Point(\"" at 10:16-10:24 (leading: Space)
+ 35: Plus            "+" at 10:25-10:26 (leading: Space)
+ 36: Ident           "self" at 10:27-10:31 (leading: Space)
+ 37: Dot             "." at 10:31-10:32
+ 38: Ident           "x" at 10:32-10:33
+ 39: KwTo            "to" at 10:34-10:36 (leading: Space)
+ 40: Ident           "string" at 10:37-10:43 (leading: Space)
+ 41: Plus            "+" at 10:44-10:45 (leading: Space)
+ 42: StringLit       "\", \"" at 10:46-10:50 (leading: Space)
+ 43: Plus            "+" at 10:51-10:52 (leading: Space)
+ 44: Ident           "self" at 10:53-10:57 (leading: Space)
+ 45: Dot             "." at 10:57-10:58
+ 46: Ident           "y" at 10:58-10:59
+ 47: KwTo            "to" at 10:60-10:62 (leading: Space)
+ 48: Ident           "string" at 10:63-10:69 (leading: Space)
+ 49: Plus            "+" at 10:70-10:71 (leading: Space)
+ 50: StringLit       "\")\"" at 10:72-10:75 (leading: Space)
+ 51: Semicolon       ";" at 10:75-10:76
+ 52: RBrace          "}" at 11:5-11:6 (leading: Newline, Space)
+ 53: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 54: At              "@" at 14:1-14:2 (leading: Newline)
+ 55: Ident           "entrypoint" at 14:2-14:12
+ 56: KwFn            "fn" at 15:1-15:3 (leading: Newline)
+ 57: Ident           "main" at 15:4-15:8 (leading: Space)
+ 58: LParen          "(" at 15:8-15:9
+ 59: RParen          ")" at 15:9-15:10
+ 60: LBrace          "{" at 15:11-15:12 (leading: Space)
+ 61: KwLet           "let" at 16:5-16:8 (leading: Newline, Space)
+ 62: Ident           "p" at 16:9-16:10 (leading: Space)
+ 63: Colon           ":" at 16:10-16:11
+ 64: Ident           "Point" at 16:12-16:17 (leading: Space)
+ 65: Assign          "=" at 16:18-16:19 (leading: Space)
+ 66: Ident           "Point" at 16:20-16:25 (leading: Space)
+ 67: LBrace          "{" at 16:26-16:27 (leading: Space)
+ 68: IntLit          "1" at 16:28-16:29 (leading: Space)
+ 69: Comma           "," at 16:29-16:30
+ 70: IntLit          "2" at 16:31-16:32 (leading: Space)
+ 71: RBrace          "}" at 16:33-16:34 (leading: Space)
+ 72: Semicolon       ";" at 16:34-16:35
+ 73: Ident           "print" at 17:5-17:10 (leading: Newline, Space)
+ 74: LParen          "(" at 17:10-17:11
+ 75: Ident           "p" at 17:11-17:12
+ 76: KwTo            "to" at 17:13-17:15 (leading: Space)
+ 77: Ident           "string" at 17:16-17:22 (leading: Space)
+ 78: RParen          ")" at 17:22-17:23
+ 79: Semicolon       ";" at 17:23-17:24
+ 80: RBrace          "}" at 18:1-18:2 (leading: Newline)
+ 81: EOF             at 19:1-19:1

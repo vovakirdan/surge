@@ -289,6 +289,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			if numeric := tc.numericCastResult(sourceType, targetType); numeric != types.NoTypeID {
 				ty = numeric
 			} else if magic := tc.magicResultForCast(sourceType, targetType); magic != types.NoTypeID {
+				tc.recordToSymbol(id, sourceType, targetType)
 				ty = magic
 			} else if cast.Type.IsValid() && tc.literalCoercible(targetType, sourceType) && tc.isLiteralExpr(cast.Value) {
 				ty = targetType

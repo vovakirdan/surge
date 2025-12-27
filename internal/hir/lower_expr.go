@@ -23,15 +23,11 @@ func (l *lowerer) lowerExpr(exprID ast.ExprID) *Expr {
 			case sema.ImplicitConversionSuccess:
 				result = l.wrapInSuccess(result, conv.Target)
 			case sema.ImplicitConversionTo:
-				result = &Expr{
-					Kind: ExprCast,
-					Type: conv.Target,
-					Span: result.Span,
-					Data: CastData{
-						Value:    result,
-						TargetTy: conv.Target,
-					},
+				var symID symbols.SymbolID
+				if l.semaRes != nil && l.semaRes.ToSymbols != nil {
+					symID = l.semaRes.ToSymbols[exprID]
 				}
+				result = l.toCallExpr(result.Span, result, conv.Target, symID)
 			}
 		}
 	}
@@ -111,7 +107,7 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 		return l.lowerAsyncExpr(expr, ty)
 
 	case ast.ExprCast:
-		return l.lowerCastExpr(expr, ty)
+		return l.lowerCastExpr(exprID, expr, ty)
 
 	case ast.ExprBlock:
 		return l.lowerBlockExpr(expr, ty)
@@ -686,13 +682,18 @@ func (l *lowerer) lowerAsyncExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 }
 
 // lowerCastExpr lowers a cast expression.
-func (l *lowerer) lowerCastExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+func (l *lowerer) lowerCastExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	castData := l.builder.Exprs.Casts.Get(uint32(expr.Payload))
 	if castData == nil {
 		return nil
 	}
 
 	targetTy := l.lookupTypeFromAST(castData.Type)
+	if l.semaRes != nil && l.semaRes.ToSymbols != nil {
+		if symID, ok := l.semaRes.ToSymbols[exprID]; ok {
+			return l.toCallExpr(expr.Span, l.lowerExpr(castData.Value), ty, symID)
+		}
+	}
 
 	return &Expr{
 		Kind: ExprCast,

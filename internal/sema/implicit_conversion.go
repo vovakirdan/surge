@@ -173,12 +173,37 @@ func (tc *typeChecker) recordImplicitConversionWithKind(expr ast.ExprID, src, ta
 		Target: target,
 		Span:   tc.exprSpan(expr),
 	}
+	if kind == ImplicitConversionTo {
+		tc.recordToSymbol(expr, src, target)
+	}
 
 	// For tag injection (Some/Success), we need to register the instantiation
 	// so that mono knows about this tag constructor call.
 	if kind == ImplicitConversionSome || kind == ImplicitConversionSuccess {
 		tc.recordTagInstantiationForInjection(kind, src, tc.exprSpan(expr))
 	}
+}
+
+func (tc *typeChecker) recordToSymbol(expr ast.ExprID, src, target types.TypeID) {
+	if !expr.IsValid() || tc.result == nil {
+		return
+	}
+	if tc.result.ToSymbols == nil {
+		tc.result.ToSymbols = make(map[ast.ExprID]symbols.SymbolID)
+	}
+	tc.result.ToSymbols[expr] = tc.resolveToSymbol(src, target)
+}
+
+func (tc *typeChecker) resolveToSymbol(src, target types.TypeID) symbols.SymbolID {
+	if tc == nil || tc.builder == nil || tc.builder.StringsInterner == nil {
+		return symbols.NoSymbolID
+	}
+	if src == types.NoTypeID || target == types.NoTypeID {
+		return symbols.NoSymbolID
+	}
+	nameID := tc.builder.StringsInterner.Intern("__to")
+	member := &ast.ExprMemberData{Field: nameID}
+	return tc.resolveMethodCallSymbol(member, src, []types.TypeID{target}, false)
 }
 
 // recordTagInstantiationForInjection registers a tag instantiation for implicit tag injection.

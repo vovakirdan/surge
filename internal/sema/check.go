@@ -45,6 +45,7 @@ type Result struct {
 	CopyTypes              map[types.TypeID]struct{}
 	FunctionInstantiations map[symbols.SymbolID][][]types.TypeID
 	ImplicitConversions    map[ast.ExprID]ImplicitConversion // Tracks implicit __to calls
+	ToSymbols              map[ast.ExprID]symbols.SymbolID   // Resolved __to symbols for casts/conversions
 	BindingTypes           map[symbols.SymbolID]types.TypeID // Maps symbol IDs to their resolved types
 	ItemScopes             map[ast.ItemID]symbols.ScopeID    // Maps items to their scopes (for HIR lowering)
 }
@@ -59,6 +60,7 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 		ExprBorrows:            make(map[ast.ExprID]BorrowID),
 		FunctionInstantiations: make(map[symbols.SymbolID][][]types.TypeID),
 		ImplicitConversions:    make(map[ast.ExprID]ImplicitConversion),
+		ToSymbols:              make(map[ast.ExprID]symbols.SymbolID),
 	}
 	if opts.Types != nil {
 		res.TypeInterner = opts.Types

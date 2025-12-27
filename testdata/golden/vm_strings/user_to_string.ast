@@ -1,0 +1,31 @@
+user_to_string.sg (span: 3:1-19:1)
+├─ Item[0]: Type (span: 3:1-6:2)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+├─ Item[1]: Extern (span: 8:1-12:2)
+│  ├─ Target: Point
+│  ├─ Members:
+│  │  └─ Fn[0]: __to
+│  │     ├─ Params: (self: Point, _: string)
+│  │     ├─ Return: string
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 9:47-11:6)
+│  │        └─ Stmt[0]: Return (span: 10:9-10:76)
+│  │           └─ Expr: expr#13: ((((((("Point(" + (self.x to string))) + ", ")) + (self.y to string))) + ")")
+└─ Item[2]: Fn (span: 14:1-18:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 15:11-18:2)
+         ├─ Stmt[0]: Let (span: 16:5-16:35)
+         │  ├─ Name: p
+         │  ├─ Mutable: false
+         │  ├─ Type: Point
+         │  └─ Value: expr#16: <ExprKind(18)>
+         └─ Stmt[1]: Expr (span: 17:5-17:24)
+            └─ Expr: expr#20: print(p to string)

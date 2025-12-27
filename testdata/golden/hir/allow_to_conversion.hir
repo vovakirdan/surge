@@ -14,6 +14,6 @@ fn takes_string(s: string) -> int (id=2, sym=1136) {
 
 fn test_allow_to() -> int (id=3, sym=1137) {
   let f: type#1165 =  { value = 1 }: type#1165
-  return takes_string(f to string): int
+  return takes_string(__to(f)): int
 }
 
