@@ -100,6 +100,10 @@ The type checker currently recognises built-in `int`, `uint`, `float`, `bool`, `
 
 `T[]` is a growable, indexable sequence of `T` with zero-based indexing. Fixed-length arrays use `T[N]` where `N` is a constant integer literal; sema rejects non-constant lengths.
 
+Type binding: postfix `[]`/`[N]` binds tighter than prefix `&/own/*`.
+So `&T[]` means `&(T[])` (reference to array), while `(&T)[]` means an array of references.
+You can also be explicit: `Array<&T>` and `&Array<T>` are both allowed.
+
 * Indexing calls magic methods: `__index(i:int) -> T` and `__index_set(i:int, v:T) -> nothing`.
 * Iterable if `extern<T[]> { __range() -> Range<T> }` is provided (stdlib provides this for arrays).
 
@@ -788,6 +792,7 @@ params := name:Type (, ...)* | ... (variadic)
 Variadics:
 * `...args: T` is allowed only as the last parameter.
 * It desugars to `args: T[]` (owning). For borrowed arrays, write `args: &T[]` explicitly.
+* `...args: &T` desugars to an array of references: `args: (&T)[]`.
 * At call sites, trailing arguments are packed into a `T[]`.
 * Overload resolution treats variadic candidates as matching variable arity with an added cost versus exact-arity matches.
 
