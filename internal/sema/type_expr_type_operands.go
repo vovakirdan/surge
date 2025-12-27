@@ -56,6 +56,9 @@ func (tc *typeChecker) resolveTypeOperand(exprID ast.ExprID, opLabel string) (ty
 					return sym.Type, true
 				}
 			}
+			if param := tc.lookupTypeParam(ident.Name); param != types.NoTypeID {
+				return param, true
+			}
 			if literal := tc.lookupName(ident.Name); literal != "" {
 				if builtin := tc.builtinTypeByName(literal); builtin != types.NoTypeID {
 					return builtin, true
