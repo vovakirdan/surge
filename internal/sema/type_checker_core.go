@@ -191,6 +191,7 @@ func (tc *typeChecker) run() {
 	tc.taskTracker = NewTaskTracker()
 	tc.arrayViewExprs = make(map[ast.ExprID]struct{})
 	tc.arrayViewBindings = make(map[symbols.SymbolID]struct{})
+	tc.movedBindings = make(map[symbols.SymbolID]source.Span)
 
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {

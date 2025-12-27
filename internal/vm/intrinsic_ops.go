@@ -153,19 +153,33 @@ func (vm *VM) handleCloneValue(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	if vmErr != nil {
 		return vmErr
 	}
+	ownsArg := arg.IsHeap()
+	defer func() {
+		if ownsArg {
+			vm.dropValue(arg)
+		}
+	}()
+	replaceArg := func(next Value, nextOwned bool) {
+		if ownsArg {
+			vm.dropValue(arg)
+		}
+		arg = next
+		ownsArg = nextOwned && arg.IsHeap()
+	}
 	if arg.Kind == VKRef || arg.Kind == VKRefMut {
 		v, loadErr := vm.loadLocationRaw(arg.Loc)
 		if loadErr != nil {
 			return loadErr
 		}
-		arg = v
+		replaceArg(v, false)
 	}
 	if arg.IsHeap() {
 		var cloneErr *VMError
-		arg, cloneErr = vm.cloneForShare(arg)
+		clone, cloneErr := vm.cloneForShare(arg)
 		if cloneErr != nil {
 			return cloneErr
 		}
+		replaceArg(clone, true)
 	}
 	dstLocal := call.Dst.Local
 	dstType := frame.Locals[dstLocal].TypeID
@@ -178,6 +192,7 @@ func (vm *VM) handleCloneValue(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	if vmErr := vm.writeLocal(frame, dstLocal, arg); vmErr != nil {
 		return vmErr
 	}
+	ownsArg = false
 	*writes = append(*writes, LocalWrite{
 		LocalID: dstLocal,
 		Name:    frame.Locals[dstLocal].Name,
