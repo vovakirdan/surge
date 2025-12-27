@@ -235,9 +235,6 @@ func (b *surgeStartBuilder) emitGlobalInits() error {
 
 	for i := range b.mm.Source.Globals {
 		decl := &b.mm.Source.Globals[i]
-		if decl == nil {
-			continue
-		}
 		if !decl.SymbolID.IsValid() {
 			if decl.Value != nil {
 				if _, err := fl.lowerExpr(decl.Value, false); err != nil {

@@ -336,22 +336,26 @@ func buildConstMap(src *hir.Module) map[symbols.SymbolID]*hir.ConstDecl {
 	return out
 }
 
-func buildGlobalMap(src *hir.Module) ([]Global, map[symbols.SymbolID]GlobalID) {
+func buildGlobalMap(src *hir.Module) (out []Global, symToGlobal map[symbols.SymbolID]GlobalID) {
 	if src == nil || len(src.Globals) == 0 {
 		return nil, nil
 	}
-	out := make([]Global, 0, len(src.Globals))
-	symToGlobal := make(map[symbols.SymbolID]GlobalID, len(src.Globals))
+	out = make([]Global, 0, len(src.Globals))
+	symToGlobal = make(map[symbols.SymbolID]GlobalID, len(src.Globals))
 	for i := range src.Globals {
 		decl := &src.Globals[i]
-		if decl == nil || !decl.SymbolID.IsValid() {
+		if !decl.SymbolID.IsValid() {
 			continue
 		}
 		ty := decl.Type
 		if ty == types.NoTypeID && decl.Value != nil {
 			ty = decl.Value.Type
 		}
-		id := GlobalID(len(out))
+		lenOut, err := safecast.Conv[int32](len(out))
+		if err != nil {
+			panic(fmt.Errorf("mir: global id overflow: %w", err))
+		}
+		id := GlobalID(lenOut)
 		out = append(out, Global{
 			Sym:   decl.SymbolID,
 			Type:  ty,
