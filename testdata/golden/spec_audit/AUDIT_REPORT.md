@@ -132,7 +132,7 @@ Categories:
 | `if`/`else` | ✅ PASS | |
 | `while` | ✅ PASS | |
 | C-style `for` | ✅ PASS | |
-| `for...in` | 🐛 VM BUG | `unimplemented: rvalue kind 11` |
+| `for...in` | ✅ PASS | |
 | `break`/`continue` | ✅ PASS | |
 | `return` | ✅ PASS | |
 
@@ -281,9 +281,8 @@ Categories:
 2. **VM `unsupported intrinsic`** - blocks module imports at runtime
 
 ### 🟠 High (Common features broken)
-1. **for...in loop** - VM not implemented
-2. **Tuples** - VM not implemented
-3. **compare int literal patterns** - VM bug
+1. **Tuples** - VM not implemented
+2. **compare int literal patterns** - VM bug
 
 ### 🟡 Medium (Spec features missing)
 1. ✅ fixed: **Enums (auto/int/string)** - implemented via `enum` declarations
@@ -308,16 +307,14 @@ Categories:
 ### 🔧 Implementation Fixes Needed
 1. **VM reference handling** - ✅ fixed for `&self` methods
 2. **VM module linking** - Imported functions marked as unsupported intrinsic
-3. **VM for-in loop** - rvalue kind 11 not implemented
-4. **VM tuples** - rvalue kind 6 not implemented
-5. **compare literal patterns** - bigint/int type mismatch
+3. **VM tuples** - rvalue kind 6 not implemented
+4. **compare literal patterns** - bigint/int type mismatch
 
 ### 🚀 Features to Implement (Priority Order)
-1. For-in loops (VM)
-2. Tuples (VM)
-3. ✅ fixed: Enums (auto/int/string)
-4. ✅ fixed: Struct extension
-5. ✅ fixed: `&self` method calls (VM)
+1. Tuples (VM)
+2. ✅ fixed: Enums (auto/int/string)
+3. ✅ fixed: Struct extension
+4. ✅ fixed: `&self` method calls (VM)
 
 ---
 
@@ -336,7 +333,7 @@ Categories:
 | `s02_types_contracts.sg` | §2.12 | ✅ PASS |
 | `s03_expr_variables.sg` | §3.1 | ✅ PASS |
 | `s03_control_flow.sg` | §3.2 | ✅ PASS |
-| `s03_for_in.sg` | §3.2 | 🐛 VM BUG |
+| `s03_for_in.sg` | §3.2 | ✅ PASS |
 | `s03_indexing.sg` | §3.4 | ✅ PASS |
 | `s03_compare.sg` | §3.6 | ⚠️ PARTIAL |
 | `s04_functions.sg` | §4.1 | ✅ PASS |

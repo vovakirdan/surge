@@ -90,6 +90,10 @@ func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
 
 	case mir.RValueTagPayload:
 		return vm.evalTagPayload(frame, &rv.TagPayload)
+	case mir.RValueIterInit:
+		return vm.evalIterInit(frame, &rv.IterInit)
+	case mir.RValueIterNext:
+		return vm.evalIterNext(frame, &rv.IterNext)
 	case mir.RValueTypeTest:
 		return vm.evalTypeTest(frame, &rv.TypeTest)
 	case mir.RValueHeirTest:

@@ -1,0 +1,27 @@
+fn write_str(s: string) -> nothing {
+    let ptr = rt_string_ptr(&s);
+    let slen = rt_string_len_bytes(&s);
+    rt_write_stdout(ptr, slen);
+}
+
+fn write_line(s: string) -> nothing {
+    write_str(s);
+    let nl = "\n";
+    rt_write_stdout(rt_string_ptr(&nl), 1:uint);
+}
+
+fn print_int(n: int) -> nothing {
+    write_line(n to string);
+}
+
+@entrypoint
+fn main() -> int {
+    let arr: int[] = [1, 2, 3];
+    let mut sum: int = 0;
+    for item in arr {
+        print_int(item);
+        sum = sum + item;
+    }
+    print_int(sum);
+    return 0;
+}

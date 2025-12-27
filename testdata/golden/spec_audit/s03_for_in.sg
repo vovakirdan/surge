@@ -14,5 +14,5 @@ fn main() {
         print("for-in typed: " + item to string);
     }
 
-    print("§3.2 For-in: SEMA PASS, VM NOT IMPLEMENTED");
+    print("§3.2 For-in: PASS");
 }
