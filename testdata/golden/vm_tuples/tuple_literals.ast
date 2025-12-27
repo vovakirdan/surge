@@ -1,0 +1,47 @@
+tuple_literals.sg (span: 3:1-20:1)
+└─ Item[0]: Fn (span: 3:1-19:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:11-19:2)
+         ├─ Stmt[0]: Let (span: 5:5-5:44)
+         │  ├─ Name: pair
+         │  ├─ Mutable: false
+         │  ├─ Type: (int, string)
+         │  └─ Value: expr#3: (1, "hello")
+         ├─ Stmt[1]: Expr (span: 6:5-6:41)
+         │  └─ Expr: expr#10: print(("pair.0=" + (pair.0 to string)))
+         ├─ Stmt[2]: Expr (span: 7:5-7:31)
+         │  └─ Expr: expr#16: print(("pair.1=" + pair.1))
+         ├─ Stmt[3]: Let (span: 9:5-9:37)
+         │  ├─ Name: nums
+         │  ├─ Mutable: false
+         │  ├─ Type: (int, int)
+         │  └─ Value: expr#19: (10, 20)
+         ├─ Stmt[4]: Let (span: 10:5-10:23)
+         │  ├─ Name: <anon>
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#23: nums
+         ├─ Stmt[5]: Expr (span: 11:5-11:54)
+         │  └─ Expr: expr#34: print(((((("a=" + (a to string))) + ", b=")) + (b to string)))
+         ├─ Stmt[6]: Let (span: 13:5-13:49)
+         │  ├─ Name: nested
+         │  ├─ Mutable: false
+         │  ├─ Type: ((int, int), int)
+         │  └─ Value: expr#39: ((2, 3), 4)
+         ├─ Stmt[7]: Let (span: 14:5-14:38)
+         │  ├─ Name: inner
+         │  ├─ Mutable: false
+         │  ├─ Type: (int, int)
+         │  └─ Value: expr#41: nested.0
+         ├─ Stmt[8]: Expr (span: 15:5-15:43)
+         │  └─ Expr: expr#48: print(("inner.0=" + (inner.0 to string)))
+         ├─ Stmt[9]: Let (span: 17:5-17:32)
+         │  ├─ Name: single
+         │  ├─ Mutable: false
+         │  ├─ Type: (int)
+         │  └─ Value: expr#50: (42,)
+         └─ Stmt[10]: Expr (span: 18:5-18:43)
+            └─ Expr: expr#57: print(("single=" + (single.0 to string)))

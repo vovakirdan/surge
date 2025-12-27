@@ -82,6 +82,9 @@ func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
 	case mir.RValueArrayLit:
 		return vm.evalArrayLit(frame, &rv.ArrayLit)
 
+	case mir.RValueTupleLit:
+		return vm.evalTupleLit(frame, &rv.TupleLit)
+
 	case mir.RValueField:
 		return vm.evalFieldAccess(frame, &rv.Field)
 

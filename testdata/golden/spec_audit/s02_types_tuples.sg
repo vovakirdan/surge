@@ -37,5 +37,5 @@ fn main() {
     let single: (int,) = (42,);
     print("Single-element tuple");
 
-    print("§2.10 Tuples: SEMA PASS, VM NOT IMPLEMENTED");
+    print("§2.10 Tuples: PASS");
 }

@@ -1,0 +1,19 @@
+// scenario: tuple literals, access, and destructuring in VM
+
+@entrypoint
+fn main() {
+    let pair: (int, string) = (1, "hello");
+    print("pair.0=" + pair.0 to string);
+    print("pair.1=" + pair.1);
+
+    let nums: (int, int) = (10, 20);
+    let (a, b) = nums;
+    print("a=" + a to string + ", b=" + b to string);
+
+    let nested: ((int, int), int) = ((2, 3), 4);
+    let inner: (int, int) = nested.0;
+    print("inner.0=" + inner.0 to string);
+
+    let single: (int,) = (42,);
+    print("single=" + single.0 to string);
+}

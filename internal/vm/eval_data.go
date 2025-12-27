@@ -24,6 +24,25 @@ func (vm *VM) evalArrayLit(frame *Frame, lit *mir.ArrayLit) (Value, *VMError) {
 	return MakeHandleArray(h, types.NoTypeID), nil
 }
 
+func (vm *VM) evalTupleLit(frame *Frame, lit *mir.TupleLit) (Value, *VMError) {
+	if lit == nil {
+		return Value{}, vm.eb.makeError(PanicUnimplemented, "nil tuple literal")
+	}
+	if len(lit.Elems) == 0 {
+		return MakeNothing(), nil
+	}
+	elems := make([]Value, 0, len(lit.Elems))
+	for i := range lit.Elems {
+		v, vmErr := vm.evalOperand(frame, &lit.Elems[i])
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		elems = append(elems, v)
+	}
+	h := vm.Heap.AllocStruct(types.NoTypeID, elems)
+	return MakeHandleStruct(h, types.NoTypeID), nil
+}
+
 // evalIndex evaluates an index operation.
 func (vm *VM) evalIndex(obj, idx Value) (Value, *VMError) {
 	if obj.Kind == VKRef || obj.Kind == VKRefMut {
@@ -252,12 +271,6 @@ func (vm *VM) evalFieldAccess(frame *Frame, fa *mir.FieldAccess) (Value, *VMErro
 	if fa == nil {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "nil field access")
 	}
-	if fa.FieldIdx >= 0 {
-		return Value{}, vm.eb.unimplemented("tuple field access")
-	}
-	if fa.FieldName == "" {
-		return Value{}, vm.eb.makeError(PanicTypeMismatch, "missing field name")
-	}
 	obj, vmErr := vm.evalOperand(frame, &fa.Object)
 	if vmErr != nil {
 		return Value{}, vmErr
@@ -281,13 +294,20 @@ func (vm *VM) evalFieldAccess(frame *Frame, fa *mir.FieldAccess) (Value, *VMErro
 	if sobj.Kind != OKStruct {
 		return Value{}, vm.eb.typeMismatch("struct", fmt.Sprintf("%v", sobj.Kind))
 	}
-	layout, vmErr := vm.layouts.Struct(sobj.TypeID)
-	if vmErr != nil {
-		return Value{}, vmErr
-	}
-	idx, ok := layout.IndexByName[fa.FieldName]
-	if !ok {
-		return Value{}, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("unknown field %q on type#%d", fa.FieldName, sobj.TypeID))
+	idx := fa.FieldIdx
+	if idx < 0 {
+		if fa.FieldName == "" {
+			return Value{}, vm.eb.makeError(PanicTypeMismatch, "missing field name")
+		}
+		layout, vmErr := vm.layouts.Struct(sobj.TypeID)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		var ok bool
+		idx, ok = layout.IndexByName[fa.FieldName]
+		if !ok {
+			return Value{}, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("unknown field %q on type#%d", fa.FieldName, sobj.TypeID))
+		}
 	}
 	if idx < 0 || idx >= len(sobj.Fields) {
 		return Value{}, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("field index %d out of bounds for type#%d", idx, sobj.TypeID))
