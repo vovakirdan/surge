@@ -1,0 +1,9 @@
+// scenario: bare struct literal cannot satisfy non-struct return type
+
+type Point = { x: int, y: int }
+
+extern<Point> {
+    fn bad() -> int {
+        return { x: 1, y: 2 };
+    }
+}

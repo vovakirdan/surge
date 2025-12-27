@@ -139,6 +139,9 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		return
 	}
 	if actual == types.NoTypeID {
+		if tc.applyExpectedType(expr, expected) {
+			return
+		}
 		// Handle bare struct literal - validate fields against expected return type
 		if data, ok := tc.builder.Exprs.Struct(expr); ok && data != nil && !data.Type.IsValid() {
 			tc.validateStructLiteralFields(expected, data, tc.exprSpan(expr))

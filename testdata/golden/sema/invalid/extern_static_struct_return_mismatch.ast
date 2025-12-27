@@ -1,0 +1,18 @@
+extern_static_struct_return_mismatch.sg (span: 3:1-10:1)
+├─ Item[0]: Type (span: 3:1-3:32)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+└─ Item[1]: Extern (span: 5:1-9:2)
+   ├─ Target: Point
+   ├─ Members:
+   │  └─ Fn[0]: bad
+   │     ├─ Params: ()
+   │     ├─ Return: int
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 6:21-8:6)
+   │        └─ Stmt[0]: Return (span: 7:9-7:31)
+   │           └─ Expr: expr#5: <ExprKind(18)>

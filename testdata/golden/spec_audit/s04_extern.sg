@@ -4,6 +4,10 @@ type Point = { x: int, y: int }
 
 // Value self moves the struct
 extern<Point> {
+    fn origin() -> Point {
+        return { x: 0, y: 0 };
+    }
+
     fn distance_from_origin(self: Point) -> int {
         return self.x * self.x + self.y * self.y;
     }
@@ -30,7 +34,11 @@ fn main() {
     let dist: int = p2.distance_from_origin();
     print("Distance squared: " + dist to string);
 
+    let origin: Point = Point.origin();
+    print("Origin: " + origin.x to string + ", " + origin.y to string);
+
     print("§4.4 extern<T>: PASS");
+    print("  - Static methods (return struct): PASS");
     print("  - Instance methods (value self): PASS");
     print("  - Instance methods (&self): PASS");
 }

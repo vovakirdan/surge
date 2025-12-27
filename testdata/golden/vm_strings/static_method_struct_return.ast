@@ -1,0 +1,38 @@
+static_method_struct_return.sg (span: 3:1-20:1)
+├─ Item[0]: Type (span: 3:1-3:32)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+├─ Item[1]: Extern (span: 5:1-13:2)
+│  ├─ Target: Point
+│  ├─ Members:
+│  │  ├─ Fn[0]: origin
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: Point
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 6:26-8:6)
+│  │  │     └─ Stmt[0]: Return (span: 7:9-7:31)
+│  │  │        └─ Expr: expr#5: <ExprKind(18)>
+│  │  └─ Fn[1]: sum
+│  │     ├─ Params: (self: Point)
+│  │     ├─ Return: int
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 10:32-12:6)
+│  │        └─ Stmt[0]: Return (span: 11:9-11:32)
+│  │           └─ Expr: expr#10: (self.x + self.y)
+└─ Item[2]: Fn (span: 15:1-19:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 16:11-19:2)
+         ├─ Stmt[0]: Let (span: 17:5-17:35)
+         │  ├─ Name: p
+         │  ├─ Mutable: false
+         │  ├─ Type: Point
+         │  └─ Value: expr#13: Point.origin()
+         └─ Stmt[1]: Expr (span: 18:5-18:30)
+            └─ Expr: expr#19: print(p.sum() to string)

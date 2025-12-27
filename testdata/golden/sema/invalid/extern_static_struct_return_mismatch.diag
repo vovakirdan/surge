@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/extern_static_struct_return_mismatch.sg:7:16 int is not a struct
