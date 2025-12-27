@@ -1,0 +1,8 @@
+fn main() {
+    let xs = [1, 2, 3];
+    let r: &int = xs[0];
+    let slice = xs[[0..2]];
+    let len1 = xs.__len();
+    let len2 = slice.__len();
+    let v = *r;
+}

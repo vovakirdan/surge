@@ -5,7 +5,7 @@ pragma module, no_std;
 // Contract for types that can be parsed from a command-line argument string.
 // Types implementing this contract can be used as parameters in @entrypoint("argv") functions.
 pub contract FromArgv<T> {
-    pub fn from_str(s: string) -> Erring<T, Error>;
+    pub fn from_str(s: &string) -> Erring<T, Error>;
 }
 
 // Contract for types that can be parsed from stdin text.

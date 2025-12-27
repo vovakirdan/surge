@@ -44,21 +44,21 @@ heir_union_inheritance.sg (span: 3:1-31:1)
          │  ├─ Mutable: false
          │  ├─ Type: AliasInt
          │  └─ Value: expr#6: 1
-         ├─ Stmt[2]: Let (span: 16:5-16:38)
-         │  ├─ Name: owned
-         │  ├─ Mutable: false
-         │  ├─ Type: own Child
-         │  └─ Value: expr#8: own child
-         ├─ Stmt[3]: Let (span: 17:5-17:28)
+         ├─ Stmt[2]: Let (span: 16:5-16:28)
          │  ├─ Name: int_value
          │  ├─ Mutable: false
          │  ├─ Type: int
-         │  └─ Value: expr#9: 1
-         ├─ Stmt[4]: Let (span: 19:5-19:35)
+         │  └─ Value: expr#7: 1
+         ├─ Stmt[3]: Let (span: 18:5-18:35)
          │  ├─ Name: a
          │  ├─ Mutable: false
          │  ├─ Type: bool
-         │  └─ Value: expr#12: (child heir Base)
+         │  └─ Value: expr#10: (child heir Base)
+         ├─ Stmt[4]: Let (span: 19:5-19:38)
+         │  ├─ Name: owned
+         │  ├─ Mutable: false
+         │  ├─ Type: own Child
+         │  └─ Value: expr#12: own child
          ├─ Stmt[5]: Let (span: 20:5-20:40)
          │  ├─ Name: b
          │  ├─ Mutable: false

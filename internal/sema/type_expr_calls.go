@@ -44,7 +44,6 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 			isLiteral: tc.isLiteralExpr(arg.Value),
 			expr:      arg.Value,
 		})
-		tc.observeMove(arg.Value, tc.exprSpan(arg.Value))
 		tc.trackTaskPassedAsArg(arg.Value) // Track Task ownership transfer to callee
 	}
 	if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
@@ -64,8 +63,7 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 		return tc.handleDefaultLikeCall(name, symID, call, span)
 	}
 	if name == "clone" {
-		if result := tc.handleCloneCall(args, span); result != types.NoTypeID {
-			tc.recordCallSymbol(callID, tc.symbolForExpr(call.Target))
+		if result := tc.handleCloneCall(callID, args, span); result != types.NoTypeID {
 			return result
 		}
 		// If handleCloneCall returns NoTypeID, fall through to normal resolution
@@ -113,6 +111,8 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 			tc.materializeCallArguments(sym, args, bestArgs)
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 			tc.recordImplicitConversionsForCall(sym, args)
+			tc.applyCallOwnership(sym, args)
+			tc.dropImplicitBorrowsForCall(sym, args, bestType)
 		}
 		// Check for deprecated function usage
 		tc.checkDeprecatedSymbol(bestSym, "function", span)
@@ -136,6 +136,7 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 			tc.materializeCallArguments(sym, args, bestArgs)
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 			tc.recordImplicitConversionsForCall(sym, args)
+			tc.dropImplicitBorrowsForCall(sym, args, bestType)
 		}
 		// Check for deprecated function usage
 		tc.checkDeprecatedSymbol(bestSym, "function", span)

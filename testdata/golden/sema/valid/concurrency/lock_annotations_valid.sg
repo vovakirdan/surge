@@ -29,7 +29,7 @@ type RwCounter = {
 
 extern<RwCounter> {
     @requires_lock("rw")
-    pub fn read_data(self: &RwCounter) -> string {
+    pub fn read_data(self: &RwCounter) -> &string {
         return self.data;
     }
 

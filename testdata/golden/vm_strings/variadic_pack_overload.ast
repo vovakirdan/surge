@@ -31,10 +31,10 @@ Block (span: 6:18-8:10)
 │        │     │  │  └─ Stmt[0]: Expr (span: 7:13-7:29)
 │        │     │  │     └─ Expr: expr#17: (out = ((out + "|")))
 │        │     │  └─ Else: <none>
-│        │     ├─ Stmt[1]: Let (span: 9:9-9:36)
+│        │     ├─ Stmt[1]: Let (span: 9:9-9:37)
 │        │     │  ├─ Name: part
 │        │     │  ├─ Mutable: false
-│        │     │  ├─ Type: string
+│        │     │  ├─ Type: &string
 │        │     │  └─ Value: expr#20: args[i]
 │        │     ├─ Stmt[2]: Expr (span: 10:9-10:26)
 │        │     │  └─ Expr: expr#25: (out = ((out + part)))

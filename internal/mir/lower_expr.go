@@ -62,10 +62,8 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 		if err != nil {
 			return Place{Local: NoLocalID}, err
 		}
-		if l.types != nil && data.Object != nil && data.Object.Type != types.NoTypeID {
-			if tt, ok := l.types.Lookup(data.Object.Type); ok && tt.Kind == types.KindReference {
-				base.Proj = append(base.Proj, PlaceProj{Kind: PlaceProjDeref})
-			}
+		if l.needsDerefForRefObject(data.Object) {
+			base.Proj = append(base.Proj, PlaceProj{Kind: PlaceProjDeref})
 		}
 		base.Proj = append(base.Proj, PlaceProj{
 			Kind:      PlaceProjField,
@@ -83,12 +81,10 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 		if err != nil {
 			return Place{Local: NoLocalID}, err
 		}
-		if l.types != nil && data.Object != nil && data.Object.Type != types.NoTypeID {
-			if tt, ok := l.types.Lookup(data.Object.Type); ok && tt.Kind == types.KindReference {
-				base.Proj = append(base.Proj, PlaceProj{Kind: PlaceProjDeref})
-			}
+		if l.needsDerefForRefObject(data.Object) {
+			base.Proj = append(base.Proj, PlaceProj{Kind: PlaceProjDeref})
 		}
-		idxOp, err := l.lowerExpr(data.Index, true)
+		idxOp, err := l.lowerValueExpr(data.Index, true)
 		if err != nil {
 			return Place{Local: NoLocalID}, err
 		}
@@ -110,6 +106,25 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 
 	default:
 		return Place{Local: NoLocalID}, fmt.Errorf("mir: expected place, got %s", e.Kind)
+	}
+}
+
+func (l *funcLowerer) needsDerefForRefObject(e *hir.Expr) bool {
+	if l == nil || l.types == nil || e == nil || e.Type == types.NoTypeID {
+		return false
+	}
+	tt, ok := l.types.Lookup(resolveAlias(l.types, e.Type))
+	if !ok || tt.Kind != types.KindReference {
+		return false
+	}
+	switch e.Kind {
+	case hir.ExprIndex, hir.ExprFieldAccess:
+		if elem, ok := l.types.Lookup(resolveAlias(l.types, tt.Elem)); ok && elem.Kind == types.KindReference {
+			return true
+		}
+		return false
+	default:
+		return true
 	}
 }
 
@@ -276,7 +291,13 @@ func (l *funcLowerer) lowerUnaryOpExpr(e *hir.Expr, consume bool) (Operand, erro
 		return Operand{Kind: kind, Type: e.Type, Place: place}, nil
 	}
 
-	operand, err := l.lowerExpr(data.Operand, false)
+	var operand Operand
+	var err error
+	if data.Op == ast.ExprUnaryDeref {
+		operand, err = l.lowerExpr(data.Operand, false)
+	} else {
+		operand, err = l.lowerValueExpr(data.Operand, false)
+	}
 	if err != nil {
 		return Operand{}, err
 	}
@@ -384,11 +405,11 @@ func (l *funcLowerer) lowerBinaryOpExpr(e *hir.Expr, consume bool) (Operand, err
 	if base, ok := assignmentBaseOp(data.Op); ok {
 		return l.lowerCompoundAssignExpr(e, data, base, consume)
 	}
-	left, err := l.lowerExpr(data.Left, false)
+	left, err := l.lowerValueExpr(data.Left, false)
 	if err != nil {
 		return Operand{}, err
 	}
-	right, err := l.lowerExpr(data.Right, false)
+	right, err := l.lowerValueExpr(data.Right, false)
 	if err != nil {
 		return Operand{}, err
 	}
@@ -428,7 +449,7 @@ func (l *funcLowerer) lowerCastExpr(e *hir.Expr, consume bool) (Operand, error) 
 	if !ok {
 		return Operand{}, fmt.Errorf("mir: cast: unexpected payload %T", e.Data)
 	}
-	value, err := l.lowerExpr(data.Value, false)
+	value, err := l.lowerValueExpr(data.Value, false)
 	if err != nil {
 		return Operand{}, err
 	}
@@ -456,6 +477,19 @@ func (l *funcLowerer) lowerFieldAccessExpr(e *hir.Expr, consume bool) (Operand, 
 	data, ok := e.Data.(hir.FieldAccessData)
 	if !ok {
 		return Operand{}, fmt.Errorf("mir: field: unexpected payload %T", e.Data)
+	}
+	if l.types != nil && e.Type != types.NoTypeID {
+		if tt, ok := l.types.Lookup(e.Type); ok && tt.Kind == types.KindReference {
+			place, err := l.lowerPlace(e)
+			if err != nil {
+				return Operand{}, err
+			}
+			kind := OperandAddrOf
+			if tt.Mutable {
+				kind = OperandAddrOfMut
+			}
+			return Operand{Kind: kind, Type: e.Type, Place: place}, nil
+		}
 	}
 	obj, err := l.lowerExpr(data.Object, false)
 	if err != nil {
@@ -485,11 +519,24 @@ func (l *funcLowerer) lowerIndexExpr(e *hir.Expr, consume bool) (Operand, error)
 	if !ok {
 		return Operand{}, fmt.Errorf("mir: index: unexpected payload %T", e.Data)
 	}
+	if l.types != nil && e.Type != types.NoTypeID {
+		if tt, ok := l.types.Lookup(e.Type); ok && tt.Kind == types.KindReference {
+			place, err := l.lowerPlace(e)
+			if err != nil {
+				return Operand{}, err
+			}
+			kind := OperandAddrOf
+			if tt.Mutable {
+				kind = OperandAddrOfMut
+			}
+			return Operand{Kind: kind, Type: e.Type, Place: place}, nil
+		}
+	}
 	obj, err := l.lowerExpr(data.Object, false)
 	if err != nil {
 		return Operand{}, err
 	}
-	idx, err := l.lowerExpr(data.Index, false)
+	idx, err := l.lowerValueExpr(data.Index, false)
 	if err != nil {
 		return Operand{}, err
 	}

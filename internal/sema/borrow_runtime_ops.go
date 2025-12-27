@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"strings"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -18,6 +20,55 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	if tc.isCopyType(exprType) {
 		return
 	}
+	if tc.isArrayViewExpr(expr) {
+		exprID := tc.unwrapArrayViewExpr(expr)
+		if tc.builder == nil {
+			return
+		}
+		if _, ok := tc.builder.Exprs.Ident(exprID); !ok {
+			return
+		}
+	}
+	if tc.builder != nil && tc.types != nil {
+		if idx, ok := tc.builder.Exprs.Index(expr); ok && idx != nil {
+			container := tc.result.ExprTypes[idx.Target]
+			indexType := tc.result.ExprTypes[idx.Index]
+			if container != types.NoTypeID && indexType != types.NoTypeID {
+				base := tc.valueType(container)
+				if base == tc.types.Builtins().String {
+					if payload, ok := tc.rangePayload(indexType); ok {
+						intType := tc.types.Builtins().Int
+						if intType != types.NoTypeID && tc.sameType(payload, intType) {
+							return
+						}
+					}
+				}
+			}
+		}
+	}
+	if tc.result != nil && tc.result.ImplicitConversions != nil {
+		if conv, ok := tc.result.ImplicitConversions[expr]; ok && conv.Kind == ImplicitConversionTo {
+			if tc.result.ToSymbols != nil {
+				if symID := tc.result.ToSymbols[expr]; symID.IsValid() {
+					if sym := tc.symbolFromID(symID); sym != nil && sym.Signature != nil && len(sym.Signature.Params) > 0 {
+						paramStr := strings.TrimSpace(string(sym.Signature.Params[0]))
+						if strings.HasPrefix(paramStr, "&") {
+							if !tc.isReferenceType(exprType) {
+								op := ast.ExprUnaryRef
+								if strings.HasPrefix(paramStr, "&mut ") {
+									op = ast.ExprUnaryRefMut
+								} else if _, ok := tc.resolvePlace(expr); !ok {
+									return
+								}
+								tc.handleBorrow(expr, span, op, expr)
+							}
+							return
+						}
+					}
+				}
+			}
+		}
+	}
 	if tc.isSharedRefDeref(expr) {
 		return
 	}
@@ -29,6 +80,8 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	if !ok {
 		return
 	}
+	base := desc.Base
+	direct := len(desc.Segments) == 0
 	desc, _ = tc.expandPlaceDescriptor(desc)
 	place := tc.canonicalPlace(desc)
 	if !place.IsValid() {
@@ -52,6 +105,10 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 			span = evSpan
 		}
 		tc.reportBorrowMove(place, span, issue)
+		return
+	}
+	if direct && base.IsValid() {
+		tc.markBindingMoved(base, evSpan)
 	}
 }
 
@@ -164,6 +221,9 @@ func (tc *typeChecker) handleAssignment(op ast.ExprBinaryOp, left, right ast.Exp
 	desc, ok := tc.resolvePlace(left)
 	if !ok {
 		return
+	}
+	if desc.Base.IsValid() && len(desc.Segments) == 0 {
+		tc.clearBindingMoved(desc.Base)
 	}
 
 	// Check if this is a write through a mutable reference binding (*r = value).

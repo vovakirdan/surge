@@ -1,0 +1,85 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "main" at 1:4-1:8 (leading: Space)
+  3: LParen          "(" at 1:8-1:9
+  4: RParen          ")" at 1:9-1:10
+  5: LBrace          "{" at 1:11-1:12 (leading: Space)
+  6: KwLet           "let" at 2:5-2:8 (leading: Newline, Space)
+  7: Ident           "s" at 2:9-2:10 (leading: Space)
+  8: Assign          "=" at 2:11-2:12 (leading: Space)
+  9: StringLit       "\"hi\"" at 2:13-2:17 (leading: Space)
+ 10: Semicolon       ";" at 2:17-2:18
+ 11: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 12: Ident           "a" at 3:9-3:10 (leading: Space)
+ 13: Assign          "=" at 3:11-3:12 (leading: Space)
+ 14: Ident           "s" at 3:13-3:14 (leading: Space)
+ 15: Plus            "+" at 3:15-3:16 (leading: Space)
+ 16: StringLit       "\"!\"" at 3:17-3:20 (leading: Space)
+ 17: Semicolon       ";" at 3:20-3:21
+ 18: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 19: Ident           "b" at 4:9-4:10 (leading: Space)
+ 20: Assign          "=" at 4:11-4:12 (leading: Space)
+ 21: Ident           "s" at 4:13-4:14 (leading: Space)
+ 22: Star            "*" at 4:15-4:16 (leading: Space)
+ 23: IntLit          "2" at 4:17-4:18 (leading: Space)
+ 24: Semicolon       ";" at 4:18-4:19
+ 25: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 26: Ident           "c" at 5:9-5:10 (leading: Space)
+ 27: Assign          "=" at 5:11-5:12 (leading: Space)
+ 28: Ident           "s" at 5:13-5:14 (leading: Space)
+ 29: Star            "*" at 5:15-5:16 (leading: Space)
+ 30: LParen          "(" at 5:17-5:18 (leading: Space)
+ 31: IntLit          "2" at 5:18-5:19
+ 32: Colon           ":" at 5:19-5:20
+ 33: Ident           "uint" at 5:20-5:24
+ 34: RParen          ")" at 5:24-5:25
+ 35: Semicolon       ";" at 5:25-5:26
+ 36: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
+ 37: Ident           "d" at 6:9-6:10 (leading: Space)
+ 38: Assign          "=" at 6:11-6:12 (leading: Space)
+ 39: Ident           "s" at 6:13-6:14 (leading: Space)
+ 40: EqEq            "==" at 6:15-6:17 (leading: Space)
+ 41: StringLit       "\"hi\"" at 6:18-6:22 (leading: Space)
+ 42: Semicolon       ";" at 6:22-6:23
+ 43: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
+ 44: Ident           "e" at 7:9-7:10 (leading: Space)
+ 45: Assign          "=" at 7:11-7:12 (leading: Space)
+ 46: Ident           "s" at 7:13-7:14 (leading: Space)
+ 47: BangEq          "!=" at 7:15-7:17 (leading: Space)
+ 48: StringLit       "\"bye\"" at 7:18-7:23 (leading: Space)
+ 49: Semicolon       ";" at 7:23-7:24
+ 50: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 51: Ident           "i" at 8:9-8:10 (leading: Space)
+ 52: Colon           ":" at 8:10-8:11
+ 53: Ident           "int" at 8:12-8:15 (leading: Space)
+ 54: Assign          "=" at 8:16-8:17 (leading: Space)
+ 55: Ident           "s" at 8:18-8:19 (leading: Space)
+ 56: KwTo            "to" at 8:20-8:22 (leading: Space)
+ 57: Ident           "int" at 8:23-8:26 (leading: Space)
+ 58: Semicolon       ";" at 8:26-8:27
+ 59: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 60: Ident           "u" at 9:9-9:10 (leading: Space)
+ 61: Colon           ":" at 9:10-9:11
+ 62: Ident           "uint" at 9:12-9:16 (leading: Space)
+ 63: Assign          "=" at 9:17-9:18 (leading: Space)
+ 64: Ident           "s" at 9:19-9:20 (leading: Space)
+ 65: KwTo            "to" at 9:21-9:23 (leading: Space)
+ 66: Ident           "uint" at 9:24-9:28 (leading: Space)
+ 67: Semicolon       ";" at 9:28-9:29
+ 68: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 69: Ident           "f" at 10:9-10:10 (leading: Space)
+ 70: Colon           ":" at 10:10-10:11
+ 71: Ident           "float" at 10:12-10:17 (leading: Space)
+ 72: Assign          "=" at 10:18-10:19 (leading: Space)
+ 73: Ident           "s" at 10:20-10:21 (leading: Space)
+ 74: KwTo            "to" at 10:22-10:24 (leading: Space)
+ 75: Ident           "float" at 10:25-10:30 (leading: Space)
+ 76: Semicolon       ";" at 10:30-10:31
+ 77: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
+ 78: Ident           "s2" at 11:9-11:11 (leading: Space)
+ 79: Assign          "=" at 11:12-11:13 (leading: Space)
+ 80: Ident           "s" at 11:14-11:15 (leading: Space)
+ 81: Plus            "+" at 11:16-11:17 (leading: Space)
+ 82: Ident           "s" at 11:18-11:19 (leading: Space)
+ 83: Semicolon       ";" at 11:19-11:20
+ 84: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 85: EOF             at 13:1-13:1

@@ -152,7 +152,7 @@ func (b *surgeStartBuilder) emitTagPayload(dst, val LocalID, tag string, index i
 }
 
 func (b *surgeStartBuilder) emitFromStrCall(dst, strLocal LocalID, targetType types.TypeID) {
-	arg := Operand{Kind: OperandMove, Place: Place{Local: strLocal}}
+	arg := Operand{Kind: OperandAddrOf, Type: b.refType(b.stringType(), false), Place: Place{Local: strLocal}}
 	if b.isBuiltinFromStrType(targetType) {
 		b.emitCallIntrinsic(dst, "from_str", []Operand{arg})
 		return

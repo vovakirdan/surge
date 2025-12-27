@@ -22,7 +22,7 @@ func TestEnsureBuiltinMagicStringMul(t *testing.T) {
 	}
 	found := false
 	for _, sig := range methods {
-		if len(sig.Params) == 2 && sig.Params[0] == "string" && sig.Params[1] == "int" {
+		if len(sig.Params) == 2 && sig.Params[0] == "&string" && sig.Params[1] == "int" {
 			found = true
 			break
 		}

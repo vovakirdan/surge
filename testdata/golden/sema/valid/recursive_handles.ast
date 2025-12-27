@@ -32,7 +32,7 @@ recursive_handles.sg (span: 3:1-45:1)
 │           └─ Body:
 Block (span: 14:16-23:6)
 │              └─ Stmt[0]: Expr (span: 15:9-22:11)
-│                 └─ Expr: expr#25: compare id { 2 arms }
+│                 └─ Expr: expr#26: compare id { 2 arms }
 └─ Item[4]: Fn (span: 26:1-44:2)
    ├─ Name: main
    ├─ Params: ()
@@ -43,40 +43,40 @@ Block (span: 14:16-23:6)
          │  ├─ Name: nodes
          │  ├─ Mutable: true
          │  ├─ Type: Nodes
-         │  └─ Value: expr#26: <ExprKind(8)>
+         │  └─ Value: expr#27: <ExprKind(8)>
          ├─ Stmt[1]: Let (span: 28:5-28:37)
          │  ├─ Name: next
          │  ├─ Mutable: true
          │  ├─ Type: <unknown-type>
-         │  └─ Value: expr#27: nothing
+         │  └─ Value: expr#28: nothing
          ├─ Stmt[2]: Let (span: 30:5-30:36)
          │  ├─ Name: first
          │  ├─ Mutable: false
          │  ├─ Type: NodeId
-         │  └─ Value: expr#30: len(nodes)
+         │  └─ Value: expr#31: len(nodes)
          ├─ Stmt[3]: Expr (span: 31:5-31:46)
-         │  └─ Expr: expr#38: nodes.push(<ExprKind(18)>)
+         │  └─ Expr: expr#39: nodes.push(<ExprKind(18)>)
          ├─ Stmt[4]: Expr (span: 32:5-32:18)
-         │  └─ Expr: expr#41: (next = first)
+         │  └─ Expr: expr#42: (next = first)
          ├─ Stmt[5]: Let (span: 34:5-34:37)
          │  ├─ Name: second
          │  ├─ Mutable: false
          │  ├─ Type: NodeId
-         │  └─ Value: expr#44: len(nodes)
+         │  └─ Value: expr#45: len(nodes)
          ├─ Stmt[6]: Expr (span: 35:5-35:46)
-         │  └─ Expr: expr#52: nodes.push(<ExprKind(18)>)
+         │  └─ Expr: expr#53: nodes.push(<ExprKind(18)>)
          ├─ Stmt[7]: Expr (span: 36:5-36:19)
-         │  └─ Expr: expr#55: (next = second)
+         │  └─ Expr: expr#56: (next = second)
          ├─ Stmt[8]: Let (span: 38:5-38:36)
          │  ├─ Name: third
          │  ├─ Mutable: false
          │  ├─ Type: NodeId
-         │  └─ Value: expr#58: len(nodes)
+         │  └─ Value: expr#59: len(nodes)
          ├─ Stmt[9]: Expr (span: 39:5-39:46)
-         │  └─ Expr: expr#66: nodes.push(<ExprKind(18)>)
+         │  └─ Expr: expr#67: nodes.push(<ExprKind(18)>)
          ├─ Stmt[10]: Expr (span: 40:5-40:18)
-         │  └─ Expr: expr#69: (next = third)
+         │  └─ Expr: expr#70: (next = third)
          ├─ Stmt[11]: Expr (span: 42:5-42:24)
-         │  └─ Expr: expr#74: walk(&nodes, next)
+         │  └─ Expr: expr#75: walk(&nodes, next)
          └─ Stmt[12]: Return (span: 43:5-43:14)
-            └─ Expr: expr#75: 0
+            └─ Expr: expr#76: 0

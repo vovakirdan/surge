@@ -95,6 +95,8 @@ type typeChecker struct {
 	addressOfOperands           map[ast.ExprID]struct{} // Tracks operands of & expressions (for @atomic validation)
 	arrayViewExprs              map[ast.ExprID]struct{}
 	arrayViewBindings           map[symbols.SymbolID]struct{}
+	assignmentLHSDepth          int
+	movedBindings               map[symbols.SymbolID]source.Span
 }
 
 type returnContext struct {

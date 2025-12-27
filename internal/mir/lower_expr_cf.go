@@ -34,7 +34,7 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 	if l == nil || e == nil {
 		return Operand{}, nil
 	}
-	cond, err := l.lowerExpr(data.Cond, false)
+	cond, err := l.lowerValueExpr(data.Cond, false)
 	if err != nil {
 		return Operand{}, err
 	}

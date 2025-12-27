@@ -500,6 +500,16 @@ func (b *monoBuilder) rewriteCallsInFunc(fn *hir.Func, callerSym symbols.SymbolI
 			}
 		}
 
+		if b.isIntrinsicCloneSymbol(calleeSym) {
+			handled, err := b.rewriteCloneCall(call, data, stack)
+			if err != nil {
+				return err
+			}
+			if handled {
+				return nil
+			}
+		}
+
 		if kind == InstTag {
 			_, err := b.ensureFunc(calleeSym, concreteArgs, stack)
 			return err

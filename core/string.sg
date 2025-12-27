@@ -328,7 +328,7 @@ extern<string> {
         return prev[b_len];
     }
     // String identity (for @entrypoint("argv") support)
-    pub fn from_str(s: string) -> Erring<string, Error> {
-        return Success(s);
+    pub fn from_str(s: &string) -> Erring<string, Error> {
+        return Success(s.__clone());
     }
 }

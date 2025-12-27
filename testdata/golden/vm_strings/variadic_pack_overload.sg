@@ -6,7 +6,7 @@ fn join(...args: string) -> string {
         if i > 0 {
             out = out + "|";
         }
-        let part: string = args[i];
+        let part: &string = args[i];
         out = out + part;
         i = i + 1;
     }

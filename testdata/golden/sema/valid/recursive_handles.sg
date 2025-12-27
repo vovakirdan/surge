@@ -14,9 +14,9 @@ fn walk(nodes: &Node[], start: NodeId?) -> nothing {
     while true {
         compare id {
             Some(i) => {
-                let n: Node = nodes[(i to int)];
+                let n: &Node = nodes[(i to int)];
                 print(n.data to string);
-                id = n.next;
+                id = *n.next;
             }
             nothing => { return nothing; }
         };

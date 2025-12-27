@@ -1,0 +1,24 @@
+array_index_set_mut.sg (span: 1:1-7:1)
+└─ Item[0]: Fn (span: 1:1-6:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:11-6:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:28)
+         │  ├─ Name: xs
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 3:5-3:15)
+         │  └─ Expr: expr#9: (xs[0] = 9)
+         ├─ Stmt[2]: Let (span: 4:5-4:25)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &int
+         │  └─ Value: expr#12: xs[0]
+         └─ Stmt[3]: Let (span: 5:5-5:16)
+            ├─ Name: v
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#14: *r

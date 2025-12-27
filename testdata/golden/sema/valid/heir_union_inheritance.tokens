@@ -67,30 +67,30 @@
  67: IntLit          "1" at 15:33-15:34 (leading: Space)
  68: Semicolon       ";" at 15:34-15:35
  69: KwLet           "let" at 16:5-16:8 (leading: Newline, Space)
- 70: Ident           "owned" at 16:9-16:14 (leading: Space)
- 71: Colon           ":" at 16:14-16:15
- 72: KwOwn           "own" at 16:16-16:19 (leading: Space)
- 73: Ident           "Child" at 16:20-16:25 (leading: Space)
- 74: Assign          "=" at 16:26-16:27 (leading: Space)
- 75: KwOwn           "own" at 16:28-16:31 (leading: Space)
- 76: Ident           "child" at 16:32-16:37 (leading: Space)
- 77: Semicolon       ";" at 16:37-16:38
- 78: KwLet           "let" at 17:5-17:8 (leading: Newline, Space)
- 79: Ident           "int_value" at 17:9-17:18 (leading: Space)
- 80: Colon           ":" at 17:18-17:19
- 81: Ident           "int" at 17:20-17:23 (leading: Space)
- 82: Assign          "=" at 17:24-17:25 (leading: Space)
- 83: IntLit          "1" at 17:26-17:27 (leading: Space)
- 84: Semicolon       ";" at 17:27-17:28
+ 70: Ident           "int_value" at 16:9-16:18 (leading: Space)
+ 71: Colon           ":" at 16:18-16:19
+ 72: Ident           "int" at 16:20-16:23 (leading: Space)
+ 73: Assign          "=" at 16:24-16:25 (leading: Space)
+ 74: IntLit          "1" at 16:26-16:27 (leading: Space)
+ 75: Semicolon       ";" at 16:27-16:28
+ 76: KwLet           "let" at 18:5-18:8 (leading: Newline, Space)
+ 77: Ident           "a" at 18:9-18:10 (leading: Space)
+ 78: Colon           ":" at 18:10-18:11
+ 79: Ident           "bool" at 18:12-18:16 (leading: Space)
+ 80: Assign          "=" at 18:17-18:18 (leading: Space)
+ 81: Ident           "child" at 18:19-18:24 (leading: Space)
+ 82: KwHeir          "heir" at 18:25-18:29 (leading: Space)
+ 83: Ident           "Base" at 18:30-18:34 (leading: Space)
+ 84: Semicolon       ";" at 18:34-18:35
  85: KwLet           "let" at 19:5-19:8 (leading: Newline, Space)
- 86: Ident           "a" at 19:9-19:10 (leading: Space)
- 87: Colon           ":" at 19:10-19:11
- 88: Ident           "bool" at 19:12-19:16 (leading: Space)
- 89: Assign          "=" at 19:17-19:18 (leading: Space)
- 90: Ident           "child" at 19:19-19:24 (leading: Space)
- 91: KwHeir          "heir" at 19:25-19:29 (leading: Space)
- 92: Ident           "Base" at 19:30-19:34 (leading: Space)
- 93: Semicolon       ";" at 19:34-19:35
+ 86: Ident           "owned" at 19:9-19:14 (leading: Space)
+ 87: Colon           ":" at 19:14-19:15
+ 88: KwOwn           "own" at 19:16-19:19 (leading: Space)
+ 89: Ident           "Child" at 19:20-19:25 (leading: Space)
+ 90: Assign          "=" at 19:26-19:27 (leading: Space)
+ 91: KwOwn           "own" at 19:28-19:31 (leading: Space)
+ 92: Ident           "child" at 19:32-19:37 (leading: Space)
+ 93: Semicolon       ";" at 19:37-19:38
  94: KwLet           "let" at 20:5-20:8 (leading: Newline, Space)
  95: Ident           "b" at 20:9-20:10 (leading: Space)
  96: Colon           ":" at 20:10-20:11

@@ -127,67 +127,68 @@
 127: Ident           "RwCounter" at 32:29-32:38
 128: RParen          ")" at 32:38-32:39
 129: Arrow           "->" at 32:40-32:42 (leading: Space)
-130: Ident           "string" at 32:43-32:49 (leading: Space)
-131: LBrace          "{" at 32:50-32:51 (leading: Space)
-132: KwReturn        "return" at 33:9-33:15 (leading: Newline, Space)
-133: Ident           "self" at 33:16-33:20 (leading: Space)
-134: Dot             "." at 33:20-33:21
-135: Ident           "data" at 33:21-33:25
-136: Semicolon       ";" at 33:25-33:26
-137: RBrace          "}" at 34:5-34:6 (leading: Newline, Space)
-138: At              "@" at 36:5-36:6 (leading: Newline, Space)
-139: Ident           "acquires_lock" at 36:6-36:19
-140: LParen          "(" at 36:19-36:20
-141: StringLit       "\"rw\"" at 36:20-36:24
-142: RParen          ")" at 36:24-36:25
-143: KwPub           "pub" at 37:5-37:8 (leading: Newline, Space)
-144: KwFn            "fn" at 37:9-37:11 (leading: Space)
-145: Ident           "acquire_read" at 37:12-37:24 (leading: Space)
-146: LParen          "(" at 37:24-37:25
-147: Ident           "self" at 37:25-37:29
-148: Colon           ":" at 37:29-37:30
-149: Amp             "&" at 37:31-37:32 (leading: Space)
-150: KwMut           "mut" at 37:32-37:35
-151: Ident           "RwCounter" at 37:36-37:45 (leading: Space)
-152: RParen          ")" at 37:45-37:46
-153: Arrow           "->" at 37:47-37:49 (leading: Space)
-154: NothingLit      "nothing" at 37:50-37:57 (leading: Space)
-155: LBrace          "{" at 37:58-37:59 (leading: Space)
-156: Ident           "self" at 38:9-38:13 (leading: Newline, Space)
-157: Dot             "." at 38:13-38:14
-158: Ident           "rw" at 38:14-38:16
-159: Dot             "." at 38:16-38:17
-160: Ident           "read_lock" at 38:17-38:26
-161: LParen          "(" at 38:26-38:27
-162: RParen          ")" at 38:27-38:28
-163: Semicolon       ";" at 38:28-38:29
-164: RBrace          "}" at 39:5-39:6 (leading: Newline, Space)
-165: At              "@" at 41:5-41:6 (leading: Newline, Space)
-166: Ident           "releases_lock" at 41:6-41:19
-167: LParen          "(" at 41:19-41:20
-168: StringLit       "\"rw\"" at 41:20-41:24
-169: RParen          ")" at 41:24-41:25
-170: KwPub           "pub" at 42:5-42:8 (leading: Newline, Space)
-171: KwFn            "fn" at 42:9-42:11 (leading: Space)
-172: Ident           "release_read" at 42:12-42:24 (leading: Space)
-173: LParen          "(" at 42:24-42:25
-174: Ident           "self" at 42:25-42:29
-175: Colon           ":" at 42:29-42:30
-176: Amp             "&" at 42:31-42:32 (leading: Space)
-177: KwMut           "mut" at 42:32-42:35
-178: Ident           "RwCounter" at 42:36-42:45 (leading: Space)
-179: RParen          ")" at 42:45-42:46
-180: Arrow           "->" at 42:47-42:49 (leading: Space)
-181: NothingLit      "nothing" at 42:50-42:57 (leading: Space)
-182: LBrace          "{" at 42:58-42:59 (leading: Space)
-183: Ident           "self" at 43:9-43:13 (leading: Newline, Space)
-184: Dot             "." at 43:13-43:14
-185: Ident           "rw" at 43:14-43:16
-186: Dot             "." at 43:16-43:17
-187: Ident           "read_unlock" at 43:17-43:28
-188: LParen          "(" at 43:28-43:29
-189: RParen          ")" at 43:29-43:30
-190: Semicolon       ";" at 43:30-43:31
-191: RBrace          "}" at 44:5-44:6 (leading: Newline, Space)
-192: RBrace          "}" at 45:1-45:2 (leading: Newline)
-193: EOF             at 46:1-46:1
+130: Amp             "&" at 32:43-32:44 (leading: Space)
+131: Ident           "string" at 32:44-32:50
+132: LBrace          "{" at 32:51-32:52 (leading: Space)
+133: KwReturn        "return" at 33:9-33:15 (leading: Newline, Space)
+134: Ident           "self" at 33:16-33:20 (leading: Space)
+135: Dot             "." at 33:20-33:21
+136: Ident           "data" at 33:21-33:25
+137: Semicolon       ";" at 33:25-33:26
+138: RBrace          "}" at 34:5-34:6 (leading: Newline, Space)
+139: At              "@" at 36:5-36:6 (leading: Newline, Space)
+140: Ident           "acquires_lock" at 36:6-36:19
+141: LParen          "(" at 36:19-36:20
+142: StringLit       "\"rw\"" at 36:20-36:24
+143: RParen          ")" at 36:24-36:25
+144: KwPub           "pub" at 37:5-37:8 (leading: Newline, Space)
+145: KwFn            "fn" at 37:9-37:11 (leading: Space)
+146: Ident           "acquire_read" at 37:12-37:24 (leading: Space)
+147: LParen          "(" at 37:24-37:25
+148: Ident           "self" at 37:25-37:29
+149: Colon           ":" at 37:29-37:30
+150: Amp             "&" at 37:31-37:32 (leading: Space)
+151: KwMut           "mut" at 37:32-37:35
+152: Ident           "RwCounter" at 37:36-37:45 (leading: Space)
+153: RParen          ")" at 37:45-37:46
+154: Arrow           "->" at 37:47-37:49 (leading: Space)
+155: NothingLit      "nothing" at 37:50-37:57 (leading: Space)
+156: LBrace          "{" at 37:58-37:59 (leading: Space)
+157: Ident           "self" at 38:9-38:13 (leading: Newline, Space)
+158: Dot             "." at 38:13-38:14
+159: Ident           "rw" at 38:14-38:16
+160: Dot             "." at 38:16-38:17
+161: Ident           "read_lock" at 38:17-38:26
+162: LParen          "(" at 38:26-38:27
+163: RParen          ")" at 38:27-38:28
+164: Semicolon       ";" at 38:28-38:29
+165: RBrace          "}" at 39:5-39:6 (leading: Newline, Space)
+166: At              "@" at 41:5-41:6 (leading: Newline, Space)
+167: Ident           "releases_lock" at 41:6-41:19
+168: LParen          "(" at 41:19-41:20
+169: StringLit       "\"rw\"" at 41:20-41:24
+170: RParen          ")" at 41:24-41:25
+171: KwPub           "pub" at 42:5-42:8 (leading: Newline, Space)
+172: KwFn            "fn" at 42:9-42:11 (leading: Space)
+173: Ident           "release_read" at 42:12-42:24 (leading: Space)
+174: LParen          "(" at 42:24-42:25
+175: Ident           "self" at 42:25-42:29
+176: Colon           ":" at 42:29-42:30
+177: Amp             "&" at 42:31-42:32 (leading: Space)
+178: KwMut           "mut" at 42:32-42:35
+179: Ident           "RwCounter" at 42:36-42:45 (leading: Space)
+180: RParen          ")" at 42:45-42:46
+181: Arrow           "->" at 42:47-42:49 (leading: Space)
+182: NothingLit      "nothing" at 42:50-42:57 (leading: Space)
+183: LBrace          "{" at 42:58-42:59 (leading: Space)
+184: Ident           "self" at 43:9-43:13 (leading: Newline, Space)
+185: Dot             "." at 43:13-43:14
+186: Ident           "rw" at 43:14-43:16
+187: Dot             "." at 43:16-43:17
+188: Ident           "read_unlock" at 43:17-43:28
+189: LParen          "(" at 43:28-43:29
+190: RParen          ")" at 43:29-43:30
+191: Semicolon       ";" at 43:30-43:31
+192: RBrace          "}" at 44:5-44:6 (leading: Newline, Space)
+193: RBrace          "}" at 45:1-45:2 (leading: Newline)
+194: EOF             at 46:1-46:1

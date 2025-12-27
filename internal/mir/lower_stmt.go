@@ -46,7 +46,8 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		if data.SymbolID.IsValid() {
 			localID := l.ensureLocal(data.SymbolID, data.Name, data.Type, st.Span)
 			if data.Value != nil {
-				op, err := l.lowerExpr(data.Value, true)
+				expected := data.Type
+				op, err := l.lowerExprForType(data.Value, expected)
 				if err != nil {
 					return err
 				}
@@ -63,8 +64,7 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 
 		// No symbol (e.g. `let _ = expr;`): evaluate for side effects.
 		if data.Value != nil {
-			_, err := l.lowerExpr(data.Value, false)
-			return err
+			return l.lowerExprForSideEffects(data.Value)
 		}
 		return nil
 
@@ -76,8 +76,7 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		if data.Expr == nil {
 			return nil
 		}
-		_, err := l.lowerExpr(data.Expr, false)
-		return err
+		return l.lowerExprForSideEffects(data.Expr)
 
 	case hir.StmtAssign:
 		data, ok := st.Data.(hir.AssignData)
@@ -91,7 +90,11 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		if data.Value == nil {
 			return nil
 		}
-		op, err := l.lowerExpr(data.Value, true)
+		expected := l.exprType(data.Target)
+		if data.Target != nil && data.Target.Kind == hir.ExprIndex {
+			expected = l.unwrapReferenceType(expected)
+		}
+		op, err := l.lowerExprForType(data.Value, expected)
 		if err != nil {
 			return err
 		}
@@ -112,7 +115,14 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		if len(l.returnStack) > 0 {
 			ctx := l.returnStack[len(l.returnStack)-1]
 			if ctx.hasResult && data.Value != nil {
-				op, err := l.lowerExpr(data.Value, true)
+				expected := types.NoTypeID
+				if l.f != nil && ctx.result.Local != NoLocalID {
+					idx := int(ctx.result.Local)
+					if idx >= 0 && idx < len(l.f.Locals) {
+						expected = l.f.Locals[idx].Type
+					}
+				}
+				op, err := l.lowerExprForType(data.Value, expected)
 				if err != nil {
 					return err
 				}
@@ -125,7 +135,7 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 				})
 			} else if data.Value != nil {
 				// Still lower for side effects.
-				if _, err := l.lowerExpr(data.Value, false); err != nil {
+				if err := l.lowerExprForSideEffects(data.Value); err != nil {
 					return err
 				}
 			}
@@ -136,7 +146,7 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 
 		if l.f != nil && l.isNothingType(l.f.Result) {
 			if data.Value != nil {
-				if _, err := l.lowerExpr(data.Value, false); err != nil {
+				if err := l.lowerExprForSideEffects(data.Value); err != nil {
 					return err
 				}
 			}
@@ -148,7 +158,11 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 			l.setTerm(&Terminator{Kind: TermReturn})
 			return nil
 		}
-		op, err := l.lowerExpr(data.Value, true)
+		expected := types.NoTypeID
+		if l.f != nil {
+			expected = l.f.Result
+		}
+		op, err := l.lowerExprForType(data.Value, expected)
 		if err != nil {
 			return err
 		}
@@ -177,7 +191,7 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 			return fmt.Errorf("mir: if: unexpected payload %T", st.Data)
 		}
 		cond := data.Cond
-		condOp, err := l.lowerExpr(cond, false)
+		condOp, err := l.lowerValueExpr(cond, false)
 		if err != nil {
 			return err
 		}
@@ -227,7 +241,7 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		l.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: headerBB}})
 
 		l.startBlock(headerBB)
-		condOp, err := l.lowerExpr(data.Cond, false)
+		condOp, err := l.lowerValueExpr(data.Cond, false)
 		if err != nil {
 			return err
 		}

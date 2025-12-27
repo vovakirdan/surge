@@ -230,6 +230,7 @@ const (
 	SemaDeprecatedUsage                Code = 3127 // Usage of deprecated element (warning)
 	SemaIntLiteralOutOfRange           Code = 3128 // Integer literal out of range for target type
 	SemaRawPointerNotAllowed           Code = 3129 // Raw pointer types are backend-only
+	SemaUseAfterMove                   Code = 3130 // Use of moved value
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -455,6 +456,7 @@ var ( // todo расширить описания и использовать к
 		SemaDeprecatedUsage:                "usage of deprecated element",
 		SemaIntLiteralOutOfRange:           "integer literal out of range",
 		SemaRawPointerNotAllowed:           "raw pointers are backend-only",
+		SemaUseAfterMove:                   "use of moved value",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",

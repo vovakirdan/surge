@@ -27,6 +27,7 @@ func (tc *typeChecker) callFunctionVariable(fnInfo *types.FnInfo, args []callArg
 	for i, arg := range args {
 		expectedType := fnInfo.Params[i]
 		if tc.typesAssignable(expectedType, arg.ty, true) {
+			tc.dropImplicitBorrow(arg.expr, expectedType, arg.ty, tc.exprSpan(arg.expr))
 			tc.recordNumericWidening(arg.expr, arg.ty, expectedType)
 			continue
 		}
@@ -34,6 +35,9 @@ func (tc *typeChecker) callFunctionVariable(fnInfo *types.FnInfo, args []callArg
 			"expected %s, got %s",
 			tc.typeLabel(expectedType), tc.typeLabel(arg.ty))
 		return types.NoTypeID
+	}
+	for i, arg := range args {
+		tc.applyParamOwnershipForType(fnInfo.Params[i], arg.expr, arg.ty, tc.exprSpan(arg.expr))
 	}
 
 	return fnInfo.Result
@@ -209,7 +213,7 @@ func (tc *typeChecker) handleDefaultLikeCall(name string, symID symbols.SymbolID
 // handleCloneCall handles special semantics for clone<T>(&value) -> T.
 // For Copy types, this is a simple bitwise copy (no __clone lookup).
 // For non-Copy types, this looks up the __clone magic method.
-func (tc *typeChecker) handleCloneCall(args []callArg, span source.Span) types.TypeID {
+func (tc *typeChecker) handleCloneCall(callID ast.ExprID, args []callArg, span source.Span) types.TypeID {
 	if len(args) != 1 {
 		// Let normal overload resolution handle the error
 		return types.NoTypeID
@@ -245,6 +249,10 @@ func (tc *typeChecker) handleCloneCall(args []callArg, span source.Span) types.T
 		}
 		if sig.Result != "" && typeKeyEqual(sig.Result, typeKey) {
 			// Found a valid __clone method with correct return type
+			if args[0].expr.IsValid() {
+				tc.applyParamOwnership(symbols.TypeKey("&"), args[0].expr, args[0].ty, tc.exprSpan(args[0].expr))
+			}
+			tc.recordCloneSymbol(callID, innerType)
 			return innerType
 		}
 	}
@@ -253,6 +261,18 @@ func (tc *typeChecker) handleCloneCall(args []callArg, span source.Span) types.T
 	tc.report(diag.SemaTypeNotClonable, span,
 		"type %s has __clone but with invalid signature", tc.typeLabel(innerType))
 	return types.NoTypeID
+}
+
+func (tc *typeChecker) recordCloneSymbol(expr ast.ExprID, recv types.TypeID) {
+	if !expr.IsValid() || tc.result == nil || tc.builder == nil || tc.builder.StringsInterner == nil {
+		return
+	}
+	if tc.result.CloneSymbols == nil {
+		tc.result.CloneSymbols = make(map[ast.ExprID]symbols.SymbolID)
+	}
+	nameID := tc.builder.StringsInterner.Intern("__clone")
+	member := &ast.ExprMemberData{Field: nameID}
+	tc.result.CloneSymbols[expr] = tc.resolveMethodCallSymbol(member, recv, nil, false)
 }
 
 func (tc *typeChecker) reportCannotInferTypeParams(name string, missing []string, span source.Span, call *ast.ExprCallData) {

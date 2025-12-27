@@ -112,6 +112,9 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "__clone":
 		return vm.handleClone(frame, call, writes)
 
+	case "clone":
+		return vm.handleCloneValue(frame, call, writes)
+
 	case "__index":
 		return vm.handleIndex(frame, call, writes)
 

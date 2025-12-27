@@ -1,0 +1,10 @@
+async fn compute(x: int) -> int {
+    return x;
+}
+
+pub async fn test_use_after_move() -> int {
+    let t = spawn compute(1);
+    let r1 = t.await();
+    let r2 = t.await();
+    return r1 + r2;
+}

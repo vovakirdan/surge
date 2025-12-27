@@ -71,6 +71,65 @@ func (l *funcLowerer) placeOperand(place Place, ty types.TypeID, consume bool) O
 	return Operand{Kind: kind, Type: ty, Place: place}
 }
 
+func (l *funcLowerer) unwrapReferenceType(id types.TypeID) types.TypeID {
+	if l == nil || l.types == nil || id == types.NoTypeID {
+		return id
+	}
+	tt, ok := l.types.Lookup(resolveAlias(l.types, id))
+	if !ok || tt.Kind != types.KindReference {
+		return id
+	}
+	return tt.Elem
+}
+
+func (l *funcLowerer) lowerValueExpr(e *hir.Expr, consume bool) (Operand, error) {
+	if e == nil {
+		return l.constNothing(types.NoTypeID), nil
+	}
+	if l.types != nil && e.Type != types.NoTypeID {
+		if tt, ok := l.types.Lookup(resolveAlias(l.types, e.Type)); ok && tt.Kind == types.KindReference {
+			deref := &hir.Expr{
+				Kind: hir.ExprUnaryOp,
+				Type: tt.Elem,
+				Span: e.Span,
+				Data: hir.UnaryOpData{
+					Op:      ast.ExprUnaryDeref,
+					Operand: e,
+				},
+			}
+			return l.lowerExpr(deref, consume)
+		}
+	}
+	return l.lowerExpr(e, consume)
+}
+
+func (l *funcLowerer) lowerExprForType(e *hir.Expr, expected types.TypeID) (Operand, error) {
+	if e == nil {
+		return l.constNothing(types.NoTypeID), nil
+	}
+	consume := true
+	if expected != types.NoTypeID && l.types != nil {
+		if tt, ok := l.types.Lookup(resolveAlias(l.types, expected)); ok && tt.Kind == types.KindReference {
+			return l.lowerExpr(e, consume)
+		}
+	}
+	return l.lowerValueExpr(e, consume)
+}
+
+func (l *funcLowerer) lowerExprForSideEffects(e *hir.Expr) error {
+	if e == nil {
+		return nil
+	}
+	if e.Kind == hir.ExprIndex && l.types != nil && e.Type != types.NoTypeID {
+		if tt, ok := l.types.Lookup(resolveAlias(l.types, e.Type)); ok && tt.Kind == types.KindReference {
+			_, err := l.lowerValueExpr(e, false)
+			return err
+		}
+	}
+	_, err := l.lowerExpr(e, false)
+	return err
+}
+
 func (l *funcLowerer) lowerConstValue(symID symbols.SymbolID, consume bool) (Operand, bool, error) {
 	if l == nil || !symID.IsValid() || l.consts == nil {
 		return Operand{}, false, nil
@@ -216,7 +275,11 @@ func (l *funcLowerer) lowerAssignExpr(e *hir.Expr, data hir.BinaryOpData, consum
 	if err != nil {
 		return Operand{}, err
 	}
-	rhs, err := l.lowerExpr(data.Right, true)
+	expected := l.exprType(data.Left)
+	if data.Left != nil && data.Left.Kind == hir.ExprIndex {
+		expected = l.unwrapReferenceType(expected)
+	}
+	rhs, err := l.lowerExprForType(data.Right, expected)
 	if err != nil {
 		return Operand{}, err
 	}
@@ -253,9 +316,12 @@ func (l *funcLowerer) lowerCompoundAssignExpr(e *hir.Expr, data hir.BinaryOpData
 	if resultTy == types.NoTypeID {
 		resultTy = l.exprType(data.Left)
 	}
+	if data.Left != nil && data.Left.Kind == hir.ExprIndex {
+		resultTy = l.unwrapReferenceType(resultTy)
+	}
 
 	left := l.placeOperand(dst, resultTy, false)
-	right, err := l.lowerExpr(data.Right, true)
+	right, err := l.lowerExprForType(data.Right, resultTy)
 	if err != nil {
 		return Operand{}, err
 	}

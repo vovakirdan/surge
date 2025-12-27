@@ -69,6 +69,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				ty = types.NoTypeID
 			case sym.Kind == symbols.SymbolLet || sym.Kind == symbols.SymbolParam:
 				ty = tc.bindingType(symID)
+				if tc.assignmentLHSDepth == 0 {
+					tc.checkUseAfterMove(symID, expr.Span)
+				}
 				// Check for deprecated variable usage (let only, params are local)
 				if sym.Kind == symbols.SymbolLet {
 					tc.checkDeprecatedSymbol(symID, "variable", expr.Span)
@@ -154,11 +157,55 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					argTypes := make([]types.TypeID, 0, len(call.Args))
 					for _, arg := range call.Args {
 						argTypes = append(argTypes, tc.typeExpr(arg.Value))
-						tc.observeMove(arg.Value, tc.exprSpan(arg.Value))
 					}
 					ty = tc.methodResultType(member, receiverType, argTypes, expr.Span, receiverIsType)
 					symID := tc.recordMethodCallSymbol(id, member, receiverType, argTypes, receiverIsType)
 					tc.recordMethodCallInstantiation(symID, call, receiverType, expr.Span)
+					appliedArgsOwnership := false
+					if symID.IsValid() {
+						if !receiverIsType {
+							tc.applyMethodReceiverOwnership(symID, member.Target, receiverType)
+							if sym := tc.symbolFromID(symID); sym != nil && sym.Signature != nil {
+								if len(sym.Signature.Params) > 0 {
+									tc.dropImplicitBorrowForRefParam(member.Target, sym.Signature.Params[0], receiverType, ty, tc.exprSpan(member.Target))
+									tc.dropImplicitBorrowForValueParam(member.Target, sym.Signature.Params[0], receiverType, tc.exprSpan(member.Target))
+								}
+								appliedArgsOwnership = tc.applyMethodArgsOwnership(sym, call.Args, argTypes)
+								if appliedArgsOwnership {
+									offset := 0
+									if sym.Signature.HasSelf {
+										offset = 1
+									}
+									for i, arg := range call.Args {
+										paramIndex := i + offset
+										if i >= len(argTypes) || paramIndex >= len(sym.Signature.Params) {
+											break
+										}
+										tc.dropImplicitBorrowForRefParam(arg.Value, sym.Signature.Params[paramIndex], argTypes[i], ty, tc.exprSpan(arg.Value))
+										tc.dropImplicitBorrowForValueParam(arg.Value, sym.Signature.Params[paramIndex], argTypes[i], tc.exprSpan(arg.Value))
+									}
+								}
+							}
+						} else if methodName == "from_str" {
+							appliedArgsOwnership = tc.applyCallArgsOwnership(symID, call.Args, argTypes)
+							if appliedArgsOwnership {
+								if sym := tc.symbolFromID(symID); sym != nil && sym.Signature != nil {
+									for i, arg := range call.Args {
+										if i >= len(sym.Signature.Params) || i >= len(argTypes) {
+											break
+										}
+										tc.dropImplicitBorrowForRefParam(arg.Value, sym.Signature.Params[i], argTypes[i], ty, tc.exprSpan(arg.Value))
+										tc.dropImplicitBorrowForValueParam(arg.Value, sym.Signature.Params[i], argTypes[i], tc.exprSpan(arg.Value))
+									}
+								}
+							}
+						}
+					}
+					if !appliedArgsOwnership {
+						for _, arg := range call.Args {
+							tc.observeMove(arg.Value, tc.exprSpan(arg.Value))
+						}
+					}
 					if !receiverIsType {
 						tc.checkArrayViewResizeMethod(member.Target, methodName, receiverType, expr.Span)
 						tc.markArrayViewMethodCall(id, methodName, receiverType, argTypes)
@@ -233,10 +280,19 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		if idx, ok := tc.builder.Exprs.Index(id); ok && idx != nil {
 			container := tc.typeExpr(idx.Target)
 			indexType := tc.typeExpr(idx.Index)
+			_, isAddressOfOperand := tc.addressOfOperands[id]
+			var sig *symbols.FunctionSignature
+			if tc.assignmentLHSDepth == 0 {
+				sig = tc.magicSignatureForIndex(container, indexType)
+			}
 			if magic := tc.magicResultForIndex(container, indexType); magic != types.NoTypeID {
 				ty = magic
 			} else {
 				ty = tc.indexResultType(container, indexType, expr.Span)
+			}
+			if sig != nil && !isAddressOfOperand {
+				tc.applyParamOwnership(sig.Params[0], idx.Target, container, tc.exprSpan(idx.Target))
+				tc.applyParamOwnership(sig.Params[1], idx.Index, indexType, tc.exprSpan(idx.Index))
 			}
 			if tc.isArrayRangeIndex(container, indexType) {
 				tc.markArrayViewExpr(id)
@@ -272,6 +328,13 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			if sourceType == types.NoTypeID {
 				break
 			}
+			castSource := sourceType
+			if tc.isReferenceType(sourceType) {
+				inner := tc.valueType(sourceType)
+				if inner != types.NoTypeID && tc.isCopyType(inner) {
+					castSource = inner
+				}
+			}
 			scope := tc.scopeOrFile(tc.currentScope())
 			targetType := types.NoTypeID
 			if cast.Type.IsValid() {
@@ -282,14 +345,21 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			if targetType == types.NoTypeID {
 				break
 			}
-			if tc.isAddressLike(sourceType) || tc.isAddressLike(targetType) {
+			if tc.isAddressLike(castSource) || tc.isAddressLike(targetType) {
 				tc.report(diag.SemaTypeMismatch, expr.Span, "cannot cast %s to %s", tc.typeLabel(sourceType), tc.typeLabel(targetType))
 				break
 			}
-			if numeric := tc.numericCastResult(sourceType, targetType); numeric != types.NoTypeID {
+			if numeric := tc.numericCastResult(castSource, targetType); numeric != types.NoTypeID {
 				ty = numeric
-			} else if magic := tc.magicResultForCast(sourceType, targetType); magic != types.NoTypeID {
-				tc.recordToSymbol(id, sourceType, targetType)
+			} else if magic := tc.magicResultForCast(castSource, targetType); magic != types.NoTypeID {
+				symID := tc.resolveToSymbol(castSource, targetType)
+				tc.recordToSymbol(id, castSource, targetType)
+				if symID.IsValid() {
+					if sym := tc.symbolFromID(symID); sym != nil && sym.Signature != nil && len(sym.Signature.Params) > 0 {
+						tc.applyParamOwnership(sym.Signature.Params[0], cast.Value, sourceType, tc.exprSpan(cast.Value))
+						tc.dropImplicitBorrowForRefParam(cast.Value, sym.Signature.Params[0], sourceType, magic, tc.exprSpan(cast.Value))
+					}
+				}
 				ty = magic
 			} else if cast.Type.IsValid() && tc.literalCoercible(targetType, sourceType) && tc.isLiteralExpr(cast.Value) {
 				ty = targetType
@@ -436,6 +506,21 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		// ExprIdent and other unhandled kinds default to unknown.
 	}
 	tc.result.ExprTypes[id] = ty
+	return ty
+}
+
+func (tc *typeChecker) typeExprAssignLHS(id ast.ExprID) types.TypeID {
+	tc.assignmentLHSDepth++
+	ty := tc.typeExpr(id)
+	tc.assignmentLHSDepth--
+	if tc.builder != nil && tc.isReferenceType(ty) {
+		exprID := tc.unwrapGroupExpr(id)
+		if idx, ok := tc.builder.Exprs.Index(exprID); ok && idx != nil {
+			if elem, ok := tc.elementType(ty); ok {
+				return elem
+			}
+		}
+	}
 	return ty
 }
 

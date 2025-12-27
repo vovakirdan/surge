@@ -45,10 +45,10 @@ lock_annotations_valid.sg (span: 3:1-46:1)
    ├─ Members:
    │  ├─ Fn[0]: read_data
    │  │  ├─ Params: (self: &RwCounter)
-   │  │  ├─ Return: string
+   │  │  ├─ Return: &string
    │  │  ├─ Attributes: @requires_lock("rw")
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 32:50-34:6)
+   │  │     Stmt[0]: Block (span: 32:51-34:6)
    │  │     └─ Stmt[0]: Return (span: 33:9-33:26)
    │  │        └─ Expr: expr#16: self.data
    │  ├─ Fn[1]: acquire_read

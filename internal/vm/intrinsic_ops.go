@@ -141,6 +141,51 @@ func (vm *VM) handleClone(frame *Frame, call *mir.CallInstr, writes *[]LocalWrit
 	return nil
 }
 
+// handleCloneValue handles the clone intrinsic for Copy types.
+func (vm *VM) handleCloneValue(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if !call.HasDst {
+		return vm.eb.makeError(PanicTypeMismatch, "clone requires a destination")
+	}
+	if len(call.Args) != 1 {
+		return vm.eb.makeError(PanicTypeMismatch, "clone requires 1 argument")
+	}
+	arg, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	if arg.Kind == VKRef || arg.Kind == VKRefMut {
+		v, loadErr := vm.loadLocationRaw(arg.Loc)
+		if loadErr != nil {
+			return loadErr
+		}
+		arg = v
+	}
+	if arg.IsHeap() {
+		var cloneErr *VMError
+		arg, cloneErr = vm.cloneForShare(arg)
+		if cloneErr != nil {
+			return cloneErr
+		}
+	}
+	dstLocal := call.Dst.Local
+	dstType := frame.Locals[dstLocal].TypeID
+	if vm.Types != nil && dstType != types.NoTypeID {
+		if !vm.Types.IsCopy(resolveAlias(vm.Types, dstType)) {
+			return vm.eb.makeError(PanicTypeMismatch, "clone requires a Copy type")
+		}
+	}
+	arg.TypeID = dstType
+	if vmErr := vm.writeLocal(frame, dstLocal, arg); vmErr != nil {
+		return vmErr
+	}
+	*writes = append(*writes, LocalWrite{
+		LocalID: dstLocal,
+		Name:    frame.Locals[dstLocal].Name,
+		Value:   frame.Locals[dstLocal].V,
+	})
+	return nil
+}
+
 // handleIndex handles the __index intrinsic.
 func (vm *VM) handleIndex(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if !call.HasDst {
@@ -224,4 +269,24 @@ func (vm *VM) handleTo(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 		vm.dropValue(srcVal)
 	}
 	return nil
+}
+
+func resolveAlias(typesIn *types.Interner, id types.TypeID) types.TypeID {
+	if typesIn == nil {
+		return id
+	}
+	seen := 0
+	for id != types.NoTypeID && seen < 32 {
+		tt, ok := typesIn.Lookup(id)
+		if !ok || tt.Kind != types.KindAlias {
+			return id
+		}
+		target, ok := typesIn.AliasTarget(id)
+		if !ok || target == types.NoTypeID || target == id {
+			return id
+		}
+		id = target
+		seen++
+	}
+	return id
 }

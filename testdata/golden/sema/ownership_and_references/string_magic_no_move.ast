@@ -1,0 +1,57 @@
+string_magic_no_move.sg (span: 1:1-13:1)
+└─ Item[0]: Fn (span: 1:1-12:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:11-12:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:18)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#1: "hi"
+         ├─ Stmt[1]: Let (span: 3:5-3:21)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: (s + "!")
+         ├─ Stmt[2]: Let (span: 4:5-4:19)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#7: (s * 2)
+         ├─ Stmt[3]: Let (span: 5:5-5:26)
+         │  ├─ Name: c
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#12: (s * (2 to uint))
+         ├─ Stmt[4]: Let (span: 6:5-6:23)
+         │  ├─ Name: d
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#15: (s == "hi")
+         ├─ Stmt[5]: Let (span: 7:5-7:24)
+         │  ├─ Name: e
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#18: (s != "bye")
+         ├─ Stmt[6]: Let (span: 8:5-8:27)
+         │  ├─ Name: i
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#20: s to int
+         ├─ Stmt[7]: Let (span: 9:5-9:29)
+         │  ├─ Name: u
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#22: s to uint
+         ├─ Stmt[8]: Let (span: 10:5-10:31)
+         │  ├─ Name: f
+         │  ├─ Mutable: false
+         │  ├─ Type: float
+         │  └─ Value: expr#24: s to float
+         └─ Stmt[9]: Let (span: 11:5-11:20)
+            ├─ Name: s2
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#27: (s + s)

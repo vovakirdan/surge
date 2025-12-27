@@ -6,13 +6,13 @@ fn __surge_start:
   locals:
     L0: string name=stdin
     L1: int [copy] name=x
-    L2: type#464 name=stdin_parsed
+    L2: type#468 name=stdin_parsed
     L3: bool [copy] name=stdin_ok
     L4: int name=entry_ret
     L5: int [copy] name=code
   bb0:
     L0 = call rt_stdin_read_all()
-    L2 = call from_str(move L0)
+    L2 = call from_str(addr_of L0)
     L3 = tag_test copy L2 is Success
     if copy L3 then bb1 else bb2
   bb1:

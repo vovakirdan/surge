@@ -9,9 +9,9 @@ fn __surge_start:
     L2: int [copy] name=x
     L3: bool [copy] name=has_arg0
     L4: string name=arg_str0
-    L5: type#464 name=arg_parsed0
+    L5: type#468 name=arg_parsed0
     L6: bool [copy] name=arg_ok0
-    L7: type#31 name=entry_err
+    L7: type#22 name=entry_err
     L8: int name=entry_ret
     L9: int [copy] name=code
   bb0:
@@ -21,11 +21,11 @@ fn __surge_start:
     if copy L3 then bb1 else bb2
   bb1:
     L4 = index copy L0[const 0]
-    L5 = call from_str(move L4)
+    L5 = call from_str(addr_of L4)
     L6 = tag_test copy L5 is Success
     if copy L6 then bb4 else bb5
   bb2:
-    L7 = struct_lit type#31 {message=const "missing argv argument \"x\"", code=const 1:uint}
+    L7 = struct_lit type#22 {message=const "missing argv argument \"x\"", code=const 1:uint}
     call exit(move L7)
     return
   bb3:

@@ -350,6 +350,40 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 		return nil
 	}
 
+	if l.semaRes != nil && l.semaRes.CloneSymbols != nil && len(callData.Args) == 1 {
+		if ident, ok := l.builder.Exprs.Ident(callData.Target); ok && ident != nil {
+			name := l.lookupString(ident.Name)
+			if name == "clone" {
+				arg := l.lowerExpr(callData.Args[0].Value)
+				if arg == nil {
+					return nil
+				}
+				if l.semaRes.TypeInterner != nil && l.semaRes.TypeInterner.IsCopy(ty) {
+					if _, ok, _ := l.referenceInfo(arg.Type); ok {
+						return l.applyDeref(arg)
+					}
+					return arg
+				}
+				if symID := l.semaRes.CloneSymbols[exprID]; symID.IsValid() {
+					recv := l.applySelfBorrow(symID, arg)
+					callee := l.varRefForSymbol(symID, expr.Span)
+					return &Expr{
+						Kind: ExprCall,
+						Type: ty,
+						Span: expr.Span,
+						Data: CallData{
+							Callee:   callee,
+							Args:     []*Expr{recv},
+							SymbolID: symID,
+						},
+					}
+				}
+			}
+		}
+	}
+
+	member, isMember := l.builder.Exprs.Member(callData.Target)
+
 	args := make([]*Expr, len(callData.Args))
 	for i, arg := range callData.Args {
 		args[i] = l.lowerExpr(arg.Value)
@@ -358,9 +392,14 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 	var symID symbols.SymbolID
 	if l.symRes != nil {
 		symID = l.symRes.ExprSymbols[exprID]
+		if !symID.IsValid() && !isMember {
+			if targetSym, ok := l.symRes.ExprSymbols[callData.Target]; ok && targetSym.IsValid() {
+				symID = targetSym
+			}
+		}
 	}
 
-	if member, ok := l.builder.Exprs.Member(callData.Target); ok && member != nil {
+	if isMember && member != nil {
 		if symID.IsValid() {
 			recv := l.lowerExpr(member.Target)
 			if recv != nil && recv.Type != types.NoTypeID {
@@ -368,6 +407,7 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 				args = append([]*Expr{recv}, args...)
 			}
 			args = l.packVariadicArgs(symID, args, expr.Span)
+			args = l.applyParamBorrow(symID, args)
 			callee := l.varRefForSymbol(symID, expr.Span)
 			return &Expr{
 				Kind: ExprCall,
@@ -383,6 +423,7 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 		if l.symRes != nil {
 			if memberSym := l.symRes.ExprSymbols[callData.Target]; memberSym.IsValid() {
 				args = l.packVariadicArgs(memberSym, args, expr.Span)
+				args = l.applyParamBorrow(memberSym, args)
 				callee := l.varRefForSymbol(memberSym, expr.Span)
 				return &Expr{
 					Kind: ExprCall,
@@ -400,6 +441,7 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 
 	callee := l.lowerExpr(callData.Target)
 	args = l.packVariadicArgs(symID, args, expr.Span)
+	args = l.applyParamBorrow(symID, args)
 	return &Expr{
 		Kind: ExprCall,
 		Type: ty,
