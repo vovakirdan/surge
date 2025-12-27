@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"sort"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -202,10 +204,14 @@ func (tc *typeChecker) run() {
 	tc.ensureBuiltinArrayType()
 	files := []*ast.File{file}
 	if tc.symbols != nil && len(tc.symbols.ModuleFiles) > 0 {
+		ids := make([]ast.FileID, 0, len(tc.symbols.ModuleFiles))
 		for fid := range tc.symbols.ModuleFiles {
-			if fid == tc.fileID {
-				continue
+			if fid != tc.fileID {
+				ids = append(ids, fid)
 			}
+		}
+		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+		for _, fid := range ids {
 			if f := tc.builder.Files.Get(fid); f != nil {
 				files = append(files, f)
 			}
