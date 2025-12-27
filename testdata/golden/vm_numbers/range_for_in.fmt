@@ -1,0 +1,19 @@
+@entrypoint
+fn main() -> int {
+    let r = 2..5;
+    for x in r {
+        print(x to string);
+    }
+
+    let mut r2 = 1..3;
+    print(r2.next().safe() to string);
+    print(r2.next().safe() to string);
+    let last = r2.next();
+    print(last.is_some() to string);
+
+    let r3 = 0..=2;
+    for y in r3 {
+        print(y to string);
+    }
+    return 0;
+}

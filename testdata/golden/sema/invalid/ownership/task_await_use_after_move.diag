@@ -1,0 +1,1 @@
+error SEM3130 testdata/golden/sema/invalid/ownership/task_await_use_after_move.sg:8:14 use of moved value 't'

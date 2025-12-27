@@ -54,12 +54,32 @@ func (tc *typeChecker) memberResultType(base types.TypeID, field source.StringID
 	if base == types.NoTypeID || field == source.NoStringID {
 		return types.NoTypeID
 	}
+	isRef := false
+	refMut := false
+	if tc.types != nil {
+		if tt, ok := tc.types.Lookup(tc.resolveAlias(base)); ok && tt.Kind == types.KindReference {
+			isRef = true
+			refMut = tt.Mutable
+		}
+	}
 	base = tc.valueType(base)
 	if base == types.NoTypeID {
 		return types.NoTypeID
 	}
+	wrapField := func(ty types.TypeID) types.TypeID {
+		if ty == types.NoTypeID || !isRef {
+			return ty
+		}
+		if tc.assignmentLHSDepth > 0 || tc.isCopyType(ty) {
+			return ty
+		}
+		if tc.types == nil {
+			return ty
+		}
+		return tc.types.Intern(types.MakeReference(ty, refMut))
+	}
 	if ty := tc.boundFieldType(base, field); ty != types.NoTypeID {
-		return ty
+		return wrapField(ty)
 	}
 	info, structType := tc.structInfoForType(base)
 	externFields := tc.externFieldsForType(base)
@@ -68,12 +88,12 @@ func (tc *typeChecker) memberResultType(base types.TypeID, field source.StringID
 			if f.Name == field {
 				// Check for deprecated field usage
 				tc.checkDeprecatedField(structType, i, field, span)
-				return f.Type
+				return wrapField(f.Type)
 			}
 		}
 		for _, f := range externFields {
 			if f.Name == field {
-				return f.Type
+				return wrapField(f.Type)
 			}
 		}
 		tc.report(diag.SemaUnresolvedSymbol, span, "%s has no field %s", tc.typeLabel(structType), tc.lookupName(field))
@@ -81,7 +101,7 @@ func (tc *typeChecker) memberResultType(base types.TypeID, field source.StringID
 	}
 	for _, f := range externFields {
 		if f.Name == field {
-			return f.Type
+			return wrapField(f.Type)
 		}
 	}
 	if len(externFields) > 0 {

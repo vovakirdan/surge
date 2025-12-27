@@ -2,11 +2,11 @@
 == HIR ==
 module 
 
-fn swap(a: int [copy], b: int [copy]) -> type#1165 (id=1, sym=1134) {
-  return (b, a): type#1167
+fn swap(a: int [copy], b: int [copy]) -> type#1179 (id=1, sym=1136) {
+  return (b, a): type#1181
 }
 
-fn get_first(t: type#1168) -> int (id=2, sym=1135) {
+fn get_first(t: type#1182) -> int (id=2, sym=1137) {
   return t.0: int
 }
 

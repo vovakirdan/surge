@@ -1,0 +1,65 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "main" at 1:4-1:8 (leading: Space)
+  3: LParen          "(" at 1:8-1:9
+  4: RParen          ")" at 1:9-1:10
+  5: LBrace          "{" at 1:11-1:12 (leading: Space)
+  6: KwLet           "let" at 2:5-2:8 (leading: Newline, Space)
+  7: Ident           "xs" at 2:9-2:11 (leading: Space)
+  8: Assign          "=" at 2:12-2:13 (leading: Space)
+  9: LBracket        "[" at 2:14-2:15 (leading: Space)
+ 10: IntLit          "1" at 2:15-2:16
+ 11: Comma           "," at 2:16-2:17
+ 12: IntLit          "2" at 2:18-2:19 (leading: Space)
+ 13: Comma           "," at 2:19-2:20
+ 14: IntLit          "3" at 2:21-2:22 (leading: Space)
+ 15: RBracket        "]" at 2:22-2:23
+ 16: Semicolon       ";" at 2:23-2:24
+ 17: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 18: Ident           "r" at 3:9-3:10 (leading: Space)
+ 19: Colon           ":" at 3:10-3:11
+ 20: Amp             "&" at 3:12-3:13 (leading: Space)
+ 21: Ident           "int" at 3:13-3:16
+ 22: Assign          "=" at 3:17-3:18 (leading: Space)
+ 23: Ident           "xs" at 3:19-3:21 (leading: Space)
+ 24: LBracket        "[" at 3:21-3:22
+ 25: IntLit          "0" at 3:22-3:23
+ 26: RBracket        "]" at 3:23-3:24
+ 27: Semicolon       ";" at 3:24-3:25
+ 28: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 29: Ident           "slice" at 4:9-4:14 (leading: Space)
+ 30: Assign          "=" at 4:15-4:16 (leading: Space)
+ 31: Ident           "xs" at 4:17-4:19 (leading: Space)
+ 32: LBracket        "[" at 4:19-4:20
+ 33: LBracket        "[" at 4:20-4:21
+ 34: IntLit          "0" at 4:21-4:22
+ 35: DotDot          ".." at 4:22-4:24
+ 36: IntLit          "2" at 4:24-4:25
+ 37: RBracket        "]" at 4:25-4:26
+ 38: RBracket        "]" at 4:26-4:27
+ 39: Semicolon       ";" at 4:27-4:28
+ 40: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 41: Ident           "len1" at 5:9-5:13 (leading: Space)
+ 42: Assign          "=" at 5:14-5:15 (leading: Space)
+ 43: Ident           "xs" at 5:16-5:18 (leading: Space)
+ 44: Dot             "." at 5:18-5:19
+ 45: Ident           "__len" at 5:19-5:24
+ 46: LParen          "(" at 5:24-5:25
+ 47: RParen          ")" at 5:25-5:26
+ 48: Semicolon       ";" at 5:26-5:27
+ 49: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
+ 50: Ident           "len2" at 6:9-6:13 (leading: Space)
+ 51: Assign          "=" at 6:14-6:15 (leading: Space)
+ 52: Ident           "slice" at 6:16-6:21 (leading: Space)
+ 53: Dot             "." at 6:21-6:22
+ 54: Ident           "__len" at 6:22-6:27
+ 55: LParen          "(" at 6:27-6:28
+ 56: RParen          ")" at 6:28-6:29
+ 57: Semicolon       ";" at 6:29-6:30
+ 58: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
+ 59: Ident           "v" at 7:9-7:10 (leading: Space)
+ 60: Assign          "=" at 7:11-7:12 (leading: Space)
+ 61: Star            "*" at 7:13-7:14 (leading: Space)
+ 62: Ident           "r" at 7:14-7:15
+ 63: Semicolon       ";" at 7:15-7:16
+ 64: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 65: EOF             at 9:1-9:1

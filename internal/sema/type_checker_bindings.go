@@ -125,6 +125,7 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 
 	// Standard type assignability check
 	if tc.typesAssignable(declared, actual, true) {
+		tc.dropImplicitBorrow(valueExpr, declared, actual, tc.exprSpan(valueExpr))
 		if tc.recordNumericWidening(valueExpr, actual, declared) {
 			return
 		}

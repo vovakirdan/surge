@@ -19,6 +19,7 @@ func (tc *typeChecker) ensureBoolContext(expr ast.ExprID, span source.Span) {
 	}
 	boolType := tc.types.Builtins().Bool
 	if tc.typesAssignable(boolType, ty, true) {
+		tc.dropImplicitBorrow(expr, boolType, ty, span)
 		return
 	}
 	if res, found := tc.boolMethodResult(ty); found {

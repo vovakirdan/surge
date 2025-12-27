@@ -72,13 +72,13 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 			if obj.Kind != OKStruct {
 				return Location{}, vm.eb.invalidLocation(fmt.Sprintf("field projection on %v", obj.Kind))
 			}
-			layout, vmErr := vm.layouts.Struct(obj.TypeID)
-			if vmErr != nil {
-				return Location{}, vmErr
-			}
 
 			fieldIdx := proj.FieldIdx
 			if fieldIdx < 0 {
+				layout, vmErr := vm.layouts.Struct(obj.TypeID)
+				if vmErr != nil {
+					return Location{}, vmErr
+				}
 				idx, ok := layout.IndexByName[proj.FieldName]
 				if !ok {
 					return Location{}, vm.eb.invalidLocation(fmt.Sprintf("unknown field %q on type#%d", proj.FieldName, layout.TypeID))
@@ -96,7 +96,11 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 
 			var byteOffset int32
 			if vm.Layout != nil {
-				off, err := vm.Layout.FieldOffset(obj.TypeID, fieldIdx)
+				typeForOffset := v.TypeID
+				if typeForOffset == types.NoTypeID {
+					typeForOffset = obj.TypeID
+				}
+				off, err := vm.Layout.FieldOffset(typeForOffset, fieldIdx)
 				if err != nil {
 					return Location{}, vm.eb.invalidLocation(fmt.Sprintf("field projection: %v", err))
 				}

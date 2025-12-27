@@ -328,6 +328,18 @@ func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral, 
 			if actInfo.Kind == types.KindOwn && expected == actInfo.Elem && tc.isCopyType(expected) {
 				return 1, true
 			}
+			if actInfo.Kind == types.KindReference {
+				elem := tc.resolveAlias(actInfo.Elem)
+				if expInfo.Kind == types.KindOwn {
+					if elem == tc.resolveAlias(expInfo.Elem) && tc.isCopyType(elem) {
+						return 1, true
+					}
+				} else if expInfo.Kind != types.KindReference && expInfo.Kind != types.KindPointer {
+					if elem == expected && tc.isCopyType(elem) {
+						return 1, true
+					}
+				}
+			}
 		}
 	}
 	if actInfo, okA := tc.types.FnInfo(actual); okA {

@@ -51,7 +51,7 @@ pub type Task<T> = {
 };
 
 extern<Task<T>> {
-    @intrinsic pub fn await(self: Task<T>) -> T;
+    @intrinsic pub fn await(self: own Task<T>) -> T;
 }
 
 // Cooperative yield point for CPU-bound work
@@ -126,7 +126,7 @@ extern<int> {
     @intrinsic @overload fn __to(self: int, target: float32) -> float32;
     @intrinsic @overload fn __to(self: int, target: float64) -> float64;
     // Parse int from string (for @entrypoint("argv") support)
-    @intrinsic pub fn from_str(s: string) -> Erring<int, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<int, Error>;
 }
 
 extern<uint> {
@@ -163,7 +163,7 @@ extern<uint> {
     @intrinsic @overload fn __to(self: uint, target: float32) -> float32;
     @intrinsic @overload fn __to(self: uint, target: float64) -> float64;
     // Parse uint from string (for @entrypoint("argv") support)
-    @intrinsic pub fn from_str(s: string) -> Erring<uint, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<uint, Error>;
 }
 
 extern<int8> {
@@ -192,7 +192,7 @@ extern<int8> {
     @intrinsic @overload fn __to(self: int8, target: int16) -> int16;
     @intrinsic @overload fn __to(self: int8, target: int32) -> int32;
     @intrinsic @overload fn __to(self: int8, target: int64) -> int64;
-    @intrinsic pub fn from_str(s: string) -> Erring<int8, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<int8, Error>;
 }
 
 extern<int16> {
@@ -221,7 +221,7 @@ extern<int16> {
     @intrinsic @overload fn __to(self: int16, target: int8) -> int8;
     @intrinsic @overload fn __to(self: int16, target: int32) -> int32;
     @intrinsic @overload fn __to(self: int16, target: int64) -> int64;
-    @intrinsic pub fn from_str(s: string) -> Erring<int16, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<int16, Error>;
 }
 
 extern<int32> {
@@ -250,7 +250,7 @@ extern<int32> {
     @intrinsic @overload fn __to(self: int32, target: int8) -> int8;
     @intrinsic @overload fn __to(self: int32, target: int16) -> int16;
     @intrinsic @overload fn __to(self: int32, target: int64) -> int64;
-    @intrinsic pub fn from_str(s: string) -> Erring<int32, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<int32, Error>;
 }
 
 extern<int64> {
@@ -279,7 +279,7 @@ extern<int64> {
     @intrinsic @overload fn __to(self: int64, target: int8) -> int8;
     @intrinsic @overload fn __to(self: int64, target: int16) -> int16;
     @intrinsic @overload fn __to(self: int64, target: int32) -> int32;
-    @intrinsic pub fn from_str(s: string) -> Erring<int64, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<int64, Error>;
 }
 
 extern<uint8> {
@@ -307,7 +307,7 @@ extern<uint8> {
     @intrinsic @overload fn __to(self: uint8, target: uint16) -> uint16;
     @intrinsic @overload fn __to(self: uint8, target: uint32) -> uint32;
     @intrinsic @overload fn __to(self: uint8, target: uint64) -> uint64;
-    @intrinsic pub fn from_str(s: string) -> Erring<uint8, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<uint8, Error>;
 }
 
 extern<uint16> {
@@ -335,7 +335,7 @@ extern<uint16> {
     @intrinsic @overload fn __to(self: uint16, target: uint8) -> uint8;
     @intrinsic @overload fn __to(self: uint16, target: uint32) -> uint32;
     @intrinsic @overload fn __to(self: uint16, target: uint64) -> uint64;
-    @intrinsic pub fn from_str(s: string) -> Erring<uint16, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<uint16, Error>;
 }
 
 extern<uint32> {
@@ -363,7 +363,7 @@ extern<uint32> {
     @intrinsic @overload fn __to(self: uint32, target: uint8) -> uint8;
     @intrinsic @overload fn __to(self: uint32, target: uint16) -> uint16;
     @intrinsic @overload fn __to(self: uint32, target: uint64) -> uint64;
-    @intrinsic pub fn from_str(s: string) -> Erring<uint32, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<uint32, Error>;
 }
 
 extern<uint64> {
@@ -391,7 +391,7 @@ extern<uint64> {
     @intrinsic @overload fn __to(self: uint64, target: uint8) -> uint8;
     @intrinsic @overload fn __to(self: uint64, target: uint16) -> uint16;
     @intrinsic @overload fn __to(self: uint64, target: uint32) -> uint32;
-    @intrinsic pub fn from_str(s: string) -> Erring<uint64, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<uint64, Error>;
 }
 
 extern<float16> {
@@ -414,7 +414,7 @@ extern<float16> {
     @intrinsic fn __to(self: float16, target: float) -> float;
     @intrinsic @overload fn __to(self: float16, target: float32) -> float32;
     @intrinsic @overload fn __to(self: float16, target: float64) -> float64;
-    @intrinsic pub fn from_str(s: string) -> Erring<float16, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<float16, Error>;
 }
 
 extern<float32> {
@@ -437,7 +437,7 @@ extern<float32> {
     @intrinsic fn __to(self: float32, target: float) -> float;
     @intrinsic @overload fn __to(self: float32, target: float16) -> float16;
     @intrinsic @overload fn __to(self: float32, target: float64) -> float64;
-    @intrinsic pub fn from_str(s: string) -> Erring<float32, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<float32, Error>;
 }
 
 extern<float64> {
@@ -460,7 +460,7 @@ extern<float64> {
     @intrinsic fn __to(self: float64, target: float) -> float;
     @intrinsic @overload fn __to(self: float64, target: float16) -> float16;
     @intrinsic @overload fn __to(self: float64, target: float32) -> float32;
-    @intrinsic pub fn from_str(s: string) -> Erring<float64, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<float64, Error>;
 }
 
 extern<float> {
@@ -493,20 +493,20 @@ extern<float> {
     @intrinsic @overload fn __to(self: float, target: float32) -> float32;
     @intrinsic @overload fn __to(self: float, target: float64) -> float64;
     // Parse float from string (for @entrypoint("argv") support)
-    @intrinsic pub fn from_str(s: string) -> Erring<float, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<float, Error>;
 }
 
 extern<string> {
-    @intrinsic fn __add(self: string, other: string) -> string;
-    @intrinsic fn __mul(self: string, other: int) -> string;
-    @overload fn __mul(self: string, other: uint) -> string {
+    @intrinsic fn __add(self: &string, other: &string) -> string;
+    @intrinsic fn __mul(self: &string, other: int) -> string;
+    @overload pub fn __mul(self: &string, other: uint) -> string {
         return self * (other to int);
     }
-    @intrinsic fn __eq(self: string, other: string) -> bool;
-    @intrinsic fn __ne(self: string, other: string) -> bool;
-    @intrinsic fn __to(self: string, target: int) -> int;
-    @intrinsic @overload fn __to(self: string, target: uint) -> uint;
-    @intrinsic @overload fn __to(self: string, target: float) -> float;
+    @intrinsic fn __eq(self: &string, other: &string) -> bool;
+    @intrinsic fn __ne(self: &string, other: &string) -> bool;
+    @intrinsic fn __to(self: &string, target: int) -> int;
+    @intrinsic @overload fn __to(self: &string, target: uint) -> uint;
+    @intrinsic @overload fn __to(self: &string, target: float) -> float;
     @intrinsic fn __len(self: &string) -> uint;
     @intrinsic fn __clone(self: &string) -> string;
     @intrinsic @overload fn __index(self: &string, index: int) -> uint32;
@@ -531,24 +531,24 @@ extern<bool> {
     @intrinsic fn __to(self: bool, target: string) -> string;
     @intrinsic @overload fn __to(self: bool, target: int) -> int;
     // Parse bool from string (for @entrypoint("argv") support)
-    @intrinsic pub fn from_str(s: string) -> Erring<bool, Error>;
+    @intrinsic pub fn from_str(s: &string) -> Erring<bool, Error>;
 }
 
 extern<Array<T>> {
-    @intrinsic fn __add(self: Array<T>, other: Array<T>) -> Array<T>;
-    @intrinsic fn __index(self: Array<T>, index: int) -> T;
+    @intrinsic fn __add(self: &Array<T>, other: &Array<T>) -> Array<T>;
+    @intrinsic fn __index(self: &Array<T>, index: int) -> &T;
     @intrinsic @overload fn __index(self: &Array<T>, index: Range<int>) -> Array<T>;
-    @intrinsic fn __index_set(self: Array<T>, index: int, value: T) -> nothing;
-    @intrinsic fn __range(self: Array<T>) -> Range<T>;
+    @intrinsic fn __index_set(self: &mut Array<T>, index: int, value: T) -> nothing;
+    @intrinsic fn __range(self: &Array<T>) -> Range<T>;
     @intrinsic fn __len(self: &Array<T>) -> uint;
 }
 
 extern<ArrayFixed<T, N>> {
-    @intrinsic fn __add(self: ArrayFixed<T, N>, other: ArrayFixed<T, N>) -> ArrayFixed<T, N>;
-    @intrinsic fn __index(self: ArrayFixed<T, N>, index: int) -> T;
+    @intrinsic fn __add(self: &ArrayFixed<T, N>, other: &ArrayFixed<T, N>) -> ArrayFixed<T, N>;
+    @intrinsic fn __index(self: &ArrayFixed<T, N>, index: int) -> &T;
     @intrinsic @overload fn __index(self: &ArrayFixed<T, N>, index: Range<int>) -> Array<T>;
-    @intrinsic fn __index_set(self: ArrayFixed<T, N>, index: int, value: T) -> nothing;
-    @intrinsic fn __range(self: ArrayFixed<T, N>) -> Range<T>;
+    @intrinsic fn __index_set(self: &mut ArrayFixed<T, N>, index: int, value: T) -> nothing;
+    @intrinsic fn __range(self: &ArrayFixed<T, N>) -> Range<T>;
     @intrinsic fn __len(self: &ArrayFixed<T, N>) -> uint;
 }
 

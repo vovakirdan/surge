@@ -3,7 +3,7 @@ error SEM3019 testdata/golden/hir_borrow/invalid/shared_borrow_blocks_mutation.s
 == HIR ==
 module 
 
-fn t() -> nothing (id=1, sym=1134) {
+fn t() -> nothing (id=1, sym=1136) {
   let mut x: int [copy] = 1
   let r: &int [&] = (& x): &int
   (x = 2): int
@@ -11,12 +11,12 @@ fn t() -> nothing (id=1, sym=1134) {
 }
 
 borrow edges:
-  L2269(r) (&) borrows L2268(x) at 0:51-53 scope=S3
+  L2273(r) (&) borrows L2272(x) at 0:51-53 scope=S3
 events:
-  borrow_start L2269(r) -> L2268(x) (&) at 0:51-53 scope=S3 note="B1"
-  write L2268(x) at 0:59-64 scope=S3 note="issue=frozen borrow=B1"
-  borrow_end L2269(r) -> L2268(x) scope=S3 note="scope_end B1"
+  borrow_start L2273(r) -> L2272(x) (&) at 0:51-53 scope=S3 note="B1"
+  write L2272(x) at 0:59-64 scope=S3 note="issue=frozen borrow=B1"
+  borrow_end L2273(r) -> L2272(x) scope=S3 note="scope_end B1"
 move plan:
-  L2268(x): MoveForbidden (write blocked by frozen (B1))
-  L2269(r): MoveCopy (copy type)
+  L2272(x): MoveForbidden (write blocked by frozen (B1))
+  L2273(r): MoveCopy (copy type)
 

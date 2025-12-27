@@ -64,17 +64,36 @@ func (l *lowerer) applySelfBorrow(symID symbols.SymbolID, recv *Expr) *Expr {
 	default:
 		return recv
 	}
-	if elem, ok, recvMut := l.referenceInfo(recv.Type); ok {
-		if mut && !recvMut {
+	if _, ok, recvMut := l.referenceInfo(recv.Type); ok {
+		if mut {
+			if !recvMut {
+				return recv
+			}
 			return recv
+		}
+		if recvMut {
+			return l.applyBorrow(recv, false)
+		}
+		return recv
+	}
+	return l.applyBorrow(recv, mut)
+}
+
+func (l *lowerer) applyBorrow(value *Expr, mut bool) *Expr {
+	if value == nil {
+		return nil
+	}
+	if elem, ok, recvMut := l.referenceInfo(value.Type); ok {
+		if mut && !recvMut {
+			return value
 		}
 		deref := &Expr{
 			Kind: ExprUnaryOp,
 			Type: elem,
-			Span: recv.Span,
+			Span: value.Span,
 			Data: UnaryOpData{
 				Op:      ast.ExprUnaryDeref,
-				Operand: recv,
+				Operand: value,
 			},
 		}
 		refType := l.referenceType(elem, mut)
@@ -85,14 +104,14 @@ func (l *lowerer) applySelfBorrow(symID symbols.SymbolID, recv *Expr) *Expr {
 		return &Expr{
 			Kind: ExprUnaryOp,
 			Type: refType,
-			Span: recv.Span,
+			Span: value.Span,
 			Data: UnaryOpData{
 				Op:      op,
 				Operand: deref,
 			},
 		}
 	}
-	refType := l.referenceType(recv.Type, mut)
+	refType := l.referenceType(value.Type, mut)
 	op := ast.ExprUnaryRef
 	if mut {
 		op = ast.ExprUnaryRefMut
@@ -100,12 +119,76 @@ func (l *lowerer) applySelfBorrow(symID symbols.SymbolID, recv *Expr) *Expr {
 	return &Expr{
 		Kind: ExprUnaryOp,
 		Type: refType,
-		Span: recv.Span,
+		Span: value.Span,
 		Data: UnaryOpData{
 			Op:      op,
-			Operand: recv,
+			Operand: value,
 		},
 	}
+}
+
+func (l *lowerer) applyDeref(value *Expr) *Expr {
+	if value == nil {
+		return nil
+	}
+	elem, ok, _ := l.referenceInfo(value.Type)
+	if !ok {
+		return value
+	}
+	return &Expr{
+		Kind: ExprUnaryOp,
+		Type: elem,
+		Span: value.Span,
+		Data: UnaryOpData{
+			Op:      ast.ExprUnaryDeref,
+			Operand: value,
+		},
+	}
+}
+
+func (l *lowerer) applyParamBorrow(symID symbols.SymbolID, args []*Expr) []*Expr {
+	if !symID.IsValid() || l.symRes == nil || l.symRes.Table == nil || l.symRes.Table.Symbols == nil {
+		return args
+	}
+	sym := l.symRes.Table.Symbols.Get(symID)
+	if sym == nil || sym.Signature == nil || len(sym.Signature.Params) == 0 {
+		return args
+	}
+	for i, arg := range args {
+		if arg == nil || i >= len(sym.Signature.Params) {
+			continue
+		}
+		_, argIsRef, _ := l.referenceInfo(arg.Type)
+		param := strings.TrimSpace(string(sym.Signature.Params[i]))
+		switch {
+		case strings.HasPrefix(param, "&mut "):
+			if argIsRef && isBorrowExpr(arg) {
+				continue
+			}
+			args[i] = l.applyBorrow(arg, true)
+		case strings.HasPrefix(param, "&"):
+			if argIsRef {
+				continue
+			}
+			args[i] = l.applyBorrow(arg, false)
+		default:
+			if argIsRef {
+				args[i] = l.applyDeref(arg)
+			}
+		}
+	}
+	return args
+}
+
+func isBorrowExpr(e *Expr) bool {
+	if e == nil || e.Kind != ExprUnaryOp {
+		return false
+	}
+	data, ok := e.Data.(UnaryOpData)
+	if !ok {
+		return false
+	}
+	return data.Op == ast.ExprUnaryRef || data.Op == ast.ExprUnaryRefMut
 }
 
 func (l *lowerer) referenceInfo(id types.TypeID) (elem types.TypeID, ok, mut bool) {

@@ -55,7 +55,7 @@ func (vm *VM) handleExit(frame *Frame, call *mir.CallInstr) *VMError {
 	return nil
 }
 
-// handleFromStr handles built-in from_str(string) -> Erring<T, Error>.
+// handleFromStr handles built-in from_str(&string) -> Erring<T, Error>.
 func (vm *VM) handleFromStr(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if len(call.Args) != 1 {
 		return vm.eb.makeError(PanicTypeMismatch, "from_str requires 1 argument")
@@ -67,6 +67,7 @@ func (vm *VM) handleFromStr(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	if vmErr != nil {
 		return vmErr
 	}
+	borrowed := strVal.Kind == VKRef || strVal.Kind == VKRefMut
 	if strVal.Kind == VKRef || strVal.Kind == VKRefMut {
 		loaded, loadErr := vm.loadLocationRaw(strVal.Loc)
 		if loadErr != nil {
@@ -75,8 +76,16 @@ func (vm *VM) handleFromStr(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		strVal = loaded
 	}
 	if strVal.Kind != VKHandleString {
-		vm.dropValue(strVal)
+		if !borrowed {
+			vm.dropValue(strVal)
+		}
 		return vm.eb.typeMismatch("string", strVal.Kind.String())
+	}
+	if borrowed {
+		strVal, vmErr = vm.cloneForShare(strVal)
+		if vmErr != nil {
+			return vmErr
+		}
 	}
 
 	dstLocal := call.Dst.Local

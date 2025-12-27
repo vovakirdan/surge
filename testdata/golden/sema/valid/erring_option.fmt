@@ -22,7 +22,7 @@ fn test_option_panic_method() -> int? {
     let option: int? = return_option(); // of course we can use int? sugar
     option.panic("Option is nothing"); // panic will return nothing if option is nothing
     // but otherwise it will panic
-    return option;
+    return nothing;
 }
 
 fn test_erring_safe_method() -> bool {

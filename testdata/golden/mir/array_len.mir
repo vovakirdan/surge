@@ -4,13 +4,13 @@ funcs=1
 
 fn main:
   locals:
-    L0: type#1166 name=arr
-    L1: type#1166 name=tmp_arr1
+    L0: type#1180 name=arr
+    L1: type#1180 name=tmp_arr1
     L2: uint [copy] name=len_arr
     L3: uint [copy] name=tmp_call2
   bb0:
     L1 = array_lit [const 1, const 2, const 3]
     L0 = move L1
-    L3 = call len::<Array<int>>(move L0)
+    L3 = call len::<Array<int>>(addr_of L0)
     L2 = copy L3
     return copy L2

@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"sort"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -95,6 +97,8 @@ type typeChecker struct {
 	addressOfOperands           map[ast.ExprID]struct{} // Tracks operands of & expressions (for @atomic validation)
 	arrayViewExprs              map[ast.ExprID]struct{}
 	arrayViewBindings           map[symbols.SymbolID]struct{}
+	assignmentLHSDepth          int
+	movedBindings               map[symbols.SymbolID]source.Span
 }
 
 type returnContext struct {
@@ -189,6 +193,7 @@ func (tc *typeChecker) run() {
 	tc.taskTracker = NewTaskTracker()
 	tc.arrayViewExprs = make(map[ast.ExprID]struct{})
 	tc.arrayViewBindings = make(map[symbols.SymbolID]struct{})
+	tc.movedBindings = make(map[symbols.SymbolID]source.Span)
 
 	file := tc.builder.Files.Get(tc.fileID)
 	if file == nil {
@@ -199,10 +204,14 @@ func (tc *typeChecker) run() {
 	tc.ensureBuiltinArrayType()
 	files := []*ast.File{file}
 	if tc.symbols != nil && len(tc.symbols.ModuleFiles) > 0 {
+		ids := make([]ast.FileID, 0, len(tc.symbols.ModuleFiles))
 		for fid := range tc.symbols.ModuleFiles {
-			if fid == tc.fileID {
-				continue
+			if fid != tc.fileID {
+				ids = append(ids, fid)
 			}
+		}
+		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+		for _, fid := range ids {
 			if f := tc.builder.Files.Get(fid); f != nil {
 				files = append(files, f)
 			}

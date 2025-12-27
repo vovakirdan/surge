@@ -217,8 +217,8 @@ fn main() {
 **Modes:**
 
 - **No mode** (`@entrypoint`): Function must be callable with no arguments. All parameters must have default values.
-- **`"argv"`** (`@entrypoint("argv")`): Parameters without defaults must implement `FromArgv` contract (have `from_str(string) -> Erring<T, Error>` method).
-- **`"stdin"`** (`@entrypoint("stdin")`): Parameters without defaults must implement `FromStdin` contract (have `from_str(string) -> Erring<T, Error>` method).
+- **`"argv"`** (`@entrypoint("argv")`): Parameters without defaults must implement `FromArgv` contract (have `from_str(&string) -> Erring<T, Error>` method).
+- **`"stdin"`** (`@entrypoint("stdin")`): Parameters without defaults must implement `FromStdin` contract (have `from_str(&string) -> Erring<T, Error>` method).
 - **`"env"`**, **`"config"`**: Reserved for future use (will produce FUT7003/FUT7004 errors).
 
 **Runtime behavior (v1):**

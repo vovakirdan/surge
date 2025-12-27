@@ -9,7 +9,7 @@ fn __surge_start:
     L2: int [copy] name=x
     L3: bool [copy] name=has_arg0
     L4: string name=arg_str0
-    L5: type#464 name=arg_parsed0
+    L5: type#468 name=arg_parsed0
     L6: bool [copy] name=arg_ok0
     L7: type#31 name=entry_err
     L8: int name=entry_ret
@@ -21,7 +21,7 @@ fn __surge_start:
     if copy L3 then bb1 else bb2
   bb1:
     L4 = index copy L0[const 0]
-    L5 = call from_str(move L4)
+    L5 = call from_str(addr_of L4)
     L6 = tag_test copy L5 is Success
     if copy L6 then bb4 else bb5
   bb2:

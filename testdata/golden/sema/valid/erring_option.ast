@@ -53,8 +53,8 @@ Block (span: 15:21-17:6)
 │        │  └─ Value: expr#18: return_option()
 │        ├─ Stmt[1]: Expr (span: 23:5-23:39)
 │        │  └─ Expr: expr#22: option.panic("Option is nothing")
-│        └─ Stmt[2]: Return (span: 25:5-25:19)
-│           └─ Expr: expr#23: option
+│        └─ Stmt[2]: Return (span: 25:5-25:20)
+│           └─ Expr: expr#23: nothing
 ├─ Item[4]: Fn (span: 28:1-37:2)
 │  ├─ Name: test_erring_safe_method
 │  ├─ Params: ()

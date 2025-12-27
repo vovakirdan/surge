@@ -65,6 +65,12 @@ func (l *lowerer) toCallExpr(span source.Span, value *Expr, target types.TypeID,
 	if value == nil {
 		return nil
 	}
+	if symID.IsValid() {
+		args := l.applyParamBorrow(symID, []*Expr{value})
+		if len(args) == 1 {
+			value = args[0]
+		}
+	}
 	callee := l.varRefForSymbol(symID, span)
 	if callee == nil {
 		callee = &Expr{

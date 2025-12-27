@@ -56,6 +56,8 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 				}
 			case staticReceiver && tc.methodParamsMatchWithSubst(sig.Params, args, subst):
 				// static method defined in extern block without self param
+			case staticReceiver && name == "from_str" && tc.methodParamsMatchWithImplicitBorrow(sig.Params, args, subst):
+				// allow implicit borrow for from_str arguments
 			default:
 				continue
 			}
@@ -169,7 +171,9 @@ func (tc *typeChecker) resolveMethodCallSymbol(member *ast.ExprMemberData, recv 
 					continue
 				}
 				if !tc.methodParamsMatchWithSubst(sig.Params, args, subst) {
-					continue
+					if name != "from_str" || !tc.methodParamsMatchWithImplicitBorrow(sig.Params, args, subst) {
+						continue
+					}
 				}
 			default:
 				continue
@@ -196,6 +200,19 @@ func (tc *typeChecker) methodParamsMatchWithSubst(expected []symbols.TypeKey, ar
 	}
 	for i, arg := range args {
 		if !tc.methodParamMatchesWithSubst(expected[i], arg, subst) {
+			return false
+		}
+	}
+	return true
+}
+
+func (tc *typeChecker) methodParamsMatchWithImplicitBorrow(expected []symbols.TypeKey, args []types.TypeID, subst map[string]symbols.TypeKey) bool {
+	if len(expected) != len(args) {
+		return false
+	}
+	for i, arg := range args {
+		expectedKey := substituteTypeKeyParams(expected[i], subst)
+		if !tc.magicParamCompatible(expectedKey, arg, tc.typeKeyForType(arg)) {
 			return false
 		}
 	}
@@ -277,6 +294,18 @@ func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidate
 	} else if recvTT.Kind != types.KindReference && recvTT.Kind != types.KindPointer {
 		if typeKeyEqual(selfKey, candidateKey) {
 			return true
+		}
+	}
+
+	// Case: receiver is value or own T, self is own T (implicit move)
+	if strings.HasPrefix(selfStr, "own ") {
+		innerSelf := strings.TrimSpace(strings.TrimPrefix(selfStr, "own "))
+		if recvTT.Kind == types.KindOwn {
+			innerRecv := tc.typeKeyForType(recvTT.Elem)
+			return typeKeyEqual(symbols.TypeKey(innerSelf), innerRecv)
+		}
+		if recvTT.Kind != types.KindReference && recvTT.Kind != types.KindPointer {
+			return typeKeyEqual(candidateKey, symbols.TypeKey(innerSelf)) || typeKeyEqual(actualRecvKey, symbols.TypeKey(innerSelf))
 		}
 	}
 

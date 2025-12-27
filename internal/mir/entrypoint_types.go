@@ -227,6 +227,13 @@ func (b *surgeStartBuilder) stringType() types.TypeID {
 	return b.typesIn.Builtins().String
 }
 
+func (b *surgeStartBuilder) refType(elem types.TypeID, mutable bool) types.TypeID {
+	if b.typesIn == nil || elem == types.NoTypeID {
+		return types.NoTypeID
+	}
+	return b.typesIn.Intern(types.MakeReference(elem, mutable))
+}
+
 func (b *surgeStartBuilder) stringArrayType() types.TypeID {
 	if b.typesIn == nil {
 		return types.NoTypeID

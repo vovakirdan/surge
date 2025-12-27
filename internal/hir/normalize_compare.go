@@ -451,15 +451,27 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 func lowerTupleArm(ctx *normCtx, span source.Span, subject *Expr, subjectTy types.TypeID, elems []*Expr, guard, result *Expr) Stmt {
 	body := &Block{Span: span}
 	var conds []*Expr
+	var elemTypes []types.TypeID
+	if ctx != nil && ctx.mod != nil && ctx.mod.TypeInterner != nil && subjectTy != types.NoTypeID {
+		base := resolveAlias(ctx.mod.TypeInterner, subjectTy, 0)
+		if info, ok := ctx.mod.TypeInterner.TupleInfo(base); ok && info != nil {
+			elemTypes = info.Elems
+		}
+	}
 
 	for i, pat := range elems {
 		if pat == nil || isWildcardPattern(pat) {
 			continue
 		}
 
+		fieldType := types.NoTypeID
+		if i < len(elemTypes) {
+			fieldType = elemTypes[i]
+		}
+
 		field := &Expr{
 			Kind: ExprFieldAccess,
-			Type: types.NoTypeID,
+			Type: fieldType,
 			Span: span,
 			Data: FieldAccessData{
 				Object:   subject,
@@ -470,7 +482,11 @@ func lowerTupleArm(ctx *normCtx, span source.Span, subject *Expr, subjectTy type
 		if name, sym, ok := bindingPattern(ctx, pat); ok {
 			ty := ctx.bindingType(sym)
 			if ty == types.NoTypeID {
-				ty = subjectTy
+				if fieldType != types.NoTypeID {
+					ty = fieldType
+				} else {
+					ty = subjectTy
+				}
 			}
 			field.Type = ty
 			body.Stmts = append(body.Stmts, Stmt{

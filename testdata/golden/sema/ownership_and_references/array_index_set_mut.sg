@@ -1,0 +1,6 @@
+fn main() {
+    let mut xs = [1, 2, 3];
+    xs[0] = 9;
+    let r: &int = xs[0];
+    let v = *r;
+}

@@ -227,6 +227,17 @@ func (t *Tracer) formatRValue(rv *mir.RValue) string {
 		}
 		out += "]"
 		return out
+	case mir.RValueTupleLit:
+		out := "tuple_lit ("
+		for i := range rv.TupleLit.Elems {
+			el := &rv.TupleLit.Elems[i]
+			if i > 0 {
+				out += ", "
+			}
+			out += t.formatOperand(el)
+		}
+		out += ")"
+		return out
 	case mir.RValueField:
 		if rv.Field.FieldIdx >= 0 {
 			return fmt.Sprintf("%s.#%d", t.formatOperand(&rv.Field.Object), rv.Field.FieldIdx)

@@ -13,7 +13,7 @@ type builtinMagicSpec struct {
 }
 
 var builtinMagic = []builtinMagicSpec{
-	{receiver: "[]", name: "__add", params: []string{"[]", "[]"}, result: "[]"},
+	{receiver: "[]", name: "__add", params: []string{"&[]", "&[]"}, result: "[]"},
 	{receiver: "int", name: "__add", params: []string{"int", "int"}, result: "int"},
 	{receiver: "int", name: "__sub", params: []string{"int", "int"}, result: "int"},
 	{receiver: "int", name: "__mul", params: []string{"int", "int"}, result: "int"},
@@ -350,13 +350,13 @@ var builtinMagic = []builtinMagicSpec{
 	{receiver: "float", name: "__to", params: []string{"float", "float32"}, result: "float32"},
 	{receiver: "float", name: "__to", params: []string{"float", "float64"}, result: "float64"},
 
-	{receiver: "string", name: "__add", params: []string{"string", "string"}, result: "string"},
-	{receiver: "string", name: "__mul", params: []string{"string", "int"}, result: "string"},
-	{receiver: "string", name: "__eq", params: []string{"string", "string"}, result: "bool"},
-	{receiver: "string", name: "__ne", params: []string{"string", "string"}, result: "bool"},
-	{receiver: "string", name: "__to", params: []string{"string", "int"}, result: "int"},
-	{receiver: "string", name: "__to", params: []string{"string", "uint"}, result: "uint"},
-	{receiver: "string", name: "__to", params: []string{"string", "float"}, result: "float"},
+	{receiver: "string", name: "__add", params: []string{"&string", "&string"}, result: "string"},
+	{receiver: "string", name: "__mul", params: []string{"&string", "int"}, result: "string"},
+	{receiver: "string", name: "__eq", params: []string{"&string", "&string"}, result: "bool"},
+	{receiver: "string", name: "__ne", params: []string{"&string", "&string"}, result: "bool"},
+	{receiver: "string", name: "__to", params: []string{"&string", "int"}, result: "int"},
+	{receiver: "string", name: "__to", params: []string{"&string", "uint"}, result: "uint"},
+	{receiver: "string", name: "__to", params: []string{"&string", "float"}, result: "float"},
 
 	{receiver: "bool", name: "__eq", params: []string{"bool", "bool"}, result: "bool"},
 	{receiver: "bool", name: "__ne", params: []string{"bool", "bool"}, result: "bool"},
@@ -394,12 +394,12 @@ func (tc *typeChecker) hasMagicSignature(receiver symbols.TypeKey, name string, 
 		if sig == nil || len(sig.Params) != len(params) {
 			continue
 		}
-		if string(sig.Result) != result {
+		if !typeKeyEqual(sig.Result, symbols.TypeKey(result)) {
 			continue
 		}
 		match := true
 		for i, param := range params {
-			if string(sig.Params[i]) != param {
+			if !typeKeyEqual(sig.Params[i], symbols.TypeKey(param)) {
 				match = false
 				break
 			}

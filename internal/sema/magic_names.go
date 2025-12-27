@@ -69,6 +69,29 @@ func normalizeSignatureForReceiver(sig *symbols.FunctionSignature, receiver symb
 	if typeKeyEqual(sig.Params[0], recv) {
 		return sig
 	}
+	selfStr := strings.TrimSpace(string(sig.Params[0]))
+	prefix := ""
+	switch {
+	case strings.HasPrefix(selfStr, "&mut "):
+		prefix = "&mut "
+	case strings.HasPrefix(selfStr, "&"):
+		prefix = "&"
+	case strings.HasPrefix(selfStr, "own "):
+		prefix = "own "
+	case strings.HasPrefix(selfStr, "*"):
+		prefix = "*"
+	}
+	if prefix != "" {
+		base := strings.TrimSpace(string(recv))
+		base = strings.TrimSpace(strings.TrimPrefix(base, "&mut "))
+		base = strings.TrimSpace(strings.TrimPrefix(base, "&"))
+		base = strings.TrimSpace(strings.TrimPrefix(base, "own "))
+		base = strings.TrimSpace(strings.TrimPrefix(base, "*"))
+		recv = symbols.TypeKey(prefix + base)
+		if typeKeyEqual(sig.Params[0], recv) {
+			return sig
+		}
+	}
 	// For methods (user-defined), preserve the actual self parameter type
 	// This allows implicit borrow checking in selfParamCompatible()
 	// For operators (__add, __sub, etc.), normalize to enforce alias type safety
@@ -159,30 +182,47 @@ func (tc *typeChecker) addMagicEntry(receiver symbols.TypeKey, name string, sig 
 	methods[name] = append(methods[name], sig)
 }
 
-func (tc *typeChecker) magicResultForUnary(operand types.TypeID, op ast.ExprUnaryOp) types.TypeID {
-	name := magicNameForUnaryOp(op)
+func (tc *typeChecker) magicResultForBinary(left, right types.TypeID, op ast.ExprBinaryOp) types.TypeID {
+	name := magicNameForBinaryOp(op)
 	if name == "" {
 		return types.NoTypeID
+	}
+	if sig, lc, rc := tc.magicSignatureForBinary(left, right, op); sig != nil {
+		res := tc.typeFromKey(sig.Result)
+		if res == types.NoTypeID {
+			res = tc.magicResultFallback(sig.Result, lc, rc)
+		}
+		if res == types.NoTypeID {
+			return types.NoTypeID
+		}
+		return tc.adjustAliasBinaryResult(res, lc, rc)
+	}
+	return types.NoTypeID
+}
+
+func (tc *typeChecker) magicSignatureForUnary(operand types.TypeID, op ast.ExprUnaryOp) (*symbols.FunctionSignature, typeKeyCandidate) {
+	name := magicNameForUnaryOp(op)
+	if name == "" {
+		return nil, typeKeyCandidate{}
 	}
 	for _, cand := range tc.typeKeyCandidates(operand) {
 		if cand.key == "" {
 			continue
 		}
 		for _, sig := range tc.lookupMagicMethods(cand.key, name) {
-			if sig == nil || !tc.signatureMatchesUnary(sig, cand.key) {
+			if sig == nil || !tc.signatureMatchesUnary(sig, operand, cand.key) {
 				continue
 			}
-			res := tc.typeFromKey(sig.Result)
-			return tc.adjustAliasUnaryResult(res, cand)
+			return sig, cand
 		}
 	}
-	return types.NoTypeID
+	return nil, typeKeyCandidate{}
 }
 
-func (tc *typeChecker) magicResultForBinary(left, right types.TypeID, op ast.ExprBinaryOp) types.TypeID {
+func (tc *typeChecker) magicSignatureForBinary(left, right types.TypeID, op ast.ExprBinaryOp) (sig *symbols.FunctionSignature, leftCand, rightCand typeKeyCandidate) {
 	name := magicNameForBinaryOp(op)
 	if name == "" {
-		return types.NoTypeID
+		return nil, typeKeyCandidate{}, typeKeyCandidate{}
 	}
 	leftCandidates := tc.typeKeyCandidates(left)
 	rightCandidates := tc.typeKeyCandidates(right)
@@ -202,7 +242,7 @@ func (tc *typeChecker) magicResultForBinary(left, right types.TypeID, op ast.Exp
 				if rc.key == "" {
 					continue
 				}
-				if !tc.signatureMatchesBinary(sig, lc.key, rc.key) {
+				if !tc.signatureMatchesBinary(sig, left, right, lc.key, rc.key) {
 					continue
 				}
 				if tc.arrayMagicInvolves(sig, lc.key, rc.key) && !tc.arrayMagicCompatible(lc.base, rc.base) {
@@ -213,18 +253,11 @@ func (tc *typeChecker) magicResultForBinary(left, right types.TypeID, op ast.Exp
 						continue
 					}
 				}
-				res := tc.typeFromKey(sig.Result)
-				if res == types.NoTypeID {
-					res = tc.magicResultFallback(sig.Result, lc, rc)
-				}
-				if res == types.NoTypeID {
-					continue
-				}
-				return tc.adjustAliasBinaryResult(res, lc, rc)
+				return sig, lc, rc
 			}
 		}
 	}
-	return types.NoTypeID
+	return nil, typeKeyCandidate{}, typeKeyCandidate{}
 }
 
 func (tc *typeChecker) magicResultForCast(source, target types.TypeID) types.TypeID {
@@ -242,6 +275,9 @@ func (tc *typeChecker) magicResultForCast(source, target types.TypeID) types.Typ
 		}
 		for _, sig := range methods {
 			if sig == nil || len(sig.Params) < 2 {
+				continue
+			}
+			if !tc.magicParamCompatible(sig.Params[0], source, lc.key) {
 				continue
 			}
 			for _, rc := range targetCandidates {
@@ -283,6 +319,19 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 			}
 			res := tc.typeFromKey(sig.Result)
 			if res == types.NoTypeID {
+				if elem, ok := tc.elementType(recv.base); ok && tc.types != nil {
+					resultStr := strings.TrimSpace(string(sig.Result))
+					if strings.HasPrefix(resultStr, "&") {
+						mut := strings.HasPrefix(resultStr, "&mut ")
+						inner := strings.TrimSpace(strings.TrimPrefix(resultStr, "&mut "))
+						if inner == resultStr {
+							inner = strings.TrimSpace(strings.TrimPrefix(resultStr, "&"))
+						}
+						if inner == "T" || typeKeyEqual(symbols.TypeKey(inner), tc.typeKeyForType(elem)) {
+							return tc.types.Intern(types.MakeReference(elem, mut))
+						}
+					}
+				}
 				if elem, ok := tc.elementType(recv.base); ok {
 					if payload, ok := tc.rangePayload(index); ok && intType != types.NoTypeID && tc.sameType(payload, intType) {
 						return tc.instantiateArrayType(elem)
@@ -297,6 +346,59 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 	return types.NoTypeID
 }
 
+func (tc *typeChecker) magicSignatureForIndex(container, index types.TypeID) *symbols.FunctionSignature {
+	if container == types.NoTypeID {
+		return nil
+	}
+	for _, recv := range tc.typeKeyCandidates(container) {
+		if recv.key == "" {
+			continue
+		}
+		methods := tc.lookupMagicMethods(recv.key, "__index")
+		for _, sig := range methods {
+			if sig == nil || len(sig.Params) < 2 {
+				continue
+			}
+			if !tc.selfParamCompatible(container, sig.Params[0], recv.key) {
+				continue
+			}
+			if !tc.methodParamMatches(sig.Params[1], index) {
+				continue
+			}
+			return sig
+		}
+	}
+	return nil
+}
+
+func (tc *typeChecker) magicSignatureForIndexSet(container, index, value types.TypeID) *symbols.FunctionSignature {
+	if container == types.NoTypeID || value == types.NoTypeID {
+		return nil
+	}
+	for _, recv := range tc.typeKeyCandidates(container) {
+		if recv.key == "" {
+			continue
+		}
+		methods := tc.lookupMagicMethods(recv.key, "__index_set")
+		for _, sig := range methods {
+			if sig == nil || len(sig.Params) < 3 {
+				continue
+			}
+			if !tc.selfParamCompatible(container, sig.Params[0], recv.key) {
+				continue
+			}
+			if !tc.methodParamMatches(sig.Params[1], index) {
+				continue
+			}
+			if !tc.methodParamMatches(sig.Params[2], value) {
+				continue
+			}
+			return sig
+		}
+	}
+	return nil
+}
+
 func (tc *typeChecker) hasIndexSetter(container, index, value types.TypeID) bool {
 	if container == types.NoTypeID || value == types.NoTypeID {
 		return false
@@ -305,6 +407,9 @@ func (tc *typeChecker) hasIndexSetter(container, index, value types.TypeID) bool
 	if elem, ok := tc.arrayElemType(base); ok && tc.types != nil {
 		intType := tc.types.Builtins().Int
 		if index != types.NoTypeID && intType != types.NoTypeID && tc.sameType(index, intType) {
+			if tt, ok := tc.types.Lookup(tc.resolveAlias(container)); ok && tt.Kind == types.KindReference && !tt.Mutable {
+				return false
+			}
 			return tc.typesAssignable(elem, value, true)
 		}
 	}
@@ -411,18 +516,37 @@ func magicNameForUnaryOp(op ast.ExprUnaryOp) string {
 	}
 }
 
-func (tc *typeChecker) signatureMatchesUnary(sig *symbols.FunctionSignature, operand symbols.TypeKey) bool {
-	if sig == nil || operand == "" || len(sig.Params) == 0 {
+func (tc *typeChecker) magicParamCompatible(expected symbols.TypeKey, actual types.TypeID, actualKey symbols.TypeKey) bool {
+	if expected == "" || actual == types.NoTypeID {
 		return false
 	}
-	return typeKeyEqual(sig.Params[0], operand)
+	if tc.methodParamMatches(expected, actual) {
+		return true
+	}
+	expectedStr := strings.TrimSpace(string(expected))
+	if strings.HasPrefix(expectedStr, "own ") {
+		inner := strings.TrimSpace(strings.TrimPrefix(expectedStr, "own "))
+		return typeKeyEqual(symbols.TypeKey(inner), actualKey)
+	}
+	if strings.HasPrefix(expectedStr, "&") {
+		return tc.selfParamCompatible(actual, expected, actualKey)
+	}
+	return false
 }
 
-func (tc *typeChecker) signatureMatchesBinary(sig *symbols.FunctionSignature, left, right symbols.TypeKey) bool {
-	if sig == nil || left == "" || right == "" || len(sig.Params) < 2 {
+func (tc *typeChecker) signatureMatchesUnary(sig *symbols.FunctionSignature, operand types.TypeID, operandKey symbols.TypeKey) bool {
+	if sig == nil || operand == types.NoTypeID || len(sig.Params) == 0 {
 		return false
 	}
-	return typeKeyEqual(sig.Params[0], left) && typeKeyEqual(sig.Params[1], right)
+	return tc.magicParamCompatible(sig.Params[0], operand, operandKey)
+}
+
+func (tc *typeChecker) signatureMatchesBinary(sig *symbols.FunctionSignature, left, right types.TypeID, leftKey, rightKey symbols.TypeKey) bool {
+	if sig == nil || left == types.NoTypeID || right == types.NoTypeID || len(sig.Params) < 2 {
+		return false
+	}
+	return tc.magicParamCompatible(sig.Params[0], left, leftKey) &&
+		tc.magicParamCompatible(sig.Params[1], right, rightKey)
 }
 
 func (tc *typeChecker) arrayMagicInvolves(sig *symbols.FunctionSignature, left, right symbols.TypeKey) bool {
@@ -473,8 +597,20 @@ func validToSignature(sig *symbols.FunctionSignature, receiver symbols.TypeKey) 
 			}
 		}
 	}
-	if sig.Params[0] != receiver {
-		return false, "first parameter must match extern receiver type"
+	if !typeKeyEqual(sig.Params[0], receiver) {
+		selfStr := strings.TrimSpace(string(sig.Params[0]))
+		inner := ""
+		switch {
+		case strings.HasPrefix(selfStr, "&mut "):
+			inner = strings.TrimSpace(strings.TrimPrefix(selfStr, "&mut "))
+		case strings.HasPrefix(selfStr, "&"):
+			inner = strings.TrimSpace(strings.TrimPrefix(selfStr, "&"))
+		case strings.HasPrefix(selfStr, "own "):
+			inner = strings.TrimSpace(strings.TrimPrefix(selfStr, "own "))
+		}
+		if inner == "" || !typeKeyEqual(symbols.TypeKey(inner), receiver) {
+			return false, "first parameter must match extern receiver type"
+		}
 	}
 	target := sig.Params[1]
 	if target == "" {

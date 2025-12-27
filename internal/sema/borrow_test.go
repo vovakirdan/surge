@@ -71,7 +71,8 @@ func TestBorrowMoveDetectedOnCall(t *testing.T) {
 	callStmt := builder.Stmts.NewExpr(source.Span{}, call)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtS, stmtR, callStmt})
-	addFunction(builder, fileID, "take_owned", nil)
+	stringType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intern(builder, "string")}})
+	addFunctionWithParams(builder, fileID, "take_owned", []ast.FnParam{{Name: intern(builder, "value"), Type: stringType}}, nil)
 
 	diags := runSema(t, builder, fileID)
 	if !hasCode(diags, diag.SemaBorrowMove) {
@@ -285,6 +286,14 @@ func addFunction(builder *ast.Builder, file ast.FileID, name string, stmts []ast
 }
 
 func addFunctionWithReturn(builder *ast.Builder, file ast.FileID, name string, stmts []ast.StmtID, returnType ast.TypeID) {
+	addFunctionWithParamsReturn(builder, file, name, nil, stmts, returnType)
+}
+
+func addFunctionWithParams(builder *ast.Builder, file ast.FileID, name string, params []ast.FnParam, stmts []ast.StmtID) {
+	addFunctionWithParamsReturn(builder, file, name, params, stmts, ast.NoTypeID)
+}
+
+func addFunctionWithParamsReturn(builder *ast.Builder, file ast.FileID, name string, params []ast.FnParam, stmts []ast.StmtID, returnType ast.TypeID) {
 	var body ast.StmtID
 	if len(stmts) > 0 {
 		body = builder.Stmts.NewBlock(source.Span{}, stmts)
@@ -297,7 +306,7 @@ func addFunctionWithReturn(builder *ast.Builder, file ast.FileID, name string, s
 		false,
 		source.Span{},
 		nil,
-		nil,
+		params,
 		nil,
 		false,
 		source.Span{},

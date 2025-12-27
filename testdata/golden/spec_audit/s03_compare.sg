@@ -1,7 +1,5 @@
 // §3.6 Compare (Pattern Matching) Audit
 
-// NOTE: compare on int literals causes VM bug "expected bigint, got int"
-
 @entrypoint
 fn main() {
     // finally (wildcard)
@@ -33,17 +31,27 @@ fn main() {
     };
     print("compare Option nothing: " + result5);
 
-    // Boolean patterns - may have same issue
-    // let b: bool = true;
-    // let result6: string = compare b {
-    //     true => "yes";
-    //     false => "no";
-    // };
+    // Int literal patterns
+    let n: int = 2;
+    let result6: string = compare n {
+        1 => "one";
+        2 => "two";
+        _ => "other";
+    };
+    print("compare int literal: " + result6);
 
-    print("§3.6 Compare: PARTIAL");
+    // Boolean patterns
+    let b: bool = true;
+    let result7: string = compare b {
+        true => "yes";
+        false => "no";
+    };
+    print("compare bool literal: " + result7);
+
+    print("§3.6 Compare: PASS");
     print("  - finally pattern: PASS");
     print("  - binding pattern: PASS");
     print("  - Some/nothing: PASS");
-    print("  - int literal patterns: VM BUG");
-    print("  - bool literal patterns: NOT TESTED");
+    print("  - int literal patterns: PASS");
+    print("  - bool literal patterns: PASS");
 }

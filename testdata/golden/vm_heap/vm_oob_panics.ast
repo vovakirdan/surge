@@ -1,4 +1,4 @@
-vm_oob_panics.sg (span: 1:1-8:1)
+vm_oob_panics.sg (span: 1:1-7:1)
 └─ Item[0]: Fn (span: 1:1-6:2)
    ├─ Name: main
    ├─ Params: ()
@@ -10,10 +10,10 @@ vm_oob_panics.sg (span: 1:1-8:1)
          │  ├─ Mutable: false
          │  ├─ Type: string[]
          │  └─ Value: expr#2: rt_argv()
-         ├─ Stmt[1]: Let (span: 4:5-4:29)
+         ├─ Stmt[1]: Let (span: 4:5-4:30)
          │  ├─ Name: s
          │  ├─ Mutable: false
-         │  ├─ Type: string
+         │  ├─ Type: &string
          │  └─ Value: expr#5: argv[0]
          └─ Stmt[2]: Return (span: 5:5-5:14)
             └─ Expr: expr#6: 0

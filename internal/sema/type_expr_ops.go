@@ -85,8 +85,14 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 		}
 		return tc.types.Intern(types.MakeOwn(operandType))
 	default:
-		if magic := tc.magicResultForUnary(operandType, data.Op); magic != types.NoTypeID {
-			return magic
+		if sig, cand := tc.magicSignatureForUnary(operandType, data.Op); sig != nil {
+			res := tc.typeFromKey(sig.Result)
+			if res != types.NoTypeID {
+				tc.applyParamOwnership(sig.Params[0], data.Operand, operandType, tc.exprSpan(data.Operand))
+				tc.dropImplicitBorrowForRefParam(data.Operand, sig.Params[0], operandType, res, tc.exprSpan(data.Operand))
+				tc.dropImplicitBorrowForValueParam(data.Operand, sig.Params[0], operandType, tc.exprSpan(data.Operand))
+				return tc.adjustAliasUnaryResult(res, cand)
+			}
 		}
 		tc.reportMissingUnaryMethod(data.Op, operandType, span)
 		return types.NoTypeID
@@ -94,15 +100,17 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 }
 
 func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast.ExprBinaryData) types.TypeID {
-	leftType := tc.typeExpr(data.Left)
 	if data.Op == ast.ExprBinaryAssign {
+		leftType := tc.typeExprAssignLHS(data.Left)
 		rightType := tc.typeExpr(data.Right)
 		tc.ensureBindingTypeMatch(ast.NoTypeID, leftType, rightType, data.Right)
 		tc.ensureIndexAssignment(data.Left, leftType, span)
+		tc.applyIndexSetterOwnership(data.Left, data.Right, rightType)
 		tc.handleAssignment(data.Op, data.Left, data.Right, span)
 		tc.updateArrayViewBindingFromAssign(data.Left, data.Right)
 		return leftType
 	}
+	leftType := tc.typeExpr(data.Left)
 	if data.Op == ast.ExprBinaryIs {
 		return tc.typeIsExpr(exprID, leftType, data.Right, data.Op)
 	}
@@ -121,8 +129,20 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 	if baseOp, ok := tc.assignmentBaseOp(data.Op); ok {
 		return tc.typeCompoundAssignment(baseOp, data.Op, span, data.Left, data.Right, leftType, rightType)
 	}
-	if magic := tc.magicResultForBinary(leftType, rightType, data.Op); magic != types.NoTypeID {
-		return magic
+	if sig, lc, rc := tc.magicSignatureForBinary(leftType, rightType, data.Op); sig != nil {
+		res := tc.typeFromKey(sig.Result)
+		if res == types.NoTypeID {
+			res = tc.magicResultFallback(sig.Result, lc, rc)
+		}
+		if res != types.NoTypeID {
+			tc.applyParamOwnership(sig.Params[0], data.Left, leftType, tc.exprSpan(data.Left))
+			tc.applyParamOwnership(sig.Params[1], data.Right, rightType, tc.exprSpan(data.Right))
+			tc.dropImplicitBorrowForRefParam(data.Left, sig.Params[0], leftType, res, tc.exprSpan(data.Left))
+			tc.dropImplicitBorrowForRefParam(data.Right, sig.Params[1], rightType, res, tc.exprSpan(data.Right))
+			tc.dropImplicitBorrowForValueParam(data.Left, sig.Params[0], leftType, tc.exprSpan(data.Left))
+			tc.dropImplicitBorrowForValueParam(data.Right, sig.Params[1], rightType, tc.exprSpan(data.Right))
+			return tc.adjustAliasBinaryResult(res, lc, rc)
+		}
 	}
 	return tc.typeBinaryFallback(span, data, leftType, rightType)
 }
@@ -301,143 +321,6 @@ func (tc *typeChecker) unionHasNothing(info *types.UnionInfo) bool {
 	return false
 }
 
-func (tc *typeChecker) stripOwnType(id types.TypeID) types.TypeID {
-	if id == types.NoTypeID || tc.types == nil {
-		return id
-	}
-	for range 32 {
-		tt, ok := tc.types.Lookup(id)
-		if !ok || tt.Kind != types.KindOwn {
-			return id
-		}
-		id = tt.Elem
-	}
-	return id
-}
-
-func (tc *typeChecker) resolveTypeOperand(exprID ast.ExprID, opLabel string) (types.TypeID, bool) {
-	expr := tc.builder.Exprs.Get(exprID)
-	if expr == nil {
-		tc.reportExpectTypeOperand(opLabel, exprID)
-		return types.NoTypeID, false
-	}
-	switch expr.Kind {
-	case ast.ExprGroup:
-		if group, ok := tc.builder.Exprs.Group(exprID); ok && group != nil {
-			return tc.resolveTypeOperand(group.Inner, opLabel)
-		}
-	case ast.ExprUnary:
-		if unary, ok := tc.builder.Exprs.Unary(exprID); ok && unary != nil {
-			switch unary.Op {
-			case ast.ExprUnaryOwn:
-				if inner, ok := tc.resolveTypeOperand(unary.Operand, opLabel); ok {
-					return tc.types.Intern(types.MakeOwn(inner)), true
-				}
-			case ast.ExprUnaryRef, ast.ExprUnaryRefMut:
-				if inner, ok := tc.resolveTypeOperand(unary.Operand, opLabel); ok {
-					mutable := unary.Op == ast.ExprUnaryRefMut
-					return tc.types.Intern(types.MakeReference(inner, mutable)), true
-				}
-			case ast.ExprUnaryDeref:
-				if inner, ok := tc.resolveTypeOperand(unary.Operand, opLabel); ok {
-					return tc.types.Intern(types.MakePointer(inner)), true
-				}
-			}
-		}
-	case ast.ExprIdent:
-		if ident, ok := tc.builder.Exprs.Ident(exprID); ok && ident != nil {
-			if symID := tc.symbolForExpr(exprID); symID.IsValid() {
-				if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolType {
-					return sym.Type, true
-				}
-			}
-			if literal := tc.lookupName(ident.Name); literal != "" {
-				if builtin := tc.builtinTypeByName(literal); builtin != types.NoTypeID {
-					return builtin, true
-				}
-			}
-			scope := tc.scopeOrFile(tc.currentScope())
-			if symID := tc.lookupTypeSymbol(ident.Name, scope); symID.IsValid() {
-				return tc.symbolType(symID), true
-			}
-		}
-	case ast.ExprLit:
-		// Handle 'nothing' literal as type operand
-		if lit, ok := tc.builder.Exprs.Literal(exprID); ok && lit != nil {
-			if lit.Kind == ast.ExprLitNothing {
-				return tc.types.Builtins().Nothing, true
-			}
-		}
-	default:
-		// fallthrough to error reporting
-	}
-	tc.reportExpectTypeOperand(opLabel, exprID)
-	return types.NoTypeID, false
-}
-
-// tryResolveTypeOperand attempts to resolve an expression used as a type operand without emitting diagnostics.
-func (tc *typeChecker) tryResolveTypeOperand(exprID ast.ExprID) types.TypeID {
-	if !exprID.IsValid() || tc.builder == nil {
-		return types.NoTypeID
-	}
-	expr := tc.builder.Exprs.Get(exprID)
-	if expr == nil {
-		return types.NoTypeID
-	}
-	switch expr.Kind {
-	case ast.ExprGroup:
-		if group, ok := tc.builder.Exprs.Group(exprID); ok && group != nil {
-			return tc.tryResolveTypeOperand(group.Inner)
-		}
-	case ast.ExprUnary:
-		if unary, ok := tc.builder.Exprs.Unary(exprID); ok && unary != nil {
-			switch unary.Op {
-			case ast.ExprUnaryOwn:
-				if inner := tc.tryResolveTypeOperand(unary.Operand); inner != types.NoTypeID {
-					return tc.types.Intern(types.MakeOwn(inner))
-				}
-			case ast.ExprUnaryRef, ast.ExprUnaryRefMut:
-				if inner := tc.tryResolveTypeOperand(unary.Operand); inner != types.NoTypeID {
-					mutable := unary.Op == ast.ExprUnaryRefMut
-					return tc.types.Intern(types.MakeReference(inner, mutable))
-				}
-			case ast.ExprUnaryDeref:
-				if inner := tc.tryResolveTypeOperand(unary.Operand); inner != types.NoTypeID {
-					return tc.types.Intern(types.MakePointer(inner))
-				}
-			}
-		}
-	case ast.ExprIdent:
-		if ident, ok := tc.builder.Exprs.Ident(exprID); ok && ident != nil {
-			if symID := tc.symbolForExpr(exprID); symID.IsValid() {
-				if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolType && sym.Type != types.NoTypeID {
-					return sym.Type
-				}
-			}
-			if param := tc.lookupTypeParam(ident.Name); param != types.NoTypeID {
-				return param
-			}
-			if literal := tc.lookupName(ident.Name); literal != "" {
-				if builtin := tc.builtinTypeByName(literal); builtin != types.NoTypeID {
-					return builtin
-				}
-			}
-			scope := tc.scopeOrFile(tc.currentScope())
-			if symID := tc.lookupTypeSymbol(ident.Name, scope); symID.IsValid() {
-				return tc.symbolType(symID)
-			}
-		}
-	case ast.ExprLit:
-		// Handle 'nothing' literal as type operand
-		if lit, ok := tc.builder.Exprs.Literal(exprID); ok && lit != nil {
-			if lit.Kind == ast.ExprLitNothing {
-				return tc.types.Builtins().Nothing
-			}
-		}
-	}
-	return types.NoTypeID
-}
-
 func (tc *typeChecker) reportExpectTypeOperand(opLabel string, operand ast.ExprID) {
 	if tc.reporter == nil {
 		return
@@ -505,6 +388,7 @@ func (tc *typeChecker) typeCompoundAssignment(baseOp, fullOp ast.ExprBinaryOp, s
 		return types.NoTypeID
 	}
 	tc.ensureIndexAssignment(leftExpr, leftType, span)
+	tc.applyIndexSetterOwnership(leftExpr, rightExpr, rightType)
 	tc.handleAssignment(fullOp, leftExpr, rightExpr, span)
 	return leftType
 }
@@ -521,7 +405,7 @@ func (tc *typeChecker) ensureIndexAssignment(expr ast.ExprID, value types.TypeID
 	if !ok || index == nil {
 		return
 	}
-	container := tc.typeExpr(index.Target)
+	container := tc.typeExprAssignLHS(index.Target)
 	if container == types.NoTypeID {
 		return
 	}
@@ -530,6 +414,35 @@ func (tc *typeChecker) ensureIndexAssignment(expr ast.ExprID, value types.TypeID
 		return
 	}
 	tc.report(diag.SemaTypeMismatch, span, "%s does not support indexed assignment", tc.typeLabel(container))
+}
+
+func (tc *typeChecker) applyIndexSetterOwnership(leftExpr, rightExpr ast.ExprID, value types.TypeID) {
+	if value == types.NoTypeID || !leftExpr.IsValid() || tc.builder == nil {
+		return
+	}
+	node := tc.builder.Exprs.Get(leftExpr)
+	if node == nil || node.Kind != ast.ExprIndex {
+		return
+	}
+	index, ok := tc.builder.Exprs.Index(leftExpr)
+	if !ok || index == nil {
+		return
+	}
+	container := tc.typeExprAssignLHS(index.Target)
+	if container == types.NoTypeID {
+		return
+	}
+	indexType := tc.typeExpr(index.Index)
+	sig := tc.magicSignatureForIndexSet(container, indexType, value)
+	if sig == nil || len(sig.Params) < 3 {
+		return
+	}
+	tc.applyParamOwnership(sig.Params[0], index.Target, container, tc.exprSpan(index.Target))
+	tc.applyParamOwnership(sig.Params[1], index.Index, indexType, tc.exprSpan(index.Index))
+	if rightExpr.IsValid() {
+		tc.applyParamOwnership(sig.Params[2], rightExpr, value, tc.exprSpan(rightExpr))
+	}
+	tc.dropImplicitBorrowForRefParam(index.Target, sig.Params[0], container, types.NoTypeID, tc.exprSpan(index.Target))
 }
 
 func (tc *typeChecker) typeBinaryFallback(span source.Span, data *ast.ExprBinaryData, leftType, rightType types.TypeID) types.TypeID {

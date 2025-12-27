@@ -158,7 +158,7 @@ func (tc *typeChecker) typeHasToInt(typeID types.TypeID) bool {
 	return false
 }
 
-// typeHasFromStr checks if a type has from_str(string) -> Erring<T, Error> static method (for FromArgv/FromStdin).
+// typeHasFromStr checks if a type has from_str(&string) -> Erring<T, Error> static method (for FromArgv/FromStdin).
 func (tc *typeChecker) typeHasFromStr(typeID types.TypeID) bool {
 	if typeID == types.NoTypeID {
 		return false
@@ -196,10 +196,10 @@ func (tc *typeChecker) typeHasFromStr(typeID types.TypeID) bool {
 					if !typeKeyEqual(sym.ReceiverKey, cand.key) {
 						continue
 					}
-					// Check signature: fn from_str(s: string) -> Erring<T, Error>
+					// Check signature: fn from_str(s: &string) -> Erring<T, Error>
 					if len(sym.Signature.Params) == 1 {
 						paramType := tc.typeFromKey(sym.Signature.Params[0])
-						if paramType == stringType && sym.Signature.Result != "" {
+						if tc.isSharedStringRef(paramType, stringType) && sym.Signature.Result != "" {
 							return true
 						}
 					}
@@ -232,10 +232,10 @@ func (tc *typeChecker) typeHasFromStr(typeID types.TypeID) bool {
 						if !typeKeyEqual(exp.ReceiverKey, cand.key) {
 							continue
 						}
-						// Check signature: fn from_str(s: string) -> Erring<T, Error>
+						// Check signature: fn from_str(s: &string) -> Erring<T, Error>
 						if len(exp.Signature.Params) == 1 {
 							paramType := tc.typeFromKey(exp.Signature.Params[0])
-							if paramType == stringType && exp.Signature.Result != "" {
+							if tc.isSharedStringRef(paramType, stringType) && exp.Signature.Result != "" {
 								return true
 							}
 						}
@@ -247,4 +247,15 @@ func (tc *typeChecker) typeHasFromStr(typeID types.TypeID) bool {
 	}
 
 	return false
+}
+
+func (tc *typeChecker) isSharedStringRef(paramType, stringType types.TypeID) bool {
+	if paramType == types.NoTypeID || stringType == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	tt, ok := tc.types.Lookup(tc.resolveAlias(paramType))
+	if !ok || tt.Kind != types.KindReference || tt.Mutable {
+		return false
+	}
+	return tt.Elem == stringType
 }

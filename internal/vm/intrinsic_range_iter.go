@@ -75,17 +75,60 @@ func (vm *VM) handleRangeNext(frame *Frame, call *mir.CallInstr, writes *[]Local
 	if obj.Kind != OKRange {
 		return vm.eb.typeMismatch("range", fmt.Sprintf("%v", obj.Kind))
 	}
-	if obj.Range.Kind != RangeArrayIter {
-		return vm.eb.unimplemented("range descriptor iteration")
-	}
-
-	if obj.Range.ArrayIndex >= obj.Range.ArrayLen {
-		if !call.HasDst {
+	switch obj.Range.Kind {
+	case RangeArrayIter:
+		if obj.Range.ArrayIndex >= obj.Range.ArrayLen {
+			if !call.HasDst {
+				return nil
+			}
+			dstLocal := call.Dst.Local
+			res := MakeNothing()
+			if err := vm.writeLocal(frame, dstLocal, res); err != nil {
+				return err
+			}
+			if writes != nil {
+				*writes = append(*writes, LocalWrite{
+					LocalID: dstLocal,
+					Name:    frame.Locals[dstLocal].Name,
+					Value:   res,
+				})
+			}
 			return nil
 		}
+
+		base := obj.Range.ArrayBase
+		if base == 0 {
+			return vm.eb.makeError(PanicOutOfBounds, "range iterator missing base array")
+		}
+		baseObj := vm.Heap.Get(base)
+		if baseObj.Kind != OKArray {
+			return vm.eb.typeMismatch("array", fmt.Sprintf("%v", baseObj.Kind))
+		}
+		idx := obj.Range.ArrayStart + obj.Range.ArrayIndex
+		if idx < 0 || idx >= len(baseObj.Arr) {
+			return vm.eb.makeError(PanicOutOfBounds, "range iterator index out of bounds")
+		}
+
+		elem, vmErr := vm.cloneForShare(baseObj.Arr[idx])
+		if vmErr != nil {
+			return vmErr
+		}
+		obj.Range.ArrayIndex++
+
+		if !call.HasDst {
+			vm.dropValue(elem)
+			return nil
+		}
+
 		dstLocal := call.Dst.Local
-		res := MakeNothing()
+		dstType := frame.Locals[dstLocal].TypeID
+		res, vmErr := vm.makeOptionSome(dstType, elem)
+		if vmErr != nil {
+			vm.dropValue(elem)
+			return vmErr
+		}
 		if err := vm.writeLocal(frame, dstLocal, res); err != nil {
+			vm.dropValue(res)
 			return err
 		}
 		if writes != nil {
@@ -96,49 +139,56 @@ func (vm *VM) handleRangeNext(frame *Frame, call *mir.CallInstr, writes *[]Local
 			})
 		}
 		return nil
-	}
+	case RangeDescriptor:
+		elemType := vm.rangeElemType(rangeVal.TypeID)
+		elem, ok, vmErr := vm.rangeDescriptorNextValue(&obj.Range, elemType)
+		if vmErr != nil {
+			return vmErr
+		}
+		if !ok {
+			if !call.HasDst {
+				return nil
+			}
+			dstLocal := call.Dst.Local
+			res := MakeNothing()
+			if err := vm.writeLocal(frame, dstLocal, res); err != nil {
+				return err
+			}
+			if writes != nil {
+				*writes = append(*writes, LocalWrite{
+					LocalID: dstLocal,
+					Name:    frame.Locals[dstLocal].Name,
+					Value:   res,
+				})
+			}
+			return nil
+		}
 
-	base := obj.Range.ArrayBase
-	if base == 0 {
-		return vm.eb.makeError(PanicOutOfBounds, "range iterator missing base array")
-	}
-	baseObj := vm.Heap.Get(base)
-	if baseObj.Kind != OKArray {
-		return vm.eb.typeMismatch("array", fmt.Sprintf("%v", baseObj.Kind))
-	}
-	idx := obj.Range.ArrayStart + obj.Range.ArrayIndex
-	if idx < 0 || idx >= len(baseObj.Arr) {
-		return vm.eb.makeError(PanicOutOfBounds, "range iterator index out of bounds")
-	}
+		if !call.HasDst {
+			vm.dropValue(elem)
+			return nil
+		}
 
-	elem, vmErr := vm.cloneForShare(baseObj.Arr[idx])
-	if vmErr != nil {
-		return vmErr
-	}
-	obj.Range.ArrayIndex++
-
-	if !call.HasDst {
-		vm.dropValue(elem)
+		dstLocal := call.Dst.Local
+		dstType := frame.Locals[dstLocal].TypeID
+		res, vmErr := vm.makeOptionSome(dstType, elem)
+		if vmErr != nil {
+			vm.dropValue(elem)
+			return vmErr
+		}
+		if err := vm.writeLocal(frame, dstLocal, res); err != nil {
+			vm.dropValue(res)
+			return err
+		}
+		if writes != nil {
+			*writes = append(*writes, LocalWrite{
+				LocalID: dstLocal,
+				Name:    frame.Locals[dstLocal].Name,
+				Value:   res,
+			})
+		}
 		return nil
+	default:
+		return vm.eb.unimplemented("range iterator kind")
 	}
-
-	dstLocal := call.Dst.Local
-	dstType := frame.Locals[dstLocal].TypeID
-	res, vmErr := vm.makeOptionSome(dstType, elem)
-	if vmErr != nil {
-		vm.dropValue(elem)
-		return vmErr
-	}
-	if err := vm.writeLocal(frame, dstLocal, res); err != nil {
-		vm.dropValue(res)
-		return err
-	}
-	if writes != nil {
-		*writes = append(*writes, LocalWrite{
-			LocalID: dstLocal,
-			Name:    frame.Locals[dstLocal].Name,
-			Value:   res,
-		})
-	}
-	return nil
 }

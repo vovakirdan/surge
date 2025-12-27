@@ -1,0 +1,130 @@
+// scenario: compare patterns (literals, guards, tuples, tags)
+
+fn label_int(n: int) -> string {
+    return compare n {
+        -1 => "neg";
+        0 => "zero";
+        1 => "one";
+        2 if n > 1 => "two+guard";
+        _ => "other";
+    };
+}
+
+fn label_uint(u: uint) -> string {
+    return compare u {
+        0 => "u0";
+        3 => "u3";
+        _ => "u?";
+    };
+}
+
+fn label_float(f: float) -> string {
+    return compare f {
+        1.5 => "f1.5";
+        2.0 => "f2";
+        _ => "f?";
+    };
+}
+
+fn label_bool(b: bool) -> string {
+    return compare b {
+        true => "yes";
+        false => "no";
+    };
+}
+
+fn label_big(n: int) -> string {
+    return compare n {
+        12345678901234567890 => "big";
+        _ => "not-big";
+    };
+}
+
+@entrypoint
+fn main() {
+    print(label_int(-1));
+    print(label_int(0));
+    print(label_int(2));
+    print(label_int(9));
+
+    let u0: uint = 0;
+    let u3: uint = 3;
+    let u4: uint = 4;
+    print(label_uint(u0));
+    print(label_uint(u3));
+    print(label_uint(u4));
+
+    print(label_float(1.5));
+    print(label_float(2.0));
+    print(label_float(3.0));
+
+    print(label_bool(true));
+    print(label_bool(false));
+
+    let t0: (int, bool) = (0, true);
+    let t1: (int, bool) = (7, false);
+    let t2: (int, bool) = (2, true);
+    let t0_label: string = compare t0 {
+        (0, true) => "zero-true";
+        (x, false) => "x-false:" + x to string;
+        (x, y) => "other:" + x to string + "," + y to string;
+    };
+    let t1_label: string = compare t1 {
+        (0, true) => "zero-true";
+        (x, false) => "x-false:" + x to string;
+        (x, y) => "other:" + x to string + "," + y to string;
+    };
+    let t2_label: string = compare t2 {
+        (0, true) => "zero-true";
+        (x, false) => "x-false:" + x to string;
+        (x, y) => "other:" + x to string + "," + y to string;
+    };
+    print(t0_label);
+    print(t1_label);
+    print(t2_label);
+
+    let none: int? = nothing;
+    let opt0: int? = Some(0);
+    let opt1: int? = Some(1);
+    let opt2: int? = Some(2);
+    let opt0_label: string = compare opt0 {
+        Some(n) => compare n {
+            0 => "some0";
+            _ if n > 1 => "some>1:" + n to string;
+            _ => "some:" + n to string;
+        };
+        nothing => "none";
+    };
+    let opt2_label: string = compare opt2 {
+        Some(n) => compare n {
+            0 => "some0";
+            _ if n > 1 => "some>1:" + n to string;
+            _ => "some:" + n to string;
+        };
+        nothing => "none";
+    };
+    let opt1_label: string = compare opt1 {
+        Some(n) => compare n {
+            0 => "some0";
+            _ if n > 1 => "some>1:" + n to string;
+            _ => "some:" + n to string;
+        };
+        nothing => "none";
+    };
+    let none_label: string = compare none {
+        Some(n) => compare n {
+            0 => "some0";
+            _ if n > 1 => "some>1:" + n to string;
+            _ => "some:" + n to string;
+        };
+        nothing => "none";
+    };
+    print(opt0_label);
+    print(opt2_label);
+    print(opt1_label);
+    print(none_label);
+
+    let big: int = 12345678901234567890;
+    print(label_big(big));
+    print(label_big(5));
+}

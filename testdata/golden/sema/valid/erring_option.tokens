@@ -103,8 +103,8 @@
 103: RParen          ")" at 23:37-23:38
 104: Semicolon       ";" at 23:38-23:39
 105: KwReturn        "return" at 25:5-25:11 (leading: Space, LineComment, Newline, Space, LineComment, Newline, Space)
-106: Ident           "option" at 25:12-25:18 (leading: Space)
-107: Semicolon       ";" at 25:18-25:19
+106: NothingLit      "nothing" at 25:12-25:19 (leading: Space)
+107: Semicolon       ";" at 25:19-25:20
 108: RBrace          "}" at 26:1-26:2 (leading: Newline)
 109: KwFn            "fn" at 28:1-28:3 (leading: Newline)
 110: Ident           "test_erring_safe_method" at 28:4-28:27 (leading: Space)

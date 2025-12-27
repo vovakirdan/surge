@@ -48,6 +48,18 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 			if actInfo.Kind == types.KindOwn && expectedResolved == actInfo.Elem && tc.isCopyType(expectedResolved) {
 				return true
 			}
+			if actInfo.Kind == types.KindReference {
+				elem := tc.resolveAlias(actInfo.Elem)
+				if expInfo.Kind == types.KindOwn {
+					if elem == tc.resolveAlias(expInfo.Elem) && tc.isCopyType(elem) {
+						return true
+					}
+				} else if expInfo.Kind != types.KindReference && expInfo.Kind != types.KindPointer {
+					if elem == expectedResolved && tc.isCopyType(elem) {
+						return true
+					}
+				}
+			}
 		}
 	}
 

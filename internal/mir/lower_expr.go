@@ -62,10 +62,8 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 		if err != nil {
 			return Place{Local: NoLocalID}, err
 		}
-		if l.types != nil && data.Object != nil && data.Object.Type != types.NoTypeID {
-			if tt, ok := l.types.Lookup(data.Object.Type); ok && tt.Kind == types.KindReference {
-				base.Proj = append(base.Proj, PlaceProj{Kind: PlaceProjDeref})
-			}
+		if l.needsDerefForRefObject(data.Object) {
+			base.Proj = append(base.Proj, PlaceProj{Kind: PlaceProjDeref})
 		}
 		base.Proj = append(base.Proj, PlaceProj{
 			Kind:      PlaceProjField,
@@ -83,12 +81,10 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 		if err != nil {
 			return Place{Local: NoLocalID}, err
 		}
-		if l.types != nil && data.Object != nil && data.Object.Type != types.NoTypeID {
-			if tt, ok := l.types.Lookup(data.Object.Type); ok && tt.Kind == types.KindReference {
-				base.Proj = append(base.Proj, PlaceProj{Kind: PlaceProjDeref})
-			}
+		if l.needsDerefForRefObject(data.Object) {
+			base.Proj = append(base.Proj, PlaceProj{Kind: PlaceProjDeref})
 		}
-		idxOp, err := l.lowerExpr(data.Index, true)
+		idxOp, err := l.lowerValueExpr(data.Index, true)
 		if err != nil {
 			return Place{Local: NoLocalID}, err
 		}
@@ -110,6 +106,25 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 
 	default:
 		return Place{Local: NoLocalID}, fmt.Errorf("mir: expected place, got %s", e.Kind)
+	}
+}
+
+func (l *funcLowerer) needsDerefForRefObject(e *hir.Expr) bool {
+	if l == nil || l.types == nil || e == nil || e.Type == types.NoTypeID {
+		return false
+	}
+	tt, ok := l.types.Lookup(resolveAlias(l.types, e.Type))
+	if !ok || tt.Kind != types.KindReference {
+		return false
+	}
+	switch e.Kind {
+	case hir.ExprIndex, hir.ExprFieldAccess:
+		if elem, ok := l.types.Lookup(resolveAlias(l.types, tt.Elem)); ok && elem.Kind == types.KindReference {
+			return true
+		}
+		return false
+	default:
+		return true
 	}
 }
 
@@ -276,7 +291,13 @@ func (l *funcLowerer) lowerUnaryOpExpr(e *hir.Expr, consume bool) (Operand, erro
 		return Operand{Kind: kind, Type: e.Type, Place: place}, nil
 	}
 
-	operand, err := l.lowerExpr(data.Operand, false)
+	var operand Operand
+	var err error
+	if data.Op == ast.ExprUnaryDeref {
+		operand, err = l.lowerExpr(data.Operand, false)
+	} else {
+		operand, err = l.lowerValueExpr(data.Operand, false)
+	}
 	if err != nil {
 		return Operand{}, err
 	}
@@ -384,11 +405,11 @@ func (l *funcLowerer) lowerBinaryOpExpr(e *hir.Expr, consume bool) (Operand, err
 	if base, ok := assignmentBaseOp(data.Op); ok {
 		return l.lowerCompoundAssignExpr(e, data, base, consume)
 	}
-	left, err := l.lowerExpr(data.Left, false)
+	left, err := l.lowerValueExpr(data.Left, false)
 	if err != nil {
 		return Operand{}, err
 	}
-	right, err := l.lowerExpr(data.Right, false)
+	right, err := l.lowerValueExpr(data.Right, false)
 	if err != nil {
 		return Operand{}, err
 	}
@@ -428,7 +449,7 @@ func (l *funcLowerer) lowerCastExpr(e *hir.Expr, consume bool) (Operand, error) 
 	if !ok {
 		return Operand{}, fmt.Errorf("mir: cast: unexpected payload %T", e.Data)
 	}
-	value, err := l.lowerExpr(data.Value, false)
+	value, err := l.lowerValueExpr(data.Value, false)
 	if err != nil {
 		return Operand{}, err
 	}
@@ -456,6 +477,19 @@ func (l *funcLowerer) lowerFieldAccessExpr(e *hir.Expr, consume bool) (Operand, 
 	data, ok := e.Data.(hir.FieldAccessData)
 	if !ok {
 		return Operand{}, fmt.Errorf("mir: field: unexpected payload %T", e.Data)
+	}
+	if l.types != nil && e.Type != types.NoTypeID {
+		if tt, ok := l.types.Lookup(e.Type); ok && tt.Kind == types.KindReference {
+			place, err := l.lowerPlace(e)
+			if err != nil {
+				return Operand{}, err
+			}
+			kind := OperandAddrOf
+			if tt.Mutable {
+				kind = OperandAddrOfMut
+			}
+			return Operand{Kind: kind, Type: e.Type, Place: place}, nil
+		}
 	}
 	obj, err := l.lowerExpr(data.Object, false)
 	if err != nil {
@@ -485,11 +519,24 @@ func (l *funcLowerer) lowerIndexExpr(e *hir.Expr, consume bool) (Operand, error)
 	if !ok {
 		return Operand{}, fmt.Errorf("mir: index: unexpected payload %T", e.Data)
 	}
+	if l.types != nil && e.Type != types.NoTypeID {
+		if tt, ok := l.types.Lookup(e.Type); ok && tt.Kind == types.KindReference {
+			place, err := l.lowerPlace(e)
+			if err != nil {
+				return Operand{}, err
+			}
+			kind := OperandAddrOf
+			if tt.Mutable {
+				kind = OperandAddrOfMut
+			}
+			return Operand{Kind: kind, Type: e.Type, Place: place}, nil
+		}
+	}
 	obj, err := l.lowerExpr(data.Object, false)
 	if err != nil {
 		return Operand{}, err
 	}
-	idx, err := l.lowerExpr(data.Index, false)
+	idx, err := l.lowerValueExpr(data.Index, false)
 	if err != nil {
 		return Operand{}, err
 	}
@@ -579,119 +626,5 @@ func (l *funcLowerer) lowerTupleLitExpr(e *hir.Expr, consume bool) (Operand, err
 			Src: RValue{Kind: RValueTupleLit, TupleLit: TupleLit{Elems: elems}},
 		},
 	})
-	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
-}
-
-// lowerTagTestExpr lowers a tag test expression.
-func (l *funcLowerer) lowerTagTestExpr(e *hir.Expr, consume bool) (Operand, error) {
-	data, ok := e.Data.(hir.TagTestData)
-	if !ok {
-		return Operand{}, fmt.Errorf("mir: tag_test: unexpected payload %T", e.Data)
-	}
-	val, err := l.lowerExpr(data.Value, false)
-	if err != nil {
-		return Operand{}, err
-	}
-	tmp := l.newTemp(e.Type, "tagtest", e.Span)
-	l.emit(&Instr{
-		Kind: InstrAssign,
-		Assign: AssignInstr{
-			Dst: Place{Local: tmp},
-			Src: RValue{Kind: RValueTagTest, TagTest: TagTest{Value: val, TagName: data.TagName}},
-		},
-	})
-	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
-}
-
-// lowerTagPayloadExpr lowers a tag payload extraction expression.
-func (l *funcLowerer) lowerTagPayloadExpr(e *hir.Expr, consume bool) (Operand, error) {
-	data, ok := e.Data.(hir.TagPayloadData)
-	if !ok {
-		return Operand{}, fmt.Errorf("mir: tag_payload: unexpected payload %T", e.Data)
-	}
-	val, err := l.lowerExpr(data.Value, false)
-	if err != nil {
-		return Operand{}, err
-	}
-	tmp := l.newTemp(e.Type, "payload", e.Span)
-	l.emit(&Instr{
-		Kind: InstrAssign,
-		Assign: AssignInstr{
-			Dst: Place{Local: tmp},
-			Src: RValue{Kind: RValueTagPayload, TagPayload: TagPayload{Value: val, TagName: data.TagName, Index: data.Index}},
-		},
-	})
-	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
-}
-
-// lowerIterInitExpr lowers an iterator initialization expression.
-func (l *funcLowerer) lowerIterInitExpr(e *hir.Expr, consume bool) (Operand, error) {
-	data, ok := e.Data.(hir.IterInitData)
-	if !ok {
-		return Operand{}, fmt.Errorf("mir: iter_init: unexpected payload %T", e.Data)
-	}
-	iterable, err := l.lowerExpr(data.Iterable, false)
-	if err != nil {
-		return Operand{}, err
-	}
-	tmp := l.newTemp(e.Type, "iter", e.Span)
-	l.emit(&Instr{
-		Kind: InstrAssign,
-		Assign: AssignInstr{
-			Dst: Place{Local: tmp},
-			Src: RValue{Kind: RValueIterInit, IterInit: IterInit{Iterable: iterable}},
-		},
-	})
-	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
-}
-
-// lowerIterNextExpr lowers an iterator next expression.
-func (l *funcLowerer) lowerIterNextExpr(e *hir.Expr, consume bool) (Operand, error) {
-	data, ok := e.Data.(hir.IterNextData)
-	if !ok {
-		return Operand{}, fmt.Errorf("mir: iter_next: unexpected payload %T", e.Data)
-	}
-	iter, err := l.lowerExpr(data.Iter, false)
-	if err != nil {
-		return Operand{}, err
-	}
-	tmp := l.newTemp(e.Type, "next", e.Span)
-	l.emit(&Instr{
-		Kind: InstrAssign,
-		Assign: AssignInstr{
-			Dst: Place{Local: tmp},
-			Src: RValue{Kind: RValueIterNext, IterNext: IterNext{Iter: iter}},
-		},
-	})
-	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
-}
-
-// lowerAwaitExpr lowers an await expression.
-func (l *funcLowerer) lowerAwaitExpr(e *hir.Expr, consume bool) (Operand, error) {
-	data, ok := e.Data.(hir.AwaitData)
-	if !ok {
-		return Operand{}, fmt.Errorf("mir: await: unexpected payload %T", e.Data)
-	}
-	task, err := l.lowerExpr(data.Value, false)
-	if err != nil {
-		return Operand{}, err
-	}
-	tmp := l.newTemp(e.Type, "await", e.Span)
-	l.emit(&Instr{Kind: InstrAwait, Await: AwaitInstr{Dst: Place{Local: tmp}, Task: task}})
-	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
-}
-
-// lowerSpawnExpr lowers a spawn expression.
-func (l *funcLowerer) lowerSpawnExpr(e *hir.Expr, consume bool) (Operand, error) {
-	data, ok := e.Data.(hir.SpawnData)
-	if !ok {
-		return Operand{}, fmt.Errorf("mir: spawn: unexpected payload %T", e.Data)
-	}
-	value, err := l.lowerExpr(data.Value, true)
-	if err != nil {
-		return Operand{}, err
-	}
-	tmp := l.newTemp(e.Type, "spawn", e.Span)
-	l.emit(&Instr{Kind: InstrSpawn, Spawn: SpawnInstr{Dst: Place{Local: tmp}, Value: value}})
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }

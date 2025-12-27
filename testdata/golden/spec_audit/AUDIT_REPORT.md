@@ -95,9 +95,9 @@ Categories:
 ### §2.10 Tuples
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Tuple types | ✅ SEMA PASS | |
-| Tuple literals | 🐛 VM BUG | `unimplemented: rvalue kind 6` |
-| Tuple destructuring | ✅ SEMA PASS | |
+| Tuple types | ✅ PASS | |
+| Tuple literals | ✅ PASS | |
+| Tuple destructuring | ✅ PASS | |
 
 ### §2.11 Memory Management
 | Feature | Status | Notes |
@@ -132,7 +132,7 @@ Categories:
 | `if`/`else` | ✅ PASS | |
 | `while` | ✅ PASS | |
 | C-style `for` | ✅ PASS | |
-| `for...in` | 🐛 VM BUG | `unimplemented: rvalue kind 11` |
+| `for...in` | ✅ PASS | |
 | `break`/`continue` | ✅ PASS | |
 | `return` | ✅ PASS | |
 
@@ -151,8 +151,8 @@ Categories:
 | `finally` pattern | ✅ PASS | |
 | Binding pattern | ✅ PASS | |
 | `Some(v)`/`nothing` | ✅ PASS | |
-| Int literal patterns | 🐛 VM BUG | `expected bigint, got int` |
-| Bool literal patterns | ✅ PASS | Manual run OK (`surge run` minimal compare snippet) |
+| Int literal patterns | ✅ PASS | |
+| Bool literal patterns | ✅ PASS | |
 
 **Test files:** `s03_*.sg`
 
@@ -281,9 +281,7 @@ Categories:
 2. **VM `unsupported intrinsic`** - blocks module imports at runtime
 
 ### 🟠 High (Common features broken)
-1. **for...in loop** - VM not implemented
-2. **Tuples** - VM not implemented
-3. **compare int literal patterns** - VM bug
+1. _None_
 
 ### 🟡 Medium (Spec features missing)
 1. ✅ fixed: **Enums (auto/int/string)** - implemented via `enum` declarations
@@ -308,16 +306,14 @@ Categories:
 ### 🔧 Implementation Fixes Needed
 1. **VM reference handling** - ✅ fixed for `&self` methods
 2. **VM module linking** - Imported functions marked as unsupported intrinsic
-3. **VM for-in loop** - rvalue kind 11 not implemented
-4. **VM tuples** - rvalue kind 6 not implemented
-5. **compare literal patterns** - bigint/int type mismatch
+3. ✅ fixed: **VM tuples** - tuple literals/access implemented
+4. ✅ fixed: **compare literal patterns** - numeric literals now materialize
 
 ### 🚀 Features to Implement (Priority Order)
-1. For-in loops (VM)
-2. Tuples (VM)
-3. ✅ fixed: Enums (auto/int/string)
-4. ✅ fixed: Struct extension
-5. ✅ fixed: `&self` method calls (VM)
+1. ✅ fixed: Tuples (VM)
+2. ✅ fixed: Enums (auto/int/string)
+3. ✅ fixed: Struct extension
+4. ✅ fixed: `&self` method calls (VM)
 
 ---
 
@@ -332,13 +328,13 @@ Categories:
 | `s02_types_generics.sg` | §2.4 | ⚠️ PARTIAL |
 | `s02_types_userdefined.sg` | §2.5 | ✅ PASS |
 | `s02_types_tags_option.sg` | §2.6-2.9 | ✅ PASS |
-| `s02_types_tuples.sg` | §2.10 | 🐛 VM BUG |
+| `s02_types_tuples.sg` | §2.10 | ✅ PASS |
 | `s02_types_contracts.sg` | §2.12 | ✅ PASS |
 | `s03_expr_variables.sg` | §3.1 | ✅ PASS |
 | `s03_control_flow.sg` | §3.2 | ✅ PASS |
-| `s03_for_in.sg` | §3.2 | 🐛 VM BUG |
+| `s03_for_in.sg` | §3.2 | ✅ PASS |
 | `s03_indexing.sg` | §3.4 | ✅ PASS |
-| `s03_compare.sg` | §3.6 | ⚠️ PARTIAL |
+| `s03_compare.sg` | §3.6 | ✅ PASS |
 | `s04_functions.sg` | §4.1 | ✅ PASS |
 | `s04_attributes.sg` | §4.2 | ✅ PASS |
 | `s04_extern.sg` | §4.4 | ⚠️ PARTIAL |

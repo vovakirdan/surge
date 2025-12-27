@@ -1,1 +1,2 @@
 error SEM3015 testdata/golden/sema/invalid/index_range_missing_overload.sg:13:15 Box is not indexable
+error SEM3130 testdata/golden/sema/invalid/index_range_missing_overload.sg:13:15 use of moved value 'b'
