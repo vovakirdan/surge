@@ -15,6 +15,13 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 	if !pattern.IsValid() || tc.builder == nil {
 		return
 	}
+	subjectValue := subject
+	if subjectValue != types.NoTypeID {
+		subjectValue = tc.resolveAlias(tc.stripOwnType(subjectValue))
+		if applied, _ := tc.materializeNumericLiteral(pattern, subjectValue); applied {
+			return
+		}
+	}
 	expr := tc.builder.Exprs.Get(pattern)
 	if expr == nil {
 		return
@@ -32,7 +39,7 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 		if ident, ok := tc.builder.Exprs.Ident(call.Target); ok && ident != nil {
 			tagName = ident.Name
 		}
-		argTypes := tc.unionTagPayloadTypes(subject, tagName)
+		argTypes := tc.unionTagPayloadTypes(subjectValue, tagName)
 		for i, arg := range call.Args {
 			argType := types.NoTypeID
 			if i < len(argTypes) {
@@ -45,8 +52,18 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 		if tuple == nil {
 			return
 		}
-		for _, elem := range tuple.Elements {
-			tc.inferComparePatternTypes(elem, types.NoTypeID)
+		var elemTypes []types.TypeID
+		if subjectValue != types.NoTypeID && tc.types != nil {
+			if info, ok := tc.types.TupleInfo(subjectValue); ok && info != nil {
+				elemTypes = info.Elems
+			}
+		}
+		for i, elem := range tuple.Elements {
+			elemType := types.NoTypeID
+			if i < len(elemTypes) {
+				elemType = elemTypes[i]
+			}
+			tc.inferComparePatternTypes(elem, elemType)
 		}
 	}
 }

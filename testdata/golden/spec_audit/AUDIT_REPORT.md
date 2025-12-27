@@ -151,8 +151,8 @@ Categories:
 | `finally` pattern | ✅ PASS | |
 | Binding pattern | ✅ PASS | |
 | `Some(v)`/`nothing` | ✅ PASS | |
-| Int literal patterns | 🐛 VM BUG | `expected bigint, got int` |
-| Bool literal patterns | ✅ PASS | Manual run OK (`surge run` minimal compare snippet) |
+| Int literal patterns | ✅ PASS | |
+| Bool literal patterns | ✅ PASS | |
 
 **Test files:** `s03_*.sg`
 
@@ -281,7 +281,7 @@ Categories:
 2. **VM `unsupported intrinsic`** - blocks module imports at runtime
 
 ### 🟠 High (Common features broken)
-1. **compare int literal patterns** - VM bug
+1. _None_
 
 ### 🟡 Medium (Spec features missing)
 1. ✅ fixed: **Enums (auto/int/string)** - implemented via `enum` declarations
@@ -307,7 +307,7 @@ Categories:
 1. **VM reference handling** - ✅ fixed for `&self` methods
 2. **VM module linking** - Imported functions marked as unsupported intrinsic
 3. ✅ fixed: **VM tuples** - tuple literals/access implemented
-4. **compare literal patterns** - bigint/int type mismatch
+4. ✅ fixed: **compare literal patterns** - numeric literals now materialize
 
 ### 🚀 Features to Implement (Priority Order)
 1. ✅ fixed: Tuples (VM)
@@ -334,7 +334,7 @@ Categories:
 | `s03_control_flow.sg` | §3.2 | ✅ PASS |
 | `s03_for_in.sg` | §3.2 | ✅ PASS |
 | `s03_indexing.sg` | §3.4 | ✅ PASS |
-| `s03_compare.sg` | §3.6 | ⚠️ PARTIAL |
+| `s03_compare.sg` | §3.6 | ✅ PASS |
 | `s04_functions.sg` | §4.1 | ✅ PASS |
 | `s04_attributes.sg` | §4.2 | ✅ PASS |
 | `s04_extern.sg` | §4.4 | ⚠️ PARTIAL |
