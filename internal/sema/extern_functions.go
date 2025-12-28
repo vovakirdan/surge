@@ -92,6 +92,9 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 		tc.pushReturnContext(returnType, returnSpan, nil)
 		pushed := tc.pushScope(scope)
 		tc.walkStmt(fn.Body)
+		if returnType != tc.types.Builtins().Nothing && tc.returnStatus(fn.Body) != returnClosed {
+			tc.report(diag.SemaMissingReturn, returnSpan, "function returning %s is missing a return", tc.typeLabel(returnType))
+		}
 		// Perform lock analysis after walking the body
 		selfSym := tc.findSelfSymbol(fn, scope)
 		tc.analyzeFunctionLocks(fn, selfSym)
