@@ -63,7 +63,7 @@ func (tc *typeChecker) inferMissingTypeParams(sym *symbols.Symbol, args []callAr
 			return nil, false
 		}
 		allowImplicitTo := tc.callAllowsImplicitTo(sym, paramIndex)
-		if _, ok := tc.matchArgument(expectedType, arg.ty, arg.isLiteral, allowImplicitTo); !ok {
+		if _, ok := tc.matchArgument(expectedType, arg.ty, arg.isLiteral, allowImplicitTo, arg.expr, nil); !ok {
 			return nil, false
 		}
 	}
@@ -126,7 +126,7 @@ func (tc *typeChecker) typeParamNameSet(sym *symbols.Symbol) (names []string, se
 	return names, set
 }
 
-func (tc *typeChecker) evaluateFunctionCandidate(sym *symbols.Symbol, args []callArg, typeArgs []types.TypeID) (cost int, result types.TypeID, concrete []types.TypeID, ok bool) {
+func (tc *typeChecker) evaluateFunctionCandidate(sym *symbols.Symbol, args []callArg, typeArgs []types.TypeID, info *borrowMatchInfo) (cost int, result types.TypeID, concrete []types.TypeID, ok bool) {
 	if sym == nil || sym.Signature == nil {
 		return 0, types.NoTypeID, nil, false
 	}
@@ -208,7 +208,7 @@ func (tc *typeChecker) evaluateFunctionCandidate(sym *symbols.Symbol, args []cal
 			return 0, types.NoTypeID, nil, false
 		}
 		allowImplicitTo := tc.callAllowsImplicitTo(sym, paramIndex)
-		cost, ok := tc.matchArgument(expectedType, arg.ty, arg.isLiteral, allowImplicitTo)
+		cost, ok := tc.matchArgument(expectedType, arg.ty, arg.isLiteral, allowImplicitTo, arg.expr, info)
 		if !ok {
 			return 0, types.NoTypeID, nil, false
 		}
@@ -243,8 +243,9 @@ func (tc *typeChecker) selectBestCandidate(
 	args []callArg,
 	typeArgs []types.TypeID,
 	wantGeneric bool,
-) (bestSym symbols.SymbolID, bestType types.TypeID, bestArgs []types.TypeID, ambiguous, ok bool) {
+) (bestSym symbols.SymbolID, bestType types.TypeID, bestArgs []types.TypeID, ambiguous, ok bool, matchInfo *borrowMatchInfo) {
 	bestCost := -1
+	var info borrowMatchInfo
 	for _, symID := range candidates {
 		sym := tc.symbolFromID(symID)
 		if sym == nil || (sym.Kind != symbols.SymbolFunction && sym.Kind != symbols.SymbolTag) || sym.Signature == nil {
@@ -253,7 +254,7 @@ func (tc *typeChecker) selectBestCandidate(
 		if tc.isGenericCandidate(sym, typeArgs) != wantGeneric {
 			continue
 		}
-		cost, resType, concreteArgs, ok := tc.evaluateFunctionCandidate(sym, args, typeArgs)
+		cost, resType, concreteArgs, ok := tc.evaluateFunctionCandidate(sym, args, typeArgs, &info)
 		if !ok {
 			continue
 		}
@@ -268,9 +269,9 @@ func (tc *typeChecker) selectBestCandidate(
 		}
 	}
 	if bestCost == -1 {
-		return symbols.NoSymbolID, types.NoTypeID, nil, false, false
+		return symbols.NoSymbolID, types.NoTypeID, nil, false, false, &info
 	}
-	return bestSym, bestType, bestArgs, ambiguous, true
+	return bestSym, bestType, bestArgs, ambiguous, true, &info
 }
 
 func (tc *typeChecker) isGenericCandidate(sym *symbols.Symbol, typeArgs []types.TypeID) bool {
@@ -288,25 +289,65 @@ func (tc *typeChecker) isGenericCandidate(sym *symbols.Symbol, typeArgs []types.
 	return false
 }
 
-func (tc *typeChecker) matchArgument(expected, actual types.TypeID, isLiteral, allowImplicitTo bool) (int, bool) {
+func (tc *typeChecker) matchArgument(expected, actual types.TypeID, isLiteral, allowImplicitTo bool, expr ast.ExprID, info *borrowMatchInfo) (int, bool) {
 	if expected == types.NoTypeID || actual == types.NoTypeID || tc.types == nil {
 		return 0, false
 	}
 	expected = tc.resolveAlias(expected)
 	actual = tc.resolveAlias(actual)
 	if expInfo, ok := tc.types.Lookup(expected); ok && expInfo.Kind == types.KindReference {
-		if actInfo, okAct := tc.types.Lookup(actual); okAct && actInfo.Kind == types.KindReference {
+		actInfo, okAct := tc.types.Lookup(actual)
+		if okAct && actInfo.Kind == types.KindReference {
 			if expInfo.Mutable && !actInfo.Mutable {
 				return 0, false
 			}
 			return tc.conversionCost(actInfo.Elem, expInfo.Elem, isLiteral, allowImplicitTo)
 		}
-		if actInfo, okAct := tc.types.Lookup(actual); okAct && actInfo.Kind == types.KindOwn {
-			return tc.conversionCost(actInfo.Elem, expInfo.Elem, isLiteral, allowImplicitTo)
+		if !expInfo.Mutable && tc.isBorrowableStringLiteral(expr, expected) {
+			innerActual := actual
+			if okAct && actInfo.Kind == types.KindOwn {
+				innerActual = actInfo.Elem
+			}
+			cost, ok := tc.conversionCost(innerActual, expInfo.Elem, isLiteral, allowImplicitTo)
+			if !ok {
+				return 0, false
+			}
+			return cost + 1, true
 		}
-		return tc.conversionCost(actual, expInfo.Elem, isLiteral, allowImplicitTo)
+		if expInfo.Mutable {
+			if !tc.isAddressableExpr(expr) {
+				info.record(expr, true, borrowFailureNotAddressable)
+				return 0, false
+			}
+			if !tc.isMutablePlaceExpr(expr) {
+				info.record(expr, true, borrowFailureImmutable)
+				return 0, false
+			}
+		} else if !tc.isAddressableExpr(expr) {
+			info.record(expr, false, borrowFailureNotAddressable)
+			return 0, false
+		}
+		innerActual := actual
+		if okAct && actInfo.Kind == types.KindOwn {
+			innerActual = actInfo.Elem
+		}
+		cost, ok := tc.conversionCost(innerActual, expInfo.Elem, isLiteral, allowImplicitTo)
+		if !ok {
+			return 0, false
+		}
+		return cost + 1, true
 	}
-	return tc.conversionCost(actual, expected, isLiteral, allowImplicitTo)
+	cost, ok := tc.conversionCost(actual, expected, isLiteral, allowImplicitTo)
+	if !ok {
+		return 0, false
+	}
+	if !tc.isReferenceType(actual) {
+		val := tc.valueType(actual)
+		if val != types.NoTypeID && !tc.isCopyType(val) {
+			cost += 2
+		}
+	}
+	return cost, true
 }
 
 func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral, allowImplicitTo bool) (int, bool) {

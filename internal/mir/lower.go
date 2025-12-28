@@ -72,6 +72,8 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 
 	globals, symToGlobal := buildGlobalMap(mm.Source)
 	out.Globals = globals
+	staticStringGlobals := make(map[string]GlobalID)
+	staticStringInits := make(map[GlobalID]string)
 
 	consts := buildConstMap(mm.Source)
 
@@ -86,14 +88,16 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 		id := nextID
 		nextID++
 		fl := &funcLowerer{
-			out:         out,
-			mf:          mf,
-			sema:        semaRes,
-			types:       typesIn,
-			symToLocal:  make(map[symbols.SymbolID]LocalID),
-			symToGlobal: symToGlobal,
-			nextTemp:    1,
-			consts:      consts,
+			out:                 out,
+			mf:                  mf,
+			sema:                semaRes,
+			types:               typesIn,
+			symToLocal:          make(map[symbols.SymbolID]LocalID),
+			symToGlobal:         symToGlobal,
+			nextTemp:            1,
+			consts:              consts,
+			staticStringGlobals: staticStringGlobals,
+			staticStringInits:   staticStringInits,
 		}
 		f, err := fl.lowerFunc(id, mf.Func)
 		if err != nil {
@@ -106,7 +110,7 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 	}
 
 	// Build __surge_start if there's an entrypoint
-	surgeStart, err := BuildSurgeStart(mm, semaRes, typesIn, nextID, out.Globals, symToGlobal)
+	surgeStart, err := BuildSurgeStart(mm, semaRes, typesIn, nextID, out.Globals, symToGlobal, staticStringGlobals, staticStringInits)
 	if err != nil {
 		return nil, fmt.Errorf("building __surge_start: %w", err)
 	}
@@ -427,6 +431,9 @@ type funcLowerer struct {
 
 	consts     map[symbols.SymbolID]*hir.ConstDecl
 	constStack map[symbols.SymbolID]bool
+
+	staticStringGlobals map[string]GlobalID
+	staticStringInits   map[GlobalID]string
 }
 
 func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {

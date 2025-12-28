@@ -33,6 +33,34 @@ fn label_bool(b: bool) -> string {
     };
 }
 
+fn label_x_false(x: int) -> string {
+    let prefix: string = "x-false:";
+    let x_str: string = x to string;
+    return prefix + x_str;
+}
+
+fn label_other_tuple(x: int, y: bool) -> string {
+    let prefix: string = "other:";
+    let comma: string = ",";
+    let x_str: string = x to string;
+    let y_str: string = y to string;
+    let mut out: string = prefix + x_str;
+    out = out + comma;
+    return out + y_str;
+}
+
+fn label_some_gt1(n: int) -> string {
+    let prefix: string = "some>1:";
+    let n_str: string = n to string;
+    return prefix + n_str;
+}
+
+fn label_some(n: int) -> string {
+    let prefix: string = "some:";
+    let n_str: string = n to string;
+    return prefix + n_str;
+}
+
 fn label_big(n: int) -> string {
     return compare n {
         12345678901234567890 => "big";
@@ -66,18 +94,18 @@ fn main() {
     let t2: (int, bool) = (2, true);
     let t0_label: string = compare t0 {
         (0, true) => "zero-true";
-        (x, false) => "x-false:" + x to string;
-        (x, y) => "other:" + x to string + "," + y to string;
+        (x, false) => label_x_false(x);
+        (x, y) => label_other_tuple(x, y);
     };
     let t1_label: string = compare t1 {
         (0, true) => "zero-true";
-        (x, false) => "x-false:" + x to string;
-        (x, y) => "other:" + x to string + "," + y to string;
+        (x, false) => label_x_false(x);
+        (x, y) => label_other_tuple(x, y);
     };
     let t2_label: string = compare t2 {
         (0, true) => "zero-true";
-        (x, false) => "x-false:" + x to string;
-        (x, y) => "other:" + x to string + "," + y to string;
+        (x, false) => label_x_false(x);
+        (x, y) => label_other_tuple(x, y);
     };
     print(t0_label);
     print(t1_label);
@@ -90,32 +118,32 @@ fn main() {
     let opt0_label: string = compare opt0 {
         Some(n) => compare n {
             0 => "some0";
-            _ if n > 1 => "some>1:" + n to string;
-            _ => "some:" + n to string;
+            _ if n > 1 => label_some_gt1(n);
+            _ => label_some(n);
         };
         nothing => "none";
     };
     let opt2_label: string = compare opt2 {
         Some(n) => compare n {
             0 => "some0";
-            _ if n > 1 => "some>1:" + n to string;
-            _ => "some:" + n to string;
+            _ if n > 1 => label_some_gt1(n);
+            _ => label_some(n);
         };
         nothing => "none";
     };
     let opt1_label: string = compare opt1 {
         Some(n) => compare n {
             0 => "some0";
-            _ if n > 1 => "some>1:" + n to string;
-            _ => "some:" + n to string;
+            _ if n > 1 => label_some_gt1(n);
+            _ => label_some(n);
         };
         nothing => "none";
     };
     let none_label: string = compare none {
         Some(n) => compare n {
             0 => "some0";
-            _ if n > 1 => "some>1:" + n to string;
-            _ => "some:" + n to string;
+            _ if n > 1 => label_some_gt1(n);
+            _ => label_some(n);
         };
         nothing => "none";
     };

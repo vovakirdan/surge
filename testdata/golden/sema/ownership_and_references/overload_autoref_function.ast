@@ -1,0 +1,50 @@
+overload_autoref_function.sg (span: 1:1-20:1)
+├─ Item[0]: Type (span: 1:1-4:3)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+├─ Item[1]: Fn (span: 6:1-8:2)
+│  ├─ Name: touch
+│  ├─ Params: (p: &Point)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 6:28-8:2)
+│        └─ Stmt[0]: Return (span: 7:5-7:16)
+│           └─ Expr: expr#2: p.x
+├─ Item[2]: Fn (span: 10:1-12:2)
+│  ├─ Name: touch
+│  ├─ Params: (p: Point)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:37-12:2)
+│        └─ Stmt[0]: Return (span: 11:5-11:16)
+│           └─ Expr: expr#4: p.x
+└─ Item[3]: Fn (span: 14:1-19:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 14:11-19:2)
+         ├─ Stmt[0]: Let (span: 15:5-15:35)
+         │  ├─ Name: p
+         │  ├─ Mutable: false
+         │  ├─ Type: Point
+         │  └─ Value: expr#9: <ExprKind(18)>
+         ├─ Stmt[1]: Let (span: 16:5-16:22)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#12: touch(p)
+         ├─ Stmt[2]: Let (span: 17:5-17:17)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#14: p.x
+         └─ Stmt[3]: Let (span: 18:5-18:41)
+            ├─ Name: _
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#21: touch(<ExprKind(18)>)

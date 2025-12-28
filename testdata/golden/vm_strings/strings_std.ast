@@ -1,4 +1,4 @@
-strings_std.sg (span: 1:1-58:1)
+strings_std.sg (span: 1:1-72:1)
 ├─ Item[0]: Fn (span: 1:1-5:2)
 │  ├─ Name: write_str
 │  ├─ Params: (s: string)
@@ -48,78 +48,136 @@ strings_std.sg (span: 1:1-58:1)
 │     └─ Stmt[0]: Block (span: 17:35-19:2)
 │        └─ Stmt[0]: Expr (span: 18:5-18:29)
 │           └─ Expr: expr#32: write_line(u to string)
-└─ Item[4]: Fn (span: 21:1-57:2)
+├─ Item[4]: Fn (span: 21:1-26:2)
+│  ├─ Name: bracket
+│  ├─ Params: (s: string)
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 21:33-26:2)
+│        ├─ Stmt[0]: Let (span: 22:5-22:28)
+│        │  ├─ Name: open
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#33: "["
+│        ├─ Stmt[1]: Let (span: 23:5-23:29)
+│        │  ├─ Name: close
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#34: "]"
+│        ├─ Stmt[2]: Let (span: 24:5-24:24)
+│        │  ├─ Name: tmp
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#37: (open + s)
+│        └─ Stmt[3]: Return (span: 25:5-25:24)
+│           └─ Expr: expr#40: (tmp + close)
+└─ Item[5]: Fn (span: 28:1-71:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 22:18-57:2)
-         ├─ Stmt[0]: Let (span: 23:5-23:27)
+      └─ Stmt[0]: Block (span: 29:18-71:2)
+         ├─ Stmt[0]: Let (span: 30:5-30:27)
          │  ├─ Name: s
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#33: "hello world"
-         ├─ Stmt[1]: Expr (span: 24:5-24:49)
-         │  └─ Expr: expr#41: write_line((s.contains("world")) to string)
-         ├─ Stmt[2]: Expr (span: 25:5-25:47)
-         │  └─ Expr: expr#49: write_line((s.contains("zzz")) to string)
-         ├─ Stmt[3]: Expr (span: 26:5-26:29)
-         │  └─ Expr: expr#55: print_int(s.find("lo"))
-         ├─ Stmt[4]: Expr (span: 27:5-27:29)
-         │  └─ Expr: expr#61: print_int(s.find("zz"))
-         ├─ Stmt[5]: Expr (span: 28:5-28:29)
-         │  └─ Expr: expr#67: print_int(s.rfind("l"))
-         ├─ Stmt[6]: Expr (span: 29:5-29:51)
-         │  └─ Expr: expr#75: write_line((s.starts_with("hell")) to string)
-         ├─ Stmt[7]: Expr (span: 30:5-30:51)
-         │  └─ Expr: expr#83: write_line((s.starts_with("ello")) to string)
-         ├─ Stmt[8]: Expr (span: 31:5-31:50)
-         │  └─ Expr: expr#91: write_line((s.ends_with("world")) to string)
-         ├─ Stmt[9]: Expr (span: 32:5-32:48)
-         │  └─ Expr: expr#99: write_line((s.ends_with("wor")) to string)
-         ├─ Stmt[10]: Let (span: 34:5-34:27)
+         │  └─ Value: expr#41: "hello world"
+         ├─ Stmt[1]: Expr (span: 31:5-31:49)
+         │  └─ Expr: expr#49: write_line((s.contains("world")) to string)
+         ├─ Stmt[2]: Expr (span: 32:5-32:47)
+         │  └─ Expr: expr#57: write_line((s.contains("zzz")) to string)
+         ├─ Stmt[3]: Expr (span: 33:5-33:29)
+         │  └─ Expr: expr#63: print_int(s.find("lo"))
+         ├─ Stmt[4]: Expr (span: 34:5-34:29)
+         │  └─ Expr: expr#69: print_int(s.find("zz"))
+         ├─ Stmt[5]: Expr (span: 35:5-35:29)
+         │  └─ Expr: expr#75: print_int(s.rfind("l"))
+         ├─ Stmt[6]: Expr (span: 36:5-36:51)
+         │  └─ Expr: expr#83: write_line((s.starts_with("hell")) to string)
+         ├─ Stmt[7]: Expr (span: 37:5-37:51)
+         │  └─ Expr: expr#91: write_line((s.starts_with("ello")) to string)
+         ├─ Stmt[8]: Expr (span: 38:5-38:50)
+         │  └─ Expr: expr#99: write_line((s.ends_with("world")) to string)
+         ├─ Stmt[9]: Expr (span: 39:5-39:48)
+         │  └─ Expr: expr#107: write_line((s.ends_with("wor")) to string)
+         ├─ Stmt[10]: Let (span: 41:5-41:27)
          │  ├─ Name: u
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#100: "a🙂b🙂c"
-         ├─ Stmt[11]: Expr (span: 35:5-35:31)
-         │  └─ Expr: expr#106: print_int(u.find("🙂"))
-         ├─ Stmt[12]: Expr (span: 36:5-36:32)
-         │  └─ Expr: expr#112: print_int(u.rfind("🙂"))
-         ├─ Stmt[13]: Let (span: 38:5-38:36)
+         │  └─ Value: expr#108: "a🙂b🙂c"
+         ├─ Stmt[11]: Expr (span: 42:5-42:31)
+         │  └─ Expr: expr#114: print_int(u.find("🙂"))
+         ├─ Stmt[12]: Expr (span: 43:5-43:32)
+         │  └─ Expr: expr#120: print_int(u.rfind("🙂"))
+         ├─ Stmt[13]: Let (span: 45:5-45:37)
+         │  ├─ Name: parts_src
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#121: "a,b,c"
+         ├─ Stmt[14]: Let (span: 46:5-46:38)
          │  ├─ Name: parts
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#116: "a,b,c".split(",")
-         ├─ Stmt[14]: Expr (span: 39:5-39:33)
-         │  └─ Expr: expr#122: write_line("-".join(parts))
-         ├─ Stmt[15]: Let (span: 41:5-41:36)
+         │  └─ Value: expr#125: parts_src.split(",")
+         ├─ Stmt[15]: Let (span: 47:5-47:28)
+         │  ├─ Name: dash
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#126: "-"
+         ├─ Stmt[16]: Expr (span: 48:5-48:34)
+         │  └─ Expr: expr#132: write_line(dash.join(parts))
+         ├─ Stmt[17]: Let (span: 50:5-50:38)
+         │  ├─ Name: chars_src
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#133: "a🙂b"
+         ├─ Stmt[18]: Let (span: 51:5-51:37)
          │  ├─ Name: chars
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#126: "a🙂b".split("")
-         ├─ Stmt[16]: Expr (span: 42:5-42:33)
-         │  └─ Expr: expr#132: write_line("|".join(chars))
-         ├─ Stmt[17]: Let (span: 44:5-44:27)
+         │  └─ Value: expr#137: chars_src.split("")
+         ├─ Stmt[19]: Let (span: 52:5-52:28)
+         │  ├─ Name: pipe
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#138: "|"
+         ├─ Stmt[20]: Expr (span: 53:5-53:34)
+         │  └─ Expr: expr#144: write_line(pipe.join(chars))
+         ├─ Stmt[21]: Let (span: 55:5-55:27)
          │  ├─ Name: spaced
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#133: "  hi  "
-         ├─ Stmt[18]: Expr (span: 45:5-45:43)
-         │  └─ Expr: expr#142: write_line(((("[" + spaced.trim())) + "]"))
-         ├─ Stmt[19]: Expr (span: 46:5-46:49)
-         │  └─ Expr: expr#151: write_line(((("[" + spaced.trim_start())) + "]"))
-         ├─ Stmt[20]: Expr (span: 47:5-47:47)
-         │  └─ Expr: expr#160: write_line(((("[" + spaced.trim_end())) + "]"))
-         ├─ Stmt[21]: Expr (span: 49:5-49:43)
-         │  └─ Expr: expr#167: write_line("abab".replace("ab", "x"))
-         ├─ Stmt[22]: Expr (span: 50:5-50:38)
-         │  └─ Expr: expr#172: write_line("stressed".reverse())
-         ├─ Stmt[23]: Expr (span: 51:5-51:36)
-         │  └─ Expr: expr#177: write_line("a🙂b".reverse())
-         ├─ Stmt[24]: Expr (span: 53:5-53:49)
-         │  └─ Expr: expr#183: print_uint("kitten".levenshtein("sitting"))
-         ├─ Stmt[25]: Expr (span: 54:5-54:47)
-         │  └─ Expr: expr#189: print_uint("a🙂b".levenshtein("🙂a"))
-         └─ Stmt[26]: Return (span: 56:5-56:14)
-            └─ Expr: expr#190: 0
+         │  └─ Value: expr#145: "  hi  "
+         ├─ Stmt[22]: Expr (span: 56:5-56:40)
+         │  └─ Expr: expr#152: write_line(bracket(spaced.trim()))
+         ├─ Stmt[23]: Expr (span: 57:5-57:46)
+         │  └─ Expr: expr#159: write_line(bracket(spaced.trim_start()))
+         ├─ Stmt[24]: Expr (span: 58:5-58:44)
+         │  └─ Expr: expr#166: write_line(bracket(spaced.trim_end()))
+         ├─ Stmt[25]: Let (span: 60:5-60:31)
+         │  ├─ Name: abab
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#167: "abab"
+         ├─ Stmt[26]: Expr (span: 61:5-61:41)
+         │  └─ Expr: expr#174: write_line(abab.replace("ab", "x"))
+         ├─ Stmt[27]: Let (span: 62:5-62:39)
+         │  ├─ Name: stressed
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#175: "stressed"
+         ├─ Stmt[28]: Expr (span: 63:5-63:36)
+         │  └─ Expr: expr#180: write_line(stressed.reverse())
+         ├─ Stmt[29]: Expr (span: 64:5-64:37)
+         │  └─ Expr: expr#185: write_line(chars_src.reverse())
+         ├─ Stmt[30]: Let (span: 66:5-66:35)
+         │  ├─ Name: kitten
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#186: "kitten"
+         ├─ Stmt[31]: Expr (span: 67:5-67:47)
+         │  └─ Expr: expr#192: print_uint(kitten.levenshtein("sitting"))
+         ├─ Stmt[32]: Expr (span: 68:5-68:48)
+         │  └─ Expr: expr#198: print_uint(chars_src.levenshtein("🙂a"))
+         └─ Stmt[33]: Return (span: 70:5-70:14)
+            └─ Expr: expr#199: 0

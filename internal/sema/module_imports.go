@@ -100,8 +100,9 @@ func (tc *typeChecker) moduleFunctionResult(module *symbols.Symbol, name source.
 	if bestName == "" {
 		bestName = "_"
 	}
+	var borrowInfo borrowMatchInfo
 	for _, cand := range candidates {
-		cost, result, _, ok := tc.evaluateFunctionCandidate(cand, args, typeArgs)
+		cost, result, _, ok := tc.evaluateFunctionCandidate(cand, args, typeArgs, &borrowInfo)
 		if !ok {
 			continue
 		}
@@ -115,6 +116,10 @@ func (tc *typeChecker) moduleFunctionResult(module *symbols.Symbol, name source.
 	}
 	if bestType != types.NoTypeID {
 		return bestType
+	}
+	if borrowInfo.expr.IsValid() {
+		tc.reportBorrowFailure(&borrowInfo)
+		return types.NoTypeID
 	}
 	if len(candidates) == 1 && tc.reportCallArgumentMismatch(candidates[0], args, typeArgs) {
 		return types.NoTypeID

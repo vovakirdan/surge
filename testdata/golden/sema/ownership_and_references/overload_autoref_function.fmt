@@ -1,0 +1,19 @@
+type Point = {
+    x: int,
+    y: int,
+};
+
+fn touch(p: &Point) -> int {
+    return p.x;
+}
+
+@overload fn touch(p: Point) -> int {
+    return p.x;
+}
+
+fn main() {
+    let p: Point = { x: 1, y: 2 };
+    let _ = touch(p);
+    let _ = p.x;
+    let _ = touch(Point { x: 3, y: 4 });
+}

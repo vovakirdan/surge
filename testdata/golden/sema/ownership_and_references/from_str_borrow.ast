@@ -1,10 +1,10 @@
-from_str_borrow.sg (span: 1:1-7:1)
-└─ Item[0]: Fn (span: 1:1-6:2)
+from_str_borrow.sg (span: 1:1-8:1)
+└─ Item[0]: Fn (span: 1:1-7:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 1:11-6:2)
+      └─ Stmt[0]: Block (span: 1:11-7:2)
          ├─ Stmt[0]: Let (span: 2:5-2:18)
          │  ├─ Name: s
          │  ├─ Mutable: false
@@ -20,8 +20,13 @@ from_str_borrow.sg (span: 1:1-7:1)
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
          │  └─ Value: expr#10: int.from_str(&s)
-         └─ Stmt[3]: Let (span: 5:5-5:21)
+         ├─ Stmt[3]: Let (span: 5:5-5:22)
+         │  ├─ Name: suffix
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#11: "!"
+         └─ Stmt[4]: Let (span: 6:5-6:24)
             ├─ Name: t
             ├─ Mutable: false
             ├─ Type: <inferred>
-            └─ Value: expr#13: (s + "!")
+            └─ Value: expr#14: (s + suffix)

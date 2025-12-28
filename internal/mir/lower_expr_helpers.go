@@ -130,6 +130,42 @@ func (l *funcLowerer) lowerExprForSideEffects(e *hir.Expr) error {
 	return err
 }
 
+func (l *funcLowerer) isSharedStringRefType(id types.TypeID) bool {
+	if l == nil || l.types == nil || id == types.NoTypeID {
+		return false
+	}
+	tt, ok := l.types.Lookup(resolveAlias(l.types, id))
+	if !ok || tt.Kind != types.KindReference || tt.Mutable {
+		return false
+	}
+	return resolveAlias(l.types, tt.Elem) == l.types.Builtins().String
+}
+
+func (l *funcLowerer) staticStringGlobal(raw string) GlobalID {
+	if l == nil || l.out == nil || l.types == nil {
+		return NoGlobalID
+	}
+	if l.staticStringGlobals != nil {
+		if id, ok := l.staticStringGlobals[raw]; ok {
+			return id
+		}
+	}
+	id := GlobalID(len(l.out.Globals))
+	name := fmt.Sprintf("strlit$%d", id)
+	l.out.Globals = append(l.out.Globals, Global{
+		Sym:  symbols.NoSymbolID,
+		Type: l.types.Builtins().String,
+		Name: name,
+	})
+	if l.staticStringGlobals != nil {
+		l.staticStringGlobals[raw] = id
+	}
+	if l.staticStringInits != nil {
+		l.staticStringInits[id] = raw
+	}
+	return id
+}
+
 func (l *funcLowerer) lowerConstValue(symID symbols.SymbolID, consume bool) (Operand, bool, error) {
 	if l == nil || !symID.IsValid() || l.consts == nil {
 		return Operand{}, false, nil

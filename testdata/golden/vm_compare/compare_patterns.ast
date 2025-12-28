@@ -1,4 +1,4 @@
-compare_patterns.sg (span: 3:1-131:1)
+compare_patterns.sg (span: 3:1-159:1)
 ├─ Item[0]: Fn (span: 3:1-11:2)
 │  ├─ Name: label_int
 │  ├─ Params: (n: int)
@@ -31,149 +31,238 @@ compare_patterns.sg (span: 3:1-131:1)
 │     └─ Stmt[0]: Block (span: 29:34-34:2)
 │        └─ Stmt[0]: Return (span: 30:5-33:7)
 │           └─ Expr: expr#38: compare b { 2 arms }
-├─ Item[4]: Fn (span: 36:1-41:2)
+├─ Item[4]: Fn (span: 36:1-40:2)
+│  ├─ Name: label_x_false
+│  ├─ Params: (x: int)
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 36:36-40:2)
+│        ├─ Stmt[0]: Let (span: 37:5-37:37)
+│        │  ├─ Name: prefix
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#39: "x-false:"
+│        ├─ Stmt[1]: Let (span: 38:5-38:37)
+│        │  ├─ Name: x_str
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#41: x to string
+│        └─ Stmt[2]: Return (span: 39:5-39:27)
+│           └─ Expr: expr#44: (prefix + x_str)
+├─ Item[5]: Fn (span: 42:1-50:2)
+│  ├─ Name: label_other_tuple
+│  ├─ Params: (x: int, y: bool)
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 42:49-50:2)
+│        ├─ Stmt[0]: Let (span: 43:5-43:35)
+│        │  ├─ Name: prefix
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#45: "other:"
+│        ├─ Stmt[1]: Let (span: 44:5-44:29)
+│        │  ├─ Name: comma
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#46: ","
+│        ├─ Stmt[2]: Let (span: 45:5-45:37)
+│        │  ├─ Name: x_str
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#48: x to string
+│        ├─ Stmt[3]: Let (span: 46:5-46:37)
+│        │  ├─ Name: y_str
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#50: y to string
+│        ├─ Stmt[4]: Let (span: 47:5-47:42)
+│        │  ├─ Name: out
+│        │  ├─ Mutable: true
+│        │  ├─ Type: string
+│        │  └─ Value: expr#53: (prefix + x_str)
+│        ├─ Stmt[5]: Expr (span: 48:5-48:23)
+│        │  └─ Expr: expr#58: (out = ((out + comma)))
+│        └─ Stmt[6]: Return (span: 49:5-49:24)
+│           └─ Expr: expr#61: (out + y_str)
+├─ Item[6]: Fn (span: 52:1-56:2)
+│  ├─ Name: label_some_gt1
+│  ├─ Params: (n: int)
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 52:37-56:2)
+│        ├─ Stmt[0]: Let (span: 53:5-53:36)
+│        │  ├─ Name: prefix
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#62: "some>1:"
+│        ├─ Stmt[1]: Let (span: 54:5-54:37)
+│        │  ├─ Name: n_str
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#64: n to string
+│        └─ Stmt[2]: Return (span: 55:5-55:27)
+│           └─ Expr: expr#67: (prefix + n_str)
+├─ Item[7]: Fn (span: 58:1-62:2)
+│  ├─ Name: label_some
+│  ├─ Params: (n: int)
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 58:33-62:2)
+│        ├─ Stmt[0]: Let (span: 59:5-59:34)
+│        │  ├─ Name: prefix
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#68: "some:"
+│        ├─ Stmt[1]: Let (span: 60:5-60:37)
+│        │  ├─ Name: n_str
+│        │  ├─ Mutable: false
+│        │  ├─ Type: string
+│        │  └─ Value: expr#70: n to string
+│        └─ Stmt[2]: Return (span: 61:5-61:27)
+│           └─ Expr: expr#73: (prefix + n_str)
+├─ Item[8]: Fn (span: 64:1-69:2)
 │  ├─ Name: label_big
 │  ├─ Params: (n: int)
 │  ├─ Return: string
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 36:32-41:2)
-│        └─ Stmt[0]: Return (span: 37:5-40:7)
-│           └─ Expr: expr#44: compare n { 2 arms }
-└─ Item[5]: Fn (span: 43:1-130:2)
+│     └─ Stmt[0]: Block (span: 64:32-69:2)
+│        └─ Stmt[0]: Return (span: 65:5-68:7)
+│           └─ Expr: expr#79: compare n { 2 arms }
+└─ Item[9]: Fn (span: 71:1-158:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 44:11-130:2)
-         ├─ Stmt[0]: Expr (span: 45:5-45:26)
-         │  └─ Expr: expr#50: print(label_int(-1))
-         ├─ Stmt[1]: Expr (span: 46:5-46:25)
-         │  └─ Expr: expr#55: print(label_int(0))
-         ├─ Stmt[2]: Expr (span: 47:5-47:25)
-         │  └─ Expr: expr#60: print(label_int(2))
-         ├─ Stmt[3]: Expr (span: 48:5-48:25)
-         │  └─ Expr: expr#65: print(label_int(9))
-         ├─ Stmt[4]: Let (span: 50:5-50:22)
+      └─ Stmt[0]: Block (span: 72:11-158:2)
+         ├─ Stmt[0]: Expr (span: 73:5-73:26)
+         │  └─ Expr: expr#85: print(label_int(-1))
+         ├─ Stmt[1]: Expr (span: 74:5-74:25)
+         │  └─ Expr: expr#90: print(label_int(0))
+         ├─ Stmt[2]: Expr (span: 75:5-75:25)
+         │  └─ Expr: expr#95: print(label_int(2))
+         ├─ Stmt[3]: Expr (span: 76:5-76:25)
+         │  └─ Expr: expr#100: print(label_int(9))
+         ├─ Stmt[4]: Let (span: 78:5-78:22)
          │  ├─ Name: u0
          │  ├─ Mutable: false
          │  ├─ Type: uint
-         │  └─ Value: expr#66: 0
-         ├─ Stmt[5]: Let (span: 51:5-51:22)
+         │  └─ Value: expr#101: 0
+         ├─ Stmt[5]: Let (span: 79:5-79:22)
          │  ├─ Name: u3
          │  ├─ Mutable: false
          │  ├─ Type: uint
-         │  └─ Value: expr#67: 3
-         ├─ Stmt[6]: Let (span: 52:5-52:22)
+         │  └─ Value: expr#102: 3
+         ├─ Stmt[6]: Let (span: 80:5-80:22)
          │  ├─ Name: u4
          │  ├─ Mutable: false
          │  ├─ Type: uint
-         │  └─ Value: expr#68: 4
-         ├─ Stmt[7]: Expr (span: 53:5-53:27)
-         │  └─ Expr: expr#73: print(label_uint(u0))
-         ├─ Stmt[8]: Expr (span: 54:5-54:27)
-         │  └─ Expr: expr#78: print(label_uint(u3))
-         ├─ Stmt[9]: Expr (span: 55:5-55:27)
-         │  └─ Expr: expr#83: print(label_uint(u4))
-         ├─ Stmt[10]: Expr (span: 57:5-57:29)
-         │  └─ Expr: expr#88: print(label_float(1.5))
-         ├─ Stmt[11]: Expr (span: 58:5-58:29)
-         │  └─ Expr: expr#93: print(label_float(2.0))
-         ├─ Stmt[12]: Expr (span: 59:5-59:29)
-         │  └─ Expr: expr#98: print(label_float(3.0))
-         ├─ Stmt[13]: Expr (span: 61:5-61:29)
-         │  └─ Expr: expr#103: print(label_bool(true))
-         ├─ Stmt[14]: Expr (span: 62:5-62:30)
-         │  └─ Expr: expr#108: print(label_bool(false))
-         ├─ Stmt[15]: Let (span: 64:5-64:37)
+         │  └─ Value: expr#103: 4
+         ├─ Stmt[7]: Expr (span: 81:5-81:27)
+         │  └─ Expr: expr#108: print(label_uint(u0))
+         ├─ Stmt[8]: Expr (span: 82:5-82:27)
+         │  └─ Expr: expr#113: print(label_uint(u3))
+         ├─ Stmt[9]: Expr (span: 83:5-83:27)
+         │  └─ Expr: expr#118: print(label_uint(u4))
+         ├─ Stmt[10]: Expr (span: 85:5-85:29)
+         │  └─ Expr: expr#123: print(label_float(1.5))
+         ├─ Stmt[11]: Expr (span: 86:5-86:29)
+         │  └─ Expr: expr#128: print(label_float(2.0))
+         ├─ Stmt[12]: Expr (span: 87:5-87:29)
+         │  └─ Expr: expr#133: print(label_float(3.0))
+         ├─ Stmt[13]: Expr (span: 89:5-89:29)
+         │  └─ Expr: expr#138: print(label_bool(true))
+         ├─ Stmt[14]: Expr (span: 90:5-90:30)
+         │  └─ Expr: expr#143: print(label_bool(false))
+         ├─ Stmt[15]: Let (span: 92:5-92:37)
          │  ├─ Name: t0
          │  ├─ Mutable: false
          │  ├─ Type: (int, bool)
-         │  └─ Value: expr#111: (0, true)
-         ├─ Stmt[16]: Let (span: 65:5-65:38)
+         │  └─ Value: expr#146: (0, true)
+         ├─ Stmt[16]: Let (span: 93:5-93:38)
          │  ├─ Name: t1
          │  ├─ Mutable: false
          │  ├─ Type: (int, bool)
-         │  └─ Value: expr#114: (7, false)
-         ├─ Stmt[17]: Let (span: 66:5-66:37)
+         │  └─ Value: expr#149: (7, false)
+         ├─ Stmt[17]: Let (span: 94:5-94:37)
          │  ├─ Name: t2
          │  ├─ Mutable: false
          │  ├─ Type: (int, bool)
-         │  └─ Value: expr#117: (2, true)
-         ├─ Stmt[18]: Let (span: 67:5-71:7)
+         │  └─ Value: expr#152: (2, true)
+         ├─ Stmt[18]: Let (span: 95:5-99:7)
          │  ├─ Name: t0_label
          │  ├─ Mutable: false
          │  ├─ Type: string
-         │  └─ Value: expr#142: compare t0 { 3 arms }
-         ├─ Stmt[19]: Let (span: 72:5-76:7)
+         │  └─ Value: expr#171: compare t0 { 3 arms }
+         ├─ Stmt[19]: Let (span: 100:5-104:7)
          │  ├─ Name: t1_label
          │  ├─ Mutable: false
          │  ├─ Type: string
-         │  └─ Value: expr#167: compare t1 { 3 arms }
-         ├─ Stmt[20]: Let (span: 77:5-81:7)
+         │  └─ Value: expr#190: compare t1 { 3 arms }
+         ├─ Stmt[20]: Let (span: 105:5-109:7)
          │  ├─ Name: t2_label
          │  ├─ Mutable: false
          │  ├─ Type: string
-         │  └─ Value: expr#192: compare t2 { 3 arms }
-         ├─ Stmt[21]: Expr (span: 82:5-82:21)
-         │  └─ Expr: expr#195: print(t0_label)
-         ├─ Stmt[22]: Expr (span: 83:5-83:21)
-         │  └─ Expr: expr#198: print(t1_label)
-         ├─ Stmt[23]: Expr (span: 84:5-84:21)
-         │  └─ Expr: expr#201: print(t2_label)
-         ├─ Stmt[24]: Let (span: 86:5-86:30)
+         │  └─ Value: expr#209: compare t2 { 3 arms }
+         ├─ Stmt[21]: Expr (span: 110:5-110:21)
+         │  └─ Expr: expr#212: print(t0_label)
+         ├─ Stmt[22]: Expr (span: 111:5-111:21)
+         │  └─ Expr: expr#215: print(t1_label)
+         ├─ Stmt[23]: Expr (span: 112:5-112:21)
+         │  └─ Expr: expr#218: print(t2_label)
+         ├─ Stmt[24]: Let (span: 114:5-114:30)
          │  ├─ Name: none
          │  ├─ Mutable: false
          │  ├─ Type: <unknown-type>
-         │  └─ Value: expr#202: nothing
-         ├─ Stmt[25]: Let (span: 87:5-87:30)
+         │  └─ Value: expr#219: nothing
+         ├─ Stmt[25]: Let (span: 115:5-115:30)
          │  ├─ Name: opt0
          │  ├─ Mutable: false
          │  ├─ Type: <unknown-type>
-         │  └─ Value: expr#205: Some(0)
-         ├─ Stmt[26]: Let (span: 88:5-88:30)
+         │  └─ Value: expr#222: Some(0)
+         ├─ Stmt[26]: Let (span: 116:5-116:30)
          │  ├─ Name: opt1
          │  ├─ Mutable: false
          │  ├─ Type: <unknown-type>
-         │  └─ Value: expr#208: Some(1)
-         ├─ Stmt[27]: Let (span: 89:5-89:30)
+         │  └─ Value: expr#225: Some(1)
+         ├─ Stmt[27]: Let (span: 117:5-117:30)
          │  ├─ Name: opt2
          │  ├─ Mutable: false
          │  ├─ Type: <unknown-type>
-         │  └─ Value: expr#211: Some(2)
-         ├─ Stmt[28]: Let (span: 90:5-97:7)
+         │  └─ Value: expr#228: Some(2)
+         ├─ Stmt[28]: Let (span: 118:5-125:7)
          │  ├─ Name: opt0_label
          │  ├─ Mutable: false
          │  ├─ Type: string
-         │  └─ Value: expr#235: compare opt0 { 2 arms }
-         ├─ Stmt[29]: Let (span: 98:5-105:7)
+         │  └─ Value: expr#250: compare opt0 { 2 arms }
+         ├─ Stmt[29]: Let (span: 126:5-133:7)
          │  ├─ Name: opt2_label
          │  ├─ Mutable: false
          │  ├─ Type: string
-         │  └─ Value: expr#259: compare opt2 { 2 arms }
-         ├─ Stmt[30]: Let (span: 106:5-113:7)
+         │  └─ Value: expr#272: compare opt2 { 2 arms }
+         ├─ Stmt[30]: Let (span: 134:5-141:7)
          │  ├─ Name: opt1_label
          │  ├─ Mutable: false
          │  ├─ Type: string
-         │  └─ Value: expr#283: compare opt1 { 2 arms }
-         ├─ Stmt[31]: Let (span: 114:5-121:7)
+         │  └─ Value: expr#294: compare opt1 { 2 arms }
+         ├─ Stmt[31]: Let (span: 142:5-149:7)
          │  ├─ Name: none_label
          │  ├─ Mutable: false
          │  ├─ Type: string
-         │  └─ Value: expr#307: compare none { 2 arms }
-         ├─ Stmt[32]: Expr (span: 122:5-122:23)
-         │  └─ Expr: expr#310: print(opt0_label)
-         ├─ Stmt[33]: Expr (span: 123:5-123:23)
-         │  └─ Expr: expr#313: print(opt2_label)
-         ├─ Stmt[34]: Expr (span: 124:5-124:23)
-         │  └─ Expr: expr#316: print(opt1_label)
-         ├─ Stmt[35]: Expr (span: 125:5-125:23)
-         │  └─ Expr: expr#319: print(none_label)
-         ├─ Stmt[36]: Let (span: 127:5-127:41)
+         │  └─ Value: expr#316: compare none { 2 arms }
+         ├─ Stmt[32]: Expr (span: 150:5-150:23)
+         │  └─ Expr: expr#319: print(opt0_label)
+         ├─ Stmt[33]: Expr (span: 151:5-151:23)
+         │  └─ Expr: expr#322: print(opt2_label)
+         ├─ Stmt[34]: Expr (span: 152:5-152:23)
+         │  └─ Expr: expr#325: print(opt1_label)
+         ├─ Stmt[35]: Expr (span: 153:5-153:23)
+         │  └─ Expr: expr#328: print(none_label)
+         ├─ Stmt[36]: Let (span: 155:5-155:41)
          │  ├─ Name: big
          │  ├─ Mutable: false
          │  ├─ Type: int
-         │  └─ Value: expr#320: 12345678901234567890
-         ├─ Stmt[37]: Expr (span: 128:5-128:27)
-         │  └─ Expr: expr#325: print(label_big(big))
-         └─ Stmt[38]: Expr (span: 129:5-129:25)
-            └─ Expr: expr#330: print(label_big(5))
+         │  └─ Value: expr#329: 12345678901234567890
+         ├─ Stmt[37]: Expr (span: 156:5-156:27)
+         │  └─ Expr: expr#334: print(label_big(big))
+         └─ Stmt[38]: Expr (span: 157:5-157:25)
+            └─ Expr: expr#339: print(label_big(5))

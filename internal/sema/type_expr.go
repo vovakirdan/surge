@@ -155,11 +155,13 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 						tc.checkChannelSendValue(call.Args[0].Value, expr.Span)
 					}
 					argTypes := make([]types.TypeID, 0, len(call.Args))
+					argExprs := make([]ast.ExprID, 0, len(call.Args))
 					for _, arg := range call.Args {
 						argTypes = append(argTypes, tc.typeExpr(arg.Value))
+						argExprs = append(argExprs, arg.Value)
 					}
-					ty = tc.methodResultType(member, receiverType, argTypes, expr.Span, receiverIsType)
-					symID := tc.recordMethodCallSymbol(id, member, receiverType, argTypes, receiverIsType)
+					ty = tc.methodResultType(member, receiverType, member.Target, argTypes, argExprs, expr.Span, receiverIsType)
+					symID := tc.recordMethodCallSymbol(id, member, receiverType, member.Target, argTypes, argExprs, receiverIsType)
 					tc.recordMethodCallInstantiation(symID, call, receiverType, expr.Span)
 					appliedArgsOwnership := false
 					if symID.IsValid() {
@@ -282,10 +284,23 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			indexType := tc.typeExpr(idx.Index)
 			_, isAddressOfOperand := tc.addressOfOperands[id]
 			var sig *symbols.FunctionSignature
+			var sigCand typeKeyCandidate
+			var borrowInfo borrowMatchInfo
+			var ambiguous bool
 			if tc.assignmentLHSDepth == 0 {
-				sig = tc.magicSignatureForIndex(container, indexType)
+				sig, sigCand, ambiguous, borrowInfo = tc.magicSignatureForIndexExpr(idx.Target, idx.Index, container, indexType)
 			}
-			if magic := tc.magicResultForIndex(container, indexType); magic != types.NoTypeID {
+			if ambiguous {
+				tc.report(diag.SemaAmbiguousOverload, expr.Span, "ambiguous overload for index")
+				ty = types.NoTypeID
+				break
+			}
+			if sig != nil {
+				ty = tc.magicIndexResultFromSig(sig, sigCand, indexType)
+			} else if borrowInfo.expr.IsValid() {
+				tc.reportBorrowFailure(&borrowInfo)
+				ty = types.NoTypeID
+			} else if magic := tc.magicResultForIndex(container, indexType); magic != types.NoTypeID {
 				ty = magic
 			} else {
 				ty = tc.indexResultType(container, indexType, expr.Span)

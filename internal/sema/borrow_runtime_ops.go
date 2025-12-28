@@ -175,6 +175,9 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 	if tc.borrow == nil {
 		return
 	}
+	if op == ast.ExprUnaryRef && tc.isStringLiteralExpr(operand) {
+		return
+	}
 	desc, ok := tc.resolvePlace(operand)
 	if !ok {
 		tc.report(diag.SemaBorrowNonAddressable, span, "expression is not addressable")

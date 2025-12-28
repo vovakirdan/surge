@@ -2,6 +2,7 @@ package mir
 
 import (
 	"fmt"
+	"slices"
 
 	"surge/internal/hir"
 	"surge/internal/mono"
@@ -18,7 +19,7 @@ import (
 // 2. Calls the user entrypoint function
 // 3. Converts return value to exit code (0 for nothing, direct for int, __to for other)
 // 4. Calls rt_exit(code)
-func BuildSurgeStart(mm *mono.MonoModule, semaRes *sema.Result, typesIn *types.Interner, nextID FuncID, globals []Global, symToGlobal map[symbols.SymbolID]GlobalID) (*Func, error) {
+func BuildSurgeStart(mm *mono.MonoModule, semaRes *sema.Result, typesIn *types.Interner, nextID FuncID, globals []Global, symToGlobal map[symbols.SymbolID]GlobalID, staticStringGlobals map[string]GlobalID, staticStringInits map[GlobalID]string) (*Func, error) {
 	if mm == nil {
 		return nil, nil
 	}
@@ -33,7 +34,7 @@ func BuildSurgeStart(mm *mono.MonoModule, semaRes *sema.Result, typesIn *types.I
 	mode := getEntrypointMode(entryMF, mm)
 
 	// Build the synthetic function
-	return buildSurgeStartFunc(entryMF, mode, typesIn, mm, nextID, semaRes, globals, symToGlobal)
+	return buildSurgeStartFunc(entryMF, mode, typesIn, mm, nextID, semaRes, globals, symToGlobal, staticStringGlobals, staticStringInits)
 }
 
 // findEntrypoint finds the function marked with @entrypoint.
@@ -80,15 +81,17 @@ func getEntrypointMode(mf *mono.MonoFunc, mm *mono.MonoModule) symbols.Entrypoin
 }
 
 // buildSurgeStartFunc creates the MIR function for __surge_start.
-func buildSurgeStartFunc(entryMF *mono.MonoFunc, mode symbols.EntrypointMode, typesIn *types.Interner, mm *mono.MonoModule, nextID FuncID, semaRes *sema.Result, globals []Global, symToGlobal map[symbols.SymbolID]GlobalID) (*Func, error) {
+func buildSurgeStartFunc(entryMF *mono.MonoFunc, mode symbols.EntrypointMode, typesIn *types.Interner, mm *mono.MonoModule, nextID FuncID, semaRes *sema.Result, globals []Global, symToGlobal map[symbols.SymbolID]GlobalID, staticStringGlobals map[string]GlobalID, staticStringInits map[GlobalID]string) (*Func, error) {
 	b := &surgeStartBuilder{
-		entryMF:     entryMF,
-		mode:        mode,
-		typesIn:     typesIn,
-		mm:          mm,
-		sema:        semaRes,
-		globals:     globals,
-		symToGlobal: symToGlobal,
+		entryMF:             entryMF,
+		mode:                mode,
+		typesIn:             typesIn,
+		mm:                  mm,
+		sema:                semaRes,
+		globals:             globals,
+		symToGlobal:         symToGlobal,
+		staticStringGlobals: staticStringGlobals,
+		staticStringInits:   staticStringInits,
 		f: &Func{
 			ID:     nextID,
 			Sym:    symbols.NoSymbolID, // synthetic function
@@ -106,14 +109,16 @@ func buildSurgeStartFunc(entryMF *mono.MonoFunc, mode symbols.EntrypointMode, ty
 }
 
 type surgeStartBuilder struct {
-	entryMF     *mono.MonoFunc
-	mode        symbols.EntrypointMode
-	typesIn     *types.Interner
-	mm          *mono.MonoModule // for __to method lookup via mm.Source.Symbols
-	sema        *sema.Result
-	globals     []Global
-	symToGlobal map[symbols.SymbolID]GlobalID
-	f           *Func
+	entryMF             *mono.MonoFunc
+	mode                symbols.EntrypointMode
+	typesIn             *types.Interner
+	mm                  *mono.MonoModule // for __to method lookup via mm.Source.Symbols
+	sema                *sema.Result
+	globals             []Global
+	symToGlobal         map[symbols.SymbolID]GlobalID
+	staticStringGlobals map[string]GlobalID
+	staticStringInits   map[GlobalID]string
+	f                   *Func
 
 	// Current block being built
 	cur BlockID
@@ -217,53 +222,87 @@ func (b *surgeStartBuilder) build() error {
 }
 
 func (b *surgeStartBuilder) emitGlobalInits() error {
-	if b == nil || b.mm == nil || b.mm.Source == nil || len(b.mm.Source.Globals) == 0 {
+	if b == nil {
 		return nil
 	}
 
+	var consts map[symbols.SymbolID]*hir.ConstDecl
+	if b.mm != nil {
+		consts = buildConstMap(b.mm.Source)
+	}
 	fl := &funcLowerer{
-		out:         &Module{Globals: b.globals},
-		sema:        b.sema,
-		types:       b.typesIn,
-		f:           b.f,
-		cur:         b.cur,
-		symToLocal:  make(map[symbols.SymbolID]LocalID),
-		symToGlobal: b.symToGlobal,
-		nextTemp:    1,
-		consts:      buildConstMap(b.mm.Source),
+		out:                 &Module{Globals: b.globals},
+		sema:                b.sema,
+		types:               b.typesIn,
+		f:                   b.f,
+		cur:                 b.cur,
+		symToLocal:          make(map[symbols.SymbolID]LocalID),
+		symToGlobal:         b.symToGlobal,
+		nextTemp:            1,
+		consts:              consts,
+		staticStringGlobals: b.staticStringGlobals,
+		staticStringInits:   b.staticStringInits,
 	}
 
-	for i := range b.mm.Source.Globals {
-		decl := &b.mm.Source.Globals[i]
-		if !decl.SymbolID.IsValid() {
-			if decl.Value != nil {
-				if _, err := fl.lowerExpr(decl.Value, false); err != nil {
-					return err
+	if b.mm != nil && b.mm.Source != nil && len(b.mm.Source.Globals) != 0 {
+		for i := range b.mm.Source.Globals {
+			decl := &b.mm.Source.Globals[i]
+			if !decl.SymbolID.IsValid() {
+				if decl.Value != nil {
+					if _, err := fl.lowerExpr(decl.Value, false); err != nil {
+						return err
+					}
 				}
+				continue
 			}
-			continue
+			globalID, ok := b.symToGlobal[decl.SymbolID]
+			if !ok {
+				return fmt.Errorf("mir: global %q has no id", decl.Name)
+			}
+			if decl.Value == nil {
+				continue
+			}
+			op, err := fl.lowerExpr(decl.Value, true)
+			if err != nil {
+				return err
+			}
+			if op.Type == types.NoTypeID && decl.Type != types.NoTypeID {
+				op.Type = decl.Type
+			}
+			fl.emit(&Instr{
+				Kind: InstrAssign,
+				Assign: AssignInstr{
+					Dst: Place{Kind: PlaceGlobal, Global: globalID},
+					Src: RValue{Kind: RValueUse, Use: op},
+				},
+			})
 		}
-		globalID, ok := b.symToGlobal[decl.SymbolID]
-		if !ok {
-			return fmt.Errorf("mir: global %q has no id", decl.Name)
+	}
+
+	if len(b.staticStringInits) != 0 {
+		ids := make([]GlobalID, 0, len(b.staticStringInits))
+		for id := range b.staticStringInits {
+			ids = append(ids, id)
 		}
-		if decl.Value == nil {
-			continue
+		slices.Sort(ids)
+		for _, id := range ids {
+			raw := b.staticStringInits[id]
+			fl.emit(&Instr{
+				Kind: InstrAssign,
+				Assign: AssignInstr{
+					Dst: Place{Kind: PlaceGlobal, Global: id},
+					Src: RValue{Kind: RValueUse, Use: Operand{
+						Kind: OperandConst,
+						Type: fl.types.Builtins().String,
+						Const: Const{
+							Kind:        ConstString,
+							Type:        fl.types.Builtins().String,
+							StringValue: raw,
+						},
+					}},
+				},
+			})
 		}
-		op, err := fl.lowerExpr(decl.Value, true)
-		if err != nil {
-			return err
-		}
-		if op.Type == types.NoTypeID && decl.Type != types.NoTypeID {
-			op.Type = decl.Type
-		}
-		fl.emit(&Instr{
-			Kind: InstrAssign,
-			Assign: AssignInstr{
-				Dst: Place{Kind: PlaceGlobal, Global: globalID},
-				Src: RValue{Kind: RValueUse, Use: op},
-			},
-		})
 	}
 
 	b.cur = fl.cur

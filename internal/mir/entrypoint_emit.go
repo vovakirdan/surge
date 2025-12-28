@@ -236,12 +236,14 @@ func (b *surgeStartBuilder) lowerDefaultExpr(expr *hir.Expr) (Operand, error) {
 		return Operand{}, fmt.Errorf("nil default expression")
 	}
 	lowerer := &funcLowerer{
-		f:          b.f,
-		types:      b.typesIn,
-		symToLocal: make(map[symbols.SymbolID]LocalID, len(b.paramLocals)),
-		nextTemp:   1,
-		cur:        b.cur,
-		consts:     buildConstMap(b.mm.Source),
+		f:                   b.f,
+		types:               b.typesIn,
+		symToLocal:          make(map[symbols.SymbolID]LocalID, len(b.paramLocals)),
+		nextTemp:            1,
+		cur:                 b.cur,
+		consts:              buildConstMap(b.mm.Source),
+		staticStringGlobals: b.staticStringGlobals,
+		staticStringInits:   b.staticStringInits,
 	}
 	for sym, local := range b.paramLocals {
 		lowerer.symToLocal[sym] = local

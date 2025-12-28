@@ -3,17 +3,32 @@
 @entrypoint
 fn main() {
     let pair: (int, string) = (1, "hello");
-    print("pair.0=" + pair.0 to string);
-    print("pair.1=" + pair.1);
+    let pair0_label: string = "pair.0=";
+    let pair1_label: string = "pair.1=";
+    let (pair0_val, pair1_val) = pair;
+    let pair0_str: string = pair0_val to string;
+    print(pair0_label + pair0_str);
+    print(pair1_label + pair1_val);
 
     let nums: (int, int) = (10, 20);
     let (a, b) = nums;
-    print("a=" + a to string + ", b=" + b to string);
+    let a_label: string = "a=";
+    let b_label: string = ", b=";
+    let a_str: string = a to string;
+    let b_str: string = b to string;
+    let mut out: string = a_label + a_str;
+    out = out + b_label;
+    out = out + b_str;
+    print(out);
 
     let nested: ((int, int), int) = ((2, 3), 4);
     let inner: (int, int) = nested.0;
-    print("inner.0=" + inner.0 to string);
+    let inner_label: string = "inner.0=";
+    let inner0_str: string = inner.0 to string;
+    print(inner_label + inner0_str);
 
     let single: (int,) = (42,);
-    print("single=" + single.0 to string);
+    let single_label: string = "single=";
+    let single_str: string = single.0 to string;
+    print(single_label + single_str);
 }

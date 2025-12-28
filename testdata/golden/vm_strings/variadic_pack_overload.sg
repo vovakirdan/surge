@@ -1,10 +1,11 @@
 fn join(...args: string) -> string {
     let mut out: string = "";
+    let sep: string = "|";
     let mut i: int = 0;
     let n: int = args.__len() to int;
     while i < n {
         if i > 0 {
-            out = out + "|";
+            out = out + sep;
         }
         let part: &string = args[i];
         out = out + part;
@@ -24,10 +25,20 @@ fn f(...args: int) -> string {
 
 @entrypoint
 fn main() -> int {
-    print("empty=" + join());
-    print("one=" + join("a"));
-    print("many=" + join("a", "b", "c"));
-    print("f1=" + f(1));
-    print("f2=" + f(1, 2));
+    let empty_label: string = "empty=";
+    let one_label: string = "one=";
+    let many_label: string = "many=";
+    let f1_label: string = "f1=";
+    let f2_label: string = "f2=";
+    let empty_value: string = join();
+    let one_value: string = join("a");
+    let many_value: string = join("a", "b", "c");
+    let f1_value: string = f(1);
+    let f2_value: string = f(1, 2);
+    print(empty_label + empty_value);
+    print(one_label + one_value);
+    print(many_label + many_value);
+    print(f1_label + f1_value);
+    print(f2_label + f2_value);
     return 0;
 }

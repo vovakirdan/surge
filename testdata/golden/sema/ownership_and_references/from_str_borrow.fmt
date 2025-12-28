@@ -2,5 +2,6 @@ fn main() {
     let s = "42";
     let parsed = int.from_str(s);
     let parsed2 = int.from_str(&s);
-    let t = s + "!";
+    let suffix = "!";
+    let t = s + suffix;
 }

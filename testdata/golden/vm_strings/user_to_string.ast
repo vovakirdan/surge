@@ -1,4 +1,4 @@
-user_to_string.sg (span: 3:1-19:1)
+user_to_string.sg (span: 3:1-27:1)
 ├─ Item[0]: Type (span: 3:1-6:2)
 │  ├─ Name: Point
 │  ├─ Kind: Struct
@@ -6,26 +6,60 @@ user_to_string.sg (span: 3:1-19:1)
 │  └─ Struct:
 │     ├─ Field[0]: x: int
 │     └─ Field[1]: y: int
-├─ Item[1]: Extern (span: 8:1-12:2)
+├─ Item[1]: Extern (span: 8:1-20:2)
 │  ├─ Target: Point
 │  ├─ Members:
 │  │  └─ Fn[0]: __to
 │  │     ├─ Params: (self: Point, _: string)
 │  │     ├─ Return: string
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 9:47-11:6)
-│  │        └─ Stmt[0]: Return (span: 10:9-10:76)
-│  │           └─ Expr: expr#13: ((((((("Point(" + (self.x to string))) + ", ")) + (self.y to string))) + ")")
-└─ Item[2]: Fn (span: 14:1-18:2)
+│  │        Stmt[0]: Block (span: 9:47-19:6)
+│  │        ├─ Stmt[0]: Let (span: 10:9-10:39)
+│  │        │  ├─ Name: prefix
+│  │        │  ├─ Mutable: false
+│  │        │  ├─ Type: string
+│  │        │  └─ Value: expr#1: "Point("
+│  │        ├─ Stmt[1]: Let (span: 11:9-11:32)
+│  │        │  ├─ Name: mid
+│  │        │  ├─ Mutable: false
+│  │        │  ├─ Type: string
+│  │        │  └─ Value: expr#2: ", "
+│  │        ├─ Stmt[2]: Let (span: 12:9-12:34)
+│  │        │  ├─ Name: suffix
+│  │        │  ├─ Mutable: false
+│  │        │  ├─ Type: string
+│  │        │  └─ Value: expr#3: ")"
+│  │        ├─ Stmt[3]: Let (span: 13:9-13:46)
+│  │        │  ├─ Name: x_str
+│  │        │  ├─ Mutable: false
+│  │        │  ├─ Type: string
+│  │        │  └─ Value: expr#6: self.x to string
+│  │        ├─ Stmt[4]: Let (span: 14:9-14:46)
+│  │        │  ├─ Name: y_str
+│  │        │  ├─ Mutable: false
+│  │        │  ├─ Type: string
+│  │        │  └─ Value: expr#9: self.y to string
+│  │        ├─ Stmt[5]: Let (span: 15:9-15:46)
+│  │        │  ├─ Name: out
+│  │        │  ├─ Mutable: true
+│  │        │  ├─ Type: string
+│  │        │  └─ Value: expr#12: (prefix + x_str)
+│  │        ├─ Stmt[6]: Expr (span: 16:9-16:25)
+│  │        │  └─ Expr: expr#17: (out = ((out + mid)))
+│  │        ├─ Stmt[7]: Expr (span: 17:9-17:27)
+│  │        │  └─ Expr: expr#22: (out = ((out + y_str)))
+│  │        └─ Stmt[8]: Return (span: 18:9-18:29)
+│  │           └─ Expr: expr#25: (out + suffix)
+└─ Item[2]: Fn (span: 22:1-26:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 15:11-18:2)
-         ├─ Stmt[0]: Let (span: 16:5-16:35)
+      └─ Stmt[0]: Block (span: 23:11-26:2)
+         ├─ Stmt[0]: Let (span: 24:5-24:35)
          │  ├─ Name: p
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#16: <ExprKind(18)>
-         └─ Stmt[1]: Expr (span: 17:5-17:24)
-            └─ Expr: expr#20: print(p to string)
+         │  └─ Value: expr#28: <ExprKind(18)>
+         └─ Stmt[1]: Expr (span: 25:5-25:24)
+            └─ Expr: expr#32: print(p to string)

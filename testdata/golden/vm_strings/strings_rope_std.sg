@@ -14,22 +14,37 @@ fn print_uint(u: uint) -> nothing {
     write_line(u to string);
 }
 
+fn bracket(s: string) -> string {
+    let open: string = "[";
+    let close: string = "]";
+    let tmp = open + s;
+    return tmp + close;
+}
+
 @entrypoint
 fn main() -> int {
     let mut r: string = "";
+    let hi: string = "hi,";
+    let end: string = "end";
     let mut i: int = 0;
     while i < 5 {
-        r = r + "hi,";
+        r = r + hi;
         i = i + 1;
     }
-    r = r + "end";
+    r = r + end;
 
     let parts = r.split(",");
-    write_line("-".join(parts));
+    let dash: string = "-";
+    write_line(dash.join(parts));
 
-    write_line("[" + ("  " + r + "  ").trim() + "]");
-    write_line("[" + ("  " + r).trim_start() + "]");
-    write_line("[" + (r + "  ").trim_end() + "]");
+    let pad: string = "  ";
+    let mut padded: string = pad + r;
+    padded = padded + pad;
+    write_line(bracket(padded.trim()));
+    let left_pad: string = pad + r;
+    write_line(bracket(left_pad.trim_start()));
+    let right_pad: string = r + pad;
+    write_line(bracket(right_pad.trim_end()));
 
     write_line(r.replace("hi", "yo"));
     let rev = r.reverse();
@@ -40,8 +55,10 @@ fn main() -> int {
     write_line(rev[[..-1]]);
 
     let mut left: string = "";
-    left = left + "ab";
-    left = left + "cd";
+    let ab: string = "ab";
+    let cd: string = "cd";
+    left = left + ab;
+    left = left + cd;
     print_uint(left.levenshtein("abxd"));
 
     let bv = r.bytes();

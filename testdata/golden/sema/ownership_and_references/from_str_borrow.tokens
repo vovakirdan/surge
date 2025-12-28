@@ -30,11 +30,16 @@
  30: RParen          ")" at 4:34-4:35
  31: Semicolon       ";" at 4:35-4:36
  32: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
- 33: Ident           "t" at 5:9-5:10 (leading: Space)
- 34: Assign          "=" at 5:11-5:12 (leading: Space)
- 35: Ident           "s" at 5:13-5:14 (leading: Space)
- 36: Plus            "+" at 5:15-5:16 (leading: Space)
- 37: StringLit       "\"!\"" at 5:17-5:20 (leading: Space)
- 38: Semicolon       ";" at 5:20-5:21
- 39: RBrace          "}" at 6:1-6:2 (leading: Newline)
- 40: EOF             at 7:1-7:1
+ 33: Ident           "suffix" at 5:9-5:15 (leading: Space)
+ 34: Assign          "=" at 5:16-5:17 (leading: Space)
+ 35: StringLit       "\"!\"" at 5:18-5:21 (leading: Space)
+ 36: Semicolon       ";" at 5:21-5:22
+ 37: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
+ 38: Ident           "t" at 6:9-6:10 (leading: Space)
+ 39: Assign          "=" at 6:11-6:12 (leading: Space)
+ 40: Ident           "s" at 6:13-6:14 (leading: Space)
+ 41: Plus            "+" at 6:15-6:16 (leading: Space)
+ 42: Ident           "suffix" at 6:17-6:23 (leading: Space)
+ 43: Semicolon       ";" at 6:23-6:24
+ 44: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 45: EOF             at 8:1-8:1

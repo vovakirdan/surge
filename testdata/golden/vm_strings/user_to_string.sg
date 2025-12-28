@@ -7,7 +7,15 @@ type Point = {
 
 extern<Point> {
     fn __to(self: Point, _: string) -> string {
-        return "Point(" + self.x to string + ", " + self.y to string + ")";
+        let prefix: string = "Point(";
+        let mid: string = ", ";
+        let suffix: string = ")";
+        let x_str: string = self.x to string;
+        let y_str: string = self.y to string;
+        let mut out: string = prefix + x_str;
+        out = out + mid;
+        out = out + y_str;
+        return out + suffix;
     }
 }
 

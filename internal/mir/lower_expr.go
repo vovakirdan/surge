@@ -262,6 +262,16 @@ func (l *funcLowerer) lowerUnaryOpExpr(e *hir.Expr, consume bool) (Operand, erro
 		return Operand{}, fmt.Errorf("mir: unary: unexpected payload %T", e.Data)
 	}
 	if data.Op == ast.ExprUnaryRef || data.Op == ast.ExprUnaryRefMut {
+		if data.Op == ast.ExprUnaryRef && data.Operand != nil && data.Operand.Kind == hir.ExprLiteral {
+			if lit, ok := data.Operand.Data.(hir.LiteralData); ok && lit.Kind == hir.LiteralString {
+				if l.isSharedStringRefType(e.Type) {
+					global := l.staticStringGlobal(lit.StringValue)
+					if global != NoGlobalID {
+						return Operand{Kind: OperandAddrOf, Type: e.Type, Place: Place{Kind: PlaceGlobal, Global: global}}, nil
+					}
+				}
+			}
+		}
 		place, err := l.lowerPlace(data.Operand)
 		if err != nil {
 			val, valErr := l.lowerExpr(data.Operand, false)

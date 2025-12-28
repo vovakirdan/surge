@@ -203,7 +203,7 @@ func (tc *typeChecker) resolveToSymbol(src, target types.TypeID) symbols.SymbolI
 	}
 	nameID := tc.builder.StringsInterner.Intern("__to")
 	member := &ast.ExprMemberData{Field: nameID}
-	return tc.resolveMethodCallSymbol(member, src, []types.TypeID{target}, false)
+	return tc.resolveMethodCallSymbol(member, src, ast.NoExprID, []types.TypeID{target}, nil, false)
 }
 
 // recordTagInstantiationForInjection registers a tag instantiation for implicit tag injection.

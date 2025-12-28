@@ -219,6 +219,40 @@ func (tc *typeChecker) magicSignatureForUnary(operand types.TypeID, op ast.ExprU
 	return nil, typeKeyCandidate{}
 }
 
+func (tc *typeChecker) magicSignatureForUnaryExpr(operandExpr ast.ExprID, operand types.TypeID, op ast.ExprUnaryOp) (sig *symbols.FunctionSignature, cand typeKeyCandidate, ambiguous bool, borrowInfo borrowMatchInfo) {
+	name := magicNameForUnaryOp(op)
+	if name == "" {
+		return nil, typeKeyCandidate{}, false, borrowMatchInfo{}
+	}
+	bestCost := -1
+	var bestSig *symbols.FunctionSignature
+	var bestCand typeKeyCandidate
+	for _, candidate := range tc.typeKeyCandidates(operand) {
+		if candidate.key == "" {
+			continue
+		}
+		for _, method := range tc.lookupMagicMethods(candidate.key, name) {
+			if method == nil || !tc.signatureMatchesUnary(method, operand, candidate.key) {
+				continue
+			}
+			cost, ok := tc.magicParamCost(method.Params[0], operand, operandExpr, &borrowInfo)
+			if !ok {
+				continue
+			}
+			if bestCost == -1 || cost < bestCost {
+				bestCost = cost
+				ambiguous = false
+				bestSig = method
+				bestCand = candidate
+			}
+		}
+	}
+	if bestCost == -1 {
+		return nil, typeKeyCandidate{}, false, borrowInfo
+	}
+	return bestSig, bestCand, ambiguous, borrowInfo
+}
+
 func (tc *typeChecker) magicSignatureForBinary(left, right types.TypeID, op ast.ExprBinaryOp) (sig *symbols.FunctionSignature, leftCand, rightCand typeKeyCandidate) {
 	name := magicNameForBinaryOp(op)
 	if name == "" {
@@ -258,6 +292,67 @@ func (tc *typeChecker) magicSignatureForBinary(left, right types.TypeID, op ast.
 		}
 	}
 	return nil, typeKeyCandidate{}, typeKeyCandidate{}
+}
+
+func (tc *typeChecker) magicSignatureForBinaryExpr(leftExpr, rightExpr ast.ExprID, left, right types.TypeID, op ast.ExprBinaryOp) (sig *symbols.FunctionSignature, leftCand, rightCand typeKeyCandidate, ambiguous bool, borrowInfo borrowMatchInfo) {
+	name := magicNameForBinaryOp(op)
+	if name == "" {
+		return nil, typeKeyCandidate{}, typeKeyCandidate{}, false, borrowMatchInfo{}
+	}
+	bestCost := -1
+	leftCandidates := tc.typeKeyCandidates(left)
+	rightCandidates := tc.typeKeyCandidates(right)
+	var bestSig *symbols.FunctionSignature
+	for _, lc := range leftCandidates {
+		if lc.key == "" {
+			continue
+		}
+		methods := tc.lookupMagicMethods(lc.key, name)
+		if len(methods) == 0 {
+			continue
+		}
+		for _, method := range methods {
+			if method == nil {
+				continue
+			}
+			for _, rc := range rightCandidates {
+				if rc.key == "" {
+					continue
+				}
+				if !tc.signatureMatchesBinary(method, left, right, lc.key, rc.key) {
+					continue
+				}
+				if tc.arrayMagicInvolves(method, lc.key, rc.key) && !tc.arrayMagicCompatible(lc.base, rc.base) {
+					continue
+				}
+				if lc.alias != types.NoTypeID || rc.alias != types.NoTypeID {
+					if !compatibleAliasFallback(lc, rc) {
+						continue
+					}
+				}
+				costLeft, ok := tc.magicParamCost(method.Params[0], left, leftExpr, &borrowInfo)
+				if !ok {
+					continue
+				}
+				costRight, ok := tc.magicParamCost(method.Params[1], right, rightExpr, &borrowInfo)
+				if !ok {
+					continue
+				}
+				cost := costLeft + costRight
+				if bestCost == -1 || cost < bestCost {
+					bestCost = cost
+					ambiguous = false
+					bestSig = method
+					leftCand = lc
+					rightCand = rc
+				}
+			}
+		}
+	}
+	if bestCost == -1 {
+		return nil, typeKeyCandidate{}, typeKeyCandidate{}, false, borrowInfo
+	}
+	return bestSig, leftCand, rightCand, ambiguous, borrowInfo
 }
 
 func (tc *typeChecker) magicResultForCast(source, target types.TypeID) types.TypeID {
@@ -369,6 +464,82 @@ func (tc *typeChecker) magicSignatureForIndex(container, index types.TypeID) *sy
 		}
 	}
 	return nil
+}
+
+func (tc *typeChecker) magicSignatureForIndexExpr(containerExpr, indexExpr ast.ExprID, container, index types.TypeID) (sig *symbols.FunctionSignature, recvCand typeKeyCandidate, ambiguous bool, borrowInfo borrowMatchInfo) {
+	if container == types.NoTypeID {
+		return nil, typeKeyCandidate{}, false, borrowMatchInfo{}
+	}
+	bestCost := -1
+	var bestSig *symbols.FunctionSignature
+	var bestRecv typeKeyCandidate
+	for _, recv := range tc.typeKeyCandidates(container) {
+		if recv.key == "" {
+			continue
+		}
+		methods := tc.lookupMagicMethods(recv.key, "__index")
+		for _, method := range methods {
+			if method == nil || len(method.Params) < 2 {
+				continue
+			}
+			if !tc.selfParamCompatible(container, method.Params[0], recv.key) {
+				continue
+			}
+			if !tc.methodParamMatches(method.Params[1], index) {
+				continue
+			}
+			costSelf, ok := tc.magicParamCost(method.Params[0], container, containerExpr, &borrowInfo)
+			if !ok {
+				continue
+			}
+			costIndex, ok := tc.magicParamCost(method.Params[1], index, indexExpr, &borrowInfo)
+			if !ok {
+				continue
+			}
+			cost := costSelf + costIndex
+			if bestCost == -1 || cost < bestCost {
+				bestCost = cost
+				ambiguous = false
+				bestSig = method
+				bestRecv = recv
+			}
+		}
+	}
+	if bestCost == -1 {
+		return nil, typeKeyCandidate{}, false, borrowInfo
+	}
+	return bestSig, bestRecv, ambiguous, borrowInfo
+}
+
+func (tc *typeChecker) magicIndexResultFromSig(sig *symbols.FunctionSignature, recv typeKeyCandidate, index types.TypeID) types.TypeID {
+	if sig == nil {
+		return types.NoTypeID
+	}
+	res := tc.typeFromKey(sig.Result)
+	if res != types.NoTypeID {
+		return res
+	}
+	if elem, ok := tc.elementType(recv.base); ok && tc.types != nil {
+		resultStr := strings.TrimSpace(string(sig.Result))
+		if strings.HasPrefix(resultStr, "&") {
+			mut := strings.HasPrefix(resultStr, "&mut ")
+			inner := strings.TrimSpace(strings.TrimPrefix(resultStr, "&mut "))
+			if inner == resultStr {
+				inner = strings.TrimSpace(strings.TrimPrefix(resultStr, "&"))
+			}
+			if inner == "T" || typeKeyEqual(symbols.TypeKey(inner), tc.typeKeyForType(elem)) {
+				return tc.types.Intern(types.MakeReference(elem, mut))
+			}
+		}
+		if payload, ok := tc.rangePayload(index); ok {
+			intType := tc.types.Builtins().Int
+			if intType != types.NoTypeID && tc.sameType(payload, intType) {
+				return tc.instantiateArrayType(elem)
+			}
+		}
+		return elem
+	}
+	return types.NoTypeID
 }
 
 func (tc *typeChecker) magicSignatureForIndexSet(container, index, value types.TypeID) *symbols.FunctionSignature {
@@ -532,6 +703,58 @@ func (tc *typeChecker) magicParamCompatible(expected symbols.TypeKey, actual typ
 		return tc.selfParamCompatible(actual, expected, actualKey)
 	}
 	return false
+}
+
+func (tc *typeChecker) magicParamCost(expected symbols.TypeKey, actual types.TypeID, expr ast.ExprID, info *borrowMatchInfo) (int, bool) {
+	if expected == "" || actual == types.NoTypeID {
+		return 0, false
+	}
+	expectedStr := strings.TrimSpace(string(expected))
+	switch {
+	case strings.HasPrefix(expectedStr, "&mut "):
+		if tc.isReferenceType(actual) {
+			if !tc.isMutRefType(actual) {
+				return 0, false
+			}
+			return 0, true
+		}
+		if !tc.isAddressableExpr(expr) {
+			if info != nil {
+				info.record(expr, true, borrowFailureNotAddressable)
+			}
+			return 0, false
+		}
+		if !tc.isMutablePlaceExpr(expr) {
+			if info != nil {
+				info.record(expr, true, borrowFailureImmutable)
+			}
+			return 0, false
+		}
+		return 1, true
+	case strings.HasPrefix(expectedStr, "&"):
+		if tc.isReferenceType(actual) {
+			return 0, true
+		}
+		if tc.isBorrowableStringLiteral(expr, tc.typeFromKey(expected)) {
+			return 1, true
+		}
+		if !tc.isAddressableExpr(expr) {
+			if info != nil {
+				info.record(expr, false, borrowFailureNotAddressable)
+			}
+			return 0, false
+		}
+		return 1, true
+	default:
+		if tc.isReferenceType(actual) {
+			return 0, true
+		}
+		val := tc.valueType(actual)
+		if val != types.NoTypeID && !tc.isCopyType(val) {
+			return 2, true
+		}
+		return 0, true
+	}
 }
 
 func (tc *typeChecker) signatureMatchesUnary(sig *symbols.FunctionSignature, operand types.TypeID, operandKey symbols.TypeKey) bool {

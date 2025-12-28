@@ -1,0 +1,52 @@
+overload_autoref_lvalue.sg (span: 1:1-22:1)
+├─ Item[0]: Type (span: 1:1-4:3)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+├─ Item[1]: Extern (span: 6:1-14:2)
+│  ├─ Target: Point
+│  ├─ Members:
+│  │  ├─ Fn[0]: __add
+│  │  │  ├─ Params: (self: &Point, other: &Point)
+│  │  │  ├─ Return: Point
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 7:52-9:6)
+│  │  │     └─ Stmt[0]: Return (span: 8:9-8:61)
+│  │  │        └─ Expr: expr#13: <ExprKind(18)>
+│  │  └─ Fn[1]: __add
+│  │     ├─ Params: (self: Point, other: Point)
+│  │     ├─ Return: Point
+│  │     ├─ Attributes: @overload
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 11:60-13:6)
+│  │        └─ Stmt[0]: Return (span: 12:9-12:61)
+│  │           └─ Expr: expr#26: <ExprKind(18)>
+└─ Item[2]: Fn (span: 16:1-21:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 16:11-21:2)
+         ├─ Stmt[0]: Let (span: 17:5-17:36)
+         │  ├─ Name: p1
+         │  ├─ Mutable: false
+         │  ├─ Type: Point
+         │  └─ Value: expr#31: <ExprKind(18)>
+         ├─ Stmt[1]: Let (span: 18:5-18:36)
+         │  ├─ Name: p2
+         │  ├─ Mutable: false
+         │  ├─ Type: Point
+         │  └─ Value: expr#36: <ExprKind(18)>
+         ├─ Stmt[2]: Let (span: 19:5-19:21)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#39: (p1 + p2)
+         └─ Stmt[3]: Let (span: 20:5-20:25)
+            ├─ Name: _
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#44: (p1.x + p2.x)

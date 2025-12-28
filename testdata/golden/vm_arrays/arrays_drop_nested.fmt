@@ -102,9 +102,13 @@ fn main() -> int {
     print_int(dyn.__len() to int);
     write_line(dyn[1].name.__clone());
 
+    let items1_fixed: string[2] = ["a", "b"];
+    let nums1_fixed: int[3] = [1, 2, 3];
+    let items2_fixed: string[1] = ["c"];
+    let nums2_fixed: int[2] = [4, 5];
     let mut bars: Bar[] = [
-        Bar { items = ["a", "b"].to_array(), nums = [1, 2, 3].to_array() },
-        Bar { items = ["c"].to_array(), nums = [4, 5].to_array() },
+        Bar { items = items1_fixed.to_array(), nums = nums1_fixed.to_array() },
+        Bar { items = items2_fixed.to_array(), nums = nums2_fixed.to_array() },
     ];
     let mut bar_view = bars[[0..2]];
     bar_view[0].nums[1] = 99;
@@ -112,8 +116,11 @@ fn main() -> int {
     print_int(bars[0].nums[1]);
     write_line(bars[1].items[0].__clone());
 
-    let mut grid: int[][] = [[1, 2].to_array(), [3, 4, 5].to_array()];
-    grid[0] = [1, 77].to_array();
+    let row1_fixed: int[2] = [1, 2];
+    let row2_fixed: int[3] = [3, 4, 5];
+    let mut grid: int[][] = [row1_fixed.to_array(), row2_fixed.to_array()];
+    let row0_fixed: int[2] = [1, 77];
+    grid[0] = row0_fixed.to_array();
     print_int(grid[0][1]);
     let mut outer_view = grid[[0..2]];
     outer_view[1][0] = 88;
@@ -122,14 +129,20 @@ fn main() -> int {
     print_int(sum_int(inner_view));
 
     let mut rope: string = "";
+    let ab: string = "ab";
     let mut i: int = 0;
     while i < 20 {
-        rope = rope + "ab";
+        rope = rope + ab;
         i = i + 1;
     }
-    let mut strs: string[] = [rope.__clone(), rope.__clone() + "z"];
+    let z: string = "z";
+    let x: string = "x";
+    let rope_clone: string = rope.__clone();
+    let rope_clone2: string = rope.__clone();
+    let mut strs: string[] = [rope_clone, rope_clone2 + z];
     let mut sview = strs[[0..1]];
-    sview[0] = rope.__clone() + "x";
+    let rope_clone3: string = rope.__clone();
+    sview[0] = rope_clone3 + x;
     write_line(strs[0][[0..2]]);
     let slice = strs[0][[1..5]];
     write_line(slice.__clone());

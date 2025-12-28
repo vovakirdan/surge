@@ -85,7 +85,12 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 		}
 		return tc.types.Intern(types.MakeOwn(operandType))
 	default:
-		if sig, cand := tc.magicSignatureForUnary(operandType, data.Op); sig != nil {
+		sig, cand, ambiguous, borrowInfo := tc.magicSignatureForUnaryExpr(data.Operand, operandType, data.Op)
+		if ambiguous {
+			tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for operator %s", tc.unaryOpLabel(data.Op))
+			return types.NoTypeID
+		}
+		if sig != nil {
 			res := tc.typeFromKey(sig.Result)
 			if res != types.NoTypeID {
 				tc.applyParamOwnership(sig.Params[0], data.Operand, operandType, tc.exprSpan(data.Operand))
@@ -93,6 +98,9 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 				tc.dropImplicitBorrowForValueParam(data.Operand, sig.Params[0], operandType, tc.exprSpan(data.Operand))
 				return tc.adjustAliasUnaryResult(res, cand)
 			}
+		} else if borrowInfo.expr.IsValid() {
+			tc.reportBorrowFailure(&borrowInfo)
+			return types.NoTypeID
 		}
 		tc.reportMissingUnaryMethod(data.Op, operandType, span)
 		return types.NoTypeID
@@ -129,7 +137,12 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 	if baseOp, ok := tc.assignmentBaseOp(data.Op); ok {
 		return tc.typeCompoundAssignment(baseOp, data.Op, span, data.Left, data.Right, leftType, rightType)
 	}
-	if sig, lc, rc := tc.magicSignatureForBinary(leftType, rightType, data.Op); sig != nil {
+	sig, lc, rc, ambiguous, borrowInfo := tc.magicSignatureForBinaryExpr(data.Left, data.Right, leftType, rightType, data.Op)
+	if ambiguous {
+		tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for operator %s", tc.binaryOpLabel(data.Op))
+		return types.NoTypeID
+	}
+	if sig != nil {
 		res := tc.typeFromKey(sig.Result)
 		if res == types.NoTypeID {
 			res = tc.magicResultFallback(sig.Result, lc, rc)
@@ -143,6 +156,9 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 			tc.dropImplicitBorrowForValueParam(data.Right, sig.Params[1], rightType, tc.exprSpan(data.Right))
 			return tc.adjustAliasBinaryResult(res, lc, rc)
 		}
+	} else if borrowInfo.expr.IsValid() {
+		tc.reportBorrowFailure(&borrowInfo)
+		return types.NoTypeID
 	}
 	return tc.typeBinaryFallback(span, data, leftType, rightType)
 }

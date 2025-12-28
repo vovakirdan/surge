@@ -101,7 +101,7 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 	}
 	typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)
 
-	bestSym, bestType, bestArgs, ambiguous, ok := tc.selectBestCandidate(candidates, args, typeArgs, false)
+	bestSym, bestType, bestArgs, ambiguous, ok, matchInfoMono := tc.selectBestCandidate(candidates, args, typeArgs, false)
 	if ambiguous {
 		tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for %s", displayName)
 		return types.NoTypeID
@@ -126,7 +126,7 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 		return bestType
 	}
 
-	bestSym, bestType, bestArgs, ambiguous, ok = tc.selectBestCandidate(candidates, args, typeArgs, true)
+	bestSym, bestType, bestArgs, ambiguous, ok, matchInfoGeneric := tc.selectBestCandidate(candidates, args, typeArgs, true)
 	if ambiguous {
 		tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for %s", displayName)
 		return types.NoTypeID
@@ -150,6 +150,14 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 		return bestType
 	}
 
+	if matchInfoMono != nil && matchInfoMono.expr.IsValid() {
+		tc.reportBorrowFailure(matchInfoMono)
+		return types.NoTypeID
+	}
+	if matchInfoGeneric != nil && matchInfoGeneric.expr.IsValid() {
+		tc.reportBorrowFailure(matchInfoGeneric)
+		return types.NoTypeID
+	}
 	if len(call.TypeArgs) == 0 {
 		if missing := tc.missingTypeParams(candidates, args); len(missing) > 0 {
 			tc.reportCannotInferTypeParams(displayName, missing, span, call)
@@ -255,7 +263,12 @@ func (tc *typeChecker) reportCallArgumentMismatch(sym *symbols.Symbol, args []ca
 			return false
 		}
 		allowImplicitTo := tc.callAllowsImplicitTo(sym, paramIndex)
-		if _, ok := tc.matchArgument(expectedType, arg.ty, arg.isLiteral, allowImplicitTo); !ok {
+		var borrowInfo borrowMatchInfo
+		if _, ok := tc.matchArgument(expectedType, arg.ty, arg.isLiteral, allowImplicitTo, arg.expr, &borrowInfo); !ok {
+			if borrowInfo.expr.IsValid() {
+				tc.reportBorrowFailure(&borrowInfo)
+				return true
+			}
 			tc.reportCallArgumentTypeMismatch(expectedType, arg.ty, arg.expr, allowImplicitTo)
 			return true
 		}

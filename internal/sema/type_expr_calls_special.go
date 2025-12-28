@@ -272,7 +272,7 @@ func (tc *typeChecker) recordCloneSymbol(expr ast.ExprID, recv types.TypeID) {
 	}
 	nameID := tc.builder.StringsInterner.Intern("__clone")
 	member := &ast.ExprMemberData{Field: nameID}
-	tc.result.CloneSymbols[expr] = tc.resolveMethodCallSymbol(member, recv, nil, false)
+	tc.result.CloneSymbols[expr] = tc.resolveMethodCallSymbol(member, recv, ast.NoExprID, nil, nil, false)
 }
 
 func (tc *typeChecker) reportCannotInferTypeParams(name string, missing []string, span source.Span, call *ast.ExprCallData) {

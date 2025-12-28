@@ -10,7 +10,7 @@ import (
 	"surge/internal/types"
 )
 
-func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, span source.Span, staticReceiver bool) types.TypeID {
+func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.TypeID, recvExpr ast.ExprID, args []types.TypeID, argExprs []ast.ExprID, span source.Span, staticReceiver bool) types.TypeID {
 	if member == nil || tc.magic == nil {
 		return types.NoTypeID
 	}
@@ -29,6 +29,7 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 		tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
 		return types.NoTypeID
 	}
+	var borrowInfo borrowMatchInfo
 	for _, recvCand := range tc.typeKeyCandidates(recv) {
 		if recvCand.key == "" {
 			continue
@@ -48,6 +49,9 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 				}
 			case tc.selfParamCompatible(recv, sig.Params[0], recvCand.key):
 				// instance/associated method with compatible self (handles implicit borrow)
+				if !tc.selfParamAddressable(sig.Params[0], recv, recvExpr, &borrowInfo) {
+					continue
+				}
 				if len(sig.Params)-1 != len(args) {
 					continue
 				}
@@ -56,7 +60,7 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 				}
 			case staticReceiver && tc.methodParamsMatchWithSubst(sig.Params, args, subst):
 				// static method defined in extern block without self param
-			case staticReceiver && name == "from_str" && tc.methodParamsMatchWithImplicitBorrow(sig.Params, args, subst):
+			case staticReceiver && name == "from_str" && tc.methodParamsMatchWithImplicitBorrow(sig.Params, args, argExprs, subst, &borrowInfo):
 				// allow implicit borrow for from_str arguments
 			default:
 				continue
@@ -67,18 +71,22 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 			return tc.adjustAliasUnaryResult(res, recvCand)
 		}
 	}
+	if borrowInfo.expr.IsValid() {
+		tc.reportBorrowFailure(&borrowInfo)
+		return types.NoTypeID
+	}
 	tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
 	return types.NoTypeID
 }
 
-func (tc *typeChecker) recordMethodCallSymbol(callID ast.ExprID, member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, staticReceiver bool) symbols.SymbolID {
+func (tc *typeChecker) recordMethodCallSymbol(callID ast.ExprID, member *ast.ExprMemberData, recv types.TypeID, recvExpr ast.ExprID, args []types.TypeID, argExprs []ast.ExprID, staticReceiver bool) symbols.SymbolID {
 	if callID == ast.NoExprID || member == nil || tc.symbols == nil {
 		return symbols.NoSymbolID
 	}
 	if tc.symbols.ExprSymbols == nil {
 		return symbols.NoSymbolID
 	}
-	symID := tc.resolveMethodCallSymbol(member, recv, args, staticReceiver)
+	symID := tc.resolveMethodCallSymbol(member, recv, recvExpr, args, argExprs, staticReceiver)
 	if symID.IsValid() {
 		tc.symbols.ExprSymbols[callID] = symID
 	}
@@ -123,7 +131,7 @@ func (tc *typeChecker) receiverTypeArgs(recv types.TypeID) []types.TypeID {
 	return tc.typeArgsForType(resolved)
 }
 
-func (tc *typeChecker) resolveMethodCallSymbol(member *ast.ExprMemberData, recv types.TypeID, args []types.TypeID, staticReceiver bool) symbols.SymbolID {
+func (tc *typeChecker) resolveMethodCallSymbol(member *ast.ExprMemberData, recv types.TypeID, recvExpr ast.ExprID, args []types.TypeID, argExprs []ast.ExprID, staticReceiver bool) symbols.SymbolID {
 	if member == nil || recv == types.NoTypeID {
 		return symbols.NoSymbolID
 	}
@@ -160,6 +168,9 @@ func (tc *typeChecker) resolveMethodCallSymbol(member *ast.ExprMemberData, recv 
 				if !tc.selfParamCompatible(recv, sig.Params[0], recvCand.key) {
 					continue
 				}
+				if !tc.selfParamAddressable(sig.Params[0], recv, recvExpr, nil) {
+					continue
+				}
 				if len(sig.Params)-1 != len(args) {
 					continue
 				}
@@ -171,7 +182,7 @@ func (tc *typeChecker) resolveMethodCallSymbol(member *ast.ExprMemberData, recv 
 					continue
 				}
 				if !tc.methodParamsMatchWithSubst(sig.Params, args, subst) {
-					if name != "from_str" || !tc.methodParamsMatchWithImplicitBorrow(sig.Params, args, subst) {
+					if name != "from_str" || !tc.methodParamsMatchWithImplicitBorrow(sig.Params, args, argExprs, subst, nil) {
 						continue
 					}
 				}
@@ -206,7 +217,7 @@ func (tc *typeChecker) methodParamsMatchWithSubst(expected []symbols.TypeKey, ar
 	return true
 }
 
-func (tc *typeChecker) methodParamsMatchWithImplicitBorrow(expected []symbols.TypeKey, args []types.TypeID, subst map[string]symbols.TypeKey) bool {
+func (tc *typeChecker) methodParamsMatchWithImplicitBorrow(expected []symbols.TypeKey, args []types.TypeID, argExprs []ast.ExprID, subst map[string]symbols.TypeKey, info *borrowMatchInfo) bool {
 	if len(expected) != len(args) {
 		return false
 	}
@@ -214,6 +225,34 @@ func (tc *typeChecker) methodParamsMatchWithImplicitBorrow(expected []symbols.Ty
 		expectedKey := substituteTypeKeyParams(expected[i], subst)
 		if !tc.magicParamCompatible(expectedKey, arg, tc.typeKeyForType(arg)) {
 			return false
+		}
+		expectedStr := strings.TrimSpace(string(expectedKey))
+		if strings.HasPrefix(expectedStr, "&") && !tc.isReferenceType(arg) {
+			if i >= len(argExprs) || !argExprs[i].IsValid() {
+				continue
+			}
+			if tc.isBorrowableStringLiteral(argExprs[i], tc.typeFromKey(expectedKey)) {
+				continue
+			}
+			if strings.HasPrefix(expectedStr, "&mut ") {
+				if !tc.isAddressableExpr(argExprs[i]) {
+					if info != nil {
+						info.record(argExprs[i], true, borrowFailureNotAddressable)
+					}
+					return false
+				}
+				if !tc.isMutablePlaceExpr(argExprs[i]) {
+					if info != nil {
+						info.record(argExprs[i], true, borrowFailureImmutable)
+					}
+					return false
+				}
+			} else if !tc.isAddressableExpr(argExprs[i]) {
+				if info != nil {
+					info.record(argExprs[i], false, borrowFailureNotAddressable)
+				}
+				return false
+			}
 		}
 	}
 	return true
@@ -260,6 +299,51 @@ func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg
 		}
 	}
 	return false
+}
+
+func (tc *typeChecker) selfParamAddressable(selfKey symbols.TypeKey, recv types.TypeID, recvExpr ast.ExprID, info *borrowMatchInfo) bool {
+	selfStr := strings.TrimSpace(string(selfKey))
+	switch {
+	case strings.HasPrefix(selfStr, "&mut "):
+		if tc.isReferenceType(recv) {
+			return true
+		}
+		if !recvExpr.IsValid() {
+			return true
+		}
+		if !tc.isAddressableExpr(recvExpr) {
+			if info != nil {
+				info.record(recvExpr, true, borrowFailureNotAddressable)
+			}
+			return false
+		}
+		if !tc.isMutablePlaceExpr(recvExpr) {
+			if info != nil {
+				info.record(recvExpr, true, borrowFailureImmutable)
+			}
+			return false
+		}
+		return true
+	case strings.HasPrefix(selfStr, "&"):
+		if tc.isReferenceType(recv) {
+			return true
+		}
+		if !recvExpr.IsValid() {
+			return true
+		}
+		if tc.isBorrowableStringLiteral(recvExpr, tc.typeFromKey(selfKey)) {
+			return true
+		}
+		if tc.isAddressableExpr(recvExpr) {
+			return true
+		}
+		if info != nil {
+			info.record(recvExpr, false, borrowFailureNotAddressable)
+		}
+		return false
+	default:
+		return true
+	}
 }
 
 // selfParamCompatible checks if receiver type can call method with given self parameter.
