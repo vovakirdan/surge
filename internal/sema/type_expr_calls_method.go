@@ -231,7 +231,11 @@ func (tc *typeChecker) methodParamsMatchWithImplicitBorrow(expected []symbols.Ty
 			if i >= len(argExprs) || !argExprs[i].IsValid() {
 				continue
 			}
-			if tc.isBorrowableStringLiteral(argExprs[i], tc.typeFromKey(expectedKey)) {
+			expectedType := tc.typeFromKey(expectedKey)
+			if tc.isBorrowableStringLiteral(argExprs[i], expectedType) {
+				continue
+			}
+			if tc.canMaterializeForRefString(argExprs[i], expectedType) {
 				continue
 			}
 			if strings.HasPrefix(expectedStr, "&mut ") {
@@ -331,7 +335,11 @@ func (tc *typeChecker) selfParamAddressable(selfKey symbols.TypeKey, recv types.
 		if !recvExpr.IsValid() {
 			return true
 		}
-		if tc.isBorrowableStringLiteral(recvExpr, tc.typeFromKey(selfKey)) {
+		expectedType := tc.typeFromKey(selfKey)
+		if tc.isBorrowableStringLiteral(recvExpr, expectedType) {
+			return true
+		}
+		if tc.canMaterializeForRefString(recvExpr, expectedType) {
 			return true
 		}
 		if tc.isAddressableExpr(recvExpr) {

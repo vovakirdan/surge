@@ -47,6 +47,10 @@ type Result struct {
 	ImplicitConversions    map[ast.ExprID]ImplicitConversion // Tracks implicit __to calls
 	ToSymbols              map[ast.ExprID]symbols.SymbolID   // Resolved __to symbols for casts/conversions
 	CloneSymbols           map[ast.ExprID]symbols.SymbolID   // Resolved __clone symbols for clone() calls
+	MagicUnarySymbols      map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for unary operators
+	MagicBinarySymbols     map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for binary operators
+	IndexSymbols           map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for index expressions
+	IndexSetSymbols        map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for index assignment
 	BindingTypes           map[symbols.SymbolID]types.TypeID // Maps symbol IDs to their resolved types
 	ItemScopes             map[ast.ItemID]symbols.ScopeID    // Maps items to their scopes (for HIR lowering)
 }
@@ -63,6 +67,10 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 		ImplicitConversions:    make(map[ast.ExprID]ImplicitConversion),
 		ToSymbols:              make(map[ast.ExprID]symbols.SymbolID),
 		CloneSymbols:           make(map[ast.ExprID]symbols.SymbolID),
+		MagicUnarySymbols:      make(map[ast.ExprID]symbols.SymbolID),
+		MagicBinarySymbols:     make(map[ast.ExprID]symbols.SymbolID),
+		IndexSymbols:           make(map[ast.ExprID]symbols.SymbolID),
+		IndexSetSymbols:        make(map[ast.ExprID]symbols.SymbolID),
 	}
 	if opts.Types != nil {
 		res.TypeInterner = opts.Types

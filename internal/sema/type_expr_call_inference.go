@@ -314,6 +314,17 @@ func (tc *typeChecker) matchArgument(expected, actual types.TypeID, isLiteral, a
 			}
 			return cost + 1, true
 		}
+		if !expInfo.Mutable && tc.canMaterializeForRefString(expr, expected) {
+			innerActual := actual
+			if okAct && actInfo.Kind == types.KindOwn {
+				innerActual = actInfo.Elem
+			}
+			cost, ok := tc.conversionCost(innerActual, expInfo.Elem, isLiteral, allowImplicitTo)
+			if !ok {
+				return 0, false
+			}
+			return cost + 2, true
+		}
 		if expInfo.Mutable {
 			if !tc.isAddressableExpr(expr) {
 				info.record(expr, true, borrowFailureNotAddressable)
@@ -344,7 +355,7 @@ func (tc *typeChecker) matchArgument(expected, actual types.TypeID, isLiteral, a
 	if !tc.isReferenceType(actual) {
 		val := tc.valueType(actual)
 		if val != types.NoTypeID && !tc.isCopyType(val) {
-			cost += 2
+			cost += 3
 		}
 	}
 	return cost, true

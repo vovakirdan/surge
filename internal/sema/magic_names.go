@@ -113,6 +113,11 @@ func (tc *typeChecker) buildMagicIndex() {
 				if sym.Kind != symbols.SymbolFunction || sym.ReceiverKey == "" || sym.Signature == nil {
 					continue
 				}
+				symID := symbols.SymbolID(i + 1) // Data() skips index 0
+				recordID := symID
+				if sym.Flags&symbols.SymbolFlagBuiltin != 0 {
+					recordID = symbols.NoSymbolID
+				}
 				name := tc.symbolName(sym.Name)
 				if name == "__to" && !tc.acceptToSignature(sym.Signature, sym.ReceiverKey, sym) {
 					continue
@@ -123,7 +128,7 @@ func (tc *typeChecker) buildMagicIndex() {
 				if isOperatorMagicName(name) {
 					normalized = normalizeSignatureForReceiver(sym.Signature, sym.ReceiverKey)
 				}
-				tc.addMagicEntry(sym.ReceiverKey, name, normalized)
+				tc.addMagicEntry(sym.ReceiverKey, name, normalized, recordID)
 			}
 		}
 	}
@@ -148,7 +153,7 @@ func (tc *typeChecker) buildMagicIndex() {
 				if isOperatorMagicName(sym.Name) {
 					normalized = normalizeSignatureForReceiver(sym.Signature, sym.ReceiverKey)
 				}
-				tc.addMagicEntry(sym.ReceiverKey, sym.Name, normalized)
+				tc.addMagicEntry(sym.ReceiverKey, sym.Name, normalized, symbols.NoSymbolID)
 			}
 		}
 	}
@@ -166,7 +171,7 @@ func isOperatorMagicName(name string) bool {
 	}
 }
 
-func (tc *typeChecker) addMagicEntry(receiver symbols.TypeKey, name string, sig *symbols.FunctionSignature) {
+func (tc *typeChecker) addMagicEntry(receiver symbols.TypeKey, name string, sig *symbols.FunctionSignature, symID symbols.SymbolID) {
 	if receiver == "" || name == "" || sig == nil {
 		return
 	}
@@ -180,6 +185,22 @@ func (tc *typeChecker) addMagicEntry(receiver symbols.TypeKey, name string, sig 
 		tc.magic[receiver] = methods
 	}
 	methods[name] = append(methods[name], sig)
+	if symID.IsValid() {
+		if tc.magicSymbols == nil {
+			tc.magicSymbols = make(map[*symbols.FunctionSignature]symbols.SymbolID)
+		}
+		tc.magicSymbols[sig] = symID
+	}
+}
+
+func (tc *typeChecker) magicSymbolForSignature(sig *symbols.FunctionSignature) symbols.SymbolID {
+	if tc == nil || sig == nil || tc.magicSymbols == nil {
+		return symbols.NoSymbolID
+	}
+	if symID, ok := tc.magicSymbols[sig]; ok {
+		return symID
+	}
+	return symbols.NoSymbolID
 }
 
 func (tc *typeChecker) magicResultForBinary(left, right types.TypeID, op ast.ExprBinaryOp) types.TypeID {
@@ -735,8 +756,12 @@ func (tc *typeChecker) magicParamCost(expected symbols.TypeKey, actual types.Typ
 		if tc.isReferenceType(actual) {
 			return 0, true
 		}
-		if tc.isBorrowableStringLiteral(expr, tc.typeFromKey(expected)) {
+		expectedType := tc.typeFromKey(expected)
+		if tc.isBorrowableStringLiteral(expr, expectedType) {
 			return 1, true
+		}
+		if tc.canMaterializeForRefString(expr, expectedType) {
+			return 2, true
 		}
 		if !tc.isAddressableExpr(expr) {
 			if info != nil {
@@ -751,7 +776,7 @@ func (tc *typeChecker) magicParamCost(expected symbols.TypeKey, actual types.Typ
 		}
 		val := tc.valueType(actual)
 		if val != types.NoTypeID && !tc.isCopyType(val) {
-			return 2, true
+			return 3, true
 		}
 		return 0, true
 	}

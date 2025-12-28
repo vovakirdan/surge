@@ -1,0 +1,9 @@
+string_concat_nested.sg (span: 1:1-4:1)
+└─ Item[0]: Fn (span: 1:1-3:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:11-3:2)
+         └─ Stmt[0]: Expr (span: 2:5-2:30)
+            └─ Expr: expr#8: print(("a" + (("b" + "c"))))

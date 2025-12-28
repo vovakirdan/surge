@@ -297,6 +297,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			}
 			if sig != nil {
 				ty = tc.magicIndexResultFromSig(sig, sigCand, indexType)
+				if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
+					tc.recordIndexSymbol(id, symID)
+				}
 			} else if borrowInfo.expr.IsValid() {
 				tc.reportBorrowFailure(&borrowInfo)
 				ty = types.NoTypeID

@@ -91,6 +91,9 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 			return types.NoTypeID
 		}
 		if sig != nil {
+			if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
+				tc.recordMagicUnarySymbol(exprID, symID)
+			}
 			res := tc.typeFromKey(sig.Result)
 			if res != types.NoTypeID {
 				tc.applyParamOwnership(sig.Params[0], data.Operand, operandType, tc.exprSpan(data.Operand))
@@ -143,6 +146,9 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 		return types.NoTypeID
 	}
 	if sig != nil {
+		if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
+			tc.recordMagicBinarySymbol(exprID, symID)
+		}
 		res := tc.typeFromKey(sig.Result)
 		if res == types.NoTypeID {
 			res = tc.magicResultFallback(sig.Result, lc, rc)
@@ -205,6 +211,46 @@ func (tc *typeChecker) recordHeirOperand(exprID ast.ExprID, leftType, rightType 
 		tc.result.HeirOperands = make(map[ast.ExprID]HeirOperand)
 	}
 	tc.result.HeirOperands[exprID] = HeirOperand{Left: leftType, Right: rightType}
+}
+
+func (tc *typeChecker) recordMagicUnarySymbol(exprID ast.ExprID, symID symbols.SymbolID) {
+	if tc.result == nil || !symID.IsValid() {
+		return
+	}
+	if tc.result.MagicUnarySymbols == nil {
+		tc.result.MagicUnarySymbols = make(map[ast.ExprID]symbols.SymbolID)
+	}
+	tc.result.MagicUnarySymbols[exprID] = symID
+}
+
+func (tc *typeChecker) recordMagicBinarySymbol(exprID ast.ExprID, symID symbols.SymbolID) {
+	if tc.result == nil || !symID.IsValid() {
+		return
+	}
+	if tc.result.MagicBinarySymbols == nil {
+		tc.result.MagicBinarySymbols = make(map[ast.ExprID]symbols.SymbolID)
+	}
+	tc.result.MagicBinarySymbols[exprID] = symID
+}
+
+func (tc *typeChecker) recordIndexSymbol(exprID ast.ExprID, symID symbols.SymbolID) {
+	if tc.result == nil || !symID.IsValid() {
+		return
+	}
+	if tc.result.IndexSymbols == nil {
+		tc.result.IndexSymbols = make(map[ast.ExprID]symbols.SymbolID)
+	}
+	tc.result.IndexSymbols[exprID] = symID
+}
+
+func (tc *typeChecker) recordIndexSetSymbol(exprID ast.ExprID, symID symbols.SymbolID) {
+	if tc.result == nil || !symID.IsValid() {
+		return
+	}
+	if tc.result.IndexSetSymbols == nil {
+		tc.result.IndexSetSymbols = make(map[ast.ExprID]symbols.SymbolID)
+	}
+	tc.result.IndexSetSymbols[exprID] = symID
 }
 
 func (tc *typeChecker) resolveIsOperand(leftType types.TypeID, rightExpr ast.ExprID, opLabel string) (IsOperand, bool) {
@@ -452,6 +498,9 @@ func (tc *typeChecker) applyIndexSetterOwnership(leftExpr, rightExpr ast.ExprID,
 	sig := tc.magicSignatureForIndexSet(container, indexType, value)
 	if sig == nil || len(sig.Params) < 3 {
 		return
+	}
+	if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
+		tc.recordIndexSetSymbol(leftExpr, symID)
 	}
 	tc.applyParamOwnership(sig.Params[0], index.Target, container, tc.exprSpan(index.Target))
 	tc.applyParamOwnership(sig.Params[1], index.Index, indexType, tc.exprSpan(index.Index))

@@ -95,6 +95,24 @@ func (l *lowerer) toCallExpr(span source.Span, value *Expr, target types.TypeID,
 	}
 }
 
+func (l *lowerer) magicCallExpr(span source.Span, ty types.TypeID, symID symbols.SymbolID, args []*Expr) *Expr {
+	if symID.IsValid() {
+		args = l.packVariadicArgs(symID, args, span)
+		args = l.applyParamBorrow(symID, args)
+	}
+	callee := l.varRefForSymbol(symID, span)
+	return &Expr{
+		Kind: ExprCall,
+		Type: ty,
+		Span: span,
+		Data: CallData{
+			Callee:   callee,
+			Args:     args,
+			SymbolID: symID,
+		},
+	}
+}
+
 // referenceType creates a reference type for the given element type.
 func (l *lowerer) referenceType(elem types.TypeID, mutable bool) types.TypeID {
 	if elem == types.NoTypeID || l.semaRes == nil || l.semaRes.TypeInterner == nil {

@@ -252,6 +252,9 @@ func (tc *typeChecker) applyParamOwnershipForType(expected types.TypeID, expr as
 		if tc.isReferenceType(actual) {
 			return
 		}
+		if !tt.Mutable && tc.canMaterializeForRefString(expr, expected) {
+			return
+		}
 		op := ast.ExprUnaryRef
 		if tt.Mutable {
 			op = ast.ExprUnaryRefMut

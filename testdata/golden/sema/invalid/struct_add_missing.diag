@@ -1,0 +1,1 @@
+error SEM3016 testdata/golden/sema/invalid/struct_add_missing.sg:9:13 operator + (__add) is not defined for Point and Point

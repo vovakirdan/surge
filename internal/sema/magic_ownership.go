@@ -24,6 +24,9 @@ func (tc *typeChecker) applyParamOwnership(param symbols.TypeKey, expr ast.ExprI
 		if tc.isReferenceType(exprType) {
 			return
 		}
+		if tc.canMaterializeForRefString(expr, tc.typeFromKey(param)) {
+			return
+		}
 		tc.handleBorrow(expr, span, ast.ExprUnaryRef, expr)
 	default:
 		tc.observeMove(expr, span)

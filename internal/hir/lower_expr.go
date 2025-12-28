@@ -68,7 +68,7 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 		return l.lowerBinaryExpr(exprID, expr, ty)
 
 	case ast.ExprUnary:
-		return l.lowerUnaryExpr(expr, ty)
+		return l.lowerUnaryExpr(exprID, expr, ty)
 
 	case ast.ExprCall:
 		return l.lowerCallExpr(exprID, expr, ty)
@@ -77,7 +77,7 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 		return l.lowerMemberExpr(expr, ty)
 
 	case ast.ExprIndex:
-		return l.lowerIndexExpr(expr, ty)
+		return l.lowerIndexExpr(exprID, expr, ty)
 
 	case ast.ExprTuple:
 		return l.lowerTupleExpr(expr, ty)
@@ -245,6 +245,24 @@ func (l *lowerer) lowerBinaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Ty
 
 	left := l.lowerExpr(binData.Left)
 	right := l.lowerExpr(binData.Right)
+
+	// If sema resolved a user-defined magic method, lower to a call; otherwise keep builtin ops.
+	if l.semaRes != nil && l.semaRes.MagicBinarySymbols != nil {
+		if symID, ok := l.semaRes.MagicBinarySymbols[exprID]; ok && symID.IsValid() {
+			return l.magicCallExpr(expr.Span, ty, symID, []*Expr{left, right})
+		}
+	}
+
+	if binData.Op == ast.ExprBinaryAssign && l.semaRes != nil && l.semaRes.IndexSetSymbols != nil {
+		if symID, ok := l.semaRes.IndexSetSymbols[binData.Left]; ok && symID.IsValid() {
+			if idx, ok := l.builder.Exprs.Index(binData.Left); ok && idx != nil {
+				object := l.lowerExpr(idx.Target)
+				index := l.lowerExpr(idx.Index)
+				return l.magicCallExpr(expr.Span, ty, symID, []*Expr{object, index, right})
+			}
+		}
+	}
+
 	data := BinaryOpData{
 		Op:    binData.Op,
 		Left:  left,
@@ -285,10 +303,18 @@ func (l *lowerer) lowerBinaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Ty
 }
 
 // lowerUnaryExpr lowers a unary expression.
-func (l *lowerer) lowerUnaryExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+func (l *lowerer) lowerUnaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	unaryData := l.builder.Exprs.Unaries.Get(uint32(expr.Payload))
 	if unaryData == nil {
 		return nil
+	}
+
+	// If sema resolved a user-defined magic method, lower to a call; otherwise keep builtin ops.
+	if l.semaRes != nil && l.semaRes.MagicUnarySymbols != nil {
+		if symID, ok := l.semaRes.MagicUnarySymbols[exprID]; ok && symID.IsValid() {
+			operand := l.lowerExpr(unaryData.Operand)
+			return l.magicCallExpr(expr.Span, ty, symID, []*Expr{operand})
+		}
 	}
 
 	return &Expr{
@@ -524,10 +550,18 @@ func (l *lowerer) enumVariantLiteral(member *ast.ExprMemberData, ty types.TypeID
 }
 
 // lowerIndexExpr lowers an index expression.
-func (l *lowerer) lowerIndexExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+func (l *lowerer) lowerIndexExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	indexData := l.builder.Exprs.Indices.Get(uint32(expr.Payload))
 	if indexData == nil {
 		return nil
+	}
+
+	if l.semaRes != nil && l.semaRes.IndexSymbols != nil {
+		if symID, ok := l.semaRes.IndexSymbols[exprID]; ok && symID.IsValid() {
+			object := l.lowerExpr(indexData.Target)
+			index := l.lowerExpr(indexData.Index)
+			return l.magicCallExpr(expr.Span, ty, symID, []*Expr{object, index})
+		}
 	}
 
 	return &Expr{

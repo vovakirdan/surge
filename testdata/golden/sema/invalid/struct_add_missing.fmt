@@ -1,0 +1,10 @@
+type Point = {
+    x: int,
+    y: int,
+};
+
+fn main() {
+    let a: Point = { x: 1, y: 2 };
+    let b: Point = { x: 3, y: 4 };
+    let _ = a + b;
+}

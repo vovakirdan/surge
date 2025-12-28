@@ -1,0 +1,43 @@
+string_concat_chain_to.sg (span: 1:1-20:1)
+├─ Item[0]: Type (span: 1:1-4:3)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+├─ Item[1]: Extern (span: 6:1-12:2)
+│  ├─ Target: Point
+│  ├─ Members:
+│  │  └─ Fn[0]: __to
+│  │     ├─ Params: (self: &Point, _: string)
+│  │     ├─ Return: string
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 7:48-11:6)
+│  │        ├─ Stmt[0]: Let (span: 8:9-8:46)
+│  │        │  ├─ Name: x_str
+│  │        │  ├─ Mutable: false
+│  │        │  ├─ Type: string
+│  │        │  └─ Value: expr#3: self.x to string
+│  │        ├─ Stmt[1]: Let (span: 9:9-9:46)
+│  │        │  ├─ Name: y_str
+│  │        │  ├─ Mutable: false
+│  │        │  ├─ Type: string
+│  │        │  └─ Value: expr#6: self.y to string
+│  │        └─ Stmt[2]: Return (span: 10:9-10:63)
+│  │           └─ Expr: expr#15: ((((((("Point { x: " + x_str)) + ", y: ")) + y_str)) + " }")
+└─ Item[2]: Fn (span: 14:1-19:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 15:18-19:2)
+         ├─ Stmt[0]: Let (span: 16:5-16:35)
+         │  ├─ Name: p
+         │  ├─ Mutable: false
+         │  ├─ Type: Point
+         │  └─ Value: expr#20: <ExprKind(18)>
+         ├─ Stmt[1]: Expr (span: 17:5-17:24)
+         │  └─ Expr: expr#24: print(p to string)
+         └─ Stmt[2]: Return (span: 18:5-18:14)
+            └─ Expr: expr#25: 0

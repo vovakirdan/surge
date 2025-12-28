@@ -1,0 +1,14 @@
+type Box = {
+    x: int,
+};
+
+extern<Box> {
+    fn __add(self: &Box, other: &Box) -> Box {
+        return { x: self.x + other.x };
+    }
+}
+
+fn main() {
+    let b: Box = { x: 1 };
+    let _ = Box { x: 2 } + b;
+}

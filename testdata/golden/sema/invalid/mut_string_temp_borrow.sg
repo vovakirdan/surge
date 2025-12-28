@@ -1,0 +1,7 @@
+fn take_mut(s: &mut string) -> nothing {
+    let _ = s;
+}
+
+fn main() {
+    take_mut("temp");
+}

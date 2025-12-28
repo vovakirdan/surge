@@ -131,3 +131,28 @@ func (tc *typeChecker) isBorrowableStringLiteral(expr ast.ExprID, expected types
 	}
 	return tc.isStringType(tt.Elem)
 }
+
+func (tc *typeChecker) canMaterializeForRefString(expr ast.ExprID, expected types.TypeID) bool {
+	if expr == ast.NoExprID || expected == types.NoTypeID || tc.types == nil || tc.result == nil {
+		return false
+	}
+	expected = tc.resolveAlias(expected)
+	tt, ok := tc.types.Lookup(expected)
+	if !ok || tt.Kind != types.KindReference || tt.Mutable {
+		return false
+	}
+	if !tc.isStringType(tt.Elem) {
+		return false
+	}
+	actual := tc.result.ExprTypes[expr]
+	if actual == types.NoTypeID {
+		return false
+	}
+	if tc.isReferenceType(actual) {
+		return false
+	}
+	if tc.resolveAlias(actual) != tc.types.Builtins().String {
+		return false
+	}
+	return !tc.isAddressableExpr(expr)
+}
