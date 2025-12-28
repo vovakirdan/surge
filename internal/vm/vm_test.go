@@ -83,22 +83,10 @@ func compileToMIR(t *testing.T, filePath string) (*mir.Module, *source.FileSet, 
 }
 
 // compileToMIRFromSource compiles source code from a string via temp file.
-// Note: Changes to project root temporarily because driver.DiagnoseWithOptions
-// requires it for stdlib resolution.
 func compileToMIRFromSource(t *testing.T, sourceCode string) (*mir.Module, *source.FileSet, *types.Interner) {
 	t.Helper()
 
-	// Change to project root for driver
-	if err := os.Chdir("../.."); err != nil {
-		t.Fatalf("failed to change to project root: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir("internal/vm"); err != nil {
-			t.Errorf("failed to restore working directory: %v", err)
-		}
-	}()
-
-	tmpFile, err := os.CreateTemp(".", "test_*.sg")
+	tmpFile, err := os.CreateTemp(t.TempDir(), "test_*.sg")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}

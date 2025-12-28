@@ -12,9 +12,9 @@ const (
 )
 
 func detectStdlibRoot() string {
-	// Prefer a local checkout in the current working directory to keep
-	// diagnostics consistent with the sources we edit.
-	if root := resolveStdlibRoot("."); root != "" {
+	// Prefer a local checkout in the current working directory or its parents
+	// to keep diagnostics consistent with the sources we edit.
+	if root := resolveStdlibRootUpwards("."); root != "" {
 		return root
 	}
 
@@ -31,6 +31,27 @@ func detectStdlibRoot() string {
 	}
 	if root := resolveStdlibRoot("/usr/share/surge"); root != "" {
 		return root
+	}
+	return ""
+}
+
+func resolveStdlibRootUpwards(start string) string {
+	if start == "" {
+		return ""
+	}
+	dir, err := filepath.Abs(start)
+	if err != nil {
+		return ""
+	}
+	for {
+		if root := resolveStdlibRoot(dir); root != "" {
+			return root
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
 	}
 	return ""
 }

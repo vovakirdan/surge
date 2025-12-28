@@ -101,61 +101,61 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 	}
 	typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)
 
-	bestSym, bestType, bestArgs, ambiguous, ok, matchInfoMono := tc.selectBestCandidate(candidates, args, typeArgs, false)
-	if ambiguous {
+	selMono := tc.selectBestCandidate(candidates, args, typeArgs, false)
+	if selMono.ambiguous {
 		tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for %s", displayName)
 		return types.NoTypeID
 	}
-	if ok {
-		if sym := tc.symbolFromID(bestSym); sym != nil {
-			tc.materializeCallArguments(sym, args, bestArgs)
+	if selMono.ok {
+		if sym := tc.symbolFromID(selMono.sym); sym != nil {
+			tc.materializeCallArguments(sym, args, selMono.typeArgs)
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 			tc.recordImplicitConversionsForCall(sym, args)
 			tc.applyCallOwnership(sym, args)
-			tc.dropImplicitBorrowsForCall(sym, args, bestType)
+			tc.dropImplicitBorrowsForCall(sym, args, selMono.result)
 		}
 		// Check for deprecated function usage
-		tc.checkDeprecatedSymbol(bestSym, "function", span)
+		tc.checkDeprecatedSymbol(selMono.sym, "function", span)
 		note := "call"
-		if sym := tc.symbolFromID(bestSym); sym != nil && sym.Kind == symbols.SymbolTag {
+		if sym := tc.symbolFromID(selMono.sym); sym != nil && sym.Kind == symbols.SymbolTag {
 			note = "tag"
 		}
-		tc.rememberFunctionInstantiation(bestSym, bestArgs, span, note)
-		tc.recordCallSymbol(callID, bestSym)
+		tc.rememberFunctionInstantiation(selMono.sym, selMono.typeArgs, span, note)
+		tc.recordCallSymbol(callID, selMono.sym)
 		tc.checkArrayViewResizeCall(name, args, span)
-		return bestType
+		return selMono.result
 	}
 
-	bestSym, bestType, bestArgs, ambiguous, ok, matchInfoGeneric := tc.selectBestCandidate(candidates, args, typeArgs, true)
-	if ambiguous {
+	selGeneric := tc.selectBestCandidate(candidates, args, typeArgs, true)
+	if selGeneric.ambiguous {
 		tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for %s", displayName)
 		return types.NoTypeID
 	}
-	if ok {
-		if sym := tc.symbolFromID(bestSym); sym != nil {
-			tc.materializeCallArguments(sym, args, bestArgs)
+	if selGeneric.ok {
+		if sym := tc.symbolFromID(selGeneric.sym); sym != nil {
+			tc.materializeCallArguments(sym, args, selGeneric.typeArgs)
 			tc.validateFunctionCall(sym, call, tc.collectArgTypes(args))
 			tc.recordImplicitConversionsForCall(sym, args)
-			tc.dropImplicitBorrowsForCall(sym, args, bestType)
+			tc.dropImplicitBorrowsForCall(sym, args, selGeneric.result)
 		}
 		// Check for deprecated function usage
-		tc.checkDeprecatedSymbol(bestSym, "function", span)
+		tc.checkDeprecatedSymbol(selGeneric.sym, "function", span)
 		note := "call"
-		if sym := tc.symbolFromID(bestSym); sym != nil && sym.Kind == symbols.SymbolTag {
+		if sym := tc.symbolFromID(selGeneric.sym); sym != nil && sym.Kind == symbols.SymbolTag {
 			note = "tag"
 		}
-		tc.rememberFunctionInstantiation(bestSym, bestArgs, span, note)
-		tc.recordCallSymbol(callID, bestSym)
+		tc.rememberFunctionInstantiation(selGeneric.sym, selGeneric.typeArgs, span, note)
+		tc.recordCallSymbol(callID, selGeneric.sym)
 		tc.checkArrayViewResizeCall(name, args, span)
-		return bestType
+		return selGeneric.result
 	}
 
-	if matchInfoMono != nil && matchInfoMono.expr.IsValid() {
-		tc.reportBorrowFailure(matchInfoMono)
+	if selMono.matchInfo != nil && selMono.matchInfo.expr.IsValid() {
+		tc.reportBorrowFailure(selMono.matchInfo)
 		return types.NoTypeID
 	}
-	if matchInfoGeneric != nil && matchInfoGeneric.expr.IsValid() {
-		tc.reportBorrowFailure(matchInfoGeneric)
+	if selGeneric.matchInfo != nil && selGeneric.matchInfo.expr.IsValid() {
+		tc.reportBorrowFailure(selGeneric.matchInfo)
 		return types.NoTypeID
 	}
 	if len(call.TypeArgs) == 0 {

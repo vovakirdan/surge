@@ -569,6 +569,142 @@ Surge uses **pure ownership** (similar to Rust) for predictable performance:
 - More explicit lifetime management required
 - Better performance and predictability for target domains
 
+#### Borrow Rules (Aliasing XOR Mutation)
+
+The borrow checker enforces a fundamental invariant: **at any point in time, a value may have either multiple shared borrows OR exactly one mutable borrow, but never both**. This principle, sometimes called "aliasing XOR mutation," prevents data races and iterator invalidation at compile time.
+
+**The Two Laws:**
+
+1. **Shared borrows (`&T`) freeze the value.** While any `&T` reference exists, the underlying value cannot be mutated or moved. Multiple `&T` borrows to the same value may coexist—they only require read access.
+
+2. **Mutable borrows (`&mut T`) are exclusive.** While a `&mut T` reference exists, no other borrow (shared or mutable) may exist to the same value, and the original binding cannot be accessed directly until the borrow ends.
+
+**Conflict Examples:**
+
+```sg
+let mut x: int = 10;
+let r1: &int = &x;       // shared borrow starts
+let r2: &int = &x;       // OK: multiple shared borrows allowed
+x = 20;                  // ERROR: cannot mutate while shared-borrowed
+@drop r1;
+@drop r2;                // borrows end
+x = 20;                  // OK: no active borrows
+
+let mut y: int = 5;
+let m: &mut int = &mut y;  // exclusive borrow starts
+let r: &int = &y;          // ERROR: cannot take shared borrow while mutable borrow active
+@drop m;                   // borrow ends
+let r: &int = &y;          // OK
+```
+
+**Places and Projections:**
+
+The borrow checker tracks not just bindings, but *places*—addressable locations that may be projections of a base binding (fields, array indices, dereferences). Borrowing `&x.field` creates a borrow on a sub-place of `x`. Conflicting access to overlapping places is detected:
+
+```sg
+type Point = { x: int, y: int };
+let mut p: Point = Point { x: 1, y: 2 };
+let rx: &int = &p.x;      // borrow of p.x
+let ry: &int = &p.y;      // OK: disjoint field
+p.x = 10;                 // ERROR: p.x is borrowed
+p.y = 20;                 // ERROR: p is partially frozen (conservative)
+```
+
+**Lexical Lifetimes and Early Drop:**
+
+Borrow lifetimes in Surge are currently lexical—they extend to the end of the enclosing scope. To release a borrow early, use the `@drop` directive:
+
+```sg
+let mut data: string = "hello";
+{
+    let r: &string = &data;
+    // use r...
+    @drop r;               // explicit early release
+    data = "world";        // OK: borrow ended
+}
+```
+
+Future versions may introduce non-lexical lifetimes (NLL) for more precise tracking.
+
+#### Implicit Borrows and Moves
+
+Surge automatically inserts borrow and move operations in specific contexts to reduce syntactic noise while preserving ownership clarity.
+
+**Operator Calls (Magic Methods):**
+
+Binary and unary operators are desugared to magic method calls. These methods typically expect references, and Surge implicitly borrows operands when needed:
+
+```sg
+let a: string = "hello";
+let b: string = " world";
+let c: string = a + b;    // desugars to __add(&a, &b) -> own string
+```
+
+The `+` operator on strings calls `extern<string> { fn __add(self: &string, other: &string) -> own string; }`. The compiler:
+1. Sees that `__add` expects `&string` for both parameters
+2. Implicitly borrows `a` and `b` (equivalent to `__add(&a, &b)`)
+3. Returns an owned `string` result
+
+Since the borrows are temporary (used only for the duration of the call), they are released immediately after the operator completes. This allows chained operations:
+
+```sg
+let x: string = a + b + c;  // each intermediate result is owned, operands are borrowed
+```
+
+**Method Calls:**
+
+The same implicit borrow applies to method receivers and arguments:
+
+```sg
+fn len(self: &string) -> int;
+
+let s: string = "test";
+let n: int = s.len();     // implicitly: (&s).len()
+```
+
+**Temporary Value Promotion (Rvalue Materialization):**
+
+When a function expects `&T` (shared reference) but receives an rvalue (temporary value), Surge can "materialize" the temporary and borrow it. This is currently supported for **string literals and temporary strings** with **immutable borrows only**:
+
+```sg
+fn process(s: &string) -> int;
+
+process("literal");           // OK: string literal materialized, borrowed as &string
+process(get_string());        // OK: temporary string materialized, borrowed as &string
+```
+
+**Restrictions on Mutable Borrows of Temporaries:**
+
+Mutable borrows (`&mut T`) require an addressable location. Temporaries are not addressable, so attempting to pass an rvalue where `&mut T` is expected is an error:
+
+```sg
+fn modify(s: &mut string);
+
+modify("literal");            // ERROR: cannot take mutable reference to temporary
+let mut x: string = "hello";
+modify(x);                    // OK: x is implicitly borrowed as &mut x
+```
+
+**Move vs Borrow by Parameter Type:**
+
+The compiler infers move or borrow based on parameter types:
+
+| Parameter Type | Argument Type | Action |
+|---------------|---------------|--------|
+| `own T` | `T` / `own T` | Move (or copy if `Copy` type) |
+| `&T` | `T` | Implicit shared borrow |
+| `&T` | `&T` | Pass through (no extra borrow) |
+| `&mut T` | `mut T` | Implicit exclusive borrow |
+| `&mut T` | `&mut T` | Pass through (no extra borrow) |
+
+**Ownership for Operators Summary:**
+
+- Arithmetic on primitives (`int`, `float`): operands are `Copy`, no ownership transfer
+- String concatenation: operands borrowed (`&string`), result owned (`own string`)
+- Comparison operators: operands borrowed, result is `bool` (Copy)
+- Assignment `=`: right-hand side is moved (or copied for `Copy` types)
+- Compound assignment `+=`, etc.: left-hand side mutably borrowed, right-hand side borrowed or copied
+
 ### 2.12. Contracts (structural interfaces) and bounds
 
 **What:** Contracts are structural interfaces that state required fields and method signatures. They are used to constrain generic parameters and to describe APIs types must satisfy. A contract is declared with `contract Name<T, U> { ... }` containing only `field` requirements and `fn` signatures terminated by semicolons—method bodies are forbidden inside contracts (`SynUnexpectedToken`).

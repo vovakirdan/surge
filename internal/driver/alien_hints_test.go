@@ -4,21 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"surge/internal/diag"
 )
 
 func TestDiagnose_NoAlienHintsFlagSuppressesAlienDiagnostics(t *testing.T) {
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatalf("runtime.Caller failed")
-	}
-	projectRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
-
-	t.Setenv("SURGE_STDLIB", projectRoot)
-
 	fixtures := []struct {
 		Name       string
 		Src        string

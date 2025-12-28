@@ -243,9 +243,13 @@ func (tc *typeChecker) selectBestCandidate(
 	args []callArg,
 	typeArgs []types.TypeID,
 	wantGeneric bool,
-) (bestSym symbols.SymbolID, bestType types.TypeID, bestArgs []types.TypeID, ambiguous, ok bool, matchInfo *borrowMatchInfo) {
+) candidateSelection {
 	bestCost := -1
 	var info borrowMatchInfo
+	var bestSym symbols.SymbolID
+	var bestType types.TypeID
+	var bestArgs []types.TypeID
+	ambiguous := false
 	for _, symID := range candidates {
 		sym := tc.symbolFromID(symID)
 		if sym == nil || (sym.Kind != symbols.SymbolFunction && sym.Kind != symbols.SymbolTag) || sym.Signature == nil {
@@ -269,9 +273,32 @@ func (tc *typeChecker) selectBestCandidate(
 		}
 	}
 	if bestCost == -1 {
-		return symbols.NoSymbolID, types.NoTypeID, nil, false, false, &info
+		return candidateSelection{
+			sym:       symbols.NoSymbolID,
+			result:    types.NoTypeID,
+			typeArgs:  nil,
+			ambiguous: false,
+			ok:        false,
+			matchInfo: &info,
+		}
 	}
-	return bestSym, bestType, bestArgs, ambiguous, true, &info
+	return candidateSelection{
+		sym:       bestSym,
+		result:    bestType,
+		typeArgs:  bestArgs,
+		ambiguous: ambiguous,
+		ok:        true,
+		matchInfo: &info,
+	}
+}
+
+type candidateSelection struct {
+	sym       symbols.SymbolID
+	result    types.TypeID
+	typeArgs  []types.TypeID
+	ambiguous bool
+	ok        bool
+	matchInfo *borrowMatchInfo
 }
 
 func (tc *typeChecker) isGenericCandidate(sym *symbols.Symbol, typeArgs []types.TypeID) bool {

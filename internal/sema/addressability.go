@@ -47,13 +47,6 @@ func (tc *typeChecker) isAddressableExpr(expr ast.ExprID) bool {
 	return ok
 }
 
-func (tc *typeChecker) isMutAddressableExpr(expr ast.ExprID) bool {
-	if !tc.isAddressableExpr(expr) {
-		return false
-	}
-	return tc.isMutablePlaceExpr(expr)
-}
-
 func (tc *typeChecker) reportBorrowNonAddressable(expr ast.ExprID, mut bool) {
 	if !expr.IsValid() {
 		return

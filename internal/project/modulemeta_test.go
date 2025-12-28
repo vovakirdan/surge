@@ -48,17 +48,17 @@ func TestResolveImportPath(t *testing.T) {
 		},
 		{
 			name:       "sibling module",
-			modulePath: "testdata/test_imports/a",
+			modulePath: "examples/imports/a",
 			basePath:   "",
 			segments:   []string{"b"},
-			want:       "testdata/test_imports/b",
+			want:       "examples/imports/b",
 		},
 		{
 			name:       "absolute from base",
 			modulePath: "included/d",
-			basePath:   "testdata/test_imports",
-			segments:   []string{"testdata", "test_imports", "a"},
-			want:       "testdata/test_imports/a",
+			basePath:   "examples/imports",
+			segments:   []string{"examples", "imports", "a"},
+			want:       "examples/imports/a",
 		},
 	}
 

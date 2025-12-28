@@ -150,7 +150,11 @@ func (l *funcLowerer) staticStringGlobal(raw string) GlobalID {
 			return id
 		}
 	}
-	id := GlobalID(len(l.out.Globals))
+	gidRaw, err := safecast.Conv[int32](len(l.out.Globals))
+	if err != nil {
+		panic(fmt.Errorf("mir: global id overflow: %w", err))
+	}
+	id := GlobalID(gidRaw)
 	name := fmt.Sprintf("strlit$%d", id)
 	l.out.Globals = append(l.out.Globals, Global{
 		Sym:  symbols.NoSymbolID,

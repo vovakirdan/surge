@@ -1,7 +1,10 @@
 package sema
 
 import (
+	"fmt"
 	"strings"
+
+	"fortio.org/safecast"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
@@ -113,7 +116,11 @@ func (tc *typeChecker) buildMagicIndex() {
 				if sym.Kind != symbols.SymbolFunction || sym.ReceiverKey == "" || sym.Signature == nil {
 					continue
 				}
-				symID := symbols.SymbolID(i + 1) // Data() skips index 0
+				value, err := safecast.Conv[uint32](i + 1)
+				if err != nil {
+					panic(fmt.Errorf("sema: symbol id overflow: %w", err))
+				}
+				symID := symbols.SymbolID(value) // Data() skips index 0
 				recordID := symID
 				if sym.Flags&symbols.SymbolFlagBuiltin != 0 {
 					recordID = symbols.NoSymbolID
@@ -219,25 +226,6 @@ func (tc *typeChecker) magicResultForBinary(left, right types.TypeID, op ast.Exp
 		return tc.adjustAliasBinaryResult(res, lc, rc)
 	}
 	return types.NoTypeID
-}
-
-func (tc *typeChecker) magicSignatureForUnary(operand types.TypeID, op ast.ExprUnaryOp) (*symbols.FunctionSignature, typeKeyCandidate) {
-	name := magicNameForUnaryOp(op)
-	if name == "" {
-		return nil, typeKeyCandidate{}
-	}
-	for _, cand := range tc.typeKeyCandidates(operand) {
-		if cand.key == "" {
-			continue
-		}
-		for _, sig := range tc.lookupMagicMethods(cand.key, name) {
-			if sig == nil || !tc.signatureMatchesUnary(sig, operand, cand.key) {
-				continue
-			}
-			return sig, cand
-		}
-	}
-	return nil, typeKeyCandidate{}
 }
 
 func (tc *typeChecker) magicSignatureForUnaryExpr(operandExpr ast.ExprID, operand types.TypeID, op ast.ExprUnaryOp) (sig *symbols.FunctionSignature, cand typeKeyCandidate, ambiguous bool, borrowInfo borrowMatchInfo) {
@@ -460,31 +448,6 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 		}
 	}
 	return types.NoTypeID
-}
-
-func (tc *typeChecker) magicSignatureForIndex(container, index types.TypeID) *symbols.FunctionSignature {
-	if container == types.NoTypeID {
-		return nil
-	}
-	for _, recv := range tc.typeKeyCandidates(container) {
-		if recv.key == "" {
-			continue
-		}
-		methods := tc.lookupMagicMethods(recv.key, "__index")
-		for _, sig := range methods {
-			if sig == nil || len(sig.Params) < 2 {
-				continue
-			}
-			if !tc.selfParamCompatible(container, sig.Params[0], recv.key) {
-				continue
-			}
-			if !tc.methodParamMatches(sig.Params[1], index) {
-				continue
-			}
-			return sig
-		}
-	}
-	return nil
 }
 
 func (tc *typeChecker) magicSignatureForIndexExpr(containerExpr, indexExpr ast.ExprID, container, index types.TypeID) (sig *symbols.FunctionSignature, recvCand typeKeyCandidate, ambiguous bool, borrowInfo borrowMatchInfo) {

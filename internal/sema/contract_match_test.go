@@ -2,7 +2,6 @@ package sema
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
@@ -249,8 +248,59 @@ fn print_err<E: ErrorLike>(e: E) {
 }
 
 func TestContractsPositiveSample(t *testing.T) {
-	data := mustReadFile(t, "../../testdata/contracts_positive.sg")
-	builder, fileID, parseBag := parseSource(t, string(data))
+	src := `// Valid contract declarations demonstrating the new 'contract' syntax.
+
+contract ErrorLike{
+    field msg: string;
+    field code: uint;
+}
+
+pub contract Hashable<T>{
+    pub fn hash(self: T) -> uint;
+}
+
+type Error0 = {
+    msg: string;
+}
+
+type Error1 = {
+    msg: string;
+    code: uint;
+}
+
+type Error2 = {
+    msg: string;
+    code: uint;
+    name: string;
+}
+
+// stub for test (this test runs without stdlib)
+fn print(s: string) {
+    return nothing;
+}
+
+fn print_err<E: ErrorLike>(e: E) {
+    print(e.msg);
+}
+
+fn foo<H: Hashable<H>>(h: H) -> uint {
+    return h.hash();
+}
+
+fn bar(e: Error0) -> nothing {
+    print(e.msg);
+}
+
+fn main() {
+    let e0: Error0 = { msg: "error" };
+    let e1: Error1 = { msg: "error", code: 1 to uint };
+    let e2: Error2 = { msg: "error", code: 1 to uint, name: "error" };
+    // print_err(e0);
+    print_err(e1);
+    print_err(e2);
+}
+`
+	builder, fileID, parseBag := parseSource(t, src)
 	if parseBag.HasErrors() {
 		t.Fatalf("parse diagnostics: %s", diagnosticsSummary(parseBag))
 	}
@@ -363,13 +413,4 @@ fn demo() {
 	if bag.HasErrors() {
 		t.Fatalf("unexpected semantic diagnostics: %s", diagnosticsSummary(bag))
 	}
-}
-
-func mustReadFile(t *testing.T, path string) []byte {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read file: %v", err)
-	}
-	return data
 }

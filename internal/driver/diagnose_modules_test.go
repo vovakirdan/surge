@@ -3,7 +3,6 @@ package driver
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -19,12 +18,6 @@ import (
 )
 
 func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
-	prevStd := os.Getenv("SURGE_STDLIB")
-	_ = os.Setenv("SURGE_STDLIB", filepath.Join("..", ".."))
-	t.Cleanup(func() {
-		_ = os.Setenv("SURGE_STDLIB", prevStd)
-	})
-
 	fs := source.NewFileSet()
 	fileID := fs.AddVirtual("play.sg", []byte("fn main() {}"))
 	file := fs.Get(fileID)
