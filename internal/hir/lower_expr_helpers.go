@@ -126,7 +126,7 @@ func (l *lowerer) isNumericType(id types.TypeID) bool {
 		return false
 	}
 	typesIn := l.semaRes.TypeInterner
-	for depth := 0; depth < 8; depth++ {
+	for range 8 {
 		resolved := resolveAlias(typesIn, id, 0)
 		tt, ok := typesIn.Lookup(resolved)
 		if !ok {

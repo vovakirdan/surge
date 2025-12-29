@@ -93,6 +93,7 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 		if sig != nil {
 			if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
 				tc.recordMagicUnarySymbol(exprID, symID)
+				tc.recordMagicOpInstantiation(symID, operandType, span)
 			}
 			res := tc.typeFromKey(sig.Result)
 			if res != types.NoTypeID {
@@ -148,6 +149,7 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 	if sig != nil {
 		if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
 			tc.recordMagicBinarySymbol(exprID, symID)
+			tc.recordMagicOpInstantiation(symID, leftType, span)
 		}
 		res := tc.typeFromKey(sig.Result)
 		if res == types.NoTypeID {
@@ -221,6 +223,21 @@ func (tc *typeChecker) recordMagicUnarySymbol(exprID ast.ExprID, symID symbols.S
 		tc.result.MagicUnarySymbols = make(map[ast.ExprID]symbols.SymbolID)
 	}
 	tc.result.MagicUnarySymbols[exprID] = symID
+}
+
+func (tc *typeChecker) recordMagicOpInstantiation(symID symbols.SymbolID, recv types.TypeID, span source.Span) {
+	if tc == nil || !symID.IsValid() {
+		return
+	}
+	sym := tc.symbolFromID(symID)
+	if sym == nil || len(sym.TypeParams) == 0 {
+		return
+	}
+	recvArgs := tc.receiverTypeArgs(recv)
+	if len(recvArgs) == 0 || len(recvArgs) != len(sym.TypeParams) {
+		return
+	}
+	tc.rememberFunctionInstantiation(symID, recvArgs, span, "magic-op")
 }
 
 func (tc *typeChecker) recordMagicBinarySymbol(exprID ast.ExprID, symID symbols.SymbolID) {
