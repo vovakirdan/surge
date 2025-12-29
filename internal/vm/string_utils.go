@@ -108,7 +108,7 @@ func (vm *VM) repeatStringValue(val Value, count int) (Value, *VMError) {
 
 	var b strings.Builder
 	b.Grow(totalBytes)
-	for i := 0; i < count; i++ {
+	for range count {
 		b.WriteString(base)
 	}
 	h := vm.Heap.AllocStringWithCPLen(val.TypeID, b.String(), totalCP)

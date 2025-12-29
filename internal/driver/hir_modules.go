@@ -121,7 +121,7 @@ func appendRootModuleFiles(ctx context.Context, res *DiagnoseResult, combined *h
 				continue
 			}
 			fn.ID = *nextFnID
-			*nextFnID = *nextFnID + 1
+			*nextFnID++
 		}
 		combined.Funcs = append(combined.Funcs, rootHIR.Funcs...)
 		combined.Types = append(combined.Types, rootHIR.Types...)
@@ -163,7 +163,7 @@ func appendModuleRecordHIR(ctx context.Context, res *DiagnoseResult, rec *module
 				continue
 			}
 			fn.ID = *nextFnID
-			*nextFnID = *nextFnID + 1
+			*nextFnID++
 		}
 		combined.Funcs = append(combined.Funcs, modHIR.Funcs...)
 		combined.Types = append(combined.Types, modHIR.Types...)
