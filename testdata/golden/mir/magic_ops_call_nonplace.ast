@@ -1,0 +1,65 @@
+testdata/golden/mir/magic_ops_call_nonplace.sg (span: 1:1-28:1)
+├─ Item[0]: Type (span: 1:1-4:3)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+├─ Item[1]: Extern (span: 6:1-18:2)
+│  ├─ Target: Point
+│  ├─ Members:
+│  │  ├─ Fn[0]: __add
+│  │  │  ├─ Params: (self: &Point, other: &Point)
+│  │  │  ├─ Return: Point
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 7:52-9:6)
+│  │  │     └─ Stmt[0]: Return (span: 8:9-8:61)
+│  │  │        └─ Expr: expr#13: <ExprKind(18)>
+│  │  ├─ Fn[1]: __neg
+│  │  │  ├─ Params: (self: &Point)
+│  │  │  ├─ Return: Point
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 11:37-13:6)
+│  │  │     └─ Stmt[0]: Return (span: 12:9-12:43)
+│  │  │        └─ Expr: expr#22: <ExprKind(18)>
+│  │  └─ Fn[2]: __to
+│  │     ├─ Params: (self: &Point, target: int)
+│  │     ├─ Return: int
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 15:47-17:6)
+│  │        └─ Stmt[0]: Return (span: 16:9-16:32)
+│  │           └─ Expr: expr#27: (self.x + self.y)
+└─ Item[2]: Fn (span: 20:1-27:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 20:18-27:2)
+         ├─ Stmt[0]: Let (span: 21:5-21:36)
+         │  ├─ Name: p1
+         │  ├─ Mutable: false
+         │  ├─ Type: Point
+         │  └─ Value: expr#32: <ExprKind(18)>
+         ├─ Stmt[1]: Let (span: 22:5-22:36)
+         │  ├─ Name: p2
+         │  ├─ Mutable: false
+         │  ├─ Type: Point
+         │  └─ Value: expr#37: <ExprKind(18)>
+         ├─ Stmt[2]: Let (span: 23:5-23:23)
+         │  ├─ Name: sum
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#40: (p1 + p2)
+         ├─ Stmt[3]: Let (span: 24:5-24:20)
+         │  ├─ Name: neg
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#42: -sum
+         ├─ Stmt[4]: Let (span: 25:5-25:31)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#48: ((("a" + "b")) + "c")
+         └─ Stmt[5]: Return (span: 26:5-26:23)
+            └─ Expr: expr#50: neg to int

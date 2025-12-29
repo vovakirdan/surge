@@ -121,11 +121,11 @@ func (tc *typeChecker) buildMagicIndex() {
 					panic(fmt.Errorf("sema: symbol id overflow: %w", err))
 				}
 				symID := symbols.SymbolID(value) // Data() skips index 0
+				name := tc.symbolName(sym.Name)
 				recordID := symID
-				if sym.Flags&symbols.SymbolFlagBuiltin != 0 {
+				if sym.Flags&symbols.SymbolFlagBuiltin != 0 && !isOperatorMagicName(name) {
 					recordID = symbols.NoSymbolID
 				}
-				name := tc.symbolName(sym.Name)
 				if name == "__to" && !tc.acceptToSignature(sym.Signature, sym.ReceiverKey, sym) {
 					continue
 				}

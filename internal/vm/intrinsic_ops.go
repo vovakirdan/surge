@@ -5,6 +5,7 @@ import (
 
 	"fortio.org/safecast"
 
+	"surge/internal/ast"
 	"surge/internal/mir"
 	"surge/internal/types"
 	"surge/internal/vm/bignum"
@@ -260,18 +261,32 @@ func (vm *VM) handleTo(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 	if vmErr != nil {
 		return vmErr
 	}
+	ownsSrc := srcVal.IsHeap()
+	if srcVal.Kind == VKRef || srcVal.Kind == VKRefMut {
+		v, loadErr := vm.loadLocationRaw(srcVal.Loc)
+		if loadErr != nil {
+			return loadErr
+		}
+		srcVal = v
+		ownsSrc = false
+	}
 	dstLocal := call.Dst.Local
 	dstTy := frame.Locals[dstLocal].TypeID
 
 	converted, vmErr := vm.evalIntrinsicTo(srcVal, dstTy)
 	if vmErr != nil {
-		vm.dropValue(srcVal)
+		if ownsSrc {
+			vm.dropValue(srcVal)
+		}
 		return vmErr
 	}
 	vmErr = vm.writeLocal(frame, dstLocal, converted)
 	if vmErr != nil {
-		if !(srcVal.IsHeap() && converted.IsHeap() && srcVal.Kind == converted.Kind && srcVal.H == converted.H) {
+		if ownsSrc && !(srcVal.IsHeap() && converted.IsHeap() && srcVal.Kind == converted.Kind && srcVal.H == converted.H) {
 			vm.dropValue(srcVal)
+		}
+		if !ownsSrc && converted.IsHeap() {
+			vm.dropValue(converted)
 		}
 		return vmErr
 	}
@@ -280,8 +295,112 @@ func (vm *VM) handleTo(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 		Name:    frame.Locals[dstLocal].Name,
 		Value:   converted,
 	})
-	if !(srcVal.IsHeap() && converted.IsHeap() && srcVal.Kind == converted.Kind && srcVal.H == converted.H) {
+	if ownsSrc && !(srcVal.IsHeap() && converted.IsHeap() && srcVal.Kind == converted.Kind && srcVal.H == converted.H) {
 		vm.dropValue(srcVal)
+	}
+	return nil
+}
+
+func (vm *VM) handleMagicBinary(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite, name string, op ast.ExprBinaryOp) *VMError {
+	if !call.HasDst {
+		return vm.eb.makeError(PanicTypeMismatch, name+" requires a destination")
+	}
+	if len(call.Args) != 2 {
+		return vm.eb.makeError(PanicTypeMismatch, name+" requires 2 arguments")
+	}
+	left, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(left)
+	right, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(right)
+	if left.Kind == VKRef || left.Kind == VKRefMut {
+		v, loadErr := vm.loadLocationRaw(left.Loc)
+		if loadErr != nil {
+			return loadErr
+		}
+		left = v
+	}
+	if right.Kind == VKRef || right.Kind == VKRefMut {
+		v, loadErr := vm.loadLocationRaw(right.Loc)
+		if loadErr != nil {
+			return loadErr
+		}
+		right = v
+	}
+	res, vmErr := vm.evalBinaryOp(op, left, right)
+	if vmErr != nil {
+		return vmErr
+	}
+	dstLocal := call.Dst.Local
+	if res.TypeID == types.NoTypeID {
+		res.TypeID = frame.Locals[dstLocal].TypeID
+	}
+	if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
+		if res.IsHeap() {
+			vm.dropValue(res)
+		}
+		return vmErr
+	}
+	*writes = append(*writes, LocalWrite{
+		LocalID: dstLocal,
+		Name:    frame.Locals[dstLocal].Name,
+		Value:   res,
+	})
+	return nil
+}
+
+func (vm *VM) handleMagicUnary(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite, name string, op ast.ExprUnaryOp) *VMError {
+	if !call.HasDst {
+		return vm.eb.makeError(PanicTypeMismatch, name+" requires a destination")
+	}
+	if len(call.Args) != 1 {
+		return vm.eb.makeError(PanicTypeMismatch, name+" requires 1 argument")
+	}
+	operand, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	ownsOperand := operand.IsHeap()
+	if operand.Kind == VKRef || operand.Kind == VKRefMut {
+		v, loadErr := vm.loadLocationRaw(operand.Loc)
+		if loadErr != nil {
+			return loadErr
+		}
+		operand = v
+		ownsOperand = false
+	}
+	res, vmErr := vm.evalUnaryOp(op, operand)
+	if vmErr != nil {
+		if ownsOperand {
+			vm.dropValue(operand)
+		}
+		return vmErr
+	}
+	dstLocal := call.Dst.Local
+	if res.TypeID == types.NoTypeID {
+		res.TypeID = frame.Locals[dstLocal].TypeID
+	}
+	if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
+		if res.IsHeap() && res != operand {
+			vm.dropValue(res)
+		}
+		if ownsOperand {
+			vm.dropValue(operand)
+		}
+		return vmErr
+	}
+	*writes = append(*writes, LocalWrite{
+		LocalID: dstLocal,
+		Name:    frame.Locals[dstLocal].Name,
+		Value:   res,
+	})
+	if ownsOperand && res != operand {
+		vm.dropValue(operand)
 	}
 	return nil
 }

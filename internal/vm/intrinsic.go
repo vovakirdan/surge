@@ -3,6 +3,7 @@ package vm
 import (
 	"strings"
 
+	"surge/internal/ast"
 	"surge/internal/mir"
 )
 
@@ -120,6 +121,45 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 	case "__to":
 		return vm.handleTo(frame, call, writes)
+
+	case "__add":
+		return vm.handleMagicBinary(frame, call, writes, "__add", ast.ExprBinaryAdd)
+	case "__sub":
+		return vm.handleMagicBinary(frame, call, writes, "__sub", ast.ExprBinarySub)
+	case "__mul":
+		return vm.handleMagicBinary(frame, call, writes, "__mul", ast.ExprBinaryMul)
+	case "__div":
+		return vm.handleMagicBinary(frame, call, writes, "__div", ast.ExprBinaryDiv)
+	case "__mod":
+		return vm.handleMagicBinary(frame, call, writes, "__mod", ast.ExprBinaryMod)
+	case "__bit_and":
+		return vm.handleMagicBinary(frame, call, writes, "__bit_and", ast.ExprBinaryBitAnd)
+	case "__bit_or":
+		return vm.handleMagicBinary(frame, call, writes, "__bit_or", ast.ExprBinaryBitOr)
+	case "__bit_xor":
+		return vm.handleMagicBinary(frame, call, writes, "__bit_xor", ast.ExprBinaryBitXor)
+	case "__shl":
+		return vm.handleMagicBinary(frame, call, writes, "__shl", ast.ExprBinaryShiftLeft)
+	case "__shr":
+		return vm.handleMagicBinary(frame, call, writes, "__shr", ast.ExprBinaryShiftRight)
+	case "__eq":
+		return vm.handleMagicBinary(frame, call, writes, "__eq", ast.ExprBinaryEq)
+	case "__ne":
+		return vm.handleMagicBinary(frame, call, writes, "__ne", ast.ExprBinaryNotEq)
+	case "__lt":
+		return vm.handleMagicBinary(frame, call, writes, "__lt", ast.ExprBinaryLess)
+	case "__le":
+		return vm.handleMagicBinary(frame, call, writes, "__le", ast.ExprBinaryLessEq)
+	case "__gt":
+		return vm.handleMagicBinary(frame, call, writes, "__gt", ast.ExprBinaryGreater)
+	case "__ge":
+		return vm.handleMagicBinary(frame, call, writes, "__ge", ast.ExprBinaryGreaterEq)
+	case "__pos":
+		return vm.handleMagicUnary(frame, call, writes, "__pos", ast.ExprUnaryPlus)
+	case "__neg":
+		return vm.handleMagicUnary(frame, call, writes, "__neg", ast.ExprUnaryMinus)
+	case "__not":
+		return vm.handleMagicUnary(frame, call, writes, "__not", ast.ExprUnaryNot)
 
 	default:
 		return vm.eb.unsupportedIntrinsic(name)

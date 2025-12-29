@@ -1,0 +1,27 @@
+type Point = {
+    x: int,
+    y: int,
+};
+
+extern<Point> {
+    fn __add(self: &Point, other: &Point) -> Point {
+        return { x: self.x + other.x, y: self.y + other.y };
+    }
+
+    fn __neg(self: &Point) -> Point {
+        return { x: -self.x, y: -self.y };
+    }
+
+    fn __to(self: &Point, target: int) -> int {
+        return self.x + self.y;
+    }
+}
+
+fn main() -> int {
+    let p1: Point = { x: 1, y: 2 };
+    let p2: Point = { x: 3, y: 4 };
+    let sum = p1 + p2;
+    let neg = -sum;
+    let s = ("a" + "b") + "c";
+    return neg to int;
+}
