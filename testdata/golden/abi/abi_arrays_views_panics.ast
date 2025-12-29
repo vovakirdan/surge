@@ -1,4 +1,4 @@
-testdata/golden/abi/abi_arrays_views_panics.sg (span: 1:1-15:1)
+abi_arrays_views_panics.sg (span: 1:1-15:1)
 ├─ Item[0]: Fn (span: 1:1-6:2)
 │  ├─ Name: maybe_view
 │  ├─ Params: (a: int[], use_view: bool)

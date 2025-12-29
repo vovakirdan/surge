@@ -1,4 +1,4 @@
-testdata/golden/abi/abi_core_sizes.sg (span: 1:1-62:1)
+abi_core_sizes.sg (span: 1:1-62:1)
 ├─ Item[0]: Fn (span: 1:1-5:2)
 │  ├─ Name: write_line
 │  ├─ Params: (s: string)

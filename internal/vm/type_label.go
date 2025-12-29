@@ -167,19 +167,19 @@ func formatEnumType(typesIn *types.Interner, id types.TypeID, depth int) string 
 	return name + "<" + strings.Join(args, ", ") + ">"
 }
 
-func lookupName(strings *source.Interner, id source.StringID) (string, bool) {
-	if strings == nil {
+func lookupName(stringsIn *source.Interner, id source.StringID) (string, bool) {
+	if stringsIn == nil {
 		return "", false
 	}
-	name, ok := strings.Lookup(id)
+	name, ok := stringsIn.Lookup(id)
 	if !ok || name == "" {
 		return "", false
 	}
 	return name, true
 }
 
-func lookupNameFallback(strings *source.Interner, id source.StringID) string {
-	if name, ok := lookupName(strings, id); ok {
+func lookupNameFallback(stringsIn *source.Interner, id source.StringID) string {
+	if name, ok := lookupName(stringsIn, id); ok {
 		return name
 	}
 	return "?"

@@ -102,44 +102,53 @@
 102: RBracket        "]" at 14:30-14:31
 103: RBracket        "]" at 14:31-14:32
 104: Semicolon       ";" at 14:32-14:33
-105: Ident           "print_uint" at 16:5-16:15 (leading: Newline, Space)
-106: LParen          "(" at 16:15-16:16
-107: Ident           "len" at 16:16-16:19
-108: LParen          "(" at 16:19-16:20
-109: Amp             "&" at 16:20-16:21
-110: Ident           "view" at 16:21-16:25
-111: RParen          ")" at 16:25-16:26
-112: RParen          ")" at 16:26-16:27
-113: Semicolon       ";" at 16:27-16:28
-114: Ident           "view" at 18:5-18:9 (leading: Newline, Space)
-115: LBracket        "[" at 18:9-18:10
-116: IntLit          "1" at 18:10-18:11
-117: RBracket        "]" at 18:11-18:12
-118: Assign          "=" at 18:13-18:14 (leading: Space)
-119: IntLit          "99" at 18:15-18:17 (leading: Space)
-120: Semicolon       ";" at 18:17-18:18
-121: Ident           "print_uint" at 19:5-19:15 (leading: Newline, Space)
-122: LParen          "(" at 19:15-19:16
-123: Ident           "base" at 19:16-19:20
-124: LBracket        "[" at 19:20-19:21
-125: IntLit          "2" at 19:21-19:22
-126: RBracket        "]" at 19:22-19:23
-127: KwTo            "to" at 19:24-19:26 (leading: Space)
-128: Ident           "uint" at 19:27-19:31 (leading: Space)
-129: RParen          ")" at 19:31-19:32
-130: Semicolon       ";" at 19:32-19:33
-131: Ident           "print_uint" at 20:5-20:15 (leading: Newline, Space)
-132: LParen          "(" at 20:15-20:16
-133: Ident           "view" at 20:16-20:20
-134: LBracket        "[" at 20:20-20:21
-135: IntLit          "1" at 20:21-20:22
-136: RBracket        "]" at 20:22-20:23
-137: KwTo            "to" at 20:24-20:26 (leading: Space)
-138: Ident           "uint" at 20:27-20:31 (leading: Space)
-139: RParen          ")" at 20:31-20:32
-140: Semicolon       ";" at 20:32-20:33
-141: KwReturn        "return" at 22:5-22:11 (leading: Newline, Space)
-142: IntLit          "0" at 22:12-22:13 (leading: Space)
-143: Semicolon       ";" at 22:13-22:14
-144: RBrace          "}" at 23:1-23:2 (leading: Newline)
-145: EOF             at 24:1-24:1
+105: LBrace          "{" at 16:5-16:6 (leading: Newline, Space)
+106: KwLet           "let" at 17:9-17:12 (leading: Newline, Space)
+107: Ident           "vlen" at 17:13-17:17 (leading: Space)
+108: Colon           ":" at 17:17-17:18
+109: Ident           "uint" at 17:19-17:23 (leading: Space)
+110: Assign          "=" at 17:24-17:25 (leading: Space)
+111: Ident           "len" at 17:26-17:29 (leading: Space)
+112: LParen          "(" at 17:29-17:30
+113: Amp             "&" at 17:30-17:31
+114: Ident           "view" at 17:31-17:35
+115: RParen          ")" at 17:35-17:36
+116: Semicolon       ";" at 17:36-17:37
+117: Ident           "print_uint" at 18:9-18:19 (leading: Newline, Space)
+118: LParen          "(" at 18:19-18:20
+119: Ident           "vlen" at 18:20-18:24
+120: RParen          ")" at 18:24-18:25
+121: Semicolon       ";" at 18:25-18:26
+122: RBrace          "}" at 19:5-19:6 (leading: Newline, Space)
+123: Ident           "view" at 21:5-21:9 (leading: Newline, Space)
+124: LBracket        "[" at 21:9-21:10
+125: IntLit          "1" at 21:10-21:11
+126: RBracket        "]" at 21:11-21:12
+127: Assign          "=" at 21:13-21:14 (leading: Space)
+128: IntLit          "99" at 21:15-21:17 (leading: Space)
+129: Semicolon       ";" at 21:17-21:18
+130: Ident           "print_uint" at 22:5-22:15 (leading: Newline, Space)
+131: LParen          "(" at 22:15-22:16
+132: Ident           "base" at 22:16-22:20
+133: LBracket        "[" at 22:20-22:21
+134: IntLit          "2" at 22:21-22:22
+135: RBracket        "]" at 22:22-22:23
+136: KwTo            "to" at 22:24-22:26 (leading: Space)
+137: Ident           "uint" at 22:27-22:31 (leading: Space)
+138: RParen          ")" at 22:31-22:32
+139: Semicolon       ";" at 22:32-22:33
+140: Ident           "print_uint" at 23:5-23:15 (leading: Newline, Space)
+141: LParen          "(" at 23:15-23:16
+142: Ident           "view" at 23:16-23:20
+143: LBracket        "[" at 23:20-23:21
+144: IntLit          "1" at 23:21-23:22
+145: RBracket        "]" at 23:22-23:23
+146: KwTo            "to" at 23:24-23:26 (leading: Space)
+147: Ident           "uint" at 23:27-23:31 (leading: Space)
+148: RParen          ")" at 23:31-23:32
+149: Semicolon       ";" at 23:32-23:33
+150: KwReturn        "return" at 25:5-25:11 (leading: Newline, Space)
+151: IntLit          "0" at 25:12-25:13 (leading: Space)
+152: Semicolon       ";" at 25:13-25:14
+153: RBrace          "}" at 26:1-26:2 (leading: Newline)
+154: EOF             at 27:1-27:1

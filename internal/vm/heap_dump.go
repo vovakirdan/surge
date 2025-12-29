@@ -176,7 +176,7 @@ func heapDumpRecordForRaw(alloc *rawAlloc) heapDumpRecord {
 	return rec
 }
 
-func (rec heapDumpRecord) formatLine() string {
+func (rec *heapDumpRecord) formatLine() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "OBJ type=%s size=%d rc=%d kind=%s refs=%d", rec.typeName, rec.size, rec.rc, rec.kind, rec.refs)
 	if rec.repr != "" {

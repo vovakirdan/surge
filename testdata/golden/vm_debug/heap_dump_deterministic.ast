@@ -1,4 +1,4 @@
-testdata/golden/vm_debug/heap_dump_deterministic.sg (span: 1:1-22:1)
+heap_dump_deterministic.sg (span: 1:1-22:1)
 └─ Item[0]: Fn (span: 1:1-21:2)
    ├─ Name: main
    ├─ Params: ()

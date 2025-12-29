@@ -1,4 +1,4 @@
-testdata/golden/abi/abi_arrays_views.sg (span: 1:1-24:1)
+abi_arrays_views.sg (span: 1:1-27:1)
 ├─ Item[0]: Fn (span: 1:1-5:2)
 │  ├─ Name: write_line
 │  ├─ Params: (s: string)
@@ -22,12 +22,12 @@ testdata/golden/abi/abi_arrays_views.sg (span: 1:1-24:1)
 │     └─ Stmt[0]: Block (span: 7:35-9:2)
 │        └─ Stmt[0]: Expr (span: 8:5-8:29)
 │           └─ Expr: expr#23: write_line(u to string)
-└─ Item[2]: Fn (span: 11:1-23:2)
+└─ Item[2]: Fn (span: 11:1-26:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 12:18-23:2)
+      └─ Stmt[0]: Block (span: 12:18-26:2)
          ├─ Stmt[0]: Let (span: 13:5-13:48)
          │  ├─ Name: base
          │  ├─ Mutable: true
@@ -38,13 +38,19 @@ testdata/golden/abi/abi_arrays_views.sg (span: 1:1-24:1)
          │  ├─ Mutable: true
          │  ├─ Type: <inferred>
          │  └─ Value: expr#35: base[[1..4]]
-         ├─ Stmt[2]: Expr (span: 16:5-16:28)
-         │  └─ Expr: expr#41: print_uint(len(&view))
-         ├─ Stmt[3]: Expr (span: 18:5-18:18)
-         │  └─ Expr: expr#46: (view[1] = 99)
-         ├─ Stmt[4]: Expr (span: 19:5-19:33)
-         │  └─ Expr: expr#52: print_uint(base[2] to uint)
-         ├─ Stmt[5]: Expr (span: 20:5-20:33)
-         │  └─ Expr: expr#58: print_uint(view[1] to uint)
-         └─ Stmt[6]: Return (span: 22:5-22:14)
-            └─ Expr: expr#59: 0
+         ├─ Stmt[2]: Block (span: 16:5-19:6)
+         │  ├─ Stmt[0]: Let (span: 17:9-17:37)
+         │  │  ├─ Name: vlen
+         │  │  ├─ Mutable: false
+         │  │  ├─ Type: uint
+         │  │  └─ Value: expr#39: len(&view)
+         │  └─ Stmt[1]: Expr (span: 18:9-18:26)
+         │     └─ Expr: expr#42: print_uint(vlen)
+         ├─ Stmt[3]: Expr (span: 21:5-21:18)
+         │  └─ Expr: expr#47: (view[1] = 99)
+         ├─ Stmt[4]: Expr (span: 22:5-22:33)
+         │  └─ Expr: expr#53: print_uint(base[2] to uint)
+         ├─ Stmt[5]: Expr (span: 23:5-23:33)
+         │  └─ Expr: expr#59: print_uint(view[1] to uint)
+         └─ Stmt[6]: Return (span: 25:5-25:14)
+            └─ Expr: expr#60: 0

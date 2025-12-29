@@ -140,10 +140,3 @@ func (i *Inspector) localValueString(slot *LocalSlot) string {
 	}
 	return slot.V.String()
 }
-
-func (i *Inspector) tagName(obj *Object) string {
-	if i == nil || i.vm == nil {
-		return "<unknown>"
-	}
-	return i.vm.tagName(obj)
-}

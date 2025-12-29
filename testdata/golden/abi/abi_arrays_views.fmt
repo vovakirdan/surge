@@ -13,7 +13,10 @@ fn main() -> int {
     let mut base: int[] = [10, 20, 30, 40, 50];
     let mut view = base[[1..4]];
 
-    print_uint(len(&view));
+    {
+        let vlen: uint = len(&view);
+        print_uint(vlen);
+    }
 
     view[1] = 99;
     print_uint(base[2] to uint);

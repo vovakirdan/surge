@@ -23,6 +23,14 @@ type heapStatsSnapshot struct {
 	rcDecrCount uint64
 }
 
+func safeUint64FromInt(n int) uint64 {
+	if n <= 0 {
+		return 0
+	}
+	// #nosec G115 -- negative sizes are clamped above; sizes are non-negative by construction.
+	return uint64(n)
+}
+
 func (vm *VM) heapStatsSnapshot() heapStatsSnapshot {
 	if vm == nil {
 		return heapStatsSnapshot{}
@@ -65,9 +73,9 @@ func (vm *VM) heapObjectBytes(obj *Object) uint64 {
 	switch obj.Kind {
 	case OKString:
 		if vm != nil {
-			return uint64(vm.stringByteLen(obj))
+			return safeUint64FromInt(vm.stringByteLen(obj))
 		}
-		return uint64(len(obj.Str))
+		return safeUint64FromInt(len(obj.Str))
 	case OKArray:
 		elemSize := vm.arrayElemSize(obj)
 		if elemSize == 0 {
@@ -79,7 +87,7 @@ func (vm *VM) heapObjectBytes(obj *Object) uint64 {
 	case OKStruct, OKTag, OKRange:
 		if vm != nil && vm.Layout != nil && obj.TypeID != types.NoTypeID {
 			if size, err := vm.Layout.SizeOf(obj.TypeID); err == nil {
-				return uint64(size)
+				return safeUint64FromInt(size)
 			}
 		}
 		return 0
@@ -101,7 +109,7 @@ func (vm *VM) arrayElemSize(obj *Object) uint64 {
 	elemType := vm.arrayElemType(obj)
 	if elemType != types.NoTypeID {
 		if size, err := vm.Layout.SizeOf(elemType); err == nil {
-			return uint64(size)
+			return safeUint64FromInt(size)
 		}
 	}
 	for i := range obj.Arr {
@@ -109,7 +117,7 @@ func (vm *VM) arrayElemSize(obj *Object) uint64 {
 			continue
 		}
 		if size, err := vm.Layout.SizeOf(vm.valueType(obj.Arr[i].TypeID)); err == nil {
-			return uint64(size)
+			return safeUint64FromInt(size)
 		}
 	}
 	return 0
