@@ -35,13 +35,13 @@ func (l Location) String() string {
 	case LKGlobal:
 		return fmt.Sprintf("G%d", l.Global)
 	case LKStructField:
-		return fmt.Sprintf("struct#%d.field[%d]", l.Handle, l.Index)
+		return fmt.Sprintf("struct.field[%d]", l.Index)
 	case LKArrayElem:
-		return fmt.Sprintf("array#%d[%d]", l.Handle, l.Index)
+		return fmt.Sprintf("array[%d]", l.Index)
 	case LKStringBytes:
-		return fmt.Sprintf("string#%d.bytes+%d", l.Handle, l.ByteOffset)
+		return fmt.Sprintf("string.bytes+%d", l.ByteOffset)
 	case LKRawBytes:
-		return fmt.Sprintf("raw#%d+%d", l.Handle, l.ByteOffset)
+		return fmt.Sprintf("raw+%d", l.ByteOffset)
 	default:
 		return "<invalid-loc>"
 	}

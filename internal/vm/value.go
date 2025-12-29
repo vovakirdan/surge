@@ -114,21 +114,21 @@ func (v Value) String() string {
 	case VKPtr:
 		return fmt.Sprintf("*%s", v.Loc)
 	case VKHandleString:
-		return fmt.Sprintf("string#%d", v.H)
+		return "string"
 	case VKHandleArray:
-		return fmt.Sprintf("array#%d", v.H)
+		return "array"
 	case VKHandleStruct:
-		return fmt.Sprintf("struct#%d", v.H)
+		return "struct"
 	case VKHandleTag:
-		return fmt.Sprintf("tag#%d", v.H)
+		return "tag"
 	case VKHandleRange:
-		return fmt.Sprintf("range#%d", v.H)
+		return "range"
 	case VKBigInt:
-		return fmt.Sprintf("bigint#%d", v.H)
+		return "bigint"
 	case VKBigUint:
-		return fmt.Sprintf("biguint#%d", v.H)
+		return "biguint"
 	case VKBigFloat:
-		return fmt.Sprintf("bigfloat#%d", v.H)
+		return "bigfloat"
 	default:
 		return fmt.Sprintf("<unknown:%d>", v.Kind)
 	}

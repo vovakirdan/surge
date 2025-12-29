@@ -19,23 +19,24 @@ type Options struct {
 
 // VM is a direct MIR interpreter.
 type VM struct {
-	M          *mir.Module
-	Stack      []Frame
-	Globals    []LocalSlot
-	RT         Runtime
-	Recorder   *Recorder
-	Replayer   *Replayer
-	Trace      *Tracer
-	Files      *source.FileSet
-	Types      *types.Interner
-	Layout     *layout.LayoutEngine
-	Heap       *Heap
-	rawMem     *rawMemory
-	layouts    *layoutCache
-	tagLayouts *TagLayouts
-	ExitCode   int
-	Halted     bool
-	started    bool
+	M            *mir.Module
+	Stack        []Frame
+	Globals      []LocalSlot
+	RT           Runtime
+	Recorder     *Recorder
+	Replayer     *Replayer
+	Trace        *Tracer
+	Files        *source.FileSet
+	Types        *types.Interner
+	Layout       *layout.LayoutEngine
+	Heap         *Heap
+	rawMem       *rawMemory
+	heapCounters heapCounters
+	layouts      *layoutCache
+	tagLayouts   *TagLayouts
+	ExitCode     int
+	Halted       bool
+	started      bool
 
 	eb *errorBuilder // for creating errors with backtrace
 }

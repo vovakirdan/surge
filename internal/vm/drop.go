@@ -109,7 +109,7 @@ func (vm *VM) checkLeaksOrPanic() {
 		leakCount++
 		kindCounts[obj.Kind]++
 		if len(list) < maxList {
-			list = append(list, fmt.Sprintf("%s#%d(rc=%d,type=type#%d)", vm.objectKindLabel(obj.Kind), h, obj.RefCount, obj.TypeID))
+			list = append(list, vm.objectSummary(obj))
 		}
 	}
 	if leakCount == 0 {

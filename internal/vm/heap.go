@@ -46,6 +46,10 @@ func (h *Heap) alloc(kind ObjectKind, typeID types.TypeID) (Handle, *Object) {
 		AllocID: allocID,
 	}
 	h.objs[handle] = obj
+	if h.vm != nil {
+		h.vm.heapCounters.allocCount++
+		h.vm.heapCounters.rcIncrCount++
+	}
 	return handle, obj
 }
 
@@ -280,6 +284,9 @@ func (h *Heap) Retain(handle Handle) {
 	if obj.RefCount == 0 {
 		h.panic(PanicUnimplemented, fmt.Sprintf("refcount overflow: handle %d (alloc=%d)", handle, obj.AllocID))
 	}
+	if h.vm != nil {
+		h.vm.heapCounters.rcIncrCount++
+	}
 
 	if h.vm != nil && h.vm.Trace != nil {
 		h.vm.Trace.TraceHeapRetain(obj.Kind, handle, obj.RefCount)
@@ -300,6 +307,9 @@ func (h *Heap) Release(handle Handle) {
 	}
 
 	obj.RefCount--
+	if h.vm != nil {
+		h.vm.heapCounters.rcDecrCount++
+	}
 	if h.vm != nil && h.vm.Trace != nil {
 		h.vm.Trace.TraceHeapRelease(obj.Kind, handle, obj.RefCount)
 	}
@@ -324,10 +334,13 @@ func (h *Heap) Free(handle Handle) {
 		h.panic(PanicUnimplemented, fmt.Sprintf("free called with non-zero refcount: handle %d rc=%d (alloc=%d)", handle, obj.RefCount, obj.AllocID))
 	}
 
+	if h.vm != nil {
+		h.vm.heapCounters.freeCount++
+	}
 	obj.Freed = true
 
 	if h.vm != nil && h.vm.Trace != nil {
-		h.vm.Trace.TraceHeapFree(handle)
+		h.vm.Trace.TraceHeapFree(obj.Kind, obj)
 	}
 
 	switch obj.Kind {

@@ -46,6 +46,23 @@ extern<Range<T>> {
     @intrinsic pub fn next(self: &mut Range<T>) -> Option<T>;
 }
 
+pub type HeapStats = {
+    alloc_count: uint,
+    free_count: uint,
+    live_blocks: uint,
+    live_bytes: uint,
+    rc_increments: uint,
+    rc_decrements: uint,
+};
+
+// Heap stats are deterministic within a run.
+// alloc/free include heap objects and raw memory blocks.
+// live_bytes sums per-object payload bytes (strings use UTF-8 byte length; arrays use len*elem_size;
+// views count 0; structs/tags/ranges use layout size; big numbers use limb bytes; raw uses alloc size).
+@intrinsic pub fn rt_heap_stats() -> HeapStats;
+// Deterministic heap summary with no addresses or allocation IDs.
+@intrinsic pub fn rt_heap_dump() -> string;
+
 pub type Task<T> = {
     __opaque: int,
 };

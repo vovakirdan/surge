@@ -53,6 +53,12 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_string_bytes_view":
 		return vm.handleStringBytesView(frame, call, writes)
 
+	case "rt_heap_stats":
+		return vm.handleHeapStats(frame, call, writes)
+
+	case "rt_heap_dump":
+		return vm.handleHeapDump(frame, call, writes)
+
 	case "rt_range_int_new":
 		return vm.handleRangeIntNew(frame, call, writes)
 

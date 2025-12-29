@@ -1,0 +1,126 @@
+testdata/golden/vm_debug/heap_stats_smoke.sg (span: 1:1-39:1)
+└─ Item[0]: Fn (span: 1:1-38:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-38:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:34)
+         │  ├─ Name: ok_live
+         │  ├─ Mutable: true
+         │  ├─ Type: bool
+         │  └─ Value: expr#1: true
+         ├─ Stmt[1]: Let (span: 4:5-4:34)
+         │  ├─ Name: ok_free
+         │  ├─ Mutable: true
+         │  ├─ Type: bool
+         │  └─ Value: expr#2: true
+         ├─ Stmt[2]: Let (span: 5:5-5:35)
+         │  ├─ Name: ok_bytes
+         │  ├─ Mutable: true
+         │  ├─ Type: bool
+         │  └─ Value: expr#3: true
+         ├─ Stmt[3]: Block (span: 7:5-32:6)
+         │  ├─ Stmt[0]: Let (span: 8:9-8:32)
+         │  │  ├─ Name: s
+         │  │  ├─ Mutable: true
+         │  │  ├─ Type: string
+         │  │  └─ Value: expr#4: ""
+         │  ├─ Stmt[1]: Let (span: 9:9-9:28)
+         │  │  ├─ Name: i
+         │  │  ├─ Mutable: true
+         │  │  ├─ Type: int
+         │  │  └─ Value: expr#5: 0
+         │  ├─ Stmt[2]: While (span: 10:9-13:10)
+         │  │  ├─ Cond: expr#8: (i < 16)
+         │  │  └─ Body:
+Block (span: 10:22-13:10)
+         │  │     ├─ Stmt[0]: Expr (span: 11:13-11:34)
+         │  │     │  └─ Expr: expr#13: (s = ((s + "abcdefghij")))
+         │  │     └─ Stmt[1]: Expr (span: 12:13-12:23)
+         │  │        └─ Expr: expr#18: (i = ((i + 1)))
+         │  ├─ Stmt[3]: Let (span: 14:9-14:42)
+         │  │  ├─ Name: t
+         │  │  ├─ Mutable: false
+         │  │  ├─ Type: string
+         │  │  └─ Value: expr#21: (s + "klmnopqrst")
+         │  ├─ Stmt[4]: Let (span: 15:9-15:56)
+         │  │  ├─ Name: a
+         │  │  ├─ Mutable: false
+         │  │  ├─ Type: int[]
+         │  │  └─ Value: expr#32: <ExprKind(8)>
+         │  ├─ Stmt[5]: Let (span: 16:9-16:65)
+         │  │  ├─ Name: b
+         │  │  ├─ Mutable: false
+         │  │  ├─ Type: int[]
+         │  │  └─ Value: expr#43: <ExprKind(8)>
+         │  ├─ Stmt[6]: Let (span: 17:9-17:65)
+         │  │  ├─ Name: c
+         │  │  ├─ Mutable: false
+         │  │  ├─ Type: int[]
+         │  │  └─ Value: expr#54: <ExprKind(8)>
+         │  ├─ Stmt[7]: Let (span: 18:9-18:65)
+         │  │  ├─ Name: d
+         │  │  ├─ Mutable: false
+         │  │  ├─ Type: int[]
+         │  │  └─ Value: expr#65: <ExprKind(8)>
+         │  ├─ Stmt[8]: Let (span: 20:9-20:52)
+         │  │  ├─ Name: stats_mid
+         │  │  ├─ Mutable: false
+         │  │  ├─ Type: HeapStats
+         │  │  └─ Value: expr#67: rt_heap_stats()
+         │  ├─ Stmt[9]: StmtKind(12) (span: 21:9-21:17)
+         │  ├─ Stmt[10]: StmtKind(12) (span: 22:9-22:17)
+         │  ├─ Stmt[11]: StmtKind(12) (span: 23:9-23:17)
+         │  ├─ Stmt[12]: StmtKind(12) (span: 24:9-24:17)
+         │  ├─ Stmt[13]: StmtKind(12) (span: 25:9-25:17)
+         │  ├─ Stmt[14]: StmtKind(12) (span: 26:9-26:17)
+         │  ├─ Stmt[15]: Let (span: 28:9-28:54)
+         │  │  ├─ Name: stats_after
+         │  │  ├─ Mutable: false
+         │  │  ├─ Type: HeapStats
+         │  │  └─ Value: expr#75: rt_heap_stats()
+         │  ├─ Stmt[16]: If (span: 29:9-29:81)
+         │  │  ├─ Cond: expr#80: (stats_after.live_blocks >= stats_mid.live_blocks)
+         │  │  ├─ Then:
+Block (span: 29:61-29:81)
+         │  │  │  └─ Stmt[0]: Expr (span: 29:63-29:79)
+         │  │  │     └─ Expr: expr#83: (ok_live = false)
+         │  │  └─ Else: <none>
+         │  ├─ Stmt[17]: If (span: 30:9-30:79)
+         │  │  ├─ Cond: expr#88: (stats_after.free_count <= stats_mid.free_count)
+         │  │  ├─ Then:
+Block (span: 30:59-30:79)
+         │  │  │  └─ Stmt[0]: Expr (span: 30:61-30:77)
+         │  │  │     └─ Expr: expr#91: (ok_free = false)
+         │  │  └─ Else: <none>
+         │  └─ Stmt[18]: If (span: 31:9-31:79)
+         │     ├─ Cond: expr#96: (stats_after.live_bytes > stats_mid.live_bytes)
+         │     ├─ Then:
+Block (span: 31:58-31:79)
+         │     │  └─ Stmt[0]: Expr (span: 31:60-31:77)
+         │     │     └─ Expr: expr#99: (ok_bytes = false)
+         │     └─ Else: <none>
+         ├─ Stmt[4]: If (span: 34:5-34:30)
+         │  ├─ Cond: expr#101: !ok_live
+         │  ├─ Then:
+Block (span: 34:17-34:30)
+         │  │  └─ Stmt[0]: Return (span: 34:19-34:28)
+         │  │     └─ Expr: expr#102: 1
+         │  └─ Else: <none>
+         ├─ Stmt[5]: If (span: 35:5-35:30)
+         │  ├─ Cond: expr#104: !ok_free
+         │  ├─ Then:
+Block (span: 35:17-35:30)
+         │  │  └─ Stmt[0]: Return (span: 35:19-35:28)
+         │  │     └─ Expr: expr#105: 2
+         │  └─ Else: <none>
+         ├─ Stmt[6]: If (span: 36:5-36:31)
+         │  ├─ Cond: expr#107: !ok_bytes
+         │  ├─ Then:
+Block (span: 36:18-36:31)
+         │  │  └─ Stmt[0]: Return (span: 36:20-36:29)
+         │  │     └─ Expr: expr#108: 3
+         │  └─ Else: <none>
+         └─ Stmt[7]: Return (span: 37:5-37:14)
+            └─ Expr: expr#109: 0

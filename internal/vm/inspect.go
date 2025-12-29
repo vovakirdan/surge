@@ -79,26 +79,7 @@ func (i *Inspector) Heap() {
 		if !ok || obj == nil || obj.Freed || obj.RefCount == 0 {
 			continue
 		}
-		switch obj.Kind {
-		case OKString:
-			byteLen := 0
-			if i.vm != nil {
-				byteLen = i.vm.stringByteLen(obj)
-			}
-			fmt.Fprintf(i.out, "  string#%d len=%d\n", h, byteLen)
-		case OKArray:
-			fmt.Fprintf(i.out, "  array#%d len=%d\n", h, len(obj.Arr))
-		case OKArraySlice:
-			fmt.Fprintf(i.out, "  array_slice#%d len=%d base=%d start=%d\n", h, obj.ArrSliceLen, obj.ArrSliceBase, obj.ArrSliceStart)
-		case OKStruct:
-			fmt.Fprintf(i.out, "  struct#%d type=type#%d\n", h, obj.TypeID)
-		case OKTag:
-			fmt.Fprintf(i.out, "  tag#%d type=type#%d tag=%s\n", h, obj.TypeID, i.tagName(obj))
-		case OKRange:
-			fmt.Fprintf(i.out, "  range#%d\n", h)
-		default:
-			fmt.Fprintf(i.out, "  object#%d type=type#%d\n", h, obj.TypeID)
-		}
+		fmt.Fprintf(i.out, "  %s\n", i.vm.objectSummary(obj))
 	}
 }
 
@@ -161,19 +142,8 @@ func (i *Inspector) localValueString(slot *LocalSlot) string {
 }
 
 func (i *Inspector) tagName(obj *Object) string {
-	if obj == nil || obj.Kind != OKTag || i.vm == nil || i.vm.tagLayouts == nil {
+	if i == nil || i.vm == nil {
 		return "<unknown>"
 	}
-	tagName := "<unknown>"
-	if layout, ok := i.vm.tagLayouts.Layout(i.vm.valueType(obj.TypeID)); ok && layout != nil {
-		if tc, ok := layout.CaseBySym(obj.Tag.TagSym); ok && tc.TagName != "" {
-			tagName = tc.TagName
-		}
-	}
-	if tagName == "<unknown>" && obj.Tag.TagSym.IsValid() {
-		if name, ok := i.vm.tagLayouts.AnyTagName(obj.Tag.TagSym); ok && name != "" {
-			tagName = name
-		}
-	}
-	return tagName
+	return i.vm.tagName(obj)
 }

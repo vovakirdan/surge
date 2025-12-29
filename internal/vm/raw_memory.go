@@ -40,6 +40,7 @@ func (vm *VM) rawAlloc(size, align int) (Handle, *VMError) {
 		data:  make([]byte, size),
 		align: align,
 	}
+	vm.heapCounters.allocCount++
 	return h, nil
 }
 
@@ -76,6 +77,7 @@ func (vm *VM) rawFree(handle Handle, size, align int) *VMError {
 	if align > 0 && alloc.align != align {
 		return vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid raw free align: got %d want %d", align, alloc.align))
 	}
+	vm.heapCounters.freeCount++
 	alloc.freed = true
 	alloc.data = nil
 	return nil
@@ -104,6 +106,7 @@ func (vm *VM) rawRealloc(handle Handle, oldSize, newSize, align int) (Handle, *V
 		return 0, vmErr
 	}
 	copy(newAlloc.data, alloc.data)
+	vm.heapCounters.freeCount++
 	alloc.freed = true
 	alloc.data = nil
 	return newHandle, nil

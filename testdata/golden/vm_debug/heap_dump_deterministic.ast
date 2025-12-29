@@ -1,0 +1,64 @@
+testdata/golden/vm_debug/heap_dump_deterministic.sg (span: 1:1-22:1)
+└─ Item[0]: Fn (span: 1:1-21:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-21:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:28)
+         │  ├─ Name: s
+         │  ├─ Mutable: true
+         │  ├─ Type: string
+         │  └─ Value: expr#1: ""
+         ├─ Stmt[1]: Let (span: 4:5-4:24)
+         │  ├─ Name: i
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#2: 0
+         ├─ Stmt[2]: While (span: 5:5-8:6)
+         │  ├─ Cond: expr#5: (i < 8)
+         │  └─ Body:
+Block (span: 5:17-8:6)
+         │     ├─ Stmt[0]: Expr (span: 6:9-6:30)
+         │     │  └─ Expr: expr#10: (s = ((s + "abcdefghij")))
+         │     └─ Stmt[1]: Expr (span: 7:9-7:19)
+         │        └─ Expr: expr#15: (i = ((i + 1)))
+         ├─ Stmt[3]: Let (span: 9:5-9:27)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#18: (s + s)
+         ├─ Stmt[4]: Let (span: 10:5-10:32)
+         │  ├─ Name: u
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#24: t[[0..10]]
+         ├─ Stmt[5]: Let (span: 12:5-12:33)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#29: <ExprKind(8)>
+         ├─ Stmt[6]: Let (span: 13:5-13:30)
+         │  ├─ Name: v
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#35: a[[1..3]]
+         ├─ Stmt[7]: Let (span: 15:5-15:39)
+         │  ├─ Name: dump
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#37: rt_heap_dump()
+         ├─ Stmt[8]: Expr (span: 16:5-16:71)
+         │  └─ Expr: expr#47: rt_write_stdout(rt_string_ptr(&dump), rt_string_len_bytes(&dump))
+         ├─ Stmt[9]: Let (span: 18:5-18:15)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#48: u
+         ├─ Stmt[10]: Let (span: 19:5-19:15)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#49: v
+         └─ Stmt[11]: Return (span: 20:5-20:14)
+            └─ Expr: expr#50: 0

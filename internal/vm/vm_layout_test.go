@@ -5,7 +5,6 @@ import (
 	"context"
 	"os"
 	"regexp"
-	"strconv"
 	"testing"
 
 	"surge/internal/driver"
@@ -358,54 +357,31 @@ fn main() -> int {
 
 	trace := traceBuf.String()
 
-	handleA := mustLastStringHandleForVar(t, trace, "a")
-	handleB := mustLastStringHandleForVar(t, trace, "b")
-	if handleA == handleB {
-		t.Fatalf("expected distinct handles for a and b, got %d", handleA)
-	}
-
-	freeOrder := allFreedHandles(trace)
-	idxA := indexOf(freeOrder, handleA)
-	idxB := indexOf(freeOrder, handleB)
+	freeOrder := freedStringPreviews(trace)
+	idxA := indexOfString(freeOrder, "a")
+	idxB := indexOfString(freeOrder, "b")
 	if idxA < 0 || idxB < 0 {
-		t.Fatalf("missing frees: a=%d idx=%d b=%d idx=%d frees=%v\ntrace:\n%s", handleA, idxA, handleB, idxB, freeOrder, trace)
+		t.Fatalf("missing frees: a=%d b=%d frees=%v\ntrace:\n%s", idxA, idxB, freeOrder, trace)
 	}
 	if idxB >= idxA {
 		t.Fatalf("expected reverse-local drop order (b before a), got free order %v\ntrace:\n%s", freeOrder, trace)
 	}
 }
 
-func mustLastStringHandleForVar(t *testing.T, trace string, name string) int {
-	t.Helper()
-	re := regexp.MustCompile(`write L[0-9]+\(` + regexp.QuoteMeta(name) + `\) = string#([0-9]+)\(`)
-	m := re.FindAllStringSubmatch(trace, -1)
-	if len(m) == 0 {
-		t.Fatalf("missing trace write for %q\ntrace:\n%s", name, trace)
-	}
-	last := m[len(m)-1]
-	n, err := strconv.Atoi(last[1])
-	if err != nil {
-		t.Fatalf("parse handle for %q: %v", name, err)
-	}
-	return n
-}
-
-func allFreedHandles(trace string) []int {
-	re := regexp.MustCompile(`\[heap\] free handle#([0-9]+)`)
-	m := re.FindAllStringSubmatch(trace, -1)
-	out := make([]int, 0, len(m))
-	for _, s := range m {
-		if len(s) < 2 {
+func freedStringPreviews(trace string) []string {
+	re := regexp.MustCompile(`\[heap\] free string\([^)]*preview="([^"]*)"`)
+	matches := re.FindAllStringSubmatch(trace, -1)
+	out := make([]string, 0, len(matches))
+	for _, match := range matches {
+		if len(match) < 2 {
 			continue
 		}
-		if n, err := strconv.Atoi(s[1]); err == nil {
-			out = append(out, n)
-		}
+		out = append(out, match[1])
 	}
 	return out
 }
 
-func indexOf(list []int, x int) int {
+func indexOfString(list []string, x string) int {
 	for i, v := range list {
 		if v == x {
 			return i

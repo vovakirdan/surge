@@ -1,0 +1,11 @@
+OBJ type=Range<int> size=8 rc=1 kind=range refs=2 range_kind=descriptor count=2
+OBJ type=array size=32 rc=2 kind=array refs=4 len=4 cap=4
+OBJ type=array_slice size=0 rc=1 kind=view refs=1 len=2 cap=3 start=1
+OBJ type=int size=0 rc=1 kind=bigint refs=0
+OBJ type=int size=4 rc=1 kind=bigint refs=0 count=7
+OBJ type=int size=4 rc=2 kind=bigint refs=0
+OBJ type=string size=0 rc=1 kind=flat refs=0 len_cp=0 len_bytes=0 repr=flat
+OBJ type=string size=10 rc=1 kind=flat refs=0 len_cp=10 len_bytes=10 repr=flat
+OBJ type=string size=80 rc=3 kind=flat refs=0 len_cp=80 len_bytes=80 repr=flat
+OBJ type=string size=160 rc=2 kind=rope refs=2 len_cp=160 len_bytes=160 repr=rope
+OBJ type=string size=10 rc=1 kind=slice refs=1 len_cp=10 len_bytes=10 repr=slice
