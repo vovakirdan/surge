@@ -213,6 +213,7 @@ func appendModuleInstantiations(ctx context.Context, res *DiagnoseResult, rec *m
 		moduleLabel = rec.Meta.Path
 	}
 
+	paramStart := res.Sema.TypeInterner.TypeParamCount()
 	for _, fileID := range rec.FileIDs {
 		symRes, ok := rec.Symbols[fileID]
 		if !ok {
@@ -237,6 +238,7 @@ func appendModuleInstantiations(ctx context.Context, res *DiagnoseResult, rec *m
 		}
 	}
 
+	remapTypeParamOwnersFrom(res.Sema, mapping, paramStart)
 	mergeInstantiations(res.Instantiations, inst, mapping)
 	return nil
 }

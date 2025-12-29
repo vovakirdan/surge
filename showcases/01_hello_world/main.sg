@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    print("Hello, World!");
+    print("2 + 2 = " + (2 + 2) to string);
+    return 0;
+}

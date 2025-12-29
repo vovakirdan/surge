@@ -1,0 +1,28 @@
+@entrypoint("argv")
+fn main(count: int, name: string) -> int {
+    let n = 27;
+    if count >= 2 {
+        // let r: int! = int.from_str(name).safe();
+        // n = r;
+        // if we do like this, we get error "use of moved value: `r`"
+        let r: int! = int.from_str(name);
+        if r.is_success() {
+            n = r.safe();
+        }
+    }
+
+    let steps = 0;
+    while n != 1 {
+        if n % 2 == 0 {
+            n = n / 2;
+        } else {
+            n = 3 * n + 1;
+        }
+        steps = steps + 1;
+        if steps % 10 == 0 {
+            print("Done " + (steps to string) + " steps: " + (n to string));
+        }
+    }
+    print("Steps = " + (steps to string));
+    return 0;
+}

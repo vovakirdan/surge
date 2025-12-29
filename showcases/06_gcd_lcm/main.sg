@@ -1,0 +1,39 @@
+fn abs_int(x: int) -> int { // todo: nice-to-have: implement an intrinsic for abs/max/min/etc
+    if x < 0 {
+        return -x;
+    }
+    return x;
+}
+
+fn gcd(a: int, b: int) -> int {
+    a = abs_int(a);
+    b = abs_int(b);
+    while b != 0 {
+        let temp = a % b;
+        a = b;
+        b = temp;
+    }
+    return a;
+}
+
+fn lcm(a: int, b: int) -> int {
+    if (a == 0 || b == 0) {
+        return 0;
+    }
+    return abs_int(a / gcd(a, b) * b);
+}
+
+// note: we can't do this cuz we can parse only one arg :(
+@entrypoint
+fn main() {
+    let a = 48;
+    let b = 18;
+    // here we should parse two args, but we can't
+    let g = gcd(a, b);
+    let l = lcm(a, b);
+    print("a = " + a to string);
+    print("b = " + b to string);
+    print("gcd = " + g to string);
+    print("lcm = " + l to string);
+    // we can also have no return, implicitly returning nothing that implies exit code 0
+}

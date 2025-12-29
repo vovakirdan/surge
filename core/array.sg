@@ -68,7 +68,8 @@ extern<Array<T>> {
 // contains/find are currently specialized for primitive element types.
 extern<Array<int>> {
     pub fn contains(self: &Array<int>, value: &int) -> bool {
-        return self.find(value).is_some();
+        let res: Option<uint> = self.find(value);
+        return res.is_some();
     }
 
     pub fn find(self: &Array<int>, value: &int) -> Option<uint> {
@@ -86,7 +87,8 @@ extern<Array<int>> {
 
 extern<Array<uint>> {
     pub fn contains(self: &Array<uint>, value: &uint) -> bool {
-        return self.find(value).is_some();
+        let res: Option<uint> = self.find(value);
+        return res.is_some();
     }
 
     pub fn find(self: &Array<uint>, value: &uint) -> Option<uint> {
@@ -104,7 +106,8 @@ extern<Array<uint>> {
 
 extern<Array<float>> {
     pub fn contains(self: &Array<float>, value: &float) -> bool {
-        return self.find(value).is_some();
+        let res: Option<uint> = self.find(value);
+        return res.is_some();
     }
 
     pub fn find(self: &Array<float>, value: &float) -> Option<uint> {
@@ -122,7 +125,8 @@ extern<Array<float>> {
 
 extern<Array<bool>> {
     pub fn contains(self: &Array<bool>, value: &bool) -> bool {
-        return self.find(value).is_some();
+        let res: Option<uint> = self.find(value);
+        return res.is_some();
     }
 
     pub fn find(self: &Array<bool>, value: &bool) -> Option<uint> {
@@ -140,7 +144,8 @@ extern<Array<bool>> {
 
 extern<Array<string>> {
     pub fn contains(self: &Array<string>, value: &string) -> bool {
-        return self.find(value).is_some();
+        let res: Option<uint> = self.find(value);
+        return res.is_some();
     }
 
     pub fn find(self: &Array<string>, value: &string) -> Option<uint> {

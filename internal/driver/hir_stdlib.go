@@ -103,6 +103,17 @@ func remapTypeParamOwners(semaRes *sema.Result, mapping map[symbols.SymbolID]sym
 	semaRes.TypeInterner.RemapTypeParamOwners(owners)
 }
 
+func remapTypeParamOwnersFrom(semaRes *sema.Result, mapping map[symbols.SymbolID]symbols.SymbolID, start int) {
+	if semaRes == nil || semaRes.TypeInterner == nil || len(mapping) == 0 {
+		return
+	}
+	owners := make(map[uint32]uint32, len(mapping))
+	for from, to := range mapping {
+		owners[uint32(from)] = uint32(to)
+	}
+	semaRes.TypeInterner.RemapTypeParamOwnersFrom(owners, start)
+}
+
 func findCoreRecord(records map[string]*moduleRecord) *moduleRecord {
 	if len(records) == 0 {
 		return nil

@@ -9,7 +9,7 @@ pub type Erring<T, E: ErrorLike> = Success(T) | E;
 
 extern<Erring<T, E>> {
     pub fn safe(self: Erring<T, E>) -> T {
-        compare self {
+        return compare self {
             Success(v) => v;
             _ => default::<T>();
         };
@@ -22,22 +22,22 @@ extern<Erring<T, E>> {
         };
     }
 
-    pub fn error(self: Erring<T, E>) -> Option<E> {
-        compare self {
+    pub fn error(self: &Erring<T, E>) -> Option<E> {
+        return compare self {
             Success(_) => nothing;
             err => Some(err);
         };
     }
 
-    pub fn is_success(self: Erring<T, E>) -> bool {
-        compare self {
+    pub fn is_success(self: &Erring<T, E>) -> bool {
+        return compare self {
             Success(_) => true;
             _ => false;
         };
     }
 
-    pub fn is_error(self: Erring<T, E>) -> bool {
-        compare self {
+    pub fn is_error(self: &Erring<T, E>) -> bool {
+        return compare self {
             Success(_) => false;
             _ => true;
         };
@@ -45,7 +45,7 @@ extern<Erring<T, E>> {
 
     // Convert Erring to exit code: Success => 0, error => error.code
     pub fn __to(self: Erring<T, E>, target: int) -> int {
-        compare self {
+        return compare self {
             Success(_) => 0;
             err => err.code to int;
         };

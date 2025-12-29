@@ -7,7 +7,7 @@ pub type Option<T> = Some(T) | nothing;
 
 extern<Option<T>> {
     pub fn safe(self: Option<T>) -> T {
-        compare self {
+        return compare self {
             Some(v) => v;
             _ => default::<T>();
         };
@@ -20,23 +20,23 @@ extern<Option<T>> {
         };
     }
 
-    pub fn is_some(self: Option<T>) -> bool {
-        compare self {
+    pub fn is_some(self: &Option<T>) -> bool {
+        return compare self {
             Some(_) => true;
             _ => false;
         };
     }
 
-    pub fn is_nothing(self: Option<T>) -> bool {
-        compare self {
+    pub fn is_nothing(self: &Option<T>) -> bool {
+        return compare self {
             Some(_) => false;
             _ => true;
         };
     }
 
     // Convert Option to exit code: Some => 0, nothing => 1
-    pub fn __to(self: Option<T>, target: int) -> int {
-        compare self {
+    pub fn __to(self: &Option<T>, target: int) -> int {
+        return compare self {
             Some(_) => 0;
             _ => 1;
         };

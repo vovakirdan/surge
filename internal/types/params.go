@@ -48,6 +48,14 @@ func (in *Interner) TypeParamInfo(id TypeID) (*TypeParamInfo, bool) {
 	return &info, true
 }
 
+// TypeParamCount returns the number of registered type parameter descriptors.
+func (in *Interner) TypeParamCount() int {
+	if in == nil {
+		return 0
+	}
+	return len(in.params)
+}
+
 // RemapTypeParamOwners updates generic param owner IDs using the provided mapping.
 // The mapping is keyed by old owner IDs and yields new owner IDs.
 func (in *Interner) RemapTypeParamOwners(mapping map[uint32]uint32) {
@@ -58,6 +66,23 @@ func (in *Interner) RemapTypeParamOwners(mapping map[uint32]uint32) {
 		if i == 0 {
 			continue
 		}
+		owner := in.params[i].Owner
+		if mapped, ok := mapping[owner]; ok {
+			in.params[i].Owner = mapped
+		}
+	}
+}
+
+// RemapTypeParamOwnersFrom updates generic param owner IDs for params
+// registered at or after the provided start index.
+func (in *Interner) RemapTypeParamOwnersFrom(mapping map[uint32]uint32, start int) {
+	if in == nil || len(mapping) == 0 || start >= len(in.params) {
+		return
+	}
+	if start < 1 {
+		start = 1
+	}
+	for i := start; i < len(in.params); i++ {
 		owner := in.params[i].Owner
 		if mapped, ok := mapping[owner]; ok {
 			in.params[i].Owner = mapped

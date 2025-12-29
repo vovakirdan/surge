@@ -1,0 +1,6 @@
+// usage: echo Surge | surge run showcases/03_stdin_cat/main.sg
+@entrypoint("stdin")
+fn main(name: string) -> int {
+    print("Hello, " + name);
+    return 0;
+}

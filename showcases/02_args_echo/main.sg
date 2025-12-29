@@ -1,0 +1,7 @@
+// usage: surge run showcases/02_args_echo/main.sg 1 "Doe"
+@entrypoint("argv")
+fn main(count: int, name: string) -> int { // todo: parse not only first two args; count must be automatically determined
+    print("argc = " + (count to string));
+    print("name = " + name);
+    return 0;
+}
