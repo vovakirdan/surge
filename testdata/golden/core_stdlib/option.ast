@@ -1,0 +1,52 @@
+option.sg (span: 1:1-45:1)
+├─ Item[0]: Tag (span: 5:1-5:20)
+│  ├─ Name: Some
+│  ├─ Visibility: public
+│  ├─ Generics: <T>
+│  └─ Payload: T
+├─ Item[1]: Type (span: 6:1-6:40)
+│  ├─ Name: Option
+│  ├─ Kind: Union
+│  ├─ Visibility: public
+│  ├─ Generics: <T>
+│  └─ Union:
+│     ├─ Member[0]: Some(T)
+│     └─ Member[1]: nothing
+└─ Item[2]: Extern (span: 8:1-44:2)
+   ├─ Target: Option<T>
+   ├─ Members:
+   │  ├─ Fn[0]: safe
+   │  │  ├─ Params: (self: Option<T>)
+   │  │  ├─ Return: T
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 9:39-14:6)
+   │  │     └─ Stmt[0]: Return (span: 10:9-13:11)
+   │  │        └─ Expr: expr#9: compare self { 2 arms }
+   │  ├─ Fn[1]: panic
+   │  │  ├─ Params: (self: Option<T>, msg: string)
+   │  │  ├─ Return: nothing
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 16:59-21:6)
+   │  │     └─ Stmt[0]: Expr (span: 17:9-20:11)
+   │  │        └─ Expr: expr#18: compare self { 1 arms }
+   │  ├─ Fn[2]: is_some
+   │  │  ├─ Params: (self: &Option<T>)
+   │  │  ├─ Return: bool
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 23:46-28:6)
+   │  │     └─ Stmt[0]: Return (span: 24:9-27:11)
+   │  │        └─ Expr: expr#26: compare self { 2 arms }
+   │  ├─ Fn[3]: is_nothing
+   │  │  ├─ Params: (self: &Option<T>)
+   │  │  ├─ Return: bool
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 30:49-35:6)
+   │  │     └─ Stmt[0]: Return (span: 31:9-34:11)
+   │  │        └─ Expr: expr#34: compare self { 2 arms }
+   │  └─ Fn[4]: __to
+   │     ├─ Params: (self: &Option<T>, target: int)
+   │     ├─ Return: int
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 38:55-43:6)
+   │        └─ Stmt[0]: Return (span: 39:9-42:11)
+   │           └─ Expr: expr#42: compare self { 2 arms }

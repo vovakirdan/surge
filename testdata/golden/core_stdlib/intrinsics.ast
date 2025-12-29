@@ -1,0 +1,2212 @@
+intrinsics.sg (span: 1:1-751:1)
+├─ Item[0]: Type (span: 3:1-3:23)
+│  ├─ Name: byte
+│  ├─ Kind: Alias
+│  ├─ Visibility: public
+│  └─ Target: uint8
+├─ Item[1]: Fn (span: 5:1-5:58)
+│  ├─ Name: rt_alloc
+│  ├─ Params: (size: uint, align: uint)
+│  ├─ Return: *byte
+│  └─ Body: <none>
+├─ Item[2]: Fn (span: 6:1-6:71)
+│  ├─ Name: rt_free
+│  ├─ Params: (ptr: *byte, size: uint, align: uint)
+│  ├─ Return: nothing
+│  └─ Body: <none>
+├─ Item[3]: Fn (span: 7:1-7:92)
+│  ├─ Name: rt_realloc
+│  ├─ Params: (ptr: *byte, old_size: uint, new_size: uint, align: uint)
+│  ├─ Return: *byte
+│  └─ Body: <none>
+├─ Item[4]: Fn (span: 8:1-8:69)
+│  ├─ Name: rt_memcpy
+│  ├─ Params: (dst: *byte, src: *byte, n: uint)
+│  ├─ Return: nothing
+│  └─ Body: <none>
+├─ Item[5]: Fn (span: 9:1-9:70)
+│  ├─ Name: rt_memmove
+│  ├─ Params: (dst: *byte, src: *byte, n: uint)
+│  ├─ Return: nothing
+│  └─ Body: <none>
+├─ Item[6]: Fn (span: 12:1-12:65)
+│  ├─ Name: rt_write_stdout
+│  ├─ Params: (ptr: *byte, length: uint)
+│  ├─ Return: uint
+│  └─ Body: <none>
+├─ Item[7]: Fn (span: 13:1-13:64)
+│  ├─ Name: rt_read_stdin
+│  ├─ Params: (buf: *byte, max_len: uint)
+│  ├─ Return: uint
+│  └─ Body: <none>
+├─ Item[8]: Fn (span: 16:1-16:50)
+│  ├─ Name: rt_string_ptr
+│  ├─ Params: (s: &string)
+│  ├─ Return: *byte
+│  └─ Body: <none>
+├─ Item[9]: Fn (span: 18:1-18:49)
+│  ├─ Name: rt_string_len
+│  ├─ Params: (s: &string)
+│  ├─ Return: uint
+│  └─ Body: <none>
+├─ Item[10]: Fn (span: 19:1-19:55)
+│  ├─ Name: rt_string_len_bytes
+│  ├─ Params: (s: &string)
+│  ├─ Return: uint
+│  └─ Body: <none>
+├─ Item[11]: Fn (span: 20:1-20:72)
+│  ├─ Name: rt_string_from_bytes
+│  ├─ Params: (ptr: *byte, length: uint)
+│  ├─ Return: string
+│  └─ Body: <none>
+├─ Item[12]: Fn (span: 21:1-21:74)
+│  ├─ Name: rt_string_from_utf16
+│  ├─ Params: (ptr: *uint16, length: uint)
+│  ├─ Return: string
+│  └─ Body: <none>
+├─ Item[13]: Fn (span: 22:1-22:61)
+│  ├─ Name: rt_string_bytes_view
+│  ├─ Params: (s: &string)
+│  ├─ Return: BytesView
+│  └─ Body: <none>
+├─ Item[14]: Fn (span: 24:1-24:62)
+│  ├─ Name: rt_string_force_flatten
+│  ├─ Params: (s: &string)
+│  ├─ Return: nothing
+│  └─ Body: <none>
+├─ Item[15]: Fn (span: 27:1-27:79)
+│  ├─ Name: rt_array_reserve
+│  ├─ Generics: <T>
+│  ├─ Params: (a: &mut Array<T>, new_cap: uint)
+│  ├─ Return: nothing
+│  └─ Body: <none>
+├─ Item[16]: Fn (span: 28:1-28:71)
+│  ├─ Name: rt_array_push
+│  ├─ Generics: <T>
+│  ├─ Params: (a: &mut Array<T>, value: T)
+│  ├─ Return: nothing
+│  └─ Body: <none>
+├─ Item[17]: Fn (span: 29:1-29:62)
+│  ├─ Name: rt_array_pop
+│  ├─ Generics: <T>
+│  ├─ Params: (a: &mut Array<T>)
+│  ├─ Return: Option<T>
+│  └─ Body: <none>
+├─ Item[18]: Fn (span: 32:1-33:29)
+│  ├─ Name: readline
+│  ├─ Params: ()
+│  ├─ Return: string
+│  └─ Body: <none>
+├─ Item[19]: Type (span: 35:1-38:3)
+│  ├─ Name: Range
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Generics: <T>
+│  ├─ Attributes: @intrinsic
+│  └─ Struct:
+│     └─ Field[0]: __state: *byte
+├─ Item[20]: Fn (span: 41:1-41:89)
+│  ├─ Name: rt_range_int_new
+│  ├─ Params: (start: int, end: int, inclusive: bool)
+│  ├─ Return: Range<int>
+│  └─ Body: <none>
+├─ Item[21]: Fn (span: 42:1-42:86)
+│  ├─ Name: rt_range_int_from_start
+│  ├─ Params: (start: int, inclusive: bool)
+│  ├─ Return: Range<int>
+│  └─ Body: <none>
+├─ Item[22]: Fn (span: 43:1-43:80)
+│  ├─ Name: rt_range_int_to_end
+│  ├─ Params: (end: int, inclusive: bool)
+│  ├─ Return: Range<int>
+│  └─ Body: <none>
+├─ Item[23]: Fn (span: 44:1-44:68)
+│  ├─ Name: rt_range_int_full
+│  ├─ Params: (inclusive: bool)
+│  ├─ Return: Range<int>
+│  └─ Body: <none>
+├─ Item[24]: Extern (span: 46:1-48:2)
+│  ├─ Target: Range<T>
+│  ├─ Members:
+│  │  └─ Fn[0]: next
+│  │     ├─ Params: (self: &mut Range<T>)
+│  │     ├─ Return: Option<T>
+│  │     └─ Attributes: @intrinsic
+├─ Item[25]: Type (span: 50:1-57:3)
+│  ├─ Name: HeapStats
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  └─ Struct:
+│     ├─ Field[0]: alloc_count: uint
+│     ├─ Field[1]: free_count: uint
+│     ├─ Field[2]: live_blocks: uint
+│     ├─ Field[3]: live_bytes: uint
+│     ├─ Field[4]: rc_increments: uint
+│     └─ Field[5]: rc_decrements: uint
+├─ Item[26]: Fn (span: 63:1-63:48)
+│  ├─ Name: rt_heap_stats
+│  ├─ Params: ()
+│  ├─ Return: HeapStats
+│  └─ Body: <none>
+├─ Item[27]: Fn (span: 65:1-65:44)
+│  ├─ Name: rt_heap_dump
+│  ├─ Params: ()
+│  ├─ Return: string
+│  └─ Body: <none>
+├─ Item[28]: Type (span: 67:1-69:3)
+│  ├─ Name: Task
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Generics: <T>
+│  └─ Struct:
+│     └─ Field[0]: __opaque: int
+├─ Item[29]: Extern (span: 71:1-73:2)
+│  ├─ Target: Task<T>
+│  ├─ Members:
+│  │  └─ Fn[0]: await
+│  │     ├─ Params: (self: own Task<T>)
+│  │     ├─ Return: T
+│  │     └─ Attributes: @intrinsic
+├─ Item[30]: Fn (span: 77:1-78:38)
+│  ├─ Name: checkpoint
+│  ├─ Params: ()
+│  ├─ Return: Task<nothing>
+│  └─ Body: <none>
+├─ Item[31]: Type (span: 81:1-84:3)
+│  ├─ Name: Channel
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Generics: <T>
+│  ├─ Attributes: @intrinsic
+│  └─ Struct:
+│     └─ Field[0]: __opaque: *byte
+├─ Item[32]: Extern (span: 86:1-99:2)
+│  ├─ Target: Channel<T>
+│  ├─ Members:
+│  │  ├─ Fn[0]: new
+│  │  │  ├─ Params: (capacity: uint)
+│  │  │  ├─ Return: own Channel<T>
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[1]: send
+│  │  │  ├─ Params: (self: &Channel<T>, value: own T)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[2]: recv
+│  │  │  ├─ Params: (self: &Channel<T>)
+│  │  │  ├─ Return: Option<T>
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: try_send
+│  │  │  ├─ Params: (self: &Channel<T>, value: own T)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: try_recv
+│  │  │  ├─ Params: (self: &Channel<T>)
+│  │  │  ├─ Return: Option<T>
+│  │  │  └─ Attributes: @intrinsic
+│  │  └─ Fn[5]: close
+│  │     ├─ Params: (self: &Channel<T>)
+│  │     ├─ Return: nothing
+│  │     └─ Attributes: @intrinsic
+├─ Item[33]: Fn (span: 101:1-102:54)
+│  ├─ Name: make_channel
+│  ├─ Generics: <T>
+│  ├─ Params: (capacity: uint)
+│  ├─ Return: own Channel<T>
+│  └─ Body: <none>
+├─ Item[34]: Contract (span: 104:1-107:2)
+├─ Item[35]: Contract (span: 109:1-111:2)
+├─ Item[36]: Contract (span: 113:1-115:2)
+├─ Item[37]: Extern (span: 117:1-156:2)
+│  ├─ Target: int
+│  ├─ Members:
+│  │  ├─ Fn[0]: __add
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[1]: __sub
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[2]: __mul
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __div
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mod
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __bit_and
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __bit_or
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __bit_xor
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __shl
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __shr
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __lt
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __le
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __eq
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __ne
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __ge
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __gt
+│  │  │  ├─ Params: (self: int, other: int)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __pos
+│  │  │  ├─ Params: (self: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __neg
+│  │  │  ├─ Params: (self: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[18]: __abs
+│  │  │  ├─ Params: (self: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[19]: __to
+│  │  │  ├─ Params: (self: int, target: string)
+│  │  │  ├─ Return: string
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[20]: __to
+│  │  │  ├─ Params: (self: &int, _: string)
+│  │  │  ├─ Return: string
+│  │  │  ├─ Attributes: @overload
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 138:60-140:6)
+│  │  │     └─ Stmt[0]: Return (span: 139:9-139:34)
+│  │  │        └─ Expr: expr#4: (*self) to string
+│  │  ├─ Fn[21]: __to
+│  │  │  ├─ Params: (self: int, target: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[22]: __to
+│  │  │  ├─ Params: (self: int, target: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[23]: __to
+│  │  │  ├─ Params: (self: int, target: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[24]: __to
+│  │  │  ├─ Params: (self: int, target: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[25]: __to
+│  │  │  ├─ Params: (self: int, target: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[26]: __to
+│  │  │  ├─ Params: (self: int, target: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[27]: __to
+│  │  │  ├─ Params: (self: int, target: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[28]: __to
+│  │  │  ├─ Params: (self: int, target: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[29]: __to
+│  │  │  ├─ Params: (self: int, target: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[30]: __to
+│  │  │  ├─ Params: (self: int, target: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[31]: __to
+│  │  │  ├─ Params: (self: int, target: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[32]: __to
+│  │  │  ├─ Params: (self: int, target: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[33]: __to
+│  │  │  ├─ Params: (self: int, target: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[34]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<int, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[38]: Extern (span: 158:1-196:2)
+│  ├─ Target: uint
+│  ├─ Members:
+│  │  ├─ Fn[0]: __add
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[1]: __sub
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[2]: __mul
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __div
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mod
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __bit_and
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __bit_or
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __bit_xor
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __shl
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __shr
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __lt
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __le
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __eq
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __ne
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __ge
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __gt
+│  │  │  ├─ Params: (self: uint, other: uint)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __pos
+│  │  │  ├─ Params: (self: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __abs
+│  │  │  ├─ Params: (self: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[18]: __to
+│  │  │  ├─ Params: (self: uint, target: string)
+│  │  │  ├─ Return: string
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[19]: __to
+│  │  │  ├─ Params: (self: &uint, _: string)
+│  │  │  ├─ Return: string
+│  │  │  ├─ Attributes: @overload
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 178:61-180:6)
+│  │  │     └─ Stmt[0]: Return (span: 179:9-179:34)
+│  │  │        └─ Expr: expr#8: (*self) to string
+│  │  ├─ Fn[20]: __to
+│  │  │  ├─ Params: (self: uint, target: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[21]: __to
+│  │  │  ├─ Params: (self: uint, target: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[22]: __to
+│  │  │  ├─ Params: (self: uint, target: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[23]: __to
+│  │  │  ├─ Params: (self: uint, target: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[24]: __to
+│  │  │  ├─ Params: (self: uint, target: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[25]: __to
+│  │  │  ├─ Params: (self: uint, target: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[26]: __to
+│  │  │  ├─ Params: (self: uint, target: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[27]: __to
+│  │  │  ├─ Params: (self: uint, target: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[28]: __to
+│  │  │  ├─ Params: (self: uint, target: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[29]: __to
+│  │  │  ├─ Params: (self: uint, target: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[30]: __to
+│  │  │  ├─ Params: (self: uint, target: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[31]: __to
+│  │  │  ├─ Params: (self: uint, target: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[32]: __to
+│  │  │  ├─ Params: (self: uint, target: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[33]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<uint, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[39]: Extern (span: 198:1-225:2)
+│  ├─ Target: int8
+│  ├─ Members:
+│  │  ├─ Fn[0]: __min_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: int8
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 199:34-199:57)
+│  │  │     └─ Stmt[0]: Return (span: 199:36-199:55)
+│  │  │        └─ Expr: expr#12: (-128) to int8
+│  │  ├─ Fn[1]: __max_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: int8
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 200:34-200:56)
+│  │  │     └─ Stmt[0]: Return (span: 200:36-200:54)
+│  │  │        └─ Expr: expr#15: (127) to int8
+│  │  ├─ Fn[2]: __add
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __sub
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mul
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __div
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __mod
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __bit_and
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __bit_or
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __bit_xor
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __shl
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __shr
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __lt
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __le
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __eq
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __ne
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __ge
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __gt
+│  │  │  ├─ Params: (self: int8, other: int8)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[18]: __pos
+│  │  │  ├─ Params: (self: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[19]: __neg
+│  │  │  ├─ Params: (self: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[20]: __abs
+│  │  │  ├─ Params: (self: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[21]: __to
+│  │  │  ├─ Params: (self: int8, target: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[22]: __to
+│  │  │  ├─ Params: (self: int8, target: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[23]: __to
+│  │  │  ├─ Params: (self: int8, target: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[24]: __to
+│  │  │  ├─ Params: (self: int8, target: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[25]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<int8, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[40]: Extern (span: 227:1-254:2)
+│  ├─ Target: int16
+│  ├─ Members:
+│  │  ├─ Fn[0]: __min_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: int16
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 228:35-228:62)
+│  │  │     └─ Stmt[0]: Return (span: 228:37-228:60)
+│  │  │        └─ Expr: expr#19: (-32_768) to int16
+│  │  ├─ Fn[1]: __max_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: int16
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 229:35-229:61)
+│  │  │     └─ Stmt[0]: Return (span: 229:37-229:59)
+│  │  │        └─ Expr: expr#22: (32_767) to int16
+│  │  ├─ Fn[2]: __add
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __sub
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mul
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __div
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __mod
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __bit_and
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __bit_or
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __bit_xor
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __shl
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __shr
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __lt
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __le
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __eq
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __ne
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __ge
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __gt
+│  │  │  ├─ Params: (self: int16, other: int16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[18]: __pos
+│  │  │  ├─ Params: (self: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[19]: __neg
+│  │  │  ├─ Params: (self: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[20]: __abs
+│  │  │  ├─ Params: (self: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[21]: __to
+│  │  │  ├─ Params: (self: int16, target: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[22]: __to
+│  │  │  ├─ Params: (self: int16, target: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[23]: __to
+│  │  │  ├─ Params: (self: int16, target: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[24]: __to
+│  │  │  ├─ Params: (self: int16, target: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[25]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<int16, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[41]: Extern (span: 256:1-283:2)
+│  ├─ Target: int32
+│  ├─ Members:
+│  │  ├─ Fn[0]: __min_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: int32
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 257:35-257:69)
+│  │  │     └─ Stmt[0]: Return (span: 257:37-257:67)
+│  │  │        └─ Expr: expr#26: (-2_147_483_648) to int32
+│  │  ├─ Fn[1]: __max_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: int32
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 258:35-258:68)
+│  │  │     └─ Stmt[0]: Return (span: 258:37-258:66)
+│  │  │        └─ Expr: expr#29: (2_147_483_647) to int32
+│  │  ├─ Fn[2]: __add
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __sub
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mul
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __div
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __mod
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __bit_and
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __bit_or
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __bit_xor
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __shl
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __shr
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __lt
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __le
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __eq
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __ne
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __ge
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __gt
+│  │  │  ├─ Params: (self: int32, other: int32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[18]: __pos
+│  │  │  ├─ Params: (self: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[19]: __neg
+│  │  │  ├─ Params: (self: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[20]: __abs
+│  │  │  ├─ Params: (self: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[21]: __to
+│  │  │  ├─ Params: (self: int32, target: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[22]: __to
+│  │  │  ├─ Params: (self: int32, target: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[23]: __to
+│  │  │  ├─ Params: (self: int32, target: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[24]: __to
+│  │  │  ├─ Params: (self: int32, target: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[25]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<int32, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[42]: Extern (span: 285:1-312:2)
+│  ├─ Target: int64
+│  ├─ Members:
+│  │  ├─ Fn[0]: __min_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: int64
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 286:35-286:81)
+│  │  │     └─ Stmt[0]: Return (span: 286:37-286:79)
+│  │  │        └─ Expr: expr#33: (-9_223_372_036_854_775_808) to int64
+│  │  ├─ Fn[1]: __max_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: int64
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 287:35-287:80)
+│  │  │     └─ Stmt[0]: Return (span: 287:37-287:78)
+│  │  │        └─ Expr: expr#36: (9_223_372_036_854_775_807) to int64
+│  │  ├─ Fn[2]: __add
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __sub
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mul
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __div
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __mod
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __bit_and
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __bit_or
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __bit_xor
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __shl
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __shr
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __lt
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __le
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __eq
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __ne
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __ge
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __gt
+│  │  │  ├─ Params: (self: int64, other: int64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[18]: __pos
+│  │  │  ├─ Params: (self: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[19]: __neg
+│  │  │  ├─ Params: (self: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[20]: __abs
+│  │  │  ├─ Params: (self: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[21]: __to
+│  │  │  ├─ Params: (self: int64, target: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[22]: __to
+│  │  │  ├─ Params: (self: int64, target: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[23]: __to
+│  │  │  ├─ Params: (self: int64, target: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[24]: __to
+│  │  │  ├─ Params: (self: int64, target: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[25]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<int64, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[43]: Extern (span: 314:1-340:2)
+│  ├─ Target: uint8
+│  ├─ Members:
+│  │  ├─ Fn[0]: __min_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 315:35-315:56)
+│  │  │     └─ Stmt[0]: Return (span: 315:37-315:54)
+│  │  │        └─ Expr: expr#39: (0) to uint8
+│  │  ├─ Fn[1]: __max_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 316:35-316:58)
+│  │  │     └─ Stmt[0]: Return (span: 316:37-316:56)
+│  │  │        └─ Expr: expr#42: (255) to uint8
+│  │  ├─ Fn[2]: __add
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __sub
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mul
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __div
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __mod
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __bit_and
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __bit_or
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __bit_xor
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __shl
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __shr
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __lt
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __le
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __eq
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __ne
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __ge
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __gt
+│  │  │  ├─ Params: (self: uint8, other: uint8)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[18]: __pos
+│  │  │  ├─ Params: (self: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[19]: __abs
+│  │  │  ├─ Params: (self: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[20]: __to
+│  │  │  ├─ Params: (self: uint8, target: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[21]: __to
+│  │  │  ├─ Params: (self: uint8, target: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[22]: __to
+│  │  │  ├─ Params: (self: uint8, target: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[23]: __to
+│  │  │  ├─ Params: (self: uint8, target: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[24]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<uint8, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[44]: Extern (span: 342:1-368:2)
+│  ├─ Target: uint16
+│  ├─ Members:
+│  │  ├─ Fn[0]: __min_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 343:36-343:58)
+│  │  │     └─ Stmt[0]: Return (span: 343:38-343:56)
+│  │  │        └─ Expr: expr#45: (0) to uint16
+│  │  ├─ Fn[1]: __max_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 344:36-344:63)
+│  │  │     └─ Stmt[0]: Return (span: 344:38-344:61)
+│  │  │        └─ Expr: expr#48: (65_535) to uint16
+│  │  ├─ Fn[2]: __add
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __sub
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mul
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __div
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __mod
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __bit_and
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __bit_or
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __bit_xor
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __shl
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __shr
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __lt
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __le
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __eq
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __ne
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __ge
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __gt
+│  │  │  ├─ Params: (self: uint16, other: uint16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[18]: __pos
+│  │  │  ├─ Params: (self: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[19]: __abs
+│  │  │  ├─ Params: (self: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[20]: __to
+│  │  │  ├─ Params: (self: uint16, target: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[21]: __to
+│  │  │  ├─ Params: (self: uint16, target: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[22]: __to
+│  │  │  ├─ Params: (self: uint16, target: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[23]: __to
+│  │  │  ├─ Params: (self: uint16, target: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[24]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<uint16, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[45]: Extern (span: 370:1-396:2)
+│  ├─ Target: uint32
+│  ├─ Members:
+│  │  ├─ Fn[0]: __min_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 371:36-371:58)
+│  │  │     └─ Stmt[0]: Return (span: 371:38-371:56)
+│  │  │        └─ Expr: expr#51: (0) to uint32
+│  │  ├─ Fn[1]: __max_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 372:36-372:70)
+│  │  │     └─ Stmt[0]: Return (span: 372:38-372:68)
+│  │  │        └─ Expr: expr#54: (4_294_967_295) to uint32
+│  │  ├─ Fn[2]: __add
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __sub
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mul
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __div
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __mod
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __bit_and
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __bit_or
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __bit_xor
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __shl
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __shr
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __lt
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __le
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __eq
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __ne
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __ge
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __gt
+│  │  │  ├─ Params: (self: uint32, other: uint32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[18]: __pos
+│  │  │  ├─ Params: (self: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[19]: __abs
+│  │  │  ├─ Params: (self: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[20]: __to
+│  │  │  ├─ Params: (self: uint32, target: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[21]: __to
+│  │  │  ├─ Params: (self: uint32, target: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[22]: __to
+│  │  │  ├─ Params: (self: uint32, target: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[23]: __to
+│  │  │  ├─ Params: (self: uint32, target: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[24]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<uint32, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[46]: Extern (span: 398:1-424:2)
+│  ├─ Target: uint64
+│  ├─ Members:
+│  │  ├─ Fn[0]: __min_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 399:36-399:58)
+│  │  │     └─ Stmt[0]: Return (span: 399:38-399:56)
+│  │  │        └─ Expr: expr#57: (0) to uint64
+│  │  ├─ Fn[1]: __max_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 400:36-400:83)
+│  │  │     └─ Stmt[0]: Return (span: 400:38-400:81)
+│  │  │        └─ Expr: expr#60: (18_446_744_073_709_551_615) to uint64
+│  │  ├─ Fn[2]: __add
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __sub
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mul
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __div
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __mod
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __bit_and
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __bit_or
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __bit_xor
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __shl
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __shr
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __lt
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __le
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __eq
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __ne
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __ge
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __gt
+│  │  │  ├─ Params: (self: uint64, other: uint64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[18]: __pos
+│  │  │  ├─ Params: (self: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[19]: __abs
+│  │  │  ├─ Params: (self: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[20]: __to
+│  │  │  ├─ Params: (self: uint64, target: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[21]: __to
+│  │  │  ├─ Params: (self: uint64, target: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[22]: __to
+│  │  │  ├─ Params: (self: uint64, target: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[23]: __to
+│  │  │  ├─ Params: (self: uint64, target: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[24]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<uint64, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[47]: Extern (span: 426:1-447:2)
+│  ├─ Target: float16
+│  ├─ Members:
+│  │  ├─ Fn[0]: __min_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: float16
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 427:37-427:67)
+│  │  │     └─ Stmt[0]: Return (span: 427:39-427:65)
+│  │  │        └─ Expr: expr#64: (-65504.0) to float16
+│  │  ├─ Fn[1]: __max_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: float16
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 428:37-428:66)
+│  │  │     └─ Stmt[0]: Return (span: 428:39-428:64)
+│  │  │        └─ Expr: expr#67: (65504.0) to float16
+│  │  ├─ Fn[2]: __add
+│  │  │  ├─ Params: (self: float16, other: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __sub
+│  │  │  ├─ Params: (self: float16, other: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mul
+│  │  │  ├─ Params: (self: float16, other: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __div
+│  │  │  ├─ Params: (self: float16, other: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __mod
+│  │  │  ├─ Params: (self: float16, other: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __lt
+│  │  │  ├─ Params: (self: float16, other: float16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __le
+│  │  │  ├─ Params: (self: float16, other: float16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __eq
+│  │  │  ├─ Params: (self: float16, other: float16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __ne
+│  │  │  ├─ Params: (self: float16, other: float16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __ge
+│  │  │  ├─ Params: (self: float16, other: float16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __gt
+│  │  │  ├─ Params: (self: float16, other: float16)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __pos
+│  │  │  ├─ Params: (self: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __neg
+│  │  │  ├─ Params: (self: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __abs
+│  │  │  ├─ Params: (self: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __to
+│  │  │  ├─ Params: (self: float16, target: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __to
+│  │  │  ├─ Params: (self: float16, target: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[18]: __to
+│  │  │  ├─ Params: (self: float16, target: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[19]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<float16, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[48]: Extern (span: 449:1-470:2)
+│  ├─ Target: float32
+│  ├─ Members:
+│  │  ├─ Fn[0]: __min_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: float32
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 450:37-450:86)
+│  │  │     └─ Stmt[0]: Return (span: 450:39-450:84)
+│  │  │        └─ Expr: expr#71: (-3.402_823_466_385_2886e+38) to float32
+│  │  ├─ Fn[1]: __max_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: float32
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 451:37-451:85)
+│  │  │     └─ Stmt[0]: Return (span: 451:39-451:83)
+│  │  │        └─ Expr: expr#74: (3.402_823_466_385_2886e+38) to float32
+│  │  ├─ Fn[2]: __add
+│  │  │  ├─ Params: (self: float32, other: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __sub
+│  │  │  ├─ Params: (self: float32, other: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mul
+│  │  │  ├─ Params: (self: float32, other: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __div
+│  │  │  ├─ Params: (self: float32, other: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __mod
+│  │  │  ├─ Params: (self: float32, other: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __lt
+│  │  │  ├─ Params: (self: float32, other: float32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __le
+│  │  │  ├─ Params: (self: float32, other: float32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __eq
+│  │  │  ├─ Params: (self: float32, other: float32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __ne
+│  │  │  ├─ Params: (self: float32, other: float32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __ge
+│  │  │  ├─ Params: (self: float32, other: float32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __gt
+│  │  │  ├─ Params: (self: float32, other: float32)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __pos
+│  │  │  ├─ Params: (self: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __neg
+│  │  │  ├─ Params: (self: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __abs
+│  │  │  ├─ Params: (self: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __to
+│  │  │  ├─ Params: (self: float32, target: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __to
+│  │  │  ├─ Params: (self: float32, target: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[18]: __to
+│  │  │  ├─ Params: (self: float32, target: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[19]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<float32, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[49]: Extern (span: 472:1-493:2)
+│  ├─ Target: float64
+│  ├─ Members:
+│  │  ├─ Fn[0]: __min_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: float64
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 473:37-473:87)
+│  │  │     └─ Stmt[0]: Return (span: 473:39-473:85)
+│  │  │        └─ Expr: expr#78: (-1.797_693_134_862_3157e+308) to float64
+│  │  ├─ Fn[1]: __max_value
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: float64
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 474:37-474:86)
+│  │  │     └─ Stmt[0]: Return (span: 474:39-474:84)
+│  │  │        └─ Expr: expr#81: (1.797_693_134_862_3157e+308) to float64
+│  │  ├─ Fn[2]: __add
+│  │  │  ├─ Params: (self: float64, other: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __sub
+│  │  │  ├─ Params: (self: float64, other: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mul
+│  │  │  ├─ Params: (self: float64, other: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __div
+│  │  │  ├─ Params: (self: float64, other: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __mod
+│  │  │  ├─ Params: (self: float64, other: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __lt
+│  │  │  ├─ Params: (self: float64, other: float64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __le
+│  │  │  ├─ Params: (self: float64, other: float64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __eq
+│  │  │  ├─ Params: (self: float64, other: float64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __ne
+│  │  │  ├─ Params: (self: float64, other: float64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __ge
+│  │  │  ├─ Params: (self: float64, other: float64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __gt
+│  │  │  ├─ Params: (self: float64, other: float64)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __pos
+│  │  │  ├─ Params: (self: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __neg
+│  │  │  ├─ Params: (self: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __abs
+│  │  │  ├─ Params: (self: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[16]: __to
+│  │  │  ├─ Params: (self: float64, target: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[17]: __to
+│  │  │  ├─ Params: (self: float64, target: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[18]: __to
+│  │  │  ├─ Params: (self: float64, target: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[19]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<float64, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[50]: Extern (span: 495:1-529:2)
+│  ├─ Target: float
+│  ├─ Members:
+│  │  ├─ Fn[0]: __add
+│  │  │  ├─ Params: (self: float, other: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[1]: __sub
+│  │  │  ├─ Params: (self: float, other: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[2]: __mul
+│  │  │  ├─ Params: (self: float, other: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __div
+│  │  │  ├─ Params: (self: float, other: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __mod
+│  │  │  ├─ Params: (self: float, other: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __lt
+│  │  │  ├─ Params: (self: float, other: float)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __le
+│  │  │  ├─ Params: (self: float, other: float)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[7]: __eq
+│  │  │  ├─ Params: (self: float, other: float)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[8]: __ne
+│  │  │  ├─ Params: (self: float, other: float)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[9]: __ge
+│  │  │  ├─ Params: (self: float, other: float)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __gt
+│  │  │  ├─ Params: (self: float, other: float)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __pos
+│  │  │  ├─ Params: (self: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[12]: __neg
+│  │  │  ├─ Params: (self: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[13]: __abs
+│  │  │  ├─ Params: (self: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[14]: __to
+│  │  │  ├─ Params: (self: float, target: string)
+│  │  │  ├─ Return: string
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[15]: __to
+│  │  │  ├─ Params: (self: &float, _: string)
+│  │  │  ├─ Return: string
+│  │  │  ├─ Attributes: @overload
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 511:62-513:6)
+│  │  │     └─ Stmt[0]: Return (span: 512:9-512:34)
+│  │  │        └─ Expr: expr#85: (*self) to string
+│  │  ├─ Fn[16]: __to
+│  │  │  ├─ Params: (self: float, target: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[17]: __to
+│  │  │  ├─ Params: (self: float, target: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[18]: __to
+│  │  │  ├─ Params: (self: float, target: int8)
+│  │  │  ├─ Return: int8
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[19]: __to
+│  │  │  ├─ Params: (self: float, target: int16)
+│  │  │  ├─ Return: int16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[20]: __to
+│  │  │  ├─ Params: (self: float, target: int32)
+│  │  │  ├─ Return: int32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[21]: __to
+│  │  │  ├─ Params: (self: float, target: int64)
+│  │  │  ├─ Return: int64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[22]: __to
+│  │  │  ├─ Params: (self: float, target: uint8)
+│  │  │  ├─ Return: uint8
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[23]: __to
+│  │  │  ├─ Params: (self: float, target: uint16)
+│  │  │  ├─ Return: uint16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[24]: __to
+│  │  │  ├─ Params: (self: float, target: uint32)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[25]: __to
+│  │  │  ├─ Params: (self: float, target: uint64)
+│  │  │  ├─ Return: uint64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[26]: __to
+│  │  │  ├─ Params: (self: float, target: float16)
+│  │  │  ├─ Return: float16
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[27]: __to
+│  │  │  ├─ Params: (self: float, target: float32)
+│  │  │  ├─ Return: float32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[28]: __to
+│  │  │  ├─ Params: (self: float, target: float64)
+│  │  │  ├─ Return: float64
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[29]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<float, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[51]: Extern (span: 531:1-549:2)
+│  ├─ Target: string
+│  ├─ Members:
+│  │  ├─ Fn[0]: __add
+│  │  │  ├─ Params: (self: &string, other: &string)
+│  │  │  ├─ Return: string
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[1]: __mul
+│  │  │  ├─ Params: (self: &string, other: int)
+│  │  │  ├─ Return: string
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[2]: __mul
+│  │  │  ├─ Params: (self: &string, other: uint)
+│  │  │  ├─ Return: string
+│  │  │  ├─ Attributes: @overload
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 534:66-536:6)
+│  │  │     └─ Stmt[0]: Return (span: 535:9-535:38)
+│  │  │        └─ Expr: expr#90: (self * (other to int))
+│  │  ├─ Fn[3]: __eq
+│  │  │  ├─ Params: (self: &string, other: &string)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __ne
+│  │  │  ├─ Params: (self: &string, other: &string)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: __to
+│  │  │  ├─ Params: (self: &string, target: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[6]: __to
+│  │  │  ├─ Params: (self: &string, target: uint)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[7]: __to
+│  │  │  ├─ Params: (self: &string, target: float)
+│  │  │  ├─ Return: float
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[8]: __to
+│  │  │  ├─ Params: (self: &string, _: string)
+│  │  │  ├─ Return: string
+│  │  │  ├─ Attributes: @overload
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 542:63-544:6)
+│  │  │     └─ Stmt[0]: Return (span: 543:9-543:31)
+│  │  │        └─ Expr: expr#93: self.__clone()
+│  │  ├─ Fn[9]: __len
+│  │  │  ├─ Params: (self: &string)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[10]: __clone
+│  │  │  ├─ Params: (self: &string)
+│  │  │  ├─ Return: string
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[11]: __index
+│  │  │  ├─ Params: (self: &string, index: int)
+│  │  │  ├─ Return: uint32
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[12]: __index
+│  │     ├─ Params: (self: &string, index: Range<int>)
+│  │     ├─ Return: string
+│  │     └─ Attributes: @intrinsic, @overload
+├─ Item[52]: Type (span: 551:1-556:3)
+│  ├─ Name: BytesView
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @intrinsic
+│  └─ Struct:
+│     ├─ Field[0]: owner: string
+│     ├─ Field[1]: ptr: *byte
+│     └─ Field[2]: len: uint
+├─ Item[53]: Extern (span: 558:1-561:2)
+│  ├─ Target: BytesView
+│  ├─ Members:
+│  │  ├─ Fn[0]: __len
+│  │  │  ├─ Params: (self: &BytesView)
+│  │  │  ├─ Return: uint
+│  │  │  └─ Attributes: @intrinsic
+│  │  └─ Fn[1]: __index
+│  │     ├─ Params: (self: &BytesView, index: int)
+│  │     ├─ Return: uint8
+│  │     └─ Attributes: @intrinsic
+├─ Item[54]: Extern (span: 563:1-574:2)
+│  ├─ Target: bool
+│  ├─ Members:
+│  │  ├─ Fn[0]: __eq
+│  │  │  ├─ Params: (self: bool, other: bool)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[1]: __ne
+│  │  │  ├─ Params: (self: bool, other: bool)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[2]: __not
+│  │  │  ├─ Params: (self: bool)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: __to
+│  │  │  ├─ Params: (self: bool, target: string)
+│  │  │  ├─ Return: string
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __to
+│  │  │  ├─ Params: (self: &bool, _: string)
+│  │  │  ├─ Return: string
+│  │  │  ├─ Attributes: @overload
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 568:61-570:6)
+│  │  │     └─ Stmt[0]: Return (span: 569:9-569:34)
+│  │  │        └─ Expr: expr#97: (*self) to string
+│  │  ├─ Fn[5]: __to
+│  │  │  ├─ Params: (self: bool, target: int)
+│  │  │  ├─ Return: int
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  └─ Fn[6]: from_str
+│  │     ├─ Params: (s: &string)
+│  │     ├─ Return: Erring<bool, Error>
+│  │     └─ Attributes: @intrinsic
+├─ Item[55]: Extern (span: 576:1-583:2)
+│  ├─ Target: Array<T>
+│  ├─ Members:
+│  │  ├─ Fn[0]: __add
+│  │  │  ├─ Params: (self: &Array<T>, other: &Array<T>)
+│  │  │  ├─ Return: Array<T>
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[1]: __index
+│  │  │  ├─ Params: (self: &Array<T>, index: int)
+│  │  │  ├─ Return: &T
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[2]: __index
+│  │  │  ├─ Params: (self: &Array<T>, index: Range<int>)
+│  │  │  ├─ Return: Array<T>
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[3]: __index_set
+│  │  │  ├─ Params: (self: &mut Array<T>, index: int, value: T)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __range
+│  │  │  ├─ Params: (self: &Array<T>)
+│  │  │  ├─ Return: Range<T>
+│  │  │  └─ Attributes: @intrinsic
+│  │  └─ Fn[5]: __len
+│  │     ├─ Params: (self: &Array<T>)
+│  │     ├─ Return: uint
+│  │     └─ Attributes: @intrinsic
+├─ Item[56]: Extern (span: 585:1-592:2)
+│  ├─ Target: ArrayFixed<T, N>
+│  ├─ Members:
+│  │  ├─ Fn[0]: __add
+│  │  │  ├─ Params: (self: &ArrayFixed<T, N>, other: &ArrayFixed<T, N>)
+│  │  │  ├─ Return: ArrayFixed<T, N>
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[1]: __index
+│  │  │  ├─ Params: (self: &ArrayFixed<T, N>, index: int)
+│  │  │  ├─ Return: &T
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[2]: __index
+│  │  │  ├─ Params: (self: &ArrayFixed<T, N>, index: Range<int>)
+│  │  │  ├─ Return: Array<T>
+│  │  │  └─ Attributes: @intrinsic, @overload
+│  │  ├─ Fn[3]: __index_set
+│  │  │  ├─ Params: (self: &mut ArrayFixed<T, N>, index: int, value: T)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: __range
+│  │  │  ├─ Params: (self: &ArrayFixed<T, N>)
+│  │  │  ├─ Return: Range<T>
+│  │  │  └─ Attributes: @intrinsic
+│  │  └─ Fn[5]: __len
+│  │     ├─ Params: (self: &ArrayFixed<T, N>)
+│  │     ├─ Return: uint
+│  │     └─ Attributes: @intrinsic
+├─ Item[57]: Fn (span: 594:1-595:26)
+│  ├─ Name: default
+│  ├─ Generics: <T>
+│  ├─ Params: ()
+│  ├─ Return: T
+│  └─ Body: <none>
+├─ Item[58]: Fn (span: 597:1-598:29)
+│  ├─ Name: size_of
+│  ├─ Generics: <T>
+│  ├─ Params: ()
+│  ├─ Return: uint
+│  └─ Body: <none>
+├─ Item[59]: Fn (span: 600:1-601:30)
+│  ├─ Name: align_of
+│  ├─ Generics: <T>
+│  ├─ Params: ()
+│  ├─ Return: uint
+│  └─ Body: <none>
+├─ Item[60]: Contract (span: 603:1-606:2)
+├─ Item[61]: Fn (span: 608:1-609:44)
+│  ├─ Name: exit
+│  ├─ Generics: <E>
+│  ├─ Params: (e: E)
+│  ├─ Return: nothing
+│  └─ Body: <none>
+├─ Item[62]: Fn (span: 611:1-614:2)
+│  ├─ Name: panic
+│  ├─ Params: (msg: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 611:38-614:2)
+│        ├─ Stmt[0]: Let (span: 612:5-612:51)
+│        │  ├─ Name: e
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Error
+│        │  └─ Value: expr#103: <ExprKind(18)>
+│        └─ Stmt[1]: Expr (span: 613:5-613:13)
+│           └─ Expr: expr#106: exit(e)
+├─ Item[63]: Type (span: 616:1-619:3)
+│  ├─ Name: Mutex
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @intrinsic
+│  └─ Struct:
+│     └─ Field[0]: __opaque: *byte
+├─ Item[64]: Extern (span: 621:1-626:2)
+│  ├─ Target: Mutex
+│  ├─ Members:
+│  │  ├─ Fn[0]: new
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: Mutex
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[1]: lock
+│  │  │  ├─ Params: (self: &mut Mutex)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[2]: unlock
+│  │  │  ├─ Params: (self: &mut Mutex)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  └─ Fn[3]: try_lock
+│  │     ├─ Params: (self: &mut Mutex)
+│  │     ├─ Return: bool
+│  │     └─ Attributes: @intrinsic
+├─ Item[65]: Type (span: 628:1-631:3)
+│  ├─ Name: RwLock
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @intrinsic
+│  └─ Struct:
+│     └─ Field[0]: __opaque: *byte
+├─ Item[66]: Extern (span: 633:1-641:2)
+│  ├─ Target: RwLock
+│  ├─ Members:
+│  │  ├─ Fn[0]: new
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: RwLock
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[1]: read_lock
+│  │  │  ├─ Params: (self: &mut RwLock)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[2]: read_unlock
+│  │  │  ├─ Params: (self: &mut RwLock)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[3]: write_lock
+│  │  │  ├─ Params: (self: &mut RwLock)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[4]: write_unlock
+│  │  │  ├─ Params: (self: &mut RwLock)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[5]: try_read_lock
+│  │  │  ├─ Params: (self: &mut RwLock)
+│  │  │  ├─ Return: bool
+│  │  │  └─ Attributes: @intrinsic
+│  │  └─ Fn[6]: try_write_lock
+│  │     ├─ Params: (self: &mut RwLock)
+│  │     ├─ Return: bool
+│  │     └─ Attributes: @intrinsic
+├─ Item[67]: Type (span: 643:1-646:3)
+│  ├─ Name: Condition
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @intrinsic
+│  └─ Struct:
+│     └─ Field[0]: __opaque: *byte
+├─ Item[68]: Extern (span: 648:1-653:2)
+│  ├─ Target: Condition
+│  ├─ Members:
+│  │  ├─ Fn[0]: new
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: Condition
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[1]: wait
+│  │  │  ├─ Params: (self: &Condition, mutex: &mut Mutex)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[2]: notify_one
+│  │  │  ├─ Params: (self: &Condition)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  └─ Fn[3]: notify_all
+│  │     ├─ Params: (self: &Condition)
+│  │     ├─ Return: nothing
+│  │     └─ Attributes: @intrinsic
+├─ Item[69]: Type (span: 655:1-659:3)
+│  ├─ Name: Semaphore
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @intrinsic
+│  └─ Struct:
+│     ├─ Field[0]: __opaque: *byte
+│     └─ Field[1]: __count: uint
+├─ Item[70]: Extern (span: 661:1-666:2)
+│  ├─ Target: Semaphore
+│  ├─ Members:
+│  │  ├─ Fn[0]: new
+│  │  │  ├─ Params: (count: uint)
+│  │  │  ├─ Return: Semaphore
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[1]: acquire
+│  │  │  ├─ Params: (self: &mut Semaphore)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  ├─ Fn[2]: release
+│  │  │  ├─ Params: (self: &mut Semaphore)
+│  │  │  ├─ Return: nothing
+│  │  │  └─ Attributes: @intrinsic
+│  │  └─ Fn[3]: try_acquire
+│  │     ├─ Params: (self: &mut Semaphore)
+│  │     ├─ Return: bool
+│  │     └─ Attributes: @intrinsic
+├─ Item[71]: Fn (span: 674:1-675:38)
+│  ├─ Name: atomic_load
+│  ├─ Params: (ptr: &int)
+│  ├─ Return: int
+│  └─ Body: <none>
+├─ Item[72]: Fn (span: 677:1-679:40)
+│  ├─ Name: atomic_load
+│  ├─ Params: (ptr: &uint)
+│  ├─ Return: uint
+│  └─ Body: <none>
+├─ Item[73]: Fn (span: 681:1-683:40)
+│  ├─ Name: atomic_load
+│  ├─ Params: (ptr: &bool)
+│  ├─ Return: bool
+│  └─ Body: <none>
+├─ Item[74]: Fn (span: 686:1-687:59)
+│  ├─ Name: atomic_store
+│  ├─ Params: (ptr: &mut int, value: int)
+│  ├─ Return: nothing
+│  └─ Body: <none>
+├─ Item[75]: Fn (span: 689:1-691:61)
+│  ├─ Name: atomic_store
+│  ├─ Params: (ptr: &mut uint, value: uint)
+│  ├─ Return: nothing
+│  └─ Body: <none>
+├─ Item[76]: Fn (span: 693:1-695:61)
+│  ├─ Name: atomic_store
+│  ├─ Params: (ptr: &mut bool, value: bool)
+│  ├─ Return: nothing
+│  └─ Body: <none>
+├─ Item[77]: Fn (span: 698:1-699:60)
+│  ├─ Name: atomic_exchange
+│  ├─ Params: (ptr: &mut int, new_val: int)
+│  ├─ Return: int
+│  └─ Body: <none>
+├─ Item[78]: Fn (span: 701:1-703:63)
+│  ├─ Name: atomic_exchange
+│  ├─ Params: (ptr: &mut uint, new_val: uint)
+│  ├─ Return: uint
+│  └─ Body: <none>
+├─ Item[79]: Fn (span: 705:1-707:63)
+│  ├─ Name: atomic_exchange
+│  ├─ Params: (ptr: &mut bool, new_val: bool)
+│  ├─ Return: bool
+│  └─ Body: <none>
+├─ Item[80]: Fn (span: 711:1-712:84)
+│  ├─ Name: atomic_compare_exchange
+│  ├─ Params: (ptr: &mut int, expected: int, desired: int)
+│  ├─ Return: bool
+│  └─ Body: <none>
+├─ Item[81]: Fn (span: 714:1-716:87)
+│  ├─ Name: atomic_compare_exchange
+│  ├─ Params: (ptr: &mut uint, expected: uint, desired: uint)
+│  ├─ Return: bool
+│  └─ Body: <none>
+├─ Item[82]: Fn (span: 718:1-720:87)
+│  ├─ Name: atomic_compare_exchange
+│  ├─ Params: (ptr: &mut bool, expected: bool, desired: bool)
+│  ├─ Return: bool
+│  └─ Body: <none>
+├─ Item[83]: Fn (span: 723:1-724:59)
+│  ├─ Name: atomic_fetch_add
+│  ├─ Params: (ptr: &mut int, delta: int)
+│  ├─ Return: int
+│  └─ Body: <none>
+├─ Item[84]: Fn (span: 726:1-728:62)
+│  ├─ Name: atomic_fetch_add
+│  ├─ Params: (ptr: &mut uint, delta: uint)
+│  ├─ Return: uint
+│  └─ Body: <none>
+├─ Item[85]: Fn (span: 731:1-732:59)
+│  ├─ Name: atomic_fetch_sub
+│  ├─ Params: (ptr: &mut int, delta: int)
+│  ├─ Return: int
+│  └─ Body: <none>
+├─ Item[86]: Fn (span: 734:1-736:62)
+│  ├─ Name: atomic_fetch_sub
+│  ├─ Params: (ptr: &mut uint, delta: uint)
+│  ├─ Return: uint
+│  └─ Body: <none>
+├─ Item[87]: Fn (span: 741:1-742:30)
+│  ├─ Name: rt_argv
+│  ├─ Params: ()
+│  ├─ Return: string[]
+│  └─ Body: <none>
+├─ Item[88]: Fn (span: 745:1-746:38)
+│  ├─ Name: rt_stdin_read_all
+│  ├─ Params: ()
+│  ├─ Return: string
+│  └─ Body: <none>
+└─ Item[89]: Fn (span: 749:1-750:38)
+   ├─ Name: rt_exit
+   ├─ Params: (code: int)
+   ├─ Return: nothing
+   └─ Body: <none>

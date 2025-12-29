@@ -6,6 +6,7 @@ cd "${ROOT_DIR}"
 
 GOLDEN_DIR="${ROOT_DIR}/testdata/golden"
 SURGE_BIN="${SURGE_BIN:-${ROOT_DIR}/surge}"
+CORE_GOLDEN_DIR="${GOLDEN_DIR}/core_stdlib"
 
 # Set SURGE_STDLIB to use local stdlib during golden file generation
 # Always use local stdlib for golden tests, ignore any pre-existing SURGE_STDLIB
@@ -14,6 +15,11 @@ export SURGE_STDLIB="${ROOT_DIR}"
 # Очищаем старые артефакты перед регенерацией, чтобы убрать лишние файлы
 # Keep debugger golden inputs/outputs.
 find "${GOLDEN_DIR}" -path "${GOLDEN_DIR}/spec_audit" -prune -o -type f ! -name '*.sg' ! -name '*.script' ! -name '*.out' ! -name '*.code' ! -name '*.args' ! -name '*.stdin' -exec rm {} \;
+
+# Sync stdlib core sources into golden tree so they are always covered by diagnostics.
+rm -rf "${CORE_GOLDEN_DIR}"
+mkdir -p "${CORE_GOLDEN_DIR}"
+cp -a "${ROOT_DIR}/core/." "${CORE_GOLDEN_DIR}/"
 
 if [[ ! -x "${SURGE_BIN}" ]]; then
 	if command -v surge >/dev/null 2>&1; then

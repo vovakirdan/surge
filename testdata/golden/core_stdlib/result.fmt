@@ -5,7 +5,7 @@ pragma module, no_std;
 pub type Error = { message: string, code: uint };
 
 pub tag Success<T>(T);
-pub type Erring<T, E: ErrorLike> = Success(T) | E;
+pub type Erring<T, E> = Success(T) | E;
 
 extern<Erring<T, E>> {
     pub fn safe(self: Erring<T, E>) -> T {

@@ -1,0 +1,286 @@
+  1: KwPragma        "pragma" at 1:1-1:7
+  2: Ident           "module" at 1:8-1:14 (leading: Space)
+  3: Comma           "," at 1:14-1:15
+  4: Ident           "no_std" at 1:16-1:22 (leading: Space)
+  5: Semicolon       ";" at 1:22-1:23
+  6: KwPub           "pub" at 5:1-5:4 (leading: Newline, LineComment, Newline)
+  7: KwType          "type" at 5:5-5:9 (leading: Space)
+  8: Ident           "Error" at 5:10-5:15 (leading: Space)
+  9: Assign          "=" at 5:16-5:17 (leading: Space)
+ 10: LBrace          "{" at 5:18-5:19 (leading: Space)
+ 11: Ident           "message" at 5:20-5:27 (leading: Space)
+ 12: Colon           ":" at 5:27-5:28
+ 13: Ident           "string" at 5:29-5:35 (leading: Space)
+ 14: Comma           "," at 5:35-5:36
+ 15: Ident           "code" at 5:37-5:41 (leading: Space)
+ 16: Colon           ":" at 5:41-5:42
+ 17: Ident           "uint" at 5:43-5:47 (leading: Space)
+ 18: RBrace          "}" at 5:48-5:49 (leading: Space)
+ 19: Semicolon       ";" at 5:49-5:50
+ 20: KwPub           "pub" at 7:1-7:4 (leading: Newline)
+ 21: KwTag           "tag" at 7:5-7:8 (leading: Space)
+ 22: Ident           "Success" at 7:9-7:16 (leading: Space)
+ 23: Lt              "<" at 7:16-7:17
+ 24: Ident           "T" at 7:17-7:18
+ 25: Gt              ">" at 7:18-7:19
+ 26: LParen          "(" at 7:19-7:20
+ 27: Ident           "T" at 7:20-7:21
+ 28: RParen          ")" at 7:21-7:22
+ 29: Semicolon       ";" at 7:22-7:23
+ 30: KwPub           "pub" at 8:1-8:4 (leading: Newline)
+ 31: KwType          "type" at 8:5-8:9 (leading: Space)
+ 32: Ident           "Erring" at 8:10-8:16 (leading: Space)
+ 33: Lt              "<" at 8:16-8:17
+ 34: Ident           "T" at 8:17-8:18
+ 35: Comma           "," at 8:18-8:19
+ 36: Ident           "E" at 8:20-8:21 (leading: Space)
+ 37: Colon           ":" at 8:21-8:22
+ 38: Ident           "ErrorLike" at 8:23-8:32 (leading: Space)
+ 39: Gt              ">" at 8:32-8:33
+ 40: Assign          "=" at 8:34-8:35 (leading: Space)
+ 41: Ident           "Success" at 8:36-8:43 (leading: Space)
+ 42: LParen          "(" at 8:43-8:44
+ 43: Ident           "T" at 8:44-8:45
+ 44: RParen          ")" at 8:45-8:46
+ 45: Pipe            "|" at 8:47-8:48 (leading: Space)
+ 46: Ident           "E" at 8:49-8:50 (leading: Space)
+ 47: Semicolon       ";" at 8:50-8:51
+ 48: KwExtern        "extern" at 10:1-10:7 (leading: Newline)
+ 49: Lt              "<" at 10:7-10:8
+ 50: Ident           "Erring" at 10:8-10:14
+ 51: Lt              "<" at 10:14-10:15
+ 52: Ident           "T" at 10:15-10:16
+ 53: Comma           "," at 10:16-10:17
+ 54: Ident           "E" at 10:18-10:19 (leading: Space)
+ 55: Shr             ">>" at 10:19-10:21
+ 56: LBrace          "{" at 10:22-10:23 (leading: Space)
+ 57: KwPub           "pub" at 11:5-11:8 (leading: Newline, Space)
+ 58: KwFn            "fn" at 11:9-11:11 (leading: Space)
+ 59: Ident           "safe" at 11:12-11:16 (leading: Space)
+ 60: LParen          "(" at 11:16-11:17
+ 61: Ident           "self" at 11:17-11:21
+ 62: Colon           ":" at 11:21-11:22
+ 63: Ident           "Erring" at 11:23-11:29 (leading: Space)
+ 64: Lt              "<" at 11:29-11:30
+ 65: Ident           "T" at 11:30-11:31
+ 66: Comma           "," at 11:31-11:32
+ 67: Ident           "E" at 11:33-11:34 (leading: Space)
+ 68: Gt              ">" at 11:34-11:35
+ 69: RParen          ")" at 11:35-11:36
+ 70: Arrow           "->" at 11:37-11:39 (leading: Space)
+ 71: Ident           "T" at 11:40-11:41 (leading: Space)
+ 72: LBrace          "{" at 11:42-11:43 (leading: Space)
+ 73: KwReturn        "return" at 12:9-12:15 (leading: Newline, Space)
+ 74: KwCompare       "compare" at 12:16-12:23 (leading: Space)
+ 75: Ident           "self" at 12:24-12:28 (leading: Space)
+ 76: LBrace          "{" at 12:29-12:30 (leading: Space)
+ 77: Ident           "Success" at 13:13-13:20 (leading: Newline, Space)
+ 78: LParen          "(" at 13:20-13:21
+ 79: Ident           "v" at 13:21-13:22
+ 80: RParen          ")" at 13:22-13:23
+ 81: FatArrow        "=>" at 13:24-13:26 (leading: Space)
+ 82: Ident           "v" at 13:27-13:28 (leading: Space)
+ 83: Semicolon       ";" at 13:28-13:29
+ 84: Underscore      "_" at 14:13-14:14 (leading: Newline, Space)
+ 85: FatArrow        "=>" at 14:15-14:17 (leading: Space)
+ 86: Ident           "default" at 14:18-14:25 (leading: Space)
+ 87: ColonColon      "::" at 14:25-14:27
+ 88: Lt              "<" at 14:27-14:28
+ 89: Ident           "T" at 14:28-14:29
+ 90: Gt              ">" at 14:29-14:30
+ 91: LParen          "(" at 14:30-14:31
+ 92: RParen          ")" at 14:31-14:32
+ 93: Semicolon       ";" at 14:32-14:33
+ 94: RBrace          "}" at 15:9-15:10 (leading: Newline, Space)
+ 95: Semicolon       ";" at 15:10-15:11
+ 96: RBrace          "}" at 16:5-16:6 (leading: Newline, Space)
+ 97: KwPub           "pub" at 18:5-18:8 (leading: Newline, Space)
+ 98: KwFn            "fn" at 18:9-18:11 (leading: Space)
+ 99: Ident           "exit" at 18:12-18:16 (leading: Space)
+100: LParen          "(" at 18:16-18:17
+101: Ident           "self" at 18:17-18:21
+102: Colon           ":" at 18:21-18:22
+103: Ident           "Erring" at 18:23-18:29 (leading: Space)
+104: Lt              "<" at 18:29-18:30
+105: Ident           "T" at 18:30-18:31
+106: Comma           "," at 18:31-18:32
+107: Ident           "E" at 18:33-18:34 (leading: Space)
+108: Gt              ">" at 18:34-18:35
+109: RParen          ")" at 18:35-18:36
+110: Arrow           "->" at 18:37-18:39 (leading: Space)
+111: NothingLit      "nothing" at 18:40-18:47 (leading: Space)
+112: LBrace          "{" at 18:48-18:49 (leading: Space)
+113: KwCompare       "compare" at 19:9-19:16 (leading: Newline, Space)
+114: Ident           "self" at 19:17-19:21 (leading: Space)
+115: LBrace          "{" at 19:22-19:23 (leading: Space)
+116: Ident           "Success" at 20:13-20:20 (leading: Newline, Space)
+117: LParen          "(" at 20:20-20:21
+118: Underscore      "_" at 20:21-20:22
+119: RParen          ")" at 20:22-20:23
+120: FatArrow        "=>" at 20:24-20:26 (leading: Space)
+121: NothingLit      "nothing" at 20:27-20:34 (leading: Space)
+122: Semicolon       ";" at 20:34-20:35
+123: Ident           "err" at 21:13-21:16 (leading: Newline, Space)
+124: FatArrow        "=>" at 21:17-21:19 (leading: Space)
+125: Ident           "exit" at 21:20-21:24 (leading: Space)
+126: LParen          "(" at 21:24-21:25
+127: Ident           "err" at 21:25-21:28
+128: RParen          ")" at 21:28-21:29
+129: Semicolon       ";" at 21:29-21:30
+130: RBrace          "}" at 22:9-22:10 (leading: Newline, Space)
+131: Semicolon       ";" at 22:10-22:11
+132: RBrace          "}" at 23:5-23:6 (leading: Newline, Space)
+133: KwPub           "pub" at 25:5-25:8 (leading: Newline, Space)
+134: KwFn            "fn" at 25:9-25:11 (leading: Space)
+135: Ident           "error" at 25:12-25:17 (leading: Space)
+136: LParen          "(" at 25:17-25:18
+137: Ident           "self" at 25:18-25:22
+138: Colon           ":" at 25:22-25:23
+139: Ident           "Erring" at 25:24-25:30 (leading: Space)
+140: Lt              "<" at 25:30-25:31
+141: Ident           "T" at 25:31-25:32
+142: Comma           "," at 25:32-25:33
+143: Ident           "E" at 25:34-25:35 (leading: Space)
+144: Gt              ">" at 25:35-25:36
+145: RParen          ")" at 25:36-25:37
+146: Arrow           "->" at 25:38-25:40 (leading: Space)
+147: Ident           "Option" at 25:41-25:47 (leading: Space)
+148: Lt              "<" at 25:47-25:48
+149: Ident           "E" at 25:48-25:49
+150: Gt              ">" at 25:49-25:50
+151: LBrace          "{" at 25:51-25:52 (leading: Space)
+152: KwReturn        "return" at 26:9-26:15 (leading: Newline, Space)
+153: KwCompare       "compare" at 26:16-26:23 (leading: Space)
+154: Ident           "self" at 26:24-26:28 (leading: Space)
+155: LBrace          "{" at 26:29-26:30 (leading: Space)
+156: Ident           "Success" at 27:13-27:20 (leading: Newline, Space)
+157: LParen          "(" at 27:20-27:21
+158: Underscore      "_" at 27:21-27:22
+159: RParen          ")" at 27:22-27:23
+160: FatArrow        "=>" at 27:24-27:26 (leading: Space)
+161: NothingLit      "nothing" at 27:27-27:34 (leading: Space)
+162: Semicolon       ";" at 27:34-27:35
+163: Ident           "err" at 28:13-28:16 (leading: Newline, Space)
+164: FatArrow        "=>" at 28:17-28:19 (leading: Space)
+165: Ident           "Some" at 28:20-28:24 (leading: Space)
+166: LParen          "(" at 28:24-28:25
+167: Ident           "err" at 28:25-28:28
+168: RParen          ")" at 28:28-28:29
+169: Semicolon       ";" at 28:29-28:30
+170: RBrace          "}" at 29:9-29:10 (leading: Newline, Space)
+171: Semicolon       ";" at 29:10-29:11
+172: RBrace          "}" at 30:5-30:6 (leading: Newline, Space)
+173: KwPub           "pub" at 32:5-32:8 (leading: Newline, Space)
+174: KwFn            "fn" at 32:9-32:11 (leading: Space)
+175: Ident           "is_success" at 32:12-32:22 (leading: Space)
+176: LParen          "(" at 32:22-32:23
+177: Ident           "self" at 32:23-32:27
+178: Colon           ":" at 32:27-32:28
+179: Amp             "&" at 32:29-32:30 (leading: Space)
+180: Ident           "Erring" at 32:30-32:36
+181: Lt              "<" at 32:36-32:37
+182: Ident           "T" at 32:37-32:38
+183: Comma           "," at 32:38-32:39
+184: Ident           "E" at 32:40-32:41 (leading: Space)
+185: Gt              ">" at 32:41-32:42
+186: RParen          ")" at 32:42-32:43
+187: Arrow           "->" at 32:44-32:46 (leading: Space)
+188: Ident           "bool" at 32:47-32:51 (leading: Space)
+189: LBrace          "{" at 32:52-32:53 (leading: Space)
+190: KwReturn        "return" at 33:9-33:15 (leading: Newline, Space)
+191: KwCompare       "compare" at 33:16-33:23 (leading: Space)
+192: Ident           "self" at 33:24-33:28 (leading: Space)
+193: LBrace          "{" at 33:29-33:30 (leading: Space)
+194: Ident           "Success" at 34:13-34:20 (leading: Newline, Space)
+195: LParen          "(" at 34:20-34:21
+196: Underscore      "_" at 34:21-34:22
+197: RParen          ")" at 34:22-34:23
+198: FatArrow        "=>" at 34:24-34:26 (leading: Space)
+199: KwTrue          "true" at 34:27-34:31 (leading: Space)
+200: Semicolon       ";" at 34:31-34:32
+201: Underscore      "_" at 35:13-35:14 (leading: Newline, Space)
+202: FatArrow        "=>" at 35:15-35:17 (leading: Space)
+203: KwFalse         "false" at 35:18-35:23 (leading: Space)
+204: Semicolon       ";" at 35:23-35:24
+205: RBrace          "}" at 36:9-36:10 (leading: Newline, Space)
+206: Semicolon       ";" at 36:10-36:11
+207: RBrace          "}" at 37:5-37:6 (leading: Newline, Space)
+208: KwPub           "pub" at 39:5-39:8 (leading: Newline, Space)
+209: KwFn            "fn" at 39:9-39:11 (leading: Space)
+210: Ident           "is_error" at 39:12-39:20 (leading: Space)
+211: LParen          "(" at 39:20-39:21
+212: Ident           "self" at 39:21-39:25
+213: Colon           ":" at 39:25-39:26
+214: Amp             "&" at 39:27-39:28 (leading: Space)
+215: Ident           "Erring" at 39:28-39:34
+216: Lt              "<" at 39:34-39:35
+217: Ident           "T" at 39:35-39:36
+218: Comma           "," at 39:36-39:37
+219: Ident           "E" at 39:38-39:39 (leading: Space)
+220: Gt              ">" at 39:39-39:40
+221: RParen          ")" at 39:40-39:41
+222: Arrow           "->" at 39:42-39:44 (leading: Space)
+223: Ident           "bool" at 39:45-39:49 (leading: Space)
+224: LBrace          "{" at 39:50-39:51 (leading: Space)
+225: KwReturn        "return" at 40:9-40:15 (leading: Newline, Space)
+226: KwCompare       "compare" at 40:16-40:23 (leading: Space)
+227: Ident           "self" at 40:24-40:28 (leading: Space)
+228: LBrace          "{" at 40:29-40:30 (leading: Space)
+229: Ident           "Success" at 41:13-41:20 (leading: Newline, Space)
+230: LParen          "(" at 41:20-41:21
+231: Underscore      "_" at 41:21-41:22
+232: RParen          ")" at 41:22-41:23
+233: FatArrow        "=>" at 41:24-41:26 (leading: Space)
+234: KwFalse         "false" at 41:27-41:32 (leading: Space)
+235: Semicolon       ";" at 41:32-41:33
+236: Underscore      "_" at 42:13-42:14 (leading: Newline, Space)
+237: FatArrow        "=>" at 42:15-42:17 (leading: Space)
+238: KwTrue          "true" at 42:18-42:22 (leading: Space)
+239: Semicolon       ";" at 42:22-42:23
+240: RBrace          "}" at 43:9-43:10 (leading: Newline, Space)
+241: Semicolon       ";" at 43:10-43:11
+242: RBrace          "}" at 44:5-44:6 (leading: Newline, Space)
+243: KwPub           "pub" at 47:5-47:8 (leading: Newline, Space, LineComment, Newline, Space)
+244: KwFn            "fn" at 47:9-47:11 (leading: Space)
+245: Ident           "__to" at 47:12-47:16 (leading: Space)
+246: LParen          "(" at 47:16-47:17
+247: Ident           "self" at 47:17-47:21
+248: Colon           ":" at 47:21-47:22
+249: Ident           "Erring" at 47:23-47:29 (leading: Space)
+250: Lt              "<" at 47:29-47:30
+251: Ident           "T" at 47:30-47:31
+252: Comma           "," at 47:31-47:32
+253: Ident           "E" at 47:33-47:34 (leading: Space)
+254: Gt              ">" at 47:34-47:35
+255: Comma           "," at 47:35-47:36
+256: Ident           "target" at 47:37-47:43 (leading: Space)
+257: Colon           ":" at 47:43-47:44
+258: Ident           "int" at 47:45-47:48 (leading: Space)
+259: RParen          ")" at 47:48-47:49
+260: Arrow           "->" at 47:50-47:52 (leading: Space)
+261: Ident           "int" at 47:53-47:56 (leading: Space)
+262: LBrace          "{" at 47:57-47:58 (leading: Space)
+263: KwReturn        "return" at 48:9-48:15 (leading: Newline, Space)
+264: KwCompare       "compare" at 48:16-48:23 (leading: Space)
+265: Ident           "self" at 48:24-48:28 (leading: Space)
+266: LBrace          "{" at 48:29-48:30 (leading: Space)
+267: Ident           "Success" at 49:13-49:20 (leading: Newline, Space)
+268: LParen          "(" at 49:20-49:21
+269: Underscore      "_" at 49:21-49:22
+270: RParen          ")" at 49:22-49:23
+271: FatArrow        "=>" at 49:24-49:26 (leading: Space)
+272: IntLit          "0" at 49:27-49:28 (leading: Space)
+273: Semicolon       ";" at 49:28-49:29
+274: Ident           "err" at 50:13-50:16 (leading: Newline, Space)
+275: FatArrow        "=>" at 50:17-50:19 (leading: Space)
+276: Ident           "err" at 50:20-50:23 (leading: Space)
+277: Dot             "." at 50:23-50:24
+278: Ident           "code" at 50:24-50:28
+279: KwTo            "to" at 50:29-50:31 (leading: Space)
+280: Ident           "int" at 50:32-50:35 (leading: Space)
+281: Semicolon       ";" at 50:35-50:36
+282: RBrace          "}" at 51:9-51:10 (leading: Newline, Space)
+283: Semicolon       ";" at 51:10-51:11
+284: RBrace          "}" at 52:5-52:6 (leading: Newline, Space)
+285: RBrace          "}" at 53:1-53:2 (leading: Newline)
+286: EOF             at 54:1-54:1

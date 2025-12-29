@@ -233,8 +233,11 @@ func (fr *fileResolver) allowIntrinsicTypeBody() bool {
 		if strings.HasSuffix(path, "/core/intrinsics.sg") || strings.HasSuffix(path, "core/intrinsics.sg") {
 			return true
 		}
+		if strings.HasSuffix(path, "/core_stdlib/intrinsics.sg") || strings.HasSuffix(path, "core_stdlib/intrinsics.sg") {
+			return true
+		}
 	}
-	return fr.modulePath == "core"
+	return fr.modulePath == "core" || fr.modulePath == "core_stdlib" || strings.HasSuffix(fr.modulePath, "/core_stdlib")
 }
 
 // declareContract объявляет контракт в текущей области видимости.

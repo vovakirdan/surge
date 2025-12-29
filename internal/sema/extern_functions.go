@@ -44,7 +44,7 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 	popParams := tc.pushFnParams(tc.fnParamSymbols(fn, scope))
 	defer popParams()
 
-	receiverParamsPushed := tc.pushTypeParams(symID, receiverSpecs, nil)
+	receiverParamsPushed := tc.pushTypeParams(receiverOwner, receiverSpecs, nil)
 	if receiverOwner.IsValid() && receiverParamsPushed {
 		tc.applyTypeParamBounds(receiverOwner)
 	}

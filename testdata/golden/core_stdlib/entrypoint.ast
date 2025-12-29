@@ -1,0 +1,4 @@
+entrypoint.sg (span: 1:1-22:1)
+├─ Item[0]: Contract (span: 7:1-9:2)
+├─ Item[1]: Contract (span: 13:1-15:2)
+└─ Item[2]: Contract (span: 19:1-21:2)

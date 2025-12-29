@@ -1,0 +1,78 @@
+  1: KwPragma        "pragma" at 1:1-1:7
+  2: Ident           "module" at 1:8-1:14 (leading: Space)
+  3: Comma           "," at 1:14-1:15
+  4: Ident           "no_std" at 1:16-1:22 (leading: Space)
+  5: Semicolon       ";" at 1:22-1:23
+  6: KwPub           "pub" at 7:1-7:4 (leading: Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  7: KwContract      "contract" at 7:5-7:13 (leading: Space)
+  8: Ident           "FromArgv" at 7:14-7:22 (leading: Space)
+  9: Lt              "<" at 7:22-7:23
+ 10: Ident           "T" at 7:23-7:24
+ 11: Gt              ">" at 7:24-7:25
+ 12: LBrace          "{" at 7:26-7:27 (leading: Space)
+ 13: KwPub           "pub" at 8:5-8:8 (leading: Newline, Space)
+ 14: KwFn            "fn" at 8:9-8:11 (leading: Space)
+ 15: Ident           "from_str" at 8:12-8:20 (leading: Space)
+ 16: LParen          "(" at 8:20-8:21
+ 17: Ident           "s" at 8:21-8:22
+ 18: Colon           ":" at 8:22-8:23
+ 19: Amp             "&" at 8:24-8:25 (leading: Space)
+ 20: Ident           "string" at 8:25-8:31
+ 21: RParen          ")" at 8:31-8:32
+ 22: Arrow           "->" at 8:33-8:35 (leading: Space)
+ 23: Ident           "Erring" at 8:36-8:42 (leading: Space)
+ 24: Lt              "<" at 8:42-8:43
+ 25: Ident           "T" at 8:43-8:44
+ 26: Comma           "," at 8:44-8:45
+ 27: Ident           "Error" at 8:46-8:51 (leading: Space)
+ 28: Gt              ">" at 8:51-8:52
+ 29: Semicolon       ";" at 8:52-8:53
+ 30: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 31: KwPub           "pub" at 13:1-13:4 (leading: Newline, LineComment, Newline, LineComment, Newline)
+ 32: KwContract      "contract" at 13:5-13:13 (leading: Space)
+ 33: Ident           "FromStdin" at 13:14-13:23 (leading: Space)
+ 34: Lt              "<" at 13:23-13:24
+ 35: Ident           "T" at 13:24-13:25
+ 36: Gt              ">" at 13:25-13:26
+ 37: LBrace          "{" at 13:27-13:28 (leading: Space)
+ 38: KwPub           "pub" at 14:5-14:8 (leading: Newline, Space)
+ 39: KwFn            "fn" at 14:9-14:11 (leading: Space)
+ 40: Ident           "from_stdin" at 14:12-14:22 (leading: Space)
+ 41: LParen          "(" at 14:22-14:23
+ 42: Ident           "text" at 14:23-14:27
+ 43: Colon           ":" at 14:27-14:28
+ 44: Ident           "string" at 14:29-14:35 (leading: Space)
+ 45: RParen          ")" at 14:35-14:36
+ 46: Arrow           "->" at 14:37-14:39 (leading: Space)
+ 47: Ident           "Erring" at 14:40-14:46 (leading: Space)
+ 48: Lt              "<" at 14:46-14:47
+ 49: Ident           "T" at 14:47-14:48
+ 50: Comma           "," at 14:48-14:49
+ 51: Ident           "Error" at 14:50-14:55 (leading: Space)
+ 52: Gt              ">" at 14:55-14:56
+ 53: Semicolon       ";" at 14:56-14:57
+ 54: RBrace          "}" at 15:1-15:2 (leading: Newline)
+ 55: KwPub           "pub" at 19:1-19:4 (leading: Newline, LineComment, Newline, LineComment, Newline)
+ 56: KwContract      "contract" at 19:5-19:13 (leading: Space)
+ 57: Ident           "ExitCode" at 19:14-19:22 (leading: Space)
+ 58: Lt              "<" at 19:22-19:23
+ 59: Ident           "T" at 19:23-19:24
+ 60: Gt              ">" at 19:24-19:25
+ 61: LBrace          "{" at 19:26-19:27 (leading: Space)
+ 62: KwPub           "pub" at 20:5-20:8 (leading: Newline, Space)
+ 63: KwFn            "fn" at 20:9-20:11 (leading: Space)
+ 64: Ident           "__to" at 20:12-20:16 (leading: Space)
+ 65: LParen          "(" at 20:16-20:17
+ 66: Ident           "self" at 20:17-20:21
+ 67: Colon           ":" at 20:21-20:22
+ 68: Ident           "T" at 20:23-20:24 (leading: Space)
+ 69: Comma           "," at 20:24-20:25
+ 70: Ident           "target" at 20:26-20:32 (leading: Space)
+ 71: Colon           ":" at 20:32-20:33
+ 72: Ident           "int" at 20:34-20:37 (leading: Space)
+ 73: RParen          ")" at 20:37-20:38
+ 74: Arrow           "->" at 20:39-20:41 (leading: Space)
+ 75: Ident           "int" at 20:42-20:45 (leading: Space)
+ 76: Semicolon       ";" at 20:45-20:46
+ 77: RBrace          "}" at 21:1-21:2 (leading: Newline)
+ 78: EOF             at 22:1-22:1
