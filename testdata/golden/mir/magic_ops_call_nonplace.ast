@@ -1,4 +1,4 @@
-testdata/golden/mir/magic_ops_call_nonplace.sg (span: 1:1-28:1)
+magic_ops_call_nonplace.sg (span: 1:1-28:1)
 ├─ Item[0]: Type (span: 1:1-4:3)
 │  ├─ Name: Point
 │  ├─ Kind: Struct

@@ -6,29 +6,29 @@ fn main:
   locals:
     L0: int [copy] name=i
     L1: int [copy] name=sum
-    L2: bool [copy] name=tmp_bin1
-    L3: int [copy] name=tmp_bin2
-    L4: bool [copy] name=tmp_bin3
-    L5: bool [copy] name=tmp_bin4
-    L6: int [copy] name=tmp_bin5
+    L2: bool [copy] name=tmp_call1
+    L3: int [copy] name=tmp_call2
+    L4: bool [copy] name=tmp_call3
+    L5: bool [copy] name=tmp_call4
+    L6: int [copy] name=tmp_call5
   bb0:
     L0 = const 0
     L1 = const 0
     goto bb1
   bb1:
-    L2 = (copy L0 < const 5)
+    L2 = call __lt(copy L0, const 5)
     if copy L2 then bb2 else bb3
   bb2:
-    L3 = (copy L0 + const 1)
+    L3 = call __add(copy L0, const 1)
     L0 = copy L3
-    L4 = (copy L0 == const 3)
+    L4 = call __eq(copy L0, const 3)
     if copy L4 then bb1 else bb4
   bb3:
     return copy L1
   bb4:
-    L5 = (copy L0 == const 5)
+    L5 = call __eq(copy L0, const 5)
     if copy L5 then bb3 else bb5
   bb5:
-    L6 = (copy L1 + copy L0)
+    L6 = call __add(copy L1, copy L0)
     L1 = copy L6
     goto bb1

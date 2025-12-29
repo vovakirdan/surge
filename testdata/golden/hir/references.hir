@@ -3,7 +3,7 @@
 module 
 
 fn increment(x: &mut int [&mut]) -> nothing (id=1, sym=1136) {
-  ((* x) = ((* x) + 1)): int
+  ((* x) = __add((* x), 1)): int
   return
 }
 

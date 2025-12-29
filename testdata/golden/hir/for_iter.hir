@@ -12,7 +12,7 @@ fn sum(arr: type#1180) -> int (id=1, sym=1136) {
         break
       }
       let x: int [copy] = tag_payload(__next2, Some, 0): int
-      (total = (total + x)): int
+      (total = __add(total, x)): int
     }
   }
   return total

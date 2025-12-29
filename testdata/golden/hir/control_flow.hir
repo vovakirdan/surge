@@ -3,8 +3,8 @@
 module 
 
 fn abs(x: int [copy]) -> int (id=1, sym=1136) {
-  if (x < 0): bool {
-    return (- x): int
+  if __lt(x, 0): bool {
+    return __neg(x): int
   } else {
     return x
   }
@@ -12,8 +12,8 @@ fn abs(x: int [copy]) -> int (id=1, sym=1136) {
 
 fn countdown(n: int [copy]) -> int (id=2, sym=1137) {
   let mut i: int [copy] = n
-  while (i > 0): bool {
-    (i = (i - 1)): int
+  while __gt(i, 0): bool {
+    (i = __sub(i, 1)): int
   }
   return i
 }

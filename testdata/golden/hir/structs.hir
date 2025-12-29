@@ -9,6 +9,6 @@ fn origin() -> type#1179 (id=1, sym=1137) {
 }
 
 fn move_point(p: type#1179, dx: int [copy], dy: int [copy]) -> type#1179 (id=2, sym=1138) {
-  return  { x = (p.x + dx): int, y = (p.y + dy): int }: type#1179
+  return  { x = __add(p.x, dx): int, y = __add(p.y, dy): int }: type#1179
 }
 

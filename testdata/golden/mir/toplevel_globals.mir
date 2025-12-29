@@ -7,12 +7,12 @@ funcs=2
 
 fn __surge_start:
   locals:
-    L0: int [copy] name=tmp_bin1
+    L0: int [copy] name=tmp_call1
     L1: int name=entry_ret
     L2: int [copy] name=code
   bb0:
     G0 = const 1
-    L0 = (copy G0 + const 2)
+    L0 = call __add(copy G0, const 2)
     G1 = copy L0
     L1 = call main()
     L2 = copy L1

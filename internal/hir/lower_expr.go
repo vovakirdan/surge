@@ -246,12 +246,10 @@ func (l *lowerer) lowerBinaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Ty
 	left := l.lowerExpr(binData.Left)
 	right := l.lowerExpr(binData.Right)
 
-	// If sema resolved a magic method for non-numeric operands, lower to a call.
+	// If sema resolved a magic method, lower to a call.
 	if l.semaRes != nil && l.semaRes.MagicBinarySymbols != nil {
 		if symID, ok := l.semaRes.MagicBinarySymbols[exprID]; ok && symID.IsValid() {
-			if left == nil || right == nil || !(l.isNumericType(left.Type) && l.isNumericType(right.Type)) {
-				return l.magicCallExpr(expr.Span, ty, symID, []*Expr{left, right})
-			}
+			return l.magicCallExpr(expr.Span, ty, symID, []*Expr{left, right})
 		}
 	}
 
@@ -312,12 +310,10 @@ func (l *lowerer) lowerUnaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Typ
 	}
 
 	operand := l.lowerExpr(unaryData.Operand)
-	// If sema resolved a magic method for non-numeric operands, lower to a call.
+	// If sema resolved a magic method, lower to a call.
 	if l.semaRes != nil && l.semaRes.MagicUnarySymbols != nil {
 		if symID, ok := l.semaRes.MagicUnarySymbols[exprID]; ok && symID.IsValid() {
-			if operand == nil || !l.isNumericType(operand.Type) {
-				return l.magicCallExpr(expr.Span, ty, symID, []*Expr{operand})
-			}
+			return l.magicCallExpr(expr.Span, ty, symID, []*Expr{operand})
 		}
 	}
 

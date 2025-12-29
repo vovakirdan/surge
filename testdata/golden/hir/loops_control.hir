@@ -7,7 +7,7 @@ fn find_first_positive(arr: type#1180) -> int (id=1, sym=1136) {
     let mut i: int [copy] = 0
     let __end1: int [copy] = 5
     while (i < __end1): bool {
-      if (arr[i] < 0): bool {
+      if __lt((* arr[i]), 0): bool {
         {
           i = (i + 1): int
           continue
@@ -26,10 +26,10 @@ fn sum_until_zero(arr: type#1180) -> int (id=2, sym=1137) {
     let mut i: int [copy] = 0
     let __end1: int [copy] = 5
     while (i < __end1): bool {
-      if (arr[i] == 0): bool {
+      if __eq((* arr[i]), 0): bool {
         break
       }
-      (total = (total + arr[i])): int
+      (total = __add(total, (* arr[i]))): int
       i = (i + 1): int
     }
   }

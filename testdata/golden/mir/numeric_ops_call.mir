@@ -1,0 +1,10 @@
+
+== MIR ==
+funcs=1
+
+fn main:
+  locals:
+    L0: int [copy] name=tmp_call1
+  bb0:
+    L0 = call __add(const 1, const 2)
+    return copy L0

@@ -3,15 +3,15 @@
 module 
 
 fn bit_ops(a: int [copy], b: int [copy]) -> int (id=1, sym=1136) {
-  let and_result: int [copy] = (a & b): int
-  let or_result: int [copy] = (a | b): int
-  let xor_result: int [copy] = (a ^ b): int
-  let shift_left: int [copy] = (a << 2): int
-  let shift_right: int [copy] = (b >> 1): int
-  return (and_result | or_result): int
+  let and_result: int [copy] = __bit_and(a, b): int
+  let or_result: int [copy] = __bit_or(a, b): int
+  let xor_result: int [copy] = __bit_xor(a, b): int
+  let shift_left: int [copy] = __shl(a, 2): int
+  let shift_right: int [copy] = __shr(b, 1): int
+  return __bit_or(and_result, or_result): int
 }
 
 fn logical_ops(a: bool [copy], b: bool [copy]) -> bool (id=2, sym=1137) {
-  return ((a && b) || (! a)): bool
+  return ((a && b) || __not(a)): bool
 }
 

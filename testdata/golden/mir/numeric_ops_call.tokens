@@ -1,0 +1,14 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "main" at 1:4-1:8 (leading: Space)
+  3: LParen          "(" at 1:8-1:9
+  4: RParen          ")" at 1:9-1:10
+  5: Arrow           "->" at 1:11-1:13 (leading: Space)
+  6: Ident           "int" at 1:14-1:17 (leading: Space)
+  7: LBrace          "{" at 1:18-1:19 (leading: Space)
+  8: KwReturn        "return" at 2:5-2:11 (leading: Newline, Space)
+  9: IntLit          "1" at 2:12-2:13 (leading: Space)
+ 10: Plus            "+" at 2:14-2:15 (leading: Space)
+ 11: IntLit          "2" at 2:16-2:17 (leading: Space)
+ 12: Semicolon       ";" at 2:17-2:18
+ 13: RBrace          "}" at 3:1-3:2 (leading: Newline)
+ 14: EOF             at 4:1-4:1

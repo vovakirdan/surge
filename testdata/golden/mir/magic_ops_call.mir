@@ -8,18 +8,18 @@ fn __add:
     L1: &type#1179 [copy,ref] name=other
     L2: int [copy] name=tmp_field1
     L3: int [copy] name=tmp_field2
-    L4: int [copy] name=tmp_bin3
+    L4: int [copy] name=tmp_call3
     L5: int [copy] name=tmp_field4
     L6: int [copy] name=tmp_field5
-    L7: int [copy] name=tmp_bin6
+    L7: int [copy] name=tmp_call6
     L8: type#1179 name=tmp_struct7
   bb0:
     L2 = field copy L0.x
     L3 = field copy L1.x
-    L4 = (copy L2 + copy L3)
+    L4 = call __add(copy L2, copy L3)
     L5 = field copy L0.y
     L6 = field copy L1.y
-    L7 = (copy L5 + copy L6)
+    L7 = call __add(copy L5, copy L6)
     L8 = struct_lit type#1179 {x=copy L4, y=copy L7}
     return move L8
 
@@ -29,18 +29,18 @@ fn __eq:
     L1: &type#1179 [copy,ref] name=other
     L2: int [copy] name=tmp_field1
     L3: int [copy] name=tmp_field2
-    L4: bool [copy] name=tmp_bin3
+    L4: bool [copy] name=tmp_call3
     L5: int [copy] name=tmp_field4
     L6: int [copy] name=tmp_field5
-    L7: bool [copy] name=tmp_bin6
+    L7: bool [copy] name=tmp_call6
     L8: bool [copy] name=tmp_bin7
   bb0:
     L2 = field copy L0.x
     L3 = field copy L1.x
-    L4 = (copy L2 == copy L3)
+    L4 = call __eq(copy L2, copy L3)
     L5 = field copy L0.y
     L6 = field copy L1.y
-    L7 = (copy L5 == copy L6)
+    L7 = call __eq(copy L5, copy L6)
     L8 = (copy L4 && copy L7)
     return copy L8
 
@@ -50,26 +50,26 @@ fn __lt:
     L1: &type#1179 [copy,ref] name=other
     L2: int [copy] name=tmp_field1
     L3: int [copy] name=tmp_field2
-    L4: bool [copy] name=tmp_bin3
+    L4: bool [copy] name=tmp_call3
   bb0:
     L2 = field copy L0.x
     L3 = field copy L1.x
-    L4 = (copy L2 < copy L3)
+    L4 = call __lt(copy L2, copy L3)
     return copy L4
 
 fn __neg:
   locals:
     L0: &type#1179 [copy,ref] name=self
     L1: int [copy] name=tmp_field1
-    L2: int [copy] name=tmp_un2
+    L2: int [copy] name=tmp_call2
     L3: int [copy] name=tmp_field3
-    L4: int [copy] name=tmp_un4
+    L4: int [copy] name=tmp_call4
     L5: type#1179 name=tmp_struct5
   bb0:
     L1 = field copy L0.x
-    L2 = (- copy L1)
+    L2 = call __neg(copy L1)
     L3 = field copy L0.y
-    L4 = (- copy L3)
+    L4 = call __neg(copy L3)
     L5 = struct_lit type#1179 {x=copy L2, y=copy L4}
     return move L5
 
@@ -90,7 +90,7 @@ fn main:
     L12: bool [copy] name=tmp_bin7
     L13: int [copy] name=tmp_field8
     L14: int [copy] name=tmp_field9
-    L15: int [copy] name=tmp_bin10
+    L15: int [copy] name=tmp_call10
   bb0:
     L1 = struct_lit type#1179 {x=const 1, y=const 2}
     L0 = move L1
@@ -109,7 +109,7 @@ fn main:
   bb1:
     L13 = field copy L4.x
     L14 = field copy L10.y
-    L15 = (copy L13 + copy L14)
+    L15 = call __add(copy L13, copy L14)
     return copy L15
   bb2:
     return const 0

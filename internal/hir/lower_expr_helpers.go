@@ -121,32 +121,6 @@ func (l *lowerer) referenceType(elem types.TypeID, mutable bool) types.TypeID {
 	return l.semaRes.TypeInterner.Intern(types.MakeReference(elem, mutable))
 }
 
-func (l *lowerer) isNumericType(id types.TypeID) bool {
-	if id == types.NoTypeID || l.semaRes == nil || l.semaRes.TypeInterner == nil {
-		return false
-	}
-	typesIn := l.semaRes.TypeInterner
-	for range 8 {
-		resolved := resolveAlias(typesIn, id, 0)
-		tt, ok := typesIn.Lookup(resolved)
-		if !ok {
-			return false
-		}
-		switch tt.Kind {
-		case types.KindInt, types.KindUint, types.KindFloat:
-			return true
-		case types.KindReference, types.KindOwn:
-			if tt.Elem == types.NoTypeID {
-				return false
-			}
-			id = tt.Elem
-		default:
-			return false
-		}
-	}
-	return false
-}
-
 func (l *lowerer) isArrayType(ty types.TypeID) bool {
 	if ty == types.NoTypeID || l.semaRes == nil || l.semaRes.TypeInterner == nil {
 		return false

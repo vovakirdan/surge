@@ -6,11 +6,11 @@ fn main:
   locals:
     L0: int [copy] name=x
     L1: int [copy] name=y
-    L2: bool [copy] name=tmp_bin1
+    L2: bool [copy] name=tmp_call1
     L3: int [copy] name=tmp_if2
   bb0:
     L0 = const 1
-    L2 = (copy L0 == const 0)
+    L2 = call __eq(copy L0, const 0)
     if copy L2 then bb1 else bb2
   bb1:
     L3 = const 10
