@@ -1,0 +1,41 @@
+testdata/golden/mir/method_call.sg (span: 1:1-18:1)
+├─ Item[0]: Type (span: 1:1-4:3)
+│  ├─ Name: Point
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: x: int
+│     └─ Field[1]: y: int
+├─ Item[1]: Extern (span: 6:1-10:2)
+│  ├─ Target: Point
+│  ├─ Members:
+│  │  └─ Fn[0]: add
+│  │     ├─ Params: (self: &Point, other: &Point)
+│  │     ├─ Return: Point
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 7:50-9:6)
+│  │        └─ Stmt[0]: Return (span: 8:9-8:61)
+│  │           └─ Expr: expr#13: <ExprKind(18)>
+└─ Item[2]: Fn (span: 12:1-17:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:18-17:2)
+         ├─ Stmt[0]: Let (span: 13:5-13:36)
+         │  ├─ Name: p1
+         │  ├─ Mutable: false
+         │  ├─ Type: Point
+         │  └─ Value: expr#18: <ExprKind(18)>
+         ├─ Stmt[1]: Let (span: 14:5-14:36)
+         │  ├─ Name: p2
+         │  ├─ Mutable: false
+         │  ├─ Type: Point
+         │  └─ Value: expr#23: <ExprKind(18)>
+         ├─ Stmt[2]: Let (span: 15:5-15:26)
+         │  ├─ Name: p3
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#28: p1.add(&p2)
+         └─ Stmt[3]: Return (span: 16:5-16:24)
+            └─ Expr: expr#33: (p3.x + p3.y)

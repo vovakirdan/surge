@@ -287,6 +287,7 @@ func (fr *fileResolver) declareExternFn(container ast.ItemID, member ast.ExternM
 		SourceFile: fr.sourceFile,
 		ASTFile:    fr.fileID,
 		Item:       container,
+		Expr:       ast.ExprID(member),
 	}
 	span := fnNameSpan(fnItem)
 	if reused := fr.findExistingSymbol(fnItem.Name, SymbolFunction, decl); reused.IsValid() {

@@ -1,0 +1,17 @@
+type Point = {
+    x: int,
+    y: int,
+};
+
+extern<Point> {
+    fn add(self: &Point, other: &Point) -> Point {
+        return { x: self.x + other.x, y: self.y + other.y };
+    }
+}
+
+fn main() -> int {
+    let p1: Point = { x: 1, y: 2 };
+    let p2: Point = { x: 3, y: 4 };
+    let p3 = p1.add(&p2);
+    return p3.x + p3.y;
+}

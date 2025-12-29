@@ -135,6 +135,63 @@ func TestResolveAllowsFunctionOverloads(t *testing.T) {
 	}
 }
 
+func TestResolveExternOverloadKeepsDistinctSymbolsOnReuse(t *testing.T) {
+	src := `
+        type Point = { x: int, y: int }
+
+        extern<Point> {
+            fn add(self: &Point, other: &Point) -> Point { return self; }
+            @overload fn add(self: &Point, other: int) -> Point { return self; }
+        }
+    `
+	builder, fileID, parseBag := parseSnippet(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %d", parseBag.Len())
+	}
+
+	table := NewTable(Hints{}, builder.StringsInterner)
+	_ = ResolveFile(builder, fileID, &ResolveOptions{
+		Table:       table,
+		DeclareOnly: true,
+	})
+	res := ResolveFile(builder, fileID, &ResolveOptions{
+		Table:      table,
+		ReuseDecls: true,
+	})
+
+	file := builder.Files.Get(fileID)
+	if file == nil {
+		t.Fatalf("missing file for test")
+	}
+	var memberIDs []ast.ExternMemberID
+	for _, itemID := range file.Items {
+		item := builder.Items.Arena.Get(uint32(itemID))
+		if item == nil || item.Kind != ast.ItemExtern {
+			continue
+		}
+		block, ok := builder.Items.Extern(itemID)
+		if !ok || block == nil || block.MembersCount == 0 || !block.MembersStart.IsValid() {
+			continue
+		}
+		start := uint32(block.MembersStart)
+		for offset := range block.MembersCount {
+			memberIDs = append(memberIDs, ast.ExternMemberID(start+offset))
+		}
+	}
+	if len(memberIDs) < 2 {
+		t.Fatalf("expected at least 2 extern members, got %d", len(memberIDs))
+	}
+
+	first := res.ExternSyms[memberIDs[0]]
+	second := res.ExternSyms[memberIDs[1]]
+	if !first.IsValid() || !second.IsValid() {
+		t.Fatalf("expected extern symbols to be resolved (got %v, %v)", first, second)
+	}
+	if first == second {
+		t.Fatalf("expected distinct symbols for extern overloads, got %v", first)
+	}
+}
+
 func TestResolveFunctionParamDuplicates(t *testing.T) {
 	src := `
 	    fn f(a: int, a: int) {}
