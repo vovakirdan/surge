@@ -435,7 +435,7 @@ func (p *Parser) parseForInitializer() (ast.StmtID, bool) {
 		return ast.NoStmtID, false
 	}
 	exprSpan := p.arenas.Exprs.Get(exprID).Span
-	stmtID := p.arenas.Stmts.NewExpr(exprSpan, exprID)
+	stmtID := p.arenas.Stmts.NewExpr(exprSpan, exprID, false)
 	return stmtID, true
 }
 

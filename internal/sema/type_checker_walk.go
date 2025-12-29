@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/dialect"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/trace"
@@ -126,6 +127,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			pushed := tc.pushScope(scope)
 			tc.walkStmt(fnItem.Body)
 			if returnType != tc.types.Builtins().Nothing && tc.returnStatus(fnItem.Body) != returnClosed {
+				tc.maybeRecordRustImplicitReturn(fnItem, returnType, returnSpan)
 				tc.report(diag.SemaMissingReturn, returnSpan, "function returning %s is missing a return", tc.typeLabel(returnType))
 			}
 			// Perform lock analysis and check @nonblocking constraint
@@ -323,6 +325,63 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 	default:
 		// StmtBreak / StmtContinue and others have no expressions to type.
 	}
+}
+
+func (tc *typeChecker) maybeRecordRustImplicitReturn(fn *ast.FnItem, returnType types.TypeID, returnSpan source.Span) {
+	if tc.builder == nil || fn == nil || tc.types == nil || tc.result == nil {
+		return
+	}
+	if returnType == types.NoTypeID {
+		return
+	}
+	file := tc.builder.Files.Get(tc.fileID)
+	if file == nil {
+		return
+	}
+	body := tc.builder.Stmts.Block(fn.Body)
+	if body == nil || len(body.Stmts) == 0 {
+		return
+	}
+	lastStmtID := body.Stmts[len(body.Stmts)-1]
+	stmt := tc.builder.Stmts.Get(lastStmtID)
+	if stmt == nil || stmt.Kind != ast.StmtExpr {
+		return
+	}
+	exprStmt := tc.builder.Stmts.Expr(lastStmtID)
+	if exprStmt == nil || !exprStmt.MissingSemicolon {
+		return
+	}
+	exprType, ok := tc.result.ExprTypes[exprStmt.Expr]
+	if !ok || exprType == types.NoTypeID {
+		return
+	}
+	resolvedReturn := tc.resolveAlias(returnType)
+	resolvedExpr := tc.resolveAlias(exprType)
+	if resolvedReturn == types.NoTypeID || resolvedExpr == types.NoTypeID {
+		return
+	}
+	if resolvedReturn != resolvedExpr {
+		return
+	}
+	span := returnSpan
+	if expr := tc.builder.Exprs.Get(exprStmt.Expr); expr != nil {
+		if span == (source.Span{}) {
+			span = expr.Span
+		} else {
+			span = span.Cover(expr.Span)
+		}
+	}
+	ev := file.DialectEvidence
+	if ev == nil {
+		ev = dialect.NewEvidence()
+		file.DialectEvidence = ev
+	}
+	ev.Add(dialect.Hint{
+		Dialect: dialect.DialectRust,
+		Score:   6,
+		Reason:  "implicit return without ';' at block end",
+		Span:    span,
+	})
 }
 
 func (tc *typeChecker) typeSpan(id ast.TypeID) source.Span {

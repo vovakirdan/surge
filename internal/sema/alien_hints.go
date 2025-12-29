@@ -52,6 +52,7 @@ func emitAlienHints(builder *ast.Builder, fileID ast.FileID, opts Options) {
 				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustImplTrait, file.DialectEvidence, errs, isRustImplTraitHint, rustImplTraitMessage)
 				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustAttribute, file.DialectEvidence, errs, isRustAttributeHint, rustAttributeMessage)
 				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustMacroCall, file.DialectEvidence, errs, isRustMacroHint, rustMacroMessage)
+				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustImplicitRet, file.DialectEvidence, errs, isRustImplicitReturnHint, rustImplicitReturnMessage)
 			case dialect.DialectGo:
 				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnGoDefer, file.DialectEvidence, errs, isGoDeferHint, goDeferMessage)
 			case dialect.DialectTypeScript:
@@ -227,6 +228,21 @@ func rustMacroMessage(h dialect.Hint) string {
 		Kind:         dialect.AlienHintMacroCall,
 		Detected:     "macro call syntax `name!(...)`",
 		SurgeExample: "name();",
+	})
+}
+
+func isRustImplicitReturnHint(h dialect.Hint) bool {
+	if h.Dialect != dialect.DialectRust {
+		return false
+	}
+	return strings.Contains(h.Reason, "implicit return")
+}
+
+func rustImplicitReturnMessage(dialect.Hint) string {
+	return dialect.RenderAlienHint(dialect.DialectRust, dialect.RenderInput{
+		Kind:         dialect.AlienHintImplicitReturn,
+		Detected:     "implicit return without ';'",
+		SurgeExample: "fn foo() -> int { return 1; }",
 	})
 }
 

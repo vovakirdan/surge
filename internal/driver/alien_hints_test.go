@@ -40,6 +40,17 @@ type Foo = { x: int };
 			WantErrors: true,
 		},
 		{
+			Name: "rust_implicit_return",
+			Src: `fn rusty(flag: bool) -> int {
+    if (flag) {
+        return 1;
+    }
+    2
+}
+`,
+			WantErrors: true,
+		},
+		{
 			Name: "go_defer",
 			Src: `fn main() -> nothing {
     defer(foo());
