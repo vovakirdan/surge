@@ -15,6 +15,7 @@ const (
 	AlienHintImplTrait
 	AlienHintAttribute
 	AlienHintMacroCall
+	AlienHintImplicitReturn
 
 	AlienHintGoDefer
 	AlienHintTSInterface
@@ -52,9 +53,10 @@ func personaForDialect(d DialectKind) DialectPersona {
 			Greetings: []string{"Ah, a fellow Rustacean!"},
 			LeadIns:   []string{"That looks like Rust %s."},
 			CoreHints: map[AlienHintKind][]string{
-				AlienHintImplTrait: {"Surge doesn’t use `impl` blocks; think `contract` requirements + `extern<T>` methods."},
-				AlienHintAttribute: {"Surge attributes start with `@` (e.g. `@align(8)`)."},
-				AlienHintMacroCall: {"Surge has no `!` macros—use a normal call instead."},
+				AlienHintImplTrait:      {"Surge doesn’t use `impl` blocks; think `contract` requirements + `extern<T>` methods."},
+				AlienHintAttribute:      {"Surge attributes start with `@` (e.g. `@align(8)`)."},
+				AlienHintMacroCall:      {"Surge has no `!` macros—use a normal call instead."},
+				AlienHintImplicitReturn: {"Surge requires an explicit `return` (with a semicolon) for function results."},
 			},
 			Closings: []string{"In Surge, try:"},
 		}

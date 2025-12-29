@@ -45,7 +45,7 @@ func TestBorrowBlocksMutationWhileShared(t *testing.T) {
 	stmtR := builder.Stmts.NewLet(source.Span{}, rName, ast.NoExprID, ast.NoTypeID, share, false)
 
 	assign := builder.Exprs.NewBinary(source.Span{}, ast.ExprBinaryAssign, builder.Exprs.NewIdent(source.Span{}, xName), builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1")))
-	stmtAssign := builder.Stmts.NewExpr(source.Span{}, assign)
+	stmtAssign := builder.Stmts.NewExpr(source.Span{}, assign, false)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtX, stmtR, stmtAssign})
 
@@ -68,7 +68,7 @@ func TestBorrowMoveDetectedOnCall(t *testing.T) {
 
 	callTarget := builder.Exprs.NewIdent(source.Span{}, intern(builder, "take_owned"))
 	call := builder.Exprs.NewCall(source.Span{}, callTarget, []ast.CallArg{{Name: source.NoStringID, Value: builder.Exprs.NewIdent(source.Span{}, sName)}}, nil, nil, false)
-	callStmt := builder.Stmts.NewExpr(source.Span{}, call)
+	callStmt := builder.Stmts.NewExpr(source.Span{}, call, false)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtS, stmtR, callStmt})
 	stringType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intern(builder, "string")}})
@@ -125,7 +125,7 @@ func TestBorrowFieldBlocksMutation(t *testing.T) {
 		assignTarget,
 		builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1")),
 	)
-	stmtAssign := builder.Stmts.NewExpr(source.Span{}, assignExpr)
+	stmtAssign := builder.Stmts.NewExpr(source.Span{}, assignExpr, false)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtP, stmtBorrow, stmtAssign})
 
@@ -155,7 +155,7 @@ func TestBorrowFieldIndependentMutation(t *testing.T) {
 		assignTarget,
 		builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1")),
 	)
-	stmtAssign := builder.Stmts.NewExpr(source.Span{}, assignExpr)
+	stmtAssign := builder.Stmts.NewExpr(source.Span{}, assignExpr, false)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtP, stmtBorrow, stmtAssign})
 
@@ -194,7 +194,7 @@ func TestBorrowIndexBlocksMutation(t *testing.T) {
 		assignIndex,
 		builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "2")),
 	)
-	stmtAssign := builder.Stmts.NewExpr(source.Span{}, assignExpr)
+	stmtAssign := builder.Stmts.NewExpr(source.Span{}, assignExpr, false)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtArr, stmtBorrow, stmtAssign})
 
@@ -243,7 +243,7 @@ func TestDropReleasesBorrow(t *testing.T) {
 		builder.Exprs.NewIdent(source.Span{}, name),
 		builder.Exprs.NewLiteral(source.Span{}, ast.ExprLitInt, intern(builder, "1")),
 	)
-	stmtAssign := builder.Stmts.NewExpr(source.Span{}, assign)
+	stmtAssign := builder.Stmts.NewExpr(source.Span{}, assign, false)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtLet, stmtBorrow, stmtDrop, stmtAssign})
 

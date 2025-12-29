@@ -269,6 +269,7 @@ const (
 	AlnRustMacroCall   Code = 8003
 	AlnGoDefer         Code = 8004
 	AlnTSInterface     Code = 8005
+	AlnRustImplicitRet Code = 8006
 	AlnPythonNoneType  Code = 8010
 	AlnPythonNoneAlias Code = 8050
 )
@@ -484,6 +485,7 @@ var ( // todo расширить описания и использовать к
 		AlnRustImplTrait:                   "alien hint: rust impl/trait",
 		AlnRustAttribute:                   "alien hint: rust attribute syntax",
 		AlnRustMacroCall:                   "alien hint: rust macro call",
+		AlnRustImplicitRet:                 "alien hint: rust implicit return",
 		AlnGoDefer:                         "alien hint: go defer",
 		AlnTSInterface:                     "alien hint: typescript interface",
 		AlnPythonNoneType:                  "alien hint: python None type",

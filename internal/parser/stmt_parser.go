@@ -510,13 +510,13 @@ func (p *Parser) parseExprStmt() (ast.StmtID, bool) {
 			b.WithNote(insertSpan, "insert missing semicolon")
 		},
 	)
-	if !semiOK {
-		return ast.NoStmtID, false
-	}
-
+	missingSemicolon := !semiOK
 	exprSpan := p.arenas.Exprs.Get(exprID).Span
-	stmtSpan := exprSpan.Cover(semiTok.Span)
-	stmtID := p.arenas.Stmts.NewExpr(stmtSpan, exprID)
+	stmtSpan := exprSpan
+	if semiTok.Kind != token.Invalid {
+		stmtSpan = stmtSpan.Cover(semiTok.Span)
+	}
+	stmtID := p.arenas.Stmts.NewExpr(stmtSpan, exprID, missingSemicolon)
 	return stmtID, true
 }
 

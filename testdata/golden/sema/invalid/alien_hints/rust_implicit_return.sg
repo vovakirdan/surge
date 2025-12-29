@@ -1,0 +1,7 @@
+// scenario: function ends with expression matching return type but missing semicolon
+fn rusty(flag: bool) -> int {
+    if (flag) {
+        return 1;
+    }
+    2
+}

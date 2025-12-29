@@ -98,7 +98,8 @@ type ConstStmt struct {
 }
 
 type ExprStmt struct {
-	Expr ExprID
+	Expr             ExprID
+	MissingSemicolon bool
 }
 
 type DropStmt struct {
@@ -191,9 +192,10 @@ func (s *Stmts) Const(id StmtID) *ConstStmt {
 	return s.Consts.Get(uint32(stmt.Payload))
 }
 
-func (s *Stmts) NewExpr(span source.Span, expr ExprID) StmtID {
+func (s *Stmts) NewExpr(span source.Span, expr ExprID, missingSemicolon bool) StmtID {
 	payload := PayloadID(s.Exprs.Allocate(ExprStmt{
-		Expr: expr,
+		Expr:             expr,
+		MissingSemicolon: missingSemicolon,
 	}))
 	return s.New(StmtExpr, span, payload)
 }
