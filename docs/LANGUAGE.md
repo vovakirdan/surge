@@ -1567,6 +1567,8 @@ Bounds are expressions; when present they must be `int` (no implicit casts).
 Inclusive end requires an end bound, so `[..=]` is invalid.  
 A trailing comma turns it into an array literal: `[1..3,]` is a single-element array containing `1..3`.
 
+ABI: `Range<T>` is opaque runtime state; see `docs/ABI_LAYOUT.md` (Range ABI).
+
 ### 7.3. Strings
 
 * `string` stores UTF-8 bytes; constructors validate UTF-8 and normalize to NFC.
@@ -1576,6 +1578,7 @@ A trailing comma turns it into an array literal: `[1..3,]` is a single-element a
   Inclusive `..=` adds one to the end bound, indices are clamped, and `start > end` yields `""`.
 * `bytes()` returns a `BytesView` over UTF-8 bytes. `len(&view)` returns byte length; `view[i]` returns `uint8`.
 * Implementation detail: strings may be stored as a rope internally. Concatenation and slicing can return views, and byte access materializes a flat UTF-8 buffer lazily.
+* ABI: layout/pointer/length contracts live in `docs/ABI_LAYOUT.md` (String ABI, BytesView ABI).
 
 **Examples:**
 ```sg
@@ -1619,6 +1622,8 @@ The core prelude defines array helpers as methods on `Array<T>`:
 Top-level helpers `array_push/array_pop/array_reserve` mirror the intrinsic operations.
 
 For fixed-size arrays, `ArrayFixed<T, N>` provides `to_array() -> Array<T>`.
+
+ABI: layout and view rules are defined in `docs/ABI_LAYOUT.md` (Array ABI, Array Slice View ABI, ArrayFixed).
 
 ---
 

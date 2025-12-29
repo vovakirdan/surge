@@ -1,0 +1,520 @@
+  1: KwFn            "fn" at 1:1-1:3
+  2: Ident           "write_line" at 1:4-1:14 (leading: Space)
+  3: LParen          "(" at 1:14-1:15
+  4: Ident           "s" at 1:15-1:16
+  5: Colon           ":" at 1:16-1:17
+  6: Ident           "string" at 1:18-1:24 (leading: Space)
+  7: RParen          ")" at 1:24-1:25
+  8: Arrow           "->" at 1:26-1:28 (leading: Space)
+  9: NothingLit      "nothing" at 1:29-1:36 (leading: Space)
+ 10: LBrace          "{" at 1:37-1:38 (leading: Space)
+ 11: KwLet           "let" at 2:5-2:8 (leading: Newline, Space)
+ 12: Ident           "nl" at 2:9-2:11 (leading: Space)
+ 13: Assign          "=" at 2:12-2:13 (leading: Space)
+ 14: StringLit       "\"\\n\"" at 2:14-2:18 (leading: Space)
+ 15: Semicolon       ";" at 2:18-2:19
+ 16: Ident           "rt_write_stdout" at 3:5-3:20 (leading: Newline, Space)
+ 17: LParen          "(" at 3:20-3:21
+ 18: Ident           "rt_string_ptr" at 3:21-3:34
+ 19: LParen          "(" at 3:34-3:35
+ 20: Amp             "&" at 3:35-3:36
+ 21: Ident           "s" at 3:36-3:37
+ 22: RParen          ")" at 3:37-3:38
+ 23: Comma           "," at 3:38-3:39
+ 24: Ident           "rt_string_len_bytes" at 3:40-3:59 (leading: Space)
+ 25: LParen          "(" at 3:59-3:60
+ 26: Amp             "&" at 3:60-3:61
+ 27: Ident           "s" at 3:61-3:62
+ 28: RParen          ")" at 3:62-3:63
+ 29: RParen          ")" at 3:63-3:64
+ 30: Semicolon       ";" at 3:64-3:65
+ 31: Ident           "rt_write_stdout" at 4:5-4:20 (leading: Newline, Space)
+ 32: LParen          "(" at 4:20-4:21
+ 33: Ident           "rt_string_ptr" at 4:21-4:34
+ 34: LParen          "(" at 4:34-4:35
+ 35: Amp             "&" at 4:35-4:36
+ 36: Ident           "nl" at 4:36-4:38
+ 37: RParen          ")" at 4:38-4:39
+ 38: Comma           "," at 4:39-4:40
+ 39: IntLit          "1" at 4:41-4:42 (leading: Space)
+ 40: Colon           ":" at 4:42-4:43
+ 41: Ident           "uint" at 4:43-4:47
+ 42: RParen          ")" at 4:47-4:48
+ 43: Semicolon       ";" at 4:48-4:49
+ 44: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 45: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+ 46: Ident           "print_uint" at 7:4-7:14 (leading: Space)
+ 47: LParen          "(" at 7:14-7:15
+ 48: Ident           "u" at 7:15-7:16
+ 49: Colon           ":" at 7:16-7:17
+ 50: Ident           "uint" at 7:18-7:22 (leading: Space)
+ 51: RParen          ")" at 7:22-7:23
+ 52: Arrow           "->" at 7:24-7:26 (leading: Space)
+ 53: NothingLit      "nothing" at 7:27-7:34 (leading: Space)
+ 54: LBrace          "{" at 7:35-7:36 (leading: Space)
+ 55: Ident           "write_line" at 8:5-8:15 (leading: Newline, Space)
+ 56: LParen          "(" at 8:15-8:16
+ 57: Ident           "u" at 8:16-8:17
+ 58: KwTo            "to" at 8:18-8:20 (leading: Space)
+ 59: Ident           "string" at 8:21-8:27 (leading: Space)
+ 60: RParen          ")" at 8:27-8:28
+ 61: Semicolon       ";" at 8:28-8:29
+ 62: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 63: KwType          "type" at 11:1-11:5 (leading: Newline)
+ 64: Ident           "Mix" at 11:6-11:9 (leading: Space)
+ 65: Assign          "=" at 11:10-11:11 (leading: Space)
+ 66: LBrace          "{" at 11:12-11:13 (leading: Space)
+ 67: Ident           "a" at 11:14-11:15 (leading: Space)
+ 68: Colon           ":" at 11:15-11:16
+ 69: Ident           "int" at 11:17-11:20 (leading: Space)
+ 70: Comma           "," at 11:20-11:21
+ 71: Ident           "b" at 11:22-11:23 (leading: Space)
+ 72: Colon           ":" at 11:23-11:24
+ 73: Ident           "string" at 11:25-11:31 (leading: Space)
+ 74: Comma           "," at 11:31-11:32
+ 75: Ident           "c" at 11:33-11:34 (leading: Space)
+ 76: Colon           ":" at 11:34-11:35
+ 77: Ident           "uint8" at 11:36-11:41 (leading: Space)
+ 78: RBrace          "}" at 11:42-11:43 (leading: Space)
+ 79: At              "@" at 13:1-13:2 (leading: Newline)
+ 80: Ident           "entrypoint" at 13:2-13:12
+ 81: KwFn            "fn" at 14:1-14:3 (leading: Newline)
+ 82: Ident           "main" at 14:4-14:8 (leading: Space)
+ 83: LParen          "(" at 14:8-14:9
+ 84: RParen          ")" at 14:9-14:10
+ 85: Arrow           "->" at 14:11-14:13 (leading: Space)
+ 86: Ident           "int" at 14:14-14:17 (leading: Space)
+ 87: LBrace          "{" at 14:18-14:19 (leading: Space)
+ 88: Ident           "print_uint" at 15:5-15:15 (leading: Newline, Space)
+ 89: LParen          "(" at 15:15-15:16
+ 90: Ident           "size_of" at 15:16-15:23
+ 91: ColonColon      "::" at 15:23-15:25
+ 92: Lt              "<" at 15:25-15:26
+ 93: Ident           "bool" at 15:26-15:30
+ 94: Gt              ">" at 15:30-15:31
+ 95: LParen          "(" at 15:31-15:32
+ 96: RParen          ")" at 15:32-15:33
+ 97: RParen          ")" at 15:33-15:34
+ 98: Semicolon       ";" at 15:34-15:35
+ 99: Ident           "print_uint" at 16:5-16:15 (leading: Newline, Space)
+100: LParen          "(" at 16:15-16:16
+101: Ident           "align_of" at 16:16-16:24
+102: ColonColon      "::" at 16:24-16:26
+103: Lt              "<" at 16:26-16:27
+104: Ident           "bool" at 16:27-16:31
+105: Gt              ">" at 16:31-16:32
+106: LParen          "(" at 16:32-16:33
+107: RParen          ")" at 16:33-16:34
+108: RParen          ")" at 16:34-16:35
+109: Semicolon       ";" at 16:35-16:36
+110: Ident           "print_uint" at 18:5-18:15 (leading: Newline, Space)
+111: LParen          "(" at 18:15-18:16
+112: Ident           "size_of" at 18:16-18:23
+113: ColonColon      "::" at 18:23-18:25
+114: Lt              "<" at 18:25-18:26
+115: Ident           "int8" at 18:26-18:30
+116: Gt              ">" at 18:30-18:31
+117: LParen          "(" at 18:31-18:32
+118: RParen          ")" at 18:32-18:33
+119: RParen          ")" at 18:33-18:34
+120: Semicolon       ";" at 18:34-18:35
+121: Ident           "print_uint" at 19:5-19:15 (leading: Newline, Space)
+122: LParen          "(" at 19:15-19:16
+123: Ident           "align_of" at 19:16-19:24
+124: ColonColon      "::" at 19:24-19:26
+125: Lt              "<" at 19:26-19:27
+126: Ident           "int8" at 19:27-19:31
+127: Gt              ">" at 19:31-19:32
+128: LParen          "(" at 19:32-19:33
+129: RParen          ")" at 19:33-19:34
+130: RParen          ")" at 19:34-19:35
+131: Semicolon       ";" at 19:35-19:36
+132: Ident           "print_uint" at 20:5-20:15 (leading: Newline, Space)
+133: LParen          "(" at 20:15-20:16
+134: Ident           "size_of" at 20:16-20:23
+135: ColonColon      "::" at 20:23-20:25
+136: Lt              "<" at 20:25-20:26
+137: Ident           "uint8" at 20:26-20:31
+138: Gt              ">" at 20:31-20:32
+139: LParen          "(" at 20:32-20:33
+140: RParen          ")" at 20:33-20:34
+141: RParen          ")" at 20:34-20:35
+142: Semicolon       ";" at 20:35-20:36
+143: Ident           "print_uint" at 21:5-21:15 (leading: Newline, Space)
+144: LParen          "(" at 21:15-21:16
+145: Ident           "align_of" at 21:16-21:24
+146: ColonColon      "::" at 21:24-21:26
+147: Lt              "<" at 21:26-21:27
+148: Ident           "uint8" at 21:27-21:32
+149: Gt              ">" at 21:32-21:33
+150: LParen          "(" at 21:33-21:34
+151: RParen          ")" at 21:34-21:35
+152: RParen          ")" at 21:35-21:36
+153: Semicolon       ";" at 21:36-21:37
+154: Ident           "print_uint" at 23:5-23:15 (leading: Newline, Space)
+155: LParen          "(" at 23:15-23:16
+156: Ident           "size_of" at 23:16-23:23
+157: ColonColon      "::" at 23:23-23:25
+158: Lt              "<" at 23:25-23:26
+159: Ident           "int16" at 23:26-23:31
+160: Gt              ">" at 23:31-23:32
+161: LParen          "(" at 23:32-23:33
+162: RParen          ")" at 23:33-23:34
+163: RParen          ")" at 23:34-23:35
+164: Semicolon       ";" at 23:35-23:36
+165: Ident           "print_uint" at 24:5-24:15 (leading: Newline, Space)
+166: LParen          "(" at 24:15-24:16
+167: Ident           "align_of" at 24:16-24:24
+168: ColonColon      "::" at 24:24-24:26
+169: Lt              "<" at 24:26-24:27
+170: Ident           "int16" at 24:27-24:32
+171: Gt              ">" at 24:32-24:33
+172: LParen          "(" at 24:33-24:34
+173: RParen          ")" at 24:34-24:35
+174: RParen          ")" at 24:35-24:36
+175: Semicolon       ";" at 24:36-24:37
+176: Ident           "print_uint" at 25:5-25:15 (leading: Newline, Space)
+177: LParen          "(" at 25:15-25:16
+178: Ident           "size_of" at 25:16-25:23
+179: ColonColon      "::" at 25:23-25:25
+180: Lt              "<" at 25:25-25:26
+181: Ident           "uint16" at 25:26-25:32
+182: Gt              ">" at 25:32-25:33
+183: LParen          "(" at 25:33-25:34
+184: RParen          ")" at 25:34-25:35
+185: RParen          ")" at 25:35-25:36
+186: Semicolon       ";" at 25:36-25:37
+187: Ident           "print_uint" at 26:5-26:15 (leading: Newline, Space)
+188: LParen          "(" at 26:15-26:16
+189: Ident           "align_of" at 26:16-26:24
+190: ColonColon      "::" at 26:24-26:26
+191: Lt              "<" at 26:26-26:27
+192: Ident           "uint16" at 26:27-26:33
+193: Gt              ">" at 26:33-26:34
+194: LParen          "(" at 26:34-26:35
+195: RParen          ")" at 26:35-26:36
+196: RParen          ")" at 26:36-26:37
+197: Semicolon       ";" at 26:37-26:38
+198: Ident           "print_uint" at 28:5-28:15 (leading: Newline, Space)
+199: LParen          "(" at 28:15-28:16
+200: Ident           "size_of" at 28:16-28:23
+201: ColonColon      "::" at 28:23-28:25
+202: Lt              "<" at 28:25-28:26
+203: Ident           "int32" at 28:26-28:31
+204: Gt              ">" at 28:31-28:32
+205: LParen          "(" at 28:32-28:33
+206: RParen          ")" at 28:33-28:34
+207: RParen          ")" at 28:34-28:35
+208: Semicolon       ";" at 28:35-28:36
+209: Ident           "print_uint" at 29:5-29:15 (leading: Newline, Space)
+210: LParen          "(" at 29:15-29:16
+211: Ident           "align_of" at 29:16-29:24
+212: ColonColon      "::" at 29:24-29:26
+213: Lt              "<" at 29:26-29:27
+214: Ident           "int32" at 29:27-29:32
+215: Gt              ">" at 29:32-29:33
+216: LParen          "(" at 29:33-29:34
+217: RParen          ")" at 29:34-29:35
+218: RParen          ")" at 29:35-29:36
+219: Semicolon       ";" at 29:36-29:37
+220: Ident           "print_uint" at 30:5-30:15 (leading: Newline, Space)
+221: LParen          "(" at 30:15-30:16
+222: Ident           "size_of" at 30:16-30:23
+223: ColonColon      "::" at 30:23-30:25
+224: Lt              "<" at 30:25-30:26
+225: Ident           "uint32" at 30:26-30:32
+226: Gt              ">" at 30:32-30:33
+227: LParen          "(" at 30:33-30:34
+228: RParen          ")" at 30:34-30:35
+229: RParen          ")" at 30:35-30:36
+230: Semicolon       ";" at 30:36-30:37
+231: Ident           "print_uint" at 31:5-31:15 (leading: Newline, Space)
+232: LParen          "(" at 31:15-31:16
+233: Ident           "align_of" at 31:16-31:24
+234: ColonColon      "::" at 31:24-31:26
+235: Lt              "<" at 31:26-31:27
+236: Ident           "uint32" at 31:27-31:33
+237: Gt              ">" at 31:33-31:34
+238: LParen          "(" at 31:34-31:35
+239: RParen          ")" at 31:35-31:36
+240: RParen          ")" at 31:36-31:37
+241: Semicolon       ";" at 31:37-31:38
+242: Ident           "print_uint" at 33:5-33:15 (leading: Newline, Space)
+243: LParen          "(" at 33:15-33:16
+244: Ident           "size_of" at 33:16-33:23
+245: ColonColon      "::" at 33:23-33:25
+246: Lt              "<" at 33:25-33:26
+247: Ident           "int64" at 33:26-33:31
+248: Gt              ">" at 33:31-33:32
+249: LParen          "(" at 33:32-33:33
+250: RParen          ")" at 33:33-33:34
+251: RParen          ")" at 33:34-33:35
+252: Semicolon       ";" at 33:35-33:36
+253: Ident           "print_uint" at 34:5-34:15 (leading: Newline, Space)
+254: LParen          "(" at 34:15-34:16
+255: Ident           "align_of" at 34:16-34:24
+256: ColonColon      "::" at 34:24-34:26
+257: Lt              "<" at 34:26-34:27
+258: Ident           "int64" at 34:27-34:32
+259: Gt              ">" at 34:32-34:33
+260: LParen          "(" at 34:33-34:34
+261: RParen          ")" at 34:34-34:35
+262: RParen          ")" at 34:35-34:36
+263: Semicolon       ";" at 34:36-34:37
+264: Ident           "print_uint" at 35:5-35:15 (leading: Newline, Space)
+265: LParen          "(" at 35:15-35:16
+266: Ident           "size_of" at 35:16-35:23
+267: ColonColon      "::" at 35:23-35:25
+268: Lt              "<" at 35:25-35:26
+269: Ident           "uint64" at 35:26-35:32
+270: Gt              ">" at 35:32-35:33
+271: LParen          "(" at 35:33-35:34
+272: RParen          ")" at 35:34-35:35
+273: RParen          ")" at 35:35-35:36
+274: Semicolon       ";" at 35:36-35:37
+275: Ident           "print_uint" at 36:5-36:15 (leading: Newline, Space)
+276: LParen          "(" at 36:15-36:16
+277: Ident           "align_of" at 36:16-36:24
+278: ColonColon      "::" at 36:24-36:26
+279: Lt              "<" at 36:26-36:27
+280: Ident           "uint64" at 36:27-36:33
+281: Gt              ">" at 36:33-36:34
+282: LParen          "(" at 36:34-36:35
+283: RParen          ")" at 36:35-36:36
+284: RParen          ")" at 36:36-36:37
+285: Semicolon       ";" at 36:37-36:38
+286: Ident           "print_uint" at 38:5-38:15 (leading: Newline, Space)
+287: LParen          "(" at 38:15-38:16
+288: Ident           "size_of" at 38:16-38:23
+289: ColonColon      "::" at 38:23-38:25
+290: Lt              "<" at 38:25-38:26
+291: Ident           "int" at 38:26-38:29
+292: Gt              ">" at 38:29-38:30
+293: LParen          "(" at 38:30-38:31
+294: RParen          ")" at 38:31-38:32
+295: RParen          ")" at 38:32-38:33
+296: Semicolon       ";" at 38:33-38:34
+297: Ident           "print_uint" at 39:5-39:15 (leading: Newline, Space)
+298: LParen          "(" at 39:15-39:16
+299: Ident           "align_of" at 39:16-39:24
+300: ColonColon      "::" at 39:24-39:26
+301: Lt              "<" at 39:26-39:27
+302: Ident           "int" at 39:27-39:30
+303: Gt              ">" at 39:30-39:31
+304: LParen          "(" at 39:31-39:32
+305: RParen          ")" at 39:32-39:33
+306: RParen          ")" at 39:33-39:34
+307: Semicolon       ";" at 39:34-39:35
+308: Ident           "print_uint" at 40:5-40:15 (leading: Newline, Space)
+309: LParen          "(" at 40:15-40:16
+310: Ident           "size_of" at 40:16-40:23
+311: ColonColon      "::" at 40:23-40:25
+312: Lt              "<" at 40:25-40:26
+313: Ident           "uint" at 40:26-40:30
+314: Gt              ">" at 40:30-40:31
+315: LParen          "(" at 40:31-40:32
+316: RParen          ")" at 40:32-40:33
+317: RParen          ")" at 40:33-40:34
+318: Semicolon       ";" at 40:34-40:35
+319: Ident           "print_uint" at 41:5-41:15 (leading: Newline, Space)
+320: LParen          "(" at 41:15-41:16
+321: Ident           "align_of" at 41:16-41:24
+322: ColonColon      "::" at 41:24-41:26
+323: Lt              "<" at 41:26-41:27
+324: Ident           "uint" at 41:27-41:31
+325: Gt              ">" at 41:31-41:32
+326: LParen          "(" at 41:32-41:33
+327: RParen          ")" at 41:33-41:34
+328: RParen          ")" at 41:34-41:35
+329: Semicolon       ";" at 41:35-41:36
+330: Ident           "print_uint" at 42:5-42:15 (leading: Newline, Space)
+331: LParen          "(" at 42:15-42:16
+332: Ident           "size_of" at 42:16-42:23
+333: ColonColon      "::" at 42:23-42:25
+334: Lt              "<" at 42:25-42:26
+335: Ident           "float" at 42:26-42:31
+336: Gt              ">" at 42:31-42:32
+337: LParen          "(" at 42:32-42:33
+338: RParen          ")" at 42:33-42:34
+339: RParen          ")" at 42:34-42:35
+340: Semicolon       ";" at 42:35-42:36
+341: Ident           "print_uint" at 43:5-43:15 (leading: Newline, Space)
+342: LParen          "(" at 43:15-43:16
+343: Ident           "align_of" at 43:16-43:24
+344: ColonColon      "::" at 43:24-43:26
+345: Lt              "<" at 43:26-43:27
+346: Ident           "float" at 43:27-43:32
+347: Gt              ">" at 43:32-43:33
+348: LParen          "(" at 43:33-43:34
+349: RParen          ")" at 43:34-43:35
+350: RParen          ")" at 43:35-43:36
+351: Semicolon       ";" at 43:36-43:37
+352: Ident           "print_uint" at 45:5-45:15 (leading: Newline, Space)
+353: LParen          "(" at 45:15-45:16
+354: Ident           "size_of" at 45:16-45:23
+355: ColonColon      "::" at 45:23-45:25
+356: Lt              "<" at 45:25-45:26
+357: Ident           "float32" at 45:26-45:33
+358: Gt              ">" at 45:33-45:34
+359: LParen          "(" at 45:34-45:35
+360: RParen          ")" at 45:35-45:36
+361: RParen          ")" at 45:36-45:37
+362: Semicolon       ";" at 45:37-45:38
+363: Ident           "print_uint" at 46:5-46:15 (leading: Newline, Space)
+364: LParen          "(" at 46:15-46:16
+365: Ident           "align_of" at 46:16-46:24
+366: ColonColon      "::" at 46:24-46:26
+367: Lt              "<" at 46:26-46:27
+368: Ident           "float32" at 46:27-46:34
+369: Gt              ">" at 46:34-46:35
+370: LParen          "(" at 46:35-46:36
+371: RParen          ")" at 46:36-46:37
+372: RParen          ")" at 46:37-46:38
+373: Semicolon       ";" at 46:38-46:39
+374: Ident           "print_uint" at 47:5-47:15 (leading: Newline, Space)
+375: LParen          "(" at 47:15-47:16
+376: Ident           "size_of" at 47:16-47:23
+377: ColonColon      "::" at 47:23-47:25
+378: Lt              "<" at 47:25-47:26
+379: Ident           "float64" at 47:26-47:33
+380: Gt              ">" at 47:33-47:34
+381: LParen          "(" at 47:34-47:35
+382: RParen          ")" at 47:35-47:36
+383: RParen          ")" at 47:36-47:37
+384: Semicolon       ";" at 47:37-47:38
+385: Ident           "print_uint" at 48:5-48:15 (leading: Newline, Space)
+386: LParen          "(" at 48:15-48:16
+387: Ident           "align_of" at 48:16-48:24
+388: ColonColon      "::" at 48:24-48:26
+389: Lt              "<" at 48:26-48:27
+390: Ident           "float64" at 48:27-48:34
+391: Gt              ">" at 48:34-48:35
+392: LParen          "(" at 48:35-48:36
+393: RParen          ")" at 48:36-48:37
+394: RParen          ")" at 48:37-48:38
+395: Semicolon       ";" at 48:38-48:39
+396: Ident           "print_uint" at 50:5-50:15 (leading: Newline, Space)
+397: LParen          "(" at 50:15-50:16
+398: Ident           "size_of" at 50:16-50:23
+399: ColonColon      "::" at 50:23-50:25
+400: Lt              "<" at 50:25-50:26
+401: Ident           "string" at 50:26-50:32
+402: Gt              ">" at 50:32-50:33
+403: LParen          "(" at 50:33-50:34
+404: RParen          ")" at 50:34-50:35
+405: RParen          ")" at 50:35-50:36
+406: Semicolon       ";" at 50:36-50:37
+407: Ident           "print_uint" at 51:5-51:15 (leading: Newline, Space)
+408: LParen          "(" at 51:15-51:16
+409: Ident           "align_of" at 51:16-51:24
+410: ColonColon      "::" at 51:24-51:26
+411: Lt              "<" at 51:26-51:27
+412: Ident           "string" at 51:27-51:33
+413: Gt              ">" at 51:33-51:34
+414: LParen          "(" at 51:34-51:35
+415: RParen          ")" at 51:35-51:36
+416: RParen          ")" at 51:36-51:37
+417: Semicolon       ";" at 51:37-51:38
+418: Ident           "print_uint" at 52:5-52:15 (leading: Newline, Space)
+419: LParen          "(" at 52:15-52:16
+420: Ident           "size_of" at 52:16-52:23
+421: ColonColon      "::" at 52:23-52:25
+422: Lt              "<" at 52:25-52:26
+423: Ident           "BytesView" at 52:26-52:35
+424: Gt              ">" at 52:35-52:36
+425: LParen          "(" at 52:36-52:37
+426: RParen          ")" at 52:37-52:38
+427: RParen          ")" at 52:38-52:39
+428: Semicolon       ";" at 52:39-52:40
+429: Ident           "print_uint" at 53:5-53:15 (leading: Newline, Space)
+430: LParen          "(" at 53:15-53:16
+431: Ident           "align_of" at 53:16-53:24
+432: ColonColon      "::" at 53:24-53:26
+433: Lt              "<" at 53:26-53:27
+434: Ident           "BytesView" at 53:27-53:36
+435: Gt              ">" at 53:36-53:37
+436: LParen          "(" at 53:37-53:38
+437: RParen          ")" at 53:38-53:39
+438: RParen          ")" at 53:39-53:40
+439: Semicolon       ";" at 53:40-53:41
+440: Ident           "print_uint" at 54:5-54:15 (leading: Newline, Space)
+441: LParen          "(" at 54:15-54:16
+442: Ident           "size_of" at 54:16-54:23
+443: ColonColon      "::" at 54:23-54:25
+444: Lt              "<" at 54:25-54:26
+445: Ident           "int" at 54:26-54:29
+446: LBracket        "[" at 54:29-54:30
+447: RBracket        "]" at 54:30-54:31
+448: Gt              ">" at 54:31-54:32
+449: LParen          "(" at 54:32-54:33
+450: RParen          ")" at 54:33-54:34
+451: RParen          ")" at 54:34-54:35
+452: Semicolon       ";" at 54:35-54:36
+453: Ident           "print_uint" at 55:5-55:15 (leading: Newline, Space)
+454: LParen          "(" at 55:15-55:16
+455: Ident           "align_of" at 55:16-55:24
+456: ColonColon      "::" at 55:24-55:26
+457: Lt              "<" at 55:26-55:27
+458: Ident           "int" at 55:27-55:30
+459: LBracket        "[" at 55:30-55:31
+460: RBracket        "]" at 55:31-55:32
+461: Gt              ">" at 55:32-55:33
+462: LParen          "(" at 55:33-55:34
+463: RParen          ")" at 55:34-55:35
+464: RParen          ")" at 55:35-55:36
+465: Semicolon       ";" at 55:36-55:37
+466: Ident           "print_uint" at 56:5-56:15 (leading: Newline, Space)
+467: LParen          "(" at 56:15-56:16
+468: Ident           "size_of" at 56:16-56:23
+469: ColonColon      "::" at 56:23-56:25
+470: Lt              "<" at 56:25-56:26
+471: Ident           "int" at 56:26-56:29
+472: LBracket        "[" at 56:29-56:30
+473: IntLit          "3" at 56:30-56:31
+474: RBracket        "]" at 56:31-56:32
+475: Gt              ">" at 56:32-56:33
+476: LParen          "(" at 56:33-56:34
+477: RParen          ")" at 56:34-56:35
+478: RParen          ")" at 56:35-56:36
+479: Semicolon       ";" at 56:36-56:37
+480: Ident           "print_uint" at 57:5-57:15 (leading: Newline, Space)
+481: LParen          "(" at 57:15-57:16
+482: Ident           "align_of" at 57:16-57:24
+483: ColonColon      "::" at 57:24-57:26
+484: Lt              "<" at 57:26-57:27
+485: Ident           "int" at 57:27-57:30
+486: LBracket        "[" at 57:30-57:31
+487: IntLit          "3" at 57:31-57:32
+488: RBracket        "]" at 57:32-57:33
+489: Gt              ">" at 57:33-57:34
+490: LParen          "(" at 57:34-57:35
+491: RParen          ")" at 57:35-57:36
+492: RParen          ")" at 57:36-57:37
+493: Semicolon       ";" at 57:37-57:38
+494: Ident           "print_uint" at 58:5-58:15 (leading: Newline, Space)
+495: LParen          "(" at 58:15-58:16
+496: Ident           "size_of" at 58:16-58:23
+497: ColonColon      "::" at 58:23-58:25
+498: Lt              "<" at 58:25-58:26
+499: Ident           "Mix" at 58:26-58:29
+500: Gt              ">" at 58:29-58:30
+501: LParen          "(" at 58:30-58:31
+502: RParen          ")" at 58:31-58:32
+503: RParen          ")" at 58:32-58:33
+504: Semicolon       ";" at 58:33-58:34
+505: Ident           "print_uint" at 59:5-59:15 (leading: Newline, Space)
+506: LParen          "(" at 59:15-59:16
+507: Ident           "align_of" at 59:16-59:24
+508: ColonColon      "::" at 59:24-59:26
+509: Lt              "<" at 59:26-59:27
+510: Ident           "Mix" at 59:27-59:30
+511: Gt              ">" at 59:30-59:31
+512: LParen          "(" at 59:31-59:32
+513: RParen          ")" at 59:32-59:33
+514: RParen          ")" at 59:33-59:34
+515: Semicolon       ";" at 59:34-59:35
+516: KwReturn        "return" at 60:5-60:11 (leading: Newline, Space)
+517: IntLit          "0" at 60:12-60:13 (leading: Space)
+518: Semicolon       ";" at 60:13-60:14
+519: RBrace          "}" at 61:1-61:2 (leading: Newline)
+520: EOF             at 62:1-62:1

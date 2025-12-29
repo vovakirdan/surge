@@ -1,0 +1,50 @@
+testdata/golden/abi/abi_arrays_views.sg (span: 1:1-24:1)
+├─ Item[0]: Fn (span: 1:1-5:2)
+│  ├─ Name: write_line
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:37-5:2)
+│        ├─ Stmt[0]: Let (span: 2:5-2:19)
+│        │  ├─ Name: nl
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#1: "\n"
+│        ├─ Stmt[1]: Expr (span: 3:5-3:65)
+│        │  └─ Expr: expr#11: rt_write_stdout(rt_string_ptr(&s), rt_string_len_bytes(&s))
+│        └─ Stmt[2]: Expr (span: 4:5-4:49)
+│           └─ Expr: expr#19: rt_write_stdout(rt_string_ptr(&nl), 1 to uint)
+├─ Item[1]: Fn (span: 7:1-9:2)
+│  ├─ Name: print_uint
+│  ├─ Params: (u: uint)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:35-9:2)
+│        └─ Stmt[0]: Expr (span: 8:5-8:29)
+│           └─ Expr: expr#23: write_line(u to string)
+└─ Item[2]: Fn (span: 11:1-23:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:18-23:2)
+         ├─ Stmt[0]: Let (span: 13:5-13:48)
+         │  ├─ Name: base
+         │  ├─ Mutable: true
+         │  ├─ Type: int[]
+         │  └─ Value: expr#29: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 14:5-14:33)
+         │  ├─ Name: view
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#35: base[[1..4]]
+         ├─ Stmt[2]: Expr (span: 16:5-16:28)
+         │  └─ Expr: expr#41: print_uint(len(&view))
+         ├─ Stmt[3]: Expr (span: 18:5-18:18)
+         │  └─ Expr: expr#46: (view[1] = 99)
+         ├─ Stmt[4]: Expr (span: 19:5-19:33)
+         │  └─ Expr: expr#52: print_uint(base[2] to uint)
+         ├─ Stmt[5]: Expr (span: 20:5-20:33)
+         │  └─ Expr: expr#58: print_uint(view[1] to uint)
+         └─ Stmt[6]: Return (span: 22:5-22:14)
+            └─ Expr: expr#59: 0

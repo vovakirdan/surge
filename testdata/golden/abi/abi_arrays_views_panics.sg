@@ -1,0 +1,14 @@
+fn maybe_view(a: int[], use_view: bool) -> int[] {
+    if use_view {
+        return a[[1..3]];
+    }
+    return a;
+}
+
+@entrypoint
+fn main() -> int {
+    let base: int[] = [1, 2, 3, 4];
+    let mut v = maybe_view(base, true);
+    rt_array_push::<int>(&mut v, 5);
+    return 0;
+}

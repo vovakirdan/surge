@@ -1,0 +1,31 @@
+fn write_line(s: string) -> nothing {
+    let nl = "\n";
+    rt_write_stdout(rt_string_ptr(&s), rt_string_len_bytes(&s));
+    rt_write_stdout(rt_string_ptr(&nl), 1:uint);
+}
+
+fn print_uint(u: uint) -> nothing {
+    write_line(u to string);
+}
+
+@entrypoint
+fn main() -> int {
+    let a = "a" * 80;
+    let b = "b" * 80;
+    let s = a + b + "é";
+
+    rt_string_force_flatten(&s);
+
+    let cp_len: uint = len(&s);
+    let byte_len: uint = rt_string_len_bytes(&s);
+    let view = s.bytes();
+    if len(&view) != byte_len {
+        return 1;
+    }
+
+    print_uint(cp_len);
+    print_uint(byte_len);
+    print_uint(view[160] to uint);
+    print_uint(view[161] to uint);
+    return 0;
+}

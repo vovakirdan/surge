@@ -1,0 +1,5 @@
+panic VM1003: array view is not resizable
+at testdata/golden/abi/abi_arrays_views_panics.sg:11:5
+backtrace:
+  0: main at testdata/golden/abi/abi_arrays_views_panics.sg:11:5
+  1: __surge_start at <no-span>

@@ -1,0 +1,23 @@
+fn write_line(s: string) -> nothing {
+    let nl = "\n";
+    rt_write_stdout(rt_string_ptr(&s), rt_string_len_bytes(&s));
+    rt_write_stdout(rt_string_ptr(&nl), 1:uint);
+}
+
+fn print_uint(u: uint) -> nothing {
+    write_line(u to string);
+}
+
+@entrypoint
+fn main() -> int {
+    let mut base: int[] = [10, 20, 30, 40, 50];
+    let mut view = base[[1..4]];
+
+    print_uint(len(&view));
+
+    view[1] = 99;
+    print_uint(base[2] to uint);
+    print_uint(view[1] to uint);
+
+    return 0;
+}

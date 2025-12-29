@@ -1,0 +1,1 @@
+error SEM3019 testdata/golden/abi/abi_arrays_views.sg:18:5 cannot mutate 'view'[?] while it is shared-borrowed

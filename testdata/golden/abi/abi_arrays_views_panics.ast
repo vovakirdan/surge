@@ -1,0 +1,36 @@
+testdata/golden/abi/abi_arrays_views_panics.sg (span: 1:1-15:1)
+├─ Item[0]: Fn (span: 1:1-6:2)
+│  ├─ Name: maybe_view
+│  ├─ Params: (a: int[], use_view: bool)
+│  ├─ Return: int[]
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:50-6:2)
+│        ├─ Stmt[0]: If (span: 2:5-4:6)
+│        │  ├─ Cond: expr#1: use_view
+│        │  ├─ Then:
+Block (span: 2:17-4:6)
+│        │  │  └─ Stmt[0]: Return (span: 3:9-3:26)
+│        │  │     └─ Expr: expr#7: a[[1..3]]
+│        │  └─ Else: <none>
+│        └─ Stmt[1]: Return (span: 5:5-5:14)
+│           └─ Expr: expr#8: a
+└─ Item[1]: Fn (span: 8:1-14:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 9:18-14:2)
+         ├─ Stmt[0]: Let (span: 10:5-10:36)
+         │  ├─ Name: base
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#13: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 11:5-11:40)
+         │  ├─ Name: v
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#17: maybe_view(base, true)
+         ├─ Stmt[2]: Expr (span: 12:5-12:37)
+         │  └─ Expr: expr#22: rt_array_push(&mut v, 5)
+         └─ Stmt[3]: Return (span: 13:5-13:14)
+            └─ Expr: expr#23: 0
