@@ -2,14 +2,14 @@
 == HIR ==
 module 
 
-fn maybe(x: int [copy]) -> type#1187 (id=1, sym=1142) {
+fn maybe(x: int [copy]) -> type#1224 (id=1, sym=1168) {
   if __gt(x, 0): bool {
     return x
   }
   return nothing
 }
 
-fn get_value(opt: type#1187) -> int (id=2, sym=1143) {
+fn get_value(opt: type#1224) -> int (id=2, sym=1169) {
   return safe(opt): int
 }
 

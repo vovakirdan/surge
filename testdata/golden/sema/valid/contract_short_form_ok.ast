@@ -25,7 +25,7 @@ contract_short_form_ok.sg (span: 2:1-25:1)
 │  ├─ Params: (value: T)
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 17:36-19:2)
+│     └─ Stmt[0]: Block (span: 17:43-19:2)
 │        └─ Stmt[0]: Expr (span: 18:5-18:19)
 │           └─ Expr: expr#5: value.print()
 └─ Item[4]: Fn (span: 21:1-24:2)

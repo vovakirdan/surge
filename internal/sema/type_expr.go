@@ -370,7 +370,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			if numeric := tc.numericCastResult(castSource, targetType); numeric != types.NoTypeID {
 				ty = numeric
 			} else if magic := tc.magicResultForCast(castSource, targetType); magic != types.NoTypeID {
-				symID := tc.resolveToSymbol(castSource, targetType)
+				symID := tc.resolveToSymbol(cast.Value, castSource, targetType)
 				tc.recordToSymbol(id, castSource, targetType)
 				if symID.IsValid() {
 					if sym := tc.symbolFromID(symID); sym != nil && sym.Signature != nil && len(sym.Signature.Params) > 0 {

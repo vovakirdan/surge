@@ -47,6 +47,12 @@ func (tc *typeChecker) tryImplicitConversion(src, target types.TypeID) (types.Ty
 	if tc.typesAssignable(target, src, true) {
 		return target, false, false // found=false because no conversion needed
 	}
+	if tc.types != nil {
+		if tc.valueType(src) == tc.valueType(target) {
+			// Avoid implicit conversions that only adjust ownership/reference wrappers.
+			return types.NoTypeID, false, false
+		}
+	}
 	if tc.isNumericType(src) && tc.isNumericType(target) {
 		return types.NoTypeID, false, false
 	}
@@ -69,7 +75,7 @@ func (tc *typeChecker) tryImplicitConversion(src, target types.TypeID) (types.Ty
 func (tc *typeChecker) collectToMethods(src, target types.TypeID) []*symbols.FunctionSignature {
 	var results []*symbols.FunctionSignature
 	seen := make(map[*symbols.FunctionSignature]struct{})
-	targetCandidates := tc.filterTargetCandidates(tc.typeKeyCandidates(target))
+	targetCandidates := tc.filterTargetCandidates(target, tc.typeKeyCandidates(target))
 
 	for _, sc := range tc.typeKeyCandidates(src) {
 		if sc.key == "" {
@@ -99,7 +105,7 @@ func (tc *typeChecker) collectToMethods(src, target types.TypeID) []*symbols.Fun
 
 // filterTargetCandidates removes family fallbacks (e.g., uint8 -> uint) so that
 // implicit conversions only match the exact requested target type.
-func (tc *typeChecker) filterTargetCandidates(candidates []typeKeyCandidate) []typeKeyCandidate {
+func (tc *typeChecker) filterTargetCandidates(target types.TypeID, candidates []typeKeyCandidate) []typeKeyCandidate {
 	if len(candidates) == 0 {
 		return candidates
 	}
@@ -113,6 +119,18 @@ func (tc *typeChecker) filterTargetCandidates(candidates []typeKeyCandidate) []t
 			continue
 		}
 		filtered = append(filtered, cand)
+	}
+	if target != types.NoTypeID && tc.types != nil {
+		if tt, ok := tc.types.Lookup(target); ok && (tt.Kind == types.KindOwn || tt.Kind == types.KindReference || tt.Kind == types.KindPointer) {
+			// Don't match base-type __to methods when target is a wrapper (own/&/*).
+			wrapped := filtered[:0]
+			for _, cand := range filtered {
+				if cand.base == target {
+					wrapped = append(wrapped, cand)
+				}
+			}
+			filtered = wrapped
+		}
 	}
 	return filtered
 }
@@ -191,10 +209,10 @@ func (tc *typeChecker) recordToSymbol(expr ast.ExprID, src, target types.TypeID)
 	if tc.result.ToSymbols == nil {
 		tc.result.ToSymbols = make(map[ast.ExprID]symbols.SymbolID)
 	}
-	tc.result.ToSymbols[expr] = tc.resolveToSymbol(src, target)
+	tc.result.ToSymbols[expr] = tc.resolveToSymbol(expr, src, target)
 }
 
-func (tc *typeChecker) resolveToSymbol(src, target types.TypeID) symbols.SymbolID {
+func (tc *typeChecker) resolveToSymbol(expr ast.ExprID, src, target types.TypeID) symbols.SymbolID {
 	if tc == nil || tc.builder == nil || tc.builder.StringsInterner == nil {
 		return symbols.NoSymbolID
 	}
@@ -203,7 +221,7 @@ func (tc *typeChecker) resolveToSymbol(src, target types.TypeID) symbols.SymbolI
 	}
 	nameID := tc.builder.StringsInterner.Intern("__to")
 	member := &ast.ExprMemberData{Field: nameID}
-	return tc.resolveMethodCallSymbol(member, src, ast.NoExprID, []types.TypeID{target}, nil, false)
+	return tc.resolveMethodCallSymbol(member, src, expr, []types.TypeID{target}, nil, false)
 }
 
 // recordTagInstantiationForInjection registers a tag instantiation for implicit tag injection.

@@ -9,7 +9,7 @@ fn __surge_start:
     L2: int [copy] name=x
     L3: bool [copy] name=has_arg0
     L4: string name=arg_str0
-    L5: type#471 name=arg_parsed0
+    L5: type#504 name=arg_parsed0
     L6: bool [copy] name=arg_ok0
     L7: type#32 name=entry_err
     L8: int name=entry_ret

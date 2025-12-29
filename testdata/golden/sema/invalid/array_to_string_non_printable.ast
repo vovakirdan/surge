@@ -1,0 +1,28 @@
+array_to_string_non_printable.sg (span: 1:1-8:1)
+├─ Item[0]: Type (span: 1:1-1:22)
+│  ├─ Name: Foo
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: x: int
+└─ Item[1]: Fn (span: 3:1-7:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:11-7:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:35)
+         │  ├─ Name: f
+         │  ├─ Mutable: false
+         │  ├─ Type: Foo[]
+         │  └─ Value: expr#4: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 5:5-5:33)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#6: f to string
+         └─ Stmt[2]: Let (span: 6:5-6:15)
+            ├─ Name: _
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#7: s

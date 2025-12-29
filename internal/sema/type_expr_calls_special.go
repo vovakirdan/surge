@@ -231,6 +231,13 @@ func (tc *typeChecker) handleCloneCall(callID ast.ExprID, args []callArg, span s
 		return innerType
 	}
 
+	if tc.types != nil {
+		if tt, ok := tc.types.Lookup(tc.resolveAlias(innerType)); ok && tt.Kind == types.KindGenericParam {
+			// Defer clone validation for generic parameters to monomorphization.
+			return innerType
+		}
+	}
+
 	// For non-Copy types, look up __clone magic method
 	typeKey := tc.typeKeyForType(innerType)
 	methods := tc.lookupMagicMethods(typeKey, "__clone")

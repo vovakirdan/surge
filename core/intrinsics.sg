@@ -108,6 +108,10 @@ pub contract HasLength<T> {
     fn __len(self: &T) -> uint;
 }
 
+pub contract Printable<T> {
+    fn __to(self: &T, target: string) -> string;
+}
+
 extern<int> {
     @intrinsic fn __add(self: int, other: int) -> int;
     @intrinsic fn __sub(self: int, other: int) -> int;
@@ -129,6 +133,9 @@ extern<int> {
     @intrinsic fn __neg(self: int) -> int;
     @intrinsic fn __abs(self: int) -> int;
     @intrinsic fn __to(self: int, target: string) -> string;
+    @overload pub fn __to(self: &int, _: string) -> string {
+        return (*self) to string;
+    }
     @intrinsic @overload fn __to(self: int, target: float) -> float;
     @intrinsic @overload fn __to(self: int, target: uint) -> uint;
     @intrinsic @overload fn __to(self: int, target: int8) -> int8;
@@ -166,6 +173,9 @@ extern<uint> {
     @intrinsic fn __pos(self: uint) -> uint;
     @intrinsic fn __abs(self: uint) -> uint;
     @intrinsic fn __to(self: uint, target: string) -> string;
+    @overload pub fn __to(self: &uint, _: string) -> string {
+        return (*self) to string;
+    }
     @intrinsic @overload fn __to(self: uint, target: int) -> int;
     @intrinsic @overload fn __to(self: uint, target: float) -> float;
     @intrinsic @overload fn __to(self: uint, target: int8) -> int8;
@@ -496,6 +506,9 @@ extern<float> {
     @intrinsic fn __neg(self: float) -> float;
     @intrinsic fn __abs(self: float) -> float;
     @intrinsic fn __to(self: float, target: string) -> string;
+    @overload pub fn __to(self: &float, _: string) -> string {
+        return (*self) to string;
+    }
     @intrinsic @overload fn __to(self: float, target: int) -> int;
     @intrinsic @overload fn __to(self: float, target: uint) -> uint;
     @intrinsic @overload fn __to(self: float, target: int8) -> int8;
@@ -524,6 +537,9 @@ extern<string> {
     @intrinsic fn __to(self: &string, target: int) -> int;
     @intrinsic @overload fn __to(self: &string, target: uint) -> uint;
     @intrinsic @overload fn __to(self: &string, target: float) -> float;
+    @overload pub fn __to(self: &string, _: string) -> string {
+        return self.__clone();
+    }
     @intrinsic fn __len(self: &string) -> uint;
     @intrinsic fn __clone(self: &string) -> string;
     @intrinsic @overload fn __index(self: &string, index: int) -> uint32;
@@ -546,6 +562,9 @@ extern<bool> {
     @intrinsic fn __ne(self: bool, other: bool) -> bool;
     @intrinsic fn __not(self: bool) -> bool;
     @intrinsic fn __to(self: bool, target: string) -> string;
+    @overload pub fn __to(self: &bool, _: string) -> string {
+        return (*self) to string;
+    }
     @intrinsic @overload fn __to(self: bool, target: int) -> int;
     // Parse bool from string (for @entrypoint("argv") support)
     @intrinsic pub fn from_str(s: &string) -> Erring<bool, Error>;

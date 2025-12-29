@@ -368,6 +368,17 @@ func (tc *typeChecker) magicResultForCast(source, target types.TypeID) types.Typ
 	if source == types.NoTypeID || target == types.NoTypeID {
 		return types.NoTypeID
 	}
+	if tc.types != nil {
+		targetVal := tc.resolveAlias(target)
+		if targetVal == tc.types.Builtins().String {
+			srcVal := tc.valueType(source)
+			if elem, ok := tc.arrayElemType(srcVal); ok {
+				if tc.magicResultForCast(elem, targetVal) == types.NoTypeID {
+					return types.NoTypeID
+				}
+			}
+		}
+	}
 	targetCandidates := tc.typeKeyCandidates(target)
 	for _, lc := range tc.typeKeyCandidates(source) {
 		if lc.key == "" {

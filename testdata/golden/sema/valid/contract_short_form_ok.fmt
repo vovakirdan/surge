@@ -1,5 +1,5 @@
 // scenario: contract short-form bound satisfied by a type
-contract Printable<T> {
+contract HasPrintAndLabel<T> {
     field label: string;
     fn print(self: T);
 }

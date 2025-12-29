@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/array_to_string_non_printable.sg:5:21 operator to (__to) is not defined for [Foo] and string
