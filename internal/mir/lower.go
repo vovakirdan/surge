@@ -106,6 +106,11 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 		out.Funcs[id] = f
 		if f != nil && f.Sym.IsValid() {
 			out.FuncBySym[f.Sym] = id
+			if mf.OrigSym.IsValid() && len(mf.TypeArgs) == 0 {
+				if _, exists := out.FuncBySym[mf.OrigSym]; !exists {
+					out.FuncBySym[mf.OrigSym] = id
+				}
+			}
 		}
 	}
 

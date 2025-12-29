@@ -49,7 +49,7 @@ func compileToMIR(t *testing.T, filePath string) (*mir.Module, *source.FileSet, 
 		t.Fatal("semantic analysis result not available")
 	}
 
-	hirModule, err := driver.CombineHIRWithCore(context.Background(), result)
+	hirModule, err := driver.CombineHIRWithModules(context.Background(), result)
 	if err != nil {
 		t.Fatalf("HIR merge failed: %v", err)
 	}

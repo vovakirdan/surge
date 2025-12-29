@@ -146,6 +146,14 @@ func validateMonoModuleNoTypeParams(mm *MonoModule, typesIn *types.Interner) err
 		if mf.Func == nil {
 			continue
 		}
+		if mm.Source != nil && mm.Source.Symbols != nil && mm.Source.Symbols.Table != nil && mm.Source.Symbols.Table.Symbols != nil {
+			if sym := mm.Source.Symbols.Table.Symbols.Get(mf.OrigSym); sym != nil && len(sym.TypeParams) > 0 {
+				continue
+			}
+		}
+		if mf.Func.IsIntrinsic() || mf.Func.Body == nil {
+			continue
+		}
 		if mf.Func.IsGeneric() {
 			return fmt.Errorf("mono: function %s is still generic", mf.Func.Name)
 		}
@@ -167,6 +175,11 @@ func validateMonoModuleNoTypeParams(mm *MonoModule, typesIn *types.Interner) err
 	for _, mt := range mm.Types {
 		if mt == nil {
 			continue
+		}
+		if mm.Source != nil && mm.Source.Symbols != nil && mm.Source.Symbols.Table != nil && mm.Source.Symbols.Table.Symbols != nil {
+			if sym := mm.Source.Symbols.Table.Symbols.Get(mt.OrigSym); sym != nil && len(sym.TypeParams) > 0 {
+				continue
+			}
 		}
 		if !typeArgsAreConcrete(typesIn, mt.TypeArgs) || typeContainsGenericParam(typesIn, mt.TypeID, make(map[types.TypeID]struct{})) {
 			return fmt.Errorf("mono: non-concrete type instantiation sym=%d type#%d", mt.OrigSym, mt.TypeID)

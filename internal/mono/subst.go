@@ -9,9 +9,10 @@ import (
 )
 
 type Subst struct {
-	Types    *types.Interner
-	OwnerSym symbols.SymbolID
-	TypeArgs []types.TypeID
+	Types     *types.Interner
+	OwnerSym  symbols.SymbolID
+	OwnerSyms []symbols.SymbolID
+	TypeArgs  []types.TypeID
 
 	cache map[types.TypeID]types.TypeID
 }
@@ -488,7 +489,7 @@ func (s *Subst) typeNoCache(id types.TypeID) types.TypeID {
 		if !ok || info == nil {
 			return id
 		}
-		if symbols.SymbolID(info.Owner) != s.OwnerSym {
+		if !s.ownerMatches(symbols.SymbolID(info.Owner)) {
 			return id
 		}
 		idx := int(info.Index)
@@ -654,6 +655,18 @@ func inferOwnership(typesIn *types.Interner, ty types.TypeID) hir.Ownership {
 	default:
 		return hir.OwnershipNone
 	}
+}
+
+func (s *Subst) ownerMatches(owner symbols.SymbolID) bool {
+	if owner == s.OwnerSym {
+		return true
+	}
+	for _, alt := range s.OwnerSyms {
+		if owner == alt {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Subst) DebugString() string {

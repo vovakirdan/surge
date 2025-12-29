@@ -3,6 +3,7 @@ package mono
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"fortio.org/safecast"
 
@@ -154,7 +155,7 @@ func (b *monoBuilder) seed() error {
 		if fn == nil || !fn.SymbolID.IsValid() {
 			continue
 		}
-		if fn.IsGeneric() || b.symbolTypeParamCount(fn.SymbolID) > 0 {
+		if fn.IsGeneric() || b.symbolTypeParamCount(fn.SymbolID) > 0 || b.funcHasGenericTypes(fn) {
 			continue
 		}
 		if _, err := b.ensureFunc(fn.SymbolID, nil, nil); err != nil {
@@ -371,6 +372,9 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 			OwnerSym: origSym,
 			TypeArgs: normalized,
 		}
+		if recvSym := b.receiverTypeSymbol(origSym); recvSym.IsValid() && recvSym != origSym {
+			subst.OwnerSyms = append(subst.OwnerSyms, recvSym)
+		}
 		if err := subst.ApplyFunc(clone); err != nil {
 			return nil, err
 		}
@@ -409,6 +413,71 @@ func (b *monoBuilder) isTagSymbol(sym symbols.SymbolID) bool {
 	}
 	s := b.mod.Symbols.Table.Symbols.Get(sym)
 	return s != nil && s.Kind == symbols.SymbolTag
+}
+
+func (b *monoBuilder) funcHasGenericTypes(fn *hir.Func) bool {
+	if b == nil || b.types == nil || fn == nil {
+		return false
+	}
+	if fn.Result != types.NoTypeID {
+		if typeContainsGenericParam(b.types, fn.Result, make(map[types.TypeID]struct{})) {
+			return true
+		}
+	}
+	for _, p := range fn.Params {
+		if p.Type == types.NoTypeID {
+			continue
+		}
+		if typeContainsGenericParam(b.types, p.Type, make(map[types.TypeID]struct{})) {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *monoBuilder) receiverTypeSymbol(symID symbols.SymbolID) symbols.SymbolID {
+	if b == nil || b.mod == nil || b.mod.Symbols == nil || b.mod.Symbols.Table == nil || b.mod.Symbols.Table.Symbols == nil || b.mod.Symbols.Table.Strings == nil {
+		return symbols.NoSymbolID
+	}
+	sym := b.mod.Symbols.Table.Symbols.Get(symID)
+	if sym == nil || sym.ReceiverKey == "" {
+		return symbols.NoSymbolID
+	}
+	base := baseTypeName(sym.ReceiverKey)
+	if base == "" {
+		return symbols.NoSymbolID
+	}
+	nameID := b.mod.Symbols.Table.Strings.Intern(base)
+	if recvSym, ok := b.typeSymByName[nameID]; ok {
+		return recvSym
+	}
+	return symbols.NoSymbolID
+}
+
+func baseTypeName(key symbols.TypeKey) string {
+	raw := strings.TrimSpace(string(key))
+	for {
+		switch {
+		case strings.HasPrefix(raw, "&mut "):
+			raw = strings.TrimSpace(strings.TrimPrefix(raw, "&mut "))
+		case strings.HasPrefix(raw, "&"):
+			raw = strings.TrimSpace(strings.TrimPrefix(raw, "&"))
+		case strings.HasPrefix(raw, "own "):
+			raw = strings.TrimSpace(strings.TrimPrefix(raw, "own "))
+		case strings.HasPrefix(raw, "*"):
+			raw = strings.TrimSpace(strings.TrimPrefix(raw, "*"))
+		default:
+			goto done
+		}
+	}
+done:
+	if idx := strings.IndexAny(raw, "<["); idx >= 0 {
+		raw = raw[:idx]
+	}
+	if idx := strings.LastIndex(raw, "::"); idx >= 0 {
+		raw = raw[idx+2:]
+	}
+	return strings.TrimSpace(raw)
 }
 
 func (b *monoBuilder) isCallableSymbol(sym symbols.SymbolID) bool {
@@ -497,6 +566,14 @@ func (b *monoBuilder) rewriteCallsInFunc(fn *hir.Func, callerSym symbols.SymbolI
 				} else {
 					concreteArgs = append(concreteArgs, a)
 				}
+			}
+		}
+		if len(concreteArgs) == 0 {
+			if b.isGenericSymbol(calleeSym) {
+				return nil
+			}
+			if orig := b.origFuncBySym[calleeSym]; orig != nil && b.funcHasGenericTypes(orig) {
+				return nil
 			}
 		}
 

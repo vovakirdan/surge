@@ -74,6 +74,47 @@ func (vm *VM) concatStringValues(left, right Value) (Value, *VMError) {
 	return MakeHandleString(h, typeID), nil
 }
 
+func (vm *VM) repeatStringValue(val Value, count int) (Value, *VMError) {
+	if val.Kind != VKHandleString {
+		return Value{}, vm.eb.typeMismatch("string", val.Kind.String())
+	}
+	obj := vm.Heap.Get(val.H)
+	if obj == nil {
+		return Value{}, vm.eb.makeError(PanicOutOfBounds, "invalid string handle")
+	}
+	if count <= 0 {
+		h := vm.Heap.AllocStringWithCPLen(val.TypeID, "", 0)
+		return MakeHandleString(h, val.TypeID), nil
+	}
+
+	unitBytes := vm.stringByteLen(obj)
+	unitCP := vm.stringCPLen(obj)
+	if unitBytes == 0 || unitCP == 0 {
+		h := vm.Heap.AllocStringWithCPLen(val.TypeID, "", 0)
+		return MakeHandleString(h, val.TypeID), nil
+	}
+
+	maxInt := int(^uint(0) >> 1)
+	if unitBytes > 0 && count > maxInt/unitBytes {
+		return Value{}, vm.eb.invalidNumericConversion("string repeat length out of range")
+	}
+	if unitCP > 0 && count > maxInt/unitCP {
+		return Value{}, vm.eb.invalidNumericConversion("string repeat length out of range")
+	}
+
+	base := vm.stringBytes(obj)
+	totalBytes := unitBytes * count
+	totalCP := unitCP * count
+
+	var b strings.Builder
+	b.Grow(totalBytes)
+	for i := 0; i < count; i++ {
+		b.WriteString(base)
+	}
+	h := vm.Heap.AllocStringWithCPLen(val.TypeID, b.String(), totalCP)
+	return MakeHandleString(h, val.TypeID), nil
+}
+
 func (vm *VM) stringByteLen(obj *Object) int {
 	if obj == nil {
 		return 0

@@ -231,6 +231,12 @@ func (vm *VM) evalIntSub(left, right Value) (Value, *VMError) {
 // evalMul evaluates the multiplication operation.
 func (vm *VM) evalMul(left, right Value) (Value, *VMError) {
 	switch {
+	case left.Kind == VKHandleString:
+		count, vmErr := vm.uintValueToInt(right, "string repeat count out of range")
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		return vm.repeatStringValue(left, count)
 	case left.Kind == VKBigInt && right.Kind == VKBigInt:
 		return vm.evalBigIntMul(left, right)
 	case left.Kind == VKBigUint && right.Kind == VKBigUint:

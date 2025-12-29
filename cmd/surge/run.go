@@ -122,7 +122,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("semantic analysis result not available")
 	}
 
-	hirModule, err := driver.CombineHIRWithCore(cmd.Context(), result)
+	hirModule, err := driver.CombineHIRWithModules(cmd.Context(), result)
 	if err != nil {
 		return fmt.Errorf("HIR merge failed: %w", err)
 	}

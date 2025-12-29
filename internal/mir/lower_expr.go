@@ -77,6 +77,11 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 		if !ok {
 			return Place{Local: NoLocalID}, fmt.Errorf("mir: index: unexpected payload %T", e.Data)
 		}
+		if l.types != nil && e.Type != types.NoTypeID {
+			if tt, ok := l.types.Lookup(resolveAlias(l.types, e.Type)); ok && tt.Kind != types.KindReference {
+				return Place{Local: NoLocalID}, fmt.Errorf("mir: expected place, got index result type %s", tt.Kind.String())
+			}
+		}
 		base, err := l.lowerPlace(data.Object)
 		if err != nil {
 			return Place{Local: NoLocalID}, err
