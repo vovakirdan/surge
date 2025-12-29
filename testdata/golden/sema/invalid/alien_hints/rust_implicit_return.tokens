@@ -1,0 +1,22 @@
+  1: KwFn            "fn" at 2:1-2:3 (leading: LineComment, Newline)
+  2: Ident           "rusty" at 2:4-2:9 (leading: Space)
+  3: LParen          "(" at 2:9-2:10
+  4: Ident           "flag" at 2:10-2:14
+  5: Colon           ":" at 2:14-2:15
+  6: Ident           "bool" at 2:16-2:20 (leading: Space)
+  7: RParen          ")" at 2:20-2:21
+  8: Arrow           "->" at 2:22-2:24 (leading: Space)
+  9: Ident           "int" at 2:25-2:28 (leading: Space)
+ 10: LBrace          "{" at 2:29-2:30 (leading: Space)
+ 11: KwIf            "if" at 3:5-3:7 (leading: Newline, Space)
+ 12: LParen          "(" at 3:8-3:9 (leading: Space)
+ 13: Ident           "flag" at 3:9-3:13
+ 14: RParen          ")" at 3:13-3:14
+ 15: LBrace          "{" at 3:15-3:16 (leading: Space)
+ 16: KwReturn        "return" at 4:9-4:15 (leading: Newline, Space)
+ 17: IntLit          "1" at 4:16-4:17 (leading: Space)
+ 18: Semicolon       ";" at 4:17-4:18
+ 19: RBrace          "}" at 5:5-5:6 (leading: Newline, Space)
+ 20: IntLit          "2" at 6:5-6:6 (leading: Newline, Space)
+ 21: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 22: EOF             at 8:1-8:1

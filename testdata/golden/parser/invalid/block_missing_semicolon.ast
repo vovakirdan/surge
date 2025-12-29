@@ -16,7 +16,9 @@ block_missing_semicolon.sg (span: 4:1-13:1)
    ├─ Return: nothing
    └─ Body:
       └─ Stmt[0]: Block (span: 9:30-12:2)
-         └─ Stmt[0]: Let (span: 11:5-11:20)
+         ├─ Stmt[0]: Expr (span: 10:5-10:10)
+         │  └─ Expr: expr#5: (x + y)
+         └─ Stmt[1]: Let (span: 11:5-11:20)
             ├─ Name: z
             ├─ Mutable: false
             ├─ Type: int

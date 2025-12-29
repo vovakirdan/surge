@@ -1,2 +1,4 @@
 error SYN2012 testdata/golden/parser/invalid/block_missing_semicolon.sg:5:19 expected ';' after let statement
+error SEM3005 testdata/golden/parser/invalid/block_missing_semicolon.sg:10:5 cannot resolve 'x'
+error SEM3005 testdata/golden/parser/invalid/block_missing_semicolon.sg:10:9 cannot resolve 'y'
 error SYN2012 testdata/golden/parser/invalid/block_missing_semicolon.sg:10:10 expected ';' after expression statement

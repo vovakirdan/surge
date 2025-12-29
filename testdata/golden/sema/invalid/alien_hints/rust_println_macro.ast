@@ -5,5 +5,9 @@ rust_println_macro.sg (span: 1:1-5:1)
    ├─ Return: nothing
    └─ Body:
       └─ Stmt[0]: Block (span: 1:22-4:2)
-         └─ Stmt[0]: Return (span: 3:5-3:20)
-            └─ Expr: expr#2: nothing
+         ├─ Stmt[0]: Expr (span: 2:5-2:12)
+         │  └─ Expr: expr#1: println
+         ├─ Stmt[1]: Expr (span: 2:12-2:20)
+         │  └─ Expr: expr#4: !("hi")
+         └─ Stmt[2]: Return (span: 3:5-3:20)
+            └─ Expr: expr#5: nothing

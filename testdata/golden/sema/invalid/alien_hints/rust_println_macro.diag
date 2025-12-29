@@ -1,2 +1,4 @@
+error SEM3005 testdata/golden/sema/invalid/alien_hints/rust_println_macro.sg:2:5 cannot resolve 'println'
 info ALN8003 testdata/golden/sema/invalid/alien_hints/rust_println_macro.sg:2:5 Ah, a fellow Rustacean! That looks like Rust macro call `println!(...)`. Surge has no `!` macros—use a normal call instead. ```sg print("hi"); ```
+error SEM3017 testdata/golden/sema/invalid/alien_hints/rust_println_macro.sg:2:12 operator ! (__not) is not defined for string
 error SYN2012 testdata/golden/sema/invalid/alien_hints/rust_println_macro.sg:2:12 expected ';' after expression statement
