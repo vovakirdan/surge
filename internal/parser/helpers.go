@@ -246,9 +246,6 @@ func (p *Parser) resyncStatement() {
 				break
 			}
 			if parenDepth == 0 && bracketDepth == 0 {
-				if !p.at(token.EOF) {
-					p.advance()
-				}
 				return
 			}
 		case token.LParen:

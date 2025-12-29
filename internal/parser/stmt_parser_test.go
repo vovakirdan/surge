@@ -440,6 +440,28 @@ func TestParseBlockStatements_Diagnostics(t *testing.T) {
 	}
 }
 
+func TestParseBlock_MissingSemicolonBeforeClosingBrace(t *testing.T) {
+	input := `
+fn foo() {
+    let x = 1
+}
+
+@inline
+fn bar() {}
+`
+	_, _, bag := parseSource(t, input)
+	if !bag.HasErrors() {
+		t.Fatalf("expected diagnostics, got none")
+	}
+	codes := make(map[diag.Code]int)
+	for _, d := range bag.Items() {
+		codes[d.Code]++
+	}
+	if len(codes) != 1 || codes[diag.SynExpectSemicolon] == 0 {
+		t.Fatalf("expected only SynExpectSemicolon diagnostic, got %+v", bag.Items())
+	}
+}
+
 // Additional comprehensive tests for statement parsing
 
 func TestParseReturnStatement(t *testing.T) {
