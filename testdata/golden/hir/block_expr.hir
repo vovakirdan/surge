@@ -12,10 +12,10 @@ fn block_scope() -> int (id=1, sym=1168) {
 }
 
 async fn with_async_block() -> nothing (id=2, sym=1169) {
-  let task: type#1226 = async {
+  let task: type#1225 = async {
     let x: int [copy] = 1
     let y: int [copy] = __add(x, 1): int
-  }: type#1226
+  }: type#1225
   return
 }
 

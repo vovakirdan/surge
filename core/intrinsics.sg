@@ -32,6 +32,7 @@ pub type byte = uint8;
 @intrinsic
 pub fn readline() -> string;
 
+@intrinsic
 pub type Range<T> = {
     __state: *byte,
 };
@@ -77,6 +78,7 @@ extern<Task<T>> {
 pub fn checkpoint() -> Task<nothing>;
 
 // Typed channel for inter-task communication
+@intrinsic
 pub type Channel<T> = {
     __opaque: *byte,
 };
@@ -546,6 +548,7 @@ extern<string> {
     @intrinsic @overload fn __index(self: &string, index: Range<int>) -> string;
 }
 
+@intrinsic
 pub type BytesView = {
     owner: string,
     ptr: *byte,
@@ -610,6 +613,7 @@ pub fn panic(msg: string) -> nothing {
     exit(e);
 }
 
+@intrinsic
 pub type Mutex = {
     __opaque: *byte,
 };
@@ -621,6 +625,7 @@ extern<Mutex> {
     @intrinsic pub fn try_lock(self: &mut Mutex) -> bool;
 }
 
+@intrinsic
 pub type RwLock = {
     __opaque: *byte,
 };
@@ -635,6 +640,7 @@ extern<RwLock> {
     @intrinsic pub fn try_write_lock(self: &mut RwLock) -> bool;
 }
 
+@intrinsic
 pub type Condition = {
     __opaque: *byte,
 };
@@ -646,6 +652,7 @@ extern<Condition> {
     @intrinsic pub fn notify_all(self: &Condition) -> nothing;
 }
 
+@intrinsic
 pub type Semaphore = {
     __opaque: *byte,
     __count: uint,

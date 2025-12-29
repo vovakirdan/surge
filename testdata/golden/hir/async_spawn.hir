@@ -7,7 +7,7 @@ async fn inc(x: int [copy]) -> int (id=1, sym=1168) {
 }
 
 async fn test() -> int (id=2, sym=1169) {
-  let task: type#1226 = spawn inc(5): type#1226: type#1226
+  let task: type#1225 = spawn inc(5): type#1225: type#1225
   return await(task): int
 }
 

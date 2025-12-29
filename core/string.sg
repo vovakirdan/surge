@@ -150,8 +150,7 @@ extern<string> {
             let mut i: int = 0;
             while i < hay_len {
                 let piece = self[[i..i + 1]];
-                let one: string[] = [piece];
-                parts = parts + one;
+                parts.push(piece);
                 i = i + 1;
             }
             return parts;
@@ -164,13 +163,11 @@ extern<string> {
                 break;
             }
             let piece = self[[start..idx]];
-            let one: string[] = [piece];
-            parts = parts + one;
+            parts.push(piece);
             start = idx + sep_len;
         }
         let tail = self[[start..hay_len]];
-        let one: string[] = [tail];
-        parts = parts + one;
+        parts.push(tail);
         return parts;
     }
     pub fn join(self: &string, parts: string[]) -> string {
@@ -178,30 +175,30 @@ extern<string> {
         if count == 0 {
             return "";
         }
-        let mut out: string = parts[0];
+        let mut out: string = clone(parts[0]);
         let mut i: int = 1;
         while i < count {
-            out = out + self.__clone() + parts[i];
+            out = out + self + parts[i];
             i = i + 1;
         }
         return out;
     }
     pub fn trim(self: &string) -> string {
-        let len: int = string_len_int(self);
-        if len <= 0 {
+        let length: int = string_len_int(self);
+        if length <= 0 {
             return "";
         }
         let mut start: int = 0;
-        while start < len {
+        while start < length {
             if !string_is_trim_space(self[start]) {
                 break;
             }
             start = start + 1;
         }
-        if start >= len {
+        if start >= length {
             return "";
         }
-        let mut end: int = len - 1;
+        let mut end: int = length - 1;
         while end >= start {
             if !string_is_trim_space(self[end]) {
                 break;
@@ -214,22 +211,22 @@ extern<string> {
         return self[[start..end + 1]];
     }
     pub fn trim_start(self: &string) -> string {
-        let len: int = string_len_int(self);
+        let length: int = string_len_int(self);
         let mut start: int = 0;
-        while start < len {
+        while start < length {
             if !string_is_trim_space(self[start]) {
                 break;
             }
             start = start + 1;
         }
-        return self[[start..len]];
+        return self[[start..length]];
     }
     pub fn trim_end(self: &string) -> string {
-        let len: int = string_len_int(self);
-        if len <= 0 {
+        let length: int = string_len_int(self);
+        if length <= 0 {
             return "";
         }
-        let mut end: int = len - 1;
+        let mut end: int = length - 1;
         while end >= 0 {
             if !string_is_trim_space(self[end]) {
                 break;
@@ -269,12 +266,12 @@ extern<string> {
         return out;
     }
     pub fn reverse(self: &string) -> string {
-        let len: int = string_len_int(self);
-        if len <= 1 {
+        let length: int = string_len_int(self);
+        if length <= 1 {
             return self.__clone();
         }
         let mut out: string = "";
-        let mut i: int = len - 1;
+        let mut i: int = length - 1;
         while i >= 0 {
             out = out + self[[i..i + 1]];
             if i == 0 {

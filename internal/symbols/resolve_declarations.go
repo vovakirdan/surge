@@ -2,6 +2,7 @@ package symbols
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"surge/internal/ast"
@@ -147,8 +148,9 @@ func (fr *fileResolver) declareType(itemID ast.ItemID, typeItem *ast.TypeItem) {
 			fr.reportIntrinsicError(typeItem.Name, span, diag.SemaIntrinsicBadContext, "@intrinsic types must be declared in core or stdlib module")
 			return
 		}
-		// Validate: @intrinsic type must be empty struct or have only __opaque field
-		if !fr.isValidIntrinsicType(typeItem) {
+		// Validate: @intrinsic type must be empty struct or have only __opaque field,
+		// except for core/intrinsics where layout-backed intrinsics are allowed.
+		if !fr.isValidIntrinsicType(typeItem) && !fr.allowIntrinsicTypeBody() {
 			span := preferSpan(typeItem.TypeKeywordSpan, typeItem.Span)
 			fr.reportIntrinsicError(typeItem.Name, span, diag.SemaIntrinsicHasBody, "@intrinsic type must be empty or have only '__opaque' field")
 			return
@@ -220,6 +222,19 @@ func (fr *fileResolver) isValidIntrinsicType(typeItem *ast.TypeItem) bool {
 		}
 	}
 	return false
+}
+
+func (fr *fileResolver) allowIntrinsicTypeBody() bool {
+	if fr == nil {
+		return false
+	}
+	if fr.filePath != "" {
+		path := filepath.ToSlash(fr.filePath)
+		if strings.HasSuffix(path, "/core/intrinsics.sg") || strings.HasSuffix(path, "core/intrinsics.sg") {
+			return true
+		}
+	}
+	return fr.modulePath == "core"
 }
 
 // declareContract объявляет контракт в текущей области видимости.

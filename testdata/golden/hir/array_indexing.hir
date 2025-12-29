@@ -3,10 +3,10 @@
 module 
 
 fn test() -> nothing (id=1, sym=1168) {
-  let a: type#1225 = [1, 2, 3, 4]: type#1225
+  let a: type#1224 = [1, 2, 3, 4]: type#1224
   let x: &int [&] = a[1]: &int
   let y: &int [&] = a[__neg(1): int]: &int
-  let slice: type#1225 = a[rt_range_int_new(1, 3, false): type#1229]: type#1225
+  let slice: type#1224 = a[rt_range_int_new(1, 3, false): type#1228]: type#1224
   return
 }
 

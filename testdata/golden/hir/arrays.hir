@@ -2,11 +2,11 @@
 == HIR ==
 module 
 
-fn first(arr: type#1225) -> int (id=1, sym=1168) {
+fn first(arr: type#1224) -> int (id=1, sym=1168) {
   return arr[0]: &int
 }
 
-fn make_array() -> type#1225 (id=2, sym=1169) {
-  return [1, 2, 3]: type#1225
+fn make_array() -> type#1224 (id=2, sym=1169) {
+  return [1, 2, 3]: type#1224
 }
 
