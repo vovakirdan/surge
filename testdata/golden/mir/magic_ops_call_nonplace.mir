@@ -8,15 +8,15 @@ funcs=4
 
 fn __add:
   locals:
-    L0: &type#1182 [copy,ref] name=self
-    L1: &type#1182 [copy,ref] name=other
+    L0: &type#1187 [copy,ref] name=self
+    L1: &type#1187 [copy,ref] name=other
     L2: int [copy] name=tmp_field1
     L3: int [copy] name=tmp_field2
     L4: int [copy] name=tmp_call3
     L5: int [copy] name=tmp_field4
     L6: int [copy] name=tmp_field5
     L7: int [copy] name=tmp_call6
-    L8: type#1182 name=tmp_struct7
+    L8: type#1187 name=tmp_struct7
   bb0:
     L2 = field copy L0.x
     L3 = field copy L1.x
@@ -24,28 +24,28 @@ fn __add:
     L5 = field copy L0.y
     L6 = field copy L1.y
     L7 = call __add(copy L5, copy L6)
-    L8 = struct_lit type#1182 {x=copy L4, y=copy L7}
+    L8 = struct_lit type#1187 {x=copy L4, y=copy L7}
     return move L8
 
 fn __neg:
   locals:
-    L0: &type#1182 [copy,ref] name=self
+    L0: &type#1187 [copy,ref] name=self
     L1: int [copy] name=tmp_field1
     L2: int [copy] name=tmp_call2
     L3: int [copy] name=tmp_field3
     L4: int [copy] name=tmp_call4
-    L5: type#1182 name=tmp_struct5
+    L5: type#1187 name=tmp_struct5
   bb0:
     L1 = field copy L0.x
     L2 = call __neg(copy L1)
     L3 = field copy L0.y
     L4 = call __neg(copy L3)
-    L5 = struct_lit type#1182 {x=copy L2, y=copy L4}
+    L5 = struct_lit type#1187 {x=copy L2, y=copy L4}
     return move L5
 
 fn __to:
   locals:
-    L0: &type#1182 [copy,ref] name=self
+    L0: &type#1187 [copy,ref] name=self
     L1: int [copy] name=target
     L2: int [copy] name=tmp_field1
     L3: int [copy] name=tmp_field2
@@ -58,23 +58,23 @@ fn __to:
 
 fn main:
   locals:
-    L0: type#1182 name=p1
-    L1: type#1182 name=tmp_struct1
-    L2: type#1182 name=p2
-    L3: type#1182 name=tmp_struct2
-    L4: type#1182 name=sum
-    L5: type#1182 name=tmp_call3
-    L6: type#1182 name=neg
-    L7: type#1182 name=tmp_call4
+    L0: type#1187 name=p1
+    L1: type#1187 name=tmp_struct1
+    L2: type#1187 name=p2
+    L3: type#1187 name=tmp_struct2
+    L4: type#1187 name=sum
+    L5: type#1187 name=tmp_call3
+    L6: type#1187 name=neg
+    L7: type#1187 name=tmp_call4
     L8: string name=s
     L9: string name=tmp_call5
     L10: string name=tmp_ref6
     L11: string name=tmp_call7
     L12: int [copy] name=tmp_call8
   bb0:
-    L1 = struct_lit type#1182 {x=const 1, y=const 2}
+    L1 = struct_lit type#1187 {x=const 1, y=const 2}
     L0 = move L1
-    L3 = struct_lit type#1182 {x=const 3, y=const 4}
+    L3 = struct_lit type#1187 {x=const 3, y=const 4}
     L2 = move L3
     L5 = call __add(addr_of L0, addr_of L2)
     L4 = move L5

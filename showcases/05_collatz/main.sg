@@ -2,9 +2,6 @@
 fn main(count: int, name: string) -> int {
     let n = 27;
     if count >= 2 {
-        // let r: int! = int.from_str(name).safe();
-        // n = r;
-        // if we do like this, we get error "use of moved value: `r`"
         let r: int! = int.from_str(name);
         if r.is_success() {
             n = r.safe();
