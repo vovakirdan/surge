@@ -1,0 +1,25 @@
+magic_op_overload_cast.sg (span: 1:1-12:1)
+├─ Item[0]: Type (span: 1:1-1:22)
+│  ├─ Name: Foo
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: x: int
+└─ Item[1]: Extern (span: 3:1-11:2)
+   ├─ Target: Foo
+   ├─ Members:
+   │  ├─ Fn[0]: __mul
+   │  │  ├─ Params: (self: &Foo, other: int)
+   │  │  ├─ Return: Foo
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 4:49-6:6)
+   │  │     └─ Stmt[0]: Return (span: 5:9-5:33)
+   │  │        └─ Expr: expr#3: <ExprKind(18)>
+   │  └─ Fn[1]: __mul
+   │     ├─ Params: (self: &Foo, other: uint)
+   │     ├─ Return: Foo
+   │     ├─ Attributes: @overload
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 8:60-10:6)
+   │        └─ Stmt[0]: Return (span: 9:9-9:38)
+   │           └─ Expr: expr#8: (self * (other to int))

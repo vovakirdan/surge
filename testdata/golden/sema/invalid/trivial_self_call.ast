@@ -1,0 +1,9 @@
+trivial_self_call.sg (span: 1:1-4:1)
+└─ Item[0]: Fn (span: 1:1-3:2)
+   ├─ Name: f
+   ├─ Params: (x: int)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:21-3:2)
+         └─ Stmt[0]: Return (span: 2:5-2:17)
+            └─ Expr: expr#3: f(x)

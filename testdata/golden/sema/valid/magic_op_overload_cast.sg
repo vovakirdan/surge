@@ -1,0 +1,11 @@
+type Foo = { x: int }
+
+extern<Foo> {
+    pub fn __mul(self: &Foo, other: int) -> Foo {
+        return Foo { x: other };
+    }
+
+    @overload pub fn __mul(self: &Foo, other: uint) -> Foo {
+        return self * (other to int);
+    }
+}

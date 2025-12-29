@@ -231,6 +231,7 @@ const (
 	SemaIntLiteralOutOfRange           Code = 3128 // Integer literal out of range for target type
 	SemaRawPointerNotAllowed           Code = 3129 // Raw pointer types are backend-only
 	SemaUseAfterMove                   Code = 3130 // Use of moved value
+	SemaTrivialRecursion               Code = 3131 // Obvious infinite recursion cycle
 
 	// Ошибки I/O
 	IOLoadFileError Code = 4001
@@ -457,6 +458,7 @@ var ( // todo расширить описания и использовать к
 		SemaIntLiteralOutOfRange:           "integer literal out of range",
 		SemaRawPointerNotAllowed:           "raw pointers are backend-only",
 		SemaUseAfterMove:                   "use of moved value",
+		SemaTrivialRecursion:               "obvious infinite recursion cycle",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",

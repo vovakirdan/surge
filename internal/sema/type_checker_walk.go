@@ -75,6 +75,8 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		symID := tc.typeSymbolForItem(id)
 		popFn := tc.pushFnSym(symID)
 		defer popFn()
+		popParams := tc.pushFnParams(tc.fnParamSymbols(fnItem, scope))
+		defer popParams()
 		allowRawPointer := tc.hasIntrinsicAttr(fnItem.AttrStart, fnItem.AttrCount)
 		paramSpecs := tc.specsFromTypeParams(tc.builder.Items.GetFnTypeParamIDs(fnItem), scope)
 		if len(paramSpecs) == 0 && len(fnItem.Generics) > 0 {
@@ -248,6 +250,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 				tc.trackTaskReturn(ret.Expr)
 			}
 			tc.validateReturn(stmt.Span, ret.Expr, valueType)
+			tc.checkTrivialReturnRecursion(ret.Expr)
 		}
 	case ast.StmtIf:
 		if ifStmt := tc.builder.Stmts.If(id); ifStmt != nil {

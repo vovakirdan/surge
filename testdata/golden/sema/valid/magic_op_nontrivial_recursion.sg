@@ -1,0 +1,8 @@
+type Foo = { x: int }
+
+extern<Foo> {
+    pub fn __mul(self: &Foo, other: int) -> Foo {
+        if other == 0 { return Foo { x: 0 }; }
+        return self * (other - 1);
+    }
+}

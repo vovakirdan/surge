@@ -73,6 +73,7 @@ type typeChecker struct {
 	asyncBlockDepth             int // Track nesting level of async blocks for error differentiation
 	returnStack                 []returnContext
 	fnSymStack                  []symbols.SymbolID // current function (for instantiation use-sites)
+	fnParamsStack               [][]symbols.SymbolID
 	typeParams                  []map[source.StringID]types.TypeID
 	typeParamNames              map[types.TypeID]source.StringID
 	typeParamEnv                []uint32
