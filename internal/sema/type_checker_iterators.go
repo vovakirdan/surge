@@ -26,13 +26,22 @@ func (tc *typeChecker) inferForInElementType(iterableType types.TypeID, span sou
 		return types.NoTypeID
 	}
 
-	// Check if the iterable is directly a Range<T> type
+	// Check if the iterable is directly a Range<T> type (or a reference to one)
 	if elem, ok := tc.rangePayload(iterableType); ok {
 		return elem
 	}
+	base := tc.valueType(iterableType)
+	if base == types.NoTypeID {
+		base = iterableType
+	}
+	if base != iterableType {
+		if elem, ok := tc.rangePayload(base); ok {
+			return elem
+		}
+	}
 
-	// Check if the iterable is an array type
-	if elem, ok := tc.arrayElemType(iterableType); ok {
+	// Check if the iterable is an array type (or a reference to one)
+	if elem, ok := tc.arrayElemType(base); ok {
 		return elem
 	}
 

@@ -212,7 +212,98 @@ func (tc *typeChecker) methodSubst(recv types.TypeID, recvKey symbols.TypeKey, s
 			return subst
 		}
 	}
-	return tc.buildTypeParamSubst(recv, recvKey)
+	if subst := tc.buildTypeParamSubst(recv, recvKey); len(subst) > 0 {
+		return subst
+	}
+	return tc.receiverTypeParamSubst(recv)
+}
+
+func (tc *typeChecker) receiverTypeParamSubst(recv types.TypeID) map[string]symbols.TypeKey {
+	if recv == types.NoTypeID || tc.types == nil {
+		return nil
+	}
+	resolved := tc.resolveAlias(recv)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return nil
+	}
+	switch tt.Kind {
+	case types.KindOwn, types.KindReference, types.KindPointer:
+		if tt.Elem == types.NoTypeID {
+			return nil
+		}
+		return tc.receiverTypeParamSubst(tt.Elem)
+	}
+
+	var typeArgs []types.TypeID
+	var typeParams []types.TypeID
+	var typeParamNames []source.StringID
+	typeName := source.NoStringID
+	switch tt.Kind {
+	case types.KindStruct:
+		if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
+			typeArgs = info.TypeArgs
+			typeParams = info.TypeParams
+			typeName = info.Name
+		}
+	case types.KindUnion:
+		if info, ok := tc.types.UnionInfo(resolved); ok && info != nil {
+			typeArgs = info.TypeArgs
+			typeName = info.Name
+		}
+	case types.KindAlias:
+		if info, ok := tc.types.AliasInfo(resolved); ok && info != nil {
+			typeArgs = info.TypeArgs
+			typeName = info.Name
+		}
+	}
+	if len(typeParams) > 0 {
+		typeParamNames = make([]source.StringID, 0, len(typeParams))
+		for _, param := range typeParams {
+			typeParamNames = append(typeParamNames, tc.typeParamNames[param])
+		}
+	}
+	if len(typeParamNames) == 0 && typeName != source.NoStringID {
+		scope := tc.fileScope()
+		if !scope.IsValid() {
+			scope = tc.scopeOrFile(tc.currentScope())
+		}
+		symID := tc.lookupTypeSymbol(typeName, scope)
+		if !symID.IsValid() {
+			if anySymID := tc.lookupSymbolAny(typeName, scope); anySymID.IsValid() {
+				if sym := tc.symbolFromID(anySymID); sym != nil && sym.Kind == symbols.SymbolType {
+					symID = anySymID
+				}
+			}
+		}
+		if symID.IsValid() {
+			if sym := tc.symbolFromID(symID); sym != nil {
+				typeParamNames = sym.TypeParams
+			}
+		}
+	}
+	if len(typeParamNames) == 0 || len(typeArgs) != len(typeParamNames) {
+		return nil
+	}
+	subst := make(map[string]symbols.TypeKey, len(typeParamNames))
+	for i, paramName := range typeParamNames {
+		if paramName == source.NoStringID {
+			continue
+		}
+		name := tc.lookupName(paramName)
+		if name == "" {
+			continue
+		}
+		argKey := tc.typeKeyForType(typeArgs[i])
+		if argKey == "" {
+			continue
+		}
+		subst[name] = argKey
+	}
+	if len(subst) == 0 {
+		return nil
+	}
+	return subst
 }
 
 func (tc *typeChecker) methodParamsMatchWithSubst(expected []symbols.TypeKey, args []types.TypeID, subst map[string]symbols.TypeKey) bool {
