@@ -31,12 +31,12 @@ fn main() -> int {
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	if _, err := tmpFile.WriteString(sourceCode); err != nil {
+	if _, writeErr := tmpFile.WriteString(sourceCode); writeErr != nil {
 		tmpFile.Close()
-		t.Fatalf("failed to write source code: %v", err)
+		t.Fatalf("failed to write source code: %v", writeErr)
 	}
-	if err := tmpFile.Close(); err != nil {
-		t.Fatalf("failed to close temp file: %v", err)
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		t.Fatalf("failed to close temp file: %v", closeErr)
 	}
 
 	result, err := driver.DiagnoseWithOptions(context.Background(), tmpFile.Name(), opts)

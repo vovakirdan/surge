@@ -126,7 +126,7 @@ func (vm *VM) taskValue(id asyncrt.TaskID, typeID types.TypeID) (Value, *VMError
 	if fieldType == types.NoTypeID && vm.Types != nil {
 		fieldType = vm.Types.Builtins().Int
 	}
-	fields[idx] = MakeInt(int64(id), fieldType)
+	fields[idx] = MakeInt(int64(id), fieldType) //nolint:gosec // TaskID is bounded by executor
 	h := vm.Heap.AllocStruct(typeID, fields)
 	return MakeHandleStruct(h, typeID), nil
 }
@@ -141,7 +141,7 @@ func (vm *VM) pollTask(id asyncrt.TaskID) (bool, Value, *VMError) {
 		return false, Value{}, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", id))
 	}
 	if task.Status == asyncrt.TaskDone {
-		res, _ := task.Result.(Value)
+		res, _ := task.Result.(Value) //nolint:errcheck // type assertion, not error
 		out, vmErr := vm.cloneForShare(res)
 		if vmErr != nil {
 			return false, Value{}, vmErr
@@ -194,7 +194,7 @@ func (vm *VM) pollUserTask(task *asyncrt.Task) (bool, Value, *VMError) {
 	if vm.M == nil {
 		return false, Value{}, vm.eb.makeError(PanicUnimplemented, "missing module")
 	}
-	fn := vm.M.Funcs[mir.FuncID(task.PollFuncID)]
+	fn := vm.M.Funcs[mir.FuncID(task.PollFuncID)] //nolint:gosec // PollFuncID is bounded by module
 	if fn == nil {
 		return false, Value{}, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing poll function %d", task.PollFuncID))
 	}
@@ -270,7 +270,7 @@ func (vm *VM) runUntilDone(id asyncrt.TaskID) (Value, *VMError) {
 			return Value{}, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", id))
 		}
 		if task.Status == asyncrt.TaskDone {
-			res, _ := task.Result.(Value)
+			res, _ := task.Result.(Value) //nolint:errcheck // type assertion, not error
 			out, vmErr := vm.cloneForShare(res)
 			if vmErr != nil {
 				return Value{}, vmErr
@@ -314,7 +314,8 @@ func (vm *VM) runFunction(fn *mir.Func, args []Value) (Value, *VMError) {
 
 	frame := NewFrame(fn)
 	for i := range args {
-		if vmErr := vm.writeLocal(frame, mir.LocalID(i), args[i]); vmErr != nil {
+		vmErr := vm.writeLocal(frame, mir.LocalID(i), args[i]) //nolint:gosec // i is bounded by args length
+		if vmErr != nil {
 			vm.Stack = savedStack
 			vm.Halted = savedHalted
 			vm.started = savedStarted
@@ -325,7 +326,8 @@ func (vm *VM) runFunction(fn *mir.Func, args []Value) (Value, *VMError) {
 	vm.Stack = append(vm.Stack, *frame)
 
 	for len(vm.Stack) > 0 && !vm.Halted {
-		if vmErr := vm.Step(); vmErr != nil {
+		vmErr := vm.Step()
+		if vmErr != nil {
 			vm.Stack = savedStack
 			vm.Halted = savedHalted
 			vm.started = savedStarted

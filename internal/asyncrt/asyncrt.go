@@ -192,7 +192,7 @@ func (e *Executor) MarkDone(id TaskID, result any) {
 }
 
 // Join waits for a task to complete and returns its result if ready.
-func (e *Executor) Join(waiter, target TaskID) (bool, any) {
+func (e *Executor) Join(waiter, target TaskID) (ready bool, result any) {
 	if e == nil {
 		return false, nil
 	}

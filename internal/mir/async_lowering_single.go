@@ -95,8 +95,8 @@ func lowerAsyncSingleSuspendFunc(m *Module, f *Func, typesIn *types.Interner, se
 	}
 
 	tagSymByName := buildTagSymByName(m, symTable)
-	if err := ensureTagLayout(m, typesIn, tagSymByName, optionType); err != nil {
-		return err
+	if layoutErr := ensureTagLayout(m, typesIn, tagSymByName, optionType); layoutErr != nil {
+		return layoutErr
 	}
 	someTagSym, err := optionSomeTagSym(m, optionType)
 	if err != nil {
@@ -254,11 +254,10 @@ func lowerAsyncSingleSuspendFunc(m *Module, f *Func, typesIn *types.Interner, se
 	return nil
 }
 
-func findAwait(f *Func) (BlockID, int, *Instr, int) {
-	count := 0
-	awaitBlock := NoBlockID
-	awaitIndex := -1
-	var awaitInstr *Instr
+func findAwait(f *Func) (awaitBlock BlockID, awaitIndex int, awaitInstr *Instr, count int) {
+	count = 0
+	awaitBlock = NoBlockID
+	awaitIndex = -1
 	for bi := range f.Blocks {
 		bb := &f.Blocks[bi]
 		for ii := range bb.Instrs {
@@ -266,7 +265,7 @@ func findAwait(f *Func) (BlockID, int, *Instr, int) {
 			if ins.Kind == InstrAwait {
 				count++
 				if count == 1 {
-					awaitBlock = BlockID(bi)
+					awaitBlock = BlockID(bi) //nolint:gosec // bounded by block count
 					awaitIndex = ii
 					awaitInstr = ins
 				}
@@ -329,7 +328,7 @@ func buildAsyncStateType(typesIn *types.Interner, f *Func, awaitTaskLocal LocalI
 	return stateID, fieldNameByLocal, nil
 }
 
-func buildAsyncConstructor(m *Module, f *Func, typesIn *types.Interner, semaRes *sema.Result, taskType types.TypeID, stateType types.TypeID, pollFnID FuncID, fieldNameByLocal map[LocalID]string, paramLocals localSet) error {
+func buildAsyncConstructor(_ *Module, f *Func, typesIn *types.Interner, semaRes *sema.Result, taskType, stateType types.TypeID, pollFnID FuncID, fieldNameByLocal map[LocalID]string, paramLocals localSet) error {
 	if f == nil {
 		return nil
 	}
@@ -363,7 +362,7 @@ func buildTagSymByName(m *Module, symTable *symbols.Table) map[string]symbols.Sy
 	if symTable != nil && symTable.Symbols != nil && symTable.Strings != nil {
 		out := make(map[string]symbols.SymbolID)
 		maxSym := symTable.Symbols.Len()
-		for id := symbols.SymbolID(1); id <= symbols.SymbolID(maxSym); id++ {
+		for id := symbols.SymbolID(1); id <= symbols.SymbolID(maxSym); id++ { //nolint:gosec // bounded by symbol table
 			sym := symTable.Symbols.Get(id)
 			if sym == nil || sym.Kind != symbols.SymbolTag || sym.Name == source.NoStringID {
 				continue
@@ -417,9 +416,7 @@ func ensureTagLayout(m *Module, typesIn *types.Interner, tagSymByName map[string
 				return fmt.Errorf("mir: async: missing tag symbol for %s", tagName)
 			}
 			payload := make([]types.TypeID, len(member.TagArgs))
-			for i := range member.TagArgs {
-				payload[i] = member.TagArgs[i]
-			}
+			copy(payload, member.TagArgs)
 			cases = append(cases, TagCaseMeta{TagName: tagName, TagSym: tagSym, PayloadTypes: payload})
 		case types.UnionMemberNothing:
 			cases = append(cases, TagCaseMeta{TagName: "nothing"})
@@ -536,6 +533,7 @@ func newBlock(f *Func) BlockID {
 	return id
 }
 
+//nolint:gocritic // hugeParam: passing Instr by value is intentional here
 func appendInstr(f *Func, bb BlockID, ins Instr) {
 	if f == nil || bb == NoBlockID {
 		return
@@ -546,6 +544,7 @@ func appendInstr(f *Func, bb BlockID, ins Instr) {
 	f.Blocks[bb].Instrs = append(f.Blocks[bb].Instrs, ins)
 }
 
+//nolint:gocritic // hugeParam: passing Terminator by value is intentional here
 func setBlockTerm(f *Func, bb BlockID, term Terminator) {
 	if f == nil || bb == NoBlockID {
 		return
@@ -556,237 +555,7 @@ func setBlockTerm(f *Func, bb BlockID, term Terminator) {
 	f.Blocks[bb].Term = term
 }
 
-func paramLocalSet(f *Func, symTable *symbols.Table) localSet {
-	set := localSet{}
-	if f == nil {
-		return set
-	}
-	for id, loc := range f.Locals {
-		if !loc.Sym.IsValid() {
-			continue
-		}
-		if symTable != nil && symTable.Symbols != nil {
-			sym := symTable.Symbols.Get(loc.Sym)
-			if sym == nil || sym.Kind != symbols.SymbolParam {
-				continue
-			}
-		}
-		set.add(LocalID(id))
-	}
-	return set
-}
-
-func localsAssignedInBlock(f *Func, bbID BlockID) localSet {
-	set := localSet{}
-	if f == nil || bbID == NoBlockID || int(bbID) >= len(f.Blocks) {
-		return set
-	}
-	bb := &f.Blocks[bbID]
-	for i := range bb.Instrs {
-		ins := &bb.Instrs[i]
-		switch ins.Kind {
-		case InstrAssign:
-			if len(ins.Assign.Dst.Proj) == 0 && ins.Assign.Dst.Kind == PlaceLocal {
-				set.add(ins.Assign.Dst.Local)
-			}
-		case InstrCall:
-			if ins.Call.HasDst && len(ins.Call.Dst.Proj) == 0 && ins.Call.Dst.Kind == PlaceLocal {
-				set.add(ins.Call.Dst.Local)
-			}
-		case InstrSpawn:
-			if len(ins.Spawn.Dst.Proj) == 0 && ins.Spawn.Dst.Kind == PlaceLocal {
-				set.add(ins.Spawn.Dst.Local)
-			}
-		}
-	}
-	return set
-}
-
-func localsUsedFrom(f *Func, start BlockID) localSet {
-	set := localSet{}
-	if f == nil || start == NoBlockID {
-		return set
-	}
-	for _, id := range reachableBlocksFrom(f, start) {
-		collectLocalsInBlock(&f.Blocks[id], set)
-	}
-	return set
-}
-
-func reachableBlocksFrom(f *Func, start BlockID) []BlockID {
-	if f == nil || start == NoBlockID {
-		return nil
-	}
-	seen := make(map[BlockID]struct{})
-	var order []BlockID
-	var visit func(id BlockID)
-	visit = func(id BlockID) {
-		if id < 0 || int(id) >= len(f.Blocks) {
-			return
-		}
-		if _, ok := seen[id]; ok {
-			return
-		}
-		seen[id] = struct{}{}
-		order = append(order, id)
-		bb := &f.Blocks[id]
-		if len(bb.Instrs) > 0 {
-			last := &bb.Instrs[len(bb.Instrs)-1]
-			if last.Kind == InstrPoll {
-				visit(last.Poll.ReadyBB)
-				visit(last.Poll.PendBB)
-				return
-			}
-		}
-		switch bb.Term.Kind {
-		case TermGoto:
-			visit(bb.Term.Goto.Target)
-		case TermIf:
-			visit(bb.Term.If.Then)
-			visit(bb.Term.If.Else)
-		case TermSwitchTag:
-			for _, c := range bb.Term.SwitchTag.Cases {
-				visit(c.Target)
-			}
-			visit(bb.Term.SwitchTag.Default)
-		}
-	}
-
-	visit(start)
-	sort.Slice(order, func(i, j int) bool { return order[i] < order[j] })
-	return order
-}
-
-func collectLocalsInBlock(bb *Block, set localSet) {
-	if bb == nil {
-		return
-	}
-	for i := range bb.Instrs {
-		collectLocalsInInstr(&bb.Instrs[i], set)
-	}
-	switch bb.Term.Kind {
-	case TermReturn:
-		if bb.Term.Return.HasValue {
-			collectLocalsFromOperand(&bb.Term.Return.Value, set)
-		}
-	case TermIf:
-		collectLocalsFromOperand(&bb.Term.If.Cond, set)
-	case TermSwitchTag:
-		collectLocalsFromOperand(&bb.Term.SwitchTag.Value, set)
-	}
-}
-
-func collectLocalsInInstr(ins *Instr, set localSet) {
-	if ins == nil {
-		return
-	}
-	switch ins.Kind {
-	case InstrAssign:
-		collectLocalsFromRValue(&ins.Assign.Src, set)
-		collectLocalsFromPlace(ins.Assign.Dst, set)
-	case InstrCall:
-		for i := range ins.Call.Args {
-			collectLocalsFromOperand(&ins.Call.Args[i], set)
-		}
-		if ins.Call.HasDst {
-			collectLocalsFromPlace(ins.Call.Dst, set)
-		}
-	case InstrDrop:
-		collectLocalsFromPlace(ins.Drop.Place, set)
-	case InstrEndBorrow:
-		collectLocalsFromPlace(ins.EndBorrow.Place, set)
-	case InstrAwait:
-		collectLocalsFromOperand(&ins.Await.Task, set)
-	case InstrSpawn:
-		collectLocalsFromOperand(&ins.Spawn.Value, set)
-		collectLocalsFromPlace(ins.Spawn.Dst, set)
-	case InstrPoll:
-		collectLocalsFromOperand(&ins.Poll.Task, set)
-		collectLocalsFromPlace(ins.Poll.Dst, set)
-	}
-}
-
-func collectLocalsFromRValue(rv *RValue, set localSet) {
-	if rv == nil {
-		return
-	}
-	switch rv.Kind {
-	case RValueUse:
-		collectLocalsFromOperand(&rv.Use, set)
-	case RValueUnaryOp:
-		collectLocalsFromOperand(&rv.Unary.Operand, set)
-	case RValueBinaryOp:
-		collectLocalsFromOperand(&rv.Binary.Left, set)
-		collectLocalsFromOperand(&rv.Binary.Right, set)
-	case RValueCast:
-		collectLocalsFromOperand(&rv.Cast.Value, set)
-	case RValueStructLit:
-		for i := range rv.StructLit.Fields {
-			collectLocalsFromOperand(&rv.StructLit.Fields[i].Value, set)
-		}
-	case RValueArrayLit:
-		for i := range rv.ArrayLit.Elems {
-			collectLocalsFromOperand(&rv.ArrayLit.Elems[i], set)
-		}
-	case RValueTupleLit:
-		for i := range rv.TupleLit.Elems {
-			collectLocalsFromOperand(&rv.TupleLit.Elems[i], set)
-		}
-	case RValueField:
-		collectLocalsFromOperand(&rv.Field.Object, set)
-	case RValueIndex:
-		collectLocalsFromOperand(&rv.Index.Object, set)
-		collectLocalsFromOperand(&rv.Index.Index, set)
-	case RValueTagTest:
-		collectLocalsFromOperand(&rv.TagTest.Value, set)
-	case RValueTagPayload:
-		collectLocalsFromOperand(&rv.TagPayload.Value, set)
-	case RValueIterInit:
-		collectLocalsFromOperand(&rv.IterInit.Iterable, set)
-	case RValueIterNext:
-		collectLocalsFromOperand(&rv.IterNext.Iter, set)
-	case RValueTypeTest:
-		collectLocalsFromOperand(&rv.TypeTest.Value, set)
-	case RValueHeirTest:
-		collectLocalsFromOperand(&rv.HeirTest.Value, set)
-	}
-}
-
-func collectLocalsFromOperand(op *Operand, set localSet) {
-	if op == nil {
-		return
-	}
-	switch op.Kind {
-	case OperandCopy, OperandMove, OperandAddrOf, OperandAddrOfMut:
-		collectLocalsFromPlace(op.Place, set)
-	}
-}
-
-func collectLocalsFromPlace(p Place, set localSet) {
-	if p.Kind == PlaceLocal {
-		set.add(p.Local)
-	}
-	for _, proj := range p.Proj {
-		if proj.Kind == PlaceProjIndex && proj.IndexLocal != NoLocalID {
-			set.add(proj.IndexLocal)
-		}
-	}
-}
-
-func operandForLocal(f *Func, id LocalID) Operand {
-	if f == nil || id == NoLocalID {
-		return Operand{}
-	}
-	kind := OperandCopy
-	if int(id) >= 0 && int(id) < len(f.Locals) {
-		if f.Locals[id].Flags&LocalFlagCopy == 0 {
-			kind = OperandMove
-		}
-	}
-	return Operand{Kind: kind, Place: Place{Local: id}}
-}
-
-func splitAwaitBlock(f *Func, awaitBlock BlockID, awaitIndex int, awaitInstr *Instr, awaitTaskLocal LocalID, pendingBB BlockID) (BlockID, BlockID, error) {
+func splitAwaitBlock(f *Func, awaitBlock BlockID, awaitIndex int, awaitInstr *Instr, awaitTaskLocal LocalID, pendingBB BlockID) (pollBB, afterBB BlockID, err error) {
 	if f == nil || awaitInstr == nil {
 		return NoBlockID, NoBlockID, fmt.Errorf("mir: async: invalid await split")
 	}
@@ -802,8 +571,8 @@ func splitAwaitBlock(f *Func, awaitBlock BlockID, awaitIndex int, awaitInstr *In
 	after := append([]Instr(nil), bb.Instrs[awaitIndex+1:]...)
 	origTerm := bb.Term
 
-	pollBB := newBlock(f)
-	afterBB := newBlock(f)
+	pollBB = newBlock(f)
+	afterBB = newBlock(f)
 
 	bb.Instrs = prelude
 	bb.Term = Terminator{Kind: TermGoto, Goto: GotoTerm{Target: pollBB}}
@@ -823,7 +592,7 @@ func wrapPollReturns(f *Func, retLocal LocalID, pendingBB BlockID, someTagSym sy
 		return
 	}
 	for bi := range f.Blocks {
-		if BlockID(bi) == pendingBB {
+		if BlockID(bi) == pendingBB { //nolint:gosec // bounded by block count
 			continue
 		}
 		bb := &f.Blocks[bi]
