@@ -128,9 +128,10 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			if member, okMem := tc.builder.Exprs.Member(call.Target); okMem && member != nil {
 				if tc.moduleSymbolForExpr(member.Target) == nil {
 					receiverType, receiverIsType := tc.memberReceiverType(member.Target)
+					usedTypeArgsForReceiver := receiverIsType && len(call.TypeArgs) > 0
 					// For static method calls with type args (e.g., Type::<int>::method()),
 					// instantiate the receiver type with the call's type arguments
-					if receiverIsType && len(call.TypeArgs) > 0 {
+					if usedTypeArgsForReceiver {
 						typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)
 						if instantiated := tc.instantiateGenericType(receiverType, typeArgs, expr.Span); instantiated != types.NoTypeID {
 							receiverType = instantiated
@@ -162,7 +163,11 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					}
 					ty = tc.methodResultType(member, receiverType, member.Target, argTypes, argExprs, expr.Span, receiverIsType)
 					symID := tc.recordMethodCallSymbol(id, member, receiverType, member.Target, argTypes, argExprs, receiverIsType)
-					tc.recordMethodCallInstantiation(symID, call, receiverType, expr.Span)
+					var explicitArgs []types.TypeID
+					if !usedTypeArgsForReceiver {
+						explicitArgs = tc.resolveCallTypeArgs(call.TypeArgs)
+					}
+					tc.recordMethodCallInstantiation(symID, receiverType, explicitArgs, expr.Span)
 					appliedArgsOwnership := false
 					if symID.IsValid() {
 						if !receiverIsType {

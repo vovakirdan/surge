@@ -30,6 +30,7 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 		return types.NoTypeID
 	}
 	var borrowInfo borrowMatchInfo
+	sawReceiverMatch := false
 	for _, recvCand := range tc.typeKeyCandidates(recv) {
 		if recvCand.key == "" {
 			continue
@@ -42,26 +43,32 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 			// Build type param substitution map for generic methods.
 			subst := tc.methodSubst(recv, recvCand.key, sig)
 			switch {
-			case len(sig.Params) == 0:
-				// static/associated method without explicit params
-				if !staticReceiver || len(args) != 0 {
-					continue
-				}
-			case tc.selfParamCompatible(recv, sig.Params[0], recvCand.key):
+			case len(sig.Params) > 0 && tc.selfParamCompatible(recv, sig.Params[0], recvCand.key):
 				// instance/associated method with compatible self (handles implicit borrow)
 				if !tc.selfParamAddressable(sig.Params[0], recv, recvExpr, &borrowInfo) {
 					continue
 				}
+				sawReceiverMatch = true
 				if len(sig.Params)-1 != len(args) {
 					continue
 				}
 				if !tc.methodParamsMatchWithSubst(sig.Params[1:], args, subst) {
 					continue
 				}
-			case staticReceiver && tc.methodParamsMatchWithSubst(sig.Params, args, subst):
-				// static method defined in extern block without self param
-			case staticReceiver && name == "from_str" && tc.methodParamsMatchWithImplicitBorrow(sig.Params, args, argExprs, subst, &borrowInfo):
-				// allow implicit borrow for from_str arguments
+			case staticReceiver:
+				sawReceiverMatch = true
+				if len(sig.Params) != len(args) {
+					continue
+				}
+				if name == "from_str" {
+					if !tc.methodParamsMatchWithSubst(sig.Params, args, subst) {
+						if !tc.methodParamsMatchWithImplicitBorrow(sig.Params, args, argExprs, subst, &borrowInfo) {
+							continue
+						}
+					}
+				} else if !tc.methodParamsMatchWithSubst(sig.Params, args, subst) {
+					continue
+				}
 			default:
 				continue
 			}
@@ -73,6 +80,10 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 	}
 	if borrowInfo.expr.IsValid() {
 		tc.reportBorrowFailure(&borrowInfo)
+		return types.NoTypeID
+	}
+	if sawReceiverMatch {
+		tc.report(diag.SemaNoOverload, span, "no matching overload for %s.%s", tc.typeLabel(recv), name)
 		return types.NoTypeID
 	}
 	tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
@@ -93,8 +104,8 @@ func (tc *typeChecker) recordMethodCallSymbol(callID ast.ExprID, member *ast.Exp
 	return symID
 }
 
-func (tc *typeChecker) recordMethodCallInstantiation(symID symbols.SymbolID, call *ast.ExprCallData, recv types.TypeID, span source.Span) {
-	if call == nil || !symID.IsValid() {
+func (tc *typeChecker) recordMethodCallInstantiation(symID symbols.SymbolID, recv types.TypeID, explicitArgs []types.TypeID, span source.Span) {
+	if !symID.IsValid() {
 		return
 	}
 	// Check for deprecated method usage
@@ -104,7 +115,6 @@ func (tc *typeChecker) recordMethodCallInstantiation(symID symbols.SymbolID, cal
 		return
 	}
 	recvArgs := tc.receiverTypeArgs(recv)
-	explicitArgs := tc.resolveCallTypeArgs(call.TypeArgs)
 	typeArgs := make([]types.TypeID, 0, len(recvArgs)+len(explicitArgs))
 	typeArgs = append(typeArgs, recvArgs...)
 	typeArgs = append(typeArgs, explicitArgs...)
