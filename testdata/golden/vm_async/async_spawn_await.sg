@@ -1,7 +1,10 @@
 @entrypoint
-async fn main() -> int {
-    let t = spawn async { return 1; };
-    let x = t.await();
-    print(x to string);
+fn main() -> int {
+    let t = spawn async {
+        checkpoint().await();
+        return 41 + 1;
+    };
+    let r = t.await();
+    print(r to string);
     return 0;
 }

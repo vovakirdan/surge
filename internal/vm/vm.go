@@ -5,6 +5,7 @@ import (
 
 	"fortio.org/safecast"
 
+	"surge/internal/asyncrt"
 	"surge/internal/layout"
 	"surge/internal/mir"
 	"surge/internal/source"
@@ -34,11 +35,13 @@ type VM struct {
 	heapCounters heapCounters
 	layouts      *layoutCache
 	tagLayouts   *TagLayouts
+	Async        *asyncrt.Executor
 	ExitCode     int
 	Halted       bool
 	started      bool
 
-	eb *errorBuilder // for creating errors with backtrace
+	eb            *errorBuilder // for creating errors with backtrace
+	captureReturn *Value
 }
 
 // New creates a new VM for executing the given MIR module.
@@ -262,6 +265,11 @@ func (vm *VM) setSpanForInstr(frame *Frame, instr *mir.Instr) {
 		if int(localID) < len(frame.Func.Locals) {
 			frame.Span = frame.Func.Locals[localID].Span
 		}
+	case mir.InstrPoll:
+		localID := instr.Poll.Dst.Local
+		if int(localID) < len(frame.Func.Locals) {
+			frame.Span = frame.Func.Locals[localID].Span
+		}
 	}
 }
 
@@ -314,6 +322,10 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 		storeLoc Location
 		storeVal Value
 		hasStore bool
+	)
+	var (
+		doJump bool
+		jumpBB mir.BlockID
 	)
 
 	switch instr.Kind {
@@ -408,10 +420,166 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 		}
 
 	case mir.InstrAwait:
-		return false, nil, vm.failAsyncNotSupported("Await", frame)
+		taskVal, vmErr := vm.evalOperand(frame, &instr.Await.Task)
+		if vmErr != nil {
+			return false, nil, vmErr
+		}
+		taskID, vmErr := vm.taskIDFromValue(taskVal)
+		vm.dropValue(taskVal)
+		if vmErr != nil {
+			return false, nil, vmErr
+		}
+		res, vmErr := vm.runUntilDone(taskID)
+		if vmErr != nil {
+			return false, nil, vmErr
+		}
+		dst := instr.Await.Dst
+		if len(dst.Proj) == 0 {
+			switch dst.Kind {
+			case mir.PlaceGlobal:
+				vmErr = vm.writeGlobal(dst.Global, res)
+				if vmErr != nil {
+					return false, nil, vmErr
+				}
+				storeLoc = Location{Kind: LKGlobal, Global: int32(dst.Global), IsMut: true}
+				storeVal = res
+				hasStore = true
+			default:
+				localID := dst.Local
+				vmErr = vm.writeLocal(frame, localID, res)
+				if vmErr != nil {
+					return false, nil, vmErr
+				}
+				stored := frame.Locals[localID].V
+				writes = append(writes, LocalWrite{
+					LocalID: localID,
+					Name:    frame.Locals[localID].Name,
+					Value:   stored,
+				})
+			}
+		} else {
+			loc, vmErr := vm.EvalPlace(frame, dst)
+			if vmErr != nil {
+				return false, nil, vmErr
+			}
+			if vmErr := vm.storeLocation(loc, res); vmErr != nil {
+				return false, nil, vmErr
+			}
+			storeLoc = loc
+			storeVal = res
+			hasStore = true
+		}
 
 	case mir.InstrSpawn:
-		return false, nil, vm.failAsyncNotSupported("Spawn", frame)
+		taskVal, vmErr := vm.evalOperand(frame, &instr.Spawn.Value)
+		if vmErr != nil {
+			return false, nil, vmErr
+		}
+		taskID, vmErr := vm.taskIDFromValue(taskVal)
+		if vmErr != nil {
+			vm.dropValue(taskVal)
+			return false, nil, vmErr
+		}
+		exec := vm.ensureExecutor()
+		if exec == nil {
+			vm.dropValue(taskVal)
+			return false, nil, vm.eb.makeError(PanicUnimplemented, "async executor missing")
+		}
+		exec.Wake(taskID)
+		dst := instr.Spawn.Dst
+		if len(dst.Proj) == 0 {
+			switch dst.Kind {
+			case mir.PlaceGlobal:
+				vmErr = vm.writeGlobal(dst.Global, taskVal)
+				if vmErr != nil {
+					return false, nil, vmErr
+				}
+				storeLoc = Location{Kind: LKGlobal, Global: int32(dst.Global), IsMut: true}
+				storeVal = taskVal
+				hasStore = true
+			default:
+				localID := dst.Local
+				vmErr = vm.writeLocal(frame, localID, taskVal)
+				if vmErr != nil {
+					return false, nil, vmErr
+				}
+				stored := frame.Locals[localID].V
+				writes = append(writes, LocalWrite{
+					LocalID: localID,
+					Name:    frame.Locals[localID].Name,
+					Value:   stored,
+				})
+			}
+		} else {
+			loc, vmErr := vm.EvalPlace(frame, dst)
+			if vmErr != nil {
+				return false, nil, vmErr
+			}
+			if vmErr := vm.storeLocation(loc, taskVal); vmErr != nil {
+				return false, nil, vmErr
+			}
+			storeLoc = loc
+			storeVal = taskVal
+			hasStore = true
+		}
+
+	case mir.InstrPoll:
+		taskVal, vmErr := vm.evalOperand(frame, &instr.Poll.Task)
+		if vmErr != nil {
+			return false, nil, vmErr
+		}
+		taskID, vmErr := vm.taskIDFromValue(taskVal)
+		vm.dropValue(taskVal)
+		if vmErr != nil {
+			return false, nil, vmErr
+		}
+		ready, res, vmErr := vm.pollTask(taskID)
+		if vmErr != nil {
+			return false, nil, vmErr
+		}
+		if ready {
+			dst := instr.Poll.Dst
+			if len(dst.Proj) == 0 {
+				switch dst.Kind {
+				case mir.PlaceGlobal:
+					vmErr = vm.writeGlobal(dst.Global, res)
+					if vmErr != nil {
+						return false, nil, vmErr
+					}
+					storeLoc = Location{Kind: LKGlobal, Global: int32(dst.Global), IsMut: true}
+					storeVal = res
+					hasStore = true
+				default:
+					localID := dst.Local
+					vmErr = vm.writeLocal(frame, localID, res)
+					if vmErr != nil {
+						return false, nil, vmErr
+					}
+					stored := frame.Locals[localID].V
+					writes = append(writes, LocalWrite{
+						LocalID: localID,
+						Name:    frame.Locals[localID].Name,
+						Value:   stored,
+					})
+				}
+			} else {
+				loc, vmErr := vm.EvalPlace(frame, dst)
+				if vmErr != nil {
+					return false, nil, vmErr
+				}
+				if vmErr := vm.storeLocation(loc, res); vmErr != nil {
+					return false, nil, vmErr
+				}
+				storeLoc = loc
+				storeVal = res
+				hasStore = true
+			}
+			doJump = true
+			jumpBB = instr.Poll.ReadyBB
+		} else {
+			doJump = true
+			jumpBB = instr.Poll.PendBB
+		}
 
 	case mir.InstrNop:
 		// Nothing to do
@@ -428,6 +596,11 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 		}
 	}
 
+	if doJump {
+		frame.BB = jumpBB
+		frame.IP = 0
+		return false, nil, nil
+	}
 	if pushFrame != nil {
 		return false, pushFrame, nil
 	}
@@ -530,6 +703,8 @@ func (vm *VM) execTerminator(frame *Frame, term *mir.Terminator) *VMError {
 			}
 			// Advance caller's IP past the call
 			callerFrame.IP++
+		} else if vm.captureReturn != nil {
+			*vm.captureReturn = retVal
 		}
 
 	case mir.TermGoto:

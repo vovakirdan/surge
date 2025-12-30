@@ -182,6 +182,13 @@ func (t *Tracer) formatInstr(instr *mir.Instr) string {
 		return fmt.Sprintf("%s = await %s", t.formatPlace(instr.Await.Dst), t.formatOperand(&instr.Await.Task))
 	case mir.InstrSpawn:
 		return fmt.Sprintf("%s = spawn %s", t.formatPlace(instr.Spawn.Dst), t.formatOperand(&instr.Spawn.Value))
+	case mir.InstrPoll:
+		return fmt.Sprintf("%s = poll %s ? bb%d : bb%d",
+			t.formatPlace(instr.Poll.Dst),
+			t.formatOperand(&instr.Poll.Task),
+			instr.Poll.ReadyBB,
+			instr.Poll.PendBB,
+		)
 	case mir.InstrNop:
 		return "nop"
 	default:

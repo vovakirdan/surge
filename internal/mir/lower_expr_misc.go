@@ -122,18 +122,40 @@ func (l *funcLowerer) lowerSpawnExpr(e *hir.Expr, consume bool) (Operand, error)
 
 // lowerAsyncExpr lowers an async block to a placeholder Task value.
 func (l *funcLowerer) lowerAsyncExpr(e *hir.Expr, consume bool) (Operand, error) {
-	if _, ok := e.Data.(hir.AsyncData); !ok {
+	data, ok := e.Data.(hir.AsyncData)
+	if !ok {
 		return Operand{}, fmt.Errorf("mir: async: unexpected payload %T", e.Data)
 	}
+	payload, ok := l.taskPayloadType(e.Type)
+	if !ok {
+		return Operand{}, fmt.Errorf("mir: async: expected Task<T> type, got %v", e.Type)
+	}
+	asyncID := l.allocFuncID()
+	if asyncID == NoFuncID {
+		return Operand{}, fmt.Errorf("mir: async: failed to allocate function id")
+	}
+	name := fmt.Sprintf("__async_block$%d", asyncID)
+	fl := l.forkLowerer()
+	if fl == nil {
+		return Operand{}, fmt.Errorf("mir: async: failed to fork lowerer")
+	}
+	fn, err := fl.lowerSyntheticFunc(asyncID, name, data.Body, payload, e.Span, true)
+	if err != nil {
+		return Operand{}, err
+	}
+	if l.out != nil {
+		l.out.Funcs[asyncID] = fn
+	}
+
 	tmp := l.newTemp(e.Type, "async", e.Span)
-	// Async bodies are not executed in J0; emit a placeholder Task value.
 	l.emit(&Instr{
-		Kind: InstrAssign,
-		Assign: AssignInstr{
-			Dst: Place{Local: tmp},
-			Src: RValue{
-				Kind:      RValueStructLit,
-				StructLit: StructLit{TypeID: e.Type},
+		Kind: InstrCall,
+		Call: CallInstr{
+			HasDst: true,
+			Dst:    Place{Local: tmp},
+			Callee: Callee{
+				Kind: CalleeValue,
+				Name: name,
 			},
 		},
 	})

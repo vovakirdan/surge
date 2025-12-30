@@ -139,7 +139,10 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					}
 					if !receiverIsType && tc.lookupName(member.Field) == "await" {
 						if tc.awaitDepth == 0 {
-							tc.report(diag.SemaIntrinsicBadContext, expr.Span, "await can only be used in async context")
+							sym := tc.symbolFromID(tc.currentFnSym())
+							if sym == nil || sym.Flags&symbols.SymbolFlagEntrypoint == 0 {
+								tc.report(diag.SemaIntrinsicBadContext, expr.Span, "await can only be used in async context")
+							}
 						}
 						if receiverType != types.NoTypeID && !tc.isTaskType(receiverType) {
 							tc.report(diag.SemaTypeMismatch, expr.Span, "await expects Task<T>, got %s", tc.typeLabel(receiverType))

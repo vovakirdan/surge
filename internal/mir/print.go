@@ -154,6 +154,13 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 		return fmt.Sprintf("%s = await %s", formatPlace(ins.Await.Dst), formatOperand(&ins.Await.Task))
 	case InstrSpawn:
 		return fmt.Sprintf("%s = spawn %s", formatPlace(ins.Spawn.Dst), formatOperand(&ins.Spawn.Value))
+	case InstrPoll:
+		return fmt.Sprintf("%s = poll %s ? bb%d : bb%d",
+			formatPlace(ins.Poll.Dst),
+			formatOperand(&ins.Poll.Task),
+			ins.Poll.ReadyBB,
+			ins.Poll.PendBB,
+		)
 	case InstrNop:
 		return "nop"
 	default:

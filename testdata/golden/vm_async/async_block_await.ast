@@ -1,16 +1,16 @@
-testdata/golden/vm_async/async_block_await.sg (span: 1:1-10:1)
-└─ Item[0]: Fn (span: 1:1-9:2)
+testdata/golden/vm_async/async_block_await.sg (span: 1:1-11:1)
+└─ Item[0]: Fn (span: 1:1-10:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 2:24-9:2)
-         ├─ Stmt[0]: Let (span: 3:5-6:16)
+      └─ Stmt[0]: Block (span: 2:18-10:2)
+         ├─ Stmt[0]: Let (span: 3:5-7:16)
          │  ├─ Name: x
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#9: (async { 2 stmt(s) }).await()
-         ├─ Stmt[1]: Expr (span: 7:5-7:24)
-         │  └─ Expr: expr#13: print(x to string)
-         └─ Stmt[2]: Return (span: 8:5-8:14)
-            └─ Expr: expr#14: 0
+         │  └─ Value: expr#12: (async { 3 stmt(s) }).await()
+         ├─ Stmt[1]: Expr (span: 8:5-8:24)
+         │  └─ Expr: expr#16: print(x to string)
+         └─ Stmt[2]: Return (span: 9:5-9:14)
+            └─ Expr: expr#17: 0

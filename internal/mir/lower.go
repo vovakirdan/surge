@@ -98,6 +98,7 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 			consts:              consts,
 			staticStringGlobals: staticStringGlobals,
 			staticStringInits:   staticStringInits,
+			nextFuncID:          &nextID,
 		}
 		f, err := fl.lowerFunc(id, mf.Func)
 		if err != nil {
@@ -283,6 +284,8 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 					visitOperand(&ins.Await.Task)
 				case InstrSpawn:
 					visitOperand(&ins.Spawn.Value)
+				case InstrPoll:
+					visitOperand(&ins.Poll.Task)
 				default:
 				}
 			}
@@ -482,6 +485,7 @@ type funcLowerer struct {
 
 	staticStringGlobals map[string]GlobalID
 	staticStringInits   map[GlobalID]string
+	nextFuncID          *FuncID
 }
 
 func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {
@@ -538,6 +542,66 @@ func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {
 	}
 
 	return l.f, nil
+}
+
+func (l *funcLowerer) lowerSyntheticFunc(id FuncID, name string, body *hir.Block, result types.TypeID, span source.Span, isAsync bool) (*Func, error) {
+	if l == nil {
+		return nil, nil
+	}
+
+	l.f = &Func{
+		ID:      id,
+		Sym:     symbols.NoSymbolID,
+		Name:    name,
+		Span:    span,
+		Result:  result,
+		IsAsync: isAsync,
+	}
+
+	entry := l.newBlock()
+	l.f.Entry = entry
+	l.cur = entry
+
+	if body != nil {
+		if err := l.lowerBlock(body); err != nil {
+			return nil, err
+		}
+	}
+
+	if !l.curBlock().Terminated() {
+		if result == types.NoTypeID || l.isNothingType(result) {
+			l.setTerm(&Terminator{Kind: TermReturn})
+		} else {
+			l.setTerm(&Terminator{Kind: TermUnreachable})
+		}
+	}
+
+	for i := range l.f.Blocks {
+		if l.f.Blocks[i].Term.Kind == TermNone {
+			l.f.Blocks[i].Term.Kind = TermUnreachable
+		}
+	}
+
+	return l.f, nil
+}
+
+func (l *funcLowerer) forkLowerer() *funcLowerer {
+	if l == nil {
+		return nil
+	}
+	return &funcLowerer{
+		out:                 l.out,
+		mf:                  l.mf,
+		sema:                l.sema,
+		types:               l.types,
+		symToLocal:          make(map[symbols.SymbolID]LocalID),
+		symToGlobal:         l.symToGlobal,
+		nextTemp:            1,
+		consts:              l.consts,
+		staticStringGlobals: l.staticStringGlobals,
+		staticStringInits:   l.staticStringInits,
+		nextFuncID:          l.nextFuncID,
+	}
 }
 
 func (l *funcLowerer) curBlock() *Block {
@@ -634,6 +698,15 @@ func (l *funcLowerer) newTemp(ty types.TypeID, hint string, span source.Span) Lo
 	return id
 }
 
+func (l *funcLowerer) allocFuncID() FuncID {
+	if l == nil || l.nextFuncID == nil {
+		return NoFuncID
+	}
+	id := *l.nextFuncID
+	*l.nextFuncID = *l.nextFuncID + 1
+	return id
+}
+
 func (l *funcLowerer) localFlags(ty types.TypeID) LocalFlags {
 	var out LocalFlags
 	if l.isCopyType(ty) {
@@ -696,6 +769,31 @@ func (l *funcLowerer) isTaskType(ty types.TypeID) bool {
 		return l.typeNameMatches(info.Name, "Task")
 	}
 	return false
+}
+
+func (l *funcLowerer) taskPayloadType(task types.TypeID) (types.TypeID, bool) {
+	if l == nil || l.types == nil || task == types.NoTypeID {
+		return types.NoTypeID, false
+	}
+	resolved := resolveAlias(l.types, task)
+	if info, ok := l.types.StructInfo(resolved); ok && info != nil {
+		if !l.typeNameMatches(info.Name, "Task") {
+			return types.NoTypeID, false
+		}
+		if args := l.types.StructArgs(resolved); len(args) == 1 {
+			return args[0], true
+		}
+		return types.NoTypeID, false
+	}
+	if info, ok := l.types.AliasInfo(resolved); ok && info != nil {
+		if !l.typeNameMatches(info.Name, "Task") {
+			return types.NoTypeID, false
+		}
+		if args := l.types.AliasArgs(resolved); len(args) == 1 {
+			return args[0], true
+		}
+	}
+	return types.NoTypeID, false
 }
 
 func (l *funcLowerer) typeNameMatches(nameID source.StringID, name string) bool {

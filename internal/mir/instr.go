@@ -15,6 +15,7 @@ const (
 	InstrEndBorrow
 	InstrAwait
 	InstrSpawn
+	InstrPoll
 	InstrNop
 )
 
@@ -27,6 +28,7 @@ type Instr struct {
 	EndBorrow EndBorrowInstr
 	Await     AwaitInstr
 	Spawn     SpawnInstr
+	Poll      PollInstr
 }
 
 type AssignInstr struct {
@@ -71,6 +73,13 @@ type AwaitInstr struct {
 type SpawnInstr struct {
 	Dst   Place
 	Value Operand
+}
+
+type PollInstr struct {
+	Dst     Place
+	Task    Operand
+	ReadyBB BlockID
+	PendBB  BlockID
 }
 
 type OperandKind uint8

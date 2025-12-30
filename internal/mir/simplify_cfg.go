@@ -94,6 +94,13 @@ func applyRedirects(f *Func, redirects map[BlockID]BlockID) {
 			}
 			term.SwitchTag.Default = redirect(term.SwitchTag.Default)
 		}
+		if len(f.Blocks[i].Instrs) > 0 {
+			last := &f.Blocks[i].Instrs[len(f.Blocks[i].Instrs)-1]
+			if last.Kind == InstrPoll {
+				last.Poll.ReadyBB = redirect(last.Poll.ReadyBB)
+				last.Poll.PendBB = redirect(last.Poll.PendBB)
+			}
+		}
 	}
 
 	// Also redirect entry if needed
@@ -113,6 +120,14 @@ func computeReachability(f *Func) []bool {
 		reachable[id] = true
 
 		term := &f.Blocks[id].Term
+		if len(f.Blocks[id].Instrs) > 0 {
+			last := &f.Blocks[id].Instrs[len(f.Blocks[id].Instrs)-1]
+			if last.Kind == InstrPoll {
+				visit(last.Poll.ReadyBB)
+				visit(last.Poll.PendBB)
+				return
+			}
+		}
 		switch term.Kind {
 		case TermGoto:
 			visit(term.Goto.Target)
@@ -184,6 +199,13 @@ func compactBlocks(f *Func, reachable []bool) {
 				term.SwitchTag.Cases[j].Target = remap(term.SwitchTag.Cases[j].Target)
 			}
 			term.SwitchTag.Default = remap(term.SwitchTag.Default)
+		}
+		if len(newBlocks[i].Instrs) > 0 {
+			last := &newBlocks[i].Instrs[len(newBlocks[i].Instrs)-1]
+			if last.Kind == InstrPoll {
+				last.Poll.ReadyBB = remap(last.Poll.ReadyBB)
+				last.Poll.PendBB = remap(last.Poll.PendBB)
+			}
 		}
 	}
 

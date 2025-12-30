@@ -78,6 +78,12 @@ func validateBlocksTerminated(f *Func) error {
 	var errs []error
 	for i := range f.Blocks {
 		if f.Blocks[i].Term.Kind == TermNone {
+			if len(f.Blocks[i].Instrs) > 0 {
+				last := f.Blocks[i].Instrs[len(f.Blocks[i].Instrs)-1]
+				if last.Kind == InstrPoll {
+					continue
+				}
+			}
 			errs = append(errs, fmt.Errorf("bb%d: unterminated block", i))
 		}
 	}
@@ -94,6 +100,18 @@ func validateBlockTargets(f *Func) error {
 
 	for i := range f.Blocks {
 		bb := &f.Blocks[i]
+		for j := range bb.Instrs {
+			ins := &bb.Instrs[j]
+			if ins.Kind != InstrPoll {
+				continue
+			}
+			if !blockExists(ins.Poll.ReadyBB) {
+				errs = append(errs, fmt.Errorf("bb%d instr %d: poll ready target bb%d does not exist", i, j, ins.Poll.ReadyBB))
+			}
+			if !blockExists(ins.Poll.PendBB) {
+				errs = append(errs, fmt.Errorf("bb%d instr %d: poll pending target bb%d does not exist", i, j, ins.Poll.PendBB))
+			}
+		}
 		switch bb.Term.Kind {
 		case TermGoto:
 			if !blockExists(bb.Term.Goto.Target) {
@@ -238,6 +256,9 @@ func validateLocalIDs(f *Func, globals []Global) error {
 			case InstrSpawn:
 				checkPlace(ins.Spawn.Dst, ctx)
 				checkOperand(ins.Spawn.Value, ctx)
+			case InstrPoll:
+				checkPlace(ins.Poll.Dst, ctx)
+				checkOperand(ins.Poll.Task, ctx)
 			}
 		}
 

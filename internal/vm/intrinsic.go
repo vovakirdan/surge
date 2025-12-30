@@ -95,6 +95,13 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_array_pop":
 		return vm.handleArrayPop(frame, call, writes)
 
+	case "__task_create":
+		return vm.handleTaskCreate(frame, call, writes)
+	case "__task_state":
+		return vm.handleTaskState(frame, call, writes)
+	case "checkpoint":
+		return vm.handleCheckpoint(frame, call, writes)
+
 	case "rt_write_stdout":
 		return vm.handleWriteStdout(frame, call, writes)
 
