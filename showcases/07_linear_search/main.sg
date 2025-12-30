@@ -1,0 +1,15 @@
+fn linear_search(arr: int[], target: int) -> int {
+    for (let i: int = 0; (i to uint) < len(arr); i = i + 1) { // todo: we need __le, __ge etc for int and uint to compare
+        if arr[i] == target {
+            return i;
+        }
+    }
+    return -1;
+}
+
+@entrypoint
+fn main() {
+    let arr: int[] = [5, 9, 2, 9, 1];
+    let idx = linear_search(arr, 9);
+    print(f"Index of 9: {idx}"); // cool thing! f-strings are supported! Also we don't need to wrap
+}

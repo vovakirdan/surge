@@ -1,0 +1,36 @@
+const N = 16;
+
+@entrypoint
+fn main() {
+    // todo: think we have no way to create nested arrays((
+    // let a: int[][] = Array::<int[]>::with_len_value(N, Array::<int>::with_len_value(N, 0)); 
+    let a: int[] = Array::<int>::with_len((N * N):uint); // will be filled with default::<int>() -> 0
+    let b: int[] = Array::<int>::with_len((N * N):uint);
+    let c: int[] = Array::<int>::with_len((N * N):uint);
+
+    // init arrays
+    for (let i: int = 0; i < N; i = i + 1) {
+        for (let j: int = 0; j < N; j = j + 1) {
+            a[i * N + j] = i + j;
+            b[i * N + j] = i + j;
+        }
+    }
+
+    // multiply
+    for (let i: int = 0; i < N; i = i + 1) {
+        for (let j: int = 0; j < N; j = j + 1) {
+            let mut sum: int = 0;
+            for (let k: int = 0; k < N; k = k + 1) {
+                sum = sum + a[i * N + k] * b[k * N + j];
+            }
+            c[i * N + j] = sum;
+        }
+    }
+
+    // print result
+    let chk = 0;
+    for (let t: int; t < N * N; t = t + 1) {
+        chk = chk + c[t];
+    }
+    print(f"Checksum: {chk}");
+}

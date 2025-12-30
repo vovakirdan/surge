@@ -1,0 +1,24 @@
+fn int_histogram(arr: &int[]) {
+    let mut freq: ArrayFixed<int, 10> = ArrayFixed::<int, 10>::with_len(10:uint);
+    let mut i: int = 0;
+    let len_i: int = len(arr) to int;
+    while i < len_i {
+        let v: int = arr[i];
+        if 0 <= v && v < 10 {
+            freq[v] = freq[v] + 1;
+        }
+        i = i + 1;
+    }
+
+    let mut b: int = 0;
+    while b < 10 {
+        print((b to string) + ": " + (freq[b] to string));
+        b = b + 1;
+    }
+}
+
+@entrypoint
+fn main() {
+    let arr: int[] = [1,2,3,2,2,9,0,1,9,9,9,5,5,5,5];
+    int_histogram(&arr);
+}

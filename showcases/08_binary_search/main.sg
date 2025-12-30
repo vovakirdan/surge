@@ -1,0 +1,24 @@
+fn binary_search(arr: &int[], target: int) -> int {
+    let lo = 0;
+    let hi = len(arr) to int;
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        let v = arr[mid];
+        if v == target {
+            return mid;
+        }
+        if v < target {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    return -1;
+}
+
+@entrypoint
+fn main() {
+    let xs: int[] = [1, 3, 4, 7, 9, 12, 15];
+    print(binary_search(xs, 7) to string); // note: here is implicit as_ref call. Is it good?
+    print(binary_search(&xs, 2) to string); // ha! use of moved value 'xs' if we pass by value
+}

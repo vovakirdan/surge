@@ -1,0 +1,63 @@
+fn merge(a: &mut int[], tmp: &mut int[], lo: int, mid: int, hi: int) {
+    let i = lo;
+    let j = mid;
+    let k = lo;
+
+    while i < mid && j < hi {
+        if a[i] <= a[j] {
+            tmp[k] = a[i];
+            i = i + 1;
+        } else {
+            tmp[k] = a[j];
+            j = j + 1;
+        }
+        k = k + 1;
+    }
+    while i < mid {
+        tmp[k] = a[i];
+        i = i + 1;
+        k = k + 1;
+    }
+    while j < hi {
+        tmp[k] = a[j];
+        j = j + 1;
+        k = k + 1;
+    }
+
+    for (let t = lo; t < hi; t = t + 1) {
+        a[t] = tmp[t];
+    }
+}
+
+fn merge_sort(a: &mut int[], tmp: &mut int[], lo: int, hi: int) {
+    if hi - lo <= 1 {
+        return;
+    }
+    let mid = lo + (hi - lo) / 2;
+    merge_sort(a, tmp, lo, mid);
+    merge_sort(a, tmp, mid, hi);
+    merge(a, tmp, lo, mid, hi);
+}
+
+fn arr_to_str(a: &int[]) -> string { // todo think about join func
+    let mut s = "[";
+    for (let i: int = 0; (i to uint) < len(a); i = i + 1) {
+        s = s + a[i] to string;
+        if i < len(a):int - 1 { // len(a):int is a shorthand for len(a) to int
+            s = s + ", ";
+        }
+    }
+    return s + "]";
+}
+
+@entrypoint
+fn main() {
+    let mut a: int[] = [9, 1, 8, 2, 7, 3, 6, 4, 5];
+    let mut tmp: int[] = Array::<int>::with_len(len(a));
+
+    print("Before:");
+    print(arr_to_str(&a));
+    merge_sort(&mut a, &mut tmp, 0, len(a) to int);
+    print("After:");
+    print(arr_to_str(&a));
+}
