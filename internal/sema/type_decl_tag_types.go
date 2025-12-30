@@ -15,6 +15,24 @@ func (tc *typeChecker) resolveTagType(symID symbols.SymbolID, name source.String
 	expected := len(sym.TypeParams)
 	if expected == 0 {
 		if len(args) > 0 {
+			if tc.builder != nil {
+				if tagItem, ok := tc.builder.Items.Tag(sym.Decl.Item); ok && tagItem != nil {
+					scope := tc.scopeForItem(sym.Decl.Item)
+					if len(tagItem.Payload) == len(args) {
+						match := true
+						for i, payload := range tagItem.Payload {
+							payloadTy := tc.resolveTypeExprWithScope(payload, scope)
+							if payloadTy == types.NoTypeID || !tc.typesAssignable(payloadTy, args[i], true) {
+								match = false
+								break
+							}
+						}
+						if match {
+							return tc.instantiateTagType(name, args)
+						}
+					}
+				}
+			}
 			tc.report(diag.SemaTypeMismatch, span, "%s does not take type arguments", tc.lookupName(sym.Name))
 			return types.NoTypeID
 		}
@@ -59,6 +77,19 @@ func (tc *typeChecker) resolveImportedTagType(tag *symbols.ExportedSymbol, name 
 	}
 	if expected == 0 {
 		if len(args) > 0 {
+			if tag.Signature != nil && len(tag.Signature.Params) == len(args) {
+				match := true
+				for i, key := range tag.Signature.Params {
+					paramTy := tc.typeFromKey(key)
+					if paramTy == types.NoTypeID || !tc.typesAssignable(paramTy, args[i], true) {
+						match = false
+						break
+					}
+				}
+				if match {
+					return tc.instantiateTagType(tc.importedTagName(tag, name), args)
+				}
+			}
 			tc.report(diag.SemaTypeMismatch, span, "%s does not take type arguments", displayName)
 			return types.NoTypeID
 		}

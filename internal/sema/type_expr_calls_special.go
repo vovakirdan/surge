@@ -28,6 +28,7 @@ func (tc *typeChecker) callFunctionVariable(fnInfo *types.FnInfo, args []callArg
 		expectedType := fnInfo.Params[i]
 		if tc.typesAssignable(expectedType, arg.ty, true) {
 			tc.dropImplicitBorrow(arg.expr, expectedType, arg.ty, tc.exprSpan(arg.expr))
+			tc.recordTagUnionUpcast(arg.expr, arg.ty, expectedType)
 			tc.recordNumericWidening(arg.expr, arg.ty, expectedType)
 			continue
 		}
@@ -76,6 +77,9 @@ func (tc *typeChecker) recordImplicitConversionsForCall(sym *symbols.Symbol, arg
 		}
 
 		// Record implicit conversion if needed
+		if tc.recordTagUnionUpcast(arg.expr, arg.ty, expectedType) {
+			continue
+		}
 		if tc.recordNumericWidening(arg.expr, arg.ty, expectedType) {
 			continue
 		}

@@ -158,30 +158,33 @@ func (l *lowerer) variadicParamArrayType(symID symbols.SymbolID, variadicIndex i
 	if variadicIndex < 0 || l == nil || l.builder == nil || l.symRes == nil || l.symRes.Table == nil {
 		return types.NoTypeID
 	}
-	if l.semaRes == nil || l.semaRes.BindingTypes == nil || l.semaRes.ItemScopes == nil {
-		return types.NoTypeID
-	}
 	sym := l.symRes.Table.Symbols.Get(symID)
-	if sym == nil || !sym.Decl.Item.IsValid() {
+	if sym == nil {
 		return types.NoTypeID
 	}
-	fnItem, ok := l.builder.Items.Fn(sym.Decl.Item)
-	if !ok || fnItem == nil {
-		return types.NoTypeID
+	if sym.Decl.Item.IsValid() && l.semaRes != nil && l.semaRes.BindingTypes != nil && l.semaRes.ItemScopes != nil {
+		fnItem, ok := l.builder.Items.Fn(sym.Decl.Item)
+		if ok && fnItem != nil {
+			paramIDs := l.builder.Items.GetFnParamIDs(fnItem)
+			if variadicIndex < len(paramIDs) {
+				param := l.builder.Items.FnParam(paramIDs[variadicIndex])
+				if param != nil && param.Name != source.NoStringID {
+					fnScope := l.semaRes.ItemScopes[sym.Decl.Item]
+					symID = l.symbolInScope(fnScope, param.Name, symbols.SymbolParam)
+					if symID.IsValid() {
+						if ty := l.semaRes.BindingTypes[symID]; ty != types.NoTypeID {
+							return ty
+						}
+					}
+				}
+			}
+		}
 	}
-	paramIDs := l.builder.Items.GetFnParamIDs(fnItem)
-	if variadicIndex >= len(paramIDs) {
-		return types.NoTypeID
-	}
-	param := l.builder.Items.FnParam(paramIDs[variadicIndex])
-	if param == nil || param.Name == source.NoStringID {
-		return types.NoTypeID
-	}
-	fnScope := l.semaRes.ItemScopes[sym.Decl.Item]
-	symID = l.symbolInScope(fnScope, param.Name, symbols.SymbolParam)
-	if symID.IsValid() {
-		if ty := l.semaRes.BindingTypes[symID]; ty != types.NoTypeID {
-			return ty
+	if l.semaRes != nil && l.semaRes.TypeInterner != nil && sym.Type != types.NoTypeID {
+		if fnInfo, ok := l.semaRes.TypeInterner.FnInfo(sym.Type); ok {
+			if variadicIndex < len(fnInfo.Params) {
+				return fnInfo.Params[variadicIndex]
+			}
 		}
 	}
 	return types.NoTypeID

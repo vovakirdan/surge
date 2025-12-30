@@ -17,6 +17,8 @@ const (
 	ImplicitConversionSome
 	// ImplicitConversionSuccess represents wrapping in Success() for Erring<T, E>
 	ImplicitConversionSuccess
+	// ImplicitConversionTagUnion represents upcasting a tag type to its containing union.
+	ImplicitConversionTagUnion
 )
 
 // ImplicitConversion records an implicit conversion for an expression.
@@ -200,6 +202,41 @@ func (tc *typeChecker) recordImplicitConversionWithKind(expr ast.ExprID, src, ta
 	if kind == ImplicitConversionSome || kind == ImplicitConversionSuccess {
 		tc.recordTagInstantiationForInjection(kind, src, tc.exprSpan(expr))
 	}
+}
+
+func (tc *typeChecker) recordTagUnionUpcast(expr ast.ExprID, src, target types.TypeID) bool {
+	if !expr.IsValid() || src == types.NoTypeID || target == types.NoTypeID {
+		return false
+	}
+	if !tc.canTagUnionUpcast(src, target) {
+		return false
+	}
+	tc.recordImplicitConversionWithKind(expr, src, target, ImplicitConversionTagUnion)
+	return true
+}
+
+func (tc *typeChecker) canTagUnionUpcast(src, target types.TypeID) bool {
+	if tc.types == nil || src == types.NoTypeID || target == types.NoTypeID {
+		return false
+	}
+	srcVal := tc.valueType(src)
+	targetVal := tc.valueType(target)
+	if srcVal == types.NoTypeID || targetVal == types.NoTypeID || srcVal == targetVal {
+		return false
+	}
+	info, ok := tc.types.UnionInfo(targetVal)
+	if !ok || info == nil {
+		return false
+	}
+	for _, member := range info.Members {
+		if member.Kind != types.UnionMemberTag {
+			continue
+		}
+		if tc.isTagTypeMatch(srcVal, member.TagName, member.TagArgs) {
+			return true
+		}
+	}
+	return false
 }
 
 func (tc *typeChecker) recordToSymbol(expr ast.ExprID, src, target types.TypeID) {

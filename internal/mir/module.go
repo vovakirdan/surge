@@ -9,6 +9,8 @@ import (
 
 type ModuleMeta struct {
 	TagLayouts map[types.TypeID][]TagCaseMeta
+	TagNames   map[symbols.SymbolID]string
+	TagAliases map[symbols.SymbolID]symbols.SymbolID
 
 	// Layout is the single source of truth for ABI layout queries.
 	Layout *layout.LayoutEngine

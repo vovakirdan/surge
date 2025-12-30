@@ -56,6 +56,7 @@ const (
 	FloatLit
 	BoolLit
 	StringLit
+	FStringLit
 
 	// операторы и пунктуация
 	Plus             // +

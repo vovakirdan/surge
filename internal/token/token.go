@@ -13,7 +13,7 @@ type Token struct {
 
 func (t Token) IsLiteral() bool {
 	switch t.Kind {
-	case NothingLit, IntLit, UintLit, FloatLit, BoolLit, StringLit:
+	case NothingLit, IntLit, UintLit, FloatLit, BoolLit, StringLit, FStringLit:
 		return true
 	default:
 		return false

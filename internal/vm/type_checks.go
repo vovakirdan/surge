@@ -118,6 +118,43 @@ func (vm *VM) typeHeir(left, right types.TypeID) bool {
 	return false
 }
 
+func (vm *VM) retagUnionValue(val Value, expected types.TypeID) (Value, bool) {
+	if vm == nil || vm.Types == nil || expected == types.NoTypeID {
+		return val, false
+	}
+	if val.Kind != VKHandleTag {
+		return val, false
+	}
+	targetVal := vm.valueType(expected)
+	valType := vm.valueType(val.TypeID)
+	if targetVal == types.NoTypeID || valType == types.NoTypeID || targetVal == valType {
+		return val, false
+	}
+	if vm.tagLayouts != nil {
+		if layout, ok := vm.tagLayouts.Layout(targetVal); ok && layout != nil {
+			if val.H != 0 {
+				if obj := vm.Heap.Get(val.H); obj != nil && obj.Kind == OKTag {
+					if _, ok := layout.CaseBySym(obj.Tag.TagSym); ok {
+						val.TypeID = expected
+						obj.TypeID = expected
+						return val, true
+					}
+				}
+			}
+		}
+	}
+	if !vm.isUnionType(targetVal) || !vm.unionContains(targetVal, valType) {
+		return val, false
+	}
+	val.TypeID = expected
+	if val.H != 0 {
+		if obj := vm.Heap.Get(val.H); obj != nil && obj.Kind == OKTag {
+			obj.TypeID = expected
+		}
+	}
+	return val, true
+}
+
 func (vm *VM) isUnionType(id types.TypeID) bool {
 	if id == types.NoTypeID || vm.Types == nil {
 		return false

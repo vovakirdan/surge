@@ -603,6 +603,16 @@ func (vm *VM) writeLocal(frame *Frame, id mir.LocalID, val Value) *VMError {
 	expectedType := frame.Locals[id].TypeID
 	if val.TypeID == types.NoTypeID && expectedType != types.NoTypeID {
 		val.TypeID = expectedType
+		if val.IsHeap() && val.H != 0 {
+			if obj := vm.Heap.Get(val.H); obj != nil && obj.TypeID == types.NoTypeID {
+				obj.TypeID = expectedType
+			}
+		}
+	}
+	if expectedType != types.NoTypeID {
+		if retagged, ok := vm.retagUnionValue(val, expectedType); ok {
+			val = retagged
+		}
 	}
 	if val.Kind == VKNothing && expectedType != types.NoTypeID && vm.tagLayouts != nil {
 		if tagLayout, ok := vm.tagLayouts.Layout(vm.valueType(expectedType)); ok && tagLayout != nil {
@@ -633,6 +643,16 @@ func (vm *VM) writeGlobal(id mir.GlobalID, val Value) *VMError {
 	expectedType := vm.Globals[id].TypeID
 	if val.TypeID == types.NoTypeID && expectedType != types.NoTypeID {
 		val.TypeID = expectedType
+		if val.IsHeap() && val.H != 0 {
+			if obj := vm.Heap.Get(val.H); obj != nil && obj.TypeID == types.NoTypeID {
+				obj.TypeID = expectedType
+			}
+		}
+	}
+	if expectedType != types.NoTypeID {
+		if retagged, ok := vm.retagUnionValue(val, expectedType); ok {
+			val = retagged
+		}
 	}
 	if val.Kind == VKNothing && expectedType != types.NoTypeID && vm.tagLayouts != nil {
 		if tagLayout, ok := vm.tagLayouts.Layout(vm.valueType(expectedType)); ok && tagLayout != nil {

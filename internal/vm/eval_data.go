@@ -94,7 +94,22 @@ func (vm *VM) evalArrayIndex(obj, idx Value) (Value, *VMError) {
 		return Value{}, vmErr
 	}
 	baseIndex := view.start + index
-	return vm.cloneForShare(view.baseObj.Arr[baseIndex])
+	val, vmErr := vm.cloneForShare(view.baseObj.Arr[baseIndex])
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	if vm.Types != nil {
+		elemType, ok := vm.Types.ArrayInfo(vm.valueType(obj.TypeID))
+		if !ok && view.baseObj != nil {
+			elemType, ok = vm.Types.ArrayInfo(view.baseObj.TypeID)
+		}
+		if ok {
+			if retagged, ok := vm.retagUnionValue(val, elemType); ok {
+				val = retagged
+			}
+		}
+	}
+	return val, nil
 }
 
 func (vm *VM) evalStringIndex(obj, idx Value) (Value, *VMError) {

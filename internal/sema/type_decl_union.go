@@ -215,9 +215,9 @@ func (tc *typeChecker) registerTagConstructors(typeItem *ast.TypeItem, unionType
 			sym.TypeParams = append([]source.StringID(nil), tagTypeParams...)
 		}
 
-		// Build result key using TAG name (not union name)
-		// Tag constructors return their own tag type, e.g., Success(1) returns Success<int>
-		// isUnionMember will then check if Success<int> is a member of Erring<int, Error>
+		// Build result key using TAG name (not union name).
+		// Tag constructors return their own tag type, e.g., Success(1) returns Success<int>,
+		// and non-generic tags include payload types to form a concrete tag type.
 		tagName := tc.lookupName(m.TagName)
 		resultKey := tagName
 		if len(tagTypeParams) > 0 {
@@ -226,6 +226,12 @@ func (tc *typeChecker) registerTagConstructors(typeItem *ast.TypeItem, unionType
 				genNames = append(genNames, tc.lookupName(gid))
 			}
 			resultKey = fmt.Sprintf("%s<%s>", tagName, strings.Join(genNames, ","))
+		} else if len(params) > 0 {
+			payloadKeys := make([]string, 0, len(params))
+			for _, key := range params {
+				payloadKeys = append(payloadKeys, string(key))
+			}
+			resultKey = fmt.Sprintf("%s<%s>", tagName, strings.Join(payloadKeys, ","))
 		}
 
 		sym.Signature = &symbols.FunctionSignature{

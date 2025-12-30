@@ -54,11 +54,20 @@ func TestVMStringsGolden(t *testing.T) {
 				sgRel,
 			)
 
-			if stderr != "" {
-				t.Fatalf("unexpected stderr:\n%s", stderr)
-			}
 			if code != wantCode {
 				t.Fatalf("exit code: want %d, got %d\nstdout:\n%s", wantCode, code, stdout)
+			}
+			if wantCode != 0 {
+				if stdout != "" {
+					t.Fatalf("unexpected stdout:\n%s", stdout)
+				}
+				if stderr != wantOut {
+					t.Fatalf("output mismatch:\nwant:\n%s\n\ngot:\n%s", wantOut, stderr)
+				}
+				return
+			}
+			if stderr != "" {
+				t.Fatalf("unexpected stderr:\n%s", stderr)
 			}
 			if stdout != wantOut {
 				t.Fatalf("output mismatch:\nwant:\n%s\n\ngot:\n%s", wantOut, stdout)

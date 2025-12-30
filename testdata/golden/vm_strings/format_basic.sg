@@ -1,0 +1,11 @@
+@entrypoint
+fn main() -> int {
+    let name: string = "Bob";
+    let u: uint = 7;
+    print(format("Hello, {}!", fmt_arg(&name)));
+    print(format("{} + {} = {}", fmt_arg_int(1), fmt_arg_int(2), fmt_arg_int(3)));
+    print(format("{{}}"));
+    print(format("x{{}}y"));
+    print(format("bool={} uint={}", fmt_arg_bool(true), fmt_arg_uint(u)));
+    return 0;
+}

@@ -1,0 +1,29 @@
+testdata/golden/vm_strings/format_basic.sg (span: 1:1-12:1)
+└─ Item[0]: Fn (span: 1:1-11:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-11:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:30)
+         │  ├─ Name: name
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#1: "Bob"
+         ├─ Stmt[1]: Let (span: 4:5-4:21)
+         │  ├─ Name: u
+         │  ├─ Mutable: false
+         │  ├─ Type: uint
+         │  └─ Value: expr#2: 7
+         ├─ Stmt[2]: Expr (span: 5:5-5:49)
+         │  └─ Expr: expr#11: print(format("Hello, {}!", fmt_arg(&name)))
+         ├─ Stmt[3]: Expr (span: 6:5-6:83)
+         │  └─ Expr: expr#25: print(format("{} + {} = {}", fmt_arg_int(1), fmt_arg_int(2), fmt_arg_int(3)))
+         ├─ Stmt[4]: Expr (span: 7:5-7:27)
+         │  └─ Expr: expr#30: print(format("{{}}"))
+         ├─ Stmt[5]: Expr (span: 8:5-8:29)
+         │  └─ Expr: expr#35: print(format("x{{}}y"))
+         ├─ Stmt[6]: Expr (span: 9:5-9:75)
+         │  └─ Expr: expr#46: print(format("bool={} uint={}", fmt_arg_bool(true), fmt_arg_uint(u)))
+         └─ Stmt[7]: Return (span: 10:5-10:14)
+            └─ Expr: expr#47: 0

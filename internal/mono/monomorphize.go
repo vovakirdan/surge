@@ -316,7 +316,20 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 		return nil, fmt.Errorf("mono: symbol %d expects %d type args, got %d", origSym, expectedTypeArgs, len(normalized))
 	}
 	if len(normalized) > 0 && !typeArgsAreConcrete(b.types, normalized) {
-		return nil, fmt.Errorf("mono: non-concrete type args for symbol %d", origSym)
+		name := b.monoName(origSym, nil)
+		args := "<?>"
+		if b != nil && b.mod != nil && b.mod.Symbols != nil && b.mod.Symbols.Table != nil && b.mod.Symbols.Table.Strings != nil {
+			args = formatTypeArgs(b.types, b.mod.Symbols.Table.Strings, normalized)
+		}
+		stackMsg := ""
+		if len(stack) > 0 {
+			parts := make([]string, 0, len(stack))
+			for _, k := range stack {
+				parts = append(parts, fmt.Sprintf("%s[%s]", b.monoName(k.Sym, nil), k.ArgsKey))
+			}
+			stackMsg = " stack=" + strings.Join(parts, " -> ")
+		}
+		return nil, fmt.Errorf("mono: non-concrete type args for %s (sym=%d args=%s)%s", name, origSym, args, stackMsg)
 	}
 	key := MonoKey{Sym: origSym, ArgsKey: argsKeyFromTypes(normalized)}
 	if existing := b.mm.Funcs[key]; existing != nil {
@@ -371,6 +384,16 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 			Types:    b.types,
 			OwnerSym: origSym,
 			TypeArgs: normalized,
+		}
+		if b != nil && b.mod != nil && b.mod.Symbols != nil && b.mod.Symbols.Table != nil && b.mod.Symbols.Table.Symbols != nil {
+			if owner := b.mod.Symbols.Table.Symbols.Get(origSym); owner != nil && len(owner.TypeParams) == len(normalized) {
+				subst.NameArgs = make(map[source.StringID]types.TypeID, len(normalized))
+				for i, name := range owner.TypeParams {
+					if name != source.NoStringID && normalized[i] != types.NoTypeID {
+						subst.NameArgs[name] = normalized[i]
+					}
+				}
+			}
 		}
 		if recvSym := b.receiverTypeSymbol(origSym); recvSym.IsValid() && recvSym != origSym {
 			subst.OwnerSyms = append(subst.OwnerSyms, recvSym)
@@ -565,6 +588,28 @@ func (b *monoBuilder) rewriteCallsInFunc(fn *hir.Func, callerSym symbols.SymbolI
 					concreteArgs = append(concreteArgs, subst.Type(a))
 				} else {
 					concreteArgs = append(concreteArgs, a)
+				}
+			}
+		}
+		if len(concreteArgs) > 0 && subst != nil && !typeArgsAreConcrete(b.types, concreteArgs) {
+			if b != nil && b.mod != nil && b.mod.Symbols != nil && b.mod.Symbols.Table != nil && b.mod.Symbols.Table.Symbols != nil {
+				nameArgs := make(map[source.StringID]types.TypeID, len(subst.TypeArgs))
+				if owner := b.mod.Symbols.Table.Symbols.Get(subst.OwnerSym); owner != nil && len(owner.TypeParams) == len(subst.TypeArgs) {
+					for i, name := range owner.TypeParams {
+						if name != source.NoStringID && subst.TypeArgs[i] != types.NoTypeID {
+							nameArgs[name] = subst.TypeArgs[i]
+						}
+					}
+				}
+				for i, arg := range concreteArgs {
+					if arg == types.NoTypeID || b.types == nil {
+						continue
+					}
+					if info, ok := b.types.TypeParamInfo(arg); ok && info != nil {
+						if repl, ok := nameArgs[info.Name]; ok && repl != types.NoTypeID {
+							concreteArgs[i] = repl
+						}
+					}
 				}
 			}
 		}

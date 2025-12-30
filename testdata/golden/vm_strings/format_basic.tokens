@@ -1,0 +1,99 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "main" at 2:4-2:8 (leading: Space)
+  5: LParen          "(" at 2:8-2:9
+  6: RParen          ")" at 2:9-2:10
+  7: Arrow           "->" at 2:11-2:13 (leading: Space)
+  8: Ident           "int" at 2:14-2:17 (leading: Space)
+  9: LBrace          "{" at 2:18-2:19 (leading: Space)
+ 10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 11: Ident           "name" at 3:9-3:13 (leading: Space)
+ 12: Colon           ":" at 3:13-3:14
+ 13: Ident           "string" at 3:15-3:21 (leading: Space)
+ 14: Assign          "=" at 3:22-3:23 (leading: Space)
+ 15: StringLit       "\"Bob\"" at 3:24-3:29 (leading: Space)
+ 16: Semicolon       ";" at 3:29-3:30
+ 17: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 18: Ident           "u" at 4:9-4:10 (leading: Space)
+ 19: Colon           ":" at 4:10-4:11
+ 20: Ident           "uint" at 4:12-4:16 (leading: Space)
+ 21: Assign          "=" at 4:17-4:18 (leading: Space)
+ 22: IntLit          "7" at 4:19-4:20 (leading: Space)
+ 23: Semicolon       ";" at 4:20-4:21
+ 24: Ident           "print" at 5:5-5:10 (leading: Newline, Space)
+ 25: LParen          "(" at 5:10-5:11
+ 26: Ident           "format" at 5:11-5:17
+ 27: LParen          "(" at 5:17-5:18
+ 28: StringLit       "\"Hello, {}!\"" at 5:18-5:30
+ 29: Comma           "," at 5:30-5:31
+ 30: Ident           "fmt_arg" at 5:32-5:39 (leading: Space)
+ 31: LParen          "(" at 5:39-5:40
+ 32: Amp             "&" at 5:40-5:41
+ 33: Ident           "name" at 5:41-5:45
+ 34: RParen          ")" at 5:45-5:46
+ 35: RParen          ")" at 5:46-5:47
+ 36: RParen          ")" at 5:47-5:48
+ 37: Semicolon       ";" at 5:48-5:49
+ 38: Ident           "print" at 6:5-6:10 (leading: Newline, Space)
+ 39: LParen          "(" at 6:10-6:11
+ 40: Ident           "format" at 6:11-6:17
+ 41: LParen          "(" at 6:17-6:18
+ 42: StringLit       "\"{} + {} = {}\"" at 6:18-6:32
+ 43: Comma           "," at 6:32-6:33
+ 44: Ident           "fmt_arg_int" at 6:34-6:45 (leading: Space)
+ 45: LParen          "(" at 6:45-6:46
+ 46: IntLit          "1" at 6:46-6:47
+ 47: RParen          ")" at 6:47-6:48
+ 48: Comma           "," at 6:48-6:49
+ 49: Ident           "fmt_arg_int" at 6:50-6:61 (leading: Space)
+ 50: LParen          "(" at 6:61-6:62
+ 51: IntLit          "2" at 6:62-6:63
+ 52: RParen          ")" at 6:63-6:64
+ 53: Comma           "," at 6:64-6:65
+ 54: Ident           "fmt_arg_int" at 6:66-6:77 (leading: Space)
+ 55: LParen          "(" at 6:77-6:78
+ 56: IntLit          "3" at 6:78-6:79
+ 57: RParen          ")" at 6:79-6:80
+ 58: RParen          ")" at 6:80-6:81
+ 59: RParen          ")" at 6:81-6:82
+ 60: Semicolon       ";" at 6:82-6:83
+ 61: Ident           "print" at 7:5-7:10 (leading: Newline, Space)
+ 62: LParen          "(" at 7:10-7:11
+ 63: Ident           "format" at 7:11-7:17
+ 64: LParen          "(" at 7:17-7:18
+ 65: StringLit       "\"{{}}\"" at 7:18-7:24
+ 66: RParen          ")" at 7:24-7:25
+ 67: RParen          ")" at 7:25-7:26
+ 68: Semicolon       ";" at 7:26-7:27
+ 69: Ident           "print" at 8:5-8:10 (leading: Newline, Space)
+ 70: LParen          "(" at 8:10-8:11
+ 71: Ident           "format" at 8:11-8:17
+ 72: LParen          "(" at 8:17-8:18
+ 73: StringLit       "\"x{{}}y\"" at 8:18-8:26
+ 74: RParen          ")" at 8:26-8:27
+ 75: RParen          ")" at 8:27-8:28
+ 76: Semicolon       ";" at 8:28-8:29
+ 77: Ident           "print" at 9:5-9:10 (leading: Newline, Space)
+ 78: LParen          "(" at 9:10-9:11
+ 79: Ident           "format" at 9:11-9:17
+ 80: LParen          "(" at 9:17-9:18
+ 81: StringLit       "\"bool={} uint={}\"" at 9:18-9:35
+ 82: Comma           "," at 9:35-9:36
+ 83: Ident           "fmt_arg_bool" at 9:37-9:49 (leading: Space)
+ 84: LParen          "(" at 9:49-9:50
+ 85: KwTrue          "true" at 9:50-9:54
+ 86: RParen          ")" at 9:54-9:55
+ 87: Comma           "," at 9:55-9:56
+ 88: Ident           "fmt_arg_uint" at 9:57-9:69 (leading: Space)
+ 89: LParen          "(" at 9:69-9:70
+ 90: Ident           "u" at 9:70-9:71
+ 91: RParen          ")" at 9:71-9:72
+ 92: RParen          ")" at 9:72-9:73
+ 93: RParen          ")" at 9:73-9:74
+ 94: Semicolon       ";" at 9:74-9:75
+ 95: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
+ 96: IntLit          "0" at 10:12-10:13 (leading: Space)
+ 97: Semicolon       ";" at 10:13-10:14
+ 98: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 99: EOF             at 12:1-12:1

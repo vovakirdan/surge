@@ -126,6 +126,9 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 	// Standard type assignability check
 	if tc.typesAssignable(declared, actual, true) {
 		tc.dropImplicitBorrow(valueExpr, declared, actual, tc.exprSpan(valueExpr))
+		if tc.recordTagUnionUpcast(valueExpr, actual, declared) {
+			return
+		}
 		if tc.recordNumericWidening(valueExpr, actual, declared) {
 			return
 		}
@@ -303,6 +306,9 @@ func (tc *typeChecker) recordArrayElementConversions(arr *ast.ExprArrayData, exp
 		}
 
 		// Check if implicit conversion is needed
+		if tc.recordTagUnionUpcast(elem, actualElemType, expectedElemType) {
+			continue
+		}
 		if tc.recordNumericWidening(elem, actualElemType, expectedElemType) {
 			continue
 		}

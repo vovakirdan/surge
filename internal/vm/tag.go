@@ -44,7 +44,7 @@ func (vm *VM) evalTagTest(frame *Frame, tt *mir.TagTest) (Value, *VMError) {
 	}
 	want, ok := layout.CaseByName(tt.TagName)
 	if !ok {
-		return Value{}, vm.eb.unknownTagLayout(fmt.Sprintf("unknown tag %q in type#%d layout", tt.TagName, layout.TypeID))
+		return MakeBool(false, types.NoTypeID), nil
 	}
 	obj := vm.Heap.Get(val.H)
 	if obj.Kind != OKTag {
@@ -71,6 +71,22 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 	}
 	want, ok := layout.CaseByName(tp.TagName)
 	if !ok {
+		obj := vm.Heap.Get(val.H)
+		if obj != nil && obj.Kind == OKTag {
+			if gotName, ok := vm.tagNameForSym(layout, obj.Tag.TagSym); ok {
+				if gotName != tp.TagName {
+					return Value{}, vm.eb.tagPayloadTagMismatch(tp.TagName, gotName)
+				}
+				if tp.Index < 0 || tp.Index >= len(obj.Tag.Fields) {
+					return Value{}, vm.eb.tagPayloadIndexOutOfRange(tp.Index, len(obj.Tag.Fields))
+				}
+				field, vmErr := vm.cloneForShare(obj.Tag.Fields[tp.Index])
+				if vmErr != nil {
+					return Value{}, vmErr
+				}
+				return field, nil
+			}
+		}
 		return Value{}, vm.eb.unknownTagLayout(fmt.Sprintf("unknown tag %q in type#%d layout", tp.TagName, layout.TypeID))
 	}
 	obj := vm.Heap.Get(val.H)
@@ -78,8 +94,10 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 		return Value{}, vm.eb.typeMismatch("tag", fmt.Sprintf("%v", obj.Kind))
 	}
 	if obj.Tag.TagSym != want.TagSym {
-		gotName, _ := vm.tagNameForSym(layout, obj.Tag.TagSym)
-		return Value{}, vm.eb.tagPayloadTagMismatch(tp.TagName, gotName)
+		gotName, ok := vm.tagNameForSym(layout, obj.Tag.TagSym)
+		if !ok || gotName != tp.TagName {
+			return Value{}, vm.eb.tagPayloadTagMismatch(tp.TagName, gotName)
+		}
 	}
 	if tp.Index < 0 || tp.Index >= len(want.PayloadTypes) {
 		return Value{}, vm.eb.tagPayloadIndexOutOfRange(tp.Index, len(want.PayloadTypes))
@@ -94,7 +112,11 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 			return Value{}, vm.eb.typeMismatch(fmt.Sprintf("type#%d", wantTy), fmt.Sprintf("type#%d", field.TypeID))
 		}
 	}
-	return vm.cloneForShare(field)
+	out, vmErr := vm.cloneForShare(field)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	return out, nil
 }
 
 func (vm *VM) execSwitchTag(frame *Frame, st *mir.SwitchTagTerm) *VMError {
@@ -123,9 +145,14 @@ func (vm *VM) execSwitchTag(frame *Frame, st *mir.SwitchTagTerm) *VMError {
 	for _, c := range st.Cases {
 		tagCase, ok := layout.CaseByName(c.TagName)
 		if !ok {
-			return vm.eb.unknownTagLayout(fmt.Sprintf("unknown tag %q in type#%d layout", c.TagName, layout.TypeID))
+			continue
 		}
 		if obj.Tag.TagSym == tagCase.TagSym {
+			target = c.Target
+			decision = c.TagName
+			break
+		}
+		if gotName, ok := vm.tagNameForSym(layout, obj.Tag.TagSym); ok && gotName == c.TagName {
 			target = c.Target
 			decision = c.TagName
 			break
@@ -173,6 +200,9 @@ func (vm *VM) callTagConstructor(frame *Frame, call *mir.CallInstr, writes *[]Lo
 		typeID = frame.Locals[call.Dst.Local].TypeID
 	}
 	tagSym := call.Callee.Sym
+	if vm.tagLayouts != nil {
+		tagSym = vm.tagLayouts.CanonicalTagSym(tagSym)
+	}
 	if typeID != types.NoTypeID {
 		layout, vmErr := vm.tagLayoutFor(typeID)
 		if vmErr != nil {

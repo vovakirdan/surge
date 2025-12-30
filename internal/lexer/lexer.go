@@ -33,6 +33,20 @@ func New(file *source.File, opts Options) *Lexer {
 	}
 }
 
+func (lx *Lexer) SetRange(start, end uint32) {
+	if lx == nil {
+		return
+	}
+	lx.cursor.Off = start
+	if end != 0 {
+		lx.cursor.Limit = end
+	}
+	lx.look = nil
+	lx.hold = nil
+	lx.last = token.Token{}
+	lx.hasLast = false
+}
+
 // Next возвращает следующий **значимый** токен с уже собранным Leading.
 // После EOF всегда возвращает EOF.
 func (lx *Lexer) Next() token.Token {
@@ -62,6 +76,13 @@ func (lx *Lexer) Next() token.Token {
 	var tok token.Token
 
 	switch {
+	case ch == 'f':
+		if b0, b1, ok := lx.cursor.Peek2(); ok && b0 == 'f' && b1 == '"' {
+			tok = lx.scanFString()
+			break
+		}
+		tok = lx.scanIdentOrKeyword()
+
 	case isIdentStartByte(ch):
 		// ASCII буква → scanIdentOrKeyword()
 		tok = lx.scanIdentOrKeyword()

@@ -1,0 +1,14 @@
+testdata/golden/vm_strings/format_unmatched_left_panics.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-5:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:25)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#3: format("{")
+         └─ Stmt[1]: Return (span: 4:5-4:14)
+            └─ Expr: expr#4: 0

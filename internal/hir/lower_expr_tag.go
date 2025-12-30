@@ -261,3 +261,18 @@ func (l *lowerer) wrapInTagConstructor(inner *Expr, targetType types.TypeID, tag
 		},
 	}
 }
+
+func (l *lowerer) tagUnionUpcast(inner *Expr, targetType types.TypeID) *Expr {
+	if inner == nil {
+		return nil
+	}
+	return &Expr{
+		Kind: ExprCast,
+		Type: targetType,
+		Span: inner.Span,
+		Data: CastData{
+			Value:    inner,
+			TargetTy: targetType,
+		},
+	}
+}

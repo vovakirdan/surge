@@ -265,7 +265,15 @@ func (vm *VM) loadLocationRaw(loc Location) (Value, *VMError) {
 		if loc.Index < 0 || idx < 0 || idx >= view.length {
 			return Value{}, vm.eb.arrayIndexOutOfRange(idx, view.length)
 		}
-		return view.baseObj.Arr[view.start+idx], nil
+		val := view.baseObj.Arr[view.start+idx]
+		if vm.Types != nil && view.baseObj != nil {
+			if elemType, ok := vm.Types.ArrayInfo(view.baseObj.TypeID); ok {
+				if retagged, ok := vm.retagUnionValue(val, elemType); ok {
+					val = retagged
+				}
+			}
+		}
+		return val, nil
 
 	default:
 		return Value{}, vm.eb.invalidLocation("unknown location kind")
@@ -328,6 +336,13 @@ func (vm *VM) storeLocation(loc Location, val Value) *VMError {
 		idx := int(loc.Index)
 		if loc.Index < 0 || idx < 0 || idx >= view.length {
 			return vm.eb.arrayIndexOutOfRange(idx, view.length)
+		}
+		if vm.Types != nil && view.baseObj != nil {
+			if elemType, ok := vm.Types.ArrayInfo(view.baseObj.TypeID); ok {
+				if retagged, ok := vm.retagUnionValue(val, elemType); ok {
+					val = retagged
+				}
+			}
 		}
 		baseIdx := view.start + idx
 		vm.dropValue(view.baseObj.Arr[baseIdx])

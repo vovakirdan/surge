@@ -184,6 +184,37 @@ func (vm *VM) evalUnaryDeref(operand Value) (Value, *VMError) {
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
+		if vm.Types != nil && operand.TypeID != types.NoTypeID {
+			expected := types.NoTypeID
+			id := operand.TypeID
+			for i := 0; i < 32 && id != types.NoTypeID; i++ {
+				tt, ok := vm.Types.Lookup(id)
+				if !ok {
+					break
+				}
+				switch tt.Kind {
+				case types.KindAlias:
+					target, ok := vm.Types.AliasTarget(id)
+					if !ok || target == types.NoTypeID || target == id {
+						id = types.NoTypeID
+						continue
+					}
+					id = target
+					continue
+				case types.KindOwn:
+					id = tt.Elem
+					continue
+				case types.KindReference, types.KindPointer:
+					expected = tt.Elem
+				}
+				break
+			}
+			if expected != types.NoTypeID {
+				if retagged, ok := vm.retagUnionValue(v, expected); ok {
+					v = retagged
+				}
+			}
+		}
 		if v.IsHeap() && v.H != 0 {
 			vm.Heap.Retain(v.H)
 		}

@@ -186,7 +186,19 @@ func isNothingPattern(p *Expr) bool {
 
 func bindingPattern(ctx *normCtx, p *Expr) (string, symbols.SymbolID, bool) {
 	if ctx == nil || p == nil || p.Kind != ExprVarRef {
-		return "", symbols.NoSymbolID, false
+		if p == nil || p.Kind != ExprUnaryOp {
+			return "", symbols.NoSymbolID, false
+		}
+		data := p.Data.(UnaryOpData)
+		switch data.Op {
+		case ast.ExprUnaryRef, ast.ExprUnaryRefMut, ast.ExprUnaryDeref:
+			if data.Operand == nil || data.Operand.Kind != ExprVarRef {
+				return "", symbols.NoSymbolID, false
+			}
+			p = data.Operand
+		default:
+			return "", symbols.NoSymbolID, false
+		}
 	}
 	data := p.Data.(VarRefData)
 	if data.Name == "" || data.Name == "_" || data.Name == "nothing" {

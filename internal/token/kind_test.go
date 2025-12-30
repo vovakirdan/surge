@@ -14,7 +14,7 @@ func tok(k token.Kind) token.Token {
 func TestIsLiteral(t *testing.T) {
 	lits := []token.Kind{
 		token.NothingLit, token.IntLit, token.UintLit,
-		token.FloatLit, token.BoolLit, token.StringLit,
+		token.FloatLit, token.BoolLit, token.StringLit, token.FStringLit,
 	}
 	for _, k := range lits {
 		if !tok(k).IsLiteral() {

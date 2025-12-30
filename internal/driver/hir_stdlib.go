@@ -152,7 +152,10 @@ func buildCoreSymbolRemap(rootSyms *symbols.Result, coreRec *moduleRecord) map[s
 			panic(fmt.Errorf("symbol id overflow: %w", err))
 		}
 		sym := rootSyms.Table.Symbols.Get(id)
-		if sym == nil || sym.Flags&symbols.SymbolFlagImported == 0 {
+		if sym == nil {
+			continue
+		}
+		if sym.Flags&symbols.SymbolFlagImported == 0 && sym.Flags&symbols.SymbolFlagBuiltin == 0 {
 			continue
 		}
 		key := symbolKey(sym, rootSyms.Table.Strings)

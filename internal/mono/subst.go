@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"surge/internal/hir"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -13,6 +14,7 @@ type Subst struct {
 	OwnerSym  symbols.SymbolID
 	OwnerSyms []symbols.SymbolID
 	TypeArgs  []types.TypeID
+	NameArgs  map[source.StringID]types.TypeID
 
 	cache map[types.TypeID]types.TypeID
 }
@@ -490,13 +492,28 @@ func (s *Subst) typeNoCache(id types.TypeID) types.TypeID {
 			return id
 		}
 		if !s.ownerMatches(symbols.SymbolID(info.Owner)) {
+			if s.NameArgs != nil {
+				if repl, ok := s.NameArgs[info.Name]; ok && repl != types.NoTypeID {
+					return repl
+				}
+			}
 			return id
 		}
 		idx := int(info.Index)
 		if idx < 0 || idx >= len(s.TypeArgs) {
+			if s.NameArgs != nil {
+				if repl, ok := s.NameArgs[info.Name]; ok && repl != types.NoTypeID {
+					return repl
+				}
+			}
 			return id
 		}
 		if s.TypeArgs[idx] == types.NoTypeID {
+			if s.NameArgs != nil {
+				if repl, ok := s.NameArgs[info.Name]; ok && repl != types.NoTypeID {
+					return repl
+				}
+			}
 			return id
 		}
 		return s.TypeArgs[idx]

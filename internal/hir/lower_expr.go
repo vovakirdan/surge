@@ -22,6 +22,8 @@ func (l *lowerer) lowerExpr(exprID ast.ExprID) *Expr {
 				result = l.wrapInSome(result, conv.Target)
 			case sema.ImplicitConversionSuccess:
 				result = l.wrapInSuccess(result, conv.Target)
+			case sema.ImplicitConversionTagUnion:
+				result = l.tagUnionUpcast(result, conv.Target)
 			case sema.ImplicitConversionTo:
 				var symID symbols.SymbolID
 				if l.semaRes != nil && l.semaRes.ToSymbols != nil {

@@ -130,22 +130,31 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 	}
 
 	if mm.Source != nil {
-		if tagLayouts := buildTagLayouts(out, mm.Source, typesIn); len(tagLayouts) != 0 {
+		tagLayouts, tagNames := buildTagLayouts(out, mm.Source, typesIn)
+		tagAliases := buildTagAliases(mm)
+		if len(tagLayouts) != 0 || len(tagNames) != 0 || len(tagAliases) != 0 {
 			out.Meta.TagLayouts = tagLayouts
+			if len(tagNames) != 0 {
+				out.Meta.TagNames = tagNames
+			}
+			if len(tagAliases) != 0 {
+				out.Meta.TagAliases = tagAliases
+			}
 		}
 	}
 
 	return out, nil
 }
 
-func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) map[types.TypeID][]TagCaseMeta {
+func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (map[types.TypeID][]TagCaseMeta, map[symbols.SymbolID]string) {
 	if m == nil || src == nil || typesIn == nil {
-		return nil
+		return nil, nil
 	}
 	if src.Symbols == nil || src.Symbols.Table == nil || src.Symbols.Table.Strings == nil || src.Symbols.Table.Symbols == nil {
-		return nil
+		return nil, nil
 	}
 	tagSymByName := make(map[source.StringID]symbols.SymbolID)
+	tagNamesBySym := make(map[symbols.SymbolID]string)
 	maxSym, err := safecast.Conv[uint32](src.Symbols.Table.Symbols.Len())
 	if err != nil {
 		panic(fmt.Errorf("mir: symbol arena overflow: %w", err))
@@ -154,6 +163,9 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) map[ty
 		sym := src.Symbols.Table.Symbols.Get(id)
 		if sym == nil || sym.Kind != symbols.SymbolTag || sym.Name == source.NoStringID {
 			continue
+		}
+		if name := src.Symbols.Table.Strings.MustLookup(sym.Name); name != "" {
+			tagNamesBySym[id] = name
 		}
 		if existingID, exists := tagSymByName[sym.Name]; exists {
 			existing := src.Symbols.Table.Symbols.Get(existingID)
@@ -327,7 +339,38 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) map[ty
 		layouts[typeID] = cases
 	}
 
-	return layouts
+	if len(tagNamesBySym) == 0 {
+		tagNamesBySym = nil
+	}
+	return layouts, tagNamesBySym
+}
+
+func buildTagAliases(mm *mono.MonoModule) map[symbols.SymbolID]symbols.SymbolID {
+	if mm == nil || mm.Source == nil || mm.Source.Symbols == nil || mm.Source.Symbols.Table == nil || mm.Source.Symbols.Table.Symbols == nil {
+		return nil
+	}
+	if len(mm.Funcs) == 0 {
+		return nil
+	}
+	syms := mm.Source.Symbols.Table.Symbols
+	out := make(map[symbols.SymbolID]symbols.SymbolID)
+	for _, mf := range mm.Funcs {
+		if mf == nil || !mf.InstanceSym.IsValid() || !mf.OrigSym.IsValid() {
+			continue
+		}
+		if mf.InstanceSym == mf.OrigSym {
+			continue
+		}
+		orig := syms.Get(mf.OrigSym)
+		if orig == nil || orig.Kind != symbols.SymbolTag {
+			continue
+		}
+		out[mf.InstanceSym] = mf.OrigSym
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func buildConstMap(src *hir.Module) map[symbols.SymbolID]*hir.ConstDecl {

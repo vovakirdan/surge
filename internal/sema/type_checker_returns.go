@@ -163,6 +163,9 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 	actual = tc.coerceReturnType(expected, actual)
 	if tc.typesAssignable(expected, actual, false) {
 		tc.dropImplicitBorrow(expr, expected, actual, span)
+		if tc.recordTagUnionUpcast(expr, actual, expected) {
+			return
+		}
 		if tc.recordNumericWidening(expr, actual, expected) {
 			return
 		}

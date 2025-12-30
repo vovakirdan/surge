@@ -1,0 +1,32 @@
+testdata/golden/vm_strings/fstring_basic.sg (span: 1:1-12:1)
+└─ Item[0]: Fn (span: 1:1-11:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-11:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:30)
+         │  ├─ Name: name
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#1: "Bob"
+         ├─ Stmt[1]: Let (span: 4:5-4:20)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#2: 1
+         ├─ Stmt[2]: Let (span: 5:5-5:20)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#3: 2
+         ├─ Stmt[3]: Expr (span: 6:5-6:30)
+         │  └─ Expr: expr#11: print(format("Hello, {}!", fmt_arg(name)))
+         ├─ Stmt[4]: Expr (span: 7:5-7:35)
+         │  └─ Expr: expr#27: print(format("{} + {} = {}", fmt_arg(a), fmt_arg(b), fmt_arg((a + b))))
+         ├─ Stmt[5]: Expr (span: 8:5-8:20)
+         │  └─ Expr: expr#32: print(format("{{}}"))
+         ├─ Stmt[6]: Expr (span: 9:5-9:22)
+         │  └─ Expr: expr#37: print(format("x{{}}y"))
+         └─ Stmt[7]: Return (span: 10:5-10:14)
+            └─ Expr: expr#38: 0

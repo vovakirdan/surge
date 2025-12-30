@@ -1,6 +1,8 @@
 package hir
 
 import (
+	"strings"
+
 	"fortio.org/safecast"
 
 	"surge/internal/ast"
@@ -347,16 +349,93 @@ func (l *lowerer) getFunctionReturnType(symID symbols.SymbolID) types.TypeID {
 
 	// Get function symbol's type from symbol table
 	sym := l.symRes.Table.Symbols.Get(symID)
-	if sym == nil || sym.Type == types.NoTypeID {
+	if sym == nil {
 		return types.NoTypeID
 	}
 
 	// Extract return type from function type
-	fnInfo, ok := l.semaRes.TypeInterner.FnInfo(sym.Type)
-	if !ok || fnInfo == nil {
+	if sym.Type != types.NoTypeID {
+		if fnInfo, ok := l.semaRes.TypeInterner.FnInfo(sym.Type); ok && fnInfo != nil {
+			return fnInfo.Result
+		}
+	}
+	if sym.Signature != nil && sym.Signature.Result != "" {
+		if ty := l.typeFromResultKey(sym.Signature.Result); ty != types.NoTypeID {
+			return ty
+		}
+	}
+	return types.NoTypeID
+}
+
+func (l *lowerer) typeFromResultKey(key symbols.TypeKey) types.TypeID {
+	if l == nil || l.semaRes == nil || l.semaRes.TypeInterner == nil || l.symRes == nil || l.symRes.Table == nil {
 		return types.NoTypeID
 	}
-	return fnInfo.Result
+	raw := strings.TrimSpace(string(key))
+	if raw == "" {
+		return types.NoTypeID
+	}
+	if idx := strings.LastIndex(raw, "::"); idx >= 0 {
+		raw = raw[idx+2:]
+	}
+	if raw == "()" {
+		return l.semaRes.TypeInterner.Builtins().Unit
+	}
+	if strings.ContainsAny(raw, "<>[](),") || strings.ContainsAny(raw, "&*") || strings.Contains(raw, " ") {
+		return types.NoTypeID
+	}
+
+	builtins := l.semaRes.TypeInterner.Builtins()
+	switch raw {
+	case "nothing":
+		return builtins.Nothing
+	case "bool":
+		return builtins.Bool
+	case "string":
+		return builtins.String
+	case "int":
+		return builtins.Int
+	case "int8":
+		return builtins.Int8
+	case "int16":
+		return builtins.Int16
+	case "int32":
+		return builtins.Int32
+	case "int64":
+		return builtins.Int64
+	case "uint":
+		return builtins.Uint
+	case "uint8":
+		return builtins.Uint8
+	case "uint16":
+		return builtins.Uint16
+	case "uint32":
+		return builtins.Uint32
+	case "uint64":
+		return builtins.Uint64
+	case "float":
+		return builtins.Float
+	case "float16":
+		return builtins.Float16
+	case "float32":
+		return builtins.Float32
+	case "float64":
+		return builtins.Float64
+	}
+
+	if l.strings == nil {
+		l.strings = l.symRes.Table.Strings
+	}
+	if l.strings == nil {
+		return types.NoTypeID
+	}
+	nameID := l.strings.Intern(raw)
+	if symID := l.symbolInScope(l.symRes.FileScope, nameID, symbols.SymbolType); symID.IsValid() {
+		if sym := l.symRes.Table.Symbols.Get(symID); sym != nil && sym.Type != types.NoTypeID {
+			return sym.Type
+		}
+	}
+	return types.NoTypeID
 }
 
 // lowerLetItem lowers a top-level let declaration.

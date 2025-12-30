@@ -495,6 +495,9 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 		// Строковый литерал
 		return p.parseStringLiteral()
 
+	case token.FStringLit:
+		return p.parseFString()
+
 	case token.KwTrue, token.KwFalse:
 		// Булевы литералы
 		return p.parseBoolLiteral()

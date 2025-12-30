@@ -96,6 +96,8 @@ func (k Kind) String() string {
 		return "BoolLit"
 	case StringLit:
 		return "StringLit"
+	case FStringLit:
+		return "FStringLit"
 	case Plus:
 		return "Plus"
 	case Minus:

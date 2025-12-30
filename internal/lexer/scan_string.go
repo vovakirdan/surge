@@ -38,3 +38,38 @@ func (lx *Lexer) scanString() token.Token {
 	lx.errLex(diag.LexUnterminatedString, sp, "unterminated string literal")
 	return token.Token{Kind: token.Invalid, Span: sp, Text: string(lx.file.Content[sp.Start:sp.End])}
 }
+
+func (lx *Lexer) scanFString() token.Token {
+	start := lx.cursor.Mark()
+	lx.cursor.Bump() // leading 'f'
+	if lx.cursor.EOF() || lx.cursor.Peek() != '"' {
+		sp := lx.cursor.SpanFrom(start)
+		return token.Token{Kind: token.Invalid, Span: sp, Text: string(lx.file.Content[sp.Start:sp.End])}
+	}
+	lx.cursor.Bump() // opening '"'
+	for !lx.cursor.EOF() {
+		b := lx.cursor.Peek()
+		if b == '"' {
+			lx.cursor.Bump()
+			sp := lx.cursor.SpanFrom(start)
+			return token.Token{Kind: token.FStringLit, Span: sp, Text: string(lx.file.Content[sp.Start:sp.End])}
+		}
+		if b == '\\' {
+			lx.cursor.Bump()
+			if lx.cursor.EOF() {
+				break
+			}
+			lx.cursor.Bump()
+			continue
+		}
+		if b == '\n' {
+			sp := lx.cursor.SpanFrom(start)
+			lx.errLex(diag.LexUnterminatedString, sp, "newline in string literal")
+			return token.Token{Kind: token.Invalid, Span: sp, Text: string(lx.file.Content[sp.Start:sp.End])}
+		}
+		lx.cursor.Bump()
+	}
+	sp := lx.cursor.SpanFrom(start)
+	lx.errLex(diag.LexUnterminatedString, sp, "unterminated string literal")
+	return token.Token{Kind: token.Invalid, Span: sp, Text: string(lx.file.Content[sp.Start:sp.End])}
+}

@@ -1,0 +1,112 @@
+pragma module, no_std;
+
+pub tag FmtStr(&string);
+pub tag FmtInt(int);
+pub tag FmtUInt(uint);
+pub tag FmtBool(bool);
+
+pub type FmtArg = FmtStr(&string) | FmtInt(int) | FmtUInt(uint) | FmtBool(bool);
+
+pub fn fmt_arg(s: &string) -> FmtArg {
+    return FmtStr(s);
+}
+
+@overload
+pub fn fmt_arg(x: int) -> FmtArg {
+    return FmtInt(x);
+}
+
+@overload
+pub fn fmt_arg(x: uint) -> FmtArg {
+    return FmtUInt(x);
+}
+
+@overload
+pub fn fmt_arg(x: bool) -> FmtArg {
+    return FmtBool(x);
+}
+
+pub fn fmt_arg_int(x: int) -> FmtArg {
+    return FmtInt(x);
+}
+
+pub fn fmt_arg_uint(x: uint) -> FmtArg {
+    return FmtUInt(x);
+}
+
+pub fn fmt_arg_bool(x: bool) -> FmtArg {
+    return FmtBool(x);
+}
+
+fn fmt_arg_to_string(arg: &FmtArg) -> string {
+    return compare *arg {
+        FmtStr(s) => s.__clone();
+        FmtInt(x) => x to string;
+        FmtUInt(x) => x to string;
+        FmtBool(x) => x to string;
+    };
+}
+
+pub fn format(fmt: string, ...args: FmtArg) -> string {
+    let fmt_len: int = string_len_int(&fmt);
+    let arg_count: int = args.__len() to int;
+    let mut arg_index: int = 0;
+    let mut out: string = "";
+    let mut i: int = 0;
+    let mut seg_start: int = 0;
+
+    while i < fmt_len {
+        let ch: uint32 = fmt[i];
+        if ch == (123):uint32 {
+            if i + 1 >= fmt_len {
+                panic("format: unmatched '{' in format string");
+            }
+            let next: uint32 = fmt[i + 1];
+            if next == (123):uint32 {
+                if i > seg_start {
+                    out = out + fmt[[seg_start..i]];
+                }
+                out = out + "{";
+                i = i + 2;
+                seg_start = i;
+                continue;
+            }
+            if next == (125):uint32 {
+                if i > seg_start {
+                    out = out + fmt[[seg_start..i]];
+                }
+                if arg_index >= arg_count {
+                    panic("format: not enough arguments for format string");
+                }
+                let arg_str: string = fmt_arg_to_string(args[arg_index]);
+                out = out + arg_str;
+                arg_index = arg_index + 1;
+                i = i + 2;
+                seg_start = i;
+                continue;
+            }
+            panic("format: unmatched '{' in format string");
+        }
+        if ch == (125):uint32 {
+            if i + 1 < fmt_len && fmt[i + 1] == (125):uint32 {
+                if i > seg_start {
+                    out = out + fmt[[seg_start..i]];
+                }
+                out = out + "}";
+                i = i + 2;
+                seg_start = i;
+                continue;
+            }
+            panic("format: unmatched '}' in format string");
+        }
+        i = i + 1;
+    }
+
+    if seg_start < fmt_len {
+        out = out + fmt[[seg_start..fmt_len]];
+    }
+    if arg_index != arg_count {
+        panic("format: too many arguments for format string");
+    }
+    return out;
+}

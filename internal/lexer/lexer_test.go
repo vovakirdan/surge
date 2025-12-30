@@ -519,6 +519,31 @@ func TestString_NewlineInString(t *testing.T) {
 	}
 }
 
+func TestFString_Simple(t *testing.T) {
+	tests := []struct {
+		input string
+		text  string
+	}{
+		{`f""`, `f""`},
+		{`f"hello"`, `f"hello"`},
+		{`f"{name}"`, `f"{name}"`},
+		{`f"{{}}"`, `f"{{}}"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			expectSingleToken(t, tt.input, token.FStringLit, tt.text)
+		})
+	}
+}
+
+func TestFString_SeparatedPrefix(t *testing.T) {
+	expectTokens(t, `f "hello"`, []token.Kind{
+		token.Ident,
+		token.StringLit,
+	})
+}
+
 // ====== Тесты для scan_ops.go ======
 
 func TestOperators_Single(t *testing.T) {

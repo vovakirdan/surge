@@ -21,8 +21,9 @@ type TagLayout struct {
 }
 
 type TagLayouts struct {
-	byType   map[types.TypeID]*TagLayout
-	anyBySym map[symbols.SymbolID]string
+	byType     map[types.TypeID]*TagLayout
+	anyBySym   map[symbols.SymbolID]string
+	aliasBySym map[symbols.SymbolID]symbols.SymbolID
 }
 
 func NewTagLayouts(m *mir.Module) *TagLayouts {
@@ -30,8 +31,63 @@ func NewTagLayouts(m *mir.Module) *TagLayouts {
 		byType:   make(map[types.TypeID]*TagLayout),
 		anyBySym: make(map[symbols.SymbolID]string),
 	}
+	if m != nil && m.Meta != nil && len(m.Meta.TagAliases) != 0 {
+		tl.aliasBySym = make(map[symbols.SymbolID]symbols.SymbolID, len(m.Meta.TagAliases))
+		for alias, orig := range m.Meta.TagAliases {
+			if alias.IsValid() && orig.IsValid() {
+				tl.aliasBySym[alias] = orig
+			}
+		}
+	}
+	var aliasesByOrig map[symbols.SymbolID][]symbols.SymbolID
+	if m != nil && m.Meta != nil && len(m.Meta.TagAliases) != 0 {
+		aliasesByOrig = make(map[symbols.SymbolID][]symbols.SymbolID, len(m.Meta.TagAliases))
+		for alias, orig := range m.Meta.TagAliases {
+			if !alias.IsValid() || !orig.IsValid() {
+				continue
+			}
+			aliasesByOrig[orig] = append(aliasesByOrig[orig], alias)
+		}
+	}
 	if m == nil || m.Meta == nil || len(m.Meta.TagLayouts) == 0 {
+		if m != nil && m.Meta != nil && len(m.Meta.TagNames) != 0 {
+			for sym, name := range m.Meta.TagNames {
+				if sym.IsValid() && name != "" {
+					tl.anyBySym[sym] = name
+				}
+			}
+			if len(aliasesByOrig) != 0 {
+				for orig, aliases := range aliasesByOrig {
+					if name, ok := tl.anyBySym[orig]; ok {
+						for _, alias := range aliases {
+							if alias.IsValid() && name != "" {
+								tl.anyBySym[alias] = name
+							}
+						}
+					}
+				}
+			}
+		}
 		return tl
+	}
+
+	if len(m.Meta.TagNames) != 0 {
+		for sym, name := range m.Meta.TagNames {
+			if sym.IsValid() && name != "" {
+				tl.anyBySym[sym] = name
+			}
+		}
+	}
+	if len(aliasesByOrig) != 0 {
+		for orig, aliases := range aliasesByOrig {
+			if name, ok := tl.anyBySym[orig]; ok {
+				for _, alias := range aliases {
+					if alias.IsValid() && name != "" {
+						tl.anyBySym[alias] = name
+					}
+				}
+			}
+		}
 	}
 
 	for typeID, cases := range m.Meta.TagLayouts {
@@ -58,9 +114,31 @@ func NewTagLayouts(m *mir.Module) *TagLayouts {
 			if _, ok := layout.bySym[tc.TagSym]; !ok {
 				layout.bySym[tc.TagSym] = idx
 			}
+			if len(aliasesByOrig) != 0 && tc.TagSym.IsValid() {
+				if aliases := aliasesByOrig[tc.TagSym]; len(aliases) != 0 {
+					for _, alias := range aliases {
+						if alias.IsValid() {
+							if _, ok := layout.bySym[alias]; !ok {
+								layout.bySym[alias] = idx
+							}
+						}
+					}
+				}
+			}
 			if tc.TagSym.IsValid() {
 				if _, ok := tl.anyBySym[tc.TagSym]; !ok {
 					tl.anyBySym[tc.TagSym] = tc.TagName
+				}
+				if len(aliasesByOrig) != 0 {
+					if aliases := aliasesByOrig[tc.TagSym]; len(aliases) != 0 {
+						for _, alias := range aliases {
+							if alias.IsValid() {
+								if _, ok := tl.anyBySym[alias]; !ok {
+									tl.anyBySym[alias] = tc.TagName
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -87,6 +165,11 @@ func (tl *TagLayouts) KnownTagSym(sym symbols.SymbolID) bool {
 	if tl == nil || !sym.IsValid() {
 		return false
 	}
+	if tl.aliasBySym != nil {
+		if orig, ok := tl.aliasBySym[sym]; ok && orig.IsValid() {
+			sym = orig
+		}
+	}
 	_, ok := tl.anyBySym[sym]
 	return ok
 }
@@ -95,8 +178,26 @@ func (tl *TagLayouts) AnyTagName(sym symbols.SymbolID) (string, bool) {
 	if tl == nil || !sym.IsValid() {
 		return "", false
 	}
+	if tl.aliasBySym != nil {
+		if orig, ok := tl.aliasBySym[sym]; ok && orig.IsValid() {
+			sym = orig
+		}
+	}
 	name, ok := tl.anyBySym[sym]
 	return name, ok
+}
+
+func (tl *TagLayouts) CanonicalTagSym(sym symbols.SymbolID) symbols.SymbolID {
+	if tl == nil || !sym.IsValid() {
+		return sym
+	}
+	if tl.aliasBySym == nil {
+		return sym
+	}
+	if orig, ok := tl.aliasBySym[sym]; ok && orig.IsValid() {
+		return orig
+	}
+	return sym
 }
 
 func (l *TagLayout) CaseByName(tagName string) (TagCase, bool) {

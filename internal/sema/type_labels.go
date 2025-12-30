@@ -470,6 +470,13 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 				return ty
 			}
 		}
+		if tc.builder != nil && tc.builder.StringsInterner != nil {
+			scope := tc.scopeOrFile(tc.currentScope())
+			nameID := tc.builder.StringsInterner.Intern(s)
+			if tagID := tc.lookupTagSymbol(nameID, scope); tagID.IsValid() {
+				return tc.resolveTagType(tagID, nameID, nil, nil, source.Span{})
+			}
+		}
 		return types.NoTypeID
 	}
 }

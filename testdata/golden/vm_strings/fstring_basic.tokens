@@ -1,0 +1,55 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "main" at 2:4-2:8 (leading: Space)
+  5: LParen          "(" at 2:8-2:9
+  6: RParen          ")" at 2:9-2:10
+  7: Arrow           "->" at 2:11-2:13 (leading: Space)
+  8: Ident           "int" at 2:14-2:17 (leading: Space)
+  9: LBrace          "{" at 2:18-2:19 (leading: Space)
+ 10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 11: Ident           "name" at 3:9-3:13 (leading: Space)
+ 12: Colon           ":" at 3:13-3:14
+ 13: Ident           "string" at 3:15-3:21 (leading: Space)
+ 14: Assign          "=" at 3:22-3:23 (leading: Space)
+ 15: StringLit       "\"Bob\"" at 3:24-3:29 (leading: Space)
+ 16: Semicolon       ";" at 3:29-3:30
+ 17: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 18: Ident           "a" at 4:9-4:10 (leading: Space)
+ 19: Colon           ":" at 4:10-4:11
+ 20: Ident           "int" at 4:12-4:15 (leading: Space)
+ 21: Assign          "=" at 4:16-4:17 (leading: Space)
+ 22: IntLit          "1" at 4:18-4:19 (leading: Space)
+ 23: Semicolon       ";" at 4:19-4:20
+ 24: KwLet           "let" at 5:5-5:8 (leading: Newline, Space)
+ 25: Ident           "b" at 5:9-5:10 (leading: Space)
+ 26: Colon           ":" at 5:10-5:11
+ 27: Ident           "int" at 5:12-5:15 (leading: Space)
+ 28: Assign          "=" at 5:16-5:17 (leading: Space)
+ 29: IntLit          "2" at 5:18-5:19 (leading: Space)
+ 30: Semicolon       ";" at 5:19-5:20
+ 31: Ident           "print" at 6:5-6:10 (leading: Newline, Space)
+ 32: LParen          "(" at 6:10-6:11
+ 33: FStringLit      "f\"Hello, {name}!\"" at 6:11-6:28
+ 34: RParen          ")" at 6:28-6:29
+ 35: Semicolon       ";" at 6:29-6:30
+ 36: Ident           "print" at 7:5-7:10 (leading: Newline, Space)
+ 37: LParen          "(" at 7:10-7:11
+ 38: FStringLit      "f\"{a} + {b} = {a + b}\"" at 7:11-7:33
+ 39: RParen          ")" at 7:33-7:34
+ 40: Semicolon       ";" at 7:34-7:35
+ 41: Ident           "print" at 8:5-8:10 (leading: Newline, Space)
+ 42: LParen          "(" at 8:10-8:11
+ 43: FStringLit      "f\"{{}}\"" at 8:11-8:18
+ 44: RParen          ")" at 8:18-8:19
+ 45: Semicolon       ";" at 8:19-8:20
+ 46: Ident           "print" at 9:5-9:10 (leading: Newline, Space)
+ 47: LParen          "(" at 9:10-9:11
+ 48: FStringLit      "f\"x{{}}y\"" at 9:11-9:20
+ 49: RParen          ")" at 9:20-9:21
+ 50: Semicolon       ";" at 9:21-9:22
+ 51: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
+ 52: IntLit          "0" at 10:12-10:13 (leading: Space)
+ 53: Semicolon       ";" at 10:13-10:14
+ 54: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 55: EOF             at 12:1-12:1
