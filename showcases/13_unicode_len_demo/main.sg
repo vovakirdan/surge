@@ -1,0 +1,14 @@
+@entrypoint
+fn main() {
+    let s = "A🇵🇱é🙂";
+
+    let len_cp = len(s); // should be 5 (in code points)
+    let len_bytes = s.bytes().len; // should be 15 (in bytes)
+
+    print("s=" + s);
+    print("code points=" + len_cp to string);
+    print("bytes=" + len_bytes to string);
+
+    let b = s.bytes();
+    print("hex=" + b[0] to string); // we have no hex representation at all, but we can get the byte value
+}

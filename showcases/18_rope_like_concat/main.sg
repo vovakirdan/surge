@@ -1,0 +1,32 @@
+fn naive_concat() {
+    let mut s = "";
+    for i in 0..50000 {
+        s = s + "ha";
+        if i % 10000 == 0 { // todo: add max/min functions
+            let start = 0;
+            let l = len(s);
+            if l > 20:uint {
+                start = (l - 20:uint) to int;
+            }
+            let tail = s[start..(l to int)];
+            print("i=" + i to string + ", tail=" + tail);
+        }
+    }
+    print("length=" + len(s) to string);
+    print("bytes=" + s.bytes().len to string);
+}
+
+fn join_builder() {
+    let parts: string[] = Array::<string>::with_len(50000:uint);
+    for i in 0..50000 {
+        parts[i] = "ha";
+    }
+    let s = "".join(parts);
+    print("length=" + len(s) to string);
+}
+
+@entrypoint
+fn main() {
+    naive_concat();
+    join_builder();
+}

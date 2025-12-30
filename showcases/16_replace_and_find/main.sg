@@ -1,0 +1,13 @@
+@entrypoint
+fn enter() { // oh, by the way - we can name our entrypoint whatever we want!
+    let s = "one two one two one";
+    let needle = "one";
+    let repl = "ONE";
+
+    let first = s.find(&needle); // returns first index of the needle, or -1 if not found
+    print(f"First: {first}");
+    let count = s.count(&needle); // yes, we have .count() method
+    print(f"Count: {count}");
+    let replaced = s.replace(&needle, &repl);
+    print(f"Replaced: {replaced}");
+}

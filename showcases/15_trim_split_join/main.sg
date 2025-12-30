@@ -1,0 +1,9 @@
+@entrypoint
+fn main() {
+    let s = "   Hello,\tSurge \n  world!   ";
+    let trimmed = s.trim();
+    let parts = trimmed.split(" ");
+    let normalized = ", ".join(parts);
+    print(f"Original: {s}");
+    print(format("trimmed='{}'\n, normalized='{}'\n", fmt_arg(trimmed), fmt_arg(normalized)));
+}

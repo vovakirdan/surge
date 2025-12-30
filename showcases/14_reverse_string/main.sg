@@ -1,0 +1,7 @@
+@entrypoint
+fn main() {
+    let s = "ab🙂🇵🇱é";
+    let r = s.reverse(); // returns string
+    print("s=" + s);
+    print("r=" + r);
+}
