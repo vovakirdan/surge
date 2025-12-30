@@ -102,6 +102,18 @@ extern<string> {
     pub fn find(self: &string, needle: string) -> int {
         return string_find_from(self, &needle, 0);
     }
+    pub fn count(self: &string, needle: string) -> int {
+        let mut count: int = 0;
+        let mut pos: int = 0;
+        while pos >= 0 {
+            pos = string_find_from(self, &needle, pos);
+            if pos >= 0 {
+                count = count + 1;
+                pos = pos + 1;
+            }
+        }
+        return count;
+    }
     pub fn rfind(self: &string, needle: string) -> int {
         return string_rfind(self, &needle);
     }

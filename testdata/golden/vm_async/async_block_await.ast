@@ -1,4 +1,4 @@
-testdata/golden/vm_async/async_block_await.sg (span: 1:1-11:1)
+async_block_await.sg (span: 1:1-11:1)
 └─ Item[0]: Fn (span: 1:1-10:2)
    ├─ Name: main
    ├─ Params: ()
