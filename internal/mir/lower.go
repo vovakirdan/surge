@@ -493,11 +493,12 @@ func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {
 	}
 
 	l.f = &Func{
-		ID:     id,
-		Sym:    fn.SymbolID,
-		Name:   fn.Name,
-		Span:   fn.Span,
-		Result: fn.Result,
+		ID:      id,
+		Sym:     fn.SymbolID,
+		Name:    fn.Name,
+		Span:    fn.Span,
+		Result:  fn.Result,
+		IsAsync: fn.IsAsync(),
 	}
 
 	// Locals: function parameters.
@@ -681,6 +682,28 @@ func (l *funcLowerer) isNothingType(ty types.TypeID) bool {
 	}
 	tt, ok := l.types.Lookup(resolveAlias(l.types, ty))
 	return ok && tt.Kind == types.KindNothing
+}
+
+func (l *funcLowerer) isTaskType(ty types.TypeID) bool {
+	if l == nil || l.types == nil || ty == types.NoTypeID {
+		return false
+	}
+	resolved := resolveAlias(l.types, ty)
+	if info, ok := l.types.StructInfo(resolved); ok && info != nil {
+		return l.typeNameMatches(info.Name, "Task")
+	}
+	if info, ok := l.types.AliasInfo(resolved); ok && info != nil {
+		return l.typeNameMatches(info.Name, "Task")
+	}
+	return false
+}
+
+func (l *funcLowerer) typeNameMatches(nameID source.StringID, name string) bool {
+	if l == nil || l.types == nil || l.types.Strings == nil || nameID == source.NoStringID {
+		return false
+	}
+	got, ok := l.types.Strings.Lookup(nameID)
+	return ok && got == name
 }
 
 func resolveAlias(typesIn *types.Interner, id types.TypeID) types.TypeID {

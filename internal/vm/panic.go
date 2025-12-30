@@ -52,10 +52,15 @@ const (
 
 	PanicRCUseAfterFree     PanicCode = 3301 // VM3301: use-after-free (RC heap)
 	PanicRCHeapLeakDetected PanicCode = 3302 // VM3302: heap leak detected (RC heap)
+
+	PanicAsyncBackendNotImplemented PanicCode = 9001 // VMX9001: async backend not implemented
 )
 
 // String returns the code as "VM1001" format.
 func (c PanicCode) String() string {
+	if c == PanicAsyncBackendNotImplemented {
+		return "VMX9001"
+	}
 	return fmt.Sprintf("VM%d", c)
 }
 

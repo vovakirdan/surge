@@ -122,11 +122,17 @@ func NewLogPanicEvent(vmErr *VMError, files *source.FileSet) LogPanicEvent {
 
 func ParsePanicCode(code string) (PanicCode, bool) {
 	code = strings.TrimSpace(code)
-	if !strings.HasPrefix(code, "VM") {
+	prefixLen := 0
+	switch {
+	case strings.HasPrefix(code, "VMX"):
+		prefixLen = 3
+	case strings.HasPrefix(code, "VM"):
+		prefixLen = 2
+	default:
 		return 0, false
 	}
 	n := 0
-	for i := 2; i < len(code); i++ {
+	for i := prefixLen; i < len(code); i++ {
 		ch := code[i]
 		if ch < '0' || ch > '9' {
 			return 0, false

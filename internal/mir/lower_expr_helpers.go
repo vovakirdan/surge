@@ -2,6 +2,7 @@ package mir
 
 import (
 	"fmt"
+	"strings"
 
 	"fortio.org/safecast"
 
@@ -209,6 +210,20 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 		return Operand{}, errorf("mir: call: unexpected payload %T", e.Data)
 	}
 
+	if data.Callee != nil && data.Callee.Kind == hir.ExprVarRef && len(data.Args) == 1 {
+		if vr, ok := data.Callee.Data.(hir.VarRefData); ok && isAwaitSymbolName(vr.Name) {
+			if recv := data.Args[0]; recv != nil && l.isTaskType(recv.Type) {
+				task, err := l.lowerExpr(recv, false)
+				if err != nil {
+					return Operand{}, err
+				}
+				tmp := l.newTemp(e.Type, "await", e.Span)
+				l.emit(&Instr{Kind: InstrAwait, Await: AwaitInstr{Dst: Place{Local: tmp}, Task: task}})
+				return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
+			}
+		}
+	}
+
 	args := make([]Operand, 0, len(data.Args))
 	for _, a := range data.Args {
 		op, err := l.lowerExpr(a, true)
@@ -304,6 +319,13 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 		},
 	})
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
+}
+
+func isAwaitSymbolName(name string) bool {
+	if name == "await" {
+		return true
+	}
+	return strings.HasPrefix(name, "await::<")
 }
 
 // lowerAssignExpr lowers an assignment expression.

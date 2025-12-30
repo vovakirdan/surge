@@ -1,0 +1,7 @@
+@entrypoint
+async fn main() -> int {
+    let t = spawn async { return 1; };
+    let x = t.await();
+    print(x to string);
+    return 0;
+}

@@ -119,3 +119,23 @@ func (l *funcLowerer) lowerSpawnExpr(e *hir.Expr, consume bool) (Operand, error)
 	l.emit(&Instr{Kind: InstrSpawn, Spawn: SpawnInstr{Dst: Place{Local: tmp}, Value: value}})
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }
+
+// lowerAsyncExpr lowers an async block to a placeholder Task value.
+func (l *funcLowerer) lowerAsyncExpr(e *hir.Expr, consume bool) (Operand, error) {
+	if _, ok := e.Data.(hir.AsyncData); !ok {
+		return Operand{}, fmt.Errorf("mir: async: unexpected payload %T", e.Data)
+	}
+	tmp := l.newTemp(e.Type, "async", e.Span)
+	// Async bodies are not executed in J0; emit a placeholder Task value.
+	l.emit(&Instr{
+		Kind: InstrAssign,
+		Assign: AssignInstr{
+			Dst: Place{Local: tmp},
+			Src: RValue{
+				Kind:      RValueStructLit,
+				StructLit: StructLit{TypeID: e.Type},
+			},
+		},
+	})
+	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
+}

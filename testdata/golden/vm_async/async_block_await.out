@@ -1,0 +1,5 @@
+panic VMX9001: async backend not implemented: Await at main bb0 ip1
+at testdata/golden/vm_async/async_block_await.sg:3:13
+backtrace:
+  0: main at testdata/golden/vm_async/async_block_await.sg:3:13
+  1: __surge_start at <no-span>

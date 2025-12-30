@@ -252,6 +252,16 @@ func (vm *VM) setSpanForInstr(frame *Frame, instr *mir.Instr) {
 				frame.Span = frame.Func.Locals[localID].Span
 			}
 		}
+	case mir.InstrAwait:
+		localID := instr.Await.Dst.Local
+		if int(localID) < len(frame.Func.Locals) {
+			frame.Span = frame.Func.Locals[localID].Span
+		}
+	case mir.InstrSpawn:
+		localID := instr.Spawn.Dst.Local
+		if int(localID) < len(frame.Func.Locals) {
+			frame.Span = frame.Func.Locals[localID].Span
+		}
 	}
 }
 
@@ -396,6 +406,12 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 			slot.IsMoved = false
 			slot.IsDropped = false
 		}
+
+	case mir.InstrAwait:
+		return false, nil, vm.failAsyncNotSupported("Await", frame)
+
+	case mir.InstrSpawn:
+		return false, nil, vm.failAsyncNotSupported("Spawn", frame)
 
 	case mir.InstrNop:
 		// Nothing to do

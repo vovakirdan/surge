@@ -12,7 +12,8 @@ type Func struct {
 	Name string
 	Span source.Span
 
-	Result types.TypeID
+	Result  types.TypeID
+	IsAsync bool
 
 	Locals []Local
 	Blocks []Block

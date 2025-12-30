@@ -178,6 +178,10 @@ func (t *Tracer) formatInstr(instr *mir.Instr) string {
 		return fmt.Sprintf("drop %s", t.formatPlace(instr.Drop.Place))
 	case mir.InstrEndBorrow:
 		return fmt.Sprintf("end_borrow %s", t.formatPlace(instr.EndBorrow.Place))
+	case mir.InstrAwait:
+		return fmt.Sprintf("%s = await %s", t.formatPlace(instr.Await.Dst), t.formatOperand(&instr.Await.Task))
+	case mir.InstrSpawn:
+		return fmt.Sprintf("%s = spawn %s", t.formatPlace(instr.Spawn.Dst), t.formatOperand(&instr.Spawn.Value))
 	case mir.InstrNop:
 		return "nop"
 	default:
