@@ -3,6 +3,8 @@ package parser
 import (
 	"strings"
 
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/lexer"
@@ -28,6 +30,14 @@ func (p *Parser) parseFString() (ast.ExprID, bool) {
 	var format strings.Builder
 	format.Grow(len(content))
 	args := make([]ast.ExprID, 0, 4)
+	offset := func(pos int) (uint32, bool) {
+		off, err := safecast.Conv[uint32](pos)
+		if err != nil {
+			p.err(diag.SynUnexpectedToken, "f-string literal too large")
+			return 0, false
+		}
+		return contentStart + off, true
+	}
 
 	for i := 0; i < len(content); {
 		ch := content[i]
@@ -37,7 +47,10 @@ func (p *Parser) parseFString() (ast.ExprID, bool) {
 				i += 2
 				continue
 			}
-			exprStart := contentStart + uint32(i+1)
+			exprStart, ok := offset(i + 1)
+			if !ok {
+				return ast.NoExprID, false
+			}
 			exprID, closeSpan, ok := p.parseFStringExpr(tok.Span.File, exprStart, contentEnd)
 			if !ok {
 				return ast.NoExprID, false
@@ -56,10 +69,18 @@ func (p *Parser) parseFString() (ast.ExprID, bool) {
 				i += 2
 				continue
 			}
+			start, ok := offset(i)
+			if !ok {
+				return ast.NoExprID, false
+			}
+			end, ok := offset(i + 1)
+			if !ok {
+				return ast.NoExprID, false
+			}
 			sp := source.Span{
 				File:  tok.Span.File,
-				Start: contentStart + uint32(i),
-				End:   contentStart + uint32(i+1),
+				Start: start,
+				End:   end,
 			}
 			p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, sp, "unmatched '}' in f-string", nil)
 			return ast.NoExprID, false

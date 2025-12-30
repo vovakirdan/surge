@@ -1,4 +1,4 @@
-testdata/golden/vm_strings/format_basic.sg (span: 1:1-12:1)
+format_basic.sg (span: 1:1-12:1)
 └─ Item[0]: Fn (span: 1:1-11:2)
    ├─ Name: main
    ├─ Params: ()

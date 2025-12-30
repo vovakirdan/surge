@@ -80,9 +80,9 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 				if tp.Index < 0 || tp.Index >= len(obj.Tag.Fields) {
 					return Value{}, vm.eb.tagPayloadIndexOutOfRange(tp.Index, len(obj.Tag.Fields))
 				}
-				field, vmErr := vm.cloneForShare(obj.Tag.Fields[tp.Index])
-				if vmErr != nil {
-					return Value{}, vmErr
+				field, cloneErr := vm.cloneForShare(obj.Tag.Fields[tp.Index])
+				if cloneErr != nil {
+					return Value{}, cloneErr
 				}
 				return field, nil
 			}

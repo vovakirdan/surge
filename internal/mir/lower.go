@@ -146,7 +146,7 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 	return out, nil
 }
 
-func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (map[types.TypeID][]TagCaseMeta, map[symbols.SymbolID]string) {
+func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLayouts map[types.TypeID][]TagCaseMeta, tagNames map[symbols.SymbolID]string) {
 	if m == nil || src == nil || typesIn == nil {
 		return nil, nil
 	}

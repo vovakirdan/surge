@@ -1,4 +1,4 @@
-testdata/golden/vm_strings/format_too_many_args_panics.sg (span: 1:1-6:1)
+format_too_many_args_panics.sg (span: 1:1-6:1)
 └─ Item[0]: Fn (span: 1:1-5:2)
    ├─ Name: main
    ├─ Params: ()

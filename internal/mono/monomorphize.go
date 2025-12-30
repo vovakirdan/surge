@@ -306,6 +306,9 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 	if b == nil || !origSym.IsValid() {
 		return nil, nil
 	}
+	if b.types == nil {
+		return nil, fmt.Errorf("mono: missing types interner")
+	}
 
 	normalized := NormalizeTypeArgs(b.types, typeArgs)
 	expectedTypeArgs := b.symbolTypeParamCount(origSym)
@@ -318,7 +321,7 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 	if len(normalized) > 0 && !typeArgsAreConcrete(b.types, normalized) {
 		name := b.monoName(origSym, nil)
 		args := "<?>"
-		if b != nil && b.mod != nil && b.mod.Symbols != nil && b.mod.Symbols.Table != nil && b.mod.Symbols.Table.Strings != nil {
+		if b.mod != nil && b.mod.Symbols != nil && b.mod.Symbols.Table != nil && b.mod.Symbols.Table.Strings != nil {
 			args = formatTypeArgs(b.types, b.mod.Symbols.Table.Strings, normalized)
 		}
 		stackMsg := ""
@@ -385,7 +388,7 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 			OwnerSym: origSym,
 			TypeArgs: normalized,
 		}
-		if b != nil && b.mod != nil && b.mod.Symbols != nil && b.mod.Symbols.Table != nil && b.mod.Symbols.Table.Symbols != nil {
+		if b.mod != nil && b.mod.Symbols != nil && b.mod.Symbols.Table != nil && b.mod.Symbols.Table.Symbols != nil {
 			if owner := b.mod.Symbols.Table.Symbols.Get(origSym); owner != nil && len(owner.TypeParams) == len(normalized) {
 				subst.NameArgs = make(map[source.StringID]types.TypeID, len(normalized))
 				for i, name := range owner.TypeParams {

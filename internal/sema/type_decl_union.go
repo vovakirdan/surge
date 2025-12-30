@@ -99,10 +99,23 @@ func (tc *typeChecker) collectUnionMembers(unionDecl *ast.TypeUnionDecl, scope s
 		case ast.TypeUnionMemberType:
 			if path, ok := tc.builder.Types.Path(member.Type); ok && path != nil && len(path.Segments) == 1 {
 				seg := path.Segments[0]
-				if tc.lookupTagSymbol(seg.Name, scope).IsValid() {
+				if tagSymID := tc.lookupTagSymbol(seg.Name, scope); tagSymID.IsValid() {
 					tagArgs := make([]types.TypeID, 0, len(seg.Generics))
 					for _, arg := range seg.Generics {
 						tagArgs = append(tagArgs, tc.resolveTypeExprWithScope(arg, scope))
+					}
+					if len(tagArgs) == 0 && tc.builder != nil {
+						if sym := tc.symbolFromID(tagSymID); sym != nil {
+							if tagItem, ok := tc.builder.Items.Tag(sym.Decl.Item); ok && tagItem != nil {
+								if len(tagItem.Generics) == 0 && len(tagItem.Payload) > 0 {
+									payloadArgs := make([]types.TypeID, 0, len(tagItem.Payload))
+									for _, payload := range tagItem.Payload {
+										payloadArgs = append(payloadArgs, tc.resolveTypeExprWithScope(payload, scope))
+									}
+									tagArgs = payloadArgs
+								}
+							}
+						}
 					}
 					members = append(members, types.UnionMember{
 						Kind:    types.UnionMemberTag,
@@ -215,23 +228,24 @@ func (tc *typeChecker) registerTagConstructors(typeItem *ast.TypeItem, unionType
 			sym.TypeParams = append([]source.StringID(nil), tagTypeParams...)
 		}
 
-		// Build result key using TAG name (not union name).
-		// Tag constructors return their own tag type, e.g., Success(1) returns Success<int>,
-		// and non-generic tags include payload types to form a concrete tag type.
+		// Build result key using tag payload types when present.
+		// Tag constructors return their own tag type, e.g., Success(1) returns Success<int>.
 		tagName := tc.lookupName(m.TagName)
 		resultKey := tagName
-		if len(tagTypeParams) > 0 {
+		payloadKeys := make([]string, 0, len(tagItem.Payload))
+		for _, payload := range tagItem.Payload {
+			if key := typeKeyForTypeExpr(tc.builder, payload); key != "" {
+				payloadKeys = append(payloadKeys, string(key))
+			}
+		}
+		if len(payloadKeys) > 0 {
+			resultKey = fmt.Sprintf("%s<%s>", tagName, strings.Join(payloadKeys, ","))
+		} else if len(tagTypeParams) > 0 {
 			genNames := make([]string, 0, len(tagTypeParams))
 			for _, gid := range tagTypeParams {
 				genNames = append(genNames, tc.lookupName(gid))
 			}
 			resultKey = fmt.Sprintf("%s<%s>", tagName, strings.Join(genNames, ","))
-		} else if len(params) > 0 {
-			payloadKeys := make([]string, 0, len(params))
-			for _, key := range params {
-				payloadKeys = append(payloadKeys, string(key))
-			}
-			resultKey = fmt.Sprintf("%s<%s>", tagName, strings.Join(payloadKeys, ","))
 		}
 
 		sym.Signature = &symbols.FunctionSignature{

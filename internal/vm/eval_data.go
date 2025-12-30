@@ -335,6 +335,13 @@ func (vm *VM) cloneForShare(v Value) (Value, *VMError) {
 		return v, nil
 	}
 	if v.IsHeap() && v.H != 0 {
+		obj, ok := vm.Heap.lookup(v.H)
+		if !ok || obj == nil {
+			return Value{}, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid handle %d", v.H))
+		}
+		if obj.Freed || obj.RefCount == 0 {
+			return Value{}, vm.eb.makeError(PanicRCUseAfterFree, fmt.Sprintf("use-after-free: handle %d (alloc=%d)", v.H, obj.AllocID))
+		}
 		vm.Heap.Retain(v.H)
 	}
 	return v, nil
