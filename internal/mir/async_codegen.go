@@ -17,7 +17,7 @@ type stateVariant struct {
 }
 
 // buildAsyncPollEntry creates the entry block for the poll function with a switch on state.
-func buildAsyncPollEntry(f *Func, stateLocal LocalID, variants []stateVariant) BlockID {
+func buildAsyncPollEntry(f *Func, stateLocal LocalID, variants []stateVariant, scopeLocal LocalID, failfast bool, boolType types.TypeID) BlockID {
 	if f == nil {
 		return NoBlockID
 	}
@@ -43,6 +43,18 @@ func buildAsyncPollEntry(f *Func, stateLocal LocalID, variants []stateVariant) B
 					Value:   Operand{Kind: OperandCopy, Place: Place{Local: stateLocal}},
 					TagName: variants[i].name,
 					Index:   idx,
+				}},
+			}})
+		}
+		if i == 0 && scopeLocal != NoLocalID {
+			appendInstr(f, variantBB, Instr{Kind: InstrCall, Call: CallInstr{
+				HasDst: true,
+				Dst:    Place{Local: scopeLocal},
+				Callee: Callee{Kind: CalleeValue, Name: "rt_scope_enter"},
+				Args: []Operand{{
+					Kind:  OperandConst,
+					Type:  boolType,
+					Const: Const{Kind: ConstBool, Type: boolType, BoolValue: failfast},
 				}},
 			}})
 		}
@@ -97,10 +109,14 @@ func buildAsyncPendingBlocks(f *Func, stateLocal LocalID, sites []awaitSite, var
 			return fmt.Errorf("mir: async: poll instruction out of range")
 		}
 		pollInstr := &bb.Instrs[sites[i].pollInstr]
-		if pollInstr.Kind != InstrPoll {
-			return fmt.Errorf("mir: async: expected poll instruction in %s", f.Name)
+		switch pollInstr.Kind {
+		case InstrPoll:
+			pollInstr.Poll.PendBB = pendingBB
+		case InstrJoinAll:
+			pollInstr.JoinAll.PendBB = pendingBB
+		default:
+			return fmt.Errorf("mir: async: expected suspend instruction in %s", f.Name)
 		}
-		pollInstr.Poll.PendBB = pendingBB
 	}
 	return nil
 }
@@ -113,6 +129,12 @@ func rewriteAsyncReturns(f *Func, stateLocal LocalID) {
 	for bi := range f.Blocks {
 		bb := &f.Blocks[bi]
 		if bb.Term.Kind != TermReturn {
+			continue
+		}
+		if bb.Term.Return.Cancelled {
+			bb.Term = Terminator{Kind: TermAsyncReturnCancelled, AsyncReturnCancelled: AsyncReturnCancelledTerm{
+				State: operandForLocal(f, stateLocal),
+			}}
 			continue
 		}
 		newTerm := Terminator{Kind: TermAsyncReturn, AsyncReturn: AsyncReturnTerm{

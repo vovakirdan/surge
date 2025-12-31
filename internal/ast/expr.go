@@ -323,7 +323,9 @@ type ExprStructData struct {
 // ExprAsyncData represents an `async { ... }` block expression.
 // Body references the block statement containing its statements.
 type ExprAsyncData struct {
-	Body StmtID
+	Body      StmtID
+	AttrStart AttrID
+	AttrCount uint32
 }
 
 // ExprBlockData represents a block expression `{ stmts; return expr; }`.
@@ -706,8 +708,12 @@ func (e *Exprs) Spawn(id ExprID) (*ExprSpawnData, bool) {
 	return e.Spawns.Get(uint32(expr.Payload)), true
 }
 
-func (e *Exprs) NewAsync(span source.Span, body StmtID) ExprID {
-	payload := e.Asyncs.Allocate(ExprAsyncData{Body: body})
+func (e *Exprs) NewAsync(span source.Span, body StmtID, attrStart AttrID, attrCount uint32) ExprID {
+	payload := e.Asyncs.Allocate(ExprAsyncData{
+		Body:      body,
+		AttrStart: attrStart,
+		AttrCount: attrCount,
+	})
 	return e.new(ExprAsync, span, PayloadID(payload))
 }
 

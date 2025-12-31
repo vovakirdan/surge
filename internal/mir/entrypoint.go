@@ -239,6 +239,7 @@ func (b *surgeStartBuilder) emitGlobalInits() error {
 		symToLocal:          make(map[symbols.SymbolID]LocalID),
 		symToGlobal:         b.symToGlobal,
 		nextTemp:            1,
+		scopeLocal:          NoLocalID,
 		consts:              consts,
 		staticStringGlobals: b.staticStringGlobals,
 		staticStringInits:   b.staticStringInits,

@@ -240,6 +240,7 @@ func (b *surgeStartBuilder) lowerDefaultExpr(expr *hir.Expr) (Operand, error) {
 		types:               b.typesIn,
 		symToLocal:          make(map[symbols.SymbolID]LocalID, len(b.paramLocals)),
 		nextTemp:            1,
+		scopeLocal:          NoLocalID,
 		cur:                 b.cur,
 		consts:              buildConstMap(b.mm.Source),
 		staticStringGlobals: b.staticStringGlobals,

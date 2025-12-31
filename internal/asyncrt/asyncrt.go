@@ -5,15 +5,17 @@ import "math/rand"
 // Executor runs async tasks on a single thread with a deterministic FIFO scheduler by default.
 // Fuzz scheduling is supported for reproducible interleavings.
 type Executor struct {
-	cfg      Config
-	nextID   TaskID
-	ready    []TaskID
-	readySet map[TaskID]struct{}
-	tasks    map[TaskID]*Task
-	waiters  map[WakerKey][]TaskID
-	parked   map[TaskID]WakerKey
-	current  TaskID
-	rng      *rand.Rand
+	cfg         Config
+	nextID      TaskID
+	nextScopeID ScopeID
+	ready       []TaskID
+	readySet    map[TaskID]struct{}
+	tasks       map[TaskID]*Task
+	scopes      map[ScopeID]*Scope
+	waiters     map[WakerKey][]TaskID
+	parked      map[TaskID]WakerKey
+	current     TaskID
+	rng         *rand.Rand
 }
 
 // TaskID identifies a spawned task.
@@ -55,6 +57,8 @@ type Task struct {
 	Status           TaskStatus
 	Kind             TaskKind
 	Cancelled        bool
+	ScopeID          ScopeID
+	ParentScopeID    ScopeID
 	Children         []TaskID
 	checkpointPolled bool
 }
@@ -69,10 +73,12 @@ type Config struct {
 // NewExecutor constructs an executor with the provided configuration.
 func NewExecutor(cfg Config) *Executor {
 	exec := &Executor{
-		cfg:      cfg,
-		nextID:   1,
-		readySet: make(map[TaskID]struct{}),
-		tasks:    make(map[TaskID]*Task),
+		cfg:         cfg,
+		nextID:      1,
+		nextScopeID: 1,
+		readySet:    make(map[TaskID]struct{}),
+		tasks:       make(map[TaskID]*Task),
+		scopes:      make(map[ScopeID]*Scope),
 	}
 	if cfg.Fuzz {
 		seed := cfg.Seed
@@ -300,6 +306,15 @@ func (e *Executor) MarkDone(id TaskID, kind TaskResultKind, result any) {
 		e.removeWaiter(key, id)
 		delete(e.parked, id)
 	}
+	if kind == TaskResultCancelled && task.ParentScopeID != 0 {
+		if scope := e.scopes[task.ParentScopeID]; scope != nil && scope.Failfast && !scope.FailfastTriggered {
+			scope.FailfastTriggered = true
+			e.CancelAllChildren(scope.ID)
+			if owner := e.tasks[scope.Owner]; owner != nil && owner.Status != TaskDone {
+				e.Wake(scope.Owner)
+			}
+		}
+	}
 	e.WakeKeyAll(JoinKey(id))
 }
 
@@ -399,12 +414,16 @@ func (e *Executor) DrainTasks() []*Task {
 		if e.readySet != nil {
 			clear(e.readySet)
 		}
+		if e.scopes != nil {
+			clear(e.scopes)
+		}
 		if e.waiters != nil {
 			clear(e.waiters)
 		}
 		if e.parked != nil {
 			clear(e.parked)
 		}
+		e.nextScopeID = 1
 		e.current = 0
 		return nil
 	}
@@ -413,6 +432,9 @@ func (e *Executor) DrainTasks() []*Task {
 		tasks = append(tasks, task)
 	}
 	e.tasks = make(map[TaskID]*Task)
+	if e.scopes != nil {
+		clear(e.scopes)
+	}
 	e.ready = nil
 	if e.readySet != nil {
 		clear(e.readySet)
@@ -423,6 +445,7 @@ func (e *Executor) DrainTasks() []*Task {
 	if e.parked != nil {
 		clear(e.parked)
 	}
+	e.nextScopeID = 1
 	e.current = 0
 	return tasks
 }

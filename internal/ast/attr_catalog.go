@@ -80,7 +80,7 @@ var attrRegistry = map[string]AttrSpec{
 	"nosend":        {Name: "nosend", Targets: AttrTargetType},
 	"nonblocking":   {Name: "nonblocking", Targets: AttrTargetFn},
 	"drop":          {Name: "drop", Targets: AttrTargetStmt},
-	"failfast":      {Name: "failfast", Targets: AttrTargetBlock},
+	"failfast":      {Name: "failfast", Targets: AttrTargetBlock | AttrTargetFn},
 	"copy":          {Name: "copy", Targets: AttrTargetType},
 }
 

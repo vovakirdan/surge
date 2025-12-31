@@ -12,6 +12,8 @@ type FuncFlags uint32
 const (
 	// FuncAsync indicates an async function.
 	FuncAsync FuncFlags = 1 << iota
+	// FuncFailfast indicates fail-fast structured concurrency.
+	FuncFailfast
 	// FuncIntrinsic indicates an intrinsic function (compiler-provided).
 	FuncIntrinsic
 	// FuncEntrypoint indicates the program entry point.
@@ -37,6 +39,9 @@ func (f FuncFlags) String() string {
 	}
 	if f.HasFlag(FuncAsync) {
 		s += "async "
+	}
+	if f.HasFlag(FuncFailfast) {
+		s += "@failfast "
 	}
 	if f.HasFlag(FuncIntrinsic) {
 		s += "@intrinsic "

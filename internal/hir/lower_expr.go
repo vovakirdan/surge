@@ -598,12 +598,24 @@ func (l *lowerer) lowerAsyncExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 	if asyncData.Body.IsValid() {
 		body = l.lowerBlockOrWrap(asyncData.Body)
 	}
+	l.markTailReturn(body)
+
+	failfast := false
+	if asyncData.AttrCount > 0 && asyncData.AttrStart.IsValid() {
+		attrs := l.builder.Items.CollectAttrs(asyncData.AttrStart, asyncData.AttrCount)
+		for _, attr := range attrs {
+			if l.lookupString(attr.Name) == "failfast" {
+				failfast = true
+				break
+			}
+		}
+	}
 
 	return &Expr{
 		Kind: ExprAsync,
 		Type: ty,
 		Span: expr.Span,
-		Data: AsyncData{Body: body},
+		Data: AsyncData{Body: body, Failfast: failfast},
 	}
 }
 

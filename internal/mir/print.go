@@ -161,6 +161,13 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 			ins.Poll.ReadyBB,
 			ins.Poll.PendBB,
 		)
+	case InstrJoinAll:
+		return fmt.Sprintf("%s = join_all %s ? bb%d : bb%d",
+			formatPlace(ins.JoinAll.Dst),
+			formatOperand(&ins.JoinAll.Scope),
+			ins.JoinAll.ReadyBB,
+			ins.JoinAll.PendBB,
+		)
 	case InstrNop:
 		return "nop"
 	default:

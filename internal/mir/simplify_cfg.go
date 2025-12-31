@@ -99,9 +99,13 @@ func applyRedirects(f *Func, redirects map[BlockID]BlockID) {
 		}
 		if len(f.Blocks[i].Instrs) > 0 {
 			last := &f.Blocks[i].Instrs[len(f.Blocks[i].Instrs)-1]
-			if last.Kind == InstrPoll {
+			switch last.Kind {
+			case InstrPoll:
 				last.Poll.ReadyBB = redirect(last.Poll.ReadyBB)
 				last.Poll.PendBB = redirect(last.Poll.PendBB)
+			case InstrJoinAll:
+				last.JoinAll.ReadyBB = redirect(last.JoinAll.ReadyBB)
+				last.JoinAll.PendBB = redirect(last.JoinAll.PendBB)
 			}
 		}
 	}
@@ -125,9 +129,14 @@ func computeReachability(f *Func) []bool {
 		term := &f.Blocks[id].Term
 		if len(f.Blocks[id].Instrs) > 0 {
 			last := &f.Blocks[id].Instrs[len(f.Blocks[id].Instrs)-1]
-			if last.Kind == InstrPoll {
+			switch last.Kind {
+			case InstrPoll:
 				visit(last.Poll.ReadyBB)
 				visit(last.Poll.PendBB)
+				return
+			case InstrJoinAll:
+				visit(last.JoinAll.ReadyBB)
+				visit(last.JoinAll.PendBB)
 				return
 			}
 		}
@@ -208,9 +217,13 @@ func compactBlocks(f *Func, reachable []bool) {
 		}
 		if len(newBlocks[i].Instrs) > 0 {
 			last := &newBlocks[i].Instrs[len(newBlocks[i].Instrs)-1]
-			if last.Kind == InstrPoll {
+			switch last.Kind {
+			case InstrPoll:
 				last.Poll.ReadyBB = remap(last.Poll.ReadyBB)
 				last.Poll.PendBB = remap(last.Poll.PendBB)
+			case InstrJoinAll:
+				last.JoinAll.ReadyBB = remap(last.JoinAll.ReadyBB)
+				last.JoinAll.PendBB = remap(last.JoinAll.PendBB)
 			}
 		}
 	}

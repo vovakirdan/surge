@@ -523,6 +523,23 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 	case token.KwAsync:
 		return p.parseAsyncExpr()
 
+	case token.At:
+		attrs, attrSpan, ok := p.parseAttributes()
+		if !ok {
+			return ast.NoExprID, false
+		}
+		if !p.at(token.KwAsync) {
+			p.emitDiagnostic(
+				diag.SynUnexpectedToken,
+				diag.SevError,
+				attrSpan,
+				"attributes are only allowed before async blocks",
+				nil,
+			)
+			return ast.NoExprID, false
+		}
+		return p.parseAsyncExprWithAttrs(attrs, attrSpan)
+
 	case token.LBrace:
 		return p.parseBraceExpr()
 

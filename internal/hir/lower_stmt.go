@@ -68,7 +68,7 @@ func (l *lowerer) lowerStmt(stmtID ast.StmtID) *Stmt {
 		return &Stmt{
 			Kind: StmtReturn,
 			Span: stmt.Span,
-			Data: ReturnData{Value: value},
+			Data: ReturnData{Value: value, IsTail: false},
 		}
 
 	case ast.StmtBreak:
@@ -363,6 +363,11 @@ func (l *lowerer) ensureExplicitReturn(fn *Func) {
 
 	// If last statement is already a return, nothing to do
 	if lastStmt != nil && lastStmt.Kind == StmtReturn {
+		data, ok := lastStmt.Data.(ReturnData)
+		if ok && !data.IsTail {
+			data.IsTail = true
+			fn.Body.Stmts[len(fn.Body.Stmts)-1].Data = data
+		}
 		return
 	}
 
@@ -372,7 +377,7 @@ func (l *lowerer) ensureExplicitReturn(fn *Func) {
 		fn.Body.Stmts = append(fn.Body.Stmts, Stmt{
 			Kind: StmtReturn,
 			Span: fn.Body.Span.ZeroideToEnd(),
-			Data: ReturnData{Value: nil},
+			Data: ReturnData{Value: nil, IsTail: true},
 		})
 		return
 	}
@@ -385,10 +390,26 @@ func (l *lowerer) ensureExplicitReturn(fn *Func) {
 			fn.Body.Stmts[len(fn.Body.Stmts)-1] = Stmt{
 				Kind: StmtReturn,
 				Span: lastStmt.Span,
-				Data: ReturnData{Value: exprData.Expr},
+				Data: ReturnData{Value: exprData.Expr, IsTail: true},
 			}
 		}
 	}
+}
+
+func (l *lowerer) markTailReturn(block *Block) {
+	if block == nil || len(block.Stmts) == 0 {
+		return
+	}
+	last := block.Stmts[len(block.Stmts)-1]
+	if last.Kind != StmtReturn {
+		return
+	}
+	data, ok := last.Data.(ReturnData)
+	if !ok || data.IsTail {
+		return
+	}
+	data.IsTail = true
+	block.Stmts[len(block.Stmts)-1].Data = data
 }
 
 // isNothingType checks if the given type is the "nothing" type.

@@ -86,6 +86,19 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 		doJump = pollRes.doJump
 		jumpBB = pollRes.jumpBB
 
+	case mir.InstrJoinAll:
+		pollRes, pollErr := vm.execInstrJoinAll(frame, instr, writes)
+		vmErr = pollErr
+		if vmErr != nil {
+			return false, nil, vmErr
+		}
+		hasStore = pollRes.hasStore
+		storeLoc = pollRes.storeLoc
+		storeVal = pollRes.storeVal
+		writes = pollRes.writes
+		doJump = pollRes.doJump
+		jumpBB = pollRes.jumpBB
+
 	case mir.InstrNop:
 		// Nothing to do
 
@@ -382,9 +395,98 @@ func (vm *VM) execInstrPoll(frame *Frame, instr *mir.Instr, writes []LocalWrite)
 	return res, nil
 }
 
+func (vm *VM) execInstrJoinAll(frame *Frame, instr *mir.Instr, writes []LocalWrite) (pollExecResult, *VMError) {
+	res := pollExecResult{writes: writes}
+
+	scopeVal, vmErr := vm.evalOperand(frame, &instr.JoinAll.Scope)
+	if vmErr != nil {
+		return res, vmErr
+	}
+	scopeID, vmErr := vm.scopeIDFromValue(scopeVal)
+	vm.dropValue(scopeVal)
+	if vmErr != nil {
+		return res, vmErr
+	}
+	exec := vm.ensureExecutor()
+	if exec == nil {
+		return res, vm.eb.makeError(PanicUnimplemented, "async executor missing")
+	}
+	current := exec.Current()
+	if current == 0 {
+		return res, vm.eb.makeError(PanicUnimplemented, "async join_all outside task")
+	}
+	done, pending, failfast := exec.JoinAllChildrenBlocking(scopeID)
+	if !done {
+		if pending == 0 {
+			return res, vm.eb.makeError(PanicUnimplemented, "async join_all missing pending child")
+		}
+		vm.asyncPendingParkKey = asyncrt.JoinKey(pending)
+		res.doJump = true
+		res.jumpBB = instr.JoinAll.PendBB
+		return res, nil
+	}
+
+	resultType, vmErr := vm.joinResultType(frame, instr.JoinAll.Dst)
+	if vmErr != nil {
+		return res, vmErr
+	}
+	doneVal := MakeBool(failfast, resultType)
+	dst := instr.JoinAll.Dst
+	if len(dst.Proj) == 0 {
+		switch dst.Kind {
+		case mir.PlaceGlobal:
+			vmErr = vm.writeGlobal(dst.Global, doneVal)
+			if vmErr != nil {
+				return res, vmErr
+			}
+			res.hasStore = true
+			res.storeLoc = Location{Kind: LKGlobal, Global: int32(dst.Global), IsMut: true}
+			res.storeVal = doneVal
+			res.doJump = true
+			res.jumpBB = instr.JoinAll.ReadyBB
+			return res, nil
+		default:
+			localID := dst.Local
+			vmErr = vm.writeLocal(frame, localID, doneVal)
+			if vmErr != nil {
+				return res, vmErr
+			}
+			stored := frame.Locals[localID].V
+			writes = append(writes, LocalWrite{
+				LocalID: localID,
+				Name:    frame.Locals[localID].Name,
+				Value:   stored,
+			})
+			res.writes = writes
+			res.doJump = true
+			res.jumpBB = instr.JoinAll.ReadyBB
+			return res, nil
+		}
+	}
+	return res, vm.eb.makeError(PanicUnimplemented, "join_all destination projection unsupported")
+}
+
 func (vm *VM) awaitResultType(frame *Frame, dst mir.Place) (types.TypeID, *VMError) {
 	if len(dst.Proj) != 0 {
 		return types.NoTypeID, vm.eb.makeError(PanicUnimplemented, "await destination projection unsupported")
+	}
+	switch dst.Kind {
+	case mir.PlaceGlobal:
+		if int(dst.Global) < 0 || int(dst.Global) >= len(vm.Globals) {
+			return types.NoTypeID, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("invalid global id %d", dst.Global))
+		}
+		return vm.Globals[dst.Global].TypeID, nil
+	default:
+		if int(dst.Local) < 0 || int(dst.Local) >= len(frame.Locals) {
+			return types.NoTypeID, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("invalid local id %d", dst.Local))
+		}
+		return frame.Locals[dst.Local].TypeID, nil
+	}
+}
+
+func (vm *VM) joinResultType(frame *Frame, dst mir.Place) (types.TypeID, *VMError) {
+	if len(dst.Proj) != 0 {
+		return types.NoTypeID, vm.eb.makeError(PanicUnimplemented, "join_all destination projection unsupported")
 	}
 	switch dst.Kind {
 	case mir.PlaceGlobal:

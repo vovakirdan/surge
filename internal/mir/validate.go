@@ -80,7 +80,7 @@ func validateBlocksTerminated(f *Func) error {
 		if f.Blocks[i].Term.Kind == TermNone {
 			if len(f.Blocks[i].Instrs) > 0 {
 				last := f.Blocks[i].Instrs[len(f.Blocks[i].Instrs)-1]
-				if last.Kind == InstrPoll {
+				if last.Kind == InstrPoll || last.Kind == InstrJoinAll {
 					continue
 				}
 			}
@@ -102,14 +102,21 @@ func validateBlockTargets(f *Func) error {
 		bb := &f.Blocks[i]
 		for j := range bb.Instrs {
 			ins := &bb.Instrs[j]
-			if ins.Kind != InstrPoll {
-				continue
-			}
-			if !blockExists(ins.Poll.ReadyBB) {
-				errs = append(errs, fmt.Errorf("bb%d instr %d: poll ready target bb%d does not exist", i, j, ins.Poll.ReadyBB))
-			}
-			if !blockExists(ins.Poll.PendBB) {
-				errs = append(errs, fmt.Errorf("bb%d instr %d: poll pending target bb%d does not exist", i, j, ins.Poll.PendBB))
+			switch ins.Kind {
+			case InstrPoll:
+				if !blockExists(ins.Poll.ReadyBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: poll ready target bb%d does not exist", i, j, ins.Poll.ReadyBB))
+				}
+				if !blockExists(ins.Poll.PendBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: poll pending target bb%d does not exist", i, j, ins.Poll.PendBB))
+				}
+			case InstrJoinAll:
+				if !blockExists(ins.JoinAll.ReadyBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: join_all ready target bb%d does not exist", i, j, ins.JoinAll.ReadyBB))
+				}
+				if !blockExists(ins.JoinAll.PendBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: join_all pending target bb%d does not exist", i, j, ins.JoinAll.PendBB))
+				}
 			}
 		}
 		switch bb.Term.Kind {
@@ -259,6 +266,9 @@ func validateLocalIDs(f *Func, globals []Global) error {
 			case InstrPoll:
 				checkPlace(ins.Poll.Dst, ctx)
 				checkOperand(ins.Poll.Task, ctx)
+			case InstrJoinAll:
+				checkPlace(ins.JoinAll.Dst, ctx)
+				checkOperand(ins.JoinAll.Scope, ctx)
 			}
 		}
 

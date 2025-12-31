@@ -112,6 +112,7 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		if !ok {
 			return fmt.Errorf("mir: return: unexpected payload %T", st.Data)
 		}
+		early := !data.IsTail
 		if len(l.returnStack) > 0 {
 			ctx := l.returnStack[len(l.returnStack)-1]
 			if ctx.hasResult && data.Value != nil {
@@ -150,12 +151,12 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 					return err
 				}
 			}
-			l.setTerm(&Terminator{Kind: TermReturn})
+			l.setTerm(&Terminator{Kind: TermReturn, Return: ReturnTerm{Early: early}})
 			return nil
 		}
 
 		if data.Value == nil {
-			l.setTerm(&Terminator{Kind: TermReturn})
+			l.setTerm(&Terminator{Kind: TermReturn, Return: ReturnTerm{Early: early}})
 			return nil
 		}
 		expected := types.NoTypeID
@@ -166,7 +167,7 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 		if err != nil {
 			return err
 		}
-		l.setTerm(&Terminator{Kind: TermReturn, Return: ReturnTerm{HasValue: true, Value: op}})
+		l.setTerm(&Terminator{Kind: TermReturn, Return: ReturnTerm{HasValue: true, Value: op, Early: early}})
 		return nil
 
 	case hir.StmtBreak:

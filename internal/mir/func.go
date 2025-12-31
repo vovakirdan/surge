@@ -14,8 +14,11 @@ type Func struct {
 
 	Result  types.TypeID
 	IsAsync bool
+	Failfast bool
 
 	Locals []Local
 	Blocks []Block
 	Entry  BlockID
+
+	ScopeLocal LocalID
 }

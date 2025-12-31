@@ -189,6 +189,13 @@ func (t *Tracer) formatInstr(instr *mir.Instr) string {
 			instr.Poll.ReadyBB,
 			instr.Poll.PendBB,
 		)
+	case mir.InstrJoinAll:
+		return fmt.Sprintf("%s = join_all %s ? bb%d : bb%d",
+			t.formatPlace(instr.JoinAll.Dst),
+			t.formatOperand(&instr.JoinAll.Scope),
+			instr.JoinAll.ReadyBB,
+			instr.JoinAll.PendBB,
+		)
 	case mir.InstrNop:
 		return "nop"
 	default:

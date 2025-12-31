@@ -95,6 +95,7 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 			symToLocal:          make(map[symbols.SymbolID]LocalID),
 			symToGlobal:         symToGlobal,
 			nextTemp:            1,
+			scopeLocal:          NoLocalID,
 			consts:              consts,
 			staticStringGlobals: staticStringGlobals,
 			staticStringInits:   staticStringInits,
@@ -170,6 +171,7 @@ type funcLowerer struct {
 	symToLocal  map[symbols.SymbolID]LocalID
 	symToGlobal map[symbols.SymbolID]GlobalID
 	nextTemp    uint32
+	scopeLocal  LocalID
 
 	loopStack   []loopCtx
 	returnStack []returnCtx
@@ -191,12 +193,13 @@ func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {
 	}
 
 	l.f = &Func{
-		ID:      id,
-		Sym:     fn.SymbolID,
-		Name:    fn.Name,
-		Span:    fn.Span,
-		Result:  fn.Result,
-		IsAsync: fn.IsAsync(),
+		ID:       id,
+		Sym:      fn.SymbolID,
+		Name:     fn.Name,
+		Span:     fn.Span,
+		Result:   fn.Result,
+		IsAsync:  fn.IsAsync(),
+		Failfast: fn.Flags.HasFlag(hir.FuncFailfast),
 	}
 
 	// Locals: function parameters.
@@ -205,6 +208,11 @@ func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {
 			continue
 		}
 		l.ensureLocal(p.SymbolID, p.Name, p.Type, p.Span)
+	}
+	if l.f.IsAsync && l.types != nil {
+		scopeType := l.types.Builtins().Uint
+		l.scopeLocal = addLocal(l.f, "__scope", scopeType, localFlagsFor(l.types, l.sema, scopeType))
+		l.f.ScopeLocal = l.scopeLocal
 	}
 
 	// Entry block.
@@ -238,23 +246,30 @@ func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {
 	return l.f, nil
 }
 
-func (l *funcLowerer) lowerSyntheticFunc(id FuncID, name string, body *hir.Block, result types.TypeID, span source.Span, isAsync bool) (*Func, error) {
+func (l *funcLowerer) lowerSyntheticFunc(id FuncID, name string, body *hir.Block, result types.TypeID, span source.Span, isAsync bool, failfast bool) (*Func, error) {
 	if l == nil {
 		return nil, nil
 	}
 
 	l.f = &Func{
-		ID:      id,
-		Sym:     symbols.NoSymbolID,
-		Name:    name,
-		Span:    span,
-		Result:  result,
-		IsAsync: isAsync,
+		ID:       id,
+		Sym:      symbols.NoSymbolID,
+		Name:     name,
+		Span:     span,
+		Result:   result,
+		IsAsync:  isAsync,
+		Failfast: failfast,
 	}
 
 	entry := l.newBlock()
 	l.f.Entry = entry
 	l.cur = entry
+
+	if l.f.IsAsync && l.types != nil {
+		scopeType := l.types.Builtins().Uint
+		l.scopeLocal = addLocal(l.f, "__scope", scopeType, localFlagsFor(l.types, l.sema, scopeType))
+		l.f.ScopeLocal = l.scopeLocal
+	}
 
 	if body != nil {
 		if err := l.lowerBlock(body); err != nil {
@@ -291,6 +306,7 @@ func (l *funcLowerer) forkLowerer() *funcLowerer {
 		symToLocal:          make(map[symbols.SymbolID]LocalID),
 		symToGlobal:         l.symToGlobal,
 		nextTemp:            1,
+		scopeLocal:          NoLocalID,
 		consts:              l.consts,
 		staticStringGlobals: l.staticStringGlobals,
 		staticStringInits:   l.staticStringInits,

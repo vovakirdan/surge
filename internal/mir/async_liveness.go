@@ -98,6 +98,10 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 			addUsesFromOperand(&ins.Poll.Task, addUse)
 			addUsesFromPlaceWrite(ins.Poll.Dst, addUse)
 			addDefFromPlace(ins.Poll.Dst, addDef)
+		case InstrJoinAll:
+			addUsesFromOperand(&ins.JoinAll.Scope, addUse)
+			addUsesFromPlaceWrite(ins.JoinAll.Dst, addUse)
+			addDefFromPlace(ins.JoinAll.Dst, addDef)
 		}
 	}
 

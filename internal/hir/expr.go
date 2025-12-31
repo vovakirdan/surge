@@ -299,7 +299,8 @@ func (SpawnData) exprData() {}
 
 // AsyncData holds data for ExprAsync.
 type AsyncData struct {
-	Body *Block
+	Body     *Block
+	Failfast bool
 }
 
 func (AsyncData) exprData() {}

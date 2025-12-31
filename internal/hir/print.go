@@ -536,6 +536,9 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 
 	case ExprAsync:
 		data := e.Data.(AsyncData)
+		if data.Failfast {
+			p.printf("@failfast ")
+		}
 		p.printf("async {\n")
 		p.indent++
 		p.printBlock(data.Body)

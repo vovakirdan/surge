@@ -105,6 +105,45 @@ func (vm *VM) taskIDFromValue(val Value) (asyncrt.TaskID, *VMError) {
 	}
 }
 
+func (vm *VM) scopeIDFromValue(val Value) (asyncrt.ScopeID, *VMError) {
+	if val.Kind == VKRef || val.Kind == VKRefMut {
+		loaded, vmErr := vm.loadLocationRaw(val.Loc)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		val = loaded
+	}
+	switch val.Kind {
+	case VKInt:
+		if val.Int < 0 {
+			return 0, vm.eb.makeError(PanicInvalidHandle, "negative scope id")
+		}
+		return asyncrt.ScopeID(val.Int), nil
+	case VKBigInt:
+		i, vmErr := vm.mustBigInt(val)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		n, ok := i.Int64()
+		if !ok || n < 0 {
+			return 0, vm.eb.makeError(PanicInvalidHandle, "scope id out of range")
+		}
+		return asyncrt.ScopeID(n), nil
+	case VKBigUint:
+		u, vmErr := vm.mustBigUint(val)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		n, ok := u.Uint64()
+		if !ok || n > ^uint64(0)>>1 {
+			return 0, vm.eb.makeError(PanicInvalidHandle, "scope id out of range")
+		}
+		return asyncrt.ScopeID(n), nil
+	default:
+		return 0, vm.eb.typeMismatch("scope id", val.Kind.String())
+	}
+}
+
 func (vm *VM) int64FromValue(val Value, context string) (int64, *VMError) {
 	switch val.Kind {
 	case VKInt:

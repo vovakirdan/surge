@@ -154,6 +154,8 @@ func (l *lowerer) extractFnFlags(fnItem *ast.FnItem) FuncFlags {
 			flags |= FuncOverload
 		case "override":
 			flags |= FuncOverride
+		case "failfast":
+			flags |= FuncFailfast
 		}
 	}
 	return flags

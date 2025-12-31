@@ -151,6 +151,8 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 					visitOperand(&ins.Spawn.Value)
 				case InstrPoll:
 					visitOperand(&ins.Poll.Task)
+				case InstrJoinAll:
+					visitOperand(&ins.JoinAll.Scope)
 				default:
 				}
 			}

@@ -56,15 +56,17 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	origEntry := f.Entry
 
 	pollFn := &Func{
-		ID:      pollFnID,
-		Sym:     symbols.NoSymbolID,
-		Name:    f.Name + "$poll",
-		Span:    f.Span,
-		Result:  payload,
-		IsAsync: false,
-		Locals:  origLocals,
-		Blocks:  origBlocks,
-		Entry:   origEntry,
+		ID:         pollFnID,
+		Sym:        symbols.NoSymbolID,
+		Name:       f.Name + "$poll",
+		Span:       f.Span,
+		Result:     payload,
+		IsAsync:    false,
+		Failfast:   f.Failfast,
+		Locals:     origLocals,
+		Blocks:     origBlocks,
+		Entry:      origEntry,
+		ScopeLocal: f.ScopeLocal,
 	}
 
 	if m.Funcs == nil {
@@ -76,39 +78,52 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	f.Blocks = nil
 	f.Entry = NoBlockID
 
-	awaitSites, err := splitAsyncAwaits(pollFn)
-	if err != nil {
+	if _, err := splitAsyncAwaits(pollFn); err != nil {
 		return err
 	}
-	if loopErr := rejectAwaitInLoops(pollFn, awaitSites); loopErr != nil {
+	joinResultLocal := NoLocalID
+	if pollFn.ScopeLocal != NoLocalID {
+		joinResultLocal = addLocal(pollFn, "__scope_join_failed", typesIn.Builtins().Bool, localFlagsFor(typesIn, semaRes, typesIn.Builtins().Bool))
+		insertScopeJoins(pollFn, pollFn.ScopeLocal, joinResultLocal)
+	}
+
+	sites := collectSuspendSites(pollFn)
+	if loopErr := rejectAwaitInLoops(pollFn, sites); loopErr != nil {
 		return loopErr
 	}
 	live := computeLiveness(pollFn)
 
 	paramLocals := paramLocalSet(pollFn, symTable)
-	variants := make([]stateVariant, 0, len(awaitSites)+1)
+	variants := make([]stateVariant, 0, len(sites)+1)
 	variants = append(variants, stateVariant{
 		name:     "S0",
 		locals:   paramLocals.sorted(),
 		resumeBB: origEntry,
 	})
 
-	for i := range awaitSites {
-		awaitSites[i].stateIndex = i + 1
-		awaitSites[i].liveLocals = cloneSet(live[awaitSites[i].pollBB].in)
-		if awaitSites[i].pollBB >= 0 && int(awaitSites[i].pollBB) < len(pollFn.Blocks) {
-			bb := &pollFn.Blocks[awaitSites[i].pollBB]
-			if awaitSites[i].pollInstr >= 0 && awaitSites[i].pollInstr < len(bb.Instrs) {
-				ins := &bb.Instrs[awaitSites[i].pollInstr]
-				if ins.Kind == InstrPoll && ins.Poll.Dst.Kind == PlaceLocal && len(ins.Poll.Dst.Proj) == 0 {
-					awaitSites[i].liveLocals.delete(ins.Poll.Dst.Local)
+	for i := range sites {
+		sites[i].stateIndex = i + 1
+		sites[i].liveLocals = cloneSet(live[sites[i].pollBB].in)
+		if sites[i].pollBB >= 0 && int(sites[i].pollBB) < len(pollFn.Blocks) {
+			bb := &pollFn.Blocks[sites[i].pollBB]
+			if sites[i].pollInstr >= 0 && sites[i].pollInstr < len(bb.Instrs) {
+				ins := &bb.Instrs[sites[i].pollInstr]
+				switch ins.Kind {
+				case InstrPoll:
+					if ins.Poll.Dst.Kind == PlaceLocal && len(ins.Poll.Dst.Proj) == 0 {
+						sites[i].liveLocals.delete(ins.Poll.Dst.Local)
+					}
+				case InstrJoinAll:
+					if ins.JoinAll.Dst.Kind == PlaceLocal && len(ins.JoinAll.Dst.Proj) == 0 {
+						sites[i].liveLocals.delete(ins.JoinAll.Dst.Local)
+					}
 				}
 			}
 		}
 		variants = append(variants, stateVariant{
-			name:     fmt.Sprintf("S%d", awaitSites[i].stateIndex),
-			locals:   awaitSites[i].liveLocals.sorted(),
-			resumeBB: awaitSites[i].pollBB,
+			name:     fmt.Sprintf("S%d", sites[i].stateIndex),
+			locals:   sites[i].liveLocals.sorted(),
+			resumeBB: sites[i].pollBB,
 		})
 	}
 
@@ -118,10 +133,10 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	}
 
 	stateLocal := addLocal(pollFn, "__state", stateType, localFlagsFor(typesIn, semaRes, stateType))
-	entryBB := buildAsyncPollEntry(pollFn, stateLocal, variants)
+	entryBB := buildAsyncPollEntry(pollFn, stateLocal, variants, pollFn.ScopeLocal, pollFn.Failfast, typesIn.Builtins().Bool)
 	pollFn.Entry = entryBB
 
-	if err := buildAsyncPendingBlocks(pollFn, stateLocal, awaitSites, variants); err != nil {
+	if err := buildAsyncPendingBlocks(pollFn, stateLocal, sites, variants); err != nil {
 		return err
 	}
 	rewriteAsyncReturns(pollFn, stateLocal)
@@ -132,4 +147,59 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	f.IsAsync = false
 	f.Result = taskType
 	return nil
+}
+
+func insertScopeJoins(f *Func, scopeLocal LocalID, joinResultLocal LocalID) {
+	if f == nil || scopeLocal == NoLocalID || joinResultLocal == NoLocalID {
+		return
+	}
+	origBlocks := len(f.Blocks)
+	for bi := 0; bi < origBlocks; bi++ {
+		bb := &f.Blocks[bi]
+		if bb.Term.Kind != TermReturn {
+			continue
+		}
+		term := bb.Term.Return
+		joinBB := newBlock(f)
+		doneBB := newBlock(f)
+		successBB := newBlock(f)
+		cancelBB := newBlock(f)
+
+		bb.Term = Terminator{Kind: TermGoto, Goto: GotoTerm{Target: joinBB}}
+
+		if term.Early {
+			appendInstr(f, joinBB, Instr{Kind: InstrCall, Call: CallInstr{
+				HasDst: false,
+				Callee: Callee{Kind: CalleeValue, Name: "rt_scope_cancel_all"},
+				Args:   []Operand{operandForLocal(f, scopeLocal)},
+			}})
+		}
+		appendInstr(f, joinBB, Instr{Kind: InstrJoinAll, JoinAll: JoinAllInstr{
+			Dst:     Place{Local: joinResultLocal},
+			Scope:   operandForLocal(f, scopeLocal),
+			ReadyBB: doneBB,
+			PendBB:  NoBlockID,
+		}})
+		setBlockTerm(f, joinBB, Terminator{Kind: TermUnreachable})
+
+		appendInstr(f, doneBB, Instr{Kind: InstrCall, Call: CallInstr{
+			HasDst: false,
+			Callee: Callee{Kind: CalleeValue, Name: "rt_scope_exit"},
+			Args:   []Operand{operandForLocal(f, scopeLocal)},
+		}})
+		setBlockTerm(f, doneBB, Terminator{Kind: TermIf, If: IfTerm{
+			Cond: operandForLocal(f, joinResultLocal),
+			Then: cancelBB,
+			Else: successBB,
+		}})
+
+		setBlockTerm(f, successBB, Terminator{Kind: TermReturn, Return: ReturnTerm{
+			HasValue: term.HasValue,
+			Value:    term.Value,
+		}})
+
+		setBlockTerm(f, cancelBB, Terminator{Kind: TermReturn, Return: ReturnTerm{
+			Cancelled: true,
+		}})
+	}
 }

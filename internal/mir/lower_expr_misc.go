@@ -117,6 +117,16 @@ func (l *funcLowerer) lowerSpawnExpr(e *hir.Expr, consume bool) (Operand, error)
 	}
 	tmp := l.newTemp(e.Type, "spawn", e.Span)
 	l.emit(&Instr{Kind: InstrSpawn, Spawn: SpawnInstr{Dst: Place{Local: tmp}, Value: value}})
+	if l.scopeLocal != NoLocalID {
+		l.emit(&Instr{Kind: InstrCall, Call: CallInstr{
+			HasDst: false,
+			Callee: Callee{Kind: CalleeValue, Name: "rt_scope_register_child"},
+			Args: []Operand{
+				{Kind: OperandCopy, Place: Place{Local: l.scopeLocal}},
+				{Kind: OperandCopy, Place: Place{Local: tmp}},
+			},
+		}})
+	}
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }
 
@@ -139,7 +149,7 @@ func (l *funcLowerer) lowerAsyncExpr(e *hir.Expr, consume bool) (Operand, error)
 	if fl == nil {
 		return Operand{}, fmt.Errorf("mir: async: failed to fork lowerer")
 	}
-	fn, err := fl.lowerSyntheticFunc(asyncID, name, data.Body, payload, e.Span, true)
+	fn, err := fl.lowerSyntheticFunc(asyncID, name, data.Body, payload, e.Span, true, data.Failfast)
 	if err != nil {
 		return Operand{}, err
 	}

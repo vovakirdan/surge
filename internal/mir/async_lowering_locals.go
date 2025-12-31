@@ -47,6 +47,10 @@ func localsAssignedInBlock(f *Func, bbID BlockID) localSet {
 			if len(ins.Spawn.Dst.Proj) == 0 && ins.Spawn.Dst.Kind == PlaceLocal {
 				set.add(ins.Spawn.Dst.Local)
 			}
+		case InstrJoinAll:
+			if len(ins.JoinAll.Dst.Proj) == 0 && ins.JoinAll.Dst.Kind == PlaceLocal {
+				set.add(ins.JoinAll.Dst.Local)
+			}
 		}
 	}
 	return set
@@ -82,9 +86,14 @@ func reachableBlocksFrom(f *Func, start BlockID) []BlockID {
 		bb := &f.Blocks[id]
 		if len(bb.Instrs) > 0 {
 			last := &bb.Instrs[len(bb.Instrs)-1]
-			if last.Kind == InstrPoll {
+			switch last.Kind {
+			case InstrPoll:
 				visit(last.Poll.ReadyBB)
 				visit(last.Poll.PendBB)
+				return
+			case InstrJoinAll:
+				visit(last.JoinAll.ReadyBB)
+				visit(last.JoinAll.PendBB)
 				return
 			}
 		}
@@ -162,6 +171,9 @@ func collectLocalsInInstr(ins *Instr, set localSet) {
 	case InstrPoll:
 		collectLocalsFromOperand(&ins.Poll.Task, set)
 		collectLocalsFromPlace(ins.Poll.Dst, set)
+	case InstrJoinAll:
+		collectLocalsFromOperand(&ins.JoinAll.Scope, set)
+		collectLocalsFromPlace(ins.JoinAll.Dst, set)
 	}
 }
 

@@ -28,8 +28,10 @@ type Terminator struct {
 }
 
 type ReturnTerm struct {
-	HasValue bool
-	Value    Operand
+	HasValue  bool
+	Value     Operand
+	Early     bool
+	Cancelled bool
 }
 
 type AsyncYieldTerm struct {

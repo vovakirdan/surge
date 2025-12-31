@@ -171,6 +171,11 @@ func (tc *typeChecker) validateFunctionAttrs(fnItem *ast.FnItem, symID symbols.S
 
 	// Check conflicts: @nonblocking vs @waits_on
 	tc.checkConflict(infos, "nonblocking", "waits_on", diag.SemaAttrNonblockingWaitsOn)
+	if failfastInfo, ok := hasAttr(infos, "failfast"); ok {
+		if fnItem.Flags&ast.FnModifierAsync == 0 {
+			tc.report(diag.SemaFailfastNonAsync, failfastInfo.Span, "@failfast can only be applied to async blocks")
+		}
+	}
 
 	// Validate @backend parameter
 	if backendInfo, ok := hasAttr(infos, "backend"); ok {

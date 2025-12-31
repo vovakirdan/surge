@@ -234,6 +234,44 @@ func (p *Parser) parseAttributedStmt() (ast.StmtID, bool) {
 	if stmtID, handled := p.tryParseDropStmt(attrs, attrSpan); handled {
 		return stmtID, true
 	}
+	if p.at(token.KwAsync) {
+		exprID, ok := p.parseAsyncExprWithAttrs(attrs, attrSpan)
+		if !ok {
+			return ast.NoStmtID, false
+		}
+
+		insertSpan := p.lastSpan.ZeroideToEnd()
+		semiTok, semiOK := p.expect(
+			token.Semicolon,
+			diag.SynExpectSemicolon,
+			"expected ';' after expression statement",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertSpan)
+				suggestion := fix.InsertText(
+					"insert ';' after expression statement",
+					insertSpan,
+					";",
+					"",
+					fix.WithID(fixID),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				)
+				b.WithFixSuggestion(suggestion)
+				b.WithNote(insertSpan, "insert missing semicolon")
+			},
+		)
+		missingSemicolon := !semiOK
+		exprSpan := p.arenas.Exprs.Get(exprID).Span
+		stmtSpan := exprSpan
+		if semiTok.Kind != token.Invalid {
+			stmtSpan = stmtSpan.Cover(semiTok.Span)
+		}
+		stmtID := p.arenas.Stmts.NewExpr(stmtSpan, exprID, missingSemicolon)
+		return stmtID, true
+	}
 	p.emitDiagnostic(
 		diag.SynAttributeNotAllowed,
 		diag.SevError,

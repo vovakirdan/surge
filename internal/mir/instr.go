@@ -16,6 +16,7 @@ const (
 	InstrAwait
 	InstrSpawn
 	InstrPoll
+	InstrJoinAll
 	InstrNop
 )
 
@@ -29,6 +30,7 @@ type Instr struct {
 	Await     AwaitInstr
 	Spawn     SpawnInstr
 	Poll      PollInstr
+	JoinAll   JoinAllInstr
 }
 
 type AssignInstr struct {
@@ -78,6 +80,13 @@ type SpawnInstr struct {
 type PollInstr struct {
 	Dst     Place
 	Task    Operand
+	ReadyBB BlockID
+	PendBB  BlockID
+}
+
+type JoinAllInstr struct {
+	Dst     Place
+	Scope   Operand
 	ReadyBB BlockID
 	PendBB  BlockID
 }

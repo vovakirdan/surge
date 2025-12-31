@@ -2,8 +2,17 @@ package mir
 
 import "fmt"
 
-// awaitSite describes an await point that has been split into a poll instruction.
+// suspendSiteKind identifies a suspend point type.
+type suspendSiteKind uint8
+
+const (
+	suspendPoll suspendSiteKind = iota
+	suspendJoinAll
+)
+
+// awaitSite describes a suspend point that has been split into a poll instruction.
 type awaitSite struct {
+	kind       suspendSiteKind
 	pollBB     BlockID
 	pollInstr  int
 	readyBB    BlockID
@@ -51,6 +60,7 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 				bb.Term = Terminator{Kind: TermGoto, Goto: GotoTerm{Target: pollBB}}
 
 				sites = append(sites, awaitSite{
+					kind:      suspendPoll,
 					pollBB:    pollBB,
 					pollInstr: 0,
 					readyBB:   afterBB,
@@ -79,6 +89,37 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 	return sites, nil
 }
 
+// collectSuspendSites scans for poll/join_all instructions in block order.
+func collectSuspendSites(f *Func) []awaitSite {
+	if f == nil {
+		return nil
+	}
+	sites := make([]awaitSite, 0)
+	for bi := range f.Blocks {
+		bb := &f.Blocks[bi]
+		for ii := range bb.Instrs {
+			ins := &bb.Instrs[ii]
+			switch ins.Kind {
+			case InstrPoll:
+				sites = append(sites, awaitSite{
+					kind:      suspendPoll,
+					pollBB:    BlockID(bi),
+					pollInstr: ii,
+					readyBB:   ins.Poll.ReadyBB,
+				})
+			case InstrJoinAll:
+				sites = append(sites, awaitSite{
+					kind:      suspendJoinAll,
+					pollBB:    BlockID(bi),
+					pollInstr: ii,
+					readyBB:   ins.JoinAll.ReadyBB,
+				})
+			}
+		}
+	}
+	return sites
+}
+
 // rejectAwaitInLoops checks that no await occurs inside a loop.
 func rejectAwaitInLoops(f *Func, sites []awaitSite) error {
 	if f == nil || len(sites) == 0 {
@@ -86,6 +127,9 @@ func rejectAwaitInLoops(f *Func, sites []awaitSite) error {
 	}
 	awaitBlocks := make(map[BlockID]struct{}, len(sites))
 	for _, site := range sites {
+		if site.kind != suspendPoll {
+			continue
+		}
 		awaitBlocks[site.pollBB] = struct{}{}
 	}
 	for bbID := range awaitBlocks {
@@ -130,13 +174,23 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 	bb := &f.Blocks[bbID]
 	if len(bb.Instrs) > 0 {
 		last := &bb.Instrs[len(bb.Instrs)-1]
-		if last.Kind == InstrPoll {
+		switch last.Kind {
+		case InstrPoll:
 			out := []BlockID{}
 			if last.Poll.ReadyBB != NoBlockID {
 				out = append(out, last.Poll.ReadyBB)
 			}
 			if includePollPending && last.Poll.PendBB != NoBlockID {
 				out = append(out, last.Poll.PendBB)
+			}
+			return out
+		case InstrJoinAll:
+			out := []BlockID{}
+			if last.JoinAll.ReadyBB != NoBlockID {
+				out = append(out, last.JoinAll.ReadyBB)
+			}
+			if includePollPending && last.JoinAll.PendBB != NoBlockID {
+				out = append(out, last.JoinAll.PendBB)
 			}
 			return out
 		}
