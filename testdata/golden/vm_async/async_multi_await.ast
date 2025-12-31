@@ -1,0 +1,16 @@
+async_multi_await.sg (span: 1:1-13:1)
+└─ Item[0]: Fn (span: 1:1-12:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-12:2)
+         ├─ Stmt[0]: Let (span: 3:5-9:16)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#19: (async { 5 stmt(s) }).await()
+         ├─ Stmt[1]: Expr (span: 10:5-10:24)
+         │  └─ Expr: expr#23: print(x to string)
+         └─ Stmt[2]: Return (span: 11:5-11:14)
+            └─ Expr: expr#24: 0

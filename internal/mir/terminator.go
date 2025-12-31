@@ -5,6 +5,8 @@ type TermKind uint8
 const (
 	TermNone TermKind = iota
 	TermReturn
+	TermAsyncYield
+	TermAsyncReturn
 	TermGoto
 	TermIf
 	TermSwitchTag
@@ -15,6 +17,8 @@ type Terminator struct {
 	Kind TermKind
 
 	Return      ReturnTerm
+	AsyncYield  AsyncYieldTerm
+	AsyncReturn AsyncReturnTerm
 	Goto        GotoTerm
 	If          IfTerm
 	SwitchTag   SwitchTagTerm
@@ -22,6 +26,16 @@ type Terminator struct {
 }
 
 type ReturnTerm struct {
+	HasValue bool
+	Value    Operand
+}
+
+type AsyncYieldTerm struct {
+	State Operand
+}
+
+type AsyncReturnTerm struct {
+	State    Operand
 	HasValue bool
 	Value    Operand
 }

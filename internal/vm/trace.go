@@ -517,6 +517,13 @@ func (t *Tracer) formatTerminator(term *mir.Terminator) string {
 			return fmt.Sprintf("return %s", t.formatOperand(&term.Return.Value))
 		}
 		return "return"
+	case mir.TermAsyncYield:
+		return fmt.Sprintf("async_yield %s", t.formatOperand(&term.AsyncYield.State))
+	case mir.TermAsyncReturn:
+		if term.AsyncReturn.HasValue {
+			return fmt.Sprintf("async_return %s, %s", t.formatOperand(&term.AsyncReturn.State), t.formatOperand(&term.AsyncReturn.Value))
+		}
+		return fmt.Sprintf("async_return %s", t.formatOperand(&term.AsyncReturn.State))
 	case mir.TermGoto:
 		return fmt.Sprintf("goto bb%d", term.Goto.Target)
 	case mir.TermIf:

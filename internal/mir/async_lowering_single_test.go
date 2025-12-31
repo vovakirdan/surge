@@ -11,13 +11,16 @@ import (
 	"surge/internal/mono"
 )
 
-func TestLowerAsyncSingleSuspendRejectsMultipleAwait(t *testing.T) {
+func TestLowerAsyncStateMachineRejectsAwaitInLoop(t *testing.T) {
 	sourceCode := `@entrypoint
 fn main() -> int {
     let x = (async {
-        checkpoint().await();
-        checkpoint().await();
-        return 1;
+        let i = 0;
+        while (i < 2) {
+            checkpoint().await();
+            i = i + 1;
+        }
+        return i;
     }).await();
     return x;
 }
@@ -76,11 +79,11 @@ fn main() -> int {
 		mir.RecognizeSwitchTag(f)
 		mir.SimplifyCFG(f)
 	}
-	err = mir.LowerAsyncSingleSuspend(mirMod, result.Sema, result.Symbols.Table)
+	err = mir.LowerAsyncStateMachine(mirMod, result.Sema, result.Symbols.Table)
 	if err == nil {
-		t.Fatal("expected single-await error, got nil")
+		t.Fatal("expected await-in-loop error, got nil")
 	}
-	if !strings.Contains(err.Error(), "single await") {
+	if !strings.Contains(err.Error(), "await inside loop") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

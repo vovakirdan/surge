@@ -1,0 +1,16 @@
+async_branch_await.sg (span: 1:1-17:1)
+└─ Item[0]: Fn (span: 1:1-16:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-16:2)
+         ├─ Stmt[0]: Let (span: 3:5-13:16)
+         │  ├─ Name: x
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#21: (async { 3 stmt(s) }).await()
+         ├─ Stmt[1]: Expr (span: 14:5-14:24)
+         │  └─ Expr: expr#25: print(x to string)
+         └─ Stmt[2]: Return (span: 15:5-15:14)
+            └─ Expr: expr#26: 0

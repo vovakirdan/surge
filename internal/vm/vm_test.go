@@ -75,7 +75,7 @@ func compileToMIR(t *testing.T, filePath string) (*mir.Module, *source.FileSet, 
 		mir.SimplifyCFG(f)
 	}
 
-	if err := mir.LowerAsyncSingleSuspend(mirMod, result.Sema, result.Symbols.Table); err != nil {
+	if err := mir.LowerAsyncStateMachine(mirMod, result.Sema, result.Symbols.Table); err != nil {
 		t.Fatalf("async lowering failed: %v", err)
 	}
 	for _, f := range mirMod.Funcs {

@@ -228,3 +228,29 @@ func (e *Executor) enqueue(id TaskID) {
 		task.Status = TaskReady
 	}
 }
+
+// DrainTasks returns all tasks and resets executor queues.
+func (e *Executor) DrainTasks() []*Task {
+	if e == nil {
+		return nil
+	}
+	if len(e.tasks) == 0 {
+		e.ready = nil
+		if e.readySet != nil {
+			clear(e.readySet)
+		}
+		e.current = 0
+		return nil
+	}
+	tasks := make([]*Task, 0, len(e.tasks))
+	for _, task := range e.tasks {
+		tasks = append(tasks, task)
+	}
+	e.tasks = make(map[TaskID]*Task)
+	e.ready = nil
+	if e.readySet != nil {
+		clear(e.readySet)
+	}
+	e.current = 0
+	return tasks
+}

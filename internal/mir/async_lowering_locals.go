@@ -119,6 +119,13 @@ func collectLocalsInBlock(bb *Block, set localSet) {
 		if bb.Term.Return.HasValue {
 			collectLocalsFromOperand(&bb.Term.Return.Value, set)
 		}
+	case TermAsyncYield:
+		collectLocalsFromOperand(&bb.Term.AsyncYield.State, set)
+	case TermAsyncReturn:
+		collectLocalsFromOperand(&bb.Term.AsyncReturn.State, set)
+		if bb.Term.AsyncReturn.HasValue {
+			collectLocalsFromOperand(&bb.Term.AsyncReturn.Value, set)
+		}
 	case TermIf:
 		collectLocalsFromOperand(&bb.Term.If.Cond, set)
 	case TermSwitchTag:

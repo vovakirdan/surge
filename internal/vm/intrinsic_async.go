@@ -22,6 +22,7 @@ func (vm *VM) handleTaskCreate(frame *Frame, call *mir.CallInstr, writes *[]Loca
 		return vmErr
 	}
 	pollFnID, vmErr := vm.int64FromValue(pollFnVal, "poll function id out of range")
+	vm.dropValue(pollFnVal)
 	if vmErr != nil {
 		return vmErr
 	}
@@ -96,18 +97,15 @@ func (vm *VM) handleTaskState(frame *Frame, call *mir.CallInstr, writes *[]Local
 	if !ok {
 		return vm.eb.makeError(PanicUnimplemented, "__task_state missing state")
 	}
-	clone, vmErr := vm.cloneForShare(stateVal)
-	if vmErr != nil {
-		return vmErr
-	}
-	if vmErr := vm.writeLocal(frame, call.Dst.Local, clone); vmErr != nil {
+	task.State = nil
+	if vmErr := vm.writeLocal(frame, call.Dst.Local, stateVal); vmErr != nil {
 		return vmErr
 	}
 	if writes != nil {
 		*writes = append(*writes, LocalWrite{
 			LocalID: call.Dst.Local,
 			Name:    frame.Locals[call.Dst.Local].Name,
-			Value:   clone,
+			Value:   stateVal,
 		})
 	}
 	return nil

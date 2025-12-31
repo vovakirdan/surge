@@ -1,0 +1,12 @@
+@entrypoint
+fn main() -> int {
+    let x = (async {
+        let a = 1;
+        checkpoint().await();
+        let b = a + 1;
+        checkpoint().await();
+        return b + 1;
+    }).await();
+    print(x to string);
+    return 0;
+}

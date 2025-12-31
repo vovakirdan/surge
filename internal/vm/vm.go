@@ -42,6 +42,7 @@ type VM struct {
 
 	eb            *errorBuilder // for creating errors with backtrace
 	captureReturn *Value
+	asyncCapture  *asyncExit
 }
 
 // New creates a new VM for executing the given MIR module.
@@ -533,11 +534,34 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 		if vmErr != nil {
 			return false, nil, vmErr
 		}
-		ready, res, vmErr := vm.pollTask(taskID)
-		if vmErr != nil {
-			return false, nil, vmErr
+		exec := vm.ensureExecutor()
+		if exec == nil {
+			return false, nil, vm.eb.makeError(PanicUnimplemented, "async executor missing")
 		}
+		targetTask := exec.Task(taskID)
+		if targetTask == nil {
+			return false, nil, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", taskID))
+		}
+		current := exec.Current()
+		if current == 0 {
+			return false, nil, vm.eb.makeError(PanicUnimplemented, "async poll outside task")
+		}
+		if current == taskID {
+			return false, nil, vm.eb.makeError(PanicInvalidHandle, "task cannot await itself")
+		}
+		if targetTask.Status != asyncrt.TaskWaiting {
+			exec.Wake(taskID)
+		}
+		ready, resAny := exec.Join(current, taskID)
 		if ready {
+			resVal, ok := resAny.(Value)
+			if !ok {
+				return false, nil, vm.eb.makeError(PanicTypeMismatch, "invalid task result type")
+			}
+			res, vmErr := vm.cloneForShare(resVal)
+			if vmErr != nil {
+				return false, nil, vmErr
+			}
 			dst := instr.Poll.Dst
 			if len(dst.Proj) == 0 {
 				switch dst.Kind {
@@ -706,6 +730,43 @@ func (vm *VM) execTerminator(frame *Frame, term *mir.Terminator) *VMError {
 		} else if vm.captureReturn != nil {
 			*vm.captureReturn = retVal
 		}
+
+	case mir.TermAsyncYield:
+		if vm.asyncCapture == nil {
+			return vm.eb.unimplemented("async_yield outside async poll")
+		}
+		stateVal, vmErr := vm.evalOperand(frame, &term.AsyncYield.State)
+		if vmErr != nil {
+			return vmErr
+		}
+		vm.dropFrameLocals(frame)
+		vm.Stack = vm.Stack[:len(vm.Stack)-1]
+		vm.asyncCapture.set = true
+		vm.asyncCapture.ready = false
+		vm.asyncCapture.state = stateVal
+
+	case mir.TermAsyncReturn:
+		if vm.asyncCapture == nil {
+			return vm.eb.unimplemented("async_return outside async poll")
+		}
+		stateVal, vmErr := vm.evalOperand(frame, &term.AsyncReturn.State)
+		if vmErr != nil {
+			return vmErr
+		}
+		var retVal Value
+		if term.AsyncReturn.HasValue {
+			val, vmErr := vm.evalOperand(frame, &term.AsyncReturn.Value)
+			if vmErr != nil {
+				return vmErr
+			}
+			retVal = val
+		}
+		vm.dropFrameLocals(frame)
+		vm.Stack = vm.Stack[:len(vm.Stack)-1]
+		vm.asyncCapture.set = true
+		vm.asyncCapture.ready = true
+		vm.asyncCapture.state = stateVal
+		vm.asyncCapture.value = retVal
 
 	case mir.TermGoto:
 		frame.BB = term.Goto.Target

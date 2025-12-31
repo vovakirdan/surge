@@ -8,6 +8,13 @@ import (
 	"surge/internal/types"
 )
 
+type asyncExit struct {
+	set   bool
+	ready bool
+	state Value
+	value Value
+}
+
 func (vm *VM) ensureExecutor() *asyncrt.Executor {
 	if vm == nil {
 		return nil
@@ -169,9 +176,14 @@ func (vm *VM) pollTask(id asyncrt.TaskID) (bool, Value, *VMError) {
 		exec.Wake(id)
 		return false, Value{}, nil
 	default:
-		ready, val, vmErr := vm.pollUserTask(task)
+		ready, val, stateOut, vmErr := vm.pollUserTask(task)
 		if vmErr != nil {
 			return false, Value{}, vmErr
+		}
+		if stateOut.Kind != VKInvalid {
+			task.State = stateOut
+		} else {
+			task.State = nil
 		}
 		if ready {
 			exec.MarkDone(id, val)
@@ -182,61 +194,29 @@ func (vm *VM) pollTask(id asyncrt.TaskID) (bool, Value, *VMError) {
 			}
 			return true, out, nil
 		}
-		exec.Wake(id)
+		if task.Status != asyncrt.TaskWaiting {
+			exec.Wake(id)
+		}
 		return false, Value{}, nil
 	}
 }
 
-func (vm *VM) pollUserTask(task *asyncrt.Task) (bool, Value, *VMError) {
+func (vm *VM) pollUserTask(task *asyncrt.Task) (bool, Value, Value, *VMError) {
 	if vm == nil || task == nil {
-		return false, Value{}, vm.eb.makeError(PanicUnimplemented, "missing task")
+		return false, Value{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing task")
 	}
 	if vm.M == nil {
-		return false, Value{}, vm.eb.makeError(PanicUnimplemented, "missing module")
+		return false, Value{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing module")
 	}
 	fn := vm.M.Funcs[mir.FuncID(task.PollFuncID)] //nolint:gosec // PollFuncID is bounded by module
 	if fn == nil {
-		return false, Value{}, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing poll function %d", task.PollFuncID))
+		return false, Value{}, Value{}, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing poll function %d", task.PollFuncID))
 	}
-	ret, vmErr := vm.runFunction(fn, nil)
+	ready, value, stateOut, vmErr := vm.runPoll(fn)
 	if vmErr != nil {
-		return false, Value{}, vmErr
+		return false, Value{}, Value{}, vmErr
 	}
-	return vm.interpretPollResult(ret)
-}
-
-func (vm *VM) interpretPollResult(val Value) (bool, Value, *VMError) {
-	if val.Kind == VKNothing {
-		return false, Value{}, nil
-	}
-	if val.Kind != VKHandleTag {
-		return false, Value{}, vm.eb.typeMismatch("Poll", val.Kind.String())
-	}
-	defer vm.dropValue(val)
-	layout, vmErr := vm.tagLayoutFor(val.TypeID)
-	if vmErr != nil {
-		return false, Value{}, vmErr
-	}
-	obj := vm.Heap.Get(val.H)
-	if obj == nil || obj.Kind != OKTag {
-		return false, Value{}, vm.eb.typeMismatch("tag", fmt.Sprintf("%v", obj.Kind))
-	}
-	tagName, _ := vm.tagNameForSym(layout, obj.Tag.TagSym)
-	switch tagName {
-	case "Some":
-		if len(obj.Tag.Fields) == 0 {
-			return false, Value{}, vm.eb.makeError(PanicTypeMismatch, "Some tag missing payload")
-		}
-		out, vmErr := vm.cloneForShare(obj.Tag.Fields[0])
-		if vmErr != nil {
-			return false, Value{}, vmErr
-		}
-		return true, out, nil
-	case "nothing":
-		return false, Value{}, nil
-	default:
-		return false, Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("unknown poll tag %q", tagName))
-	}
+	return ready, value, stateOut, nil
 }
 
 func (vm *VM) runReadyOne() (bool, *VMError) {
@@ -263,7 +243,11 @@ func (vm *VM) runUntilDone(id asyncrt.TaskID) (Value, *VMError) {
 	if exec == nil {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "async executor missing")
 	}
-	exec.Wake(id)
+	if task := exec.Task(id); task == nil {
+		return Value{}, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", id))
+	} else if task.Status != asyncrt.TaskWaiting {
+		exec.Wake(id)
+	}
 	for {
 		task := exec.Task(id)
 		if task == nil {
@@ -295,6 +279,53 @@ func (vm *VM) releaseTaskState(task *asyncrt.Task) {
 		vm.dropValue(v)
 	}
 	task.State = nil
+}
+
+func (vm *VM) runPoll(fn *mir.Func) (bool, Value, Value, *VMError) {
+	if vm == nil || fn == nil {
+		return false, Value{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing poll function")
+	}
+	savedStack := vm.Stack
+	savedHalted := vm.Halted
+	savedStarted := vm.started
+	savedCapture := vm.captureReturn
+	savedAsync := vm.asyncCapture
+
+	exit := asyncExit{}
+	vm.asyncCapture = &exit
+	vm.captureReturn = nil
+	vm.Stack = nil
+	vm.Halted = false
+	vm.started = true
+
+	frame := NewFrame(fn)
+	vm.Stack = append(vm.Stack, *frame)
+
+	for len(vm.Stack) > 0 && !vm.Halted {
+		if vmErr := vm.Step(); vmErr != nil {
+			vm.Stack = savedStack
+			vm.Halted = savedHalted
+			vm.started = savedStarted
+			vm.captureReturn = savedCapture
+			vm.asyncCapture = savedAsync
+			return false, Value{}, Value{}, vmErr
+		}
+		if exit.set {
+			break
+		}
+	}
+
+	vm.Stack = savedStack
+	vm.Halted = savedHalted
+	vm.started = savedStarted
+	vm.captureReturn = savedCapture
+	vm.asyncCapture = savedAsync
+
+	if !exit.set {
+		return false, Value{}, Value{}, vm.eb.makeError(PanicUnimplemented, "poll function exited without async terminator")
+	}
+
+	return exit.ready, exit.value, exit.state, nil
 }
 
 func (vm *VM) runFunction(fn *mir.Func, args []Value) (Value, *VMError) {

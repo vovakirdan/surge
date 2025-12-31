@@ -180,6 +180,13 @@ func formatTerm(term *Terminator) string {
 			return "return"
 		}
 		return fmt.Sprintf("return %s", formatOperand(&term.Return.Value))
+	case TermAsyncYield:
+		return fmt.Sprintf("async_yield %s", formatOperand(&term.AsyncYield.State))
+	case TermAsyncReturn:
+		if term.AsyncReturn.HasValue {
+			return fmt.Sprintf("async_return %s, %s", formatOperand(&term.AsyncReturn.State), formatOperand(&term.AsyncReturn.Value))
+		}
+		return fmt.Sprintf("async_return %s", formatOperand(&term.AsyncReturn.State))
 	case TermGoto:
 		return fmt.Sprintf("goto bb%d", term.Goto.Target)
 	case TermIf:

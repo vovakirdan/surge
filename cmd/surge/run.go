@@ -151,8 +151,8 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		mir.SimplifyCFG(f)
 	}
 
-	// Lower async functions to single-suspend poll state machine.
-	if err := mir.LowerAsyncSingleSuspend(mirMod, result.Sema, result.Symbols.Table); err != nil {
+	// Lower async functions to poll state machines.
+	if err := mir.LowerAsyncStateMachine(mirMod, result.Sema, result.Symbols.Table); err != nil {
 		return fmt.Errorf("async lowering failed: %w", err)
 	}
 	for _, f := range mirMod.Funcs {

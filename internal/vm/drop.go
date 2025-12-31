@@ -86,6 +86,27 @@ func (vm *VM) dropGlobals() {
 	}
 }
 
+func (vm *VM) dropAsyncTasks() {
+	if vm == nil || vm.Async == nil {
+		return
+	}
+	tasks := vm.Async.DrainTasks()
+	for _, task := range tasks {
+		if task == nil {
+			continue
+		}
+		if v, ok := task.State.(Value); ok {
+			vm.dropValue(v)
+		}
+		if v, ok := task.Result.(Value); ok {
+			vm.dropValue(v)
+		}
+		task.State = nil
+		task.Result = nil
+		task.JoinWaiters = nil
+	}
+}
+
 func (vm *VM) dropValue(v Value) {
 	if vm == nil || vm.Heap == nil || !v.IsHeap() || v.H == 0 {
 		return

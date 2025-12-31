@@ -269,6 +269,13 @@ func validateLocalIDs(f *Func, globals []Global) error {
 			if bb.Term.Return.HasValue {
 				checkOperand(bb.Term.Return.Value, ctx)
 			}
+		case TermAsyncYield:
+			checkOperand(bb.Term.AsyncYield.State, ctx)
+		case TermAsyncReturn:
+			checkOperand(bb.Term.AsyncReturn.State, ctx)
+			if bb.Term.AsyncReturn.HasValue {
+				checkOperand(bb.Term.AsyncReturn.Value, ctx)
+			}
 		case TermIf:
 			checkOperand(bb.Term.If.Cond, ctx)
 		case TermSwitchTag:
