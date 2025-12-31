@@ -1,5 +1,0 @@
-// Intentional mistakes in bounds syntax to exercise parser diagnostics.
-
-fn bad_plus<T: FooLike + >(t: T);
-
-type Broken<T: Reader<T + > = {};
