@@ -144,7 +144,10 @@ func (vm *VM) taskValue(id asyncrt.TaskID, typeID types.TypeID) (Value, *VMError
 }
 
 func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
-	if vm == nil || task == nil {
+	if vm == nil {
+		return asyncrt.PollOutcome{}, nil
+	}
+	if task == nil {
 		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, "missing task")
 	}
 	if task.Status == asyncrt.TaskDone {
@@ -278,7 +281,10 @@ func (vm *VM) releaseTaskState(task *asyncrt.Task) {
 }
 
 func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value, vmErr *VMError) {
-	if vm == nil || fn == nil {
+	if vm == nil {
+		return asyncrt.PollOutcome{}, Value{}, nil
+	}
+	if fn == nil {
 		return asyncrt.PollOutcome{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing poll function")
 	}
 	savedStack := vm.Stack
