@@ -17,62 +17,62 @@ type PermissionError = BaseError : {
 };
 
 // Result типы с tagged unions
-tag Ok<T>(T);
-tag Err<E>(E);
+tag ResOk<T>(T);
+tag ResErr<E>(E);
 
-alias Result<T, E> = Ok(T) | Err(E);
+alias Result<T, E> = ResOk(T) | ResErr(E);
 alias FileResult<T> = Result<T, FileError>;
 alias NetworkResult<T> = Result<T, NetworkError>;
 
 fn read_file(path: string) -> FileResult<string> {
     if (path == "") {
-        return Err(FileError("Empty path"));
+        return ResErr(FileError("Empty path"));
     }
 
     if (path == "nonexistent.txt") {
-        return Err(FileError("File not found"));
+        return ResErr(FileError("File not found"));
     }
 
-    return Ok("file contents");
+    return ResOk("file contents");
 }
 
 fn write_file(path: string, content: string) -> FileResult<nothing> {
     if (path.starts_with("/readonly/")) {
-        return Err(FileError("Permission denied"));
+        return ResErr(FileError("Permission denied"));
     }
 
-    return Ok(nothing);
+    return ResOk(nothing);
 }
 
 fn download_data(url: string) -> NetworkResult<string> {
     if (url.starts_with("https://")) {
-        return Ok("downloaded data");
+        return ResOk("downloaded data");
     } else {
-        return Err(NetworkError("Invalid URL protocol"));
+        return ResErr(NetworkError("Invalid URL protocol"));
     }
 }
 
 // Error propagation
 fn process_file(path: string) -> FileResult<int> {
     let content: string = compare read_file(path) {
-        Ok(data) => data,
-        Err(err) => return Err(err)
+        ResOk(data) => data,
+        ResErr(err) => return ResErr(err)
     };
 
-    return Ok(content.len_chars());
+    return ResOk(content.len_chars());
 }
 
 // Complex error handling
 fn backup_and_process(source: string, backup: string) -> FileResult<int> {
     // Создаем backup
     let source_content: string = compare read_file(source) {
-        Ok(data) => data,
-        Err(err) => return Err(err)
+        ResOk(data) => data,
+        ResErr(err) => return ResErr(err)
     };
 
     compare write_file(backup, source_content) {
-        Ok(_) => {},
-        Err(err) => return Err(err)
+        ResOk(_) => {},
+        ResErr(err) => return ResErr(err)
     };
 
     // Обрабатываем файл
@@ -85,8 +85,8 @@ fn robust_file_operation(paths: string[]) -> Option<string> {
         let result: FileResult<string> = read_file(path);
 
         compare result {
-            Ok(content) => return Some(content),
-            Err(_) => continue // Пробуем следующий файл
+            ResOk(content) => return Some(content),
+            ResErr(_) => continue // Пробуем следующий файл
         };
     }
 
@@ -99,10 +99,10 @@ async fn download_with_retry(url: string, max_retries: int) -> NetworkResult<str
         let result: NetworkResult<string> = await download_data(url);
 
         compare result {
-            Ok(data) => return Ok(data),
-            Err(_) => {
+            ResOk(data) => return ResOk(data),
+            ResErr(_) => {
                 if (attempt == max_retries - 1) {
-                    return Err(NetworkError("Max retries exceeded"));
+                    return ResErr(NetworkError("Max retries exceeded"));
                 }
                 // Ждем перед повторной попыткой
                 continue;
@@ -122,8 +122,8 @@ fn process_multiple_files(paths: string[]) -> (string[], FileError[]) {
         let result: FileResult<string> = read_file(path);
 
         compare result {
-            Ok(content) => successful = successful + [content],
-            Error(err) => errors = errors + [err]
+            ResOk(content) => successful = successful + [content],
+            ResErr(err) => errors = errors + [err]
         };
     }
 
@@ -180,8 +180,8 @@ fn unsafe_operation(path: string) -> string {
     let result: FileResult<string> = read_file(path);
 
     return compare result {
-        Ok(content) => content,
-        Error(err) => panic("Failed to read file: " + err)
+        ResOk(content) => content,
+        ResErr(err) => panic("Failed to read file: " + err)
     };
 }
 
@@ -189,8 +189,8 @@ fn main_error_example() -> int {
     let result: FileResult<int> = process_file("example.txt");
 
     return compare result {
-        Ok(size) => size,
-        Error(err) => {
+        ResOk(size) => size,
+        ResErr(err) => {
             print("Error: " + err);
             return -1;
         }

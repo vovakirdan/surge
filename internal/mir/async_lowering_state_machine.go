@@ -95,11 +95,20 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 
 	for i := range awaitSites {
 		awaitSites[i].stateIndex = i + 1
-		awaitSites[i].liveLocals = cloneSet(live[awaitSites[i].pollBB].out)
+		awaitSites[i].liveLocals = cloneSet(live[awaitSites[i].pollBB].in)
+		if awaitSites[i].pollBB >= 0 && int(awaitSites[i].pollBB) < len(pollFn.Blocks) {
+			bb := &pollFn.Blocks[awaitSites[i].pollBB]
+			if awaitSites[i].pollInstr >= 0 && awaitSites[i].pollInstr < len(bb.Instrs) {
+				ins := &bb.Instrs[awaitSites[i].pollInstr]
+				if ins.Kind == InstrPoll && ins.Poll.Dst.Kind == PlaceLocal && len(ins.Poll.Dst.Proj) == 0 {
+					awaitSites[i].liveLocals.delete(ins.Poll.Dst.Local)
+				}
+			}
+		}
 		variants = append(variants, stateVariant{
 			name:     fmt.Sprintf("S%d", awaitSites[i].stateIndex),
 			locals:   awaitSites[i].liveLocals.sorted(),
-			resumeBB: awaitSites[i].readyBB,
+			resumeBB: awaitSites[i].pollBB,
 		})
 	}
 

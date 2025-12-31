@@ -1,0 +1,20 @@
+@entrypoint
+fn main() -> int {
+    let t = spawn async {
+        return 9;
+    };
+    let t1 = t.clone();
+
+    let r1: int = compare t.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
+    let r2: int = compare t1.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
+
+    print("R1=" + (r1 to string));
+    print("R2=" + (r2 to string));
+    return 0;
+}

@@ -322,6 +322,39 @@ func (tc *typeChecker) taskType(payload types.TypeID, span source.Span) types.Ty
 	return tc.resolveNamedType(nameID, []types.TypeID{payload}, nil, span, scope)
 }
 
+func (tc *typeChecker) taskResultType(payload types.TypeID, span source.Span) types.TypeID {
+	if payload == types.NoTypeID || tc.builder == nil || tc.builder.StringsInterner == nil {
+		return types.NoTypeID
+	}
+	nameID := tc.builder.StringsInterner.Intern("TaskResult")
+	scope := tc.scopeOrFile(tc.currentScope())
+	return tc.resolveNamedType(nameID, []types.TypeID{payload}, nil, span, scope)
+}
+
+func (tc *typeChecker) taskPayloadType(taskType types.TypeID) types.TypeID {
+	if taskType == types.NoTypeID || tc.types == nil {
+		return types.NoTypeID
+	}
+	resolved := tc.valueType(taskType)
+	if resolved == types.NoTypeID {
+		return types.NoTypeID
+	}
+	if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
+		if tc.lookupTypeName(resolved, info.Name) == "Task" {
+			args := tc.types.StructArgs(resolved)
+			if len(args) == 1 {
+				return args[0]
+			}
+		}
+	}
+	if info, ok := tc.types.AliasInfo(resolved); ok && info != nil {
+		if tc.lookupTypeName(resolved, info.Name) == "Task" && len(info.TypeArgs) == 1 {
+			return info.TypeArgs[0]
+		}
+	}
+	return types.NoTypeID
+}
+
 func (tc *typeChecker) isTaskType(id types.TypeID) bool {
 	if id == types.NoTypeID || tc.types == nil {
 		return false

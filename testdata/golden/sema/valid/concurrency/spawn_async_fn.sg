@@ -11,10 +11,10 @@ async fn process(data: string) -> bool {
 // spawn async fn call -> Task<T>
 pub async fn test_spawn_async_fn() {
     let t1: Task<int> = spawn compute(42);
-    let result1: int = t1.await();
+    let result1: TaskResult<int> = t1.await();
 
     let t2: Task<bool> = spawn process("hello");
-    let result2: bool = t2.await();
+    let result2: TaskResult<bool> = t2.await();
 }
 
 // spawn from sync function returning Task

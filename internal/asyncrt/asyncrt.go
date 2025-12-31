@@ -37,12 +37,21 @@ const (
 	TaskKindCheckpoint
 )
 
+// TaskResultKind describes how a task completed.
+type TaskResultKind uint8
+
+const (
+	TaskResultOk TaskResultKind = iota
+	TaskResultCancelled
+)
+
 // Task stores executor-visible task state.
 type Task struct {
 	ID               TaskID
 	PollFuncID       int64
 	State            any
-	Result           any
+	ResultKind       TaskResultKind
+	ResultValue      any
 	Status           TaskStatus
 	Kind             TaskKind
 	checkpointPolled bool
@@ -277,7 +286,8 @@ func (e *Executor) MarkDone(id TaskID, result any) {
 	if task == nil {
 		return
 	}
-	task.Result = result
+	task.ResultKind = TaskResultOk
+	task.ResultValue = result
 	task.Status = TaskDone
 	if key, ok := e.parked[id]; ok {
 		e.removeWaiter(key, id)

@@ -4,5 +4,8 @@ async fn inc(x: int) -> int {
 
 async fn test() -> int {
     let task = spawn inc(5);
-    return task.await();
+    return compare task.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
 }

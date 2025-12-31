@@ -98,11 +98,11 @@ func (vm *VM) dropAsyncTasks() {
 		if v, ok := task.State.(Value); ok {
 			vm.dropValue(v)
 		}
-		if v, ok := task.Result.(Value); ok {
+		if v, ok := task.ResultValue.(Value); ok {
 			vm.dropValue(v)
 		}
 		task.State = nil
-		task.Result = nil
+		task.ResultValue = nil
 	}
 }
 

@@ -33,11 +33,27 @@
  33: RParen          ")" at 6:27-6:28
  34: Semicolon       ";" at 6:28-6:29
  35: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
- 36: Ident           "task" at 7:12-7:16 (leading: Space)
- 37: Dot             "." at 7:16-7:17
- 38: Ident           "await" at 7:17-7:22
- 39: LParen          "(" at 7:22-7:23
- 40: RParen          ")" at 7:23-7:24
- 41: Semicolon       ";" at 7:24-7:25
- 42: RBrace          "}" at 8:1-8:2 (leading: Newline)
- 43: EOF             at 9:1-9:1
+ 36: KwCompare       "compare" at 7:12-7:19 (leading: Space)
+ 37: Ident           "task" at 7:20-7:24 (leading: Space)
+ 38: Dot             "." at 7:24-7:25
+ 39: Ident           "await" at 7:25-7:30
+ 40: LParen          "(" at 7:30-7:31
+ 41: RParen          ")" at 7:31-7:32
+ 42: LBrace          "{" at 7:33-7:34 (leading: Space)
+ 43: Ident           "Ok" at 8:9-8:11 (leading: Newline, Space)
+ 44: LParen          "(" at 8:11-8:12
+ 45: Ident           "v" at 8:12-8:13
+ 46: RParen          ")" at 8:13-8:14
+ 47: FatArrow        "=>" at 8:15-8:17 (leading: Space)
+ 48: Ident           "v" at 8:18-8:19 (leading: Space)
+ 49: Semicolon       ";" at 8:19-8:20
+ 50: Ident           "Cancelled" at 9:9-9:18 (leading: Newline, Space)
+ 51: LParen          "(" at 9:18-9:19
+ 52: RParen          ")" at 9:19-9:20
+ 53: FatArrow        "=>" at 9:21-9:23 (leading: Space)
+ 54: IntLit          "0" at 9:24-9:25 (leading: Space)
+ 55: Semicolon       ";" at 9:25-9:26
+ 56: RBrace          "}" at 10:5-10:6 (leading: Newline, Space)
+ 57: Semicolon       ";" at 10:6-10:7
+ 58: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 59: EOF             at 12:1-12:1

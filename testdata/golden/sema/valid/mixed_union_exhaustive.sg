@@ -1,12 +1,12 @@
 // Test exhaustiveness checking for mixed unions (tag + type members)
 
-tag Ok<T>(T);
-type Result<T, E> = Ok(T) | E;
+tag ResOk<T>(T);
+type Result<T, E> = ResOk(T) | E;
 
 // Exhaustive: tag pattern + named binding
 fn test_exhaustive_with_binding(x: Result<int, string>) -> int {
     return compare x {
-        Ok(v) => v;
+        ResOk(v) => v;
         err => 0;
     };
 }
@@ -14,7 +14,7 @@ fn test_exhaustive_with_binding(x: Result<int, string>) -> int {
 // Exhaustive: tag pattern + wildcard
 fn test_exhaustive_with_wildcard(x: Result<int, string>) -> int {
     return compare x {
-        Ok(v) => v;
+        ResOk(v) => v;
         _ => 0;
     };
 }
@@ -29,7 +29,7 @@ fn test_exhaustive_just_binding(x: Result<int, string>) -> int {
 // Exhaustive: finally clause
 fn test_exhaustive_with_finally(x: Result<int, string>) -> int {
     return compare x {
-        Ok(v) => v;
+        ResOk(v) => v;
         finally => 0;
     };
 }

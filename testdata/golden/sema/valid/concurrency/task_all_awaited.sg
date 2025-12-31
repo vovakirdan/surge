@@ -9,9 +9,18 @@ pub async fn test_all_awaited() -> int {
     let t2 = spawn compute(2);
     let t3 = spawn compute(3);
 
-    let r1 = t1.await();
-    let r2 = t2.await();
-    let r3 = t3.await();
+    let r1: int = compare t1.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
+    let r2: int = compare t2.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
+    let r3: int = compare t3.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
 
     return r1 + r2 + r3;
 }

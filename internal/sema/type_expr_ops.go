@@ -74,7 +74,11 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 		}
 		return elem
 	case ast.ExprUnaryAwait:
-		return operandType
+		payload := tc.taskPayloadType(operandType)
+		if payload == types.NoTypeID {
+			return operandType
+		}
+		return tc.taskResultType(payload, span)
 	case ast.ExprUnaryOwn:
 		if operandType == types.NoTypeID || tc.types == nil {
 			return types.NoTypeID

@@ -127,6 +127,9 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleClone(frame, call, writes)
 
 	case "clone":
+		if call.HasDst && vm.isTaskType(frame.Locals[call.Dst.Local].TypeID) {
+			return vm.handleTaskClone(frame, call, writes)
+		}
 		return vm.handleCloneValue(frame, call, writes)
 
 	case "__index":

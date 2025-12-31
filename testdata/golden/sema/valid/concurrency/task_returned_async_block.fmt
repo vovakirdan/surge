@@ -8,9 +8,15 @@ async fn work() -> int {
 pub async fn test_await_in_async_block() -> int {
     let result = async {
         let t = spawn work();
-        return t.await();
+        return compare t.await() {
+            Ok(v) => v;
+            Cancelled() => 0;
+        };
     };
-    return result.await();
+    return compare result.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
 }
 
 // Nested async blocks with proper awaiting
@@ -18,9 +24,18 @@ pub async fn test_nested_async() -> int {
     let outer = async {
         let inner = async {
             let t = spawn work();
-            return t.await();
+            return compare t.await() {
+                Ok(v) => v;
+                Cancelled() => 0;
+            };
         };
-        return inner.await();
+        return compare inner.await() {
+            Ok(v) => v;
+            Cancelled() => 0;
+        };
     };
-    return outer.await();
+    return compare outer.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
 }

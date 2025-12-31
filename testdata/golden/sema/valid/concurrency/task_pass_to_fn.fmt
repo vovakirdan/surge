@@ -7,30 +7,50 @@ async fn compute() -> int {
 
 // Async function that receives and awaits a task
 async fn drain_task(t: Task<int>) -> int {
-    return t.await();
+    return compare t.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
 }
 
 // Valid: task passed to drain, then await drainer
 pub async fn test_pass_and_await_drainer() -> int {
     let task = spawn compute();
     let drainer = spawn drain_task(task);  // ownership of 'task' transferred to drain_task
-    return drainer.await();
+    return compare drainer.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
 }
 
 // Valid: direct spawn passed without intermediate binding
 pub async fn test_direct_pass() -> int {
     let drainer = spawn drain_task(spawn compute());
-    return drainer.await();
+    return compare drainer.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
 }
 
 // Valid: multiple tasks passed to different functions
 async fn sum_tasks(t1: Task<int>, t2: Task<int>) -> int {
-    return t1.await() + t2.await();
+    let v1: int = compare t1.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
+    let v2: int = compare t2.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
+    return v1 + v2;
 }
 
 pub async fn test_multiple_pass() -> int {
     let a = spawn compute();
     let b = spawn compute();
     let summer = spawn sum_tasks(a, b);  // both a and b transferred
-    return summer.await();
+    return compare summer.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
 }

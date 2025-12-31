@@ -14,7 +14,7 @@ import (
 func TestLowerAsyncStateMachineRejectsAwaitInLoop(t *testing.T) {
 	sourceCode := `@entrypoint
 fn main() -> int {
-    let x = (async {
+    let res = (async {
         let i = 0;
         while (i < 2) {
             checkpoint().await();
@@ -22,7 +22,10 @@ fn main() -> int {
         }
         return i;
     }).await();
-    return x;
+    return compare res {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
 }
 `
 	opts := driver.DiagnoseOptions{

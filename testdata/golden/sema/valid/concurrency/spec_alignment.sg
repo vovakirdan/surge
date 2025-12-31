@@ -18,7 +18,7 @@ async fn async_fn_with_params(x: int, y: int) -> int {
 
 pub async fn test_spawn_basic() {
     let t: Task<int> = spawn simple_async_fn();
-    let result: int = t.await();
+    let result: TaskResult<int> = t.await();
 }
 
 // spawn from sync function returning Task (Rule 2)
@@ -29,27 +29,30 @@ pub fn sync_fn_returns_task() -> Task<int> {
 // --- Section 3.3: Await ---
 
 pub async fn test_await_basic() {
-    let result: int = simple_async_fn().await();
+    let result: TaskResult<int> = simple_async_fn().await();
 }
 
 pub async fn test_await_chained() {
     let t: Task<int> = spawn simple_async_fn();
-    let value: int = t.await();
+    let value: TaskResult<int> = t.await();
 }
 
 // --- Section 3.4: Async Blocks ---
 
 pub async fn test_async_block() -> int {
     let t: Task<int> = async { return 100; };
-    return t.await();
+    return compare t.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
 }
 
 pub async fn test_async_block_with_spawn() {
     async {
         let t1: Task<int> = spawn simple_async_fn();
         let t2: Task<int> = spawn simple_async_fn();
-        let r1: int = t1.await();
-        let r2: int = t2.await();
+        let r1: TaskResult<int> = t1.await();
+        let r2: TaskResult<int> = t2.await();
     };
 }
 
@@ -287,8 +290,8 @@ pub async fn test_structured_concurrency() {
     async {
         let t1: Task<int> = spawn simple_async_fn();
         let t2: Task<int> = spawn simple_async_fn();
-        let r1: int = t1.await();
-        let r2: int = t2.await();
+        let r1: TaskResult<int> = t1.await();
+        let r2: TaskResult<int> = t2.await();
     };
 }
 

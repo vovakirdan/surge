@@ -1,10 +1,13 @@
 @entrypoint
 fn main() -> int {
-    let x = (async {
+    let x: int = compare (async {
         let a = 1;
         checkpoint().await();
         return a + 1;
-    }).await();
+    }).await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
     print(x to string);
     return 0;
 }

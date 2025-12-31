@@ -43,7 +43,7 @@ func (b *monoBuilder) rewriteCloneCall(call *hir.Expr, data *hir.CallData, stack
 	if recvType == types.NoTypeID {
 		return false, nil
 	}
-	if b.types.IsCopy(resolveAlias(b.types, recvType)) {
+	if b.types.IsCopy(resolveAlias(b.types, recvType)) || b.isTaskType(recvType) {
 		return false, nil
 	}
 	cloneSym, matchType := b.cloneSymbolForType(recvType)
@@ -132,6 +132,27 @@ func (b *monoBuilder) findCloneSymbol(recv types.TypeID) symbols.SymbolID {
 		}
 	}
 	return fallback
+}
+
+func (b *monoBuilder) isTaskType(recv types.TypeID) bool {
+	if b == nil || b.types == nil || recv == types.NoTypeID {
+		return false
+	}
+	resolved := resolveAlias(b.types, recv)
+	if tt, ok := b.types.Lookup(resolved); ok {
+		switch tt.Kind {
+		case types.KindOwn, types.KindReference, types.KindPointer:
+			if tt.Elem != types.NoTypeID {
+				resolved = resolveAlias(b.types, tt.Elem)
+			}
+		}
+	}
+	info, ok := b.types.StructInfo(resolved)
+	if !ok || info == nil || b.types.Strings == nil {
+		return false
+	}
+	name, ok := b.types.Strings.Lookup(info.Name)
+	return ok && name == "Task"
 }
 
 func (b *monoBuilder) typeKeyForType(id types.TypeID) string {

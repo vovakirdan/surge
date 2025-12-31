@@ -26,20 +26,20 @@ spawn_async_fn.sg (span: 3:1-24:1)
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Task<int>
 │        │  └─ Value: expr#8: spawn compute(42)
-│        ├─ Stmt[1]: Let (span: 14:5-14:35)
+│        ├─ Stmt[1]: Let (span: 14:5-14:47)
 │        │  ├─ Name: result1
 │        │  ├─ Mutable: false
-│        │  ├─ Type: int
+│        │  ├─ Type: TaskResult<int>
 │        │  └─ Value: expr#11: t1.await()
 │        ├─ Stmt[2]: Let (span: 16:5-16:49)
 │        │  ├─ Name: t2
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Task<bool>
 │        │  └─ Value: expr#15: spawn process("hello")
-│        └─ Stmt[3]: Let (span: 17:5-17:36)
+│        └─ Stmt[3]: Let (span: 17:5-17:48)
 │           ├─ Name: result2
 │           ├─ Mutable: false
-│           ├─ Type: bool
+│           ├─ Type: TaskResult<bool>
 │           └─ Value: expr#18: t2.await()
 └─ Item[3]: Fn (span: 21:1-23:2)
    ├─ Name: sync_fn_spawn_async

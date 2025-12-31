@@ -1,16 +1,16 @@
 mixed_union_nonexhaustive.sg (span: 3:1-35:1)
-├─ Item[0]: Tag (span: 3:1-3:14)
-│  ├─ Name: Ok
+├─ Item[0]: Tag (span: 3:1-3:17)
+│  ├─ Name: ResOk
 │  ├─ Visibility: private
 │  ├─ Generics: <T>
 │  └─ Payload: T
-├─ Item[1]: Type (span: 4:1-4:31)
+├─ Item[1]: Type (span: 4:1-4:34)
 │  ├─ Name: Result
 │  ├─ Kind: Union
 │  ├─ Visibility: private
 │  ├─ Generics: <T, E>
 │  └─ Union:
-│     ├─ Member[0]: Ok(T)
+│     ├─ Member[0]: ResOk(T)
 │     └─ Member[1]: E
 ├─ Item[2]: Fn (span: 7:1-11:2)
 │  ├─ Name: test_missing_type_member

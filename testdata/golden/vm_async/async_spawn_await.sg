@@ -4,7 +4,10 @@ fn main() -> int {
         checkpoint().await();
         return 41 + 1;
     };
-    let r = t.await();
+    let r: int = compare t.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
     print(r to string);
     return 0;
 }

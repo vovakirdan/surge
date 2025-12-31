@@ -77,6 +77,46 @@ func (vm *VM) handleCheckpoint(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	return nil
 }
 
+func (vm *VM) handleTaskClone(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if call == nil || !call.HasDst {
+		return vm.eb.makeError(PanicTypeMismatch, "clone requires a destination")
+	}
+	if len(call.Args) != 1 {
+		return vm.eb.makeError(PanicTypeMismatch, "clone requires 1 argument")
+	}
+	arg, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	ownsArg := arg.IsHeap()
+	defer func() {
+		if ownsArg {
+			vm.dropValue(arg)
+		}
+	}()
+	taskID, vmErr := vm.taskIDFromValue(arg)
+	if vmErr != nil {
+		return vmErr
+	}
+	dstLocal := call.Dst.Local
+	taskVal, vmErr := vm.taskValue(taskID, frame.Locals[dstLocal].TypeID)
+	if vmErr != nil {
+		return vmErr
+	}
+	if vmErr := vm.writeLocal(frame, dstLocal, taskVal); vmErr != nil {
+		vm.dropValue(taskVal)
+		return vmErr
+	}
+	if writes != nil {
+		*writes = append(*writes, LocalWrite{
+			LocalID: dstLocal,
+			Name:    frame.Locals[dstLocal].Name,
+			Value:   taskVal,
+		})
+	}
+	return nil
+}
+
 func (vm *VM) handleTaskState(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if call == nil || !call.HasDst {
 		return vm.eb.makeError(PanicUnimplemented, "__task_state missing destination")

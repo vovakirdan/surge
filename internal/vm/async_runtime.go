@@ -143,6 +143,86 @@ func (vm *VM) taskValue(id asyncrt.TaskID, typeID types.TypeID) (Value, *VMError
 	return MakeHandleStruct(h, typeID), nil
 }
 
+func (vm *VM) isTaskType(typeID types.TypeID) bool {
+	if vm == nil || vm.Types == nil || typeID == types.NoTypeID {
+		return false
+	}
+	typeID = resolveAlias(vm.Types, typeID)
+	tt, ok := vm.Types.Lookup(typeID)
+	if !ok || tt.Kind != types.KindStruct {
+		return false
+	}
+	info, ok := vm.Types.StructInfo(typeID)
+	if !ok || info == nil || vm.Types.Strings == nil {
+		return false
+	}
+	name, ok := vm.Types.Strings.Lookup(info.Name)
+	return ok && name == "Task"
+}
+
+func (vm *VM) taskResultFromTask(task *asyncrt.Task, resultType types.TypeID) (Value, *VMError) {
+	if task == nil {
+		return Value{}, vm.eb.makeError(PanicUnimplemented, "missing task result")
+	}
+	switch task.ResultKind {
+	case asyncrt.TaskResultOk:
+		res, ok := task.ResultValue.(Value)
+		if !ok {
+			return Value{}, vm.eb.makeError(PanicTypeMismatch, "invalid task result type")
+		}
+		return vm.taskResultValue(resultType, asyncrt.TaskResultOk, res)
+	case asyncrt.TaskResultCancelled:
+		return vm.taskResultValue(resultType, asyncrt.TaskResultCancelled, Value{})
+	default:
+		return Value{}, vm.eb.makeError(PanicUnimplemented, "unknown task result kind")
+	}
+}
+
+func (vm *VM) taskResultValue(resultType types.TypeID, kind asyncrt.TaskResultKind, value Value) (Value, *VMError) {
+	layout, vmErr := vm.tagLayoutFor(resultType)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	var (
+		tagName string
+		fields  []Value
+	)
+	switch kind {
+	case asyncrt.TaskResultOk:
+		tagName = "Ok"
+		tc, ok := layout.CaseByName(tagName)
+		if !ok {
+			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult missing Ok tag")
+		}
+		if len(tc.PayloadTypes) != 1 {
+			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult Ok expects payload")
+		}
+		payload, vmErr := vm.cloneForShare(value)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if tc.PayloadTypes[0] != types.NoTypeID {
+			payload.TypeID = tc.PayloadTypes[0]
+		}
+		fields = []Value{payload}
+		h := vm.Heap.AllocTag(resultType, tc.TagSym, fields)
+		return MakeHandleTag(h, resultType), nil
+	case asyncrt.TaskResultCancelled:
+		tagName = "Cancelled"
+		tc, ok := layout.CaseByName(tagName)
+		if !ok {
+			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult missing Cancelled tag")
+		}
+		if len(tc.PayloadTypes) != 0 {
+			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult Cancelled expects no payload")
+		}
+		h := vm.Heap.AllocTag(resultType, tc.TagSym, nil)
+		return MakeHandleTag(h, resultType), nil
+	default:
+		return Value{}, vm.eb.makeError(PanicUnimplemented, "unknown task result kind")
+	}
+}
+
 func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
 	if vm == nil {
 		return asyncrt.PollOutcome{}, nil
@@ -151,7 +231,7 @@ func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
 		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, "missing task")
 	}
 	if task.Status == asyncrt.TaskDone {
-		return asyncrt.PollOutcome{Kind: asyncrt.PollDone, Value: task.Result}, nil
+		return asyncrt.PollOutcome{Kind: asyncrt.PollDone, Value: task.ResultValue}, nil
 	}
 	switch task.Kind {
 	case asyncrt.TaskKindCheckpoint:
@@ -237,7 +317,7 @@ func (vm *VM) runReadyOne() (bool, *VMError) {
 	return true, nil
 }
 
-func (vm *VM) runUntilDone(id asyncrt.TaskID) (Value, *VMError) {
+func (vm *VM) runUntilDone(id asyncrt.TaskID, resultType types.TypeID) (Value, *VMError) {
 	exec := vm.ensureExecutor()
 	if exec == nil {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "async executor missing")
@@ -253,12 +333,7 @@ func (vm *VM) runUntilDone(id asyncrt.TaskID) (Value, *VMError) {
 			return Value{}, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", id))
 		}
 		if task.Status == asyncrt.TaskDone {
-			res, _ := task.Result.(Value) //nolint:errcheck // type assertion, not error
-			out, vmErr := vm.cloneForShare(res)
-			if vmErr != nil {
-				return Value{}, vmErr
-			}
-			return out, nil
+			return vm.taskResultFromTask(task, resultType)
 		}
 		ran, vmErr := vm.runReadyOne()
 		if vmErr != nil {

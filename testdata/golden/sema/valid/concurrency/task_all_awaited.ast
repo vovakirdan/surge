@@ -1,4 +1,4 @@
-task_all_awaited.sg (span: 3:1-18:1)
+task_all_awaited.sg (span: 3:1-27:1)
 ├─ Item[0]: Fn (span: 3:1-5:2)
 │  ├─ Name: compute
 │  ├─ Params: (x: int)
@@ -7,12 +7,12 @@ task_all_awaited.sg (span: 3:1-18:1)
 │     └─ Stmt[0]: Block (span: 3:33-5:2)
 │        └─ Stmt[0]: Return (span: 4:5-4:18)
 │           └─ Expr: expr#3: (x * 2)
-└─ Item[1]: Fn (span: 7:1-17:2)
+└─ Item[1]: Fn (span: 7:1-26:2)
    ├─ Name: test_all_awaited
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 7:40-17:2)
+      └─ Stmt[0]: Block (span: 7:40-26:2)
          ├─ Stmt[0]: Let (span: 8:5-8:31)
          │  ├─ Name: t1
          │  ├─ Mutable: false
@@ -28,20 +28,20 @@ task_all_awaited.sg (span: 3:1-18:1)
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
          │  └─ Value: expr#15: spawn compute(3)
-         ├─ Stmt[3]: Let (span: 12:5-12:25)
+         ├─ Stmt[3]: Let (span: 12:5-15:7)
          │  ├─ Name: r1
          │  ├─ Mutable: false
-         │  ├─ Type: <inferred>
-         │  └─ Value: expr#18: t1.await()
-         ├─ Stmt[4]: Let (span: 13:5-13:25)
+         │  ├─ Type: int
+         │  └─ Value: expr#26: compare t1.await() { 2 arms }
+         ├─ Stmt[4]: Let (span: 16:5-19:7)
          │  ├─ Name: r2
          │  ├─ Mutable: false
-         │  ├─ Type: <inferred>
-         │  └─ Value: expr#21: t2.await()
-         ├─ Stmt[5]: Let (span: 14:5-14:25)
+         │  ├─ Type: int
+         │  └─ Value: expr#37: compare t2.await() { 2 arms }
+         ├─ Stmt[5]: Let (span: 20:5-23:7)
          │  ├─ Name: r3
          │  ├─ Mutable: false
-         │  ├─ Type: <inferred>
-         │  └─ Value: expr#24: t3.await()
-         └─ Stmt[6]: Return (span: 16:5-16:25)
-            └─ Expr: expr#29: (((r1 + r2)) + r3)
+         │  ├─ Type: int
+         │  └─ Value: expr#48: compare t3.await() { 2 arms }
+         └─ Stmt[6]: Return (span: 25:5-25:25)
+            └─ Expr: expr#53: (((r1 + r2)) + r3)

@@ -4,7 +4,13 @@ async fn compute(x: int) -> int {
 
 pub async fn test_use_after_move() -> int {
     let t = spawn compute(1);
-    let r1 = t.await();
-    let r2 = t.await();
+    let r1: int = compare t.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
+    let r2: int = compare t.await() {
+        Ok(v) => v;
+        Cancelled() => 0;
+    };
     return r1 + r2;
 }

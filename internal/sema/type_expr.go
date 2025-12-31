@@ -346,7 +346,13 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprAwait:
 		if awaitData, ok := tc.builder.Exprs.Await(id); ok && awaitData != nil {
-			ty = tc.typeExpr(awaitData.Value)
+			taskType := tc.typeExpr(awaitData.Value)
+			payload := tc.taskPayloadType(taskType)
+			if payload != types.NoTypeID {
+				ty = tc.taskResultType(payload, expr.Span)
+			} else {
+				ty = taskType
+			}
 		}
 	case ast.ExprCast:
 		if cast, ok := tc.builder.Exprs.Cast(id); ok && cast != nil {

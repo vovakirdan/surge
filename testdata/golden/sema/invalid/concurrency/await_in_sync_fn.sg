@@ -5,12 +5,12 @@ async fn async_task() -> int {
 }
 
 // ERROR SEM3007: await in non-async function
-fn sync_fn_with_await() -> int {
+fn sync_fn_with_await() -> TaskResult<int> {
     let t: Task<int> = spawn async_task();
     return t.await();
 }
 
 // ERROR SEM3007: await directly on async fn call in sync context
-fn sync_fn_direct_await() -> int {
+fn sync_fn_direct_await() -> TaskResult<int> {
     return async_task().await();
 }

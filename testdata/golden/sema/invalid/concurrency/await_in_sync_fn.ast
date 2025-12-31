@@ -10,9 +10,9 @@ await_in_sync_fn.sg (span: 3:1-17:1)
 ├─ Item[1]: Fn (span: 8:1-11:2)
 │  ├─ Name: sync_fn_with_await
 │  ├─ Params: ()
-│  ├─ Return: int
+│  ├─ Return: TaskResult<int>
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 8:32-11:2)
+│     └─ Stmt[0]: Block (span: 8:44-11:2)
 │        ├─ Stmt[0]: Let (span: 9:5-9:43)
 │        │  ├─ Name: t
 │        │  ├─ Mutable: false
@@ -23,8 +23,8 @@ await_in_sync_fn.sg (span: 3:1-17:1)
 └─ Item[2]: Fn (span: 14:1-16:2)
    ├─ Name: sync_fn_direct_await
    ├─ Params: ()
-   ├─ Return: int
+   ├─ Return: TaskResult<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 14:34-16:2)
+      └─ Stmt[0]: Block (span: 14:46-16:2)
          └─ Stmt[0]: Return (span: 15:5-15:33)
             └─ Expr: expr#11: async_task().await()

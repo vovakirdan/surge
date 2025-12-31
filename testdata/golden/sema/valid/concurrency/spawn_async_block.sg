@@ -5,13 +5,13 @@ pub async fn test_spawn_async_block() {
     let t1: Task<int> = spawn async {
         return 42;
     };
-    let result1: int = t1.await();
+    let result1: TaskResult<int> = t1.await();
 
     // spawn async block returning string
     let t2: Task<string> = spawn async {
         return "hello";
     };
-    let result2: string = t2.await();
+    let result2: TaskResult<string> = t2.await();
 }
 
 // spawn async block from sync function

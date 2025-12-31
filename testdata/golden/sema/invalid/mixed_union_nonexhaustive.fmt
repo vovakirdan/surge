@@ -1,12 +1,12 @@
 // Test non-exhaustive pattern matching for mixed unions (tag + type members)
 
-tag Ok<T>(T);
-type Result<T, E> = Ok(T) | E;
+tag ResOk<T>(T);
+type Result<T, E> = ResOk(T) | E;
 
 // Non-exhaustive: missing type member
 fn test_missing_type_member(x: Result<int, string>) -> int {
     return compare x {
-        Ok(v) => v;
+        ResOk(v) => v;
     };
 }
 

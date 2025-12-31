@@ -24,61 +24,67 @@
  24: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
  25: Ident           "result1" at 8:9-8:16 (leading: Space)
  26: Colon           ":" at 8:16-8:17
- 27: Ident           "int" at 8:18-8:21 (leading: Space)
- 28: Assign          "=" at 8:22-8:23 (leading: Space)
- 29: Ident           "t1" at 8:24-8:26 (leading: Space)
- 30: Dot             "." at 8:26-8:27
- 31: Ident           "await" at 8:27-8:32
- 32: LParen          "(" at 8:32-8:33
- 33: RParen          ")" at 8:33-8:34
- 34: Semicolon       ";" at 8:34-8:35
- 35: KwLet           "let" at 11:5-11:8 (leading: Newline, Space, LineComment, Newline, Space)
- 36: Ident           "t2" at 11:9-11:11 (leading: Space)
- 37: Colon           ":" at 11:11-11:12
- 38: Ident           "Task" at 11:13-11:17 (leading: Space)
- 39: Lt              "<" at 11:17-11:18
- 40: Ident           "string" at 11:18-11:24
- 41: Gt              ">" at 11:24-11:25
- 42: Assign          "=" at 11:26-11:27 (leading: Space)
- 43: KwSpawn         "spawn" at 11:28-11:33 (leading: Space)
- 44: KwAsync         "async" at 11:34-11:39 (leading: Space)
- 45: LBrace          "{" at 11:40-11:41 (leading: Space)
- 46: KwReturn        "return" at 12:9-12:15 (leading: Newline, Space)
- 47: StringLit       "\"hello\"" at 12:16-12:23 (leading: Space)
- 48: Semicolon       ";" at 12:23-12:24
- 49: RBrace          "}" at 13:5-13:6 (leading: Newline, Space)
- 50: Semicolon       ";" at 13:6-13:7
- 51: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
- 52: Ident           "result2" at 14:9-14:16 (leading: Space)
- 53: Colon           ":" at 14:16-14:17
- 54: Ident           "string" at 14:18-14:24 (leading: Space)
- 55: Assign          "=" at 14:25-14:26 (leading: Space)
- 56: Ident           "t2" at 14:27-14:29 (leading: Space)
- 57: Dot             "." at 14:29-14:30
- 58: Ident           "await" at 14:30-14:35
- 59: LParen          "(" at 14:35-14:36
- 60: RParen          ")" at 14:36-14:37
- 61: Semicolon       ";" at 14:37-14:38
- 62: RBrace          "}" at 15:1-15:2 (leading: Newline)
- 63: KwPub           "pub" at 18:1-18:4 (leading: Newline, LineComment, Newline)
- 64: KwFn            "fn" at 18:5-18:7 (leading: Space)
- 65: Ident           "sync_fn_spawn_block" at 18:8-18:27 (leading: Space)
- 66: LParen          "(" at 18:27-18:28
- 67: RParen          ")" at 18:28-18:29
- 68: Arrow           "->" at 18:30-18:32 (leading: Space)
- 69: Ident           "Task" at 18:33-18:37 (leading: Space)
- 70: Lt              "<" at 18:37-18:38
- 71: Ident           "bool" at 18:38-18:42
- 72: Gt              ">" at 18:42-18:43
- 73: LBrace          "{" at 18:44-18:45 (leading: Space)
- 74: KwReturn        "return" at 19:5-19:11 (leading: Newline, Space)
- 75: KwSpawn         "spawn" at 19:12-19:17 (leading: Space)
- 76: KwAsync         "async" at 19:18-19:23 (leading: Space)
- 77: LBrace          "{" at 19:24-19:25 (leading: Space)
- 78: KwReturn        "return" at 20:9-20:15 (leading: Newline, Space)
- 79: KwTrue          "true" at 20:16-20:20 (leading: Space)
- 80: Semicolon       ";" at 20:20-20:21
- 81: RBrace          "}" at 21:5-21:6 (leading: Newline, Space)
- 82: Semicolon       ";" at 21:6-21:7
- 83: RBrace          "}" at 22:1-22:2 (leading: Newline)
- 84: EOF             at 23:1-23:1
+ 27: Ident           "TaskResult" at 8:18-8:28 (leading: Space)
+ 28: Lt              "<" at 8:28-8:29
+ 29: Ident           "int" at 8:29-8:32
+ 30: Gt              ">" at 8:32-8:33
+ 31: Assign          "=" at 8:34-8:35 (leading: Space)
+ 32: Ident           "t1" at 8:36-8:38 (leading: Space)
+ 33: Dot             "." at 8:38-8:39
+ 34: Ident           "await" at 8:39-8:44
+ 35: LParen          "(" at 8:44-8:45
+ 36: RParen          ")" at 8:45-8:46
+ 37: Semicolon       ";" at 8:46-8:47
+ 38: KwLet           "let" at 11:5-11:8 (leading: Newline, Space, LineComment, Newline, Space)
+ 39: Ident           "t2" at 11:9-11:11 (leading: Space)
+ 40: Colon           ":" at 11:11-11:12
+ 41: Ident           "Task" at 11:13-11:17 (leading: Space)
+ 42: Lt              "<" at 11:17-11:18
+ 43: Ident           "string" at 11:18-11:24
+ 44: Gt              ">" at 11:24-11:25
+ 45: Assign          "=" at 11:26-11:27 (leading: Space)
+ 46: KwSpawn         "spawn" at 11:28-11:33 (leading: Space)
+ 47: KwAsync         "async" at 11:34-11:39 (leading: Space)
+ 48: LBrace          "{" at 11:40-11:41 (leading: Space)
+ 49: KwReturn        "return" at 12:9-12:15 (leading: Newline, Space)
+ 50: StringLit       "\"hello\"" at 12:16-12:23 (leading: Space)
+ 51: Semicolon       ";" at 12:23-12:24
+ 52: RBrace          "}" at 13:5-13:6 (leading: Newline, Space)
+ 53: Semicolon       ";" at 13:6-13:7
+ 54: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
+ 55: Ident           "result2" at 14:9-14:16 (leading: Space)
+ 56: Colon           ":" at 14:16-14:17
+ 57: Ident           "TaskResult" at 14:18-14:28 (leading: Space)
+ 58: Lt              "<" at 14:28-14:29
+ 59: Ident           "string" at 14:29-14:35
+ 60: Gt              ">" at 14:35-14:36
+ 61: Assign          "=" at 14:37-14:38 (leading: Space)
+ 62: Ident           "t2" at 14:39-14:41 (leading: Space)
+ 63: Dot             "." at 14:41-14:42
+ 64: Ident           "await" at 14:42-14:47
+ 65: LParen          "(" at 14:47-14:48
+ 66: RParen          ")" at 14:48-14:49
+ 67: Semicolon       ";" at 14:49-14:50
+ 68: RBrace          "}" at 15:1-15:2 (leading: Newline)
+ 69: KwPub           "pub" at 18:1-18:4 (leading: Newline, LineComment, Newline)
+ 70: KwFn            "fn" at 18:5-18:7 (leading: Space)
+ 71: Ident           "sync_fn_spawn_block" at 18:8-18:27 (leading: Space)
+ 72: LParen          "(" at 18:27-18:28
+ 73: RParen          ")" at 18:28-18:29
+ 74: Arrow           "->" at 18:30-18:32 (leading: Space)
+ 75: Ident           "Task" at 18:33-18:37 (leading: Space)
+ 76: Lt              "<" at 18:37-18:38
+ 77: Ident           "bool" at 18:38-18:42
+ 78: Gt              ">" at 18:42-18:43
+ 79: LBrace          "{" at 18:44-18:45 (leading: Space)
+ 80: KwReturn        "return" at 19:5-19:11 (leading: Newline, Space)
+ 81: KwSpawn         "spawn" at 19:12-19:17 (leading: Space)
+ 82: KwAsync         "async" at 19:18-19:23 (leading: Space)
+ 83: LBrace          "{" at 19:24-19:25 (leading: Space)
+ 84: KwReturn        "return" at 20:9-20:15 (leading: Newline, Space)
+ 85: KwTrue          "true" at 20:16-20:20 (leading: Space)
+ 86: Semicolon       ";" at 20:20-20:21
+ 87: RBrace          "}" at 21:5-21:6 (leading: Newline, Space)
+ 88: Semicolon       ";" at 21:6-21:7
+ 89: RBrace          "}" at 22:1-22:2 (leading: Newline)
+ 90: EOF             at 23:1-23:1

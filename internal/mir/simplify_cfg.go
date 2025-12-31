@@ -89,6 +89,9 @@ func applyRedirects(f *Func, redirects map[BlockID]BlockID) {
 			term.If.Then = redirect(term.If.Then)
 			term.If.Else = redirect(term.If.Else)
 		case TermSwitchTag:
+			if len(term.SwitchTag.Cases) > 0 {
+				term.SwitchTag.Cases = append([]SwitchTagCase(nil), term.SwitchTag.Cases...)
+			}
 			for j := range term.SwitchTag.Cases {
 				term.SwitchTag.Cases[j].Target = redirect(term.SwitchTag.Cases[j].Target)
 			}
@@ -195,6 +198,9 @@ func compactBlocks(f *Func, reachable []bool) {
 			term.If.Then = remap(term.If.Then)
 			term.If.Else = remap(term.If.Else)
 		case TermSwitchTag:
+			if len(term.SwitchTag.Cases) > 0 {
+				term.SwitchTag.Cases = append([]SwitchTagCase(nil), term.SwitchTag.Cases...)
+			}
 			for j := range term.SwitchTag.Cases {
 				term.SwitchTag.Cases[j].Target = remap(term.SwitchTag.Cases[j].Target)
 			}

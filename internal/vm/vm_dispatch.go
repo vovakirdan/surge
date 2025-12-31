@@ -7,7 +7,17 @@ import (
 
 	"surge/internal/asyncrt"
 	"surge/internal/mir"
+	"surge/internal/types"
 )
+
+type pollExecResult struct {
+	hasStore bool
+	storeLoc Location
+	storeVal Value
+	writes   []LocalWrite
+	doJump   bool
+	jumpBB   mir.BlockID
+}
 
 // execInstr executes a single instruction.
 func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFrame *Frame, vmErr *VMError) {
@@ -30,7 +40,8 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 		}
 
 	case mir.InstrCall:
-		newFrame, vmErr := vm.execCall(frame, &instr.Call, &writes)
+		var newFrame *Frame
+		newFrame, vmErr = vm.execCall(frame, &instr.Call, &writes)
 		if vmErr != nil {
 			return false, nil, vmErr
 		}
@@ -39,13 +50,13 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 		}
 
 	case mir.InstrDrop:
-		vmErr := vm.execInstrDrop(frame, instr)
+		vmErr = vm.execInstrDrop(frame, instr)
 		if vmErr != nil {
 			return false, nil, vmErr
 		}
 
 	case mir.InstrEndBorrow:
-		vmErr := vm.execInstrEndBorrow(frame, instr)
+		vmErr = vm.execInstrEndBorrow(frame, instr)
 		if vmErr != nil {
 			return false, nil, vmErr
 		}
@@ -63,10 +74,17 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 		}
 
 	case mir.InstrPoll:
-		hasStore, storeLoc, storeVal, writes, doJump, jumpBB, vmErr = vm.execInstrPoll(frame, instr, writes)
+		pollRes, pollErr := vm.execInstrPoll(frame, instr, writes)
+		vmErr = pollErr
 		if vmErr != nil {
 			return false, nil, vmErr
 		}
+		hasStore = pollRes.hasStore
+		storeLoc = pollRes.storeLoc
+		storeVal = pollRes.storeVal
+		writes = pollRes.writes
+		doJump = pollRes.doJump
+		jumpBB = pollRes.jumpBB
 
 	case mir.InstrNop:
 		// Nothing to do
@@ -178,7 +196,11 @@ func (vm *VM) execInstrAwait(frame *Frame, instr *mir.Instr, writes []LocalWrite
 	if vmErr != nil {
 		return false, Location{}, Value{}, writes, vmErr
 	}
-	res, vmErr := vm.runUntilDone(taskID)
+	dstType, vmErr := vm.awaitResultType(frame, instr.Await.Dst)
+	if vmErr != nil {
+		return false, Location{}, Value{}, writes, vmErr
+	}
+	res, vmErr := vm.runUntilDone(taskID, dstType)
 	if vmErr != nil {
 		return false, Location{}, Value{}, writes, vmErr
 	}
@@ -266,57 +288,64 @@ func (vm *VM) execInstrSpawn(frame *Frame, instr *mir.Instr, writes []LocalWrite
 	return true, loc, taskVal, writes, nil
 }
 
-func (vm *VM) execInstrPoll(frame *Frame, instr *mir.Instr, writes []LocalWrite) (hasStore bool, storeLoc Location, storeVal Value, writesOut []LocalWrite, doJump bool, jumpBB mir.BlockID, vmErr *VMError) {
+func (vm *VM) execInstrPoll(frame *Frame, instr *mir.Instr, writes []LocalWrite) (pollExecResult, *VMError) {
+	res := pollExecResult{writes: writes}
+
 	taskVal, vmErr := vm.evalOperand(frame, &instr.Poll.Task)
 	if vmErr != nil {
-		return false, Location{}, Value{}, writes, false, mir.NoBlockID, vmErr
+		return res, vmErr
 	}
 	taskID, vmErr := vm.taskIDFromValue(taskVal)
 	vm.dropValue(taskVal)
 	if vmErr != nil {
-		return false, Location{}, Value{}, writes, false, mir.NoBlockID, vmErr
+		return res, vmErr
 	}
 	exec := vm.ensureExecutor()
 	if exec == nil {
-		return false, Location{}, Value{}, writes, false, mir.NoBlockID, vm.eb.makeError(PanicUnimplemented, "async executor missing")
+		return res, vm.eb.makeError(PanicUnimplemented, "async executor missing")
 	}
 	targetTask := exec.Task(taskID)
 	if targetTask == nil {
-		return false, Location{}, Value{}, writes, false, mir.NoBlockID, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", taskID))
+		return res, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", taskID))
 	}
 	current := exec.Current()
 	if current == 0 {
-		return false, Location{}, Value{}, writes, false, mir.NoBlockID, vm.eb.makeError(PanicUnimplemented, "async poll outside task")
+		return res, vm.eb.makeError(PanicUnimplemented, "async poll outside task")
 	}
 	if current == taskID {
-		return false, Location{}, Value{}, writes, false, mir.NoBlockID, vm.eb.makeError(PanicInvalidHandle, "task cannot await itself")
+		return res, vm.eb.makeError(PanicInvalidHandle, "task cannot await itself")
 	}
 	if targetTask.Status != asyncrt.TaskWaiting && targetTask.Status != asyncrt.TaskDone {
 		exec.Wake(taskID)
 	}
 	if targetTask.Status == asyncrt.TaskDone {
-		resVal, ok := targetTask.Result.(Value)
-		if !ok {
-			return false, Location{}, Value{}, writes, false, mir.NoBlockID, vm.eb.makeError(PanicTypeMismatch, "invalid task result type")
-		}
-		res, vmErr := vm.cloneForShare(resVal)
+		dstType, vmErr := vm.awaitResultType(frame, instr.Poll.Dst)
 		if vmErr != nil {
-			return false, Location{}, Value{}, writes, false, mir.NoBlockID, vmErr
+			return res, vmErr
+		}
+		doneVal, vmErr := vm.taskResultFromTask(targetTask, dstType)
+		if vmErr != nil {
+			return res, vmErr
 		}
 		dst := instr.Poll.Dst
 		if len(dst.Proj) == 0 {
 			switch dst.Kind {
 			case mir.PlaceGlobal:
-				vmErr = vm.writeGlobal(dst.Global, res)
+				vmErr = vm.writeGlobal(dst.Global, doneVal)
 				if vmErr != nil {
-					return false, Location{}, Value{}, writes, false, mir.NoBlockID, vmErr
+					return res, vmErr
 				}
-				return true, Location{Kind: LKGlobal, Global: int32(dst.Global), IsMut: true}, res, writes, true, instr.Poll.ReadyBB, nil
+				res.hasStore = true
+				res.storeLoc = Location{Kind: LKGlobal, Global: int32(dst.Global), IsMut: true}
+				res.storeVal = doneVal
+				res.doJump = true
+				res.jumpBB = instr.Poll.ReadyBB
+				return res, nil
 			default:
 				localID := dst.Local
-				vmErr = vm.writeLocal(frame, localID, res)
+				vmErr = vm.writeLocal(frame, localID, doneVal)
 				if vmErr != nil {
-					return false, Location{}, Value{}, writes, false, mir.NoBlockID, vmErr
+					return res, vmErr
 				}
 				stored := frame.Locals[localID].V
 				writes = append(writes, LocalWrite{
@@ -324,23 +353,51 @@ func (vm *VM) execInstrPoll(frame *Frame, instr *mir.Instr, writes []LocalWrite)
 					Name:    frame.Locals[localID].Name,
 					Value:   stored,
 				})
-				return false, Location{}, Value{}, writes, true, instr.Poll.ReadyBB, nil
+				res.writes = writes
+				res.doJump = true
+				res.jumpBB = instr.Poll.ReadyBB
+				return res, nil
 			}
 		}
 		loc, vmErr := vm.EvalPlace(frame, dst)
 		if vmErr != nil {
-			return false, Location{}, Value{}, writes, false, mir.NoBlockID, vmErr
+			return res, vmErr
 		}
-		if vmErr := vm.storeLocation(loc, res); vmErr != nil {
-			return false, Location{}, Value{}, writes, false, mir.NoBlockID, vmErr
+		if vmErr := vm.storeLocation(loc, doneVal); vmErr != nil {
+			return res, vmErr
 		}
-		return true, loc, res, writes, true, instr.Poll.ReadyBB, nil
+		res.hasStore = true
+		res.storeLoc = loc
+		res.storeVal = doneVal
+		res.doJump = true
+		res.jumpBB = instr.Poll.ReadyBB
+		return res, nil
 	}
 	// Task not done - set pending park key and jump to pending block
 	if targetTask.Kind != asyncrt.TaskKindCheckpoint {
 		vm.asyncPendingParkKey = asyncrt.JoinKey(taskID)
 	}
-	return false, Location{}, Value{}, writes, true, instr.Poll.PendBB, nil
+	res.doJump = true
+	res.jumpBB = instr.Poll.PendBB
+	return res, nil
+}
+
+func (vm *VM) awaitResultType(frame *Frame, dst mir.Place) (types.TypeID, *VMError) {
+	if len(dst.Proj) != 0 {
+		return types.NoTypeID, vm.eb.makeError(PanicUnimplemented, "await destination projection unsupported")
+	}
+	switch dst.Kind {
+	case mir.PlaceGlobal:
+		if int(dst.Global) < 0 || int(dst.Global) >= len(vm.Globals) {
+			return types.NoTypeID, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("invalid global id %d", dst.Global))
+		}
+		return vm.Globals[dst.Global].TypeID, nil
+	default:
+		if int(dst.Local) < 0 || int(dst.Local) >= len(frame.Locals) {
+			return types.NoTypeID, vm.eb.makeError(PanicOutOfBounds, fmt.Sprintf("invalid local id %d", dst.Local))
+		}
+		return frame.Locals[dst.Local].TypeID, nil
+	}
 }
 
 // execCall executes a call instruction.

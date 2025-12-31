@@ -37,19 +37,22 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 				f.Blocks[afterBB].Instrs = after
 				f.Blocks[afterBB].Term = origTerm
 
-				bb.Instrs = prelude
+				pollBB := newBlock(f)
 				pollInstr := Instr{Kind: InstrPoll, Poll: PollInstr{
 					Dst:     awaitInstr.Dst,
 					Task:    awaitInstr.Task,
 					ReadyBB: afterBB,
 					PendBB:  NoBlockID,
 				}}
-				bb.Instrs = append(bb.Instrs, pollInstr)
-				bb.Term = Terminator{Kind: TermUnreachable}
+				f.Blocks[pollBB].Instrs = []Instr{pollInstr}
+				f.Blocks[pollBB].Term = Terminator{Kind: TermUnreachable}
+
+				bb.Instrs = prelude
+				bb.Term = Terminator{Kind: TermGoto, Goto: GotoTerm{Target: pollBB}}
 
 				sites = append(sites, awaitSite{
-					pollBB:    BlockID(bi), //nolint:gosec // bounded by block count
-					pollInstr: len(bb.Instrs) - 1,
+					pollBB:    pollBB,
+					pollInstr: 0,
 					readyBB:   afterBB,
 				})
 				split = true

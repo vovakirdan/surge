@@ -2,12 +2,21 @@
 == HIR ==
 module 
 
-async fn inc(x: int [copy]) -> int (id=1, sym=1196) {
+async fn inc(x: int [copy]) -> int (id=1, sym=1204) {
   return __add(x, 1): int
 }
 
-async fn test() -> int (id=2, sym=1197) {
-  let task: type#1299 = spawn inc(5): type#1299: type#1299
-  return await(task): int
+async fn test() -> int (id=2, sym=1205) {
+  let task: type#1314 = spawn inc(5): type#1314: type#1314
+  return {
+    let __cmp1: type#1315 = await(task): type#1315
+    if tag_test(__cmp1, Ok): bool {
+      let v: int [copy] = tag_payload(__cmp1, Ok, 0): int
+      return v
+    }
+    if tag_test(__cmp1, Cancelled): bool {
+      return 0
+    }
+  }: int
 }
 
