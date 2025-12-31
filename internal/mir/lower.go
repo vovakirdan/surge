@@ -481,6 +481,45 @@ func (l *funcLowerer) isTaskType(ty types.TypeID) bool {
 	return false
 }
 
+func (l *funcLowerer) isChannelType(ty types.TypeID) bool {
+	if l == nil || l.types == nil || ty == types.NoTypeID {
+		return false
+	}
+	base := l.unwrapContainerType(ty)
+	resolved := resolveAlias(l.types, base)
+	if info, ok := l.types.StructInfo(resolved); ok && info != nil {
+		return l.typeNameMatches(info.Name, "Channel")
+	}
+	if info, ok := l.types.AliasInfo(resolved); ok && info != nil {
+		return l.typeNameMatches(info.Name, "Channel")
+	}
+	return false
+}
+
+func (l *funcLowerer) unwrapContainerType(id types.TypeID) types.TypeID {
+	if l == nil || l.types == nil || id == types.NoTypeID {
+		return id
+	}
+	seen := 0
+	for id != types.NoTypeID && seen < 16 {
+		seen++
+		tt, ok := l.types.Lookup(resolveAlias(l.types, id))
+		if !ok {
+			return id
+		}
+		switch tt.Kind {
+		case types.KindReference, types.KindOwn, types.KindPointer:
+			if tt.Elem == types.NoTypeID || tt.Elem == id {
+				return id
+			}
+			id = tt.Elem
+		default:
+			return id
+		}
+	}
+	return id
+}
+
 func (l *funcLowerer) taskPayloadType(task types.TypeID) (types.TypeID, bool) {
 	if l == nil || l.types == nil || task == types.NoTypeID {
 		return types.NoTypeID, false

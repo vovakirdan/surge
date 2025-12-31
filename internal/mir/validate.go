@@ -80,7 +80,7 @@ func validateBlocksTerminated(f *Func) error {
 		if f.Blocks[i].Term.Kind == TermNone {
 			if len(f.Blocks[i].Instrs) > 0 {
 				last := f.Blocks[i].Instrs[len(f.Blocks[i].Instrs)-1]
-				if last.Kind == InstrPoll || last.Kind == InstrJoinAll {
+				if last.Kind == InstrPoll || last.Kind == InstrJoinAll || last.Kind == InstrChanSend || last.Kind == InstrChanRecv {
 					continue
 				}
 			}
@@ -116,6 +116,20 @@ func validateBlockTargets(f *Func) error {
 				}
 				if !blockExists(ins.JoinAll.PendBB) {
 					errs = append(errs, fmt.Errorf("bb%d instr %d: join_all pending target bb%d does not exist", i, j, ins.JoinAll.PendBB))
+				}
+			case InstrChanSend:
+				if !blockExists(ins.ChanSend.ReadyBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: chan_send ready target bb%d does not exist", i, j, ins.ChanSend.ReadyBB))
+				}
+				if !blockExists(ins.ChanSend.PendBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: chan_send pending target bb%d does not exist", i, j, ins.ChanSend.PendBB))
+				}
+			case InstrChanRecv:
+				if !blockExists(ins.ChanRecv.ReadyBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: chan_recv ready target bb%d does not exist", i, j, ins.ChanRecv.ReadyBB))
+				}
+				if !blockExists(ins.ChanRecv.PendBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: chan_recv pending target bb%d does not exist", i, j, ins.ChanRecv.PendBB))
 				}
 			}
 		}
@@ -269,6 +283,12 @@ func validateLocalIDs(f *Func, globals []Global) error {
 			case InstrJoinAll:
 				checkPlace(ins.JoinAll.Dst, ctx)
 				checkOperand(ins.JoinAll.Scope, ctx)
+			case InstrChanSend:
+				checkOperand(ins.ChanSend.Channel, ctx)
+				checkOperand(ins.ChanSend.Value, ctx)
+			case InstrChanRecv:
+				checkPlace(ins.ChanRecv.Dst, ctx)
+				checkOperand(ins.ChanRecv.Channel, ctx)
 			}
 		}
 

@@ -81,5 +81,13 @@ func (tc *typeChecker) instantiateAlias(typeItem *ast.TypeItem, symID symbols.Sy
 	}
 	typeID := tc.types.RegisterAliasInstance(typeItem.Name, typeItem.Span, args)
 	tc.types.SetAliasTarget(typeID, target)
+	if sym := tc.symbolFromID(symID); sym != nil && sym.Type != types.NoTypeID {
+		if attrs, ok := tc.typeAttrs[sym.Type]; ok {
+			tc.recordTypeAttrs(typeID, attrs)
+		}
+		if tc.types.IsCopy(sym.Type) {
+			tc.types.MarkCopyType(typeID)
+		}
+	}
 	return typeID
 }

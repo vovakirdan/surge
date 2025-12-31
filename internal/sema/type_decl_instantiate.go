@@ -141,6 +141,12 @@ func (tc *typeChecker) instantiateImportedType(sym *symbols.Symbol, args []types
 		}
 		instantiated := tc.types.RegisterUnionInstance(info.Name, info.Decl, append([]types.TypeID(nil), args...))
 		tc.types.SetUnionMembers(instantiated, members)
+		if attrs, ok := tc.typeAttrs[base]; ok {
+			tc.recordTypeAttrs(instantiated, attrs)
+		}
+		if tc.types.IsCopy(base) {
+			tc.types.MarkCopyType(instantiated)
+		}
 		if name := tc.lookupName(sym.Name); name != "" {
 			tc.recordTypeName(instantiated, name)
 		}
@@ -168,6 +174,12 @@ func (tc *typeChecker) instantiateImportedType(sym *symbols.Symbol, args []types
 		}
 		instantiated := tc.types.RegisterStructInstance(info.Name, info.Decl, args)
 		tc.types.SetStructFields(instantiated, fields)
+		if attrs, ok := tc.typeAttrs[base]; ok {
+			tc.recordTypeAttrs(instantiated, attrs)
+		}
+		if tc.types.IsCopy(base) {
+			tc.types.MarkCopyType(instantiated)
+		}
 		if attrs, ok := tc.types.TypeLayoutAttrs(base); ok {
 			tc.types.SetTypeLayoutAttrs(instantiated, attrs)
 		}

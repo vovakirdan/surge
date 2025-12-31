@@ -1,0 +1,78 @@
+testdata/golden/vm_async/vm_async_j7_buffered.sg (span: 1:1-34:1)
+├─ Item[0]: Fn (span: 1:1-5:2)
+│  ├─ Name: sender
+│  ├─ Params: (ch: own Channel<int>)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:46-5:2)
+│        ├─ Stmt[0]: Expr (span: 2:5-2:17)
+│        │  └─ Expr: expr#4: ch.send(10)
+│        ├─ Stmt[1]: Expr (span: 3:5-3:17)
+│        │  └─ Expr: expr#8: ch.send(20)
+│        └─ Stmt[2]: Return (span: 4:5-4:14)
+│           └─ Expr: expr#9: 0
+├─ Item[1]: Fn (span: 7:1-19:2)
+│  ├─ Name: receiver
+│  ├─ Params: (ch: own Channel<int>)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:48-19:2)
+│        ├─ Stmt[0]: Let (span: 8:5-8:23)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#12: ch.recv()
+│        ├─ Stmt[1]: Let (span: 9:5-9:23)
+│        │  ├─ Name: b
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#15: ch.recv()
+│        ├─ Stmt[2]: Expr (span: 10:5-13:7)
+│        │  └─ Expr: expr#31: compare a { 2 arms }
+│        ├─ Stmt[3]: Expr (span: 14:5-17:7)
+│        │  └─ Expr: expr#47: compare b { 2 arms }
+│        └─ Stmt[4]: Return (span: 18:5-18:14)
+│           └─ Expr: expr#48: 0
+└─ Item[2]: Fn (span: 21:1-33:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 22:18-33:2)
+         ├─ Stmt[0]: Let (span: 23:5-23:37)
+         │  ├─ Name: ch
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#51: make_channel(1)
+         ├─ Stmt[1]: Let (span: 25:5-25:24)
+         │  ├─ Name: sender_ch
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#52: ch
+         ├─ Stmt[2]: Let (span: 26:5-26:22)
+         │  ├─ Name: recv_ch
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#53: ch
+         ├─ Stmt[3]: Let (span: 27:5-27:47)
+         │  ├─ Name: sender_task
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#57: spawn sender(sender_ch)
+         ├─ Stmt[4]: Let (span: 28:5-28:45)
+         │  ├─ Name: recv_task
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#61: spawn receiver(recv_ch)
+         ├─ Stmt[5]: Let (span: 30:5-30:33)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#64: sender_task.await()
+         ├─ Stmt[6]: Let (span: 31:5-31:31)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#67: recv_task.await()
+         └─ Stmt[7]: Return (span: 32:5-32:14)
+            └─ Expr: expr#68: 0

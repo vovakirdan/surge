@@ -89,6 +89,7 @@ extern<Task<T>> {
 pub fn checkpoint() -> Task<nothing>;
 
 // Typed channel for inter-task communication
+@copy
 @intrinsic
 pub type Channel<T> = {
     __opaque: *byte,

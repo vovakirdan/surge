@@ -105,6 +105,62 @@ func (vm *VM) taskIDFromValue(val Value) (asyncrt.TaskID, *VMError) {
 	}
 }
 
+func (vm *VM) channelIDFromValue(val Value) (asyncrt.ChannelID, *VMError) {
+	if val.Kind == VKRef || val.Kind == VKRefMut {
+		loaded, vmErr := vm.loadLocationRaw(val.Loc)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		val = loaded
+	}
+	switch val.Kind {
+	case VKInt:
+		if val.Int < 0 {
+			return 0, vm.eb.makeError(PanicInvalidHandle, "negative channel id")
+		}
+		return asyncrt.ChannelID(val.Int), nil
+	case VKBigInt:
+		i, vmErr := vm.mustBigInt(val)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		n, ok := i.Int64()
+		if !ok || n < 0 {
+			return 0, vm.eb.makeError(PanicInvalidHandle, "channel id out of range")
+		}
+		return asyncrt.ChannelID(n), nil
+	case VKBigUint:
+		u, vmErr := vm.mustBigUint(val)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		n, ok := u.Uint64()
+		if !ok || n > ^uint64(0)>>1 {
+			return 0, vm.eb.makeError(PanicInvalidHandle, "channel id out of range")
+		}
+		return asyncrt.ChannelID(n), nil
+	case VKHandleStruct:
+		obj := vm.Heap.Get(val.H)
+		if obj == nil || obj.Kind != OKStruct {
+			return 0, vm.eb.typeMismatch("struct", fmt.Sprintf("%v", obj.Kind))
+		}
+		layout, vmErr := vm.layouts.Struct(val.TypeID)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		idx, ok := layout.IndexByName["__opaque"]
+		if !ok {
+			return 0, vm.eb.makeError(PanicTypeMismatch, "Channel missing __opaque field")
+		}
+		if idx < 0 || idx >= len(obj.Fields) {
+			return 0, vm.eb.makeError(PanicOutOfBounds, "Channel __opaque field out of range")
+		}
+		return vm.channelIDFromValue(obj.Fields[idx])
+	default:
+		return 0, vm.eb.typeMismatch("Channel", val.Kind.String())
+	}
+}
+
 func (vm *VM) scopeIDFromValue(val Value) (asyncrt.ScopeID, *VMError) {
 	if val.Kind == VKRef || val.Kind == VKRefMut {
 		loaded, vmErr := vm.loadLocationRaw(val.Loc)
@@ -201,6 +257,28 @@ func (vm *VM) taskValue(id asyncrt.TaskID, typeID types.TypeID) (Value, *VMError
 	return MakeHandleStruct(h, typeID), nil
 }
 
+func (vm *VM) channelValue(id asyncrt.ChannelID, typeID types.TypeID) (Value, *VMError) {
+	layout, vmErr := vm.layouts.Struct(typeID)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	fields := make([]Value, len(layout.FieldNames))
+	for i := range fields {
+		fields[i] = Value{Kind: VKInvalid}
+	}
+	idx, ok := layout.IndexByName["__opaque"]
+	if !ok {
+		return Value{}, vm.eb.makeError(PanicTypeMismatch, "Channel missing __opaque field")
+	}
+	fieldType := layout.FieldTypes[idx]
+	if fieldType == types.NoTypeID && vm.Types != nil {
+		fieldType = vm.Types.Builtins().Int
+	}
+	fields[idx] = MakeInt(int64(id), fieldType) //nolint:gosec // ChannelID is bounded by executor
+	h := vm.Heap.AllocStruct(typeID, fields)
+	return MakeHandleStruct(h, typeID), nil
+}
+
 func (vm *VM) isTaskType(typeID types.TypeID) bool {
 	if vm == nil || vm.Types == nil || typeID == types.NoTypeID {
 		return false
@@ -216,6 +294,27 @@ func (vm *VM) isTaskType(typeID types.TypeID) bool {
 	}
 	name, ok := vm.Types.Strings.Lookup(info.Name)
 	return ok && name == "Task"
+}
+
+func (vm *VM) isChannelType(typeID types.TypeID) bool {
+	if vm == nil || vm.Types == nil || typeID == types.NoTypeID {
+		return false
+	}
+	typeID = vm.valueType(typeID)
+	tt, ok := vm.Types.Lookup(typeID)
+	if !ok || tt.Kind != types.KindStruct {
+		if info, aliasOK := vm.Types.AliasInfo(typeID); aliasOK && info != nil && vm.Types.Strings != nil {
+			name, nameOK := vm.Types.Strings.Lookup(info.Name)
+			return nameOK && name == "Channel"
+		}
+		return false
+	}
+	info, ok := vm.Types.StructInfo(typeID)
+	if !ok || info == nil || vm.Types.Strings == nil {
+		return false
+	}
+	name, ok := vm.Types.Strings.Lookup(info.Name)
+	return ok && name == "Channel"
 }
 
 func (vm *VM) taskResultFromTask(task *asyncrt.Task, resultType types.TypeID) (Value, *VMError) {

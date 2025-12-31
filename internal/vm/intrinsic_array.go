@@ -164,3 +164,22 @@ func (vm *VM) makeOptionSome(typeID types.TypeID, elem Value) (Value, *VMError) 
 	h := vm.Heap.AllocTag(typeID, tc.TagSym, []Value{elem})
 	return MakeHandleTag(h, typeID), nil
 }
+
+func (vm *VM) makeOptionNothing(typeID types.TypeID) (Value, *VMError) {
+	if typeID == types.NoTypeID {
+		return Value{}, vm.eb.makeError(PanicTypeMismatch, "invalid Option<T> type")
+	}
+	layout, vmErr := vm.tagLayoutFor(typeID)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	tc, ok := layout.CaseByName("nothing")
+	if !ok {
+		return Value{}, vm.eb.unknownTagLayout(fmt.Sprintf("unknown tag %q in type#%d layout", "nothing", layout.TypeID))
+	}
+	if len(tc.PayloadTypes) != 0 {
+		return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("tag %q expects 0 payload values, got %d", tc.TagName, len(tc.PayloadTypes)))
+	}
+	h := vm.Heap.AllocTag(typeID, tc.TagSym, nil)
+	return MakeHandleTag(h, typeID), nil
+}

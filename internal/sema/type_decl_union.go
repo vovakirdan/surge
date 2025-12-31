@@ -73,6 +73,14 @@ func (tc *typeChecker) instantiateUnion(typeItem *ast.TypeItem, symID symbols.Sy
 	typeID := tc.types.RegisterUnionInstance(typeItem.Name, typeItem.Span, args)
 	tc.types.SetUnionMembers(typeID, members)
 	tc.registerTagConstructors(typeItem, typeID, members)
+	if sym := tc.symbolFromID(symID); sym != nil && sym.Type != types.NoTypeID {
+		if attrs, ok := tc.typeAttrs[sym.Type]; ok {
+			tc.recordTypeAttrs(typeID, attrs)
+		}
+		if tc.types.IsCopy(sym.Type) {
+			tc.types.MarkCopyType(typeID)
+		}
+	}
 	return typeID
 }
 

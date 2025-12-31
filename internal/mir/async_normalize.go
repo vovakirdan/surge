@@ -8,6 +8,8 @@ type suspendSiteKind uint8
 const (
 	suspendPoll suspendSiteKind = iota
 	suspendJoinAll
+	suspendChanSend
+	suspendChanRecv
 )
 
 // awaitSite describes a suspend point that has been split into a poll instruction.
@@ -34,10 +36,9 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 			bb := &f.Blocks[bi]
 			for i := 0; i < len(bb.Instrs); i++ {
 				ins := &bb.Instrs[i]
-				if ins.Kind != InstrAwait {
+				if ins.Kind != InstrAwait && ins.Kind != InstrChanSend && ins.Kind != InstrChanRecv {
 					continue
 				}
-				awaitInstr := ins.Await
 				prelude := append([]Instr(nil), bb.Instrs[:i]...)
 				after := append([]Instr(nil), bb.Instrs[i+1:]...)
 				origTerm := bb.Term
@@ -47,12 +48,37 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 				f.Blocks[afterBB].Term = origTerm
 
 				pollBB := newBlock(f)
-				pollInstr := Instr{Kind: InstrPoll, Poll: PollInstr{
-					Dst:     awaitInstr.Dst,
-					Task:    awaitInstr.Task,
-					ReadyBB: afterBB,
-					PendBB:  NoBlockID,
-				}}
+				var pollInstr Instr
+				var kind suspendSiteKind
+				switch ins.Kind {
+				case InstrAwait:
+					awaitInstr := ins.Await
+					kind = suspendPoll
+					pollInstr = Instr{Kind: InstrPoll, Poll: PollInstr{
+						Dst:     awaitInstr.Dst,
+						Task:    awaitInstr.Task,
+						ReadyBB: afterBB,
+						PendBB:  NoBlockID,
+					}}
+				case InstrChanSend:
+					kind = suspendChanSend
+					pollInstr = Instr{Kind: InstrChanSend, ChanSend: ChanSendInstr{
+						Channel: ins.ChanSend.Channel,
+						Value:   ins.ChanSend.Value,
+						ReadyBB: afterBB,
+						PendBB:  NoBlockID,
+					}}
+				case InstrChanRecv:
+					kind = suspendChanRecv
+					pollInstr = Instr{Kind: InstrChanRecv, ChanRecv: ChanRecvInstr{
+						Dst:     ins.ChanRecv.Dst,
+						Channel: ins.ChanRecv.Channel,
+						ReadyBB: afterBB,
+						PendBB:  NoBlockID,
+					}}
+				default:
+					continue
+				}
 				f.Blocks[pollBB].Instrs = []Instr{pollInstr}
 				f.Blocks[pollBB].Term = Terminator{Kind: TermUnreachable}
 
@@ -60,7 +86,7 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 				bb.Term = Terminator{Kind: TermGoto, Goto: GotoTerm{Target: pollBB}}
 
 				sites = append(sites, awaitSite{
-					kind:      suspendPoll,
+					kind:      kind,
 					pollBB:    pollBB,
 					pollInstr: 0,
 					readyBB:   afterBB,
@@ -115,6 +141,20 @@ func collectSuspendSites(f *Func) []awaitSite {
 					pollInstr: ii,
 					readyBB:   ins.JoinAll.ReadyBB,
 				})
+			case InstrChanSend:
+				sites = append(sites, awaitSite{
+					kind:      suspendChanSend,
+					pollBB:    bbID,
+					pollInstr: ii,
+					readyBB:   ins.ChanSend.ReadyBB,
+				})
+			case InstrChanRecv:
+				sites = append(sites, awaitSite{
+					kind:      suspendChanRecv,
+					pollBB:    bbID,
+					pollInstr: ii,
+					readyBB:   ins.ChanRecv.ReadyBB,
+				})
 			}
 		}
 	}
@@ -128,7 +168,7 @@ func rejectAwaitInLoops(f *Func, sites []awaitSite) error {
 	}
 	awaitBlocks := make(map[BlockID]struct{}, len(sites))
 	for _, site := range sites {
-		if site.kind != suspendPoll {
+		if site.kind != suspendPoll && site.kind != suspendChanSend && site.kind != suspendChanRecv {
 			continue
 		}
 		awaitBlocks[site.pollBB] = struct{}{}
@@ -192,6 +232,24 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 			}
 			if includePollPending && last.JoinAll.PendBB != NoBlockID {
 				out = append(out, last.JoinAll.PendBB)
+			}
+			return out
+		case InstrChanSend:
+			out := []BlockID{}
+			if last.ChanSend.ReadyBB != NoBlockID {
+				out = append(out, last.ChanSend.ReadyBB)
+			}
+			if includePollPending && last.ChanSend.PendBB != NoBlockID {
+				out = append(out, last.ChanSend.PendBB)
+			}
+			return out
+		case InstrChanRecv:
+			out := []BlockID{}
+			if last.ChanRecv.ReadyBB != NoBlockID {
+				out = append(out, last.ChanRecv.ReadyBB)
+			}
+			if includePollPending && last.ChanRecv.PendBB != NoBlockID {
+				out = append(out, last.ChanRecv.PendBB)
 			}
 			return out
 		}

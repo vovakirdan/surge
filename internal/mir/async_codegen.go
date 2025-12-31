@@ -114,6 +114,10 @@ func buildAsyncPendingBlocks(f *Func, stateLocal LocalID, sites []awaitSite, var
 			pollInstr.Poll.PendBB = pendingBB
 		case InstrJoinAll:
 			pollInstr.JoinAll.PendBB = pendingBB
+		case InstrChanSend:
+			pollInstr.ChanSend.PendBB = pendingBB
+		case InstrChanRecv:
+			pollInstr.ChanRecv.PendBB = pendingBB
 		default:
 			return fmt.Errorf("mir: async: expected suspend instruction in %s", f.Name)
 		}

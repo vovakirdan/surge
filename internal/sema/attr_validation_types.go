@@ -21,6 +21,9 @@ func (tc *typeChecker) recordTypeAttrs(typeID types.TypeID, infos []AttrInfo) {
 			tc.copyTypes = make(map[types.TypeID]struct{})
 		}
 		tc.copyTypes[typeID] = struct{}{}
+		if tc.types != nil {
+			tc.types.MarkCopyType(typeID)
+		}
 	}
 }
 

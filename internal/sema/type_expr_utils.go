@@ -293,6 +293,9 @@ func (tc *typeChecker) isCopyType(id types.TypeID) bool {
 	if tc.typeHasAttr(resolved, "copy") {
 		return true
 	}
+	if tt, ok := tc.types.Lookup(resolved); ok && tt.Kind == types.KindOwn {
+		return tc.isCopyType(tt.Elem)
+	}
 
 	return false
 }

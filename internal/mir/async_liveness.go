@@ -102,6 +102,13 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 			addUsesFromOperand(&ins.JoinAll.Scope, addUse)
 			addUsesFromPlaceWrite(ins.JoinAll.Dst, addUse)
 			addDefFromPlace(ins.JoinAll.Dst, addDef)
+		case InstrChanSend:
+			addUsesFromOperand(&ins.ChanSend.Channel, addUse)
+			addUsesFromOperand(&ins.ChanSend.Value, addUse)
+		case InstrChanRecv:
+			addUsesFromOperand(&ins.ChanRecv.Channel, addUse)
+			addUsesFromPlaceWrite(ins.ChanRecv.Dst, addUse)
+			addDefFromPlace(ins.ChanRecv.Dst, addDef)
 		}
 	}
 

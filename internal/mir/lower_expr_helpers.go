@@ -303,6 +303,33 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 		}
 	}
 
+	if l.f != nil && l.f.IsAsync {
+		baseName := baseSymbolName(callee.Name)
+		switch baseName {
+		case "send":
+			if len(args) == 2 && l.isChannelType(args[0].Type) {
+				l.emit(&Instr{Kind: InstrChanSend, ChanSend: ChanSendInstr{
+					Channel: args[0],
+					Value:   args[1],
+					ReadyBB: NoBlockID,
+					PendBB:  NoBlockID,
+				}})
+				return l.constNothing(e.Type), nil
+			}
+		case "recv":
+			if len(args) == 1 && l.isChannelType(args[0].Type) {
+				tmp := l.newTemp(e.Type, "recv", e.Span)
+				l.emit(&Instr{Kind: InstrChanRecv, ChanRecv: ChanRecvInstr{
+					Dst:     Place{Local: tmp},
+					Channel: args[0],
+					ReadyBB: NoBlockID,
+					PendBB:  NoBlockID,
+				}})
+				return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
+			}
+		}
+	}
+
 	if e.Type == types.NoTypeID || l.isNothingType(e.Type) {
 		l.emit(&Instr{Kind: InstrCall, Call: CallInstr{HasDst: false, Callee: callee, Args: args}})
 		return l.constNothing(e.Type), nil
@@ -326,6 +353,13 @@ func isAwaitSymbolName(name string) bool {
 		return true
 	}
 	return strings.HasPrefix(name, "await::<")
+}
+
+func baseSymbolName(name string) string {
+	if idx := strings.Index(name, "::<"); idx >= 0 {
+		return name[:idx]
+	}
+	return name
 }
 
 // lowerAssignExpr lowers an assignment expression.

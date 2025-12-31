@@ -172,8 +172,14 @@ func (tc *typeChecker) instantiateStruct(typeItem *ast.TypeItem, symID symbols.S
 	}
 	tc.types.SetStructFields(typeID, fields)
 	if sym := tc.symbolFromID(symID); sym != nil && sym.Type != types.NoTypeID {
+		if attrs, ok := tc.typeAttrs[sym.Type]; ok {
+			tc.recordTypeAttrs(typeID, attrs)
+		}
 		if attrs, ok := tc.types.TypeLayoutAttrs(sym.Type); ok {
 			tc.types.SetTypeLayoutAttrs(typeID, attrs)
+		}
+		if tc.types.IsCopy(sym.Type) {
+			tc.types.MarkCopyType(typeID)
 		}
 	}
 	return typeID

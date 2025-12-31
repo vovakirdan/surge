@@ -1,4 +1,4 @@
-vm_async_j6_early_exit_cancel.sg (span: 1:1-21:1)
+testdata/golden/vm_async/vm_async_j6_early_exit_cancel.sg (span: 1:1-21:1)
 └─ Item[0]: Fn (span: 1:1-20:2)
    ├─ Name: main
    ├─ Params: ()

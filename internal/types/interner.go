@@ -40,6 +40,7 @@ type Interner struct {
 	aliases          []AliasInfo
 	Strings          *source.Interner
 	typeLayoutAttrs  map[TypeID]LayoutAttrs
+	copyTypes        map[TypeID]struct{}
 	params           []TypeParamInfo
 	unions           []UnionInfo
 	enums            []EnumInfo
@@ -148,6 +149,11 @@ func (in *Interner) IsCopy(id TypeID) bool {
 	if id == NoTypeID {
 		return false
 	}
+	if in != nil && in.copyTypes != nil {
+		if _, ok := in.copyTypes[id]; ok {
+			return true
+		}
+	}
 	tt, ok := in.Lookup(id)
 	if !ok {
 		return false
@@ -169,4 +175,15 @@ func (in *Interner) IsCopy(id TypeID) bool {
 		// KindString, KindStruct, KindUnion, KindArray, KindTuple, KindAlias, KindGenericParam
 		return false
 	}
+}
+
+// MarkCopyType records a nominal type as Copy-capable.
+func (in *Interner) MarkCopyType(id TypeID) {
+	if in == nil || id == NoTypeID {
+		return
+	}
+	if in.copyTypes == nil {
+		in.copyTypes = make(map[TypeID]struct{}, 64)
+	}
+	in.copyTypes[id] = struct{}{}
 }

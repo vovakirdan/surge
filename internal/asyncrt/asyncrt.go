@@ -8,10 +8,12 @@ type Executor struct {
 	cfg         Config
 	nextID      TaskID
 	nextScopeID ScopeID
+	nextChanID  ChannelID
 	ready       []TaskID
 	readySet    map[TaskID]struct{}
 	tasks       map[TaskID]*Task
 	scopes      map[ScopeID]*Scope
+	channels    map[ChannelID]*Channel
 	waiters     map[WakerKey][]TaskID
 	parked      map[TaskID]WakerKey
 	current     TaskID
@@ -47,6 +49,17 @@ const (
 	TaskResultCancelled
 )
 
+// ResumeKind indicates a resume payload for parked tasks.
+type ResumeKind uint8
+
+const (
+	ResumeNone ResumeKind = iota
+	ResumeChanRecvValue
+	ResumeChanRecvClosed
+	ResumeChanSendAck
+	ResumeChanSendClosed
+)
+
 // Task stores executor-visible task state.
 type Task struct {
 	ID               TaskID
@@ -54,6 +67,8 @@ type Task struct {
 	State            any
 	ResultKind       TaskResultKind
 	ResultValue      any
+	ResumeKind       ResumeKind
+	ResumeValue      any
 	Status           TaskStatus
 	Kind             TaskKind
 	Cancelled        bool
@@ -76,6 +91,7 @@ func NewExecutor(cfg Config) *Executor {
 		cfg:         cfg,
 		nextID:      1,
 		nextScopeID: 1,
+		nextChanID:  1,
 		readySet:    make(map[TaskID]struct{}),
 		tasks:       make(map[TaskID]*Task),
 		scopes:      make(map[ScopeID]*Scope),
@@ -417,6 +433,9 @@ func (e *Executor) DrainTasks() []*Task {
 		if e.scopes != nil {
 			clear(e.scopes)
 		}
+		if e.channels != nil {
+			clear(e.channels)
+		}
 		if e.waiters != nil {
 			clear(e.waiters)
 		}
@@ -424,6 +443,7 @@ func (e *Executor) DrainTasks() []*Task {
 			clear(e.parked)
 		}
 		e.nextScopeID = 1
+		e.nextChanID = 1
 		e.current = 0
 		return nil
 	}
@@ -434,6 +454,9 @@ func (e *Executor) DrainTasks() []*Task {
 	e.tasks = make(map[TaskID]*Task)
 	if e.scopes != nil {
 		clear(e.scopes)
+	}
+	if e.channels != nil {
+		clear(e.channels)
 	}
 	e.ready = nil
 	if e.readySet != nil {
@@ -446,6 +469,7 @@ func (e *Executor) DrainTasks() []*Task {
 		clear(e.parked)
 	}
 	e.nextScopeID = 1
+	e.nextChanID = 1
 	e.current = 0
 	return tasks
 }

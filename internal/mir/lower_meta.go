@@ -153,6 +153,11 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 					visitOperand(&ins.Poll.Task)
 				case InstrJoinAll:
 					visitOperand(&ins.JoinAll.Scope)
+				case InstrChanSend:
+					visitOperand(&ins.ChanSend.Channel)
+					visitOperand(&ins.ChanSend.Value)
+				case InstrChanRecv:
+					visitOperand(&ins.ChanRecv.Channel)
 				default:
 				}
 			}

@@ -6,6 +6,8 @@ type WakerKind uint8
 const (
 	WakerInvalid WakerKind = iota
 	WakerJoin
+	WakerChannelRecv
+	WakerChannelSend
 )
 
 // WakerKey identifies a wait queue entry.
@@ -23,6 +25,16 @@ func (k WakerKey) IsValid() bool {
 // JoinKey builds a join wait key for a target task.
 func JoinKey(target TaskID) WakerKey {
 	return WakerKey{Kind: WakerJoin, A: uint64(target)}
+}
+
+// ChannelRecvKey builds a wait key for channel receivers.
+func ChannelRecvKey(channelID ChannelID) WakerKey {
+	return WakerKey{Kind: WakerChannelRecv, A: uint64(channelID)}
+}
+
+// ChannelSendKey builds a wait key for channel senders.
+func ChannelSendKey(channelID ChannelID) WakerKey {
+	return WakerKey{Kind: WakerChannelSend, A: uint64(channelID)}
 }
 
 // PollOutcomeKind reports how a poll iteration completed.

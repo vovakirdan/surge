@@ -106,6 +106,12 @@ func applyRedirects(f *Func, redirects map[BlockID]BlockID) {
 			case InstrJoinAll:
 				last.JoinAll.ReadyBB = redirect(last.JoinAll.ReadyBB)
 				last.JoinAll.PendBB = redirect(last.JoinAll.PendBB)
+			case InstrChanSend:
+				last.ChanSend.ReadyBB = redirect(last.ChanSend.ReadyBB)
+				last.ChanSend.PendBB = redirect(last.ChanSend.PendBB)
+			case InstrChanRecv:
+				last.ChanRecv.ReadyBB = redirect(last.ChanRecv.ReadyBB)
+				last.ChanRecv.PendBB = redirect(last.ChanRecv.PendBB)
 			}
 		}
 	}
@@ -137,6 +143,14 @@ func computeReachability(f *Func) []bool {
 			case InstrJoinAll:
 				visit(last.JoinAll.ReadyBB)
 				visit(last.JoinAll.PendBB)
+				return
+			case InstrChanSend:
+				visit(last.ChanSend.ReadyBB)
+				visit(last.ChanSend.PendBB)
+				return
+			case InstrChanRecv:
+				visit(last.ChanRecv.ReadyBB)
+				visit(last.ChanRecv.PendBB)
 				return
 			}
 		}
@@ -224,6 +238,12 @@ func compactBlocks(f *Func, reachable []bool) {
 			case InstrJoinAll:
 				last.JoinAll.ReadyBB = remap(last.JoinAll.ReadyBB)
 				last.JoinAll.PendBB = remap(last.JoinAll.PendBB)
+			case InstrChanSend:
+				last.ChanSend.ReadyBB = remap(last.ChanSend.ReadyBB)
+				last.ChanSend.PendBB = remap(last.ChanSend.PendBB)
+			case InstrChanRecv:
+				last.ChanRecv.ReadyBB = remap(last.ChanRecv.ReadyBB)
+				last.ChanRecv.PendBB = remap(last.ChanRecv.PendBB)
 			}
 		}
 	}

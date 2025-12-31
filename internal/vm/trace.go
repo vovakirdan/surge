@@ -196,6 +196,20 @@ func (t *Tracer) formatInstr(instr *mir.Instr) string {
 			instr.JoinAll.ReadyBB,
 			instr.JoinAll.PendBB,
 		)
+	case mir.InstrChanSend:
+		return fmt.Sprintf("chan_send %s, %s ? bb%d : bb%d",
+			t.formatOperand(&instr.ChanSend.Channel),
+			t.formatOperand(&instr.ChanSend.Value),
+			instr.ChanSend.ReadyBB,
+			instr.ChanSend.PendBB,
+		)
+	case mir.InstrChanRecv:
+		return fmt.Sprintf("%s = chan_recv %s ? bb%d : bb%d",
+			t.formatPlace(instr.ChanRecv.Dst),
+			t.formatOperand(&instr.ChanRecv.Channel),
+			instr.ChanRecv.ReadyBB,
+			instr.ChanRecv.PendBB,
+		)
 	case mir.InstrNop:
 		return "nop"
 	default:

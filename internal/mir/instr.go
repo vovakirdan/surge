@@ -17,6 +17,8 @@ const (
 	InstrSpawn
 	InstrPoll
 	InstrJoinAll
+	InstrChanSend
+	InstrChanRecv
 	InstrNop
 )
 
@@ -31,6 +33,8 @@ type Instr struct {
 	Spawn     SpawnInstr
 	Poll      PollInstr
 	JoinAll   JoinAllInstr
+	ChanSend  ChanSendInstr
+	ChanRecv  ChanRecvInstr
 }
 
 type AssignInstr struct {
@@ -87,6 +91,20 @@ type PollInstr struct {
 type JoinAllInstr struct {
 	Dst     Place
 	Scope   Operand
+	ReadyBB BlockID
+	PendBB  BlockID
+}
+
+type ChanSendInstr struct {
+	Channel Operand
+	Value   Operand
+	ReadyBB BlockID
+	PendBB  BlockID
+}
+
+type ChanRecvInstr struct {
+	Dst     Place
+	Channel Operand
 	ReadyBB BlockID
 	PendBB  BlockID
 }

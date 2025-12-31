@@ -112,6 +112,21 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_scope_exit":
 		return vm.handleScopeExit(frame, call)
 
+	case "make_channel":
+		return vm.handleMakeChannel(frame, call, writes)
+	case "new":
+		return vm.handleChannelNew(frame, call, writes)
+	case "send":
+		return vm.handleChannelSend(frame, call)
+	case "recv":
+		return vm.handleChannelRecv(frame, call, writes)
+	case "try_send":
+		return vm.handleChannelTrySend(frame, call, writes)
+	case "try_recv":
+		return vm.handleChannelTryRecv(frame, call, writes)
+	case "close":
+		return vm.handleChannelClose(frame, call)
+
 	case "rt_write_stdout":
 		return vm.handleWriteStdout(frame, call, writes)
 

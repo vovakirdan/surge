@@ -1,0 +1,85 @@
+testdata/golden/vm_async/vm_async_j7_try.sg (span: 1:1-43:1)
+└─ Item[0]: Fn (span: 1:1-42:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-42:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:38)
+         │  ├─ Name: ch0
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#3: make_channel(0)
+         ├─ Stmt[1]: Let (span: 4:5-4:29)
+         │  ├─ Name: r0
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#6: ch0.try_recv()
+         ├─ Stmt[2]: Expr (span: 5:5-8:7)
+         │  └─ Expr: expr#22: compare r0 { 2 arms }
+         ├─ Stmt[3]: Let (span: 9:5-9:30)
+         │  ├─ Name: s0
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#26: ch0.try_send(1)
+         ├─ Stmt[4]: If (span: 10:5-14:6)
+         │  ├─ Cond: expr#27: s0
+         │  ├─ Then:
+Block (span: 10:11-12:6)
+         │  │  └─ Stmt[0]: Expr (span: 11:9-11:26)
+         │  │     └─ Expr: expr#30: print("s0=true")
+         │  └─ Else:
+Block (span: 12:12-14:6)
+         │     └─ Stmt[0]: Expr (span: 13:9-13:27)
+         │        └─ Expr: expr#33: print("s0=false")
+         ├─ Stmt[5]: Let (span: 16:5-16:38)
+         │  ├─ Name: ch1
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#36: make_channel(1)
+         ├─ Stmt[6]: Let (span: 17:5-17:32)
+         │  ├─ Name: s1a
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#40: ch1.try_send(10)
+         ├─ Stmt[7]: If (span: 18:5-22:6)
+         │  ├─ Cond: expr#41: s1a
+         │  ├─ Then:
+Block (span: 18:12-20:6)
+         │  │  └─ Stmt[0]: Expr (span: 19:9-19:27)
+         │  │     └─ Expr: expr#44: print("s1a=true")
+         │  └─ Else:
+Block (span: 20:12-22:6)
+         │     └─ Stmt[0]: Expr (span: 21:9-21:28)
+         │        └─ Expr: expr#47: print("s1a=false")
+         ├─ Stmt[8]: Let (span: 23:5-23:32)
+         │  ├─ Name: s1b
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#51: ch1.try_send(20)
+         ├─ Stmt[9]: If (span: 24:5-28:6)
+         │  ├─ Cond: expr#52: s1b
+         │  ├─ Then:
+Block (span: 24:12-26:6)
+         │  │  └─ Stmt[0]: Expr (span: 25:9-25:27)
+         │  │     └─ Expr: expr#55: print("s1b=true")
+         │  └─ Else:
+Block (span: 26:12-28:6)
+         │     └─ Stmt[0]: Expr (span: 27:9-27:28)
+         │        └─ Expr: expr#58: print("s1b=false")
+         ├─ Stmt[10]: Let (span: 30:5-30:30)
+         │  ├─ Name: r1a
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#61: ch1.try_recv()
+         ├─ Stmt[11]: Expr (span: 31:5-34:7)
+         │  └─ Expr: expr#77: compare r1a { 2 arms }
+         ├─ Stmt[12]: Let (span: 35:5-35:30)
+         │  ├─ Name: r1b
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#80: ch1.try_recv()
+         ├─ Stmt[13]: Expr (span: 36:5-39:7)
+         │  └─ Expr: expr#96: compare r1b { 2 arms }
+         └─ Stmt[14]: Return (span: 41:5-41:14)
+            └─ Expr: expr#97: 0
