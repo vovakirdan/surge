@@ -1,14 +1,19 @@
 package asyncrt
 
-// Executor runs async tasks on a single thread; deterministic by default.
-// Future iterations will add scheduler fuzzing and structured cancel/join policy.
+import "math/rand"
+
+// Executor runs async tasks on a single thread with a deterministic FIFO scheduler by default.
+// Fuzz scheduling is supported for reproducible interleavings.
 type Executor struct {
 	cfg      Config
 	nextID   TaskID
 	ready    []TaskID
 	readySet map[TaskID]struct{}
 	tasks    map[TaskID]*Task
+	waiters  map[WakerKey][]TaskID
+	parked   map[TaskID]WakerKey
 	current  TaskID
+	rng      *rand.Rand
 }
 
 // TaskID identifies a spawned task.
@@ -40,11 +45,10 @@ type Task struct {
 	Result           any
 	Status           TaskStatus
 	Kind             TaskKind
-	JoinWaiters      []TaskID
 	checkpointPolled bool
 }
 
-// Config configures executor behavior.
+// Config configures executor scheduling behavior.
 type Config struct {
 	Deterministic bool
 	Fuzz          bool
@@ -53,12 +57,20 @@ type Config struct {
 
 // NewExecutor constructs an executor with the provided configuration.
 func NewExecutor(cfg Config) *Executor {
-	return &Executor{
+	exec := &Executor{
 		cfg:      cfg,
 		nextID:   1,
 		readySet: make(map[TaskID]struct{}),
 		tasks:    make(map[TaskID]*Task),
 	}
+	if cfg.Fuzz {
+		seed := cfg.Seed
+		if seed == 0 {
+			seed = 1
+		}
+		exec.rng = rand.New(rand.NewSource(int64(seed))) //nolint:gosec // deterministic scheduler seed
+	}
+	return exec
 }
 
 // Current returns the ID of the task being polled.
@@ -151,15 +163,34 @@ func (t *Task) MarkCheckpointPolled() {
 	t.checkpointPolled = true
 }
 
-// Dequeue pops the next ready task ID.
-func (e *Executor) Dequeue() (TaskID, bool) {
+// NextReady returns the next ready task according to scheduler policy.
+func (e *Executor) NextReady() (TaskID, bool) {
 	if e == nil || len(e.ready) == 0 {
 		return 0, false
 	}
-	id := e.ready[0]
-	e.ready = e.ready[1:]
-	delete(e.readySet, id)
-	return id, true
+	for len(e.ready) > 0 {
+		idx := 0
+		if e.cfg.Fuzz {
+			if e.rng == nil {
+				seed := e.cfg.Seed
+				if seed == 0 {
+					seed = 1
+				}
+				e.rng = rand.New(rand.NewSource(int64(seed))) //nolint:gosec // deterministic scheduler seed
+			}
+			idx = e.rng.Intn(len(e.ready))
+		}
+		id := e.ready[idx]
+		copy(e.ready[idx:], e.ready[idx+1:])
+		e.ready = e.ready[:len(e.ready)-1]
+		delete(e.readySet, id)
+		task := e.tasks[id]
+		if task == nil || task.Status == TaskDone {
+			continue
+		}
+		return id, true
+	}
+	return 0, false
 }
 
 // Wake enqueues a task if it is not done.
@@ -171,7 +202,70 @@ func (e *Executor) Wake(id TaskID) {
 	if task == nil || task.Status == TaskDone {
 		return
 	}
+	if key, ok := e.parked[id]; ok {
+		e.removeWaiter(key, id)
+		delete(e.parked, id)
+	}
 	e.enqueue(id)
+}
+
+// Yield requeues a task after it voluntarily yielded.
+func (e *Executor) Yield(id TaskID) {
+	if e == nil {
+		return
+	}
+	task := e.tasks[id]
+	if task == nil || task.Status == TaskDone {
+		return
+	}
+	e.enqueue(id)
+}
+
+// ParkCurrent moves the current task into a wait queue for the key.
+func (e *Executor) ParkCurrent(key WakerKey) {
+	if e == nil || !key.IsValid() {
+		return
+	}
+	if e.current == 0 {
+		return
+	}
+	e.parkTask(e.current, key)
+}
+
+// WakeKeyOne wakes the oldest task waiting on a key.
+func (e *Executor) WakeKeyOne(key WakerKey) {
+	if e == nil || !key.IsValid() {
+		return
+	}
+	waiters := e.waiters[key]
+	if len(waiters) == 0 {
+		return
+	}
+	id := waiters[0]
+	waiters = waiters[1:]
+	if len(waiters) == 0 {
+		delete(e.waiters, key)
+	} else {
+		e.waiters[key] = waiters
+	}
+	delete(e.parked, id)
+	e.Wake(id)
+}
+
+// WakeKeyAll wakes all tasks waiting on a key.
+func (e *Executor) WakeKeyAll(key WakerKey) {
+	if e == nil || !key.IsValid() {
+		return
+	}
+	waiters := e.waiters[key]
+	if len(waiters) == 0 {
+		return
+	}
+	delete(e.waiters, key)
+	for _, id := range waiters {
+		delete(e.parked, id)
+		e.Wake(id)
+	}
 }
 
 // MarkDone marks a task as completed and wakes join waiters.
@@ -185,31 +279,11 @@ func (e *Executor) MarkDone(id TaskID, result any) {
 	}
 	task.Result = result
 	task.Status = TaskDone
-	for _, waiter := range task.JoinWaiters {
-		e.Wake(waiter)
+	if key, ok := e.parked[id]; ok {
+		e.removeWaiter(key, id)
+		delete(e.parked, id)
 	}
-	task.JoinWaiters = nil
-}
-
-// Join waits for a task to complete and returns its result if ready.
-func (e *Executor) Join(waiter, target TaskID) (ready bool, result any) {
-	if e == nil {
-		return false, nil
-	}
-	task := e.tasks[target]
-	if task == nil {
-		return false, nil
-	}
-	if task.Status == TaskDone {
-		return true, task.Result
-	}
-	if waiter != 0 {
-		task.JoinWaiters = append(task.JoinWaiters, waiter)
-		if w := e.tasks[waiter]; w != nil && w.Status != TaskDone {
-			w.Status = TaskWaiting
-		}
-	}
-	return false, nil
+	e.WakeKeyAll(JoinKey(id))
 }
 
 func (e *Executor) enqueue(id TaskID) {
@@ -229,6 +303,51 @@ func (e *Executor) enqueue(id TaskID) {
 	}
 }
 
+func (e *Executor) parkTask(id TaskID, key WakerKey) {
+	if e == nil || !key.IsValid() {
+		return
+	}
+	task := e.tasks[id]
+	if task == nil || task.Status == TaskDone {
+		return
+	}
+	if e.waiters == nil {
+		e.waiters = make(map[WakerKey][]TaskID)
+	}
+	if e.parked == nil {
+		e.parked = make(map[TaskID]WakerKey)
+	}
+	if prev, ok := e.parked[id]; ok {
+		if prev == key {
+			task.Status = TaskWaiting
+			return
+		}
+		e.removeWaiter(prev, id)
+	}
+	e.parked[id] = key
+	e.waiters[key] = append(e.waiters[key], id)
+	task.Status = TaskWaiting
+}
+
+func (e *Executor) removeWaiter(key WakerKey, id TaskID) {
+	if e == nil {
+		return
+	}
+	waiters := e.waiters[key]
+	for i, waiter := range waiters {
+		if waiter == id {
+			copy(waiters[i:], waiters[i+1:])
+			waiters = waiters[:len(waiters)-1]
+			break
+		}
+	}
+	if len(waiters) == 0 {
+		delete(e.waiters, key)
+		return
+	}
+	e.waiters[key] = waiters
+}
+
 // DrainTasks returns all tasks and resets executor queues.
 func (e *Executor) DrainTasks() []*Task {
 	if e == nil {
@@ -238,6 +357,12 @@ func (e *Executor) DrainTasks() []*Task {
 		e.ready = nil
 		if e.readySet != nil {
 			clear(e.readySet)
+		}
+		if e.waiters != nil {
+			clear(e.waiters)
+		}
+		if e.parked != nil {
+			clear(e.parked)
 		}
 		e.current = 0
 		return nil
@@ -250,6 +375,12 @@ func (e *Executor) DrainTasks() []*Task {
 	e.ready = nil
 	if e.readySet != nil {
 		clear(e.readySet)
+	}
+	if e.waiters != nil {
+		clear(e.waiters)
+	}
+	if e.parked != nil {
+		clear(e.parked)
 	}
 	e.current = 0
 	return tasks

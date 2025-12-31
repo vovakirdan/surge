@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"surge/internal/asyncrt"
 	"surge/internal/driver"
 	"surge/internal/mir"
 	"surge/internal/mono"
@@ -32,6 +33,8 @@ func init() {
 	runCmd.Flags().StringArray("vm-break-fn", nil, "add VM function breakpoint <name> (repeatable)")
 	runCmd.Flags().String("vm-record", "", "record VM run to NDJSON log")
 	runCmd.Flags().String("vm-replay", "", "replay VM run from NDJSON log")
+	runCmd.Flags().Bool("fuzz-scheduler", false, "enable fuzzed async scheduling")
+	runCmd.Flags().Uint64("fuzz-seed", 1, "seed for fuzzed async scheduling (default 1)")
 }
 
 func runExecution(cmd *cobra.Command, args []string) error {
@@ -73,6 +76,14 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	vmReplayPath, err := cmd.Flags().GetString("vm-replay")
 	if err != nil {
 		return fmt.Errorf("failed to get vm-replay flag: %w", err)
+	}
+	fuzzScheduler, err := cmd.Flags().GetBool("fuzz-scheduler")
+	if err != nil {
+		return fmt.Errorf("failed to get fuzz-scheduler flag: %w", err)
+	}
+	fuzzSeed, err := cmd.Flags().GetUint64("fuzz-seed")
+	if err != nil {
+		return fmt.Errorf("failed to get fuzz-seed flag: %w", err)
 	}
 	if vmRecordPath != "" && vmReplayPath != "" {
 		return fmt.Errorf("--vm-record and --vm-replay are mutually exclusive")
@@ -179,6 +190,11 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	}
 
 	vmInstance := vm.New(mirMod, rt, result.FileSet, result.Sema.TypeInterner, tracer)
+	vmInstance.AsyncConfig = asyncrt.Config{
+		Deterministic: !fuzzScheduler,
+		Fuzz:          fuzzScheduler,
+		Seed:          fuzzSeed,
+	}
 	if recorder != nil {
 		vmInstance.Recorder = recorder
 	}

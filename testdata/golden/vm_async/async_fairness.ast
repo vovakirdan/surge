@@ -1,0 +1,29 @@
+async_fairness.sg (span: 1:1-23:1)
+└─ Item[0]: Fn (span: 1:1-22:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-22:2)
+         ├─ Stmt[0]: Let (span: 3:5-10:7)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#20: spawn async { 6 stmt(s) }
+         ├─ Stmt[1]: Let (span: 11:5-18:7)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#40: spawn async { 6 stmt(s) }
+         ├─ Stmt[2]: Let (span: 19:5-19:23)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#43: a.await()
+         ├─ Stmt[3]: Let (span: 20:5-20:23)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#46: b.await()
+         └─ Stmt[4]: Return (span: 21:5-21:14)
+            └─ Expr: expr#47: 0

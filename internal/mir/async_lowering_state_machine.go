@@ -104,8 +104,8 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	if err != nil {
 		return err
 	}
-	if err := rejectAwaitInLoops(pollFn, awaitSites); err != nil {
-		return err
+	if loopErr := rejectAwaitInLoops(pollFn, awaitSites); loopErr != nil {
+		return loopErr
 	}
 	live := computeLiveness(pollFn)
 
@@ -344,36 +344,36 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 		ins := &bb.Instrs[i]
 		switch ins.Kind {
 		case InstrAssign:
-			addUsesFromRValue(ins.Assign.Src, addUse)
+			addUsesFromRValue(&ins.Assign.Src, addUse)
 			addUsesFromPlaceWrite(ins.Assign.Dst, addUse)
 			addDefFromPlace(ins.Assign.Dst, addDef)
 		case InstrCall:
 			if ins.Call.Callee.Kind == CalleeValue {
-				addUsesFromOperand(ins.Call.Callee.Value, addUse)
+				addUsesFromOperand(&ins.Call.Callee.Value, addUse)
 			}
 			for i := range ins.Call.Args {
-				addUsesFromOperand(ins.Call.Args[i], addUse)
+				addUsesFromOperand(&ins.Call.Args[i], addUse)
 			}
 			if ins.Call.HasDst {
 				addUsesFromPlaceWrite(ins.Call.Dst, addUse)
 				addDefFromPlace(ins.Call.Dst, addDef)
 			}
 		case InstrDrop:
-			addUsesFromPlace(ins.Drop.Place, addUse, true)
+			addUsesFromPlace(ins.Drop.Place, addUse)
 			addDefFromPlace(ins.Drop.Place, addDef)
 		case InstrEndBorrow:
-			addUsesFromPlace(ins.EndBorrow.Place, addUse, true)
+			addUsesFromPlace(ins.EndBorrow.Place, addUse)
 			addDefFromPlace(ins.EndBorrow.Place, addDef)
 		case InstrAwait:
-			addUsesFromOperand(ins.Await.Task, addUse)
+			addUsesFromOperand(&ins.Await.Task, addUse)
 			addUsesFromPlaceWrite(ins.Await.Dst, addUse)
 			addDefFromPlace(ins.Await.Dst, addDef)
 		case InstrSpawn:
-			addUsesFromOperand(ins.Spawn.Value, addUse)
+			addUsesFromOperand(&ins.Spawn.Value, addUse)
 			addUsesFromPlaceWrite(ins.Spawn.Dst, addUse)
 			addDefFromPlace(ins.Spawn.Dst, addDef)
 		case InstrPoll:
-			addUsesFromOperand(ins.Poll.Task, addUse)
+			addUsesFromOperand(&ins.Poll.Task, addUse)
 			addUsesFromPlaceWrite(ins.Poll.Dst, addUse)
 			addDefFromPlace(ins.Poll.Dst, addDef)
 		}
@@ -382,76 +382,82 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 	switch bb.Term.Kind {
 	case TermReturn:
 		if bb.Term.Return.HasValue {
-			addUsesFromOperand(bb.Term.Return.Value, addUse)
+			addUsesFromOperand(&bb.Term.Return.Value, addUse)
 		}
 	case TermAsyncYield:
-		addUsesFromOperand(bb.Term.AsyncYield.State, addUse)
+		addUsesFromOperand(&bb.Term.AsyncYield.State, addUse)
 	case TermAsyncReturn:
-		addUsesFromOperand(bb.Term.AsyncReturn.State, addUse)
+		addUsesFromOperand(&bb.Term.AsyncReturn.State, addUse)
 		if bb.Term.AsyncReturn.HasValue {
-			addUsesFromOperand(bb.Term.AsyncReturn.Value, addUse)
+			addUsesFromOperand(&bb.Term.AsyncReturn.Value, addUse)
 		}
 	case TermIf:
-		addUsesFromOperand(bb.Term.If.Cond, addUse)
+		addUsesFromOperand(&bb.Term.If.Cond, addUse)
 	case TermSwitchTag:
-		addUsesFromOperand(bb.Term.SwitchTag.Value, addUse)
+		addUsesFromOperand(&bb.Term.SwitchTag.Value, addUse)
 	}
 
 	return use, def
 }
 
-func addUsesFromOperand(op Operand, addUse func(LocalID)) {
+func addUsesFromOperand(op *Operand, addUse func(LocalID)) {
+	if op == nil {
+		return
+	}
 	switch op.Kind {
 	case OperandCopy, OperandMove, OperandAddrOf, OperandAddrOfMut:
-		addUsesFromPlace(op.Place, addUse, true)
+		addUsesFromPlace(op.Place, addUse)
 	}
 }
 
-func addUsesFromRValue(rv RValue, addUse func(LocalID)) {
+func addUsesFromRValue(rv *RValue, addUse func(LocalID)) {
+	if rv == nil {
+		return
+	}
 	switch rv.Kind {
 	case RValueUse:
-		addUsesFromOperand(rv.Use, addUse)
+		addUsesFromOperand(&rv.Use, addUse)
 	case RValueUnaryOp:
-		addUsesFromOperand(rv.Unary.Operand, addUse)
+		addUsesFromOperand(&rv.Unary.Operand, addUse)
 	case RValueBinaryOp:
-		addUsesFromOperand(rv.Binary.Left, addUse)
-		addUsesFromOperand(rv.Binary.Right, addUse)
+		addUsesFromOperand(&rv.Binary.Left, addUse)
+		addUsesFromOperand(&rv.Binary.Right, addUse)
 	case RValueCast:
-		addUsesFromOperand(rv.Cast.Value, addUse)
+		addUsesFromOperand(&rv.Cast.Value, addUse)
 	case RValueStructLit:
 		for i := range rv.StructLit.Fields {
-			addUsesFromOperand(rv.StructLit.Fields[i].Value, addUse)
+			addUsesFromOperand(&rv.StructLit.Fields[i].Value, addUse)
 		}
 	case RValueArrayLit:
 		for i := range rv.ArrayLit.Elems {
-			addUsesFromOperand(rv.ArrayLit.Elems[i], addUse)
+			addUsesFromOperand(&rv.ArrayLit.Elems[i], addUse)
 		}
 	case RValueTupleLit:
 		for i := range rv.TupleLit.Elems {
-			addUsesFromOperand(rv.TupleLit.Elems[i], addUse)
+			addUsesFromOperand(&rv.TupleLit.Elems[i], addUse)
 		}
 	case RValueField:
-		addUsesFromOperand(rv.Field.Object, addUse)
+		addUsesFromOperand(&rv.Field.Object, addUse)
 	case RValueIndex:
-		addUsesFromOperand(rv.Index.Object, addUse)
-		addUsesFromOperand(rv.Index.Index, addUse)
+		addUsesFromOperand(&rv.Index.Object, addUse)
+		addUsesFromOperand(&rv.Index.Index, addUse)
 	case RValueTagTest:
-		addUsesFromOperand(rv.TagTest.Value, addUse)
+		addUsesFromOperand(&rv.TagTest.Value, addUse)
 	case RValueTagPayload:
-		addUsesFromOperand(rv.TagPayload.Value, addUse)
+		addUsesFromOperand(&rv.TagPayload.Value, addUse)
 	case RValueIterInit:
-		addUsesFromOperand(rv.IterInit.Iterable, addUse)
+		addUsesFromOperand(&rv.IterInit.Iterable, addUse)
 	case RValueIterNext:
-		addUsesFromOperand(rv.IterNext.Iter, addUse)
+		addUsesFromOperand(&rv.IterNext.Iter, addUse)
 	case RValueTypeTest:
-		addUsesFromOperand(rv.TypeTest.Value, addUse)
+		addUsesFromOperand(&rv.TypeTest.Value, addUse)
 	case RValueHeirTest:
-		addUsesFromOperand(rv.HeirTest.Value, addUse)
+		addUsesFromOperand(&rv.HeirTest.Value, addUse)
 	}
 }
 
-func addUsesFromPlace(p Place, addUse func(LocalID), includeBase bool) {
-	if includeBase && p.Kind == PlaceLocal {
+func addUsesFromPlace(p Place, addUse func(LocalID)) {
+	if p.Kind == PlaceLocal {
 		addUse(p.Local)
 	}
 	for _, proj := range p.Proj {
@@ -465,7 +471,7 @@ func addUsesFromPlaceWrite(p Place, addUse func(LocalID)) {
 	if len(p.Proj) == 0 {
 		return
 	}
-	addUsesFromPlace(p, addUse, true)
+	addUsesFromPlace(p, addUse)
 }
 
 func addDefFromPlace(p Place, addDef func(LocalID)) {
@@ -474,7 +480,7 @@ func addDefFromPlace(p Place, addDef func(LocalID)) {
 	}
 }
 
-func buildAsyncStateUnion(m *Module, typesIn *types.Interner, symTable *symbols.Table, f *Func, pollFn *Func, variants []stateVariant) (types.TypeID, error) {
+func buildAsyncStateUnion(m *Module, typesIn *types.Interner, symTable *symbols.Table, f, pollFn *Func, variants []stateVariant) (types.TypeID, error) {
 	if typesIn == nil || typesIn.Strings == nil {
 		return types.NoTypeID, fmt.Errorf("mir: async: missing type interner strings")
 	}
@@ -531,7 +537,7 @@ func buildAsyncStateUnion(m *Module, typesIn *types.Interner, symTable *symbols.
 func nextSyntheticTagSym(m *Module, symTable *symbols.Table) symbols.SymbolID {
 	maxSym := symbols.SymbolID(0)
 	if symTable != nil && symTable.Symbols != nil {
-		maxSym = symbols.SymbolID(symTable.Symbols.Len())
+		maxSym = symbols.SymbolID(symTable.Symbols.Len()) //nolint:gosec // bounded by symbol table size
 	}
 	if m != nil && m.Meta != nil {
 		for sym := range m.Meta.TagNames {
@@ -706,7 +712,7 @@ func cloneSet(s localSet) localSet {
 	return out
 }
 
-func unionSet(dst localSet, src localSet) localSet {
+func unionSet(dst, src localSet) localSet {
 	if dst == nil {
 		dst = localSet{}
 	}
@@ -716,7 +722,7 @@ func unionSet(dst localSet, src localSet) localSet {
 	return dst
 }
 
-func subtractSet(src localSet, sub localSet) localSet {
+func subtractSet(src, sub localSet) localSet {
 	if len(src) == 0 {
 		return nil
 	}

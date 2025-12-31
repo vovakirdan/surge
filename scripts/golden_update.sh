@@ -14,7 +14,7 @@ export SURGE_STDLIB="${ROOT_DIR}"
 
 # Очищаем старые артефакты перед регенерацией, чтобы убрать лишние файлы
 # Keep debugger golden inputs/outputs.
-find "${GOLDEN_DIR}" -path "${GOLDEN_DIR}/spec_audit" -prune -o -type f ! -name '*.sg' ! -name '*.script' ! -name '*.out' ! -name '*.code' ! -name '*.args' ! -name '*.stdin' -exec rm {} \;
+find "${GOLDEN_DIR}" -path "${GOLDEN_DIR}/spec_audit" -prune -o -type f ! -name '*.sg' ! -name '*.script' ! -name '*.out' ! -name '*.code' ! -name '*.args' ! -name '*.stdin' ! -name '*.flags' -exec rm {} \;
 
 # Sync stdlib core sources into golden tree so they are always covered by diagnostics.
 rm -rf "${CORE_GOLDEN_DIR}"

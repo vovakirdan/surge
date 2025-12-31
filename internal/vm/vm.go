@@ -36,13 +36,15 @@ type VM struct {
 	layouts      *layoutCache
 	tagLayouts   *TagLayouts
 	Async        *asyncrt.Executor
+	AsyncConfig  asyncrt.Config
 	ExitCode     int
 	Halted       bool
 	started      bool
 
-	eb            *errorBuilder // for creating errors with backtrace
-	captureReturn *Value
-	asyncCapture  *asyncExit
+	eb                  *errorBuilder // for creating errors with backtrace
+	captureReturn       *Value
+	asyncCapture        *asyncExit
+	asyncPendingParkKey asyncrt.WakerKey
 }
 
 // New creates a new VM for executing the given MIR module.
@@ -549,12 +551,11 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 		if current == taskID {
 			return false, nil, vm.eb.makeError(PanicInvalidHandle, "task cannot await itself")
 		}
-		if targetTask.Status != asyncrt.TaskWaiting {
+		if targetTask.Status != asyncrt.TaskWaiting && targetTask.Status != asyncrt.TaskDone {
 			exec.Wake(taskID)
 		}
-		ready, resAny := exec.Join(current, taskID)
-		if ready {
-			resVal, ok := resAny.(Value)
+		if targetTask.Status == asyncrt.TaskDone {
+			resVal, ok := targetTask.Result.(Value)
 			if !ok {
 				return false, nil, vm.eb.makeError(PanicTypeMismatch, "invalid task result type")
 			}
@@ -601,6 +602,9 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 			doJump = true
 			jumpBB = instr.Poll.ReadyBB
 		} else {
+			if targetTask.Kind != asyncrt.TaskKindCheckpoint {
+				vm.asyncPendingParkKey = asyncrt.JoinKey(taskID)
+			}
 			doJump = true
 			jumpBB = instr.Poll.PendBB
 		}
@@ -742,7 +746,14 @@ func (vm *VM) execTerminator(frame *Frame, term *mir.Terminator) *VMError {
 		vm.dropFrameLocals(frame)
 		vm.Stack = vm.Stack[:len(vm.Stack)-1]
 		vm.asyncCapture.set = true
-		vm.asyncCapture.ready = false
+		if vm.asyncPendingParkKey.IsValid() {
+			vm.asyncCapture.kind = asyncrt.PollParked
+			vm.asyncCapture.parkKey = vm.asyncPendingParkKey
+			vm.asyncPendingParkKey = asyncrt.WakerKey{}
+		} else {
+			vm.asyncCapture.kind = asyncrt.PollYielded
+			vm.asyncCapture.parkKey = asyncrt.WakerKey{}
+		}
 		vm.asyncCapture.state = stateVal
 
 	case mir.TermAsyncReturn:
@@ -764,7 +775,9 @@ func (vm *VM) execTerminator(frame *Frame, term *mir.Terminator) *VMError {
 		vm.dropFrameLocals(frame)
 		vm.Stack = vm.Stack[:len(vm.Stack)-1]
 		vm.asyncCapture.set = true
-		vm.asyncCapture.ready = true
+		vm.asyncCapture.kind = asyncrt.PollDone
+		vm.asyncCapture.parkKey = asyncrt.WakerKey{}
+		vm.asyncPendingParkKey = asyncrt.WakerKey{}
 		vm.asyncCapture.state = stateVal
 		vm.asyncCapture.value = retVal
 

@@ -9,10 +9,11 @@ import (
 )
 
 type asyncExit struct {
-	set   bool
-	ready bool
-	state Value
-	value Value
+	set     bool
+	kind    asyncrt.PollOutcomeKind
+	parkKey asyncrt.WakerKey
+	state   Value
+	value   Value
 }
 
 func (vm *VM) ensureExecutor() *asyncrt.Executor {
@@ -20,7 +21,11 @@ func (vm *VM) ensureExecutor() *asyncrt.Executor {
 		return nil
 	}
 	if vm.Async == nil {
-		vm.Async = asyncrt.NewExecutor(asyncrt.Config{Deterministic: true})
+		cfg := vm.AsyncConfig
+		if !cfg.Fuzz && !cfg.Deterministic && cfg.Seed == 0 {
+			cfg.Deterministic = true
+		}
+		vm.Async = asyncrt.NewExecutor(cfg)
 	}
 	return vm.Async
 }
@@ -138,85 +143,56 @@ func (vm *VM) taskValue(id asyncrt.TaskID, typeID types.TypeID) (Value, *VMError
 	return MakeHandleStruct(h, typeID), nil
 }
 
-func (vm *VM) pollTask(id asyncrt.TaskID) (bool, Value, *VMError) {
-	exec := vm.ensureExecutor()
-	if exec == nil {
-		return false, Value{}, vm.eb.makeError(PanicUnimplemented, "async executor missing")
-	}
-	task := exec.Task(id)
-	if task == nil {
-		return false, Value{}, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", id))
+func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
+	if vm == nil || task == nil {
+		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, "missing task")
 	}
 	if task.Status == asyncrt.TaskDone {
-		res, _ := task.Result.(Value) //nolint:errcheck // type assertion, not error
-		out, vmErr := vm.cloneForShare(res)
-		if vmErr != nil {
-			return false, Value{}, vmErr
-		}
-		return true, out, nil
+		return asyncrt.PollOutcome{Kind: asyncrt.PollDone, Value: task.Result}, nil
 	}
-
-	exec.SetCurrent(id)
-	defer exec.SetCurrent(0)
-
-	task.Status = asyncrt.TaskRunning
 	switch task.Kind {
 	case asyncrt.TaskKindCheckpoint:
 		if task.CheckpointPolled() {
-			res := MakeNothing()
-			exec.MarkDone(id, res)
-			vm.releaseTaskState(task)
-			out, vmErr := vm.cloneForShare(res)
-			if vmErr != nil {
-				return false, Value{}, vmErr
-			}
-			return true, out, nil
+			return asyncrt.PollOutcome{Kind: asyncrt.PollDone, Value: MakeNothing()}, nil
 		}
 		task.MarkCheckpointPolled()
-		exec.Wake(id)
-		return false, Value{}, nil
+		return asyncrt.PollOutcome{Kind: asyncrt.PollYielded}, nil
 	default:
-		ready, val, stateOut, vmErr := vm.pollUserTask(task)
+		outcome, stateOut, vmErr := vm.pollUserTask(task)
 		if vmErr != nil {
-			return false, Value{}, vmErr
+			return asyncrt.PollOutcome{}, vmErr
 		}
 		if stateOut.Kind != VKInvalid {
 			task.State = stateOut
 		} else {
 			task.State = nil
 		}
-		if ready {
-			exec.MarkDone(id, val)
+		if outcome.Kind == asyncrt.PollDone {
 			vm.releaseTaskState(task)
-			out, vmErr := vm.cloneForShare(val)
-			if vmErr != nil {
-				return false, Value{}, vmErr
-			}
-			return true, out, nil
 		}
-		if task.Status != asyncrt.TaskWaiting {
-			exec.Wake(id)
-		}
-		return false, Value{}, nil
+		return outcome, nil
 	}
 }
 
-func (vm *VM) pollUserTask(task *asyncrt.Task) (bool, Value, Value, *VMError) {
-	if vm == nil || task == nil {
-		return false, Value{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing task")
+func (vm *VM) pollUserTask(task *asyncrt.Task) (outcome asyncrt.PollOutcome, stateOut Value, vmErr *VMError) {
+	if vm == nil {
+		return asyncrt.PollOutcome{}, Value{}, nil
+	}
+	if task == nil {
+		return asyncrt.PollOutcome{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing task")
 	}
 	if vm.M == nil {
-		return false, Value{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing module")
+		return asyncrt.PollOutcome{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing module")
 	}
 	fn := vm.M.Funcs[mir.FuncID(task.PollFuncID)] //nolint:gosec // PollFuncID is bounded by module
 	if fn == nil {
-		return false, Value{}, Value{}, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing poll function %d", task.PollFuncID))
+		return asyncrt.PollOutcome{}, Value{}, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing poll function %d", task.PollFuncID))
 	}
-	ready, value, stateOut, vmErr := vm.runPoll(fn)
+	outcome, stateOut, vmErr = vm.runPoll(fn)
 	if vmErr != nil {
-		return false, Value{}, Value{}, vmErr
+		return asyncrt.PollOutcome{}, Value{}, vmErr
 	}
-	return ready, value, stateOut, nil
+	return outcome, stateOut, nil
 }
 
 func (vm *VM) runReadyOne() (bool, *VMError) {
@@ -224,17 +200,37 @@ func (vm *VM) runReadyOne() (bool, *VMError) {
 	if exec == nil {
 		return false, vm.eb.makeError(PanicUnimplemented, "async executor missing")
 	}
-	id, ok := exec.Dequeue()
+	id, ok := exec.NextReady()
 	if !ok {
 		return false, nil
 	}
-	ready, res, vmErr := vm.pollTask(id)
+	task := exec.Task(id)
+	if task == nil {
+		return true, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", id))
+	}
+	exec.SetCurrent(id)
+	task.Status = asyncrt.TaskRunning
+	outcome, vmErr := vm.pollTask(task)
 	if vmErr != nil {
+		exec.SetCurrent(0)
 		return true, vmErr
 	}
-	if ready {
-		vm.dropValue(res)
+	switch outcome.Kind {
+	case asyncrt.PollDone:
+		exec.MarkDone(id, outcome.Value)
+	case asyncrt.PollYielded:
+		exec.Yield(id)
+	case asyncrt.PollParked:
+		if !outcome.ParkKey.IsValid() {
+			exec.SetCurrent(0)
+			return true, vm.eb.makeError(PanicUnimplemented, "async park missing key")
+		}
+		exec.ParkCurrent(outcome.ParkKey)
+	default:
+		exec.SetCurrent(0)
+		return true, vm.eb.makeError(PanicUnimplemented, "unknown poll outcome")
 	}
+	exec.SetCurrent(0)
 	return true, nil
 }
 
@@ -281,18 +277,20 @@ func (vm *VM) releaseTaskState(task *asyncrt.Task) {
 	task.State = nil
 }
 
-func (vm *VM) runPoll(fn *mir.Func) (bool, Value, Value, *VMError) {
+func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value, vmErr *VMError) {
 	if vm == nil || fn == nil {
-		return false, Value{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing poll function")
+		return asyncrt.PollOutcome{}, Value{}, vm.eb.makeError(PanicUnimplemented, "missing poll function")
 	}
 	savedStack := vm.Stack
 	savedHalted := vm.Halted
 	savedStarted := vm.started
 	savedCapture := vm.captureReturn
 	savedAsync := vm.asyncCapture
+	savedPendingParkKey := vm.asyncPendingParkKey
 
 	exit := asyncExit{}
 	vm.asyncCapture = &exit
+	vm.asyncPendingParkKey = asyncrt.WakerKey{}
 	vm.captureReturn = nil
 	vm.Stack = nil
 	vm.Halted = false
@@ -308,7 +306,8 @@ func (vm *VM) runPoll(fn *mir.Func) (bool, Value, Value, *VMError) {
 			vm.started = savedStarted
 			vm.captureReturn = savedCapture
 			vm.asyncCapture = savedAsync
-			return false, Value{}, Value{}, vmErr
+			vm.asyncPendingParkKey = savedPendingParkKey
+			return asyncrt.PollOutcome{}, Value{}, vmErr
 		}
 		if exit.set {
 			break
@@ -320,57 +319,12 @@ func (vm *VM) runPoll(fn *mir.Func) (bool, Value, Value, *VMError) {
 	vm.started = savedStarted
 	vm.captureReturn = savedCapture
 	vm.asyncCapture = savedAsync
+	vm.asyncPendingParkKey = savedPendingParkKey
 
 	if !exit.set {
-		return false, Value{}, Value{}, vm.eb.makeError(PanicUnimplemented, "poll function exited without async terminator")
+		return asyncrt.PollOutcome{}, Value{}, vm.eb.makeError(PanicUnimplemented, "poll function exited without async terminator")
 	}
 
-	return exit.ready, exit.value, exit.state, nil
-}
-
-func (vm *VM) runFunction(fn *mir.Func, args []Value) (Value, *VMError) {
-	if vm == nil || fn == nil {
-		return Value{}, vm.eb.makeError(PanicUnimplemented, "missing function")
-	}
-	savedStack := vm.Stack
-	savedHalted := vm.Halted
-	savedStarted := vm.started
-	savedCapture := vm.captureReturn
-
-	var ret Value
-	vm.captureReturn = &ret
-	vm.Stack = nil
-	vm.Halted = false
-	vm.started = true
-
-	frame := NewFrame(fn)
-	for i := range args {
-		vmErr := vm.writeLocal(frame, mir.LocalID(i), args[i]) //nolint:gosec // i is bounded by args length
-		if vmErr != nil {
-			vm.Stack = savedStack
-			vm.Halted = savedHalted
-			vm.started = savedStarted
-			vm.captureReturn = savedCapture
-			return Value{}, vmErr
-		}
-	}
-	vm.Stack = append(vm.Stack, *frame)
-
-	for len(vm.Stack) > 0 && !vm.Halted {
-		vmErr := vm.Step()
-		if vmErr != nil {
-			vm.Stack = savedStack
-			vm.Halted = savedHalted
-			vm.started = savedStarted
-			vm.captureReturn = savedCapture
-			return Value{}, vmErr
-		}
-	}
-
-	vm.Stack = savedStack
-	vm.Halted = savedHalted
-	vm.started = savedStarted
-	vm.captureReturn = savedCapture
-
-	return ret, nil
+	outcome = asyncrt.PollOutcome{Kind: exit.kind, Value: exit.value, ParkKey: exit.parkKey}
+	return outcome, exit.state, nil
 }

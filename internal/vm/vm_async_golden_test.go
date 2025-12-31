@@ -30,6 +30,7 @@ func TestVMAsyncGolden(t *testing.T) {
 			sgRel := filepath.ToSlash(filepath.Join("testdata", "golden", "vm_async", name+".sg"))
 			outAbs := filepath.Join(asyncDir, name+".out")
 			codeAbs := filepath.Join(asyncDir, name+".code")
+			flagsAbs := filepath.Join(asyncDir, name+".flags")
 
 			wantOutBytes, err := os.ReadFile(outAbs)
 			if err != nil {
@@ -45,11 +46,24 @@ func TestVMAsyncGolden(t *testing.T) {
 				wantCode = n
 			}
 
-			stdout, stderr, code := runSurge(t, root, surge,
-				"run",
-				"--backend=vm",
-				sgRel,
-			)
+			var flags []string
+			if b, err := os.ReadFile(flagsAbs); err == nil {
+				for _, line := range strings.Split(string(b), "\n") {
+					line = strings.TrimSpace(line)
+					if line == "" {
+						continue
+					}
+					flags = append(flags, line)
+				}
+			}
+
+			cmdArgs := []string{"run", "--backend=vm"}
+			if len(flags) > 0 {
+				cmdArgs = append(cmdArgs, flags...)
+			}
+			cmdArgs = append(cmdArgs, sgRel)
+
+			stdout, stderr, code := runSurge(t, root, surge, cmdArgs...)
 
 			if code != wantCode {
 				t.Fatalf("exit code: want %d, got %d\nstdout:\n%s", wantCode, code, stdout)

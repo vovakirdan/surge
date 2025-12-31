@@ -103,7 +103,6 @@ func (vm *VM) dropAsyncTasks() {
 		}
 		task.State = nil
 		task.Result = nil
-		task.JoinWaiters = nil
 	}
 }
 
