@@ -426,6 +426,40 @@ extern<Waitable> {
 
 ---
 
+### @failfast
+
+**Target:** Async functions  
+**Parameters:** None
+
+Marks an async function as fail-fast: if any child task completes with `Cancelled`, the remaining children in the scope are cancelled and the scope completes as `Cancelled`.
+
+```sg
+@failfast
+async fn run_batch() -> int {
+    let _a = spawn async {
+        checkpoint().await();
+        return 1;
+    };
+    let _b = spawn async {
+        checkpoint().await();
+        return 2;
+    };
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let r = run_batch().await();
+    compare r {
+        Success(v) => print("ok=" + (v to string));
+        Cancelled() => print("cancelled");
+    };
+    return 0;
+}
+```
+
+---
+
 ### @deprecated
 
 **Target:** Functions, types, fields, let, const
@@ -780,6 +814,30 @@ type ArenaAllocated = {
 ---
 
 ## Block Attributes
+
+### @failfast
+
+**Target:** Async blocks  
+**Parameters:** None
+
+Applies fail-fast cancellation to the async block scope.
+
+```sg
+let r = (@failfast async {
+    let _t = spawn async {
+        checkpoint().await();
+        return 1;
+    };
+    return 0;
+}).await();
+
+compare r {
+    Success(v) => print("result=" + (v to string));
+    Cancelled() => print("cancelled");
+};
+```
+
+---
 
 ### @backend
 

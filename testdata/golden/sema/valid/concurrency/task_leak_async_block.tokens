@@ -27,7 +27,12 @@
  27: LParen          "(" at 9:30-9:31
  28: RParen          ")" at 9:31-9:32
  29: Semicolon       ";" at 9:32-9:33
- 30: RBrace          "}" at 11:5-11:6 (leading: Newline, Space, LineComment, Newline, Space)
- 31: Semicolon       ";" at 11:6-11:7
- 32: RBrace          "}" at 12:1-12:2 (leading: Newline)
- 33: EOF             at 13:1-13:1
+ 30: KwLet           "let" at 11:9-11:12 (leading: Newline, Space, LineComment, Newline, Space)
+ 31: Underscore      "_" at 11:13-11:14 (leading: Space)
+ 32: Assign          "=" at 11:15-11:16 (leading: Space)
+ 33: Ident           "t" at 11:17-11:18 (leading: Space)
+ 34: Semicolon       ";" at 11:18-11:19
+ 35: RBrace          "}" at 12:5-12:6 (leading: Newline, Space)
+ 36: Semicolon       ";" at 12:6-12:7
+ 37: RBrace          "}" at 13:1-13:2 (leading: Newline)
+ 38: EOF             at 14:1-14:1

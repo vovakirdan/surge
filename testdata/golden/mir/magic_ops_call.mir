@@ -4,15 +4,15 @@ funcs=5
 
 fn __add:
   locals:
-    L0: &type#1315 [copy,ref] name=self
-    L1: &type#1315 [copy,ref] name=other
+    L0: &type#1321 [copy,ref] name=self
+    L1: &type#1321 [copy,ref] name=other
     L2: int [copy] name=tmp_field1
     L3: int [copy] name=tmp_field2
     L4: int [copy] name=tmp_call3
     L5: int [copy] name=tmp_field4
     L6: int [copy] name=tmp_field5
     L7: int [copy] name=tmp_call6
-    L8: type#1315 name=tmp_struct7
+    L8: type#1321 name=tmp_struct7
   bb0:
     L2 = field copy L0.x
     L3 = field copy L1.x
@@ -20,13 +20,13 @@ fn __add:
     L5 = field copy L0.y
     L6 = field copy L1.y
     L7 = call __add(copy L5, copy L6)
-    L8 = struct_lit type#1315 {x=copy L4, y=copy L7}
+    L8 = struct_lit type#1321 {x=copy L4, y=copy L7}
     return move L8
 
 fn __eq:
   locals:
-    L0: &type#1315 [copy,ref] name=self
-    L1: &type#1315 [copy,ref] name=other
+    L0: &type#1321 [copy,ref] name=self
+    L1: &type#1321 [copy,ref] name=other
     L2: int [copy] name=tmp_field1
     L3: int [copy] name=tmp_field2
     L4: bool [copy] name=tmp_call3
@@ -46,8 +46,8 @@ fn __eq:
 
 fn __lt:
   locals:
-    L0: &type#1315 [copy,ref] name=self
-    L1: &type#1315 [copy,ref] name=other
+    L0: &type#1321 [copy,ref] name=self
+    L1: &type#1321 [copy,ref] name=other
     L2: int [copy] name=tmp_field1
     L3: int [copy] name=tmp_field2
     L4: bool [copy] name=tmp_call3
@@ -59,42 +59,42 @@ fn __lt:
 
 fn __neg:
   locals:
-    L0: &type#1315 [copy,ref] name=self
+    L0: &type#1321 [copy,ref] name=self
     L1: int [copy] name=tmp_field1
     L2: int [copy] name=tmp_call2
     L3: int [copy] name=tmp_field3
     L4: int [copy] name=tmp_call4
-    L5: type#1315 name=tmp_struct5
+    L5: type#1321 name=tmp_struct5
   bb0:
     L1 = field copy L0.x
     L2 = call __neg(copy L1)
     L3 = field copy L0.y
     L4 = call __neg(copy L3)
-    L5 = struct_lit type#1315 {x=copy L2, y=copy L4}
+    L5 = struct_lit type#1321 {x=copy L2, y=copy L4}
     return move L5
 
 fn main:
   locals:
-    L0: type#1315 name=a
-    L1: type#1315 name=tmp_struct1
-    L2: type#1315 name=b
-    L3: type#1315 name=tmp_struct2
-    L4: type#1315 name=c
-    L5: type#1315 name=tmp_call3
+    L0: type#1321 name=a
+    L1: type#1321 name=tmp_struct1
+    L2: type#1321 name=b
+    L3: type#1321 name=tmp_struct2
+    L4: type#1321 name=c
+    L5: type#1321 name=tmp_call3
     L6: bool [copy] name=eq
     L7: bool [copy] name=tmp_call4
     L8: bool [copy] name=lt
     L9: bool [copy] name=tmp_call5
-    L10: type#1315 name=neg
-    L11: type#1315 name=tmp_call6
+    L10: type#1321 name=neg
+    L11: type#1321 name=tmp_call6
     L12: bool [copy] name=tmp_bin7
     L13: int [copy] name=tmp_field8
     L14: int [copy] name=tmp_field9
     L15: int [copy] name=tmp_call10
   bb0:
-    L1 = struct_lit type#1315 {x=const 1, y=const 2}
+    L1 = struct_lit type#1321 {x=const 1, y=const 2}
     L0 = move L1
-    L3 = struct_lit type#1315 {x=const 3, y=const 4}
+    L3 = struct_lit type#1321 {x=const 3, y=const 4}
     L2 = move L3
     L5 = call __add(addr_of L0, addr_of L2)
     L4 = move L5

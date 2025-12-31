@@ -48,7 +48,7 @@ func (e *Executor) ExitScope(scopeID ScopeID) {
 	if scope == nil {
 		return
 	}
-	var live []TaskID
+	live := make([]TaskID, 0, len(scope.Children))
 	for _, child := range scope.Children {
 		task := e.tasks[child]
 		if task == nil || task.Status == TaskDone {

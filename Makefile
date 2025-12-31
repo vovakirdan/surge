@@ -1,4 +1,4 @@
-.PHONY: build run test vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall completion completion-install completion-install-system
+.PHONY: build run test vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system
 .PHONY: golden golden-update golden-check stats
 
 # ===== Variables =====
@@ -22,6 +22,27 @@ GOLANGCI_LINT_VERSION := v1.62.2
 
 STATICCHECK := $(GOBIN)/staticcheck
 GOSEC := $(GOBIN)/gosec
+
+# ===== OS Detection =====
+# Определение операционной системы
+UNAME_S := $(shell uname -s 2>/dev/null || echo "Unknown")
+ifeq ($(UNAME_S),Darwin)
+	OS := darwin
+	# На macOS используем стандартные пути
+	SYSTEM_BINDIR := /usr/local/bin
+	SYSTEM_SHAREDIR := /usr/local/share/surge
+	# На macOS нет /etc/profile.d/, используем /etc/paths.d/ для PATH
+	# Для переменных окружения лучше использовать ~/.zshrc или ~/.bash_profile
+	PROFILE_DIR := /etc/paths.d
+	PROFILE_FILE := /etc/paths.d/surge
+else
+	# Linux и другие Unix-подобные системы
+	OS := linux
+	SYSTEM_BINDIR := /usr/local/bin
+	SYSTEM_SHAREDIR := /usr/local/share/surge
+	PROFILE_DIR := /etc/profile.d
+	PROFILE_FILE := /etc/profile.d/surge.sh
+endif
 
 # ===== Build =====
 build:
@@ -120,24 +141,50 @@ install: build
 	@echo ">> Installed to $(GOBIN)/surge"
 	@echo ">> Make sure $(GOBIN) is in your PATH"
 
-# Системная установка в /usr/local/bin (требует sudo)
+# Системная установка (требует sudo)
+# Автоматически определяет правильные пути для macOS и Linux
 install-system: build
-	@echo ">> Installing surge to /usr/local/bin (requires sudo)"
-	@sudo cp surge /usr/local/bin/surge
-	@echo ">> Installing standard library to /usr/local/share/surge (requires sudo)"
-	@sudo mkdir -p /usr/local/share/surge
-	@sudo cp -r core stdlib /usr/local/share/surge/
-	@echo ">> Writing /etc/profile.d/surge.sh to export SURGE_STDLIB if unset"
-	@sudo sh -c 'printf "# surge stdlib path\n: \$${SURGE_STDLIB:=/usr/local/share/surge}\nexport SURGE_STDLIB\n" > /etc/profile.d/surge.sh'
-	@echo ">> Installed to /usr/local/bin/surge"
-	@echo ">> For current shell run: export SURGE_STDLIB=/usr/local/share/surge"
+	@echo ">> Detected OS: $(OS)"
+	@echo ">> Installing surge to $(SYSTEM_BINDIR) (requires sudo)"
+	@sudo mkdir -p $(SYSTEM_BINDIR)
+	@sudo cp surge $(SYSTEM_BINDIR)/surge
+	@echo ">> Installing standard library to $(SYSTEM_SHAREDIR) (requires sudo)"
+	@sudo mkdir -p $(SYSTEM_SHAREDIR)
+	@sudo cp -r core stdlib $(SYSTEM_SHAREDIR)/
+ifeq ($(OS),darwin)
+	@echo ">> On macOS, add to ~/.zshrc or ~/.bash_profile:"
+	@echo ">>   export SURGE_STDLIB=$(SYSTEM_SHAREDIR)"
+else
+	@echo ">> Writing $(PROFILE_FILE) to export SURGE_STDLIB if unset"
+	@sudo mkdir -p $(PROFILE_DIR)
+	@sudo sh -c 'printf "# surge stdlib path\n: \$${SURGE_STDLIB:=$(SYSTEM_SHAREDIR)}\nexport SURGE_STDLIB\n" > $(PROFILE_FILE)'
+endif
+	@echo ">> Installed to $(SYSTEM_BINDIR)/surge"
+	@echo ">> For current shell run: export SURGE_STDLIB=$(SYSTEM_SHAREDIR)"
 
-# Удаление установленного бинарника
+# Удаление установленного бинарника из $GOBIN
 uninstall:
 	@echo ">> Removing surge from $(GOBIN)"
 	@rm -f $(GOBIN)/surge
 	@echo ">> Removed $(GOBIN)/surge"
-	@echo ">> To remove system installation, run: sudo rm /usr/local/bin/surge"
+	@echo ">> To remove system installation, run: make uninstall-system"
+
+# Удаление системной установки (требует sudo)
+# Автоматически определяет правильные пути для macOS и Linux
+uninstall-system:
+	@echo ">> Detected OS: $(OS)"
+	@echo ">> Removing surge from $(SYSTEM_BINDIR) (requires sudo)"
+	@sudo rm -f $(SYSTEM_BINDIR)/surge
+	@echo ">> Removing standard library from $(SYSTEM_SHAREDIR) (requires sudo)"
+	@sudo rm -rf $(SYSTEM_SHAREDIR)
+ifeq ($(OS),darwin)
+	@echo ">> On macOS, manually remove from ~/.zshrc or ~/.bash_profile:"
+	@echo ">>   export SURGE_STDLIB=$(SYSTEM_SHAREDIR)"
+else
+	@echo ">> Removing $(PROFILE_FILE) (requires sudo)"
+	@sudo rm -f $(PROFILE_FILE)
+endif
+	@echo ">> System installation removed"
 
 # ===== Bash Completion =====
 # Генерация bash completion скрипта

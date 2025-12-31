@@ -78,12 +78,11 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	f.Blocks = nil
 	f.Entry = NoBlockID
 
-	if _, err := splitAsyncAwaits(pollFn); err != nil {
+	if _, err = splitAsyncAwaits(pollFn); err != nil {
 		return err
 	}
-	joinResultLocal := NoLocalID
 	if pollFn.ScopeLocal != NoLocalID {
-		joinResultLocal = addLocal(pollFn, "__scope_join_failed", typesIn.Builtins().Bool, localFlagsFor(typesIn, semaRes, typesIn.Builtins().Bool))
+		joinResultLocal := addLocal(pollFn, "__scope_join_failed", typesIn.Builtins().Bool, localFlagsFor(typesIn, semaRes, typesIn.Builtins().Bool))
 		insertScopeJoins(pollFn, pollFn.ScopeLocal, joinResultLocal)
 	}
 
@@ -149,12 +148,12 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	return nil
 }
 
-func insertScopeJoins(f *Func, scopeLocal LocalID, joinResultLocal LocalID) {
+func insertScopeJoins(f *Func, scopeLocal, joinResultLocal LocalID) {
 	if f == nil || scopeLocal == NoLocalID || joinResultLocal == NoLocalID {
 		return
 	}
 	origBlocks := len(f.Blocks)
-	for bi := 0; bi < origBlocks; bi++ {
+	for bi := range origBlocks {
 		bb := &f.Blocks[bi]
 		if bb.Term.Kind != TermReturn {
 			continue

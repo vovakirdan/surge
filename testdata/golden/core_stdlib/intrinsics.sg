@@ -71,6 +71,12 @@ pub type Task<T> = {
 pub tag Cancelled();
 pub type TaskResult<T> = Success(T) | Cancelled;
 
+@intrinsic fn rt_scope_enter(failfast: bool) -> uint;
+@intrinsic fn rt_scope_register_child<T>(scope: uint, child: Task<T>) -> nothing;
+@intrinsic fn rt_scope_cancel_all(scope: uint) -> nothing;
+@intrinsic fn rt_scope_join_all(scope: uint) -> bool;
+@intrinsic fn rt_scope_exit(scope: uint) -> nothing;
+
 extern<Task<T>> {
     @intrinsic pub fn clone(self: &Task<T>) -> Task<T>;
     @intrinsic pub fn cancel(self: &Task<T>) -> nothing;

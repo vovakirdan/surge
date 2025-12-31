@@ -97,20 +97,21 @@ func collectSuspendSites(f *Func) []awaitSite {
 	sites := make([]awaitSite, 0)
 	for bi := range f.Blocks {
 		bb := &f.Blocks[bi]
+		bbID := BlockID(bi) //nolint:gosec // G115: bounded by block count
 		for ii := range bb.Instrs {
 			ins := &bb.Instrs[ii]
 			switch ins.Kind {
 			case InstrPoll:
 				sites = append(sites, awaitSite{
 					kind:      suspendPoll,
-					pollBB:    BlockID(bi),
+					pollBB:    bbID,
 					pollInstr: ii,
 					readyBB:   ins.Poll.ReadyBB,
 				})
 			case InstrJoinAll:
 				sites = append(sites, awaitSite{
 					kind:      suspendJoinAll,
-					pollBB:    BlockID(bi),
+					pollBB:    bbID,
 					pollInstr: ii,
 					readyBB:   ins.JoinAll.ReadyBB,
 				})

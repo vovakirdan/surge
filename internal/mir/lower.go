@@ -246,7 +246,7 @@ func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {
 	return l.f, nil
 }
 
-func (l *funcLowerer) lowerSyntheticFunc(id FuncID, name string, body *hir.Block, result types.TypeID, span source.Span, isAsync bool, failfast bool) (*Func, error) {
+func (l *funcLowerer) lowerSyntheticFunc(id FuncID, name string, body *hir.Block, result types.TypeID, span source.Span, isAsync, failfast bool) (*Func, error) {
 	if l == nil {
 		return nil, nil
 	}

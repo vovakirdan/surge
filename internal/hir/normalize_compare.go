@@ -72,7 +72,7 @@ func normalizeCompareExpr(ctx *normCtx, e *Expr) error {
 			Kind: StmtReturn,
 			Span: e.Span,
 			Data: ReturnData{
-				Value:  &Expr{
+				Value: &Expr{
 					Kind: ExprCall,
 					Type: e.Type,
 					Span: e.Span,

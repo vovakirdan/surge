@@ -1,4 +1,4 @@
-// ERROR: Task leak in async block
+// Valid: async block implicitly joins spawned tasks
 
 async fn compute() -> int {
     return 42;
@@ -7,6 +7,7 @@ async fn compute() -> int {
 pub async fn test_async_block_leak() {
     async {
         let t = spawn compute();
-        // ERROR SEM3109: unawaited task at async block exit
+        // No explicit await required in a scoped async block.
+        let _ = t;
     };
 }
