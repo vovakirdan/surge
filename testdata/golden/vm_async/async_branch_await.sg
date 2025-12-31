@@ -11,7 +11,7 @@ fn main() -> int {
             return a + 2;
         }
     }).await() {
-        Ok(v) => v;
+        Success(v) => v;
         Cancelled() => 0;
     };
     print(x to string);

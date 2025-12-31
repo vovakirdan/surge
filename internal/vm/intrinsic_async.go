@@ -117,6 +117,35 @@ func (vm *VM) handleTaskClone(frame *Frame, call *mir.CallInstr, writes *[]Local
 	return nil
 }
 
+func (vm *VM) handleTaskCancel(frame *Frame, call *mir.CallInstr) *VMError {
+	if call == nil {
+		return vm.eb.makeError(PanicTypeMismatch, "cancel requires a call")
+	}
+	if len(call.Args) != 1 {
+		return vm.eb.makeError(PanicTypeMismatch, "cancel requires 1 argument")
+	}
+	arg, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	ownsArg := arg.IsHeap()
+	defer func() {
+		if ownsArg {
+			vm.dropValue(arg)
+		}
+	}()
+	taskID, vmErr := vm.taskIDFromValue(arg)
+	if vmErr != nil {
+		return vmErr
+	}
+	exec := vm.ensureExecutor()
+	if exec == nil {
+		return vm.eb.makeError(PanicUnimplemented, "async executor missing")
+	}
+	exec.Cancel(taskID)
+	return nil
+}
+
 func (vm *VM) handleTaskState(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if call == nil || !call.HasDst {
 		return vm.eb.makeError(PanicUnimplemented, "__task_state missing destination")

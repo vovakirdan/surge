@@ -42,7 +42,7 @@ pub async fn test_await_chained() {
 pub async fn test_async_block() -> int {
     let t: Task<int> = async { return 100; };
     return compare t.await() {
-        Ok(v) => v;
+        Success(v) => v;
         Cancelled() => 0;
     };
 }

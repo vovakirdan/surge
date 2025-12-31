@@ -6,11 +6,11 @@ fn main() -> int {
     let t1 = t.clone();
 
     let r1: int = compare t.await() {
-        Ok(v) => v;
+        Success(v) => v;
         Cancelled() => 0;
     };
     let r2: int = compare t1.await() {
-        Ok(v) => v;
+        Success(v) => v;
         Cancelled() => 0;
     };
 

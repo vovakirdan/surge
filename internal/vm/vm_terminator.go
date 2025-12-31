@@ -21,6 +21,8 @@ func (vm *VM) execTerminator(frame *Frame, term *mir.Terminator) *VMError {
 		return vm.execTermAsyncYield(frame, term)
 	case mir.TermAsyncReturn:
 		return vm.execTermAsyncReturn(frame, term)
+	case mir.TermAsyncReturnCancelled:
+		return vm.execTermAsyncReturnCancelled(frame, term)
 	case mir.TermGoto:
 		frame.BB = term.Goto.Target
 		frame.IP = 0
@@ -88,11 +90,16 @@ func (vm *VM) execTermAsyncYield(frame *Frame, term *mir.Terminator) *VMError {
 	vm.dropFrameLocals(frame)
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
 	vm.asyncCapture.set = true
-	if vm.asyncPendingParkKey.IsValid() {
+	switch {
+	case vm.currentTaskCancelled():
+		vm.asyncCapture.kind = asyncrt.PollDoneCancelled
+		vm.asyncCapture.parkKey = asyncrt.WakerKey{}
+		vm.asyncPendingParkKey = asyncrt.WakerKey{}
+	case vm.asyncPendingParkKey.IsValid():
 		vm.asyncCapture.kind = asyncrt.PollParked
 		vm.asyncCapture.parkKey = vm.asyncPendingParkKey
 		vm.asyncPendingParkKey = asyncrt.WakerKey{}
-	} else {
+	default:
 		vm.asyncCapture.kind = asyncrt.PollYielded
 		vm.asyncCapture.parkKey = asyncrt.WakerKey{}
 	}
@@ -119,11 +126,30 @@ func (vm *VM) execTermAsyncReturn(frame *Frame, term *mir.Terminator) *VMError {
 	vm.dropFrameLocals(frame)
 	vm.Stack = vm.Stack[:len(vm.Stack)-1]
 	vm.asyncCapture.set = true
-	vm.asyncCapture.kind = asyncrt.PollDone
+	vm.asyncCapture.kind = asyncrt.PollDoneSuccess
 	vm.asyncCapture.parkKey = asyncrt.WakerKey{}
 	vm.asyncPendingParkKey = asyncrt.WakerKey{}
 	vm.asyncCapture.state = stateVal
 	vm.asyncCapture.value = retVal
+	return nil
+}
+
+func (vm *VM) execTermAsyncReturnCancelled(frame *Frame, term *mir.Terminator) *VMError {
+	if vm.asyncCapture == nil {
+		return vm.eb.unimplemented("async_cancel outside async poll")
+	}
+	stateVal, vmErr := vm.evalOperand(frame, &term.AsyncReturnCancelled.State)
+	if vmErr != nil {
+		return vmErr
+	}
+	vm.dropFrameLocals(frame)
+	vm.Stack = vm.Stack[:len(vm.Stack)-1]
+	vm.asyncCapture.set = true
+	vm.asyncCapture.kind = asyncrt.PollDoneCancelled
+	vm.asyncCapture.parkKey = asyncrt.WakerKey{}
+	vm.asyncPendingParkKey = asyncrt.WakerKey{}
+	vm.asyncCapture.state = stateVal
+	vm.asyncCapture.value = Value{}
 	return nil
 }
 

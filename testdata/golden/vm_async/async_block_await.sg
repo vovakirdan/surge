@@ -5,7 +5,7 @@ fn main() -> int {
         checkpoint().await();
         return a + 1;
     }).await() {
-        Ok(v) => v;
+        Success(v) => v;
         Cancelled() => 0;
     };
     print(x to string);

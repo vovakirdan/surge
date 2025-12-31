@@ -66,13 +66,13 @@
  66: LParen          "(" at 13:13-13:14
  67: RParen          ")" at 13:14-13:15
  68: LBrace          "{" at 13:16-13:17 (leading: Space)
- 69: Ident           "Ok" at 14:9-14:11 (leading: Newline, Space)
- 70: LParen          "(" at 14:11-14:12
- 71: Ident           "v" at 14:12-14:13
- 72: RParen          ")" at 14:13-14:14
- 73: FatArrow        "=>" at 14:15-14:17 (leading: Space)
- 74: Ident           "v" at 14:18-14:19 (leading: Space)
- 75: Semicolon       ";" at 14:19-14:20
+ 69: Ident           "Success" at 14:9-14:16 (leading: Newline, Space)
+ 70: LParen          "(" at 14:16-14:17
+ 71: Ident           "v" at 14:17-14:18
+ 72: RParen          ")" at 14:18-14:19
+ 73: FatArrow        "=>" at 14:20-14:22 (leading: Space)
+ 74: Ident           "v" at 14:23-14:24 (leading: Space)
+ 75: Semicolon       ";" at 14:24-14:25
  76: Ident           "Cancelled" at 15:9-15:18 (leading: Newline, Space)
  77: LParen          "(" at 15:18-15:19
  78: RParen          ")" at 15:19-15:20

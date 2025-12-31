@@ -7,6 +7,7 @@ const (
 	TermReturn
 	TermAsyncYield
 	TermAsyncReturn
+	TermAsyncReturnCancelled
 	TermGoto
 	TermIf
 	TermSwitchTag
@@ -16,13 +17,14 @@ const (
 type Terminator struct {
 	Kind TermKind
 
-	Return      ReturnTerm
-	AsyncYield  AsyncYieldTerm
-	AsyncReturn AsyncReturnTerm
-	Goto        GotoTerm
-	If          IfTerm
-	SwitchTag   SwitchTagTerm
-	Unreachable struct{}
+	Return               ReturnTerm
+	AsyncYield           AsyncYieldTerm
+	AsyncReturn          AsyncReturnTerm
+	AsyncReturnCancelled AsyncReturnCancelledTerm
+	Goto                 GotoTerm
+	If                   IfTerm
+	SwitchTag            SwitchTagTerm
+	Unreachable          struct{}
 }
 
 type ReturnTerm struct {
@@ -38,6 +40,10 @@ type AsyncReturnTerm struct {
 	State    Operand
 	HasValue bool
 	Value    Operand
+}
+
+type AsyncReturnCancelledTerm struct {
+	State Operand
 }
 
 type GotoTerm struct {

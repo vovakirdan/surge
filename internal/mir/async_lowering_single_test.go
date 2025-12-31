@@ -23,7 +23,7 @@ fn main() -> int {
         return i;
     }).await();
     return compare res {
-        Ok(v) => v;
+        Success(v) => v;
         Cancelled() => 0;
     };
 }

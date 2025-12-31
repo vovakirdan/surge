@@ -30,6 +30,25 @@ func (vm *VM) ensureExecutor() *asyncrt.Executor {
 	return vm.Async
 }
 
+func (vm *VM) currentTaskCancelled() bool {
+	if vm == nil {
+		return false
+	}
+	exec := vm.ensureExecutor()
+	if exec == nil {
+		return false
+	}
+	id := exec.Current()
+	if id == 0 {
+		return false
+	}
+	task := exec.Task(id)
+	if task == nil {
+		return false
+	}
+	return task.Cancelled
+}
+
 func (vm *VM) taskIDFromValue(val Value) (asyncrt.TaskID, *VMError) {
 	if val.Kind == VKRef || val.Kind == VKRefMut {
 		loaded, vmErr := vm.loadLocationRaw(val.Loc)
@@ -165,12 +184,12 @@ func (vm *VM) taskResultFromTask(task *asyncrt.Task, resultType types.TypeID) (V
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "missing task result")
 	}
 	switch task.ResultKind {
-	case asyncrt.TaskResultOk:
+	case asyncrt.TaskResultSuccess:
 		res, ok := task.ResultValue.(Value)
 		if !ok {
 			return Value{}, vm.eb.makeError(PanicTypeMismatch, "invalid task result type")
 		}
-		return vm.taskResultValue(resultType, asyncrt.TaskResultOk, res)
+		return vm.taskResultValue(resultType, asyncrt.TaskResultSuccess, res)
 	case asyncrt.TaskResultCancelled:
 		return vm.taskResultValue(resultType, asyncrt.TaskResultCancelled, Value{})
 	default:
@@ -188,14 +207,14 @@ func (vm *VM) taskResultValue(resultType types.TypeID, kind asyncrt.TaskResultKi
 		fields  []Value
 	)
 	switch kind {
-	case asyncrt.TaskResultOk:
-		tagName = "Ok"
+	case asyncrt.TaskResultSuccess:
+		tagName = "Success"
 		tc, ok := layout.CaseByName(tagName)
 		if !ok {
-			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult missing Ok tag")
+			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult missing Success tag")
 		}
 		if len(tc.PayloadTypes) != 1 {
-			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult Ok expects payload")
+			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult Success expects payload")
 		}
 		payload, vmErr := vm.cloneForShare(value)
 		if vmErr != nil {
@@ -231,12 +250,16 @@ func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
 		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, "missing task")
 	}
 	if task.Status == asyncrt.TaskDone {
-		return asyncrt.PollOutcome{Kind: asyncrt.PollDone, Value: task.ResultValue}, nil
+		kind := asyncrt.PollDoneSuccess
+		if task.ResultKind == asyncrt.TaskResultCancelled {
+			kind = asyncrt.PollDoneCancelled
+		}
+		return asyncrt.PollOutcome{Kind: kind, Value: task.ResultValue}, nil
 	}
 	switch task.Kind {
 	case asyncrt.TaskKindCheckpoint:
 		if task.CheckpointPolled() {
-			return asyncrt.PollOutcome{Kind: asyncrt.PollDone, Value: MakeNothing()}, nil
+			return asyncrt.PollOutcome{Kind: asyncrt.PollDoneSuccess, Value: MakeNothing()}, nil
 		}
 		task.MarkCheckpointPolled()
 		return asyncrt.PollOutcome{Kind: asyncrt.PollYielded}, nil
@@ -250,7 +273,7 @@ func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
 		} else {
 			task.State = nil
 		}
-		if outcome.Kind == asyncrt.PollDone {
+		if outcome.Kind == asyncrt.PollDoneSuccess || outcome.Kind == asyncrt.PollDoneCancelled {
 			vm.releaseTaskState(task)
 		}
 		return outcome, nil
@@ -299,8 +322,10 @@ func (vm *VM) runReadyOne() (bool, *VMError) {
 		return true, vmErr
 	}
 	switch outcome.Kind {
-	case asyncrt.PollDone:
-		exec.MarkDone(id, outcome.Value)
+	case asyncrt.PollDoneSuccess:
+		exec.MarkDone(id, asyncrt.TaskResultSuccess, outcome.Value)
+	case asyncrt.PollDoneCancelled:
+		exec.MarkDone(id, asyncrt.TaskResultCancelled, nil)
 	case asyncrt.PollYielded:
 		exec.Yield(id)
 	case asyncrt.PollParked:

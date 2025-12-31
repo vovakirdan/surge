@@ -68,12 +68,12 @@ pub type Task<T> = {
     __opaque: int,
 };
 
-pub tag Ok<T>(T);
 pub tag Cancelled();
-pub type TaskResult<T> = Ok(T) | Cancelled;
+pub type TaskResult<T> = Success(T) | Cancelled;
 
 extern<Task<T>> {
     @intrinsic pub fn clone(self: &Task<T>) -> Task<T>;
+    @intrinsic pub fn cancel(self: &Task<T>) -> nothing;
     @intrinsic pub fn await(self: own Task<T>) -> TaskResult<T>;
 }
 

@@ -10,15 +10,15 @@ pub async fn test_all_awaited() -> int {
     let t3 = spawn compute(3);
 
     let r1: int = compare t1.await() {
-        Ok(v) => v;
+        Success(v) => v;
         Cancelled() => 0;
     };
     let r2: int = compare t2.await() {
-        Ok(v) => v;
+        Success(v) => v;
         Cancelled() => 0;
     };
     let r3: int = compare t3.await() {
-        Ok(v) => v;
+        Success(v) => v;
         Cancelled() => 0;
     };
 

@@ -29,7 +29,8 @@ func JoinKey(target TaskID) WakerKey {
 type PollOutcomeKind uint8
 
 const (
-	PollDone PollOutcomeKind = iota
+	PollDoneSuccess PollOutcomeKind = iota
+	PollDoneCancelled
 	PollYielded
 	PollParked
 )

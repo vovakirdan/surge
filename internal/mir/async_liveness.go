@@ -113,6 +113,8 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 		if bb.Term.AsyncReturn.HasValue {
 			addUsesFromOperand(&bb.Term.AsyncReturn.Value, addUse)
 		}
+	case TermAsyncReturnCancelled:
+		addUsesFromOperand(&bb.Term.AsyncReturnCancelled.State, addUse)
 	case TermIf:
 		addUsesFromOperand(&bb.Term.If.Cond, addUse)
 	case TermSwitchTag:

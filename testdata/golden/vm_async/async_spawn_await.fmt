@@ -5,7 +5,7 @@ fn main() -> int {
         return 41 + 1;
     };
     let r: int = compare t.await() {
-        Ok(v) => v;
+        Success(v) => v;
         Cancelled() => 0;
     };
     print(r to string);

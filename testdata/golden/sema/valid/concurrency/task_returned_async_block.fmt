@@ -9,12 +9,12 @@ pub async fn test_await_in_async_block() -> int {
     let result = async {
         let t = spawn work();
         return compare t.await() {
-            Ok(v) => v;
+            Success(v) => v;
             Cancelled() => 0;
         };
     };
     return compare result.await() {
-        Ok(v) => v;
+        Success(v) => v;
         Cancelled() => 0;
     };
 }
@@ -25,17 +25,17 @@ pub async fn test_nested_async() -> int {
         let inner = async {
             let t = spawn work();
             return compare t.await() {
-                Ok(v) => v;
+                Success(v) => v;
                 Cancelled() => 0;
             };
         };
         return compare inner.await() {
-            Ok(v) => v;
+            Success(v) => v;
             Cancelled() => 0;
         };
     };
     return compare outer.await() {
-        Ok(v) => v;
+        Success(v) => v;
         Cancelled() => 0;
     };
 }

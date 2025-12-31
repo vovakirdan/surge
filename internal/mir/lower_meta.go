@@ -166,6 +166,8 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 				if bb.Term.AsyncReturn.HasValue {
 					visitOperand(&bb.Term.AsyncReturn.Value)
 				}
+			case TermAsyncReturnCancelled:
+				visitOperand(&bb.Term.AsyncReturnCancelled.State)
 			case TermIf:
 				visitOperand(&bb.Term.If.Cond)
 			case TermSwitchTag:

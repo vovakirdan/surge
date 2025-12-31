@@ -524,6 +524,8 @@ func (t *Tracer) formatTerminator(term *mir.Terminator) string {
 			return fmt.Sprintf("async_return %s, %s", t.formatOperand(&term.AsyncReturn.State), t.formatOperand(&term.AsyncReturn.Value))
 		}
 		return fmt.Sprintf("async_return %s", t.formatOperand(&term.AsyncReturn.State))
+	case mir.TermAsyncReturnCancelled:
+		return fmt.Sprintf("async_cancel %s", t.formatOperand(&term.AsyncReturnCancelled.State))
 	case mir.TermGoto:
 		return fmt.Sprintf("goto bb%d", term.Goto.Target)
 	case mir.TermIf:

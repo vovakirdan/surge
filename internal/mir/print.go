@@ -187,6 +187,8 @@ func formatTerm(term *Terminator) string {
 			return fmt.Sprintf("async_return %s, %s", formatOperand(&term.AsyncReturn.State), formatOperand(&term.AsyncReturn.Value))
 		}
 		return fmt.Sprintf("async_return %s", formatOperand(&term.AsyncReturn.State))
+	case TermAsyncReturnCancelled:
+		return fmt.Sprintf("async_cancel %s", formatOperand(&term.AsyncReturnCancelled.State))
 	case TermGoto:
 		return fmt.Sprintf("goto bb%d", term.Goto.Target)
 	case TermIf:

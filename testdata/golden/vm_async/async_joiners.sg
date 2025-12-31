@@ -18,7 +18,7 @@ fn main() -> int {
 async fn joiner(label: string, t: Task<int>) -> int {
     let result = t.await();
     compare result {
-        Ok(v) => print(label + "=" + (v to string));
+        Success(v) => print(label + "=" + (v to string));
         Cancelled() => print(label + "=cancelled");
     };
     return 0;

@@ -4,7 +4,7 @@ module
 
 type Foo <struct> (sym=1204, type=0)
 
-fn __to(self: type#1312, _: ?) -> string (id=1, sym=1205) {
+fn __to(self: type#1315, _: ?) -> string (id=1, sym=1205) {
   return "\"Foo\""
 }
 
@@ -13,7 +13,7 @@ fn takes_string(s: string) -> int (id=2, sym=1206) {
 }
 
 fn test_allow_to() -> int (id=3, sym=1207) {
-  let f: type#1312 =  { value = 1 }: type#1312
+  let f: type#1315 =  { value = 1 }: type#1315
   return takes_string(__to(f)): int
 }
 

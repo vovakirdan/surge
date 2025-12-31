@@ -131,6 +131,8 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			return vm.handleTaskClone(frame, call, writes)
 		}
 		return vm.handleCloneValue(frame, call, writes)
+	case "cancel":
+		return vm.handleTaskCancel(frame, call)
 
 	case "__index":
 		return vm.handleIndex(frame, call, writes)

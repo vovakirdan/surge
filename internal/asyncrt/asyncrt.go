@@ -41,7 +41,7 @@ const (
 type TaskResultKind uint8
 
 const (
-	TaskResultOk TaskResultKind = iota
+	TaskResultSuccess TaskResultKind = iota
 	TaskResultCancelled
 )
 
@@ -54,6 +54,8 @@ type Task struct {
 	ResultValue      any
 	Status           TaskStatus
 	Kind             TaskKind
+	Cancelled        bool
+	Children         []TaskID
 	checkpointPolled bool
 }
 
@@ -128,6 +130,11 @@ func (e *Executor) Spawn(pollFuncID int64, state any) TaskID {
 		e.tasks = make(map[TaskID]*Task)
 	}
 	e.tasks[id] = task
+	if e.current != 0 {
+		if parent := e.tasks[e.current]; parent != nil {
+			parent.Children = append(parent.Children, id)
+		}
+	}
 	e.enqueue(id)
 	return id
 }
@@ -278,7 +285,7 @@ func (e *Executor) WakeKeyAll(key WakerKey) {
 }
 
 // MarkDone marks a task as completed and wakes join waiters.
-func (e *Executor) MarkDone(id TaskID, result any) {
+func (e *Executor) MarkDone(id TaskID, kind TaskResultKind, result any) {
 	if e == nil {
 		return
 	}
@@ -286,7 +293,7 @@ func (e *Executor) MarkDone(id TaskID, result any) {
 	if task == nil {
 		return
 	}
-	task.ResultKind = TaskResultOk
+	task.ResultKind = kind
 	task.ResultValue = result
 	task.Status = TaskDone
 	if key, ok := e.parked[id]; ok {
@@ -294,6 +301,30 @@ func (e *Executor) MarkDone(id TaskID, result any) {
 		delete(e.parked, id)
 	}
 	e.WakeKeyAll(JoinKey(id))
+}
+
+// Cancel marks a task (and its descendants) as cancelled.
+func (e *Executor) Cancel(id TaskID) {
+	if e == nil {
+		return
+	}
+	e.cancelRecursive(id)
+}
+
+func (e *Executor) cancelRecursive(id TaskID) {
+	if e == nil {
+		return
+	}
+	task := e.tasks[id]
+	if task == nil || task.Status == TaskDone {
+		return
+	}
+	if !task.Cancelled {
+		task.Cancelled = true
+	}
+	for _, child := range task.Children {
+		e.cancelRecursive(child)
+	}
 }
 
 func (e *Executor) enqueue(id TaskID) {
