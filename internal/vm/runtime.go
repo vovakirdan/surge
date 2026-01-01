@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 )
 
 // Runtime provides the interface between the VM and the outside world.
@@ -23,23 +24,27 @@ type Runtime interface {
 
 	// Exited returns true if Exit was called.
 	Exited() bool
+
+	// MonotonicNow returns monotonic time in nanoseconds.
+	MonotonicNow() int64
 }
 
 // DefaultRuntime implements Runtime using OS facilities.
 type DefaultRuntime struct {
-	argv     []string // program arguments (after --)
-	exitCode int
-	exited   bool
+	argv      []string // program arguments (after --)
+	exitCode  int
+	exited    bool
+	monoStart time.Time
 }
 
 // NewDefaultRuntime creates a runtime with program arguments from os.Args.
 func NewDefaultRuntime() *DefaultRuntime {
-	return &DefaultRuntime{argv: os.Args[1:], exitCode: -1}
+	return &DefaultRuntime{argv: os.Args[1:], exitCode: -1, monoStart: time.Now()}
 }
 
 // NewRuntimeWithArgs creates a runtime with the specified program arguments.
 func NewRuntimeWithArgs(argv []string) *DefaultRuntime {
-	return &DefaultRuntime{argv: argv, exitCode: -1}
+	return &DefaultRuntime{argv: argv, exitCode: -1, monoStart: time.Now()}
 }
 
 func (r *DefaultRuntime) Argv() []string {
@@ -65,6 +70,16 @@ func (r *DefaultRuntime) ExitCode() int {
 
 func (r *DefaultRuntime) Exited() bool {
 	return r.exited
+}
+
+func (r *DefaultRuntime) MonotonicNow() int64 {
+	if r == nil {
+		return 0
+	}
+	if r.monoStart.IsZero() {
+		r.monoStart = time.Now()
+	}
+	return time.Since(r.monoStart).Nanoseconds()
 }
 
 // TestRuntime implements Runtime with controlled inputs for testing.
@@ -103,6 +118,10 @@ func (r *TestRuntime) ExitCode() int {
 
 func (r *TestRuntime) Exited() bool {
 	return r.exited
+}
+
+func (r *TestRuntime) MonotonicNow() int64 {
+	return 0
 }
 
 // RecordingRuntime wraps another runtime and records intrinsic results for deterministic replay.
@@ -158,6 +177,17 @@ func (r *RecordingRuntime) Exited() bool {
 		return false
 	}
 	return r.rt.Exited()
+}
+
+func (r *RecordingRuntime) MonotonicNow() int64 {
+	if r == nil || r.rt == nil {
+		return 0
+	}
+	v := r.rt.MonotonicNow()
+	if r.rec != nil {
+		r.rec.RecordIntrinsic("monotonic_now", nil, LogInt64(v))
+	}
+	return v
 }
 
 // ReplayRuntime serves intrinsic results from a recorded log and panics on mismatches.
@@ -219,4 +249,16 @@ func (r *ReplayRuntime) Exited() bool {
 		return false
 	}
 	return r.exited
+}
+
+func (r *ReplayRuntime) MonotonicNow() int64 {
+	if r == nil || r.vm == nil || r.rp == nil {
+		return 0
+	}
+	ev := r.rp.ConsumeIntrinsic(r.vm, "monotonic_now")
+	v, err := MustDecodeInt64(ev.Ret)
+	if err != nil {
+		r.vm.panic(PanicInvalidReplayLogFormat, fmt.Sprintf("invalid monotonic_now ret: %v", err))
+	}
+	return v
 }

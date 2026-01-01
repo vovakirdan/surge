@@ -11,6 +11,7 @@ type Executor struct {
 	nextChanID  ChannelID
 	nextTimerID TimerID
 	nowMs       uint64
+	clock       Clock
 	ready       []TaskID
 	readySet    map[TaskID]struct{}
 	tasks       map[TaskID]*Task
@@ -90,6 +91,8 @@ type Config struct {
 	Deterministic bool
 	Fuzz          bool
 	Seed          uint64
+	TimerMode     TimerMode
+	Clock         Clock
 }
 
 // NewExecutor constructs an executor with the provided configuration.
@@ -103,6 +106,11 @@ func NewExecutor(cfg Config) *Executor {
 		readySet:    make(map[TaskID]struct{}),
 		tasks:       make(map[TaskID]*Task),
 		scopes:      make(map[ScopeID]*Scope),
+	}
+	if cfg.Clock != nil {
+		exec.clock = cfg.Clock
+	} else {
+		exec.clock = &VirtualClock{ex: exec}
 	}
 	if cfg.Fuzz {
 		seed := cfg.Seed

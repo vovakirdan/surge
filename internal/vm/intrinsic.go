@@ -19,6 +19,10 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vmErr
 	}
 
+	if name == "monotonic_now" || strings.HasSuffix(name, ".monotonic_now") {
+		return vm.handleMonotonicNow(frame, call, writes)
+	}
+
 	switch name {
 	case "size_of", "align_of":
 		return vm.handleSizeOfAlignOf(frame, call, writes, name)

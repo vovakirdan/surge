@@ -46,7 +46,7 @@ func (h *timerHeap) Pop() any {
 	return item
 }
 
-// TimerScheduleAfter schedules a timer for the current executor time + delayMs.
+// TimerScheduleAfter schedules a timer for the current clock time + delayMs.
 func (e *Executor) TimerScheduleAfter(taskID TaskID, delayMs uint64) TimerID {
 	if e == nil {
 		return 0
@@ -54,11 +54,20 @@ func (e *Executor) TimerScheduleAfter(taskID TaskID, delayMs uint64) TimerID {
 	if e.nextTimerID == 0 {
 		e.nextTimerID = 1
 	}
+	nowMs := e.nowMs
+	if e.clock != nil {
+		nowMs = e.clock.NowMs()
+		e.nowMs = nowMs
+	}
 	id := e.nextTimerID
 	e.nextTimerID++
+	deadline := nowMs + delayMs
+	if deadline < nowMs {
+		deadline = ^uint64(0)
+	}
 	timer := &Timer{
 		id:         id,
-		deadlineMs: e.nowMs + delayMs,
+		deadlineMs: deadline,
 		key:        TimerKey(id),
 		taskID:     taskID,
 	}
@@ -107,7 +116,17 @@ func (e *Executor) advanceTimeToNextTimer() bool {
 		if timer.cancelled {
 			continue
 		}
-		e.nowMs = timer.deadlineMs
+		if e.clock != nil {
+			for {
+				e.clock.SleepUntilMs(timer.deadlineMs)
+				e.nowMs = e.clock.NowMs()
+				if e.nowMs >= timer.deadlineMs {
+					break
+				}
+			}
+		} else {
+			e.nowMs = timer.deadlineMs
+		}
 		e.fireTimer(timer)
 		for len(e.timers) > 0 {
 			next := e.timers[0]

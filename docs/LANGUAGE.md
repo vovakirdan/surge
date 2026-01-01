@@ -1700,7 +1700,10 @@ timeout<T>(t: Task<T>, ms: uint) -> TaskResult<T>
 ```
 
 - `checkpoint()` yields and checks cancellation.
+- `sleep` suspends for the specified duration.
 - `timeout` returns `Success(value)` on time, `Cancelled()` on deadline.
+- Timers are driven by the async runtime: virtual time by default, real time via
+  `surge run --real-time`.
 
 ### 9.5. Async/Await Model (Structured Concurrency)
 

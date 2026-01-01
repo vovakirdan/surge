@@ -25,6 +25,9 @@ func (vm *VM) ensureExecutor() *asyncrt.Executor {
 		if !cfg.Fuzz && !cfg.Deterministic && cfg.Seed == 0 {
 			cfg.Deterministic = true
 		}
+		if cfg.TimerMode == asyncrt.TimerModeReal && cfg.Clock == nil {
+			cfg.Clock = &asyncrt.RealClock{NowFunc: vm.monotonicNowMs}
+		}
 		vm.Async = asyncrt.NewExecutor(cfg)
 	}
 	return vm.Async

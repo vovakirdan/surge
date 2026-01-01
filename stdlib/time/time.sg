@@ -10,7 +10,7 @@ pub type Duration = {
 
 // Get the current monotonic time as a Duration.
 // Used for measuring elapsed time; not wall-clock time.
-// Stage 2: stub implementation - returns zero duration.
+// Stage 3: implemented and used by async runtime (real-time mode).
 @intrinsic
 pub fn monotonic_now() -> Duration;
 

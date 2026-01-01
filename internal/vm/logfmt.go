@@ -70,6 +70,10 @@ func LogInt(v int) LogValue {
 	return LogValue{Type: "int", V: mustJSON(v)}
 }
 
+func LogInt64(v int64) LogValue {
+	return LogValue{Type: "int64", V: mustJSON(v)}
+}
+
 func MustDecodeString(v LogValue) (string, error) {
 	if v.Type != "string" {
 		return "", fmt.Errorf("expected value type string, got %q", v.Type)
@@ -97,6 +101,17 @@ func MustDecodeInt(v LogValue) (int, error) {
 		return 0, fmt.Errorf("expected value type int, got %q", v.Type)
 	}
 	var out int
+	if err := json.Unmarshal(v.V, &out); err != nil {
+		return 0, err
+	}
+	return out, nil
+}
+
+func MustDecodeInt64(v LogValue) (int64, error) {
+	if v.Type != "int64" {
+		return 0, fmt.Errorf("expected value type int64, got %q", v.Type)
+	}
+	var out int64
 	if err := json.Unmarshal(v.V, &out); err != nil {
 		return 0, err
 	}

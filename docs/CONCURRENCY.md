@@ -177,9 +177,11 @@ Intrinsics:
 Notes:
 
 - `checkpoint().await()` yields to the scheduler and checks cancellation.
-- `sleep(ms).await()` suspends for `ms` (virtual time in VM).
+- `sleep(ms).await()` suspends for `ms` (virtual time by default).
 - `timeout(t, ms)` waits up to `ms` and returns `Success` or `Cancelled`.
   It cancels the target on deadline.
+- Timers run in virtual time by default. Real-time mode can be enabled via
+  `surge run --real-time`.
 
 Example:
 

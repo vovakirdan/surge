@@ -1681,7 +1681,10 @@ timeout<T>(t: Task<T>, ms: uint) -> TaskResult<T>
 ```
 
 - `checkpoint()` yields and checks cancellation.
+- `sleep` приостанавливает выполнение на указанное время.
 - `timeout` returns `Success(value)` on time, `Cancelled()` on deadline.
+- Таймеры работают через async runtime: виртуальное время по умолчанию, реальное
+  время — через `surge run --real-time`.
 
 ### 9.5. Async/Await Model (Structured Concurrency)
 

@@ -35,6 +35,7 @@ func init() {
 	runCmd.Flags().String("vm-replay", "", "replay VM run from NDJSON log")
 	runCmd.Flags().Bool("fuzz-scheduler", false, "enable fuzzed async scheduling")
 	runCmd.Flags().Uint64("fuzz-seed", 1, "seed for fuzzed async scheduling (default 1)")
+	runCmd.Flags().Bool("real-time", false, "use real-time async timers (monotonic clock)")
 }
 
 func runExecution(cmd *cobra.Command, args []string) error {
@@ -84,6 +85,10 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	fuzzSeed, err := cmd.Flags().GetUint64("fuzz-seed")
 	if err != nil {
 		return fmt.Errorf("failed to get fuzz-seed flag: %w", err)
+	}
+	realTime, err := cmd.Flags().GetBool("real-time")
+	if err != nil {
+		return fmt.Errorf("failed to get real-time flag: %w", err)
 	}
 	if vmRecordPath != "" && vmReplayPath != "" {
 		return fmt.Errorf("--vm-record and --vm-replay are mutually exclusive")
@@ -190,10 +195,15 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	}
 
 	vmInstance := vm.New(mirMod, rt, result.FileSet, result.Sema.TypeInterner, tracer)
+	timerMode := asyncrt.TimerModeVirtual
+	if realTime {
+		timerMode = asyncrt.TimerModeReal
+	}
 	vmInstance.AsyncConfig = asyncrt.Config{
 		Deterministic: !fuzzScheduler,
 		Fuzz:          fuzzScheduler,
 		Seed:          fuzzSeed,
+		TimerMode:     timerMode,
 	}
 	if recorder != nil {
 		vmInstance.Recorder = recorder
