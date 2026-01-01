@@ -1,373 +1,190 @@
-## 0. База, которую считаем уже готовой
+# Промежуточные представления Surge (HIR/MIR)
 
-(Формально это уже есть, просто явно фиксируем как вход.)
-
-* AST + арены, `NodeID/TypeID/SymbolID`.
-* `sema.Result.ExprTypes`, borrow-инфа, inference/overload’ы. 
-* Граф модулей, content/module hash, кэширование метаданных.
-
-**Ничего делать не надо**, это просто база, на которую опираются следующие шаги.
+Этот документ описывает **фактический** IR-пайплайн в текущей версии компилятора,
+а не план работ.
 
 ---
 
-## Шаг 1. Ввести явный Typed AST / HIR-структуры
+## 1. Общая схема
 
-Цель — выделить отдельный слой данных «Typed AST/HIR», а не жить только в рассыпухе `ExprTypes` и внутренних структур typechecker’а. Это то, что у тебя в SEMANTICS_PLAN описано одной строкой. 
+```
+AST + Sema
+   │
+   ▼
+HIR (typed) + borrow graph + move plan
+   │
+   ▼
+Monomorphization (generic -> concrete)
+   │
+   ▼
+MIR (CFG + instr/term)
+   │
+   ▼
+CFG simplification + switch_tag recognition
+   │
+   ▼
+Async lowering (poll state machines)
+   │
+   ▼
+MIR validation
+   │
+   ▼
+VM execution
+```
 
-### Что сделать
+Ключевые пакеты:
 
-1. **Определить HIR-модель на Go-стороне**
-
-   * Новый пакет, условно `internal/hir`:
-
-     * `type ModuleID`, `FuncID`, `BlockID`, `HNodeID` (если нужен).
-     * Описания:
-
-       * `HIRModule` (список функций/типов/const, ссылки на SymbolID/TypeID).
-       * `HIRFunc`:
-
-         * сигнатура (`TypeID` параметров и результата, ownership-флаги),
-         * список параметров, локалов,
-         * тело — дерево/список `HIRStmt/HIRExpr`.
-       * `HIRExpr`/`HIRStmt` с **минимальным набором конструкций**, уже без сахарных `compare/for/T?/T!` и т.п.
-   * В каждом expr/stmt:
-
-     * поле `Type TypeID`,
-     * для биндингов — флаг ownership (`Own`, `Ref`, `RefMut`, `Ptr`, `Copy`).
-
-2. **Написать проход AST → HIR**
-
-   * Новый проход после успешной семантики:
-
-     * на вход: AST + `ExprTypes` + `SymbolTable` + borrow-инфа;
-     * на выход: `HIRModule` с полной структурой.
-   * На этом шаге желательно *минимальное* desugaring:
-
-     * убрать только самое очевидное (лишний сахар типа последнего выражения как `return`);
-     * **оставить** `compare`, `for`, `async`, `Erring/Option` — всё ещё как отдельные kind’ы HIR (desugar’ить будем позже, чтобы не потерять связь с языком).
-
-3. **Привязать HIR к модулю/драйверу**
-
-   * Ввести в `ModuleMeta` (или аналог) ссылку на `HIRModule` (пока только в памяти, без дискового кеша).
-   * Добавить CLI-флаг, например `surge diag --emit-hir` для отладки (хотя бы текстовый дамп IR).
-
-**Готово, когда:**
-
-* Любой успешно типизированный модуль можно превратить в `HIRModule`.
-* HIR содержит типы (`TypeID`) и ownership для всех expr/stmt/binding.
-* Нет desugaring-магии «поверх» HIR — всё явно.
+- HIR: `internal/hir`
+- Monomorphization: `internal/mono`
+- MIR: `internal/mir`
+- ABI layout: `internal/layout`
+- VM: `internal/vm`
 
 ---
 
-## Шаг 2. Явный borrow-граф и план перемещений на HIR
+## 2. HIR (High-level IR)
 
-В SEMANTICS_PLAN это тоже уже упомянуто: «borrow-граф по блокам, план разыменований/перемещений». 
+HIR строится после успешной семантики:
 
-### Что сделать
+- Вход: AST + результаты `sema`
+- Выход: `hir.Module` (типизированное дерево функций и выражений)
 
-1. **Поднять borrow-информацию до HIR**
+### 2.1. Что делает `hir.Lower`
 
-   * Сделать структуру вроде `BorrowGraph` в `internal/hir`:
+`internal/hir/lower.go`:
 
-     * вершины — `HIRLocalID`/`HIRBindingID`,
-     * рёбра — «кто кого заимствует / кто от кого зависит»,
-     * метки: read/write, lifetime-области.
-   * Заполнить её, используя уже существующий borrow-проход (пока можно прям вытащить его внутреннюю инфу и переложить в более чистую структуру рядом с HIR).
+- минимальный desugaring (например, убирает ExprGroup)
+- нормализация высокоуровневых конструкций:
+  - `compare` -> условные ветвления
+  - `for` -> `while`
+- **не** разворачивает async/spawn (это делает MIR)
 
-2. **Построить «план перемещений»**
+### 2.2. Borrow graph и move plan
 
-   * На основе borrow-графа и типов, для каждого HIR-биндинга:
+HIR включает дополнительные артефакты для анализа и отладки:
 
-     * где разрешён move, где только copy, где borrow;
-     * какие «drop»/cleanup нужны (особенно для `own T`/ресурсных типов).
-   * Пока можно просто хранить таблицу:
+- `BorrowGraph`: рёбра заимствований и события (borrow/move/write/drop)
+- `MovePlan`: политика перемещений для локалов (`MoveCopy`, `MoveAllowed`, ...)
 
-     * `BindingID -> MovePolicy` (enum/битовая маска).
+Построение: `internal/hir/borrow_build.go`.
 
-3. **Интеграция с diagnostics/tracing**
+### 2.3. Как посмотреть HIR
 
-   * При включённом `--trace` (ты уже думал про trace-формат), HIR+borrow-граф можно включать как отдельный слой.
+Команда:
 
-**Готово, когда:**
+```bash
+surge diag file.sg --emit-hir
+surge diag file.sg --emit-borrow   # вместе с borrow graph + move plan
+```
 
-* Для любой функции можно:
-
-  * пройтись по HIR и понять, где move/borrow/alias,
-  * визуализировать borrow-граф (хотя бы текстом).
-* Borrow-инфа не живёт только внутри typechecker’а, а доступна как артефакт.
-
----
-
-## Шаг 3. Карта инстансов generics (подготовка к мономорфизации)
-
-LANGUAGE.md уже декларирует, что Surge использует мономорфизацию generics — compile-time expansion, отдельные функции под каждый набор типов. 
-
-SEMANTICS_PLAN говорит, что сейчас есть «частичная мемоизация генериков, но нет карты инстансов». 
-
-### Что сделать
-
-1. **Ввести структуру `InstantiationKey`**
-
-   * Например:
-
-     * `type InstantiationKey struct { FnID SymbolID; TypeArgs []TypeID }`
-     * аналогично для generic-типов при необходимости.
-   * Нормализовать `TypeArgs` (без лишних алиасов, предикатов, etc.).
-
-2. **Собрать usage-карты по HIR**
-
-   * Дополнительный проход по HIR:
-
-     * каждый вызов generic-функции/конструктора регистрирует `InstantiationKey` в таблице `map[InstantiationKey]InstEntry`.
-   * Информацию про contracts/bounds можно при этом тоже прикреплять (для diagnostics и, возможно, для будущего dyn-механизма).
-
-3. **Связать с существующей memoization**
-
-   * Там, где typechecker сейчас создаёт временную «инстансу» generic-fn для проверки, использовать/заполнять ту же таблицу, а не внутренний тайный кеш.
-
-**Готово, когда:**
-
-* Можно пройтись по модулю и получить список:
-
-  * «какие generic-функции под какими `TypeArgs` реально используются».
-* При добавлении/удалении use site карта детерминированно меняется.
+Дамп: `hir.DumpWithOptions`.
 
 ---
 
-## Шаг 4. Нормализация HIR (desugaring high-level фич)
+## 3. Monomorphization (generic -> concrete)
 
-Теперь, когда HIR есть, можно аккуратно снять сахар, чтобы подготовить почву для MIR.
+Пакет `internal/mono` превращает HIR с generics в конкретные инстансы:
 
-### Что сделать
+- использует карту инстансов (`mono.InstantiationMap`)
+- инстансы собираются в sema при `--emit-instantiations`
+- есть DCE (dead code elimination) для моно-версий
 
-1. **Убрать `compare`**
+Флаги CLI:
 
-   * Pass `hir_lower_compare.go`:
+```bash
+surge diag file.sg --emit-instantiations
+surge diag file.sg --emit-mono --mono-dce --mono-max-depth=64
+```
 
-     * `compare (a, b) { (p1, p2) => body1; ... }`
-       → цепочка if/else, проверки тега/tags, pattern-destructuring через явные `let`.
-   * Оставить exhaustiveness-checking на уровне семантики (уже есть). 
+Дамп: `mono.DumpMonoModule`.
 
-2. **Убрать `for ... in` и прочие sugar-циклы**
-
-   * Любые `for i:int in 0..N { ... }` → `let mut i = 0; while i < N { ...; i += 1; }`.
-   * Итерирование по коллекциям → явные вызовы `next()`/итераторов.
-
-3. **Опционально: убрать sugar Option/Erring**
-
-   * Можно оставить alias-типов как есть (они уже реальны: `Option<T>`, `Erring<T, E>`).
-   * Но стоит привести все конструкции к фактическим:
-
-     * `T?` / `T!` → реальные типы + конструкторы `Some`/`Success`/`Error`/`nothing`.
-
-**Готово, когда:**
-
-* HIR выражается через небольшой, фиксированный набор конструкций, близких к C-подобному языку:
-
-  * if/while/loop/return/call/assign/struct/union/tag + async/spawn/channel как отдельные конструкции (их развернём позже).
+Примечание: `--emit-mono` поддерживается только для одиночных файлов (директории отклоняются).
 
 ---
 
-## Шаг 5. Мономорфизатор (HIR → моно-HIR / сразу MIR)
+## 4. MIR (Mid-level IR)
 
-На этом шаге мы реализуем собственно generic monomorphization, уже формально описанную в LANGUAGE.md. 
+MIR — это CFG + инструкции + терминаторы.
+Структуры: `internal/mir/*`.
 
-### Что сделать
+### 4.1. Lowering в MIR
 
-1. **Определить API мономорфизатора**
+`mir.LowerModule` принимает моно-HIR и строит `mir.Module`:
 
-   * Пакет `internal/mono` или часть `internal/hir`:
+- локалы, блоки, инструкции
+- константы и статические строки
+- метаданные ABI layout (`layout.LayoutEngine`)
+- таблицы layout для tag/union
 
-     * `func Monomorphize(mod *HIRModule) (*MonoModule, error)`
-     * `MonoModule` — набор уже инстанцированных функций/типов, без generics.
+### 4.2. MIR-проходы
 
-2. **Реализация инстанцирования функций**
+В `surge diag --emit-mir` выполняются следующие шаги:
 
-   * Для каждого `InstantiationKey`:
+1. `SimplifyCFG` — убирает тривиальные `goto`
+2. `RecognizeSwitchTag` — превращает цепочки `if` в `switch_tag`
+3. `SimplifyCFG` ещё раз
+4. `LowerAsyncStateMachine` — async lowering
+5. `SimplifyCFG` ещё раз
+6. `Validate` — проверка инвариантов MIR
 
-     * создать копию `HIRFunc`, подставив `TypeArgs` вместо generic-параметров;
-     * перепривязать ссылки на методы/операторы (магические методы из `extern<T>`). 
-   * Следить за рекурсией (ограниченная глубина или явная диагностика).
+### 4.3. Дамп MIR
 
-3. **Инстанцирование типов при необходимости**
+```bash
+surge diag file.sg --emit-mir
+```
 
-   * Для generic struct/tag — аналогично:
+Дамп: `mir.DumpModule`.
 
-     * `type Box<T> = {...}` → `Box$int`, `Box$string` и т.п., если такие реально используются.
-
-4. **Дедупликация и dead-code elimination**
-
-   * Если `InstantiationKey` повторяется, использовать уже готовую inst.
-   * В конце можно выкинуть все инстансы, на которые нет входа из корневых точек (`@entrypoint`, экспортируемые API и т.п.).
-
-**Готово, когда:**
-
-* Любой модуль/программа, использующая generics, отдаёт на выход структуру `MonoModule`, где:
-
-  * нет абстрактного `T`/`U`,
-  * все функции и типы — конкретные.
+Примечание: `--emit-mir` поддерживается только для одиночных файлов.
 
 ---
 
-## Шаг 6. Дизайн MIR и lowering из моно-HIR
+## 5. Async lowering
 
-Теперь нужен MIR: CFG, SSA-ish, минимальный набор инструкций.
+`mir.LowerAsyncStateMachine`:
 
-### Что сделать
+- превращает `async fn` в **poll state machine**
+- разбивает `await` в отдельные suspend-блоки
+- сохраняет/восстанавливает live locals между подвесами
+- добавляет structured concurrency (`rt_scope_*`)
 
-1. **Определить структуру MIR**
+Ограничение v1:
 
-   * Пакет `internal/mir`:
-
-     * `MIRModule`, `MIRFunc`, `MIRBlock`, `MIRInstr`, `MIRValue`.
-   * Каждый `MIRFunc`:
-
-     * список локалов с типами,
-     * список basic blocks,
-     * для block:
-
-       * линейка инструкций + терминатор (branch/return/switch).
-
-2. **Лоуверинг control flow**
-
-   * `if/else`, `while`, `loop`, `break/continue` → CFG с блоками.
-   * `compare` уже снят раньше, поэтому только ветвления.
-
-3. **Обработка async/await и Task**
-
-   * уже на MIR превращать async-функции в **state-машины**:
-       * дополнительный скрытый `state`-локал,
-       * разрезание тела на блоки по `await`/suspension points;
-
-4. **Обработка Erring/Option**
-
-   * MIR-инструкция `SwitchTag` по union/tag.
-   * Паттерн `Erring` можно стандартно сводить к:
-
-     * tag check → ветка success / ветка error.
-
-**Готово, когда:**
-
-* Любая моно-функция может быть представлена набором MIR-blocks, без синтаксического сахара, с явным control flow.
-* Типы MIR-локалов и значений строго определены (TypeID + ownership).
+- `await` внутри циклов не поддержан (ошибка lowering).
 
 ---
 
-## Шаг 7. Backend для VM (bytecode) на базе MIR
+## 6. Entrypoint lowering
 
-Тут ты выбираешь архитектуру VM (скорее всего стековая на v1, регистровая можно позже). README уже обещает VM backend в v1.x. 
+Если есть `@entrypoint`, MIR строит синтетическую функцию
+`__surge_start` (`internal/mir/entrypoint_*.go`).
 
-### Что сделать
+Она:
 
-1. **Определить формат байткода**
-
-   * `Opcode` enum: `LOAD_LOCAL`, `STORE_LOCAL`, `CALL`, `RET`, `BR`, `BR_IF`, `CONST`, `ADD`, …
-   * Структура `BytecodeFunc`:
-
-     * список инструкций,
-     * таблица констант,
-     * сигнатура.
-
-2. **Лоуверинг MIR → Bytecode**
-
-   * Для каждого `MIRFunc`:
-
-     * пройти по блокам и генерировать опкоды;
-     * сохранить mapping `MIRBlockID → bytecode offset` для фиксации прыжков.
-
-3. **VM runtime**
-
-   * Интерпретатор байткода:
-
-     * стек вызовов;
-     * стек значений;
-     * поддержка `Task<T>`/async (на первых версиях можно запускать async-state-машины синхронно).
-
-4. **Интеграция с `surge` CLI**
-
-   * `surge build --backend=vm` или `surge run` для быстрой проверки программ.
-
-**Готово, когда:**
-
-* Для небольших Surge-программ можно:
-
-  * скомпилировать до VM-IR/байткода,
-  * выполнить в собственном рантайме.
+- обрабатывает `@entrypoint("argv")` / `@entrypoint("stdin")`
+- парсит аргументы через `from_str`
+- возвращает корректный код выхода
 
 ---
 
-## Шаг 8. Минимальный LLVM backend на базе MIR
+## 7. Исполнение (VM)
 
-README явно обещает LLVM backend на следующем шаге. 
+MIR исполняется в VM (`internal/vm`).
 
-### Что сделать
+Полезные флаги:
 
-1. **Простейший mapping MIR → LLVM IR**
-
-   * MIR types → LLVM types (int/float/pointer/struct).
-   * Basic blocks → LLVM basic blocks.
-   * Calls/branch/arithmetic → прямые LLVM инструкции.
-
-2. **Линковка и генерация бинарей**
-
-   * Генерация `.bc`/`.ll` или сразу native binary (через `lli`/`clang`/`lld`).
-   * Базовый runtime (alloc, panic, Task scheduler) тоже либо как LLVM-модуль, либо как внешняя C-библиотека.
-
-3. **Интеграция с CLI**
-
-   * `surge build --backend=llvm` → собирает native-бинарь.
-   * `@entrypoint` используется как точка входа. 
-
-**Готово, когда:**
-
-* Простая Surge-программа успешно собирается в нативный бинарь через LLVM и даёт ожидаемый результат.
+```bash
+surge run file.sg --vm-trace
+```
 
 ---
 
-## Шаг 9. IR-кэш и параллельная компиляция (используя уже существующую архитектуру)
+## 8. Где смотреть код
 
-Уже есть модульный кеш и parallel-пайплайн для хешей/метаданных.
-
-### Что сделать
-
-1. **Добавить поле для IR в `ModuleMeta` или рядом**
-
-   * Возможность сохранять/восстанавливать HIR/MIR на диск для инкрементальных сборок.
-
-2. **Ввязать это в существующий disk-cache**
-
-   * Расширить `DiskPayload` или завести новый слой «IR cache».
-   * Версионность схемы (как уже сделано для метаданных).
-
-3. **CLI-флаги**
-
-   * `--ir-cache` для включения/отключения;
-   * debug-режимы: `--emit-hir`, `--emit-mir` в файлы.
-
-**Готово, когда:**
-
-* Для больших проектов при повторных сборках используются кэшированные IR, а не всё пересчитывается с нуля.
-
----
-
-## Шаг 10. Оптимизации и «красота» (уже поверх работающего стека)
-
-Когда VM+LLVM уже живы, можно постепенно завозить:
-
-* простые MIR-оптимизации:
-
-  * DCE, константная пропагация, inline простых функций;
-* спец-обработку Erring/Option (возможно, unpacking на уровне MIR для уменьшения ветвлений);
-* специализированные оптимизации async-state-машин.
-
-Это уже не критично для первой версии, но хорошо ложится на существующую архитектуру.
-
----
-
-Если коротко:
-
-1. **Сначала** — явный HIR/Typed AST + borrow-граф + карта instantiations.
-2. **Потом** — нормализация HIR и мономорфизатор.
-3. **Потом** — MIR с CFG/SSA-ish.
-4. **На базе MIR** — VM backend и минимальный LLVM backend.
-5. **После** — кеш IR и оптимизации.
+- HIR: `internal/hir/*`
+- Borrow graph: `internal/hir/borrow_build.go`
+- Monomorphization: `internal/mono/*`
+- MIR: `internal/mir/*`
+- Async lowering: `internal/mir/async_*`
+- Entrypoint: `internal/mir/entrypoint_*.go`
+- VM: `internal/vm/*`

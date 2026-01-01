@@ -1,7 +1,7 @@
-# Surge Language Specification (Draft 7)
+# Surge Language Specification (Draft 8)
 
 > **Status:** Draft for review
-> **Scope:** Full language surface for tokenizer → parser → semantics. VM/runtime details are out of scope here and live in RUNTIME.md / BYTECODE.md.
+> **Scope:** Full language surface for tokenizer → parser → semantics. VM/runtime details are out of scope here and live in docs/IR.md.
 > **Alignment:** Synced with the current parser + partial sema; clearly marks pieces that are still planned or only parsed.
 
 ---
@@ -16,15 +16,16 @@
 * **Explicit over implicit:** prefer clear, verbose constructs over clever shortcuts that obscure ownership or control flow.
 * **Ownership clarity:** every operation's ownership semantics should be obvious from the syntax.
 
-### Implementation Snapshot (Draft 7)
+### Implementation Snapshot
 
-- Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, tag, extern, pub, async, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, nothing`.
-- The type checker currently resolves `int`, `uint`, `float`, `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`) plus raw pointers (`*T`, backend-only; rejected in user code), slices `T[]`, and sized arrays `T[N]` when `N` is a constant numeric literal. Fixed-width numerics (`int8`, `uint64`, `float32`…) are reserved symbols in the prelude but are not backed by concrete `TypeID`s yet.
-- Tuple and function types parse, but sema does not yet lower them. **Part of v1.**
-- Tags and unions follow the current parser: `tag Name<T>(args...);` declares a tag item; unions accept plain types, `nothing`, or `Tag(args)` members. `Option`/`Result` plus tags `Some`/`Ok`/`Error` are injected via the prelude and resolved without user declarations; exhaustive `compare` checks are still TODO.
+- Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, contract, tag, enum, extern, pub, async, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, field, nothing`. `signal`/`parallel` are reserved (`FutSignalNotSupported` / `FutParallelNotSupported`) and `macro` is rejected by the parser (`FutMacroNotSupported`).
+- The type checker resolves `int`, `uint`, `float`, fixed-width numerics (`int8`, `uint64`, `float32`, ...), `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`), slices `T[]`, and sized arrays `T[N]` with constant `N`. Raw pointers (`*T`) are allowed only in `extern` and `@intrinsic` declarations.
+- Tuple and function types are supported in sema and runtime lowering.
+- Tags and tagged unions are implemented. `Option` and `Erring` are standard aliases built on `Some`/`Success` tags plus `nothing`/error types; `ErrorLike` and `Error` live in the prelude; `compare` exhaustiveness is enforced for tagged unions.
+- Enums are implemented as nominal integer-backed types with explicit variants.
 - Contracts (trait-like structural interfaces) are parsed and checked in sema: declaration syntax is enforced, bounds on functions/types are resolved, short/long forms are validated by arity, and structural satisfaction (fields/methods) is verified on calls, type instantiations, assignments, and returns.
-- Diagnostics now use the `Lex*`/`Syn*`/`Sema*` numeric codes from `internal/diag/codes.go` instead of the earlier `E_*` placeholders.
-  Legacy `E_*` labels that remain in examples below are descriptive placeholders; see §21 for the codes the compiler actually emits today.
+- Directives are parsed and namespace-validated when enabled (`--directives=collect|gen|run`); `run` executes a stub runner (SKIPPED). No directive codegen/type-checking yet.
+- Diagnostics use the `Lex*`/`Syn*`/`Sema*` numeric codes from `internal/diag/codes.go` instead of the earlier `E_*` placeholders. Legacy `E_*` labels that remain in examples below are descriptive placeholders; see §21 for the codes the compiler actually emits today.
 
 ## 1. Lexical Structure
 
@@ -49,9 +50,9 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 ### 1.4. Keywords
 
 ```
-pub, fn, let, mut, own, if, else, while, for, in, break, continue,
-import, as, type, tag, extern, return, signal, compare, spawn, channel,
-parallel, map, reduce, with, to, heir, is, async, macro, pragma,
+pub, fn, let, const, mut, own, if, else, while, for, in, break, continue,
+import, as, type, contract, tag, enum, extern, return, signal, compare, spawn, channel,
+parallel, map, reduce, with, to, heir, is, async, macro, pragma, field,
 true, false, nothing
 ```
 
@@ -65,6 +66,9 @@ Attribute names (e.g., `pure`, `override`, `packed`) are identifiers that appear
 * Bool: `true`, `false`.
 * Absence value: `nothing` is the single "no value" literal used for void/null/absent semantics.
 
+**F-strings (implemented):** `f"Hello {name}"` desugars to a call to
+`format("Hello {}", fmt_arg(name))`. `{{` and `}}` escape literal braces.
+
 ---
 
 ## 2. Types
@@ -73,7 +77,7 @@ Types are written postfixed: `name: Type`.
 
 ### 2.1. Primitive Families
 
-The type checker currently recognises built-in `int`, `uint`, `float`, `bool`, `string`, `nothing`, and `unit`. Fixed-width numerics are reserved identifiers in the prelude but are not yet backed by concrete `TypeID`s in sema (they parse and resolve as names only).
+The type checker currently recognises built-in `int`, `uint`, `float`, `bool`, `string`, `nothing`, and `unit`, plus fixed-width numerics (`int8..int64`, `uint8..uint64`, `float16..float64`). Fixed-width types are first-class in sema/runtime and participate in layout and numeric rules.
 
 * **Dynamic-width numeric families** (arbitrary width, implementation-defined precision, but stable semantics):
 
@@ -104,7 +108,7 @@ Type binding: postfix `[]`/`[N]` binds tighter than prefix `&/own/*`.
 So `&T[]` means `&(T[])` (reference to array), while `(&T)[]` means an array of references.
 You can also be explicit: `Array<&T>` and `&Array<T>` are both allowed.
 
-* Indexing calls magic methods: `__index(i:int) -> T` and `__index_set(i:int, v:T) -> nothing`.
+* Indexing calls magic methods: `__index(self, index)` and `__index_set(self, index, value)`. For `Array<T>`, the intrinsic signatures are `__index(self: &Array<T>, index: int) -> &T` and `__index_set(self: &mut Array<T>, index: int, value: T) -> nothing`.
 * Iterable if `extern<T[]> { __range() -> Range<T> }` is provided (stdlib provides this for arrays).
 
 ### 2.3. Ownership & References
@@ -128,7 +132,7 @@ Borrowing rules:
 
 **Moves & Copies:**
 
-* Primitive fixed-size types and `bool` are `Copy`; `string` and arrays are `own` by default (move). The compiler may optimize small-string copies, but semantics are move.
+* Copy types include `bool`, `int`/`uint`/`float` (all widths), `unit`, `nothing`, raw pointers (`*T`), and shared references (`&T`). `string`, arrays, tuples, structs, unions, and `&mut T` are not Copy unless marked `@copy`.
 * `T` and `own T` are distinct in the type system; implicit compatibility exists only for `Copy` types.
 * Assignment `x = y;` moves if `y` is `own` and `T` not `Copy`. Borrowing uses `&`/`&mut` operators: `let r: &T = &x;`, `let m: &mut T = &mut x;`.
 
@@ -159,7 +163,7 @@ Supported generic owners:
 * Types (aliases, structs, unions): `type Box<T> = { value: T }`
 * Tags: `tag Some<T>(T);`
 * Contracts: `contract FooLike<T> { field v: T; fn get(self: T) -> T; }`
-* `extern<T>` blocks: `extern<T> { fn len(self: &T) -> int; }`
+* `extern<T>` blocks: `extern<T> { fn len(self: &T) -> uint; }`
 
 Resolution rules for a type identifier `Ident` inside a generic owner:
 
@@ -220,7 +224,7 @@ let d = Foo::<int>.new();   // ok: explicit type arg on receiver
 For generic struct literals, the type must be specified via annotation:
 
 ```sg
-let e: Box<int> = { value: 42 };  // ok: type from annotation
+let e: Box<int> = { value = 42 };  // ok: type from annotation
 let f: Box<int> = { 42 };         // ok: positional form
 ```
 
@@ -274,8 +278,8 @@ Generic monomorphization and instantiation are described in §16.1.
 * **Struct:** `type Person = { age:int, name:string, @readonly weight:float }`.
 
   * Fields are immutable unless variable is `mut`. `@readonly` forbids writes even through `mut` bindings.
-  * Struct literals may specify the type inline: `let p = Person { age: 25, name: "Alex" };`. The parser only treats `TypeName { ... }` as a typed literal when `TypeName` follows the CamelCase convention so that `while ready { ... }` still parses as a control-flow block.
-  * Struct literals without an inline type require an unambiguous expected struct type. For unions like `Erring<T, Error>`, write `Error { ... }` or add a binding annotation (e.g., `let e: Error = { ... };`).
+  * Struct literals may specify the type inline: `let p = Person { age = 25, name = "Alex" };`. Field assignment uses `=`; legacy `field: value` is still parsed but discouraged. The parser only treats `TypeName { ... }` as a typed literal when `TypeName` follows the CamelCase convention so that `while ready { ... }` still parses as a control-flow block.
+  * Struct literals without an inline type require an unambiguous expected struct type. For unions like `Erring<T, Error>`, write `Error { ... }` or add a binding annotation (e.g., `let e: Error = { message = "bad", code = 1:uint };`).
   * When the type is known (either via `TypeName { ... }` or an explicit annotation on the binding), the short `{expr1, expr2}` form is allowed; expressions are matched to fields in declaration order. Wrap identifier expressions in parentheses (`{(ageVar), computeName()}`) when using positional literals so they are not mistaken for field names.
 * **Enums:** `enum Name = { ... }` for integer enums (auto or explicit) and `enum Name: string = { ... }` for string enums.
 
@@ -333,7 +337,7 @@ type Nodes = Node[]; // storage
 
 fn push(nodes: &mut Node[], data: int, next: NodeId?) -> NodeId {
     let id: NodeId = len(nodes);
-    nodes.push(Node { next: next, data: data });
+    nodes.push(Node { next = next, data = data });
     return id;
 }
 ```
@@ -347,8 +351,8 @@ fn walk(nodes: &Node[], start: NodeId?) -> nothing {
                 let n: Node = nodes[(i to int)];
                 print(n.data to string);
                 id = n.next;
-            }
-            nothing => { return nothing; }
+            };
+            nothing => { return nothing; };
         };
     }
 }
@@ -377,7 +381,7 @@ let s: PersonSon = p            // patronymic picks the default ""
   * structs → recursively default every field/base; aliases unwrap to their target;
   * unions → only if a `nothing` variant is present (e.g. `Option`).
   * **VM:** `default<T>()` is supported in the v1 runtime.
-- `@hidden` fields remain hidden outside `extern<Base>` and initialisers. `@readonly` fields stay immutable after construction.
+- `@hidden` on fields is parsed but no access restrictions are enforced yet; `@readonly` fields stay immutable after construction.
 - Assigning from a child to its base is forbidden (types remain nominal).
 - Field name clashes trigger `SynTypeFieldConflict` during parsing.
 - Methods defined in `extern<Base>` are visible on `Child`. Override behaviour lives in `extern<Child>` with `@override` marking intentional replacements.
@@ -405,7 +409,7 @@ tag Pair<A, B>(A, B);
 - `Name(args...)` constructs a value whose discriminant is `Name` and whose payload tuple matches the declaration.
 - Tags share a name slot with functions. If both exist and `Ident(...)` is used, sema reports `SemaAmbiguousCtorOrFn`.
 - Tags are not first-class types. To pass a constructor, wrap it in a closure: `fn(x:T) -> Alias<T> { return Name(x); }`.
-- `Some`, `Success`, and `Error` are predeclared tag symbols (see `internal/symbols/prelude.go`) and are always in scope without an explicit `tag` item.
+- `Some` and `Success` are provided by the core prelude (from `core/option.sg` and `core/result.sg`) and are always in scope without an explicit `tag` item. `Error` is a core struct type, not a tag.
 
 Tags participate in alias unions as variants. They may declare generic parameters ahead of the payload list: `tag Some<T>(T);` introduces a tag family parameterised by `T`.
 
@@ -420,7 +424,7 @@ type Either<L, R> = Left(L) | Right(R)
 
 Rules:
 - Every member must be a tag constructor or `nothing`.
-- Exhaustiveness checking for `compare` arms is planned but not yet enforced; treat it as a future validation.
+- Exhaustiveness checking for `compare` arms is enforced for tagged unions.
 - Use tags for stable, extensible APIs; untagged structural mixes are not allowed.
 
 ### 2.9. Option and Erring via tags (sugar `T?` / `T!`)
@@ -440,24 +444,24 @@ let maybe_num: int?      // == Option<int>
 let maybe_fail: int!     // == Erring<int, Error>
 
 fn head<T>(xs: T[]) -> Option<T> {
-  if (xs.len == 0) { return nothing; }
+  if (len(xs) == 0) { return nothing; }
   return Some(xs[0]);
 }
 
 fn parse(s: string) -> Erring<int, Error> { // also `int!` sugar is available
   if (s == "42") { return Success(42); }
-  let e: Error = { message: "bad", code: 1 };
+  let e: Error = { message = "bad", code = 1:uint };
   return e; // Error value returned directly
 }
 
 compare head([1, 2, 3]) {
-  Some(v) => print(v),
-  nothing => print("empty")
+  Some(v) => print(v to string);
+  nothing => print("empty");
 }
 
 compare parse("x") {
-  Success(v) => print("ok", v),
-  err        => print("err", err)
+  Success(v) => print("ok " + (v to string));
+  err        => print("err " + err.message);
 }
 ```
 
@@ -465,8 +469,8 @@ Rules:
 
 - Construction is explicit in expressions: use `Some(...)` or `Success(...)`. In function returns, a bare `T` is accepted as `Some(T)`/`Success(T)` and `nothing` is accepted for `Option<T>`.
 - `T?` is sugar for `Option<T>`; `T!` is sugar for `Erring<T, Error>` (type sugar only; no `expr?` propagation operator).
-- `nothing` remains the shared absence literal for both Option and other contexts (§2.6). Exhaustiveness checking for tagged unions is planned but not wired up yet.
-- `panic(msg)` materialises `Error{ message: msg, code: 1 }` and calls intrinsic `exit(Error)`.
+- `nothing` remains the shared absence literal for both Option and other contexts (§2.6). Exhaustiveness checking for tagged unions is enforced.
+- `panic(msg)` materialises `Error { message = msg, code = 1:uint }` and calls intrinsic `exit(Error)`.
 
 ### 2.10. Tuple Types
 
@@ -514,18 +518,11 @@ let value = nested.0.1;  // int: 2
 ```
 
 **Destructuring:**
-Tuples can be destructured in let bindings:
-```surge
-let pair = (1, "hello");
-let (x, y) = pair;  // x: int, y: string
-
-// Inline destructuring
-let (a, b) = (10, 20);
-```
+Tuple destructuring in `let` bindings is not supported yet. Bind the tuple and access fields via `.0`, `.1`, etc.
 
 **Limitations:**
-- Destructuring in compare patterns is limited
-- Use tuples primarily for multiple return values and temporary groupings
+- Tuple patterns are supported in `compare` arms, but not in `let` bindings.
+- Use tuples primarily for multiple return values and temporary groupings.
 
 **Example:**
 ```surge
@@ -603,7 +600,7 @@ The borrow checker tracks not just bindings, but *places*—addressable location
 
 ```sg
 type Point = { x: int, y: int };
-let mut p: Point = Point { x: 1, y: 2 };
+let mut p: Point = Point { x = 1, y = 2 };
 let rx: &int = &p.x;      // borrow of p.x
 let ry: &int = &p.y;      // OK: disjoint field
 p.x = 10;                 // ERROR: p.x is borrowed
@@ -640,7 +637,7 @@ let b: string = " world";
 let c: string = a + b;    // desugars to __add(&a, &b) -> own string
 ```
 
-The `+` operator on strings calls `extern<string> { fn __add(self: &string, other: &string) -> own string; }`. The compiler:
+The `+` operator on strings calls `extern<string> { fn __add(self: &string, other: &string) -> string; }`. The compiler:
 1. Sees that `__add` expects `&string` for both parameters
 2. Implicitly borrows `a` and `b` (equivalent to `__add(&a, &b)`)
 3. Returns an owned `string` result
@@ -656,10 +653,10 @@ let x: string = a + b + c;  // each intermediate result is owned, operands are b
 The same implicit borrow applies to method receivers and arguments:
 
 ```sg
-fn len(self: &string) -> int;
+fn len(self: &string) -> uint;
 
 let s: string = "test";
-let n: int = s.len();     // implicitly: (&s).len()
+let n: uint = len(s);      // calls HasLength.__len()
 ```
 
 **Temporary Value Promotion (Rvalue Materialization):**
@@ -794,14 +791,14 @@ Contracts with zero parameters can still be used in short form: `fn tick<T: Cloc
 **Default initialisation rules:**
 
 - Numeric types → `0` / `0.0`; `bool` → `false`; `string` → `""`.
-- Arrays, maps, and other collection literals → empty instance of that container.
-- Structs → every field must have an explicit default; otherwise `let x: Struct;` is rejected (`E_MISSING_FIELD_DEFAULT`).
-- Tagged unions (`Option`, `Erring`, `Either`, …) → require an explicit initializer (`E_UNDEFINED_DEFAULT`).
+- Arrays → empty instance for dynamic arrays; element-wise defaults for fixed-size arrays.
+- Structs → allowed only when every field type is defaultable (field defaults are optional; non-defaultable fields make `let x: Struct;` an error).
+- Tagged unions → defaultable only if the union includes `nothing` (e.g., `Option<T>`). Others require an explicit initializer.
 
 Top-level `let` initialization and cycles:
 
 * Top-level `let` items are executed at module initialization time in textual order within a module.
-* Cyclic initialization among top-level `let`s is a compile-time error `E_CYCLIC_TOPLEVEL_INIT`.
+* Cyclic initialization among top-level `let`s is a compile-time error.
 
 ### 3.2. Control Flow
 
@@ -863,8 +860,7 @@ Parser diagnostics:
 * Planned: automatic re-evaluation when dependencies change
 * Planned: topological ordering, `@pure` requirement for expressions
 
-**v1 behavior:** Lexer accepts keyword, but semantic analysis rejects with error message:
-- "signal is not supported in v1, reserved for future use"
+**v1 behavior:** Parsed, but semantic analysis rejects with `FutSignalNotSupported` (`"signal" is not supported in v1`).
 
 See §22.1 for detailed future specification.
 
@@ -885,7 +881,7 @@ Patterns (baseline set):
 - `finally` – wildcard, matches anything (default case).
 - Literals – `123`, `"str"`, `true`, `false`.
 - Bindings – `name` binds the matched value in that arm.
-- Tagged constructors – `Tag(p)` such as `Some(x)`, `Success(v)`, error values; payload patterns recurse.
+- Tagged constructors – `Tag(p)` such as `Some(x)` or `Success(v)`; payload patterns recurse.
 - `nothing` – matches the absence literal of type `nothing`.
 - Conditional patterns – `x if x is int` where `x` is bound and condition is checked.
 
@@ -893,13 +889,13 @@ Examples:
 
 ```sg
 compare v {
-  Some(x) => print(x),
-  nothing => print("empty")
+  Some(x) => print(x to string);
+  nothing => print("empty");
 }
 
 compare r {
-  Success(v) => print("ok", v),
-  err        => print("err", err)
+  Success(v) => print("ok " + (v to string));
+  err        => print("err " + err.message);
 }
 ```
 
@@ -907,7 +903,7 @@ Notes:
 
 - Arms are tried top-to-bottom; the first match wins.
 - `=>` separates pattern from result expression and is only valid within `compare` arms and parallel constructs.
-- Exhaustiveness for tagged unions is planned (compare should cover all declared tags or have `finally`); the current compiler does not enforce this yet. Untagged unions are not supported.
+- Exhaustiveness for tagged unions is enforced: arms must cover all variants or include `finally`. Redundant `finally` emits `SemaRedundantFinally`. Untagged unions are not supported.
 - If both a tag constructor and a function named `Ident` are in scope, using `Ident(...)` emits `SemaAmbiguousCtorOrFn`.
 
 ---
@@ -918,12 +914,13 @@ Notes:
 
 ```
 fn name(params) -> RetType? { body }
-params := name:Type (, ...)* | ... (variadic)
+params := (Param ("," Param)*)?
+Param  := ("...")? name:Type
 ```
 
 * Example: `fn add(a:int, b:int) -> int { return a + b; }`
-* Variadics: `fn log(...args) { ... }`
-* Nested function declarations inside blocks are not supported yet (FUT7006). Declare functions at module scope or inside `extern<T>` blocks.
+* Variadics: `fn log(...args: string) { ... }`
+* Nested function declarations inside blocks are not supported yet (`FutNestedFnNotSupported`). Declare functions at module scope or inside `extern<T>` blocks.
 
 Variadics:
 * `...args: T` is allowed only as the last parameter.
@@ -942,116 +939,25 @@ Variadics:
 
 ### 4.2. Attributes
 
-Attributes are a **closed set** provided by the language. User-defined attributes are not supported.
+Attributes are a **closed set** provided by the language. Unknown attributes are
+errors. For the full list, targets, and current status see `docs/ATTRIBUTES.md`.
 
-#### A. Contracts, Behavior, and Overloading
+Current parsing rules:
+- Attributes must appear immediately before the declaration they apply to.
+- Only statement attribute: `@drop expr;` (no arguments).
+- Only async-block attribute: `@failfast`.
 
-* `@pure` *(fn)* — function has no side effects, is deterministic, cannot mutate non-local state. Required for execution in signals and parallel contexts. Violations emit `E_PURE_VIOLATION`.
-* `@overload` *(fn)* — declares an overload of an existing function name with a distinct signature. Must not be used on the first declaration of a function name; doing so emits `E_OVERLOAD_FIRST_DECL`. Incompatible with `@override`.
-* `@allow_to` *(fn|param)* — allows implicit `__to` conversion for function arguments when the exact type does not match.
-* `@override` *(fn)* — replaces an existing implementation for a function or method. Incompatible with `@overload`.
+Enforced highlights (v1):
+- `@overload` and `@override` control redeclarations and require matching signatures.
+- `@intrinsic` is declaration-only; `@entrypoint` validates mode and signature.
+- Layout: `@packed`, `@align`.
+- Concurrency: `@guarded_by`, `@requires_lock`, `@acquires_lock`, `@releases_lock`,
+  `@waits_on`, `@nonblocking`, `@send`, `@nosend`.
+- Field access: `@readonly`, `@atomic`.
+- Visibility and warnings: `@hidden`, `@deprecated`.
 
-  **Two use cases:**
-  1. **Inside `extern<T>` blocks** — overrides a method for a type.
-  2. **Outside `extern<T>` blocks** — overrides a local function declared earlier in the same module without a body implementation (forward declaration).
-* `@intrinsic` *(fn)* — marks function as a language intrinsic (implementation provided by runtime/compiler). Intrinsics are declared only as function declarations without body (`fn name(...): Ret;`) in the special core module (all files under `core/`) and made available to other code through standard library re-exports. User code cannot declare intrinsics outside `core`. Violations emit errors per §21.
-
-#### B. Code Generation and ABI
-
-* `@backend("cpu"|"gpu"|Ident)` *(fn|block)* — execution target hint for backend-specific lowering. Unsupported targets emit `W_BACKEND_UNSUPPORTED` or error in strict mode.
-* `@packed` *(type|field)* — tightly packed memory layout without padding.
-* `@align(N)` *(type|field)* — memory alignment requirement. Conflicts with `@packed` when alignment `N` is impossible emit `E_ATTR_CONFLICT`.
-
-#### C. Memory and Resources
-
-* `@raii` *(type)* — enables automatic resource cleanup (destructor) when values leave scope.
-* `@arena` *(type|field|param)* — hint for arena-based memory allocation policy.
-* `@weak` *(field)* — weak reference for breaking cycles (reserved for future extension).
-* `@shared` *(type|field)* — marks data as thread-safe. Does not override the rule that only `own` values may cross thread boundaries.
-* `@atomic` *(field)* — atomic operations for lock-free data access.
-
-#### D. Visibility, Inheritance, and Structural Rules
-
-* `@readonly` *(field)* — field cannot be written even through `mut` bindings.
-* `@hidden` *(field)* — field is hidden outside `extern<Base>` blocks and initializers.
-* `@noinherit` *(field)* — field is **not inherited** when extending types via `type Child = Base : {...}`.
-* `@sealed` *(type)* — type cannot be extended through `Base : {...}` inheritance or `extern<T>` extension (methods/fields). Attempting either emits `E_TYPE_SEALED`.
-
-#### E. Concurrency Contracts
-
-* `@guarded_by("lock")` *(field)* — field is protected by the specified mutex or read-write lock. The string `"lock"` must refer to a field name of type `Mutex` or `RwLock` in the same struct.
-* `@requires_lock("lock")` *(fn)* — function requires the caller to hold the specified lock when called. The string `"lock"` must refer to a field name of type `Mutex` or `RwLock`.
-* `@acquires_lock("lock")` *(fn)* — function acquires the specified lock and holds it until function exit.
-* `@releases_lock("lock")` *(fn)* — function releases the specified lock before function exit.
-* `@waits_on("cond")` *(fn)* — function may block waiting on the specified condition variable or semaphore. The string `"cond"` must refer to a field name of type `Condition` or `Semaphore`.
-* `@send` *(type)* — type can be safely transferred between tasks/threads (move-safe). Conflicts with `@nosend`.
-* `@nosend` *(type)* — type is forbidden from being transferred between tasks/threads. Conflicts with `@send`.
-* `@nonblocking` *(fn)* — function performs no blocking waits. Conflicts with `@waits_on`.
-* `@drop` *(statement expression)* — terminates the lifetime of the borrowed binding specified in the expression immediately. Only valid on expression statements (`@drop expr;`) and takes no arguments.
-
-All string parameters (`"lock"`, `"cond"`) must be **field names or parameter names**, not expressions or function calls.
-
-#### Closed Set Rule
-
-Attributes are a **closed set** defined by the language. Tests, benchmarks, and timing measurements are implemented through the directive system (§13), not attributes. Attributes affect language semantics and ABI; directives are toolchain mechanisms that do not modify program semantics.
-
-#### Applicability Matrix
-
-| Attribute        |  Fn | Block | Type | Field | Param | Stmt | Let |
-| ---------------- | :-: | :---: | :--: | :---: | :---: | :--: | :-: |
-| @pure            |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @overload        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @allow_to        |  ✅  |   ❌   |   ❌  |   ❌   |   ✅   |  ❌  |  ❌  |
-| @override        |  ✅* |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @intrinsic       |  ✅** |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @backend         |  ✅  |   ✅   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @packed          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |  ❌  |
-| @align           |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |  ❌  |
-| @raii            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @arena           |  ❌  |   ❌   |   ✅  |   ✅   |   ✅   |  ❌  |  ❌  |
-| @weak            |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |  ❌  |
-| @shared          |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |  ❌  |
-| @atomic          |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |  ❌  |
-| @readonly        |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |  ❌  |
-| @deprecated      |  ✅  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |  ✅  |
-| @hidden          |  ✅  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |  ✅  |
-| @noinherit       |  ❌  |   ❌   |   ✅  |   ✅   |   ❌   |  ❌  |  ❌  |
-| @sealed          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @entrypoint      |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @guarded_by      |  ❌  |   ❌   |   ❌  |   ✅   |   ❌   |  ❌  |  ❌  |
-| @requires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @acquires_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @releases_lock   |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @waits_on        |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @send            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @nosend          |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @nonblocking     |  ✅  |   ❌   |   ❌  |   ❌   |   ❌   |  ❌  |  ❌  |
-| @drop            |  ❌  |   ❌   |   ❌  |   ❌   |   ❌   |  ✅  |  ❌  |
-| @failfast        |  ❌  |   ❌   |   ❌  |   ❌   |   ❌   |  ✅  |  ❌  |
-| @copy            |  ❌  |   ❌   |   ✅  |   ❌   |   ❌   |  ❌  |  ❌  |
-
-*`@override` — only within `extern<T>` blocks.
-**`@intrinsic` — only on function declarations (FnDecl) without body.
-
-#### Typical Conflicts
-
-* `@overload` + first function declaration → `E_OVERLOAD_FIRST_DECL`
-* `@override` + `@overload` on same declaration → `SemaAttrConflict` (3060)
-* `@packed` + `@align(N)` on same declaration → `SemaAttrPackedAlign` (3061)
-* `@sealed` + attempt to extend type (`Base : { ... }` or `extern<T>`) → `SemaAttrSealedExtend` (3074)
-* `@send` + `@nosend` on same type → `SemaAttrSendNosend` (3062)
-* `@nonblocking` + `@waits_on` on same function → `SemaAttrNonblockingWaitsOn` (3063)
-
-#### Limitations for @intrinsic
-
-* Target platform and ABI for intrinsics are fixed in RUNTIME.md.
-* List of permitted names is restricted: `rt_alloc`, `rt_free`, `rt_realloc`, `rt_memcpy`, `rt_memmove`. Any other names → error.
-* Intrinsics cannot have body; any attempts to provide implementation or call `@intrinsic` outside the `core` module → errors (§21).
-
-Parser behavior:
-
-* Unknown attributes produce `W_UNKNOWN_ATTRIBUTE` by default. `--strict-attributes` mode promotes this to `E_UNKNOWN_ATTRIBUTE`.
-* Attributes used on unsupported targets emit `E_ILLEGAL_ATTRIBUTE_TARGET`.
+Parsed-only (no semantic effect yet):
+`@pure`, `@raii`, `@arena`, `@shared`, `@weak`, `@backend`.
 
 ### 4.3. Overloading Rules
 
@@ -1082,7 +988,7 @@ extern<T> {
 * **Attributes on functions:** `@pure`, `@overload`, `@override`, etc.
 * **Sealed types:** `extern<T>` is forbidden when `T` is marked `@sealed`.
 
-Any other item-level elements are **prohibited**: `let`, `type`, alias declarations, literal definitions, `import` statements, nested `extern` blocks, etc. These produce syntax error `E_ILLEGAL_ITEM_IN_EXTERN`.
+Any other item-level elements are **prohibited**: `let`, `type`, alias declarations, literal definitions, `import` statements, nested `extern` blocks, etc. These produce syntax error `SynIllegalItemInExtern`.
 
 **Examples:**
 
@@ -1098,7 +1004,7 @@ extern<Person> {
   @pure
   async fn to_json(self: &Person) -> string { /* ... */ }
   
-  // ❌ Errors: E_ILLEGAL_ITEM_IN_EXTERN
+  // ❌ Errors: SynIllegalItemInExtern
   let x = 1;
   type Tmp = { a: int };
   type Num = int;
@@ -1113,7 +1019,7 @@ extern<Person> {
 * **Private methods** (no `pub`): visible only within the current module; calling from other modules is a visibility error.
 * **Public methods** (`pub fn`): accessible to consumers of the module and participate in method resolution across module boundaries.
 
-**Override visibility rule:** When overriding an already-public method implementation for a type, the new definition must not reduce visibility. Attempting to override a public method with a private one emits `E_VISIBILITY_REDUCTION`.
+**Override visibility rule:** When overriding an already-public method implementation for a type, the new definition must not reduce visibility. Attempting to override a public method with a private one emits `SynVisibilityReduction`.
 
 **Examples:**
 
@@ -1135,7 +1041,7 @@ extern<Person> {
   @override
   pub fn __to(self: &Person, target: string) -> string { /* v2 */ }
   
-  // ❌ Error: E_VISIBILITY_REDUCTION
+  // ❌ Error: SynVisibilityReduction
   @override
   fn __to(self: &Person, target: string) -> string { /* v3 */ }
 }
@@ -1143,42 +1049,13 @@ extern<Person> {
 
 ### 4.5. Macros — **Future Feature (v2+)**
 
-> **Status:** Not supported in v1. Reserved for v2+.
+> **Status:** Not supported in v1. The parser rejects `macro` items (`FutMacroNotSupported`).
 
-Macros provide compile-time code generation and metaprogramming capabilities:
+Macros are reserved for future compile-time metaprogramming. The v1 compiler
+does not parse or expand macro items. For tooling metadata today, use
+directives (§13) instead.
 
-```sg
-macro assert_eq(left: expr, right: expr) {
-    if (!(left == right)) {
-        panic("Assertion failed: " + stringify(left) + " != " + stringify(right));
-    }
-}
-
-// Usage
-fn test_something() {
-    assert_eq(2 + 2, 4); // Expands to assertion code
-}
-```
-
-**Macro rules:**
-* Macros are declared with `macro` keyword followed by parameter list
-* Macro parameters have types like `expr`, `ident`, `type`, `block`, `meta`
-* Macros are called like functions: `macro_name(args)`
-* Macros expand at compile-time before type checking
-* Recursive macro expansion is limited to prevent infinite loops
-
-**Built-in macro functions:**
-* `stringify(expr)` – converts expression to string literal
-* `type_name_of<T>()` – returns type name as string
-* `size_of<T>()` – returns size of type in bytes
-* `align_of<T>()` – returns alignment requirement of type
-
-**Implementation Status:** Macros are reserved for future iterations. The syntax and semantics are specified for completeness, but core implementation work should focus on other features first. Macros will be added in v2+ after the base language is stable.
-
-**v1 behavior:** Lexer accepts keyword, but semantic analysis rejects with error message:
-- "macro is planned for v2+"
-
-See §22.2 for complete specification.
+See §22.2 for the current (non-normative) roadmap notes.
 
 ---
 
@@ -1191,8 +1068,12 @@ Each file is a module. Folder hierarchy maps to module paths.
 ### 5.2. Importing
 
 * Module or submodule: `import math/trig;`
+* Module alias: `import math/trig as trig;`
 * Specific item: `import math/trig::sin;`
 * Aliasing: `import math/trig::sin as sine;`
+* Wildcard: `import math/trig::*;`
+* Group: `import math/trig::{sin, cos as c};`
+* Relative paths are allowed: `import ./local/module;`, `import ../shared/math;`
 
 **Name resolution order:** local scope > explicit imports > prelude/std.
 
@@ -1291,11 +1172,11 @@ let x: int = 42;
 let y: Option<int> = Some(42);
 let z: &int = &x;
 
-print(x is int);        // true
-print(y is int);        // false
-print(y is Option<int>); // true
-print(z is int);        // false
-print(z is &int);       // true
+print((x is int) to string);         // true
+print((y is int) to string);         // false
+print((y is Option<int>) to string); // true
+print((z is int) to string);         // false
+print((z is &int) to string);        // true
 ```
 
 ### 6.3. Inheritance Checking Operator (`heir`)
@@ -1334,8 +1215,8 @@ type Manager = Employee : {
     team_size: int
 };
 
-let employee: Employee = { name: "A", age: 0, id: 1, department: "X" };
-let manager: Manager = { name: "B", age: 0, id: 2, department: "Y", team_size: 5 };
+let employee: Employee = { name = "A", age = 0, id = 1, department = "X" };
+let manager: Manager = { name = "B", age = 0, id = 2, department = "Y", team_size = 5 };
 
 // Direct inheritance
 let is_employee_base: bool = employee heir BasePerson;  // true
@@ -1348,7 +1229,7 @@ let is_manager_employee: bool = manager heir Employee;   // true
 let is_self: bool = employee heir Employee;              // true
 
 // Non-inheritance
-let base: BasePerson = { name: "C", age: 0 };
+let base: BasePerson = { name = "C", age = 0 };
 let is_not: bool = base heir Employee;                   // false
 
 // Usage in conditions
@@ -1419,7 +1300,7 @@ Each target type gets its own overload; primitives in `core/intrinsics.sg` (modu
 1. If `From` and `To` (after resolving aliases) are identical, the cast is a no-op.
 2. Built-in numeric rules from §6.5 are consulted first (e.g., dynamic↔fixed conversions).
 3. Otherwise the compiler looks for `__to` on the left operand’s type whose second parameter matches the resolved target type. Alias names participate in the lookup, so `type Gasoline = string` inherits `string -> string` conversions automatically. Any `__to` that adds extra parameters or returns anything other than the target type is rejected with a semantic error.
-4. Multiple matches yield `E_AMBIGUOUS_CAST`; no match yields `E_NO_CAST`.
+4. Multiple matches yield `SemaAmbiguousConversion`; no match yields `SemaTypeMismatch` for explicit casts (or `SemaNoConversion` at implicit-conversion sites).
 
 **Restrictions:**
 * Direct calls to `__to` are forbidden; only `expr to Type` or implicit conversion may invoke it.
@@ -1435,7 +1316,7 @@ The compiler automatically applies `__to` conversions in specific coercion sites
 1. **Variable bindings:** `let x: T = expr` where `expr` has type `U` and `__to(U, T)` exists
 2. **Function arguments:** `foo(arg)` where `arg` has type `U`, parameter expects type `T`, the callee or parameter allows `@allow_to`, and `__to(U, T)` exists
 3. **Return statements:** `return expr` where `expr` has type `U`, function returns `T`, and `__to(U, T)` exists
-4. **Struct field initialization:** `Struct { field: expr }` where `expr` has type `U`, field expects type `T`, and `__to(U, T)` exists
+4. **Struct field initialization:** `Struct { field = expr }` where `expr` has type `U`, field expects type `T`, and `__to(U, T)` exists
 5. **Array elements:** `[expr1, expr2]` where elements have type `U`, array expects type `T[]`, and `__to(U, T)` exists
 
 **Resolution rules:**
@@ -1467,7 +1348,7 @@ let distance_ft: Feet = distance_m;  // Calls __to(Meters, Feet) implicitly
 
 // Implicit conversion in function argument (opt-in)
 @allow_to
-fn display_feet(f: Feet) { print(f); }
+fn display_feet(f: Feet) { print(f to string); }
 display_feet(distance_m);  // Calls __to(Meters, Feet) implicitly
 
 // Implicit conversion in return
@@ -1477,7 +1358,7 @@ fn convert_to_feet(m: Meters) -> Feet {
 
 // Implicit conversion in struct field
 type Measurement = { value_ft: Feet };
-let m = Measurement { value_ft: distance_m };  // Calls __to implicitly
+let m = Measurement { value_ft = distance_m };  // Calls __to implicitly
 
 // Implicit conversion in array elements
 let measurements: Feet[] = [distance_m, distance_m * 2.0];  // Each element converted
@@ -1571,24 +1452,24 @@ ABI: `Range<T>` is opaque runtime state; see `docs/ABI_LAYOUT.md` (Range ABI).
 
 ### 7.3. Strings
 
-* `string` stores UTF-8 bytes; constructors validate UTF-8 and normalize to NFC.
-* `len(&s)` returns the number of Unicode code points.
+* `string` stores UTF-8 bytes; runtime constructors validate UTF-8 and normalize to NFC (string literals are assumed valid UTF-8).
+* `len(s)` returns the number of Unicode code points as `uint`.
 * `s[i]` returns the code point at index `i` as `uint32` (negative indices count from the end).
 * `s[[a..b]]` slices by code point indices and returns `string`. Omitted bounds default to `0`/`len`.
   Inclusive `..=` adds one to the end bound, indices are clamped, and `start > end` yields `""`.
-* `bytes()` returns a `BytesView` over UTF-8 bytes. `len(&view)` returns byte length; `view[i]` returns `uint8`.
+* `bytes()` returns a `BytesView` over UTF-8 bytes. `len(view)` returns byte length; `view[i]` returns `uint8`.
 * Implementation detail: strings may be stored as a rope internally. Concatenation and slicing can return views, and byte access materializes a flat UTF-8 buffer lazily.
 * ABI: layout/pointer/length contracts live in `docs/ABI_LAYOUT.md` (String ABI, BytesView ABI).
 
 **Examples:**
 ```sg
 let text = "Hello 👋 World";
-print(len(&text) to string);          // 13 (code points)
+print(len(text) to string);          // 13 (code points)
 print((text[6] to uint) to string);   // code point value for 👋
 print(text[[1..4]]);                  // "ell"
 
 let view = text.bytes();
-print(len(&view) to string);          // 15 (UTF-8 bytes)
+print(len(view) to string);          // 15 (UTF-8 bytes)
 print((view[0] to uint) to string);   // 72 ('H')
 ```
 
@@ -1598,6 +1479,7 @@ The core prelude defines common string helpers as methods on `string`:
 
 * `contains(needle: string) -> bool` — true if `needle` occurs.
 * `find(needle: string) -> int` — first code point index, or `-1` if missing.
+* `count(needle: string) -> int` — number of occurrences (overlapping).
 * `rfind(needle: string) -> int` — last code point index, or `-1` if missing.
 * `starts_with(prefix: string) -> bool`, `ends_with(suffix: string) -> bool`.
 * `split(sep: string) -> string[]` — empty `sep` splits into code points.
@@ -1606,6 +1488,7 @@ The core prelude defines common string helpers as methods on `string`:
 * `replace(old: string, new: string) -> string` — if `old` is empty, returns the original string.
 * `reverse() -> string` — reverses by code points.
 * `levenshtein(other: string) -> uint` — edit distance by code points.
+* `string.from_str(s: &string) -> Erring<string, Error>` — identity parse used by `@entrypoint("argv")`.
 
 ---
 
@@ -1614,6 +1497,8 @@ The core prelude defines common string helpers as methods on `string`:
 The core prelude defines array helpers as methods on `Array<T>`:
 
 * `push(value: T) -> nothing`, `pop() -> Option<T>`, `reserve(new_cap: uint) -> nothing`
+* `with_len(length: uint) -> Array<T>`, `with_len_value(length: uint, value: T) -> Array<T>`
+* `from_range(r: Range<T>) -> Array<T>`
 * `extend(other: &Array<T>) -> nothing`
 * `slice(r: Range<int>) -> Array<T>` — thin wrapper over `self[r]` (view)
 * `contains(value: &T) -> bool`, `find(value: &T) -> Option<uint>` (requires `__eq` on `T`; currently provided for `Array<int>`, `Array<uint>`, `Array<float>`, `Array<bool>`, `Array<string>`)
@@ -1621,7 +1506,7 @@ The core prelude defines array helpers as methods on `Array<T>`:
 
 Top-level helpers `array_push/array_pop/array_reserve` mirror the intrinsic operations.
 
-For fixed-size arrays, `ArrayFixed<T, N>` provides `to_array() -> Array<T>`.
+For fixed-size arrays, `ArrayFixed<T, N>` provides `with_len`, `with_len_value`, and `to_array() -> Array<T>`.
 
 ABI: layout and view rules are defined in `docs/ABI_LAYOUT.md` (Array ABI, Array Slice View ABI, ArrayFixed).
 
@@ -1672,7 +1557,7 @@ In other words, if at least one monomorphic overload is applicable, generic over
 
 ### Option conversions
 
-No implicit conversion inserts `Some(...)`; `Option<T>` construction is always explicit (§2.9). Overload resolution treats values of type `Option<T>` distinctly from `T`.
+Implicit `Some(...)`/`Success(...)` injection happens only in specific contexts (bindings, returns, struct fields, array elements). Overload resolution never inserts tags, so `Option<T>` and `T` remain distinct during call selection (§2.9).
 
 ---
 
@@ -1680,16 +1565,19 @@ No implicit conversion inserts `Some(...)`; `Option<T>` construction is always e
 
 ### 9.1. Channels
 
-`channel<T>` is a typed FIFO provided by the standard library. Core ops (from std):
+`Channel<T>` is a typed FIFO provided by core intrinsics. Core ops:
 
-* `make_channel<T>(cap:uint) -> own channel<T>`
-* `send(ch:&channel<T>, v:own T)`
-* `recv(ch:&channel<T>) -> Option<T>`         // blocking receive
-* `try_recv(ch:&channel<T>) -> Option<T>`     // non-blocking receive
-* `recv_timeout(ch:&channel<T>, ms:int) -> Option<T>`
-* `close(ch:&channel<T>)`
+* `make_channel<T>(capacity: uint) -> own Channel<T>` (helper)
+* `Channel<T>::new(capacity: uint) -> own Channel<T>`
+* `send(self: &Channel<T>, value: own T)` — blocking send
+* `recv(self: &Channel<T>) -> Option<T>` — blocking receive
+* `try_send(self: &Channel<T>, value: own T) -> bool` — non-blocking send
+* `try_recv(self: &Channel<T>) -> Option<T>` — non-blocking receive
+* `close(self: &Channel<T>)`
 
-The standard library also provides `choose { ... }` to select among ready operations. Channels are FIFO; fairness across multiple senders/receivers is not specified.
+Methods are invoked on the channel value (`ch.send(v)`, `ch.recv()`, `ch.try_recv()`). `recv`/`try_recv` return `nothing` when the channel is closed (and `try_recv` also returns `nothing` when empty).
+
+Channels are FIFO; fairness across multiple senders/receivers is not specified.
 
 **Standard Library Synchronization Types:**
 
@@ -1712,11 +1600,8 @@ parallel map xs with (args) => func
 parallel reduce xs with init, (args) => func
 ```
 
-**Planned semantics:**
-- True parallelism on multiple OS threads
-- Work-stealing scheduler
-- Requires `@pure` functions
-- Automatic load balancing
+The execution model for `parallel` is **not specified yet**; v1 only reserves
+the syntax.
 
 **v1 alternative:** Use `spawn` with channels for concurrent (not parallel) processing:
 ```sg
@@ -1725,53 +1610,40 @@ async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
     for x in xs {
         tasks.push(spawn f(x));
     }
-    return await_all(tasks);
+
+    let mut results: U[] = [];
+    // NOTE: v1 rejects await inside loops; unroll or refactor to recursion.
+    for task in tasks {
+        compare task.await() {
+            Success(v) => results.push(v);
+            Cancelled() => return [];
+        };
+    }
+    return results;
 }
 ```
 
 **Note:** v1 uses single-threaded cooperative concurrency. See §9.4-9.5 for async/await model.
 
-**Grammar (reserved):**
-```
-ParallelMap    := "parallel" "map" Expr "with" ArgList "=>" Expr
-ParallelReduce := "parallel" "reduce" Expr "with" Expr "," ArgList "=>" Expr
-ArgList        := "(" (Expr ("," Expr)*)? ")" | "()"
-```
-
 Restriction: `=>` is valid only in these `parallel` constructs and within `compare` arms (§3.6). Any other use triggers `SynFatArrowOutsideParallel`.
 
-**v1 behavior:** Lexer/parser accept syntax, but semantic analysis rejects with error:
-- "parallel requires multi-threading (v2+)"
+**v1 behavior:** Parsed, but semantic analysis rejects with `FutParallelNotSupported` (`"parallel" requires multi-threading`).
 
-See §22.3 for detailed v2+ specification.
+See §22.3 for the current v2+ status note.
 
 ### 9.3. Backend Selection
 
-`@backend("cpu"|"gpu")` may annotate functions or blocks for execution target hints:
+`@backend("cpu"|"gpu"|"tpu"|"wasm"|"native")` may annotate functions.
+The compiler validates the string literal and warns on unknown targets. There is
+no codegen or execution switching yet; the attribute is advisory only.
 
-```sg
-@backend("gpu")
-fn matrix_multiply(a: Matrix, b: Matrix) -> Matrix {
-    // GPU-optimized implementation
-}
-```
-
-**Semantics:**
-- Compiler attempts to lower code for specified backend
-- If backend is unsupported or unavailable:
-  - By default: falls back to CPU implementation with warning
-  - With `--strict-backend`: compile error
-- Backend attribute does not change semantics, only execution target
-
-**v1 support:**
-- `@backend("cpu")` — always supported
-- `@backend("gpu")` — may emit warning if GPU backend unavailable
-
-Future backends may include: `"simd"`, `"opencl"`, `"cuda"`, `"metal"`.
+Block-level `@backend` is reserved and not parsed in v1.
 
 ### 9.4. Tasks and Spawn Semantics
 
-**Execution model:** v1 uses single-threaded cooperative scheduling. All tasks run on one OS thread, yielding control at `.await()` points. No preemption — use `checkpoint()` for long CPU work.
+**Execution model:** v1 uses single-threaded cooperative scheduling. All tasks
+run on one OS thread, yielding control at `.await()` points. No preemption; use
+`checkpoint().await()` for long CPU work.
 
 #### Spawn Expression
 
@@ -1779,91 +1651,60 @@ Future backends may include: `"simd"`, `"opencl"`, `"cuda"`, `"metal"`.
 spawn expr
 ```
 
-* `expr` must be `Task<T>` (result of calling `async fn`)
-* Returns `Task<T>` — a handle to the spawned task
-* Ownership of captured values transfers to the task
-* Only `own T` values may cross task boundaries (no `&T` or `&mut T`)
+- `expr` must be `Task<T>` (an `async fn` call or `async { ... }` block result).
+- Returns `Task<T>` — a handle to the spawned task.
+- Captured values are moved into the task; `@nosend` types are rejected.
 
 **Example:**
 ```sg
-let data: own Data = load();
-let task: Task<Result> = spawn process(data);  // data moved
-// data is invalid here
+let data: own string = load();
+let task: Task<string> = spawn process(data); // data moved
+
+compare task.await() {
+    Success(v) => print(v);
+    Cancelled() => print("cancelled");
+};
 ```
 
 #### Task<T> API
 
 ```sg
 extern<Task<T>> {
-    // Wait for completion, returns result or Cancelled
-    fn await(self: own Task<T>) -> T;
-
-    // Request cancellation (cooperative)
+    fn clone(self: &Task<T>) -> Task<T>;
     fn cancel(self: &Task<T>) -> nothing;
-
-    // Check if completed (non-blocking)
-    fn is_done(self: &Task<T>) -> bool;
-
-    // Check if cancellation was requested
-    fn is_cancelled(self: &Task<T>) -> bool;
+    fn await(self: own Task<T>) -> TaskResult<T>;
 }
+```
+
+```sg
+tag Cancelled();
+pub type TaskResult<T> = Success(T) | Cancelled;
 ```
 
 #### Cancellation
 
-Surge uses **interrupt-at-await** cancellation:
+Surge uses **cooperative cancellation**:
 
-1. `task.cancel()` sets a cancellation flag
-2. At the next `.await()` point, the task checks the flag
-3. If cancelled, `.await()` returns `Cancelled` immediately
-4. The task can handle or propagate `Cancelled`
+1. `task.cancel()` sets a cancellation flag.
+2. At the next suspension point (`.await()`, `checkpoint()`, channel send/recv, timeout),
+   the task observes the flag.
+3. If cancelled, the awaited result is `Cancelled()`.
 
-**Cancelled tag:**
-```sg
-tag Cancelled();
-```
-
-**Example:**
-```sg
-async fn worker() {
-    compare some_io().await() {
-        Success(data) => process(data);
-        Cancelled() => {
-            cleanup();
-            return Cancelled();
-        }
-        err => return err;
-    }
-}
-```
-
-#### Checkpoint for CPU-bound Work
-
-Long CPU-bound loops don't yield. Use `checkpoint()`:
+#### Checkpoint, Sleep, Timeout
 
 ```sg
-async fn heavy_compute() -> int {
-    let mut sum = 0;
-    for i in 0..10_000_000 {
-        sum = sum + expensive(i);
-
-        if (i % 1000 == 0) {
-            checkpoint().await();  // Yield + check cancellation
-        }
-    }
-    return sum;
-}
+checkpoint() -> Task<nothing>
+sleep(ms: uint) -> Task<nothing>
+timeout<T>(t: Task<T>, ms: uint) -> TaskResult<T>
 ```
 
-* `checkpoint()` returns `Task<nothing>`
-* Yields to scheduler, allows other tasks to run
-* Checks cancellation flag, returns `Cancelled` if set
-
-**Note:** For complete concurrency specification, see `CONCURRENCY.md`.
+- `checkpoint()` yields and checks cancellation.
+- `timeout` returns `Success(value)` on time, `Cancelled()` on deadline.
 
 ### 9.5. Async/Await Model (Structured Concurrency)
 
-Surge provides structured concurrency with async/await for cooperative multitasking.
+Surge provides structured concurrency with async/await for cooperative
+multitasking.
 
 #### Async Functions
 
@@ -1873,20 +1714,26 @@ async fn name(params) -> RetType {
 }
 ```
 
-* `async fn` returns `Task<RetType>` implicitly
-* Caller must `.await()` or `spawn` the result
-* Cannot be called from sync context without `spawn`
+- `async fn` returns `Task<RetType>`.
+- `.await()` is allowed in async functions/blocks and in `@entrypoint`.
+- `.await()` returns `TaskResult<RetType>`.
 
 **Example:**
 ```sg
-async fn fetch_user(id: int) -> Erring<User, Error> {
-    let response = http_get("/users/" + id).await();
-    return parse_user(response);
+async fn fetch_user(id: int) -> string {
+    compare http_get("/users/" + id).await() {
+        Success(body) => return body;
+        Cancelled() => return "";
+    };
 }
 
 async fn main() {
-    let user = fetch_user(42).await();  // Direct await
-    let task = spawn fetch_user(42);     // Background task
+    compare fetch_user(42).await() {
+        Success(body) => print(body);
+        Cancelled() => return nothing;
+    };
+
+    let task = spawn fetch_user(42); // Background task
 }
 ```
 
@@ -1898,25 +1745,26 @@ async {
 }
 ```
 
-* Creates anonymous `Task<T>` where `T` is the block's result type
-* All tasks spawned inside are **owned by the block**
-* Block waits for all spawned tasks before completing (structured concurrency)
+- Creates `Task<T>` where `T` is the block's result type.
+- The block is a **scope**: spawned tasks are joined before it completes.
 
 **Example:**
 ```sg
 async fn process_all(urls: string[]) -> Data[] {
     async {
         let mut tasks: Task<Data>[] = [];
-
         for url in urls {
             tasks.push(spawn fetch(url));
         }
 
         let mut results: Data[] = [];
+        // NOTE: v1 rejects await inside loops; unroll or refactor to recursion.
         for task in tasks {
-            results.push(task.await());
+            compare task.await() {
+                Success(v) => results.push(v);
+                Cancelled() => return [];
+            };
         }
-
         return results;
     }
 }
@@ -1924,72 +1772,22 @@ async fn process_all(urls: string[]) -> Data[] {
 
 #### Structured Concurrency Rules
 
-**Rule 1:** Tasks cannot outlive their spawning scope.
+- Tasks spawned in a normal scope must be awaited or returned before leaving
+  the scope (`SemaTaskNotAwaited`).
+- Returning or passing a `Task<T>` transfers responsibility for awaiting it.
+- `Task<T>` cannot be stored in module-level variables (`SemaTaskEscapesScope`).
 
-```sg
-async {
-    let t1 = spawn work1();
-    let t2 = spawn work2();
-}  // Implicit: waits for t1 and t2 here
-```
+#### `@failfast` Attribute
 
-**Rule 2:** Returning a Task from async block transfers ownership.
+`@failfast` on async blocks/functions cancels sibling tasks when any child
+completes as `Cancelled()`. The scope then completes as `Cancelled()`.
 
-```sg
-fn start_background() -> Task<int> {
-    return spawn compute();  // Caller owns task
-}
-```
+#### Current Limitations
 
-**Rule 3:** Tasks spawned in `async fn` are scoped to that function.
+- `await` inside loops is rejected during async lowering.
+- v1 is single-threaded; tasks yield only at `.await()`.
 
-```sg
-async fn example() {
-    let t = spawn work();
-    // Implicit await before return
-}  // t is awaited here
-```
-
-#### @failfast Attribute
-
-For fail-fast error handling without boilerplate:
-
-```sg
-@failfast
-async {
-    let t1 = spawn may_fail();
-    let t2 = spawn also_runs();
-
-    // If any .await() returns Error:
-    // 1. All sibling tasks are cancelled
-    // 2. Block returns that Error immediately
-
-    let r1 = t1.await();
-    let r2 = t2.await();
-
-    return Success((r1, r2));
-}
-```
-
-**Semantics:**
-- On first `Error` from any `.await()`:
-  - All other spawned tasks receive cancel signal
-  - Block returns the error immediately
-- Successful tasks continue normally
-
-#### Single-threaded Execution
-
-**Important:** v1 uses single-threaded cooperative scheduling:
-- All tasks run on one OS thread
-- Tasks yield at `.await()` points only
-- No preemption — long CPU work blocks other tasks
-- Use `checkpoint()` to yield in CPU-bound loops
-
-**Rationale:** Simpler implementation, zero-cost abstraction, prepares for v2+ parallelism.
-
-**See also:** `CONCURRENCY.md` for complete specification with examples.
-
----
+**See also:** `docs/CONCURRENCY.md` for more examples.
 
 ## 10. Standard Library Conventions
 
@@ -2056,7 +1854,7 @@ fn maybe_return() -> Erring<int, Error> {
     if (condition) {
         return 42;  // Auto-wrapped to Success(42)
     } else {
-        let e: Error = { message: "failed", code: 1:uint };
+        let e: Error = { message = "failed", code = 1:uint };
         return e;   // Error values pass through directly
     }
 }
@@ -2122,7 +1920,7 @@ pub type ValidationError = {
 };
 
 fn validate_input(input: string) -> Erring<string, ValidationError> {
-    if (input.length() == 0) {
+    if (len(input) == 0) {
         let err: ValidationError = {
             message: "Input cannot be empty",
             code: 400:uint,
@@ -2184,7 +1982,7 @@ fn add(a:float, b:float) -> float { return a + b; }
 fn demo() {
   let x = add(2, 3);        // int
   let y = add(2.0, 3.5);    // float
-  print(x, y);
+  print((x to string) + " " + (y to string));
 }
 ```
 
@@ -2208,8 +2006,8 @@ type Number = IntNum(int) | FloatNum(float);
 fn show(c: string) { print(c); }
 fn absn(x: Number) -> Number {
   return compare x {
-    IntNum(v)   => IntNum(abs(v)),
-    FloatNum(v) => FloatNum(abs(v)),
+    IntNum(v)   => IntNum(abs(v));
+    FloatNum(v) => FloatNum(abs(v));
   };
 }
 ```
@@ -2223,17 +2021,14 @@ fn birthday(mut p: Person) { p.age = p.age + 1; }
 
 ```sg
 // Async/await with error handling
-async fn fetch_with_retry(url: string, retries: int) -> Erring<Data, Error> {
-    for i in 0..retries {
-        let result = fetch_data(url).await();
-        compare result {
-            Success(data) => return Success(data);
-            err => {
-                if (i == retries - 1) { return err; }
-                // Retry
-            }
+async fn fetch_once(url: string) -> Erring<Data, Error> {
+    compare fetch_data(url).await() {
+        Success(res) => return res;
+        Cancelled() => {
+            let e: Error = { message = "cancelled", code = 1:uint };
+            return e;
         }
-    }
+    };
 }
 ```
 
@@ -2267,11 +2062,11 @@ type Point3D = { x: float32, y: float32, z: float32 = 0.0 }
 
 extern<Point2D> {
   fn __to(self: Point2D, target: Point3D) -> Point3D {
-    return { x: self.x, y: self.y, z: 0.0 };
+    return { x = self.x, y = self.y, z = 0.0 };
   }
 }
 
-let p3 = ({x: 1.0, y: 2.0}: Point2D) to Point3D;
+let p3 = ({x = 1.0, y = 2.0}: Point2D) to Point3D;
 ```
 
 ```sg
@@ -2286,7 +2081,7 @@ let n2: Number = FloatNum(3.14);
 ```sg
 // Option and compare
 fn maybe_head<T>(xs: T[]) -> Option<T> {
-  if (xs.len == 0) { return nothing; }
+  if (len(xs) == 0) { return nothing; }
   return Some(xs[0]);
 }
 
@@ -2294,32 +2089,34 @@ fn demo_option() {
   let v = maybe_head([1, 2, 3]);
   compare v {
     nothing   => print("empty");
-    Some(x)   => print(x);
+    Some(x)   => print(x to string);
   }
 }
 ```
 
 ```sg
 // Channels (blocking + try)
-let ch = make_channel<int>(0);
+let ch = make_channel::<int>(0);
 // spawn omitted; assume a sender exists
-let v = recv(&ch);          // Option<int>
-compare try_recv(&ch) {
+let v = ch.recv();          // Option<int>
+compare ch.try_recv() {
   nothing => print("empty");
-  Some(x) => print(x);
+  Some(x) => print(x to string);
 }
 ```
 
 ```sg
 // Compare with conditional patterns and finally
-type NumberOrString = Number | string | nothing
+tag IntVal(int);
+tag Text(string);
+type IntOrString = IntVal(int) | Text(string) | nothing;
 
-fn classify_value(value: NumberOrString) {
+fn classify_value(value: IntOrString) {
   compare value {
-    x if x is int => print("integer: ", x);
-    42            => print("exactly 42");
-    nothing       => print("absent");
-    finally       => print("default case");
+    IntVal(x) if x >= 0 => print("non-negative " + (x to string));
+    IntVal(x) => print("negative " + (x to string));
+    nothing   => print("absent");
+    finally   => print("default case");
   }
 }
 ```
@@ -2335,18 +2132,27 @@ async fn process_urls(urls: string[]) -> Erring<Data[], Error> {
         }
 
         let mut results: Data[] = [];
+        // NOTE: v1 rejects await inside loops; unroll or refactor to recursion.
         for task in tasks {
             compare task.await() {
-                Success(data) => results.push(data);
-                err => return err;  // Early return on error
-            }
+                Success(res) => {
+                    compare res {
+                        Success(data) => results.push(data);
+                        err => return err; // Early return on error
+                    };
+                };
+                Cancelled() => {
+                    let e: Error = { message = "cancelled", code = 1:uint };
+                    return e;
+                };
+            };
         }
 
         return Success(results);
     }
 }
 
-// With @failfast for cleaner error handling
+// With @failfast, a cancelled child cancels its siblings.
 @failfast
 async fn process_urls_failfast(urls: string[]) -> Erring<Data[], Error> {
     async {
@@ -2356,8 +2162,20 @@ async fn process_urls_failfast(urls: string[]) -> Erring<Data[], Error> {
         }
 
         let mut results: Data[] = [];
+        // NOTE: v1 rejects await inside loops; unroll or refactor to recursion.
         for task in tasks {
-            results.push(task.await());  // Auto-cancels on error
+            compare task.await() {
+                Success(res) => {
+                    compare res {
+                        Success(data) => results.push(data);
+                        err => return err;
+                    };
+                };
+                Cancelled() => {
+                    let e: Error = { message = "cancelled", code = 1:uint };
+                    return e;
+                };
+            };
         }
         return Success(results);
     }
@@ -2377,9 +2195,9 @@ type Employee = BasePerson : { id: uint, department: string }
 type Manager = Employee : { team_size: int }
 
 fn check_inheritance() -> bool {
-  let employee: Employee = { name: "A", age: 0, id: 1, department: "X" };
-  let manager: Manager = { name: "B", age: 0, id: 2, department: "Y", team_size: 5 };
-  let base: BasePerson = { name: "C", age: 0 };
+  let employee: Employee = { name = "A", age = 0, id = 1, department = "X" };
+  let manager: Manager = { name = "B", age = 0, id = 2, department = "Y", team_size = 5 };
+  let base: BasePerson = { name = "C", age = 0 };
 
   // Check direct inheritance
   let is_employee: bool = employee heir BasePerson;  // true
@@ -2405,7 +2223,7 @@ fn check_inheritance() -> bool {
 @sealed
 type Conn = { fd:int, @noinherit secret:uint64 }
 
-type SafeConn = Conn : { tag:string } // error: E_TYPE_SEALED
+type SafeConn = Conn : { tag:string } // error: SemaAttrSealedExtend
 ```
 
 ```sg
@@ -2493,7 +2311,7 @@ fn add(a: int, b: int) -> int { return a + b; }
 /// fn return_42() -> int { return 42; }
 ///   test.eq(return_42(), add(40, 2));
 // but u can't use the function outside the directive:
-return_42(); // error: E_UNDEFINED_FUNCTION
+return_42(); // error: SemaUnresolvedSymbol
 ```
 
 ```sg
@@ -2531,8 +2349,9 @@ import stdlib/directives::benchmark;
 
 fn factorial(n: int) -> int {
   return compare n {
-    0 | 1 => 1,
-    x => x * factorial(x - 1)
+    0 => 1;
+    1 => 1;
+    x => x * factorial(x - 1);
   };
 }
 
@@ -2556,276 +2375,45 @@ import stdlib/directives::time;
 
 ## 13. Directives (`///`)
 
-Directives provide an extensible system for toolchain functionality such as testing, benchmarking, timing, and custom tooling scenarios.
+Directives are structured doc-comment blocks for tool-driven scenarios (tests,
+benchmarks, lint checks). They do **not** affect program semantics or ABI.
 
-### 13.1. General Directive Syntax
+Current behavior (v1):
+- Parsed only when `--directives=collect|gen|run` is enabled.
+- Each directive block attaches to the next item in the file.
+- Namespace is validated against imports, and the imported module must have
+  `pragma directive`.
+- `--directives=run` executes a stub runner (prints SKIPPED). No codegen or
+  directive body type-checking yet.
 
-```
-/// <namespace>:
-/// <name>:
-///   <body...>   // free-form Surge code
-```
-
-* `<namespace>` — identifier (e.g., `test`, `benchmark`, `time`, `tool:myplugin`).
-* `<name>` — scenario identifier unique within the file.
-* `<body>` — **Surge code** executed in an isolated directive context.
-
-### 13.2. Name Resolution in Directives
-
-**Resolution rules:**
-
-* The left-hand side of `.` in directive expressions (e.g., `test.eq`) **must** resolve to an **imported directive module**.
-* The right-hand side must be a **public function** (`pub fn`) from that directive module.
-* All other identifiers (e.g., `foo` in `test.eq(foo, 42)`) resolve normally from the **current module scope**.
-* Directive module imports **must** have `pragma directive` at the top; otherwise `E_DIRECTIVE_NOT_A_DIRECTIVE_MODULE` is emitted.
-
-**Scope:**
-
-* Directives have **read-only access** to names available at their declaration site (module scope).
-* Items declared **within** directives are **not visible** to the rest of the program.
-* Directives do not modify program typization or ABI.
-
-### 13.3. Directive Execution Modes
-
-Directives are controlled by the `--directives` flag with four execution modes:
-
-* `--directives=off` (default) — directive blocks are completely ignored by the parser, no diagnostics.
-* `--directives=collect` — parser recognizes directive blocks and adds them to AST as `DirectiveBlock` nodes; no name resolution or type checking.
-* `--directives=gen` — compiler generates hidden test module with synthesized function calls; participates in type checking but not execution.
-* `--directives=run` — same as `gen`, plus executes the generated test functions during build; non-zero exit code on failures.
-
-**Additional flags:**
-
-* `--directives-filter=<ns1,ns2,...>` — process only specified namespaces (applies to `gen` and `run`).
-* `--emit-directives=memory|cache` — where to store generated module (default: `memory` for in-memory only, `cache` to serialize to build cache).
-
-**Execution model:**
-
-In `gen` and `run` modes, directive blocks are transformed into hidden functions:
-
-```sg
-fn __generated_directives {
-  fn __test_file_<hash>_1() { ::stdlib::directives::test::eq(::current::foo, 42); }
-}
-```
-
-These functions participate in name resolution and type checking. In `run` mode, they are executed by the test runner; failures produce non-zero exit codes.
-
-### 13.4. Built-in (Standard) Directives
-
-* **`test:`** — executes test scenarios; standard conventions:
-  * `test.eq(actual, expected) -> Erring<nothing, Error>`
-  * `test.le(a, b)`, `test.ok(cond)`, etc.
-* **`benchmark:`** — benchmarking (ignored in release builds by default unless explicitly enabled).
-* **`time:`** — timing measurements (for local analysis, ignored in release builds by default).
-
-### 13.5. Execution Model Equivalence
-
-Directive blocks are transformed into hidden functions in a generated module. Each expression in a directive block becomes one function call.
-
-**Transformation example:**
-
-Source:
-```sg
-/// test:
-/// SumIsCorrect:
-///   test.eq(add(1, 2), 3);
-```
-
-is equivalent to creating a hidden wrapper function and calling it in the test runner:
-
-```
-fn __directive_test_SumIsCorrect__() -> Erring<nothing, Error> {
-  return test.eq(add(1, 2), 3);
-}
-```
-
-**Function naming:**
-
-* Deterministic: `__<namespace>_file_<hash>_<seq>`
-* Stable across incremental builds
-* Namespace matches directive module name
-
-**When executed:**
-
-* In `gen` mode: generated functions participate in type checking only.
-* In `run` mode: generated functions are executed by test runner; non-zero exit on failure.
-* In `off` and `collect` modes: no generation occurs.
-
-### 13.6. `pragma directive` and Directive Modules
-
-Directive modules are ordinary Surge modules marked with `pragma directive` at the top of the file. They export functions that serve as handlers for directive blocks.
-
-**Syntax:**
-
-```sg
-pragma directive
-
-// Regular module code with exported functions
-pub fn eq<T>(f: fn() -> T, expected: T) -> void { ... }
-pub fn panics(f: fn() -> void) -> void { ... }
-```
-
-**Rules:**
-
-* `pragma directive` must appear as the **first meaningful line** of the module file (after optional shebang).
-* The directive module **namespace** is derived from the module import path. For example, importing `stdlib/directives::test` makes `test` the directive namespace.
-* All public functions (`pub fn`) from the directive module are accessible in directive blocks via `<namespace>.<function>`.
-* Directive modules are **ordinary modules**: they may import other modules, define types, and perform any valid Surge operations. No special restrictions apply.
-* Directive modules **do not** modify the ABI of main program code; their functions execute only during directive execution.
-
-**Example directive module:**
-
-```sg
-// stdlib/directives/test.sg
-pragma directive
-
-import stdlib::fmt;
-
-pub fn eq<T>(f: fn() -> T, expected: T) -> void {
-  let got = f();
-  if got != expected {
-    panic(fmt::format("eq failed: got {}, expected {}", got, expected));
-  }
-}
-
-pub fn panics(f: fn() -> void) -> void {
-  let ok = catch_unwind(f);
-  if ok {
-    panic("expected panic, but function returned normally");
-  }
-}
-```
-
-**Usage in code:**
+Syntax (v1):
 
 ```sg
 import stdlib/directives::test;
 
-fn foo() -> int { return 42 }
-
 /// test:
-/// test.eq(foo, 42)
-```
-
-The compiler generates hidden test functions that call the directive module functions with resolved identifiers from the current module.
-
-### 13.7. Safety and Invariants
-
-**Generated code isolation:**
-
-* Directive-generated functions **never appear in final binary** without `--directives=run`.
-* In `off` mode, directive behavior is identical to absence of directives (zero overhead).
-* Directives have **no special privileges**: directive modules are ordinary modules with no special restrictions.
-
-**Deterministic behavior:**
-
-* Function names are deterministic and stable across incremental builds.
-* Generated module references original sources via Spans for error reporting.
-* Directive execution respects `--directives-filter`; unspecified namespaces are ignored.
-
-**Future extensions:**
-
-* Directive space aliases via `pragma directive name="alias"` (optional, not in M0).
-* File-level directives without item attachment (future expansion).
-* `--directives=list` mode for debugging (print discovered blocks).
-* `--sandbox` profile for `run` mode (restrict I/O operations).
-
-### 13.8. Target Directives (Conditional Compilation)
-
-Target directives `/// target:` provide conditional compilation based on platform, features, and build configuration:
-
-```sg
-/// target: os = "linux"
-fn linux_only_function() -> string {
-    return "Linux implementation";
-}
-
-/// target: feature = "networking"
-fn network_function() -> bool {
-    return true;
-}
-
-/// target: all(arch = "x86_64", feature = "performance")
-fn optimized_function() -> int {
-    return 42;
-}
-
-/// target: any(os = "macos", os = "ios")
-fn apple_function() -> string {
-    return "Apple platform";
-}
-
-/// target: not(feature = "minimal")
-fn full_feature_function() -> string {
-    return "Full version";
-}
-```
-
-**Target conditions:**
-* `os = "linux" | "windows" | "macos" | "ios" | "android"`
-* `arch = "x86_64" | "arm64" | "x86" | "arm"`
-* `feature = "feature_name"` (build-time feature flags)
-* `debug_assertions` (debug vs release builds)
-* `test` (test compilation mode)
-* Logical operators: `all(...)`, `any(...)`, `not(...)`
-
-### 13.9. Examples
-
-**Unit test:**
-```sg
-import stdlib/directives::test;
-
+/// test.eq(add(1, 2), 3)
 fn add(a: int, b: int) -> int { return a + b; }
-
-/// test:
-/// AddSmall:
-///   test.eq(add(2, 3), 5);
 ```
 
-**Benchmark:**
-```sg
-import stdlib/directives::benchmark;
-
-/// benchmark:
-/// AddBench:
-///   benchmark.measure(|| { let mut s=0; for i:int in 0..1_000_000 { s+=i; } return s; });
-```
-
-**Custom directive:**
-```sg
-import mytools::lint;
-
-/// lint:
-/// lint.scan_module()
-```
-
-**CLI usage examples:**
+CLI:
 
 ```bash
-# Ignore all directives (default)
-surge build
-
-# Parse and collect directive blocks
-surge build --directives=collect
-
-# Generate and type-check, don't run
-surge build --directives=gen
-
-# Run only test directives
-surge build --directives=run --directives-filter=test
-
-# Generate with cache storage
-surge build --directives=gen --directives-filter=test,benchmark --emit-directives=cache
+surge diag --directives=off|collect|gen|run --directives-filter=test,bench
 ```
 
----
+- `off` (default): ignore directives completely.
+- `collect`: parse and validate namespaces.
+- `gen`: same as collect (reserved for future codegen).
+- `run`: stub execution; `--directives-filter` applies here.
+
+For full details and roadmap, see `docs/DIRECTIVES.md`.
 
 ## 14. Precedence & Associativity
 
 From highest to lowest:
 
-1. `[]` (index), call `()`, member `.`, await `.await`, `to Type` (cast operator)
+1. `[]` (index), call `()`, member `.`, await `.await()`, `to Type` (cast operator)
 2. `+x -x !x` (prefix unary)
 3. `* / %`
 4. `+ -` (binary)
@@ -2853,7 +2441,7 @@ Note: `=>` is not a general expression operator; it is reserved for `parallel ma
 
 ### Member access precedence
 
-Member access `.`, await `.await`, and cast `to Type` are postfix operators and bind tightly together with function calls and indexing. This resolves ambiguous parses, e.g., `a.f()[i].g()` parses as `(((a.f())[i]).g)()`.
+Member access `.`, await `.await()`, and cast `to Type` are postfix operators and bind tightly together with function calls and indexing. This resolves ambiguous parses, e.g., `a.f()[i].g()` parses as `(((a.f())[i]).g)()`.
 
 ---
 
@@ -2908,10 +2496,7 @@ let c = identity(3.14);    // generates identity_float
 
 ## 17. Advanced Type System Features
 
-**Implementation Priority:**
-1. Union types (§17.1) - core language feature
-2. Tuple types (§17.2) - standard feature for multiple returns
-3. Phantom types (§17.3) - advanced feature for type safety
+The following features are supported in v1; restrictions are noted per section.
 
 ### 17.1. Union Types
 
@@ -2924,10 +2509,10 @@ type Number = IntNum(int) | FloatNum(float);
 extern<Number> {
   fn __add(a: Number, b: Number) -> Number {
     return compare (a, b) {
-      (IntNum(x),   IntNum(y))   => IntNum(x + y),
-      (IntNum(x),   FloatNum(y)) => FloatNum(x:float + y),
-      (FloatNum(x), IntNum(y))   => FloatNum(x + y:float),
-      (FloatNum(x), FloatNum(y)) => FloatNum(x + y),
+      (IntNum(x),   IntNum(y))   => IntNum(x + y);
+      (IntNum(x),   FloatNum(y)) => FloatNum(x:float + y);
+      (FloatNum(x), IntNum(y))   => FloatNum(x + y:float);
+      (FloatNum(x), FloatNum(y)) => FloatNum(x + y);
     };
   }
 }
@@ -2939,8 +2524,8 @@ Tagged unions provide clearer APIs and enable exhaustiveness checking; see §2.7
 
 ```sg
 compare (a, b) {
-  (x, y) if x is int && y is float => print(x + y),
-  finally => print("unsupported")
+  (x, y) if x is int && y is float => print(((x to float) + y) to string);
+  finally => print("unsupported");
 }
 ```
 
@@ -2948,13 +2533,14 @@ Tuples group multiple values together:
 
 ```sg
 type Point = (float, float);
-type NamedTuple = (name: string, age: int);
 
 fn get_coordinates() -> (float, float) {
     return (10.5, 20.3);
 }
 
-let (x, y): (float, float) = get_coordinates();
+let coords: (float, float) = get_coordinates();
+let x = coords.0;
+let y = coords.1;
 ```
 
 ### 17.3. Phantom Types
@@ -2982,55 +2568,60 @@ fn get_user(id: UserId<User>) -> Option<User> { ... }
 
 ## 19. Grammar Sketch (extract)
 
-Note: `MacroDef` is reserved for a future iteration. The syntax is specified for completeness; the core implementation should focus on the rest of the language first. Implementations should parse `macro` items but reject them with `E_MACRO_UNSUPPORTED`.
-
-Directives are parsed as "out-of-band" nodes attached to the module. In `gen` and `run` modes, directive expressions are transformed into hidden functions in `__generated_directives` module. Each line becomes one function call to the imported directive module's handler functions.
+Note: `macro` items are reserved for v2+; the v1 parser rejects them (`FutMacroNotSupported`).
+Directives are parsed only when enabled and follow the syntax in `docs/DIRECTIVES.md`.
 
 ```
-Module     := PragmaDirective? (Item | DirectiveBlock)*
-PragmaDirective := "pragma" "directive"
+Module     := Pragma* (Item | DirectiveBlock)*
+Pragma     := "pragma" Ident ("," Ident)*   // see docs/PRAGMA for supported forms
 DirectiveBlock := "///" Namespace ":" Newline
-                  ( "///" BodyLine Newline )+
+                  ( "///" NamespaceLine Newline )+
 Namespace  := Ident
-BodyLine   := <Surge expression on single line>
-Item       := Visibility? (Fn | AsyncFn | MacroDef | TagDecl | TypeDef | LiteralDef | AliasDef | ExternBlock | Import | Let)
+NamespaceLine := Namespace ("." | "::") <rest of line>
+Item       := Visibility? (Fn | AsyncFn | TagDecl | TypeDecl | EnumDecl | ContractDecl | ExternBlock | Import | Const | Let)
 Visibility := "pub"
 Fn         := FnDef | FnDecl
 FnDef      := Attr* "fn" Ident GenericParams? ParamList RetType? Block
 FnDecl     := Attr* "fn" Ident GenericParams? ParamList RetType? ";"
 AsyncFn    := Attr* "async" "fn" Ident GenericParams? ParamList RetType? Block
-MacroDef   := "macro" Ident MacroParamList Block
-MacroParamList := "(" (MacroParam ("," MacroParam)*)? ")"
-MacroParam := Ident ":" MacroType | "..." Ident ":" MacroType
-MacroType  := "expr" | "ident" | "type" | "block" | "meta"
-Attr       := "@pure" | "@overload" | "@allow_to" | "@override" | "@intrinsic" | "@backend(" Str ")" | "@deprecated(" Str ")" | "@packed" | "@align(" Int ")" | "@shared" | "@atomic" | "@raii" | "@arena" | "@weak" | "@readonly" | "@hidden" | "@noinherit" | "@sealed"
+Attr       := "@" Ident ("(" (Expr ("," Expr)*)? ")")?
 GenericParams := "<" Ident ("," Ident)* ">"
 ParamList  := "(" (Param ("," Param)*)? ")"
-Param      := Ident ":" Type | "..."
+Param      := Attr* "..."? Ident ":" Type ("=" Expr)?
 RetType    := "->" Type
 TagDecl    := "tag" Ident GenericParams? "(" ParamTypes? ")" ";"
-TypeDecl   := "type" Attr* Ident GenericParams? "=" TypeBody ";"
+TypeDecl   := Attr* "type" Ident GenericParams? "=" TypeBody ";"
+EnumDecl   := Attr* "enum" Ident GenericParams? (":" Type)? "=" "{" EnumVariant ("," EnumVariant)* ","? "}" ";"?
+EnumVariant:= Ident ("=" Expr)?
+ContractDecl := Attr* "contract" Ident GenericParams? "{" ContractMember* "}" ";"?
+ContractMember := Attr* "field" Ident ":" Type ";" | Attr* FnDecl
 TypeBody   := StructBody | UnionBody | Type
 StructBody := "{" Field ("," Field)* "}"
 Field      := Attr* Ident ":" Type
 UnionBody  := UnionMember ("|" UnionMember)*
 UnionMember:= "nothing" | Ident "(" ParamTypes? ")"
 ExternBlock:= "extern<" Type ">" Block
-Import     := "import" Path ("::" Ident ("as" Ident)?)? ";"
-Path       := Ident ("/" Ident)*
+Import     := "import" Path ( "as" Ident | "::" ImportSpec )? ";"
+ImportSpec := "*" | Ident ("as" Ident)? | "{" ImportName ("," ImportName)* ","? "}"
+ImportName := Ident ("as" Ident)?
+Path       := ("." | ".." | Ident) ("/" ("." | ".." | Ident))*
 Block      := "{" Stmt* "}"
-Stmt       := Let | While | For | If | Spawn ";" | Async | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
+Stmt       := Const | Let | While | For | If | Spawn ";" | Async | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
+Const      := "const" Ident (":" Type)? "=" Expr ";"
 Let        := "let" ("mut")? Ident (":" Type)? ("=" Expr)? ";"
 While      := "while" "(" Expr ")" Block
-For        := "for" "(" Expr? ";" Expr? ";" Expr? ")" Block | "for" Ident ":" Type "in" Expr Block
+For        := "for" "(" Expr? ";" Expr? ";" Expr? ")" Block | "for" Ident (":" Type)? "in" Expr Block
 If         := "if" "(" Expr ")" Block ("else" If | "else" Block)?
 Return     := "return" Expr?
 Signal     := "signal" Ident ":=" Expr
 Async      := "async" "{" Stmt* "}"
-Expr       := Compare | Spawn | TypeHeirPred | TupleLit | ... (standard precedence)
+Expr       := Compare | Spawn | Parallel | TypeHeirPred | TupleLit | ... (standard precedence)
+Parallel   := "parallel" "map" Expr "with" ArgList "=>" Expr
+          | "parallel" "reduce" Expr "with" Expr "," ArgList "=>" Expr
+ArgList    := "(" (Expr ("," Expr)*)? ")" | "()"
 TypeHeirPred := "(" Expr " heir " CoreType ")"
 TupleLit   := "(" Expr ("," Expr)+ ")"
-AwaitExpr  := Expr "." "await"           // awaits a Future; only valid in async fn/block
+AwaitExpr  := Expr "." "await" "(" ")"   // awaits a Task; valid in async fn/block and @entrypoint
 Spawn      := "spawn" Expr
 Compare    := "compare" Expr "{" Arm (";" Arm)* ";"? "}"
 Arm        := Pattern "=>" Expr
@@ -3045,10 +2636,10 @@ Ownership      := "own" | "&" | "&mut" | "*"
 CoreType       := Ident ("<" Type ("," Type)* ">")?
 TupleType      := "(" Type ("," Type)+ ")"
 ParamTypes     := Type ("," Type)*
-Suffix         := "[]"
+Suffix         := "[]" | "[" Expr "]"
 ```
 
-**Note:** `@intrinsic` is permitted only on `FnDecl` (function declarations without body).
+**Note:** `@intrinsic` requires declaration-only functions and special intrinsic types (see `docs/ATTRIBUTES.md`).
 
 ---
 
@@ -3057,10 +2648,10 @@ Suffix         := "[]"
 * Built-ins for primitive base types are sealed; you cannot `@override` them directly. Use `type New = int;` and override on the type alias.
 * Dynamic numerics (`int/uint/float`) allow large results; casts to fixed-width may trap.
 * Attributes affecting memory layout and ABI (`@packed`, `@align`) are part of the language specification and cannot be replaced by directives. Directives do not modify type layout or ABI contracts.
-* Concurrency contract attributes describe *analyzable requirements* and do not change language semantics at runtime. Violations may not always be statically checkable; in such cases the compiler emits `W_CONC_UNVERIFIED` and defers verification to linters or runtime debug tools.
+* Concurrency contract attributes describe analyzable requirements and do not change runtime semantics. When lock state cannot be proven, the compiler emits `SemaLockUnverified` warnings.
 * **Directive vs Attribute distinction**: Attributes are closed-set language features that affect compilation, type checking, or runtime behavior. Directives are extensible annotations that provide metadata for external tools without changing language semantics. Tests, benchmarks, and documentation have been moved from attributes to the directive system to maintain the distinction.
 * **Pragma directive**: `pragma directive` marks a module as a directive module. The directive namespace is derived from the import path. In `--directives=off` (default), directive blocks have zero overhead.
-* **Language intrinsics**: Intrinsics constitute a fixed, small set and are declared in the standard `core` module (files under `core/`). Their implementation is described in RUNTIME.md. Using `@intrinsic` outside this module is forbidden. They serve basic memory management operations (`rt_alloc`, `rt_free`, `rt_realloc`) and byte copying (`rt_memcpy`, `rt_memmove`).
+* **Language intrinsics**: Intrinsics are a fixed, small set primarily declared in `core/` and implemented by the VM backend (see surge_vm.md). `@intrinsic` is allowed anywhere, but only known intrinsics are supported by backends.
 
 ## 21. Diagnostics Overview
 
@@ -3095,169 +2686,28 @@ Diagnostics now follow the numeric `diag.Code` families defined in `internal/dia
 **Observability (6000–):**
 - `ObsTimings`.
 
-Planned diagnostics for directives, concurrency contracts, exhaustive `compare`, and macro/runtime surfaces are not wired up yet in sema.
+Some diagnostic codes are reserved for future features (macros, signals, parallel). See `internal/diag/codes.go` for the authoritative list.
 
 ---
 
 ## 22. Future Features (v2+)
 
-The following features are reserved for future versions and are not supported in v1.
+The following keywords are **reserved** and not implemented in v1. Semantics are
+TBD; the notes below describe current compiler behavior only.
 
-### 22.1. Signals (Reactive Bindings)
+### 22.1. Signals (`signal`)
 
-**Status:** Planned for v2+
+- Parsed, but semantic analysis rejects with `FutSignalNotSupported`.
 
-**Syntax (reserved):**
-```sg
-signal name := expr;
-```
+### 22.2. Macros (`macro`)
 
-**Planned semantics:**
-- Reactive values that auto-update when dependencies change
-- Requires `@pure` expressions (no side effects)
-- Topological dependency resolution
-- Update propagation in deterministic order
+- Parser rejects `macro` items with `FutMacroNotSupported`.
 
-**Current v1 behavior:**
-- Keyword is lexed but semantic analysis rejects with error
-- "signal is not supported in v1, reserved for future use"
+### 22.3. Parallel map/reduce (`parallel map`, `parallel reduce`)
 
-**Rationale:** Signals provide reactive programming capabilities similar to observables or reactive streams. The v2+ implementation will track dependencies automatically and ensure updates propagate in topological order without manual management.
+- Parsed, but semantic analysis rejects with `FutParallelNotSupported`.
 
-**Example (planned):**
-```sg
-signal price := fetch_price();
-signal tax := price * 0.2;
-signal total := price + tax;
+### 22.4. Compatibility Notes
 
-// When price updates, tax and total automatically recompute
-```
-
-### 22.2. Macros (Compile-time Metaprogramming)
-
-**Status:** Planned for v2+
-
-**Syntax (reserved):**
-```sg
-macro name(params...) { body }
-```
-
-**Planned features:**
-- Compile-time code generation
-- Parameter types: `expr`, `ident`, `type`, `block`, `meta`
-- Built-in functions: `stringify()`, `type_name_of<T>()`, `size_of<T>()`, `align_of<T>()`
-- AST manipulation for metaprogramming
-
-**Current v1 behavior:**
-- Keyword is lexed but semantic analysis rejects with error
-- "macro is planned for v2+"
-
-**Rationale:** Macros enable zero-cost abstractions and domain-specific languages. The design follows hygiene principles to avoid accidental variable capture and ensures macro expansion is deterministic.
-
-**Example (planned):**
-```sg
-macro assert_eq(left: expr, right: expr) {
-    if (!(left == right)) {
-        panic("Assertion failed: " + stringify(left) + " != " + stringify(right));
-    }
-}
-
-// Usage
-fn test_something() {
-    assert_eq(2 + 2, 4);  // Expands at compile time
-}
-```
-
-### 22.3. Parallel Map/Reduce (Data Parallelism)
-
-**Status:** Planned for v2+ (requires multi-threading)
-
-**Syntax (reserved):**
-```sg
-parallel map collection with (args) => func
-parallel reduce collection with init, (args) => func
-```
-
-**Planned semantics:**
-- True parallelism on multiple OS threads
-- Requires `@pure` functions (enforced statically)
-- Work-stealing scheduler for automatic load balancing
-- NUMA-aware allocation for performance
-- Automatic chunking based on collection size
-
-**Current v1 behavior:**
-- Keywords are lexed but semantic analysis rejects with error
-- "parallel requires multi-threading (v2+)"
-
-**Rationale:** Data parallelism is essential for high-performance computing and AI backends. The v2+ implementation will use true OS-level threads, unlike v1's single-threaded cooperative concurrency.
-
-**v1 alternative:** Use `spawn` with channels for concurrent (not parallel) processing:
-```sg
-async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
-    let mut tasks: Task<U>[] = [];
-    for x in xs {
-        tasks.push(spawn f(x));
-    }
-
-    let mut results: U[] = [];
-    for task in tasks {
-        results.push(task.await());
-    }
-    return results;
-}
-```
-
-**Note:** v1 uses single-threaded cooperative concurrency. See §9 Concurrency Primitives for async/await, spawn, and channels.
-
-**Example (planned for v2+):**
-```sg
-let nums: int[] = [1, 2, 3, 4, 5];
-
-// Parallel map: process elements on multiple threads
-let squared = parallel map nums with (x) => x * x;
-
-// Parallel reduce: aggregate with associative operation
-let sum = parallel reduce nums with 0, (acc, x) => acc + x;
-```
-
-### 22.4. Comparison: v1 vs v2+
-
-| Feature | v1 (current) | v2+ (planned) |
-|---------|--------------|---------------|
-| Async/await | ✅ Single-threaded | ✅ Single or multi-threaded |
-| Spawn | ✅ Cooperative tasks | ✅ OS threads |
-| Channels | ✅ Message passing | ✅ Thread-safe channels |
-| Signals | ❌ Not supported | ✅ Reactive computations |
-| Parallel map/reduce | ❌ Not supported | ✅ Data parallelism |
-| Macros | ❌ Not supported | ✅ Compile-time codegen |
-| Work-stealing | ❌ N/A | ✅ Automatic load balancing |
-| Lock contracts | ⚠️ Parsed, not enforced | ✅ Static analysis |
-
-### 22.5. Migration Path
-
-When upgrading from v1 to v2+:
-
-**Signals:**
-- Convert manual state updates to `signal` declarations
-- Ensure all signal expressions are `@pure`
-- Remove explicit dependency management code
-
-**Macros:**
-- Replace code-generation scripts with compile-time macros
-- Migrate build-time templating to macro system
-- Use hygiene features to avoid naming conflicts
-
-**Parallel:**
-- Replace `spawn` loops with `parallel map` where appropriate
-- Ensure functions are `@pure` and associative (for reduce)
-- Test with thread sanitizers to catch data races
-
-**Lock contracts:**
-- Add `@guarded_by`, `@requires_lock` annotations
-- Verify static analysis catches lock violations
-- Update code to satisfy lock contracts
-
-**Backward compatibility:**
-- v1 code continues to work in v2+ (no breaking changes)
-- New features are opt-in via explicit syntax
-- Single-threaded mode remains available for predictability
+- v1 remains single-threaded; `parallel` is not a stable API.
+- Lock contract attributes are partially enforced (see `docs/ATTRIBUTES.md`).

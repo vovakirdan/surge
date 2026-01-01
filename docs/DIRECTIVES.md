@@ -1,742 +1,146 @@
 # DIRECTIVES.md
 
-*Surge Directive System — Design, Semantics, and Roadmap*
+Surge directives are **structured doc-comment blocks** (`///`) that let you attach tool-driven scenarios (tests, benchmarks, lint checks) to code.
 
-## 1. Overview
-
-Directives are Surge’s mechanism for embedding structured, statically-checked, controllable code blocks directly into source files. They act as **compile-time scenarios**—test cases, benchmarks, linters, target selectors, analyzers, documentation examples, etc.—written in pure Surge and executed by the compiler in controlled modes.
-
-A directive is:
-
-* Declared via **`///`**.
-* Contains **valid Surge code**.
-* Lives in a dedicated **directive module**, imported via `import ...::name;`.
-* Has **no effect on program semantics** unless explicitly executed.
-* Can see the module’s declarations, but its own declarations stay isolated.
-* Is a *consumer* of a stable reflection API (meta/build/ast/type), which gives access to the program structure without exposing compiler internals.
-
-Directives intentionally do **not** replace macros.
-They are a separate, safer, structured layer built for *read-only compile-time introspection and analysis*, while macros (v2+) will enable structural code transformation.
-
-This document defines the directive system architecture, semantics, and the incremental roadmap for v1 / v1.x / v2+.
+This document covers **current behavior (v1)** and the **planned roadmap**.
 
 ---
 
-## 2. Syntax
+## 1. Current Status (v1)
 
-### 2.1. Directive Block
+### 1.1 What is implemented
 
-A directive block starts with `///` and ends when the next Surge object begins.
+- Directives are **parsed** when `--directives=collect|gen|run` is enabled.
+- Each directive block is **attached to the next item** in the file (function/type/let/etc.).
+- The compiler **validates directive namespaces** against imports when directives are enabled.
+- `--directives=run` executes a **stub runner** that prints scenarios as *SKIPPED* (no codegen/execution yet).
+
+### 1.2 What is *not* implemented yet
+
+- No directive code generation.
+- No directive body type-checking or execution.
+- Scenario names (named test cases) are not supported yet.
+
+---
+
+## 2. Implemented Syntax (v1)
+
+A directive block is a **contiguous `///` block** with:
+
+1) First non-empty line: `<namespace>:`
+2) Next lines: must start with `<namespace>.` or `<namespace>::`
 
 Example:
 
 ```sg
-let a = 1;
+import stdlib/directives::test;
 
 /// test:
-/// SimpleAddition:
-///     test.eq(add(a, 1), 2);
-
-fn add(x: int, y: int) -> int { return x + y; }
+/// test.eq(add(1, 2), 3)
+/// test.eq(add(2, 2), 4)
+fn add(a: int, b: int) -> int { return a + b; }
 ```
 
-### 2.2. Structure
-
-A block is structured as:
-
-```
-/// <namespace>:
-/// <scenario-name>:
-///     <body – valid Surge code>
-```
-
-* **namespace** — corresponds to an imported directive module, e.g. `test`, `benchmark`, `lint`, `target`.
-* **scenario-name** — an identifier unique to the file.
-* **body** — arbitrary Surge statements.
-
-### 2.3. Visibility Rules
-
-* Directive code can **see everything** visible at that point in the module:
-
-  * imports,
-  * functions,
-  * types,
-  * constants,
-  * even declarations *below* the directive.
-* Declarations **inside** a directive (functions, lets, types) are **not visible** to the module.
-* Directives do **not** affect the program unless run under `--directives=gen` or `run`.
+Notes:
+- Empty `///` line **ends** the directive block.
+- Any `///` block that does **not** match the namespace rules is treated as a normal doc comment.
+- Namespaces must be valid identifiers (`[A-Za-z_][A-Za-z0-9_]*`).
 
 ---
 
-## 3. Directive Modules
+## 3. Namespace Validation (implemented)
 
-A directive implementation lives in a module marked with:
+When `--directives=collect|gen|run` is enabled, the compiler validates:
 
-```sg
-pragma directive;
+1) The namespace (`test` in `/// test:`) **must be an imported module**.
+2) That module must have `pragma directive`.
+
+Diagnostics:
+
+| Code | Error |
+|------|-------|
+| `SemaDirectiveUnknownNamespace` | Directive namespace is not an imported module |
+| `SemaDirectiveNotDirectiveModule` | Directive namespace module lacks `pragma directive` |
+
+---
+
+## 4. CLI Flags (implemented)
+
+```bash
+surge diag --directives=off|collect|gen|run --directives-filter=test,bench
 ```
 
-This module:
+- `off` (default): directives are ignored.
+- `collect`: directives are parsed and namespaces validated.
+- `gen`: currently behaves like `collect` (reserved for future codegen).
+- `run`: runs the **stub runner** (prints SKIPPED for each scenario).
 
-* is a normal Surge module,
-* exports directive functions via `pub fn`,
-* can be imported like any other module,
-* may call compiler intrinsics (meta/build/diag/etc.) accessible *only* in directive modules.
+`--directives-filter` currently affects **only** `run` mode (what the stub prints).
+Default filter is `test`. An empty filter (`--directives-filter=`) runs all namespaces.
+
+---
+
+## 5. Directive Modules (implemented)
+
+A directive module is an **ordinary Surge module** marked with:
+
+```sg
+pragma directive
+```
+
+It can export helper functions used inside directive blocks.
 
 Example:
 
 ```sg
 // stdlib/directives/test.sg
-pragma directive;
+pragma directive
 
-pub fn eq<T>(actual: T, expected: T) -> Erring<nothing, TestFail> { ... }
+pub fn eq<T>(a: T, b: T) -> bool { return a == b; }
 ```
 
 ---
 
-## 4. Directive Execution Modes
+## 6. Planned Syntax (roadmap)
 
-The compiler supports multiple directive modes:
-
-### 4.1. `--directives=off` (default)
-
-* Directive blocks are ignored.
-* No directive module is generated.
-* No diagnostics produced by directives.
-
-### 4.2. `--directives=collect`
-
-* Parser collects directive blocks.
-* Semantic validation ensures namespaces are valid (see Section 4.6).
-* No directive body typechecking, no execution.
-* Useful for IDEs and tooling.
-
-### 4.3. `--directives=gen`
-
-* A hidden module is generated, containing functions for each scenario.
-* This module participates in name resolution and typechecking.
-* Directive bodies are validated but not executed.
-
-### 4.4. `--directives=run`
-
-* Same as `gen`, but directive functions are executed by the directive runner.
-* Failures result in non-zero exit code.
-
-### 4.5. Filters
-
-`--directives-filter=test,benchmark,time`
-Only these directive namespaces will be compiled/checked/run.
-
-### 4.6. Namespace Validation
-
-When `--directives=collect|gen|run`, the compiler performs semantic validation on directive namespaces:
-
-1. **Namespace must be an imported module**: Each directive block's namespace (e.g., `test` in `/// test:`) must correspond to an imported module. The namespace is matched against the last path segment of imported modules.
-
-   ```sg
-   import stdlib/directives/test;  // "test" is the last segment
-
-   /// test:                       // Valid - matches import
-   /// test.eq(1, 1);
-   ```
-
-2. **Module must have `pragma directive`**: The imported module must declare `pragma directive` to be used as a directive namespace. This ensures only purpose-built modules serve as directive namespaces.
-
-   ```sg
-   // stdlib/directives/test.sg
-   pragma directive;
-
-   pub fn eq<T>(a: T, b: T) -> bool { return a == b; }
-   ```
-
-**Diagnostic Codes:**
-
-| Code | Error |
-|------|-------|
-| `SEM3119` | Directive namespace is not an imported module |
-| `SEM3120` | Directive namespace module lacks `pragma directive` |
-
-**Example Errors:**
-
-```sg
-// Error SEM3119: "my_directive" is not imported
-/// my_directive:
-/// my_directive.stuff();
-```
-
-```sg
-import helper;  // helper.sg does NOT have "pragma directive"
-
-// Error SEM3120: module "helper" does not have 'pragma directive'
-/// helper:
-/// helper.do_something();
-```
-
----
-
-## 5. Semantics of Generated Directive Functions
-
-For each directive block:
-
-```sg
-/// lint:
-/// CheckTabs:
-///     lint.check_whitespaces()
-```
-
-the compiler will generate:
-
-```sg
-fn __directive_lint_CheckTabs__() -> Erring<nothing, Error> {
-    // translated body
-    return lint.check_whitespaces();
-}
-```
-
-These functions are:
-
-* placed in a hidden module,
-* compiled with full semantics,
-* executed only in `run` mode.
-
----
-
-## 6. Directive Categories
-
-Below is the taxonomy of directive families, divided into:
-
-* **Available in v1**
-* **Planned for v1.x**
-* **Planned for v2+ (requires macros or deeper compiler features)**
-
----
-
-# 7. v1 DIRECTIVES
-
-v1 includes only directives that require:
-
-* no AST reflection, or
-* trivial introspection (spans, text), and
-* no structural code modification.
-
-This keeps v1 manageable and stable.
-
----
-
-## 7.1. `test:` — v1 Core
-
-**Status: v1**
-
-`test` provides assertion-based unit tests written directly inside source files.
-
-Example:
+The following structure is planned but **not implemented yet**:
 
 ```sg
 /// test:
-/// Addition:
-///     test.eq(add(2, 3), 5);
+/// SumIsCorrect:
+///     test.eq(add(1, 2), 3)
 ```
 
-Features:
-
-* assertion helpers (`eq`, `assert`, etc.),
-* grouping/tags (`test.group`, `test.tag`),
-* custom test functions defined directly inside a directive.
-
-No compiler intrinsics required.
+Planned rules:
+- `<scenario>` names are unique per file.
+- Bodies are full Surge statements.
+- Directive bodies are type-checked in a generated module.
 
 ---
 
-## 7.2. `benchmark:` and `time:` — v1
+## 7. Planned Codegen & Execution (roadmap)
 
-**Status: v1**
+Future `gen/run` modes will:
 
-Used for microbenchmarks and timing scenarios.
+- Generate a hidden module with one function per directive block.
+- Type-check the directive bodies.
+- Execute them via a directive runner.
 
-Example:
+This is not wired up yet; the current runner is a stub.
+
+---
+
+## 8. Quick Examples (current)
 
 ```sg
-/// benchmark:
-/// ParseSmallFile:
-///     benchmark.throughput("parse", 1000, parse_small);
+import stdlib/directives::test;
+
+/// test:
+/// test.eq(len("hi"), 2)
+fn foo() -> nothing { return nothing; }
 ```
-
-Implementation:
-
-* simple wrapper functions in stdlib,
-* uses `core.time.monotonic_now()` and `Duration`.
-
-Does *not* require AST or meta reflection.
-
----
-
-## 7.3. `doc:` / `example:` — v1
-
-**Status: v1**
-
-Used for:
-
-* long-form descriptions,
-* documentation generation,
-* verified examples (optional).
-
-Example:
-
-```sg
-/// doc:
-/// Summary:
-///     doc.summary("Adds two integers.");
-```
-
-These directives attach metadata stored in the directive runner & doc generator.
-
-No reflection needed.
-
----
-
-# 8. v1.x DIRECTIVES
-
-(Requires readonly meta/build intrinsics)
-
-These features depend on **readonly introspection** of:
-
-* module,
-* items,
-* spans,
-* source text,
-* build configuration.
-
-But do **not** need AST or type reflection.
-
----
-
-## 8.1. `lint:` — v1.1
-
-**Status: planned for v1.1**
-
-Lint directives provide static checks executed at compile time.
-
-### v1.1 Capabilities (text-level)
-
-* access to `Span`,
-* access to complete source via `span_source(span)`,
-* access to namespace and item context.
-
-Use-cases:
-
-* whitespace rules,
-* line length,
-* prohibited patterns,
-* naming conventions,
-* style rules based on tokens.
-
-Example:
-
-```sg
-/// lint:
-/// NoTabs:
-///     lint.check_whitespaces()
-fn   foo( );
-```
-
-### Required Intrinsics
-
-* `meta.current_item()`
-* `meta.item_span(item)`
-* `meta.span_source(span)`
-* `emit_diagnostic(level, span, code, message)`
-
----
-
-## 8.2. `target:` — v1.1
-
-**Status: planned for v1.1**
-
-Provides build-time control over which items participate in compilation.
-
-Example:
-
-```sg
-/// target:
-/// target.require(target.os("linux") && target.feature("simd"))
-fn simd_fast_path(...) { ... }
-```
-
-Capabilities:
-
-* inspecting build context,
-* excluding items from semantic analysis,
-* enabling cross-platform modularization.
-
-Required intrinsics:
-
-* `build_os()`, `build_arch()`, `build_feature()`, …
-* `set_item_enabled(item, enabled)`
-
-This achieves full “conditional compilation” without macros.
-
----
-
-## 8.3. `lint:` / `safety:` / `analyze:` — v1.2 (AST read-only)
-
-**Status: v1.2**
-
-Once AST reflection is introduced, directives can:
-
-* walk AST nodes,
-* inspect control structures,
-* analyze function bodies,
-* find calls to “forbidden” functions,
-* ensure certain patterns.
-
-Use-cases:
-
-* no allocations in hot paths,
-* no blocking calls in async functions,
-* stylistic structure checks,
-* “must include else”, “no early return”, etc.
-
-Required intrinsics:
-
-* `meta.item_body(item) -> AstNodeHandle`
-* `meta.ast_kind(node)`
-* `meta.ast_child_count(node)`
-* `meta.ast_child(node, i)`
-
-No modification allowed — read-only.
-
----
-
-# 9. v2+ DIRECTIVES
-
-(require code generation or macro system)
-
-These directives exceed the read-only model and require structural changes to the program or generation of new functions/types. They belong to v2 or later.
-
----
-
-## 9.1. `trace:` + `profile:` — v2
-
-Example:
-
-```sg
-/// trace:
-/// trace.auto()
-fn process_request(req: Req) -> Resp { ... }
-```
-
-Behavior:
-
-* generates a wrapper function,
-* injects tracing spans automatically.
-
-Requires:
-
-* ability to generate functions,
-* ability to rewrite call sites,
-* i.e., true macro system or limited function-wrapping API.
-
----
-
-## 9.2. `ffi:` / `cbind:` / `interop:` — v2
-
-Exporting Surge functions/types to C/Rust/TS.
-
-Example:
-
-```sg
-/// ffi:
-/// ffi.export_to_c(header: "api.h")
-pub fn surge_add(a: int32, b: int32) -> int32 { ... }
-```
-
-Requires:
-
-* type reflection,
-* signature reflection,
-* `emit_artifact("api.h", bytes)`,
-* optional type-mapping logic.
-
----
-
-## 9.3. `schema:` / `db:` / `validate:` — v2+
-
-These would:
-
-* inspect types deeply,
-* generate SQL/migrations,
-* generate validation wrappers.
-
-Requires:
-
-* full type reflection,
-* ability to generate new declarations (macros).
-
----
-
-## 9.4. `resource:` / `embed:` — v2+
-
-Injecting external data as constants.
-
-Example:
-
-```sg
-/// resource:
-/// resource.embed_file("static/page.html", const: "PAGE")
-```
-
-Requires code generation → v2.
-
----
-
-# 10. Reflection API (Meta/Build/AST/Type)
-
-Directives rely on a structured, limited set of intrinsics.
-Each intrinsic is a safe and stable surface around compiler internals.
-
-### v1.x Meta Intrinsics (readonly)
-
-* `ModuleHandle`, `ItemHandle`, `Span`
-* `current_module()`, `current_item()`
-* `item_span(item)`
-* `span_source(span)`
-* `emit_diagnostic(...)`
-
-### v1.x Build Intrinsics
-
-* `build_os()`, `build_arch()`, `build_profile()`, `build_feature()`
-* `set_item_enabled(item, enabled)`
-
-### v1.2 AST Intrinsics
-
-* `AstNodeHandle`
-* `ast_kind(node)`
-* `ast_child_count(node)`
-* `ast_child(node, i)`
-* `item_body(item)`
-
-### v2+ Type Reflection
-
-* `TypeHandle`, `FnSigHandle`
-* `type_name`, `type_kind`, `fn_param_type`, `fn_return_type`
-
----
-
-# 11. Directive Execution Model
-
-### 11.1. Compilation Pipeline Integration
-
-1. Parse module → collect `DirectiveBlock`.
-2. Build symbol tables.
-3. Generate hidden directive module.
-4. Typecheck program + directive module.
-5. If `run`:
-
-   * create a `DirectiveContext`,
-   * run each directive scenario through the directive VM,
-   * intrinsics access AST/build/type info via this context.
-6. Produce final output (binary/VM IR).
-
-### 11.2. Context Passing
-
-Directive intrinsics access compiler state through a hidden directive-execution context:
-
-```
-DirectiveContext {
-    ModuleID,
-    ItemID,       // optional
-    AST,
-    HIR,
-    BuildConfig,
-    SymbolTable,
-}
-```
-
-This context is never exposed directly to Surge code.
-
----
-
-# 12. Future Direction
-
-Directives represent a middle layer between:
-
-* the **pure language**, and
-* the **future macro system**.
-
-They are:
-
-* strictly read-only (v1.x),
-* strongly typed,
-* statically checked,
-* isolated from main program semantics,
-* but powerful enough for high-value compile-time tooling:
-
-  * tests,
-  * benchmarks,
-  * docs,
-  * style rules,
-  * static analysis,
-  * target selection,
-  * early forms of interop.
-
-When macros arrive in v2+, directives become the “declarative” layer that configures and drives macros, rather than competing with them.
-
----
-
-# 13. Version Summary
-
-| Feature Category                       | Status        | Notes                                     |
-| -------------------------------------- | ------------- | ----------------------------------------- |
-| `test:`                                | **v1**        | Already usable, no reflection needed      |
-| `benchmark:` / `time:`                 | **v1**        | Simple stdlib impl                        |
-| `doc:` / `example:`                    | **v1**        | Adds documentation metadata               |
-| `group:` / `tag:`                      | **v1**        | Extends test runner                       |
-| `lint:` (text only)                    | **v1.1**      | Requires spans and diagnostics            |
-| `target:`                              | **v1.1**      | Requires build context + item enabling    |
-| `lint:` / `safety:` / `analyze:` (AST) | **v1.2**      | Requires AST reflection                   |
-| `ffi export`                           | **v1.2 / v2** | Needs type reflection + artifact emission |
-| `trace:` / wrappers                    | **v2**        | Requires macros / codegen                 |
-| `schema:` / `db:`                      | **v2+**       | Deep reflection + code emission           |
-| `resource:` / `embed:`                 | **v2+**       | Needs macros / const generation           |
-
----
-
-# 14. Current Implementation Status (Stage 1)
-
-Stage 1 provides foundational infrastructure for the directive system:
-
-## Implemented Features
-
-1. **Directive Parsing**: `DirectiveBlock` AST with namespace, lines, span, and owner
-2. **Directive Modes**: `--directives=off|collect|gen|run` CLI flag
-3. **Namespace Validation**: Semantic checks for directive namespace validity
-4. **Directive Scenarios Registry**: Collection of directive blocks for execution
-5. **Stub Runner**: Prints test names without actual execution
-6. **Filter Support**: `--directives-filter=test,benchmark` flag
-7. **stdlib/directives/test Module**: Standard test directive module
-
-## Usage
 
 ```bash
-# Run directive scenarios (stub mode - prints names only)
-surge diag --directives=run file.sg
-
-# Filter to specific namespaces
-surge diag --directives=run --directives-filter=test file.sg
-
-# Collect without running (for tooling)
 surge diag --directives=collect file.sg
+surge diag --directives=run --directives-filter=test file.sg
 ```
-
-## Example Output
-
-```
-Running test: example.sg#0 (test) ... SKIPPED (execution not implemented)
-Running test: example.sg#1 (test) ... SKIPPED (execution not implemented)
-
-Directive execution summary: 2 total, 2 skipped, 0 passed, 0 failed
-```
-
-## Test Directive Module
-
-The `stdlib/directives/test/test.sg` module provides stub implementations:
-
-```sg
-pragma module::test, directive;
-
-pub fn eq<T>(actual: T, expected: T) -> nothing { return nothing; }
-pub fn assert(condition: bool) -> nothing { return nothing; }
-pub fn ne<T>(actual: T, expected: T) -> nothing { return nothing; }
-pub fn fail(message: string) -> nothing { return nothing; }
-pub fn skip(reason: string) -> nothing { return nothing; }
-```
-
-## Next Steps
-
-- Stage 3: Directive execution engine
-- Stage 4: Assertion evaluation and test result reporting
-
----
-
-# 14.1 Stage 2 Implementation
-
-Stage 2 adds the `benchmark` and `time` directive modules with supporting infrastructure.
-
-## stdlib/time Module
-
-The `stdlib/time` module provides the `Duration` opaque type for time measurements:
-
-```sg
-import stdlib/time;
-
-let start: time.Duration = time.monotonic_now();
-// ... work ...
-let end: time.Duration = time.monotonic_now();
-let elapsed: time.Duration = end.sub(start);
-let seconds: float = elapsed.as_seconds();
-```
-
-**Duration Methods:**
-- `sub(other: Duration) -> Duration` — Subtract durations
-- `as_seconds() -> float` — Convert to seconds
-- `as_millis() -> float` — Convert to milliseconds
-- `as_micros() -> float` — Convert to microseconds
-- `as_nanos() -> float` — Convert to nanoseconds
-
-## Benchmark Directive Module
-
-```sg
-import stdlib/directives/benchmark;
-
-/// benchmark:
-/// benchmark.throughput("parse_json", 1000, parse_small_json);
-```
-
-**Functions:**
-- `throughput(name, iters, f)` — Run function `iters` times
-- `single(name, f)` — Run function once
-- `skip(reason)` — Skip benchmark
-
-## Time/Profile Directive Module
-
-```sg
-import stdlib/directives/time;
-
-/// time:
-/// time.profile_fn("algorithm", 100, run_algorithm);
-```
-
-**Functions:**
-- `profile_fn(name, iters, f)` — Profile with statistics
-- `profile_once(name, f)` — Single execution profile
-- `skip(reason)` — Skip profiling
-
-## Usage
-
-```bash
-# Run benchmark directives
-surge diag --directives=run --directives-filter=benchmark file.sg
-
-# Run time/profile directives
-surge diag --directives=run --directives-filter=time file.sg
-
-# Run all directives
-surge diag --directives=run file.sg
-```
-
----
-
-# 15. Closing Notes
-
-Directives are intentionally designed to evolve:
-
-* **v1** gives immediate utility (tests, benchmarks, docs) with zero semantic risk.
-* **v1.x** introduces powerful read-only reflection enabling linting, static analysis, and platform specialization.
-* **v2+** unlocks structural transformations and integration with a macro system.
-
-The architecture ensures that:
-
-* no duplication of parser or typechecker ever occurs,
-* directive code remains pure, predictable Surge,
-* reflection intrinsics expose only safe, immutable views,
-* and each feature tier can be introduced independently without destabilizing the compiler.

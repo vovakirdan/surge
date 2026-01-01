@@ -1,1047 +1,360 @@
 # Surge Language Attributes
 
-Attributes in Surge are declarative annotations that allow you to specify additional properties and constraints for program elements (functions, types, fields, parameters). Attributes start with the `@` symbol and are placed before the declaration of an element.
-
-## Contents
-
-1. [General Principles](#general-principles)
-2. [Function Attributes](#function-attributes)
-3. [Type Attributes](#type-attributes)
-4. [Field Attributes](#field-attributes)
-5. [Block Attributes](#block-attributes)
-6. [Attribute Conflicts](#attribute-conflicts)
-7. [Diagnostic Codes](#diagnostic-codes)
+Attributes are declarative annotations that attach extra constraints or metadata to
+functions, types, fields, parameters, blocks, and statements. The compiler
+validates targets, conflicts, and arguments. Some attributes are **parsed** but
+do not affect semantics yet; those are called out explicitly.
 
 ---
 
-## General Principles
-
-### Syntax
+## Syntax
 
 ```sg
 @attribute
-fn example() {}
+fn example() { return nothing; }
 
-@attribute(parameter)
-type Data = { ... }
+@attribute("arg")
+type Data = { value: int };
 
-@attribute1
-@attribute2
-fn multiple_attributes() {}
+@a
+@b
+fn multiple() { return nothing; }
 ```
 
-### Applicability
+Notes:
+- Attributes appear immediately before the declaration they modify.
+- Unknown attributes are errors.
+- Statement attributes: only `@drop expr;` is allowed (no arguments).
+- Async block attributes: only `@failfast` is accepted.
+- Attribute arguments must be literals (string or integer as required).
 
-Each attribute is only applicable to specific targets:
+---
 
-- **Fn** — functions and methods
-- **Type** — type definitions
-- **Field** — struct fields
-- **Param** — function parameters
-- **Block** — code blocks (extern<T>)
-- **Stmt** — statements
+## Attribute Index (current behavior)
 
-Trying to apply an attribute to an invalid target will trigger a compile error.
+Status legend:
+- **Enforced**: affects semantics or emits diagnostics.
+- **Validated**: argument/target checks only; no semantic effect yet.
+- **Parsed**: accepted but no checks or behavior beyond target validation.
 
-### Validation
-
-The Surge compiler performs three levels of attribute validation:
-
-1. **Applicability to the Target** — checks that the attribute is used on the correct element
-2. **Conflicts** — detects incompatible combinations of attributes
-3. **Parameters** — validates attribute arguments
+| Attribute | Targets | Args | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `@allow_to` | fn, param | none | Enforced | Enables implicit `__to` conversion. |
+| `@backend` | fn | string | Validated | Warns on unknown targets; no codegen effect. |
+| `@copy` | type | none | Enforced | All fields/members must be Copy. |
+| `@deprecated` | fn, type, field, let, const | optional string | Enforced | Emits warnings on use. |
+| `@drop` | stmt | none | Enforced | Explicit drop/borrow end point. |
+| `@entrypoint` | fn | optional string | Enforced | Program entrypoint. |
+| `@failfast` | async fn, async block | none | Enforced | Structured concurrency cancellation. |
+| `@guarded_by` | field | string | Enforced | Requires holding a lock to access. |
+| `@hidden` | fn, type, field, let, const | none | Enforced (top-level) | Field-level is parsed only. |
+| `@intrinsic` | fn, type | none | Enforced | Decl-only; type body restrictions. |
+| `@noinherit` | type, field | none | Enforced | Prevents inheritance. |
+| `@nosend` | type | none | Enforced | Disallows crossing task boundaries. |
+| `@nonblocking` | fn | none | Enforced | Forbids blocking calls. |
+| `@overload` | fn | none | Enforced | Adds a new signature. |
+| `@override` | fn | none | Enforced | Replaces an existing signature. |
+| `@packed` | type, field | none | Enforced (type) | Field-level has no layout effect. |
+| `@align` | type, field | int pow2 | Enforced | Layout alignment override. |
+| `@raii` | type | none | Parsed | Reserved. |
+| `@arena` | type, field, param | string | Parsed | Reserved. |
+| `@shared` | type, field | none | Parsed | Reserved. |
+| `@weak` | field | none | Parsed | Reserved. |
+| `@atomic` | field | none | Enforced | Type restrictions + access rules. |
+| `@readonly` | field | none | Enforced | Forbids writes after init. |
+| `@requires_lock` | fn | string | Enforced | Caller must hold lock. |
+| `@acquires_lock` | fn | string | Enforced | Callee acquires lock. |
+| `@releases_lock` | fn | string | Enforced | Callee releases lock. |
+| `@waits_on` | fn | string | Enforced | Marks potential blocking. |
+| `@send` | type | none | Enforced | Field composition must be sendable. |
+| `@sealed` | type | none | Enforced | Cannot be extended. |
+| `@pure` | fn | none | Parsed | No side-effect checks yet. |
 
 ---
 
 ## Function Attributes
 
-### @pure
+### `@overload`
 
-**Target:** Functions  
-**Parameters:** None
+Adds a new signature for an existing function name.
 
-Marks a function as "pure" — has no side effects, does not alter global state, does not perform I/O. The result depends only on the input parameters.
-
-```sg
-@pure
-fn add(x: int, y: int) -> int {
-    return x + y;
-}
-```
-
-**Guarantees:**
-- The compiler may cache results
-- Safe for parallel execution
-- The optimizer may reorder calls
-
-**Restrictions:**
-- Cannot call non-@pure functions
-- Cannot mutate global state
-- Cannot perform I/O operations
-
----
-
-### @overload
-
-**Target:** Functions  
-**Parameters:** None
-
-Allows defining multiple signatures for a function with the same name. The first declaration should not have @overload.
+Rules:
+- First declaration **must not** use `@overload`.
+- `@overload` must introduce a **different signature**.
+- If the signature is identical, use `@override` instead.
 
 ```sg
-fn process(x: int) -> int {
-    return x * 2;
-}
+fn parse(x: int) -> int { return x; }
 
 @overload
-fn process(x: String) -> String {
-    return x;
-}
-
-@overload
-fn process(x: float, y: float) -> float {
-    return x + y;
-}
+fn parse(x: string) -> int { return x.to_int(); }
 ```
 
-**Rules:**
-- The first function declaration must not have @overload
-- Signatures must be distinguishable by parameter types
-- Call resolution happens statically at compile time
+### `@override`
 
----
+Replaces an existing declaration with the same signature.
 
-### @allow_to
-
-**Target:** Functions, Parameters  
-**Parameters:** None
-
-Opts a function or a specific parameter into implicit `__to` conversion for its arguments. The compiler first checks for an exact type match; if that fails, it tries to resolve `__to(source, target) -> target` for the parameter type. If no conversion exists, the call is rejected with a type mismatch error.
+Rules:
+- An earlier matching declaration must already exist.
+- Signature must match exactly.
+- Cannot reduce visibility (`pub` must be preserved when overriding public).
+- Cannot override builtin functions.
+- Cannot combine with `@overload` or `@intrinsic`.
 
 ```sg
-type Foo = { value: int }
+fn encode(buf: &byte[]) -> uint; // forward decl
 
-extern<Foo> {
-    fn __to(self: Foo, _: string) -> string { return "Foo"; }
-}
-
-fn takes_string(@allow_to s: string) {}
-
-fn example() {
-    let f: Foo = Foo { 1 };
-    takes_string(f); // implicit Foo -> string via __to
-}
-```
-
----
-
-### @override
-
-**Target:** Functions
-**Parameters:** None
-
-Overrides an existing function or method implementation.
-
-```sg
-type Base = { x: int };
-type Derived = Base : { y: int };
-
-extern<Derived> {
-    @override
-    fn to_string(self: &Derived) -> string {
-        return "Derived";
-    }
-}
-```
-
-**Use cases:**
-
-1. **Inside `extern<T>` blocks** — overrides a method for a type
-2. **Outside `extern<T>` blocks** — overrides a local function declared earlier in the same module without a body
-
-**Example of overriding local function:**
-
-```sg
-// Forward declaration (no body)
-fn encode_frame(buf: &byte[], out: &mut byte[]) -> uint;
-
-// ... (other code)
-
-// Local implementation (same module)
 @override
-fn encode_frame(buf: &byte[], out: &mut byte[]) -> uint {
-    // real body
-    return 0:uint;
-}
+fn encode(buf: &byte[]) -> uint { return 0:uint; }
 ```
 
-**Restrictions:**
-- Signature must match the overridden function/method
-- Incompatible with `@overload`
+### `@intrinsic` (functions)
 
----
+Declares a compiler/runtime-provided function.
 
-### @intrinsic
-
-**Target:** Functions  
-**Parameters:** None
-
-The function is implemented directly by the compiler, with no body defined in Surge.
+Rules:
+- Must be a **declaration only** (no body).
+- Cannot combine with `@override` or `@entrypoint`.
+- Allowed in any module, but only known intrinsics are implemented by backends.
+- Permits raw pointer types in signatures.
 
 ```sg
-@intrinsic
-fn __builtin_add(x: int, y: int) -> int;
+@intrinsic fn rt_alloc(size: uint) -> *byte;
 ```
 
-**Restrictions:**
-- Only in the `core` module
-- Function must not have a body
-- Allowed names: `rt_alloc`, `rt_free`, `rt_realloc`, `rt_memcpy`, `rt_memmove`, `__*`
+### `@entrypoint`
 
----
+Marks the program entrypoint.
 
-### @entrypoint
+Modes:
+- No mode: `@entrypoint` requires all parameters to have defaults.
+- `@entrypoint("argv")`: parse positional arguments via `T.from_str(&string)`.
+- `@entrypoint("stdin")`: parse a single parameter from stdin.
+- `"env"` and `"config"` are reserved (`FutEntrypointModeEnv` / `FutEntrypointModeConfig`).
 
-**Target:** Functions
-**Parameters:** Optional string — mode (`"argv"`, `"stdin"`)
+Return type:
+- `nothing` or `int`, or any type that implements `ExitCode<T>` (`__to(self, int) -> int`).
+- `Option<T>` and `Erring<T, E>` implement this conversion by default.
 
-Marks a function as the program's entry point (main).
+Parameter parsing:
+- `"argv"` requires each non-default parameter type to implement `FromArgv<T>`.
+- `"stdin"` requires a single parameter type that implements `FromStdin<T>`.
 
-```sg
-@entrypoint
-fn main() {
-    println("Hello, Surge!");
-}
-```
+Contracts are declared in `core/entrypoint.sg`.
 
-**Modes:**
-
-- **No mode** (`@entrypoint`): Function must be callable with no arguments. All parameters must have default values.
-- **`"argv"`** (`@entrypoint("argv")`): Parameters without defaults must implement `FromArgv` contract (have `from_str(&string) -> Erring<T, Error>` method).
-- **`"stdin"`** (`@entrypoint("stdin")`): Parameters without defaults must implement `FromStdin` contract (have `from_str(&string) -> Erring<T, Error>` method).
-- **`"env"`**, **`"config"`**: Reserved for future use (will produce FUT7003/FUT7004 errors).
-
-**Runtime behavior (v1):**
-- **argv**: positional arguments; missing required args exits with an `Error` (code 1) and message.
-- **Parsing**: uses `T.from_str`; parse failures exit with the returned `Error`.
-- **stdin**: only one parameter is supported; more than one exits with code `7001`.
-- **no mode**: defaults are evaluated for all parameters.
-
-**Return type requirements:**
-
-The return type must be one of:
-- `nothing` (void)
-- `int` (direct exit code)
-- Any type implementing `ExitCode` contract (has `__to(self, int) -> int` method)
-
-Built-in types with `ExitCode`:
-- `Option<T>`: `Some(_)` → 0, `nothing` → 1
-- `Erring<T, E>`: `Success(_)` → 0, `Error` → error code
-
-**Example signatures:**
+Runtime behavior (v1):
+- `argv`: missing required arg exits with code 1; parse failures call `exit(err)`.
+- `stdin`: only one parameter is supported; multiple params exit with code 7001.
 
 ```sg
-// No arguments
-@entrypoint
-fn main() { }
-
-// Return exit code
-@entrypoint
-fn main() -> int { return 0; }
-
-// Return Option (0 on success, 1 on nothing)
-@entrypoint
-fn main() -> int? { return Some(42); }
-
-// Return Erring (0 on success, error code on failure)
-@entrypoint
-fn main() -> int! { return Success(0); }
-
-// With command-line arguments (argv mode)
 @entrypoint("argv")
-fn main(count: int, name: string) -> int {
-    // count and name are parsed from argv
+fn main(count: int, name: string = "guest") -> int {
     return 0;
 }
-
-// With default values (no mode needed)
-@entrypoint
-fn main(verbose: bool = false) { }
-
-// Mixed: some from argv, some with defaults
-@entrypoint("argv")
-fn main(required: int, optional: string = "default") -> int {
-    return required;
-}
 ```
 
-**Built-in types with `from_str`:**
+### `@allow_to`
 
-The following types have built-in `from_str` implementations for `argv`/`stdin` modes:
-- `int`, `uint`, `float`, `bool`, `string`
-- Sized variants: `int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`, `uint32`, `uint64`, `float32`, `float64`
+Allows implicit `__to` conversion when argument types do not match exactly.
 
-**Diagnostic codes:**
-- **SEM3121** — Unknown entrypoint mode
-- **SEM3122** — `@entrypoint` without mode requires all parameters to have defaults
-- **SEM3123** — Return type not convertible to exit code
-- **SEM3124** — Parameter type missing `FromArgv` contract
-- **SEM3125** — Parameter type missing `FromStdin` contract
-- **FUT7003** — `@entrypoint("env")` reserved for future
-- **FUT7004** — `@entrypoint("config")` reserved for future
-
----
-
-### @backend
-
-**Target:** Functions, blocks  
-**Parameters:** String — target platform
-
-Specifies on which platform the function should execute.
+- On a **function**, it applies to all parameters.
+- On a **parameter**, it applies only to that parameter.
 
 ```sg
-@backend("cpu")
-fn sequential_process() { }
-
-@backend("gpu")
-fn parallel_process() { }
-
-@backend("wasm")
-fn web_function() { }
-
-@backend("tpu")
-fn ml_inference() { }
+fn takes_string(@allow_to s: string) { print(s); }
 ```
 
-**Known platforms:**
-- `"cpu"` — CPU execution
-- `"gpu"` — GPU acceleration
-- `"tpu"` — TPU for ML
-- `"wasm"` — WebAssembly
-- `"native"` — native code
+### `@nonblocking` and `@waits_on`
 
-**Validation:** The compiler warns about unknown platforms, but it's not an error.
+- `@nonblocking` forbids blocking calls.
+- `@waits_on("field")` marks a function as potentially blocking.
+- They **conflict** if used together.
 
----
+Blocking methods checked today:
+- `Mutex.lock`
+- `RwLock.read_lock` / `RwLock.write_lock`
+- `Condition.wait`
+- `Semaphore.acquire`
+- `Channel.send` / `Channel.recv` / `Channel.close`
 
-### @nonblocking
+`@waits_on` requires a field name of type `Condition` or `Semaphore`.
 
-**Target:** Functions  
-**Parameters:** None
+### Lock Contract Attributes
 
-Function is guaranteed to be non-blocking — does not wait on mutexes, condition variables, or I/O.
-
-```sg
-@nonblocking
-fn try_lock(lock: &Mutex) -> bool {
-    // Only non-blocking operations
-}
-```
-
-**Conflicts:** Incompatible with `@waits_on`
-
----
-
-### @requires_lock
-
-**Target:** Functions  
-**Parameters:** String — name of the lock field
-
-Function requires the specified lock to be held by the caller.
+`@requires_lock`, `@acquires_lock`, and `@releases_lock` reference a lock field
+on the receiver type (typically `self`). They drive inter-procedural lock checks.
 
 ```sg
-type ThreadSafe = {
-    lock: Mutex,
-    data: int,
-};
+type Counter = { lock: Mutex, value: int };
 
-extern<ThreadSafe> {
+extern<Counter> {
     @requires_lock("lock")
-    fn get_data(self: &ThreadSafe) -> int {
-        return self.data;
-    }
+    fn get(self: &Counter) -> int { return self.value; }
 }
 ```
 
----
+### `@backend`
 
-### @acquires_lock
+Validates an execution target string (known: `cpu`, `gpu`, `tpu`, `wasm`,
+`native`). Unknown targets emit a warning. No codegen effect yet.
 
-**Target:** Functions  
-**Parameters:** String — name of the lock field
+### `@failfast`
 
-Function acquires the specified lock.
+- Allowed on `async fn` and `@failfast async { ... }` blocks.
+- Cancels sibling tasks in the same scope when one is cancelled.
+
+### `@pure`
+
+Parsed but not enforced yet. No purity checks are performed today.
+
+### `@deprecated`
+
+Emits a warning whenever the item is used. Optional string message.
 
 ```sg
-extern<ThreadSafe> {
-    @acquires_lock("lock")
-    fn lock_and_modify(self: &mut ThreadSafe) {
-        // Acquires self.lock
-    }
-}
+@deprecated("use new_api")
+fn old_api() { return nothing; }
 ```
 
----
+### `@hidden`
 
-### @releases_lock
-
-**Target:** Functions  
-**Parameters:** String — name of the lock field
-
-Function releases the specified lock.
-
-```sg
-extern<ThreadSafe> {
-    @releases_lock("lock")
-    fn unlock(self: &mut ThreadSafe) {
-        // Releases self.lock
-    }
-}
-```
-
----
-
-### @waits_on
-
-**Target:** Functions  
-**Parameters:** String — name of the condition variable field
-
-Function may block, waiting for the specified condition variable.
-
-```sg
-type Waitable = {
-    condition: Condition,
-    ready: bool,
-};
-
-extern<Waitable> {
-    @waits_on("condition")
-    fn wait_until_ready(self: &mut Waitable) {
-        // May block on self.condition
-    }
-}
-```
-
-**Conflicts:** Incompatible with `@nonblocking`
-
----
-
-### @failfast
-
-**Target:** Async functions  
-**Parameters:** None
-
-Marks an async function as fail-fast: if any child task completes with `Cancelled`, the remaining children in the scope are cancelled and the scope completes as `Cancelled`.
-
-```sg
-@failfast
-async fn run_batch() -> int {
-    let _a = spawn async {
-        checkpoint().await();
-        return 1;
-    };
-    let _b = spawn async {
-        checkpoint().await();
-        return 2;
-    };
-    return 0;
-}
-
-@entrypoint
-fn main() -> int {
-    let r = run_batch().await();
-    compare r {
-        Success(v) => print("ok=" + (v to string));
-        Cancelled() => print("cancelled");
-    };
-    return 0;
-}
-```
-
----
-
-### @deprecated
-
-**Target:** Functions, types, fields, let, const
-**Parameters:** Optional string message
-
-Marks the element as deprecated. Compiler generates a warning (SEM3127) when the deprecated element is used.
-
-```sg
-@deprecated fn old_api() {
-    // Deprecated function
-}
-
-@deprecated("Use NewType instead") type OldType = { ... };
-
-@deprecated let LEGACY_VALUE: int = 42;
-```
-
-When used:
-- Without message: `function 'old_api' deprecated.`
-- With message: `type 'OldType' deprecated. Use NewType instead`
-
----
-
-### @hidden
-
-**Target:** Functions, types, fields, let, const
-**Parameters:** None
-
-Hides the element from the module's public API.
-
-```sg
-@hidden
-fn internal_helper() {
-    // Only visible inside the module
-}
-
-type Public = {
-    @hidden
-    internal_field: int, // usable only in methods, can't be accessed for read/write externally
-
-    public_field: int, // accessible externally
-
-    pub very_public_field: int, // accessible externally + on export
-};
-```
+On top-level items: makes the symbol file-private and excludes it from exports.
+Using `pub` together with `@hidden` emits a warning.
 
 ---
 
 ## Type Attributes
 
-### @packed
+### `@intrinsic` (types)
 
-**Target:** Types, fields  
-**Parameters:** None
+Declares a compiler/runtime-provided type.
 
-Packs a struct without alignment — fields are laid out sequentially in memory.
-
-```sg
-@packed
-type CompactData = {
-    flag: bool,     // offset 0
-    value: int32,   // offset 1 (not 4!)
-};
-```
-
-**Effects:**
-- Minimal structure size
-- Can reduce access performance
-- Useful for serialization, protocols
-
-**Conflicts:** Incompatible with `@align` on the same type
-
----
-
-### @align
-
-**Target:** Types, fields  
-**Parameters:** Number — power of two (1, 2, 4, 8, 16, ...)
-
-Specifies the alignment of a type or a field in memory.
+Rules:
+- Type must be an empty struct or contain only a single `__opaque` field.
+- Full layout is allowed only in `core/intrinsics.sg` or `core_stdlib/intrinsics.sg`.
+- Permits raw pointer fields inside the type.
 
 ```sg
-@align(16)
-type VectorData = {
-    x: float,
-    y: float,
-    z: float,
-    w: float,
-};
-
-type Mixed = {
-    @align(8)
-    aligned_field: int64,
-
-    normal_field: int,
-};
+@intrinsic
+pub type Task<T> = { __opaque: int };
 ```
 
-**Validation:**
-- Parameter must be a positive power of two
-- `@align(7)` → error SEM3064
-- `@align(0)` → error SEM3064
+### `@packed` and `@align`
 
-**Conflicts:** Incompatible with `@packed` on the same type/field
+- `@packed` removes padding between fields for struct layout.
+- `@align(N)` overrides alignment; `N` must be a positive power of two.
+- `@packed` conflicts with `@align` on the same declaration.
 
----
+### `@send` / `@nosend`
 
-### @sealed
+- `@send` requires all fields to be sendable (recursively).
+- `@nosend` forbids crossing task boundaries.
+- They conflict with each other.
 
-**Target:** Types  
-**Parameters:** None
+### `@copy`
 
-Prevents inheritance and extension of the type.
+Marks a struct or union as Copy if all fields/members are Copy. Cycles are
+rejected. When valid, the type becomes Copy-capable.
 
-```sg
-@sealed
-type FinalType = {
-    data: int,
-};
+### `@sealed` / `@noinherit`
 
-// ERROR: Cannot inherit from @sealed type
-type Derived = FinalType : {
-    extra: int,
-};
+- `@sealed`: cannot be extended via inheritance or `extern<T>`.
+- `@noinherit`: prevents the type from being used as a base.
 
-extern<FinalType> {
-    // ERROR: Cannot extend @sealed type
-    fn violate_sealed(self: &FinalType) {
-    }
-}
-```
+### `@raii`, `@arena`, `@shared`
 
-**Usage:**
-- API stability — prevents unexpected inheritance
-- Optimization — the compiler knows the full set of subtypes
-
----
-
-### @send
-
-**Target:** Types  
-**Parameters:** None
-
-Type is safe to transfer between threads.
-
-```sg
-@send
-type ThreadSafeData = {
-    counter: AtomicInt,
-};
-```
-
-**Requirements:**
-- All fields must be @send
-- No unmanaged pointers
-- Atomic operations or synchronization
-
-**Conflicts:** Incompatible with `@nosend`
-
----
-
-### @nosend
-
-**Target:** Types  
-**Parameters:** None
-
-Type cannot be transferred between threads.
-
-```sg
-@nosend
-type LocalOnly = {
-    ptr: own int,  // Unmanaged pointer
-};
-```
-
-**Conflicts:** Incompatible with `@send`
-
----
-
-### @raii
-
-**Target:** Types  
-**Parameters:** None
-
-Type uses the RAII pattern — automatic resource management via constructor/destructor.
-
-```sg
-@raii
-type File = {
-    handle: int,
-};
-
-extern<File> {
-    fn __init(path: String) -> File { ... }
-    fn __drop(self: own File) { ... }
-}
-```
-
----
-
-### @shared
-
-**Target:** Types, fields  
-**Parameters:** None
-
-Shared ownership semantics (reference counting).
-
-```sg
-@shared
-type SharedResource = {
-    data: int,
-};
-```
-
----
-
-### @noinherit
-
-**Target:** Types, fields  
-**Parameters:** None
-
-On a type: prohibits other types from inheriting this type.
-On a field: the field is not inherited by derived types.
-
-```sg
-@noinherit
-type Standalone = {
-    value: int,
-};
-
-type Base = {
-    @noinherit
-    private_field: int,
-
-    public_field: int,
-};
-
-type Derived = Base : {
-    // private_field not inherited
-    // public_field is inherited
-};
-```
+Parsed only; no semantic checks or runtime behavior yet.
 
 ---
 
 ## Field Attributes
 
-### @readonly
+### `@readonly`
 
-**Target:** Fields  
-**Parameters:** None
+Field cannot be written after initialization.
 
-Field is read-only after initialization.
+### `@atomic`
 
-```sg
-type Container = {
-    @readonly
-    id: int,
+- Field type must be `int`, `uint`, `bool`, or `*T`.
+- Direct reads/writes are forbidden; use atomic intrinsics via address-of.
 
-    value: int,
-};
+### `@guarded_by("lock")`
 
-fn modify(c: &mut Container) {
-    c.id = 42;     // ERROR: cannot write to @readonly field
-    print(c.id);   // OK
-    c.value = 100; // OK
-}
-```
+Access requires the named lock to be held. Reads allow read/write locks; writes
+require mutex or write lock.
 
-**Diagnostic:** SEM3075
+### `@align` / `@packed`
 
----
+`@align` is enforced; `@packed` is accepted but currently has no field-level
+layout effect.
 
-### @atomic
+### `@noinherit`
 
-**Target:** Fields  
-**Parameters:** None
+Field is not inherited by derived types.
 
-Field has atomic read/write operations.
+### `@deprecated` / `@hidden`
 
-```sg
-type Counter = {
-    @atomic
-    count: int,
-};
-```
+Parsed for fields; only `@deprecated` currently affects diagnostics. Field-level
+`@hidden` is reserved (no access checks yet).
 
-**Requirements:**
-- Field type must support atomic operations
-- Usually numeric types, pointers
+### `@weak`, `@shared`, `@arena`
+
+Parsed only; no semantic effect yet.
 
 ---
 
-### @weak
+## Parameter Attributes
 
-**Target:** Fields  
-**Parameters:** None
+### `@allow_to`
 
-Weak reference — does not increase reference count.
+See function attribute description; enables implicit `__to` for that parameter.
+
+### `@arena`
+
+Parsed only; no semantic effect yet.
+
+---
+
+## Statement Attribute
+
+### `@drop`
+
+Explicit drop/borrow end point. Only valid as `@drop binding;` with no
+arguments. The target must be a binding name.
 
 ```sg
-type Node = {
-    @shared
-    children: Array<Node>,
-
-    @weak
-    parent: Node,  // Weak reference, avoids cycles
-};
+let r = &mut value;
+@drop r; // ends borrow early
 ```
 
 ---
 
-### @guarded_by
+## Conflicts and Validation Summary
 
-**Target:** Fields  
-**Parameters:** String — name of the lock field
-
-Field access is protected by the specified lock.
-
-```sg
-type ThreadSafe = {
-    lock: Mutex,
-
-    @guarded_by("lock")
-    protected_data: int,
-};
-```
-
-**Validation:**
-- Field `lock` must exist in the same type
-- Field `lock` should be of type Mutex or RwLock (not checked yet)
+- `@packed` + `@align` (same declaration)
+- `@send` + `@nosend`
+- `@nonblocking` + `@waits_on`
+- `@overload` + `@override`
+- `@intrinsic` + `@override` or `@entrypoint`
+- `@failfast` requires async context
 
 ---
 
-### @arena
-
-**Target:** Fields  
-**Parameters:** String — arena name
-
-Field is allocated in the specified memory arena.
-
-```sg
-type ArenaAllocated = {
-    @arena("temp")
-    temporary: int,
-
-    @arena("persistent")
-    persistent: int,
-};
-```
-
----
-
-## Block Attributes
-
-### @failfast
-
-**Target:** Async blocks  
-**Parameters:** None
-
-Applies fail-fast cancellation to the async block scope.
-
-```sg
-let r = (@failfast async {
-    let _t = spawn async {
-        checkpoint().await();
-        return 1;
-    };
-    return 0;
-}).await();
-
-compare r {
-    Success(v) => print("result=" + (v to string));
-    Cancelled() => print("cancelled");
-};
-```
-
----
-
-### @backend
-
-**Target:** extern<T> blocks  
-**Parameters:** String — target platform
-
-All methods in the block execute on the specified platform.
-
-```sg
-@backend("gpu")
-extern<Matrix> {
-    fn multiply_gpu(self: &Matrix, other: &Matrix) -> Matrix {
-        // GPU-accelerated multiplication
-    }
-}
-```
-
----
-
-## Attribute Conflicts
-
-Some pairs of attributes are incompatible and cause compiler errors:
-
-### @packed vs @align
-
-```sg
-// ERROR SEM3061: @packed conflicts with @align
-@packed
-@align(16)
-type Conflict = { ... };
-```
-
-**Reason:** @packed removes padding, @align adds it — contradiction.
-
----
-
-### @send vs @nosend
-
-```sg
-// ERROR SEM3062: @send conflicts with @nosend
-@send
-@nosend
-type Conflict = { ... };
-```
-
-**Reason:** A type cannot be both thread-safe and not thread-safe at the same time.
-
----
-
-### @nonblocking vs @waits_on
-
-```sg
-type T = { cond: Condition };
-
-extern<T> {
-    // ERROR SEM3063: @nonblocking conflicts with @waits_on
-    @nonblocking
-    @waits_on("cond")
-    fn conflict(self: &mut T) { }
-}
-```
-
-**Reason:** @nonblocking guarantees no blocking, @waits_on implies blocking.
-
----
-
-## Diagnostic Codes
-
-### Conflicts (3060-3063)
-
-- **SEM3060** — General attribute conflict
-- **SEM3061** — @packed conflicts with @align
-- **SEM3062** — @send conflicts with @nosend
-- **SEM3063** — @nonblocking conflicts with @waits_on
-
-### Parameters (3064-3073)
-
-- **SEM3064** — @align(N): N is not a power of two
-- **SEM3065** — @align: invalid value (not a number)
-- **SEM3066** — @backend: unknown platform
-- **SEM3067** — @backend: invalid argument (not a string)
-- **SEM3068** — @guarded_by: field not found
-- **SEM3069** — @guarded_by: field is not Mutex/RwLock
-- **SEM3070** — @requires_lock: field not found
-- **SEM3071** — @waits_on: field not found
-- **SEM3072** — Required parameter is missing
-- **SEM3073** — Invalid parameter
-
-### Semantic Violations (3074-3076)
-
-- **SEM3074** — Attempt to extend @sealed type
-- **SEM3075** — Attempt to write to @readonly field
-- **SEM3076** — @pure violation: side effects
-
-### Entrypoint Validation (3121-3125)
-
-- **SEM3121** — Unknown @entrypoint mode (valid: `"argv"`, `"stdin"`)
-- **SEM3122** — @entrypoint without mode requires all parameters to have default values
-- **SEM3123** — Return type must be `nothing`, `int`, or implement `ExitCode` contract
-- **SEM3124** — Parameter type does not implement `FromArgv` contract
-- **SEM3125** — Parameter type does not implement `FromStdin` contract
-
-### Future/Unsupported (7003-7004)
-
-- **FUT7003** — @entrypoint("env") mode is reserved for future use
-- **FUT7004** — @entrypoint("config") mode is reserved for future use
-
----
-
-## Usage Examples
-
-### Thread-safe Counter
-
-```sg
-@send
-type ThreadSafeCounter = {
-    lock: Mutex,
-
-    @guarded_by("lock")
-    value: int,
-};
-
-extern<ThreadSafeCounter> {
-    @requires_lock("lock")
-    fn get_value(self: &ThreadSafeCounter) -> int {
-        return self.value;
-    }
-
-    @acquires_lock("lock")
-    fn increment(self: &mut ThreadSafeCounter) {
-        self.value = self.value + 1;
-    }
-
-    @releases_lock("lock")
-    fn unlock(self: &mut ThreadSafeCounter) {
-    }
-}
-```
-
-### GPU-accelerated Processing
-
-```sg
-@backend("gpu")
-type GPUMatrix = {
-    @align(16)
-    data: Array<float>,
-};
-
-@backend("gpu")
-extern<GPUMatrix> {
-    @nonblocking
-    fn multiply(self: &GPUMatrix, other: &GPUMatrix) -> GPUMatrix {
-        // GPU kernel
-    }
-}
-```
-
-### Immutable Config
-
-```sg
-@sealed
-type Config = {
-    @readonly
-    app_name: String,
-
-    @readonly
-    version: int,
-
-    @hidden
-    internal_key: String,
-};
-```
-
-### RAII Resource
-
-```sg
-@raii
-@nosend
-type FileHandle = {
-    @readonly
-    path: String,
-
-    @hidden
-    fd: int,
-};
-
-extern<FileHandle> {
-    fn __init(path: String) -> FileHandle { ... }
-
-    fn __drop(self: own FileHandle) {
-        // Closes the file automatically
-    }
-}
-```
-
----
-
-## Conclusion
-
-The Surge attribute system provides:
-
-1. **Safety** — compile-time checks (readonly, guarded_by, send/nosend)
-2. **Performance** — memory layout control (packed, align), specialization (backend)
-3. **Documentation** — explicit contracts (pure, nonblocking, deprecated)
-4. **Extensibility** — ability to add new attributes in the future
-
-All attributes are validated by the compiler with clear diagnostic messages, helping you catch errors early in development.
+## Diagnostics (selected)
+
+- `SemaAttrPackedAlign` `@packed` conflicts with `@align`
+- `SemaAttrSendNosend` `@send` conflicts with `@nosend`
+- `SemaAttrNonblockingWaitsOn` `@nonblocking` conflicts with `@waits_on`
+- `SemaAttrAlignNotPowerOfTwo` `@align` not power of two
+- `SemaAttrBackendUnknown` `@backend` unknown target (warning)
+- `SemaAttrGuardedByNotField` / `SemaAttrGuardedByNotLock` `@guarded_by` invalid field/type
+- `SemaLockGuardedByViolation` `@guarded_by` access without lock
+- `SemaLockNonblockingCallsWait` `@nonblocking` calls blocking operation
+- `SemaAttrWaitsOnNotCondition` `@waits_on` field must be Condition/Semaphore
+- `SemaAttrAtomicInvalidType` `@atomic` invalid field type
+- `SemaAtomicDirectAccess` `@atomic` direct access
+- `SemaAttrCopyNonCopyField` / `SemaAttrCopyCyclicDep` `@copy` validation failures
+- `SemaEntrypointModeInvalid` / `SemaEntrypointNoModeRequiresNoArgs` / `SemaEntrypointReturnNotConvertible` / `SemaEntrypointParamNoFromArgv` / `SemaEntrypointParamNoFromStdin` entrypoint validation
+- `FutEntrypointModeEnv` / `FutEntrypointModeConfig` reserved entrypoint modes
+
+See `internal/diag/codes.go` for the full list.

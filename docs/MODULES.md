@@ -1,6 +1,6 @@
 # Surge Modules and `pragma module`
 
-> **Status:** Draft documentation  
+> **Status:** Implemented (multi-file modules require `pragma module` / `pragma binary`)  
 > **Audience:** Surge language users and standard-library authors  
 > **Purpose:** Describes the concept of modules in Surge, rules for building multi-file modules, the `pragma module` mechanism, automatic module name determination, and when a pragma is actually needed.
 
@@ -19,8 +19,12 @@ Every module:
 
 - has a **unique name**;
 - exports only `pub` elements;
-- may consist of **a single file** or **a set of files in a directory**;
+- may consist of **a single file** (default) or **a set of files in a directory** (only with `pragma module` / `pragma binary`);
 - can be a regular module or an executable module (`binary`).
+
+**Default behavior (important):**
+- If there is **no** `pragma module` / `pragma binary` in a directory, **each file is its own module**.
+- A directory is only treated as a **multi-file module** when *all* `.sg` files in that directory declare `pragma module` or `pragma binary`.
 
 ---
 
@@ -50,12 +54,12 @@ In fact, `binary` is just a regular module with an extra contract: “I have a s
 
 # 3. `pragma module`
 
-`pragma module` is a declaration that the file belongs to a **multi-file module**, defined by the whole directory.
+`pragma module` is a **pragma entry** that declares the file belongs to a **multi-file module**, defined by the whole directory.
 
 Example:
 
 ```sg
-pragma module;
+pragma module
 ```
 
 ### What does `pragma module` do:
@@ -85,7 +89,7 @@ scripts/
 In `scripts/foo.sg`:
 
 ```sg
-pragma module;
+pragma module
 ```
 
 → module name is **scripts**
@@ -103,7 +107,7 @@ import scripts;
 If you need a different name or the directory name is invalid, you can specify a name explicitly:
 
 ```sg
-pragma module::bounded;
+pragma module::bounded
 ```
 
 Now, the directory is imported not by its folder name but by `bounded`:
@@ -173,6 +177,10 @@ If even a single file in a directory has `pragma module` or `pragma binary`, the
 * the module name is shared across the directory;
 * all top-level declarations are visible between files, except those marked with `@hidden`.
 
+Diagnostics:
+- `ProjMissingModulePragma` if some files in the directory lack the pragma.
+- `ProjInconsistentModuleName` if files disagree on the explicit `::name`.
+
 ### Example structure
 
 ```
@@ -185,7 +193,7 @@ core/vector/
 In each file:
 
 ```sg
-pragma module;
+pragma module
 ```
 
 → A module `core/vector` is created.
@@ -242,6 +250,8 @@ The compiler must:
 * issue an error: *"The module is named `bar`, not `foo/foo`"*
 * suggest an autofix: **change the import to `foo/bar`**
 
+Diagnostic: `ProjWrongModuleNameInImport`.
+
 ---
 
 # 9. `pragma binary`
@@ -249,7 +259,7 @@ The compiler must:
 Declares that the module is executable:
 
 ```sg
-pragma binary;
+pragma binary
 ```
 
 Rules:
@@ -261,7 +271,7 @@ Rules:
 ### Explicit name:
 
 ```sg
-pragma binary::run_app;
+pragma binary::run_app
 ```
 
 The module is now named `run_app`.
@@ -279,11 +289,13 @@ fn run() -> int { ... }
 
 ### Rules:
 
-* there must be **exactly one** `@entrypoint` in the module;
+* there must be **exactly one** `@entrypoint` in a `binary` module;
 * overloads are allowed (`@overload`),
   because the attribute marks a specific function;
 * a binary module must have such a function;
 * a regular module doesn't have to.
+
+**Modes:** `@entrypoint("argv")` and `@entrypoint("stdin")` are supported; see `docs/ATTRIBUTES.md`.
 
 ---
 
@@ -309,6 +321,8 @@ Modules are imported by path:
 ```
 import core/vector;
 import foo/bar;
+import ./local_module;
+import ../parent_module;
 ```
 
 A path consists of:
@@ -316,7 +330,22 @@ A path consists of:
 * directory segments,
 * a final segment — the module name (folder or `::name`).
 
+Import syntax also supports aliasing and groups:
+
+```
+import core/math as m;
+import core/math::{sin, cos};
+import core/math::*;
+```
+
+See `docs/LANGUAGE.md` for the full grammar.
+
 If a module inside a directory was renamed — use the new name.
+
+**Resolution order (simplified):**
+1) `path.sg` (single-file module)  
+2) `path/` (directory module with `pragma module`/`binary`)  
+3) explicit-name scan for `pragma module::name` / `pragma binary::name`
 
 ---
 

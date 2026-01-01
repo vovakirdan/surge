@@ -54,7 +54,7 @@ fn parse(s: string) -> Erring<int, Error> {  // or int!
     if (s == "42") { 
         return Success(42); 
     }
-    let e: Error = { message: "bad", code: 1 };
+    let e: Error = { message = "bad", code = 1:uint };
     return e; // error goes as-is
 }
 ```
@@ -89,7 +89,7 @@ tag Some<T>(T);
 type Option<T> = Some(T) | nothing;
 
 fn head<T>(xs: T[]) -> Option<T> {
-    if (xs.len == 0) { return nothing; }
+    if (len(xs) == 0) { return nothing; }
     return Some(xs[0]);
 }
 
@@ -112,16 +112,18 @@ match result {
 In Surge:
 
 ```sg
+let result: Erring<string, Error> = Success("ok");
+
 compare result {
-    Success(v) => print("ok", v);
-    err        => print("err", err);
+    Success(v) => print("ok " + v);
+    err        => print("err " + err.message);
 }
 ```
 
 We know about `match`. We just called it `compare` to:
 
 * emphasize the **comparison of shape/value**,
-* not carry Rust expectations about exhaustiveness and patterns (we have our own plan).
+* keep our own model: tagged unions are exhaustive; untagged unions are not supported.
 
 ### No, the last line is not a `return`
 
@@ -340,10 +342,13 @@ async fn load() -> Data {
 }
 
 let task: Task<Data> = load();
-let data = task.await();
+compare task.await() {
+    Success(data) => print(data to string);
+    Cancelled() => print("cancelled");
+}
 ```
 
-`Task<T>` is a regular type, `await()` is a method, not a separate operator; the async/await model is built into types and structured concurrency, not bolted on top of everything.
+`Task<T>` is a regular type, `await()` is a method, and it returns `TaskResult<T>`; the async/await model is built into types and structured concurrency, not bolted on top of everything.
 
 ### `any`, `unknown`, `never` vs meaningful types
 
@@ -463,8 +468,8 @@ fn do() -> int! {
 
 let result = do();
 compare result {
-    Success(v) => print("ok", v);
-    err        => print("err:", err);
+    Success(v) => print("ok " + (v to string));
+    err        => print("err " + err.message);
 }
 ```
 
@@ -503,7 +508,7 @@ In Surge:
 ```sg
 fn parse(s: string) -> int! {
     if (s == "42") { return 42; }
-    let e: Error = { message: "bad", code: 1 };
+    let e: Error = { message = "bad", code = 1:uint };
     return e;
 }
 ```
@@ -621,7 +626,7 @@ No, we don't have `do`-notation and laziness by default.
 
 * `compare` — simple pattern matching, not a category-theoretic ritual.
 * contracts — are **structural interfaces**, not typeclass hierarchies,
-* async/await — is `Task<T>` and `.await()`, not an `IO` monad (at least not officially 😉).
+* async/await — is `Task<T>` + `TaskResult<T>`, not an `IO` monad (at least not officially 😉).
 
 ---
 

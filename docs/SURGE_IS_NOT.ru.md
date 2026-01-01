@@ -54,7 +54,7 @@ fn parse(s: string) -> Erring<int, Error> {  // или int!
     if (s == "42") { 
         return Success(42); 
     }
-    let e: Error = { message: "bad", code: 1 };
+    let e: Error = { message = "bad", code = 1:uint };
     return e; // error идёт как есть
 }
 ```
@@ -89,7 +89,7 @@ tag Some<T>(T);
 type Option<T> = Some(T) | nothing;
 
 fn head<T>(xs: T[]) -> Option<T> {
-    if (xs.len == 0) { return nothing; }
+    if (len(xs) == 0) { return nothing; }
     return Some(xs[0]);
 }
 
@@ -112,16 +112,18 @@ match result {
 В Surge:
 
 ```sg
+let result: Erring<string, Error> = Success("ok");
+
 compare result {
-    Success(v) => print("ok", v);
-    err        => print("err", err);
+    Success(v) => print("ok " + v);
+    err        => print("err " + err.message);
 }
 ```
 
 Мы знаем про `match`. Просто назвали это `compare`, чтобы:
 
 * подчеркнуть именно **сравнение формы/значения**,
-* не тащить за собой ожидания Rust по exhaustiveness и паттернам (у нас свой план).
+* остаться в своей модели: для tagged unions exhaustiveness проверяется; untagged unions не поддерживаются.
 
 ### Нет, последняя строка — это не `return`
 
@@ -215,7 +217,7 @@ fn id<T>(x: T) -> T {
 
 let a = id(42);    // T выводится как int
 let b = id("hi");  // T выводится как string
-
+```
 
 Там, где очевидно — компилятор выводит типы сам.
 Там, где неочевидно — он честно говорит: «Я не уверен, напиши `::<int>` сам, пожалуйста».
@@ -340,10 +342,13 @@ async fn load() -> Data {
 }
 
 let task: Task<Data> = load();
-let data = task.await();
+compare task.await() {
+    Success(data) => print(data to string);
+    Cancelled() => print("cancelled");
+}
 ```
 
-`Task<T>` — обычный тип, `await()` — метод, а не отдельный оператор; модель async/await встроена в типы и структурированную конкуррентность, а не подвешена поверх всего.
+`Task<T>` — обычный тип, `await()` — метод и он возвращает `TaskResult<T>`; модель async/await встроена в типы и структурированную конкуррентность, а не подвешена поверх всего.
 
 ### `any`, `unknown`, `never` vs осмысленные типы
 
@@ -463,8 +468,8 @@ fn do() -> int! {
 
 let result = do();
 compare result {
-    Success(v) => print("ok", v);
-    err        => print("err:", err);
+    Success(v) => print("ok " + (v to string));
+    err        => print("err " + err.message);
 }
 ```
 
@@ -503,7 +508,7 @@ def parse(s: str) -> int:
 ```sg
 fn parse(s: string) -> int! {
     if (s == "42") { return 42; }
-    let e: Error = { message: "bad", code: 1 };
+    let e: Error = { message = "bad", code = 1:uint };
     return e;
 }
 ```
@@ -615,7 +620,7 @@ Surge не Python: мы любим читаемость, но в обмен пр
 
 * `compare` — простой pattern-matching, не теоретико-категорный ритуал.
 * контракты — это **структурные интерфейсы**, а не typeclass-иерархии,
-* async/await — это `Task<T>` и `.await()`, а не монада `IO` (по крайней мере, официально 😉).
+* async/await — это `Task<T>` + `TaskResult<T>`, а не монада `IO` (по крайней мере, официально 😉).
 
 ---
 
