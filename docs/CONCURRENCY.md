@@ -222,11 +222,31 @@ Notes:
 
 ---
 
-## 9. Limitations (v1)
+## 9. Scheduler Fairness (v1)
+
+Fairness is guaranteed for **Ready** tasks in the single-thread executor under
+cooperative scheduling:
+
+- **F1 (round-robin for Ready tasks):** with a finite ready set, each Ready task
+  is polled again after at most `N-1` polls of other Ready tasks (where `N` is
+  the current ready-set size).
+- **F2 (one poll per step):** each scheduler step performs exactly one poll; a
+  yielded task is requeued to the back of the ready queue, and a parked task is
+  not requeued.
+- **F3 (determinism):** in default mode, ordering is FIFO by spawn/wake order;
+  in fuzz mode, the choice is randomized but Ready tasks remain eligible and
+  cannot be starved.
+
+This guarantee only applies to tasks that reach suspension points (`await`,
+`checkpoint`, channel ops, `sleep`). A CPU-bound loop without suspension can
+still monopolize execution.
+
+---
+
+## 10. Limitations (v1)
 
 - Single-threaded runtime; no true parallelism.
 - `parallel map/reduce` and `signal` are reserved keywords (not supported).
-- `await` inside loops is rejected during async lowering.
-- Fairness between tasks is not guaranteed.
+- CPU-bound tasks that never suspend can monopolize execution.
 
 See `docs/PARALLEL.md` for the status of parallel features.
