@@ -1,29 +1,28 @@
-# Surge Concurrency Model v1
+# Модель конкурентности Surge v1
 [English](CONCURRENCY.md) | [Russian](CONCURRENCY.ru.md)
-> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
-> **Status:** Implemented in VM (single-threaded cooperative scheduler)
-> **Scope:** async/await, Task/TaskResult, spawn, channels, cancellation, timeouts
-> **Out of scope:** OS-thread parallelism, signals, parallel map/reduce
-
----
-
-## 1. Model at a Glance
-
-Surge v1 uses a **single-threaded** executor with **cooperative scheduling**:
-
-- Tasks are **state machines**, not OS threads.
-- A task runs until it hits a suspension point (`await`, channel ops, `sleep`, `checkpoint`).
-- `spawn` **schedules** a task for concurrent execution.
-- Cancellation is **cooperative** and observed only at suspension points.
-
-This keeps the ownership model sound without cross-thread borrow checking.
+> **Статус:** Реализовано в VM (однопоточный кооперативный планировщик)
+> **Область:** async/await, Task/TaskResult, spawn, каналы, отмена, таймауты
+> **Вне области:** параллелизм на уровне потоков ОС, сигналы, параллельный map/reduce
 
 ---
 
-## 2. Task and TaskResult
+## 1. Модель вкратце
 
-Core definitions live in `core/intrinsics.sg`:
+Surge v1 использует **однопоточный** исполнитель (executor) с **кооперативным планированием**:
+
+- Задачи (Tasks) — это **конечные автоматы**, а не потоки ОС.
+- Задача выполняется до тех пор, пока не достигнет точки приостановки (`await`, операции с каналами, `sleep`, `checkpoint`).
+- `spawn` **планирует** задачу для конкурентного выполнения.
+- Отмена является **кооперативной** и наблюдается только в точках приостановки.
+
+Это сохраняет модель владения (ownership model) надежной без проверки заимствований (borrow checking) между потоками.
+
+---
+
+## 2. Task и TaskResult
+
+Основные определения находятся в `core/intrinsics.sg`:
 
 ```sg
 pub type Task<T> = { __opaque: int };
@@ -38,14 +37,14 @@ extern<Task<T>> {
 }
 ```
 
-Key points:
+Ключевые моменты:
 
-- `Task<T>` is an opaque handle to a state machine.
-- `.await()` **consumes** `own Task<T>` and returns `TaskResult<T>`.
-- Use `task.clone()` if you need multiple handles.
-- `cancel()` is best-effort; tasks observe cancellation at suspension points.
+- `Task<T>` — это непрозрачный handle (дескриптор) конечного автомата.
+- `.await()` **поглощает** `own Task<T>` и возвращает `TaskResult<T>`.
+- Используйте `task.clone()`, если вам нужно несколько дескрипторов.
+- `cancel()` работает по принципу "best-effort"; задачи замечают отмену в точках приостановки.
 
-Example:
+Пример:
 
 ```sg
 let t = spawn fetch_user(42);
@@ -57,7 +56,7 @@ compare t.await() {
 
 ---
 
-## 3. async Functions and async Blocks
+## 3. async функции и async блоки
 
 ```sg
 async fn fetch_user(id: int) -> User {
@@ -68,10 +67,10 @@ async fn fetch_user(id: int) -> User {
 let t: Task<User> = fetch_user(42);
 ```
 
-- `async fn` returns `Task<T>` immediately; it does not run until awaited or spawned.
-- `async { ... }` creates an anonymous `Task<T>` from a block.
+- `async fn` возвращает `Task<T>` немедленно; она не запускается, пока не будет вызвана `await` или `spawn`.
+- `async { ... }` создает анонимную `Task<T>` из блока.
 
-`@failfast` is allowed on **async functions** and **async blocks**:
+`@failfast` разрешен на **async функциях** и **async блоках**:
 
 ```sg
 @failfast
@@ -90,8 +89,8 @@ async fn pipeline() -> nothing {
 }
 ```
 
-Failfast means: if a child task completes with `Cancelled`, the scope cancels
-remaining children and the parent returns `Cancelled`.
+Failfast означает: если дочерняя задача завершается с `Cancelled`, область видимости отменяет
+оставшихся детей, и родитель возвращает `Cancelled`.
 
 ---
 
@@ -101,15 +100,15 @@ remaining children and the parent returns `Cancelled`.
 spawn expr
 ```
 
-Rules:
+Правила:
 
-- `expr` must be a `Task<T>` (async function call or async block).
-- `spawn` schedules the task and returns a `Task<T>` handle.
-- Only `own` values may cross the spawn boundary.
-- `@nosend` types are rejected in spawn (`SemaNosendInSpawn`).
-- `spawn checkpoint()` is warned as useless (`SemaSpawnCheckpointUseless`).
+- `expr` должно быть `Task<T>` (вызов async функции или async блок).
+- `spawn` планирует задачу и возвращает дескриптор `Task<T>`.
+- Только `own` значения могут пересекать границу spawn.
+- Типы с `@nosend` отвергаются в spawn (`SemaNosendInSpawn`).
+- `spawn checkpoint()` вызывает предупреждение как бесполезный вызов (`SemaSpawnCheckpointUseless`).
 
-Example:
+Пример:
 
 ```sg
 async fn work(x: int) -> int { return x * 2; }
@@ -131,7 +130,7 @@ compare t2.await() {
 
 ## 5. await
 
-`.await()` is a **method call** and returns `TaskResult<T>`:
+`.await()` — это **вызов метода**, возвращающий `TaskResult<T>`:
 
 ```sg
 compare fetch_user(42).await() {
@@ -140,32 +139,32 @@ compare fetch_user(42).await() {
 }
 ```
 
-Rules:
+Правила:
 
-- Allowed inside `async` functions/blocks and `@entrypoint` functions.
-- Rejected in plain sync functions (`SemaIntrinsicBadContext`).
-- `await` inside loops is currently **not supported** (MIR lowering rejects it).
+- Разрешено внутри `async` функций/блоков и `@entrypoint` функций.
+- Запрещено в простых синхронных функциях (`SemaIntrinsicBadContext`).
+- `await` внутри циклов в настоящее время **не поддерживается** (MIR lowering отвергает это).
 
 ---
 
-## 6. Structured Concurrency (Scopes)
+## 6. Структурированная конкурентность (Scopes)
 
-Surge enforces structured concurrency in sema:
+Surge принуждает к структурированной конкурентности на этапе семантического анализа (sema):
 
-- Spawned tasks must be **awaited or returned**.
-- Leaking a task out of scope produces errors:
+- Порожденные (spawned) задачи должны быть **ожидаемы (awaited) или возвращены**.
+- Утечка задачи из области видимости вызывает ошибки:
   - `SemaTaskNotAwaited` (3107)
   - `SemaTaskEscapesScope` (3108)
   - `SemaTaskLeakInAsync` (3109)
   - `SemaTaskLifetimeError` (3110)
 
-At runtime, each async function/block creates a scope. On scope exit, the
-runtime joins all children before completing. Returning a `Task<T>` transfers
-responsibility to the caller.
+В рантайме каждая async функция/блок создает область видимости (scope). При выходе из области
+рантайм джойнит (joins) всех детей перед завершением. Возврат `Task<T>` передает
+ответственность вызывающему.
 
 ---
 
-## 7. Cancellation, Timeouts, and Yielding
+## 7. Отмена, Таймауты и Yielding (Уступка)
 
 Intrinsics:
 
@@ -175,14 +174,14 @@ Intrinsics:
 @intrinsic pub fn timeout<T>(t: Task<T>, ms: uint) -> TaskResult<T>;
 ```
 
-Notes:
+Заметки:
 
-- `checkpoint().await()` yields to the scheduler and checks cancellation.
-- `sleep(ms).await()` suspends for `ms` (virtual time in VM).
-- `timeout(t, ms)` waits up to `ms` and returns `Success` or `Cancelled`.
-  It cancels the target on deadline.
+- `checkpoint().await()` уступает управление планировщику и проверяет отмену.
+- `sleep(ms).await()` приостанавливает выполнение на `ms` (виртуальное время в VM).
+- `timeout(t, ms)` ждет до `ms` и возвращает `Success` или `Cancelled`.
+  Он отменяет цель по истечении времени.
 
-Example:
+Пример:
 
 ```sg
 let t = spawn slow_call();
@@ -194,9 +193,9 @@ compare timeout(t, 500:uint) {
 
 ---
 
-## 8. Channels
+## 8. Каналы (Channels)
 
-`Channel<T>` is a typed FIFO handle (copyable):
+`Channel<T>` — это типизированный FIFO дескриптор (копируемый):
 
 ```sg
 let ch = make_channel::<int>(16);
@@ -208,26 +207,26 @@ API (core intrinsics):
 
 - `make_channel<T>(capacity: uint) -> own Channel<T>`
 - `Channel<T>::new(capacity: uint) -> own Channel<T>`
-- `send(self: &Channel<T>, value: own T) -> nothing` (blocking)
-- `recv(self: &Channel<T>) -> Option<T>` (blocking)
+- `send(self: &Channel<T>, value: own T) -> nothing` (блокирующий)
+- `recv(self: &Channel<T>) -> Option<T>` (блокирующий)
 - `try_send(self: &Channel<T>, value: own T) -> bool`
 - `try_recv(self: &Channel<T>) -> Option<T>`
 - `close(self: &Channel<T>) -> nothing`
 
-Notes:
+Заметки:
 
-- `send`/`recv` are suspension points in async code.
-- `recv` returns `nothing` when the channel is closed and empty.
-- Sending to a closed channel is a runtime error.
-- `@nosend` values cannot be sent through channels (`SemaChannelNosendValue`).
+- `send`/`recv` являются точками приостановки в async коде.
+- `recv` возвращает `nothing`, когда канал закрыт и пуст.
+- Отправка в закрытый канал — ошибка времени выполнения.
+- Значения с `@nosend` нельзя передавать через каналы (`SemaChannelNosendValue`).
 
 ---
 
-## 9. Limitations (v1)
+## 9. Ограничения (v1)
 
-- Single-threaded runtime; no true parallelism.
-- `parallel map/reduce` and `signal` are reserved keywords (not supported).
-- `await` inside loops is rejected during async lowering.
-- Fairness between tasks is not guaranteed.
+- Однопоточный рантайм; нет истинного параллелизма.
+- `parallel map/reduce` и `signal` являются зарезервированными ключевыми словами (не поддерживаются).
+- `await` внутри циклов отвергается во время async lowering.
+- Справедливость (fairness) между задачами не гарантируется.
 
-See `docs/PARALLEL.ru.md` for the status of parallel features.
+См. `docs/PARALLEL.ru.md` для статуса параллельных функций.

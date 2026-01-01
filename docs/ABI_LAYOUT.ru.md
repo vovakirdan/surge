@@ -1,40 +1,39 @@
 # ABI Layout (v1) — x86_64-linux-gnu
 [English](ABI_LAYOUT.md) | [Russian](ABI_LAYOUT.ru.md)
-> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
-This document defines the **v1 ABI layout contract** for Surge on the supported
-runtime target:
+Этот документ определяет **контракт размещения (layout) ABI v1** для Surge на поддерживаемой
+целевой платформе (runtime target):
 
 - Target triple: `x86_64-linux-gnu`
-- Pointer size/alignment: `8` / `8` bytes
+- Размер указателя / выравнивание: `8` / `8` байт
 
-The VM may store values differently internally, but **layout queries** must
-follow these rules:
+Виртуальная машина (VM) может хранить значения иначе внутри, но **запросы размещения (layout queries)** должны
+следовать этим правилам:
 
-- `size_of<T>()` returns the ABI size.
-- `align_of<T>()` returns the ABI alignment.
+- `size_of<T>()` возвращает размер ABI.
+- `align_of<T>()` возвращает выравнивание ABI.
 
-The single source of truth is `internal/layout` (`LayoutEngine`).
-
----
-
-## 1. Conventions
-
-- **Handle**: a pointer-sized value referring to a heap object.
-- Handle **numeric values are not ABI-stable** and must not appear in goldens.
-- `own` and type aliases **do not affect layout** (canonicalized before layout).
+Единственным источником истины является `internal/layout` (`LayoutEngine`).
 
 ---
 
-## 2. Scalars
+## 1. Соглашения
 
-### 2.1. Core scalars
+- **Handle**: значение размером с указатель, ссылающееся на объект в куче.
+- Числовые значения Handle **не являются стабильными в ABI** и не должны появляться в golden-тестах.
+- `own` и псевдонимы типов (type aliases) **не влияют на размещение** (канонизируются перед расчетом layout).
 
-- `bool`: size `1`, align `1`
-- `unit`: size `0`, align `1`
-- `nothing`: size `0`, align `1`
+---
 
-### 2.2. Fixed-width numerics
+## 2. Скаляры
+
+### 2.1. Базовые скаляры
+
+- `bool`: размер `1`, выравнивание `1`
+- `unit`: размер `0`, выравнивание `1`
+- `nothing`: размер `0`, выравнивание `1`
+
+### 2.2. Числовые типы фиксированной ширины
 
 - `int8/uint8`: `1/1`
 - `int16/uint16`: `2/2`
@@ -44,9 +43,9 @@ The single source of truth is `internal/layout` (`LayoutEngine`).
 - `float32`: `4/4`
 - `float64`: `8/8`
 
-### 2.3. Dynamic numerics (v1 contract)
+### 2.3. Динамические числовые типы (контракт v1)
 
-`int`, `uint`, `float` are **handle-sized** for ABI layout queries:
+`int`, `uint`, `float` имеют **размер handle** для запросов размещения ABI:
 
 - `int`: `8/8`
 - `uint`: `8/8`
@@ -54,172 +53,172 @@ The single source of truth is `internal/layout` (`LayoutEngine`).
 
 ---
 
-## 3. Pointers and References
+## 3. Указатели и Ссылки
 
-- Raw pointers (`*T`): `8/8`
-- References (`&T`, `&mut T`): `8/8`
-- Function pointers: `8/8`
-
----
-
-## 4. Enums
-
-- If an enum has an explicit base type, it uses the base layout.
-- Otherwise, v1 defaults to `uint32` (`4/4`).
+- Сырые указатели (`*T`): `8/8`
+- Ссылки (`&T`, `&mut T`): `8/8`
+- Указатели на функции: `8/8`
 
 ---
 
-## 5. Handle-Backed Values
+## 4. Перечисления (Enums)
 
-The following surface types are handle-sized in the v1 ABI:
+- Если у enum есть явный базовый тип, используется layout базового типа.
+- В противном случае, v1 использует по умолчанию `uint32` (`4/4`).
+
+---
+
+## 5. Значения на основе Handle (Handle-Backed Values)
+
+Следующие поверхностные типы имеют размер handle в ABI v1:
 
 - `string`
-- `Array<T>` / `T[]` (dynamic)
+- `Array<T>` / `T[]` (динамические)
 - `Range<T>`
 
-Their ABI size/align is `8/8` on this target.
+Их размер/выравнивание в ABI составляет `8/8` на этой цели.
 
-Other standard-library handle types are defined as opaque structs in
-`core/intrinsics.sg` and follow normal struct layout rules (e.g. `Task<T>`,
+Другие типы стандартной библиотеки, основанные на handle, определены как непрозрачные структуры в
+`core/intrinsics.sg` и следуют обычным правилам размещения структур (например, `Task<T>`,
 `Channel<T>`, `Mutex`, `RwLock`, `Condition`, `Semaphore`).
 
 ---
 
-## 6. BytesView ABI
+## 6. ABI BytesView
 
-`BytesView` is defined in `core/intrinsics.sg` and has a **stable field order**:
+`BytesView` определен в `core/intrinsics.sg` и имеет **стабильный порядок полей**:
 
 1. `owner: string`
 2. `ptr: *byte`
 3. `len: uint`
 
-Layout (x86_64): size `24`, align `8`.
+Layout (x86_64): размер `24`, выравнивание `8`.
 
-Semantics:
+Семантика:
 
-- `owner` keeps bytes alive.
-- `ptr` points to contiguous UTF-8 bytes.
+- `owner` поддерживает жизнь байтов.
+- `ptr` указывает на непрерывные байты UTF-8.
 - `len == rt_string_len_bytes(&owner)`.
 
-Tests:
+Тесты:
 
 - `testdata/golden/abi/abi_string_bytesview.sg`
 - `internal/vm/vm_abi_layout_test.go`
 
 ---
 
-## 7. Arrays
+## 7. Массивы
 
-### 7.1. Dynamic arrays (`Array<T>` / `T[]`)
+### 7.1. Динамические массивы (`Array<T>` / `T[]`)
 
-- ABI size/align is `8/8` (handle).
-- Internal layout is **VM-specific** and not part of the ABI.
+- Размер/выравнивание ABI — `8/8` (handle).
+- Внутреннее размещение **специфично для VM** и не является частью ABI.
 
-VM notes (not ABI-stable):
+Заметки VM (не стабильно в ABI):
 
-- Arrays are heap objects with element storage.
-- Slicing returns a **view object** that holds a strong reference to the base.
-- Views are **not resizable**; `push/pop/reserve` panic at runtime.
+- Массивы — это объекты кучи с хранилищем элементов.
+- Срезы (slicing) возвращают **объект-представление (view object)**, который держит сильную ссылку на базу.
+- Представления **не изменяемы по размеру**; `push/pop/reserve` вызывают панику во время выполнения.
 
-### 7.2. Fixed arrays (`ArrayFixed<T, N>` / `T[N]`)
+### 7.2. Фиксированные массивы (`ArrayFixed<T, N>` / `T[N]`)
 
-Fixed arrays are stored inline:
+Фиксированные массивы хранятся inline (внутри структуры):
 
 - `align = align_of(T)`
 - `stride = roundUp(size_of(T), align_of(T))`
 - `size = stride * N`
 
-Indexing uses `base + i * stride`.
+Индексация использует `base + i * stride`.
 
-Tests:
+Тесты:
 
 - `testdata/golden/abi/abi_core_sizes.sg`
 - `internal/vm/vm_abi_layout_test.go`
 
 ---
 
-## 8. Tuples
+## 8. Кортежи (Tuples)
 
-Tuples use the same layout rules as structs (ordered fields):
+Кортежи используют те же правила размещения, что и структуры (упорядоченные поля):
 
-1. Each element starts at the next offset aligned to its alignment.
-2. Tuple alignment is the max element alignment.
-3. Total size is rounded up to tuple alignment.
+1. Каждый элемент начинается со смещения, выровненного по его выравниванию.
+2. Выравнивание кортежа — это максимальное выравнивание элемента.
+3. Общий размер округляется вверх до выравнивания кортежа.
 
 ---
 
-## 9. Tagged Unions (tag/union)
+## 9. Размеченные объединения (Tagged Unions - tag/union)
 
-Tagged unions (`tag` + union types) use a fixed v1 layout:
+Размеченные объединения (`tag` + union типы) используют фиксированный layout v1:
 
-- Tag is `uint32` (`size=4`, `align=4`).
-- Payload is the **max** sized/aligned member payload.
+- Тег — это `uint32` (`size=4`, `align=4`).
+- Payload (полезная нагрузка) — это член с **максимальным** размером/выравниванием.
 - `payload_offset = roundUp(tag_size, payload_align)`.
 - `overall_align = max(tag_align, payload_align)`.
 - `size = roundUp(payload_offset + payload_size, overall_align)`.
 
-If a tag has multiple payload values, the payload is laid out like a tuple.
+Если у тега несколько значений payload, payload размещается как кортеж.
 
-Tests:
+Тесты:
 
-- `internal/vm/vm_abi_layout_test.go` (tag size/align, payload offset)
+- `internal/vm/vm_abi_layout_test.go` (размер/выравнивание тега, смещение payload)
 
 ---
 
-## 10. Structs and Field Offsets
+## 10. Структуры и Смещения полей
 
-Fields are laid out in declaration order:
+Поля размещаются в порядке объявления:
 
-1. Each field starts at the next offset aligned to its field alignment.
-2. Struct alignment is the max field alignment.
-3. Struct size is rounded up to struct alignment.
+1. Каждое поле начинается со следующего смещения, выровненного по выравниванию поля.
+2. Выравнивание структуры — это максимальное выравнивание поля.
+3. Размер структуры округляется вверх до выравнивания структуры.
 
-### 10.1. Layout Attributes
+### 10.1. Атрибуты размещения (Layout Attributes)
 
-Only these attributes affect layout in v1:
+В v1 только эти атрибуты влияют на размещение:
 
-- `@packed` (type)
-- `@align(N)` (type or field)
+- `@packed` (тип)
+- `@align(N)` (тип или поле)
 
-#### `@packed` on a struct type
+#### `@packed` на типе структуры
 
-- No field padding; fields are packed sequentially.
-- Struct alignment is `1`.
-- No tail padding.
+- Нет padding (отступов) между полями; поля упакованы последовательно.
+- Выравнивание структуры — `1`.
+- Нет хвостового padding.
 
-#### `@align(N)` on a type or field
+#### `@align(N)` на типе или поле
 
-- Field alignment is `max(field_align, N)`.
-- Struct alignment is `max(all field aligns, type_align_override)`.
-- Struct size is rounded up to the final alignment.
+- Выравнивание поля — `max(field_align, N)`.
+- Выравнивание структуры — `max(все field aligns, type_align_override)`.
+- Размер структуры округляется вверх до финального выравнивания.
 
-`@packed` and `@align` are **mutually exclusive** (compile-time error).
+`@packed` и `@align` **взаимоисключающие** (ошибка времени компиляции).
 
 ---
 
 ## 11. String ABI
 
-### 11.1. Handle and pointer access
+### 11.1. Handle и доступ по указателю
 
-- `string` is a handle (size `8`, align `8`).
-- `rt_string_ptr(&s)` returns a pointer to contiguous UTF-8 bytes.
-- The VM may materialize (flatten) rope strings on demand.
+- `string` — это handle (размер `8`, выравнивание `8`).
+- `rt_string_ptr(&s)` возвращает указатель на непрерывные байты UTF-8.
+- VM может материализовать (сплющить) rope-строки по требованию.
 
-### 11.2. Length
+### 11.2. Длина
 
-- `rt_string_len(&s)` returns **Unicode code point count**.
-- `rt_string_len_bytes(&s)` returns UTF-8 byte length.
+- `rt_string_len(&s)` возвращает **количество кодовых точек Unicode**.
+- `rt_string_len_bytes(&s)` возвращает длину в байтах UTF-8.
 
-### 11.3. Normalization
+### 11.3. Нормализация
 
-String constructors normalize input to NFC:
+Конструкторы строк нормализуют ввод в NFC:
 
 - `rt_string_from_bytes`
 - `rt_string_from_utf16`
 
-Other string operations preserve existing normalization.
+Другие операции со строками сохраняют существующую нормализацию.
 
-Tests:
+Тесты:
 
 - `testdata/golden/abi/abi_string_bytesview.sg`
 - `internal/vm/vm_abi_layout_test.go`
@@ -228,14 +227,14 @@ Tests:
 
 ## 12. Range ABI
 
-`Range<T>` is an **opaque handle**. The runtime uses internal states for
-range literals and array iteration, but these internal layouts are **not ABI
-stable**. Only `size_of` / `align_of` are.
+`Range<T>` — это **непрозрачный handle**. Runtime использует внутренние состояния для
+литералов диапазонов и итерации по массивам, но эти внутренние layouts **не стабильны
+в ABI**. Только `size_of` / `align_of` стабильны.
 
 ---
 
-## 13. Notes and References
+## 13. Заметки и Ссылки
 
-- Layout engine: `internal/layout`
-- VM layout tests: `internal/vm/vm_abi_layout_test.go`
+- Движок размещения (layout engine): `internal/layout`
+- Тесты размещения VM: `internal/vm/vm_abi_layout_test.go`
 - Goldens: `testdata/golden/abi/`

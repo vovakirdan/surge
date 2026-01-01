@@ -1,15 +1,14 @@
-# Surge Language Attributes
+# Атрибуты языка Surge
 [English](ATTRIBUTES.md) | [Russian](ATTRIBUTES.ru.md)
-> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
-Attributes are declarative annotations that attach extra constraints or metadata to
-functions, types, fields, parameters, blocks, and statements. The compiler
-validates targets, conflicts, and arguments. Some attributes are **parsed** but
-do not affect semantics yet; those are called out explicitly.
+Атрибуты — это декларативные аннотации, которые добавляют дополнительные ограничения или метаданные к
+функциям, типам, полям, параметрам, блокам и инструкциям (statements). Компилятор
+проверяет цели применения, конфликты и аргументы. Некоторые атрибуты **парсятся**, но
+пока не влияют на семантику; они отмечены явно.
 
 ---
 
-## Syntax
+## Синтаксис
 
 ```sg
 @attribute
@@ -23,67 +22,67 @@ type Data = { value: int };
 fn multiple() { return nothing; }
 ```
 
-Notes:
-- Attributes appear immediately before the declaration they modify.
-- Unknown attributes are errors.
-- Statement attributes: only `@drop expr;` is allowed (no arguments).
-- Async block attributes: only `@failfast` is accepted.
-- Attribute arguments must be literals (string or integer as required).
+Заметки:
+- Атрибуты указываются непосредственно перед объявлением, которое они модифицируют.
+- Неизвестные атрибуты считаются ошибкой.
+- Атрибуты инструкций: разрешен только `@drop expr;` (без аргументов).
+- Атрибуты async-блоков: принимается только `@failfast`.
+- Аргументы атрибутов должны быть литералами (строка или целое число, как требуется).
 
 ---
 
-## Attribute Index (current behavior)
+## Индекс атрибутов (текущее поведение)
 
-Status legend:
-- **Enforced**: affects semantics or emits diagnostics.
-- **Validated**: argument/target checks only; no semantic effect yet.
-- **Parsed**: accepted but no checks or behavior beyond target validation.
+Легенда статусов:
+- **Enforced**: влияет на семантику или генерирует диагностику.
+- **Validated**: проверяются аргументы/цели; пока нет семантического эффекта.
+- **Parsed**: принимается, но нет проверок или поведения помимо проверки цели.
 
-| Attribute | Targets | Args | Status | Notes |
+| Атрибут | Цели | Аргументы | Статус | Примечания |
 | --- | --- | --- | --- | --- |
-| `@allow_to` | fn, param | none | Enforced | Enables implicit `__to` conversion. |
-| `@backend` | fn | string | Validated | Warns on unknown targets; no codegen effect. |
-| `@copy` | type | none | Enforced | All fields/members must be Copy. |
-| `@deprecated` | fn, type, field, let, const | optional string | Enforced | Emits warnings on use. |
-| `@drop` | stmt | none | Enforced | Explicit drop/borrow end point. |
-| `@entrypoint` | fn | optional string | Enforced | Program entrypoint. |
-| `@failfast` | async fn, async block | none | Enforced | Structured concurrency cancellation. |
-| `@guarded_by` | field | string | Enforced | Requires holding a lock to access. |
-| `@hidden` | fn, type, field, let, const | none | Enforced (top-level) | Field-level is parsed only. |
-| `@intrinsic` | fn, type | none | Enforced | Decl-only; type body restrictions. |
-| `@noinherit` | type, field | none | Enforced | Prevents inheritance. |
-| `@nosend` | type | none | Enforced | Disallows crossing task boundaries. |
-| `@nonblocking` | fn | none | Enforced | Forbids blocking calls. |
-| `@overload` | fn | none | Enforced | Adds a new signature. |
-| `@override` | fn | none | Enforced | Replaces an existing signature. |
-| `@packed` | type, field | none | Enforced (type) | Field-level has no layout effect. |
-| `@align` | type, field | int pow2 | Enforced | Layout alignment override. |
-| `@raii` | type | none | Parsed | Reserved. |
-| `@arena` | type, field, param | string | Parsed | Reserved. |
-| `@shared` | type, field | none | Parsed | Reserved. |
-| `@weak` | field | none | Parsed | Reserved. |
-| `@atomic` | field | none | Enforced | Type restrictions + access rules. |
-| `@readonly` | field | none | Enforced | Forbids writes after init. |
-| `@requires_lock` | fn | string | Enforced | Caller must hold lock. |
-| `@acquires_lock` | fn | string | Enforced | Callee acquires lock. |
-| `@releases_lock` | fn | string | Enforced | Callee releases lock. |
-| `@waits_on` | fn | string | Enforced | Marks potential blocking. |
-| `@send` | type | none | Enforced | Field composition must be sendable. |
-| `@sealed` | type | none | Enforced | Cannot be extended. |
-| `@pure` | fn | none | Parsed | No side-effect checks yet. |
+| `@allow_to` | fn, param | нет | Enforced | Разрешает неявное преобразование `__to`. |
+| `@backend` | fn | string | Validated | Предупреждает о неизвестных целях; нет эффекта на кодогенерацию. |
+| `@copy` | type | нет | Enforced | Все поля/члены должны быть Copy. |
+| `@deprecated` | fn, type, field, let, const | опц. string | Enforced | Выдает предупреждения при использовании. |
+| `@drop` | stmt | нет | Enforced | Явная точка сброса/окончания заимствования. |
+| `@entrypoint` | fn | опц. string | Enforced | Точка входа в программу. |
+| `@failfast` | async fn, async block | нет | Enforced | Отмена структурированной конкурентности. |
+| `@guarded_by` | field | string | Enforced | Требует удержания блокировки для доступа. |
+| `@hidden` | fn, type, field, let, const | нет | Enforced (top-level) | На уровне полей только парсится. |
+| `@intrinsic` | fn, type | нет | Enforced | Только объявление; ограничения тела типа. |
+| `@noinherit` | type, field | нет | Enforced | Предотвращает наследование. |
+| `@nosend` | type | нет | Enforced | Запрещает пересечение границ задач. |
+| `@nonblocking` | fn | нет | Enforced | Запрещает блокирующие вызовы. |
+| `@overload` | fn | нет | Enforced | Добавляет новую сигнатуру. |
+| `@override` | fn | нет | Enforced | Заменяет существующую сигнатуру. |
+| `@packed` | type, field | нет | Enforced (type) | На уровне полей не влияет на layout. |
+| `@align` | type, field | int pow2 | Enforced | Переопределение выравнивания layout. |
+| `@raii` | type | нет | Parsed | Зарезервировано. |
+| `@arena` | type, field, param | string | Parsed | Зарезервировано. |
+| `@shared` | type, field | нет | Parsed | Зарезервировано. |
+| `@weak` | field | нет | Parsed | Зарезервировано. |
+| `@atomic` | field | нет | Enforced | Ограничения типа + правила доступа. |
+| `@readonly` | field | нет | Enforced | Запрещает запись после инициализации. |
+| `@requires_lock` | fn | string | Enforced | Вызывающий должен держать блокировку. |
+| `@acquires_lock` | fn | string | Enforced | Вызываемая функция захватывает блокировку. |
+| `@releases_lock` | fn | string | Enforced | Вызываемая функция освобождает блокировку. |
+| `@waits_on` | fn | string | Enforced | Помечает потенциальную блокировку. |
+| `@send` | type | нет | Enforced | Композиция полей должна быть sendable. |
+| `@sealed` | type | нет | Enforced | Нельзя расширять. |
+| `@pure` | fn | нет | Parsed | Проверки чистоты пока отсутствуют. |
 
 ---
 
-## Function Attributes
+## Атрибуты функций
 
 ### `@overload`
 
-Adds a new signature for an existing function name.
+Добавляет новую сигнатуру для существующего имени функции.
 
-Rules:
-- First declaration **must not** use `@overload`.
-- `@overload` must introduce a **different signature**.
-- If the signature is identical, use `@override` instead.
+Правила:
+- Первое объявление **не должно** использовать `@overload`.
+- `@overload` должен вводить **другую сигнатуру**.
+- Если сигнатура идентична, используйте `@override`.
 
 ```sg
 fn parse(x: int) -> int { return x; }
@@ -94,14 +93,14 @@ fn parse(x: string) -> int { return x.to_int(); }
 
 ### `@override`
 
-Replaces an existing declaration with the same signature.
+Заменяет существующее объявление с той же сигнатурой.
 
-Rules:
-- An earlier matching declaration must already exist.
-- Signature must match exactly.
-- Cannot reduce visibility (`pub` must be preserved when overriding public).
-- Cannot override builtin functions.
-- Cannot combine with `@overload` or `@intrinsic`.
+Правила:
+- Ранее соответствующее объявление уже должно существовать.
+- Сигнатура должна совпадать точно.
+- Нельзя понижать видимость (`pub` должен быть сохранен при переопределении публичного).
+- Нельзя переопределять встроенные (builtin) функции.
+- Нельзя комбинировать с `@overload` или `@intrinsic`.
 
 ```sg
 fn encode(buf: &byte[]) -> uint; // forward decl
@@ -110,15 +109,15 @@ fn encode(buf: &byte[]) -> uint; // forward decl
 fn encode(buf: &byte[]) -> uint { return 0:uint; }
 ```
 
-### `@intrinsic` (functions)
+### `@intrinsic` (функции)
 
-Declares a compiler/runtime-provided function.
+Объявляет функцию, предоставляемую компилятором/рантаймом.
 
-Rules:
-- Must be a **declaration only** (no body).
-- Cannot combine with `@override` or `@entrypoint`.
-- Allowed in any module, but only known intrinsics are implemented by backends.
-- Permits raw pointer types in signatures.
+Правила:
+- Должна быть **только объявлением** (без тела).
+- Нельзя комбинировать с `@override` или `@entrypoint`.
+- Разрешено в любом модуле, но бэкенды реализуют только известные intrinsics.
+- Разрешает сырые указатели в сигнатурах.
 
 ```sg
 @intrinsic fn rt_alloc(size: uint) -> *byte;
@@ -126,27 +125,27 @@ Rules:
 
 ### `@entrypoint`
 
-Marks the program entrypoint.
+Помечает точку входа в программу.
 
-Modes:
-- No mode: `@entrypoint` requires all parameters to have defaults.
-- `@entrypoint("argv")`: parse positional arguments via `T.from_str(&string)`.
-- `@entrypoint("stdin")`: parse a single parameter from stdin.
-- `"env"` and `"config"` are reserved (`FutEntrypointModeEnv` / `FutEntrypointModeConfig`).
+Режимы:
+- Нет режима: `@entrypoint` требует, чтобы все параметры имели значения по умолчанию.
+- `@entrypoint("argv")`: парсинг позиционных аргументов через `T.from_str(&string)`.
+- `@entrypoint("stdin")`: парсинг одного параметра из stdin.
+- `"env"` и `"config"` зарезервированы (`FutEntrypointModeEnv` / `FutEntrypointModeConfig`).
 
-Return type:
-- `nothing` or `int`, or any type that implements `ExitCode<T>` (`__to(self, int) -> int`).
-- `Option<T>` and `Erring<T, E>` implement this conversion by default.
+Тип возврата:
+- `nothing` или `int`, или любой тип, реализующий `ExitCode<T>` (`__to(self, int) -> int`).
+- `Option<T>` и `Erring<T, E>` реализуют это преобразование по умолчанию.
 
-Parameter parsing:
-- `"argv"` requires each non-default parameter type to implement `FromArgv<T>`.
-- `"stdin"` requires a single parameter type that implements `FromStdin<T>`.
+Парсинг параметров:
+- `"argv"` требует, чтобы каждый тип параметра (без значения по умолчанию) реализовывал `FromArgv<T>`.
+- `"stdin"` требует единственного типа параметра, реализующего `FromStdin<T>`.
 
-Contracts are declared in `core/entrypoint.sg`.
+Контракты объявлены в `core/entrypoint.sg`.
 
-Runtime behavior (v1):
-- `argv`: missing required arg exits with code 1; parse failures call `exit(err)`.
-- `stdin`: only one parameter is supported; multiple params exit with code 7001.
+Поведение рантайма (v1):
+- `argv`: отсутствие обязательного аргумента завершает с кодом 1; ошибки парсинга вызывают `exit(err)`.
+- `stdin`: поддерживается только один параметр; несколько параметров завершают с кодом 7001.
 
 ```sg
 @entrypoint("argv")
@@ -157,34 +156,34 @@ fn main(count: int, name: string = "guest") -> int {
 
 ### `@allow_to`
 
-Allows implicit `__to` conversion when argument types do not match exactly.
+Разрешает неявное преобразование `__to`, когда типы аргументов не совпадают точно.
 
-- On a **function**, it applies to all parameters.
-- On a **parameter**, it applies only to that parameter.
+- На **функции**: применяется ко всем параметрам.
+- На **параметре**: применяется только к этому параметру.
 
 ```sg
 fn takes_string(@allow_to s: string) { print(s); }
 ```
 
-### `@nonblocking` and `@waits_on`
+### `@nonblocking` и `@waits_on`
 
-- `@nonblocking` forbids blocking calls.
-- `@waits_on("field")` marks a function as potentially blocking.
-- They **conflict** if used together.
+- `@nonblocking` запрещает блокирующие вызовы.
+- `@waits_on("field")` помечает функцию как потенциально блокирующую.
+- Они **конфликтуют**, если используются вместе.
 
-Blocking methods checked today:
+Блокирующие методы, проверяемые сегодня:
 - `Mutex.lock`
 - `RwLock.read_lock` / `RwLock.write_lock`
 - `Condition.wait`
 - `Semaphore.acquire`
 - `Channel.send` / `Channel.recv` / `Channel.close`
 
-`@waits_on` requires a field name of type `Condition` or `Semaphore`.
+`@waits_on` требует имя поля типа `Condition` или `Semaphore`.
 
-### Lock Contract Attributes
+### Атрибуты контрактов блокировок
 
-`@requires_lock`, `@acquires_lock`, and `@releases_lock` reference a lock field
-on the receiver type (typically `self`). They drive inter-procedural lock checks.
+`@requires_lock`, `@acquires_lock` и `@releases_lock` ссылаются на поле блокировки
+в типе получателя (обычно `self`). Они управляют межпроцедурными проверками блокировок.
 
 ```sg
 type Counter = { lock: Mutex, value: int };
@@ -197,21 +196,21 @@ extern<Counter> {
 
 ### `@backend`
 
-Validates an execution target string (known: `cpu`, `gpu`, `tpu`, `wasm`,
-`native`). Unknown targets emit a warning. No codegen effect yet.
+Валидирует строку цели выполнения (известные: `cpu`, `gpu`, `tpu`, `wasm`,
+`native`). Неизвестные цели вызывают предупреждение. Пока нет эффекта на кодогенерацию.
 
 ### `@failfast`
 
-- Allowed on `async fn` and `@failfast async { ... }` blocks.
-- Cancels sibling tasks in the same scope when one is cancelled.
+- Разрешено на `async fn` и блоках `@failfast async { ... }`.
+- Отменяет братские задачи (sibling tasks) в той же области видимости, когда одна из них отменяется.
 
 ### `@pure`
 
-Parsed but not enforced yet. No purity checks are performed today.
+Парсится, но пока не проверяется (not enforced). Проверки чистоты сегодня не выполняются.
 
 ### `@deprecated`
 
-Emits a warning whenever the item is used. Optional string message.
+Выдает предупреждение при каждом использовании элемента. Опциональное строковое сообщение.
 
 ```sg
 @deprecated("use new_api")
@@ -220,143 +219,143 @@ fn old_api() { return nothing; }
 
 ### `@hidden`
 
-On top-level items: makes the symbol file-private and excludes it from exports.
-Using `pub` together with `@hidden` emits a warning.
+На элементах верхнего уровня: делает символ приватным для файла и исключает его из экспорта.
+Использование `pub` вместе с `@hidden` вызывает предупреждение.
 
 ---
 
-## Type Attributes
+## Атрибуты типов
 
-### `@intrinsic` (types)
+### `@intrinsic` (типы)
 
-Declares a compiler/runtime-provided type.
+Объявляет тип, предоставляемый компилятором/рантаймом.
 
-Rules:
-- Type must be an empty struct or contain only a single `__opaque` field.
-- Full layout is allowed only in `core/intrinsics.sg` or `core_stdlib/intrinsics.sg`.
-- Permits raw pointer fields inside the type.
+Правила:
+- Тип должен быть пустой структурой или содержать только одно поле `__opaque`.
+- Полный layout разрешен только в `core/intrinsics.sg` или `core_stdlib/intrinsics.sg`.
+- Разрешает поля с сырыми указателями внутри типа.
 
 ```sg
 @intrinsic
 pub type Task<T> = { __opaque: int };
 ```
 
-### `@packed` and `@align`
+### `@packed` и `@align`
 
-- `@packed` removes padding between fields for struct layout.
-- `@align(N)` overrides alignment; `N` must be a positive power of two.
-- `@packed` conflicts with `@align` on the same declaration.
+- `@packed` убирает padding между полями для размещения структуры.
+- `@align(N)` переопределяет выравнивание; `N` должно быть положительной степенью двойки.
+- `@packed` конфликтовать с `@align` на одном объявлении.
 
 ### `@send` / `@nosend`
 
-- `@send` requires all fields to be sendable (recursively).
-- `@nosend` forbids crossing task boundaries.
-- They conflict with each other.
+- `@send` требует, чтобы все поля были sendable (рекурсивно).
+- `@nosend` запрещает пересечение границ задач.
+- Они конфликтуют друг с другом.
 
 ### `@copy`
 
-Marks a struct or union as Copy if all fields/members are Copy. Cycles are
-rejected. When valid, the type becomes Copy-capable.
+Помечает структуру или объединение как Copy, если все поля/члены являются Copy. Циклы
+отвергаются. Если валидно, тип становится способным к копированию (Copy-capable).
 
 ### `@sealed` / `@noinherit`
 
-- `@sealed`: cannot be extended via inheritance or `extern<T>`.
-- `@noinherit`: prevents the type from being used as a base.
+- `@sealed`: нельзя расширять через наследование или `extern<T>`.
+- `@noinherit`: предотвращает использование типа в качестве базового.
 
 ### `@raii`, `@arena`, `@shared`
 
-Parsed only; no semantic checks or runtime behavior yet.
+Только парсятся; пока нет семантических проверок или поведения рантайма.
 
 ---
 
-## Field Attributes
+## Атрибуты полей
 
 ### `@readonly`
 
-Field cannot be written after initialization.
+Поле нельзя записывать после инициализации.
 
 ### `@atomic`
 
-- Field type must be `int`, `uint`, `bool`, or `*T`.
-- Direct reads/writes are forbidden; use atomic intrinsics via address-of.
+- Тип поля должен быть `int`, `uint`, `bool` или `*T`.
+- Прямое чтение/запись запрещены; используйте атомарные intrinsics через взятие адреса.
 
 ### `@guarded_by("lock")`
 
-Access requires the named lock to be held. Reads allow read/write locks; writes
-require mutex or write lock.
+Доступ требует удержания именованной блокировки. Чтение разрешает read/write блокировки; запись
+требует мьютекса или write lock.
 
 ### `@align` / `@packed`
 
-`@align` is enforced; `@packed` is accepted but currently has no field-level
-layout effect.
+`@align` применяется; `@packed` принимается, но в данный момент не имеет эффекта на layout
+на уровне поля.
 
 ### `@noinherit`
 
-Field is not inherited by derived types.
+Поле не наследуется производными типами.
 
 ### `@deprecated` / `@hidden`
 
-Parsed for fields; only `@deprecated` currently affects diagnostics. Field-level
-`@hidden` is reserved (no access checks yet).
+Парсятся для полей; только `@deprecated` в настоящее время влияет на диагностику. `@hidden`
+на уровне полей зарезервирован (проверки доступа пока отсутствуют).
 
 ### `@weak`, `@shared`, `@arena`
 
-Parsed only; no semantic effect yet.
+Только парсятся; пока нет семантического эффекта.
 
 ---
 
-## Parameter Attributes
+## Атрибуты параметров
 
 ### `@allow_to`
 
-See function attribute description; enables implicit `__to` for that parameter.
+См. описание атрибута функции; разрешает неявное `__to` для этого параметра.
 
 ### `@arena`
 
-Parsed only; no semantic effect yet.
+Только парсится; пока нет семантического эффекта.
 
 ---
 
-## Statement Attribute
+## Атрибут инструкции (Statement Attribute)
 
 ### `@drop`
 
-Explicit drop/borrow end point. Only valid as `@drop binding;` with no
-arguments. The target must be a binding name.
+Явная точка сброса/окончания заимствования. Валидно только как `@drop binding;` без
+аргументов. Целью должно быть имя привязки (binding name).
 
 ```sg
 let r = &mut value;
-@drop r; // ends borrow early
+@drop r; // заканчивает заимствование досрочно
 ```
 
 ---
 
-## Conflicts and Validation Summary
+## Сводка конфликтов и валидации
 
-- `@packed` + `@align` (same declaration)
+- `@packed` + `@align` (одно объявление)
 - `@send` + `@nosend`
 - `@nonblocking` + `@waits_on`
 - `@overload` + `@override`
-- `@intrinsic` + `@override` or `@entrypoint`
-- `@failfast` requires async context
+- `@intrinsic` + `@override` или `@entrypoint`
+- `@failfast` требует async контекста
 
 ---
 
-## Diagnostics (selected)
+## Диагностика (выборочно)
 
-- `SemaAttrPackedAlign` `@packed` conflicts with `@align`
-- `SemaAttrSendNosend` `@send` conflicts with `@nosend`
-- `SemaAttrNonblockingWaitsOn` `@nonblocking` conflicts with `@waits_on`
-- `SemaAttrAlignNotPowerOfTwo` `@align` not power of two
-- `SemaAttrBackendUnknown` `@backend` unknown target (warning)
-- `SemaAttrGuardedByNotField` / `SemaAttrGuardedByNotLock` `@guarded_by` invalid field/type
-- `SemaLockGuardedByViolation` `@guarded_by` access without lock
-- `SemaLockNonblockingCallsWait` `@nonblocking` calls blocking operation
-- `SemaAttrWaitsOnNotCondition` `@waits_on` field must be Condition/Semaphore
-- `SemaAttrAtomicInvalidType` `@atomic` invalid field type
-- `SemaAtomicDirectAccess` `@atomic` direct access
-- `SemaAttrCopyNonCopyField` / `SemaAttrCopyCyclicDep` `@copy` validation failures
-- `SemaEntrypointModeInvalid` / `SemaEntrypointNoModeRequiresNoArgs` / `SemaEntrypointReturnNotConvertible` / `SemaEntrypointParamNoFromArgv` / `SemaEntrypointParamNoFromStdin` entrypoint validation
-- `FutEntrypointModeEnv` / `FutEntrypointModeConfig` reserved entrypoint modes
+- `SemaAttrPackedAlign` `@packed` конфликтует с `@align`
+- `SemaAttrSendNosend` `@send` конфликтует с `@nosend`
+- `SemaAttrNonblockingWaitsOn` `@nonblocking` конфликтует с `@waits_on`
+- `SemaAttrAlignNotPowerOfTwo` `@align` не степень двойки
+- `SemaAttrBackendUnknown` `@backend` неизвестная цель (предупреждение)
+- `SemaAttrGuardedByNotField` / `SemaAttrGuardedByNotLock` `@guarded_by` неверное поле/тип
+- `SemaLockGuardedByViolation` `@guarded_by` доступ без блокировки
+- `SemaLockNonblockingCallsWait` `@nonblocking` вызывает блокирующую операцию
+- `SemaAttrWaitsOnNotCondition` `@waits_on` поле должно быть Condition/Semaphore
+- `SemaAttrAtomicInvalidType` `@atomic` неверный тип поля
+- `SemaAtomicDirectAccess` `@atomic` прямой доступ
+- `SemaAttrCopyNonCopyField` / `SemaAttrCopyCyclicDep` ошибки валидации `@copy`
+- `SemaEntrypointModeInvalid` / `SemaEntrypointNoModeRequiresNoArgs` / `SemaEntrypointReturnNotConvertible` / `SemaEntrypointParamNoFromArgv` / `SemaEntrypointParamNoFromStdin` валидация entrypoint
+- `FutEntrypointModeEnv` / `FutEntrypointModeConfig` зарезервированные режимы entrypoint
 
-See `internal/diag/codes.go` for the full list.
+См. `internal/diag/codes.go` для полного списка.

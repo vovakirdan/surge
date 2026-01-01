@@ -1,47 +1,46 @@
-# Parallel Diagnostics and Caching in Surge
+# Параллельная диагностика и кэширование в Surge
 [English](PARALLEL_COMPILATION.md) | [Russian](PARALLEL_COMPILATION.ru.md)
-> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
-This document describes how the Surge compiler parallelizes **diagnostics** and
-how it uses **in-memory and disk caches** for faster repeated runs.
+Этот документ описывает, как компилятор Surge распараллеливает **диагностику** и
+как он использует **кэши в памяти и на диске** для ускорения повторных запусков.
 
-> Scope: `surge diag` on directories. Single-file runs are mostly sequential.
-
----
-
-## 1. Overview
-
-When you run diagnostics on a directory, Surge uses **file-level parallelism**
-plus **batch-parallel hash computation** for the module graph:
-
-- **File-level parallelism:** tokenization, parsing, symbols, and sema run in
-  worker goroutines (bounded by `--jobs`).
-- **Module graph phase:** only files that import project modules are included.
-- **Batch hash computation:** module hashes are computed in dependency order
-  with parallel batches.
+> Область: `surge diag` на директориях. Запуски на одиночных файлах в основном последовательны.
 
 ---
 
-## 2. File-Level Parallelism
+## 1. Обзор
+
+Когда вы запускаете диагностику на директории, Surge использует **параллелизм на уровне файлов**
+плюс **пакетно-параллельное вычисление хешей** для графа модулей:
+
+- **Параллелизм на уровне файлов:** токенизация, парсинг, символы и семантика запускаются в
+  рабочих горутинах (workers), ограниченных флагом `--jobs`.
+- **Фаза графа модулей:** включаются только файлы, импортирующие модули проекта.
+- **Пакетное вычисление хешей:** хеши модулей вычисляются в порядке зависимостей
+  параллельными пакетами (batches).
+
+---
+
+## 2. Параллелизм на уровне файлов
 
 ```bash
 surge diag path/to/dir --jobs=8
 ```
 
-- `--jobs=0` (default) uses `GOMAXPROCS(0)`.
-- Each `.sg` file is analyzed independently in a worker.
-- Implementation: `internal/driver/parallel_diagnose.go`.
+- `--jobs=0` (по умолчанию) использует `GOMAXPROCS(0)`.
+- Каждый `.sg` файл анализируется независимо в воркере.
+- Реализация: `internal/driver/parallel_diagnose.go`.
 
-### 2.1. File Classification
+### 2.1. Классификация файлов
 
-To avoid unnecessary graph work, files are classified by imports:
+Чтобы избежать ненужной работы с графом, файлы классифицируются по импортам:
 
-- **FileFullyIndependent:** no imports
-- **FileStdlibOnly:** imports only stdlib modules
-- **FileDependent:** imports project modules
+- **FileFullyIndependent:** нет импортов
+- **FileStdlibOnly:** импортирует только модули stdlib
+- **FileDependent:** импортирует модули проекта
 
-Stdlib modules are detected by the **first path segment** of each import. The
-current list is:
+Модули stdlib определяются по **первому сегменту пути** каждого импорта.
+Текущий список:
 
 - `option`
 - `result`
@@ -49,117 +48,117 @@ current list is:
 - `saturating_cast`
 - `core`
 
-Only **FileDependent** files enter the module graph phase.
+Только файлы **FileDependent** попадают в фазу графа модулей.
 
-Implementation: `internal/driver/parallel_diagnose_helpers.go`.
+Реализация: `internal/driver/parallel_diagnose_helpers.go`.
 
 ---
 
-## 3. Module Graph and Hashes
+## 3. Граф модулей и Хеши
 
-After per-file analysis, Surge builds a module dependency graph and computes
-hashes in **topological batches**:
+После анализа по файлам, Surge строит граф зависимостей модулей и вычисляет
+хеши в **топологических пакетах**:
 
-- Kahn topo sort produces batches of independent nodes.
-- Batches are processed **in reverse order** (dependencies first).
-- Each batch is computed in parallel using goroutines + `sync.WaitGroup`.
+- Топологическая сортировка Кана (Kahn) создает пакеты независимых узлов.
+- Пакеты обрабатываются **в обратном порядке** (зависимости сначала).
+- Каждый пакет вычисляется параллельно с использованием горутин + `sync.WaitGroup`.
 
-Implementation: `internal/driver/hashcalc.go`.
+Реализация: `internal/driver/hashcalc.go`.
 
-Hash formula:
+Формула хеша:
 
 ```
 ModuleHash = H(ContentHash || DepHash1 || DepHash2 ...)
 ```
 
-Deps are ordered deterministically by the graph builder.
+Зависимости упорядочиваются детерминированно строителем графа.
 
 ---
 
-## 4. Caching
+## 4. Кэширование
 
-### 4.1. In-Memory Cache (per run)
+### 4.1. Кэш в памяти (на запуск)
 
-A shared memory cache stores module metadata during a single invocation.
-This is used by all workers and is protected by `sync.RWMutex`.
+Общий кэш в памяти хранит метаданные модулей во время одного вызова.
+Он используется всеми воркерами и защищен `sync.RWMutex`.
 
-Implementation: `internal/driver/modulecache.go`.
+Реализация: `internal/driver/modulecache.go`.
 
-### 4.2. Disk Cache (optional)
+### 4.2. Дисковый кэш (опционально)
 
-Enable with:
+Включить с помощью:
 
 ```bash
 surge diag path/to/dir --disk-cache
 ```
 
-Notes:
+Заметки:
 
-- Disk cache is **experimental** and currently stores **module metadata only**.
-- It is used **only in directory runs** (`parallel_diagnose`).
-- Entries include a schema version; mismatches are treated as cache misses.
-- Cache location:
-  - `${XDG_CACHE_HOME}/surge/mods/` if set
-  - otherwise `~/.cache/surge/mods/`
-- Files are msgpack (`.mp`) keyed by hashes.
+- Дисковый кэш является **экспериментальным** и в настоящее время хранит **только метаданные модулей**.
+- Он используется **только в запусках на директории** (`parallel_diagnose`).
+- Записи включают версию схемы; несовпадения рассматриваются как промахи кэша.
+- Расположение кэша:
+  - `${XDG_CACHE_HOME}/surge/mods/`, если установлено
+  - иначе `~/.cache/surge/mods/`
+- Файлы — msgpack (`.mp`), ключи — хеши.
 
-Implementation: `internal/driver/dcache.go`.
+Реализация: `internal/driver/dcache.go`.
 
-**When disk cache helps:** large projects with expensive module graphs.
-**When it hurts:** small projects where I/O dominates (cache may be slower).
+**Когда дисковый кэш помогает:** большие проекты с дорогими графами модулей.
+**Когда он вредит:** маленькие проекты, где доминирует ввод/вывод (кэш может быть медленнее).
 
 ---
 
-## 5. Timings and Metrics
+## 5. Тайминги и Метрики
 
-Enable timings for per-file and module-graph phase breakdowns:
+Включить тайминги для разбивки по файлам и фазе графа модулей:
 
 ```bash
 surge diag path/to/dir --timings
 ```
 
-When `--timings` is enabled, Surge also emits a **metrics summary** as an
-info diagnostic, e.g.:
+Когда включено `--timings`, Surge также выдает **сводку метрик** как
+информационную диагностику, например:
 
 ```
 Parallel processing metrics: workers: 120 completed, 0 errors | cache: mem=12/120 (10.0%), disk=0/12 (0.0%) | files: 120 total (90 indep, 20 stdlib, 10 dep) | batches: 4 (avg=2.5, max=5)
 ```
 
-Tracked metrics:
+Отслеживаемые метрики:
 
-- Worker activity (active/completed/errors)
-- Cache hit/miss rates (memory + disk)
-- File classification distribution
-- Batch counts and sizes for module hashes
-
----
-
-## 6. Performance Notes
-
-- Parsing is the dominant cost for most real codebases, and it is already
-  parallelized at the file level.
-- Module hash computation benefits from batch parallelism but is typically a
-  smaller share of total time.
-- Semantic analysis is not currently parallelized **across modules** due to
-  shared symbol and import resolution.
+- Активность воркеров (активные/завершенные/ошибки)
+- Уровень попаданий/промахов кэша (память + диск)
+- Распределение классификации файлов
+- Количество и размеры пакетов для хешей модулей
 
 ---
 
-## 7. Troubleshooting
+## 6. Заметки о производительности
 
-**Diagnostics feel stuck or flaky:**
+- Парсинг является доминирующей статьей расходов для большинства реальных кодовых баз, и он уже
+  распараллелен на уровне файлов.
+- Вычисление хешей модулей выигрывает от пакетного параллелизма, но обычно составляет
+  меньшую долю общего времени.
+- Семантический анализ в настоящее время не распараллелен **между модулями** из-за
+  общего разрешения символов и импортов.
+
+---
+
+## 7. Устранение неполадок
+
+**Диагностика кажется зависшей или нестабильной:**
 
 ```bash
 surge diag path/to/dir --jobs=1
 ```
 
-**Clear disk cache:**
+**Очистить дисковый кэш:**
 
 ```bash
 rm -rf ~/.cache/surge/mods/
 ```
 
-**Reduce output noise:**
+**Уменьшить шум вывода:**
 
 ```bash
 surge diag path/to/dir --no-warnings
@@ -167,11 +166,11 @@ surge diag path/to/dir --no-warnings
 
 ---
 
-## 8. Key Code Locations
+## 8. Ключевые места в коде
 
-- Parallel diagnostics: `internal/driver/parallel_diagnose.go`
-- File classification: `internal/driver/parallel_diagnose_helpers.go`
-- Module graph and hashes: `internal/project/dag`, `internal/driver/hashcalc.go`
-- Memory cache: `internal/driver/modulecache.go`
-- Disk cache: `internal/driver/dcache.go`
-- CLI flags: `cmd/surge/diagnose.go`
+- Параллельная диагностика: `internal/driver/parallel_diagnose.go`
+- Классификация файлов: `internal/driver/parallel_diagnose_helpers.go`
+- Граф модулей и хеши: `internal/project/dag`, `internal/driver/hashcalc.go`
+- Кэш памяти: `internal/driver/modulecache.go`
+- Дисковый кэш: `internal/driver/dcache.go`
+- Флаги CLI: `cmd/surge/diagnose.go`

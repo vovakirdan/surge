@@ -1,38 +1,37 @@
-# DIRECTIVES.md
+# Директивы Surge
 [English](DIRECTIVES.md) | [Russian](DIRECTIVES.ru.md)
-> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
-Surge directives are **structured doc-comment blocks** (`///`) that let you attach tool-driven scenarios (tests, benchmarks, lint checks) to code.
+Директивы Surge — это **структурированные блоки doc-комментариев** (`///`), которые позволяют прикреплять к коду сценарии, управляемые инструментами (тесты, бенчмарки, проверки линтера).
 
-This document covers **current behavior (v1)** and the **planned roadmap**.
-
----
-
-## 1. Current Status (v1)
-
-### 1.1 What is implemented
-
-- Directives are **parsed** when `--directives=collect|gen|run` is enabled.
-- Each directive block is **attached to the next item** in the file (function/type/let/etc.).
-- The compiler **validates directive namespaces** against imports when directives are enabled.
-- `--directives=run` executes a **stub runner** that prints scenarios as *SKIPPED* (no codegen/execution yet).
-
-### 1.2 What is *not* implemented yet
-
-- No directive code generation.
-- No directive body type-checking or execution.
-- Scenario names (named test cases) are not supported yet.
+Этот документ описывает **текущее поведение (v1)** и **запланированный roadmap**.
 
 ---
 
-## 2. Implemented Syntax (v1)
+## 1. Текущий статус (v1)
 
-A directive block is a **contiguous `///` block** with:
+### 1.1 Что реализовано
 
-1) First non-empty line: `<namespace>:`
-2) Next lines: must start with `<namespace>.` or `<namespace>::`
+- Директивы **парсятся**, когда включен флаг `--directives=collect|gen|run`.
+- Каждый блок директивы **прикрепляется к следующему элементу** в файле (функции/типу/let/и т.д.).
+- Компилятор **валидирует пространства имен (namespaces)** директив относительно импортов, когда директивы включены.
+- `--directives=run` запускает **стаб-раннер (stub runner)**, который печатает сценарии как *SKIPPED* (пока нет кодогенерации/выполнения).
 
-Example:
+### 1.2 Что *не* реализовано
+
+- Нет генерации кода директив.
+- Нет проверки типов тела директивы или выполнения.
+- Имена сценариев (именованные тест-кейсы) пока не поддерживаются.
+
+---
+
+## 2. Реализованный синтаксис (v1)
+
+Блок директивы — это **непрерывный блок `///`**, содержащий:
+
+1) Первая непустая строка: `<namespace>:`
+2) Следующие строки: должны начинаться с `<namespace>.` или `<namespace>::`
+
+Пример:
 
 ```sg
 import stdlib/directives::test;
@@ -43,56 +42,56 @@ import stdlib/directives::test;
 fn add(a: int, b: int) -> int { return a + b; }
 ```
 
-Notes:
-- Empty `///` line **ends** the directive block.
-- Any `///` block that does **not** match the namespace rules is treated as a normal doc comment.
-- Namespaces must be valid identifiers (`[A-Za-z_][A-Za-z0-9_]*`).
+Заметки:
+- Пустая строка `///` **завершает** блок директивы.
+- Любой блок `///`, который **не** соответствует правилам пространства имен, рассматривается как обычный doc-комментарий.
+- Пространства имен должны быть валидными идентификаторами (`[A-Za-z_][A-Za-z0-9_]*`).
 
 ---
 
-## 3. Namespace Validation (implemented)
+## 3. Валидация пространств имен (реализовано)
 
-When `--directives=collect|gen|run` is enabled, the compiler validates:
+Когда включено `--directives=collect|gen|run`, компилятор проверяет:
 
-1) The namespace (`test` in `/// test:`) **must be an imported module**.
-2) That module must have `pragma directive`.
+1) Пространство имен (`test` в `/// test:`) **должно быть импортированным модулем**.
+2) Этот модуль должен иметь `pragma directive`.
 
-Diagnostics:
+Диагностика:
 
-| Code | Error |
+| Код | Ошибка |
 |------|-------|
-| `SemaDirectiveUnknownNamespace` | Directive namespace is not an imported module |
-| `SemaDirectiveNotDirectiveModule` | Directive namespace module lacks `pragma directive` |
+| `SemaDirectiveUnknownNamespace` | Пространство имен директивы не является импортированным модулем |
+| `SemaDirectiveNotDirectiveModule` | Модуль пространства имен директивы не имеет `pragma directive` |
 
 ---
 
-## 4. CLI Flags (implemented)
+## 4. Флаги CLI (реализовано)
 
 ```bash
 surge diag --directives=off|collect|gen|run --directives-filter=test,bench
 ```
 
-- `off` (default): directives are ignored.
-- `collect`: directives are parsed and namespaces validated.
-- `gen`: currently behaves like `collect` (reserved for future codegen).
-- `run`: runs the **stub runner** (prints SKIPPED for each scenario).
+- `off` (по умолчанию): директивы игнорируются.
+- `collect`: директивы парсятся и пространства имен валидируются.
+- `gen`: в настоящее время ведет себя как `collect` (зарезервировано для будущей кодогенерации).
+- `run`: запускает **стаб-раннер** (печатает SKIPPED для каждого сценария).
 
-`--directives-filter` currently affects **only** `run` mode (what the stub prints).
-Default filter is `test`. An empty filter (`--directives-filter=`) runs all namespaces.
+`--directives-filter` в настоящее время влияет **только** на режим `run` (что печатает стаб).
+Фильтр по умолчанию — `test`. Пустой фильтр (`--directives-filter=`) запускает все пространства имен.
 
 ---
 
-## 5. Directive Modules (implemented)
+## 5. Модули директив (реализовано)
 
-A directive module is an **ordinary Surge module** marked with:
+Модуль директив — это **обычный модуль Surge**, помеченный:
 
 ```sg
 pragma directive
 ```
 
-It can export helper functions used inside directive blocks.
+Он может экспортировать вспомогательные функции, используемые внутри блоков директив.
 
-Example:
+Пример:
 
 ```sg
 // stdlib/directives/test.sg
@@ -103,9 +102,9 @@ pub fn eq<T>(a: T, b: T) -> bool { return a == b; }
 
 ---
 
-## 6. Planned Syntax (roadmap)
+## 6. Запланированный синтаксис (roadmap)
 
-The following structure is planned but **not implemented yet**:
+Следующая структура запланирована, но **пока не реализована**:
 
 ```sg
 /// test:
@@ -113,26 +112,26 @@ The following structure is planned but **not implemented yet**:
 ///     test.eq(add(1, 2), 3)
 ```
 
-Planned rules:
-- `<scenario>` names are unique per file.
-- Bodies are full Surge statements.
-- Directive bodies are type-checked in a generated module.
+Запланированные правила:
+- Имена `<scenario>` уникальны в пределах файла.
+- Тела — полноценные инструкции Surge.
+- Тела директив проходят проверку типов в сгенерированном модуле.
 
 ---
 
-## 7. Planned Codegen & Execution (roadmap)
+## 7. Запланированная кодогенерация и выполнение (roadmap)
 
-Future `gen/run` modes will:
+Будущие режимы `gen/run` будут:
 
-- Generate a hidden module with one function per directive block.
-- Type-check the directive bodies.
-- Execute them via a directive runner.
+- Генерировать скрытый модуль с одной функцией на блок директивы.
+- Проверять типы тел директив.
+- Выполнять их через раннер директив.
 
-This is not wired up yet; the current runner is a stub.
+Это пока не подключено; текущий раннер — заглушка.
 
 ---
 
-## 8. Quick Examples (current)
+## 8. Быстрые примеры (текущие)
 
 ```sg
 import stdlib/directives::test;

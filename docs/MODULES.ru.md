@@ -1,86 +1,85 @@
-# Surge Modules and `pragma module`
+# Модули Surge и `pragma module`
 [English](MODULES.md) | [Russian](MODULES.ru.md)
-> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
-> **Status:** Implemented (multi-file modules require `pragma module` / `pragma binary`)  
-> **Audience:** Surge language users and standard-library authors  
-> **Purpose:** Describes the concept of modules in Surge, rules for building multi-file modules, the `pragma module` mechanism, automatic module name determination, and when a pragma is actually needed.
-
----
-
-# 1. What is a Module in Surge
-
-A module is a **unit of compilation and code reuse**, containing:
-
-- declared types, functions, constants, tags, contracts;
-- its own internal namespace (names inside the module do not conflict with external ones);
-- clear visibility rules (`pub`, `@hidden`, module-internal);
-- its own lifecycle during compilation (hashing, caching, reuse).
-
-Every module:
-
-- has a **unique name**;
-- exports only `pub` elements;
-- may consist of **a single file** (default) or **a set of files in a directory** (only with `pragma module` / `pragma binary`);
-- can be a regular module or an executable module (`binary`).
-
-**Default behavior (important):**
-- If there is **no** `pragma module` / `pragma binary` in a directory, **each file is its own module**.
-- A directory is only treated as a **multi-file module** when *all* `.sg` files in that directory declare `pragma module` or `pragma binary`.
+> **Статус:** Реализовано (многофайловые модули требуют `pragma module` / `pragma binary`)
+> **Аудитория:** Пользователи языка Surge и авторы стандартной библиотеки
+> **Цель:** Описывает концепцию модулей в Surge, правила построения многофайловых модулей, механизм `pragma module`, автоматическое определение имени модуля и когда прагма действительно необходима.
 
 ---
 
-# 2. Regular and Binary Modules
+# 1. Что такое Модуль в Surge
 
-Surge distinguishes two kinds of modules:
+Модуль — это **единица компиляции и переиспользования кода**, содержащая:
 
-### **2.1. Regular Module (`module`)**
+- объявленные типы, функции, константы, теги, контракты;
+- собственное внутреннее пространство имен (имена внутри модуля не конфликтуют с внешними);
+- четкие правила видимости (`pub`, `@hidden`, внутримодульные);
+- собственный жизненный цикл во время компиляции (хеширование, кэширование, переиспользование).
 
-Used for libraries, parts of the stdlib, and any non-executable units.
+Каждый модуль:
 
-- May or may not have an `@entrypoint`.
-- If there is an `@entrypoint`, you can run that directory as a binary.
-- Imported as a regular module.
+- имеет **уникальное имя**;
+- экспортирует только `pub` элементы;
+- может состоять из **одного файла** (по умолчанию) или **набора файлов в директории** (только с `pragma module` / `pragma binary`);
+- может быть обычным модулем или исполняемым модулем (`binary`).
 
-### **2.2. Executable Module (`binary`)**
+**Поведение по умолчанию (важно):**
+- Если в директории **нет** `pragma module` / `pragma binary`, **каждый файл является собственным модулем**.
+- Директория рассматривается как **многофайловый модуль** только тогда, когда *все* `.sg` файлы в этой директории объявляют `pragma module` или `pragma binary`.
 
-Means “module with an entry point”.
+---
 
-- Must have **exactly one** `@entrypoint`.
-- May be imported as a regular module.
-- Can be executed directly (`surge run foo/bar`).
+# 2. Обычные и Бинарные Модули
 
-In fact, `binary` is just a regular module with an extra contract: “I have a single entry point.”
+Surge различает два вида модулей:
+
+### **2.1. Обычный Модуль (`module`)**
+
+Используется для библиотек, частей stdlib и любых неисполняемых единиц.
+
+- Может иметь или не иметь `@entrypoint`.
+- Если есть `@entrypoint`, вы можете запустить эту директорию как бинарник.
+- Импортируется как обычный модуль.
+
+### **2.2. Исполняемый Модуль (`binary`)**
+
+Означает «модуль с точкой входа».
+
+- Должен иметь **ровно одну** `@entrypoint`.
+- Может импортироваться как обычный модуль.
+- Может выполняться напрямую (`surge run foo/bar`).
+
+Фактически, `binary` — это просто обычный модуль с дополнительным контрактом: «У меня есть единственная точка входа».
 
 ---
 
 # 3. `pragma module`
 
-`pragma module` is a **pragma entry** that declares the file belongs to a **multi-file module**, defined by the whole directory.
+`pragma module` — это **запись прагмы**, которая объявляет, что файл принадлежит **многофайловому модулю**, определенному всей директорией.
 
-Example:
+Пример:
 
 ```sg
 pragma module
 ```
 
-### What does `pragma module` do:
+### Что делает `pragma module`:
 
-* enables the “one module per directory” mode;
-* merges all files in the directory into a single module;
-* enables a shared symbol table (all files see each other's declarations);
-* requires this pragma to be present and consistent in all files in the directory.
+* включает режим «один модуль на директорию»;
+* объединяет все файлы в директории в единый модуль;
+* включает общую таблицу символов (все файлы видят объявления друг друга);
+* требует, чтобы эта прагма присутствовала и была согласована во всех файлах директории.
 
-### When is the module name set automatically
+### Когда имя модуля устанавливается автоматически
 
-If `pragma module` is used **without a name**, then the module name = the directory name, provided that it:
+Если `pragma module` используется **без имени**, то имя модуля = имя директории, при условии, что оно:
 
-* is a valid Surge identifier (ASCII, no spaces);
-* does not conflict with other names.
+* является валидным идентификатором Surge (ASCII, без пробелов);
+* не конфликтует с другими именами.
 
-Example:
+Пример:
 
-Directory tree:
+Дерево директорий:
 
 ```
 scripts/
@@ -88,15 +87,15 @@ scripts/
    util.sg
 ```
 
-In `scripts/foo.sg`:
+В `scripts/foo.sg`:
 
 ```sg
 pragma module
 ```
 
-→ module name is **scripts**
+→ имя модуля **scripts**
 
-Imported as:
+Импортируется как:
 
 ```sg
 import scripts;
@@ -104,66 +103,66 @@ import scripts;
 
 ---
 
-# 4. Explicit Module Name: `pragma module::name`
+# 4. Явное имя модуля: `pragma module::name`
 
-If you need a different name or the directory name is invalid, you can specify a name explicitly:
+Если вам нужно другое имя или имя директории невалидно, вы можете указать имя явно:
 
 ```sg
 pragma module::bounded
 ```
 
-Now, the directory is imported not by its folder name but by `bounded`:
+Теперь директория импортируется не по имени папки, а как `bounded`:
 
 ```
 import bounded;
 ```
 
-Even if the file is in `core/math/`, the import path will be:
+Даже если файл находится в `core/math/`, путь импорта будет:
 
 ```
 import core/bounded;
 ```
 
-### Consistency rules:
+### Правила согласованности:
 
-* If one of the files in the directory specifies a name:  
-  **all files must specify the same name**.
-* If at least one file specifies a name explicitly — the others must do so as well.
-
----
-
-# 5. When `pragma module` is required
-
-`pragma module` becomes **mandatory** if:
-
-1. **The directory contains more than one .sg file**
-   and these files should be part of the same module.
-2. **You need to override the module name** (via `::name`).
-3. **You need to specify that the module is binary** (see below).
-4. The directory name is invalid, so an explicit name is required.
+* Если один из файлов в директории указывает имя:
+  **все файлы должны указывать то же самое имя**.
+* Если хотя бы один файл указывает имя явно — остальные тоже должны это сделать.
 
 ---
 
-# 6. When `pragma module` is not needed
+# 5. Когда `pragma module` обязательна
 
-You don't need to write `pragma module` if:
+`pragma module` становится **обязательной**, если:
 
-* the file is **the only one** in its directory;
-* this file forms the module by itself;
-* you do not need special behavior (`binary`, `no_std`, etc.).
+1. **Директория содержит более одного .sg файла**
+   и эти файлы должны быть частью одного модуля.
+2. **Вам нужно переопределить имя модуля** (через `::name`).
+3. **Вам нужно указать, что модуль бинарный** (см. ниже).
+4. Имя директории невалидно, поэтому требуется явное имя.
 
-Example:
+---
+
+# 6. Когда `pragma module` не нужна
+
+Вам не нужно писать `pragma module`, если:
+
+* файл является **единственным** в своей директории;
+* этот файл формирует модуль сам по себе;
+* вам не нужно специальное поведение (`binary`, `no_std` и т.д.).
+
+Пример:
 
 ```
 math/
    trig.sg
 ```
 
-`trig.sg` without pragma:
+`trig.sg` без прагмы:
 
-→ the module is automatically named after the file, `trig`.
+→ модуль автоматически именуется по файлу, `trig`.
 
-Import:
+Импорт:
 
 ```sg
 import math/trig;
@@ -171,19 +170,19 @@ import math/trig;
 
 ---
 
-# 7. Multi-file Modules
+# 7. Многофайловые модули
 
-If even a single file in a directory has `pragma module` or `pragma binary`, then:
+Если хотя бы один файл в директории имеет `pragma module` или `pragma binary`, то:
 
-* **all files must have one of these pragmas**;
-* the module name is shared across the directory;
-* all top-level declarations are visible between files, except those marked with `@hidden`.
+* **все файлы должны иметь одну из этих прагм**;
+* имя модуля является общим для всей директории;
+* все объявления верхнего уровня видимы между файлами, кроме помеченных `@hidden`.
 
-Diagnostics:
-- `ProjMissingModulePragma` if some files in the directory lack the pragma.
-- `ProjInconsistentModuleName` if files disagree on the explicit `::name`.
+Диагностика:
+- `ProjMissingModulePragma`, если в некоторых файлах директории отсутствует прагма.
+- `ProjInconsistentModuleName`, если файлы расходятся в явном `::name`.
 
-### Example structure
+### Пример структуры
 
 ```
 core/vector/
@@ -192,133 +191,133 @@ core/vector/
    impl.sg
 ```
 
-In each file:
+В каждом файле:
 
 ```sg
 pragma module
 ```
 
-→ A module `core/vector` is created.
+→ Создается модуль `core/vector`.
 
-All files see:
+Все файлы видят:
 
 ```sg
 fn internal_helper(...) { ... }
 ```
 
-even without `pub`.
+даже без `pub`.
 
-But if:
+Но если:
 
 ```sg
 @hidden
 fn __tmp() { ... }
 ```
 
-then this function is **visible only in the current file**.
+то эта функция **видима только в текущем файле**.
 
 ---
 
-# 8. Naming Errors and Fix-suggestions
+# 8. Ошибки именования и предложения исправлений
 
-### Example situation
+### Пример ситуации
 
-File:
+Файл:
 
 ```
 foo/foo.sg
 ```
 
-Contains:
+Содержит:
 
 ```sg
 pragma module::bar;
 ```
 
-Now, the module is named:
+Теперь модуль называется:
 
 ```
 bar
 ```
 
-If a programmer writes:
+Если программист пишет:
 
 ```sg
 import foo/foo;
 ```
 
-The compiler must:
+Компилятор должен:
 
-* issue an error: *"The module is named `bar`, not `foo/foo`"*
-* suggest an autofix: **change the import to `foo/bar`**
+* выдать ошибку: *"Модуль называется `bar`, а не `foo/foo`"*
+* предложить авто-исправление: **изменить импорт на `foo/bar`**
 
-Diagnostic: `ProjWrongModuleNameInImport`.
+Диагностика: `ProjWrongModuleNameInImport`.
 
 ---
 
 # 9. `pragma binary`
 
-Declares that the module is executable:
+Объявляет, что модуль является исполняемым:
 
 ```sg
 pragma binary
 ```
 
-Rules:
+Правила:
 
-* the module must have exactly one `@entrypoint`;
-* the entry point file can have any name (doesn't have to be `main.sg`);
-* importing a `binary` works just like any normal module.
+* модуль должен иметь ровно одну `@entrypoint`;
+* файл точки входа может иметь любое имя (не обязательно `main.sg`);
+* импорт `binary` работает так же, как и любой нормальный модуль.
 
-### Explicit name:
+### Явное имя:
 
 ```sg
 pragma binary::run_app
 ```
 
-The module is now named `run_app`.
+Модуль теперь называется `run_app`.
 
 ---
 
-# 10. Entry Points: `@entrypoint`
+# 10. Точки входа: `@entrypoint`
 
-The entry point can have any name:
+Точка входа может иметь любое имя:
 
 ```sg
 @entrypoint
 fn run() -> int { ... }
 ```
 
-### Rules:
+### Правила:
 
-* there must be **exactly one** `@entrypoint` in a `binary` module;
-* overloads are allowed (`@overload`),
-  because the attribute marks a specific function;
-* a binary module must have such a function;
-* a regular module doesn't have to.
+* в модуле `binary` должна быть **ровно одна** `@entrypoint`;
+* перегрузки разрешены (`@overload`),
+  потому что атрибут помечает конкретную функцию;
+* бинарный модуль обязан иметь такую функцию;
+* обычный модуль не обязан.
 
-**Modes:** `@entrypoint("argv")` and `@entrypoint("stdin")` are supported; see `docs/ATTRIBUTES.ru.md`.
+**Режимы:** `@entrypoint("argv")` и `@entrypoint("stdin")` поддерживаются; см. `docs/ATTRIBUTES.ru.md`.
 
 ---
 
-# 11. Visibility of Objects Inside a Module
+# 11. Видимость объектов внутри модуля
 
-In a multi-file module, these rules apply:
+В многофайловом модуле действуют следующие правила:
 
-| Declaration | Visibility                       |
+| Объявление | Видимость                       |
 | ----------- | -------------------------------- |
-| without `pub`  | visible in all files of the module  |
-| `pub`          | exported outside                |
-| `@hidden`      | visible only in the current file |
+| без `pub`  | видимо во всех файлах модуля  |
+| `pub`          | экспортируется наружу                |
+| `@hidden`      | видимо только в текущем файле |
 
-`@hidden` takes precedence over `pub`:
-`@hidden pub fn foo()` remains file-local.
+`@hidden` имеет приоритет над `pub`:
+`@hidden pub fn foo()` остается локальной для файла.
 
 ---
 
-# 12. Imports
+# 12. Импорты
 
-Modules are imported by path:
+Модули импортируются по пути:
 
 ```
 import core/vector;
@@ -327,12 +326,12 @@ import ./local_module;
 import ../parent_module;
 ```
 
-A path consists of:
+Путь состоит из:
 
-* directory segments,
-* a final segment — the module name (folder or `::name`).
+* сегментов директорий,
+* финального сегмента — имени модуля (папка или `::name`).
 
-Import syntax also supports aliasing and groups:
+Синтаксис импорта также поддерживает алиасинг и группы:
 
 ```
 import core/math as m;
@@ -340,41 +339,41 @@ import core/math::{sin, cos};
 import core/math::*;
 ```
 
-See `docs/LANGUAGE.ru.md` for the full grammar.
+См. `docs/LANGUAGE.ru.md` для полной грамматики.
 
-If a module inside a directory was renamed — use the new name.
+Если модуль внутри директории был переименован — используйте новое имя.
 
-**Resolution order (simplified):**
-1) `path.sg` (single-file module)  
-2) `path/` (directory module with `pragma module`/`binary`)  
-3) explicit-name scan for `pragma module::name` / `pragma binary::name`
-
----
-
-# 13. When Should a Module Be a Library or Binary
-
-Use a **binary module** if:
-
-* you need to run it (`surge run ...`);
-* there is a logical entry point;
-* the code should "start working" when called.
-
-Use a **regular module** if:
-
-* it's a library or a part of the stdlib;
-* no `@entrypoint` is present;
-* no logic should be executed automatically.
+**Порядок разрешения (упрощенно):**
+1) `path.sg` (однофайловый модуль)
+2) `path/` (модуль-директория с `pragma module`/`binary`)
+3) сканирование явных имен для `pragma module::name` / `pragma binary::name`
 
 ---
 
-# 14. Summary
+# 13. Когда модуль должен быть Библиотекой или Бинарником
 
-| Scenario                         | Need `pragma module`?          | Note                                  |
+Используйте **бинарный модуль**, если:
+
+* вам нужно его запускать (`surge run ...`);
+* есть логическая точка входа;
+* код должен "начать работать" при вызове.
+
+Используйте **обычный модуль**, если:
+
+* это библиотека или часть stdlib;
+* `@entrypoint` отсутствует;
+* никакая логика не должна выполняться автоматически.
+
+---
+
+# 14. Сводка
+
+| Сценарий                         | Нужна `pragma module`?          | Примечание                                  |
 | --------------------------------- | ------------------------------ | ------------------------------------- |
-| One file in a directory           | ❌ No                          | module name = folder name             |
-| Several files, one module         | ✅ Yes                         | every file must contain the pragma    |
-| Need a different module name      | ✅ Yes (`::name`)              | folder name is ignored                |
-| Non-standard folder name          | ✅ Yes (`::name`)              | explicit name required                |
-| Executable module                 | ✅ `pragma binary`             | requires @entrypoint                  |
-| Entry point in a regular module   | ⚠️ Optional                   | can be run as a binary                |
-| Want file-local objects           | Use `@hidden`                  | pragma does not affect                |
+| Один файл в директории           | ❌ Нет                          | имя модуля = имя папки             |
+| Несколько файлов, один модуль         | ✅ Да                         | каждый файл должен содержать прагму    |
+| Нужно другое имя модуля      | ✅ Да (`::name`)              | имя папки игнорируется                |
+| Нестандартное имя папки          | ✅ Да (`::name`)              | требуется явное имя                |
+| Исполняемый модуль                 | ✅ `pragma binary`             | требует @entrypoint                  |
+| Точка входа в обычном модуле   | ⚠️ Опционально                   | может быть запущен как бинарник                |
+| Хотите локальные для файла объекты           | Используйте `@hidden`                  | прагма не влияет                |

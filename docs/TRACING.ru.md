@@ -1,97 +1,96 @@
-# Surge Compiler Tracing
+# Трассировка компилятора Surge
 [English](TRACING.md) | [Russian](TRACING.ru.md)
-> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
-Surge includes a built-in tracing system to diagnose compiler hangs, performance
-issues, and pipeline behavior. Tracing is controlled by global CLI flags and
-emits structured events during `surge diag`, `surge parse`, and other commands.
+Surge включает встроенную систему трассировки для диагностики зависаний компилятора, проблем
+производительности и поведения пайплайна. Трассировка управляется глобальными флагами CLI и
+выдает структурированные события во время `surge diag`, `surge parse` и других команд.
 
 ---
 
-## Quick Start
+## Быстрый старт
 
 ```bash
-# High-level phases to stderr
+# Высокоуровневые фазы в stderr
 surge diag file.sg --trace=- --trace-level=phase --trace-mode=stream
 
-# Full detail (parser + sema internals) to a file
+# Полная детализация (парсер + внутренности sema) в файл
 surge diag file.sg --trace=trace.log --trace-level=debug
 
-# With heartbeat (hang detection)
+# С heartbeat (обнаружение зависаний)
 surge diag file.sg --trace=trace.log --trace-level=debug --trace-heartbeat=1s
 ```
 
 ---
 
-## Flags
+## Флаги
 
-Global flags (see `cmd/surge/main.go`):
+Глобальные флаги (см. `cmd/surge/main.go`):
 
-- `--trace=<path>`: output file (`-` for stderr, empty to disable)
+- `--trace=<path>`: файл вывода (`-` для stderr, пусто для отключения)
 - `--trace-level=off|error|phase|detail|debug`
-- `--trace-mode=stream|ring|both` (default: `ring`)
+- `--trace-mode=stream|ring|both` (по умолчанию: `ring`)
 - `--trace-format=auto|text|ndjson|chrome`
-- `--trace-ring-size=<n>` (default: 4096)
-- `--trace-heartbeat=<duration>` (0 disables)
+- `--trace-ring-size=<n>` (по умолчанию: 4096)
+- `--trace-heartbeat=<duration>` (0 отключает)
 
-**Auto behavior:**
+**Авто-поведение:**
 
-- If `--trace` is a file path and `--trace-mode=ring`, the mode is
-  auto-switched to **stream**. To force ring, explicitly set
+- Если `--trace` — это путь к файлу и `--trace-mode=ring`, режим
+  автоматически переключается на **stream**. Чтобы принудительно включить ring, явно установите
   `--trace-mode=ring`.
-- `--trace-format=auto` detects format from extension:
+- `--trace-format=auto` определяет формат по расширению:
   - `.ndjson` => NDJSON
-  - `.json` or `.chrome.json` => Chrome trace
-  - otherwise => text
+  - `.json` или `.chrome.json` => Chrome trace
+  - иначе => text
 
 ---
 
-## Trace Levels
+## Уровни трассировки
 
-| Level | Emits | Notes |
+| Уровень | Выдает | Примечания |
 |-------|-------|-------|
-| `off` | nothing | tracing disabled |
-| `error` | no spans (reserved) | only heartbeat + crash dump plumbing |
-| `phase` | driver + pass spans | high-level pipeline |
-| `detail` | + module spans | module resolution + graph |
-| `debug` | + node spans | parser + sema internals |
+| `off` | ничего | трассировка отключена |
+| `error` | нет спанов (зарезервировано) | только heartbeat + инфраструктура краш-дампов |
+| `phase` | спаны драйвера + проходов | высокоуровневый пайплайн |
+| `detail` | + спаны модулей | разрешение модулей + граф |
+| `debug` | + спаны узлов | парсер + внутренности sema |
 
-`error` currently does not emit spans; use `phase` or higher for real output.
+`error` в настоящее время не выдает спаны; используйте `phase` или выше для реального вывода.
 
 ---
 
-## Trace Modes
+## Режимы трассировки
 
-### Stream
+### Stream (Поток)
 
-Writes events immediately to the output.
+Пишет события немедленно в вывод.
 
 ```bash
 surge diag file.sg --trace=trace.log --trace-level=detail --trace-mode=stream
 ```
 
-### Ring (default)
+### Ring (Кольцо, по умолчанию)
 
-Keeps the last N events in memory (circular buffer). No output is written
-unless you explicitly dump it.
+Хранит последние N событий в памяти (кольцевой буфер). Вывод не пишется,
+если вы явно не сдампите его.
 
 ```bash
 surge diag file.sg --trace-level=detail --trace-mode=ring
 ```
 
-If you set `--trace` while forcing ring mode, the ring buffer is **dumped on
-panic or SIGINT** into:
+Если вы установите `--trace` при принудительном режиме ring, кольцевой буфер **дампится при
+панике или SIGINT** в:
 
 ```
 <path>.panic.trace
 <path>.interrupt.trace
 ```
 
-Dump format is always **text**.
+Формат дампа всегда **text**.
 
-### Both
+### Both (Оба)
 
-Sends events to both stream and ring:
+Отправляет события и в поток, и в кольцо:
 
 ```bash
 surge diag file.sg --trace=trace.log --trace-level=debug --trace-mode=both
@@ -99,13 +98,13 @@ surge diag file.sg --trace=trace.log --trace-level=debug --trace-mode=both
 
 ---
 
-## Output Formats
+## Форматы вывода
 
-### Text (human-readable)
+### Text (читаемый человеком)
 
-Format: `[seq NNNNNN] <indent><event> name (detail) {extra=...}`
+Формат: `[seq NNNNNN] <indent><event> name (detail) {extra=...}`
 
-Example:
+Пример:
 
 ```
 [seq      1] → diagnose
@@ -117,14 +116,14 @@ Example:
 [seq      7] ♡ heartbeat (#1)
 ```
 
-Legend:
+Легенда:
 
-- `→` span begin
-- `←` span end
-- `•` point event
+- `→` начало спана
+- `←` конец спана
+- `•` точечное событие
 - `♡` heartbeat
 
-Indentation is a single level when a parent span exists.
+Отступ — один уровень, когда существует родительский спан.
 
 ### NDJSON
 
@@ -132,13 +131,13 @@ Indentation is a single level when a parent span exists.
 surge diag file.sg --trace=trace.ndjson --trace-level=debug --trace-format=ndjson
 ```
 
-Each line is a JSON object:
+Каждая строка — объект JSON:
 
 ```json
 {"time":"2025-12-05T12:00:00.123456Z","seq":1,"kind":"begin","scope":"pass","span_id":42,"parent_id":0,"gid":1,"name":"parse"}
 ```
 
-Fields:
+Поля:
 
 - `time`, `seq`, `kind`, `scope`
 - `span_id`, `parent_id`, `gid`
@@ -150,53 +149,53 @@ Fields:
 surge diag file.sg --trace=trace.json --trace-level=detail --trace-format=chrome
 ```
 
-Open `chrome://tracing` and load the JSON file. The stream writer produces a
-`traceEvents` array compatible with the Chrome trace viewer.
+Откройте `chrome://tracing` и загрузите JSON файл. Писатель потока производит
+массив `traceEvents`, совместимый с просмотрщиком трассировки Chrome.
 
 ---
 
-## Heartbeat
+## Heartbeat (Пульс)
 
-`--trace-heartbeat=1s` emits periodic `heartbeat` events. This is useful for
-identifying hangs: heartbeats continue while work stops.
+`--trace-heartbeat=1s` выдает периодические события `heartbeat`. Это полезно для
+идентификации зависаний: пульс продолжается, пока работа стоит.
 
-Example:
+Пример:
 
 ```
 [seq      1] → parse
 [seq      2] ♡ heartbeat (#1)
 [seq      3] ♡ heartbeat (#2)
-# no new spans -> likely hang in parse
+# нет новых спанов -> вероятно зависание в parse
 ```
 
 ---
 
-## Instrumented Components (v1)
+## Инструментированные компоненты (v1)
 
-Common spans include:
+Общие спаны включают:
 
-- Driver phases: `diagnose`, `load_file`, `tokenize`, `parse`, `symbols`, `sema`
-- Module graph: `parse_module_dir`, `analyze_dependency`, `process_module`
-- Parser nodes (debug): `parse_items`, `parse_block`, `parse_binary_expr`, `parse_postfix_expr`
-- Sema internals (debug): `sema_check`, `walk_item`, `walk_stmt`, `type_expr`,
+- Фазы драйвера: `diagnose`, `load_file`, `tokenize`, `parse`, `symbols`, `sema`
+- Граф модулей: `parse_module_dir`, `analyze_dependency`, `process_module`
+- Узлы парсера (debug): `parse_items`, `parse_block`, `parse_binary_expr`, `parse_postfix_expr`
+- Внутренности Sema (debug): `sema_check`, `walk_item`, `walk_stmt`, `type_expr`,
   `call_result_type`, `check_contract_satisfaction`, `methods_for_type`
-- HIR analysis (when HIR is built): `hir_build_borrow_graph`, `hir_build_move_plan`
+- Анализ HIR (когда HIR строится): `hir_build_borrow_graph`, `hir_build_move_plan`
 
 ---
 
-## Performance Notes
+## Заметки о производительности
 
-- `phase` has very low overhead and is safe for regular use.
-- `debug` can be expensive (parser + sema spans per node).
-- `ring` reduces I/O overhead but does not write output unless dumped.
+- `phase` имеет очень низкие накладные расходы и безопасен для регулярного использования.
+- `debug` может быть дорогим (спаны парсера + sema на каждый узел).
+- `ring` уменьшает накладные расходы на I/O, но не пишет вывод, если не сдамплен.
 
 ---
 
-## Related Tracing Flags
+## Связанные флаги трассировки
 
-Separate from compiler tracing:
+Отдельно от трассировки компилятора:
 
-- `--runtime-trace=<file>`: Go runtime trace
-- `surge run --vm-trace`: VM execution tracing
+- `--runtime-trace=<file>`: трассировка рантайма Go
+- `surge run --vm-trace`: трассировка выполнения VM
 
-These are **not** part of the compiler trace stream.
+Они **не** являются частью потока трассировки компилятора.

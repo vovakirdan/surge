@@ -1,5 +1,6 @@
-# Surge Language Specification (Draft 8)
+# Спецификация языка Surge (Draft 8)
 [English](LANGUAGE.md) | [Russian](LANGUAGE.ru.md)
+
 > Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
 > **Status:** Draft for review
@@ -156,7 +157,7 @@ This rule simplifies early implementation and preserves soundness of the ownersh
 
 ### 2.4. Generics
 
-Generic parameters must be declared explicitly with angle brackets: `<T, U, ...>`.  
+Generic parameters must be declared explicitly with angle brackets: `<T, U, ...>`.
 There are no implicit type variables: a bare `T` in a type position is always resolved as a normal type name unless it appears in the generic parameter list of the current declaration.
 
 Supported generic owners:
@@ -330,9 +331,8 @@ Use explicit handles (indices) and an external storage container instead. This k
 ```sg
 type NodeId = uint;
 
-type Node = {
-    next: NodeId?,   // Option<NodeId>
-    data: int,
+type Node = { next: NodeId?,   // Option<NodeId>
+                data: int,
 }
 
 type Nodes = Node[]; // storage
@@ -684,18 +684,6 @@ let mut x: string = "hello";
 modify(x);                    // OK: x is implicitly borrowed as &mut x
 ```
 
-**Move vs Borrow by Parameter Type:**
-
-The compiler infers move or borrow based on parameter types:
-
-| Parameter Type | Argument Type | Action |
-|---------------|---------------|--------|
-| `own T` | `T` / `own T` | Move (or copy if `Copy` type) |
-| `&T` | `T` | Implicit shared borrow |
-| `&T` | `&T` | Pass through (no extra borrow) |
-| `&mut T` | `mut T` | Implicit exclusive borrow |
-| `&mut T` | `&mut T` | Pass through (no extra borrow) |
-
 **Ownership for Operators Summary:**
 
 - Arithmetic on primitives (`int`, `float`): operands are `Copy`, no ownership transfer
@@ -825,7 +813,7 @@ for ( init? ; cond? ; post? ) { body }
 2) For-in (foreach):
 
 ```
-for pattern (":" Type)? in Expr { body }
+for pattern (':' Type)? in Expr { body }
 ```
 
 * `pattern` may be an identifier; future iterations may add destructuring.
@@ -1138,7 +1126,7 @@ let d: float = (a to float) + 0.1;
 
 **Rule C: Fixed-size checked arithmetic.** For `intN`/`uintN`, arithmetic is checked. If the exact result does not fit the destination type, the runtime **panics** (same philosophy as `to`). Division by zero also panics. Safe wrappers (checked/saturating) will be provided later in a math package.
 
-**How operators are implemented.** Most operators (arithmetic, comparison, indexing, etc.) are implemented via magic methods that must be exposed inside an `extern<T>` block. The standard library ships those implementations in `core/intrinsics.sg` (module `core`): each method is marked `@intrinsic` so the compiler can lower it straight to the runtime. Sema never assumes the result type of `int + int` or `string * uint`—it always resolves the magic method on the left operand (following alias inheritance rules) and uses that signature as the single source of truth. If no method exists, the operator is rejected with `SemaInvalidBinaryOperands`. 
+**How operators are implemented.** Most operators (arithmetic, comparison, indexing, etc.) are implemented via magic methods that must be exposed inside an `extern<T>` block. The standard library ships those implementations in `core/intrinsics.sg` (module `core`): each method is marked `@intrinsic` so the compiler can lower it straight to the runtime. Sema never assumes the result type of `int + int` or `string * uint`—it always resolves the magic method on the left operand (following alias inheritance rules) and uses that signature as the single source of truth. If no method exists, the operator is rejected with `SemaInvalidBinaryOperands`.
 
 **Exceptions:** The `is` and `heir` operators are built-in compiler checks and do not use magic methods. They cannot be overridden via `extern<T>` blocks.
 
@@ -1186,7 +1174,7 @@ print((z is &int) to string);        // true
 The `heir` operator checks inheritance relationships between a **value's type** and a target type, returning a `bool`. The check is performed both at compile time (for constant expressions) and at runtime (for dynamic checks).
 
 **Syntax:**
-```
+```surge
 Expr heir Type
 ```
 
@@ -1203,19 +1191,11 @@ Expr heir Type
 
 **Examples:**
 ```sg
-type BasePerson = {
-    name: string,
-    age: int
-};
+type BasePerson = { name: string, age: int };
 
-type Employee = BasePerson : {
-    id: uint,
-    department: string
-};
+type Employee = BasePerson : { id: uint, department: string };
 
-type Manager = Employee : {
-    team_size: int
-};
+type Manager = Employee : { team_size: int };
 
 let employee: Employee = { name = "A", age = 0, id = 1, department = "X" };
 let manager: Manager = { name = "B", age = 0, id = 2, department = "Y", team_size = 5 };
@@ -1311,7 +1291,7 @@ Each target type gets its own overload; primitives in `core/intrinsics.sg` (modu
 
 #### 6.6.1. Implicit Conversions
 
-The compiler automatically applies `__to` conversions in specific coercion sites when the target type is known and exactly one applicable `__to` method exists. This eliminates boilerplate explicit casts while preserving type safety. For function arguments, implicit `__to` is opt-in via `@allow_to` on the callee or the specific parameter.
+The compiler automatically applies `__to` conversions in specific coercion sites when the target type is known and exactly one applicable `__to` method exists. This eliminates boilerplate explicit casts while preserving type safety.
 
 **Coercion sites (automatic `__to` application):**
 
@@ -1457,8 +1437,8 @@ ABI: `Range<T>` is opaque runtime state; see `docs/ABI_LAYOUT.ru.md` (Range ABI)
 * `string` stores UTF-8 bytes; runtime constructors validate UTF-8 and normalize to NFC (string literals are assumed valid UTF-8).
 * `len(s)` returns the number of Unicode code points as `uint`.
 * `s[i]` returns the code point at index `i` as `uint32` (negative indices count from the end).
-* `s[[a..b]]` slices by code point indices and returns `string`. Omitted bounds default to `0`/`len`.
-  Inclusive `..=` adds one to the end bound, indices are clamped, and `start > end` yields `""`.
+* `s[[a..b]]` slices by code point indices and returns `string`. Omitted bounds default to `0`/`len`.  
+Inclusive `..=` adds one to the end bound, indices are clamped, and `start > end` yields `""`.
 * `bytes()` returns a `BytesView` over UTF-8 bytes. `len(view)` returns byte length; `view[i]` returns `uint8`.
 * Implementation detail: strings may be stored as a rope internally. Concatenation and slicing can return views, and byte access materializes a flat UTF-8 buffer lazily.
 * ABI: layout/pointer/length contracts live in `docs/ABI_LAYOUT.ru.md` (String ABI, BytesView ABI).
@@ -1486,7 +1466,7 @@ The core prelude defines common string helpers as methods on `string`:
 * `starts_with(prefix: string) -> bool`, `ends_with(suffix: string) -> bool`.
 * `split(sep: string) -> string[]` — empty `sep` splits into code points.
 * `join(parts: string[]) -> string` — uses `self` as the separator.
-* `trim()`, `trim_start()`, `trim_end()` — remove ASCII whitespace (`space`, `\\t`, `\\n`, `\\r`).
+* `trim()`, `trim_start()`, `trim_end()` — remove ASCII whitespace (`space`, `\t`, `\n`, `\r`).
 * `replace(old: string, new: string) -> string` — if `old` is empty, returns the original string.
 * `reverse() -> string` — reverses by code points.
 * `levenshtein(other: string) -> uint` — edit distance by code points.
@@ -1544,13 +1524,13 @@ Given a call `f(a1, ..., an)`, the set of candidate function signatures is first
 Overload resolution runs in two stages:
 
 1. **Monomorphic stage.**  
-   The algorithm from steps (1)–(6) above (arity filter, generic instantiation if needed, ownership adjustment, coercion cost graph, best candidate, qualifiers) is applied only to the monomorphic candidates.
+The algorithm from steps (1)–(6) above (arity filter, generic instantiation if needed, ownership adjustment, coercion cost graph, best candidate, qualifiers) is applied only to the monomorphic candidates.
    * If exactly one best candidate is found, it is selected and generic candidates are ignored.
    * If multiple candidates tie for the minimal total cost, the call is rejected as an ambiguous overload.
    * If no monomorphic candidate is applicable, proceed to the generic stage.
 
 2. **Generic stage.**  
-   The same algorithm is then applied to the generic candidates only.
+The same algorithm is then applied to the generic candidates only.
    * If exactly one best candidate is found, it is selected.
    * If multiple candidates tie for the minimal total cost, the call is rejected as an ambiguous overload.
    * If no generic candidate is applicable either, the call is rejected with a “no suitable overload” error.
@@ -1705,8 +1685,7 @@ timeout<T>(t: Task<T>, ms: uint) -> TaskResult<T>
 
 ### 9.5. Async/Await Model (Structured Concurrency)
 
-Surge provides structured concurrency with async/await for cooperative
-multitasking.
+Surge provides structured concurrency with async/await for cooperative multitasking.
 
 #### Async Functions
 
@@ -2221,7 +2200,7 @@ fn check_inheritance() -> bool {
 ```
 
 ```sg
-// @sealed type example
+// Example type @sealed
 @sealed
 type Conn = { fd:int, @noinherit secret:uint64 }
 
@@ -2229,7 +2208,7 @@ type SafeConn = Conn : { tag:string } // error: SemaAttrSealedExtend
 ```
 
 ```sg
-// @guarded_by and @requires_lock example
+// Example @guarded_by and @requires_lock
 type BankAccount = {
   lock: Mutex,
   @guarded_by("lock") balance: int
@@ -2248,7 +2227,7 @@ extern<BankAccount> {
 ```
 
 ```sg
-// @waits_on example for blocking receive
+// Example @waits_on for blocking receive
 type MessageQueue<T> = {
   items: T[],
   not_empty: Condition,
@@ -2265,7 +2244,7 @@ extern<MessageQueue<T>> {
 ```
 
 ```sg
-// @send and @nosend type examples
+// Example @send and @nosend type examples
 @send
 type SafeCounter = { @atomic value: int }
 
@@ -2294,7 +2273,7 @@ extern<CachedData> {
 ```
 
 ```sg
-// Test directive example with pragma directive
+// Example directive test with pragma directive
 import stdlib/directives::test;
 
 /// test:
@@ -2378,7 +2357,8 @@ import stdlib/directives::time;
 ## 13. Directives (`///`)
 
 Directives are structured doc-comment blocks for tool-driven scenarios (tests,
-benchmarks, lint checks). They do **not** affect program semantics or ABI.
+benchmarks,
+lint checks). They do **not** affect program semantics or ABI.
 
 Current behavior (v1):
 - Parsed only when `--directives=collect|gen|run` is enabled.
@@ -2443,7 +2423,7 @@ Note: `=>` is not a general expression operator; it is reserved for `parallel ma
 
 ### Member access precedence
 
-Member access `.`, await `.await()`, and cast `to Type` are postfix operators and bind tightly together with function calls and indexing. This resolves ambiguous parses, e.g., `a.f()[i].g()` parses as `(((a.f())[i]).g)()`.
+Member access `.`, await `.await()`, and cast `to Type` are postfix operators and bind tightly together with function calls and indexing. This resolves ambiguous parses, e.g., `a.f()[i].g()` parses as `(((a.f())[i]).g)() `.
 
 ---
 
@@ -2560,6 +2540,8 @@ type Product = { id: ProductId<Product>, name: string }
 fn get_user(id: UserId<User>) -> Option<User> { ... }
 ```
 
+---
+
 ## 18. Open Questions / To Confirm
 
 * Should `string` be `Copy` for small sizes or always `own`? (Proposed: always `own`.)
@@ -2606,7 +2588,7 @@ ExternBlock:= "extern<" Type ">" Block
 Import     := "import" Path ( "as" Ident | "::" ImportSpec )? ";"
 ImportSpec := "*" | Ident ("as" Ident)? | "{" ImportName ("," ImportName)* ","? "}"
 ImportName := Ident ("as" Ident)?
-Path       := ("." | ".." | Ident) ("/" ("." | ".." | Ident))*
+Path       := (".." | ".." | Ident) ("/" (".." | ".." | Ident))*
 Block      := "{" Stmt* "}"
 Stmt       := Const | Let | While | For | If | Spawn ";" | Async | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
 Const      := "const" Ident (":" Type)? "=" Expr ";"
@@ -2622,21 +2604,21 @@ Parallel   := "parallel" "map" Expr "with" ArgList "=>" Expr
           | "parallel" "reduce" Expr "with" Expr "," ArgList "=>" Expr
 ArgList    := "(" (Expr ("," Expr)*)? ")" | "()"
 TypeHeirPred := "(" Expr " heir " CoreType ")"
-TupleLit   := "(" Expr ("," Expr)+ ")"
+TupleLit   := "(" Expr ("," Expr)+")"
 AwaitExpr  := Expr "." "await" "(" ")"   // awaits a Task; valid in async fn/block and @entrypoint
 Spawn      := "spawn" Expr
-Compare    := "compare" Expr "{" Arm (";" Arm)* ";"? "}"
+Compare    := "compare" Expr "{" Arm ( ";" Arm)* ";"? "}"
 Arm        := Pattern "=>" Expr
 Pattern        := "finally" | Literal | "nothing" | Ident
                 | Ident "(" PatternArgs? ")"
                 | TuplePattern
                 | Ident "if" Expr
 PatternArgs   := Pattern ("," Pattern)*
-TuplePattern  := "(" Pattern ("," Pattern)+ ")"
+TuplePattern  := "(" Pattern ("," Pattern)+")"
 Type           := Ownership? (TupleType | CoreType) Suffix*
 Ownership      := "own" | "&" | "&mut" | "*"
 CoreType       := Ident ("<" Type ("," Type)* ">")?
-TupleType      := "(" Type ("," Type)+ ")"
+TupleType      := "(" Type ("," Type)+")"
 ParamTypes     := Type ("," Type)*
 Suffix         := "[]" | "[" Expr "]"
 ```
@@ -2713,3 +2695,5 @@ TBD; the notes below describe current compiler behavior only.
 
 - v1 remains single-threaded; `parallel` is not a stable API.
 - Lock contract attributes are partially enforced (see `docs/ATTRIBUTES.ru.md`).
+
+```
