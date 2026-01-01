@@ -1,0 +1,14 @@
+@entrypoint
+fn main() -> int {
+    let worker = spawn async {
+        sleep(3).await();
+        return 3;
+    };
+
+    let r = timeout(worker, 10);
+    compare r {
+        Success(v) => print("ok=" + (v to string));
+        Cancelled() => print("result=timeout");
+    };
+    return 0;
+}

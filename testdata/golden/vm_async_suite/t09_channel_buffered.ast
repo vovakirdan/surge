@@ -1,0 +1,44 @@
+t09_channel_buffered.sg (span: 1:1-31:1)
+└─ Item[0]: Fn (span: 1:1-30:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-30:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:37)
+         │  ├─ Name: ch
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#3: make_channel(1)
+         ├─ Stmt[1]: Let (span: 5:5-5:22)
+         │  ├─ Name: send_ch
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: ch
+         ├─ Stmt[2]: Let (span: 6:5-6:22)
+         │  ├─ Name: recv_ch
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#5: ch
+         ├─ Stmt[3]: Let (span: 7:5-12:7)
+         │  ├─ Name: sender
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#19: spawn async { 4 stmt(s) }
+         ├─ Stmt[4]: Let (span: 13:5-25:7)
+         │  ├─ Name: receiver
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#60: spawn async { 5 stmt(s) }
+         ├─ Stmt[5]: Let (span: 27:5-27:28)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#63: sender.await()
+         ├─ Stmt[6]: Let (span: 28:5-28:30)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#66: receiver.await()
+         └─ Stmt[7]: Return (span: 29:5-29:14)
+            └─ Expr: expr#67: 0
