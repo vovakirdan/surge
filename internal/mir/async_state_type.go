@@ -8,11 +8,16 @@ import (
 	"surge/internal/types"
 )
 
-func buildAsyncStateUnion(m *Module, typesIn *types.Interner, symTable *symbols.Table, f, pollFn *Func, variants []stateVariant) (types.TypeID, error) {
+const (
+	asyncStatePcField      = "__pc"
+	asyncStatePayloadField = "__payload"
+)
+
+func buildAsyncPayloadUnion(m *Module, typesIn *types.Interner, symTable *symbols.Table, f, pollFn *Func, variants []stateVariant) (types.TypeID, error) {
 	if typesIn == nil || typesIn.Strings == nil {
 		return types.NoTypeID, fmt.Errorf("mir: async: missing type interner strings")
 	}
-	name := fmt.Sprintf("__AsyncState$%s", f.Name)
+	name := fmt.Sprintf("__AsyncPayload$%s", f.Name)
 	nameID := typesIn.Strings.Intern(name)
 	stateID := typesIn.RegisterUnion(nameID, source.Span{})
 
@@ -59,6 +64,22 @@ func buildAsyncStateUnion(m *Module, typesIn *types.Interner, symTable *symbols.
 	if err := ensureTagLayout(m, typesIn, tagSymByName, stateID); err != nil {
 		return types.NoTypeID, err
 	}
+	return stateID, nil
+}
+
+func buildAsyncStateStruct(typesIn *types.Interner, f *Func, payloadType types.TypeID) (types.TypeID, error) {
+	if typesIn == nil || typesIn.Strings == nil {
+		return types.NoTypeID, fmt.Errorf("mir: async: missing type interner strings")
+	}
+	name := fmt.Sprintf("__AsyncState$%s", f.Name)
+	nameID := typesIn.Strings.Intern(name)
+	stateID := typesIn.RegisterStruct(nameID, source.Span{})
+
+	fields := []types.StructField{
+		{Name: typesIn.Strings.Intern(asyncStatePcField), Type: typesIn.Builtins().Int},
+		{Name: typesIn.Strings.Intern(asyncStatePayloadField), Type: payloadType},
+	}
+	typesIn.SetStructFields(stateID, fields)
 	return stateID, nil
 }
 

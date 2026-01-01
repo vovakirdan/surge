@@ -11,7 +11,7 @@ import (
 	"surge/internal/mono"
 )
 
-func TestLowerAsyncStateMachineRejectsAwaitInLoop(t *testing.T) {
+func TestLowerAsyncStateMachineAllowsAwaitInLoop(t *testing.T) {
 	sourceCode := `@entrypoint
 fn main() -> int {
     let res = (async {
@@ -82,11 +82,7 @@ fn main() -> int {
 		mir.RecognizeSwitchTag(f)
 		mir.SimplifyCFG(f)
 	}
-	err = mir.LowerAsyncStateMachine(mirMod, result.Sema, result.Symbols.Table)
-	if err == nil {
-		t.Fatal("expected await-in-loop error, got nil")
-	}
-	if !strings.Contains(err.Error(), "await inside loop") {
-		t.Fatalf("unexpected error: %v", err)
+	if err := mir.LowerAsyncStateMachine(mirMod, result.Sema, result.Symbols.Table); err != nil {
+		t.Fatalf("async lowering failed: %v", err)
 	}
 }

@@ -36,6 +36,9 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	if f == nil {
 		return nil
 	}
+	if f.AsyncLoweredV2 {
+		return nil
+	}
 	payload := f.Result
 	if payload == types.NoTypeID {
 		payload = typesIn.Builtins().Nothing
@@ -87,21 +90,20 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	}
 
 	sites := collectSuspendSites(pollFn)
-	if loopErr := rejectAwaitInLoops(pollFn, sites); loopErr != nil {
-		return loopErr
-	}
 	live := computeLiveness(pollFn)
 
 	paramLocals := paramLocalSet(pollFn, symTable)
 	variants := make([]stateVariant, 0, len(sites)+1)
+	variantByResume := make(map[BlockID]int, len(sites)+1)
 	variants = append(variants, stateVariant{
-		name:     "S0",
+		name:     pcVariantName(origEntry),
 		locals:   paramLocals.sorted(),
 		resumeBB: origEntry,
+		isStart:  true,
 	})
+	variantByResume[origEntry] = 0
 
 	for i := range sites {
-		sites[i].stateIndex = i + 1
 		sites[i].liveLocals = cloneSet(live[sites[i].pollBB].in)
 		if sites[i].pollBB >= 0 && int(sites[i].pollBB) < len(pollFn.Blocks) {
 			bb := &pollFn.Blocks[sites[i].pollBB]
@@ -127,33 +129,50 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 				}
 			}
 		}
+		if idx, ok := variantByResume[sites[i].pollBB]; ok {
+			sites[i].stateIndex = idx
+			continue
+		}
+		variantByResume[sites[i].pollBB] = len(variants)
+		sites[i].stateIndex = len(variants)
 		variants = append(variants, stateVariant{
-			name:     fmt.Sprintf("S%d", sites[i].stateIndex),
+			name:     pcVariantName(sites[i].pollBB),
 			locals:   sites[i].liveLocals.sorted(),
 			resumeBB: sites[i].pollBB,
 		})
 	}
 
-	stateType, err := buildAsyncStateUnion(m, typesIn, symTable, f, pollFn, variants)
+	payloadType, err := buildAsyncPayloadUnion(m, typesIn, symTable, f, pollFn, variants)
+	if err != nil {
+		return err
+	}
+	stateType, err := buildAsyncStateStruct(typesIn, f, payloadType)
 	if err != nil {
 		return err
 	}
 
 	stateLocal := addLocal(pollFn, "__state", stateType, localFlagsFor(typesIn, semaRes, stateType))
-	entryBB := buildAsyncPollEntry(pollFn, stateLocal, variants, pollFn.ScopeLocal, pollFn.Failfast, typesIn.Builtins().Bool)
+	pcLocal := addLocal(pollFn, "__pc", typesIn.Builtins().Int, localFlagsFor(typesIn, semaRes, typesIn.Builtins().Int))
+	payloadLocal := addLocal(pollFn, "__payload", payloadType, localFlagsFor(typesIn, semaRes, payloadType))
+	entryBB := buildAsyncPollEntry(pollFn, stateLocal, pcLocal, payloadLocal, variants, pollFn.ScopeLocal, pollFn.Failfast, typesIn.Builtins().Bool, typesIn.Builtins().Int)
 	pollFn.Entry = entryBB
 
-	if err := buildAsyncPendingBlocks(pollFn, stateLocal, sites, variants); err != nil {
+	if err := buildAsyncPendingBlocks(pollFn, stateLocal, payloadLocal, sites, variants, typesIn.Builtins().Int); err != nil {
 		return err
 	}
 	rewriteAsyncReturns(pollFn, stateLocal)
 
-	if err := buildAsyncConstructorState(f, typesIn, semaRes, taskType, stateType, pollFnID, variants[0]); err != nil {
+	if err := buildAsyncConstructorState(f, typesIn, semaRes, taskType, stateType, payloadType, pollFnID, variants[0], typesIn.Builtins().Int); err != nil {
 		return err
 	}
 	f.IsAsync = false
 	f.Result = taskType
+	f.AsyncLoweredV2 = true
 	return nil
+}
+
+func pcVariantName(bb BlockID) string {
+	return fmt.Sprintf("Pc%d", bb)
 }
 
 func insertScopeJoins(f *Func, scopeLocal, joinResultLocal LocalID) {

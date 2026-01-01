@@ -310,6 +310,9 @@ func (vm *VM) evalFieldAccess(frame *Frame, fa *mir.FieldAccess) (Value, *VMErro
 		return Value{}, vm.eb.typeMismatch("struct", fmt.Sprintf("%v", sobj.Kind))
 	}
 	idx := fa.FieldIdx
+	if fa.FieldName != "" {
+		idx = -1
+	}
 	if idx < 0 {
 		if fa.FieldName == "" {
 			return Value{}, vm.eb.makeError(PanicTypeMismatch, "missing field name")

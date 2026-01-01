@@ -187,52 +187,6 @@ func collectSuspendSites(f *Func) []awaitSite {
 	return sites
 }
 
-// rejectAwaitInLoops checks that no await occurs inside a loop.
-func rejectAwaitInLoops(f *Func, sites []awaitSite) error {
-	if f == nil || len(sites) == 0 {
-		return nil
-	}
-	awaitBlocks := make(map[BlockID]struct{}, len(sites))
-	for _, site := range sites {
-		if site.kind != suspendPoll && site.kind != suspendChanSend && site.kind != suspendChanRecv && site.kind != suspendTimeout {
-			continue
-		}
-		awaitBlocks[site.pollBB] = struct{}{}
-	}
-	for bbID := range awaitBlocks {
-		if hasCycleFrom(f, bbID) {
-			return fmt.Errorf("mir: async: await inside loop is not supported in %s", f.Name)
-		}
-	}
-	return nil
-}
-
-// hasCycleFrom checks if there is a path from start back to itself (DFS).
-func hasCycleFrom(f *Func, start BlockID) bool {
-	if f == nil || start == NoBlockID {
-		return false
-	}
-	seen := make(map[BlockID]struct{})
-	var stack []BlockID
-	stack = append(stack, start)
-	seen[start] = struct{}{}
-	for len(stack) > 0 {
-		id := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		for _, succ := range succBlocks(f, id, false) {
-			if succ == start {
-				return true
-			}
-			if _, ok := seen[succ]; ok {
-				continue
-			}
-			seen[succ] = struct{}{}
-			stack = append(stack, succ)
-		}
-	}
-	return false
-}
-
 // succBlocks returns the successor blocks of a given block.
 func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 	if f == nil || bbID == NoBlockID || int(bbID) >= len(f.Blocks) {
@@ -276,6 +230,15 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 			}
 			if includePollPending && last.ChanRecv.PendBB != NoBlockID {
 				out = append(out, last.ChanRecv.PendBB)
+			}
+			return out
+		case InstrTimeout:
+			out := []BlockID{}
+			if last.Timeout.ReadyBB != NoBlockID {
+				out = append(out, last.Timeout.ReadyBB)
+			}
+			if includePollPending && last.Timeout.PendBB != NoBlockID {
+				out = append(out, last.Timeout.PendBB)
 			}
 			return out
 		}

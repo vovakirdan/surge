@@ -12,9 +12,10 @@ type Func struct {
 	Name string
 	Span source.Span
 
-	Result   types.TypeID
-	IsAsync  bool
-	Failfast bool
+	Result         types.TypeID
+	IsAsync        bool
+	Failfast       bool
+	AsyncLoweredV2 bool
 
 	Locals []Local
 	Blocks []Block

@@ -3,6 +3,7 @@ package mir
 import (
 	"fmt"
 
+	"surge/internal/ast"
 	"surge/internal/sema"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -14,14 +15,16 @@ type stateVariant struct {
 	tagSym   symbols.SymbolID
 	locals   []LocalID
 	resumeBB BlockID
+	isStart  bool
 }
 
-// buildAsyncPollEntry creates the entry block for the poll function with a switch on state.
-func buildAsyncPollEntry(f *Func, stateLocal LocalID, variants []stateVariant, scopeLocal LocalID, failfast bool, boolType types.TypeID) BlockID {
+// buildAsyncPollEntry creates the entry block for the poll function with a pc-based dispatch.
+func buildAsyncPollEntry(f *Func, stateLocal, pcLocal, payloadLocal LocalID, variants []stateVariant, scopeLocal LocalID, failfast bool, boolType, intType types.TypeID) BlockID {
 	if f == nil {
 		return NoBlockID
 	}
 	entryBB := newBlock(f)
+	dispatchBB := newBlock(f)
 	defaultBB := newBlock(f)
 	setBlockTerm(f, defaultBB, Terminator{Kind: TermUnreachable})
 
@@ -30,24 +33,59 @@ func buildAsyncPollEntry(f *Func, stateLocal LocalID, variants []stateVariant, s
 		Dst:    Place{Local: stateLocal},
 		Callee: Callee{Kind: CalleeValue, Name: "__task_state"},
 	}})
+	appendInstr(f, entryBB, Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: Place{Local: pcLocal},
+		Src: RValue{Kind: RValueField, Field: FieldAccess{
+			Object:    Operand{Kind: OperandCopy, Place: Place{Local: stateLocal}},
+			FieldName: asyncStatePcField,
+		}},
+	}})
+	appendInstr(f, entryBB, Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: Place{Local: payloadLocal},
+		Src: RValue{Kind: RValueField, Field: FieldAccess{
+			Object:    Operand{Kind: OperandCopy, Place: Place{Local: stateLocal}},
+			FieldName: asyncStatePayloadField,
+		}},
+	}})
+	setBlockTerm(f, entryBB, Terminator{Kind: TermGoto, Goto: GotoTerm{Target: dispatchBB}})
 
-	cases := make([]SwitchTagCase, 0, len(variants))
-	for i := range variants {
-		variantBB := newBlock(f)
-		cases = append(cases, SwitchTagCase{TagName: variants[i].name, Target: variantBB})
+	condLocal := addLocal(f, "__pc_match", boolType, LocalFlagCopy)
+	nextCheck := defaultBB
+	for i := len(variants) - 1; i >= 0; i-- {
+		variant := variants[i]
+		caseBB := newBlock(f)
+		checkBB := newBlock(f)
 
-		for idx, localID := range variants[i].locals {
-			appendInstr(f, variantBB, Instr{Kind: InstrAssign, Assign: AssignInstr{
+		appendInstr(f, checkBB, Instr{Kind: InstrAssign, Assign: AssignInstr{
+			Dst: Place{Local: condLocal},
+			Src: RValue{Kind: RValueBinaryOp, Binary: BinaryOp{
+				Op:   ast.ExprBinaryEq,
+				Left: operandForLocal(f, pcLocal),
+				Right: Operand{
+					Kind:  OperandConst,
+					Type:  intType,
+					Const: Const{Kind: ConstInt, Type: intType, IntValue: int64(variant.resumeBB)},
+				},
+			}},
+		}})
+		setBlockTerm(f, checkBB, Terminator{Kind: TermIf, If: IfTerm{
+			Cond: operandForLocal(f, condLocal),
+			Then: caseBB,
+			Else: nextCheck,
+		}})
+
+		for idx, localID := range variant.locals {
+			appendInstr(f, caseBB, Instr{Kind: InstrAssign, Assign: AssignInstr{
 				Dst: Place{Local: localID},
 				Src: RValue{Kind: RValueTagPayload, TagPayload: TagPayload{
-					Value:   Operand{Kind: OperandCopy, Place: Place{Local: stateLocal}},
-					TagName: variants[i].name,
+					Value:   Operand{Kind: OperandCopy, Place: Place{Local: payloadLocal}},
+					TagName: variant.name,
 					Index:   idx,
 				}},
 			}})
 		}
-		if i == 0 && scopeLocal != NoLocalID {
-			appendInstr(f, variantBB, Instr{Kind: InstrCall, Call: CallInstr{
+		if variant.isStart && scopeLocal != NoLocalID {
+			appendInstr(f, caseBB, Instr{Kind: InstrCall, Call: CallInstr{
 				HasDst: true,
 				Dst:    Place{Local: scopeLocal},
 				Callee: Callee{Kind: CalleeValue, Name: "rt_scope_enter"},
@@ -58,20 +96,17 @@ func buildAsyncPollEntry(f *Func, stateLocal LocalID, variants []stateVariant, s
 				}},
 			}})
 		}
-		setBlockTerm(f, variantBB, Terminator{Kind: TermGoto, Goto: GotoTerm{Target: variants[i].resumeBB}})
+		setBlockTerm(f, caseBB, Terminator{Kind: TermGoto, Goto: GotoTerm{Target: variant.resumeBB}})
+		nextCheck = checkBB
 	}
 
-	setBlockTerm(f, entryBB, Terminator{Kind: TermSwitchTag, SwitchTag: SwitchTagTerm{
-		Value:   Operand{Kind: OperandCopy, Place: Place{Local: stateLocal}},
-		Cases:   cases,
-		Default: defaultBB,
-	}})
+	setBlockTerm(f, dispatchBB, Terminator{Kind: TermGoto, Goto: GotoTerm{Target: nextCheck}})
 
 	return entryBB
 }
 
 // buildAsyncPendingBlocks creates the pending blocks that save state and yield.
-func buildAsyncPendingBlocks(f *Func, stateLocal LocalID, sites []awaitSite, variants []stateVariant) error {
+func buildAsyncPendingBlocks(f *Func, stateLocal, payloadLocal LocalID, sites []awaitSite, variants []stateVariant, intType types.TypeID) error {
 	if f == nil {
 		return nil
 	}
@@ -92,9 +127,29 @@ func buildAsyncPendingBlocks(f *Func, stateLocal LocalID, sites []awaitSite, var
 		}
 		appendInstr(f, pendingBB, Instr{Kind: InstrCall, Call: CallInstr{
 			HasDst: true,
-			Dst:    Place{Local: stateLocal},
+			Dst:    Place{Local: payloadLocal},
 			Callee: Callee{Kind: CalleeSym, Sym: variants[variantIdx].tagSym, Name: variants[variantIdx].name},
 			Args:   args,
+		}})
+		stateType := types.NoTypeID
+		if int(stateLocal) >= 0 && int(stateLocal) < len(f.Locals) {
+			stateType = f.Locals[stateLocal].Type
+		}
+		appendInstr(f, pendingBB, Instr{Kind: InstrAssign, Assign: AssignInstr{
+			Dst: Place{Local: stateLocal},
+			Src: RValue{Kind: RValueStructLit, StructLit: StructLit{
+				TypeID: stateType,
+				Fields: []StructLitField{
+					{
+						Name:  asyncStatePcField,
+						Value: Operand{Kind: OperandConst, Type: intType, Const: Const{Kind: ConstInt, Type: intType, IntValue: int64(variants[variantIdx].resumeBB)}},
+					},
+					{
+						Name:  asyncStatePayloadField,
+						Value: operandForLocal(f, payloadLocal),
+					},
+				},
+			}},
 		}})
 		setBlockTerm(f, pendingBB, Terminator{Kind: TermAsyncYield, AsyncYield: AsyncYieldTerm{
 			State: operandForLocal(f, stateLocal),
@@ -155,7 +210,7 @@ func rewriteAsyncReturns(f *Func, stateLocal LocalID) {
 }
 
 // buildAsyncConstructorState builds the constructor function that creates the initial task.
-func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.Result, taskType, stateType types.TypeID, pollFnID FuncID, startVariant stateVariant) error {
+func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.Result, taskType, stateType, payloadType types.TypeID, pollFnID FuncID, startVariant stateVariant, intType types.TypeID) error {
 	if f == nil {
 		return nil
 	}
@@ -163,6 +218,7 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 	f.Entry = entry
 
 	stateTmp := addLocal(f, "__state_init", stateType, localFlagsFor(typesIn, semaRes, stateType))
+	payloadTmp := addLocal(f, "__payload_init", payloadType, localFlagsFor(typesIn, semaRes, payloadType))
 	taskTmp := addLocal(f, "__task", taskType, localFlagsFor(typesIn, semaRes, taskType))
 
 	args := make([]Operand, 0, len(startVariant.locals))
@@ -172,9 +228,25 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 
 	appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{
 		HasDst: true,
-		Dst:    Place{Local: stateTmp},
+		Dst:    Place{Local: payloadTmp},
 		Callee: Callee{Kind: CalleeSym, Sym: startVariant.tagSym, Name: startVariant.name},
 		Args:   args,
+	}})
+	appendInstr(f, entry, Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: Place{Local: stateTmp},
+		Src: RValue{Kind: RValueStructLit, StructLit: StructLit{
+			TypeID: stateType,
+			Fields: []StructLitField{
+				{
+					Name:  asyncStatePcField,
+					Value: Operand{Kind: OperandConst, Type: intType, Const: Const{Kind: ConstInt, Type: intType, IntValue: int64(startVariant.resumeBB)}},
+				},
+				{
+					Name:  asyncStatePayloadField,
+					Value: operandForLocal(f, payloadTmp),
+				},
+			},
+		}},
 	}})
 	appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{
 		HasDst: true,
