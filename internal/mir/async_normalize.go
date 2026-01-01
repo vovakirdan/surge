@@ -40,6 +40,15 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 				if ins.Kind != InstrAwait && ins.Kind != InstrChanSend && ins.Kind != InstrChanRecv && ins.Kind != InstrTimeout {
 					continue
 				}
+				if ins.Kind == InstrChanSend && ins.ChanSend.ReadyBB != NoBlockID {
+					continue
+				}
+				if ins.Kind == InstrChanRecv && ins.ChanRecv.ReadyBB != NoBlockID {
+					continue
+				}
+				if ins.Kind == InstrTimeout && ins.Timeout.ReadyBB != NoBlockID {
+					continue
+				}
 				prelude := append([]Instr(nil), bb.Instrs[:i]...)
 				after := append([]Instr(nil), bb.Instrs[i+1:]...)
 				origTerm := bb.Term

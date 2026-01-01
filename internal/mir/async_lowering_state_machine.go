@@ -162,17 +162,16 @@ func insertScopeJoins(f *Func, scopeLocal, joinResultLocal LocalID) {
 	}
 	origBlocks := len(f.Blocks)
 	for bi := range origBlocks {
-		bb := &f.Blocks[bi]
-		if bb.Term.Kind != TermReturn {
+		if f.Blocks[bi].Term.Kind != TermReturn {
 			continue
 		}
-		term := bb.Term.Return
+		term := f.Blocks[bi].Term.Return
 		joinBB := newBlock(f)
 		doneBB := newBlock(f)
 		successBB := newBlock(f)
 		cancelBB := newBlock(f)
 
-		bb.Term = Terminator{Kind: TermGoto, Goto: GotoTerm{Target: joinBB}}
+		f.Blocks[bi].Term = Terminator{Kind: TermGoto, Goto: GotoTerm{Target: joinBB}}
 
 		if term.Early {
 			appendInstr(f, joinBB, Instr{Kind: InstrCall, Call: CallInstr{

@@ -1,30 +1,34 @@
+async fn sender(ch: own Channel<int>) -> int {
+    ch.send(10);
+    ch.send(20);
+    print("sender done");
+    return 0;
+}
+
+async fn receiver(ch: own Channel<int>) -> int {
+    let a = ch.recv();
+    let b = ch.recv();
+    compare a {
+        Some(x) => print("a=" + (x to string));
+        nothing => print("a=nothing");
+    };
+    compare b {
+        Some(x) => print("b=" + (x to string));
+        nothing => print("b=nothing");
+    };
+    return 0;
+}
+
 @entrypoint
 fn main() -> int {
     let ch = make_channel::<int>(1);
 
-    let send_ch = ch;
+    let sender_ch = ch;
     let recv_ch = ch;
-    let sender = spawn async {
-        send_ch.send(10);
-        send_ch.send(20);
-        print("sender done");
-        return 0;
-    };
-    let receiver = spawn async {
-        let a = recv_ch.recv();
-        let b = recv_ch.recv();
-        compare a {
-            Some(x) => print("a=" + (x to string));
-            nothing => print("a=nothing");
-        };
-        compare b {
-            Some(x) => print("b=" + (x to string));
-            nothing => print("b=nothing");
-        };
-        return 0;
-    };
+    let sender_task = spawn sender(sender_ch);
+    let receiver_task = spawn receiver(recv_ch);
 
-    let _ = sender.await();
-    let _ = receiver.await();
+    let _ = sender_task.await();
+    let _ = receiver_task.await();
     return 0;
 }

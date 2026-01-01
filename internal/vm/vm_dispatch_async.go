@@ -143,8 +143,17 @@ func (vm *VM) execInstrPoll(frame *Frame, instr *mir.Instr, writes []LocalWrite)
 	if current == 0 {
 		return res, vm.eb.makeError(PanicUnimplemented, "async poll outside task")
 	}
+	currentTask := exec.Task(current)
+	if currentTask == nil {
+		return res, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", current))
+	}
 	if current == taskID {
 		return res, vm.eb.makeError(PanicInvalidHandle, "task cannot await itself")
+	}
+	if currentTask.Cancelled {
+		res.doJump = true
+		res.jumpBB = instr.Poll.PendBB
+		return res, nil
 	}
 	if targetTask.Status != asyncrt.TaskWaiting && targetTask.Status != asyncrt.TaskDone {
 		exec.Wake(taskID)
