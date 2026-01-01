@@ -1,0 +1,20 @@
+@entrypoint
+fn main() {
+    let a = 0.0;
+    let b = -0.0;
+    let x = 1.0 / 3.0;
+    let y = 1e30;
+    let z = -1e30;
+
+    print("a = " + a to string);
+    print("b = " + b to string);
+    print("x = " + x to string);
+    print("y = " + y to string);
+    print("z = " + z to string);
+
+    let t1 = 3.9 to int;
+    let t2 = -3.9 to int;
+    print("t1 = " + t1 to string);
+    print("t2 = " + t2 to string);
+    // let _ = 1.0 / 0.0; // panic
+}

@@ -1,0 +1,24 @@
+@entrypoint
+fn main() {
+    let ints: string[] = ["0", "1", "-1", "42", "-999999999999999999999", "1000000000000000000000"];
+    for num in ints {
+        let x: int = int.from_str(num).safe(); // if fails, returns default::<T>(), e.g. 0 for int
+        let t: string = x to string;
+        let y = compare int.from_str(t) {
+            Success(value) => value;
+            finally => 1; // just different fallback
+        };
+        print(format("{} -> {} -> {} = {}", fmt_arg(num), fmt_arg(t), fmt_arg(y), fmt_arg(x == y)));
+    }
+
+    let floats: string[] = ["0.0", "-0.0", "1.5", "-3.25", "1e20", "1e-20"];
+    for fl in floats {
+        let x = float.from_str(fl).safe();
+        let t: string = x to string;
+        let y: float = compare float.from_str(t) {
+            Success(value) => value;
+            finally => 1.0; // just different fallback
+        };
+        print(format("{} -> {} -> {} = {}", fmt_arg(fl), fmt_arg(t), fmt_arg(y), fmt_arg(x == y)));
+    }
+}

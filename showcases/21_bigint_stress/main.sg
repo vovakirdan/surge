@@ -1,0 +1,16 @@
+fn fib(n: int) -> int {
+    if n <= 1 {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+@entrypoint
+fn main() {
+    let n = 100;
+    let result = fib(n);
+    let result_str = result to string;
+    let digits = len(result_str); // todo think about pipe: expr |> fn - cool idea
+    print(f"fib({n}) digits = {digits}");
+    print(format("result head = {}", fmt_arg(result_str[0..50])));
+}

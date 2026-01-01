@@ -1,0 +1,20 @@
+@entrypoint 
+fn main() {
+    let i = 42;
+    let u = i:uint; // obj:Type is a shorthand for obj to Type
+    let i8: int8 = 120; // no need to explicitly cast to int8, just use the literal
+    let u8: uint8 = 250;
+
+    let f = i to float;
+    let i2 = f to int;
+
+    print("i = " + i to string);
+    print("u = " + u to string);
+    print("i8 = " + i8 to string);
+    print("u8 = " + u8 to string);
+    print("f = " + f to string);
+    print("i2 = " + i2 to string);
+
+    let neg = -1;
+    // let neg_u = neg:uint; // here we have a panic. `to` guarantees return T, but can panic.
+}

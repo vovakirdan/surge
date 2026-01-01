@@ -1,0 +1,19 @@
+fn checked_add_i8(a: int8, b: int8) -> Erring<int8, Error> {
+    let wide = a to int + b to int;
+    if wide < -128 || wide > 127 {
+        return Error { message = "int8 overflow", code = 1:uint };
+    }
+    return wide to int8;
+}
+
+@entrypoint
+fn main() {
+    let a: int8 = 120;
+    let b: int8 = 10;
+
+    let r: int8! = checked_add_i8(a, b);
+    compare r {
+        Success(value) => print("Success: " + value to string);
+        err => print("Error: " + err.message);
+    };
+}
