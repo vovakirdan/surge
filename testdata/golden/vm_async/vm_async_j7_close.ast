@@ -1,4 +1,4 @@
-testdata/golden/vm_async/vm_async_j7_close.sg (span: 1:1-29:1)
+vm_async_j7_close.sg (span: 1:1-29:1)
 ├─ Item[0]: Fn (span: 1:1-8:2)
 │  ├─ Name: receiver
 │  ├─ Params: (ch: own Channel<int>)

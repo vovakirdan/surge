@@ -19,6 +19,7 @@ const (
 	InstrJoinAll
 	InstrChanSend
 	InstrChanRecv
+	InstrTimeout
 	InstrNop
 )
 
@@ -35,6 +36,7 @@ type Instr struct {
 	JoinAll   JoinAllInstr
 	ChanSend  ChanSendInstr
 	ChanRecv  ChanRecvInstr
+	Timeout   TimeoutInstr
 }
 
 type AssignInstr struct {
@@ -105,6 +107,14 @@ type ChanSendInstr struct {
 type ChanRecvInstr struct {
 	Dst     Place
 	Channel Operand
+	ReadyBB BlockID
+	PendBB  BlockID
+}
+
+type TimeoutInstr struct {
+	Dst     Place
+	Task    Operand
+	Ms      Operand
 	ReadyBB BlockID
 	PendBB  BlockID
 }

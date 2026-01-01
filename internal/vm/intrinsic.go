@@ -101,6 +101,10 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleTaskState(frame, call, writes)
 	case "checkpoint":
 		return vm.handleCheckpoint(frame, call, writes)
+	case "sleep":
+		return vm.handleSleep(frame, call, writes)
+	case "timeout":
+		return vm.handleTimeout(frame, call, writes)
 	case "rt_scope_enter":
 		return vm.handleScopeEnter(frame, call, writes)
 	case "rt_scope_register_child":

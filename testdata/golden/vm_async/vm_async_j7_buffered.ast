@@ -1,4 +1,4 @@
-testdata/golden/vm_async/vm_async_j7_buffered.sg (span: 1:1-34:1)
+vm_async_j7_buffered.sg (span: 1:1-34:1)
 ├─ Item[0]: Fn (span: 1:1-5:2)
 │  ├─ Name: sender
 │  ├─ Params: (ch: own Channel<int>)

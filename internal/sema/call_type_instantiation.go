@@ -228,6 +228,18 @@ func (tc *typeChecker) instantiateTypeKeyWithInference(key symbols.TypeKey, actu
 		}
 		return tc.resolveResultType(okType, errType, source.Span{}, tc.scopeOrFile(tc.currentScope()))
 
+	case strings.HasPrefix(s, "Task<") && strings.HasSuffix(s, ">"):
+		content := strings.TrimSuffix(strings.TrimPrefix(s, "Task<"), ">")
+		actualPayload := actual
+		if payload := tc.taskPayloadType(actual); payload != types.NoTypeID {
+			actualPayload = payload
+		}
+		inner := tc.instantiateTypeKeyWithInference(symbols.TypeKey(content), actualPayload, bindings, paramNames)
+		if inner == types.NoTypeID {
+			return types.NoTypeID
+		}
+		return tc.taskType(inner, source.Span{})
+
 	default:
 		// Try to resolve as a simple type name
 		return tc.typeFromKey(symbols.TypeKey(s))

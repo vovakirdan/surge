@@ -401,6 +401,10 @@ func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
 		}
 		task.MarkCheckpointPolled()
 		return asyncrt.PollOutcome{Kind: asyncrt.PollYielded}, nil
+	case asyncrt.TaskKindSleep:
+		return vm.pollSleepTask(task)
+	case asyncrt.TaskKindTimeout:
+		return vm.pollTimeoutTask(task)
 	default:
 		outcome, stateOut, vmErr := vm.pollUserTask(task)
 		if vmErr != nil {

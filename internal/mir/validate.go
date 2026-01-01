@@ -80,7 +80,7 @@ func validateBlocksTerminated(f *Func) error {
 		if f.Blocks[i].Term.Kind == TermNone {
 			if len(f.Blocks[i].Instrs) > 0 {
 				last := f.Blocks[i].Instrs[len(f.Blocks[i].Instrs)-1]
-				if last.Kind == InstrPoll || last.Kind == InstrJoinAll || last.Kind == InstrChanSend || last.Kind == InstrChanRecv {
+				if last.Kind == InstrPoll || last.Kind == InstrJoinAll || last.Kind == InstrChanSend || last.Kind == InstrChanRecv || last.Kind == InstrTimeout {
 					continue
 				}
 			}
@@ -130,6 +130,13 @@ func validateBlockTargets(f *Func) error {
 				}
 				if !blockExists(ins.ChanRecv.PendBB) {
 					errs = append(errs, fmt.Errorf("bb%d instr %d: chan_recv pending target bb%d does not exist", i, j, ins.ChanRecv.PendBB))
+				}
+			case InstrTimeout:
+				if !blockExists(ins.Timeout.ReadyBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: timeout ready target bb%d does not exist", i, j, ins.Timeout.ReadyBB))
+				}
+				if !blockExists(ins.Timeout.PendBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: timeout pending target bb%d does not exist", i, j, ins.Timeout.PendBB))
 				}
 			}
 		}
@@ -289,6 +296,10 @@ func validateLocalIDs(f *Func, globals []Global) error {
 			case InstrChanRecv:
 				checkPlace(ins.ChanRecv.Dst, ctx)
 				checkOperand(ins.ChanRecv.Channel, ctx)
+			case InstrTimeout:
+				checkPlace(ins.Timeout.Dst, ctx)
+				checkOperand(ins.Timeout.Task, ctx)
+				checkOperand(ins.Timeout.Ms, ctx)
 			}
 		}
 

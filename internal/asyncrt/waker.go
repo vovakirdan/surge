@@ -8,6 +8,7 @@ const (
 	WakerJoin
 	WakerChannelRecv
 	WakerChannelSend
+	WakerTimer
 )
 
 // WakerKey identifies a wait queue entry.
@@ -35,6 +36,11 @@ func ChannelRecvKey(channelID ChannelID) WakerKey {
 // ChannelSendKey builds a wait key for channel senders.
 func ChannelSendKey(channelID ChannelID) WakerKey {
 	return WakerKey{Kind: WakerChannelSend, A: uint64(channelID)}
+}
+
+// TimerKey builds a wait key for a timer.
+func TimerKey(timerID TimerID) WakerKey {
+	return WakerKey{Kind: WakerTimer, A: uint64(timerID)}
 }
 
 // PollOutcomeKind reports how a poll iteration completed.

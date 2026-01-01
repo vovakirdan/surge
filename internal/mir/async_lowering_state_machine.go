@@ -120,6 +120,10 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 					if ins.ChanRecv.Dst.Kind == PlaceLocal && len(ins.ChanRecv.Dst.Proj) == 0 {
 						sites[i].liveLocals.delete(ins.ChanRecv.Dst.Local)
 					}
+				case InstrTimeout:
+					if ins.Timeout.Dst.Kind == PlaceLocal && len(ins.Timeout.Dst.Proj) == 0 {
+						sites[i].liveLocals.delete(ins.Timeout.Dst.Local)
+					}
 				}
 			}
 		}

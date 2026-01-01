@@ -1,4 +1,4 @@
-testdata/golden/vm_async/vm_async_j7_try.sg (span: 1:1-43:1)
+vm_async_j7_try.sg (span: 1:1-43:1)
 └─ Item[0]: Fn (span: 1:1-42:2)
    ├─ Name: main
    ├─ Params: ()

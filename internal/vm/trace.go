@@ -210,6 +210,14 @@ func (t *Tracer) formatInstr(instr *mir.Instr) string {
 			instr.ChanRecv.ReadyBB,
 			instr.ChanRecv.PendBB,
 		)
+	case mir.InstrTimeout:
+		return fmt.Sprintf("%s = timeout %s, %s ? bb%d : bb%d",
+			t.formatPlace(instr.Timeout.Dst),
+			t.formatOperand(&instr.Timeout.Task),
+			t.formatOperand(&instr.Timeout.Ms),
+			instr.Timeout.ReadyBB,
+			instr.Timeout.PendBB,
+		)
 	case mir.InstrNop:
 		return "nop"
 	default:

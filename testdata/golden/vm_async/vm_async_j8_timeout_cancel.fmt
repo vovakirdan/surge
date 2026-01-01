@@ -1,0 +1,22 @@
+@entrypoint
+fn main() -> int {
+    let worker = spawn async {
+        sleep(100).await();
+        print("worker done");
+        return 1;
+    };
+
+    let r = timeout(worker, 10);
+    compare r {
+        Success(v) => print("success=" + (v to string));
+        Cancelled() => print("timeout");
+    };
+
+    let guard = spawn async {
+        sleep(200).await();
+        return 0;
+    };
+    let _ = guard.await();
+
+    return 0;
+}

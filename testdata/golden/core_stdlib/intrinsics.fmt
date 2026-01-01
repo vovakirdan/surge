@@ -88,6 +88,13 @@ extern<Task<T>> {
 @intrinsic
 pub fn checkpoint() -> Task<nothing>;
 
+// Sleep for ms milliseconds (virtual time in VM runtime)
+@intrinsic pub fn sleep(ms: uint) -> Task<nothing>;
+
+// Timeout join: waits for task completion up to ms; cancels task on deadline.
+// Returns TaskResult<T>: Success(value) if finished in time, Cancelled otherwise.
+@intrinsic pub fn timeout<T>(t: Task<T>, ms: uint) -> TaskResult<T>;
+
 // Typed channel for inter-task communication
 @copy
 @intrinsic

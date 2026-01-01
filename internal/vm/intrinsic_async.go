@@ -78,6 +78,141 @@ func (vm *VM) handleCheckpoint(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	return nil
 }
 
+func (vm *VM) handleSleep(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if call == nil || !call.HasDst {
+		return vm.eb.makeError(PanicUnimplemented, "sleep missing destination")
+	}
+	if len(call.Args) != 1 {
+		return vm.eb.makeError(PanicUnimplemented, "sleep expects 1 argument")
+	}
+	delayVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(delayVal)
+
+	delay, vmErr := vm.uintValueToInt(delayVal, "sleep duration out of range")
+	if vmErr != nil {
+		return vmErr
+	}
+	exec := vm.ensureExecutor()
+	if exec == nil {
+		return vm.eb.makeError(PanicUnimplemented, "async executor missing")
+	}
+	id := exec.SpawnSleep(&sleepState{delayMs: uint64(delay)}) //nolint:gosec // delay is bounded by uintValueToInt
+	taskVal, vmErr := vm.taskValue(id, frame.Locals[call.Dst.Local].TypeID)
+	if vmErr != nil {
+		return vmErr
+	}
+	if vmErr := vm.writeLocal(frame, call.Dst.Local, taskVal); vmErr != nil {
+		vm.dropValue(taskVal)
+		return vmErr
+	}
+	if writes != nil {
+		*writes = append(*writes, LocalWrite{
+			LocalID: call.Dst.Local,
+			Name:    frame.Locals[call.Dst.Local].Name,
+			Value:   taskVal,
+		})
+	}
+	return nil
+}
+
+func (vm *VM) handleTimeout(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if call == nil || !call.HasDst {
+		return vm.eb.makeError(PanicUnimplemented, "timeout missing destination")
+	}
+	if len(call.Args) != 2 {
+		return vm.eb.makeError(PanicUnimplemented, "timeout expects 2 arguments")
+	}
+	exec := vm.ensureExecutor()
+	if exec == nil {
+		return vm.eb.makeError(PanicUnimplemented, "async executor missing")
+	}
+	if exec.Current() != 0 {
+		return vm.eb.makeError(PanicUnimplemented, "timeout requires async lowering")
+	}
+
+	taskVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	ownsTask := taskVal.IsHeap()
+	defer func() {
+		if ownsTask {
+			vm.dropValue(taskVal)
+		}
+	}()
+	taskID, vmErr := vm.taskIDFromValue(taskVal)
+	if vmErr != nil {
+		return vmErr
+	}
+
+	delayVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(delayVal)
+	delay, vmErr := vm.uintValueToInt(delayVal, "timeout duration out of range")
+	if vmErr != nil {
+		return vmErr
+	}
+
+	resultType := frame.Locals[call.Dst.Local].TypeID
+	timeoutID := exec.SpawnTimeout(&timeoutState{
+		target:     taskID,
+		delayMs:    uint64(delay), //nolint:gosec // delay is bounded by uintValueToInt
+		resultType: resultType,
+	})
+
+	for {
+		timeoutTask := exec.Task(timeoutID)
+		if timeoutTask == nil {
+			return vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", timeoutID))
+		}
+		if timeoutTask.Status == asyncrt.TaskDone {
+			var result Value
+			switch timeoutTask.ResultKind {
+			case asyncrt.TaskResultSuccess:
+				val, ok := timeoutTask.ResultValue.(Value)
+				if !ok {
+					return vm.eb.makeError(PanicTypeMismatch, "invalid timeout result type")
+				}
+				result, vmErr = vm.cloneForShare(val)
+				if vmErr != nil {
+					return vmErr
+				}
+			case asyncrt.TaskResultCancelled:
+				result, vmErr = vm.taskResultValue(resultType, asyncrt.TaskResultCancelled, Value{})
+				if vmErr != nil {
+					return vmErr
+				}
+			default:
+				return vm.eb.makeError(PanicUnimplemented, "unknown task result kind")
+			}
+			if vmErr := vm.writeLocal(frame, call.Dst.Local, result); vmErr != nil {
+				vm.dropValue(result)
+				return vmErr
+			}
+			if writes != nil {
+				*writes = append(*writes, LocalWrite{
+					LocalID: call.Dst.Local,
+					Name:    frame.Locals[call.Dst.Local].Name,
+					Value:   result,
+				})
+			}
+			return nil
+		}
+		ran, vmErr := vm.runReadyOne()
+		if vmErr != nil {
+			return vmErr
+		}
+		if !ran {
+			return vm.eb.makeError(PanicUnimplemented, "async deadlock")
+		}
+	}
+}
+
 func (vm *VM) handleTaskClone(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if call == nil || !call.HasDst {
 		return vm.eb.makeError(PanicTypeMismatch, "clone requires a destination")

@@ -158,6 +158,9 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 					visitOperand(&ins.ChanSend.Value)
 				case InstrChanRecv:
 					visitOperand(&ins.ChanRecv.Channel)
+				case InstrTimeout:
+					visitOperand(&ins.Timeout.Task)
+					visitOperand(&ins.Timeout.Ms)
 				default:
 				}
 			}

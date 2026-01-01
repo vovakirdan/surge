@@ -327,6 +327,18 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 				}})
 				return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 			}
+		case "timeout":
+			if len(args) == 2 && l.isTaskType(args[0].Type) {
+				tmp := l.newTemp(e.Type, "timeout", e.Span)
+				l.emit(&Instr{Kind: InstrTimeout, Timeout: TimeoutInstr{
+					Dst:     Place{Local: tmp},
+					Task:    args[0],
+					Ms:      args[1],
+					ReadyBB: NoBlockID,
+					PendBB:  NoBlockID,
+				}})
+				return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
+			}
 		}
 	}
 

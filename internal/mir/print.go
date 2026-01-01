@@ -182,6 +182,14 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 			ins.ChanRecv.ReadyBB,
 			ins.ChanRecv.PendBB,
 		)
+	case InstrTimeout:
+		return fmt.Sprintf("%s = timeout %s, %s ? bb%d : bb%d",
+			formatPlace(ins.Timeout.Dst),
+			formatOperand(&ins.Timeout.Task),
+			formatOperand(&ins.Timeout.Ms),
+			ins.Timeout.ReadyBB,
+			ins.Timeout.PendBB,
+		)
 	case InstrNop:
 		return "nop"
 	default:

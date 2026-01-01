@@ -9,11 +9,15 @@ type Executor struct {
 	nextID      TaskID
 	nextScopeID ScopeID
 	nextChanID  ChannelID
+	nextTimerID TimerID
+	nowMs       uint64
 	ready       []TaskID
 	readySet    map[TaskID]struct{}
 	tasks       map[TaskID]*Task
 	scopes      map[ScopeID]*Scope
 	channels    map[ChannelID]*Channel
+	timers      timerHeap
+	timerByID   map[TimerID]*Timer
 	waiters     map[WakerKey][]TaskID
 	parked      map[TaskID]WakerKey
 	current     TaskID
@@ -39,6 +43,8 @@ type TaskKind uint8
 const (
 	TaskKindUser TaskKind = iota
 	TaskKindCheckpoint
+	TaskKindSleep
+	TaskKindTimeout
 )
 
 // TaskResultKind describes how a task completed.
@@ -75,6 +81,7 @@ type Task struct {
 	ScopeID          ScopeID
 	ParentScopeID    ScopeID
 	Children         []TaskID
+	TimeoutTaskID    TaskID
 	checkpointPolled bool
 }
 
@@ -92,6 +99,7 @@ func NewExecutor(cfg Config) *Executor {
 		nextID:      1,
 		nextScopeID: 1,
 		nextChanID:  1,
+		nextTimerID: 1,
 		readySet:    make(map[TaskID]struct{}),
 		tasks:       make(map[TaskID]*Task),
 		scopes:      make(map[ScopeID]*Scope),
@@ -161,6 +169,35 @@ func (e *Executor) Spawn(pollFuncID int64, state any) TaskID {
 	return id
 }
 
+func (e *Executor) spawnBuiltin(kind TaskKind, state any, attach bool) TaskID {
+	if e == nil {
+		return 0
+	}
+	if e.nextID == 0 {
+		e.nextID = 1
+	}
+	id := e.nextID
+	e.nextID++
+
+	task := &Task{
+		ID:     id,
+		State:  state,
+		Status: TaskReady,
+		Kind:   kind,
+	}
+	if e.tasks == nil {
+		e.tasks = make(map[TaskID]*Task)
+	}
+	e.tasks[id] = task
+	if attach && e.current != 0 {
+		if parent := e.tasks[e.current]; parent != nil {
+			parent.Children = append(parent.Children, id)
+		}
+	}
+	e.enqueue(id)
+	return id
+}
+
 // SpawnCheckpoint registers a checkpoint task and enqueues it.
 func (e *Executor) SpawnCheckpoint() TaskID {
 	if e == nil {
@@ -203,8 +240,13 @@ func (t *Task) MarkCheckpointPolled() {
 
 // NextReady returns the next ready task according to scheduler policy.
 func (e *Executor) NextReady() (TaskID, bool) {
-	if e == nil || len(e.ready) == 0 {
+	if e == nil {
 		return 0, false
+	}
+	for len(e.ready) == 0 {
+		if !e.advanceTimeToNextTimer() {
+			return 0, false
+		}
 	}
 	for len(e.ready) > 0 {
 		idx := 0
@@ -436,6 +478,10 @@ func (e *Executor) DrainTasks() []*Task {
 		if e.channels != nil {
 			clear(e.channels)
 		}
+		if e.timerByID != nil {
+			clear(e.timerByID)
+		}
+		e.timers = nil
 		if e.waiters != nil {
 			clear(e.waiters)
 		}
@@ -444,6 +490,8 @@ func (e *Executor) DrainTasks() []*Task {
 		}
 		e.nextScopeID = 1
 		e.nextChanID = 1
+		e.nextTimerID = 1
+		e.nowMs = 0
 		e.current = 0
 		return nil
 	}
@@ -458,6 +506,10 @@ func (e *Executor) DrainTasks() []*Task {
 	if e.channels != nil {
 		clear(e.channels)
 	}
+	if e.timerByID != nil {
+		clear(e.timerByID)
+	}
+	e.timers = nil
 	e.ready = nil
 	if e.readySet != nil {
 		clear(e.readySet)
@@ -470,6 +522,8 @@ func (e *Executor) DrainTasks() []*Task {
 	}
 	e.nextScopeID = 1
 	e.nextChanID = 1
+	e.nextTimerID = 1
+	e.nowMs = 0
 	e.current = 0
 	return tasks
 }

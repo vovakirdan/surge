@@ -3,7 +3,7 @@ error SEM3020 testdata/golden/hir_borrow/invalid/move_forbidden_when_borrowed.sg
 == HIR ==
 module 
 
-fn t() -> nothing (id=1, sym=1214) {
+fn t() -> nothing (id=1, sym=1218) {
   let x: string = "\"hi\""
   let r: &string [&] = (& x): &string
   let y: string = x
@@ -11,13 +11,13 @@ fn t() -> nothing (id=1, sym=1214) {
 }
 
 borrow edges:
-  L2429(r) (&) borrows L2428(x) at 0:56-58 scope=S3
+  L2437(r) (&) borrows L2436(x) at 0:56-58 scope=S3
 events:
-  borrow_start L2429(r) -> L2428(x) (&) at 0:56-58 scope=S3 note="B1"
-  move L2428(x) at 0:80-81 scope=S3 note="issue=frozen borrow=B1"
-  borrow_end L2429(r) -> L2428(x) scope=S3 note="scope_end B1"
+  borrow_start L2437(r) -> L2436(x) (&) at 0:56-58 scope=S3 note="B1"
+  move L2436(x) at 0:80-81 scope=S3 note="issue=frozen borrow=B1"
+  borrow_end L2437(r) -> L2436(x) scope=S3 note="scope_end B1"
 move plan:
-  L2428(x): MoveForbidden (move blocked by frozen (B1))
-  L2429(r): MoveCopy (copy type)
-  L2430(y): MoveNeedsDrop (non-copy (drop))
+  L2436(x): MoveForbidden (move blocked by frozen (B1))
+  L2437(r): MoveCopy (copy type)
+  L2438(y): MoveNeedsDrop (non-copy (drop))
 

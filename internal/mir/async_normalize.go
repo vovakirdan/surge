@@ -10,6 +10,7 @@ const (
 	suspendJoinAll
 	suspendChanSend
 	suspendChanRecv
+	suspendTimeout
 )
 
 // awaitSite describes a suspend point that has been split into a poll instruction.
@@ -36,7 +37,7 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 			bb := &f.Blocks[bi]
 			for i := 0; i < len(bb.Instrs); i++ {
 				ins := &bb.Instrs[i]
-				if ins.Kind != InstrAwait && ins.Kind != InstrChanSend && ins.Kind != InstrChanRecv {
+				if ins.Kind != InstrAwait && ins.Kind != InstrChanSend && ins.Kind != InstrChanRecv && ins.Kind != InstrTimeout {
 					continue
 				}
 				prelude := append([]Instr(nil), bb.Instrs[:i]...)
@@ -73,6 +74,15 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 					pollInstr = Instr{Kind: InstrChanRecv, ChanRecv: ChanRecvInstr{
 						Dst:     ins.ChanRecv.Dst,
 						Channel: ins.ChanRecv.Channel,
+						ReadyBB: afterBB,
+						PendBB:  NoBlockID,
+					}}
+				case InstrTimeout:
+					kind = suspendTimeout
+					pollInstr = Instr{Kind: InstrTimeout, Timeout: TimeoutInstr{
+						Dst:     ins.Timeout.Dst,
+						Task:    ins.Timeout.Task,
+						Ms:      ins.Timeout.Ms,
 						ReadyBB: afterBB,
 						PendBB:  NoBlockID,
 					}}
@@ -155,6 +165,13 @@ func collectSuspendSites(f *Func) []awaitSite {
 					pollInstr: ii,
 					readyBB:   ins.ChanRecv.ReadyBB,
 				})
+			case InstrTimeout:
+				sites = append(sites, awaitSite{
+					kind:      suspendTimeout,
+					pollBB:    bbID,
+					pollInstr: ii,
+					readyBB:   ins.Timeout.ReadyBB,
+				})
 			}
 		}
 	}
@@ -168,7 +185,7 @@ func rejectAwaitInLoops(f *Func, sites []awaitSite) error {
 	}
 	awaitBlocks := make(map[BlockID]struct{}, len(sites))
 	for _, site := range sites {
-		if site.kind != suspendPoll && site.kind != suspendChanSend && site.kind != suspendChanRecv {
+		if site.kind != suspendPoll && site.kind != suspendChanSend && site.kind != suspendChanRecv && site.kind != suspendTimeout {
 			continue
 		}
 		awaitBlocks[site.pollBB] = struct{}{}
