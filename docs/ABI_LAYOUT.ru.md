@@ -1,5 +1,6 @@
 # ABI Layout (v1) — x86_64-linux-gnu
 [English](ABI_LAYOUT.md) | [Russian](ABI_LAYOUT.ru.md)
+> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
 This document defines the **v1 ABI layout contract** for Surge on the supported
 runtime target:

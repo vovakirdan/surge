@@ -1,11 +1,11 @@
-# Промежуточные представления Surge (HIR/MIR)
+# Surge Intermediate Representations (HIR/MIR)
 
-Этот документ описывает **фактический** IR-пайплайн в текущей версии компилятора,
-а не план работ.
+This document describes the **actual** IR pipeline in the current compiler
+version, not the roadmap.
 
 ---
 
-## 1. Общая схема
+## 1. Overview
 
 ```
 AST + Sema
@@ -32,7 +32,7 @@ MIR validation
 VM execution
 ```
 
-Ключевые пакеты:
+Key packages:
 
 - HIR: `internal/hir`
 - Monomorphization: `internal/mono`
@@ -44,98 +44,99 @@ VM execution
 
 ## 2. HIR (High-level IR)
 
-HIR строится после успешной семантики:
+HIR is built after successful semantic analysis:
 
-- Вход: AST + результаты `sema`
-- Выход: `hir.Module` (типизированное дерево функций и выражений)
+- Input: AST + `sema` results
+- Output: `hir.Module` (typed tree of functions and expressions)
 
-### 2.1. Что делает `hir.Lower`
+### 2.1. What `hir.Lower` does
 
 `internal/hir/lower.go`:
 
-- минимальный desugaring (например, убирает ExprGroup)
-- нормализация высокоуровневых конструкций:
-  - `compare` -> условные ветвления
+- minimal desugaring (e.g. removing ExprGroup)
+- normalization of high-level constructs:
+  - `compare` -> conditional branches
   - `for` -> `while`
-- **не** разворачивает async/spawn (это делает MIR)
+- **does not** desugar async/spawn (that happens in MIR)
 
-### 2.2. Borrow graph и move plan
+### 2.2. Borrow graph and move plan
 
-HIR включает дополнительные артефакты для анализа и отладки:
+HIR includes extra artifacts for analysis and debugging:
 
-- `BorrowGraph`: рёбра заимствований и события (borrow/move/write/drop)
-- `MovePlan`: политика перемещений для локалов (`MoveCopy`, `MoveAllowed`, ...)
+- `BorrowGraph`: borrow edges and events (borrow/move/write/drop)
+- `MovePlan`: move policy for locals (`MoveCopy`, `MoveAllowed`, ...)
 
-Построение: `internal/hir/borrow_build.go`.
+Construction: `internal/hir/borrow_build.go`.
 
-### 2.3. Как посмотреть HIR
+### 2.3. How to inspect HIR
 
-Команда:
+Commands:
 
 ```bash
 surge diag file.sg --emit-hir
-surge diag file.sg --emit-borrow   # вместе с borrow graph + move plan
+surge diag file.sg --emit-borrow   # with borrow graph + move plan
 ```
 
-Дамп: `hir.DumpWithOptions`.
+Dump: `hir.DumpWithOptions`.
 
 ---
 
 ## 3. Monomorphization (generic -> concrete)
 
-Пакет `internal/mono` превращает HIR с generics в конкретные инстансы:
+`internal/mono` turns generic HIR into concrete instantiations:
 
-- использует карту инстансов (`mono.InstantiationMap`)
-- инстансы собираются в sema при `--emit-instantiations`
-- есть DCE (dead code elimination) для моно-версий
+- uses an instantiation map (`mono.InstantiationMap`)
+- instantiations are collected in sema with `--emit-instantiations`
+- supports DCE (dead code elimination) for mono versions
 
-Флаги CLI:
+CLI flags:
 
 ```bash
 surge diag file.sg --emit-instantiations
 surge diag file.sg --emit-mono --mono-dce --mono-max-depth=64
 ```
 
-Дамп: `mono.DumpMonoModule`.
+Dump: `mono.DumpMonoModule`.
 
-Примечание: `--emit-mono` поддерживается только для одиночных файлов (директории отклоняются).
+Note: `--emit-mono` is supported only for single files (directories are
+rejected).
 
 ---
 
 ## 4. MIR (Mid-level IR)
 
-MIR — это CFG + инструкции + терминаторы.
-Структуры: `internal/mir/*`.
+MIR is a CFG + instructions + terminators.
+Structures: `internal/mir/*`.
 
-### 4.1. Lowering в MIR
+### 4.1. Lowering to MIR
 
-`mir.LowerModule` принимает моно-HIR и строит `mir.Module`:
+`mir.LowerModule` takes mono-HIR and builds `mir.Module`:
 
-- локалы, блоки, инструкции
-- константы и статические строки
-- метаданные ABI layout (`layout.LayoutEngine`)
-- таблицы layout для tag/union
+- locals, blocks, instructions
+- constants and static strings
+- ABI layout metadata (`layout.LayoutEngine`)
+- tag/union layout tables
 
-### 4.2. MIR-проходы
+### 4.2. MIR passes
 
-В `surge diag --emit-mir` выполняются следующие шаги:
+`surge diag --emit-mir` runs the following steps:
 
-1. `SimplifyCFG` — убирает тривиальные `goto`
-2. `RecognizeSwitchTag` — превращает цепочки `if` в `switch_tag`
-3. `SimplifyCFG` ещё раз
+1. `SimplifyCFG` — removes trivial `goto`
+2. `RecognizeSwitchTag` — turns `if` chains into `switch_tag`
+3. `SimplifyCFG` again
 4. `LowerAsyncStateMachine` — async lowering
-5. `SimplifyCFG` ещё раз
-6. `Validate` — проверка инвариантов MIR
+5. `SimplifyCFG` again
+6. `Validate` — checks MIR invariants
 
-### 4.3. Дамп MIR
+### 4.3. MIR dump
 
 ```bash
 surge diag file.sg --emit-mir
 ```
 
-Дамп: `mir.DumpModule`.
+Dump: `mir.DumpModule`.
 
-Примечание: `--emit-mir` поддерживается только для одиночных файлов.
+Note: `--emit-mir` is supported only for single files.
 
 ---
 
@@ -143,35 +144,35 @@ surge diag file.sg --emit-mir
 
 `mir.LowerAsyncStateMachine`:
 
-- превращает `async fn` в **poll state machine**
-- разбивает `await` в отдельные suspend-блоки
-- сохраняет/восстанавливает live locals между подвесами
-- добавляет structured concurrency (`rt_scope_*`)
+- turns `async fn` into a **poll state machine**
+- splits `await` into separate suspend blocks
+- saves/restores live locals across suspensions
+- adds structured concurrency (`rt_scope_*`)
 
-Ограничение v1:
+v1 limitation:
 
-- `await` внутри циклов не поддержан (ошибка lowering).
+- `await` inside loops is not supported (lowering error).
 
 ---
 
 ## 6. Entrypoint lowering
 
-Если есть `@entrypoint`, MIR строит синтетическую функцию
+If `@entrypoint` exists, MIR builds a synthetic function
 `__surge_start` (`internal/mir/entrypoint_*.go`).
 
-Она:
+It:
 
-- обрабатывает `@entrypoint("argv")` / `@entrypoint("stdin")`
-- парсит аргументы через `from_str`
-- возвращает корректный код выхода
+- handles `@entrypoint("argv")` / `@entrypoint("stdin")`
+- parses arguments via `from_str`
+- returns the correct exit code
 
 ---
 
-## 7. Исполнение (VM)
+## 7. Execution (VM)
 
-MIR исполняется в VM (`internal/vm`).
+MIR is executed by the VM (`internal/vm`).
 
-Полезные флаги:
+Useful flags:
 
 ```bash
 surge run file.sg --vm-trace
@@ -179,7 +180,7 @@ surge run file.sg --vm-trace
 
 ---
 
-## 8. Где смотреть код
+## 8. Where to look
 
 - HIR: `internal/hir/*`
 - Borrow graph: `internal/hir/borrow_build.go`

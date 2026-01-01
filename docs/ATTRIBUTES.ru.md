@@ -1,5 +1,6 @@
 # Surge Language Attributes
 [English](ATTRIBUTES.md) | [Russian](ATTRIBUTES.ru.md)
+> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
 Attributes are declarative annotations that attach extra constraints or metadata to
 functions, types, fields, parameters, blocks, and statements. The compiler

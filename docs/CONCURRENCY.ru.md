@@ -1,5 +1,6 @@
 # Surge Concurrency Model v1
 [English](CONCURRENCY.md) | [Russian](CONCURRENCY.ru.md)
+> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
 > **Status:** Implemented in VM (single-threaded cooperative scheduler)
 > **Scope:** async/await, Task/TaskResult, spawn, channels, cancellation, timeouts
@@ -229,4 +230,4 @@ Notes:
 - `await` inside loops is rejected during async lowering.
 - Fairness between tasks is not guaranteed.
 
-See `docs/PARALLEL.md` for the status of parallel features.
+See `docs/PARALLEL.ru.md` for the status of parallel features.

@@ -1,4 +1,5 @@
 # SURGE_IS_NOT.md
+[English](SURGE_IS_NOT.md) | [Russian](SURGE_IS_NOT.ru.md)
 
 > Surge is not here to win a cosplay contest.
 > Surge is here to be Surge.

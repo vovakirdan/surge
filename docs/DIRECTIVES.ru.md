@@ -1,5 +1,6 @@
 # DIRECTIVES.md
 [English](DIRECTIVES.md) | [Russian](DIRECTIVES.ru.md)
+> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
 Surge directives are **structured doc-comment blocks** (`///`) that let you attach tool-driven scenarios (tests, benchmarks, lint checks) to code.
 

@@ -1,34 +1,34 @@
-# Параллельность в Surge (статус v1)
+# Parallelism in Surge (v1 status)
 
-> **Коротко:** в v1 нет настоящего параллелизма. Есть только кооперативная
-> конкурентность через `async`/`spawn` и каналы. Ключевые слова `parallel` и
-> `signal` зарезервированы и не поддерживаются.
-
----
-
-## 1. Что есть в v1
-
-### 1.1. Кооперативная конкурентность
-
-- Один поток исполнения, задачи переключаются в точках ожидания.
-- Инструменты: `async`, `spawn`, `.await()`, `Channel<T>`.
-- Результат ожидания: `TaskResult<T> = Success(T) | Cancelled`.
-
-См. `docs/CONCURRENCY.md` для точной модели.
-
-### 1.2. Ограничения v1
-
-- **Нет параллелизма** на нескольких ядрах.
-- `parallel map/reduce` не поддерживаются (ошибка `FutParallelNotSupported`).
-- `signal` не поддерживается (ошибка `FutSignalNotSupported`).
-- `await` внутри циклов пока запрещен (ограничение lowering).
+> **Short version:** v1 has no real parallelism. There is only cooperative
+> concurrency via `async`/`spawn` and channels. The keywords `parallel` and
+> `signal` are reserved and not supported.
 
 ---
 
-## 2. Альтернатива для data-parallel в v1
+## 1. What exists in v1
 
-Если нужна обработка коллекции, используйте `spawn` + ожидание. В v1 нельзя
-делать `await` в циклах, поэтому ожидание задач оформляется через рекурсию:
+### 1.1. Cooperative concurrency
+
+- Single execution thread; tasks switch at suspension points.
+- Tools: `async`, `spawn`, `.await()`, `Channel<T>`.
+- Await result: `TaskResult<T> = Success(T) | Cancelled`.
+
+See `docs/CONCURRENCY.md` for the precise model.
+
+### 1.2. v1 limitations
+
+- **No parallelism** across multiple cores.
+- `parallel map/reduce` is not supported (error `FutParallelNotSupported`).
+- `signal` is not supported (error `FutSignalNotSupported`).
+- `await` inside loops is currently forbidden (lowering limitation).
+
+---
+
+## 2. Data-parallel alternative in v1
+
+If you need to process a collection, use `spawn` + await. In v1 you cannot
+`await` in loops, so awaiting tasks is structured via recursion:
 
 ```sg
 async fn await_all<T>(tasks: Task<T>[], idx: int, mut out: T[]) -> T[] {
@@ -49,39 +49,40 @@ async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
 }
 ```
 
-Если нужно взаимодействие между задачами, используйте `Channel<T>`.
+If tasks need to communicate, use `Channel<T>`.
 
 ---
 
-## 3. Зарезервированные конструкции
+## 3. Reserved constructs
 
 ### 3.1. `parallel map/reduce`
 
-Синтаксис зарезервирован, но в v1 отклоняется семантикой:
+The syntax is reserved but rejected in v1:
 
 ```sg
 parallel map xs with (x) => x * x
 parallel reduce xs with 0, (acc, x) => acc + x
 ```
 
-Текущий статус: ошибка `FutParallelNotSupported`.
+Current status: error `FutParallelNotSupported`.
 
 ### 3.2. `signal`
 
-Синтаксис зарезервирован, но в v1 отклоняется семантикой:
+The syntax is reserved but rejected in v1:
 
 ```sg
 signal total := price + tax;
 ```
 
-Текущий статус: ошибка `FutSignalNotSupported`.
+Current status: error `FutSignalNotSupported`.
 
 ---
 
-## 4. План на v2+ (вкратце)
+## 4. v2+ plan (brief)
 
-- Настоящий параллелизм на нескольких потоках.
-- Data-parallel конструкции (`parallel map/reduce`).
-- Реактивные вычисления (`signal`).
+- Real parallelism across multiple threads.
+- Data-parallel constructs (`parallel map/reduce`).
+- Reactive computations (`signal`).
 
-Детали будут уточняться по мере реализации; в v1 это **не часть спецификации**.
+Details will be clarified as the implementation progresses; in v1 this is
+**not part of the specification**.

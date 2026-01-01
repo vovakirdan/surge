@@ -1,5 +1,6 @@
 # Surge Compiler Tracing
 [English](TRACING.md) | [Russian](TRACING.ru.md)
+> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
 Surge includes a built-in tracing system to diagnose compiler hangs, performance
 issues, and pipeline behavior. Tracing is controlled by global CLI flags and

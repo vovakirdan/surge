@@ -1,5 +1,6 @@
 # Surge Modules and `pragma module`
 [English](MODULES.md) | [Russian](MODULES.ru.md)
+> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
 > **Status:** Implemented (multi-file modules require `pragma module` / `pragma binary`)  
 > **Audience:** Surge language users and standard-library authors  
@@ -296,7 +297,7 @@ fn run() -> int { ... }
 * a binary module must have such a function;
 * a regular module doesn't have to.
 
-**Modes:** `@entrypoint("argv")` and `@entrypoint("stdin")` are supported; see `docs/ATTRIBUTES.md`.
+**Modes:** `@entrypoint("argv")` and `@entrypoint("stdin")` are supported; see `docs/ATTRIBUTES.ru.md`.
 
 ---
 
@@ -339,7 +340,7 @@ import core/math::{sin, cos};
 import core/math::*;
 ```
 
-See `docs/LANGUAGE.md` for the full grammar.
+See `docs/LANGUAGE.ru.md` for the full grammar.
 
 If a module inside a directory was renamed — use the new name.
 

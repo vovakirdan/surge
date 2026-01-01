@@ -1,8 +1,9 @@
 # Surge Language Specification (Draft 8)
 [English](LANGUAGE.md) | [Russian](LANGUAGE.ru.md)
+> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
 > **Status:** Draft for review
-> **Scope:** Full language surface for tokenizer → parser → semantics. VM/runtime details are out of scope here and live in docs/IR.md and docs/RUNTIME.md.
+> **Scope:** Full language surface for tokenizer → parser → semantics. VM/runtime details are out of scope here and live in docs/IR.ru.md and docs/RUNTIME.ru.md.
 > **Alignment:** Synced with the current parser + partial sema; clearly marks pieces that are still planned or only parsed.
 
 ---
@@ -941,7 +942,7 @@ Variadics:
 ### 4.2. Attributes
 
 Attributes are a **closed set** provided by the language. Unknown attributes are
-errors. For the full list, targets, and current status see `docs/ATTRIBUTES.md`.
+errors. For the full list, targets, and current status see `docs/ATTRIBUTES.ru.md`.
 
 Current parsing rules:
 - Attributes must appear immediately before the declaration they apply to.
@@ -1449,7 +1450,7 @@ Bounds are expressions; when present they must be `int` (no implicit casts).
 Inclusive end requires an end bound, so `[..=]` is invalid.  
 A trailing comma turns it into an array literal: `[1..3,]` is a single-element array containing `1..3`.
 
-ABI: `Range<T>` is opaque runtime state; see `docs/ABI_LAYOUT.md` (Range ABI).
+ABI: `Range<T>` is opaque runtime state; see `docs/ABI_LAYOUT.ru.md` (Range ABI).
 
 ### 7.3. Strings
 
@@ -1460,7 +1461,7 @@ ABI: `Range<T>` is opaque runtime state; see `docs/ABI_LAYOUT.md` (Range ABI).
   Inclusive `..=` adds one to the end bound, indices are clamped, and `start > end` yields `""`.
 * `bytes()` returns a `BytesView` over UTF-8 bytes. `len(view)` returns byte length; `view[i]` returns `uint8`.
 * Implementation detail: strings may be stored as a rope internally. Concatenation and slicing can return views, and byte access materializes a flat UTF-8 buffer lazily.
-* ABI: layout/pointer/length contracts live in `docs/ABI_LAYOUT.md` (String ABI, BytesView ABI).
+* ABI: layout/pointer/length contracts live in `docs/ABI_LAYOUT.ru.md` (String ABI, BytesView ABI).
 
 **Examples:**
 ```sg
@@ -1509,7 +1510,7 @@ Top-level helpers `array_push/array_pop/array_reserve` mirror the intrinsic oper
 
 For fixed-size arrays, `ArrayFixed<T, N>` provides `with_len`, `with_len_value`, and `to_array() -> Array<T>`.
 
-ABI: layout and view rules are defined in `docs/ABI_LAYOUT.md` (Array ABI, Array Slice View ABI, ArrayFixed).
+ABI: layout and view rules are defined in `docs/ABI_LAYOUT.ru.md` (Array ABI, Array Slice View ABI, ArrayFixed).
 
 ---
 
@@ -1788,7 +1789,7 @@ completes as `Cancelled()`. The scope then completes as `Cancelled()`.
 - `await` inside loops is rejected during async lowering.
 - v1 is single-threaded; tasks yield only at `.await()`.
 
-**See also:** `docs/CONCURRENCY.md` for more examples.
+**See also:** `docs/CONCURRENCY.ru.md` for more examples.
 
 ## 10. Standard Library Conventions
 
@@ -2408,7 +2409,7 @@ surge diag --directives=off|collect|gen|run --directives-filter=test,bench
 - `gen`: same as collect (reserved for future codegen).
 - `run`: stub execution; `--directives-filter` applies here.
 
-For full details and roadmap, see `docs/DIRECTIVES.md`.
+For full details and roadmap, see `docs/DIRECTIVES.ru.md`.
 
 ## 14. Precedence & Associativity
 
@@ -2570,11 +2571,11 @@ fn get_user(id: UserId<User>) -> Option<User> { ... }
 ## 19. Grammar Sketch (extract)
 
 Note: `macro` items are reserved for v2+; the v1 parser rejects them (`FutMacroNotSupported`).
-Directives are parsed only when enabled and follow the syntax in `docs/DIRECTIVES.md`.
+Directives are parsed only when enabled and follow the syntax in `docs/DIRECTIVES.ru.md`.
 
 ```
 Module     := Pragma* (Item | DirectiveBlock)*
-Pragma     := "pragma" Ident ("," Ident)*   // see docs/PRAGMA.md for supported forms
+Pragma     := "pragma" Ident ("," Ident)*   // see docs/PRAGMA.ru.md for supported forms
 DirectiveBlock := "///" Namespace ":" Newline
                   ( "///" NamespaceLine Newline )+
 Namespace  := Ident
@@ -2640,7 +2641,7 @@ ParamTypes     := Type ("," Type)*
 Suffix         := "[]" | "[" Expr "]"
 ```
 
-**Note:** `@intrinsic` requires declaration-only functions and special intrinsic types (see `docs/ATTRIBUTES.md`).
+**Note:** `@intrinsic` requires declaration-only functions and special intrinsic types (see `docs/ATTRIBUTES.ru.md`).
 
 ---
 
@@ -2711,4 +2712,4 @@ TBD; the notes below describe current compiler behavior only.
 ### 22.4. Compatibility Notes
 
 - v1 remains single-threaded; `parallel` is not a stable API.
-- Lock contract attributes are partially enforced (see `docs/ATTRIBUTES.md`).
+- Lock contract attributes are partially enforced (see `docs/ATTRIBUTES.ru.md`).

@@ -1,68 +1,76 @@
-# Pragma в Surge (актуальное состояние)
+# Pragma in Surge (current status)
+[English](PRAGMA.md) | [Russian](PRAGMA.ru.md)
 
-`pragma` — это декларация свойств **файла/модуля**, которую читает фронтенд. Она влияет на сборку и правила импорта, но не является обычным узлом AST выражений или операторов.
+`pragma` is a declaration of **file/module properties** read by the frontend. It
+influences build and import rules, but it is not a normal AST node for
+expressions or operators.
 
-## 1) Базовые правила
+## 1) Basic Rules
 
-- `pragma` должна быть **первой значимой строкой** файла.
-- **Только одна** `pragma` на файл.
-- Формат: список идентификаторов через запятую.
-- Нарушение позиции фиксируется диагностикой `SynPragmaPosition`.
+- `pragma` must be the **first significant line** of the file.
+- **Only one** `pragma` per file.
+- Format: a comma-separated list of identifiers.
+- Position violations are reported as `SynPragmaPosition`.
 
 ```sg
 pragma module, no_std
 ```
 
-Каждый элемент — это **pragma-ключ** (identifier). Некоторые ключи поддерживают **явное имя** в форме `name::value`.
+Each element is a **pragma key** (identifier). Some keys support an **explicit
+name** in the form `name::value`.
 
 ```sg
 pragma module::bounded
 ```
 
-Неизвестные ключи **парсятся**, но пока **игнорируются** (зарезервированы под будущее).
+Unknown keys are **parsed** but currently **ignored** (reserved for the
+future).
 
 ---
 
-## 2) Реализованные pragma
+## 2) Implemented Pragmas
 
-### 2.1 `pragma module` и `pragma binary`
+### 2.1 `pragma module` and `pragma binary`
 
-**Назначение:** объявить многофайловый модуль в пределах директории.
+**Purpose:** declare a multi-file module within a directory.
 
-- Если **хотя бы один** файл в директории содержит `pragma module` или `pragma binary`, **все** `.sg` файлы в этой директории обязаны иметь такую же `pragma`.
-- `module` и `binary` нельзя смешивать в одной директории.
-- Имя модуля:
-  - по умолчанию = имя директории;
-  - можно переопределить через `::name`.
-- `binary` требует **ровно один** `@entrypoint` в модуле.
+- If **at least one** file in a directory contains `pragma module` or
+  `pragma binary`, **all** `.sg` files in that directory must have the same
+  pragma.
+- `module` and `binary` cannot be mixed in one directory.
+- Module name:
+  - by default = directory name;
+  - can be overridden via `::name`.
+- `binary` requires **exactly one** `@entrypoint` in the module.
 
 ```sg
-// в каждом файле директории
+// in every file of the directory
 pragma module;
 ```
 
 ```sg
-// явное имя модуля
+// explicit module name
 pragma module::bounded;
 ```
 
 ```sg
-// исполняемый модуль
+// executable module
 pragma binary::run_app;
 ```
 
-**Диагностики (project-уровень):**
-- `ProjMissingModulePragma` — если часть файлов без `pragma`.
-- `ProjInconsistentModuleName` — если имена не совпадают.
+**Diagnostics (project-level):**
+- `ProjMissingModulePragma` — if some files are missing the pragma.
+- `ProjInconsistentModuleName` — if names do not match.
 
 ---
 
 ### 2.2 `pragma directive`
 
-Помечает модуль как **директивный**, чтобы его можно было использовать в `///`-директивах.
+Marks a module as **directive-capable**, so it can be used in `///` directives.
 
-- В режимах `--directives=collect|gen|run` компилятор проверяет, что namespace директивы соответствует импортированному модулю с `pragma directive`.
-- Без этой pragma директивы использовать модуль нельзя.
+- In `--directives=collect|gen|run` modes the compiler checks that a directive
+  namespace matches an imported module with `pragma directive`.
+- Without this pragma the module cannot be used in directives.
 
 ```sg
 pragma directive;
@@ -74,12 +82,12 @@ pub fn eq<T>(a: T, b: T) -> bool { ... }
 
 ### 2.3 `pragma no_std`
 
-Переводит модуль в режим без стандартной библиотеки:
+Switches a module to no-stdlib mode:
 
-- импорты `stdlib/...` переписываются в `core/...`;
-- выдаётся ошибка `SemaNoStdlib` с подсказкой на правильный импорт;
-- значение `no_std` должно быть **одинаковым** во всех файлах многофайлового модуля.
-  Несовпадение даёт `ProjInconsistentNoStd`.
+- `stdlib/...` imports are rewritten to `core/...`.
+- Error `SemaNoStdlib` is emitted with a hint for the correct import.
+- The `no_std` value must be **consistent** across all files of a multi-file
+  module. A mismatch emits `ProjInconsistentNoStd`.
 
 ```sg
 pragma module, no_std
@@ -87,18 +95,19 @@ pragma module, no_std
 
 ---
 
-### 2.4 `pragma strict` и `pragma unsafe`
+### 2.4 `pragma strict` and `pragma unsafe`
 
-Эти ключи **парсятся**, но **не применяются** в текущей версии.
+These keys are **parsed** but **not applied** in the current version.
 
-- `strict` — задел под строгий режим (warnings → errors, жесткие правила стиля).
-- `unsafe` — задел под будущие `unsafe {}` блоки.
+- `strict` — reserved for a strict mode (warnings → errors, tighter style rules).
+- `unsafe` — reserved for future `unsafe {}` blocks.
 
 ---
 
-## 3) Зарезервированные pragma (пока без поведения)
+## 3) Reserved Pragmas (no behavior yet)
 
-Следующие идеи поддерживаются как **зарезервированные ключи**, но ещё не реализованы:
+The following ideas are supported as **reserved keys**, but are not implemented
+yet:
 
 - `pragma feature(...)`
 - `pragma build ...`
@@ -106,26 +115,26 @@ pragma module, no_std
 - `pragma export(...)`
 - `pragma cache ...`
 
-Если нужен такой ключ — он будет принят синтаксически, но не повлияет на компиляцию.
+If you need such a key, it will parse but will not affect compilation.
 
 ---
 
-## 4) Примеры
+## 4) Examples
 
 ```sg
-// обычный многофайловый модуль
+// regular multi-file module
 pragma module
 ```
 
 ```sg
-// бинарный модуль с entrypoint
+// binary module with entrypoint
 pragma binary
 @entrypoint
 fn main() -> int { return 0; }
 ```
 
 ```sg
-// модуль без stdlib
+// module without stdlib
 pragma module, no_std
 import core/format;
 ```

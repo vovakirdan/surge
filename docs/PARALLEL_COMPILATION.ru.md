@@ -1,5 +1,6 @@
 # Parallel Diagnostics and Caching in Surge
 [English](PARALLEL_COMPILATION.md) | [Russian](PARALLEL_COMPILATION.ru.md)
+> Примечание: этот файл пока не переведен; содержимое совпадает с английской версией.
 
 This document describes how the Surge compiler parallelizes **diagnostics** and
 how it uses **in-memory and disk caches** for faster repeated runs.
