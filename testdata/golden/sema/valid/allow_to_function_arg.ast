@@ -33,6 +33,6 @@ allow_to_function_arg.sg (span: 1:1-16:1)
          │  ├─ Name: f
          │  ├─ Mutable: false
          │  ├─ Type: Foo
-         │  └─ Value: expr#4: <ExprKind(18)>
+         │  └─ Value: expr#4: <ExprKind(20)>
          └─ Stmt[1]: Return (span: 14:5-14:28)
             └─ Expr: expr#7: takes_string(f)

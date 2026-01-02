@@ -51,7 +51,7 @@ range_literals.sg (span: 1:1-20:1)
          │  ├─ Name: b
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#18: <ExprKind(18)>
+         │  └─ Value: expr#18: <ExprKind(20)>
          └─ Stmt[7]: Let (span: 18:5-18:19)
             ├─ Name: x
             ├─ Mutable: false

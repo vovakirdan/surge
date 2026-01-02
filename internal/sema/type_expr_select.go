@@ -49,9 +49,10 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 				tc.report(diag.SemaError, arm.Span, "default arm must be last")
 			}
 		} else {
-			tc.typeExpr(arm.Await)
 			if !tc.isSelectAwaitableExpr(arm.Await) {
 				tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Await), "select arm expects awaitable expression")
+			} else {
+				tc.typeSelectAwaitExpr(arm.Await)
 			}
 		}
 
@@ -141,6 +142,94 @@ func (tc *typeChecker) isSelectAwaitableExpr(exprID ast.ExprID) bool {
 		}
 	}
 	return false
+}
+
+func (tc *typeChecker) typeSelectAwaitExpr(exprID ast.ExprID) {
+	if !exprID.IsValid() || tc.builder == nil {
+		return
+	}
+	exprID = tc.unwrapSelectAwaitExpr(exprID)
+	if !exprID.IsValid() {
+		return
+	}
+	expr := tc.builder.Exprs.Get(exprID)
+	if expr == nil {
+		return
+	}
+
+	switch expr.Kind {
+	case ast.ExprCall:
+		call, ok := tc.builder.Exprs.Call(exprID)
+		if !ok || call == nil {
+			return
+		}
+		if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
+			name := tc.lookupName(member.Field)
+			switch name {
+			case "await":
+				recvType := tc.typeExpr(member.Target)
+				if !tc.isTaskType(recvType) {
+					tc.report(diag.SemaTypeMismatch, tc.exprSpan(member.Target), "await expects Task<T>, got %s", tc.typeLabel(recvType))
+				}
+				if tc.taskTracker != nil {
+					tc.trackTaskAwait(member.Target)
+				}
+			case "recv":
+				recvType := tc.typeExpr(member.Target)
+				if !tc.isChannelType(recvType) {
+					tc.report(diag.SemaTypeMismatch, tc.exprSpan(member.Target), "recv expects Channel<T>, got %s", tc.typeLabel(recvType))
+				}
+			case "send":
+				recvType := tc.typeExpr(member.Target)
+				if !tc.isChannelType(recvType) {
+					tc.report(diag.SemaTypeMismatch, tc.exprSpan(member.Target), "send expects Channel<T>, got %s", tc.typeLabel(recvType))
+				}
+				if len(call.Args) > 0 {
+					tc.typeExpr(call.Args[0].Value)
+					tc.checkChannelSendValue(call.Args[0].Value, tc.exprSpan(call.Args[0].Value))
+				}
+			}
+			return
+		}
+
+		if ident, ok := tc.builder.Exprs.Ident(call.Target); ok && ident != nil {
+			name := tc.lookupName(ident.Name)
+			switch name {
+			case "await":
+				if len(call.Args) == 0 {
+					return
+				}
+				argType := tc.typeExpr(call.Args[0].Value)
+				if !tc.isTaskType(argType) {
+					tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Args[0].Value), "await expects Task<T>, got %s", tc.typeLabel(argType))
+				}
+				if tc.taskTracker != nil {
+					tc.trackTaskAwait(call.Args[0].Value)
+				}
+			case "timeout":
+				if len(call.Args) == 0 {
+					return
+				}
+				argType := tc.typeExpr(call.Args[0].Value)
+				if !tc.isTaskType(argType) {
+					tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Args[0].Value), "timeout expects Task<T>, got %s", tc.typeLabel(argType))
+				}
+				if len(call.Args) > 1 {
+					tc.typeExpr(call.Args[1].Value)
+				}
+			}
+		}
+	case ast.ExprAwait:
+		if data, ok := tc.builder.Exprs.Await(exprID); ok && data != nil {
+			argType := tc.typeExpr(data.Value)
+			if !tc.isTaskType(argType) {
+				tc.report(diag.SemaTypeMismatch, tc.exprSpan(data.Value), "await expects Task<T>, got %s", tc.typeLabel(argType))
+			}
+			if tc.taskTracker != nil {
+				tc.trackTaskAwait(data.Value)
+			}
+		}
+	}
 }
 
 func (tc *typeChecker) unwrapSelectAwaitExpr(exprID ast.ExprID) ast.ExprID {

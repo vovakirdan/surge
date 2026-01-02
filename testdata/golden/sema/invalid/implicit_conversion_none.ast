@@ -31,7 +31,7 @@ implicit_conversion_none.sg (span: 1:1-32:1)
 │        │  ├─ Name: mt
 │        │  ├─ Mutable: false
 │        │  ├─ Type: MyType
-│        │  └─ Value: expr#4: <ExprKind(18)>
+│        │  └─ Value: expr#4: <ExprKind(20)>
 │        └─ Stmt[1]: Let (span: 12:5-12:24)
 │           ├─ Name: s
 │           ├─ Mutable: false
@@ -47,7 +47,7 @@ implicit_conversion_none.sg (span: 1:1-32:1)
 │        │  ├─ Name: ot
 │        │  ├─ Mutable: false
 │        │  ├─ Type: OtherType
-│        │  └─ Value: expr#7: <ExprKind(18)>
+│        │  └─ Value: expr#7: <ExprKind(20)>
 │        └─ Stmt[1]: Let (span: 17:5-17:24)
 │           ├─ Name: s
 │           ├─ Mutable: false
@@ -69,7 +69,7 @@ implicit_conversion_none.sg (span: 1:1-32:1)
 │        │  ├─ Name: mt
 │        │  ├─ Mutable: false
 │        │  ├─ Type: MyType
-│        │  └─ Value: expr#10: <ExprKind(18)>
+│        │  └─ Value: expr#10: <ExprKind(20)>
 │        └─ Stmt[1]: Expr (span: 25:5-25:20)
 │           └─ Expr: expr#13: takes_bool(mt)
 └─ Item[7]: Fn (span: 28:1-31:2)
@@ -82,6 +82,6 @@ implicit_conversion_none.sg (span: 1:1-32:1)
          │  ├─ Name: mt
          │  ├─ Mutable: false
          │  ├─ Type: MyType
-         │  └─ Value: expr#15: <ExprKind(18)>
+         │  └─ Value: expr#15: <ExprKind(20)>
          └─ Stmt[1]: Return (span: 30:5-30:15)
             └─ Expr: expr#16: mt

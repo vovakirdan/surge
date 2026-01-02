@@ -15,7 +15,7 @@ overload_autoref_lvalue.sg (span: 1:1-22:1)
 │  │  │  └─ Body:
 │  │  │     Stmt[0]: Block (span: 7:52-9:6)
 │  │  │     └─ Stmt[0]: Return (span: 8:9-8:61)
-│  │  │        └─ Expr: expr#13: <ExprKind(18)>
+│  │  │        └─ Expr: expr#13: <ExprKind(20)>
 │  │  └─ Fn[1]: __add
 │  │     ├─ Params: (self: Point, other: Point)
 │  │     ├─ Return: Point
@@ -23,7 +23,7 @@ overload_autoref_lvalue.sg (span: 1:1-22:1)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 11:60-13:6)
 │  │        └─ Stmt[0]: Return (span: 12:9-12:61)
-│  │           └─ Expr: expr#26: <ExprKind(18)>
+│  │           └─ Expr: expr#26: <ExprKind(20)>
 └─ Item[2]: Fn (span: 16:1-21:2)
    ├─ Name: main
    ├─ Params: ()
@@ -34,12 +34,12 @@ overload_autoref_lvalue.sg (span: 1:1-22:1)
          │  ├─ Name: p1
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#31: <ExprKind(18)>
+         │  └─ Value: expr#31: <ExprKind(20)>
          ├─ Stmt[1]: Let (span: 18:5-18:36)
          │  ├─ Name: p2
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#36: <ExprKind(18)>
+         │  └─ Value: expr#36: <ExprKind(20)>
          ├─ Stmt[2]: Let (span: 19:5-19:21)
          │  ├─ Name: _
          │  ├─ Mutable: false

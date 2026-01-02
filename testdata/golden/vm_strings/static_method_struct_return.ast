@@ -15,7 +15,7 @@ static_method_struct_return.sg (span: 3:1-20:1)
 │  │  │  └─ Body:
 │  │  │     Stmt[0]: Block (span: 6:26-8:6)
 │  │  │     └─ Stmt[0]: Return (span: 7:9-7:31)
-│  │  │        └─ Expr: expr#5: <ExprKind(18)>
+│  │  │        └─ Expr: expr#5: <ExprKind(20)>
 │  │  └─ Fn[1]: sum
 │  │     ├─ Params: (self: Point)
 │  │     ├─ Return: int

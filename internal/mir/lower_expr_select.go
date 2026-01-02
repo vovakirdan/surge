@@ -31,7 +31,7 @@ func (l *funcLowerer) lowerSelectExpr(e *hir.Expr, data hir.SelectData, isRace b
 	selIndexType := types.NoTypeID
 	boolType := types.NoTypeID
 	if l.types != nil {
-		selIndexType = l.types.Builtins().Int
+		selIndexType = l.types.Builtins().Int32
 		boolType = l.types.Builtins().Bool
 	}
 	selIndexLocal := l.newTemp(selIndexType, "select_index", e.Span)
@@ -189,12 +189,22 @@ func (l *funcLowerer) lowerSelectAwaitExpr(expr *hir.Expr) (SelectArm, loweredSe
 		}
 		name := l.selectCallName(data.Callee)
 		name = baseSymbolName(name)
+		recvExpr := l.selectCallReceiver(data.Callee)
 		switch name {
 		case "await":
-			if len(data.Args) != 1 {
+			var taskExpr *hir.Expr
+			switch {
+			case recvExpr != nil:
+				if len(data.Args) != 0 {
+					return SelectArm{}, loweredSelectArm{}, fmt.Errorf("mir: select await: await expects no explicit arguments")
+				}
+				taskExpr = recvExpr
+			case len(data.Args) == 1:
+				taskExpr = data.Args[0]
+			default:
 				return SelectArm{}, loweredSelectArm{}, fmt.Errorf("mir: select await: await expects 1 argument")
 			}
-			task, err := l.lowerExpr(data.Args[0], false)
+			task, err := l.lowerExpr(taskExpr, false)
 			if err != nil {
 				return SelectArm{}, loweredSelectArm{}, err
 			}
@@ -211,10 +221,19 @@ func (l *funcLowerer) lowerSelectAwaitExpr(expr *hir.Expr) (SelectArm, loweredSe
 					taskLocal: tmp,
 				}, nil
 		case "recv":
-			if len(data.Args) != 1 {
+			var chExpr *hir.Expr
+			switch {
+			case recvExpr != nil:
+				if len(data.Args) != 0 {
+					return SelectArm{}, loweredSelectArm{}, fmt.Errorf("mir: select await: recv expects no explicit arguments")
+				}
+				chExpr = recvExpr
+			case len(data.Args) == 1:
+				chExpr = data.Args[0]
+			default:
 				return SelectArm{}, loweredSelectArm{}, fmt.Errorf("mir: select await: recv expects 1 argument")
 			}
-			ch, err := l.lowerExpr(data.Args[0], false)
+			ch, err := l.lowerExpr(chExpr, false)
 			if err != nil {
 				return SelectArm{}, loweredSelectArm{}, err
 			}
@@ -231,10 +250,24 @@ func (l *funcLowerer) lowerSelectAwaitExpr(expr *hir.Expr) (SelectArm, loweredSe
 					channelLocal: tmp,
 				}, nil
 		case "send":
-			if len(data.Args) != 2 {
+			var (
+				chExpr  *hir.Expr
+				valExpr *hir.Expr
+			)
+			switch {
+			case recvExpr != nil:
+				if len(data.Args) != 1 {
+					return SelectArm{}, loweredSelectArm{}, fmt.Errorf("mir: select await: send expects 1 argument")
+				}
+				chExpr = recvExpr
+				valExpr = data.Args[0]
+			case len(data.Args) == 2:
+				chExpr = data.Args[0]
+				valExpr = data.Args[1]
+			default:
 				return SelectArm{}, loweredSelectArm{}, fmt.Errorf("mir: select await: send expects 2 arguments")
 			}
-			ch, err := l.lowerExpr(data.Args[0], false)
+			ch, err := l.lowerExpr(chExpr, false)
 			if err != nil {
 				return SelectArm{}, loweredSelectArm{}, err
 			}
@@ -243,7 +276,7 @@ func (l *funcLowerer) lowerSelectAwaitExpr(expr *hir.Expr) (SelectArm, loweredSe
 				Dst: Place{Local: chTmp},
 				Src: RValue{Kind: RValueUse, Use: ch},
 			}})
-			val, err := l.lowerExpr(data.Args[1], true)
+			val, err := l.lowerExpr(valExpr, true)
 			if err != nil {
 				return SelectArm{}, loweredSelectArm{}, err
 			}
@@ -336,4 +369,18 @@ func (l *funcLowerer) selectCallName(expr *hir.Expr) string {
 		}
 	}
 	return ""
+}
+
+func (l *funcLowerer) selectCallReceiver(expr *hir.Expr) *hir.Expr {
+	if expr == nil {
+		return nil
+	}
+	if expr.Kind != hir.ExprFieldAccess {
+		return nil
+	}
+	data, ok := expr.Data.(hir.FieldAccessData)
+	if !ok {
+		return nil
+	}
+	return data.Object
 }

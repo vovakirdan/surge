@@ -360,6 +360,18 @@ func (tc *typeChecker) isTaskType(id types.TypeID) bool {
 		return false
 	}
 	resolved := tc.resolveAlias(id)
+	for {
+		tt, ok := tc.types.Lookup(resolved)
+		if !ok {
+			break
+		}
+		switch tt.Kind {
+		case types.KindReference, types.KindPointer, types.KindOwn:
+			resolved = tc.resolveAlias(tt.Elem)
+			continue
+		}
+		break
+	}
 	if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
 		return tc.lookupTypeName(resolved, info.Name) == "Task"
 	}
@@ -375,6 +387,18 @@ func (tc *typeChecker) isChannelType(id types.TypeID) bool {
 		return false
 	}
 	resolved := tc.resolveAlias(id)
+	for {
+		tt, ok := tc.types.Lookup(resolved)
+		if !ok {
+			break
+		}
+		switch tt.Kind {
+		case types.KindReference, types.KindPointer, types.KindOwn:
+			resolved = tc.resolveAlias(tt.Elem)
+			continue
+		}
+		break
+	}
 	if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
 		return tc.lookupTypeName(resolved, info.Name) == "Channel"
 	}

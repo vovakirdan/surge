@@ -51,6 +51,19 @@ func (p *Parser) parseSelectOrRaceExpr(isRace bool) (ast.ExprID, bool) {
 				break
 			}
 		}
+		if p.at(token.Comma) {
+			commaTok := p.advance()
+			p.emitDiagnostic(
+				diag.SynExpectSemicolon,
+				diag.SevError,
+				commaTok.Span,
+				"expected ';' after "+kindLabel+" arm",
+				nil,
+			)
+			if p.at(token.RBrace) {
+				break
+			}
+		}
 	}
 
 	closeTok, ok := p.expect(token.RBrace, diag.SynUnclosedBrace, "expected '}' to close "+kindLabel+" expression", nil)

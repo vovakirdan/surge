@@ -1,0 +1,26 @@
+@entrypoint
+fn main() {
+    let sum: int;
+    let ok: int;
+    let bad: int;
+
+    while true {
+        let line = readline();
+        if line.trim() == "stop" { break; }
+        if line.trim() == "" { continue; }
+        let r = int.from_str(line);
+        if r.is_success() {
+            sum = sum + r.safe();
+            ok = ok + 1;
+        } else {
+            bad = bad + 1;
+            print("bad: " + line);
+            // print("error: " + r.error().safe().message);
+        }
+    }
+
+    print("Stats:");
+    print("ok: " + ok to string);
+    print("bad: " + bad to string);
+    print("sum: " + sum to string);
+}

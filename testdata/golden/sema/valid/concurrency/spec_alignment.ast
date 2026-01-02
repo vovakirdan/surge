@@ -258,7 +258,7 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: s
 │        │  ├─ Mutable: true
 │        │  ├─ Type: GuardedStruct
-│        │  └─ Value: expr#149: <ExprKind(18)>
+│        │  └─ Value: expr#149: <ExprKind(20)>
 │        ├─ Stmt[1]: Expr (span: 147:5-147:19)
 │        │  └─ Expr: expr#153: s.lock.lock()
 │        ├─ Stmt[2]: Expr (span: 148:5-148:17)
@@ -287,7 +287,7 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: s
 │        │  ├─ Mutable: true
 │        │  ├─ Type: RwGuardedStruct
-│        │  └─ Value: expr#171: <ExprKind(18)>
+│        │  └─ Value: expr#171: <ExprKind(20)>
 │        ├─ Stmt[1]: Expr (span: 162:5-162:22)
 │        │  └─ Expr: expr#175: s.rw.read_lock()
 │        ├─ Stmt[2]: Let (span: 163:5-163:28)
@@ -307,7 +307,7 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: s
 │        │  ├─ Mutable: true
 │        │  ├─ Type: RwGuardedStruct
-│        │  └─ Value: expr#188: <ExprKind(18)>
+│        │  └─ Value: expr#188: <ExprKind(20)>
 │        ├─ Stmt[1]: Expr (span: 169:5-169:23)
 │        │  └─ Expr: expr#192: s.rw.write_lock()
 │        ├─ Stmt[2]: Expr (span: 170:5-170:22)
@@ -391,7 +391,7 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: false
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#222: <ExprKind(18)>
+│        │  └─ Value: expr#222: <ExprKind(20)>
 │        └─ Stmt[1]: Return (span: 237:5-237:36)
 │           └─ Expr: expr#227: atomic_load(&a.counter)
 ├─ Item[30]: Fn (span: 240:1-243:2)
@@ -404,7 +404,7 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#234: <ExprKind(18)>
+│        │  └─ Value: expr#234: <ExprKind(20)>
 │        └─ Stmt[1]: Expr (span: 242:5-242:39)
 │           └─ Expr: expr#240: atomic_store(&mut a.counter, 100)
 ├─ Item[31]: Fn (span: 245:1-248:2)
@@ -417,7 +417,7 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#247: <ExprKind(18)>
+│        │  └─ Value: expr#247: <ExprKind(20)>
 │        └─ Stmt[1]: Return (span: 247:5-247:48)
 │           └─ Expr: expr#253: atomic_exchange(&mut a.counter, 50)
 ├─ Item[32]: Fn (span: 250:1-253:2)
@@ -430,7 +430,7 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#260: <ExprKind(18)>
+│        │  └─ Value: expr#260: <ExprKind(20)>
 │        └─ Stmt[1]: Return (span: 252:5-252:58)
 │           └─ Expr: expr#267: atomic_compare_exchange(&mut a.counter, 0, 1)
 ├─ Item[33]: Fn (span: 255:1-258:2)
@@ -443,7 +443,7 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#274: <ExprKind(18)>
+│        │  └─ Value: expr#274: <ExprKind(20)>
 │        └─ Stmt[1]: Return (span: 257:5-257:49)
 │           └─ Expr: expr#280: atomic_fetch_add(&mut a.counter, 10)
 ├─ Item[34]: Fn (span: 260:1-263:2)
@@ -456,7 +456,7 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#287: <ExprKind(18)>
+│        │  └─ Value: expr#287: <ExprKind(20)>
 │        └─ Stmt[1]: Return (span: 262:5-262:48)
 │           └─ Expr: expr#293: atomic_fetch_sub(&mut a.counter, 5)
 ├─ Item[35]: Type (span: 267:1-272:3)

@@ -2051,7 +2051,7 @@ intrinsics.sg (span: 1:1-770:1)
 │        │  ├─ Name: e
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Error
-│        │  └─ Value: expr#103: <ExprKind(18)>
+│        │  └─ Value: expr#103: <ExprKind(20)>
 │        └─ Stmt[1]: Expr (span: 632:5-632:13)
 │           └─ Expr: expr#106: exit(e)
 ├─ Item[72]: Type (span: 635:1-638:3)

@@ -27,7 +27,7 @@ copy_primitives.sg (span: 2:1-20:1)
 │        │  ├─ Name: p1
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Point
-│        │  └─ Value: expr#5: <ExprKind(18)>
+│        │  └─ Value: expr#5: <ExprKind(20)>
 │        ├─ Stmt[1]: Let (span: 10:5-10:17)
 │        │  ├─ Name: p2
 │        │  ├─ Mutable: false
@@ -50,7 +50,7 @@ copy_primitives.sg (span: 2:1-20:1)
          │  ├─ Name: c1
          │  ├─ Mutable: false
          │  ├─ Type: Color
-         │  └─ Value: expr#24: <ExprKind(18)>
+         │  └─ Value: expr#24: <ExprKind(20)>
          ├─ Stmt[1]: Let (span: 17:5-17:17)
          │  ├─ Name: c2
          │  ├─ Mutable: false

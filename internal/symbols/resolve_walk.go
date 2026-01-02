@@ -423,6 +423,28 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 			fr.walkExpr(arm.Result)
 			fr.resolver.Leave(scope)
 		}
+	case ast.ExprSelect:
+		data, _ := fr.builder.Exprs.Select(exprID)
+		if data == nil {
+			return
+		}
+		for _, arm := range data.Arms {
+			if !arm.IsDefault {
+				fr.walkExpr(arm.Await)
+			}
+			fr.walkExpr(arm.Result)
+		}
+	case ast.ExprRace:
+		data, _ := fr.builder.Exprs.Race(exprID)
+		if data == nil {
+			return
+		}
+		for _, arm := range data.Arms {
+			if !arm.IsDefault {
+				fr.walkExpr(arm.Await)
+			}
+			fr.walkExpr(arm.Result)
+		}
 	case ast.ExprStruct:
 		data, _ := fr.builder.Exprs.Struct(exprID)
 		if data == nil {

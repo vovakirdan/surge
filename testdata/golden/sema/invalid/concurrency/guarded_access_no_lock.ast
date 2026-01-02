@@ -16,7 +16,7 @@ guarded_access_no_lock.sg (span: 3:1-17:1)
 │        │  ├─ Name: c
 │        │  ├─ Mutable: true
 │        │  ├─ Type: Counter
-│        │  └─ Value: expr#8: <ExprKind(18)>
+│        │  └─ Value: expr#8: <ExprKind(20)>
 │        └─ Stmt[1]: Let (span: 10:5-10:26)
 │           ├─ Name: x
 │           ├─ Mutable: false
@@ -32,6 +32,6 @@ guarded_access_no_lock.sg (span: 3:1-17:1)
          │  ├─ Name: c
          │  ├─ Mutable: true
          │  ├─ Type: Counter
-         │  └─ Value: expr#17: <ExprKind(18)>
+         │  └─ Value: expr#17: <ExprKind(20)>
          └─ Stmt[1]: Expr (span: 15:5-15:18)
             └─ Expr: expr#21: (c.value = 42)

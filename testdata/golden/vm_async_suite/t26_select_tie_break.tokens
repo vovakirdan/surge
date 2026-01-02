@@ -1,0 +1,89 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "main" at 2:4-2:8 (leading: Space)
+  5: LParen          "(" at 2:8-2:9
+  6: RParen          ")" at 2:9-2:10
+  7: Arrow           "->" at 2:11-2:13 (leading: Space)
+  8: Ident           "int" at 2:14-2:17 (leading: Space)
+  9: LBrace          "{" at 2:18-2:19 (leading: Space)
+ 10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 11: Ident           "r" at 3:9-3:10 (leading: Space)
+ 12: Assign          "=" at 3:11-3:12 (leading: Space)
+ 13: LParen          "(" at 3:13-3:14 (leading: Space)
+ 14: KwAsync         "async" at 3:14-3:19
+ 15: LBrace          "{" at 3:20-3:21 (leading: Space)
+ 16: KwLet           "let" at 4:9-4:12 (leading: Newline, Space)
+ 17: Ident           "v" at 4:13-4:14 (leading: Space)
+ 18: Assign          "=" at 4:15-4:16 (leading: Space)
+ 19: KwSelect        "select" at 4:17-4:23 (leading: Space)
+ 20: LBrace          "{" at 4:24-4:25 (leading: Space)
+ 21: Ident           "sleep" at 5:13-5:18 (leading: Newline, Space)
+ 22: LParen          "(" at 5:18-5:19
+ 23: IntLit          "10" at 5:19-5:21
+ 24: RParen          ")" at 5:21-5:22
+ 25: Dot             "." at 5:22-5:23
+ 26: Ident           "await" at 5:23-5:28
+ 27: LParen          "(" at 5:28-5:29
+ 28: RParen          ")" at 5:29-5:30
+ 29: FatArrow        "=>" at 5:31-5:33 (leading: Space)
+ 30: IntLit          "1" at 5:34-5:35 (leading: Space)
+ 31: Semicolon       ";" at 5:35-5:36
+ 32: Ident           "sleep" at 6:13-6:18 (leading: Newline, Space)
+ 33: LParen          "(" at 6:18-6:19
+ 34: IntLit          "10" at 6:19-6:21
+ 35: RParen          ")" at 6:21-6:22
+ 36: Dot             "." at 6:22-6:23
+ 37: Ident           "await" at 6:23-6:28
+ 38: LParen          "(" at 6:28-6:29
+ 39: RParen          ")" at 6:29-6:30
+ 40: FatArrow        "=>" at 6:31-6:33 (leading: Space)
+ 41: IntLit          "2" at 6:34-6:35 (leading: Space)
+ 42: Semicolon       ";" at 6:35-6:36
+ 43: RBrace          "}" at 7:9-7:10 (leading: Newline, Space)
+ 44: Semicolon       ";" at 7:10-7:11
+ 45: KwReturn        "return" at 8:9-8:15 (leading: Newline, Space)
+ 46: Ident           "v" at 8:16-8:17 (leading: Space)
+ 47: Semicolon       ";" at 8:17-8:18
+ 48: RBrace          "}" at 9:5-9:6 (leading: Newline, Space)
+ 49: RParen          ")" at 9:6-9:7
+ 50: Dot             "." at 9:7-9:8
+ 51: Ident           "await" at 9:8-9:13
+ 52: LParen          "(" at 9:13-9:14
+ 53: RParen          ")" at 9:14-9:15
+ 54: Semicolon       ";" at 9:15-9:16
+ 55: KwCompare       "compare" at 11:5-11:12 (leading: Newline, Space)
+ 56: Ident           "r" at 11:13-11:14 (leading: Space)
+ 57: LBrace          "{" at 11:15-11:16 (leading: Space)
+ 58: Ident           "Success" at 12:9-12:16 (leading: Newline, Space)
+ 59: LParen          "(" at 12:16-12:17
+ 60: Ident           "v" at 12:17-12:18
+ 61: RParen          ")" at 12:18-12:19
+ 62: FatArrow        "=>" at 12:20-12:22 (leading: Space)
+ 63: Ident           "print" at 12:23-12:28 (leading: Space)
+ 64: LParen          "(" at 12:28-12:29
+ 65: StringLit       "\"v=\"" at 12:29-12:33
+ 66: Plus            "+" at 12:34-12:35 (leading: Space)
+ 67: LParen          "(" at 12:36-12:37 (leading: Space)
+ 68: Ident           "v" at 12:37-12:38
+ 69: KwTo            "to" at 12:39-12:41 (leading: Space)
+ 70: Ident           "string" at 12:42-12:48 (leading: Space)
+ 71: RParen          ")" at 12:48-12:49
+ 72: RParen          ")" at 12:49-12:50
+ 73: Semicolon       ";" at 12:50-12:51
+ 74: Ident           "Cancelled" at 13:9-13:18 (leading: Newline, Space)
+ 75: LParen          "(" at 13:18-13:19
+ 76: RParen          ")" at 13:19-13:20
+ 77: FatArrow        "=>" at 13:21-13:23 (leading: Space)
+ 78: Ident           "print" at 13:24-13:29 (leading: Space)
+ 79: LParen          "(" at 13:29-13:30
+ 80: StringLit       "\"cancelled\"" at 13:30-13:41
+ 81: RParen          ")" at 13:41-13:42
+ 82: Semicolon       ";" at 13:42-13:43
+ 83: RBrace          "}" at 14:5-14:6 (leading: Newline, Space)
+ 84: Semicolon       ";" at 14:6-14:7
+ 85: KwReturn        "return" at 15:5-15:11 (leading: Newline, Space)
+ 86: IntLit          "0" at 15:12-15:13 (leading: Space)
+ 87: Semicolon       ";" at 15:13-15:14
+ 88: RBrace          "}" at 16:1-16:2 (leading: Newline)
+ 89: EOF             at 17:1-17:1

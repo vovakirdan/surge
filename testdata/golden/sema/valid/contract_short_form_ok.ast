@@ -38,6 +38,6 @@ contract_short_form_ok.sg (span: 2:1-25:1)
          │  ├─ Name: c
          │  ├─ Mutable: false
          │  ├─ Type: Console
-         │  └─ Value: expr#8: <ExprKind(18)>
+         │  └─ Value: expr#8: <ExprKind(20)>
          └─ Stmt[1]: Expr (span: 23:5-23:13)
             └─ Expr: expr#11: show(c)

@@ -26,6 +26,6 @@ self_method_field_access.sg (span: 3:1-15:1)
          │  ├─ Name: p
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#10: <ExprKind(18)>
+         │  └─ Value: expr#10: <ExprKind(20)>
          └─ Stmt[1]: Return (span: 13:5-13:20)
             └─ Expr: expr#13: p.sum()

@@ -13,4 +13,4 @@ struct_literal_return_generic_extra.sg (span: 2:1-9:1)
    └─ Body:
       └─ Stmt[0]: Block (span: 6:37-8:2)
          └─ Stmt[0]: Return (span: 7:5-7:22)
-            └─ Expr: expr#4: <ExprKind(18)>
+            └─ Expr: expr#4: <ExprKind(20)>

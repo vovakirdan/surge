@@ -18,7 +18,7 @@ magic_op_nontrivial_recursion.sg (span: 1:1-9:1)
    │        │  ├─ Then:
 Block (span: 5:23-5:47)
    │        │  │  └─ Stmt[0]: Return (span: 5:25-5:45)
-   │        │  │     └─ Expr: expr#6: <ExprKind(18)>
+   │        │  │     └─ Expr: expr#6: <ExprKind(20)>
    │        │  └─ Else: <none>
    │        └─ Stmt[1]: Return (span: 6:9-6:35)
    │           └─ Expr: expr#12: (self * ((other - 1)))

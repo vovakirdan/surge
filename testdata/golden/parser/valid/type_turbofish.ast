@@ -24,19 +24,19 @@ type_turbofish.sg (span: 4:1-20:1)
          │  ├─ Name: a
          │  ├─ Mutable: false
          │  ├─ Type: Box<int>
-         │  └─ Value: expr#3: <ExprKind(18)>
+         │  └─ Value: expr#3: <ExprKind(20)>
          ├─ Stmt[1]: Let (span: 12:5-12:38)
          │  ├─ Name: b
          │  ├─ Mutable: false
          │  ├─ Type: Box<int>
-         │  └─ Value: expr#6: <ExprKind(18)>
+         │  └─ Value: expr#6: <ExprKind(20)>
          ├─ Stmt[2]: Let (span: 15:5-15:61)
          │  ├─ Name: c
          │  ├─ Mutable: false
          │  ├─ Type: Pair<int, string>
-         │  └─ Value: expr#11: <ExprKind(18)>
+         │  └─ Value: expr#11: <ExprKind(20)>
          └─ Stmt[3]: Let (span: 18:5-18:56)
             ├─ Name: d
             ├─ Mutable: false
             ├─ Type: Box<Box<int>>
-            └─ Value: expr#16: <ExprKind(18)>
+            └─ Value: expr#16: <ExprKind(20)>

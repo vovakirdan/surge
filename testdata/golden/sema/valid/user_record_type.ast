@@ -15,7 +15,7 @@ user_record_type.sg (span: 2:1-28:1)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 8:50-10:6)
 │  │        └─ Stmt[0]: Return (span: 9:9-9:61)
-│  │           └─ Expr: expr#13: <ExprKind(18)>
+│  │           └─ Expr: expr#13: <ExprKind(20)>
 ├─ Item[2]: Fn (span: 13:1-18:2)
 │  ├─ Name: add_coords
 │  ├─ Params: ()
@@ -26,12 +26,12 @@ user_record_type.sg (span: 2:1-28:1)
 │        │  ├─ Name: p
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Point
-│        │  └─ Value: expr#18: <ExprKind(18)>
+│        │  └─ Value: expr#18: <ExprKind(20)>
 │        ├─ Stmt[1]: Let (span: 16:5-16:34)
 │        │  ├─ Name: q
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
-│        │  └─ Value: expr#23: <ExprKind(18)>
+│        │  └─ Value: expr#23: <ExprKind(20)>
 │        └─ Stmt[2]: Return (span: 17:5-17:18)
 │           └─ Expr: expr#26: (p + q)
 └─ Item[3]: Fn (span: 20:1-27:2)
@@ -44,7 +44,7 @@ user_record_type.sg (span: 2:1-28:1)
          │  ├─ Name: p
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#31: <ExprKind(18)>
+         │  └─ Value: expr#31: <ExprKind(20)>
          ├─ Stmt[1]: Let (span: 22:5-22:24)
          │  ├─ Name: p_x
          │  ├─ Mutable: false

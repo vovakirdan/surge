@@ -15,7 +15,7 @@ method_call.sg (span: 1:1-18:1)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 7:50-9:6)
 │  │        └─ Stmt[0]: Return (span: 8:9-8:61)
-│  │           └─ Expr: expr#13: <ExprKind(18)>
+│  │           └─ Expr: expr#13: <ExprKind(20)>
 └─ Item[2]: Fn (span: 12:1-17:2)
    ├─ Name: main
    ├─ Params: ()
@@ -26,12 +26,12 @@ method_call.sg (span: 1:1-18:1)
          │  ├─ Name: p1
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#18: <ExprKind(18)>
+         │  └─ Value: expr#18: <ExprKind(20)>
          ├─ Stmt[1]: Let (span: 14:5-14:36)
          │  ├─ Name: p2
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#23: <ExprKind(18)>
+         │  └─ Value: expr#23: <ExprKind(20)>
          ├─ Stmt[2]: Let (span: 15:5-15:26)
          │  ├─ Name: p3
          │  ├─ Mutable: false

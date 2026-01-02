@@ -1,0 +1,25 @@
+fn safe_at(xs: &int[], idx: int) -> int? {
+    if idx < 0 { return nothing; }
+    if (idx:uint >= len(xs)) { return nothing; }
+    return Some(xs[idx]);
+}
+
+fn parse_int_opt(s: string) -> int {
+    let r: int! = int.from_str(s);
+    return r.safe();
+}
+
+@entrypoint
+fn main() {
+    let xs: int[] = [10, 20, 30];
+
+    let v: int? = safe_at(xs, 1); // v = Some(20)
+    let w: int? = safe_at(xs, -1); // w = nothing
+
+    print("v = " + v.safe() to string);
+    print("w = " + w.safe() to string);
+    
+    let s = "42";
+    let n = parse_int_opt(s);
+    print("n = " + n to string);
+}

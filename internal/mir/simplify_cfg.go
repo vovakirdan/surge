@@ -258,6 +258,12 @@ func compactBlocks(f *Func, reachable []bool) {
 			case InstrChanRecv:
 				last.ChanRecv.ReadyBB = remap(last.ChanRecv.ReadyBB)
 				last.ChanRecv.PendBB = remap(last.ChanRecv.PendBB)
+			case InstrTimeout:
+				last.Timeout.ReadyBB = remap(last.Timeout.ReadyBB)
+				last.Timeout.PendBB = remap(last.Timeout.PendBB)
+			case InstrSelect:
+				last.Select.ReadyBB = remap(last.Select.ReadyBB)
+				last.Select.PendBB = remap(last.Select.PendBB)
 			}
 		}
 	}
