@@ -1,6 +1,11 @@
 package asyncrt
 
-import "time"
+import (
+	"math"
+	"time"
+
+	"fortio.org/safecast"
+)
 
 // TimerMode controls whether timers use virtual or real time.
 type TimerMode uint8
@@ -56,5 +61,14 @@ func (c *RealClock) SleepUntilMs(deadlineMs uint64) {
 	if deadlineMs <= now {
 		return
 	}
-	time.Sleep(time.Duration(deadlineMs-now) * time.Millisecond)
+	delta := deadlineMs - now
+	maxMs := uint64(math.MaxInt64 / int64(time.Millisecond))
+	if delta > maxMs {
+		delta = maxMs
+	}
+	delay, err := safecast.Conv[int64](delta)
+	if err != nil {
+		return
+	}
+	time.Sleep(time.Duration(delay) * time.Millisecond)
 }

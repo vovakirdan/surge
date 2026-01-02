@@ -1,0 +1,30 @@
+async fn producer(ch: &Channel<int>, n: int) -> nothing {
+    // send/recv — suspension points сами по себе (без await)
+    for i in 0..n {
+        ch.send(i);
+    }
+    ch.close();
+}
+
+async fn consumer(ch: &Channel<int>) -> int {
+    let mut sum = 0;
+    while true {
+        let v = ch.recv();          // Option<int>
+        if v is nothing { break; }  // closed + empty
+        sum = sum + v.safe();       // или pattern-match
+    }
+    return sum;
+}
+
+@entrypoint
+fn main() {
+    let ch = make_channel::<int>(16:uint);
+
+    let p = task producer(&ch, 100);
+    let c = task consumer(&ch);
+
+    // await в явных местах
+    p.await();
+    let res = c.await();
+    compare res { Success(v) => print(f"sum={v}"); Cancelled() => print("cancelled"); }
+}

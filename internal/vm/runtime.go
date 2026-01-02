@@ -34,10 +34,10 @@ type Runtime interface {
 
 // DefaultRuntime implements Runtime using OS facilities.
 type DefaultRuntime struct {
-	argv       []string // program arguments (after --)
-	exitCode   int
-	exited     bool
-	monoStart  time.Time
+	argv        []string // program arguments (after --)
+	exitCode    int
+	exited      bool
+	monoStart   time.Time
 	stdinReader *bufio.Reader
 }
 

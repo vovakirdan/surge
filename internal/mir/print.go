@@ -193,7 +193,8 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 		)
 	case InstrSelect:
 		arms := make([]string, 0, len(ins.Select.Arms))
-		for _, arm := range ins.Select.Arms {
+		for i := range ins.Select.Arms {
+			arm := &ins.Select.Arms[i]
 			switch arm.Kind {
 			case SelectArmTask:
 				arms = append(arms, "await "+formatOperand(&arm.Task))

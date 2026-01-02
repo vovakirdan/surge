@@ -5,26 +5,26 @@ import "math/rand"
 // Executor runs async tasks on a single thread with a deterministic FIFO scheduler by default.
 // Fuzz scheduling is supported for reproducible interleavings.
 type Executor struct {
-	cfg         Config
-	nextID      TaskID
-	nextScopeID ScopeID
-	nextChanID  ChannelID
-	nextTimerID TimerID
+	cfg          Config
+	nextID       TaskID
+	nextScopeID  ScopeID
+	nextChanID   ChannelID
+	nextTimerID  TimerID
 	nextSelectID SelectID
-	nowMs       uint64
-	clock       Clock
-	ready       []TaskID
-	readySet    map[TaskID]struct{}
-	tasks       map[TaskID]*Task
-	scopes      map[ScopeID]*Scope
-	channels    map[ChannelID]*Channel
-	timers      timerHeap
-	timerByID   map[TimerID]*Timer
-	waiters     map[WakerKey][]Waiter
-	selectSubs  map[SelectID]*selectSub
-	parked      map[TaskID]WakerKey
-	current     TaskID
-	rng         *rand.Rand
+	nowMs        uint64
+	clock        Clock
+	ready        []TaskID
+	readySet     map[TaskID]struct{}
+	tasks        map[TaskID]*Task
+	scopes       map[ScopeID]*Scope
+	channels     map[ChannelID]*Channel
+	timers       timerHeap
+	timerByID    map[TimerID]*Timer
+	waiters      map[WakerKey][]Waiter
+	selectSubs   map[SelectID]*selectSub
+	parked       map[TaskID]WakerKey
+	current      TaskID
+	rng          *rand.Rand
 }
 
 // TaskID identifies a task.

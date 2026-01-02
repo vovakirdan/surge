@@ -20,8 +20,8 @@ type Channel struct {
 	buf  []any
 	head int
 
-	recvq []TaskID
-	sendq []chanWaiter
+	recvq      []TaskID
+	sendq      []chanWaiter
 	recvNotify []Waiter
 	sendNotify []Waiter
 }

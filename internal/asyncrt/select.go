@@ -4,11 +4,11 @@ package asyncrt
 type SelectID uint64
 
 type selectSub struct {
-	taskID      TaskID
-	keys        []WakerKey
-	recvNotify  []ChannelID
-	sendNotify  []ChannelID
-	timers      map[int]TimerID
+	taskID     TaskID
+	keys       []WakerKey
+	recvNotify []ChannelID
+	sendNotify []ChannelID
+	timers     map[int]TimerID
 }
 
 // SelectNew allocates a new select registration for the task.

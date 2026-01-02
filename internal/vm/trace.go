@@ -221,7 +221,8 @@ func (t *Tracer) formatInstr(instr *mir.Instr) string {
 		)
 	case mir.InstrSelect:
 		parts := make([]string, 0, len(instr.Select.Arms))
-		for _, arm := range instr.Select.Arms {
+		for i := range instr.Select.Arms {
+			arm := &instr.Select.Arms[i]
 			switch arm.Kind {
 			case mir.SelectArmTask:
 				parts = append(parts, "await "+t.formatOperand(&arm.Task))

@@ -1,5 +1,7 @@
 package vm
 
+import "fortio.org/safecast"
+
 const monotonicNsPerMs int64 = 1_000_000
 
 func (vm *VM) monotonicNowMs() uint64 {
@@ -10,5 +12,13 @@ func (vm *VM) monotonicNowMs() uint64 {
 	if ns <= 0 {
 		return 0
 	}
-	return uint64(ns / monotonicNsPerMs)
+	ms := ns / monotonicNsPerMs
+	if ms <= 0 {
+		return 0
+	}
+	out, err := safecast.Conv[uint64](ms)
+	if err != nil {
+		return 0
+	}
+	return out
 }

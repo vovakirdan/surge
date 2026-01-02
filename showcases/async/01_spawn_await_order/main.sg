@@ -1,0 +1,21 @@
+async fn work(name: string, ms: uint) -> int {
+    print(f"start {name}");
+    sleep(ms).await();
+    print(f"done {name}");
+    return ms to int;
+}
+
+@entrypoint
+fn main() {
+    let t1 = task work("A", 30:uint);
+    let t2 = task work("B", 10:uint);
+
+    compare t1.await() {
+        Success(v) => print(f"A ret={v}");
+        Cancelled() => print("A cancelled");
+    }
+    compare t2.await() {
+        Success(v) => print(f"B ret={v}");
+        Cancelled() => print("B cancelled");
+    }
+}

@@ -309,7 +309,8 @@ func validateLocalIDs(f *Func, globals []Global) error {
 				checkOperand(ins.Timeout.Ms, ctx)
 			case InstrSelect:
 				checkPlace(ins.Select.Dst, ctx)
-				for _, arm := range ins.Select.Arms {
+				for i := range ins.Select.Arms {
+					arm := &ins.Select.Arms[i]
 					switch arm.Kind {
 					case SelectArmTask:
 						checkOperand(arm.Task, ctx)

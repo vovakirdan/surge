@@ -6,7 +6,7 @@ fn __surge_start:
   locals:
     L0: string name=stdin
     L1: int [copy] name=x
-    L2: type#602 name=stdin_parsed
+    L2: type#606 name=stdin_parsed
     L3: bool [copy] name=stdin_ok
     L4: int name=entry_ret
     L5: int [copy] name=code

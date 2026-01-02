@@ -2,7 +2,7 @@
 == HIR ==
 module 
 
-fn abs(x: int [copy]) -> int (id=1, sym=1218) {
+fn abs(x: int [copy]) -> int (id=1, sym=1224) {
   if __lt(x, 0): bool {
     return __neg(x): int
   } else {
@@ -10,7 +10,7 @@ fn abs(x: int [copy]) -> int (id=1, sym=1218) {
   }
 }
 
-fn countdown(n: int [copy]) -> int (id=2, sym=1219) {
+fn countdown(n: int [copy]) -> int (id=2, sym=1225) {
   let mut i: int [copy] = n
   while __gt(i, 0): bool {
     (i = __sub(i, 1)): int

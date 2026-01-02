@@ -9,15 +9,15 @@ import (
 )
 
 type loweredSelectArm struct {
-	arm         SelectArm
-	kind        SelectArmKind
-	taskLocal   LocalID
+	arm          SelectArm
+	kind         SelectArmKind
+	taskLocal    LocalID
 	channelLocal LocalID
-	valueLocal  LocalID
-	msLocal     LocalID
+	valueLocal   LocalID
+	msLocal      LocalID
 }
 
-func (l *funcLowerer) lowerSelectExpr(e *hir.Expr, data hir.SelectData, isRace bool, consume bool) (Operand, error) {
+func (l *funcLowerer) lowerSelectExpr(e *hir.Expr, data hir.SelectData, isRace, consume bool) (Operand, error) {
 	if l == nil || e == nil {
 		return Operand{}, nil
 	}

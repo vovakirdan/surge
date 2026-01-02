@@ -1,0 +1,23 @@
+async fn job(x: int) -> int {
+    sleep((x * 5):uint).await();
+    return x * x;
+}
+
+@entrypoint
+fn main() {
+    let mut tasks: Task<int>[] = Array::<Task<int>>::with_len(8:uint);
+
+    for i in 0..8 {
+        tasks[i] = task job(i);
+    }
+
+    let mut sum: int = 0;
+    for raw_task in tasks {
+        compare raw_task.await() {
+            Success(v) => sum = sum + v;
+            Cancelled() => nothing;
+        };
+    }
+
+    print(f"sum={sum}");
+}
