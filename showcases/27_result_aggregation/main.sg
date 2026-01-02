@@ -26,7 +26,7 @@ extern<Stats> {
 @entrypoint
 fn main() {
     let mut stats = Stats::new();
-    let errors: string[] = [];
+    let mut errors: string[] = [];
     while true {
         let line = readline();
         if line.trim() == "stop" { break; }
@@ -39,8 +39,9 @@ fn main() {
         }
     }
     print(f"Stats: count={stats.count}, sum={stats.sum}, minimum={stats.minimum}, maximum={stats.maximum}");
-    print(f"Errors: {len(errors)}");
+    let errors_len = len(errors);
+    print(f"Errors: {errors_len}");
     for error in errors {
-        print(error);
+        print(f"error line: {error}");
     }
 }

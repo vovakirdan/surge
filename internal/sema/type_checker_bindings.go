@@ -33,10 +33,24 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 	if declared == types.NoTypeID {
 		return
 	}
+
+	declaredRef := false
+	declaredRefMut := false
+	if tc.types != nil {
+		if tt, ok := tc.types.Lookup(tc.resolveAlias(declared)); ok && tt.Kind == types.KindReference {
+			declaredRef = true
+			declaredRefMut = tt.Mutable
+		}
+	}
+
 	if actual == types.NoTypeID {
 		if tc.applyExpectedType(valueExpr, declared) {
 			actual = tc.result.ExprTypes[valueExpr]
 		} else {
+			if declaredRef && valueExpr.IsValid() && !tc.isAddressableExpr(valueExpr) {
+				tc.reportBorrowNonAddressable(valueExpr, declaredRefMut)
+				return
+			}
 			if data, ok := tc.anonymousStructLiteral(valueExpr); ok && data != nil {
 				tc.report(diag.SemaTypeMismatch, tc.exprSpan(valueExpr),
 					"struct literal requires explicit type when assigning to %s", tc.typeLabel(declared))
@@ -56,6 +70,11 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 			return
 		}
 		actual = tc.result.ExprTypes[valueExpr]
+	}
+
+	if declaredRef && valueExpr.IsValid() && !tc.isReferenceType(actual) && !tc.isAddressableExpr(valueExpr) {
+		tc.reportBorrowNonAddressable(valueExpr, declaredRefMut)
+		return
 	}
 
 	// Apply literal coercion (e.g., untyped int literal to specific int type)

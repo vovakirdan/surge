@@ -21,6 +21,7 @@ fn step(state: State, event: Event) -> State {
         Running(downloaded) => compare event {
             Tick(bytes) => { let out: State = Running(downloaded + bytes); return out; };
             Fail(msg) => { let out: State = Err(msg); return out; };
+            Finish() => { let out: State = Done(downloaded); return out; };
             finally => { let out: State = Running(downloaded); return out; };
         };
         Err(msg) => compare event {

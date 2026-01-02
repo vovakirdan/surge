@@ -414,7 +414,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 			// Validate MIR before dumping
 			if err := mir.Validate(mirMod, result.Sema.TypeInterner); err != nil {
-				return 0, fmt.Errorf("MIR validation failed: %w", err)
+				fmt.Fprintf(os.Stderr, "warning: MIR validation failed: %v\n", err)
 			}
 
 			fmt.Fprintln(os.Stdout, "\n== MIR ==")

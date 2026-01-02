@@ -55,7 +55,14 @@ func (tc *typeChecker) reportBorrowNonAddressable(expr ast.ExprID, mut bool) {
 	if mut {
 		msg = "cannot take mutable reference to temporary value; bind it to a variable first"
 	}
-	tc.report(diag.SemaBorrowNonAddressable, tc.exprSpan(expr), "%s", msg)
+	if b := diag.ReportError(tc.reporter, diag.SemaBorrowNonAddressable, tc.exprSpan(expr), msg); b != nil {
+		note := "bind the value to a variable first, then borrow it (e.g. `let tmp = <expr>; let r: &T = &tmp;`)"
+		if mut {
+			note = "bind the value to a variable first, then borrow it mutably (e.g. `let tmp = <expr>; let r: &mut T = &mut tmp;`)"
+		}
+		b.WithNote(tc.exprSpan(expr), note)
+		b.Emit()
+	}
 }
 
 func (tc *typeChecker) reportBorrowImmutable(expr ast.ExprID) {
