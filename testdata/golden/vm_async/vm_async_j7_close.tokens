@@ -121,21 +121,21 @@
 121: KwLet           "let" at 22:5-22:8 (leading: Newline, Space)
 122: Ident           "recv_task" at 22:9-22:18 (leading: Space)
 123: Assign          "=" at 22:19-22:20 (leading: Space)
-124: KwSpawn         "spawn" at 22:21-22:26 (leading: Space)
-125: Ident           "receiver" at 22:27-22:35 (leading: Space)
-126: LParen          "(" at 22:35-22:36
-127: Ident           "recv_ch" at 22:36-22:43
-128: RParen          ")" at 22:43-22:44
-129: Semicolon       ";" at 22:44-22:45
+124: KwTask          "task" at 22:21-22:25 (leading: Space)
+125: Ident           "receiver" at 22:26-22:34 (leading: Space)
+126: LParen          "(" at 22:34-22:35
+127: Ident           "recv_ch" at 22:35-22:42
+128: RParen          ")" at 22:42-22:43
+129: Semicolon       ";" at 22:43-22:44
 130: KwLet           "let" at 23:5-23:8 (leading: Newline, Space)
 131: Ident           "close_task" at 23:9-23:19 (leading: Space)
 132: Assign          "=" at 23:20-23:21 (leading: Space)
-133: KwSpawn         "spawn" at 23:22-23:27 (leading: Space)
-134: Ident           "closer" at 23:28-23:34 (leading: Space)
-135: LParen          "(" at 23:34-23:35
-136: Ident           "close_ch" at 23:35-23:43
-137: RParen          ")" at 23:43-23:44
-138: Semicolon       ";" at 23:44-23:45
+133: KwTask          "task" at 23:22-23:26 (leading: Space)
+134: Ident           "closer" at 23:27-23:33 (leading: Space)
+135: LParen          "(" at 23:33-23:34
+136: Ident           "close_ch" at 23:34-23:42
+137: RParen          ")" at 23:42-23:43
+138: Semicolon       ";" at 23:43-23:44
 139: KwLet           "let" at 25:5-25:8 (leading: Newline, Space)
 140: Underscore      "_" at 25:9-25:10 (leading: Space)
 141: Assign          "=" at 25:11-25:12 (leading: Space)

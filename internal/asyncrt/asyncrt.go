@@ -27,7 +27,7 @@ type Executor struct {
 	rng         *rand.Rand
 }
 
-// TaskID identifies a spawned task.
+// TaskID identifies a task.
 type TaskID uint64
 
 // TaskStatus describes task scheduling state.

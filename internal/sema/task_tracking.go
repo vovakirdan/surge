@@ -6,25 +6,25 @@ import (
 	"surge/internal/symbols"
 )
 
-// TaskInfo tracks a spawned task within a scope for structured concurrency enforcement.
+// TaskInfo tracks a task within a scope for structured concurrency enforcement.
 type TaskInfo struct {
 	ID           uint32           // Unique task identifier
-	SpawnExpr    ast.ExprID       // The spawn expression that created this task
-	Span         source.Span      // Location of the spawn
+	SpawnExpr    ast.ExprID       // The task expression that created this task
+	Span         source.Span      // Location of the task keyword
 	Binding      symbols.SymbolID // If assigned to a variable (for await tracking)
-	Scope        symbols.ScopeID  // The scope where this task was spawned
+	Scope        symbols.ScopeID  // The scope where this task was created
 	Awaited      bool             // Whether .await() was called on this task
 	Returned     bool             // Whether the task was returned from the scope
-	InAsyncBlock bool             // Whether task was spawned inside async block (for error differentiation)
+	InAsyncBlock bool             // Whether task was created inside async block (for error differentiation)
 }
 
 // TaskTracker manages task lifecycle within scopes for structured concurrency.
-// It tracks spawned tasks and ensures they are properly awaited before scope exit.
+// It tracks tasks and ensures they are properly awaited before scope exit.
 type TaskTracker struct {
 	tasks        []TaskInfo                   // All tasks, indexed by ID (0 unused)
 	scopeTasks   map[symbols.ScopeID][]uint32 // taskID list per scope
 	bindingTasks map[symbols.SymbolID]uint32  // binding -> taskID
-	exprTasks    map[ast.ExprID]uint32        // spawn expression -> taskID
+	exprTasks    map[ast.ExprID]uint32        // task expression -> taskID
 	nextID       uint32                       // Next task ID to assign
 }
 
@@ -39,8 +39,8 @@ func NewTaskTracker() *TaskTracker {
 	}
 }
 
-// SpawnTask records a new task spawned in the given scope.
-// inAsyncBlock indicates whether the spawn occurred inside an async block (for error differentiation).
+// SpawnTask records a new task in the given scope.
+// inAsyncBlock indicates whether the task was created inside an async block (for error differentiation).
 // Returns the task ID for later binding/tracking.
 func (tt *TaskTracker) SpawnTask(expr ast.ExprID, span source.Span, scope symbols.ScopeID, inAsyncBlock bool) uint32 {
 	id := tt.nextID
@@ -71,7 +71,7 @@ func (tt *TaskTracker) BindTask(taskID uint32, binding symbols.SymbolID) {
 	tt.bindingTasks[binding] = taskID
 }
 
-// BindTaskByExpr associates a task with a binding using the spawn expression.
+// BindTaskByExpr associates a task with a binding using the task expression.
 func (tt *TaskTracker) BindTaskByExpr(expr ast.ExprID, binding symbols.SymbolID) {
 	if !expr.IsValid() || !binding.IsValid() {
 		return
@@ -93,7 +93,7 @@ func (tt *TaskTracker) MarkAwaited(binding symbols.SymbolID) {
 	}
 }
 
-// MarkAwaitedByExpr marks a task as awaited by its spawn expression.
+// MarkAwaitedByExpr marks a task as awaited by its task expression.
 func (tt *TaskTracker) MarkAwaitedByExpr(expr ast.ExprID) {
 	if !expr.IsValid() {
 		return
@@ -117,7 +117,7 @@ func (tt *TaskTracker) MarkReturned(binding symbols.SymbolID) {
 	}
 }
 
-// MarkReturnedByExpr marks a task as returned using its spawn expression.
+// MarkReturnedByExpr marks a task as returned using its task expression.
 func (tt *TaskTracker) MarkReturnedByExpr(expr ast.ExprID) {
 	if !expr.IsValid() {
 		return
@@ -135,13 +135,13 @@ func (tt *TaskTracker) MarkPassed(binding symbols.SymbolID) {
 	tt.MarkReturned(binding)
 }
 
-// MarkPassedByExpr marks a task as passed using its spawn expression.
+// MarkPassedByExpr marks a task as passed using its task expression.
 func (tt *TaskTracker) MarkPassedByExpr(expr ast.ExprID) {
 	tt.MarkReturnedByExpr(expr)
 }
 
 // EndScope checks for task leaks when leaving a scope.
-// Returns all tasks that were spawned in this scope but not awaited or returned.
+// Returns all tasks that were created in this scope but not awaited or returned.
 func (tt *TaskTracker) EndScope(scope symbols.ScopeID) []TaskInfo {
 	taskIDs, ok := tt.scopeTasks[scope]
 	if !ok {

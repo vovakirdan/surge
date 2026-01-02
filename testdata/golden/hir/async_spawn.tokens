@@ -24,22 +24,22 @@
  24: Ident           "int" at 5:20-5:23 (leading: Space)
  25: LBrace          "{" at 5:24-5:25 (leading: Space)
  26: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
- 27: Ident           "task" at 6:9-6:13 (leading: Space)
- 28: Assign          "=" at 6:14-6:15 (leading: Space)
- 29: KwSpawn         "spawn" at 6:16-6:21 (leading: Space)
- 30: Ident           "inc" at 6:22-6:25 (leading: Space)
- 31: LParen          "(" at 6:25-6:26
- 32: IntLit          "5" at 6:26-6:27
- 33: RParen          ")" at 6:27-6:28
- 34: Semicolon       ";" at 6:28-6:29
+ 27: Ident           "t" at 6:9-6:10 (leading: Space)
+ 28: Assign          "=" at 6:11-6:12 (leading: Space)
+ 29: KwTask          "task" at 6:13-6:17 (leading: Space)
+ 30: Ident           "inc" at 6:18-6:21 (leading: Space)
+ 31: LParen          "(" at 6:21-6:22
+ 32: IntLit          "5" at 6:22-6:23
+ 33: RParen          ")" at 6:23-6:24
+ 34: Semicolon       ";" at 6:24-6:25
  35: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
  36: KwCompare       "compare" at 7:12-7:19 (leading: Space)
- 37: Ident           "task" at 7:20-7:24 (leading: Space)
- 38: Dot             "." at 7:24-7:25
- 39: Ident           "await" at 7:25-7:30
- 40: LParen          "(" at 7:30-7:31
- 41: RParen          ")" at 7:31-7:32
- 42: LBrace          "{" at 7:33-7:34 (leading: Space)
+ 37: Ident           "t" at 7:20-7:21 (leading: Space)
+ 38: Dot             "." at 7:21-7:22
+ 39: Ident           "await" at 7:22-7:27
+ 40: LParen          "(" at 7:27-7:28
+ 41: RParen          ")" at 7:28-7:29
+ 42: LBrace          "{" at 7:30-7:31 (leading: Space)
  43: Ident           "Success" at 8:9-8:16 (leading: Newline, Space)
  44: LParen          "(" at 8:16-8:17
  45: Ident           "v" at 8:17-8:18

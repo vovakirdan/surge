@@ -198,6 +198,12 @@ func collectCallSyms(b *hir.Block) []symbols.SymbolID {
 				return
 			}
 			walkExpr(data.Value)
+		case hir.ExprTask:
+			data, ok := e.Data.(hir.TaskData)
+			if !ok {
+				return
+			}
+			walkExpr(data.Value)
 		case hir.ExprSpawn:
 			data, ok := e.Data.(hir.SpawnData)
 			if !ok {

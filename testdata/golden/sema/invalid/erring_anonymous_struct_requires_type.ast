@@ -9,4 +9,4 @@ erring_anonymous_struct_requires_type.sg (span: 2:1-5:1)
             ├─ Name: result
             ├─ Mutable: false
             ├─ Type: Erring<int, Error>
-            └─ Value: expr#6: <ExprKind(20)>
+            └─ Value: expr#6: <ExprKind(21)>

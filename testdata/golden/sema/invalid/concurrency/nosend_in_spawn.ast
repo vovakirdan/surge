@@ -24,6 +24,6 @@ nosend_in_spawn.sg (span: 3:1-19:1)
          │  ├─ Name: handle
          │  ├─ Mutable: false
          │  ├─ Type: FileHandle
-         │  └─ Value: expr#6: <ExprKind(20)>
+         │  └─ Value: expr#6: <ExprKind(21)>
          └─ Stmt[1]: Return (span: 15:5-17:7)
-            └─ Expr: expr#10: spawn async { 1 stmt(s) }
+            └─ Expr: expr#10: task async { 1 stmt(s) }

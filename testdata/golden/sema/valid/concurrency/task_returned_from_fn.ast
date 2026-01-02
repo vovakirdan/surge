@@ -13,13 +13,13 @@ task_returned_from_fn.sg (span: 3:1-14:1)
 │  ├─ Return: Task<int>
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 7:34-9:2)
-│        └─ Stmt[0]: Return (span: 8:5-8:25)
-│           └─ Expr: expr#4: spawn work()
+│        └─ Stmt[0]: Return (span: 8:5-8:24)
+│           └─ Expr: expr#4: task work()
 └─ Item[2]: Fn (span: 11:1-13:2)
    ├─ Name: start_nested
    ├─ Params: ()
    ├─ Return: Task<int>
    └─ Body:
       └─ Stmt[0]: Block (span: 11:42-13:2)
-         └─ Stmt[0]: Return (span: 12:5-12:25)
-            └─ Expr: expr#7: spawn work()
+         └─ Stmt[0]: Return (span: 12:5-12:24)
+            └─ Expr: expr#7: task work()

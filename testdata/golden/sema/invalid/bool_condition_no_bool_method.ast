@@ -15,7 +15,7 @@ bool_condition_no_bool_method.sg (span: 2:1-10:1)
          │  ├─ Name: data
          │  ├─ Mutable: false
          │  ├─ Type: NoBool
-         │  └─ Value: expr#3: <ExprKind(20)>
+         │  └─ Value: expr#3: <ExprKind(21)>
          └─ Stmt[1]: If (span: 6:5-8:6)
             ├─ Cond: expr#4: data
             ├─ Then:

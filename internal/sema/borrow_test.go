@@ -94,8 +94,8 @@ func TestSpawnRejectsReferences(t *testing.T) {
 
 	useRef := intern(builder, "use_ref")
 	call := builder.Exprs.NewCall(source.Span{}, builder.Exprs.NewIdent(source.Span{}, useRef), []ast.CallArg{{Name: source.NoStringID, Value: builder.Exprs.NewIdent(source.Span{}, rName)}}, nil, nil, false)
-	spawnExpr := builder.Exprs.NewSpawn(source.Span{}, call)
-	stmtSpawn := builder.Stmts.NewLet(source.Span{}, tName, ast.NoExprID, ast.NoTypeID, spawnExpr, false)
+	taskExpr := builder.Exprs.NewTask(source.Span{}, call)
+	stmtSpawn := builder.Stmts.NewLet(source.Span{}, tName, ast.NoExprID, ast.NoTypeID, taskExpr, false)
 
 	addFunction(builder, fileID, "main", []ast.StmtID{stmtX, stmtR, stmtSpawn})
 	addFunction(builder, fileID, "use_ref", nil)

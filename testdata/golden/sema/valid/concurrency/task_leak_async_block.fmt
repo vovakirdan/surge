@@ -1,4 +1,4 @@
-// Valid: async block implicitly joins spawned tasks
+// Valid: async block implicitly joins tasks
 
 async fn compute() -> int {
     return 42;
@@ -6,7 +6,7 @@ async fn compute() -> int {
 
 pub async fn test_async_block_leak() {
     async {
-        let t = spawn compute();
+        let t = task compute();
         // No explicit await required in a scoped async block.
         let _ = t;
     };

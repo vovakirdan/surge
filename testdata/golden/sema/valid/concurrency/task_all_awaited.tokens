@@ -27,30 +27,30 @@
  27: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
  28: Ident           "t1" at 8:9-8:11 (leading: Space)
  29: Assign          "=" at 8:12-8:13 (leading: Space)
- 30: KwSpawn         "spawn" at 8:14-8:19 (leading: Space)
- 31: Ident           "compute" at 8:20-8:27 (leading: Space)
- 32: LParen          "(" at 8:27-8:28
- 33: IntLit          "1" at 8:28-8:29
- 34: RParen          ")" at 8:29-8:30
- 35: Semicolon       ";" at 8:30-8:31
+ 30: KwTask          "task" at 8:14-8:18 (leading: Space)
+ 31: Ident           "compute" at 8:19-8:26 (leading: Space)
+ 32: LParen          "(" at 8:26-8:27
+ 33: IntLit          "1" at 8:27-8:28
+ 34: RParen          ")" at 8:28-8:29
+ 35: Semicolon       ";" at 8:29-8:30
  36: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
  37: Ident           "t2" at 9:9-9:11 (leading: Space)
  38: Assign          "=" at 9:12-9:13 (leading: Space)
- 39: KwSpawn         "spawn" at 9:14-9:19 (leading: Space)
- 40: Ident           "compute" at 9:20-9:27 (leading: Space)
- 41: LParen          "(" at 9:27-9:28
- 42: IntLit          "2" at 9:28-9:29
- 43: RParen          ")" at 9:29-9:30
- 44: Semicolon       ";" at 9:30-9:31
+ 39: KwTask          "task" at 9:14-9:18 (leading: Space)
+ 40: Ident           "compute" at 9:19-9:26 (leading: Space)
+ 41: LParen          "(" at 9:26-9:27
+ 42: IntLit          "2" at 9:27-9:28
+ 43: RParen          ")" at 9:28-9:29
+ 44: Semicolon       ";" at 9:29-9:30
  45: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
  46: Ident           "t3" at 10:9-10:11 (leading: Space)
  47: Assign          "=" at 10:12-10:13 (leading: Space)
- 48: KwSpawn         "spawn" at 10:14-10:19 (leading: Space)
- 49: Ident           "compute" at 10:20-10:27 (leading: Space)
- 50: LParen          "(" at 10:27-10:28
- 51: IntLit          "3" at 10:28-10:29
- 52: RParen          ")" at 10:29-10:30
- 53: Semicolon       ";" at 10:30-10:31
+ 48: KwTask          "task" at 10:14-10:18 (leading: Space)
+ 49: Ident           "compute" at 10:19-10:26 (leading: Space)
+ 50: LParen          "(" at 10:26-10:27
+ 51: IntLit          "3" at 10:27-10:28
+ 52: RParen          ")" at 10:28-10:29
+ 53: Semicolon       ";" at 10:29-10:30
  54: KwLet           "let" at 12:5-12:8 (leading: Newline, Space)
  55: Ident           "r1" at 12:9-12:11 (leading: Space)
  56: Colon           ":" at 12:11-12:12

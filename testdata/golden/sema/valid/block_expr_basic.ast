@@ -9,7 +9,7 @@ block_expr_basic.sg (span: 2:1-22:1)
 │        │  ├─ Name: x
 │        │  ├─ Mutable: false
 │        │  ├─ Type: int
-│        │  └─ Value: expr#6: <ExprKind(22)>
+│        │  └─ Value: expr#6: <ExprKind(23)>
 │        └─ Stmt[1]: Return (span: 8:5-8:14)
 │           └─ Expr: expr#7: x
 └─ Item[1]: Fn (span: 11:1-21:2)
@@ -22,6 +22,6 @@ block_expr_basic.sg (span: 2:1-22:1)
          │  ├─ Name: y
          │  ├─ Mutable: false
          │  ├─ Type: int
-         │  └─ Value: expr#14: <ExprKind(22)>
+         │  └─ Value: expr#14: <ExprKind(23)>
          └─ Stmt[1]: Return (span: 20:5-20:14)
             └─ Expr: expr#15: y

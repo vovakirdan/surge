@@ -320,6 +320,13 @@ func cloneExpr(e *hir.Expr) *hir.Expr {
 		}
 		data.Value = cloneExpr(data.Value)
 		out.Data = data
+	case hir.ExprTask:
+		data, ok := e.Data.(hir.TaskData)
+		if !ok {
+			break
+		}
+		data.Value = cloneExpr(data.Value)
+		out.Data = data
 	case hir.ExprSpawn:
 		data, ok := e.Data.(hir.SpawnData)
 		if !ok {

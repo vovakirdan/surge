@@ -21,21 +21,21 @@ spawn_async_fn.sg (span: 3:1-24:1)
 │  ├─ Return: nothing
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 12:36-18:2)
-│        ├─ Stmt[0]: Let (span: 13:5-13:43)
+│        ├─ Stmt[0]: Let (span: 13:5-13:42)
 │        │  ├─ Name: t1
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Task<int>
-│        │  └─ Value: expr#8: spawn compute(42)
+│        │  └─ Value: expr#8: task compute(42)
 │        ├─ Stmt[1]: Let (span: 14:5-14:47)
 │        │  ├─ Name: result1
 │        │  ├─ Mutable: false
 │        │  ├─ Type: TaskResult<int>
 │        │  └─ Value: expr#11: t1.await()
-│        ├─ Stmt[2]: Let (span: 16:5-16:49)
+│        ├─ Stmt[2]: Let (span: 16:5-16:48)
 │        │  ├─ Name: t2
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Task<bool>
-│        │  └─ Value: expr#15: spawn process("hello")
+│        │  └─ Value: expr#15: task process("hello")
 │        └─ Stmt[3]: Let (span: 17:5-17:48)
 │           ├─ Name: result2
 │           ├─ Mutable: false
@@ -47,5 +47,5 @@ spawn_async_fn.sg (span: 3:1-24:1)
    ├─ Return: Task<int>
    └─ Body:
       └─ Stmt[0]: Block (span: 21:43-23:2)
-         └─ Stmt[0]: Return (span: 22:5-22:31)
-            └─ Expr: expr#22: spawn compute(100)
+         └─ Stmt[0]: Return (span: 22:5-22:30)
+            └─ Expr: expr#22: task compute(100)

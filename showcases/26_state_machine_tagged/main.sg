@@ -1,0 +1,47 @@
+tag Start();
+tag Tick(int);
+tag Fail(string);
+tag Finish();
+
+type Event = Start() | Tick(int) | Fail(string) | Finish();
+
+tag Idle();
+tag Running(int);
+tag Err(string);
+tag Done(int);
+
+type State = Idle() | Running(int) | Err(string) | Done(int);
+
+fn step(state: State, event: Event) -> State {
+    return compare state {
+        Idle() => compare event {
+            Start() => Running(0);
+            finally => Idle();
+        };
+        Running(downloaded) => compare event {
+            Tick(bytes) => Running(downloaded + bytes);
+            Fail(msg) => Err(msg);
+            finally => Running(downloaded);
+        };
+        Err(msg) => compare event {
+            Fail(msg) => Err(msg);
+            finally => Err(msg);
+        };
+        Done(total) => compare event {
+            Finish() => Done(total);
+            finally => Done(total);
+        };
+    };
+}
+
+@entrypoint
+fn main() {
+    let s: State = Idle();
+
+    s = step(s, Start());
+    s = step(s, Tick(100));
+    s = step(s, Tick(50));
+    s = step(s, Finish());
+
+
+}

@@ -417,6 +417,17 @@ func (s *Subst) ApplyExpr(e *hir.Expr) error {
 			}
 		}
 		e.Data = data
+	case hir.ExprTask:
+		data, ok := e.Data.(hir.TaskData)
+		if !ok {
+			return nil
+		}
+		if data.Value != nil {
+			if err := s.ApplyExpr(data.Value); err != nil {
+				return err
+			}
+		}
+		e.Data = data
 	case hir.ExprSpawn:
 		data, ok := e.Data.(hir.SpawnData)
 		if !ok {

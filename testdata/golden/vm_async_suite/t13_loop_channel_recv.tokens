@@ -167,21 +167,21 @@
 167: KwLet           "let" at 32:5-32:8 (leading: Newline, Space)
 168: Ident           "prod" at 32:9-32:13 (leading: Space)
 169: Assign          "=" at 32:14-32:15 (leading: Space)
-170: KwSpawn         "spawn" at 32:16-32:21 (leading: Space)
-171: Ident           "producer" at 32:22-32:30 (leading: Space)
-172: LParen          "(" at 32:30-32:31
-173: Ident           "prod_ch" at 32:31-32:38
-174: RParen          ")" at 32:38-32:39
-175: Semicolon       ";" at 32:39-32:40
+170: KwTask          "task" at 32:16-32:20 (leading: Space)
+171: Ident           "producer" at 32:21-32:29 (leading: Space)
+172: LParen          "(" at 32:29-32:30
+173: Ident           "prod_ch" at 32:30-32:37
+174: RParen          ")" at 32:37-32:38
+175: Semicolon       ";" at 32:38-32:39
 176: KwLet           "let" at 33:5-33:8 (leading: Newline, Space)
 177: Ident           "cons" at 33:9-33:13 (leading: Space)
 178: Assign          "=" at 33:14-33:15 (leading: Space)
-179: KwSpawn         "spawn" at 33:16-33:21 (leading: Space)
-180: Ident           "consumer" at 33:22-33:30 (leading: Space)
-181: LParen          "(" at 33:30-33:31
-182: Ident           "cons_ch" at 33:31-33:38
-183: RParen          ")" at 33:38-33:39
-184: Semicolon       ";" at 33:39-33:40
+179: KwTask          "task" at 33:16-33:20 (leading: Space)
+180: Ident           "consumer" at 33:21-33:29 (leading: Space)
+181: LParen          "(" at 33:29-33:30
+182: Ident           "cons_ch" at 33:30-33:37
+183: RParen          ")" at 33:37-33:38
+184: Semicolon       ";" at 33:38-33:39
 185: KwLet           "let" at 35:5-35:8 (leading: Newline, Space)
 186: Underscore      "_" at 35:9-35:10 (leading: Space)
 187: Assign          "=" at 35:11-35:12 (leading: Space)

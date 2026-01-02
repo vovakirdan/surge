@@ -365,6 +365,12 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 			return
 		}
 		fr.walkExpr(data.Value)
+	case ast.ExprTask:
+		data, _ := fr.builder.Exprs.Task(exprID)
+		if data == nil {
+			return
+		}
+		fr.walkExpr(data.Value)
 	case ast.ExprSpawn:
 		data, _ := fr.builder.Exprs.Spawn(exprID)
 		if data == nil {

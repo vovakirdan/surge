@@ -9,14 +9,14 @@ async fn joiner(label: string, t: Task<int>) -> int {
 
 @entrypoint
 fn main() -> int {
-    let worker = spawn async {
+    let worker = task async {
         checkpoint().await();
         return 9;
     };
     let worker_clone = worker.clone();
 
-    let j1 = spawn joiner("j1", worker);
-    let j2 = spawn joiner("j2", worker_clone);
+    let j1 = task joiner("j1", worker);
+    let j2 = task joiner("j2", worker_clone);
 
     let _ = j1.await();
     let _ = j2.await();

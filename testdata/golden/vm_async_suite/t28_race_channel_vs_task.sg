@@ -4,7 +4,7 @@ fn main() -> int {
         let ch = make_channel::<int>(1);
         ch.send(9);
 
-        let t = spawn async {
+        let t = task async {
             sleep(100).await();
             print("t done");
             return 0;
@@ -22,7 +22,7 @@ fn main() -> int {
         Cancelled() => print("cancelled");
     };
 
-    let guard = spawn async {
+    let guard = task async {
         sleep(200).await();
         return 0;
     };

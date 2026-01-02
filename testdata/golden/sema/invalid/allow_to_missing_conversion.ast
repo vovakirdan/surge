@@ -23,6 +23,6 @@ allow_to_missing_conversion.sg (span: 1:1-10:1)
          │  ├─ Name: b
          │  ├─ Mutable: false
          │  ├─ Type: Bar
-         │  └─ Value: expr#3: <ExprKind(20)>
+         │  └─ Value: expr#3: <ExprKind(21)>
          └─ Stmt[1]: Expr (span: 8:5-8:21)
             └─ Expr: expr#6: takes_string(b)

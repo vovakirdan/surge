@@ -15,17 +15,17 @@ async fn drain_task(t: Task<int>) -> int {
 
 // Valid: task passed to drain, then await drainer
 pub async fn test_pass_and_await_drainer() -> int {
-    let task = spawn compute();
-    let drainer = spawn drain_task(task);  // ownership of 'task' transferred to drain_task
+    let t = task compute();
+    let drainer = task drain_task(t);  // ownership of 't' transferred to drain_task
     return compare drainer.await() {
         Success(v) => v;
         Cancelled() => 0;
     };
 }
 
-// Valid: direct spawn passed without intermediate binding
+// Valid: direct task passed without intermediate binding
 pub async fn test_direct_pass() -> int {
-    let drainer = spawn drain_task(spawn compute());
+    let drainer = task drain_task(task compute());
     return compare drainer.await() {
         Success(v) => v;
         Cancelled() => 0;
@@ -46,9 +46,9 @@ async fn sum_tasks(t1: Task<int>, t2: Task<int>) -> int {
 }
 
 pub async fn test_multiple_pass() -> int {
-    let a = spawn compute();
-    let b = spawn compute();
-    let summer = spawn sum_tasks(a, b);  // both a and b transferred
+    let a = task compute();
+    let b = task compute();
+    let summer = task sum_tasks(a, b);  // both a and b transferred
     return compare summer.await() {
         Success(v) => v;
         Cancelled() => 0;

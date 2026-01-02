@@ -35,6 +35,7 @@ const (
 	KwRace     // race
 	KwFinally  // finally
 	KwChannel  // channel
+	KwTask     // task
 	KwSpawn    // spawn
 	KwTrue     // true
 	KwFalse    // false

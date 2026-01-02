@@ -142,15 +142,15 @@ Just data and functions that work with it.`,
 	},
 	{
 		Title:    "Tasks don't outlive their welcome.",
-		Subtitle: "Structured concurrency: spawn, await, go home.",
+		Subtitle: "Structured concurrency: task, await, go home.",
 		Explanation: `Async in Surge is predictable. Tasks cannot outlive their scope.
-When an async block ends, it waits for all spawned tasks. No
+When an async block ends, it waits for all tasks. No
 fire-and-forget, no leaked goroutines, no zombie promises.
 
 Example:
     async {
-        let t1 = spawn fetch_data();
-        let t2 = spawn process_cache();
+        let t1 = task fetch_data();
+        let t2 = task process_cache();
         // ... do other work ...
     }  // implicit: waits for t1 and t2 here
 

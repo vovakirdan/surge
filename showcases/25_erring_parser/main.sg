@@ -5,7 +5,7 @@ fn main() {
     let bad: int;
 
     while true {
-        let line = readline();
+        let line = readline(); // todo: выяснить, почему она недоступна
         if line.trim() == "stop" { break; }
         if line.trim() == "" { continue; }
         let r = int.from_str(line);

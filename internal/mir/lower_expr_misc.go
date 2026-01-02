@@ -105,17 +105,17 @@ func (l *funcLowerer) lowerAwaitExpr(e *hir.Expr, consume bool) (Operand, error)
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }
 
-// lowerSpawnExpr lowers a spawn expression.
-func (l *funcLowerer) lowerSpawnExpr(e *hir.Expr, consume bool) (Operand, error) {
-	data, ok := e.Data.(hir.SpawnData)
+// lowerTaskExpr lowers a task expression into a spawn instruction.
+func (l *funcLowerer) lowerTaskExpr(e *hir.Expr, consume bool) (Operand, error) {
+	data, ok := e.Data.(hir.TaskData)
 	if !ok {
-		return Operand{}, fmt.Errorf("mir: spawn: unexpected payload %T", e.Data)
+		return Operand{}, fmt.Errorf("mir: task: unexpected payload %T", e.Data)
 	}
 	value, err := l.lowerExpr(data.Value, true)
 	if err != nil {
 		return Operand{}, err
 	}
-	tmp := l.newTemp(e.Type, "spawn", e.Span)
+	tmp := l.newTemp(e.Type, "task", e.Span)
 	l.emit(&Instr{Kind: InstrSpawn, Spawn: SpawnInstr{Dst: Place{Local: tmp}, Value: value}})
 	if l.scopeLocal != NoLocalID {
 		l.emit(&Instr{Kind: InstrCall, Call: CallInstr{

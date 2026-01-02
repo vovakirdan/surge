@@ -36,7 +36,7 @@ string_concat_chain_to.sg (span: 1:1-20:1)
          │  ├─ Name: p
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#20: <ExprKind(20)>
+         │  └─ Value: expr#20: <ExprKind(21)>
          ├─ Stmt[1]: Expr (span: 17:5-17:24)
          │  └─ Expr: expr#24: print(p to string)
          └─ Stmt[2]: Return (span: 18:5-18:14)

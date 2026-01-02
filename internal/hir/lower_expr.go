@@ -108,6 +108,9 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 	case ast.ExprAwait:
 		return l.lowerAwaitExpr(expr, ty)
 
+	case ast.ExprTask:
+		return l.lowerTaskExpr(expr, ty)
+
 	case ast.ExprSpawn:
 		return l.lowerSpawnExpr(expr, ty)
 
@@ -612,6 +615,21 @@ func (l *lowerer) lowerAwaitExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 		Type: ty,
 		Span: expr.Span,
 		Data: AwaitData{Value: l.lowerExpr(awaitData.Value)},
+	}
+}
+
+// lowerTaskExpr lowers a task expression.
+func (l *lowerer) lowerTaskExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+	taskData := l.builder.Exprs.Tasks.Get(uint32(expr.Payload))
+	if taskData == nil {
+		return nil
+	}
+
+	return &Expr{
+		Kind: ExprTask,
+		Type: ty,
+		Span: expr.Span,
+		Data: TaskData{Value: l.lowerExpr(taskData.Value)},
 	}
 }
 

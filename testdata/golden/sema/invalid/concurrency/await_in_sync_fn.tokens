@@ -28,11 +28,11 @@
  28: Ident           "int" at 9:17-9:20
  29: Gt              ">" at 9:20-9:21
  30: Assign          "=" at 9:22-9:23 (leading: Space)
- 31: KwSpawn         "spawn" at 9:24-9:29 (leading: Space)
- 32: Ident           "async_task" at 9:30-9:40 (leading: Space)
- 33: LParen          "(" at 9:40-9:41
- 34: RParen          ")" at 9:41-9:42
- 35: Semicolon       ";" at 9:42-9:43
+ 31: KwTask          "task" at 9:24-9:28 (leading: Space)
+ 32: Ident           "async_task" at 9:29-9:39 (leading: Space)
+ 33: LParen          "(" at 9:39-9:40
+ 34: RParen          ")" at 9:40-9:41
+ 35: Semicolon       ";" at 9:41-9:42
  36: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
  37: Ident           "t" at 10:12-10:13 (leading: Space)
  38: Dot             "." at 10:13-10:14

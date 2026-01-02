@@ -6,9 +6,9 @@ import (
 
 // This file contains typeChecker methods for tracking task lifecycle in structured concurrency.
 // These methods integrate with the TaskTracker (defined in task_tracking.go) to ensure
-// that spawned tasks are properly awaited before their enclosing scope exits.
+// that tasks are properly awaited before their enclosing scope exits.
 //
-// The structured concurrency model requires that every spawned task must be either:
+// The structured concurrency model requires that every task must be either:
 //   1. Awaited within its scope (task.await())
 //   2. Returned from the scope (return task)
 //   3. Passed to another function that takes ownership (foo(task))
@@ -20,9 +20,9 @@ import (
 // This is called when a .await() method call is detected on a task.
 //
 // The function handles two cases:
-//  1. Direct spawn expression: spawn foo().await()
-//     - The spawn expression itself is marked as awaited
-//  2. Variable reference: let t = spawn foo(); t.await()
+//  1. Direct task expression: task foo().await()
+//     - The task expression itself is marked as awaited
+//  2. Variable reference: let t = task foo(); t.await()
 //     - The binding symbol is used to locate and mark the task
 //
 // After a task is marked as awaited, it won't generate a "task not awaited"
@@ -37,13 +37,13 @@ func (tc *typeChecker) trackTaskAwait(targetExpr ast.ExprID) {
 		return
 	}
 
-	// Case 1: Direct spawn expression (spawn foo().await())
-	if expr.Kind == ast.ExprSpawn {
+	// Case 1: Direct task expression (task foo().await())
+	if expr.Kind == ast.ExprTask {
 		tc.taskTracker.MarkAwaitedByExpr(targetExpr)
 		return
 	}
 
-	// Case 2: Variable reference (t.await() where let t = spawn foo())
+	// Case 2: Variable reference (t.await() where let t = task foo())
 	if expr.Kind == ast.ExprIdent {
 		if symID := tc.symbolForExpr(targetExpr); symID.IsValid() {
 			tc.taskTracker.MarkAwaited(symID)
@@ -59,8 +59,8 @@ func (tc *typeChecker) trackTaskAwait(targetExpr ast.ExprID) {
 // structured concurrency guarantees.
 //
 // The function handles two cases:
-//  1. Direct spawn expression: return spawn foo()
-//  2. Variable reference: return t where let t = spawn foo()
+//  1. Direct task expression: return task foo()
+//  2. Variable reference: return t where let t = task foo()
 func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 	if tc.taskTracker == nil || !returnExpr.IsValid() {
 		return
@@ -77,13 +77,13 @@ func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 		return
 	}
 
-	// Case 1: Direct spawn expression (return spawn foo())
-	if expr.Kind == ast.ExprSpawn {
+	// Case 1: Direct task expression (return task foo())
+	if expr.Kind == ast.ExprTask {
 		tc.taskTracker.MarkReturnedByExpr(returnExpr)
 		return
 	}
 
-	// Case 2: Variable reference (return t where let t = spawn foo())
+	// Case 2: Variable reference (return t where let t = task foo())
 	if expr.Kind == ast.ExprIdent {
 		if symID := tc.symbolForExpr(returnExpr); symID.IsValid() {
 			tc.taskTracker.MarkReturned(symID)
@@ -99,9 +99,9 @@ func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 // the task - the current scope is no longer responsible for awaiting it.
 //
 // Common patterns this enables:
-//   - Task combinators: join_all([spawn a(), spawn b()])
-//   - Task storage: task_queue.push(spawn compute())
-//   - Higher-order functions: map_async(items, spawn_processor)
+//   - Task combinators: join_all([task a(), task b()])
+//   - Task storage: task_queue.push(task compute())
+//   - Higher-order functions: map_async(items, task_processor)
 func (tc *typeChecker) trackTaskPassedAsArg(argExpr ast.ExprID) {
 	if tc.taskTracker == nil || !argExpr.IsValid() {
 		return
@@ -118,13 +118,13 @@ func (tc *typeChecker) trackTaskPassedAsArg(argExpr ast.ExprID) {
 		return
 	}
 
-	// Case 1: Direct spawn expression (foo(spawn compute()))
-	if expr.Kind == ast.ExprSpawn {
+	// Case 1: Direct task expression (foo(task compute()))
+	if expr.Kind == ast.ExprTask {
 		tc.taskTracker.MarkPassedByExpr(argExpr)
 		return
 	}
 
-	// Case 2: Variable reference (foo(task) where let task = spawn ...)
+	// Case 2: Variable reference (foo(task) where let t = task ...)
 	if expr.Kind == ast.ExprIdent {
 		if symID := tc.symbolForExpr(argExpr); symID.IsValid() {
 			tc.taskTracker.MarkPassed(symID)

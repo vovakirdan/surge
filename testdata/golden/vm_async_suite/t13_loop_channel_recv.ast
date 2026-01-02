@@ -79,16 +79,16 @@ Block (span: 19:21-21:10)
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
          │  └─ Value: expr#55: ch
-         ├─ Stmt[3]: Let (span: 32:5-32:40)
+         ├─ Stmt[3]: Let (span: 32:5-32:39)
          │  ├─ Name: prod
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#59: spawn producer(prod_ch)
-         ├─ Stmt[4]: Let (span: 33:5-33:40)
+         │  └─ Value: expr#59: task producer(prod_ch)
+         ├─ Stmt[4]: Let (span: 33:5-33:39)
          │  ├─ Name: cons
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#63: spawn consumer(cons_ch)
+         │  └─ Value: expr#63: task consumer(cons_ch)
          ├─ Stmt[5]: Let (span: 35:5-35:26)
          │  ├─ Name: _
          │  ├─ Mutable: false

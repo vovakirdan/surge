@@ -142,7 +142,7 @@ func BuildBorrowGraph(ctx context.Context, hfn *Func, semaRes *sema.Result) (*Bo
 		case sema.BorrowEvSpawnEscape:
 			if hEv.Local.IsValid() {
 				if _, ok := moveRestrictions[hEv.Local]; !ok {
-					moveRestrictions[hEv.Local] = "spawn escape"
+					moveRestrictions[hEv.Local] = "task escape"
 				}
 			}
 		case sema.BorrowEvMove:

@@ -430,7 +430,7 @@ func TestAwaitMemberCalls(t *testing.T) {
 	})
 
 	t.Run("awaitThenMethodCall", func(t *testing.T) {
-		letItem, arenas := parseExprTestInput(t, "let x = task.await().method();")
+		letItem, arenas := parseExprTestInput(t, "let x = t.await().method();")
 		if letItem.Value == ast.NoExprID {
 			t.Fatal("Expected expression value")
 		}
@@ -1198,7 +1198,7 @@ func TestBooleanAndNothingLiterals(t *testing.T) {
 	}
 }
 
-func TestSpawnExpressionForms(t *testing.T) {
+func TestTaskExpressionForms(t *testing.T) {
 	tests := []struct {
 		name          string
 		input         string
@@ -1206,17 +1206,17 @@ func TestSpawnExpressionForms(t *testing.T) {
 	}{
 		{
 			name:          "call_operand",
-			input:         "let task = spawn fetch();",
+			input:         "let t = task fetch();",
 			wantInnerKind: ast.ExprCall,
 		},
 		{
 			name:          "await_operand",
-			input:         "let task = spawn future.await();",
+			input:         "let t = task future.await();",
 			wantInnerKind: ast.ExprCall,
 		},
 		{
 			name:          "async_block_operand",
-			input:         "let task = spawn async { return 1; };",
+			input:         "let t = task async { return 1; };",
 			wantInnerKind: ast.ExprAsync,
 		},
 	}
@@ -1230,19 +1230,19 @@ func TestSpawnExpressionForms(t *testing.T) {
 
 			expr := arenas.Exprs.Get(letItem.Value)
 			if expr == nil {
-				t.Fatal("spawn expression missing")
+				t.Fatal("task expression missing")
 			}
-			if expr.Kind != ast.ExprSpawn {
-				t.Fatalf("expected spawn expression, got %v", expr.Kind)
+			if expr.Kind != ast.ExprTask {
+				t.Fatalf("expected task expression, got %v", expr.Kind)
 			}
 
-			data, ok := arenas.Exprs.Spawn(letItem.Value)
+			data, ok := arenas.Exprs.Task(letItem.Value)
 			if !ok {
-				t.Fatal("spawn payload missing")
+				t.Fatal("task payload missing")
 			}
 			inner := arenas.Exprs.Get(data.Value)
 			if inner == nil {
-				t.Fatal("spawn operand missing")
+				t.Fatal("task operand missing")
 			}
 			if inner.Kind != tt.wantInnerKind {
 				t.Fatalf("expected inner kind %v, got %v", tt.wantInnerKind, inner.Kind)
@@ -1251,8 +1251,31 @@ func TestSpawnExpressionForms(t *testing.T) {
 	}
 }
 
+func TestSpawnExpressionReserved(t *testing.T) {
+	letItem, arenas := parseExprTestInput(t, "let t = spawn fetch();")
+	if letItem.Value == ast.NoExprID {
+		t.Fatal("expected expression value")
+	}
+
+	expr := arenas.Exprs.Get(letItem.Value)
+	if expr == nil {
+		t.Fatal("spawn expression missing")
+	}
+	if expr.Kind != ast.ExprSpawn {
+		t.Fatalf("expected spawn expression, got %v", expr.Kind)
+	}
+
+	data, ok := arenas.Exprs.Spawn(letItem.Value)
+	if !ok {
+		t.Fatal("spawn payload missing")
+	}
+	if inner := arenas.Exprs.Get(data.Value); inner == nil {
+		t.Fatal("spawn operand missing")
+	}
+}
+
 func TestAsyncBlockExpression(t *testing.T) {
-	letItem, arenas := parseExprTestInput(t, "let task = async { let x = 1; return x; };")
+	letItem, arenas := parseExprTestInput(t, "let t = async { let x = 1; return x; };")
 	if letItem.Value == ast.NoExprID {
 		t.Fatal("expected expression value")
 	}

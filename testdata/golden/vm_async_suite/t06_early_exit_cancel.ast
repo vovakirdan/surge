@@ -16,7 +16,7 @@ t06_early_exit_cancel.sg (span: 1:1-31:1)
          │  ├─ Name: guard
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#46: spawn async { 2 stmt(s) }
+         │  └─ Value: expr#46: task async { 2 stmt(s) }
          ├─ Stmt[3]: Let (span: 27:5-27:27)
          │  ├─ Name: _
          │  ├─ Mutable: false

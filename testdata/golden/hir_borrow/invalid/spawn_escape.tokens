@@ -33,19 +33,19 @@
  33: Ident           "x" at 5:20-5:21
  34: Semicolon       ";" at 5:21-5:22
  35: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
- 36: Ident           "task" at 6:9-6:13 (leading: Space)
- 37: Assign          "=" at 6:14-6:15 (leading: Space)
- 38: KwSpawn         "spawn" at 6:16-6:21 (leading: Space)
- 39: Ident           "use_ref" at 6:22-6:29 (leading: Space)
- 40: LParen          "(" at 6:29-6:30
- 41: Ident           "r" at 6:30-6:31
- 42: RParen          ")" at 6:31-6:32
- 43: Semicolon       ";" at 6:32-6:33
- 44: Ident           "task" at 7:5-7:9 (leading: Newline, Space)
- 45: Dot             "." at 7:9-7:10
- 46: Ident           "await" at 7:10-7:15
- 47: LParen          "(" at 7:15-7:16
- 48: RParen          ")" at 7:16-7:17
- 49: Semicolon       ";" at 7:17-7:18
+ 36: Ident           "t" at 6:9-6:10 (leading: Space)
+ 37: Assign          "=" at 6:11-6:12 (leading: Space)
+ 38: KwTask          "task" at 6:13-6:17 (leading: Space)
+ 39: Ident           "use_ref" at 6:18-6:25 (leading: Space)
+ 40: LParen          "(" at 6:25-6:26
+ 41: Ident           "r" at 6:26-6:27
+ 42: RParen          ")" at 6:27-6:28
+ 43: Semicolon       ";" at 6:28-6:29
+ 44: Ident           "t" at 7:5-7:6 (leading: Newline, Space)
+ 45: Dot             "." at 7:6-7:7
+ 46: Ident           "await" at 7:7-7:12
+ 47: LParen          "(" at 7:12-7:13
+ 48: RParen          ")" at 7:13-7:14
+ 49: Semicolon       ";" at 7:14-7:15
  50: RBrace          "}" at 8:1-8:2 (leading: Newline)
  51: EOF             at 9:1-9:1

@@ -30,7 +30,7 @@ block_expr.sg (span: 1:1-16:1)
    └─ Body:
       └─ Stmt[0]: Block (span: 10:29-15:2)
          └─ Stmt[0]: Let (span: 11:5-14:7)
-            ├─ Name: task
+            ├─ Name: t
             ├─ Mutable: false
             ├─ Type: <inferred>
             └─ Value: expr#11: async { 2 stmt(s) }

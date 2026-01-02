@@ -1,6 +1,6 @@
 @entrypoint
 fn main() -> int {
-    let t = spawn async {
+    let t = task async {
         return 9;
     };
     let t1 = t.clone();

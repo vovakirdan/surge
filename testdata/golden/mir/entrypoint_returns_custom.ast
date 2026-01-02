@@ -22,4 +22,4 @@ entrypoint_returns_custom.sg (span: 2:1-16:1)
    └─ Body:
       └─ Stmt[0]: Block (span: 13:25-15:2)
          └─ Stmt[0]: Return (span: 14:5-14:37)
-            └─ Expr: expr#5: <ExprKind(20)>
+            └─ Expr: expr#5: <ExprKind(21)>

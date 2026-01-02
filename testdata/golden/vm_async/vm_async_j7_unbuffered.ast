@@ -47,16 +47,16 @@ vm_async_j7_unbuffered.sg (span: 1:1-29:1)
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
          │  └─ Value: expr#33: ch
-         ├─ Stmt[3]: Let (span: 22:5-22:47)
+         ├─ Stmt[3]: Let (span: 22:5-22:46)
          │  ├─ Name: sender_task
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#37: spawn sender(sender_ch)
-         ├─ Stmt[4]: Let (span: 23:5-23:45)
+         │  └─ Value: expr#37: task sender(sender_ch)
+         ├─ Stmt[4]: Let (span: 23:5-23:44)
          │  ├─ Name: recv_task
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#41: spawn receiver(recv_ch)
+         │  └─ Value: expr#41: task receiver(recv_ch)
          ├─ Stmt[5]: Let (span: 25:5-25:33)
          │  ├─ Name: _
          │  ├─ Mutable: false

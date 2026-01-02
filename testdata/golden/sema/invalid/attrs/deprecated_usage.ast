@@ -69,17 +69,17 @@ deprecated_usage.sg (span: 4:1-63:1)
          │  ├─ Name: _
          │  ├─ Mutable: false
          │  ├─ Type: OldType
-         │  └─ Value: expr#16: <ExprKind(20)>
+         │  └─ Value: expr#16: <ExprKind(21)>
          ├─ Stmt[3]: Let (span: 46:5-46:45)
          │  ├─ Name: _
          │  ├─ Mutable: false
          │  ├─ Type: OldTypeMsg
-         │  └─ Value: expr#19: <ExprKind(20)>
+         │  └─ Value: expr#19: <ExprKind(21)>
          ├─ Stmt[4]: Let (span: 49:5-49:54)
          │  ├─ Name: c1
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#24: <ExprKind(20)>
+         │  └─ Value: expr#24: <ExprKind(21)>
          ├─ Stmt[5]: Let (span: 50:5-50:23)
          │  ├─ Name: _
          │  ├─ Mutable: false
@@ -89,7 +89,7 @@ deprecated_usage.sg (span: 4:1-63:1)
          │  ├─ Name: c2
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#31: <ExprKind(20)>
+         │  └─ Value: expr#31: <ExprKind(21)>
          ├─ Stmt[7]: Let (span: 53:5-53:26)
          │  ├─ Name: _
          │  ├─ Mutable: false

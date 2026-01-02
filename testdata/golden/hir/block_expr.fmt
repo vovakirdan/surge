@@ -8,7 +8,7 @@ fn block_scope() -> int {
 }
 
 async fn with_async_block() {
-    let task = async {
+    let t = async {
         let x = 1;
         let y = x + 1;
     };

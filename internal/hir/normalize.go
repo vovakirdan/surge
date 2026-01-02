@@ -377,6 +377,16 @@ func normalizeExpr(ctx *normCtx, e *Expr) error {
 		e.Data = data
 		return nil
 
+	case ExprTask:
+		data := e.Data.(TaskData)
+		if data.Value != nil {
+			if err := normalizeExpr(ctx, data.Value); err != nil {
+				return err
+			}
+		}
+		e.Data = data
+		return nil
+
 	case ExprSpawn:
 		data := e.Data.(SpawnData)
 		if data.Value != nil {

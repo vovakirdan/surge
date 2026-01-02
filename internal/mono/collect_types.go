@@ -224,6 +224,12 @@ func collectTypesFromExpr(e *hir.Expr, visit func(id types.TypeID)) {
 			return
 		}
 		collectTypesFromExpr(data.Value, visit)
+	case hir.ExprTask:
+		data, ok := e.Data.(hir.TaskData)
+		if !ok {
+			return
+		}
+		collectTypesFromExpr(data.Value, visit)
 	case hir.ExprSpawn:
 		data, ok := e.Data.(hir.SpawnData)
 		if !ok {

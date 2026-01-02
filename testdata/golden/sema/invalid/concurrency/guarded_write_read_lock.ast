@@ -16,7 +16,7 @@ guarded_write_read_lock.sg (span: 3:1-14:1)
          │  ├─ Name: s
          │  ├─ Mutable: true
          │  ├─ Type: SharedData
-         │  └─ Value: expr#8: <ExprKind(20)>
+         │  └─ Value: expr#8: <ExprKind(21)>
          ├─ Stmt[1]: Expr (span: 10:5-10:22)
          │  └─ Expr: expr#12: s.rw.read_lock()
          ├─ Stmt[2]: Expr (span: 11:5-11:17)

@@ -50,7 +50,7 @@ type BorrowEvent struct {
 	Place Place
 
 	// Binding is the binding symbol involved in this event (when applicable),
-	// e.g. @drop target or spawn-captured variable.
+	// e.g. @drop target or task-captured variable.
 	Binding symbols.SymbolID
 
 	Span  source.Span

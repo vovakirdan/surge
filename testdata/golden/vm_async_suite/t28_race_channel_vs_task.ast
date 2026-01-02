@@ -16,7 +16,7 @@ t28_race_channel_vs_task.sg (span: 1:1-32:1)
          │  ├─ Name: guard
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#57: spawn async { 2 stmt(s) }
+         │  └─ Value: expr#57: task async { 2 stmt(s) }
          ├─ Stmt[3]: Let (span: 29:5-29:27)
          │  ├─ Name: _
          │  ├─ Mutable: false

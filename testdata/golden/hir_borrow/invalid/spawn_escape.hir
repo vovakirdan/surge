@@ -1,4 +1,5 @@
-error SEM3021 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:30 cannot send 'r' to a spawned task
+warning SEM3004 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:5 declaration of 't' shadows previous binding
+error SEM3021 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:26 cannot send 'r' to a task
 
 == HIR ==
 module 
@@ -16,8 +17,8 @@ move plan:
 async fn t() -> nothing (id=2, sym=1219) {
   let mut x: int [copy] = 1
   let r: &int [&] = (& x): &int
-  let task: type#1327 = spawn use_ref(r): type#1327: type#1327
-  await(task): type#1328
+  let t: type#1327 = task use_ref(r): type#1327: type#1327
+  await(t): type#1328
   return
 }
 
@@ -25,11 +26,11 @@ borrow edges:
   L2439(r) (&) borrows L2438(x) at 0:87-89 scope=S5
 events:
   borrow_start L2439(r) -> L2438(x) (&) at 0:87-89 scope=S5 note="B1"
-  spawn_escape L2439(r) -> L2438(x) at 0:120-121 scope=S5 note="B1"
-  move L2440(task) at 0:128-132 scope=S5
+  spawn_escape L2439(r) -> L2438(x) at 0:116-117 scope=S5 note="B1"
+  move L2440(t) at 0:124-125 scope=S5
   borrow_end L2439(r) -> L2438(x) scope=S5 note="scope_end B1"
 move plan:
   L2438(x): MoveCopy (copy type)
-  L2439(r): MoveForbidden (spawn escape)
-  L2440(task): MoveNeedsDrop (non-copy (drop))
+  L2439(r): MoveForbidden (task escape)
+  L2440(t): MoveNeedsDrop (non-copy (drop))
 

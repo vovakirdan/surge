@@ -1,7 +1,7 @@
 @entrypoint
 fn main() -> int {
-    let parent = spawn async {
-        let child = spawn async {
+    let parent = task async {
+        let child = task async {
             checkpoint().await();
             return 123;
         };

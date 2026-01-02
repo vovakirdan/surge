@@ -2,7 +2,7 @@
 [English](CONCURRENCY.md) | [Russian](CONCURRENCY.ru.md)
 
 > **Status:** Implemented in VM (single-threaded cooperative scheduler)
-> **Scope:** async/await, Task/TaskResult, spawn, channels, cancellation, timeouts
+> **Scope:** async/await, Task/TaskResult, task, channels, cancellation, timeouts
 > **Out of scope:** OS-thread parallelism, signals, parallel map/reduce
 
 ---
@@ -13,7 +13,7 @@ Surge v1 uses a **single-threaded** executor with **cooperative scheduling**:
 
 - Tasks are **state machines**, not OS threads.
 - A task runs until it hits a suspension point (`await`, channel ops, `sleep`, `checkpoint`).
-- `spawn` **schedules** a task for concurrent execution.
+- `task` **schedules** a task for concurrent execution.
 - Cancellation is **cooperative** and observed only at suspension points.
 
 This keeps the ownership model sound without cross-thread borrow checking.
@@ -47,7 +47,7 @@ Key points:
 Example:
 
 ```sg
-let t = spawn fetch_user(42);
+let t = task fetch_user(42);
 compare t.await() {
     Success(user) => print(user.name);
     Cancelled() => print("cancelled");
@@ -67,7 +67,7 @@ async fn fetch_user(id: int) -> User {
 let t: Task<User> = fetch_user(42);
 ```
 
-- `async fn` returns `Task<T>` immediately; it does not run until awaited or spawned.
+- `async fn` returns `Task<T>` immediately; it does not run until awaited or scheduled with `task`.
 - `async { ... }` creates an anonymous `Task<T>` from a block.
 
 `@failfast` is allowed on **async functions** and **async blocks**:
@@ -75,8 +75,8 @@ let t: Task<User> = fetch_user(42);
 ```sg
 @failfast
 async fn pipeline() -> nothing {
-    let a = spawn step_a();
-    let b = spawn step_b();
+    let a = task step_a();
+    let b = task step_b();
 
     compare a.await() {
         Success(_) => nothing;
@@ -94,27 +94,28 @@ remaining children and the parent returns `Cancelled`.
 
 ---
 
-## 4. spawn
+## 4. task
 
 ```sg
-spawn expr
+task expr
 ```
 
 Rules:
 
 - `expr` must be a `Task<T>` (async function call or async block).
-- `spawn` schedules the task and returns a `Task<T>` handle.
-- Only `own` values may cross the spawn boundary.
-- `@nosend` types are rejected in spawn (`SemaNosendInSpawn`).
-- `spawn checkpoint()` is warned as useless (`SemaSpawnCheckpointUseless`).
+- `task` schedules the task and returns a `Task<T>` handle.
+- Only `own` values may cross the task boundary.
+- `@nosend` types are rejected in task (`SemaNosendInSpawn`).
+- `task checkpoint()` is warned as useless (`SemaSpawnCheckpointUseless`).
+- `spawn` is reserved for routines/parallel runtime; use `task` for async tasks.
 
 Example:
 
 ```sg
 async fn work(x: int) -> int { return x * 2; }
 
-let t1 = spawn work(10);
-let t2 = spawn work(20);
+let t1 = task work(10);
+let t2 = task work(20);
 
 compare t1.await() {
     Success(v) => print("t1=" + (v to string));
@@ -186,7 +187,7 @@ Notes:
 Example:
 
 ```sg
-let t = spawn slow_call();
+let t = task slow_call();
 compare timeout(t, 500:uint) {
     Success(v) => print("done " + (v to string));
     Cancelled() => print("timed out");
@@ -265,7 +266,7 @@ cooperative scheduling:
 - **F2 (one poll per step):** each scheduler step performs exactly one poll; a
   yielded task is requeued to the back of the ready queue, and a parked task is
   not requeued.
-- **F3 (determinism):** in default mode, ordering is FIFO by spawn/wake order;
+- **F3 (determinism):** in default mode, ordering is FIFO by task/wake order;
   in fuzz mode, the choice is randomized but Ready tasks remain eligible and
   cannot be starved.
 

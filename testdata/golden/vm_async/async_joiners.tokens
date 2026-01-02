@@ -10,9 +10,9 @@
  10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
  11: Ident           "t" at 3:9-3:10 (leading: Space)
  12: Assign          "=" at 3:11-3:12 (leading: Space)
- 13: KwSpawn         "spawn" at 3:13-3:18 (leading: Space)
- 14: KwAsync         "async" at 3:19-3:24 (leading: Space)
- 15: LBrace          "{" at 3:25-3:26 (leading: Space)
+ 13: KwTask          "task" at 3:13-3:17 (leading: Space)
+ 14: KwAsync         "async" at 3:18-3:23 (leading: Space)
+ 15: LBrace          "{" at 3:24-3:25 (leading: Space)
  16: Ident           "checkpoint" at 4:9-4:19 (leading: Newline, Space)
  17: LParen          "(" at 4:19-4:20
  18: RParen          ")" at 4:20-4:21
@@ -46,25 +46,25 @@
  46: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
  47: Ident           "j1" at 10:9-10:11 (leading: Space)
  48: Assign          "=" at 10:12-10:13 (leading: Space)
- 49: KwSpawn         "spawn" at 10:14-10:19 (leading: Space)
- 50: Ident           "joiner" at 10:20-10:26 (leading: Space)
- 51: LParen          "(" at 10:26-10:27
- 52: StringLit       "\"J1\"" at 10:27-10:31
- 53: Comma           "," at 10:31-10:32
- 54: Ident           "t" at 10:33-10:34 (leading: Space)
- 55: RParen          ")" at 10:34-10:35
- 56: Semicolon       ";" at 10:35-10:36
+ 49: KwTask          "task" at 10:14-10:18 (leading: Space)
+ 50: Ident           "joiner" at 10:19-10:25 (leading: Space)
+ 51: LParen          "(" at 10:25-10:26
+ 52: StringLit       "\"J1\"" at 10:26-10:30
+ 53: Comma           "," at 10:30-10:31
+ 54: Ident           "t" at 10:32-10:33 (leading: Space)
+ 55: RParen          ")" at 10:33-10:34
+ 56: Semicolon       ";" at 10:34-10:35
  57: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
  58: Ident           "j2" at 11:9-11:11 (leading: Space)
  59: Assign          "=" at 11:12-11:13 (leading: Space)
- 60: KwSpawn         "spawn" at 11:14-11:19 (leading: Space)
- 61: Ident           "joiner" at 11:20-11:26 (leading: Space)
- 62: LParen          "(" at 11:26-11:27
- 63: StringLit       "\"J2\"" at 11:27-11:31
- 64: Comma           "," at 11:31-11:32
- 65: Ident           "t1" at 11:33-11:35 (leading: Space)
- 66: RParen          ")" at 11:35-11:36
- 67: Semicolon       ";" at 11:36-11:37
+ 60: KwTask          "task" at 11:14-11:18 (leading: Space)
+ 61: Ident           "joiner" at 11:19-11:25 (leading: Space)
+ 62: LParen          "(" at 11:25-11:26
+ 63: StringLit       "\"J2\"" at 11:26-11:30
+ 64: Comma           "," at 11:30-11:31
+ 65: Ident           "t1" at 11:32-11:34 (leading: Space)
+ 66: RParen          ")" at 11:34-11:35
+ 67: Semicolon       ";" at 11:35-11:36
  68: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
  69: Underscore      "_" at 13:9-13:10 (leading: Space)
  70: Assign          "=" at 13:11-13:12 (leading: Space)

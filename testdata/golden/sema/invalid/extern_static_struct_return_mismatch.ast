@@ -15,4 +15,4 @@ extern_static_struct_return_mismatch.sg (span: 3:1-10:1)
    │     └─ Body:
    │        Stmt[0]: Block (span: 6:21-8:6)
    │        └─ Stmt[0]: Return (span: 7:9-7:31)
-   │           └─ Expr: expr#5: <ExprKind(20)>
+   │           └─ Expr: expr#5: <ExprKind(21)>

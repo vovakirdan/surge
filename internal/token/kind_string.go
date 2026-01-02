@@ -60,6 +60,8 @@ func (k Kind) String() string {
 		return "KwFinally"
 	case KwChannel:
 		return "KwChannel"
+	case KwTask:
+		return "KwTask"
 	case KwSpawn:
 		return "KwSpawn"
 	case KwTrue:

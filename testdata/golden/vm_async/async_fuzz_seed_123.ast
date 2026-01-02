@@ -9,12 +9,12 @@ async_fuzz_seed_123.sg (span: 1:1-19:1)
          │  ├─ Name: a
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#13: spawn async { 4 stmt(s) }
+         │  └─ Value: expr#13: task async { 4 stmt(s) }
          ├─ Stmt[1]: Let (span: 9:5-14:7)
          │  ├─ Name: b
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#26: spawn async { 4 stmt(s) }
+         │  └─ Value: expr#26: task async { 4 stmt(s) }
          ├─ Stmt[2]: Let (span: 15:5-15:23)
          │  ├─ Name: _
          │  ├─ Mutable: false

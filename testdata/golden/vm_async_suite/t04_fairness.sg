@@ -1,6 +1,6 @@
 @entrypoint
 fn main() -> int {
-    let left = spawn async {
+    let left = task async {
         print("L1");
         checkpoint().await();
         print("L2");
@@ -8,7 +8,7 @@ fn main() -> int {
         print("L3");
         return 0;
     };
-    let right = spawn async {
+    let right = task async {
         print("R1");
         checkpoint().await();
         print("R2");

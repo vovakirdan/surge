@@ -1,7 +1,7 @@
 # Parallelism in Surge (v1 status)
 
 > **Short version:** v1 has no real parallelism. There is only cooperative
-> concurrency via `async`/`spawn` and channels. The keywords `parallel` and
+> concurrency via `async`/`task` and channels. The keywords `parallel` and
 > `signal` are reserved and not supported.
 
 ---
@@ -11,7 +11,7 @@
 ### 1.1. Cooperative concurrency
 
 - Single execution thread; tasks switch at suspension points.
-- Tools: `async`, `spawn`, `.await()`, `Channel<T>`.
+- Tools: `async`, `task`, `.await()`, `Channel<T>`.
 - Await result: `TaskResult<T> = Success(T) | Cancelled`.
 
 See `docs/CONCURRENCY.md` for the precise model.
@@ -27,7 +27,7 @@ See `docs/CONCURRENCY.md` for the precise model.
 
 ## 2. Data-parallel alternative in v1
 
-If you need to process a collection, use `spawn` + await. In v1 you cannot
+If you need to process a collection, use `task` + await. In v1 you cannot
 `await` in loops, so awaiting tasks is structured via recursion:
 
 ```sg
@@ -43,7 +43,7 @@ async fn await_all<T>(tasks: Task<T>[], idx: int, mut out: T[]) -> T[] {
 async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
     let mut tasks: Task<U>[] = [];
     for x in xs {
-        tasks.push(spawn f(x));
+        tasks.push(task f(x));
     }
     return await_all(tasks, 0, []);
 }

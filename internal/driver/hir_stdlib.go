@@ -576,6 +576,13 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID) {
 		}
 		remapExpr(data.Value, mapping)
 		expr.Data = data
+	case hir.ExprTask:
+		data, ok := expr.Data.(hir.TaskData)
+		if !ok {
+			return
+		}
+		remapExpr(data.Value, mapping)
+		expr.Data = data
 	case hir.ExprSpawn:
 		data, ok := expr.Data.(hir.SpawnData)
 		if !ok {

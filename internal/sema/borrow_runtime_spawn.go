@@ -144,6 +144,10 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 				tc.scanSpawn(arm.Result, seen)
 			}
 		}
+	case ast.ExprTask:
+		if data, _ := tc.builder.Exprs.Task(expr); data != nil {
+			tc.scanSpawn(data.Value, seen)
+		}
 	case ast.ExprSpawn:
 		if data, _ := tc.builder.Exprs.Spawn(expr); data != nil {
 			tc.scanSpawn(data.Value, seen)

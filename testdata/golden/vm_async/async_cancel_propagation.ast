@@ -9,7 +9,7 @@ async_cancel_propagation.sg (span: 1:1-29:1)
          │  ├─ Name: parent
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#34: spawn async { 5 stmt(s) }
+         │  └─ Value: expr#34: task async { 5 stmt(s) }
          ├─ Stmt[1]: Let (span: 19:5-19:34)
          │  ├─ Name: _
          │  ├─ Mutable: false

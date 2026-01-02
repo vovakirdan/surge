@@ -19,9 +19,9 @@
  19: Ident           "int" at 8:27-8:30
  20: Gt              ">" at 8:30-8:31
  21: Assign          "=" at 8:32-8:33 (leading: Space)
- 22: KwSpawn         "spawn" at 8:34-8:39 (leading: Space)
- 23: Ident           "work" at 8:40-8:44 (leading: Space)
- 24: LParen          "(" at 8:44-8:45
- 25: RParen          ")" at 8:45-8:46
- 26: Semicolon       ";" at 8:46-8:47
+ 22: KwTask          "task" at 8:34-8:38 (leading: Space)
+ 23: Ident           "work" at 8:39-8:43 (leading: Space)
+ 24: LParen          "(" at 8:43-8:44
+ 25: RParen          ")" at 8:44-8:45
+ 26: Semicolon       ";" at 8:45-8:46
  27: EOF             at 9:1-9:1

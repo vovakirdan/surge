@@ -20,7 +20,7 @@ clone_wrong_return_type.sg (span: 2:1-16:1)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 7:40-9:6)
 │  │        └─ Stmt[0]: Return (span: 8:9-8:43)
-│  │           └─ Expr: expr#4: <ExprKind(20)>
+│  │           └─ Expr: expr#4: <ExprKind(21)>
 └─ Item[3]: Fn (span: 12:1-15:2)
    ├─ Name: test
    ├─ Params: ()
@@ -31,7 +31,7 @@ clone_wrong_return_type.sg (span: 2:1-16:1)
          │  ├─ Name: m
          │  ├─ Mutable: false
          │  ├─ Type: MyType
-         │  └─ Value: expr#7: <ExprKind(20)>
+         │  └─ Value: expr#7: <ExprKind(21)>
          └─ Stmt[1]: Let (span: 14:5-14:23)
             ├─ Name: n
             ├─ Mutable: false

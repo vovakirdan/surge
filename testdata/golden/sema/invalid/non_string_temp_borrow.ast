@@ -14,7 +14,7 @@ non_string_temp_borrow.sg (span: 1:1-15:1)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 6:46-8:6)
 │  │        └─ Stmt[0]: Return (span: 7:9-7:40)
-│  │           └─ Expr: expr#7: <ExprKind(20)>
+│  │           └─ Expr: expr#7: <ExprKind(21)>
 └─ Item[2]: Fn (span: 11:1-14:2)
    ├─ Name: main
    ├─ Params: ()
@@ -25,9 +25,9 @@ non_string_temp_borrow.sg (span: 1:1-15:1)
          │  ├─ Name: b
          │  ├─ Mutable: false
          │  ├─ Type: Box
-         │  └─ Value: expr#10: <ExprKind(20)>
+         │  └─ Value: expr#10: <ExprKind(21)>
          └─ Stmt[1]: Let (span: 13:5-13:30)
             ├─ Name: _
             ├─ Mutable: false
             ├─ Type: <inferred>
-            └─ Value: expr#15: (<ExprKind(20)> + b)
+            └─ Value: expr#15: (<ExprKind(21)> + b)

@@ -13,11 +13,11 @@ await_in_sync_fn.sg (span: 3:1-17:1)
 │  ├─ Return: TaskResult<int>
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 8:44-11:2)
-│        ├─ Stmt[0]: Let (span: 9:5-9:43)
+│        ├─ Stmt[0]: Let (span: 9:5-9:42)
 │        │  ├─ Name: t
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Task<int>
-│        │  └─ Value: expr#4: spawn async_task()
+│        │  └─ Value: expr#4: task async_task()
 │        └─ Stmt[1]: Return (span: 10:5-10:22)
 │           └─ Expr: expr#7: t.await()
 └─ Item[2]: Fn (span: 14:1-16:2)

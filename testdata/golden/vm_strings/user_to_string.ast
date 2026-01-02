@@ -60,6 +60,6 @@ user_to_string.sg (span: 3:1-27:1)
          │  ├─ Name: p
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#28: <ExprKind(20)>
+         │  └─ Value: expr#28: <ExprKind(21)>
          └─ Stmt[1]: Expr (span: 25:5-25:24)
             └─ Expr: expr#32: print(p to string)

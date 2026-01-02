@@ -2,7 +2,7 @@
   2: Ident           "no_std" at 2:8-2:14 (leading: Space)
   3: Semicolon       ";" at 2:14-2:15
   4: KwPub           "pub" at 4:1-4:4 (leading: Newline)
-  5: Kind(43)        "enum" at 4:5-4:9 (leading: Space)
+  5: Kind(44)        "enum" at 4:5-4:9 (leading: Space)
   6: Ident           "Color" at 4:10-4:15 (leading: Space)
   7: Colon           ":" at 4:15-4:16
   8: Ident           "int" at 4:17-4:20 (leading: Space)
@@ -21,7 +21,7 @@
  21: IntLit          "3" at 7:12-7:13 (leading: Space)
  22: RBrace          "}" at 8:1-8:2 (leading: Newline)
  23: KwPub           "pub" at 10:1-10:4 (leading: Newline)
- 24: Kind(43)        "enum" at 10:5-10:9 (leading: Space)
+ 24: Kind(44)        "enum" at 10:5-10:9 (leading: Space)
  25: Ident           "Status" at 10:10-10:16 (leading: Space)
  26: Colon           ":" at 10:16-10:17
  27: Ident           "string" at 10:18-10:24 (leading: Space)

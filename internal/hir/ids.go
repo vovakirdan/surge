@@ -2,7 +2,7 @@
 //
 // HIR sits between the AST and MIR layers. It is a typed representation
 // where every expression has an associated TypeID from the semantic analysis.
-// HIR preserves high-level language constructs (compare, for, async/spawn)
+// HIR preserves high-level language constructs (compare, for, async/task)
 // with minimal desugaring - only explicit return insertion.
 //
 // The HIR layer is designed to be the input for:

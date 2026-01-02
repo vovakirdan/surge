@@ -42,7 +42,7 @@
 
 * Ввести минимальный executor:
 
-  * `spawn(async_expr)` создаёт Task (TCB + state handle + poll entry).
+  * `task(async_expr)` создаёт Task (TCB + state handle + poll entry).
   * `await(task)` = join: если не готов — подписка и `Pending`.
 * Ввести внутренний `InstrPoll { Dst, Task, ReadyBB, PendBB }` (как в твоей рекомендации):
 
@@ -52,7 +52,7 @@
 **Acceptance**
 
 * Тест: `async { let x=1; checkpoint().await(); x+1 }` (checkpoint пока может быть “yield” примитив в рантайме).
-* Тест: `let t = spawn async { ... }; let r = t.await();`
+* Тест: `let t = task async { ... }; let r = t.await();`
 * Никаких каналов/таймеров/отмены ещё нет.
 
 ---
@@ -176,7 +176,7 @@
 
 **Acceptance**
 
-* Тест: spawned task обязательно завершён до выхода из блока.
+* Тест: task обязательно завершён до выхода из блока.
 * Тест: early return cancels siblings (если выберете этот policy).
 * Тест: попытка “утечки” (если можно смоделировать) → детерминированная ошибка.
 

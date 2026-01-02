@@ -38,7 +38,7 @@ type Result struct {
 	// holds the reference value (best-effort, for debug/analysis passes).
 	BorrowBindings map[BorrowID]symbols.SymbolID
 	// BorrowEvents is a best-effort event log produced by the borrow checker
-	// (borrow start/end, moves, writes, drops, spawn escapes).
+	// (borrow start/end, moves, writes, drops, task escapes).
 	BorrowEvents []BorrowEvent
 	// CopyTypes records nominal types marked as Copy via @copy attribute.
 	// Builtin Copy-ness is queried via TypeInterner.

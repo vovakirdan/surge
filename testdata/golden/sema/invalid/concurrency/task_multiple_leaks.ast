@@ -13,21 +13,21 @@ task_multiple_leaks.sg (span: 3:1-16:1)
    ├─ Return: Task<int>
    └─ Body:
       └─ Stmt[0]: Block (span: 7:49-15:2)
-         ├─ Stmt[0]: Let (span: 8:5-8:27)
+         ├─ Stmt[0]: Let (span: 8:5-8:26)
          │  ├─ Name: t1
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#4: spawn work()
-         ├─ Stmt[1]: Let (span: 9:5-9:27)
+         │  └─ Value: expr#4: task work()
+         ├─ Stmt[1]: Let (span: 9:5-9:26)
          │  ├─ Name: t2
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#7: spawn work()
-         ├─ Stmt[2]: Let (span: 10:5-10:27)
+         │  └─ Value: expr#7: task work()
+         ├─ Stmt[2]: Let (span: 10:5-10:26)
          │  ├─ Name: t3
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#10: spawn work()
+         │  └─ Value: expr#10: task work()
          ├─ Stmt[3]: Let (span: 12:5-12:24)
          │  ├─ Name: r
          │  ├─ Mutable: false

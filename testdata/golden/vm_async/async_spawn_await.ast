@@ -9,7 +9,7 @@ async_spawn_await.sg (span: 1:1-14:1)
          │  ├─ Name: t
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#9: spawn async { 2 stmt(s) }
+         │  └─ Value: expr#9: task async { 2 stmt(s) }
          ├─ Stmt[1]: Let (span: 7:5-10:7)
          │  ├─ Name: r
          │  ├─ Mutable: false

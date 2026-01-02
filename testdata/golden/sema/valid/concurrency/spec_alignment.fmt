@@ -17,13 +17,13 @@ async fn async_fn_with_params(x: int, y: int) -> int {
 // --- Section 3.2: Spawn ---
 
 pub async fn test_spawn_basic() {
-    let t: Task<int> = spawn simple_async_fn();
+    let t: Task<int> = task simple_async_fn();
     let result: TaskResult<int> = t.await();
 }
 
-// spawn from sync function returning Task (Rule 2)
+// task from sync function returning Task (Rule 2)
 pub fn sync_fn_returns_task() -> Task<int> {
-    return spawn simple_async_fn();
+    return task simple_async_fn();
 }
 
 // --- Section 3.3: Await ---
@@ -33,7 +33,7 @@ pub async fn test_await_basic() {
 }
 
 pub async fn test_await_chained() {
-    let t: Task<int> = spawn simple_async_fn();
+    let t: Task<int> = task simple_async_fn();
     let value: TaskResult<int> = t.await();
 }
 
@@ -49,8 +49,8 @@ pub async fn test_async_block() -> int {
 
 pub async fn test_async_block_with_spawn() {
     async {
-        let t1: Task<int> = spawn simple_async_fn();
-        let t2: Task<int> = spawn simple_async_fn();
+        let t1: Task<int> = task simple_async_fn();
+        let t2: Task<int> = task simple_async_fn();
         let r1: TaskResult<int> = t1.await();
         let r2: TaskResult<int> = t2.await();
     };
@@ -285,11 +285,11 @@ type SendWithAtomic = {
 
 // --- Structured Concurrency (Section 4) ---
 
-// All spawned tasks in async block are awaited before block exits
+// All tasks in async block are awaited before block exits
 pub async fn test_structured_concurrency() {
     async {
-        let t1: Task<int> = spawn simple_async_fn();
-        let t2: Task<int> = spawn simple_async_fn();
+        let t1: Task<int> = task simple_async_fn();
+        let t2: Task<int> = task simple_async_fn();
         let r1: TaskResult<int> = t1.await();
         let r2: TaskResult<int> = t2.await();
     };
@@ -297,5 +297,5 @@ pub async fn test_structured_concurrency() {
 
 // Returning Task from function transfers ownership
 pub fn transfer_task_ownership() -> Task<int> {
-    return spawn simple_async_fn();
+    return task simple_async_fn();
 }

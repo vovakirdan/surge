@@ -11,7 +11,7 @@
  11: Assign          "=" at 5:15-5:16 (leading: Space)
  12: Ident           "int" at 5:17-5:20 (leading: Space)
  13: Semicolon       ";" at 5:20-5:21
- 14: Kind(43)        "enum" at 7:1-7:5 (leading: Newline)
+ 14: Kind(44)        "enum" at 7:1-7:5 (leading: Newline)
  15: Ident           "KW" at 7:6-7:8 (leading: Space)
  16: Colon           ":" at 7:8-7:9
  17: Ident           "Keyword" at 7:10-7:17 (leading: Space)
@@ -29,7 +29,7 @@
  29: Assign          "=" at 10:10-10:11 (leading: Space)
  30: StringLit       "\"type\"" at 10:12-10:18 (leading: Space)
  31: RBrace          "}" at 11:1-11:2 (leading: Newline)
- 32: Kind(43)        "enum" at 13:1-13:5 (leading: Newline)
+ 32: Kind(44)        "enum" at 13:1-13:5 (leading: Newline)
  33: Ident           "Priority" at 13:6-13:14 (leading: Space)
  34: Colon           ":" at 13:14-13:15
  35: Ident           "IntAlias" at 13:16-13:24 (leading: Space)

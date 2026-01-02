@@ -15,7 +15,7 @@ clone_non_clonable.sg (span: 2:1-8:1)
          │  ├─ Name: n
          │  ├─ Mutable: false
          │  ├─ Type: NonClone
-         │  └─ Value: expr#3: <ExprKind(20)>
+         │  └─ Value: expr#3: <ExprKind(21)>
          └─ Stmt[1]: Let (span: 6:5-6:23)
             ├─ Name: m
             ├─ Mutable: false

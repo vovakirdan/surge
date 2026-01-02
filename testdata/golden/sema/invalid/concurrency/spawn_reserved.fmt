@@ -1,0 +1,7 @@
+// Test: spawn is reserved for routines/parallel runtime
+// Expected: FUT7007
+async fn foo() -> int { return 1; }
+
+@entrypoint fn main() {
+    let t = spawn foo();
+}

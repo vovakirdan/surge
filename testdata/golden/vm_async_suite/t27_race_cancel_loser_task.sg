@@ -1,12 +1,12 @@
 @entrypoint
 fn main() -> int {
     let r = (async {
-        let t1 = spawn async {
+        let t1 = task async {
             sleep(100).await();
             print("t1 done");
             return 1;
         };
-        let t2 = spawn async {
+        let t2 = task async {
             sleep(5).await();
             return 2;
         };
@@ -23,7 +23,7 @@ fn main() -> int {
         Cancelled() => print("cancelled");
     };
 
-    let guard = spawn async {
+    let guard = task async {
         sleep(200).await();
         return 0;
     };

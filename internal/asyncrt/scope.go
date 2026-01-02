@@ -80,7 +80,7 @@ func (e *Executor) RegisterChild(scopeID ScopeID, child TaskID) {
 	}
 }
 
-// CancelAllChildren cancels all children in spawn order.
+// CancelAllChildren cancels all children in task order.
 func (e *Executor) CancelAllChildren(scopeID ScopeID) {
 	if e == nil || scopeID == 0 {
 		return
@@ -94,7 +94,7 @@ func (e *Executor) CancelAllChildren(scopeID ScopeID) {
 	}
 }
 
-// JoinAllChildrenBlocking advances join-all in spawn order.
+// JoinAllChildrenBlocking advances join-all in task order.
 // Returns done=false with the first pending child to wait on, or done=true
 // when all children are complete, along with the failfast outcome.
 func (e *Executor) JoinAllChildrenBlocking(scopeID ScopeID) (done bool, pending TaskID, failfast bool) {

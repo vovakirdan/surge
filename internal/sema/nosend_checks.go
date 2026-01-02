@@ -8,11 +8,11 @@ import (
 	"surge/internal/types"
 )
 
-// checkSpawnSendability verifies that a symbol's type can be safely sent to a spawned task.
+// checkSpawnSendability verifies that a symbol's type can be safely sent to a task.
 // Types with the @nosend attribute cannot cross task boundaries as they may contain
 // thread-local state, non-atomic reference counts, or other non-thread-safe data.
 //
-// This check is performed when a variable is captured by a spawn expression
+// This check is performed when a variable is captured by a task expression
 // to ensure structured concurrency safety.
 func (tc *typeChecker) checkSpawnSendability(symID symbols.SymbolID, span source.Span) {
 	if !symID.IsValid() {
@@ -32,7 +32,7 @@ func (tc *typeChecker) checkSpawnSendability(symID symbols.SymbolID, span source
 		label := tc.symbolLabel(symID)
 		typeName := tc.typeLabel(baseType)
 		tc.report(diag.SemaNosendInSpawn, span,
-			"cannot send %s of @nosend type '%s' to spawned task", label, typeName)
+			"cannot send %s of @nosend type '%s' to task", label, typeName)
 	}
 
 	// Recursively check struct fields for nested @nosend types
@@ -69,7 +69,7 @@ func (tc *typeChecker) checkChannelSendValue(valueExpr ast.ExprID, span source.S
 }
 
 // checkNestedNosendWith recursively checks struct fields for @nosend attribute.
-// This is a unified implementation used by both spawn and channel send checking.
+// This is a unified implementation used by both task and channel send checking.
 //
 // The function traverses struct fields recursively to find any @nosend types
 // that might be embedded within composite types. A visited set prevents

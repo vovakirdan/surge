@@ -486,33 +486,40 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			}
 			ty = tc.taskType(payload, expr.Span)
 		}
-	case ast.ExprSpawn:
-		if spawn, ok := tc.builder.Exprs.Spawn(id); ok && spawn != nil {
-			exprType := tc.typeExpr(spawn.Value)
-			tc.observeMove(spawn.Value, tc.exprSpan(spawn.Value))
-			tc.enforceSpawn(spawn.Value)
+	case ast.ExprTask:
+		if task, ok := tc.builder.Exprs.Task(id); ok && task != nil {
+			exprType := tc.typeExpr(task.Value)
+			tc.observeMove(task.Value, tc.exprSpan(task.Value))
+			tc.enforceSpawn(task.Value)
 
-			// spawn requires Task<T> — passthrough without re-wrapping
+			// task requires Task<T> — passthrough without re-wrapping
 			if tc.isTaskType(exprType) {
 				ty = exprType
-				// Warn if spawning checkpoint() - it has no useful effect
-				if tc.isCheckpointCall(spawn.Value) {
+				// Warn if task checkpoint() - it has no useful effect
+				if tc.isCheckpointCall(task.Value) {
 					tc.warn(diag.SemaSpawnCheckpointUseless, expr.Span,
-						"spawn checkpoint() has no effect; use checkpoint().await() or ignore the result")
+						"task checkpoint() has no effect; use checkpoint().await() or ignore the result")
 				}
 			} else if exprType != types.NoTypeID {
 				tc.report(diag.SemaSpawnNotTask, expr.Span,
-					"spawn requires async function call or Task<T> expression, got %s",
+					"task requires async function call or Task<T> expression, got %s",
 					tc.typeLabel(exprType))
 				ty = types.NoTypeID
 			}
 
-			// Track spawned task for structured concurrency
+			// Track task for structured concurrency
 			if tc.taskTracker != nil && ty != types.NoTypeID {
 				inAsyncBlock := tc.asyncBlockDepth > 0
 				tc.taskTracker.SpawnTask(id, expr.Span, tc.currentScope(), inAsyncBlock)
 			}
 		}
+	case ast.ExprSpawn:
+		if spawn, ok := tc.builder.Exprs.Spawn(id); ok && spawn != nil {
+			tc.typeExpr(spawn.Value)
+		}
+		spawnSpan := source.Span{Start: expr.Span.Start, End: expr.Span.Start + uint32(len("spawn"))}
+		tc.report(diag.FutSpawnReserved, spawnSpan,
+			"`spawn` is reserved for routines/parallel runtime; use `task` for async tasks")
 	case ast.ExprSpread:
 		if spread, ok := tc.builder.Exprs.Spread(id); ok && spread != nil {
 			tc.typeExpr(spread.Value)

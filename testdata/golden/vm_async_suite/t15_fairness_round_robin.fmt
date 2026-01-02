@@ -18,11 +18,11 @@ fn main() -> int {
     let ch3 = ch;
     let ch4 = ch;
 
-    let w0 = spawn worker(ch0, 0);
-    let w1 = spawn worker(ch1, 1);
-    let w2 = spawn worker(ch2, 2);
-    let w3 = spawn worker(ch3, 3);
-    let w4 = spawn worker(ch4, 4);
+    let w0 = task worker(ch0, 0);
+    let w1 = task worker(ch1, 1);
+    let w2 = task worker(ch2, 2);
+    let w3 = task worker(ch3, 3);
+    let w4 = task worker(ch4, 4);
 
     let total = 15;
     let got = 0;

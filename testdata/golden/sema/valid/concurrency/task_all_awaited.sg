@@ -5,9 +5,9 @@ async fn compute(x: int) -> int {
 }
 
 pub async fn test_all_awaited() -> int {
-    let t1 = spawn compute(1);
-    let t2 = spawn compute(2);
-    let t3 = spawn compute(3);
+    let t1 = task compute(1);
+    let t2 = task compute(2);
+    let t3 = task compute(3);
 
     let r1: int = compare t1.await() {
         Success(v) => v;

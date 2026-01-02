@@ -106,14 +106,14 @@ Boring ownership is the best ownership.
 Async/await in Surge is predictable:
 
 * tasks don’t outlive their scope,
-* no “spawn-and-forget”,
+* no “task-and-forget”,
 * clear ownership across tasks (only `own T` crosses the boundary),
 * channels as first-class primitives,
 * cancellation that actually returns a value (`Cancelled`) instead of silently tearing down state.
 
 It’s a “grown-up” model, but expressed very simply.
 
-Single-threaded cooperative scheduling today, a path to parallel backends tomorrow. Tasks are just `Task<T>` values; `.await()` is a method, not a keyword; `async { ... }` blocks enforce structured concurrency by waiting for every spawned task. If you need to yield in a CPU-bound loop, `checkpoint().await()` is there instead of hoping for preemption.
+Single-threaded cooperative scheduling today, a path to parallel backends tomorrow. Tasks are just `Task<T>` values; `.await()` is a method, not a keyword; `async { ... }` blocks enforce structured concurrency by waiting for every task. If you need to yield in a CPU-bound loop, `checkpoint().await()` is there instead of hoping for preemption.
 
 ---
 
@@ -198,7 +198,7 @@ Borrow lifetimes are lexical, the borrow checker tells you where the conflict is
 
 Async code shouldn't be smuggled into memory.
 
-`async fn` returns `Task<T>`, `.await()` is explicit, `spawn` returns a handle you must either await or store. No loose tasks leaking into the void. The event loop is cooperative, honest about blocking, and ready for a future parallel runtime without changing user code.
+`async fn` returns `Task<T>`, `.await()` is explicit, `task` returns a handle you must either await or store. No loose tasks leaking into the void. The event loop is cooperative, honest about blocking, and ready for a future parallel runtime without changing user code.
 
 ### **No surprises**
 
@@ -239,7 +239,7 @@ This is Surge in one breath:
 Below is a realistic snippet combining:
 
 * async/await,
-* spawn,
+* task,
 * channels,
 * ownership,
 * tags,
@@ -273,10 +273,10 @@ extern<Endpoint> {
 async fn pipeline(endpoints: Endpoint[]) -> Success<string>[] {
     let ch = make_channel<Success<string> | Error>(10);
 
-    // Producer: spawn fetchers
+    // Producer: task fetchers
     async {
         for ep in endpoints {
-            spawn async {
+            task async {
                 let out = ep.fetch().await();
                 send(&ch, out);
             };
@@ -300,7 +300,7 @@ async fn pipeline(endpoints: Endpoint[]) -> Success<string>[] {
 
 If this example looks readable —
 that’s the whole point.
-It shows ownership moves (`spawn` takes `ep` by value),
+It shows ownership moves (`task` takes `ep` by value),
 borrows (`recv(&ch)` is explicit),
 and structural typing (`contract Fetchable`) without ornamentation.
 You can drop `@drop` inside a loop if you need to end a borrow early, or mark the function `@failfast` to auto-cancel tasks on the first error — but only when you ask for it.
@@ -511,4 +511,3 @@ and leaving behind everything that gets in the way of clarity.
 
 **So yes — thank you, Go.
 You helped shape Surge more than you know.**
-

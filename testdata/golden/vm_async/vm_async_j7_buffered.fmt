@@ -24,8 +24,8 @@ fn main() -> int {
 
     let sender_ch = ch;
     let recv_ch = ch;
-    let sender_task = spawn sender(sender_ch);
-    let recv_task = spawn receiver(recv_ch);
+    let sender_task = task sender(sender_ch);
+    let recv_task = task receiver(recv_ch);
 
     let _ = sender_task.await();
     let _ = recv_task.await();

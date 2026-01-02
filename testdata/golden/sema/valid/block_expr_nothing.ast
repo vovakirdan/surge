@@ -9,7 +9,7 @@ block_expr_nothing.sg (span: 2:1-16:1)
 │           ├─ Name: _
 │           ├─ Mutable: false
 │           ├─ Type: nothing
-│           └─ Value: expr#3: <ExprKind(22)>
+│           └─ Value: expr#3: <ExprKind(23)>
 └─ Item[1]: Fn (span: 10:1-15:2)
    ├─ Name: test_block_nothing_explicit_return
    ├─ Params: ()
@@ -20,4 +20,4 @@ block_expr_nothing.sg (span: 2:1-16:1)
             ├─ Name: _
             ├─ Mutable: false
             ├─ Type: nothing
-            └─ Value: expr#5: <ExprKind(22)>
+            └─ Value: expr#5: <ExprKind(23)>

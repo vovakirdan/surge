@@ -552,6 +552,11 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 		p.printExpr(data.Value)
 		p.printf(".await()")
 
+	case ExprTask:
+		data := e.Data.(TaskData)
+		p.printf("task ")
+		p.printExpr(data.Value)
+
 	case ExprSpawn:
 		data := e.Data.(SpawnData)
 		p.printf("spawn ")

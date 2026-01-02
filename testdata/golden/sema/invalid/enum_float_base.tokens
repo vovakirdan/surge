@@ -1,7 +1,7 @@
   1: KwPragma        "pragma" at 2:1-2:7 (leading: LineComment, Newline)
   2: Ident           "no_std" at 2:8-2:14 (leading: Space)
   3: Semicolon       ";" at 2:14-2:15
-  4: Kind(43)        "enum" at 4:1-4:5 (leading: Newline)
+  4: Kind(44)        "enum" at 4:1-4:5 (leading: Newline)
   5: Ident           "Mass" at 4:6-4:10 (leading: Space)
   6: Colon           ":" at 4:10-4:11
   7: Ident           "float" at 4:12-4:17 (leading: Space)

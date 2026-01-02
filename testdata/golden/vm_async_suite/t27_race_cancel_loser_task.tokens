@@ -16,9 +16,9 @@
  16: KwLet           "let" at 4:9-4:12 (leading: Newline, Space)
  17: Ident           "t1" at 4:13-4:15 (leading: Space)
  18: Assign          "=" at 4:16-4:17 (leading: Space)
- 19: KwSpawn         "spawn" at 4:18-4:23 (leading: Space)
- 20: KwAsync         "async" at 4:24-4:29 (leading: Space)
- 21: LBrace          "{" at 4:30-4:31 (leading: Space)
+ 19: KwTask          "task" at 4:18-4:22 (leading: Space)
+ 20: KwAsync         "async" at 4:23-4:28 (leading: Space)
+ 21: LBrace          "{" at 4:29-4:30 (leading: Space)
  22: Ident           "sleep" at 5:13-5:18 (leading: Newline, Space)
  23: LParen          "(" at 5:18-5:19
  24: IntLit          "100" at 5:19-5:22
@@ -41,9 +41,9 @@
  41: KwLet           "let" at 9:9-9:12 (leading: Newline, Space)
  42: Ident           "t2" at 9:13-9:15 (leading: Space)
  43: Assign          "=" at 9:16-9:17 (leading: Space)
- 44: KwSpawn         "spawn" at 9:18-9:23 (leading: Space)
- 45: KwAsync         "async" at 9:24-9:29 (leading: Space)
- 46: LBrace          "{" at 9:30-9:31 (leading: Space)
+ 44: KwTask          "task" at 9:18-9:22 (leading: Space)
+ 45: KwAsync         "async" at 9:23-9:28 (leading: Space)
+ 46: LBrace          "{" at 9:29-9:30 (leading: Space)
  47: Ident           "sleep" at 10:13-10:18 (leading: Newline, Space)
  48: LParen          "(" at 10:18-10:19
  49: IntLit          "5" at 10:19-10:20
@@ -124,9 +124,9 @@
 124: KwLet           "let" at 26:5-26:8 (leading: Newline, Space)
 125: Ident           "guard" at 26:9-26:14 (leading: Space)
 126: Assign          "=" at 26:15-26:16 (leading: Space)
-127: KwSpawn         "spawn" at 26:17-26:22 (leading: Space)
-128: KwAsync         "async" at 26:23-26:28 (leading: Space)
-129: LBrace          "{" at 26:29-26:30 (leading: Space)
+127: KwTask          "task" at 26:17-26:21 (leading: Space)
+128: KwAsync         "async" at 26:22-26:27 (leading: Space)
+129: LBrace          "{" at 26:28-26:29 (leading: Space)
 130: Ident           "sleep" at 27:9-27:14 (leading: Newline, Space)
 131: LParen          "(" at 27:14-27:15
 132: IntLit          "200" at 27:15-27:18

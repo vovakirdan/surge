@@ -19,7 +19,7 @@
 
 ### Implementation Snapshot
 
-- Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, contract, tag, enum, extern, pub, async, compare, select, race, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, field, nothing`. `signal`/`parallel` are reserved (`FutSignalNotSupported` / `FutParallelNotSupported`) and `macro` is rejected by the parser (`FutMacroNotSupported`).
+- Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, contract, tag, enum, extern, pub, async, compare, select, race, finally, channel, task, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, field, nothing`. `signal`/`parallel`/`spawn` are reserved (`FutSignalNotSupported` / `FutParallelNotSupported` / `FutSpawnReserved`) and `macro` is rejected by the parser (`FutMacroNotSupported`).
 - The type checker resolves `int`, `uint`, `float`, fixed-width numerics (`int8`, `uint64`, `float32`, ...), `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`), slices `T[]`, and sized arrays `T[N]` with constant `N`. Raw pointers (`*T`) are allowed only in `extern` and `@intrinsic` declarations.
 - Tuple and function types are supported in sema and runtime lowering.
 - Tags and tagged unions are implemented. `Option` and `Erring` are standard aliases built on `Some`/`Success` tags plus `nothing`/error types; `ErrorLike` and `Error` live in the prelude; `compare` exhaustiveness is enforced for tagged unions.
@@ -52,7 +52,7 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 
 ```
 pub, fn, let, const, mut, own, if, else, while, for, in, break, continue,
-import, as, type, contract, tag, enum, extern, return, signal, compare, select, race, spawn, channel,
+import, as, type, contract, tag, enum, extern, return, signal, compare, select, race, task, spawn, channel,
 parallel, map, reduce, with, to, heir, is, async, macro, pragma, field,
 true, false, nothing
 ```
@@ -148,7 +148,7 @@ Borrowing rules:
 
 To avoid data races the following conservative rule applies:
 
-* Only `own T` values may be moved (transferred) into spawned tasks/threads.
+* Only `own T` values may be moved (transferred) into tasks.
 * Borrowed references `&T` and `&mut T` are not allowed to cross thread boundaries (attempting to do so is a compile-time error).
 
 This rule simplifies early implementation and preserves soundness of the ownership model without a full cross-thread borrow-checker.
@@ -1605,18 +1605,18 @@ parallel reduce xs with init, (args) => func
 The execution model for `parallel` is **not specified yet**; v1 only reserves
 the syntax.
 
-**v1 alternative:** Use `spawn` with channels for concurrent (not parallel) processing:
+**v1 alternative:** Use `task` with channels for concurrent (not parallel) processing:
 ```sg
 async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
     let mut tasks: Task<U>[] = [];
     for x in xs {
-        tasks.push(spawn f(x));
+        tasks.push(task f(x));
     }
 
     let mut results: U[] = [];
     // NOTE: v1 rejects await inside loops; unroll or refactor to recursion.
-    for task in tasks {
-        compare task.await() {
+    for t in tasks {
+        compare t.await() {
             Success(v) => results.push(v);
             Cancelled() => return [];
         };
@@ -1641,28 +1641,30 @@ no codegen or execution switching yet; the attribute is advisory only.
 
 Block-level `@backend` is reserved and not parsed in v1.
 
-### 9.4. Tasks and Spawn Semantics
+### 9.4. Tasks and Task Semantics
 
 **Execution model:** v1 uses single-threaded cooperative scheduling. All tasks
 run on one OS thread, yielding control at `.await()` points. No preemption; use
 `checkpoint().await()` for long CPU work.
 
-#### Spawn Expression
+#### Task Expression
 
 ```sg
-spawn expr
+task expr
 ```
 
 - `expr` must be `Task<T>` (an `async fn` call or `async { ... }` block result).
-- Returns `Task<T>` — a handle to the spawned task.
+- `task` schedules the async task immediately.
+- Returns `Task<T>` — a handle to the task.
 - Captured values are moved into the task; `@nosend` types are rejected.
+- `spawn` is reserved for routines/parallel runtime; use `task` for async tasks.
 
 **Example:**
 ```sg
 let data: own string = load();
-let task: Task<string> = spawn process(data); // data moved
+let t: Task<string> = task process(data); // data moved
 
-compare task.await() {
+compare t.await() {
     Success(v) => print(v);
     Cancelled() => print("cancelled");
 };
@@ -1765,7 +1767,7 @@ async fn main() {
         Cancelled() => return nothing;
     };
 
-    let task = spawn fetch_user(42); // Background task
+    let t = task fetch_user(42); // Background task
 }
 ```
 
@@ -1778,7 +1780,7 @@ async {
 ```
 
 - Creates `Task<T>` where `T` is the block's result type.
-- The block is a **scope**: spawned tasks are joined before it completes.
+- The block is a **scope**: tasks are joined before it completes.
 
 **Example:**
 ```sg
@@ -1786,13 +1788,13 @@ async fn process_all(urls: string[]) -> Data[] {
     async {
         let mut tasks: Task<Data>[] = [];
         for url in urls {
-            tasks.push(spawn fetch(url));
+            tasks.push(task fetch(url));
         }
 
         let mut results: Data[] = [];
         // NOTE: v1 rejects await inside loops; unroll or refactor to recursion.
-        for task in tasks {
-            compare task.await() {
+        for t in tasks {
+            compare t.await() {
                 Success(v) => results.push(v);
                 Cancelled() => return [];
             };
@@ -1804,7 +1806,7 @@ async fn process_all(urls: string[]) -> Data[] {
 
 #### Structured Concurrency Rules
 
-- Tasks spawned in a normal scope must be awaited or returned before leaving
+- Tasks created in a normal scope must be awaited or returned before leaving
   the scope (`SemaTaskNotAwaited`).
 - Returning or passing a `Task<T>` transfers responsibility for awaiting it.
 - `Task<T>` cannot be stored in module-level variables (`SemaTaskEscapesScope`).
@@ -2129,7 +2131,7 @@ fn demo_option() {
 ```sg
 // Channels (blocking + try)
 let ch = make_channel::<int>(0);
-// spawn omitted; assume a sender exists
+// task omitted; assume a sender exists
 let v = ch.recv();          // Option<int>
 compare ch.try_recv() {
   nothing => print("empty");
@@ -2160,13 +2162,13 @@ async fn process_urls(urls: string[]) -> Erring<Data[], Error> {
         let mut tasks: Task<Erring<Data, Error>>[] = [];
 
         for url in urls {
-            tasks.push(spawn fetch_data(url));
+            tasks.push(task fetch_data(url));
         }
 
         let mut results: Data[] = [];
         // NOTE: v1 rejects await inside loops; unroll or refactor to recursion.
-        for task in tasks {
-            compare task.await() {
+        for t in tasks {
+            compare t.await() {
                 Success(res) => {
                     compare res {
                         Success(data) => results.push(data);
@@ -2190,13 +2192,13 @@ async fn process_urls_failfast(urls: string[]) -> Erring<Data[], Error> {
     async {
         let mut tasks: Task<Erring<Data, Error>>[] = [];
         for url in urls {
-            tasks.push(spawn fetch_data(url));
+            tasks.push(task fetch_data(url));
         }
 
         let mut results: Data[] = [];
         // NOTE: v1 rejects await inside loops; unroll or refactor to recursion.
-        for task in tasks {
-            compare task.await() {
+        for t in tasks {
+            compare t.await() {
                 Success(res) => {
                     compare res {
                         Success(data) => results.push(data);
@@ -2638,7 +2640,7 @@ ImportSpec := "*" | Ident ("as" Ident)? | "{" ImportName ("," ImportName)* ","? 
 ImportName := Ident ("as" Ident)?
 Path       := ("." | ".." | Ident) ("/" ("." | ".." | Ident))*
 Block      := "{" Stmt* "}"
-Stmt       := Const | Let | While | For | If | Spawn ";" | Async | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
+Stmt       := Const | Let | While | For | If | Task ";" | Async | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
 Const      := "const" Ident (":" Type)? "=" Expr ";"
 Let        := "let" ("mut")? Ident (":" Type)? ("=" Expr)? ";"
 While      := "while" "(" Expr ")" Block
@@ -2647,14 +2649,14 @@ If         := "if" "(" Expr ")" Block ("else" If | "else" Block)?
 Return     := "return" Expr?
 Signal     := "signal" Ident ":=" Expr
 Async      := "async" "{" Stmt* "}"
-Expr       := Compare | Select | Race | Spawn | Parallel | TypeHeirPred | TupleLit | ... (standard precedence)
+Expr       := Compare | Select | Race | Task | Parallel | TypeHeirPred | TupleLit | ... (standard precedence)
 Parallel   := "parallel" "map" Expr "with" ArgList "=>" Expr
           | "parallel" "reduce" Expr "with" Expr "," ArgList "=>" Expr
 ArgList    := "(" (Expr ("," Expr)*)? ")" | "()"
 TypeHeirPred := "(" Expr " heir " CoreType ")"
 TupleLit   := "(" Expr ("," Expr)+ ")"
 AwaitExpr  := Expr "." "await" "(" ")"   // awaits a Task; valid in async fn/block and @entrypoint
-Spawn      := "spawn" Expr
+Task       := "task" Expr
 Compare    := "compare" Expr "{" Arm (";" Arm)* ";"? "}"
 Arm        := Pattern "=>" Expr
 Select     := "select" "{" SelectArm (";" SelectArm)* ";"? "}"

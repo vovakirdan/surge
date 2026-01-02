@@ -130,7 +130,7 @@ func (tc *typeChecker) leaveScope() {
 				continue
 			}
 			tc.report(diag.SemaTaskNotAwaited, leak.Span,
-				"spawned task is neither awaited nor returned")
+				"task is neither awaited nor returned")
 		}
 	}
 	tc.releaseScopeBindings(top)

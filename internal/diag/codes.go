@@ -160,7 +160,7 @@ const (
 	SemaLockUnverified           Code = 3083 // Cannot verify lock held (warning)
 	SemaLockNonblockingCallsWait Code = 3084 // @nonblocking calls @waits_on
 	SemaLockFieldNotLockType     Code = 3085 // Referenced field not Mutex/RwLock
-	SemaNosendInSpawn            Code = 3086 // @nosend type in spawn
+	SemaNosendInSpawn            Code = 3086 // @nosend type in task
 	SemaFailfastNonAsync         Code = 3087 // @failfast on non-async block
 	SemaLockAcquiresNotField     Code = 3088 // @acquires_lock refs non-existent field
 	SemaLockReleasesNotField     Code = 3089 // @releases_lock refs non-existent field
@@ -193,11 +193,11 @@ const (
 	SemaChannelBlockingInNonblocking Code = 3106 // Blocking channel op in @nonblocking
 
 	// Task leak detection (3107-3110)
-	SemaTaskNotAwaited    Code = 3107 // Task spawned but not awaited
+	SemaTaskNotAwaited    Code = 3107 // Task created but not awaited
 	SemaTaskEscapesScope  Code = 3108 // Task stored in global without detach
 	SemaTaskLeakInAsync   Code = 3109 // Unawaited task at async block exit
 	SemaTaskLifetimeError Code = 3110 // Task outlives spawning scope
-	SemaSpawnNotTask      Code = 3111 // spawn requires Task<T> expression
+	SemaSpawnNotTask      Code = 3111 // task requires Task<T> expression
 
 	// Generic type parameter errors (3112)
 	SemaTypeParamShadow Code = 3112 // Type parameter shadows outer type parameter in extern
@@ -207,7 +207,7 @@ const (
 	SemaAtomicDirectAccess  Code = 3114 // @atomic field accessed without atomic operation
 
 	// Spawn warnings (3115)
-	SemaSpawnCheckpointUseless Code = 3115 // spawn checkpoint() has no effect
+	SemaSpawnCheckpointUseless Code = 3115 // task checkpoint() has no effect
 
 	// Clone errors (3116)
 	SemaTypeNotClonable Code = 3116 // Type does not have __clone method
@@ -262,6 +262,7 @@ const (
 	FutEntrypointModeConfig       Code = 7004 // @entrypoint("config") reserved for future
 	FutNullCoalescingNotSupported Code = 7005
 	FutNestedFnNotSupported       Code = 7006
+	FutSpawnReserved              Code = 7007
 
 	// Alien hints (8000-series; optional extra diagnostics)
 	AlnRustImplTrait   Code = 8001
@@ -415,7 +416,7 @@ var ( // todo расширить описания и использовать к
 		SemaLockUnverified:                 "cannot statically verify lock is held",
 		SemaLockNonblockingCallsWait:       "@nonblocking context calls function that may block",
 		SemaLockFieldNotLockType:           "lock field is not Mutex or RwLock type",
-		SemaNosendInSpawn:                  "cannot send @nosend type to spawned task",
+		SemaNosendInSpawn:                  "cannot send @nosend type to task",
 		SemaFailfastNonAsync:               "@failfast can only be applied to async blocks",
 		SemaLockAcquiresNotField:           "@acquires_lock references non-existent field",
 		SemaLockReleasesNotField:           "@releases_lock references non-existent field",
@@ -436,11 +437,12 @@ var ( // todo расширить описания и использовать к
 		SemaChannelSendAfterClose:          "attempt to send on closed channel",
 		SemaChannelNosendValue:             "cannot send @nosend type through channel",
 		SemaChannelBlockingInNonblocking:   "blocking channel operation in @nonblocking function",
-		SemaTaskNotAwaited:                 "spawned task is neither awaited nor returned",
+		SemaTaskNotAwaited:                 "task is neither awaited nor returned",
 		SemaTaskEscapesScope:               "cannot store Task<T> in global variable without detach",
 		SemaTaskLeakInAsync:                "unawaited task at async block exit",
 		SemaTaskLifetimeError:              "task outlives spawning scope",
-		SemaSpawnNotTask:                   "spawn requires Task<T> expression",
+		SemaSpawnNotTask:                   "task requires Task<T> expression",
+		SemaSpawnCheckpointUseless:         "task checkpoint() has no effect",
 		SemaSendContainsNonsend:            "@send type contains non-sendable field",
 		SemaAtomicDirectAccess:             "@atomic field must be accessed via atomic operations",
 		SemaTypeParamShadow:                "type parameter shadows outer type parameter",
@@ -482,6 +484,7 @@ var ( // todo расширить описания и использовать к
 		FutEntrypointModeConfig:            "@entrypoint(\"config\") mode is reserved for future use",
 		FutNullCoalescingNotSupported:      "null coalescing '??' is not supported in v1",
 		FutNestedFnNotSupported:            "nested function declarations are not supported yet",
+		FutSpawnReserved:                   "'spawn' is reserved for routines/parallel runtime",
 		AlnRustImplTrait:                   "alien hint: rust impl/trait",
 		AlnRustAttribute:                   "alien hint: rust attribute syntax",
 		AlnRustMacroCall:                   "alien hint: rust macro call",

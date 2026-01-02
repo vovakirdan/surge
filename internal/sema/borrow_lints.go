@@ -89,7 +89,7 @@ func (tc *typeChecker) reportBorrowMove(place Place, span source.Span, issue Bor
 
 func (tc *typeChecker) reportSpawnThreadEscape(symID symbols.SymbolID, span source.Span, borrow BorrowID) {
 	label := tc.symbolLabel(symID)
-	msg := fmt.Sprintf("cannot send %s to a spawned task", label)
+	msg := fmt.Sprintf("cannot send %s to a task", label)
 	tc.emitBorrowDiag(diag.SemaBorrowThreadEscape, span, msg, borrow, label)
 }
 

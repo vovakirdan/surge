@@ -29,8 +29,8 @@ fn main() -> int {
     let ch = make_channel::<int>(0);
     let prod_ch = ch;
     let cons_ch = ch;
-    let prod = spawn producer(prod_ch);
-    let cons = spawn consumer(cons_ch);
+    let prod = task producer(prod_ch);
+    let cons = task consumer(cons_ch);
 
     let _ = prod.await();
     let _ = cons.await();

@@ -21,6 +21,7 @@ const (
 	ExprTupleIndex
 	ExprTernary
 	ExprAwait
+	ExprTask
 	ExprSpawn
 	ExprParallel
 	ExprSpread
@@ -336,6 +337,12 @@ type ExprBlockData struct {
 	Stmts []StmtID
 }
 
+// ExprTaskData represents the operand of a `task` expression.
+// TODO(sema): enforce async context and Future/Task requirements once sema is in place.
+type ExprTaskData struct {
+	Value ExprID
+}
+
 // ExprSpawnData represents the operand of a `spawn` expression.
 // TODO(sema): enforce async context and Future/Task requirements once sema is in place.
 type ExprSpawnData struct {
@@ -414,6 +421,7 @@ type Exprs struct {
 	Arrays       *Arena[ExprArrayData]
 	RangeLits    *Arena[ExprRangeLitData]
 	Spreads      *Arena[ExprSpreadData]
+	Tasks        *Arena[ExprTaskData]
 	Spawns       *Arena[ExprSpawnData]
 	Parallels    *Arena[ExprParallelData]
 	Compares     *Arena[ExprCompareData]
@@ -448,6 +456,7 @@ func NewExprs(capHint uint) *Exprs {
 		Arrays:       NewArena[ExprArrayData](capHint),
 		RangeLits:    NewArena[ExprRangeLitData](capHint),
 		Spreads:      NewArena[ExprSpreadData](capHint),
+		Tasks:        NewArena[ExprTaskData](capHint),
 		Spawns:       NewArena[ExprSpawnData](capHint),
 		Parallels:    NewArena[ExprParallelData](capHint),
 		Compares:     NewArena[ExprCompareData](capHint),
@@ -710,6 +719,19 @@ func (e *Exprs) RangeLit(id ExprID) (*ExprRangeLitData, bool) {
 func (e *Exprs) NewSpread(span source.Span, value ExprID) ExprID {
 	payload := e.Spreads.Allocate(ExprSpreadData{Value: value})
 	return e.new(ExprSpread, span, PayloadID(payload))
+}
+
+func (e *Exprs) NewTask(span source.Span, value ExprID) ExprID {
+	payload := e.Tasks.Allocate(ExprTaskData{Value: value})
+	return e.new(ExprTask, span, PayloadID(payload))
+}
+
+func (e *Exprs) Task(id ExprID) (*ExprTaskData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprTask {
+		return nil, false
+	}
+	return e.Tasks.Get(uint32(expr.Payload)), true
 }
 
 func (e *Exprs) NewSpawn(span source.Span, value ExprID) ExprID {

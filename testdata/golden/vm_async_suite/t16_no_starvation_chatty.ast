@@ -9,17 +9,17 @@ t16_no_starvation_chatty.sg (span: 1:1-36:1)
          │  ├─ Name: a
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#19: spawn async { 3 stmt(s) }
+         │  └─ Value: expr#19: task async { 3 stmt(s) }
          ├─ Stmt[1]: Let (span: 12:5-20:7)
          │  ├─ Name: b
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#38: spawn async { 3 stmt(s) }
+         │  └─ Value: expr#38: task async { 3 stmt(s) }
          ├─ Stmt[2]: Let (span: 21:5-29:7)
          │  ├─ Name: c
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#57: spawn async { 3 stmt(s) }
+         │  └─ Value: expr#57: task async { 3 stmt(s) }
          ├─ Stmt[3]: Let (span: 31:5-31:23)
          │  ├─ Name: _
          │  ├─ Mutable: false

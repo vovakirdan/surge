@@ -342,8 +342,8 @@ async fn load() -> Data {
     ...
 }
 
-let task: Task<Data> = load();
-compare task.await() {
+let t: Task<Data> = load();
+compare t.await() {
     Success(data) => print(data to string);
     Cancelled() => print("cancelled");
 }

@@ -58,22 +58,22 @@
  58: Ident           "int" at 17:47-17:50 (leading: Space)
  59: LBrace          "{" at 17:51-17:52 (leading: Space)
  60: KwLet           "let" at 18:5-18:8 (leading: Newline, Space)
- 61: Ident           "task" at 18:9-18:13 (leading: Space)
- 62: Assign          "=" at 18:14-18:15 (leading: Space)
- 63: KwSpawn         "spawn" at 18:16-18:21 (leading: Space)
- 64: Ident           "compute" at 18:22-18:29 (leading: Space)
- 65: LParen          "(" at 18:29-18:30
- 66: RParen          ")" at 18:30-18:31
- 67: Semicolon       ";" at 18:31-18:32
+ 61: Ident           "t" at 18:9-18:10 (leading: Space)
+ 62: Assign          "=" at 18:11-18:12 (leading: Space)
+ 63: KwTask          "task" at 18:13-18:17 (leading: Space)
+ 64: Ident           "compute" at 18:18-18:25 (leading: Space)
+ 65: LParen          "(" at 18:25-18:26
+ 66: RParen          ")" at 18:26-18:27
+ 67: Semicolon       ";" at 18:27-18:28
  68: KwLet           "let" at 19:5-19:8 (leading: Newline, Space)
  69: Ident           "drainer" at 19:9-19:16 (leading: Space)
  70: Assign          "=" at 19:17-19:18 (leading: Space)
- 71: KwSpawn         "spawn" at 19:19-19:24 (leading: Space)
- 72: Ident           "drain_task" at 19:25-19:35 (leading: Space)
- 73: LParen          "(" at 19:35-19:36
- 74: Ident           "task" at 19:36-19:40
- 75: RParen          ")" at 19:40-19:41
- 76: Semicolon       ";" at 19:41-19:42
+ 71: KwTask          "task" at 19:19-19:23 (leading: Space)
+ 72: Ident           "drain_task" at 19:24-19:34 (leading: Space)
+ 73: LParen          "(" at 19:34-19:35
+ 74: Ident           "t" at 19:35-19:36
+ 75: RParen          ")" at 19:36-19:37
+ 76: Semicolon       ";" at 19:37-19:38
  77: KwReturn        "return" at 20:5-20:11 (leading: Space, LineComment, Newline, Space)
  78: KwCompare       "compare" at 20:12-20:19 (leading: Space)
  79: Ident           "drainer" at 20:20-20:27 (leading: Space)
@@ -110,15 +110,15 @@
 110: KwLet           "let" at 28:5-28:8 (leading: Newline, Space)
 111: Ident           "drainer" at 28:9-28:16 (leading: Space)
 112: Assign          "=" at 28:17-28:18 (leading: Space)
-113: KwSpawn         "spawn" at 28:19-28:24 (leading: Space)
-114: Ident           "drain_task" at 28:25-28:35 (leading: Space)
-115: LParen          "(" at 28:35-28:36
-116: KwSpawn         "spawn" at 28:36-28:41
-117: Ident           "compute" at 28:42-28:49 (leading: Space)
-118: LParen          "(" at 28:49-28:50
-119: RParen          ")" at 28:50-28:51
-120: RParen          ")" at 28:51-28:52
-121: Semicolon       ";" at 28:52-28:53
+113: KwTask          "task" at 28:19-28:23 (leading: Space)
+114: Ident           "drain_task" at 28:24-28:34 (leading: Space)
+115: LParen          "(" at 28:34-28:35
+116: KwTask          "task" at 28:35-28:39
+117: Ident           "compute" at 28:40-28:47 (leading: Space)
+118: LParen          "(" at 28:47-28:48
+119: RParen          ")" at 28:48-28:49
+120: RParen          ")" at 28:49-28:50
+121: Semicolon       ";" at 28:50-28:51
 122: KwReturn        "return" at 29:5-29:11 (leading: Newline, Space)
 123: KwCompare       "compare" at 29:12-29:19 (leading: Space)
 124: Ident           "drainer" at 29:20-29:27 (leading: Space)
@@ -236,30 +236,30 @@
 236: KwLet           "let" at 49:5-49:8 (leading: Newline, Space)
 237: Ident           "a" at 49:9-49:10 (leading: Space)
 238: Assign          "=" at 49:11-49:12 (leading: Space)
-239: KwSpawn         "spawn" at 49:13-49:18 (leading: Space)
-240: Ident           "compute" at 49:19-49:26 (leading: Space)
-241: LParen          "(" at 49:26-49:27
-242: RParen          ")" at 49:27-49:28
-243: Semicolon       ";" at 49:28-49:29
+239: KwTask          "task" at 49:13-49:17 (leading: Space)
+240: Ident           "compute" at 49:18-49:25 (leading: Space)
+241: LParen          "(" at 49:25-49:26
+242: RParen          ")" at 49:26-49:27
+243: Semicolon       ";" at 49:27-49:28
 244: KwLet           "let" at 50:5-50:8 (leading: Newline, Space)
 245: Ident           "b" at 50:9-50:10 (leading: Space)
 246: Assign          "=" at 50:11-50:12 (leading: Space)
-247: KwSpawn         "spawn" at 50:13-50:18 (leading: Space)
-248: Ident           "compute" at 50:19-50:26 (leading: Space)
-249: LParen          "(" at 50:26-50:27
-250: RParen          ")" at 50:27-50:28
-251: Semicolon       ";" at 50:28-50:29
+247: KwTask          "task" at 50:13-50:17 (leading: Space)
+248: Ident           "compute" at 50:18-50:25 (leading: Space)
+249: LParen          "(" at 50:25-50:26
+250: RParen          ")" at 50:26-50:27
+251: Semicolon       ";" at 50:27-50:28
 252: KwLet           "let" at 51:5-51:8 (leading: Newline, Space)
 253: Ident           "summer" at 51:9-51:15 (leading: Space)
 254: Assign          "=" at 51:16-51:17 (leading: Space)
-255: KwSpawn         "spawn" at 51:18-51:23 (leading: Space)
-256: Ident           "sum_tasks" at 51:24-51:33 (leading: Space)
-257: LParen          "(" at 51:33-51:34
-258: Ident           "a" at 51:34-51:35
-259: Comma           "," at 51:35-51:36
-260: Ident           "b" at 51:37-51:38 (leading: Space)
-261: RParen          ")" at 51:38-51:39
-262: Semicolon       ";" at 51:39-51:40
+255: KwTask          "task" at 51:18-51:22 (leading: Space)
+256: Ident           "sum_tasks" at 51:23-51:32 (leading: Space)
+257: LParen          "(" at 51:32-51:33
+258: Ident           "a" at 51:33-51:34
+259: Comma           "," at 51:34-51:35
+260: Ident           "b" at 51:36-51:37 (leading: Space)
+261: RParen          ")" at 51:37-51:38
+262: Semicolon       ";" at 51:38-51:39
 263: KwReturn        "return" at 52:5-52:11 (leading: Space, LineComment, Newline, Space)
 264: KwCompare       "compare" at 52:12-52:19 (leading: Space)
 265: Ident           "summer" at 52:20-52:26 (leading: Space)

@@ -9,7 +9,7 @@ spawn_async_block.sg (span: 3:1-23:1)
 │        │  ├─ Name: t1
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Task<int>
-│        │  └─ Value: expr#3: spawn async { 1 stmt(s) }
+│        │  └─ Value: expr#3: task async { 1 stmt(s) }
 │        ├─ Stmt[1]: Let (span: 8:5-8:47)
 │        │  ├─ Name: result1
 │        │  ├─ Mutable: false
@@ -19,7 +19,7 @@ spawn_async_block.sg (span: 3:1-23:1)
 │        │  ├─ Name: t2
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Task<string>
-│        │  └─ Value: expr#9: spawn async { 1 stmt(s) }
+│        │  └─ Value: expr#9: task async { 1 stmt(s) }
 │        └─ Stmt[3]: Let (span: 14:5-14:50)
 │           ├─ Name: result2
 │           ├─ Mutable: false
@@ -32,4 +32,4 @@ spawn_async_block.sg (span: 3:1-23:1)
    └─ Body:
       └─ Stmt[0]: Block (span: 18:44-22:2)
          └─ Stmt[0]: Return (span: 19:5-21:7)
-            └─ Expr: expr#15: spawn async { 1 stmt(s) }
+            └─ Expr: expr#15: task async { 1 stmt(s) }

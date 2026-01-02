@@ -18,7 +18,7 @@ import (
 // - Removes ExprGroup (parentheses) by unwrapping
 //
 // Lower returns normalized HIR: `compare` and `for` are desugared into a smaller core,
-// while async/spawn remain as separate nodes (lowered later).
+// while async/task remain as separate nodes (lowered later).
 func Lower(
 	ctx context.Context,
 	builder *ast.Builder,

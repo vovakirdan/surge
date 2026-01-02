@@ -260,8 +260,11 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 	case hir.ExprAwait:
 		return l.lowerAwaitExpr(e, consume)
 
+	case hir.ExprTask:
+		return l.lowerTaskExpr(e, consume)
+
 	case hir.ExprSpawn:
-		return l.lowerSpawnExpr(e, consume)
+		return Operand{}, fmt.Errorf("mir: spawn is reserved for routines/parallel runtime")
 
 	case hir.ExprAsync:
 		return l.lowerAsyncExpr(e, consume)

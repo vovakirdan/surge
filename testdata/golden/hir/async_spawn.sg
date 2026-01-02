@@ -3,8 +3,8 @@ async fn inc(x: int) -> int {
 }
 
 async fn test() -> int {
-    let task = spawn inc(5);
-    return compare task.await() {
+    let t = task inc(5);
+    return compare t.await() {
         Success(v) => v;
         Cancelled() => 0;
     };

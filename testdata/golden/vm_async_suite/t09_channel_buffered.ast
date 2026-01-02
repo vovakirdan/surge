@@ -56,16 +56,16 @@ t09_channel_buffered.sg (span: 1:1-35:1)
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
          │  └─ Value: expr#56: ch
-         ├─ Stmt[3]: Let (span: 28:5-28:47)
+         ├─ Stmt[3]: Let (span: 28:5-28:46)
          │  ├─ Name: sender_task
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#60: spawn sender(sender_ch)
-         ├─ Stmt[4]: Let (span: 29:5-29:49)
+         │  └─ Value: expr#60: task sender(sender_ch)
+         ├─ Stmt[4]: Let (span: 29:5-29:48)
          │  ├─ Name: receiver_task
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#64: spawn receiver(recv_ch)
+         │  └─ Value: expr#64: task receiver(recv_ch)
          ├─ Stmt[5]: Let (span: 31:5-31:33)
          │  ├─ Name: _
          │  ├─ Mutable: false

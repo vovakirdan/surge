@@ -1,2 +1,2 @@
-error SEM3107 testdata/golden/sema/invalid/concurrency/task_escape_global.sg:8:34 spawned task is neither awaited nor returned
+error SEM3107 testdata/golden/sema/invalid/concurrency/task_escape_global.sg:8:34 task is neither awaited nor returned
 error SEM3108 testdata/golden/sema/invalid/concurrency/task_escape_global.sg:8:34 cannot store Task<T> in module-level variable - tasks must be scoped to functions or async blocks

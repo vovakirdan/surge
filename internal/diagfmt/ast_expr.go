@@ -218,6 +218,14 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 		value := formatExprInlineDepth(builder, data.Value, depth+1)
 		value = wrapExprIfNeeded(builder, data.Value, value)
 		return value + "..."
+	case ast.ExprTask:
+		data, ok := builder.Exprs.Task(exprID)
+		if !ok {
+			return "<invalid-task>"
+		}
+		operand := formatExprInlineDepth(builder, data.Value, depth+1)
+		operand = wrapExprIfNeeded(builder, data.Value, operand)
+		return "task " + operand
 	case ast.ExprSpawn:
 		data, ok := builder.Exprs.Spawn(exprID)
 		if !ok {
@@ -447,6 +455,8 @@ func formatExprKind(kind ast.ExprKind) string {
 		return "Ternary"
 	case ast.ExprAwait:
 		return "Await"
+	case ast.ExprTask:
+		return "Task"
 	case ast.ExprSpawn:
 		return "Spawn"
 	case ast.ExprParallel:

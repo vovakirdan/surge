@@ -102,58 +102,58 @@
 102: KwLet           "let" at 21:5-21:8 (leading: Newline, Space)
 103: Ident           "w0" at 21:9-21:11 (leading: Space)
 104: Assign          "=" at 21:12-21:13 (leading: Space)
-105: KwSpawn         "spawn" at 21:14-21:19 (leading: Space)
-106: Ident           "worker" at 21:20-21:26 (leading: Space)
-107: LParen          "(" at 21:26-21:27
-108: Ident           "ch0" at 21:27-21:30
-109: Comma           "," at 21:30-21:31
-110: IntLit          "0" at 21:32-21:33 (leading: Space)
-111: RParen          ")" at 21:33-21:34
-112: Semicolon       ";" at 21:34-21:35
+105: KwTask          "task" at 21:14-21:18 (leading: Space)
+106: Ident           "worker" at 21:19-21:25 (leading: Space)
+107: LParen          "(" at 21:25-21:26
+108: Ident           "ch0" at 21:26-21:29
+109: Comma           "," at 21:29-21:30
+110: IntLit          "0" at 21:31-21:32 (leading: Space)
+111: RParen          ")" at 21:32-21:33
+112: Semicolon       ";" at 21:33-21:34
 113: KwLet           "let" at 22:5-22:8 (leading: Newline, Space)
 114: Ident           "w1" at 22:9-22:11 (leading: Space)
 115: Assign          "=" at 22:12-22:13 (leading: Space)
-116: KwSpawn         "spawn" at 22:14-22:19 (leading: Space)
-117: Ident           "worker" at 22:20-22:26 (leading: Space)
-118: LParen          "(" at 22:26-22:27
-119: Ident           "ch1" at 22:27-22:30
-120: Comma           "," at 22:30-22:31
-121: IntLit          "1" at 22:32-22:33 (leading: Space)
-122: RParen          ")" at 22:33-22:34
-123: Semicolon       ";" at 22:34-22:35
+116: KwTask          "task" at 22:14-22:18 (leading: Space)
+117: Ident           "worker" at 22:19-22:25 (leading: Space)
+118: LParen          "(" at 22:25-22:26
+119: Ident           "ch1" at 22:26-22:29
+120: Comma           "," at 22:29-22:30
+121: IntLit          "1" at 22:31-22:32 (leading: Space)
+122: RParen          ")" at 22:32-22:33
+123: Semicolon       ";" at 22:33-22:34
 124: KwLet           "let" at 23:5-23:8 (leading: Newline, Space)
 125: Ident           "w2" at 23:9-23:11 (leading: Space)
 126: Assign          "=" at 23:12-23:13 (leading: Space)
-127: KwSpawn         "spawn" at 23:14-23:19 (leading: Space)
-128: Ident           "worker" at 23:20-23:26 (leading: Space)
-129: LParen          "(" at 23:26-23:27
-130: Ident           "ch2" at 23:27-23:30
-131: Comma           "," at 23:30-23:31
-132: IntLit          "2" at 23:32-23:33 (leading: Space)
-133: RParen          ")" at 23:33-23:34
-134: Semicolon       ";" at 23:34-23:35
+127: KwTask          "task" at 23:14-23:18 (leading: Space)
+128: Ident           "worker" at 23:19-23:25 (leading: Space)
+129: LParen          "(" at 23:25-23:26
+130: Ident           "ch2" at 23:26-23:29
+131: Comma           "," at 23:29-23:30
+132: IntLit          "2" at 23:31-23:32 (leading: Space)
+133: RParen          ")" at 23:32-23:33
+134: Semicolon       ";" at 23:33-23:34
 135: KwLet           "let" at 24:5-24:8 (leading: Newline, Space)
 136: Ident           "w3" at 24:9-24:11 (leading: Space)
 137: Assign          "=" at 24:12-24:13 (leading: Space)
-138: KwSpawn         "spawn" at 24:14-24:19 (leading: Space)
-139: Ident           "worker" at 24:20-24:26 (leading: Space)
-140: LParen          "(" at 24:26-24:27
-141: Ident           "ch3" at 24:27-24:30
-142: Comma           "," at 24:30-24:31
-143: IntLit          "3" at 24:32-24:33 (leading: Space)
-144: RParen          ")" at 24:33-24:34
-145: Semicolon       ";" at 24:34-24:35
+138: KwTask          "task" at 24:14-24:18 (leading: Space)
+139: Ident           "worker" at 24:19-24:25 (leading: Space)
+140: LParen          "(" at 24:25-24:26
+141: Ident           "ch3" at 24:26-24:29
+142: Comma           "," at 24:29-24:30
+143: IntLit          "3" at 24:31-24:32 (leading: Space)
+144: RParen          ")" at 24:32-24:33
+145: Semicolon       ";" at 24:33-24:34
 146: KwLet           "let" at 25:5-25:8 (leading: Newline, Space)
 147: Ident           "w4" at 25:9-25:11 (leading: Space)
 148: Assign          "=" at 25:12-25:13 (leading: Space)
-149: KwSpawn         "spawn" at 25:14-25:19 (leading: Space)
-150: Ident           "worker" at 25:20-25:26 (leading: Space)
-151: LParen          "(" at 25:26-25:27
-152: Ident           "ch4" at 25:27-25:30
-153: Comma           "," at 25:30-25:31
-154: IntLit          "4" at 25:32-25:33 (leading: Space)
-155: RParen          ")" at 25:33-25:34
-156: Semicolon       ";" at 25:34-25:35
+149: KwTask          "task" at 25:14-25:18 (leading: Space)
+150: Ident           "worker" at 25:19-25:25 (leading: Space)
+151: LParen          "(" at 25:25-25:26
+152: Ident           "ch4" at 25:26-25:29
+153: Comma           "," at 25:29-25:30
+154: IntLit          "4" at 25:31-25:32 (leading: Space)
+155: RParen          ")" at 25:32-25:33
+156: Semicolon       ";" at 25:33-25:34
 157: KwLet           "let" at 27:5-27:8 (leading: Newline, Space)
 158: Ident           "total" at 27:9-27:14 (leading: Space)
 159: Assign          "=" at 27:15-27:16 (leading: Space)

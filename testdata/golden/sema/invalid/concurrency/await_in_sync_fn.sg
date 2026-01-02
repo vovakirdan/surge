@@ -6,7 +6,7 @@ async fn async_task() -> int {
 
 // ERROR SEM3007: await in non-async function
 fn sync_fn_with_await() -> TaskResult<int> {
-    let t: Task<int> = spawn async_task();
+    let t: Task<int> = task async_task();
     return t.await();
 }
 

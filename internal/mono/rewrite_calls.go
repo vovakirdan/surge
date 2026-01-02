@@ -318,6 +318,15 @@ func rewriteCallsInExpr(e *hir.Expr, f callRewriteFunc) error {
 			return err
 		}
 		e.Data = data
+	case hir.ExprTask:
+		data, ok := e.Data.(hir.TaskData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteCallsInExpr(data.Value, f); err != nil {
+			return err
+		}
+		e.Data = data
 	case hir.ExprSpawn:
 		data, ok := e.Data.(hir.SpawnData)
 		if !ok {

@@ -2,7 +2,7 @@
 fn main() -> int {
     let r = (async {
         let ch = make_channel::<int>(1);
-        let prod = spawn async {
+        let prod = task async {
             sleep(100).await();
             ch.send(7);
             return 0;

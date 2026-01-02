@@ -51,7 +51,9 @@ const (
 	ExprIf
 	// ExprAwait represents .await() on a Task<T>.
 	ExprAwait
-	// ExprSpawn represents spawn expression.
+	// ExprTask represents task expression.
+	ExprTask
+	// ExprSpawn represents reserved spawn expression.
 	ExprSpawn
 	// ExprAsync represents async { ... } block expression.
 	ExprAsync
@@ -102,6 +104,8 @@ func (k ExprKind) String() string {
 		return "If"
 	case ExprAwait:
 		return "Await"
+	case ExprTask:
+		return "Task"
 	case ExprSpawn:
 		return "Spawn"
 	case ExprAsync:
@@ -312,6 +316,13 @@ type AwaitData struct {
 }
 
 func (AwaitData) exprData() {}
+
+// TaskData holds data for ExprTask.
+type TaskData struct {
+	Value *Expr
+}
+
+func (TaskData) exprData() {}
 
 // SpawnData holds data for ExprSpawn.
 type SpawnData struct {
