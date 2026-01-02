@@ -6,6 +6,7 @@ import (
 	"fortio.org/safecast"
 
 	"surge/internal/mir"
+	"surge/internal/types"
 )
 
 // execCall executes a call instruction.
@@ -23,9 +24,24 @@ func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 			return nil, vm.callIntrinsic(frame, call, writes)
 		}
 	case mir.CalleeValue:
-		targetFn = vm.findFunction(call.Callee.Name)
-		if targetFn == nil {
-			return nil, vm.callIntrinsic(frame, call, writes)
+		if call.Callee.Value.Type != types.NoTypeID {
+			val, vmErr := vm.evalOperand(frame, &call.Callee.Value)
+			if vmErr != nil {
+				return nil, vmErr
+			}
+			defer vm.dropValue(val)
+			if val.Kind != VKFunc {
+				return nil, vm.eb.typeMismatch("function", val.Kind.String())
+			}
+			targetFn = vm.findFunctionBySym(val.Sym)
+			if targetFn == nil {
+				return nil, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing function sym %d", val.Sym))
+			}
+		} else {
+			targetFn = vm.findFunction(call.Callee.Name)
+			if targetFn == nil {
+				return nil, vm.callIntrinsic(frame, call, writes)
+			}
 		}
 	default:
 		return nil, vm.eb.unimplemented("unknown call target")

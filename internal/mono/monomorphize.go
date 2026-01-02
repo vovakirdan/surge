@@ -409,6 +409,9 @@ func (b *monoBuilder) ensureFunc(origSym symbols.SymbolID, typeArgs []types.Type
 	if err := b.rewriteCallsInFunc(clone, origSym, subst, append(stack, key)); err != nil {
 		return nil, err
 	}
+	if err := b.rewriteFuncValuesInFunc(clone, origSym, subst, append(stack, key)); err != nil {
+		return nil, err
+	}
 
 	out.Func = clone
 	return out, nil

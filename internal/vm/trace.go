@@ -390,6 +390,8 @@ func (t *Tracer) formatConst(c *mir.Const) string {
 		return fmt.Sprintf("const %q", c.StringValue)
 	case mir.ConstNothing:
 		return "const nothing"
+	case mir.ConstFn:
+		return fmt.Sprintf("const fn#%d", c.Sym)
 	default:
 		return fmt.Sprintf("<?const:%d>", c.Kind)
 	}

@@ -351,6 +351,8 @@ func formatConst(c *Const) string {
 		return fmt.Sprintf("const %q", c.StringValue)
 	case ConstNothing:
 		return "const nothing"
+	case ConstFn:
+		return fmt.Sprintf("const fn#%d", c.Sym)
 	default:
 		return "const ?"
 	}

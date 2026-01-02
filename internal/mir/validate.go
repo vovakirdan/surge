@@ -234,12 +234,12 @@ func validateLocalIDs(f *Func, globals []Global) error {
 				checkOperand(rv.StructLit.Fields[i].Value, context)
 			}
 		case RValueArrayLit:
-			for _, elem := range rv.ArrayLit.Elems {
-				checkOperand(elem, context)
+			for i := range rv.ArrayLit.Elems {
+				checkOperand(rv.ArrayLit.Elems[i], context)
 			}
 		case RValueTupleLit:
-			for _, elem := range rv.TupleLit.Elems {
-				checkOperand(elem, context)
+			for i := range rv.TupleLit.Elems {
+				checkOperand(rv.TupleLit.Elems[i], context)
 			}
 		case RValueField:
 			checkOperand(rv.Field.Object, context)
@@ -278,8 +278,8 @@ func validateLocalIDs(f *Func, globals []Global) error {
 				if ins.Call.Callee.Kind == CalleeValue {
 					checkOperand(ins.Call.Callee.Value, ctx)
 				}
-				for _, arg := range ins.Call.Args {
-					checkOperand(arg, ctx)
+				for i := range ins.Call.Args {
+					checkOperand(ins.Call.Args[i], ctx)
 				}
 			case InstrDrop:
 				checkPlace(ins.Drop.Place, ctx)

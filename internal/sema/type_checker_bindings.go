@@ -2,6 +2,7 @@ package sema
 
 import (
 	"fmt"
+	"strings"
 
 	"fortio.org/safecast"
 
@@ -47,6 +48,9 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 		if tc.applyExpectedType(valueExpr, declared) {
 			actual = tc.result.ExprTypes[valueExpr]
 		} else {
+			if tc.tryBindGenericFnValue(valueExpr, declared) {
+				return
+			}
 			if declaredRef && valueExpr.IsValid() && !tc.isAddressableExpr(valueExpr) {
 				tc.reportBorrowNonAddressable(valueExpr, declaredRefMut)
 				return
@@ -399,6 +403,88 @@ func (tc *typeChecker) applyExpectedType(expr ast.ExprID, expected types.TypeID)
 		return true
 	}
 	return false
+}
+
+func (tc *typeChecker) tryBindGenericFnValue(expr ast.ExprID, expected types.TypeID) bool {
+	if !expr.IsValid() || tc.builder == nil || tc.types == nil || tc.result == nil {
+		return false
+	}
+	if expected == types.NoTypeID {
+		return false
+	}
+	expected = tc.valueType(expected)
+	if expected == types.NoTypeID {
+		return false
+	}
+	expFn, ok := tc.types.FnInfo(expected)
+	if !ok || expFn == nil {
+		return false
+	}
+	origExpr := expr
+	expr = tc.unwrapGroupExpr(expr)
+	symID := tc.symbolForExpr(expr)
+	if !symID.IsValid() {
+		return false
+	}
+	sym := tc.symbolFromID(symID)
+	if sym == nil || sym.Kind != symbols.SymbolFunction || sym.Signature == nil || len(sym.TypeParams) == 0 {
+		return false
+	}
+	sig := sym.Signature
+	variadicIndex := -1
+	for i, v := range sig.Variadic {
+		if v {
+			variadicIndex = i
+			break
+		}
+	}
+	if variadicIndex >= 0 {
+		return false
+	}
+	if len(expFn.Params) != len(sig.Params) {
+		return false
+	}
+
+	paramNames, paramSet := tc.typeParamNameSet(sym)
+	if len(paramNames) == 0 {
+		return false
+	}
+	bindings := make(map[string]types.TypeID, len(paramNames))
+	for i, key := range sig.Params {
+		if tc.instantiateTypeKeyWithInference(key, expFn.Params[i], bindings, paramSet) == types.NoTypeID {
+			return false
+		}
+	}
+	if tc.instantiateTypeKeyWithInference(sig.Result, expFn.Result, bindings, paramSet) == types.NoTypeID {
+		return false
+	}
+
+	missing := make([]string, 0, len(paramNames))
+	typeArgs := make([]types.TypeID, len(paramNames))
+	for i, name := range paramNames {
+		bound := bindings[name]
+		if bound == types.NoTypeID {
+			missing = append(missing, name)
+			continue
+		}
+		typeArgs[i] = bound
+	}
+	if len(missing) > 0 {
+		name := tc.lookupName(sym.Name)
+		if name == "" {
+			name = "_"
+		}
+		tc.report(diag.SemaTypeMismatch, tc.exprSpan(expr),
+			"cannot infer type parameter %s for function value %s", strings.Join(missing, ", "), name)
+		return true
+	}
+
+	tc.result.ExprTypes[expr] = expected
+	if expr != origExpr {
+		tc.result.ExprTypes[origExpr] = expected
+	}
+	tc.rememberFunctionInstantiation(symID, typeArgs, tc.exprSpan(expr), "fn-value")
+	return true
 }
 
 func (tc *typeChecker) anonymousStructLiteral(expr ast.ExprID) (*ast.ExprStructData, bool) {

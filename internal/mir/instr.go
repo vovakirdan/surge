@@ -173,6 +173,7 @@ const (
 	ConstBool
 	ConstString
 	ConstNothing
+	ConstFn
 )
 
 type Const struct {
@@ -188,6 +189,7 @@ type Const struct {
 	FloatValue  float64
 	BoolValue   bool
 	StringValue string
+	Sym         symbols.SymbolID
 }
 
 type RValueKind uint8

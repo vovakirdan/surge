@@ -385,7 +385,15 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				ty = numeric
 			} else if magic := tc.magicResultForCast(castSource, targetType); magic != types.NoTypeID {
 				symID := tc.resolveToSymbol(cast.Value, castSource, targetType)
-				tc.recordToSymbol(id, castSource, targetType)
+				if tc.result != nil {
+					if tc.result.ToSymbols == nil {
+						tc.result.ToSymbols = make(map[ast.ExprID]symbols.SymbolID)
+					}
+					tc.result.ToSymbols[id] = symID
+				}
+				if symID.IsValid() {
+					tc.recordMethodCallInstantiation(symID, castSource, nil, expr.Span)
+				}
 				if symID.IsValid() {
 					if sym := tc.symbolFromID(symID); sym != nil && sym.Signature != nil && len(sym.Signature.Params) > 0 {
 						tc.applyParamOwnership(sym.Signature.Params[0], cast.Value, sourceType, tc.exprSpan(cast.Value))

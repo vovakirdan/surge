@@ -280,6 +280,8 @@ func (vm *VM) evalConst(c *mir.Const) Value {
 			}
 		}
 		return MakeNothing()
+	case mir.ConstFn:
+		return MakeFunc(c.Sym, c.Type)
 	default:
 		return Value{Kind: VKInvalid}
 	}

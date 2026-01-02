@@ -90,8 +90,10 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 		fl := &funcLowerer{
 			out:                 out,
 			mf:                  mf,
+			mono:                mm,
 			sema:                semaRes,
 			types:               typesIn,
+			symbols:             nil,
 			symToLocal:          make(map[symbols.SymbolID]LocalID),
 			symToGlobal:         symToGlobal,
 			nextTemp:            1,
@@ -100,6 +102,9 @@ func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 			staticStringGlobals: staticStringGlobals,
 			staticStringInits:   staticStringInits,
 			nextFuncID:          &nextID,
+		}
+		if mm.Source != nil {
+			fl.symbols = mm.Source.Symbols
 		}
 		f, err := fl.lowerFunc(id, mf.Func)
 		if err != nil {
@@ -160,10 +165,12 @@ type returnCtx struct {
 }
 
 type funcLowerer struct {
-	out   *Module
-	mf    *mono.MonoFunc
-	sema  *sema.Result
-	types *types.Interner
+	out     *Module
+	mf      *mono.MonoFunc
+	mono    *mono.MonoModule
+	sema    *sema.Result
+	types   *types.Interner
+	symbols *symbols.Result
 
 	f   *Func
 	cur BlockID

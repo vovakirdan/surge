@@ -99,7 +99,13 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 		symID = l.symRes.ExprSymbols[exprID]
 		if !symID.IsValid() && !isMember {
 			if targetSym, ok := l.symRes.ExprSymbols[callData.Target]; ok && targetSym.IsValid() {
-				symID = targetSym
+				if l.symRes.Table != nil && l.symRes.Table.Symbols != nil {
+					if sym := l.symRes.Table.Symbols.Get(targetSym); sym != nil {
+						if sym.Kind == symbols.SymbolFunction || sym.Kind == symbols.SymbolTag {
+							symID = targetSym
+						}
+					}
+				}
 			}
 		}
 	}

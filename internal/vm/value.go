@@ -4,6 +4,7 @@ package vm
 import (
 	"fmt"
 
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -15,6 +16,7 @@ const (
 	VKInt               // signed integer
 	VKBool              // boolean
 	VKNothing           // nothing/unit value
+	VKFunc              // function value
 
 	VKRef
 	VKRefMut
@@ -42,6 +44,8 @@ func (k ValueKind) String() string {
 		return "bool"
 	case VKNothing:
 		return "nothing"
+	case VKFunc:
+		return "func"
 	case VKRef:
 		return "ref"
 	case VKRefMut:
@@ -71,12 +75,13 @@ func (k ValueKind) String() string {
 
 // Value represents a runtime value in the VM.
 type Value struct {
-	TypeID types.TypeID // Static type from compiler
-	Kind   ValueKind    // Runtime value kind
-	Int    int64        // For VKInt
-	Bool   bool         // For VKBool
-	H      Handle       // For VKHandle*
-	Loc    Location     // For VKRef/VKRefMut/VKPtr
+	TypeID types.TypeID     // Static type from compiler
+	Kind   ValueKind        // Runtime value kind
+	Int    int64            // For VKInt
+	Bool   bool             // For VKBool
+	H      Handle           // For VKHandle*
+	Loc    Location         // For VKRef/VKRefMut/VKPtr
+	Sym    symbols.SymbolID // For VKFunc
 }
 
 // IsZero returns true if this is a zero/invalid value.
@@ -107,6 +112,8 @@ func (v Value) String() string {
 		return "false"
 	case VKNothing:
 		return "nothing"
+	case VKFunc:
+		return fmt.Sprintf("fn#%d", v.Sym)
 	case VKRef:
 		return fmt.Sprintf("&%s", v.Loc)
 	case VKRefMut:
@@ -156,6 +163,14 @@ func MakeBool(b bool, typeID types.TypeID) Value {
 func MakeNothing() Value {
 	return Value{
 		Kind: VKNothing,
+	}
+}
+
+func MakeFunc(sym symbols.SymbolID, typeID types.TypeID) Value {
+	return Value{
+		TypeID: typeID,
+		Kind:   VKFunc,
+		Sym:    sym,
 	}
 }
 

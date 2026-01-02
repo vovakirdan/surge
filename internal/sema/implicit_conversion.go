@@ -246,7 +246,11 @@ func (tc *typeChecker) recordToSymbol(expr ast.ExprID, src, target types.TypeID)
 	if tc.result.ToSymbols == nil {
 		tc.result.ToSymbols = make(map[ast.ExprID]symbols.SymbolID)
 	}
-	tc.result.ToSymbols[expr] = tc.resolveToSymbol(expr, src, target)
+	symID := tc.resolveToSymbol(expr, src, target)
+	tc.result.ToSymbols[expr] = symID
+	if symID.IsValid() {
+		tc.recordMethodCallInstantiation(symID, src, nil, tc.exprSpan(expr))
+	}
 }
 
 func (tc *typeChecker) resolveToSymbol(expr ast.ExprID, src, target types.TypeID) symbols.SymbolID {
