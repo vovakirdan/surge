@@ -84,5 +84,5 @@ fn main:
     L10 = copy L9
     L11 = call __add(addr_of L10, addr_of G2)
     L8 = move L11
-    L12 = call __to(move L6)
+    L12 = call __to(addr_of L6)
     return copy L12

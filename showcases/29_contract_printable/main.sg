@@ -1,0 +1,18 @@
+// in core/intrinsics.sg
+// contract Printable<T> {
+//     fn __to(self: &T, target: string) -> string;
+// }
+
+type Person = { name: string, age: int }
+
+extern<Person> {
+    fn __to(self: &Person, target: string) -> string {
+        return "Person(name: " + self.name + ", age: " + self.age to string + ")";
+    }
+}
+
+@entrypoint
+fn main() {
+    let p: Person = { name: "Alice", age: 30 };
+    print(p to string);
+}

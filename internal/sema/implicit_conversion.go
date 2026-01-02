@@ -260,9 +260,66 @@ func (tc *typeChecker) resolveToSymbol(expr ast.ExprID, src, target types.TypeID
 	if src == types.NoTypeID || target == types.NoTypeID {
 		return symbols.NoSymbolID
 	}
+	if symID, ok := tc.resolveToSymbolByMagicCost(expr, src, target); ok {
+		return symID
+	}
 	nameID := tc.builder.StringsInterner.Intern("__to")
 	member := &ast.ExprMemberData{Field: nameID}
 	return tc.resolveMethodCallSymbol(member, src, expr, []types.TypeID{target}, nil, false)
+}
+
+func (tc *typeChecker) resolveToSymbolByMagicCost(expr ast.ExprID, src, target types.TypeID) (symbols.SymbolID, bool) {
+	if tc == nil || tc.types == nil {
+		return symbols.NoSymbolID, false
+	}
+	targetCandidates := tc.typeKeyCandidates(target)
+	if len(targetCandidates) == 0 {
+		return symbols.NoSymbolID, false
+	}
+	bestCost := -1
+	var bestSig *symbols.FunctionSignature
+	for _, lc := range tc.typeKeyCandidates(src) {
+		if lc.key == "" {
+			continue
+		}
+		methods := tc.lookupMagicMethods(lc.key, "__to")
+		if len(methods) == 0 {
+			continue
+		}
+		for _, sig := range methods {
+			if sig == nil || len(sig.Params) < 2 {
+				continue
+			}
+			matchesTarget := false
+			for _, rc := range targetCandidates {
+				if rc.key == "" {
+					continue
+				}
+				if typeKeyEqual(sig.Params[1], rc.key) && typeKeyEqual(sig.Result, rc.key) {
+					matchesTarget = true
+					break
+				}
+			}
+			if !matchesTarget {
+				continue
+			}
+			cost, ok := tc.magicParamCost(sig.Params[0], src, expr, nil)
+			if !ok {
+				continue
+			}
+			if bestCost == -1 || cost < bestCost {
+				bestCost = cost
+				bestSig = sig
+				if bestCost == 0 {
+					// Exact match is best possible; keep scanning for deterministic tie-breaks.
+				}
+			}
+		}
+	}
+	if bestSig == nil {
+		return symbols.NoSymbolID, false
+	}
+	return tc.magicSymbolForSignature(bestSig), true
 }
 
 // recordTagInstantiationForInjection registers a tag instantiation for implicit tag injection.

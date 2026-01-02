@@ -193,6 +193,33 @@ fn apply(f: fn(int) -> int, x: int) -> int { return f(x); }
 	}
 }
 
+func TestVMCustomToStringPrefersValueOverload(t *testing.T) {
+	sourceCode := `type Person = { name: string, age: int }
+extern<Person> {
+    pub fn __to(self: &Person, target: string) -> string {
+        let _ = target;
+        return self.age to string;
+    }
+}
+@entrypoint fn main() -> int {
+    let p: Person = { name: "A", age: 30 };
+    let s: string = p to string;
+    return len(&s) to int;
+}
+`
+	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
+	rt := vm.NewTestRuntime(nil, "")
+	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
+
+	if vmErr != nil {
+		t.Fatalf("unexpected error: %v", vmErr.Error())
+	}
+
+	if exitCode != 2 {
+		t.Errorf("expected exit code 2, got %d", exitCode)
+	}
+}
+
 func TestVMEntrypointArgvInt(t *testing.T) {
 	sourceCode := `@entrypoint("argv") fn main(x: int) -> int { return x; }
 `
