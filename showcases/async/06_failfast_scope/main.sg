@@ -1,0 +1,32 @@
+async fn ok_work() -> int {
+    sleep(50:uint).await();
+    return 1;
+}
+
+async fn will_cancel() -> int {
+    sleep(10:uint).await();
+    checkpoint().await();
+    // допустим, нас отменят таймаутом снаружи
+    return 42;
+}
+
+@failfast
+async fn scope() -> int {
+    let a = task ok_work();
+    let b = task will_cancel();
+
+    // В этом примере мы искусственно отменим b таймаутом:
+    let br = timeout(b, 5:uint); // Cancelled на дедлайне + cancel цели
+    compare br { Success(_) => nothing; Cancelled() => return 0; }; // failfast подхватит Cancelled
+
+    // если сюда дошли - ждём a
+    compare a.await() { Success(v) => return v; Cancelled() => return 0; };
+}
+
+@entrypoint
+fn main() {
+    compare scope().await() {
+        Success(v) => print(f"scope success {v}");
+        Cancelled() => print("scope cancelled (failfast)");
+    };
+}

@@ -36,6 +36,7 @@ func init() {
 	runCmd.Flags().Bool("fuzz-scheduler", false, "enable fuzzed async scheduling")
 	runCmd.Flags().Uint64("fuzz-seed", 1, "seed for fuzzed async scheduling (default 1)")
 	runCmd.Flags().Bool("real-time", false, "use real-time async timers (monotonic clock)")
+	runCmd.Flags().Bool("unsafe", false, "run even if diagnostics report errors")
 }
 
 func runExecution(cmd *cobra.Command, args []string) error {
@@ -90,6 +91,14 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get real-time flag: %w", err)
 	}
+	unsafeRun, err := cmd.Flags().GetBool("unsafe")
+	if err != nil {
+		return fmt.Errorf("failed to get unsafe flag: %w", err)
+	}
+	maxDiagnostics, err := cmd.Root().PersistentFlags().GetInt("max-diagnostics")
+	if err != nil {
+		return fmt.Errorf("failed to get max-diagnostics flag: %w", err)
+	}
 	if vmRecordPath != "" && vmReplayPath != "" {
 		return fmt.Errorf("--vm-record and --vm-replay are mutually exclusive")
 	}
@@ -109,6 +118,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	// Compile source to MIR
 	opts := driver.DiagnoseOptions{
 		Stage:              driver.DiagnoseStageSema,
+		MaxDiagnostics:     maxDiagnostics,
 		EmitHIR:            true,
 		EmitInstantiations: true,
 	}
@@ -119,12 +129,13 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check for errors
-	if result.Bag.HasErrors() {
-		// Print diagnostics and exit
+	if result.Bag != nil && result.Bag.HasErrors() {
 		for _, d := range result.Bag.Items() {
 			fmt.Fprintln(os.Stderr, d.Message)
 		}
-		os.Exit(1)
+		if !unsafeRun {
+			return fmt.Errorf("diagnostics reported errors")
+		}
 	}
 
 	// Build HIR (should already be built with EmitHIR=true)

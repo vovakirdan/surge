@@ -1,0 +1,38 @@
+async fn gen(out: &Channel<int>) -> nothing {
+    for i in 1..101 { out.send(i); }
+    out.close();
+}
+
+async fn square(inp: &Channel<int>, out: &Channel<int>) -> nothing {
+    while true {
+        let v = inp.recv();
+        if v is nothing { break; }
+        let x = v.safe();
+        out.send(x * x);
+    }
+    out.close();
+}
+
+async fn sum(inp: &Channel<int>) -> int {
+    let mut acc = 0;
+    while true {
+        let v = inp.recv();
+        if v is nothing { break; }
+        acc = acc + v.safe();
+    }
+    return acc;
+}
+
+@entrypoint
+fn main() {
+    let ch1 = make_channel::<int>(32:uint);
+    let ch2 = make_channel::<int>(32:uint);
+
+    let t1 = task gen(&ch1);
+    let t2 = task square(&ch1, &ch2);
+    let t3 = task sum(&ch2);
+
+    t1.await();
+    t2.await();
+    compare t3.await() { Success(v) => print(f"sumsq={v}"); Cancelled() => print("cancelled"); }
+}

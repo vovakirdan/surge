@@ -1,0 +1,22 @@
+async fn fast() -> int { sleep(5:uint).await(); return 1; }
+async fn slow() -> int { sleep(50:uint).await(); return 2; }
+
+@entrypoint
+fn main() {
+    let t1 = task fast();
+    let t2 = task slow();
+
+    // race cancels losing task arms
+    let winner = race {
+        t1.await() => 1;
+        t2.await() => 2;
+    };
+    print(f"winner={winner}");
+
+    // timeout demo
+    let t3 = task slow();
+    compare timeout(t3, 10:uint) {
+        Success(v) => print(f"finished {v}");
+        Cancelled() => print("timed out");
+    };
+}

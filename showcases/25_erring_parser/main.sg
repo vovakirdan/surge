@@ -15,7 +15,7 @@ fn main() {
         } else {
             bad = bad + 1;
             print("bad: " + line);
-            // print("error: " + r.error().safe().message);
+            print("error: " + r.error().safe().message);
         }
     }
 

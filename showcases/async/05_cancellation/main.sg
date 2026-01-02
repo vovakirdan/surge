@@ -1,0 +1,21 @@
+async fn busy(steps: int) -> int {
+    let mut done: int = 0;
+    while done < steps {
+        checkpoint().await(); // yield + cancellation check
+        done = done + 1;
+    }
+    return done;
+}
+
+@entrypoint
+fn main() {
+    let t = task busy(1_000_000);
+
+    sleep(1:uint).await();
+    t.cancel();
+
+    compare t.await() {
+        Success(v) => print(f"unexpected success v={v}");
+        Cancelled() => print("cancelled (ok)");
+    };
+}

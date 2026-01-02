@@ -26,5 +26,5 @@ fn main() {
     // await в явных местах
     p.await();
     let res = c.await();
-    compare res { Success(v) => print(f"sum={v}"); Cancelled() => print("cancelled"); }
+    compare res { Success(v) => print(f"sum={v}"); Cancelled() => print("cancelled"); };
 }

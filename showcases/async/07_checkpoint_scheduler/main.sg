@@ -1,0 +1,18 @@
+async fn spinner(name: string, n: int) -> nothing {
+    let mut i: int = 0;
+    while i < n {
+        print(f"tick {name} {i}");
+        checkpoint().await();
+        i = i + 1;
+    }
+}
+
+@entrypoint
+fn main() {
+    let a = task spinner("A", 5);
+    let b = task spinner("B", 5);
+
+    a.await();
+    b.await();
+    print("done");
+}

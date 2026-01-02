@@ -34,6 +34,17 @@ func (vm *VM) evalTagTest(frame *Frame, tt *mir.TagTest) (Value, *VMError) {
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
+	if val.Kind == VKRef || val.Kind == VKRefMut {
+		var loaded Value
+		loaded, vmErr = vm.loadLocationRaw(val.Loc)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if loaded.IsHeap() && loaded.H != 0 {
+			vm.Heap.Retain(loaded.H)
+		}
+		val = loaded
+	}
 	defer vm.dropValue(val)
 	if val.Kind != VKHandleTag {
 		return MakeBool(false, types.NoTypeID), nil
@@ -60,6 +71,17 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 	val, vmErr := vm.evalOperand(frame, &tp.Value)
 	if vmErr != nil {
 		return Value{}, vmErr
+	}
+	if val.Kind == VKRef || val.Kind == VKRefMut {
+		var loaded Value
+		loaded, vmErr = vm.loadLocationRaw(val.Loc)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if loaded.IsHeap() && loaded.H != 0 {
+			vm.Heap.Retain(loaded.H)
+		}
+		val = loaded
 	}
 	defer vm.dropValue(val)
 	if val.Kind != VKHandleTag {

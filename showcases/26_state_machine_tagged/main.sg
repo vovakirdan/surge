@@ -15,21 +15,21 @@ type State = Idle() | Running(int) | Err(string) | Done(int);
 fn step(state: State, event: Event) -> State {
     return compare state {
         Idle() => compare event {
-            Start() => Running(0);
-            finally => Idle();
+            Start() => { let out: State = Running(0); return out; };
+            finally => { let out: State = Idle(); return out; };
         };
         Running(downloaded) => compare event {
-            Tick(bytes) => Running(downloaded + bytes);
-            Fail(msg) => Err(msg);
-            finally => Running(downloaded);
+            Tick(bytes) => { let out: State = Running(downloaded + bytes); return out; };
+            Fail(msg) => { let out: State = Err(msg); return out; };
+            finally => { let out: State = Running(downloaded); return out; };
         };
         Err(msg) => compare event {
-            Fail(msg) => Err(msg);
-            finally => Err(msg);
+            Fail(err_msg) => { let out: State = Err(err_msg); return out; };
+            finally => { let out: State = Err(msg); return out; };
         };
         Done(total) => compare event {
-            Finish() => Done(total);
-            finally => Done(total);
+            Finish() => { let out: State = Done(total); return out; };
+            finally => { let out: State = Done(total); return out; };
         };
     };
 }
@@ -38,10 +38,20 @@ fn step(state: State, event: Event) -> State {
 fn main() {
     let s: State = Idle();
 
-    s = step(s, Start());
-    s = step(s, Tick(100));
-    s = step(s, Tick(50));
-    s = step(s, Finish());
+    let e0: Event = Start();
+    s = step(s, e0);
+    let e1: Event = Tick(100);
+    s = step(s, e1);
+    let e2: Event = Tick(50);
+    s = step(s, e2);
+    let e3: Event = Finish();
+    s = step(s, e3);
 
-
+    let result = compare s {
+        Idle() => "idle";
+        Running(downloaded) => "running " + (downloaded to string);
+        Err(msg) => "error " + msg;
+        Done(total) => "done " + (total to string);
+    };
+    print(result);
 }
