@@ -1,0 +1,46 @@
+type Stats = {
+    count: int,
+    sum: int,
+    minimum: int,
+    maximum: int,
+}
+
+extern<Stats> {
+    fn new() -> Stats {
+        return default::<Stats>();
+    }
+
+    fn add(self: &mut Stats, value: int) -> nothing {
+        if self.count == 0 {
+            self.minimum = value;
+            self.maximum = value;
+        } else {
+            if value < self.minimum { self.minimum = value; }
+            if value > self.maximum { self.maximum = value; }
+        }
+        self.count = self.count + 1;
+        self.sum = self.sum + value;
+    }
+}
+
+@entrypoint
+fn main() {
+    let mut stats = Stats::new();
+    let errors: string[] = [];
+    while true {
+        let line = readline();
+        if line.trim() == "stop" { break; }
+        if line.trim() == "" { continue; }
+        let r = int.from_str(line);
+        if r.is_success() {
+            stats.add(r.safe());
+        } else {
+            errors.push(line);
+        }
+    }
+    print(f"Stats: count={stats.count}, sum={stats.sum}, minimum={stats.minimum}, maximum={stats.maximum}");
+    print(f"Errors: {len(errors)}");
+    for error in errors {
+        print(error);
+    }
+}

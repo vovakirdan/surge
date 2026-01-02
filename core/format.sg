@@ -3,9 +3,10 @@ pragma module, no_std;
 pub tag FmtStr(&string);
 pub tag FmtInt(int);
 pub tag FmtUInt(uint);
+pub tag FmtFloat(float);
 pub tag FmtBool(bool);
 
-pub type FmtArg = FmtStr(&string) | FmtInt(int) | FmtUInt(uint) | FmtBool(bool);
+pub type FmtArg = FmtStr(&string) | FmtInt(int) | FmtUInt(uint) | FmtFloat(float) | FmtBool(bool);
 
 pub fn fmt_arg(s: &string) -> FmtArg {
     return FmtStr(s);
@@ -22,6 +23,11 @@ pub fn fmt_arg(x: uint) -> FmtArg {
 }
 
 @overload
+pub fn fmt_arg(x: float) -> FmtArg {
+    return FmtFloat(x);
+}
+
+@overload
 pub fn fmt_arg(x: bool) -> FmtArg {
     return FmtBool(x);
 }
@@ -34,6 +40,10 @@ pub fn fmt_arg_uint(x: uint) -> FmtArg {
     return FmtUInt(x);
 }
 
+pub fn fmt_arg_float(x: float) -> FmtArg {
+    return FmtFloat(x);
+}
+
 pub fn fmt_arg_bool(x: bool) -> FmtArg {
     return FmtBool(x);
 }
@@ -43,6 +53,7 @@ fn fmt_arg_to_string(arg: &FmtArg) -> string {
         FmtStr(s) => s.__clone();
         FmtInt(x) => x to string;
         FmtUInt(x) => x to string;
+        FmtFloat(x) => x to string;
         FmtBool(x) => x to string;
     };
 }

@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,8 @@ type Runtime interface {
 
 	// StdinReadAll reads all content from stdin as a string.
 	StdinReadAll() string
+	// StdinReadLine reads a single line from stdin (without trailing newline).
+	StdinReadLine() string
 
 	// Exit signals the VM to halt with the given exit code.
 	Exit(code int)
@@ -31,10 +34,11 @@ type Runtime interface {
 
 // DefaultRuntime implements Runtime using OS facilities.
 type DefaultRuntime struct {
-	argv      []string // program arguments (after --)
-	exitCode  int
-	exited    bool
-	monoStart time.Time
+	argv       []string // program arguments (after --)
+	exitCode   int
+	exited     bool
+	monoStart  time.Time
+	stdinReader *bufio.Reader
 }
 
 // NewDefaultRuntime creates a runtime with program arguments from os.Args.
@@ -59,6 +63,21 @@ func (r *DefaultRuntime) StdinReadAll() string {
 	return strings.TrimSpace(string(data))
 }
 
+func (r *DefaultRuntime) StdinReadLine() string {
+	if r == nil {
+		return ""
+	}
+	if r.stdinReader == nil {
+		r.stdinReader = bufio.NewReader(os.Stdin)
+	}
+	line, err := r.stdinReader.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return ""
+	}
+	line = strings.TrimSuffix(line, "\n")
+	line = strings.TrimSuffix(line, "\r")
+	return line
+}
 func (r *DefaultRuntime) Exit(code int) {
 	r.exitCode = code
 	r.exited = true
@@ -86,6 +105,7 @@ func (r *DefaultRuntime) MonotonicNow() int64 {
 type TestRuntime struct {
 	argv     []string
 	stdin    string
+	stdinPos int
 	exitCode int
 	exited   bool
 }
@@ -105,6 +125,27 @@ func (r *TestRuntime) Argv() []string {
 
 func (r *TestRuntime) StdinReadAll() string {
 	return strings.TrimSpace(r.stdin)
+}
+
+func (r *TestRuntime) StdinReadLine() string {
+	if r == nil {
+		return ""
+	}
+	if r.stdinPos >= len(r.stdin) {
+		return ""
+	}
+	rest := r.stdin[r.stdinPos:]
+	idx := strings.IndexByte(rest, '\n')
+	var line string
+	if idx < 0 {
+		line = rest
+		r.stdinPos = len(r.stdin)
+	} else {
+		line = rest[:idx]
+		r.stdinPos += idx + 1
+	}
+	line = strings.TrimSuffix(line, "\r")
+	return line
 }
 
 func (r *TestRuntime) Exit(code int) {
@@ -152,6 +193,17 @@ func (r *RecordingRuntime) StdinReadAll() string {
 	s := r.rt.StdinReadAll()
 	if r.rec != nil {
 		r.rec.RecordIntrinsic("rt_stdin_read_all", nil, LogString(s))
+	}
+	return s
+}
+
+func (r *RecordingRuntime) StdinReadLine() string {
+	if r == nil || r.rt == nil {
+		return ""
+	}
+	s := r.rt.StdinReadLine()
+	if r.rec != nil {
+		r.rec.RecordIntrinsic("readline", nil, LogString(s))
 	}
 	return s
 }
@@ -224,6 +276,18 @@ func (r *ReplayRuntime) StdinReadAll() string {
 	s, err := MustDecodeString(ev.Ret)
 	if err != nil {
 		r.vm.panic(PanicInvalidReplayLogFormat, fmt.Sprintf("invalid rt_stdin_read_all ret: %v", err))
+	}
+	return s
+}
+
+func (r *ReplayRuntime) StdinReadLine() string {
+	if r == nil || r.vm == nil || r.rp == nil {
+		return ""
+	}
+	ev := r.rp.ConsumeIntrinsic(r.vm, "readline")
+	s, err := MustDecodeString(ev.Ret)
+	if err != nil {
+		r.vm.panic(PanicInvalidReplayLogFormat, fmt.Sprintf("invalid readline ret: %v", err))
 	}
 	return s
 }

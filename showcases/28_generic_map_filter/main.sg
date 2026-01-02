@@ -1,0 +1,32 @@
+fn mapping<T, U>(xs: &T[], f: fn(T) -> U) -> &U[] {
+    let mut out: U[] = [];
+    for x in xs {
+        out.push(f(x));
+    }
+    return &out;
+}
+
+fn filter<T>(xs: &T[], f: fn(T) -> bool) -> &T[] {
+    let mut out: T[] = [];
+    for x in xs {
+        if f(x) { out.push(x); }
+    }
+    return &out;
+}
+
+fn square(x: int) -> int {
+    return x * x;
+}
+
+fn is_even(x: int) -> bool {
+    return x % 2 == 0;
+}
+
+@entrypoint
+fn main() {
+    let xs: int[] = [1, 2, 3, 4, 5];
+    let ys = mapping(xs, square);
+    print(ys);
+    let zs = filter(xs, is_even);
+    print(zs);
+}

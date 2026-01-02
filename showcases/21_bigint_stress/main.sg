@@ -1,16 +1,73 @@
-fn fib(n: int) -> int {
+// Please don't run fib like this - it will be slow on any language, not just Surge.
+// Just imagine how many stack frames this will create for n=1000.
+// Do you know what big O complexity is? O(2^n) is exponential growth. VERY BAD.
+// fn fib(n: int) -> int {
+//     if n <= 1 {
+//         return n;
+//     }
+//     return fib(n - 1) + fib(n - 2);
+// }
+
+// here is two examples of good fibonacci implementation
+// 1. Iterative
+// 2. Fast doubling
+
+// Has O(n) complexity
+fn fib_iter(n: int) -> int {
     if n <= 1 {
         return n;
     }
-    return fib(n - 1) + fib(n - 2);
+
+    let a = 0;
+    let b = 1;
+
+    for i in 2..=n {
+        let c = a + b;
+        a = b;
+        b = c;
+    }
+
+    return b;
+}
+
+// Returns (F(n), F(n + 1)) -> O(log n) complexity
+fn fib_pair(n: int) -> (int, int) {
+    if n == 0 {
+        return (0, 1);
+    }
+
+    let (a, b) = fib_pair(n / 2); // a = F(k), b = F(k+1), where k = n/2
+
+    // c = F(2k) = F(k) * (2*F(k+1) - F(k))
+    // d = F(2k+1) = F(k)^2 + F(k+1)^2
+    let two_b: int = b + b;
+    let c: int = a * (two_b - a);
+    let d: int = (a * a) + (b * b);
+
+    if n % 2 == 0 {
+        return (c, d);
+    }
+
+    // F(2k+1), F(2k+2)
+    return (d, c + d);
+}
+
+fn fib_fast(n: int) -> int {
+    let (f, _) = fib_pair(n);
+    return f;
 }
 
 @entrypoint
 fn main() {
-    let n = 100;
-    let result = fib(n);
-    let result_str = result to string;
-    let digits = len(result_str); // todo think about pipe: expr |> fn - cool idea
-    print(f"fib({n}) digits = {digits}");
-    print(format("result head = {}", fmt_arg(result_str[0..50])));
+    let n = 1000;
+    let result1 = fib_iter(n);
+    let result2 = fib_fast(n);
+    let result_str1 = result1 to string;
+    let result_str2 = result2 to string;
+    let digits = len(result_str1);
+    let digits2 = len(result_str2);
+    print(f"fib_iter({n}) digits = {digits}");
+    print(f"fib_fast({n}) digits = {digits2}");
+    print(format("fib_iter result head = {}", fmt_arg(result_str1[0..50])));
+    print(format("fib_fast result head = {}", fmt_arg(result_str2[0..50])));
 }

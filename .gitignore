@@ -34,6 +34,7 @@ go.work.sum
 AGENTS.md
 # CLAUDE.md
 test*.sg
+tmp*.sg
 .cursor/
 
 # Surge project

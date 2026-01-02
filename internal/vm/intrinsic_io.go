@@ -118,6 +118,35 @@ func (vm *VM) handleRtStdinReadAll(frame *Frame, call *mir.CallInstr, writes *[]
 	return nil
 }
 
+// handleReadline handles the readline intrinsic.
+func (vm *VM) handleReadline(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	line := ""
+	if vm.RT != nil {
+		line = vm.RT.StdinReadLine()
+	}
+	strTy := types.NoTypeID
+	if vm.Types != nil {
+		strTy = vm.Types.Builtins().String
+	}
+	h := vm.Heap.AllocString(strTy, line)
+	val := MakeHandleString(h, strTy)
+	if call.HasDst {
+		localID := call.Dst.Local
+		vmErr := vm.writeLocal(frame, localID, val)
+		if vmErr != nil {
+			return vmErr
+		}
+		*writes = append(*writes, LocalWrite{
+			LocalID: localID,
+			Name:    frame.Locals[localID].Name,
+			Value:   val,
+		})
+	} else {
+		vm.Heap.Release(h)
+	}
+	return nil
+}
+
 // handleWriteStdout handles the rt_write_stdout intrinsic.
 func (vm *VM) handleWriteStdout(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if len(call.Args) != 2 {

@@ -35,6 +35,8 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 	case "rt_stdin_read_all":
 		return vm.handleRtStdinReadAll(frame, call, writes)
+	case "readline":
+		return vm.handleReadline(frame, call, writes)
 
 	case "rt_string_ptr":
 		return vm.handleStringPtr(frame, call, writes)
