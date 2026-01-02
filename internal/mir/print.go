@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 
 	"surge/internal/types"
 )
@@ -189,6 +190,30 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 			formatOperand(&ins.Timeout.Ms),
 			ins.Timeout.ReadyBB,
 			ins.Timeout.PendBB,
+		)
+	case InstrSelect:
+		arms := make([]string, 0, len(ins.Select.Arms))
+		for _, arm := range ins.Select.Arms {
+			switch arm.Kind {
+			case SelectArmTask:
+				arms = append(arms, "await "+formatOperand(&arm.Task))
+			case SelectArmChanRecv:
+				arms = append(arms, "recv "+formatOperand(&arm.Channel))
+			case SelectArmChanSend:
+				arms = append(arms, "send "+formatOperand(&arm.Channel))
+			case SelectArmTimeout:
+				arms = append(arms, "timeout "+formatOperand(&arm.Task))
+			case SelectArmDefault:
+				arms = append(arms, "default")
+			default:
+				arms = append(arms, "<?>")
+			}
+		}
+		return fmt.Sprintf("%s = select [%s] ? bb%d : bb%d",
+			formatPlace(ins.Select.Dst),
+			strings.Join(arms, ", "),
+			ins.Select.ReadyBB,
+			ins.Select.PendBB,
 		)
 	case InstrNop:
 		return "nop"

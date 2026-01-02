@@ -59,6 +59,10 @@ func localsAssignedInBlock(f *Func, bbID BlockID) localSet {
 			if len(ins.Timeout.Dst.Proj) == 0 && ins.Timeout.Dst.Kind == PlaceLocal {
 				set.add(ins.Timeout.Dst.Local)
 			}
+		case InstrSelect:
+			if len(ins.Select.Dst.Proj) == 0 && ins.Select.Dst.Kind == PlaceLocal {
+				set.add(ins.Select.Dst.Local)
+			}
 		}
 	}
 	return set
@@ -114,6 +118,10 @@ func reachableBlocksFrom(f *Func, start BlockID) []BlockID {
 			case InstrTimeout:
 				visit(last.Timeout.ReadyBB)
 				visit(last.Timeout.PendBB)
+				return
+			case InstrSelect:
+				visit(last.Select.ReadyBB)
+				visit(last.Select.PendBB)
 				return
 			}
 		}
@@ -204,6 +212,23 @@ func collectLocalsInInstr(ins *Instr, set localSet) {
 		collectLocalsFromOperand(&ins.Timeout.Task, set)
 		collectLocalsFromOperand(&ins.Timeout.Ms, set)
 		collectLocalsFromPlace(ins.Timeout.Dst, set)
+	case InstrSelect:
+		collectLocalsFromPlace(ins.Select.Dst, set)
+		for i := range ins.Select.Arms {
+			arm := &ins.Select.Arms[i]
+			switch arm.Kind {
+			case SelectArmTask:
+				collectLocalsFromOperand(&arm.Task, set)
+			case SelectArmChanRecv:
+				collectLocalsFromOperand(&arm.Channel, set)
+			case SelectArmChanSend:
+				collectLocalsFromOperand(&arm.Channel, set)
+				collectLocalsFromOperand(&arm.Value, set)
+			case SelectArmTimeout:
+				collectLocalsFromOperand(&arm.Task, set)
+				collectLocalsFromOperand(&arm.Ms, set)
+			}
+		}
 	}
 }
 

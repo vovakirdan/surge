@@ -80,7 +80,7 @@ func validateBlocksTerminated(f *Func) error {
 		if f.Blocks[i].Term.Kind == TermNone {
 			if len(f.Blocks[i].Instrs) > 0 {
 				last := f.Blocks[i].Instrs[len(f.Blocks[i].Instrs)-1]
-				if last.Kind == InstrPoll || last.Kind == InstrJoinAll || last.Kind == InstrChanSend || last.Kind == InstrChanRecv || last.Kind == InstrTimeout {
+				if last.Kind == InstrPoll || last.Kind == InstrJoinAll || last.Kind == InstrChanSend || last.Kind == InstrChanRecv || last.Kind == InstrTimeout || last.Kind == InstrSelect {
 					continue
 				}
 			}
@@ -137,6 +137,13 @@ func validateBlockTargets(f *Func) error {
 				}
 				if !blockExists(ins.Timeout.PendBB) {
 					errs = append(errs, fmt.Errorf("bb%d instr %d: timeout pending target bb%d does not exist", i, j, ins.Timeout.PendBB))
+				}
+			case InstrSelect:
+				if !blockExists(ins.Select.ReadyBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: select ready target bb%d does not exist", i, j, ins.Select.ReadyBB))
+				}
+				if !blockExists(ins.Select.PendBB) {
+					errs = append(errs, fmt.Errorf("bb%d instr %d: select pending target bb%d does not exist", i, j, ins.Select.PendBB))
 				}
 			}
 		}
@@ -300,6 +307,22 @@ func validateLocalIDs(f *Func, globals []Global) error {
 				checkPlace(ins.Timeout.Dst, ctx)
 				checkOperand(ins.Timeout.Task, ctx)
 				checkOperand(ins.Timeout.Ms, ctx)
+			case InstrSelect:
+				checkPlace(ins.Select.Dst, ctx)
+				for _, arm := range ins.Select.Arms {
+					switch arm.Kind {
+					case SelectArmTask:
+						checkOperand(arm.Task, ctx)
+					case SelectArmChanRecv:
+						checkOperand(arm.Channel, ctx)
+					case SelectArmChanSend:
+						checkOperand(arm.Channel, ctx)
+						checkOperand(arm.Value, ctx)
+					case SelectArmTimeout:
+						checkOperand(arm.Task, ctx)
+						checkOperand(arm.Ms, ctx)
+					}
+				}
 			}
 		}
 

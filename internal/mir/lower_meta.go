@@ -161,6 +161,22 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 				case InstrTimeout:
 					visitOperand(&ins.Timeout.Task)
 					visitOperand(&ins.Timeout.Ms)
+				case InstrSelect:
+					for ai := range ins.Select.Arms {
+						arm := &ins.Select.Arms[ai]
+						switch arm.Kind {
+						case SelectArmTask:
+							visitOperand(&arm.Task)
+						case SelectArmChanRecv:
+							visitOperand(&arm.Channel)
+						case SelectArmChanSend:
+							visitOperand(&arm.Channel)
+							visitOperand(&arm.Value)
+						case SelectArmTimeout:
+							visitOperand(&arm.Task)
+							visitOperand(&arm.Ms)
+						}
+					}
 				default:
 				}
 			}

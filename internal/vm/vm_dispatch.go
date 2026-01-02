@@ -121,6 +121,18 @@ func (vm *VM) execInstr(frame *Frame, instr *mir.Instr) (advanceIP bool, pushFra
 		writes = pollRes.writes
 		doJump = pollRes.doJump
 		jumpBB = pollRes.jumpBB
+	case mir.InstrSelect:
+		pollRes, pollErr := vm.execInstrSelect(frame, instr, writes)
+		vmErr = pollErr
+		if vmErr != nil {
+			return false, nil, vmErr
+		}
+		hasStore = pollRes.hasStore
+		storeLoc = pollRes.storeLoc
+		storeVal = pollRes.storeVal
+		writes = pollRes.writes
+		doJump = pollRes.doJump
+		jumpBB = pollRes.jumpBB
 
 	case mir.InstrNop:
 		// Nothing to do

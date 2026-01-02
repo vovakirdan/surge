@@ -150,7 +150,7 @@ func (p *Parser) parseCompareArm() (ast.ExprCompareArm, bool) {
 		return arm, false
 	}
 
-	resultExpr, ok := p.parseExpr()
+	resultExpr, ok := p.parseExprOrBlockAsValue()
 	if !ok {
 		return arm, false
 	}

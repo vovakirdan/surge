@@ -53,7 +53,7 @@ func (p *Parser) parseBinaryExpr(minPrec int) (ast.ExprID, bool) {
 				diag.SynFatArrowOutsideParallel,
 				diag.SevError,
 				tok.Span,
-				"'=>' is only allowed inside parallel expressions or compare arms",
+				"'=>' is only allowed inside parallel expressions or compare/select/race arms",
 				nil,
 			)
 			p.advance()
@@ -516,6 +516,12 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 
 	case token.KwCompare:
 		return p.parseCompareExpr()
+
+	case token.KwSelect:
+		return p.parseSelectExpr()
+
+	case token.KwRace:
+		return p.parseRaceExpr()
 
 	case token.KwParallel:
 		return p.parseParallelExpr()

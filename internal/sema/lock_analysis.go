@@ -558,6 +558,20 @@ func (tc *typeChecker) walkExprForLockOps(la *lockAnalyzer, exprID ast.ExprID) {
 			tc.checkExprForLockOps(la, rangeData.Start)
 			tc.checkExprForLockOps(la, rangeData.End)
 		}
+	case ast.ExprSelect:
+		if data, ok := tc.builder.Exprs.Select(exprID); ok && data != nil {
+			for _, arm := range data.Arms {
+				tc.checkExprForLockOps(la, arm.Await)
+				tc.checkExprForLockOps(la, arm.Result)
+			}
+		}
+	case ast.ExprRace:
+		if data, ok := tc.builder.Exprs.Race(exprID); ok && data != nil {
+			for _, arm := range data.Arms {
+				tc.checkExprForLockOps(la, arm.Await)
+				tc.checkExprForLockOps(la, arm.Result)
+			}
+		}
 	}
 }
 

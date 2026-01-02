@@ -99,6 +99,12 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 	case ast.ExprCompare:
 		return l.lowerCompareExpr(expr, ty)
 
+	case ast.ExprSelect:
+		return l.lowerSelectExpr(expr, ty, false)
+
+	case ast.ExprRace:
+		return l.lowerSelectExpr(expr, ty, true)
+
 	case ast.ExprAwait:
 		return l.lowerAwaitExpr(expr, ty)
 
@@ -553,6 +559,43 @@ func (l *lowerer) lowerCompareExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 		Data: CompareData{
 			Value: l.lowerExpr(cmpData.Value),
 			Arms:  arms,
+		},
+	}
+}
+
+// lowerSelectExpr lowers select/race expressions.
+func (l *lowerer) lowerSelectExpr(expr *ast.Expr, ty types.TypeID, isRace bool) *Expr {
+	var selData *ast.ExprSelectData
+	if isRace {
+		selData = l.builder.Exprs.Races.Get(uint32(expr.Payload))
+	} else {
+		selData = l.builder.Exprs.Selects.Get(uint32(expr.Payload))
+	}
+	if selData == nil {
+		return nil
+	}
+
+	arms := make([]SelectArm, len(selData.Arms))
+	for i, arm := range selData.Arms {
+		arms[i] = SelectArm{
+			Await:     l.lowerExpr(arm.Await),
+			Result:    l.lowerExpr(arm.Result),
+			IsDefault: arm.IsDefault,
+			Span:      arm.Span,
+		}
+	}
+
+	kind := ExprSelect
+	if isRace {
+		kind = ExprRace
+	}
+
+	return &Expr{
+		Kind: kind,
+		Type: ty,
+		Span: expr.Span,
+		Data: SelectData{
+			Arms: arms,
 		},
 	}
 }

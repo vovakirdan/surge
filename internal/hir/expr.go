@@ -35,6 +35,10 @@ const (
 	// ExprCompare represents pattern matching (compare expr { ... }).
 	// Preserved as-is, desugaring happens in later stages.
 	ExprCompare
+	// ExprSelect represents select expression over awaitables.
+	ExprSelect
+	// ExprRace represents race expression over awaitables.
+	ExprRace
 	// ExprTagTest checks whether a union value matches a tag or the `nothing` variant.
 	ExprTagTest
 	// ExprTagPayload extracts a payload component from a tagged union value.
@@ -82,6 +86,10 @@ func (k ExprKind) String() string {
 		return "TupleLit"
 	case ExprCompare:
 		return "Compare"
+	case ExprSelect:
+		return "Select"
+	case ExprRace:
+		return "Race"
 	case ExprTagTest:
 		return "TagTest"
 	case ExprTagPayload:
@@ -242,6 +250,21 @@ type CompareData struct {
 }
 
 func (CompareData) exprData() {}
+
+// SelectArm represents one arm in select/race expressions.
+type SelectArm struct {
+	Await     *Expr
+	Result    *Expr
+	IsDefault bool
+	Span      source.Span
+}
+
+// SelectData holds data for ExprSelect/ExprRace.
+type SelectData struct {
+	Arms []SelectArm
+}
+
+func (SelectData) exprData() {}
 
 // TagTestData holds data for ExprTagTest.
 type TagTestData struct {

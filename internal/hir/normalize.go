@@ -290,6 +290,23 @@ func normalizeExpr(ctx *normCtx, e *Expr) error {
 	case ExprCompare:
 		return normalizeCompareExpr(ctx, e)
 
+	case ExprSelect, ExprRace:
+		data := e.Data.(SelectData)
+		for i := range data.Arms {
+			if data.Arms[i].Await != nil {
+				if err := normalizeExpr(ctx, data.Arms[i].Await); err != nil {
+					return err
+				}
+			}
+			if data.Arms[i].Result != nil {
+				if err := normalizeExpr(ctx, data.Arms[i].Result); err != nil {
+					return err
+				}
+			}
+		}
+		e.Data = data
+		return nil
+
 	case ExprTagTest:
 		data := e.Data.(TagTestData)
 		if data.Value != nil {

@@ -22,6 +22,8 @@ type Channel struct {
 
 	recvq []TaskID
 	sendq []chanWaiter
+	recvNotify []Waiter
+	sendNotify []Waiter
 }
 
 // ChanNew allocates a new channel with the given capacity.
@@ -78,6 +80,15 @@ func (e *Executor) ChanClose(id ChannelID) {
 	}
 	ch.recvq = nil
 
+	for _, waiter := range ch.recvNotify {
+		task := e.tasks[waiter.TaskID]
+		if task == nil || task.Status == TaskDone {
+			continue
+		}
+		e.Wake(waiter.TaskID)
+	}
+	ch.recvNotify = nil
+
 	for _, waiter := range ch.sendq {
 		task := e.tasks[waiter.taskID]
 		if task == nil || task.Status == TaskDone {
@@ -92,6 +103,15 @@ func (e *Executor) ChanClose(id ChannelID) {
 		e.Wake(waiter.taskID)
 	}
 	ch.sendq = nil
+
+	for _, waiter := range ch.sendNotify {
+		task := e.tasks[waiter.TaskID]
+		if task == nil || task.Status == TaskDone {
+			continue
+		}
+		e.Wake(waiter.TaskID)
+	}
+	ch.sendNotify = nil
 }
 
 // ChanTrySend attempts to send without parking.
@@ -115,6 +135,7 @@ func (e *Executor) ChanTrySend(id ChannelID, value any) bool {
 	}
 	if ch.cap > 0 && ch.bufLenU64() < ch.cap {
 		ch.bufPush(value)
+		ch.notifyRecvWaiters(e)
 		return true
 	}
 	return false
@@ -132,6 +153,7 @@ func (e *Executor) ChanTryRecv(id ChannelID) (any, bool) {
 	}
 	if val, ok := ch.bufPop(); ok {
 		ch.refillBufferFromSender(e)
+		ch.notifySendWaiters(e)
 		return val, true
 	}
 	if waiter, ok := ch.popSendWaiter(e); ok {
@@ -141,6 +163,7 @@ func (e *Executor) ChanTryRecv(id ChannelID) (any, bool) {
 			task.ResumeValue = nil
 			e.Wake(waiter.taskID)
 		}
+		ch.notifySendWaiters(e)
 		return waiter.value, true
 	}
 	return nil, false
@@ -167,6 +190,7 @@ func (e *Executor) ChanSendOrPark(id ChannelID, value any) bool {
 	}
 	if ch.cap > 0 && ch.bufLenU64() < ch.cap {
 		ch.bufPush(value)
+		ch.notifyRecvWaiters(e)
 		return true
 	}
 	current := e.Current()
@@ -177,6 +201,7 @@ func (e *Executor) ChanSendOrPark(id ChannelID, value any) bool {
 		return false
 	}
 	ch.sendq = append(ch.sendq, chanWaiter{taskID: current, value: value, hasValue: true})
+	ch.notifyRecvWaiters(e)
 	return false
 }
 
@@ -192,6 +217,7 @@ func (e *Executor) ChanRecvOrPark(id ChannelID) (any, bool) {
 	}
 	if val, ok := ch.bufPop(); ok {
 		ch.refillBufferFromSender(e)
+		ch.notifySendWaiters(e)
 		return val, true
 	}
 	if waiter, ok := ch.popSendWaiter(e); ok {
@@ -201,6 +227,7 @@ func (e *Executor) ChanRecvOrPark(id ChannelID) (any, bool) {
 			task.ResumeValue = nil
 			e.Wake(waiter.taskID)
 		}
+		ch.notifySendWaiters(e)
 		return waiter.value, true
 	}
 	if ch.closed {
@@ -214,7 +241,41 @@ func (e *Executor) ChanRecvOrPark(id ChannelID) (any, bool) {
 		return nil, false
 	}
 	ch.recvq = append(ch.recvq, current)
+	ch.notifySendWaiters(e)
 	return nil, false
+}
+
+// ChanCanRecv reports whether a receive would complete immediately.
+func (e *Executor) ChanCanRecv(id ChannelID) bool {
+	if e == nil {
+		return false
+	}
+	ch := e.channels[id]
+	if ch == nil {
+		return false
+	}
+	if ch.bufLen() > 0 {
+		return true
+	}
+	if ch.hasSendWaiter(e) {
+		return true
+	}
+	return ch.closed
+}
+
+// ChanCanSend reports whether a send would complete immediately.
+func (e *Executor) ChanCanSend(id ChannelID) bool {
+	if e == nil {
+		return false
+	}
+	ch := e.channels[id]
+	if ch == nil || ch.closed {
+		return false
+	}
+	if ch.hasRecvWaiter(e) {
+		return true
+	}
+	return ch.cap > 0 && ch.bufLenU64() < ch.cap
 }
 
 func (ch *Channel) bufLen() int {
@@ -297,6 +358,107 @@ func (ch *Channel) popSendWaiter(e *Executor) (chanWaiter, bool) {
 		return waiter, true
 	}
 	return chanWaiter{}, false
+}
+
+func (ch *Channel) hasRecvWaiter(e *Executor) bool {
+	if ch == nil {
+		return false
+	}
+	if e == nil {
+		return len(ch.recvq) > 0
+	}
+	n := 0
+	for _, taskID := range ch.recvq {
+		task := e.tasks[taskID]
+		if task == nil || task.Status == TaskDone {
+			continue
+		}
+		ch.recvq[n] = taskID
+		n++
+	}
+	ch.recvq = ch.recvq[:n]
+	return n > 0
+}
+
+func (ch *Channel) hasSendWaiter(e *Executor) bool {
+	if ch == nil {
+		return false
+	}
+	if e == nil {
+		return len(ch.sendq) > 0
+	}
+	n := 0
+	for _, waiter := range ch.sendq {
+		if !waiter.hasValue {
+			continue
+		}
+		task := e.tasks[waiter.taskID]
+		if task == nil || task.Status == TaskDone {
+			continue
+		}
+		ch.sendq[n] = waiter
+		n++
+	}
+	ch.sendq = ch.sendq[:n]
+	return n > 0
+}
+
+func (ch *Channel) notifyRecvWaiters(e *Executor) {
+	if ch == nil || e == nil || len(ch.recvNotify) == 0 {
+		return
+	}
+	waiters := ch.recvNotify
+	ch.recvNotify = nil
+	for _, waiter := range waiters {
+		task := e.tasks[waiter.TaskID]
+		if task == nil || task.Status == TaskDone {
+			continue
+		}
+		e.Wake(waiter.TaskID)
+	}
+}
+
+func (ch *Channel) notifySendWaiters(e *Executor) {
+	if ch == nil || e == nil || len(ch.sendNotify) == 0 {
+		return
+	}
+	waiters := ch.sendNotify
+	ch.sendNotify = nil
+	for _, waiter := range waiters {
+		task := e.tasks[waiter.TaskID]
+		if task == nil || task.Status == TaskDone {
+			continue
+		}
+		e.Wake(waiter.TaskID)
+	}
+}
+
+func (ch *Channel) removeSelectWaiters(selectID SelectID) {
+	if ch == nil || selectID == 0 {
+		return
+	}
+	if len(ch.recvNotify) > 0 {
+		n := 0
+		for _, waiter := range ch.recvNotify {
+			if waiter.SelectID == selectID {
+				continue
+			}
+			ch.recvNotify[n] = waiter
+			n++
+		}
+		ch.recvNotify = ch.recvNotify[:n]
+	}
+	if len(ch.sendNotify) > 0 {
+		n := 0
+		for _, waiter := range ch.sendNotify {
+			if waiter.SelectID == selectID {
+				continue
+			}
+			ch.sendNotify[n] = waiter
+			n++
+		}
+		ch.sendNotify = ch.sendNotify[:n]
+	}
 }
 
 func (ch *Channel) refillBufferFromSender(e *Executor) {

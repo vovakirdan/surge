@@ -1,0 +1,32 @@
+@entrypoint
+fn main() -> int {
+    let r = (async {
+        let t1 = spawn async {
+            sleep(100).await();
+            print("t1 done");
+            return 1;
+        };
+        let t2 = spawn async {
+            sleep(5).await();
+            return 2;
+        };
+
+        let v = race {
+            t1.await() => 1;
+            t2.await() => 2;
+        };
+        return v;
+    }).await();
+
+    compare r {
+        Success(v) => print("v=" + (v to string)),
+        Cancelled => print("cancelled"),
+    }
+
+    let guard = spawn async {
+        sleep(200).await();
+        return 0;
+    };
+    let _ = guard.await();
+    return 0;
+}

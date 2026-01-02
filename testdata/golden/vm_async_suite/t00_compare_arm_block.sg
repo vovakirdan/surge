@@ -1,0 +1,9 @@
+@entrypoint
+fn main() -> int {
+    let r = (async { return 1; }).await();
+    compare r {
+        Success(v) => { print("a"); print("v=" + (v to string)); };
+        Cancelled => { print("cancelled"); };
+    }
+    return 0;
+}

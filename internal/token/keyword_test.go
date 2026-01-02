@@ -10,6 +10,8 @@ func TestLookupKeyword_Positive(t *testing.T) {
 		"let":      KwLet,
 		"const":    KwConst,
 		"return":   KwReturn,
+		"select":   KwSelect,
+		"race":     KwRace,
 		"parallel": KwParallel,
 		"map":      KwMap,
 		"reduce":   KwReduce,
@@ -36,7 +38,7 @@ func TestLookupKeyword_Positive(t *testing.T) {
 func TestLookupKeyword_Negative(t *testing.T) {
 	// Заведомо НЕ ключевые слова
 	notKw := []string{
-		"Fn", "LET", "Await", // регистр важен — понижение делает лексер
+		"Fn", "LET", "Await", "default", // регистр важен — понижение делает лексер
 		"int", "int8", "uint32", "float64", // имена типов — Ident
 		"identifier", "toString",
 	}

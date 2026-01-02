@@ -1,0 +1,24 @@
+@entrypoint
+fn main() -> int {
+    let _ = (async {
+        let ch1 = make_channel<int>(1);
+        let ch2 = make_channel<int>(1);
+        ch1.send(1);
+        ch2.send(2);
+
+        let v = select {
+            ch1.recv() => 1;
+            ch2.recv() => 2;
+        };
+        print("first=" + (v to string));
+
+        let second = ch2.recv();
+        compare second {
+            Some(x) => print("second=" + (x to string)),
+            Nothing => print("second=none"),
+        }
+        return 0;
+    }).await();
+
+    return 0;
+}

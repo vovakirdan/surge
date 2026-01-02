@@ -214,7 +214,7 @@ func isBlockRecoveryToken(k token.Kind) bool {
 func isBlockStatementStarter(kind token.Kind) bool {
 	switch kind {
 	case token.LBrace, token.KwLet, token.KwConst, token.KwReturn, token.KwIf, token.KwWhile,
-		token.KwFor, token.KwBreak, token.KwContinue, token.KwCompare:
+		token.KwFor, token.KwBreak, token.KwContinue, token.KwCompare, token.KwSelect, token.KwRace:
 		return true
 	default:
 		return false

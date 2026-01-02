@@ -23,6 +23,8 @@ var keywords = map[string]Kind{
 	"pub":      KwPub,
 	"async":    KwAsync,
 	"compare":  KwCompare,
+	"select":   KwSelect,
+	"race":     KwRace,
 	"finally":  KwFinally,
 	"channel":  KwChannel,
 	"spawn":    KwSpawn,

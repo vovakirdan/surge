@@ -11,6 +11,7 @@ const (
 	suspendChanSend
 	suspendChanRecv
 	suspendTimeout
+	suspendSelect
 )
 
 // awaitSite describes a suspend point that has been split into a poll instruction.
@@ -37,7 +38,7 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 			bb := &f.Blocks[bi]
 			for i := 0; i < len(bb.Instrs); i++ {
 				ins := &bb.Instrs[i]
-				if ins.Kind != InstrAwait && ins.Kind != InstrChanSend && ins.Kind != InstrChanRecv && ins.Kind != InstrTimeout {
+				if ins.Kind != InstrAwait && ins.Kind != InstrChanSend && ins.Kind != InstrChanRecv && ins.Kind != InstrTimeout && ins.Kind != InstrSelect {
 					continue
 				}
 				if ins.Kind == InstrChanSend && ins.ChanSend.ReadyBB != NoBlockID {
@@ -47,6 +48,9 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 					continue
 				}
 				if ins.Kind == InstrTimeout && ins.Timeout.ReadyBB != NoBlockID {
+					continue
+				}
+				if ins.Kind == InstrSelect && ins.Select.ReadyBB != NoBlockID {
 					continue
 				}
 				prelude := append([]Instr(nil), bb.Instrs[:i]...)
@@ -92,6 +96,14 @@ func splitAsyncAwaits(f *Func) ([]awaitSite, error) {
 						Dst:     ins.Timeout.Dst,
 						Task:    ins.Timeout.Task,
 						Ms:      ins.Timeout.Ms,
+						ReadyBB: afterBB,
+						PendBB:  NoBlockID,
+					}}
+				case InstrSelect:
+					kind = suspendSelect
+					pollInstr = Instr{Kind: InstrSelect, Select: SelectInstr{
+						Dst:     ins.Select.Dst,
+						Arms:    append([]SelectArm(nil), ins.Select.Arms...),
 						ReadyBB: afterBB,
 						PendBB:  NoBlockID,
 					}}
@@ -181,6 +193,13 @@ func collectSuspendSites(f *Func) []awaitSite {
 					pollInstr: ii,
 					readyBB:   ins.Timeout.ReadyBB,
 				})
+			case InstrSelect:
+				sites = append(sites, awaitSite{
+					kind:      suspendSelect,
+					pollBB:    bbID,
+					pollInstr: ii,
+					readyBB:   ins.Select.ReadyBB,
+				})
 			}
 		}
 	}
@@ -239,6 +258,15 @@ func succBlocks(f *Func, bbID BlockID, includePollPending bool) []BlockID {
 			}
 			if includePollPending && last.Timeout.PendBB != NoBlockID {
 				out = append(out, last.Timeout.PendBB)
+			}
+			return out
+		case InstrSelect:
+			out := []BlockID{}
+			if last.Select.ReadyBB != NoBlockID {
+				out = append(out, last.Select.ReadyBB)
+			}
+			if includePollPending && last.Select.PendBB != NoBlockID {
+				out = append(out, last.Select.PendBB)
 			}
 			return out
 		}

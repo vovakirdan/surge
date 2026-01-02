@@ -52,6 +52,10 @@ func (k Kind) String() string {
 		return "KwAsync"
 	case KwCompare:
 		return "KwCompare"
+	case KwSelect:
+		return "KwSelect"
+	case KwRace:
+		return "KwRace"
 	case KwFinally:
 		return "KwFinally"
 	case KwChannel:

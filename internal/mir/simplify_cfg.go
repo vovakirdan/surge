@@ -115,6 +115,9 @@ func applyRedirects(f *Func, redirects map[BlockID]BlockID) {
 			case InstrTimeout:
 				last.Timeout.ReadyBB = redirect(last.Timeout.ReadyBB)
 				last.Timeout.PendBB = redirect(last.Timeout.PendBB)
+			case InstrSelect:
+				last.Select.ReadyBB = redirect(last.Select.ReadyBB)
+				last.Select.PendBB = redirect(last.Select.PendBB)
 			}
 		}
 	}
@@ -158,6 +161,10 @@ func computeReachability(f *Func) []bool {
 			case InstrTimeout:
 				visit(last.Timeout.ReadyBB)
 				visit(last.Timeout.PendBB)
+				return
+			case InstrSelect:
+				visit(last.Select.ReadyBB)
+				visit(last.Select.PendBB)
 				return
 			}
 		}

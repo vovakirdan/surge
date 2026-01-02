@@ -313,7 +313,7 @@ var ( // todo расширить описания и использовать к
 		SynEnumExpectRBrace:                "Expected '}' after enum body",
 		SynIllegalItemInExtern:             "Illegal item inside extern block",
 		SynVisibilityReduction:             "Visibility reduction is not allowed",
-		SynFatArrowOutsideParallel:         "Fat arrow is only allowed in parallel expressions or compare arms",
+		SynFatArrowOutsideParallel:         "Fat arrow is only allowed in parallel expressions, compare arms, or select/race arms",
 		SynPragmaPosition:                  "Pragma must appear at the top of the file",
 		SynFnNotAllowed:                    "Function declaration is not allowed here",
 		SynExpectIdentifier:                "Expect identifier",

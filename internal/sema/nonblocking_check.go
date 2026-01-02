@@ -178,6 +178,20 @@ func (tc *typeChecker) walkExprForBlockingCalls(exprID ast.ExprID, fnSpan source
 			tc.walkExprForBlockingCalls(rangeData.Start, fnSpan)
 			tc.walkExprForBlockingCalls(rangeData.End, fnSpan)
 		}
+	case ast.ExprSelect:
+		if data, ok := tc.builder.Exprs.Select(exprID); ok && data != nil {
+			for _, arm := range data.Arms {
+				tc.walkExprForBlockingCalls(arm.Await, fnSpan)
+				tc.walkExprForBlockingCalls(arm.Result, fnSpan)
+			}
+		}
+	case ast.ExprRace:
+		if data, ok := tc.builder.Exprs.Race(exprID); ok && data != nil {
+			for _, arm := range data.Arms {
+				tc.walkExprForBlockingCalls(arm.Await, fnSpan)
+				tc.walkExprForBlockingCalls(arm.Result, fnSpan)
+			}
+		}
 	}
 }
 

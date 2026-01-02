@@ -114,6 +114,24 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 			addUsesFromOperand(&ins.Timeout.Ms, addUse)
 			addUsesFromPlaceWrite(ins.Timeout.Dst, addUse)
 			addDefFromPlace(ins.Timeout.Dst, addDef)
+		case InstrSelect:
+			addUsesFromPlaceWrite(ins.Select.Dst, addUse)
+			addDefFromPlace(ins.Select.Dst, addDef)
+			for i := range ins.Select.Arms {
+				arm := &ins.Select.Arms[i]
+				switch arm.Kind {
+				case SelectArmTask:
+					addUsesFromOperand(&arm.Task, addUse)
+				case SelectArmChanRecv:
+					addUsesFromOperand(&arm.Channel, addUse)
+				case SelectArmChanSend:
+					addUsesFromOperand(&arm.Channel, addUse)
+					addUsesFromOperand(&arm.Value, addUse)
+				case SelectArmTimeout:
+					addUsesFromOperand(&arm.Task, addUse)
+					addUsesFromOperand(&arm.Ms, addUse)
+				}
+			}
 		}
 	}
 

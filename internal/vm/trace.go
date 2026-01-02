@@ -3,6 +3,7 @@ package vm
 import (
 	"fmt"
 	"io"
+	"strings"
 	"unicode/utf8"
 
 	"surge/internal/mir"
@@ -217,6 +218,30 @@ func (t *Tracer) formatInstr(instr *mir.Instr) string {
 			t.formatOperand(&instr.Timeout.Ms),
 			instr.Timeout.ReadyBB,
 			instr.Timeout.PendBB,
+		)
+	case mir.InstrSelect:
+		parts := make([]string, 0, len(instr.Select.Arms))
+		for _, arm := range instr.Select.Arms {
+			switch arm.Kind {
+			case mir.SelectArmTask:
+				parts = append(parts, "await "+t.formatOperand(&arm.Task))
+			case mir.SelectArmChanRecv:
+				parts = append(parts, "recv "+t.formatOperand(&arm.Channel))
+			case mir.SelectArmChanSend:
+				parts = append(parts, "send "+t.formatOperand(&arm.Channel))
+			case mir.SelectArmTimeout:
+				parts = append(parts, "timeout "+t.formatOperand(&arm.Task))
+			case mir.SelectArmDefault:
+				parts = append(parts, "default")
+			default:
+				parts = append(parts, "<?>")
+			}
+		}
+		return fmt.Sprintf("%s = select [%s] ? bb%d : bb%d",
+			t.formatPlace(instr.Select.Dst),
+			strings.Join(parts, ", "),
+			instr.Select.ReadyBB,
+			instr.Select.PendBB,
 		)
 	case mir.InstrNop:
 		return "nop"

@@ -193,6 +193,36 @@ compare timeout(t, 500:uint) {
 }
 ```
 
+### Select and Race
+
+`select` waits on multiple awaitable operations (task `.await()`, channel
+`recv`/`send`, `sleep`, `timeout`) and returns the chosen arm result.
+
+Rules:
+
+- Arms are checked top-to-bottom; the first ready arm wins (deterministic tie-break).
+- If `default` is present and no arms are ready, `default` executes immediately.
+- Without `default`, the task parks until an arm becomes ready.
+- `select` does not cancel losing arms.
+
+`race` shares the same syntax and selection rules, but **cancels losing Task arms**
+(non-task arms are not cancelled).
+
+Example:
+
+```sg
+let v = select {
+    ch.recv() => 1;
+    sleep(10).await() => 2;
+    default => 0;
+};
+
+let r = race {
+    t1.await() => 1;
+    t2.await() => 2;
+};
+```
+
 ---
 
 ## 8. Channels

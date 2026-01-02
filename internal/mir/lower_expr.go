@@ -236,6 +236,20 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 		}
 		return l.lowerIfExpr(e, data, consume)
 
+	case hir.ExprSelect:
+		data, ok := e.Data.(hir.SelectData)
+		if !ok {
+			return Operand{}, fmt.Errorf("mir: select-expr: unexpected payload %T", e.Data)
+		}
+		return l.lowerSelectExpr(e, data, false, consume)
+
+	case hir.ExprRace:
+		data, ok := e.Data.(hir.SelectData)
+		if !ok {
+			return Operand{}, fmt.Errorf("mir: race-expr: unexpected payload %T", e.Data)
+		}
+		return l.lowerSelectExpr(e, data, true, consume)
+
 	case hir.ExprBlock:
 		data, ok := e.Data.(hir.BlockExprData)
 		if !ok {

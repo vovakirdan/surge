@@ -450,6 +450,10 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			tc.checkCompareExhausiveness(cmp, valueType, expr.Span)
 			ty = resultType
 		}
+	case ast.ExprSelect:
+		ty = tc.typeSelectExpr(id, false, expr.Span)
+	case ast.ExprRace:
+		ty = tc.typeSelectExpr(id, true, expr.Span)
 	case ast.ExprParallel:
 		if par, ok := tc.builder.Exprs.Parallel(id); ok && par != nil {
 			tc.reporter.Report(diag.FutParallelNotSupported, diag.SevError, expr.Span, "'parallel' requires multi-threading (v2+)", nil, nil)

@@ -32,7 +32,7 @@ func (p *Parser) parseBraceExpr() (ast.ExprID, bool) {
 func isStatementKeyword(kind token.Kind) bool {
 	switch kind {
 	case token.KwLet, token.KwConst, token.KwIf, token.KwWhile, token.KwFor,
-		token.KwReturn, token.KwBreak, token.KwContinue, token.KwCompare:
+		token.KwReturn, token.KwBreak, token.KwContinue, token.KwCompare, token.KwSelect, token.KwRace:
 		return true
 	}
 	return false
@@ -71,4 +71,57 @@ func (p *Parser) parseBlockExprBody(openTok token.Token) (ast.ExprID, bool) {
 
 	span := openTok.Span.Cover(closeTok.Span)
 	return p.arenas.Exprs.NewBlock(span, stmts), true
+}
+
+// parseExprOrBlockAsValue parses either an expression or a block expression.
+// If a block expression is used, it is normalized to return the last expression
+// (or nothing if the block has no trailing expression).
+func (p *Parser) parseExprOrBlockAsValue() (ast.ExprID, bool) {
+	if !p.at(token.LBrace) {
+		return p.parseExpr()
+	}
+	openTok := p.advance()
+	exprID, ok := p.parseBlockExprBody(openTok)
+	if !ok {
+		return ast.NoExprID, false
+	}
+	p.normalizeBlockExprValue(exprID)
+	return exprID, true
+}
+
+// normalizeBlockExprValue ensures a block expression yields a value by
+// rewriting the last statement into a return or appending a return nothing.
+func (p *Parser) normalizeBlockExprValue(exprID ast.ExprID) {
+	block, ok := p.arenas.Exprs.Block(exprID)
+	if !ok || block == nil {
+		return
+	}
+	if len(block.Stmts) == 0 {
+		blockSpan := p.arenas.Exprs.Get(exprID).Span
+		retID := p.arenas.Stmts.NewReturn(blockSpan.ZeroideToEnd(), ast.NoExprID)
+		block.Stmts = append(block.Stmts, retID)
+		return
+	}
+
+	lastIdx := len(block.Stmts) - 1
+	lastID := block.Stmts[lastIdx]
+	lastStmt := p.arenas.Stmts.Get(lastID)
+	if lastStmt == nil {
+		return
+	}
+	switch lastStmt.Kind {
+	case ast.StmtReturn:
+		return
+	case ast.StmtExpr:
+		exprStmt := p.arenas.Stmts.Expr(lastID)
+		if exprStmt == nil {
+			return
+		}
+		retID := p.arenas.Stmts.NewReturn(lastStmt.Span, exprStmt.Expr)
+		block.Stmts[lastIdx] = retID
+	default:
+		blockSpan := p.arenas.Exprs.Get(exprID).Span
+		retID := p.arenas.Stmts.NewReturn(blockSpan.ZeroideToEnd(), ast.NoExprID)
+		block.Stmts = append(block.Stmts, retID)
+	}
 }

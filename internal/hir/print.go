@@ -487,6 +487,29 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 		p.printIndent()
 		p.printf("}")
 
+	case ExprSelect, ExprRace:
+		data := e.Data.(SelectData)
+		kindLabel := "select"
+		if e.Kind == ExprRace {
+			kindLabel = "race"
+		}
+		p.printf("%s {\n", kindLabel)
+		p.indent++
+		for _, arm := range data.Arms {
+			p.printIndent()
+			if arm.IsDefault {
+				p.printf("default")
+			} else {
+				p.printExpr(arm.Await)
+			}
+			p.printf(" => ")
+			p.printExpr(arm.Result)
+			p.printf("\n")
+		}
+		p.indent--
+		p.printIndent()
+		p.printf("}")
+
 	case ExprTagTest:
 		data := e.Data.(TagTestData)
 		p.printf("tag_test(")

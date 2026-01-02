@@ -1,0 +1,18 @@
+@entrypoint
+fn main() -> int {
+    let r = (async {
+        let ch = make_channel<int>(1);
+        ch.send(5);
+        let v = select {
+            ch.recv() => 10;
+            sleep(100).await() => 20;
+        };
+        return v;
+    }).await();
+
+    compare r {
+        Success(v) => print("v=" + (v to string)),
+        Cancelled => print("cancelled"),
+    }
+    return 0;
+}

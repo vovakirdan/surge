@@ -48,7 +48,7 @@ type Parser struct {
 	// suspendColonCast > 0 disables treating ':' as a cast operator. Used for constructs
 	// like struct literals where ':' has its own meaning.
 	suspendColonCast int
-	// allowFatArrow tracks the nesting depth of constructs where fat arrows are valid (compare arms, parallel expressions).
+	// allowFatArrow tracks the nesting depth of constructs where fat arrows are valid (compare/select/race arms, parallel expressions).
 	allowFatArrow int
 	// inTypeOperandContext > 0 indicates we're parsing a type operand (right side of 'is'/'heir').
 	// In this context, we should not parse 'TypeName {' as struct literal.

@@ -130,6 +130,20 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 				tc.scanSpawn(arm.Result, seen)
 			}
 		}
+	case ast.ExprSelect:
+		if data, _ := tc.builder.Exprs.Select(expr); data != nil {
+			for _, arm := range data.Arms {
+				tc.scanSpawn(arm.Await, seen)
+				tc.scanSpawn(arm.Result, seen)
+			}
+		}
+	case ast.ExprRace:
+		if data, _ := tc.builder.Exprs.Race(expr); data != nil {
+			for _, arm := range data.Arms {
+				tc.scanSpawn(arm.Await, seen)
+				tc.scanSpawn(arm.Result, seen)
+			}
+		}
 	case ast.ExprSpawn:
 		if data, _ := tc.builder.Exprs.Spawn(expr); data != nil {
 			tc.scanSpawn(data.Value, seen)

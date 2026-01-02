@@ -19,7 +19,7 @@
 
 ### Implementation Snapshot
 
-- Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, contract, tag, enum, extern, pub, async, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, field, nothing`. `signal`/`parallel` are reserved (`FutSignalNotSupported` / `FutParallelNotSupported`) and `macro` is rejected by the parser (`FutMacroNotSupported`).
+- Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, contract, tag, enum, extern, pub, async, compare, select, race, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, field, nothing`. `signal`/`parallel` are reserved (`FutSignalNotSupported` / `FutParallelNotSupported`) and `macro` is rejected by the parser (`FutMacroNotSupported`).
 - The type checker resolves `int`, `uint`, `float`, fixed-width numerics (`int8`, `uint64`, `float32`, ...), `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`), slices `T[]`, and sized arrays `T[N]` with constant `N`. Raw pointers (`*T`) are allowed only in `extern` and `@intrinsic` declarations.
 - Tuple and function types are supported in sema and runtime lowering.
 - Tags and tagged unions are implemented. `Option` and `Erring` are standard aliases built on `Some`/`Success` tags plus `nothing`/error types; `ErrorLike` and `Error` live in the prelude; `compare` exhaustiveness is enforced for tagged unions.
@@ -52,7 +52,7 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 
 ```
 pub, fn, let, const, mut, own, if, else, while, for, in, break, continue,
-import, as, type, contract, tag, enum, extern, return, signal, compare, spawn, channel,
+import, as, type, contract, tag, enum, extern, return, signal, compare, select, race, spawn, channel,
 parallel, map, reduce, with, to, heir, is, async, macro, pragma, field,
 true, false, nothing
 ```
@@ -903,7 +903,8 @@ compare r {
 Notes:
 
 - Arms are tried top-to-bottom; the first match wins.
-- `=>` separates pattern from result expression and is only valid within `compare` arms and parallel constructs.
+- Arm bodies may be expressions or `{ ... }` block expressions; the block result is the arm value.
+- `=>` separates pattern from result expression and is only valid within `compare` arms, `select`/`race` arms, and parallel constructs.
 - Exhaustiveness for tagged unions is enforced: arms must cover all variants or include `finally`. Redundant `finally` emits `SemaRedundantFinally`. Untagged unions are not supported.
 - If both a tag constructor and a function named `Ident` are in scope, using `Ident(...)` emits `SemaAmbiguousCtorOrFn`.
 
@@ -1626,7 +1627,7 @@ async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
 
 **Note:** v1 uses single-threaded cooperative concurrency. See §9.4-9.5 for async/await model.
 
-Restriction: `=>` is valid only in these `parallel` constructs and within `compare` arms (§3.6). Any other use triggers `SynFatArrowOutsideParallel`.
+Restriction: `=>` is valid only in these `parallel` constructs and within `compare`/`select`/`race` arms (§3.6). Any other use triggers `SynFatArrowOutsideParallel`.
 
 **v1 behavior:** Parsed, but semantic analysis rejects with `FutParallelNotSupported` (`"parallel" requires multi-threading`).
 
@@ -1704,6 +1705,33 @@ timeout<T>(t: Task<T>, ms: uint) -> TaskResult<T>
 - `timeout` returns `Success(value)` on time, `Cancelled()` on deadline.
 - Timers are driven by the async runtime: virtual time by default, real time via
   `surge run --real-time`.
+
+#### Select and Race
+
+`select` is an expression (valid only in async functions/blocks) that waits on multiple awaitable operations and
+returns the result of the chosen arm. Arms are checked top-to-bottom and the
+first ready arm wins (deterministic tie-break). If `default` is present and no
+arms are ready, `default` executes immediately; without `default`, the task
+parks until an arm becomes ready. `select` does **not** cancel losing arms.
+`default`, when present, must be the last arm.
+`default` is a contextual arm label and does not reserve the identifier outside
+`select`/`race`.
+
+`race` has the same syntax and selection rules, but cancels losing **Task arms**
+after a winner is chosen (non-task arms are not cancelled).
+
+```sg
+let v = select {
+    ch.recv() => 1;
+    sleep(10).await() => 2;
+    default => 0;
+};
+
+let r = race {
+    t1.await() => 1;
+    t2.await() => 2;
+};
+```
 
 ### 9.5. Async/Await Model (Structured Concurrency)
 
@@ -2441,7 +2469,7 @@ employee heir BasePerson && flag  // OK
 
 Short-circuiting for `&&` and `||` is guaranteed.
 
-Note: `=>` is not a general expression operator; it is reserved for `parallel map` / `parallel reduce` (§9.2) and for arms in `compare` expressions (§3.6).
+Note: `=>` is not a general expression operator; it is reserved for `parallel map` / `parallel reduce` (§9.2) and for arms in `compare`/`select`/`race` expressions (§3.6).
 
 ### Member access precedence
 
@@ -2619,7 +2647,7 @@ If         := "if" "(" Expr ")" Block ("else" If | "else" Block)?
 Return     := "return" Expr?
 Signal     := "signal" Ident ":=" Expr
 Async      := "async" "{" Stmt* "}"
-Expr       := Compare | Spawn | Parallel | TypeHeirPred | TupleLit | ... (standard precedence)
+Expr       := Compare | Select | Race | Spawn | Parallel | TypeHeirPred | TupleLit | ... (standard precedence)
 Parallel   := "parallel" "map" Expr "with" ArgList "=>" Expr
           | "parallel" "reduce" Expr "with" Expr "," ArgList "=>" Expr
 ArgList    := "(" (Expr ("," Expr)*)? ")" | "()"
@@ -2629,6 +2657,9 @@ AwaitExpr  := Expr "." "await" "(" ")"   // awaits a Task; valid in async fn/blo
 Spawn      := "spawn" Expr
 Compare    := "compare" Expr "{" Arm (";" Arm)* ";"? "}"
 Arm        := Pattern "=>" Expr
+Select     := "select" "{" SelectArm (";" SelectArm)* ";"? "}"
+Race       := "race" "{" SelectArm (";" SelectArm)* ";"? "}"
+SelectArm  := Expr "=>" Expr | "default" "=>" Expr
 Pattern        := "finally" | Literal | "nothing" | Ident
                 | Ident "(" PatternArgs? ")"
                 | TuplePattern

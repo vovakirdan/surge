@@ -9,6 +9,7 @@ const (
 	WakerChannelRecv
 	WakerChannelSend
 	WakerTimer
+	WakerSelect
 )
 
 // WakerKey identifies a wait queue entry.
@@ -41,6 +42,17 @@ func ChannelSendKey(channelID ChannelID) WakerKey {
 // TimerKey builds a wait key for a timer.
 func TimerKey(timerID TimerID) WakerKey {
 	return WakerKey{Kind: WakerTimer, A: uint64(timerID)}
+}
+
+// SelectKey builds a wait key for a select operation.
+func SelectKey(selectID SelectID) WakerKey {
+	return WakerKey{Kind: WakerSelect, A: uint64(selectID)}
+}
+
+// Waiter represents a task waiting on a key (optionally as part of a select).
+type Waiter struct {
+	TaskID   TaskID
+	SelectID SelectID
 }
 
 // PollOutcomeKind reports how a poll iteration completed.

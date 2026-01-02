@@ -31,6 +31,8 @@ const (
 	KwPub      // pub
 	KwAsync    // async
 	KwCompare  // compare
+	KwSelect   // select
+	KwRace     // race
 	KwFinally  // finally
 	KwChannel  // channel
 	KwSpawn    // spawn

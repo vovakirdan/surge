@@ -25,6 +25,8 @@ const (
 	ExprParallel
 	ExprSpread
 	ExprCompare
+	ExprSelect
+	ExprRace
 	ExprStruct
 	ExprAsync
 	ExprBlock
@@ -383,6 +385,17 @@ type ExprCompareData struct {
 	Arms  []ExprCompareArm
 }
 
+type ExprSelectArm struct {
+	Await     ExprID
+	Result    ExprID
+	IsDefault bool
+	Span      source.Span
+}
+
+type ExprSelectData struct {
+	Arms []ExprSelectArm
+}
+
 type Exprs struct {
 	Arena        *Arena[Expr]
 	Idents       *Arena[ExprIdentData]
@@ -404,6 +417,8 @@ type Exprs struct {
 	Spawns       *Arena[ExprSpawnData]
 	Parallels    *Arena[ExprParallelData]
 	Compares     *Arena[ExprCompareData]
+	Selects      *Arena[ExprSelectData]
+	Races        *Arena[ExprSelectData]
 	Structs      *Arena[ExprStructData]
 	Asyncs       *Arena[ExprAsyncData]
 	Blocks       *Arena[ExprBlockData]
@@ -436,6 +451,8 @@ func NewExprs(capHint uint) *Exprs {
 		Spawns:       NewArena[ExprSpawnData](capHint),
 		Parallels:    NewArena[ExprParallelData](capHint),
 		Compares:     NewArena[ExprCompareData](capHint),
+		Selects:      NewArena[ExprSelectData](capHint),
+		Races:        NewArena[ExprSelectData](capHint),
 		Structs:      NewArena[ExprStructData](capHint),
 		Asyncs:       NewArena[ExprAsyncData](capHint),
 		Blocks:       NewArena[ExprBlockData](capHint),
@@ -777,6 +794,36 @@ func (e *Exprs) Compare(id ExprID) (*ExprCompareData, bool) {
 		return nil, false
 	}
 	return e.Compares.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewSelect(span source.Span, arms []ExprSelectArm) ExprID {
+	payload := e.Selects.Allocate(ExprSelectData{
+		Arms: append([]ExprSelectArm(nil), arms...),
+	})
+	return e.new(ExprSelect, span, PayloadID(payload))
+}
+
+func (e *Exprs) Select(id ExprID) (*ExprSelectData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprSelect || !expr.Payload.IsValid() {
+		return nil, false
+	}
+	return e.Selects.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewRace(span source.Span, arms []ExprSelectArm) ExprID {
+	payload := e.Races.Allocate(ExprSelectData{
+		Arms: append([]ExprSelectArm(nil), arms...),
+	})
+	return e.new(ExprRace, span, PayloadID(payload))
+}
+
+func (e *Exprs) Race(id ExprID) (*ExprSelectData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprRace || !expr.Payload.IsValid() {
+		return nil, false
+	}
+	return e.Races.Get(uint32(expr.Payload)), true
 }
 
 func (e *Exprs) NewBlock(span source.Span, stmts []StmtID) ExprID {

@@ -59,5 +59,10 @@ func (vm *VM) setSpanForInstr(frame *Frame, instr *mir.Instr) {
 		if int(localID) < len(frame.Func.Locals) {
 			frame.Span = frame.Func.Locals[localID].Span
 		}
+	case mir.InstrSelect:
+		localID := instr.Select.Dst.Local
+		if int(localID) < len(frame.Func.Locals) {
+			frame.Span = frame.Func.Locals[localID].Span
+		}
 	}
 }

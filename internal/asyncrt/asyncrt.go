@@ -10,6 +10,7 @@ type Executor struct {
 	nextScopeID ScopeID
 	nextChanID  ChannelID
 	nextTimerID TimerID
+	nextSelectID SelectID
 	nowMs       uint64
 	clock       Clock
 	ready       []TaskID
@@ -19,7 +20,8 @@ type Executor struct {
 	channels    map[ChannelID]*Channel
 	timers      timerHeap
 	timerByID   map[TimerID]*Timer
-	waiters     map[WakerKey][]TaskID
+	waiters     map[WakerKey][]Waiter
+	selectSubs  map[SelectID]*selectSub
 	parked      map[TaskID]WakerKey
 	current     TaskID
 	rng         *rand.Rand
@@ -83,6 +85,7 @@ type Task struct {
 	ParentScopeID    ScopeID
 	Children         []TaskID
 	TimeoutTaskID    TaskID
+	SelectID         SelectID
 	checkpointPolled bool
 }
 
@@ -329,15 +332,15 @@ func (e *Executor) WakeKeyOne(key WakerKey) {
 	if len(waiters) == 0 {
 		return
 	}
-	id := waiters[0]
+	waiter := waiters[0]
 	waiters = waiters[1:]
 	if len(waiters) == 0 {
 		delete(e.waiters, key)
 	} else {
 		e.waiters[key] = waiters
 	}
-	delete(e.parked, id)
-	e.Wake(id)
+	delete(e.parked, waiter.TaskID)
+	e.Wake(waiter.TaskID)
 }
 
 // WakeKeyAll wakes all tasks waiting on a key.
@@ -350,9 +353,9 @@ func (e *Executor) WakeKeyAll(key WakerKey) {
 		return
 	}
 	delete(e.waiters, key)
-	for _, id := range waiters {
-		delete(e.parked, id)
-		e.Wake(id)
+	for _, waiter := range waiters {
+		delete(e.parked, waiter.TaskID)
+		e.Wake(waiter.TaskID)
 	}
 }
 
@@ -434,7 +437,7 @@ func (e *Executor) parkTask(id TaskID, key WakerKey) {
 		return
 	}
 	if e.waiters == nil {
-		e.waiters = make(map[WakerKey][]TaskID)
+		e.waiters = make(map[WakerKey][]Waiter)
 	}
 	if e.parked == nil {
 		e.parked = make(map[TaskID]WakerKey)
@@ -447,7 +450,7 @@ func (e *Executor) parkTask(id TaskID, key WakerKey) {
 		e.removeWaiter(prev, id)
 	}
 	e.parked[id] = key
-	e.waiters[key] = append(e.waiters[key], id)
+	e.waiters[key] = append(e.waiters[key], Waiter{TaskID: id})
 	task.Status = TaskWaiting
 }
 
@@ -456,13 +459,18 @@ func (e *Executor) removeWaiter(key WakerKey, id TaskID) {
 		return
 	}
 	waiters := e.waiters[key]
-	for i, waiter := range waiters {
-		if waiter == id {
-			copy(waiters[i:], waiters[i+1:])
-			waiters = waiters[:len(waiters)-1]
-			break
-		}
+	if len(waiters) == 0 {
+		return
 	}
+	n := 0
+	for _, waiter := range waiters {
+		if waiter.TaskID == id {
+			continue
+		}
+		waiters[n] = waiter
+		n++
+	}
+	waiters = waiters[:n]
 	if len(waiters) == 0 {
 		delete(e.waiters, key)
 		return
@@ -489,6 +497,9 @@ func (e *Executor) DrainTasks() []*Task {
 		if e.timerByID != nil {
 			clear(e.timerByID)
 		}
+		if e.selectSubs != nil {
+			clear(e.selectSubs)
+		}
 		e.timers = nil
 		if e.waiters != nil {
 			clear(e.waiters)
@@ -499,6 +510,7 @@ func (e *Executor) DrainTasks() []*Task {
 		e.nextScopeID = 1
 		e.nextChanID = 1
 		e.nextTimerID = 1
+		e.nextSelectID = 1
 		e.nowMs = 0
 		e.current = 0
 		return nil
@@ -516,6 +528,9 @@ func (e *Executor) DrainTasks() []*Task {
 	}
 	if e.timerByID != nil {
 		clear(e.timerByID)
+	}
+	if e.selectSubs != nil {
+		clear(e.selectSubs)
 	}
 	e.timers = nil
 	e.ready = nil

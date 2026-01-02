@@ -1,0 +1,22 @@
+@entrypoint
+fn main() -> int {
+    let r = (async {
+        let t = spawn async {
+            sleep(5).await();
+            return 3;
+        };
+        let t2 = t.clone();
+        let v = select {
+            t.await() => 3;
+            sleep(100).await() => 0;
+        };
+        let _ = t2.await();
+        return v;
+    }).await();
+
+    compare r {
+        Success(v) => print("v=" + (v to string)),
+        Cancelled => print("cancelled"),
+    }
+    return 0;
+}

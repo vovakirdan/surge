@@ -20,6 +20,7 @@ const (
 	InstrChanSend
 	InstrChanRecv
 	InstrTimeout
+	InstrSelect
 	InstrNop
 )
 
@@ -37,6 +38,7 @@ type Instr struct {
 	ChanSend  ChanSendInstr
 	ChanRecv  ChanRecvInstr
 	Timeout   TimeoutInstr
+	Select    SelectInstr
 }
 
 type AssignInstr struct {
@@ -115,6 +117,31 @@ type TimeoutInstr struct {
 	Dst     Place
 	Task    Operand
 	Ms      Operand
+	ReadyBB BlockID
+	PendBB  BlockID
+}
+
+type SelectArmKind uint8
+
+const (
+	SelectArmTask SelectArmKind = iota
+	SelectArmChanRecv
+	SelectArmChanSend
+	SelectArmTimeout
+	SelectArmDefault
+)
+
+type SelectArm struct {
+	Kind    SelectArmKind
+	Task    Operand
+	Channel Operand
+	Value   Operand
+	Ms      Operand
+}
+
+type SelectInstr struct {
+	Dst     Place
+	Arms    []SelectArm
 	ReadyBB BlockID
 	PendBB  BlockID
 }
