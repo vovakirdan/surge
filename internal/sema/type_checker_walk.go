@@ -244,6 +244,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			tc.typeExpr(exprStmt.Expr)
 		}
 	case ast.StmtReturn:
+		tc.noteTaskContainerLoopReturn()
 		if ret := tc.builder.Stmts.Return(id); ret != nil {
 			var valueType types.TypeID
 			if ret.Expr.IsValid() {
@@ -267,7 +268,16 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 	case ast.StmtWhile:
 		if whileStmt := tc.builder.Stmts.While(id); whileStmt != nil {
 			tc.ensureBoolContext(whileStmt.Cond, tc.exprSpan(whileStmt.Cond))
+			loopPlace, loopOK := tc.taskContainerDrainLoop(whileStmt.Cond)
+			if loopOK {
+				tc.enterTaskContainerLoop(loopPlace)
+			}
 			tc.walkStmt(whileStmt.Body)
+			if loopOK {
+				if loop, ok := tc.leaveTaskContainerLoop(); ok && loop.popSeen && !loop.earlyExit {
+					tc.markTaskContainerConsumed(loop.place)
+				}
+			}
 		}
 	case ast.StmtForClassic:
 		if forStmt := tc.builder.Stmts.ForClassic(id); forStmt != nil {
@@ -346,6 +356,10 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		if signal := tc.builder.Stmts.Signal(id); signal != nil {
 			tc.reporter.Report(diag.FutSignalNotSupported, diag.SevError, stmt.Span, "'signal' is not supported in v1, reserved for future use", nil, nil)
 		}
+	case ast.StmtBreak:
+		tc.noteTaskContainerLoopBreak()
+	case ast.StmtContinue:
+		// no-op for task containers
 	case ast.StmtDrop:
 		if drop := tc.builder.Stmts.Drop(id); drop != nil {
 			tc.handleDrop(drop.Expr, stmt.Span)

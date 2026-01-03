@@ -170,6 +170,11 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 							tc.markTaskContainerPending(place, expr.Span)
 						}
 					}
+					if !receiverIsType && methodName == "pop" && tc.isTaskContainerType(receiverType) {
+						if place, ok := tc.taskContainerPlace(member.Target); ok {
+							tc.noteTaskContainerPop(place)
+						}
+					}
 					ty = tc.methodResultType(member, receiverType, member.Target, argTypes, argExprs, expr.Span, receiverIsType)
 					symID := tc.recordMethodCallSymbol(id, member, receiverType, member.Target, argTypes, argExprs, receiverIsType)
 					var explicitArgs []types.TypeID

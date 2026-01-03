@@ -213,7 +213,7 @@ func (tc *typeChecker) exportedSymbolToSymbol(exp *symbols.ExportedSymbol, modul
 			if len(exp.TypeParamNames) < limit {
 				limit = len(exp.TypeParamNames)
 			}
-			for i := 0; i < limit; i++ {
+			for i := range limit {
 				sym.TypeParamSymbols[i].Name = tc.builder.StringsInterner.Intern(exp.TypeParamNames[i])
 			}
 		}

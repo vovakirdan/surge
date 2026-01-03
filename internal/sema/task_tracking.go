@@ -21,23 +21,23 @@ type TaskInfo struct {
 // TaskTracker manages task lifecycle within scopes for structured concurrency.
 // It tracks tasks and ensures they are properly awaited before scope exit.
 type TaskTracker struct {
-	tasks        []TaskInfo                   // All tasks, indexed by ID (0 unused)
-	scopeTasks   map[symbols.ScopeID][]uint32 // taskID list per scope
-	bindingTasks map[symbols.SymbolID]uint32  // binding -> taskID
-	exprTasks    map[ast.ExprID]uint32        // task expression -> taskID
-	pendingPassed map[ast.ExprID]struct{}     // task expressions marked passed before SpawnTask
-	nextID       uint32                       // Next task ID to assign
+	tasks         []TaskInfo                   // All tasks, indexed by ID (0 unused)
+	scopeTasks    map[symbols.ScopeID][]uint32 // taskID list per scope
+	bindingTasks  map[symbols.SymbolID]uint32  // binding -> taskID
+	exprTasks     map[ast.ExprID]uint32        // task expression -> taskID
+	pendingPassed map[ast.ExprID]struct{}      // task expressions marked passed before SpawnTask
+	nextID        uint32                       // Next task ID to assign
 }
 
 // NewTaskTracker creates a new TaskTracker for structured concurrency analysis.
 func NewTaskTracker() *TaskTracker {
 	return &TaskTracker{
-		tasks:        make([]TaskInfo, 1), // index 0 unused
-		scopeTasks:   make(map[symbols.ScopeID][]uint32),
-		bindingTasks: make(map[symbols.SymbolID]uint32),
-		exprTasks:    make(map[ast.ExprID]uint32),
+		tasks:         make([]TaskInfo, 1), // index 0 unused
+		scopeTasks:    make(map[symbols.ScopeID][]uint32),
+		bindingTasks:  make(map[symbols.SymbolID]uint32),
+		exprTasks:     make(map[ast.ExprID]uint32),
 		pendingPassed: make(map[ast.ExprID]struct{}),
-		nextID:       1,
+		nextID:        1,
 	}
 }
 

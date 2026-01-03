@@ -310,9 +310,7 @@ func (tc *typeChecker) resolveToSymbolByMagicCost(expr ast.ExprID, src, target t
 			if bestCost == -1 || cost < bestCost {
 				bestCost = cost
 				bestSig = sig
-				if bestCost == 0 {
-					// Exact match is best possible; keep scanning for deterministic tie-breaks.
-				}
+				// Exact match is best possible; keep scanning for deterministic tie-breaks.
 			}
 		}
 	}

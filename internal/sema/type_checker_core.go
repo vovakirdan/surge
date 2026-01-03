@@ -94,9 +94,10 @@ type typeChecker struct {
 	arrayFixedSymbol            symbols.SymbolID
 	arrayFixedType              types.TypeID
 	fnConcurrencySummaries      map[symbols.SymbolID]*FnConcurrencySummary
-	lockOrderGraph              *LockOrderGraph         // Global lock ordering for deadlock detection
-	taskTracker                 *TaskTracker            // Task tracking for structured concurrency
+	lockOrderGraph              *LockOrderGraph // Global lock ordering for deadlock detection
+	taskTracker                 *TaskTracker    // Task tracking for structured concurrency
 	taskContainers              map[Place]*taskContainerInfo
+	taskContainerLoops          []taskContainerLoop
 	addressOfOperands           map[ast.ExprID]struct{} // Tracks operands of & expressions (for @atomic validation)
 	arrayViewExprs              map[ast.ExprID]struct{}
 	arrayViewBindings           map[symbols.SymbolID]struct{}
