@@ -1130,6 +1130,46 @@ func TestParseCompareExpressionStatement(t *testing.T) {
 	}
 }
 
+func TestParseCompareExpressionStatementNoSemicolon(t *testing.T) {
+	input := `
+		fn foo() {
+			compare value {
+				target if ready => 1;
+				finally => 2;
+			}
+		}
+	`
+
+	builder, fileID, bag := parseSource(t, input)
+	if bag.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diagnosticsSummary(bag))
+	}
+
+	file := builder.Files.Get(fileID)
+	fnItem, ok := builder.Items.Fn(file.Items[0])
+	if !ok {
+		t.Fatal("expected fn item")
+	}
+
+	block := builder.Stmts.Block(fnItem.Body)
+	if block == nil || len(block.Stmts) != 1 {
+		t.Fatalf("expected single statement, got %d", len(block.Stmts))
+	}
+
+	stmt := builder.Stmts.Get(block.Stmts[0])
+	if stmt.Kind != ast.StmtExpr {
+		t.Fatalf("expected expression statement, got %v", stmt.Kind)
+	}
+
+	exprStmt := builder.Stmts.Expr(block.Stmts[0])
+	if exprStmt == nil {
+		t.Fatal("expression payload missing")
+	}
+	if !exprStmt.MissingSemicolon {
+		t.Fatal("expected compare statement to allow omitted semicolon")
+	}
+}
+
 func TestParseLetWithCompareExpression(t *testing.T) {
 	input := `
 		fn foo() {

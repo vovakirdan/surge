@@ -525,30 +525,44 @@ func (p *Parser) parseExprStmt() (ast.StmtID, bool) {
 		return ast.NoStmtID, false
 	}
 
-	insertSpan := p.lastSpan.ZeroideToEnd()
-	semiTok, semiOK := p.expect(
-		token.Semicolon,
-		diag.SynExpectSemicolon,
-		"expected ';' after expression statement",
-		func(b *diag.ReportBuilder) {
-			if b == nil {
-				return
-			}
-			fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertSpan)
-			suggestion := fix.InsertText(
-				"insert ';' after expression statement",
-				insertSpan,
-				";",
-				"",
-				fix.WithID(fixID),
-				fix.WithKind(diag.FixKindRefactor),
-				fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-			)
-			b.WithFixSuggestion(suggestion)
-			b.WithNote(insertSpan, "insert missing semicolon")
-		},
+	expr := p.arenas.Exprs.Get(exprID)
+	allowOmitSemicolon := expr != nil && expr.Kind == ast.ExprCompare
+
+	var (
+		semiTok          token.Token
+		semiOK           bool
+		missingSemicolon bool
 	)
-	missingSemicolon := !semiOK
+	if p.at(token.Semicolon) {
+		semiTok = p.advance()
+	} else if allowOmitSemicolon {
+		missingSemicolon = true
+	} else {
+		insertSpan := p.lastSpan.ZeroideToEnd()
+		semiTok, semiOK = p.expect(
+			token.Semicolon,
+			diag.SynExpectSemicolon,
+			"expected ';' after expression statement",
+			func(b *diag.ReportBuilder) {
+				if b == nil {
+					return
+				}
+				fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertSpan)
+				suggestion := fix.InsertText(
+					"insert ';' after expression statement",
+					insertSpan,
+					";",
+					"",
+					fix.WithID(fixID),
+					fix.WithKind(diag.FixKindRefactor),
+					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
+				)
+				b.WithFixSuggestion(suggestion)
+				b.WithNote(insertSpan, "insert missing semicolon")
+			},
+		)
+		missingSemicolon = !semiOK
+	}
 	exprSpan := p.arenas.Exprs.Get(exprID).Span
 	stmtSpan := exprSpan
 	if semiTok.Kind != token.Invalid {
