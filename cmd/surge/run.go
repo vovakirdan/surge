@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -16,9 +18,9 @@ import (
 )
 
 var runCmd = &cobra.Command{
-	Use:   "run [flags] <file.sg> [-- <program-args>...]",
+	Use:   "run [flags] <file.sg|directory> [-- <program-args>...]",
 	Short: "Compile and execute a Surge program",
-	Long: `Compile a Surge source file to MIR and execute it using the VM backend.
+	Long: `Compile a Surge source file or module directory to MIR and execute it using the VM backend.
 Arguments after "--" are passed to the program via rt_argv().`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runExecution,
@@ -40,8 +42,13 @@ func init() {
 }
 
 func runExecution(cmd *cobra.Command, args []string) error {
-	filePath := args[0]
+	inputPath := args[0]
 	programArgs := args[1:] // Arguments after "--" are passed by cobra in args[1:]
+
+	targetPath, dirInfo, err := resolveRunTarget(inputPath)
+	if err != nil {
+		return err
+	}
 
 	// Get flags
 	backend, err := cmd.Flags().GetString("backend")
@@ -123,7 +130,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		EmitInstantiations: true,
 	}
 
-	result, err := driver.DiagnoseWithOptions(cmd.Context(), filePath, opts)
+	result, err := driver.DiagnoseWithOptions(cmd.Context(), targetPath, opts)
 	if err != nil {
 		return fmt.Errorf("compilation failed: %w", err)
 	}
@@ -135,6 +142,16 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		}
 		if !unsafeRun {
 			return fmt.Errorf("diagnostics reported errors")
+		}
+	}
+
+	if dirInfo != nil && dirInfo.fileCount > 1 {
+		meta := result.RootModuleMeta()
+		if meta == nil {
+			return fmt.Errorf("failed to resolve module metadata for %q", dirInfo.path)
+		}
+		if !meta.HasModulePragma {
+			return fmt.Errorf("directory %q is not a module; add pragma module/binary to all .sg files or run a file", dirInfo.path)
 		}
 	}
 
@@ -287,4 +304,38 @@ func runExecution(cmd *cobra.Command, args []string) error {
 
 	os.Exit(vmInstance.ExitCode)
 	return nil
+}
+
+type runDirInfo struct {
+	path      string
+	fileCount int
+}
+
+func resolveRunTarget(inputPath string) (string, *runDirInfo, error) {
+	info, err := os.Stat(inputPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to stat path: %w", err)
+	}
+	if !info.IsDir() {
+		return inputPath, nil, nil
+	}
+	entries, err := os.ReadDir(inputPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to read directory: %w", err)
+	}
+	sgFiles := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if filepath.Ext(entry.Name()) != ".sg" {
+			continue
+		}
+		sgFiles = append(sgFiles, filepath.Join(inputPath, entry.Name()))
+	}
+	sort.Strings(sgFiles)
+	if len(sgFiles) == 0 {
+		return "", nil, fmt.Errorf("no .sg files found in directory %q", inputPath)
+	}
+	return sgFiles[0], &runDirInfo{path: inputPath, fileCount: len(sgFiles)}, nil
 }
