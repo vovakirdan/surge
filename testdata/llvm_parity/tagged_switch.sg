@@ -1,0 +1,18 @@
+tag A(int);
+tag B();
+
+type Choice = A(int) | B;
+
+@entrypoint
+fn main() -> int {
+    let v: Choice = A(4);
+    let out: string = compare v {
+        A(x) => compare x {
+            4 => "A4";
+            _ => "A";
+        };
+        B => "B";
+    };
+    print(out);
+    return 0;
+}

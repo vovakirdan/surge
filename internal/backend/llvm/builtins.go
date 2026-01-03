@@ -14,11 +14,15 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_memcpy", ret: "void", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_memmove", ret: "void", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_write_stdout", ret: "i64", params: []string{"ptr", "i64"}},
+		{name: "rt_write_stderr", ret: "i64", params: []string{"ptr", "i64"}},
 		{name: "rt_string_from_bytes", ret: "ptr", params: []string{"ptr", "i64"}},
 		{name: "rt_string_ptr", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_string_len", ret: "i64", params: []string{"ptr"}},
 		{name: "rt_string_len_bytes", ret: "i64", params: []string{"ptr"}},
+		{name: "rt_string_concat", ret: "ptr", params: []string{"ptr", "ptr"}},
+		{name: "rt_string_eq", ret: "i1", params: []string{"ptr", "ptr"}},
 		{name: "rt_exit", ret: "void", params: []string{"i64"}},
+		{name: "rt_panic", ret: "void", params: []string{"ptr", "i64"}},
 	}
 }
 

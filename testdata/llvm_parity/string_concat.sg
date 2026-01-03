@@ -1,0 +1,15 @@
+@entrypoint
+fn main() -> int {
+    let a: string = "Hello, ";
+    let b: string = "world";
+    let c: string = "!";
+    let s: string = a + b + c;
+    let ok: bool = s == "Hello, world!";
+    print(s);
+    if ok {
+        print("ok");
+    } else {
+        print("bad");
+    }
+    return 0;
+}

@@ -1,1 +1,1 @@
-format: too many arguments for format string
+panic: format: too many arguments for format string

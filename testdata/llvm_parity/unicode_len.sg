@@ -1,0 +1,12 @@
+@entrypoint
+fn main() -> int {
+    let s: string = "A🇵🇱é🙂";
+    let cp: uint = len(&s);
+    let bytes: uint = rt_string_len_bytes(&s);
+    if cp == 5:uint && bytes == 15:uint {
+        print("ok");
+    } else {
+        print("bad");
+    }
+    return 0;
+}

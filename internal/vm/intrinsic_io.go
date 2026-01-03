@@ -3,6 +3,7 @@ package vm
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"fortio.org/safecast"
 
@@ -236,6 +237,58 @@ func (vm *VM) handleWriteStdout(frame *Frame, call *mir.CallInstr, writes *[]Loc
 	return nil
 }
 
+// handleWriteStderr handles the rt_write_stderr intrinsic.
+func (vm *VM) handleWriteStderr(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if len(call.Args) != 2 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_write_stderr requires 2 arguments")
+	}
+	ptrVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(ptrVal)
+	if ptrVal.Kind != VKPtr {
+		return vm.eb.typeMismatch("*byte", ptrVal.Kind.String())
+	}
+	lenVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(lenVal)
+
+	n, vmErr := vm.uintValueToInt(lenVal, "stderr write length out of range")
+	if vmErr != nil {
+		return vmErr
+	}
+	data, vmErr := vm.readBytesFromPointer(ptrVal, n)
+	if vmErr != nil {
+		return vmErr
+	}
+	written, err := os.Stderr.Write(data)
+	if err != nil {
+		written = 0
+	}
+
+	if call.HasDst {
+		dstLocal := call.Dst.Local
+		dstType := frame.Locals[dstLocal].TypeID
+		u64, err := safecast.Conv[uint64](written)
+		if err != nil {
+			return vm.eb.invalidNumericConversion("stderr written count out of range")
+		}
+		val := vm.makeBigUint(dstType, bignum.UintFromUint64(u64))
+		if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+			return vmErr
+		}
+		*writes = append(*writes, LocalWrite{
+			LocalID: dstLocal,
+			Name:    frame.Locals[dstLocal].Name,
+			Value:   val,
+		})
+	}
+	return nil
+}
+
 // handleRtExit handles the rt_exit intrinsic.
 func (vm *VM) handleRtExit(frame *Frame, call *mir.CallInstr) *VMError {
 	code := 0
@@ -269,7 +322,52 @@ func (vm *VM) handleRtExit(frame *Frame, call *mir.CallInstr) *VMError {
 	vm.dropAllFrames()
 	vm.dropGlobals()
 	vm.dropAsyncTasks()
-	vm.checkLeaksOrPanic()
+
+	vm.Halted = true
+	vm.Stack = nil
+	return nil
+}
+
+// handleRtPanic handles the rt_panic intrinsic.
+func (vm *VM) handleRtPanic(frame *Frame, call *mir.CallInstr) *VMError {
+	if len(call.Args) != 2 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_panic requires 2 arguments")
+	}
+	ptrVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(ptrVal)
+	if ptrVal.Kind != VKPtr {
+		return vm.eb.typeMismatch("*byte", ptrVal.Kind.String())
+	}
+	lenVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(lenVal)
+
+	n, vmErr := vm.uintValueToInt(lenVal, "panic message length out of range")
+	if vmErr != nil {
+		return vmErr
+	}
+	raw, vmErr := vm.readBytesFromPointer(ptrVal, n)
+	if vmErr != nil {
+		return vmErr
+	}
+	msg := string(raw)
+	if !strings.HasSuffix(msg, "\n") {
+		msg += "\n"
+	}
+	_, _ = os.Stderr.WriteString("panic: " + msg)
+
+	code := 1
+	vm.ExitCode = code
+	vm.RT.Exit(code)
+
+	vm.dropAllFrames()
+	vm.dropGlobals()
+	vm.dropAsyncTasks()
 
 	vm.Halted = true
 	vm.Stack = nil

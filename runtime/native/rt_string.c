@@ -1,5 +1,6 @@
 #include "rt.h"
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdalign.h>
@@ -129,4 +130,61 @@ uint64_t rt_string_len_bytes(void* s) {
         return 0;
     }
     return str->len_bytes;
+}
+
+void* rt_string_concat(void* a, void* b) {
+    SurgeString* left = NULL;
+    SurgeString* right = NULL;
+    if (a != NULL) {
+        left = *(SurgeString**)a;
+    }
+    if (b != NULL) {
+        right = *(SurgeString**)b;
+    }
+    uint64_t left_bytes = left ? left->len_bytes : 0;
+    uint64_t right_bytes = right ? right->len_bytes : 0;
+    uint64_t left_cp = left ? left->len_cp : 0;
+    uint64_t right_cp = right ? right->len_cp : 0;
+
+    uint64_t total_bytes = left_bytes + right_bytes;
+    uint64_t total_cp = left_cp + right_cp;
+    size_t total = sizeof(SurgeString) + (size_t)total_bytes + 1;
+    SurgeString* out = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
+    if (out == NULL) {
+        return NULL;
+    }
+    out->len_cp = total_cp;
+    out->len_bytes = total_bytes;
+    if (left_bytes > 0 && left != NULL) {
+        rt_memcpy(out->data, left->data, left_bytes);
+    }
+    if (right_bytes > 0 && right != NULL) {
+        rt_memcpy(out->data + left_bytes, right->data, right_bytes);
+    }
+    out->data[total_bytes] = 0;
+    return (void*)out;
+}
+
+bool rt_string_eq(void* a, void* b) {
+    SurgeString* left = NULL;
+    SurgeString* right = NULL;
+    if (a != NULL) {
+        left = *(SurgeString**)a;
+    }
+    if (b != NULL) {
+        right = *(SurgeString**)b;
+    }
+    if (left == right) {
+        return true;
+    }
+    if (left == NULL || right == NULL) {
+        return false;
+    }
+    if (left->len_bytes != right->len_bytes) {
+        return false;
+    }
+    if (left->len_bytes == 0) {
+        return true;
+    }
+    return memcmp(left->data, right->data, (size_t)left->len_bytes) == 0;
 }

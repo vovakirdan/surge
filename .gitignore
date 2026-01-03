@@ -36,6 +36,7 @@ AGENTS.md
 test*.sg
 tmp*.sg
 .cursor/
+build/
 
 # Surge project
 helloworld/

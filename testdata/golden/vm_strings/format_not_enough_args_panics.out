@@ -1,1 +1,1 @@
-format: not enough arguments for format string
+panic: format: not enough arguments for format string

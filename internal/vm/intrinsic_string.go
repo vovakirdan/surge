@@ -7,6 +7,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	"surge/internal/mir"
+	"surge/internal/types"
 	"surge/internal/vm/bignum"
 )
 
@@ -285,6 +286,102 @@ func (vm *VM) handleStringBytesView(frame *Frame, call *mir.CallInstr, writes *[
 	val := MakeHandleStruct(h, dstType)
 	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
 		vm.Heap.Release(h)
+		return vmErr
+	}
+	*writes = append(*writes, LocalWrite{
+		LocalID: dstLocal,
+		Name:    frame.Locals[dstLocal].Name,
+		Value:   val,
+	})
+	return nil
+}
+
+// handleStringConcat handles the rt_string_concat intrinsic.
+func (vm *VM) handleStringConcat(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if len(call.Args) != 2 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_string_concat requires 2 arguments")
+	}
+	leftArg, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(leftArg)
+	rightArg, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(rightArg)
+
+	leftVal, vmErr := vm.extractStringValue(leftArg)
+	if vmErr != nil {
+		return vmErr
+	}
+	rightVal, vmErr := vm.extractStringValue(rightArg)
+	if vmErr != nil {
+		return vmErr
+	}
+	res, vmErr := vm.concatStringValues(leftVal, rightVal)
+	if vmErr != nil {
+		return vmErr
+	}
+	if !call.HasDst {
+		vm.dropValue(res)
+		return nil
+	}
+	dstLocal := call.Dst.Local
+	if res.TypeID == types.NoTypeID {
+		res.TypeID = frame.Locals[dstLocal].TypeID
+	}
+	if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
+		vm.dropValue(res)
+		return vmErr
+	}
+	*writes = append(*writes, LocalWrite{
+		LocalID: dstLocal,
+		Name:    frame.Locals[dstLocal].Name,
+		Value:   res,
+	})
+	return nil
+}
+
+// handleStringEq handles the rt_string_eq intrinsic.
+func (vm *VM) handleStringEq(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if !call.HasDst {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_string_eq requires a destination")
+	}
+	if len(call.Args) != 2 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_string_eq requires 2 arguments")
+	}
+	leftArg, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(leftArg)
+	rightArg, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(rightArg)
+
+	leftVal, vmErr := vm.extractStringValue(leftArg)
+	if vmErr != nil {
+		return vmErr
+	}
+	rightVal, vmErr := vm.extractStringValue(rightArg)
+	if vmErr != nil {
+		return vmErr
+	}
+	leftObj := vm.Heap.Get(leftVal.H)
+	rightObj := vm.Heap.Get(rightVal.H)
+	if leftObj == nil || rightObj == nil {
+		return vm.eb.makeError(PanicOutOfBounds, "invalid string handle")
+	}
+	eq := vm.stringBytes(leftObj) == vm.stringBytes(rightObj)
+
+	dstLocal := call.Dst.Local
+	dstType := frame.Locals[dstLocal].TypeID
+	val := MakeBool(eq, dstType)
+	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
 		return vmErr
 	}
 	*writes = append(*writes, LocalWrite{

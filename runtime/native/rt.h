@@ -1,6 +1,7 @@
 #ifndef SURGE_RUNTIME_NATIVE_RT_H
 #define SURGE_RUNTIME_NATIVE_RT_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -14,12 +15,16 @@ void rt_memcpy(uint8_t* dst, const uint8_t* src, uint64_t n);
 void rt_memmove(uint8_t* dst, const uint8_t* src, uint64_t n);
 
 uint64_t rt_write_stdout(const uint8_t* ptr, uint64_t length);
+uint64_t rt_write_stderr(const uint8_t* ptr, uint64_t length);
 void rt_exit(int64_t code);
+void rt_panic(const uint8_t* ptr, uint64_t length);
 
 void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len);
 uint8_t* rt_string_ptr(void* s);
 uint64_t rt_string_len(void* s);
 uint64_t rt_string_len_bytes(void* s);
+void* rt_string_concat(void* a, void* b);
+bool rt_string_eq(void* a, void* b);
 
 #ifdef __cplusplus
 }

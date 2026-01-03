@@ -203,6 +203,26 @@ func TestABILayoutStructOffsets(t *testing.T) {
 	}
 }
 
+func TestABILayoutBytesViewOffsets(t *testing.T) {
+	_, le, ids := loadABITypes(t)
+
+	offOwner, err := le.FieldOffset(ids.bytesView, 0)
+	if err != nil {
+		t.Fatalf("BytesView.owner offset: %v", err)
+	}
+	offPtr, err := le.FieldOffset(ids.bytesView, 1)
+	if err != nil {
+		t.Fatalf("BytesView.ptr offset: %v", err)
+	}
+	offLen, err := le.FieldOffset(ids.bytesView, 2)
+	if err != nil {
+		t.Fatalf("BytesView.len offset: %v", err)
+	}
+	if offOwner != 0 || offPtr != 8 || offLen != 16 {
+		t.Fatalf("BytesView offsets want [0 8 16], got [%d %d %d]", offOwner, offPtr, offLen)
+	}
+}
+
 func TestABILayoutUnionTagLayout(t *testing.T) {
 	_, le, ids := loadABITypes(t)
 

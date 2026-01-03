@@ -154,9 +154,13 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 	case "rt_write_stdout":
 		return vm.handleWriteStdout(frame, call, writes)
+	case "rt_write_stderr":
+		return vm.handleWriteStderr(frame, call, writes)
 
 	case "rt_exit":
 		return vm.handleRtExit(frame, call)
+	case "rt_panic":
+		return vm.handleRtPanic(frame, call)
 
 	case "exit":
 		return vm.handleExit(frame, call)
@@ -228,6 +232,11 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleMagicUnary(frame, call, writes, "__neg", ast.ExprUnaryMinus)
 	case "__not":
 		return vm.handleMagicUnary(frame, call, writes, "__not", ast.ExprUnaryNot)
+
+	case "rt_string_concat":
+		return vm.handleStringConcat(frame, call, writes)
+	case "rt_string_eq":
+		return vm.handleStringEq(frame, call, writes)
 
 	default:
 		return vm.eb.unsupportedIntrinsic(name)
