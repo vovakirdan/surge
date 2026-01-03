@@ -23,6 +23,17 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 		return res, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", current))
 	}
 
+	if task.Cancelled {
+		if v, ok := task.ResumeValue.(Value); ok {
+			vm.dropValue(v)
+		}
+		task.ResumeKind = asyncrt.ResumeNone
+		task.ResumeValue = nil
+		res.doJump = true
+		res.jumpBB = instr.ChanSend.PendBB
+		return res, nil
+	}
+
 	switch task.ResumeKind {
 	case asyncrt.ResumeChanSendAck:
 		task.ResumeKind = asyncrt.ResumeNone
@@ -90,6 +101,17 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 	task := exec.Task(current)
 	if task == nil {
 		return res, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", current))
+	}
+
+	if task.Cancelled {
+		if v, ok := task.ResumeValue.(Value); ok {
+			vm.dropValue(v)
+		}
+		task.ResumeKind = asyncrt.ResumeNone
+		task.ResumeValue = nil
+		res.doJump = true
+		res.jumpBB = instr.ChanRecv.PendBB
+		return res, nil
 	}
 
 	storeResult := func(doneVal Value) (pollExecResult, *VMError) {

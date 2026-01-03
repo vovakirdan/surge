@@ -66,15 +66,15 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 		ins := &bb.Instrs[i]
 		switch ins.Kind {
 		case InstrAssign:
-			addUsesFromRValue(&ins.Assign.Src, addUse)
+			addUsesFromRValue(&ins.Assign.Src, addUse, addDef)
 			addUsesFromPlaceWrite(ins.Assign.Dst, addUse)
 			addDefFromPlace(ins.Assign.Dst, addDef)
 		case InstrCall:
 			if ins.Call.Callee.Kind == CalleeValue {
-				addUsesFromOperand(&ins.Call.Callee.Value, addUse)
+				addUsesFromOperand(&ins.Call.Callee.Value, addUse, addDef)
 			}
 			for i := range ins.Call.Args {
-				addUsesFromOperand(&ins.Call.Args[i], addUse)
+				addUsesFromOperand(&ins.Call.Args[i], addUse, addDef)
 			}
 			if ins.Call.HasDst {
 				addUsesFromPlaceWrite(ins.Call.Dst, addUse)
@@ -87,31 +87,31 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 			addUsesFromPlace(ins.EndBorrow.Place, addUse)
 			addDefFromPlace(ins.EndBorrow.Place, addDef)
 		case InstrAwait:
-			addUsesFromOperand(&ins.Await.Task, addUse)
+			addUsesFromOperand(&ins.Await.Task, addUse, addDef)
 			addUsesFromPlaceWrite(ins.Await.Dst, addUse)
 			addDefFromPlace(ins.Await.Dst, addDef)
 		case InstrSpawn:
-			addUsesFromOperand(&ins.Spawn.Value, addUse)
+			addUsesFromOperand(&ins.Spawn.Value, addUse, addDef)
 			addUsesFromPlaceWrite(ins.Spawn.Dst, addUse)
 			addDefFromPlace(ins.Spawn.Dst, addDef)
 		case InstrPoll:
-			addUsesFromOperand(&ins.Poll.Task, addUse)
+			addUsesFromOperand(&ins.Poll.Task, addUse, addDef)
 			addUsesFromPlaceWrite(ins.Poll.Dst, addUse)
 			addDefFromPlace(ins.Poll.Dst, addDef)
 		case InstrJoinAll:
-			addUsesFromOperand(&ins.JoinAll.Scope, addUse)
+			addUsesFromOperand(&ins.JoinAll.Scope, addUse, addDef)
 			addUsesFromPlaceWrite(ins.JoinAll.Dst, addUse)
 			addDefFromPlace(ins.JoinAll.Dst, addDef)
 		case InstrChanSend:
-			addUsesFromOperand(&ins.ChanSend.Channel, addUse)
-			addUsesFromOperand(&ins.ChanSend.Value, addUse)
+			addUsesFromOperand(&ins.ChanSend.Channel, addUse, addDef)
+			addUsesFromOperand(&ins.ChanSend.Value, addUse, addDef)
 		case InstrChanRecv:
-			addUsesFromOperand(&ins.ChanRecv.Channel, addUse)
+			addUsesFromOperand(&ins.ChanRecv.Channel, addUse, addDef)
 			addUsesFromPlaceWrite(ins.ChanRecv.Dst, addUse)
 			addDefFromPlace(ins.ChanRecv.Dst, addDef)
 		case InstrTimeout:
-			addUsesFromOperand(&ins.Timeout.Task, addUse)
-			addUsesFromOperand(&ins.Timeout.Ms, addUse)
+			addUsesFromOperand(&ins.Timeout.Task, addUse, addDef)
+			addUsesFromOperand(&ins.Timeout.Ms, addUse, addDef)
 			addUsesFromPlaceWrite(ins.Timeout.Dst, addUse)
 			addDefFromPlace(ins.Timeout.Dst, addDef)
 		case InstrSelect:
@@ -121,15 +121,15 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 				arm := &ins.Select.Arms[i]
 				switch arm.Kind {
 				case SelectArmTask:
-					addUsesFromOperand(&arm.Task, addUse)
+					addUsesFromOperand(&arm.Task, addUse, addDef)
 				case SelectArmChanRecv:
-					addUsesFromOperand(&arm.Channel, addUse)
+					addUsesFromOperand(&arm.Channel, addUse, addDef)
 				case SelectArmChanSend:
-					addUsesFromOperand(&arm.Channel, addUse)
-					addUsesFromOperand(&arm.Value, addUse)
+					addUsesFromOperand(&arm.Channel, addUse, addDef)
+					addUsesFromOperand(&arm.Value, addUse, addDef)
 				case SelectArmTimeout:
-					addUsesFromOperand(&arm.Task, addUse)
-					addUsesFromOperand(&arm.Ms, addUse)
+					addUsesFromOperand(&arm.Task, addUse, addDef)
+					addUsesFromOperand(&arm.Ms, addUse, addDef)
 				}
 			}
 		}
@@ -138,79 +138,82 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 	switch bb.Term.Kind {
 	case TermReturn:
 		if bb.Term.Return.HasValue {
-			addUsesFromOperand(&bb.Term.Return.Value, addUse)
+			addUsesFromOperand(&bb.Term.Return.Value, addUse, addDef)
 		}
 	case TermAsyncYield:
-		addUsesFromOperand(&bb.Term.AsyncYield.State, addUse)
+		addUsesFromOperand(&bb.Term.AsyncYield.State, addUse, addDef)
 	case TermAsyncReturn:
-		addUsesFromOperand(&bb.Term.AsyncReturn.State, addUse)
+		addUsesFromOperand(&bb.Term.AsyncReturn.State, addUse, addDef)
 		if bb.Term.AsyncReturn.HasValue {
-			addUsesFromOperand(&bb.Term.AsyncReturn.Value, addUse)
+			addUsesFromOperand(&bb.Term.AsyncReturn.Value, addUse, addDef)
 		}
 	case TermAsyncReturnCancelled:
-		addUsesFromOperand(&bb.Term.AsyncReturnCancelled.State, addUse)
+		addUsesFromOperand(&bb.Term.AsyncReturnCancelled.State, addUse, addDef)
 	case TermIf:
-		addUsesFromOperand(&bb.Term.If.Cond, addUse)
+		addUsesFromOperand(&bb.Term.If.Cond, addUse, addDef)
 	case TermSwitchTag:
-		addUsesFromOperand(&bb.Term.SwitchTag.Value, addUse)
+		addUsesFromOperand(&bb.Term.SwitchTag.Value, addUse, addDef)
 	}
 
 	return use, def
 }
 
-func addUsesFromOperand(op *Operand, addUse func(LocalID)) {
+func addUsesFromOperand(op *Operand, addUse, addDef func(LocalID)) {
 	if op == nil {
 		return
 	}
 	switch op.Kind {
 	case OperandCopy, OperandMove, OperandAddrOf, OperandAddrOfMut:
 		addUsesFromPlace(op.Place, addUse)
+		if op.Kind == OperandMove && addDef != nil {
+			addDefFromMovePlace(op.Place, addDef)
+		}
 	}
 }
 
-func addUsesFromRValue(rv *RValue, addUse func(LocalID)) {
+func addUsesFromRValue(rv *RValue, addUse, addDef func(LocalID)) {
 	if rv == nil {
 		return
 	}
 	switch rv.Kind {
 	case RValueUse:
-		addUsesFromOperand(&rv.Use, addUse)
+		addUsesFromOperand(&rv.Use, addUse, addDef)
 	case RValueUnaryOp:
-		addUsesFromOperand(&rv.Unary.Operand, addUse)
+		addUsesFromOperand(&rv.Unary.Operand, addUse, addDef)
 	case RValueBinaryOp:
-		addUsesFromOperand(&rv.Binary.Left, addUse)
-		addUsesFromOperand(&rv.Binary.Right, addUse)
+		addUsesFromOperand(&rv.Binary.Left, addUse, addDef)
+		addUsesFromOperand(&rv.Binary.Right, addUse, addDef)
 	case RValueCast:
-		addUsesFromOperand(&rv.Cast.Value, addUse)
+		addUsesFromOperand(&rv.Cast.Value, addUse, addDef)
 	case RValueStructLit:
 		for i := range rv.StructLit.Fields {
-			addUsesFromOperand(&rv.StructLit.Fields[i].Value, addUse)
+			addUsesFromOperand(&rv.StructLit.Fields[i].Value, addUse, addDef)
 		}
 	case RValueArrayLit:
 		for i := range rv.ArrayLit.Elems {
-			addUsesFromOperand(&rv.ArrayLit.Elems[i], addUse)
+			addUsesFromOperand(&rv.ArrayLit.Elems[i], addUse, addDef)
 		}
 	case RValueTupleLit:
 		for i := range rv.TupleLit.Elems {
-			addUsesFromOperand(&rv.TupleLit.Elems[i], addUse)
+			addUsesFromOperand(&rv.TupleLit.Elems[i], addUse, addDef)
 		}
 	case RValueField:
-		addUsesFromOperand(&rv.Field.Object, addUse)
+		addUsesFromOperand(&rv.Field.Object, addUse, addDef)
 	case RValueIndex:
-		addUsesFromOperand(&rv.Index.Object, addUse)
-		addUsesFromOperand(&rv.Index.Index, addUse)
+		addUsesFromOperand(&rv.Index.Object, addUse, addDef)
+		addUsesFromOperand(&rv.Index.Index, addUse, addDef)
 	case RValueTagTest:
-		addUsesFromOperand(&rv.TagTest.Value, addUse)
+		addUsesFromOperand(&rv.TagTest.Value, addUse, addDef)
 	case RValueTagPayload:
-		addUsesFromOperand(&rv.TagPayload.Value, addUse)
+		addUsesFromOperand(&rv.TagPayload.Value, addUse, addDef)
 	case RValueIterInit:
-		addUsesFromOperand(&rv.IterInit.Iterable, addUse)
+		addUsesFromOperand(&rv.IterInit.Iterable, addUse, addDef)
 	case RValueIterNext:
-		addUsesFromOperand(&rv.IterNext.Iter, addUse)
+		addUsesFromOperand(&rv.IterNext.Iter, addUse, addDef)
 	case RValueTypeTest:
-		addUsesFromOperand(&rv.TypeTest.Value, addUse)
+		addUsesFromOperand(&rv.TypeTest.Value, addUse, addDef)
 	case RValueHeirTest:
-		addUsesFromOperand(&rv.HeirTest.Value, addUse)
+		addUsesFromOperand(&rv.HeirTest.Value, addUse, addDef)
 	}
 }
 
@@ -234,6 +237,12 @@ func addUsesFromPlaceWrite(p Place, addUse func(LocalID)) {
 
 func addDefFromPlace(p Place, addDef func(LocalID)) {
 	if p.Kind == PlaceLocal && len(p.Proj) == 0 {
+		addDef(p.Local)
+	}
+}
+
+func addDefFromMovePlace(p Place, addDef func(LocalID)) {
+	if p.Kind == PlaceLocal {
 		addDef(p.Local)
 	}
 }

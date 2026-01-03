@@ -95,6 +95,10 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 			continue
 		}
 		name := builder.StringsInterner.MustLookup(sym.Name)
+		typeParamNames := lookupTypeParamSymbols(builder, sym.TypeParamSymbols)
+		if len(typeParamNames) == 0 {
+			typeParamNames = lookupNames(builder, sym.TypeParams)
+		}
 		exports.Add(&ExportedSymbol{
 			Name:           name,
 			NameID:         sym.Name,
@@ -105,7 +109,7 @@ func CollectExports(builder *ast.Builder, res Result, modulePath string) *Module
 			Signature:      sym.Signature,
 			ReceiverKey:    sym.ReceiverKey,
 			TypeParams:     append([]source.StringID(nil), sym.TypeParams...),
-			TypeParamNames: lookupNames(builder, sym.TypeParams),
+			TypeParamNames: typeParamNames,
 			TypeParamSpan:  sym.TypeParamSpan,
 			TypeParamSyms:  CloneTypeParamSymbols(sym.TypeParamSymbols),
 			Contract:       cloneContractSpec(sym.Contract),
@@ -124,6 +128,20 @@ func lookupNames(builder *ast.Builder, ids []source.StringID) []string {
 			continue
 		}
 		result = append(result, builder.StringsInterner.MustLookup(id))
+	}
+	return result
+}
+
+func lookupTypeParamSymbols(builder *ast.Builder, params []TypeParamSymbol) []string {
+	if builder == nil || builder.StringsInterner == nil || len(params) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(params))
+	for _, param := range params {
+		if param.Name == source.NoStringID {
+			continue
+		}
+		result = append(result, builder.StringsInterner.MustLookup(param.Name))
 	}
 	return result
 }

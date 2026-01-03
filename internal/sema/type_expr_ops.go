@@ -122,6 +122,8 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 		tc.ensureBindingTypeMatch(ast.NoTypeID, leftType, rightType, data.Right)
 		tc.ensureIndexAssignment(data.Left, leftType, span)
 		tc.applyIndexSetterOwnership(data.Left, data.Right, rightType)
+		tc.trackTaskContainerStore(data.Left, data.Right, rightType)
+		tc.trackTaskContainerAssign(data.Left, data.Right, rightType, span)
 		tc.handleAssignment(data.Op, data.Left, data.Right, span)
 		tc.updateArrayViewBindingFromAssign(data.Left, data.Right)
 		return leftType

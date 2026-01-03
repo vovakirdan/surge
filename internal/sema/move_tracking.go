@@ -38,5 +38,9 @@ func (tc *typeChecker) checkUseAfterMove(symID symbols.SymbolID, span source.Spa
 			name = symName
 		}
 	}
+	if tc.isTaskType(tc.bindingType(symID)) {
+		tc.report(diag.SemaUseAfterMove, span, "use of moved task '%s'; call %s.clone() to keep a handle", name, name)
+		return
+	}
 	tc.report(diag.SemaUseAfterMove, span, "use of moved value '%s'", name)
 }

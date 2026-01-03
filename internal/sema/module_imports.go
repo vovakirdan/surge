@@ -208,12 +208,13 @@ func (tc *typeChecker) exportedSymbolToSymbol(exp *symbols.ExportedSymbol, modul
 	}
 	if len(exp.TypeParamSyms) > 0 {
 		sym.TypeParamSymbols = symbols.CloneTypeParamSymbols(exp.TypeParamSyms)
-		if tc.builder != nil && tc.builder.StringsInterner != nil {
-			for i := range sym.TypeParamSymbols {
-				name := tc.lookupName(sym.TypeParamSymbols[i].Name)
-				if name != "" {
-					sym.TypeParamSymbols[i].Name = tc.builder.StringsInterner.Intern(name)
-				}
+		if tc.builder != nil && tc.builder.StringsInterner != nil && len(exp.TypeParamNames) > 0 {
+			limit := len(sym.TypeParamSymbols)
+			if len(exp.TypeParamNames) < limit {
+				limit = len(exp.TypeParamNames)
+			}
+			for i := 0; i < limit; i++ {
+				sym.TypeParamSymbols[i].Name = tc.builder.StringsInterner.Intern(exp.TypeParamNames[i])
 			}
 		}
 	}

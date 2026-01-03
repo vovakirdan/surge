@@ -109,6 +109,13 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 			bb := &pollFn.Blocks[sites[i].pollBB]
 			if sites[i].pollInstr >= 0 && sites[i].pollInstr < len(bb.Instrs) {
 				ins := &bb.Instrs[sites[i].pollInstr]
+				dropOperandLocals := func(op Operand) {
+					tmp := localSet{}
+					collectLocalsFromOperand(&op, tmp)
+					for id := range tmp {
+						sites[i].liveLocals.delete(id)
+					}
+				}
 				switch ins.Kind {
 				case InstrPoll:
 					if ins.Poll.Dst.Kind == PlaceLocal && len(ins.Poll.Dst.Proj) == 0 {
@@ -126,6 +133,8 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 					if ins.Timeout.Dst.Kind == PlaceLocal && len(ins.Timeout.Dst.Proj) == 0 {
 						sites[i].liveLocals.delete(ins.Timeout.Dst.Local)
 					}
+					dropOperandLocals(ins.Timeout.Task)
+					dropOperandLocals(ins.Timeout.Ms)
 				case InstrSelect:
 					if ins.Select.Dst.Kind == PlaceLocal && len(ins.Select.Dst.Proj) == 0 {
 						sites[i].liveLocals.delete(ins.Select.Dst.Local)

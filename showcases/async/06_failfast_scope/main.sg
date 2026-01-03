@@ -16,11 +16,14 @@ async fn scope() -> int {
     let b = task will_cancel();
 
     // В этом примере мы искусственно отменим b таймаутом:
-    let br = timeout(b, 5:uint); // Cancelled на дедлайне + cancel цели
-    compare br { Success(_) => nothing; Cancelled() => return 0; }; // failfast подхватит Cancelled
+    let br = timeout(b.clone(), 5:uint); // Cancelled на дедлайне + cancel цели
+    let cancelled = compare br { Success(_) => false; Cancelled() => true; };
+    let _ = b.await();
+    if cancelled { return 0; } // failfast подхватит Cancelled
 
     // если сюда дошли - ждём a
-    compare a.await() { Success(v) => return v; Cancelled() => return 0; };
+    let ar = a.await();
+    return compare ar { Success(v) => v; Cancelled() => 0; };
 }
 
 @entrypoint

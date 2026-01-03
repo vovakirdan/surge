@@ -32,6 +32,7 @@ func (tc *typeChecker) trackTaskAwait(targetExpr ast.ExprID) {
 		return
 	}
 
+	targetExpr = tc.unwrapGroupExpr(targetExpr)
 	expr := tc.builder.Exprs.Get(targetExpr)
 	if expr == nil {
 		return
@@ -67,6 +68,7 @@ func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 	}
 
 	// Only track if the expression is actually a Task<T>
+	returnExpr = tc.unwrapGroupExpr(returnExpr)
 	returnType := tc.result.ExprTypes[returnExpr]
 	if !tc.isTaskType(returnType) {
 		return
@@ -107,27 +109,29 @@ func (tc *typeChecker) trackTaskPassedAsArg(argExpr ast.ExprID) {
 		return
 	}
 
-	// Only track if the argument is a Task<T>
-	argType := tc.result.ExprTypes[argExpr]
-	if !tc.isTaskType(argType) {
-		return
-	}
-
-	expr := tc.builder.Exprs.Get(argExpr)
-	if expr == nil {
-		return
-	}
-
-	// Case 1: Direct task expression (foo(task compute()))
-	if expr.Kind == ast.ExprTask {
-		tc.taskTracker.MarkPassedByExpr(argExpr)
-		return
-	}
-
-	// Case 2: Variable reference (foo(task) where let t = task ...)
-	if expr.Kind == ast.ExprIdent {
-		if symID := tc.symbolForExpr(argExpr); symID.IsValid() {
-			tc.taskTracker.MarkPassed(symID)
+	for {
+		argExpr = tc.unwrapGroupExpr(argExpr)
+		expr := tc.builder.Exprs.Get(argExpr)
+		if expr == nil {
+			return
+		}
+		switch expr.Kind {
+		case ast.ExprTask:
+			tc.taskTracker.MarkPassedByExpr(argExpr)
+			return
+		case ast.ExprIdent:
+			if symID := tc.symbolForExpr(argExpr); symID.IsValid() && tc.isTaskType(tc.bindingType(symID)) {
+				tc.taskTracker.MarkPassed(symID)
+			}
+			return
+		case ast.ExprUnary:
+			if data, ok := tc.builder.Exprs.Unary(argExpr); ok && data != nil {
+				argExpr = data.Operand
+				continue
+			}
+			return
+		default:
+			return
 		}
 	}
 }

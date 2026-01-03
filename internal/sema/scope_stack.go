@@ -133,6 +133,7 @@ func (tc *typeChecker) leaveScope() {
 				"task is neither awaited nor returned")
 		}
 	}
+	tc.checkTaskContainersAtScopeExit(top)
 	tc.releaseScopeBindings(top)
 }
 

@@ -25,6 +25,7 @@ type TaskTracker struct {
 	scopeTasks   map[symbols.ScopeID][]uint32 // taskID list per scope
 	bindingTasks map[symbols.SymbolID]uint32  // binding -> taskID
 	exprTasks    map[ast.ExprID]uint32        // task expression -> taskID
+	pendingPassed map[ast.ExprID]struct{}     // task expressions marked passed before SpawnTask
 	nextID       uint32                       // Next task ID to assign
 }
 
@@ -35,6 +36,7 @@ func NewTaskTracker() *TaskTracker {
 		scopeTasks:   make(map[symbols.ScopeID][]uint32),
 		bindingTasks: make(map[symbols.SymbolID]uint32),
 		exprTasks:    make(map[ast.ExprID]uint32),
+		pendingPassed: make(map[ast.ExprID]struct{}),
 		nextID:       1,
 	}
 }
@@ -56,6 +58,10 @@ func (tt *TaskTracker) SpawnTask(expr ast.ExprID, span source.Span, scope symbol
 	tt.tasks = append(tt.tasks, info)
 	tt.scopeTasks[scope] = append(tt.scopeTasks[scope], id)
 	tt.exprTasks[expr] = id
+	if _, ok := tt.pendingPassed[expr]; ok {
+		tt.tasks[id].Returned = true
+		delete(tt.pendingPassed, expr)
+	}
 	return id
 }
 
@@ -137,7 +143,19 @@ func (tt *TaskTracker) MarkPassed(binding symbols.SymbolID) {
 
 // MarkPassedByExpr marks a task as passed using its task expression.
 func (tt *TaskTracker) MarkPassedByExpr(expr ast.ExprID) {
-	tt.MarkReturnedByExpr(expr)
+	if !expr.IsValid() {
+		return
+	}
+	if taskID, ok := tt.exprTasks[expr]; ok && taskID != 0 {
+		if int(taskID) < len(tt.tasks) {
+			tt.tasks[taskID].Returned = true
+		}
+		return
+	}
+	if tt.pendingPassed == nil {
+		tt.pendingPassed = make(map[ast.ExprID]struct{})
+	}
+	tt.pendingPassed[expr] = struct{}{}
 }
 
 // EndScope checks for task leaks when leaving a scope.

@@ -47,9 +47,9 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		tc.observeMove(letItem.Value, tc.exprSpan(letItem.Value))
 		tc.ensureBindingTypeMatch(letItem.Type, declaredType, valueType, letItem.Value)
 		// Check for Task<T> escape to global scope - module-level let bindings
-		if tc.isTaskType(valueType) {
+		if tc.isTaskType(valueType) || tc.isTaskContainerType(valueType) {
 			tc.report(diag.SemaTaskEscapesScope, tc.exprSpan(letItem.Value),
-				"cannot store Task<T> in module-level variable - tasks must be scoped to functions or async blocks")
+				"cannot store Task<T> or task containers in module-level variables - tasks must be scoped to functions or async blocks")
 		}
 		if declaredType == types.NoTypeID {
 			tc.setBindingType(symID, valueType)
@@ -224,6 +224,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 					}
 					tc.updateStmtBinding(id, letStmt.Value)
 					tc.markArrayViewBinding(symID, tc.isArrayViewExpr(letStmt.Value))
+					tc.markTaskContainerFromBinding(symID, letStmt.Value, valueType, tc.exprSpan(letStmt.Value))
 					// Track task binding for structured concurrency
 					if tc.taskTracker != nil && tc.isTaskType(valueType) {
 						tc.taskTracker.BindTaskByExpr(letStmt.Value, symID)
@@ -248,6 +249,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			if ret.Expr.IsValid() {
 				valueType = tc.typeExpr(ret.Expr)
 				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
+				tc.checkTaskContainerEscape(ret.Expr, valueType, tc.exprSpan(ret.Expr))
 				// Track task return for structured concurrency
 				tc.trackTaskReturn(ret.Expr)
 			}
@@ -288,6 +290,15 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 
 			// 1. Get iterable type
 			iterableType := tc.typeExpr(forIn.Iterable)
+			var containerPlace Place
+			containerTracked := tc.isTaskContainerType(iterableType)
+			if containerTracked {
+				if place, ok := tc.taskContainerPlace(forIn.Iterable); ok {
+					containerPlace = place
+				} else {
+					containerTracked = false
+				}
+			}
 
 			// 2. Determine element type
 			var elemType types.TypeID
@@ -303,13 +314,30 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			}
 
 			// 3. Assign type to loop variable symbol
+			var loopSym symbols.SymbolID
 			if forIn.Pattern != source.NoStringID {
 				if symID := tc.stmtSymbols[id]; symID.IsValid() && elemType != types.NoTypeID {
 					tc.bindingTypes[symID] = elemType
+					loopSym = symID
 				}
 			}
 
+			movedBefore := tc.bindingMoved(loopSym)
 			tc.walkStmt(forIn.Body)
+			movedAfter := tc.bindingMoved(loopSym)
+			if containerTracked {
+				if info := tc.taskContainers[containerPlace]; info != nil && info.Pending {
+					consumed := movedAfter && !movedBefore
+					if !consumed {
+						span := forIn.PatternSpan
+						if span == (source.Span{}) {
+							span = stmt.Span
+						}
+						tc.report(diag.SemaTaskNotAwaited, span, "task in container is not consumed in for-in loop")
+					}
+					tc.markTaskContainerConsumed(containerPlace)
+				}
+			}
 			if pushed {
 				tc.leaveScope()
 			}

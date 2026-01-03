@@ -13,9 +13,9 @@ fn main() {
     compare t1.await() {
         Success(v) => print(f"A ret={v}");
         Cancelled() => print("A cancelled");
-    }
+    };
     compare t2.await() {
         Success(v) => print(f"B ret={v}");
         Cancelled() => print("B cancelled");
-    }
+    };
 }

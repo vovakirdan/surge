@@ -399,6 +399,9 @@ func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
 	}
 	switch task.Kind {
 	case asyncrt.TaskKindCheckpoint:
+		if task.Cancelled {
+			return asyncrt.PollOutcome{Kind: asyncrt.PollDoneCancelled}, nil
+		}
 		if task.CheckpointPolled() {
 			return asyncrt.PollOutcome{Kind: asyncrt.PollDoneSuccess, Value: MakeNothing()}, nil
 		}
@@ -473,6 +476,7 @@ func (vm *VM) runReadyOne() (bool, *VMError) {
 		exec.MarkDone(id, asyncrt.TaskResultCancelled, nil)
 	case asyncrt.PollYielded:
 		exec.Yield(id)
+		exec.TickVirtual()
 	case asyncrt.PollParked:
 		if !outcome.ParkKey.IsValid() {
 			exec.SetCurrent(0)
@@ -543,7 +547,7 @@ func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value
 	vm.asyncCapture = &exit
 	vm.asyncPendingParkKey = asyncrt.WakerKey{}
 	vm.captureReturn = nil
-	vm.Stack = nil
+	vm.Stack = append([]Frame(nil), vm.Stack...)
 	vm.Halted = false
 	vm.started = true
 

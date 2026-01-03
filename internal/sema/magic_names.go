@@ -420,6 +420,13 @@ func (tc *typeChecker) lookupMagicMethods(receiver symbols.TypeKey, name string)
 	if methods := tc.magic[receiver]; methods != nil {
 		return methods[name]
 	}
+	for key, methods := range tc.magic {
+		if typeKeyMatchesWithGenerics(key, receiver) {
+			if list := methods[name]; len(list) > 0 {
+				return list
+			}
+		}
+	}
 	return nil
 }
 

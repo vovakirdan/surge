@@ -406,6 +406,9 @@ func (e *Executor) cancelRecursive(id TaskID) {
 	if !task.Cancelled {
 		task.Cancelled = true
 	}
+	if task.Status == TaskWaiting {
+		e.Wake(id)
+	}
 	for _, child := range task.Children {
 		e.cancelRecursive(child)
 	}

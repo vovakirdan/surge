@@ -34,5 +34,5 @@ fn main() {
 
     t1.await();
     t2.await();
-    compare t3.await() { Success(v) => print(f"sumsq={v}"); Cancelled() => print("cancelled"); }
+    compare t3.await() { Success(v) => print(f"sumsq={v}"); Cancelled() => print("cancelled"); };
 }

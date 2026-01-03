@@ -168,7 +168,7 @@ func (tc *typeChecker) resolveMethodCallSymbol(member *ast.ExprMemberData, recv 
 			if tc.symbolName(sym.Name) != name {
 				continue
 			}
-			if !typeKeyEqual(sym.ReceiverKey, recvCand.key) {
+			if !typeKeyMatchesWithGenerics(sym.ReceiverKey, recvCand.key) {
 				continue
 			}
 			sig := sym.Signature
@@ -278,7 +278,14 @@ func (tc *typeChecker) receiverTypeParamSubst(recv types.TypeID) map[string]symb
 		}
 		if symID.IsValid() {
 			if sym := tc.symbolFromID(symID); sym != nil {
-				typeParamNames = sym.TypeParams
+				if len(sym.TypeParamSymbols) > 0 {
+					typeParamNames = make([]source.StringID, 0, len(sym.TypeParamSymbols))
+					for _, tp := range sym.TypeParamSymbols {
+						typeParamNames = append(typeParamNames, tp.Name)
+					}
+				} else if len(sym.TypeParams) > 0 {
+					typeParamNames = sym.TypeParams
+				}
 			}
 		}
 	}
@@ -464,7 +471,7 @@ func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidate
 	actualRecvKey := tc.typeKeyForType(recv)
 
 	// Exact match with actual receiver key
-	if typeKeyEqual(selfKey, actualRecvKey) {
+	if typeKeyMatchesWithGenerics(selfKey, actualRecvKey) {
 		return true
 	}
 
@@ -481,11 +488,11 @@ func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidate
 	// This handles generics (Option<int> calling self: Option<T> via candidate Option<T>)
 	// and value types calling methods on their base candidate
 	if recvTT.Kind == types.KindOwn {
-		if typeKeyEqual(selfKey, candidateKey) {
+		if typeKeyMatchesWithGenerics(selfKey, candidateKey) {
 			return tc.isCopyType(recvTT.Elem)
 		}
 	} else if recvTT.Kind != types.KindReference && recvTT.Kind != types.KindPointer {
-		if typeKeyEqual(selfKey, candidateKey) {
+		if typeKeyMatchesWithGenerics(selfKey, candidateKey) {
 			return true
 		}
 	}
@@ -495,10 +502,10 @@ func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidate
 		innerSelf := strings.TrimSpace(strings.TrimPrefix(selfStr, "own "))
 		if recvTT.Kind == types.KindOwn {
 			innerRecv := tc.typeKeyForType(recvTT.Elem)
-			return typeKeyEqual(symbols.TypeKey(innerSelf), innerRecv)
+			return typeKeyMatchesWithGenerics(symbols.TypeKey(innerSelf), innerRecv)
 		}
 		if recvTT.Kind != types.KindReference && recvTT.Kind != types.KindPointer {
-			return typeKeyEqual(candidateKey, symbols.TypeKey(innerSelf)) || typeKeyEqual(actualRecvKey, symbols.TypeKey(innerSelf))
+			return typeKeyMatchesWithGenerics(candidateKey, symbols.TypeKey(innerSelf)) || typeKeyMatchesWithGenerics(actualRecvKey, symbols.TypeKey(innerSelf))
 		}
 	}
 
@@ -512,8 +519,26 @@ func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidate
 			}
 			innerSelf = strings.TrimSpace(innerSelf)
 			// Check against both candidate key and actual recv key
-			return typeKeyEqual(candidateKey, symbols.TypeKey(innerSelf)) || typeKeyEqual(actualRecvKey, symbols.TypeKey(innerSelf))
+			return typeKeyMatchesWithGenerics(candidateKey, symbols.TypeKey(innerSelf)) || typeKeyMatchesWithGenerics(actualRecvKey, symbols.TypeKey(innerSelf))
 		}
+	}
+
+	// Case: receiver is &T / &mut T, self is &T / &mut T (generic-aware)
+	if recvTT.Kind == types.KindReference && strings.HasPrefix(selfStr, "&") {
+		innerSelf := strings.TrimPrefix(selfStr, "&mut ")
+		if innerSelf == selfStr {
+			innerSelf = strings.TrimPrefix(selfStr, "&")
+		}
+		innerSelf = strings.TrimSpace(innerSelf)
+		innerRecv := strings.TrimPrefix(recvStr, "&mut ")
+		if innerRecv == recvStr {
+			innerRecv = strings.TrimPrefix(recvStr, "&")
+		}
+		innerRecv = strings.TrimSpace(innerRecv)
+		if typeKeyMatchesWithGenerics(symbols.TypeKey(innerSelf), symbols.TypeKey(innerRecv)) {
+			return true
+		}
+		return typeKeyMatchesWithGenerics(symbols.TypeKey(innerSelf), candidateKey)
 	}
 
 	// Case: receiver is &mut T, self is &T (reborrow as shared)
@@ -521,14 +546,14 @@ func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidate
 		if strings.HasPrefix(selfStr, "&") && !strings.HasPrefix(selfStr, "&mut ") {
 			innerSelf := strings.TrimSpace(strings.TrimPrefix(selfStr, "&"))
 			innerRecv := strings.TrimSpace(strings.TrimPrefix(recvStr, "&mut "))
-			return typeKeyEqual(symbols.TypeKey(innerSelf), symbols.TypeKey(innerRecv))
+			return typeKeyMatchesWithGenerics(symbols.TypeKey(innerSelf), symbols.TypeKey(innerRecv))
 		}
 	}
 
 	// Case: receiver is own T, self is T, &T, or &mut T
 	if recvTT.Kind == types.KindOwn {
 		innerRecv := tc.typeKeyForType(recvTT.Elem)
-		if typeKeyEqual(selfKey, innerRecv) {
+		if typeKeyMatchesWithGenerics(selfKey, innerRecv) {
 			return tc.isCopyType(recvTT.Elem)
 		}
 		if strings.HasPrefix(selfStr, "&") {
@@ -536,7 +561,7 @@ func (tc *typeChecker) selfParamCompatible(recv types.TypeID, selfKey, candidate
 			if innerSelf == selfStr {
 				innerSelf = strings.TrimPrefix(selfStr, "&")
 			}
-			return typeKeyEqual(symbols.TypeKey(strings.TrimSpace(innerSelf)), innerRecv)
+			return typeKeyMatchesWithGenerics(symbols.TypeKey(strings.TrimSpace(innerSelf)), innerRecv)
 		}
 	}
 

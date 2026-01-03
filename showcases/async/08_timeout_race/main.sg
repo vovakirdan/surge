@@ -3,6 +3,10 @@ async fn slow() -> int { sleep(50:uint).await(); return 2; }
 
 @entrypoint
 fn main() {
+    main_async().await();
+}
+
+async fn main_async() -> nothing {
     let t1 = task fast();
     let t2 = task slow();
 
@@ -15,7 +19,8 @@ fn main() {
 
     // timeout demo
     let t3 = task slow();
-    compare timeout(t3, 10:uint) {
+    let res = timeout(t3, 10:uint);
+    compare res {
         Success(v) => print(f"finished {v}");
         Cancelled() => print("timed out");
     };

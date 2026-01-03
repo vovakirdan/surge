@@ -447,6 +447,48 @@ func (tc *typeChecker) genericDefKeyForType(id types.TypeID) symbols.TypeKey {
 	return symbols.TypeKey(name + "<" + strings.Join(paramNames, ",") + ">")
 }
 
+func stripTypeKeyWrappers(key symbols.TypeKey) string {
+	s := strings.TrimSpace(string(key))
+	for {
+		switch {
+		case strings.HasPrefix(s, "&mut "):
+			s = strings.TrimSpace(strings.TrimPrefix(s, "&mut "))
+		case strings.HasPrefix(s, "&"):
+			s = strings.TrimSpace(strings.TrimPrefix(s, "&"))
+		case strings.HasPrefix(s, "own "):
+			s = strings.TrimSpace(strings.TrimPrefix(s, "own "))
+		case strings.HasPrefix(s, "*"):
+			s = strings.TrimSpace(strings.TrimPrefix(s, "*"))
+		default:
+			return s
+		}
+	}
+}
+
+func genericTypeKeyCompatible(genericKey, concreteKey symbols.TypeKey) bool {
+	genericStr := stripTypeKeyWrappers(genericKey)
+	concreteStr := stripTypeKeyWrappers(concreteKey)
+	baseGen, genArgs, okGen := parseGenericTypeKey(genericStr)
+	if !okGen {
+		return false
+	}
+	baseCon, conArgs, okCon := parseGenericTypeKey(concreteStr)
+	if !okCon {
+		return false
+	}
+	if baseGen != baseCon || len(genArgs) != len(conArgs) {
+		return false
+	}
+	return true
+}
+
+func typeKeyMatchesWithGenerics(a, b symbols.TypeKey) bool {
+	if typeKeyEqual(a, b) {
+		return true
+	}
+	return genericTypeKeyCompatible(a, b) || genericTypeKeyCompatible(b, a)
+}
+
 // buildTypeParamSubst builds a substitution map from type parameter names to actual type keys.
 // For example, for receiver Channel<int> and candidateKey "Channel<T>", returns {"T": "int"}.
 func (tc *typeChecker) buildTypeParamSubst(recv types.TypeID, candidateKey symbols.TypeKey) map[string]symbols.TypeKey {
@@ -455,7 +497,10 @@ func (tc *typeChecker) buildTypeParamSubst(recv types.TypeID, candidateKey symbo
 	}
 
 	// Extract type parameter names from candidateKey (e.g., "T" from "Channel<T>")
-	keyStr := string(candidateKey)
+	keyStr := stripTypeKeyWrappers(candidateKey)
+	if _, _, _, _, ok := parseArrayKey(keyStr); ok {
+		return nil
+	}
 	start := strings.Index(keyStr, "<")
 	end := strings.LastIndex(keyStr, ">")
 	if start < 0 || end <= start {

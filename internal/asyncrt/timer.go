@@ -101,6 +101,42 @@ func (e *Executor) TimerActive(id TimerID) bool {
 	return timer != nil && !timer.cancelled
 }
 
+// TickVirtual advances virtual time by 1ms and fires any due timers.
+func (e *Executor) TickVirtual() {
+	if e == nil || e.cfg.TimerMode != TimerModeVirtual {
+		return
+	}
+	if len(e.timerByID) == 0 {
+		return
+	}
+	if e.nowMs != ^uint64(0) {
+		e.nowMs++
+	}
+	e.fireDueTimers()
+}
+
+func (e *Executor) fireDueTimers() {
+	if e == nil {
+		return
+	}
+	for len(e.timers) > 0 {
+		timer := e.timers[0]
+		if timer == nil {
+			heap.Pop(&e.timers)
+			continue
+		}
+		if timer.cancelled {
+			heap.Pop(&e.timers)
+			continue
+		}
+		if timer.deadlineMs > e.nowMs {
+			break
+		}
+		heap.Pop(&e.timers)
+		e.fireTimer(timer)
+	}
+}
+
 func (e *Executor) advanceTimeToNextTimer() bool {
 	if e == nil {
 		return false

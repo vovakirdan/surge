@@ -164,6 +164,12 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 						argTypes = append(argTypes, tc.typeExpr(arg.Value))
 						argExprs = append(argExprs, arg.Value)
 					}
+					if !receiverIsType && methodName == "push" && len(argTypes) > 0 &&
+						tc.isTaskType(argTypes[0]) && tc.isTaskContainerType(receiverType) {
+						if place, ok := tc.taskContainerPlace(member.Target); ok {
+							tc.markTaskContainerPending(place, expr.Span)
+						}
+					}
 					ty = tc.methodResultType(member, receiverType, member.Target, argTypes, argExprs, expr.Span, receiverIsType)
 					symID := tc.recordMethodCallSymbol(id, member, receiverType, member.Target, argTypes, argExprs, receiverIsType)
 					var explicitArgs []types.TypeID
@@ -230,6 +236,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			var elemType types.TypeID
 			for _, elem := range arr.Elements {
 				elemTy := tc.typeExpr(elem)
+				if tc.isTaskType(elemTy) {
+					tc.trackTaskPassedAsArg(elem)
+				}
 				if elemType == types.NoTypeID {
 					elemType = elemTy
 				} else if elemTy != types.NoTypeID && elemTy != elemType {
