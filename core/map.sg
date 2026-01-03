@@ -7,7 +7,7 @@ extern<Map<K, V>> {
         return rt_map_new::<K, V>();
     }
 
-    pub fn len(self: &Map<K, V>) -> uint {
+    pub fn length(self: &Map<K, V>) -> uint {
         return rt_map_len(self);
     }
 

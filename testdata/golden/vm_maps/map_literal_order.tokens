@@ -91,14 +91,14 @@
  91: LParen          "(" at 14:11-14:12
  92: Ident           "m" at 14:12-14:13
  93: Dot             "." at 14:13-14:14
- 94: Ident           "len" at 14:14-14:17
- 95: LParen          "(" at 14:17-14:18
- 96: RParen          ")" at 14:18-14:19
- 97: RParen          ")" at 14:19-14:20
- 98: KwTo            "to" at 14:21-14:23 (leading: Space)
- 99: Ident           "string" at 14:24-14:30 (leading: Space)
-100: RParen          ")" at 14:30-14:31
-101: Semicolon       ";" at 14:31-14:32
+ 94: Ident           "length" at 14:14-14:20
+ 95: LParen          "(" at 14:20-14:21
+ 96: RParen          ")" at 14:21-14:22
+ 97: RParen          ")" at 14:22-14:23
+ 98: KwTo            "to" at 14:24-14:26 (leading: Space)
+ 99: Ident           "string" at 14:27-14:33 (leading: Space)
+100: RParen          ")" at 14:33-14:34
+101: Semicolon       ";" at 14:34-14:35
 102: KwReturn        "return" at 15:5-15:11 (leading: Newline, Space)
 103: IntLit          "0" at 15:12-15:13 (leading: Space)
 104: Semicolon       ";" at 15:13-15:14

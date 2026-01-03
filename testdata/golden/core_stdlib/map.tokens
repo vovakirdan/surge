@@ -39,21 +39,21 @@
  39: RBrace          "}" at 8:5-8:6 (leading: Newline, Space)
  40: KwPub           "pub" at 10:5-10:8 (leading: Newline, Space)
  41: KwFn            "fn" at 10:9-10:11 (leading: Space)
- 42: Ident           "len" at 10:12-10:15 (leading: Space)
- 43: LParen          "(" at 10:15-10:16
- 44: Ident           "self" at 10:16-10:20
- 45: Colon           ":" at 10:20-10:21
- 46: Amp             "&" at 10:22-10:23 (leading: Space)
- 47: Ident           "Map" at 10:23-10:26
- 48: Lt              "<" at 10:26-10:27
- 49: Ident           "K" at 10:27-10:28
- 50: Comma           "," at 10:28-10:29
- 51: Ident           "V" at 10:30-10:31 (leading: Space)
- 52: Gt              ">" at 10:31-10:32
- 53: RParen          ")" at 10:32-10:33
- 54: Arrow           "->" at 10:34-10:36 (leading: Space)
- 55: Ident           "uint" at 10:37-10:41 (leading: Space)
- 56: LBrace          "{" at 10:42-10:43 (leading: Space)
+ 42: Ident           "length" at 10:12-10:18 (leading: Space)
+ 43: LParen          "(" at 10:18-10:19
+ 44: Ident           "self" at 10:19-10:23
+ 45: Colon           ":" at 10:23-10:24
+ 46: Amp             "&" at 10:25-10:26 (leading: Space)
+ 47: Ident           "Map" at 10:26-10:29
+ 48: Lt              "<" at 10:29-10:30
+ 49: Ident           "K" at 10:30-10:31
+ 50: Comma           "," at 10:31-10:32
+ 51: Ident           "V" at 10:33-10:34 (leading: Space)
+ 52: Gt              ">" at 10:34-10:35
+ 53: RParen          ")" at 10:35-10:36
+ 54: Arrow           "->" at 10:37-10:39 (leading: Space)
+ 55: Ident           "uint" at 10:40-10:44 (leading: Space)
+ 56: LBrace          "{" at 10:45-10:46 (leading: Space)
  57: KwReturn        "return" at 11:9-11:15 (leading: Newline, Space)
  58: Ident           "rt_map_len" at 11:16-11:26 (leading: Space)
  59: LParen          "(" at 11:26-11:27

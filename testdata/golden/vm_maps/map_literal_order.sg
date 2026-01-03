@@ -11,6 +11,6 @@ fn val(label: string, v: int) -> int {
 @entrypoint
 fn main() -> int {
     let m = { key("k1") => val("v1", 1), key("k2") => val("v2", 2) };
-    print((m.len()) to string);
+    print((m.length()) to string);
     return 0;
 }

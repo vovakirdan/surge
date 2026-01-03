@@ -9,11 +9,11 @@ map.sg (span: 1:1-51:1)
    │  │     Stmt[0]: Block (span: 6:31-8:6)
    │  │     └─ Stmt[0]: Return (span: 7:9-7:37)
    │  │        └─ Expr: expr#2: rt_map_new()
-   │  ├─ Fn[1]: len
+   │  ├─ Fn[1]: length
    │  │  ├─ Params: (self: &Map<K, V>)
    │  │  ├─ Return: uint
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 10:42-12:6)
+   │  │     Stmt[0]: Block (span: 10:45-12:6)
    │  │     └─ Stmt[0]: Return (span: 11:9-11:33)
    │  │        └─ Expr: expr#5: rt_map_len(self)
    │  ├─ Fn[2]: __len

@@ -647,8 +647,8 @@ pub fn rt_panic(ptr: *byte, length: uint) -> nothing;
 
 pub fn panic(msg: string) -> nothing {
     let ptr = rt_string_ptr(&msg);
-    let len = rt_string_len_bytes(&msg);
-    rt_panic(ptr, len);
+    let length = rt_string_len_bytes(&msg);
+    rt_panic(ptr, length);
 }
 
 @intrinsic
