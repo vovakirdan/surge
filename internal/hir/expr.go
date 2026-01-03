@@ -30,6 +30,8 @@ const (
 	ExprStructLit
 	// ExprArrayLit represents array literals ([a, b, c]).
 	ExprArrayLit
+	// ExprMapLit represents map literals ({ k => v, ... }).
+	ExprMapLit
 	// ExprTupleLit represents tuple literals ((a, b, c)).
 	ExprTupleLit
 	// ExprCompare represents pattern matching (compare expr { ... }).
@@ -84,6 +86,8 @@ func (k ExprKind) String() string {
 		return "StructLit"
 	case ExprArrayLit:
 		return "ArrayLit"
+	case ExprMapLit:
+		return "MapLit"
 	case ExprTupleLit:
 		return "TupleLit"
 	case ExprCompare:
@@ -230,6 +234,19 @@ type ArrayLitData struct {
 }
 
 func (ArrayLitData) exprData() {}
+
+// MapLitData holds data for ExprMapLit.
+type MapLitData struct {
+	Entries []MapEntry
+}
+
+func (MapLitData) exprData() {}
+
+// MapEntry represents a key/value entry in a map literal.
+type MapEntry struct {
+	Key   *Expr
+	Value *Expr
+}
 
 // TupleLitData holds data for ExprTupleLit.
 type TupleLitData struct {

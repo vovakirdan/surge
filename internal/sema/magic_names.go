@@ -124,7 +124,9 @@ func (tc *typeChecker) buildMagicIndex() {
 				name := tc.symbolName(sym.Name)
 				recordID := symID
 				if sym.Flags&symbols.SymbolFlagBuiltin != 0 && !isOperatorMagicName(name) {
-					recordID = symbols.NoSymbolID
+					if !(isMapIndexMagicName(name) && isMapReceiverKey(sym.ReceiverKey)) {
+						recordID = symbols.NoSymbolID
+					}
 				}
 				if name == "__to" && !tc.acceptToSignature(sym.Signature, sym.ReceiverKey, sym) {
 					continue
@@ -175,6 +177,28 @@ func isOperatorMagicName(name string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func isMapIndexMagicName(name string) bool {
+	return name == "__index" || name == "__index_set"
+}
+
+func isMapReceiverKey(key symbols.TypeKey) bool {
+	recv := strings.TrimSpace(string(key))
+	for {
+		switch {
+		case strings.HasPrefix(recv, "&mut "):
+			recv = strings.TrimSpace(strings.TrimPrefix(recv, "&mut "))
+		case strings.HasPrefix(recv, "&"):
+			recv = strings.TrimSpace(strings.TrimPrefix(recv, "&"))
+		case strings.HasPrefix(recv, "own "):
+			recv = strings.TrimSpace(strings.TrimPrefix(recv, "own "))
+		case strings.HasPrefix(recv, "*"):
+			recv = strings.TrimSpace(strings.TrimPrefix(recv, "*"))
+		default:
+			return strings.HasPrefix(recv, "Map")
+		}
 	}
 }
 

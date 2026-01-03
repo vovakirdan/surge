@@ -9,6 +9,7 @@ const (
 	LKGlobal
 	LKStructField
 	LKArrayElem
+	LKMapElem
 	LKStringBytes
 	LKRawBytes
 )
@@ -38,6 +39,8 @@ func (l Location) String() string {
 		return fmt.Sprintf("struct.field[%d]", l.Index)
 	case LKArrayElem:
 		return fmt.Sprintf("array[%d]", l.Index)
+	case LKMapElem:
+		return fmt.Sprintf("map[%d]", l.Index)
 	case LKStringBytes:
 		return fmt.Sprintf("string.bytes+%d", l.ByteOffset)
 	case LKRawBytes:

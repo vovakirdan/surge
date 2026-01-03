@@ -112,6 +112,17 @@ You can also be explicit: `Array<&T>` and `&Array<T>` are both allowed.
 * Indexing calls magic methods: `__index(self, index)` and `__index_set(self, index, value)`. For `Array<T>`, the intrinsic signatures are `__index(self: &Array<T>, index: int) -> &T` and `__index_set(self: &mut Array<T>, index: int, value: T) -> nothing`.
 * Iterable if `extern<T[]> { __range() -> Range<T> }` is provided (stdlib provides this for arrays).
 
+#### Maps
+
+`Map<K, V>` is a built-in dictionary type available from the prelude (no import required).
+Key type must be hashable; in v1 this is limited to `string` and integer types (`int`/`uint`, any width).
+Iteration order is **not specified** and must not be relied upon.
+
+* Map literals use `{ key => value, ... }` syntax (expression position only).
+* `Map<K, V>.new()` constructs an empty map.
+* `m[k]` is sugar for `m.__index(&k)` and **panics if the key is missing**; use `get_ref`/`get_mut` for safe access.
+* `m[k] = v` is sugar for `m.__index_set(own k, own v)` (equivalent to `insert`).
+
 ### 2.3. Ownership & References
 
 * `own T` – owning value, moved by default.
@@ -844,6 +855,7 @@ Parser diagnostics:
 
 * `arr[i]` desugars to `arr.__index(i)`.
 * `arr[i] = v` desugars to `arr.__index_set(i, v)`.
+* `m[k]` desugars to `m.__index(&k)` and **panics** if the key is missing; `m[k] = v` desugars to `m.__index_set(own k, own v)`.
 * Range operands use overload resolution: `s[a..b]` resolves `__index(self, r: Range<int>)`.
   Range literals are bracketed, so this can also appear as `s[[a..b]]` without a dedicated slice syntax.
 * Array slicing via ranges returns a view, not a copy; mutations through the view affect the base array.
@@ -1511,6 +1523,24 @@ Top-level helpers `array_push/array_pop/array_reserve` mirror the intrinsic oper
 For fixed-size arrays, `ArrayFixed<T, N>` provides `with_len`, `with_len_value`, and `to_array() -> Array<T>`.
 
 ABI: layout and view rules are defined in `docs/ABI_LAYOUT.md` (Array ABI, Array Slice View ABI, ArrayFixed).
+
+---
+
+### 7.6. Map standard methods
+
+The core prelude defines map helpers as methods on `Map<K, V>`:
+
+* `new() -> Map<K, V>`
+* `len(self: &Map<K, V>) -> uint`
+* `contains(self: &Map<K, V>, key: &K) -> bool`
+* `get_ref(self: &Map<K, V>, key: &K) -> Option<&V>` — safe access
+* `get_mut(self: &mut Map<K, V>, key: &K) -> Option<&mut V>` — safe access
+* `insert(self: &mut Map<K, V>, key: K, value: V) -> Option<V>`
+* `remove(self: &mut Map<K, V>, key: &K) -> Option<V>`
+* `__index(self: &Map<K, V>, key: &K) -> &V` — panics if the key is missing
+* `__index_set(self: &mut Map<K, V>, key: K, value: V) -> nothing`
+
+Iteration order is not specified.
 
 ---
 

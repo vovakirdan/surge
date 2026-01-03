@@ -253,6 +253,20 @@ func (s *Subst) ApplyExpr(e *hir.Expr) error {
 			}
 		}
 		e.Data = data
+	case hir.ExprMapLit:
+		data, ok := e.Data.(hir.MapLitData)
+		if !ok {
+			return nil
+		}
+		for i := range data.Entries {
+			if err := s.ApplyExpr(data.Entries[i].Key); err != nil {
+				return err
+			}
+			if err := s.ApplyExpr(data.Entries[i].Value); err != nil {
+				return err
+			}
+		}
+		e.Data = data
 	case hir.ExprTupleLit:
 		data, ok := e.Data.(hir.TupleLitData)
 		if !ok {

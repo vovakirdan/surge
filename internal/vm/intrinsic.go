@@ -101,6 +101,21 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_array_pop":
 		return vm.handleArrayPop(frame, call, writes)
 
+	case "rt_map_new":
+		return vm.handleMapNew(frame, call, writes)
+	case "rt_map_len":
+		return vm.handleMapLen(frame, call, writes)
+	case "rt_map_contains":
+		return vm.handleMapContains(frame, call, writes)
+	case "rt_map_get_ref":
+		return vm.handleMapGetRef(frame, call, writes)
+	case "rt_map_get_mut":
+		return vm.handleMapGetMut(frame, call, writes)
+	case "rt_map_insert":
+		return vm.handleMapInsert(frame, call, writes)
+	case "rt_map_remove":
+		return vm.handleMapRemove(frame, call, writes)
+
 	case "__task_create":
 		return vm.handleTaskCreate(frame, call, writes)
 	case "__task_state":

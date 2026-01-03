@@ -225,6 +225,20 @@ func rewriteCallsInExpr(e *hir.Expr, f callRewriteFunc) error {
 			}
 		}
 		e.Data = data
+	case hir.ExprMapLit:
+		data, ok := e.Data.(hir.MapLitData)
+		if !ok {
+			return nil
+		}
+		for i := range data.Entries {
+			if err := rewriteCallsInExpr(data.Entries[i].Key, f); err != nil {
+				return err
+			}
+			if err := rewriteCallsInExpr(data.Entries[i].Value, f); err != nil {
+				return err
+			}
+		}
+		e.Data = data
 	case hir.ExprTupleLit:
 		data, ok := e.Data.(hir.TupleLitData)
 		if !ok {

@@ -39,7 +39,7 @@ fn merge_sort(a: &mut int[], tmp: &mut int[], lo: int, hi: int) {
     merge(a, tmp, lo, mid, hi);
 }
 
-fn arr_to_str(a: &int[]) -> string { // todo think about join func
+fn arr_to_str(a: &int[]) -> string {
     let mut s = "[";
     for (let i: int = 0; (i to uint) < len(a); i = i + 1) {
         s = s + a[i] to string;

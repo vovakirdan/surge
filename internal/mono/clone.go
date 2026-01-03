@@ -247,6 +247,22 @@ func cloneExpr(e *hir.Expr) *hir.Expr {
 			}
 		}
 		out.Data = data
+	case hir.ExprMapLit:
+		data, ok := e.Data.(hir.MapLitData)
+		if !ok {
+			break
+		}
+		if len(data.Entries) > 0 {
+			entries := make([]hir.MapEntry, len(data.Entries))
+			for i, entry := range data.Entries {
+				entries[i] = hir.MapEntry{
+					Key:   cloneExpr(entry.Key),
+					Value: cloneExpr(entry.Value),
+				}
+			}
+			data.Entries = entries
+		}
+		out.Data = data
 	case hir.ExprTupleLit:
 		data, ok := e.Data.(hir.TupleLitData)
 		if !ok {

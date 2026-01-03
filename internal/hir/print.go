@@ -455,6 +455,19 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 		}
 		p.printf("]")
 
+	case ExprMapLit:
+		data := e.Data.(MapLitData)
+		p.printf("{")
+		for i, entry := range data.Entries {
+			if i > 0 {
+				p.printf(", ")
+			}
+			p.printExpr(entry.Key)
+			p.printf(" => ")
+			p.printExpr(entry.Value)
+		}
+		p.printf("}")
+
 	case ExprTupleLit:
 		data := e.Data.(TupleLitData)
 		p.printf("(")

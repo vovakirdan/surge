@@ -20,6 +20,7 @@ type Exprs struct {
 	Groups       *Arena[ExprGroupData]
 	Tuples       *Arena[ExprTupleData]
 	Arrays       *Arena[ExprArrayData]
+	Maps         *Arena[ExprMapData]
 	RangeLits    *Arena[ExprRangeLitData]
 	Spreads      *Arena[ExprSpreadData]
 	Tasks        *Arena[ExprTaskData]
@@ -55,6 +56,7 @@ func NewExprs(capHint uint) *Exprs {
 		Groups:       NewArena[ExprGroupData](capHint),
 		Tuples:       NewArena[ExprTupleData](capHint),
 		Arrays:       NewArena[ExprArrayData](capHint),
+		Maps:         NewArena[ExprMapData](capHint),
 		RangeLits:    NewArena[ExprRangeLitData](capHint),
 		Spreads:      NewArena[ExprSpreadData](capHint),
 		Tasks:        NewArena[ExprTaskData](capHint),
@@ -298,6 +300,23 @@ func (e *Exprs) Array(id ExprID) (*ExprArrayData, bool) {
 		return nil, false
 	}
 	return e.Arrays.Get(uint32(expr.Payload)), true
+}
+
+func (e *Exprs) NewMap(span source.Span, entries []ExprMapEntry, commas []source.Span, trailing bool) ExprID {
+	payload := e.Maps.Allocate(ExprMapData{
+		Entries:          append([]ExprMapEntry(nil), entries...),
+		EntryCommas:      append([]source.Span(nil), commas...),
+		HasTrailingComma: trailing,
+	})
+	return e.new(ExprMap, span, PayloadID(payload))
+}
+
+func (e *Exprs) Map(id ExprID) (*ExprMapData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprMap {
+		return nil, false
+	}
+	return e.Maps.Get(uint32(expr.Payload)), true
 }
 
 func (e *Exprs) NewRangeLit(span source.Span, start, end ExprID, inclusive bool) ExprID {

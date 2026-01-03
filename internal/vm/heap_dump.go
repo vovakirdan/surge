@@ -17,6 +17,7 @@ type heapDumpRecord struct {
 	arrLen    int
 	arrCap    int
 	arrStart  int
+	mapLen    int
 	repr      string
 	tag       string
 	rangeKind string
@@ -77,6 +78,9 @@ func (vm *VM) heapDumpString() string {
 		}
 		if a.arrStart != b.arrStart {
 			return a.arrStart < b.arrStart
+		}
+		if a.mapLen != b.mapLen {
+			return a.mapLen < b.mapLen
 		}
 		if a.rc != b.rc {
 			return a.rc < b.rc
@@ -144,6 +148,9 @@ func (vm *VM) heapDumpRecord(obj *Object) heapDumpRecord {
 		rec.arrLen = obj.ArrSliceLen
 		rec.arrCap = obj.ArrSliceCap
 		rec.arrStart = obj.ArrSliceStart
+	case OKMap:
+		rec.kind = "map"
+		rec.mapLen = len(obj.MapEntries)
 	case OKStruct:
 		rec.kind = "struct"
 	case OKTag:
@@ -187,6 +194,9 @@ func (rec *heapDumpRecord) formatLine() string {
 	}
 	if rec.kind == "view" {
 		fmt.Fprintf(&b, " len=%d cap=%d start=%d", rec.arrLen, rec.arrCap, rec.arrStart)
+	}
+	if rec.kind == "map" {
+		fmt.Fprintf(&b, " len=%d", rec.mapLen)
 	}
 	if rec.rangeKind != "" {
 		fmt.Fprintf(&b, " range_kind=%s", rec.rangeKind)

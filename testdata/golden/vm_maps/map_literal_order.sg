@@ -1,0 +1,16 @@
+fn key(label: string) -> string {
+    print(label);
+    return label;
+}
+
+fn val(label: string, v: int) -> int {
+    print(label);
+    return v;
+}
+
+@entrypoint
+fn main() -> int {
+    let m = { key("k1") => val("v1", 1), key("k2") => val("v2", 2) };
+    print((m.len()) to string);
+    return 0;
+}

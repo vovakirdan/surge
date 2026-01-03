@@ -163,6 +163,7 @@ func (tc *typeChecker) resolveTypePath(path *ast.TypePath, span source.Span, sco
 	}
 	tc.ensureBuiltinArrayType()
 	tc.ensureBuiltinArrayFixedType()
+	tc.ensureBuiltinMapType()
 	seg := path.Segments[0]
 	if len(seg.Generics) == 0 {
 		if param := tc.lookupTypeParam(seg.Name); param != types.NoTypeID {
@@ -187,6 +188,7 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 	if name == source.NoStringID {
 		return types.NoTypeID
 	}
+	tc.ensureBuiltinMapType()
 	literal := tc.lookupName(name)
 	if literal != "" {
 		if builtin := tc.builtinTypeByName(literal); builtin != types.NoTypeID {
@@ -242,6 +244,9 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 	if len(args) != expected {
 		tc.report(diag.SemaTypeMismatch, span, "%s expects %d type argument(s), got %d", tc.lookupName(sym.Name), expected, len(args))
 		return types.NoTypeID
+	}
+	if tc.mapSymbol.IsValid() && symID == tc.mapSymbol {
+		return tc.instantiateMapType(args[0], args[1], span)
 	}
 	for i, tp := range sym.TypeParamSymbols {
 		if i >= len(args) {

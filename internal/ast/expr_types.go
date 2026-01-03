@@ -16,6 +16,7 @@ const (
 	ExprGroup
 	ExprTuple
 	ExprArray
+	ExprMap
 	ExprIndex
 	ExprMember
 	ExprTupleIndex
@@ -297,6 +298,17 @@ type ExprTupleData struct {
 type ExprArrayData struct {
 	Elements         []ExprID
 	ElementCommas    []source.Span
+	HasTrailingComma bool
+}
+
+type ExprMapEntry struct {
+	Key   ExprID
+	Value ExprID
+}
+
+type ExprMapData struct {
+	Entries          []ExprMapEntry
+	EntryCommas      []source.Span
 	HasTrailingComma bool
 }
 

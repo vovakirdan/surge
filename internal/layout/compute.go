@@ -87,6 +87,10 @@ func (e *LayoutEngine) computeLayout(id types.TypeID, state *layoutState) (TypeL
 		if elem, length, ok := typesIn.ArrayFixedInfo(id); ok {
 			return e.arrayFixedLayout(elem, length, state)
 		}
+		if _, _, ok := typesIn.MapInfo(id); ok {
+			// Map<K, V> is a handle in the v1 VM/ABI contract.
+			return e.ptrLayout(), nil
+		}
 		if _, ok := typesIn.ArrayInfo(id); ok {
 			// Dynamic Array<T> is a handle in the v1 VM/ABI contract.
 			return e.ptrLayout(), nil

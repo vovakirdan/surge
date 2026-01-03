@@ -40,6 +40,8 @@ func (p *printer) printExpr(id ast.ExprID) {
 		p.printTupleExpr(id, expr)
 	case ast.ExprArray:
 		p.printArrayExpr(id, expr)
+	case ast.ExprMap:
+		p.printMapExpr(id, expr)
 	case ast.ExprRangeLit:
 		p.printRangeExpr(id, expr)
 	default:
@@ -97,6 +99,35 @@ func (p *printer) printArrayExpr(id ast.ExprID, expr *ast.Expr) {
 	}
 
 	if err := p.writer.WriteByte(']'); err != nil {
+		panic(err)
+	}
+}
+
+func (p *printer) printMapExpr(id ast.ExprID, expr *ast.Expr) {
+	m, ok := p.builder.Exprs.Map(id)
+	if !ok || m == nil {
+		p.writer.CopySpan(expr.Span)
+		return
+	}
+
+	if err := p.writer.WriteByte('{'); err != nil {
+		panic(err)
+	}
+
+	for i, entry := range m.Entries {
+		if i > 0 {
+			p.writer.WriteString(", ")
+		}
+		p.printExpr(entry.Key)
+		p.writer.WriteString(" => ")
+		p.printExpr(entry.Value)
+	}
+
+	if m.HasTrailingComma && len(m.Entries) > 0 {
+		p.writer.WriteString(",")
+	}
+
+	if err := p.writer.WriteByte('}'); err != nil {
 		panic(err)
 	}
 }

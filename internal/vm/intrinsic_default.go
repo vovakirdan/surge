@@ -106,6 +106,10 @@ func (vm *VM) defaultValue(typeID types.TypeID) (Value, *VMError) {
 		}
 		return vm.defaultArray(typeID, elem, int(tt.Count))
 	case types.KindStruct:
+		if _, _, ok := vm.Types.MapInfo(typeID); ok {
+			h := vm.Heap.AllocMap(typeID)
+			return MakeHandleMap(h, typeID), nil
+		}
 		if _, ok := vm.Types.ArrayInfo(typeID); ok {
 			h := vm.Heap.AllocArray(typeID, nil)
 			return MakeHandleArray(h, typeID), nil

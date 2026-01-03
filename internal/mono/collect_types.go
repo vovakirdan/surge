@@ -167,6 +167,15 @@ func collectTypesFromExpr(e *hir.Expr, visit func(id types.TypeID)) {
 		for _, el := range data.Elements {
 			collectTypesFromExpr(el, visit)
 		}
+	case hir.ExprMapLit:
+		data, ok := e.Data.(hir.MapLitData)
+		if !ok {
+			return
+		}
+		for _, entry := range data.Entries {
+			collectTypesFromExpr(entry.Key, visit)
+			collectTypesFromExpr(entry.Value, visit)
+		}
 	case hir.ExprTupleLit:
 		data, ok := e.Data.(hir.TupleLitData)
 		if !ok {

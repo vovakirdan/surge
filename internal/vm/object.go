@@ -17,6 +17,7 @@ const (
 	OKString ObjectKind = iota
 	OKArray
 	OKArraySlice
+	OKMap
 	OKStruct
 	OKTag
 	OKBigInt
@@ -87,6 +88,8 @@ type Object struct {
 	ArrSliceStart int
 	ArrSliceLen   int
 	ArrSliceCap   int
+	MapIndex      map[mapKey]int
+	MapEntries    []mapEntry
 	Fields        []Value
 	Tag           TagObject
 	Range         RangeObject

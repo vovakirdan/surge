@@ -50,6 +50,8 @@ type Interner struct {
 	arrayParam       TypeID
 	arrayFixedType   TypeID
 	arrayFixedParams [2]TypeID
+	mapType          TypeID
+	mapParams        [2]TypeID
 }
 
 // NewInterner constructs an interner seeded with built-in primitives.

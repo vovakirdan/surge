@@ -511,6 +511,16 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID) {
 			remapExpr(el, mapping)
 		}
 		expr.Data = data
+	case hir.ExprMapLit:
+		data, ok := expr.Data.(hir.MapLitData)
+		if !ok {
+			return
+		}
+		for _, entry := range data.Entries {
+			remapExpr(entry.Key, mapping)
+			remapExpr(entry.Value, mapping)
+		}
+		expr.Data = data
 	case hir.ExprTupleLit:
 		data, ok := expr.Data.(hir.TupleLitData)
 		if !ok {

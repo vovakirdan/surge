@@ -1,0 +1,13 @@
+pragma module::example;
+import internal/tools::return_42;
+
+@entrypoint
+fn main() {
+    let a = 1;
+    let b = return_42();
+    let c = add(a, b);
+    compare c {
+        43 => print("Modules works correctly");
+        _ => print("Modules doesn't work");
+    }
+}

@@ -1,0 +1,8 @@
+@entrypoint
+fn main() -> int {
+    let mut m = Map<string, int>.new();
+    m["x"] = 10;
+    m["x"] = 11;
+    print((m["x"]) to string);
+    return 0;
+}

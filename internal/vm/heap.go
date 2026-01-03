@@ -206,6 +206,15 @@ func (h *Heap) AllocArraySlice(typeID types.TypeID, base Handle, start, length, 
 	return handle
 }
 
+func (h *Heap) AllocMap(typeID types.TypeID) Handle {
+	handle, obj := h.alloc(OKMap, typeID)
+	obj.MapIndex = make(map[mapKey]int)
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
+	}
+	return handle
+}
+
 func (h *Heap) AllocStruct(typeID types.TypeID, fields []Value) Handle {
 	handle, obj := h.alloc(OKStruct, typeID)
 	obj.Fields = append([]Value(nil), fields...)
@@ -357,6 +366,13 @@ func (h *Heap) Free(handle Handle) {
 		obj.ArrSliceStart = 0
 		obj.ArrSliceLen = 0
 		obj.ArrSliceCap = 0
+	case OKMap:
+		for _, entry := range obj.MapEntries {
+			h.releaseContainedValue(entry.Key)
+			h.releaseContainedValue(entry.Value)
+		}
+		obj.MapEntries = nil
+		obj.MapIndex = nil
 	case OKStruct:
 		for _, v := range obj.Fields {
 			h.releaseContainedValue(v)
@@ -415,7 +431,7 @@ func (h *Heap) Free(handle Handle) {
 
 func (h *Heap) releaseContainedValue(v Value) {
 	switch v.Kind {
-	case VKHandleString, VKHandleArray, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
+	case VKHandleString, VKHandleArray, VKHandleMap, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
 		if v.H != 0 {
 			h.Release(v.H)
 		}

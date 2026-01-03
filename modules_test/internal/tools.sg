@@ -1,0 +1,8 @@
+pub fn return_42() -> int {
+    return 42;
+}
+
+@entrypoint
+fn main() {
+    print(f"The answer is {return_42()}");
+}

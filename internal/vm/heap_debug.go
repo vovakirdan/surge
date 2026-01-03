@@ -84,6 +84,19 @@ func (vm *VM) heapObjectBytes(obj *Object) uint64 {
 		return uint64(len(obj.Arr)) * elemSize
 	case OKArraySlice:
 		return 0
+	case OKMap:
+		if vm != nil && vm.Layout != nil && vm.Types != nil && obj.TypeID != types.NoTypeID {
+			keyType, valueType, ok := vm.Types.MapInfo(obj.TypeID)
+			if ok && keyType != types.NoTypeID && valueType != types.NoTypeID {
+				keySize, errKey := vm.Layout.SizeOf(keyType)
+				valSize, errVal := vm.Layout.SizeOf(valueType)
+				if errKey == nil && errVal == nil {
+					elemSize := safeUint64FromInt(keySize) + safeUint64FromInt(valSize)
+					return uint64(len(obj.MapEntries)) * elemSize
+				}
+			}
+		}
+		return 0
 	case OKStruct, OKTag, OKRange:
 		if vm != nil && vm.Layout != nil && obj.TypeID != types.NoTypeID {
 			if size, err := vm.Layout.SizeOf(obj.TypeID); err == nil {
@@ -179,6 +192,15 @@ func (vm *VM) objectRefCount(obj *Object) int {
 		if obj.ArrSliceBase != 0 {
 			count++
 		}
+	case OKMap:
+		for _, entry := range obj.MapEntries {
+			if entry.Key.IsHeap() && entry.Key.H != 0 {
+				count++
+			}
+			if entry.Value.IsHeap() && entry.Value.H != 0 {
+				count++
+			}
+		}
 	case OKStruct:
 		for _, v := range obj.Fields {
 			if v.IsHeap() && v.H != 0 {
@@ -234,6 +256,8 @@ func (vm *VM) objectSummary(obj *Object) string {
 		return fmt.Sprintf("array(rc=%d,len=%d,cap=%d)", rc, len(obj.Arr), cap(obj.Arr))
 	case OKArraySlice:
 		return fmt.Sprintf("array_view(rc=%d,len=%d,cap=%d,start=%d)", rc, obj.ArrSliceLen, obj.ArrSliceCap, obj.ArrSliceStart)
+	case OKMap:
+		return fmt.Sprintf("map(rc=%d,len=%d,type=%s)", rc, len(obj.MapEntries), typeLabel(vm.Types, obj.TypeID))
 	case OKStruct:
 		return fmt.Sprintf("struct(rc=%d,type=%s)", rc, typeLabel(vm.Types, obj.TypeID))
 	case OKTag:

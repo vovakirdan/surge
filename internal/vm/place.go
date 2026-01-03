@@ -275,6 +275,28 @@ func (vm *VM) loadLocationRaw(loc Location) (Value, *VMError) {
 		}
 		return val, nil
 
+	case LKMapElem:
+		obj, vmErr := vm.heapAliveForRef(loc.Handle)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if obj.Kind != OKMap {
+			return Value{}, vm.eb.invalidLocation(fmt.Sprintf("expected map handle, got %v", obj.Kind))
+		}
+		idx := int(loc.Index)
+		if loc.Index < 0 || idx < 0 || idx >= len(obj.MapEntries) {
+			return Value{}, vm.eb.outOfBounds(idx, len(obj.MapEntries))
+		}
+		val := obj.MapEntries[idx].Value
+		if vm.Types != nil {
+			if _, valueType, ok := vm.Types.MapInfo(obj.TypeID); ok {
+				if retagged, ok := vm.retagUnionValue(val, valueType); ok {
+					val = retagged
+				}
+			}
+		}
+		return val, nil
+
 	default:
 		return Value{}, vm.eb.invalidLocation("unknown location kind")
 	}
@@ -347,6 +369,29 @@ func (vm *VM) storeLocation(loc Location, val Value) *VMError {
 		baseIdx := view.start + idx
 		vm.dropValue(view.baseObj.Arr[baseIdx])
 		view.baseObj.Arr[baseIdx] = val
+		return nil
+
+	case LKMapElem:
+		obj, vmErr := vm.heapAliveForRef(loc.Handle)
+		if vmErr != nil {
+			return vmErr
+		}
+		if obj.Kind != OKMap {
+			return vm.eb.invalidLocation(fmt.Sprintf("expected map handle, got %v", obj.Kind))
+		}
+		idx := int(loc.Index)
+		if loc.Index < 0 || idx < 0 || idx >= len(obj.MapEntries) {
+			return vm.eb.outOfBounds(idx, len(obj.MapEntries))
+		}
+		if vm.Types != nil {
+			if _, valueType, ok := vm.Types.MapInfo(obj.TypeID); ok {
+				if retagged, ok := vm.retagUnionValue(val, valueType); ok {
+					val = retagged
+				}
+			}
+		}
+		vm.dropValue(obj.MapEntries[idx].Value)
+		obj.MapEntries[idx].Value = val
 		return nil
 
 	default:

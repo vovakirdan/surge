@@ -100,6 +100,8 @@ func kindLabel(kind ObjectKind) string {
 		return "array"
 	case OKArraySlice:
 		return "array_slice"
+	case OKMap:
+		return "map"
 	case OKStruct:
 		return "struct"
 	case OKTag:
@@ -411,6 +413,9 @@ func (t *Tracer) formatValue(v Value) string {
 	case VKHandleArray:
 		return t.formatHandleValue("array", v.H)
 
+	case VKHandleMap:
+		return t.formatHandleValue("map", v.H)
+
 	case VKHandleStruct:
 		return t.formatHandleValue("struct", v.H)
 
@@ -513,6 +518,8 @@ func (t *Tracer) formatLocation(loc Location) string {
 		return fmt.Sprintf("struct.field[%d]", loc.Index)
 	case LKArrayElem:
 		return fmt.Sprintf("array[%d]", loc.Index)
+	case LKMapElem:
+		return fmt.Sprintf("map[%d]", loc.Index)
 	case LKStringBytes:
 		return fmt.Sprintf("string.bytes+%d", loc.ByteOffset)
 	case LKRawBytes:

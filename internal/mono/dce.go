@@ -141,6 +141,15 @@ func collectCallSyms(b *hir.Block) []symbols.SymbolID {
 			for _, el := range data.Elements {
 				walkExpr(el)
 			}
+		case hir.ExprMapLit:
+			data, ok := e.Data.(hir.MapLitData)
+			if !ok {
+				return
+			}
+			for _, entry := range data.Entries {
+				walkExpr(entry.Key)
+				walkExpr(entry.Value)
+			}
 		case hir.ExprTupleLit:
 			data, ok := e.Data.(hir.TupleLitData)
 			if !ok {

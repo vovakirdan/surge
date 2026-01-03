@@ -28,13 +28,15 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 			if !tc.selfParamCompatible(container, sig.Params[0], recv.key) {
 				continue
 			}
-			if !tc.methodParamMatches(sig.Params[1], index) {
+			subst := tc.methodSubst(container, recv.key, sig)
+			if !tc.methodParamMatchesWithSubst(sig.Params[1], index, subst) {
 				continue
 			}
-			res := tc.typeFromKey(sig.Result)
+			resultKey := substituteTypeKeyParams(sig.Result, subst)
+			res := tc.typeFromKey(resultKey)
 			if res == types.NoTypeID {
 				if elem, ok := tc.elementType(recv.base); ok && tc.types != nil {
-					resultStr := strings.TrimSpace(string(sig.Result))
+					resultStr := strings.TrimSpace(string(resultKey))
 					if strings.HasPrefix(resultStr, "&") {
 						mut := strings.HasPrefix(resultStr, "&mut ")
 						inner := strings.TrimSpace(strings.TrimPrefix(resultStr, "&mut "))
@@ -60,13 +62,14 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 	return types.NoTypeID
 }
 
-func (tc *typeChecker) magicSignatureForIndexExpr(containerExpr, indexExpr ast.ExprID, container, index types.TypeID) (sig *symbols.FunctionSignature, recvCand typeKeyCandidate, ambiguous bool, borrowInfo borrowMatchInfo) {
+func (tc *typeChecker) magicSignatureForIndexExpr(containerExpr, indexExpr ast.ExprID, container, index types.TypeID) (sig *symbols.FunctionSignature, recvCand typeKeyCandidate, subst map[string]symbols.TypeKey, ambiguous bool, borrowInfo borrowMatchInfo) {
 	if container == types.NoTypeID {
-		return nil, typeKeyCandidate{}, false, borrowMatchInfo{}
+		return nil, typeKeyCandidate{}, nil, false, borrowMatchInfo{}
 	}
 	bestCost := -1
 	var bestSig *symbols.FunctionSignature
 	var bestRecv typeKeyCandidate
+	var bestSubst map[string]symbols.TypeKey
 	for _, recv := range tc.typeKeyCandidates(container) {
 		if recv.key == "" {
 			continue
@@ -79,14 +82,15 @@ func (tc *typeChecker) magicSignatureForIndexExpr(containerExpr, indexExpr ast.E
 			if !tc.selfParamCompatible(container, method.Params[0], recv.key) {
 				continue
 			}
-			if !tc.methodParamMatches(method.Params[1], index) {
+			methodSubst := tc.methodSubst(container, recv.key, method)
+			if !tc.methodParamMatchesWithSubst(method.Params[1], index, methodSubst) {
 				continue
 			}
-			costSelf, ok := tc.magicParamCost(method.Params[0], container, containerExpr, &borrowInfo)
+			costSelf, ok := tc.magicParamCost(substituteTypeKeyParams(method.Params[0], methodSubst), container, containerExpr, &borrowInfo)
 			if !ok {
 				continue
 			}
-			costIndex, ok := tc.magicParamCost(method.Params[1], index, indexExpr, &borrowInfo)
+			costIndex, ok := tc.magicParamCost(substituteTypeKeyParams(method.Params[1], methodSubst), index, indexExpr, &borrowInfo)
 			if !ok {
 				continue
 			}
@@ -96,25 +100,27 @@ func (tc *typeChecker) magicSignatureForIndexExpr(containerExpr, indexExpr ast.E
 				ambiguous = false
 				bestSig = method
 				bestRecv = recv
+				bestSubst = methodSubst
 			}
 		}
 	}
 	if bestCost == -1 {
-		return nil, typeKeyCandidate{}, false, borrowInfo
+		return nil, typeKeyCandidate{}, nil, false, borrowInfo
 	}
-	return bestSig, bestRecv, ambiguous, borrowInfo
+	return bestSig, bestRecv, bestSubst, ambiguous, borrowInfo
 }
 
-func (tc *typeChecker) magicIndexResultFromSig(sig *symbols.FunctionSignature, recv typeKeyCandidate, index types.TypeID) types.TypeID {
+func (tc *typeChecker) magicIndexResultFromSig(sig *symbols.FunctionSignature, recv typeKeyCandidate, subst map[string]symbols.TypeKey, index types.TypeID) types.TypeID {
 	if sig == nil {
 		return types.NoTypeID
 	}
-	res := tc.typeFromKey(sig.Result)
+	resultKey := substituteTypeKeyParams(sig.Result, subst)
+	res := tc.typeFromKey(resultKey)
 	if res != types.NoTypeID {
 		return res
 	}
 	if elem, ok := tc.elementType(recv.base); ok && tc.types != nil {
-		resultStr := strings.TrimSpace(string(sig.Result))
+		resultStr := strings.TrimSpace(string(resultKey))
 		if strings.HasPrefix(resultStr, "&") {
 			mut := strings.HasPrefix(resultStr, "&mut ")
 			inner := strings.TrimSpace(strings.TrimPrefix(resultStr, "&mut "))
@@ -152,10 +158,11 @@ func (tc *typeChecker) magicSignatureForIndexSet(container, index, value types.T
 			if !tc.selfParamCompatible(container, sig.Params[0], recv.key) {
 				continue
 			}
-			if !tc.methodParamMatches(sig.Params[1], index) {
+			subst := tc.methodSubst(container, recv.key, sig)
+			if !tc.methodParamMatchesWithSubst(sig.Params[1], index, subst) {
 				continue
 			}
-			if !tc.methodParamMatches(sig.Params[2], value) {
+			if !tc.methodParamMatchesWithSubst(sig.Params[2], value, subst) {
 				continue
 			}
 			return sig
@@ -190,10 +197,11 @@ func (tc *typeChecker) hasIndexSetter(container, index, value types.TypeID) bool
 			if !tc.selfParamCompatible(container, sig.Params[0], recv.key) {
 				continue
 			}
-			if !tc.methodParamMatches(sig.Params[1], index) {
+			subst := tc.methodSubst(container, recv.key, sig)
+			if !tc.methodParamMatchesWithSubst(sig.Params[1], index, subst) {
 				continue
 			}
-			if !tc.methodParamMatches(sig.Params[2], value) {
+			if !tc.methodParamMatchesWithSubst(sig.Params[2], value, subst) {
 				continue
 			}
 			return true

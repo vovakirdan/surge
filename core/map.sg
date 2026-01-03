@@ -1,0 +1,50 @@
+pragma module, no_std;
+
+// Map helpers built on rt_map_* intrinsics.
+
+extern<Map<K, V>> {
+    pub fn new() -> Map<K, V> {
+        return rt_map_new();
+    }
+
+    pub fn len(self: &Map<K, V>) -> uint {
+        return rt_map_len(self);
+    }
+
+    pub fn __len(self: &Map<K, V>) -> uint {
+        return rt_map_len(self);
+    }
+
+    pub fn contains(self: &Map<K, V>, key: &K) -> bool {
+        return rt_map_contains(self, key);
+    }
+
+    pub fn get_ref(self: &Map<K, V>, key: &K) -> Option<&V> {
+        return rt_map_get_ref(self, key);
+    }
+
+    pub fn get_mut(self: &mut Map<K, V>, key: &K) -> Option<&mut V> {
+        return rt_map_get_mut(self, key);
+    }
+
+    pub fn insert(self: &mut Map<K, V>, key: K, value: V) -> Option<V> {
+        return rt_map_insert(self, key, value);
+    }
+
+    pub fn remove(self: &mut Map<K, V>, key: &K) -> Option<V> {
+        return rt_map_remove(self, key);
+    }
+
+    pub fn __index(self: &Map<K, V>, key: &K) -> &V {
+        let res: Option<&V> = self.get_ref(key);
+        return compare res {
+            Some(v) => v,
+            _ => panic("map key not found");
+        };
+    }
+
+    pub fn __index_set(self: &mut Map<K, V>, key: K, value: V) -> nothing {
+        let _ = rt_map_insert(self, key, value);
+        return nothing;
+    }
+}

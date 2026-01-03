@@ -277,6 +277,23 @@ func normalizeExpr(ctx *normCtx, e *Expr) error {
 		e.Data = data
 		return nil
 
+	case ExprMapLit:
+		data := e.Data.(MapLitData)
+		for i := range data.Entries {
+			if data.Entries[i].Key != nil {
+				if err := normalizeExpr(ctx, data.Entries[i].Key); err != nil {
+					return err
+				}
+			}
+			if data.Entries[i].Value != nil {
+				if err := normalizeExpr(ctx, data.Entries[i].Value); err != nil {
+					return err
+				}
+			}
+		}
+		e.Data = data
+		return nil
+
 	case ExprTupleLit:
 		data := e.Data.(TupleLitData)
 		for _, elem := range data.Elements {

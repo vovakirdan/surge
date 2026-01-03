@@ -24,6 +24,7 @@ const (
 
 	VKHandleString
 	VKHandleArray
+	VKHandleMap
 	VKHandleStruct
 	VKHandleTag
 	VKHandleRange
@@ -56,6 +57,8 @@ func (k ValueKind) String() string {
 		return "string"
 	case VKHandleArray:
 		return "array"
+	case VKHandleMap:
+		return "map"
 	case VKHandleStruct:
 		return "struct"
 	case VKHandleTag:
@@ -91,7 +94,7 @@ func (v Value) IsZero() bool {
 
 func (v Value) IsHeap() bool {
 	switch v.Kind {
-	case VKHandleString, VKHandleArray, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
+	case VKHandleString, VKHandleArray, VKHandleMap, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
 		return true
 	default:
 		return false
@@ -124,6 +127,8 @@ func (v Value) String() string {
 		return "string"
 	case VKHandleArray:
 		return "array"
+	case VKHandleMap:
+		return "map"
 	case VKHandleStruct:
 		return "struct"
 	case VKHandleTag:
@@ -213,6 +218,14 @@ func MakeHandleArray(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
 		Kind:   VKHandleArray,
+		H:      h,
+	}
+}
+
+func MakeHandleMap(h Handle, typeID types.TypeID) Value {
+	return Value{
+		TypeID: typeID,
+		Kind:   VKHandleMap,
 		H:      h,
 	}
 }

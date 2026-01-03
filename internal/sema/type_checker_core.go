@@ -93,6 +93,9 @@ type typeChecker struct {
 	arrayFixedName              source.StringID
 	arrayFixedSymbol            symbols.SymbolID
 	arrayFixedType              types.TypeID
+	mapName                     source.StringID
+	mapSymbol                   symbols.SymbolID
+	mapType                     types.TypeID
 	fnConcurrencySummaries      map[symbols.SymbolID]*FnConcurrencySummary
 	lockOrderGraph              *LockOrderGraph // Global lock ordering for deadlock detection
 	taskTracker                 *TaskTracker    // Task tracking for structured concurrency
@@ -207,6 +210,7 @@ func (tc *typeChecker) run() {
 
 	done = phase("register_types")
 	tc.ensureBuiltinArrayType()
+	tc.ensureBuiltinMapType()
 	files := []*ast.File{file}
 	if tc.symbols != nil && len(tc.symbols.ModuleFiles) > 0 {
 		ids := make([]ast.FileID, 0, len(tc.symbols.ModuleFiles))

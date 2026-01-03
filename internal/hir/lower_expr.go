@@ -87,6 +87,9 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 	case ast.ExprArray:
 		return l.lowerArrayExpr(expr, ty)
 
+	case ast.ExprMap:
+		return l.lowerMapExpr(expr, ty)
+
 	case ast.ExprRangeLit:
 		return l.lowerRangeLitExpr(expr, ty)
 
@@ -489,6 +492,27 @@ func (l *lowerer) lowerArrayExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 		Type: ty,
 		Span: expr.Span,
 		Data: ArrayLitData{Elements: elements},
+	}
+}
+
+// lowerMapExpr lowers a map literal expression.
+func (l *lowerer) lowerMapExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+	mapData := l.builder.Exprs.Maps.Get(uint32(expr.Payload))
+	if mapData == nil {
+		return nil
+	}
+	entries := make([]MapEntry, len(mapData.Entries))
+	for i, entry := range mapData.Entries {
+		entries[i] = MapEntry{
+			Key:   l.lowerExpr(entry.Key),
+			Value: l.lowerExpr(entry.Value),
+		}
+	}
+	return &Expr{
+		Kind: ExprMapLit,
+		Type: ty,
+		Span: expr.Span,
+		Data: MapLitData{Entries: entries},
 	}
 }
 

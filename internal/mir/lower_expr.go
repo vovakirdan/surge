@@ -272,6 +272,9 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 	case hir.ExprArrayLit:
 		return l.lowerArrayLitExpr(e, consume)
 
+	case hir.ExprMapLit:
+		return l.lowerMapLitExpr(e, consume)
+
 	case hir.ExprTupleLit:
 		return l.lowerTupleLitExpr(e, consume)
 
@@ -695,6 +698,52 @@ func (l *funcLowerer) lowerArrayLitExpr(e *hir.Expr, consume bool) (Operand, err
 		},
 	})
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
+}
+
+// lowerMapLitExpr lowers a map literal expression by emitting rt_map_* calls.
+func (l *funcLowerer) lowerMapLitExpr(e *hir.Expr, consume bool) (Operand, error) {
+	data, ok := e.Data.(hir.MapLitData)
+	if !ok {
+		return Operand{}, fmt.Errorf("mir: map lit: unexpected payload %T", e.Data)
+	}
+
+	mapType := e.Type
+	tmp := l.newTemp(mapType, "map", e.Span)
+	l.emit(&Instr{
+		Kind: InstrCall,
+		Call: CallInstr{
+			HasDst: true,
+			Dst:    Place{Local: tmp},
+			Callee: Callee{Kind: CalleeSym, Name: "rt_map_new"},
+		},
+	})
+
+	refType := mapType
+	if l.types != nil && mapType != types.NoTypeID {
+		refType = l.types.Intern(types.MakeReference(mapType, true))
+	}
+	mapRef := Operand{Kind: OperandAddrOfMut, Type: refType, Place: Place{Local: tmp}}
+
+	for _, entry := range data.Entries {
+		keyOp, err := l.lowerExpr(entry.Key, true)
+		if err != nil {
+			return Operand{}, err
+		}
+		valOp, err := l.lowerExpr(entry.Value, true)
+		if err != nil {
+			return Operand{}, err
+		}
+		l.emit(&Instr{
+			Kind: InstrCall,
+			Call: CallInstr{
+				HasDst: false,
+				Callee: Callee{Kind: CalleeSym, Name: "rt_map_insert"},
+				Args:   []Operand{mapRef, keyOp, valOp},
+			},
+		})
+	}
+
+	return l.placeOperand(Place{Local: tmp}, mapType, consume), nil
 }
 
 // lowerTupleLitExpr lowers a tuple literal expression.

@@ -181,6 +181,18 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 			return fmt.Sprintf("(%s,)", elems[0])
 		}
 		return fmt.Sprintf("(%s)", strings.Join(elems, ", "))
+	case ast.ExprMap:
+		data, ok := builder.Exprs.Map(exprID)
+		if !ok {
+			return "<invalid-map>"
+		}
+		parts := make([]string, 0, len(data.Entries))
+		for _, entry := range data.Entries {
+			key := formatExprInlineDepth(builder, entry.Key, depth+1)
+			val := formatExprInlineDepth(builder, entry.Value, depth+1)
+			parts = append(parts, key+" => "+val)
+		}
+		return fmt.Sprintf("{%s}", strings.Join(parts, ", "))
 	case ast.ExprRangeLit:
 		data, ok := builder.Exprs.RangeLit(exprID)
 		if !ok || data == nil {
@@ -445,6 +457,8 @@ func formatExprKind(kind ast.ExprKind) string {
 		return "Group"
 	case ast.ExprTuple:
 		return "Tuple"
+	case ast.ExprMap:
+		return "Map"
 	case ast.ExprIndex:
 		return "Index"
 	case ast.ExprMember:

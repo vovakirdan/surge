@@ -524,6 +524,7 @@ func (tc *typeChecker) applyIndexSetterOwnership(leftExpr, rightExpr ast.ExprID,
 	}
 	if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
 		tc.recordIndexSetSymbol(leftExpr, symID)
+		tc.recordMethodCallInstantiation(symID, container, nil, tc.exprSpan(leftExpr))
 	}
 	tc.applyParamOwnership(sig.Params[0], index.Target, container, tc.exprSpan(index.Target))
 	tc.applyParamOwnership(sig.Params[1], index.Index, indexType, tc.exprSpan(index.Index))

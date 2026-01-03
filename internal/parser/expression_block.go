@@ -21,10 +21,25 @@ func (p *Parser) parseBraceExpr() (ast.ExprID, bool) {
 		return p.parseBlockExprBody(lbraceTok)
 	}
 
-	// Not a block expression - need to parse as struct literal
-	// parseStructLiteral expects '{' to NOT be consumed yet,
-	// so we call a variant that takes the already-consumed open token
-	return p.parseStructLiteralBody(ast.NoTypeID, source.Span{}, lbraceTok)
+	if p.at(token.RBrace) {
+		// Empty braces default to struct literal.
+		return p.parseStructLiteralBody(ast.NoTypeID, source.Span{}, lbraceTok)
+	}
+
+	p.suspendColonCast++
+	p.allowFatArrow++
+	firstExpr, ok := p.parseBinaryExpr(precNullCoalescing)
+	p.allowFatArrow--
+	p.suspendColonCast--
+	if !ok {
+		p.resyncStructLiteralField()
+		return ast.NoExprID, false
+	}
+
+	if p.at(token.FatArrow) {
+		return p.parseMapLiteralBody(lbraceTok, firstExpr)
+	}
+	return p.parseStructLiteralBodyWithFirst(ast.NoTypeID, source.Span{}, lbraceTok, firstExpr)
 }
 
 // isStatementKeyword checks if a token kind is a statement keyword

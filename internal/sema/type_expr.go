@@ -263,6 +263,34 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				}
 			}
 		}
+	case ast.ExprMap:
+		if mp, ok := tc.builder.Exprs.Map(id); ok && mp != nil {
+			var keyType types.TypeID
+			var valueType types.TypeID
+			for _, entry := range mp.Entries {
+				kType := tc.typeExpr(entry.Key)
+				if tc.isTaskType(kType) {
+					tc.trackTaskPassedAsArg(entry.Key)
+				}
+				vType := tc.typeExpr(entry.Value)
+				if tc.isTaskType(vType) {
+					tc.trackTaskPassedAsArg(entry.Value)
+				}
+				if keyType == types.NoTypeID {
+					keyType = kType
+				} else if kType != types.NoTypeID && kType != keyType {
+					tc.report(diag.SemaTypeMismatch, tc.exprSpan(entry.Key), "map keys must have the same type")
+				}
+				if valueType == types.NoTypeID {
+					valueType = vType
+				} else if vType != types.NoTypeID && vType != valueType {
+					tc.report(diag.SemaTypeMismatch, tc.exprSpan(entry.Value), "map values must have the same type")
+				}
+			}
+			if keyType != types.NoTypeID && valueType != types.NoTypeID {
+				ty = tc.instantiateMapType(keyType, valueType, expr.Span)
+			}
+		}
 	case ast.ExprRangeLit:
 		if rng, ok := tc.builder.Exprs.RangeLit(id); ok && rng != nil {
 			intType := tc.types.Builtins().Int
@@ -307,10 +335,11 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			_, isAddressOfOperand := tc.addressOfOperands[id]
 			var sig *symbols.FunctionSignature
 			var sigCand typeKeyCandidate
+			var sigSubst map[string]symbols.TypeKey
 			var borrowInfo borrowMatchInfo
 			var ambiguous bool
 			if tc.assignmentLHSDepth == 0 {
-				sig, sigCand, ambiguous, borrowInfo = tc.magicSignatureForIndexExpr(idx.Target, idx.Index, container, indexType)
+				sig, sigCand, sigSubst, ambiguous, borrowInfo = tc.magicSignatureForIndexExpr(idx.Target, idx.Index, container, indexType)
 			}
 			if ambiguous {
 				tc.report(diag.SemaAmbiguousOverload, expr.Span, "ambiguous overload for index")
@@ -318,9 +347,10 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				break
 			}
 			if sig != nil {
-				ty = tc.magicIndexResultFromSig(sig, sigCand, indexType)
+				ty = tc.magicIndexResultFromSig(sig, sigCand, sigSubst, indexType)
 				if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
 					tc.recordIndexSymbol(id, symID)
+					tc.recordMethodCallInstantiation(symID, container, nil, expr.Span)
 				}
 			} else if borrowInfo.expr.IsValid() {
 				tc.reportBorrowFailure(&borrowInfo)
