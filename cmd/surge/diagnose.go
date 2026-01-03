@@ -263,7 +263,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	)
 
 	runFile := func() (int, error) {
-		result, err := driver.DiagnoseWithOptions(cmd.Context(), filePath, opts)
+		result, err := driver.DiagnoseWithOptions(cmd.Context(), filePath, &opts)
 		if err != nil {
 			return 0, fmt.Errorf("diagnosis failed: %w", err)
 		}
@@ -432,7 +432,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			return 0, fmt.Errorf("failed to get jobs flag: %w", err)
 		}
 
-		fs, results, err := driver.DiagnoseDirWithOptions(cmd.Context(), filePath, opts, jobs)
+		fs, results, err := driver.DiagnoseDirWithOptions(cmd.Context(), filePath, &opts, jobs)
 		if err != nil {
 			return 0, fmt.Errorf("diagnosis failed: %w", err)
 		}

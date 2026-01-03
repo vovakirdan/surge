@@ -22,7 +22,7 @@ func TestDiagnose_NoDependencyErrorForCleanImport(t *testing.T) {
 		t.Fatalf("write file: %v", writeErr)
 	}
 
-	res, err := DiagnoseWithOptions(context.Background(), path, opts)
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
 	if err != nil {
 		t.Fatalf("DiagnoseWithOptions error: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestDiagnoseReportsUnresolvedSymbol(t *testing.T) {
 		MaxDiagnostics: 8,
 	}
 
-	res, err := DiagnoseWithOptions(context.Background(), path, opts)
+	res, err := DiagnoseWithOptions(context.Background(), path, &opts)
 	if err != nil {
 		t.Fatalf("DiagnoseWithOptions error: %v", err)
 	}

@@ -25,7 +25,7 @@ func analyzeDependencyModule(
 	fs *source.FileSet,
 	modulePath string,
 	baseDir string,
-	opts DiagnoseOptions,
+	opts *DiagnoseOptions,
 	cache *ModuleCache,
 	strs *source.Interner,
 ) (retRec *moduleRecord, retErr error) {
@@ -116,7 +116,7 @@ func resolveModuleRecord(
 	baseDir string,
 	moduleExports map[string]*symbols.ModuleExports,
 	typeInterner *types.Interner,
-	opts DiagnoseOptions,
+	opts *DiagnoseOptions,
 	insts sema.InstantiationRecorder,
 ) *symbols.ModuleExports {
 	tracer := trace.FromContext(ctx)
@@ -230,7 +230,7 @@ func collectModuleExports(
 	baseDir string,
 	rootPath string,
 	typeInterner *types.Interner,
-	opts DiagnoseOptions,
+	opts *DiagnoseOptions,
 ) map[string]*symbols.ModuleExports {
 	exports := collectedExports(records)
 	if exports == nil {

@@ -100,7 +100,7 @@ fn foo() -> None {
 				t.Fatalf("write fixture: %v", err)
 			}
 
-			resEnabled, err := DiagnoseWithOptions(context.Background(), path, optsEnabled)
+			resEnabled, err := DiagnoseWithOptions(context.Background(), path, &optsEnabled)
 			if err != nil {
 				t.Fatalf("DiagnoseWithOptions(enabled) error: %v", err)
 			}
@@ -114,7 +114,7 @@ fn foo() -> None {
 				t.Fatalf("expected no errors for valid fixture, got errors: %+v", resEnabled.Bag.Items())
 			}
 
-			resDisabled, err := DiagnoseWithOptions(context.Background(), path, optsDisabled)
+			resDisabled, err := DiagnoseWithOptions(context.Background(), path, &optsDisabled)
 			if err != nil {
 				t.Fatalf("DiagnoseWithOptions(disabled) error: %v", err)
 			}

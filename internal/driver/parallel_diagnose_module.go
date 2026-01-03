@@ -18,7 +18,7 @@ import (
 // enrichModuleResults reruns symbol/semantic resolution for directories that
 // declare a multi-file module (pragma module/binary). This ensures all files in
 // the module share one scope when diagnosing a directory.
-func enrichModuleResults(ctx context.Context, _ string, fileSet *source.FileSet, results []DiagnoseDirResult, opts DiagnoseOptions) error {
+func enrichModuleResults(ctx context.Context, _ string, fileSet *source.FileSet, results []DiagnoseDirResult, opts *DiagnoseOptions) error {
 	if fileSet == nil {
 		return nil
 	}
@@ -99,7 +99,7 @@ func diagnoseModuleDirectory(
 	ctx context.Context,
 	dir string,
 	fileSet *source.FileSet,
-	opts DiagnoseOptions,
+	opts *DiagnoseOptions,
 	typeInterner *types.Interner,
 	moduleExports map[string]*symbols.ModuleExports,
 ) (map[string]moduleFileResult, error) {

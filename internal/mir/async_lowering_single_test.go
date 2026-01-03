@@ -45,7 +45,7 @@ fn main() -> int {
 		t.Fatalf("failed to close temp file: %v", closeErr)
 	}
 
-	result, err := driver.DiagnoseWithOptions(context.Background(), tmpFile.Name(), opts)
+	result, err := driver.DiagnoseWithOptions(context.Background(), tmpFile.Name(), &opts)
 	if err == nil && result != nil && result.Bag.HasErrors() {
 		var sb strings.Builder
 		for _, d := range result.Bag.Items() {

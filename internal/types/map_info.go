@@ -9,7 +9,7 @@ func (in *Interner) MapNominalType() TypeID {
 }
 
 // MapInfo returns (key, value, true) if id is an instantiation of Map<K, V>.
-func (in *Interner) MapInfo(id TypeID) (key TypeID, value TypeID, ok bool) {
+func (in *Interner) MapInfo(id TypeID) (key, value TypeID, ok bool) {
 	if in == nil || id == NoTypeID || in.mapType == NoTypeID {
 		return NoTypeID, NoTypeID, false
 	}

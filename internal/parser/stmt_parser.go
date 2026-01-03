@@ -533,11 +533,12 @@ func (p *Parser) parseExprStmt() (ast.StmtID, bool) {
 		semiOK           bool
 		missingSemicolon bool
 	)
-	if p.at(token.Semicolon) {
+	switch {
+	case p.at(token.Semicolon):
 		semiTok = p.advance()
-	} else if allowOmitSemicolon {
+	case allowOmitSemicolon:
 		missingSemicolon = true
-	} else {
+	default:
 		insertSpan := p.lastSpan.ZeroideToEnd()
 		semiTok, semiOK = p.expect(
 			token.Semicolon,

@@ -270,7 +270,7 @@ fn main() -> int {
 	opts := driver.DiagnoseOptions{
 		Stage: driver.DiagnoseStageSema,
 	}
-	result, err := driver.DiagnoseWithOptions(context.Background(), tmpFile.Name(), opts)
+	result, err := driver.DiagnoseWithOptions(context.Background(), tmpFile.Name(), &opts)
 	if err != nil {
 		t.Fatalf("compilation failed: %v", err)
 	}

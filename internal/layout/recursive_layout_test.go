@@ -124,7 +124,7 @@ func diagnoseSemaFromSource(t *testing.T, sourceCode string, allowErrors bool) *
 		t.Fatalf("get absolute path: %v", err)
 	}
 
-	res, err := driver.DiagnoseWithOptions(context.Background(), absPath, driver.DiagnoseOptions{
+	res, err := driver.DiagnoseWithOptions(context.Background(), absPath, &driver.DiagnoseOptions{
 		Stage:          driver.DiagnoseStageSema,
 		MaxDiagnostics: 100,
 	})

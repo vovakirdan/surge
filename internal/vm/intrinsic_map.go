@@ -92,7 +92,7 @@ func (vm *VM) handleMapContains(frame *Frame, call *mir.CallInstr, writes *[]Loc
 	if vmErr != nil {
 		return vmErr
 	}
-	keyType, _, _ := vm.mapValueTypes(obj.TypeID)
+	keyType, _ := vm.mapValueTypes(obj.TypeID)
 	key, _, vmErr := vm.mapKeyFromValue(keyArg, keyType)
 	if vmErr != nil {
 		return vmErr
@@ -135,7 +135,7 @@ func (vm *VM) handleMapGetRef(frame *Frame, call *mir.CallInstr, writes *[]Local
 	if vmErr != nil {
 		return vmErr
 	}
-	keyType, valueType, _ := vm.mapValueTypes(obj.TypeID)
+	keyType, valueType := vm.mapValueTypes(obj.TypeID)
 	key, _, vmErr := vm.mapKeyFromValue(keyArg, keyType)
 	if vmErr != nil {
 		return vmErr
@@ -144,13 +144,13 @@ func (vm *VM) handleMapGetRef(frame *Frame, call *mir.CallInstr, writes *[]Local
 	dstLocal := call.Dst.Local
 	dstType := frame.Locals[dstLocal].TypeID
 	if !ok {
-		res, vmErr := vm.makeOptionNothing(dstType)
-		if vmErr != nil {
-			return vmErr
+		res, makeErr := vm.makeOptionNothing(dstType)
+		if makeErr != nil {
+			return makeErr
 		}
-		if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
+		if writeErr := vm.writeLocal(frame, dstLocal, res); writeErr != nil {
 			vm.dropValue(res)
-			return vmErr
+			return writeErr
 		}
 		if writes != nil {
 			*writes = append(*writes, LocalWrite{
@@ -209,7 +209,7 @@ func (vm *VM) handleMapGetMut(frame *Frame, call *mir.CallInstr, writes *[]Local
 	if vmErr != nil {
 		return vmErr
 	}
-	keyType, valueType, _ := vm.mapValueTypes(obj.TypeID)
+	keyType, valueType := vm.mapValueTypes(obj.TypeID)
 	key, _, vmErr := vm.mapKeyFromValue(keyArg, keyType)
 	if vmErr != nil {
 		return vmErr
@@ -218,13 +218,13 @@ func (vm *VM) handleMapGetMut(frame *Frame, call *mir.CallInstr, writes *[]Local
 	dstLocal := call.Dst.Local
 	dstType := frame.Locals[dstLocal].TypeID
 	if !ok {
-		res, vmErr := vm.makeOptionNothing(dstType)
-		if vmErr != nil {
-			return vmErr
+		res, makeErr := vm.makeOptionNothing(dstType)
+		if makeErr != nil {
+			return makeErr
 		}
-		if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
+		if writeErr := vm.writeLocal(frame, dstLocal, res); writeErr != nil {
 			vm.dropValue(res)
-			return vmErr
+			return writeErr
 		}
 		if writes != nil {
 			*writes = append(*writes, LocalWrite{
@@ -287,7 +287,7 @@ func (vm *VM) handleMapInsert(frame *Frame, call *mir.CallInstr, writes *[]Local
 		vm.dropValue(valArg)
 		return vmErr
 	}
-	keyType, valueType, _ := vm.mapValueTypes(obj.TypeID)
+	keyType, valueType := vm.mapValueTypes(obj.TypeID)
 	key, keyVal, vmErr := vm.mapKeyFromValue(keyArg, keyType)
 	if vmErr != nil {
 		vm.dropValue(keyArg)
@@ -311,14 +311,14 @@ func (vm *VM) handleMapInsert(frame *Frame, call *mir.CallInstr, writes *[]Local
 		}
 		dstLocal := call.Dst.Local
 		dstType := frame.Locals[dstLocal].TypeID
-		res, vmErr := vm.makeOptionSome(dstType, oldVal)
-		if vmErr != nil {
+		res, makeErr := vm.makeOptionSome(dstType, oldVal)
+		if makeErr != nil {
 			vm.dropValue(oldVal)
-			return vmErr
+			return makeErr
 		}
-		if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
+		if writeErr := vm.writeLocal(frame, dstLocal, res); writeErr != nil {
 			vm.dropValue(res)
-			return vmErr
+			return writeErr
 		}
 		if writes != nil {
 			*writes = append(*writes, LocalWrite{
@@ -374,7 +374,7 @@ func (vm *VM) handleMapRemove(frame *Frame, call *mir.CallInstr, writes *[]Local
 	if vmErr != nil {
 		return vmErr
 	}
-	keyType, _, _ := vm.mapValueTypes(obj.TypeID)
+	keyType, _ := vm.mapValueTypes(obj.TypeID)
 	key, _, vmErr := vm.mapKeyFromValue(keyArg, keyType)
 	if vmErr != nil {
 		return vmErr
@@ -386,13 +386,13 @@ func (vm *VM) handleMapRemove(frame *Frame, call *mir.CallInstr, writes *[]Local
 		}
 		dstLocal := call.Dst.Local
 		dstType := frame.Locals[dstLocal].TypeID
-		res, vmErr := vm.makeOptionNothing(dstType)
-		if vmErr != nil {
-			return vmErr
+		res, makeErr := vm.makeOptionNothing(dstType)
+		if makeErr != nil {
+			return makeErr
 		}
-		if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
+		if writeErr := vm.writeLocal(frame, dstLocal, res); writeErr != nil {
 			vm.dropValue(res)
-			return vmErr
+			return writeErr
 		}
 		if writes != nil {
 			*writes = append(*writes, LocalWrite{
@@ -409,9 +409,9 @@ func (vm *VM) handleMapRemove(frame *Frame, call *mir.CallInstr, writes *[]Local
 	if idx != lastIdx {
 		swap := obj.MapEntries[lastIdx]
 		obj.MapEntries[idx] = swap
-		swapKey, _, vmErr := vm.mapKeyFromValue(swap.Key, keyType)
-		if vmErr != nil {
-			return vmErr
+		swapKey, _, swapErr := vm.mapKeyFromValue(swap.Key, keyType)
+		if swapErr != nil {
+			return swapErr
 		}
 		obj.MapIndex[swapKey] = idx
 	}
@@ -466,11 +466,12 @@ func (vm *VM) mapObjectFromValue(val Value) (*Object, Handle, *VMError) {
 	return obj, val.H, nil
 }
 
-func (vm *VM) mapValueTypes(mapType types.TypeID) (key, value types.TypeID, ok bool) {
+func (vm *VM) mapValueTypes(mapType types.TypeID) (key, value types.TypeID) {
 	if vm == nil || vm.Types == nil || mapType == types.NoTypeID {
-		return types.NoTypeID, types.NoTypeID, false
+		return types.NoTypeID, types.NoTypeID
 	}
-	return vm.Types.MapInfo(mapType)
+	key, value, _ = vm.Types.MapInfo(mapType)
+	return key, value
 }
 
 func (vm *VM) mapKeyFromValue(val Value, keyType types.TypeID) (mapKey, Value, *VMError) {

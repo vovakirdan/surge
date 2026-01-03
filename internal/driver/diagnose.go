@@ -82,11 +82,14 @@ func Diagnose(ctx context.Context, filePath string, stage DiagnoseStage, maxDiag
 		Stage:          stage,
 		MaxDiagnostics: maxDiagnostics,
 	}
-	return DiagnoseWithOptions(ctx, filePath, opts)
+	return DiagnoseWithOptions(ctx, filePath, &opts)
 }
 
 // DiagnoseWithOptions запускает диагностику файла с указанными опциями
-func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOptions) (*DiagnoseResult, error) {
+func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOptions) (*DiagnoseResult, error) {
+	if opts == nil {
+		opts = &DiagnoseOptions{}
+	}
 	// Get tracer from context
 	tracer := trace.FromContext(ctx)
 	diagSpan := trace.Begin(tracer, trace.ScopeDriver, "diagnose", 0)
@@ -467,7 +470,7 @@ func runModuleGraph(
 	builder *ast.Builder,
 	astFile ast.FileID,
 	bag *diag.Bag,
-	opts DiagnoseOptions,
+	opts *DiagnoseOptions,
 	cache *ModuleCache,
 	typeInterner *types.Interner,
 	strs *source.Interner,

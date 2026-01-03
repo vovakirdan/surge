@@ -98,12 +98,12 @@ func runFix(cmd *cobra.Command, args []string) error {
 	}
 
 	if !info.IsDir() {
-		return runFixFile(cmd.Context(), targetPath, driverOpts, opts)
+		return runFixFile(cmd.Context(), targetPath, &driverOpts, opts)
 	}
-	return runFixDir(cmd, targetPath, driverOpts, opts)
+	return runFixDir(cmd, targetPath, &driverOpts, opts)
 }
 
-func runFixFile(ctx context.Context, path string, driverOpts driver.DiagnoseOptions, opts fix.ApplyOptions) error {
+func runFixFile(ctx context.Context, path string, driverOpts *driver.DiagnoseOptions, opts fix.ApplyOptions) error {
 	result, err := driver.DiagnoseWithOptions(ctx, path, driverOpts)
 	if err != nil {
 		return fmt.Errorf("fix: diagnose failed: %w", err)
@@ -117,7 +117,7 @@ func runFixFile(ctx context.Context, path string, driverOpts driver.DiagnoseOpti
 	return handleApplyResult(res, applyErr)
 }
 
-func runFixDir(cmd *cobra.Command, path string, driverOpts driver.DiagnoseOptions, opts fix.ApplyOptions) error {
+func runFixDir(cmd *cobra.Command, path string, driverOpts *driver.DiagnoseOptions, opts fix.ApplyOptions) error {
 	fs, results, err := driver.DiagnoseDirWithOptions(cmd.Context(), path, driverOpts, 0)
 	if err != nil {
 		return fmt.Errorf("fix: diagnose dir failed: %w", err)

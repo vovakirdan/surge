@@ -25,7 +25,7 @@ func compileToMIR(t *testing.T, filePath string) (*mir.Module, *source.FileSet, 
 		EmitInstantiations: true,
 	}
 
-	result, err := driver.DiagnoseWithOptions(context.Background(), filePath, opts)
+	result, err := driver.DiagnoseWithOptions(context.Background(), filePath, &opts)
 	if err != nil {
 		t.Fatalf("compilation failed: %v", err)
 	}

@@ -18,7 +18,10 @@ import (
 	"surge/internal/symbols"
 )
 
-func DiagnoseDirWithOptions(ctx context.Context, dir string, opts DiagnoseOptions, jobs int) (*source.FileSet, []DiagnoseDirResult, error) {
+func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptions, jobs int) (*source.FileSet, []DiagnoseDirResult, error) {
+	if opts == nil {
+		opts = &DiagnoseOptions{}
+	}
 	files, err := listSGFiles(dir)
 	if err != nil {
 		return nil, nil, err

@@ -101,13 +101,6 @@ func (tc *typeChecker) instantiateMapType(key, value types.TypeID, span source.S
 	return inst
 }
 
-func (tc *typeChecker) mapInfo(id types.TypeID) (key, value types.TypeID, ok bool) {
-	if tc == nil || tc.types == nil {
-		return types.NoTypeID, types.NoTypeID, false
-	}
-	return tc.types.MapInfo(id)
-}
-
 func (tc *typeChecker) isMapKeyType(id types.TypeID) bool {
 	if tc == nil || tc.types == nil || id == types.NoTypeID {
 		return false

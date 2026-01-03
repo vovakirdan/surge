@@ -59,7 +59,7 @@ func diagnoseFromSource(t *testing.T, sourceCode string) *driver.DiagnoseResult 
 	}
 
 	opts := driver.DiagnoseOptions{Stage: driver.DiagnoseStageSema}
-	result, err := driver.DiagnoseWithOptions(context.Background(), tmpFile.Name(), opts)
+	result, err := driver.DiagnoseWithOptions(context.Background(), tmpFile.Name(), &opts)
 	if err != nil {
 		t.Fatalf("diagnose failed: %v", err)
 	}

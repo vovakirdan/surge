@@ -31,7 +31,7 @@ type runConfig struct {
 	Main string `toml:"main"`
 }
 
-func findSurgeToml(startDir string) (string, bool, error) {
+func findSurgeToml(startDir string) (path string, ok bool, err error) {
 	if startDir == "" {
 		startDir = "."
 	}

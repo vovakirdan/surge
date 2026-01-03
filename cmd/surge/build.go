@@ -137,11 +137,8 @@ func buildExecution(cmd *cobra.Command, args []string) error {
 
 	switch backend {
 	case "vm":
-		script, err := buildVMWrapperScript(manifest, manifestFound, targetPath, baseDir)
-		if err != nil {
-			return err
-		}
-		if err := os.WriteFile(outputPath, []byte(script), 0o644); err != nil {
+		script := buildVMWrapperScript(manifest, manifestFound, targetPath, baseDir)
+		if err := os.WriteFile(outputPath, []byte(script), 0o600); err != nil {
 			return fmt.Errorf("failed to write build output %q: %w", outputPath, err)
 		}
 		if err := os.Chmod(outputPath, 0o755); err != nil {
@@ -157,7 +154,7 @@ func buildExecution(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("LLVM emit failed: %w", err)
 		}
-		if err := os.WriteFile(llPath, []byte(llvmIR), 0o644); err != nil {
+		if err := os.WriteFile(llPath, []byte(llvmIR), 0o600); err != nil {
 			return fmt.Errorf("failed to write LLVM IR: %w", err)
 		}
 		if err := buildLLVMOutput(tmpDir, outputPath, printCommands); err != nil {
@@ -192,7 +189,7 @@ func compileToMIR(cmd *cobra.Command, targetPath, baseDir string, rootKind proje
 		BaseDir:            baseDir,
 		RootKind:           rootKind,
 	}
-	result, err := driver.DiagnoseWithOptions(cmd.Context(), targetPath, opts)
+	result, err := driver.DiagnoseWithOptions(cmd.Context(), targetPath, &opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("compilation failed: %w", err)
 	}
@@ -202,8 +199,8 @@ func compileToMIR(cmd *cobra.Command, targetPath, baseDir string, rootKind proje
 		}
 		return nil, nil, fmt.Errorf("diagnostics reported errors")
 	}
-	if err := validateEntrypoints(result); err != nil {
-		return nil, nil, err
+	if validateErr := validateEntrypoints(result); validateErr != nil {
+		return nil, nil, validateErr
 	}
 	if dirInfo != nil && dirInfo.fileCount > 1 {
 		meta := result.RootModuleMeta()
@@ -280,9 +277,9 @@ func writeMIRDump(path string, mod *mir.Module, result *driver.DiagnoseResult) e
 	return nil
 }
 
-func buildVMWrapperScript(manifest *projectManifest, manifestFound bool, targetPath, baseDir string) (string, error) {
+func buildVMWrapperScript(manifest *projectManifest, manifestFound bool, targetPath, baseDir string) string {
 	if manifestFound {
-		return fmt.Sprintf("#!/bin/sh\nset -e\ncd %q\nexec surge run --backend=vm -- \"$@\"\n", manifest.Root), nil
+		return fmt.Sprintf("#!/bin/sh\nset -e\ncd %q\nexec surge run --backend=vm -- \"$@\"\n", manifest.Root)
 	}
 	absPath := targetPath
 	if !filepath.IsAbs(absPath) {
@@ -294,7 +291,7 @@ func buildVMWrapperScript(manifest *projectManifest, manifestFound bool, targetP
 	if baseDir == "" {
 		baseDir = "."
 	}
-	return fmt.Sprintf("#!/bin/sh\nset -e\ncd %q\nexec surge run --backend=vm %q -- \"$@\"\n", baseDir, absPath), nil
+	return fmt.Sprintf("#!/bin/sh\nset -e\ncd %q\nexec surge run --backend=vm %q -- \"$@\"\n", baseDir, absPath)
 }
 
 func ensureClangAvailable() error {

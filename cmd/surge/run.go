@@ -162,7 +162,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		RootKind:           rootKind,
 	}
 
-	result, err := driver.DiagnoseWithOptions(cmd.Context(), targetPath, opts)
+	result, err := driver.DiagnoseWithOptions(cmd.Context(), targetPath, &opts)
 	if err != nil {
 		return fmt.Errorf("compilation failed: %w", err)
 	}
@@ -176,8 +176,8 @@ func runExecution(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("diagnostics reported errors")
 		}
 	}
-	if err := validateEntrypoints(result); err != nil {
-		return err
+	if validateErr := validateEntrypoints(result); validateErr != nil {
+		return validateErr
 	}
 
 	if dirInfo != nil && dirInfo.fileCount > 1 {
@@ -375,7 +375,7 @@ func resolveRunTarget(inputPath string) (string, *runDirInfo, error) {
 	return sgFiles[0], &runDirInfo{path: inputPath, fileCount: len(sgFiles)}, nil
 }
 
-func splitArgsAtDash(cmd *cobra.Command, args []string) ([]string, []string) {
+func splitArgsAtDash(cmd *cobra.Command, args []string) (before, after []string) {
 	if cmd == nil {
 		return args, nil
 	}

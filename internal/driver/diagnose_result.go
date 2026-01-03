@@ -3,6 +3,8 @@ package driver
 import (
 	"sort"
 
+	"fortio.org/safecast"
+
 	"surge/internal/project"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -36,7 +38,11 @@ func (r *DiagnoseResult) Entrypoints() []EntrypointInfo {
 		}
 		count := rec.Table.Symbols.Len()
 		for i := 1; i <= count; i++ {
-			sym := rec.Table.Symbols.Get(symbols.SymbolID(i))
+			symID, convErr := safecast.Conv[symbols.SymbolID](i)
+			if convErr != nil {
+				continue
+			}
+			sym := rec.Table.Symbols.Get(symID)
 			if sym == nil || sym.Kind != symbols.SymbolFunction {
 				continue
 			}
