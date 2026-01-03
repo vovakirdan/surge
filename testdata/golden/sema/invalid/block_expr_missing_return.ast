@@ -9,6 +9,6 @@ block_expr_missing_return.sg (span: 2:1-9:1)
          │  ├─ Name: x
          │  ├─ Mutable: false
          │  ├─ Type: int
-         │  └─ Value: expr#2: <ExprKind(23)>
+         │  └─ Value: expr#2: <ExprKind(24)>
          └─ Stmt[1]: Return (span: 7:5-7:14)
             └─ Expr: expr#3: x

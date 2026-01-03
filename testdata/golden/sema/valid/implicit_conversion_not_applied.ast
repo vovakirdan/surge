@@ -36,7 +36,7 @@ implicit_conversion_not_applied.sg (span: 1:1-33:1)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 12:48-14:6)
 │  │        └─ Stmt[0]: Return (span: 13:9-13:34)
-│  │           └─ Expr: expr#5: <ExprKind(21)>
+│  │           └─ Expr: expr#5: <ExprKind(22)>
 ├─ Item[5]: Extern (span: 17:1-21:2)
 │  ├─ Target: ChainB
 │  ├─ Members:
@@ -73,7 +73,7 @@ implicit_conversion_not_applied.sg (span: 1:1-33:1)
          │  ├─ Name: mi
          │  ├─ Mutable: false
          │  ├─ Type: MyInt
-         │  └─ Value: expr#11: <ExprKind(21)>
+         │  └─ Value: expr#11: <ExprKind(22)>
          └─ Stmt[1]: Let (span: 31:5-31:38)
             ├─ Name: result
             ├─ Mutable: false

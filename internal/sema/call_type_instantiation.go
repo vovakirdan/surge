@@ -241,6 +241,22 @@ func (tc *typeChecker) instantiateTypeKeyWithInference(key symbols.TypeKey, actu
 		return tc.taskType(inner, source.Span{})
 
 	default:
+		// Handle user-defined generic types (e.g., Map<K, V>) using actual type args for inference.
+		if baseName, typeArgKeys, ok := parseGenericTypeKey(s); ok {
+			actualBase, actualArgs, okActual := tc.genericTypeArgs(actual)
+			if !okActual || actualBase != baseName || len(actualArgs) != len(typeArgKeys) {
+				return types.NoTypeID
+			}
+			concreteArgs := make([]types.TypeID, len(typeArgKeys))
+			for i, argKey := range typeArgKeys {
+				argType := tc.instantiateTypeKeyWithInference(symbols.TypeKey(argKey), actualArgs[i], bindings, paramNames)
+				if argType == types.NoTypeID {
+					return types.NoTypeID
+				}
+				concreteArgs[i] = argType
+			}
+			return tc.instantiateNamedGenericType(baseName, concreteArgs)
+		}
 		// Try to resolve as a simple type name
 		return tc.typeFromKey(symbols.TypeKey(s))
 	}
@@ -488,6 +504,38 @@ func parseGenericTypeKey(s string) (base string, args []string, ok bool) {
 	}
 
 	return base, args, true
+}
+
+func (tc *typeChecker) genericTypeArgs(actual types.TypeID) (base string, args []types.TypeID, ok bool) {
+	if actual == types.NoTypeID || tc.types == nil {
+		return "", nil, false
+	}
+	resolved := tc.resolveAlias(actual)
+	tt, ok := tc.types.Lookup(resolved)
+	if !ok {
+		return "", nil, false
+	}
+	switch tt.Kind {
+	case types.KindStruct:
+		if info, ok := tc.types.StructInfo(resolved); ok && info != nil {
+			base = tc.lookupTypeName(resolved, info.Name)
+			args = info.TypeArgs
+			return base, args, base != ""
+		}
+	case types.KindUnion:
+		if info, ok := tc.types.UnionInfo(resolved); ok && info != nil {
+			base = tc.lookupTypeName(resolved, info.Name)
+			args = info.TypeArgs
+			return base, args, base != ""
+		}
+	case types.KindAlias:
+		if info, ok := tc.types.AliasInfo(resolved); ok && info != nil {
+			base = tc.lookupTypeName(resolved, info.Name)
+			args = info.TypeArgs
+			return base, args, base != ""
+		}
+	}
+	return "", nil, false
 }
 
 // instantiateNamedGenericType creates a concrete generic type from a base name

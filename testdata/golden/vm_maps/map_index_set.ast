@@ -1,0 +1,20 @@
+map_index_set.sg (span: 1:1-9:1)
+└─ Item[0]: Fn (span: 1:1-8:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-8:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:42)
+         │  ├─ Name: m
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#3: Map.new()
+         ├─ Stmt[1]: Expr (span: 4:5-4:17)
+         │  └─ Expr: expr#8: (m["x"] = 10)
+         ├─ Stmt[2]: Expr (span: 5:5-5:17)
+         │  └─ Expr: expr#13: (m["x"] = 11)
+         ├─ Stmt[3]: Expr (span: 6:5-6:31)
+         │  └─ Expr: expr#20: print((m["x"]) to string)
+         └─ Stmt[4]: Return (span: 7:5-7:14)
+            └─ Expr: expr#21: 0

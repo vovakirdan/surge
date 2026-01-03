@@ -28,6 +28,15 @@ pub type byte = uint8;
 @intrinsic fn rt_array_push<T>(a: &mut Array<T>, value: T) -> nothing;
 @intrinsic fn rt_array_pop<T>(a: &mut Array<T>) -> Option<T>;
 
+// Map access intrinsics
+@intrinsic fn rt_map_new<K, V>() -> Map<K, V>;
+@intrinsic fn rt_map_len<K, V>(m: &Map<K, V>) -> uint;
+@intrinsic fn rt_map_contains<K, V>(m: &Map<K, V>, key: &K) -> bool;
+@intrinsic fn rt_map_get_ref<K, V>(m: &Map<K, V>, key: &K) -> Option<&V>;
+@intrinsic fn rt_map_get_mut<K, V>(m: &mut Map<K, V>, key: &K) -> Option<&mut V>;
+@intrinsic fn rt_map_insert<K, V>(m: &mut Map<K, V>, key: K, value: V) -> Option<V>;
+@intrinsic fn rt_map_remove<K, V>(m: &mut Map<K, V>, key: &K) -> Option<V>;
+
 // Higher-level I/O
 @intrinsic
 pub fn readline() -> string;

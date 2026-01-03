@@ -38,7 +38,7 @@ heir_union_inheritance.sg (span: 3:1-31:1)
          │  ├─ Name: child
          │  ├─ Mutable: false
          │  ├─ Type: Child
-         │  └─ Value: expr#5: <ExprKind(21)>
+         │  └─ Value: expr#5: <ExprKind(22)>
          ├─ Stmt[1]: Let (span: 15:5-15:35)
          │  ├─ Name: alias_value
          │  ├─ Mutable: false

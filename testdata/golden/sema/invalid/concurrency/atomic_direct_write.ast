@@ -15,6 +15,6 @@ atomic_direct_write.sg (span: 3:1-11:1)
          │  ├─ Name: c
          │  ├─ Mutable: true
          │  ├─ Type: Counter
-         │  └─ Value: expr#3: <ExprKind(21)>
+         │  └─ Value: expr#3: <ExprKind(22)>
          └─ Stmt[1]: Expr (span: 9:5-9:18)
             └─ Expr: expr#7: (c.value = 42)

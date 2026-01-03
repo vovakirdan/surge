@@ -108,6 +108,7 @@ func (tc *typeChecker) lookupTypeSymbol(name source.StringID, scope symbols.Scop
 	if name == source.NoStringID || tc.symbols == nil || tc.symbols.Table == nil || tc.symbols.Table.Scopes == nil || tc.symbols.Table.Symbols == nil {
 		return symbols.NoSymbolID
 	}
+	fallback := symbols.NoSymbolID
 	for scope = tc.scopeOrFile(scope); scope.IsValid(); {
 		scopeData := tc.symbols.Table.Scopes.Get(scope)
 		if scopeData == nil {
@@ -121,11 +122,19 @@ func (tc *typeChecker) lookupTypeSymbol(name source.StringID, scope symbols.Scop
 					continue
 				}
 				if sym.Kind == symbols.SymbolType {
-					return id
+					if sym.Type != types.NoTypeID {
+						return id
+					}
+					if !fallback.IsValid() {
+						fallback = id
+					}
 				}
 			}
 		}
 		scope = scopeData.Parent
+	}
+	if fallback.IsValid() {
+		return fallback
 	}
 	return symbols.NoSymbolID
 }

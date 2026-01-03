@@ -1,0 +1,369 @@
+  1: KwPragma        "pragma" at 1:1-1:7
+  2: Ident           "module" at 1:8-1:14 (leading: Space)
+  3: Comma           "," at 1:14-1:15
+  4: Ident           "no_std" at 1:16-1:22 (leading: Space)
+  5: Semicolon       ";" at 1:22-1:23
+  6: KwExtern        "extern" at 5:1-5:7 (leading: Newline, LineComment, Newline)
+  7: Lt              "<" at 5:7-5:8
+  8: Ident           "Map" at 5:8-5:11
+  9: Lt              "<" at 5:11-5:12
+ 10: Ident           "K" at 5:12-5:13
+ 11: Comma           "," at 5:13-5:14
+ 12: Ident           "V" at 5:15-5:16 (leading: Space)
+ 13: Shr             ">>" at 5:16-5:18
+ 14: LBrace          "{" at 5:19-5:20 (leading: Space)
+ 15: KwPub           "pub" at 6:5-6:8 (leading: Newline, Space)
+ 16: KwFn            "fn" at 6:9-6:11 (leading: Space)
+ 17: Ident           "new" at 6:12-6:15 (leading: Space)
+ 18: LParen          "(" at 6:15-6:16
+ 19: RParen          ")" at 6:16-6:17
+ 20: Arrow           "->" at 6:18-6:20 (leading: Space)
+ 21: Ident           "Map" at 6:21-6:24 (leading: Space)
+ 22: Lt              "<" at 6:24-6:25
+ 23: Ident           "K" at 6:25-6:26
+ 24: Comma           "," at 6:26-6:27
+ 25: Ident           "V" at 6:28-6:29 (leading: Space)
+ 26: Gt              ">" at 6:29-6:30
+ 27: LBrace          "{" at 6:31-6:32 (leading: Space)
+ 28: KwReturn        "return" at 7:9-7:15 (leading: Newline, Space)
+ 29: Ident           "rt_map_new" at 7:16-7:26 (leading: Space)
+ 30: ColonColon      "::" at 7:26-7:28
+ 31: Lt              "<" at 7:28-7:29
+ 32: Ident           "K" at 7:29-7:30
+ 33: Comma           "," at 7:30-7:31
+ 34: Ident           "V" at 7:32-7:33 (leading: Space)
+ 35: Gt              ">" at 7:33-7:34
+ 36: LParen          "(" at 7:34-7:35
+ 37: RParen          ")" at 7:35-7:36
+ 38: Semicolon       ";" at 7:36-7:37
+ 39: RBrace          "}" at 8:5-8:6 (leading: Newline, Space)
+ 40: KwPub           "pub" at 10:5-10:8 (leading: Newline, Space)
+ 41: KwFn            "fn" at 10:9-10:11 (leading: Space)
+ 42: Ident           "len" at 10:12-10:15 (leading: Space)
+ 43: LParen          "(" at 10:15-10:16
+ 44: Ident           "self" at 10:16-10:20
+ 45: Colon           ":" at 10:20-10:21
+ 46: Amp             "&" at 10:22-10:23 (leading: Space)
+ 47: Ident           "Map" at 10:23-10:26
+ 48: Lt              "<" at 10:26-10:27
+ 49: Ident           "K" at 10:27-10:28
+ 50: Comma           "," at 10:28-10:29
+ 51: Ident           "V" at 10:30-10:31 (leading: Space)
+ 52: Gt              ">" at 10:31-10:32
+ 53: RParen          ")" at 10:32-10:33
+ 54: Arrow           "->" at 10:34-10:36 (leading: Space)
+ 55: Ident           "uint" at 10:37-10:41 (leading: Space)
+ 56: LBrace          "{" at 10:42-10:43 (leading: Space)
+ 57: KwReturn        "return" at 11:9-11:15 (leading: Newline, Space)
+ 58: Ident           "rt_map_len" at 11:16-11:26 (leading: Space)
+ 59: LParen          "(" at 11:26-11:27
+ 60: Ident           "self" at 11:27-11:31
+ 61: RParen          ")" at 11:31-11:32
+ 62: Semicolon       ";" at 11:32-11:33
+ 63: RBrace          "}" at 12:5-12:6 (leading: Newline, Space)
+ 64: KwPub           "pub" at 14:5-14:8 (leading: Newline, Space)
+ 65: KwFn            "fn" at 14:9-14:11 (leading: Space)
+ 66: Ident           "__len" at 14:12-14:17 (leading: Space)
+ 67: LParen          "(" at 14:17-14:18
+ 68: Ident           "self" at 14:18-14:22
+ 69: Colon           ":" at 14:22-14:23
+ 70: Amp             "&" at 14:24-14:25 (leading: Space)
+ 71: Ident           "Map" at 14:25-14:28
+ 72: Lt              "<" at 14:28-14:29
+ 73: Ident           "K" at 14:29-14:30
+ 74: Comma           "," at 14:30-14:31
+ 75: Ident           "V" at 14:32-14:33 (leading: Space)
+ 76: Gt              ">" at 14:33-14:34
+ 77: RParen          ")" at 14:34-14:35
+ 78: Arrow           "->" at 14:36-14:38 (leading: Space)
+ 79: Ident           "uint" at 14:39-14:43 (leading: Space)
+ 80: LBrace          "{" at 14:44-14:45 (leading: Space)
+ 81: KwReturn        "return" at 15:9-15:15 (leading: Newline, Space)
+ 82: Ident           "rt_map_len" at 15:16-15:26 (leading: Space)
+ 83: LParen          "(" at 15:26-15:27
+ 84: Ident           "self" at 15:27-15:31
+ 85: RParen          ")" at 15:31-15:32
+ 86: Semicolon       ";" at 15:32-15:33
+ 87: RBrace          "}" at 16:5-16:6 (leading: Newline, Space)
+ 88: KwPub           "pub" at 18:5-18:8 (leading: Newline, Space)
+ 89: KwFn            "fn" at 18:9-18:11 (leading: Space)
+ 90: Ident           "contains" at 18:12-18:20 (leading: Space)
+ 91: LParen          "(" at 18:20-18:21
+ 92: Ident           "self" at 18:21-18:25
+ 93: Colon           ":" at 18:25-18:26
+ 94: Amp             "&" at 18:27-18:28 (leading: Space)
+ 95: Ident           "Map" at 18:28-18:31
+ 96: Lt              "<" at 18:31-18:32
+ 97: Ident           "K" at 18:32-18:33
+ 98: Comma           "," at 18:33-18:34
+ 99: Ident           "V" at 18:35-18:36 (leading: Space)
+100: Gt              ">" at 18:36-18:37
+101: Comma           "," at 18:37-18:38
+102: Ident           "key" at 18:39-18:42 (leading: Space)
+103: Colon           ":" at 18:42-18:43
+104: Amp             "&" at 18:44-18:45 (leading: Space)
+105: Ident           "K" at 18:45-18:46
+106: RParen          ")" at 18:46-18:47
+107: Arrow           "->" at 18:48-18:50 (leading: Space)
+108: Ident           "bool" at 18:51-18:55 (leading: Space)
+109: LBrace          "{" at 18:56-18:57 (leading: Space)
+110: KwReturn        "return" at 19:9-19:15 (leading: Newline, Space)
+111: Ident           "rt_map_contains" at 19:16-19:31 (leading: Space)
+112: LParen          "(" at 19:31-19:32
+113: Ident           "self" at 19:32-19:36
+114: Comma           "," at 19:36-19:37
+115: Ident           "key" at 19:38-19:41 (leading: Space)
+116: RParen          ")" at 19:41-19:42
+117: Semicolon       ";" at 19:42-19:43
+118: RBrace          "}" at 20:5-20:6 (leading: Newline, Space)
+119: KwPub           "pub" at 22:5-22:8 (leading: Newline, Space)
+120: KwFn            "fn" at 22:9-22:11 (leading: Space)
+121: Ident           "get_ref" at 22:12-22:19 (leading: Space)
+122: LParen          "(" at 22:19-22:20
+123: Ident           "self" at 22:20-22:24
+124: Colon           ":" at 22:24-22:25
+125: Amp             "&" at 22:26-22:27 (leading: Space)
+126: Ident           "Map" at 22:27-22:30
+127: Lt              "<" at 22:30-22:31
+128: Ident           "K" at 22:31-22:32
+129: Comma           "," at 22:32-22:33
+130: Ident           "V" at 22:34-22:35 (leading: Space)
+131: Gt              ">" at 22:35-22:36
+132: Comma           "," at 22:36-22:37
+133: Ident           "key" at 22:38-22:41 (leading: Space)
+134: Colon           ":" at 22:41-22:42
+135: Amp             "&" at 22:43-22:44 (leading: Space)
+136: Ident           "K" at 22:44-22:45
+137: RParen          ")" at 22:45-22:46
+138: Arrow           "->" at 22:47-22:49 (leading: Space)
+139: Ident           "Option" at 22:50-22:56 (leading: Space)
+140: Lt              "<" at 22:56-22:57
+141: Amp             "&" at 22:57-22:58
+142: Ident           "V" at 22:58-22:59
+143: Gt              ">" at 22:59-22:60
+144: LBrace          "{" at 22:61-22:62 (leading: Space)
+145: KwReturn        "return" at 23:9-23:15 (leading: Newline, Space)
+146: Ident           "rt_map_get_ref" at 23:16-23:30 (leading: Space)
+147: LParen          "(" at 23:30-23:31
+148: Ident           "self" at 23:31-23:35
+149: Comma           "," at 23:35-23:36
+150: Ident           "key" at 23:37-23:40 (leading: Space)
+151: RParen          ")" at 23:40-23:41
+152: Semicolon       ";" at 23:41-23:42
+153: RBrace          "}" at 24:5-24:6 (leading: Newline, Space)
+154: KwPub           "pub" at 26:5-26:8 (leading: Newline, Space)
+155: KwFn            "fn" at 26:9-26:11 (leading: Space)
+156: Ident           "get_mut" at 26:12-26:19 (leading: Space)
+157: LParen          "(" at 26:19-26:20
+158: Ident           "self" at 26:20-26:24
+159: Colon           ":" at 26:24-26:25
+160: Amp             "&" at 26:26-26:27 (leading: Space)
+161: KwMut           "mut" at 26:27-26:30
+162: Ident           "Map" at 26:31-26:34 (leading: Space)
+163: Lt              "<" at 26:34-26:35
+164: Ident           "K" at 26:35-26:36
+165: Comma           "," at 26:36-26:37
+166: Ident           "V" at 26:38-26:39 (leading: Space)
+167: Gt              ">" at 26:39-26:40
+168: Comma           "," at 26:40-26:41
+169: Ident           "key" at 26:42-26:45 (leading: Space)
+170: Colon           ":" at 26:45-26:46
+171: Amp             "&" at 26:47-26:48 (leading: Space)
+172: Ident           "K" at 26:48-26:49
+173: RParen          ")" at 26:49-26:50
+174: Arrow           "->" at 26:51-26:53 (leading: Space)
+175: Ident           "Option" at 26:54-26:60 (leading: Space)
+176: Lt              "<" at 26:60-26:61
+177: Amp             "&" at 26:61-26:62
+178: KwMut           "mut" at 26:62-26:65
+179: Ident           "V" at 26:66-26:67 (leading: Space)
+180: Gt              ">" at 26:67-26:68
+181: LBrace          "{" at 26:69-26:70 (leading: Space)
+182: KwReturn        "return" at 27:9-27:15 (leading: Newline, Space)
+183: Ident           "rt_map_get_mut" at 27:16-27:30 (leading: Space)
+184: LParen          "(" at 27:30-27:31
+185: Ident           "self" at 27:31-27:35
+186: Comma           "," at 27:35-27:36
+187: Ident           "key" at 27:37-27:40 (leading: Space)
+188: RParen          ")" at 27:40-27:41
+189: Semicolon       ";" at 27:41-27:42
+190: RBrace          "}" at 28:5-28:6 (leading: Newline, Space)
+191: KwPub           "pub" at 30:5-30:8 (leading: Newline, Space)
+192: KwFn            "fn" at 30:9-30:11 (leading: Space)
+193: Ident           "insert" at 30:12-30:18 (leading: Space)
+194: LParen          "(" at 30:18-30:19
+195: Ident           "self" at 30:19-30:23
+196: Colon           ":" at 30:23-30:24
+197: Amp             "&" at 30:25-30:26 (leading: Space)
+198: KwMut           "mut" at 30:26-30:29
+199: Ident           "Map" at 30:30-30:33 (leading: Space)
+200: Lt              "<" at 30:33-30:34
+201: Ident           "K" at 30:34-30:35
+202: Comma           "," at 30:35-30:36
+203: Ident           "V" at 30:37-30:38 (leading: Space)
+204: Gt              ">" at 30:38-30:39
+205: Comma           "," at 30:39-30:40
+206: Ident           "key" at 30:41-30:44 (leading: Space)
+207: Colon           ":" at 30:44-30:45
+208: Ident           "K" at 30:46-30:47 (leading: Space)
+209: Comma           "," at 30:47-30:48
+210: Ident           "value" at 30:49-30:54 (leading: Space)
+211: Colon           ":" at 30:54-30:55
+212: Ident           "V" at 30:56-30:57 (leading: Space)
+213: RParen          ")" at 30:57-30:58
+214: Arrow           "->" at 30:59-30:61 (leading: Space)
+215: Ident           "Option" at 30:62-30:68 (leading: Space)
+216: Lt              "<" at 30:68-30:69
+217: Ident           "V" at 30:69-30:70
+218: Gt              ">" at 30:70-30:71
+219: LBrace          "{" at 30:72-30:73 (leading: Space)
+220: KwReturn        "return" at 31:9-31:15 (leading: Newline, Space)
+221: Ident           "rt_map_insert" at 31:16-31:29 (leading: Space)
+222: LParen          "(" at 31:29-31:30
+223: Ident           "self" at 31:30-31:34
+224: Comma           "," at 31:34-31:35
+225: Ident           "key" at 31:36-31:39 (leading: Space)
+226: Comma           "," at 31:39-31:40
+227: Ident           "value" at 31:41-31:46 (leading: Space)
+228: RParen          ")" at 31:46-31:47
+229: Semicolon       ";" at 31:47-31:48
+230: RBrace          "}" at 32:5-32:6 (leading: Newline, Space)
+231: KwPub           "pub" at 34:5-34:8 (leading: Newline, Space)
+232: KwFn            "fn" at 34:9-34:11 (leading: Space)
+233: Ident           "remove" at 34:12-34:18 (leading: Space)
+234: LParen          "(" at 34:18-34:19
+235: Ident           "self" at 34:19-34:23
+236: Colon           ":" at 34:23-34:24
+237: Amp             "&" at 34:25-34:26 (leading: Space)
+238: KwMut           "mut" at 34:26-34:29
+239: Ident           "Map" at 34:30-34:33 (leading: Space)
+240: Lt              "<" at 34:33-34:34
+241: Ident           "K" at 34:34-34:35
+242: Comma           "," at 34:35-34:36
+243: Ident           "V" at 34:37-34:38 (leading: Space)
+244: Gt              ">" at 34:38-34:39
+245: Comma           "," at 34:39-34:40
+246: Ident           "key" at 34:41-34:44 (leading: Space)
+247: Colon           ":" at 34:44-34:45
+248: Amp             "&" at 34:46-34:47 (leading: Space)
+249: Ident           "K" at 34:47-34:48
+250: RParen          ")" at 34:48-34:49
+251: Arrow           "->" at 34:50-34:52 (leading: Space)
+252: Ident           "Option" at 34:53-34:59 (leading: Space)
+253: Lt              "<" at 34:59-34:60
+254: Ident           "V" at 34:60-34:61
+255: Gt              ">" at 34:61-34:62
+256: LBrace          "{" at 34:63-34:64 (leading: Space)
+257: KwReturn        "return" at 35:9-35:15 (leading: Newline, Space)
+258: Ident           "rt_map_remove" at 35:16-35:29 (leading: Space)
+259: LParen          "(" at 35:29-35:30
+260: Ident           "self" at 35:30-35:34
+261: Comma           "," at 35:34-35:35
+262: Ident           "key" at 35:36-35:39 (leading: Space)
+263: RParen          ")" at 35:39-35:40
+264: Semicolon       ";" at 35:40-35:41
+265: RBrace          "}" at 36:5-36:6 (leading: Newline, Space)
+266: KwPub           "pub" at 38:5-38:8 (leading: Newline, Space)
+267: KwFn            "fn" at 38:9-38:11 (leading: Space)
+268: Ident           "__index" at 38:12-38:19 (leading: Space)
+269: LParen          "(" at 38:19-38:20
+270: Ident           "self" at 38:20-38:24
+271: Colon           ":" at 38:24-38:25
+272: Amp             "&" at 38:26-38:27 (leading: Space)
+273: Ident           "Map" at 38:27-38:30
+274: Lt              "<" at 38:30-38:31
+275: Ident           "K" at 38:31-38:32
+276: Comma           "," at 38:32-38:33
+277: Ident           "V" at 38:34-38:35 (leading: Space)
+278: Gt              ">" at 38:35-38:36
+279: Comma           "," at 38:36-38:37
+280: Ident           "key" at 38:38-38:41 (leading: Space)
+281: Colon           ":" at 38:41-38:42
+282: Amp             "&" at 38:43-38:44 (leading: Space)
+283: Ident           "K" at 38:44-38:45
+284: RParen          ")" at 38:45-38:46
+285: Arrow           "->" at 38:47-38:49 (leading: Space)
+286: Amp             "&" at 38:50-38:51 (leading: Space)
+287: Ident           "V" at 38:51-38:52
+288: LBrace          "{" at 38:53-38:54 (leading: Space)
+289: KwLet           "let" at 39:9-39:12 (leading: Newline, Space)
+290: Ident           "res" at 39:13-39:16 (leading: Space)
+291: Colon           ":" at 39:16-39:17
+292: Ident           "Option" at 39:18-39:24 (leading: Space)
+293: Lt              "<" at 39:24-39:25
+294: Amp             "&" at 39:25-39:26
+295: Ident           "V" at 39:26-39:27
+296: Gt              ">" at 39:27-39:28
+297: Assign          "=" at 39:29-39:30 (leading: Space)
+298: Ident           "self" at 39:31-39:35 (leading: Space)
+299: Dot             "." at 39:35-39:36
+300: Ident           "get_ref" at 39:36-39:43
+301: LParen          "(" at 39:43-39:44
+302: Ident           "key" at 39:44-39:47
+303: RParen          ")" at 39:47-39:48
+304: Semicolon       ";" at 39:48-39:49
+305: KwReturn        "return" at 40:9-40:15 (leading: Newline, Space)
+306: KwCompare       "compare" at 40:16-40:23 (leading: Space)
+307: Ident           "res" at 40:24-40:27 (leading: Space)
+308: LBrace          "{" at 40:28-40:29 (leading: Space)
+309: Ident           "Some" at 41:13-41:17 (leading: Newline, Space)
+310: LParen          "(" at 41:17-41:18
+311: Ident           "v" at 41:18-41:19
+312: RParen          ")" at 41:19-41:20
+313: FatArrow        "=>" at 41:21-41:23 (leading: Space)
+314: Ident           "v" at 41:24-41:25 (leading: Space)
+315: Semicolon       ";" at 41:25-41:26
+316: Underscore      "_" at 42:13-42:14 (leading: Newline, Space)
+317: FatArrow        "=>" at 42:15-42:17 (leading: Space)
+318: Ident           "panic" at 42:18-42:23 (leading: Space)
+319: LParen          "(" at 42:23-42:24
+320: StringLit       "\"map key not found\"" at 42:24-42:43
+321: RParen          ")" at 42:43-42:44
+322: Semicolon       ";" at 42:44-42:45
+323: RBrace          "}" at 43:9-43:10 (leading: Newline, Space)
+324: Semicolon       ";" at 43:10-43:11
+325: RBrace          "}" at 44:5-44:6 (leading: Newline, Space)
+326: KwPub           "pub" at 46:5-46:8 (leading: Newline, Space)
+327: KwFn            "fn" at 46:9-46:11 (leading: Space)
+328: Ident           "__index_set" at 46:12-46:23 (leading: Space)
+329: LParen          "(" at 46:23-46:24
+330: Ident           "self" at 46:24-46:28
+331: Colon           ":" at 46:28-46:29
+332: Amp             "&" at 46:30-46:31 (leading: Space)
+333: KwMut           "mut" at 46:31-46:34
+334: Ident           "Map" at 46:35-46:38 (leading: Space)
+335: Lt              "<" at 46:38-46:39
+336: Ident           "K" at 46:39-46:40
+337: Comma           "," at 46:40-46:41
+338: Ident           "V" at 46:42-46:43 (leading: Space)
+339: Gt              ">" at 46:43-46:44
+340: Comma           "," at 46:44-46:45
+341: Ident           "key" at 46:46-46:49 (leading: Space)
+342: Colon           ":" at 46:49-46:50
+343: Ident           "K" at 46:51-46:52 (leading: Space)
+344: Comma           "," at 46:52-46:53
+345: Ident           "value" at 46:54-46:59 (leading: Space)
+346: Colon           ":" at 46:59-46:60
+347: Ident           "V" at 46:61-46:62 (leading: Space)
+348: RParen          ")" at 46:62-46:63
+349: Arrow           "->" at 46:64-46:66 (leading: Space)
+350: NothingLit      "nothing" at 46:67-46:74 (leading: Space)
+351: LBrace          "{" at 46:75-46:76 (leading: Space)
+352: KwLet           "let" at 47:9-47:12 (leading: Newline, Space)
+353: Underscore      "_" at 47:13-47:14 (leading: Space)
+354: Assign          "=" at 47:15-47:16 (leading: Space)
+355: Ident           "rt_map_insert" at 47:17-47:30 (leading: Space)
+356: LParen          "(" at 47:30-47:31
+357: Ident           "self" at 47:31-47:35
+358: Comma           "," at 47:35-47:36
+359: Ident           "key" at 47:37-47:40 (leading: Space)
+360: Comma           "," at 47:40-47:41
+361: Ident           "value" at 47:42-47:47 (leading: Space)
+362: RParen          ")" at 47:47-47:48
+363: Semicolon       ";" at 47:48-47:49
+364: KwReturn        "return" at 48:9-48:15 (leading: Newline, Space)
+365: NothingLit      "nothing" at 48:16-48:23 (leading: Space)
+366: Semicolon       ";" at 48:23-48:24
+367: RBrace          "}" at 49:5-49:6 (leading: Newline, Space)
+368: RBrace          "}" at 50:1-50:2 (leading: Newline)
+369: EOF             at 51:1-51:1

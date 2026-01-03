@@ -16,4 +16,4 @@ generic_type_ctor.sg (span: 1:1-6:1)
             ├─ Name: b
             ├─ Mutable: false
             ├─ Type: <inferred>
-            └─ Value: expr#3: <ExprKind(21)>
+            └─ Value: expr#3: <ExprKind(22)>

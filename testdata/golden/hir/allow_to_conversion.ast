@@ -33,6 +33,6 @@ allow_to_conversion.sg (span: 1:1-15:1)
          │  ├─ Name: f
          │  ├─ Mutable: false
          │  ├─ Type: Foo
-         │  └─ Value: expr#4: <ExprKind(21)>
+         │  └─ Value: expr#4: <ExprKind(22)>
          └─ Stmt[1]: Return (span: 13:5-13:28)
             └─ Expr: expr#7: takes_string(f)

@@ -1,0 +1,36 @@
+map_literal_order.sg (span: 1:1-17:1)
+├─ Item[0]: Fn (span: 1:1-4:2)
+│  ├─ Name: key
+│  ├─ Params: (label: string)
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:33-4:2)
+│        ├─ Stmt[0]: Expr (span: 2:5-2:26)
+│        │  └─ Expr: expr#6: print(clone(&label))
+│        └─ Stmt[1]: Return (span: 3:5-3:26)
+│           └─ Expr: expr#10: clone(&label)
+├─ Item[1]: Fn (span: 6:1-9:2)
+│  ├─ Name: val
+│  ├─ Params: (label: string, v: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 6:38-9:2)
+│        ├─ Stmt[0]: Expr (span: 7:5-7:18)
+│        │  └─ Expr: expr#13: print(label)
+│        └─ Stmt[1]: Return (span: 8:5-8:14)
+│           └─ Expr: expr#14: v
+└─ Item[2]: Fn (span: 11:1-16:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:18-16:2)
+         ├─ Stmt[0]: Let (span: 13:5-13:70)
+         │  ├─ Name: m
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#29: {key("k1") => val("v1", 1), key("k2") => val("v2", 2)}
+         ├─ Stmt[1]: Expr (span: 14:5-14:32)
+         │  └─ Expr: expr#36: print((m.len()) to string)
+         └─ Stmt[2]: Return (span: 15:5-15:14)
+            └─ Expr: expr#37: 0

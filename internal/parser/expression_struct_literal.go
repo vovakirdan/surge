@@ -93,7 +93,7 @@ func (p *Parser) parseStructLiteralBodyWithFirst(typeID ast.TypeID, typeSpan sou
 	positional := false
 
 	first := true
-	for !p.at(token.RBrace) && !p.at(token.EOF) {
+	for first || (!p.at(token.RBrace) && !p.at(token.EOF)) {
 		var fieldExpr ast.ExprID
 		if first {
 			fieldExpr = firstExpr

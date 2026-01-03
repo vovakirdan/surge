@@ -15,14 +15,14 @@ magic_ops_call_nonplace.sg (span: 1:1-28:1)
 │  │  │  └─ Body:
 │  │  │     Stmt[0]: Block (span: 7:52-9:6)
 │  │  │     └─ Stmt[0]: Return (span: 8:9-8:61)
-│  │  │        └─ Expr: expr#13: <ExprKind(21)>
+│  │  │        └─ Expr: expr#13: <ExprKind(22)>
 │  │  ├─ Fn[1]: __neg
 │  │  │  ├─ Params: (self: &Point)
 │  │  │  ├─ Return: Point
 │  │  │  └─ Body:
 │  │  │     Stmt[0]: Block (span: 11:37-13:6)
 │  │  │     └─ Stmt[0]: Return (span: 12:9-12:43)
-│  │  │        └─ Expr: expr#22: <ExprKind(21)>
+│  │  │        └─ Expr: expr#22: <ExprKind(22)>
 │  │  └─ Fn[2]: __to
 │  │     ├─ Params: (self: &Point, target: int)
 │  │     ├─ Return: int
@@ -40,12 +40,12 @@ magic_ops_call_nonplace.sg (span: 1:1-28:1)
          │  ├─ Name: p1
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#32: <ExprKind(21)>
+         │  └─ Value: expr#32: <ExprKind(22)>
          ├─ Stmt[1]: Let (span: 22:5-22:36)
          │  ├─ Name: p2
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#37: <ExprKind(21)>
+         │  └─ Value: expr#37: <ExprKind(22)>
          ├─ Stmt[2]: Let (span: 23:5-23:23)
          │  ├─ Name: sum
          │  ├─ Mutable: false

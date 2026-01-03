@@ -24,12 +24,12 @@ type_turbofish_syntax.sg (span: 4:1-43:1)
 │        │  ├─ Name: box1
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Box<int>
-│        │  └─ Value: expr#3: <ExprKind(21)>
+│        │  └─ Value: expr#3: <ExprKind(22)>
 │        ├─ Stmt[1]: Let (span: 16:5-16:62)
 │        │  ├─ Name: pair1
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Pair<int, string>
-│        │  └─ Value: expr#8: <ExprKind(21)>
+│        │  └─ Value: expr#8: <ExprKind(22)>
 │        ├─ Stmt[2]: Let (span: 17:5-17:31)
 │        │  ├─ Name: _v1
 │        │  ├─ Mutable: false
@@ -50,12 +50,12 @@ type_turbofish_syntax.sg (span: 4:1-43:1)
 │        │  ├─ Name: box2
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Box<int>
-│        │  └─ Value: expr#15: <ExprKind(21)>
+│        │  └─ Value: expr#15: <ExprKind(22)>
 │        ├─ Stmt[1]: Let (span: 24:5-24:64)
 │        │  ├─ Name: pair2
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Pair<int, string>
-│        │  └─ Value: expr#20: <ExprKind(21)>
+│        │  └─ Value: expr#20: <ExprKind(22)>
 │        ├─ Stmt[2]: Let (span: 25:5-25:31)
 │        │  ├─ Name: _v2
 │        │  ├─ Mutable: false
@@ -76,7 +76,7 @@ type_turbofish_syntax.sg (span: 4:1-43:1)
 │        │  ├─ Name: nested
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Box<Box<int>>
-│        │  └─ Value: expr#29: <ExprKind(21)>
+│        │  └─ Value: expr#29: <ExprKind(22)>
 │        ├─ Stmt[1]: Let (span: 32:5-32:43)
 │        │  ├─ Name: _inner
 │        │  ├─ Mutable: false
@@ -97,12 +97,12 @@ type_turbofish_syntax.sg (span: 4:1-43:1)
          │  ├─ Name: mixed1
          │  ├─ Mutable: false
          │  ├─ Type: Box<Pair<int, int>>
-         │  └─ Value: expr#40: <ExprKind(21)>
+         │  └─ Value: expr#40: <ExprKind(22)>
          ├─ Stmt[1]: Let (span: 39:5-39:83)
          │  ├─ Name: mixed2
          │  ├─ Mutable: false
          │  ├─ Type: Pair<Box<int>, string>
-         │  └─ Value: expr#47: <ExprKind(21)>
+         │  └─ Value: expr#47: <ExprKind(22)>
          ├─ Stmt[2]: Let (span: 40:5-40:44)
          │  ├─ Name: _m1
          │  ├─ Mutable: false

@@ -15,7 +15,7 @@ overload_autoref_temp_error.sg (span: 1:1-16:1)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 7:52-9:6)
 │  │        └─ Stmt[0]: Return (span: 8:9-8:61)
-│  │           └─ Expr: expr#13: <ExprKind(21)>
+│  │           └─ Expr: expr#13: <ExprKind(22)>
 └─ Item[2]: Fn (span: 12:1-15:2)
    ├─ Name: main
    ├─ Params: ()
@@ -26,9 +26,9 @@ overload_autoref_temp_error.sg (span: 1:1-16:1)
          │  ├─ Name: p2
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#18: <ExprKind(21)>
+         │  └─ Value: expr#18: <ExprKind(22)>
          └─ Stmt[1]: Let (span: 14:5-14:33)
             ├─ Name: _
             ├─ Mutable: false
             ├─ Type: <inferred>
-            └─ Value: expr#25: (<ExprKind(21)> + p2)
+            └─ Value: expr#25: (<ExprKind(22)> + p2)

@@ -34,7 +34,7 @@ copy_nested.sg (span: 2:1-20:1)
          │  ├─ Name: r1
          │  ├─ Mutable: false
          │  ├─ Type: Rect
-         │  └─ Value: expr#13: <ExprKind(21)>
+         │  └─ Value: expr#13: <ExprKind(22)>
          ├─ Stmt[1]: Let (span: 16:5-16:17)
          │  ├─ Name: r2
          │  ├─ Mutable: false

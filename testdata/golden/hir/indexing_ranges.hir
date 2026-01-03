@@ -2,10 +2,10 @@
 == HIR ==
 module 
 
-type Box <struct> (sym=1224, type=0)
+type Box <struct> (sym=1259, type=0)
 
-fn test() -> int (id=1, sym=1226) {
-  let b: type#1329 =  { value = 1 }: type#1329
+fn test() -> int (id=1, sym=1261) {
+  let b: type#1546 =  { value = 1 }: type#1546
   return __index(b, rt_range_int_new(1, 2, false)): int
 }
 

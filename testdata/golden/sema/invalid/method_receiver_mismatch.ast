@@ -32,7 +32,7 @@ method_receiver_mismatch.sg (span: 1:1-14:1)
          │  ├─ Name: f
          │  ├─ Mutable: false
          │  ├─ Type: Foo
-         │  └─ Value: expr#8: <ExprKind(21)>
+         │  └─ Value: expr#8: <ExprKind(22)>
          ├─ Stmt[1]: Let (span: 10:5-10:22)
          │  ├─ Name: r
          │  ├─ Mutable: false

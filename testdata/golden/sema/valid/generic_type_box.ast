@@ -16,12 +16,12 @@ generic_type_box.sg (span: 2:1-12:1)
          │  ├─ Name: int_box
          │  ├─ Mutable: false
          │  ├─ Type: Box<int>
-         │  └─ Value: expr#3: <ExprKind(21)>
+         │  └─ Value: expr#3: <ExprKind(22)>
          ├─ Stmt[1]: Let (span: 8:5-8:48)
          │  ├─ Name: str_box
          │  ├─ Mutable: false
          │  ├─ Type: Box<string>
-         │  └─ Value: expr#6: <ExprKind(21)>
+         │  └─ Value: expr#6: <ExprKind(22)>
          ├─ Stmt[2]: Let (span: 9:5-9:41)
          │  ├─ Name: _value_int
          │  ├─ Mutable: false

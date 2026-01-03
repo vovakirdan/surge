@@ -15,6 +15,6 @@ atomic_direct_read.sg (span: 3:1-11:1)
          │  ├─ Name: c
          │  ├─ Mutable: false
          │  ├─ Type: Counter
-         │  └─ Value: expr#3: <ExprKind(21)>
+         │  └─ Value: expr#3: <ExprKind(22)>
          └─ Stmt[1]: Return (span: 9:5-9:20)
             └─ Expr: expr#5: c.value

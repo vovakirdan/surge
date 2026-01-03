@@ -4,15 +4,15 @@ funcs=2
 
 fn add:
   locals:
-    L0: &type#1329 [copy,ref] name=self
-    L1: &type#1329 [copy,ref] name=other
+    L0: &type#1546 [copy,ref] name=self
+    L1: &type#1546 [copy,ref] name=other
     L2: int [copy] name=tmp_field1
     L3: int [copy] name=tmp_field2
     L4: int [copy] name=tmp_call3
     L5: int [copy] name=tmp_field4
     L6: int [copy] name=tmp_field5
     L7: int [copy] name=tmp_call6
-    L8: type#1329 name=tmp_struct7
+    L8: type#1546 name=tmp_struct7
   bb0:
     L2 = field copy L0.x
     L3 = field copy L1.x
@@ -20,24 +20,24 @@ fn add:
     L5 = field copy L0.y
     L6 = field copy L1.y
     L7 = call __add(copy L5, copy L6)
-    L8 = struct_lit type#1329 {x=copy L4, y=copy L7}
+    L8 = struct_lit type#1546 {x=copy L4, y=copy L7}
     return move L8
 
 fn main:
   locals:
-    L0: type#1329 name=p1
-    L1: type#1329 name=tmp_struct1
-    L2: type#1329 name=p2
-    L3: type#1329 name=tmp_struct2
-    L4: type#1329 name=p3
-    L5: type#1329 name=tmp_call3
+    L0: type#1546 name=p1
+    L1: type#1546 name=tmp_struct1
+    L2: type#1546 name=p2
+    L3: type#1546 name=tmp_struct2
+    L4: type#1546 name=p3
+    L5: type#1546 name=tmp_call3
     L6: int [copy] name=tmp_field4
     L7: int [copy] name=tmp_field5
     L8: int [copy] name=tmp_call6
   bb0:
-    L1 = struct_lit type#1329 {x=const 1, y=const 2}
+    L1 = struct_lit type#1546 {x=const 1, y=const 2}
     L0 = move L1
-    L3 = struct_lit type#1329 {x=const 3, y=const 4}
+    L3 = struct_lit type#1546 {x=const 3, y=const 4}
     L2 = move L3
     L5 = call add(addr_of L0, addr_of L2)
     L4 = move L5

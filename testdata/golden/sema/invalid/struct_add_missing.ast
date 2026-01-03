@@ -16,12 +16,12 @@ struct_add_missing.sg (span: 1:1-11:1)
          │  ├─ Name: a
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#5: <ExprKind(21)>
+         │  └─ Value: expr#5: <ExprKind(22)>
          ├─ Stmt[1]: Let (span: 8:5-8:35)
          │  ├─ Name: b
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#10: <ExprKind(21)>
+         │  └─ Value: expr#10: <ExprKind(22)>
          └─ Stmt[2]: Let (span: 9:5-9:19)
             ├─ Name: _
             ├─ Mutable: false

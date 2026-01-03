@@ -71,7 +71,7 @@ arrays_drop_nested.sg (span: 1:1-155:1)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 25:35-27:6)
 │  │        └─ Stmt[0]: Return (span: 26:9-26:63)
-│  │           └─ Expr: expr#41: <ExprKind(21)>
+│  │           └─ Expr: expr#41: <ExprKind(22)>
 ├─ Item[7]: Fn (span: 30:1-35:2)
 │  ├─ Name: print_foo_opt
 │  ├─ Params: (v: <unknown-type>)
@@ -164,7 +164,7 @@ Block (span: 53:17-56:6)
          │  ├─ Type: <inferred>
          │  └─ Value: expr#122: foos[[1..3]]
          ├─ Stmt[2]: Expr (span: 68:5-68:43)
-         │  └─ Expr: expr#131: (view[0] = <ExprKind(21)>)
+         │  └─ Expr: expr#131: (view[0] = <ExprKind(22)>)
          ├─ Stmt[3]: Expr (span: 69:5-69:40)
          │  └─ Expr: expr#139: write_line(foos[1].name.__clone())
          ├─ Stmt[4]: Expr (span: 70:5-70:26)
@@ -185,7 +185,7 @@ Block (span: 53:17-56:6)
          │  └─ Stmt[1]: Expr (span: 79:9-79:29)
          │     └─ Expr: expr#174: (held = base[[0..1]])
          ├─ Stmt[8]: Expr (span: 81:5-81:50)
-         │  └─ Expr: expr#183: (held[0] = <ExprKind(21)>)
+         │  └─ Expr: expr#183: (held[0] = <ExprKind(22)>)
          ├─ Stmt[9]: Expr (span: 82:5-82:40)
          │  └─ Expr: expr#191: write_line(held[0].name.__clone())
          ├─ Stmt[10]: Let (span: 84:5-84:30)
@@ -194,9 +194,9 @@ Block (span: 53:17-56:6)
          │  ├─ Type: Foo[]
          │  └─ Value: expr#192: <ExprKind(8)>
          ├─ Stmt[11]: Expr (span: 85:5-85:42)
-         │  └─ Expr: expr#200: list.push(<ExprKind(21)>)
+         │  └─ Expr: expr#200: list.push(<ExprKind(22)>)
          ├─ Stmt[12]: Expr (span: 86:5-86:42)
-         │  └─ Expr: expr#208: list.push(<ExprKind(21)>)
+         │  └─ Expr: expr#208: list.push(<ExprKind(22)>)
          ├─ Stmt[13]: Let (span: 87:5-87:52)
          │  ├─ Name: other
          │  ├─ Mutable: false

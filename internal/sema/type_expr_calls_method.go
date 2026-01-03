@@ -75,6 +75,12 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 			// Substitute type params in result type key as well
 			resultKey := substituteTypeKeyParams(sig.Result, subst)
 			res := tc.typeFromKey(resultKey)
+			if res == types.NoTypeID && staticReceiver && recv != types.NoTypeID {
+				recvKey := tc.typeKeyForType(recv)
+				if recvKey != "" && typeKeyMatchesWithGenerics(resultKey, recvKey) {
+					return tc.adjustAliasUnaryResult(recv, recvCand)
+				}
+			}
 			return tc.adjustAliasUnaryResult(res, recvCand)
 		}
 	}

@@ -240,6 +240,13 @@ func (tc *typeChecker) instantiateGenericType(baseType types.TypeID, typeArgs []
 	if baseType == types.NoTypeID || len(typeArgs) == 0 || tc.types == nil {
 		return types.NoTypeID
 	}
+	tc.ensureBuiltinMapType()
+	if tc.mapType != types.NoTypeID && tc.resolveAlias(baseType) == tc.mapType {
+		if len(typeArgs) != 2 {
+			return types.NoTypeID
+		}
+		return tc.instantiateMapType(typeArgs[0], typeArgs[1], site)
+	}
 
 	// Get the type name to find its symbol
 	resolved := tc.resolveAlias(baseType)

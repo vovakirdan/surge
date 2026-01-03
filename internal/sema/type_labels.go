@@ -391,6 +391,20 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 				}
 			}
 		}
+	case strings.HasPrefix(s, "Map<") && strings.HasSuffix(s, ">"):
+		content := strings.TrimSuffix(strings.TrimPrefix(s, "Map<"), ">")
+		parts := splitTopLevel(content)
+		if len(parts) == 2 && tc.builder != nil {
+			keyType := tc.typeFromKey(symbols.TypeKey(parts[0]))
+			valueType := tc.typeFromKey(symbols.TypeKey(parts[1]))
+			if keyType != types.NoTypeID && valueType != types.NoTypeID {
+				scope := tc.scopeOrFile(tc.currentScope())
+				mapName := tc.builder.StringsInterner.Intern("Map")
+				if ty := tc.resolveNamedType(mapName, []types.TypeID{keyType, valueType}, nil, source.Span{}, scope); ty != types.NoTypeID {
+					return ty
+				}
+			}
+		}
 	case strings.HasPrefix(s, "Task<") && strings.HasSuffix(s, ">"):
 		innerKey := strings.TrimSuffix(strings.TrimPrefix(s, "Task<"), ">")
 		if payload := tc.typeFromKey(symbols.TypeKey(innerKey)); payload != types.NoTypeID {

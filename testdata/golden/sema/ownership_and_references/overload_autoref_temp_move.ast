@@ -15,7 +15,7 @@ overload_autoref_temp_move.sg (span: 1:1-21:1)
 │  │  │  └─ Body:
 │  │  │     Stmt[0]: Block (span: 7:52-9:6)
 │  │  │     └─ Stmt[0]: Return (span: 8:9-8:61)
-│  │  │        └─ Expr: expr#13: <ExprKind(21)>
+│  │  │        └─ Expr: expr#13: <ExprKind(22)>
 │  │  └─ Fn[1]: __add
 │  │     ├─ Params: (self: Point, other: Point)
 │  │     ├─ Return: Point
@@ -23,7 +23,7 @@ overload_autoref_temp_move.sg (span: 1:1-21:1)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 11:60-13:6)
 │  │        └─ Stmt[0]: Return (span: 12:9-12:61)
-│  │           └─ Expr: expr#26: <ExprKind(21)>
+│  │           └─ Expr: expr#26: <ExprKind(22)>
 └─ Item[2]: Fn (span: 16:1-20:2)
    ├─ Name: main
    ├─ Params: ()
@@ -34,12 +34,12 @@ overload_autoref_temp_move.sg (span: 1:1-21:1)
          │  ├─ Name: p2
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#31: <ExprKind(21)>
+         │  └─ Value: expr#31: <ExprKind(22)>
          ├─ Stmt[1]: Let (span: 18:5-18:33)
          │  ├─ Name: _
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#38: (<ExprKind(21)> + p2)
+         │  └─ Value: expr#38: (<ExprKind(22)> + p2)
          └─ Stmt[2]: Let (span: 19:5-19:18)
             ├─ Name: _
             ├─ Mutable: false

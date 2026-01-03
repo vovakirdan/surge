@@ -29,7 +29,8 @@ func (tc *typeChecker) magicResultForIndex(container, index types.TypeID) types.
 				continue
 			}
 			subst := tc.methodSubst(container, recv.key, sig)
-			if !tc.methodParamMatchesWithSubst(sig.Params[1], index, subst) {
+			expectedIndex := substituteTypeKeyParams(sig.Params[1], subst)
+			if !tc.magicParamCompatible(expectedIndex, index, tc.typeKeyForType(index)) {
 				continue
 			}
 			resultKey := substituteTypeKeyParams(sig.Result, subst)
@@ -70,6 +71,7 @@ func (tc *typeChecker) magicSignatureForIndexExpr(containerExpr, indexExpr ast.E
 	var bestSig *symbols.FunctionSignature
 	var bestRecv typeKeyCandidate
 	var bestSubst map[string]symbols.TypeKey
+	indexKey := tc.typeKeyForType(index)
 	for _, recv := range tc.typeKeyCandidates(container) {
 		if recv.key == "" {
 			continue
@@ -83,14 +85,15 @@ func (tc *typeChecker) magicSignatureForIndexExpr(containerExpr, indexExpr ast.E
 				continue
 			}
 			methodSubst := tc.methodSubst(container, recv.key, method)
-			if !tc.methodParamMatchesWithSubst(method.Params[1], index, methodSubst) {
+			expectedIndex := substituteTypeKeyParams(method.Params[1], methodSubst)
+			if !tc.magicParamCompatible(expectedIndex, index, indexKey) {
 				continue
 			}
 			costSelf, ok := tc.magicParamCost(substituteTypeKeyParams(method.Params[0], methodSubst), container, containerExpr, &borrowInfo)
 			if !ok {
 				continue
 			}
-			costIndex, ok := tc.magicParamCost(substituteTypeKeyParams(method.Params[1], methodSubst), index, indexExpr, &borrowInfo)
+			costIndex, ok := tc.magicParamCost(expectedIndex, index, indexExpr, &borrowInfo)
 			if !ok {
 				continue
 			}
@@ -146,6 +149,8 @@ func (tc *typeChecker) magicSignatureForIndexSet(container, index, value types.T
 	if container == types.NoTypeID || value == types.NoTypeID {
 		return nil
 	}
+	indexKey := tc.typeKeyForType(index)
+	valueKey := tc.typeKeyForType(value)
 	for _, recv := range tc.typeKeyCandidates(container) {
 		if recv.key == "" {
 			continue
@@ -159,10 +164,12 @@ func (tc *typeChecker) magicSignatureForIndexSet(container, index, value types.T
 				continue
 			}
 			subst := tc.methodSubst(container, recv.key, sig)
-			if !tc.methodParamMatchesWithSubst(sig.Params[1], index, subst) {
+			expectedIndex := substituteTypeKeyParams(sig.Params[1], subst)
+			if !tc.magicParamCompatible(expectedIndex, index, indexKey) {
 				continue
 			}
-			if !tc.methodParamMatchesWithSubst(sig.Params[2], value, subst) {
+			expectedValue := substituteTypeKeyParams(sig.Params[2], subst)
+			if !tc.magicParamCompatible(expectedValue, value, valueKey) {
 				continue
 			}
 			return sig
@@ -198,10 +205,12 @@ func (tc *typeChecker) hasIndexSetter(container, index, value types.TypeID) bool
 				continue
 			}
 			subst := tc.methodSubst(container, recv.key, sig)
-			if !tc.methodParamMatchesWithSubst(sig.Params[1], index, subst) {
+			expectedIndex := substituteTypeKeyParams(sig.Params[1], subst)
+			if !tc.magicParamCompatible(expectedIndex, index, tc.typeKeyForType(index)) {
 				continue
 			}
-			if !tc.methodParamMatchesWithSubst(sig.Params[2], value, subst) {
+			expectedValue := substituteTypeKeyParams(sig.Params[2], subst)
+			if !tc.magicParamCompatible(expectedValue, value, tc.typeKeyForType(value)) {
 				continue
 			}
 			return true

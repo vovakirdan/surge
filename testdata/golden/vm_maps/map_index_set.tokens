@@ -1,0 +1,56 @@
+  1: At              "@" at 1:1-1:2
+  2: Ident           "entrypoint" at 1:2-1:12
+  3: KwFn            "fn" at 2:1-2:3 (leading: Newline)
+  4: Ident           "main" at 2:4-2:8 (leading: Space)
+  5: LParen          "(" at 2:8-2:9
+  6: RParen          ")" at 2:9-2:10
+  7: Arrow           "->" at 2:11-2:13 (leading: Space)
+  8: Ident           "int" at 2:14-2:17 (leading: Space)
+  9: LBrace          "{" at 2:18-2:19 (leading: Space)
+ 10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
+ 11: KwMut           "mut" at 3:9-3:12 (leading: Space)
+ 12: Ident           "m" at 3:13-3:14 (leading: Space)
+ 13: Assign          "=" at 3:15-3:16 (leading: Space)
+ 14: Ident           "Map" at 3:17-3:20 (leading: Space)
+ 15: ColonColon      "::" at 3:20-3:22
+ 16: Lt              "<" at 3:22-3:23
+ 17: Ident           "string" at 3:23-3:29
+ 18: Comma           "," at 3:29-3:30
+ 19: Ident           "int" at 3:31-3:34 (leading: Space)
+ 20: Gt              ">" at 3:34-3:35
+ 21: Dot             "." at 3:35-3:36
+ 22: Ident           "new" at 3:36-3:39
+ 23: LParen          "(" at 3:39-3:40
+ 24: RParen          ")" at 3:40-3:41
+ 25: Semicolon       ";" at 3:41-3:42
+ 26: Ident           "m" at 4:5-4:6 (leading: Newline, Space)
+ 27: LBracket        "[" at 4:6-4:7
+ 28: StringLit       "\"x\"" at 4:7-4:10
+ 29: RBracket        "]" at 4:10-4:11
+ 30: Assign          "=" at 4:12-4:13 (leading: Space)
+ 31: IntLit          "10" at 4:14-4:16 (leading: Space)
+ 32: Semicolon       ";" at 4:16-4:17
+ 33: Ident           "m" at 5:5-5:6 (leading: Newline, Space)
+ 34: LBracket        "[" at 5:6-5:7
+ 35: StringLit       "\"x\"" at 5:7-5:10
+ 36: RBracket        "]" at 5:10-5:11
+ 37: Assign          "=" at 5:12-5:13 (leading: Space)
+ 38: IntLit          "11" at 5:14-5:16 (leading: Space)
+ 39: Semicolon       ";" at 5:16-5:17
+ 40: Ident           "print" at 6:5-6:10 (leading: Newline, Space)
+ 41: LParen          "(" at 6:10-6:11
+ 42: LParen          "(" at 6:11-6:12
+ 43: Ident           "m" at 6:12-6:13
+ 44: LBracket        "[" at 6:13-6:14
+ 45: StringLit       "\"x\"" at 6:14-6:17
+ 46: RBracket        "]" at 6:17-6:18
+ 47: RParen          ")" at 6:18-6:19
+ 48: KwTo            "to" at 6:20-6:22 (leading: Space)
+ 49: Ident           "string" at 6:23-6:29 (leading: Space)
+ 50: RParen          ")" at 6:29-6:30
+ 51: Semicolon       ";" at 6:30-6:31
+ 52: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
+ 53: IntLit          "0" at 7:12-7:13 (leading: Space)
+ 54: Semicolon       ";" at 7:13-7:14
+ 55: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 56: EOF             at 9:1-9:1

@@ -14,7 +14,7 @@ magic_op_overload_cast.sg (span: 1:1-12:1)
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 4:49-6:6)
    │  │     └─ Stmt[0]: Return (span: 5:9-5:33)
-   │  │        └─ Expr: expr#3: <ExprKind(21)>
+   │  │        └─ Expr: expr#3: <ExprKind(22)>
    │  └─ Fn[1]: __mul
    │     ├─ Params: (self: &Foo, other: uint)
    │     ├─ Return: Foo

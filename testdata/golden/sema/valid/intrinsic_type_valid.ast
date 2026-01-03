@@ -46,7 +46,7 @@ intrinsic_type_valid.sg (span: 7:1-25:1)
          │  ├─ Name: regular
          │  ├─ Mutable: false
          │  ├─ Type: RegularType
-         │  └─ Value: expr#5: <ExprKind(21)>
+         │  └─ Value: expr#5: <ExprKind(22)>
          └─ Stmt[1]: Let (span: 23:5-23:33)
             ├─ Name: _v
             ├─ Mutable: false

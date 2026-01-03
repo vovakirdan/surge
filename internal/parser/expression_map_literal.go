@@ -33,8 +33,10 @@ func (p *Parser) parseMapLiteralBody(openTok token.Token, firstKey ast.ExprID) (
 				break
 			}
 			p.suspendColonCast++
+			p.allowFatArrow++
 			var ok bool
 			keyExpr, ok = p.parseBinaryExpr(precNullCoalescing)
+			p.allowFatArrow--
 			p.suspendColonCast--
 			if !ok {
 				p.resyncMapLiteralEntry()

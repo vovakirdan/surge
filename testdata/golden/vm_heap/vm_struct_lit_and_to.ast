@@ -22,4 +22,4 @@ vm_struct_lit_and_to.sg (span: 1:1-16:1)
    └─ Body:
       └─ Stmt[0]: Block (span: 12:25-14:2)
          └─ Stmt[0]: Return (span: 13:5-13:37)
-            └─ Expr: expr#5: <ExprKind(21)>
+            └─ Expr: expr#5: <ExprKind(22)>

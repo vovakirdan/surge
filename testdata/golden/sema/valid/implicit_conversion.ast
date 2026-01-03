@@ -41,7 +41,7 @@ implicit_conversion.sg (span: 1:1-58:1)
 │        │  ├─ Name: w
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Wrapper
-│        │  └─ Value: expr#6: <ExprKind(21)>
+│        │  └─ Value: expr#6: <ExprKind(22)>
 │        └─ Stmt[1]: Let (span: 18:5-18:23)
 │           ├─ Name: s
 │           ├─ Mutable: false
@@ -63,7 +63,7 @@ implicit_conversion.sg (span: 1:1-58:1)
 │        │  ├─ Name: mi
 │        │  ├─ Mutable: false
 │        │  ├─ Type: MyInt
-│        │  └─ Value: expr#9: <ExprKind(21)>
+│        │  └─ Value: expr#9: <ExprKind(22)>
 │        └─ Stmt[1]: Expr (span: 27:5-27:19)
 │           └─ Expr: expr#12: takes_int(mi)
 ├─ Item[7]: Fn (span: 30:1-33:2)
@@ -76,7 +76,7 @@ implicit_conversion.sg (span: 1:1-58:1)
 │        │  ├─ Name: w
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Wrapper
-│        │  └─ Value: expr#14: <ExprKind(21)>
+│        │  └─ Value: expr#14: <ExprKind(22)>
 │        └─ Stmt[1]: Return (span: 32:5-32:14)
 │           └─ Expr: expr#15: w
 ├─ Item[8]: Type (span: 35:1-38:2)
@@ -96,12 +96,12 @@ implicit_conversion.sg (span: 1:1-58:1)
 │        │  ├─ Name: mi
 │        │  ├─ Mutable: false
 │        │  ├─ Type: MyInt
-│        │  └─ Value: expr#17: <ExprKind(21)>
+│        │  └─ Value: expr#17: <ExprKind(22)>
 │        └─ Stmt[1]: Let (span: 42:5-45:7)
 │           ├─ Name: p
 │           ├─ Mutable: false
 │           ├─ Type: Point
-│           └─ Value: expr#22: <ExprKind(21)>
+│           └─ Value: expr#22: <ExprKind(22)>
 ├─ Item[10]: Fn (span: 48:1-52:2)
 │  ├─ Name: test_array_elements
 │  ├─ Params: ()
@@ -112,12 +112,12 @@ implicit_conversion.sg (span: 1:1-58:1)
 │        │  ├─ Name: mi1
 │        │  ├─ Mutable: false
 │        │  ├─ Type: MyInt
-│        │  └─ Value: expr#24: <ExprKind(21)>
+│        │  └─ Value: expr#24: <ExprKind(22)>
 │        ├─ Stmt[1]: Let (span: 50:5-50:34)
 │        │  ├─ Name: mi2
 │        │  ├─ Mutable: false
 │        │  ├─ Type: MyInt
-│        │  └─ Value: expr#26: <ExprKind(21)>
+│        │  └─ Value: expr#26: <ExprKind(22)>
 │        └─ Stmt[2]: Let (span: 51:5-51:34)
 │           ├─ Name: arr
 │           ├─ Mutable: false
@@ -133,7 +133,7 @@ implicit_conversion.sg (span: 1:1-58:1)
          │  ├─ Name: w
          │  ├─ Mutable: false
          │  ├─ Type: Wrapper
-         │  └─ Value: expr#31: <ExprKind(21)>
+         │  └─ Value: expr#31: <ExprKind(22)>
          └─ Stmt[1]: Let (span: 56:5-56:33)
             ├─ Name: s
             ├─ Mutable: false

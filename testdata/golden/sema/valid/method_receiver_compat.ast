@@ -14,7 +14,7 @@ method_receiver_compat.sg (span: 1:1-28:1)
 │  │  │  └─ Body:
 │  │  │     Stmt[0]: Block (span: 4:21-4:42)
 │  │  │     └─ Stmt[0]: Return (span: 4:23-4:40)
-│  │  │        └─ Expr: expr#2: <ExprKind(21)>
+│  │  │        └─ Expr: expr#2: <ExprKind(22)>
 │  │  ├─ Fn[1]: consume
 │  │  │  ├─ Params: (self: Foo)
 │  │  │  ├─ Return: int

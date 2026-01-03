@@ -17,4 +17,4 @@ generic_instantiation_wrong_arity.sg (span: 2:1-10:1)
             ├─ Name: bad
             ├─ Mutable: false
             ├─ Type: Pair<int>
-            └─ Value: expr#5: <ExprKind(21)>
+            └─ Value: expr#5: <ExprKind(22)>

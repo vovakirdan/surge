@@ -64,7 +64,41 @@ func (tc *typeChecker) instantiateMapType(key, value types.TypeID, span source.S
 		tc.report(diag.SemaTypeMismatch, span, "map key type must be hashable (string or integer)")
 		return types.NoTypeID
 	}
-	return tc.instantiateType(tc.mapSymbol, []types.TypeID{key, value}, span, "type")
+	inst := tc.instantiateType(tc.mapSymbol, []types.TypeID{key, value}, span, "type")
+	if inst != types.NoTypeID {
+		return inst
+	}
+	if tc.types == nil || tc.mapType == types.NoTypeID {
+		return types.NoTypeID
+	}
+	info, ok := tc.types.StructInfo(tc.mapType)
+	if !ok || info == nil {
+		return types.NoTypeID
+	}
+	inst = tc.types.RegisterStructInstance(info.Name, info.Decl, []types.TypeID{key, value})
+	if len(info.Fields) > 0 {
+		fields := make([]types.StructField, len(info.Fields))
+		copy(fields, info.Fields)
+		tc.types.SetStructFields(inst, fields)
+	} else {
+		tc.types.SetStructFields(inst, nil)
+	}
+	if attrs, ok := tc.typeAttrs[tc.mapType]; ok {
+		tc.recordTypeAttrs(inst, attrs)
+	}
+	if tc.types.IsCopy(tc.mapType) {
+		tc.types.MarkCopyType(inst)
+	}
+	if attrs, ok := tc.types.TypeLayoutAttrs(tc.mapType); ok {
+		tc.types.SetTypeLayoutAttrs(inst, attrs)
+	}
+	if len(info.ValueArgs) > 0 {
+		tc.types.SetStructValueArgs(inst, info.ValueArgs)
+	}
+	if name := tc.lookupName(info.Name); name != "" {
+		tc.recordTypeName(inst, name)
+	}
+	return inst
 }
 
 func (tc *typeChecker) mapInfo(id types.TypeID) (key, value types.TypeID, ok bool) {
@@ -84,6 +118,8 @@ func (tc *typeChecker) isMapKeyType(id types.TypeID) bool {
 		return false
 	}
 	switch tt.Kind {
+	case types.KindGenericParam:
+		return true
 	case types.KindString, types.KindInt, types.KindUint:
 		return true
 	default:

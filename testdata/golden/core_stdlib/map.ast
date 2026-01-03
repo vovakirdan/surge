@@ -1,0 +1,84 @@
+map.sg (span: 1:1-51:1)
+└─ Item[0]: Extern (span: 5:1-50:2)
+   ├─ Target: Map<K, V>
+   ├─ Members:
+   │  ├─ Fn[0]: new
+   │  │  ├─ Params: ()
+   │  │  ├─ Return: Map<K, V>
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 6:31-8:6)
+   │  │     └─ Stmt[0]: Return (span: 7:9-7:37)
+   │  │        └─ Expr: expr#2: rt_map_new()
+   │  ├─ Fn[1]: len
+   │  │  ├─ Params: (self: &Map<K, V>)
+   │  │  ├─ Return: uint
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 10:42-12:6)
+   │  │     └─ Stmt[0]: Return (span: 11:9-11:33)
+   │  │        └─ Expr: expr#5: rt_map_len(self)
+   │  ├─ Fn[2]: __len
+   │  │  ├─ Params: (self: &Map<K, V>)
+   │  │  ├─ Return: uint
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 14:44-16:6)
+   │  │     └─ Stmt[0]: Return (span: 15:9-15:33)
+   │  │        └─ Expr: expr#8: rt_map_len(self)
+   │  ├─ Fn[3]: contains
+   │  │  ├─ Params: (self: &Map<K, V>, key: &K)
+   │  │  ├─ Return: bool
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 18:56-20:6)
+   │  │     └─ Stmt[0]: Return (span: 19:9-19:43)
+   │  │        └─ Expr: expr#12: rt_map_contains(self, key)
+   │  ├─ Fn[4]: get_ref
+   │  │  ├─ Params: (self: &Map<K, V>, key: &K)
+   │  │  ├─ Return: Option<&V>
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 22:61-24:6)
+   │  │     └─ Stmt[0]: Return (span: 23:9-23:42)
+   │  │        └─ Expr: expr#16: rt_map_get_ref(self, key)
+   │  ├─ Fn[5]: get_mut
+   │  │  ├─ Params: (self: &mut Map<K, V>, key: &K)
+   │  │  ├─ Return: Option<&mut V>
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 26:69-28:6)
+   │  │     └─ Stmt[0]: Return (span: 27:9-27:42)
+   │  │        └─ Expr: expr#20: rt_map_get_mut(self, key)
+   │  ├─ Fn[6]: insert
+   │  │  ├─ Params: (self: &mut Map<K, V>, key: K, value: V)
+   │  │  ├─ Return: Option<V>
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 30:72-32:6)
+   │  │     └─ Stmt[0]: Return (span: 31:9-31:48)
+   │  │        └─ Expr: expr#25: rt_map_insert(self, key, value)
+   │  ├─ Fn[7]: remove
+   │  │  ├─ Params: (self: &mut Map<K, V>, key: &K)
+   │  │  ├─ Return: Option<V>
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 34:63-36:6)
+   │  │     └─ Stmt[0]: Return (span: 35:9-35:41)
+   │  │        └─ Expr: expr#29: rt_map_remove(self, key)
+   │  ├─ Fn[8]: __index
+   │  │  ├─ Params: (self: &Map<K, V>, key: &K)
+   │  │  ├─ Return: &V
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 38:53-44:6)
+   │  │     ├─ Stmt[0]: Let (span: 39:9-39:49)
+   │  │     │  ├─ Name: res
+   │  │     │  ├─ Mutable: false
+   │  │     │  ├─ Type: Option<&V>
+   │  │     │  └─ Value: expr#33: self.get_ref(key)
+   │  │     └─ Stmt[1]: Return (span: 40:9-43:11)
+   │  │        └─ Expr: expr#43: compare res { 2 arms }
+   │  └─ Fn[9]: __index_set
+   │     ├─ Params: (self: &mut Map<K, V>, key: K, value: V)
+   │     ├─ Return: nothing
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 46:75-49:6)
+   │        ├─ Stmt[0]: Let (span: 47:9-47:49)
+   │        │  ├─ Name: _
+   │        │  ├─ Mutable: false
+   │        │  ├─ Type: <inferred>
+   │        │  └─ Value: expr#48: rt_map_insert(self, key, value)
+   │        └─ Stmt[1]: Return (span: 48:9-48:24)
+   │           └─ Expr: expr#49: nothing

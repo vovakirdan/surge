@@ -15,7 +15,7 @@ magic_ops_call.sg (span: 1:1-36:1)
 │  │  │  └─ Body:
 │  │  │     Stmt[0]: Block (span: 7:52-9:6)
 │  │  │     └─ Stmt[0]: Return (span: 8:9-8:61)
-│  │  │        └─ Expr: expr#13: <ExprKind(21)>
+│  │  │        └─ Expr: expr#13: <ExprKind(22)>
 │  │  ├─ Fn[1]: __eq
 │  │  │  ├─ Params: (self: &Point, other: &Point)
 │  │  │  ├─ Return: bool
@@ -36,7 +36,7 @@ magic_ops_call.sg (span: 1:1-36:1)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 19:37-21:6)
 │  │        └─ Stmt[0]: Return (span: 20:9-20:43)
-│  │           └─ Expr: expr#38: <ExprKind(21)>
+│  │           └─ Expr: expr#38: <ExprKind(22)>
 └─ Item[2]: Fn (span: 24:1-35:2)
    ├─ Name: main
    ├─ Params: ()
@@ -47,12 +47,12 @@ magic_ops_call.sg (span: 1:1-36:1)
          │  ├─ Name: a
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#43: <ExprKind(21)>
+         │  └─ Value: expr#43: <ExprKind(22)>
          ├─ Stmt[1]: Let (span: 26:5-26:35)
          │  ├─ Name: b
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#48: <ExprKind(21)>
+         │  └─ Value: expr#48: <ExprKind(22)>
          ├─ Stmt[2]: Let (span: 27:5-27:19)
          │  ├─ Name: c
          │  ├─ Mutable: false

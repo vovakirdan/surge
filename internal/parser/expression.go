@@ -302,10 +302,11 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 				pendingTypeArgs = typeArgs
 				// After type args, we can have:
 				// - '(' for function call: Type::<int>(args)
+				// - '.' for static member access: Type::<int>.new()
 				// - '::' for static member access: Type::<int>::new()
 				// - '{' for struct literal: Type::<int>{ fields }
-				if !p.at(token.LParen) && !p.at(token.ColonColon) && !p.at(token.LBrace) {
-					p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, p.currentErrorSpan(), "expected '(', '::' or '{' after type arguments", nil)
+				if !p.at(token.LParen) && !p.at(token.Dot) && !p.at(token.ColonColon) && !p.at(token.LBrace) {
+					p.emitDiagnostic(diag.SynUnexpectedToken, diag.SevError, p.currentErrorSpan(), "expected '(', '.', '::' or '{' after type arguments", nil)
 					return ast.NoExprID, false
 				}
 			case token.Ident:

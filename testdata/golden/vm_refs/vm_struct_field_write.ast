@@ -26,7 +26,7 @@ vm_struct_field_write.sg (span: 1:1-14:1)
          │  ├─ Name: s
          │  ├─ Mutable: true
          │  ├─ Type: S
-         │  └─ Value: expr#9: <ExprKind(21)>
+         │  └─ Value: expr#9: <ExprKind(22)>
          ├─ Stmt[1]: Expr (span: 11:5-11:19)
          │  └─ Expr: expr#14: set(&mut s.a)
          └─ Stmt[2]: Return (span: 12:5-12:16)

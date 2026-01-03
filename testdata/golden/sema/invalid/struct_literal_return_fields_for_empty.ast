@@ -12,4 +12,4 @@ struct_literal_return_fields_for_empty.sg (span: 2:1-7:1)
    └─ Body:
       └─ Stmt[0]: Block (span: 4:37-6:2)
          └─ Stmt[0]: Return (span: 5:5-5:19)
-            └─ Expr: expr#3: <ExprKind(21)>
+            └─ Expr: expr#3: <ExprKind(22)>

@@ -13,4 +13,4 @@ struct_literal_return_duplicate_field.sg (span: 2:1-10:1)
    └─ Body:
       └─ Stmt[0]: Block (span: 7:34-9:2)
          └─ Stmt[0]: Return (span: 8:5-8:53)
-            └─ Expr: expr#7: <ExprKind(21)>
+            └─ Expr: expr#7: <ExprKind(22)>

@@ -32,7 +32,7 @@ overload_autoref_function.sg (span: 1:1-20:1)
          │  ├─ Name: p
          │  ├─ Mutable: false
          │  ├─ Type: Point
-         │  └─ Value: expr#9: <ExprKind(21)>
+         │  └─ Value: expr#9: <ExprKind(22)>
          ├─ Stmt[1]: Let (span: 16:5-16:22)
          │  ├─ Name: _
          │  ├─ Mutable: false
@@ -47,4 +47,4 @@ overload_autoref_function.sg (span: 1:1-20:1)
             ├─ Name: _
             ├─ Mutable: false
             ├─ Type: <inferred>
-            └─ Value: expr#21: touch(<ExprKind(21)>)
+            └─ Value: expr#21: touch(<ExprKind(22)>)
