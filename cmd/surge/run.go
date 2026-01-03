@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,15 +15,16 @@ import (
 	"surge/internal/driver"
 	"surge/internal/mir"
 	"surge/internal/mono"
+	"surge/internal/project"
 	"surge/internal/vm"
 )
 
 var runCmd = &cobra.Command{
-	Use:   "run [flags] <file.sg|directory> [-- <program-args>...]",
+	Use:   "run [flags] [file.sg|directory] [-- <program-args>...]",
 	Short: "Compile and execute a Surge program",
 	Long: `Compile a Surge source file or module directory to MIR and execute it using the VM backend.
 Arguments after "--" are passed to the program via rt_argv().`,
-	Args: cobra.MinimumNArgs(1),
+	Args: cobra.ArbitraryArgs,
 	RunE: runExecution,
 }
 
@@ -42,12 +44,40 @@ func init() {
 }
 
 func runExecution(cmd *cobra.Command, args []string) error {
-	inputPath := args[0]
-	programArgs := args[1:] // Arguments after "--" are passed by cobra in args[1:]
+	argsBeforeDash, argsAfterDash := splitArgsAtDash(cmd, args)
 
-	targetPath, dirInfo, err := resolveRunTarget(inputPath)
+	manifest, manifestFound, err := loadProjectManifest(".")
 	if err != nil {
 		return err
+	}
+	var (
+		targetPath  string
+		dirInfo     *runDirInfo
+		programArgs []string
+		baseDir     string
+		rootKind    project.ModuleKind
+	)
+	if manifestFound {
+		targetPath, dirInfo, err = resolveProjectRunTarget(manifest)
+		if err != nil {
+			return err
+		}
+		baseDir = manifest.Root
+		rootKind = project.ModuleKindBinary
+		programArgs = argsAfterDash
+	} else {
+		if len(argsBeforeDash) == 0 || filepath.Clean(argsBeforeDash[0]) == "." {
+			return errors.New(noSurgeTomlMessage)
+		}
+		inputPath := argsBeforeDash[0]
+		targetPath, dirInfo, err = resolveRunTarget(inputPath)
+		if err != nil {
+			return err
+		}
+		programArgs = append(programArgs, argsBeforeDash[1:]...)
+		if len(argsAfterDash) > 0 {
+			programArgs = append(programArgs, argsAfterDash...)
+		}
 	}
 
 	// Get flags
@@ -128,6 +158,8 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		MaxDiagnostics:     maxDiagnostics,
 		EmitHIR:            true,
 		EmitInstantiations: true,
+		BaseDir:            baseDir,
+		RootKind:           rootKind,
 	}
 
 	result, err := driver.DiagnoseWithOptions(cmd.Context(), targetPath, opts)
@@ -143,6 +175,9 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		if !unsafeRun {
 			return fmt.Errorf("diagnostics reported errors")
 		}
+	}
+	if err := validateEntrypoints(result); err != nil {
+		return err
 	}
 
 	if dirInfo != nil && dirInfo.fileCount > 1 {
@@ -338,4 +373,15 @@ func resolveRunTarget(inputPath string) (string, *runDirInfo, error) {
 		return "", nil, fmt.Errorf("no .sg files found in directory %q", inputPath)
 	}
 	return sgFiles[0], &runDirInfo{path: inputPath, fileCount: len(sgFiles)}, nil
+}
+
+func splitArgsAtDash(cmd *cobra.Command, args []string) ([]string, []string) {
+	if cmd == nil {
+		return args, nil
+	}
+	dashIdx := cmd.Flags().ArgsLenAtDash()
+	if dashIdx < 0 || dashIdx > len(args) {
+		return args, nil
+	}
+	return args[:dashIdx], args[dashIdx:]
 }

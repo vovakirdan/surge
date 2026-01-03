@@ -157,6 +157,12 @@ func appendModuleRecordHIR(ctx context.Context, res *DiagnoseResult, rec *module
 		if modHIR == nil {
 			continue
 		}
+		for _, fn := range modHIR.Funcs {
+			if fn == nil {
+				continue
+			}
+			fn.Flags &^= hir.FuncEntrypoint
+		}
 		remapHIRModule(modHIR, mapping)
 		for _, fn := range modHIR.Funcs {
 			if fn == nil {

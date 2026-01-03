@@ -66,6 +66,8 @@ type DiagnoseOptions struct {
 	IgnoreWarnings     bool
 	WarningsAsErrors   bool
 	NoAlienHints       bool // Disable extra alien-hint diagnostics (enabled by default)
+	BaseDir            string
+	RootKind           project.ModuleKind
 	EnableTimings      bool
 	EnableDiskCache    bool                 // Enable persistent disk cache (experimental, adds I/O overhead)
 	DirectiveMode      parser.DirectiveMode // Directive processing mode (off, collect, gen, run)
@@ -113,6 +115,9 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts DiagnoseOpti
 	loadSpan := trace.Begin(tracer, trace.ScopePass, "load_file", diagSpan.ID())
 	// Создаём FileSet и загружаем файл
 	fs := source.NewFileSet()
+	if opts.BaseDir != "" {
+		fs.SetBaseDir(opts.BaseDir)
+	}
 	sharedTypes := types.NewInterner()
 	fileID, err := fs.Load(filePath)
 	loadSpan.End("")
@@ -506,6 +511,9 @@ func runModuleGraph(
 				return d.Primary.File == targetFileID
 			})
 		}
+	}
+	if meta != nil && opts.RootKind != project.ModuleKindUnknown {
+		meta.Kind = opts.RootKind
 	}
 	if !validateCoreModule(meta, file, stdlibRoot, reporter) {
 		return nil, nil, nil, fmt.Errorf("core namespace reserved")
