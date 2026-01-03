@@ -329,6 +329,7 @@ func compileRuntime(tmpDir string, printCommands bool) ([]string, error) {
 		filepath.Join("runtime", "native", "rt_alloc.c"),
 		filepath.Join("runtime", "native", "rt_io.c"),
 		filepath.Join("runtime", "native", "rt_string.c"),
+		filepath.Join("runtime", "native", "rt_range.c"),
 		filepath.Join("runtime", "native", "rt_entry.c"),
 	}
 	objs := make([]string, 0, len(sources))

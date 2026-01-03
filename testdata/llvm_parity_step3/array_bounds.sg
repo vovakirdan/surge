@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let arr: int[] = [1, 2, 3];
+    let _ = arr[3];
+    return 0;
+}

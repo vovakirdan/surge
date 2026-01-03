@@ -53,6 +53,12 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_string_from_utf16":
 		return vm.handleStringFromUTF16(frame, call, writes)
 
+	case "rt_string_index":
+		return vm.handleStringIndex(frame, call, writes)
+
+	case "rt_string_slice":
+		return vm.handleStringSlice(frame, call, writes)
+
 	case "rt_string_force_flatten":
 		return vm.handleStringForceFlatten(frame, call, writes)
 
@@ -161,6 +167,8 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleRtExit(frame, call)
 	case "rt_panic":
 		return vm.handleRtPanic(frame, call)
+	case "rt_panic_bounds":
+		return vm.handleRtPanicBounds(frame, call)
 
 	case "exit":
 		return vm.handleExit(frame, call)

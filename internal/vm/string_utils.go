@@ -491,6 +491,38 @@ func (vm *VM) uintValueToInt(v Value, context string) (int, *VMError) {
 	}
 }
 
+func (vm *VM) intValueToInt(v Value, context string) (int, *VMError) {
+	maxInt := int64(int(^uint(0) >> 1))
+	minInt := -maxInt - 1
+	switch v.Kind {
+	case VKInt:
+		if v.Int < minInt || v.Int > maxInt {
+			return 0, vm.eb.invalidNumericConversion(context)
+		}
+		ni, err := safecast.Conv[int](v.Int)
+		if err != nil {
+			return 0, vm.eb.invalidNumericConversion(context)
+		}
+		return ni, nil
+	case VKBigInt:
+		i, vmErr := vm.mustBigInt(v)
+		if vmErr != nil {
+			return 0, vmErr
+		}
+		n, ok := i.Int64()
+		if !ok || n < minInt || n > maxInt {
+			return 0, vm.eb.invalidNumericConversion(context)
+		}
+		ni, err := safecast.Conv[int](n)
+		if err != nil {
+			return 0, vm.eb.invalidNumericConversion(context)
+		}
+		return ni, nil
+	default:
+		return 0, vm.eb.typeMismatch("int", v.Kind.String())
+	}
+}
+
 func (vm *VM) nonNegativeIndexValue(idx Value) (int, *VMError) {
 	maxIndex := int(^uint(0) >> 1)
 	maxInt := int64(maxIndex)

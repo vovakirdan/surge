@@ -373,3 +373,47 @@ func (vm *VM) handleRtPanic(frame *Frame, call *mir.CallInstr) *VMError {
 	vm.Stack = nil
 	return nil
 }
+
+// handleRtPanicBounds handles the rt_panic_bounds intrinsic.
+func (vm *VM) handleRtPanicBounds(frame *Frame, call *mir.CallInstr) *VMError {
+	if len(call.Args) != 3 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_panic_bounds requires 3 arguments")
+	}
+	kindVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(kindVal)
+	indexVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(indexVal)
+	lengthVal, vmErr := vm.evalOperand(frame, &call.Args[2])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(lengthVal)
+
+	kind, vmErr := vm.uintValueToInt(kindVal, "panic bounds kind out of range")
+	if vmErr != nil {
+		return vmErr
+	}
+	index, vmErr := vm.intValueToInt(indexVal, "panic bounds index out of range")
+	if vmErr != nil {
+		return vmErr
+	}
+	length, vmErr := vm.intValueToInt(lengthVal, "panic bounds length out of range")
+	if vmErr != nil {
+		return vmErr
+	}
+
+	switch kind {
+	case 0:
+		return vm.eb.outOfBounds(index, length)
+	case 1:
+		return vm.eb.arrayIndexOutOfRange(index, length)
+	default:
+		return vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("unknown panic bounds kind %d", kind))
+	}
+}

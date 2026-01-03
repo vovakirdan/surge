@@ -12,6 +12,7 @@ pub type byte = uint8;
 @intrinsic fn rt_write_stdout(ptr: *byte, length: uint) -> uint;
 @intrinsic fn rt_write_stderr(ptr: *byte, length: uint) -> uint;
 @intrinsic fn rt_read_stdin(buf: *byte, max_len: uint) -> uint;
+@intrinsic fn rt_panic_bounds(kind: uint, index: int, length: int) -> nothing;
 
 // String access intrinsics
 @intrinsic fn rt_string_ptr(s: &string) -> *byte;
@@ -20,6 +21,8 @@ pub type byte = uint8;
 @intrinsic fn rt_string_len_bytes(s: &string) -> uint;
 @intrinsic fn rt_string_from_bytes(ptr: *byte, length: uint) -> string;
 @intrinsic fn rt_string_from_utf16(ptr: *uint16, length: uint) -> string;
+@intrinsic fn rt_string_index(s: &string, index: int) -> uint32;
+@intrinsic fn rt_string_slice(s: &string, r: Range<int>) -> string;
 @intrinsic fn rt_string_concat(a: &string, b: &string) -> string;
 @intrinsic fn rt_string_eq(a: &string, b: &string) -> bool;
 @intrinsic fn rt_string_bytes_view(s: &string) -> BytesView;

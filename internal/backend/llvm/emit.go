@@ -42,9 +42,18 @@ type funcEmitter struct {
 	emitter     *Emitter
 	f           *mir.Func
 	tmpID       int
+	inlineBlock int
 	localAlloca map[mir.LocalID]string
 	paramLocals []mir.LocalID
 }
+
+const (
+	arrayHeaderSize  = 24
+	arrayHeaderAlign = 8
+	arrayLenOffset   = 0
+	arrayCapOffset   = 8
+	arrayDataOffset  = 16
+)
 
 func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Table) (string, error) {
 	e := &Emitter{
@@ -627,6 +636,44 @@ func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
 }
 
 func (fe *funcEmitter) emitAssign(ins *mir.Instr) error {
+	if ins.Assign.Src.Kind == mir.RValueArrayLit {
+		dstType, err := fe.placeBaseType(ins.Assign.Dst)
+		if err != nil {
+			return err
+		}
+		val, ty, err := fe.emitArrayLit(&ins.Assign.Src.ArrayLit, dstType)
+		if err != nil {
+			return err
+		}
+		ptr, dstTy, err := fe.emitPlacePtr(ins.Assign.Dst)
+		if err != nil {
+			return err
+		}
+		if dstTy != ty {
+			ty = dstTy
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
+		return nil
+	}
+	if ins.Assign.Src.Kind == mir.RValueTupleLit {
+		dstType, err := fe.placeBaseType(ins.Assign.Dst)
+		if err != nil {
+			return err
+		}
+		val, ty, err := fe.emitTupleLit(&ins.Assign.Src.TupleLit, dstType)
+		if err != nil {
+			return err
+		}
+		ptr, dstTy, err := fe.emitPlacePtr(ins.Assign.Dst)
+		if err != nil {
+			return err
+		}
+		if dstTy != ty {
+			ty = dstTy
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
+		return nil
+	}
 	val, ty, err := fe.emitRValue(&ins.Assign.Src)
 	if err != nil {
 		return err
@@ -649,6 +696,12 @@ func (fe *funcEmitter) emitRValue(rv *mir.RValue) (string, string, error) {
 	switch rv.Kind {
 	case mir.RValueUse:
 		return fe.emitOperand(&rv.Use)
+	case mir.RValueStructLit:
+		return fe.emitStructLit(&rv.StructLit)
+	case mir.RValueField:
+		return fe.emitFieldAccess(&rv.Field)
+	case mir.RValueIndex:
+		return fe.emitIndexAccess(&rv.Index)
 	case mir.RValueUnaryOp:
 		return fe.emitUnary(&rv.Unary)
 	case mir.RValueBinaryOp:
@@ -659,6 +712,8 @@ func (fe *funcEmitter) emitRValue(rv *mir.RValue) (string, string, error) {
 		return fe.emitTagTest(&rv.TagTest)
 	case mir.RValueTagPayload:
 		return fe.emitTagPayload(&rv.TagPayload)
+	case mir.RValueArrayLit, mir.RValueTupleLit:
+		return "", "", fmt.Errorf("literal rvalue must be handled in assignment")
 	default:
 		return "", "", fmt.Errorf("unsupported rvalue kind %v", rv.Kind)
 	}
@@ -755,6 +810,32 @@ func (fe *funcEmitter) emitUnary(op *mir.UnaryOp) (string, string, error) {
 func (fe *funcEmitter) emitBinary(op *mir.BinaryOp) (string, string, error) {
 	if op == nil {
 		return "", "", fmt.Errorf("nil binary op")
+	}
+	switch op.Op {
+	case ast.ExprBinaryRange, ast.ExprBinaryRangeInclusive:
+		leftVal, leftTy, err := fe.emitValueOperand(&op.Left)
+		if err != nil {
+			return "", "", err
+		}
+		rightVal, rightTy, err := fe.emitValueOperand(&op.Right)
+		if err != nil {
+			return "", "", err
+		}
+		start64, err := fe.coerceIntToI64(leftVal, leftTy, op.Left.Type)
+		if err != nil {
+			return "", "", err
+		}
+		end64, err := fe.coerceIntToI64(rightVal, rightTy, op.Right.Type)
+		if err != nil {
+			return "", "", err
+		}
+		inclusive := "0"
+		if op.Op == ast.ExprBinaryRangeInclusive {
+			inclusive = "1"
+		}
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_range_int_new(i64 %s, i64 %s, i1 %s)\n", tmp, start64, end64, inclusive)
+		return tmp, "ptr", nil
 	}
 	if isStringLike(fe.emitter.types, op.Left.Type) || isStringLike(fe.emitter.types, op.Right.Type) {
 		if !isStringLike(fe.emitter.types, op.Left.Type) || !isStringLike(fe.emitter.types, op.Right.Type) {
@@ -979,6 +1060,426 @@ func (fe *funcEmitter) emitTagPayload(tp *mir.TagPayload) (string, string, error
 	return val, payloadLLVM, nil
 }
 
+func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (string, string, error) {
+	if lit == nil {
+		return "", "", fmt.Errorf("nil struct literal")
+	}
+	layoutInfo, err := fe.emitter.layoutOf(lit.TypeID)
+	if err != nil {
+		return "", "", err
+	}
+	size := layoutInfo.Size
+	align := layoutInfo.Align
+	if align <= 0 {
+		align = 1
+	}
+	mem := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	for i := range lit.Fields {
+		field := &lit.Fields[i]
+		fieldIdx, fieldType, err := fe.structFieldInfo(lit.TypeID, mir.PlaceProj{Kind: mir.PlaceProjField, FieldName: field.Name, FieldIdx: -1})
+		if err != nil {
+			return "", "", err
+		}
+		if fieldIdx < 0 || fieldIdx >= len(layoutInfo.FieldOffsets) {
+			return "", "", fmt.Errorf("field index %d out of range", fieldIdx)
+		}
+		val, valTy, err := fe.emitValueOperand(&field.Value)
+		if err != nil {
+			return "", "", err
+		}
+		fieldLLVM, err := llvmValueType(fe.emitter.types, fieldType)
+		if err != nil {
+			return "", "", err
+		}
+		if valTy != fieldLLVM {
+			valTy = fieldLLVM
+		}
+		off := layoutInfo.FieldOffsets[fieldIdx]
+		bytePtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
+	}
+	return mem, "ptr", nil
+}
+
+func (fe *funcEmitter) emitTupleLit(lit *mir.TupleLit, dstType types.TypeID) (string, string, error) {
+	if lit == nil {
+		return "", "", fmt.Errorf("nil tuple literal")
+	}
+	if len(lit.Elems) == 0 {
+		ty, err := llvmValueType(fe.emitter.types, dstType)
+		if err != nil {
+			return "", "", err
+		}
+		return "0", ty, nil
+	}
+	if fe.emitter.types == nil {
+		return "", "", fmt.Errorf("missing type interner")
+	}
+	info, ok := fe.emitter.types.TupleInfo(resolveAliasAndOwn(fe.emitter.types, dstType))
+	if !ok || info == nil {
+		return "", "", fmt.Errorf("missing tuple info")
+	}
+	if len(info.Elems) != len(lit.Elems) {
+		return "", "", fmt.Errorf("tuple literal length mismatch")
+	}
+	layoutInfo, err := fe.emitter.layoutOf(dstType)
+	if err != nil {
+		return "", "", err
+	}
+	size := layoutInfo.Size
+	align := layoutInfo.Align
+	if align <= 0 {
+		align = 1
+	}
+	mem := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	for i := range lit.Elems {
+		if i >= len(layoutInfo.FieldOffsets) {
+			return "", "", fmt.Errorf("tuple field %d out of range", i)
+		}
+		val, valTy, err := fe.emitValueOperand(&lit.Elems[i])
+		if err != nil {
+			return "", "", err
+		}
+		elemType := info.Elems[i]
+		elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+		if err != nil {
+			return "", "", err
+		}
+		if valTy != elemLLVM {
+			valTy = elemLLVM
+		}
+		off := layoutInfo.FieldOffsets[i]
+		bytePtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, mem, off)
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, bytePtr)
+	}
+	return mem, "ptr", nil
+}
+
+func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (string, string, error) {
+	if lit == nil {
+		return "", "", fmt.Errorf("nil array literal")
+	}
+	elemType, dynamic, ok := arrayElemType(fe.emitter.types, dstType)
+	if !ok || !dynamic {
+		return "", "", fmt.Errorf("unsupported array literal type")
+	}
+	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+	if err != nil {
+		return "", "", err
+	}
+	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
+	if err != nil {
+		return "", "", err
+	}
+	if elemAlign <= 0 {
+		elemAlign = 1
+	}
+	stride := roundUpInt(elemSize, elemAlign)
+	length := len(lit.Elems)
+	dataSize := stride * length
+
+	dataPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", dataPtr, dataSize, elemAlign)
+	headPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", headPtr, arrayHeaderSize, arrayHeaderAlign)
+
+	lenPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, headPtr, arrayLenOffset)
+	fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", length, lenPtr)
+	capPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", capPtr, headPtr, arrayCapOffset)
+	fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", length, capPtr)
+	dataPtrPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, headPtr, arrayDataOffset)
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", dataPtr, dataPtrPtr)
+
+	for i := range lit.Elems {
+		val, valTy, err := fe.emitValueOperand(&lit.Elems[i])
+		if err != nil {
+			return "", "", err
+		}
+		if valTy != elemLLVM {
+			valTy = elemLLVM
+		}
+		offset := i * stride
+		elemPtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", elemPtr, dataPtr, offset)
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+	}
+	return headPtr, "ptr", nil
+}
+
+func (fe *funcEmitter) emitFieldAccess(fa *mir.FieldAccess) (string, string, error) {
+	if fa == nil {
+		return "", "", fmt.Errorf("nil field access")
+	}
+	objVal, objTy, err := fe.emitValueOperand(&fa.Object)
+	if err != nil {
+		return "", "", err
+	}
+	if objTy != "ptr" {
+		return "", "", fmt.Errorf("field access expects ptr base, got %s", objTy)
+	}
+	if isRefType(fe.emitter.types, fa.Object.Type) {
+		deref := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", deref, objVal)
+		objVal = deref
+	}
+	structType := resolveValueType(fe.emitter.types, fa.Object.Type)
+	fieldIdx, fieldType, err := fe.structFieldInfo(structType, mir.PlaceProj{Kind: mir.PlaceProjField, FieldName: fa.FieldName, FieldIdx: fa.FieldIdx})
+	if err != nil {
+		return "", "", err
+	}
+	layoutInfo, err := fe.emitter.layoutOf(structType)
+	if err != nil {
+		return "", "", err
+	}
+	if fieldIdx < 0 || fieldIdx >= len(layoutInfo.FieldOffsets) {
+		return "", "", fmt.Errorf("field index %d out of range", fieldIdx)
+	}
+	fieldLLVM, err := llvmValueType(fe.emitter.types, fieldType)
+	if err != nil {
+		return "", "", err
+	}
+	off := layoutInfo.FieldOffsets[fieldIdx]
+	bytePtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, objVal, off)
+	val := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", val, fieldLLVM, bytePtr)
+	return val, fieldLLVM, nil
+}
+
+func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (string, string, error) {
+	if idx == nil {
+		return "", "", fmt.Errorf("nil index access")
+	}
+	objVal, objTy, err := fe.emitValueOperand(&idx.Object)
+	if err != nil {
+		return "", "", err
+	}
+	if objTy != "ptr" {
+		return "", "", fmt.Errorf("index access expects ptr base, got %s", objTy)
+	}
+	objType := resolveValueType(fe.emitter.types, idx.Object.Type)
+	switch {
+	case isStringLike(fe.emitter.types, objType):
+		if isRangeType(fe.emitter.types, idx.Index.Type) {
+			rangeVal, _, err := fe.emitOperand(&idx.Index)
+			if err != nil {
+				return "", "", err
+			}
+			handlePtr, err := fe.emitHandleAddr(objVal)
+			if err != nil {
+				return "", "", err
+			}
+			tmp := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_slice(ptr %s, ptr %s)\n", tmp, handlePtr, rangeVal)
+			return tmp, "ptr", nil
+		}
+		idxVal, idxTy, err := fe.emitValueOperand(&idx.Index)
+		if err != nil {
+			return "", "", err
+		}
+		idx64, err := fe.coerceIntToI64(idxVal, idxTy, idx.Index.Type)
+		if err != nil {
+			return "", "", err
+		}
+		handlePtr, err := fe.emitHandleAddr(objVal)
+		if err != nil {
+			return "", "", err
+		}
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i32 @rt_string_index(ptr %s, i64 %s)\n", tmp, handlePtr, idx64)
+		return tmp, "i32", nil
+	case isBytesViewType(fe.emitter.types, objType):
+		idxVal, idxTy, err := fe.emitValueOperand(&idx.Index)
+		if err != nil {
+			return "", "", err
+		}
+		handlePtr, err := fe.emitHandleAddr(objVal)
+		if err != nil {
+			return "", "", err
+		}
+		return fe.emitBytesViewIndex(handlePtr, objType, idxVal, idxTy, idx.Index.Type)
+	case isArrayLike(fe.emitter.types, objType):
+		elemType, _, ok := arrayElemType(fe.emitter.types, objType)
+		if !ok {
+			return "", "", fmt.Errorf("unsupported index target")
+		}
+		idxVal, idxTy, err := fe.emitValueOperand(&idx.Index)
+		if err != nil {
+			return "", "", err
+		}
+		handlePtr, err := fe.emitHandleAddr(objVal)
+		if err != nil {
+			return "", "", err
+		}
+		elemPtr, elemLLVM, err := fe.emitArrayElemPtr(handlePtr, idxVal, idxTy, idx.Index.Type, elemType)
+		if err != nil {
+			return "", "", err
+		}
+		val := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", val, elemLLVM, elemPtr)
+		return val, elemLLVM, nil
+	default:
+		return "", "", fmt.Errorf("unsupported index target")
+	}
+}
+
+func (fe *funcEmitter) emitHandleAddr(val string) (string, error) {
+	ptr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", val, ptr)
+	return ptr, nil
+}
+
+func (fe *funcEmitter) emitArrayLen(handlePtr string) (string, error) {
+	handle := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, handlePtr)
+	lenPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, handle, arrayLenOffset)
+	lenVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", lenVal, lenPtr)
+	return lenVal, nil
+}
+
+func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType types.TypeID, elemType types.TypeID) (string, string, error) {
+	handle := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, handlePtr)
+	lenPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, handle, arrayLenOffset)
+	lenVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", lenVal, lenPtr)
+
+	adjIdx, err := fe.emitBoundsCheckedIndex(1, idxVal, idxTy, idxType, lenVal, true)
+	if err != nil {
+		return "", "", err
+	}
+
+	dataPtrPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, handle, arrayDataOffset)
+	dataPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", dataPtr, dataPtrPtr)
+
+	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+	if err != nil {
+		return "", "", err
+	}
+	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
+	if err != nil {
+		return "", "", err
+	}
+	if elemAlign <= 0 {
+		elemAlign = 1
+	}
+	stride := roundUpInt(elemSize, elemAlign)
+	off := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", off, adjIdx, stride)
+	elemPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, dataPtr, off)
+	return elemPtr, elemLLVM, nil
+}
+
+func (fe *funcEmitter) emitBytesViewLen(handlePtr string, viewType types.TypeID) (string, error) {
+	handle := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, handlePtr)
+	ptrOff, lenOff, lenLLVM, err := fe.bytesViewOffsets(viewType)
+	if err != nil {
+		return "", err
+	}
+	_ = ptrOff
+	lenPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, handle, lenOff)
+	lenVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", lenVal, lenLLVM, lenPtr)
+	return lenVal, nil
+}
+
+func (fe *funcEmitter) emitBytesViewIndex(handlePtr string, viewType types.TypeID, idxVal, idxTy string, idxType types.TypeID) (string, string, error) {
+	handle := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, handlePtr)
+	ptrOff, lenOff, lenLLVM, err := fe.bytesViewOffsets(viewType)
+	if err != nil {
+		return "", "", err
+	}
+	ptrPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", ptrPtr, handle, ptrOff)
+	ptrVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", ptrVal, ptrPtr)
+	lenPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, handle, lenOff)
+	lenVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", lenVal, lenLLVM, lenPtr)
+
+	adjIdx, err := fe.emitBoundsCheckedIndex(0, idxVal, idxTy, idxType, lenVal, false)
+	if err != nil {
+		return "", "", err
+	}
+
+	bytePtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", bytePtr, ptrVal, adjIdx)
+	val := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", val, bytePtr)
+	return val, "i8", nil
+}
+
+func (fe *funcEmitter) emitBoundsCheckedIndex(kind int, idxVal, idxTy string, idxType types.TypeID, lenVal string, allowNegative bool) (string, error) {
+	idx64, err := fe.coerceIntToI64(idxVal, idxTy, idxType)
+	if err != nil {
+		return "", err
+	}
+	adj := idx64
+	if allowNegative {
+		neg := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = icmp slt i64 %s, 0\n", neg, idx64)
+		add := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = add i64 %s, %s\n", add, idx64, lenVal)
+		adj = fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = select i1 %s, i64 %s, i64 %s\n", adj, neg, add, idx64)
+	}
+	tooLow := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp slt i64 %s, 0\n", tooLow, adj)
+	tooHigh := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp sge i64 %s, %s\n", tooHigh, adj, lenVal)
+	oob := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = or i1 %s, %s\n", oob, tooLow, tooHigh)
+
+	fail := fe.nextInlineBlock()
+	cont := fe.nextInlineBlock()
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", oob, fail, cont)
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_panic_bounds(i64 %d, i64 %s, i64 %s)\n", kind, adj, lenVal)
+	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
+	return adj, nil
+}
+
+func (fe *funcEmitter) coerceIntToI64(val, ty string, typeID types.TypeID) (string, error) {
+	if ty == "i64" {
+		return val, nil
+	}
+	info, ok := intInfo(fe.emitter.types, typeID)
+	if !ok {
+		if typeID == types.NoTypeID && strings.HasPrefix(ty, "i") {
+			tmp := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = sext %s %s to i64\n", tmp, ty, val)
+			return tmp, nil
+		}
+		return "", fmt.Errorf("expected integer type")
+	}
+	op := "zext"
+	if info.signed {
+		op = "sext"
+	}
+	tmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = %s %s %s to i64\n", tmp, op, ty, val)
+	return tmp, nil
+}
+
 func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	call := &ins.Call
 	if call == nil {
@@ -988,6 +1489,9 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 		return err
 	}
 	if handled, err := fe.emitLenIntrinsic(call); handled {
+		return err
+	}
+	if handled, err := fe.emitIndexIntrinsic(call); handled {
 		return err
 	}
 	if handled, err := fe.emitMagicIntrinsic(call); handled {
@@ -1075,24 +1579,82 @@ func (fe *funcEmitter) emitLenIntrinsic(call *mir.CallInstr) (bool, error) {
 	if !call.HasDst {
 		return true, nil
 	}
-	if !isStringLike(fe.emitter.types, call.Args[0].Type) {
+	targetType := operandValueType(fe.emitter.types, &call.Args[0])
+	switch {
+	case isStringLike(fe.emitter.types, targetType):
+		argVal, _, err := fe.emitOperand(&call.Args[0])
+		if err != nil {
+			return true, err
+		}
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_string_len(ptr %s)\n", tmp, argVal)
+		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		if err != nil {
+			return true, err
+		}
+		if dstTy != "i64" {
+			dstTy = "i64"
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		return true, nil
+	case isArrayLike(fe.emitter.types, targetType):
+		argVal, _, err := fe.emitOperand(&call.Args[0])
+		if err != nil {
+			return true, err
+		}
+		lenVal, err := fe.emitArrayLen(argVal)
+		if err != nil {
+			return true, err
+		}
+		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		if err != nil {
+			return true, err
+		}
+		if dstTy != "i64" {
+			dstTy = "i64"
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, lenVal, ptr)
+		return true, nil
+	case isBytesViewType(fe.emitter.types, targetType):
+		argVal, _, err := fe.emitOperand(&call.Args[0])
+		if err != nil {
+			return true, err
+		}
+		lenVal, err := fe.emitBytesViewLen(argVal, targetType)
+		if err != nil {
+			return true, err
+		}
+		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		if err != nil {
+			return true, err
+		}
+		if dstTy != "i64" {
+			dstTy = "i64"
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, lenVal, ptr)
+		return true, nil
+	default:
 		return true, fmt.Errorf("unsupported __len target")
 	}
-	argVal, _, err := fe.emitOperand(&call.Args[0])
-	if err != nil {
-		return true, err
+}
+
+func (fe *funcEmitter) emitIndexIntrinsic(call *mir.CallInstr) (bool, error) {
+	if call == nil || call.Callee.Kind != mir.CalleeSym {
+		return false, nil
 	}
-	tmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_string_len(ptr %s)\n", tmp, argVal)
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
-	if err != nil {
-		return true, err
+	name := call.Callee.Name
+	if name == "" {
+		name = fe.symbolName(call.Callee.Sym)
 	}
-	if dstTy != "i64" {
-		dstTy = "i64"
+	name = stripGenericSuffix(name)
+	switch name {
+	case "__index":
+		return true, fe.emitIndexGet(call)
+	case "__index_set":
+		return true, fe.emitIndexSet(call)
+	default:
+		return false, nil
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
-	return true, nil
 }
 
 func (fe *funcEmitter) emitMagicIntrinsic(call *mir.CallInstr) (bool, error) {
@@ -1108,12 +1670,201 @@ func (fe *funcEmitter) emitMagicIntrinsic(call *mir.CallInstr) (bool, error) {
 	case "__add", "__sub", "__mul", "__div", "__mod",
 		"__bit_and", "__bit_or", "__bit_xor", "__shl", "__shr",
 		"__eq", "__ne", "__lt", "__le", "__gt", "__ge":
+		if !fe.canEmitMagicBinary(call) {
+			return false, nil
+		}
 		return true, fe.emitMagicBinaryIntrinsic(call, name)
 	case "__pos", "__neg", "__not":
+		if !fe.canEmitMagicUnary(call) {
+			return false, nil
+		}
 		return true, fe.emitMagicUnaryIntrinsic(call, name)
 	default:
 		return false, nil
 	}
+}
+
+func (fe *funcEmitter) canEmitMagicBinary(call *mir.CallInstr) bool {
+	if call == nil || len(call.Args) != 2 {
+		return false
+	}
+	leftType := operandValueType(fe.emitter.types, &call.Args[0])
+	rightType := operandValueType(fe.emitter.types, &call.Args[1])
+	if isStringLike(fe.emitter.types, leftType) || isStringLike(fe.emitter.types, rightType) {
+		return isStringLike(fe.emitter.types, leftType) && isStringLike(fe.emitter.types, rightType)
+	}
+	_, okLeft := intInfo(fe.emitter.types, leftType)
+	_, okRight := intInfo(fe.emitter.types, rightType)
+	return okLeft && okRight
+}
+
+func (fe *funcEmitter) canEmitMagicUnary(call *mir.CallInstr) bool {
+	if call == nil || len(call.Args) != 1 {
+		return false
+	}
+	operandType := operandValueType(fe.emitter.types, &call.Args[0])
+	_, ok := intInfo(fe.emitter.types, operandType)
+	return ok
+}
+
+func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
+	if call == nil {
+		return nil
+	}
+	if len(call.Args) != 2 {
+		return fmt.Errorf("__index requires 2 arguments")
+	}
+	if !call.HasDst {
+		return nil
+	}
+	containerType := operandValueType(fe.emitter.types, &call.Args[0])
+	dstType := types.NoTypeID
+	if call.Dst.Kind == mir.PlaceLocal && int(call.Dst.Local) < len(fe.f.Locals) {
+		dstType = fe.f.Locals[call.Dst.Local].Type
+	}
+	switch {
+	case isStringLike(fe.emitter.types, containerType):
+		strArg, _, err := fe.emitOperand(&call.Args[0])
+		if err != nil {
+			return err
+		}
+		indexType := operandValueType(fe.emitter.types, &call.Args[1])
+		if isRangeType(fe.emitter.types, indexType) {
+			rangeVal, _, err := fe.emitOperand(&call.Args[1])
+			if err != nil {
+				return err
+			}
+			tmp := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_slice(ptr %s, ptr %s)\n", tmp, strArg, rangeVal)
+			ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+			if err != nil {
+				return err
+			}
+			if dstTy != "ptr" {
+				dstTy = "ptr"
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+			return nil
+		}
+		idxVal, idxTy, err := fe.emitValueOperand(&call.Args[1])
+		if err != nil {
+			return err
+		}
+		idx64, err := fe.coerceIntToI64(idxVal, idxTy, call.Args[1].Type)
+		if err != nil {
+			return err
+		}
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i32 @rt_string_index(ptr %s, i64 %s)\n", tmp, strArg, idx64)
+		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		if err != nil {
+			return err
+		}
+		if dstTy != "i32" {
+			dstTy = "i32"
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		return nil
+	case isBytesViewType(fe.emitter.types, containerType):
+		viewArg, _, err := fe.emitOperand(&call.Args[0])
+		if err != nil {
+			return err
+		}
+		idxVal, idxTy, err := fe.emitValueOperand(&call.Args[1])
+		if err != nil {
+			return err
+		}
+		val, ty, err := fe.emitBytesViewIndex(viewArg, containerType, idxVal, idxTy, call.Args[1].Type)
+		if err != nil {
+			return err
+		}
+		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		if err != nil {
+			return err
+		}
+		if dstTy != ty {
+			dstTy = ty
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
+		return nil
+	case isArrayLike(fe.emitter.types, containerType):
+		elemType, _, ok := arrayElemType(fe.emitter.types, containerType)
+		if !ok {
+			return fmt.Errorf("unsupported __index target")
+		}
+		arrArg, _, err := fe.emitOperand(&call.Args[0])
+		if err != nil {
+			return err
+		}
+		idxVal, idxTy, err := fe.emitValueOperand(&call.Args[1])
+		if err != nil {
+			return err
+		}
+		elemPtr, elemLLVM, err := fe.emitArrayElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, elemType)
+		if err != nil {
+			return err
+		}
+		val := ""
+		ty := ""
+		if isRefType(fe.emitter.types, dstType) {
+			val = elemPtr
+			ty = "ptr"
+		} else {
+			tmp := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, elemLLVM, elemPtr)
+			val = tmp
+			ty = elemLLVM
+		}
+		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		if err != nil {
+			return err
+		}
+		if dstTy != ty {
+			dstTy = ty
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
+		return nil
+	default:
+		return fmt.Errorf("unsupported __index target")
+	}
+}
+
+func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
+	if call == nil {
+		return nil
+	}
+	if len(call.Args) != 3 {
+		return fmt.Errorf("__index_set requires 3 arguments")
+	}
+	containerType := operandValueType(fe.emitter.types, &call.Args[0])
+	if !isArrayLike(fe.emitter.types, containerType) {
+		return fmt.Errorf("unsupported __index_set target")
+	}
+	elemType, _, ok := arrayElemType(fe.emitter.types, containerType)
+	if !ok {
+		return fmt.Errorf("unsupported __index_set target")
+	}
+	arrArg, _, err := fe.emitOperand(&call.Args[0])
+	if err != nil {
+		return err
+	}
+	idxVal, idxTy, err := fe.emitValueOperand(&call.Args[1])
+	if err != nil {
+		return err
+	}
+	elemPtr, elemLLVM, err := fe.emitArrayElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, elemType)
+	if err != nil {
+		return err
+	}
+	val, valTy, err := fe.emitValueOperand(&call.Args[2])
+	if err != nil {
+		return err
+	}
+	if valTy != elemLLVM {
+		valTy = elemLLVM
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", valTy, val, elemPtr)
+	return nil
 }
 
 func (fe *funcEmitter) emitMagicBinaryIntrinsic(call *mir.CallInstr, name string) error {
@@ -1621,7 +2372,31 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (string, string, error) {
 			curType = fieldType
 			curLLVMType = fieldLLVMType
 		case mir.PlaceProjIndex:
-			return "", "", fmt.Errorf("index projections are not supported")
+			if proj.IndexLocal == mir.NoLocalID {
+				return "", "", fmt.Errorf("missing index local")
+			}
+			elemType, dynamic, ok := arrayElemType(fe.emitter.types, curType)
+			if !ok || !dynamic {
+				return "", "", fmt.Errorf("index projection on non-array type")
+			}
+			idxLocal := proj.IndexLocal
+			if int(idxLocal) < 0 || int(idxLocal) >= len(fe.f.Locals) {
+				return "", "", fmt.Errorf("invalid index local %d", idxLocal)
+			}
+			idxLLVM, err := llvmValueType(fe.emitter.types, fe.f.Locals[idxLocal].Type)
+			if err != nil {
+				return "", "", err
+			}
+			idxPtr := fmt.Sprintf("%%%s", fe.localAlloca[idxLocal])
+			idxVal := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", idxVal, idxLLVM, idxPtr)
+			elemPtr, elemLLVM, err := fe.emitArrayElemPtr(curPtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, elemType)
+			if err != nil {
+				return "", "", err
+			}
+			curPtr = elemPtr
+			curType = elemType
+			curLLVMType = elemLLVM
 		default:
 			return "", "", fmt.Errorf("unsupported place projection kind %v", proj.Kind)
 		}
@@ -1630,9 +2405,37 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (string, string, error) {
 	return curPtr, curLLVMType, nil
 }
 
+func (fe *funcEmitter) placeBaseType(place mir.Place) (types.TypeID, error) {
+	if fe == nil || fe.f == nil || fe.emitter == nil || fe.emitter.mod == nil {
+		return types.NoTypeID, fmt.Errorf("missing context")
+	}
+	if len(place.Proj) != 0 {
+		return types.NoTypeID, fmt.Errorf("unsupported projected destination")
+	}
+	switch place.Kind {
+	case mir.PlaceLocal:
+		if int(place.Local) < 0 || int(place.Local) >= len(fe.f.Locals) {
+			return types.NoTypeID, fmt.Errorf("invalid local %d", place.Local)
+		}
+		return fe.f.Locals[place.Local].Type, nil
+	case mir.PlaceGlobal:
+		if int(place.Global) < 0 || int(place.Global) >= len(fe.emitter.mod.Globals) {
+			return types.NoTypeID, fmt.Errorf("invalid global %d", place.Global)
+		}
+		return fe.emitter.mod.Globals[place.Global].Type, nil
+	default:
+		return types.NoTypeID, fmt.Errorf("unsupported place kind %v", place.Kind)
+	}
+}
+
 func (fe *funcEmitter) nextTemp() string {
 	fe.tmpID++
 	return fmt.Sprintf("%%t%d", fe.tmpID)
+}
+
+func (fe *funcEmitter) nextInlineBlock() string {
+	fe.inlineBlock++
+	return fmt.Sprintf("bb.inline%d", fe.inlineBlock)
 }
 
 func boolValue(v bool) string {
@@ -1955,6 +2758,119 @@ func isStringLike(typesIn *types.Interner, id types.TypeID) bool {
 	return ok && tt.Kind == types.KindString
 }
 
+func isArrayLike(typesIn *types.Interner, id types.TypeID) bool {
+	_, dynamic, ok := arrayElemType(typesIn, id)
+	return ok && dynamic
+}
+
+func arrayElemType(typesIn *types.Interner, id types.TypeID) (types.TypeID, bool, bool) {
+	if typesIn == nil || id == types.NoTypeID {
+		return types.NoTypeID, false, false
+	}
+	id = resolveValueType(typesIn, id)
+	if elem, ok := typesIn.ArrayInfo(id); ok {
+		return elem, true, true
+	}
+	if elem, _, ok := typesIn.ArrayFixedInfo(id); ok {
+		return elem, false, true
+	}
+	if tt, ok := typesIn.Lookup(id); ok && tt.Kind == types.KindArray {
+		dynamic := tt.Count == types.ArrayDynamicLength
+		return tt.Elem, dynamic, true
+	}
+	return types.NoTypeID, false, false
+}
+
+func isBytesViewType(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil || id == types.NoTypeID || typesIn.Strings == nil {
+		return false
+	}
+	id = resolveValueType(typesIn, id)
+	info, ok := typesIn.StructInfo(id)
+	if !ok || info == nil {
+		return false
+	}
+	return typesIn.Strings.MustLookup(info.Name) == "BytesView"
+}
+
+func isRangeType(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil || id == types.NoTypeID || typesIn.Strings == nil {
+		return false
+	}
+	id = resolveValueType(typesIn, id)
+	info, ok := typesIn.StructInfo(id)
+	if !ok || info == nil {
+		return false
+	}
+	return typesIn.Strings.MustLookup(info.Name) == "Range"
+}
+
+func isRefType(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil || id == types.NoTypeID {
+		return false
+	}
+	id = resolveAliasAndOwn(typesIn, id)
+	tt, ok := typesIn.Lookup(id)
+	return ok && tt.Kind == types.KindReference
+}
+
+func (fe *funcEmitter) bytesViewOffsets(typeID types.TypeID) (int, int, string, error) {
+	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
+		return 0, 0, "", fmt.Errorf("missing type interner")
+	}
+	typeID = resolveValueType(fe.emitter.types, typeID)
+	layoutInfo, err := fe.emitter.layoutOf(typeID)
+	if err != nil {
+		return 0, 0, "", err
+	}
+	ptrIdx, ptrType, err := fe.structFieldInfo(typeID, mir.PlaceProj{Kind: mir.PlaceProjField, FieldName: "ptr", FieldIdx: -1})
+	if err != nil {
+		return 0, 0, "", err
+	}
+	lenIdx, lenType, err := fe.structFieldInfo(typeID, mir.PlaceProj{Kind: mir.PlaceProjField, FieldName: "len", FieldIdx: -1})
+	if err != nil {
+		return 0, 0, "", err
+	}
+	if ptrIdx < 0 || ptrIdx >= len(layoutInfo.FieldOffsets) || lenIdx < 0 || lenIdx >= len(layoutInfo.FieldOffsets) {
+		return 0, 0, "", fmt.Errorf("bytes view layout mismatch")
+	}
+	lenLLVM, err := llvmValueType(fe.emitter.types, lenType)
+	if err != nil {
+		return 0, 0, "", err
+	}
+	_, err = llvmValueType(fe.emitter.types, ptrType)
+	if err != nil {
+		return 0, 0, "", err
+	}
+	return layoutInfo.FieldOffsets[ptrIdx], layoutInfo.FieldOffsets[lenIdx], lenLLVM, nil
+}
+
+func llvmTypeSizeAlign(ty string) (int, int, error) {
+	switch ty {
+	case "i1", "i8":
+		return 1, 1, nil
+	case "i16", "half":
+		return 2, 2, nil
+	case "i32", "float":
+		return 4, 4, nil
+	case "i64", "double", "ptr":
+		return 8, 8, nil
+	default:
+		return 0, 0, fmt.Errorf("unsupported llvm type size for %s", ty)
+	}
+}
+
+func roundUpInt(n, align int) int {
+	if align <= 1 {
+		return n
+	}
+	r := n % align
+	if r == 0 {
+		return n
+	}
+	return n + (align - r)
+}
+
 func operandValueType(typesIn *types.Interner, op *mir.Operand) types.TypeID {
 	if op == nil {
 		return types.NoTypeID
@@ -1999,15 +2915,4 @@ func derefType(typesIn *types.Interner, id types.TypeID) (types.TypeID, bool) {
 		}
 	}
 	return types.NoTypeID, false
-}
-
-func roundUpInt(n, align int) int {
-	if align <= 1 {
-		return n
-	}
-	rem := n % align
-	if rem == 0 {
-		return n
-	}
-	return n + (align - rem)
 }

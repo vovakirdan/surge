@@ -253,7 +253,7 @@ And yet — everything reads clearly.
 
 // A simple contract – anything fetchable must implement fetch()
 contract Fetchable {
-    fn fetch(self: &Fetchable) -> Task<Success<string> | Error>;
+    fn fetch(self: &Fetchable) -> Task<Erring<string, Error>>;
 }
 
 // Data type + external behavior
@@ -271,7 +271,7 @@ extern<Endpoint> {
 
 // Worker pipeline using channels
 async fn pipeline(endpoints: Endpoint[]) -> Success<string>[] {
-    let ch = make_channel<Success<string> | Error>(10);
+    let ch = make_channel<Erring<string, Error>>(10);
 
     // Producer: task fetchers
     async {
@@ -304,6 +304,20 @@ It shows ownership moves (`task` takes `ep` by value),
 borrows (`recv(&ch)` is explicit),
 and structural typing (`contract Fetchable`) without ornamentation.
 You can drop `@drop` inside a loop if you need to end a borrow early, or mark the function `@failfast` to auto-cancel tasks on the first error — but only when you ask for it.
+
+### Want to see more?
+
+The [`showcases/`](showcases/) directory contains many runnable examples. Here are a few highlights:
+
+*   **[Hello World](showcases/01_hello_world)** — Minimal entrypoint and printing.
+*   **[Async Pipeline](showcases/async/04_pipeline_3stage)** — 3-stage processing using channels and tasks.
+*   **[Tagged Unions](showcases/26_state_machine_tagged)** — State machine implementation using sum types.
+*   **[Generics](showcases/28_generic_map_filter)** — Writing generic `map` and `filter` functions.
+*   **[Error Handling](showcases/25_erring_parser)** — Robust input loop with `Result` types.
+*   **[Contracts](showcases/29_contract_printable)** — Implementing structural interfaces for custom types.
+*   **[BigInt Math](showcases/21_bigint_stress)** — Arbitrary precision integers (Fibonacci calculation).
+*   **[Fan-out / Fan-in](showcases/async/02_fanout_fanin)** — Spawning multiple workers and aggregating results.
+*   **[Timeout & Race](showcases/async/08_timeout_race)** — Advanced async control flow with deadlines.
 
 ---
 

@@ -212,6 +212,94 @@ func (vm *VM) handleStringFromUTF16(frame *Frame, call *mir.CallInstr, writes *[
 	return nil
 }
 
+// handleStringIndex handles the rt_string_index intrinsic.
+func (vm *VM) handleStringIndex(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if !call.HasDst {
+		return nil
+	}
+	if len(call.Args) != 2 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_string_index requires 2 arguments")
+	}
+	arg, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(arg)
+	strVal, vmErr := vm.extractStringValue(arg)
+	if vmErr != nil {
+		return vmErr
+	}
+	idxVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(idxVal)
+	res, vmErr := vm.evalStringIndex(strVal, idxVal)
+	if vmErr != nil {
+		return vmErr
+	}
+	dstLocal := call.Dst.Local
+	if res.TypeID == types.NoTypeID {
+		res.TypeID = frame.Locals[dstLocal].TypeID
+	}
+	if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
+		if res.IsHeap() {
+			vm.dropValue(res)
+		}
+		return vmErr
+	}
+	*writes = append(*writes, LocalWrite{
+		LocalID: dstLocal,
+		Name:    frame.Locals[dstLocal].Name,
+		Value:   res,
+	})
+	return nil
+}
+
+// handleStringSlice handles the rt_string_slice intrinsic.
+func (vm *VM) handleStringSlice(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if !call.HasDst {
+		return nil
+	}
+	if len(call.Args) != 2 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_string_slice requires 2 arguments")
+	}
+	arg, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(arg)
+	strVal, vmErr := vm.extractStringValue(arg)
+	if vmErr != nil {
+		return vmErr
+	}
+	idxVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(idxVal)
+	res, vmErr := vm.evalStringIndex(strVal, idxVal)
+	if vmErr != nil {
+		return vmErr
+	}
+	dstLocal := call.Dst.Local
+	if res.TypeID == types.NoTypeID {
+		res.TypeID = frame.Locals[dstLocal].TypeID
+	}
+	if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
+		if res.IsHeap() {
+			vm.dropValue(res)
+		}
+		return vmErr
+	}
+	*writes = append(*writes, LocalWrite{
+		LocalID: dstLocal,
+		Name:    frame.Locals[dstLocal].Name,
+		Value:   res,
+	})
+	return nil
+}
+
 // handleStringForceFlatten handles the rt_string_force_flatten intrinsic.
 func (vm *VM) handleStringForceFlatten(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if len(call.Args) != 1 {

@@ -1,0 +1,20 @@
+@entrypoint
+fn main() -> int {
+    let ok: Erring<int, Error> = Success(7);
+    let out1: string = compare ok {
+        Success(v) => compare v {
+            7 => "ok7";
+            _ => "ok";
+        };
+        err => "err:" + err.message;
+    };
+    print(out1 + "\n");
+
+    let bad: Erring<int, Error> = Error { message: "boom", code: 2:uint };
+    let out2: string = compare bad {
+        Success(_) => "ok";
+        err => "err:" + err.message;
+    };
+    print(out2 + "\n");
+    return 0;
+}

@@ -1,0 +1,11 @@
+@entrypoint
+fn main() -> int {
+    let s: string = "Hello";
+    let a: string = s[-100..100];
+    let b: string = s[1..100];
+    let c: string = s[0..-1];
+    print(a + "\n");
+    print(b + "\n");
+    print(c + "\n");
+    return 0;
+}

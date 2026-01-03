@@ -1,0 +1,3 @@
+# Highlight Surge files, but exclude them from language statistics
+*.sg linguist-language=Rust
+*.sg linguist-vendored
