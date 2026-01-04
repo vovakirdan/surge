@@ -9,6 +9,15 @@ import (
 	"surge/internal/types"
 )
 
+type numericKind uint8
+
+const (
+	numericNone numericKind = iota
+	numericInt
+	numericUint
+	numericFloat
+)
+
 func (fe *funcEmitter) emitPanicNumeric(msg string) error {
 	ptr, dataLen, err := fe.emitBytesConst(msg)
 	if err != nil {
@@ -122,6 +131,201 @@ func safeGlobalID(i int) (mir.GlobalID, error) {
 		return mir.NoGlobalID, fmt.Errorf("global id overflow: %w", err)
 	}
 	return globalID, nil
+}
+
+func numericKindOf(typesIn *types.Interner, id types.TypeID) numericKind {
+	if typesIn == nil || id == types.NoTypeID {
+		return numericNone
+	}
+	id = resolveValueType(typesIn, id)
+	tt, ok := typesIn.Lookup(id)
+	if !ok {
+		return numericNone
+	}
+	switch tt.Kind {
+	case types.KindInt:
+		return numericInt
+	case types.KindUint:
+		return numericUint
+	case types.KindFloat:
+		return numericFloat
+	default:
+		return numericNone
+	}
+}
+
+func isNumericType(typesIn *types.Interner, id types.TypeID) bool {
+	return numericKindOf(typesIn, id) != numericNone
+}
+
+func llvmNumericTypeID(typesIn *types.Interner, llvmTy string, kind numericKind) types.TypeID {
+	if typesIn == nil {
+		return types.NoTypeID
+	}
+	b := typesIn.Builtins()
+	switch kind {
+	case numericInt:
+		switch llvmTy {
+		case "i8":
+			return b.Int8
+		case "i16":
+			return b.Int16
+		case "i32":
+			return b.Int32
+		case "i64":
+			return b.Int64
+		default:
+			return types.NoTypeID
+		}
+	case numericUint:
+		switch llvmTy {
+		case "i8":
+			return b.Uint8
+		case "i16":
+			return b.Uint16
+		case "i32":
+			return b.Uint32
+		case "i64":
+			return b.Uint64
+		default:
+			return types.NoTypeID
+		}
+	case numericFloat:
+		switch llvmTy {
+		case "half":
+			return b.Float16
+		case "float":
+			return b.Float32
+		case "double":
+			return b.Float64
+		default:
+			return types.NoTypeID
+		}
+	default:
+		return types.NoTypeID
+	}
+}
+
+func (fe *funcEmitter) coerceNumericValue(val, valTy string, srcType, dstType types.TypeID) (string, string, error) {
+	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
+		return val, valTy, nil
+	}
+	if srcType == types.NoTypeID || dstType == types.NoTypeID {
+		return val, valTy, nil
+	}
+	srcType = resolveValueType(fe.emitter.types, srcType)
+	dstType = resolveValueType(fe.emitter.types, dstType)
+	if srcType == dstType {
+		return val, valTy, nil
+	}
+	if !isNumericType(fe.emitter.types, srcType) || !isNumericType(fe.emitter.types, dstType) {
+		return val, valTy, nil
+	}
+	casted, castTy, err := fe.emitNumericCast(val, valTy, srcType, dstType)
+	if err != nil {
+		return "", "", err
+	}
+	return casted, castTy, nil
+}
+
+func (fe *funcEmitter) coerceNumericPair(leftVal, leftTy string, leftType types.TypeID, rightVal, rightTy string, rightType types.TypeID) (string, string, types.TypeID, string, string, types.TypeID, error) {
+	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
+		return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+	}
+	leftType = resolveValueType(fe.emitter.types, leftType)
+	rightType = resolveValueType(fe.emitter.types, rightType)
+	leftKind := numericKindOf(fe.emitter.types, leftType)
+	rightKind := numericKindOf(fe.emitter.types, rightType)
+	if leftType == types.NoTypeID || rightType == types.NoTypeID {
+		if leftType == types.NoTypeID && rightKind != numericNone {
+			if inferred := llvmNumericTypeID(fe.emitter.types, leftTy, rightKind); inferred != types.NoTypeID {
+				leftType = inferred
+			}
+		}
+		if rightType == types.NoTypeID && leftKind != numericNone {
+			if inferred := llvmNumericTypeID(fe.emitter.types, rightTy, leftKind); inferred != types.NoTypeID {
+				rightType = inferred
+			}
+		}
+		if leftType == types.NoTypeID && rightKind != numericNone && leftTy == "ptr" {
+			leftType = rightType
+		}
+		if rightType == types.NoTypeID && leftKind != numericNone && rightTy == "ptr" {
+			rightType = leftType
+		}
+		if leftType == types.NoTypeID || rightType == types.NoTypeID {
+			return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+		}
+		leftKind = numericKindOf(fe.emitter.types, leftType)
+		rightKind = numericKindOf(fe.emitter.types, rightType)
+	}
+	if leftKind == numericNone || rightKind == numericNone || leftKind != rightKind {
+		return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+	}
+	if leftType == rightType {
+		return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+	}
+
+	leftBig := isBigIntType(fe.emitter.types, leftType) || isBigUintType(fe.emitter.types, leftType) || isBigFloatType(fe.emitter.types, leftType)
+	rightBig := isBigIntType(fe.emitter.types, rightType) || isBigUintType(fe.emitter.types, rightType) || isBigFloatType(fe.emitter.types, rightType)
+
+	if leftBig && !rightBig {
+		casted, castTy, err := fe.emitNumericCast(rightVal, rightTy, rightType, leftType)
+		if err != nil {
+			return "", "", leftType, "", "", rightType, err
+		}
+		return leftVal, leftTy, leftType, casted, castTy, leftType, nil
+	}
+	if rightBig && !leftBig {
+		casted, castTy, err := fe.emitNumericCast(leftVal, leftTy, leftType, rightType)
+		if err != nil {
+			return "", "", leftType, "", "", rightType, err
+		}
+		return casted, castTy, rightType, rightVal, rightTy, rightType, nil
+	}
+
+	if !leftBig && !rightBig {
+		switch leftKind {
+		case numericInt, numericUint:
+			leftMeta, leftOK := intInfo(fe.emitter.types, leftType)
+			rightMeta, rightOK := intInfo(fe.emitter.types, rightType)
+			if !leftOK || !rightOK || leftMeta.bits == rightMeta.bits {
+				return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+			}
+			if leftMeta.bits > rightMeta.bits {
+				casted, castTy, err := fe.emitNumericCast(rightVal, rightTy, rightType, leftType)
+				if err != nil {
+					return "", "", leftType, "", "", rightType, err
+				}
+				return leftVal, leftTy, leftType, casted, castTy, leftType, nil
+			}
+			casted, castTy, err := fe.emitNumericCast(leftVal, leftTy, leftType, rightType)
+			if err != nil {
+				return "", "", leftType, "", "", rightType, err
+			}
+			return casted, castTy, rightType, rightVal, rightTy, rightType, nil
+		case numericFloat:
+			leftMeta, leftOK := floatInfo(fe.emitter.types, leftType)
+			rightMeta, rightOK := floatInfo(fe.emitter.types, rightType)
+			if !leftOK || !rightOK || leftMeta.bits == rightMeta.bits {
+				return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+			}
+			if leftMeta.bits > rightMeta.bits {
+				casted, castTy, err := fe.emitNumericCast(rightVal, rightTy, rightType, leftType)
+				if err != nil {
+					return "", "", leftType, "", "", rightType, err
+				}
+				return leftVal, leftTy, leftType, casted, castTy, leftType, nil
+			}
+			casted, castTy, err := fe.emitNumericCast(leftVal, leftTy, leftType, rightType)
+			if err != nil {
+				return "", "", leftType, "", "", rightType, err
+			}
+			return casted, castTy, rightType, rightVal, rightTy, rightType, nil
+		}
+	}
+
+	return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
 }
 
 func operandValueType(typesIn *types.Interner, op *mir.Operand) types.TypeID {

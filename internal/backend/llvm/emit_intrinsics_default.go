@@ -96,12 +96,18 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (val, ty string, er
 	case types.KindString:
 		return fe.emitStringConst("")
 	case types.KindInt, types.KindUint:
+		if isBigIntType(fe.emitter.types, typeID) || isBigUintType(fe.emitter.types, typeID) {
+			return "null", "ptr", nil
+		}
 		llvmTy, err := llvmValueType(fe.emitter.types, typeID)
 		if err != nil {
 			return "", "", err
 		}
 		return "0", llvmTy, nil
 	case types.KindFloat:
+		if isBigFloatType(fe.emitter.types, typeID) {
+			return "null", "ptr", nil
+		}
 		llvmTy, err := llvmValueType(fe.emitter.types, typeID)
 		if err != nil {
 			return "", "", err

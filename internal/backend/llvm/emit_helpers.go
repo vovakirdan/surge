@@ -464,6 +464,20 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 				return "", err
 			}
 			if valTy != payloadLLVM {
+				valType := operandValueType(fe.emitter.types, arg)
+				if valType == types.NoTypeID && arg.Kind != mir.OperandConst {
+					if baseType, err := fe.placeBaseType(arg.Place); err == nil {
+						valType = baseType
+					}
+				}
+				casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, payloadTy)
+				if err != nil {
+					return "", err
+				}
+				val = casted
+				valTy = castTy
+			}
+			if valTy != payloadLLVM {
 				valTy = payloadLLVM
 			}
 			off := layoutInfo.PayloadOffset + offsets[i]

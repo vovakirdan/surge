@@ -70,6 +70,11 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	}
 	e.collectStringConsts()
 	e.ensureStringConst("parse error")
+	e.ensureStringConst("failed to parse \\\"")
+	e.ensureStringConst("\\\" as int: invalid numeric format: \\\"")
+	e.ensureStringConst("\\\" as uint: invalid numeric format: \\\"")
+	e.ensureStringConst("\\\" as float: invalid numeric format: \\\"")
+	e.ensureStringConst("\\\"")
 	e.ensureStringConst("\n")
 	e.ensureStringConst("true")
 	e.ensureStringConst("false")

@@ -34,12 +34,12 @@ func (fe *funcEmitter) emitArrayIntrinsic(call *mir.CallInstr) (bool, error) {
 	}
 }
 
-func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemLLVM string, stride, align int, err error) {
+func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemType types.TypeID, elemLLVM string, stride, align int, err error) {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
-		return "", 0, 0, fmt.Errorf("missing type interner")
+		return types.NoTypeID, "", 0, 0, fmt.Errorf("missing type interner")
 	}
 	if op == nil {
-		return "", 0, 0, fmt.Errorf("nil operand")
+		return types.NoTypeID, "", 0, 0, fmt.Errorf("nil operand")
 	}
 	arrType := operandValueType(fe.emitter.types, op)
 	if arrType == types.NoTypeID && op.Kind != mir.OperandConst {
@@ -49,21 +49,21 @@ func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemLLVM string, stride
 	}
 	elemType, dynamic, ok := arrayElemType(fe.emitter.types, arrType)
 	if !ok || !dynamic {
-		return "", 0, 0, fmt.Errorf("rt_array_* requires a dynamic array")
+		return types.NoTypeID, "", 0, 0, fmt.Errorf("rt_array_* requires a dynamic array")
 	}
 	elemLLVM, err = llvmValueType(fe.emitter.types, elemType)
 	if err != nil {
-		return "", 0, 0, err
+		return types.NoTypeID, "", 0, 0, err
 	}
 	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
 	if err != nil {
-		return "", 0, 0, err
+		return types.NoTypeID, "", 0, 0, err
 	}
 	if elemAlign <= 0 {
 		elemAlign = 1
 	}
 	stride = roundUpInt(elemSize, elemAlign)
-	return elemLLVM, stride, elemAlign, nil
+	return elemType, elemLLVM, stride, elemAlign, nil
 }
 
 func (fe *funcEmitter) emitGrowArrayCapacity(currentCap, minCap string) string {
@@ -113,7 +113,7 @@ func (fe *funcEmitter) emitArrayReserve(call *mir.CallInstr) error {
 	if len(call.Args) != 2 {
 		return fmt.Errorf("rt_array_reserve requires 2 arguments")
 	}
-	_, stride, elemAlign, err := fe.arrayElemLayout(&call.Args[0])
+	_, _, stride, elemAlign, err := fe.arrayElemLayout(&call.Args[0])
 	if err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func (fe *funcEmitter) emitArrayPush(call *mir.CallInstr) error {
 	if len(call.Args) != 2 {
 		return fmt.Errorf("rt_array_push requires 2 arguments")
 	}
-	elemLLVM, stride, elemAlign, err := fe.arrayElemLayout(&call.Args[0])
+	elemType, elemLLVM, stride, elemAlign, err := fe.arrayElemLayout(&call.Args[0])
 	if err != nil {
 		return err
 	}
@@ -252,6 +252,20 @@ func (fe *funcEmitter) emitArrayPush(call *mir.CallInstr) error {
 	val, valTy, err := fe.emitValueOperand(&call.Args[1])
 	if err != nil {
 		return err
+	}
+	if valTy != elemLLVM {
+		valType := operandValueType(fe.emitter.types, &call.Args[1])
+		if valType == types.NoTypeID && call.Args[1].Kind != mir.OperandConst {
+			if baseType, err := fe.placeBaseType(call.Args[1].Place); err == nil {
+				valType = baseType
+			}
+		}
+		casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, elemType)
+		if err != nil {
+			return err
+		}
+		val = casted
+		valTy = castTy
 	}
 	if valTy != elemLLVM {
 		valTy = elemLLVM
@@ -314,7 +328,7 @@ func (fe *funcEmitter) emitArrayPop(call *mir.CallInstr) error {
 	if len(call.Args) != 1 {
 		return fmt.Errorf("rt_array_pop requires 1 argument")
 	}
-	elemLLVM, stride, _, err := fe.arrayElemLayout(&call.Args[0])
+	elemType, elemLLVM, stride, _, err := fe.arrayElemLayout(&call.Args[0])
 	if err != nil {
 		return err
 	}
@@ -384,7 +398,7 @@ func (fe *funcEmitter) emitArrayPop(call *mir.CallInstr) error {
 		if len(meta.PayloadTypes) != 1 {
 			return fmt.Errorf("tag %q expects 1 payload value, got %d", meta.TagName, len(meta.PayloadTypes))
 		}
-		tagVal, err := fe.emitTagValueSinglePayload(dstType, tagIndex, meta.PayloadTypes[0], elemVal, elemLLVM)
+		tagVal, err := fe.emitTagValueSinglePayload(dstType, tagIndex, meta.PayloadTypes[0], elemVal, elemLLVM, elemType)
 		if err != nil {
 			return err
 		}

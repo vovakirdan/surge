@@ -272,15 +272,7 @@ char* format_float(const SurgeBigFloat* f, bn_err* err) {
         z[1] = 0;
         return z;
     }
-    if (bu_bitlen(mant) <= (uint32_t)n) {
-        char* z = (char*)malloc(2);
-        if (z == NULL) {
-            return NULL;
-        }
-        z[0] = '0';
-        z[1] = 0;
-        return z;
-    }
+    // Even when the value is < 1, we still need fractional digits (VM parity).
     if (bu_is_zero(mant)) {
         char* z = (char*)malloc(2);
         if (z == NULL) {

@@ -54,19 +54,9 @@ func (fe *funcEmitter) canEmitMagicBinary(call *mir.CallInstr) bool {
 		}
 		return false
 	}
-	if isBigIntType(fe.emitter.types, leftType) || isBigUintType(fe.emitter.types, leftType) || isBigFloatType(fe.emitter.types, leftType) {
-		return isBigIntType(fe.emitter.types, leftType) == isBigIntType(fe.emitter.types, rightType) &&
-			isBigUintType(fe.emitter.types, leftType) == isBigUintType(fe.emitter.types, rightType) &&
-			isBigFloatType(fe.emitter.types, leftType) == isBigFloatType(fe.emitter.types, rightType)
-	}
-	_, okLeft := intInfo(fe.emitter.types, leftType)
-	_, okRight := intInfo(fe.emitter.types, rightType)
-	if okLeft && okRight {
-		return true
-	}
-	_, okLeft = floatInfo(fe.emitter.types, leftType)
-	_, okRight = floatInfo(fe.emitter.types, rightType)
-	return okLeft && okRight
+	leftKind := numericKindOf(fe.emitter.types, leftType)
+	rightKind := numericKindOf(fe.emitter.types, rightType)
+	return leftKind != numericNone && leftKind == rightKind
 }
 
 func (fe *funcEmitter) canEmitMagicUnary(call *mir.CallInstr) bool {
@@ -166,6 +156,12 @@ func (fe *funcEmitter) emitMagicBinaryIntrinsic(call *mir.CallInstr, name string
 	if err != nil {
 		return err
 	}
+	leftType = resolveValueType(fe.emitter.types, leftType)
+	rightType = resolveValueType(fe.emitter.types, rightType)
+	leftVal, leftTy, leftType, rightVal, rightTy, rightType, err = fe.coerceNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType)
+	if err != nil {
+		return err
+	}
 	if leftTy != rightTy {
 		return fmt.Errorf("binary operand type mismatch: %s vs %s", leftTy, rightTy)
 	}
@@ -175,7 +171,7 @@ func (fe *funcEmitter) emitMagicBinaryIntrinsic(call *mir.CallInstr, name string
 			return fmt.Errorf("unsupported magic binary op %s", name)
 		}
 		bin := mir.BinaryOp{Op: op, Left: call.Args[0], Right: call.Args[1]}
-		val, resultTy, binErr := fe.emitBigBinary(&bin, leftVal, rightVal)
+		val, resultTy, binErr := fe.emitBigBinary(&bin, leftVal, rightVal, leftType, rightType)
 		if binErr != nil {
 			return binErr
 		}

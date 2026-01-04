@@ -84,7 +84,7 @@ func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expec
 				if payloadTy != payloadLLVM {
 					payloadTy = payloadLLVM
 				}
-				tagVal, err := fe.emitTagValueSinglePayload(expected, tagIndex, meta.PayloadTypes[0], payloadVal, payloadTy)
+				tagVal, err := fe.emitTagValueSinglePayload(expected, tagIndex, meta.PayloadTypes[0], payloadVal, payloadTy, meta.PayloadTypes[0])
 				if err != nil {
 					return "", "", err
 				}

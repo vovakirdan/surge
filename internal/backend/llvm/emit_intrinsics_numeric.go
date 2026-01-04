@@ -551,7 +551,7 @@ func (fe *funcEmitter) emitParseStringValue(strVal string, dstType types.TypeID)
 	return "", "", "", fmt.Errorf("unsupported from_str target")
 }
 
-func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex int, payloadType types.TypeID, val, valTy string) (string, error) {
+func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex int, payloadType types.TypeID, val, valTy string, valType types.TypeID) (string, error) {
 	layoutInfo, err := fe.emitter.layoutOf(typeID)
 	if err != nil {
 		return "", err
@@ -578,6 +578,14 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 	payloadLLVM, err := llvmValueType(fe.emitter.types, payloadType)
 	if err != nil {
 		return "", err
+	}
+	if valTy != payloadLLVM {
+		casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, payloadType)
+		if err != nil {
+			return "", err
+		}
+		val = casted
+		valTy = castTy
 	}
 	if valTy != payloadLLVM {
 		valTy = payloadLLVM

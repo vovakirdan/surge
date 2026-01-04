@@ -118,7 +118,7 @@ func (fe *funcEmitter) emitIterNext(next *mir.IterNext) (val, ty string, err err
 	if len(meta.PayloadTypes) != 1 {
 		return "", "", fmt.Errorf("tag %q expects 1 payload value, got %d", meta.TagName, len(meta.PayloadTypes))
 	}
-	someVal, err := fe.emitTagValueSinglePayload(optType, someIndex, meta.PayloadTypes[0], elemVal, elemLLVM)
+	someVal, err := fe.emitTagValueSinglePayload(optType, someIndex, meta.PayloadTypes[0], elemVal, elemLLVM, elemType)
 	if err != nil {
 		return "", "", err
 	}

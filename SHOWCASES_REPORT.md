@@ -10,22 +10,22 @@
 | `showcases/08_binary_search` | ok | ok | |
 | `showcases/09_prime_sieve` | ok | ok | |
 | `showcases/10_sort_merge` | ok | ok | |
-| `showcases/11_matrix_mul` | ok | fail | LLVM build failed; artifacts: build/showcases/showcases_11_matrix_mul_main_sg |
+| `showcases/11_matrix_mul` | ok | ok | |
 | `showcases/12_histogram` | ok | ok | |
 | `showcases/13_unicode_len_demo` | ok | ok | |
 | `showcases/14_reverse_string` | ok | ok | |
 | `showcases/15_trim_split_join` | ok | ok | |
 | `showcases/16_replace_and_find` | ok | ok | |
 | `showcases/17_bytesview_dump` | ok | fail | LLVM build failed; artifacts: build/showcases/showcases_17_bytesview_dump_main_sg |
-| `showcases/18_rope_like_concat` | ok | fail | LLVM build failed; artifacts: build/showcases/showcases_18_rope_like_concat_main_sg |
+| `showcases/18_rope_like_concat` | ok | ok | |
 | `showcases/19_cast_zoo` | ok | ok | |
 | `showcases/20_fixed_overflow` | ok | ok | |
-| `showcases/21_bigint_stress` | fail | fail | stdout mismatch; artifacts: build/showcases/showcases_21_bigint_stress_main_sg |
-| `showcases/22_float_edges` | fail | fail | stdout mismatch; artifacts: build/showcases/showcases_22_float_edges_main_sg |
-| `showcases/23_roundtrip_parse_format` | fail | fail | stdout mismatch; artifacts: build/showcases/showcases_23_roundtrip_parse_format_main_sg |
+| `showcases/21_bigint_stress` | ok | ok | |
+| `showcases/22_float_edges` | ok | ok | |
+| `showcases/23_roundtrip_parse_format` | ok | ok | |
 | `showcases/24_option_pipeline` | ok | ok | |
-| `showcases/25_erring_parser` | ok | fail | LLVM build failed; artifacts: build/showcases/showcases_25_erring_parser_main_sg |
-| `showcases/26_state_machine_tagged` | fail | fail | exit code mismatch (vm=0 llvm=1); artifacts: build/showcases/showcases_26_state_machine_tagged_main_sg |
+| `showcases/25_erring_parser` | ok | ok | |
+| `showcases/26_state_machine_tagged` | ok | ok | |
 | `showcases/27_result_aggregation` | ok | ok | |
 | `showcases/28_generic_map_filter` | ok | ok | |
 | `showcases/29_contract_printable` | ok | ok | |

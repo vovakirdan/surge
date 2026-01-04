@@ -36,9 +36,11 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 
 	cont := fe.nextInlineBlock()
 	def := fe.nextInlineBlock()
+	castID := fe.inlineBlock
+	fe.inlineBlock++
 	fmt.Fprintf(&fe.emitter.buf, "  switch i32 %s, label %%%s [", tagVal, def)
 	for i := range srcCases {
-		fmt.Fprintf(&fe.emitter.buf, " i32 %d, label %%tagcast%d", i, i)
+		fmt.Fprintf(&fe.emitter.buf, " i32 %d, label %%tagcast%d.%d", i, castID, i)
 	}
 	fmt.Fprintf(&fe.emitter.buf, " ]\n")
 
@@ -47,7 +49,7 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 		return "", "", err
 	}
 	for i, srcCase := range srcCases {
-		fmt.Fprintf(&fe.emitter.buf, "tagcast%d:\n", i)
+		fmt.Fprintf(&fe.emitter.buf, "tagcast%d.%d:\n", castID, i)
 		dstIdx, dstCase, ok := matchTagCase(dstCases, srcCase)
 		if !ok {
 			return "", "", fmt.Errorf("union cast missing tag %q in target type#%d", srcCase.TagName, dstResolved)

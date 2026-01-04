@@ -324,13 +324,45 @@ func buildLLVMOutput(tmpDir, outputPath string, printCommands bool) error {
 	}
 	objPath := filepath.Join(tmpDir, "out.o")
 	llPath := filepath.Join(tmpDir, "out.ll")
-	if err := runCommand(printCommands, "clang", "-c", "-x", "ir", llPath, "-o", objPath); err != nil {
+	if err := compileLLVMIR(printCommands, llPath, objPath); err != nil {
 		return err
 	}
 	if err := runCommand(printCommands, "clang", objPath, libPath, "-o", outputPath); err != nil {
 		return err
 	}
 	return nil
+}
+
+func compileLLVMIR(printCommands bool, llPath, objPath string) error {
+	if err := runCommand(printCommands, "clang", "-c", "-x", "ir", llPath, "-o", objPath); err == nil {
+		return nil
+	} else {
+		clangErr := err
+		llcPath, llcErr := exec.LookPath("llc")
+		if llcErr != nil {
+			return clangErr
+		}
+		triple := hostTripleFromClang()
+		args := []string{"-filetype=obj", llPath, "-o", objPath}
+		if triple != "" {
+			args = append([]string{"-mtriple=" + triple}, args...)
+		}
+		if err := runCommand(printCommands, llcPath, args...); err != nil {
+			return fmt.Errorf("clang failed: %w; llc failed: %v", clangErr, err)
+		}
+		if printCommands {
+			fmt.Fprintln(os.Stdout, "note: clang IR compile failed; fell back to llc")
+		}
+		return nil
+	}
+}
+
+func hostTripleFromClang() string {
+	out, err := exec.Command("clang", "-dumpmachine").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func extractNativeRuntime(tmpDir string) (runtimeDir string, sources []string, errNativeRuntime error) {

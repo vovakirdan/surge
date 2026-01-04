@@ -208,7 +208,21 @@ func (fe *funcEmitter) emitErrorLikeValue(errType types.TypeID, msgVal, msgTy, c
 		msgTy = msgLLVM
 	}
 	if codeTy != codeLLVM {
-		codeTy = codeLLVM
+		codeKind := numericKindOf(fe.emitter.types, codeFieldType)
+		if codeKind != numericNone {
+			srcType := llvmNumericTypeID(fe.emitter.types, codeTy, codeKind)
+			if srcType != types.NoTypeID {
+				casted, castTy, castErr := fe.emitNumericCast(codeVal, codeTy, srcType, codeFieldType)
+				if castErr != nil {
+					return "", castErr
+				}
+				codeVal = casted
+				codeTy = castTy
+			}
+		}
+		if codeTy != codeLLVM {
+			codeTy = codeLLVM
+		}
 	}
 	msgPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", msgPtr, mem, layoutInfo.FieldOffsets[msgIdx])

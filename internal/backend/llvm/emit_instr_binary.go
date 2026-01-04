@@ -64,12 +64,18 @@ func (fe *funcEmitter) emitBinary(op *mir.BinaryOp) (val, ty string, err error) 
 	if err != nil {
 		return "", "", err
 	}
+	leftType := resolveValueType(fe.emitter.types, op.Left.Type)
+	rightType := resolveValueType(fe.emitter.types, op.Right.Type)
+	leftVal, leftTy, leftType, rightVal, rightTy, rightType, err = fe.coerceNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType)
+	if err != nil {
+		return "", "", err
+	}
 	if leftTy != rightTy {
 		return "", "", fmt.Errorf("binary operand type mismatch: %s vs %s", leftTy, rightTy)
 	}
-	if isBigIntType(fe.emitter.types, op.Left.Type) || isBigUintType(fe.emitter.types, op.Left.Type) || isBigFloatType(fe.emitter.types, op.Left.Type) ||
-		isBigIntType(fe.emitter.types, op.Right.Type) || isBigUintType(fe.emitter.types, op.Right.Type) || isBigFloatType(fe.emitter.types, op.Right.Type) {
-		return fe.emitBigBinary(op, leftVal, rightVal)
+	if isBigIntType(fe.emitter.types, leftType) || isBigUintType(fe.emitter.types, leftType) || isBigFloatType(fe.emitter.types, leftType) ||
+		isBigIntType(fe.emitter.types, rightType) || isBigUintType(fe.emitter.types, rightType) || isBigFloatType(fe.emitter.types, rightType) {
+		return fe.emitBigBinary(op, leftVal, rightVal, leftType, rightType)
 	}
 
 	switch op.Op {
@@ -267,16 +273,32 @@ func (fe *funcEmitter) emitBigCompare(fn string, op ast.ExprBinaryOp, leftVal, r
 	return tmp, "i1", nil
 }
 
-func (fe *funcEmitter) emitBigBinary(op *mir.BinaryOp, leftVal, rightVal string) (val, ty string, err error) {
-	leftBigInt := isBigIntType(fe.emitter.types, op.Left.Type)
-	leftBigUint := isBigUintType(fe.emitter.types, op.Left.Type)
-	leftBigFloat := isBigFloatType(fe.emitter.types, op.Left.Type)
-	rightBigInt := isBigIntType(fe.emitter.types, op.Right.Type)
-	rightBigUint := isBigUintType(fe.emitter.types, op.Right.Type)
-	rightBigFloat := isBigFloatType(fe.emitter.types, op.Right.Type)
+func (fe *funcEmitter) emitBigBinary(op *mir.BinaryOp, leftVal, rightVal string, leftTypeID, rightTypeID types.TypeID) (val, ty string, err error) {
+	leftBigInt := isBigIntType(fe.emitter.types, leftTypeID)
+	leftBigUint := isBigUintType(fe.emitter.types, leftTypeID)
+	leftBigFloat := isBigFloatType(fe.emitter.types, leftTypeID)
+	rightBigInt := isBigIntType(fe.emitter.types, rightTypeID)
+	rightBigUint := isBigUintType(fe.emitter.types, rightTypeID)
+	rightBigFloat := isBigFloatType(fe.emitter.types, rightTypeID)
 
 	if leftBigInt != rightBigInt || leftBigUint != rightBigUint || leftBigFloat != rightBigFloat {
-		return "", "", fmt.Errorf("mixed big numeric operands")
+		formatType := func(id types.TypeID) string {
+			if fe.emitter == nil || fe.emitter.types == nil || id == types.NoTypeID {
+				return fmt.Sprintf("type#%d", id)
+			}
+			id = resolveAliasAndOwn(fe.emitter.types, id)
+			tt, ok := fe.emitter.types.Lookup(id)
+			if !ok {
+				return fmt.Sprintf("type#%d", id)
+			}
+			switch tt.Kind {
+			case types.KindInt, types.KindUint, types.KindFloat:
+				return fmt.Sprintf("%s(%d)", tt.Kind.String(), tt.Width)
+			default:
+				return tt.Kind.String()
+			}
+		}
+		return "", "", fmt.Errorf("mixed big numeric operands: left=%s right=%s", formatType(leftTypeID), formatType(rightTypeID))
 	}
 
 	switch {

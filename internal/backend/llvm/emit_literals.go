@@ -40,6 +40,20 @@ func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (val, ty string, err er
 			return "", "", err
 		}
 		if valTy != fieldLLVM {
+			valType := operandValueType(fe.emitter.types, &field.Value)
+			if valType == types.NoTypeID && field.Value.Kind != mir.OperandConst {
+				if baseType, err := fe.placeBaseType(field.Value.Place); err == nil {
+					valType = baseType
+				}
+			}
+			casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, fieldType)
+			if err != nil {
+				return "", "", err
+			}
+			val = casted
+			valTy = castTy
+		}
+		if valTy != fieldLLVM {
 			valTy = fieldLLVM
 		}
 		off := layoutInfo.FieldOffsets[fieldIdx]
@@ -96,6 +110,20 @@ func (fe *funcEmitter) emitTupleLit(lit *mir.TupleLit, dstType types.TypeID) (va
 			return "", "", err
 		}
 		if valTy != elemLLVM {
+			valType := operandValueType(fe.emitter.types, &lit.Elems[i])
+			if valType == types.NoTypeID && lit.Elems[i].Kind != mir.OperandConst {
+				if baseType, err := fe.placeBaseType(lit.Elems[i].Place); err == nil {
+					valType = baseType
+				}
+			}
+			casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, elemType)
+			if err != nil {
+				return "", "", err
+			}
+			val = casted
+			valTy = castTy
+		}
+		if valTy != elemLLVM {
 			valTy = elemLLVM
 		}
 		off := layoutInfo.FieldOffsets[i]
@@ -148,6 +176,20 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 		val, valTy, err := fe.emitValueOperand(&lit.Elems[i])
 		if err != nil {
 			return "", "", err
+		}
+		if valTy != elemLLVM {
+			valType := operandValueType(fe.emitter.types, &lit.Elems[i])
+			if valType == types.NoTypeID && lit.Elems[i].Kind != mir.OperandConst {
+				if baseType, err := fe.placeBaseType(lit.Elems[i].Place); err == nil {
+					valType = baseType
+				}
+			}
+			casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, elemType)
+			if err != nil {
+				return "", "", err
+			}
+			val = casted
+			valTy = castTy
 		}
 		if valTy != elemLLVM {
 			valTy = elemLLVM

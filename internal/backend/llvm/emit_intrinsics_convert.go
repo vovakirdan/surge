@@ -121,6 +121,8 @@ func (fe *funcEmitter) emitFromStrIntrinsic(call *mir.CallInstr) (bool, error) {
 		return true, fmt.Errorf("from_str requires string argument")
 	}
 
+	parseKind := fe.parseKindForType(targetType)
+
 	var parsedVal, parsedTy, okVal string
 	if isStringLike(fe.emitter.types, targetType) {
 		parsedVal = strVal
@@ -145,7 +147,7 @@ func (fe *funcEmitter) emitFromStrIntrinsic(call *mir.CallInstr) (bool, error) {
 	}
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
-	tagVal, err := fe.emitTagValueSinglePayload(dstType, successIdx, targetType, parsedVal, parsedTy)
+	tagVal, err := fe.emitTagValueSinglePayload(dstType, successIdx, targetType, parsedVal, parsedTy, targetType)
 	if err != nil {
 		return true, err
 	}
@@ -160,7 +162,7 @@ func (fe *funcEmitter) emitFromStrIntrinsic(call *mir.CallInstr) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	msgVal, _, err := fe.emitStringConst("parse error")
+	msgVal, err := fe.emitParseErrorMessage(strVal, parseKind)
 	if err != nil {
 		return true, err
 	}
@@ -173,6 +175,59 @@ func (fe *funcEmitter) emitFromStrIntrinsic(call *mir.CallInstr) (bool, error) {
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
 	return true, nil
+}
+
+func (fe *funcEmitter) parseKindForType(typeID types.TypeID) string {
+	if isBigIntType(fe.emitter.types, typeID) {
+		return "int"
+	}
+	if isBigUintType(fe.emitter.types, typeID) {
+		return "uint"
+	}
+	if isBigFloatType(fe.emitter.types, typeID) {
+		return "float"
+	}
+	if isBoolType(fe.emitter.types, typeID) {
+		return "bool"
+	}
+	if info, ok := intInfo(fe.emitter.types, typeID); ok {
+		if info.signed {
+			return "int"
+		}
+		return "uint"
+	}
+	if _, ok := floatInfo(fe.emitter.types, typeID); ok {
+		return "float"
+	}
+	return ""
+}
+
+func (fe *funcEmitter) emitParseErrorMessage(strVal, kind string) (string, error) {
+	var middle string
+	switch kind {
+	case "int":
+		middle = "\\\" as int: invalid numeric format: \\\""
+	case "uint":
+		middle = "\\\" as uint: invalid numeric format: \\\""
+	case "float":
+		middle = "\\\" as float: invalid numeric format: \\\""
+	default:
+		msgVal, _, err := fe.emitStringConst("parse error")
+		return msgVal, err
+	}
+	prefixVal, _, err := fe.emitStringConst("failed to parse \\\"")
+	if err != nil {
+		return "", err
+	}
+	middleVal, _, err := fe.emitStringConst(middle)
+	if err != nil {
+		return "", err
+	}
+	suffixVal, _, err := fe.emitStringConst("\\\"")
+	if err != nil {
+		return "", err
+	}
+	return fe.emitStringConcatAll(prefixVal, strVal, middleVal, strVal, suffixVal)
 }
 
 func (fe *funcEmitter) emitToSource(op *mir.Operand) (val, llvmTy string, typeID types.TypeID, err error) {
