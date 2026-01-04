@@ -44,6 +44,26 @@ uint64_t rt_write_stderr(const uint8_t* ptr, uint64_t length) {
     return written;
 }
 
+void* rt_readline(void) {
+    char* buf = NULL;
+    size_t cap = 0;
+    ssize_t n = getline(&buf, &cap, stdin);
+    if (n <= 0) {
+        free(buf);
+        return rt_string_from_bytes(NULL, 0);
+    }
+    size_t len = (size_t)n;
+    if (len > 0 && buf[len - 1] == '\n') {
+        len--;
+    }
+    if (len > 0 && buf[len - 1] == '\r') {
+        len--;
+    }
+    void* out = rt_string_from_bytes((const uint8_t*)buf, (uint64_t)len);
+    free(buf);
+    return out;
+}
+
 typedef struct SurgeArrayHeader {
     uint64_t len;
     uint64_t cap;

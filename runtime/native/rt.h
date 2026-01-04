@@ -16,6 +16,7 @@ void rt_memmove(uint8_t* dst, const uint8_t* src, uint64_t n);
 
 uint64_t rt_write_stdout(const uint8_t* ptr, uint64_t length);
 uint64_t rt_write_stderr(const uint8_t* ptr, uint64_t length);
+void* rt_readline(void);
 void rt_exit(int64_t code);
 void rt_panic(const uint8_t* ptr, uint64_t length);
 void rt_panic_bounds(uint64_t kind, int64_t index, int64_t length);

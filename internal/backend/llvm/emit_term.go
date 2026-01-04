@@ -2,6 +2,8 @@ package llvm
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"surge/internal/mir"
 	"surge/internal/symbols"
@@ -27,6 +29,14 @@ func (fe *funcEmitter) emitTerminator(term *mir.Terminator) error {
 			val, ty, err := fe.emitOperand(&op)
 			if err != nil {
 				return err
+			}
+			if fe.f != nil && fe.emitter != nil && fe.emitter.types != nil && fe.f.Result != types.NoTypeID {
+				if isUnionType(fe.emitter.types, fe.f.Result) {
+					val, ty, err = fe.emitUnionReturn(val, ty, &op, fe.f.Result)
+					if err != nil {
+						return err
+					}
+				}
 			}
 			fmt.Fprintf(&fe.emitter.buf, "  ret %s %s\n", ty, val)
 			return nil
@@ -176,6 +186,34 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 		return fmt.Sprintf("%d", c.UintValue), ty, nil
 	case mir.ConstBool:
 		return boolValue(c.BoolValue), "i1", nil
+	case mir.ConstFloat:
+		ty, err := llvmValueType(fe.emitter.types, c.Type)
+		if err != nil {
+			return "", "", err
+		}
+		value := c.FloatValue
+		if c.Text != "" {
+			clean := strings.ReplaceAll(c.Text, "_", "")
+			if parsed, parseErr := strconv.ParseFloat(clean, 64); parseErr == nil {
+				value = parsed
+			}
+		}
+		formatFloat := func(bits int, v float64) string {
+			prec := 17
+			if bits == 32 {
+				prec = 9
+			}
+			return strconv.FormatFloat(v, 'e', prec, bits)
+		}
+		switch ty {
+		case "double":
+			return formatFloat(64, value), ty, nil
+		case "float":
+			v := float32(value)
+			return formatFloat(32, float64(v)), ty, nil
+		default:
+			return "", "", fmt.Errorf("unsupported float const type %s", ty)
+		}
 	case mir.ConstNothing:
 		if fe.emitter.hasTagLayout(c.Type) {
 			ptr, err := fe.emitTagValue(c.Type, "nothing", symbols.NoSymbolID, nil)

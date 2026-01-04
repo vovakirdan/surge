@@ -272,9 +272,11 @@ func (e *LayoutEngine) tupleLayout(id types.TypeID, state *layoutState) (TypeLay
 	if !ok || info == nil || len(info.Elems) == 0 {
 		return TypeLayout{Size: 0, Align: 1}, nil
 	}
+	offsets := make([]int, len(info.Elems))
+	aligns := make([]int, len(info.Elems))
 	size := 0
 	align := 1
-	for _, elem := range info.Elems {
+	for i, elem := range info.Elems {
 		el, err := e.layoutOf(elem, state)
 		if err != nil {
 			return TypeLayout{Size: 0, Align: 1}, err
@@ -284,11 +286,18 @@ func (e *LayoutEngine) tupleLayout(id types.TypeID, state *layoutState) (TypeLay
 			a = 1
 		}
 		size = roundUp(size, a)
+		offsets[i] = size
+		aligns[i] = a
 		size += el.Size
 		align = maxInt(align, a)
 	}
 	size = roundUp(size, align)
-	return TypeLayout{Size: size, Align: align}, nil
+	return TypeLayout{
+		Size:         size,
+		Align:        align,
+		FieldOffsets: offsets,
+		FieldAligns:  aligns,
+	}, nil
 }
 
 func (e *LayoutEngine) tagUnionLayout(id types.TypeID, state *layoutState) (TypeLayout, *LayoutError) {

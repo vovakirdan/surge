@@ -23,7 +23,16 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	if handled, err := fe.emitLenIntrinsic(call); handled {
 		return err
 	}
+	if handled, err := fe.emitDefaultIntrinsic(call); handled {
+		return err
+	}
 	if handled, err := fe.emitIndexIntrinsic(call); handled {
+		return err
+	}
+	if handled, err := fe.emitArrayIntrinsic(call); handled {
+		return err
+	}
+	if handled, err := fe.emitCloneValueIntrinsic(call); handled {
 		return err
 	}
 	if handled, err := fe.emitCloneIntrinsic(call); handled {
@@ -36,6 +45,9 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 		return err
 	}
 	if handled, err := fe.emitExitIntrinsic(call); handled {
+		return err
+	}
+	if handled, err := fe.emitReadlineIntrinsic(call); handled {
 		return err
 	}
 	if handled, err := fe.emitMagicIntrinsic(call); handled {

@@ -127,6 +127,10 @@ func (fe *funcEmitter) emitRValue(rv *mir.RValue) (val, ty string, err error) {
 		return fe.emitTagTest(&rv.TagTest)
 	case mir.RValueTagPayload:
 		return fe.emitTagPayload(&rv.TagPayload)
+	case mir.RValueIterInit:
+		return fe.emitIterInit(&rv.IterInit)
+	case mir.RValueIterNext:
+		return fe.emitIterNext(&rv.IterNext)
 	case mir.RValueArrayLit, mir.RValueTupleLit:
 		return "", "", fmt.Errorf("literal rvalue must be handled in assignment")
 	default:
@@ -147,10 +151,18 @@ func (fe *funcEmitter) emitCast(c *mir.CastOp) (val, ty string, err error) {
 		return "", "", err
 	}
 	if srcTy == dstTy {
+		if isUnionType(fe.emitter.types, c.Value.Type) && isUnionType(fe.emitter.types, c.TargetTy) {
+			return fe.emitUnionCast(val, c.Value.Type, c.TargetTy)
+		}
 		return val, dstTy, nil
+	}
+	if isUnionType(fe.emitter.types, c.Value.Type) && isUnionType(fe.emitter.types, c.TargetTy) {
+		return fe.emitUnionCast(val, c.Value.Type, c.TargetTy)
 	}
 	srcInfo, srcOK := intInfo(fe.emitter.types, c.Value.Type)
 	dstInfo, dstOK := intInfo(fe.emitter.types, c.TargetTy)
+	_, srcFloatOK := floatInfo(fe.emitter.types, c.Value.Type)
+	_, dstFloatOK := floatInfo(fe.emitter.types, c.TargetTy)
 	if srcOK && dstOK {
 		if srcInfo.bits < dstInfo.bits {
 			op := "zext"
@@ -167,6 +179,9 @@ func (fe *funcEmitter) emitCast(c *mir.CastOp) (val, ty string, err error) {
 			return tmp, dstTy, nil
 		}
 		return val, dstTy, nil
+	}
+	if (srcOK || srcFloatOK) && (dstOK || dstFloatOK) {
+		return fe.emitNumericCast(val, srcTy, c.Value.Type, c.TargetTy)
 	}
 	return "", "", fmt.Errorf("unsupported cast to %s", dstTy)
 }
@@ -434,6 +449,7 @@ func (fe *funcEmitter) emitTagTest(tt *mir.TagTest) (val, ty string, errTagTest 
 			typeID = baseType
 		}
 	}
+	typeID = resolveValueType(fe.emitter.types, typeID)
 	var idx int
 	idx, errTagTest = fe.emitter.tagCaseIndex(typeID, tt.TagName, symbols.NoSymbolID)
 	if errTagTest != nil {
@@ -454,6 +470,7 @@ func (fe *funcEmitter) emitTagPayload(tp *mir.TagPayload) (val, ty string, errTa
 			typeID = baseType
 		}
 	}
+	typeID = resolveValueType(fe.emitter.types, typeID)
 	var meta mir.TagCaseMeta
 	_, meta, errTagPayload = fe.emitter.tagCaseMeta(typeID, tp.TagName, symbols.NoSymbolID)
 	if errTagPayload != nil {
@@ -478,6 +495,15 @@ func (fe *funcEmitter) emitTagPayload(tp *mir.TagPayload) (val, ty string, errTa
 	basePtr, baseTy, errTagPayload = fe.emitValueOperand(&tp.Value)
 	if errTagPayload != nil {
 		return "", "", errTagPayload
+	}
+	if isRefType(fe.emitter.types, tp.Value.Type) {
+		if baseTy != "ptr" {
+			return "", "", fmt.Errorf("tag payload requires ptr base, got %s", baseTy)
+		}
+		deref := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", deref, basePtr)
+		basePtr = deref
+		baseTy = "ptr"
 	}
 	if baseTy != "ptr" {
 		return "", "", fmt.Errorf("tag payload requires ptr base, got %s", baseTy)

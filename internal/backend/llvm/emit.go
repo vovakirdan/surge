@@ -73,6 +73,7 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("\n")
 	e.ensureStringConst("true")
 	e.ensureStringConst("false")
+	e.ensureStringConst("")
 	if err := e.prepareGlobals(); err != nil {
 		return "", err
 	}

@@ -88,7 +88,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 				return "", "", fmt.Errorf("missing index local")
 			}
 			elemType, dynamic, ok := arrayElemType(fe.emitter.types, curType)
-			if !ok || !dynamic {
+			if !ok {
 				return "", "", fmt.Errorf("index projection on non-array type")
 			}
 			idxLocal := proj.IndexLocal
@@ -102,13 +102,27 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 			idxPtr := fmt.Sprintf("%%%s", fe.localAlloca[idxLocal])
 			idxVal := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", idxVal, idxLLVM, idxPtr)
-			elemPtr, elemLLVM, err := fe.emitArrayElemPtr(curPtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, elemType)
-			if err != nil {
-				return "", "", err
+			if dynamic {
+				elemPtr, elemLLVM, err := fe.emitArrayElemPtr(curPtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, elemType)
+				if err != nil {
+					return "", "", err
+				}
+				curPtr = elemPtr
+				curType = elemType
+				curLLVMType = elemLLVM
+			} else {
+				fixedElem, fixedLen, ok := arrayFixedInfo(fe.emitter.types, curType)
+				if !ok {
+					return "", "", fmt.Errorf("index projection on non-array type")
+				}
+				elemPtr, elemLLVM, err := fe.emitArrayFixedElemPtr(curPtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, fixedElem, fixedLen)
+				if err != nil {
+					return "", "", err
+				}
+				curPtr = elemPtr
+				curType = fixedElem
+				curLLVMType = elemLLVM
 			}
-			curPtr = elemPtr
-			curType = elemType
-			curLLVMType = elemLLVM
 		default:
 			return "", "", fmt.Errorf("unsupported place projection kind %v", proj.Kind)
 		}
@@ -342,6 +356,7 @@ func (fe *funcEmitter) emitTagDiscriminant(op *mir.Operand) (string, error) {
 			typeID = baseType
 		}
 	}
+	typeID = resolveValueType(fe.emitter.types, typeID)
 	layoutInfo, err := fe.emitter.layoutOf(typeID)
 	if err != nil {
 		return "", err
@@ -352,6 +367,15 @@ func (fe *funcEmitter) emitTagDiscriminant(op *mir.Operand) (string, error) {
 	val, valTy, err := fe.emitValueOperand(op)
 	if err != nil {
 		return "", err
+	}
+	if isRefType(fe.emitter.types, op.Type) {
+		if valTy != "ptr" {
+			return "", fmt.Errorf("tag value must be ptr, got %s", valTy)
+		}
+		deref := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", deref, val)
+		val = deref
+		valTy = "ptr"
 	}
 	if valTy != "ptr" {
 		return "", fmt.Errorf("tag value must be ptr, got %s", valTy)
@@ -365,6 +389,7 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 	if typeID == types.NoTypeID {
 		return "", fmt.Errorf("missing tag type")
 	}
+	typeID = resolveValueType(fe.emitter.types, typeID)
 	caseIdx, meta, err := fe.emitter.tagCaseMeta(typeID, tagName, tagSym)
 	if err != nil {
 		return "", err
@@ -425,22 +450,30 @@ func (fe *funcEmitter) structFieldInfo(typeID types.TypeID, proj mir.PlaceProj) 
 	}
 	typeID = resolveAliasAndOwn(fe.emitter.types, typeID)
 	info, ok := fe.emitter.types.StructInfo(typeID)
-	if !ok || info == nil {
+	if ok && info != nil {
+		fieldIdx := proj.FieldIdx
+		if fieldIdx < 0 && proj.FieldName != "" && fe.emitter.types.Strings != nil {
+			for i, field := range info.Fields {
+				if fe.emitter.types.Strings.MustLookup(field.Name) == proj.FieldName {
+					fieldIdx = i
+					break
+				}
+			}
+		}
+		if fieldIdx < 0 || fieldIdx >= len(info.Fields) {
+			return -1, types.NoTypeID, fmt.Errorf("unknown field %q", proj.FieldName)
+		}
+		return fieldIdx, info.Fields[fieldIdx].Type, nil
+	}
+	tupleInfo, ok := fe.emitter.types.TupleInfo(typeID)
+	if !ok || tupleInfo == nil {
 		return -1, types.NoTypeID, fmt.Errorf("missing struct info")
 	}
 	fieldIdx := proj.FieldIdx
-	if fieldIdx < 0 && proj.FieldName != "" && fe.emitter.types.Strings != nil {
-		for i, field := range info.Fields {
-			if fe.emitter.types.Strings.MustLookup(field.Name) == proj.FieldName {
-				fieldIdx = i
-				break
-			}
-		}
-	}
-	if fieldIdx < 0 || fieldIdx >= len(info.Fields) {
+	if fieldIdx < 0 || fieldIdx >= len(tupleInfo.Elems) {
 		return -1, types.NoTypeID, fmt.Errorf("unknown field %q", proj.FieldName)
 	}
-	return fieldIdx, info.Fields[fieldIdx].Type, nil
+	return fieldIdx, tupleInfo.Elems[fieldIdx], nil
 }
 
 func resolveValueType(typesIn *types.Interner, id types.TypeID) types.TypeID {

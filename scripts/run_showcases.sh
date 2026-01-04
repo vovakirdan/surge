@@ -83,7 +83,13 @@ while IFS= read -r sg; do
 			args=("27" "ignored")
 			;;
 		"showcases/03_stdin_cat/main.sg")
-			stdin_payload="Surge\n"
+			stdin_payload=$'Surge\n'
+			;;
+		"showcases/25_erring_parser/main.sg")
+			stdin_payload=$'10\nnope\nstop\n'
+			;;
+		"showcases/27_result_aggregation/main.sg")
+			stdin_payload=$'3\n-5\nstop\n'
 			;;
 	esac
 
@@ -101,11 +107,11 @@ while IFS= read -r sg; do
 	if [[ ${#args[@]} -gt 0 ]]; then
 		vm_cmd+=("--" "${args[@]}")
 	fi
-	SURGE_STDLIB="$root" run_with_stdin "$stdin_payload" "$vm_stdout" "$vm_stderr" "$vm_exit" "${vm_cmd[@]}"
+	SURGE_STDLIB="$root" run_with_stdin "$stdin_payload" "$vm_stdout" "$vm_stderr" "$vm_exit" "${vm_cmd[@]}" || true
 	vm_code="$(cat "$vm_exit")"
 
 	llvm_cmd=("$surge_bin" "build" "--backend=llvm" "--emit-mir" "--emit-llvm" "--keep-tmp" "--print-commands" "$rel")
-	SURGE_STDLIB="$root" run_with_stdin "" "$llvm_build_out" "$llvm_build_err" "$llvm_build_exit" "${llvm_cmd[@]}"
+	SURGE_STDLIB="$root" run_with_stdin "" "$llvm_build_out" "$llvm_build_err" "$llvm_build_exit" "${llvm_cmd[@]}" || true
 	llvm_build_code="$(cat "$llvm_build_exit")"
 
 	llvm_code="1"
@@ -116,7 +122,7 @@ while IFS= read -r sg; do
 		if [[ ${#args[@]} -gt 0 ]]; then
 			llvm_run_cmd+=("${args[@]}")
 		fi
-		run_with_stdin "$stdin_payload" "$llvm_stdout" "$llvm_stderr" "$llvm_exit" "${llvm_run_cmd[@]}"
+		run_with_stdin "$stdin_payload" "$llvm_stdout" "$llvm_stderr" "$llvm_exit" "${llvm_run_cmd[@]}" || true
 		llvm_code="$(cat "$llvm_exit")"
 	fi
 

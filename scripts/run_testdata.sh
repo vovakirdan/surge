@@ -167,11 +167,11 @@ while IFS= read -r sg; do
 		if [[ ${#args[@]} -gt 0 ]]; then
 			run_cmd+=("--" "${args[@]}")
 		fi
-		SURGE_STDLIB="$root" run_with_stdin "$stdin_payload" "$actual_stdout" "$actual_stderr" "$actual_exit" "${run_cmd[@]}"
+		SURGE_STDLIB="$root" run_with_stdin "$stdin_payload" "$actual_stdout" "$actual_stderr" "$actual_exit" "${run_cmd[@]}" || true
 		run_code="$(cat "$actual_exit")"
 	else
 		build_cmd=("$surge_bin" "build" "--backend=llvm" "--emit-mir" "--emit-llvm" "--keep-tmp" "--print-commands" "${sg#$root/}")
-		SURGE_STDLIB="$root" run_with_stdin "" "$build_stdout" "$build_stderr" "$build_exit" "${build_cmd[@]}"
+		SURGE_STDLIB="$root" run_with_stdin "" "$build_stdout" "$build_stderr" "$build_exit" "${build_cmd[@]}" || true
 		build_code="$(cat "$build_exit")"
 		if [[ "$build_code" -eq 0 ]]; then
 			output_name="$(basename "${sg%.sg}")"
@@ -180,7 +180,7 @@ while IFS= read -r sg; do
 			if [[ ${#args[@]} -gt 0 ]]; then
 				run_cmd+=("${args[@]}")
 			fi
-			run_with_stdin "$stdin_payload" "$actual_stdout" "$actual_stderr" "$actual_exit" "${run_cmd[@]}"
+			run_with_stdin "$stdin_payload" "$actual_stdout" "$actual_stderr" "$actual_exit" "${run_cmd[@]}" || true
 			run_code="$(cat "$actual_exit")"
 		else
 			run_code=1

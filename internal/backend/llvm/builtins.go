@@ -15,6 +15,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_memmove", ret: "void", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_write_stdout", ret: "i64", params: []string{"ptr", "i64"}},
 		{name: "rt_write_stderr", ret: "i64", params: []string{"ptr", "i64"}},
+		{name: "rt_readline", ret: "ptr", params: nil},
 		{name: "rt_argv", ret: "ptr", params: nil},
 		{name: "rt_stdin_read_all", ret: "ptr", params: nil},
 		{name: "rt_panic_bounds", ret: "void", params: []string{"i64", "i64", "i64"}},

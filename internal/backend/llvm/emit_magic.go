@@ -44,6 +44,11 @@ func (fe *funcEmitter) canEmitMagicBinary(call *mir.CallInstr) bool {
 	}
 	_, okLeft := intInfo(fe.emitter.types, leftType)
 	_, okRight := intInfo(fe.emitter.types, rightType)
+	if okLeft && okRight {
+		return true
+	}
+	_, okLeft = floatInfo(fe.emitter.types, leftType)
+	_, okRight = floatInfo(fe.emitter.types, rightType)
 	return okLeft && okRight
 }
 
@@ -52,7 +57,10 @@ func (fe *funcEmitter) canEmitMagicUnary(call *mir.CallInstr) bool {
 		return false
 	}
 	operandType := operandValueType(fe.emitter.types, &call.Args[0])
-	_, ok := intInfo(fe.emitter.types, operandType)
+	if _, ok := intInfo(fe.emitter.types, operandType); ok {
+		return true
+	}
+	_, ok := floatInfo(fe.emitter.types, operandType)
 	return ok
 }
 
@@ -117,92 +125,140 @@ func (fe *funcEmitter) emitMagicBinaryIntrinsic(call *mir.CallInstr, name string
 		return fmt.Errorf("binary operand type mismatch: %s vs %s", leftTy, rightTy)
 	}
 	info, ok := intInfo(fe.emitter.types, leftType)
-	if !ok && leftTy != "ptr" {
-		return fmt.Errorf("unsupported numeric op on type")
-	}
+	_, floatOK := floatInfo(fe.emitter.types, leftType)
 	resultTy := leftTy
 	tmp := fe.nextTemp()
 	switch name {
 	case "__add", "__sub", "__mul", "__div", "__mod", "__bit_and", "__bit_or", "__bit_xor", "__shl", "__shr":
-		if !ok {
+		if ok {
+			opcode := ""
+			switch name {
+			case "__add":
+				opcode = "add"
+			case "__sub":
+				opcode = "sub"
+			case "__mul":
+				opcode = "mul"
+			case "__div":
+				if info.signed {
+					opcode = "sdiv"
+				} else {
+					opcode = "udiv"
+				}
+			case "__mod":
+				if info.signed {
+					opcode = "srem"
+				} else {
+					opcode = "urem"
+				}
+			case "__bit_and":
+				opcode = "and"
+			case "__bit_or":
+				opcode = "or"
+			case "__bit_xor":
+				opcode = "xor"
+			case "__shl":
+				opcode = "shl"
+			case "__shr":
+				if info.signed {
+					opcode = "ashr"
+				} else {
+					opcode = "lshr"
+				}
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  %s = %s %s %s, %s\n", tmp, opcode, leftTy, leftVal, rightVal)
+			break
+		}
+		if !floatOK {
 			return fmt.Errorf("unsupported numeric op on type")
 		}
 		opcode := ""
 		switch name {
 		case "__add":
-			opcode = "add"
+			opcode = "fadd"
 		case "__sub":
-			opcode = "sub"
+			opcode = "fsub"
 		case "__mul":
-			opcode = "mul"
+			opcode = "fmul"
 		case "__div":
-			if info.signed {
-				opcode = "sdiv"
-			} else {
-				opcode = "udiv"
-			}
+			opcode = "fdiv"
 		case "__mod":
-			if info.signed {
-				opcode = "srem"
-			} else {
-				opcode = "urem"
-			}
+			return fmt.Errorf("unsupported float op %s", name)
 		case "__bit_and":
-			opcode = "and"
+			return fmt.Errorf("unsupported float op %s", name)
 		case "__bit_or":
-			opcode = "or"
+			return fmt.Errorf("unsupported float op %s", name)
 		case "__bit_xor":
-			opcode = "xor"
+			return fmt.Errorf("unsupported float op %s", name)
 		case "__shl":
-			opcode = "shl"
+			return fmt.Errorf("unsupported float op %s", name)
 		case "__shr":
-			if info.signed {
-				opcode = "ashr"
-			} else {
-				opcode = "lshr"
-			}
+			return fmt.Errorf("unsupported float op %s", name)
 		}
 		fmt.Fprintf(&fe.emitter.buf, "  %s = %s %s %s, %s\n", tmp, opcode, leftTy, leftVal, rightVal)
 	case "__eq", "__ne", "__lt", "__le", "__gt", "__ge":
+		if ok {
+			pred := ""
+			switch name {
+			case "__eq":
+				pred = "eq"
+			case "__ne":
+				pred = "ne"
+			case "__lt":
+				if info.signed {
+					pred = "slt"
+				} else {
+					pred = "ult"
+				}
+			case "__le":
+				if info.signed {
+					pred = "sle"
+				} else {
+					pred = "ule"
+				}
+			case "__gt":
+				if info.signed {
+					pred = "sgt"
+				} else {
+					pred = "ugt"
+				}
+			case "__ge":
+				if info.signed {
+					pred = "sge"
+				} else {
+					pred = "uge"
+				}
+			}
+			if leftTy == "ptr" {
+				if name != "__eq" && name != "__ne" {
+					return fmt.Errorf("unsupported pointer comparison %s", name)
+				}
+				fmt.Fprintf(&fe.emitter.buf, "  %s = icmp %s ptr %s, %s\n", tmp, pred, leftVal, rightVal)
+			} else {
+				fmt.Fprintf(&fe.emitter.buf, "  %s = icmp %s %s %s, %s\n", tmp, pred, leftTy, leftVal, rightVal)
+			}
+			resultTy = "i1"
+			break
+		}
+		if !floatOK {
+			return fmt.Errorf("unsupported numeric op on type")
+		}
 		pred := ""
 		switch name {
 		case "__eq":
-			pred = "eq"
+			pred = "oeq"
 		case "__ne":
-			pred = "ne"
+			pred = "one"
 		case "__lt":
-			if info.signed {
-				pred = "slt"
-			} else {
-				pred = "ult"
-			}
+			pred = "olt"
 		case "__le":
-			if info.signed {
-				pred = "sle"
-			} else {
-				pred = "ule"
-			}
+			pred = "ole"
 		case "__gt":
-			if info.signed {
-				pred = "sgt"
-			} else {
-				pred = "ugt"
-			}
+			pred = "ogt"
 		case "__ge":
-			if info.signed {
-				pred = "sge"
-			} else {
-				pred = "uge"
-			}
+			pred = "oge"
 		}
-		if leftTy == "ptr" {
-			if name != "__eq" && name != "__ne" {
-				return fmt.Errorf("unsupported pointer comparison %s", name)
-			}
-			fmt.Fprintf(&fe.emitter.buf, "  %s = icmp %s ptr %s, %s\n", tmp, pred, leftVal, rightVal)
-		} else {
-			fmt.Fprintf(&fe.emitter.buf, "  %s = icmp %s %s %s, %s\n", tmp, pred, leftTy, leftVal, rightVal)
-		}
+		fmt.Fprintf(&fe.emitter.buf, "  %s = fcmp %s %s %s, %s\n", tmp, pred, leftTy, leftVal, rightVal)
 		resultTy = "i1"
 	default:
 		return fmt.Errorf("unsupported magic binary op %s", name)
@@ -234,11 +290,18 @@ func (fe *funcEmitter) emitMagicUnaryIntrinsic(call *mir.CallInstr, name string)
 	case "__pos":
 		tmp = val
 	case "__neg":
-		info, ok := intInfo(fe.emitter.types, operandValueType(fe.emitter.types, &call.Args[0]))
-		if !ok || !info.signed {
-			return fmt.Errorf("unsupported unary minus type")
+		if info, ok := intInfo(fe.emitter.types, operandValueType(fe.emitter.types, &call.Args[0])); ok {
+			if !info.signed {
+				return fmt.Errorf("unsupported unary minus type")
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  %s = sub %s 0, %s\n", tmp, ty, val)
+			break
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  %s = sub %s 0, %s\n", tmp, ty, val)
+		if _, ok := floatInfo(fe.emitter.types, operandValueType(fe.emitter.types, &call.Args[0])); ok {
+			fmt.Fprintf(&fe.emitter.buf, "  %s = fneg %s %s\n", tmp, ty, val)
+			break
+		}
+		return fmt.Errorf("unsupported unary minus type")
 	case "__not":
 		if ty != "i1" {
 			return fmt.Errorf("unary not requires i1, got %s", ty)
