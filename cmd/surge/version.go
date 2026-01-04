@@ -87,7 +87,7 @@ var versionCmd = &cobra.Command{
 }
 
 func collectVersionInfo() versionInfo {
-	v := strings.TrimSpace(version.Version)
+	v := strings.TrimSpace(version.VersionString())
 	if v == "" {
 		v = "dev"
 	}
