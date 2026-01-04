@@ -128,11 +128,13 @@ func (fe *funcEmitter) emitLayoutIntrinsic(call *mir.CallInstr) (bool, error) {
 	if n < 0 {
 		n = 0
 	}
-	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
-	if err != nil {
+	dstType := types.NoTypeID
+	if call.Dst.Kind == mir.PlaceLocal && int(call.Dst.Local) < len(fe.f.Locals) {
+		dstType = fe.f.Locals[call.Dst.Local].Type
+	}
+	if err := fe.emitLenStore(call.Dst, dstType, fmt.Sprintf("%d", n)); err != nil {
 		return true, err
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store %s %d, ptr %s\n", dstTy, n, ptr)
 	return true, nil
 }
 

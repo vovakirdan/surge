@@ -58,7 +58,7 @@ func (fe *funcEmitter) emitDefaultIntrinsic(call *mir.CallInstr) (bool, error) {
 	return true, nil
 }
 
-func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (string, string, error) {
+func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (val, ty string, err error) {
 	if typeID == types.NoTypeID {
 		return "", "", fmt.Errorf("invalid default type")
 	}
@@ -83,9 +83,9 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (string, string, er
 	case types.KindPointer:
 		return "null", "ptr", nil
 	case types.KindUnit, types.KindNothing:
-		llvmTy, err := llvmValueType(fe.emitter.types, typeID)
-		if err != nil {
-			return "", "", err
+		llvmTy, typeErr := llvmValueType(fe.emitter.types, typeID)
+		if typeErr != nil {
+			return "", "", typeErr
 		}
 		if llvmTy == "ptr" {
 			return "null", llvmTy, nil
@@ -109,12 +109,12 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (string, string, er
 		return "0.0", llvmTy, nil
 	case types.KindArray:
 		if tt.Count == types.ArrayDynamicLength {
-			return fe.emitDefaultArrayDynamic(typeID, tt.Elem)
+			return fe.emitDefaultArrayDynamic()
 		}
 		return fe.emitDefaultArrayFixed(typeID, tt.Elem, tt.Count)
 	case types.KindStruct:
-		if elem, ok := fe.emitter.types.ArrayInfo(typeID); ok {
-			return fe.emitDefaultArrayDynamic(typeID, elem)
+		if _, ok := fe.emitter.types.ArrayInfo(typeID); ok {
+			return fe.emitDefaultArrayDynamic()
 		}
 		if elem, length, ok := fe.emitter.types.ArrayFixedInfo(typeID); ok {
 			return fe.emitDefaultArrayFixed(typeID, elem, length)
@@ -145,7 +145,7 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (string, string, er
 	}
 }
 
-func (fe *funcEmitter) emitDefaultStruct(typeID types.TypeID) (string, string, error) {
+func (fe *funcEmitter) emitDefaultStruct(typeID types.TypeID) (val, ty string, err error) {
 	info, ok := fe.emitter.types.StructInfo(resolveAliasAndOwn(fe.emitter.types, typeID))
 	if !ok || info == nil {
 		return "", "", fmt.Errorf("missing struct info for type#%d", typeID)
@@ -187,12 +187,12 @@ func (fe *funcEmitter) emitDefaultStruct(typeID types.TypeID) (string, string, e
 	return mem, "ptr", nil
 }
 
-func (fe *funcEmitter) emitDefaultTuple(typeID types.TypeID) (string, string, error) {
+func (fe *funcEmitter) emitDefaultTuple(typeID types.TypeID) (val, ty string, err error) {
 	info, ok := fe.emitter.types.TupleInfo(resolveAliasAndOwn(fe.emitter.types, typeID))
 	if !ok || info == nil || len(info.Elems) == 0 {
-		llvmTy, err := llvmValueType(fe.emitter.types, typeID)
-		if err != nil {
-			return "", "", err
+		llvmTy, typeErr := llvmValueType(fe.emitter.types, typeID)
+		if typeErr != nil {
+			return "", "", typeErr
 		}
 		return "0", llvmTy, nil
 	}
@@ -233,7 +233,7 @@ func (fe *funcEmitter) emitDefaultTuple(typeID types.TypeID) (string, string, er
 	return mem, "ptr", nil
 }
 
-func (fe *funcEmitter) emitDefaultArrayDynamic(typeID, elemType types.TypeID) (string, string, error) {
+func (fe *funcEmitter) emitDefaultArrayDynamic() (val, ty string, err error) {
 	headPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", headPtr, arrayHeaderSize, arrayHeaderAlign)
 	lenPtr := fe.nextTemp()
@@ -245,11 +245,10 @@ func (fe *funcEmitter) emitDefaultArrayDynamic(typeID, elemType types.TypeID) (s
 	dataPtrPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, headPtr, arrayDataOffset)
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", dataPtrPtr)
-	_ = elemType
 	return headPtr, "ptr", nil
 }
 
-func (fe *funcEmitter) emitDefaultArrayFixed(typeID, elemType types.TypeID, length uint32) (string, string, error) {
+func (fe *funcEmitter) emitDefaultArrayFixed(typeID, elemType types.TypeID, length uint32) (val, ty string, err error) {
 	layoutInfo, err := fe.emitter.layoutOf(typeID)
 	if err != nil {
 		return "", "", err
@@ -279,7 +278,7 @@ func (fe *funcEmitter) emitDefaultArrayFixed(typeID, elemType types.TypeID, leng
 		elemAlign = 1
 	}
 	stride := roundUpInt(elemSize, elemAlign)
-	for i := uint32(0); i < length; i++ {
+	for i := range length {
 		val, valTy, err := fe.emitDefaultValue(elemType)
 		if err != nil {
 			return "", "", err

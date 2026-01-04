@@ -162,6 +162,22 @@ void rt_panic(const uint8_t* ptr, uint64_t length) {
     _exit(1);
 }
 
+void rt_panic_numeric(const uint8_t* ptr, uint64_t length) {
+    static const uint8_t prefix[] = "panic VM3202: ";
+    static const uint8_t fallback[] = "invalid numeric conversion";
+    rt_write_stderr(prefix, (uint64_t)(sizeof(prefix) - 1));
+    if (ptr != NULL && length > 0) {
+        rt_write_stderr(ptr, length);
+        if (ptr[length - 1] != '\n') {
+            rt_write_stderr((const uint8_t*)"\n", 1);
+        }
+    } else {
+        rt_write_stderr(fallback, (uint64_t)(sizeof(fallback) - 1));
+        rt_write_stderr((const uint8_t*)"\n", 1);
+    }
+    _exit(1);
+}
+
 void rt_panic_bounds(uint64_t kind, int64_t index, int64_t length) {
     const char* code = "VM1004";
     const char* fmt = "panic %s: index %" PRId64 " out of bounds for length %" PRId64 "\n";

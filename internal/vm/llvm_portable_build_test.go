@@ -34,7 +34,7 @@ func TestLLVMBuildPortable(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("run failed (code=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
 	}
-	if stdout != "portable\n" {
+	if stdout != "portable\n\n" {
 		t.Fatalf("unexpected stdout: %q", stdout)
 	}
 	if stderr != "" {

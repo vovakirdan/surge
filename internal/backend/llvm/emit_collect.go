@@ -105,6 +105,18 @@ func (e *Emitter) collectOperand(op *mir.Operand) {
 	switch op.Const.Kind {
 	case mir.ConstString:
 		e.ensureStringConst(op.Const.StringValue)
+	case mir.ConstInt:
+		if op.Const.Text != "" && isBigIntType(e.types, op.Const.Type) {
+			e.ensureStringConst(op.Const.Text)
+		}
+	case mir.ConstUint:
+		if op.Const.Text != "" && isBigUintType(e.types, op.Const.Type) {
+			e.ensureStringConst(op.Const.Text)
+		}
+	case mir.ConstFloat:
+		if op.Const.Text != "" && isBigFloatType(e.types, op.Const.Type) {
+			e.ensureStringConst(op.Const.Text)
+		}
 	case mir.ConstFn:
 		if e.mod == nil || !op.Const.Sym.IsValid() {
 			return

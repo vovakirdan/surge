@@ -7,7 +7,7 @@ import (
 	"surge/internal/types"
 )
 
-func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) (string, string, error) {
+func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) (outVal, outTy string, err error) {
 	if fe.emitter == nil || fe.emitter.types == nil {
 		return "", "", fmt.Errorf("missing type interner")
 	}

@@ -17,7 +17,7 @@ fn naive_concat() {
 }
 
 fn join_builder() {
-    let parts: string[] = Array::<string>::with_len(50000:uint);
+    let mut parts: string[] = Array::<string>::with_len(50000:uint);
     for i in 0..50000 {
         parts[i] = "ha";
     }

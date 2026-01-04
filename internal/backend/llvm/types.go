@@ -94,7 +94,7 @@ func llvmValueType(typesIn *types.Interner, id types.TypeID) (string, error) {
 
 func intWidthType(width types.Width) string {
 	if width == types.WidthAny {
-		return "i64"
+		return "ptr"
 	}
 	switch width {
 	case types.Width8:
@@ -112,7 +112,7 @@ func intWidthType(width types.Width) string {
 
 func floatWidthType(width types.Width) string {
 	if width == types.WidthAny {
-		return "double"
+		return "ptr"
 	}
 	switch width {
 	case types.Width16:

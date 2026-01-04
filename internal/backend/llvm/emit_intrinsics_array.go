@@ -34,12 +34,12 @@ func (fe *funcEmitter) emitArrayIntrinsic(call *mir.CallInstr) (bool, error) {
 	}
 }
 
-func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemType types.TypeID, elemLLVM string, stride int, align int, err error) {
+func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemLLVM string, stride, align int, err error) {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
-		return types.NoTypeID, "", 0, 0, fmt.Errorf("missing type interner")
+		return "", 0, 0, fmt.Errorf("missing type interner")
 	}
 	if op == nil {
-		return types.NoTypeID, "", 0, 0, fmt.Errorf("nil operand")
+		return "", 0, 0, fmt.Errorf("nil operand")
 	}
 	arrType := operandValueType(fe.emitter.types, op)
 	if arrType == types.NoTypeID && op.Kind != mir.OperandConst {
@@ -49,24 +49,24 @@ func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemType types.TypeID, 
 	}
 	elemType, dynamic, ok := arrayElemType(fe.emitter.types, arrType)
 	if !ok || !dynamic {
-		return types.NoTypeID, "", 0, 0, fmt.Errorf("rt_array_* requires a dynamic array")
+		return "", 0, 0, fmt.Errorf("rt_array_* requires a dynamic array")
 	}
 	elemLLVM, err = llvmValueType(fe.emitter.types, elemType)
 	if err != nil {
-		return types.NoTypeID, "", 0, 0, err
+		return "", 0, 0, err
 	}
 	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
 	if err != nil {
-		return types.NoTypeID, "", 0, 0, err
+		return "", 0, 0, err
 	}
 	if elemAlign <= 0 {
 		elemAlign = 1
 	}
 	stride = roundUpInt(elemSize, elemAlign)
-	return elemType, elemLLVM, stride, elemAlign, nil
+	return elemLLVM, stride, elemAlign, nil
 }
 
-func (fe *funcEmitter) emitGrowArrayCapacity(currentCap, minCap string) (string, error) {
+func (fe *funcEmitter) emitGrowArrayCapacity(currentCap, minCap string) string {
 	capPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", capPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", currentCap, capPtr)
@@ -90,10 +90,10 @@ func (fe *funcEmitter) emitGrowArrayCapacity(currentCap, minCap string) (string,
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", loop)
 	cur = fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", cur, capPtr)
-	min := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", min, minPtr)
+	minVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", minVal, minPtr)
 	ready := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp sge i64 %s, %s\n", ready, cur, min)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp sge i64 %s, %s\n", ready, cur, minVal)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", ready, done, body)
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", body)
 	next := fe.nextTemp()
@@ -103,7 +103,7 @@ func (fe *funcEmitter) emitGrowArrayCapacity(currentCap, minCap string) (string,
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", done)
 	result := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", result, capPtr)
-	return result, nil
+	return result
 }
 
 func (fe *funcEmitter) emitArrayReserve(call *mir.CallInstr) error {
@@ -113,7 +113,7 @@ func (fe *funcEmitter) emitArrayReserve(call *mir.CallInstr) error {
 	if len(call.Args) != 2 {
 		return fmt.Errorf("rt_array_reserve requires 2 arguments")
 	}
-	_, _, stride, elemAlign, err := fe.arrayElemLayout(&call.Args[0])
+	_, stride, elemAlign, err := fe.arrayElemLayout(&call.Args[0])
 	if err != nil {
 		return err
 	}
@@ -125,9 +125,72 @@ func (fe *funcEmitter) emitArrayReserve(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	newCap, err := fe.coerceIntToI64(capVal, capTy, call.Args[1].Type)
-	if err != nil {
-		return err
+	capType := call.Args[1].Type
+	newCap := ""
+	maxIndex := int64(^uint64(0) >> 1)
+	switch {
+	case isBigUintType(fe.emitter.types, capType):
+		newCap, err = fe.emitCheckedBigUintToU64(capVal, "array capacity out of range")
+		if err != nil {
+			return err
+		}
+		tooHigh := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ugt i64 %s, %d\n", tooHigh, newCap, maxIndex)
+		fail := fe.nextInlineBlock()
+		cont := fe.nextInlineBlock()
+		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", tooHigh, fail, cont)
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
+		if panicErr := fe.emitPanicNumeric("array capacity out of range"); panicErr != nil {
+			return panicErr
+		}
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
+	case isBigIntType(fe.emitter.types, capType):
+		newCap, err = fe.emitCheckedBigIntToI64(capVal, "array capacity out of range")
+		if err != nil {
+			return err
+		}
+		neg := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = icmp slt i64 %s, 0\n", neg, newCap)
+		fail := fe.nextInlineBlock()
+		cont := fe.nextInlineBlock()
+		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", neg, fail, cont)
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
+		if panicErr := fe.emitPanicNumeric("array capacity out of range"); panicErr != nil {
+			return panicErr
+		}
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
+	default:
+		info, ok := intInfo(fe.emitter.types, capType)
+		if !ok {
+			return fmt.Errorf("rt_array_reserve requires integer capacity")
+		}
+		newCap, err = fe.coerceIntToI64(capVal, capTy, capType)
+		if err != nil {
+			return err
+		}
+		if info.signed {
+			neg := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = icmp slt i64 %s, 0\n", neg, newCap)
+			fail := fe.nextInlineBlock()
+			cont := fe.nextInlineBlock()
+			fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", neg, fail, cont)
+			fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
+			if panicErr := fe.emitPanicNumeric("array capacity out of range"); panicErr != nil {
+				return panicErr
+			}
+			fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
+		} else {
+			tooHigh := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ugt i64 %s, %d\n", tooHigh, newCap, maxIndex)
+			fail := fe.nextInlineBlock()
+			cont := fe.nextInlineBlock()
+			fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", tooHigh, fail, cont)
+			fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
+			if panicErr := fe.emitPanicNumeric("array capacity out of range"); panicErr != nil {
+				return panicErr
+			}
+			fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
+		}
 	}
 
 	head := fe.nextTemp()
@@ -152,10 +215,7 @@ func (fe *funcEmitter) emitArrayReserve(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp slt i64 %s, %s\n", needLen, newCap, lenVal)
 	adjCap := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = select i1 %s, i64 %s, i64 %s\n", adjCap, needLen, lenVal, newCap)
-	grown, err := fe.emitGrowArrayCapacity(curCap, adjCap)
-	if err != nil {
-		return err
-	}
+	grown := fe.emitGrowArrayCapacity(curCap, adjCap)
 
 	dataPtrPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, head, arrayDataOffset)
@@ -181,7 +241,7 @@ func (fe *funcEmitter) emitArrayPush(call *mir.CallInstr) error {
 	if len(call.Args) != 2 {
 		return fmt.Errorf("rt_array_push requires 2 arguments")
 	}
-	_, elemLLVM, stride, elemAlign, err := fe.arrayElemLayout(&call.Args[0])
+	elemLLVM, stride, elemAlign, err := fe.arrayElemLayout(&call.Args[0])
 	if err != nil {
 		return err
 	}
@@ -216,10 +276,7 @@ func (fe *funcEmitter) emitArrayPush(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", grow)
 	minCap := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = add i64 %s, 1\n", minCap, lenVal)
-	grown, err := fe.emitGrowArrayCapacity(curCap, minCap)
-	if err != nil {
-		return err
-	}
+	grown := fe.emitGrowArrayCapacity(curCap, minCap)
 	dataPtrPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, head, arrayDataOffset)
 	dataPtr := fe.nextTemp()
@@ -257,7 +314,7 @@ func (fe *funcEmitter) emitArrayPop(call *mir.CallInstr) error {
 	if len(call.Args) != 1 {
 		return fmt.Errorf("rt_array_pop requires 1 argument")
 	}
-	_, elemLLVM, stride, _, err := fe.arrayElemLayout(&call.Args[0])
+	elemLLVM, stride, _, err := fe.arrayElemLayout(&call.Args[0])
 	if err != nil {
 		return err
 	}

@@ -8,7 +8,7 @@ import (
 	"surge/internal/types"
 )
 
-func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expected types.TypeID) (string, string, error) {
+func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expected types.TypeID) (outVal, outTy string, err error) {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
 		return val, valTy, nil
 	}

@@ -18,7 +18,7 @@ typedef struct SurgeString {
 typedef struct SurgeBytesView {
     void* owner;
     uint8_t* ptr;
-    uint64_t len;
+    void* len;
 } SurgeBytesView;
 
 static int is_cont(uint8_t c) {
@@ -173,15 +173,30 @@ static int64_t normalize_range_index(int64_t n, int64_t length) {
     return n;
 }
 
+static int64_t range_index_from_value(void* v, int64_t length) {
+    int64_t n = 0;
+    if (rt_bigint_to_i64(v, &n)) {
+        return normalize_range_index(n, length);
+    }
+    int cmp = rt_bigint_cmp(v, NULL);
+    if (cmp < 0) {
+        return -1;
+    }
+    if (length == INT64_MAX) {
+        return length;
+    }
+    return length + 1;
+}
+
 static void range_bounds(const SurgeRange* r, int64_t length, int64_t* start, int64_t* end) {
     int64_t start64 = 0;
     int64_t end64 = length;
     if (r != NULL) {
         if (r->has_start) {
-            start64 = normalize_range_index(r->start, length);
+            start64 = range_index_from_value(r->start, length);
         }
         if (r->has_end) {
-            end64 = normalize_range_index(r->end, length);
+            end64 = range_index_from_value(r->end, length);
         }
         if (r->inclusive && r->has_end && end64 < INT64_MAX) {
             end64++;
@@ -329,7 +344,7 @@ void* rt_string_bytes_view(void* s) {
     }
     view->owner = (void*)str;
     view->ptr = str->data;
-    view->len = str->len_bytes;
+    view->len = rt_biguint_from_u64(str->len_bytes);
     return (void*)view;
 }
 
@@ -361,6 +376,48 @@ void* rt_string_concat(void* a, void* b) {
     }
     if (right_bytes > 0 && right != NULL) {
         rt_memcpy(out->data + left_bytes, right->data, right_bytes);
+    }
+    out->data[total_bytes] = 0;
+    return (void*)out;
+}
+
+void* rt_string_repeat(void* s, int64_t count) {
+    if (count <= 0) {
+        return rt_string_from_bytes(NULL, 0);
+    }
+    if (s == NULL) {
+        return rt_string_from_bytes(NULL, 0);
+    }
+    SurgeString* str = *(SurgeString**)s;
+    if (str == NULL) {
+        return rt_string_from_bytes(NULL, 0);
+    }
+    uint64_t unit_bytes = str->len_bytes;
+    uint64_t unit_cp = str->len_cp;
+    if (unit_bytes == 0 || unit_cp == 0) {
+        return rt_string_from_bytes(NULL, 0);
+    }
+    int64_t max_int = INT64_MAX;
+    if (unit_bytes > 0 && count > 0 && (uint64_t)count > (uint64_t)(max_int / (int64_t)unit_bytes)) {
+        const char* msg = "string repeat length out of range";
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
+    if (unit_cp > 0 && count > 0 && (uint64_t)count > (uint64_t)(max_int / (int64_t)unit_cp)) {
+        const char* msg = "string repeat length out of range";
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
+    uint64_t total_bytes = unit_bytes * (uint64_t)count;
+    uint64_t total_cp = unit_cp * (uint64_t)count;
+    size_t total = sizeof(SurgeString) + (size_t)total_bytes + 1;
+    SurgeString* out = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
+    if (out == NULL) {
+        return NULL;
+    }
+    out->len_cp = total_cp;
+    out->len_bytes = total_bytes;
+    for (int64_t i = 0; i < count; i++) {
+        uint64_t offset = (uint64_t)i * unit_bytes;
+        rt_memcpy(out->data + offset, str->data, unit_bytes);
     }
     out->data[total_bytes] = 0;
     return (void*)out;

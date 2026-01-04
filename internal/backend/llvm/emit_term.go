@@ -173,12 +173,40 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 	}
 	switch c.Kind {
 	case mir.ConstInt:
+		if isBigIntType(fe.emitter.types, c.Type) {
+			if c.Text != "" {
+				ptrTmp, dataLen, err := fe.emitBytesConst(c.Text)
+				if err != nil {
+					return "", "", err
+				}
+				tmp := fe.nextTemp()
+				fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigint_from_literal(ptr %s, i64 %d)\n", tmp, ptrTmp, dataLen)
+				return tmp, "ptr", nil
+			}
+			tmp := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigint_from_i64(i64 %d)\n", tmp, c.IntValue)
+			return tmp, "ptr", nil
+		}
 		ty, err := llvmValueType(fe.emitter.types, c.Type)
 		if err != nil {
 			return "", "", err
 		}
 		return fmt.Sprintf("%d", c.IntValue), ty, nil
 	case mir.ConstUint:
+		if isBigUintType(fe.emitter.types, c.Type) {
+			if c.Text != "" {
+				ptrTmp, dataLen, err := fe.emitBytesConst(c.Text)
+				if err != nil {
+					return "", "", err
+				}
+				tmp := fe.nextTemp()
+				fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_biguint_from_literal(ptr %s, i64 %d)\n", tmp, ptrTmp, dataLen)
+				return tmp, "ptr", nil
+			}
+			tmp := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_biguint_from_u64(i64 %d)\n", tmp, c.UintValue)
+			return tmp, "ptr", nil
+		}
 		ty, err := llvmValueType(fe.emitter.types, c.Type)
 		if err != nil {
 			return "", "", err
@@ -187,6 +215,20 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 	case mir.ConstBool:
 		return boolValue(c.BoolValue), "i1", nil
 	case mir.ConstFloat:
+		if isBigFloatType(fe.emitter.types, c.Type) {
+			if c.Text != "" {
+				ptrTmp, dataLen, err := fe.emitBytesConst(c.Text)
+				if err != nil {
+					return "", "", err
+				}
+				tmp := fe.nextTemp()
+				fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigfloat_from_literal(ptr %s, i64 %d)\n", tmp, ptrTmp, dataLen)
+				return tmp, "ptr", nil
+			}
+			tmp := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigfloat_from_f64(double %v)\n", tmp, c.FloatValue)
+			return tmp, "ptr", nil
+		}
 		ty, err := llvmValueType(fe.emitter.types, c.Type)
 		if err != nil {
 			return "", "", err
@@ -258,13 +300,21 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 }
 
 func (fe *funcEmitter) emitStringConst(raw string) (val, ty string, err error) {
+	ptrTmp, dataLen, err := fe.emitBytesConst(raw)
+	if err != nil {
+		return "", "", err
+	}
+	handleTmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_from_bytes(ptr %s, i64 %d)\n", handleTmp, ptrTmp, dataLen)
+	return handleTmp, "ptr", nil
+}
+
+func (fe *funcEmitter) emitBytesConst(raw string) (ptr string, length int, err error) {
 	sc, ok := fe.emitter.stringConsts[raw]
 	if !ok {
-		return "", "", fmt.Errorf("missing string const %q", raw)
+		return "", 0, fmt.Errorf("missing string const %q", raw)
 	}
 	ptrTmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x i8], ptr @%s, i64 0, i64 0\n", ptrTmp, sc.arrayLen, sc.globalName)
-	handleTmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_from_bytes(ptr %s, i64 %d)\n", handleTmp, ptrTmp, sc.dataLen)
-	return handleTmp, "ptr", nil
+	return ptrTmp, sc.dataLen, nil
 }

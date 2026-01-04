@@ -110,11 +110,13 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 		if err != nil {
 			return "", "", err
 		}
-		idx64, err := fe.coerceIntToI64(idxVal, idxTy, idx.Index.Type)
+		handlePtr, err := fe.emitHandleOperandPtr(&idx.Object)
 		if err != nil {
 			return "", "", err
 		}
-		handlePtr, err := fe.emitHandleOperandPtr(&idx.Object)
+		lenVal := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_string_len(ptr %s)\n", lenVal, handlePtr)
+		idx64, err := fe.emitIndexToI64(0, idxVal, idxTy, idx.Index.Type, lenVal)
 		if err != nil {
 			return "", "", err
 		}
@@ -181,7 +183,7 @@ func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType
 	lenVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", lenVal, lenPtr)
 
-	adjIdx, err := fe.emitBoundsCheckedIndex(1, idxVal, idxTy, idxType, lenVal, true)
+	adjIdx, err := fe.emitBoundsCheckedIndex(1, idxVal, idxTy, idxType, lenVal, true, lenVal)
 	if err != nil {
 		return "", "", err
 	}
@@ -215,7 +217,7 @@ func (fe *funcEmitter) emitArrayFixedElemPtr(handlePtr, idxVal, idxTy string, id
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, handlePtr)
 	lenVal := fmt.Sprintf("%d", length)
 
-	adjIdx, err := fe.emitBoundsCheckedIndex(1, idxVal, idxTy, idxType, lenVal, true)
+	adjIdx, err := fe.emitBoundsCheckedIndex(1, idxVal, idxTy, idxType, lenVal, true, lenVal)
 	if err != nil {
 		return "", "", err
 	}
@@ -251,6 +253,17 @@ func (fe *funcEmitter) emitBytesViewLen(handlePtr string, viewType types.TypeID)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, handle, lenOff)
 	lenVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", lenVal, lenLLVM, lenPtr)
+	if lenLLVM == "ptr" {
+		conv, convErr := fe.emitCheckedBigUintToU64(lenVal, "bytes view length out of range")
+		if convErr != nil {
+			return "", convErr
+		}
+		lenVal = conv
+	} else if lenLLVM != "i64" {
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = zext %s %s to i64\n", tmp, lenLLVM, lenVal)
+		lenVal = tmp
+	}
 	return lenVal, nil
 }
 
@@ -269,8 +282,19 @@ func (fe *funcEmitter) emitBytesViewIndex(handlePtr string, viewType types.TypeI
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, handle, lenOff)
 	lenVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", lenVal, lenLLVM, lenPtr)
+	if lenLLVM == "ptr" {
+		conv, convErr := fe.emitCheckedBigUintToU64(lenVal, "bytes view length out of range")
+		if convErr != nil {
+			return "", "", convErr
+		}
+		lenVal = conv
+	} else if lenLLVM != "i64" {
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = zext %s %s to i64\n", tmp, lenLLVM, lenVal)
+		lenVal = tmp
+	}
 
-	adjIdx, err := fe.emitBoundsCheckedIndex(0, idxVal, idxTy, idxType, lenVal, false)
+	adjIdx, err := fe.emitBoundsCheckedIndex(0, idxVal, idxTy, idxType, lenVal, false, "0")
 	if err != nil {
 		return "", "", err
 	}
@@ -282,8 +306,8 @@ func (fe *funcEmitter) emitBytesViewIndex(handlePtr string, viewType types.TypeI
 	return val, "i8", nil
 }
 
-func (fe *funcEmitter) emitBoundsCheckedIndex(kind int, idxVal, idxTy string, idxType types.TypeID, lenVal string, allowNegative bool) (string, error) {
-	idx64, err := fe.coerceIntToI64(idxVal, idxTy, idxType)
+func (fe *funcEmitter) emitBoundsCheckedIndex(kind int, idxVal, idxTy string, idxType types.TypeID, lenVal string, allowNegative bool, overflowLen string) (string, error) {
+	idx64, err := fe.emitIndexToI64(kind, idxVal, idxTy, idxType, overflowLen)
 	if err != nil {
 		return "", err
 	}
@@ -311,6 +335,54 @@ func (fe *funcEmitter) emitBoundsCheckedIndex(kind int, idxVal, idxTy string, id
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
 	return adj, nil
+}
+
+func (fe *funcEmitter) emitIndexToI64(kind int, idxVal, idxTy string, idxType types.TypeID, overflowLen string) (string, error) {
+	maxIndex := int64(^uint64(0) >> 1)
+	if isBigIntType(fe.emitter.types, idxType) {
+		outPtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", outPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", outPtr)
+		okVal := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_bigint_to_i64(ptr %s, ptr %s)\n", okVal, idxVal, outPtr)
+		okBB := fe.nextInlineBlock()
+		badBB := fe.nextInlineBlock()
+		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, okBB, badBB)
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", badBB)
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_panic_bounds(i64 %d, i64 %d, i64 %s)\n", kind, maxIndex, overflowLen)
+		fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
+		outVal := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", outVal, outPtr)
+		return outVal, nil
+	}
+	if isBigUintType(fe.emitter.types, idxType) {
+		outPtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", outPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", outPtr)
+		okVal := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_biguint_to_u64(ptr %s, ptr %s)\n", okVal, idxVal, outPtr)
+		okBB := fe.nextInlineBlock()
+		badBB := fe.nextInlineBlock()
+		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, okBB, badBB)
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", badBB)
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_panic_bounds(i64 %d, i64 %d, i64 %s)\n", kind, maxIndex, overflowLen)
+		fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
+		outVal := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", outVal, outPtr)
+		tooHigh := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ugt i64 %s, %d\n", tooHigh, outVal, maxIndex)
+		limitBB := fe.nextInlineBlock()
+		contBB := fe.nextInlineBlock()
+		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", tooHigh, limitBB, contBB)
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", limitBB)
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_panic_bounds(i64 %d, i64 %d, i64 %s)\n", kind, maxIndex, overflowLen)
+		fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
+		return outVal, nil
+	}
+	return fe.coerceIntToI64(idxVal, idxTy, idxType)
 }
 
 func (fe *funcEmitter) coerceIntToI64(val, ty string, typeID types.TypeID) (string, error) {
