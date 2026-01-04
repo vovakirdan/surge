@@ -8,6 +8,7 @@ import (
 )
 
 func TestVMNumbersDivByZeroPanics(t *testing.T) {
+	requireVMBackend(t)
 	sourceCode := `@entrypoint
 fn main() -> int {
     return 1 / 0;

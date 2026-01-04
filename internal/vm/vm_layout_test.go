@@ -51,16 +51,11 @@ fn main() -> int {
     if (align_of::<float64>() != 8:uint) { return 43; }
 
     return 0;
-}
-`
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
 	}
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", exitCode)
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", result.exitCode)
 	}
 }
 
@@ -93,16 +88,11 @@ fn main() -> int {
     if (!(size_s == 24:uint)) { return 4; }
 
     return 0;
-}
-`
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
 	}
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", exitCode)
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", result.exitCode)
 	}
 }
 
@@ -136,16 +126,11 @@ fn main() -> int {
     if (!(size_of::<S>() == 20:uint)) { return 6; }
 
     return 0;
-}
-`
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
 	}
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", exitCode)
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", result.exitCode)
 	}
 }
 
@@ -164,16 +149,11 @@ fn main() -> int {
     if (!(size_s == 9:uint)) { return 1; }
     if (!(align_s == 1:uint)) { return 2; }
     return 0;
-}
-`
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
 	}
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", exitCode)
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", result.exitCode)
 	}
 }
 
@@ -192,16 +172,11 @@ fn main() -> int {
     if (!(align_s == 16:uint)) { return 1; }
     if (!(((size_s / 16:uint) * 16:uint) == size_s)) { return 2; }
     return 0;
-}
-`
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
 	}
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", exitCode)
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", result.exitCode)
 	}
 }
 
@@ -220,16 +195,11 @@ fn main() -> int {
     if (!(align_s == 8:uint)) { return 1; }
     if (!(size_s == 16:uint)) { return 2; }
     return 0;
-}
-`
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
 	}
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", exitCode)
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", result.exitCode)
 	}
 }
 
@@ -320,20 +290,16 @@ fn main() -> int {
     if (size_of::<Mix>() != 24:uint) { return 9; }
     if (align_of::<Mix>() != 8:uint) { return 10; }
     return 0;
-}
-`
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
 	}
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", exitCode)
+`
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", result.exitCode)
 	}
 }
 
 func TestVMDropOrderReverseLocals(t *testing.T) {
+	requireVMBackend(t)
 	sourceCode := `@entrypoint
 fn main() -> int {
     let a: string = "a";

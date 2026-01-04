@@ -336,12 +336,18 @@ func (fe *funcEmitter) emitTagDiscriminant(op *mir.Operand) (string, error) {
 	if op == nil {
 		return "", fmt.Errorf("nil operand")
 	}
-	layoutInfo, err := fe.emitter.layoutOf(op.Type)
+	typeID := op.Type
+	if typeID == types.NoTypeID && op.Kind != mir.OperandConst {
+		if baseType, err := fe.placeBaseType(op.Place); err == nil {
+			typeID = baseType
+		}
+	}
+	layoutInfo, err := fe.emitter.layoutOf(typeID)
 	if err != nil {
 		return "", err
 	}
 	if layoutInfo.TagSize != 4 {
-		return "", fmt.Errorf("unsupported tag size %d", layoutInfo.TagSize)
+		return "", fmt.Errorf("unsupported tag size %d for type#%d", layoutInfo.TagSize, typeID)
 	}
 	val, valTy, err := fe.emitValueOperand(op)
 	if err != nil {
@@ -371,7 +377,7 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 		return "", err
 	}
 	if layoutInfo.TagSize != 4 {
-		return "", fmt.Errorf("unsupported tag size %d", layoutInfo.TagSize)
+		return "", fmt.Errorf("unsupported tag size %d for type#%d", layoutInfo.TagSize, typeID)
 	}
 	size := layoutInfo.Size
 	align := layoutInfo.Align
@@ -476,6 +482,20 @@ func isArrayLike(typesIn *types.Interner, id types.TypeID) bool {
 	return ok && dynamic
 }
 
+func arrayFixedInfo(typesIn *types.Interner, id types.TypeID) (elem types.TypeID, length uint32, ok bool) {
+	if typesIn == nil || id == types.NoTypeID {
+		return types.NoTypeID, 0, false
+	}
+	id = resolveValueType(typesIn, id)
+	if elem, length, ok := typesIn.ArrayFixedInfo(id); ok {
+		return elem, length, true
+	}
+	if tt, ok := typesIn.Lookup(id); ok && tt.Kind == types.KindArray && tt.Count != types.ArrayDynamicLength {
+		return tt.Elem, tt.Count, true
+	}
+	return types.NoTypeID, 0, false
+}
+
 func arrayElemType(typesIn *types.Interner, id types.TypeID) (types.TypeID, bool, bool) {
 	if typesIn == nil || id == types.NoTypeID {
 		return types.NoTypeID, false, false
@@ -525,6 +545,32 @@ func isRefType(typesIn *types.Interner, id types.TypeID) bool {
 	id = resolveAliasAndOwn(typesIn, id)
 	tt, ok := typesIn.Lookup(id)
 	return ok && tt.Kind == types.KindReference
+}
+
+func isNothingType(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil || id == types.NoTypeID {
+		return false
+	}
+	id = resolveAliasAndOwn(typesIn, id)
+	tt, ok := typesIn.Lookup(id)
+	return ok && tt.Kind == types.KindNothing
+}
+
+func (fe *funcEmitter) emitHandleOperandPtr(op *mir.Operand) (string, error) {
+	if op == nil {
+		return "", fmt.Errorf("nil operand")
+	}
+	if isRefType(fe.emitter.types, op.Type) {
+		val, ty, err := fe.emitOperand(op)
+		if err != nil {
+			return "", err
+		}
+		if ty != "ptr" {
+			return "", fmt.Errorf("expected ptr handle, got %s", ty)
+		}
+		return val, nil
+	}
+	return fe.emitOperandAddr(op)
 }
 
 func (fe *funcEmitter) bytesViewOffsets(typeID types.TypeID) (ptrOffset, lenOffset int, lenLLVM string, err error) {

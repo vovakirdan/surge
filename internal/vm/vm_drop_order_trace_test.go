@@ -34,6 +34,7 @@ func runHeapReleaseTrace(t *testing.T, mirMod *mir.Module, files *source.FileSet
 }
 
 func TestVMDropOrderDeterministic(t *testing.T) {
+	requireVMBackend(t)
 	sourceCode := `type Foo = { s: string, n: int }
 
 @entrypoint

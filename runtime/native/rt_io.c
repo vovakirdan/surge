@@ -1,9 +1,18 @@
 #include "rt.h"
 
+#include <ctype.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+
+#ifndef alignof
+#define alignof(t) __alignof__(t)
+#endif
+
+extern int rt_argc;
+extern char** rt_argv_raw;
 
 uint64_t rt_write_stdout(const uint8_t* ptr, uint64_t length) {
     if (ptr == NULL || length == 0) {
@@ -33,6 +42,86 @@ uint64_t rt_write_stderr(const uint8_t* ptr, uint64_t length) {
         written += (uint64_t)chunk;
     }
     return written;
+}
+
+typedef struct SurgeArrayHeader {
+    uint64_t len;
+    uint64_t cap;
+    void* data;
+} SurgeArrayHeader;
+
+void* rt_argv(void) {
+    int argc = rt_argc;
+    char** argv = rt_argv_raw;
+    int count = 0;
+    if (argc > 1) {
+        count = argc - 1;
+    }
+    void* data = NULL;
+    if (count > 0) {
+        data = rt_alloc((uint64_t)count * (uint64_t)sizeof(void*), (uint64_t)alignof(void*));
+        if (data == NULL) {
+            return NULL;
+        }
+    }
+    SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader), (uint64_t)alignof(SurgeArrayHeader));
+    if (header == NULL) {
+        return NULL;
+    }
+    header->len = (uint64_t)count;
+    header->cap = (uint64_t)count;
+    header->data = data;
+
+    if (data != NULL && argv != NULL) {
+        void** slots = (void**)data;
+        for (int i = 0; i < count; i++) {
+            const char* arg = argv[i + 1];
+            if (arg == NULL) {
+                slots[i] = rt_string_from_bytes(NULL, 0);
+                continue;
+            }
+            size_t n = strlen(arg);
+            slots[i] = rt_string_from_bytes((const uint8_t*)arg, (uint64_t)n);
+        }
+    }
+    return (void*)header;
+}
+
+void* rt_stdin_read_all(void) {
+    uint8_t* buf = NULL;
+    size_t len = 0;
+    size_t cap = 0;
+
+    for (;;) {
+        if (cap - len < 1024) {
+            size_t next = cap == 0 ? 4096 : cap * 2;
+            uint8_t* tmp = (uint8_t*)realloc(buf, next);
+            if (tmp == NULL) {
+                free(buf);
+                return rt_string_from_bytes(NULL, 0);
+            }
+            buf = tmp;
+            cap = next;
+        }
+        ssize_t n = read(STDIN_FILENO, buf + len, cap - len);
+        if (n <= 0) {
+            break;
+        }
+        len += (size_t)n;
+    }
+
+    size_t start = 0;
+    size_t end = len;
+    while (start < end && isspace((unsigned char)buf[start])) {
+        start++;
+    }
+    while (end > start && isspace((unsigned char)buf[end - 1])) {
+        end--;
+    }
+
+    void* out = rt_string_from_bytes(buf + start, (uint64_t)(end - start));
+    free(buf);
+    return out;
 }
 
 void rt_exit(int64_t code) {

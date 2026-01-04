@@ -7,6 +7,7 @@ import (
 )
 
 func TestABIMemoryAllocAlignment(t *testing.T) {
+	requireVMBackend(t)
 	typesInterner := types.NewInterner()
 	builtins := typesInterner.Builtins()
 	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, typesInterner, nil)
@@ -36,6 +37,7 @@ func TestABIMemoryAllocAlignment(t *testing.T) {
 }
 
 func TestABIMemoryMemmoveOverlap(t *testing.T) {
+	requireVMBackend(t)
 	typesInterner := types.NewInterner()
 	builtins := typesInterner.Builtins()
 	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, typesInterner, nil)
@@ -77,6 +79,7 @@ func TestABIMemoryMemmoveOverlap(t *testing.T) {
 }
 
 func TestABIMemoryReallocPreservesPrefix(t *testing.T) {
+	requireVMBackend(t)
 	typesInterner := types.NewInterner()
 	builtins := typesInterner.Builtins()
 	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, typesInterner, nil)

@@ -9,6 +9,7 @@ import (
 )
 
 func TestVMRCLeakDetectionPanics(t *testing.T) {
+	requireVMBackend(t)
 	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, types.NewInterner(), nil)
 	vmInstance.Heap.AllocString(types.NoTypeID, "leak")
 	vmInstance.Heap.AllocBigInt(types.NoTypeID, bignum.IntFromInt64(1))

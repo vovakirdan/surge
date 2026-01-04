@@ -15,16 +15,9 @@ fn main() -> int {
     return *r;
 }
 `
-
-	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-	if exitCode != 7 {
-		t.Fatalf("expected exit code 7, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 7 {
+		t.Fatalf("expected exit code 7, got %d", result.exitCode)
 	}
 }
 
@@ -41,16 +34,9 @@ fn main() -> int {
     return v;
 }
 `
-
-	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-	if exitCode != 9 {
-		t.Fatalf("expected exit code 9, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 9 {
+		t.Fatalf("expected exit code 9, got %d", result.exitCode)
 	}
 }
 
@@ -69,16 +55,9 @@ fn main() -> int {
     return s.a;
 }
 `
-
-	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-	if exitCode != 10 {
-		t.Fatalf("expected exit code 10, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 10 {
+		t.Fatalf("expected exit code 10, got %d", result.exitCode)
 	}
 }
 
@@ -95,16 +74,9 @@ fn main() -> int {
     return get(&s);
 }
 `
-
-	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-	if exitCode != 7 {
-		t.Fatalf("expected exit code 7, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 7 {
+		t.Fatalf("expected exit code 7, got %d", result.exitCode)
 	}
 }
 
@@ -121,20 +93,14 @@ fn main() -> int {
     return a[1];
 }
 `
-
-	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-	if exitCode != 9 {
-		t.Fatalf("expected exit code 9, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 9 {
+		t.Fatalf("expected exit code 9, got %d", result.exitCode)
 	}
 }
 
 func TestVMRefsStoreThroughSharedRefPanics(t *testing.T) {
+	requireVMBackend(t)
 	sourceCode := `fn set(x: &int) -> nothing {
     *x = 2;
     return;

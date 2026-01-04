@@ -200,6 +200,7 @@ func assertStringState(t *testing.T, vm *VM, val Value, flat string, intType typ
 }
 
 func TestStringRopeReferenceModel(t *testing.T) {
+	requireVMBackend(t)
 	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, types.NewInterner(), nil)
 	builtins := vmInstance.Types.Builtins()
 	intType := builtins.Int
@@ -243,6 +244,7 @@ func TestStringRopeReferenceModel(t *testing.T) {
 }
 
 func TestStringForceFlattenIntrinsic(t *testing.T) {
+	requireVMBackend(t)
 	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, types.NewInterner(), nil)
 	builtins := vmInstance.Types.Builtins()
 
@@ -307,6 +309,7 @@ func registerBytesViewType(t *testing.T, vm *VM) types.TypeID {
 }
 
 func TestStringSliceAndBytesViewOwnership(t *testing.T) {
+	requireVMBackend(t)
 	vmInstance := New(nil, NewTestRuntime(nil, ""), source.NewFileSet(), types.NewInterner(), nil)
 	builtins := vmInstance.Types.Builtins()
 	bytesViewType := registerBytesViewType(t, vmInstance)

@@ -48,18 +48,49 @@ func (fe *funcEmitter) emitFieldAccess(fa *mir.FieldAccess) (val, ty string, err
 	return val, fieldLLVM, nil
 }
 
-func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, err error) {
+func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, errEmit error) {
 	if idx == nil {
 		return "", "", fmt.Errorf("nil index access")
 	}
-	objVal, objTy, err := fe.emitValueOperand(&idx.Object)
+	objType := resolveValueType(fe.emitter.types, idx.Object.Type)
+	if objType == types.NoTypeID && idx.Object.Kind != mir.OperandConst {
+		var baseType types.TypeID
+		if baseType, errEmit = fe.placeBaseType(idx.Object.Place); errEmit == nil {
+			objType = baseType
+		}
+	}
+	if elemType, length, ok := arrayFixedInfo(fe.emitter.types, objType); ok {
+		var (
+			objAddr  string
+			idxVal   string
+			idxTy    string
+			elemPtr  string
+			elemLLVM string
+		)
+		objAddr, errEmit = fe.emitHandleOperandPtr(&idx.Object)
+		if errEmit != nil {
+			return "", "", errEmit
+		}
+		idxVal, idxTy, errEmit = fe.emitValueOperand(&idx.Index)
+		if errEmit != nil {
+			return "", "", errEmit
+		}
+		elemPtr, elemLLVM, errEmit = fe.emitArrayFixedElemPtr(objAddr, idxVal, idxTy, idx.Index.Type, elemType, length)
+		if errEmit != nil {
+			return "", "", errEmit
+		}
+		val = fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", val, elemLLVM, elemPtr)
+		return val, elemLLVM, nil
+	}
+
+	_, objTy, err := fe.emitValueOperand(&idx.Object)
 	if err != nil {
 		return "", "", err
 	}
 	if objTy != "ptr" {
 		return "", "", fmt.Errorf("index access expects ptr base, got %s", objTy)
 	}
-	objType := resolveValueType(fe.emitter.types, idx.Object.Type)
 	switch {
 	case isStringLike(fe.emitter.types, objType):
 		if isRangeType(fe.emitter.types, idx.Index.Type) {
@@ -67,7 +98,10 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 			if err != nil {
 				return "", "", err
 			}
-			handlePtr := fe.emitHandleAddr(objVal)
+			handlePtr, err := fe.emitHandleOperandPtr(&idx.Object)
+			if err != nil {
+				return "", "", err
+			}
 			tmp := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_slice(ptr %s, ptr %s)\n", tmp, handlePtr, rangeVal)
 			return tmp, "ptr", nil
@@ -80,7 +114,10 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 		if err != nil {
 			return "", "", err
 		}
-		handlePtr := fe.emitHandleAddr(objVal)
+		handlePtr, err := fe.emitHandleOperandPtr(&idx.Object)
+		if err != nil {
+			return "", "", err
+		}
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i32 @rt_string_index(ptr %s, i64 %s)\n", tmp, handlePtr, idx64)
 		return tmp, "i32", nil
@@ -89,7 +126,10 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 		if err != nil {
 			return "", "", err
 		}
-		handlePtr := fe.emitHandleAddr(objVal)
+		handlePtr, err := fe.emitHandleOperandPtr(&idx.Object)
+		if err != nil {
+			return "", "", err
+		}
 		return fe.emitBytesViewIndex(handlePtr, objType, idxVal, idxTy, idx.Index.Type)
 	case isArrayLike(fe.emitter.types, objType):
 		elemType, _, ok := arrayElemType(fe.emitter.types, objType)
@@ -100,7 +140,10 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 		if err != nil {
 			return "", "", err
 		}
-		handlePtr := fe.emitHandleAddr(objVal)
+		handlePtr, err := fe.emitHandleOperandPtr(&idx.Object)
+		if err != nil {
+			return "", "", err
+		}
 		elemPtr, elemLLVM, err := fe.emitArrayElemPtr(handlePtr, idxVal, idxTy, idx.Index.Type, elemType)
 		if err != nil {
 			return "", "", err
@@ -164,6 +207,35 @@ func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", off, adjIdx, stride)
 	elemPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, dataPtr, off)
+	return elemPtr, elemLLVM, nil
+}
+
+func (fe *funcEmitter) emitArrayFixedElemPtr(handlePtr, idxVal, idxTy string, idxType, elemType types.TypeID, length uint32) (ptr, ty string, err error) {
+	handle := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, handlePtr)
+	lenVal := fmt.Sprintf("%d", length)
+
+	adjIdx, err := fe.emitBoundsCheckedIndex(1, idxVal, idxTy, idxType, lenVal, true)
+	if err != nil {
+		return "", "", err
+	}
+
+	elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
+	if err != nil {
+		return "", "", err
+	}
+	elemSize, elemAlign, err := llvmTypeSizeAlign(elemLLVM)
+	if err != nil {
+		return "", "", err
+	}
+	if elemAlign <= 0 {
+		elemAlign = 1
+	}
+	stride := roundUpInt(elemSize, elemAlign)
+	off := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", off, adjIdx, stride)
+	elemPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, handle, off)
 	return elemPtr, elemLLVM, nil
 }
 

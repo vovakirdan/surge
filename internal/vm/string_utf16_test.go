@@ -44,6 +44,7 @@ func callStringIntrinsic(vm *VM, name string, ptr Value, length Value, resultTyp
 }
 
 func TestStringUTF16ConstructorParity(t *testing.T) {
+	requireVMBackend(t)
 	typesInterner := types.NewInterner()
 	builtins := typesInterner.Builtins()
 	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, typesInterner, nil)

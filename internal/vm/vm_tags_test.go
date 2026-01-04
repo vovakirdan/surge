@@ -176,6 +176,7 @@ func buildTagMatchModule(tagName string, tagSym symbols.SymbolID, makeTag bool) 
 }
 
 func TestVMTagsSwitchTagSome(t *testing.T) {
+	requireVMBackend(t)
 	tagSym := symbols.SymbolID(100)
 	m, typesIn := buildTagMatchModule("Some", tagSym, true)
 	rt := vm.NewTestRuntime(nil, "")
@@ -189,6 +190,7 @@ func TestVMTagsSwitchTagSome(t *testing.T) {
 }
 
 func TestVMTagsSwitchTagNothing(t *testing.T) {
+	requireVMBackend(t)
 	tagSym := symbols.SymbolID(100)
 	m, typesIn := buildTagMatchModule("Some", tagSym, false)
 	rt := vm.NewTestRuntime(nil, "")
@@ -202,6 +204,7 @@ func TestVMTagsSwitchTagNothing(t *testing.T) {
 }
 
 func TestVMTagsTagPayloadMismatchPanics(t *testing.T) {
+	requireVMBackend(t)
 	typesIn := types.NewInterner()
 	intTy := typesIn.Builtins().Int
 	unionType := typesIn.RegisterUnion(source.StringID(1), source.Span{})
@@ -291,6 +294,7 @@ func TestVMTagsTagPayloadMismatchPanics(t *testing.T) {
 }
 
 func TestVMTagsSwitchOnNonTagPanics(t *testing.T) {
+	requireVMBackend(t)
 	typesIn := types.NewInterner()
 	intTy := typesIn.Builtins().Int
 
@@ -371,14 +375,8 @@ fn main() -> int {
     return unwrap_or_zero(x);
 }
 `
-	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-	if exitCode != 0 {
-		t.Fatalf("expected exit code 0, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", result.exitCode)
 	}
 }

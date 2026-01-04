@@ -10,6 +10,7 @@ import (
 )
 
 func TestVMRecordReplayArgv(t *testing.T) {
+	requireVMBackend(t)
 	sourceCode := `@entrypoint("argv")
 fn main(x: int) -> int { return x; }
 `
@@ -54,6 +55,7 @@ fn main(x: int) -> int { return x; }
 }
 
 func TestVMRecordReplayStdin(t *testing.T) {
+	requireVMBackend(t)
 	sourceCode := `@entrypoint("stdin")
 fn main(x: int) -> int { return x; }
 `
@@ -91,6 +93,7 @@ fn main(x: int) -> int { return x; }
 // which is the constructor used by the CLI when processing the "--" separator.
 // This verifies that program args (after "--") are correctly recorded and replayed.
 func TestVMRecordReplayArgvSeparator(t *testing.T) {
+	requireVMBackend(t)
 	sourceCode := `@entrypoint("argv")
 fn main(x: int) -> int { return x; }
 `
@@ -128,6 +131,7 @@ fn main(x: int) -> int { return x; }
 }
 
 func TestVMRecordReplayPanicDivByZero(t *testing.T) {
+	requireVMBackend(t)
 	sourceCode := `@entrypoint
 fn main() -> int {
     return 1 / 0;

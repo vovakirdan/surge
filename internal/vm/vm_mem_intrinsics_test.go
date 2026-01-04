@@ -52,6 +52,7 @@ func callIntrinsic(vm *VM, name string, args []Value, dstType types.TypeID) (Val
 }
 
 func TestVMMemIntrinsicsMemcpyMemmove(t *testing.T) {
+	requireVMBackend(t)
 	typesInterner := types.NewInterner()
 	builtins := typesInterner.Builtins()
 	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, typesInterner, nil)
@@ -102,6 +103,7 @@ func TestVMMemIntrinsicsMemcpyMemmove(t *testing.T) {
 }
 
 func TestVMMemIntrinsicsRealloc(t *testing.T) {
+	requireVMBackend(t)
 	typesInterner := types.NewInterner()
 	builtins := typesInterner.Builtins()
 	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, typesInterner, nil)

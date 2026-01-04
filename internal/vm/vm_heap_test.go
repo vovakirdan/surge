@@ -11,15 +11,9 @@ import (
 func TestVMHeapArgvRoundtrip(t *testing.T) {
 	sourceCode := `@entrypoint("argv") fn main(x: int) -> int { return x; }
 `
-	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime([]string{"7"}, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-	if exitCode != 7 {
-		t.Errorf("expected exit code 7, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{argv: []string{"7"}})
+	if result.exitCode != 7 {
+		t.Errorf("expected exit code 7, got %d", result.exitCode)
 	}
 }
 
@@ -30,15 +24,9 @@ fn main() -> int {
     return 0;
 }
 `
-	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-	if exitCode != 0 {
-		t.Errorf("expected exit code 0, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", result.exitCode)
 	}
 }
 
@@ -58,19 +46,14 @@ fn main() -> MyExitCode {
     return MyExitCode { code = 42 };
 }
 `
-	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-	if exitCode != 42 {
-		t.Errorf("expected exit code 42, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 42 {
+		t.Errorf("expected exit code 42, got %d", result.exitCode)
 	}
 }
 
 func TestVMHeapOOBPanics(t *testing.T) {
+	requireVMBackend(t)
 	sourceCode := `@entrypoint
 fn main() -> int {
     let argv: string[] = rt_argv();
@@ -102,6 +85,7 @@ fn main() -> int {
 }
 
 func TestVMHeapDivByZeroPanics(t *testing.T) {
+	requireVMBackend(t)
 	sourceCode := `@entrypoint
 fn main() -> int {
     return 1 / 0;
@@ -128,6 +112,7 @@ fn main() -> int {
 }
 
 func TestVMHeapDoubleFreePanics(t *testing.T) {
+	requireVMBackend(t)
 	h := &vm.Heap{}
 	handle := h.AllocString(types.NoTypeID, "x")
 	h.Release(handle)

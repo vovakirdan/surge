@@ -6,6 +6,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/mir"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
@@ -62,6 +63,31 @@ func (fe *funcEmitter) emitAssign(ins *mir.Instr) error {
 		}
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
 		return nil
+	}
+	if ins.Assign.Src.Kind == mir.RValueUse && ins.Assign.Src.Use.Kind == mir.OperandConst && ins.Assign.Src.Use.Const.Kind == mir.ConstNothing {
+		dstType, err := fe.placeBaseType(ins.Assign.Dst)
+		if err == nil && dstType != types.NoTypeID {
+			op := ins.Assign.Src.Use
+			if op.Type == types.NoTypeID || isNothingType(fe.emitter.types, op.Type) {
+				op.Type = dstType
+			}
+			if op.Const.Type == types.NoTypeID || isNothingType(fe.emitter.types, op.Const.Type) {
+				op.Const.Type = dstType
+			}
+			val, ty, err := fe.emitOperand(&op)
+			if err != nil {
+				return err
+			}
+			ptr, dstTy, err := fe.emitPlacePtr(ins.Assign.Dst)
+			if err != nil {
+				return err
+			}
+			if dstTy != ty {
+				ty = dstTy
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, val, ptr)
+			return nil
+		}
 	}
 	val, ty, err := fe.emitRValue(&ins.Assign.Src)
 	if err != nil {
@@ -393,54 +419,73 @@ func (fe *funcEmitter) emitStringBinary(op *mir.BinaryOp) (val, ty string, err e
 	}
 }
 
-func (fe *funcEmitter) emitTagTest(tt *mir.TagTest) (val, ty string, err error) {
+func (fe *funcEmitter) emitTagTest(tt *mir.TagTest) (val, ty string, errTagTest error) {
 	if tt == nil {
 		return "", "", fmt.Errorf("nil tag test")
 	}
-	tagVal, err := fe.emitTagDiscriminant(&tt.Value)
-	if err != nil {
-		return "", "", err
+	var tagVal string
+	tagVal, errTagTest = fe.emitTagDiscriminant(&tt.Value)
+	if errTagTest != nil {
+		return "", "", errTagTest
 	}
-	idx, err := fe.emitter.tagCaseIndex(tt.Value.Type, tt.TagName, symbols.NoSymbolID)
-	if err != nil {
-		return "", "", err
+	typeID := tt.Value.Type
+	if typeID == types.NoTypeID && tt.Value.Kind != mir.OperandConst {
+		if baseType, err := fe.placeBaseType(tt.Value.Place); err == nil {
+			typeID = baseType
+		}
+	}
+	var idx int
+	idx, errTagTest = fe.emitter.tagCaseIndex(typeID, tt.TagName, symbols.NoSymbolID)
+	if errTagTest != nil {
+		return "", "", errTagTest
 	}
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i32 %s, %d\n", tmp, tagVal, idx)
 	return tmp, "i1", nil
 }
 
-func (fe *funcEmitter) emitTagPayload(tp *mir.TagPayload) (val, ty string, err error) {
+func (fe *funcEmitter) emitTagPayload(tp *mir.TagPayload) (val, ty string, errTagPayload error) {
 	if tp == nil {
 		return "", "", fmt.Errorf("nil tag payload")
 	}
-	_, meta, err := fe.emitter.tagCaseMeta(tp.Value.Type, tp.TagName, symbols.NoSymbolID)
-	if err != nil {
-		return "", "", err
+	typeID := tp.Value.Type
+	if typeID == types.NoTypeID && tp.Value.Kind != mir.OperandConst {
+		if baseType, err := fe.placeBaseType(tp.Value.Place); err == nil {
+			typeID = baseType
+		}
+	}
+	var meta mir.TagCaseMeta
+	_, meta, errTagPayload = fe.emitter.tagCaseMeta(typeID, tp.TagName, symbols.NoSymbolID)
+	if errTagPayload != nil {
+		return "", "", errTagPayload
 	}
 	if tp.Index < 0 || tp.Index >= len(meta.PayloadTypes) {
 		return "", "", fmt.Errorf("tag payload index out of range")
 	}
-	layoutInfo, err := fe.emitter.layoutOf(tp.Value.Type)
-	if err != nil {
-		return "", "", err
+	layoutInfo, errLayout := fe.emitter.layoutOf(typeID)
+	if errLayout != nil {
+		return "", "", errLayout
 	}
-	payloadOffsets, err := fe.emitter.payloadOffsets(meta.PayloadTypes)
-	if err != nil {
-		return "", "", err
+	payloadOffsets, errPayloadOffsets := fe.emitter.payloadOffsets(meta.PayloadTypes)
+	if errPayloadOffsets != nil {
+		return "", "", errPayloadOffsets
 	}
 	offset := layoutInfo.PayloadOffset + payloadOffsets[tp.Index]
-	basePtr, baseTy, err := fe.emitValueOperand(&tp.Value)
-	if err != nil {
-		return "", "", err
+	var (
+		basePtr string
+		baseTy  string
+	)
+	basePtr, baseTy, errTagPayload = fe.emitValueOperand(&tp.Value)
+	if errTagPayload != nil {
+		return "", "", errTagPayload
 	}
 	if baseTy != "ptr" {
 		return "", "", fmt.Errorf("tag payload requires ptr base, got %s", baseTy)
 	}
 	payloadType := meta.PayloadTypes[tp.Index]
-	payloadLLVM, err := llvmValueType(fe.emitter.types, payloadType)
-	if err != nil {
-		return "", "", err
+	payloadLLVM, errPayloadLLVM := llvmValueType(fe.emitter.types, payloadType)
+	if errPayloadLLVM != nil {
+		return "", "", errPayloadLLVM
 	}
 	bytePtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, basePtr, offset)

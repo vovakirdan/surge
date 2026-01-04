@@ -9,6 +9,7 @@ import (
 )
 
 func TestRealTimeSleepDoesNotReturnImmediately(t *testing.T) {
+	requireVMBackend(t)
 	if testing.Short() {
 		t.Skip("real-time sleep test skipped in short mode")
 	}

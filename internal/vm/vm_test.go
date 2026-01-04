@@ -120,32 +120,18 @@ func runVM(mirMod *mir.Module, rt vm.Runtime, files *source.FileSet, types *type
 func TestVMEntrypointReturnsNothing(t *testing.T) {
 	sourceCode := `@entrypoint fn main() { }
 `
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-
-	if exitCode != 0 {
-		t.Errorf("expected exit code 0, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", result.exitCode)
 	}
 }
 
 func TestVMEntrypointReturnsInt(t *testing.T) {
 	sourceCode := `@entrypoint fn main() -> int { return 42; }
 `
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-
-	if exitCode != 42 {
-		t.Errorf("expected exit code 42, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 42 {
+		t.Errorf("expected exit code 42, got %d", result.exitCode)
 	}
 }
 
@@ -159,16 +145,9 @@ fn double(n: int) -> int { return n * 2; }
     return a + b;
 }
 `
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-
-	if exitCode != 42 {
-		t.Errorf("expected exit code 42, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 42 {
+		t.Errorf("expected exit code 42, got %d", result.exitCode)
 	}
 }
 
@@ -180,16 +159,9 @@ fn apply(f: fn(int) -> int, x: int) -> int { return f(x); }
     return apply(f, 7);
 }
 `
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-
-	if exitCode != 7 {
-		t.Errorf("expected exit code 7, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 7 {
+		t.Errorf("expected exit code 7, got %d", result.exitCode)
 	}
 }
 
@@ -207,48 +179,27 @@ extern<Person> {
     return len(&s) to int;
 }
 `
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-
-	if exitCode != 2 {
-		t.Errorf("expected exit code 2, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 2 {
+		t.Errorf("expected exit code 2, got %d", result.exitCode)
 	}
 }
 
 func TestVMEntrypointArgvInt(t *testing.T) {
 	sourceCode := `@entrypoint("argv") fn main(x: int) -> int { return x; }
 `
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime([]string{"7"}, "")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-
-	if exitCode != 7 {
-		t.Errorf("expected exit code 7, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{argv: []string{"7"}})
+	if result.exitCode != 7 {
+		t.Errorf("expected exit code 7, got %d", result.exitCode)
 	}
 }
 
 func TestVMEntrypointStdinInt(t *testing.T) {
 	sourceCode := `@entrypoint("stdin") fn main(x: int) -> int { return x; }
 `
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	rt := vm.NewTestRuntime(nil, "9")
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-
-	if exitCode != 9 {
-		t.Errorf("expected exit code 9, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{stdin: "9"})
+	if result.exitCode != 9 {
+		t.Errorf("expected exit code 9, got %d", result.exitCode)
 	}
 }
 
@@ -261,20 +212,14 @@ func TestVMEntrypointStdinInt(t *testing.T) {
 func TestVMEmptyArgvBoundsCheck(t *testing.T) {
 	sourceCode := `@entrypoint("argv") fn main(x: int) -> int { return x; }
 `
-	mirMod, files, types := compileToMIRFromSource(t, sourceCode)
-	// Empty argv - simulates running without "--" separator
-	rt := vm.NewRuntimeWithArgs(nil)
-	exitCode, vmErr := runVM(mirMod, rt, files, types, nil)
-
-	if vmErr != nil {
-		t.Fatalf("unexpected error: %v", vmErr.Error())
-	}
-	if exitCode != 1 {
-		t.Fatalf("expected exit code 1, got %d", exitCode)
+	result := runProgramFromSource(t, sourceCode, runOptions{})
+	if result.exitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d", result.exitCode)
 	}
 }
 
 func TestVMTraceSmokeTest(t *testing.T) {
+	requireVMBackend(t)
 	sourceCode := `@entrypoint fn main() -> int {
     let a: int = 1;
     let b: int = 2;

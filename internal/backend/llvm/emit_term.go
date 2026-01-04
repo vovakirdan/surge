@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/mir"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 func (fe *funcEmitter) emitTerminator(term *mir.Terminator) error {
@@ -14,7 +15,16 @@ func (fe *funcEmitter) emitTerminator(term *mir.Terminator) error {
 	switch term.Kind {
 	case mir.TermReturn:
 		if term.Return.HasValue {
-			val, ty, err := fe.emitOperand(&term.Return.Value)
+			op := term.Return.Value
+			if op.Kind == mir.OperandConst && op.Const.Kind == mir.ConstNothing {
+				if op.Type == types.NoTypeID && fe.f != nil && fe.f.Result != types.NoTypeID {
+					op.Type = fe.f.Result
+				}
+				if op.Const.Type == types.NoTypeID && op.Type != types.NoTypeID {
+					op.Const.Type = op.Type
+				}
+			}
+			val, ty, err := fe.emitOperand(&op)
 			if err != nil {
 				return err
 			}
@@ -72,7 +82,11 @@ func (fe *funcEmitter) emitOperand(op *mir.Operand) (val, ty string, err error) 
 	}
 	switch op.Kind {
 	case mir.OperandConst:
-		return fe.emitConst(&op.Const)
+		c := op.Const
+		if op.Type != types.NoTypeID && (c.Type == types.NoTypeID || isNothingType(fe.emitter.types, c.Type)) {
+			c.Type = op.Type
+		}
+		return fe.emitConst(&c)
 	case mir.OperandCopy, mir.OperandMove:
 		ptr, ty, err := fe.emitPlacePtr(op.Place)
 		if err != nil {
@@ -174,9 +188,32 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 		if err != nil {
 			return "", "", err
 		}
+		if ty == "ptr" {
+			return "null", ty, nil
+		}
 		return "0", ty, nil
 	case mir.ConstString:
 		return fe.emitStringConst(c.StringValue)
+	case mir.ConstFn:
+		if !c.Sym.IsValid() {
+			return "", "", fmt.Errorf("missing function symbol")
+		}
+		if fe.emitter.mod != nil {
+			if id, ok := fe.emitter.mod.FuncBySym[c.Sym]; ok {
+				name := fe.emitter.funcNames[id]
+				if name == "" {
+					name = fmt.Sprintf("fn.%d", id)
+				}
+				return fmt.Sprintf("@%s", name), "ptr", nil
+			}
+		}
+		name := fe.symbolName(c.Sym)
+		if name != "" {
+			if _, ok := fe.emitter.runtimeSigs[name]; ok {
+				return fmt.Sprintf("@%s", name), "ptr", nil
+			}
+		}
+		return "", "", fmt.Errorf("unknown function symbol %d", c.Sym)
 	default:
 		return "", "", fmt.Errorf("unsupported const kind %v", c.Kind)
 	}
