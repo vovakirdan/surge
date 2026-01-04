@@ -3,9 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -15,6 +19,7 @@ import (
 	"surge/internal/mir"
 	"surge/internal/mono"
 	"surge/internal/project"
+	runtimeembed "surge/runtime"
 )
 
 var buildCmd = &cobra.Command{
@@ -168,6 +173,9 @@ func buildExecution(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if keepTmpFlag {
+		fmt.Fprintf(os.Stdout, "tmp dir: %s\n", tmpDir)
+	}
 	fmt.Fprintf(os.Stdout, "built %s\n", outputPath)
 	return nil
 }
@@ -262,11 +270,11 @@ func compileToMIR(cmd *cobra.Command, targetPath, baseDir string, rootKind proje
 	return result, mirMod, nil
 }
 
-func writeMIRDump(path string, mod *mir.Module, result *driver.DiagnoseResult) error {
+func writeMIRDump(targetPath string, mod *mir.Module, result *driver.DiagnoseResult) error {
 	if mod == nil || result == nil || result.Sema == nil {
 		return fmt.Errorf("missing MIR or type information")
 	}
-	file, err := os.Create(path)
+	file, err := os.Create(targetPath)
 	if err != nil {
 		return fmt.Errorf("failed to write MIR dump: %w", err)
 	}
@@ -302,11 +310,15 @@ func ensureClangAvailable() error {
 }
 
 func buildLLVMOutput(tmpDir, outputPath string, printCommands bool) error {
-	runtimeObjs, err := compileRuntime(tmpDir, printCommands)
+	runtimeDir, runtimeSources, err := extractNativeRuntime(tmpDir)
 	if err != nil {
 		return err
 	}
-	libPath, err := archiveRuntime(tmpDir, runtimeObjs, printCommands)
+	runtimeObjs, err := compileRuntime(runtimeDir, runtimeSources, printCommands)
+	if err != nil {
+		return err
+	}
+	libPath, err := archiveRuntime(runtimeDir, runtimeObjs, printCommands)
 	if err != nil {
 		return err
 	}
@@ -321,18 +333,72 @@ func buildLLVMOutput(tmpDir, outputPath string, printCommands bool) error {
 	return nil
 }
 
-func compileRuntime(tmpDir string, printCommands bool) ([]string, error) {
-	sources := []string{
-		filepath.Join("runtime", "native", "rt_alloc.c"),
-		filepath.Join("runtime", "native", "rt_io.c"),
-		filepath.Join("runtime", "native", "rt_string.c"),
-		filepath.Join("runtime", "native", "rt_range.c"),
-		filepath.Join("runtime", "native", "rt_entry.c"),
+func extractNativeRuntime(tmpDir string) (runtimeDir string, sources []string, errNativeRuntime error) {
+	runtimeDir = filepath.Join(tmpDir, "native_runtime")
+	if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
+		return "", nil, fmt.Errorf("failed to create native runtime dir: %w", err)
 	}
+
+	fsys := runtimeembed.NativeRuntimeFS()
+	walkErr := fs.WalkDir(fsys, "native", func(entryPath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !runtimeFileAllowed(entryPath) {
+			return nil
+		}
+		rel := strings.TrimPrefix(entryPath, "native/")
+		if rel == entryPath {
+			return fmt.Errorf("unexpected embedded runtime path: %s", entryPath)
+		}
+		dst := filepath.Join(runtimeDir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			return err
+		}
+		data, errReadFile := fs.ReadFile(fsys, entryPath)
+		if errReadFile != nil {
+			return errReadFile
+		}
+		if errWriteFile := os.WriteFile(dst, data, 0o600); errWriteFile != nil {
+			return errWriteFile
+		}
+		if strings.HasSuffix(entryPath, ".c") {
+			sources = append(sources, dst)
+		}
+		return nil
+	})
+	if walkErr != nil {
+		return "", nil, fmt.Errorf("failed to extract embedded runtime sources: %w", walkErr)
+	}
+	if len(sources) == 0 {
+		return "", nil, fmt.Errorf("embedded runtime sources missing (build bug)")
+	}
+	sort.Strings(sources)
+	return runtimeDir, sources, nil
+}
+
+func runtimeFileAllowed(entryPath string) bool {
+	base := path.Base(entryPath)
+	if strings.HasSuffix(base, "_linux.c") || strings.HasSuffix(base, "_linux.h") {
+		return runtime.GOOS == "linux"
+	}
+	if strings.HasSuffix(base, "_darwin.c") || strings.HasSuffix(base, "_darwin.h") {
+		return runtime.GOOS == "darwin"
+	}
+	if strings.HasSuffix(base, "_windows.c") || strings.HasSuffix(base, "_windows.h") {
+		return runtime.GOOS == "windows"
+	}
+	return true
+}
+
+func compileRuntime(runtimeDir string, sources []string, printCommands bool) ([]string, error) {
 	objs := make([]string, 0, len(sources))
 	for _, src := range sources {
 		base := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
-		obj := filepath.Join(tmpDir, base+".o")
+		obj := filepath.Join(runtimeDir, base+".o")
 		if err := runCommand(printCommands, "clang", "-c", "-std=c11", src, "-o", obj); err != nil {
 			return nil, err
 		}
@@ -341,11 +407,11 @@ func compileRuntime(tmpDir string, printCommands bool) ([]string, error) {
 	return objs, nil
 }
 
-func archiveRuntime(tmpDir string, objs []string, printCommands bool) (string, error) {
+func archiveRuntime(runtimeDir string, objs []string, printCommands bool) (string, error) {
 	if _, err := exec.LookPath("ar"); err != nil {
 		return "", fmt.Errorf("ar not found; install with: sudo apt-get update && sudo apt-get install -y clang llvm lld")
 	}
-	libPath := filepath.Join(tmpDir, "libruntime_native.a")
+	libPath := filepath.Join(runtimeDir, "libruntime_native.a")
 	args := append([]string{"rcs", libPath}, objs...)
 	if err := runCommand(printCommands, "ar", args...); err != nil {
 		return "", err
