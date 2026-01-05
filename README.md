@@ -367,10 +367,10 @@ surge parse       → show the full AST
 surge fix         → auto-apply safe fixes
 surge fmt         → format code
 surge init        → create a basic project
-surge build       → build a VM wrapper or LLVM backend binary (clang/llvm required)
+surge build       → build an LLVM backend binary (clang/llvm required) or a VM wrapper with --backend=vm
 ```
 
-LLVM builds are invoked with `surge build <path> --backend=llvm`. They emit MIR/LLVM dumps into `build/.tmp/` when requested and invoke clang for linking. If clang/llvm are missing, the command prints an install hint for Ubuntu.
+LLVM builds are invoked with `surge build <path>` (the default). They emit MIR/LLVM dumps into `target/debug/.tmp/` when requested and invoke clang for linking. If clang/llvm are missing, the command prints an install hint for Ubuntu.
 
 But the star of the show:
 

@@ -367,8 +367,10 @@ surge parse       → показать полное AST
 surge fix         → автоматически применить безопасные исправления
 surge fmt         → форматирование кода
 surge init        → создать базовый проект
-surge build       → (заглушка) будущий пайплайн сборки VM/LLVM
+surge build       → сборка LLVM бинаря (нужны clang/llvm) или VM wrapper с --backend=vm
 ```
+
+Сборка LLVM запускается через `surge build <path>` (по умолчанию). Она пишет MIR/LLVM дампы в `target/debug/.tmp/` по запросу и вызывает clang для линковки. Если clang/llvm не установлены, команда подскажет, как поставить их в Ubuntu.
 
 Но звезда шоу:
 
