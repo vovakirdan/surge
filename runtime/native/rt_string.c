@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <stdalign.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -17,7 +18,7 @@ typedef struct SurgeString {
 
 typedef struct SurgeBytesView {
     void* owner;
-    uint8_t* ptr;
+    const uint8_t* ptr;
     void* len;
 } SurgeBytesView;
 
@@ -223,6 +224,11 @@ void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len) {
         count = count_codepoints(ptr, len);
     }
     // TODO: apply NFC normalization once a lightweight C implementation is available.
+    size_t max_payload = SIZE_MAX - sizeof(SurgeString) - 1;
+    if (bytes > (uint64_t)max_payload) {
+        const char* msg = "string from_bytes length out of range";
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
     size_t total = sizeof(SurgeString) + (size_t)bytes + 1;
     SurgeString* s = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
     if (s == NULL) {
@@ -367,6 +373,11 @@ void* rt_string_concat(void* a, void* b) {
 
     uint64_t total_bytes = left_bytes + right_bytes;
     uint64_t total_cp = left_cp + right_cp;
+    size_t max_payload = SIZE_MAX - sizeof(SurgeString) - 1;
+    if (total_bytes > (uint64_t)max_payload) {
+        const char* msg = "string concat length out of range";
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
     size_t total = sizeof(SurgeString) + (size_t)total_bytes + 1;
     SurgeString* out = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
     if (out == NULL) {
@@ -411,6 +422,11 @@ void* rt_string_repeat(void* s, int64_t count) {
     }
     uint64_t total_bytes = unit_bytes * (uint64_t)count;
     uint64_t total_cp = unit_cp * (uint64_t)count;
+    size_t max_payload = SIZE_MAX - sizeof(SurgeString) - 1;
+    if (total_bytes > (uint64_t)max_payload) {
+        const char* msg = "string repeat length out of range";
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
     size_t total = sizeof(SurgeString) + (size_t)total_bytes + 1;
     SurgeString* out = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
     if (out == NULL) {

@@ -65,7 +65,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
     if (ex == NULL) {
         return 2;
     }
-    const rt_task* target = task_from_handle(task);
+    rt_task* target = task_from_handle(task);
     if (target == NULL) {
         return 2;
     }
@@ -102,7 +102,7 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
     if (ex == NULL) {
         return;
     }
-    const rt_task* target = task_from_handle(task);
+    rt_task* target = task_from_handle(task);
     if (target == NULL) {
         return;
     }
