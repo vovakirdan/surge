@@ -410,11 +410,21 @@ SurgeBigInt* bi_bit_op(const SurgeBigInt* a, const SurgeBigInt* b,
     width = a_bits > b_bits ? a_bits : b_bits;
     width += 1;
     bn_err tmp_err = BN_OK;
-    SurgeBigUint* pow2 = bu_shl(bu_from_u64(1), (int)width, &tmp_err);
+    SurgeBigUint* one = bu_from_u64(1);
+    if (one == NULL) {
+        return NULL;
+    }
+    SurgeBigUint* pow2 = bu_shl(one, (int)width, &tmp_err);
+    bu_free(one);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(pow2);
+        return NULL;
+    }
+    if (pow2 == NULL || pow2->len == 0) {
+        bu_free(pow2);
         return NULL;
     }
     SurgeBigUint* rep_a = bi_twos_complement(bi_as_uint(a), a != NULL && a->neg, pow2, &tmp_err);
@@ -422,6 +432,8 @@ SurgeBigInt* bi_bit_op(const SurgeBigInt* a, const SurgeBigInt* b,
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(pow2);
+        bu_free(rep_a);
         return NULL;
     }
     SurgeBigUint* rep_b = bi_twos_complement(bi_as_uint(b), b != NULL && b->neg, pow2, &tmp_err);
@@ -429,20 +441,35 @@ SurgeBigInt* bi_bit_op(const SurgeBigInt* a, const SurgeBigInt* b,
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(pow2);
+        bu_free(rep_a);
+        bu_free(rep_b);
         return NULL;
     }
     SurgeBigUint* res = op(rep_a, rep_b);
     if (res == NULL || res->len == 0) {
+        bu_free(pow2);
+        bu_free(rep_a);
+        bu_free(rep_b);
+        bu_free(res);
         return NULL;
     }
     if (!bu_bit_set(res, (int)width - 1)) {
         SurgeBigInt* out = bi_alloc(res->len, err);
         if (out == NULL) {
+            bu_free(pow2);
+            bu_free(rep_a);
+            bu_free(rep_b);
+            bu_free(res);
             return NULL;
         }
         out->neg = 0;
         memcpy(out->limbs, res->limbs, (size_t)res->len * sizeof(uint32_t));
         out->len = res->len;
+        bu_free(pow2);
+        bu_free(rep_a);
+        bu_free(rep_b);
+        bu_free(res);
         return out;
     }
     SurgeBigUint* mag = bu_sub(pow2, res, &tmp_err);
@@ -450,18 +477,38 @@ SurgeBigInt* bi_bit_op(const SurgeBigInt* a, const SurgeBigInt* b,
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(pow2);
+        bu_free(rep_a);
+        bu_free(rep_b);
+        bu_free(res);
+        bu_free(mag);
         return NULL;
     }
     if (mag == NULL || mag->len == 0) {
+        bu_free(pow2);
+        bu_free(rep_a);
+        bu_free(rep_b);
+        bu_free(res);
+        bu_free(mag);
         return NULL;
     }
     SurgeBigInt* out = bi_alloc(mag->len, err);
     if (out == NULL) {
+        bu_free(pow2);
+        bu_free(rep_a);
+        bu_free(rep_b);
+        bu_free(res);
+        bu_free(mag);
         return NULL;
     }
     out->neg = 1;
     memcpy(out->limbs, mag->limbs, (size_t)mag->len * sizeof(uint32_t));
     out->len = mag->len;
+    bu_free(pow2);
+    bu_free(rep_a);
+    bu_free(rep_b);
+    bu_free(res);
+    bu_free(mag);
     return out;
 }
 

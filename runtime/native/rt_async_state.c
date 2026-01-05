@@ -1,5 +1,7 @@
 #include "rt_async_internal.h"
 
+#include <limits.h>
+
 // Async runtime state, queues, and memory helpers.
 
 rt_executor exec_state;
@@ -69,6 +71,55 @@ rt_scope* get_scope(rt_executor* ex, uint64_t id) {
     return ex->scopes[id];
 }
 
+static int ensure_ptr_array_cap(void** array, size_t elem_size, size_t* cap, size_t want, uint64_t align,
+                                const char* overflow_msg, const char* alloc_msg) {
+    if (array == NULL || cap == NULL || elem_size == 0) {
+        panic_msg(overflow_msg);
+        return 0;
+    }
+    if (want <= *cap) {
+        return 1;
+    }
+    if (*cap > SIZE_MAX / elem_size) {
+        panic_msg(overflow_msg);
+        return 0;
+    }
+    size_t next_cap = *cap == 0 ? 8 : *cap;
+    while (next_cap < want) {
+        if (next_cap > SIZE_MAX / 2) {
+            panic_msg(overflow_msg);
+            return 0;
+        }
+        next_cap *= 2;
+    }
+    if (next_cap > SIZE_MAX / elem_size) {
+        panic_msg(overflow_msg);
+        return 0;
+    }
+    size_t old_size = (*cap) * elem_size;
+    size_t new_size = next_cap * elem_size;
+    size_t diff = next_cap - *cap;
+    if (diff > 0 && diff > SIZE_MAX / elem_size) {
+        panic_msg(overflow_msg);
+        return 0;
+    }
+    if (old_size > UINT64_MAX || new_size > UINT64_MAX) {
+        panic_msg(overflow_msg);
+        return 0;
+    }
+    void* next = rt_realloc((uint8_t*)(*array), (uint64_t)old_size, (uint64_t)new_size, align);
+    if (next == NULL) {
+        panic_msg(alloc_msg);
+        return 0;
+    }
+    if (diff > 0) {
+        memset((uint8_t*)next + old_size, 0, diff * elem_size);
+    }
+    *array = next;
+    *cap = next_cap;
+    return 1;
+}
+
 void ensure_task_cap(rt_executor* ex, uint64_t id) {
     if (ex == NULL) {
         return;
@@ -76,22 +127,13 @@ void ensure_task_cap(rt_executor* ex, uint64_t id) {
     if (id < ex->tasks_cap) {
         return;
     }
-    size_t next_cap = ex->tasks_cap == 0 ? 8 : ex->tasks_cap;
-    while (next_cap <= id) {
-        next_cap *= 2;
-    }
-    size_t old_size = ex->tasks_cap * sizeof(rt_task*);
-    size_t new_size = next_cap * sizeof(rt_task*);
-    rt_task** next = (rt_task**)rt_realloc((uint8_t*)ex->tasks, (uint64_t)old_size, (uint64_t)new_size, _Alignof(rt_task*));
-    if (next == NULL) {
-        panic_msg("async: task allocation failed");
+    if (id >= SIZE_MAX) {
+        panic_msg("async: task capacity overflow");
         return;
     }
-    if (next_cap > ex->tasks_cap) {
-        memset(next + ex->tasks_cap, 0, (next_cap - ex->tasks_cap) * sizeof(rt_task*));
-    }
-    ex->tasks = next;
-    ex->tasks_cap = next_cap;
+    size_t want = (size_t)id + 1;
+    (void)ensure_ptr_array_cap((void**)&ex->tasks, sizeof(rt_task*), &ex->tasks_cap, want, _Alignof(rt_task*),
+                               "async: task capacity overflow", "async: task allocation failed");
 }
 
 void ensure_scope_cap(rt_executor* ex, uint64_t id) {
@@ -101,22 +143,13 @@ void ensure_scope_cap(rt_executor* ex, uint64_t id) {
     if (id < ex->scopes_cap) {
         return;
     }
-    size_t next_cap = ex->scopes_cap == 0 ? 8 : ex->scopes_cap;
-    while (next_cap <= id) {
-        next_cap *= 2;
-    }
-    size_t old_size = ex->scopes_cap * sizeof(rt_scope*);
-    size_t new_size = next_cap * sizeof(rt_scope*);
-    rt_scope** next = (rt_scope**)rt_realloc((uint8_t*)ex->scopes, (uint64_t)old_size, (uint64_t)new_size, _Alignof(rt_scope*));
-    if (next == NULL) {
-        panic_msg("async: scope allocation failed");
+    if (id >= SIZE_MAX) {
+        panic_msg("async: scope capacity overflow");
         return;
     }
-    if (next_cap > ex->scopes_cap) {
-        memset(next + ex->scopes_cap, 0, (next_cap - ex->scopes_cap) * sizeof(rt_scope*));
-    }
-    ex->scopes = next;
-    ex->scopes_cap = next_cap;
+    size_t want = (size_t)id + 1;
+    (void)ensure_ptr_array_cap((void**)&ex->scopes, sizeof(rt_scope*), &ex->scopes_cap, want, _Alignof(rt_scope*),
+                               "async: scope capacity overflow", "async: scope allocation failed");
 }
 
 void ensure_ready_cap(rt_executor* ex) {

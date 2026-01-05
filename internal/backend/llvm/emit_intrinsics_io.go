@@ -34,7 +34,7 @@ func (fe *funcEmitter) emitReadlineIntrinsic(call *mir.CallInstr) (bool, error) 
 			return true, err
 		}
 		if dstTy != "ptr" {
-			dstTy = "ptr"
+			return true, fmt.Errorf("%s expects destination ptr, got %s for %v", name, dstTy, call.Dst)
 		}
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
 		return true, nil

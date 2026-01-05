@@ -82,7 +82,15 @@ func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expec
 				payloadVal := val
 				payloadTy := valTy
 				if payloadTy != payloadLLVM {
-					payloadTy = payloadLLVM
+					casted, castTy, castErr := fe.coerceNumericValue(payloadVal, payloadTy, opType, meta.PayloadTypes[0])
+					if castErr != nil {
+						return "", "", castErr
+					}
+					payloadVal = casted
+					payloadTy = castTy
+				}
+				if payloadTy != payloadLLVM {
+					return "", "", fmt.Errorf("tag payload type mismatch for type#%d tag %d: expected %s, got %s", expected, tagIndex, payloadLLVM, payloadTy)
 				}
 				tagVal, err := fe.emitTagValueSinglePayload(expected, tagIndex, meta.PayloadTypes[0], payloadVal, payloadTy, meta.PayloadTypes[0])
 				if err != nil {

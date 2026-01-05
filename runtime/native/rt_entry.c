@@ -3,7 +3,10 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((weak)) void __surge_start(void) {}
+#elif defined(_MSC_VER)
+__declspec(selectany) void __surge_start(void) {}
 #else
+#pragma weak __surge_start
 void __surge_start(void) {}
 #endif
 

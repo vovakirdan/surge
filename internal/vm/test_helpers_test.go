@@ -158,7 +158,7 @@ func runCommand(t *testing.T, cmd *exec.Cmd, stdin string) (stdout, stderr strin
 func newTestArtifacts(t *testing.T, root string) *testArtifacts {
 	t.Helper()
 	name := sanitizeTestName(t.Name())
-	dir := filepath.Join(root, "build", ".tests", name)
+	dir := filepath.Join(root, "target", "debug", ".tests", name)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatalf("create artifacts dir: %v", err)
 	}

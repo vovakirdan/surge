@@ -70,6 +70,13 @@ void bignum_panic_err(bn_err err);
 // BigUint helpers.
 SurgeBigUint* bu_alloc(uint32_t len, bn_err* err);
 SurgeBigUint* bu_clone(const SurgeBigUint* u, bn_err* err);
+static inline void bu_free(SurgeBigUint* u) {
+    if (u == NULL) {
+        return;
+    }
+    size_t size = sizeof(SurgeBigUint) + (size_t)u->len * sizeof(uint32_t);
+    rt_free((uint8_t*)u, (uint64_t)size, (uint64_t)alignof(SurgeBigUint));
+}
 uint32_t bu_bitlen(const SurgeBigUint* u);
 bool bu_is_zero(const SurgeBigUint* u);
 bool bu_is_odd(const SurgeBigUint* u);

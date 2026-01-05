@@ -132,11 +132,13 @@ bn_err parse_int_string(const uint8_t* data, size_t len, SurgeBigInt** out) {
         return err;
     }
     if (mag == NULL || mag->len == 0) {
+        bu_free(mag);
         return BN_OK;
     }
     bn_err tmp_err = BN_OK;
     SurgeBigInt* res = bi_alloc(mag->len, &tmp_err);
     if (tmp_err != BN_OK) {
+        bu_free(mag);
         return tmp_err;
     }
     res->neg = neg ? 1 : 0;
@@ -145,6 +147,7 @@ bn_err parse_int_string(const uint8_t* data, size_t len, SurgeBigInt** out) {
     if (out != NULL) {
         *out = res;
     }
+    bu_free(mag);
     return BN_OK;
 }
 
@@ -178,6 +181,9 @@ bn_err parse_float_string(const uint8_t* data, size_t len, SurgeBigFloat** out) 
     }
     size_t i = start;
     uint8_t* digits = (uint8_t*)malloc(len + 1);
+    if (digits == NULL) {
+        return BN_ERR_MAX_LIMBS;
+    }
     size_t digits_len = 0;
     while (i < end && data[i] >= '0' && data[i] <= '9') {
         digits[digits_len++] = data[i];
@@ -243,33 +249,61 @@ bn_err parse_float_string(const uint8_t* data, size_t len, SurgeBigFloat** out) 
     tmp_err = parse_uint_string(digits + leading, digits_len - leading, false, false, &n);
     free(digits);
     if (tmp_err != BN_OK) {
+        bu_free(n);
         return tmp_err;
     }
     int k = exp10 - frac_digits;
     SurgeBigUint* num = n;
     SurgeBigUint* den = bu_from_u64(1);
+    if (den == NULL) {
+        bu_free(num);
+        return BN_ERR_MAX_LIMBS;
+    }
     if (k >= 0) {
         SurgeBigUint* pow = bu_pow10(k, &tmp_err);
-        if (tmp_err != BN_OK) {
+        if (pow == NULL && tmp_err == BN_OK) {
+            tmp_err = BN_ERR_MAX_LIMBS;
+        }
+        if (tmp_err != BN_OK || pow == NULL) {
+            bu_free(num);
+            bu_free(den);
             return tmp_err;
         }
-        num = bu_mul(num, pow, &tmp_err);
-        if (tmp_err != BN_OK) {
+        SurgeBigUint* next_num = bu_mul(num, pow, &tmp_err);
+        bu_free(pow);
+        if (next_num == NULL && tmp_err == BN_OK) {
+            tmp_err = BN_ERR_MAX_LIMBS;
+        }
+        if (tmp_err != BN_OK || next_num == NULL) {
+            bu_free(num);
+            bu_free(den);
             return tmp_err;
         }
+        bu_free(num);
+        num = next_num;
     } else {
         SurgeBigUint* pow = bu_pow10(-k, &tmp_err);
-        if (tmp_err != BN_OK) {
+        if (pow == NULL && tmp_err == BN_OK) {
+            tmp_err = BN_ERR_MAX_LIMBS;
+        }
+        if (tmp_err != BN_OK || pow == NULL) {
+            bu_free(num);
+            bu_free(den);
             return tmp_err;
         }
+        bu_free(den);
         den = pow;
     }
     SurgeBigFloat* f = bf_from_ratio(neg, num, den, &tmp_err);
     if (tmp_err != BN_OK) {
+        bu_free(num);
+        bu_free(den);
         return tmp_err;
     }
     if (out != NULL) {
         *out = f;
     }
+    bu_free(num);
+    bu_free(den);
     return BN_OK;
 }

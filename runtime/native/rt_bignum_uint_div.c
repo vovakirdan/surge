@@ -92,9 +92,11 @@ SurgeBigUint* bu_shl(const SurgeBigUint* u, int bits, bn_err* err) {
             if (err != NULL) {
                 *err = BN_ERR_MAX_LIMBS;
             }
+            bu_free(out);
             return NULL;
         }
         if (out->len == 0) {
+            bu_free(out);
             return NULL;
         }
         return out;
@@ -111,9 +113,11 @@ SurgeBigUint* bu_shl(const SurgeBigUint* u, int bits, bn_err* err) {
         if (err != NULL) {
             *err = BN_ERR_MAX_LIMBS;
         }
+        bu_free(out);
         return NULL;
     }
     if (out->len == 0) {
+        bu_free(out);
         return NULL;
     }
     return out;
@@ -222,10 +226,13 @@ SurgeBigUint* bu_div_mod(const SurgeBigUint* a, const SurgeBigUint* b, SurgeBigU
             if (err != NULL) {
                 *err = BN_ERR_MAX_LIMBS;
             }
+            bu_free(denom_shifted);
             return NULL;
         }
         memcpy(denom, denom_shifted->limbs, (size_t)denom_len * sizeof(uint32_t));
     }
+    bu_free(denom_shifted);
+    denom_shifted = NULL;
 
     uint32_t rem_len = a->len;
     uint32_t* rem = (uint32_t*)malloc((size_t)rem_len * sizeof(uint32_t));
@@ -271,6 +278,7 @@ SurgeBigUint* bu_div_mod(const SurgeBigUint* a, const SurgeBigUint* b, SurgeBigU
         }
         free(denom);
         free(rem);
+        bu_free(quot);
         return NULL;
     }
 
@@ -283,6 +291,7 @@ SurgeBigUint* bu_div_mod(const SurgeBigUint* a, const SurgeBigUint* b, SurgeBigU
             if (r == NULL) {
                 free(denom);
                 free(rem);
+                bu_free(quot);
                 return NULL;
             }
             memcpy(r->limbs, rem, (size_t)rem_trim * sizeof(uint32_t));
@@ -295,6 +304,7 @@ SurgeBigUint* bu_div_mod(const SurgeBigUint* a, const SurgeBigUint* b, SurgeBigU
     free(rem);
 
     if (quot->len == 0) {
+        bu_free(quot);
         return NULL;
     }
     return quot;
@@ -505,17 +515,31 @@ SurgeBigUint* bu_pow10(int n, bn_err* err) {
     }
     SurgeBigUint* result = bu_from_u64(1);
     SurgeBigUint* base = bu_from_u64(10);
+    if (result == NULL || base == NULL) {
+        if (err != NULL) {
+            *err = BN_ERR_MAX_LIMBS;
+        }
+        bu_free(result);
+        bu_free(base);
+        return NULL;
+    }
     int exp = n;
     while (exp > 0) {
         if (exp & 1) {
             bn_err tmp_err = BN_OK;
             SurgeBigUint* next = bu_mul(result, base, &tmp_err);
+            if (next == NULL && tmp_err == BN_OK) {
+                tmp_err = BN_ERR_MAX_LIMBS;
+            }
             if (tmp_err != BN_OK) {
                 if (err != NULL) {
                     *err = tmp_err;
                 }
+                bu_free(result);
+                bu_free(base);
                 return NULL;
             }
+            bu_free(result);
             result = next;
         }
         exp >>= 1;
@@ -524,14 +548,21 @@ SurgeBigUint* bu_pow10(int n, bn_err* err) {
         }
         bn_err tmp_err = BN_OK;
         SurgeBigUint* next_base = bu_mul(base, base, &tmp_err);
+        if (next_base == NULL && tmp_err == BN_OK) {
+            tmp_err = BN_ERR_MAX_LIMBS;
+        }
         if (tmp_err != BN_OK) {
             if (err != NULL) {
                 *err = tmp_err;
             }
+            bu_free(result);
+            bu_free(base);
             return NULL;
         }
+        bu_free(base);
         base = next_base;
     }
+    bu_free(base);
     return result;
 }
 
@@ -550,17 +581,31 @@ SurgeBigUint* bu_pow5(int n, bn_err* err) {
     }
     SurgeBigUint* result = bu_from_u64(1);
     SurgeBigUint* base = bu_from_u64(5);
+    if (result == NULL || base == NULL) {
+        if (err != NULL) {
+            *err = BN_ERR_MAX_LIMBS;
+        }
+        bu_free(result);
+        bu_free(base);
+        return NULL;
+    }
     int exp = n;
     while (exp > 0) {
         if (exp & 1) {
             bn_err tmp_err = BN_OK;
             SurgeBigUint* next = bu_mul(result, base, &tmp_err);
+            if (next == NULL && tmp_err == BN_OK) {
+                tmp_err = BN_ERR_MAX_LIMBS;
+            }
             if (tmp_err != BN_OK) {
                 if (err != NULL) {
                     *err = tmp_err;
                 }
+                bu_free(result);
+                bu_free(base);
                 return NULL;
             }
+            bu_free(result);
             result = next;
         }
         exp >>= 1;
@@ -569,14 +614,21 @@ SurgeBigUint* bu_pow5(int n, bn_err* err) {
         }
         bn_err tmp_err = BN_OK;
         SurgeBigUint* next_base = bu_mul(base, base, &tmp_err);
+        if (next_base == NULL && tmp_err == BN_OK) {
+            tmp_err = BN_ERR_MAX_LIMBS;
+        }
         if (tmp_err != BN_OK) {
             if (err != NULL) {
                 *err = tmp_err;
             }
+            bu_free(result);
+            bu_free(base);
             return NULL;
         }
+        bu_free(base);
         base = next_base;
     }
+    bu_free(base);
     return result;
 }
 

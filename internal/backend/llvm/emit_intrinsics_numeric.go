@@ -588,7 +588,7 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 		valTy = castTy
 	}
 	if valTy != payloadLLVM {
-		valTy = payloadLLVM
+		return "", fmt.Errorf("tag payload type mismatch for type#%d tag %d: expected %s, got %s", typeID, tagIndex, payloadLLVM, valTy)
 	}
 	off := layoutInfo.PayloadOffset + offsets[0]
 	bytePtr := fe.nextTemp()

@@ -428,12 +428,10 @@ void rt_channel_close(void* channel) {
         return;
     }
 
-    for (size_t i = 0; i < ch->recv_len; i++) {
-        size_t idx = ch->recv_head + i;
-        if (idx >= ch->recv_cap) {
-            break;
-        }
-        uint64_t task_id = ch->recvq[idx];
+    while (ch->recv_len > 0) {
+        uint64_t task_id = ch->recvq[ch->recv_head++];
+        ch->recv_len--;
+        compact_recvq(ch);
         rt_task* task = get_task(ex, task_id);
         if (task == NULL || task->status == TASK_DONE) {
             continue;
@@ -445,12 +443,10 @@ void rt_channel_close(void* channel) {
     ch->recv_len = 0;
     ch->recv_head = 0;
 
-    for (size_t i = 0; i < ch->send_len; i++) {
-        size_t idx = ch->send_head + i;
-        if (idx >= ch->send_cap) {
-            break;
-        }
-        uint64_t task_id = ch->sendq[idx].task_id;
+    while (ch->send_len > 0) {
+        uint64_t task_id = ch->sendq[ch->send_head++].task_id;
+        ch->send_len--;
+        compact_sendq(ch);
         rt_task* task = get_task(ex, task_id);
         if (task == NULL || task->status == TASK_DONE) {
             continue;

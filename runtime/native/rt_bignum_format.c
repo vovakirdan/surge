@@ -33,17 +33,22 @@ char* format_uint(const SurgeBigUint* u) {
         uint32_t rem = 0;
         bn_err err = BN_OK;
         SurgeBigUint* q = bu_div_mod_small(cur, base, &rem, &err);
+        bu_free(cur);
+        cur = NULL;
         if (err != BN_OK) {
+            bu_free(q);
             break;
         }
         uint32_t* next = (uint32_t*)realloc(parts, (parts_len + 1) * sizeof(uint32_t));
         if (next == NULL) {
+            bu_free(q);
             break;
         }
         parts = next;
         parts[parts_len++] = rem;
         cur = q;
     }
+    bu_free(cur);
     if (parts_len == 0) {
         char* z = (char*)malloc(2);
         if (z == NULL) {
@@ -95,20 +100,24 @@ char* format_int(const SurgeBigInt* i) {
     SurgeBigUint* u = bu_clone(bi_as_uint(i), NULL);
     char* base = format_uint(u);
     if (base == NULL) {
+        bu_free(u);
         return NULL;
     }
     if (!i->neg) {
+        bu_free(u);
         return base;
     }
     size_t len = strlen(base);
     char* out = (char*)malloc(len + 2);
     if (out == NULL) {
         free(base);
+        bu_free(u);
         return NULL;
     }
     out[0] = '-';
     memcpy(out + 1, base, len + 1);
     free(base);
+    bu_free(u);
     return out;
 }
 
