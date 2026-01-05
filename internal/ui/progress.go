@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -16,6 +17,7 @@ type progressModel struct {
 	title      string
 	events     <-chan buildpipeline.Event
 	spinner    spinner.Model
+	prog       progress.Model
 	items      []fileItem
 	index      map[string]int
 	stageLabel string
@@ -26,6 +28,7 @@ type progressModel struct {
 type fileItem struct {
 	path   string
 	status string
+	stage  buildpipeline.Stage
 }
 
 type eventMsg buildpipeline.Event
@@ -34,19 +37,23 @@ type doneMsg struct{}
 // NewProgressModel returns a Bubble Tea model that renders pipeline progress.
 func NewProgressModel(title string, files []string, events <-chan buildpipeline.Event) tea.Model {
 	sp := spinner.New()
-	sp.Spinner = spinner.Line
+	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+
+	prog := progress.New(progress.WithDefaultGradient())
+	prog.Width = 76 // Default width
 
 	items := make([]fileItem, 0, len(files))
 	index := make(map[string]int, len(files))
 	for i, file := range files {
-		items = append(items, fileItem{path: file, status: "queued"})
+		items = append(items, fileItem{path: file, status: "queued", stage: buildpipeline.Stage(0)})
 		index[file] = i
 	}
 	return &progressModel{
 		title:   title,
 		events:  events,
 		spinner: sp,
+		prog:    prog,
 		items:   items,
 		index:   index,
 		width:   80,
@@ -61,9 +68,8 @@ func (m *progressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case eventMsg:
 		ev := buildpipeline.Event(msg)
-		m.applyEvent(ev)
-		cmd := m.listenForEvent()
-		return m, cmd
+		cmd := m.applyEvent(ev)
+		return m, tea.Batch(cmd, m.listenForEvent())
 	case doneMsg:
 		m.done = true
 		return m, tea.Quit
@@ -77,8 +83,13 @@ func (m *progressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		if msg.Width > 0 {
 			m.width = msg.Width
+			m.prog.Width = msg.Width - 4
 		}
 		return m, nil
+	case progress.FrameMsg:
+		progressModel, cmd := m.prog.Update(msg)
+		m.prog = progressModel.(progress.Model)
+		return m, cmd
 	}
 	return m, nil
 }
@@ -111,10 +122,20 @@ func (m *progressModel) View() string {
 	for _, item := range m.items {
 		name := truncate(item.path, nameWidth)
 		status := item.status
-		line := fmt.Sprintf("  %-*s %s", nameWidth, name, styleStatus(status).Render(status))
+		statusStyled := styleStatus(status).Render(fmt.Sprintf("%12s", status))
+		line := fmt.Sprintf("  %s %s", statusStyled, name)
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
+
+	b.WriteString("\n")
+	if m.done {
+		b.WriteString(m.prog.ViewAs(1.0))
+	} else {
+		b.WriteString(m.prog.View())
+	}
+	b.WriteString("\n")
+
 	return b.String()
 }
 
@@ -128,20 +149,59 @@ func (m *progressModel) listenForEvent() tea.Cmd {
 	}
 }
 
-func (m *progressModel) applyEvent(ev buildpipeline.Event) {
+func (m *progressModel) applyEvent(ev buildpipeline.Event) tea.Cmd {
 	label := statusLabel(ev.Stage, ev.Status)
 	if ev.File == "" {
 		if label != "" {
 			m.stageLabel = label
 		}
-		return
+		return nil
 	}
 	idx, ok := m.index[ev.File]
 	if !ok {
-		return
+		return nil
 	}
 	if label != "" {
 		m.items[idx].status = label
+		m.items[idx].stage = ev.Stage
+	}
+	// If the status is explicit success/error, mark it as fully done
+	if ev.Status == buildpipeline.StatusDone || ev.Status == buildpipeline.StatusError {
+		// We can use a sentinel stage or just logic in calculation
+	}
+
+	// Calculate progress
+	if len(m.items) > 0 {
+		totalProgress := 0.0
+		for _, item := range m.items {
+			if item.status == "done" || item.status == "error" {
+				totalProgress += 1.0
+			} else {
+				totalProgress += progressFromStage(item.stage)
+			}
+		}
+		pct := totalProgress / float64(len(m.items))
+		return m.prog.SetPercent(pct)
+	}
+	return nil
+}
+
+func progressFromStage(stage buildpipeline.Stage) float64 {
+	switch stage {
+	case buildpipeline.StageParse:
+		return 0.1
+	case buildpipeline.StageDiagnose:
+		return 0.3
+	case buildpipeline.StageLower:
+		return 0.5
+	case buildpipeline.StageBuild:
+		return 0.8
+	case buildpipeline.StageLink:
+		return 0.9
+	case buildpipeline.StageRun:
+		return 0.95
+	default:
+		return 0.0
 	}
 }
 

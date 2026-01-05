@@ -35,11 +35,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang llvm lld
       - name: Run go tests (vm)
         if: matrix.backend == 'vm'
+        env:
+          SURGE_BACKEND: vm
         run: go test ./...
       - name: Run go tests (llvm)
         if: matrix.backend == 'llvm'
-        env:
-          SURGE_BACKEND: llvm
         run: go test ./...
 
   lint:
@@ -57,7 +57,6 @@ jobs:
         with:
           version: v1.62.2
           args: --config .golangci.yaml
-          cache: true
 
   loc-cap:
     name: LOC cap

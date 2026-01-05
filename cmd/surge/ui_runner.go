@@ -37,7 +37,7 @@ func runBuildWithUI(ctx context.Context, title string, files []string, req *buil
 	}()
 
 	model := ui.NewProgressModel(title, files, events)
-	program := tea.NewProgram(model, tea.WithOutput(os.Stdout), tea.WithAltScreen())
+	program := tea.NewProgram(model, tea.WithOutput(os.Stdout))
 	_, uiErr := program.Run()
 	outcome := <-outcomeCh
 	if uiErr != nil {
@@ -62,7 +62,7 @@ func runCompileWithUI(ctx context.Context, title string, files []string, req *bu
 	}()
 
 	model := ui.NewProgressModel(title, files, events)
-	program := tea.NewProgram(model, tea.WithOutput(os.Stdout), tea.WithAltScreen())
+	program := tea.NewProgram(model, tea.WithOutput(os.Stdout))
 	_, uiErr := program.Run()
 	outcome := <-outcomeCh
 	if uiErr != nil {
