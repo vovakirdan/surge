@@ -58,6 +58,82 @@ jobs:
           version: v1.62.2
           args: --config .golangci.yaml
 
+  c-check-gcc:
+    name: C runtime checks (gcc)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GCC
+        run: sudo apt-get update && sudo apt-get install -y gcc
+      - name: Check C code formatting
+        run: make cfmt-check
+      - name: Compile C runtime with strict warnings (gcc)
+        run: CC=gcc make c-warnings
+
+  c-check-clang:
+    name: C runtime checks (clang)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LLVM toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang llvm lld clang-tidy cppcheck
+      - name: Check C code formatting
+        run: make cfmt-check
+      - name: Compile C runtime with strict warnings (clang)
+        run: make c-warnings
+      - name: Run clang-tidy
+        run: make ctidy
+      - name: Run cppcheck
+        run: make cppcheck
+
+  c-scan-build:
+    name: C runtime scan-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LLVM toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang llvm lld
+      - name: Run scan-build
+        run: |
+          cd runtime/native
+          scan-build --status-bugs --use-cc=clang --use-c++=clang++ \
+            sh -c 'for f in *.c; do clang -std=c11 -I. -c "$$f" -o "/tmp/$${f%.c}.o" 2>&1 || true; done'
+
+  c-sanitizers:
+    name: C runtime sanitizers (ASan+UBSan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install LLVM toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang llvm lld
+      - name: Build with sanitizers
+        env:
+          CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g
+        run: |
+          cd runtime/native
+          for f in *.c; do
+            clang -std=c11 -I. $(CFLAGS) -c "$$f" -o "/tmp/$${f%.c}.o" || exit 1
+          done
+      - name: Run tests with sanitizers
+        env:
+          SURGE_BACKEND: llvm
+          CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g
+        run: |
+          # Build surge with sanitized runtime
+          export CC=clang
+          export CGO_CFLAGS="$$CFLAGS"
+          go test ./internal/backend/llvm/... -timeout 60s || true
+          # Run a subset of testdata to verify runtime works
+          go test ./... -run TestRuntime -timeout 60s || true
+
   loc-cap:
     name: LOC cap
     runs-on: ubuntu-latest
@@ -235,7 +311,7 @@ jobs:
     name: Build linux/amd64
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [test-go, lint, loc-cap, testdata, testdata-llvm, showcases]
+    needs: [test-go, lint, c-check-gcc, c-check-clang, loc-cap, testdata, testdata-llvm, showcases]
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4

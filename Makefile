@@ -1,5 +1,6 @@
 .PHONY: build run test vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system
 .PHONY: golden golden-update golden-check stats
+.PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
 # ===== Variables =====
 GO ?= go
@@ -18,10 +19,27 @@ LDFLAGS := -X surge/internal/version.GitCommit=$(GIT_COMMIT) \
 	-X surge/internal/version.BuildDate=$(BUILD_DATE)
 
 GOLANGCI_LINT := $(GOBIN)/golangci-lint
-GOLANGCI_LINT_VERSION := v1.62.2
+GOLANGCI_LINT_VERSION := v2.7.2
 
 STATICCHECK := $(GOBIN)/staticcheck
 GOSEC := $(GOBIN)/gosec
+
+# ===== C Runtime Variables =====
+CC ?= clang
+CXX ?= clang++
+C_RUNTIME_DIR := runtime/native
+C_SOURCES := $(shell find $(C_RUNTIME_DIR) -name '*.c' 2>/dev/null)
+C_HEADERS := $(shell find $(C_RUNTIME_DIR) -name '*.h' 2>/dev/null)
+C_FILES := $(C_SOURCES) $(C_HEADERS)
+
+# Strict warning flags for C compilation
+C_WARN_FLAGS := -Wall -Wextra -Wpedantic -Werror \
+	-Wshadow -Wconversion -Wsign-conversion -Wcast-qual -Wcast-align \
+	-Wstrict-prototypes -Wmissing-prototypes -Wold-style-definition \
+	-Wformat=2 -Wundef -Wdouble-promotion -fno-common
+
+C_STD := -std=c11
+C_INCLUDES := -I$(C_RUNTIME_DIR)
 
 # ===== OS Detection =====
 # Определение операционной системы
@@ -92,6 +110,7 @@ check:
 	@echo ">> Checking code"
 	$(MAKE) test
 	$(MAKE) lint
+	$(MAKE) c-check
 	@echo ">> Checking file sizes"
 	@echo "It may take a while... please wait..."
 	./check_file_sizes.sh | grep BAD || echo "No files need refactoring"
@@ -99,7 +118,7 @@ check:
 # ===== Lint =====
 $(GOLANGCI_LINT):
 	@echo ">> Installing golangci-lint $(GOLANGCI_LINT_VERSION)"
-	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 lint: $(GOLANGCI_LINT)
 	@echo ">> Running linters"
@@ -113,6 +132,103 @@ $(STATICCHECK):
 staticcheck: $(STATICCHECK)
 	@echo ">> Running staticcheck"
 	$(STATICCHECK) ./...
+
+# ===== C Runtime Checks =====
+# Check C code formatting with clang-format
+cfmt-check:
+	@echo ">> Checking C code formatting"
+	@if ! command -v clang-format >/dev/null 2>&1; then \
+		echo "Error: clang-format not found. Install with: sudo apt-get install -y clang-format"; \
+		exit 1; \
+	fi
+	@failed=0; \
+	for file in $(C_FILES); do \
+		if [ -f "$$file" ]; then \
+			if ! clang-format --dry-run --Werror "$$file" >/dev/null 2>&1; then \
+				echo "Formatting error in $$file"; \
+				clang-format "$$file" | diff -u "$$file" - || true; \
+				failed=1; \
+			fi; \
+		fi; \
+	done; \
+	if [ $$failed -eq 1 ]; then \
+		echo "C code formatting check failed. Run 'clang-format -i' on the files above."; \
+		exit 1; \
+	fi
+	@echo ">> C code formatting OK"
+
+# Compile C code with strict warnings
+c-warnings:
+	@echo ">> Compiling C runtime with strict warnings"
+	@if ! command -v $(CC) >/dev/null 2>&1; then \
+		echo "Error: $(CC) not found. Install with: sudo apt-get install -y clang llvm"; \
+		exit 1; \
+	fi
+	@failed=0; \
+	tmpdir=$$(mktemp -d); \
+	trap "rm -rf $$tmpdir" EXIT; \
+	for src in $(C_SOURCES); do \
+		if [ -f "$$src" ]; then \
+			obj=$$tmpdir/$$(basename $$src .c).o; \
+			if ! $(CC) $(C_STD) $(C_WARN_FLAGS) $(C_INCLUDES) -c "$$src" -o "$$obj" 2>&1; then \
+				echo "Compilation failed for $$src"; \
+				failed=1; \
+			fi; \
+		fi; \
+	done; \
+	if [ $$failed -eq 1 ]; then \
+		echo "C code compilation with strict warnings failed"; \
+		exit 1; \
+	fi
+	@echo ">> C code compilation with strict warnings OK"
+
+# Run clang-tidy on C code
+ctidy:
+	@echo ">> Running clang-tidy on C code"
+	@if ! command -v clang-tidy >/dev/null 2>&1; then \
+		echo "Error: clang-tidy not found. Install with: sudo apt-get install -y clang-tidy"; \
+		exit 1; \
+	fi
+	@failed=0; \
+	for file in $(C_SOURCES); do \
+		if [ -f "$$file" ]; then \
+			output=$$(clang-tidy "$$file" --config-file=.clang-tidy -- $(C_STD) $(C_INCLUDES) 2>&1); \
+			if echo "$$output" | grep -qE "(error|warning):"; then \
+				echo "clang-tidy found issues in $$file:"; \
+				echo "$$output"; \
+				failed=1; \
+			fi; \
+		fi; \
+	done; \
+	if [ $$failed -eq 1 ]; then \
+		echo "clang-tidy check failed"; \
+		exit 1; \
+	fi
+	@echo ">> clang-tidy check OK"
+
+# Run cppcheck on C code
+cppcheck:
+	@echo ">> Running cppcheck on C code"
+	@if ! command -v cppcheck >/dev/null 2>&1; then \
+		echo "Error: cppcheck not found. Install with: sudo apt-get install -y cppcheck"; \
+		exit 1; \
+	fi
+	@if [ -z "$(C_SOURCES)" ]; then \
+		echo "No C sources found"; \
+		exit 0; \
+	fi
+	@cppcheck --enable=warning,style,performance,portability \
+		--error-exitcode=1 \
+		--suppress=missingIncludeSystem \
+		--suppress=unusedFunction \
+		--std=c11 \
+		$(C_INCLUDES) \
+		$(C_SOURCES) || exit 1
+	@echo ">> cppcheck OK"
+
+# Run all C code checks
+c-check: cfmt-check c-warnings
+	@echo ">> All C runtime checks passed"
 
 # ===== Profiling helpers =====
 pprof-cpu:
