@@ -109,7 +109,9 @@ void* rt_biguint_to_bigfloat(void* a);
 void* rt_bigfloat_to_bigint(void* a);
 void* rt_bigfloat_to_biguint(void* a);
 
-void* __task_create(uint64_t poll_fn_id, void* state); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void* __task_create(
+    uint64_t poll_fn_id,
+    void* state);         // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void* __task_state(void); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void rt_task_wake(void* task);
 uint8_t rt_task_poll(void* task, uint64_t* out_bits);

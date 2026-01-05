@@ -134,7 +134,7 @@ SurgeBigInt*
 bi_div_mod(const SurgeBigInt* a, const SurgeBigInt* b, SurgeBigInt** out_rem, bn_err* err);
 SurgeBigInt* bi_bit_op(const SurgeBigInt* a,
                        const SurgeBigInt* b,
-SurgeBigUint* (*op)(const SurgeBigUint*, const SurgeBigUint*, bn_err* err),
+                       SurgeBigUint* (*op)(const SurgeBigUint*, const SurgeBigUint*, bn_err* err),
                        bn_err* err);
 SurgeBigInt* bi_shl(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err);
 SurgeBigInt* bi_shr(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err);

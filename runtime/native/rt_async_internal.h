@@ -129,7 +129,8 @@ typedef struct {
     uint64_t value_bits;
 } poll_outcome;
 
-extern void __surge_poll_call(uint64_t id); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+extern void
+__surge_poll_call(uint64_t id); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 
 extern rt_executor exec_state;
 extern jmp_buf poll_env;

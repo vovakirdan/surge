@@ -3,14 +3,17 @@
 
 void __surge_start(void); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 #if defined(_MSC_VER)
-void __surge_start_default(void); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void __surge_start_default(
+    void); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
-__attribute__((weak)) void __surge_start(void) { // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+__attribute__((weak)) void
+__surge_start(void) { // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 }
 #elif defined(_MSC_VER)
-void __surge_start_default(void) { // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void __surge_start_default(
+    void) { // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 }
 #pragma comment(linker, "/alternatename:__surge_start=__surge_start_default")
 #else

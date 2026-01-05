@@ -2,7 +2,9 @@
 
 // Async runtime task API and task builtins.
 
-void* __task_create(uint64_t poll_fn_id, void* state) { // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void* __task_create(
+    uint64_t poll_fn_id,
+    void* state) { // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return NULL;
