@@ -1,0 +1,96 @@
+package buildpipeline
+
+import "time"
+
+// Stage describes a high-level pipeline phase.
+type Stage string
+
+const (
+	StageParse    Stage = "parse"
+	StageDiagnose Stage = "diagnose"
+	StageLower    Stage = "lower"
+	StageBuild    Stage = "build"
+	StageLink     Stage = "link"
+	StageRun      Stage = "run"
+)
+
+// Status captures progress state within a stage.
+type Status string
+
+const (
+	StatusQueued  Status = "queued"
+	StatusWorking Status = "working"
+	StatusDone    Status = "done"
+	StatusError   Status = "error"
+)
+
+// Event reports progress for a file (or for the overall pipeline when File is empty).
+type Event struct {
+	File    string
+	Stage   Stage
+	Status  Status
+	Err     error
+	Elapsed time.Duration
+}
+
+// ProgressSink consumes progress events.
+type ProgressSink interface {
+	OnEvent(Event)
+}
+
+// Backend selects the compilation backend.
+type Backend string
+
+const (
+	BackendVM   Backend = "vm"
+	BackendLLVM Backend = "llvm"
+)
+
+// Timings holds stage durations.
+type Timings struct {
+	stages map[Stage]time.Duration
+}
+
+func (t *Timings) ensure() {
+	if t.stages == nil {
+		t.stages = make(map[Stage]time.Duration)
+	}
+}
+
+// Set stores a duration for the given stage.
+func (t *Timings) Set(stage Stage, dur time.Duration) {
+	if t == nil {
+		return
+	}
+	t.ensure()
+	t.stages[stage] = dur
+}
+
+// Has reports whether a duration for stage is recorded.
+func (t Timings) Has(stage Stage) bool {
+	if t.stages == nil {
+		return false
+	}
+	_, ok := t.stages[stage]
+	return ok
+}
+
+// Duration returns the recorded duration for stage.
+func (t Timings) Duration(stage Stage) time.Duration {
+	if t.stages == nil {
+		return 0
+	}
+	return t.stages[stage]
+}
+
+// Sum returns the sum of durations across the provided stages.
+func (t Timings) Sum(stages ...Stage) time.Duration {
+	if t.stages == nil {
+		return 0
+	}
+	var total time.Duration
+	for _, stage := range stages {
+		total += t.stages[stage]
+	}
+	return total
+}

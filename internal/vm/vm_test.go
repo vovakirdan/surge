@@ -206,7 +206,7 @@ func TestVMEntrypointStdinInt(t *testing.T) {
 // TestVMEmptyArgvBoundsCheck verifies that accessing argv[0] when no "--" args
 // are provided causes a bounds panic. This tests the behavior of:
 //
-//	surge run file.sg   (no "--")
+//	surge run --backend=vm file.sg   (no "--")
 //
 // where rt_argv returns empty [] and indexing panics.
 func TestVMEmptyArgvBoundsCheck(t *testing.T) {

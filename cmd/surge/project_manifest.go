@@ -10,7 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-const noSurgeTomlMessage = "no surge.toml found\nplease specify the module explicitly, e.g.:\n  surge run path/to/module"
+const noSurgeTomlMessage = "no surge.toml found; pass explicit module/file or create surge.toml"
 
 type projectManifest struct {
 	Path   string

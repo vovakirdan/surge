@@ -67,6 +67,12 @@ run_with_stdin() {
 	return "$exit_code"
 }
 
+strip_timings() {
+	local src="$1"
+	local dst="$2"
+	sed -E '/^(parsed|diagnose|built|ran|executed) [0-9]+(\.[0-9])? ms$/d' "$src" >"$dst"
+}
+
 echo "| Program | VM | LLVM | Notes |" >"$report_path"
 echo "| --- | --- | --- | --- |" >>"$report_path"
 
@@ -119,14 +125,14 @@ while IFS= read -r sg; do
 	SURGE_STDLIB="$root" run_with_stdin "$stdin_payload" "$vm_stdout" "$vm_stderr" "$vm_exit" "${vm_cmd[@]}" || true
 	vm_code="$(cat "$vm_exit")"
 
-	llvm_cmd=("$surge_bin" "build" "--backend=llvm" "--emit-mir" "--emit-llvm" "--keep-tmp" "--print-commands" "$rel")
+	llvm_cmd=("$surge_bin" "build" "--emit-mir" "--emit-llvm" "--keep-tmp" "--print-commands" "$rel")
 	SURGE_STDLIB="$root" run_with_stdin "" "$llvm_build_out" "$llvm_build_err" "$llvm_build_exit" "${llvm_cmd[@]}" || true
 	llvm_build_code="$(cat "$llvm_build_exit")"
 
 	llvm_code="1"
 	if [[ "$llvm_build_code" -eq 0 ]]; then
 		output_name="$(basename "${sg%.sg}")"
-		llvm_bin="${root}/build/${output_name}"
+		llvm_bin="${root}/target/debug/${output_name}"
 		llvm_run_cmd=("$llvm_bin")
 		if [[ ${#args[@]} -gt 0 ]]; then
 			llvm_run_cmd+=("${args[@]}")
@@ -168,7 +174,9 @@ while IFS= read -r sg; do
 	fi
 
 	if [[ "$vm_status" == "ok" && "$llvm_status" == "ok" ]]; then
-		if ! cmp -s "$vm_stdout" "$llvm_stdout"; then
+		vm_stdout_filtered="$(mktemp)"
+		strip_timings "$vm_stdout" "$vm_stdout_filtered"
+		if ! cmp -s "$vm_stdout_filtered" "$llvm_stdout"; then
 			vm_status="fail"
 			llvm_status="fail"
 			notes+=("stdout mismatch")
@@ -177,6 +185,7 @@ while IFS= read -r sg; do
 			llvm_status="fail"
 			notes+=("stderr mismatch")
 		fi
+		rm -f "$vm_stdout_filtered"
 	fi
 
 	notes_str=""
@@ -205,7 +214,7 @@ while IFS= read -r sg; do
 			cp "$llvm_stderr" "$case_dir/llvm.stderr"
 			cp "$llvm_exit" "$case_dir/llvm.exit_code"
 			output_name="$(basename "${sg%.sg}")"
-			tmp_dir="${root}/build/.tmp/${output_name}"
+			tmp_dir="${root}/target/debug/.tmp/${output_name}"
 			if [[ -d "$tmp_dir" ]]; then
 				cp -R "$tmp_dir" "$case_dir/llvm_tmp"
 			fi

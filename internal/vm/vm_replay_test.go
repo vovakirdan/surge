@@ -99,7 +99,7 @@ fn main(x: int) -> int { return x; }
 `
 	mirMod, files, typesInterner := compileToMIRFromSource(t, sourceCode)
 
-	// Record with programArgs = ["7"] (simulates: surge run file.sg -- 7)
+	// Record with programArgs = ["7"] (simulates: surge run --backend=vm file.sg -- 7)
 	var recBuf bytes.Buffer
 	rec := vm.NewRecorder(&recBuf)
 	rt := vm.NewRecordingRuntime(vm.NewRuntimeWithArgs([]string{"7"}), rec)
@@ -113,7 +113,7 @@ fn main(x: int) -> int { return x; }
 		t.Fatalf("expected exit code 7, got %d", vm1.ExitCode)
 	}
 
-	// Replay with different args = ["999"] (simulates: surge run --vm-replay file.sg -- 999)
+	// Replay with different args = ["999"] (simulates: surge run --backend=vm --vm-replay file.sg -- 999)
 	// Should still get exit code 7 because replay uses recorded argv
 	rp := vm.NewReplayerFromBytes(recBuf.Bytes())
 	vm2 := vm.New(mirMod, vm.NewRuntimeWithArgs([]string{"999"}), files, typesInterner, nil)

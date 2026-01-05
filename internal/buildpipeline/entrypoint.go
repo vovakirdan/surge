@@ -1,4 +1,4 @@
-package main
+package buildpipeline
 
 import (
 	"fmt"
@@ -7,7 +7,8 @@ import (
 	"surge/internal/driver"
 )
 
-func validateEntrypoints(result *driver.DiagnoseResult) error {
+// ValidateEntrypoints ensures there is exactly one @entrypoint in the root module.
+func ValidateEntrypoints(result *driver.DiagnoseResult) error {
 	if result == nil {
 		return fmt.Errorf("missing compilation result")
 	}

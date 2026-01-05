@@ -2,7 +2,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-backend="vm"
+backend="llvm"
 artifacts_dir="${root}/build/testdata"
 
 while [[ $# -gt 0 ]]; do
@@ -174,12 +174,12 @@ echo "OK (stub)"
 # 		SURGE_STDLIB="$root" run_with_stdin "$stdin_payload" "$actual_stdout" "$actual_stderr" "$actual_exit" "${run_cmd[@]}" || true
 # 		run_code="$(cat "$actual_exit")"
 # 	else
-# 		build_cmd=("$surge_bin" "build" "--backend=llvm" "--emit-mir" "--emit-llvm" "--keep-tmp" "--print-commands" "${sg#$root/}")
+# 		build_cmd=("$surge_bin" "build" "--emit-mir" "--emit-llvm" "--keep-tmp" "--print-commands" "${sg#$root/}")
 # 		SURGE_STDLIB="$root" run_with_stdin "" "$build_stdout" "$build_stderr" "$build_exit" "${build_cmd[@]}" || true
 # 		build_code="$(cat "$build_exit")"
 # 		if [[ "$build_code" -eq 0 ]]; then
 # 			output_name="$(basename "${sg%.sg}")"
-# 			llvm_bin="${root}/build/${output_name}"
+# 			llvm_bin="${root}/target/debug/${output_name}"
 # 			run_cmd=("$llvm_bin")
 # 			if [[ ${#args[@]} -gt 0 ]]; then
 # 				run_cmd+=("${args[@]}")
@@ -245,7 +245,7 @@ echo "OK (stub)"
 # 		fi
 # 		if [[ "$backend" == "llvm" && "$build_code" -eq 0 ]]; then
 # 			output_name="$(basename "${sg%.sg}")"
-# 			tmp_dir="${root}/build/.tmp/${output_name}"
+# 			tmp_dir="${root}/target/debug/.tmp/${output_name}"
 # 			if [[ -d "$tmp_dir" ]]; then
 # 				cp -R "$tmp_dir" "$case_dir/llvm_tmp"
 # 			fi

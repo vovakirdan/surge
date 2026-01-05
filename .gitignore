@@ -37,6 +37,7 @@ test*.sg
 tmp*.sg
 .cursor/
 build/
+target/
 
 # Surge project
 helloworld/

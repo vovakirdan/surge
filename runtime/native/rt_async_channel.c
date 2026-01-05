@@ -110,13 +110,13 @@ static void sendq_push(rt_channel* ch, uint64_t task_id, uint64_t value_bits) {
         return;
     }
     if (ch->send_head > 0 && ch->send_head + ch->send_len >= ch->send_cap) {
+        memmove(ch->sendq, ch->sendq + ch->send_head, ch->send_len * sizeof(rt_chan_send_waiter));
+        ch->send_head = 0;
+    }
     ensure_sendq_cap(ch, ch->send_head + ch->send_len + 1);
     if (ch->sendq == NULL) {
         return;
     }
-    size_t idx = ch->send_head + ch->send_len;
-    ch->sendq[idx] = (rt_chan_send_waiter){task_id, value_bits};
-    ch->send_len++;
     size_t idx = ch->send_head + ch->send_len;
     ch->sendq[idx] = (rt_chan_send_waiter){task_id, value_bits};
     ch->send_len++;
