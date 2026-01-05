@@ -46,7 +46,7 @@ func NewProgressModel(title string, files []string, events <-chan buildpipeline.
 	items := make([]fileItem, 0, len(files))
 	index := make(map[string]int, len(files))
 	for i, file := range files {
-		items = append(items, fileItem{path: file, status: "queued", stage: buildpipeline.Stage(0)})
+		items = append(items, fileItem{path: file, status: "queued", stage: ""})
 		index[file] = i
 	}
 	return &progressModel{
@@ -87,11 +87,22 @@ func (m *progressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case progress.FrameMsg:
-		progressModel, cmd := m.prog.Update(msg)
-		m.prog = progressModel.(progress.Model)
+		newProg, cmd := m.prog.Update(msg)
+		if p, ok := newProg.(progress.Model); ok {
+			m.prog = p
+		}
 		return m, cmd
 	}
 	return m, nil
+}
+
+func (m *progressModel) isFailed() bool {
+	for _, item := range m.items {
+		if item.status == "error" {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *progressModel) View() string {
@@ -100,12 +111,16 @@ func (m *progressModel) View() string {
 	}
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("7"))
 	header := m.title
-	if m.stageLabel != "" {
-		header = fmt.Sprintf("%s (%s)", header, m.stageLabel)
-	}
 	if m.done {
-		header = fmt.Sprintf("done: %s", header)
+		symbol := "✅"
+		if m.isFailed() {
+			symbol = "❌"
+		}
+		header = fmt.Sprintf("done: %s %s", header, symbol)
 	} else {
+		if m.stageLabel != "" {
+			header = fmt.Sprintf("%s (%s)", header, m.stageLabel)
+		}
 		header = fmt.Sprintf("%s %s", m.spinner.View(), header)
 	}
 
@@ -168,6 +183,7 @@ func (m *progressModel) applyEvent(ev buildpipeline.Event) tea.Cmd {
 	// If the status is explicit success/error, mark it as fully done
 	if ev.Status == buildpipeline.StatusDone || ev.Status == buildpipeline.StatusError {
 		// We can use a sentinel stage or just logic in calculation
+		m.prog.SetPercent(1.0)
 	}
 
 	// Calculate progress

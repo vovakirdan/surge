@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -30,7 +29,7 @@ Arguments after "--" are passed to the program via rt_argv().`,
 
 func init() {
 	runCmd.Flags().String("backend", string(buildpipeline.BackendLLVM), "execution backend (llvm, vm)")
-	runCmd.Flags().String("ui", "auto", "user interface (auto|on|off)")
+	runCmd.Flags().String("ui", "off", "user interface (auto|on|off)")
 	runCmd.Flags().Bool("vm-trace", false, "enable VM execution tracing")
 	runCmd.Flags().Bool("vm-debug", false, "enable VM debugger")
 	runCmd.Flags().String("vm-debug-script", "", "run VM debugger commands from file")
@@ -364,21 +363,12 @@ func resolveRunTarget(inputPath string) (string, *runDirInfo, error) {
 	if !info.IsDir() {
 		return inputPath, nil, nil
 	}
-	entries, err := os.ReadDir(inputPath)
+
+	sgFiles, err := listSGFiles(inputPath)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to read directory: %w", err)
+		return "", nil, fmt.Errorf("failed to list files in directory: %w", err)
 	}
-	sgFiles := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if filepath.Ext(entry.Name()) != ".sg" {
-			continue
-		}
-		sgFiles = append(sgFiles, filepath.Join(inputPath, entry.Name()))
-	}
-	sort.Strings(sgFiles)
+
 	if len(sgFiles) == 0 {
 		return "", nil, fmt.Errorf("no .sg files found in directory %q", inputPath)
 	}

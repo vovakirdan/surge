@@ -171,8 +171,8 @@ func buildExecution(cmd *cobra.Command, args []string) error {
 	if keepTmpFlag {
 		fmt.Fprintf(os.Stdout, "tmp dir: %s\n", formatPathForOutput(outputRoot, buildRes.TmpDir))
 	}
-	fmt.Fprintf(os.Stdout, "built %s\n", formatPathForOutput(outputRoot, buildRes.OutputPath))
 	printStageTimings(os.Stdout, buildRes.Timings, true, false)
+	fmt.Fprintf(os.Stdout, "built %s\n", formatPathForOutput(outputRoot, buildRes.OutputPath))
 	return nil
 }
 
