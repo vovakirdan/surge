@@ -37,6 +37,7 @@ generate_outputs() {
 	local copy_src="${4:-0}"
 	local directives_mode="${5:-off}"
 	local diag_path
+	local errors_file="$6"
 
 	local base name dir
 	base="$(basename "${src}")"
@@ -51,14 +52,14 @@ generate_outputs() {
 	diag_path="${dir}/${name}.diag"
 	if ! "${SURGE_BIN}" diag --format short --directives="${directives_mode}" "${src}" > "${diag_path}" 2>/dev/null; then
 		if [[ "${is_invalid}" -eq 0 ]]; then
-			echo "diagnostics failed for valid case: ${src}" >&2
-			exit 1
+			echo "diagnostics failed for valid case: ${src}" >> "${errors_file}"
+			return 1
 		fi
 	fi
 
 	if [[ "${is_invalid}" -eq 1 && ! -s "${diag_path}" ]]; then
-		echo "diagnostics missing for invalid case: ${src}" >&2
-		exit 1
+		echo "diagnostics missing for invalid case: ${src}" >> "${errors_file}"
+		return 1
 	fi
 
 	"${SURGE_BIN}" tokenize "${src}" > "${dir}/${name}.tokens" 2>/dev/null
@@ -97,6 +98,9 @@ generate_outputs() {
 	fi
 }
 
+ERRORS_FILE="$(mktemp)"
+trap 'rm -f "${ERRORS_FILE}"' EXIT
+
 find "${GOLDEN_DIR}" -path "${GOLDEN_DIR}/spec_audit" -prune -o -type f -name '*.sg' -print0 | sort -z | while IFS= read -r -d '' src; do
 	base="$(basename "${src}")"
 	if [[ "${base}" == _* ]]; then
@@ -115,5 +119,12 @@ find "${GOLDEN_DIR}" -path "${GOLDEN_DIR}/spec_audit" -prune -o -type f -name '*
 		directives_mode="collect"
 	fi
 
-	generate_outputs "${src}" "${dir}" "${is_invalid}" 0 "${directives_mode}"
+	generate_outputs "${src}" "${dir}" "${is_invalid}" 0 "${directives_mode}" "${ERRORS_FILE}" || true
 done
+
+# Выводим все ошибки в конце, если они были
+if [[ -s "${ERRORS_FILE}" ]]; then
+	echo "Errors found during golden file generation:" >&2
+	cat "${ERRORS_FILE}" >&2
+	exit 1
+fi
