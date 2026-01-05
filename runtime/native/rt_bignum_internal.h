@@ -3,10 +3,10 @@
 
 #include "rt.h"
 
+#include <stdalign.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdalign.h>
 
 // Limb representation is little-endian 32-bit words.
 #define SURGE_BIGNUM_LIMB_BITS 32
@@ -94,13 +94,17 @@ SurgeBigUint* bu_mul_small(const SurgeBigUint* u, uint32_t m, bn_err* err);
 SurgeBigUint* bu_div_mod_small(const SurgeBigUint* u, uint32_t d, uint32_t* rem, bn_err* err);
 SurgeBigUint* bu_shl(const SurgeBigUint* u, int bits, bn_err* err);
 SurgeBigUint* bu_shr(const SurgeBigUint* u, int bits, bn_err* err);
-SurgeBigUint* bu_div_mod(const SurgeBigUint* a, const SurgeBigUint* b, SurgeBigUint** out_rem, bn_err* err);
+SurgeBigUint*
+bu_div_mod(const SurgeBigUint* a, const SurgeBigUint* b, SurgeBigUint** out_rem, bn_err* err);
 SurgeBigUint* bu_and(const SurgeBigUint* a, const SurgeBigUint* b);
 SurgeBigUint* bu_or(const SurgeBigUint* a, const SurgeBigUint* b);
 SurgeBigUint* bu_xor(const SurgeBigUint* a, const SurgeBigUint* b);
 bool bu_bit_set(const SurgeBigUint* u, int bit);
 SurgeBigUint* bu_shift_right_round_even(const SurgeBigUint* u, int bits, bn_err* err);
-SurgeBigUint* bu_round_quotient_even(const SurgeBigUint* q, const SurgeBigUint* r, const SurgeBigUint* denom, bn_err* err);
+SurgeBigUint* bu_round_quotient_even(const SurgeBigUint* q,
+                                     const SurgeBigUint* r,
+                                     const SurgeBigUint* denom,
+                                     bn_err* err);
 SurgeBigUint* bu_pow10(int n, bn_err* err);
 SurgeBigUint* bu_pow5(int n, bn_err* err);
 SurgeBigUint* bu_low_bits(const SurgeBigUint* u, int bits);
@@ -108,6 +112,13 @@ bool shift_count_from_biguint(const SurgeBigUint* u, int* out);
 
 // BigInt helpers.
 SurgeBigInt* bi_alloc(uint32_t len, bn_err* err);
+static inline void bi_free(SurgeBigInt* i) {
+    if (i == NULL) {
+        return;
+    }
+    size_t size = sizeof(SurgeBigInt) + (size_t)i->len * sizeof(uint32_t);
+    rt_free((uint8_t*)i, (uint64_t)size, (uint64_t)alignof(SurgeBigInt));
+}
 bool bi_is_zero(const SurgeBigInt* i);
 SurgeBigUint* bi_abs(const SurgeBigInt* i, bn_err* err);
 bool bi_to_i64(const SurgeBigInt* i, int64_t* out);
@@ -119,8 +130,10 @@ SurgeBigInt* bi_abs_val(const SurgeBigInt* a, bn_err* err);
 SurgeBigInt* bi_add(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err);
 SurgeBigInt* bi_sub(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err);
 SurgeBigInt* bi_mul(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err);
-SurgeBigInt* bi_div_mod(const SurgeBigInt* a, const SurgeBigInt* b, SurgeBigInt** out_rem, bn_err* err);
-SurgeBigInt* bi_bit_op(const SurgeBigInt* a, const SurgeBigInt* b,
+SurgeBigInt*
+bi_div_mod(const SurgeBigInt* a, const SurgeBigInt* b, SurgeBigInt** out_rem, bn_err* err);
+SurgeBigInt* bi_bit_op(const SurgeBigInt* a,
+                       const SurgeBigInt* b,
                        SurgeBigUint* (*op)(const SurgeBigUint*, const SurgeBigUint*),
                        bn_err* err);
 SurgeBigInt* bi_shl(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err);
@@ -140,10 +153,12 @@ SurgeBigFloat* bf_abs(const SurgeBigFloat* f, bn_err* err);
 int bf_cmp(const SurgeBigFloat* a, const SurgeBigFloat* b);
 SurgeBigInt* bf_to_int_trunc(const SurgeBigFloat* f, bn_err* err);
 SurgeBigUint* bf_to_uint_trunc(const SurgeBigFloat* f, bn_err* err);
-SurgeBigFloat* bf_from_ratio(bool neg, const SurgeBigUint* num, const SurgeBigUint* den, bn_err* err);
+SurgeBigFloat*
+bf_from_ratio(bool neg, const SurgeBigUint* num, const SurgeBigUint* den, bn_err* err);
 
 // Parsing/formatting helpers.
-bn_err parse_uint_string(const uint8_t* data, size_t len, bool allow_plus, bool allow_prefix, SurgeBigUint** out);
+bn_err parse_uint_string(
+    const uint8_t* data, size_t len, bool allow_plus, bool allow_prefix, SurgeBigUint** out);
 bn_err parse_int_string(const uint8_t* data, size_t len, SurgeBigInt** out);
 bn_err parse_float_string(const uint8_t* data, size_t len, SurgeBigFloat** out);
 char* format_uint(const SurgeBigUint* u);

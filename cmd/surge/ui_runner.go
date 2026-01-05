@@ -25,6 +25,8 @@ func runBuildWithUI(ctx context.Context, title string, files []string, req *buil
 	if req == nil {
 		return buildpipeline.BuildResult{}, fmt.Errorf("missing build request")
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	events := make(chan buildpipeline.Event, 256)
 	outcomeCh := make(chan buildOutcome, 1)
 
@@ -39,6 +41,7 @@ func runBuildWithUI(ctx context.Context, title string, files []string, req *buil
 	model := ui.NewProgressModel(title, files, events)
 	program := tea.NewProgram(model, tea.WithOutput(os.Stdout))
 	_, uiErr := program.Run()
+	cancel()
 	outcome := <-outcomeCh
 	if uiErr != nil {
 		return outcome.result, uiErr
@@ -50,6 +53,8 @@ func runCompileWithUI(ctx context.Context, title string, files []string, req *bu
 	if req == nil {
 		return buildpipeline.CompileResult{}, fmt.Errorf("missing compile request")
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	events := make(chan buildpipeline.Event, 256)
 	outcomeCh := make(chan compileOutcome, 1)
 
@@ -64,6 +69,7 @@ func runCompileWithUI(ctx context.Context, title string, files []string, req *bu
 	model := ui.NewProgressModel(title, files, events)
 	program := tea.NewProgram(model, tea.WithOutput(os.Stdout))
 	_, uiErr := program.Run()
+	cancel()
 	outcome := <-outcomeCh
 	if uiErr != nil {
 		return outcome.result, uiErr

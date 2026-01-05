@@ -40,22 +40,22 @@ void bignum_panic(const char* msg) {
 
 void bignum_panic_err(bn_err err) {
     switch (err) {
-    case BN_OK:
-        return;
-    case BN_ERR_MAX_LIMBS:
-        bignum_panic("numeric size limit exceeded");
-        return;
-    case BN_ERR_DIV_ZERO:
-        bignum_panic("division by zero");
-        return;
-    case BN_ERR_UNDERFLOW:
-        bignum_panic("unsigned underflow");
-        return;
-    case BN_ERR_NEG_SHIFT:
-        bignum_panic("negative shift");
-        return;
-    default:
-        bignum_panic("invalid numeric conversion");
-        return;
+        case BN_OK:
+            return;
+        case BN_ERR_MAX_LIMBS:
+            bignum_panic("numeric size limit exceeded");
+            return;
+        case BN_ERR_DIV_ZERO:
+            bignum_panic("division by zero");
+            return;
+        case BN_ERR_UNDERFLOW:
+            bignum_panic("unsigned underflow");
+            return;
+        case BN_ERR_NEG_SHIFT:
+            bignum_panic("negative shift");
+            return;
+        default:
+            bignum_panic("invalid numeric conversion");
+            return;
     }
 }

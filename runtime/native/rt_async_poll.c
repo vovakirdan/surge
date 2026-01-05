@@ -77,17 +77,18 @@ poll_outcome poll_task(rt_executor* ex, rt_task* task) {
         return out;
     }
     if (task->status == TASK_DONE) {
-        out.kind = task->result_kind == TASK_RESULT_CANCELLED ? POLL_DONE_CANCELLED : POLL_DONE_SUCCESS;
+        out.kind =
+            task->result_kind == TASK_RESULT_CANCELLED ? POLL_DONE_CANCELLED : POLL_DONE_SUCCESS;
         out.value_bits = task->result_bits;
         return out;
     }
     switch (task->kind) {
-    case TASK_KIND_CHECKPOINT:
-        return poll_checkpoint_task(ex, task);
-    case TASK_KIND_SLEEP:
-        return poll_sleep_task(ex, task);
-    default:
-        return poll_user_task(ex, task);
+        case TASK_KIND_CHECKPOINT:
+            return poll_checkpoint_task(ex, task);
+        case TASK_KIND_SLEEP:
+            return poll_sleep_task(ex, task);
+        default:
+            return poll_user_task(ex, task);
     }
 }
 
@@ -108,24 +109,24 @@ int run_ready_one(rt_executor* ex) {
     task->status = TASK_RUNNING;
     poll_outcome outcome = poll_task(ex, task);
     switch (outcome.kind) {
-    case POLL_DONE_SUCCESS:
-        mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);
-        break;
-    case POLL_DONE_CANCELLED:
-        mark_done(ex, task, TASK_RESULT_CANCELLED, 0);
-        break;
-    case POLL_YIELDED:
-        task->state = outcome.state;
-        ready_push(ex, task->id);
-        tick_virtual(ex);
-        break;
-    case POLL_PARKED:
-        task->state = outcome.state;
-        park_current(ex, outcome.park_key);
-        break;
-    default:
-        panic_msg("async: unknown poll outcome");
-        break;
+        case POLL_DONE_SUCCESS:
+            mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);
+            break;
+        case POLL_DONE_CANCELLED:
+            mark_done(ex, task, TASK_RESULT_CANCELLED, 0);
+            break;
+        case POLL_YIELDED:
+            task->state = outcome.state;
+            ready_push(ex, task->id);
+            tick_virtual(ex);
+            break;
+        case POLL_PARKED:
+            task->state = outcome.state;
+            park_current(ex, outcome.park_key);
+            break;
+        default:
+            panic_msg("async: unknown poll outcome");
+            break;
     }
     ex->current = 0;
     return 1;

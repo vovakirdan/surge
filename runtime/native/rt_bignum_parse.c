@@ -30,7 +30,8 @@ static int digit_value(char ch, uint32_t base, bool* ok) {
     return 0;
 }
 
-bn_err parse_uint_string(const uint8_t* data, size_t len, bool allow_plus, bool allow_prefix, SurgeBigUint** out) {
+bn_err parse_uint_string(
+    const uint8_t* data, size_t len, bool allow_plus, bool allow_prefix, SurgeBigUint** out) {
     if (out != NULL) {
         *out = NULL;
     }
@@ -83,12 +84,18 @@ bn_err parse_uint_string(const uint8_t* data, size_t len, bool allow_plus, bool 
             return BN_ERR_NEG_SHIFT;
         }
         bn_err tmp_err = BN_OK;
-        cur = bu_mul_small(cur, base, &tmp_err);
+        SurgeBigUint* prev = cur;
+        cur = bu_mul_small(prev, base, &tmp_err);
         if (tmp_err != BN_OK) {
+            bu_free(prev);
+            bu_free(cur);
             return tmp_err;
         }
-        cur = bu_add_small(cur, (uint32_t)d, &tmp_err);
+        prev = cur;
+        cur = bu_add_small(prev, (uint32_t)d, &tmp_err);
         if (tmp_err != BN_OK) {
+            bu_free(prev);
+            bu_free(cur);
             return tmp_err;
         }
     }

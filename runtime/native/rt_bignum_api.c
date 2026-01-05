@@ -33,20 +33,24 @@ void* rt_bigint_from_literal(const uint8_t* ptr, uint64_t len) {
     bn_err err = parse_uint_string(ptr, (size_t)len, false, true, &mag);
     if (err != BN_OK) {
         bignum_panic_err(err);
+        bu_free(mag);
         return NULL;
     }
     if (mag == NULL || mag->len == 0) {
+        bu_free(mag);
         return NULL;
     }
     bn_err tmp_err = BN_OK;
     SurgeBigInt* out = bi_alloc(mag->len, &tmp_err);
     if (tmp_err != BN_OK || out == NULL) {
         bignum_panic_err(tmp_err);
+        bu_free(mag);
         return NULL;
     }
     out->neg = 0;
     memcpy(out->limbs, mag->limbs, (size_t)mag->len * sizeof(uint32_t));
     out->len = mag->len;
+    bu_free(mag);
     return (void*)out;
 }
 

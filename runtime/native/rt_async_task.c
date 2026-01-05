@@ -203,7 +203,8 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
     if (target->status != TASK_WAITING && target->status != TASK_DONE) {
         wake_task(ex, target->id, 1);
     }
-    if (timeout_task != NULL && timeout_task->status != TASK_WAITING && timeout_task->status != TASK_DONE) {
+    if (timeout_task != NULL && timeout_task->status != TASK_WAITING &&
+        timeout_task->status != TASK_DONE) {
         wake_task(ex, timeout_task->id, 1);
     }
 

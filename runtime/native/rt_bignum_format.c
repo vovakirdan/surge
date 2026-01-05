@@ -220,6 +220,7 @@ char* format_float(const SurgeBigFloat* f, bn_err* err) {
     bool neg = f->neg;
     SurgeBigUint* mant = bu_clone(f->mant, NULL);
     if (mant == NULL || mant->len == 0) {
+        bu_free(mant);
         char* z = (char*)malloc(2);
         if (z == NULL) {
             return NULL;
@@ -228,38 +229,42 @@ char* format_float(const SurgeBigFloat* f, bn_err* err) {
         z[1] = 0;
         return z;
     }
+    char* result = NULL;
+    SurgeBigUint* int_mag = NULL;
+    SurgeBigUint* int_part = NULL;
+    SurgeBigUint* frac_part = NULL;
+    SurgeBigUint* pow5 = NULL;
+    SurgeBigUint* frac_digits = NULL;
+    SurgeBigUint* tmp = NULL;
+    char* int_str = NULL;
+    char* frac_str = NULL;
+    char* sci = NULL;
     if (f->exp >= 0) {
-        if ((int64_t)f->exp > (int64_t)INT_MAX) {
-            if (err != NULL) {
-                *err = BN_ERR_MAX_LIMBS;
-            }
-            return NULL;
-        }
         bn_err tmp_err = BN_OK;
-        SurgeBigUint* int_mag = bu_shl(mant, (int)f->exp, &tmp_err);
+        int_mag = bu_shl(mant, (int)f->exp, &tmp_err);
         if (tmp_err != BN_OK) {
             if (err != NULL) {
                 *err = tmp_err;
             }
-            return NULL;
+            goto cleanup;
         }
-        char* s = format_uint(int_mag);
-        if (s == NULL) {
-            return NULL;
+        int_str = format_uint(int_mag);
+        if (int_str == NULL) {
+            goto cleanup;
         }
         if (!neg) {
-            return s;
+            result = int_str;
+            int_str = NULL;
+            goto cleanup;
         }
-        size_t len = strlen(s);
-        char* out = (char*)malloc(len + 2);
-        if (out == NULL) {
-            free(s);
-            return NULL;
+        size_t len = strlen(int_str);
+        result = (char*)malloc(len + 2);
+        if (result == NULL) {
+            goto cleanup;
         }
-        out[0] = '-';
-        memcpy(out + 1, s, len + 1);
-        free(s);
-        return out;
+        result[0] = '-';
+        memcpy(result + 1, int_str, len + 1);
+        goto cleanup;
     }
     int64_t n64 = -(int64_t)f->exp;
     if (n64 < 0) {
@@ -269,103 +274,108 @@ char* format_float(const SurgeBigFloat* f, bn_err* err) {
         if (err != NULL) {
             *err = BN_ERR_MAX_LIMBS;
         }
-        return NULL;
+        goto cleanup;
     }
     int n = (int)n64;
     if (bu_is_zero(mant)) {
-        char* z = (char*)malloc(2);
-        if (z == NULL) {
-            return NULL;
+        result = (char*)malloc(2);
+        if (result == NULL) {
+            goto cleanup;
         }
-        z[0] = '0';
-        z[1] = 0;
-        return z;
-    }
-    // Even when the value is < 1, we still need fractional digits (VM parity).
-    if (bu_is_zero(mant)) {
-        char* z = (char*)malloc(2);
-        if (z == NULL) {
-            return NULL;
-        }
-        z[0] = '0';
-        z[1] = 0;
-        return z;
+        result[0] = '0';
+        result[1] = 0;
+        goto cleanup;
     }
     if (bu_bitlen(mant) >= (uint32_t)n && bu_is_odd(mant) == false) {
         int tz = 0;
-        SurgeBigUint* tmp = mant;
+        tmp = mant;
         while (tmp != NULL && tmp->len > 0 && (tmp->limbs[0] & 1u) == 0u) {
             tz++;
             bn_err tmp_err = BN_OK;
-            tmp = bu_shr(tmp, 1, &tmp_err);
-            if (tmp_err != BN_OK) {
-                break;
+            SurgeBigUint* next = bu_shr(tmp, 1, &tmp_err);
+            if (tmp != mant) {
+                bu_free(tmp);
             }
-        }
-        if (tz >= n) {
-            bn_err tmp_err = BN_OK;
-            SurgeBigUint* int_mag = bu_shr(mant, n, &tmp_err);
+            tmp = next;
             if (tmp_err != BN_OK) {
                 if (err != NULL) {
                     *err = tmp_err;
                 }
-                return NULL;
+                if (tmp != NULL && tmp != mant) {
+                    bu_free(tmp);
+                    tmp = NULL;
+                }
+                goto cleanup;
             }
-            char* s = format_uint(int_mag);
-            if (s == NULL) {
-                return NULL;
+        }
+        if (tmp != NULL && tmp != mant) {
+            bu_free(tmp);
+            tmp = NULL;
+        }
+        if (tz >= n) {
+            bn_err tmp_err = BN_OK;
+            int_mag = bu_shr(mant, n, &tmp_err);
+            if (tmp_err != BN_OK) {
+                if (err != NULL) {
+                    *err = tmp_err;
+                }
+                goto cleanup;
+            }
+            int_str = format_uint(int_mag);
+            if (int_str == NULL) {
+                goto cleanup;
             }
             if (!neg) {
-                return s;
+                result = int_str;
+                int_str = NULL;
+                goto cleanup;
             }
-            size_t len = strlen(s);
-            char* out = (char*)malloc(len + 2);
-            if (out == NULL) {
-                free(s);
-                return NULL;
+            size_t len = strlen(int_str);
+            result = (char*)malloc(len + 2);
+            if (result == NULL) {
+                goto cleanup;
             }
-            out[0] = '-';
-            memcpy(out + 1, s, len + 1);
-            free(s);
-            return out;
+            result[0] = '-';
+            memcpy(result + 1, int_str, len + 1);
+            goto cleanup;
         }
     }
 
     bn_err tmp_err = BN_OK;
-    SurgeBigUint* int_part = bu_shr(mant, n, &tmp_err);
+    int_part = bu_shr(mant, n, &tmp_err);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
-        return NULL;
+        goto cleanup;
     }
-    SurgeBigUint* frac_part = bu_low_bits(mant, n);
-    SurgeBigUint* pow5 = bu_pow5(n, &tmp_err);
+    frac_part = bu_low_bits(mant, n);
+    pow5 = bu_pow5(n, &tmp_err);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
-        return NULL;
+        goto cleanup;
     }
-    SurgeBigUint* frac_digits = bu_mul(frac_part, pow5, &tmp_err);
+    frac_digits = bu_mul(frac_part, pow5, &tmp_err);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
-        return NULL;
+        goto cleanup;
     }
 
-    char* int_str = format_uint(int_part);
-    char* frac_str = format_uint(frac_digits);
+    int_str = format_uint(int_part);
+    frac_str = format_uint(frac_digits);
     if (int_str == NULL || frac_str == NULL) {
-        return NULL;
+        goto cleanup;
     }
     size_t frac_len = strlen(frac_str);
     if (frac_len < (size_t)n) {
         size_t pad = (size_t)n - frac_len;
         char* padded = (char*)malloc((size_t)n + 1);
         if (padded == NULL) {
-            return NULL;
+            goto cleanup;
         }
         memset(padded, '0', pad);
         memcpy(padded + pad, frac_str, frac_len + 1);
@@ -377,33 +387,48 @@ char* format_float(const SurgeBigFloat* f, bn_err* err) {
     }
     if (strlen(frac_str) == 0) {
         if (!neg) {
-            return int_str;
+            result = int_str;
+            int_str = NULL;
+            goto cleanup;
         }
         size_t len = strlen(int_str);
-        char* out = (char*)malloc(len + 2);
-        if (out == NULL) {
-            return NULL;
+        result = (char*)malloc(len + 2);
+        if (result == NULL) {
+            goto cleanup;
         }
-        out[0] = '-';
-        memcpy(out + 1, int_str, len + 1);
-        free(int_str);
-        return out;
+        result[0] = '-';
+        memcpy(result + 1, int_str, len + 1);
+        goto cleanup;
     }
-    char* sci = format_scientific(int_str, frac_str);
+    sci = format_scientific(int_str, frac_str);
     if (sci == NULL) {
-        return NULL;
+        goto cleanup;
     }
     if (!neg) {
-        return sci;
+        result = sci;
+        sci = NULL;
+        goto cleanup;
     }
     size_t len = strlen(sci);
-    char* out = (char*)malloc(len + 2);
-    if (out == NULL) {
-        free(sci);
-        return NULL;
+    result = (char*)malloc(len + 2);
+    if (result == NULL) {
+        goto cleanup;
     }
-    out[0] = '-';
-    memcpy(out + 1, sci, len + 1);
+    result[0] = '-';
+    memcpy(result + 1, sci, len + 1);
+    goto cleanup;
+cleanup:
+    if (tmp != NULL && tmp != mant) {
+        bu_free(tmp);
+    }
+    bu_free(mant);
+    bu_free(int_mag);
+    bu_free(int_part);
+    bu_free(frac_part);
+    bu_free(pow5);
+    bu_free(frac_digits);
+    free(int_str);
+    free(frac_str);
     free(sci);
-    return out;
+    return result;
 }

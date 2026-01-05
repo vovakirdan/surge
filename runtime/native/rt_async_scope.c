@@ -106,7 +106,9 @@ void rt_scope_exit(void* scope_handle) {
         }
     }
     if (scope->children != NULL && scope->children_cap > 0) {
-        rt_free((uint8_t*)scope->children, (uint64_t)(scope->children_cap * sizeof(uint64_t)), _Alignof(uint64_t));
+        rt_free((uint8_t*)scope->children,
+                (uint64_t)(scope->children_cap * sizeof(uint64_t)),
+                _Alignof(uint64_t));
     }
     rt_free((uint8_t*)scope, sizeof(rt_scope), _Alignof(rt_scope));
     if (scope_id < ex->scopes_cap) {

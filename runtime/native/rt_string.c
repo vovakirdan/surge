@@ -3,11 +3,11 @@
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <stdalign.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdalign.h>
 
 typedef struct SurgeString {
     uint64_t len_cp;
@@ -67,7 +67,8 @@ static uint64_t count_codepoints(const uint8_t* data, uint64_t len) {
             continue;
         }
         if (c0 <= 0xF4) {
-            if (i + 3 < len && is_cont(data[i + 1]) && is_cont(data[i + 2]) && is_cont(data[i + 3])) {
+            if (i + 3 < len && is_cont(data[i + 1]) && is_cont(data[i + 2]) &&
+                is_cont(data[i + 3])) {
                 uint8_t c1 = data[i + 1];
                 if ((c0 == 0xF0 && c1 < 0x90) || (c0 == 0xF4 && c1 >= 0x90)) {
                     i += 1;
@@ -118,8 +119,7 @@ static uint32_t decode_utf8_at(const uint8_t* data, uint64_t len, uint64_t idx, 
                 *advance = 1;
                 return 0xFFFD;
             }
-            uint32_t cp = ((uint32_t)(c0 & 0x0F) << 12) |
-                          ((uint32_t)(data[idx + 1] & 0x3F) << 6) |
+            uint32_t cp = ((uint32_t)(c0 & 0x0F) << 12) | ((uint32_t)(data[idx + 1] & 0x3F) << 6) |
                           (uint32_t)(data[idx + 2] & 0x3F);
             *advance = 3;
             return cp;
@@ -128,14 +128,14 @@ static uint32_t decode_utf8_at(const uint8_t* data, uint64_t len, uint64_t idx, 
         return 0xFFFD;
     }
     if (c0 <= 0xF4) {
-        if (idx + 3 < len && is_cont(data[idx + 1]) && is_cont(data[idx + 2]) && is_cont(data[idx + 3])) {
+        if (idx + 3 < len && is_cont(data[idx + 1]) && is_cont(data[idx + 2]) &&
+            is_cont(data[idx + 3])) {
             uint8_t c1 = data[idx + 1];
             if ((c0 == 0xF0 && c1 < 0x90) || (c0 == 0xF4 && c1 >= 0x90)) {
                 *advance = 1;
                 return 0xFFFD;
             }
-            uint32_t cp = ((uint32_t)(c0 & 0x07) << 18) |
-                          ((uint32_t)(data[idx + 1] & 0x3F) << 12) |
+            uint32_t cp = ((uint32_t)(c0 & 0x07) << 18) | ((uint32_t)(data[idx + 1] & 0x3F) << 12) |
                           ((uint32_t)(data[idx + 2] & 0x3F) << 6) |
                           (uint32_t)(data[idx + 3] & 0x3F);
             *advance = 4;
@@ -338,7 +338,8 @@ void* rt_string_bytes_view(void* s) {
     if (str == NULL) {
         return NULL;
     }
-    SurgeBytesView* view = (SurgeBytesView*)rt_alloc((uint64_t)sizeof(SurgeBytesView), (uint64_t)alignof(SurgeBytesView));
+    SurgeBytesView* view = (SurgeBytesView*)rt_alloc((uint64_t)sizeof(SurgeBytesView),
+                                                     (uint64_t)alignof(SurgeBytesView));
     if (view == NULL) {
         return NULL;
     }
@@ -398,7 +399,8 @@ void* rt_string_repeat(void* s, int64_t count) {
         return rt_string_from_bytes(NULL, 0);
     }
     int64_t max_int = INT64_MAX;
-    if (unit_bytes > 0 && count > 0 && (uint64_t)count > (uint64_t)(max_int / (int64_t)unit_bytes)) {
+    if (unit_bytes > 0 && count > 0 &&
+        (uint64_t)count > (uint64_t)(max_int / (int64_t)unit_bytes)) {
         const char* msg = "string repeat length out of range";
         rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
     }
@@ -666,10 +668,8 @@ bool rt_parse_bool(void* s, uint8_t* out) {
         }
     }
     if (n == 4) {
-        if ((data[start] | 0x20) == 't' &&
-            (data[start + 1] | 0x20) == 'r' &&
-            (data[start + 2] | 0x20) == 'u' &&
-            (data[start + 3] | 0x20) == 'e') {
+        if ((data[start] | 0x20) == 't' && (data[start + 1] | 0x20) == 'r' &&
+            (data[start + 2] | 0x20) == 'u' && (data[start + 3] | 0x20) == 'e') {
             if (out != NULL) {
                 *out = 1;
             }
@@ -677,10 +677,8 @@ bool rt_parse_bool(void* s, uint8_t* out) {
         }
     }
     if (n == 5) {
-        if ((data[start] | 0x20) == 'f' &&
-            (data[start + 1] | 0x20) == 'a' &&
-            (data[start + 2] | 0x20) == 'l' &&
-            (data[start + 3] | 0x20) == 's' &&
+        if ((data[start] | 0x20) == 'f' && (data[start + 1] | 0x20) == 'a' &&
+            (data[start + 2] | 0x20) == 'l' && (data[start + 3] | 0x20) == 's' &&
             (data[start + 4] | 0x20) == 'e') {
             if (out != NULL) {
                 *out = 0;

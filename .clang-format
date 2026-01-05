@@ -1,5 +1,5 @@
 ---
-Language: C
+Language: Cpp
 BasedOnStyle: LLVM
 IndentWidth: 4
 TabWidth: 4
@@ -24,4 +24,3 @@ SpaceBeforeParens: ControlStatements
 SpacesBeforeTrailingComments: 1
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
-

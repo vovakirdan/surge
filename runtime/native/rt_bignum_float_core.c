@@ -236,7 +236,8 @@ static int bf_floor_log2_ratio(const SurgeBigUint* num, const SurgeBigUint* den,
 }
 
 // Build a normalized float from num/den with mantissa rounding.
-SurgeBigFloat* bf_from_ratio(bool neg, const SurgeBigUint* num, const SurgeBigUint* den, bn_err* err) {
+SurgeBigFloat*
+bf_from_ratio(bool neg, const SurgeBigUint* num, const SurgeBigUint* den, bn_err* err) {
     if (err != NULL) {
         *err = BN_OK;
     }
@@ -258,8 +259,8 @@ SurgeBigFloat* bf_from_ratio(bool neg, const SurgeBigUint* num, const SurgeBigUi
         return NULL;
     }
     int scale = (SURGE_BIGNUM_MANTISSA_BITS - 1) - e0;
-    SurgeBigUint* scaled_num = (SurgeBigUint*)num;
-    SurgeBigUint* scaled_den = (SurgeBigUint*)den;
+    const SurgeBigUint* scaled_num = num;
+    const SurgeBigUint* scaled_den = den;
     if (scale >= 0) {
         if (scale > INT_MAX) {
             if (err != NULL) {

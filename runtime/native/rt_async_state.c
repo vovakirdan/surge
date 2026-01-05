@@ -71,8 +71,13 @@ rt_scope* get_scope(rt_executor* ex, uint64_t id) {
     return ex->scopes[id];
 }
 
-static int ensure_ptr_array_cap(void** array, size_t elem_size, size_t* cap, size_t want, uint64_t align,
-                                const char* overflow_msg, const char* alloc_msg) {
+static int ensure_ptr_array_cap(void** array,
+                                size_t elem_size,
+                                size_t* cap,
+                                size_t want,
+                                uint64_t align,
+                                const char* overflow_msg,
+                                const char* alloc_msg) {
     if (array == NULL || cap == NULL || elem_size == 0) {
         panic_msg(overflow_msg);
         return 0;
@@ -132,8 +137,13 @@ void ensure_task_cap(rt_executor* ex, uint64_t id) {
         return;
     }
     size_t want = (size_t)id + 1;
-    (void)ensure_ptr_array_cap((void**)&ex->tasks, sizeof(rt_task*), &ex->tasks_cap, want, _Alignof(rt_task*),
-                               "async: task capacity overflow", "async: task allocation failed");
+    (void)ensure_ptr_array_cap((void**)&ex->tasks,
+                               sizeof(rt_task*),
+                               &ex->tasks_cap,
+                               want,
+                               _Alignof(rt_task*),
+                               "async: task capacity overflow",
+                               "async: task allocation failed");
 }
 
 void ensure_scope_cap(rt_executor* ex, uint64_t id) {
@@ -148,8 +158,13 @@ void ensure_scope_cap(rt_executor* ex, uint64_t id) {
         return;
     }
     size_t want = (size_t)id + 1;
-    (void)ensure_ptr_array_cap((void**)&ex->scopes, sizeof(rt_scope*), &ex->scopes_cap, want, _Alignof(rt_scope*),
-                               "async: scope capacity overflow", "async: scope allocation failed");
+    (void)ensure_ptr_array_cap((void**)&ex->scopes,
+                               sizeof(rt_scope*),
+                               &ex->scopes_cap,
+                               want,
+                               _Alignof(rt_scope*),
+                               "async: scope capacity overflow",
+                               "async: scope allocation failed");
 }
 
 void ensure_ready_cap(rt_executor* ex) {
@@ -162,7 +177,8 @@ void ensure_ready_cap(rt_executor* ex) {
     size_t next_cap = ex->ready_cap == 0 ? 16 : ex->ready_cap * 2;
     size_t old_size = ex->ready_cap * sizeof(uint64_t);
     size_t new_size = next_cap * sizeof(uint64_t);
-    uint64_t* next = (uint64_t*)rt_realloc((uint8_t*)ex->ready, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
+    uint64_t* next = (uint64_t*)rt_realloc(
+        (uint8_t*)ex->ready, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
     if (next == NULL) {
         panic_msg("async: ready queue allocation failed");
         return;
@@ -181,7 +197,8 @@ void ensure_waiter_cap(rt_executor* ex) {
     size_t next_cap = ex->waiters_cap == 0 ? 16 : ex->waiters_cap * 2;
     size_t old_size = ex->waiters_cap * sizeof(waiter);
     size_t new_size = next_cap * sizeof(waiter);
-    waiter* next = (waiter*)rt_realloc((uint8_t*)ex->waiters, (uint64_t)old_size, (uint64_t)new_size, _Alignof(waiter));
+    waiter* next = (waiter*)rt_realloc(
+        (uint8_t*)ex->waiters, (uint64_t)old_size, (uint64_t)new_size, _Alignof(waiter));
     if (next == NULL) {
         panic_msg("async: waiter allocation failed");
         return;
@@ -203,7 +220,8 @@ void ensure_child_cap(rt_task* task, size_t want) {
     }
     size_t old_size = task->children_cap * sizeof(uint64_t);
     size_t new_size = next_cap * sizeof(uint64_t);
-    uint64_t* next = (uint64_t*)rt_realloc((uint8_t*)task->children, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
+    uint64_t* next = (uint64_t*)rt_realloc(
+        (uint8_t*)task->children, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
     if (next == NULL) {
         panic_msg("async: child allocation failed");
         return;
@@ -225,7 +243,8 @@ void ensure_scope_child_cap(rt_scope* scope, size_t want) {
     }
     size_t old_size = scope->children_cap * sizeof(uint64_t);
     size_t new_size = next_cap * sizeof(uint64_t);
-    uint64_t* next = (uint64_t*)rt_realloc((uint8_t*)scope->children, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
+    uint64_t* next = (uint64_t*)rt_realloc(
+        (uint8_t*)scope->children, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
     if (next == NULL) {
         panic_msg("async: scope child allocation failed");
         return;
@@ -247,7 +266,8 @@ static void ensure_wait_keys_cap(rt_task* task, size_t want) {
     }
     size_t old_size = task->wait_keys_cap * sizeof(waker_key);
     size_t new_size = next_cap * sizeof(waker_key);
-    waker_key* next = (waker_key*)rt_realloc((uint8_t*)task->wait_keys, (uint64_t)old_size, (uint64_t)new_size, _Alignof(waker_key));
+    waker_key* next = (waker_key*)rt_realloc(
+        (uint8_t*)task->wait_keys, (uint64_t)old_size, (uint64_t)new_size, _Alignof(waker_key));
     if (next == NULL) {
         panic_msg("async: wait key allocation failed");
         return;
@@ -401,7 +421,8 @@ void tick_virtual(rt_executor* ex) {
     }
     for (size_t i = 1; i < ex->tasks_cap; i++) {
         rt_task* task = ex->tasks[i];
-        if (task == NULL || task->kind != TASK_KIND_SLEEP || task->status != TASK_WAITING || !task->sleep_armed) {
+        if (task == NULL || task->kind != TASK_KIND_SLEEP || task->status != TASK_WAITING ||
+            !task->sleep_armed) {
             continue;
         }
         if (task->sleep_deadline <= ex->now_ms) {
@@ -417,7 +438,8 @@ int advance_time_to_next_timer(rt_executor* ex) {
     uint64_t next_deadline = UINT64_MAX;
     for (size_t i = 1; i < ex->tasks_cap; i++) {
         rt_task* task = ex->tasks[i];
-        if (task == NULL || task->kind != TASK_KIND_SLEEP || task->status != TASK_WAITING || !task->sleep_armed) {
+        if (task == NULL || task->kind != TASK_KIND_SLEEP || task->status != TASK_WAITING ||
+            !task->sleep_armed) {
             continue;
         }
         if (task->sleep_deadline < next_deadline) {
@@ -430,7 +452,8 @@ int advance_time_to_next_timer(rt_executor* ex) {
     ex->now_ms = next_deadline;
     for (size_t i = 1; i < ex->tasks_cap; i++) {
         rt_task* task = ex->tasks[i];
-        if (task == NULL || task->kind != TASK_KIND_SLEEP || task->status != TASK_WAITING || !task->sleep_armed) {
+        if (task == NULL || task->kind != TASK_KIND_SLEEP || task->status != TASK_WAITING ||
+            !task->sleep_armed) {
             continue;
         }
         if (task->sleep_deadline <= ex->now_ms) {
@@ -499,10 +522,14 @@ static void free_task(rt_executor* ex, rt_task* task) {
         clear_wait_keys(ex, task);
     }
     if (task->wait_keys != NULL && task->wait_keys_cap > 0) {
-        rt_free((uint8_t*)task->wait_keys, (uint64_t)(task->wait_keys_cap * sizeof(waker_key)), _Alignof(waker_key));
+        rt_free((uint8_t*)task->wait_keys,
+                (uint64_t)(task->wait_keys_cap * sizeof(waker_key)),
+                _Alignof(waker_key));
     }
     if (task->children != NULL && task->children_cap > 0) {
-        rt_free((uint8_t*)task->children, (uint64_t)(task->children_cap * sizeof(uint64_t)), _Alignof(uint64_t));
+        rt_free((uint8_t*)task->children,
+                (uint64_t)(task->children_cap * sizeof(uint64_t)),
+                _Alignof(uint64_t));
     }
     if (task->id < ex->tasks_cap) {
         ex->tasks[task->id] = NULL;

@@ -13,12 +13,6 @@ SurgeBigInt* bf_to_int_trunc(const SurgeBigFloat* f, bn_err* err) {
     }
     SurgeBigUint* mag = f->mant;
     if (f->exp > 0) {
-        if ((int64_t)f->exp > (int64_t)INT_MAX) {
-            if (err != NULL) {
-                *err = BN_ERR_MAX_LIMBS;
-            }
-            return NULL;
-        }
         bn_err tmp_err = BN_OK;
         mag = bu_shl(mag, (int)f->exp, &tmp_err);
         if (tmp_err != BN_OK) {

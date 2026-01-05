@@ -46,7 +46,8 @@ static void ensure_sendq_cap(rt_channel* ch, size_t want) {
     }
     size_t old_size = ch->send_cap * sizeof(rt_chan_send_waiter);
     size_t new_size = next_cap * sizeof(rt_chan_send_waiter);
-    rt_chan_send_waiter* next = (rt_chan_send_waiter*)rt_realloc((uint8_t*)ch->sendq, (uint64_t)old_size, (uint64_t)new_size, _Alignof(rt_chan_send_waiter));
+    rt_chan_send_waiter* next = (rt_chan_send_waiter*)rt_realloc(
+        (uint8_t*)ch->sendq, (uint64_t)old_size, (uint64_t)new_size, _Alignof(rt_chan_send_waiter));
     if (next == NULL) {
         panic_msg("async: channel send queue allocation failed");
         return;
@@ -68,7 +69,8 @@ static void ensure_recvq_cap(rt_channel* ch, size_t want) {
     }
     size_t old_size = ch->recv_cap * sizeof(uint64_t);
     size_t new_size = next_cap * sizeof(uint64_t);
-    uint64_t* next = (uint64_t*)rt_realloc((uint8_t*)ch->recvq, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
+    uint64_t* next = (uint64_t*)rt_realloc(
+        (uint8_t*)ch->recvq, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
     if (next == NULL) {
         panic_msg("async: channel recv queue allocation failed");
         return;
@@ -166,17 +168,17 @@ static int pop_send_waiter(rt_executor* ex, rt_channel* ch, rt_chan_send_waiter*
         return 0;
     }
     while (ch->send_len > 0) {
-        rt_chan_send_waiter waiter = ch->sendq[ch->send_head++];
+        rt_chan_send_waiter send_waiter = ch->sendq[ch->send_head++];
         ch->send_len--;
         compact_sendq(ch);
         if (ex != NULL) {
-            rt_task* task = get_task(ex, waiter.task_id);
+            rt_task* task = get_task(ex, send_waiter.task_id);
             if (task == NULL || task->status == TASK_DONE) {
                 continue;
             }
         }
         if (out_waiter != NULL) {
-            *out_waiter = waiter;
+            *out_waiter = send_waiter;
         }
         return 1;
     }
@@ -209,20 +211,20 @@ static void refill_buffer_from_sender(rt_executor* ex, rt_channel* ch) {
     if (ch == NULL || ch->capacity == 0 || ch->buf_len >= ch->capacity) {
         return;
     }
-    rt_chan_send_waiter waiter;
-    if (!pop_send_waiter(ex, ch, &waiter)) {
+    rt_chan_send_waiter send_waiter;
+    if (!pop_send_waiter(ex, ch, &send_waiter)) {
         return;
     }
-    if (!buf_push(ch, waiter.value_bits)) {
+    if (!buf_push(ch, send_waiter.value_bits)) {
         return;
     }
-    rt_task* sender = get_task(ex, waiter.task_id);
+    rt_task* sender = get_task(ex, send_waiter.task_id);
     if (sender == NULL || sender->status == TASK_DONE) {
         return;
     }
     sender->resume_kind = RESUME_CHAN_SEND_ACK;
     sender->resume_bits = 0;
-    wake_task(ex, waiter.task_id, 1);
+    wake_task(ex, send_waiter.task_id, 1);
 }
 
 void* rt_channel_new(uint64_t capacity) {
@@ -339,16 +341,16 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
         refill_buffer_from_sender(ex, ch);
         return 1;
     }
-    rt_chan_send_waiter waiter;
-    if (pop_send_waiter(ex, ch, &waiter)) {
-        rt_task* sender = get_task(ex, waiter.task_id);
+    rt_chan_send_waiter send_waiter;
+    if (pop_send_waiter(ex, ch, &send_waiter)) {
+        rt_task* sender = get_task(ex, send_waiter.task_id);
         if (sender != NULL && sender->status != TASK_DONE) {
             sender->resume_kind = RESUME_CHAN_SEND_ACK;
             sender->resume_bits = 0;
-            wake_task(ex, waiter.task_id, 1);
+            wake_task(ex, send_waiter.task_id, 1);
         }
         if (out_bits != NULL) {
-            *out_bits = waiter.value_bits;
+            *out_bits = send_waiter.value_bits;
         }
         return 1;
     }
@@ -398,16 +400,16 @@ bool rt_channel_try_recv(void* channel, uint64_t* out_bits) {
         refill_buffer_from_sender(ex, ch);
         return 1;
     }
-    rt_chan_send_waiter waiter;
-    if (pop_send_waiter(ex, ch, &waiter)) {
-        rt_task* sender = get_task(ex, waiter.task_id);
+    rt_chan_send_waiter send_waiter;
+    if (pop_send_waiter(ex, ch, &send_waiter)) {
+        rt_task* sender = get_task(ex, send_waiter.task_id);
         if (sender != NULL && sender->status != TASK_DONE) {
             sender->resume_kind = RESUME_CHAN_SEND_ACK;
             sender->resume_bits = 0;
-            wake_task(ex, waiter.task_id, 1);
+            wake_task(ex, send_waiter.task_id, 1);
         }
         if (out_bits != NULL) {
-            *out_bits = waiter.value_bits;
+            *out_bits = send_waiter.value_bits;
         }
         return 1;
     }

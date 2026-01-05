@@ -257,11 +257,11 @@ jobs:
           fi
       - name: Run showcases
         run: |
-          args="--report $PWD/SHOWCASES_REPORT.md --artifacts $PWD/build/showcases"
+          args=(--report "$PWD/SHOWCASES_REPORT.md" --artifacts "$PWD/build/showcases")
           if [[ "${{ steps.mode.outputs.strict }}" != "true" ]]; then
-            args="$args --allow-fail"
+            args+=(--allow-fail)
           fi
-          ./scripts/run_showcases.sh $args
+          ./scripts/run_showcases.sh "${args[@]}"
       - name: Showcases summary
         id: showcases_summary
         if: always()

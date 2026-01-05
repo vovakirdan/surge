@@ -132,11 +132,13 @@ SurgeBigInt* bi_from_i64(int64_t v) {
     bn_err err = BN_OK;
     SurgeBigInt* out = bi_alloc(abs->len, &err);
     if (out == NULL) {
+        bu_free(abs);
         return NULL;
     }
     out->neg = neg;
     memcpy(out->limbs, abs->limbs, (size_t)abs->len * sizeof(uint32_t));
     out->len = abs->len;
+    bu_free(abs);
     return out;
 }
 
@@ -151,11 +153,13 @@ SurgeBigInt* bi_from_u64(uint64_t v) {
     bn_err err = BN_OK;
     SurgeBigInt* out = bi_alloc(abs->len, &err);
     if (out == NULL) {
+        bu_free(abs);
         return NULL;
     }
     out->neg = 0;
     memcpy(out->limbs, abs->limbs, (size_t)abs->len * sizeof(uint32_t));
     out->len = abs->len;
+    bu_free(abs);
     return out;
 }
 
@@ -230,18 +234,22 @@ SurgeBigInt* bi_add(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err) {
             if (err != NULL) {
                 *err = tmp_err;
             }
+            bu_free(sum);
             return NULL;
         }
         if (sum == NULL || sum->len == 0) {
+            bu_free(sum);
             return NULL;
         }
         SurgeBigInt* out = bi_alloc(sum->len, err);
         if (out == NULL) {
+            bu_free(sum);
             return NULL;
         }
         out->neg = a->neg;
         memcpy(out->limbs, sum->limbs, (size_t)sum->len * sizeof(uint32_t));
         out->len = sum->len;
+        bu_free(sum);
         return out;
     }
 
@@ -256,18 +264,22 @@ SurgeBigInt* bi_add(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err) {
             if (err != NULL) {
                 *err = tmp_err;
             }
+            bu_free(diff);
             return NULL;
         }
         if (diff == NULL || diff->len == 0) {
+            bu_free(diff);
             return NULL;
         }
         SurgeBigInt* out = bi_alloc(diff->len, err);
         if (out == NULL) {
+            bu_free(diff);
             return NULL;
         }
         out->neg = a->neg;
         memcpy(out->limbs, diff->limbs, (size_t)diff->len * sizeof(uint32_t));
         out->len = diff->len;
+        bu_free(diff);
         return out;
     }
     bn_err tmp_err = BN_OK;
@@ -276,18 +288,22 @@ SurgeBigInt* bi_add(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err) {
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(diff);
         return NULL;
     }
     if (diff == NULL || diff->len == 0) {
+        bu_free(diff);
         return NULL;
     }
     SurgeBigInt* out = bi_alloc(diff->len, err);
     if (out == NULL) {
+        bu_free(diff);
         return NULL;
     }
     out->neg = b->neg;
     memcpy(out->limbs, diff->limbs, (size_t)diff->len * sizeof(uint32_t));
     out->len = diff->len;
+    bu_free(diff);
     return out;
 }
 
@@ -303,7 +319,9 @@ SurgeBigInt* bi_sub(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err) {
         }
         return NULL;
     }
-    return bi_add(a, neg, err);
+    SurgeBigInt* res = bi_add(a, neg, err);
+    bi_free(neg);
+    return res;
 }
 
 SurgeBigInt* bi_mul(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err) {
@@ -319,22 +337,27 @@ SurgeBigInt* bi_mul(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err) {
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(prod);
         return NULL;
     }
     if (prod == NULL || prod->len == 0) {
+        bu_free(prod);
         return NULL;
     }
     SurgeBigInt* out = bi_alloc(prod->len, err);
     if (out == NULL) {
+        bu_free(prod);
         return NULL;
     }
     out->neg = (a->neg != b->neg) ? 1 : 0;
     memcpy(out->limbs, prod->limbs, (size_t)prod->len * sizeof(uint32_t));
     out->len = prod->len;
+    bu_free(prod);
     return out;
 }
 
-SurgeBigInt* bi_div_mod(const SurgeBigInt* a, const SurgeBigInt* b, SurgeBigInt** out_rem, bn_err* err) {
+SurgeBigInt*
+bi_div_mod(const SurgeBigInt* a, const SurgeBigInt* b, SurgeBigInt** out_rem, bn_err* err) {
     if (err != NULL) {
         *err = BN_OK;
     }
@@ -357,12 +380,16 @@ SurgeBigInt* bi_div_mod(const SurgeBigInt* a, const SurgeBigInt* b, SurgeBigInt*
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(q_u);
+        bu_free(rem_u);
         return NULL;
     }
     SurgeBigInt* q = NULL;
     if (q_u != NULL && q_u->len > 0) {
         q = bi_alloc(q_u->len, err);
         if (q == NULL) {
+            bu_free(q_u);
+            bu_free(rem_u);
             return NULL;
         }
         q->neg = (a->neg != b->neg) ? 1 : 0;
@@ -373,6 +400,9 @@ SurgeBigInt* bi_div_mod(const SurgeBigInt* a, const SurgeBigInt* b, SurgeBigInt*
         if (rem_u != NULL && rem_u->len > 0) {
             SurgeBigInt* r = bi_alloc(rem_u->len, err);
             if (r == NULL) {
+                bu_free(q_u);
+                bu_free(rem_u);
+                bi_free(q);
                 return NULL;
             }
             r->neg = a->neg;
@@ -381,10 +411,13 @@ SurgeBigInt* bi_div_mod(const SurgeBigInt* a, const SurgeBigInt* b, SurgeBigInt*
             *out_rem = r;
         }
     }
+    bu_free(q_u);
+    bu_free(rem_u);
     return q;
 }
 
-static SurgeBigUint* bi_twos_complement(const SurgeBigUint* mag, bool neg, const SurgeBigUint* pow2, bn_err* err) {
+static SurgeBigUint*
+bi_twos_complement(const SurgeBigUint* mag, bool neg, const SurgeBigUint* pow2, bn_err* err) {
     if (err != NULL) {
         *err = BN_OK;
     }
@@ -395,9 +428,10 @@ static SurgeBigUint* bi_twos_complement(const SurgeBigUint* mag, bool neg, const
 }
 
 // Bitwise ops are defined via two's-complement over a fixed width.
-SurgeBigInt* bi_bit_op(const SurgeBigInt* a, const SurgeBigInt* b,
-                              SurgeBigUint* (*op)(const SurgeBigUint*, const SurgeBigUint*),
-                              bn_err* err) {
+SurgeBigInt* bi_bit_op(const SurgeBigInt* a,
+                       const SurgeBigInt* b,
+                       SurgeBigUint* (*op)(const SurgeBigUint*, const SurgeBigUint*),
+                       bn_err* err) {
     if (err != NULL) {
         *err = BN_OK;
     }
@@ -578,32 +612,50 @@ SurgeBigInt* bi_shr(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err) {
             if (err != NULL) {
                 *err = tmp_err;
             }
+            bu_free(shifted);
             return NULL;
         }
         if (shifted == NULL || shifted->len == 0) {
+            bu_free(shifted);
             return NULL;
         }
         SurgeBigInt* out = bi_alloc(shifted->len, err);
         if (out == NULL) {
+            bu_free(shifted);
             return NULL;
         }
         out->neg = 0;
         memcpy(out->limbs, shifted->limbs, (size_t)shifted->len * sizeof(uint32_t));
         out->len = shifted->len;
+        bu_free(shifted);
         return out;
     }
-    SurgeBigUint* pow2 = bu_shl(bu_from_u64(1), shift, &tmp_err);
-    if (tmp_err != BN_OK) {
-        if (err != NULL) {
-            *err = tmp_err;
-        }
+    SurgeBigUint* one = bu_from_u64(1);
+    if (one == NULL) {
         return NULL;
     }
-    SurgeBigUint* pow2m1 = bu_sub(pow2, bu_from_u64(1), &tmp_err);
+    SurgeBigUint* pow2 = bu_shl(one, shift, &tmp_err);
+    bu_free(one);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(pow2);
+        return NULL;
+    }
+    SurgeBigUint* one_again = bu_from_u64(1);
+    if (one_again == NULL) {
+        bu_free(pow2);
+        return NULL;
+    }
+    SurgeBigUint* pow2m1 = bu_sub(pow2, one_again, &tmp_err);
+    bu_free(one_again);
+    if (tmp_err != BN_OK) {
+        if (err != NULL) {
+            *err = tmp_err;
+        }
+        bu_free(pow2);
+        bu_free(pow2m1);
         return NULL;
     }
     SurgeBigUint* sum = bu_add(bi_as_uint(a), pow2m1, &tmp_err);
@@ -611,24 +663,35 @@ SurgeBigInt* bi_shr(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err) {
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(pow2);
+        bu_free(pow2m1);
+        bu_free(sum);
         return NULL;
     }
+    bu_free(pow2);
+    bu_free(pow2m1);
     SurgeBigUint* shifted = bu_shr(sum, shift, &tmp_err);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(sum);
+        bu_free(shifted);
         return NULL;
     }
+    bu_free(sum);
     if (shifted == NULL || shifted->len == 0) {
+        bu_free(shifted);
         return NULL;
     }
     SurgeBigInt* out = bi_alloc(shifted->len, err);
     if (out == NULL) {
+        bu_free(shifted);
         return NULL;
     }
     out->neg = 1;
     memcpy(out->limbs, shifted->limbs, (size_t)shifted->len * sizeof(uint32_t));
     out->len = shifted->len;
+    bu_free(shifted);
     return out;
 }

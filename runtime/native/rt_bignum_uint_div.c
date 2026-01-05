@@ -154,6 +154,7 @@ SurgeBigUint* bu_shr(const SurgeBigUint* u, int bits, bn_err* err) {
         memcpy(out->limbs, u->limbs + word_shift, (size_t)out_len * sizeof(uint32_t));
         out->len = trim_len(out->limbs, out->len);
         if (out->len == 0) {
+            bu_free(out);
             return NULL;
         }
         return out;
@@ -169,13 +170,15 @@ SurgeBigUint* bu_shr(const SurgeBigUint* u, int bits, bn_err* err) {
     }
     out->len = trim_len(out->limbs, out->len);
     if (out->len == 0) {
+        bu_free(out);
         return NULL;
     }
     return out;
 }
 
 // Long division in base 2^32 with normalization; returns quotient and remainder.
-SurgeBigUint* bu_div_mod(const SurgeBigUint* a, const SurgeBigUint* b, SurgeBigUint** out_rem, bn_err* err) {
+SurgeBigUint*
+bu_div_mod(const SurgeBigUint* a, const SurgeBigUint* b, SurgeBigUint** out_rem, bn_err* err) {
     if (err != NULL) {
         *err = BN_OK;
     }
@@ -330,6 +333,7 @@ SurgeBigUint* bu_and(const SurgeBigUint* a, const SurgeBigUint* b) {
     }
     out->len = trim_len(out->limbs, out->len);
     if (out->len == 0) {
+        bu_free(out);
         return NULL;
     }
     return out;
@@ -363,6 +367,7 @@ SurgeBigUint* bu_or(const SurgeBigUint* a, const SurgeBigUint* b) {
     }
     out->len = trim_len(out->limbs, out->len);
     if (out->len == 0) {
+        bu_free(out);
         return NULL;
     }
     return out;
@@ -396,6 +401,7 @@ SurgeBigUint* bu_xor(const SurgeBigUint* a, const SurgeBigUint* b) {
     }
     out->len = trim_len(out->limbs, out->len);
     if (out->len == 0) {
+        bu_free(out);
         return NULL;
     }
     return out;
@@ -472,7 +478,10 @@ SurgeBigUint* bu_shift_right_round_even(const SurgeBigUint* u, int bits, bn_err*
 }
 
 // Round quotient using remainder and denominator with half-even rule.
-SurgeBigUint* bu_round_quotient_even(const SurgeBigUint* q, const SurgeBigUint* r, const SurgeBigUint* denom, bn_err* err) {
+SurgeBigUint* bu_round_quotient_even(const SurgeBigUint* q,
+                                     const SurgeBigUint* r,
+                                     const SurgeBigUint* denom,
+                                     bn_err* err) {
     if (err != NULL) {
         *err = BN_OK;
     }
@@ -661,6 +670,7 @@ SurgeBigUint* bu_low_bits(const SurgeBigUint* u, int bits) {
     }
     out->len = trim_len(out->limbs, out->len);
     if (out->len == 0) {
+        bu_free(out);
         return NULL;
     }
     return out;

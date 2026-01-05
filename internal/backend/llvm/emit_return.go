@@ -8,10 +8,8 @@ import (
 	"surge/internal/types"
 )
 
+// emitUnionReturn assumes fe/emitter/types are non-nil; callers enforce that invariant.
 func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expected types.TypeID) (outVal, outTy string, err error) {
-	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
-		return val, valTy, nil
-	}
 	expected = resolveAliasAndOwn(fe.emitter.types, expected)
 	if !isUnionType(fe.emitter.types, expected) {
 		return val, valTy, nil
