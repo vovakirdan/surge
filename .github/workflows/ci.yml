@@ -95,7 +95,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install LLVM toolchain
-        run: sudo apt-get update && sudo apt-get install -y clang llvm lld
+        run: sudo apt-get update && sudo apt-get install -y clang llvm lld clang-tools
       - name: Run scan-build
         run: |
           cd runtime/native
@@ -120,7 +120,7 @@ jobs:
         run: |
           cd runtime/native
           for f in *.c; do
-            clang -std=c11 -I. $(CFLAGS) -c "$$f" -o "/tmp/$${f%.c}.o" || exit 1
+            clang -std=c11 -I. "$CFLAGS" -c "$$f" -o "/tmp/$${f%.c}.o" || exit 1
           done
       - name: Run tests with sanitizers
         env:

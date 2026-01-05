@@ -14,7 +14,6 @@ Checks: >
   -readability-named-parameter
 WarningsAsErrors: ''
 HeaderFilterRegex: 'runtime/native/.*'
-AnalyzeTemporaryDtors: false
 CheckOptions:
   - key: readability-identifier-naming.NamespaceCase
     value: CamelCase
@@ -24,4 +23,3 @@ CheckOptions:
     value: camelBack
   - key: readability-identifier-naming.VariableCase
     value: camelBack
-

@@ -54,7 +54,12 @@ void* rt_readline(void) {
     ssize_t n = getline(&buf, &cap, stdin);
     if (n <= 0) {
         free(buf);
-        return rt_string_from_bytes(NULL, 0);
+        void* out = rt_string_from_bytes(NULL, 0);
+        if (out == NULL) {
+            const char* msg = "readline allocation failed";
+            rt_panic((const uint8_t*)msg, (uint64_t)strlen(msg));
+        }
+        return out;
     }
     size_t len = (size_t)n;
     if (len > 0 && buf[len - 1] == '\n') {
@@ -65,6 +70,10 @@ void* rt_readline(void) {
     }
     void* out = rt_string_from_bytes((const uint8_t*)buf, (uint64_t)len);
     free(buf);
+    if (out == NULL) {
+        const char* msg = "readline allocation failed";
+        rt_panic((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
     return out;
 }
 

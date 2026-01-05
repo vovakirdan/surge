@@ -44,6 +44,7 @@ static SurgeBigFloat* bf_clone(const SurgeBigFloat* f, bn_err* err) {
     out->exp = f->exp;
     out->mant = bu_clone(f->mant, err);
     if (out->mant == NULL) {
+        bf_free(out);
         return NULL;
     }
     return out;
@@ -131,7 +132,9 @@ static SurgeBigUint* bf_normalize_mantissa(const SurgeBigUint* m, int32_t* exp, 
             *exp += (int32_t)shift;
         }
         if (rounded != NULL && bu_bitlen(rounded) > SURGE_BIGNUM_MANTISSA_BITS) {
-            rounded = bu_shift_right_round_even(rounded, 1, &tmp_err);
+            SurgeBigUint* prev = rounded;
+            rounded = bu_shift_right_round_even(prev, 1, &tmp_err);
+            bu_free(prev);
             if (tmp_err != BN_OK) {
                 if (err != NULL) {
                     *err = tmp_err;
@@ -207,16 +210,19 @@ static int bf_floor_log2_ratio(const SurgeBigUint* num, const SurgeBigUint* den,
             if (err != NULL) {
                 *err = tmp_err;
             }
+            bu_free(shifted);
             return 0;
         }
         if (bu_cmp(num, shifted) < 0) {
             e--;
         } else {
             SurgeBigUint* shifted2 = bu_shl(den, e + 1, &tmp_err);
-            if (tmp_err == BN_OK && bu_cmp(num, shifted2) >= 0) {
+            if (shifted2 != NULL && tmp_err == BN_OK && bu_cmp(num, shifted2) >= 0) {
                 e++;
             }
+            bu_free(shifted2);
         }
+        bu_free(shifted);
         return e;
     }
     int d = (int)bu_bitlen(den) - (int)bu_bitlen(num);
@@ -227,11 +233,13 @@ static int bf_floor_log2_ratio(const SurgeBigUint* num, const SurgeBigUint* den,
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(shifted);
         return 0;
     }
     if (bu_cmp(shifted, den) < 0) {
         s++;
     }
+    bu_free(shifted);
     return -s;
 }
 
@@ -261,75 +269,96 @@ bf_from_ratio(bool neg, const SurgeBigUint* num, const SurgeBigUint* den, bn_err
     int scale = (SURGE_BIGNUM_MANTISSA_BITS - 1) - e0;
     const SurgeBigUint* scaled_num = num;
     const SurgeBigUint* scaled_den = den;
+    SurgeBigUint* scaled_num_owned = NULL;
+    SurgeBigUint* scaled_den_owned = NULL;
+    SurgeBigUint* rem = NULL;
+    SurgeBigUint* q = NULL;
+    SurgeBigUint* mant = NULL;
+    SurgeBigFloat* out = NULL;
+
     if (scale >= 0) {
         if (scale > INT_MAX) {
             if (err != NULL) {
                 *err = BN_ERR_MAX_LIMBS;
             }
-            return NULL;
+            goto cleanup;
         }
-        scaled_num = bu_shl(num, scale, &tmp_err);
+        scaled_num_owned = bu_shl(num, scale, &tmp_err);
+        scaled_num = scaled_num_owned;
         if (tmp_err != BN_OK) {
             if (err != NULL) {
                 *err = tmp_err;
             }
-            return NULL;
+            goto cleanup;
         }
     } else {
         if (-scale > INT_MAX) {
             if (err != NULL) {
                 *err = BN_ERR_MAX_LIMBS;
             }
-            return NULL;
+            goto cleanup;
         }
-        scaled_den = bu_shl(den, -scale, &tmp_err);
+        scaled_den_owned = bu_shl(den, -scale, &tmp_err);
+        scaled_den = scaled_den_owned;
         if (tmp_err != BN_OK) {
             if (err != NULL) {
                 *err = tmp_err;
             }
-            return NULL;
+            goto cleanup;
         }
     }
-    SurgeBigUint* rem = NULL;
-    SurgeBigUint* q = bu_div_mod(scaled_num, scaled_den, &rem, &tmp_err);
+    q = bu_div_mod(scaled_num, scaled_den, &rem, &tmp_err);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
-        return NULL;
+        goto cleanup;
     }
-    q = bu_round_quotient_even(q, rem, scaled_den, &tmp_err);
+    SurgeBigUint* rounded = bu_round_quotient_even(q, rem, scaled_den, &tmp_err);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
-        return NULL;
+        goto cleanup;
     }
+    if (rounded != q) {
+        bu_free(q);
+    }
+    q = rounded;
     int64_t exp64 = (int64_t)e0 - (int64_t)(SURGE_BIGNUM_MANTISSA_BITS - 1);
     if (exp64 < INT32_MIN || exp64 > INT32_MAX) {
         if (err != NULL) {
             *err = BN_ERR_MAX_LIMBS;
         }
-        return NULL;
+        goto cleanup;
     }
     int32_t exp = (int32_t)exp64;
-    SurgeBigUint* mant = bf_normalize_mantissa(q, &exp, &tmp_err);
+    mant = bf_normalize_mantissa(q, &exp, &tmp_err);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
-        return NULL;
+        goto cleanup;
     }
     if (mant == NULL || mant->len == 0) {
-        return NULL;
+        goto cleanup;
     }
-    SurgeBigFloat* out = bf_alloc(err);
+    out = bf_alloc(err);
     if (out == NULL) {
-        return NULL;
+        bu_free(mant);
+        mant = NULL;
+        goto cleanup;
     }
     out->neg = neg ? 1 : 0;
     out->exp = exp;
     out->mant = mant;
+    mant = NULL;
+cleanup:
+    bu_free(rem);
+    bu_free(q);
+    bu_free(scaled_num_owned);
+    bu_free(scaled_den_owned);
+    bu_free(mant);
     return out;
 }
 
@@ -397,10 +426,14 @@ SurgeBigFloat* bf_add(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
             if (err != NULL) {
                 *err = tmp_err;
             }
+            bu_free(rhs_mant);
+            bu_free(sum);
             return NULL;
         }
         int32_t exp = lhs.exp;
         SurgeBigUint* mant = bf_normalize_mantissa(sum, &exp, &tmp_err);
+        bu_free(sum);
+        bu_free(rhs_mant);
         if (tmp_err != BN_OK) {
             if (err != NULL) {
                 *err = tmp_err;
@@ -408,10 +441,12 @@ SurgeBigFloat* bf_add(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
             return NULL;
         }
         if (mant == NULL || mant->len == 0) {
+            bu_free(mant);
             return NULL;
         }
         SurgeBigFloat* out = bf_alloc(err);
         if (out == NULL) {
+            bu_free(mant);
             return NULL;
         }
         out->neg = lhs.neg;
@@ -421,6 +456,7 @@ SurgeBigFloat* bf_add(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
     }
     int cmp = bu_cmp(lhs.mant, rhs_mant);
     if (cmp == 0) {
+        bu_free(rhs_mant);
         return NULL;
     }
     if (cmp > 0) {
@@ -429,10 +465,14 @@ SurgeBigFloat* bf_add(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
             if (err != NULL) {
                 *err = tmp_err;
             }
+            bu_free(rhs_mant);
+            bu_free(diff);
             return NULL;
         }
         int32_t exp = lhs.exp;
         SurgeBigUint* mant = bf_normalize_mantissa(diff, &exp, &tmp_err);
+        bu_free(diff);
+        bu_free(rhs_mant);
         if (tmp_err != BN_OK) {
             if (err != NULL) {
                 *err = tmp_err;
@@ -440,10 +480,12 @@ SurgeBigFloat* bf_add(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
             return NULL;
         }
         if (mant == NULL || mant->len == 0) {
+            bu_free(mant);
             return NULL;
         }
         SurgeBigFloat* out = bf_alloc(err);
         if (out == NULL) {
+            bu_free(mant);
             return NULL;
         }
         out->neg = lhs.neg;
@@ -456,10 +498,14 @@ SurgeBigFloat* bf_add(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(rhs_mant);
+        bu_free(diff);
         return NULL;
     }
     int32_t exp = lhs.exp;
     SurgeBigUint* mant = bf_normalize_mantissa(diff, &exp, &tmp_err);
+    bu_free(diff);
+    bu_free(rhs_mant);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
@@ -467,10 +513,12 @@ SurgeBigFloat* bf_add(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
         return NULL;
     }
     if (mant == NULL || mant->len == 0) {
+        bu_free(mant);
         return NULL;
     }
     SurgeBigFloat* out = bf_alloc(err);
     if (out == NULL) {
+        bu_free(mant);
         return NULL;
     }
     out->neg = rhs.neg;
@@ -486,9 +534,12 @@ SurgeBigFloat* bf_sub(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
         if (err != NULL) {
             *err = tmp_err;
         }
+        bf_free(neg_b);
         return NULL;
     }
-    return bf_add(a, neg_b, err);
+    SurgeBigFloat* res = bf_add(a, neg_b, err);
+    bf_free(neg_b);
+    return res;
 }
 
 SurgeBigFloat* bf_mul(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* err) {
@@ -504,10 +555,12 @@ SurgeBigFloat* bf_mul(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(prod);
         return NULL;
     }
     int32_t exp = a->exp + b->exp;
     SurgeBigUint* mant = bf_normalize_mantissa(prod, &exp, &tmp_err);
+    bu_free(prod);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
@@ -515,10 +568,12 @@ SurgeBigFloat* bf_mul(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
         return NULL;
     }
     if (mant == NULL || mant->len == 0) {
+        bu_free(mant);
         return NULL;
     }
     SurgeBigFloat* out = bf_alloc(err);
     if (out == NULL) {
+        bu_free(mant);
         return NULL;
     }
     out->neg = (a->neg != b->neg) ? 1 : 0;
@@ -546,25 +601,37 @@ SurgeBigFloat* bf_div(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(scaled);
         return NULL;
     }
     SurgeBigUint* rem = NULL;
     SurgeBigUint* q = bu_div_mod(scaled, b->mant, &rem, &tmp_err);
+    bu_free(scaled);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(q);
+        bu_free(rem);
         return NULL;
     }
-    q = bu_round_quotient_even(q, rem, b->mant, &tmp_err);
+    SurgeBigUint* rounded = bu_round_quotient_even(q, rem, b->mant, &tmp_err);
+    bu_free(rem);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
+        bu_free(q);
+        bu_free(rounded);
         return NULL;
     }
+    if (rounded != q) {
+        bu_free(q);
+    }
+    q = rounded;
     int32_t exp = a->exp - b->exp - SURGE_BIGNUM_MANTISSA_BITS;
     SurgeBigUint* mant = bf_normalize_mantissa(q, &exp, &tmp_err);
+    bu_free(q);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
@@ -572,10 +639,12 @@ SurgeBigFloat* bf_div(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
         return NULL;
     }
     if (mant == NULL || mant->len == 0) {
+        bu_free(mant);
         return NULL;
     }
     SurgeBigFloat* out = bf_alloc(err);
     if (out == NULL) {
+        bu_free(mant);
         return NULL;
     }
     out->neg = (a->neg != b->neg) ? 1 : 0;

@@ -12,12 +12,17 @@ SurgeBigInt* bf_to_int_trunc(const SurgeBigFloat* f, bn_err* err) {
         return NULL;
     }
     SurgeBigUint* mag = f->mant;
+    bool mag_owned = false;
+    bn_err tmp_err = BN_OK;
     if (f->exp > 0) {
-        bn_err tmp_err = BN_OK;
         mag = bu_shl(mag, (int)f->exp, &tmp_err);
+        mag_owned = true;
         if (tmp_err != BN_OK) {
             if (err != NULL) {
                 *err = tmp_err;
+            }
+            if (mag_owned) {
+                bu_free(mag);
             }
             return NULL;
         }
@@ -26,29 +31,41 @@ SurgeBigInt* bf_to_int_trunc(const SurgeBigFloat* f, bn_err* err) {
         if (shift > (int64_t)INT_MAX) {
             return NULL;
         }
-        bn_err tmp_err = BN_OK;
         mag = bu_shr(mag, (int)shift, &tmp_err);
+        mag_owned = true;
         if (tmp_err != BN_OK) {
             if (err != NULL) {
                 *err = tmp_err;
+            }
+            if (mag_owned) {
+                bu_free(mag);
             }
             return NULL;
         }
     }
     if (mag == NULL || mag->len == 0) {
+        if (mag_owned) {
+            bu_free(mag);
+        }
         return NULL;
     }
-    bn_err tmp_err = BN_OK;
+    tmp_err = BN_OK;
     SurgeBigInt* out = bi_alloc(mag->len, &tmp_err);
     if (tmp_err != BN_OK || out == NULL) {
         if (err != NULL) {
             *err = tmp_err;
+        }
+        if (mag_owned) {
+            bu_free(mag);
         }
         return NULL;
     }
     out->neg = f->neg;
     memcpy(out->limbs, mag->limbs, (size_t)mag->len * sizeof(uint32_t));
     out->len = mag->len;
+    if (mag_owned) {
+        bu_free(mag);
+    }
     return out;
 }
 
@@ -71,15 +88,18 @@ SurgeBigUint* bf_to_uint_trunc(const SurgeBigFloat* f, bn_err* err) {
         return NULL;
     }
     if (i == NULL || i->len == 0) {
+        bi_free(i);
         return NULL;
     }
     if (i->neg) {
         if (err != NULL) {
             *err = BN_ERR_UNDERFLOW;
         }
+        bi_free(i);
         return NULL;
     }
     SurgeBigUint* out = bu_clone(bi_as_uint(i), err);
+    bi_free(i);
     return out;
 }
 
@@ -97,39 +117,54 @@ SurgeBigFloat* bf_mod(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
         return NULL;
     }
     bn_err tmp_err = BN_OK;
-    SurgeBigFloat* q = bf_div(a, b, &tmp_err);
+    SurgeBigFloat* q = NULL;
+    SurgeBigInt* qi = NULL;
+    SurgeBigFloat* qf = NULL;
+    SurgeBigFloat* prod = NULL;
+    SurgeBigFloat* res = NULL;
+
+    q = bf_div(a, b, &tmp_err);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
-        return NULL;
+        goto cleanup;
     }
-    SurgeBigInt* qi = bf_to_int_trunc(q, &tmp_err);
+    qi = bf_to_int_trunc(q, &tmp_err);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
-        return NULL;
+        goto cleanup;
     }
-    SurgeBigFloat* qf = bf_from_int(qi, &tmp_err);
+    qf = bf_from_int(qi, &tmp_err);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
-        return NULL;
+        goto cleanup;
     }
-    SurgeBigFloat* prod = bf_mul(qf, b, &tmp_err);
+    prod = bf_mul(qf, b, &tmp_err);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
-        return NULL;
+        goto cleanup;
     }
-    SurgeBigFloat* res = bf_sub(a, prod, &tmp_err);
+    res = bf_sub(a, prod, &tmp_err);
     if (tmp_err != BN_OK) {
         if (err != NULL) {
             *err = tmp_err;
         }
+        goto cleanup;
+    }
+cleanup:
+    bf_free(q);
+    bi_free(qi);
+    bf_free(qf);
+    bf_free(prod);
+    if (tmp_err != BN_OK) {
+        bf_free(res);
         return NULL;
     }
     return res;

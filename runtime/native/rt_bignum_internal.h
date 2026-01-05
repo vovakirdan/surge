@@ -150,6 +150,13 @@ SurgeBigFloat* bf_div(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* er
 SurgeBigFloat* bf_mod(const SurgeBigFloat* a, const SurgeBigFloat* b, bn_err* err);
 SurgeBigFloat* bf_neg(const SurgeBigFloat* f, bn_err* err);
 SurgeBigFloat* bf_abs(const SurgeBigFloat* f, bn_err* err);
+static inline void bf_free(SurgeBigFloat* f) {
+    if (f == NULL) {
+        return;
+    }
+    bu_free(f->mant);
+    rt_free((uint8_t*)f, (uint64_t)sizeof(SurgeBigFloat), (uint64_t)alignof(SurgeBigFloat));
+}
 int bf_cmp(const SurgeBigFloat* a, const SurgeBigFloat* b);
 SurgeBigInt* bf_to_int_trunc(const SurgeBigFloat* f, bn_err* err);
 SurgeBigUint* bf_to_uint_trunc(const SurgeBigFloat* f, bn_err* err);

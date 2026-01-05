@@ -194,6 +194,7 @@ SurgeBigInt* bi_neg(const SurgeBigInt* a, bn_err* err) {
     }
     out->neg = out->neg ? 0 : 1;
     if (bi_is_zero(out)) {
+        bi_free(out);
         return NULL;
     }
     return out;
@@ -212,6 +213,7 @@ SurgeBigInt* bi_abs_val(const SurgeBigInt* a, bn_err* err) {
     }
     out->neg = 0;
     if (bi_is_zero(out)) {
+        bi_free(out);
         return NULL;
     }
     return out;
@@ -579,15 +581,18 @@ SurgeBigInt* bi_shl(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err) {
         return NULL;
     }
     if (shifted == NULL || shifted->len == 0) {
+        bu_free(shifted);
         return NULL;
     }
     SurgeBigInt* out = bi_alloc(shifted->len, err);
     if (out == NULL) {
+        bu_free(shifted);
         return NULL;
     }
     out->neg = a->neg;
     memcpy(out->limbs, shifted->limbs, (size_t)shifted->len * sizeof(uint32_t));
     out->len = shifted->len;
+    bu_free(shifted);
     return out;
 }
 

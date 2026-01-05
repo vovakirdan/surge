@@ -191,6 +191,7 @@ void* rt_bigfloat_from_i64(int64_t value) {
     bn_err err = BN_OK;
     SurgeBigInt* i = bi_from_i64(value);
     SurgeBigFloat* f = bf_from_int(i, &err);
+    bi_free(i);
     if (err != BN_OK) {
         bignum_panic_err(err);
     }
@@ -201,6 +202,7 @@ void* rt_bigfloat_from_u64(uint64_t value) {
     bn_err err = BN_OK;
     SurgeBigUint* u = bu_from_u64(value);
     SurgeBigFloat* f = bf_from_uint(u, &err);
+    bu_free(u);
     if (err != BN_OK) {
         bignum_panic_err(err);
     }

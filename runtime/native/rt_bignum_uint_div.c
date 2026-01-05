@@ -43,6 +43,7 @@ SurgeBigUint* bu_div_mod_small(const SurgeBigUint* u, uint32_t d, uint32_t* rem,
         *rem = (uint32_t)r;
     }
     if (out->len == 0) {
+        bu_free(out);
         return NULL;
     }
     return out;
@@ -469,10 +470,14 @@ SurgeBigUint* bu_shift_right_round_even(const SurgeBigUint* u, int bits, bn_err*
         return shifted;
     }
     if (low_set) {
-        return bu_add_small(shifted, 1, err);
+        SurgeBigUint* rounded = bu_add_small(shifted, 1, err);
+        bu_free(shifted);
+        return rounded;
     }
     if (bu_is_odd(shifted)) {
-        return bu_add_small(shifted, 1, err);
+        SurgeBigUint* rounded = bu_add_small(shifted, 1, err);
+        bu_free(shifted);
+        return rounded;
     }
     return shifted;
 }
@@ -498,15 +503,23 @@ SurgeBigUint* bu_round_quotient_even(const SurgeBigUint* q,
     }
     int cmp = bu_cmp(two_r, denom);
     if (cmp < 0) {
-        return bu_clone(q, err);
+        SurgeBigUint* out = bu_clone(q, err);
+        bu_free(two_r);
+        return out;
     }
     if (cmp > 0) {
-        return bu_add_small(q, 1, err);
+        SurgeBigUint* out = bu_add_small(q, 1, err);
+        bu_free(two_r);
+        return out;
     }
     if (bu_is_odd(q)) {
-        return bu_add_small(q, 1, err);
+        SurgeBigUint* out = bu_add_small(q, 1, err);
+        bu_free(two_r);
+        return out;
     }
-    return bu_clone(q, err);
+    SurgeBigUint* out = bu_clone(q, err);
+    bu_free(two_r);
+    return out;
 }
 
 SurgeBigUint* bu_pow10(int n, bn_err* err) {
