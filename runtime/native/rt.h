@@ -127,7 +127,7 @@ bool rt_scope_join_all(void* scope, uint64_t* pending, bool* failfast);
 void rt_scope_exit(void* scope);
 
 void* checkpoint(void);
-void* sleep(void* ms);
+void* rt_sleep(void* ms);
 
 void* rt_range_int_new(void* start, void* end, bool inclusive);
 void* rt_range_int_from_start(void* start, bool inclusive);

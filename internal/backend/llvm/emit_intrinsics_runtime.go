@@ -2,6 +2,7 @@ package llvm
 
 import (
 	"fmt"
+	"strings"
 
 	"surge/internal/mir"
 	"surge/internal/types"
@@ -52,9 +53,48 @@ func (fe *funcEmitter) emitRuntimeIntrinsic(call *mir.CallInstr) (bool, error) {
 		return true, fe.emitRtExit(call)
 	case "rt_string_index":
 		return true, fe.emitRtStringIndex(call)
+	case "sleep":
+		return true, fe.emitRuntimeAliasCall(call, "rt_sleep")
 	default:
 		return false, nil
 	}
+}
+
+func (fe *funcEmitter) emitRuntimeAliasCall(call *mir.CallInstr, target string) error {
+	if fe == nil || fe.emitter == nil {
+		return fmt.Errorf("missing emitter")
+	}
+	sig, ok := fe.emitter.runtimeSigs[target]
+	if !ok {
+		return fmt.Errorf("missing runtime signature for %s", target)
+	}
+	args := make([]string, 0, len(call.Args))
+	for i := range call.Args {
+		val, ty, err := fe.emitOperand(&call.Args[i])
+		if err != nil {
+			return err
+		}
+		args = append(args, fmt.Sprintf("%s %s", ty, val))
+	}
+	callStmt := fmt.Sprintf("call %s @%s(%s)", sig.ret, target, strings.Join(args, ", "))
+	if call.HasDst {
+		if sig.ret == "void" {
+			return fmt.Errorf("call has destination but returns void: %s", target)
+		}
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = %s\n", tmp, callStmt)
+		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		if err != nil {
+			return err
+		}
+		if dstTy != sig.ret {
+			dstTy = sig.ret
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		return nil
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  %s\n", callStmt)
+	return nil
 }
 
 func (fe *funcEmitter) emitRtAlloc(call *mir.CallInstr) error {

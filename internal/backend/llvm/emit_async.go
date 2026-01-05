@@ -64,7 +64,7 @@ func (e *Emitter) emitPollDispatch() error {
 	if sc, ok := e.stringConsts["missing poll function"]; ok && sc.globalName != "" {
 		fmt.Fprintf(&e.buf, "  call void @rt_panic(ptr getelementptr inbounds ([%d x i8], ptr @%s, i64 0, i64 0), i64 %d)\n", sc.arrayLen, sc.globalName, sc.dataLen)
 	}
-	fmt.Fprintf(&e.buf, "  ret void\n")
+	fmt.Fprintf(&e.buf, "  unreachable\n")
 	fmt.Fprintf(&e.buf, "}\n\n")
 	return nil
 }

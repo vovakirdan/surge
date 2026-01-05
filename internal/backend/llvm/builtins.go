@@ -112,7 +112,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_scope_join_all", ret: "i1", params: []string{"ptr", "ptr", "ptr"}},
 		{name: "rt_scope_exit", ret: "void", params: []string{"ptr"}},
 		{name: "checkpoint", ret: "ptr", params: nil},
-		{name: "sleep", ret: "ptr", params: []string{"ptr"}},
+		{name: "rt_sleep", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_range_int_new", ret: "ptr", params: []string{"ptr", "ptr", "i1"}},
 		{name: "rt_range_int_from_start", ret: "ptr", params: []string{"ptr", "i1"}},
 		{name: "rt_range_int_to_end", ret: "ptr", params: []string{"ptr", "i1"}},
