@@ -261,10 +261,10 @@ bn_err parse_float_string(const uint8_t* data, size_t len, SurgeBigFloat** out) 
     }
     int k = exp10 - frac_digits;
     SurgeBigUint* num = n;
-    SurgeBigUint* den = bu_from_u64(1);
-    if (den == NULL) {
+    SurgeBigUint* den = bu_from_u64(1, &tmp_err);
+    if (tmp_err != BN_OK || den == NULL) {
         bu_free(num);
-        return BN_ERR_MAX_LIMBS;
+        return (tmp_err != BN_OK) ? tmp_err : BN_ERR_MAX_LIMBS;
     }
     if (k >= 0) {
         SurgeBigUint* pow = bu_pow10(k, &tmp_err);

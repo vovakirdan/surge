@@ -150,7 +150,7 @@ static int pop_recv_waiter(rt_executor* ex, rt_channel* ch, uint64_t* out_id) {
         ch->recv_len--;
         compact_recvq(ch);
         if (ex != NULL) {
-            rt_task* task = get_task(ex, task_id);
+            const rt_task* task = get_task(ex, task_id);
             if (task == NULL || task->status == TASK_DONE) {
                 continue;
             }
@@ -172,7 +172,7 @@ static int pop_send_waiter(rt_executor* ex, rt_channel* ch, rt_chan_send_waiter*
         ch->send_len--;
         compact_sendq(ch);
         if (ex != NULL) {
-            rt_task* task = get_task(ex, send_waiter.task_id);
+            const rt_task* task = get_task(ex, send_waiter.task_id);
             if (task == NULL || task->status == TASK_DONE) {
                 continue;
             }

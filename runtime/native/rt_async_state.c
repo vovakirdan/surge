@@ -358,12 +358,6 @@ int ready_pop(rt_executor* ex, uint64_t* out_id) {
         }
         return 1;
     }
-    if (ex->ready_head > 0 && ex->ready_len > ex->ready_head) {
-        size_t remaining = ex->ready_len - ex->ready_head;
-        memmove(ex->ready, ex->ready + ex->ready_head, remaining * sizeof(uint64_t));
-        ex->ready_len = remaining;
-        ex->ready_head = 0;
-    }
     return 0;
 }
 
@@ -420,7 +414,7 @@ void tick_virtual(rt_executor* ex) {
         return;
     }
     for (size_t i = 1; i < ex->tasks_cap; i++) {
-        rt_task* task = ex->tasks[i];
+        const rt_task* task = ex->tasks[i];
         if (task == NULL || task->kind != TASK_KIND_SLEEP || task->status != TASK_WAITING ||
             !task->sleep_armed) {
             continue;
@@ -437,7 +431,7 @@ int advance_time_to_next_timer(rt_executor* ex) {
     }
     uint64_t next_deadline = UINT64_MAX;
     for (size_t i = 1; i < ex->tasks_cap; i++) {
-        rt_task* task = ex->tasks[i];
+        const rt_task* task = ex->tasks[i];
         if (task == NULL || task->kind != TASK_KIND_SLEEP || task->status != TASK_WAITING ||
             !task->sleep_armed) {
             continue;
@@ -451,7 +445,7 @@ int advance_time_to_next_timer(rt_executor* ex) {
     }
     ex->now_ms = next_deadline;
     for (size_t i = 1; i < ex->tasks_cap; i++) {
-        rt_task* task = ex->tasks[i];
+        const rt_task* task = ex->tasks[i];
         if (task == NULL || task->kind != TASK_KIND_SLEEP || task->status != TASK_WAITING ||
             !task->sleep_armed) {
             continue;
@@ -484,7 +478,7 @@ rt_task* task_from_handle(void* handle) {
 }
 
 uint64_t task_id_from_handle(void* handle) {
-    rt_task* task = task_from_handle(handle);
+    const rt_task* task = task_from_handle(handle);
     if (task == NULL) {
         return 0;
     }
@@ -554,7 +548,7 @@ int current_task_cancelled(rt_executor* ex) {
     if (ex == NULL || ex->current == 0) {
         return 0;
     }
-    rt_task* task = get_task(ex, ex->current);
+    const rt_task* task = get_task(ex, ex->current);
     if (task == NULL) {
         return 0;
     }

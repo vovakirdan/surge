@@ -2,7 +2,7 @@
 
 // Async runtime polling and scheduler logic.
 
-static poll_outcome poll_checkpoint_task(rt_executor* ex, rt_task* task) {
+static poll_outcome poll_checkpoint_task(const rt_executor* ex, rt_task* task) {
     poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
     if (ex == NULL || task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
@@ -21,7 +21,7 @@ static poll_outcome poll_checkpoint_task(rt_executor* ex, rt_task* task) {
     return out;
 }
 
-static poll_outcome poll_sleep_task(rt_executor* ex, rt_task* task) {
+static poll_outcome poll_sleep_task(const rt_executor* ex, rt_task* task) {
     poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
     if (ex == NULL || task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
@@ -47,7 +47,7 @@ static poll_outcome poll_sleep_task(rt_executor* ex, rt_task* task) {
     return out;
 }
 
-static poll_outcome poll_user_task(rt_executor* ex, rt_task* task) {
+static poll_outcome poll_user_task(const rt_executor* ex, const rt_task* task) {
     poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
     if (ex == NULL || task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
@@ -70,7 +70,7 @@ static poll_outcome poll_user_task(rt_executor* ex, rt_task* task) {
     return poll_result;
 }
 
-poll_outcome poll_task(rt_executor* ex, rt_task* task) {
+poll_outcome poll_task(const rt_executor* ex, rt_task* task) {
     poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
     if (task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
@@ -132,7 +132,7 @@ int run_ready_one(rt_executor* ex) {
     return 1;
 }
 
-void run_until_done(rt_executor* ex, rt_task* task, uint8_t* out_kind, uint64_t* out_bits) {
+void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits) {
     if (ex == NULL || task == NULL) {
         panic_msg("invalid task handle");
         return;
@@ -142,7 +142,7 @@ void run_until_done(rt_executor* ex, rt_task* task, uint8_t* out_kind, uint64_t*
         wake_task(ex, id, 1);
     }
     for (;;) {
-        rt_task* current = get_task(ex, id);
+        const rt_task* current = get_task(ex, id);
         if (current == NULL) {
             panic_msg("invalid task id");
             return;

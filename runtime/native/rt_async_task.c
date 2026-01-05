@@ -2,7 +2,7 @@
 
 // Async runtime task API and task builtins.
 
-void* __task_create(uint64_t poll_fn_id, void* state) {
+void* __task_create(uint64_t poll_fn_id, void* state) { // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return NULL;
@@ -30,7 +30,7 @@ void* __task_create(uint64_t poll_fn_id, void* state) {
     return task;
 }
 
-void* __task_state(void) {
+void* __task_state(void) { // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
     rt_executor* ex = ensure_exec();
     if (ex == NULL || ex->current == 0) {
         panic_msg("async: __task_state without current task");
@@ -51,7 +51,7 @@ void rt_task_wake(void* task) {
     if (ex == NULL) {
         return;
     }
-    rt_task* target = task_from_handle(task);
+    const rt_task* target = task_from_handle(task);
     if (target == NULL || target->status == TASK_DONE) {
         return;
     }
@@ -63,7 +63,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
     if (ex == NULL) {
         return 2;
     }
-    rt_task* target = task_from_handle(task);
+    const rt_task* target = task_from_handle(task);
     if (target == NULL) {
         return 2;
     }
@@ -78,7 +78,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
     if (current_task_cancelled(ex)) {
         return 0;
     }
-    if (target->status != TASK_WAITING && target->status != TASK_DONE) {
+    if (target->status != TASK_WAITING) {
         wake_task(ex, target->id, 1);
     }
     if (target->status == TASK_DONE) {
@@ -100,7 +100,7 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
     if (ex == NULL) {
         return;
     }
-    rt_task* target = task_from_handle(task);
+    const rt_task* target = task_from_handle(task);
     if (target == NULL) {
         return;
     }
@@ -113,7 +113,7 @@ void rt_task_cancel(void* task) {
     if (ex == NULL) {
         return;
     }
-    rt_task* target = task_from_handle(task);
+    const rt_task* target = task_from_handle(task);
     if (target == NULL) {
         return;
     }
@@ -200,7 +200,7 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
         return 2;
     }
 
-    if (target->status != TASK_WAITING && target->status != TASK_DONE) {
+    if (target->status != TASK_WAITING) {
         wake_task(ex, target->id, 1);
     }
     if (timeout_task != NULL && timeout_task->status != TASK_WAITING &&
@@ -245,7 +245,7 @@ int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index
         if (handle == NULL) {
             continue;
         }
-        rt_task* target = task_from_handle(handle);
+        const rt_task* target = task_from_handle(handle);
         if (target == NULL) {
             continue;
         }
@@ -272,7 +272,7 @@ int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index
         if (handle == NULL) {
             continue;
         }
-        rt_task* target = task_from_handle(handle);
+        const rt_task* target = task_from_handle(handle);
         if (target == NULL) {
             continue;
         }

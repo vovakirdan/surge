@@ -112,7 +112,10 @@ bool bi_to_i64(const SurgeBigInt* i, int64_t* out) {
     return true;
 }
 
-SurgeBigInt* bi_from_i64(int64_t v) {
+SurgeBigInt* bi_from_i64(int64_t v, bn_err* err) {
+    if (err != NULL) {
+        *err = BN_OK;
+    }
     if (v == 0) {
         return NULL;
     }
@@ -125,12 +128,11 @@ SurgeBigInt* bi_from_i64(int64_t v) {
     } else {
         mag = (uint64_t)v;
     }
-    SurgeBigUint* abs = bu_from_u64(mag);
+    SurgeBigUint* abs = bu_from_u64(mag, err);
     if (abs == NULL) {
         return NULL;
     }
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_alloc(abs->len, &err);
+    SurgeBigInt* out = bi_alloc(abs->len, err);
     if (out == NULL) {
         bu_free(abs);
         return NULL;
@@ -142,16 +144,18 @@ SurgeBigInt* bi_from_i64(int64_t v) {
     return out;
 }
 
-SurgeBigInt* bi_from_u64(uint64_t v) {
+SurgeBigInt* bi_from_u64(uint64_t v, bn_err* err) {
+    if (err != NULL) {
+        *err = BN_OK;
+    }
     if (v == 0) {
         return NULL;
     }
-    SurgeBigUint* abs = bu_from_u64(v);
+    SurgeBigUint* abs = bu_from_u64(v, err);
     if (abs == NULL) {
         return NULL;
     }
-    bn_err err = BN_OK;
-    SurgeBigInt* out = bi_alloc(abs->len, &err);
+    SurgeBigInt* out = bi_alloc(abs->len, err);
     if (out == NULL) {
         bu_free(abs);
         return NULL;
@@ -432,7 +436,7 @@ bi_twos_complement(const SurgeBigUint* mag, bool neg, const SurgeBigUint* pow2, 
 // Bitwise ops are defined via two's-complement over a fixed width.
 SurgeBigInt* bi_bit_op(const SurgeBigInt* a,
                        const SurgeBigInt* b,
-                       SurgeBigUint* (*op)(const SurgeBigUint*, const SurgeBigUint*),
+                       SurgeBigUint* (*op)(const SurgeBigUint*, const SurgeBigUint*, bn_err* err),
                        bn_err* err) {
     if (err != NULL) {
         *err = BN_OK;
@@ -446,8 +450,17 @@ SurgeBigInt* bi_bit_op(const SurgeBigInt* a,
     width = a_bits > b_bits ? a_bits : b_bits;
     width += 1;
     bn_err tmp_err = BN_OK;
-    SurgeBigUint* one = bu_from_u64(1);
+    SurgeBigUint* one = bu_from_u64(1, &tmp_err);
+    if (tmp_err != BN_OK) {
+        if (err != NULL) {
+            *err = tmp_err;
+        }
+        return NULL;
+    }
     if (one == NULL) {
+        if (err != NULL) {
+            *err = BN_ERR_MAX_LIMBS;
+        }
         return NULL;
     }
     SurgeBigUint* pow2 = bu_shl(one, (int)width, &tmp_err);
@@ -482,7 +495,17 @@ SurgeBigInt* bi_bit_op(const SurgeBigInt* a,
         bu_free(rep_b);
         return NULL;
     }
-    SurgeBigUint* res = op(rep_a, rep_b);
+    SurgeBigUint* res = op(rep_a, rep_b, &tmp_err);
+    if (tmp_err != BN_OK) {
+        if (err != NULL) {
+            *err = tmp_err;
+        }
+        bu_free(pow2);
+        bu_free(rep_a);
+        bu_free(rep_b);
+        bu_free(res);
+        return NULL;
+    }
     if (res == NULL || res->len == 0) {
         bu_free(pow2);
         bu_free(rep_a);
@@ -635,8 +658,17 @@ SurgeBigInt* bi_shr(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err) {
         bu_free(shifted);
         return out;
     }
-    SurgeBigUint* one = bu_from_u64(1);
+    SurgeBigUint* one = bu_from_u64(1, &tmp_err);
+    if (tmp_err != BN_OK) {
+        if (err != NULL) {
+            *err = tmp_err;
+        }
+        return NULL;
+    }
     if (one == NULL) {
+        if (err != NULL) {
+            *err = BN_ERR_MAX_LIMBS;
+        }
         return NULL;
     }
     SurgeBigUint* pow2 = bu_shl(one, shift, &tmp_err);
@@ -648,8 +680,18 @@ SurgeBigInt* bi_shr(const SurgeBigInt* a, const SurgeBigInt* b, bn_err* err) {
         bu_free(pow2);
         return NULL;
     }
-    SurgeBigUint* one_again = bu_from_u64(1);
+    SurgeBigUint* one_again = bu_from_u64(1, &tmp_err);
+    if (tmp_err != BN_OK) {
+        if (err != NULL) {
+            *err = tmp_err;
+        }
+        bu_free(pow2);
+        return NULL;
+    }
     if (one_again == NULL) {
+        if (err != NULL) {
+            *err = BN_ERR_MAX_LIMBS;
+        }
         bu_free(pow2);
         return NULL;
     }

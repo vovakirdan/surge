@@ -146,22 +146,24 @@ bool bu_to_u64(const SurgeBigUint* u, uint64_t* out) {
     return bu_limbs_to_u64(u->limbs, u->len, out);
 }
 
-SurgeBigUint* bu_from_u64(uint64_t v) {
+SurgeBigUint* bu_from_u64(uint64_t v, bn_err* err) {
+    if (err != NULL) {
+        *err = BN_OK;
+    }
     if (v == 0) {
         return NULL;
     }
     uint32_t lo = (uint32_t)(v & 0xFFFFFFFFu);
     uint32_t hi = (uint32_t)(v >> 32);
-    bn_err err = BN_OK;
     if (hi == 0) {
-        SurgeBigUint* out = bu_alloc(1, &err);
+        SurgeBigUint* out = bu_alloc(1, err);
         if (out == NULL) {
             return NULL;
         }
         out->limbs[0] = lo;
         return out;
     }
-    SurgeBigUint* out = bu_alloc(2, &err);
+    SurgeBigUint* out = bu_alloc(2, err);
     if (out == NULL) {
         return NULL;
     }

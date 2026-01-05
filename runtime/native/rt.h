@@ -35,7 +35,7 @@ typedef struct SurgeRange {
 } SurgeRange;
 
 void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len);
-uint8_t* rt_string_ptr(void* s);
+const uint8_t* rt_string_ptr(void* s);
 uint64_t rt_string_len(void* s);
 uint64_t rt_string_len_bytes(void* s);
 uint32_t rt_string_index(void* s, int64_t index);
@@ -103,14 +103,14 @@ void* rt_bigfloat_neg(void* a);
 void* rt_bigfloat_abs(void* a);
 int32_t rt_bigfloat_cmp(void* a, void* b);
 void* rt_bigint_to_biguint(void* a);
-void* rt_biguint_to_bigint(void* a);
+void* rt_biguint_to_bigint(const void* a);
 void* rt_bigint_to_bigfloat(void* a);
 void* rt_biguint_to_bigfloat(void* a);
 void* rt_bigfloat_to_bigint(void* a);
 void* rt_bigfloat_to_biguint(void* a);
 
-void* __task_create(uint64_t poll_fn_id, void* state);
-void* __task_state(void);
+void* __task_create(uint64_t poll_fn_id, void* state); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void* __task_state(void); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void rt_task_wake(void* task);
 uint8_t rt_task_poll(void* task, uint64_t* out_bits);
 void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits);

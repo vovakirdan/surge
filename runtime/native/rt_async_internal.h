@@ -129,7 +129,7 @@ typedef struct {
     uint64_t value_bits;
 } poll_outcome;
 
-extern void __surge_poll_call(uint64_t id);
+extern void __surge_poll_call(uint64_t id); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 
 extern rt_executor exec_state;
 extern jmp_buf poll_env;
@@ -190,8 +190,8 @@ int current_task_cancelled(rt_executor* ex);
 void cancel_task(rt_executor* ex, uint64_t id);
 void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t result_bits);
 
-poll_outcome poll_task(rt_executor* ex, rt_task* task);
+poll_outcome poll_task(const rt_executor* ex, rt_task* task);
 int run_ready_one(rt_executor* ex);
-void run_until_done(rt_executor* ex, rt_task* task, uint8_t* out_kind, uint64_t* out_bits);
+void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);
 
 #endif

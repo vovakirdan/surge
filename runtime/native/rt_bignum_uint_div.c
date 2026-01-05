@@ -314,7 +314,10 @@ bu_div_mod(const SurgeBigUint* a, const SurgeBigUint* b, SurgeBigUint** out_rem,
     return quot;
 }
 
-SurgeBigUint* bu_and(const SurgeBigUint* a, const SurgeBigUint* b) {
+SurgeBigUint* bu_and(const SurgeBigUint* a, const SurgeBigUint* b, bn_err* err) {
+    if (err != NULL) {
+        *err = BN_OK;
+    }
     if (a == NULL || b == NULL) {
         return NULL;
     }
@@ -324,8 +327,7 @@ SurgeBigUint* bu_and(const SurgeBigUint* a, const SurgeBigUint* b) {
     if (n == 0) {
         return NULL;
     }
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_alloc(n, &err);
+    SurgeBigUint* out = bu_alloc(n, err);
     if (out == NULL) {
         return NULL;
     }
@@ -340,15 +342,18 @@ SurgeBigUint* bu_and(const SurgeBigUint* a, const SurgeBigUint* b) {
     return out;
 }
 
-SurgeBigUint* bu_or(const SurgeBigUint* a, const SurgeBigUint* b) {
+SurgeBigUint* bu_or(const SurgeBigUint* a, const SurgeBigUint* b, bn_err* err) {
+    if (err != NULL) {
+        *err = BN_OK;
+    }
     if ((a == NULL || a->len == 0) && (b == NULL || b->len == 0)) {
         return NULL;
     }
     if (a == NULL || a->len == 0) {
-        return bu_clone(b, NULL);
+        return bu_clone(b, err);
     }
     if (b == NULL || b->len == 0) {
-        return bu_clone(a, NULL);
+        return bu_clone(a, err);
     }
     uint32_t alen = trim_len(a->limbs, a->len);
     uint32_t blen = trim_len(b->limbs, b->len);
@@ -356,8 +361,7 @@ SurgeBigUint* bu_or(const SurgeBigUint* a, const SurgeBigUint* b) {
     if (n == 0) {
         return NULL;
     }
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_alloc(n, &err);
+    SurgeBigUint* out = bu_alloc(n, err);
     if (out == NULL) {
         return NULL;
     }
@@ -374,15 +378,18 @@ SurgeBigUint* bu_or(const SurgeBigUint* a, const SurgeBigUint* b) {
     return out;
 }
 
-SurgeBigUint* bu_xor(const SurgeBigUint* a, const SurgeBigUint* b) {
+SurgeBigUint* bu_xor(const SurgeBigUint* a, const SurgeBigUint* b, bn_err* err) {
+    if (err != NULL) {
+        *err = BN_OK;
+    }
     if ((a == NULL || a->len == 0) && (b == NULL || b->len == 0)) {
         return NULL;
     }
     if (a == NULL || a->len == 0) {
-        return bu_clone(b, NULL);
+        return bu_clone(b, err);
     }
     if (b == NULL || b->len == 0) {
-        return bu_clone(a, NULL);
+        return bu_clone(a, err);
     }
     uint32_t alen = trim_len(a->limbs, a->len);
     uint32_t blen = trim_len(b->limbs, b->len);
@@ -390,8 +397,7 @@ SurgeBigUint* bu_xor(const SurgeBigUint* a, const SurgeBigUint* b) {
     if (n == 0) {
         return NULL;
     }
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_alloc(n, &err);
+    SurgeBigUint* out = bu_alloc(n, err);
     if (out == NULL) {
         return NULL;
     }
@@ -533,13 +539,14 @@ SurgeBigUint* bu_pow10(int n, bn_err* err) {
         return NULL;
     }
     if (n == 0) {
-        return bu_from_u64(1);
+        return bu_from_u64(1, err);
     }
-    SurgeBigUint* result = bu_from_u64(1);
-    SurgeBigUint* base = bu_from_u64(10);
-    if (result == NULL || base == NULL) {
+    bn_err tmp_err = BN_OK;
+    SurgeBigUint* result = bu_from_u64(1, &tmp_err);
+    SurgeBigUint* base = bu_from_u64(10, &tmp_err);
+    if (tmp_err != BN_OK || result == NULL || base == NULL) {
         if (err != NULL) {
-            *err = BN_ERR_MAX_LIMBS;
+            *err = (tmp_err != BN_OK) ? tmp_err : BN_ERR_MAX_LIMBS;
         }
         bu_free(result);
         bu_free(base);
@@ -548,7 +555,7 @@ SurgeBigUint* bu_pow10(int n, bn_err* err) {
     int exp = n;
     while (exp > 0) {
         if (exp & 1) {
-            bn_err tmp_err = BN_OK;
+            tmp_err = BN_OK;
             SurgeBigUint* next = bu_mul(result, base, &tmp_err);
             if (next == NULL && tmp_err == BN_OK) {
                 tmp_err = BN_ERR_MAX_LIMBS;
@@ -568,7 +575,7 @@ SurgeBigUint* bu_pow10(int n, bn_err* err) {
         if (exp == 0) {
             break;
         }
-        bn_err tmp_err = BN_OK;
+        tmp_err = BN_OK;
         SurgeBigUint* next_base = bu_mul(base, base, &tmp_err);
         if (next_base == NULL && tmp_err == BN_OK) {
             tmp_err = BN_ERR_MAX_LIMBS;
@@ -599,13 +606,14 @@ SurgeBigUint* bu_pow5(int n, bn_err* err) {
         return NULL;
     }
     if (n == 0) {
-        return bu_from_u64(1);
+        return bu_from_u64(1, err);
     }
-    SurgeBigUint* result = bu_from_u64(1);
-    SurgeBigUint* base = bu_from_u64(5);
-    if (result == NULL || base == NULL) {
+    bn_err tmp_err = BN_OK;
+    SurgeBigUint* result = bu_from_u64(1, &tmp_err);
+    SurgeBigUint* base = bu_from_u64(5, &tmp_err);
+    if (tmp_err != BN_OK || result == NULL || base == NULL) {
         if (err != NULL) {
-            *err = BN_ERR_MAX_LIMBS;
+            *err = (tmp_err != BN_OK) ? tmp_err : BN_ERR_MAX_LIMBS;
         }
         bu_free(result);
         bu_free(base);
@@ -614,7 +622,7 @@ SurgeBigUint* bu_pow5(int n, bn_err* err) {
     int exp = n;
     while (exp > 0) {
         if (exp & 1) {
-            bn_err tmp_err = BN_OK;
+            tmp_err = BN_OK;
             SurgeBigUint* next = bu_mul(result, base, &tmp_err);
             if (next == NULL && tmp_err == BN_OK) {
                 tmp_err = BN_ERR_MAX_LIMBS;
@@ -634,7 +642,7 @@ SurgeBigUint* bu_pow5(int n, bn_err* err) {
         if (exp == 0) {
             break;
         }
-        bn_err tmp_err = BN_OK;
+        tmp_err = BN_OK;
         SurgeBigUint* next_base = bu_mul(base, base, &tmp_err);
         if (next_base == NULL && tmp_err == BN_OK) {
             tmp_err = BN_ERR_MAX_LIMBS;
@@ -654,7 +662,10 @@ SurgeBigUint* bu_pow5(int n, bn_err* err) {
     return result;
 }
 
-SurgeBigUint* bu_low_bits(const SurgeBigUint* u, int bits) {
+SurgeBigUint* bu_low_bits(const SurgeBigUint* u, int bits, bn_err* err) {
+    if (err != NULL) {
+        *err = BN_OK;
+    }
     if (u == NULL || u->len == 0 || bits <= 0) {
         return NULL;
     }
@@ -665,14 +676,13 @@ SurgeBigUint* bu_low_bits(const SurgeBigUint* u, int bits) {
     int word_count = bits / SURGE_BIGNUM_LIMB_BITS;
     int rem_bits = bits % SURGE_BIGNUM_LIMB_BITS;
     if (word_count >= (int)len) {
-        return bu_clone(u, NULL);
+        return bu_clone(u, err);
     }
     uint32_t out_len = (uint32_t)word_count;
     if (rem_bits != 0) {
         out_len++;
     }
-    bn_err err = BN_OK;
-    SurgeBigUint* out = bu_alloc(out_len, &err);
+    SurgeBigUint* out = bu_alloc(out_len, err);
     if (out == NULL) {
         return NULL;
     }

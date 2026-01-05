@@ -237,11 +237,11 @@ void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len) {
     return (void*)s;
 }
 
-uint8_t* rt_string_ptr(void* s) {
+const uint8_t* rt_string_ptr(void* s) {
     if (s == NULL) {
         return NULL;
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         return NULL;
     }
@@ -252,7 +252,7 @@ uint64_t rt_string_len(void* s) {
     if (s == NULL) {
         return 0;
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         return 0;
     }
@@ -263,7 +263,7 @@ uint64_t rt_string_len_bytes(void* s) {
     if (s == NULL) {
         return 0;
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         return 0;
     }
@@ -273,10 +273,12 @@ uint64_t rt_string_len_bytes(void* s) {
 uint32_t rt_string_index(void* s, int64_t index) {
     if (s == NULL) {
         rt_panic_bounds(0, index, 0);
+        return 0;
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         rt_panic_bounds(0, index, 0);
+        return 0;
     }
     int64_t len = (int64_t)str->len_cp;
     int64_t idx = index;
@@ -308,7 +310,7 @@ void* rt_string_slice(void* s, void* r) {
     if (s == NULL) {
         return rt_string_from_bytes(NULL, 0);
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         return rt_string_from_bytes(NULL, 0);
     }
@@ -334,7 +336,7 @@ void* rt_string_bytes_view(void* s) {
     if (s == NULL) {
         return NULL;
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         return NULL;
     }
@@ -389,7 +391,7 @@ void* rt_string_repeat(void* s, int64_t count) {
     if (s == NULL) {
         return rt_string_from_bytes(NULL, 0);
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         return rt_string_from_bytes(NULL, 0);
     }
@@ -399,12 +401,11 @@ void* rt_string_repeat(void* s, int64_t count) {
         return rt_string_from_bytes(NULL, 0);
     }
     int64_t max_int = INT64_MAX;
-    if (unit_bytes > 0 && count > 0 &&
-        (uint64_t)count > (uint64_t)(max_int / (int64_t)unit_bytes)) {
+    if ((uint64_t)count > (uint64_t)(max_int / (int64_t)unit_bytes)) {
         const char* msg = "string repeat length out of range";
         rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
     }
-    if (unit_cp > 0 && count > 0 && (uint64_t)count > (uint64_t)(max_int / (int64_t)unit_cp)) {
+    if ((uint64_t)count > (uint64_t)(max_int / (int64_t)unit_cp)) {
         const char* msg = "string repeat length out of range";
         rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
     }
@@ -426,8 +427,8 @@ void* rt_string_repeat(void* s, int64_t count) {
 }
 
 bool rt_string_eq(void* a, void* b) {
-    SurgeString* left = NULL;
-    SurgeString* right = NULL;
+    const SurgeString* left = NULL;
+    const SurgeString* right = NULL;
     if (a != NULL) {
         left = *(SurgeString**)a;
     }

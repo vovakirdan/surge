@@ -7,6 +7,7 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   -bugprone-implicit-widening-of-multiplication-result,
   -cert-err33-c,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
   -performance-avoid-endl,
   -performance-no-int-to-ptr,
   -readability-identifier-length,
