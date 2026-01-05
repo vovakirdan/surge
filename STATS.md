@@ -20,14 +20,14 @@
 |---|-------|-------|
 | 1 | `internal/sema` | 25062 |
 | 2 | `internal/vm` | 17428 |
-| 3 | `internal/backend` | 9220 |
-| 4 | `internal/backend/llvm` | 9220 |
-| 5 | `internal/mir` | 8799 |
-| 6 | `internal/parser` | 8662 |
-| 7 | `internal/hir` | 6644 |
-| 8 | `internal/driver` | 5242 |
-| 9 | `internal/mono` | 4511 |
-| 10 | `internal/diagfmt` | 4348 |
+| 3 | `internal/backend/llvm` | 9220 |
+| 4 | `internal/mir` | 8799 |
+| 5 | `internal/parser` | 8662 |
+| 6 | `internal/hir` | 6644 |
+| 7 | `internal/driver` | 5242 |
+| 8 | `internal/mono` | 4511 |
+| 9 | `internal/diagfmt` | 4348 |
+| 10 | `internal/symbols` | 4050 |
 
 ## 🧪 Test files
 

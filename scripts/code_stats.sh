@@ -57,22 +57,10 @@ get_top_packages() {
             continue
         fi
         
-        # Проверяем, что в директории есть .go файлы
+        # Считаем файлы только в текущей директории (конкретный пакет)
         local find_files="find \"$dir\" -maxdepth 1 -name \"*.go\""
         if [ "$exclude_tests" = "true" ]; then
             find_files="$find_files -not -name \"*_test.go\""
-        fi
-        
-        local has_files=$(eval "$find_files" 2>/dev/null | wc -l)
-        if [ "$has_files" -eq 0 ]; then
-            # Если нет файлов на верхнем уровне, считаем все файлы в поддиректориях
-            find_files="find \"$dir\" -name \"*.go\""
-            if [ "$exclude_tests" = "true" ]; then
-                find_files="$find_files -not -name \"*_test.go\""
-            fi
-        else
-            # Если есть файлы на верхнем уровне, считаем только их (это конкретный пакет)
-            :
         fi
         
         find_files="$find_files -not -path \"./testdata/*\" -not -path \"./stdlib/*\" -not -path \"./core/*\""
