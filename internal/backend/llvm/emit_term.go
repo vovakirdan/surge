@@ -43,6 +43,12 @@ func (fe *funcEmitter) emitTerminator(term *mir.Terminator) error {
 		}
 		fmt.Fprintf(&fe.emitter.buf, "  ret void\n")
 		return nil
+	case mir.TermAsyncYield:
+		return fe.emitTermAsyncYield(term)
+	case mir.TermAsyncReturn:
+		return fe.emitTermAsyncReturn(term)
+	case mir.TermAsyncReturnCancelled:
+		return fe.emitTermAsyncReturnCancelled(term)
 	case mir.TermGoto:
 		fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", term.Goto.Target)
 		return nil

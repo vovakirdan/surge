@@ -60,6 +60,11 @@ func (e *Emitter) reachableFuncs() map[mir.FuncID]struct{} {
 	if e.mod == nil {
 		return reachable
 	}
+	for id, f := range e.mod.Funcs {
+		if isPollFunc(f) {
+			reachable[id] = struct{}{}
+		}
+	}
 	var roots []mir.FuncID
 	for id, f := range e.mod.Funcs {
 		if f != nil && f.Name == "__surge_start" {

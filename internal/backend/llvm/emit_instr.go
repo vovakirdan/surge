@@ -16,6 +16,14 @@ func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
 		return fe.emitAssign(ins)
 	case mir.InstrCall:
 		return fe.emitCall(ins)
+	case mir.InstrAwait:
+		return fe.emitInstrAwait(ins)
+	case mir.InstrSpawn:
+		return fe.emitInstrSpawn(ins)
+	case mir.InstrPoll:
+		return fe.emitInstrPoll(ins)
+	case mir.InstrJoinAll:
+		return fe.emitInstrJoinAll(ins)
 	case mir.InstrDrop, mir.InstrEndBorrow, mir.InstrNop:
 		return nil
 	default:

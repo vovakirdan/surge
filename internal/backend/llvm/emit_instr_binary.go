@@ -66,10 +66,12 @@ func (fe *funcEmitter) emitBinary(op *mir.BinaryOp) (val, ty string, err error) 
 	}
 	leftType := resolveValueType(fe.emitter.types, op.Left.Type)
 	rightType := resolveValueType(fe.emitter.types, op.Right.Type)
-	leftVal, leftTy, leftType, rightVal, rightTy, rightType, err = fe.coerceNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType)
+	pair, err := fe.coerceNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType)
 	if err != nil {
 		return "", "", err
 	}
+	leftVal, leftTy, leftType = pair.leftVal, pair.leftTy, pair.leftType
+	rightVal, rightTy, rightType = pair.rightVal, pair.rightTy, pair.rightType
 	if leftTy != rightTy {
 		return "", "", fmt.Errorf("binary operand type mismatch: %s vs %s", leftTy, rightTy)
 	}

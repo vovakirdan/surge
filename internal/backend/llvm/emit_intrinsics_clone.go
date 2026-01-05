@@ -34,6 +34,26 @@ func (fe *funcEmitter) emitCloneValueIntrinsic(call *mir.CallInstr) (bool, error
 	if err != nil {
 		return true, err
 	}
+	if isTaskType(fe.emitter.types, dstType) {
+		val, valTy, valErr := fe.emitValueOperand(&call.Args[0])
+		if valErr != nil {
+			return true, valErr
+		}
+		if valTy != "ptr" {
+			return true, fmt.Errorf("clone expects Task pointer, got %s", valTy)
+		}
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_task_clone(ptr %s)\n", tmp, val)
+		ptr, dstTy, ptrErr := fe.emitPlacePtr(call.Dst)
+		if ptrErr != nil {
+			return true, ptrErr
+		}
+		if dstTy != "ptr" {
+			dstTy = "ptr"
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		return true, nil
+	}
 	if fe.emitter != nil && fe.emitter.types != nil && dstType != types.NoTypeID {
 		if !fe.emitter.types.IsCopy(resolveAliasAndOwn(fe.emitter.types, dstType)) {
 			return true, fmt.Errorf("clone requires a Copy type")

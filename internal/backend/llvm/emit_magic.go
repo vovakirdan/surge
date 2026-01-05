@@ -158,10 +158,12 @@ func (fe *funcEmitter) emitMagicBinaryIntrinsic(call *mir.CallInstr, name string
 	}
 	leftType = resolveValueType(fe.emitter.types, leftType)
 	rightType = resolveValueType(fe.emitter.types, rightType)
-	leftVal, leftTy, leftType, rightVal, rightTy, rightType, err = fe.coerceNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType)
+	pair, err := fe.coerceNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType)
 	if err != nil {
 		return err
 	}
+	leftVal, leftTy, leftType = pair.leftVal, pair.leftTy, pair.leftType
+	rightVal, rightTy, rightType = pair.rightVal, pair.rightTy, pair.rightType
 	if leftTy != rightTy {
 		return fmt.Errorf("binary operand type mismatch: %s vs %s", leftTy, rightTy)
 	}

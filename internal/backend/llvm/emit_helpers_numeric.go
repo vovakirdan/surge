@@ -206,7 +206,7 @@ func llvmNumericTypeID(typesIn *types.Interner, llvmTy string, kind numericKind)
 	}
 }
 
-func (fe *funcEmitter) coerceNumericValue(val, valTy string, srcType, dstType types.TypeID) (string, string, error) {
+func (fe *funcEmitter) coerceNumericValue(val, valTy string, srcType, dstType types.TypeID) (outVal, outTy string, err error) {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
 		return val, valTy, nil
 	}
@@ -228,9 +228,30 @@ func (fe *funcEmitter) coerceNumericValue(val, valTy string, srcType, dstType ty
 	return casted, castTy, nil
 }
 
-func (fe *funcEmitter) coerceNumericPair(leftVal, leftTy string, leftType types.TypeID, rightVal, rightTy string, rightType types.TypeID) (string, string, types.TypeID, string, string, types.TypeID, error) {
+type numericPair struct {
+	leftVal  string
+	leftTy   string
+	leftType types.TypeID
+
+	rightVal  string
+	rightTy   string
+	rightType types.TypeID
+}
+
+func newNumericPair(leftVal, leftTy string, leftType types.TypeID, rightVal, rightTy string, rightType types.TypeID) numericPair {
+	return numericPair{
+		leftVal:   leftVal,
+		leftTy:    leftTy,
+		leftType:  leftType,
+		rightVal:  rightVal,
+		rightTy:   rightTy,
+		rightType: rightType,
+	}
+}
+
+func (fe *funcEmitter) coerceNumericPair(leftVal, leftTy string, leftType types.TypeID, rightVal, rightTy string, rightType types.TypeID) (numericPair, error) {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
-		return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+		return newNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType), nil
 	}
 	leftType = resolveValueType(fe.emitter.types, leftType)
 	rightType = resolveValueType(fe.emitter.types, rightType)
@@ -254,16 +275,16 @@ func (fe *funcEmitter) coerceNumericPair(leftVal, leftTy string, leftType types.
 			rightType = leftType
 		}
 		if leftType == types.NoTypeID || rightType == types.NoTypeID {
-			return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+			return newNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType), nil
 		}
 		leftKind = numericKindOf(fe.emitter.types, leftType)
 		rightKind = numericKindOf(fe.emitter.types, rightType)
 	}
 	if leftKind == numericNone || rightKind == numericNone || leftKind != rightKind {
-		return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+		return newNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType), nil
 	}
 	if leftType == rightType {
-		return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+		return newNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType), nil
 	}
 
 	leftBig := isBigIntType(fe.emitter.types, leftType) || isBigUintType(fe.emitter.types, leftType) || isBigFloatType(fe.emitter.types, leftType)
@@ -272,16 +293,16 @@ func (fe *funcEmitter) coerceNumericPair(leftVal, leftTy string, leftType types.
 	if leftBig && !rightBig {
 		casted, castTy, err := fe.emitNumericCast(rightVal, rightTy, rightType, leftType)
 		if err != nil {
-			return "", "", leftType, "", "", rightType, err
+			return newNumericPair("", "", leftType, "", "", rightType), err
 		}
-		return leftVal, leftTy, leftType, casted, castTy, leftType, nil
+		return newNumericPair(leftVal, leftTy, leftType, casted, castTy, leftType), nil
 	}
 	if rightBig && !leftBig {
 		casted, castTy, err := fe.emitNumericCast(leftVal, leftTy, leftType, rightType)
 		if err != nil {
-			return "", "", leftType, "", "", rightType, err
+			return newNumericPair("", "", leftType, "", "", rightType), err
 		}
-		return casted, castTy, rightType, rightVal, rightTy, rightType, nil
+		return newNumericPair(casted, castTy, rightType, rightVal, rightTy, rightType), nil
 	}
 
 	if !leftBig && !rightBig {
@@ -290,42 +311,42 @@ func (fe *funcEmitter) coerceNumericPair(leftVal, leftTy string, leftType types.
 			leftMeta, leftOK := intInfo(fe.emitter.types, leftType)
 			rightMeta, rightOK := intInfo(fe.emitter.types, rightType)
 			if !leftOK || !rightOK || leftMeta.bits == rightMeta.bits {
-				return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+				return newNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType), nil
 			}
 			if leftMeta.bits > rightMeta.bits {
 				casted, castTy, err := fe.emitNumericCast(rightVal, rightTy, rightType, leftType)
 				if err != nil {
-					return "", "", leftType, "", "", rightType, err
+					return newNumericPair("", "", leftType, "", "", rightType), err
 				}
-				return leftVal, leftTy, leftType, casted, castTy, leftType, nil
+				return newNumericPair(leftVal, leftTy, leftType, casted, castTy, leftType), nil
 			}
 			casted, castTy, err := fe.emitNumericCast(leftVal, leftTy, leftType, rightType)
 			if err != nil {
-				return "", "", leftType, "", "", rightType, err
+				return newNumericPair("", "", leftType, "", "", rightType), err
 			}
-			return casted, castTy, rightType, rightVal, rightTy, rightType, nil
+			return newNumericPair(casted, castTy, rightType, rightVal, rightTy, rightType), nil
 		case numericFloat:
 			leftMeta, leftOK := floatInfo(fe.emitter.types, leftType)
 			rightMeta, rightOK := floatInfo(fe.emitter.types, rightType)
 			if !leftOK || !rightOK || leftMeta.bits == rightMeta.bits {
-				return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+				return newNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType), nil
 			}
 			if leftMeta.bits > rightMeta.bits {
 				casted, castTy, err := fe.emitNumericCast(rightVal, rightTy, rightType, leftType)
 				if err != nil {
-					return "", "", leftType, "", "", rightType, err
+					return newNumericPair("", "", leftType, "", "", rightType), err
 				}
-				return leftVal, leftTy, leftType, casted, castTy, leftType, nil
+				return newNumericPair(leftVal, leftTy, leftType, casted, castTy, leftType), nil
 			}
 			casted, castTy, err := fe.emitNumericCast(leftVal, leftTy, leftType, rightType)
 			if err != nil {
-				return "", "", leftType, "", "", rightType, err
+				return newNumericPair("", "", leftType, "", "", rightType), err
 			}
-			return casted, castTy, rightType, rightVal, rightTy, rightType, nil
+			return newNumericPair(casted, castTy, rightType, rightVal, rightTy, rightType), nil
 		}
 	}
 
-	return leftVal, leftTy, leftType, rightVal, rightTy, rightType, nil
+	return newNumericPair(leftVal, leftTy, leftType, rightVal, rightTy, rightType), nil
 }
 
 func operandValueType(typesIn *types.Interner, op *mir.Operand) types.TypeID {

@@ -50,6 +50,7 @@ func (e *Emitter) emitFunction(f *mir.Func) error {
 			continue
 		}
 		fmt.Fprintf(&e.buf, "bb%d:\n", bb.ID)
+		fe.blockTerminated = false
 		if bb.ID == f.Entry {
 			if err := fe.emitAllocas(); err != nil {
 				return err
@@ -62,6 +63,12 @@ func (e *Emitter) emitFunction(f *mir.Func) error {
 			if err := fe.emitInstr(&bb.Instrs[i]); err != nil {
 				return err
 			}
+			if fe.blockTerminated {
+				break
+			}
+		}
+		if fe.blockTerminated {
+			continue
 		}
 		if err := fe.emitTerminator(&bb.Term); err != nil {
 			return err

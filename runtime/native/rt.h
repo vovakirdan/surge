@@ -109,6 +109,26 @@ void* rt_biguint_to_bigfloat(void* a);
 void* rt_bigfloat_to_bigint(void* a);
 void* rt_bigfloat_to_biguint(void* a);
 
+void* __task_create(void* poll_fn, void* state);
+void* __task_state(void);
+void rt_task_wake(void* task);
+uint8_t rt_task_poll(void* task, uint64_t* out_bits);
+void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits);
+void rt_task_cancel(void* task);
+void* rt_task_clone(void* task);
+void rt_async_yield(void* state);
+void rt_async_return(void* state, uint64_t bits);
+void rt_async_return_cancelled(void* state);
+
+void* rt_scope_enter(bool failfast);
+void rt_scope_register_child(void* scope, void* task);
+void rt_scope_cancel_all(void* scope);
+bool rt_scope_join_all(void* scope, uint64_t* pending, bool* failfast);
+void rt_scope_exit(void* scope);
+
+void* checkpoint(void);
+void* sleep(void* ms);
+
 void* rt_range_int_new(void* start, void* end, bool inclusive);
 void* rt_range_int_from_start(void* start, bool inclusive);
 void* rt_range_int_to_end(void* end, bool inclusive);

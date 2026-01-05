@@ -37,12 +37,13 @@ type Emitter struct {
 }
 
 type funcEmitter struct {
-	emitter     *Emitter
-	f           *mir.Func
-	tmpID       int
-	inlineBlock int
-	localAlloca map[mir.LocalID]string
-	paramLocals []mir.LocalID
+	emitter         *Emitter
+	f               *mir.Func
+	tmpID           int
+	inlineBlock     int
+	localAlloca     map[mir.LocalID]string
+	paramLocals     []mir.LocalID
+	blockTerminated bool
 }
 
 const (
@@ -103,6 +104,7 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("panic bounds kind out of range")
 	e.ensureStringConst("panic bounds index out of range")
 	e.ensureStringConst("panic bounds length out of range")
+	e.ensureStringConst("missing poll function")
 	if err := e.prepareGlobals(); err != nil {
 		return "", err
 	}
@@ -119,6 +121,9 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 		return "", err
 	}
 	if err := e.emitFunctions(); err != nil {
+		return "", err
+	}
+	if err := e.emitPollDispatch(); err != nil {
 		return "", err
 	}
 	return e.buf.String(), nil

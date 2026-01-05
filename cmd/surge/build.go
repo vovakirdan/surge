@@ -348,7 +348,7 @@ func compileLLVMIR(printCommands bool, llPath, objPath string) error {
 			args = append([]string{"-mtriple=" + triple}, args...)
 		}
 		if err := runCommand(printCommands, llcPath, args...); err != nil {
-			return fmt.Errorf("clang failed: %w; llc failed: %v", clangErr, err)
+			return fmt.Errorf("clang failed; llc failed: %w", errors.Join(clangErr, err))
 		}
 		if printCommands {
 			fmt.Fprintln(os.Stdout, "note: clang IR compile failed; fell back to llc")

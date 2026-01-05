@@ -38,6 +38,9 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	if handled, err := fe.emitCloneValueIntrinsic(call); handled {
 		return err
 	}
+	if handled, err := fe.emitTaskCancelIntrinsic(call); handled {
+		return err
+	}
 	if handled, err := fe.emitCloneIntrinsic(call); handled {
 		return err
 	}
