@@ -37,7 +37,16 @@ mkdir -p "$(dirname "$report_path")"
 mkdir -p "$artifacts_dir"
 
 surge_bin="${root}/build/surge-showcases"
+needs_build=0
 if [[ ! -x "$surge_bin" ]]; then
+	needs_build=1
+elif find "$root/cmd" "$root/core" "$root/internal" "$root/runtime" "$root/go.mod" "$root/go.sum" \
+	-type f \( -name "*.go" -o -name "*.c" -o -name "*.h" -o -name "go.mod" -o -name "go.sum" \) \
+	-newer "$surge_bin" -print -quit | grep -q .; then
+	needs_build=1
+fi
+
+if [[ "$needs_build" -eq 1 ]]; then
 	echo ">> building surge for showcases"
 	(cd "$root" && go build -o "$surge_bin" ./cmd/surge)
 fi
@@ -128,34 +137,59 @@ while IFS= read -r sg; do
 
 	vm_status="ok"
 	llvm_status="ok"
-	notes=""
+	notes=()
+
+	if [[ "$vm_code" -ne 0 ]]; then
+		vm_status="fail"
+		vm_reason="$(sed -n '1p' "$vm_stderr" | tr -d '\r')"
+		if [[ -n "$vm_reason" ]]; then
+			notes+=("VM run failed (exit ${vm_code}): ${vm_reason}")
+		else
+			notes+=("VM run failed (exit ${vm_code})")
+		fi
+	fi
 
 	if [[ "$llvm_build_code" -ne 0 ]]; then
 		llvm_status="fail"
-		notes="LLVM build failed"
-	fi
-
-	if [[ "$vm_code" != "$llvm_code" ]]; then
-		vm_status="fail"
+		build_reason="$(sed -n '1p' "$llvm_build_err" | tr -d '\r')"
+		if [[ -n "$build_reason" ]]; then
+			notes+=("LLVM build failed: ${build_reason}")
+		else
+			notes+=("LLVM build failed")
+		fi
+	elif [[ "$llvm_code" -ne 0 ]]; then
 		llvm_status="fail"
-		notes="exit code mismatch (vm=${vm_code} llvm=${llvm_code})"
+		llvm_reason="$(sed -n '1p' "$llvm_stderr" | tr -d '\r')"
+		if [[ -n "$llvm_reason" ]]; then
+			notes+=("LLVM run failed (exit ${llvm_code}): ${llvm_reason}")
+		else
+			notes+=("LLVM run failed (exit ${llvm_code})")
+		fi
 	fi
 
 	if [[ "$vm_status" == "ok" && "$llvm_status" == "ok" ]]; then
 		if ! cmp -s "$vm_stdout" "$llvm_stdout"; then
 			vm_status="fail"
 			llvm_status="fail"
-			notes="stdout mismatch"
+			notes+=("stdout mismatch")
 		elif ! cmp -s "$vm_stderr" "$llvm_stderr"; then
 			vm_status="fail"
 			llvm_status="fail"
-			notes="stderr mismatch"
+			notes+=("stderr mismatch")
 		fi
+	fi
+
+	notes_str=""
+	if [[ ${#notes[@]} -gt 0 ]]; then
+		notes_str="${notes[0]}"
+		for note in "${notes[@]:1}"; do
+			notes_str="${notes_str}; ${note}"
+		done
 	fi
 
 	if [[ "$vm_status" == "ok" && "$llvm_status" == "ok" ]]; then
 		passed=$((passed + 1))
-		echo "| \`${program}\` | ${vm_status} | ${llvm_status} | |" >>"$report_path"
+		echo "| \`${program}\` | ${vm_status} | ${llvm_status} | ${notes_str} |" >>"$report_path"
 	else
 		failed=$((failed + 1))
 		case_dir="${artifacts_dir}/${case_id}"
@@ -177,12 +211,12 @@ while IFS= read -r sg; do
 			fi
 		fi
 		artifact_rel="${case_dir#$root/}"
-		if [[ -n "$notes" ]]; then
-			notes="${notes}; artifacts: ${artifact_rel}"
+		if [[ -n "$notes_str" ]]; then
+			notes_str="${notes_str}; artifacts: ${artifact_rel}"
 		else
-			notes="artifacts: ${artifact_rel}"
+			notes_str="artifacts: ${artifact_rel}"
 		fi
-		echo "| \`${program}\` | ${vm_status} | ${llvm_status} | ${notes} |" >>"$report_path"
+		echo "| \`${program}\` | ${vm_status} | ${llvm_status} | ${notes_str} |" >>"$report_path"
 	fi
 
 	rm -f "$vm_stdout" "$vm_stderr" "$vm_exit" "$llvm_build_out" "$llvm_build_err" "$llvm_build_exit" "$llvm_stdout" "$llvm_stderr" "$llvm_exit"
