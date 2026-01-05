@@ -30,11 +30,11 @@
 | `showcases/28_generic_map_filter` | ok | ok |  |
 | `showcases/29_contract_printable` | ok | ok |  |
 | `showcases/30_mini_ini_parser` | ok | ok |  |
-| `showcases/async/01_spawn_await_order` | ok | fail | LLVM build failed: Error: LLVM emit failed: missing struct info; artifacts: build/showcases/showcases_async_01_spawn_await_order_main_sg |
-| `showcases/async/02_fanout_fanin` | ok | fail | LLVM build failed: Error: LLVM emit failed: missing struct info; artifacts: build/showcases/showcases_async_02_fanout_fanin_main_sg |
+| `showcases/async/01_spawn_await_order` | ok | fail | LLVM run failed (exit 1): panic: missing poll function; artifacts: build/showcases/showcases_async_01_spawn_await_order_main_sg |
+| `showcases/async/02_fanout_fanin` | ok | fail | LLVM run failed (exit 1): panic: missing poll function; artifacts: build/showcases/showcases_async_02_fanout_fanin_main_sg |
 | `showcases/async/03_channel_prod_cons` | fail | fail | VM run failed (exit 1): no matching overload for producer; LLVM build failed: no matching overload for producer; artifacts: build/showcases/showcases_async_03_channel_prod_cons_main_sg |
 | `showcases/async/04_pipeline_3stage` | fail | fail | VM run failed (exit 1): no matching overload for gen; LLVM build failed: no matching overload for gen; artifacts: build/showcases/showcases_async_04_pipeline_3stage_main_sg |
-| `showcases/async/05_cancellation` | ok | fail | LLVM build failed: Error: LLVM emit failed: missing struct info; artifacts: build/showcases/showcases_async_05_cancellation_main_sg |
-| `showcases/async/06_failfast_scope` | ok | fail | LLVM build failed: Error: LLVM emit failed: missing struct info; artifacts: build/showcases/showcases_async_06_failfast_scope_main_sg |
-| `showcases/async/07_checkpoint_scheduler` | ok | fail | LLVM build failed: Error: LLVM emit failed: missing struct info; artifacts: build/showcases/showcases_async_07_checkpoint_scheduler_main_sg |
-| `showcases/async/08_timeout_race` | ok | fail | LLVM build failed: Error: LLVM emit failed: missing struct info; artifacts: build/showcases/showcases_async_08_timeout_race_main_sg |
+| `showcases/async/05_cancellation` | ok | fail | LLVM run failed (exit 1): panic: missing poll function; artifacts: build/showcases/showcases_async_05_cancellation_main_sg |
+| `showcases/async/06_failfast_scope` | ok | fail | LLVM build failed: Error: LLVM emit failed: unsupported instruction kind 10; artifacts: build/showcases/showcases_async_06_failfast_scope_main_sg |
+| `showcases/async/07_checkpoint_scheduler` | ok | fail | LLVM run failed (exit 1): panic: missing poll function; artifacts: build/showcases/showcases_async_07_checkpoint_scheduler_main_sg |
+| `showcases/async/08_timeout_race` | ok | fail | LLVM build failed: Error: LLVM emit failed: unsupported instruction kind 11; artifacts: build/showcases/showcases_async_08_timeout_race_main_sg |

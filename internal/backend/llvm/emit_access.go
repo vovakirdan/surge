@@ -19,12 +19,18 @@ func (fe *funcEmitter) emitFieldAccess(fa *mir.FieldAccess) (val, ty string, err
 	if objTy != "ptr" {
 		return "", "", fmt.Errorf("field access expects ptr base, got %s", objTy)
 	}
-	if isRefType(fe.emitter.types, fa.Object.Type) {
+	objType := fa.Object.Type
+	if objType == types.NoTypeID && fa.Object.Kind != mir.OperandConst {
+		if baseType, baseErr := fe.placeBaseType(fa.Object.Place); baseErr == nil {
+			objType = baseType
+		}
+	}
+	if isRefType(fe.emitter.types, objType) {
 		deref := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", deref, objVal)
 		objVal = deref
 	}
-	structType := resolveValueType(fe.emitter.types, fa.Object.Type)
+	structType := resolveValueType(fe.emitter.types, objType)
 	fieldIdx, fieldType, err := fe.structFieldInfo(structType, mir.PlaceProj{Kind: mir.PlaceProjField, FieldName: fa.FieldName, FieldIdx: fa.FieldIdx})
 	if err != nil {
 		return "", "", err

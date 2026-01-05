@@ -512,7 +512,11 @@ func (fe *funcEmitter) structFieldInfo(typeID types.TypeID, proj mir.PlaceProj) 
 	}
 	tupleInfo, ok := fe.emitter.types.TupleInfo(typeID)
 	if !ok || tupleInfo == nil {
-		return -1, types.NoTypeID, fmt.Errorf("missing struct info")
+		kind := "unknown"
+		if tt, okLookup := fe.emitter.types.Lookup(typeID); okLookup {
+			kind = tt.Kind.String()
+		}
+		return -1, types.NoTypeID, fmt.Errorf("missing struct info for type#%d (kind=%s)", typeID, kind)
 	}
 	fieldIdx := proj.FieldIdx
 	if fieldIdx < 0 || fieldIdx >= len(tupleInfo.Elems) {
