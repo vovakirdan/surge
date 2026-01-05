@@ -27,6 +27,7 @@ SurgeBigInt* bi_alloc(uint32_t len, bn_err* err) {
     }
     out->len = len;
     out->neg = 0;
+    memset(out->limbs, 0, (size_t)len * sizeof(uint32_t));
     return out;
 }
 

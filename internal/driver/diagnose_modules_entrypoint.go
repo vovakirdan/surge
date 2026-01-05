@@ -2,7 +2,6 @@ package driver
 
 import (
 	"surge/internal/diag"
-	"surge/internal/project"
 	"surge/internal/source"
 	"surge/internal/symbols"
 )
@@ -30,11 +29,6 @@ func enforceEntrypoints(rec *moduleRecord, moduleScope symbols.ScopeID) {
 	}
 	reporter := diag.NewDedupReporter(&diag.BagReporter{Bag: rec.Bag})
 	if len(entryIDs) == 0 {
-		if rec.Meta.Kind == project.ModuleKindBinary {
-			if b := diag.ReportError(reporter, diag.SemaEntrypointNotFound, rec.Meta.Span, "binary module must declare exactly one @entrypoint"); b != nil {
-				b.Emit()
-			}
-		}
 		return
 	}
 	if len(entryIDs) > 1 {

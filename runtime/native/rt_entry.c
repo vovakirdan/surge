@@ -1,7 +1,11 @@
 #include "rt.h"
 #include <stddef.h>
 
-void __surge_start(void);
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((weak)) void __surge_start(void) {}
+#else
+void __surge_start(void) {}
+#endif
 
 int rt_argc = 0;
 char** rt_argv_raw = NULL;

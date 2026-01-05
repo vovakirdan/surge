@@ -25,6 +25,7 @@ SurgeBigUint* bu_alloc(uint32_t len, bn_err* err) {
         return NULL;
     }
     out->len = len;
+    memset(out->limbs, 0, (size_t)len * sizeof(uint32_t));
     return out;
 }
 
@@ -400,4 +401,3 @@ SurgeBigUint* bu_mul_small(const SurgeBigUint* u, uint32_t m, bn_err* err) {
     }
     return out;
 }
-
