@@ -26,6 +26,11 @@ func (e *Emitter) collectStringConsts() {
 					for k := range ins.Call.Args {
 						e.collectOperand(&ins.Call.Args[k])
 					}
+				case mir.InstrChanSend:
+					e.collectOperand(&ins.ChanSend.Channel)
+					e.collectOperand(&ins.ChanSend.Value)
+				case mir.InstrChanRecv:
+					e.collectOperand(&ins.ChanRecv.Channel)
 				}
 			}
 			e.collectTerminator(&bb.Term)

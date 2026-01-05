@@ -30,6 +30,14 @@ typedef enum {
 } task_result_kind;
 
 typedef enum {
+    RESUME_NONE = 0,
+    RESUME_CHAN_RECV_VALUE = 1,
+    RESUME_CHAN_RECV_CLOSED = 2,
+    RESUME_CHAN_SEND_ACK = 3,
+    RESUME_CHAN_SEND_CLOSED = 4,
+} resume_kind;
+
+typedef enum {
     POLL_NONE = 0,
     POLL_DONE_SUCCESS = 1,
     POLL_DONE_CANCELLED = 2,
@@ -41,6 +49,8 @@ typedef enum {
     WAKER_NONE = 0,
     WAKER_JOIN = 1,
     WAKER_TIMER = 2,
+    WAKER_CHAN_SEND = 3,
+    WAKER_CHAN_RECV = 4,
 } waker_kind;
 
 typedef struct {
@@ -62,10 +72,12 @@ typedef struct rt_task {
     uint8_t status;
     uint8_t kind;
     uint8_t cancelled;
+    uint8_t resume_kind;
     uint8_t enqueued;
     uint8_t checkpoint_polled;
     uint8_t sleep_armed;
     uint32_t handle_refs;
+    uint64_t resume_bits;
     uint64_t sleep_delay;
     uint64_t sleep_deadline;
     uint64_t scope_id;
@@ -108,6 +120,8 @@ typedef struct {
     size_t waiters_cap;
 } rt_executor;
 
+typedef struct rt_channel rt_channel;
+
 typedef struct {
     uint8_t kind;
     waker_key park_key;
@@ -129,6 +143,8 @@ waker_key waker_none(void);
 int waker_valid(waker_key key);
 waker_key join_key(uint64_t id);
 waker_key timer_key(uint64_t id);
+waker_key channel_send_key(rt_channel* ch);
+waker_key channel_recv_key(rt_channel* ch);
 
 rt_executor* ensure_exec(void);
 rt_task* get_task(rt_executor* ex, uint64_t id);
@@ -162,6 +178,13 @@ void scope_add_child(rt_scope* scope, uint64_t child_id);
 
 void task_add_ref(rt_task* task);
 void task_release(rt_executor* ex, rt_task* task);
+
+void* rt_channel_new(uint64_t capacity);
+bool rt_channel_send(void* channel, uint64_t value_bits);
+uint8_t rt_channel_recv(void* channel, uint64_t* out_bits);
+bool rt_channel_try_send(void* channel, uint64_t value_bits);
+bool rt_channel_try_recv(void* channel, uint64_t* out_bits);
+void rt_channel_close(void* channel);
 
 int current_task_cancelled(rt_executor* ex);
 void cancel_task(rt_executor* ex, uint64_t id);

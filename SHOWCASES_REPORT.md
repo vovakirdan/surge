@@ -32,8 +32,8 @@
 | `showcases/30_mini_ini_parser` | ok | ok |  |
 | `showcases/async/01_spawn_await_order` | ok | ok |  |
 | `showcases/async/02_fanout_fanin` | ok | ok |  |
-| `showcases/async/03_channel_prod_cons` | fail | fail | VM run failed (exit 1): no matching overload for producer; LLVM build failed: no matching overload for producer; artifacts: build/showcases/showcases_async_03_channel_prod_cons_main_sg |
-| `showcases/async/04_pipeline_3stage` | fail | fail | VM run failed (exit 1): no matching overload for gen; LLVM build failed: no matching overload for gen; artifacts: build/showcases/showcases_async_04_pipeline_3stage_main_sg |
+| `showcases/async/03_channel_prod_cons` | ok | ok |  |
+| `showcases/async/04_pipeline_3stage` | ok | ok |  |
 | `showcases/async/05_cancellation` | ok | ok |  |
 | `showcases/async/06_failfast_scope` | ok | ok |  |
 | `showcases/async/07_checkpoint_scheduler` | ok | ok |  |

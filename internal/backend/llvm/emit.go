@@ -90,6 +90,7 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("string repeat count out of range")
 	e.ensureStringConst("sleep duration out of range")
 	e.ensureStringConst("timeout duration out of range")
+	e.ensureStringConst("channel capacity out of range")
 	e.ensureStringConst("alloc size out of range")
 	e.ensureStringConst("alloc align out of range")
 	e.ensureStringConst("free size out of range")

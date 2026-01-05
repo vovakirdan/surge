@@ -23,6 +23,9 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	if handled, err := fe.emitRuntimeIntrinsic(call); handled {
 		return err
 	}
+	if handled, err := fe.emitChannelIntrinsic(call); handled {
+		return err
+	}
 	if handled, err := fe.emitLenIntrinsic(call); handled {
 		return err
 	}

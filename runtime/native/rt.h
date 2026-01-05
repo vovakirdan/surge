@@ -122,6 +122,13 @@ void rt_async_yield(void* state);
 void rt_async_return(void* state, uint64_t bits);
 void rt_async_return_cancelled(void* state);
 
+void* rt_channel_new(uint64_t capacity);
+bool rt_channel_send(void* channel, uint64_t value_bits);
+uint8_t rt_channel_recv(void* channel, uint64_t* out_bits);
+bool rt_channel_try_send(void* channel, uint64_t value_bits);
+bool rt_channel_try_recv(void* channel, uint64_t* out_bits);
+void rt_channel_close(void* channel);
+
 void* rt_scope_enter(bool failfast);
 void rt_scope_register_child(void* scope, void* task);
 void rt_scope_cancel_all(void* scope);

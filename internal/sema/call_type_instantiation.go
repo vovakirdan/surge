@@ -440,13 +440,14 @@ func (tc *typeChecker) instantiateResultType(key symbols.TypeKey, bindings map[s
 	}
 }
 
-// peelReference removes reference or ownership wrappers from a type.
+// peelReference removes reference and ownership wrappers from a type.
 // This is used during type inference to get the underlying value type
 // when matching reference parameters against actual arguments.
 //
 // Examples:
 //   - &int -> int
 //   - &mut string -> string
+//   - &own MyStruct -> MyStruct
 //   - own MyStruct -> MyStruct
 //   - int -> int (unchanged)
 func (tc *typeChecker) peelReference(id types.TypeID) types.TypeID {
@@ -454,17 +455,18 @@ func (tc *typeChecker) peelReference(id types.TypeID) types.TypeID {
 		return id
 	}
 
-	resolved := tc.resolveAlias(id)
-	tt, ok := tc.types.Lookup(resolved)
-	if !ok {
-		return id
-	}
-
-	switch tt.Kind {
-	case types.KindReference, types.KindOwn:
-		return tt.Elem
-	default:
-		return id
+	for {
+		resolved := tc.resolveAlias(id)
+		tt, ok := tc.types.Lookup(resolved)
+		if !ok {
+			return id
+		}
+		switch tt.Kind {
+		case types.KindReference, types.KindOwn:
+			id = tt.Elem
+		default:
+			return id
+		}
 	}
 }
 

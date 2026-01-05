@@ -34,6 +34,16 @@ waker_key timer_key(uint64_t id) {
     return key;
 }
 
+waker_key channel_send_key(rt_channel* ch) {
+    waker_key key = {WAKER_CHAN_SEND, (uint64_t)(uintptr_t)ch};
+    return key;
+}
+
+waker_key channel_recv_key(rt_channel* ch) {
+    waker_key key = {WAKER_CHAN_RECV, (uint64_t)(uintptr_t)ch};
+    return key;
+}
+
 rt_executor* ensure_exec(void) {
     rt_executor* ex = &exec_state;
     if (ex->next_id == 0) {
