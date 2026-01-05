@@ -497,12 +497,17 @@ func (fe *funcEmitter) structFieldInfo(typeID types.TypeID, proj mir.PlaceProj) 
 	info, ok := fe.emitter.types.StructInfo(typeID)
 	if ok && info != nil {
 		fieldIdx := proj.FieldIdx
-		if fieldIdx < 0 && proj.FieldName != "" && fe.emitter.types.Strings != nil {
+		if proj.FieldName != "" && fe.emitter.types.Strings != nil {
+			found := false
 			for i, field := range info.Fields {
 				if fe.emitter.types.Strings.MustLookup(field.Name) == proj.FieldName {
 					fieldIdx = i
+					found = true
 					break
 				}
+			}
+			if !found {
+				return -1, types.NoTypeID, fmt.Errorf("unknown field %q", proj.FieldName)
 			}
 		}
 		if fieldIdx < 0 || fieldIdx >= len(info.Fields) {

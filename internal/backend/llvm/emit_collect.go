@@ -92,6 +92,15 @@ func (e *Emitter) collectTerminator(term *mir.Terminator) {
 		e.collectOperand(&term.If.Cond)
 	case mir.TermSwitchTag:
 		e.collectOperand(&term.SwitchTag.Value)
+	case mir.TermAsyncYield:
+		e.collectOperand(&term.AsyncYield.State)
+	case mir.TermAsyncReturn:
+		e.collectOperand(&term.AsyncReturn.State)
+		if term.AsyncReturn.HasValue {
+			e.collectOperand(&term.AsyncReturn.Value)
+		}
+	case mir.TermAsyncReturnCancelled:
+		e.collectOperand(&term.AsyncReturnCancelled.State)
 	}
 }
 
@@ -106,15 +115,15 @@ func (e *Emitter) collectOperand(op *mir.Operand) {
 	case mir.ConstString:
 		e.ensureStringConst(op.Const.StringValue)
 	case mir.ConstInt:
-		if op.Const.Text != "" && isBigIntType(e.types, op.Const.Type) {
+		if op.Const.Text != "" {
 			e.ensureStringConst(op.Const.Text)
 		}
 	case mir.ConstUint:
-		if op.Const.Text != "" && isBigUintType(e.types, op.Const.Type) {
+		if op.Const.Text != "" {
 			e.ensureStringConst(op.Const.Text)
 		}
 	case mir.ConstFloat:
-		if op.Const.Text != "" && isBigFloatType(e.types, op.Const.Type) {
+		if op.Const.Text != "" {
 			e.ensureStringConst(op.Const.Text)
 		}
 	case mir.ConstFn:

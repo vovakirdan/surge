@@ -71,6 +71,10 @@ typedef struct rt_task {
     uint64_t scope_id;
     uint64_t parent_scope_id;
     waker_key park_key;
+    waker_key* wait_keys;
+    size_t wait_keys_len;
+    size_t wait_keys_cap;
+    uint64_t timeout_task_id;
     uint64_t* children;
     size_t children_len;
     size_t children_cap;
@@ -139,6 +143,8 @@ void ensure_scope_child_cap(rt_scope* scope, size_t want);
 
 void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
+void clear_wait_keys(rt_executor* ex, rt_task* task);
+void add_wait_key(rt_executor* ex, rt_task* task, waker_key key);
 void ready_push(rt_executor* ex, uint64_t id);
 int ready_pop(rt_executor* ex, uint64_t* out_id);
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);

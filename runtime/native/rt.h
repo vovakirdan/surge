@@ -109,13 +109,15 @@ void* rt_biguint_to_bigfloat(void* a);
 void* rt_bigfloat_to_bigint(void* a);
 void* rt_bigfloat_to_biguint(void* a);
 
-void* __task_create(void* poll_fn, void* state);
+void* __task_create(uint64_t poll_fn_id, void* state);
 void* __task_state(void);
 void rt_task_wake(void* task);
 uint8_t rt_task_poll(void* task, uint64_t* out_bits);
 void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits);
 void rt_task_cancel(void* task);
 void* rt_task_clone(void* task);
+uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits);
+int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index);
 void rt_async_yield(void* state);
 void rt_async_return(void* state, uint64_t bits);
 void rt_async_return_cancelled(void* state);
@@ -127,7 +129,7 @@ bool rt_scope_join_all(void* scope, uint64_t* pending, bool* failfast);
 void rt_scope_exit(void* scope);
 
 void* checkpoint(void);
-void* rt_sleep(void* ms);
+void* rt_sleep(uint64_t ms);
 
 void* rt_range_int_new(void* start, void* end, bool inclusive);
 void* rt_range_int_from_start(void* start, bool inclusive);

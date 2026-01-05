@@ -191,6 +191,28 @@ void ensure_scope_child_cap(rt_scope* scope, size_t want) {
     scope->children_cap = next_cap;
 }
 
+static void ensure_wait_keys_cap(rt_task* task, size_t want) {
+    if (task == NULL) {
+        return;
+    }
+    if (task->wait_keys_cap >= want) {
+        return;
+    }
+    size_t next_cap = task->wait_keys_cap == 0 ? 4 : task->wait_keys_cap;
+    while (next_cap < want) {
+        next_cap *= 2;
+    }
+    size_t old_size = task->wait_keys_cap * sizeof(waker_key);
+    size_t new_size = next_cap * sizeof(waker_key);
+    waker_key* next = (waker_key*)rt_realloc((uint8_t*)task->wait_keys, (uint64_t)old_size, (uint64_t)new_size, _Alignof(waker_key));
+    if (next == NULL) {
+        panic_msg("async: wait key allocation failed");
+        return;
+    }
+    task->wait_keys = next;
+    task->wait_keys_cap = next_cap;
+}
+
 void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     if (ex == NULL || ex->waiters_len == 0) {
         return;
@@ -212,6 +234,28 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     }
     ensure_waiter_cap(ex);
     ex->waiters[ex->waiters_len++] = (waiter){key, task_id};
+}
+
+void clear_wait_keys(rt_executor* ex, rt_task* task) {
+    if (ex == NULL || task == NULL || task->wait_keys_len == 0) {
+        return;
+    }
+    for (size_t i = 0; i < task->wait_keys_len; i++) {
+        remove_waiter(ex, task->wait_keys[i], task->id);
+    }
+    task->wait_keys_len = 0;
+}
+
+void add_wait_key(rt_executor* ex, rt_task* task, waker_key key) {
+    if (ex == NULL || task == NULL || !waker_valid(key)) {
+        return;
+    }
+    ensure_wait_keys_cap(task, task->wait_keys_len + 1);
+    if (task->wait_keys == NULL) {
+        return;
+    }
+    task->wait_keys[task->wait_keys_len++] = key;
+    add_waiter(ex, key, task->id);
 }
 
 void ready_push(rt_executor* ex, uint64_t id) {
@@ -407,6 +451,12 @@ void task_add_ref(rt_task* task) {
 static void free_task(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL) {
         return;
+    }
+    if (task->wait_keys_len > 0) {
+        clear_wait_keys(ex, task);
+    }
+    if (task->wait_keys != NULL && task->wait_keys_cap > 0) {
+        rt_free((uint8_t*)task->wait_keys, (uint64_t)(task->wait_keys_cap * sizeof(waker_key)), _Alignof(waker_key));
     }
     if (task->children != NULL && task->children_cap > 0) {
         rt_free((uint8_t*)task->children, (uint64_t)(task->children_cap * sizeof(uint64_t)), _Alignof(uint64_t));

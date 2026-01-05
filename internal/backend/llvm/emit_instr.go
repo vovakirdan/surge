@@ -24,6 +24,10 @@ func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
 		return fe.emitInstrPoll(ins)
 	case mir.InstrJoinAll:
 		return fe.emitInstrJoinAll(ins)
+	case mir.InstrTimeout:
+		return fe.emitInstrTimeout(ins)
+	case mir.InstrSelect:
+		return fe.emitInstrSelect(ins)
 	case mir.InstrDrop, mir.InstrEndBorrow, mir.InstrNop:
 		return nil
 	default:

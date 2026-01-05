@@ -300,6 +300,163 @@ func (fe *funcEmitter) emitInstrJoinAll(ins *mir.Instr) error {
 	return nil
 }
 
+func (fe *funcEmitter) emitInstrTimeout(ins *mir.Instr) error {
+	if ins == nil {
+		return nil
+	}
+	val, valTy, err := fe.emitValueOperand(&ins.Timeout.Task)
+	if err != nil {
+		return err
+	}
+	if valTy != "ptr" {
+		return fmt.Errorf("timeout expects Task pointer, got %s", valTy)
+	}
+	ms64, err := fe.emitUintOperandToI64(&ins.Timeout.Ms, "timeout duration out of range")
+	if err != nil {
+		return err
+	}
+	bitsPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+	kindVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_timeout_poll(ptr %s, i64 %s, ptr %s)\n", kindVal, val, ms64, bitsPtr)
+	pendingCond := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i8 %s, 0\n", pendingCond, kindVal)
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%bb%d, label %%bb.inline.timeout_done%d\n", pendingCond, ins.Timeout.PendBB, fe.inlineBlock)
+
+	doneBB := fmt.Sprintf("bb.inline.timeout_done%d", fe.inlineBlock)
+	fe.inlineBlock++
+	successBB := fe.nextInlineBlock()
+	cancelBB := fe.nextInlineBlock()
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", doneBB)
+	successCond := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i8 %s, 1\n", successCond, kindVal)
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", successCond, successBB, cancelBB)
+
+	resultType, err := fe.placeBaseType(ins.Timeout.Dst)
+	if err != nil {
+		return err
+	}
+	successIdx, payloadType, err := fe.taskResultInfo(resultType)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", successBB)
+	bitsVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
+	payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
+	if err != nil {
+		return err
+	}
+	successPtr, err := fe.emitTagValueSinglePayload(resultType, successIdx, payloadType, payloadVal, payloadTy, payloadType)
+	if err != nil {
+		return err
+	}
+	ptr, dstTy, err := fe.emitPlacePtr(ins.Timeout.Dst)
+	if err != nil {
+		return err
+	}
+	if dstTy != "ptr" {
+		dstTy = "ptr"
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, successPtr, ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.Timeout.ReadyBB)
+
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cancelBB)
+	cancelPtr, err := fe.emitTagValue(resultType, "Cancelled", symbols.NoSymbolID, nil)
+	if err != nil {
+		return err
+	}
+	ptr, dstTy, err = fe.emitPlacePtr(ins.Timeout.Dst)
+	if err != nil {
+		return err
+	}
+	if dstTy != "ptr" {
+		dstTy = "ptr"
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, cancelPtr, ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.Timeout.ReadyBB)
+
+	fe.blockTerminated = true
+	return nil
+}
+
+func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
+	if ins == nil {
+		return nil
+	}
+	armCount := len(ins.Select.Arms)
+	if armCount == 0 {
+		return fmt.Errorf("select expects at least one arm")
+	}
+	defaultIndex := int64(-1)
+	for i := range ins.Select.Arms {
+		arm := &ins.Select.Arms[i]
+		switch arm.Kind {
+		case mir.SelectArmDefault:
+			if defaultIndex >= 0 {
+				return fmt.Errorf("select has multiple default arms")
+			}
+			defaultIndex = int64(i)
+		case mir.SelectArmTask:
+			// handled below
+		default:
+			return fmt.Errorf("unsupported select arm kind %v", arm.Kind)
+		}
+	}
+
+	arrPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x ptr]\n", arrPtr, armCount)
+	for i := range ins.Select.Arms {
+		arm := &ins.Select.Arms[i]
+		elemPtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 %d\n", elemPtr, armCount, arrPtr, i)
+		if arm.Kind == mir.SelectArmTask {
+			val, valTy, err := fe.emitValueOperand(&arm.Task)
+			if err != nil {
+				return err
+			}
+			if valTy != "ptr" {
+				return fmt.Errorf("select expects Task pointer, got %s", valTy)
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", val, elemPtr)
+			continue
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", elemPtr)
+	}
+	tasksPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 0\n", tasksPtr, armCount, arrPtr)
+	idxVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_select_poll_tasks(i64 %d, ptr %s, i64 %d)\n", idxVal, armCount, tasksPtr, defaultIndex)
+	pendingCond := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp slt i64 %s, 0\n", pendingCond, idxVal)
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%bb%d, label %%bb.inline.select_ready%d\n", pendingCond, ins.Select.PendBB, fe.inlineBlock)
+
+	readyBB := fmt.Sprintf("bb.inline.select_ready%d", fe.inlineBlock)
+	fe.inlineBlock++
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
+	dstType, err := fe.placeBaseType(ins.Select.Dst)
+	if err != nil {
+		return err
+	}
+	val, valTy, err := fe.emitI64ToValue(idxVal, dstType)
+	if err != nil {
+		return err
+	}
+	ptr, dstTy, err := fe.emitPlacePtr(ins.Select.Dst)
+	if err != nil {
+		return err
+	}
+	if dstTy != valTy {
+		dstTy = valTy
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.Select.ReadyBB)
+
+	fe.blockTerminated = true
+	return nil
+}
+
 func (fe *funcEmitter) emitTermAsyncYield(term *mir.Terminator) error {
 	if term == nil {
 		return nil
