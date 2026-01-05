@@ -105,4 +105,3 @@ This is used in golden tests and determinism checks.
 
 - No OS-thread parallelism (single-threaded runtime).
 - `parallel` / `signal` are reserved and rejected.
-- `await` inside loops is not supported by async lowering.
