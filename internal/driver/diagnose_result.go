@@ -26,6 +26,32 @@ func (r *DiagnoseResult) RootModuleMeta() *project.ModuleMeta {
 	return r.rootRecord.Meta
 }
 
+// ModuleFiles returns file paths for all modules resolved during diagnostics.
+func (r *DiagnoseResult) ModuleFiles() []string {
+	if r == nil || r.moduleRecords == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	files := make([]string, 0, len(r.moduleRecords))
+	for _, rec := range r.moduleRecords {
+		if rec == nil {
+			continue
+		}
+		for _, file := range rec.Files {
+			if file == nil || file.Path == "" {
+				continue
+			}
+			if _, ok := seen[file.Path]; ok {
+				continue
+			}
+			seen[file.Path] = struct{}{}
+			files = append(files, file.Path)
+		}
+	}
+	sort.Strings(files)
+	return files
+}
+
 // Entrypoints returns entrypoint metadata across all resolved modules.
 func (r *DiagnoseResult) Entrypoints() []EntrypointInfo {
 	if r == nil || r.moduleRecords == nil {

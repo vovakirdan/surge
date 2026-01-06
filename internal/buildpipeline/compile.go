@@ -79,6 +79,7 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	}
 	result.Diagnose = diagRes
 	recordDiagnoseTimings(&result, diagRes.TimingReport)
+	expandProgressFiles(req, phaseProgress, diagRes)
 
 	if diagRes.Bag != nil && diagRes.Bag.HasErrors() {
 		for _, d := range diagRes.Bag.Items() {
