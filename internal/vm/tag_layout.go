@@ -6,12 +6,14 @@ import (
 	"surge/internal/types"
 )
 
+// TagCase represents a case in a tagged union.
 type TagCase struct {
 	TagName      string
 	TagSym       symbols.SymbolID
 	PayloadTypes []types.TypeID
 }
 
+// TagLayout represents the layout of a tagged union type.
 type TagLayout struct {
 	TypeID types.TypeID
 	Cases  []TagCase
@@ -20,12 +22,14 @@ type TagLayout struct {
 	bySym  map[symbols.SymbolID]int
 }
 
+// TagLayouts manages tag layouts for all types in a module.
 type TagLayouts struct {
 	byType     map[types.TypeID]*TagLayout
 	anyBySym   map[symbols.SymbolID]string
 	aliasBySym map[symbols.SymbolID]symbols.SymbolID
 }
 
+// NewTagLayouts creates a new TagLayouts instance from a MIR module.
 func NewTagLayouts(m *mir.Module) *TagLayouts {
 	tl := &TagLayouts{
 		byType:   make(map[types.TypeID]*TagLayout),
@@ -148,6 +152,7 @@ func NewTagLayouts(m *mir.Module) *TagLayouts {
 	return tl
 }
 
+// Layout returns the tag layout for a given type ID.
 func (tl *TagLayouts) Layout(typeID types.TypeID) (*TagLayout, bool) {
 	if tl == nil || typeID == types.NoTypeID {
 		return nil, false
@@ -156,11 +161,13 @@ func (tl *TagLayouts) Layout(typeID types.TypeID) (*TagLayout, bool) {
 	return layout, ok && layout != nil
 }
 
+// IsTagType checks if a type ID represents a tagged union type.
 func (tl *TagLayouts) IsTagType(typeID types.TypeID) bool {
 	_, ok := tl.Layout(typeID)
 	return ok
 }
 
+// KnownTagSym checks if a symbol ID is a known tag symbol.
 func (tl *TagLayouts) KnownTagSym(sym symbols.SymbolID) bool {
 	if tl == nil || !sym.IsValid() {
 		return false
@@ -174,6 +181,7 @@ func (tl *TagLayouts) KnownTagSym(sym symbols.SymbolID) bool {
 	return ok
 }
 
+// AnyTagName returns the tag name for a given symbol ID.
 func (tl *TagLayouts) AnyTagName(sym symbols.SymbolID) (string, bool) {
 	if tl == nil || !sym.IsValid() {
 		return "", false
@@ -187,6 +195,7 @@ func (tl *TagLayouts) AnyTagName(sym symbols.SymbolID) (string, bool) {
 	return name, ok
 }
 
+// CanonicalTagSym returns the canonical symbol ID for a tag symbol, resolving aliases.
 func (tl *TagLayouts) CanonicalTagSym(sym symbols.SymbolID) symbols.SymbolID {
 	if tl == nil || !sym.IsValid() {
 		return sym
@@ -200,6 +209,7 @@ func (tl *TagLayouts) CanonicalTagSym(sym symbols.SymbolID) symbols.SymbolID {
 	return sym
 }
 
+// CaseByName returns the tag case by name.
 func (l *TagLayout) CaseByName(tagName string) (TagCase, bool) {
 	if l == nil {
 		return TagCase{}, false
@@ -211,6 +221,7 @@ func (l *TagLayout) CaseByName(tagName string) (TagCase, bool) {
 	return l.Cases[idx], true
 }
 
+// CaseBySym returns the tag case by symbol ID.
 func (l *TagLayout) CaseBySym(sym symbols.SymbolID) (TagCase, bool) {
 	if l == nil {
 		return TagCase{}, false

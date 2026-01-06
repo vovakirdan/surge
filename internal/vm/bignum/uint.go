@@ -10,7 +10,8 @@ const MaxLimbs = 1_000_000
 
 var (
 	// ErrMaxLimbs indicates the numeric size limit was exceeded.
-	ErrMaxLimbs  = errors.New("numeric size limit exceeded")
+	ErrMaxLimbs = errors.New("numeric size limit exceeded")
+	// ErrDivByZero indicates an attempt to divide by zero.
 	ErrDivByZero = errors.New("division by zero")
 	ErrUnderflow = errors.New("unsigned underflow")
 )
@@ -100,6 +101,7 @@ func (u BigUint) Uint64() (uint64, bool) {
 	}
 }
 
+// UintAdd adds two BigUint values and returns the result.
 func UintAdd(a, b BigUint) (BigUint, error) {
 	al := trimLimbs(a.Limbs)
 	bl := trimLimbs(b.Limbs)

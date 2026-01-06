@@ -55,6 +55,7 @@ func (r *DefaultRuntime) Argv() []string {
 	return r.argv
 }
 
+// StdinReadAll reads all input from stdin.
 func (r *DefaultRuntime) StdinReadAll() string {
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
@@ -63,6 +64,7 @@ func (r *DefaultRuntime) StdinReadAll() string {
 	return strings.TrimSpace(string(data))
 }
 
+// StdinReadLine reads a single line from stdin.
 func (r *DefaultRuntime) StdinReadLine() string {
 	if r == nil {
 		return ""
@@ -78,19 +80,24 @@ func (r *DefaultRuntime) StdinReadLine() string {
 	line = strings.TrimSuffix(line, "\r")
 	return line
 }
+
+// Exit sets the exit code and marks the runtime as exited.
 func (r *DefaultRuntime) Exit(code int) {
 	r.exitCode = code
 	r.exited = true
 }
 
+// ExitCode returns the exit code.
 func (r *DefaultRuntime) ExitCode() int {
 	return r.exitCode
 }
 
+// Exited reports whether the runtime has exited.
 func (r *DefaultRuntime) Exited() bool {
 	return r.exited
 }
 
+// MonotonicNow returns the current monotonic time in nanoseconds.
 func (r *DefaultRuntime) MonotonicNow() int64 {
 	if r == nil {
 		return 0
@@ -119,14 +126,17 @@ func NewTestRuntime(argv []string, stdin string) *TestRuntime {
 	}
 }
 
+// Argv returns the command-line arguments.
 func (r *TestRuntime) Argv() []string {
 	return r.argv
 }
 
+// StdinReadAll reads all input from stdin.
 func (r *TestRuntime) StdinReadAll() string {
 	return strings.TrimSpace(r.stdin)
 }
 
+// StdinReadLine reads a single line from stdin.
 func (r *TestRuntime) StdinReadLine() string {
 	if r == nil {
 		return ""
@@ -148,19 +158,23 @@ func (r *TestRuntime) StdinReadLine() string {
 	return line
 }
 
+// Exit sets the exit code and marks the runtime as exited.
 func (r *TestRuntime) Exit(code int) {
 	r.exitCode = code
 	r.exited = true
 }
 
+// ExitCode returns the exit code.
 func (r *TestRuntime) ExitCode() int {
 	return r.exitCode
 }
 
+// Exited reports whether the runtime has exited.
 func (r *TestRuntime) Exited() bool {
 	return r.exited
 }
 
+// MonotonicNow returns the current monotonic time in nanoseconds.
 func (r *TestRuntime) MonotonicNow() int64 {
 	return 0
 }
@@ -171,10 +185,12 @@ type RecordingRuntime struct {
 	rec *Recorder
 }
 
+// NewRecordingRuntime creates a RecordingRuntime that wraps another runtime.
 func NewRecordingRuntime(rt Runtime, rec *Recorder) *RecordingRuntime {
 	return &RecordingRuntime{rt: rt, rec: rec}
 }
 
+// Argv returns the command-line arguments.
 func (r *RecordingRuntime) Argv() []string {
 	if r == nil || r.rt == nil {
 		return nil
@@ -186,6 +202,7 @@ func (r *RecordingRuntime) Argv() []string {
 	return argv
 }
 
+// StdinReadAll reads all input from stdin.
 func (r *RecordingRuntime) StdinReadAll() string {
 	if r == nil || r.rt == nil {
 		return ""
@@ -197,6 +214,7 @@ func (r *RecordingRuntime) StdinReadAll() string {
 	return s
 }
 
+// StdinReadLine reads a single line from stdin.
 func (r *RecordingRuntime) StdinReadLine() string {
 	if r == nil || r.rt == nil {
 		return ""
@@ -208,6 +226,7 @@ func (r *RecordingRuntime) StdinReadLine() string {
 	return s
 }
 
+// Exit sets the exit code and marks the runtime as exited.
 func (r *RecordingRuntime) Exit(code int) {
 	if r == nil {
 		return
@@ -217,6 +236,7 @@ func (r *RecordingRuntime) Exit(code int) {
 	}
 }
 
+// ExitCode returns the exit code.
 func (r *RecordingRuntime) ExitCode() int {
 	if r == nil || r.rt == nil {
 		return -1
@@ -224,6 +244,7 @@ func (r *RecordingRuntime) ExitCode() int {
 	return r.rt.ExitCode()
 }
 
+// Exited reports whether the runtime has exited.
 func (r *RecordingRuntime) Exited() bool {
 	if r == nil || r.rt == nil {
 		return false
@@ -231,6 +252,7 @@ func (r *RecordingRuntime) Exited() bool {
 	return r.rt.Exited()
 }
 
+// MonotonicNow returns the current monotonic time in nanoseconds.
 func (r *RecordingRuntime) MonotonicNow() int64 {
 	if r == nil || r.rt == nil {
 		return 0
@@ -256,6 +278,7 @@ func NewReplayRuntime(vm *VM, rp *Replayer) *ReplayRuntime {
 	return &ReplayRuntime{vm: vm, rp: rp, exitCode: -1}
 }
 
+// Argv returns the command-line arguments from the replay log.
 func (r *ReplayRuntime) Argv() []string {
 	if r == nil || r.vm == nil || r.rp == nil {
 		return nil
@@ -268,6 +291,7 @@ func (r *ReplayRuntime) Argv() []string {
 	return argv
 }
 
+// StdinReadAll reads all input from the replay log.
 func (r *ReplayRuntime) StdinReadAll() string {
 	if r == nil || r.vm == nil || r.rp == nil {
 		return ""
@@ -280,6 +304,7 @@ func (r *ReplayRuntime) StdinReadAll() string {
 	return s
 }
 
+// StdinReadLine reads a single line from the replay log.
 func (r *ReplayRuntime) StdinReadLine() string {
 	if r == nil || r.vm == nil || r.rp == nil {
 		return ""
@@ -292,6 +317,7 @@ func (r *ReplayRuntime) StdinReadLine() string {
 	return s
 }
 
+// Exit validates the exit code against the replay log.
 func (r *ReplayRuntime) Exit(code int) {
 	if r == nil || r.vm == nil || r.rp == nil {
 		return
@@ -308,6 +334,7 @@ func (r *ReplayRuntime) ExitCode() int {
 	return r.exitCode
 }
 
+// Exited reports whether the runtime has exited.
 func (r *ReplayRuntime) Exited() bool {
 	if r == nil {
 		return false
@@ -315,6 +342,7 @@ func (r *ReplayRuntime) Exited() bool {
 	return r.exited
 }
 
+// MonotonicNow returns the current monotonic time from the replay log.
 func (r *ReplayRuntime) MonotonicNow() int64 {
 	if r == nil || r.vm == nil || r.rp == nil {
 		return 0

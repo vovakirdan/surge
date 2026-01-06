@@ -11,6 +11,7 @@ import (
 	"surge/internal/source"
 )
 
+// Debugger provides interactive debugging capabilities for the VM.
 type Debugger struct {
 	vm          *VM
 	breakpoints *Breakpoints
@@ -24,11 +25,13 @@ type Debugger struct {
 	quit bool
 }
 
+// DebuggerResult contains the result of a debugger session.
 type DebuggerResult struct {
 	ExitCode int
 	Quit     bool
 }
 
+// NewDebugger creates a new Debugger instance.
 func NewDebugger(vm *VM, in io.Reader, out io.Writer, interactive bool) *Debugger {
 	if in == nil {
 		in = strings.NewReader("")
@@ -48,6 +51,7 @@ func NewDebugger(vm *VM, in io.Reader, out io.Writer, interactive bool) *Debugge
 	return d
 }
 
+// Breakpoints returns the breakpoints collection.
 func (d *Debugger) Breakpoints() *Breakpoints {
 	if d == nil {
 		return nil
@@ -55,6 +59,7 @@ func (d *Debugger) Breakpoints() *Breakpoints {
 	return d.breakpoints
 }
 
+// Run executes the debugger session.
 func (d *Debugger) Run() (DebuggerResult, *VMError) {
 	if d == nil || d.vm == nil {
 		return DebuggerResult{}, nil

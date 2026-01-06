@@ -15,6 +15,7 @@ type BreakpointKind uint8
 const (
 	// BKFileLine represents a file:line breakpoint.
 	BKFileLine BreakpointKind = iota
+	// BKFuncEntry represents a function entry breakpoint.
 	BKFuncEntry
 )
 
@@ -32,6 +33,7 @@ type Breakpoint struct {
 	FuncName string
 }
 
+// Summary returns a string representation of the breakpoint.
 func (bp *Breakpoint) Summary() string {
 	if bp == nil {
 		return "<nil>"
@@ -46,11 +48,13 @@ func (bp *Breakpoint) Summary() string {
 	}
 }
 
+// Breakpoints manages a collection of breakpoints.
 type Breakpoints struct {
 	nextID int
 	list   []*Breakpoint
 }
 
+// NewBreakpoints creates a new Breakpoints collection.
 func NewBreakpoints() *Breakpoints {
 	return &Breakpoints{nextID: 1}
 }
@@ -98,6 +102,7 @@ func (bps *Breakpoints) AddFuncEntry(funcName string) (*Breakpoint, error) {
 	return bp, nil
 }
 
+// Delete removes a breakpoint by ID.
 func (bps *Breakpoints) Delete(id int) bool {
 	if bps == nil || id <= 0 {
 		return false

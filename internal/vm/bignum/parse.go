@@ -133,6 +133,7 @@ func digitValue(ch byte, base uint32) (uint32, bool) {
 	}
 }
 
+// ParseFloat parses a string representation of a floating-point number into a BigFloat.
 func ParseFloat(s string) (BigFloat, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {

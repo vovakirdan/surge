@@ -76,6 +76,7 @@ func FloatFromUint(u BigUint) (BigFloat, error) {
 	return BigFloat{Neg: false, Mant: mant, Exp: exp}, nil
 }
 
+// FloatFromInt converts a BigInt to a BigFloat.
 func FloatFromInt(i BigInt) (BigFloat, error) {
 	if i.IsZero() {
 		return BigFloat{}, nil
@@ -87,6 +88,7 @@ func FloatFromInt(i BigInt) (BigFloat, error) {
 	return BigFloat{Neg: i.Neg, Mant: mant, Exp: exp}, nil
 }
 
+// FloatToIntTrunc converts a BigFloat to a BigInt by truncating the fractional part.
 func FloatToIntTrunc(f BigFloat) (BigInt, error) {
 	if f.IsZero() {
 		return BigInt{}, nil

@@ -170,10 +170,16 @@ func buildExecution(cmd *cobra.Command, args []string) error {
 	}
 
 	if keepTmpFlag {
-		fmt.Fprintf(os.Stdout, "tmp dir: %s\n", formatPathForOutput(outputRoot, buildRes.TmpDir))
+		_, fprintfErr := fmt.Fprintf(os.Stdout, "tmp dir: %s\n", formatPathForOutput(outputRoot, buildRes.TmpDir))
+		if fprintfErr != nil {
+			return fprintfErr
+		}
 	}
 	printStageTimings(os.Stdout, buildRes.Timings, true, false)
-	fmt.Fprintf(os.Stdout, "built %s\n", formatPathForOutput(outputRoot, buildRes.OutputPath))
+	_, fprintfErr := fmt.Fprintf(os.Stdout, "built %s\n", formatPathForOutput(outputRoot, buildRes.OutputPath))
+	if fprintfErr != nil {
+		return fprintfErr
+	}
 	return nil
 }
 

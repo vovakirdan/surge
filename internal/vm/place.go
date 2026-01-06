@@ -9,6 +9,7 @@ import (
 	"surge/internal/types"
 )
 
+// EvalPlace evaluates a place expression and returns its location.
 func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 	if vm == nil || frame == nil {
 		return Location{}, &VMError{Code: PanicInvalidLocation, Message: "invalid location: nil frame"}

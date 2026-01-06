@@ -182,4 +182,5 @@ func IntDivMod(a, b BigInt) (q, r BigInt, err error) {
 	return q, r, nil
 }
 
+// UintCmp compares two BigUint values and returns -1, 0, or 1.
 func UintCmp(a, b BigUint) int { return a.Cmp(b) }

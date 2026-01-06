@@ -81,6 +81,7 @@ func (t *Tracer) TraceHeapRelease(kind ObjectKind, h Handle, rc uint32) {
 	fmt.Fprintf(t.w, "[heap] release %s rc=%d\n", kindLabel(kind), rc)
 }
 
+// TraceHeapFree traces heap object deallocation.
 func (t *Tracer) TraceHeapFree(kind ObjectKind, obj *Object) {
 	if t == nil || t.w == nil {
 		return
@@ -133,6 +134,7 @@ func (t *Tracer) TraceTerm(depth int, fn *mir.Func, bb mir.BlockID, term *mir.Te
 		depth, fn.Name, bb, termStr, spanStr)
 }
 
+// TraceSwitchTagDecision traces a switch tag decision.
 func (t *Tracer) TraceSwitchTagDecision(tagName string, target mir.BlockID) {
 	if t == nil || t.w == nil {
 		return
@@ -144,6 +146,7 @@ func (t *Tracer) TraceSwitchTagDecision(tagName string, target mir.BlockID) {
 	fmt.Fprintf(t.w, "    switch_tag -> case %s bb%d\n", tagName, target)
 }
 
+// TraceStore traces a store operation.
 func (t *Tracer) TraceStore(loc Location, v Value) {
 	if t == nil || t.w == nil {
 		return

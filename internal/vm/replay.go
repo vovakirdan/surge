@@ -26,18 +26,21 @@ type Replayer struct {
 	consumedTerm bool
 }
 
+// NewReplayerFromBytes creates a Replayer from byte data.
 func NewReplayerFromBytes(data []byte) *Replayer {
 	r := &Replayer{}
 	r.parse(bytes.NewReader(data))
 	return r
 }
 
+// NewReplayerFromReader creates a Replayer from a reader.
 func NewReplayerFromReader(rd io.Reader) *Replayer {
 	r := &Replayer{}
 	r.parse(rd)
 	return r
 }
 
+// Validate checks that the replay log is valid.
 func (r *Replayer) Validate() error {
 	if r == nil {
 		return fmt.Errorf("nil replayer")
@@ -57,6 +60,7 @@ func (r *Replayer) Validate() error {
 	return nil
 }
 
+// Remaining returns the number of remaining events in the replay log.
 func (r *Replayer) Remaining() int {
 	if r == nil {
 		return 0
@@ -67,6 +71,7 @@ func (r *Replayer) Remaining() int {
 	return len(r.events) - r.next
 }
 
+// PeekKind returns the kind of the next event without consuming it.
 func (r *Replayer) PeekKind() (string, bool) {
 	if r == nil || r.next >= len(r.events) {
 		return "", false
@@ -74,6 +79,7 @@ func (r *Replayer) PeekKind() (string, bool) {
 	return r.events[r.next].Kind, true
 }
 
+// ConsumeIntrinsic consumes and validates an intrinsic event.
 func (r *Replayer) ConsumeIntrinsic(vm *VM, name string) *LogIntrinsicEvent {
 	ev := r.expectNext(vm, "intrinsic")
 	if ev.Intrinsic == nil {
@@ -85,6 +91,7 @@ func (r *Replayer) ConsumeIntrinsic(vm *VM, name string) *LogIntrinsicEvent {
 	return ev.Intrinsic
 }
 
+// ConsumeExit consumes and validates an exit event.
 func (r *Replayer) ConsumeExit(vm *VM, code int) {
 	ev := r.expectNext(vm, "exit")
 	if ev.Exit == nil {
@@ -96,6 +103,7 @@ func (r *Replayer) ConsumeExit(vm *VM, code int) {
 	r.consumedTerm = true
 }
 
+// CheckPanic checks if a panic event matches the replay log.
 func (r *Replayer) CheckPanic(vm *VM, actual *VMError) *VMError {
 	if r == nil {
 		return actual
@@ -134,6 +142,7 @@ func (r *Replayer) CheckPanic(vm *VM, actual *VMError) *VMError {
 	return actual
 }
 
+// FinalizeExit finalizes the exit event and validates the replay log is complete.
 func (r *Replayer) FinalizeExit(vm *VM, code int) *VMError {
 	if r == nil {
 		return nil
