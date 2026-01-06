@@ -4,6 +4,7 @@ package asyncrt
 type WakerKind uint8
 
 const (
+	// WakerInvalid indicates an invalid waker key.
 	WakerInvalid WakerKind = iota
 	WakerJoin
 	WakerChannelRecv
@@ -59,6 +60,7 @@ type Waiter struct {
 type PollOutcomeKind uint8
 
 const (
+	// PollDoneSuccess indicates the task completed successfully.
 	PollDoneSuccess PollOutcomeKind = iota
 	PollDoneCancelled
 	PollYielded

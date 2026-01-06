@@ -6,6 +6,7 @@ import "surge/internal/source"
 type PragmaFlags uint32
 
 const (
+	// PragmaFlagNone indicates no pragma flags are set.
 	PragmaFlagNone      PragmaFlags = 0
 	PragmaFlagDirective PragmaFlags = 1 << iota
 	PragmaFlagNoStd

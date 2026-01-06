@@ -6,6 +6,7 @@ import "time"
 type Stage string
 
 const (
+	// StageParse is the parsing stage.
 	StageParse    Stage = "parse"
 	StageDiagnose Stage = "diagnose"
 	StageLower    Stage = "lower"
@@ -18,6 +19,7 @@ const (
 type Status string
 
 const (
+	// StatusQueued indicates the task is waiting to start.
 	StatusQueued  Status = "queued"
 	StatusWorking Status = "working"
 	StatusDone    Status = "done"
@@ -42,6 +44,7 @@ type ProgressSink interface {
 type Backend string
 
 const (
+	// BackendVM selects the interpreter backend.
 	BackendVM   Backend = "vm"
 	BackendLLVM Backend = "llvm"
 )

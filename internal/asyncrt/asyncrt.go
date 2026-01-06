@@ -34,6 +34,7 @@ type TaskID uint64
 type TaskStatus uint8
 
 const (
+	// TaskReady indicates the task is ready to run.
 	TaskReady TaskStatus = iota
 	TaskRunning
 	TaskWaiting
@@ -44,6 +45,7 @@ const (
 type TaskKind uint8
 
 const (
+	// TaskKindUser indicates a regular user task.
 	TaskKindUser TaskKind = iota
 	TaskKindCheckpoint
 	TaskKindSleep
@@ -54,6 +56,7 @@ const (
 type TaskResultKind uint8
 
 const (
+	// TaskResultSuccess indicates successful completion.
 	TaskResultSuccess TaskResultKind = iota
 	TaskResultCancelled
 )
@@ -62,6 +65,7 @@ const (
 type ResumeKind uint8
 
 const (
+	// ResumeNone indicates no resume payload.
 	ResumeNone ResumeKind = iota
 	ResumeChanRecvValue
 	ResumeChanRecvClosed

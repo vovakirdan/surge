@@ -8,6 +8,7 @@ import (
 	"surge/internal/source"
 )
 
+// TypeParam represents a generic type parameter.
 type TypeParam struct {
 	Name       source.StringID
 	NameSpan   source.Span
@@ -21,6 +22,7 @@ type TypeParam struct {
 	Span       source.Span
 }
 
+// TypeParamBound represents a bound on a type parameter.
 type TypeParamBound struct {
 	Name      source.StringID
 	NameSpan  source.Span
@@ -33,6 +35,7 @@ type TypeParamBound struct {
 	Span      source.Span
 }
 
+// TypeParamSpec specifies a type parameter during creation.
 type TypeParamSpec struct {
 	Name       source.StringID
 	NameSpan   source.Span
@@ -45,6 +48,7 @@ type TypeParamSpec struct {
 	Span       source.Span
 }
 
+// TypeParamBoundSpec specifies a type parameter bound during creation.
 type TypeParamBoundSpec struct {
 	Name      source.StringID
 	NameSpan  source.Span
@@ -56,6 +60,7 @@ type TypeParamBoundSpec struct {
 	Span      source.Span
 }
 
+// TypeParam returns the TypeParam for the given TypeParamID.
 func (i *Items) TypeParam(id TypeParamID) *TypeParam {
 	if !id.IsValid() {
 		return nil
@@ -63,6 +68,7 @@ func (i *Items) TypeParam(id TypeParamID) *TypeParam {
 	return i.TypeParams.Get(uint32(id))
 }
 
+// TypeParamBound returns the TypeParamBound for the given TypeParamBoundID.
 func (i *Items) TypeParamBound(id TypeParamBoundID) *TypeParamBound {
 	if !id.IsValid() {
 		return nil
@@ -70,6 +76,7 @@ func (i *Items) TypeParamBound(id TypeParamBoundID) *TypeParamBound {
 	return i.TypeParamBounds.Get(uint32(id))
 }
 
+// GetTypeParamIDs returns a slice of type parameter IDs starting from the given ID.
 func (i *Items) GetTypeParamIDs(start TypeParamID, count uint32) []TypeParamID {
 	if !start.IsValid() || count == 0 {
 		return nil

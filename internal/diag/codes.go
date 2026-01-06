@@ -4,12 +4,17 @@ import (
 	"fmt"
 )
 
+// Code uniquely identifies a diagnostic type.
 type Code uint16
 
 const (
 	// Неизвестная ошибка - на первое время
+
+	// UnknownCode represents an unknown error.
 	UnknownCode Code = 0
 	// Лексические
+
+	// LexInfo represents lexical information.
 	LexInfo                     Code = 1000
 	LexUnknownChar              Code = 1001
 	LexUnterminatedString       Code = 1002
@@ -18,6 +23,8 @@ const (
 	LexTokenTooLong             Code = 1005
 
 	// Парсерные (зарезервируем)
+
+	// SynInfo represents syntax information.
 	SynInfo                    Code = 2000
 	SynUnexpectedToken         Code = 2001
 	SynUnclosedDelimiter       Code = 2002
@@ -51,6 +58,8 @@ const (
 	SynFnNotAllowed            Code = 2030
 
 	// import errors & warnings
+
+	// SynInfoImportGroup represents import group information.
 	SynInfoImportGroup    Code = 2100
 	SynUnexpectedTopLevel Code = 2101
 	SynExpectIdentifier   Code = 2102
@@ -60,6 +69,8 @@ const (
 	SynEmptyImportGroup   Code = 2106
 
 	// type errors & warnings
+
+	// SynInfoTypeExpr represents type expression information.
 	SynInfoTypeExpr       Code = 2200
 	SynExpectRightBracket Code = 2201
 	SynExpectType         Code = 2202
@@ -70,6 +81,8 @@ const (
 	SynVariadicMustBeLast Code = 2207
 
 	// Семантические (резервируем)
+
+	// SemaInfo represents semantic information.
 	SemaInfo                       Code = 3000
 	SemaError                      Code = 3001
 	SemaDuplicateSymbol            Code = 3002
@@ -132,6 +145,8 @@ const (
 	SemaEntrypointInvalidAttr      Code = 3059
 
 	// Attribute validation (3060-3076)
+
+	// SemaAttrConflict indicates conflict between attributes.
 	SemaAttrConflict             Code = 3060 // General attribute conflict
 	SemaAttrPackedAlign          Code = 3061 // @packed conflicts with @align
 	SemaAttrSendNosend           Code = 3062 // @send conflicts with @nosend
@@ -151,6 +166,8 @@ const (
 	SemaAttrPureViolation        Code = 3076 // @pure function has side effects
 
 	// Lock analysis and concurrency contracts (3077-3089)
+
+	// SemaLockGuardedByViolation indicates accessing @guarded_by field without lock.
 	SemaLockGuardedByViolation   Code = 3077 // Accessing @guarded_by field without lock
 	SemaLockRequiresNotHeld      Code = 3078 // Calling @requires_lock without holding
 	SemaLockDoubleAcquire        Code = 3079 // Acquiring already-held lock
@@ -169,6 +186,8 @@ const (
 	SemaIndexOutOfBounds         Code = 3092 // Index out of bounds
 
 	// Enum validation (3093-3097)
+
+	// SemaEnumVariantNotFound indicates enum variant was not found.
 	SemaEnumVariantNotFound   Code = 3093 // Enum variant does not exist
 	SemaEnumValueOverflow     Code = 3094 // Enum value overflow
 	SemaEnumValueTypeMismatch Code = 3095 // Enum value type mismatch
@@ -176,23 +195,33 @@ const (
 	SemaEnumInvalidBaseType   Code = 3097 // Invalid base type for enum
 
 	// Implicit conversion errors (3098-3099)
+
+	// SemaNoConversion indicates no implicit conversion exists.
 	SemaNoConversion        Code = 3098 // No conversion from T to U
 	SemaAmbiguousConversion Code = 3099 // Ambiguous conversion from T to U
 
 	// Additional concurrency attribute validation (3100-3101)
+
+	// SemaAttrWaitsOnNotCondition indicates @waits_on field invalid type.
 	SemaAttrWaitsOnNotCondition Code = 3100 // @waits_on field must be Condition/Semaphore
 	SemaAttrAtomicInvalidType   Code = 3101 // @atomic field must be int/uint/bool/*T
 
 	// Deadlock detection (3102)
+
+	// SemaLockPotentialDeadlock indicates a potential deadlock.
 	SemaLockPotentialDeadlock Code = 3102 // Potential deadlock: lock order cycle detected
 
 	// Channel errors (3103-3106)
+
+	// SemaChannelTypeMismatch indicates type mismatch in channel op.
 	SemaChannelTypeMismatch          Code = 3103 // send/recv type doesn't match channel<T>
 	SemaChannelSendAfterClose        Code = 3104 // Attempt to send on closed channel
 	SemaChannelNosendValue           Code = 3105 // Cannot send @nosend type through channel
 	SemaChannelBlockingInNonblocking Code = 3106 // Blocking channel op in @nonblocking
 
 	// Task leak detection (3107-3110)
+
+	// SemaTaskNotAwaited indicates a task was created but not awaited.
 	SemaTaskNotAwaited    Code = 3107 // Task created but not awaited
 	SemaTaskEscapesScope  Code = 3108 // Task stored in global without detach
 	SemaTaskLeakInAsync   Code = 3109 // Unawaited task at async block exit
@@ -200,27 +229,41 @@ const (
 	SemaSpawnNotTask      Code = 3111 // task requires Task<T> expression
 
 	// Generic type parameter errors (3112)
+
+	// SemaTypeParamShadow indicates shadowing of type parameter.
 	SemaTypeParamShadow Code = 3112 // Type parameter shadows outer type parameter in extern
 
 	// @send/@atomic validation (3113-3114)
+
+	// SemaSendContainsNonsend indicates @send type has nonsend field.
 	SemaSendContainsNonsend Code = 3113 // @send type contains non-sendable field
 	SemaAtomicDirectAccess  Code = 3114 // @atomic field accessed without atomic operation
 
 	// Spawn warnings (3115)
+
+	// SemaSpawnCheckpointUseless indicates useless checkpoint.
 	SemaSpawnCheckpointUseless Code = 3115 // task checkpoint() has no effect
 
 	// Clone errors (3116)
+
+	// SemaTypeNotClonable indicates type cannot be cloned.
 	SemaTypeNotClonable Code = 3116 // Type does not have __clone method
 
 	// @copy attribute errors (3117-3118)
+
+	// SemaAttrCopyNonCopyField indicates @copy type has non-copy field.
 	SemaAttrCopyNonCopyField Code = 3117 // @copy type has non-Copy field
 	SemaAttrCopyCyclicDep    Code = 3118 // @copy types have cyclic dependency
 
 	// Directive validation errors (3119-3120)
+
+	// SemaDirectiveUnknownNamespace indicates unknown directive namespace.
 	SemaDirectiveUnknownNamespace   Code = 3119 // Directive namespace not imported
 	SemaDirectiveNotDirectiveModule Code = 3120 // Module lacks pragma directive
 
 	// Entrypoint validation errors (3121-3125)
+
+	// SemaEntrypointModeInvalid indicates invalid entrypoint mode.
 	SemaEntrypointModeInvalid          Code = 3121 // Unknown entrypoint mode string
 	SemaEntrypointNoModeRequiresNoArgs Code = 3122 // @entrypoint without mode requires 0 params or all defaults
 	SemaEntrypointReturnNotConvertible Code = 3123 // Return type not convertible to int (no ExitCode)
@@ -234,9 +277,13 @@ const (
 	SemaTrivialRecursion               Code = 3131 // Obvious infinite recursion cycle
 
 	// Ошибки I/O
+
+	// IOLoadFileError indicates file load error.
 	IOLoadFileError Code = 4001
 
 	// Ошибки проекта / DAG
+
+	// ProjInfo represents project information.
 	ProjInfo                    Code = 5000
 	ProjDuplicateModule         Code = 5001
 	ProjMissingModule           Code = 5002
@@ -251,10 +298,14 @@ const (
 	ProjInconsistentNoStd       Code = 5011
 
 	// Observability
+
+	// ObsInfo represents observability info.
 	ObsInfo    Code = 6000
 	ObsTimings Code = 6001
 
 	// Future/Unsupported Features (v2+)
+
+	// FutSignalNotSupported indicates signal usage (unsupported).
 	FutSignalNotSupported         Code = 7000
 	FutParallelNotSupported       Code = 7001
 	FutMacroNotSupported          Code = 7002
@@ -265,6 +316,8 @@ const (
 	FutSpawnReserved              Code = 7007
 
 	// Alien hints (8000-series; optional extra diagnostics)
+
+	// AlnRustImplTrait is a hint for Rust users.
 	AlnRustImplTrait   Code = 8001
 	AlnRustAttribute   Code = 8002
 	AlnRustMacroCall   Code = 8003
@@ -496,6 +549,7 @@ var ( // todo расширить описания и использовать к
 	}
 )
 
+// ID returns the 7-character string code (e.g. "SEM3001").
 func (c Code) ID() string {
 	switch ic := int(c); {
 	case ic >= 1000 && ic < 2000:
@@ -518,6 +572,7 @@ func (c Code) ID() string {
 	return "E0000"
 }
 
+// Title returns the human-readable description of the error code.
 func (c Code) Title() string {
 	desc, ok := codeDescription[c]
 	if !ok {

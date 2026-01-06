@@ -1,8 +1,8 @@
+// Package buildpipeline orchestrates the compilation process.
 package buildpipeline
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -229,25 +229,25 @@ func buildLLVMOutput(tmpDir, outputPath string, printCommands bool) error {
 func compileLLVMIR(printCommands bool, llPath, objPath string) error {
 	if err := runCommand(printCommands, "clang", "-c", "-x", "ir", llPath, "-o", objPath); err == nil {
 		return nil
-	} else {
-		clangErr := err
-		llcPath, llcErr := exec.LookPath("llc")
-		if llcErr != nil {
-			return clangErr
-		}
-		triple := hostTripleFromClang()
-		args := []string{"-filetype=obj", llPath, "-o", objPath}
-		if triple != "" {
-			args = append([]string{"-mtriple=" + triple}, args...)
-		}
-		if err := runCommand(printCommands, llcPath, args...); err != nil {
-			return fmt.Errorf("clang failed; llc failed: %w", errors.Join(clangErr, err))
-		}
-		if printCommands {
-			fmt.Fprintln(os.Stdout, "note: clang IR compile failed; fell back to llc")
-		}
-		return nil
 	}
+	// Fallback to llc
+	// clangErr := err // not used, but could be useful for debugging
+	llcPath, llcErr := exec.LookPath("llc")
+	if llcErr != nil {
+		return fmt.Errorf("clang failed and llc not found: %w", llcErr)
+	}
+	triple := hostTripleFromClang()
+	args := []string{"-filetype=obj", llPath, "-o", objPath}
+	if triple != "" {
+		args = append([]string{"-mtriple=" + triple}, args...)
+	}
+	if err := runCommand(printCommands, llcPath, args...); err != nil {
+		return fmt.Errorf("clang and llc failed: %w", err)
+	}
+	if printCommands {
+		fmt.Fprintln(os.Stdout, "note: clang IR compile failed; fell back to llc")
+	}
+	return nil
 }
 
 func hostTripleFromClang() string {

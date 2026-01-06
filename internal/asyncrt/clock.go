@@ -11,6 +11,7 @@ import (
 type TimerMode uint8
 
 const (
+	// TimerModeVirtual uses executor's manual time advancement.
 	TimerModeVirtual TimerMode = iota
 	TimerModeReal
 )
@@ -26,6 +27,7 @@ type VirtualClock struct {
 	ex *Executor
 }
 
+// NowMs returns the current virtual time.
 func (c *VirtualClock) NowMs() uint64 {
 	if c == nil || c.ex == nil {
 		return 0
@@ -33,6 +35,7 @@ func (c *VirtualClock) NowMs() uint64 {
 	return c.ex.nowMs
 }
 
+// SleepUntilMs advances virtual time to the deadline.
 func (c *VirtualClock) SleepUntilMs(deadlineMs uint64) {
 	if c == nil || c.ex == nil {
 		return
@@ -46,6 +49,7 @@ type RealClock struct {
 	NowFunc func() uint64
 }
 
+// NowMs returns the current real time.
 func (c *RealClock) NowMs() uint64 {
 	if c == nil || c.NowFunc == nil {
 		return 0
@@ -53,6 +57,7 @@ func (c *RealClock) NowMs() uint64 {
 	return c.NowFunc()
 }
 
+// SleepUntilMs blocks until the deadline.
 func (c *RealClock) SleepUntilMs(deadlineMs uint64) {
 	if c == nil {
 		return
