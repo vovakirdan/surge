@@ -94,7 +94,6 @@ func (vm *VM) execInstrSelect(frame *Frame, instr *mir.Instr, writes []LocalWrit
 				selectedIndex = i
 				selectedKind = arm.Kind
 				selectedTaskID = taskID
-				break
 			}
 		case mir.SelectArmChanRecv:
 			chID, vmErr := resolveChanID(arm.Channel)
@@ -105,7 +104,6 @@ func (vm *VM) execInstrSelect(frame *Frame, instr *mir.Instr, writes []LocalWrit
 				selectedIndex = i
 				selectedKind = arm.Kind
 				selectedChanID = chID
-				break
 			}
 		case mir.SelectArmChanSend:
 			chID, vmErr := resolveChanID(arm.Channel)
@@ -116,7 +114,6 @@ func (vm *VM) execInstrSelect(frame *Frame, instr *mir.Instr, writes []LocalWrit
 				selectedIndex = i
 				selectedKind = arm.Kind
 				selectedChanID = chID
-				break
 			}
 		case mir.SelectArmTimeout:
 			taskID, vmErr := resolveTaskID(arm.Task)
@@ -144,7 +141,6 @@ func (vm *VM) execInstrSelect(frame *Frame, instr *mir.Instr, writes []LocalWrit
 					selectedKind = arm.Kind
 					selectedTaskID = taskID
 					selectedTimeout = true
-					break
 				}
 			}
 		}

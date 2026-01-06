@@ -282,7 +282,7 @@ func (vm *VM) handleTo(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 	}
 	vmErr = vm.writeLocal(frame, dstLocal, converted)
 	if vmErr != nil {
-		if ownsSrc && !(srcVal.IsHeap() && converted.IsHeap() && srcVal.Kind == converted.Kind && srcVal.H == converted.H) {
+		if ownsSrc && (!srcVal.IsHeap() || !converted.IsHeap() || srcVal.Kind != converted.Kind || srcVal.H != converted.H) {
 			vm.dropValue(srcVal)
 		}
 		if !ownsSrc && converted.IsHeap() {
@@ -295,7 +295,7 @@ func (vm *VM) handleTo(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 		Name:    frame.Locals[dstLocal].Name,
 		Value:   converted,
 	})
-	if ownsSrc && !(srcVal.IsHeap() && converted.IsHeap() && srcVal.Kind == converted.Kind && srcVal.H == converted.H) {
+	if ownsSrc && (!srcVal.IsHeap() || !converted.IsHeap() || srcVal.Kind != converted.Kind || srcVal.H != converted.H) {
 		vm.dropValue(srcVal)
 	}
 	return nil

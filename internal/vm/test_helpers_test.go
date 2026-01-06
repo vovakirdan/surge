@@ -152,7 +152,7 @@ func runCommand(t *testing.T, cmd *exec.Cmd, stdin string) (stdout, stderr strin
 	if !errors.As(err, &exitErr) {
 		t.Fatalf("run command: %v\nstderr:\n%s", err, stderr)
 	}
-	return stdout, stderr, exitErr.ProcessState.ExitCode()
+	return stdout, stderr, exitErr.ExitCode()
 }
 
 func newTestArtifacts(t *testing.T, root string) *testArtifacts {

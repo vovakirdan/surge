@@ -193,9 +193,10 @@ func ParseFloat(s string) (BigFloat, error) {
 			return BigFloat{}, ErrParse
 		}
 		expNeg := false
-		if s[i] == '+' {
+		switch s[i] {
+		case '+':
 			i++
-		} else if s[i] == '-' {
+		case '-':
 			expNeg = true
 			i++
 		}

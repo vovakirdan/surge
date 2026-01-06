@@ -74,5 +74,5 @@ func runBinary(t *testing.T, path string) (stdout, stderr string, exitCode int) 
 	if !errors.As(err, &exitErr) {
 		t.Fatalf("run binary: %v\nstderr:\n%s", err, stderr)
 	}
-	return stdout, stderr, exitErr.ProcessState.ExitCode()
+	return stdout, stderr, exitErr.ExitCode()
 }

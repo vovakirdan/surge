@@ -236,14 +236,14 @@ func parseIntLiteral(s string) (int64, error) {
 
 	// Handle different bases
 	if len(s) > 2 {
-		switch {
-		case s[:2] == "0x" || s[:2] == "0X":
+		switch s[:2] {
+		case "0x", "0X":
 			val, err := strconv.ParseInt(s[2:], 16, 64)
 			return val, err
-		case s[:2] == "0b" || s[:2] == "0B":
+		case "0b", "0B":
 			val, err := strconv.ParseInt(s[2:], 2, 64)
 			return val, err
-		case s[:2] == "0o" || s[:2] == "0O":
+		case "0o", "0O":
 			val, err := strconv.ParseInt(s[2:], 8, 64)
 			return val, err
 		}

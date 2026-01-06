@@ -56,7 +56,7 @@ func (vm *VM) evalRValue(frame *Frame, rv *mir.RValue) (Value, *VMError) {
 			vm.dropValue(v)
 			return Value{}, vmErr
 		}
-		if !(v.IsHeap() && res.IsHeap() && v.Kind == res.Kind && v.H == res.H) {
+		if !v.IsHeap() || !res.IsHeap() || v.Kind != res.Kind || v.H != res.H {
 			vm.dropValue(v)
 		}
 		return res, nil
