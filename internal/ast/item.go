@@ -14,6 +14,7 @@ type ItemKind uint8
 const (
 	// ItemFn represents a function item.
 	ItemFn ItemKind = iota
+	// ItemLet represents a let item.
 	ItemLet
 	ItemConst
 	ItemType

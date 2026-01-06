@@ -13,6 +13,7 @@ const (
 	// AlienHintUnknown represents an unidentified hint kind.
 	AlienHintUnknown AlienHintKind = iota
 
+	// AlienHintImplTrait represents an impl/trait hint.
 	AlienHintImplTrait
 	AlienHintAttribute
 	AlienHintMacroCall

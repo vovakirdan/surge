@@ -6,6 +6,7 @@ type Severity uint8
 const (
 	// SevInfo is for informational diagnostics.
 	SevInfo Severity = iota
+	// SevWarning is for warning diagnostics.
 	SevWarning
 	SevError
 )

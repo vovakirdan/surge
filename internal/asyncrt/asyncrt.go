@@ -1,3 +1,4 @@
+// Package asyncrt provides an async runtime executor for deterministic task scheduling.
 package asyncrt
 
 import "math/rand"
@@ -36,6 +37,7 @@ type TaskStatus uint8
 const (
 	// TaskReady indicates the task is ready to run.
 	TaskReady TaskStatus = iota
+	// TaskRunning indicates the task is currently running.
 	TaskRunning
 	TaskWaiting
 	TaskDone
@@ -47,6 +49,7 @@ type TaskKind uint8
 const (
 	// TaskKindUser indicates a regular user task.
 	TaskKindUser TaskKind = iota
+	// TaskKindCheckpoint indicates a checkpoint task.
 	TaskKindCheckpoint
 	TaskKindSleep
 	TaskKindTimeout
@@ -58,6 +61,7 @@ type TaskResultKind uint8
 const (
 	// TaskResultSuccess indicates successful completion.
 	TaskResultSuccess TaskResultKind = iota
+	// TaskResultCancelled indicates the task was cancelled.
 	TaskResultCancelled
 )
 
@@ -67,6 +71,7 @@ type ResumeKind uint8
 const (
 	// ResumeNone indicates no resume payload.
 	ResumeNone ResumeKind = iota
+	// ResumeChanRecvValue indicates a channel receive value resume.
 	ResumeChanRecvValue
 	ResumeChanRecvClosed
 	ResumeChanSendAck

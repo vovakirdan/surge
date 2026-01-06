@@ -8,6 +8,7 @@ type TypeExprKind uint8
 const (
 	// TypeExprInvalid represents an invalid type expression.
 	TypeExprInvalid TypeExprKind = iota
+	// TypeExprPath represents a path type expression.
 	TypeExprPath
 	TypeExprUnary
 	TypeExprConst
@@ -240,6 +241,7 @@ type TypeUnaryOp uint8
 const (
 	// TypeUnaryOwn represents an owned pointer (`own`).
 	TypeUnaryOwn TypeUnaryOp = iota
+	// TypeUnaryRef represents a reference (`&`).
 	TypeUnaryRef
 	TypeUnaryRefMut
 	TypeUnaryPointer
@@ -251,7 +253,8 @@ type TypeArrayKind uint8
 const (
 	// ArraySlice represents a dynamic array (slice).
 	ArraySlice TypeArrayKind = iota // dynamic, growable array `T[]`
-	ArraySized                      // fixed-length array `T[N]`
+	// ArraySized represents a fixed-length array (`T[N]`).
+	ArraySized // fixed-length array `T[N]`
 )
 
 // TypeArray represents an array type.

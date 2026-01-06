@@ -13,6 +13,7 @@ type TimerMode uint8
 const (
 	// TimerModeVirtual uses executor's manual time advancement.
 	TimerModeVirtual TimerMode = iota
+	// TimerModeReal uses real system time.
 	TimerModeReal
 )
 

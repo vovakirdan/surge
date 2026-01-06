@@ -151,6 +151,7 @@ type ForKind uint8
 const (
 	// ForClassic represents a C-style for loop.
 	ForClassic ForKind = iota // for init; cond; post { ... }
+	// ForIn represents a for-in loop.
 	ForIn                     // for pattern in iterable { ... }
 )
 

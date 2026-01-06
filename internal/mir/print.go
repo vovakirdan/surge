@@ -9,8 +9,10 @@ import (
 	"surge/internal/types"
 )
 
+// DumpOptions configures MIR module dumping.
 type DumpOptions struct{}
 
+// DumpModule writes a human-readable representation of a MIR module.
 func DumpModule(w io.Writer, m *Module, typesIn *types.Interner, _ DumpOptions) error {
 	if w == nil || m == nil {
 		return nil

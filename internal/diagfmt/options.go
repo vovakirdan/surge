@@ -6,6 +6,7 @@ type PathMode uint8
 const (
 	// PathModeAuto chooses relative or absolute path automatically.
 	PathModeAuto PathMode = iota
+	// PathModeAbsolute always uses absolute paths.
 	PathModeAbsolute
 	PathModeRelative
 	PathModeBasename

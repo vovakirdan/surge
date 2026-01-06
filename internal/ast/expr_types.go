@@ -10,6 +10,7 @@ type ExprKind uint8
 const (
 	// ExprIdent represents an identifier expression.
 	ExprIdent ExprKind = iota
+	// ExprLit represents a literal expression.
 	ExprLit
 	ExprCall
 	ExprBinary
@@ -54,6 +55,7 @@ const (
 	ExprBinaryAdd ExprBinaryOp = iota
 	// ExprBinarySub represents the subtraction operator (-).
 	ExprBinarySub
+	// ExprBinaryMul represents the multiplication operator (*).
 	ExprBinaryMul
 	ExprBinaryDiv
 	ExprBinaryMod
@@ -190,6 +192,7 @@ type ExprUnaryOp uint8
 const (
 	// ExprUnaryPlus represents the unary plus operator (+).
 	ExprUnaryPlus ExprUnaryOp = iota
+	// ExprUnaryMinus represents the unary minus operator (-).
 	ExprUnaryMinus
 	ExprUnaryNot
 	ExprUnaryDeref
@@ -229,6 +232,7 @@ type ExprLitKind uint8
 const (
 	// ExprLitInt represents an integer literal.
 	ExprLitInt ExprLitKind = iota
+	// ExprLitUint represents an unsigned integer literal.
 	ExprLitUint
 	ExprLitFloat
 	ExprLitString
@@ -402,6 +406,7 @@ type ExprParallelKind uint8
 const (
 	// ExprParallelMap represents a parallel map operation.
 	ExprParallelMap ExprParallelKind = iota
+	// ExprParallelReduce represents a parallel reduce operation.
 	ExprParallelReduce
 )
 

@@ -14,6 +14,7 @@ type ContractItemKind uint8
 const (
 	// ContractItemField represents a field requirement in a contract.
 	ContractItemField ContractItemKind = iota
+	// ContractItemFn represents a function requirement in a contract.
 	ContractItemFn
 )
 

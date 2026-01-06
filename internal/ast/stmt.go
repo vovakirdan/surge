@@ -8,6 +8,7 @@ type StmtKind uint8
 const (
 	// StmtBlock represents a block statement.
 	StmtBlock StmtKind = iota
+	// StmtLet represents a let statement.
 	StmtLet
 	StmtConst
 	StmtExpr

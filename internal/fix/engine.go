@@ -24,6 +24,7 @@ type ApplyMode uint8
 const (
 	// ApplyModeOnce applies the first eligible fix and stops.
 	ApplyModeOnce ApplyMode = iota
+	// ApplyModeAll applies all eligible fixes.
 	ApplyModeAll
 	ApplyModeID
 )

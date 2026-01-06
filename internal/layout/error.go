@@ -13,6 +13,7 @@ type LayoutErrorKind uint8
 const (
 	// LayoutErrRecursiveUnsized indicates a recursive type with no fixed size.
 	LayoutErrRecursiveUnsized LayoutErrorKind = iota + 1
+	// LayoutErrLengthConversion indicates an array length conversion error.
 	LayoutErrLengthConversion
 	LayoutErrNegativeLength
 )

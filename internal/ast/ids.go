@@ -46,6 +46,7 @@ type (
 const (
 	// NoFileID indicates no file.
 	NoFileID           FileID            = 0
+	// NoItemID indicates no item.
 	NoItemID           ItemID            = 0
 	NoStmtID           StmtID            = 0
 	NoExprID           ExprID            = 0

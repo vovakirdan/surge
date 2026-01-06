@@ -12,6 +12,7 @@ import (
 )
 
 // MonoDumpOptions configures the monomorphized module dump.
+// Note: The name stutters with the package name, but is kept for consistency.
 type MonoDumpOptions struct {
 	// If true, prints only function/type headers.
 	HeadersOnly bool

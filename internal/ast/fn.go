@@ -14,6 +14,7 @@ type FnModifier uint64
 const (
 	// FnModifierAsync marks an async function.
 	FnModifierAsync FnModifier = 1 << iota
+	// FnModifierPublic marks a public function.
 	FnModifierPublic
 )
 

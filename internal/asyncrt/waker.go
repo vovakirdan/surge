@@ -6,6 +6,7 @@ type WakerKind uint8
 const (
 	// WakerInvalid indicates an invalid waker key.
 	WakerInvalid WakerKind = iota
+	// WakerJoin indicates a join wait queue.
 	WakerJoin
 	WakerChannelRecv
 	WakerChannelSend
@@ -62,6 +63,7 @@ type PollOutcomeKind uint8
 const (
 	// PollDoneSuccess indicates the task completed successfully.
 	PollDoneSuccess PollOutcomeKind = iota
+	// PollDoneCancelled indicates the task was cancelled.
 	PollDoneCancelled
 	PollYielded
 	PollParked

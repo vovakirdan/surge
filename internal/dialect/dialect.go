@@ -9,6 +9,7 @@ type Kind uint8
 const (
 	// Unknown indicates the dialect was not identified.
 	Unknown Kind = iota
+	// Rust indicates Rust dialect.
 	Rust
 	Go
 	TypeScript

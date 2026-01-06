@@ -14,6 +14,7 @@ type ExternMemberKind uint8
 const (
 	// ExternMemberFn represents a function member in an extern block.
 	ExternMemberFn ExternMemberKind = iota
+	// ExternMemberField represents a field member in an extern block.
 	ExternMemberField
 )
 

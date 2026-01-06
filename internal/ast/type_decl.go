@@ -8,6 +8,7 @@ type TypeDeclKind uint8
 const (
 	// TypeDeclAlias represents a type alias.
 	TypeDeclAlias TypeDeclKind = iota
+	// TypeDeclStruct represents a struct type declaration.
 	TypeDeclStruct
 	TypeDeclUnion
 	TypeDeclEnum
@@ -71,6 +72,7 @@ type TypeUnionMemberKind uint8
 const (
 	// TypeUnionMemberType represents a type member in a union.
 	TypeUnionMemberType TypeUnionMemberKind = iota
+	// TypeUnionMemberNothing represents a nothing member in a union.
 	TypeUnionMemberNothing
 	TypeUnionMemberTag
 )

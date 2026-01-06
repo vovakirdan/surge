@@ -8,6 +8,7 @@ type BorrowKind uint8
 const (
 	// BorrowShared represents an immutable borrow (&T).
 	BorrowShared BorrowKind = iota // &T
+	// BorrowMut represents a mutable borrow (&mut T).
 	BorrowMut                      // &mut T
 )
 
@@ -28,6 +29,7 @@ type AccessKind uint8
 const (
 	// AccessRead represents a read access.
 	AccessRead AccessKind = iota
+	// AccessWrite represents a write access.
 	AccessWrite
 	AccessMove
 )
@@ -60,6 +62,7 @@ type BorrowEventKind uint8
 const (
 	// EvBorrowStart indicates the beginning of a borrow.
 	EvBorrowStart BorrowEventKind = iota
+	// EvBorrowEnd indicates the end of a borrow.
 	EvBorrowEnd
 	EvMove
 	EvWrite

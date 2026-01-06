@@ -17,12 +17,14 @@ func argsKeyFromTypes(args []types.TypeID) ArgsKey {
 }
 
 // MonoKey uniquely identifies a monomorphized instance by original symbol and type arguments.
+// Note: The name stutters with the package name, but is kept for consistency.
 type MonoKey struct {
 	Sym     symbols.SymbolID
 	ArgsKey ArgsKey
 }
 
 // MonoFunc represents a concrete function instance after monomorphization.
+// Note: The name stutters with the package name, but is kept for consistency.
 type MonoFunc struct {
 	Key         MonoKey
 	InstanceSym symbols.SymbolID
@@ -33,6 +35,7 @@ type MonoFunc struct {
 }
 
 // MonoType represents a concrete type instance after monomorphization.
+// Note: The name stutters with the package name, but is kept for consistency.
 type MonoType struct {
 	Key      MonoKey
 	OrigSym  symbols.SymbolID
@@ -41,6 +44,7 @@ type MonoType struct {
 }
 
 // MonoModule contains the results of monomorphizing an entire HIR module.
+// Note: The name stutters with the package name, but is kept for consistency.
 type MonoModule struct {
 	Source *hir.Module
 
