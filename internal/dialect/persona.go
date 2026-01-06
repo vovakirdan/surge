@@ -15,6 +15,7 @@ const (
 
 	// AlienHintImplTrait represents an impl/trait hint.
 	AlienHintImplTrait
+	// AlienHintAttribute represents an attribute hint.
 	AlienHintAttribute
 	AlienHintMacroCall
 	AlienHintImplicitReturn

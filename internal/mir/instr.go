@@ -12,6 +12,7 @@ type InstrKind uint8
 const (
 	// InstrAssign represents an assignment instruction.
 	InstrAssign InstrKind = iota
+	// InstrCall represents a call instruction.
 	InstrCall
 	InstrDrop
 	InstrEndBorrow
@@ -44,6 +45,7 @@ type Instr struct {
 	Select    SelectInstr
 }
 
+// AssignInstr represents an assignment instruction.
 type AssignInstr struct {
 	Dst Place
 	Src RValue
@@ -55,6 +57,7 @@ type CalleeKind uint8
 const (
 	// CalleeSym represents a symbol call target.
 	CalleeSym CalleeKind = iota
+	// CalleeValue represents a value call target.
 	CalleeValue
 )
 
@@ -96,6 +99,7 @@ type SpawnInstr struct {
 	Value Operand
 }
 
+// PollInstr represents a poll instruction.
 type PollInstr struct {
 	Dst     Place
 	Task    Operand
@@ -142,6 +146,7 @@ type SelectArmKind uint8
 const (
 	// SelectArmTask represents a task select arm.
 	SelectArmTask SelectArmKind = iota
+	// SelectArmChanRecv represents a channel receive select arm.
 	SelectArmChanRecv
 	SelectArmChanSend
 	SelectArmTimeout
@@ -171,6 +176,7 @@ type OperandKind uint8
 const (
 	// OperandConst represents a constant operand.
 	OperandConst OperandKind = iota
+	// OperandCopy represents a copy operand.
 	OperandCopy
 	OperandMove
 	OperandAddrOf
@@ -192,6 +198,7 @@ type ConstKind uint8
 const (
 	// ConstInt represents an integer constant.
 	ConstInt ConstKind = iota
+	// ConstUint represents an unsigned integer constant.
 	ConstUint
 	ConstFloat
 	ConstBool
@@ -223,6 +230,7 @@ type RValueKind uint8
 const (
 	// RValueUse represents a use of a value.
 	RValueUse RValueKind = iota
+	// RValueUnaryOp represents a unary operation.
 	RValueUnaryOp
 	RValueBinaryOp
 	RValueCast
@@ -308,6 +316,7 @@ type FieldAccess struct {
 	FieldIdx  int
 }
 
+// IndexAccess represents an index access.
 type IndexAccess struct {
 	Object Operand
 	Index  Operand

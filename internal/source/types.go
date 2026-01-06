@@ -12,6 +12,7 @@ const (
 	FileVirtual FileFlags = 1 << iota // добавлен не с диска (тест, stdin)
 	// FileHadBOM indicates the file had a BOM (Byte Order Mark).
 	FileHadBOM
+	// FileNormalizedCRLF indicates the file had CRLF line endings normalized.
 	FileNormalizedCRLF
 )
 

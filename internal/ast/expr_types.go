@@ -12,6 +12,7 @@ const (
 	ExprIdent ExprKind = iota
 	// ExprLit represents a literal expression.
 	ExprLit
+	// ExprCall represents a function call expression.
 	ExprCall
 	ExprBinary
 	ExprUnary
@@ -57,6 +58,7 @@ const (
 	ExprBinarySub
 	// ExprBinaryMul represents the multiplication operator (*).
 	ExprBinaryMul
+	// ExprBinaryDiv represents the division operator (/).
 	ExprBinaryDiv
 	ExprBinaryMod
 
@@ -194,6 +196,7 @@ const (
 	ExprUnaryPlus ExprUnaryOp = iota
 	// ExprUnaryMinus represents the unary minus operator (-).
 	ExprUnaryMinus
+	// ExprUnaryNot represents the logical NOT operator (!).
 	ExprUnaryNot
 	ExprUnaryDeref
 	ExprUnaryRef
@@ -234,6 +237,7 @@ const (
 	ExprLitInt ExprLitKind = iota
 	// ExprLitUint represents an unsigned integer literal.
 	ExprLitUint
+	// ExprLitFloat represents a floating-point literal.
 	ExprLitFloat
 	ExprLitString
 	ExprLitTrue

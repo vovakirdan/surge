@@ -39,6 +39,7 @@ const (
 	TaskReady TaskStatus = iota
 	// TaskRunning indicates the task is currently running.
 	TaskRunning
+	// TaskWaiting indicates the task is waiting.
 	TaskWaiting
 	TaskDone
 )
@@ -51,6 +52,7 @@ const (
 	TaskKindUser TaskKind = iota
 	// TaskKindCheckpoint indicates a checkpoint task.
 	TaskKindCheckpoint
+	// TaskKindSleep indicates a sleep task.
 	TaskKindSleep
 	TaskKindTimeout
 )
@@ -73,6 +75,7 @@ const (
 	ResumeNone ResumeKind = iota
 	// ResumeChanRecvValue indicates a channel receive value resume.
 	ResumeChanRecvValue
+	// ResumeChanRecvClosed indicates a channel receive closed resume.
 	ResumeChanRecvClosed
 	ResumeChanSendAck
 	ResumeChanSendClosed

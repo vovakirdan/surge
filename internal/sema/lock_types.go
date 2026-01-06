@@ -12,7 +12,8 @@ const (
 	// LockKindMutex represents a standard mutex lock.
 	LockKindMutex LockKind = iota // Mutex.lock()
 	// LockKindRwRead represents a read-write lock read operation.
-	LockKindRwRead  // RwLock.read_lock()
+	LockKindRwRead // RwLock.read_lock()
+	// LockKindRwWrite represents a read-write lock write operation.
 	LockKindRwWrite // RwLock.write_lock()
 )
 
@@ -121,7 +122,8 @@ const (
 	// PathContinues indicates the path reaches merge point normally.
 	PathContinues PathOutcome = iota // Path reaches merge point normally
 	// PathReturns indicates the path exits via return.
-	PathReturns       // Path exits via return
+	PathReturns // Path exits via return
+	// PathBreaks indicates the path exits via break.
 	PathBreaks        // Path exits via break
 	PathContinuesLoop // Path exits via continue (loop)
 )

@@ -14,7 +14,8 @@ const (
 	// FileDependent indicates the file imports project modules.
 	FileDependent FileClass = iota // Imports project modules
 	// FileStdlibOnly indicates the file only imports stdlib modules.
-	FileStdlibOnly       // Only imports stdlib modules
+	FileStdlibOnly // Only imports stdlib modules
+	// FileFullyIndependent indicates the file has no imports.
 	FileFullyIndependent // No imports
 )
 

@@ -2,4 +2,4 @@
 
 package symbols
 
-func debugScopeMismatch(_, actual ScopeID) {}
+func debugScopeMismatch(_ ScopeID, _ ScopeID) {}

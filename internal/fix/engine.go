@@ -26,6 +26,7 @@ const (
 	ApplyModeOnce ApplyMode = iota
 	// ApplyModeAll applies all eligible fixes.
 	ApplyModeAll
+	// ApplyModeID applies fixes by ID.
 	ApplyModeID
 )
 

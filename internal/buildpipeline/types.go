@@ -10,10 +10,11 @@ const (
 	StageParse Stage = "parse"
 	// StageDiagnose is the diagnose stage.
 	StageDiagnose Stage = "diagnose"
-	StageLower    Stage = "lower"
-	StageBuild    Stage = "build"
-	StageLink     Stage = "link"
-	StageRun      Stage = "run"
+	// StageLower is the lower stage.
+	StageLower Stage = "lower"
+	StageBuild Stage = "build"
+	StageLink  Stage = "link"
+	StageRun   Stage = "run"
 )
 
 // Status captures progress state within a stage.
@@ -24,8 +25,9 @@ const (
 	StatusQueued Status = "queued"
 	// StatusWorking indicates the task is currently working.
 	StatusWorking Status = "working"
-	StatusDone    Status = "done"
-	StatusError   Status = "error"
+	// StatusDone indicates the task is done.
+	StatusDone  Status = "done"
+	StatusError Status = "error"
 )
 
 // Event reports progress for a file (or for the overall pipeline when File is empty).

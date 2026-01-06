@@ -30,6 +30,7 @@ const (
 	FixApplicabilityAlwaysSafe FixApplicability = iota
 	// FixApplicabilitySafeWithHeuristics indicates the fix is safe with heuristics.
 	FixApplicabilitySafeWithHeuristics
+	// FixApplicabilityManualReview indicates the fix requires manual review.
 	FixApplicabilityManualReview
 )
 
@@ -54,6 +55,7 @@ const (
 	FixKindQuickFix FixKind = iota
 	// FixKindRefactor is a refactoring fix.
 	FixKindRefactor
+	// FixKindRefactorRewrite is a refactoring rewrite fix.
 	FixKindRefactorRewrite
 	FixKindSourceAction
 )

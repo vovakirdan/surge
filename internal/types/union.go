@@ -16,6 +16,7 @@ const (
 	UnionMemberType UnionMemberKind = iota
 	// UnionMemberNothing represents a nothing variant in a union.
 	UnionMemberNothing
+	// UnionMemberTag represents a tag variant in a union.
 	UnionMemberTag
 )
 

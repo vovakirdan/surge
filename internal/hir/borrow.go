@@ -31,6 +31,7 @@ const (
 	AccessRead AccessKind = iota
 	// AccessWrite represents a write access.
 	AccessWrite
+	// AccessMove represents a move access.
 	AccessMove
 )
 
@@ -64,6 +65,7 @@ const (
 	EvBorrowStart BorrowEventKind = iota
 	// EvBorrowEnd indicates the end of a borrow.
 	EvBorrowEnd
+	// EvMove indicates a move event.
 	EvMove
 	EvWrite
 	EvRead

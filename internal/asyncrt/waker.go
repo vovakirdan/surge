@@ -8,6 +8,7 @@ const (
 	WakerInvalid WakerKind = iota
 	// WakerJoin indicates a join wait queue.
 	WakerJoin
+	// WakerChannelRecv indicates a channel receive wait queue.
 	WakerChannelRecv
 	WakerChannelSend
 	WakerTimer
@@ -65,6 +66,7 @@ const (
 	PollDoneSuccess PollOutcomeKind = iota
 	// PollDoneCancelled indicates the task was cancelled.
 	PollDoneCancelled
+	// PollYielded indicates the task yielded.
 	PollYielded
 	PollParked
 )

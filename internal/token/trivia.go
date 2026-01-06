@@ -19,6 +19,7 @@ const (
 	TriviaSpace TriviaKind = iota
 	// TriviaNewline represents a newline character.
 	TriviaNewline
+	// TriviaLineComment represents a line comment.
 	TriviaLineComment
 	TriviaBlockComment
 	TriviaDocLine

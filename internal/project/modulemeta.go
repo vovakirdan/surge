@@ -23,6 +23,7 @@ const (
 	ModuleKindUnknown ModuleKind = iota
 	// ModuleKindModule represents a library module.
 	ModuleKindModule
+	// ModuleKindBinary represents a binary module.
 	ModuleKindBinary
 )
 

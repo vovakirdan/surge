@@ -23,6 +23,7 @@ type BorrowKind uint8
 const (
 	// BorrowShared represents a shared borrow.
 	BorrowShared BorrowKind = iota
+	// BorrowMut represents a mutable borrow.
 	BorrowMut
 )
 
@@ -35,6 +36,7 @@ type PlaceSegmentKind uint8
 const (
 	// PlaceSegmentField represents a field access segment.
 	PlaceSegmentField PlaceSegmentKind = iota
+	// PlaceSegmentIndex represents an index access segment.
 	PlaceSegmentIndex
 	PlaceSegmentDeref
 )
@@ -82,6 +84,7 @@ type BorrowIssueKind uint8
 const (
 	// BorrowIssueNone indicates no borrow issue.
 	BorrowIssueNone BorrowIssueKind = iota
+	// BorrowIssueConflictShared indicates a conflict with a shared borrow.
 	BorrowIssueConflictShared
 	BorrowIssueConflictMut
 	BorrowIssueFrozen

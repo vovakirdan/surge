@@ -10,6 +10,7 @@ const (
 	TypeExprInvalid TypeExprKind = iota
 	// TypeExprPath represents a path type expression.
 	TypeExprPath
+	// TypeExprUnary represents a unary type expression.
 	TypeExprUnary
 	TypeExprConst
 	TypeExprArray
@@ -243,6 +244,7 @@ const (
 	TypeUnaryOwn TypeUnaryOp = iota
 	// TypeUnaryRef represents a reference (`&`).
 	TypeUnaryRef
+	// TypeUnaryRefMut represents a mutable reference (`&mut`).
 	TypeUnaryRefMut
 	TypeUnaryPointer
 )

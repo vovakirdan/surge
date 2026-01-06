@@ -144,6 +144,7 @@ const (
 	LiteralInt LiteralKind = iota
 	// LiteralFloat represents a float literal in HIR.
 	LiteralFloat
+	// LiteralBool represents a boolean literal in HIR.
 	LiteralBool
 	LiteralString
 	LiteralNothing

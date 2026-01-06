@@ -45,6 +45,7 @@ const (
 	TypeDeclStruct TypeDeclKind = iota
 	// TypeDeclUnion represents a union declaration in HIR.
 	TypeDeclUnion
+	// TypeDeclEnum represents an enum declaration in HIR.
 	TypeDeclEnum
 	TypeDeclAlias
 	TypeDeclTag

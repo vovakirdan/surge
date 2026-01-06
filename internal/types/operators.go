@@ -8,7 +8,8 @@ type FamilyMask uint32
 const (
 	// FamilyNone indicates no type family.
 	FamilyNone FamilyMask = 0
-	FamilyAny  FamilyMask = 1 << iota
+	// FamilyAny indicates any type family.
+	FamilyAny FamilyMask = 1 << iota
 	FamilyBool
 	FamilySignedInt
 	FamilyUnsignedInt
@@ -24,7 +25,8 @@ const (
 const (
 	// FamilyIntegral represents integral types (signed and unsigned integers).
 	FamilyIntegral = FamilySignedInt | FamilyUnsignedInt
-	FamilyNumeric  = FamilyIntegral | FamilyFloat
+	// FamilyNumeric represents numeric types (integral and float).
+	FamilyNumeric = FamilyIntegral | FamilyFloat
 )
 
 // BinaryResult describes how to derive the result type for an operator.
@@ -33,6 +35,7 @@ type BinaryResult uint8
 const (
 	// BinaryResultUnknown indicates the result type is unknown.
 	BinaryResultUnknown BinaryResult = iota
+	// BinaryResultLeft indicates the result type is the left operand type.
 	BinaryResultLeft
 	BinaryResultRight
 	BinaryResultBool
@@ -44,7 +47,8 @@ type BinaryFlags uint16
 
 const (
 	// BinaryFlagNone indicates no binary flags.
-	BinaryFlagNone         BinaryFlags = 0
+	BinaryFlagNone BinaryFlags = 0
+	// BinaryFlagShortCircuit indicates a short-circuit binary operator.
 	BinaryFlagShortCircuit BinaryFlags = 1 << iota
 )
 

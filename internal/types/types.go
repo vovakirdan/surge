@@ -16,6 +16,7 @@ const (
 	KindInvalid Kind = iota
 	// KindUnit represents the unit type.
 	KindUnit
+	// KindNothing represents the nothing type.
 	KindNothing
 	KindBool
 	KindGenericParam
@@ -90,7 +91,8 @@ const (
 	// WidthAny represents a target-dependent default width (e.g. "int").
 	WidthAny Width = 0
 	// Width8 represents 8-bit width.
-	Width8  Width = 8
+	Width8 Width = 8
+	// Width16 represents 16-bit width.
 	Width16 Width = 16
 	Width32 Width = 32
 	Width64 Width = 64

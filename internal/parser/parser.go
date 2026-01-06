@@ -74,6 +74,7 @@ const (
 	DirectiveModeOff DirectiveMode = iota
 	// DirectiveModeCollect collects directives without generating code.
 	DirectiveModeCollect
+	// DirectiveModeGen generates code from directives.
 	DirectiveModeGen
 	DirectiveModeRun
 )

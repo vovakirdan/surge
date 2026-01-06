@@ -7,11 +7,12 @@ type Level uint8
 
 const (
 	// LevelOff disables tracing.
-	LevelOff    Level = iota // no tracing
-	LevelError               // only emit on errors/crashes
-	LevelPhase               // driver + pass boundaries
-	LevelDetail              // module-level events
-	LevelDebug               // everything including node-level
+	LevelOff Level = iota // no tracing
+	// LevelError only emits on errors/crashes.
+	LevelError  // only emit on errors/crashes
+	LevelPhase  // driver + pass boundaries
+	LevelDetail // module-level events
+	LevelDebug  // everything including node-level
 )
 
 // String returns the string representation of Level.

@@ -11,6 +11,7 @@ const (
 	Unknown Kind = iota
 	// Rust indicates Rust dialect.
 	Rust
+	// Go indicates Go dialect.
 	Go
 	TypeScript
 	Python

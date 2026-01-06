@@ -13,6 +13,7 @@ const (
 	BorrowEvBorrowStart BorrowEventKind = iota
 	// BorrowEvBorrowEnd indicates the end of a borrow.
 	BorrowEvBorrowEnd
+	// BorrowEvMove indicates a move event.
 	BorrowEvMove
 	BorrowEvWrite
 	BorrowEvDrop

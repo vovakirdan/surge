@@ -8,6 +8,7 @@ const (
 	PathModeAuto PathMode = iota
 	// PathModeAbsolute always uses absolute paths.
 	PathModeAbsolute
+	// PathModeRelative always uses relative paths.
 	PathModeRelative
 	PathModeBasename
 )

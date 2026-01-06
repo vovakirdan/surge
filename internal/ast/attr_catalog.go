@@ -14,13 +14,14 @@ const (
 	// AttrTargetNone indicates no target.
 	AttrTargetNone AttrTargetMask = 0
 	// AttrTargetFn indicates top-level or extern functions (including async).
-	AttrTargetFn    AttrTargetMask = 1 << iota // top-level or extern functions (including async)
-	AttrTargetBlock                            // statement blocks (e.g. @backend on block)
-	AttrTargetType                             // type declarations (struct/union/alias/newtype)
-	AttrTargetField                            // struct fields
-	AttrTargetParam                            // parameters (function/formal parameters)
-	AttrTargetStmt                             // statement-level attributes (e.g. expression statements)
-	AttrTargetLet                              // let and const declarations
+	AttrTargetFn AttrTargetMask = 1 << iota // top-level or extern functions (including async)
+	// AttrTargetBlock indicates statement blocks (e.g. @backend on block).
+	AttrTargetBlock // statement blocks (e.g. @backend on block)
+	AttrTargetType  // type declarations (struct/union/alias/newtype)
+	AttrTargetField // struct fields
+	AttrTargetParam // parameters (function/formal parameters)
+	AttrTargetStmt  // statement-level attributes (e.g. expression statements)
+	AttrTargetLet   // let and const declarations
 )
 
 // AttrFlag captures special handling rules beyond the basic applicability matrix.

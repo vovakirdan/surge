@@ -10,6 +10,7 @@ const (
 	StmtBlock StmtKind = iota
 	// StmtLet represents a let statement.
 	StmtLet
+	// StmtConst represents a const statement.
 	StmtConst
 	StmtExpr
 	StmtSignal

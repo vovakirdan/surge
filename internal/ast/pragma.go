@@ -10,6 +10,7 @@ const (
 	PragmaFlagNone PragmaFlags = 0
 	// PragmaFlagDirective indicates a directive pragma flag.
 	PragmaFlagDirective PragmaFlags = 1 << iota
+	// PragmaFlagNoStd indicates that standard library should not be imported.
 	PragmaFlagNoStd
 	PragmaFlagStrict
 	PragmaFlagUnsafe

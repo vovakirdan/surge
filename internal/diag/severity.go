@@ -8,6 +8,7 @@ const (
 	SevInfo Severity = iota
 	// SevWarning is for warning diagnostics.
 	SevWarning
+	// SevError is for error diagnostics.
 	SevError
 )
 

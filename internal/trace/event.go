@@ -9,7 +9,8 @@ const (
 	// KindSpanBegin marks the start of a logical operation.
 	KindSpanBegin Kind = iota + 1 // span start
 	// KindSpanEnd marks the end of a logical operation.
-	KindSpanEnd   // span end
+	KindSpanEnd // span end
+	// KindPoint represents an instant event.
 	KindPoint     // instant event
 	KindHeartbeat // periodic liveness signal
 )
@@ -38,7 +39,8 @@ const (
 	// ScopeDriver represents the highest level of compiler operations.
 	ScopeDriver Scope = iota + 1 // top-level driver operations (highest level)
 	// ScopePass represents compilation passes (lex, parse, sema, borrow).
-	ScopePass   // compilation passes (lex, parse, sema, borrow)
+	ScopePass // compilation passes (lex, parse, sema, borrow)
+	// ScopeModule represents per-module processing (more detailed).
 	ScopeModule // per-module processing (more detailed)
 	ScopeNode   // AST node level (most detailed, future)
 )

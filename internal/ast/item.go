@@ -16,6 +16,7 @@ const (
 	ItemFn ItemKind = iota
 	// ItemLet represents a let item.
 	ItemLet
+	// ItemConst represents a const item.
 	ItemConst
 	ItemType
 	ItemTag

@@ -15,6 +15,7 @@ const (
 	LayoutErrRecursiveUnsized LayoutErrorKind = iota + 1
 	// LayoutErrLengthConversion indicates an array length conversion error.
 	LayoutErrLengthConversion
+	// LayoutErrNegativeLength indicates a negative length error.
 	LayoutErrNegativeLength
 )
 

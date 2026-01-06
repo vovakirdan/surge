@@ -20,7 +20,8 @@ type GlobalID int32
 
 const (
 	// NoFuncID indicates no function.
-	NoFuncID   FuncID   = -1
+	NoFuncID FuncID = -1
+	// NoBlockID indicates no block.
 	NoBlockID  BlockID  = -1
 	NoLocalID  LocalID  = -1
 	NoGlobalID GlobalID = -1
@@ -32,6 +33,7 @@ type LocalFlags uint8
 const (
 	// LocalFlagCopy indicates a copy local flag.
 	LocalFlagCopy LocalFlags = 1 << iota
+	// LocalFlagOwn indicates an own local flag.
 	LocalFlagOwn
 	LocalFlagRef
 	LocalFlagRefMut
@@ -53,6 +55,7 @@ type PlaceProjKind uint8
 const (
 	// PlaceProjDeref represents a dereference projection.
 	PlaceProjDeref PlaceProjKind = iota
+	// PlaceProjField represents a field projection.
 	PlaceProjField
 	PlaceProjIndex
 )
@@ -72,6 +75,7 @@ type PlaceKind uint8
 const (
 	// PlaceLocal represents a local place.
 	PlaceLocal PlaceKind = iota
+	// PlaceGlobal represents a global place.
 	PlaceGlobal
 )
 

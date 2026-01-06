@@ -11,10 +11,11 @@ type Format uint8
 
 const (
 	// FormatAuto auto-detects format from file extension.
-	FormatAuto   Format = iota // auto-detect from file extension
-	FormatText                 // human-readable text
-	FormatNDJSON               // newline-delimited JSON
-	FormatChrome               // Chrome Trace Viewer format (JSON)
+	FormatAuto Format = iota // auto-detect from file extension
+	// FormatText represents human-readable text format.
+	FormatText   // human-readable text
+	FormatNDJSON // newline-delimited JSON
+	FormatChrome // Chrome Trace Viewer format (JSON)
 )
 
 // ParseFormat converts a string to Format.

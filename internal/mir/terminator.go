@@ -6,6 +6,7 @@ type TermKind uint8
 const (
 	// TermNone indicates no terminator.
 	TermNone TermKind = iota
+	// TermReturn indicates a return terminator.
 	TermReturn
 	TermAsyncYield
 	TermAsyncReturn

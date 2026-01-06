@@ -10,6 +10,7 @@ const (
 	TypeDeclAlias TypeDeclKind = iota
 	// TypeDeclStruct represents a struct type declaration.
 	TypeDeclStruct
+	// TypeDeclUnion represents a union type declaration.
 	TypeDeclUnion
 	TypeDeclEnum
 )
@@ -74,6 +75,7 @@ const (
 	TypeUnionMemberType TypeUnionMemberKind = iota
 	// TypeUnionMemberNothing represents a nothing member in a union.
 	TypeUnionMemberNothing
+	// TypeUnionMemberTag represents a tag member in a union.
 	TypeUnionMemberTag
 )
 

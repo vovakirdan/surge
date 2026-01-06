@@ -14,6 +14,7 @@ const (
 	SymbolInvalid SymbolKind = iota
 	// SymbolModule represents a module symbol.
 	SymbolModule
+	// SymbolImport represents an import symbol.
 	SymbolImport
 	SymbolFunction
 	SymbolLet
@@ -32,6 +33,7 @@ const (
 	SymbolFlagPublic SymbolFlags = 1 << iota
 	// SymbolFlagMutable indicates the symbol is mutable.
 	SymbolFlagMutable
+	// SymbolFlagImported indicates the symbol is imported.
 	SymbolFlagImported
 	SymbolFlagBuiltin
 	SymbolFlagMethod
@@ -47,7 +49,8 @@ const (
 	// EntrypointModeNone indicates the function takes no arguments.
 	EntrypointModeNone EntrypointMode = iota // No mode: function must be callable with no args
 	// EntrypointModeArgv indicates args are parsed from command-line.
-	EntrypointModeArgv   // @entrypoint("argv"): args parsed from command-line
+	EntrypointModeArgv // @entrypoint("argv"): args parsed from command-line
+	// EntrypointModeStdin indicates args are parsed from stdin.
 	EntrypointModeStdin  // @entrypoint("stdin"): args parsed from stdin
 	EntrypointModeEnv    // @entrypoint("env"): reserved for future
 	EntrypointModeConfig // @entrypoint("config"): reserved for future
