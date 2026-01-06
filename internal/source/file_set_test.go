@@ -241,8 +241,10 @@ func TestEdgeCases(t *testing.T) {
 	// Файл только с переводом строки
 	id3 := fs.AddVirtual("only_newline.sg", []byte("\n"))
 	file3 := fs.Get(id3)
-	expected := []uint32{0}
-	if len(file3.LineIdx) != 1 || file3.LineIdx[0] != expected[0] {
+	expected := uint32(0)
+	if len(file3.LineIdx) != 1 {
+		t.Errorf("Expected LineIdx [0] for file with only newline, got %v", file3.LineIdx)
+	} else if file3.LineIdx[0] != expected {
 		t.Errorf("Expected LineIdx [0] for file with only newline, got %v", file3.LineIdx)
 	}
 }

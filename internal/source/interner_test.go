@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"fortio.org/safecast"
 )
 
 // Базовые тесты функциональности
@@ -162,6 +164,7 @@ func TestInternerConcurrentMixed(t *testing.T) {
 	interner := NewInterner()
 	const numGoroutines = 50
 	const iterations = 1000
+	ids50 := mustStringIDs(t, 50)
 
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines)
@@ -180,7 +183,7 @@ func TestInternerConcurrentMixed(t *testing.T) {
 			} else {
 				// Lookup/Has
 				for i := range iterations {
-					id := StringID(i % 50)
+					id := ids50[i%len(ids50)]
 					interner.Has(id)
 					interner.Lookup(id)
 				}
@@ -244,6 +247,7 @@ func TestInternerNoDeadlock(t *testing.T) {
 	interner := NewInterner()
 	const timeout = 5 // секунд
 	const numGoroutines = 100
+	ids100 := mustStringIDs(t, 100)
 
 	done := make(chan bool, 1)
 
@@ -263,9 +267,9 @@ func TestInternerNoDeadlock(t *testing.T) {
 					case 1:
 						interner.InternBytes(fmt.Appendf([]byte{}, "s_%d", i))
 					case 2:
-						interner.Lookup(StringID(i % 100))
+						interner.Lookup(ids100[i%len(ids100)])
 					case 3:
-						interner.Has(StringID(i % 100))
+						interner.Has(ids100[i%len(ids100)])
 					case 4:
 						interner.Len()
 					case 5:
@@ -426,6 +430,19 @@ func TestInternerStress(t *testing.T) {
 		t.Errorf("Неожиданное количество строк: %d (ожидалось между %d и %d)",
 			actualLen, expectedMin, expectedMax)
 	}
+}
+
+func mustStringIDs(t *testing.T, count int) []StringID {
+	t.Helper()
+	ids := make([]StringID, count)
+	for i := range ids {
+		id, err := safecast.Conv[StringID](i)
+		if err != nil {
+			t.Fatalf("string id overflow: %v", err)
+		}
+		ids[i] = id
+	}
+	return ids
 }
 
 // Бенчмарки

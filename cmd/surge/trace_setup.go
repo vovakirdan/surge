@@ -168,6 +168,7 @@ func dumpTraceOnPanic() {
 		if panicTracer != nil {
 			if rt := findRingTracer(panicTracer); rt != nil && panicOutputPath != "" {
 				dumpPath := generateDumpPath(panicOutputPath, "panic")
+				// #nosec G304 -- dump path is derived from user-specified output path
 				if f, err := os.Create(dumpPath); err == nil {
 					if dumpErr := rt.Dump(f, trace.FormatText); dumpErr != nil {
 						_, printErr := fmt.Fprintf(os.Stderr, "trace: dump error: %v\n", dumpErr)
@@ -256,6 +257,7 @@ func setupSignalHandler(tracer trace.Tracer, outputPath string, heartbeat *trace
 		// Dump ring buffer if available
 		if rt := findRingTracer(tracer); rt != nil && outputPath != "" {
 			dumpPath := generateDumpPath(outputPath, "interrupt")
+			// #nosec G304 -- dump path is derived from user-specified output path
 			if f, err := os.Create(dumpPath); err == nil {
 				if dumpErr := rt.Dump(f, trace.FormatText); dumpErr != nil {
 					fmt.Fprintf(os.Stderr, "trace: dump error: %v\n", dumpErr)

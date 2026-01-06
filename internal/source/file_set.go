@@ -77,6 +77,7 @@ func (fileSet *FileSet) Add(path string, content []byte, flags FileFlags) FileID
 
 // Load reads a file from disk, normalizes CRLF/BOM, and calls Add.
 func (fileSet *FileSet) Load(path string) (FileID, error) {
+	// #nosec G304 -- path is provided by the caller
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return 0, err

@@ -29,26 +29,35 @@ func (Classifier) Classify(e *Evidence) Classification {
 		if h.Score <= 0 {
 			continue
 		}
-		if h.Dialect <= Unknown || h.Dialect >= dialectKindCount {
-			continue
+		switch h.Dialect {
+		case Rust:
+			scores[Rust] += h.Score
+			total += h.Score
+		case Go:
+			scores[Go] += h.Score
+			total += h.Score
+		case TypeScript:
+			scores[TypeScript] += h.Score
+			total += h.Score
+		case Python:
+			scores[Python] += h.Score
+			total += h.Score
 		}
-		scores[h.Dialect] += h.Score
-		total += h.Score
 	}
 
 	bestKind := Unknown
 	bestScore := 0
 	runnerKind := Unknown
 	runnerScore := 0
-	for k := Rust; k < dialectKindCount; k++ {
-		score := scores[k]
+	for kind := Rust; kind < dialectKindCount; kind++ {
+		score := scores[int(kind)]
 		if score > bestScore {
 			runnerKind, runnerScore = bestKind, bestScore
-			bestKind, bestScore = k, score
+			bestKind, bestScore = kind, score
 			continue
 		}
 		if score > runnerScore {
-			runnerKind, runnerScore = k, score
+			runnerKind, runnerScore = kind, score
 		}
 	}
 

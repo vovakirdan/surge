@@ -96,6 +96,7 @@ func FormatPaths(ctx context.Context, paths []string, opts FormatOptions) ([]For
 }
 
 func formatSingleFile(path string, opts FormatOptions) (formatted []byte, changed bool, err error) {
+	// #nosec G304 -- path comes from user-provided formatting arguments
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, false, err

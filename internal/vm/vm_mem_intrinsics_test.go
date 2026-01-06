@@ -3,6 +3,8 @@ package vm
 import (
 	"testing"
 
+	"fortio.org/safecast"
+
 	"surge/internal/mir"
 	"surge/internal/types"
 )
@@ -12,9 +14,10 @@ func callIntrinsic(vm *VM, name string, args []Value, dstType types.TypeID) (Val
 	for _, arg := range args {
 		locals = append(locals, mir.Local{Type: arg.TypeID})
 	}
-	outLocal := mir.LocalID(-1)
+	const invalidLocal mir.LocalID = -1
+	outLocal := invalidLocal
 	if dstType != types.NoTypeID {
-		outLocal = mir.LocalID(len(locals))
+		outLocal = safecast.MustConv[mir.LocalID](len(locals))
 		locals = append(locals, mir.Local{Name: "out", Type: dstType})
 	}
 	fn := &mir.Func{
@@ -24,7 +27,8 @@ func callIntrinsic(vm *VM, name string, args []Value, dstType types.TypeID) (Val
 	}
 	frame := NewFrame(fn)
 	for i, arg := range args {
-		if vmErr := vm.writeLocal(frame, mir.LocalID(i), arg); vmErr != nil {
+		localID := safecast.MustConv[mir.LocalID](i)
+		if vmErr := vm.writeLocal(frame, localID, arg); vmErr != nil {
 			return Value{}, vmErr
 		}
 	}
@@ -36,9 +40,10 @@ func callIntrinsic(vm *VM, name string, args []Value, dstType types.TypeID) (Val
 		call.Dst = mir.Place{Local: outLocal}
 	}
 	for i, arg := range args {
+		localID := safecast.MustConv[mir.LocalID](i)
 		call.Args = append(call.Args, mir.Operand{
 			Kind:  mir.OperandCopy,
-			Place: mir.Place{Local: mir.LocalID(i)},
+			Place: mir.Place{Local: localID},
 			Type:  arg.TypeID,
 		})
 	}

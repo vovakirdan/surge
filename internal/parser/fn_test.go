@@ -2,9 +2,12 @@ package parser
 
 import (
 	"strings"
+	"testing"
+
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
-	"testing"
 )
 
 // TestParseFnItem_SimpleDeclarations tests basic function declarations
@@ -90,7 +93,11 @@ func TestParseFnItem_SimpleDeclarations(t *testing.T) {
 				t.Errorf("name: got %q, want %q", name, tt.wantName)
 			}
 
-			if fnItem.ParamsCount != uint32(tt.wantParams) {
+			wantParams, err := safecast.Conv[uint32](tt.wantParams)
+			if err != nil {
+				t.Fatalf("want params overflow: %v", err)
+			}
+			if fnItem.ParamsCount != wantParams {
 				t.Errorf("param count: got %d, want %d", fnItem.ParamsCount, tt.wantParams)
 			}
 

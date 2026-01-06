@@ -69,7 +69,7 @@ func OpenDiskCache(app string) (*DiskCache, error) {
 		base = filepath.Join(home, ".cache")
 	}
 	dir := filepath.Join(base, app)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, err
 	}
 	return &DiskCache{dir: dir}, nil
@@ -90,7 +90,7 @@ func (c *DiskCache) Put(key project.Digest, payload *DiskPayload) error {
 	defer c.mu.Unlock()
 
 	p := c.pathFor(key)
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
 		return err
 	}
 	f, err := os.CreateTemp(filepath.Dir(p), "tmp-*")
@@ -124,6 +124,7 @@ func (c *DiskCache) Get(key project.Digest, out *DiskPayload) (bool, error) {
 	defer c.mu.RUnlock()
 
 	p := c.pathFor(key)
+	// #nosec G304 -- path is derived from a fixed cache root and hash
 	f, err := os.Open(p)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {

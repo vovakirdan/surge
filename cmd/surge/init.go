@@ -57,7 +57,7 @@ func runInit(_ *cobra.Command, args []string) error {
 	// Ensure directory exists
 	if st, err := os.Stat(target); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			if err = os.MkdirAll(target, 0o755); err != nil {
+			if err = os.MkdirAll(target, 0o750); err != nil {
 				return fmt.Errorf("failed to create directory %q: %w", target, err)
 			}
 		} else {

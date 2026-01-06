@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"fortio.org/safecast"
+
 	"surge/internal/diag"
 	"surge/internal/fix"
 	"surge/internal/source"
@@ -168,7 +170,7 @@ func TestPrettyNotesAndFixes(t *testing.T) {
 
 	staticFix := fix.WrapWith(
 		"wrap import block",
-		source.Span{File: fileID, Start: 0, End: uint32(len(content))},
+		source.Span{File: fileID, Start: 0, End: mustUint32(t, len(content))},
 		"/* ",
 		" */",
 		fix.WithID("wrap-import-001"),
@@ -213,6 +215,15 @@ func TestPrettyNotesAndFixes(t *testing.T) {
 	if !strings.Contains(output, "id=wrap-import-001") {
 		t.Fatalf("expected lazy fix id in output, got:\n%s", output)
 	}
+}
+
+func mustUint32(t *testing.T, value int) uint32 {
+	t.Helper()
+	converted, err := safecast.Conv[uint32](value)
+	if err != nil {
+		t.Fatalf("uint32 overflow: %v", err)
+	}
+	return converted
 }
 
 func TestPrettyFixPreview(t *testing.T) {

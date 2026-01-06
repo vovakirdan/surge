@@ -12,10 +12,10 @@ func TestRelativePathOutsideBaseFallsBackToAbsolute(t *testing.T) {
 	baseDir := filepath.Join(tmp, "base")
 	otherDir := filepath.Join(tmp, "other")
 
-	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+	if err := os.MkdirAll(baseDir, 0o750); err != nil {
 		t.Fatalf("failed to create base dir: %v", err)
 	}
-	if err := os.MkdirAll(otherDir, 0o755); err != nil {
+	if err := os.MkdirAll(otherDir, 0o750); err != nil {
 		t.Fatalf("failed to create other dir: %v", err)
 	}
 
@@ -36,12 +36,12 @@ func TestRelativePathInsideBaseStaysRelative(t *testing.T) {
 	tmp := t.TempDir()
 
 	baseDir := filepath.Join(tmp, "base")
-	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+	if err := os.MkdirAll(baseDir, 0o750); err != nil {
 		t.Fatalf("failed to create base dir: %v", err)
 	}
 
 	target := filepath.Join(baseDir, "nested", "file.sg")
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
 		t.Fatalf("failed to create nested dir: %v", err)
 	}
 

@@ -16,7 +16,7 @@ func createTestFile(t *testing.T, name string, content []byte) (string, func()) 
 	t.Helper()
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, name)
-	if err := os.WriteFile(path, content, 0o644); err != nil {
+	if err := os.WriteFile(path, content, 0o600); err != nil {
 		t.Fatalf("failed to create test file: %v", err)
 	}
 	cleanup := func() {
@@ -172,6 +172,7 @@ func TestApplyModeAll_WithRequiresAll_Safe(t *testing.T) {
 	}
 
 	// Проверяем, что файл был изменен
+	// #nosec G304 -- test reads back a temp file it created
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read modified file: %v", err)
@@ -292,6 +293,7 @@ func TestApplyModeOnce_MixedFixes(t *testing.T) {
 	}
 
 	// Файл должен содержать изменение от обычного fix
+	// #nosec G304 -- test reads back a temp file it created
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read modified file: %v", err)
@@ -372,6 +374,7 @@ func TestApplyModeAll_MixedFixes(t *testing.T) {
 	}
 
 	// Файл должен содержать оба изменения
+	// #nosec G304 -- test reads back a temp file it created
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read modified file: %v", err)
@@ -493,6 +496,7 @@ func TestThunk_WithRequiresAll(t *testing.T) {
 	}
 
 	// Проверяем, что thunk был материализован и применен
+	// #nosec G304 -- test reads back a temp file it created
 	content2, err := os.ReadFile(path2)
 	if err != nil {
 		t.Fatalf("failed to read modified file: %v", err)

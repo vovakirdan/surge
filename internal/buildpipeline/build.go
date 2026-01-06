@@ -88,13 +88,13 @@ func Build(ctx context.Context, req *BuildRequest) (BuildResult, error) {
 	result.OutputPath = outputPath
 	result.TmpDir = tmpDir
 
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+	if err := os.MkdirAll(outputDir, 0o750); err != nil {
 		return result, fmt.Errorf("failed to create output dir: %w", err)
 	}
 
 	keepTmp := req.KeepTmp || req.EmitMIR || req.EmitLLVM
 	if req.Backend == BackendLLVM || keepTmp {
-		if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		if err := os.MkdirAll(tmpDir, 0o750); err != nil {
 			return result, fmt.Errorf("failed to create tmp dir: %w", err)
 		}
 	}
@@ -118,7 +118,8 @@ func Build(ctx context.Context, req *BuildRequest) (BuildResult, error) {
 			emitStage(req.Progress, req.Files, StageBuild, StatusError, err, 0)
 			return result, err
 		}
-		if err := os.Chmod(outputPath, 0o755); err != nil {
+		// #nosec G302 -- wrapper script must be executable by the current user
+		if err := os.Chmod(outputPath, 0o700); err != nil {
 			err = fmt.Errorf("failed to mark build output executable: %w", err)
 			emitStage(req.Progress, req.Files, StageBuild, StatusError, err, 0)
 			return result, err
@@ -167,6 +168,7 @@ func writeMIRDump(targetPath string, mod *mir.Module, result *driver.DiagnoseRes
 	if mod == nil || result == nil || result.Sema == nil {
 		return fmt.Errorf("missing MIR or type information")
 	}
+	// #nosec G304 -- path is derived from build output configuration
 	file, err := os.Create(targetPath)
 	if err != nil {
 		return fmt.Errorf("failed to write MIR dump: %w", err)
@@ -268,7 +270,7 @@ func hostTripleFromClang() string {
 
 func extractNativeRuntime(tmpDir string) (runtimeDir string, sources []string, errNativeRuntime error) {
 	runtimeDir = filepath.Join(tmpDir, "native_runtime")
-	if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
+	if err := os.MkdirAll(runtimeDir, 0o750); err != nil {
 		return "", nil, fmt.Errorf("failed to create native runtime dir: %w", err)
 	}
 
@@ -288,7 +290,7 @@ func extractNativeRuntime(tmpDir string) (runtimeDir string, sources []string, e
 			return fmt.Errorf("unexpected embedded runtime path: %s", entryPath)
 		}
 		dst := filepath.Join(runtimeDir, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
 			return err
 		}
 		data, errReadFile := fs.ReadFile(fsys, entryPath)

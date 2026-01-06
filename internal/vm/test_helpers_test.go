@@ -67,6 +67,7 @@ func buildSurgeBinary(t *testing.T, root string) string {
 		}
 		surgeBinPath = filepath.Join(tmp, "surge")
 
+		// #nosec G204 -- test build command uses fixed arguments
 		cmd := exec.Command("go", "build", "-o", surgeBinPath, "./cmd/surge")
 		cmd.Dir = root
 		cmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
@@ -243,6 +244,7 @@ func runProgram(t *testing.T, root, srcPath string, opts runOptions, artifacts *
 		t.Fatalf("LLVM build failed (exit=%d). See %s", buildCode, artifacts.Dir)
 	}
 
+	// #nosec G204 -- test executes build output with controlled args
 	cmd := exec.Command(outputPath, opts.argv...)
 	cmd.Dir = root
 	stdout, stderr, exitCode := runCommand(t, cmd, opts.stdin)
