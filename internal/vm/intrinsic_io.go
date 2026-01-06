@@ -359,7 +359,10 @@ func (vm *VM) handleRtPanic(frame *Frame, call *mir.CallInstr) *VMError {
 	if !strings.HasSuffix(msg, "\n") {
 		msg += "\n"
 	}
-	_, _ = os.Stderr.WriteString("panic: " + msg)
+	if _, err := os.Stderr.WriteString("panic: " + msg); err != nil {
+		// Best-effort error output; ignore stderr write failures.
+		_ = err
+	}
 
 	code := 1
 	vm.ExitCode = code

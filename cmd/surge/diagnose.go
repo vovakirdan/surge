@@ -594,22 +594,34 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 	if resultErr != nil {
 		// Cleanup tracer explicitly because PersistentPostRun is not called on error
-		if tracer := trace.FromContext(cmd.Context()); tracer != nil && tracer != trace.Nop {
-			_ = tracer.Flush()
-			_ = tracer.Close()
-		}
+		flushAndCloseTracer(trace.FromContext(cmd.Context()))
 		return resultErr
 	}
 	if exitCode != 0 {
 		// Cleanup tracer explicitly because PersistentPostRun is not called on error
-		if tracer := trace.FromContext(cmd.Context()); tracer != nil && tracer != trace.Nop {
-			_ = tracer.Flush()
-			_ = tracer.Close()
-		}
+		flushAndCloseTracer(trace.FromContext(cmd.Context()))
 		// Suppress cobra usage output on diagnostic errors
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true
 		return fmt.Errorf("") // Silent error - diagnostics already printed
 	}
 	return nil
+}
+
+func flushAndCloseTracer(tracer trace.Tracer) {
+	if tracer == nil || tracer == trace.Nop {
+		return
+	}
+	if err := tracer.Flush(); err != nil {
+		if _, logErr := fmt.Fprintf(os.Stderr, "trace: flush error: %v\n", err); logErr != nil {
+			// Best-effort logging; ignore errors writing to stderr.
+			_ = logErr
+		}
+	}
+	if err := tracer.Close(); err != nil {
+		if _, logErr := fmt.Fprintf(os.Stderr, "trace: close error: %v\n", err); logErr != nil {
+			// Best-effort logging; ignore errors writing to stderr.
+			_ = logErr
+		}
+	}
 }

@@ -61,10 +61,12 @@ func NewProgressModel(title string, files []string, events <-chan buildpipeline.
 	}
 }
 
+// Init implements tea.Model.
 func (m *progressModel) Init() tea.Cmd {
 	return tea.Batch(m.spinner.Tick, m.listenForEvent())
 }
 
+// Update implements tea.Model.
 func (m *progressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case eventMsg:
@@ -106,6 +108,7 @@ func (m *progressModel) isFailed() bool {
 	return false
 }
 
+// View implements tea.Model.
 func (m *progressModel) View() string {
 	if len(m.items) == 0 {
 		return ""

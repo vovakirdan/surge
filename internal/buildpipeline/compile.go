@@ -195,6 +195,7 @@ type phaseObserver struct {
 	lowerStarted    bool
 }
 
+// OnPhase updates the progress UI based on compiler phase events.
 func (p *phaseObserver) OnPhase(ev driver.PhaseEvent) {
 	if p == nil || p.sink == nil {
 		return

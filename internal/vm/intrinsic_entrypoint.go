@@ -40,7 +40,10 @@ func (vm *VM) handleExit(frame *Frame, call *mir.CallInstr) *VMError {
 		if !strings.HasSuffix(msg, "\n") {
 			msg += "\n"
 		}
-		_, _ = os.Stderr.WriteString(msg)
+		if _, err := os.Stderr.WriteString(msg); err != nil {
+			// Best-effort error output; ignore stderr write failures.
+			_ = err
+		}
 	}
 
 	vm.ExitCode = code

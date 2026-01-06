@@ -1,6 +1,8 @@
 package prof
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -20,7 +22,12 @@ func StartCPU(path string) error {
 		return err
 	}
 	if err := pprof.StartCPUProfile(f); err != nil {
-		_ = f.Close()
+		if closeErr := f.Close(); closeErr != nil {
+			return errors.Join(
+				fmt.Errorf("start cpu profile: %w", err),
+				fmt.Errorf("close cpu profile output: %w", closeErr),
+			)
+		}
 		return err
 	}
 	cpuFile = f
@@ -31,7 +38,10 @@ func StartCPU(path string) error {
 func StopCPU() {
 	pprof.StopCPUProfile()
 	if cpuFile != nil {
-		_ = cpuFile.Close()
+		if closeErr := cpuFile.Close(); closeErr != nil {
+			// Best-effort cleanup; ignore close errors.
+			_ = closeErr
+		}
 		cpuFile = nil
 	}
 }
@@ -63,7 +73,12 @@ func StartTrace(path string) error {
 		return err
 	}
 	if err := trace.Start(f); err != nil {
-		_ = f.Close()
+		if closeErr := f.Close(); closeErr != nil {
+			return errors.Join(
+				fmt.Errorf("start trace: %w", err),
+				fmt.Errorf("close trace output: %w", closeErr),
+			)
+		}
 		return err
 	}
 	traceFile = f
@@ -74,7 +89,10 @@ func StartTrace(path string) error {
 func StopTrace() {
 	trace.Stop()
 	if traceFile != nil {
-		_ = traceFile.Close()
+		if closeErr := traceFile.Close(); closeErr != nil {
+			// Best-effort cleanup; ignore close errors.
+			_ = closeErr
+		}
 		traceFile = nil
 	}
 }
