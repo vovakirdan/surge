@@ -1,0 +1,65 @@
+fn string_lt(a: &string, b: &string) -> bool {
+    let la: int = a.__len() to int;
+    let lb: int = b.__len() to int;
+    let mut i: int = 0;
+    let mut min: int = la;
+    if lb < min {
+        min = lb;
+    }
+    while i < min {
+        let ac: uint32 = a[i];
+        let bc: uint32 = b[i];
+        if ac < bc {
+            return true;
+        }
+        if ac > bc {
+            return false;
+        }
+        i = i + 1;
+    }
+    return la < lb;
+}
+
+fn sort_strings(a: &mut string[]) -> nothing {
+    let n: int = a.__len() to int;
+    if n <= 1 {
+        return nothing;
+    }
+    let mut i: int = 0;
+    while i < n {
+        let mut j: int = 0;
+        while j + 1 < n - i {
+            let left = clone(a[j]);
+            let right = clone(a[j + 1]);
+            if string_lt(&right, &left) {
+                a[j] = right;
+                a[j + 1] = left;
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return nothing;
+}
+
+@entrypoint("argv")
+fn main(dir: string) -> int {
+    let res = rt_fs_read_dir(&dir);
+    compare res {
+        Success(entries) => {
+            let mut names: string[] = [];
+            for e in entries {
+                names.push(e.name);
+            }
+            sort_strings(&mut names);
+            print("count=" + (names.__len() to string));
+            for name in names {
+                print(name);
+            }
+        }
+        err => {
+            print("err=" + (err.code to string));
+        }
+    };
+    return 0;
+}

@@ -162,6 +162,18 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleWriteStdout(frame, call, writes)
 	case "rt_write_stderr":
 		return vm.handleWriteStderr(frame, call, writes)
+	case "rt_fs_cwd":
+		return vm.handleFsCwd(frame, call, writes)
+	case "rt_fs_metadata":
+		return vm.handleFsMetadata(frame, call, writes)
+	case "rt_fs_read_dir":
+		return vm.handleFsReadDir(frame, call, writes)
+	case "rt_fs_mkdir":
+		return vm.handleFsMkdir(frame, call, writes)
+	case "rt_fs_remove_file":
+		return vm.handleFsRemoveFile(frame, call, writes)
+	case "rt_fs_remove_dir":
+		return vm.handleFsRemoveDir(frame, call, writes)
 
 	case "rt_exit":
 		return vm.handleRtExit(frame, call)

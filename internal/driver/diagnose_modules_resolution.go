@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,11 +12,26 @@ import (
 )
 
 // resolveModuleDir resolves a module path to a directory on the filesystem.
+// It tries stdlib root first for stdlib/core modules, then falls back to baseDir.
+func resolveModuleDir(modulePath, baseDir, stdlibRoot string) (string, error) {
+	if stdlibRoot != "" && isStdlibModulePath(modulePath) {
+		dir, err := resolveModuleDirFromBase(modulePath, stdlibRoot)
+		if err == nil {
+			return dir, nil
+		}
+		if !errors.Is(err, errModuleNotFound) {
+			return "", err
+		}
+	}
+	return resolveModuleDirFromBase(modulePath, baseDir)
+}
+
+// resolveModuleDirFromBase resolves a module path relative to baseDir.
 // It tries multiple strategies:
 // 1. Check if modulePath is a file path and return its directory
 // 2. Check if modulePath is a directory
 // 3. Search for explicit module declarations in the codebase
-func resolveModuleDir(modulePath, baseDir string) (string, error) {
+func resolveModuleDirFromBase(modulePath, baseDir string) (string, error) {
 	filePath := modulePathToFilePath(baseDir, modulePath)
 	if st, err := os.Stat(filePath); err == nil && !st.IsDir() {
 		return filepath.Dir(filePath), nil
@@ -33,6 +49,14 @@ func resolveModuleDir(modulePath, baseDir string) (string, error) {
 		}
 	}
 	return "", errModuleNotFound
+}
+
+func isStdlibModulePath(modulePath string) bool {
+	if modulePath == "" {
+		return false
+	}
+	trimmed := strings.Trim(modulePath, "/")
+	return trimmed == "core" || strings.HasPrefix(trimmed, "core/") || trimmed == "stdlib" || strings.HasPrefix(trimmed, "stdlib/")
 }
 
 var explicitModuleDirCache struct {

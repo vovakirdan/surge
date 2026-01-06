@@ -12,27 +12,10 @@ const (
 )
 
 func detectStdlibRoot() string {
-	// Prefer a local checkout in the current working directory or its parents
-	// to keep diagnostics consistent with the sources we edit.
-	if root := resolveStdlibRootUpwards("."); root != "" {
-		return root
-	}
-
 	if root := resolveStdlibRoot(os.Getenv("SURGE_STDLIB")); root != "" {
 		return root
 	}
-	if exe, err := os.Executable(); err == nil {
-		if root := resolveStdlibRoot(filepath.Dir(exe)); root != "" {
-			return root
-		}
-	}
-	if root := resolveStdlibRoot("/usr/local/share/surge"); root != "" {
-		return root
-	}
-	if root := resolveStdlibRoot("/usr/share/surge"); root != "" {
-		return root
-	}
-	return ""
+	return resolveStdlibRootUpwards(".")
 }
 
 func resolveStdlibRootUpwards(start string) string {
@@ -76,7 +59,28 @@ func hasStdModule(root string) bool {
 	}
 	candidate := filepath.Join(root, "core", "intrinsics.sg")
 	info, err := os.Stat(candidate)
-	return err == nil && !info.IsDir()
+	if err != nil || info.IsDir() {
+		return false
+	}
+	coreDir := filepath.Join(root, "core")
+	entries, err := os.ReadDir(coreDir)
+	if err != nil {
+		return false
+	}
+	for _, ent := range entries {
+		if ent.IsDir() || filepath.Ext(ent.Name()) != ".sg" {
+			continue
+		}
+		// #nosec G304 -- path is derived from the stdlib root and core dir scan.
+		f, err := os.Open(filepath.Join(coreDir, ent.Name()))
+		if err != nil {
+			return false
+		}
+		if err := f.Close(); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func stdModuleFilePath(root, module string) (string, bool) {
