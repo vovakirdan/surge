@@ -114,33 +114,48 @@ pub fn normalize(p: &string) -> string {
             continue;
         }
         if part == ".." {
-            let count: int = stack.__len() to int;
-            if count > 0 {
-                let last: string = stack[count - 1];
-                if last != ".." {
-                    let _ = stack.pop();
-                    continue;
+            let last_opt: Option<string> = stack.pop();
+            compare last_opt {
+                Some(last) => {
+                    if last == ".." {
+                        let _ = stack.push(last);
+                        if !abs {
+                            let _ = stack.push(part.__clone());
+                        }
+                    }
                 }
-            }
-            if !abs {
-                let _ = stack.push(part);
-            }
+                nothing => {
+                    if !abs {
+                        let _ = stack.push(part.__clone());
+                    }
+                }
+            };
             continue;
         }
-        let _ = stack.push(part);
+        let _ = stack.push(part.__clone());
     }
-    if abs {
-        if stack.__len() == 0:uint {
+
+    let count: int = stack.__len() to int;
+    if count == 0 {
+        if abs {
             return "/";
         }
-        let sep: string = "/";
-        return "/" + sep.join(stack);
-    }
-    if stack.__len() == 0:uint {
         return ".";
     }
-    let sep: string = "/";
-    return sep.join(stack);
+
+    let mut out: string = "";
+    let mut i: int = 0;
+    while i < count {
+        if i > 0 {
+            out = out + "/";
+        }
+        out = out + clone(stack[i]);
+        i = i + 1;
+    }
+    if abs {
+        return "/" + out;
+    }
+    return out;
 }
 
 pub fn is_abs(p: &string) -> bool {
