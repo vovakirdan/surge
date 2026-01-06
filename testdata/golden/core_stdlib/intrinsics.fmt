@@ -14,6 +14,36 @@ pub type byte = uint8;
 @intrinsic fn rt_read_stdin(buf: *byte, max_len: uint) -> uint;
 @intrinsic fn rt_panic_bounds(kind: uint, index: int, length: int) -> nothing;
 
+// Filesystem intrinsics
+// FsError.code:
+// 1 NotFound, 2 PermissionDenied, 3 AlreadyExists, 4 InvalidPath, 5 NotDir,
+// 6 NotFile, 7 IsDir, 8 InvalidData, 9 Io, 10 Unsupported.
+pub type FsError = { message: string, code: uint };
+
+pub type FileType = uint8;
+pub enum FileTypes: FileType = { FILE, DIR, SYMLINK, OTHER }
+
+pub type Metadata = {
+    size: uint,
+    file_type: FileType,
+    readonly: bool
+};
+
+pub type DirEntry = {
+    name: string,
+    path: string,
+    file_type: FileType
+};
+
+@intrinsic fn rt_fs_cwd() -> Erring<string, FsError>;
+
+@intrinsic fn rt_fs_metadata(path: &string) -> Erring<Metadata, FsError>;
+@intrinsic fn rt_fs_read_dir(path: &string) -> Erring<DirEntry[], FsError>;
+
+@intrinsic fn rt_fs_mkdir(path: &string, recursive: bool) -> Erring<nothing, FsError>;
+@intrinsic fn rt_fs_remove_file(path: &string) -> Erring<nothing, FsError>;
+@intrinsic fn rt_fs_remove_dir(path: &string, recursive: bool) -> Erring<nothing, FsError>;
+
 // String access intrinsics
 @intrinsic fn rt_string_ptr(s: &string) -> *byte;
 // Returns Unicode code point length (not bytes).
