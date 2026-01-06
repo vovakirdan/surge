@@ -100,7 +100,7 @@ jobs:
         run: |
           cd runtime/native
           scan-build --status-bugs --use-cc=clang --use-c++=clang++ \
-            sh -c 'for f in *.c; do clang -std=c11 -I. -c "$$f" -o "/tmp/$${f%.c}.o" 2>&1 || true; done'
+            sh -c 'for f in *.c; do clang -std=c11 -I. -c "$f" -o "/tmp/${f%.c}.o" 2>&1 || true; done'
 
   c-sanitizers:
     name: C runtime sanitizers (ASan+UBSan)
@@ -119,7 +119,7 @@ jobs:
           cd runtime/native
           CFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g"
           for f in *.c; do
-            clang -std=c11 -I. $CFLAGS -c "$$f" -o "/tmp/$${f%.c}.o" || exit 1
+            clang -std=c11 -I. $CFLAGS -c "$f" -o "/tmp/${f%.c}.o" || exit 1
           done
       - name: Run tests with sanitizers
         env:
