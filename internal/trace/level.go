@@ -6,6 +6,7 @@ import "fmt"
 type Level uint8
 
 const (
+	// LevelOff disables tracing.
 	LevelOff    Level = iota // no tracing
 	LevelError               // only emit on errors/crashes
 	LevelPhase               // driver + pass boundaries

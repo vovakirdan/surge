@@ -10,6 +10,7 @@ type (
 const (
 	// FileVirtual indicates the file was added from memory (test, stdin, etc.).
 	FileVirtual FileFlags = 1 << iota // добавлен не с диска (тест, stdin)
+	// FileHadBOM indicates the file had a BOM (Byte Order Mark).
 	FileHadBOM
 	FileNormalizedCRLF
 )

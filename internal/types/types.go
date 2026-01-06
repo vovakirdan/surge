@@ -14,6 +14,7 @@ type Kind uint8
 const (
 	// KindInvalid represents an uninitialized or erroneous type.
 	KindInvalid Kind = iota
+	// KindUnit represents the unit type.
 	KindUnit
 	KindNothing
 	KindBool
@@ -88,10 +89,11 @@ type Width uint8
 const (
 	// WidthAny represents a target-dependent default width (e.g. "int").
 	WidthAny Width = 0
-	Width8   Width = 8
-	Width16  Width = 16
-	Width32  Width = 32
-	Width64  Width = 64
+	// Width8 represents 8-bit width.
+	Width8  Width = 8
+	Width16 Width = 16
+	Width32 Width = 32
+	Width64 Width = 64
 )
 
 // ArrayDynamicLength marks slices with unknown compile-time length.

@@ -21,6 +21,7 @@ type ModuleKind uint8
 const (
 	// ModuleKindUnknown represents an unidentified module kind.
 	ModuleKindUnknown ModuleKind = iota
+	// ModuleKindModule represents a library module.
 	ModuleKindModule
 	ModuleKindBinary
 )

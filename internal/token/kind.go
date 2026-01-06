@@ -10,7 +10,9 @@ const (
 	EOF
 
 	// идентификаторы
+	// Ident represents an identifier.
 	Ident
+	// KwFn represents the 'fn' keyword.
 	KwFn       // fn
 	KwLet      // let
 	KwConst    // const
@@ -55,7 +57,7 @@ const (
 	KwEnum     // enum
 
 	// литералы
-	// NothingLit represents the 'nothing' literal.
+	// NothingLit represents the nothing literal.
 	NothingLit
 	IntLit
 	UintLit
@@ -65,7 +67,7 @@ const (
 	FStringLit
 
 	// операторы и пунктуация
-	// Plus represents the '+' operator.
+	// Plus represents the plus operator.
 	Plus             // +
 	Minus            // -
 	Star             // *

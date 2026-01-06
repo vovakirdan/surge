@@ -14,6 +14,7 @@ type UnionMemberKind uint8
 const (
 	// UnionMemberType represents a value variant in a union.
 	UnionMemberType UnionMemberKind = iota
+	// UnionMemberNothing represents a nothing variant in a union.
 	UnionMemberNothing
 	UnionMemberTag
 )

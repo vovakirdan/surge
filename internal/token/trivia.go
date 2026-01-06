@@ -17,6 +17,7 @@ type TriviaKind uint8
 const (
 	// TriviaSpace represents horizontal whitespace.
 	TriviaSpace TriviaKind = iota
+	// TriviaNewline represents a newline character.
 	TriviaNewline
 	TriviaLineComment
 	TriviaBlockComment

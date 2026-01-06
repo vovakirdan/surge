@@ -15,7 +15,7 @@ const (
 	// Лексические
 
 	// LexInfo represents lexical information.
-	LexInfo                     Code = 1000
+	LexInfo Code = 1000
 	// LexUnknownChar represents an unknown character error.
 	LexUnknownChar              Code = 1001
 	LexUnterminatedString       Code = 1002

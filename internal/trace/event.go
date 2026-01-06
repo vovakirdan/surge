@@ -8,9 +8,10 @@ type Kind uint8
 const (
 	// KindSpanBegin marks the start of a logical operation.
 	KindSpanBegin Kind = iota + 1 // span start
-	KindSpanEnd                   // span end
-	KindPoint                     // instant event
-	KindHeartbeat                 // periodic liveness signal
+	// KindSpanEnd marks the end of a logical operation.
+	KindSpanEnd   // span end
+	KindPoint     // instant event
+	KindHeartbeat // periodic liveness signal
 )
 
 // String returns the string representation of Kind.
@@ -36,9 +37,10 @@ type Scope uint8
 const (
 	// ScopeDriver represents the highest level of compiler operations.
 	ScopeDriver Scope = iota + 1 // top-level driver operations (highest level)
-	ScopePass                    // compilation passes (lex, parse, sema, borrow)
-	ScopeModule                  // per-module processing (more detailed)
-	ScopeNode                    // AST node level (most detailed, future)
+	// ScopePass represents compilation passes (lex, parse, sema, borrow).
+	ScopePass   // compilation passes (lex, parse, sema, borrow)
+	ScopeModule // per-module processing (more detailed)
+	ScopeNode   // AST node level (most detailed, future)
 )
 
 // String returns the string representation of Scope.

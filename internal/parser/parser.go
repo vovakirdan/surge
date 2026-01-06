@@ -72,6 +72,7 @@ type DirectiveMode uint8
 const (
 	// DirectiveModeOff disables directive processing.
 	DirectiveModeOff DirectiveMode = iota
+	// DirectiveModeCollect collects directives without generating code.
 	DirectiveModeCollect
 	DirectiveModeGen
 	DirectiveModeRun
@@ -121,6 +122,7 @@ func (p *Parser) atOr(kinds ...token.Kind) bool {
 	return slices.Contains(kinds, p.lx.Peek().Kind)
 }
 
+// IsError reports whether the parser encountered errors.
 func (p *Parser) IsError() bool {
 	return p.opts.CurrentErrors != 0
 }

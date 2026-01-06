@@ -9,7 +9,7 @@ const (
 	// BorrowShared represents an immutable borrow (&T).
 	BorrowShared BorrowKind = iota // &T
 	// BorrowMut represents a mutable borrow (&mut T).
-	BorrowMut                      // &mut T
+	BorrowMut // &mut T
 )
 
 func (k BorrowKind) String() string {

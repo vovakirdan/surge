@@ -33,6 +33,7 @@ var (
 )
 
 // VersionString returns the plain semantic version string.
+// Note: The name stutters with the package name, but is kept for consistency.
 func VersionString() string {
 	return strings.TrimSpace(BaseVersion) + strings.TrimSpace(PreRelease)
 }

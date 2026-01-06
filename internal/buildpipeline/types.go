@@ -7,7 +7,7 @@ type Stage string
 
 const (
 	// StageParse is the parsing stage.
-	StageParse    Stage = "parse"
+	StageParse Stage = "parse"
 	// StageDiagnose is the diagnose stage.
 	StageDiagnose Stage = "diagnose"
 	StageLower    Stage = "lower"
@@ -21,7 +21,7 @@ type Status string
 
 const (
 	// StatusQueued indicates the task is waiting to start.
-	StatusQueued  Status = "queued"
+	StatusQueued Status = "queued"
 	// StatusWorking indicates the task is currently working.
 	StatusWorking Status = "working"
 	StatusDone    Status = "done"
@@ -47,7 +47,7 @@ type Backend string
 
 const (
 	// BackendVM selects the interpreter backend.
-	BackendVM   Backend = "vm"
+	BackendVM Backend = "vm"
 	// BackendLLVM selects the LLVM backend.
 	BackendLLVM Backend = "llvm"
 )

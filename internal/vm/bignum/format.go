@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// FormatUint formats a BigUint as a decimal string.
 func FormatUint(u BigUint) string {
 	limbs := trimLimbs(u.Limbs)
 	if len(limbs) == 0 {
@@ -36,6 +37,7 @@ func FormatUint(u BigUint) string {
 	return sb.String()
 }
 
+// FormatInt formats a BigInt as a decimal string.
 func FormatInt(i BigInt) string {
 	limbs := trimLimbs(i.Limbs)
 	if len(limbs) == 0 {
@@ -48,6 +50,7 @@ func FormatInt(i BigInt) string {
 	return s
 }
 
+// FormatFloat formats a BigFloat as a decimal string.
 func FormatFloat(f BigFloat) (string, error) {
 	if f.IsZero() {
 		return "0", nil
@@ -131,6 +134,7 @@ func FormatFloat(f BigFloat) (string, error) {
 	return sci, nil
 }
 
+// UintPow5 computes 5^n as a BigUint.
 func UintPow5(n int) (BigUint, error) {
 	if n < 0 {
 		return BigUint{}, fmt.Errorf("pow5: %w", ErrParse)

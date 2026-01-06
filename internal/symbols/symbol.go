@@ -12,6 +12,7 @@ type SymbolKind uint8
 const (
 	// SymbolInvalid represents an uninitialized or erroneous symbol.
 	SymbolInvalid SymbolKind = iota
+	// SymbolModule represents a module symbol.
 	SymbolModule
 	SymbolImport
 	SymbolFunction
@@ -29,6 +30,7 @@ type SymbolFlags uint16
 const (
 	// SymbolFlagPublic indicates the symbol is exported from its module.
 	SymbolFlagPublic SymbolFlags = 1 << iota
+	// SymbolFlagMutable indicates the symbol is mutable.
 	SymbolFlagMutable
 	SymbolFlagImported
 	SymbolFlagBuiltin
@@ -43,11 +45,12 @@ type EntrypointMode uint8
 
 const (
 	// EntrypointModeNone indicates the function takes no arguments.
-	EntrypointModeNone   EntrypointMode = iota // No mode: function must be callable with no args
-	EntrypointModeArgv                         // @entrypoint("argv"): args parsed from command-line
-	EntrypointModeStdin                        // @entrypoint("stdin"): args parsed from stdin
-	EntrypointModeEnv                          // @entrypoint("env"): reserved for future
-	EntrypointModeConfig                       // @entrypoint("config"): reserved for future
+	EntrypointModeNone EntrypointMode = iota // No mode: function must be callable with no args
+	// EntrypointModeArgv indicates args are parsed from command-line.
+	EntrypointModeArgv   // @entrypoint("argv"): args parsed from command-line
+	EntrypointModeStdin  // @entrypoint("stdin"): args parsed from stdin
+	EntrypointModeEnv    // @entrypoint("env"): reserved for future
+	EntrypointModeConfig // @entrypoint("config"): reserved for future
 )
 
 func (m EntrypointMode) String() string {

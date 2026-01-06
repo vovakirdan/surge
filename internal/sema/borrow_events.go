@@ -11,6 +11,7 @@ type BorrowEventKind uint8
 const (
 	// BorrowEvBorrowStart indicates the beginning of a borrow.
 	BorrowEvBorrowStart BorrowEventKind = iota
+	// BorrowEvBorrowEnd indicates the end of a borrow.
 	BorrowEvBorrowEnd
 	BorrowEvMove
 	BorrowEvWrite

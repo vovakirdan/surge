@@ -12,7 +12,7 @@ type AttrTargetMask uint16
 
 const (
 	// AttrTargetNone indicates no target.
-	AttrTargetNone  AttrTargetMask = 0
+	AttrTargetNone AttrTargetMask = 0
 	// AttrTargetFn indicates top-level or extern functions (including async).
 	AttrTargetFn    AttrTargetMask = 1 << iota // top-level or extern functions (including async)
 	AttrTargetBlock                            // statement blocks (e.g. @backend on block)

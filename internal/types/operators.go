@@ -6,6 +6,7 @@ import "surge/internal/ast"
 type FamilyMask uint32
 
 const (
+	// FamilyNone indicates no type family.
 	FamilyNone FamilyMask = 0
 	FamilyAny  FamilyMask = 1 << iota
 	FamilyBool
@@ -21,6 +22,7 @@ const (
 )
 
 const (
+	// FamilyIntegral represents integral types (signed and unsigned integers).
 	FamilyIntegral = FamilySignedInt | FamilyUnsignedInt
 	FamilyNumeric  = FamilyIntegral | FamilyFloat
 )
@@ -29,6 +31,7 @@ const (
 type BinaryResult uint8
 
 const (
+	// BinaryResultUnknown indicates the result type is unknown.
 	BinaryResultUnknown BinaryResult = iota
 	BinaryResultLeft
 	BinaryResultRight
@@ -40,6 +43,7 @@ const (
 type BinaryFlags uint16
 
 const (
+	// BinaryFlagNone indicates no binary flags.
 	BinaryFlagNone         BinaryFlags = 0
 	BinaryFlagShortCircuit BinaryFlags = 1 << iota
 )

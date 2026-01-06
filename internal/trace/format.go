@@ -10,6 +10,7 @@ import (
 type Format uint8
 
 const (
+	// FormatAuto auto-detects format from file extension.
 	FormatAuto   Format = iota // auto-detect from file extension
 	FormatText                 // human-readable text
 	FormatNDJSON               // newline-delimited JSON

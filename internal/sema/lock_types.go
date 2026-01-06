@@ -10,9 +10,10 @@ type LockKind int
 
 const (
 	// LockKindMutex represents a standard mutex lock.
-	LockKindMutex   LockKind = iota // Mutex.lock()
-	LockKindRwRead                  // RwLock.read_lock()
-	LockKindRwWrite                 // RwLock.write_lock()
+	LockKindMutex LockKind = iota // Mutex.lock()
+	// LockKindRwRead represents a read-write lock read operation.
+	LockKindRwRead  // RwLock.read_lock()
+	LockKindRwWrite // RwLock.write_lock()
 )
 
 func (k LockKind) String() string {
@@ -118,8 +119,9 @@ type PathOutcome int
 
 const (
 	// PathContinues indicates the path reaches merge point normally.
-	PathContinues     PathOutcome = iota // Path reaches merge point normally
-	PathReturns                          // Path exits via return
-	PathBreaks                           // Path exits via break
-	PathContinuesLoop                    // Path exits via continue (loop)
+	PathContinues PathOutcome = iota // Path reaches merge point normally
+	// PathReturns indicates the path exits via return.
+	PathReturns       // Path exits via return
+	PathBreaks        // Path exits via break
+	PathContinuesLoop // Path exits via continue (loop)
 )

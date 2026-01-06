@@ -12,10 +12,10 @@ type FileClass int
 
 const (
 	// FileDependent indicates the file imports project modules.
-	FileDependent        FileClass = iota // Imports project modules
+	FileDependent FileClass = iota // Imports project modules
 	// FileStdlibOnly indicates the file only imports stdlib modules.
-	FileStdlibOnly                        // Only imports stdlib modules
-	FileFullyIndependent                  // No imports
+	FileStdlibOnly       // Only imports stdlib modules
+	FileFullyIndependent // No imports
 )
 
 // parallelMetrics tracks performance metrics for parallel processing.

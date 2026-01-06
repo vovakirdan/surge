@@ -4,6 +4,7 @@ import (
 	"surge/internal/hir"
 )
 
+// ApplyStmt applies type substitution to a statement.
 func (s *Subst) ApplyStmt(st *hir.Stmt) error {
 	if s == nil || st == nil {
 		return nil
@@ -151,6 +152,7 @@ func (s *Subst) ApplyStmt(st *hir.Stmt) error {
 	return nil
 }
 
+// ApplyExpr applies type substitution to an expression.
 func (s *Subst) ApplyExpr(e *hir.Expr) error {
 	if s == nil || e == nil {
 		return nil

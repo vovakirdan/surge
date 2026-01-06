@@ -8,10 +8,13 @@ import (
 
 // FuncID identifies a function in MIR.
 type FuncID int32
+
 // BlockID identifies a basic block in MIR.
 type BlockID int32
+
 // LocalID identifies a local variable in MIR.
 type LocalID int32
+
 // GlobalID identifies a global variable in MIR.
 type GlobalID int32
 

@@ -1,5 +1,6 @@
 package bignum
 
+// BigInt represents a big signed integer.
 type BigInt struct {
 	Neg bool
 	// Limbs are base-2^32 little-endian magnitude (Limbs[0] is least significant).
@@ -8,8 +9,10 @@ type BigInt struct {
 	Limbs []uint32
 }
 
+// IntZero returns a zero BigInt.
 func IntZero() BigInt { return BigInt{} }
 
+// IntFromInt64 creates a BigInt from an int64.
 func IntFromInt64(v int64) BigInt {
 	if v == 0 {
 		return BigInt{}
@@ -23,6 +26,7 @@ func IntFromInt64(v int64) BigInt {
 	return BigInt{Neg: true, Limbs: UintFromUint64(u).Limbs}
 }
 
+// IntFromUint64 creates a BigInt from a uint64.
 func IntFromUint64(v uint64) BigInt {
 	if v == 0 {
 		return BigInt{}
@@ -30,14 +34,17 @@ func IntFromUint64(v uint64) BigInt {
 	return BigInt{Limbs: UintFromUint64(v).Limbs}
 }
 
+// IsZero reports whether the integer is zero.
 func (i BigInt) IsZero() bool {
 	return len(trimLimbs(i.Limbs)) == 0
 }
 
+// Abs returns the absolute value as a BigUint.
 func (i BigInt) Abs() BigUint {
 	return BigUint{Limbs: trimLimbs(i.Limbs)}
 }
 
+// Negated returns the negated value.
 func (i BigInt) Negated() BigInt {
 	if i.IsZero() {
 		return BigInt{}
@@ -45,6 +52,7 @@ func (i BigInt) Negated() BigInt {
 	return BigInt{Neg: !i.Neg, Limbs: trimLimbs(i.Limbs)}
 }
 
+// Cmp compares two BigInt values.
 func (i BigInt) Cmp(j BigInt) int {
 	ia := trimLimbs(i.Limbs)
 	ja := trimLimbs(j.Limbs)
@@ -65,6 +73,7 @@ func (i BigInt) Cmp(j BigInt) int {
 	}
 }
 
+// Int64 converts BigInt to int64 if possible.
 func (i BigInt) Int64() (int64, bool) {
 	mag, ok := BigUint{Limbs: trimLimbs(i.Limbs)}.Uint64()
 	if !ok {
@@ -86,6 +95,7 @@ func (i BigInt) Int64() (int64, bool) {
 	return -int64(mag), true
 }
 
+// IntAdd adds two BigInt values.
 func IntAdd(a, b BigInt) (BigInt, error) {
 	aa := BigUint{Limbs: trimLimbs(a.Limbs)}
 	ba := BigUint{Limbs: trimLimbs(b.Limbs)}
@@ -126,10 +136,12 @@ func IntAdd(a, b BigInt) (BigInt, error) {
 	}
 }
 
+// IntSub subtracts two BigInt values.
 func IntSub(a, b BigInt) (BigInt, error) {
 	return IntAdd(a, b.Negated())
 }
 
+// IntMul multiplies two BigInt values.
 func IntMul(a, b BigInt) (BigInt, error) {
 	aa := BigUint{Limbs: trimLimbs(a.Limbs)}
 	ba := BigUint{Limbs: trimLimbs(b.Limbs)}
@@ -143,6 +155,7 @@ func IntMul(a, b BigInt) (BigInt, error) {
 	return BigInt{Neg: a.Neg != b.Neg, Limbs: prod.Limbs}, nil
 }
 
+// IntDivMod performs division with remainder on two BigInt values.
 func IntDivMod(a, b BigInt) (q, r BigInt, err error) {
 	aa := BigUint{Limbs: trimLimbs(a.Limbs)}
 	ba := BigUint{Limbs: trimLimbs(b.Limbs)}
