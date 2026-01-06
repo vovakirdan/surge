@@ -108,10 +108,16 @@ func diagnoseSemaFromSource(t *testing.T, sourceCode string, allowErrors bool) *
 	if err != nil {
 		t.Fatalf("create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		if removeErr := os.Remove(tmpFile.Name()); removeErr != nil {
+			t.Fatalf("failed to remove temp file: %v", removeErr)
+		}
+	}()
 
 	if _, err = tmpFile.WriteString(sourceCode); err != nil {
-		_ = tmpFile.Close()
+		if closeErr := tmpFile.Close(); closeErr != nil {
+			t.Fatalf("failed to close temp file: %v", closeErr)
+		}
 		t.Fatalf("write temp file: %v", err)
 	}
 	if err = tmpFile.Close(); err != nil {

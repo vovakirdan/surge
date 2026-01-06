@@ -38,7 +38,9 @@ fn main() -> int {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
 	if _, writeErr := tmpFile.WriteString(sourceCode); writeErr != nil {
-		tmpFile.Close()
+		if closeErr := tmpFile.Close(); closeErr != nil {
+			t.Fatalf("failed to close temp file: %v", closeErr)
+		}
 		t.Fatalf("failed to write source code: %v", writeErr)
 	}
 	if closeErr := tmpFile.Close(); closeErr != nil {

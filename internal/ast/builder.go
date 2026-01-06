@@ -4,8 +4,10 @@ import (
 	"surge/internal/source"
 )
 
+// Hints provides capacity hints for the builder.
 type Hints struct{ Files, Items, Stmts, Exprs, Types uint }
 
+// Builder constructs an AST.
 type Builder struct {
 	Files           *Files
 	Items           *Items
@@ -49,22 +51,27 @@ func NewBuilder(hints Hints, stringsInterner *source.Interner) *Builder {
 	}
 }
 
+// NewFile creates a new file ID.
 func (b *Builder) NewFile(sp source.Span) FileID {
 	return b.Files.New(sp)
 }
 
+// NewItem creates a new item ID.
 func (b *Builder) NewItem(kind ItemKind, sp source.Span, payloadID PayloadID) ItemID {
 	return b.Items.New(kind, sp, payloadID)
 }
 
+// NewStmt creates a new statement ID.
 func (b *Builder) NewStmt(kind StmtKind, sp source.Span, payload PayloadID) StmtID {
 	return b.Stmts.New(kind, sp, payload)
 }
 
+// PushItem adds an item to a file.
 func (b *Builder) PushItem(file FileID, item ItemID) {
 	b.Files.Get(file).Items = append(b.Files.Get(file).Items, item)
 }
 
+// NewImport creates a new import item.
 func (b *Builder) NewImport(
 	span source.Span,
 	module []source.StringID,
@@ -77,10 +84,12 @@ func (b *Builder) NewImport(
 	return b.Items.NewImport(span, module, moduleAlias, one, hasOne, group, importAll)
 }
 
+// NewFnParam creates a new function parameter.
 func (b *Builder) NewFnParam(name source.StringID, typ TypeID, def ExprID, variadic bool) FnParamID {
 	return b.Items.NewFnParam(name, typ, def, variadic)
 }
 
+// NewFn creates a new function item.
 func (b *Builder) NewFn(
 	name source.StringID,
 	nameSpan source.Span,
@@ -105,6 +114,7 @@ func (b *Builder) NewFn(
 	return b.Items.NewFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
+// NewExternFn creates a new extern function payload.
 func (b *Builder) NewExternFn(
 	name source.StringID,
 	nameSpan source.Span,
@@ -129,6 +139,7 @@ func (b *Builder) NewExternFn(
 	return b.Items.NewExternFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
+// NewContractField creates a new contract field payload.
 func (b *Builder) NewContractField(
 	name source.StringID,
 	nameSpan source.Span,
@@ -142,6 +153,7 @@ func (b *Builder) NewContractField(
 	return b.Items.NewContractField(name, nameSpan, typ, fieldKwSpan, colonSpan, semicolonSpan, attrs, span)
 }
 
+// NewContractFn creates a new contract function payload.
 func (b *Builder) NewContractFn(
 	name source.StringID,
 	nameSpan source.Span,
@@ -166,6 +178,7 @@ func (b *Builder) NewContractFn(
 	return b.Items.NewContractFn(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, params, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrs, span)
 }
 
+// NewContract creates a new contract item.
 func (b *Builder) NewContract(
 	name source.StringID,
 	nameSpan source.Span,
@@ -184,6 +197,7 @@ func (b *Builder) NewContract(
 	return b.Items.NewContract(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, contractKwSpan, bodySpan, attrs, items, visibility, span)
 }
 
+// NewTypeAlias creates a new type alias item.
 func (b *Builder) NewTypeAlias(
 	name source.StringID,
 	generics []source.StringID,
@@ -202,6 +216,7 @@ func (b *Builder) NewTypeAlias(
 	return b.Items.NewTypeAlias(name, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, target, span)
 }
 
+// NewTypeStruct creates a new struct type item.
 func (b *Builder) NewTypeStruct(
 	name source.StringID,
 	generics []source.StringID,
@@ -224,6 +239,7 @@ func (b *Builder) NewTypeStruct(
 	return b.Items.NewTypeStruct(name, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, base, fields, fieldCommas, hasTrailing, bodySpan, span)
 }
 
+// NewTypeUnion creates a new union type item.
 func (b *Builder) NewTypeUnion(
 	name source.StringID,
 	generics []source.StringID,
@@ -243,6 +259,7 @@ func (b *Builder) NewTypeUnion(
 	return b.Items.NewTypeUnion(name, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, members, bodySpan, span)
 }
 
+// NewTypeEnum creates a new enum type item.
 func (b *Builder) NewTypeEnum(
 	name source.StringID,
 	generics []source.StringID,
@@ -267,6 +284,7 @@ func (b *Builder) NewTypeEnum(
 	return b.Items.NewTypeEnum(name, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, typeKwSpan, assignSpan, semicolonSpan, attrs, visibility, baseType, baseTypeSpan, colonSpan, variants, variantCommas, hasTrailing, bodySpan, span)
 }
 
+// NewExtern creates a new extern block item.
 func (b *Builder) NewExtern(
 	target TypeID,
 	attrs []Attr,
@@ -276,6 +294,7 @@ func (b *Builder) NewExtern(
 	return b.Items.NewExtern(target, attrs, members, span)
 }
 
+// NewExternField creates a new extern field payload.
 func (b *Builder) NewExternField(
 	name source.StringID,
 	nameSpan source.Span,
@@ -289,6 +308,7 @@ func (b *Builder) NewExternField(
 	return b.Items.NewExternField(name, nameSpan, typ, fieldKwSpan, colonSpan, semicolonSpan, attrs, span)
 }
 
+// NewTag creates a new tag item.
 func (b *Builder) NewTag(
 	name source.StringID,
 	nameSpan source.Span,

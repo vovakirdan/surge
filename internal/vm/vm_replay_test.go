@@ -30,10 +30,11 @@ fn main(x: int) -> int { return x; }
 	}
 
 	logPath := filepath.Join(t.TempDir(), "run.ndjson")
-	if err := os.WriteFile(logPath, recBuf.Bytes(), 0o644); err != nil {
+	if err := os.WriteFile(logPath, recBuf.Bytes(), 0o600); err != nil {
 		t.Fatalf("write log: %v", err)
 	}
 
+	// #nosec G304 -- reading back test artifact from temp dir
 	logBytes, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("read log: %v", err)

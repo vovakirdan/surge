@@ -22,6 +22,7 @@ type stringConst struct {
 	globalName string
 }
 
+// Emitter generates LLVM IR from MIR.
 type Emitter struct {
 	mod          *mir.Module
 	types        *types.Interner
@@ -54,6 +55,7 @@ const (
 	arrayDataOffset  = 16
 )
 
+// EmitModule converts a MIR module into an LLVM IR string.
 func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Table) (string, error) {
 	e := &Emitter{
 		mod:          mod,

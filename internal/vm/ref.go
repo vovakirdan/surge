@@ -2,18 +2,27 @@ package vm
 
 import "fmt"
 
+// LocKind identifies the kind of location.
 type LocKind uint8
 
 const (
+	// LKLocal represents a local variable location.
 	LKLocal LocKind = iota
+	// LKGlobal represents a global variable location.
 	LKGlobal
+	// LKStructField represents a struct field location.
 	LKStructField
+	// LKArrayElem represents an array element location.
 	LKArrayElem
+	// LKMapElem represents a map element location.
 	LKMapElem
+	// LKStringBytes represents a string bytes location.
 	LKStringBytes
+	// LKRawBytes represents a raw bytes location.
 	LKRawBytes
 )
 
+// Location represents a memory location in the VM.
 type Location struct {
 	Frame int32
 

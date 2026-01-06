@@ -5,14 +5,19 @@ import (
 	"math/bits"
 )
 
+// MaxLimbs is the maximum number of limbs allowed.
 const MaxLimbs = 1_000_000
 
 var (
-	ErrMaxLimbs  = errors.New("numeric size limit exceeded")
+	// ErrMaxLimbs indicates the numeric size limit was exceeded.
+	ErrMaxLimbs = errors.New("numeric size limit exceeded")
+	// ErrDivByZero indicates an attempt to divide by zero.
 	ErrDivByZero = errors.New("division by zero")
+	// ErrUnderflow indicates an unsigned underflow error.
 	ErrUnderflow = errors.New("unsigned underflow")
 )
 
+// BigUint represents a big unsigned integer.
 type BigUint struct {
 	// Limbs are base-2^32 little-endian (Limbs[0] is least significant).
 	//
@@ -20,8 +25,10 @@ type BigUint struct {
 	Limbs []uint32
 }
 
+// UintZero returns a zero BigUint.
 func UintZero() BigUint { return BigUint{} }
 
+// UintFromUint64 creates a BigUint from a uint64.
 func UintFromUint64(v uint64) BigUint {
 	if v == 0 {
 		return BigUint{}
@@ -34,6 +41,7 @@ func UintFromUint64(v uint64) BigUint {
 	return BigUint{Limbs: []uint32{lo, hi}}
 }
 
+// UintFromUint32 creates a BigUint from a uint32.
 func UintFromUint32(v uint32) BigUint {
 	if v == 0 {
 		return BigUint{}
@@ -41,19 +49,23 @@ func UintFromUint32(v uint32) BigUint {
 	return BigUint{Limbs: []uint32{v}}
 }
 
+// IsZero reports whether the unsigned integer is zero.
 func (u BigUint) IsZero() bool {
 	return len(trimLimbs(u.Limbs)) == 0
 }
 
+// IsOdd reports whether the unsigned integer is odd.
 func (u BigUint) IsOdd() bool {
 	limbs := trimLimbs(u.Limbs)
 	return len(limbs) > 0 && (limbs[0]&1) == 1
 }
 
+// BitLen returns the number of bits required to represent the unsigned integer.
 func (u BigUint) BitLen() int {
 	return bitLenLimbs(u.Limbs)
 }
 
+// TrailingZeros returns the number of trailing zero bits.
 func (u BigUint) TrailingZeros() int {
 	limbs := trimLimbs(u.Limbs)
 	if len(limbs) == 0 {
@@ -71,10 +83,12 @@ func (u BigUint) TrailingZeros() int {
 	return n
 }
 
+// Cmp compares two BigUint values.
 func (u BigUint) Cmp(v BigUint) int {
 	return cmpLimbs(u.Limbs, v.Limbs)
 }
 
+// Uint64 converts BigUint to uint64 if possible.
 func (u BigUint) Uint64() (uint64, bool) {
 	limbs := trimLimbs(u.Limbs)
 	switch len(limbs) {
@@ -89,6 +103,7 @@ func (u BigUint) Uint64() (uint64, bool) {
 	}
 }
 
+// UintAdd adds two BigUint values and returns the result.
 func UintAdd(a, b BigUint) (BigUint, error) {
 	al := trimLimbs(a.Limbs)
 	bl := trimLimbs(b.Limbs)
@@ -122,6 +137,7 @@ func UintAdd(a, b BigUint) (BigUint, error) {
 	return BigUint{Limbs: out}, nil
 }
 
+// UintAddSmall adds a uint32 to a BigUint.
 func UintAddSmall(u BigUint, v uint32) (BigUint, error) {
 	if v == 0 {
 		return BigUint{Limbs: trimLimbs(u.Limbs)}, nil
@@ -149,6 +165,7 @@ func UintAddSmall(u BigUint, v uint32) (BigUint, error) {
 	return BigUint{Limbs: out}, nil
 }
 
+// UintSub subtracts two BigUint values.
 func UintSub(a, b BigUint) (BigUint, error) {
 	if cmpLimbs(a.Limbs, b.Limbs) < 0 {
 		return BigUint{}, ErrUnderflow
@@ -165,6 +182,7 @@ func UintSub(a, b BigUint) (BigUint, error) {
 	return BigUint{Limbs: out}, nil
 }
 
+// UintMul multiplies two BigUint values.
 func UintMul(a, b BigUint) (BigUint, error) {
 	al := trimLimbs(a.Limbs)
 	bl := trimLimbs(b.Limbs)
@@ -200,6 +218,7 @@ func UintMul(a, b BigUint) (BigUint, error) {
 	return BigUint{Limbs: out}, nil
 }
 
+// UintMulSmall multiplies a BigUint by a uint32.
 func UintMulSmall(u BigUint, m uint32) (BigUint, error) {
 	if m == 0 || u.IsZero() {
 		return BigUint{}, nil
@@ -223,6 +242,7 @@ func UintMulSmall(u BigUint, m uint32) (BigUint, error) {
 	return BigUint{Limbs: out}, nil
 }
 
+// UintDivModSmall performs division with remainder on a BigUint by a uint32.
 func UintDivModSmall(u BigUint, d uint32) (q BigUint, r uint32, err error) {
 	if d == 0 {
 		return BigUint{}, 0, ErrDivByZero
@@ -246,6 +266,7 @@ func UintDivModSmall(u BigUint, d uint32) (q BigUint, r uint32, err error) {
 	return BigUint{Limbs: out}, uint32(rem), nil //nolint:gosec // G115: remainder fits in uint32.
 }
 
+// UintShl performs a left bit shift on a BigUint.
 func UintShl(u BigUint, bitsCount int) (BigUint, error) {
 	if bitsCount < 0 {
 		return BigUint{}, errors.New("negative shift")
@@ -281,6 +302,7 @@ func UintShl(u BigUint, bitsCount int) (BigUint, error) {
 	return BigUint{Limbs: out}, nil
 }
 
+// UintShr performs a right bit shift on a BigUint.
 func UintShr(u BigUint, bitsCount int) (BigUint, error) {
 	if bitsCount < 0 {
 		return BigUint{}, errors.New("negative shift")
@@ -315,6 +337,7 @@ func UintShr(u BigUint, bitsCount int) (BigUint, error) {
 	return BigUint{Limbs: out}, nil
 }
 
+// UintDivMod performs division with remainder on two BigUint values.
 func UintDivMod(a, b BigUint) (q, r BigUint, err error) {
 	al := trimLimbs(a.Limbs)
 	bl := trimLimbs(b.Limbs)

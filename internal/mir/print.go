@@ -9,15 +9,17 @@ import (
 	"surge/internal/types"
 )
 
+// DumpOptions configures MIR module dumping.
 type DumpOptions struct{}
 
+// DumpModule writes a human-readable representation of a MIR module.
 func DumpModule(w io.Writer, m *Module, typesIn *types.Interner, _ DumpOptions) error {
 	if w == nil || m == nil {
 		return nil
 	}
 
 	if len(m.Globals) > 0 {
-		fmt.Fprintf(w, "globals=%d\n", len(m.Globals))
+		fmt.Fprintf(w, "globals=%d\n", len(m.Globals)) //nolint:errcheck
 		for i := range m.Globals {
 			g := m.Globals[i]
 			name := g.Name
@@ -28,7 +30,7 @@ func DumpModule(w io.Writer, m *Module, typesIn *types.Interner, _ DumpOptions) 
 			if g.IsMut {
 				flags = " mut"
 			}
-			fmt.Fprintf(w, "  G%d: %s%s name=%s\n", i, typeStr(typesIn, g.Type), flags, name)
+			fmt.Fprintf(w, "  G%d: %s%s name=%s\n", i, typeStr(typesIn, g.Type), flags, name) //nolint:errcheck
 		}
 	}
 
@@ -54,7 +56,7 @@ func DumpModule(w io.Writer, m *Module, typesIn *types.Interner, _ DumpOptions) 
 		return 0
 	})
 
-	fmt.Fprintf(w, "funcs=%d\n", len(funcs))
+	fmt.Fprintf(w, "funcs=%d\n", len(funcs)) //nolint:errcheck
 	for _, f := range funcs {
 		if err := dumpFunc(w, f, typesIn); err != nil {
 			return err
@@ -67,9 +69,9 @@ func dumpFunc(w io.Writer, f *Func, typesIn *types.Interner) error {
 	if w == nil || f == nil {
 		return nil
 	}
-	fmt.Fprintf(w, "\nfn %s:\n", f.Name)
+	fmt.Fprintf(w, "\nfn %s:\n", f.Name) //nolint:errcheck
 
-	fmt.Fprintf(w, "  locals:\n")
+	fmt.Fprintf(w, "  locals:\n") //nolint:errcheck
 	for i := range f.Locals {
 		l := f.Locals[i]
 		flags := formatLocalFlags(l.Flags)
@@ -78,20 +80,20 @@ func dumpFunc(w io.Writer, f *Func, typesIn *types.Interner) error {
 			name = "_"
 		}
 		if flags != "" {
-			fmt.Fprintf(w, "    L%d: %s %s name=%s\n", i, typeStr(typesIn, l.Type), flags, name)
+			fmt.Fprintf(w, "    L%d: %s %s name=%s\n", i, typeStr(typesIn, l.Type), flags, name) //nolint:errcheck
 		} else {
-			fmt.Fprintf(w, "    L%d: %s name=%s\n", i, typeStr(typesIn, l.Type), name)
+			fmt.Fprintf(w, "    L%d: %s name=%s\n", i, typeStr(typesIn, l.Type), name) //nolint:errcheck
 		}
 	}
 
 	for i := range f.Blocks {
 		bb := &f.Blocks[i]
-		fmt.Fprintf(w, "  bb%d:\n", bb.ID)
+		fmt.Fprintf(w, "  bb%d:\n", bb.ID) //nolint:errcheck
 		for j := range bb.Instrs {
 			ins := &bb.Instrs[j]
-			fmt.Fprintf(w, "    %s\n", formatInstr(typesIn, ins))
+			fmt.Fprintf(w, "    %s\n", formatInstr(typesIn, ins)) //nolint:errcheck
 		}
-		fmt.Fprintf(w, "    %s\n", formatTerm(&bb.Term))
+		fmt.Fprintf(w, "    %s\n", formatTerm(&bb.Term)) //nolint:errcheck
 	}
 
 	return nil

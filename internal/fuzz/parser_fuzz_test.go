@@ -18,7 +18,7 @@ const parseTimeout = 5 * time.Second
 
 func FuzzParserBuildsAST(f *testing.F) {
 	addCorpusSeeds(f)
-	f.Fuzz(func(t *testing.T, input []byte) {
+	f.Fuzz(func(_ *testing.T, input []byte) {
 		if len(input) > maxFuzzInput {
 			input = append([]byte(nil), input[:maxFuzzInput]...)
 		} else {

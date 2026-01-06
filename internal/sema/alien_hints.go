@@ -48,16 +48,16 @@ func emitAlienHints(builder *ast.Builder, fileID ast.FileID, opts Options) {
 		classification := (dialect.Classifier{}).Classify(file.DialectEvidence)
 		if alienHintsEligible(classification) {
 			switch classification.Kind {
-			case dialect.DialectRust:
+			case dialect.Rust:
 				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustImplTrait, file.DialectEvidence, errs, isRustImplTraitHint, rustImplTraitMessage)
 				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustAttribute, file.DialectEvidence, errs, isRustAttributeHint, rustAttributeMessage)
 				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustMacroCall, file.DialectEvidence, errs, isRustMacroHint, rustMacroMessage)
 				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnRustImplicitRet, file.DialectEvidence, errs, isRustImplicitReturnHint, rustImplicitReturnMessage)
-			case dialect.DialectGo:
+			case dialect.Go:
 				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnGoDefer, file.DialectEvidence, errs, isGoDeferHint, goDeferMessage)
-			case dialect.DialectTypeScript:
+			case dialect.TypeScript:
 				maybeEmitAlienHint(emitted, opts.Reporter, diag.AlnTSInterface, file.DialectEvidence, errs, isTSInterfaceHint, tsInterfaceMessage)
-			case dialect.DialectPython:
+			case dialect.Python:
 				maybeEmitAlienHintPythonNoneType(emitted, opts.Reporter, file.DialectEvidence, errs)
 			}
 		}
@@ -88,7 +88,7 @@ func errorsInFile(bag *diag.Bag, fileID source.FileID) []*diag.Diagnostic {
 }
 
 func alienHintsEligible(c dialect.Classification) bool {
-	if c.Kind == dialect.DialectUnknown {
+	if c.Kind == dialect.Unknown {
 		return false
 	}
 	threshold := alienHintThreshold(c.Kind)
@@ -101,15 +101,15 @@ func alienHintsEligible(c dialect.Classification) bool {
 	return true
 }
 
-func alienHintThreshold(kind dialect.DialectKind) int {
+func alienHintThreshold(kind dialect.Kind) int {
 	switch kind {
-	case dialect.DialectRust:
+	case dialect.Rust:
 		return alienHintRustThreshold
-	case dialect.DialectGo:
+	case dialect.Go:
 		return alienHintGoThreshold
-	case dialect.DialectTypeScript:
+	case dialect.TypeScript:
 		return alienHintTypeScriptThreshold
-	case dialect.DialectPython:
+	case dialect.Python:
 		return alienHintPythonThreshold
 	default:
 		return 0
@@ -183,14 +183,14 @@ func firstHint(e *dialect.Evidence, match hintPredicate) (dialect.Hint, bool) {
 }
 
 func isRustImplTraitHint(h dialect.Hint) bool {
-	if h.Dialect != dialect.DialectRust {
+	if h.Dialect != dialect.Rust {
 		return false
 	}
 	return strings.Contains(h.Reason, "`impl`") || strings.Contains(h.Reason, "`trait`")
 }
 
 func rustImplTraitMessage(dialect.Hint) string {
-	return dialect.RenderAlienHint(dialect.DialectRust, dialect.RenderInput{
+	return dialect.RenderAlienHint(dialect.Rust, dialect.RenderInput{
 		Kind:         dialect.AlienHintImplTrait,
 		Detected:     "`impl` / `trait` syntax",
 		SurgeExample: "contract Derive<T> { fn derive(self: T) -> string; } extern<Foo> { fn derive(self: &Foo) -> string { return \"\"; } }",
@@ -198,11 +198,11 @@ func rustImplTraitMessage(dialect.Hint) string {
 }
 
 func isRustAttributeHint(h dialect.Hint) bool {
-	return h.Dialect == dialect.DialectRust && strings.Contains(h.Reason, "`#[...]`")
+	return h.Dialect == dialect.Rust && strings.Contains(h.Reason, "`#[...]`")
 }
 
 func rustAttributeMessage(dialect.Hint) string {
-	return dialect.RenderAlienHint(dialect.DialectRust, dialect.RenderInput{
+	return dialect.RenderAlienHint(dialect.Rust, dialect.RenderInput{
 		Kind:         dialect.AlienHintAttribute,
 		Detected:     "attribute syntax `#[...]`",
 		SurgeExample: "@align(8) type Foo = { x: int };",
@@ -210,7 +210,7 @@ func rustAttributeMessage(dialect.Hint) string {
 }
 
 func isRustMacroHint(h dialect.Hint) bool {
-	if h.Dialect != dialect.DialectRust {
+	if h.Dialect != dialect.Rust {
 		return false
 	}
 	return strings.Contains(h.Reason, "rust macro call")
@@ -218,13 +218,13 @@ func isRustMacroHint(h dialect.Hint) bool {
 
 func rustMacroMessage(h dialect.Hint) string {
 	if strings.Contains(h.Reason, "`println!`") {
-		return dialect.RenderAlienHint(dialect.DialectRust, dialect.RenderInput{
+		return dialect.RenderAlienHint(dialect.Rust, dialect.RenderInput{
 			Kind:         dialect.AlienHintMacroCall,
 			Detected:     "macro call `println!(...)`",
 			SurgeExample: "print(\"hi\");",
 		})
 	}
-	return dialect.RenderAlienHint(dialect.DialectRust, dialect.RenderInput{
+	return dialect.RenderAlienHint(dialect.Rust, dialect.RenderInput{
 		Kind:         dialect.AlienHintMacroCall,
 		Detected:     "macro call syntax `name!(...)`",
 		SurgeExample: "name();",
@@ -232,14 +232,14 @@ func rustMacroMessage(h dialect.Hint) string {
 }
 
 func isRustImplicitReturnHint(h dialect.Hint) bool {
-	if h.Dialect != dialect.DialectRust {
+	if h.Dialect != dialect.Rust {
 		return false
 	}
 	return strings.Contains(h.Reason, "implicit return")
 }
 
 func rustImplicitReturnMessage(dialect.Hint) string {
-	return dialect.RenderAlienHint(dialect.DialectRust, dialect.RenderInput{
+	return dialect.RenderAlienHint(dialect.Rust, dialect.RenderInput{
 		Kind:         dialect.AlienHintImplicitReturn,
 		Detected:     "implicit return without ';'",
 		SurgeExample: "fn foo() -> int { return 1; }",
@@ -247,11 +247,11 @@ func rustImplicitReturnMessage(dialect.Hint) string {
 }
 
 func isGoDeferHint(h dialect.Hint) bool {
-	return h.Dialect == dialect.DialectGo && strings.Contains(h.Reason, "`defer`")
+	return h.Dialect == dialect.Go && strings.Contains(h.Reason, "`defer`")
 }
 
 func goDeferMessage(dialect.Hint) string {
-	return dialect.RenderAlienHint(dialect.DialectGo, dialect.RenderInput{
+	return dialect.RenderAlienHint(dialect.Go, dialect.RenderInput{
 		Kind:         dialect.AlienHintGoDefer,
 		Detected:     "`defer`",
 		SurgeExample: "@raii type Resource = { handle: int };",
@@ -259,11 +259,11 @@ func goDeferMessage(dialect.Hint) string {
 }
 
 func isTSInterfaceHint(h dialect.Hint) bool {
-	return h.Dialect == dialect.DialectTypeScript && strings.Contains(h.Reason, "`interface`")
+	return h.Dialect == dialect.TypeScript && strings.Contains(h.Reason, "`interface`")
 }
 
 func tsInterfaceMessage(dialect.Hint) string {
-	return dialect.RenderAlienHint(dialect.DialectTypeScript, dialect.RenderInput{
+	return dialect.RenderAlienHint(dialect.TypeScript, dialect.RenderInput{
 		Kind:         dialect.AlienHintTSInterface,
 		Detected:     "`interface` / `extends`",
 		SurgeExample: "contract FooLike<T> { fn foo(self: T) -> int; } type Foo = { foo: int };",
@@ -278,7 +278,7 @@ func maybeEmitAlienHintPythonNoneType(emitted map[diag.Code]struct{}, reporter d
 		return
 	}
 	hint, ok := firstHint(e, func(h dialect.Hint) bool {
-		return h.Dialect == dialect.DialectPython && strings.Contains(h.Reason, "`None`")
+		return h.Dialect == dialect.Python && strings.Contains(h.Reason, "`None`")
 	})
 	if !ok {
 		return
@@ -286,7 +286,7 @@ func maybeEmitAlienHintPythonNoneType(emitted map[diag.Code]struct{}, reporter d
 	if !anyUnknownTypeNoneError(errs, hint.Span) {
 		return
 	}
-	msg := dialect.RenderAlienHint(dialect.DialectPython, dialect.RenderInput{
+	msg := dialect.RenderAlienHint(dialect.Python, dialect.RenderInput{
 		Kind:         dialect.AlienHintPythonNoneType,
 		Detected:     "`None`",
 		SurgeExample: "fn foo() -> nothing { return; }",
@@ -336,7 +336,7 @@ func maybeEmitAlienHintPythonNoneAlias(
 	if !ok {
 		return
 	}
-	msg := dialect.RenderAlienHint(dialect.DialectPython, dialect.RenderInput{
+	msg := dialect.RenderAlienHint(dialect.Python, dialect.RenderInput{
 		Kind:         dialect.AlienHintPythonNoneAlias,
 		Detected:     "`None` alias",
 		SurgeExample: "fn foo() -> nothing { return; }",

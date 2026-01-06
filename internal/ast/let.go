@@ -8,6 +8,7 @@ import (
 	"surge/internal/source"
 )
 
+// LetItem represents a 'let' or 'mut' variable declaration.
 type LetItem struct {
 	Name          source.StringID
 	Type          TypeID // NoTypeID if type is inferred
@@ -25,6 +26,7 @@ type LetItem struct {
 	Span          source.Span
 }
 
+// Let returns the LetItem for the given ItemID, or nil/false if invalid.
 func (i *Items) Let(id ItemID) (*LetItem, bool) {
 	item := i.Arena.Get(uint32(id))
 	if item == nil || item.Kind != ItemLet {
@@ -68,6 +70,7 @@ func (i *Items) newLetPayload(
 	return PayloadID(payload)
 }
 
+// NewLet creates a new 'let' declaration item.
 func (i *Items) NewLet(
 	name source.StringID,
 	typeID TypeID,

@@ -30,9 +30,12 @@ type Tracer interface {
 type StorageMode uint8
 
 const (
+	// ModeStream stores events with immediate write.
 	ModeStream StorageMode = iota + 1 // immediate write
-	ModeRing                          // circular buffer
-	ModeBoth                          // stream + ring
+	// ModeRing stores events in a circular buffer.
+	ModeRing // circular buffer
+	// ModeBoth stores events in both stream and ring.
+	ModeBoth // stream + ring
 )
 
 // String returns the string representation of StorageMode.

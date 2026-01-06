@@ -77,6 +77,7 @@ func findExplicitModuleDir(baseDir, modulePath, name string) string {
 		if filepath.Ext(d.Name()) != ".sg" {
 			return nil
 		}
+		// #nosec G304 -- path comes from filesystem walk
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return nil

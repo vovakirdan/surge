@@ -14,6 +14,7 @@ var (
 
 // StartCPU enables CPU profiling and writes samples to the provided path.
 func StartCPU(path string) error {
+	// #nosec G304 -- path is controlled by the caller
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -37,11 +38,16 @@ func StopCPU() {
 
 // WriteMem captures a heap profile to the supplied file path.
 func WriteMem(path string) error {
+	// #nosec G304 -- path is controlled by the caller
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			panic(closeErr)
+		}
+	}()
 	runtime.GC()
 	if err := pprof.WriteHeapProfile(f); err != nil {
 		return err
@@ -51,6 +57,7 @@ func WriteMem(path string) error {
 
 // StartTrace writes runtime trace data to the provided path.
 func StartTrace(path string) error {
+	// #nosec G304 -- path is controlled by the caller
 	f, err := os.Create(path)
 	if err != nil {
 		return err

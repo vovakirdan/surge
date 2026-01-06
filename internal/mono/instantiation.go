@@ -10,11 +10,15 @@ import (
 	"surge/internal/types"
 )
 
+// InstantiationKind identifies the kind of entity being instantiated.
 type InstantiationKind uint8
 
 const (
+	// InstFn represents a function instantiation.
 	InstFn InstantiationKind = iota
+	// InstType represents a type instantiation.
 	InstType
+	// InstTag represents a tag instantiation.
 	InstTag
 )
 
@@ -27,6 +31,7 @@ type InstantiationKey struct {
 	ArgsKey string
 }
 
+// UseSite records a location where an instantiation occurs.
 type UseSite struct {
 	Span   source.Span
 	Caller symbols.SymbolID
@@ -37,6 +42,7 @@ type UseSite struct {
 // v1: left empty on purpose.
 type BoundInfo struct{}
 
+// InstEntry captures all instantiations of a particular generic symbol.
 type InstEntry struct {
 	Kind InstantiationKind
 	Key  InstantiationKey
@@ -50,10 +56,12 @@ type InstEntry struct {
 	BoundsSnapshot []BoundInfo
 }
 
+// InstantiationMap tracks all generic instantiations across a module.
 type InstantiationMap struct {
 	Entries map[InstantiationKey]*InstEntry
 }
 
+// NewInstantiationMap creates a new empty InstantiationMap.
 func NewInstantiationMap() *InstantiationMap {
 	return &InstantiationMap{Entries: make(map[InstantiationKey]*InstEntry)}
 }
@@ -69,6 +77,7 @@ func NormalizeTypeArgs(_ *types.Interner, args []types.TypeID) []types.TypeID {
 	return slices.Clone(args)
 }
 
+// Record registers a generic instantiation at a specific site.
 func (m *InstantiationMap) Record(kind InstantiationKind, sym symbols.SymbolID, typeArgs []types.TypeID, site source.Span, caller symbols.SymbolID, note string) {
 	if m == nil || !sym.IsValid() || len(typeArgs) == 0 {
 		return

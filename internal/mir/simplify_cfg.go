@@ -36,20 +36,18 @@ func buildRedirectMap(f *Func) map[BlockID]BlockID {
 			target := bb.Term.Goto.Target
 			// Follow chain to final target
 			visited := make(map[BlockID]bool)
-			for {
-				if visited[target] {
-					// Cycle detected, stop
-					break
-				}
+			for !visited[target] {
 				visited[target] = true
 
 				if next, ok := redirects[target]; ok {
 					target = next
-				} else if isTrivialGotoBlock(f, target) {
-					target = f.Blocks[target].Term.Goto.Target
-				} else {
-					break
+					continue
 				}
+				if isTrivialGotoBlock(f, target) {
+					target = f.Blocks[target].Term.Goto.Target
+					continue
+				}
+				break
 			}
 			redirects[bb.ID] = target
 		}

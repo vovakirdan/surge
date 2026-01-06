@@ -7,6 +7,7 @@ import (
 	"surge/internal/types"
 )
 
+// StructLayout represents the layout of a struct type.
 type StructLayout struct {
 	TypeID       types.TypeID
 	FieldNames   []string

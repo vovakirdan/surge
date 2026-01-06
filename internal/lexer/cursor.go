@@ -15,6 +15,7 @@ type Cursor struct {
 	Limit uint32
 }
 
+// NewCursor creates a new cursor for the provided file.
 func NewCursor(f *source.File) Cursor {
 	limit, err := safecast.Conv[uint32](len(f.Content))
 	if err != nil {
@@ -99,6 +100,7 @@ func (c *Cursor) Reset(m Mark) {
 	c.Off = uint32(m)
 }
 
+// Eat consumes the next byte if it matches the provided byte.
 func (c *Cursor) Eat(b byte) bool {
 	if !c.EOF() && c.File.Content[c.Off] == b {
 		c.Off++

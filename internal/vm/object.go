@@ -14,38 +14,57 @@ type Handle uint32
 type ObjectKind uint8
 
 const (
+	// OKString represents a string object.
 	OKString ObjectKind = iota
+	// OKArray represents an array object.
 	OKArray
+	// OKArraySlice represents an array slice object.
 	OKArraySlice
+	// OKMap represents a map object.
 	OKMap
+	// OKStruct represents a struct object.
 	OKStruct
+	// OKTag represents a tagged union object.
 	OKTag
+	// OKBigInt represents a big integer object.
 	OKBigInt
+	// OKBigUint represents a big unsigned integer object.
 	OKBigUint
+	// OKBigFloat represents a big float object.
 	OKBigFloat
+	// OKRange represents a range object.
 	OKRange
 )
 
+// StringKind identifies the kind of string representation.
 type StringKind uint8
 
 const (
+	// StringFlat represents a flat string.
 	StringFlat StringKind = iota
+	// StringConcat represents a concatenated string.
 	StringConcat
+	// StringSlice represents a string slice.
 	StringSlice
 )
 
+// TagObject represents a tagged union object.
 type TagObject struct {
 	TagSym symbols.SymbolID
 	Fields []Value
 }
 
+// RangeKind identifies the kind of range object.
 type RangeKind uint8
 
 const (
+	// RangeDescriptor represents a descriptor-based range.
 	RangeDescriptor RangeKind = iota
+	// RangeArrayIter represents an array iterator range.
 	RangeArrayIter
 )
 
+// RangeObject represents a range object.
 type RangeObject struct {
 	Kind      RangeKind
 	Start     Value
@@ -60,6 +79,7 @@ type RangeObject struct {
 	ArrayIndex int
 }
 
+// HeapHeader contains metadata for a heap object.
 type HeapHeader struct {
 	Kind     ObjectKind
 	RefCount uint32

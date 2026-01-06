@@ -1,3 +1,4 @@
+// Package ui provides user interface components for the compiler.
 package ui
 
 import (

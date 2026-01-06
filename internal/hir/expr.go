@@ -140,10 +140,15 @@ type ExprData interface {
 type LiteralKind uint8
 
 const (
+	// LiteralInt represents an integer literal in HIR.
 	LiteralInt LiteralKind = iota
+	// LiteralFloat represents a float literal in HIR.
 	LiteralFloat
+	// LiteralBool represents a boolean literal in HIR.
 	LiteralBool
+	// LiteralString represents a string literal in HIR.
 	LiteralString
+	// LiteralNothing represents a nothing literal in HIR.
 	LiteralNothing
 )
 

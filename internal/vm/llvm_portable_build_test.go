@@ -19,6 +19,7 @@ func TestLLVMBuildPortable(t *testing.T) {
 		t.Fatalf("write source: %v", err)
 	}
 
+	// #nosec G204 -- test executes a locally built binary with known args
 	buildCmd := exec.Command(surge, "build", srcPath)
 	buildCmd.Dir = tmpDir
 	buildCmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
@@ -28,6 +29,7 @@ func TestLLVMBuildPortable(t *testing.T) {
 	}
 
 	binPath := filepath.Join(tmpDir, "target", "debug", "main")
+	// #nosec G204 -- test executes the freshly built binary
 	runCmd := exec.Command(binPath)
 	runCmd.Dir = tmpDir
 	stdout, stderr, exitCode := runCommand(t, runCmd, "")

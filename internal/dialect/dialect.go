@@ -2,35 +2,41 @@ package dialect
 
 import "fmt"
 
-// DialectKind represents a foreign language "dialect" that a Surge file may
+// Kind represents a foreign language "dialect" that a Surge file may
 // resemble.
-type DialectKind uint8
+type Kind uint8
 
 const (
-	DialectUnknown DialectKind = iota
-	DialectRust
-	DialectGo
-	DialectTypeScript
-	DialectPython
+	// Unknown indicates the dialect was not identified.
+	Unknown Kind = iota
+	// Rust indicates Rust dialect.
+	Rust
+	// Go indicates Go dialect.
+	Go
+	// TypeScript indicates TypeScript dialect.
+	TypeScript
+	// Python indicates Python dialect.
+	Python
 
 	dialectKindCount
 )
 
-func (k DialectKind) String() string {
+func (k Kind) String() string {
 	switch k {
-	case DialectRust:
+	case Rust:
 		return "rust"
-	case DialectGo:
+	case Go:
 		return "go"
-	case DialectTypeScript:
+	case TypeScript:
 		return "typescript"
-	case DialectPython:
+	case Python:
 		return "python"
 	default:
 		return "unknown"
 	}
 }
 
-func (k DialectKind) GoString() string {
-	return fmt.Sprintf("DialectKind(%s)", k.String())
+// GoString returns a string representation for debugging.
+func (k Kind) GoString() string {
+	return fmt.Sprintf("dialect.Kind(%s)", k.String())
 }

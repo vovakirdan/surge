@@ -1,8 +1,8 @@
+// Package buildpipeline orchestrates the compilation process.
 package buildpipeline
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -88,13 +88,13 @@ func Build(ctx context.Context, req *BuildRequest) (BuildResult, error) {
 	result.OutputPath = outputPath
 	result.TmpDir = tmpDir
 
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+	if err := os.MkdirAll(outputDir, 0o750); err != nil {
 		return result, fmt.Errorf("failed to create output dir: %w", err)
 	}
 
 	keepTmp := req.KeepTmp || req.EmitMIR || req.EmitLLVM
 	if req.Backend == BackendLLVM || keepTmp {
-		if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		if err := os.MkdirAll(tmpDir, 0o750); err != nil {
 			return result, fmt.Errorf("failed to create tmp dir: %w", err)
 		}
 	}
@@ -118,7 +118,8 @@ func Build(ctx context.Context, req *BuildRequest) (BuildResult, error) {
 			emitStage(req.Progress, req.Files, StageBuild, StatusError, err, 0)
 			return result, err
 		}
-		if err := os.Chmod(outputPath, 0o755); err != nil {
+		// #nosec G302 -- wrapper script must be executable by the current user
+		if err := os.Chmod(outputPath, 0o700); err != nil {
 			err = fmt.Errorf("failed to mark build output executable: %w", err)
 			emitStage(req.Progress, req.Files, StageBuild, StatusError, err, 0)
 			return result, err
@@ -167,11 +168,17 @@ func writeMIRDump(targetPath string, mod *mir.Module, result *driver.DiagnoseRes
 	if mod == nil || result == nil || result.Sema == nil {
 		return fmt.Errorf("missing MIR or type information")
 	}
+	// #nosec G304 -- path is derived from build output configuration
 	file, err := os.Create(targetPath)
 	if err != nil {
 		return fmt.Errorf("failed to write MIR dump: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Игнорируем ошибку закрытия файла, так как основная операция уже завершена
+			_ = closeErr
+		}
+	}()
 	if err := mir.DumpModule(file, mod, result.Sema.TypeInterner, mir.DumpOptions{}); err != nil {
 		return fmt.Errorf("failed to dump MIR: %w", err)
 	}
@@ -229,25 +236,28 @@ func buildLLVMOutput(tmpDir, outputPath string, printCommands bool) error {
 func compileLLVMIR(printCommands bool, llPath, objPath string) error {
 	if err := runCommand(printCommands, "clang", "-c", "-x", "ir", llPath, "-o", objPath); err == nil {
 		return nil
-	} else {
-		clangErr := err
-		llcPath, llcErr := exec.LookPath("llc")
-		if llcErr != nil {
-			return clangErr
-		}
-		triple := hostTripleFromClang()
-		args := []string{"-filetype=obj", llPath, "-o", objPath}
-		if triple != "" {
-			args = append([]string{"-mtriple=" + triple}, args...)
-		}
-		if err := runCommand(printCommands, llcPath, args...); err != nil {
-			return fmt.Errorf("clang failed; llc failed: %w", errors.Join(clangErr, err))
-		}
-		if printCommands {
-			fmt.Fprintln(os.Stdout, "note: clang IR compile failed; fell back to llc")
-		}
-		return nil
 	}
+	// Fallback to llc
+	// clangErr := err // not used, but could be useful for debugging
+	llcPath, llcErr := exec.LookPath("llc")
+	if llcErr != nil {
+		return fmt.Errorf("clang failed and llc not found: %w", llcErr)
+	}
+	triple := hostTripleFromClang()
+	args := []string{"-filetype=obj", llPath, "-o", objPath}
+	if triple != "" {
+		args = append([]string{"-mtriple=" + triple}, args...)
+	}
+	if err := runCommand(printCommands, llcPath, args...); err != nil {
+		return fmt.Errorf("clang and llc failed: %w", err)
+	}
+	if printCommands {
+		_, printErr := fmt.Fprintln(os.Stdout, "note: clang IR compile failed; fell back to llc")
+		if printErr != nil {
+			return fmt.Errorf("failed to print command: %w", printErr)
+		}
+	}
+	return nil
 }
 
 func hostTripleFromClang() string {
@@ -260,7 +270,7 @@ func hostTripleFromClang() string {
 
 func extractNativeRuntime(tmpDir string) (runtimeDir string, sources []string, errNativeRuntime error) {
 	runtimeDir = filepath.Join(tmpDir, "native_runtime")
-	if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
+	if err := os.MkdirAll(runtimeDir, 0o750); err != nil {
 		return "", nil, fmt.Errorf("failed to create native runtime dir: %w", err)
 	}
 
@@ -280,7 +290,7 @@ func extractNativeRuntime(tmpDir string) (runtimeDir string, sources []string, e
 			return fmt.Errorf("unexpected embedded runtime path: %s", entryPath)
 		}
 		dst := filepath.Join(runtimeDir, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
 			return err
 		}
 		data, errReadFile := fs.ReadFile(fsys, entryPath)
@@ -346,7 +356,10 @@ func archiveRuntime(runtimeDir string, objs []string, printCommands bool) (strin
 
 func runCommand(printCommands bool, name string, args ...string) error {
 	if printCommands {
-		fmt.Fprintf(os.Stdout, "%s %s\n", name, strings.Join(args, " "))
+		_, printErr := fmt.Fprintf(os.Stdout, "%s %s\n", name, strings.Join(args, " "))
+		if printErr != nil {
+			return fmt.Errorf("failed to print command: %w", printErr)
+		}
 	}
 	cmd := exec.Command(name, args...)
 	cmd.Stdout = os.Stdout

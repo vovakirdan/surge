@@ -25,7 +25,7 @@ func combineDigest(content project.Digest, deps ...project.Digest) project.Diges
 // и модули внутри каждого батча вычисляются параллельно.
 // Fallback: если Batches пусты, использует sequential Order (для совместимости с тестами).
 // Для циклического графа намеренно ничего не делает (оставляет нули).
-func ComputeModuleHashes(idx dag.ModuleIndex, g dag.Graph, slots []dag.ModuleSlot, topo *dag.Topo) {
+func ComputeModuleHashes(_ dag.ModuleIndex, g dag.Graph, slots []dag.ModuleSlot, topo *dag.Topo) {
 	if topo == nil || topo.Cyclic {
 		return
 	}

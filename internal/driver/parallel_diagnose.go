@@ -18,6 +18,7 @@ import (
 	"surge/internal/symbols"
 )
 
+// DiagnoseDirWithOptions runs diagnostics on all .sg files in a directory using specified options and job count.
 func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptions, jobs int) (*source.FileSet, []DiagnoseDirResult, error) {
 	if opts == nil {
 		opts = &DiagnoseOptions{}

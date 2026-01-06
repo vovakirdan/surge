@@ -9,6 +9,7 @@ import (
 	"surge/internal/types"
 )
 
+// DumpOptions configures HIR dumping.
 type DumpOptions struct {
 	EmitBorrow bool
 }
@@ -26,6 +27,7 @@ func NewPrinter(w io.Writer, interner *types.Interner) *Printer {
 	return NewPrinterWithOptions(w, interner, DumpOptions{})
 }
 
+// NewPrinterWithOptions creates a new HIR printer with the given options.
 func NewPrinterWithOptions(w io.Writer, interner *types.Interner, opts DumpOptions) *Printer {
 	return &Printer{w: w, interner: interner, opts: opts}
 }
@@ -35,6 +37,7 @@ func Dump(w io.Writer, m *Module, interner *types.Interner) error {
 	return DumpWithOptions(w, m, interner, DumpOptions{})
 }
 
+// DumpWithOptions writes a formatted HIR module to the provided writer with options.
 func DumpWithOptions(w io.Writer, m *Module, interner *types.Interner, opts DumpOptions) error {
 	p := NewPrinterWithOptions(w, interner, opts)
 	return p.PrintModule(m)

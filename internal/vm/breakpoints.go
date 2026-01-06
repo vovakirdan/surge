@@ -9,13 +9,17 @@ import (
 	"surge/internal/source"
 )
 
+// BreakpointKind distinguishes breakpoint types.
 type BreakpointKind uint8
 
 const (
+	// BKFileLine represents a file:line breakpoint.
 	BKFileLine BreakpointKind = iota
+	// BKFuncEntry represents a function entry breakpoint.
 	BKFuncEntry
 )
 
+// Breakpoint represents a debugger breakpoint.
 type Breakpoint struct {
 	ID   int
 	Kind BreakpointKind
@@ -29,6 +33,7 @@ type Breakpoint struct {
 	FuncName string
 }
 
+// Summary returns a string representation of the breakpoint.
 func (bp *Breakpoint) Summary() string {
 	if bp == nil {
 		return "<nil>"
@@ -43,15 +48,18 @@ func (bp *Breakpoint) Summary() string {
 	}
 }
 
+// Breakpoints manages a collection of breakpoints.
 type Breakpoints struct {
 	nextID int
 	list   []*Breakpoint
 }
 
+// NewBreakpoints creates a new Breakpoints collection.
 func NewBreakpoints() *Breakpoints {
 	return &Breakpoints{nextID: 1}
 }
 
+// AddFileLine adds a file:line breakpoint.
 func (bps *Breakpoints) AddFileLine(file string, line int) (*Breakpoint, error) {
 	if line <= 0 {
 		return nil, fmt.Errorf("invalid line %d", line)
@@ -79,6 +87,7 @@ func (bps *Breakpoints) AddFileLine(file string, line int) (*Breakpoint, error) 
 	return bp, nil
 }
 
+// AddFuncEntry adds a function entry breakpoint.
 func (bps *Breakpoints) AddFuncEntry(funcName string) (*Breakpoint, error) {
 	funcName = strings.TrimSpace(funcName)
 	if funcName == "" {
@@ -93,6 +102,7 @@ func (bps *Breakpoints) AddFuncEntry(funcName string) (*Breakpoint, error) {
 	return bp, nil
 }
 
+// Delete removes a breakpoint by ID.
 func (bps *Breakpoints) Delete(id int) bool {
 	if bps == nil || id <= 0 {
 		return false
@@ -108,6 +118,7 @@ func (bps *Breakpoints) Delete(id int) bool {
 	return false
 }
 
+// List returns all breakpoints.
 func (bps *Breakpoints) List() []*Breakpoint {
 	if bps == nil || len(bps.list) == 0 {
 		return nil
@@ -117,6 +128,7 @@ func (bps *Breakpoints) List() []*Breakpoint {
 	return out
 }
 
+// Match checks if any breakpoint matches the given stop point.
 func (bps *Breakpoints) Match(vm *VM, sp StopPoint) (*Breakpoint, bool) {
 	if bps == nil || len(bps.list) == 0 {
 		return nil, false
@@ -170,6 +182,7 @@ func (bps *Breakpoints) Match(vm *VM, sp StopPoint) (*Breakpoint, bool) {
 	return nil, false
 }
 
+// ParseFileLineSpec parses a file:line breakpoint specification.
 func ParseFileLineSpec(spec string) (file string, line int, err error) {
 	spec = strings.TrimSpace(spec)
 	if spec == "" {

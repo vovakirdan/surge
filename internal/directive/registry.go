@@ -1,3 +1,4 @@
+// Package directive provides directive registry for compilation scenarios.
 package directive
 
 import (

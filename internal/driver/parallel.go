@@ -39,6 +39,7 @@ type ParseDirResult struct {
 	Bag     *diag.Bag    // Диагностики
 }
 
+// DiagnoseDirResult captures artifacts and diagnostics for a single file during directory diagnosis.
 type DiagnoseDirResult struct {
 	Path    string
 	FileID  source.FileID

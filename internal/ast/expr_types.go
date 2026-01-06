@@ -4,37 +4,65 @@ import (
 	"surge/internal/source"
 )
 
+// ExprKind enumerates the different kinds of expressions.
 type ExprKind uint8
 
 const (
+	// ExprIdent represents an identifier expression.
 	ExprIdent ExprKind = iota
+	// ExprLit represents a literal expression.
 	ExprLit
+	// ExprCall represents a function call expression.
 	ExprCall
+	// ExprBinary represents a binary expression.
 	ExprBinary
+	// ExprUnary represents a unary expression.
 	ExprUnary
+	// ExprCast represents a cast expression.
 	ExprCast
+	// ExprGroup represents a grouped expression.
 	ExprGroup
+	// ExprTuple represents a tuple expression.
 	ExprTuple
+	// ExprArray represents an array expression.
 	ExprArray
+	// ExprMap represents a map expression.
 	ExprMap
+	// ExprIndex represents an index expression.
 	ExprIndex
+	// ExprMember represents a member access expression.
 	ExprMember
+	// ExprTupleIndex represents a tuple index expression.
 	ExprTupleIndex
+	// ExprTernary represents a ternary expression.
 	ExprTernary
+	// ExprAwait represents an await expression.
 	ExprAwait
+	// ExprTask represents a task expression.
 	ExprTask
+	// ExprSpawn represents a spawn expression.
 	ExprSpawn
+	// ExprParallel represents a parallel expression.
 	ExprParallel
+	// ExprSpread represents a spread expression.
 	ExprSpread
+	// ExprCompare represents a compare expression.
 	ExprCompare
+	// ExprSelect represents a select expression.
 	ExprSelect
+	// ExprRace represents a race expression.
 	ExprRace
+	// ExprStruct represents a struct expression.
 	ExprStruct
+	// ExprAsync represents an async expression.
 	ExprAsync
+	// ExprBlock represents a block expression.
 	ExprBlock
+	// ExprRangeLit represents a range literal expression.
 	ExprRangeLit
 )
 
+// Expr represents an expression node in the AST.
 type Expr struct {
 	Kind    ExprKind
 	Span    source.Span
@@ -46,50 +74,90 @@ type ExprBinaryOp uint8
 
 const (
 	// Арифметические
+
+	// ExprBinaryAdd represents the addition operator (+).
 	ExprBinaryAdd ExprBinaryOp = iota
+	// ExprBinarySub represents the subtraction operator (-).
 	ExprBinarySub
+	// ExprBinaryMul represents the multiplication operator (*).
 	ExprBinaryMul
+	// ExprBinaryDiv represents the division operator (/).
 	ExprBinaryDiv
+	// ExprBinaryMod represents the modulo operator (%).
 	ExprBinaryMod
 
 	// Битовые
+
+	// ExprBinaryBitAnd represents the bitwise AND operator (&).
 	ExprBinaryBitAnd
+	// ExprBinaryBitOr represents the bitwise OR operator (|).
 	ExprBinaryBitOr
+	// ExprBinaryBitXor represents the bitwise XOR operator (^).
 	ExprBinaryBitXor
+	// ExprBinaryShiftLeft represents the left shift operator (<<).
 	ExprBinaryShiftLeft
+	// ExprBinaryShiftRight represents the right shift operator (>>).
 	ExprBinaryShiftRight
 
 	// Логические
+
+	// ExprBinaryLogicalAnd represents the logical AND operator (&&).
 	ExprBinaryLogicalAnd
+	// ExprBinaryLogicalOr represents the logical OR operator (||).
 	ExprBinaryLogicalOr
 
 	// Сравнения
+
+	// ExprBinaryEq represents the equality operator (==).
 	ExprBinaryEq
+	// ExprBinaryNotEq represents the inequality operator (!=).
 	ExprBinaryNotEq
+	// ExprBinaryLess represents the less than operator (<).
 	ExprBinaryLess
+	// ExprBinaryLessEq represents the less than or equal to operator (<=).
 	ExprBinaryLessEq
+	// ExprBinaryGreater represents the greater than operator (>).
 	ExprBinaryGreater
+	// ExprBinaryGreaterEq represents the greater than or equal to operator (>=).
 	ExprBinaryGreaterEq
 
 	// Присваивание
+
+	// ExprBinaryAssign represents the assignment operator (=).
 	ExprBinaryAssign
+	// ExprBinaryAddAssign represents the addition assignment operator (+=).
 	ExprBinaryAddAssign
+	// ExprBinarySubAssign represents the subtraction assignment operator (-=).
 	ExprBinarySubAssign
+	// ExprBinaryMulAssign represents the multiplication assignment operator (*=).
 	ExprBinaryMulAssign
+	// ExprBinaryDivAssign represents the division assignment operator (/=).
 	ExprBinaryDivAssign
+	// ExprBinaryModAssign represents the modulo assignment operator (%=).
 	ExprBinaryModAssign
+	// ExprBinaryBitAndAssign represents the bitwise AND assignment operator (&=).
 	ExprBinaryBitAndAssign
+	// ExprBinaryBitOrAssign represents the bitwise OR assignment operator (|=).
 	ExprBinaryBitOrAssign
+	// ExprBinaryBitXorAssign represents the bitwise XOR assignment operator (^=).
 	ExprBinaryBitXorAssign
+	// ExprBinaryShlAssign represents the left shift assignment operator (<<=).
 	ExprBinaryShlAssign
+	// ExprBinaryShrAssign represents the right shift assignment operator (>>=).
 	ExprBinaryShrAssign
 
 	// Специальные операторы
+
+	// ExprBinaryNullCoalescing represents the null coalescing operator (??).
 	ExprBinaryNullCoalescing // ??
-	ExprBinaryRange          // ..
+	// ExprBinaryRange represents the range operator (..).
+	ExprBinaryRange // ..
+	// ExprBinaryRangeInclusive represents the inclusive range operator (..=).
 	ExprBinaryRangeInclusive // ..=
-	ExprBinaryIs             // is
-	ExprBinaryHeir           // heir
+	// ExprBinaryIs represents the type check operator (is).
+	ExprBinaryIs // is
+	// ExprBinaryHeir represents the heir check operator (heir).
+	ExprBinaryHeir // heir
 )
 
 // String returns the symbol representation of a binary operator.
@@ -172,13 +240,21 @@ func (op ExprBinaryOp) String() string {
 type ExprUnaryOp uint8
 
 const (
+	// ExprUnaryPlus represents the unary plus operator (+).
 	ExprUnaryPlus ExprUnaryOp = iota
+	// ExprUnaryMinus represents the unary minus operator (-).
 	ExprUnaryMinus
+	// ExprUnaryNot represents the logical NOT operator (!).
 	ExprUnaryNot
+	// ExprUnaryDeref represents the dereference operator (*).
 	ExprUnaryDeref
+	// ExprUnaryRef represents the reference operator (&).
 	ExprUnaryRef
+	// ExprUnaryRefMut represents the mutable reference operator (&mut).
 	ExprUnaryRefMut
+	// ExprUnaryOwn represents the own operator (own).
 	ExprUnaryOwn
+	// ExprUnaryAwait represents the await operator (await).
 	ExprUnaryAwait
 )
 
@@ -210,12 +286,19 @@ func (op ExprUnaryOp) String() string {
 type ExprLitKind uint8
 
 const (
+	// ExprLitInt represents an integer literal.
 	ExprLitInt ExprLitKind = iota
+	// ExprLitUint represents an unsigned integer literal.
 	ExprLitUint
+	// ExprLitFloat represents a floating-point literal.
 	ExprLitFloat
+	// ExprLitString represents a string literal.
 	ExprLitString
+	// ExprLitTrue represents a true boolean literal.
 	ExprLitTrue
+	// ExprLitFalse represents a false boolean literal.
 	ExprLitFalse
+	// ExprLitNothing represents a nothing literal.
 	ExprLitNothing
 )
 
@@ -224,22 +307,26 @@ type ExprIdentData struct {
 	Name source.StringID
 }
 
+// ExprLiteralData holds literal expression details.
 type ExprLiteralData struct {
 	Kind  ExprLitKind
 	Value source.StringID // сырое значение для sema
 }
 
+// ExprBinaryData holds binary operation expression details.
 type ExprBinaryData struct {
 	Op    ExprBinaryOp
 	Left  ExprID
 	Right ExprID
 }
 
+// ExprUnaryData holds unary operation expression details.
 type ExprUnaryData struct {
 	Op      ExprUnaryOp
 	Operand ExprID
 }
 
+// ExprCastData holds cast expression details.
 type ExprCastData struct {
 	Value   ExprID
 	Type    TypeID
@@ -252,6 +339,7 @@ type CallArg struct {
 	Value ExprID
 }
 
+// ExprCallData holds function call expression details.
 type ExprCallData struct {
 	Target           ExprID
 	Args             []CallArg // Changed from []ExprID to support named args
@@ -270,63 +358,75 @@ func (d *ExprCallData) HasNamedArgs() bool {
 	return false
 }
 
+// ExprIndexData holds index expression details.
 type ExprIndexData struct {
 	Target ExprID
 	Index  ExprID
 }
 
+// ExprMemberData holds member access expression details.
 type ExprMemberData struct {
 	Target ExprID
 	Field  source.StringID
 }
 
+// ExprTupleIndexData holds tuple index expression details.
 type ExprTupleIndexData struct {
 	Target ExprID
 	Index  uint32
 }
 
+// ExprGroupData holds parenthesized group expression details.
 type ExprGroupData struct {
 	Inner ExprID
 }
 
+// ExprTupleData holds tuple expression details.
 type ExprTupleData struct {
 	Elements         []ExprID
 	ElementCommas    []source.Span
 	HasTrailingComma bool
 }
 
+// ExprArrayData holds array literal expression details.
 type ExprArrayData struct {
 	Elements         []ExprID
 	ElementCommas    []source.Span
 	HasTrailingComma bool
 }
 
+// ExprMapEntry represents a key-value pair in a map literal.
 type ExprMapEntry struct {
 	Key   ExprID
 	Value ExprID
 }
 
+// ExprMapData holds map literal expression details.
 type ExprMapData struct {
 	Entries          []ExprMapEntry
 	EntryCommas      []source.Span
 	HasTrailingComma bool
 }
 
+// ExprRangeLitData holds range literal expression details.
 type ExprRangeLitData struct {
 	Start     ExprID
 	End       ExprID
 	Inclusive bool
 }
 
+// ExprSpreadData holds spread expression details.
 type ExprSpreadData struct {
 	Value ExprID
 }
 
+// ExprStructField represents a field in a struct literal.
 type ExprStructField struct {
 	Name  source.StringID
 	Value ExprID
 }
 
+// ExprStructData holds struct literal expression details.
 type ExprStructData struct {
 	Type             TypeID
 	Fields           []ExprStructField
@@ -361,10 +461,13 @@ type ExprSpawnData struct {
 	Value ExprID
 }
 
+// ExprParallelKind distinguishes parallel map and reduce operations.
 type ExprParallelKind uint8
 
 const (
+	// ExprParallelMap represents a parallel map operation.
 	ExprParallelMap ExprParallelKind = iota
+	// ExprParallelReduce represents a parallel reduce operation.
 	ExprParallelReduce
 )
 
@@ -391,6 +494,7 @@ type ExprTernaryData struct {
 	FalseExpr ExprID
 }
 
+// ExprCompareArm represents a single arm in a compare expression.
 type ExprCompareArm struct {
 	Pattern     ExprID
 	PatternSpan source.Span
@@ -399,11 +503,13 @@ type ExprCompareArm struct {
 	IsFinally   bool
 }
 
+// ExprCompareData holds compare expression details.
 type ExprCompareData struct {
 	Value ExprID
 	Arms  []ExprCompareArm
 }
 
+// ExprSelectArm represents a single arm in a select expression.
 type ExprSelectArm struct {
 	Await     ExprID
 	Result    ExprID
@@ -411,6 +517,7 @@ type ExprSelectArm struct {
 	Span      source.Span
 }
 
+// ExprSelectData holds select expression details.
 type ExprSelectData struct {
 	Arms []ExprSelectArm
 }

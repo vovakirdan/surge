@@ -12,18 +12,31 @@ func printStageTimings(out io.Writer, timings buildpipeline.Timings, includeBuil
 	if out == nil {
 		return
 	}
+	var printErr error
 	if timings.Has(buildpipeline.StageParse) {
-		fmt.Fprintf(out, "parsed %.1f ms\n", toMillis(timings.Duration(buildpipeline.StageParse)))
+		_, printErr = fmt.Fprintf(out, "parsed %.1f ms\n", toMillis(timings.Duration(buildpipeline.StageParse)))
+		if printErr != nil {
+			panic(printErr)
+		}
 	}
 	if timings.Has(buildpipeline.StageDiagnose) {
-		fmt.Fprintf(out, "diagnose %.1f ms\n", toMillis(timings.Duration(buildpipeline.StageDiagnose)))
+		_, printErr = fmt.Fprintf(out, "diagnose %.1f ms\n", toMillis(timings.Duration(buildpipeline.StageDiagnose)))
+		if printErr != nil {
+			panic(printErr)
+		}
 	}
 	if includeBuilt && (timings.Has(buildpipeline.StageLower) || timings.Has(buildpipeline.StageBuild) || timings.Has(buildpipeline.StageLink)) {
 		built := timings.Sum(buildpipeline.StageLower, buildpipeline.StageBuild, buildpipeline.StageLink)
-		fmt.Fprintf(out, "built %.1f ms\n", toMillis(built))
+		_, printErr = fmt.Fprintf(out, "built %.1f ms\n", toMillis(built))
+		if printErr != nil {
+			panic(printErr)
+		}
 	}
 	if includeRun && timings.Has(buildpipeline.StageRun) {
-		fmt.Fprintf(out, "ran %.1f ms\n", toMillis(timings.Duration(buildpipeline.StageRun)))
+		_, printErr = fmt.Fprintf(out, "ran %.1f ms\n", toMillis(timings.Duration(buildpipeline.StageRun)))
+		if printErr != nil {
+			panic(printErr)
+		}
 	}
 }
 

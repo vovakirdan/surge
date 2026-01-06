@@ -11,6 +11,7 @@ import (
 	"surge/internal/source"
 )
 
+// Options configures the source code formatter.
 type Options struct {
 	IndentWidth int
 	UseTabs     bool
@@ -37,7 +38,8 @@ type printer struct {
 	opt     Options
 }
 
-func FormatFile(sf *source.File, b *ast.Builder, fid ast.FileID, opt Options) ([]byte, error) {
+// FormatFile formats an AST file into a byte slice.
+func FormatFile(sf *source.File, b *ast.Builder, fid ast.FileID, opt Options) ([]byte, error) { //nolint:revive
 	if sf == nil {
 		return nil, errors.New("format: nil source file")
 	}

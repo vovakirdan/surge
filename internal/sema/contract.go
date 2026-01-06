@@ -90,7 +90,7 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 			}
 			currentOverload := tc.hasOverloadAttr(fn.AttrStart, fn.AttrCount)
 			if prev, exists := methodNames[fn.Name]; exists {
-				if !(prev.overload || currentOverload) {
+				if !prev.overload && !currentOverload {
 					tc.report(diag.SemaContractDuplicateMethod, fn.NameSpan, "duplicate method '%s'", tc.lookupName(fn.Name))
 					tc.report(diag.SemaContractDuplicateMethod, prev.span, "previous declaration of '%s' is here", tc.lookupName(fn.Name))
 				}

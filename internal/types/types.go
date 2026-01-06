@@ -1,4 +1,4 @@
-package types
+package types //nolint:revive
 
 import "fmt"
 
@@ -12,25 +12,45 @@ const NoTypeID TypeID = 0
 type Kind uint8
 
 const (
+	// KindInvalid represents an uninitialized or erroneous type.
 	KindInvalid Kind = iota
+	// KindUnit represents the unit type.
 	KindUnit
+	// KindNothing represents the nothing type.
 	KindNothing
+	// KindBool represents the boolean type.
 	KindBool
+	// KindGenericParam represents a generic parameter type.
 	KindGenericParam
+	// KindConst represents a constant type.
 	KindConst
+	// KindString represents a string type.
 	KindString
+	// KindInt represents an integer type.
 	KindInt
+	// KindUint represents an unsigned integer type.
 	KindUint
+	// KindFloat represents a floating-point type.
 	KindFloat
+	// KindArray represents an array type.
 	KindArray
+	// KindPointer represents a pointer type.
 	KindPointer
+	// KindReference represents a reference type.
 	KindReference
+	// KindOwn represents an own type.
 	KindOwn
+	// KindStruct represents a struct type.
 	KindStruct
+	// KindAlias represents an alias type.
 	KindAlias
+	// KindUnion represents a union type.
 	KindUnion
+	// KindEnum represents an enum type.
 	KindEnum
+	// KindTuple represents a tuple type.
 	KindTuple
+	// KindFn represents a function type.
 	KindFn
 )
 
@@ -85,11 +105,16 @@ func (k Kind) String() string {
 type Width uint8
 
 const (
+	// WidthAny represents a target-dependent default width (e.g. "int").
 	WidthAny Width = 0
-	Width8   Width = 8
-	Width16  Width = 16
-	Width32  Width = 32
-	Width64  Width = 64
+	// Width8 represents 8-bit width.
+	Width8 Width = 8
+	// Width16 represents 16-bit width.
+	Width16 Width = 16
+	// Width32 represents 32-bit width.
+	Width32 Width = 32
+	// Width64 represents 64-bit width.
+	Width64 Width = 64
 )
 
 // ArrayDynamicLength marks slices with unknown compile-time length.

@@ -271,6 +271,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		vmInstance.Recorder = recorder
 	}
 	if vmReplayPath != "" {
+		// #nosec G304 -- path comes from user-provided CLI flag
 		logBytes, err := os.ReadFile(vmReplayPath)
 		if err != nil {
 			return fmt.Errorf("failed to read vm-replay log: %w", err)
@@ -284,6 +285,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		interactive := vmDebugScript == ""
 		var in io.Reader = os.Stdin
 		if !interactive {
+			// #nosec G304 -- path comes from user-provided CLI flag
 			script, err := os.ReadFile(vmDebugScript)
 			if err != nil {
 				return fmt.Errorf("failed to open vm-debug-script: %w", err)

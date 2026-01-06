@@ -12,12 +12,14 @@ import (
 	"fortio.org/safecast"
 )
 
+// Graph represents the module dependency graph.
 type Graph struct {
 	Edges   [][]ModuleID // Edges[from] = []to
 	Indeg   []int        // входящие степени для Kahn (учитывает только присутствующие модули)
 	Present []bool       // признак, что модуль реально существует (а не только импортируется)
 }
 
+// ModuleNode contains module metadata and associated diagnostic reporter.
 type ModuleNode struct {
 	Meta     *project.ModuleMeta
 	Reporter diag.Reporter
@@ -25,6 +27,7 @@ type ModuleNode struct {
 	FirstErr *diag.Diagnostic
 }
 
+// ModuleSlot represents a position in the module graph that can be occupied by a module.
 type ModuleSlot struct {
 	Meta     *project.ModuleMeta
 	Reporter diag.Reporter
@@ -33,6 +36,7 @@ type ModuleSlot struct {
 	FirstErr *diag.Diagnostic
 }
 
+// BuildGraph constructs a dependency graph from a set of module nodes and an index.
 func BuildGraph(idx ModuleIndex, nodes []*ModuleNode) (Graph, []ModuleSlot) {
 	nodeCount := len(idx.IDToName)
 	g := Graph{
@@ -155,6 +159,7 @@ func BuildGraph(idx ModuleIndex, nodes []*ModuleNode) (Graph, []ModuleSlot) {
 	return g, slots
 }
 
+// ReportCycles emits diagnostics for any import cycles detected in the graph.
 func ReportCycles(idx ModuleIndex, slots []ModuleSlot, topo *Topo) {
 	if topo == nil || !topo.Cyclic || len(topo.Cycles) == 0 {
 		return
@@ -175,6 +180,7 @@ func ReportCycles(idx ModuleIndex, slots []ModuleSlot, topo *Topo) {
 	}
 }
 
+// ReportBrokenDeps emits diagnostics for modules that depend on broken modules.
 func ReportBrokenDeps(idx ModuleIndex, slots []ModuleSlot) {
 	for i := range slots {
 		slotFrom := &slots[i]

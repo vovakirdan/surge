@@ -8,6 +8,7 @@ import (
 	"surge/internal/source"
 )
 
+// TypeKey is a unique string representation of a type's structural identity.
 type TypeKey string
 
 // FunctionSignature captures a simplified view of a function signature.

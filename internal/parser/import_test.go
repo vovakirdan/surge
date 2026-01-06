@@ -13,11 +13,14 @@ package parser
 
 import (
 	"strings"
+	"testing"
+
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/lexer"
 	"surge/internal/source"
-	"testing"
 )
 
 // makeTestParser — хелпер для создания парсера с тестовой строкой
@@ -569,7 +572,11 @@ func TestParseImport_UnclosedGroupDiagnostics(t *testing.T) {
 				}
 				wantOffset += len("Baz")
 				got := items[0].Primary.Start
-				if got != uint32(wantOffset) {
+				wantStart, err := safecast.Conv[uint32](wantOffset)
+				if err != nil {
+					t.Fatalf("want offset overflow: %v", err)
+				}
+				if got != wantStart {
 					t.Errorf("unexpected primary span start: got %d, want %d", got, wantOffset)
 				}
 				if items[0].Primary.End != got {

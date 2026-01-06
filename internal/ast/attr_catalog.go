@@ -11,20 +11,29 @@ import (
 type AttrTargetMask uint16
 
 const (
-	AttrTargetNone  AttrTargetMask = 0
-	AttrTargetFn    AttrTargetMask = 1 << iota // top-level or extern functions (including async)
-	AttrTargetBlock                            // statement blocks (e.g. @backend on block)
-	AttrTargetType                             // type declarations (struct/union/alias/newtype)
-	AttrTargetField                            // struct fields
-	AttrTargetParam                            // parameters (function/formal parameters)
-	AttrTargetStmt                             // statement-level attributes (e.g. expression statements)
-	AttrTargetLet                              // let and const declarations
+	// AttrTargetNone indicates no target.
+	AttrTargetNone AttrTargetMask = 0
+	// AttrTargetFn indicates top-level or extern functions (including async).
+	AttrTargetFn AttrTargetMask = 1 << iota // top-level or extern functions (including async)
+	// AttrTargetBlock indicates statement blocks (e.g. @backend on block).
+	AttrTargetBlock // statement blocks (e.g. @backend on block)
+	// AttrTargetType indicates type declarations (struct/union/alias/newtype).
+	AttrTargetType // type declarations (struct/union/alias/newtype)
+	// AttrTargetField indicates struct fields.
+	AttrTargetField // struct fields
+	// AttrTargetParam indicates parameters (function/formal parameters).
+	AttrTargetParam // parameters (function/formal parameters)
+	// AttrTargetStmt indicates statement-level attributes (e.g. expression statements).
+	AttrTargetStmt // statement-level attributes (e.g. expression statements)
+	// AttrTargetLet indicates let and const declarations.
+	AttrTargetLet // let and const declarations
 )
 
 // AttrFlag captures special handling rules beyond the basic applicability matrix.
 type AttrFlag uint8
 
 const (
+	// AttrFlagNone indicates no special flags.
 	AttrFlagNone AttrFlag = 0
 
 	// AttrFlagExternOnly marks attributes that are only valid within extern blocks (e.g. @override).

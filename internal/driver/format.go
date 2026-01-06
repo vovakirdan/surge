@@ -18,6 +18,7 @@ import (
 	"surge/internal/source"
 )
 
+// FormatOptions configures code formatting.
 type FormatOptions struct {
 	Check          bool
 	MaxDiagnostics int
@@ -25,6 +26,7 @@ type FormatOptions struct {
 	Stdout         bool
 }
 
+// FormatResult captures the result of formatting a single file.
 type FormatResult struct {
 	Path      string
 	Changed   bool
@@ -94,6 +96,7 @@ func FormatPaths(ctx context.Context, paths []string, opts FormatOptions) ([]For
 }
 
 func formatSingleFile(path string, opts FormatOptions) (formatted []byte, changed bool, err error) {
+	// #nosec G304 -- path comes from user-provided formatting arguments
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, false, err

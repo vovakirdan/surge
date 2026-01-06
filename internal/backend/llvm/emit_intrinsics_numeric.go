@@ -87,12 +87,12 @@ func (fe *funcEmitter) emitBigNumericCast(srcVal, srcLLVM string, srcTypeID, dst
 			return 0, 0, false
 		}
 		if bits >= 64 {
-			max := int64(^uint64(0) >> 1)
-			return -max - 1, max, true
+			limit := int64(^uint64(0) >> 1)
+			return -limit - 1, limit, true
 		}
-		max := int64(1)<<(bits-1) - 1
-		min := -int64(1) << (bits - 1)
-		return min, max, true
+		limit := int64(1)<<(bits-1) - 1
+		minVal = -int64(1) << (bits - 1)
+		return minVal, limit, true
 	}
 	unsignedMax := func(bits int) (uint64, bool) {
 		if bits <= 0 {

@@ -15,6 +15,7 @@ import (
 	"surge/internal/types"
 )
 
+// LowerModule converts a monomorphized module to MIR.
 func LowerModule(mm *mono.MonoModule, semaRes *sema.Result) (*Module, error) {
 	out := &Module{
 		Funcs:     make(map[FuncID]*Func),

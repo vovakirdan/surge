@@ -140,15 +140,19 @@ func handleApplyResult(res *fix.ApplyResult, applyErr error) error {
 	if res == nil {
 		return applyErr
 	}
+	var printErr error
 
 	if len(res.Applied) > 0 {
-		fmt.Fprintf(os.Stdout, "Applied %d fix(es):\n", len(res.Applied))
+		_, printErr = fmt.Fprintf(os.Stdout, "Applied %d fix(es):\n", len(res.Applied))
+		if printErr != nil {
+			return printErr
+		}
 		for _, item := range res.Applied {
 			location := item.PrimaryPath
 			if location == "" {
 				location = "(unknown location)"
 			}
-			fmt.Fprintf(
+			_, printErr = fmt.Fprintf(
 				os.Stdout,
 				"  %s [%s] — %s (%d edits, %s)\n",
 				item.Title,
@@ -157,41 +161,65 @@ func handleApplyResult(res *fix.ApplyResult, applyErr error) error {
 				item.EditCount,
 				item.Applicability.String(),
 			)
+			if printErr != nil {
+				return printErr
+			}
 		}
 	}
 
 	if len(res.FileChanges) > 0 {
-		fmt.Fprintln(os.Stdout, "Updated files:")
+		_, printErr = fmt.Fprintln(os.Stdout, "Updated files:")
+		if printErr != nil {
+			return printErr
+		}
 		for _, change := range res.FileChanges {
-			fmt.Fprintf(os.Stdout, "  %s (%d edits)\n", change.Path, change.EditCount)
+			_, printErr = fmt.Fprintf(os.Stdout, "  %s (%d edits)\n", change.Path, change.EditCount)
+			if printErr != nil {
+				return printErr
+			}
 		}
 	}
 
 	if len(res.Skipped) > 0 {
-		fmt.Fprintln(os.Stdout, "Skipped fixes:")
+		_, printErr = fmt.Fprintln(os.Stdout, "Skipped fixes:")
+		if printErr != nil {
+			return printErr
+		}
 		for _, skip := range res.Skipped {
 			id := skip.ID
 			if id == "" {
 				id = "(unnamed)"
 			}
 			if skip.Title != "" {
-				fmt.Fprintf(os.Stdout, "  %s [%s]: %s\n", skip.Title, id, skip.Reason)
+				_, printErr = fmt.Fprintf(os.Stdout, "  %s [%s]: %s\n", skip.Title, id, skip.Reason)
+				if printErr != nil {
+					return printErr
+				}
 			} else {
-				fmt.Fprintf(os.Stdout, "  [%s]: %s\n", id, skip.Reason)
+				_, printErr = fmt.Fprintf(os.Stdout, "  [%s]: %s\n", id, skip.Reason)
+				if printErr != nil {
+					return printErr
+				}
 			}
 		}
 	}
 
 	if applyErr != nil {
 		if errors.Is(applyErr, fix.ErrNoFixes) && len(res.Applied) == 0 {
-			fmt.Fprintln(os.Stdout, "No applicable fixes found.")
+			_, printErr = fmt.Fprintln(os.Stdout, "No applicable fixes found.")
+			if printErr != nil {
+				return printErr
+			}
 			return nil
 		}
 		return applyErr
 	}
 
 	if len(res.Applied) == 0 {
-		fmt.Fprintln(os.Stdout, "No fixes applied.")
+		_, printErr = fmt.Fprintln(os.Stdout, "No fixes applied.")
+		if printErr != nil {
+			return printErr
+		}
 	}
 	return nil
 }

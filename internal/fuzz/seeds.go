@@ -34,6 +34,7 @@ func addTestdataSeeds(f *testing.F) {
 		if filepath.Ext(path) != ".sg" {
 			return nil
 		}
+		// #nosec G304 -- path comes from repository testdata walk
 		src, err := os.ReadFile(path)
 		if err != nil {
 			return nil
@@ -51,6 +52,7 @@ func addTestdataSeeds(f *testing.F) {
 
 func addLanguageSeeds(f *testing.F) {
 	specPath := filepath.Join("..", "..", "LANGUAGE.md")
+	// #nosec G304 -- path is a fixed repository location
 	data, err := os.ReadFile(specPath)
 	if err != nil {
 		return

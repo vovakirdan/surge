@@ -24,7 +24,7 @@ func ObserveTokenPair(e *Evidence, prev, tok token.Token) {
 			score = 6
 		}
 		e.Add(Hint{
-			Dialect: DialectRust,
+			Dialect: Rust,
 			Score:   score,
 			Reason:  reason,
 			Span:    prev.Span.Cover(tok.Span),
@@ -34,7 +34,7 @@ func ObserveTokenPair(e *Evidence, prev, tok token.Token) {
 	// Rust attribute syntax start: #[...]
 	if prev.Kind == token.Invalid && prev.Text == "#" && tok.Kind == token.LBracket && adjacent {
 		e.Add(Hint{
-			Dialect: DialectRust,
+			Dialect: Rust,
 			Score:   6,
 			Reason:  "rust attribute syntax `#[...]`",
 			Span:    prev.Span.Cover(tok.Span),
@@ -44,7 +44,7 @@ func ObserveTokenPair(e *Evidence, prev, tok token.Token) {
 	// Go short variable declaration: :=
 	if tok.Kind == token.ColonAssign {
 		e.Add(Hint{
-			Dialect: DialectGo,
+			Dialect: Go,
 			Score:   5,
 			Reason:  "go short variable declaration `:=`",
 			Span:    tok.Span,
@@ -56,7 +56,7 @@ func ObserveTokenPair(e *Evidence, prev, tok token.Token) {
 		switch prev.Text {
 		case "crate", "self", "super":
 			e.Add(Hint{
-				Dialect: DialectRust,
+				Dialect: Rust,
 				Score:   5,
 				Reason:  fmt.Sprintf("rust path syntax `%s::`", prev.Text),
 				Span:    prev.Span.Cover(tok.Span),

@@ -1,4 +1,4 @@
-package types
+package types //nolint:revive
 
 import "surge/internal/ast"
 
@@ -6,33 +6,52 @@ import "surge/internal/ast"
 type FamilyMask uint32
 
 const (
+	// FamilyNone indicates no type family.
 	FamilyNone FamilyMask = 0
-	FamilyAny  FamilyMask = 1 << iota
+	// FamilyAny indicates any type family.
+	FamilyAny FamilyMask = 1 << iota
+	// FamilyBool indicates boolean type family.
 	FamilyBool
+	// FamilySignedInt indicates signed integer type family.
 	FamilySignedInt
+	// FamilyUnsignedInt indicates unsigned integer type family.
 	FamilyUnsignedInt
+	// FamilyFloat indicates float type family.
 	FamilyFloat
+	// FamilyString indicates string type family.
 	FamilyString
+	// FamilyArray indicates array type family.
 	FamilyArray
+	// FamilyPointer indicates pointer type family.
 	FamilyPointer
+	// FamilyReference indicates reference type family.
 	FamilyReference
+	// FamilyOptional indicates optional type family.
 	FamilyOptional
+	// FamilyResult indicates result type family.
 	FamilyResult
 )
 
 const (
+	// FamilyIntegral represents integral types (signed and unsigned integers).
 	FamilyIntegral = FamilySignedInt | FamilyUnsignedInt
-	FamilyNumeric  = FamilyIntegral | FamilyFloat
+	// FamilyNumeric represents numeric types (integral and float).
+	FamilyNumeric = FamilyIntegral | FamilyFloat
 )
 
 // BinaryResult describes how to derive the result type for an operator.
 type BinaryResult uint8
 
 const (
+	// BinaryResultUnknown indicates the result type is unknown.
 	BinaryResultUnknown BinaryResult = iota
+	// BinaryResultLeft indicates the result type is the left operand type.
 	BinaryResultLeft
+	// BinaryResultRight indicates the result type is the right operand type.
 	BinaryResultRight
+	// BinaryResultBool indicates the result type is a boolean.
 	BinaryResultBool
+	// BinaryResultRange indicates the result type is a range.
 	BinaryResultRange
 )
 
@@ -40,7 +59,9 @@ const (
 type BinaryFlags uint16
 
 const (
-	BinaryFlagNone         BinaryFlags = 0
+	// BinaryFlagNone indicates no binary flags.
+	BinaryFlagNone BinaryFlags = 0
+	// BinaryFlagShortCircuit indicates a short-circuit binary operator.
 	BinaryFlagShortCircuit BinaryFlags = 1 << iota
 )
 

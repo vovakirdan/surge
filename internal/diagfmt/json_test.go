@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"fortio.org/safecast"
+
 	"surge/internal/diag"
 	"surge/internal/source"
 )
@@ -246,10 +248,18 @@ func TestJSONMaxLimit(t *testing.T) {
 
 	// Добавляем 5 диагностик
 	for i := range 5 {
+		start, err := safecast.Conv[uint32](i)
+		if err != nil {
+			t.Fatalf("start offset overflow: %v", err)
+		}
+		end, err := safecast.Conv[uint32](i + 1)
+		if err != nil {
+			t.Fatalf("end offset overflow: %v", err)
+		}
 		d := diag.New(
 			diag.SevError,
 			diag.LexUnknownChar,
-			source.Span{File: fileID, Start: uint32(i), End: uint32(i + 1)},
+			source.Span{File: fileID, Start: start, End: end},
 			"Error message",
 		)
 		bag.Add(d)

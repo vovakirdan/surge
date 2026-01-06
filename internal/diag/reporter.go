@@ -92,6 +92,7 @@ func (b *ReportBuilder) Diagnostic() *Diagnostic {
 // BagReporter — адаптер, который пишет в *Bag.
 type BagReporter struct{ Bag *Bag }
 
+// Report adds a diagnostic to the bag.
 func (r BagReporter) Report(code Code, sev Severity, primary source.Span, msg string, notes []Note, fixes []*Fix) {
 	if r.Bag == nil {
 		return

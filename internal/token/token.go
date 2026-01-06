@@ -4,6 +4,7 @@ import (
 	"surge/internal/source"
 )
 
+// Token represents a single source token with its location and trivia.
 type Token struct {
 	Kind    Kind
 	Span    source.Span
@@ -11,6 +12,7 @@ type Token struct {
 	Leading []Trivia
 }
 
+// IsLiteral reports whether the token is a numeric, boolean, or string literal.
 func (t Token) IsLiteral() bool {
 	switch t.Kind {
 	case NothingLit, IntLit, UintLit, FloatLit, BoolLit, StringLit, FStringLit:
@@ -20,6 +22,7 @@ func (t Token) IsLiteral() bool {
 	}
 }
 
+// IsPunctOrOp reports whether the token is a punctuation or operator.
 func (t Token) IsPunctOrOp() bool {
 	switch t.Kind {
 	case Plus, Minus, Star, Slash, Percent, Assign, PlusAssign, MinusAssign, StarAssign,
@@ -34,6 +37,7 @@ func (t Token) IsPunctOrOp() bool {
 	}
 }
 
+// IsKeyword reports whether the token is a language keyword.
 func (t Token) IsKeyword() bool {
 	switch t.Kind {
 	case KwFn, KwLet, KwConst, KwMut, KwOwn, KwIf, KwElse, KwWhile, KwFor, KwIn, KwBreak, KwContinue, KwReturn,
@@ -46,4 +50,5 @@ func (t Token) IsKeyword() bool {
 	}
 }
 
+// IsIdent reports whether the token is an identifier.
 func (t Token) IsIdent() bool { return t.Kind == Ident }

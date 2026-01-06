@@ -1,3 +1,4 @@
+// Package llvm implements the LLVM IR backend.
 package llvm
 
 type builtinDecl struct {

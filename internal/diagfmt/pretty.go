@@ -96,7 +96,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 
 	for idx, d := range bag.Items() {
 		if idx > 0 {
-			fmt.Fprintln(w) // пустая строка между диагностиками
+			fmt.Fprintln(w) //nolint:errcheck // пустая строка между диагностиками
 		}
 
 		lineColStart, lineColEnd := fs.Resolve(d.Primary)
@@ -119,7 +119,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 			sevColored = sevStr
 		}
 
-		fmt.Fprintf(w, "%s:%d:%d: %s %s: %s\n",
+		fmt.Fprintf(w, "%s:%d:%d: %s %s: %s\n", //nolint:errcheck
 			pathColor.Sprint(displayPath),
 			lineColStart.Line,
 			lineColStart.Col,
@@ -133,7 +133,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 		if err != nil {
 			panic(fmt.Errorf("total lines overflow: %w", err))
 		}
-		totalLines += 1
+		totalLines++
 		if len(f.LineIdx) == 0 && len(f.Content) > 0 {
 			totalLines = 1
 		}
@@ -150,7 +150,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 
 		// Если это не первая строка файла, показываем "..."
 		if startLine > 1 {
-			fmt.Fprintln(w, "...")
+			fmt.Fprintln(w, "...") //nolint:errcheck
 		}
 
 		// Выводим строки контекста
@@ -227,13 +227,13 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 					}
 				}
 
-				fmt.Fprintln(w, underlineColor.Sprint(underline.String()))
+				fmt.Fprintln(w, underlineColor.Sprint(underline.String())) //nolint:errcheck
 			}
 		}
 
 		// Если это не последняя строка файла, показываем "..."
 		if endLine < totalLines {
-			fmt.Fprintln(w, "...")
+			fmt.Fprintln(w, "...") //nolint:errcheck
 		}
 
 		// Заглушки для Notes и Fixes
@@ -246,7 +246,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 				nf := fs.Get(note.Span.File)
 				notePath := formatPath(nf)
 				noteStart, _ := fs.Resolve(note.Span)
-				fmt.Fprintf(
+				fmt.Fprintf( //nolint:errcheck
 					w,
 					"  %s: %s:%d:%d: %s\n",
 					infoColor.Sprint("note"),
@@ -281,7 +281,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 			for i, fix := range fixes {
 				resolved, err := fix.Resolve(ctx)
 				if err != nil {
-					fmt.Fprintf(
+					fmt.Fprintf( //nolint:errcheck
 						w,
 						"  %s #%d: %s (build error: %v)\n",
 						fixLabelColor.Sprint("fix"),
@@ -302,7 +302,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 				if resolved.ID != "" {
 					meta = append(meta, "id="+resolved.ID)
 				}
-				fmt.Fprintf(
+				fmt.Fprintf( //nolint:errcheck
 					w,
 					"  %s #%d: %s (%s)\n",
 					fixLabelColor.Sprint("fix"),
@@ -312,7 +312,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 				)
 
 				if len(resolved.Edits) == 0 {
-					fmt.Fprintf(w, "      (no edits)\n")
+					fmt.Fprintf(w, "      (no edits)\n") //nolint:errcheck
 					continue
 				}
 
@@ -333,7 +333,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 						metaParts = append(metaParts, fmt.Sprintf("expect=%q", oldPreview))
 					}
 					metaParts = append(metaParts, fmt.Sprintf("apply=%q", newPreview))
-					fmt.Fprintf(
+					fmt.Fprintf( //nolint:errcheck
 						w,
 						"      %s:%d:%d-%d:%d %s\n",
 						pathColor.Sprint(editPath),
@@ -347,7 +347,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 					if opts.ShowPreview {
 						preview, err := buildFixEditPreview(fs, edit)
 						if err != nil {
-							fmt.Fprintf(
+							fmt.Fprintf( //nolint:errcheck
 								w,
 								"        preview unavailable: %v\n",
 								err,
@@ -355,7 +355,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 							continue
 						}
 
-						fmt.Fprintf(
+						fmt.Fprintf( //nolint:errcheck
 							w,
 							"      %s\n",
 							previewLabel.Sprint("preview:"),
@@ -363,7 +363,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 
 						printPreviewSection := func(label string, marker string, lines []string, colorizer *color.Color) {
 							if len(lines) == 0 {
-								fmt.Fprintf(
+								fmt.Fprintf( //nolint:errcheck
 									w,
 									"        %s %s\n",
 									label,
@@ -371,7 +371,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 								)
 								return
 							}
-							fmt.Fprintf(
+							fmt.Fprintf( //nolint:errcheck
 								w,
 								"        %s\n",
 								label,
@@ -381,7 +381,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 								if display == "" {
 									display = "(blank)"
 								}
-								fmt.Fprintf(
+								fmt.Fprintf( //nolint:errcheck
 									w,
 									"          %s %s\n",
 									colorizer.Sprint(marker),
@@ -419,7 +419,7 @@ func printTimingNote(w io.Writer, payload string, infoColor *color.Color) bool {
 	if kind == "" {
 		kind = "pipeline"
 	}
-	fmt.Fprintf(
+	fmt.Fprintf( //nolint:errcheck
 		w,
 		"  %s: timings (%s) total %.2f ms",
 		infoColor.Sprint("note"),
@@ -427,18 +427,18 @@ func printTimingNote(w io.Writer, payload string, infoColor *color.Color) bool {
 		data.TotalMS,
 	)
 	if data.Path != "" {
-		fmt.Fprintf(w, " — %s", data.Path)
+		fmt.Fprintf(w, " — %s", data.Path) //nolint:errcheck
 	}
-	fmt.Fprintln(w)
+	fmt.Fprintln(w) //nolint:errcheck
 	for _, phase := range data.Phases {
 		if phase.Name == "" {
 			continue
 		}
-		fmt.Fprintf(w, "      %-20s %7.2f ms", phase.Name, phase.DurationMS)
+		fmt.Fprintf(w, "      %-20s %7.2f ms", phase.Name, phase.DurationMS) //nolint:errcheck
 		if phase.Note != "" {
-			fmt.Fprintf(w, "  // %s", phase.Note)
+			fmt.Fprintf(w, "  // %s", phase.Note) //nolint:errcheck
 		}
-		fmt.Fprintln(w)
+		fmt.Fprintln(w) //nolint:errcheck
 	}
 	return true
 }

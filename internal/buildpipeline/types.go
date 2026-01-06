@@ -6,22 +6,32 @@ import "time"
 type Stage string
 
 const (
-	StageParse    Stage = "parse"
+	// StageParse is the parsing stage.
+	StageParse Stage = "parse"
+	// StageDiagnose is the diagnose stage.
 	StageDiagnose Stage = "diagnose"
-	StageLower    Stage = "lower"
-	StageBuild    Stage = "build"
-	StageLink     Stage = "link"
-	StageRun      Stage = "run"
+	// StageLower is the lower stage.
+	StageLower Stage = "lower"
+	// StageBuild is the build stage.
+	StageBuild Stage = "build"
+	// StageLink is the link stage.
+	StageLink Stage = "link"
+	// StageRun is the run stage.
+	StageRun Stage = "run"
 )
 
 // Status captures progress state within a stage.
 type Status string
 
 const (
-	StatusQueued  Status = "queued"
+	// StatusQueued indicates the task is waiting to start.
+	StatusQueued Status = "queued"
+	// StatusWorking indicates the task is currently working.
 	StatusWorking Status = "working"
-	StatusDone    Status = "done"
-	StatusError   Status = "error"
+	// StatusDone indicates the task is done.
+	StatusDone Status = "done"
+	// StatusError indicates the task encountered an error.
+	StatusError Status = "error"
 )
 
 // Event reports progress for a file (or for the overall pipeline when File is empty).
@@ -42,7 +52,9 @@ type ProgressSink interface {
 type Backend string
 
 const (
-	BackendVM   Backend = "vm"
+	// BackendVM selects the interpreter backend.
+	BackendVM Backend = "vm"
+	// BackendLLVM selects the LLVM backend.
 	BackendLLVM Backend = "llvm"
 )
 

@@ -21,7 +21,9 @@ const NoBorrowID BorrowID = 0
 type BorrowKind uint8
 
 const (
+	// BorrowShared represents a shared borrow.
 	BorrowShared BorrowKind = iota
+	// BorrowMut represents a mutable borrow.
 	BorrowMut
 )
 
@@ -32,8 +34,11 @@ type placeKey string
 type PlaceSegmentKind uint8
 
 const (
+	// PlaceSegmentField represents a field access segment.
 	PlaceSegmentField PlaceSegmentKind = iota
+	// PlaceSegmentIndex represents an index access segment.
 	PlaceSegmentIndex
+	// PlaceSegmentDeref represents a dereference segment.
 	PlaceSegmentDeref
 )
 
@@ -78,10 +83,15 @@ type borrowState struct {
 type BorrowIssueKind uint8
 
 const (
+	// BorrowIssueNone indicates no borrow issue.
 	BorrowIssueNone BorrowIssueKind = iota
+	// BorrowIssueConflictShared indicates a conflict with a shared borrow.
 	BorrowIssueConflictShared
+	// BorrowIssueConflictMut indicates a conflict with a mutable borrow.
 	BorrowIssueConflictMut
+	// BorrowIssueFrozen indicates a frozen borrow.
 	BorrowIssueFrozen
+	// BorrowIssueTaken indicates a taken borrow.
 	BorrowIssueTaken
 )
 
@@ -409,6 +419,7 @@ func dropBorrowID(ids []BorrowID, target BorrowID) []BorrowID {
 	return ids
 }
 
+// DropBorrow removes a borrow from the table and expires its lifetime.
 func (bt *BorrowTable) DropBorrow(id BorrowID) {
 	if bt == nil || id == NoBorrowID {
 		return

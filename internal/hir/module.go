@@ -41,11 +41,17 @@ type TypeDecl struct {
 type TypeDeclKind uint8
 
 const (
+	// TypeDeclStruct represents a struct declaration in HIR.
 	TypeDeclStruct TypeDeclKind = iota
+	// TypeDeclUnion represents a union declaration in HIR.
 	TypeDeclUnion
+	// TypeDeclEnum represents an enum declaration in HIR.
 	TypeDeclEnum
+	// TypeDeclAlias represents a type alias declaration in HIR.
 	TypeDeclAlias
+	// TypeDeclTag represents a tag declaration in HIR.
 	TypeDeclTag
+	// TypeDeclContract represents a contract declaration in HIR.
 	TypeDeclContract
 )
 

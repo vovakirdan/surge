@@ -6,28 +6,46 @@ import (
 	"surge/internal/types"
 )
 
+// FuncID identifies a function in MIR.
 type FuncID int32
+
+// BlockID identifies a basic block in MIR.
 type BlockID int32
+
+// LocalID identifies a local variable in MIR.
 type LocalID int32
+
+// GlobalID identifies a global variable in MIR.
 type GlobalID int32
 
 const (
-	NoFuncID   FuncID   = -1
-	NoBlockID  BlockID  = -1
-	NoLocalID  LocalID  = -1
+	// NoFuncID indicates no function.
+	NoFuncID FuncID = -1
+	// NoBlockID indicates no block.
+	NoBlockID BlockID = -1
+	// NoLocalID indicates no local.
+	NoLocalID LocalID = -1
+	// NoGlobalID indicates no global.
 	NoGlobalID GlobalID = -1
 )
 
+// LocalFlags represents flags for local variables.
 type LocalFlags uint8
 
 const (
+	// LocalFlagCopy indicates a copy local flag.
 	LocalFlagCopy LocalFlags = 1 << iota
+	// LocalFlagOwn indicates an own local flag.
 	LocalFlagOwn
+	// LocalFlagRef indicates a reference local flag.
 	LocalFlagRef
+	// LocalFlagRefMut indicates a mutable reference local flag.
 	LocalFlagRefMut
+	// LocalFlagPtr indicates a pointer local flag.
 	LocalFlagPtr
 )
 
+// Local represents a local variable in MIR.
 type Local struct {
 	Sym   symbols.SymbolID
 	Type  types.TypeID
@@ -36,14 +54,19 @@ type Local struct {
 	Span  source.Span
 }
 
+// PlaceProjKind distinguishes place projection kinds.
 type PlaceProjKind uint8
 
 const (
+	// PlaceProjDeref represents a dereference projection.
 	PlaceProjDeref PlaceProjKind = iota
+	// PlaceProjField represents a field projection.
 	PlaceProjField
+	// PlaceProjIndex represents an index projection.
 	PlaceProjIndex
 )
 
+// PlaceProj represents a place projection.
 type PlaceProj struct {
 	Kind PlaceProjKind
 
@@ -52,13 +75,17 @@ type PlaceProj struct {
 	IndexLocal LocalID
 }
 
+// PlaceKind distinguishes place kinds.
 type PlaceKind uint8
 
 const (
+	// PlaceLocal represents a local place.
 	PlaceLocal PlaceKind = iota
+	// PlaceGlobal represents a global place.
 	PlaceGlobal
 )
 
+// Place represents a memory place in MIR.
 type Place struct {
 	Kind   PlaceKind
 	Local  LocalID
@@ -66,6 +93,7 @@ type Place struct {
 	Proj   []PlaceProj
 }
 
+// IsValid reports whether the place is valid.
 func (p Place) IsValid() bool {
 	switch p.Kind {
 	case PlaceGlobal:

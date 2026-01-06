@@ -32,8 +32,8 @@ var (
 	versionPatchColor = color.New(color.FgBlue, color.Bold)
 )
 
-// VersionString returns the plain semantic version string.
-func VersionString() string {
+// String returns the plain semantic version string.
+func String() string {
 	return strings.TrimSpace(BaseVersion) + strings.TrimSpace(PreRelease)
 }
 
