@@ -254,7 +254,11 @@ func TestLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		if removeErr := os.Remove(tempFile.Name()); removeErr != nil {
+			t.Fatalf("Failed to remove temp file: %v", removeErr)
+		}
+	}()
 
 	// запишем в него "a\nb\n"
 	_, err = tempFile.WriteString("a\nb\n")
@@ -266,7 +270,10 @@ func TestLoad(t *testing.T) {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
 
-	fs.Load(tempFile.Name())
+	_, err = fs.Load(tempFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to load temp file: %v", err)
+	}
 	file := fs.Get(0)
 	if string(file.Content) != "a\nb\n" {
 		t.Errorf("Expected file content 'a\nb\n', got %q", string(file.Content))
@@ -286,7 +293,11 @@ func TestLoadBOM(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		if removeErr := os.Remove(tempFile.Name()); removeErr != nil {
+			t.Fatalf("Failed to remove temp file: %v", removeErr)
+		}
+	}()
 	// запишем в него BOM + "a\nb\n"
 	_, err = tempFile.WriteString("\xEF\xBB\xBFa\nb\n")
 	if err != nil {
@@ -297,7 +308,10 @@ func TestLoadBOM(t *testing.T) {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
 
-	fs.Load(tempFile.Name())
+	_, err = fs.Load(tempFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to load temp file: %v", err)
+	}
 	file := fs.Get(0)
 	if string(file.Content) != "a\nb\n" {
 		t.Errorf("Expected file content 'a\nb\n', got %q", string(file.Content))

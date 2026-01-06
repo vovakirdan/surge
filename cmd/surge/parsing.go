@@ -128,7 +128,10 @@ func runParse(cmd *cobra.Command, args []string) error {
 			}
 
 			if !quiet {
-				fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
+				_, printErr := fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
+				if printErr != nil {
+					return printErr
+				}
 			}
 
 			if r.Builder != nil {
@@ -138,7 +141,10 @@ func runParse(cmd *cobra.Command, args []string) error {
 			}
 
 			if !quiet && idx < len(results)-1 {
-				fmt.Fprintln(os.Stdout)
+				_, printErr := fmt.Fprintln(os.Stdout)
+				if printErr != nil {
+					return printErr
+				}
 			}
 		}
 	case "json":
@@ -182,7 +188,10 @@ func runParse(cmd *cobra.Command, args []string) error {
 			}
 
 			if !quiet {
-				fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
+				_, printErr := fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
+				if printErr != nil {
+					return printErr
+				}
 			}
 
 			if r.Builder != nil {
@@ -192,7 +201,10 @@ func runParse(cmd *cobra.Command, args []string) error {
 			}
 
 			if !quiet && idx < len(results)-1 {
-				fmt.Fprintln(os.Stdout)
+				_, printErr := fmt.Fprintln(os.Stdout)
+				if printErr != nil {
+					return printErr
+				}
 			}
 		}
 	default:

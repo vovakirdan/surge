@@ -101,16 +101,29 @@ func collectVersionInfo() versionInfo {
 
 func renderVersionPretty(out io.Writer, info versionInfo, opts versionOptions) {
 	coloredVersionTagline := versionTaglineColor.Sprint(versionTagline)
-	fmt.Fprintf(out, "surge %s — %s\n", info.Version, coloredVersionTagline)
+	var printErr error
+	_, printErr = fmt.Fprintf(out, "surge %s — %s\n", info.Version, coloredVersionTagline)
+	if printErr != nil {
+		panic(printErr)
+	}
 
 	if opts.showHash {
-		fmt.Fprintf(out, "commit: %s\n", valueOrUnknown(info.GitCommit, commitColor))
+		_, printErr = fmt.Fprintf(out, "commit: %s\n", valueOrUnknown(info.GitCommit, commitColor))
+		if printErr != nil {
+			panic(printErr)
+		}
 	}
 	if opts.showMessage {
-		fmt.Fprintf(out, "message: %s\n", valueOrUnknown(info.GitMessage, messageColor))
+		_, printErr = fmt.Fprintf(out, "message: %s\n", valueOrUnknown(info.GitMessage, messageColor))
+		if printErr != nil {
+			panic(printErr)
+		}
 	}
 	if opts.showDate {
-		fmt.Fprintf(out, "built:  %s\n", valueOrUnknown(info.BuildDate, dateColor))
+		_, printErr = fmt.Fprintf(out, "built:  %s\n", valueOrUnknown(info.BuildDate, dateColor))
+		if printErr != nil {
+			panic(printErr)
+		}
 	}
 }
 

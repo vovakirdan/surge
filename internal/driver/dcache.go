@@ -131,7 +131,11 @@ func (c *DiskCache) Get(key project.Digest, out *DiskPayload) (bool, error) {
 		}
 		return false, err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			panic(closeErr)
+		}
+	}()
 	dec := msgpack.NewDecoder(f)
 	if err := dec.Decode(out); err != nil {
 		return false, err

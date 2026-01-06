@@ -44,6 +44,8 @@ func (i *Inspector) Heap() {
 // PrintLocal prints the value of a specific local by name or ID.
 func (i *Inspector) PrintLocal(spec string) bool {
 
+	var printErr error
+
 	if i == nil || i.out == nil {
 		return false
 	}
@@ -52,18 +54,27 @@ func (i *Inspector) PrintLocal(spec string) bool {
 		return false
 	}
 	if i.vm == nil || len(i.vm.Stack) == 0 {
-		fmt.Fprintf(i.out, "error: unknown local '%s'\n", spec)
+		_, printErr = fmt.Fprintf(i.out, "error: unknown local '%s'\n", spec)
+		if printErr != nil {
+			panic(printErr)
+		}
 		return false
 	}
 
 	frame := &i.vm.Stack[len(i.vm.Stack)-1]
 	slot, label, ok := i.findLocal(frame, spec)
 	if !ok {
-		fmt.Fprintf(i.out, "error: unknown local '%s'\n", spec)
+		_, printErr = fmt.Fprintf(i.out, "error: unknown local '%s'\n", spec)
+		if printErr != nil {
+			panic(printErr)
+		}
 		return false
 	}
 
-	fmt.Fprintf(i.out, "%s = %s\n", label, i.localValueString(slot))
+	_, printErr = fmt.Fprintf(i.out, "%s = %s\n", label, i.localValueString(slot))
+	if printErr != nil {
+		panic(printErr)
+	}
 	return true
 }
 

@@ -20,7 +20,9 @@ func createTestFile(t *testing.T, name string, content []byte) (string, func()) 
 		t.Fatalf("failed to create test file: %v", err)
 	}
 	cleanup := func() {
-		os.Remove(path)
+		if removeErr := os.Remove(path); removeErr != nil {
+			t.Fatalf("failed to remove test file: %v", removeErr)
+		}
 	}
 	return path, cleanup
 }

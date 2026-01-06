@@ -85,6 +85,14 @@ func runInit(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write manifest: %w", err)
 	}
 
+	// Create .gitignore file if not exists
+	gitignorePath := filepath.Join(target, ".gitignore")
+	if _, err := os.Stat(gitignorePath); errors.Is(err, os.ErrNotExist) {
+		if err := os.WriteFile(gitignorePath, []byte(defaultGitignore()), 0o600); err != nil {
+			return fmt.Errorf("failed to write .gitignore: %w", err)
+		}
+	}
+
 	// Create main.sg if not exists
 	mainPath := filepath.Join(target, "main.sg")
 	createdMain := false
@@ -101,12 +109,24 @@ func runInit(_ *cobra.Command, args []string) error {
 			rel = r
 		}
 	}
-	fmt.Fprintf(os.Stdout, "Initialized surge project in %s\n", rel)
-	fmt.Fprintf(os.Stdout, "  - surge.toml\n")
+	_, printErr := fmt.Fprintf(os.Stdout, "Initialized surge project in %s\n", rel)
+	if printErr != nil {
+		return printErr
+	}
+	_, printErr = fmt.Fprintf(os.Stdout, "  - surge.toml\n")
+	if printErr != nil {
+		return printErr
+	}
 	if createdMain {
-		fmt.Fprintf(os.Stdout, "  - main.sg\n")
+		_, printErr = fmt.Fprintf(os.Stdout, "  - main.sg\n")
+		if printErr != nil {
+			return printErr
+		}
 	} else {
-		fmt.Fprintf(os.Stdout, "  - main.sg (existing)\n")
+		_, printErr = fmt.Fprintf(os.Stdout, "  - main.sg (existing)\n")
+		if printErr != nil {
+			return printErr
+		}
 	}
 	return nil
 }
@@ -129,13 +149,12 @@ main = "main.sg"
 // The returned source includes a `hello_world` function, a `main` entry that prints its result,
 // and an embedded test directive demonstrating the expected output.
 func defaultMainSG() string {
-	return `// Surge hello world (placeholder)
-// Replace with real output once stdlib/runtime is available.
+	return `import stdlib/directives::test;
 
 // Sure, you can run test directives!
 /// test:
 /// HelloWorld:
-/// test.eq(hello_world(), "Hello, Surge!");
+/// test.eq::<string>(hello_world(), "Hello, Surge!");
 fn hello_world() -> string {
     return "Hello, Surge!";
 }
@@ -143,5 +162,19 @@ fn hello_world() -> string {
 fn main() {
     print(hello_world());
 }
+`
+}
+
+// defaultGitignore returns the default .gitignore file used when initializing a new project.
+func defaultGitignore() string {
+	return `# Surge project
+*.o
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Surge build artifacts
+target/
 `
 }

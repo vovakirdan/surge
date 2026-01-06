@@ -57,7 +57,10 @@ func Dump(w io.Writer, m *InstantiationMap, fs *source.FileSet, syms *symbols.Re
 			kindLabel = "tag"
 		}
 
-		fmt.Fprintf(w, "%s %s%s  uses=%d\n", kindLabel, symbolName(syms, strs, e.Key.Sym), formatTypeArgs(typesIn, strs, e.TypeArgs), len(e.UseSites))
+		_, printErr := fmt.Fprintf(w, "%s %s%s  uses=%d\n", kindLabel, symbolName(syms, strs, e.Key.Sym), formatTypeArgs(typesIn, strs, e.TypeArgs), len(e.UseSites))
+		if printErr != nil {
+			return printErr
+		}
 
 		useSites := slicesClone(e.UseSites)
 		sort.SliceStable(useSites, func(i, j int) bool {
@@ -80,7 +83,10 @@ func Dump(w io.Writer, m *InstantiationMap, fs *source.FileSet, syms *symbols.Re
 			if note == "" {
 				note = "_"
 			}
-			fmt.Fprintf(w, "  - at %s caller=%s note=%s\n", at, caller, note)
+			_, printErr = fmt.Fprintf(w, "  - at %s caller=%s note=%s\n", at, caller, note)
+			if printErr != nil {
+				return printErr
+			}
 		}
 	}
 	return nil

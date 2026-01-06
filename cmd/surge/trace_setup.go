@@ -121,10 +121,16 @@ func setupTracing(cmd *cobra.Command) (func(), error) {
 		}
 
 		if err := tracer.Flush(); err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "trace: flush error: %v\n", err)
+			_, printErr := fmt.Fprintf(cmd.ErrOrStderr(), "trace: flush error: %v\n", err)
+			if printErr != nil {
+				panic(printErr)
+			}
 		}
 		if err := tracer.Close(); err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "trace: close error: %v\n", err)
+			_, printErr := fmt.Fprintf(cmd.ErrOrStderr(), "trace: close error: %v\n", err)
+			if printErr != nil {
+				panic(printErr)
+			}
 		}
 	}
 
@@ -164,22 +170,38 @@ func dumpTraceOnPanic() {
 				dumpPath := generateDumpPath(panicOutputPath, "panic")
 				if f, err := os.Create(dumpPath); err == nil {
 					if dumpErr := rt.Dump(f, trace.FormatText); dumpErr != nil {
-						fmt.Fprintf(os.Stderr, "trace: dump error: %v\n", dumpErr)
+						_, printErr := fmt.Fprintf(os.Stderr, "trace: dump error: %v\n", dumpErr)
+						if printErr != nil {
+							panic(printErr)
+						}
 					} else {
-						fmt.Fprintf(os.Stderr, "trace: ring buffer saved to %s\n", dumpPath)
+						_, printErr := fmt.Fprintf(os.Stderr, "trace: ring buffer saved to %s\n", dumpPath)
+						if printErr != nil {
+							panic(printErr)
+						}
 					}
-					f.Close()
+					if closeErr := f.Close(); closeErr != nil {
+						panic(closeErr)
+					}
 				} else {
-					fmt.Fprintf(os.Stderr, "trace: failed to create dump file: %v\n", err)
+					if _, printErr := fmt.Fprintf(os.Stderr, "trace: failed to create dump file: %v\n", err); printErr != nil {
+						panic(printErr)
+					}
 				}
 			}
 
 			// Flush and close tracer
 			if err := panicTracer.Flush(); err != nil {
-				fmt.Fprintf(os.Stderr, "trace: flush error: %v\n", err)
+				_, printErr := fmt.Fprintf(os.Stderr, "trace: flush error: %v\n", err)
+				if printErr != nil {
+					panic(printErr)
+				}
 			}
 			if err := panicTracer.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "trace: close error: %v\n", err)
+				_, printErr := fmt.Fprintf(os.Stderr, "trace: close error: %v\n", err)
+				if printErr != nil {
+					panic(printErr)
+				}
 			}
 		}
 
@@ -240,18 +262,28 @@ func setupSignalHandler(tracer trace.Tracer, outputPath string, heartbeat *trace
 				} else {
 					fmt.Fprintf(os.Stderr, "trace: ring buffer saved to %s\n", dumpPath)
 				}
-				f.Close()
+				if closeErr := f.Close(); closeErr != nil {
+					panic(closeErr)
+				}
 			} else {
-				fmt.Fprintf(os.Stderr, "trace: failed to create dump file: %v\n", err)
+				if _, printErr := fmt.Fprintf(os.Stderr, "trace: failed to create dump file: %v\n", err); printErr != nil {
+					panic(printErr)
+				}
 			}
 		}
 
 		// Flush and close tracer
 		if err := tracer.Flush(); err != nil {
-			fmt.Fprintf(os.Stderr, "trace: flush error: %v\n", err)
+			_, printErr := fmt.Fprintf(os.Stderr, "trace: flush error: %v\n", err)
+			if printErr != nil {
+				panic(printErr)
+			}
 		}
 		if err := tracer.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "trace: close error: %v\n", err)
+			_, printErr := fmt.Fprintf(os.Stderr, "trace: close error: %v\n", err)
+			if printErr != nil {
+				panic(printErr)
+			}
 		}
 
 		// Exit with signal-appropriate code
