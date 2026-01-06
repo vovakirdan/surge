@@ -115,21 +115,19 @@ jobs:
       - name: Install LLVM toolchain
         run: sudo apt-get update && sudo apt-get install -y clang llvm lld
       - name: Build with sanitizers
-        env:
-          CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g
         run: |
           cd runtime/native
+          CFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g"
           for f in *.c; do
             clang -std=c11 -I. $CFLAGS -c "$$f" -o "/tmp/$${f%.c}.o" || exit 1
           done
       - name: Run tests with sanitizers
         env:
           SURGE_BACKEND: llvm
-          CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g
         run: |
           # Build surge with sanitized runtime
           export CC=clang
-          export CGO_CFLAGS="$$CFLAGS"
+          export CGO_CFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g"
           go test ./internal/backend/llvm/... -timeout 60s || true
           # Run a subset of testdata to verify runtime works
           go test ./... -run TestRuntime -timeout 60s || true
