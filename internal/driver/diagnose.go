@@ -59,11 +59,11 @@ const (
 	// DiagnoseStageTokenize runs only the lexer.
 	DiagnoseStageTokenize DiagnoseStage = "tokenize"
 	// DiagnoseStageSyntax runs up to the parser.
-	DiagnoseStageSyntax   DiagnoseStage = "syntax"
+	DiagnoseStageSyntax DiagnoseStage = "syntax"
 	// DiagnoseStageSema runs semantic analysis.
-	DiagnoseStageSema     DiagnoseStage = "sema"
+	DiagnoseStageSema DiagnoseStage = "sema"
 	// DiagnoseStageAll runs the full compilation pipeline.
-	DiagnoseStageAll      DiagnoseStage = "all"
+	DiagnoseStageAll DiagnoseStage = "all"
 )
 
 // DiagnoseOptions содержит опции для диагностики

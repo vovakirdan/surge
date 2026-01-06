@@ -2,8 +2,9 @@ package token
 
 import "surge/internal/source"
 
-//go:generate stringer -type=TriviaKind -trimprefix=Trivia
 // Directive represents a source-level directive comment (e.g. //@test).
+//
+//go:generate stringer -type=TriviaKind -trimprefix=Trivia
 type Directive struct {
 	Module  string
 	Name    string

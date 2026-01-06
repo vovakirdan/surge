@@ -34,6 +34,7 @@ const (
 
 // LoanID identifies a unique loan.
 type LoanID int32
+
 // EventID identifies a borrow event.
 type EventID int32
 

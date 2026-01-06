@@ -2,9 +2,9 @@ package source
 
 type (
 	// FileID uniquely identifies a source file within a FileSet.
-	FileID    uint32 // просто ID источника
+	FileID uint32 // просто ID источника
 	// FileFlags encodes metadata about a source file.
-	FileFlags uint8  // метаданные
+	FileFlags uint8 // метаданные
 )
 
 const (

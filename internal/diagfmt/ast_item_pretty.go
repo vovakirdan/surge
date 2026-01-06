@@ -245,41 +245,41 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 							}
 						}
 						entries += len(structFields)
-							if entries == 0 {
-								fmt.Fprintf(w, "%s<empty>\n", bodyPrefix)
-								return nil
+						if entries == 0 {
+							fmt.Fprintf(w, "%s<empty>\n", bodyPrefix)
+							return nil
+						}
+						current := 0
+						if structDecl.Base.IsValid() {
+							current++
+							marker := "├─"
+							if current == entries {
+								marker = "└─"
 							}
-							current := 0
-							if structDecl.Base.IsValid() {
-								current++
-								marker := "├─"
-								if current == entries {
-									marker = "└─"
-								}
-								fmt.Fprintf(w, "%s%s Base: %s\n", bodyPrefix, marker, formatTypeExprInline(builder, structDecl.Base))
+							fmt.Fprintf(w, "%s%s Base: %s\n", bodyPrefix, marker, formatTypeExprInline(builder, structDecl.Base))
+						}
+						for idx, field := range structFields {
+							current++
+							marker := "├─"
+							if current == entries {
+								marker = "└─"
 							}
-							for idx, field := range structFields {
-								current++
-								marker := "├─"
-								if current == entries {
-									marker = "└─"
-								}
-								fieldLine := fmt.Sprintf("Field[%d]: %s: %s", idx, lookupStringOr(builder, field.Name, "<field>"), formatTypeExprInline(builder, field.Type))
-								if field.Default.IsValid() {
-									fieldLine += " = " + formatExprInline(builder, field.Default)
-								}
-								if field.AttrCount > 0 {
-									attrList := builder.Items.CollectAttrs(field.AttrStart, field.AttrCount)
-									if len(attrList) > 0 {
-										attrStrings := make([]string, 0, len(attrList))
-										for _, attr := range attrList {
-											attrStrings = append(attrStrings, formatAttrInline(builder, attr))
-										}
-										fieldLine += " [" + strings.Join(attrStrings, ", ") + "]"
+							fieldLine := fmt.Sprintf("Field[%d]: %s: %s", idx, lookupStringOr(builder, field.Name, "<field>"), formatTypeExprInline(builder, field.Type))
+							if field.Default.IsValid() {
+								fieldLine += " = " + formatExprInline(builder, field.Default)
+							}
+							if field.AttrCount > 0 {
+								attrList := builder.Items.CollectAttrs(field.AttrStart, field.AttrCount)
+								if len(attrList) > 0 {
+									attrStrings := make([]string, 0, len(attrList))
+									for _, attr := range attrList {
+										attrStrings = append(attrStrings, formatAttrInline(builder, attr))
 									}
+									fieldLine += " [" + strings.Join(attrStrings, ", ") + "]"
 								}
-								fmt.Fprintf(w, "%s%s %s\n", bodyPrefix, marker, fieldLine)
 							}
+							fmt.Fprintf(w, "%s%s %s\n", bodyPrefix, marker, fieldLine)
+						}
 						return nil
 					}
 				}
@@ -302,16 +302,16 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 							}
 						}
 						if len(members) == 0 {
-								fmt.Fprintf(w, "%s<empty>\n", bodyPrefix)
-								return nil
+							fmt.Fprintf(w, "%s<empty>\n", bodyPrefix)
+							return nil
+						}
+						for idx, member := range members {
+							marker := "├─"
+							if idx == len(members)-1 {
+								marker = "└─"
 							}
-							for idx, member := range members {
-								marker := "├─"
-								if idx == len(members)-1 {
-									marker = "└─"
-								}
-								fmt.Fprintf(w, "%s%s %s\n", bodyPrefix, marker, formatUnionMemberInline(builder, member, idx))
-							}
+							fmt.Fprintf(w, "%s%s %s\n", bodyPrefix, marker, formatUnionMemberInline(builder, member, idx))
+						}
 						return nil
 					}
 				}
