@@ -155,6 +155,7 @@ func isExportableKind(kind SymbolKind) bool {
 	}
 }
 
+// CloneTypeParamSymbols produces a deep copy of the type parameter symbol slice.
 func CloneTypeParamSymbols(params []TypeParamSymbol) []TypeParamSymbol {
 	if len(params) == 0 {
 		return nil

@@ -419,7 +419,7 @@ func (tc *typeChecker) maybeRecordRustImplicitReturn(fn *ast.FnItem, returnType 
 		file.DialectEvidence = ev
 	}
 	ev.Add(dialect.Hint{
-		Dialect: dialect.DialectRust,
+		Dialect: dialect.Rust,
 		Score:   6,
 		Reason:  "implicit return without ';' at block end",
 		Span:    span,

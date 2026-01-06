@@ -27,6 +27,7 @@ func NewDedupReporter(next Reporter) *DedupReporter {
 	}
 }
 
+// Report filters out duplicate diagnostics and forwards unique ones.
 func (r *DedupReporter) Report(code Code, sev Severity, primary source.Span, msg string, notes []Note, fixes []*Fix) {
 	if r == nil {
 		return

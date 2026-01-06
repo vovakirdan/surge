@@ -25,7 +25,6 @@ func NewScopes(capacity uint32) *Scopes {
 }
 
 // New allocates a new scope and returns its ID.
-
 func (s *Scopes) New(kind ScopeKind, parent ScopeID, owner ScopeOwner, span source.Span) ScopeID {
 	value, err := safecast.Conv[uint32](len(s.data))
 	if err != nil {

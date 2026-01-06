@@ -1,14 +1,17 @@
 package diagfmt
 
+// PathMode specifies how file paths are displayed.
 type PathMode uint8
 
 const (
+	// PathModeAuto chooses relative or absolute path automatically.
 	PathModeAuto PathMode = iota
 	PathModeAbsolute
 	PathModeRelative
 	PathModeBasename
 )
 
+// PrettyOpts configures pretty-printing of diagnostics.
 type PrettyOpts struct {
 	Color       bool
 	Context     int8
@@ -19,6 +22,7 @@ type PrettyOpts struct {
 	ShowPreview bool
 }
 
+// JSONOpts configures JSON output of diagnostics.
 type JSONOpts struct {
 	IncludePositions bool // добавить line/col
 	PathMode         PathMode
@@ -29,6 +33,7 @@ type JSONOpts struct {
 	IncludeSemantics bool
 }
 
+// SarifRunMeta provides metadata for SARIF output.
 type SarifRunMeta struct {
 	ToolName       string
 	ToolVersion    string

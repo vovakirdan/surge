@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Phase records the duration and metadata of a compilation phase.
 type Phase struct {
 	Name  string
 	Start time.Time
@@ -12,17 +13,21 @@ type Phase struct {
 	Note  string
 }
 
+// Timer tracks the execution time of multiple compilation phases.
 type Timer struct {
 	phases []Phase
 }
 
+// NewTimer creates a new empty Timer.
 func NewTimer() *Timer { return &Timer{phases: make([]Phase, 0, 8)} }
 
+// Begin starts a new phase and returns its index.
 func (t *Timer) Begin(name string) int {
 	t.phases = append(t.phases, Phase{Name: name, Start: time.Now()})
 	return len(t.phases) - 1
 }
 
+// End finishes a phase by its index.
 func (t *Timer) End(idx int, note string) {
 	if idx < 0 || idx >= len(t.phases) {
 		return
@@ -32,6 +37,7 @@ func (t *Timer) End(idx int, note string) {
 	p.Note = note
 }
 
+// Summary returns a human-readable string summarizing all tracked phases.
 func (t *Timer) Summary() string {
 	report := t.Report()
 	out := "timings:\n"

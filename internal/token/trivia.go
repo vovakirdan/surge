@@ -3,15 +3,18 @@ package token
 import "surge/internal/source"
 
 //go:generate stringer -type=TriviaKind -trimprefix=Trivia
+// Directive represents a source-level directive comment (e.g. //@test).
 type Directive struct {
 	Module  string
 	Name    string
 	Payload string
 }
 
+// TriviaKind classifies types of non-code elements.
 type TriviaKind uint8
 
 const (
+	// TriviaSpace represents horizontal whitespace.
 	TriviaSpace TriviaKind = iota
 	TriviaNewline
 	TriviaLineComment
@@ -21,6 +24,7 @@ const (
 	TriviaDirective
 )
 
+// Trivia represents a non-code source element like comments or whitespace.
 type Trivia struct {
 	Kind      TriviaKind
 	Span      source.Span

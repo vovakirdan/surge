@@ -8,6 +8,7 @@ import (
 	"surge/internal/token"
 )
 
+// ConstBinding represents a parsed constant declaration.
 type ConstBinding struct {
 	Name       source.StringID
 	Type       ast.TypeID

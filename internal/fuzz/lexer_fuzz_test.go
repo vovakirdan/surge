@@ -12,7 +12,7 @@ const maxFuzzInput = 1 << 16 // 64 KiB
 
 func FuzzLexerTokens(f *testing.F) {
 	addCorpusSeeds(f)
-	f.Fuzz(func(t *testing.T, input []byte) {
+	f.Fuzz(func(_ *testing.T, input []byte) {
 		if len(input) > maxFuzzInput {
 			input = append([]byte(nil), input[:maxFuzzInput]...)
 		} else {

@@ -13,6 +13,7 @@ import (
 
 const maxTokenLength = 64 * 1024 // hard limit in bytes to avoid pathological tokens
 
+// Lexer converts source content into a stream of tokens.
 type Lexer struct {
 	file    *source.File
 	cursor  Cursor
@@ -23,6 +24,7 @@ type Lexer struct {
 	hasLast bool
 }
 
+// New creates a new Lexer for the provided file.
 func New(file *source.File, opts Options) *Lexer {
 	return &Lexer{
 		file:   file,
@@ -33,6 +35,7 @@ func New(file *source.File, opts Options) *Lexer {
 	}
 }
 
+// SetRange restricts the lexer to a specific range within the file.
 func (lx *Lexer) SetRange(start, end uint32) {
 	if lx == nil {
 		return
@@ -136,8 +139,15 @@ func (lx *Lexer) Push(tok token.Token) {
 	lx.look = &tok
 }
 
+// EmptySpan returns a zero-length span at the current cursor position.
 func (lx *Lexer) EmptySpan() source.Span {
 	return source.Span{File: lx.file.ID, Start: lx.cursor.Off, End: lx.cursor.Off}
+}
+
+func (lx *Lexer) errLex(code diag.Code, span source.Span, msg string) {
+	if lx.opts.Reporter != nil {
+		lx.opts.Reporter.Report(code, diag.SevError, span, msg, nil, nil)
+	}
 }
 
 func (lx *Lexer) enforceTokenLength(tok *token.Token) {

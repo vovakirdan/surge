@@ -11,11 +11,13 @@ import (
 	"surge/internal/types"
 )
 
+// MonoDumpOptions configures the monomorphized module dump.
 type MonoDumpOptions struct {
 	// If true, prints only function/type headers.
 	HeadersOnly bool
 }
 
+// DumpMonoModule writes a text representation of a MonoModule to the provided writer.
 func DumpMonoModule(w io.Writer, mm *MonoModule, opts MonoDumpOptions) error {
 	if w == nil || mm == nil {
 		return nil

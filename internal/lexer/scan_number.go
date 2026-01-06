@@ -82,6 +82,7 @@ func (lx *Lexer) scanNumber() token.Token {
 		b0, b1, ok := lx.cursor.Peek2()
 		if ok && b0 == '.' && (b1 == '.' || b1 == '=') {
 			// это '..' или '..=' — НЕ часть числа
+			goto emit
 		} else {
 			lx.cursor.Bump() // '.'
 			if isDec(lx.cursor.Peek()) {

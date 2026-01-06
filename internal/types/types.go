@@ -12,6 +12,7 @@ const NoTypeID TypeID = 0
 type Kind uint8
 
 const (
+	// KindInvalid represents an uninitialized or erroneous type.
 	KindInvalid Kind = iota
 	KindUnit
 	KindNothing
@@ -85,6 +86,7 @@ func (k Kind) String() string {
 type Width uint8
 
 const (
+	// WidthAny represents a target-dependent default width (e.g. "int").
 	WidthAny Width = 0
 	Width8   Width = 8
 	Width16  Width = 16

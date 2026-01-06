@@ -18,6 +18,7 @@ import (
 	"surge/internal/source"
 )
 
+// FormatOptions configures code formatting.
 type FormatOptions struct {
 	Check          bool
 	MaxDiagnostics int
@@ -25,6 +26,7 @@ type FormatOptions struct {
 	Stdout         bool
 }
 
+// FormatResult captures the result of formatting a single file.
 type FormatResult struct {
 	Path      string
 	Changed   bool

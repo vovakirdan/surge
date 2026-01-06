@@ -58,6 +58,7 @@ type DiskPayload struct {
 	// Reserved for future expansion (exports, IR, etc.)
 }
 
+// OpenDiskCache initializes and returns a disk cache at the standard location.
 func OpenDiskCache(app string) (*DiskCache, error) {
 	base := os.Getenv("XDG_CACHE_HOME")
 	if base == "" {
@@ -80,6 +81,7 @@ func (c *DiskCache) pathFor(key project.Digest) string {
 	return filepath.Join(c.dir, "mods", hexKey+".mp")
 }
 
+// Put serializes and writes a payload to the disk cache.
 func (c *DiskCache) Put(key project.Digest, payload *DiskPayload) error {
 	if c == nil {
 		return nil
@@ -113,6 +115,7 @@ func (c *DiskCache) Put(key project.Digest, payload *DiskPayload) error {
 	return os.Rename(f.Name(), p)
 }
 
+// Get reads and deserializes a payload from the disk cache.
 func (c *DiskCache) Get(key project.Digest, out *DiskPayload) (bool, error) {
 	if c == nil {
 		return false, nil

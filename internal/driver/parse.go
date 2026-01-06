@@ -12,6 +12,7 @@ import (
 	"surge/internal/source"
 )
 
+// ParseResult captures the result of parsing a single file.
 type ParseResult struct {
 	FileSet *source.FileSet
 	File    *source.File
@@ -20,6 +21,7 @@ type ParseResult struct {
 	Bag     *diag.Bag
 }
 
+// Parse parses a single file and returns the result.
 func Parse(filePath string, maxDiagnostics int) (*ParseResult, error) {
 	fs := source.NewFileSet()
 	fileID, err := fs.Load(filePath)

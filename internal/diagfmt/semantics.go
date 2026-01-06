@@ -25,6 +25,7 @@ type SemanticsOutput struct {
 	ExprBindings []ExprBindingJSON `json:"expr_bindings"`
 }
 
+// ScopeJSON represents a scope in the JSON output.
 type ScopeJSON struct {
 	ID     uint32         `json:"id"`
 	Kind   string         `json:"kind"`
@@ -33,6 +34,7 @@ type ScopeJSON struct {
 	Owner  ScopeOwnerJSON `json:"owner"`
 }
 
+// ScopeOwnerJSON represents the owner of a scope in the JSON output.
 type ScopeOwnerJSON struct {
 	Kind string `json:"kind"`
 	Item uint32 `json:"item,omitempty"`
@@ -40,6 +42,7 @@ type ScopeOwnerJSON struct {
 	Expr uint32 `json:"expr,omitempty"`
 }
 
+// SymbolJSON represents a symbol in the JSON output.
 type SymbolJSON struct {
 	ID      uint32      `json:"id"`
 	Name    string      `json:"name"`
@@ -50,6 +53,7 @@ type SymbolJSON struct {
 	Aliases []string    `json:"aliases,omitempty"`
 }
 
+// ExprBindingJSON represents an expression binding in the JSON output.
 type ExprBindingJSON struct {
 	ExprID   uint32      `json:"expr_id"`
 	SymbolID uint32      `json:"symbol_id"`

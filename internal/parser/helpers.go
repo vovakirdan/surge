@@ -5,7 +5,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
-	_ "surge/internal/lexer"
+	_ "surge/internal/lexer" // for doc link consistency
 	"surge/internal/source"
 	"surge/internal/token"
 )

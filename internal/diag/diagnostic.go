@@ -26,6 +26,7 @@ type FixEdit = TextEdit
 type FixApplicability uint8
 
 const (
+	// FixApplicabilityAlwaysSafe indicates the fix is always safe to apply.
 	FixApplicabilityAlwaysSafe FixApplicability = iota
 	FixApplicabilitySafeWithHeuristics
 	FixApplicabilityManualReview
@@ -48,6 +49,7 @@ func (a FixApplicability) String() string {
 type FixKind uint8
 
 const (
+	// FixKindQuickFix is a standard LSP quick-fix.
 	FixKindQuickFix FixKind = iota
 	FixKindRefactor
 	FixKindRefactorRewrite

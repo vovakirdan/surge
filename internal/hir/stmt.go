@@ -149,8 +149,9 @@ func (WhileData) stmtData() {}
 type ForKind uint8
 
 const (
+	// ForClassic represents a C-style for loop.
 	ForClassic ForKind = iota // for init; cond; post { ... }
-	ForIn                     // for x in iterable { ... }
+	ForIn                     // for pattern in iterable { ... }
 )
 
 // ForData holds data for StmtFor.

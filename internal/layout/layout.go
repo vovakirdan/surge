@@ -21,6 +21,7 @@ type TypeLayout struct {
 	PayloadOffset int
 }
 
+// LayoutEngine computes memory layout for types.
 type LayoutEngine struct {
 	Target Target
 	Types  *types.Interner
@@ -28,6 +29,7 @@ type LayoutEngine struct {
 	cache *cache
 }
 
+// New creates a new LayoutEngine for the specified target.
 func New(target Target, typesIn *types.Interner) *LayoutEngine {
 	return &LayoutEngine{
 		Target: target,
@@ -48,6 +50,7 @@ func newLayoutState() *layoutState {
 	}
 }
 
+// LayoutOf computes and caches the layout of a type.
 func (e *LayoutEngine) LayoutOf(t types.TypeID) (TypeLayout, error) {
 	if e == nil {
 		return TypeLayout{Size: 0, Align: 1}, nil
@@ -106,16 +109,19 @@ func (e *LayoutEngine) layoutOf(t types.TypeID, state *layoutState) (TypeLayout,
 	return layout, err
 }
 
+// SizeOf returns the size of a type in bytes.
 func (e *LayoutEngine) SizeOf(t types.TypeID) (int, error) {
 	l, err := e.LayoutOf(t)
 	return l.Size, err
 }
 
+// AlignOf returns the alignment requirement of a type in bytes.
 func (e *LayoutEngine) AlignOf(t types.TypeID) (int, error) {
 	l, err := e.LayoutOf(t)
 	return l.Align, err
 }
 
+// FieldOffset returns the byte offset of a struct field.
 func (e *LayoutEngine) FieldOffset(structT types.TypeID, fieldIdx int) (int, error) {
 	l, err := e.LayoutOf(structT)
 	if err != nil {

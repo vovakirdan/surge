@@ -9,12 +9,14 @@ import (
 	"fortio.org/safecast"
 )
 
+// FileSet manages a collection of source files and provides global byte offset resolution.
 type FileSet struct {
 	files   []File
 	index   map[string]FileID // path -> id
 	baseDir string            // базовая директория для относительных путей
 }
 
+// NewFileSet creates a new empty FileSet.
 func NewFileSet() *FileSet {
 	return &FileSet{
 		files:   make([]File, 0),
@@ -98,6 +100,7 @@ func (fileSet *FileSet) AddVirtual(name string, content []byte) FileID {
 	return fileSet.Add(name, content, FileVirtual)
 }
 
+// Get returns the file metadata for the given ID.
 func (fileSet *FileSet) Get(id FileID) *File {
 	// TODO: optional bounds check in debug builds
 	return &fileSet.files[id]
@@ -117,6 +120,7 @@ func (fileSet *FileSet) GetByPath(path string) (*File, bool) {
 	return nil, false
 }
 
+// Resolve converts a span into line and column positions.
 func (fileSet *FileSet) Resolve(span Span) (start, end LineCol) {
 	f := fileSet.files[span.File]
 	return toLineCol(f.LineIdx, span.Start), toLineCol(f.LineIdx, span.End)

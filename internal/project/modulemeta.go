@@ -9,25 +9,30 @@ import (
 	"surge/internal/source"
 )
 
+// ImportMeta captures metadata for a single module import.
 type ImportMeta struct {
 	Path string
 	Span source.Span
 }
 
+// ModuleKind distinguishes between library modules and executables.
 type ModuleKind uint8
 
 const (
+	// ModuleKindUnknown represents an unidentified module kind.
 	ModuleKindUnknown ModuleKind = iota
 	ModuleKindModule
 	ModuleKindBinary
 )
 
+// ModuleFileMeta captures metadata for a single source file within a module.
 type ModuleFileMeta struct {
 	Path string
 	Span source.Span
 	Hash Digest
 }
 
+// ModuleMeta captures metadata for an entire module.
 type ModuleMeta struct {
 	Name            string
 	Path            string     // нормализованный путь к модулю: "a/b"
@@ -42,6 +47,7 @@ type ModuleMeta struct {
 	ModuleHash      Digest // агрегированный хеш модуля с учётом зависимостей
 }
 
+// IsValidModuleIdent reports whether name is a valid module identifier.
 func IsValidModuleIdent(name string) bool {
 	if name == "" {
 		return false

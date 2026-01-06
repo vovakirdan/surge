@@ -409,6 +409,7 @@ func dropBorrowID(ids []BorrowID, target BorrowID) []BorrowID {
 	return ids
 }
 
+// DropBorrow removes a borrow from the table and expires its lifetime.
 func (bt *BorrowTable) DropBorrow(id BorrowID) {
 	if bt == nil || id == NoBorrowID {
 		return

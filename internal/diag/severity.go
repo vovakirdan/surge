@@ -1,8 +1,10 @@
 package diag
 
+// Severity defines the importance of a diagnostic.
 type Severity uint8
 
 const (
+	// SevInfo is for informational diagnostics.
 	SevInfo Severity = iota
 	SevWarning
 	SevError

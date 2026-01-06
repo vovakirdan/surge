@@ -6,6 +6,7 @@ import "time"
 type PhaseStatus int
 
 const (
+	// PhaseStart indicates that a compilation phase has begun.
 	PhaseStart PhaseStatus = iota
 	PhaseEnd
 )

@@ -12,6 +12,7 @@ import (
 type UnionMemberKind uint8
 
 const (
+	// UnionMemberType represents a value variant in a union.
 	UnionMemberType UnionMemberKind = iota
 	UnionMemberNothing
 	UnionMemberTag

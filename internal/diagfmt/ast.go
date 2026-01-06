@@ -10,6 +10,7 @@ import (
 	"surge/internal/source"
 )
 
+// ASTNodeOutput represents a node in the JSON AST output.
 type ASTNodeOutput struct {
 	Type     string          `json:"type"`
 	Kind     string          `json:"kind,omitempty"`
@@ -19,6 +20,7 @@ type ASTNodeOutput struct {
 	Fields   map[string]any  `json:"fields,omitempty"`
 }
 
+// FormatASTPretty writes a pretty-printed version of the AST to w.
 func FormatASTPretty(w io.Writer, builder *ast.Builder, fileID ast.FileID, fs *source.FileSet) error {
 	file := builder.Files.Get(fileID)
 	if file == nil {
@@ -50,6 +52,7 @@ func FormatASTPretty(w io.Writer, builder *ast.Builder, fileID ast.FileID, fs *s
 	return nil
 }
 
+// FormatASTTree writes a tree representation of the AST to w.
 func FormatASTTree(w io.Writer, builder *ast.Builder, fileID ast.FileID, fs *source.FileSet) error {
 	file := builder.Files.Get(fileID)
 	if file == nil {

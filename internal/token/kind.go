@@ -1,10 +1,12 @@
 package token
 
+// Kind represents the category of a source token.
 type Kind uint8
 
 const (
-	// специальные
+	// Invalid indicates an erroneous token.
 	Invalid Kind = iota
+	// EOF marks the end of the source input.
 	EOF
 
 	// идентификаторы
@@ -53,6 +55,7 @@ const (
 	KwEnum     // enum
 
 	// литералы
+	// NothingLit represents the 'nothing' literal.
 	NothingLit
 	IntLit
 	UintLit
@@ -62,6 +65,7 @@ const (
 	FStringLit
 
 	// операторы и пунктуация
+	// Plus represents the '+' operator.
 	Plus             // +
 	Minus            // -
 	Star             // *

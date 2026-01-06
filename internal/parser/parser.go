@@ -16,6 +16,7 @@ import (
 	"surge/internal/trace"
 )
 
+// Options configures the parser.
 type Options struct {
 	Trace         bool
 	MaxErrors     uint
@@ -32,6 +33,7 @@ func (o *Options) Enough() bool {
 	return o.CurrentErrors >= o.MaxErrors
 }
 
+// Result captures the result of parsing a file.
 type Result struct {
 	File ast.FileID
 	Bag  *diag.Bag
@@ -64,9 +66,11 @@ type Parser struct {
 	exprDepth             int          // глубина рекурсии для выражений
 }
 
+// DirectiveMode specifies how directives are handled during parsing.
 type DirectiveMode uint8
 
 const (
+	// DirectiveModeOff disables directive processing.
 	DirectiveModeOff DirectiveMode = iota
 	DirectiveModeCollect
 	DirectiveModeGen

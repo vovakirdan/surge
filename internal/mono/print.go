@@ -12,11 +12,13 @@ import (
 	"surge/internal/types"
 )
 
+// DumpOptions configures the instantiation map dump.
 type DumpOptions struct {
 	// PathMode matches source.File.FormatPath modes: "relative", "absolute", "basename", "auto".
 	PathMode string
 }
 
+// Dump writes a text representation of the instantiation map to the provided writer.
 func Dump(w io.Writer, m *InstantiationMap, fs *source.FileSet, syms *symbols.Result, strs *source.Interner, typesIn *types.Interner, opts DumpOptions) error {
 	if w == nil || m == nil || len(m.Entries) == 0 {
 		return nil

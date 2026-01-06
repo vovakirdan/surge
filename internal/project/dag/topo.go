@@ -7,6 +7,7 @@ import (
 	"fortio.org/safecast"
 )
 
+// Topo stores the result of a topological sort.
 type Topo struct {
 	Order   []ModuleID   // линейный порядок (только реальные модули)
 	Batches [][]ModuleID // волны независимых модулей
@@ -14,6 +15,7 @@ type Topo struct {
 	Cycles  []ModuleID // узлы, оставшиеся в цикле
 }
 
+// ToposortKahn performs a topological sort on the graph using Kahn's algorithm.
 func ToposortKahn(g Graph) *Topo {
 	nodeCount := len(g.Edges)
 	indeg := make([]int, len(g.Indeg))

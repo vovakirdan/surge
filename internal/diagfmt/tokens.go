@@ -10,6 +10,7 @@ import (
 	"surge/internal/token"
 )
 
+// TokenOutput represents a token in the JSON output.
 type TokenOutput struct {
 	Kind    string      `json:"kind"`
 	Text    string      `json:"text,omitempty"`

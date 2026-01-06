@@ -391,7 +391,7 @@ func (m *mockThunk) ID() string {
 	return m.id
 }
 
-func (m *mockThunk) Build(ctx diag.FixBuildContext) (diag.Fix, error) {
+func (m *mockThunk) Build(_ diag.FixBuildContext) (diag.Fix, error) {
 	// Создаем простой fix с одной вставкой
 	return diag.Fix{
 		Title:         "Thunk-generated fix",

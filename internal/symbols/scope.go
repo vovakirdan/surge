@@ -9,6 +9,7 @@ import (
 type ScopeKind uint8
 
 const (
+	// ScopeInvalid represents an uninitialized or erroneous scope.
 	ScopeInvalid  ScopeKind = iota
 	ScopeFile               // artificial root per parsed file
 	ScopeModule             // module-level (top-level declarations)
@@ -35,6 +36,7 @@ func (k ScopeKind) String() string {
 type ScopeOwnerKind uint8
 
 const (
+	// ScopeOwnerUnknown indicates the owner was not identified.
 	ScopeOwnerUnknown ScopeOwnerKind = iota
 	ScopeOwnerFile
 	ScopeOwnerItem

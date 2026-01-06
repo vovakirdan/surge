@@ -10,6 +10,7 @@ import (
 type AlienHintKind uint8
 
 const (
+	// AlienHintUnknown represents an unidentified hint kind.
 	AlienHintUnknown AlienHintKind = iota
 
 	AlienHintImplTrait
@@ -24,6 +25,7 @@ const (
 	AlienHintPythonNoneAlias
 )
 
+// DialectPersona defines the personality of a dialect hint message.
 type DialectPersona struct {
 	Name      string
 	Greetings []string
@@ -32,6 +34,7 @@ type DialectPersona struct {
 	Closings  []string
 }
 
+// RenderInput provides data for rendering an alien hint message.
 type RenderInput struct {
 	Kind         AlienHintKind
 	Detected     string
@@ -40,14 +43,14 @@ type RenderInput struct {
 
 // RenderAlienHint builds a friendly, persona-based message for an alien hint.
 // It must be deterministic and must not change emission logic.
-func RenderAlienHint(d DialectKind, in RenderInput) string {
+func RenderAlienHint(d Kind, in RenderInput) string {
 	p := personaForDialect(d)
 	return p.Render(in)
 }
 
-func personaForDialect(d DialectKind) DialectPersona {
+func personaForDialect(d Kind) DialectPersona {
 	switch d {
-	case DialectRust:
+	case Rust:
 		return DialectPersona{
 			Name:      "rust",
 			Greetings: []string{"Ah, a fellow Rustacean!"},
@@ -60,7 +63,7 @@ func personaForDialect(d DialectKind) DialectPersona {
 			},
 			Closings: []string{"In Surge, try:"},
 		}
-	case DialectGo:
+	case Go:
 		return DialectPersona{
 			Name:      "go",
 			Greetings: []string{"Oh hey, Gopher."},
@@ -70,7 +73,7 @@ func personaForDialect(d DialectKind) DialectPersona {
 			},
 			Closings: []string{"In Surge, try:"},
 		}
-	case DialectTypeScript:
+	case TypeScript:
 		return DialectPersona{
 			Name:    "typescript",
 			LeadIns: []string{"TypeScript %s detected."},
@@ -79,7 +82,7 @@ func personaForDialect(d DialectKind) DialectPersona {
 			},
 			Closings: []string{"In Surge, try:"},
 		}
-	case DialectPython:
+	case Python:
 		return DialectPersona{
 			Name:      "python",
 			Greetings: []string{"None of that here."},
@@ -98,6 +101,7 @@ func personaForDialect(d DialectKind) DialectPersona {
 	}
 }
 
+// Render produces the final hint message string.
 func (p *DialectPersona) Render(in RenderInput) string {
 	lines := make([]string, 0, 6)
 

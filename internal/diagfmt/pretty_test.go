@@ -147,7 +147,7 @@ func (t staticFixThunk) ID() string {
 	return "static-fix"
 }
 
-func (t staticFixThunk) Build(ctx diag.FixBuildContext) (diag.Fix, error) {
+func (t staticFixThunk) Build(_ diag.FixBuildContext) (diag.Fix, error) {
 	return *t.fix, nil
 }
 

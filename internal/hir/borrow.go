@@ -2,9 +2,11 @@ package hir
 
 import "surge/internal/source"
 
+// BorrowKind distinguishes between shared and mutable borrows.
 type BorrowKind uint8
 
 const (
+	// BorrowShared represents an immutable borrow (&T).
 	BorrowShared BorrowKind = iota // &T
 	BorrowMut                      // &mut T
 )
@@ -20,19 +22,25 @@ func (k BorrowKind) String() string {
 	}
 }
 
+// AccessKind identifies the type of access to a variable.
 type AccessKind uint8
 
 const (
+	// AccessRead represents a read access.
 	AccessRead AccessKind = iota
 	AccessWrite
 	AccessMove
 )
 
+// LoanID identifies a unique loan.
 type LoanID int32
+// EventID identifies a borrow event.
 type EventID int32
 
+// ScopeID identifies a lexical scope.
 type ScopeID uint32
 
+// NoScopeID indicates no scope.
 const NoScopeID ScopeID = 0
 
 // BorrowEdge is a borrow "edge": local From borrows from local To (or a projection thereof).
@@ -45,9 +53,11 @@ type BorrowEdge struct {
 	Scope ScopeID
 }
 
+// BorrowEventKind identifies the type of borrow event.
 type BorrowEventKind uint8
 
 const (
+	// EvBorrowStart indicates the beginning of a borrow.
 	EvBorrowStart BorrowEventKind = iota
 	EvBorrowEnd
 	EvMove
@@ -78,6 +88,7 @@ func (k BorrowEventKind) String() string {
 	}
 }
 
+// BorrowEvent represents an event in the borrow checker.
 type BorrowEvent struct {
 	ID    EventID
 	Kind  BorrowEventKind
@@ -88,6 +99,7 @@ type BorrowEvent struct {
 	Note  string // optional, for debug dump
 }
 
+// BorrowGraph represents the borrow relationships in a function.
 type BorrowGraph struct {
 	Func   FuncID
 	Edges  []BorrowEdge

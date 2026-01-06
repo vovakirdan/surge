@@ -6,6 +6,7 @@ import "time"
 type Kind uint8
 
 const (
+	// KindSpanBegin marks the start of a logical operation.
 	KindSpanBegin Kind = iota + 1 // span start
 	KindSpanEnd                   // span end
 	KindPoint                     // instant event
@@ -33,6 +34,7 @@ func (k Kind) String() string {
 type Scope uint8
 
 const (
+	// ScopeDriver represents the highest level of compiler operations.
 	ScopeDriver Scope = iota + 1 // top-level driver operations (highest level)
 	ScopePass                    // compilation passes (lex, parse, sema, borrow)
 	ScopeModule                  // per-module processing (more detailed)

@@ -45,7 +45,7 @@ func (tc *typeChecker) populateEnumType(itemID ast.ItemID, typeItem *ast.TypeIte
 
 	variants := make([]types.EnumVariantInfo, 0, enumDecl.VariantsCount)
 	nameSet := make(map[source.StringID]source.Span)
-	var nextValue int64 = 0
+	var nextValue int64
 
 	// Check if this is a string enum (unwrap type aliases first)
 	resolved := tc.resolveAlias(baseType)

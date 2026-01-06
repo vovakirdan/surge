@@ -35,6 +35,7 @@ var (
 	errCoreNamespaceReserved = errors.New("core namespace reserved")
 )
 
+// DiagnoseResult encapsulates the artifacts and diagnostics from a compilation phase.
 type DiagnoseResult struct {
 	FileSet           *source.FileSet
 	File              *source.File
@@ -55,9 +56,13 @@ type DiagnoseResult struct {
 type DiagnoseStage string
 
 const (
+	// DiagnoseStageTokenize runs only the lexer.
 	DiagnoseStageTokenize DiagnoseStage = "tokenize"
+	// DiagnoseStageSyntax runs up to the parser.
 	DiagnoseStageSyntax   DiagnoseStage = "syntax"
+	// DiagnoseStageSema runs semantic analysis.
 	DiagnoseStageSema     DiagnoseStage = "sema"
+	// DiagnoseStageAll runs the full compilation pipeline.
 	DiagnoseStageAll      DiagnoseStage = "all"
 )
 

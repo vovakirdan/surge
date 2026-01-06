@@ -5,9 +5,11 @@ import (
 	"surge/internal/symbols"
 )
 
+// BorrowEventKind identifies the type of borrow event recorded during analysis.
 type BorrowEventKind uint8
 
 const (
+	// BorrowEvBorrowStart indicates the beginning of a borrow.
 	BorrowEvBorrowStart BorrowEventKind = iota
 	BorrowEvBorrowEnd
 	BorrowEvMove

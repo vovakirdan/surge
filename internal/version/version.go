@@ -37,6 +37,11 @@ func VersionString() string {
 	return strings.TrimSpace(BaseVersion) + strings.TrimSpace(PreRelease)
 }
 
+// String returns the plain semantic version string.
+func String() string {
+	return VersionString()
+}
+
 // PrettyVersion returns the colored version string for CLI output.
 func PrettyVersion() string {
 	base := strings.TrimSpace(BaseVersion)

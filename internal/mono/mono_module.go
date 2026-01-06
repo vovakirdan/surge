@@ -6,6 +6,7 @@ import (
 	"surge/internal/types"
 )
 
+// ArgsKey is a string representation of concrete type arguments.
 type ArgsKey string
 
 func argsKeyFromTypes(args []types.TypeID) ArgsKey {
@@ -15,11 +16,13 @@ func argsKeyFromTypes(args []types.TypeID) ArgsKey {
 	return ArgsKey(typeArgsKey(args))
 }
 
+// MonoKey uniquely identifies a monomorphized instance by original symbol and type arguments.
 type MonoKey struct {
 	Sym     symbols.SymbolID
 	ArgsKey ArgsKey
 }
 
+// MonoFunc represents a concrete function instance after monomorphization.
 type MonoFunc struct {
 	Key         MonoKey
 	InstanceSym symbols.SymbolID
@@ -29,6 +32,7 @@ type MonoFunc struct {
 	Func *hir.Func
 }
 
+// MonoType represents a concrete type instance after monomorphization.
 type MonoType struct {
 	Key      MonoKey
 	OrigSym  symbols.SymbolID
@@ -36,6 +40,7 @@ type MonoType struct {
 	TypeID   types.TypeID
 }
 
+// MonoModule contains the results of monomorphizing an entire HIR module.
 type MonoModule struct {
 	Source *hir.Module
 

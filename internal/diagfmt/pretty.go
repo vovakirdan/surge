@@ -133,7 +133,7 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 		if err != nil {
 			panic(fmt.Errorf("total lines overflow: %w", err))
 		}
-		totalLines += 1
+		totalLines++
 		if len(f.LineIdx) == 0 && len(f.Content) > 0 {
 			totalLines = 1
 		}

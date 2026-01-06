@@ -33,6 +33,9 @@ const (
 
 // IsValid returns true if the ID is valid (non-zero).
 func (id FuncID) IsValid() bool  { return id != NoFuncID }
+// IsValid reports whether the LocalID is valid.
 func (id LocalID) IsValid() bool { return id != NoLocalID }
+// IsValid reports whether the BlockID is valid.
 func (id BlockID) IsValid() bool { return id != NoBlockID }
+// IsValid reports whether the NodeID is valid.
 func (id NodeID) IsValid() bool  { return id != NoNodeID }
