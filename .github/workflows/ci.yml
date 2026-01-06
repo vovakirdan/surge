@@ -120,7 +120,7 @@ jobs:
         run: |
           cd runtime/native
           for f in *.c; do
-            clang -std=c11 -I. "$CFLAGS" -c "$$f" -o "/tmp/$${f%.c}.o" || exit 1
+            clang -std=c11 -I. $CFLAGS -c "$$f" -o "/tmp/$${f%.c}.o" || exit 1
           done
       - name: Run tests with sanitizers
         env:

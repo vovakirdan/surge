@@ -351,7 +351,7 @@ void* rt_string_bytes_view(void* s) {
     if (view == NULL) {
         return NULL;
     }
-    view->owner = (void*)str;
+    view->owner = (void*)(uintptr_t)str;
     view->ptr = str->data;
     view->len = rt_biguint_from_u64(str->len_bytes);
     return (void*)view;
