@@ -77,7 +77,7 @@ func (d *Debugger) Run() (DebuggerResult, *VMError) {
 		}
 
 		if d.interactive {
-			fmt.Fprint(d.out, "(vmdb) ")
+			fmt.Fprint(d.out, "(vmdb) ") //nolint:errcheck
 		}
 		if !d.in.Scan() {
 			break
@@ -133,32 +133,32 @@ func (d *Debugger) execCommand(line string) (DebuggerResult, *VMError) {
 		return d.cmdContinue()
 	case "break":
 		if len(args) != 1 {
-			fmt.Fprintln(d.out, "error: break expects <file:line>")
+			fmt.Fprintln(d.out, "error: break expects <file:line>") //nolint:errcheck
 			return DebuggerResult{}, nil
 		}
 		if err := d.cmdBreak(args[0]); err != nil {
-			fmt.Fprintf(d.out, "error: %s\n", err.Error())
+			fmt.Fprintf(d.out, "error: %s\n", err.Error()) //nolint:errcheck
 		}
 	case "break-fn":
 		if len(args) != 1 {
-			fmt.Fprintln(d.out, "error: break-fn expects <name>")
+			fmt.Fprintln(d.out, "error: break-fn expects <name>") //nolint:errcheck
 			return DebuggerResult{}, nil
 		}
 		if err := d.cmdBreakFn(args[0]); err != nil {
-			fmt.Fprintf(d.out, "error: %s\n", err.Error())
+			fmt.Fprintf(d.out, "error: %s\n", err.Error()) //nolint:errcheck
 		}
 	case "delete":
 		if len(args) != 1 {
-			fmt.Fprintln(d.out, "error: delete expects <id>")
+			fmt.Fprintln(d.out, "error: delete expects <id>") //nolint:errcheck
 			return DebuggerResult{}, nil
 		}
 		id, err := strconv.Atoi(args[0])
 		if err != nil || id <= 0 {
-			fmt.Fprintln(d.out, "error: invalid breakpoint id")
+			fmt.Fprintln(d.out, "error: invalid breakpoint id") //nolint:errcheck
 			return DebuggerResult{}, nil
 		}
 		if !d.breakpoints.Delete(id) {
-			fmt.Fprintln(d.out, "error: unknown breakpoint id")
+			fmt.Fprintln(d.out, "error: unknown breakpoint id") //nolint:errcheck
 		}
 	case "list":
 		d.cmdList()
@@ -170,7 +170,7 @@ func (d *Debugger) execCommand(line string) (DebuggerResult, *VMError) {
 		d.inspector.Heap()
 	case "print":
 		if len(args) != 1 {
-			fmt.Fprintln(d.out, "error: print expects <name|Lk>")
+			fmt.Fprintln(d.out, "error: print expects <name|Lk>") //nolint:errcheck
 			return DebuggerResult{}, nil
 		}
 		d.inspector.PrintLocal(args[0])
@@ -178,7 +178,7 @@ func (d *Debugger) execCommand(line string) (DebuggerResult, *VMError) {
 		d.quit = true
 		return DebuggerResult{ExitCode: 125, Quit: true}, nil
 	default:
-		fmt.Fprintln(d.out, "error: unknown command")
+		fmt.Fprintln(d.out, "error: unknown command") //nolint:errcheck
 	}
 
 	return DebuggerResult{}, nil
@@ -287,19 +287,19 @@ func (d *Debugger) cmdBreakFn(name string) error {
 }
 
 func (d *Debugger) cmdList() {
-	fmt.Fprintln(d.out, "breakpoints:")
+	fmt.Fprintln(d.out, "breakpoints:") //nolint:errcheck
 	for _, bp := range d.breakpoints.List() {
-		fmt.Fprintf(d.out, "  %s\n", bp.Summary())
+		fmt.Fprintf(d.out, "  %s\n", bp.Summary()) //nolint:errcheck
 	}
 }
 
 func (d *Debugger) printBreakpointStop(bp *Breakpoint, sp StopPoint) {
-	fmt.Fprintf(d.out, "stopped: breakpoint #%d\n", bp.ID)
-	fmt.Fprintf(d.out, "at %s bb%d:ip%d @ %s\n", sp.FuncName, sp.BB, sp.IP, d.formatSpan(sp.Span))
+	fmt.Fprintf(d.out, "stopped: breakpoint #%d\n", bp.ID)                                         //nolint:errcheck
+	fmt.Fprintf(d.out, "at %s bb%d:ip%d @ %s\n", sp.FuncName, sp.BB, sp.IP, d.formatSpan(sp.Span)) //nolint:errcheck
 }
 
 func (d *Debugger) printStepLine(sp StopPoint) {
-	fmt.Fprintf(d.out, "step: %s bb%d:ip%d %s @ %s\n", sp.FuncName, sp.BB, sp.IP, d.formatOp(sp), d.formatSpan(sp.Span))
+	fmt.Fprintf(d.out, "step: %s bb%d:ip%d %s @ %s\n", sp.FuncName, sp.BB, sp.IP, d.formatOp(sp), d.formatSpan(sp.Span)) //nolint:errcheck
 }
 
 func (d *Debugger) formatOp(sp StopPoint) string {
@@ -326,18 +326,18 @@ func (d *Debugger) formatSpan(span source.Span) string {
 }
 
 func (d *Debugger) help() {
-	fmt.Fprintln(d.out, "commands:")
-	fmt.Fprintln(d.out, "  help")
-	fmt.Fprintln(d.out, "  step|s")
-	fmt.Fprintln(d.out, "  next|n")
-	fmt.Fprintln(d.out, "  continue|c")
-	fmt.Fprintln(d.out, "  break <file:line>")
-	fmt.Fprintln(d.out, "  break-fn <name>")
-	fmt.Fprintln(d.out, "  delete <id>")
-	fmt.Fprintln(d.out, "  list")
-	fmt.Fprintln(d.out, "  locals")
-	fmt.Fprintln(d.out, "  stack")
-	fmt.Fprintln(d.out, "  heap")
-	fmt.Fprintln(d.out, "  print <name|Lk>")
-	fmt.Fprintln(d.out, "  quit")
+	fmt.Fprintln(d.out, "commands:")           //nolint:errcheck
+	fmt.Fprintln(d.out, "  help")              //nolint:errcheck
+	fmt.Fprintln(d.out, "  step|s")            //nolint:errcheck
+	fmt.Fprintln(d.out, "  next|n")            //nolint:errcheck
+	fmt.Fprintln(d.out, "  continue|c")        //nolint:errcheck
+	fmt.Fprintln(d.out, "  break <file:line>") //nolint:errcheck
+	fmt.Fprintln(d.out, "  break-fn <name>")   //nolint:errcheck
+	fmt.Fprintln(d.out, "  delete <id>")       //nolint:errcheck
+	fmt.Fprintln(d.out, "  list")              //nolint:errcheck
+	fmt.Fprintln(d.out, "  locals")            //nolint:errcheck
+	fmt.Fprintln(d.out, "  stack")             //nolint:errcheck
+	fmt.Fprintln(d.out, "  heap")              //nolint:errcheck
+	fmt.Fprintln(d.out, "  print <name|Lk>")   //nolint:errcheck
+	fmt.Fprintln(d.out, "  quit")              //nolint:errcheck
 }

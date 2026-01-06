@@ -14,7 +14,7 @@ import (
 func formatExternPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *source.FileSet, prefix string) error {
 	externItem, ok := builder.Items.Extern(itemID)
 	if !ok {
-		fmt.Fprintf(w, "<invalid extern>\n")
+		fmt.Fprintf(w, "<invalid extern>\n") //nolint:errcheck
 		return nil
 	}
 
@@ -66,7 +66,7 @@ func formatExternPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs
 		if current == visible {
 			marker = "└─"
 		}
-		fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, f.label, f.value)
+		fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, f.label, f.value) //nolint:errcheck
 	}
 
 	if !hasMembers {
@@ -79,7 +79,7 @@ func formatExternPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs
 		marker = "├─"
 		childPrefix = prefix + "│  "
 	}
-	fmt.Fprintf(w, "%s%s Members:\n", prefix, marker)
+	fmt.Fprintf(w, "%s%s Members:\n", prefix, marker) //nolint:errcheck
 
 	start := uint32(externItem.MembersStart)
 	memberCount := int(externItem.MembersCount)
@@ -119,11 +119,11 @@ func formatExternPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs
 func formatExternFnPretty(w io.Writer, builder *ast.Builder, member *ast.ExternMember, idx int, childChildPrefix, memberPrefix string, fs *source.FileSet) error {
 	fnItem := builder.Items.FnByPayload(member.Fn)
 	if fnItem == nil {
-		fmt.Fprintf(w, "%sFn[%d]: <nil>\n", memberPrefix, idx)
+		fmt.Fprintf(w, "%sFn[%d]: <nil>\n", memberPrefix, idx) //nolint:errcheck
 		return nil
 	}
 	name := lookupStringOr(builder, fnItem.Name, "<anon>")
-	fmt.Fprintf(w, "%sFn[%d]: %s\n", memberPrefix, idx, name)
+	fmt.Fprintf(w, "%sFn[%d]: %s\n", memberPrefix, idx, name) //nolint:errcheck
 
 	lines := []struct {
 		label string
@@ -184,13 +184,13 @@ func formatExternFnPretty(w io.Writer, builder *ast.Builder, member *ast.ExternM
 		if lineIdx == lineCount && !fnItem.Body.IsValid() {
 			lineMarker = "└─"
 		}
-		fmt.Fprintf(w, "%s%s %s: %s\n", childChildPrefix, lineMarker, l.label, l.value)
+		fmt.Fprintf(w, "%s%s %s: %s\n", childChildPrefix, lineMarker, l.label, l.value) //nolint:errcheck
 	}
 
 	if fnItem.Body.IsValid() {
 		bodyMarker := "└─"
-		fmt.Fprintf(w, "%s%s Body:\n", childChildPrefix, bodyMarker)
-		fmt.Fprintf(w, "%s   Stmt[0]: ", childChildPrefix)
+		fmt.Fprintf(w, "%s%s Body:\n", childChildPrefix, bodyMarker) //nolint:errcheck
+		fmt.Fprintf(w, "%s   Stmt[0]: ", childChildPrefix)           //nolint:errcheck
 		if err := formatStmtPretty(w, builder, fnItem.Body, fs, childChildPrefix+"   "); err != nil {
 			return err
 		}
@@ -202,11 +202,11 @@ func formatExternFnPretty(w io.Writer, builder *ast.Builder, member *ast.ExternM
 func formatExternFieldPretty(w io.Writer, builder *ast.Builder, member *ast.ExternMember, idx int, childChildPrefix, memberPrefix string) {
 	field := builder.Items.ExternField(member.Field)
 	if field == nil {
-		fmt.Fprintf(w, "%sField[%d]: <nil>\n", memberPrefix, idx)
+		fmt.Fprintf(w, "%sField[%d]: <nil>\n", memberPrefix, idx) //nolint:errcheck
 		return
 	}
 	name := lookupStringOr(builder, field.Name, "<anon>")
-	fmt.Fprintf(w, "%sField[%d]: %s\n", memberPrefix, idx, name)
+	fmt.Fprintf(w, "%sField[%d]: %s\n", memberPrefix, idx, name) //nolint:errcheck
 
 	lines := []struct {
 		label string
@@ -243,6 +243,6 @@ func formatExternFieldPretty(w io.Writer, builder *ast.Builder, member *ast.Exte
 		if lineIdx == len(lines)-1 {
 			lineMarker = "└─"
 		}
-		fmt.Fprintf(w, "%s%s %s: %s\n", childChildPrefix, lineMarker, l.label, l.value)
+		fmt.Fprintf(w, "%s%s %s: %s\n", childChildPrefix, lineMarker, l.label, l.value) //nolint:errcheck
 	}
 }

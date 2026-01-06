@@ -22,12 +22,12 @@ import (
 func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *source.FileSet, prefix string) error {
 	item := builder.Items.Get(itemID)
 	if item == nil {
-		fmt.Fprintf(w, "nil item\n")
+		fmt.Fprintf(w, "nil item\n") //nolint:errcheck
 		return nil
 	}
 
 	kindStr := formatItemKind(item.Kind)
-	fmt.Fprintf(w, "%s (span: %s)\n", kindStr, formatSpan(item.Span, fs))
+	fmt.Fprintf(w, "%s (span: %s)\n", kindStr, formatSpan(item.Span, fs)) //nolint:errcheck
 
 	// Handle special items with payload
 	switch item.Kind {
@@ -57,14 +57,14 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 			if currentField == fieldsCount {
 				modulePrefix = "└─"
 			}
-			fmt.Fprintf(w, "%s%s Module: ", prefix, modulePrefix)
+			fmt.Fprintf(w, "%s%s Module: ", prefix, modulePrefix) //nolint:errcheck
 			for i, stringID := range importItem.Module {
 				if i > 0 {
-					fmt.Fprintf(w, "::")
+					fmt.Fprintf(w, "::") //nolint:errcheck
 				}
-				fmt.Fprintf(w, "%s", builder.StringsInterner.MustLookup(stringID))
+				fmt.Fprintf(w, "%s", builder.StringsInterner.MustLookup(stringID)) //nolint:errcheck
 			}
-			fmt.Fprintf(w, "\n")
+			fmt.Fprintf(w, "\n") //nolint:errcheck
 
 			if hasAlias {
 				currentField++
@@ -72,7 +72,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 				if currentField == fieldsCount {
 					aliasPrefix = "└─"
 				}
-				fmt.Fprintf(w, "%s%s Alias: %s\n", prefix, aliasPrefix, builder.StringsInterner.MustLookup(importItem.ModuleAlias))
+				fmt.Fprintf(w, "%s%s Alias: %s\n", prefix, aliasPrefix, builder.StringsInterner.MustLookup(importItem.ModuleAlias)) //nolint:errcheck
 			}
 
 			if hasOne {
@@ -81,26 +81,26 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 				if currentField == fieldsCount {
 					onePrefix = "└─"
 				}
-				fmt.Fprintf(w, "%s%s One: %s", prefix, onePrefix, formatImportOne(importItem.One, builder))
+				fmt.Fprintf(w, "%s%s One: %s", prefix, onePrefix, formatImportOne(importItem.One, builder)) //nolint:errcheck
 				if importItem.One.Alias != 0 {
-					fmt.Fprintf(w, " as %s", builder.StringsInterner.MustLookup(importItem.One.Alias))
+					fmt.Fprintf(w, " as %s", builder.StringsInterner.MustLookup(importItem.One.Alias)) //nolint:errcheck
 				}
-				fmt.Fprintf(w, "\n")
+				fmt.Fprintf(w, "\n") //nolint:errcheck
 			}
 
 			if hasGroup {
-				fmt.Fprintf(w, "%s└─ Group:\n", prefix)
+				fmt.Fprintf(w, "%s└─ Group:\n", prefix) //nolint:errcheck
 				for i, pair := range importItem.Group {
 					isLastInGroup := i == len(importItem.Group)-1
 					groupItemPrefix := "├─"
 					if isLastInGroup {
 						groupItemPrefix = "└─"
 					}
-					fmt.Fprintf(w, "%s   %s [%d] %s", prefix, groupItemPrefix, i, builder.StringsInterner.MustLookup(pair.Name))
+					fmt.Fprintf(w, "%s   %s [%d] %s", prefix, groupItemPrefix, i, builder.StringsInterner.MustLookup(pair.Name)) //nolint:errcheck
 					if pair.Alias != 0 {
-						fmt.Fprintf(w, " as %s", builder.StringsInterner.MustLookup(pair.Alias))
+						fmt.Fprintf(w, " as %s", builder.StringsInterner.MustLookup(pair.Alias)) //nolint:errcheck
 					}
-					fmt.Fprintf(w, "\n")
+					fmt.Fprintf(w, "\n") //nolint:errcheck
 				}
 			}
 		}
@@ -154,7 +154,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 				if current == visible {
 					fieldPrefix = "└─"
 				}
-				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, fieldPrefix, f.label, f.value)
+				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, fieldPrefix, f.label, f.value) //nolint:errcheck
 			}
 		}
 	case ast.ItemType:
@@ -246,7 +246,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 						}
 						entries += len(structFields)
 						if entries == 0 {
-							fmt.Fprintf(w, "%s<empty>\n", bodyPrefix)
+							fmt.Fprintf(w, "%s<empty>\n", bodyPrefix) //nolint:errcheck
 							return nil
 						}
 						current := 0
@@ -256,7 +256,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 							if current == entries {
 								marker = "└─"
 							}
-							fmt.Fprintf(w, "%s%s Base: %s\n", bodyPrefix, marker, formatTypeExprInline(builder, structDecl.Base))
+							fmt.Fprintf(w, "%s%s Base: %s\n", bodyPrefix, marker, formatTypeExprInline(builder, structDecl.Base)) //nolint:errcheck
 						}
 						for idx, field := range structFields {
 							current++
@@ -278,7 +278,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 									fieldLine += " [" + strings.Join(attrStrings, ", ") + "]"
 								}
 							}
-							fmt.Fprintf(w, "%s%s %s\n", bodyPrefix, marker, fieldLine)
+							fmt.Fprintf(w, "%s%s %s\n", bodyPrefix, marker, fieldLine) //nolint:errcheck
 						}
 						return nil
 					}
@@ -302,7 +302,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 							}
 						}
 						if len(members) == 0 {
-							fmt.Fprintf(w, "%s<empty>\n", bodyPrefix)
+							fmt.Fprintf(w, "%s<empty>\n", bodyPrefix) //nolint:errcheck
 							return nil
 						}
 						for idx, member := range members {
@@ -310,7 +310,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 							if idx == len(members)-1 {
 								marker = "└─"
 							}
-							fmt.Fprintf(w, "%s%s %s\n", bodyPrefix, marker, formatUnionMemberInline(builder, member, idx))
+							fmt.Fprintf(w, "%s%s %s\n", bodyPrefix, marker, formatUnionMemberInline(builder, member, idx)) //nolint:errcheck
 						}
 						return nil
 					}
@@ -335,7 +335,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 				if !hasMore {
 					marker = "└─"
 				}
-				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, f.label, f.value)
+				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, f.label, f.value) //nolint:errcheck
 			}
 
 			if hasStructBody {
@@ -347,7 +347,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 				if marker == "└─" {
 					childPrefix = prefix + "   "
 				}
-				fmt.Fprintf(w, "%s%s Struct:\n", prefix, marker)
+				fmt.Fprintf(w, "%s%s Struct:\n", prefix, marker) //nolint:errcheck
 				if err := structPrinter(childPrefix); err != nil {
 					return err
 				}
@@ -356,7 +356,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 			if hasUnionBody {
 				marker := "└─"
 				childPrefix := prefix + "   "
-				fmt.Fprintf(w, "%s%s Union:\n", prefix, marker)
+				fmt.Fprintf(w, "%s%s Union:\n", prefix, marker) //nolint:errcheck
 				if err := unionPrinter(childPrefix); err != nil {
 					return err
 				}
@@ -441,7 +441,7 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 				if current == visible {
 					marker = "└─"
 				}
-				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, f.label, f.value)
+				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, f.label, f.value) //nolint:errcheck
 			}
 		}
 	case ast.ItemExtern:
@@ -498,18 +498,18 @@ func formatItemPretty(w io.Writer, builder *ast.Builder, itemID ast.ItemID, fs *
 
 				if field.isBody {
 					if fnItem.Body.IsValid() {
-						fmt.Fprintf(w, "%s%s Body:\n", prefix, marker)
-						fmt.Fprintf(w, "%s└─ Stmt[0]: ", childPrefix)
+						fmt.Fprintf(w, "%s%s Body:\n", prefix, marker) //nolint:errcheck
+						fmt.Fprintf(w, "%s└─ Stmt[0]: ", childPrefix)  //nolint:errcheck
 						if err := formatStmtPretty(w, builder, fnItem.Body, fs, childPrefix+"   "); err != nil {
 							return err
 						}
 					} else {
-						fmt.Fprintf(w, "%s%s Body: <none>\n", prefix, marker)
+						fmt.Fprintf(w, "%s%s Body: <none>\n", prefix, marker) //nolint:errcheck
 					}
 					continue
 				}
 
-				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, field.label, field.value)
+				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, field.label, field.value) //nolint:errcheck
 			}
 		}
 	}

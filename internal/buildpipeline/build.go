@@ -171,7 +171,12 @@ func writeMIRDump(targetPath string, mod *mir.Module, result *driver.DiagnoseRes
 	if err != nil {
 		return fmt.Errorf("failed to write MIR dump: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Игнорируем ошибку закрытия файла, так как основная операция уже завершена
+			_ = closeErr
+		}
+	}()
 	if err := mir.DumpModule(file, mod, result.Sema.TypeInterner, mir.DumpOptions{}); err != nil {
 		return fmt.Errorf("failed to dump MIR: %w", err)
 	}
@@ -245,7 +250,10 @@ func compileLLVMIR(printCommands bool, llPath, objPath string) error {
 		return fmt.Errorf("clang and llc failed: %w", err)
 	}
 	if printCommands {
-		fmt.Fprintln(os.Stdout, "note: clang IR compile failed; fell back to llc")
+		_, printErr := fmt.Fprintln(os.Stdout, "note: clang IR compile failed; fell back to llc")
+		if printErr != nil {
+			return fmt.Errorf("failed to print command: %w", printErr)
+		}
 	}
 	return nil
 }
@@ -346,7 +354,10 @@ func archiveRuntime(runtimeDir string, objs []string, printCommands bool) (strin
 
 func runCommand(printCommands bool, name string, args ...string) error {
 	if printCommands {
-		fmt.Fprintf(os.Stdout, "%s %s\n", name, strings.Join(args, " "))
+		_, printErr := fmt.Fprintf(os.Stdout, "%s %s\n", name, strings.Join(args, " "))
+		if printErr != nil {
+			return fmt.Errorf("failed to print command: %w", printErr)
+		}
 	}
 	cmd := exec.Command(name, args...)
 	cmd.Stdout = os.Stdout

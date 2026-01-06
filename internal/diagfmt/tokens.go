@@ -31,21 +31,31 @@ func FormatTokensPretty(w io.Writer, tokens []token.Token, fs *source.FileSet) e
 		}
 
 		// Выводим информацию о токене
-		fmt.Fprintf(w, "%3d: %-15s", i+1, tok.Kind.String())
+		if _, err := fmt.Fprintf(w, "%3d: %-15s", i+1, tok.Kind.String()); err != nil {
+			return err
+		}
 
 		if tok.Text != "" {
-			fmt.Fprintf(w, " %q", tok.Text)
+			if _, err := fmt.Fprintf(w, " %q", tok.Text); err != nil {
+				return err
+			}
 		}
 
-		fmt.Fprintf(w, " at %d:%d-%d:%d",
+		if _, err := fmt.Fprintf(w, " at %d:%d-%d:%d",
 			startPos.Line, startPos.Col,
-			endPos.Line, endPos.Col)
+			endPos.Line, endPos.Col); err != nil {
+			return err
+		}
 
 		if len(leading) > 0 {
-			fmt.Fprintf(w, " (leading: %s)", strings.Join(leading, ", "))
+			if _, err := fmt.Fprintf(w, " (leading: %s)", strings.Join(leading, ", ")); err != nil {
+				return err
+			}
 		}
 
-		fmt.Fprintln(w)
+		if _, err := fmt.Fprintln(w); err != nil {
+			return err
+		}
 
 		if tok.Kind == token.EOF {
 			break

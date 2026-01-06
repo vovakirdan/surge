@@ -68,7 +68,9 @@ func DumpMonoModule(w io.Writer, mm *MonoModule, opts MonoDumpOptions) error {
 		return cmpArgsKey(a.Key.ArgsKey, b.Key.ArgsKey)
 	})
 
-	fmt.Fprintf(w, "funcs=%d types=%d\n", len(funcs), len(typesList))
+	if _, err := fmt.Fprintf(w, "funcs=%d types=%d\n", len(funcs), len(typesList)); err != nil {
+		return err
+	}
 
 	p := hir.NewPrinter(w, typesIn)
 	for _, mf := range funcs {
@@ -86,13 +88,17 @@ func DumpMonoModule(w io.Writer, mm *MonoModule, opts MonoDumpOptions) error {
 		if mf.OrigSym.IsValid() {
 			name = symbolName(syms, strs, mf.OrigSym) + formatTypeArgs(typesIn, strs, mf.TypeArgs)
 		}
-		fmt.Fprintf(w, "fn %s (sym=%d)\n", name, mf.InstanceSym)
+		if _, err := fmt.Fprintf(w, "fn %s (sym=%d)\n", name, mf.InstanceSym); err != nil {
+			return err
+		}
 	}
 
 	if len(typesList) == 0 {
 		return nil
 	}
-	fmt.Fprintf(w, "\ntypes:\n")
+	if _, err := fmt.Fprintf(w, "\ntypes:\n"); err != nil {
+		return err
+	}
 	for _, mt := range typesList {
 		if mt == nil {
 			continue
@@ -101,7 +107,9 @@ func DumpMonoModule(w io.Writer, mm *MonoModule, opts MonoDumpOptions) error {
 		if mt.OrigSym.IsValid() {
 			name = symbolName(syms, strs, mt.OrigSym) + formatTypeArgs(typesIn, strs, mt.TypeArgs)
 		}
-		fmt.Fprintf(w, "  type %s = type#%d\n", name, mt.TypeID)
+		if _, err := fmt.Fprintf(w, "  type %s = type#%d\n", name, mt.TypeID); err != nil {
+			return err
+		}
 	}
 	return nil
 }
