@@ -43,6 +43,7 @@ type (
 	EnumVariantID uint32
 )
 
+// Invalid ID constants (zero is sentinel).
 const (
 	// NoFileID indicates no file.
 	NoFileID FileID = 0

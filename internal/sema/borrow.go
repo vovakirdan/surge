@@ -89,7 +89,9 @@ const (
 	BorrowIssueConflictShared
 	// BorrowIssueConflictMut indicates a conflict with a mutable borrow.
 	BorrowIssueConflictMut
+	// BorrowIssueFrozen indicates a frozen borrow.
 	BorrowIssueFrozen
+	// BorrowIssueTaken indicates a taken borrow.
 	BorrowIssueTaken
 )
 

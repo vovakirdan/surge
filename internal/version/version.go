@@ -32,15 +32,9 @@ var (
 	versionPatchColor = color.New(color.FgBlue, color.Bold)
 )
 
-// VersionString returns the plain semantic version string.
-// Note: The name stutters with the package name, but is kept for consistency.
-func VersionString() string {
-	return strings.TrimSpace(BaseVersion) + strings.TrimSpace(PreRelease)
-}
-
 // String returns the plain semantic version string.
 func String() string {
-	return VersionString()
+	return strings.TrimSpace(BaseVersion) + strings.TrimSpace(PreRelease)
 }
 
 // PrettyVersion returns the colored version string for CLI output.

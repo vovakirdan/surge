@@ -15,24 +15,38 @@ const (
 	// VKInvalid represents an invalid value.
 	VKInvalid ValueKind = iota
 	// VKInt represents a signed integer value.
-	VKInt     // signed integer
-	VKBool    // boolean
+	VKInt // signed integer
+	// VKBool represents a boolean value.
+	VKBool // boolean
+	// VKNothing represents a nothing/unit value.
 	VKNothing // nothing/unit value
-	VKFunc    // function value
-
+	// VKFunc represents a function value.
+	VKFunc // function value
+	// VKRef represents a reference value.
 	VKRef
+	// VKRefMut represents a mutable reference value.
 	VKRefMut
+	// VKPtr represents a pointer value.
 	VKPtr
 
+	// VKHandleString represents a string handle value.
 	VKHandleString
+	// VKHandleArray represents an array handle value.
 	VKHandleArray
+	// VKHandleMap represents a map handle value.
 	VKHandleMap
+	// VKHandleStruct represents a struct handle value.
 	VKHandleStruct
+	// VKHandleTag represents a tagged union handle value.
 	VKHandleTag
+	// VKHandleRange represents a range handle value.
 	VKHandleRange
 
+	// VKBigInt represents a big integer handle value.
 	VKBigInt
+	// VKBigUint represents a big unsigned integer handle value.
 	VKBigUint
+	// VKBigFloat represents a big float handle value.
 	VKBigFloat
 )
 

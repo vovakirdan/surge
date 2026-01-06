@@ -20,13 +20,21 @@ const (
 	InstrEndBorrow
 	// InstrAwait represents an await instruction.
 	InstrAwait
+	// InstrSpawn represents a spawn instruction.
 	InstrSpawn
+	// InstrPoll represents a poll instruction.
 	InstrPoll
+	// InstrJoinAll represents a join all instruction.
 	InstrJoinAll
+	// InstrChanSend represents a channel send instruction.
 	InstrChanSend
+	// InstrChanRecv represents a channel receive instruction.
 	InstrChanRecv
+	// InstrTimeout represents a timeout instruction.
 	InstrTimeout
+	// InstrSelect represents a select instruction.
 	InstrSelect
+	// InstrNop represents a no-op instruction.
 	InstrNop
 )
 
@@ -215,7 +223,9 @@ const (
 	ConstBool
 	// ConstString represents a string constant.
 	ConstString
+	// ConstNothing represents a nothing constant.
 	ConstNothing
+	// ConstFn represents a function constant.
 	ConstFn
 )
 
@@ -250,15 +260,25 @@ const (
 	RValueCast
 	// RValueStructLit represents a struct literal.
 	RValueStructLit
+	// RValueArrayLit represents an array literal.
 	RValueArrayLit
+	// RValueTupleLit represents a tuple literal.
 	RValueTupleLit
+	// RValueField represents a field access.
 	RValueField
+	// RValueIndex represents an index access.
 	RValueIndex
+	// RValueTagTest represents a tag test.
 	RValueTagTest
+	// RValueTagPayload represents a tag payload access.
 	RValueTagPayload
+	// RValueIterInit represents an iterator initialization.
 	RValueIterInit
+	// RValueIterNext represents an iterator next operation.
 	RValueIterNext
+	// RValueTypeTest represents a type test.
 	RValueTypeTest
+	// RValueHeirTest represents an heir test.
 	RValueHeirTest
 )
 

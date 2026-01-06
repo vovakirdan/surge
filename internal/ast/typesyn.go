@@ -20,7 +20,9 @@ const (
 	TypeExprTuple
 	// TypeExprFn represents a function type expression.
 	TypeExprFn
+	// TypeExprOptional represents an optional type expression.
 	TypeExprOptional
+	// TypeExprErrorable represents an errorable type expression.
 	TypeExprErrorable
 )
 

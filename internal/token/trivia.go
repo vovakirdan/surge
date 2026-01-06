@@ -23,8 +23,11 @@ const (
 	TriviaLineComment
 	// TriviaBlockComment represents a block comment.
 	TriviaBlockComment
+	// TriviaDocLine represents a doc line.
 	TriviaDocLine
+	// TriviaDocBlock represents a doc block.
 	TriviaDocBlock
+	// TriviaDirective represents a directive.
 	TriviaDirective
 )
 

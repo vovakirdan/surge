@@ -1,4 +1,4 @@
-package types
+package types //nolint:revive
 
 // LayoutAttrs describes layout-affecting attributes applied to a type declaration.
 //

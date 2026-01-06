@@ -17,7 +17,8 @@ const (
 	ScopeModule // module-level (top-level declarations)
 	// ScopeFunction represents function body scope.
 	ScopeFunction // function body scope
-	ScopeBlock    // generic block scope
+	// ScopeBlock represents a block scope.
+	ScopeBlock // generic block scope
 )
 
 func (k ScopeKind) String() string {
@@ -47,6 +48,7 @@ const (
 	ScopeOwnerItem
 	// ScopeOwnerStmt indicates the scope is owned by a statement.
 	ScopeOwnerStmt
+	// ScopeOwnerExpr indicates the scope is owned by an expression.
 	ScopeOwnerExpr
 )
 

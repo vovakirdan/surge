@@ -20,11 +20,17 @@ const (
 	StmtReturn
 	// StmtBreak represents a break statement.
 	StmtBreak
+	// StmtContinue represents a continue statement.
 	StmtContinue
+	// StmtIf represents an if statement.
 	StmtIf
+	// StmtWhile represents a while statement.
 	StmtWhile
+	// StmtForClassic represents a classic for statement.
 	StmtForClassic
+	// StmtForIn represents a for-in statement.
 	StmtForIn
+	// StmtDrop represents a drop statement.
 	StmtDrop
 )
 

@@ -26,12 +26,14 @@ const (
 	// AlienHintTSInterface represents a TypeScript interface hint.
 	AlienHintTSInterface
 
+	// AlienHintPythonNoneType represents a Python None type hint.
 	AlienHintPythonNoneType
+	// AlienHintPythonNoneAlias represents a Python None alias hint.
 	AlienHintPythonNoneAlias
 )
 
 // DialectPersona defines the personality of a dialect hint message.
-type DialectPersona struct {
+type DialectPersona struct { //nolint:revive
 	Name      string
 	Greetings []string
 	LeadIns   []string

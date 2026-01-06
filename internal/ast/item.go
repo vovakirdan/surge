@@ -26,8 +26,11 @@ const (
 	ItemExtern
 	// ItemPragma represents a pragma item.
 	ItemPragma
+	// ItemImport represents an import item.
 	ItemImport
+	// ItemMacro represents a macro item.
 	ItemMacro
+	// ItemContract represents a contract item.
 	ItemContract
 )
 

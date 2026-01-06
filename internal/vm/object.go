@@ -16,14 +16,23 @@ type ObjectKind uint8
 const (
 	// OKString represents a string object.
 	OKString ObjectKind = iota
+	// OKArray represents an array object.
 	OKArray
+	// OKArraySlice represents an array slice object.
 	OKArraySlice
+	// OKMap represents a map object.
 	OKMap
+	// OKStruct represents a struct object.
 	OKStruct
+	// OKTag represents a tagged union object.
 	OKTag
+	// OKBigInt represents a big integer object.
 	OKBigInt
+	// OKBigUint represents a big unsigned integer object.
 	OKBigUint
+	// OKBigFloat represents a big float object.
 	OKBigFloat
+	// OKRange represents a range object.
 	OKRange
 )
 
@@ -35,6 +44,7 @@ const (
 	StringFlat StringKind = iota
 	// StringConcat represents a concatenated string.
 	StringConcat
+	// StringSlice represents a string slice.
 	StringSlice
 )
 

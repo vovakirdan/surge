@@ -41,7 +41,7 @@ func MonomorphizeProgram(mods []*hir.Module, inst *InstantiationMap, semaRes *se
 
 // MonoProgram represents a fully monomorphized program.
 // Note: The name stutters with the package name, but is kept for consistency.
-type MonoProgram struct {
+type MonoProgram struct { //nolint:revive
 	Modules []*MonoModule
 }
 

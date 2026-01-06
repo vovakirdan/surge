@@ -25,7 +25,8 @@ const (
 	AttrTargetParam // parameters (function/formal parameters)
 	// AttrTargetStmt indicates statement-level attributes (e.g. expression statements).
 	AttrTargetStmt // statement-level attributes (e.g. expression statements)
-	AttrTargetLet  // let and const declarations
+	// AttrTargetLet indicates let and const declarations.
+	AttrTargetLet // let and const declarations
 )
 
 // AttrFlag captures special handling rules beyond the basic applicability matrix.

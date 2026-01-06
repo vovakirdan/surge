@@ -41,6 +41,7 @@ const (
 	LocalFlagRef
 	// LocalFlagRefMut indicates a mutable reference local flag.
 	LocalFlagRefMut
+	// LocalFlagPtr indicates a pointer local flag.
 	LocalFlagPtr
 )
 

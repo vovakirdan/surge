@@ -1,4 +1,4 @@
-package types
+package types //nolint:revive
 
 // MapNominalType returns the built-in nominal Map<K, V> TypeID, if registered.
 func (in *Interner) MapNominalType() TypeID {

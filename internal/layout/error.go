@@ -8,7 +8,7 @@ import (
 )
 
 // LayoutErrorKind enumerates types of layout calculation errors.
-type LayoutErrorKind uint8
+type LayoutErrorKind uint8 //nolint:revive
 
 const (
 	// LayoutErrRecursiveUnsized indicates a recursive type with no fixed size.
@@ -20,7 +20,7 @@ const (
 )
 
 // LayoutError represents an error during memory layout calculation.
-type LayoutError struct {
+type LayoutError struct { //nolint:revive
 	Kind  LayoutErrorKind
 	Type  types.TypeID
 	Cycle []types.TypeID // for LayoutErrRecursiveUnsized

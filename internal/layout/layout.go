@@ -22,7 +22,7 @@ type TypeLayout struct {
 }
 
 // LayoutEngine computes memory layout for types.
-type LayoutEngine struct {
+type LayoutEngine struct { //nolint:revive
 	Target Target
 	Types  *types.Interner
 

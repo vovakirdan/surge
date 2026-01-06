@@ -12,10 +12,15 @@ const (
 	TermAsyncYield
 	// TermAsyncReturn indicates an async return terminator.
 	TermAsyncReturn
+	// TermAsyncReturnCancelled indicates a cancelled async return terminator.
 	TermAsyncReturnCancelled
+	// TermGoto indicates a goto terminator.
 	TermGoto
+	// TermIf indicates an if terminator.
 	TermIf
+	// TermSwitchTag indicates a switch tag terminator.
 	TermSwitchTag
+	// TermUnreachable indicates an unreachable terminator.
 	TermUnreachable
 )
 

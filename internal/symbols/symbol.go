@@ -18,11 +18,17 @@ const (
 	SymbolImport
 	// SymbolFunction represents a function symbol.
 	SymbolFunction
+	// SymbolLet represents a let symbol.
 	SymbolLet
+	// SymbolConst represents a const symbol.
 	SymbolConst
+	// SymbolType represents a type symbol.
 	SymbolType
+	// SymbolParam represents a param symbol.
 	SymbolParam
+	// SymbolTag represents a tag symbol.
 	SymbolTag
+	// SymbolContract represents a contract symbol.
 	SymbolContract
 )
 
@@ -38,9 +44,13 @@ const (
 	SymbolFlagImported
 	// SymbolFlagBuiltin indicates the symbol is a builtin.
 	SymbolFlagBuiltin
+	// SymbolFlagMethod indicates the symbol is a method.
 	SymbolFlagMethod
+	// SymbolFlagFilePrivate indicates the symbol is a file private.
 	SymbolFlagFilePrivate
+	// SymbolFlagEntrypoint indicates the symbol is an entrypoint.
 	SymbolFlagEntrypoint
+	// SymbolFlagAllowTo indicates the symbol is allowed to.
 	SymbolFlagAllowTo
 )
 
@@ -55,7 +65,8 @@ const (
 	// EntrypointModeStdin indicates args are parsed from stdin.
 	EntrypointModeStdin // @entrypoint("stdin"): args parsed from stdin
 	// EntrypointModeEnv indicates args are parsed from environment (reserved for future).
-	EntrypointModeEnv    // @entrypoint("env"): reserved for future
+	EntrypointModeEnv // @entrypoint("env"): reserved for future
+	// EntrypointModeConfig indicates args are parsed from config.
 	EntrypointModeConfig // @entrypoint("config"): reserved for future
 )
 

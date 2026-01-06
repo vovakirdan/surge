@@ -57,7 +57,7 @@ func (t *Tracer) TraceInstr(depth int, fn *mir.Func, bb mir.BlockID, ip int, ins
 }
 
 // TraceHeapAlloc traces heap object allocation.
-func (t *Tracer) TraceHeapAlloc(kind ObjectKind, h Handle, obj *Object) {
+func (t *Tracer) TraceHeapAlloc(kind ObjectKind, _ Handle, obj *Object) {
 	if t == nil || t.w == nil {
 		return
 	}
@@ -69,7 +69,7 @@ func (t *Tracer) TraceHeapAlloc(kind ObjectKind, h Handle, obj *Object) {
 }
 
 // TraceHeapRetain traces heap object reference count increment.
-func (t *Tracer) TraceHeapRetain(kind ObjectKind, h Handle, rc uint32) {
+func (t *Tracer) TraceHeapRetain(kind ObjectKind, _ Handle, rc uint32) {
 	if t == nil || t.w == nil {
 		return
 	}
@@ -77,7 +77,7 @@ func (t *Tracer) TraceHeapRetain(kind ObjectKind, h Handle, rc uint32) {
 }
 
 // TraceHeapRelease traces heap object reference count decrement.
-func (t *Tracer) TraceHeapRelease(kind ObjectKind, h Handle, rc uint32) {
+func (t *Tracer) TraceHeapRelease(kind ObjectKind, _ Handle, rc uint32) {
 	if t == nil || t.w == nil {
 		return
 	}

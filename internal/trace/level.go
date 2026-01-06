@@ -11,9 +11,11 @@ const (
 	// LevelError only emits on errors/crashes.
 	LevelError // only emit on errors/crashes
 	// LevelPhase emits driver + pass boundaries.
-	LevelPhase  // driver + pass boundaries
+	LevelPhase // driver + pass boundaries
+	// LevelDetail emits module-level events.
 	LevelDetail // module-level events
-	LevelDebug  // everything including node-level
+	// LevelDebug emits everything including node-level.
+	LevelDebug // everything including node-level
 )
 
 // String returns the string representation of Level.

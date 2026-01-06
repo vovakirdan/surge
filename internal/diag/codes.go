@@ -7,6 +7,7 @@ import (
 // Code uniquely identifies a diagnostic type.
 type Code uint16
 
+// Code constants
 const (
 	// Неизвестная ошибка - на первое время
 

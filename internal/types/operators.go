@@ -1,4 +1,4 @@
-package types
+package types //nolint:revive
 
 import "surge/internal/ast"
 
@@ -12,14 +12,23 @@ const (
 	FamilyAny FamilyMask = 1 << iota
 	// FamilyBool indicates boolean type family.
 	FamilyBool
+	// FamilySignedInt indicates signed integer type family.
 	FamilySignedInt
+	// FamilyUnsignedInt indicates unsigned integer type family.
 	FamilyUnsignedInt
+	// FamilyFloat indicates float type family.
 	FamilyFloat
+	// FamilyString indicates string type family.
 	FamilyString
+	// FamilyArray indicates array type family.
 	FamilyArray
+	// FamilyPointer indicates pointer type family.
 	FamilyPointer
+	// FamilyReference indicates reference type family.
 	FamilyReference
+	// FamilyOptional indicates optional type family.
 	FamilyOptional
+	// FamilyResult indicates result type family.
 	FamilyResult
 )
 
@@ -40,7 +49,9 @@ const (
 	BinaryResultLeft
 	// BinaryResultRight indicates the result type is the right operand type.
 	BinaryResultRight
+	// BinaryResultBool indicates the result type is a boolean.
 	BinaryResultBool
+	// BinaryResultRange indicates the result type is a range.
 	BinaryResultRange
 )
 

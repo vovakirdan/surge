@@ -39,7 +39,7 @@ type printer struct {
 }
 
 // FormatFile formats an AST file into a byte slice.
-func FormatFile(sf *source.File, b *ast.Builder, fid ast.FileID, opt Options) ([]byte, error) {
+func FormatFile(sf *source.File, b *ast.Builder, fid ast.FileID, opt Options) ([]byte, error) { //nolint:revive
 	if sf == nil {
 		return nil, errors.New("format: nil source file")
 	}

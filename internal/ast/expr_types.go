@@ -22,24 +22,43 @@ const (
 	ExprCast
 	// ExprGroup represents a grouped expression.
 	ExprGroup
+	// ExprTuple represents a tuple expression.
 	ExprTuple
+	// ExprArray represents an array expression.
 	ExprArray
+	// ExprMap represents a map expression.
 	ExprMap
+	// ExprIndex represents an index expression.
 	ExprIndex
+	// ExprMember represents a member access expression.
 	ExprMember
+	// ExprTupleIndex represents a tuple index expression.
 	ExprTupleIndex
+	// ExprTernary represents a ternary expression.
 	ExprTernary
+	// ExprAwait represents an await expression.
 	ExprAwait
+	// ExprTask represents a task expression.
 	ExprTask
+	// ExprSpawn represents a spawn expression.
 	ExprSpawn
+	// ExprParallel represents a parallel expression.
 	ExprParallel
+	// ExprSpread represents a spread expression.
 	ExprSpread
+	// ExprCompare represents a compare expression.
 	ExprCompare
+	// ExprSelect represents a select expression.
 	ExprSelect
+	// ExprRace represents a race expression.
 	ExprRace
+	// ExprStruct represents a struct expression.
 	ExprStruct
+	// ExprAsync represents an async expression.
 	ExprAsync
+	// ExprBlock represents a block expression.
 	ExprBlock
+	// ExprRangeLit represents a range literal expression.
 	ExprRangeLit
 )
 
@@ -77,47 +96,68 @@ const (
 	ExprBinaryBitXor
 	// ExprBinaryShiftLeft represents the left shift operator (<<).
 	ExprBinaryShiftLeft
+	// ExprBinaryShiftRight represents the right shift operator (>>).
 	ExprBinaryShiftRight
 
 	// Логические
 
 	// ExprBinaryLogicalAnd represents the logical AND operator (&&).
 	ExprBinaryLogicalAnd
+	// ExprBinaryLogicalOr represents the logical OR operator (||).
 	ExprBinaryLogicalOr
 
 	// Сравнения
 
 	// ExprBinaryEq represents the equality operator (==).
 	ExprBinaryEq
+	// ExprBinaryNotEq represents the inequality operator (!=).
 	ExprBinaryNotEq
+	// ExprBinaryLess represents the less than operator (<).
 	ExprBinaryLess
+	// ExprBinaryLessEq represents the less than or equal to operator (<=).
 	ExprBinaryLessEq
+	// ExprBinaryGreater represents the greater than operator (>).
 	ExprBinaryGreater
+	// ExprBinaryGreaterEq represents the greater than or equal to operator (>=).
 	ExprBinaryGreaterEq
 
 	// Присваивание
 
 	// ExprBinaryAssign represents the assignment operator (=).
 	ExprBinaryAssign
+	// ExprBinaryAddAssign represents the addition assignment operator (+=).
 	ExprBinaryAddAssign
+	// ExprBinarySubAssign represents the subtraction assignment operator (-=).
 	ExprBinarySubAssign
+	// ExprBinaryMulAssign represents the multiplication assignment operator (*=).
 	ExprBinaryMulAssign
+	// ExprBinaryDivAssign represents the division assignment operator (/=).
 	ExprBinaryDivAssign
+	// ExprBinaryModAssign represents the modulo assignment operator (%=).
 	ExprBinaryModAssign
+	// ExprBinaryBitAndAssign represents the bitwise AND assignment operator (&=).
 	ExprBinaryBitAndAssign
+	// ExprBinaryBitOrAssign represents the bitwise OR assignment operator (|=).
 	ExprBinaryBitOrAssign
+	// ExprBinaryBitXorAssign represents the bitwise XOR assignment operator (^=).
 	ExprBinaryBitXorAssign
+	// ExprBinaryShlAssign represents the left shift assignment operator (<<=).
 	ExprBinaryShlAssign
+	// ExprBinaryShrAssign represents the right shift assignment operator (>>=).
 	ExprBinaryShrAssign
 
 	// Специальные операторы
 
 	// ExprBinaryNullCoalescing represents the null coalescing operator (??).
 	ExprBinaryNullCoalescing // ??
-	ExprBinaryRange          // ..
+	// ExprBinaryRange represents the range operator (..).
+	ExprBinaryRange // ..
+	// ExprBinaryRangeInclusive represents the inclusive range operator (..=).
 	ExprBinaryRangeInclusive // ..=
-	ExprBinaryIs             // is
-	ExprBinaryHeir           // heir
+	// ExprBinaryIs represents the type check operator (is).
+	ExprBinaryIs // is
+	// ExprBinaryHeir represents the heir check operator (heir).
+	ExprBinaryHeir // heir
 )
 
 // String returns the symbol representation of a binary operator.
@@ -214,6 +254,7 @@ const (
 	ExprUnaryRefMut
 	// ExprUnaryOwn represents the own operator (own).
 	ExprUnaryOwn
+	// ExprUnaryAwait represents the await operator (await).
 	ExprUnaryAwait
 )
 

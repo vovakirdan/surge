@@ -16,6 +16,7 @@ const (
 	FormatText // human-readable text
 	// FormatNDJSON represents newline-delimited JSON format.
 	FormatNDJSON // newline-delimited JSON
+	// FormatChrome represents Chrome Trace Viewer format (JSON).
 	FormatChrome // Chrome Trace Viewer format (JSON)
 )
 

@@ -1,4 +1,4 @@
-package types
+package types //nolint:revive
 
 import "fmt"
 
@@ -20,21 +20,37 @@ const (
 	KindNothing
 	// KindBool represents the boolean type.
 	KindBool
+	// KindGenericParam represents a generic parameter type.
 	KindGenericParam
+	// KindConst represents a constant type.
 	KindConst
+	// KindString represents a string type.
 	KindString
+	// KindInt represents an integer type.
 	KindInt
+	// KindUint represents an unsigned integer type.
 	KindUint
+	// KindFloat represents a floating-point type.
 	KindFloat
+	// KindArray represents an array type.
 	KindArray
+	// KindPointer represents a pointer type.
 	KindPointer
+	// KindReference represents a reference type.
 	KindReference
+	// KindOwn represents an own type.
 	KindOwn
+	// KindStruct represents a struct type.
 	KindStruct
+	// KindAlias represents an alias type.
 	KindAlias
+	// KindUnion represents a union type.
 	KindUnion
+	// KindEnum represents an enum type.
 	KindEnum
+	// KindTuple represents a tuple type.
 	KindTuple
+	// KindFn represents a function type.
 	KindFn
 )
 
@@ -97,6 +113,7 @@ const (
 	Width16 Width = 16
 	// Width32 represents 32-bit width.
 	Width32 Width = 32
+	// Width64 represents 64-bit width.
 	Width64 Width = 64
 )
 
