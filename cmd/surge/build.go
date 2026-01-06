@@ -1,3 +1,4 @@
+// Package main implements the surge CLI.
 package main
 
 import (

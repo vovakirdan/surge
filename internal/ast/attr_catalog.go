@@ -11,6 +11,7 @@ import (
 type AttrTargetMask uint16
 
 const (
+	// AttrTargetNone indicates no target.
 	AttrTargetNone  AttrTargetMask = 0
 	AttrTargetFn    AttrTargetMask = 1 << iota // top-level or extern functions (including async)
 	AttrTargetBlock                            // statement blocks (e.g. @backend on block)
@@ -25,6 +26,7 @@ const (
 type AttrFlag uint8
 
 const (
+	// AttrFlagNone indicates no special flags.
 	AttrFlagNone AttrFlag = 0
 
 	// AttrFlagExternOnly marks attributes that are only valid within extern blocks (e.g. @override).

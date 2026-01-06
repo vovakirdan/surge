@@ -6,6 +6,7 @@ import (
 	"fortio.org/safecast"
 )
 
+// Arena is a generic typed arena for allocating elements.
 type Arena[T any] struct {
 	data []*T
 }
@@ -26,6 +27,7 @@ func (a *Arena[T]) Allocate(value T) uint32 {
 	return a.Len()
 }
 
+// Get returns a pointer to the element at the given 1-based index, or nil if index is 0.
 func (a *Arena[T]) Get(index uint32) *T {
 	if index == 0 {
 		return nil
@@ -42,6 +44,7 @@ func (a *Arena[T]) Slice() []T {
 	return result
 }
 
+// Len returns the number of elements in the arena.
 func (a *Arena[T]) Len() uint32 {
 	result, err := safecast.Conv[uint32](len(a.data))
 	if err != nil {

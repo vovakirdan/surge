@@ -61,7 +61,7 @@ func init() {
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Show surge build fingerprints",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		opts := versionOptions{
 			format:      strings.ToLower(versionFormat),
 			showHash:    versionShowHash || versionShowFull,

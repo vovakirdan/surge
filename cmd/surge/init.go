@@ -31,7 +31,7 @@ created.`,
 // surge.toml already exists. On success it writes the manifest and entry file
 // and prints the created files; it returns an error for any filesystem or
 // validation failures.
-func runInit(cmd *cobra.Command, args []string) error {
+func runInit(_ *cobra.Command, args []string) error {
 	// Resolve target directory
 	var target string
 	if len(args) == 0 || args[0] == "." {

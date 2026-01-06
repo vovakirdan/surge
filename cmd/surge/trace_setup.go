@@ -257,9 +257,8 @@ func setupSignalHandler(tracer trace.Tracer, outputPath string, heartbeat *trace
 		// Exit with signal-appropriate code
 		if sig == syscall.SIGINT {
 			os.Exit(130) // 128 + SIGINT
-		} else {
-			os.Exit(143) // 128 + SIGTERM
 		}
+		os.Exit(143) // 128 + SIGTERM
 	}()
 }
 

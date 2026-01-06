@@ -4,9 +4,11 @@ import (
 	"surge/internal/source"
 )
 
+// ExprKind enumerates the different kinds of expressions.
 type ExprKind uint8
 
 const (
+	// ExprIdent represents an identifier expression.
 	ExprIdent ExprKind = iota
 	ExprLit
 	ExprCall
@@ -35,6 +37,7 @@ const (
 	ExprRangeLit
 )
 
+// Expr represents an expression node in the AST.
 type Expr struct {
 	Kind    ExprKind
 	Span    source.Span
@@ -46,13 +49,18 @@ type ExprBinaryOp uint8
 
 const (
 	// Арифметические
+
+	// ExprBinaryAdd represents the addition operator (+).
 	ExprBinaryAdd ExprBinaryOp = iota
+	// ExprBinarySub represents the subtraction operator (-).
 	ExprBinarySub
 	ExprBinaryMul
 	ExprBinaryDiv
 	ExprBinaryMod
 
 	// Битовые
+
+	// ExprBinaryBitAnd represents the bitwise AND operator (&).
 	ExprBinaryBitAnd
 	ExprBinaryBitOr
 	ExprBinaryBitXor
@@ -60,10 +68,14 @@ const (
 	ExprBinaryShiftRight
 
 	// Логические
+
+	// ExprBinaryLogicalAnd represents the logical AND operator (&&).
 	ExprBinaryLogicalAnd
 	ExprBinaryLogicalOr
 
 	// Сравнения
+
+	// ExprBinaryEq represents the equality operator (==).
 	ExprBinaryEq
 	ExprBinaryNotEq
 	ExprBinaryLess
@@ -72,6 +84,8 @@ const (
 	ExprBinaryGreaterEq
 
 	// Присваивание
+
+	// ExprBinaryAssign represents the assignment operator (=).
 	ExprBinaryAssign
 	ExprBinaryAddAssign
 	ExprBinarySubAssign
@@ -85,6 +99,8 @@ const (
 	ExprBinaryShrAssign
 
 	// Специальные операторы
+
+	// ExprBinaryNullCoalescing represents the null coalescing operator (??).
 	ExprBinaryNullCoalescing // ??
 	ExprBinaryRange          // ..
 	ExprBinaryRangeInclusive // ..=
@@ -172,6 +188,7 @@ func (op ExprBinaryOp) String() string {
 type ExprUnaryOp uint8
 
 const (
+	// ExprUnaryPlus represents the unary plus operator (+).
 	ExprUnaryPlus ExprUnaryOp = iota
 	ExprUnaryMinus
 	ExprUnaryNot
@@ -210,6 +227,7 @@ func (op ExprUnaryOp) String() string {
 type ExprLitKind uint8
 
 const (
+	// ExprLitInt represents an integer literal.
 	ExprLitInt ExprLitKind = iota
 	ExprLitUint
 	ExprLitFloat
@@ -224,22 +242,26 @@ type ExprIdentData struct {
 	Name source.StringID
 }
 
+// ExprLiteralData holds literal expression details.
 type ExprLiteralData struct {
 	Kind  ExprLitKind
 	Value source.StringID // сырое значение для sema
 }
 
+// ExprBinaryData holds binary operation expression details.
 type ExprBinaryData struct {
 	Op    ExprBinaryOp
 	Left  ExprID
 	Right ExprID
 }
 
+// ExprUnaryData holds unary operation expression details.
 type ExprUnaryData struct {
 	Op      ExprUnaryOp
 	Operand ExprID
 }
 
+// ExprCastData holds cast expression details.
 type ExprCastData struct {
 	Value   ExprID
 	Type    TypeID
@@ -252,6 +274,7 @@ type CallArg struct {
 	Value ExprID
 }
 
+// ExprCallData holds function call expression details.
 type ExprCallData struct {
 	Target           ExprID
 	Args             []CallArg // Changed from []ExprID to support named args
@@ -270,63 +293,75 @@ func (d *ExprCallData) HasNamedArgs() bool {
 	return false
 }
 
+// ExprIndexData holds index expression details.
 type ExprIndexData struct {
 	Target ExprID
 	Index  ExprID
 }
 
+// ExprMemberData holds member access expression details.
 type ExprMemberData struct {
 	Target ExprID
 	Field  source.StringID
 }
 
+// ExprTupleIndexData holds tuple index expression details.
 type ExprTupleIndexData struct {
 	Target ExprID
 	Index  uint32
 }
 
+// ExprGroupData holds parenthesized group expression details.
 type ExprGroupData struct {
 	Inner ExprID
 }
 
+// ExprTupleData holds tuple expression details.
 type ExprTupleData struct {
 	Elements         []ExprID
 	ElementCommas    []source.Span
 	HasTrailingComma bool
 }
 
+// ExprArrayData holds array literal expression details.
 type ExprArrayData struct {
 	Elements         []ExprID
 	ElementCommas    []source.Span
 	HasTrailingComma bool
 }
 
+// ExprMapEntry represents a key-value pair in a map literal.
 type ExprMapEntry struct {
 	Key   ExprID
 	Value ExprID
 }
 
+// ExprMapData holds map literal expression details.
 type ExprMapData struct {
 	Entries          []ExprMapEntry
 	EntryCommas      []source.Span
 	HasTrailingComma bool
 }
 
+// ExprRangeLitData holds range literal expression details.
 type ExprRangeLitData struct {
 	Start     ExprID
 	End       ExprID
 	Inclusive bool
 }
 
+// ExprSpreadData holds spread expression details.
 type ExprSpreadData struct {
 	Value ExprID
 }
 
+// ExprStructField represents a field in a struct literal.
 type ExprStructField struct {
 	Name  source.StringID
 	Value ExprID
 }
 
+// ExprStructData holds struct literal expression details.
 type ExprStructData struct {
 	Type             TypeID
 	Fields           []ExprStructField
@@ -361,9 +396,11 @@ type ExprSpawnData struct {
 	Value ExprID
 }
 
+// ExprParallelKind distinguishes parallel map and reduce operations.
 type ExprParallelKind uint8
 
 const (
+	// ExprParallelMap represents a parallel map operation.
 	ExprParallelMap ExprParallelKind = iota
 	ExprParallelReduce
 )
@@ -391,6 +428,7 @@ type ExprTernaryData struct {
 	FalseExpr ExprID
 }
 
+// ExprCompareArm represents a single arm in a compare expression.
 type ExprCompareArm struct {
 	Pattern     ExprID
 	PatternSpan source.Span
@@ -399,11 +437,13 @@ type ExprCompareArm struct {
 	IsFinally   bool
 }
 
+// ExprCompareData holds compare expression details.
 type ExprCompareData struct {
 	Value ExprID
 	Arms  []ExprCompareArm
 }
 
+// ExprSelectArm represents a single arm in a select expression.
 type ExprSelectArm struct {
 	Await     ExprID
 	Result    ExprID
@@ -411,6 +451,7 @@ type ExprSelectArm struct {
 	Span      source.Span
 }
 
+// ExprSelectData holds select expression details.
 type ExprSelectData struct {
 	Arms []ExprSelectArm
 }

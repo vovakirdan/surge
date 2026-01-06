@@ -8,13 +8,16 @@ import (
 	"surge/internal/source"
 )
 
+// ContractItemKind distinguishes between fields and functions in a contract.
 type ContractItemKind uint8
 
 const (
+	// ContractItemField represents a field requirement in a contract.
 	ContractItemField ContractItemKind = iota
 	ContractItemFn
 )
 
+// ContractDecl represents a contract declaration.
 type ContractDecl struct {
 	Name                  source.StringID
 	NameSpan              source.Span
@@ -34,12 +37,14 @@ type ContractDecl struct {
 	Span                  source.Span
 }
 
+// ContractItem represents an item within a contract (field or function).
 type ContractItem struct {
 	Kind    ContractItemKind
 	Payload PayloadID
 	Span    source.Span
 }
 
+// ContractFieldReq represents a field requirement in a contract.
 type ContractFieldReq struct {
 	Name             source.StringID
 	NameSpan         source.Span
@@ -52,6 +57,7 @@ type ContractFieldReq struct {
 	Span             source.Span
 }
 
+// ContractFnReq represents a function requirement in a contract.
 type ContractFnReq struct {
 	Name                  source.StringID
 	NameSpan              source.Span
@@ -77,12 +83,14 @@ type ContractFnReq struct {
 	Span                  source.Span
 }
 
+// ContractItemSpec specifies an item when creating a new contract.
 type ContractItemSpec struct {
 	Kind    ContractItemKind
 	Payload PayloadID
 	Span    source.Span
 }
 
+// Contract returns the ContractDecl for the given ItemID, or nil/false if invalid.
 func (i *Items) Contract(id ItemID) (*ContractDecl, bool) {
 	item := i.Arena.Get(uint32(id))
 	if item == nil || item.Kind != ItemContract || !item.Payload.IsValid() {
@@ -91,6 +99,7 @@ func (i *Items) Contract(id ItemID) (*ContractDecl, bool) {
 	return i.Contracts.Get(uint32(item.Payload)), true
 }
 
+// ContractItem returns the ContractItem for the given ContractItemID.
 func (i *Items) ContractItem(id ContractItemID) *ContractItem {
 	if !id.IsValid() {
 		return nil
@@ -98,6 +107,7 @@ func (i *Items) ContractItem(id ContractItemID) *ContractItem {
 	return i.ContractItems.Get(uint32(id))
 }
 
+// ContractField returns the ContractFieldReq for the given ContractFieldID.
 func (i *Items) ContractField(id ContractFieldID) *ContractFieldReq {
 	if !id.IsValid() {
 		return nil
@@ -105,6 +115,7 @@ func (i *Items) ContractField(id ContractFieldID) *ContractFieldReq {
 	return i.ContractFields.Get(uint32(id))
 }
 
+// ContractFn returns the ContractFnReq for the given ContractFnID.
 func (i *Items) ContractFn(id ContractFnID) *ContractFnReq {
 	if !id.IsValid() {
 		return nil
@@ -112,6 +123,7 @@ func (i *Items) ContractFn(id ContractFnID) *ContractFnReq {
 	return i.ContractFns.Get(uint32(id))
 }
 
+// GetContractItemIDs returns all item IDs for the given contract.
 func (i *Items) GetContractItemIDs(contract *ContractDecl) []ContractItemID {
 	if contract == nil || contract.ItemsCount == 0 || !contract.ItemsStart.IsValid() {
 		return nil
@@ -124,6 +136,7 @@ func (i *Items) GetContractItemIDs(contract *ContractDecl) []ContractItemID {
 	return items
 }
 
+// NewContractField creates a new contract field payload.
 func (i *Items) NewContractField(
 	name source.StringID,
 	nameSpan source.Span,
@@ -200,6 +213,7 @@ func (i *Items) newContractFnPayload(
 	return PayloadID(payload)
 }
 
+// NewContractFn creates a new contract function payload.
 func (i *Items) NewContractFn(
 	name source.StringID,
 	nameSpan source.Span,
@@ -248,6 +262,7 @@ func (i *Items) NewContractFn(
 	)
 }
 
+// NewContract creates a new contract item.
 func (i *Items) NewContract(
 	name source.StringID,
 	nameSpan source.Span,
