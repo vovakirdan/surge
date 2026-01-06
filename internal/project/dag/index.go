@@ -9,8 +9,10 @@ import (
 	"surge/internal/project"
 )
 
+// ModuleID is a unique identifier for a module in the graph.
 type ModuleID uint32
 
+// ModuleIndex maps module paths to their numeric IDs.
 type ModuleIndex struct {
 	NameToID map[string]ModuleID
 	IDToName []string

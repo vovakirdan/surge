@@ -300,7 +300,10 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		case "short":
 			output := diag.FormatGoldenDiagnostics(result.Bag.Items(), result.FileSet, withNotes)
 			if output != "" {
-				fmt.Fprintln(os.Stdout, output)
+				_, printErr := fmt.Fprintln(os.Stdout, output)
+				if printErr != nil {
+					return 0, fmt.Errorf("failed to print output: %w", printErr)
+				}
 			}
 		case "json":
 			jsonOpts := diagfmt.JSONOpts{
@@ -346,7 +349,10 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 		// Emit HIR (+ optional borrow artefacts) if requested
 		if printHIR && result.HIR != nil && result.Sema != nil {
-			fmt.Fprintln(os.Stdout, "\n== HIR ==")
+			_, printErr := fmt.Fprintln(os.Stdout, "\n== HIR ==")
+			if printErr != nil {
+				return 0, fmt.Errorf("failed to print HIR: %w", printErr)
+			}
 			var interner = result.Sema.TypeInterner
 			if dumpErr := hir.DumpWithOptions(os.Stdout, result.HIR, interner, hir.DumpOptions{EmitBorrow: emitBorrow}); dumpErr != nil {
 				return 0, fmt.Errorf("failed to dump HIR: %w", dumpErr)
@@ -355,7 +361,10 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 		// Emit instantiation map if requested
 		if emitInstantiations && result.Instantiations != nil && result.Sema != nil && result.Symbols != nil && result.Builder != nil {
-			fmt.Fprintln(os.Stdout, "\n== INSTANTIATIONS ==")
+			_, printErr := fmt.Fprintln(os.Stdout, "\n== INSTANTIATIONS ==")
+			if printErr != nil {
+				return 0, fmt.Errorf("failed to print INSTANTIATIONS: %w", printErr)
+			}
 			if dumpErr := mono.Dump(os.Stdout, result.Instantiations, result.FileSet, result.Symbols, result.Builder.StringsInterner, result.Sema.TypeInterner, mono.DumpOptions{PathMode: "relative"}); dumpErr != nil {
 				return 0, fmt.Errorf("failed to dump instantiations: %w", dumpErr)
 			}
@@ -375,7 +384,10 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 		// Emit monomorphized HIR if requested
 		if emitMono && mm != nil {
-			fmt.Fprintln(os.Stdout, "\n== MONO ==")
+			_, printErr := fmt.Fprintln(os.Stdout, "\n== MONO ==")
+			if printErr != nil {
+				return 0, fmt.Errorf("failed to print MONO: %w", printErr)
+			}
 			if dumpErr := mono.DumpMonoModule(os.Stdout, mm, mono.MonoDumpOptions{}); dumpErr != nil {
 				return 0, fmt.Errorf("failed to dump mono: %w", dumpErr)
 			}
@@ -414,10 +426,16 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 			// Validate MIR before dumping
 			if err := mir.Validate(mirMod, result.Sema.TypeInterner); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: MIR validation failed: %v\n", err)
+				_, fprintfErr := fmt.Fprintf(os.Stderr, "warning: MIR validation failed: %v\n", err)
+				if fprintfErr != nil {
+					return 0, fmt.Errorf("failed to print warning: %w", fprintfErr)
+				}
 			}
 
-			fmt.Fprintln(os.Stdout, "\n== MIR ==")
+			_, printErr := fmt.Fprintln(os.Stdout, "\n== MIR ==")
+			if printErr != nil {
+				return 0, fmt.Errorf("failed to print MIR: %w", printErr)
+			}
 			if dumpErr := mir.DumpModule(os.Stdout, mirMod, result.Sema.TypeInterner, mir.DumpOptions{}); dumpErr != nil {
 				return 0, fmt.Errorf("failed to dump MIR: %w", dumpErr)
 			}
@@ -483,12 +501,18 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			}
 			output := diag.FormatGoldenDiagnostics(allDiagnostics, fs, withNotes)
 			if output != "" {
-				fmt.Fprintln(os.Stdout, output)
+				_, printErr := fmt.Fprintln(os.Stdout, output)
+				if printErr != nil {
+					return 0, fmt.Errorf("failed to print output: %w", printErr)
+				}
 			}
 		case "pretty":
 			for idx, r := range results {
 				if idx > 0 {
-					fmt.Fprintln(os.Stdout)
+					_, printErr := fmt.Fprintln(os.Stdout)
+					if printErr != nil {
+						return 0, fmt.Errorf("failed to print output: %w", printErr)
+					}
 				}
 
 				displayPath := r.Path
@@ -505,7 +529,10 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 					}
 				}
 
-				fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
+				_, fprintfErr := fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
+				if fprintfErr != nil {
+					return 0, fmt.Errorf("failed to print output: %w", fprintfErr)
+				}
 				diagfmt.Pretty(os.Stdout, r.Bag, fs, prettyOpts)
 			}
 		case "json":
@@ -567,22 +594,34 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 	if resultErr != nil {
 		// Cleanup tracer explicitly because PersistentPostRun is not called on error
-		if tracer := trace.FromContext(cmd.Context()); tracer != nil && tracer != trace.Nop {
-			_ = tracer.Flush()
-			_ = tracer.Close()
-		}
+		flushAndCloseTracer(trace.FromContext(cmd.Context()))
 		return resultErr
 	}
 	if exitCode != 0 {
 		// Cleanup tracer explicitly because PersistentPostRun is not called on error
-		if tracer := trace.FromContext(cmd.Context()); tracer != nil && tracer != trace.Nop {
-			_ = tracer.Flush()
-			_ = tracer.Close()
-		}
+		flushAndCloseTracer(trace.FromContext(cmd.Context()))
 		// Suppress cobra usage output on diagnostic errors
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true
 		return fmt.Errorf("") // Silent error - diagnostics already printed
 	}
 	return nil
+}
+
+func flushAndCloseTracer(tracer trace.Tracer) {
+	if tracer == nil || tracer == trace.Nop {
+		return
+	}
+	if err := tracer.Flush(); err != nil {
+		if _, logErr := fmt.Fprintf(os.Stderr, "trace: flush error: %v\n", err); logErr != nil {
+			// Best-effort logging; ignore errors writing to stderr.
+			_ = logErr
+		}
+	}
+	if err := tracer.Close(); err != nil {
+		if _, logErr := fmt.Fprintf(os.Stderr, "trace: close error: %v\n", err); logErr != nil {
+			// Best-effort logging; ignore errors writing to stderr.
+			_ = logErr
+		}
+	}
 }

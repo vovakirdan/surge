@@ -7,22 +7,25 @@ import (
 	"surge/internal/types"
 )
 
-type LayoutErrorKind uint8
+// LayoutErrorKind enumerates types of layout calculation errors.
+type LayoutErrorKind uint8 //nolint:revive
 
 const (
+	// LayoutErrRecursiveUnsized indicates a recursive type with no fixed size.
 	LayoutErrRecursiveUnsized LayoutErrorKind = iota + 1
+	// LayoutErrLengthConversion indicates an array length conversion error.
 	LayoutErrLengthConversion
+	// LayoutErrNegativeLength indicates a negative length error.
 	LayoutErrNegativeLength
 )
 
-type LayoutError struct {
+// LayoutError represents an error during memory layout calculation.
+type LayoutError struct { //nolint:revive
 	Kind  LayoutErrorKind
 	Type  types.TypeID
-	Cycle []types.TypeID
-	// Для ошибок конвертации: вложенная ошибка
-	Err error
-	// Для ошибок с отрицательной длиной: значение, вызвавшее ошибку
-	Value int64
+	Cycle []types.TypeID // for LayoutErrRecursiveUnsized
+	Value int64          // for LayoutErrNegativeLength
+	Err   error          // for LayoutErrLengthConversion
 }
 
 func (e *LayoutError) Error() string {

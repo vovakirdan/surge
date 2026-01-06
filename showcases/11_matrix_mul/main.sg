@@ -4,9 +4,9 @@ const N = 16;
 fn main() {
     // todo: think we have no way to create nested arrays((
     // let a: int[][] = Array::<int[]>::with_len_value(N, Array::<int>::with_len_value(N, 0)); 
-    let a: int[] = Array::<int>::with_len((N * N):uint); // will be filled with default::<int>() -> 0
-    let b: int[] = Array::<int>::with_len((N * N):uint);
-    let c: int[] = Array::<int>::with_len((N * N):uint);
+    let mut a: int[] = Array::<int>::with_len((N * N):uint); // will be filled with default::<int>() -> 0
+    let mut b: int[] = Array::<int>::with_len((N * N):uint);
+    let mut c: int[] = Array::<int>::with_len((N * N):uint);
 
     // init arrays
     for (let i: int = 0; i < N; i = i + 1) {

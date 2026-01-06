@@ -127,7 +127,10 @@ func runTokenize(cmd *cobra.Command, args []string) error {
 					file := fs.Get(r.FileID)
 					displayPath = file.FormatPath("auto", fs.BaseDir())
 				}
-				fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
+				_, printErr := fmt.Fprintf(os.Stdout, "== %s ==\n", displayPath)
+				if printErr != nil {
+					return printErr
+				}
 			}
 
 			if err := diagfmt.FormatTokensPretty(os.Stdout, r.Tokens, fs); err != nil {
@@ -135,7 +138,10 @@ func runTokenize(cmd *cobra.Command, args []string) error {
 			}
 
 			if !quiet && idx < len(results)-1 {
-				fmt.Fprintln(os.Stdout)
+				_, printErr := fmt.Fprintln(os.Stdout)
+				if printErr != nil {
+					return printErr
+				}
 			}
 		}
 	case "json":

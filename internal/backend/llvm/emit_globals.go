@@ -62,6 +62,11 @@ func (e *Emitter) reachableFuncs() map[mir.FuncID]struct{} {
 	}
 	var roots []mir.FuncID
 	for id, f := range e.mod.Funcs {
+		if isPollFunc(f) {
+			roots = append(roots, id)
+		}
+	}
+	for id, f := range e.mod.Funcs {
 		if f != nil && f.Name == "__surge_start" {
 			roots = append(roots, id)
 		}
@@ -96,15 +101,40 @@ func (e *Emitter) reachableFuncs() map[mir.FuncID]struct{} {
 					continue
 				}
 				call := &ins.Call
-				if call.Callee.Kind != mir.CalleeSym {
-					continue
-				}
-				if !call.Callee.Sym.IsValid() {
-					continue
-				}
-				if nextID, ok := e.mod.FuncBySym[call.Callee.Sym]; ok {
-					if _, seen := reachable[nextID]; !seen {
-						queue = append(queue, nextID)
+				switch call.Callee.Kind {
+				case mir.CalleeSym:
+					if call.Callee.Sym.IsValid() {
+						if nextID, ok := e.mod.FuncBySym[call.Callee.Sym]; ok {
+							if _, seen := reachable[nextID]; !seen {
+								queue = append(queue, nextID)
+							}
+						}
+						continue
+					}
+					if call.Callee.Name == "" {
+						continue
+					}
+					if nextID, ok := e.funcByName(call.Callee.Name); ok {
+						if _, seen := reachable[nextID]; !seen {
+							queue = append(queue, nextID)
+						}
+					}
+				case mir.CalleeValue:
+					if call.Callee.Value.Kind == mir.OperandConst && call.Callee.Value.Const.Kind == mir.ConstFn && call.Callee.Value.Const.Sym.IsValid() {
+						if nextID, ok := e.mod.FuncBySym[call.Callee.Value.Const.Sym]; ok {
+							if _, seen := reachable[nextID]; !seen {
+								queue = append(queue, nextID)
+							}
+						}
+						continue
+					}
+					if call.Callee.Name == "" {
+						continue
+					}
+					if nextID, ok := e.funcByName(call.Callee.Name); ok {
+						if _, seen := reachable[nextID]; !seen {
+							queue = append(queue, nextID)
+						}
 					}
 				}
 			}

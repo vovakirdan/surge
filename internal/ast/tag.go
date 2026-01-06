@@ -2,6 +2,7 @@ package ast
 
 import "surge/internal/source"
 
+// TagItem represents a tag definition.
 type TagItem struct {
 	Name                  source.StringID
 	NameSpan              source.Span
@@ -23,6 +24,7 @@ type TagItem struct {
 	Span                  source.Span
 }
 
+// Tag returns the TagItem for the given ItemID, or nil/false if invalid.
 func (i *Items) Tag(id ItemID) (*TagItem, bool) {
 	item := i.Arena.Get(uint32(id))
 	if item == nil || item.Kind != ItemTag || !item.Payload.IsValid() {
@@ -31,6 +33,7 @@ func (i *Items) Tag(id ItemID) (*TagItem, bool) {
 	return i.Tags.Get(uint32(item.Payload)), true
 }
 
+// NewTag creates a new tag item.
 func (i *Items) NewTag(
 	name source.StringID,
 	nameSpan source.Span,

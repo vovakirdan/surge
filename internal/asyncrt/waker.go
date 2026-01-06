@@ -4,11 +4,17 @@ package asyncrt
 type WakerKind uint8
 
 const (
+	// WakerInvalid indicates an invalid waker key.
 	WakerInvalid WakerKind = iota
+	// WakerJoin indicates a join wait queue.
 	WakerJoin
+	// WakerChannelRecv indicates a channel receive wait queue.
 	WakerChannelRecv
+	// WakerChannelSend indicates a channel send wait queue.
 	WakerChannelSend
+	// WakerTimer indicates a timer wait queue.
 	WakerTimer
+	// WakerSelect indicates a select wait queue.
 	WakerSelect
 )
 
@@ -59,9 +65,13 @@ type Waiter struct {
 type PollOutcomeKind uint8
 
 const (
+	// PollDoneSuccess indicates the task completed successfully.
 	PollDoneSuccess PollOutcomeKind = iota
+	// PollDoneCancelled indicates the task was cancelled.
 	PollDoneCancelled
+	// PollYielded indicates the task yielded.
 	PollYielded
+	// PollParked indicates the task is parked.
 	PollParked
 )
 

@@ -9,6 +9,7 @@ import (
 	"surge/internal/types"
 )
 
+// BuildBorrowGraph constructs a borrow graph for the given function.
 func BuildBorrowGraph(ctx context.Context, hfn *Func, semaRes *sema.Result) (*BorrowGraph, *MovePlan, error) {
 	if hfn == nil || semaRes == nil {
 		return nil, nil, nil

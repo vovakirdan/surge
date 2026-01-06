@@ -353,7 +353,7 @@ func buildAsyncConstructor(_ *Module, f *Func, typesIn *types.Interner, semaRes 
 	}
 
 	appendInstr(f, entry, Instr{Kind: InstrAssign, Assign: AssignInstr{Dst: Place{Local: stateTmp}, Src: RValue{Kind: RValueStructLit, StructLit: StructLit{TypeID: stateType, Fields: litFields}}}})
-	appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{HasDst: true, Dst: Place{Local: taskTmp}, Callee: Callee{Kind: CalleeValue, Name: "__task_create"}, Args: []Operand{{Kind: OperandConst, Type: typesIn.Builtins().Int, Const: Const{Kind: ConstInt, Type: typesIn.Builtins().Int, IntValue: int64(pollFnID)}}, {Kind: OperandMove, Place: Place{Local: stateTmp}}}}})
+	appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{HasDst: true, Dst: Place{Local: taskTmp}, Callee: Callee{Kind: CalleeValue, Name: "__task_create"}, Args: []Operand{{Kind: OperandConst, Type: typesIn.Builtins().Int64, Const: Const{Kind: ConstInt, Type: typesIn.Builtins().Int64, IntValue: int64(pollFnID)}}, {Kind: OperandMove, Place: Place{Local: stateTmp}}}}})
 	setBlockTerm(f, entry, Terminator{Kind: TermReturn, Return: ReturnTerm{HasValue: true, Value: Operand{Kind: OperandMove, Place: Place{Local: taskTmp}}}})
 	return nil
 }

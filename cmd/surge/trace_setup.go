@@ -121,10 +121,16 @@ func setupTracing(cmd *cobra.Command) (func(), error) {
 		}
 
 		if err := tracer.Flush(); err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "trace: flush error: %v\n", err)
+			_, printErr := fmt.Fprintf(cmd.ErrOrStderr(), "trace: flush error: %v\n", err)
+			if printErr != nil {
+				panic(printErr)
+			}
 		}
 		if err := tracer.Close(); err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "trace: close error: %v\n", err)
+			_, printErr := fmt.Fprintf(cmd.ErrOrStderr(), "trace: close error: %v\n", err)
+			if printErr != nil {
+				panic(printErr)
+			}
 		}
 	}
 
@@ -162,24 +168,41 @@ func dumpTraceOnPanic() {
 		if panicTracer != nil {
 			if rt := findRingTracer(panicTracer); rt != nil && panicOutputPath != "" {
 				dumpPath := generateDumpPath(panicOutputPath, "panic")
+				// #nosec G304 -- dump path is derived from user-specified output path
 				if f, err := os.Create(dumpPath); err == nil {
 					if dumpErr := rt.Dump(f, trace.FormatText); dumpErr != nil {
-						fmt.Fprintf(os.Stderr, "trace: dump error: %v\n", dumpErr)
+						_, printErr := fmt.Fprintf(os.Stderr, "trace: dump error: %v\n", dumpErr)
+						if printErr != nil {
+							panic(printErr)
+						}
 					} else {
-						fmt.Fprintf(os.Stderr, "trace: ring buffer saved to %s\n", dumpPath)
+						_, printErr := fmt.Fprintf(os.Stderr, "trace: ring buffer saved to %s\n", dumpPath)
+						if printErr != nil {
+							panic(printErr)
+						}
 					}
-					f.Close()
+					if closeErr := f.Close(); closeErr != nil {
+						panic(closeErr)
+					}
 				} else {
-					fmt.Fprintf(os.Stderr, "trace: failed to create dump file: %v\n", err)
+					if _, printErr := fmt.Fprintf(os.Stderr, "trace: failed to create dump file: %v\n", err); printErr != nil {
+						panic(printErr)
+					}
 				}
 			}
 
 			// Flush and close tracer
 			if err := panicTracer.Flush(); err != nil {
-				fmt.Fprintf(os.Stderr, "trace: flush error: %v\n", err)
+				_, printErr := fmt.Fprintf(os.Stderr, "trace: flush error: %v\n", err)
+				if printErr != nil {
+					panic(printErr)
+				}
 			}
 			if err := panicTracer.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "trace: close error: %v\n", err)
+				_, printErr := fmt.Fprintf(os.Stderr, "trace: close error: %v\n", err)
+				if printErr != nil {
+					panic(printErr)
+				}
 			}
 		}
 
@@ -234,32 +257,42 @@ func setupSignalHandler(tracer trace.Tracer, outputPath string, heartbeat *trace
 		// Dump ring buffer if available
 		if rt := findRingTracer(tracer); rt != nil && outputPath != "" {
 			dumpPath := generateDumpPath(outputPath, "interrupt")
+			// #nosec G304 -- dump path is derived from user-specified output path
 			if f, err := os.Create(dumpPath); err == nil {
 				if dumpErr := rt.Dump(f, trace.FormatText); dumpErr != nil {
 					fmt.Fprintf(os.Stderr, "trace: dump error: %v\n", dumpErr)
 				} else {
 					fmt.Fprintf(os.Stderr, "trace: ring buffer saved to %s\n", dumpPath)
 				}
-				f.Close()
+				if closeErr := f.Close(); closeErr != nil {
+					panic(closeErr)
+				}
 			} else {
-				fmt.Fprintf(os.Stderr, "trace: failed to create dump file: %v\n", err)
+				if _, printErr := fmt.Fprintf(os.Stderr, "trace: failed to create dump file: %v\n", err); printErr != nil {
+					panic(printErr)
+				}
 			}
 		}
 
 		// Flush and close tracer
 		if err := tracer.Flush(); err != nil {
-			fmt.Fprintf(os.Stderr, "trace: flush error: %v\n", err)
+			_, printErr := fmt.Fprintf(os.Stderr, "trace: flush error: %v\n", err)
+			if printErr != nil {
+				panic(printErr)
+			}
 		}
 		if err := tracer.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "trace: close error: %v\n", err)
+			_, printErr := fmt.Fprintf(os.Stderr, "trace: close error: %v\n", err)
+			if printErr != nil {
+				panic(printErr)
+			}
 		}
 
 		// Exit with signal-appropriate code
 		if sig == syscall.SIGINT {
 			os.Exit(130) // 128 + SIGINT
-		} else {
-			os.Exit(143) // 128 + SIGTERM
 		}
+		os.Exit(143) // 128 + SIGTERM
 	}()
 }
 

@@ -14,7 +14,7 @@ See also: `docs/IR.md`, `docs/CONCURRENCY.md`, `docs/ABI_LAYOUT.md`.
   (`internal/vm`).
 - Execution starts at the synthetic `__surge_start` produced from
   `@entrypoint` lowering.
-- The VM is the default backend for `surge run` and supports deterministic
+- The VM is available via `surge run --backend=vm` and supports deterministic
   scheduling by default.
 
 ---
@@ -105,4 +105,3 @@ This is used in golden tests and determinism checks.
 
 - No OS-thread parallelism (single-threaded runtime).
 - `parallel` / `signal` are reserved and rejected.
-- `await` inside loops is not supported by async lowering.

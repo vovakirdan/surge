@@ -6,12 +6,15 @@ import (
 	"strings"
 )
 
+// ErrParse indicates an invalid numeric format.
 var ErrParse = errors.New("invalid numeric format")
 
+// ParseUintLiteral parses a uint literal string.
 func ParseUintLiteral(s string) (BigUint, error) {
 	return parseUintString(s, false, true)
 }
 
+// ParseIntLiteral parses an int literal string.
 func ParseIntLiteral(s string) (BigInt, error) {
 	u, err := ParseUintLiteral(s)
 	if err != nil {
@@ -23,10 +26,12 @@ func ParseIntLiteral(s string) (BigInt, error) {
 	return BigInt{Limbs: u.Limbs}, nil
 }
 
+// ParseUint parses a uint string.
 func ParseUint(s string) (BigUint, error) {
 	return parseUintString(s, true, false)
 }
 
+// ParseInt parses an int string.
 func ParseInt(s string) (BigInt, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -128,6 +133,7 @@ func digitValue(ch byte, base uint32) (uint32, bool) {
 	}
 }
 
+// ParseFloat parses a string representation of a floating-point number into a BigFloat.
 func ParseFloat(s string) (BigFloat, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -187,9 +193,10 @@ func ParseFloat(s string) (BigFloat, error) {
 			return BigFloat{}, ErrParse
 		}
 		expNeg := false
-		if s[i] == '+' {
+		switch s[i] {
+		case '+':
 			i++
-		} else if s[i] == '-' {
+		case '-':
 			expNeg = true
 			i++
 		}
@@ -256,6 +263,7 @@ func ParseFloat(s string) (BigFloat, error) {
 	return f, nil
 }
 
+// UintPow10 computes 10^n as a BigUint.
 func UintPow10(n int) (BigUint, error) {
 	if n < 0 {
 		return BigUint{}, errors.New("negative pow10")

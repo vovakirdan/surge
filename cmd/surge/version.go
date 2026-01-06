@@ -61,7 +61,7 @@ func init() {
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Show surge build fingerprints",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		opts := versionOptions{
 			format:      strings.ToLower(versionFormat),
 			showHash:    versionShowHash || versionShowFull,
@@ -87,7 +87,7 @@ var versionCmd = &cobra.Command{
 }
 
 func collectVersionInfo() versionInfo {
-	v := strings.TrimSpace(version.Version)
+	v := strings.TrimSpace(version.String())
 	if v == "" {
 		v = "dev"
 	}
@@ -101,16 +101,29 @@ func collectVersionInfo() versionInfo {
 
 func renderVersionPretty(out io.Writer, info versionInfo, opts versionOptions) {
 	coloredVersionTagline := versionTaglineColor.Sprint(versionTagline)
-	fmt.Fprintf(out, "surge %s — %s\n", info.Version, coloredVersionTagline)
+	var printErr error
+	_, printErr = fmt.Fprintf(out, "surge %s — %s\n", info.Version, coloredVersionTagline)
+	if printErr != nil {
+		panic(printErr)
+	}
 
 	if opts.showHash {
-		fmt.Fprintf(out, "commit: %s\n", valueOrUnknown(info.GitCommit, commitColor))
+		_, printErr = fmt.Fprintf(out, "commit: %s\n", valueOrUnknown(info.GitCommit, commitColor))
+		if printErr != nil {
+			panic(printErr)
+		}
 	}
 	if opts.showMessage {
-		fmt.Fprintf(out, "message: %s\n", valueOrUnknown(info.GitMessage, messageColor))
+		_, printErr = fmt.Fprintf(out, "message: %s\n", valueOrUnknown(info.GitMessage, messageColor))
+		if printErr != nil {
+			panic(printErr)
+		}
 	}
 	if opts.showDate {
-		fmt.Fprintf(out, "built:  %s\n", valueOrUnknown(info.BuildDate, dateColor))
+		_, printErr = fmt.Fprintf(out, "built:  %s\n", valueOrUnknown(info.BuildDate, dateColor))
+		if printErr != nil {
+			panic(printErr)
+		}
 	}
 }
 

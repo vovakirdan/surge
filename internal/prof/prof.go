@@ -1,6 +1,8 @@
 package prof
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -14,12 +16,18 @@ var (
 
 // StartCPU enables CPU profiling and writes samples to the provided path.
 func StartCPU(path string) error {
+	// #nosec G304 -- path is controlled by the caller
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
 	if err := pprof.StartCPUProfile(f); err != nil {
-		_ = f.Close()
+		if closeErr := f.Close(); closeErr != nil {
+			return errors.Join(
+				fmt.Errorf("start cpu profile: %w", err),
+				fmt.Errorf("close cpu profile output: %w", closeErr),
+			)
+		}
 		return err
 	}
 	cpuFile = f
@@ -30,18 +38,26 @@ func StartCPU(path string) error {
 func StopCPU() {
 	pprof.StopCPUProfile()
 	if cpuFile != nil {
-		_ = cpuFile.Close()
+		if closeErr := cpuFile.Close(); closeErr != nil {
+			// Best-effort cleanup; ignore close errors.
+			_ = closeErr
+		}
 		cpuFile = nil
 	}
 }
 
 // WriteMem captures a heap profile to the supplied file path.
 func WriteMem(path string) error {
+	// #nosec G304 -- path is controlled by the caller
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			panic(closeErr)
+		}
+	}()
 	runtime.GC()
 	if err := pprof.WriteHeapProfile(f); err != nil {
 		return err
@@ -51,12 +67,18 @@ func WriteMem(path string) error {
 
 // StartTrace writes runtime trace data to the provided path.
 func StartTrace(path string) error {
+	// #nosec G304 -- path is controlled by the caller
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
 	if err := trace.Start(f); err != nil {
-		_ = f.Close()
+		if closeErr := f.Close(); closeErr != nil {
+			return errors.Join(
+				fmt.Errorf("start trace: %w", err),
+				fmt.Errorf("close trace output: %w", closeErr),
+			)
+		}
 		return err
 	}
 	traceFile = f
@@ -67,7 +89,10 @@ func StartTrace(path string) error {
 func StopTrace() {
 	trace.Stop()
 	if traceFile != nil {
-		_ = traceFile.Close()
+		if closeErr := traceFile.Close(); closeErr != nil {
+			// Best-effort cleanup; ignore close errors.
+			_ = closeErr
+		}
 		traceFile = nil
 	}
 }

@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   go: '1.25'
@@ -8,7 +10,6 @@ linters:
   enable:
     # Обязательные базовые линтеры
     - errcheck       # проверка необработанных ошибок
-    - gosimple       # упрощение кода
     - govet          # стандартный vet анализ
     - ineffassign    # обнаружение неиспользуемых присваиваний
     - staticcheck    # расширенная статическая проверка
@@ -16,15 +17,12 @@ linters:
     - unparam        # обнаружение неиспользуемых параметров функций
     
     # Стиль и форматирование
-    - gofmt          # проверка форматирования
-    - goimports      # проверка импортов
     - misspell       # проверка опечаток в комментариях
     
     # Качество кода
     - gosec          # проверка безопасности
     - gocritic       # мета-линтер с множеством проверок
     - revive         # быстрая замена golint
-    - stylecheck     # проверка стиля по Go Code Review Comments
     
     # Производительность
     - prealloc       # предварительное выделение слайсов
@@ -39,61 +37,66 @@ linters:
     # Современные практики
     - intrange       # проверка использования range над целыми числами (Go 1.22+)
 
-linters-settings:
-  errcheck:
-    check-blank: true
-    check-type-assertions: true
-  
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment  # слишком строгая проверка
-  
-  gosec:
-    excludes:
-      - G104  # дублирует errcheck
-  
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-    disabled-checks:
-      - commentFormatting
-      - whyNoLint
-  
-  revive:
+  settings:
+    errcheck:
+      check-blank: true
+      check-type-assertions: true
+    
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment  # слишком строгая проверка
+    
+    gosec:
+      excludes:
+        - G104  # дублирует errcheck
+    
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - commentFormatting
+        - whyNoLint
+    
+    revive:
+      rules:
+        - name: exported
+          disabled: false
+          arguments:
+            - checkPrivateReceivers
+            - disableStutteringCheck
+
+  exclusions:
     rules:
-      - name: exported
-        disabled: false
-        arguments:
-          - checkPrivateReceivers
-          - disableStutteringCheck
+      # Исключения для тестов
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - gocritic
+      
+      # Исключения для сгенерированного кода
+      - path: \.pb\.go$
+        linters:
+          - gofmt
+          - goimports
+          - gocritic
+          - stylecheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
 
 issues:
-  exclude-rules:
-    # Исключения для тестов
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-        - gocritic
-    
-    # Исключения для сгенерированного кода
-    - path: \.pb\.go$
-      linters:
-        - gofmt
-        - goimports
-        - gocritic
-        - stylecheck
-  
   max-issues-per-linter: 0
   max-same-issues: 0
 
 output:
   formats:
-    - format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
-  sort-results: true
-
+    text:
+      print-issued-lines: true
+      print-linter-name: true
+      colors: true

@@ -265,7 +265,7 @@ func TestNilOption(t *testing.T) {
 	span := source.Span{File: fileID, Start: 0, End: 0}
 
 	// Создаем nil опцию
-	var nilOpt Option = nil
+	var nilOpt Option
 
 	fix := InsertText("Test fix", span, "// ", "", nilOpt, WithRequiresAll())
 

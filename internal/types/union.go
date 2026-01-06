@@ -1,4 +1,4 @@
-package types
+package types //nolint:revive
 
 import (
 	"fmt"
@@ -12,8 +12,11 @@ import (
 type UnionMemberKind uint8
 
 const (
+	// UnionMemberType represents a value variant in a union.
 	UnionMemberType UnionMemberKind = iota
+	// UnionMemberNothing represents a nothing variant in a union.
 	UnionMemberNothing
+	// UnionMemberTag represents a tag variant in a union.
 	UnionMemberTag
 )
 

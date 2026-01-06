@@ -53,6 +53,7 @@ func (h *Heap) alloc(kind ObjectKind, typeID types.TypeID) (Handle, *Object) {
 	return handle, obj
 }
 
+// AllocString allocates a string object on the heap.
 func (h *Heap) AllocString(typeID types.TypeID, s string) Handle {
 	handle, obj := h.alloc(OKString, typeID)
 	obj.Str = s
@@ -67,6 +68,7 @@ func (h *Heap) AllocString(typeID types.TypeID, s string) Handle {
 	return handle
 }
 
+// AllocStringWithCPLen allocates a string object with a known code point length.
 func (h *Heap) AllocStringWithCPLen(typeID types.TypeID, s string, cpLen int) Handle {
 	handle, obj := h.alloc(OKString, typeID)
 	obj.Str = s
@@ -81,6 +83,7 @@ func (h *Heap) AllocStringWithCPLen(typeID types.TypeID, s string, cpLen int) Ha
 	return handle
 }
 
+// AllocStringConcat allocates a concatenated string object.
 func (h *Heap) AllocStringConcat(typeID types.TypeID, left, right Handle, byteLen, cpLen int, cpLenKnown bool) Handle {
 	// Validate handles before retaining to avoid partial retain on panic
 	if left != 0 {
@@ -116,6 +119,7 @@ func (h *Heap) AllocStringConcat(typeID types.TypeID, left, right Handle, byteLe
 	return handle
 }
 
+// AllocStringSlice allocates a string slice object.
 func (h *Heap) AllocStringSlice(typeID types.TypeID, base Handle, startCP, cpLen, byteLen int) Handle {
 	// Validate base handle before retaining
 	if base != 0 {
@@ -143,6 +147,7 @@ func (h *Heap) AllocStringSlice(typeID types.TypeID, base Handle, startCP, cpLen
 	return handle
 }
 
+// AllocRange allocates a range object on the heap.
 func (h *Heap) AllocRange(typeID types.TypeID, start, end Value, hasStart, hasEnd, inclusive bool) Handle {
 	handle, obj := h.alloc(OKRange, typeID)
 	obj.Range = RangeObject{
@@ -159,6 +164,7 @@ func (h *Heap) AllocRange(typeID types.TypeID, start, end Value, hasStart, hasEn
 	return handle
 }
 
+// AllocArrayIterRange allocates an array iterator range object.
 func (h *Heap) AllocArrayIterRange(typeID types.TypeID, base Handle, start, length int) Handle {
 	handle, obj := h.alloc(OKRange, typeID)
 	obj.Range = RangeObject{
@@ -176,6 +182,7 @@ func (h *Heap) AllocArrayIterRange(typeID types.TypeID, base Handle, start, leng
 	return handle
 }
 
+// AllocArray allocates an array object on the heap.
 func (h *Heap) AllocArray(typeID types.TypeID, elems []Value) Handle {
 	handle, obj := h.alloc(OKArray, typeID)
 	obj.Arr = append([]Value(nil), elems...)
@@ -185,6 +192,7 @@ func (h *Heap) AllocArray(typeID types.TypeID, elems []Value) Handle {
 	return handle
 }
 
+// AllocArraySlice allocates an array slice object.
 func (h *Heap) AllocArraySlice(typeID types.TypeID, base Handle, start, length, capacity int) Handle {
 	if base != 0 {
 		baseObj := h.Get(base)
@@ -206,6 +214,7 @@ func (h *Heap) AllocArraySlice(typeID types.TypeID, base Handle, start, length, 
 	return handle
 }
 
+// AllocMap allocates a map object on the heap.
 func (h *Heap) AllocMap(typeID types.TypeID) Handle {
 	handle, obj := h.alloc(OKMap, typeID)
 	obj.MapIndex = make(map[mapKey]int)
@@ -215,6 +224,7 @@ func (h *Heap) AllocMap(typeID types.TypeID) Handle {
 	return handle
 }
 
+// AllocStruct allocates a struct object on the heap.
 func (h *Heap) AllocStruct(typeID types.TypeID, fields []Value) Handle {
 	handle, obj := h.alloc(OKStruct, typeID)
 	obj.Fields = append([]Value(nil), fields...)
@@ -224,6 +234,7 @@ func (h *Heap) AllocStruct(typeID types.TypeID, fields []Value) Handle {
 	return handle
 }
 
+// AllocTag allocates a tagged union object on the heap.
 func (h *Heap) AllocTag(typeID types.TypeID, tagSym symbols.SymbolID, fields []Value) Handle {
 	handle, obj := h.alloc(OKTag, typeID)
 	obj.Tag.TagSym = tagSym
@@ -234,6 +245,7 @@ func (h *Heap) AllocTag(typeID types.TypeID, tagSym symbols.SymbolID, fields []V
 	return handle
 }
 
+// AllocBigInt allocates a big integer object on the heap.
 func (h *Heap) AllocBigInt(typeID types.TypeID, v bignum.BigInt) Handle {
 	handle, obj := h.alloc(OKBigInt, typeID)
 	obj.BigInt = v
@@ -243,6 +255,7 @@ func (h *Heap) AllocBigInt(typeID types.TypeID, v bignum.BigInt) Handle {
 	return handle
 }
 
+// AllocBigUint allocates a big unsigned integer object on the heap.
 func (h *Heap) AllocBigUint(typeID types.TypeID, v bignum.BigUint) Handle {
 	handle, obj := h.alloc(OKBigUint, typeID)
 	obj.BigUint = v
@@ -252,6 +265,7 @@ func (h *Heap) AllocBigUint(typeID types.TypeID, v bignum.BigUint) Handle {
 	return handle
 }
 
+// AllocBigFloat allocates a big float object on the heap.
 func (h *Heap) AllocBigFloat(typeID types.TypeID, v bignum.BigFloat) Handle {
 	handle, obj := h.alloc(OKBigFloat, typeID)
 	obj.BigFloat = v
@@ -261,6 +275,7 @@ func (h *Heap) AllocBigFloat(typeID types.TypeID, v bignum.BigFloat) Handle {
 	return handle
 }
 
+// Get retrieves an object from the heap by handle.
 func (h *Heap) Get(handle Handle) *Object {
 	h.initIfNeeded()
 	if handle == 0 {
@@ -276,6 +291,7 @@ func (h *Heap) Get(handle Handle) *Object {
 	return obj
 }
 
+// Retain increments the reference count of an object.
 func (h *Heap) Retain(handle Handle) {
 	h.initIfNeeded()
 	if handle == 0 {
@@ -302,6 +318,7 @@ func (h *Heap) Retain(handle Handle) {
 	}
 }
 
+// Release decrements the reference count of an object and frees it if the count reaches zero.
 func (h *Heap) Release(handle Handle) {
 	h.initIfNeeded()
 	if handle == 0 {
@@ -327,6 +344,7 @@ func (h *Heap) Release(handle Handle) {
 	}
 }
 
+// Free frees an object on the heap.
 func (h *Heap) Free(handle Handle) {
 	h.initIfNeeded()
 	if handle == 0 {

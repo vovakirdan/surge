@@ -14,11 +14,13 @@ import (
 	"surge/internal/types"
 )
 
+// Options configures the monomorphization process.
 type Options struct {
 	MaxDepth  int
 	EnableDCE bool
 }
 
+// MonomorphizeProgram monomorphizes a set of HIR modules into concrete instances.
 func MonomorphizeProgram(mods []*hir.Module, inst *InstantiationMap, semaRes *sema.Result, opt Options) (*MonoProgram, error) {
 	if opt.MaxDepth <= 0 {
 		opt.MaxDepth = 64
@@ -37,10 +39,13 @@ func MonomorphizeProgram(mods []*hir.Module, inst *InstantiationMap, semaRes *se
 	return out, nil
 }
 
-type MonoProgram struct {
+// MonoProgram represents a fully monomorphized program.
+// Note: The name stutters with the package name, but is kept for consistency.
+type MonoProgram struct { //nolint:revive
 	Modules []*MonoModule
 }
 
+// MonomorphizeModule monomorphizes a single HIR module.
 func MonomorphizeModule(m *hir.Module, inst *InstantiationMap, semaRes *sema.Result, opt Options) (*MonoModule, error) {
 	if opt.MaxDepth <= 0 {
 		opt.MaxDepth = 64

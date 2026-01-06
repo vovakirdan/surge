@@ -31,19 +31,24 @@ func (tc *typeChecker) literalType(kind ast.ExprLitKind) types.TypeID {
 	}
 }
 
+// IsOperandKind identifies the target of an 'is' expression.
 type IsOperandKind uint8
 
 const (
+	// IsOperandType indicates the target is a type.
 	IsOperandType IsOperandKind = iota
+	// IsOperandTag indicates the target is a union tag.
 	IsOperandTag
 )
 
+// IsOperand stores resolved target information for 'is'.
 type IsOperand struct {
 	Kind IsOperandKind
 	Type types.TypeID
 	Tag  source.StringID
 }
 
+// HeirOperand stores resolved type operands for 'heir'.
 type HeirOperand struct {
 	Left  types.TypeID
 	Right types.TypeID

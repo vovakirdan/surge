@@ -12,25 +12,41 @@ import (
 type ValueKind uint8
 
 const (
+	// VKInvalid represents an invalid value.
 	VKInvalid ValueKind = iota
-	VKInt               // signed integer
-	VKBool              // boolean
-	VKNothing           // nothing/unit value
-	VKFunc              // function value
-
+	// VKInt represents a signed integer value.
+	VKInt // signed integer
+	// VKBool represents a boolean value.
+	VKBool // boolean
+	// VKNothing represents a nothing/unit value.
+	VKNothing // nothing/unit value
+	// VKFunc represents a function value.
+	VKFunc // function value
+	// VKRef represents a reference value.
 	VKRef
+	// VKRefMut represents a mutable reference value.
 	VKRefMut
+	// VKPtr represents a pointer value.
 	VKPtr
 
+	// VKHandleString represents a string handle value.
 	VKHandleString
+	// VKHandleArray represents an array handle value.
 	VKHandleArray
+	// VKHandleMap represents a map handle value.
 	VKHandleMap
+	// VKHandleStruct represents a struct handle value.
 	VKHandleStruct
+	// VKHandleTag represents a tagged union handle value.
 	VKHandleTag
+	// VKHandleRange represents a range handle value.
 	VKHandleRange
 
+	// VKBigInt represents a big integer handle value.
 	VKBigInt
+	// VKBigUint represents a big unsigned integer handle value.
 	VKBigUint
+	// VKBigFloat represents a big float handle value.
 	VKBigFloat
 )
 
@@ -92,6 +108,7 @@ func (v Value) IsZero() bool {
 	return v.Kind == VKInvalid
 }
 
+// IsHeap reports whether the value is stored on the heap.
 func (v Value) IsHeap() bool {
 	switch v.Kind {
 	case VKHandleString, VKHandleArray, VKHandleMap, VKHandleStruct, VKHandleTag, VKHandleRange, VKBigInt, VKBigUint, VKBigFloat:
@@ -171,6 +188,7 @@ func MakeNothing() Value {
 	}
 }
 
+// MakeFunc creates a function value.
 func MakeFunc(sym symbols.SymbolID, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
@@ -179,6 +197,7 @@ func MakeFunc(sym symbols.SymbolID, typeID types.TypeID) Value {
 	}
 }
 
+// MakeRef creates a reference value.
 func MakeRef(loc Location, typeID types.TypeID) Value {
 	loc.IsMut = false
 	return Value{
@@ -188,6 +207,7 @@ func MakeRef(loc Location, typeID types.TypeID) Value {
 	}
 }
 
+// MakeRefMut creates a mutable reference value.
 func MakeRefMut(loc Location, typeID types.TypeID) Value {
 	loc.IsMut = true
 	return Value{
@@ -197,6 +217,7 @@ func MakeRefMut(loc Location, typeID types.TypeID) Value {
 	}
 }
 
+// MakePtr creates a pointer value.
 func MakePtr(loc Location, typeID types.TypeID) Value {
 	loc.IsMut = false
 	return Value{
@@ -206,6 +227,7 @@ func MakePtr(loc Location, typeID types.TypeID) Value {
 	}
 }
 
+// MakeHandleString creates a string handle value.
 func MakeHandleString(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
@@ -214,6 +236,7 @@ func MakeHandleString(h Handle, typeID types.TypeID) Value {
 	}
 }
 
+// MakeHandleArray creates an array handle value.
 func MakeHandleArray(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
@@ -222,6 +245,7 @@ func MakeHandleArray(h Handle, typeID types.TypeID) Value {
 	}
 }
 
+// MakeHandleMap creates a map handle value.
 func MakeHandleMap(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
@@ -230,6 +254,7 @@ func MakeHandleMap(h Handle, typeID types.TypeID) Value {
 	}
 }
 
+// MakeHandleStruct creates a struct handle value.
 func MakeHandleStruct(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
@@ -238,6 +263,7 @@ func MakeHandleStruct(h Handle, typeID types.TypeID) Value {
 	}
 }
 
+// MakeHandleTag creates a tagged union handle value.
 func MakeHandleTag(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
@@ -246,6 +272,7 @@ func MakeHandleTag(h Handle, typeID types.TypeID) Value {
 	}
 }
 
+// MakeHandleRange creates a range handle value.
 func MakeHandleRange(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
@@ -254,6 +281,7 @@ func MakeHandleRange(h Handle, typeID types.TypeID) Value {
 	}
 }
 
+// MakeBigInt creates a big integer handle value.
 func MakeBigInt(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
@@ -262,6 +290,7 @@ func MakeBigInt(h Handle, typeID types.TypeID) Value {
 	}
 }
 
+// MakeBigUint creates a big unsigned integer handle value.
 func MakeBigUint(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,
@@ -270,6 +299,7 @@ func MakeBigUint(h Handle, typeID types.TypeID) Value {
 	}
 }
 
+// MakeBigFloat creates a big float handle value.
 func MakeBigFloat(h Handle, typeID types.TypeID) Value {
 	return Value{
 		TypeID: typeID,

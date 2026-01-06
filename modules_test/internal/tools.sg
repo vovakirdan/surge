@@ -5,4 +5,5 @@ pub fn return_42() -> int {
 @entrypoint
 fn main() {
     print(f"The answer is {return_42()}");
+    print("If you see this, the module is working incorrectly");
 }

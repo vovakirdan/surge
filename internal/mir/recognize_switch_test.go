@@ -262,13 +262,13 @@ func TestRecognizeSwitchTag_SingleTagTest(t *testing.T) {
 }
 
 // TestRecognizeSwitchTag_NilFunction tests that nil function doesn't panic.
-func TestRecognizeSwitchTag_NilFunction(t *testing.T) {
+func TestRecognizeSwitchTag_NilFunction(_ *testing.T) {
 	// Should not panic
 	mir.RecognizeSwitchTag(nil)
 }
 
 // TestRecognizeSwitchTag_EmptyFunction tests that empty function doesn't panic.
-func TestRecognizeSwitchTag_EmptyFunction(t *testing.T) {
+func TestRecognizeSwitchTag_EmptyFunction(_ *testing.T) {
 	f := &mir.Func{
 		Name:   "test",
 		Entry:  0,

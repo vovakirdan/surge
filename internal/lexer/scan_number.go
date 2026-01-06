@@ -82,17 +82,17 @@ func (lx *Lexer) scanNumber() token.Token {
 		b0, b1, ok := lx.cursor.Peek2()
 		if ok && b0 == '.' && (b1 == '.' || b1 == '=') {
 			// это '..' или '..=' — НЕ часть числа
-		} else {
-			lx.cursor.Bump() // '.'
-			if isDec(lx.cursor.Peek()) {
-				kind = token.FloatLit
-				for isDec(lx.cursor.Peek()) || lx.cursor.Peek() == '_' {
-					lx.cursor.Bump()
-				}
-			} else {
-				// одиночная точка без дробной части — допустимо как float "1."
-				kind = token.FloatLit
+			goto emit
+		}
+		lx.cursor.Bump() // '.'
+		if isDec(lx.cursor.Peek()) {
+			kind = token.FloatLit
+			for isDec(lx.cursor.Peek()) || lx.cursor.Peek() == '_' {
+				lx.cursor.Bump()
 			}
+		} else {
+			// одиночная точка без дробной части — допустимо как float "1."
+			kind = token.FloatLit
 		}
 	}
 

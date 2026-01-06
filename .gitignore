@@ -37,6 +37,7 @@ test*.sg
 tmp*.sg
 .cursor/
 build/
+target/
 
 # Surge project
 helloworld/
@@ -44,3 +45,5 @@ helloworld/
 surge
 !cmd/surge
 !stdlib/directives/test/test.sg
+
+*.o

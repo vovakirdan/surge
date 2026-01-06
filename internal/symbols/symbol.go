@@ -10,15 +10,25 @@ import (
 type SymbolKind uint8
 
 const (
+	// SymbolInvalid represents an uninitialized or erroneous symbol.
 	SymbolInvalid SymbolKind = iota
+	// SymbolModule represents a module symbol.
 	SymbolModule
+	// SymbolImport represents an import symbol.
 	SymbolImport
+	// SymbolFunction represents a function symbol.
 	SymbolFunction
+	// SymbolLet represents a let symbol.
 	SymbolLet
+	// SymbolConst represents a const symbol.
 	SymbolConst
+	// SymbolType represents a type symbol.
 	SymbolType
+	// SymbolParam represents a param symbol.
 	SymbolParam
+	// SymbolTag represents a tag symbol.
 	SymbolTag
+	// SymbolContract represents a contract symbol.
 	SymbolContract
 )
 
@@ -26,13 +36,21 @@ const (
 type SymbolFlags uint16
 
 const (
+	// SymbolFlagPublic indicates the symbol is exported from its module.
 	SymbolFlagPublic SymbolFlags = 1 << iota
+	// SymbolFlagMutable indicates the symbol is mutable.
 	SymbolFlagMutable
+	// SymbolFlagImported indicates the symbol is imported.
 	SymbolFlagImported
+	// SymbolFlagBuiltin indicates the symbol is a builtin.
 	SymbolFlagBuiltin
+	// SymbolFlagMethod indicates the symbol is a method.
 	SymbolFlagMethod
+	// SymbolFlagFilePrivate indicates the symbol is a file private.
 	SymbolFlagFilePrivate
+	// SymbolFlagEntrypoint indicates the symbol is an entrypoint.
 	SymbolFlagEntrypoint
+	// SymbolFlagAllowTo indicates the symbol is allowed to.
 	SymbolFlagAllowTo
 )
 
@@ -40,11 +58,16 @@ const (
 type EntrypointMode uint8
 
 const (
-	EntrypointModeNone   EntrypointMode = iota // No mode: function must be callable with no args
-	EntrypointModeArgv                         // @entrypoint("argv"): args parsed from command-line
-	EntrypointModeStdin                        // @entrypoint("stdin"): args parsed from stdin
-	EntrypointModeEnv                          // @entrypoint("env"): reserved for future
-	EntrypointModeConfig                       // @entrypoint("config"): reserved for future
+	// EntrypointModeNone indicates the function takes no arguments.
+	EntrypointModeNone EntrypointMode = iota // No mode: function must be callable with no args
+	// EntrypointModeArgv indicates args are parsed from command-line.
+	EntrypointModeArgv // @entrypoint("argv"): args parsed from command-line
+	// EntrypointModeStdin indicates args are parsed from stdin.
+	EntrypointModeStdin // @entrypoint("stdin"): args parsed from stdin
+	// EntrypointModeEnv indicates args are parsed from environment (reserved for future).
+	EntrypointModeEnv // @entrypoint("env"): reserved for future
+	// EntrypointModeConfig indicates args are parsed from config.
+	EntrypointModeConfig // @entrypoint("config"): reserved for future
 )
 
 func (m EntrypointMode) String() string {

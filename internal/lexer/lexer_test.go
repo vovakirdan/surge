@@ -973,7 +973,7 @@ func BenchmarkLexer_LargeFile(b *testing.B) {
 	file := fs.Get(fileID)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		lx := lexer.New(file, lexer.Options{})
 		for {
 			tok := lx.Next()

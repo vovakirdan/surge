@@ -48,10 +48,16 @@ func diagnoseFromSource(t *testing.T, sourceCode string) *driver.DiagnoseResult 
 	if err != nil {
 		t.Fatalf("create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		if removeErr := os.Remove(tmpFile.Name()); removeErr != nil {
+			t.Fatalf("failed to remove temp file: %v", removeErr)
+		}
+	}()
 
 	if _, err = tmpFile.WriteString(sourceCode); err != nil {
-		tmpFile.Close()
+		if closeErr := tmpFile.Close(); closeErr != nil {
+			t.Fatalf("failed to close temp file: %v", closeErr)
+		}
 		t.Fatalf("write source: %v", err)
 	}
 	if err = tmpFile.Close(); err != nil {
@@ -288,7 +294,7 @@ func appendSizeAlign(sb *strings.Builder, le *layout.LayoutEngine, id types.Type
 	if err != nil {
 		align = -1
 	}
-	sb.WriteString(fmt.Sprintf("%s size=%d align=%d\n", name, size, align))
+	fmt.Fprintf(sb, "%s size=%d align=%d\n", name, size, align)
 }
 
 func appendStructSnapshot(sb *strings.Builder, le *layout.LayoutEngine, typesIn *types.Interner, id types.TypeID, name string) {
@@ -303,7 +309,7 @@ func appendStructSnapshot(sb *strings.Builder, le *layout.LayoutEngine, typesIn 
 	if err != nil {
 		align = -1
 	}
-	sb.WriteString(fmt.Sprintf("%s size=%d align=%d", name, size, align))
+	fmt.Fprintf(sb, "%s size=%d align=%d", name, size, align)
 
 	info, ok := typesIn.StructInfo(id)
 	if ok && info != nil && len(info.Fields) > 0 {
@@ -322,7 +328,7 @@ func appendStructSnapshot(sb *strings.Builder, le *layout.LayoutEngine, typesIn 
 			if err != nil {
 				off = -1
 			}
-			sb.WriteString(fmt.Sprintf("%s:%d", fieldName, off))
+			fmt.Fprintf(sb, "%s:%d", fieldName, off)
 		}
 	}
 	sb.WriteString("\n")
@@ -334,8 +340,15 @@ func appendUnionSnapshot(sb *strings.Builder, le *layout.LayoutEngine, id types.
 	}
 	layoutInfo, err := le.LayoutOf(id)
 	if err != nil {
-		sb.WriteString(fmt.Sprintf("%s error=%v\n", name, err))
+		fmt.Fprintf(sb, "%s error=%v\n", name, err)
 		return
 	}
-	sb.WriteString(fmt.Sprintf("%s size=%d align=%d tag=%d/%d payload_offset=%d\n", name, layoutInfo.Size, layoutInfo.Align, layoutInfo.TagSize, layoutInfo.TagAlign, layoutInfo.PayloadOffset))
+	fmt.Fprintf(sb,
+		"%s size=%d align=%d tag=%d/%d payload_offset=%d\n",
+		name,
+		layoutInfo.Size,
+		layoutInfo.Align,
+		layoutInfo.TagSize,
+		layoutInfo.TagAlign,
+		layoutInfo.PayloadOffset)
 }

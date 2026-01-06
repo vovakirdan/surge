@@ -97,10 +97,16 @@ func compileToMIRFromSource(t *testing.T, sourceCode string) (*mir.Module, *sour
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		if removeErr := os.Remove(tmpFile.Name()); removeErr != nil {
+			t.Fatalf("failed to remove temp file: %v", removeErr)
+		}
+	}()
 
 	if _, err := tmpFile.WriteString(sourceCode); err != nil {
-		tmpFile.Close()
+		if closeErr := tmpFile.Close(); closeErr != nil {
+			t.Fatalf("failed to close temp file: %v", closeErr)
+		}
 		t.Fatalf("failed to write source code: %v", err)
 	}
 	if err := tmpFile.Close(); err != nil {
@@ -206,7 +212,7 @@ func TestVMEntrypointStdinInt(t *testing.T) {
 // TestVMEmptyArgvBoundsCheck verifies that accessing argv[0] when no "--" args
 // are provided causes a bounds panic. This tests the behavior of:
 //
-//	surge run file.sg   (no "--")
+//	surge run --backend=vm file.sg   (no "--")
 //
 // where rt_argv returns empty [] and indexing panics.
 func TestVMEmptyArgvBoundsCheck(t *testing.T) {

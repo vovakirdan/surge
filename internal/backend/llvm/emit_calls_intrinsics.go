@@ -62,6 +62,10 @@ func (fe *funcEmitter) emitLenIntrinsic(call *mir.CallInstr) (bool, error) {
 	if !call.HasDst {
 		return true, nil
 	}
+	dstType := types.NoTypeID
+	if call.Dst.Kind == mir.PlaceLocal && int(call.Dst.Local) < len(fe.f.Locals) {
+		dstType = fe.f.Locals[call.Dst.Local].Type
+	}
 	targetType := operandValueType(fe.emitter.types, &call.Args[0])
 	if targetType == types.NoTypeID && call.Args[0].Kind != mir.OperandConst {
 		if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
@@ -76,63 +80,38 @@ func (fe *funcEmitter) emitLenIntrinsic(call *mir.CallInstr) (bool, error) {
 	case isStringLike(fe.emitter.types, targetType):
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_string_len(ptr %s)\n", tmp, handlePtr)
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
-		if err != nil {
+		if err := fe.emitLenStore(call.Dst, dstType, tmp); err != nil {
 			return true, err
 		}
-		if dstTy != "i64" {
-			dstTy = "i64"
-		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
 		return true, nil
 	case isArrayLike(fe.emitter.types, targetType):
 		lenVal := fe.emitArrayLen(handlePtr)
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
-		if err != nil {
+		if err := fe.emitLenStore(call.Dst, dstType, lenVal); err != nil {
 			return true, err
 		}
-		if dstTy != "i64" {
-			dstTy = "i64"
-		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, lenVal, ptr)
 		return true, nil
 	case isBytesViewType(fe.emitter.types, targetType):
 		lenVal, err := fe.emitBytesViewLen(handlePtr, targetType)
 		if err != nil {
 			return true, err
 		}
-		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
-		if err != nil {
+		if err := fe.emitLenStore(call.Dst, dstType, lenVal); err != nil {
 			return true, err
 		}
-		if dstTy != "i64" {
-			dstTy = "i64"
-		}
-		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, lenVal, ptr)
 		return true, nil
 	default:
 		resolved := resolveValueType(fe.emitter.types, targetType)
 		if fe.emitter.types != nil {
 			if _, length, ok := fe.emitter.types.ArrayFixedInfo(resolved); ok {
-				ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
-				if err != nil {
+				if err := fe.emitLenStore(call.Dst, dstType, fmt.Sprintf("%d", length)); err != nil {
 					return true, err
 				}
-				if dstTy != "i64" {
-					dstTy = "i64"
-				}
-				fmt.Fprintf(&fe.emitter.buf, "  store %s %d, ptr %s\n", dstTy, length, ptr)
 				return true, nil
 			}
 			if tt, ok := fe.emitter.types.Lookup(resolved); ok && tt.Kind == types.KindArray && tt.Count != types.ArrayDynamicLength {
-				ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
-				if err != nil {
+				if err := fe.emitLenStore(call.Dst, dstType, fmt.Sprintf("%d", tt.Count)); err != nil {
 					return true, err
 				}
-				if dstTy != "i64" {
-					dstTy = "i64"
-				}
-				fmt.Fprintf(&fe.emitter.buf, "  store %s %d, ptr %s\n", dstTy, tt.Count, ptr)
 				return true, nil
 			}
 		}
@@ -219,7 +198,9 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 		if err != nil {
 			return err
 		}
-		idx64, err := fe.coerceIntToI64(idxVal, idxTy, call.Args[1].Type)
+		lenVal := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_string_len(ptr %s)\n", lenVal, strArg)
+		idx64, err := fe.emitIndexToI64(0, idxVal, idxTy, call.Args[1].Type, lenVal)
 		if err != nil {
 			return err
 		}
@@ -329,6 +310,29 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 	default:
 		return fmt.Errorf("unsupported __index target")
 	}
+}
+
+func (fe *funcEmitter) emitLenStore(dst mir.Place, dstType types.TypeID, lenVal string) error {
+	ptr, dstTy, err := fe.emitPlacePtr(dst)
+	if err != nil {
+		return err
+	}
+	if isBigUintType(fe.emitter.types, dstType) {
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_biguint_from_u64(i64 %s)\n", tmp, lenVal)
+		if dstTy != "ptr" {
+			dstTy = "ptr"
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
+		return nil
+	}
+	if dstTy != "i64" {
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = trunc i64 %s to %s\n", tmp, lenVal, dstTy)
+		lenVal = tmp
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, lenVal, ptr)
+	return nil
 }
 
 func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {

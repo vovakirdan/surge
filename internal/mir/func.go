@@ -6,6 +6,7 @@ import (
 	"surge/internal/types"
 )
 
+// Func represents a function in MIR.
 type Func struct {
 	ID   FuncID
 	Sym  symbols.SymbolID

@@ -10,6 +10,7 @@ import (
 	"surge/internal/source"
 )
 
+// ASTNodeOutput represents a node in the JSON AST output.
 type ASTNodeOutput struct {
 	Type     string          `json:"type"`
 	Kind     string          `json:"kind,omitempty"`
@@ -19,6 +20,7 @@ type ASTNodeOutput struct {
 	Fields   map[string]any  `json:"fields,omitempty"`
 }
 
+// FormatASTPretty writes a pretty-printed version of the AST to w.
 func FormatASTPretty(w io.Writer, builder *ast.Builder, fileID ast.FileID, fs *source.FileSet) error {
 	file := builder.Files.Get(fileID)
 	if file == nil {
@@ -30,16 +32,26 @@ func FormatASTPretty(w io.Writer, builder *ast.Builder, fileID ast.FileID, fs *s
 		srcFile := fs.Get(file.Span.File)
 		header = srcFile.FormatPath("auto", fs.BaseDir())
 	}
-	fmt.Fprintf(w, "%s (span: %s)\n", header, formatSpan(file.Span, fs))
+	var printErr error
+	_, printErr = fmt.Fprintf(w, "%s (span: %s)\n", header, formatSpan(file.Span, fs))
+	if printErr != nil {
+		return fmt.Errorf("failed to print header: %w", printErr)
+	}
 
 	for i, itemID := range file.Items {
 		isLast := i == len(file.Items)-1
 		var prefix string
 		if isLast {
-			fmt.Fprintf(w, "└─ Item[%d]: ", i)
+			_, printErr = fmt.Fprintf(w, "└─ Item[%d]: ", i)
+			if printErr != nil {
+				return fmt.Errorf("failed to print prefix: %w", printErr)
+			}
 			prefix = "   "
 		} else {
-			fmt.Fprintf(w, "├─ Item[%d]: ", i)
+			_, printErr = fmt.Fprintf(w, "├─ Item[%d]: ", i)
+			if printErr != nil {
+				return fmt.Errorf("failed to print prefix: %w", printErr)
+			}
 			prefix = "│  "
 		}
 		if err := formatItemPretty(w, builder, itemID, fs, prefix); err != nil {
@@ -50,6 +62,7 @@ func FormatASTPretty(w io.Writer, builder *ast.Builder, fileID ast.FileID, fs *s
 	return nil
 }
 
+// FormatASTTree writes a tree representation of the AST to w.
 func FormatASTTree(w io.Writer, builder *ast.Builder, fileID ast.FileID, fs *source.FileSet) error {
 	file := builder.Files.Get(fileID)
 	if file == nil {
@@ -59,7 +72,10 @@ func FormatASTTree(w io.Writer, builder *ast.Builder, fileID ast.FileID, fs *sou
 	root := buildFileTreeNode(builder, fileID, fs)
 	block := renderTree(root)
 	for _, line := range block.lines {
-		fmt.Fprintln(w, strings.TrimRight(line, " "))
+		_, printErr := fmt.Fprintln(w, strings.TrimRight(line, " "))
+		if printErr != nil {
+			return fmt.Errorf("failed to print line: %w", printErr)
+		}
 	}
 	return nil
 }

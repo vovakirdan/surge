@@ -1,0 +1,339 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  test-go:
+    name: Go tests (${{ matrix.backend }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [vm, llvm]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install LLVM toolchain
+        if: matrix.backend == 'llvm'
+        run: sudo apt-get update && sudo apt-get install -y clang llvm lld
+      - name: Run go tests (vm)
+        if: matrix.backend == 'vm'
+        env:
+          SURGE_BACKEND: vm
+        run: go test ./...
+      - name: Run go tests (llvm)
+        if: matrix.backend == 'llvm'
+        run: go test ./...
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.7.2
+          args: --config .golangci.yaml
+
+  c-check-gcc:
+    name: C runtime checks (gcc)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GCC
+        run: sudo apt-get update && sudo apt-get install -y gcc
+      - name: Check C code formatting
+        run: make cfmt-check
+      - name: Compile C runtime with strict warnings (gcc)
+        run: CC=gcc make c-warnings
+
+  c-check-clang:
+    name: C runtime checks (clang)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LLVM toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang llvm lld clang-tidy cppcheck
+      - name: Check C code formatting
+        run: make cfmt-check
+      - name: Compile C runtime with strict warnings (clang)
+        run: make c-warnings
+      - name: Run clang-tidy
+        run: make ctidy
+      - name: Run cppcheck
+        run: make cppcheck
+
+  c-scan-build:
+    name: C runtime scan-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LLVM toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang llvm lld clang-tools
+      - name: Run scan-build
+        run: |
+          cd runtime/native
+          scan-build --status-bugs --use-cc=clang --use-c++=clang++ \
+            sh -c 'for f in *.c; do clang -std=c11 -I. -c "$f" -o "/tmp/${f%.c}.o" 2>&1 || true; done'
+
+  c-sanitizers:
+    name: C runtime sanitizers (ASan+UBSan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install LLVM toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang llvm lld
+      - name: Build with sanitizers
+        run: |
+          cd runtime/native
+          CFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g"
+          for f in *.c; do
+            clang -std=c11 -I. $CFLAGS -c "$f" -o "/tmp/${f%.c}.o" || exit 1
+          done
+      - name: Run tests with sanitizers
+        env:
+          SURGE_BACKEND: llvm
+        run: |
+          # Build surge with sanitized runtime
+          export CC=clang
+          export CGO_CFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g"
+          go test ./internal/backend/llvm/... -timeout 60s || true
+          # Run a subset of testdata to verify runtime works
+          go test ./... -run TestRuntime -timeout 60s || true
+
+  loc-cap:
+    name: LOC cap
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check effective LOC cap
+        run: ./check_file_sizes.sh -a
+
+  testdata:
+    name: Testdata (vm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Golden regression
+        run: |
+          set -o pipefail
+          mkdir -p build/testdata/vm
+          make golden-check 2>&1 | tee build/testdata/vm/golden-check.log
+      - name: Runtime regression (vm)
+        run: ./scripts/run_testdata.sh --backend vm --artifacts "$PWD/build/testdata"
+      - name: Testdata summary
+        if: always()
+        run: |
+          summary="build/testdata/vm/summary.env"
+          if [[ -f "$summary" ]]; then
+            source "$summary"
+            {
+              echo "Testdata (vm): total=${TOTAL} passed=${PASSED} failed=${FAILED} skipped=${SKIPPED}"
+              if [[ -f build/testdata/vm/failed_cases.txt ]]; then
+                echo ""
+                echo "Failed cases:"
+                cat build/testdata/vm/failed_cases.txt
+              fi
+              if [[ -f build/testdata/vm/skipped_cases.txt ]]; then
+                echo ""
+                echo "Skipped cases:"
+                cat build/testdata/vm/skipped_cases.txt
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload testdata artifacts (vm)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testdata-vm-artifacts
+          path: |
+            build/testdata/vm
+
+  testdata-llvm:
+    name: Testdata (llvm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install LLVM toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang llvm lld
+      - name: Runtime regression (llvm)
+        run: ./scripts/run_testdata.sh --backend llvm --artifacts "$PWD/build/testdata"
+      - name: Testdata summary
+        if: always()
+        run: |
+          summary="build/testdata/llvm/summary.env"
+          if [[ -f "$summary" ]]; then
+            source "$summary"
+            {
+              echo "Testdata (llvm): total=${TOTAL} passed=${PASSED} failed=${FAILED} skipped=${SKIPPED}"
+              if [[ -f build/testdata/llvm/failed_cases.txt ]]; then
+                echo ""
+                echo "Failed cases:"
+                cat build/testdata/llvm/failed_cases.txt
+              fi
+              if [[ -f build/testdata/llvm/skipped_cases.txt ]]; then
+                echo ""
+                echo "Skipped cases:"
+                cat build/testdata/llvm/skipped_cases.txt
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload testdata artifacts (llvm)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testdata-llvm-artifacts
+          path: |
+            build/testdata/llvm
+
+  showcases:
+    name: Showcases parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install LLVM toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang llvm lld
+      - name: Determine showcase strictness
+        id: mode
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            branch="${{ github.base_ref }}"
+          else
+            branch="${{ github.ref_name }}"
+          fi
+          if [[ "$branch" == "main" ]]; then
+            echo "strict=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "strict=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run showcases
+        run: |
+          args=(--report "$PWD/SHOWCASES_REPORT.md" --artifacts "$PWD/build/showcases")
+          if [[ "${{ steps.mode.outputs.strict }}" != "true" ]]; then
+            args+=(--allow-fail)
+          fi
+          ./scripts/run_showcases.sh "${args[@]}"
+      - name: Showcases summary
+        id: showcases_summary
+        if: always()
+        run: |
+          summary="build/showcases/summary.env"
+          if [[ -f "$summary" ]]; then
+            source "$summary"
+            echo "failed=${FAILED}" >> "$GITHUB_OUTPUT"
+            {
+              echo "Showcases failed: ${FAILED}"
+              echo "Showcases passed: ${PASSED}"
+              echo "Showcases total: ${TOTAL}"
+              echo ""
+              echo "Report: SHOWCASES_REPORT.md"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "failed=0" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload showcases artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: showcases-report
+          path: |
+            SHOWCASES_REPORT.md
+            build/showcases
+      - name: Comment on PR if showcases failed
+        if: github.event_name == 'pull_request' && steps.showcases_summary.outputs.failed != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const failed = Number('${{ steps.showcases_summary.outputs.failed }}');
+            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const body = [
+              '### Showcases parity report',
+              `Showcases failed: **${failed}**`,
+              `Report and artifacts: ${runUrl}`,
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+  build-linux-amd64:
+    name: Build linux/amd64
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [test-go, lint, c-check-gcc, c-check-clang, loc-cap, testdata, testdata-llvm, showcases]
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build surge (linux/amd64)
+        run: |
+          set -euo pipefail
+          BASE_VERSION=$(sed -n 's/.*BaseVersion = "\([^"]*\)".*/\1/p' internal/version/version.go | head -n 1)
+          PRE_RELEASE=""
+          if [[ "${{ github.ref_name }}" == "dev" ]]; then
+            PRE_RELEASE="-dev"
+          fi
+          GIT_COMMIT=$(git rev-parse --short=12 HEAD)
+          GIT_MESSAGE=$(git log -1 --pretty=%s)
+          GIT_MESSAGE_ESC=$(printf '%s' "$GIT_MESSAGE" | sed "s/'/'\"'\"'/g")
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          LDFLAGS="-X surge/internal/version.BaseVersion=${BASE_VERSION} -X surge/internal/version.PreRelease=${PRE_RELEASE} -X surge/internal/version.GitCommit=${GIT_COMMIT} -X 'surge/internal/version.GitMessage=${GIT_MESSAGE_ESC}' -X surge/internal/version.BuildDate=${BUILD_DATE}"
+          mkdir -p build
+          GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o build/surge ./cmd/surge
+      - name: Upload surge artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: surge-linux-amd64
+          path: build/surge

@@ -7,6 +7,7 @@ import (
 	"surge/internal/types"
 )
 
+// StructLayout represents the layout of a struct type.
 type StructLayout struct {
 	TypeID       types.TypeID
 	FieldNames   []string
@@ -27,6 +28,7 @@ func newLayoutCache(vm *VM) *layoutCache {
 	}
 }
 
+// Struct returns (and caches) the layout for a struct type.
 func (lc *layoutCache) Struct(typeID types.TypeID) (*StructLayout, *VMError) {
 	if lc == nil || lc.vm == nil {
 		return nil, &VMError{Code: PanicUnimplemented, Message: "no layout provider"}

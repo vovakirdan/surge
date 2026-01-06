@@ -8,4 +8,4 @@
 // Не делает: обход AST, диагностики, работу с символами.
 //
 // Зависимости: только stdlib.
-package types
+package types //nolint:revive

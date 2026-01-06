@@ -8,9 +8,7 @@ import (
 )
 
 func (tc *typeChecker) typeSymbolForItem(itemID ast.ItemID) symbols.SymbolID {
-	if tc.symbols == nil || tc.symbols.ItemSymbols == nil {
-		// fall through to lookup by name
-	} else {
+	if tc.symbols != nil && tc.symbols.ItemSymbols != nil {
 		syms := tc.symbols.ItemSymbols[itemID]
 		if len(syms) > 0 {
 			return syms[0]

@@ -19,7 +19,8 @@ func TestLLVMBuildPortable(t *testing.T) {
 		t.Fatalf("write source: %v", err)
 	}
 
-	buildCmd := exec.Command(surge, "build", srcPath, "--backend=llvm")
+	// #nosec G204 -- test executes a locally built binary with known args
+	buildCmd := exec.Command(surge, "build", srcPath)
 	buildCmd.Dir = tmpDir
 	buildCmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
 	buildOut, buildErr, buildCode := runCommand(t, buildCmd, "")
@@ -27,14 +28,15 @@ func TestLLVMBuildPortable(t *testing.T) {
 		t.Fatalf("build failed (code=%d)\nstdout:\n%s\nstderr:\n%s", buildCode, buildOut, buildErr)
 	}
 
-	binPath := filepath.Join(tmpDir, "build", "main")
+	binPath := filepath.Join(tmpDir, "target", "debug", "main")
+	// #nosec G204 -- test executes the freshly built binary
 	runCmd := exec.Command(binPath)
 	runCmd.Dir = tmpDir
 	stdout, stderr, exitCode := runCommand(t, runCmd, "")
 	if exitCode != 0 {
 		t.Fatalf("run failed (code=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
 	}
-	if stdout != "portable\n" {
+	if stdout != "portable\n\n" {
 		t.Fatalf("unexpected stdout: %q", stdout)
 	}
 	if stderr != "" {

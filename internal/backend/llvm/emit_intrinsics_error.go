@@ -38,9 +38,79 @@ func (fe *funcEmitter) emitExitIntrinsic(call *mir.CallInstr) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	code64, err := fe.coerceIntToI64(codeVal, codeLLVM, codeType)
-	if err != nil {
-		return true, err
+	maxIndex := int64(^uint64(0) >> 1)
+	var code64 string
+	switch {
+	case isBigUintType(fe.emitter.types, codeType):
+		code64, err = fe.emitCheckedBigUintToU64(codeVal, "exit code out of range")
+		if err != nil {
+			return true, err
+		}
+		tooHigh := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ugt i64 %s, %d\n", tooHigh, code64, maxIndex)
+		fail := fe.nextInlineBlock()
+		cont := fe.nextInlineBlock()
+		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", tooHigh, fail, cont)
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
+		if panicErr := fe.emitPanicNumeric("exit code out of range"); panicErr != nil {
+			return true, panicErr
+		}
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
+	case isBigIntType(fe.emitter.types, codeType):
+		code64, err = fe.emitCheckedBigIntToI64(codeVal, "exit code out of range")
+		if err != nil {
+			return true, err
+		}
+		neg := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = icmp slt i64 %s, 0\n", neg, code64)
+		tooHigh := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = icmp sgt i64 %s, %d\n", tooHigh, code64, maxIndex)
+		oob := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = or i1 %s, %s\n", oob, neg, tooHigh)
+		fail := fe.nextInlineBlock()
+		cont := fe.nextInlineBlock()
+		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", oob, fail, cont)
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
+		if panicErr := fe.emitPanicNumeric("exit code out of range"); panicErr != nil {
+			return true, panicErr
+		}
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
+	default:
+		info, ok := intInfo(fe.emitter.types, codeType)
+		if !ok {
+			return true, fmt.Errorf("exit code must be an integer")
+		}
+		code64, err = fe.coerceIntToI64(codeVal, codeLLVM, codeType)
+		if err != nil {
+			return true, err
+		}
+		if info.signed {
+			neg := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = icmp slt i64 %s, 0\n", neg, code64)
+			tooHigh := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = icmp sgt i64 %s, %d\n", tooHigh, code64, maxIndex)
+			oob := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = or i1 %s, %s\n", oob, neg, tooHigh)
+			fail := fe.nextInlineBlock()
+			cont := fe.nextInlineBlock()
+			fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", oob, fail, cont)
+			fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
+			if panicErr := fe.emitPanicNumeric("exit code out of range"); panicErr != nil {
+				return true, panicErr
+			}
+			fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
+		} else {
+			tooHigh := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ugt i64 %s, %d\n", tooHigh, code64, maxIndex)
+			fail := fe.nextInlineBlock()
+			cont := fe.nextInlineBlock()
+			fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", tooHigh, fail, cont)
+			fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
+			if panicErr := fe.emitPanicNumeric("exit code out of range"); panicErr != nil {
+				return true, panicErr
+			}
+			fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
+		}
 	}
 	msgAddr := fe.emitHandleAddr(msgVal)
 	lenVal := fe.nextTemp()
@@ -138,7 +208,21 @@ func (fe *funcEmitter) emitErrorLikeValue(errType types.TypeID, msgVal, msgTy, c
 		msgTy = msgLLVM
 	}
 	if codeTy != codeLLVM {
-		codeTy = codeLLVM
+		codeKind := numericKindOf(fe.emitter.types, codeFieldType)
+		if codeKind != numericNone {
+			srcType := llvmNumericTypeID(fe.emitter.types, codeTy, codeKind)
+			if srcType != types.NoTypeID {
+				casted, castTy, castErr := fe.emitNumericCast(codeVal, codeTy, srcType, codeFieldType)
+				if castErr != nil {
+					return "", castErr
+				}
+				codeVal = casted
+				codeTy = castTy
+			}
+		}
+		if codeTy != codeLLVM {
+			codeTy = codeLLVM
+		}
 	}
 	msgPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", msgPtr, mem, layoutInfo.FieldOffsets[msgIdx])

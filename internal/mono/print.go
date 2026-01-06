@@ -12,11 +12,13 @@ import (
 	"surge/internal/types"
 )
 
+// DumpOptions configures the instantiation map dump.
 type DumpOptions struct {
 	// PathMode matches source.File.FormatPath modes: "relative", "absolute", "basename", "auto".
 	PathMode string
 }
 
+// Dump writes a text representation of the instantiation map to the provided writer.
 func Dump(w io.Writer, m *InstantiationMap, fs *source.FileSet, syms *symbols.Result, strs *source.Interner, typesIn *types.Interner, opts DumpOptions) error {
 	if w == nil || m == nil || len(m.Entries) == 0 {
 		return nil
@@ -55,7 +57,10 @@ func Dump(w io.Writer, m *InstantiationMap, fs *source.FileSet, syms *symbols.Re
 			kindLabel = "tag"
 		}
 
-		fmt.Fprintf(w, "%s %s%s  uses=%d\n", kindLabel, symbolName(syms, strs, e.Key.Sym), formatTypeArgs(typesIn, strs, e.TypeArgs), len(e.UseSites))
+		_, printErr := fmt.Fprintf(w, "%s %s%s  uses=%d\n", kindLabel, symbolName(syms, strs, e.Key.Sym), formatTypeArgs(typesIn, strs, e.TypeArgs), len(e.UseSites))
+		if printErr != nil {
+			return printErr
+		}
 
 		useSites := slicesClone(e.UseSites)
 		sort.SliceStable(useSites, func(i, j int) bool {
@@ -78,7 +83,10 @@ func Dump(w io.Writer, m *InstantiationMap, fs *source.FileSet, syms *symbols.Re
 			if note == "" {
 				note = "_"
 			}
-			fmt.Fprintf(w, "  - at %s caller=%s note=%s\n", at, caller, note)
+			_, printErr = fmt.Fprintf(w, "  - at %s caller=%s note=%s\n", at, caller, note)
+			if printErr != nil {
+				return printErr
+			}
 		}
 	}
 	return nil

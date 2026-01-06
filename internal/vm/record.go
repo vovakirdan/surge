@@ -16,6 +16,7 @@ type Recorder struct {
 	done bool
 }
 
+// NewRecorder creates a new Recorder that writes to the given writer.
 func NewRecorder(w io.Writer) *Recorder {
 	r := &Recorder{enc: json.NewEncoder(w)}
 	r.enc.SetEscapeHTML(false)
@@ -23,6 +24,7 @@ func NewRecorder(w io.Writer) *Recorder {
 	return r
 }
 
+// Err returns any error that occurred during recording.
 func (r *Recorder) Err() error {
 	if r == nil {
 		return nil
@@ -32,6 +34,7 @@ func (r *Recorder) Err() error {
 	return r.err
 }
 
+// Done reports whether recording is complete.
 func (r *Recorder) Done() bool {
 	if r == nil {
 		return true
@@ -41,6 +44,7 @@ func (r *Recorder) Done() bool {
 	return r.done
 }
 
+// RecordIntrinsic records an intrinsic function call event.
 func (r *Recorder) RecordIntrinsic(name string, args []LogValue, ret LogValue) {
 	if r == nil {
 		return
@@ -59,6 +63,7 @@ func (r *Recorder) RecordIntrinsic(name string, args []LogValue, ret LogValue) {
 	r.recordLocked(ev)
 }
 
+// RecordExit records a program exit event.
 func (r *Recorder) RecordExit(code int) {
 	if r == nil {
 		return
@@ -72,6 +77,7 @@ func (r *Recorder) RecordExit(code int) {
 	r.done = true
 }
 
+// RecordPanic records a panic event.
 func (r *Recorder) RecordPanic(vmErr *VMError, files *source.FileSet) {
 	if r == nil {
 		return

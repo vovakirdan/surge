@@ -7,11 +7,13 @@ import (
 	"fortio.org/safecast"
 )
 
+// Bag holds a collection of diagnostics.
 type Bag struct {
 	items   []*Diagnostic
 	maximum uint16
 }
 
+// NewBag creates a Bag with a capacity limit.
 func NewBag(maximum int) *Bag {
 	result, err := safecast.Conv[uint16](maximum)
 	if err != nil {
@@ -36,6 +38,7 @@ func (b *Bag) Add(d *Diagnostic) bool {
 	return true
 }
 
+// Cap returns the maximum capacity of the bag.
 func (b *Bag) Cap() uint16 {
 	return b.maximum
 }

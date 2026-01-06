@@ -47,18 +47,29 @@ func (r *Runner) Run() RunResult {
 		Total: len(scenarios),
 	}
 
+	var printErr error
+
 	for i := range scenarios {
 		s := &scenarios[i]
 		location := formatLocation(s)
-		fmt.Fprintf(r.config.Output, "Running test: %s (%s) ... SKIPPED (execution not implemented)\n",
+		_, printErr = fmt.Fprintf(r.config.Output, "Running test: %s (%s) ... SKIPPED (execution not implemented)\n",
 			location, s.Namespace)
+		if printErr != nil {
+			panic(printErr)
+		}
 		result.Skipped++
 	}
 
 	// Print summary
-	fmt.Fprintln(r.config.Output)
-	fmt.Fprintf(r.config.Output, "Directive execution summary: %d total, %d skipped, %d passed, %d failed\n",
+	_, printErr = fmt.Fprintln(r.config.Output)
+	if printErr != nil {
+		panic(printErr)
+	}
+	_, printErr = fmt.Fprintf(r.config.Output, "Directive execution summary: %d total, %d skipped, %d passed, %d failed\n",
 		result.Total, result.Skipped, result.Passed, result.Failed)
+	if printErr != nil {
+		panic(printErr)
+	}
 
 	return result
 }

@@ -8,6 +8,7 @@ import (
 	"surge/internal/source"
 )
 
+// ConstItem represents a constant declaration.
 type ConstItem struct {
 	Name          source.StringID
 	Type          TypeID
@@ -23,6 +24,7 @@ type ConstItem struct {
 	Span          source.Span
 }
 
+// Const returns the ConstItem for the given ItemID, or nil if the ID is invalid or not a const.
 func (i *Items) Const(id ItemID) (*ConstItem, bool) {
 	item := i.Arena.Get(uint32(id))
 	if item == nil || item.Kind != ItemConst {
@@ -62,6 +64,7 @@ func (i *Items) newConstPayload(
 	return PayloadID(payload)
 }
 
+// NewConst creates a new constant declaration item.
 func (i *Items) NewConst(
 	name source.StringID,
 	typeID TypeID,

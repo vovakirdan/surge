@@ -7,6 +7,7 @@ import (
 	"surge/internal/types"
 )
 
+// Subst manages type parameter substitution during monomorphization.
 type Subst struct {
 	Types     *types.Interner
 	OwnerSym  symbols.SymbolID
@@ -17,6 +18,7 @@ type Subst struct {
 	cache map[types.TypeID]types.TypeID
 }
 
+// ApplyFunc performs type substitution on a function.
 func (s *Subst) ApplyFunc(fn *hir.Func) error {
 	if s == nil || fn == nil {
 		return nil
@@ -39,6 +41,7 @@ func (s *Subst) ApplyFunc(fn *hir.Func) error {
 	return nil
 }
 
+// ApplyBlock performs type substitution on a block of statements.
 func (s *Subst) ApplyBlock(b *hir.Block) error {
 	if s == nil || b == nil {
 		return nil

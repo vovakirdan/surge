@@ -66,15 +66,14 @@ fn foo() {}
 	if file.Pragma.Flags&ast.PragmaFlagDirective == 0 {
 		t.Fatalf("expected directive flag, got %v", file.Pragma.Flags)
 	}
-	if len(file.Pragma.Entries) != 2 {
-		t.Fatalf("expected 2 pragma entries, got %d", len(file.Pragma.Entries))
+	entries := file.Pragma.Entries
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 pragma entries, got %d", len(entries))
 	}
-	names := []string{
-		builder.StringsInterner.MustLookup(file.Pragma.Entries[0].Name),
-		builder.StringsInterner.MustLookup(file.Pragma.Entries[1].Name),
-	}
-	if names[0] != "directive" || names[1] != "no_std" {
-		t.Fatalf("unexpected pragma entry names: %v", names)
+	name0 := builder.StringsInterner.MustLookup(entries[0].Name)
+	name1 := builder.StringsInterner.MustLookup(entries[1].Name)
+	if name0 != "directive" || name1 != "no_std" {
+		t.Fatalf("unexpected pragma entry names: %v", []string{name0, name1})
 	}
 }
 

@@ -8,16 +8,20 @@ import (
 	"fortio.org/safecast"
 )
 
+// StringID is a compact identifier for a unique string.
 type StringID uint32
 
+// NoStringID marks the absence of a string.
 const NoStringID StringID = 0
 
+// Interner provides a thread-safe arena for unique strings.
 type Interner struct {
 	mu    sync.RWMutex
 	byID  []string            // индекс -> строка (byID[0] = "" для NoStringID)
 	index map[string]StringID // строка -> ID
 }
 
+// NewInterner creates a new string interner.
 func NewInterner() *Interner {
 	return &Interner{
 		byID:  []string{""},               // NoStringID → пустая строка

@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g., 0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  guard:
+    name: Ensure main branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check ref
+        run: |
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "Release workflow must run on main." >&2
+            exit 1
+          fi
+
+  ci:
+    name: CI
+    needs: guard
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    needs: [guard, ci]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build surge (linux/amd64)
+        run: |
+          set -euo pipefail
+          BASE_VERSION="${{ inputs.version }}"
+          PRE_RELEASE=""
+          GIT_COMMIT=$(git rev-parse --short=12 HEAD)
+          GIT_MESSAGE=$(git log -1 --pretty=%s)
+          GIT_MESSAGE_ESC=$(printf '%s' "$GIT_MESSAGE" | sed "s/'/'\"'\"'/g")
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          LDFLAGS="-X surge/internal/version.BaseVersion=${BASE_VERSION} -X surge/internal/version.PreRelease=${PRE_RELEASE} -X surge/internal/version.GitCommit=${GIT_COMMIT} -X 'surge/internal/version.GitMessage=${GIT_MESSAGE_ESC}' -X surge/internal/version.BuildDate=${BUILD_DATE}"
+          mkdir -p build
+          GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o build/surge ./cmd/surge
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${{ inputs.version }}"
+          gh release create "$tag" build/surge --title "surge ${{ inputs.version }}" --notes "Automated release"

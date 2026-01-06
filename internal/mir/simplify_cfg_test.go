@@ -320,7 +320,7 @@ func TestSimplifyCFG_EmptyFunction(t *testing.T) {
 }
 
 // TestSimplifyCFG_NilFunction tests that nil functions don't panic.
-func TestSimplifyCFG_NilFunction(t *testing.T) {
+func TestSimplifyCFG_NilFunction(_ *testing.T) {
 	// Should not panic
 	mir.SimplifyCFG(nil)
 }

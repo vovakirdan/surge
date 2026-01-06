@@ -313,7 +313,7 @@ func (p *Parser) parseImportItem() (ast.ItemID, bool) {
 		// Неожиданный токен после пути модуля
 		peek := p.lx.Peek()
 		if peek.Kind != token.EOF {
-			if !(needSemicolon && isTopLevelStarter(peek.Kind)) {
+			if !needSemicolon || !isTopLevelStarter(peek.Kind) {
 				p.err(diag.SynUnexpectedToken, "expected '::' or 'as' or ';' after module path, got '"+peek.Text+"'")
 				p.resyncTop()
 				return ast.NoItemID, false

@@ -27,6 +27,7 @@ func (h timerHeap) Less(i, j int) bool {
 
 func (h timerHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
+// Push implements heap.Interface.
 func (h *timerHeap) Push(x any) {
 	timer, ok := x.(*Timer)
 	if !ok || timer == nil {
@@ -35,6 +36,7 @@ func (h *timerHeap) Push(x any) {
 	*h = append(*h, timer)
 }
 
+// Pop implements heap.Interface.
 func (h *timerHeap) Pop() any {
 	old := *h
 	n := len(old)

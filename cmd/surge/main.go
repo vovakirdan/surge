@@ -28,7 +28,7 @@ var (
 // main configures the root CLI command (sets the version, registers subcommands, and defines persistent flags) and then executes it, exiting with status 1 if execution fails.
 func main() {
 	// Устанавливаем версию для автоматического флага --version
-	rootCmd.Version = version.Version
+	rootCmd.Version = version.String()
 	rootCmd.PersistentPreRunE = applyTimeout
 	rootCmd.PersistentPostRun = cleanupTimeout
 

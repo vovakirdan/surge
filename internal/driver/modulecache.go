@@ -15,15 +15,18 @@ type cached struct {
 	first   *diag.Diagnostic
 }
 
+// ModuleCache provides an in-memory cache for analyzed module metadata.
 type ModuleCache struct {
 	mu    sync.RWMutex
 	byMod map[string]cached // key: module path (canonical "a/b")
 }
 
+// NewModuleCache creates a ModuleCache with the given capacity hint.
 func NewModuleCache(capHint int) *ModuleCache {
 	return &ModuleCache{byMod: make(map[string]cached, capHint)}
 }
 
+// Get retrieves a module from the cache by its path and content hash.
 func (c *ModuleCache) Get(path string, content project.Digest) (*project.ModuleMeta, bool, *diag.Diagnostic, bool) {
 	c.mu.RLock()
 	rec, ok := c.byMod[path]
@@ -34,6 +37,7 @@ func (c *ModuleCache) Get(path string, content project.Digest) (*project.ModuleM
 	return rec.meta, rec.broken, rec.first, true
 }
 
+// Put inserts a module into the cache.
 func (c *ModuleCache) Put(m *project.ModuleMeta, broken bool, first *diag.Diagnostic) {
 	c.mu.Lock()
 	c.byMod[m.Path] = cached{

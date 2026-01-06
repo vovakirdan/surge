@@ -16,6 +16,7 @@ type Writer struct {
 	atLineStart bool
 }
 
+// NewWriter creates a new formatting writer.
 func NewWriter(sf *source.File, opt Options) *Writer {
 	return &Writer{
 		sf:          sf,
@@ -25,6 +26,7 @@ func NewWriter(sf *source.File, opt Options) *Writer {
 	}
 }
 
+// Bytes returns the accumulated formatted output.
 func (w *Writer) Bytes() []byte {
 	return w.buf
 }
@@ -46,6 +48,7 @@ func (w *Writer) writeIndent() {
 	w.atLineStart = false
 }
 
+// WriteString writes a string to the output, handling indentation.
 func (w *Writer) WriteString(s string) {
 	if s == "" {
 		return
@@ -55,6 +58,7 @@ func (w *Writer) WriteString(s string) {
 	w.updateLineState(s[len(s)-1])
 }
 
+// WriteByte writes a single byte to the output.
 func (w *Writer) WriteByte(b byte) error {
 	w.writeIndent()
 	w.buf = append(w.buf, b)
@@ -70,6 +74,7 @@ func (w *Writer) updateLineState(last byte) {
 	}
 }
 
+// Space writes a single space if the output doesn't already end with whitespace.
 func (w *Writer) Space() {
 	if len(w.buf) == 0 {
 		return
@@ -81,12 +86,14 @@ func (w *Writer) Space() {
 	w.buf = append(w.buf, ' ')
 }
 
+// MaybeSpace writes a space if the condition is true.
 func (w *Writer) MaybeSpace(cond bool) {
 	if cond {
 		w.Space()
 	}
 }
 
+// Newline writes a newline if the output doesn't already end with one.
 func (w *Writer) Newline() {
 	if len(w.buf) == 0 || w.buf[len(w.buf)-1] != '\n' {
 		w.buf = append(w.buf, '\n')
@@ -94,16 +101,19 @@ func (w *Writer) Newline() {
 	w.atLineStart = true
 }
 
+// IndentPush increases the indentation level.
 func (w *Writer) IndentPush() {
 	w.indentLevel++
 }
 
+// IndentPop decreases the indentation level.
 func (w *Writer) IndentPop() {
 	if w.indentLevel > 0 {
 		w.indentLevel--
 	}
 }
 
+// CopySpan copies a span from the source file to the output.
 func (w *Writer) CopySpan(sp source.Span) {
 	if !spanValid(sp) || w.sf == nil || sp.File != w.sf.ID {
 		return
@@ -112,6 +122,7 @@ func (w *Writer) CopySpan(sp source.Span) {
 	w.CopyRange(start, end)
 }
 
+// CopyRange copies a range of bytes from the source file to the output.
 func (w *Writer) CopyRange(start, end int) {
 	if w.sf == nil {
 		return
@@ -130,6 +141,7 @@ func (w *Writer) CopyRange(start, end int) {
 	w.updateLineState(chunk[len(chunk)-1])
 }
 
+// TrimmedCopySpan copies a span from the source file to the output, trimming leading/trailing whitespace.
 func (w *Writer) TrimmedCopySpan(sp source.Span) {
 	if !spanValid(sp) || w.sf == nil || sp.File != w.sf.ID {
 		return

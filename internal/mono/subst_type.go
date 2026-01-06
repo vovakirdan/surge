@@ -8,6 +8,7 @@ import (
 	"surge/internal/types"
 )
 
+// Type applies type substitution to a type ID.
 func (s *Subst) Type(id types.TypeID) types.TypeID {
 	if s == nil || s.Types == nil || id == types.NoTypeID {
 		return id
@@ -230,6 +231,7 @@ func (s *Subst) ownerMatches(owner symbols.SymbolID) bool {
 	return false
 }
 
+// DebugString returns a debug string representation of the substitution.
 func (s *Subst) DebugString() string {
 	if s == nil {
 		return "<nil>"

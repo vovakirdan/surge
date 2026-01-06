@@ -163,6 +163,9 @@ func (e *Emitter) paramLocals(f *mir.Func) ([]mir.LocalID, error) {
 	if f == nil {
 		return nil, nil
 	}
+	if isPollFunc(f) {
+		return nil, nil
+	}
 	if e.syms == nil || e.syms.Symbols == nil || e.syms.Strings == nil {
 		return nil, fmt.Errorf("missing symbol table")
 	}

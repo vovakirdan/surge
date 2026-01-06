@@ -8,11 +8,13 @@ import (
 	"surge/internal/source"
 )
 
+// LogPolicy defines logging policy settings.
 type LogPolicy struct {
 	Overflow string `json:"overflow"`
 	Bounds   string `json:"bounds"`
 }
 
+// LogHeader represents the header of a log file.
 type LogHeader struct {
 	V      int       `json:"v"`
 	Kind   string    `json:"kind"`
@@ -20,11 +22,13 @@ type LogHeader struct {
 	Policy LogPolicy `json:"policy"`
 }
 
+// LogValue represents a typed value in the log.
 type LogValue struct {
 	Type string          `json:"type"`
 	V    json.RawMessage `json:"v"`
 }
 
+// LogIntrinsicEvent represents an intrinsic function call event.
 type LogIntrinsicEvent struct {
 	Kind string     `json:"kind"`
 	Name string     `json:"name"`
@@ -32,11 +36,13 @@ type LogIntrinsicEvent struct {
 	Ret  LogValue   `json:"ret"`
 }
 
+// LogExitEvent represents a program exit event.
 type LogExitEvent struct {
 	Kind string `json:"kind"`
 	Code int    `json:"code"`
 }
 
+// LogPanicEvent represents a panic event.
 type LogPanicEvent struct {
 	Kind string   `json:"kind"`
 	Code string   `json:"code"`
@@ -45,6 +51,7 @@ type LogPanicEvent struct {
 	Bt   []string `json:"bt"`
 }
 
+// NewLogHeader creates a new log header with default values.
 func NewLogHeader() LogHeader {
 	return LogHeader{
 		V:     1,
@@ -57,23 +64,28 @@ func NewLogHeader() LogHeader {
 	}
 }
 
+// LogString creates a LogValue from a string.
 func LogString(s string) LogValue {
 	return LogValue{Type: "string", V: mustJSON(s)}
 }
 
+// LogStringArray creates a LogValue from a string array.
 func LogStringArray(v []string) LogValue {
 	cp := append([]string(nil), v...)
 	return LogValue{Type: "string[]", V: mustJSON(cp)}
 }
 
+// LogInt creates a LogValue from an int.
 func LogInt(v int) LogValue {
 	return LogValue{Type: "int", V: mustJSON(v)}
 }
 
+// LogInt64 creates a LogValue from an int64.
 func LogInt64(v int64) LogValue {
 	return LogValue{Type: "int64", V: mustJSON(v)}
 }
 
+// MustDecodeString decodes a LogValue as a string.
 func MustDecodeString(v LogValue) (string, error) {
 	if v.Type != "string" {
 		return "", fmt.Errorf("expected value type string, got %q", v.Type)
@@ -85,6 +97,7 @@ func MustDecodeString(v LogValue) (string, error) {
 	return out, nil
 }
 
+// MustDecodeStringArray decodes a LogValue as a string array.
 func MustDecodeStringArray(v LogValue) ([]string, error) {
 	if v.Type != "string[]" {
 		return nil, fmt.Errorf("expected value type string[], got %q", v.Type)
@@ -96,6 +109,7 @@ func MustDecodeStringArray(v LogValue) ([]string, error) {
 	return out, nil
 }
 
+// MustDecodeInt decodes a LogValue as an int.
 func MustDecodeInt(v LogValue) (int, error) {
 	if v.Type != "int" {
 		return 0, fmt.Errorf("expected value type int, got %q", v.Type)
@@ -107,6 +121,7 @@ func MustDecodeInt(v LogValue) (int, error) {
 	return out, nil
 }
 
+// MustDecodeInt64 decodes a LogValue as an int64.
 func MustDecodeInt64(v LogValue) (int64, error) {
 	if v.Type != "int64" {
 		return 0, fmt.Errorf("expected value type int64, got %q", v.Type)
@@ -118,6 +133,7 @@ func MustDecodeInt64(v LogValue) (int64, error) {
 	return out, nil
 }
 
+// NewLogPanicEvent creates a LogPanicEvent from a VMError.
 func NewLogPanicEvent(vmErr *VMError, files *source.FileSet) LogPanicEvent {
 	if vmErr == nil {
 		return LogPanicEvent{Kind: "panic"}
@@ -135,6 +151,7 @@ func NewLogPanicEvent(vmErr *VMError, files *source.FileSet) LogPanicEvent {
 	}
 }
 
+// ParsePanicCode parses a panic code string into a PanicCode.
 func ParsePanicCode(code string) (PanicCode, bool) {
 	code = strings.TrimSpace(code)
 	prefixLen := 0

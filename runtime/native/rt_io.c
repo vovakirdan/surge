@@ -1,3 +1,7 @@
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+#endif
+
 #include "rt.h"
 
 #include <ctype.h>
@@ -44,6 +48,35 @@ uint64_t rt_write_stderr(const uint8_t* ptr, uint64_t length) {
     return written;
 }
 
+void* rt_readline(void) {
+    char* buf = NULL;
+    size_t cap = 0;
+    ssize_t n = getline(&buf, &cap, stdin);
+    if (n <= 0) {
+        free(buf);
+        void* out = rt_string_from_bytes(NULL, 0);
+        if (out == NULL) {
+            const char* msg = "readline allocation failed";
+            rt_panic((const uint8_t*)msg, (uint64_t)strlen(msg));
+        }
+        return out;
+    }
+    size_t len = (size_t)n;
+    if (buf[len - 1] == '\n') {
+        len--;
+    }
+    if (len > 0 && buf[len - 1] == '\r') {
+        len--;
+    }
+    void* out = rt_string_from_bytes((const uint8_t*)buf, (uint64_t)len);
+    free(buf);
+    if (out == NULL) {
+        const char* msg = "readline allocation failed";
+        rt_panic((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
+    return out;
+}
+
 typedef struct SurgeArrayHeader {
     uint64_t len;
     uint64_t cap;
@@ -64,7 +97,8 @@ void* rt_argv(void) {
             return NULL;
         }
     }
-    SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader), (uint64_t)alignof(SurgeArrayHeader));
+    SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader),
+                                                           (uint64_t)alignof(SurgeArrayHeader));
     if (header == NULL) {
         return NULL;
     }
@@ -142,15 +176,44 @@ void rt_panic(const uint8_t* ptr, uint64_t length) {
     _exit(1);
 }
 
+void rt_panic_numeric(const uint8_t* ptr, uint64_t length) {
+    static const uint8_t prefix[] = "panic VM3202: ";
+    static const uint8_t fallback[] = "invalid numeric conversion";
+    rt_write_stderr(prefix, (uint64_t)(sizeof(prefix) - 1));
+    if (ptr != NULL && length > 0) {
+        rt_write_stderr(ptr, length);
+        if (ptr[length - 1] != '\n') {
+            rt_write_stderr((const uint8_t*)"\n", 1);
+        }
+    } else {
+        rt_write_stderr(fallback, (uint64_t)(sizeof(fallback) - 1));
+        rt_write_stderr((const uint8_t*)"\n", 1);
+    }
+    _exit(1);
+}
+
 void rt_panic_bounds(uint64_t kind, int64_t index, int64_t length) {
     const char* code = "VM1004";
-    const char* fmt = "panic %s: index %" PRId64 " out of bounds for length %" PRId64 "\n";
     if (kind == 1) {
         code = "VM2105";
-        fmt = "panic %s: array index %" PRId64 " out of range for length %" PRId64 "\n";
     }
     char buf[128];
-    int n = snprintf(buf, sizeof(buf), fmt, code, index, length);
+    int n = 0;
+    if (kind == 1) {
+        n = snprintf(buf,
+                     sizeof(buf),
+                     "panic %s: array index %" PRId64 " out of range for length %" PRId64 "\n",
+                     code,
+                     index,
+                     length);
+    } else {
+        n = snprintf(buf,
+                     sizeof(buf),
+                     "panic %s: index %" PRId64 " out of bounds for length %" PRId64 "\n",
+                     code,
+                     index,
+                     length);
+    }
     if (n < 0) {
         const uint8_t fallback[] = "panic VM1004: bounds check failed\n";
         rt_write_stderr(fallback, (uint64_t)(sizeof(fallback) - 1));

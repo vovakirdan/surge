@@ -5,6 +5,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/mir"
 	"surge/internal/source"
@@ -289,7 +291,11 @@ func registerBytesViewType(t *testing.T, vm *VM) types.TypeID {
 	}
 	content := []byte("type BytesView = { owner: string, ptr: *byte, len: uint, };")
 	fileID := vm.Files.AddVirtual("bytes_view.sg", content)
-	decl := source.Span{File: fileID, Start: 0, End: uint32(len(content))}
+	end, err := safecast.Conv[uint32](len(content))
+	if err != nil {
+		t.Fatalf("decl span overflow: %v", err)
+	}
+	decl := source.Span{File: fileID, Start: 0, End: end}
 
 	nameInterner := source.NewInterner()
 	bytesViewName := nameInterner.Intern("BytesView")

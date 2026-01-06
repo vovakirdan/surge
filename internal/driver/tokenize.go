@@ -7,6 +7,7 @@ import (
 	"surge/internal/token"
 )
 
+// TokenizeResult captures the result of tokenizing a single file.
 type TokenizeResult struct {
 	FileSet *source.FileSet
 	File    *source.File
@@ -14,6 +15,7 @@ type TokenizeResult struct {
 	Bag     *diag.Bag
 }
 
+// Tokenize converts a file into a stream of tokens.
 func Tokenize(path string, maxDiagnostics int) (*TokenizeResult, error) {
 	// Создаём FileSet и загружаем файл
 	fs := source.NewFileSet()

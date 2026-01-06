@@ -3,11 +3,12 @@
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
+#include <stdalign.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdalign.h>
 
 typedef struct SurgeString {
     uint64_t len_cp;
@@ -17,8 +18,8 @@ typedef struct SurgeString {
 
 typedef struct SurgeBytesView {
     void* owner;
-    uint8_t* ptr;
-    uint64_t len;
+    const uint8_t* ptr;
+    void* len;
 } SurgeBytesView;
 
 static int is_cont(uint8_t c) {
@@ -67,7 +68,8 @@ static uint64_t count_codepoints(const uint8_t* data, uint64_t len) {
             continue;
         }
         if (c0 <= 0xF4) {
-            if (i + 3 < len && is_cont(data[i + 1]) && is_cont(data[i + 2]) && is_cont(data[i + 3])) {
+            if (i + 3 < len && is_cont(data[i + 1]) && is_cont(data[i + 2]) &&
+                is_cont(data[i + 3])) {
                 uint8_t c1 = data[i + 1];
                 if ((c0 == 0xF0 && c1 < 0x90) || (c0 == 0xF4 && c1 >= 0x90)) {
                     i += 1;
@@ -118,8 +120,7 @@ static uint32_t decode_utf8_at(const uint8_t* data, uint64_t len, uint64_t idx, 
                 *advance = 1;
                 return 0xFFFD;
             }
-            uint32_t cp = ((uint32_t)(c0 & 0x0F) << 12) |
-                          ((uint32_t)(data[idx + 1] & 0x3F) << 6) |
+            uint32_t cp = ((uint32_t)(c0 & 0x0F) << 12) | ((uint32_t)(data[idx + 1] & 0x3F) << 6) |
                           (uint32_t)(data[idx + 2] & 0x3F);
             *advance = 3;
             return cp;
@@ -128,14 +129,14 @@ static uint32_t decode_utf8_at(const uint8_t* data, uint64_t len, uint64_t idx, 
         return 0xFFFD;
     }
     if (c0 <= 0xF4) {
-        if (idx + 3 < len && is_cont(data[idx + 1]) && is_cont(data[idx + 2]) && is_cont(data[idx + 3])) {
+        if (idx + 3 < len && is_cont(data[idx + 1]) && is_cont(data[idx + 2]) &&
+            is_cont(data[idx + 3])) {
             uint8_t c1 = data[idx + 1];
             if ((c0 == 0xF0 && c1 < 0x90) || (c0 == 0xF4 && c1 >= 0x90)) {
                 *advance = 1;
                 return 0xFFFD;
             }
-            uint32_t cp = ((uint32_t)(c0 & 0x07) << 18) |
-                          ((uint32_t)(data[idx + 1] & 0x3F) << 12) |
+            uint32_t cp = ((uint32_t)(c0 & 0x07) << 18) | ((uint32_t)(data[idx + 1] & 0x3F) << 12) |
                           ((uint32_t)(data[idx + 2] & 0x3F) << 6) |
                           (uint32_t)(data[idx + 3] & 0x3F);
             *advance = 4;
@@ -173,15 +174,30 @@ static int64_t normalize_range_index(int64_t n, int64_t length) {
     return n;
 }
 
+static int64_t range_index_from_value(void* v, int64_t length) {
+    int64_t n = 0;
+    if (rt_bigint_to_i64(v, &n)) {
+        return normalize_range_index(n, length);
+    }
+    int cmp = rt_bigint_cmp(v, NULL);
+    if (cmp < 0) {
+        return -1;
+    }
+    if (length == INT64_MAX) {
+        return length;
+    }
+    return length + 1;
+}
+
 static void range_bounds(const SurgeRange* r, int64_t length, int64_t* start, int64_t* end) {
     int64_t start64 = 0;
     int64_t end64 = length;
     if (r != NULL) {
         if (r->has_start) {
-            start64 = normalize_range_index(r->start, length);
+            start64 = range_index_from_value(r->start, length);
         }
         if (r->has_end) {
-            end64 = normalize_range_index(r->end, length);
+            end64 = range_index_from_value(r->end, length);
         }
         if (r->inclusive && r->has_end && end64 < INT64_MAX) {
             end64++;
@@ -208,6 +224,11 @@ void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len) {
         count = count_codepoints(ptr, len);
     }
     // TODO: apply NFC normalization once a lightweight C implementation is available.
+    size_t max_payload = SIZE_MAX - sizeof(SurgeString) - 1;
+    if (bytes > (uint64_t)max_payload) {
+        const char* msg = "string from_bytes length out of range";
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
     size_t total = sizeof(SurgeString) + (size_t)bytes + 1;
     SurgeString* s = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
     if (s == NULL) {
@@ -222,11 +243,11 @@ void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len) {
     return (void*)s;
 }
 
-uint8_t* rt_string_ptr(void* s) {
+const uint8_t* rt_string_ptr(void* s) {
     if (s == NULL) {
         return NULL;
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         return NULL;
     }
@@ -237,7 +258,7 @@ uint64_t rt_string_len(void* s) {
     if (s == NULL) {
         return 0;
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         return 0;
     }
@@ -248,7 +269,7 @@ uint64_t rt_string_len_bytes(void* s) {
     if (s == NULL) {
         return 0;
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         return 0;
     }
@@ -258,10 +279,12 @@ uint64_t rt_string_len_bytes(void* s) {
 uint32_t rt_string_index(void* s, int64_t index) {
     if (s == NULL) {
         rt_panic_bounds(0, index, 0);
+        return 0;
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         rt_panic_bounds(0, index, 0);
+        return 0;
     }
     int64_t len = (int64_t)str->len_cp;
     int64_t idx = index;
@@ -293,7 +316,7 @@ void* rt_string_slice(void* s, void* r) {
     if (s == NULL) {
         return rt_string_from_bytes(NULL, 0);
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         return rt_string_from_bytes(NULL, 0);
     }
@@ -319,17 +342,18 @@ void* rt_string_bytes_view(void* s) {
     if (s == NULL) {
         return NULL;
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
         return NULL;
     }
-    SurgeBytesView* view = (SurgeBytesView*)rt_alloc((uint64_t)sizeof(SurgeBytesView), (uint64_t)alignof(SurgeBytesView));
+    SurgeBytesView* view = (SurgeBytesView*)rt_alloc((uint64_t)sizeof(SurgeBytesView),
+                                                     (uint64_t)alignof(SurgeBytesView));
     if (view == NULL) {
         return NULL;
     }
-    view->owner = (void*)str;
+    view->owner = (void*)(uintptr_t)str;
     view->ptr = str->data;
-    view->len = str->len_bytes;
+    view->len = rt_biguint_from_u64(str->len_bytes);
     return (void*)view;
 }
 
@@ -349,6 +373,11 @@ void* rt_string_concat(void* a, void* b) {
 
     uint64_t total_bytes = left_bytes + right_bytes;
     uint64_t total_cp = left_cp + right_cp;
+    size_t max_payload = SIZE_MAX - sizeof(SurgeString) - 1;
+    if (total_bytes > (uint64_t)max_payload) {
+        const char* msg = "string concat length out of range";
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
     size_t total = sizeof(SurgeString) + (size_t)total_bytes + 1;
     SurgeString* out = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
     if (out == NULL) {
@@ -366,9 +395,56 @@ void* rt_string_concat(void* a, void* b) {
     return (void*)out;
 }
 
+void* rt_string_repeat(void* s, int64_t count) {
+    if (count <= 0) {
+        return rt_string_from_bytes(NULL, 0);
+    }
+    if (s == NULL) {
+        return rt_string_from_bytes(NULL, 0);
+    }
+    const SurgeString* str = *(SurgeString**)s;
+    if (str == NULL) {
+        return rt_string_from_bytes(NULL, 0);
+    }
+    uint64_t unit_bytes = str->len_bytes;
+    uint64_t unit_cp = str->len_cp;
+    if (unit_bytes == 0 || unit_cp == 0) {
+        return rt_string_from_bytes(NULL, 0);
+    }
+    int64_t max_int = INT64_MAX;
+    if ((uint64_t)count > (uint64_t)(max_int / (int64_t)unit_bytes)) {
+        const char* msg = "string repeat length out of range";
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
+    if ((uint64_t)count > (uint64_t)(max_int / (int64_t)unit_cp)) {
+        const char* msg = "string repeat length out of range";
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
+    uint64_t total_bytes = unit_bytes * (uint64_t)count;
+    uint64_t total_cp = unit_cp * (uint64_t)count;
+    size_t max_payload = SIZE_MAX - sizeof(SurgeString) - 1;
+    if (total_bytes > (uint64_t)max_payload) {
+        const char* msg = "string repeat length out of range";
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
+    size_t total = sizeof(SurgeString) + (size_t)total_bytes + 1;
+    SurgeString* out = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
+    if (out == NULL) {
+        return NULL;
+    }
+    out->len_cp = total_cp;
+    out->len_bytes = total_bytes;
+    for (int64_t i = 0; i < count; i++) {
+        uint64_t offset = (uint64_t)i * unit_bytes;
+        rt_memcpy(out->data + offset, str->data, unit_bytes);
+    }
+    out->data[total_bytes] = 0;
+    return (void*)out;
+}
+
 bool rt_string_eq(void* a, void* b) {
-    SurgeString* left = NULL;
-    SurgeString* right = NULL;
+    const SurgeString* left = NULL;
+    const SurgeString* right = NULL;
     if (a != NULL) {
         left = *(SurgeString**)a;
     }
@@ -609,10 +685,8 @@ bool rt_parse_bool(void* s, uint8_t* out) {
         }
     }
     if (n == 4) {
-        if ((data[start] | 0x20) == 't' &&
-            (data[start + 1] | 0x20) == 'r' &&
-            (data[start + 2] | 0x20) == 'u' &&
-            (data[start + 3] | 0x20) == 'e') {
+        if ((data[start] | 0x20) == 't' && (data[start + 1] | 0x20) == 'r' &&
+            (data[start + 2] | 0x20) == 'u' && (data[start + 3] | 0x20) == 'e') {
             if (out != NULL) {
                 *out = 1;
             }
@@ -620,10 +694,8 @@ bool rt_parse_bool(void* s, uint8_t* out) {
         }
     }
     if (n == 5) {
-        if ((data[start] | 0x20) == 'f' &&
-            (data[start + 1] | 0x20) == 'a' &&
-            (data[start + 2] | 0x20) == 'l' &&
-            (data[start + 3] | 0x20) == 's' &&
+        if ((data[start] | 0x20) == 'f' && (data[start + 1] | 0x20) == 'a' &&
+            (data[start + 2] | 0x20) == 'l' && (data[start + 3] | 0x20) == 's' &&
             (data[start + 4] | 0x20) == 'e') {
             if (out != NULL) {
                 *out = 0;

@@ -67,6 +67,7 @@ func buildSurgeBinary(t *testing.T, root string) string {
 		}
 		surgeBinPath = filepath.Join(tmp, "surge")
 
+		// #nosec G204 -- test build command uses fixed arguments
 		cmd := exec.Command("go", "build", "-o", surgeBinPath, "./cmd/surge")
 		cmd.Dir = root
 		cmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
@@ -127,7 +128,9 @@ func runSurgeWithInput(t *testing.T, root, surgeBin, stdin string, args ...strin
 	cmd := exec.Command(surgeBin, args...)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
-	return runCommand(t, cmd, stdin)
+	stdout, stderr, exitCode = runCommand(t, cmd, stdin)
+	stdout = stripTimingLines(stdout)
+	return stdout, stderr, exitCode
 }
 
 func runCommand(t *testing.T, cmd *exec.Cmd, stdin string) (stdout, stderr string, exitCode int) {
@@ -150,13 +153,13 @@ func runCommand(t *testing.T, cmd *exec.Cmd, stdin string) (stdout, stderr strin
 	if !errors.As(err, &exitErr) {
 		t.Fatalf("run command: %v\nstderr:\n%s", err, stderr)
 	}
-	return stdout, stderr, exitErr.ProcessState.ExitCode()
+	return stdout, stderr, exitErr.ExitCode()
 }
 
 func newTestArtifacts(t *testing.T, root string) *testArtifacts {
 	t.Helper()
 	name := sanitizeTestName(t.Name())
-	dir := filepath.Join(root, "build", ".tests", name)
+	dir := filepath.Join(root, "target", "debug", ".tests", name)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatalf("create artifacts dir: %v", err)
 	}
@@ -222,7 +225,7 @@ func runProgram(t *testing.T, root, srcPath string, opts runOptions, artifacts *
 	ensureLLVMToolchain(t)
 	surge := buildSurgeBinary(t, root)
 
-	buildArgs := []string{"build", srcPath, "--backend=llvm", "--emit-mir", "--emit-llvm", "--keep-tmp", "--print-commands"}
+	buildArgs := []string{"build", srcPath, "--emit-mir", "--emit-llvm", "--keep-tmp", "--print-commands"}
 	buildOut, buildErr, buildCode := runSurgeWithInput(t, root, surge, "", buildArgs...)
 	if artifacts != nil {
 		writeArtifact(t, artifacts.Dir, "build.stdout", buildOut)
@@ -235,12 +238,13 @@ func runProgram(t *testing.T, root, srcPath string, opts runOptions, artifacts *
 	if artifacts != nil {
 		artifacts.Repro = repro
 		writeArtifact(t, artifacts.Dir, "repro.txt", repro+"\n")
-		writeArtifact(t, artifacts.Dir, "build.tmp_dir", filepath.Join(root, "build", ".tmp", filepath.Base(outputPath))+"\n")
+		writeArtifact(t, artifacts.Dir, "build.tmp_dir", filepath.Join(root, "target", "debug", ".tmp", filepath.Base(outputPath))+"\n")
 	}
 	if buildCode != 0 {
 		t.Fatalf("LLVM build failed (exit=%d). See %s", buildCode, artifacts.Dir)
 	}
 
+	// #nosec G204 -- test executes build output with controlled args
 	cmd := exec.Command(outputPath, opts.argv...)
 	cmd.Dir = root
 	stdout, stderr, exitCode := runCommand(t, cmd, opts.stdin)
@@ -260,7 +264,7 @@ func runProgram(t *testing.T, root, srcPath string, opts runOptions, artifacts *
 func llvmOutputPath(root, srcPath string) string {
 	base := filepath.Base(srcPath)
 	name := strings.TrimSuffix(base, filepath.Ext(base))
-	return filepath.Join(root, "build", name)
+	return filepath.Join(root, "target", "debug", name)
 }
 
 func llvmReproCommand(root, srcPath, outputPath string, argv []string) string {
@@ -272,5 +276,5 @@ func llvmReproCommand(root, srcPath, outputPath string, argv []string) string {
 	if len(argv) > 0 {
 		args = " " + strings.Join(argv, " ")
 	}
-	return fmt.Sprintf("cd %s && SURGE_STDLIB=%s go run ./cmd/surge build %s --backend=llvm --emit-mir --emit-llvm --keep-tmp --print-commands && %s%s", root, root, relPath, outputPath, args)
+	return fmt.Sprintf("cd %s && SURGE_STDLIB=%s go run ./cmd/surge build %s --emit-mir --emit-llvm --keep-tmp --print-commands && %s%s", root, root, relPath, outputPath, args)
 }

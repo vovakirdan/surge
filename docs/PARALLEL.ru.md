@@ -22,7 +22,6 @@
 - **Нет параллелизма** на нескольких ядрах.
 - `parallel map/reduce` не поддерживаются (ошибка `FutParallelNotSupported`).
 - `signal` не поддерживается (ошибка `FutSignalNotSupported`).
-- `await` внутри циклов пока запрещен (ограничение lowering).
 
 ---
 

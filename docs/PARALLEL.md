@@ -21,7 +21,6 @@ See `docs/CONCURRENCY.md` for the precise model.
 - **No parallelism** across multiple cores.
 - `parallel map/reduce` is not supported (error `FutParallelNotSupported`).
 - `signal` is not supported (error `FutSignalNotSupported`).
-- `await` inside loops is currently forbidden (lowering limitation).
 
 ---
 

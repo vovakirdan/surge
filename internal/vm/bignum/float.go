@@ -6,20 +6,25 @@ import (
 	"fortio.org/safecast"
 )
 
+// MantissaBits is the number of bits in the mantissa.
 const MantissaBits = 256
 
+// BigFloat represents a big floating-point number.
 type BigFloat struct {
 	Neg  bool
 	Mant BigUint
 	Exp  int32 // value = (-1)^Neg * Mant * 2^Exp
 }
 
+// FloatZero returns a zero BigFloat.
 func FloatZero() BigFloat { return BigFloat{} }
 
+// IsZero reports whether the float is zero.
 func (f BigFloat) IsZero() bool {
 	return f.Mant.IsZero()
 }
 
+// Cmp compares two BigFloat values.
 func (f BigFloat) Cmp(g BigFloat) int {
 	if f.IsZero() && g.IsZero() {
 		return 0
@@ -50,6 +55,7 @@ func (f BigFloat) Cmp(g BigFloat) int {
 	return cmp
 }
 
+// FloatNeg negates a BigFloat.
 func FloatNeg(f BigFloat) BigFloat {
 	if f.IsZero() {
 		return BigFloat{}
@@ -58,6 +64,7 @@ func FloatNeg(f BigFloat) BigFloat {
 	return f
 }
 
+// FloatFromUint converts a BigUint to BigFloat.
 func FloatFromUint(u BigUint) (BigFloat, error) {
 	if u.IsZero() {
 		return BigFloat{}, nil
@@ -69,6 +76,7 @@ func FloatFromUint(u BigUint) (BigFloat, error) {
 	return BigFloat{Neg: false, Mant: mant, Exp: exp}, nil
 }
 
+// FloatFromInt converts a BigInt to a BigFloat.
 func FloatFromInt(i BigInt) (BigFloat, error) {
 	if i.IsZero() {
 		return BigFloat{}, nil
@@ -80,6 +88,7 @@ func FloatFromInt(i BigInt) (BigFloat, error) {
 	return BigFloat{Neg: i.Neg, Mant: mant, Exp: exp}, nil
 }
 
+// FloatToIntTrunc converts a BigFloat to a BigInt by truncating the fractional part.
 func FloatToIntTrunc(f BigFloat) (BigInt, error) {
 	if f.IsZero() {
 		return BigInt{}, nil
@@ -113,6 +122,7 @@ func FloatToIntTrunc(f BigFloat) (BigInt, error) {
 	return BigInt{Neg: f.Neg, Limbs: mag.Limbs}, nil
 }
 
+// FloatToUintTrunc converts a BigFloat to BigUint by truncation.
 func FloatToUintTrunc(f BigFloat) (BigUint, error) {
 	if f.Neg && !f.IsZero() {
 		return BigUint{}, errors.New("negative float to uint")
@@ -127,6 +137,7 @@ func FloatToUintTrunc(f BigFloat) (BigUint, error) {
 	return i.Abs(), nil
 }
 
+// FloatAdd adds two BigFloat values.
 func FloatAdd(a, b BigFloat) (BigFloat, error) {
 	if a.IsZero() {
 		return b, nil
@@ -189,10 +200,12 @@ func FloatAdd(a, b BigFloat) (BigFloat, error) {
 	}
 }
 
+// FloatSub subtracts two BigFloat values.
 func FloatSub(a, b BigFloat) (BigFloat, error) {
 	return FloatAdd(a, FloatNeg(b))
 }
 
+// FloatMul multiplies two BigFloat values.
 func FloatMul(a, b BigFloat) (BigFloat, error) {
 	if a.IsZero() || b.IsZero() {
 		return BigFloat{}, nil
@@ -209,6 +222,7 @@ func FloatMul(a, b BigFloat) (BigFloat, error) {
 	return BigFloat{Neg: a.Neg != b.Neg, Mant: mant, Exp: exp}, nil
 }
 
+// FloatDiv divides two BigFloat values.
 func FloatDiv(a, b BigFloat) (BigFloat, error) {
 	if b.IsZero() {
 		return BigFloat{}, ErrDivByZero

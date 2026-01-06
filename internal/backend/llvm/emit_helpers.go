@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"fortio.org/safecast"
-
 	"surge/internal/layout"
 	"surge/internal/mir"
 	"surge/internal/symbols"
@@ -88,7 +86,7 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 				return "", "", fmt.Errorf("missing index local")
 			}
 			elemType, dynamic, ok := arrayElemType(fe.emitter.types, curType)
-			if !ok || !dynamic {
+			if !ok {
 				return "", "", fmt.Errorf("index projection on non-array type")
 			}
 			idxLocal := proj.IndexLocal
@@ -102,13 +100,27 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 			idxPtr := fmt.Sprintf("%%%s", fe.localAlloca[idxLocal])
 			idxVal := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", idxVal, idxLLVM, idxPtr)
-			elemPtr, elemLLVM, err := fe.emitArrayElemPtr(curPtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, elemType)
-			if err != nil {
-				return "", "", err
+			if dynamic {
+				elemPtr, elemLLVM, err := fe.emitArrayElemPtr(curPtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, elemType)
+				if err != nil {
+					return "", "", err
+				}
+				curPtr = elemPtr
+				curType = elemType
+				curLLVMType = elemLLVM
+			} else {
+				fixedElem, fixedLen, ok := arrayFixedInfo(fe.emitter.types, curType)
+				if !ok {
+					return "", "", fmt.Errorf("index projection on non-array type")
+				}
+				elemPtr, elemLLVM, err := fe.emitArrayFixedElemPtr(curPtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, fixedElem, fixedLen)
+				if err != nil {
+					return "", "", err
+				}
+				curPtr = elemPtr
+				curType = fixedElem
+				curLLVMType = elemLLVM
 			}
-			curPtr = elemPtr
-			curType = elemType
-			curLLVMType = elemLLVM
 		default:
 			return "", "", fmt.Errorf("unsupported place projection kind %v", proj.Kind)
 		}
@@ -175,8 +187,14 @@ func intInfo(typesIn *types.Interner, id types.TypeID) (intMeta, bool) {
 	case types.KindBool:
 		return intMeta{bits: 1, signed: false}, true
 	case types.KindInt:
+		if tt.Width == types.WidthAny {
+			return intMeta{}, false
+		}
 		return intMeta{bits: widthBits(tt.Width), signed: true}, true
 	case types.KindUint:
+		if tt.Width == types.WidthAny {
+			return intMeta{}, false
+		}
 		return intMeta{bits: widthBits(tt.Width), signed: false}, true
 	default:
 		return intMeta{}, false
@@ -188,6 +206,33 @@ func widthBits(width types.Width) int {
 		return 64
 	}
 	return int(width)
+}
+
+func isBigIntType(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil {
+		return false
+	}
+	id = resolveAliasAndOwn(typesIn, id)
+	tt, ok := typesIn.Lookup(id)
+	return ok && tt.Kind == types.KindInt && tt.Width == types.WidthAny
+}
+
+func isBigUintType(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil {
+		return false
+	}
+	id = resolveAliasAndOwn(typesIn, id)
+	tt, ok := typesIn.Lookup(id)
+	return ok && tt.Kind == types.KindUint && tt.Width == types.WidthAny
+}
+
+func isBigFloatType(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil {
+		return false
+	}
+	id = resolveAliasAndOwn(typesIn, id)
+	tt, ok := typesIn.Lookup(id)
+	return ok && tt.Kind == types.KindFloat && tt.Width == types.WidthAny
 }
 
 func formatLLVMBytes(data []byte, arrayLen int) string {
@@ -342,6 +387,7 @@ func (fe *funcEmitter) emitTagDiscriminant(op *mir.Operand) (string, error) {
 			typeID = baseType
 		}
 	}
+	typeID = resolveValueType(fe.emitter.types, typeID)
 	layoutInfo, err := fe.emitter.layoutOf(typeID)
 	if err != nil {
 		return "", err
@@ -352,6 +398,15 @@ func (fe *funcEmitter) emitTagDiscriminant(op *mir.Operand) (string, error) {
 	val, valTy, err := fe.emitValueOperand(op)
 	if err != nil {
 		return "", err
+	}
+	if isRefType(fe.emitter.types, op.Type) {
+		if valTy != "ptr" {
+			return "", fmt.Errorf("tag value must be ptr, got %s", valTy)
+		}
+		deref := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", deref, val)
+		val = deref
+		valTy = "ptr"
 	}
 	if valTy != "ptr" {
 		return "", fmt.Errorf("tag value must be ptr, got %s", valTy)
@@ -365,6 +420,7 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 	if typeID == types.NoTypeID {
 		return "", fmt.Errorf("missing tag type")
 	}
+	typeID = resolveValueType(fe.emitter.types, typeID)
 	caseIdx, meta, err := fe.emitter.tagCaseMeta(typeID, tagName, tagSym)
 	if err != nil {
 		return "", err
@@ -408,6 +464,20 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 				return "", err
 			}
 			if valTy != payloadLLVM {
+				valType := operandValueType(fe.emitter.types, arg)
+				if valType == types.NoTypeID && arg.Kind != mir.OperandConst {
+					if baseType, err := fe.placeBaseType(arg.Place); err == nil {
+						valType = baseType
+					}
+				}
+				casted, castTy, err := fe.coerceNumericValue(val, valTy, valType, payloadTy)
+				if err != nil {
+					return "", err
+				}
+				val = casted
+				valTy = castTy
+			}
+			if valTy != payloadLLVM {
 				valTy = payloadLLVM
 			}
 			off := layoutInfo.PayloadOffset + offsets[i]
@@ -425,22 +495,39 @@ func (fe *funcEmitter) structFieldInfo(typeID types.TypeID, proj mir.PlaceProj) 
 	}
 	typeID = resolveAliasAndOwn(fe.emitter.types, typeID)
 	info, ok := fe.emitter.types.StructInfo(typeID)
-	if !ok || info == nil {
-		return -1, types.NoTypeID, fmt.Errorf("missing struct info")
-	}
-	fieldIdx := proj.FieldIdx
-	if fieldIdx < 0 && proj.FieldName != "" && fe.emitter.types.Strings != nil {
-		for i, field := range info.Fields {
-			if fe.emitter.types.Strings.MustLookup(field.Name) == proj.FieldName {
-				fieldIdx = i
-				break
+	if ok && info != nil {
+		fieldIdx := proj.FieldIdx
+		if proj.FieldName != "" && fe.emitter.types.Strings != nil {
+			found := false
+			for i, field := range info.Fields {
+				if fe.emitter.types.Strings.MustLookup(field.Name) == proj.FieldName {
+					fieldIdx = i
+					found = true
+					break
+				}
+			}
+			if !found {
+				return -1, types.NoTypeID, fmt.Errorf("unknown field %q", proj.FieldName)
 			}
 		}
+		if fieldIdx < 0 || fieldIdx >= len(info.Fields) {
+			return -1, types.NoTypeID, fmt.Errorf("unknown field %q", proj.FieldName)
+		}
+		return fieldIdx, info.Fields[fieldIdx].Type, nil
 	}
-	if fieldIdx < 0 || fieldIdx >= len(info.Fields) {
+	tupleInfo, ok := fe.emitter.types.TupleInfo(typeID)
+	if !ok || tupleInfo == nil {
+		kind := "unknown"
+		if tt, okLookup := fe.emitter.types.Lookup(typeID); okLookup {
+			kind = tt.Kind.String()
+		}
+		return -1, types.NoTypeID, fmt.Errorf("missing struct info for type#%d (kind=%s)", typeID, kind)
+	}
+	fieldIdx := proj.FieldIdx
+	if fieldIdx < 0 || fieldIdx >= len(tupleInfo.Elems) {
 		return -1, types.NoTypeID, fmt.Errorf("unknown field %q", proj.FieldName)
 	}
-	return fieldIdx, info.Fields[fieldIdx].Type, nil
+	return fieldIdx, tupleInfo.Elems[fieldIdx], nil
 }
 
 func resolveValueType(typesIn *types.Interner, id types.TypeID) types.TypeID {
@@ -602,83 +689,4 @@ func (fe *funcEmitter) bytesViewOffsets(typeID types.TypeID) (ptrOffset, lenOffs
 		return 0, 0, "", err
 	}
 	return layoutInfo.FieldOffsets[ptrIdx], layoutInfo.FieldOffsets[lenIdx], lenLLVM, nil
-}
-
-func llvmTypeSizeAlign(ty string) (size, align int, err error) {
-	switch ty {
-	case "i1", "i8":
-		return 1, 1, nil
-	case "i16", "half":
-		return 2, 2, nil
-	case "i32", "float":
-		return 4, 4, nil
-	case "i64", "double", "ptr":
-		return 8, 8, nil
-	default:
-		return 0, 0, fmt.Errorf("unsupported llvm type size for %s", ty)
-	}
-}
-
-func roundUpInt(n, align int) int {
-	if align <= 1 {
-		return n
-	}
-	r := n % align
-	if r == 0 {
-		return n
-	}
-	return n + (align - r)
-}
-
-func safeLocalID(i int) (mir.LocalID, error) {
-	localID, err := safecast.Conv[mir.LocalID](i)
-	if err != nil {
-		return mir.NoLocalID, fmt.Errorf("local id overflow: %w", err)
-	}
-	return localID, nil
-}
-
-func safeGlobalID(i int) (mir.GlobalID, error) {
-	globalID, err := safecast.Conv[mir.GlobalID](i)
-	if err != nil {
-		return mir.NoGlobalID, fmt.Errorf("global id overflow: %w", err)
-	}
-	return globalID, nil
-}
-
-func operandValueType(typesIn *types.Interner, op *mir.Operand) types.TypeID {
-	if op == nil {
-		return types.NoTypeID
-	}
-	if op.Kind == mir.OperandAddrOf || op.Kind == mir.OperandAddrOfMut {
-		if next, ok := derefType(typesIn, op.Type); ok {
-			return next
-		}
-	}
-	return op.Type
-}
-
-func derefType(typesIn *types.Interner, id types.TypeID) (types.TypeID, bool) {
-	if typesIn == nil || id == types.NoTypeID {
-		return types.NoTypeID, false
-	}
-	for i := 0; i < 32 && id != types.NoTypeID; i++ {
-		tt, ok := typesIn.Lookup(id)
-		if !ok {
-			return types.NoTypeID, false
-		}
-		switch tt.Kind {
-		case types.KindAlias:
-			target, ok := typesIn.AliasTarget(id)
-			if !ok || target == types.NoTypeID {
-				return types.NoTypeID, false
-			}
-			id = target
-		case types.KindOwn, types.KindReference, types.KindPointer:
-			return tt.Elem, true
-		default:
-			return types.NoTypeID, false
-		}
-	}
-	return types.NoTypeID, false
 }

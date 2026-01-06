@@ -6,30 +6,30 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"sort"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"surge/internal/asyncrt"
-	"surge/internal/driver"
-	"surge/internal/mir"
-	"surge/internal/mono"
+	"surge/internal/buildpipeline"
 	"surge/internal/project"
 	"surge/internal/vm"
 )
 
 var runCmd = &cobra.Command{
 	Use:   "run [flags] [file.sg|directory] [-- <program-args>...]",
-	Short: "Compile and execute a Surge program",
-	Long: `Compile a Surge source file or module directory to MIR and execute it using the VM backend.
+	Short: "Build and execute a Surge program",
+	Long: `Build a Surge source file or module directory and execute the result.
 Arguments after "--" are passed to the program via rt_argv().`,
 	Args: cobra.ArbitraryArgs,
 	RunE: runExecution,
 }
 
 func init() {
-	runCmd.Flags().String("backend", "vm", "execution backend (vm)")
+	runCmd.Flags().String("backend", string(buildpipeline.BackendLLVM), "execution backend (llvm, vm)")
+	runCmd.Flags().String("ui", "off", "user interface (auto|on|off)")
 	runCmd.Flags().Bool("vm-trace", false, "enable VM execution tracing")
 	runCmd.Flags().Bool("vm-debug", false, "enable VM debugger")
 	runCmd.Flags().String("vm-debug-script", "", "run VM debugger commands from file")
@@ -56,6 +56,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		programArgs []string
 		baseDir     string
 		rootKind    project.ModuleKind
+		outputName  string
 	)
 	if manifestFound {
 		targetPath, dirInfo, err = resolveProjectRunTarget(manifest)
@@ -64,6 +65,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		}
 		baseDir = manifest.Root
 		rootKind = project.ModuleKindBinary
+		outputName = manifest.Config.Package.Name
 		programArgs = argsAfterDash
 	} else {
 		if len(argsBeforeDash) == 0 || filepath.Clean(argsBeforeDash[0]) == "." {
@@ -74,23 +76,33 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
+		outputName = outputNameFromPath(inputPath, dirInfo)
 		programArgs = append(programArgs, argsBeforeDash[1:]...)
 		if len(argsAfterDash) > 0 {
 			programArgs = append(programArgs, argsAfterDash...)
 		}
 	}
+	if outputName == "" {
+		outputName = "a.out"
+	}
 
-	// Get flags
-	backend, err := cmd.Flags().GetString("backend")
+	backendValue, err := cmd.Flags().GetString("backend")
 	if err != nil {
 		return fmt.Errorf("failed to get backend flag: %w", err)
+	}
+	uiValue, err := cmd.Flags().GetString("ui")
+	if err != nil {
+		return err
+	}
+	uiModeValue, err := readUIMode(uiValue)
+	if err != nil {
+		return err
 	}
 
 	vmTrace, err := cmd.Flags().GetBool("vm-trace")
 	if err != nil {
 		return fmt.Errorf("failed to get vm-trace flag: %w", err)
 	}
-
 	vmDebug, err := cmd.Flags().GetBool("vm-debug")
 	if err != nil {
 		return fmt.Errorf("failed to get vm-debug flag: %w", err)
@@ -147,103 +159,90 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--vm-record/--vm-replay are not supported with --vm-debug")
 	}
 
-	// Only VM backend supported for now
-	if backend != "vm" {
-		return fmt.Errorf("unsupported backend: %s (only 'vm' is supported)", backend)
+	if backendValue != string(buildpipeline.BackendVM) && backendValue != string(buildpipeline.BackendLLVM) {
+		return fmt.Errorf("unsupported backend: %s (supported: vm, llvm)", backendValue)
+	}
+	if backendValue != string(buildpipeline.BackendVM) && (vmTrace || vmDebug || vmDebugScript != "" || len(vmBreaks) > 0 || len(vmBreakFns) > 0 || vmRecordPath != "" || vmReplayPath != "" || fuzzScheduler || realTime) {
+		return fmt.Errorf("VM-only flags require --backend=vm")
 	}
 
-	// Compile source to MIR
-	opts := driver.DiagnoseOptions{
-		Stage:              driver.DiagnoseStageSema,
-		MaxDiagnostics:     maxDiagnostics,
-		EmitHIR:            true,
-		EmitInstantiations: true,
-		BaseDir:            baseDir,
-		RootKind:           rootKind,
+	useTUI := shouldUseTUI(uiModeValue)
+	files, fileErr := collectProjectFiles(targetPath, dirInfo)
+	if fileErr != nil && len(files) == 0 && targetPath != "" {
+		files = []string{targetPath}
+	}
+	displayFiles := displayFileList(files, baseDir)
+
+	compileReq := buildpipeline.CompileRequest{
+		TargetPath:            targetPath,
+		BaseDir:               baseDir,
+		RootKind:              rootKind,
+		MaxDiagnostics:        maxDiagnostics,
+		DirInfo:               toPipelineDirInfo(dirInfo),
+		AllowDiagnosticsError: unsafeRun,
+		Files:                 displayFiles,
 	}
 
-	result, err := driver.DiagnoseWithOptions(cmd.Context(), targetPath, &opts)
-	if err != nil {
-		return fmt.Errorf("compilation failed: %w", err)
-	}
-
-	// Check for errors
-	if result.Bag != nil && result.Bag.HasErrors() {
-		for _, d := range result.Bag.Items() {
-			fmt.Fprintln(os.Stderr, d.Message)
+	outputRoot := baseDir
+	if outputRoot == "" {
+		cwd, cwdErr := os.Getwd()
+		if cwdErr != nil {
+			cwd = "."
 		}
-		if !unsafeRun {
-			return fmt.Errorf("diagnostics reported errors")
+		outputRoot = cwd
+	}
+
+	if backendValue == string(buildpipeline.BackendLLVM) {
+		buildReq := buildpipeline.BuildRequest{
+			CompileRequest: compileReq,
+			OutputName:     outputName,
+			OutputRoot:     outputRoot,
+			Profile:        "debug",
+			Backend:        buildpipeline.BackendLLVM,
 		}
-	}
-	if validateErr := validateEntrypoints(result); validateErr != nil {
-		return validateErr
-	}
-
-	if dirInfo != nil && dirInfo.fileCount > 1 {
-		meta := result.RootModuleMeta()
-		if meta == nil {
-			return fmt.Errorf("failed to resolve module metadata for %q", dirInfo.path)
+		if manifestFound {
+			buildReq.ManifestRoot = manifest.Root
+			buildReq.ManifestFound = true
 		}
-		if !meta.HasModulePragma {
-			return fmt.Errorf("directory %q is not a module; add pragma module/binary to all .sg files or run a file", dirInfo.path)
+
+		var buildRes buildpipeline.BuildResult
+		if useTUI && len(displayFiles) > 0 {
+			buildRes, err = runBuildWithUI(cmd.Context(), "surge run", displayFiles, &buildReq)
+		} else {
+			buildRes, err = buildpipeline.Build(cmd.Context(), &buildReq)
 		}
+		if err != nil {
+			printStageTimings(os.Stdout, buildRes.Timings, false, true)
+			return err
+		}
+
+		runStart := time.Now()
+		runErr := runBinary(buildRes.OutputPath, programArgs, outputRoot)
+		buildRes.Timings.Set(buildpipeline.StageRun, time.Since(runStart))
+		printStageTimings(os.Stdout, buildRes.Timings, true, true)
+		if runErr != nil {
+			var exitErr *exec.ExitError
+			if errors.As(runErr, &exitErr) {
+				os.Exit(exitErr.ExitCode())
+			}
+			return runErr
+		}
+		os.Exit(0)
+		return nil
 	}
 
-	// Build HIR (should already be built with EmitHIR=true)
-	if result.HIR == nil {
-		return fmt.Errorf("HIR not available")
+	var compileRes buildpipeline.CompileResult
+	if useTUI && len(displayFiles) > 0 {
+		compileRes, err = runCompileWithUI(cmd.Context(), "surge run", displayFiles, &compileReq)
+	} else {
+		compileRes, err = buildpipeline.Compile(cmd.Context(), &compileReq)
 	}
-	if result.Instantiations == nil {
-		return fmt.Errorf("instantiation map not available")
-	}
-	if result.Sema == nil {
-		return fmt.Errorf("semantic analysis result not available")
-	}
-
-	hirModule, err := driver.CombineHIRWithModules(cmd.Context(), result)
 	if err != nil {
-		return fmt.Errorf("HIR merge failed: %w", err)
-	}
-	if hirModule == nil {
-		hirModule = result.HIR
+		printStageTimings(os.Stdout, compileRes.Timings, false, true)
+		return err
 	}
 
-	// Monomorphize
-	mm, err := mono.MonomorphizeModule(hirModule, result.Instantiations, result.Sema, mono.Options{
-		MaxDepth: 64,
-	})
-	if err != nil {
-		return fmt.Errorf("monomorphization failed: %w", err)
-	}
-
-	// Lower to MIR
-	mirMod, err := mir.LowerModule(mm, result.Sema)
-	if err != nil {
-		return fmt.Errorf("MIR lowering failed: %w", err)
-	}
-
-	// Simplify CFG and recognize switch patterns
-	for _, f := range mirMod.Funcs {
-		mir.SimplifyCFG(f)
-		mir.RecognizeSwitchTag(f)
-		mir.SimplifyCFG(f)
-	}
-
-	// Lower async functions to poll state machines.
-	if err := mir.LowerAsyncStateMachine(mirMod, result.Sema, result.Symbols.Table); err != nil {
-		return fmt.Errorf("async lowering failed: %w", err)
-	}
-	for _, f := range mirMod.Funcs {
-		mir.SimplifyCFG(f)
-	}
-
-	// Validate MIR
-	if err := mir.Validate(mirMod, result.Sema.TypeInterner); err != nil {
-		return fmt.Errorf("MIR validation failed: %w", err)
-	}
-
-	// Create VM
+	// Create VM runtime
 	var rt vm.Runtime = vm.NewRuntimeWithArgs(programArgs)
 	var recordBuf bytes.Buffer
 	var recorder *vm.Recorder
@@ -254,10 +253,10 @@ func runExecution(cmd *cobra.Command, args []string) error {
 
 	var tracer *vm.Tracer
 	if vmTrace {
-		tracer = vm.NewTracer(os.Stderr, result.FileSet)
+		tracer = vm.NewTracer(os.Stderr, compileRes.Diagnose.FileSet)
 	}
 
-	vmInstance := vm.New(mirMod, rt, result.FileSet, result.Sema.TypeInterner, tracer)
+	vmInstance := vm.New(compileRes.MIR, rt, compileRes.Diagnose.FileSet, compileRes.Diagnose.Sema.TypeInterner, tracer)
 	timerMode := asyncrt.TimerModeVirtual
 	if realTime {
 		timerMode = asyncrt.TimerModeReal
@@ -272,6 +271,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		vmInstance.Recorder = recorder
 	}
 	if vmReplayPath != "" {
+		// #nosec G304 -- path comes from user-provided CLI flag
 		logBytes, err := os.ReadFile(vmReplayPath)
 		if err != nil {
 			return fmt.Errorf("failed to read vm-replay log: %w", err)
@@ -285,6 +285,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		interactive := vmDebugScript == ""
 		var in io.Reader = os.Stdin
 		if !interactive {
+			// #nosec G304 -- path comes from user-provided CLI flag
 			script, err := os.ReadFile(vmDebugScript)
 			if err != nil {
 				return fmt.Errorf("failed to open vm-debug-script: %w", err)
@@ -309,34 +310,44 @@ func runExecution(cmd *cobra.Command, args []string) error {
 			}
 		}
 
+		runStart := time.Now()
 		res, vmErr := dbg.Run()
+		compileRes.Timings.Set(buildpipeline.StageRun, time.Since(runStart))
+		printStageTimings(os.Stdout, compileRes.Timings, true, true)
 		if vmErr != nil {
-			fmt.Fprint(os.Stderr, vmErr.FormatWithFiles(result.FileSet))
+			fmt.Fprint(os.Stderr, vmErr.FormatWithFiles(compileRes.Diagnose.FileSet))
 			os.Exit(1)
 		}
 		if res.Quit {
 			os.Exit(125)
 		}
 		os.Exit(res.ExitCode)
+		return nil
 	}
 
-	// Execute (non-debug mode).
+	runStart := time.Now()
 	vmErr := vmInstance.Run()
+	compileRes.Timings.Set(buildpipeline.StageRun, time.Since(runStart))
+
 	if recorder != nil {
 		if err := recorder.Err(); err != nil {
+			printStageTimings(os.Stdout, compileRes.Timings, true, true)
 			fmt.Fprintf(os.Stderr, "vm record failed: %v\n", err)
 			os.Exit(1)
 		}
 		if err := os.WriteFile(vmRecordPath, recordBuf.Bytes(), 0o600); err != nil {
+			printStageTimings(os.Stdout, compileRes.Timings, true, true)
 			fmt.Fprintf(os.Stderr, "vm record write failed: %v\n", err)
 			os.Exit(1)
 		}
 	}
 	if vmErr != nil {
-		fmt.Fprint(os.Stderr, vmErr.FormatWithFiles(result.FileSet))
+		printStageTimings(os.Stdout, compileRes.Timings, true, true)
+		fmt.Fprint(os.Stderr, vmErr.FormatWithFiles(compileRes.Diagnose.FileSet))
 		os.Exit(1)
 	}
 
+	printStageTimings(os.Stdout, compileRes.Timings, true, true)
 	os.Exit(vmInstance.ExitCode)
 	return nil
 }
@@ -354,21 +365,12 @@ func resolveRunTarget(inputPath string) (string, *runDirInfo, error) {
 	if !info.IsDir() {
 		return inputPath, nil, nil
 	}
-	entries, err := os.ReadDir(inputPath)
+
+	sgFiles, err := listSGFiles(inputPath)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to read directory: %w", err)
+		return "", nil, fmt.Errorf("failed to list files in directory: %w", err)
 	}
-	sgFiles := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if filepath.Ext(entry.Name()) != ".sg" {
-			continue
-		}
-		sgFiles = append(sgFiles, filepath.Join(inputPath, entry.Name()))
-	}
-	sort.Strings(sgFiles)
+
 	if len(sgFiles) == 0 {
 		return "", nil, fmt.Errorf("no .sg files found in directory %q", inputPath)
 	}
@@ -384,4 +386,14 @@ func splitArgsAtDash(cmd *cobra.Command, args []string) (before, after []string)
 		return args, nil
 	}
 	return args[:dashIdx], args[dashIdx:]
+}
+
+func runBinary(path string, args []string, workDir string) error {
+	cmd := exec.Command(path, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if workDir != "" {
+		cmd.Dir = workDir
+	}
+	return cmd.Run()
 }

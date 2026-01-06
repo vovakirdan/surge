@@ -139,7 +139,10 @@ func (vm *VM) Start() *VMError {
 	// Find __surge_start.
 	startFn := vm.findFunction("__surge_start")
 	if startFn == nil {
-		return vm.eb.makeError(PanicUnimplemented, "no entrypoint: __surge_start not found")
+		vm.started = true
+		vm.Halted = true
+		vm.Stack = nil
+		return nil
 	}
 
 	vm.Stack = append(vm.Stack, *NewFrame(startFn))

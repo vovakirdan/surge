@@ -256,8 +256,8 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 		Callee: Callee{Kind: CalleeValue, Name: "__task_create"},
 		Args: []Operand{{
 			Kind:  OperandConst,
-			Type:  typesIn.Builtins().Int,
-			Const: Const{Kind: ConstInt, Type: typesIn.Builtins().Int, IntValue: int64(pollFnID)},
+			Type:  typesIn.Builtins().Int64,
+			Const: Const{Kind: ConstInt, Type: typesIn.Builtins().Int64, IntValue: int64(pollFnID)},
 		}, {
 			Kind:  OperandMove,
 			Place: Place{Local: stateTmp},

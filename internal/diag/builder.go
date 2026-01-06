@@ -2,6 +2,7 @@ package diag
 
 import "surge/internal/source"
 
+// New creates a new diagnostic.
 func New(sev Severity, code Code, primary source.Span, msg string) *Diagnostic {
 	return &Diagnostic{
 		Severity: sev,
@@ -13,10 +14,12 @@ func New(sev Severity, code Code, primary source.Span, msg string) *Diagnostic {
 	}
 }
 
+// NewError creates a new error diagnostic.
 func NewError(code Code, primary source.Span, msg string) *Diagnostic {
 	return New(SevError, code, primary, msg)
 }
 
+// WithNote adds a note to the diagnostic.
 func (d *Diagnostic) WithNote(sp source.Span, msg string) *Diagnostic {
 	d.Notes = append(d.Notes, Note{Span: sp, Msg: msg})
 	return d

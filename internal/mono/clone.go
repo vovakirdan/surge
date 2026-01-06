@@ -1,3 +1,4 @@
+// Package mono provides monomorphization of generic HIR modules.
 package mono
 
 import (

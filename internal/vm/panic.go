@@ -71,7 +71,7 @@ type BacktraceFrame struct {
 }
 
 // VMError represents a runtime panic in the VM.
-type VMError struct {
+type VMError struct { //nolint:revive
 	Code      PanicCode
 	Message   string
 	Span      source.Span      // Location where panic occurred

@@ -8,13 +8,17 @@ import (
 	"surge/internal/source"
 )
 
+// ExternMemberKind distinguishes between functions and fields in an extern block.
 type ExternMemberKind uint8
 
 const (
+	// ExternMemberFn represents a function member in an extern block.
 	ExternMemberFn ExternMemberKind = iota
+	// ExternMemberField represents a field member in an extern block.
 	ExternMemberField
 )
 
+// ExternBlock represents an extern block.
 type ExternBlock struct {
 	Target       TypeID
 	AttrStart    AttrID
@@ -24,6 +28,7 @@ type ExternBlock struct {
 	Span         source.Span
 }
 
+// ExternMember represents a member of an extern block.
 type ExternMember struct {
 	Kind  ExternMemberKind
 	Fn    PayloadID
@@ -31,6 +36,7 @@ type ExternMember struct {
 	Span  source.Span
 }
 
+// ExternMemberSpec specifies a member when creating a new extern block.
 type ExternMemberSpec struct {
 	Kind  ExternMemberKind
 	Fn    PayloadID
@@ -38,6 +44,7 @@ type ExternMemberSpec struct {
 	Span  source.Span
 }
 
+// ExternField represents a field declaration in an extern block.
 type ExternField struct {
 	Name             source.StringID
 	NameSpan         source.Span
@@ -50,6 +57,7 @@ type ExternField struct {
 	Span             source.Span
 }
 
+// Extern returns the ExternBlock for the given ItemID, or nil/false if invalid.
 func (i *Items) Extern(id ItemID) (*ExternBlock, bool) {
 	item := i.Arena.Get(uint32(id))
 	if item == nil || item.Kind != ItemExtern || !item.Payload.IsValid() {
@@ -58,6 +66,7 @@ func (i *Items) Extern(id ItemID) (*ExternBlock, bool) {
 	return i.Externs.Get(uint32(item.Payload)), true
 }
 
+// ExternMember returns the ExternMember for the given ExternMemberID.
 func (i *Items) ExternMember(id ExternMemberID) *ExternMember {
 	if !id.IsValid() {
 		return nil
@@ -65,6 +74,7 @@ func (i *Items) ExternMember(id ExternMemberID) *ExternMember {
 	return i.ExternMembers.Get(uint32(id))
 }
 
+// ExternField returns the ExternField for the given ExternFieldID.
 func (i *Items) ExternField(id ExternFieldID) *ExternField {
 	if !id.IsValid() {
 		return nil
@@ -72,6 +82,7 @@ func (i *Items) ExternField(id ExternFieldID) *ExternField {
 	return i.ExternFields.Get(uint32(id))
 }
 
+// NewExtern creates a new extern block item.
 func (i *Items) NewExtern(
 	target TypeID,
 	attrs []Attr,
@@ -107,6 +118,7 @@ func (i *Items) NewExtern(
 	return i.New(ItemExtern, span, PayloadID(externPayload))
 }
 
+// NewExternField creates a new extern field payload.
 func (i *Items) NewExternField(
 	name source.StringID,
 	nameSpan source.Span,

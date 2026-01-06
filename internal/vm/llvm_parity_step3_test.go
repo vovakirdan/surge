@@ -56,12 +56,12 @@ func TestLLVMParityStep3(t *testing.T) {
 
 			vmOut, vmErr, vmCode := runSurge(t, root, surge, "run", "--backend=vm", sgRel)
 
-			buildOut, buildErr, buildCode := runSurge(t, root, surge, "build", sgRel, "--backend=llvm")
+			buildOut, buildErr, buildCode := runSurge(t, root, surge, "build", sgRel)
 			if buildCode != 0 {
 				t.Fatalf("build failed (code=%d)\nstdout:\n%s\nstderr:\n%s", buildCode, buildOut, buildErr)
 			}
 
-			binPath := filepath.Join(root, "build", tc.name)
+			binPath := filepath.Join(root, "target", "debug", tc.name)
 			llOut, llErr, llCode := runBinary(t, binPath)
 
 			if llCode != vmCode {

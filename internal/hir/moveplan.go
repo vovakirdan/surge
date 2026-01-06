@@ -1,20 +1,22 @@
 package hir
 
+// MovePolicy determines how a value can be moved.
 type MovePolicy uint8
 
 const (
+	// MoveUnknown indicates the move policy is not yet determined.
 	MoveUnknown MovePolicy = iota
 
-	// Definitely safe, value is Copy in language semantics.
+	// MoveCopy indicates the value is safe to copy.
 	MoveCopy
 
-	// Move is allowed (non-Copy), but only if no active borrows.
+	// MoveAllowed indicates the move is allowed if no active borrows.
 	MoveAllowed
 
-	// Move is forbidden at some points due to borrows / captures / thread escape.
+	// MoveForbidden indicates moving the value is prohibited.
 	MoveForbidden
 
-	// Value must be dropped/cleaned up at end (resource type).
+	// MoveNeedsDrop indicates the value must be explicitly dropped.
 	MoveNeedsDrop
 )
 
@@ -35,11 +37,13 @@ func (p MovePolicy) String() string {
 	}
 }
 
+// MoveInfo captures movement details for a value.
 type MoveInfo struct {
 	Policy MovePolicy
 	Why    string // debug-friendly reason ("non-copy", "borrowed here", etc.)
 }
 
+// MovePlan maps values to their move policies.
 type MovePlan struct {
 	Func  FuncID
 	Local map[LocalID]MoveInfo

@@ -47,49 +47,77 @@ func (t *Tracer) TraceInstr(depth int, fn *mir.Func, bb mir.BlockID, ip int, ins
 	instrStr := t.formatInstr(instr)
 	spanStr := t.formatSpan(span)
 
-	fmt.Fprintf(t.w, "[depth=%d] %s bb%d:ip%d %s @ %s\n",
+	_, printErr := fmt.Fprintf(t.w, "[depth=%d] %s bb%d:ip%d %s @ %s\n",
 		depth, fn.Name, bb, ip, instrStr, spanStr)
+	if printErr != nil {
+		panic(printErr)
+	}
 
 	// Print local writes
 	for _, w := range writes {
-		fmt.Fprintf(t.w, "    write L%d(%s) = %s\n", w.LocalID, w.Name, t.formatValue(w.Value))
+		_, printErr = fmt.Fprintf(t.w, "    write L%d(%s) = %s\n", w.LocalID, w.Name, t.formatValue(w.Value))
+		if printErr != nil {
+			panic(printErr)
+		}
 	}
 }
 
-func (t *Tracer) TraceHeapAlloc(kind ObjectKind, h Handle, obj *Object) {
+// TraceHeapAlloc traces heap object allocation.
+func (t *Tracer) TraceHeapAlloc(kind ObjectKind, _ Handle, obj *Object) {
 	if t == nil || t.w == nil {
 		return
 	}
 	if t.vm != nil && obj != nil {
-		fmt.Fprintf(t.w, "[heap] alloc %s\n", t.vm.objectSummary(obj))
+		_, printErr := fmt.Fprintf(t.w, "[heap] alloc %s\n", t.vm.objectSummary(obj))
+		if printErr != nil {
+			panic(printErr)
+		}
 		return
 	}
-	fmt.Fprintf(t.w, "[heap] alloc %s\n", kindLabel(kind))
+	_, printErr := fmt.Fprintf(t.w, "[heap] alloc %s\n", kindLabel(kind))
+	if printErr != nil {
+		panic(printErr)
+	}
 }
 
-func (t *Tracer) TraceHeapRetain(kind ObjectKind, h Handle, rc uint32) {
+// TraceHeapRetain traces heap object reference count increment.
+func (t *Tracer) TraceHeapRetain(kind ObjectKind, _ Handle, rc uint32) {
 	if t == nil || t.w == nil {
 		return
 	}
-	fmt.Fprintf(t.w, "[heap] retain %s rc=%d\n", kindLabel(kind), rc)
+	_, printErr := fmt.Fprintf(t.w, "[heap] retain %s rc=%d\n", kindLabel(kind), rc)
+	if printErr != nil {
+		panic(printErr)
+	}
 }
 
-func (t *Tracer) TraceHeapRelease(kind ObjectKind, h Handle, rc uint32) {
+// TraceHeapRelease traces heap object reference count decrement.
+func (t *Tracer) TraceHeapRelease(kind ObjectKind, _ Handle, rc uint32) {
 	if t == nil || t.w == nil {
 		return
 	}
-	fmt.Fprintf(t.w, "[heap] release %s rc=%d\n", kindLabel(kind), rc)
+	_, printErr := fmt.Fprintf(t.w, "[heap] release %s rc=%d\n", kindLabel(kind), rc)
+	if printErr != nil {
+		panic(printErr)
+	}
 }
 
+// TraceHeapFree traces heap object deallocation.
 func (t *Tracer) TraceHeapFree(kind ObjectKind, obj *Object) {
 	if t == nil || t.w == nil {
 		return
 	}
 	if t.vm != nil && obj != nil {
-		fmt.Fprintf(t.w, "[heap] free %s\n", t.vm.objectSummary(obj))
+		_, printErr := fmt.Fprintf(t.w, "[heap] free %s\n", t.vm.objectSummary(obj))
+		if printErr != nil {
+			panic(printErr)
+		}
 		return
 	}
-	fmt.Fprintf(t.w, "[heap] free %s\n", kindLabel(kind))
+	_, printErr := fmt.Fprintf(t.w, "[heap] free %s\n", kindLabel(kind))
+	if printErr != nil {
+		panic(printErr)
+	}
 }
 
 func kindLabel(kind ObjectKind) string {
@@ -129,26 +157,40 @@ func (t *Tracer) TraceTerm(depth int, fn *mir.Func, bb mir.BlockID, term *mir.Te
 	termStr := t.formatTerminator(term)
 	spanStr := t.formatSpan(span)
 
-	fmt.Fprintf(t.w, "[depth=%d] %s bb%d:term %s @ %s\n",
+	_, printErr := fmt.Fprintf(t.w, "[depth=%d] %s bb%d:term %s @ %s\n",
 		depth, fn.Name, bb, termStr, spanStr)
+	if printErr != nil {
+		panic(printErr)
+	}
 }
 
+// TraceSwitchTagDecision traces a switch tag decision.
 func (t *Tracer) TraceSwitchTagDecision(tagName string, target mir.BlockID) {
 	if t == nil || t.w == nil {
 		return
 	}
 	if tagName == "default" {
-		fmt.Fprintf(t.w, "    switch_tag -> default bb%d\n", target)
+		_, printErr := fmt.Fprintf(t.w, "    switch_tag -> default bb%d\n", target)
+		if printErr != nil {
+			panic(printErr)
+		}
 		return
 	}
-	fmt.Fprintf(t.w, "    switch_tag -> case %s bb%d\n", tagName, target)
+	_, printErr := fmt.Fprintf(t.w, "    switch_tag -> case %s bb%d\n", tagName, target)
+	if printErr != nil {
+		panic(printErr)
+	}
 }
 
+// TraceStore traces a store operation.
 func (t *Tracer) TraceStore(loc Location, v Value) {
 	if t == nil || t.w == nil {
 		return
 	}
-	fmt.Fprintf(t.w, "    store %s = %s\n", t.formatLocation(loc), t.formatValue(v))
+	_, printErr := fmt.Fprintf(t.w, "    store %s = %s\n", t.formatLocation(loc), t.formatValue(v))
+	if printErr != nil {
+		panic(printErr)
+	}
 }
 
 // formatSpan formats a span as "file:line:col" or "<no-span>".

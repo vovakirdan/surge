@@ -2,11 +2,11 @@ package dialect
 
 // Classification is the result of scoring evidence for a file.
 type Classification struct {
-	Kind            DialectKind
+	Kind            Kind
 	Score           int
 	TotalScore      int
 	Confidence      float64
-	RunnerUp        DialectKind
+	RunnerUp        Kind
 	RunnerUpScore   int
 	ObservedSignals int
 }
@@ -15,9 +15,10 @@ type Classification struct {
 // It is intentionally simple; callers apply their own thresholds/policies.
 type Classifier struct{}
 
+// Classify scores the evidence and returns the most likely dialect.
 func (Classifier) Classify(e *Evidence) Classification {
 	if e == nil || len(e.hints) == 0 {
-		return Classification{Kind: DialectUnknown}
+		return Classification{Kind: Unknown}
 	}
 
 	var scores [dialectKindCount]int
@@ -28,26 +29,35 @@ func (Classifier) Classify(e *Evidence) Classification {
 		if h.Score <= 0 {
 			continue
 		}
-		if h.Dialect <= DialectUnknown || h.Dialect >= dialectKindCount {
-			continue
+		switch h.Dialect {
+		case Rust:
+			scores[Rust] += h.Score
+			total += h.Score
+		case Go:
+			scores[Go] += h.Score
+			total += h.Score
+		case TypeScript:
+			scores[TypeScript] += h.Score
+			total += h.Score
+		case Python:
+			scores[Python] += h.Score
+			total += h.Score
 		}
-		scores[h.Dialect] += h.Score
-		total += h.Score
 	}
 
-	bestKind := DialectUnknown
+	bestKind := Unknown
 	bestScore := 0
-	runnerKind := DialectUnknown
+	runnerKind := Unknown
 	runnerScore := 0
-	for k := DialectRust; k < dialectKindCount; k++ {
-		score := scores[k]
+	for kind := Rust; kind < dialectKindCount; kind++ {
+		score := scores[int(kind)]
 		if score > bestScore {
 			runnerKind, runnerScore = bestKind, bestScore
-			bestKind, bestScore = k, score
+			bestKind, bestScore = kind, score
 			continue
 		}
 		if score > runnerScore {
-			runnerKind, runnerScore = k, score
+			runnerKind, runnerScore = kind, score
 		}
 	}
 

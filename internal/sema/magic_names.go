@@ -124,7 +124,7 @@ func (tc *typeChecker) buildMagicIndex() {
 				name := tc.symbolName(sym.Name)
 				recordID := symID
 				if sym.Flags&symbols.SymbolFlagBuiltin != 0 && !isOperatorMagicName(name) {
-					if !(isMapIndexMagicName(name) && isMapReceiverKey(sym.ReceiverKey)) {
+					if !isMapIndexMagicName(name) || !isMapReceiverKey(sym.ReceiverKey) {
 						recordID = symbols.NoSymbolID
 					}
 				}

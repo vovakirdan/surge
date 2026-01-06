@@ -128,7 +128,7 @@ func runSurge(t *testing.T, root, surgeBin string, args ...string) (stdout, stde
 	cmd.Stderr = &errBuf
 	err := cmd.Run()
 
-	stdout = outBuf.String()
+	stdout = stripTimingLines(outBuf.String())
 	stderr = errBuf.String()
 
 	if err == nil {

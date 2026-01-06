@@ -106,7 +106,12 @@ func renderFmtStdout(results []driver.FormatResult, hasErrors *bool) {
 			continue
 		}
 
-		_, _ = os.Stdout.Write(res.Formatted)
+		if _, err := os.Stdout.Write(res.Formatted); err != nil {
+			*hasErrors = true
+			if _, printErr := fmt.Fprintf(os.Stderr, "fmt: failed to write formatted output: %v\n", err); printErr != nil {
+				panic(printErr)
+			}
+		}
 	}
 }
 
@@ -122,14 +127,20 @@ func renderFmtText(results []driver.FormatResult, check, quiet bool, hasErrors, 
 			if res.Changed {
 				*hasChanges = true
 				if !quiet {
-					fmt.Fprintln(os.Stdout, res.Path)
+					_, printErr := fmt.Fprintln(os.Stdout, res.Path)
+					if printErr != nil {
+						panic(printErr)
+					}
 				}
 			}
 			continue
 		}
 
 		if res.Changed && !quiet {
-			fmt.Fprintf(os.Stdout, "reformatted %s\n", res.Path)
+			_, printErr := fmt.Fprintf(os.Stdout, "reformatted %s\n", res.Path)
+			if printErr != nil {
+				panic(printErr)
+			}
 		}
 	}
 }

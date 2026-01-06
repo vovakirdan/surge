@@ -41,7 +41,7 @@ func TestRoundTrip_NoOpPretty(t *testing.T) {
 
 // Simple fuzz: parser must not panic; round-trip must not error.
 // (Go 1.18+ fuzzing can be added separately; here keep as table to be always-on.)
-func TestParseDoesNotPanicOnBasicCorpus(t *testing.T) {
+func TestParseDoesNotPanicOnBasicCorpus(_ *testing.T) {
 	for _, s := range seeds {
 		fs := source.NewFileSetWithBase("")
 		fid := fs.AddVirtual("seed.sg", s)

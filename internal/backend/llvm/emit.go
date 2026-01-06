@@ -22,6 +22,7 @@ type stringConst struct {
 	globalName string
 }
 
+// Emitter generates LLVM IR from MIR.
 type Emitter struct {
 	mod          *mir.Module
 	types        *types.Interner
@@ -37,12 +38,13 @@ type Emitter struct {
 }
 
 type funcEmitter struct {
-	emitter     *Emitter
-	f           *mir.Func
-	tmpID       int
-	inlineBlock int
-	localAlloca map[mir.LocalID]string
-	paramLocals []mir.LocalID
+	emitter         *Emitter
+	f               *mir.Func
+	tmpID           int
+	inlineBlock     int
+	localAlloca     map[mir.LocalID]string
+	paramLocals     []mir.LocalID
+	blockTerminated bool
 }
 
 const (
@@ -53,6 +55,7 @@ const (
 	arrayDataOffset  = 16
 )
 
+// EmitModule converts a MIR module into an LLVM IR string.
 func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Table) (string, error) {
 	e := &Emitter{
 		mod:          mod,
@@ -70,9 +73,43 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	}
 	e.collectStringConsts()
 	e.ensureStringConst("parse error")
+	e.ensureStringConst("failed to parse \\\"")
+	e.ensureStringConst("\\\" as int: invalid numeric format: \\\"")
+	e.ensureStringConst("\\\" as uint: invalid numeric format: \\\"")
+	e.ensureStringConst("\\\" as float: invalid numeric format: \\\"")
+	e.ensureStringConst("\\\"")
 	e.ensureStringConst("\n")
 	e.ensureStringConst("true")
 	e.ensureStringConst("false")
+	e.ensureStringConst("")
+	e.ensureStringConst("integer overflow")
+	e.ensureStringConst("unsigned overflow")
+	e.ensureStringConst("float overflow")
+	e.ensureStringConst("cannot convert negative int to uint")
+	e.ensureStringConst("array capacity out of range")
+	e.ensureStringConst("exit code out of range")
+	e.ensureStringConst("bytes view length out of range")
+	e.ensureStringConst("string repeat count out of range")
+	e.ensureStringConst("sleep duration out of range")
+	e.ensureStringConst("timeout duration out of range")
+	e.ensureStringConst("channel capacity out of range")
+	e.ensureStringConst("alloc size out of range")
+	e.ensureStringConst("alloc align out of range")
+	e.ensureStringConst("free size out of range")
+	e.ensureStringConst("free align out of range")
+	e.ensureStringConst("old size out of range")
+	e.ensureStringConst("new size out of range")
+	e.ensureStringConst("realloc align out of range")
+	e.ensureStringConst("memcpy length out of range")
+	e.ensureStringConst("memmove length out of range")
+	e.ensureStringConst("stdout write length out of range")
+	e.ensureStringConst("stderr write length out of range")
+	e.ensureStringConst("panic message length out of range")
+	e.ensureStringConst("string length out of range")
+	e.ensureStringConst("panic bounds kind out of range")
+	e.ensureStringConst("panic bounds index out of range")
+	e.ensureStringConst("panic bounds length out of range")
+	e.ensureStringConst("missing poll function")
 	if err := e.prepareGlobals(); err != nil {
 		return "", err
 	}
@@ -89,6 +126,9 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 		return "", err
 	}
 	if err := e.emitFunctions(); err != nil {
+		return "", err
+	}
+	if err := e.emitPollDispatch(); err != nil {
 		return "", err
 	}
 	return e.buf.String(), nil

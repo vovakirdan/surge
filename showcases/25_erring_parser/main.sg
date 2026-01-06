@@ -5,17 +5,21 @@ fn main() {
     let bad: int;
 
     while true {
-        let line = readline();
+        print("Enter a number: "); // todo: print is not println
+        let line = readline(); // todo: readline returns Erring<string, Error>
         if line.trim() == "stop" { break; }
         if line.trim() == "" { continue; }
         let r = int.from_str(line);
-        if r.is_success() {
-            sum = sum + r.safe();
-            ok = ok + 1;
-        } else {
-            bad = bad + 1;
-            print("bad: " + line);
-            print("error: " + r.error().safe().message);
+        compare r {
+            Success(v) => {
+                sum = sum + v;
+                ok = ok + 1;
+            };
+            err => {
+                bad = bad + 1;
+                print("bad: " + line);
+                print("error: " + err.message);
+            };
         }
     }
 

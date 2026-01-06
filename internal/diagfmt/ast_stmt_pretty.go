@@ -50,16 +50,16 @@ func formatStmtKind(kind ast.StmtKind) string {
 // summaries for nested expressions and types. It returns any write or recursive formatting error.
 func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *source.FileSet, prefix string) error {
 	if builder == nil || builder.Stmts == nil {
-		fmt.Fprintf(w, "<no statements arena>\n")
+		fmt.Fprintf(w, "<no statements arena>\n") //nolint:errcheck
 		return nil
 	}
 	stmt := builder.Stmts.Get(stmtID)
 	if stmt == nil {
-		fmt.Fprintf(w, "<nil>\n")
+		fmt.Fprintf(w, "<nil>\n") //nolint:errcheck
 		return nil
 	}
 
-	fmt.Fprintf(w, "%s (span: %s)\n", formatStmtKind(stmt.Kind), formatSpan(stmt.Span, fs))
+	fmt.Fprintf(w, "%s (span: %s)\n", formatStmtKind(stmt.Kind), formatSpan(stmt.Span, fs)) //nolint:errcheck
 
 	switch stmt.Kind {
 	case ast.StmtBlock:
@@ -75,7 +75,7 @@ func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *
 				marker = "└─"
 				childPrefix = prefix + "   "
 			}
-			fmt.Fprintf(w, "%s%s Stmt[%d]: ", prefix, marker, idx)
+			fmt.Fprintf(w, "%s%s Stmt[%d]: ", prefix, marker, idx) //nolint:errcheck
 			if err := formatStmtPretty(w, builder, childID, fs, childPrefix); err != nil {
 				return err
 			}
@@ -100,7 +100,7 @@ func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *
 			if i == len(fields)-1 {
 				marker = "└─"
 			}
-			fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, field.label, field.value)
+			fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, field.label, field.value) //nolint:errcheck
 		}
 
 	case ast.StmtExpr:
@@ -108,7 +108,7 @@ func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *
 		if exprStmt == nil {
 			return nil
 		}
-		fmt.Fprintf(w, "%s└─ Expr: %s\n", prefix, formatExprSummary(builder, exprStmt.Expr))
+		fmt.Fprintf(w, "%s└─ Expr: %s\n", prefix, formatExprSummary(builder, exprStmt.Expr)) //nolint:errcheck
 
 	case ast.StmtSignal:
 		signalStmt := builder.Stmts.Signal(stmtID)
@@ -127,7 +127,7 @@ func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *
 			if i == len(fields)-1 {
 				marker = "└─"
 			}
-			fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, field.label, field.value)
+			fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, field.label, field.value) //nolint:errcheck
 		}
 
 	case ast.StmtReturn:
@@ -139,10 +139,10 @@ func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *
 		if retStmt.Expr.IsValid() {
 			value = formatExprSummary(builder, retStmt.Expr)
 		}
-		fmt.Fprintf(w, "%s└─ Expr: %s\n", prefix, value)
+		fmt.Fprintf(w, "%s└─ Expr: %s\n", prefix, value) //nolint:errcheck
 
 	case ast.StmtBreak, ast.StmtContinue:
-		fmt.Fprintf(w, "%s└─ (no additional data)\n", prefix)
+		fmt.Fprintf(w, "%s└─ (no additional data)\n", prefix) //nolint:errcheck
 
 	case ast.StmtIf:
 		ifStmt := builder.Stmts.If(stmtID)
@@ -185,14 +185,14 @@ func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *
 			}
 			switch entry.kind {
 			case "expr":
-				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, entry.label, formatExprSummary(builder, entry.expr))
+				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, entry.label, formatExprSummary(builder, entry.expr)) //nolint:errcheck
 			case "stmt":
-				fmt.Fprintf(w, "%s%s %s:\n", prefix, marker, entry.label)
+				fmt.Fprintf(w, "%s%s %s:\n", prefix, marker, entry.label) //nolint:errcheck
 				if err := formatStmtPretty(w, builder, entry.stmt, fs, childPrefix); err != nil {
 					return err
 				}
 			case "text":
-				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, entry.label, entry.text)
+				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, entry.label, entry.text) //nolint:errcheck
 			}
 		}
 
@@ -201,8 +201,8 @@ func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *
 		if whileStmt == nil {
 			return nil
 		}
-		fmt.Fprintf(w, "%s├─ Cond: %s\n", prefix, formatExprSummary(builder, whileStmt.Cond))
-		fmt.Fprintf(w, "%s└─ Body:\n", prefix)
+		fmt.Fprintf(w, "%s├─ Cond: %s\n", prefix, formatExprSummary(builder, whileStmt.Cond)) //nolint:errcheck
+		fmt.Fprintf(w, "%s└─ Body:\n", prefix)                                                //nolint:errcheck
 		if err := formatStmtPretty(w, builder, whileStmt.Body, fs, prefix+"   "); err != nil {
 			return err
 		}
@@ -236,15 +236,15 @@ func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *
 			}
 			switch e.kind {
 			case "expr":
-				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, e.label, formatExprSummary(builder, e.expr))
+				fmt.Fprintf(w, "%s%s %s: %s\n", prefix, marker, e.label, formatExprSummary(builder, e.expr)) //nolint:errcheck
 			case "stmt":
-				fmt.Fprintf(w, "%s%s %s:\n", prefix, marker, e.label)
+				fmt.Fprintf(w, "%s%s %s:\n", prefix, marker, e.label) //nolint:errcheck
 				if e.stmt.IsValid() {
 					if err := formatStmtPretty(w, builder, e.stmt, fs, childPrefix); err != nil {
 						return err
 					}
 				} else {
-					fmt.Fprintf(w, "%s<none>\n", childPrefix)
+					fmt.Fprintf(w, "%s<none>\n", childPrefix) //nolint:errcheck
 				}
 			}
 		}
@@ -255,12 +255,12 @@ func formatStmtPretty(w io.Writer, builder *ast.Builder, stmtID ast.StmtID, fs *
 			return nil
 		}
 		patternName := lookupStringOr(builder, forIn.Pattern, "<anon>")
-		fmt.Fprintf(w, "%s├─ Pattern: %s\n", prefix, patternName)
+		fmt.Fprintf(w, "%s├─ Pattern: %s\n", prefix, patternName) //nolint:errcheck
 		if forIn.Type.IsValid() {
-			fmt.Fprintf(w, "%s├─ Type: %s\n", prefix, formatTypeExprInline(builder, forIn.Type))
+			fmt.Fprintf(w, "%s├─ Type: %s\n", prefix, formatTypeExprInline(builder, forIn.Type)) //nolint:errcheck
 		}
-		fmt.Fprintf(w, "%s├─ Iterable: %s\n", prefix, formatExprSummary(builder, forIn.Iterable))
-		fmt.Fprintf(w, "%s└─ Body:\n", prefix)
+		fmt.Fprintf(w, "%s├─ Iterable: %s\n", prefix, formatExprSummary(builder, forIn.Iterable)) //nolint:errcheck
+		fmt.Fprintf(w, "%s└─ Body:\n", prefix)                                                    //nolint:errcheck
 		if err := formatStmtPretty(w, builder, forIn.Body, fs, prefix+"   "); err != nil {
 			return err
 		}

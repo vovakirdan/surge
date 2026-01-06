@@ -31,7 +31,26 @@ func enforceEntrypoints(rec *moduleRecord, moduleScope symbols.ScopeID) {
 	reporter := diag.NewDedupReporter(&diag.BagReporter{Bag: rec.Bag})
 	if len(entryIDs) == 0 {
 		if rec.Meta.Kind == project.ModuleKindBinary {
-			if b := diag.ReportError(reporter, diag.SemaEntrypointNotFound, rec.Meta.Span, "binary module must declare exactly one @entrypoint"); b != nil {
+			errSpan := rec.Meta.Span
+			// Try to find the pragma binary span
+			if rec.Builder != nil {
+				for _, fileID := range rec.FileIDs {
+					if f := rec.Builder.Files.Get(fileID); f != nil {
+						if !f.Pragma.IsEmpty() {
+							for _, entry := range f.Pragma.Entries {
+								name, _ := rec.Builder.StringsInterner.Lookup(entry.Name)
+								if name == "binary" {
+									errSpan = entry.Span
+									goto Found
+								}
+							}
+						}
+					}
+				}
+			}
+		Found:
+			b := diag.ReportError(reporter, diag.SemaEntrypointNotFound, errSpan, "binary module must have exactly one @entrypoint")
+			if b != nil {
 				b.Emit()
 			}
 		}
