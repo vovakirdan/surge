@@ -8,6 +8,7 @@ type LocKind uint8
 const (
 	// LKLocal represents a local variable location.
 	LKLocal LocKind = iota
+	// LKGlobal represents a global variable location.
 	LKGlobal
 	LKStructField
 	LKArrayElem

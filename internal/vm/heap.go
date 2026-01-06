@@ -291,6 +291,7 @@ func (h *Heap) Get(handle Handle) *Object {
 	return obj
 }
 
+// Retain increments the reference count of an object.
 func (h *Heap) Retain(handle Handle) {
 	h.initIfNeeded()
 	if handle == 0 {

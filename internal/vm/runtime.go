@@ -51,6 +51,7 @@ func NewRuntimeWithArgs(argv []string) *DefaultRuntime {
 	return &DefaultRuntime{argv: argv, exitCode: -1, monoStart: time.Now()}
 }
 
+// Argv returns the command-line arguments.
 func (r *DefaultRuntime) Argv() []string {
 	return r.argv
 }
@@ -274,6 +275,7 @@ type ReplayRuntime struct {
 	exited   bool
 }
 
+// NewReplayRuntime creates a ReplayRuntime that serves results from a replay log.
 func NewReplayRuntime(vm *VM, rp *Replayer) *ReplayRuntime {
 	return &ReplayRuntime{vm: vm, rp: rp, exitCode: -1}
 }
@@ -327,6 +329,7 @@ func (r *ReplayRuntime) Exit(code int) {
 	r.exited = true
 }
 
+// ExitCode returns the exit code.
 func (r *ReplayRuntime) ExitCode() int {
 	if r == nil {
 		return -1

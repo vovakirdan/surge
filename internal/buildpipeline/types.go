@@ -12,9 +12,12 @@ const (
 	StageDiagnose Stage = "diagnose"
 	// StageLower is the lower stage.
 	StageLower Stage = "lower"
+	// StageBuild is the build stage.
 	StageBuild Stage = "build"
-	StageLink  Stage = "link"
-	StageRun   Stage = "run"
+	// StageLink is the link stage.
+	StageLink Stage = "link"
+	// StageRun is the run stage.
+	StageRun Stage = "run"
 )
 
 // Status captures progress state within a stage.
@@ -26,7 +29,8 @@ const (
 	// StatusWorking indicates the task is currently working.
 	StatusWorking Status = "working"
 	// StatusDone indicates the task is done.
-	StatusDone  Status = "done"
+	StatusDone Status = "done"
+	// StatusError indicates the task encountered an error.
 	StatusError Status = "error"
 )
 

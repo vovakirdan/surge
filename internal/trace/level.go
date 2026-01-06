@@ -9,7 +9,8 @@ const (
 	// LevelOff disables tracing.
 	LevelOff Level = iota // no tracing
 	// LevelError only emits on errors/crashes.
-	LevelError  // only emit on errors/crashes
+	LevelError // only emit on errors/crashes
+	// LevelPhase emits driver + pass boundaries.
 	LevelPhase  // driver + pass boundaries
 	LevelDetail // module-level events
 	LevelDebug  // everything including node-level

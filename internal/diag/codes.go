@@ -19,15 +19,19 @@ const (
 	// LexUnknownChar represents an unknown character error.
 	LexUnknownChar Code = 1001
 	// LexUnterminatedString represents an unterminated string error.
-	LexUnterminatedString       Code = 1002
+	LexUnterminatedString Code = 1002
+	// LexUnterminatedBlockComment represents an unterminated block comment error.
 	LexUnterminatedBlockComment Code = 1003
-	LexBadNumber                Code = 1004
-	LexTokenTooLong             Code = 1005
+	// LexBadNumber represents a bad number error.
+	LexBadNumber Code = 1004
+	// LexTokenTooLong represents a token too long error.
+	LexTokenTooLong Code = 1005
 
 	// Парсерные (зарезервируем)
 
 	// SynInfo represents syntax information.
-	SynInfo                    Code = 2000
+	SynInfo Code = 2000
+	// SynUnexpectedToken represents an unexpected token error.
 	SynUnexpectedToken         Code = 2001
 	SynUnclosedDelimiter       Code = 2002
 	SynUnclosedBlockComment    Code = 2003

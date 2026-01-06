@@ -33,6 +33,7 @@ type StringKind uint8
 const (
 	// StringFlat represents a flat string.
 	StringFlat StringKind = iota
+	// StringConcat represents a concatenated string.
 	StringConcat
 	StringSlice
 )
@@ -49,6 +50,7 @@ type RangeKind uint8
 const (
 	// RangeDescriptor represents a descriptor-based range.
 	RangeDescriptor RangeKind = iota
+	// RangeArrayIter represents an array iterator range.
 	RangeArrayIter
 )
 

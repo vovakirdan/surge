@@ -18,6 +18,7 @@ const (
 	KindUnit
 	// KindNothing represents the nothing type.
 	KindNothing
+	// KindBool represents the boolean type.
 	KindBool
 	KindGenericParam
 	KindConst
@@ -94,6 +95,7 @@ const (
 	Width8 Width = 8
 	// Width16 represents 16-bit width.
 	Width16 Width = 16
+	// Width32 represents 32-bit width.
 	Width32 Width = 32
 	Width64 Width = 64
 )

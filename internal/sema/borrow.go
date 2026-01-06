@@ -38,6 +38,7 @@ const (
 	PlaceSegmentField PlaceSegmentKind = iota
 	// PlaceSegmentIndex represents an index access segment.
 	PlaceSegmentIndex
+	// PlaceSegmentDeref represents a dereference segment.
 	PlaceSegmentDeref
 )
 
@@ -86,6 +87,7 @@ const (
 	BorrowIssueNone BorrowIssueKind = iota
 	// BorrowIssueConflictShared indicates a conflict with a shared borrow.
 	BorrowIssueConflictShared
+	// BorrowIssueConflictMut indicates a conflict with a mutable borrow.
 	BorrowIssueConflictMut
 	BorrowIssueFrozen
 	BorrowIssueTaken

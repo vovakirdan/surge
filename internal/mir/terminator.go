@@ -8,7 +8,9 @@ const (
 	TermNone TermKind = iota
 	// TermReturn indicates a return terminator.
 	TermReturn
+	// TermAsyncYield indicates an async yield terminator.
 	TermAsyncYield
+	// TermAsyncReturn indicates an async return terminator.
 	TermAsyncReturn
 	TermAsyncReturnCancelled
 	TermGoto

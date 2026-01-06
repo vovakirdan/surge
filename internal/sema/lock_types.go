@@ -124,6 +124,7 @@ const (
 	// PathReturns indicates the path exits via return.
 	PathReturns // Path exits via return
 	// PathBreaks indicates the path exits via break.
-	PathBreaks        // Path exits via break
+	PathBreaks // Path exits via break
+	// PathContinuesLoop indicates the path exits via continue (loop).
 	PathContinuesLoop // Path exits via continue (loop)
 )

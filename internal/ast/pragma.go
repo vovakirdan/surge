@@ -12,7 +12,9 @@ const (
 	PragmaFlagDirective PragmaFlags = 1 << iota
 	// PragmaFlagNoStd indicates that standard library should not be imported.
 	PragmaFlagNoStd
+	// PragmaFlagStrict enables strict mode.
 	PragmaFlagStrict
+	// PragmaFlagUnsafe enables unsafe mode.
 	PragmaFlagUnsafe
 )
 

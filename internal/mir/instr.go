@@ -14,8 +14,11 @@ const (
 	InstrAssign InstrKind = iota
 	// InstrCall represents a call instruction.
 	InstrCall
+	// InstrDrop represents a drop instruction.
 	InstrDrop
+	// InstrEndBorrow represents an end borrow instruction.
 	InstrEndBorrow
+	// InstrAwait represents an await instruction.
 	InstrAwait
 	InstrSpawn
 	InstrPoll
@@ -148,8 +151,11 @@ const (
 	SelectArmTask SelectArmKind = iota
 	// SelectArmChanRecv represents a channel receive select arm.
 	SelectArmChanRecv
+	// SelectArmChanSend represents a channel send select arm.
 	SelectArmChanSend
+	// SelectArmTimeout represents a timeout select arm.
 	SelectArmTimeout
+	// SelectArmDefault represents a default select arm.
 	SelectArmDefault
 )
 
@@ -178,8 +184,11 @@ const (
 	OperandConst OperandKind = iota
 	// OperandCopy represents a copy operand.
 	OperandCopy
+	// OperandMove represents a move operand.
 	OperandMove
+	// OperandAddrOf represents an address-of operand.
 	OperandAddrOf
+	// OperandAddrOfMut represents a mutable address-of operand.
 	OperandAddrOfMut
 )
 
@@ -200,8 +209,11 @@ const (
 	ConstInt ConstKind = iota
 	// ConstUint represents an unsigned integer constant.
 	ConstUint
+	// ConstFloat represents a float constant.
 	ConstFloat
+	// ConstBool represents a boolean constant.
 	ConstBool
+	// ConstString represents a string constant.
 	ConstString
 	ConstNothing
 	ConstFn
@@ -232,8 +244,11 @@ const (
 	RValueUse RValueKind = iota
 	// RValueUnaryOp represents a unary operation.
 	RValueUnaryOp
+	// RValueBinaryOp represents a binary operation.
 	RValueBinaryOp
+	// RValueCast represents a cast operation.
 	RValueCast
+	// RValueStructLit represents a struct literal.
 	RValueStructLit
 	RValueArrayLit
 	RValueTupleLit

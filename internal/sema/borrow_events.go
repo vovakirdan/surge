@@ -15,6 +15,7 @@ const (
 	BorrowEvBorrowEnd
 	// BorrowEvMove indicates a move event.
 	BorrowEvMove
+	// BorrowEvWrite indicates a write event.
 	BorrowEvWrite
 	BorrowEvDrop
 	BorrowEvSpawnEscape

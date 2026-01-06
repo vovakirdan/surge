@@ -22,8 +22,10 @@ const (
 	// NoFuncID indicates no function.
 	NoFuncID FuncID = -1
 	// NoBlockID indicates no block.
-	NoBlockID  BlockID  = -1
-	NoLocalID  LocalID  = -1
+	NoBlockID BlockID = -1
+	// NoLocalID indicates no local.
+	NoLocalID LocalID = -1
+	// NoGlobalID indicates no global.
 	NoGlobalID GlobalID = -1
 )
 
@@ -35,7 +37,9 @@ const (
 	LocalFlagCopy LocalFlags = 1 << iota
 	// LocalFlagOwn indicates an own local flag.
 	LocalFlagOwn
+	// LocalFlagRef indicates a reference local flag.
 	LocalFlagRef
+	// LocalFlagRefMut indicates a mutable reference local flag.
 	LocalFlagRefMut
 	LocalFlagPtr
 )
@@ -57,6 +61,7 @@ const (
 	PlaceProjDeref PlaceProjKind = iota
 	// PlaceProjField represents a field projection.
 	PlaceProjField
+	// PlaceProjIndex represents an index projection.
 	PlaceProjIndex
 )
 

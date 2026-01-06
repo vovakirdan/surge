@@ -18,9 +18,13 @@ const (
 	ItemLet
 	// ItemConst represents a const item.
 	ItemConst
+	// ItemType represents a type item.
 	ItemType
+	// ItemTag represents a tag item.
 	ItemTag
+	// ItemExtern represents an extern item.
 	ItemExtern
+	// ItemPragma represents a pragma item.
 	ItemPragma
 	ItemImport
 	ItemMacro

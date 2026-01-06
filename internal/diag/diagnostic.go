@@ -57,6 +57,7 @@ const (
 	FixKindRefactor
 	// FixKindRefactorRewrite is a refactoring rewrite fix.
 	FixKindRefactorRewrite
+	// FixKindSourceAction is a source action fix.
 	FixKindSourceAction
 )
 

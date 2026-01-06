@@ -67,9 +67,13 @@ const (
 	EvBorrowEnd
 	// EvMove indicates a move event.
 	EvMove
+	// EvWrite indicates a write event.
 	EvWrite
+	// EvRead indicates a read event.
 	EvRead
+	// EvDrop indicates an explicit @drop or implicit end-of-scope drop point.
 	EvDrop // explicit @drop or implicit end-of-scope drop point
+	// EvSpawnEscape indicates a spawn escape event.
 	EvSpawnEscape
 )
 

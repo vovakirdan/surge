@@ -34,6 +34,7 @@ const (
 	ModeStream StorageMode = iota + 1 // immediate write
 	// ModeRing stores events in a circular buffer.
 	ModeRing // circular buffer
+	// ModeBoth stores events in both stream and ring.
 	ModeBoth // stream + ring
 )
 

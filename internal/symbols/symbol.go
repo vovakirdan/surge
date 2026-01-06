@@ -16,6 +16,7 @@ const (
 	SymbolModule
 	// SymbolImport represents an import symbol.
 	SymbolImport
+	// SymbolFunction represents a function symbol.
 	SymbolFunction
 	SymbolLet
 	SymbolConst
@@ -35,6 +36,7 @@ const (
 	SymbolFlagMutable
 	// SymbolFlagImported indicates the symbol is imported.
 	SymbolFlagImported
+	// SymbolFlagBuiltin indicates the symbol is a builtin.
 	SymbolFlagBuiltin
 	SymbolFlagMethod
 	SymbolFlagFilePrivate
@@ -51,7 +53,8 @@ const (
 	// EntrypointModeArgv indicates args are parsed from command-line.
 	EntrypointModeArgv // @entrypoint("argv"): args parsed from command-line
 	// EntrypointModeStdin indicates args are parsed from stdin.
-	EntrypointModeStdin  // @entrypoint("stdin"): args parsed from stdin
+	EntrypointModeStdin // @entrypoint("stdin"): args parsed from stdin
+	// EntrypointModeEnv indicates args are parsed from environment (reserved for future).
 	EntrypointModeEnv    // @entrypoint("env"): reserved for future
 	EntrypointModeConfig // @entrypoint("config"): reserved for future
 )

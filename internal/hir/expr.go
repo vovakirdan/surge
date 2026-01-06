@@ -146,7 +146,9 @@ const (
 	LiteralFloat
 	// LiteralBool represents a boolean literal in HIR.
 	LiteralBool
+	// LiteralString represents a string literal in HIR.
 	LiteralString
+	// LiteralNothing represents a nothing literal in HIR.
 	LiteralNothing
 )
 

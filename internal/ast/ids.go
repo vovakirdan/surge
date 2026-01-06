@@ -49,10 +49,14 @@ const (
 	// NoItemID indicates no item.
 	NoItemID ItemID = 0
 	// NoStmtID indicates no statement.
-	NoStmtID           StmtID            = 0
-	NoExprID           ExprID            = 0
-	NoTypeID           TypeID            = 0
-	NoPayloadID        PayloadID         = 0
+	NoStmtID StmtID = 0
+	// NoExprID indicates no expression.
+	NoExprID ExprID = 0
+	// NoTypeID indicates no type.
+	NoTypeID TypeID = 0
+	// NoPayloadID indicates no payload.
+	NoPayloadID PayloadID = 0
+	// NoFnParamID indicates no function parameter.
 	NoFnParamID        FnParamID         = 0
 	NoTypeParamID      TypeParamID       = 0
 	NoTypeParamBoundID TypeParamBoundID  = 0

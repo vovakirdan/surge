@@ -13,7 +13,9 @@ const (
 	Rust
 	// Go indicates Go dialect.
 	Go
+	// TypeScript indicates TypeScript dialect.
 	TypeScript
+	// Python indicates Python dialect.
 	Python
 
 	dialectKindCount

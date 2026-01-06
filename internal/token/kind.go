@@ -9,13 +9,13 @@ const (
 	// EOF marks the end of the source input.
 	EOF
 
-	// идентификаторы
 	// Ident represents an identifier token.
 	Ident
 	// KwFn represents the 'fn' keyword.
 	KwFn // fn
 	// KwLet represents the 'let' keyword.
-	KwLet      // let
+	KwLet // let
+	// KwConst represents the 'const' keyword.
 	KwConst    // const
 	KwMut      // mut
 	KwOwn      // own
@@ -57,7 +57,6 @@ const (
 	KwField    // field
 	KwEnum     // enum
 
-	// литералы
 	// NothingLit represents the nothing literal token.
 	NothingLit
 	IntLit
@@ -67,7 +66,6 @@ const (
 	StringLit
 	FStringLit
 
-	// операторы и пунктуация
 	// Plus represents the plus operator token.
 	Plus             // +
 	Minus            // -

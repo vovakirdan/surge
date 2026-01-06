@@ -14,7 +14,8 @@ const (
 	// ScopeFile represents an artificial root scope per parsed file.
 	ScopeFile // artificial root per parsed file
 	// ScopeModule represents module-level (top-level declarations).
-	ScopeModule   // module-level (top-level declarations)
+	ScopeModule // module-level (top-level declarations)
+	// ScopeFunction represents function body scope.
 	ScopeFunction // function body scope
 	ScopeBlock    // generic block scope
 )
@@ -44,6 +45,7 @@ const (
 	ScopeOwnerFile
 	// ScopeOwnerItem indicates the scope is owned by an item.
 	ScopeOwnerItem
+	// ScopeOwnerStmt indicates the scope is owned by a statement.
 	ScopeOwnerStmt
 	ScopeOwnerExpr
 )

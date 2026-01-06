@@ -76,6 +76,7 @@ const (
 	DirectiveModeCollect
 	// DirectiveModeGen generates code from directives.
 	DirectiveModeGen
+	// DirectiveModeRun runs tests from directives.
 	DirectiveModeRun
 )
 

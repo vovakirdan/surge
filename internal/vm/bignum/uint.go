@@ -13,6 +13,7 @@ var (
 	ErrMaxLimbs = errors.New("numeric size limit exceeded")
 	// ErrDivByZero indicates an attempt to divide by zero.
 	ErrDivByZero = errors.New("division by zero")
+	// ErrUnderflow indicates an unsigned underflow error.
 	ErrUnderflow = errors.New("unsigned underflow")
 )
 
@@ -59,6 +60,7 @@ func (u BigUint) IsOdd() bool {
 	return len(limbs) > 0 && (limbs[0]&1) == 1
 }
 
+// BitLen returns the number of bits required to represent the unsigned integer.
 func (u BigUint) BitLen() int {
 	return bitLenLimbs(u.Limbs)
 }

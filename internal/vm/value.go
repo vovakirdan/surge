@@ -14,10 +14,11 @@ type ValueKind uint8
 const (
 	// VKInvalid represents an invalid value.
 	VKInvalid ValueKind = iota
-	VKInt               // signed integer
-	VKBool              // boolean
-	VKNothing           // nothing/unit value
-	VKFunc              // function value
+	// VKInt represents a signed integer value.
+	VKInt     // signed integer
+	VKBool    // boolean
+	VKNothing // nothing/unit value
+	VKFunc    // function value
 
 	VKRef
 	VKRefMut

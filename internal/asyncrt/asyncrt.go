@@ -41,6 +41,7 @@ const (
 	TaskRunning
 	// TaskWaiting indicates the task is waiting.
 	TaskWaiting
+	// TaskDone indicates the task is done.
 	TaskDone
 )
 
@@ -54,6 +55,7 @@ const (
 	TaskKindCheckpoint
 	// TaskKindSleep indicates a sleep task.
 	TaskKindSleep
+	// TaskKindTimeout indicates a timeout task.
 	TaskKindTimeout
 )
 
@@ -77,7 +79,9 @@ const (
 	ResumeChanRecvValue
 	// ResumeChanRecvClosed indicates a channel receive closed resume.
 	ResumeChanRecvClosed
+	// ResumeChanSendAck indicates a channel send acknowledgment resume.
 	ResumeChanSendAck
+	// ResumeChanSendClosed indicates a channel send closed resume.
 	ResumeChanSendClosed
 )
 

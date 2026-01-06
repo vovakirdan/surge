@@ -10,6 +10,7 @@ const (
 	PathModeAbsolute
 	// PathModeRelative always uses relative paths.
 	PathModeRelative
+	// PathModeBasename uses only the basename of the path.
 	PathModeBasename
 )
 

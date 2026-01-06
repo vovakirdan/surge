@@ -11,7 +11,8 @@ const (
 	// KindSpanEnd marks the end of a logical operation.
 	KindSpanEnd // span end
 	// KindPoint represents an instant event.
-	KindPoint     // instant event
+	KindPoint // instant event
+	// KindHeartbeat represents a periodic liveness signal.
 	KindHeartbeat // periodic liveness signal
 )
 
@@ -42,7 +43,8 @@ const (
 	ScopePass // compilation passes (lex, parse, sema, borrow)
 	// ScopeModule represents per-module processing (more detailed).
 	ScopeModule // per-module processing (more detailed)
-	ScopeNode   // AST node level (most detailed, future)
+	// ScopeNode represents AST node level (most detailed, future).
+	ScopeNode // AST node level (most detailed, future)
 )
 
 // String returns the string representation of Scope.

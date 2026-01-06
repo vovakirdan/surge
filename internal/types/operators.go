@@ -10,6 +10,7 @@ const (
 	FamilyNone FamilyMask = 0
 	// FamilyAny indicates any type family.
 	FamilyAny FamilyMask = 1 << iota
+	// FamilyBool indicates boolean type family.
 	FamilyBool
 	FamilySignedInt
 	FamilyUnsignedInt
@@ -37,6 +38,7 @@ const (
 	BinaryResultUnknown BinaryResult = iota
 	// BinaryResultLeft indicates the result type is the left operand type.
 	BinaryResultLeft
+	// BinaryResultRight indicates the result type is the right operand type.
 	BinaryResultRight
 	BinaryResultBool
 	BinaryResultRange

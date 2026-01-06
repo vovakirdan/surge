@@ -12,9 +12,13 @@ const (
 	TypeExprPath
 	// TypeExprUnary represents a unary type expression.
 	TypeExprUnary
+	// TypeExprConst represents a const type expression.
 	TypeExprConst
+	// TypeExprArray represents an array type expression.
 	TypeExprArray
+	// TypeExprTuple represents a tuple type expression.
 	TypeExprTuple
+	// TypeExprFn represents a function type expression.
 	TypeExprFn
 	TypeExprOptional
 	TypeExprErrorable
@@ -246,6 +250,7 @@ const (
 	TypeUnaryRef
 	// TypeUnaryRefMut represents a mutable reference (`&mut`).
 	TypeUnaryRefMut
+	// TypeUnaryPointer represents a pointer type (`*`).
 	TypeUnaryPointer
 )
 

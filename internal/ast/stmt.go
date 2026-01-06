@@ -12,9 +12,13 @@ const (
 	StmtLet
 	// StmtConst represents a const statement.
 	StmtConst
+	// StmtExpr represents an expression statement.
 	StmtExpr
+	// StmtSignal represents a signal statement.
 	StmtSignal
+	// StmtReturn represents a return statement.
 	StmtReturn
+	// StmtBreak represents a break statement.
 	StmtBreak
 	StmtContinue
 	StmtIf

@@ -21,6 +21,7 @@ const (
 	TriviaNewline
 	// TriviaLineComment represents a line comment.
 	TriviaLineComment
+	// TriviaBlockComment represents a block comment.
 	TriviaBlockComment
 	TriviaDocLine
 	TriviaDocBlock

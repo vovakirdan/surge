@@ -47,8 +47,11 @@ const (
 	TypeDeclUnion
 	// TypeDeclEnum represents an enum declaration in HIR.
 	TypeDeclEnum
+	// TypeDeclAlias represents a type alias declaration in HIR.
 	TypeDeclAlias
+	// TypeDeclTag represents a tag declaration in HIR.
 	TypeDeclTag
+	// TypeDeclContract represents a contract declaration in HIR.
 	TypeDeclContract
 )
 

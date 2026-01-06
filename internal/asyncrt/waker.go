@@ -10,8 +10,11 @@ const (
 	WakerJoin
 	// WakerChannelRecv indicates a channel receive wait queue.
 	WakerChannelRecv
+	// WakerChannelSend indicates a channel send wait queue.
 	WakerChannelSend
+	// WakerTimer indicates a timer wait queue.
 	WakerTimer
+	// WakerSelect indicates a select wait queue.
 	WakerSelect
 )
 
@@ -68,6 +71,7 @@ const (
 	PollDoneCancelled
 	// PollYielded indicates the task yielded.
 	PollYielded
+	// PollParked indicates the task is parked.
 	PollParked
 )
 

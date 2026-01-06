@@ -12,6 +12,7 @@ const (
 	TypeDeclStruct
 	// TypeDeclUnion represents a union type declaration.
 	TypeDeclUnion
+	// TypeDeclEnum represents an enum type declaration.
 	TypeDeclEnum
 )
 

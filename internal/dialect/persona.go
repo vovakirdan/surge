@@ -17,10 +17,13 @@ const (
 	AlienHintImplTrait
 	// AlienHintAttribute represents an attribute hint.
 	AlienHintAttribute
+	// AlienHintMacroCall represents a macro call hint.
 	AlienHintMacroCall
+	// AlienHintImplicitReturn represents an implicit return hint.
 	AlienHintImplicitReturn
-
+	// AlienHintGoDefer represents a Go defer hint.
 	AlienHintGoDefer
+	// AlienHintTSInterface represents a TypeScript interface hint.
 	AlienHintTSInterface
 
 	AlienHintPythonNoneType

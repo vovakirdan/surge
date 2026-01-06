@@ -13,7 +13,8 @@ const (
 	// FormatAuto auto-detects format from file extension.
 	FormatAuto Format = iota // auto-detect from file extension
 	// FormatText represents human-readable text format.
-	FormatText   // human-readable text
+	FormatText // human-readable text
+	// FormatNDJSON represents newline-delimited JSON format.
 	FormatNDJSON // newline-delimited JSON
 	FormatChrome // Chrome Trace Viewer format (JSON)
 )

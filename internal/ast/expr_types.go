@@ -14,9 +14,13 @@ const (
 	ExprLit
 	// ExprCall represents a function call expression.
 	ExprCall
+	// ExprBinary represents a binary expression.
 	ExprBinary
+	// ExprUnary represents a unary expression.
 	ExprUnary
+	// ExprCast represents a cast expression.
 	ExprCast
+	// ExprGroup represents a grouped expression.
 	ExprGroup
 	ExprTuple
 	ExprArray
@@ -60,14 +64,18 @@ const (
 	ExprBinaryMul
 	// ExprBinaryDiv represents the division operator (/).
 	ExprBinaryDiv
+	// ExprBinaryMod represents the modulo operator (%).
 	ExprBinaryMod
 
 	// Битовые
 
 	// ExprBinaryBitAnd represents the bitwise AND operator (&).
 	ExprBinaryBitAnd
+	// ExprBinaryBitOr represents the bitwise OR operator (|).
 	ExprBinaryBitOr
+	// ExprBinaryBitXor represents the bitwise XOR operator (^).
 	ExprBinaryBitXor
+	// ExprBinaryShiftLeft represents the left shift operator (<<).
 	ExprBinaryShiftLeft
 	ExprBinaryShiftRight
 
@@ -198,9 +206,13 @@ const (
 	ExprUnaryMinus
 	// ExprUnaryNot represents the logical NOT operator (!).
 	ExprUnaryNot
+	// ExprUnaryDeref represents the dereference operator (*).
 	ExprUnaryDeref
+	// ExprUnaryRef represents the reference operator (&).
 	ExprUnaryRef
+	// ExprUnaryRefMut represents the mutable reference operator (&mut).
 	ExprUnaryRefMut
+	// ExprUnaryOwn represents the own operator (own).
 	ExprUnaryOwn
 	ExprUnaryAwait
 )
@@ -239,9 +251,13 @@ const (
 	ExprLitUint
 	// ExprLitFloat represents a floating-point literal.
 	ExprLitFloat
+	// ExprLitString represents a string literal.
 	ExprLitString
+	// ExprLitTrue represents a true boolean literal.
 	ExprLitTrue
+	// ExprLitFalse represents a false boolean literal.
 	ExprLitFalse
+	// ExprLitNothing represents a nothing literal.
 	ExprLitNothing
 )
 
