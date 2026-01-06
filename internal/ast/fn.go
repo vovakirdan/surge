@@ -8,13 +8,16 @@ import (
 	"surge/internal/source"
 )
 
+// FnModifier represents modifiers for a function.
 type FnModifier uint64
 
 const (
+	// FnModifierAsync marks an async function.
 	FnModifierAsync FnModifier = 1 << iota
 	FnModifierPublic
 )
 
+// FnParam represents a function parameter.
 type FnParam struct {
 	Name      source.StringID // может быть source.NoStringID для `_`
 	Type      TypeID          // обязательная аннотация
@@ -25,6 +28,7 @@ type FnParam struct {
 	Span      source.Span
 }
 
+// FnItem represents a function declaration.
 type FnItem struct {
 	Name                  source.StringID
 	NameSpan              source.Span
@@ -52,6 +56,7 @@ type FnItem struct {
 	Span                source.Span
 }
 
+// Fn returns the FnItem for the given ItemID, or nil/false if invalid.
 func (i *Items) Fn(id ItemID) (*FnItem, bool) {
 	item := i.Arena.Get(uint32(id))
 	if item == nil || item.Kind != ItemFn {
@@ -111,6 +116,7 @@ func (i *Items) newFnPayload(
 	return PayloadID(payload)
 }
 
+// NewFnParam creates a new function parameter.
 func (i *Items) NewFnParam(name source.StringID, typ TypeID, def ExprID, variadic bool) FnParamID {
 	return FnParamID(i.FnParams.Allocate(FnParam{
 		Name:      name,
@@ -123,10 +129,12 @@ func (i *Items) NewFnParam(name source.StringID, typ TypeID, def ExprID, variadi
 	}))
 }
 
+// FnParam returns the FnParam for the given FnParamID.
 func (i *Items) FnParam(id FnParamID) *FnParam {
 	return i.FnParams.Get(uint32(id))
 }
 
+// GetFnParamIDs returns all parameter IDs for the given function.
 func (i *Items) GetFnParamIDs(fn *FnItem) []FnParamID {
 	if fn == nil || fn.ParamsCount == 0 || !fn.ParamsStart.IsValid() {
 		return nil
@@ -139,6 +147,7 @@ func (i *Items) GetFnParamIDs(fn *FnItem) []FnParamID {
 	return params
 }
 
+// GetFnTypeParamIDs returns all type parameter IDs for the given function.
 func (i *Items) GetFnTypeParamIDs(fn *FnItem) []TypeParamID {
 	if fn == nil || fn.TypeParamsCount == 0 || !fn.TypeParamsStart.IsValid() {
 		return nil
@@ -151,6 +160,7 @@ func (i *Items) GetFnTypeParamIDs(fn *FnItem) []TypeParamID {
 	return params
 }
 
+// FnByPayload returns the FnItem for the given PayloadID.
 func (i *Items) FnByPayload(id PayloadID) *FnItem {
 	if !id.IsValid() {
 		return nil
@@ -202,6 +212,7 @@ func (i *Items) newFn(
 	return i.newFnPayload(name, nameSpan, generics, genericCommas, genericsTrailing, genericsSpan, typeParams, paramsStart, paramsCount, paramCommas, paramsTrailing, fnKwSpan, paramsSpan, returnSpan, semicolonSpan, returnType, body, flags, attrStart, attrCount, span)
 }
 
+// NewFn creates a new function item.
 func (i *Items) NewFn(
 	name source.StringID,
 	nameSpan source.Span,
@@ -227,6 +238,7 @@ func (i *Items) NewFn(
 	return i.New(ItemFn, span, payloadID)
 }
 
+// NewExternFn creates a new extern function payload.
 func (i *Items) NewExternFn(
 	name source.StringID,
 	nameSpan source.Span,

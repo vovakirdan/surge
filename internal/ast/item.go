@@ -8,9 +8,11 @@ import (
 	"surge/internal/source"
 )
 
+// ItemKind enumerates the different kinds of items.
 type ItemKind uint8
 
 const (
+	// ItemFn represents a function item.
 	ItemFn ItemKind = iota
 	ItemLet
 	ItemConst
@@ -23,12 +25,14 @@ const (
 	ItemContract
 )
 
+// Item represents a top-level item in the AST.
 type Item struct {
 	Kind    ItemKind
 	Span    source.Span
 	Payload PayloadID
 }
 
+// Items manages allocation of items and their associated data.
 type Items struct {
 	Arena            *Arena[Item]
 	Imports          *Arena[ImportItem]
@@ -94,6 +98,7 @@ func NewItems(capHint uint) *Items {
 	}
 }
 
+// New creates a new item with the given kind and payload.
 func (i *Items) New(kind ItemKind, span source.Span, payloadID PayloadID) ItemID {
 	return ItemID(i.Arena.Allocate(Item{
 		Kind:    kind,
@@ -102,6 +107,7 @@ func (i *Items) New(kind ItemKind, span source.Span, payloadID PayloadID) ItemID
 	}))
 }
 
+// Get returns the item with the given ID.
 func (i *Items) Get(id ItemID) *Item {
 	return i.Arena.Get(uint32(id))
 }
@@ -129,6 +135,7 @@ func (i *Items) AllocateAttrs(attrs []Attr) (start AttrID, count uint32) {
 	return i.allocateAttrs(attrs)
 }
 
+// Type returns the TypeItem for the given ItemID, or nil/false if invalid.
 func (i *Items) Type(itemID ItemID) (*TypeItem, bool) {
 	item := i.Get(itemID)
 	if item == nil || item.Kind != ItemType || !item.Payload.IsValid() {
@@ -137,6 +144,7 @@ func (i *Items) Type(itemID ItemID) (*TypeItem, bool) {
 	return i.Types.Get(uint32(item.Payload)), true
 }
 
+// TypeAlias returns the TypeAliasDecl for the given TypeItem.
 func (i *Items) TypeAlias(item *TypeItem) *TypeAliasDecl {
 	if item == nil || item.Kind != TypeDeclAlias || !item.Payload.IsValid() {
 		return nil
@@ -144,6 +152,7 @@ func (i *Items) TypeAlias(item *TypeItem) *TypeAliasDecl {
 	return i.TypeAliases.Get(uint32(item.Payload))
 }
 
+// TypeStruct returns the TypeStructDecl for the given TypeItem.
 func (i *Items) TypeStruct(item *TypeItem) *TypeStructDecl {
 	if item == nil || item.Kind != TypeDeclStruct || !item.Payload.IsValid() {
 		return nil
@@ -151,6 +160,7 @@ func (i *Items) TypeStruct(item *TypeItem) *TypeStructDecl {
 	return i.TypeStructs.Get(uint32(item.Payload))
 }
 
+// TypeUnion returns the TypeUnionDecl for the given TypeItem.
 func (i *Items) TypeUnion(item *TypeItem) *TypeUnionDecl {
 	if item == nil || item.Kind != TypeDeclUnion || !item.Payload.IsValid() {
 		return nil
@@ -158,6 +168,7 @@ func (i *Items) TypeUnion(item *TypeItem) *TypeUnionDecl {
 	return i.TypeUnions.Get(uint32(item.Payload))
 }
 
+// TypeEnum returns the TypeEnumDecl for the given TypeItem.
 func (i *Items) TypeEnum(item *TypeItem) *TypeEnumDecl {
 	if item == nil || item.Kind != TypeDeclEnum || !item.Payload.IsValid() {
 		return nil
@@ -165,6 +176,7 @@ func (i *Items) TypeEnum(item *TypeItem) *TypeEnumDecl {
 	return i.TypeEnums.Get(uint32(item.Payload))
 }
 
+// StructField returns the TypeStructField for the given TypeFieldID.
 func (i *Items) StructField(id TypeFieldID) *TypeStructField {
 	if !id.IsValid() {
 		return nil
@@ -172,6 +184,7 @@ func (i *Items) StructField(id TypeFieldID) *TypeStructField {
 	return i.TypeFields.Get(uint32(id))
 }
 
+// UnionMember returns the TypeUnionMember for the given TypeUnionMemberID.
 func (i *Items) UnionMember(id TypeUnionMemberID) *TypeUnionMember {
 	if !id.IsValid() {
 		return nil
@@ -179,6 +192,7 @@ func (i *Items) UnionMember(id TypeUnionMemberID) *TypeUnionMember {
 	return i.TypeUnionMembers.Get(uint32(id))
 }
 
+// EnumVariant returns the EnumVariant for the given EnumVariantID.
 func (i *Items) EnumVariant(id EnumVariantID) *EnumVariant {
 	if !id.IsValid() {
 		return nil
@@ -204,6 +218,7 @@ func (i *Items) allocateAttrs(attrs []Attr) (attr AttrID, attrCount uint32) {
 	return start, count
 }
 
+// NewTypeAlias creates a new type alias item.
 func (i *Items) NewTypeAlias(
 	name source.StringID,
 	generics []source.StringID,
@@ -244,6 +259,7 @@ func (i *Items) NewTypeAlias(
 	return i.New(ItemType, span, payloadID)
 }
 
+// NewTypeStruct creates a new struct type item.
 func (i *Items) NewTypeStruct(
 	name source.StringID,
 	generics []source.StringID,
@@ -316,6 +332,7 @@ func (i *Items) NewTypeStruct(
 	return i.New(ItemType, span, payloadID)
 }
 
+// NewTypeUnion creates a new union type item.
 func (i *Items) NewTypeUnion(
 	name source.StringID,
 	generics []source.StringID,
@@ -383,6 +400,7 @@ func (i *Items) NewTypeUnion(
 	return i.New(ItemType, span, payloadID)
 }
 
+// NewTypeEnum creates a new enum type item.
 func (i *Items) NewTypeEnum(
 	name source.StringID,
 	generics []source.StringID,

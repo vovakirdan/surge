@@ -2,6 +2,7 @@ package ast
 
 import "surge/internal/source"
 
+// ImportItem represents an import declaration.
 type ImportItem struct {
 	Module      []source.StringID
 	ModuleAlias source.StringID
@@ -11,16 +12,19 @@ type ImportItem struct {
 	ImportAll   bool // true for "import module::*"
 }
 
+// ImportOne represents a single import.
 type ImportOne struct {
 	Name  source.StringID
 	Alias source.StringID
 }
 
+// ImportPair represents a grouped import item.
 type ImportPair struct {
 	Name  source.StringID
 	Alias source.StringID
 }
 
+// Import returns the ImportItem for the given ItemID, or nil/false if invalid.
 func (i *Items) Import(id ItemID) (*ImportItem, bool) {
 	item := i.Arena.Get(uint32(id))
 	if item == nil || item.Kind != ItemImport {
@@ -48,6 +52,7 @@ func (i *Items) newImportPayload(
 	return PayloadID(payload)
 }
 
+// NewImport creates a new import item.
 func (i *Items) NewImport(
 	span source.Span,
 	module []source.StringID,
