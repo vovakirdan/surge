@@ -104,15 +104,15 @@ func alienHintsEligible(c dialect.Classification) bool {
 func alienHintThreshold(kind dialect.Kind) int {
 	switch kind {
 	case dialect.Rust:
-		return 6
+		return alienHintRustThreshold
 	case dialect.Go:
-		return 5
+		return alienHintGoThreshold
 	case dialect.TypeScript:
-		return 4
+		return alienHintTypeScriptThreshold
 	case dialect.Python:
-		return 4
+		return alienHintPythonThreshold
 	default:
-		return 100
+		return 0
 	}
 }
 
