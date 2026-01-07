@@ -2,11 +2,11 @@
 == HIR ==
 module 
 
-fn test() -> nothing (id=1, sym=1327) {
-  let a: type#1593 = [1, 2, 3, 4]: type#1593
+fn test() -> nothing (id=1, sym=1353) {
+  let a: type#1636 = [1, 2, 3, 4]: type#1636
   let x: &int [&] = a[1]: &int
   let y: &int [&] = a[__neg(1): int]: &int
-  let slice: type#1593 = a[rt_range_int_new(1, 3, false): type#1598]: type#1593
+  let slice: type#1636 = a[rt_range_int_new(1, 3, false): type#1641]: type#1636
   return
 }
 
