@@ -266,7 +266,8 @@ void* rt_net_listen(void* addr, uint64_t port) {
         return net_make_error(code);
     }
 
-    NetListener* listener = (NetListener*)rt_alloc((uint64_t)sizeof(NetListener), (uint64_t)alignof(NetListener));
+    NetListener* listener =
+        (NetListener*)rt_alloc((uint64_t)sizeof(NetListener), (uint64_t)alignof(NetListener));
     if (listener == NULL) {
         close(fd);
         return net_make_error(NET_ERR_IO);
@@ -400,8 +401,8 @@ static void* net_spawn_wait_task(int fd, uint8_t kind) {
     return task;
 }
 
-void* rt_net_wait_accept(void* listener) {
-    NetListener* l = (NetListener*)listener;
+void* rt_net_wait_accept(const void* listener) {
+    const NetListener* l = (const NetListener*)listener;
     int fd = -1;
     if (l != NULL && !l->closed) {
         fd = l->fd;
@@ -409,8 +410,8 @@ void* rt_net_wait_accept(void* listener) {
     return net_spawn_wait_task(fd, TASK_KIND_NET_ACCEPT);
 }
 
-void* rt_net_wait_readable(void* conn) {
-    NetConn* c = (NetConn*)conn;
+void* rt_net_wait_readable(const void* conn) {
+    const NetConn* c = (const NetConn*)conn;
     int fd = -1;
     if (c != NULL && !c->closed) {
         fd = c->fd;
@@ -418,8 +419,8 @@ void* rt_net_wait_readable(void* conn) {
     return net_spawn_wait_task(fd, TASK_KIND_NET_READ);
 }
 
-void* rt_net_wait_writable(void* conn) {
-    NetConn* c = (NetConn*)conn;
+void* rt_net_wait_writable(const void* conn) {
+    const NetConn* c = (const NetConn*)conn;
     int fd = -1;
     if (c != NULL && !c->closed) {
         fd = c->fd;
@@ -427,7 +428,7 @@ void* rt_net_wait_writable(void* conn) {
     return net_spawn_wait_task(fd, TASK_KIND_NET_WRITE);
 }
 
-poll_outcome poll_net_task(const rt_executor* ex, rt_task* task) {
+poll_outcome poll_net_task(const rt_executor* ex, const rt_task* task) {
     poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
     if (ex == NULL || task == NULL) {
         out.kind = POLL_DONE_CANCELLED;

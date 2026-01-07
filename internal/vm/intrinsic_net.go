@@ -7,6 +7,13 @@ import (
 	"surge/internal/mir"
 )
 
+func closeNetFD(fd int) {
+	if err := syscall.Close(fd); err != nil {
+		// Best-effort cleanup; preserve the original error.
+		_ = err
+	}
+}
+
 func (vm *VM) handleNetListen(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if !call.HasDst {
 		return nil
@@ -56,29 +63,29 @@ func (vm *VM) handleNetListen(frame *Frame, call *mir.CallInstr, writes *[]Local
 		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
 	}
 	if err := syscall.SetNonblock(fd, true); err != nil {
-		_ = syscall.Close(fd)
+		closeNetFD(fd)
 		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
 	}
 
 	addr4 := [4]byte{ip4[0], ip4[1], ip4[2], ip4[3]}
 	sa := &syscall.SockaddrInet4{Port: port, Addr: addr4}
 	if err := syscall.Bind(fd, sa); err != nil {
-		_ = syscall.Close(fd)
+		closeNetFD(fd)
 		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
 	}
 	if err := syscall.Listen(fd, syscall.SOMAXCONN); err != nil {
-		_ = syscall.Close(fd)
+		closeNetFD(fd)
 		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
 	}
 
 	layout, vmErr := vm.tagLayoutFor(dstType)
 	if vmErr != nil {
-		_ = syscall.Close(fd)
+		closeNetFD(fd)
 		return vmErr
 	}
 	tc, ok := layout.CaseByName("Success")
 	if !ok || len(tc.PayloadTypes) != 1 {
-		_ = syscall.Close(fd)
+		closeNetFD(fd)
 		return vm.eb.makeError(PanicTypeMismatch, "Erring missing Success tag payload")
 	}
 	handle := vm.netNextListen
@@ -88,7 +95,7 @@ func (vm *VM) handleNetListen(frame *Frame, call *mir.CallInstr, writes *[]Local
 	vm.netNextListen = handle + 1
 	listenerVal, vmErr := vm.netListenerValue(handle, tc.PayloadTypes[0])
 	if vmErr != nil {
-		_ = syscall.Close(fd)
+		closeNetFD(fd)
 		return vmErr
 	}
 	vm.netListeners[handle] = &vmNetListener{fd: fd}
@@ -227,18 +234,18 @@ func (vm *VM) handleNetAccept(frame *Frame, call *mir.CallInstr, writes *[]Local
 		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
 	}
 	if err := syscall.SetNonblock(fd, true); err != nil {
-		_ = syscall.Close(fd)
+		closeNetFD(fd)
 		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
 	}
 
 	layout, vmErr := vm.tagLayoutFor(dstType)
 	if vmErr != nil {
-		_ = syscall.Close(fd)
+		closeNetFD(fd)
 		return vmErr
 	}
 	tc, ok := layout.CaseByName("Success")
 	if !ok || len(tc.PayloadTypes) != 1 {
-		_ = syscall.Close(fd)
+		closeNetFD(fd)
 		return vm.eb.makeError(PanicTypeMismatch, "Erring missing Success tag payload")
 	}
 	connHandle := vm.netNextConn
@@ -248,7 +255,7 @@ func (vm *VM) handleNetAccept(frame *Frame, call *mir.CallInstr, writes *[]Local
 	vm.netNextConn = connHandle + 1
 	connVal, vmErr := vm.netConnValue(connHandle, tc.PayloadTypes[0])
 	if vmErr != nil {
-		_ = syscall.Close(fd)
+		closeNetFD(fd)
 		return vmErr
 	}
 	vm.netConns[connHandle] = &vmNetConn{fd: fd}
@@ -306,11 +313,11 @@ func (vm *VM) handleNetRead(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		if !ok || len(tc.PayloadTypes) != 1 {
 			return vm.eb.makeError(PanicTypeMismatch, "Erring missing Success tag payload")
 		}
-		zero, vmErr := vm.makeUintForType(tc.PayloadTypes[0], 0)
-		if vmErr != nil {
-			return vmErr
+		zeroVal, makeErr := vm.makeUintForType(tc.PayloadTypes[0], 0)
+		if makeErr != nil {
+			return makeErr
 		}
-		return vm.netWriteSuccess(frame, dstLocal, dstType, zero, writes)
+		return vm.netWriteSuccess(frame, dstLocal, dstType, zeroVal, writes)
 	}
 
 	buf := make([]byte, capacity)
@@ -340,9 +347,9 @@ func (vm *VM) handleNetRead(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	if !ok || len(tc.PayloadTypes) != 1 {
 		return vm.eb.makeError(PanicTypeMismatch, "Erring missing Success tag payload")
 	}
-	countVal, vmErr := vm.makeUintForType(tc.PayloadTypes[0], uint64(n))
-	if vmErr != nil {
-		return vmErr
+	countVal, makeErr := vm.makeUintForType(tc.PayloadTypes[0], uint64(n)) //nolint:gosec // n from syscall.Read is non-negative.
+	if makeErr != nil {
+		return makeErr
 	}
 	return vm.netWriteSuccess(frame, dstLocal, dstType, countVal, writes)
 }
@@ -398,11 +405,11 @@ func (vm *VM) handleNetWrite(frame *Frame, call *mir.CallInstr, writes *[]LocalW
 		if !ok || len(tc.PayloadTypes) != 1 {
 			return vm.eb.makeError(PanicTypeMismatch, "Erring missing Success tag payload")
 		}
-		zero, vmErr := vm.makeUintForType(tc.PayloadTypes[0], 0)
-		if vmErr != nil {
-			return vmErr
+		zeroVal, makeErr := vm.makeUintForType(tc.PayloadTypes[0], 0)
+		if makeErr != nil {
+			return makeErr
 		}
-		return vm.netWriteSuccess(frame, dstLocal, dstType, zero, writes)
+		return vm.netWriteSuccess(frame, dstLocal, dstType, zeroVal, writes)
 	}
 
 	data, vmErr := vm.readBytesFromPointer(bufVal, length)
@@ -430,9 +437,9 @@ func (vm *VM) handleNetWrite(frame *Frame, call *mir.CallInstr, writes *[]LocalW
 	if !ok || len(tc.PayloadTypes) != 1 {
 		return vm.eb.makeError(PanicTypeMismatch, "Erring missing Success tag payload")
 	}
-	countVal, vmErr := vm.makeUintForType(tc.PayloadTypes[0], uint64(n))
-	if vmErr != nil {
-		return vmErr
+	countVal, makeErr := vm.makeUintForType(tc.PayloadTypes[0], uint64(n)) //nolint:gosec // n from syscall.Write is non-negative.
+	if makeErr != nil {
+		return makeErr
 	}
 	return vm.netWriteSuccess(frame, dstLocal, dstType, countVal, writes)
 }

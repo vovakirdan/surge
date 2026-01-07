@@ -202,7 +202,7 @@ void cancel_task(rt_executor* ex, uint64_t id);
 void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t result_bits);
 
 poll_outcome poll_task(const rt_executor* ex, rt_task* task);
-poll_outcome poll_net_task(const rt_executor* ex, rt_task* task);
+poll_outcome poll_net_task(const rt_executor* ex, const rt_task* task);
 int poll_net_waiters(rt_executor* ex, int timeout_ms);
 int run_ready_one(rt_executor* ex);
 void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);
