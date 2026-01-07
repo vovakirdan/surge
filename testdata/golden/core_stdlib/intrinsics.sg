@@ -70,6 +70,35 @@ pub enum SeekWhences: SeekWhence = { Start, Current, End }
 @intrinsic fn rt_fs_file_type(file: &File) -> Erring<FileType, FsError>;
 @intrinsic fn rt_fs_file_metadata(file: &File) -> Erring<Metadata, FsError>;
 
+// Network intrinsics
+// NetError.code:
+// 1 WouldBlock, 2 TimedOut, 3 ConnectionReset, 4 ConnectionRefused, 5 NotConnected,
+// 6 AddrInUse, 7 InvalidAddr, 8 Io, 9 Unsupported.
+@intrinsic @nosend
+pub type TcpListener = {
+    __opaque: int,
+};
+
+@intrinsic @nosend
+pub type TcpConn = {
+    __opaque: int,
+};
+
+pub type NetError = { message: string, code: uint };
+pub type NetResult<T> = Erring<T, NetError>;
+
+@intrinsic fn rt_net_listen(addr: &string, port: uint) -> NetResult<TcpListener>;
+@intrinsic fn rt_net_close_listener(l: own TcpListener) -> NetResult<nothing>;
+@intrinsic fn rt_net_close_conn(c: own TcpConn) -> NetResult<nothing>;
+
+@intrinsic fn rt_net_accept(l: &TcpListener) -> NetResult<TcpConn>;
+@intrinsic fn rt_net_read(c: &TcpConn, buf: *byte, cap: uint) -> NetResult<uint>;
+@intrinsic fn rt_net_write(c: &TcpConn, buf: *byte, length: uint) -> NetResult<uint>;
+
+@intrinsic fn rt_net_wait_accept(l: &TcpListener) -> Task<nothing>;
+@intrinsic fn rt_net_wait_readable(c: &TcpConn) -> Task<nothing>;
+@intrinsic fn rt_net_wait_writable(c: &TcpConn) -> Task<nothing>;
+
 // String access intrinsics
 @intrinsic fn rt_string_ptr(s: &string) -> *byte;
 // Returns Unicode code point length (not bytes).

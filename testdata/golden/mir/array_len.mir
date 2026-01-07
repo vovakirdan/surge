@@ -4,8 +4,8 @@ funcs=1
 
 fn main:
   locals:
-    L0: type#1593 name=arr
-    L1: type#1593 name=tmp_arr1
+    L0: type#1636 name=arr
+    L1: type#1636 name=tmp_arr1
     L2: uint [copy] name=len_arr
     L3: uint [copy] name=tmp_call2
   bb0:
