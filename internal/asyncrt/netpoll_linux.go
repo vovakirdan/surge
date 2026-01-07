@@ -16,6 +16,7 @@ func (e *Executor) netPoll(timeoutMs int64) bool {
 		return false
 	}
 	entries := make(map[int32]*netPollEntry)
+	const maxFD = int32(^uint32(0) >> 1)
 	for key := range e.waiters {
 		var events int16
 		switch key.Kind {
@@ -26,7 +27,10 @@ func (e *Executor) netPoll(timeoutMs int64) bool {
 		default:
 			continue
 		}
-		fd := int32(key.A)
+		if key.A > uint64(maxFD) {
+			continue
+		}
+		fd := int32(key.A) //nolint:gosec // bounded by maxFD and Net*Key uses int fd.
 		if fd <= 0 {
 			continue
 		}

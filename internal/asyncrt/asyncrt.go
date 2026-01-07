@@ -288,7 +288,13 @@ func (e *Executor) NextReady() (TaskID, bool) {
 						e.nowMs = nowMs
 					}
 					if deadline > nowMs {
-						timeoutMs = int64(deadline - nowMs)
+						const maxInt64 = int64(^uint64(0) >> 1)
+						delta := deadline - nowMs
+						if delta > uint64(maxInt64) {
+							timeoutMs = maxInt64
+						} else {
+							timeoutMs = int64(delta) //nolint:gosec // delta clamped to maxInt64.
+						}
 					} else {
 						timeoutMs = 0
 					}

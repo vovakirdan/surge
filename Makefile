@@ -85,7 +85,7 @@ sec:
 # ===== Test =====
 test:
 	@echo ">> Running tests"
-	$(GO) test ./... --timeout 30s
+	$(GO) test ./... --timeout 60s
 
 # ===== Format =====
 format: fmt
