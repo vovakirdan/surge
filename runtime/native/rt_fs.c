@@ -261,12 +261,7 @@ static uint8_t fs_file_type_from_mode(mode_t mode) {
 }
 
 static char* fs_join_path(const char* dir, uint64_t dir_len, const char* name, size_t name_len) {
-    bool need_sep = true;
-    if (dir_len == 0) {
-        need_sep = false;
-    } else if (dir[dir_len - 1] == '/') {
-        need_sep = false;
-    }
+    bool need_sep = dir_len > 0 && dir[dir_len - 1] != '/';
     size_t total = (size_t)dir_len + (need_sep ? 1 : 0) + name_len;
     char* buf = (char*)malloc(total + 1);
     if (buf == NULL) {
@@ -540,7 +535,7 @@ void* rt_fs_read_dir(void* path) {
 
         if (len >= cap) {
             size_t next = cap == 0 ? 8 : cap * 2;
-            void** tmp = (void**)realloc(elems, next * sizeof(void*));
+            void** tmp = (void**)realloc((void*)elems, next * sizeof(void*));
             if (tmp == NULL) {
                 errno = ENOMEM;
                 break;
@@ -554,7 +549,7 @@ void* rt_fs_read_dir(void* path) {
         uint64_t code = fs_error_code_from_errno(errno);
         closedir(dir);
         free(buf);
-        free(elems);
+        free((void*)elems);
         return fs_make_error(code);
     }
     closedir(dir);
@@ -564,12 +559,12 @@ void* rt_fs_read_dir(void* path) {
     if (len > 0) {
         data = rt_alloc((uint64_t)(len * sizeof(void*)), (uint64_t)alignof(void*));
         if (data == NULL) {
-            free(elems);
+            free((void*)elems);
             return fs_make_error(FS_ERR_IO);
         }
-        memcpy(data, elems, len * sizeof(void*));
+        memcpy(data, (const void*)elems, len * sizeof(void*));
     }
-    free(elems);
+    free((void*)elems);
 
     SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader),
                                                            (uint64_t)alignof(SurgeArrayHeader));
