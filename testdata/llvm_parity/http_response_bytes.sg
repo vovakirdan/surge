@@ -1,0 +1,46 @@
+import stdlib/http as http;
+import stdlib/http::Bytes;
+
+fn string_to_bytes(s: &string) -> byte[] {
+    let view = s.bytes();
+    let length: uint = view.__len();
+    let mut out: byte[] = [];
+    out.reserve(length);
+    let len_i: int = length to int;
+    let mut i: int = 0;
+    while i < len_i {
+        let b: byte = view[i];
+        out.push(b);
+        i = i + 1;
+    }
+    return out;
+}
+
+fn bytes_to_ascii(bytes: byte[]) -> string {
+    let length: int = bytes.__len() to int;
+    if length == 0 {
+        return "";
+    }
+    let buf = rt_alloc(1:uint, 1:uint);
+    let mut out: string = "";
+    let mut i: int = 0;
+    while i < length {
+        *buf = clone(bytes[i]);
+        let piece = rt_string_from_bytes(buf, 1:uint);
+        out = out + piece;
+        i = i + 1;
+    }
+    rt_free(buf, 1:uint, 1:uint);
+    return out;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut headers: http.Headers = [];
+    headers.push(http.Header { key = "X-Test", value = "ok" });
+    let body_bytes: byte[] = string_to_bytes(&"hello");
+    let resp: http.Response = { status = 200, headers = headers, body = Bytes(body_bytes) };
+    let out = http.write_response(resp);
+    print(bytes_to_ascii(out));
+    return 0;
+}

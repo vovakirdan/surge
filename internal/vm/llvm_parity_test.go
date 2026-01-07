@@ -79,6 +79,10 @@ func TestLLVMParity(t *testing.T) {
 		},
 		{name: "net_listen_close", file: "net_listen_close.sg"},
 		{name: "net_echo", file: "net_echo.sg"},
+		{name: "http_parse_request", file: "http_parse_request.sg"},
+		{name: "http_response_bytes", file: "http_response_bytes.sg"},
+		{name: "http_chunked_request", file: "http_chunked_request.sg"},
+		{name: "http_chunked_response", file: "http_chunked_response.sg"},
 		{
 			name: "head_tail_text",
 			file: "head_tail_text.sg",
