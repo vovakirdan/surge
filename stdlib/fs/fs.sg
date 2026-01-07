@@ -1,0 +1,466 @@
+// stdlib/fs/fs.sg
+// Filesystem helpers built on fs intrinsics.
+
+pub type FsResult<T> = Erring<T, FsError>;
+
+fn fs_error(code: uint, msg: string) -> FsError {
+    return { message: msg, code: code };
+}
+
+fn dir_entry_copy(entry: &DirEntry) -> DirEntry {
+    return {
+        name: entry.name.__clone(),
+        path: entry.path.__clone(),
+        file_type: entry.file_type
+    };
+}
+
+fn empty_bytes() -> byte[] {
+    let out: byte[] = [];
+    return out;
+}
+
+fn string_lt(a: &string, b: &string) -> bool {
+    let la: int = a.__len() to int;
+    let lb: int = b.__len() to int;
+    let mut i: int = 0;
+    let mut min: int = la;
+    if lb < min {
+        min = lb;
+    }
+    while i < min {
+        let ac: uint32 = a[i];
+        let bc: uint32 = b[i];
+        if ac < bc {
+            return true;
+        }
+        if ac > bc {
+            return false;
+        }
+        i = i + 1;
+    }
+    return la < lb;
+}
+
+fn sort_entries(entries: &mut DirEntry[]) -> nothing {
+    let n: int = entries.__len() to int;
+    if n <= 1 {
+        return nothing;
+    }
+    let mut i: int = 0;
+    while i < n {
+        let mut j: int = 0;
+        while j + 1 < n - i {
+            let left: DirEntry = dir_entry_copy(entries[j]);
+            let right: DirEntry = dir_entry_copy(entries[j + 1]);
+            if string_lt(&right.name, &left.name) {
+                entries[j] = right;
+                entries[j + 1] = left;
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn is_cont(b: uint) -> bool {
+    return (b & 0xC0:uint) == 0x80:uint;
+}
+
+fn byte_at(bytes: &byte[], index: int) -> uint {
+    return (clone(bytes[index]) to uint);
+}
+
+fn utf8_valid(bytes: &byte[]) -> bool {
+    let length: int = bytes.__len() to int;
+    let mut i: int = 0;
+    while i < length {
+        let b0: uint = byte_at(bytes, i);
+        if b0 < 0x80:uint {
+            i = i + 1;
+            continue;
+        }
+        if b0 < 0xC2:uint {
+            return false;
+        }
+        if b0 <= 0xDF:uint {
+            if i + 1 >= length {
+                return false;
+            }
+            let b1: uint = byte_at(bytes, i + 1);
+            if !is_cont(b1) {
+                return false;
+            }
+            i = i + 2;
+            continue;
+        }
+        if b0 <= 0xEF:uint {
+            if i + 2 >= length {
+                return false;
+            }
+            let b1: uint = byte_at(bytes, i + 1);
+            let b2: uint = byte_at(bytes, i + 2);
+            if !is_cont(b1) || !is_cont(b2) {
+                return false;
+            }
+            if b0 == 0xE0:uint && b1 < 0xA0:uint {
+                return false;
+            }
+            if b0 == 0xED:uint && b1 >= 0xA0:uint {
+                return false;
+            }
+            i = i + 3;
+            continue;
+        }
+        if b0 <= 0xF4:uint {
+            if i + 3 >= length {
+                return false;
+            }
+            let b1: uint = byte_at(bytes, i + 1);
+            let b2: uint = byte_at(bytes, i + 2);
+            let b3: uint = byte_at(bytes, i + 3);
+            if !is_cont(b1) || !is_cont(b2) || !is_cont(b3) {
+                return false;
+            }
+            if b0 == 0xF0:uint && b1 < 0x90:uint {
+                return false;
+            }
+            if b0 == 0xF4:uint && b1 >= 0x90:uint {
+                return false;
+            }
+            i = i + 4;
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
+fn read_string_raw(path: &string, length: uint) -> Erring<string, FsError> {
+    if length == 0:uint {
+        return Success("");
+    }
+    let mut out_res: Erring<string, FsError> = fs_error(9:uint, "read failed");
+    let opened = rt_fs_open(path, FS_O::READ);
+    compare opened {
+        Success(file) => {
+            let buf = rt_alloc(length, 1:uint);
+            let read_res = rt_fs_read(&file, buf, length);
+            compare read_res {
+                Success(n) => {
+                    if n != length {
+                        out_res = fs_error(9:uint, "short read");
+                    } else {
+                        let out = rt_string_from_bytes(buf, n);
+                        out_res = Success(out);
+                    }
+                    0:int;
+                }
+                err => {
+                    out_res = err;
+                    0:int;
+                }
+            };
+            rt_free(buf, length, 1:uint);
+            let _ = rt_fs_close(own file);
+        }
+        err => {
+            out_res = err;
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+pub fn read_to_bytes(path: string) -> Erring<byte[], FsError> {
+    return rt_fs_read_file(&path);
+}
+
+pub fn write_bytes(path: string, data: &byte[], flags: FsOpenFlags) -> Erring<nothing, FsError> {
+    let mut out_res: Erring<nothing, FsError> = fs_error(9:uint, "write failed");
+    let opened = rt_fs_open(&path, flags);
+    compare opened {
+        Success(file) => {
+            out_res = write_all(&file, data);
+            let _ = rt_fs_close(own file);
+            0:int;
+        }
+        err => {
+            out_res = err;
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+pub fn read_to_string(path: string) -> Erring<string, FsError> {
+    let mut out_res: Erring<string, FsError> = fs_error(9:uint, "read failed");
+    let bytes_res = rt_fs_read_file(&path);
+    compare bytes_res {
+        Success(bytes) => {
+            if !utf8_valid(&bytes) {
+                out_res = fs_error(8:uint, "invalid utf-8");
+            } else {
+                let length: uint = bytes.__len();
+                out_res = read_string_raw(&path, length);
+            }
+            0:int;
+        }
+        err => {
+            out_res = err;
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+pub fn write_string(path: string, data: &string, flags: FsOpenFlags) -> Erring<nothing, FsError> {
+    return rt_fs_write_file(&path, rt_string_ptr(data), rt_string_len_bytes(data), flags);
+}
+
+pub fn open(path: string, flags: FsOpenFlags) -> Erring<File, FsError> {
+    return rt_fs_open(&path, flags);
+}
+
+pub fn close(file: own File) -> Erring<nothing, FsError> {
+    return rt_fs_close(own file);
+}
+
+pub fn read(file: &File, cap: uint) -> Erring<byte[], FsError> {
+    if cap == 0:uint {
+        return Success(empty_bytes());
+    }
+    let buf = rt_alloc(1:uint, 1:uint);
+    let mut out: byte[] = [];
+    out.reserve(cap);
+    let mut read_total: uint = 0:uint;
+    let mut has_error: bool = false;
+    let mut err_val: FsError = fs_error(9:uint, "read failed");
+    while read_total < cap {
+        let res = rt_fs_read(file, buf, 1:uint);
+        compare res {
+            Success(n) => {
+                if n == 0:uint {
+                    break;
+                }
+                let b: byte = *buf;
+                out.push(b);
+                read_total = read_total + n;
+                0:int;
+            }
+            err => {
+                err_val = err;
+                has_error = true;
+                0:int;
+            }
+        };
+        if has_error {
+            break;
+        }
+    }
+    rt_free(buf, 1:uint, 1:uint);
+    if has_error {
+        return err_val;
+    }
+    return Success(out);
+}
+
+pub fn read_all(file: &File) -> Erring<byte[], FsError> {
+    let buf = rt_alloc(1:uint, 1:uint);
+    let mut out: byte[] = [];
+    let mut has_error: bool = false;
+    let mut err_val: FsError = fs_error(9:uint, "read failed");
+    while true {
+        let res = rt_fs_read(file, buf, 1:uint);
+        compare res {
+            Success(n) => {
+                if n == 0:uint {
+                    break;
+                }
+                let b: byte = *buf;
+                out.push(b);
+                0:int;
+            }
+            err => {
+                err_val = err;
+                has_error = true;
+                0:int;
+            }
+        };
+        if has_error {
+            break;
+        }
+    }
+    rt_free(buf, 1:uint, 1:uint);
+    if has_error {
+        return err_val;
+    }
+    return Success(out);
+}
+
+pub fn write_all(file: &File, data: &byte[]) -> Erring<nothing, FsError> {
+    let length: uint = data.__len();
+    if length == 0:uint {
+        return Success(nothing);
+    }
+    // Raw pointers in stdlib are limited; write via a single-byte buffer.
+    let buf = rt_alloc(1:uint, 1:uint);
+    let len_i: int = length to int;
+    let mut i: int = 0;
+    let mut has_error: bool = false;
+    let mut err_val: FsError = fs_error(9:uint, "write failed");
+    while i < len_i {
+        *buf = clone(data[i]);
+        let res = rt_fs_write(file, buf, 1:uint);
+        compare res {
+            Success(n) => {
+                if n == 0:uint {
+                    err_val = fs_error(9:uint, "write made no progress");
+                    has_error = true;
+                }
+                0:int;
+            }
+            err => {
+                err_val = err;
+                has_error = true;
+                0:int;
+            }
+        };
+        if has_error {
+            break;
+        }
+        i = i + 1;
+    }
+    rt_free(buf, 1:uint, 1:uint);
+    if has_error {
+        return err_val;
+    }
+    return Success(nothing);
+}
+
+pub fn seek(file: &File, offset: int, whence: SeekWhence) -> Erring<uint, FsError> {
+    return rt_fs_seek(file, offset, whence);
+}
+
+pub fn flush(file: &File) -> Erring<nothing, FsError> {
+    return rt_fs_flush(file);
+}
+
+pub fn head(path: string, n: uint) -> Erring<byte[], FsError> {
+    if n == 0:uint {
+        return Success(empty_bytes());
+    }
+    let mut out_res: Erring<byte[], FsError> = fs_error(9:uint, "read failed");
+    let opened = rt_fs_open(&path, FS_O::READ);
+    compare opened {
+        Success(file) => {
+            out_res = read(&file, n);
+            let _ = rt_fs_close(own file);
+            0:int;
+        }
+        err => {
+            out_res = err;
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+pub fn tail(path: string, n: uint) -> Erring<byte[], FsError> {
+    if n == 0:uint {
+        return Success(empty_bytes());
+    }
+    let mut out_res: Erring<byte[], FsError> = fs_error(9:uint, "read failed");
+    let meta_res = rt_fs_metadata(&path);
+    compare meta_res {
+        Success(meta) => {
+            if meta.size <= n {
+                out_res = read_to_bytes(path.__clone());
+            } else {
+                let opened = rt_fs_open(&path, FS_O::READ);
+                compare opened {
+                    Success(file) => {
+                        let offset: int = (meta.size - n) to int;
+                        let seek_res = rt_fs_seek(&file, offset, SeekWhences::Start);
+                        compare seek_res {
+                            Success(_) => {
+                                out_res = read(&file, n);
+                                0:int;
+                            }
+                            err => {
+                                out_res = err;
+                                0:int;
+                            }
+                        };
+                        let _ = rt_fs_close(own file);
+                    }
+                    err => {
+                        out_res = err;
+                        0:int;
+                    }
+                };
+            }
+            0:int;
+        }
+        err => {
+            out_res = err;
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+pub fn read_dir(path: string) -> Erring<DirEntry[], FsError> {
+    let mut out_res: Erring<DirEntry[], FsError> = fs_error(9:uint, "read dir failed");
+    let res = rt_fs_read_dir(&path);
+    compare res {
+        Success(entries) => {
+            let mut sorted = entries;
+            sort_entries(&mut sorted);
+            out_res = Success(sorted);
+            0:int;
+        }
+        err => {
+            out_res = err;
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+pub type WalkDir = Range<DirEntry>;
+
+fn walkdir_collect(root: &string, out: &mut DirEntry[]) -> nothing {
+    let res = rt_fs_read_dir(root);
+    compare res {
+        Success(entries) => {
+            let mut sorted = entries;
+            sort_entries(&mut sorted);
+            for e in sorted {
+                let is_dir: bool = e.file_type == FileTypes::DIR;
+                let mut sub_path: string = "";
+                if is_dir {
+                    sub_path = e.path.__clone();
+                }
+                out.push(e);
+                if is_dir {
+                    walkdir_collect(&sub_path, out);
+                }
+            }
+            0:int;
+        }
+        err => {
+            let _ = err;
+            0:int;
+        }
+    };
+    return nothing;
+}
+
+pub fn walkdir(root: string) -> WalkDir {
+    let mut out: DirEntry[] = [];
+    walkdir_collect(&root, &mut out);
+    let iter: WalkDir = out.__range();
+    return iter;
+}

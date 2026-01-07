@@ -149,6 +149,53 @@ func (fe *funcEmitter) emitIndexIntrinsic(call *mir.CallInstr) (bool, error) {
 	}
 }
 
+func (fe *funcEmitter) emitRangeIntrinsic(call *mir.CallInstr) (bool, error) {
+	if call == nil || call.Callee.Kind != mir.CalleeSym {
+		return false, nil
+	}
+	name := call.Callee.Name
+	if name == "" {
+		name = fe.symbolName(call.Callee.Sym)
+	}
+	name = stripGenericSuffix(name)
+	if name != "__range" {
+		return false, nil
+	}
+	if call.Callee.Sym.IsValid() && fe.emitter != nil && fe.emitter.mod != nil {
+		if _, ok := fe.emitter.mod.FuncBySym[call.Callee.Sym]; ok {
+			return false, nil
+		}
+	}
+	if len(call.Args) != 1 {
+		return true, fmt.Errorf("__range requires 1 argument")
+	}
+	if !call.HasDst {
+		return true, nil
+	}
+	iterType := operandValueType(fe.emitter.types, &call.Args[0])
+	if iterType == types.NoTypeID && call.Args[0].Kind != mir.OperandConst {
+		if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
+			iterType = baseType
+		}
+	}
+	if _, dynamic, ok := arrayElemType(fe.emitter.types, iterType); ok {
+		iterPtr, _, err := fe.emitArrayIterInit(&call.Args[0], iterType, dynamic)
+		if err != nil {
+			return true, err
+		}
+		ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+		if err != nil {
+			return true, err
+		}
+		if dstTy != "ptr" {
+			dstTy = "ptr"
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, iterPtr, ptr)
+		return true, nil
+	}
+	return true, fmt.Errorf("__range requires array")
+}
+
 func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 	if call == nil {
 		return nil

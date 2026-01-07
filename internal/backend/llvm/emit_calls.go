@@ -35,6 +35,9 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	if handled, err := fe.emitIndexIntrinsic(call); handled {
 		return err
 	}
+	if handled, err := fe.emitRangeIntrinsic(call); handled {
+		return err
+	}
 	if handled, err := fe.emitArrayIntrinsic(call); handled {
 		return err
 	}

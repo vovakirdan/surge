@@ -71,6 +71,40 @@ func TestLLVMParity(t *testing.T) {
 				return []string{dir}
 			},
 		},
+		{
+			name: "head_tail_text",
+			file: "head_tail_text.sg",
+			setup: func(t *testing.T) []string {
+				dir := t.TempDir()
+				if err := os.WriteFile(filepath.Join(dir, "text.txt"), []byte("hello world"), 0o600); err != nil {
+					t.Fatalf("write text.txt: %v", err)
+				}
+				return []string{dir}
+			},
+		},
+		{
+			name: "walkdir_for_in",
+			file: "walkdir_for_in.sg",
+			setup: func(t *testing.T) []string {
+				dir := t.TempDir()
+				if err := os.MkdirAll(filepath.Join(dir, "a"), 0o700); err != nil {
+					t.Fatalf("mkdir a: %v", err)
+				}
+				if err := os.MkdirAll(filepath.Join(dir, "b", "sub"), 0o700); err != nil {
+					t.Fatalf("mkdir b/sub: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "root.txt"), []byte("root"), 0o600); err != nil {
+					t.Fatalf("write root.txt: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "a", "a.txt"), []byte("a"), 0o600); err != nil {
+					t.Fatalf("write a.txt: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "b", "sub", "b.txt"), []byte("b"), 0o600); err != nil {
+					t.Fatalf("write b.txt: %v", err)
+				}
+				return []string{dir}
+			},
+		},
 	}
 
 	for _, tc := range cases {

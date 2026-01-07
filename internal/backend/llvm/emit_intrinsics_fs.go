@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"surge/internal/mir"
+	"surge/internal/types"
 )
 
 func (fe *funcEmitter) emitFsIntrinsic(call *mir.CallInstr) (bool, error) {
@@ -66,12 +67,9 @@ func (fe *funcEmitter) emitFsRead(call *mir.CallInstr) error {
 	if len(call.Args) != 3 {
 		return fmt.Errorf("rt_fs_read requires 3 arguments")
 	}
-	fileVal, fileTy, err := fe.emitValueOperand(&call.Args[0])
+	fileVal, err := fe.emitFsFileHandle(&call.Args[0])
 	if err != nil {
 		return err
-	}
-	if fileTy != "ptr" {
-		return fmt.Errorf("rt_fs_read expects File handle")
 	}
 	bufVal, bufTy, err := fe.emitValueOperand(&call.Args[1])
 	if err != nil {
@@ -93,12 +91,9 @@ func (fe *funcEmitter) emitFsWrite(call *mir.CallInstr) error {
 	if len(call.Args) != 3 {
 		return fmt.Errorf("rt_fs_write requires 3 arguments")
 	}
-	fileVal, fileTy, err := fe.emitValueOperand(&call.Args[0])
+	fileVal, err := fe.emitFsFileHandle(&call.Args[0])
 	if err != nil {
 		return err
-	}
-	if fileTy != "ptr" {
-		return fmt.Errorf("rt_fs_write expects File handle")
 	}
 	bufVal, bufTy, err := fe.emitValueOperand(&call.Args[1])
 	if err != nil {
@@ -120,12 +115,9 @@ func (fe *funcEmitter) emitFsSeek(call *mir.CallInstr) error {
 	if len(call.Args) != 3 {
 		return fmt.Errorf("rt_fs_seek requires 3 arguments")
 	}
-	fileVal, fileTy, err := fe.emitValueOperand(&call.Args[0])
+	fileVal, err := fe.emitFsFileHandle(&call.Args[0])
 	if err != nil {
 		return err
-	}
-	if fileTy != "ptr" {
-		return fmt.Errorf("rt_fs_seek expects File handle")
 	}
 	offset64, err := fe.emitIntOperandToI64(&call.Args[1], "fs seek offset out of range")
 	if err != nil {
@@ -187,16 +179,40 @@ func (fe *funcEmitter) emitFsUnary(call *mir.CallInstr, name string) error {
 	if len(call.Args) != 1 {
 		return fmt.Errorf("%s requires 1 argument", name)
 	}
-	val, ty, err := fe.emitValueOperand(&call.Args[0])
+	val, err := fe.emitFsFileHandle(&call.Args[0])
 	if err != nil {
 		return err
-	}
-	if ty != "ptr" {
-		return fmt.Errorf("%s expects File handle", name)
 	}
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(ptr %s)\n", tmp, name, val)
 	return fe.storePtrResult(call, tmp)
+}
+
+func (fe *funcEmitter) emitFsFileHandle(op *mir.Operand) (string, error) {
+	if op == nil {
+		return "", fmt.Errorf("missing File handle")
+	}
+	val, ty, err := fe.emitValueOperand(op)
+	if err != nil {
+		return "", err
+	}
+	if ty != "ptr" {
+		return "", fmt.Errorf("expected File handle, got %s", ty)
+	}
+	if op.Kind != mir.OperandAddrOf && op.Kind != mir.OperandAddrOfMut {
+		opType := op.Type
+		if opType == types.NoTypeID && op.Kind != mir.OperandConst {
+			if baseType, err := fe.placeBaseType(op.Place); err == nil {
+				opType = baseType
+			}
+		}
+		if isRefType(fe.emitter.types, opType) {
+			tmp := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, val)
+			val = tmp
+		}
+	}
+	return val, nil
 }
 
 func (fe *funcEmitter) storePtrResult(call *mir.CallInstr, val string) error {

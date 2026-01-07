@@ -155,6 +155,31 @@ func (vm *VM) retagUnionValue(val Value, expected types.TypeID) (Value, bool) {
 	return val, true
 }
 
+func (vm *VM) compatiblePayloadTypes(expected, got types.TypeID) bool {
+	if expected == got {
+		return true
+	}
+	if expected == types.NoTypeID || got == types.NoTypeID || vm.Types == nil {
+		return false
+	}
+	expVal := vm.valueType(expected)
+	gotVal := vm.valueType(got)
+	if expVal == gotVal {
+		return true
+	}
+	if expElem, ok := vm.Types.ArrayInfo(expVal); ok {
+		if gotElem, ok := vm.Types.ArrayInfo(gotVal); ok {
+			return vm.compatiblePayloadTypes(expElem, gotElem)
+		}
+	}
+	if expElem, expLen, ok := vm.Types.ArrayFixedInfo(expVal); ok {
+		if gotElem, gotLen, ok := vm.Types.ArrayFixedInfo(gotVal); ok && expLen == gotLen {
+			return vm.compatiblePayloadTypes(expElem, gotElem)
+		}
+	}
+	return false
+}
+
 func (vm *VM) isUnionType(id types.TypeID) bool {
 	if id == types.NoTypeID || vm.Types == nil {
 		return false
