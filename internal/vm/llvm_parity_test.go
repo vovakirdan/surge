@@ -1,10 +1,16 @@
 package vm_test
 
 import (
+	"bytes"
+	"errors"
+	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
+	"time"
 )
 
 func TestLLVMParity(t *testing.T) {
@@ -72,6 +78,7 @@ func TestLLVMParity(t *testing.T) {
 			},
 		},
 		{name: "net_listen_close", file: "net_listen_close.sg"},
+		{name: "net_echo", file: "net_echo.sg"},
 		{
 			name: "head_tail_text",
 			file: "head_tail_text.sg",
@@ -112,6 +119,30 @@ func TestLLVMParity(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			sgRel := filepath.ToSlash(filepath.Join("testdata", "llvm_parity", tc.file))
 
+			if tc.name == "net_echo" {
+				message := "hello"
+				vmOut, vmErr, vmCode := runNetEchoSurge(t, root, surge, sgRel, message)
+
+				buildOut, buildErr, buildCode := runSurge(t, root, surge, "build", sgRel)
+				if buildCode != 0 {
+					t.Fatalf("build failed (code=%d)\nstdout:\n%s\nstderr:\n%s", buildCode, buildOut, buildErr)
+				}
+
+				binPath := filepath.Join(root, "target", "debug", tc.name)
+				llOut, llErr, llCode := runNetEchoBinary(t, binPath, message)
+
+				if llCode != vmCode {
+					t.Fatalf("exit code mismatch: vm=%d llvm=%d", vmCode, llCode)
+				}
+				if llOut != vmOut {
+					t.Fatalf("stdout mismatch:\n--- vm ---\n%s\n--- llvm ---\n%s", vmOut, llOut)
+				}
+				if llErr != vmErr {
+					t.Fatalf("stderr mismatch:\n--- vm ---\n%s\n--- llvm ---\n%s", vmErr, llErr)
+				}
+				return
+			}
+
 			var progArgs []string
 			if tc.setup != nil {
 				progArgs = tc.setup(t)
@@ -145,3 +176,117 @@ func TestLLVMParity(t *testing.T) {
 }
 
 // runBinary is defined in llvm_smoke_test.go
+
+func runNetEchoSurge(t *testing.T, root, surge, sgRel, message string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	port := pickFreePort(t)
+	portStr := strconv.Itoa(port)
+	cmd := exec.Command(surge, "run", "--backend=vm", sgRel, "--", portStr, message)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
+	return runNetEchoCommand(t, cmd, port, message)
+}
+
+func runNetEchoBinary(t *testing.T, path, message string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	port := pickFreePort(t)
+	portStr := strconv.Itoa(port)
+	cmd := exec.Command(path, portStr, message)
+	return runNetEchoCommand(t, cmd, port, message)
+}
+
+func runNetEchoCommand(t *testing.T, cmd *exec.Cmd, port int, message string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start net echo command: %v", err)
+	}
+
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	conn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
+	if err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatalf("dial net echo server: %v\nstderr:\n%s", err, errBuf.String())
+	}
+
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := conn.Write([]byte(message)); err != nil {
+		_ = conn.Close()
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatalf("write net echo payload: %v", err)
+	}
+
+	buf := make([]byte, len(message))
+	if _, err := io.ReadFull(conn, buf); err != nil {
+		_ = conn.Close()
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatalf("read net echo payload: %v", err)
+	}
+	_ = conn.Close()
+	if string(buf) != message {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatalf("echo mismatch: got %q want %q", string(buf), message)
+	}
+
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-waitCh:
+		stdout = outBuf.String()
+		stderr = errBuf.String()
+		stdout = stripTimingLines(stdout)
+		if err == nil {
+			return stdout, stderr, 0
+		}
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("run command: %v\nstderr:\n%s", err, stderr)
+		}
+		return stdout, stderr, exitErr.ExitCode()
+	case <-time.After(15 * time.Second):
+		_ = cmd.Process.Kill()
+		<-waitCh
+		t.Fatalf("net echo command timed out")
+		return "", "", 1
+	}
+}
+
+func pickFreePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen for free port: %v", err)
+	}
+	defer ln.Close()
+	addr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("unexpected addr type: %T", ln.Addr())
+	}
+	return addr.Port
+}
+
+func dialWithRetry(addr string, deadline time.Time) (net.Conn, error) {
+	var lastErr error
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+		if err == nil {
+			return conn, nil
+		}
+		lastErr = err
+		time.Sleep(10 * time.Millisecond)
+	}
+	if lastErr == nil {
+		lastErr = errors.New("dial timeout")
+	}
+	return nil, lastErr
+}
