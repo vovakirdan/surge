@@ -379,7 +379,7 @@ static int fs_remove_dir_recursive(const char* path) {
         return errno;
     }
     int err = 0;
-    struct dirent* ent;
+    const struct dirent* ent;
     while ((ent = readdir(dir)) != NULL) {
         if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
             continue;
@@ -473,7 +473,7 @@ void* rt_fs_read_dir(void* path) {
     size_t len = 0;
     void** elems = NULL;
     errno = 0;
-    struct dirent* ent;
+    const struct dirent* ent;
     while ((ent = readdir(dir)) != NULL) {
         if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
             continue;
@@ -687,7 +687,7 @@ void* rt_fs_open(void* path, uint32_t flags) {
 }
 
 void* rt_fs_close(void* file) {
-    FsFile* f = (FsFile*)file;
+    const FsFile* f = (const FsFile*)file;
     if (f == NULL || f->closed) {
         return fs_make_error(FS_ERR_IO);
     }
@@ -932,7 +932,7 @@ void* rt_fs_write_file(void* path, const uint8_t* data, uint64_t len, uint32_t f
 }
 
 void* rt_fs_file_name(void* file) {
-    FsFile* f = (FsFile*)file;
+    const FsFile* f = (const FsFile*)file;
     if (f == NULL || f->closed || f->path == NULL) {
         return fs_make_error(FS_ERR_IO);
     }
@@ -946,7 +946,7 @@ void* rt_fs_file_name(void* file) {
 }
 
 void* rt_fs_file_type(void* file) {
-    FsFile* f = (FsFile*)file;
+    const FsFile* f = (const FsFile*)file;
     if (f == NULL || f->closed) {
         return fs_make_error(FS_ERR_IO);
     }
