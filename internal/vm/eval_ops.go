@@ -126,6 +126,9 @@ func (vm *VM) evalUnaryOp(op ast.ExprUnaryOp, operand Value) (Value, *VMError) {
 			return Value{}, vm.eb.typeMismatch("numeric", operand.Kind.String())
 		}
 
+	case ast.ExprUnaryOwn:
+		return operand, nil
+
 	case ast.ExprUnaryDeref:
 		return vm.evalUnaryDeref(operand)
 

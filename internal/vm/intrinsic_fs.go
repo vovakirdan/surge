@@ -31,6 +31,22 @@ const (
 	fsTypeOther
 )
 
+const (
+	fsOpenRead uint32 = 1 << iota
+	fsOpenWrite
+	fsOpenCreate
+	fsOpenTrunc
+	fsOpenAppend
+)
+
+const fsOpenAllFlags = fsOpenRead | fsOpenWrite | fsOpenCreate | fsOpenTrunc | fsOpenAppend
+
+const (
+	fsSeekStart   = 0
+	fsSeekCurrent = 1
+	fsSeekEnd     = 2
+)
+
 func fsErrorMessage(code uint64) string {
 	switch code {
 	case fsErrNotFound:

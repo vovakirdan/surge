@@ -1,0 +1,170 @@
+@entrypoint("argv")
+fn main(dir: string) -> int {
+    let path = dir + "/rw.txt";
+    let flags_bits: uint = (FS_O::CREATE to uint) | (FS_O::TRUNC to uint) | (FS_O::WRITE to uint);
+    let flags: FsOpenFlags = flags_bits to FsOpenFlags;
+    let opened = rt_fs_open(&path, flags);
+    compare opened {
+        Success(file) => {
+            let chunk1 = "hello ";
+            let chunk2 = "world";
+            let mut total: uint = 0;
+            let w1 = rt_fs_write(&file, rt_string_ptr(&chunk1), rt_string_len_bytes(&chunk1));
+            compare w1 {
+                Success(n) => {
+                    total = total + n;
+                    0:int;
+                }
+                err => {
+                    print("write1_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+            let w2 = rt_fs_write(&file, rt_string_ptr(&chunk2), rt_string_len_bytes(&chunk2));
+            compare w2 {
+                Success(n) => {
+                    total = total + n;
+                    0:int;
+                }
+                err => {
+                    print("write2_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+            let flushed = rt_fs_flush(&file);
+            compare flushed {
+                Success(_) => {}
+                err => {
+                    print("flush_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+            let closed = rt_fs_close(own file);
+            compare closed {
+                Success(_) => {}
+                err => {
+                    print("close_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+            print("total_written=" + (total to string));
+        }
+        err => {
+            print("open_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    let read_open = rt_fs_open(&path, FS_O::READ);
+    compare read_open {
+        Success(file) => {
+            let name_res = rt_fs_file_name(&file);
+            compare name_res {
+                Success(name) => {
+                    print("name=" + name);
+                }
+                err => {
+                    print("name_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+            let type_res = rt_fs_file_type(&file);
+            compare type_res {
+                Success(t) => {
+                    let tu: uint = t to uint;
+                    print("type=" + (tu to string));
+                }
+                err => {
+                    print("type_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+            let meta_res = rt_fs_file_metadata(&file);
+            compare meta_res {
+                Success(meta) => {
+                    print("size=" + (meta.size to string));
+                    let mt: uint = meta.file_type to uint;
+                    print("meta_type=" + (mt to string));
+                }
+                err => {
+                    print("meta_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+            let cap: uint = 4;
+            let buf = rt_alloc(cap, 1:uint);
+            let mut out = "";
+            let mut total: uint = 0;
+            while true {
+                let res = rt_fs_read(&file, buf, cap);
+                compare res {
+                    Success(n) => {
+                        if n == 0 {
+                            break;
+                        }
+                        total = total + n;
+                        let chunk = rt_string_from_bytes(buf, n);
+                        out = out + chunk;
+                        0:int;
+                    }
+                    err => {
+                        print("read_err=" + (err.code to string));
+                        rt_free(buf, cap, 1:uint);
+                        return 1;
+                    }
+                };
+            }
+            rt_free(buf, cap, 1:uint);
+            let closed = rt_fs_close(own file);
+            compare closed {
+                Success(_) => {}
+                err => {
+                    print("close_read_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+            print("out=" + out);
+            print("total_read=" + (total to string));
+        }
+        err => {
+            print("open_read_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    let whole = rt_fs_read_file(&path);
+    compare whole {
+        Success(bytes) => {
+            print("whole_len=" + (bytes.__len() to string));
+        }
+        err => {
+            print("whole_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    let path2 = dir + "/wf.txt";
+    let data = "zap";
+    let flags2_bits: uint = (FS_O::CREATE to uint) | (FS_O::TRUNC to uint) | (FS_O::WRITE to uint);
+    let flags2: FsOpenFlags = flags2_bits to FsOpenFlags;
+    let wf = rt_fs_write_file(&path2, rt_string_ptr(&data), rt_string_len_bytes(&data), flags2);
+    compare wf {
+        Success(_) => {}
+        err => {
+            print("write_file_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    let whole2 = rt_fs_read_file(&path2);
+    compare whole2 {
+        Success(bytes) => {
+            print("wf_len=" + (bytes.__len() to string));
+        }
+        err => {
+            print("wf_read_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    return 0;
+}

@@ -6,6 +6,8 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -39,6 +41,15 @@ enum {
     FS_TYPE_OTHER = 3,
 };
 
+enum {
+    FS_O_READ = 1,
+    FS_O_WRITE = 2,
+    FS_O_CREATE = 4,
+    FS_O_TRUNC = 8,
+    FS_O_APPEND = 16,
+    FS_O_ALL = FS_O_READ | FS_O_WRITE | FS_O_CREATE | FS_O_TRUNC | FS_O_APPEND,
+};
+
 typedef struct FsError {
     void* message;
     void* code;
@@ -55,6 +66,12 @@ typedef struct DirEntry {
     void* path;
     uint8_t file_type;
 } DirEntry;
+
+typedef struct FsFile {
+    int fd;
+    char* path;
+    bool closed;
+} FsFile;
 
 typedef struct SurgeArrayHeader {
     uint64_t len;
@@ -171,6 +188,26 @@ static void* fs_make_success_nothing(void) {
     return mem;
 }
 
+static void* fs_make_success_u8(uint8_t value) {
+    size_t payload_align = alignof(void*);
+    size_t payload_size = sizeof(FsError);
+    if (payload_size < sizeof(Metadata)) {
+        payload_size = sizeof(Metadata);
+    }
+    if (payload_size < sizeof(void*)) {
+        payload_size = sizeof(void*);
+    }
+    size_t payload_offset = fs_align_up(4, payload_align);
+    size_t size = fs_align_up(payload_offset + payload_size, payload_align);
+    uint8_t* mem = (uint8_t*)rt_alloc((uint64_t)size, (uint64_t)payload_align);
+    if (mem == NULL) {
+        return NULL;
+    }
+    *(uint32_t*)mem = 0;
+    mem[payload_offset] = value;
+    return mem;
+}
+
 static char* fs_copy_path(void* path, uint64_t* out_len, uint64_t* err_code) {
     if (err_code != NULL) {
         *err_code = 0;
@@ -249,6 +286,62 @@ static char* fs_join_path(const char* dir, uint64_t dir_len, const char* name, s
     }
     buf[off] = 0;
     return buf;
+}
+
+static bool fs_open_flags_mode(uint32_t flags, int* out_mode) {
+    if ((flags & (uint32_t)~FS_O_ALL) != 0) {
+        return false;
+    }
+    bool read = (flags & FS_O_READ) != 0;
+    bool write = (flags & FS_O_WRITE) != 0;
+    if (!read && !write) {
+        return false;
+    }
+    int mode = 0;
+    if (read && write) {
+        mode = O_RDWR;
+    } else if (write) {
+        mode = O_WRONLY;
+    } else {
+        mode = O_RDONLY;
+    }
+    if ((flags & FS_O_CREATE) != 0) {
+        mode |= O_CREAT;
+    }
+    if ((flags & FS_O_TRUNC) != 0) {
+        mode |= O_TRUNC;
+    }
+    if ((flags & FS_O_APPEND) != 0) {
+        mode |= O_APPEND;
+    }
+    *out_mode = mode;
+    return true;
+}
+
+static const char* fs_basename(const char* path, size_t* out_len) {
+    if (path == NULL) {
+        *out_len = 0;
+        return "";
+    }
+    size_t len = strlen(path);
+    if (len == 0) {
+        *out_len = 0;
+        return path;
+    }
+    size_t end = len;
+    while (end > 0 && path[end - 1] == '/') {
+        end--;
+    }
+    if (end == 0) {
+        *out_len = 1;
+        return "/";
+    }
+    size_t start = end;
+    while (start > 0 && path[start - 1] != '/') {
+        start--;
+    }
+    *out_len = end - start;
+    return path + start;
 }
 
 static int fs_mkdir_all(const char* path) {
@@ -567,4 +660,332 @@ void* rt_fs_remove_dir(void* path, bool recursive) {
         return fs_make_error(fs_error_code_from_errno(err));
     }
     return fs_make_success_nothing();
+}
+
+void* rt_fs_open(void* path, uint32_t flags) {
+    uint64_t err_code = 0;
+    char* buf = fs_copy_path(path, NULL, &err_code);
+    if (buf == NULL) {
+        return fs_make_error(err_code == 0 ? FS_ERR_INVALID_PATH : err_code);
+    }
+    int mode = 0;
+    if (!fs_open_flags_mode(flags, &mode)) {
+        free(buf);
+        return fs_make_error(FS_ERR_INVALID_DATA);
+    }
+    int fd = open(buf, mode, 0666);
+    if (fd < 0) {
+        uint64_t code = fs_error_code_from_errno(errno);
+        free(buf);
+        return fs_make_error(code);
+    }
+    FsFile* file = (FsFile*)rt_alloc((uint64_t)sizeof(FsFile), (uint64_t)alignof(FsFile));
+    if (file == NULL) {
+        close(fd);
+        free(buf);
+        return fs_make_error(FS_ERR_IO);
+    }
+    file->fd = fd;
+    file->path = buf;
+    file->closed = false;
+    return fs_make_success_ptr((void*)file);
+}
+
+void* rt_fs_close(void* file) {
+    FsFile* f = (FsFile*)file;
+    if (f == NULL || f->closed) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    f->closed = true;
+    int fd = f->fd;
+    f->fd = -1;
+    if (f->path != NULL) {
+        free(f->path);
+        f->path = NULL;
+    }
+    if (close(fd) != 0) {
+        return fs_make_error(fs_error_code_from_errno(errno));
+    }
+    return fs_make_success_nothing();
+}
+
+void* rt_fs_read(void* file, uint8_t* buf, uint64_t cap) {
+    FsFile* f = (FsFile*)file;
+    if (f == NULL || f->closed) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    if (cap == 0) {
+        void* count = rt_biguint_from_u64(0);
+        return fs_make_success_ptr(count);
+    }
+    if (buf == NULL || cap > (uint64_t)SSIZE_MAX) {
+        return fs_make_error(FS_ERR_INVALID_DATA);
+    }
+    ssize_t n = -1;
+    do {
+        n = read(f->fd, buf, (size_t)cap);
+    } while (n < 0 && errno == EINTR);
+    if (n < 0) {
+        return fs_make_error(fs_error_code_from_errno(errno));
+    }
+    void* count = rt_biguint_from_u64((uint64_t)n);
+    return fs_make_success_ptr(count);
+}
+
+void* rt_fs_write(void* file, const uint8_t* buf, uint64_t len) {
+    FsFile* f = (FsFile*)file;
+    if (f == NULL || f->closed) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    if (len == 0) {
+        void* count = rt_biguint_from_u64(0);
+        return fs_make_success_ptr(count);
+    }
+    if (buf == NULL || len > (uint64_t)SSIZE_MAX) {
+        return fs_make_error(FS_ERR_INVALID_DATA);
+    }
+    ssize_t n = -1;
+    do {
+        n = write(f->fd, buf, (size_t)len);
+    } while (n < 0 && errno == EINTR);
+    if (n < 0) {
+        return fs_make_error(fs_error_code_from_errno(errno));
+    }
+    void* count = rt_biguint_from_u64((uint64_t)n);
+    return fs_make_success_ptr(count);
+}
+
+void* rt_fs_seek(void* file, int64_t offset, int64_t whence) {
+    FsFile* f = (FsFile*)file;
+    if (f == NULL || f->closed) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    int wh = 0;
+    switch (whence) {
+        case 0:
+            wh = SEEK_SET;
+            break;
+        case 1:
+            wh = SEEK_CUR;
+            break;
+        case 2:
+            wh = SEEK_END;
+            break;
+        default:
+            return fs_make_error(FS_ERR_INVALID_DATA);
+    }
+    off_t off = (off_t)offset;
+    if ((int64_t)off != offset) {
+        return fs_make_error(FS_ERR_INVALID_DATA);
+    }
+    off_t pos = -1;
+    do {
+        pos = lseek(f->fd, off, wh);
+    } while (pos < 0 && errno == EINTR);
+    if (pos < 0) {
+        return fs_make_error(fs_error_code_from_errno(errno));
+    }
+    void* count = rt_biguint_from_u64((uint64_t)pos);
+    return fs_make_success_ptr(count);
+}
+
+void* rt_fs_flush(void* file) {
+    FsFile* f = (FsFile*)file;
+    if (f == NULL || f->closed) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    if (fsync(f->fd) != 0) {
+        return fs_make_error(fs_error_code_from_errno(errno));
+    }
+    return fs_make_success_nothing();
+}
+
+void* rt_fs_read_file(void* path) {
+    uint64_t err_code = 0;
+    char* buf = fs_copy_path(path, NULL, &err_code);
+    if (buf == NULL) {
+        return fs_make_error(err_code == 0 ? FS_ERR_INVALID_PATH : err_code);
+    }
+    int fd = open(buf, O_RDONLY, 0666);
+    if (fd < 0) {
+        uint64_t code = fs_error_code_from_errno(errno);
+        free(buf);
+        return fs_make_error(code);
+    }
+    struct stat st;
+    if (fstat(fd, &st) != 0) {
+        uint64_t code = fs_error_code_from_errno(errno);
+        close(fd);
+        free(buf);
+        return fs_make_error(code);
+    }
+    if (S_ISDIR(st.st_mode)) {
+        close(fd);
+        free(buf);
+        return fs_make_error(FS_ERR_IS_DIR);
+    }
+    uint8_t* tmp = NULL;
+    size_t cap = 0;
+    size_t len = 0;
+    int err = 0;
+    for (;;) {
+        if (len == cap) {
+            size_t next = cap == 0 ? 4096 : cap * 2;
+            if (next < cap) {
+                err = ENOMEM;
+                break;
+            }
+            uint8_t* next_buf = (uint8_t*)realloc(tmp, next);
+            if (next_buf == NULL) {
+                err = ENOMEM;
+                break;
+            }
+            tmp = next_buf;
+            cap = next;
+        }
+        ssize_t n = read(fd, tmp + len, cap - len);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            err = errno;
+            break;
+        }
+        if (n == 0) {
+            break;
+        }
+        len += (size_t)n;
+    }
+    close(fd);
+    free(buf);
+    if (err != 0) {
+        free(tmp);
+        return fs_make_error(fs_error_code_from_errno(err));
+    }
+
+    void* data = NULL;
+    if (len > 0) {
+        data = rt_alloc((uint64_t)len, (uint64_t)alignof(uint8_t));
+        if (data == NULL) {
+            free(tmp);
+            return fs_make_error(FS_ERR_IO);
+        }
+        memcpy(data, tmp, len);
+    }
+    free(tmp);
+
+    SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader),
+                                                           (uint64_t)alignof(SurgeArrayHeader));
+    if (header == NULL) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    header->len = (uint64_t)len;
+    header->cap = (uint64_t)len;
+    header->data = data;
+    return fs_make_success_ptr((void*)header);
+}
+
+void* rt_fs_write_file(void* path, const uint8_t* data, uint64_t len, uint32_t flags) {
+    if (len > 0 && data == NULL) {
+        return fs_make_error(FS_ERR_INVALID_DATA);
+    }
+    uint64_t err_code = 0;
+    char* buf = fs_copy_path(path, NULL, &err_code);
+    if (buf == NULL) {
+        return fs_make_error(err_code == 0 ? FS_ERR_INVALID_PATH : err_code);
+    }
+    int mode = 0;
+    if (!fs_open_flags_mode(flags, &mode)) {
+        free(buf);
+        return fs_make_error(FS_ERR_INVALID_DATA);
+    }
+    int fd = open(buf, mode, 0666);
+    if (fd < 0) {
+        uint64_t code = fs_error_code_from_errno(errno);
+        free(buf);
+        return fs_make_error(code);
+    }
+    uint64_t written = 0;
+    int err = 0;
+    while (written < len) {
+        size_t chunk = (size_t)(len - written);
+        if (chunk > (size_t)SSIZE_MAX) {
+            chunk = (size_t)SSIZE_MAX;
+        }
+        ssize_t n = write(fd, data + written, chunk);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            err = errno;
+            break;
+        }
+        if (n == 0) {
+            err = EIO;
+            break;
+        }
+        written += (uint64_t)n;
+    }
+    if (close(fd) != 0 && err == 0) {
+        err = errno;
+    }
+    free(buf);
+    if (err != 0) {
+        return fs_make_error(fs_error_code_from_errno(err));
+    }
+    return fs_make_success_nothing();
+}
+
+void* rt_fs_file_name(void* file) {
+    FsFile* f = (FsFile*)file;
+    if (f == NULL || f->closed || f->path == NULL) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    size_t name_len = 0;
+    const char* name = fs_basename(f->path, &name_len);
+    void* str = rt_string_from_bytes((const uint8_t*)name, (uint64_t)name_len);
+    if (str == NULL) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    return fs_make_success_ptr(str);
+}
+
+void* rt_fs_file_type(void* file) {
+    FsFile* f = (FsFile*)file;
+    if (f == NULL || f->closed) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    struct stat st;
+    if (fstat(f->fd, &st) != 0) {
+        return fs_make_error(fs_error_code_from_errno(errno));
+    }
+    uint8_t file_type = fs_file_type_from_mode(st.st_mode);
+    void* res = fs_make_success_u8(file_type);
+    if (res == NULL) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    return res;
+}
+
+void* rt_fs_file_metadata(void* file) {
+    FsFile* f = (FsFile*)file;
+    if (f == NULL || f->closed) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    struct stat st;
+    if (fstat(f->fd, &st) != 0) {
+        return fs_make_error(fs_error_code_from_errno(errno));
+    }
+    uint64_t size = 0;
+    if (st.st_size > 0) {
+        size = (uint64_t)st.st_size;
+    }
+    Metadata* meta = (Metadata*)rt_alloc((uint64_t)sizeof(Metadata), (uint64_t)alignof(Metadata));
+    if (meta == NULL) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    meta->size = rt_biguint_from_u64(size);
+    meta->file_type = fs_file_type_from_mode(st.st_mode);
+    meta->readonly = (st.st_mode & 0222) == 0;
+    return fs_make_success_ptr((void*)meta);
 }

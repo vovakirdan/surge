@@ -55,6 +55,22 @@ func TestLLVMParity(t *testing.T) {
 				return []string{dir}
 			},
 		},
+		{
+			name: "file_rw_smoke",
+			file: "file_rw_smoke.sg",
+			setup: func(t *testing.T) []string {
+				dir := t.TempDir()
+				return []string{dir}
+			},
+		},
+		{
+			name: "file_seek_head_tail_smoke_lowlevel",
+			file: "file_seek_head_tail_smoke_lowlevel.sg",
+			setup: func(t *testing.T) []string {
+				dir := t.TempDir()
+				return []string{dir}
+			},
+		},
 	}
 
 	for _, tc := range cases {
