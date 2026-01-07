@@ -196,6 +196,24 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleFsFileType(frame, call, writes)
 	case "rt_fs_file_metadata":
 		return vm.handleFsFileMetadata(frame, call, writes)
+	case "rt_net_listen":
+		return vm.handleNetListen(frame, call, writes)
+	case "rt_net_close_listener":
+		return vm.handleNetCloseListener(frame, call, writes)
+	case "rt_net_close_conn":
+		return vm.handleNetCloseConn(frame, call, writes)
+	case "rt_net_accept":
+		return vm.handleNetAccept(frame, call, writes)
+	case "rt_net_read":
+		return vm.handleNetRead(frame, call, writes)
+	case "rt_net_write":
+		return vm.handleNetWrite(frame, call, writes)
+	case "rt_net_wait_accept":
+		return vm.handleNetWaitAccept(frame, call, writes)
+	case "rt_net_wait_readable":
+		return vm.handleNetWaitReadable(frame, call, writes)
+	case "rt_net_wait_writable":
+		return vm.handleNetWaitWritable(frame, call, writes)
 
 	case "rt_exit":
 		return vm.handleRtExit(frame, call)

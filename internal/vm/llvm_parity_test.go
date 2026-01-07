@@ -71,6 +71,7 @@ func TestLLVMParity(t *testing.T) {
 				return []string{dir}
 			},
 		},
+		{name: "net_listen_close", file: "net_listen_close.sg"},
 		{
 			name: "head_tail_text",
 			file: "head_tail_text.sg",

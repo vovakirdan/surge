@@ -46,6 +46,21 @@ waker_key channel_recv_key(rt_channel* ch) {
     return key;
 }
 
+waker_key net_accept_key(int fd) {
+    waker_key key = {WAKER_NET_ACCEPT, (uint64_t)fd};
+    return key;
+}
+
+waker_key net_read_key(int fd) {
+    waker_key key = {WAKER_NET_READ, (uint64_t)fd};
+    return key;
+}
+
+waker_key net_write_key(int fd) {
+    waker_key key = {WAKER_NET_WRITE, (uint64_t)fd};
+    return key;
+}
+
 rt_executor* ensure_exec(void) {
     rt_executor* ex = &exec_state;
     if (ex->next_id == 0) {
@@ -462,7 +477,13 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
         return 0;
     }
     while (!ready_pop(ex, out_id)) {
+        if (poll_net_waiters(ex, 0)) {
+            continue;
+        }
         if (!advance_time_to_next_timer(ex)) {
+            if (poll_net_waiters(ex, -1)) {
+                continue;
+            }
             return 0;
         }
     }

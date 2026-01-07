@@ -87,6 +87,10 @@ poll_outcome poll_task(const rt_executor* ex, rt_task* task) {
             return poll_checkpoint_task(ex, task);
         case TASK_KIND_SLEEP:
             return poll_sleep_task(ex, task);
+        case TASK_KIND_NET_ACCEPT:
+        case TASK_KIND_NET_READ:
+        case TASK_KIND_NET_WRITE:
+            return poll_net_task(ex, task);
         default:
             return poll_user_task(ex, task);
     }

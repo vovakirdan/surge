@@ -21,6 +21,9 @@ typedef enum {
     TASK_KIND_USER = 0,
     TASK_KIND_CHECKPOINT = 1,
     TASK_KIND_SLEEP = 2,
+    TASK_KIND_NET_ACCEPT = 3,
+    TASK_KIND_NET_READ = 4,
+    TASK_KIND_NET_WRITE = 5,
 } task_kind;
 
 typedef enum {
@@ -51,6 +54,9 @@ typedef enum {
     WAKER_TIMER = 2,
     WAKER_CHAN_SEND = 3,
     WAKER_CHAN_RECV = 4,
+    WAKER_NET_ACCEPT = 5,
+    WAKER_NET_READ = 6,
+    WAKER_NET_WRITE = 7,
 } waker_kind;
 
 typedef struct {
@@ -80,6 +86,7 @@ typedef struct rt_task {
     uint64_t resume_bits;
     uint64_t sleep_delay;
     uint64_t sleep_deadline;
+    int net_fd;
     uint64_t scope_id;
     uint64_t parent_scope_id;
     waker_key park_key;
@@ -146,6 +153,9 @@ waker_key join_key(uint64_t id);
 waker_key timer_key(uint64_t id);
 waker_key channel_send_key(rt_channel* ch);
 waker_key channel_recv_key(rt_channel* ch);
+waker_key net_accept_key(int fd);
+waker_key net_read_key(int fd);
+waker_key net_write_key(int fd);
 
 rt_executor* ensure_exec(void);
 rt_task* get_task(rt_executor* ex, uint64_t id);
@@ -192,6 +202,8 @@ void cancel_task(rt_executor* ex, uint64_t id);
 void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t result_bits);
 
 poll_outcome poll_task(const rt_executor* ex, rt_task* task);
+poll_outcome poll_net_task(const rt_executor* ex, rt_task* task);
+int poll_net_waiters(rt_executor* ex, int timeout_ms);
 int run_ready_one(rt_executor* ex);
 void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);
 

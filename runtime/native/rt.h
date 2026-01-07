@@ -43,6 +43,16 @@ void* rt_fs_file_name(void* file);
 void* rt_fs_file_type(void* file);
 void* rt_fs_file_metadata(void* file);
 
+void* rt_net_listen(void* addr, uint64_t port);
+void* rt_net_close_listener(void* listener);
+void* rt_net_close_conn(void* conn);
+void* rt_net_accept(void* listener);
+void* rt_net_read(void* conn, uint8_t* buf, uint64_t cap);
+void* rt_net_write(void* conn, const uint8_t* buf, uint64_t len);
+void* rt_net_wait_accept(void* listener);
+void* rt_net_wait_readable(void* conn);
+void* rt_net_wait_writable(void* conn);
+
 typedef struct SurgeRange {
     void* start;
     void* end;
