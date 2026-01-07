@@ -131,7 +131,15 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 	wantTy := want.PayloadTypes[tp.Index]
 	if wantTy != types.NoTypeID && field.TypeID != types.NoTypeID {
 		if vm.valueType(wantTy) != vm.valueType(field.TypeID) {
-			return Value{}, vm.eb.typeMismatch(fmt.Sprintf("type#%d", wantTy), fmt.Sprintf("type#%d", field.TypeID))
+			if !vm.compatiblePayloadTypes(wantTy, field.TypeID) {
+				return Value{}, vm.eb.typeMismatch(fmt.Sprintf("type#%d", wantTy), fmt.Sprintf("type#%d", field.TypeID))
+			}
+			field.TypeID = wantTy
+			if field.IsHeap() && field.H != 0 {
+				if obj := vm.Heap.Get(field.H); obj != nil {
+					obj.TypeID = wantTy
+				}
+			}
 		}
 	}
 	out, vmErr := vm.cloneForShare(field)

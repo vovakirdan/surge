@@ -1,0 +1,26 @@
+@entrypoint("argv")
+fn main(dir: string) -> int {
+    let file = dir + "/a.txt";
+    let res = rt_fs_metadata(&file);
+    compare res {
+        Success(meta) => {
+            let t: uint = meta.file_type to uint;
+            print("size=" + (meta.size to string));
+            print("type=" + (t to string));
+        }
+        err => {
+            print("err=" + (err.code to string));
+        }
+    };
+    let missing = dir + "/missing.txt";
+    let miss = rt_fs_metadata(&missing);
+    compare miss {
+        Success(_) => {
+            print("missing_ok");
+        }
+        err => {
+            print("missing_err=" + (err.code to string));
+        }
+    };
+    return 0;
+}

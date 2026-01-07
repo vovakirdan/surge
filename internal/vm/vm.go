@@ -37,6 +37,8 @@ type VM struct {
 	ExitCode     int
 	Halted       bool
 	started      bool
+	fsFiles      map[uint64]*vmFile
+	fsNextHandle uint64
 
 	eb                  *errorBuilder // for creating errors with backtrace
 	captureReturn       *Value
@@ -82,6 +84,8 @@ func New(m *mir.Module, rt Runtime, files *source.FileSet, typeInterner *types.I
 	if vm.Trace != nil {
 		vm.Trace.vm = vm
 	}
+	vm.fsFiles = make(map[uint64]*vmFile)
+	vm.fsNextHandle = 1
 	return vm
 }
 

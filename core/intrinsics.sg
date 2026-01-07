@@ -14,6 +14,62 @@ pub type byte = uint8;
 @intrinsic fn rt_read_stdin(buf: *byte, max_len: uint) -> uint;
 @intrinsic fn rt_panic_bounds(kind: uint, index: int, length: int) -> nothing;
 
+// Filesystem intrinsics
+// FsError.code:
+// 1 NotFound, 2 PermissionDenied, 3 AlreadyExists, 4 InvalidPath, 5 NotDir,
+// 6 NotFile, 7 IsDir, 8 InvalidData, 9 Io, 10 Unsupported.
+pub type FsError = { message: string, code: uint };
+
+pub type FileType = uint8;
+pub enum FileTypes: FileType = { FILE, DIR, SYMLINK, OTHER }
+
+pub type Metadata = {
+    size: uint,
+    file_type: FileType,
+    readonly: bool
+};
+
+pub type DirEntry = {
+    name: string,
+    path: string,
+    file_type: FileType
+};
+
+@nosend
+@intrinsic
+pub type File = {
+    __opaque: int,
+};
+
+pub type FsOpenFlags = uint32;
+pub enum FS_O: FsOpenFlags = { READ = 1, WRITE = 2, CREATE = 4, TRUNC = 8, APPEND = 16 }
+
+pub type SeekWhence = int;
+pub enum SeekWhences: SeekWhence = { Start, Current, End }
+
+@intrinsic fn rt_fs_cwd() -> Erring<string, FsError>;
+
+@intrinsic fn rt_fs_metadata(path: &string) -> Erring<Metadata, FsError>;
+@intrinsic fn rt_fs_read_dir(path: &string) -> Erring<DirEntry[], FsError>;
+
+@intrinsic fn rt_fs_mkdir(path: &string, recursive: bool) -> Erring<nothing, FsError>;
+@intrinsic fn rt_fs_remove_file(path: &string) -> Erring<nothing, FsError>;
+@intrinsic fn rt_fs_remove_dir(path: &string, recursive: bool) -> Erring<nothing, FsError>;
+
+@intrinsic fn rt_fs_open(path: &string, flags: FsOpenFlags) -> Erring<File, FsError>;
+@intrinsic fn rt_fs_close(file: own File) -> Erring<nothing, FsError>;
+@intrinsic fn rt_fs_read(file: &File, buf: *byte, cap: uint) -> Erring<uint, FsError>;
+@intrinsic fn rt_fs_write(file: &File, buf: *byte, length: uint) -> Erring<uint, FsError>;
+@intrinsic fn rt_fs_seek(file: &File, offset: int, whence: SeekWhence) -> Erring<uint, FsError>;
+@intrinsic fn rt_fs_flush(file: &File) -> Erring<nothing, FsError>;
+
+@intrinsic fn rt_fs_read_file(path: &string) -> Erring<byte[], FsError>;
+@intrinsic fn rt_fs_write_file(path: &string, data: *byte, length: uint, flags: FsOpenFlags) -> Erring<nothing, FsError>;
+
+@intrinsic fn rt_fs_file_name(file: &File) -> Erring<string, FsError>;
+@intrinsic fn rt_fs_file_type(file: &File) -> Erring<FileType, FsError>;
+@intrinsic fn rt_fs_file_metadata(file: &File) -> Erring<Metadata, FsError>;
+
 // String access intrinsics
 @intrinsic fn rt_string_ptr(s: &string) -> *byte;
 // Returns Unicode code point length (not bytes).

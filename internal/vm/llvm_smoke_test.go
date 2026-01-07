@@ -56,9 +56,9 @@ func TestLLVMSmoke(t *testing.T) {
 	}
 }
 
-func runBinary(t *testing.T, path string) (stdout, stderr string, exitCode int) {
+func runBinary(t *testing.T, path string, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
-	cmd := exec.Command(path)
+	cmd := exec.Command(path, args...)
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf

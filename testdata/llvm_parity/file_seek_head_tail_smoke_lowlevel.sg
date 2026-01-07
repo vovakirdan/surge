@@ -1,0 +1,128 @@
+@entrypoint("argv")
+fn main(dir: string) -> int {
+    let path = dir + "/seek.txt";
+    let data = "0123456789abcdef";
+    let flags_bits: uint = (FS_O::CREATE to uint) | (FS_O::TRUNC to uint) | (FS_O::WRITE to uint);
+    let flags: FsOpenFlags = flags_bits to FsOpenFlags;
+    let opened = rt_fs_open(&path, flags);
+    compare opened {
+        Success(file) => {
+            let w = rt_fs_write(&file, rt_string_ptr(&data), rt_string_len_bytes(&data));
+            compare w {
+                Success(_) => {}
+                err => {
+                    print("write_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+            let closed = rt_fs_close(own file);
+            compare closed {
+                Success(_) => {}
+                err => {
+                    print("close_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+        }
+        err => {
+            print("open_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    let opened_read = rt_fs_open(&path, FS_O::READ);
+    compare opened_read {
+        Success(file) => {
+            let cap: uint = 4;
+            let buf = rt_alloc(cap, 1:uint);
+
+            let seek1 = rt_fs_seek(&file, 2, SeekWhences::Start);
+            compare seek1 {
+                Success(pos) => {
+                    print("seek1=" + (pos to string));
+                }
+                err => {
+                    print("seek1_err=" + (err.code to string));
+                    rt_free(buf, cap, 1:uint);
+                    return 1;
+                }
+            };
+            let r1 = rt_fs_read(&file, buf, cap);
+            compare r1 {
+                Success(n) => {
+                    let head = rt_string_from_bytes(buf, n);
+                    print("head=" + head);
+                }
+                err => {
+                    print("read1_err=" + (err.code to string));
+                    rt_free(buf, cap, 1:uint);
+                    return 1;
+                }
+            };
+
+            let seek2 = rt_fs_seek(&file, -4, SeekWhences::End);
+            compare seek2 {
+                Success(pos) => {
+                    print("seek2=" + (pos to string));
+                }
+                err => {
+                    print("seek2_err=" + (err.code to string));
+                    rt_free(buf, cap, 1:uint);
+                    return 1;
+                }
+            };
+            let r2 = rt_fs_read(&file, buf, cap);
+            compare r2 {
+                Success(n) => {
+                    let tail = rt_string_from_bytes(buf, n);
+                    print("tail=" + tail);
+                }
+                err => {
+                    print("read2_err=" + (err.code to string));
+                    rt_free(buf, cap, 1:uint);
+                    return 1;
+                }
+            };
+
+            let seek3 = rt_fs_seek(&file, -6, SeekWhences::Current);
+            compare seek3 {
+                Success(pos) => {
+                    print("seek3=" + (pos to string));
+                }
+                err => {
+                    print("seek3_err=" + (err.code to string));
+                    rt_free(buf, cap, 1:uint);
+                    return 1;
+                }
+            };
+            let r3 = rt_fs_read(&file, buf, 3:uint);
+            compare r3 {
+                Success(n) => {
+                    let mid = rt_string_from_bytes(buf, n);
+                    print("mid=" + mid);
+                }
+                err => {
+                    print("read3_err=" + (err.code to string));
+                    rt_free(buf, cap, 1:uint);
+                    return 1;
+                }
+            };
+
+            rt_free(buf, cap, 1:uint);
+            let closed = rt_fs_close(own file);
+            compare closed {
+                Success(_) => {}
+                err => {
+                    print("close_read_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+        }
+        err => {
+            print("open_read_err=" + (err.code to string));
+            return 1;
+        }
+    };
+
+    return 0;
+}

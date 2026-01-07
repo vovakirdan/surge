@@ -21,6 +21,9 @@ func (fe *funcEmitter) emitRuntimeIntrinsic(call *mir.CallInstr) (bool, error) {
 			return false, nil
 		}
 	}
+	if handled, err := fe.emitFsIntrinsic(call); handled {
+		return true, err
+	}
 	switch name {
 	case "rt_alloc":
 		return true, fe.emitRtAlloc(call)

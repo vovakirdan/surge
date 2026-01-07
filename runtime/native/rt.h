@@ -25,6 +25,24 @@ void rt_panic_bounds(uint64_t kind, int64_t index, int64_t length);
 void* rt_argv(void);
 void* rt_stdin_read_all(void);
 
+void* rt_fs_cwd(void);
+void* rt_fs_metadata(void* path);
+void* rt_fs_read_dir(void* path);
+void* rt_fs_mkdir(void* path, bool recursive);
+void* rt_fs_remove_file(void* path);
+void* rt_fs_remove_dir(void* path, bool recursive);
+void* rt_fs_open(void* path, uint32_t flags);
+void* rt_fs_close(void* file);
+void* rt_fs_read(void* file, uint8_t* buf, uint64_t cap);
+void* rt_fs_write(void* file, const uint8_t* buf, uint64_t len);
+void* rt_fs_seek(void* file, int64_t offset, int64_t whence);
+void* rt_fs_flush(void* file);
+void* rt_fs_read_file(void* path);
+void* rt_fs_write_file(void* path, const uint8_t* data, uint64_t len, uint32_t flags);
+void* rt_fs_file_name(void* file);
+void* rt_fs_file_type(void* file);
+void* rt_fs_file_metadata(void* file);
+
 typedef struct SurgeRange {
     void* start;
     void* end;

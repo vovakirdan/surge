@@ -1,0 +1,166 @@
+// stdlib/path/path.sg
+// Pure path helpers with POSIX-style "/" semantics.
+
+pub fn join(a: &string, b: &string) -> string {
+    if b.__len() == 0:uint {
+        return a.__clone();
+    }
+    if a.__len() == 0:uint {
+        return b.__clone();
+    }
+    if b.starts_with("/") {
+        return b.__clone();
+    }
+    if a.ends_with("/") {
+        return a.__clone() + b.__clone();
+    }
+    return a.__clone() + "/" + b.__clone();
+}
+
+pub fn basename(p: &string) -> string {
+    let length: int = p.__len() to int;
+    if length == 0 {
+        return ".";
+    }
+    let sep: uint32 = "/"[0];
+    let mut end: int = length - 1;
+    while true {
+        if p[end] != sep {
+            break;
+        }
+        if end == 0 {
+            return "/";
+        }
+        end = end - 1;
+    }
+    let mut i: int = end;
+    while true {
+        if p[i] == sep {
+            return p[[i + 1..end + 1]];
+        }
+        if i == 0 {
+            break;
+        }
+        i = i - 1;
+    }
+    return p[[0..end + 1]];
+}
+
+pub fn dirname(p: &string) -> string {
+    let length: int = p.__len() to int;
+    if length == 0 {
+        return ".";
+    }
+    let sep: uint32 = "/"[0];
+    let mut end: int = length - 1;
+    while true {
+        if p[end] != sep {
+            break;
+        }
+        if end == 0 {
+            return "/";
+        }
+        end = end - 1;
+    }
+    let mut i: int = end;
+    while true {
+        if p[i] == sep {
+            if i == 0 {
+                return "/";
+            }
+            return p[[0..i]];
+        }
+        if i == 0 {
+            break;
+        }
+        i = i - 1;
+    }
+    return ".";
+}
+
+pub fn extname(p: &string) -> string {
+    let base: string = basename(p);
+    let length: int = base.__len() to int;
+    if length == 0 {
+        return "";
+    }
+    let dot: uint32 = "."[0];
+    let mut i: int = length - 1;
+    while true {
+        if base[i] == dot {
+            if i == 0 {
+                return "";
+            }
+            return base[[i..length]];
+        }
+        if i == 0 {
+            break;
+        }
+        i = i - 1;
+    }
+    return "";
+}
+
+pub fn normalize(p: &string) -> string {
+    let length: int = p.__len() to int;
+    if length == 0 {
+        return ".";
+    }
+    let abs: bool = p[0] == "/"[0];
+    let parts: string[] = p.split("/");
+    let mut stack: string[] = [];
+    for part in parts {
+        if part == "" || part == "." {
+            continue;
+        }
+        if part == ".." {
+            let last_opt: Option<string> = stack.pop();
+            compare last_opt {
+                Some(last) => {
+                    if last == ".." {
+                        let _ = stack.push(last);
+                        if !abs {
+                            let _ = stack.push(part.__clone());
+                        }
+                    }
+                }
+                nothing => {
+                    if !abs {
+                        let _ = stack.push(part.__clone());
+                    }
+                }
+            };
+            continue;
+        }
+        let _ = stack.push(part.__clone());
+    }
+
+    let count: int = stack.__len() to int;
+    if count == 0 {
+        if abs {
+            return "/";
+        }
+        return ".";
+    }
+
+    let mut out: string = "";
+    let mut i: int = 0;
+    while i < count {
+        if i > 0 {
+            out = out + "/";
+        }
+        out = out + clone(stack[i]);
+        i = i + 1;
+    }
+    if abs {
+        return "/" + out;
+    }
+    return out;
+}
+
+pub fn is_abs(p: &string) -> bool {
+    if p.__len() == 0:uint {
+        return false;
+    }
+    return p[0] == "/"[0];
+}

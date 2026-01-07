@@ -1,0 +1,24 @@
+import stdlib/path as path;
+
+@entrypoint
+fn main() -> int {
+    print(path.join(&"a", &"b"));
+    print(path.join(&"a/", &"b"));
+    print(path.join(&"/a", &"b"));
+    print(path.join(&"a", &"/b"));
+
+    print(path.basename(&"/a/b.txt"));
+    print(path.basename(&"/"));
+    print(path.dirname(&"/a/b.txt"));
+    print(path.dirname(&"a"));
+
+    print(path.extname(&"archive.tar.gz"));
+    print(path.extname(&".bashrc"));
+
+    print(path.normalize(&"/a/./b/../c//"));
+    print(path.normalize(&"a/../.."));
+
+    print((path.is_abs(&"/a")) to string);
+    print((path.is_abs(&"a/b")) to string);
+    return 0;
+}

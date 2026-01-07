@@ -298,7 +298,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			}
 			diagfmt.Pretty(os.Stdout, result.Bag, result.FileSet, opts)
 		case "short":
-			output := diag.FormatGoldenDiagnostics(result.Bag.Items(), result.FileSet, withNotes)
+			output := diag.FormatShortDiagnostics(result.Bag.Items(), result.FileSet, withNotes)
 			if output != "" {
 				_, printErr := fmt.Fprintln(os.Stdout, output)
 				if printErr != nil {
@@ -499,7 +499,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			for _, r := range results {
 				allDiagnostics = append(allDiagnostics, r.Bag.Items()...)
 			}
-			output := diag.FormatGoldenDiagnostics(allDiagnostics, fs, withNotes)
+			output := diag.FormatShortDiagnostics(allDiagnostics, fs, withNotes)
 			if output != "" {
 				_, printErr := fmt.Fprintln(os.Stdout, output)
 				if printErr != nil {

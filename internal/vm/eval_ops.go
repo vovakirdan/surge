@@ -126,6 +126,9 @@ func (vm *VM) evalUnaryOp(op ast.ExprUnaryOp, operand Value) (Value, *VMError) {
 			return Value{}, vm.eb.typeMismatch("numeric", operand.Kind.String())
 		}
 
+	case ast.ExprUnaryOwn:
+		return operand, nil
+
 	case ast.ExprUnaryDeref:
 		return vm.evalUnaryDeref(operand)
 
@@ -219,6 +222,41 @@ func (vm *VM) evalUnaryDeref(operand Value) (Value, *VMError) {
 			vm.Heap.Retain(v.H)
 		}
 		return v, nil
+	case VKPtr:
+		elemType := types.NoTypeID
+		if vm.Types != nil && operand.TypeID != types.NoTypeID {
+			if tt, ok := vm.Types.Lookup(operand.TypeID); ok && tt.Kind == types.KindPointer {
+				elemType = tt.Elem
+			}
+		}
+		if vm.Types != nil && elemType != types.NoTypeID {
+			resolved := elemType
+			for range 32 {
+				tt, ok := vm.Types.Lookup(resolved)
+				if !ok || tt.Kind != types.KindAlias {
+					break
+				}
+				target, ok := vm.Types.AliasTarget(resolved)
+				if !ok || target == types.NoTypeID || target == resolved {
+					break
+				}
+				resolved = target
+			}
+			if resolved != vm.Types.Builtins().Uint8 {
+				return Value{}, vm.eb.makeError(PanicUnimplemented, "pointer deref only supports *byte")
+			}
+		}
+		data, vmErr := vm.readBytesFromPointer(operand, 1)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if elemType == types.NoTypeID && vm.Types != nil {
+			elemType = vm.Types.Builtins().Uint8
+		}
+		if len(data) == 0 {
+			return Value{}, vm.eb.outOfBounds(0, 0)
+		}
+		return MakeInt(int64(data[0]), elemType), nil
 	default:
 		return Value{}, vm.eb.derefOnNonRef(operand.Kind.String())
 	}

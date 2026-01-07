@@ -53,6 +53,9 @@ func (vm *VM) EvalPlace(frame *Frame, p mir.Place) (Location, *VMError) {
 			switch v.Kind {
 			case VKRef, VKRefMut:
 				loc = v.Loc
+			case VKPtr:
+				loc = v.Loc
+				loc.IsMut = true
 			default:
 				return Location{}, vm.eb.derefOnNonRef(v.Kind.String())
 			}
@@ -394,6 +397,14 @@ func (vm *VM) storeLocation(loc Location, val Value) *VMError {
 		vm.dropValue(obj.MapEntries[idx].Value)
 		obj.MapEntries[idx].Value = val
 		return nil
+
+	case LKRawBytes, LKStringBytes:
+		b, vmErr := vm.valueToUint8(val)
+		if vmErr != nil {
+			return vmErr
+		}
+		ptr := MakePtr(loc, types.NoTypeID)
+		return vm.writeBytesToPointer(ptr, []byte{b})
 
 	default:
 		return vm.eb.invalidLocation("unknown location kind")
