@@ -114,7 +114,7 @@ async fn read_some_owned(handle: int, cap: uint) -> NetResult<byte[]> {
     return Success(out);
 }
 
-async fn write_some_owned(handle: int, data: &byte[]) -> NetResult<uint> {
+async fn write_some_owned(handle: int, data: byte[]) -> NetResult<uint> {
     let length: uint = data.__len();
     if length == 0:uint {
         return Success(0:uint);
@@ -160,7 +160,7 @@ async fn write_some_owned(handle: int, data: &byte[]) -> NetResult<uint> {
     return Success(written);
 }
 
-async fn write_all_owned(handle: int, data: &byte[]) -> NetResult<nothing> {
+async fn write_all_owned(handle: int, data: byte[]) -> NetResult<nothing> {
     let length: uint = data.__len();
     if length == 0:uint {
         return Success(nothing);
@@ -211,10 +211,10 @@ pub fn read_some(c: &TcpConn, cap: uint) -> Task<NetResult<byte[]>> {
     return read_some_owned(conn_handle(c), cap);
 }
 
-pub fn write_some(c: &TcpConn, data: &byte[]) -> Task<NetResult<uint>> {
+pub fn write_some(c: &TcpConn, data: byte[]) -> Task<NetResult<uint>> {
     return write_some_owned(conn_handle(c), data);
 }
 
-pub fn write_all(c: &TcpConn, data: &byte[]) -> Task<NetResult<nothing>> {
+pub fn write_all(c: &TcpConn, data: byte[]) -> Task<NetResult<nothing>> {
     return write_all_owned(conn_handle(c), data);
 }

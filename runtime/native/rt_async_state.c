@@ -440,7 +440,20 @@ void tick_virtual(rt_executor* ex) {
     }
 }
 
-int advance_time_to_next_timer(rt_executor* ex) {
+static int has_net_waiters(const rt_executor* ex) {
+    if (ex == NULL || ex->waiters_len == 0) {
+        return 0;
+    }
+    for (size_t i = 0; i < ex->waiters_len; i++) {
+        waker_kind kind = (waker_kind)ex->waiters[i].key.kind;
+        if (kind == WAKER_NET_ACCEPT || kind == WAKER_NET_READ || kind == WAKER_NET_WRITE) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int next_sleep_deadline(const rt_executor* ex, uint64_t* out_deadline) {
     if (ex == NULL) {
         return 0;
     }
@@ -456,6 +469,20 @@ int advance_time_to_next_timer(rt_executor* ex) {
         }
     }
     if (next_deadline == UINT64_MAX) {
+        return 0;
+    }
+    if (out_deadline != NULL) {
+        *out_deadline = next_deadline;
+    }
+    return 1;
+}
+
+int advance_time_to_next_timer(rt_executor* ex) {
+    if (ex == NULL) {
+        return 0;
+    }
+    uint64_t next_deadline = 0;
+    if (!next_sleep_deadline(ex, &next_deadline)) {
         return 0;
     }
     ex->now_ms = next_deadline;
@@ -480,7 +507,25 @@ int next_ready(rt_executor* ex, uint64_t* out_id) {
         if (poll_net_waiters(ex, 0)) {
             continue;
         }
-        if (!advance_time_to_next_timer(ex)) {
+        uint64_t next_deadline = 0;
+        int have_timer = next_sleep_deadline(ex, &next_deadline);
+        if (have_timer) {
+            if (has_net_waiters(ex)) {
+                uint64_t now = ex->now_ms;
+                uint64_t diff = next_deadline > now ? next_deadline - now : 0;
+                int timeout_ms = diff > (uint64_t)INT_MAX ? INT_MAX : (int)diff;
+                if (timeout_ms > 0) {
+                    if (poll_net_waiters(ex, timeout_ms)) {
+                        continue;
+                    }
+                }
+                if (advance_time_to_next_timer(ex)) {
+                    continue;
+                }
+            } else if (advance_time_to_next_timer(ex)) {
+                continue;
+            }
+        } else {
             if (poll_net_waiters(ex, -1)) {
                 continue;
             }

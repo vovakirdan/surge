@@ -56,6 +56,20 @@ func repoRoot(t *testing.T) string {
 	return filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
 }
 
+func envWithStdlib(root string) []string {
+	env := os.Environ()
+	key := "SURGE_STDLIB="
+	out := make([]string, 0, len(env)+1)
+	for _, kv := range env {
+		if strings.HasPrefix(kv, key) {
+			continue
+		}
+		out = append(out, kv)
+	}
+	out = append(out, key+root)
+	return out
+}
+
 func buildSurgeBinary(t *testing.T, root string) string {
 	t.Helper()
 
@@ -70,7 +84,7 @@ func buildSurgeBinary(t *testing.T, root string) string {
 		// #nosec G204 -- test build command uses fixed arguments
 		cmd := exec.Command("go", "build", "-o", surgeBinPath, "./cmd/surge")
 		cmd.Dir = root
-		cmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
+		cmd.Env = envWithStdlib(root)
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		if err := cmd.Run(); err != nil {
@@ -127,7 +141,7 @@ func runSurgeWithInput(t *testing.T, root, surgeBin, stdin string, args ...strin
 	t.Helper()
 	cmd := exec.Command(surgeBin, args...)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
+	cmd.Env = envWithStdlib(root)
 	stdout, stderr, exitCode = runCommand(t, cmd, stdin)
 	stdout = stripTimingLines(stdout)
 	return stdout, stderr, exitCode

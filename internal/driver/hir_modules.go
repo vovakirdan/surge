@@ -136,6 +136,11 @@ func appendModuleRecordHIR(ctx context.Context, res *DiagnoseResult, rec *module
 		return nil
 	}
 	mapping := buildModuleSymbolRemap(res.Symbols, rec)
+	if rec.Meta != nil && isCoreModulePath(rec.Meta.Path) {
+		if coreMapping := buildCoreSymbolRemap(res.Symbols, rec); len(coreMapping) > 0 {
+			mapping = coreMapping
+		}
+	}
 	if len(mapping) > 0 {
 		remapTypeParamOwners(res.Sema, mapping)
 	}
@@ -270,7 +275,7 @@ func buildModuleSymbolRemap(rootSyms *symbols.Result, rec *moduleRecord) map[sym
 			continue
 		}
 		modulePath := normalizeExportsKey(sym.ModulePath)
-		if modulePath == "" {
+		if modulePath == "" && !isPreludeSymbol(sym) {
 			continue
 		}
 		key := moduleSymbolKey(modulePath, sym, rootTable.Strings)
@@ -293,7 +298,7 @@ func buildModuleSymbolRemap(rootSyms *symbols.Result, rec *moduleRecord) map[sym
 		}
 		isLocal := isLocalSymbol(sym, modTable)
 		modulePath := normalizeExportsKey(sym.ModulePath)
-		if modulePath == "" && rec.Meta != nil {
+		if modulePath == "" && rec.Meta != nil && !isPreludeSymbol(sym) {
 			modulePath = normalizeExportsKey(rec.Meta.Path)
 		}
 		key := ""
@@ -332,6 +337,15 @@ func isLocalSymbol(sym *symbols.Symbol, table *symbols.Table) bool {
 		return scope.Kind == symbols.ScopeFunction || scope.Kind == symbols.ScopeBlock
 	}
 	return false
+}
+
+func isPreludeSymbol(sym *symbols.Symbol) bool {
+	if sym == nil {
+		return false
+	}
+	return sym.ModulePath == "" &&
+		sym.Flags&symbols.SymbolFlagBuiltin != 0 &&
+		sym.Flags&symbols.SymbolFlagImported != 0
 }
 
 func moduleSymbolKey(modulePath string, sym *symbols.Symbol, strs *source.Interner) string {

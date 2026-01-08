@@ -2,6 +2,7 @@ package types //nolint:revive
 
 import (
 	"fmt"
+	"slices"
 
 	"fortio.org/safecast"
 )
@@ -14,6 +15,21 @@ type FnInfo struct {
 
 // RegisterFn creates or finds a function type.
 func (in *Interner) RegisterFn(params []TypeID, result TypeID) TypeID {
+	if in != nil {
+		for id := TypeID(1); int(id) < len(in.types); id++ {
+			tt := in.types[id]
+			if tt.Kind != KindFn {
+				continue
+			}
+			if int(tt.Payload) >= len(in.fns) {
+				continue
+			}
+			info := in.fns[tt.Payload]
+			if info.Result == result && slices.Equal(info.Params, params) {
+				return id
+			}
+		}
+	}
 	slot := in.appendFnInfo(FnInfo{
 		Params: cloneTypeArgs(params),
 		Result: result,

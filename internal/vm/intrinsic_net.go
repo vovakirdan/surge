@@ -62,6 +62,10 @@ func (vm *VM) handleNetListen(frame *Frame, call *mir.CallInstr, writes *[]Local
 	if err != nil {
 		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
 	}
+	if err := syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+		closeNetFD(fd)
+		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
+	}
 	if err := syscall.SetNonblock(fd, true); err != nil {
 		closeNetFD(fd)
 		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)

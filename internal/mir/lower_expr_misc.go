@@ -111,7 +111,7 @@ func (l *funcLowerer) lowerTaskExpr(e *hir.Expr, consume bool) (Operand, error) 
 	if !ok {
 		return Operand{}, fmt.Errorf("mir: task: unexpected payload %T", e.Data)
 	}
-	value, err := l.lowerExpr(data.Value, true)
+	value, err := l.lowerExprForType(data.Value, e.Type)
 	if err != nil {
 		return Operand{}, err
 	}

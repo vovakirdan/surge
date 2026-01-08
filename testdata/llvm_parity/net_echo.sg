@@ -53,7 +53,7 @@ fn main(port: uint, msg: string) -> int {
                                                 let _ = net.close_conn(own conn);
                                                 return 1;
                                             }
-                                            let write_task = net.write_all(&conn, &bytes).await();
+                                            let write_task = net.write_all(&conn, bytes).await();
                                             compare write_task {
                                                 Success(write_res) => {
                                                     compare write_res {
