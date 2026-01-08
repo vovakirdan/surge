@@ -825,6 +825,10 @@ func TestParseIfStatement(t *testing.T) {
 			name:  "without_parentheses",
 			input: `fn foo() { if a > 0 { return; } else { return; } }`,
 		},
+		{
+			name:  "uppercase_constant_condition",
+			input: `fn foo() { if kind == QUEUE_KIND_REQ { return; } else { return; } }`,
+		},
 	}
 
 	for _, tt := range tests {

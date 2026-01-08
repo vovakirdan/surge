@@ -1,5 +1,4 @@
 import stdlib/http as http;
-import stdlib/http::Bytes;
 
 fn string_to_bytes(s: &string) -> byte[] {
     let view = s.bytes();
@@ -39,7 +38,7 @@ fn main() -> int {
     let mut headers: http.Headers = [];
     headers.push(http.Header { key = "X-Test", value = "ok" });
     let body_bytes: byte[] = string_to_bytes(&"hello");
-    let resp: http.Response = { status = 200, headers = headers, body = Bytes(body_bytes) };
+    let resp: http.Response = { status = 200, headers = headers, body = http.Bytes(body_bytes) };
     let out = http.write_response(resp);
     print(bytes_to_ascii(out));
     return 0;

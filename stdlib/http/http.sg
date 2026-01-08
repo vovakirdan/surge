@@ -1,6 +1,8 @@
 // stdlib/http/http.sg
 // HTTP/1.1 protocol core: request parser + response writer.
 
+import stdlib/net as net;
+
 const HTTP_ERR_PARSE: uint = 1;
 const HTTP_ERR_HEADER: uint = 2;
 const HTTP_ERR_BODY: uint = 3;
@@ -58,6 +60,54 @@ pub type Response = {
     status: int,
     headers: Headers,
     body: ResponseBody
+};
+
+pub type ServerConfig = {
+    max_pipeline_depth: uint,
+    max_initial_line_bytes: uint,
+    max_header_bytes: uint,
+    max_headers_count: uint,
+    idle_timeout_ms: uint,
+    read_timeout_ms: uint,
+    write_timeout_ms: uint
+};
+
+type HeaderMeta = {
+    content_len: uint,
+    has_content_len: bool,
+    chunked: bool,
+    close: bool
+};
+
+type ParsedRequest = {
+    req: Request,
+    consumed: uint,
+    close: bool
+};
+
+tag ParseMore();
+tag ParseOk(ParsedRequest);
+tag ParseErr(HttpError);
+type ParseResult = ParseMore() | ParseOk(ParsedRequest) | ParseErr(HttpError);
+
+tag ChunkNeedMore();
+tag ChunkOk(ChunkSize);
+tag ChunkErr(HttpError);
+type ChunkParseResult = ChunkNeedMore() | ChunkOk(ChunkSize) | ChunkErr(HttpError);
+
+tag ChunkedNeedMore();
+tag ChunkedOk(uint);
+tag ChunkedErr(HttpError);
+type ChunkedResult = ChunkedNeedMore() | ChunkedOk(uint) | ChunkedErr(HttpError);
+
+const QUEUE_KIND_REQ: uint = 0;
+const QUEUE_KIND_RESP: uint = 1;
+
+type QueueItem = {
+    kind: uint,
+    req: Request,
+    resp: Response,
+    close: bool
 };
 
 fn http_error(code: uint, msg: string) -> HttpError {
@@ -131,9 +181,71 @@ fn string_to_bytes(s: &string) -> byte[] {
     return out;
 }
 
+fn bytes_to_ascii(bytes: &byte[]) -> string {
+    let length: int = bytes.__len() to int;
+    if length == 0 {
+        return "";
+    }
+    let buf = rt_alloc(1:uint, 1:uint);
+    let mut out: string = "";
+    let mut i: int = 0;
+    while i < length {
+        *buf = clone(bytes[i]);
+        let piece = rt_string_from_bytes(buf, 1:uint);
+        out = out + piece;
+        i = i + 1;
+    }
+    rt_free(buf, 1:uint, 1:uint);
+    return out;
+}
+
 fn find_double_crlf(s: &string) -> int {
     let sep = "\r\n\r\n";
     return string_find_from(s, &sep, 0);
+}
+
+fn find_double_crlf_bytes(data: &byte[]) -> int {
+    let length: int = data.__len() to int;
+    if length < 4 {
+        return -1;
+    }
+    let mut i: int = 0;
+    let last: int = length - 4;
+    while i <= last {
+        let b0: byte = clone(data[i]);
+        let b1: byte = clone(data[i + 1]);
+        let b2: byte = clone(data[i + 2]);
+        let b3: byte = clone(data[i + 3]);
+        let b0_u: uint = b0 to uint;
+        let b1_u: uint = b1 to uint;
+        let b2_u: uint = b2 to uint;
+        let b3_u: uint = b3 to uint;
+        if b0_u == 13:uint && b1_u == 10:uint && b2_u == 13:uint && b3_u == 10:uint {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+fn find_crlf_bytes(data: &byte[]) -> int {
+    let length: int = data.__len() to int;
+    if length < 2 {
+        return -1;
+    }
+    let mut i: int = 0;
+    let last: int = length - 2;
+    while i <= last {
+        let b0: byte = clone(data[i]);
+        let b1: byte = clone(data[i + 1]);
+        let b0_u: uint = b0 to uint;
+        let b1_u: uint = b1 to uint;
+        if b0_u == 13:uint && b1_u == 10:uint {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
 }
 
 fn body_reader_none() -> BodyReader {
@@ -238,6 +350,141 @@ fn parse_chunk_size(data: &byte[], cursor: uint) -> Erring<ChunkSize, HttpError>
     let next_cursor: uint = (i + 2) to uint;
     let pair: ChunkSize = { size: size, cursor: next_cursor };
     return Success(pair);
+}
+
+fn try_parse_chunk_size(data: &byte[], cursor: uint) -> ChunkParseResult {
+    let length: int = data.__len() to int;
+    let mut i: int = cursor to int;
+    if i >= length {
+        return ChunkNeedMore();
+    }
+
+    let mut size: uint = 0:uint;
+    let mut saw_digit: bool = false;
+    while i < length {
+        let b: byte = clone(data[i]);
+        let b_u: uint = b to uint;
+        if b_u == 13:uint {
+            break;
+        }
+        if b_u == 59:uint {
+            if !saw_digit {
+                return ChunkErr(http_error(HTTP_ERR_BODY, "invalid chunk size"));
+            }
+            i = i + 1;
+            while i < length {
+                let ext_b: byte = clone(data[i]);
+                let ext_u: uint = ext_b to uint;
+                if ext_u == 13:uint {
+                    break;
+                }
+                i = i + 1;
+            }
+            if i >= length {
+                return ChunkNeedMore();
+            }
+            break;
+        }
+        let v: int = hex_digit_value(b);
+        if v < 0 {
+            return ChunkErr(http_error(HTTP_ERR_BODY, "invalid chunk size"));
+        }
+        size = size * 16:uint + (v to uint);
+        saw_digit = true;
+        i = i + 1;
+    }
+    if !saw_digit {
+        return ChunkErr(http_error(HTTP_ERR_BODY, "invalid chunk size"));
+    }
+    if i >= length {
+        return ChunkNeedMore();
+    }
+    let term1: byte = clone(data[i]);
+    let term1_u: uint = term1 to uint;
+    if term1_u != 13:uint {
+        return ChunkErr(http_error(HTTP_ERR_BODY, "invalid chunk size"));
+    }
+    if i + 1 >= length {
+        return ChunkNeedMore();
+    }
+    let term2: byte = clone(data[i + 1]);
+    let term2_u: uint = term2 to uint;
+    if term2_u != 10:uint {
+        return ChunkErr(http_error(HTTP_ERR_BODY, "invalid chunk size"));
+    }
+    let next_cursor: uint = (i + 2) to uint;
+    let pair: ChunkSize = { size: size, cursor: next_cursor };
+    return ChunkOk(pair);
+}
+
+fn find_chunked_end(data: &byte[], start: uint) -> ChunkedResult {
+    let length: int = data.__len() to int;
+    let mut cursor: uint = start;
+    while true {
+        let size_res = try_parse_chunk_size(data, cursor);
+        let mut size_pair: Option<ChunkSize> = nothing;
+        let mut chunk_err: HttpError = http_error(HTTP_ERR_BODY, "invalid chunk size");
+        let mut need_more: bool = false;
+        compare size_res {
+            ChunkNeedMore() => {
+                need_more = true;
+                0:int;
+            }
+            ChunkErr(err) => {
+                chunk_err = err;
+                need_more = false;
+                size_pair = nothing;
+                0:int;
+            }
+            ChunkOk(pair) => {
+                size_pair = Some(pair);
+                0:int;
+            }
+        };
+        if need_more {
+            return ChunkedNeedMore();
+        }
+        compare size_pair {
+            Some(pair) => {
+                let size: uint = pair.size;
+                cursor = pair.cursor;
+                if size == 0:uint {
+                    let end: int = cursor to int;
+                    if end + 1 >= length {
+                        return ChunkedNeedMore();
+                    }
+                    let term1: byte = clone(data[end]);
+                    let term2: byte = clone(data[end + 1]);
+                    let term1_u: uint = term1 to uint;
+                    let term2_u: uint = term2 to uint;
+                    if term1_u != 13:uint || term2_u != 10:uint {
+                        return ChunkedErr(http_error(HTTP_ERR_BODY, "invalid final chunk terminator"));
+                    }
+                    return ChunkedOk((end + 2) to uint);
+                }
+
+                let end: int = (cursor + size) to int;
+                if end > length {
+                    return ChunkedNeedMore();
+                }
+                if end + 1 >= length {
+                    return ChunkedNeedMore();
+                }
+                let term1: byte = clone(data[end]);
+                let term2: byte = clone(data[end + 1]);
+                let term1_u: uint = term1 to uint;
+                let term2_u: uint = term2 to uint;
+                if term1_u != 13:uint || term2_u != 10:uint {
+                    return ChunkedErr(http_error(HTTP_ERR_BODY, "invalid chunk terminator"));
+                }
+                cursor = (end + 2) to uint;
+            }
+            nothing => {
+                return ChunkedErr(chunk_err);
+            }
+        };
+    }
+    return ChunkedNeedMore();
 }
 
 fn body_next_sync(reader: &mut BodyReader) -> Erring<byte[], HttpError> {
@@ -464,6 +711,239 @@ pub fn parse_request(raw: &string) -> Erring<Request, HttpError> {
     });
 }
 
+fn parse_header_meta(head: &string, max_headers_count: uint) -> Erring<HeaderMeta, HttpError> {
+    let lines = head.split("\r\n");
+    let count: int = lines.__len() to int;
+    if count <= 0 {
+        return http_error(HTTP_ERR_PARSE, "empty request");
+    }
+    let mut content_len: uint = 0:uint;
+    let mut has_content_len: bool = false;
+    let mut chunked: bool = false;
+    let mut close: bool = false;
+    let mut header_count: uint = 0:uint;
+    let mut i: int = 1;
+    while i < count {
+        let line: string = clone(lines[i]);
+        if line.__len() == 0:uint {
+            i = i + 1;
+            continue;
+        }
+        header_count = header_count + 1;
+        if max_headers_count != 0:uint && header_count > max_headers_count {
+            return http_error(HTTP_ERR_HEADER, "too many headers");
+        }
+        let colon: int = line.find(":");
+        if colon < 0 {
+            return http_error(HTTP_ERR_HEADER, "invalid header");
+        }
+        let key_raw = line[[0..colon]];
+        let val_raw = line[[colon + 1..line.__len() to int]];
+        let key = key_raw.trim();
+        let value = val_raw.trim();
+        if string_eq_ascii_ci(&key, "content-length") {
+            let len_res = uint.from_str(&value);
+            let mut len_ok: bool = true;
+            compare len_res {
+                Success(n) => {
+                    content_len = n;
+                    has_content_len = true;
+                    0:int;
+                }
+                err => {
+                    let _ = err;
+                    len_ok = false;
+                    0:int;
+                }
+            };
+            if !len_ok {
+                return http_error(HTTP_ERR_HEADER, "invalid content-length");
+            }
+        }
+        if string_eq_ascii_ci(&key, "transfer-encoding") {
+            if string_contains_ascii_ci(&value, "chunked") {
+                chunked = true;
+            }
+        }
+        if string_eq_ascii_ci(&key, "connection") {
+            if string_contains_ascii_ci(&value, "close") {
+                close = true;
+            }
+        }
+        i = i + 1;
+    }
+    let meta: HeaderMeta = { content_len: content_len, has_content_len: has_content_len, chunked: chunked, close: close };
+    return Success(meta);
+}
+
+fn headers_has_connection_close(headers: &Headers) -> bool {
+    let count: int = headers.__len() to int;
+    let mut i: int = 0;
+    while i < count {
+        let key: string = clone(headers[i].key);
+        if string_eq_ascii_ci(&key, "connection") {
+            let value: string = clone(headers[i].value);
+            if string_contains_ascii_ci(&value, "close") {
+                return true;
+            }
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+fn try_parse_request(buf: &byte[], cfg: &ServerConfig) -> ParseResult {
+    let buf_len: int = buf.__len() to int;
+    if buf_len == 0 {
+        return ParseMore();
+    }
+
+    let max_line: uint = cfg.max_initial_line_bytes;
+    if max_line != 0:uint {
+        let line_end: int = find_crlf_bytes(buf);
+        if line_end < 0 {
+            if buf_len > (max_line to int) {
+                return ParseErr(http_error(HTTP_ERR_PARSE, "initial line too long"));
+            }
+        } else if line_end > (max_line to int) {
+            return ParseErr(http_error(HTTP_ERR_PARSE, "initial line too long"));
+        }
+    }
+
+    let header_end: int = find_double_crlf_bytes(buf);
+    if header_end < 0 {
+        let max_header: uint = cfg.max_header_bytes;
+        if max_header != 0:uint && buf_len > (max_header to int) {
+            return ParseErr(http_error(HTTP_ERR_HEADER, "headers too large"));
+        }
+        return ParseMore();
+    }
+
+    let header_len: int = header_end + 4;
+    if cfg.max_header_bytes != 0:uint && header_len > (cfg.max_header_bytes to int) {
+        return ParseErr(http_error(HTTP_ERR_HEADER, "headers too large"));
+    }
+
+    let head_bytes = copy_bytes_range(buf, 0, header_end);
+    let head_str = bytes_to_ascii(&head_bytes);
+    let meta_res = parse_header_meta(&head_str, cfg.max_headers_count);
+    let mut meta: HeaderMeta = { content_len: 0:uint, has_content_len: false, chunked: false, close: false };
+    let mut meta_ok: bool = false;
+    let mut meta_err: HttpError = http_error(HTTP_ERR_HEADER, "invalid header");
+    compare meta_res {
+        Success(hm) => {
+            meta = hm;
+            meta_ok = true;
+            0:int;
+        }
+        err => {
+            meta_err = err;
+            meta_ok = false;
+            0:int;
+        }
+    };
+    if !meta_ok {
+        return ParseErr(meta_err);
+    }
+
+    let mut total_len: int = header_len;
+    if meta.chunked {
+        let chunk_res = find_chunked_end(buf, header_len to uint);
+        let mut chunk_end: uint = 0:uint;
+        let mut chunk_ok: bool = false;
+        let mut chunk_need_more: bool = false;
+        let mut chunk_err: HttpError = http_error(HTTP_ERR_BODY, "invalid chunk");
+        compare chunk_res {
+            ChunkedNeedMore() => {
+                chunk_need_more = true;
+                0:int;
+            }
+            ChunkedErr(err) => {
+                chunk_err = err;
+                chunk_ok = false;
+                chunk_need_more = false;
+                0:int;
+            }
+            ChunkedOk(end_pos) => {
+                chunk_end = end_pos;
+                chunk_ok = true;
+                chunk_need_more = false;
+                0:int;
+            }
+        };
+        if chunk_need_more {
+            return ParseMore();
+        }
+        if !chunk_ok {
+            return ParseErr(chunk_err);
+        }
+        total_len = chunk_end to int;
+    } else if meta.has_content_len {
+        total_len = header_len + (meta.content_len to int);
+        if buf_len < total_len {
+            return ParseMore();
+        }
+    }
+
+    if buf_len < total_len {
+        return ParseMore();
+    }
+
+    let full_bytes = copy_bytes_range(buf, 0, total_len);
+    let full_str = bytes_to_ascii(&full_bytes);
+    let req_res = parse_request(&full_str);
+    let mut req_opt: Option<Request> = nothing;
+    let mut req_err: HttpError = http_error(HTTP_ERR_PARSE, "invalid request");
+    let mut req_ok: bool = false;
+    compare req_res {
+        Success(req) => {
+            req_opt = Some(req);
+            req_ok = true;
+            0:int;
+        }
+        err => {
+            req_err = err;
+            req_ok = false;
+            0:int;
+        }
+    };
+    if !req_ok {
+        return ParseErr(req_err);
+    }
+    let mut parsed_opt: Option<ParsedRequest> = nothing;
+    let mut parse_ok: bool = false;
+    let mut parse_err: HttpError = http_error(HTTP_ERR_PARSE, "invalid request");
+    compare req_opt {
+        Some(req) => {
+            let close: bool = headers_has_connection_close(&req.headers);
+            let parsed: ParsedRequest = { req: req, consumed: total_len to uint, close: close };
+            parsed_opt = Some(parsed);
+            parse_ok = true;
+            0:int;
+        }
+        nothing => {
+            parse_err = http_error(HTTP_ERR_PARSE, "invalid request");
+            parse_ok = false;
+            0:int;
+        }
+    };
+    if !parse_ok {
+        return ParseErr(parse_err);
+    }
+    let mut out: ParseResult = ParseMore();
+    compare parsed_opt {
+        Some(parsed) => {
+            out = ParseOk(parsed);
+            0:int;
+        }
+        nothing => {
+            out = ParseErr(http_error(HTTP_ERR_PARSE, "invalid request"));
+            0:int;
+        }
+    };
+    return out;
+}
+
 extern<ByteStream> {
     pub fn next(self: &mut ByteStream) -> Option<byte[]> {
         let chunks = self.chunks;
@@ -537,6 +1017,9 @@ fn status_reason(status: int) -> string {
     }
     if status == 500 {
         return "Internal Server Error";
+    }
+    if status == 503 {
+        return "Service Unavailable";
     }
     return "";
 }
@@ -621,4 +1104,489 @@ pub fn write_response(resp: Response) -> byte[] {
         }
     };
     return out;
+}
+
+fn buffer_drop_prefix(data: &byte[], consumed: uint) -> byte[] {
+    let length: int = data.__len() to int;
+    let start: int = consumed to int;
+    if start <= 0 {
+        return copy_bytes_range(data, 0, length);
+    }
+    if start >= length {
+        let out: byte[] = [];
+        return out;
+    }
+    return copy_bytes_range(data, start, length);
+}
+
+fn response_empty(status: int) -> Response {
+    let headers: Headers = [];
+    return { status: status, headers: headers, body: Empty() };
+}
+
+fn response_bad_request() -> Response {
+    return response_empty(400);
+}
+
+fn response_internal_error() -> Response {
+    return response_empty(500);
+}
+
+fn response_unavailable() -> Response {
+    return response_empty(503);
+}
+
+fn task_result_to_response(res: TaskResult<Response>) -> Response {
+    return compare res {
+        Success(ok) => ok;
+        Cancelled() => response_internal_error();
+    };
+}
+
+fn dummy_request() -> Request {
+    return {
+        method: "",
+        target: "",
+        path: "",
+        query: "",
+        version: HttpVersion::Http11,
+        headers: [],
+        body: body_reader_none()
+    };
+}
+
+fn dummy_response() -> Response {
+    return response_empty(500);
+}
+
+fn pick_read_cap(cfg: &ServerConfig) -> uint {
+    let mut cap: uint = 1024:uint;
+    if cfg.max_header_bytes != 0:uint && cfg.max_header_bytes < cap {
+        cap = cfg.max_header_bytes;
+    }
+    if cap == 0:uint {
+        cap = 1:uint;
+    }
+    return cap;
+}
+
+fn append_buffer(buf: &mut byte[], data: &byte[]) -> nothing {
+    let extra: uint = data.__len();
+    if extra == 0:uint {
+        return nothing;
+    }
+    let new_cap: uint = buf.__len() + extra;
+    buf.reserve(new_cap);
+    append_bytes(buf, data);
+    return nothing;
+}
+
+fn decode_read_result(res: TaskResult<NetResult<byte[]>>, buf: &mut byte[]) -> HttpResult<bool> {
+    let mut ok: bool = false;
+    let mut bytes: byte[] = [];
+    let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "read failed");
+    compare res {
+        Success(net_res) => {
+            compare net_res {
+                Success(data) => {
+                    bytes = data;
+                    ok = true;
+                    0:int;
+                }
+                err => {
+                    let _ = err;
+                    err_out = http_error(HTTP_ERR_BODY, "read failed");
+                    ok = false;
+                    0:int;
+                }
+            };
+            0:int;
+        }
+        Cancelled() => {
+            err_out = http_error(HTTP_ERR_BODY, "read timeout");
+            ok = false;
+            0:int;
+        }
+    };
+    if !ok {
+        return err_out;
+    }
+    if bytes.__len() == 0:uint {
+        return Success(false);
+    }
+    append_buffer(buf, &bytes);
+    return Success(true);
+}
+
+fn decode_write_result(res: TaskResult<NetResult<nothing>>) -> HttpResult<nothing> {
+    let mut ok: bool = false;
+    let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "write failed");
+    compare res {
+        Success(net_res) => {
+            compare net_res {
+                Success(_) => {
+                    ok = true;
+                    0:int;
+                }
+                err => {
+                    let _ = err;
+                    err_out = http_error(HTTP_ERR_BODY, "write failed");
+                    ok = false;
+                    0:int;
+                }
+            };
+            0:int;
+        }
+        Cancelled() => {
+            err_out = http_error(HTTP_ERR_BODY, "write timeout");
+            ok = false;
+            0:int;
+        }
+    };
+    if !ok {
+        return err_out;
+    }
+    return Success(nothing);
+}
+
+async fn read_into_buffer(conn: &TcpConn, cap: uint, timeout_ms: uint, buf: &mut byte[]) -> HttpResult<bool> {
+    if timeout_ms == 0:uint {
+        let read_task = net.read_some(conn, cap);
+        let read_res = read_task.await();
+        return decode_read_result(read_res, buf);
+    }
+    let read_task = net.read_some(conn, cap);
+    let read_res = timeout(read_task, timeout_ms);
+    return decode_read_result(read_res, buf);
+}
+
+async fn write_response_conn(conn: &TcpConn, resp: Response, timeout_ms: uint) -> HttpResult<nothing> {
+    let bytes = write_response(resp);
+    if timeout_ms == 0:uint {
+        let write_task = net.write_all(conn, &bytes);
+        let write_res = write_task.await();
+        return decode_write_result(write_res);
+    }
+    let write_task = net.write_all(conn, &bytes);
+    let write_res = timeout(write_task, timeout_ms);
+    return decode_write_result(write_res);
+}
+
+fn call_handler(handler: fn(Request) -> Task<Response>, req: Request) -> Task<Response> {
+    return handler(req);
+}
+
+async fn serve_conn(conn: TcpConn, cfg: &ServerConfig, handler: fn(Request) -> Task<Response>) -> nothing {
+    let mut buffer: byte[] = [];
+    let mut pending_in: QueueItem[] = [];
+    let mut pending_out: QueueItem[] = [];
+    let mut closing: bool = false;
+    let mut eof: bool = false;
+    let mut write_failed: bool = false;
+    let mut max_depth: uint = cfg.max_pipeline_depth;
+    if max_depth == 0:uint {
+        max_depth = 1:uint;
+    }
+    let read_cap: uint = pick_read_cap(cfg);
+
+    while true {
+        if !closing {
+            if pending_in.__len() + pending_out.__len() < max_depth {
+                let mut need_read: bool = false;
+                while pending_in.__len() + pending_out.__len() < max_depth {
+                    let parse_res = try_parse_request(&buffer, cfg);
+                    compare parse_res {
+                        ParseMore() => {
+                            need_read = true;
+                            break;
+                        }
+                        ParseErr(err) => {
+                            let _ = err;
+                            pending_in.push(QueueItem {
+                                kind: QUEUE_KIND_RESP,
+                                req: dummy_request(),
+                                resp: response_bad_request(),
+                                close: true
+                            });
+                            closing = true;
+                            break;
+                        }
+                        ParseOk(parsed) => {
+                            buffer = buffer_drop_prefix(&buffer, parsed.consumed);
+                            pending_in.push(QueueItem {
+                                kind: QUEUE_KIND_REQ,
+                                req: parsed.req,
+                                resp: dummy_response(),
+                                close: parsed.close
+                            });
+                            if parsed.close {
+                                closing = true;
+                                break;
+                            }
+                        }
+                    };
+                }
+                if !closing && pending_in.__len() + pending_out.__len() >= max_depth && buffer.__len() != 0:uint {
+                    let overflow_res = try_parse_request(&buffer, cfg);
+                    compare overflow_res {
+                        ParseErr(err) => {
+                            let _ = err;
+                            pending_in.push(QueueItem {
+                                kind: QUEUE_KIND_RESP,
+                                req: dummy_request(),
+                                resp: response_bad_request(),
+                                close: true
+                            });
+                            closing = true;
+                        }
+                        ParseOk(parsed) => {
+                            buffer = buffer_drop_prefix(&buffer, parsed.consumed);
+                            pending_in.push(QueueItem {
+                                kind: QUEUE_KIND_RESP,
+                                req: dummy_request(),
+                                resp: response_unavailable(),
+                                close: true
+                            });
+                            closing = true;
+                        }
+                        ParseMore() => {
+                            pending_in.push(QueueItem {
+                                kind: QUEUE_KIND_RESP,
+                                req: dummy_request(),
+                                resp: response_unavailable(),
+                                close: true
+                            });
+                            closing = true;
+                        }
+                    };
+                }
+                if pending_in.__len() + pending_out.__len() == 0:uint {
+                    if closing || eof {
+                        break;
+                    }
+                    if need_read && !eof {
+                        let mut timeout_ms: uint = cfg.read_timeout_ms;
+                        if timeout_ms == 0:uint && buffer.__len() == 0:uint {
+                            timeout_ms = cfg.idle_timeout_ms;
+                        }
+                        let read_task = read_into_buffer(&conn, read_cap, timeout_ms, &mut buffer);
+                        let read_task_res = read_task.await();
+                        compare read_task_res {
+                            Success(read_res) => {
+                                compare read_res {
+                                    Success(got) => {
+                                        if !got {
+                                            eof = true;
+                                        }
+                                    }
+                                    err => {
+                                        let _ = err;
+                                        pending_in.push(QueueItem {
+                                            kind: QUEUE_KIND_RESP,
+                                            req: dummy_request(),
+                                            resp: response_bad_request(),
+                                            close: true
+                                        });
+                                        closing = true;
+                                    }
+                                };
+                            }
+                            Cancelled() => {
+                                pending_in.push(QueueItem {
+                                    kind: QUEUE_KIND_RESP,
+                                    req: dummy_request(),
+                                    resp: response_bad_request(),
+                                    close: true
+                                });
+                                closing = true;
+                            }
+                        };
+                    }
+                    continue;
+                }
+            } else {
+                let parse_res = try_parse_request(&buffer, cfg);
+                compare parse_res {
+                    ParseMore() => {}
+                    ParseErr(err) => {
+                        let _ = err;
+                        pending_in.push(QueueItem {
+                            kind: QUEUE_KIND_RESP,
+                            req: dummy_request(),
+                            resp: response_bad_request(),
+                            close: true
+                        });
+                        closing = true;
+                    }
+                    ParseOk(parsed) => {
+                        buffer = buffer_drop_prefix(&buffer, parsed.consumed);
+                        pending_in.push(QueueItem {
+                            kind: QUEUE_KIND_RESP,
+                            req: dummy_request(),
+                            resp: response_unavailable(),
+                            close: true
+                        });
+                        closing = true;
+                    }
+                };
+            }
+        }
+
+        if pending_in.__len() + pending_out.__len() == 0:uint {
+            if closing || eof {
+                break;
+            }
+            continue;
+        }
+
+        if pending_out.__len() == 0:uint {
+            while true {
+                let item_opt = pending_in.pop();
+                compare item_opt {
+                    Some(item) => {
+                        pending_out.push(item);
+                    }
+                    nothing => {
+                        break;
+                    }
+                };
+            }
+        }
+
+        while true {
+            let item_opt = pending_out.pop();
+            compare item_opt {
+                Some(item) => {
+                    let kind: uint = item.kind;
+                    let close_flag: bool = item.close;
+                    if kind == QUEUE_KIND_REQ {
+                        let req: Request = item.req;
+                        let handler_task = call_handler(handler, req);
+                        let task_res = handler_task.await();
+                        let mut resp: Response = task_result_to_response(task_res);
+                        if close_flag && !headers_has_connection_close(&resp.headers) {
+                            resp.headers.push(Header { key: "Connection", value: "close" });
+                        }
+                        if !write_failed {
+                            let write_task = write_response_conn(&conn, resp, cfg.write_timeout_ms);
+                            let write_task_res = write_task.await();
+                            compare write_task_res {
+                                Success(write_res) => {
+                                    compare write_res {
+                                        Success(_) => {}
+                                        err => {
+                                            let _ = err;
+                                            write_failed = true;
+                                            closing = true;
+                                        }
+                                    };
+                                }
+                                Cancelled() => {
+                                    write_failed = true;
+                                    closing = true;
+                                }
+                            };
+                        }
+                        if close_flag {
+                            closing = true;
+                        }
+                    } else {
+                        let resp: Response = item.resp;
+                        let mut out: Response = resp;
+                        if close_flag && !headers_has_connection_close(&out.headers) {
+                            out.headers.push(Header { key: "Connection", value: "close" });
+                        }
+                        if !write_failed {
+                            let write_task = write_response_conn(&conn, out, cfg.write_timeout_ms);
+                            let write_task_res = write_task.await();
+                            compare write_task_res {
+                                Success(write_res) => {
+                                    compare write_res {
+                                        Success(_) => {}
+                                        err => {
+                                            let _ = err;
+                                            write_failed = true;
+                                            closing = true;
+                                        }
+                                    };
+                                }
+                                Cancelled() => {
+                                    write_failed = true;
+                                    closing = true;
+                                }
+                            };
+                        }
+                        if close_flag {
+                            closing = true;
+                        }
+                    }
+                }
+                nothing => {
+                    break;
+                }
+            };
+        }
+
+        if closing || eof {
+            if pending_in.__len() + pending_out.__len() == 0:uint {
+                break;
+            }
+        }
+    }
+
+    let _ = net.close_conn(own conn);
+    return nothing;
+}
+
+pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: fn(Request) -> Task<Response>) -> nothing {
+    let listen_res = net.listen(addr, port);
+    compare listen_res {
+        Success(listener) => {
+            while true {
+                if cfg.idle_timeout_ms == 0:uint {
+                    let accept_task = net.accept(&listener);
+                    let accept_res = accept_task.await();
+                    compare accept_res {
+                        Success(net_res) => {
+                            compare net_res {
+                                Success(conn) => {
+                                    serve_conn(conn, &cfg, handler).await();
+                                }
+                                err => {
+                                    let _ = err;
+                                    break;
+                                }
+                            };
+                        }
+                        Cancelled() => {
+                            break;
+                        }
+                    };
+                } else {
+                    let accept_task = net.accept(&listener);
+                    let accept_res = timeout(accept_task, cfg.idle_timeout_ms);
+                    compare accept_res {
+                        Success(net_res) => {
+                            compare net_res {
+                                Success(conn) => {
+                                    serve_conn(conn, &cfg, handler).await();
+                                }
+                                err => {
+                                    let _ = err;
+                                    break;
+                                }
+                            };
+                        }
+                        Cancelled() => {
+                            break;
+                        }
+                    };
+                }
+            }
+        }
+        err => {
+            let _ = err;
+        }
+    };
+    return nothing;
 }

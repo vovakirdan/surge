@@ -66,7 +66,24 @@ func (fe *funcEmitter) emitNumericCast(srcVal, srcLLVM string, srcTypeID, dstTyp
 		}
 		return srcVal, dstLLVM, nil
 	default:
-		return "", "", fmt.Errorf("unsupported numeric cast")
+		srcKind := "unknown"
+		dstKind := "unknown"
+		if fe.emitter != nil && fe.emitter.types != nil {
+			if tt, ok := fe.emitter.types.Lookup(resolveAliasAndOwn(fe.emitter.types, srcTypeID)); ok {
+				srcKind = tt.Kind.String()
+			}
+			if tt, ok := fe.emitter.types.Lookup(resolveAliasAndOwn(fe.emitter.types, dstTypeID)); ok {
+				dstKind = tt.Kind.String()
+			}
+		}
+		fnName := ""
+		if fe != nil && fe.f != nil {
+			fnName = fe.f.Name
+		}
+		if fnName != "" {
+			return "", "", fmt.Errorf("unsupported numeric cast src=%d(%s) dst=%d(%s) in %s", srcTypeID, srcKind, dstTypeID, dstKind, fnName)
+		}
+		return "", "", fmt.Errorf("unsupported numeric cast src=%d(%s) dst=%d(%s)", srcTypeID, srcKind, dstTypeID, dstKind)
 	}
 }
 

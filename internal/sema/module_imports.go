@@ -85,7 +85,10 @@ func (tc *typeChecker) moduleFunctionResult(module *symbols.Symbol, name source.
 	}
 	candidates := make([]*symbols.Symbol, 0, len(exported))
 	for i := range exported {
-		if exported[i].Kind != symbols.SymbolFunction || exported[i].Flags&symbols.SymbolFlagPublic == 0 {
+		if exported[i].Flags&symbols.SymbolFlagPublic == 0 {
+			continue
+		}
+		if exported[i].Kind != symbols.SymbolFunction && exported[i].Kind != symbols.SymbolTag {
 			continue
 		}
 		candidates = append(candidates, tc.exportedSymbolToSymbol(&exported[i], module.ModulePath))

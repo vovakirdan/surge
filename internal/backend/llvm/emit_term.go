@@ -264,11 +264,13 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 		}
 	case mir.ConstNothing:
 		if fe.emitter.hasTagLayout(c.Type) {
-			ptr, err := fe.emitTagValue(c.Type, "nothing", symbols.NoSymbolID, nil)
-			if err != nil {
-				return "", "", err
+			if _, _, err := fe.emitter.tagCaseMeta(c.Type, "nothing", symbols.NoSymbolID); err == nil {
+				ptr, err := fe.emitTagValue(c.Type, "nothing", symbols.NoSymbolID, nil)
+				if err != nil {
+					return "", "", err
+				}
+				return ptr, "ptr", nil
 			}
-			return ptr, "ptr", nil
 		}
 		ty, err := llvmValueType(fe.emitter.types, c.Type)
 		if err != nil {

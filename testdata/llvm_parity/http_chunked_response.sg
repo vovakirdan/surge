@@ -1,5 +1,4 @@
 import stdlib/http as http;
-import stdlib/http::Stream;
 
 fn string_to_bytes(s: &string) -> byte[] {
     let view = s.bytes();
@@ -40,7 +39,7 @@ fn main() -> int {
     chunks.push(string_to_bytes(&"Wiki"));
     chunks.push(string_to_bytes(&"pedia"));
     let stream: http.ByteStream = http.bytestream(chunks);
-    let resp: http.Response = http.Response { status = 200, headers = [], body = Stream(stream) };
+    let resp: http.Response = http.Response { status = 200, headers = [], body = http.Stream(stream) };
     let out = http.write_response(resp);
     print(bytes_to_ascii(out));
     return 0;
