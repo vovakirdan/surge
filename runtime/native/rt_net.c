@@ -224,6 +224,32 @@ static int net_set_nonblocking(int fd, uint64_t* out_code) {
     return 1;
 }
 
+static NetListener* net_listener_from_ref(const void* listener) {
+    if (listener == NULL) {
+        return NULL;
+    }
+    return *(NetListener* const*)listener;
+}
+
+static NetConn* net_conn_from_ref(const void* conn) {
+    if (conn == NULL) {
+        return NULL;
+    }
+    return *(NetConn* const*)conn;
+}
+
+static void* net_wrap_handle(void* handle) {
+    if (handle == NULL) {
+        return NULL;
+    }
+    void** slot = (void**)rt_alloc((uint64_t)sizeof(void*), (uint64_t)alignof(void*));
+    if (slot == NULL) {
+        return NULL;
+    }
+    *slot = handle;
+    return (void*)slot;
+}
+
 void* rt_net_listen(void* addr, uint64_t port) {
     uint64_t err_code = 0;
     char* buf = net_copy_addr(addr, NULL, &err_code);
@@ -274,11 +300,17 @@ void* rt_net_listen(void* addr, uint64_t port) {
     }
     listener->fd = fd;
     listener->closed = false;
-    return net_make_success_ptr((void*)listener);
+    void* handle = net_wrap_handle(listener);
+    if (handle == NULL) {
+        close(fd);
+        rt_free((uint8_t*)listener, (uint64_t)sizeof(NetListener), (uint64_t)alignof(NetListener));
+        return net_make_error(NET_ERR_IO);
+    }
+    return net_make_success_ptr(handle);
 }
 
-void* rt_net_close_listener(void* listener) {
-    NetListener* l = (NetListener*)listener;
+void* rt_net_close_listener(const void* listener) {
+    NetListener* l = net_listener_from_ref(listener);
     if (l == NULL || l->closed) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
@@ -291,8 +323,8 @@ void* rt_net_close_listener(void* listener) {
     return net_make_success_nothing();
 }
 
-void* rt_net_close_conn(void* conn) {
-    NetConn* c = (NetConn*)conn;
+void* rt_net_close_conn(const void* conn) {
+    NetConn* c = net_conn_from_ref(conn);
     if (c == NULL || c->closed) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
@@ -305,8 +337,8 @@ void* rt_net_close_conn(void* conn) {
     return net_make_success_nothing();
 }
 
-void* rt_net_accept(void* listener) {
-    NetListener* l = (NetListener*)listener;
+void* rt_net_accept(const void* listener) {
+    NetListener* l = net_listener_from_ref(listener);
     if (l == NULL || l->closed) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
@@ -329,11 +361,17 @@ void* rt_net_accept(void* listener) {
     }
     conn->fd = fd;
     conn->closed = false;
-    return net_make_success_ptr((void*)conn);
+    void* handle = net_wrap_handle(conn);
+    if (handle == NULL) {
+        close(fd);
+        rt_free((uint8_t*)conn, (uint64_t)sizeof(NetConn), (uint64_t)alignof(NetConn));
+        return net_make_error(NET_ERR_IO);
+    }
+    return net_make_success_ptr(handle);
 }
 
-void* rt_net_read(void* conn, uint8_t* buf, uint64_t cap) {
-    NetConn* c = (NetConn*)conn;
+void* rt_net_read(const void* conn, uint8_t* buf, uint64_t cap) {
+    NetConn* c = net_conn_from_ref(conn);
     if (c == NULL || c->closed) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
@@ -355,8 +393,8 @@ void* rt_net_read(void* conn, uint8_t* buf, uint64_t cap) {
     return net_make_success_ptr(count);
 }
 
-void* rt_net_write(void* conn, const uint8_t* buf, uint64_t len) {
-    NetConn* c = (NetConn*)conn;
+void* rt_net_write(const void* conn, const uint8_t* buf, uint64_t len) {
+    NetConn* c = net_conn_from_ref(conn);
     if (c == NULL || c->closed) {
         return net_make_error(NET_ERR_NOT_CONNECTED);
     }
@@ -402,7 +440,7 @@ static void* net_spawn_wait_task(int fd, uint8_t kind) {
 }
 
 void* rt_net_wait_accept(const void* listener) {
-    const NetListener* l = (const NetListener*)listener;
+    const NetListener* l = net_listener_from_ref(listener);
     int fd = -1;
     if (l != NULL && !l->closed) {
         fd = l->fd;
@@ -411,7 +449,7 @@ void* rt_net_wait_accept(const void* listener) {
 }
 
 void* rt_net_wait_readable(const void* conn) {
-    const NetConn* c = (const NetConn*)conn;
+    const NetConn* c = net_conn_from_ref(conn);
     int fd = -1;
     if (c != NULL && !c->closed) {
         fd = c->fd;
@@ -420,7 +458,7 @@ void* rt_net_wait_readable(const void* conn) {
 }
 
 void* rt_net_wait_writable(const void* conn) {
-    const NetConn* c = (const NetConn*)conn;
+    const NetConn* c = net_conn_from_ref(conn);
     int fd = -1;
     if (c != NULL && !c->closed) {
         fd = c->fd;

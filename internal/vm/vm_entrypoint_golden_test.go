@@ -101,7 +101,7 @@ func runSurgeWithInput(t *testing.T, root, surgeBin, stdin string, args ...strin
 	t.Helper()
 	cmd := exec.Command(surgeBin, args...)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
+	cmd.Env = envWithStdlib(root)
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf

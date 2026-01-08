@@ -24,6 +24,21 @@ func (e *Emitter) funcByName(name string) (mir.FuncID, bool) {
 	return mir.NoFuncID, false
 }
 
+func (e *Emitter) funcByExactName(name string) (mir.FuncID, bool) {
+	if e == nil || e.mod == nil || name == "" {
+		return mir.NoFuncID, false
+	}
+	for id, f := range e.mod.Funcs {
+		if f == nil {
+			continue
+		}
+		if f.Name == name {
+			return mir.FuncID(id), true
+		}
+	}
+	return mir.NoFuncID, false
+}
+
 func (fe *funcEmitter) funcSigFromType(typeID types.TypeID) (funcSig, error) {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
 		return funcSig{}, fmt.Errorf("missing type interner for function value")

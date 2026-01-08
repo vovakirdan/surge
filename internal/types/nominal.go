@@ -44,12 +44,22 @@ func (in *Interner) RegisterStruct(name source.StringID, decl source.Span) TypeI
 
 // RegisterStructInstance allocates a nominal struct instantiation with type arguments.
 func (in *Interner) RegisterStructInstance(name source.StringID, decl source.Span, args []TypeID) TypeID {
+	if existing, ok := in.FindStructInstanceWithDecl(name, decl, args); ok {
+		return existing
+	}
 	slot := in.appendStructInfo(&StructInfo{Name: name, Decl: decl, TypeArgs: cloneTypeArgs(args)})
 	return in.internRaw(Type{Kind: KindStruct, Payload: slot})
 }
 
 // RegisterStructInstanceWithValues allocates a nominal struct instantiation with type and value arguments.
 func (in *Interner) RegisterStructInstanceWithValues(name source.StringID, decl source.Span, args []TypeID, values []uint64) TypeID {
+	if in != nil {
+		if existing, ok := in.FindStructInstanceWithDecl(name, decl, args); ok {
+			if info, okInfo := in.StructInfo(existing); okInfo && info != nil && slices.Equal(info.ValueArgs, values) {
+				return existing
+			}
+		}
+	}
 	slot := in.appendStructInfo(&StructInfo{
 		Name:      name,
 		Decl:      decl,
@@ -148,6 +158,9 @@ func (in *Interner) RegisterAlias(name source.StringID, decl source.Span) TypeID
 
 // RegisterAliasInstance allocates a nominal alias instantiation with type arguments.
 func (in *Interner) RegisterAliasInstance(name source.StringID, decl source.Span, args []TypeID) TypeID {
+	if existing, ok := in.FindAliasInstanceWithDecl(name, decl, args); ok {
+		return existing
+	}
 	slot := in.appendAliasInfo(AliasInfo{Name: name, Decl: decl, TypeArgs: cloneTypeArgs(args)})
 	return in.internRaw(Type{Kind: KindAlias, Payload: slot})
 }

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -213,7 +214,7 @@ func runNetEchoSurge(t *testing.T, root, surge, sgRel, message string) (stdout, 
 	portStr := strconv.Itoa(port)
 	cmd := exec.Command(surge, "run", "--backend=vm", sgRel, "--", portStr, message)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
+	cmd.Env = envWithStdlib(root)
 	return runNetEchoCommand(t, cmd, port, message)
 }
 
@@ -295,9 +296,9 @@ func runHTTPServerSurge(t *testing.T, root, surge, sgRel string) (stdout, stderr
 	t.Helper()
 	port := pickFreePort(t)
 	portStr := strconv.Itoa(port)
-	cmd := exec.Command(surge, "run", "--backend=vm", sgRel, "--", portStr)
+	cmd := exec.Command(surge, "run", "--backend=vm", "--real-time", sgRel, "--", portStr)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
+	cmd.Env = envWithStdlib(root)
 	return runHTTPServerCommand(t, cmd, port)
 }
 
@@ -321,9 +322,17 @@ func runHTTPServerCommand(t *testing.T, cmd *exec.Cmd, port int) (stdout, stderr
 
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 	fail := func(action string, err error) {
+		running := false
+		if cmd.Process != nil {
+			if sigErr := cmd.Process.Signal(syscall.Signal(0)); sigErr == nil {
+				running = true
+			}
+		}
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
-		t.Fatalf("%s: %v\nstderr:\n%s", action, err, errBuf.String())
+		outStr := stripTimingLines(outBuf.String())
+		errStr := errBuf.String()
+		t.Fatalf("%s: %v (running=%v)\nstdout:\n%s\nstderr:\n%s", action, err, running, outStr, errStr)
 	}
 
 	if err := runHTTPKeepaliveScenario(addr); err != nil {
@@ -368,13 +377,13 @@ func runHTTPKeepaliveScenario(addr string) error {
 		return fmt.Errorf("dial: %w", err)
 	}
 	defer conn.Close()
-	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	if err = conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return fmt.Errorf("set deadline: %w", err)
 	}
 	reader := bufio.NewReader(conn)
 
 	req1 := "GET /one HTTP/1.1\r\nHost: example\r\n\r\n"
-	if _, err := conn.Write([]byte(req1)); err != nil {
+	if _, err = conn.Write([]byte(req1)); err != nil {
 		return fmt.Errorf("write keepalive req1: %w", err)
 	}
 	status, body, err := readHTTPResponse(reader)
@@ -386,7 +395,7 @@ func runHTTPKeepaliveScenario(addr string) error {
 	}
 
 	req2 := "GET /two HTTP/1.1\r\nHost: example\r\n\r\n"
-	if _, err := conn.Write([]byte(req2)); err != nil {
+	if _, err = conn.Write([]byte(req2)); err != nil {
 		return fmt.Errorf("write keepalive req2: %w", err)
 	}
 	status, body, err = readHTTPResponse(reader)
@@ -405,7 +414,7 @@ func runHTTPPipeliningScenario(addr string) error {
 		return fmt.Errorf("dial: %w", err)
 	}
 	defer conn.Close()
-	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	if err = conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return fmt.Errorf("set deadline: %w", err)
 	}
 	reader := bufio.NewReader(conn)
@@ -414,7 +423,7 @@ func runHTTPPipeliningScenario(addr string) error {
 		"GET /slow HTTP/1.1\r\nHost: example\r\n\r\n",
 		"GET /fast HTTP/1.1\r\nHost: example\r\n\r\n",
 	}, "")
-	if _, err := conn.Write([]byte(req)); err != nil {
+	if _, err = conn.Write([]byte(req)); err != nil {
 		return fmt.Errorf("write pipeline reqs: %w", err)
 	}
 	status, body, err := readHTTPResponse(reader)
@@ -440,7 +449,7 @@ func runHTTPOverflowScenario(addr string) error {
 		return fmt.Errorf("dial: %w", err)
 	}
 	defer conn.Close()
-	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	if err = conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return fmt.Errorf("set deadline: %w", err)
 	}
 	reader := bufio.NewReader(conn)
@@ -450,7 +459,7 @@ func runHTTPOverflowScenario(addr string) error {
 		"GET /b HTTP/1.1\r\nHost: example\r\n\r\n",
 		"GET /c HTTP/1.1\r\nHost: example\r\n\r\n",
 	}, "")
-	if _, err := conn.Write([]byte(req)); err != nil {
+	if _, err = conn.Write([]byte(req)); err != nil {
 		return fmt.Errorf("write overflow reqs: %w", err)
 	}
 	status, body, err := readHTTPResponse(reader)

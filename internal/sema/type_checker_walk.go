@@ -89,11 +89,11 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			tc.attachTypeParamSymbols(symID, bounds)
 			tc.applyTypeParamBounds(symID)
 		}
-	returnType := tc.functionReturnType(fnItem, scope, allowRawPointer)
-	returnSpan := fnItem.ReturnSpan
-	if returnSpan == (source.Span{}) {
-		returnSpan = fnItem.Span
-	}
+		returnType := tc.functionReturnType(fnItem, scope, allowRawPointer)
+		returnSpan := fnItem.ReturnSpan
+		if returnSpan == (source.Span{}) {
+			returnSpan = fnItem.Span
+		}
 		tc.registerFnParamTypes(id, fnItem, allowRawPointer)
 		if len(paramSpecs) == 0 && symID.IsValid() && tc.types != nil {
 			paramIDs := tc.builder.Items.GetFnParamIDs(fnItem)

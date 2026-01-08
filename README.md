@@ -11,6 +11,100 @@ but Surge is not a clone of any of them.
 It is a language built for people who love to code,
 not for people who love to fight compilers.**
 
+
+## Quickstart
+
+If you're too lazy to read the documentation (or you've already read it), let's write the first program on Surge right away.
+
+> **Note**
+>
+> Surge is currently in the *developers-only* stage.
+> Be prepared for the fact that:
+>
+> * there is no "simple installer",
+> * `hello world` may not work on the first try,
+> * the function you need may not yet be implemented.
+>
+> This is normal for the current stage of the project.
+> The issue board is always open — thank you for your interest and support 🙌
+> Every your attempt to write a program and leave feedback is a huge contribution to the project.
+
+---
+
+### Prerequisites
+
+> If you downloaded a release from the releases page, Go is **not** required.
+
+Surge was officially tested on **only Linux x86_64**.
+There are known issues with Apple Silicon (ARM64) with ABI (layout) LLVM.
+Running on other Unix systems is possible, but not guaranteed.
+Working on Windows is not supported. But you can try WSL2 to run Surge on Windows. 
+We do it that way.
+
+Required dependencies:
+
+* `go >= 1.25.1`
+* `clang >= 18.1.3`
+* `gcc >= 13.3.0`
+* `llvm` & `lld`
+* good mood and desire to win
+
+---
+
+### Start
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/vovakirdan/surge.git
+   cd surge
+   ```
+
+2. Build Surge:
+
+   ```bash
+   make build
+   ```
+
+   *(optional)*
+   If you have Linux/MacOS, you can install Surge in the system:
+
+   ```bash
+   make install-system
+   ```
+
+   This is not required for the first run.
+   The command simply copies the binary to the system directory and sets the `SURGE_STDLIB` environment variable for access to the standard library.
+
+3. Create a file `hello.sg` and open it in any editor.
+
+4. Write the classic Hello World:
+
+   ```surge
+   @entrypoint
+   fn main() {
+       print("Hello, World!");
+   }
+   ```
+
+5. Run the program:
+
+   ```bash
+   surge run hello.sg
+   ```
+
+6. Or compile it to a binary:
+
+   ```bash
+   surge build hello.sg
+   ./target/debug/hello
+   ```
+
+7. Congratulations — you have just written your first program on Surge 🎉
+   You are great.
+
+Detailed Quickstart is available in [docs/QUICKSTART.md](docs/QUICKSTART.md).
+
 </div>
 
 ---
@@ -148,6 +242,32 @@ It keeps types clean and promotes clarity:
 Structural typing without the ceremony.
 If your type has the required fields/methods — it satisfies the contract.
 No inheritance gymnastics.
+
+```surge
+contract Pet<T> {
+    field name: string;
+    field age: int;
+    fn bark(self: T) -> nothing;
+}
+
+fn feed<T: Pet<T>>(pet: T) -> nothing {
+    pet.bark();
+}
+
+type Dog = {
+    name: string;
+    age: int;
+}
+
+extern<Dog> {
+    fn bark(self: &Dog) -> nothing {
+        print("woof");
+    }
+}
+
+let dog = Dog { name = "Rex", age = 3 };
+feed(dog); // func accepts any value that satisfies the contract
+```
 
 ---
 

@@ -72,6 +72,22 @@ pub type ServerConfig = {
     write_timeout_ms: uint
 };
 
+fn copy_server_config(cfg: &ServerConfig) -> ServerConfig {
+    return {
+        max_pipeline_depth = cfg.max_pipeline_depth,
+        max_initial_line_bytes = cfg.max_initial_line_bytes,
+        max_header_bytes = cfg.max_header_bytes,
+        max_headers_count = cfg.max_headers_count,
+        idle_timeout_ms = cfg.idle_timeout_ms,
+        read_timeout_ms = cfg.read_timeout_ms,
+        write_timeout_ms = cfg.write_timeout_ms
+    };
+}
+
+fn copy_conn(conn: &TcpConn) -> TcpConn {
+    return { __opaque = conn.__opaque };
+}
+
 type HeaderMeta = {
     content_len: uint,
     has_content_len: bool,
@@ -1181,7 +1197,7 @@ fn append_buffer(buf: &mut byte[], data: &byte[]) -> nothing {
     return nothing;
 }
 
-fn decode_read_result(res: TaskResult<NetResult<byte[]>>, buf: &mut byte[]) -> HttpResult<bool> {
+fn decode_read_result(res: TaskResult<NetResult<byte[]>>) -> HttpResult<byte[]> {
     let mut ok: bool = false;
     let mut bytes: byte[] = [];
     let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "read failed");
@@ -1211,11 +1227,7 @@ fn decode_read_result(res: TaskResult<NetResult<byte[]>>, buf: &mut byte[]) -> H
     if !ok {
         return err_out;
     }
-    if bytes.__len() == 0:uint {
-        return Success(false);
-    }
-    append_buffer(buf, &bytes);
-    return Success(true);
+    return Success(bytes);
 }
 
 fn decode_write_result(res: TaskResult<NetResult<nothing>>) -> HttpResult<nothing> {
@@ -1249,25 +1261,25 @@ fn decode_write_result(res: TaskResult<NetResult<nothing>>) -> HttpResult<nothin
     return Success(nothing);
 }
 
-async fn read_into_buffer(conn: &TcpConn, cap: uint, timeout_ms: uint, buf: &mut byte[]) -> HttpResult<bool> {
+async fn read_into_buffer(conn: TcpConn, cap: uint, timeout_ms: uint) -> HttpResult<byte[]> {
     if timeout_ms == 0:uint {
-        let read_task = net.read_some(conn, cap);
+        let read_task = net.read_some(&conn, cap);
         let read_res = read_task.await();
-        return decode_read_result(read_res, buf);
+        return decode_read_result(read_res);
     }
-    let read_task = net.read_some(conn, cap);
+    let read_task = net.read_some(&conn, cap);
     let read_res = timeout(read_task, timeout_ms);
-    return decode_read_result(read_res, buf);
+    return decode_read_result(read_res);
 }
 
-async fn write_response_conn(conn: &TcpConn, resp: Response, timeout_ms: uint) -> HttpResult<nothing> {
+async fn write_response_conn(conn: TcpConn, resp: Response, timeout_ms: uint) -> HttpResult<nothing> {
     let bytes = write_response(resp);
     if timeout_ms == 0:uint {
-        let write_task = net.write_all(conn, &bytes);
+        let write_task = net.write_all(&conn, bytes);
         let write_res = write_task.await();
         return decode_write_result(write_res);
     }
-    let write_task = net.write_all(conn, &bytes);
+    let write_task = net.write_all(&conn, bytes);
     let write_res = timeout(write_task, timeout_ms);
     return decode_write_result(write_res);
 }
@@ -1276,7 +1288,7 @@ fn call_handler(handler: fn(Request) -> Task<Response>, req: Request) -> Task<Re
     return handler(req);
 }
 
-async fn serve_conn(conn: TcpConn, cfg: &ServerConfig, handler: fn(Request) -> Task<Response>) -> nothing {
+async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: fn(Request) -> Task<Response>) -> nothing {
     let mut buffer: byte[] = [];
     let mut pending_in: QueueItem[] = [];
     let mut pending_out: QueueItem[] = [];
@@ -1287,14 +1299,14 @@ async fn serve_conn(conn: TcpConn, cfg: &ServerConfig, handler: fn(Request) -> T
     if max_depth == 0:uint {
         max_depth = 1:uint;
     }
-    let read_cap: uint = pick_read_cap(cfg);
+    let read_cap: uint = pick_read_cap(&cfg);
 
     while true {
         if !closing {
             if pending_in.__len() + pending_out.__len() < max_depth {
                 let mut need_read: bool = false;
                 while pending_in.__len() + pending_out.__len() < max_depth {
-                    let parse_res = try_parse_request(&buffer, cfg);
+                    let parse_res = try_parse_request(&buffer, &cfg);
                     compare parse_res {
                         ParseMore() => {
                             need_read = true;
@@ -1327,7 +1339,7 @@ async fn serve_conn(conn: TcpConn, cfg: &ServerConfig, handler: fn(Request) -> T
                     };
                 }
                 if !closing && pending_in.__len() + pending_out.__len() >= max_depth && buffer.__len() != 0:uint {
-                    let overflow_res = try_parse_request(&buffer, cfg);
+                    let overflow_res = try_parse_request(&buffer, &cfg);
                     compare overflow_res {
                         ParseErr(err) => {
                             let _ = err;
@@ -1369,14 +1381,16 @@ async fn serve_conn(conn: TcpConn, cfg: &ServerConfig, handler: fn(Request) -> T
                         if timeout_ms == 0:uint && buffer.__len() == 0:uint {
                             timeout_ms = cfg.idle_timeout_ms;
                         }
-                        let read_task = read_into_buffer(&conn, read_cap, timeout_ms, &mut buffer);
+                        let read_task = read_into_buffer(copy_conn(&conn), read_cap, timeout_ms);
                         let read_task_res = read_task.await();
                         compare read_task_res {
                             Success(read_res) => {
                                 compare read_res {
-                                    Success(got) => {
-                                        if !got {
+                                    Success(bytes) => {
+                                        if bytes.__len() == 0:uint {
                                             eof = true;
+                                        } else {
+                                            append_buffer(&mut buffer, &bytes);
                                         }
                                     }
                                     err => {
@@ -1405,7 +1419,7 @@ async fn serve_conn(conn: TcpConn, cfg: &ServerConfig, handler: fn(Request) -> T
                     continue;
                 }
             } else {
-                let parse_res = try_parse_request(&buffer, cfg);
+                        let parse_res = try_parse_request(&buffer, &cfg);
                 compare parse_res {
                     ParseMore() => {}
                     ParseErr(err) => {
@@ -1468,7 +1482,7 @@ async fn serve_conn(conn: TcpConn, cfg: &ServerConfig, handler: fn(Request) -> T
                             resp.headers.push(Header { key: "Connection", value: "close" });
                         }
                         if !write_failed {
-                            let write_task = write_response_conn(&conn, resp, cfg.write_timeout_ms);
+                            let write_task = write_response_conn(copy_conn(&conn), resp, cfg.write_timeout_ms);
                             let write_task_res = write_task.await();
                             compare write_task_res {
                                 Success(write_res) => {
@@ -1497,7 +1511,7 @@ async fn serve_conn(conn: TcpConn, cfg: &ServerConfig, handler: fn(Request) -> T
                             out.headers.push(Header { key: "Connection", value: "close" });
                         }
                         if !write_failed {
-                            let write_task = write_response_conn(&conn, out, cfg.write_timeout_ms);
+                            let write_task = write_response_conn(copy_conn(&conn), out, cfg.write_timeout_ms);
                             let write_task_res = write_task.await();
                             compare write_task_res {
                                 Success(write_res) => {
@@ -1550,7 +1564,8 @@ pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: fn(Requ
                         Success(net_res) => {
                             compare net_res {
                                 Success(conn) => {
-                                    serve_conn(conn, &cfg, handler).await();
+                                    let cfg_copy = copy_server_config(&cfg);
+                                    serve_conn(conn, cfg_copy, handler).await();
                                 }
                                 err => {
                                     let _ = err;
@@ -1569,7 +1584,8 @@ pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: fn(Requ
                         Success(net_res) => {
                             compare net_res {
                                 Success(conn) => {
-                                    serve_conn(conn, &cfg, handler).await();
+                                    let cfg_copy = copy_server_config(&cfg);
+                                    serve_conn(conn, cfg_copy, handler).await();
                                 }
                                 err => {
                                     let _ = err;
