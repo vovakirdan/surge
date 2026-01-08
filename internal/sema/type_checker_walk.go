@@ -89,11 +89,11 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			tc.attachTypeParamSymbols(symID, bounds)
 			tc.applyTypeParamBounds(symID)
 		}
-		returnType := tc.functionReturnType(fnItem, scope, allowRawPointer)
-		returnSpan := fnItem.ReturnSpan
-		if returnSpan == (source.Span{}) {
-			returnSpan = fnItem.Span
-		}
+	returnType := tc.functionReturnType(fnItem, scope, allowRawPointer)
+	returnSpan := fnItem.ReturnSpan
+	if returnSpan == (source.Span{}) {
+		returnSpan = fnItem.Span
+	}
 		tc.registerFnParamTypes(id, fnItem, allowRawPointer)
 		if len(paramSpecs) == 0 && symID.IsValid() && tc.types != nil {
 			paramIDs := tc.builder.Items.GetFnParamIDs(fnItem)
@@ -516,6 +516,18 @@ func (tc *typeChecker) buildExportNameIndexes() {
 }
 
 func (tc *typeChecker) lookupTypeName(typeID types.TypeID, nameID source.StringID) string {
+	if tc.types != nil {
+		if tt, ok := tc.types.Lookup(typeID); ok && tt.Kind == types.KindAlias {
+			if name := tc.lookupName(nameID); name != "" {
+				return name
+			}
+			if tc.exportNames != nil {
+				if name := tc.exportNames[nameID]; name != "" {
+					return name
+				}
+			}
+		}
+	}
 	if tc.typeNames != nil {
 		if name := tc.typeNames[tc.resolveAlias(typeID)]; name != "" {
 			return name

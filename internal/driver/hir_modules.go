@@ -266,12 +266,8 @@ func buildModuleSymbolRemap(rootSyms *symbols.Result, rec *moduleRecord) map[sym
 		if sym == nil || sym.Flags&symbols.SymbolFlagImported == 0 {
 			continue
 		}
-		if rootTable.Scopes != nil {
-			if scope := rootTable.Scopes.Get(sym.Scope); scope != nil {
-				if scope.Kind == symbols.ScopeFunction || scope.Kind == symbols.ScopeBlock {
-					continue
-				}
-			}
+		if isLocalSymbol(sym, rootTable) {
+			continue
 		}
 		modulePath := normalizeExportsKey(sym.ModulePath)
 		if modulePath == "" {
@@ -295,34 +291,47 @@ func buildModuleSymbolRemap(rootSyms *symbols.Result, rec *moduleRecord) map[sym
 		if sym == nil {
 			continue
 		}
-		if modTable.Scopes != nil {
-			if scope := modTable.Scopes.Get(sym.Scope); scope != nil {
-				if scope.Kind == symbols.ScopeFunction || scope.Kind == symbols.ScopeBlock {
-					continue
-				}
-			}
-		}
+		isLocal := isLocalSymbol(sym, modTable)
 		modulePath := normalizeExportsKey(sym.ModulePath)
 		if modulePath == "" && rec.Meta != nil {
 			modulePath = normalizeExportsKey(rec.Meta.Path)
 		}
-		key := moduleSymbolKey(modulePath, sym, modTable.Strings)
-		if key != "" {
-			if rootID, ok := rootMap[key]; ok {
-				mapping[id] = rootID
-				continue
+		key := ""
+		if !isLocal {
+			key = moduleSymbolKey(modulePath, sym, modTable.Strings)
+			if key != "" {
+				if rootID, ok := rootMap[key]; ok {
+					mapping[id] = rootID
+					continue
+				}
 			}
 		}
 		newID := synthesizeModuleSymbol(rootTable, modulePath, sym)
 		if newID.IsValid() {
 			mapping[id] = newID
-			if key != "" {
+			if key != "" && !isLocal {
 				rootMap[key] = newID
 			}
 		}
 	}
 
 	return mapping
+}
+
+func isLocalSymbol(sym *symbols.Symbol, table *symbols.Table) bool {
+	if sym == nil {
+		return false
+	}
+	if sym.Kind == symbols.SymbolParam {
+		return true
+	}
+	if table == nil || table.Scopes == nil {
+		return false
+	}
+	if scope := table.Scopes.Get(sym.Scope); scope != nil {
+		return scope.Kind == symbols.ScopeFunction || scope.Kind == symbols.ScopeBlock
+	}
+	return false
 }
 
 func moduleSymbolKey(modulePath string, sym *symbols.Symbol, strs *source.Interner) string {

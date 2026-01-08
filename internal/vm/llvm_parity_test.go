@@ -1,14 +1,17 @@
 package vm_test
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -83,6 +86,7 @@ func TestLLVMParity(t *testing.T) {
 		{name: "http_response_bytes", file: "http_response_bytes.sg"},
 		{name: "http_chunked_request", file: "http_chunked_request.sg"},
 		{name: "http_chunked_response", file: "http_chunked_response.sg"},
+		{name: "http_server", file: "http_server.sg"},
 		{
 			name: "head_tail_text",
 			file: "head_tail_text.sg",
@@ -134,6 +138,28 @@ func TestLLVMParity(t *testing.T) {
 
 				binPath := filepath.Join(root, "target", "debug", tc.name)
 				llOut, llErr, llCode := runNetEchoBinary(t, binPath, message)
+
+				if llCode != vmCode {
+					t.Fatalf("exit code mismatch: vm=%d llvm=%d", vmCode, llCode)
+				}
+				if llOut != vmOut {
+					t.Fatalf("stdout mismatch:\n--- vm ---\n%s\n--- llvm ---\n%s", vmOut, llOut)
+				}
+				if llErr != vmErr {
+					t.Fatalf("stderr mismatch:\n--- vm ---\n%s\n--- llvm ---\n%s", vmErr, llErr)
+				}
+				return
+			}
+			if tc.name == "http_server" {
+				vmOut, vmErr, vmCode := runHTTPServerSurge(t, root, surge, sgRel)
+
+				buildOut, buildErr, buildCode := runSurge(t, root, surge, "build", sgRel)
+				if buildCode != 0 {
+					t.Fatalf("build failed (code=%d)\nstdout:\n%s\nstderr:\n%s", buildCode, buildOut, buildErr)
+				}
+
+				binPath := filepath.Join(root, "target", "debug", tc.name)
+				llOut, llErr, llCode := runHTTPServerBinary(t, binPath)
 
 				if llCode != vmCode {
 					t.Fatalf("exit code mismatch: vm=%d llvm=%d", vmCode, llCode)
@@ -263,6 +289,248 @@ func runNetEchoCommand(t *testing.T, cmd *exec.Cmd, port int, message string) (s
 		t.Fatalf("net echo command timed out")
 		return "", "", 1
 	}
+}
+
+func runHTTPServerSurge(t *testing.T, root, surge, sgRel string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	port := pickFreePort(t)
+	portStr := strconv.Itoa(port)
+	cmd := exec.Command(surge, "run", "--backend=vm", sgRel, "--", portStr)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
+	return runHTTPServerCommand(t, cmd, port)
+}
+
+func runHTTPServerBinary(t *testing.T, path string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	port := pickFreePort(t)
+	portStr := strconv.Itoa(port)
+	cmd := exec.Command(path, portStr)
+	return runHTTPServerCommand(t, cmd, port)
+}
+
+func runHTTPServerCommand(t *testing.T, cmd *exec.Cmd, port int) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start http server command: %v", err)
+	}
+
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	fail := func(action string, err error) {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatalf("%s: %v\nstderr:\n%s", action, err, errBuf.String())
+	}
+
+	if err := runHTTPKeepaliveScenario(addr); err != nil {
+		fail("keepalive scenario failed", err)
+	}
+	if err := runHTTPPipeliningScenario(addr); err != nil {
+		fail("pipelining scenario failed", err)
+	}
+	if err := runHTTPOverflowScenario(addr); err != nil {
+		fail("overflow scenario failed", err)
+	}
+
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-waitCh:
+		stdout = outBuf.String()
+		stderr = errBuf.String()
+		stdout = stripTimingLines(stdout)
+		if err == nil {
+			return stdout, stderr, 0
+		}
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("run command: %v\nstderr:\n%s", err, stderr)
+		}
+		return stdout, stderr, exitErr.ExitCode()
+	case <-time.After(15 * time.Second):
+		_ = cmd.Process.Kill()
+		<-waitCh
+		t.Fatalf("http server command timed out")
+		return "", "", 1
+	}
+}
+
+func runHTTPKeepaliveScenario(addr string) error {
+	conn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
+	if err != nil {
+		return fmt.Errorf("dial: %w", err)
+	}
+	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return fmt.Errorf("set deadline: %w", err)
+	}
+	reader := bufio.NewReader(conn)
+
+	req1 := "GET /one HTTP/1.1\r\nHost: example\r\n\r\n"
+	if _, err := conn.Write([]byte(req1)); err != nil {
+		return fmt.Errorf("write keepalive req1: %w", err)
+	}
+	status, body, err := readHTTPResponse(reader)
+	if err != nil {
+		return fmt.Errorf("read keepalive resp1: %w", err)
+	}
+	if status != 200 || body != "one" {
+		return fmt.Errorf("keepalive resp1 mismatch: status=%d body=%q", status, body)
+	}
+
+	req2 := "GET /two HTTP/1.1\r\nHost: example\r\n\r\n"
+	if _, err := conn.Write([]byte(req2)); err != nil {
+		return fmt.Errorf("write keepalive req2: %w", err)
+	}
+	status, body, err = readHTTPResponse(reader)
+	if err != nil {
+		return fmt.Errorf("read keepalive resp2: %w", err)
+	}
+	if status != 200 || body != "two" {
+		return fmt.Errorf("keepalive resp2 mismatch: status=%d body=%q", status, body)
+	}
+	return nil
+}
+
+func runHTTPPipeliningScenario(addr string) error {
+	conn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
+	if err != nil {
+		return fmt.Errorf("dial: %w", err)
+	}
+	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return fmt.Errorf("set deadline: %w", err)
+	}
+	reader := bufio.NewReader(conn)
+
+	req := strings.Join([]string{
+		"GET /slow HTTP/1.1\r\nHost: example\r\n\r\n",
+		"GET /fast HTTP/1.1\r\nHost: example\r\n\r\n",
+	}, "")
+	if _, err := conn.Write([]byte(req)); err != nil {
+		return fmt.Errorf("write pipeline reqs: %w", err)
+	}
+	status, body, err := readHTTPResponse(reader)
+	if err != nil {
+		return fmt.Errorf("read pipeline resp1: %w", err)
+	}
+	if status != 200 || body != "slow" {
+		return fmt.Errorf("pipeline resp1 mismatch: status=%d body=%q", status, body)
+	}
+	status, body, err = readHTTPResponse(reader)
+	if err != nil {
+		return fmt.Errorf("read pipeline resp2: %w", err)
+	}
+	if status != 200 || body != "fast" {
+		return fmt.Errorf("pipeline resp2 mismatch: status=%d body=%q", status, body)
+	}
+	return nil
+}
+
+func runHTTPOverflowScenario(addr string) error {
+	conn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
+	if err != nil {
+		return fmt.Errorf("dial: %w", err)
+	}
+	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return fmt.Errorf("set deadline: %w", err)
+	}
+	reader := bufio.NewReader(conn)
+
+	req := strings.Join([]string{
+		"GET /a HTTP/1.1\r\nHost: example\r\n\r\n",
+		"GET /b HTTP/1.1\r\nHost: example\r\n\r\n",
+		"GET /c HTTP/1.1\r\nHost: example\r\n\r\n",
+	}, "")
+	if _, err := conn.Write([]byte(req)); err != nil {
+		return fmt.Errorf("write overflow reqs: %w", err)
+	}
+	status, body, err := readHTTPResponse(reader)
+	if err != nil {
+		return fmt.Errorf("read overflow resp1: %w", err)
+	}
+	if status != 200 || body != "ok" {
+		return fmt.Errorf("overflow resp1 mismatch: status=%d body=%q", status, body)
+	}
+	status, body, err = readHTTPResponse(reader)
+	if err != nil {
+		return fmt.Errorf("read overflow resp2: %w", err)
+	}
+	if status != 200 || body != "ok" {
+		return fmt.Errorf("overflow resp2 mismatch: status=%d body=%q", status, body)
+	}
+	status, body, err = readHTTPResponse(reader)
+	if err != nil {
+		return fmt.Errorf("read overflow resp3: %w", err)
+	}
+	if status != 503 || body != "" {
+		return fmt.Errorf("overflow resp3 mismatch: status=%d body=%q", status, body)
+	}
+	if err := conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond)); err != nil {
+		return fmt.Errorf("set overflow read deadline: %w", err)
+	}
+	if _, err := reader.ReadByte(); err == nil || !errors.Is(err, io.EOF) {
+		return errors.New("expected connection close after overflow")
+	}
+	return nil
+}
+
+func readHTTPResponse(r *bufio.Reader) (status int, body string, err error) {
+	line, err := r.ReadString('\n')
+	if err != nil {
+		return 0, "", err
+	}
+	line = strings.TrimRight(line, "\r\n")
+	parts := strings.SplitN(line, " ", 3)
+	if len(parts) < 2 {
+		return 0, "", errors.New("invalid status line")
+	}
+	status, err = strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, "", err
+	}
+
+	contentLen := 0
+	for {
+		line, err = r.ReadString('\n')
+		if err != nil {
+			return 0, "", err
+		}
+		line = strings.TrimRight(line, "\r\n")
+		if line == "" {
+			break
+		}
+		colon := strings.IndexByte(line, ':')
+		if colon < 0 {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(line[:colon]))
+		val := strings.TrimSpace(line[colon+1:])
+		if key == "content-length" {
+			n, convErr := strconv.Atoi(val)
+			if convErr != nil {
+				return 0, "", convErr
+			}
+			contentLen = n
+		}
+	}
+
+	if contentLen > 0 {
+		buf := make([]byte, contentLen)
+		if _, err := io.ReadFull(r, buf); err != nil {
+			return 0, "", err
+		}
+		body = string(buf)
+	}
+	return status, body, nil
 }
 
 func pickFreePort(t *testing.T) int {

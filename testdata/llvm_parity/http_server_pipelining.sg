@@ -1,0 +1,48 @@
+import stdlib/http as http;
+
+fn string_to_bytes(s: &string) -> byte[] {
+    let view = s.bytes();
+    let length: uint = view.__len();
+    let mut out: byte[] = [];
+    out.reserve(length);
+    let len_i: int = length to int;
+    let mut i: int = 0;
+    while i < len_i {
+        let b: byte = view[i];
+        out.push(b);
+        i = i + 1;
+    }
+    return out;
+}
+
+async fn respond_for_path(path: string) -> http.Response {
+    if path == "/slow" {
+        sleep(50:uint).await();
+    }
+    let mut body: string = "fast";
+    if path == "/slow" {
+        body = "slow";
+    }
+    let bytes = string_to_bytes(&body);
+    return { status = 200, headers = [], body = http.Bytes(bytes) };
+}
+
+fn handle(req: http.Request) -> Task<http.Response> {
+    let path: string = req.path;
+    return task respond_for_path(path);
+}
+
+@entrypoint("argv")
+fn main(port: uint) -> int {
+    let cfg: http.ServerConfig = {
+        max_pipeline_depth = 4:uint,
+        max_initial_line_bytes = 1024:uint,
+        max_header_bytes = 4096:uint,
+        max_headers_count = 32:uint,
+        idle_timeout_ms = 1000:uint,
+        read_timeout_ms = 1000:uint,
+        write_timeout_ms = 1000:uint
+    };
+    http.serve("127.0.0.1", port, cfg, handle).await();
+    return 0;
+}
