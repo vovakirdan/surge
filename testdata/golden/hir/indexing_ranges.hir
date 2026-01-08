@@ -5,7 +5,7 @@ module
 type Box <struct> (sym=1353, type=0)
 
 fn test() -> int (id=1, sym=1355) {
-  let b: type#1635 =  { value = 1 }: type#1635
+  let b: type#1324 =  { value = 1 }: type#1324
   return __index(b, rt_range_int_new(1, 2, false)): int
 }
 

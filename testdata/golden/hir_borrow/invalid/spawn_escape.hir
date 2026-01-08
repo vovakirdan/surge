@@ -17,8 +17,8 @@ move plan:
 async fn t() -> nothing (id=2, sym=1354) {
   let mut x: int [copy] = 1
   let r: &int [&] = (& x): &int
-  let t: type#1637 = task use_ref(r): type#1637: type#1637
-  await(t): type#1638
+  let t: type#542 = task use_ref(r): type#542: type#542
+  await(t): type#1326
   return
 }
 
