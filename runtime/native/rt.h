@@ -44,6 +44,7 @@ void* rt_fs_file_type(void* file);
 void* rt_fs_file_metadata(void* file);
 
 void* rt_net_listen(void* addr, uint64_t port);
+void* rt_net_connect(void* addr, uint64_t port);
 void* rt_net_close_listener(const void* listener);
 void* rt_net_close_conn(const void* conn);
 void* rt_net_accept(const void* listener);

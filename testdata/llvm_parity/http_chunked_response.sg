@@ -16,21 +16,14 @@ fn string_to_bytes(s: &string) -> byte[] {
 }
 
 fn bytes_to_ascii(bytes: byte[]) -> string {
-    let length: int = bytes.__len() to int;
-    if length == 0 {
-        return "";
-    }
-    let buf = rt_alloc(1:uint, 1:uint);
-    let mut out: string = "";
-    let mut i: int = 0;
-    while i < length {
-        *buf = clone(bytes[i]);
-        let piece = rt_string_from_bytes(buf, 1:uint);
-        out = out + piece;
-        i = i + 1;
-    }
-    rt_free(buf, 1:uint, 1:uint);
-    return out;
+    let res = string.from_bytes(&bytes);
+    return compare res {
+        Success(s) => s;
+        err => {
+            let _ = err;
+            "";
+        }
+    };
 }
 
 @entrypoint

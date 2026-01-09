@@ -88,6 +88,7 @@ func TestLLVMParity(t *testing.T) {
 		{name: "http_chunked_request", file: "http_chunked_request.sg"},
 		{name: "http_chunked_response", file: "http_chunked_response.sg"},
 		{name: "http_server", file: "http_server.sg"},
+		{name: "http_connect", file: "http_connect.sg"},
 		{
 			name: "head_tail_text",
 			file: "head_tail_text.sg",
@@ -161,6 +162,28 @@ func TestLLVMParity(t *testing.T) {
 
 				binPath := filepath.Join(root, "target", "debug", tc.name)
 				llOut, llErr, llCode := runHTTPServerBinary(t, binPath)
+
+				if llCode != vmCode {
+					t.Fatalf("exit code mismatch: vm=%d llvm=%d", vmCode, llCode)
+				}
+				if llOut != vmOut {
+					t.Fatalf("stdout mismatch:\n--- vm ---\n%s\n--- llvm ---\n%s", vmOut, llOut)
+				}
+				if llErr != vmErr {
+					t.Fatalf("stderr mismatch:\n--- vm ---\n%s\n--- llvm ---\n%s", vmErr, llErr)
+				}
+				return
+			}
+			if tc.name == "http_connect" {
+				vmOut, vmErr, vmCode := runHTTPConnectSurge(t, root, surge, sgRel)
+
+				buildOut, buildErr, buildCode := runSurge(t, root, surge, "build", sgRel)
+				if buildCode != 0 {
+					t.Fatalf("build failed (code=%d)\nstdout:\n%s\nstderr:\n%s", buildCode, buildOut, buildErr)
+				}
+
+				binPath := filepath.Join(root, "target", "debug", tc.name)
+				llOut, llErr, llCode := runHTTPConnectBinary(t, binPath)
 
 				if llCode != vmCode {
 					t.Fatalf("exit code mismatch: vm=%d llvm=%d", vmCode, llCode)
@@ -308,6 +331,20 @@ func runHTTPServerBinary(t *testing.T, path string) (stdout, stderr string, exit
 	portStr := strconv.Itoa(port)
 	cmd := exec.Command(path, portStr)
 	return runHTTPServerCommand(t, cmd, port)
+}
+
+func runHTTPConnectSurge(t *testing.T, root, surge, sgRel string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	port := pickFreePort(t)
+	portStr := strconv.Itoa(port)
+	return runSurge(t, root, surge, "run", "--backend=vm", sgRel, "--", portStr)
+}
+
+func runHTTPConnectBinary(t *testing.T, path string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	port := pickFreePort(t)
+	portStr := strconv.Itoa(port)
+	return runBinary(t, path, portStr)
 }
 
 func runHTTPServerCommand(t *testing.T, cmd *exec.Cmd, port int) (stdout, stderr string, exitCode int) {

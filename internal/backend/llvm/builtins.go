@@ -37,6 +37,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_fs_file_type", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_fs_file_metadata", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_net_listen", ret: "ptr", params: []string{"ptr", "i64"}},
+		{name: "rt_net_connect", ret: "ptr", params: []string{"ptr", "i64"}},
 		{name: "rt_net_close_listener", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_net_close_conn", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_net_accept", ret: "ptr", params: []string{"ptr"}},

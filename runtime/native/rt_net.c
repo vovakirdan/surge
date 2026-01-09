@@ -309,6 +309,64 @@ void* rt_net_listen(void* addr, uint64_t port) {
     return net_make_success_ptr(handle);
 }
 
+void* rt_net_connect(void* addr, uint64_t port) {
+    uint64_t err_code = 0;
+    char* buf = net_copy_addr(addr, NULL, &err_code);
+    if (buf == NULL) {
+        return net_make_error(err_code == 0 ? NET_ERR_INVALID_ADDR : err_code);
+    }
+    if (port > 65535) {
+        free(buf);
+        return net_make_error(NET_ERR_INVALID_ADDR);
+    }
+    struct in_addr ip;
+    int parse_ok = inet_pton(AF_INET, buf, &ip);
+    free(buf);
+    if (parse_ok != 1) {
+        return net_make_error(NET_ERR_INVALID_ADDR);
+    }
+
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
+        return net_make_error(net_error_code_from_errno(errno));
+    }
+
+    struct sockaddr_in sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sin_family = AF_INET;
+    sa.sin_port = htons((uint16_t)port);
+    sa.sin_addr = ip;
+    int res;
+    do {
+        res = connect(fd, (struct sockaddr*)&sa, sizeof(sa));
+    } while (res < 0 && errno == EINTR);
+    if (res != 0) {
+        uint64_t code = net_error_code_from_errno(errno);
+        close(fd);
+        return net_make_error(code);
+    }
+
+    if (!net_set_nonblocking(fd, &err_code)) {
+        close(fd);
+        return net_make_error(err_code == 0 ? NET_ERR_IO : err_code);
+    }
+
+    NetConn* conn = (NetConn*)rt_alloc((uint64_t)sizeof(NetConn), (uint64_t)alignof(NetConn));
+    if (conn == NULL) {
+        close(fd);
+        return net_make_error(NET_ERR_IO);
+    }
+    conn->fd = fd;
+    conn->closed = false;
+    void* handle = net_wrap_handle(conn);
+    if (handle == NULL) {
+        close(fd);
+        rt_free((uint8_t*)conn, (uint64_t)sizeof(NetConn), (uint64_t)alignof(NetConn));
+        return net_make_error(NET_ERR_IO);
+    }
+    return net_make_success_ptr(handle);
+}
+
 void* rt_net_close_listener(const void* listener) {
     NetListener* l = net_listener_from_ref(listener);
     if (l == NULL || l->closed) {
