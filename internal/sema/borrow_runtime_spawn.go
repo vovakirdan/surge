@@ -53,6 +53,9 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 			})
 			tc.reportSpawnThreadEscape(symID, node.Span, bid)
 		}
+		if tc.isTaskContainerType(tc.bindingType(symID)) {
+			tc.reportTaskContainerEscape(expr, node.Span)
+		}
 		// Check @nosend attribute
 		tc.checkSpawnSendability(symID, node.Span)
 		return

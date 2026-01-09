@@ -138,14 +138,20 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 						}
 					}
 					if !receiverIsType && tc.lookupName(member.Field) == "await" {
-						if tc.awaitDepth == 0 {
+						allowAwait := tc.awaitDepth > 0
+						if !allowAwait {
 							sym := tc.symbolFromID(tc.currentFnSym())
 							if sym == nil || sym.Flags&symbols.SymbolFlagEntrypoint == 0 {
 								tc.report(diag.SemaIntrinsicBadContext, expr.Span, "await can only be used in async context")
+							} else {
+								allowAwait = true
 							}
 						}
 						if receiverType != types.NoTypeID && !tc.isTaskType(receiverType) {
 							tc.report(diag.SemaTypeMismatch, expr.Span, "await expects Task<T>, got %s", tc.typeLabel(receiverType))
+						}
+						if allowAwait {
+							tc.checkTaskContainersLiveAcrossAwait(expr.Span)
 						}
 						// Track await for structured concurrency
 						if tc.taskTracker != nil {
@@ -396,6 +402,16 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				ty = tc.taskResultType(payload, expr.Span)
 			} else {
 				ty = taskType
+			}
+			allowAwait := tc.awaitDepth > 0
+			if !allowAwait {
+				sym := tc.symbolFromID(tc.currentFnSym())
+				if sym != nil && sym.Flags&symbols.SymbolFlagEntrypoint != 0 {
+					allowAwait = true
+				}
+			}
+			if allowAwait {
+				tc.checkTaskContainersLiveAcrossAwait(expr.Span)
 			}
 		}
 	case ast.ExprCast:

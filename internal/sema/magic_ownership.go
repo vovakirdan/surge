@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"surge/internal/ast"
-	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -16,7 +15,7 @@ func (tc *typeChecker) applyParamOwnership(param symbols.TypeKey, expr ast.ExprI
 	}
 	paramStr := strings.TrimSpace(string(param))
 	if tc.isTaskContainerType(exprType) && !strings.HasPrefix(paramStr, "&") {
-		tc.report(diag.SemaTaskLifetimeError, span, "task container cannot escape its scope")
+		tc.reportTaskContainerEscape(expr, span)
 		return
 	}
 	switch {
