@@ -17,7 +17,7 @@ fn string_to_bytes(s: &string) -> byte[] {
 
 async fn respond_for_path(path: string) -> http.Response {
     if path == "/slow" {
-        sleep(50:uint).await();
+        sleep(300:uint).await();
     }
     let mut body: string = "fast";
     if path == "/slow" {
@@ -29,7 +29,7 @@ async fn respond_for_path(path: string) -> http.Response {
 
 fn handle(req: http.Request) -> Task<http.Response> {
     let path: string = req.path;
-    return spawn respond_for_path(path);
+    return respond_for_path(path);
 }
 
 @entrypoint("argv")

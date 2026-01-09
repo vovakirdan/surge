@@ -341,6 +341,9 @@ func runHTTPServerCommand(t *testing.T, cmd *exec.Cmd, port int) (stdout, stderr
 	if err := runHTTPPipeliningScenario(addr); err != nil {
 		fail("pipelining scenario failed", err)
 	}
+	if err := runHTTPConcurrentScenario(addr); err != nil {
+		fail("concurrent scenario failed", err)
+	}
 	if err := runHTTPOverflowScenario(addr); err != nil {
 		fail("overflow scenario failed", err)
 	}
@@ -439,6 +442,57 @@ func runHTTPPipeliningScenario(addr string) error {
 	}
 	if status != 200 || body != "fast" {
 		return fmt.Errorf("pipeline resp2 mismatch: status=%d body=%q", status, body)
+	}
+	return nil
+}
+
+func runHTTPConcurrentScenario(addr string) error {
+	slowConn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
+	if err != nil {
+		return fmt.Errorf("dial slow: %w", err)
+	}
+	defer slowConn.Close()
+	if err = slowConn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return fmt.Errorf("set slow deadline: %w", err)
+	}
+	slowReader := bufio.NewReader(slowConn)
+
+	slowReq := "GET /slow HTTP/1.1\r\nHost: example\r\n\r\n"
+	if _, err = slowConn.Write([]byte(slowReq)); err != nil {
+		return fmt.Errorf("write slow req: %w", err)
+	}
+
+	fastConn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
+	if err != nil {
+		return fmt.Errorf("dial fast: %w", err)
+	}
+	defer fastConn.Close()
+	fastReader := bufio.NewReader(fastConn)
+
+	fastReq := "GET /fast HTTP/1.1\r\nHost: example\r\n\r\n"
+	if _, err = fastConn.Write([]byte(fastReq)); err != nil {
+		return fmt.Errorf("write fast req: %w", err)
+	}
+	if err = fastConn.SetReadDeadline(time.Now().Add(200 * time.Millisecond)); err != nil {
+		return fmt.Errorf("set fast deadline: %w", err)
+	}
+	status, body, err := readHTTPResponse(fastReader)
+	if err != nil {
+		return fmt.Errorf("read fast resp: %w", err)
+	}
+	if status != 200 || body != "fast" {
+		return fmt.Errorf("fast resp mismatch: status=%d body=%q", status, body)
+	}
+
+	if err = slowConn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		return fmt.Errorf("set slow read deadline: %w", err)
+	}
+	status, body, err = readHTTPResponse(slowReader)
+	if err != nil {
+		return fmt.Errorf("read slow resp: %w", err)
+	}
+	if status != 200 || body != "slow" {
+		return fmt.Errorf("slow resp mismatch: status=%d body=%q", status, body)
 	}
 	return nil
 }

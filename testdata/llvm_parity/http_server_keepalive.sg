@@ -29,7 +29,7 @@ async fn respond_for_path(path: string) -> http.Response {
 
 fn handle(req: http.Request) -> Task<http.Response> {
     let path: string = req.path;
-    return spawn respond_for_path(path);
+    return respond_for_path(path);
 }
 
 @entrypoint("argv")

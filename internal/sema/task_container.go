@@ -16,11 +16,11 @@ type taskContainerInfo struct {
 }
 
 type taskContainerLoop struct {
-	place        Place
-	popCount     int
-	popConsumed  int
-	earlyExit    bool
-	popBindings  []taskContainerPopBinding
+	place       Place
+	popCount    int
+	popConsumed int
+	earlyExit   bool
+	popBindings []taskContainerPopBinding
 }
 
 type taskContainerPopBinding struct {
