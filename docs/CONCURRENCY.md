@@ -129,6 +129,13 @@ compare t2.await() {
 }
 ```
 
+MT-ready invariants:
+
+- `spawn` captures must be Sendable; `@local spawn` allows `@nosend`.
+- Local task handles cannot cross sendable boundaries (capture in `spawn`, return, channel send).
+- `Task<T>` is SuspendSafe across `await` (containers are SuspendSafe if their elements are).
+- Task containers must be drained (`pop` + `await`) before scope exit.
+
 ---
 
 ## 5. await

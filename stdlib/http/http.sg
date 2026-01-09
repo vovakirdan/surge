@@ -1197,11 +1197,47 @@ fn append_buffer(buf: &mut byte[], data: &byte[]) -> nothing {
     return nothing;
 }
 
-fn decode_read_result(res: TaskResult<NetResult<byte[]>>) -> HttpResult<byte[]> {
+async fn read_into_buffer(conn: TcpConn, cap: uint, timeout_ms: uint) -> HttpResult<byte[]> {
+    if timeout_ms == 0:uint {
+        let read_task = net.read_some(&conn, cap);
+        let read_res = read_task.await();
+        let mut ok: bool = false;
+        let mut bytes: byte[] = [];
+        let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "read failed");
+        compare read_res {
+            Success(net_res) => {
+                compare net_res {
+                    Success(data) => {
+                        bytes = data;
+                        ok = true;
+                        0:int;
+                    }
+                    err => {
+                        let _ = err;
+                        err_out = http_error(HTTP_ERR_BODY, "read failed");
+                        ok = false;
+                        0:int;
+                    }
+                };
+                0:int;
+            }
+            Cancelled() => {
+                err_out = http_error(HTTP_ERR_BODY, "read timeout");
+                ok = false;
+                0:int;
+            }
+        };
+        if !ok {
+            return err_out;
+        }
+        return Success(bytes);
+    }
+    let read_task = net.read_some(&conn, cap);
+    let read_res = timeout(read_task, timeout_ms);
     let mut ok: bool = false;
     let mut bytes: byte[] = [];
     let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "read failed");
-    compare res {
+    compare read_res {
         Success(net_res) => {
             compare net_res {
                 Success(data) => {
@@ -1230,10 +1266,45 @@ fn decode_read_result(res: TaskResult<NetResult<byte[]>>) -> HttpResult<byte[]> 
     return Success(bytes);
 }
 
-fn decode_write_result(res: TaskResult<NetResult<nothing>>) -> HttpResult<nothing> {
+async fn write_response_conn(conn: TcpConn, resp: Response, timeout_ms: uint) -> HttpResult<nothing> {
+    let bytes = write_response(resp);
+    if timeout_ms == 0:uint {
+        let write_task = net.write_all(&conn, bytes);
+        let write_res = write_task.await();
+        let mut ok: bool = false;
+        let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "write failed");
+        compare write_res {
+            Success(net_res) => {
+                compare net_res {
+                    Success(_) => {
+                        ok = true;
+                        0:int;
+                    }
+                    err => {
+                        let _ = err;
+                        err_out = http_error(HTTP_ERR_BODY, "write failed");
+                        ok = false;
+                        0:int;
+                    }
+                };
+                0:int;
+            }
+            Cancelled() => {
+                err_out = http_error(HTTP_ERR_BODY, "write timeout");
+                ok = false;
+                0:int;
+            }
+        };
+        if !ok {
+            return err_out;
+        }
+        return Success(nothing);
+    }
+    let write_task = net.write_all(&conn, bytes);
+    let write_res = timeout(write_task, timeout_ms);
     let mut ok: bool = false;
     let mut err_out: HttpError = http_error(HTTP_ERR_BODY, "write failed");
-    compare res {
+    compare write_res {
         Success(net_res) => {
             compare net_res {
                 Success(_) => {
@@ -1261,37 +1332,36 @@ fn decode_write_result(res: TaskResult<NetResult<nothing>>) -> HttpResult<nothin
     return Success(nothing);
 }
 
-async fn read_into_buffer(conn: TcpConn, cap: uint, timeout_ms: uint) -> HttpResult<byte[]> {
-    if timeout_ms == 0:uint {
-        let read_task = net.read_some(&conn, cap);
-        let read_res = read_task.await();
-        return decode_read_result(read_res);
+fn response_with_close(resp: Response, close: bool) -> Response {
+    let mut out: Response = resp;
+    if close && !headers_has_connection_close(&out.headers) {
+        out.headers.push(Header { key: "Connection", value: "close" });
     }
-    let read_task = net.read_some(&conn, cap);
-    let read_res = timeout(read_task, timeout_ms);
-    return decode_read_result(read_res);
+    return out;
 }
 
-async fn write_response_conn(conn: TcpConn, resp: Response, timeout_ms: uint) -> HttpResult<nothing> {
-    let bytes = write_response(resp);
-    if timeout_ms == 0:uint {
-        let write_task = net.write_all(&conn, bytes);
-        let write_res = write_task.await();
-        return decode_write_result(write_res);
-    }
-    let write_task = net.write_all(&conn, bytes);
-    let write_res = timeout(write_task, timeout_ms);
-    return decode_write_result(write_res);
+async fn handler_response(handler: fn(Request) -> Task<Response>, req: Request, close: bool) -> Response {
+    let task_res = handler(req).await();
+    let resp: Response = task_result_to_response(task_res);
+    return response_with_close(resp, close);
 }
 
-fn call_handler(handler: fn(Request) -> Task<Response>, req: Request) -> Task<Response> {
-    return handler(req);
+async fn response_task(resp: Response, close: bool) -> Response {
+    return response_with_close(resp, close);
+}
+
+fn spawn_handler_task(handler: fn(Request) -> Task<Response>, req: Request, close: bool) -> Task<Response> {
+    return spawn handler_response(handler, req, close);
+}
+
+fn spawn_response_task(resp: Response, close: bool) -> Task<Response> {
+    return spawn response_task(resp, close);
 }
 
 async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: fn(Request) -> Task<Response>) -> nothing {
     let mut buffer: byte[] = [];
     let mut pending_in: QueueItem[] = [];
-    let mut pending_out: QueueItem[] = [];
+    let mut pending_out: Task<Response>[] = [];
     let mut closing: bool = false;
     let mut eof: bool = false;
     let mut write_failed: bool = false;
@@ -1419,7 +1489,7 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: fn(Request) -> Ta
                     continue;
                 }
             } else {
-                        let parse_res = try_parse_request(&buffer, &cfg);
+                let parse_res = try_parse_request(&buffer, &cfg);
                 compare parse_res {
                     ParseMore() => {}
                     ParseErr(err) => {
@@ -1458,7 +1528,13 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: fn(Request) -> Ta
                 let item_opt = pending_in.pop();
                 compare item_opt {
                     Some(item) => {
-                        pending_out.push(item);
+                        if item.kind == QUEUE_KIND_REQ {
+                            let task = spawn_handler_task(handler, item.req, item.close);
+                            pending_out.push(task);
+                        } else {
+                            let task = spawn_response_task(item.resp, item.close);
+                            pending_out.push(task);
+                        }
                     }
                     nothing => {
                         break;
@@ -1467,78 +1543,33 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: fn(Request) -> Ta
             }
         }
 
-        while true {
-            let item_opt = pending_out.pop();
-            compare item_opt {
-                Some(item) => {
-                    let kind: uint = item.kind;
-                    let close_flag: bool = item.close;
-                    if kind == QUEUE_KIND_REQ {
-                        let req: Request = item.req;
-                        let handler_task = call_handler(handler, req);
-                        let task_res = handler_task.await();
-                        let mut resp: Response = task_result_to_response(task_res);
-                        if close_flag && !headers_has_connection_close(&resp.headers) {
-                            resp.headers.push(Header { key: "Connection", value: "close" });
-                        }
-                        if !write_failed {
-                            let write_task = write_response_conn(copy_conn(&conn), resp, cfg.write_timeout_ms);
-                            let write_task_res = write_task.await();
-                            compare write_task_res {
-                                Success(write_res) => {
-                                    compare write_res {
-                                        Success(_) => {}
-                                        err => {
-                                            let _ = err;
-                                            write_failed = true;
-                                            closing = true;
-                                        }
-                                    };
-                                }
-                                Cancelled() => {
-                                    write_failed = true;
-                                    closing = true;
-                                }
-                            };
-                        }
-                        if close_flag {
-                            closing = true;
-                        }
-                    } else {
-                        let resp: Response = item.resp;
-                        let mut out: Response = resp;
-                        if close_flag && !headers_has_connection_close(&out.headers) {
-                            out.headers.push(Header { key: "Connection", value: "close" });
-                        }
-                        if !write_failed {
-                            let write_task = write_response_conn(copy_conn(&conn), out, cfg.write_timeout_ms);
-                            let write_task_res = write_task.await();
-                            compare write_task_res {
-                                Success(write_res) => {
-                                    compare write_res {
-                                        Success(_) => {}
-                                        err => {
-                                            let _ = err;
-                                            write_failed = true;
-                                            closing = true;
-                                        }
-                                    };
-                                }
-                                Cancelled() => {
-                                    write_failed = true;
-                                    closing = true;
-                                }
-                            };
-                        }
-                        if close_flag {
-                            closing = true;
-                        }
+        while pending_out.__len() != 0:uint {
+            let task_res = pending_out.pop().safe().await();
+            let resp: Response = task_result_to_response(task_res);
+            let should_close: bool = headers_has_connection_close(&resp.headers);
+            if !write_failed {
+                let write_task = write_response_conn(copy_conn(&conn), resp, cfg.write_timeout_ms);
+                let write_task_res = write_task.await();
+                compare write_task_res {
+                    Success(write_res) => {
+                        compare write_res {
+                            Success(_) => {}
+                            err => {
+                                let _ = err;
+                                write_failed = true;
+                                closing = true;
+                            }
+                        };
                     }
-                }
-                nothing => {
-                    break;
-                }
-            };
+                    Cancelled() => {
+                        write_failed = true;
+                        closing = true;
+                    }
+                };
+            }
+            if should_close {
+                closing = true;
+            }
         }
 
         if closing || eof {
@@ -1546,6 +1577,10 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: fn(Request) -> Ta
                 break;
             }
         }
+    }
+
+    while pending_out.__len() != 0:uint {
+        let _ = pending_out.pop().safe().await();
     }
 
     let _ = net.close_conn(own conn);
@@ -1556,6 +1591,7 @@ pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: fn(Requ
     let listen_res = net.listen(addr, port);
     compare listen_res {
         Success(listener) => {
+            let mut conn_tasks: Task<nothing>[] = [];
             while true {
                 if cfg.idle_timeout_ms == 0:uint {
                     let accept_task = net.accept(&listener);
@@ -1565,7 +1601,8 @@ pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: fn(Requ
                             compare net_res {
                                 Success(conn) => {
                                     let cfg_copy = copy_server_config(&cfg);
-                                    serve_conn(conn, cfg_copy, handler).await();
+                                    let task = @local spawn serve_conn(conn, cfg_copy, handler);
+                                    conn_tasks.push(task);
                                 }
                                 err => {
                                     let _ = err;
@@ -1585,7 +1622,8 @@ pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: fn(Requ
                             compare net_res {
                                 Success(conn) => {
                                     let cfg_copy = copy_server_config(&cfg);
-                                    serve_conn(conn, cfg_copy, handler).await();
+                                    let task = @local spawn serve_conn(conn, cfg_copy, handler);
+                                    conn_tasks.push(task);
                                 }
                                 err => {
                                     let _ = err;
@@ -1598,6 +1636,10 @@ pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: fn(Requ
                         }
                     };
                 }
+            }
+            while conn_tasks.__len() != 0:uint {
+                let task = conn_tasks.pop().safe();
+                let _ = task.await();
             }
         }
         err => {

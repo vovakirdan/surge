@@ -129,6 +129,13 @@ compare t2.await() {
 }
 ```
 
+Инварианты MT-ready модели:
+
+- `spawn` требует Sendable захваты; `@local spawn` разрешает `@nosend`.
+- Local task handle нельзя переносить в sendable-контекст (capture в `spawn`, return, send по каналу).
+- `Task<T>` — SuspendSafe через `await` (контейнеры SuspendSafe, если элементы SuspendSafe).
+- Контейнеры задач нужно дренировать (`pop` + `await`) до выхода из scope.
+
 ---
 
 ## 5. await
