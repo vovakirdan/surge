@@ -227,6 +227,8 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 	case "from_str":
 		return vm.handleFromStr(frame, call, writes)
+	case "from_bytes":
+		return vm.handleFromBytes(frame, call, writes)
 
 	case "__len":
 		return vm.handleLen(frame, call, writes)

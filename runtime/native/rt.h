@@ -63,6 +63,7 @@ typedef struct SurgeRange {
 } SurgeRange;
 
 void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len);
+bool rt_utf8_valid(const uint8_t* ptr, uint64_t len);
 const uint8_t* rt_string_ptr(void* s);
 uint64_t rt_string_len(void* s);
 uint64_t rt_string_len_bytes(void* s);
