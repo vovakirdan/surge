@@ -98,7 +98,12 @@ bool rt_scope_join_all(void* scope_handle, uint64_t* pending, bool* failfast) {
         if (pending != NULL) {
             *pending = child_id;
         }
-        pending_key = join_key(child_id);
+        waker_key key = join_key(child_id);
+        rt_task* current = rt_current_task();
+        if (current != NULL) {
+            prepare_park(ex, current, key, 0);
+        }
+        pending_key = key;
         rt_unlock(ex);
         return false;
     }

@@ -87,6 +87,12 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
         panic_msg("task cannot await itself");
         return 2;
     }
+    rt_task* current = rt_current_task();
+    if (current == NULL) {
+        rt_unlock(ex);
+        panic_msg("async: missing current task");
+        return 2;
+    }
     if (current_task_cancelled(ex)) {
         rt_unlock(ex);
         return 0;
@@ -104,7 +110,9 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
         return kind;
     }
     if (target->kind != TASK_KIND_CHECKPOINT) {
-        pending_key = join_key(target->id);
+        waker_key key = join_key(target->id);
+        prepare_park(ex, current, key, 0);
+        pending_key = key;
     }
     rt_unlock(ex);
     return 0;
@@ -256,10 +264,13 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
     }
 
     waker_key first_key = join_key(target->id);
+    size_t prev_len = current->wait_keys_len;
     add_wait_key(ex, current, first_key);
+    int first_added = current->wait_keys_len > prev_len;
     if (timeout_task != NULL) {
         add_wait_key(ex, current, join_key(timeout_task->id));
     }
+    prepare_park(ex, current, first_key, first_added);
     pending_key = first_key;
     rt_unlock(ex);
     return 0;
@@ -318,6 +329,7 @@ int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index
     }
 
     waker_key first_key = waker_none();
+    int first_added = 0;
     for (uint64_t i = 0; i < count; i++) {
         if (tasks == NULL) {
             break;
@@ -331,12 +343,17 @@ int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index
             continue;
         }
         waker_key key = join_key(target->id);
+        size_t prev_len = current->wait_keys_len;
         add_wait_key(ex, current, key);
         if (!waker_valid(first_key)) {
             first_key = key;
+            first_added = current->wait_keys_len > prev_len;
         }
     }
 
+    if (waker_valid(first_key)) {
+        prepare_park(ex, current, first_key, first_added);
+    }
     pending_key = first_key;
     rt_unlock(ex);
     return -1;

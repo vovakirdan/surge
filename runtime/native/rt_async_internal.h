@@ -88,6 +88,7 @@ typedef struct rt_task {
     atomic_u8 wake_token;
     uint8_t checkpoint_polled;
     uint8_t sleep_armed;
+    uint8_t park_prepared;
     atomic_u32 handle_refs;
     uint64_t resume_bits;
     uint64_t sleep_delay;
@@ -233,6 +234,8 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
 void clear_wait_keys(rt_executor* ex, rt_task* task);
 void add_wait_key(rt_executor* ex, rt_task* task, waker_key key);
+void prepare_park(rt_executor* ex, rt_task* task, waker_key key, int already_added);
+int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id);
 void ready_push(rt_executor* ex, uint64_t id);
 int ready_pop(rt_executor* ex, uint64_t* out_id);
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);

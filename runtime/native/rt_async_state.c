@@ -84,33 +84,47 @@ static void trace_exec_dump(const char* reason) {
         pos = trace_exec_append_literal(buf, pos, sizeof(buf), " ");
     }
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), "wake_called=");
-    pos = trace_exec_append_u64(
-        buf, pos, sizeof(buf),
-        atomic_load_explicit(&trace_wake_called_total, memory_order_relaxed));
+    pos =
+        trace_exec_append_u64(buf,
+                              pos,
+                              sizeof(buf),
+                              atomic_load_explicit(&trace_wake_called_total, memory_order_relaxed));
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), " wake_enqueued=");
     pos = trace_exec_append_u64(
-        buf, pos, sizeof(buf),
+        buf,
+        pos,
+        sizeof(buf),
         atomic_load_explicit(&trace_wake_enqueued_total, memory_order_relaxed));
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), " wake_ignored_completed=");
     pos = trace_exec_append_u64(
-        buf, pos, sizeof(buf),
+        buf,
+        pos,
+        sizeof(buf),
         atomic_load_explicit(&trace_wake_ignored_completed_total, memory_order_relaxed));
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), " park_attempt=");
     pos = trace_exec_append_u64(
-        buf, pos, sizeof(buf),
+        buf,
+        pos,
+        sizeof(buf),
         atomic_load_explicit(&trace_park_attempt_total, memory_order_relaxed));
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), " park_committed=");
     pos = trace_exec_append_u64(
-        buf, pos, sizeof(buf),
+        buf,
+        pos,
+        sizeof(buf),
         atomic_load_explicit(&trace_park_committed_total, memory_order_relaxed));
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), " worker_sleep=");
     pos = trace_exec_append_u64(
-        buf, pos, sizeof(buf),
+        buf,
+        pos,
+        sizeof(buf),
         atomic_load_explicit(&trace_worker_sleep_total, memory_order_relaxed));
     pos = trace_exec_append_literal(buf, pos, sizeof(buf), " worker_wake=");
-    pos = trace_exec_append_u64(
-        buf, pos, sizeof(buf),
-        atomic_load_explicit(&trace_worker_wake_total, memory_order_relaxed));
+    pos =
+        trace_exec_append_u64(buf,
+                              pos,
+                              sizeof(buf),
+                              atomic_load_explicit(&trace_worker_wake_total, memory_order_relaxed));
     if (pos + 1 < sizeof(buf)) {
         buf[pos++] = '\n';
     }
@@ -294,8 +308,8 @@ static void rt_start_workers(rt_executor* ex) {
     }
     uint32_t count = ex->worker_count;
     size_t total = (size_t)count + 1;
-    pthread_t* threads = (pthread_t*)rt_alloc((uint64_t)(total * sizeof(pthread_t)),
-                                              _Alignof(pthread_t));
+    pthread_t* threads =
+        (pthread_t*)rt_alloc((uint64_t)(total * sizeof(pthread_t)), _Alignof(pthread_t));
     if (threads == NULL) {
         panic_msg("async: worker allocation failed");
         return;
@@ -580,6 +594,56 @@ void add_wait_key(rt_executor* ex, rt_task* task, waker_key key) {
     add_waiter(ex, key, task->id);
 }
 
+// NOTES (MT iteration 2):
+// - prepare_park pre-registers waiters under ex->lock to avoid wake-before-park races for user
+// tasks.
+// - Channel waiters now share the executor waiters list (FIFO per key via pop_waiter), so wake is
+// O(n).
+// - Documented primitives like Semaphore/Condition/Mutex/RwLock have no native runtime impl yet.
+void prepare_park(rt_executor* ex, rt_task* task, waker_key key, int already_added) {
+    if (ex == NULL || task == NULL || !waker_valid(key)) {
+        return;
+    }
+    if (!already_added) {
+        if (!(task->park_prepared && task->park_key.kind == key.kind &&
+              task->park_key.id == key.id)) {
+            add_waiter(ex, key, task->id);
+        }
+    }
+    task->park_key = key;
+    task->park_prepared = 1;
+}
+
+int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
+    if (ex == NULL || !waker_valid(key) || ex->waiters_len == 0) {
+        return 0;
+    }
+    size_t out = 0;
+    int found = 0;
+    uint64_t found_id = 0;
+    for (size_t i = 0; i < ex->waiters_len; i++) {
+        waiter w = ex->waiters[i];
+        if (w.key.kind == key.kind && w.key.id == key.id) {
+            const rt_task* task = get_task(ex, w.task_id);
+            if (task == NULL || task_status_load(task) == TASK_DONE ||
+                task_cancelled_load(task) != 0) {
+                continue;
+            }
+            if (!found) {
+                found = 1;
+                found_id = w.task_id;
+                continue;
+            }
+        }
+        ex->waiters[out++] = w;
+    }
+    ex->waiters_len = out;
+    if (found && out_id != NULL) {
+        *out_id = found_id;
+    }
+    return found;
+}
+
 static int ready_push_inner(rt_executor* ex, uint64_t id) {
     if (ex == NULL) {
         return 0;
@@ -645,6 +709,7 @@ void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
         remove_waiter(ex, task->park_key, id);
     }
     task->park_key = waker_none();
+    task->park_prepared = 0;
     (void)task_wake_token_exchange(task, 1);
     if (ready_push_inner(ex, id)) {
         trace_exec_inc(&trace_wake_enqueued_total);
@@ -677,13 +742,18 @@ void park_current(rt_executor* ex, waker_key key) {
     }
     trace_exec_inc(&trace_park_attempt_total);
     if (task_wake_token_exchange(task, 0) != 0) {
+        task->park_prepared = 0;
+        task->park_key = waker_none();
         task_status_store(task, TASK_READY);
         ready_push(ex, task->id);
         return;
     }
     task_status_store(task, TASK_WAITING);
-    task->park_key = key;
-    add_waiter(ex, key, task->id);
+    if (!(task->park_prepared && task->park_key.kind == key.kind && task->park_key.id == key.id)) {
+        task->park_key = key;
+        add_waiter(ex, key, task->id);
+    }
+    task->park_prepared = 0;
     if (task_wake_token_exchange(task, 0) != 0) {
         remove_waiter(ex, key, task->id);
         task->park_key = waker_none();
@@ -706,8 +776,7 @@ void tick_virtual(rt_executor* ex) {
     for (size_t i = 1; i < ex->tasks_cap; i++) {
         const rt_task* task = ex->tasks[i];
         if (task == NULL || task->kind != TASK_KIND_SLEEP ||
-            task_status_load(task) != TASK_WAITING ||
-            !task->sleep_armed) {
+            task_status_load(task) != TASK_WAITING || !task->sleep_armed) {
             continue;
         }
         if (task->sleep_deadline <= ex->now_ms) {
@@ -737,8 +806,7 @@ static int next_sleep_deadline(const rt_executor* ex, uint64_t* out_deadline) {
     for (size_t i = 1; i < ex->tasks_cap; i++) {
         const rt_task* task = ex->tasks[i];
         if (task == NULL || task->kind != TASK_KIND_SLEEP ||
-            task_status_load(task) != TASK_WAITING ||
-            !task->sleep_armed) {
+            task_status_load(task) != TASK_WAITING || !task->sleep_armed) {
             continue;
         }
         if (task->sleep_deadline < next_deadline) {
@@ -766,8 +834,7 @@ int advance_time_to_next_timer(rt_executor* ex) {
     for (size_t i = 1; i < ex->tasks_cap; i++) {
         const rt_task* task = ex->tasks[i];
         if (task == NULL || task->kind != TASK_KIND_SLEEP ||
-            task_status_load(task) != TASK_WAITING ||
-            !task->sleep_armed) {
+            task_status_load(task) != TASK_WAITING || !task->sleep_armed) {
             continue;
         }
         if (task->sleep_deadline <= ex->now_ms) {
@@ -920,6 +987,14 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     if (ex == NULL || task == NULL) {
         return;
     }
+    if (task->wait_keys_len > 0) {
+        clear_wait_keys(ex, task);
+    }
+    if (waker_valid(task->park_key)) {
+        remove_waiter(ex, task->park_key, task->id);
+    }
+    task->park_key = waker_none();
+    task->park_prepared = 0;
     task_status_store(task, TASK_DONE);
     task_enqueued_store(task, 0);
     task->result_kind = result_kind;
