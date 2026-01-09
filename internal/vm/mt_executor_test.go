@@ -3,6 +3,7 @@ package vm_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,7 +15,7 @@ import (
 	"time"
 )
 
-func buildLLVMProgramFromSource(t *testing.T, source string) (string, *testArtifacts) {
+func buildLLVMProgramFromSource(t *testing.T, source string) string {
 	t.Helper()
 	ensureLLVMToolchain(t)
 	root := repoRoot(t)
@@ -35,7 +36,7 @@ func buildLLVMProgramFromSource(t *testing.T, source string) (string, *testArtif
 	if buildCode != 0 {
 		t.Fatalf("LLVM build failed (exit=%d). See %s", buildCode, artifacts.Dir)
 	}
-	return outputPath, artifacts
+	return outputPath
 }
 
 func overrideEnv(base []string, key, value string) []string {
@@ -72,7 +73,8 @@ func runBinaryWithTimeout(t *testing.T, outputPath string, env []string, args []
 	}
 	exitCode := 0
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			exitCode = exitErr.ExitCode()
 		} else {
 			t.Fatalf("run %s: %v\nstderr:\n%s", outputPath, err, stderr)
@@ -126,7 +128,7 @@ fn main(iters: int) -> int {
 }
 `
 
-	outputPath, _ := buildLLVMProgramFromSource(t, source)
+	outputPath := buildLLVMProgramFromSource(t, source)
 	baseEnv := envWithStdlib(repoRoot(t))
 
 	run := func(iters int, threads int) time.Duration {
@@ -223,10 +225,236 @@ fn main() -> int {
 }
 `
 
-	outputPath, _ := buildLLVMProgramFromSource(t, source)
+	outputPath := buildLLVMProgramFromSource(t, source)
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnv(baseEnv, "SURGE_THREADS", "2")
 	dur, res := runBinaryWithTimeout(t, outputPath, env, nil, 10*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+}
+
+func TestMTChannelParkUnpark(t *testing.T) {
+	ensureLLVMToolchain(t)
+
+	source := `async fn producer(ch: own Channel<int>, count: int, base: int) -> int {
+    let mut i = 0;
+    while i < count {
+        ch.send(base + i);
+        i = i + 1;
+    }
+    return count;
+}
+
+async fn consumer(ch: own Channel<int>) -> int {
+    let mut received = 0;
+    let mut done = false;
+    while !done {
+        let v = ch.recv();
+        let got = compare v {
+            Some(_) => 1;
+            nothing => 0;
+        };
+        if got == 1 {
+            received = received + 1;
+        } else {
+            done = true;
+        }
+    }
+    return received;
+}
+
+async fn wait_recv(ch: own Channel<int>) -> int {
+    let v = ch.recv();
+    let ok = compare v {
+        Some(_) => true;
+        nothing => false;
+    };
+    if ok {
+        return 1;
+    }
+    return 0;
+}
+
+async fn wait_send(ch: own Channel<int>) -> int {
+    ch.send(1);
+    return 0;
+}
+
+async fn ping(out: own Channel<int>, inp: own Channel<int>, count: int) -> int {
+    let mut i = 0;
+    while i < count {
+        out.send(i);
+        let v = inp.recv();
+        let ok = compare v {
+            Some(_) => true;
+            nothing => false;
+        };
+        if !ok {
+            return 1;
+        }
+        i = i + 1;
+    }
+    return 0;
+}
+
+async fn pong(out: own Channel<int>, inp: own Channel<int>, count: int) -> int {
+    let mut i = 0;
+    while i < count {
+        let v = inp.recv();
+        let ok = compare v {
+            Some(_) => true;
+            nothing => false;
+        };
+        if !ok {
+            return 1;
+        }
+        out.send(i);
+        i = i + 1;
+    }
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let producers = 4;
+    let consumers = 4;
+    let per = 2000;
+    let total = producers * per;
+    let ch = make_channel::<int>(0);
+
+    let mut prod_tasks: Task<int>[] = Array::<Task<int>>::with_len(producers to uint);
+    let mut cons_tasks: Task<int>[] = Array::<Task<int>>::with_len(consumers to uint);
+
+    let mut i = 0;
+    while i < producers {
+        let c = ch;
+        prod_tasks[i] = spawn producer(c, per, i * per);
+        i = i + 1;
+    }
+
+    let mut j = 0;
+    while j < consumers {
+        let c = ch;
+        cons_tasks[j] = spawn consumer(c);
+        j = j + 1;
+    }
+
+    let mut produced = 0;
+    let mut prod_cancelled = false;
+    for task in prod_tasks {
+        let r = task.await();
+        let was_cancelled = compare r {
+            Success(v) => {
+                produced = produced + v;
+                false;
+            }
+            Cancelled() => true;
+        };
+        if was_cancelled {
+            prod_cancelled = true;
+        }
+    }
+    if prod_cancelled {
+        return 1;
+    }
+    if produced != total {
+        return 2;
+    }
+
+    ch.close();
+
+    let mut received = 0;
+    let mut recv_cancelled = false;
+    for task in cons_tasks {
+        let r = task.await();
+        let was_cancelled = compare r {
+            Success(v) => {
+                received = received + v;
+                false;
+            }
+            Cancelled() => true;
+        };
+        if was_cancelled {
+            recv_cancelled = true;
+        }
+    }
+    if recv_cancelled {
+        return 3;
+    }
+    if received != total {
+        return 4;
+    }
+
+    let recv_ch = make_channel::<int>(0);
+    let recv_task = spawn wait_recv(recv_ch);
+    checkpoint().await();
+    checkpoint().await();
+    recv_task.cancel();
+    let recv_res = recv_task.await();
+    let recv_cancel_ok = compare recv_res {
+        Success(_) => false;
+        Cancelled() => true;
+    };
+    if !recv_cancel_ok {
+        return 5;
+    }
+
+    let send_ch = make_channel::<int>(0);
+    let send_task = spawn wait_send(send_ch);
+    checkpoint().await();
+    checkpoint().await();
+    send_task.cancel();
+    let send_res = send_task.await();
+    let send_cancel_ok = compare send_res {
+        Success(_) => false;
+        Cancelled() => true;
+    };
+    if !send_cancel_ok {
+        return 6;
+    }
+
+    let rounds = 20;
+    let iter = 2000;
+    let mut round = 0;
+    while round < rounds {
+        let ping_ch = make_channel::<int>(0);
+        let pong_ch = make_channel::<int>(0);
+        let ping_out = ping_ch;
+        let ping_in = pong_ch;
+        let pong_out = pong_ch;
+        let pong_in = ping_ch;
+        let ping_task = spawn ping(ping_out, ping_in, iter);
+        let pong_task = spawn pong(pong_out, pong_in, iter);
+        let ping_res = ping_task.await();
+        let pong_res = pong_task.await();
+        let ping_ok = compare ping_res {
+            Success(v) => v == 0;
+            Cancelled() => false;
+        };
+        let pong_ok = compare pong_res {
+            Success(v) => v == 0;
+            Cancelled() => false;
+        };
+        if !ping_ok || !pong_ok {
+            return 7;
+        }
+        round = round + 1;
+    }
+
+    print("ok");
+    return 0;
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	baseEnv := envWithStdlib(repoRoot(t))
+	env := overrideEnv(baseEnv, "SURGE_THREADS", "2")
+	dur, res := runBinaryWithTimeout(t, outputPath, env, nil, 20*time.Second)
 	if res.exitCode != 0 {
 		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
 			res.exitCode, dur, res.stdout, res.stderr)
