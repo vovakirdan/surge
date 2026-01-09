@@ -1,26 +1,52 @@
 # Surge Concurrency Model v1
 [English](CONCURRENCY.md) | [Russian](CONCURRENCY.ru.md)
 
-> **Status:** Implemented in VM (single-threaded cooperative scheduler)
-> **Scope:** async/await, Task/TaskResult, spawn, channels, cancellation, timeouts
-> **Out of scope:** OS-thread parallelism, signals, parallel map/reduce
+> **Status:** VM uses a single-threaded cooperative scheduler. MT execution, blocking pool, and strict nonblocking are specified here as a forward contract.
+> **Scope:** async/await, Task/TaskResult, spawn, channels, cancellation, timeouts, MT executor modes, blocking { }, strict::nonblocking
+> **Out of scope:** data-parallel keywords (`parallel map/reduce`), `signal`
 
 ---
 
 ## 1. Model at a Glance
 
-Surge v1 uses a **single-threaded** executor with **cooperative scheduling**:
+Surge uses a stackless Task model with cooperative scheduling. The executor may be
+single-worker or multi-worker; this is a runtime property and does not change the
+Task abstraction.
 
-- Tasks are **state machines**, not OS threads.
+- Tasks are **stackless state machines**, not OS threads.
 - A task runs until it hits a suspension point (`await`, channel ops, `sleep`, `checkpoint`).
-- `spawn` **schedules** a task for concurrent execution.
+- `spawn` schedules a task for concurrent execution.
 - Cancellation is **cooperative** and observed only at suspension points.
+- MT execution uses multiple worker threads; a task is never polled concurrently by multiple workers.
+- OS-blocking is not allowed on executor worker threads; use `blocking { ... }` for OS-blocking work.
+- If workers > 1 and hardware has multiple cores, true parallelism happens naturally (no separate "MC" feature).
 
-This keeps the ownership model sound without cross-thread borrow checking.
+This keeps the ownership model sound across workers without cross-thread borrow checking.
 
 ---
 
-## 2. Task and TaskResult
+## 2. Terminology: Waiting vs OS-Blocking
+
+Surge distinguishes task-level waiting from OS-thread blocking:
+
+- **May wait**: an operation that can suspend a task (park/unpark). In task
+  context, waiting means the task parks and the worker keeps running other tasks.
+- **OS-blocking**: an operation that blocks the OS thread (sync file I/O, system
+  mutexes, foreign calls). OS-blocking is forbidden on executor worker threads.
+- **Task parking**: the executor stops polling a task until a wakeup event
+  (channel ready, timer fires, task completes).
+- **Thread blocking**: the OS scheduler stops a worker thread; other tasks on
+  that worker cannot run.
+- **Async waiting vs blocking pool execution**: async waiting parks a task on
+  the executor; blocking pool execution runs code on dedicated blocking threads
+  and returns a `Task<T>` that is awaited like any other task.
+
+In core APIs, some methods are labeled "blocking" to mean "may wait"
+(e.g., `Channel.send`/`recv`); this is task parking, not OS-blocking.
+
+---
+
+## 3. Task and TaskResult
 
 Core definitions live in `core/intrinsics.sg`:
 
@@ -39,7 +65,7 @@ extern<Task<T>> {
 
 Key points:
 
-- `Task<T>` is an opaque handle to a state machine.
+- `Task<T>` is an opaque handle to a **stackless state machine**.
 - `.await()` **consumes** `own Task<T>` and returns `TaskResult<T>`.
 - Use `handle.clone()` if you need multiple handles.
 - `cancel()` is best-effort; tasks observe cancellation at suspension points.
@@ -56,7 +82,7 @@ compare t.await() {
 
 ---
 
-## 3. async Functions and async Blocks
+## 4. async Functions and async Blocks
 
 ```sg
 async fn fetch_user(id: int) -> User {
@@ -69,6 +95,7 @@ let t: Task<User> = fetch_user(42);
 
 - `async fn` returns `Task<T>` immediately; it does not run until awaited or scheduled with `spawn`.
 - `async { ... }` creates an anonymous `Task<T>` from a block.
+- `blocking { ... }` is also a Task-producing block (see "Blocking Scope").
 
 `@failfast` is allowed on **async functions** and **async blocks**:
 
@@ -94,7 +121,7 @@ remaining children and the parent returns `Cancelled`.
 
 ---
 
-## 4. spawn
+## 5. spawn
 
 ```sg
 spawn expr
@@ -103,7 +130,7 @@ spawn expr
 
 Rules:
 
-- `expr` must be a `Task<T>` (async function call or async block).
+- `expr` must be a `Task<T>` (async function call, async block, or `blocking { ... }` block).
 - `spawn` schedules the task and returns a `Task<T>` handle.
 - Only `own` values may cross the task boundary.
 - `spawn` requires sendable captures; `@nosend` types are rejected (`SemaNosendInSpawn`).
@@ -138,13 +165,13 @@ MT-ready invariants:
 
 ---
 
-## 5. await
+## 6. await
 
 `.await()` is a **method call** and returns `TaskResult<T>`:
 
 ```sg
 compare fetch_user(42).await() {
-    Success(user) => print(user.name);
+    Success(user) => print("ok");
     Cancelled() => print("cancelled");
 }
 ```
@@ -157,7 +184,7 @@ Rules:
 
 ---
 
-## 6. Structured Concurrency (Scopes)
+## 7. Structured Concurrency (Scopes)
 
 Surge enforces structured concurrency in sema:
 
@@ -170,11 +197,12 @@ Surge enforces structured concurrency in sema:
 
 At runtime, each async function/block creates a scope. On scope exit, the
 runtime joins all children before completing. Returning a `Task<T>` transfers
-responsibility to the caller.
+responsibility to the caller. This applies to tasks created by `async { ... }`,
+async functions, and `blocking { ... }`.
 
 ---
 
-## 7. Cancellation, Timeouts, and Yielding
+## 8. Cancellation, Timeouts, and Yielding
 
 Intrinsics:
 
@@ -192,6 +220,7 @@ Notes:
   It cancels the target on deadline.
 - Timers run in virtual time by default. Real-time mode can be enabled via
   `surge run --real-time`.
+- Cancellation is cooperative and does not preempt OS-blocking calls (see "Blocking Scope").
 
 Example:
 
@@ -235,7 +264,7 @@ let r = race {
 
 ---
 
-## 8. Channels
+## 9. Channels
 
 `Channel<T>` is a typed FIFO handle (copyable):
 
@@ -249,24 +278,48 @@ API (core intrinsics):
 
 - `make_channel<T>(capacity: uint) -> own Channel<T>`
 - `Channel<T>::new(capacity: uint) -> own Channel<T>`
-- `send(self: &Channel<T>, value: own T) -> nothing` (blocking)
-- `recv(self: &Channel<T>) -> Option<T>` (blocking)
+- `send(self: &Channel<T>, value: own T) -> nothing` (may wait)
+- `recv(self: &Channel<T>) -> Option<T>` (may wait)
 - `try_send(self: &Channel<T>, value: own T) -> bool`
 - `try_recv(self: &Channel<T>) -> Option<T>`
-- `close(self: &Channel<T>) -> nothing`
+- `close(self: &Channel<T>) -> nothing` (may wait)
 
 Notes:
 
-- `send`/`recv` are suspension points in async code.
+- `send`/`recv`/`close` are suspension points in async code (task parking).
 - `recv` returns `nothing` when the channel is closed and empty.
 - Sending to a closed channel is a runtime error.
 - `@nosend` values cannot be sent through channels (`SemaChannelNosendValue`).
 
 ---
 
-## 9. Scheduler Fairness (v1)
+## 10. Executor Model and Scheduling
 
-Fairness is guaranteed for **Ready** tasks in the single-thread executor under
+### 10.1 Executor Modes (runtime property)
+
+- The executor may run with a single worker or multiple workers.
+- MT is a runtime configuration; the Task abstraction and language semantics do not change.
+- If workers > 1 and hardware has multiple cores, tasks can run in parallel.
+
+### 10.2 Core MT invariants
+
+- A task is never polled concurrently by multiple workers.
+- Executor worker threads must not perform OS-blocking operations.
+- Suspension points park a task until a wakeup event, releasing the worker.
+
+### 10.3 Scheduling modes
+
+- **Parallel mode:** multiple workers with nondeterministic interleavings; only
+  program synchronization defines ordering.
+- **Seeded (reproducible) mode:** scheduling decisions are deterministic given
+  the same seed and the same external event order. This is best-effort.
+  Limits include external I/O completion order, system time, OS scheduling of
+  blocking pool threads, FFI, and any other nondeterministic inputs.
+- **VM/testing mode:** may choose single-worker scheduling or seeded scheduling.
+
+### 10.4 Fairness and CPU-bound work
+
+Fairness is guaranteed for **Ready** tasks in single-worker mode under
 cooperative scheduling:
 
 - **F1 (round-robin for Ready tasks):** with a finite ready set, each Ready task
@@ -275,20 +328,118 @@ cooperative scheduling:
 - **F2 (one poll per step):** each scheduler step performs exactly one poll; a
   yielded task is requeued to the back of the ready queue, and a parked task is
   not requeued.
-- **F3 (determinism):** in default mode, ordering is FIFO by task/wake order;
-  in fuzz mode, the choice is randomized but Ready tasks remain eligible and
-  cannot be starved.
+- **F3 (determinism):** in default mode, ordering is FIFO by task/wake order; in
+  seeded mode, the choice is deterministic given the seed and event order.
 
-This guarantee only applies to tasks that reach suspension points (`await`,
-`checkpoint`, channel ops, `sleep`). A CPU-bound loop without suspension can
-still monopolize execution.
+In parallel mode, there is no global FIFO ordering and fairness is best-effort
+across workers.
+
+Tight CPU loops without suspension points can starve other tasks. The runtime
+does **not** insert yields or preempt tasks by default. Use `checkpoint().await()`
+to cooperate. Safepoint checks / preemption may exist only as an explicit,
+future opt-in mode and are not guaranteed unless enabled.
 
 ---
 
-## 10. Limitations (v1)
+## 11. Blocking Scope (`blocking { ... }`)
 
-- Single-threaded runtime; no true parallelism.
-- `parallel map/reduce` and `signal` are reserved keywords (not supported).
-- CPU-bound tasks that never suspend can monopolize execution.
+`blocking { ... }` is an explicit block expression for OS-blocking work. It
+returns `Task<T>` and runs on a dedicated blocking pool, not on executor workers.
+
+Rules:
+
+- `blocking { ... }` executes outside executor worker threads.
+- It returns `Task<T>` and is awaited via `.await()` (or scheduled with `spawn`).
+- Like `async { ... }`, it does not execute until scheduled or awaited.
+- Cancellation is best-effort; OS-blocking calls may not be preemptable.
+- Overuse of `blocking { ... }` is a performance risk (thread saturation,
+  scheduling overhead, and latency).
+
+Example:
+
+```sg
+let t = blocking {
+    return read_file(path);
+};
+
+compare t.await() {
+    Success(data) => print(data);
+    Cancelled() => print("cancelled");
+}
+```
+
+---
+
+## 12. Strict Nonblocking Mode (`pragma strict::nonblocking`)
+
+`pragma strict::nonblocking` is an opt-in, file-level strictness rule. In this
+mode, task-context code must not perform OS-blocking operations without
+`blocking { ... }`.
+
+Enforcement uses existing contracts:
+
+- `@nonblocking` marks a function as nonblocking; it cannot call blocking/may-wait operations.
+- `@waits_on("field")` marks a function as potentially waiting on a `Condition`
+  or `Semaphore`.
+- The compiler treats the following methods as blocking/may-wait:
+  `Mutex.lock`, `RwLock.read_lock`, `RwLock.write_lock`, `Condition.wait`,
+  `Semaphore.acquire`, `Channel.send`, `Channel.recv`, `Channel.close`.
+
+Under `strict::nonblocking`, the compiler applies these checks to task-context
+code and its callees. The rule is intentionally conservative: any call that is
+known (or declared) to **may wait** is treated as potentially OS-blocking and is
+rejected in task context.
+
+Without this pragma, `@nonblocking` checks apply only to functions explicitly
+annotated with `@nonblocking`.
+
+Why this is conservative:
+
+- Whether a call OS-blocks can depend on runtime state, the OS, or external resources.
+- The compiler cannot prove non-blocking behavior in the general case.
+- Strict mode therefore relies on explicit contracts (`@nonblocking`, `@waits_on`)
+  and conservative checks of known waiting primitives.
+
+---
+
+## 13. Guarantees and Non-Guarantees
+
+Guarantees (contract):
+
+- A task is never polled concurrently by multiple workers.
+- Structured concurrency: tasks must be awaited or returned; scopes own their tasks.
+- Suspension points park tasks instead of blocking executor workers.
+- Cancellation is cooperative and observed at suspension points.
+- OS-blocking is forbidden on executor workers; OS-blocking must be isolated in `blocking { ... }`.
+
+Non-guarantees (explicitly not promised):
+
+- Determinism in parallel mode (scheduling order is nondeterministic).
+- Global FIFO ordering or fairness across multiple workers.
+- Automatic preemption or yield insertion in CPU-bound loops.
+- Preemption of OS-blocking calls (cancellation is best-effort).
+- Full reproducibility in seeded mode when external events differ.
+
+---
+
+## 14. Limitations (v1)
+
+- The VM backend is single-worker today; MT execution is a runtime option for other backends.
+- `parallel map/reduce` and `signal` remain reserved keywords (not supported).
+- `await` inside loops is not supported (MIR lowering rejects it).
 
 See `docs/PARALLEL.md` for the status of parallel features.
+
+---
+
+## 15. Implementation Notes / Open Observations (Non-Normative)
+
+- The term "blocking" is already used in core APIs to mean "may wait" (task
+  parking), which can be confused with OS-blocking despite the distinction.
+- `@nonblocking` currently treats channel ops (`send`/`recv`/`close`) as blocking,
+  so `strict::nonblocking` is likely to reject common async patterns unless this
+  distinction is clarified.
+- The lack of `await` in loops makes it awkward to express periodic
+  `checkpoint().await()` in long-running CPU loops.
+- Seeded scheduling depends on external event order; reproducibility boundaries
+  may need more explicit guidance in test tooling.
