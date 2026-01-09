@@ -2004,5 +2004,26 @@
 2004: RParen          ")" at 340:35-340:36
 2005: Semicolon       ";" at 340:36-340:37
 2006: RBrace          "}" at 341:5-341:6 (leading: Newline, Space)
-2007: RBrace          "}" at 342:1-342:2 (leading: Newline)
-2008: EOF             at 343:1-343:1
+2007: At              "@" at 342:5-342:6 (leading: Newline, Space)
+2008: Ident           "intrinsic" at 342:6-342:15
+2009: KwPub           "pub" at 342:16-342:19 (leading: Space)
+2010: KwFn            "fn" at 342:20-342:22 (leading: Space)
+2011: Ident           "from_bytes" at 342:23-342:33 (leading: Space)
+2012: LParen          "(" at 342:33-342:34
+2013: Ident           "bytes" at 342:34-342:39
+2014: Colon           ":" at 342:39-342:40
+2015: Amp             "&" at 342:41-342:42 (leading: Space)
+2016: Ident           "byte" at 342:42-342:46
+2017: LBracket        "[" at 342:46-342:47
+2018: RBracket        "]" at 342:47-342:48
+2019: RParen          ")" at 342:48-342:49
+2020: Arrow           "->" at 342:50-342:52 (leading: Space)
+2021: Ident           "Erring" at 342:53-342:59 (leading: Space)
+2022: Lt              "<" at 342:59-342:60
+2023: Ident           "string" at 342:60-342:66
+2024: Comma           "," at 342:66-342:67
+2025: Ident           "Error" at 342:68-342:73 (leading: Space)
+2026: Gt              ">" at 342:73-342:74
+2027: Semicolon       ";" at 342:74-342:75
+2028: RBrace          "}" at 343:1-343:2 (leading: Newline)
+2029: EOF             at 344:1-344:1

@@ -1,4 +1,4 @@
-string.sg (span: 1:1-343:1)
+string.sg (span: 1:1-344:1)
 ├─ Item[0]: Fn (span: 3:1-5:2)
 │  ├─ Name: string_len_int
 │  ├─ Params: (s: &string)
@@ -233,7 +233,7 @@ Block (span: 87:14-89:6)
 │     └─ Stmt[0]: Block (span: 93:57-95:2)
 │        └─ Stmt[0]: Return (span: 94:5-94:48)
 │           └─ Expr: expr#167: string_min_u(string_min_u(a, b), c)
-└─ Item[6]: Extern (span: 97:1-342:2)
+└─ Item[6]: Extern (span: 97:1-343:2)
    ├─ Target: string
    ├─ Members:
    │  ├─ Fn[0]: bytes
@@ -914,10 +914,14 @@ Block (span: 322:48-324:18)
    │  │     │        └─ Expr: expr#730: (i = ((i + 1)))
    │  │     └─ Stmt[9]: Return (span: 336:9-336:28)
    │  │        └─ Expr: expr#733: prev[b_len]
-   │  └─ Fn[15]: from_str
-   │     ├─ Params: (s: &string)
+   │  ├─ Fn[15]: from_str
+   │  │  ├─ Params: (s: &string)
+   │  │  ├─ Return: Erring<string, Error>
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 339:58-341:6)
+   │  │     └─ Stmt[0]: Return (span: 340:9-340:37)
+   │  │        └─ Expr: expr#738: Success(s.__clone())
+   │  └─ Fn[16]: from_bytes
+   │     ├─ Params: (bytes: &byte[])
    │     ├─ Return: Erring<string, Error>
-   │     └─ Body:
-   │        Stmt[0]: Block (span: 339:58-341:6)
-   │        └─ Stmt[0]: Return (span: 340:9-340:37)
-   │           └─ Expr: expr#738: Success(s.__clone())
+   │     └─ Attributes: @intrinsic
