@@ -5,14 +5,14 @@
 ## 📊 Main code (without tests)
 
 - **Files:** 573
-- **Lines of code:** 123544
+- **Lines of code:** 123550
 
 ## 📁 Directory breakdown
 
 | Directory | Files | Lines |
 |------------|--------|-------|
 | `cmd/` | 20 | 3587 |
-| `internal/` | 552 | 119942 |
+| `internal/` | 552 | 119948 |
 
 ## 🏆 Top 10 packages by size
 
@@ -24,7 +24,7 @@
 | 4 | `internal/mir` | 9009 |
 | 5 | `internal/parser` | 8808 |
 | 6 | `internal/hir` | 6736 |
-| 7 | `internal/driver` | 5349 |
+| 7 | `internal/driver` | 5355 |
 | 8 | `internal/mono` | 4566 |
 | 9 | `internal/ast` | 4395 |
 | 10 | `internal/diagfmt` | 4387 |
@@ -37,7 +37,7 @@
 ## 📈 Total volume (code + tests)
 
 - **Files:** 688
-- **Lines of code:** 148803
+- **Lines of code:** 148809
 
 ## 📊 Percentage breakdown
 
