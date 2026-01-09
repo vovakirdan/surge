@@ -155,6 +155,9 @@ func buildCoreSymbolRemap(rootSyms *symbols.Result, coreRec *moduleRecord) map[s
 		if sym == nil {
 			continue
 		}
+		if isLocalSymbol(sym, rootSyms.Table) {
+			continue
+		}
 		if sym.Flags&symbols.SymbolFlagImported == 0 && sym.Flags&symbols.SymbolFlagBuiltin == 0 {
 			continue
 		}
@@ -182,6 +185,9 @@ func buildCoreSymbolRemap(rootSyms *symbols.Result, coreRec *moduleRecord) map[s
 		}
 		sym := coreRec.Table.Symbols.Get(id)
 		if sym == nil {
+			continue
+		}
+		if isLocalSymbol(sym, coreRec.Table) {
 			continue
 		}
 		if sym.Flags&symbols.SymbolFlagPublic == 0 && sym.Flags&symbols.SymbolFlagBuiltin == 0 {
