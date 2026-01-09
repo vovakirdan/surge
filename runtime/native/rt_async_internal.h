@@ -3,7 +3,9 @@
 
 #include "rt.h"
 
+#include <pthread.h>
 #include <setjmp.h>
+#include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -69,20 +71,24 @@ typedef struct {
     uint64_t task_id;
 } waiter;
 
+typedef _Atomic uint8_t atomic_u8;
+typedef _Atomic uint32_t atomic_u32;
+
 typedef struct rt_task {
     uint64_t id;
     int64_t poll_fn_id;
     void* state;
     uint64_t result_bits;
     uint8_t result_kind;
-    uint8_t status;
+    atomic_u8 status;
     uint8_t kind;
-    uint8_t cancelled;
     uint8_t resume_kind;
-    uint8_t enqueued;
+    atomic_u8 cancelled;
+    atomic_u8 enqueued;
+    atomic_u8 wake_token;
     uint8_t checkpoint_polled;
     uint8_t sleep_armed;
-    uint32_t handle_refs;
+    atomic_u32 handle_refs;
     uint64_t resume_bits;
     uint64_t sleep_delay;
     uint64_t sleep_deadline;
@@ -112,7 +118,6 @@ typedef struct {
 typedef struct {
     uint64_t next_id;
     uint64_t next_scope_id;
-    uint64_t current;
     uint64_t now_ms;
     rt_task** tasks;
     size_t tasks_cap;
@@ -125,6 +130,15 @@ typedef struct {
     waiter* waiters;
     size_t waiters_len;
     size_t waiters_cap;
+    pthread_mutex_t lock;
+    pthread_cond_t ready_cv;
+    pthread_cond_t io_cv;
+    pthread_cond_t done_cv;
+    pthread_t* workers;
+    uint32_t worker_count;
+    uint32_t running_count;
+    uint8_t io_started;
+    uint8_t shutdown;
 } rt_executor;
 
 typedef struct rt_channel rt_channel;
@@ -136,14 +150,56 @@ typedef struct {
     uint64_t value_bits;
 } poll_outcome;
 
+static inline uint8_t task_status_load(const rt_task* task) {
+    return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);
+}
+
+static inline void task_status_store(rt_task* task, uint8_t status) {
+    if (task == NULL) {
+        return;
+    }
+    atomic_store_explicit(&task->status, status, memory_order_release);
+}
+
+static inline uint8_t task_enqueued_load(const rt_task* task) {
+    return task == NULL ? 0 : atomic_load_explicit(&task->enqueued, memory_order_acquire);
+}
+
+static inline void task_enqueued_store(rt_task* task, uint8_t value) {
+    if (task == NULL) {
+        return;
+    }
+    atomic_store_explicit(&task->enqueued, value, memory_order_release);
+}
+
+static inline uint8_t task_cancelled_load(const rt_task* task) {
+    return task == NULL ? 1 : atomic_load_explicit(&task->cancelled, memory_order_acquire);
+}
+
+static inline void task_cancelled_store(rt_task* task, uint8_t value) {
+    if (task == NULL) {
+        return;
+    }
+    atomic_store_explicit(&task->cancelled, value, memory_order_release);
+}
+
+static inline uint8_t task_wake_token_exchange(rt_task* task, uint8_t value) {
+    if (task == NULL) {
+        return 0;
+    }
+    return atomic_exchange_explicit(&task->wake_token, value, memory_order_acq_rel);
+}
+
 extern void
 __surge_poll_call(uint64_t id); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 
 extern rt_executor exec_state;
-extern jmp_buf poll_env;
-extern int poll_active;
-extern poll_outcome poll_result;
-extern waker_key pending_key;
+extern _Thread_local jmp_buf poll_env;
+extern _Thread_local int poll_active;
+extern _Thread_local poll_outcome poll_result;
+extern _Thread_local waker_key pending_key;
+extern _Thread_local uint64_t tls_current_id;
+extern _Thread_local rt_task* tls_current_task;
 
 void panic_msg(const char* msg);
 
@@ -158,6 +214,11 @@ waker_key net_read_key(int fd);
 waker_key net_write_key(int fd);
 
 rt_executor* ensure_exec(void);
+uint64_t rt_current_task_id(void);
+rt_task* rt_current_task(void);
+void rt_set_current_task(rt_task* task);
+void rt_lock(rt_executor* ex);
+void rt_unlock(rt_executor* ex);
 rt_task* get_task(rt_executor* ex, uint64_t id);
 rt_scope* get_scope(rt_executor* ex, uint64_t id);
 

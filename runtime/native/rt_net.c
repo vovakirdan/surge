@@ -479,21 +479,27 @@ static void* net_spawn_wait_task(int fd, uint8_t kind) {
     if (ex == NULL) {
         return NULL;
     }
+    rt_lock(ex);
     uint64_t id = ex->next_id++;
     ensure_task_cap(ex, id);
     rt_task* task = (rt_task*)rt_alloc(sizeof(rt_task), _Alignof(rt_task));
     if (task == NULL) {
+        rt_unlock(ex);
         panic_msg("async: task allocation failed");
         return NULL;
     }
     memset(task, 0, sizeof(rt_task));
     task->id = id;
-    task->status = TASK_READY;
+    task_status_store(task, TASK_READY);
     task->kind = kind;
     task->net_fd = fd;
-    task->handle_refs = 1;
+    task_cancelled_store(task, 0);
+    task_enqueued_store(task, 0);
+    (void)task_wake_token_exchange(task, 0);
+    atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
     ex->tasks[id] = task;
     ready_push(ex, id);
+    rt_unlock(ex);
     return task;
 }
 
@@ -530,7 +536,7 @@ poll_outcome poll_net_task(const rt_executor* ex, const rt_task* task) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
     }
-    if (task->cancelled) {
+    if (task_cancelled_load(task) != 0) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
     }
@@ -599,6 +605,7 @@ poll_outcome poll_net_task(const rt_executor* ex, const rt_task* task) {
 }
 
 int poll_net_waiters(rt_executor* ex, int timeout_ms) {
+    // Caller must hold ex->lock; this function releases it while polling.
     if (ex == NULL || ex->waiters_len == 0) {
         return 0;
     }
@@ -658,10 +665,12 @@ int poll_net_waiters(rt_executor* ex, int timeout_ms) {
         }
     }
 
+    rt_unlock(ex);
     int n = -1;
     do {
         n = poll(pfds, count, timeout_ms);
     } while (n < 0 && errno == EINTR);
+    rt_lock(ex);
     if (n < 0) {
         for (size_t i = 0; i < count; i++) {
             if (fds[i].want_read) {
