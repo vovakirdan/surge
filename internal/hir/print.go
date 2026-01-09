@@ -570,7 +570,7 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 
 	case ExprTask:
 		data := e.Data.(TaskData)
-		p.printf("task ")
+		p.printf("spawn ")
 		p.printExpr(data.Value)
 
 	case ExprSpawn:

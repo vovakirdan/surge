@@ -28,9 +28,9 @@ fn main() {
     let ch1 = make_channel::<int>(32:uint);
     let ch2 = make_channel::<int>(32:uint);
 
-    let t1 = task gen(&ch1);
-    let t2 = task square(&ch1, &ch2);
-    let t3 = task sum(&ch2);
+    let t1 = spawn gen(&ch1);
+    let t2 = spawn square(&ch1, &ch2);
+    let t3 = spawn sum(&ch2);
 
     t1.await();
     t2.await();

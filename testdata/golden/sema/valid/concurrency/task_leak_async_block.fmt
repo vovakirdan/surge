@@ -6,7 +6,7 @@ async fn compute() -> int {
 
 pub async fn test_async_block_leak() {
     async {
-        let t = task compute();
+        let t = spawn compute();
         // No explicit await required in a scoped async block.
         let _ = t;
     };

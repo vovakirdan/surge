@@ -19,10 +19,10 @@
  19: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
  20: Ident           "t" at 8:9-8:10 (leading: Space)
  21: Assign          "=" at 8:11-8:12 (leading: Space)
- 22: KwTask          "task" at 8:13-8:17 (leading: Space)
- 23: Ident           "work" at 8:18-8:22 (leading: Space)
- 24: LParen          "(" at 8:22-8:23
- 25: RParen          ")" at 8:23-8:24
- 26: Semicolon       ";" at 8:24-8:25
+ 22: KwSpawn         "spawn" at 8:13-8:18 (leading: Space)
+ 23: Ident           "work" at 8:19-8:23 (leading: Space)
+ 24: LParen          "(" at 8:23-8:24
+ 25: RParen          ")" at 8:24-8:25
+ 26: Semicolon       ";" at 8:25-8:26
  27: RBrace          "}" at 10:1-10:2 (leading: Newline, Space, LineComment, Newline)
  28: EOF             at 11:1-11:1

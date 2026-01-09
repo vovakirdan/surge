@@ -21,7 +21,7 @@
 
 ### Implementation Snapshot
 
-- Keywords match `internal/token/kind.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, contract, tag, enum, extern, pub, async, compare, finally, channel, task, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, field, nothing`. `signal`/`parallel`/`spawn` are reserved (`FutSignalNotSupported` / `FutParallelNotSupported` / `FutSpawnReserved`) and `macro` is rejected by the parser (`FutMacroNotSupported`).
+- Keywords match `internal/token/keywords.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, contract, tag, enum, extern, pub, async, compare, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, field, nothing`. `signal`/`parallel` are reserved (`FutSignalNotSupported` / `FutParallelNotSupported`) and `macro` is rejected by the parser (`FutMacroNotSupported`).
 - The type checker resolves `int`, `uint`, `float`, fixed-width numerics (`int8`, `uint64`, `float32`, ...), `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`), slices `T[]`, and sized arrays `T[N]` with constant `N`. Raw pointers (`*T`) are allowed only in `extern` and `@intrinsic` declarations.
 - Tuple and function types are supported in sema and runtime lowering.
 - Tags and tagged unions are implemented. `Option` and `Erring` are standard aliases built on `Some`/`Success` tags plus `nothing`/error types; `ErrorLike` and `Error` live in the prelude; `compare` exhaustiveness is enforced for tagged unions.
@@ -54,7 +54,7 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 
 ```
 pub, fn, let, const, mut, own, if, else, while, for, in, break, continue,
-import, as, type, contract, tag, enum, extern, return, signal, compare, task, spawn, channel,
+import, as, type, contract, tag, enum, extern, return, signal, compare, spawn, channel,
 parallel, map, reduce, with, to, heir, is, async, macro, pragma, field,
 true, false, nothing
 ```
@@ -1585,12 +1585,12 @@ parallel reduce xs with init, (args) => func
 The execution model for `parallel` is **not specified yet**; v1 only reserves
 the syntax.
 
-**v1 alternative:** Use `task` with channels for concurrent (not parallel) processing:
+**v1 alternative:** Use `spawn` with channels for concurrent (not parallel) processing:
 ```sg
 async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
     let mut tasks: Task<U>[] = [];
     for x in xs {
-        tasks.push(task f(x));
+        tasks.push(spawn f(x));
     }
 
     let mut results: U[] = [];
@@ -1627,22 +1627,21 @@ Block-level `@backend` is reserved and not parsed in v1.
 run on one OS thread, yielding control at `.await()` points. No preemption; use
 `checkpoint().await()` for long CPU work.
 
-#### Task Expression
+#### Spawn Expression
 
 ```sg
-task expr
+spawn expr
 ```
 
 - `expr` must be `Task<T>` (an `async fn` call or `async { ... }` block result).
-- `task` немедленно планирует async задачу.
+- `spawn` немедленно планирует async задачу.
 - Returns `Task<T>` — a handle to the task.
 - Captured values are moved into the task; `@nosend` types are rejected.
-- `spawn` is reserved for routines/parallel runtime; use `task` for async tasks.
 
 **Example:**
 ```sg
 let data: own string = load();
-let t: Task<string> = task process(data); // data moved
+let t: Task<string> = spawn process(data); // data moved
 
 compare t.await() {
     Success(v) => print(v);
@@ -1669,7 +1668,7 @@ pub type TaskResult<T> = Success(T) | Cancelled;
 
 Surge uses **cooperative cancellation**:
 
-1. `task.cancel()` sets a cancellation flag.
+1. `handle.cancel()` sets a cancellation flag.
 2. At the next suspension point (`.await()`, `checkpoint()`, channel send/recv, timeout),
    the task observes the flag.
 3. If cancelled, the awaited result is `Cancelled()`.
@@ -1719,7 +1718,7 @@ async fn main() {
         Cancelled() => return nothing;
     };
 
-    let t = task fetch_user(42); // Background task
+    let t = spawn fetch_user(42); // Background task
 }
 ```
 
@@ -1740,7 +1739,7 @@ async fn process_all(urls: string[]) -> Data[] {
     async {
         let mut tasks: Task<Data>[] = [];
         for url in urls {
-            tasks.push(task fetch(url));
+            tasks.push(spawn fetch(url));
         }
 
         let mut results: Data[] = [];
@@ -2083,7 +2082,7 @@ fn demo_option() {
 ```sg
 // Channels (blocking + try)
 let ch = make_channel::<int>(0);
-// task omitted; assume a sender exists
+// sender omitted; assume a producer exists
 let v = ch.recv();          // Option<int>
 compare ch.try_recv() {
   nothing => print("empty");
@@ -2114,7 +2113,7 @@ async fn process_urls(urls: string[]) -> Erring<Data[], Error> {
         let mut tasks: Task<Erring<Data, Error>>[] = [];
 
         for url in urls {
-            tasks.push(task fetch_data(url));
+            tasks.push(spawn fetch_data(url));
         }
 
         let mut results: Data[] = [];
@@ -2144,7 +2143,7 @@ async fn process_urls_failfast(urls: string[]) -> Erring<Data[], Error> {
     async {
         let mut tasks: Task<Erring<Data, Error>>[] = [];
         for url in urls {
-            tasks.push(task fetch_data(url));
+            tasks.push(spawn fetch_data(url));
         }
 
         let mut results: Data[] = [];
@@ -2595,7 +2594,7 @@ ImportSpec := "*" | Ident ("as" Ident)? | "{" ImportName ("," ImportName)* ","? 
 ImportName := Ident ("as" Ident)?
 Path       := (".." | ".." | Ident) ("/" (".." | ".." | Ident))*
 Block      := "{" Stmt* "}"
-Stmt       := Const | Let | While | For | If | Task ";" | Async | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
+Stmt       := Const | Let | While | For | If | Spawn ";" | Async | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
 Const      := "const" Ident (":" Type)? "=" Expr ";"
 Let        := "let" ("mut")? Ident (":" Type)? ("=" Expr)? ";"
 While      := "while" "(" Expr ")" Block
@@ -2604,14 +2603,14 @@ If         := "if" "(" Expr ")" Block ("else" If | "else" Block)?
 Return     := "return" Expr?
 Signal     := "signal" Ident ":=" Expr
 Async      := "async" "{" Stmt* "}"
-Expr       := Compare | Task | Parallel | TypeHeirPred | TupleLit | ... (standard precedence)
+Expr       := Compare | Spawn | Parallel | TypeHeirPred | TupleLit | ... (standard precedence)
 Parallel   := "parallel" "map" Expr "with" ArgList "=>" Expr
           | "parallel" "reduce" Expr "with" Expr "," ArgList "=>" Expr
 ArgList    := "(" (Expr ("," Expr)*)? ")" | "()"
 TypeHeirPred := "(" Expr " heir " CoreType ")"
 TupleLit   := "(" Expr ("," Expr)+")"
 AwaitExpr  := Expr "." "await" "(" ")"   // awaits a Task; valid in async fn/block and @entrypoint
-Task       := "task" Expr
+Spawn      := "spawn" Expr
 Compare    := "compare" Expr "{" Arm ( ";" Arm)* ";"? "}"
 Arm        := Pattern "=>" Expr
 Pattern        := "finally" | Literal | "nothing" | Ident

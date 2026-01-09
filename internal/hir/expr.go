@@ -55,7 +55,7 @@ const (
 	ExprAwait
 	// ExprTask represents task expression.
 	ExprTask
-	// ExprSpawn represents reserved spawn expression.
+	// ExprSpawn represents spawn expression.
 	ExprSpawn
 	// ExprAsync represents async { ... } block expression.
 	ExprAsync

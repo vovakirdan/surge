@@ -2,7 +2,7 @@
 [English](PARALLEL.md) | [Russian](PARALLEL.ru.md)
 
 > **Коротко:** в v1 нет настоящего параллелизма. Есть только кооперативная
-> конкурентность через `async`/`task` и каналы. Ключевые слова `parallel` и
+> конкурентность через `async`/`spawn` и каналы. Ключевые слова `parallel` и
 > `signal` зарезервированы и не поддерживаются.
 
 ---
@@ -12,7 +12,7 @@
 ### 1.1. Кооперативная конкурентность
 
 - Один поток исполнения, задачи переключаются в точках ожидания.
-- Инструменты: `async`, `task`, `.await()`, `Channel<T>`.
+- Инструменты: `async`, `spawn`, `.await()`, `Channel<T>`.
 - Результат ожидания: `TaskResult<T> = Success(T) | Cancelled`.
 
 См. `docs/CONCURRENCY.ru.md` для точной модели.
@@ -27,7 +27,7 @@
 
 ## 2. Альтернатива для data-parallel в v1
 
-Если нужна обработка коллекции, используйте `task` + ожидание. В v1 нельзя
+Если нужна обработка коллекции, используйте `spawn` + ожидание. В v1 нельзя
 делать `await` в циклах, поэтому ожидание задач оформляется через рекурсию:
 
 ```sg
@@ -43,7 +43,7 @@ async fn await_all<T>(tasks: Task<T>[], idx: int, mut out: T[]) -> T[] {
 async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
     let mut tasks: Task<U>[] = [];
     for x in xs {
-        tasks.push(task f(x));
+        tasks.push(spawn f(x));
     }
     return await_all(tasks, 0, []);
 }

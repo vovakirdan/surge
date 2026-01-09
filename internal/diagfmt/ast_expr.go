@@ -237,7 +237,7 @@ func formatExprInlineDepth(builder *ast.Builder, exprID ast.ExprID, depth int) s
 		}
 		operand := formatExprInlineDepth(builder, data.Value, depth+1)
 		operand = wrapExprIfNeeded(builder, data.Value, operand)
-		return "task " + operand
+		return "spawn " + operand
 	case ast.ExprSpawn:
 		data, ok := builder.Exprs.Spawn(exprID)
 		if !ok {

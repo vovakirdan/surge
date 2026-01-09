@@ -184,7 +184,7 @@ const (
 	SemaLockUnverified           Code = 3083 // Cannot verify lock held (warning)
 	SemaLockNonblockingCallsWait Code = 3084 // @nonblocking calls @waits_on
 	SemaLockFieldNotLockType     Code = 3085 // Referenced field not Mutex/RwLock
-	SemaNosendInSpawn            Code = 3086 // @nosend type in task
+	SemaNosendInSpawn            Code = 3086 // @nosend type in spawn
 	SemaFailfastNonAsync         Code = 3087 // @failfast on non-async block
 	SemaLockAcquiresNotField     Code = 3088 // @acquires_lock refs non-existent field
 	SemaLockReleasesNotField     Code = 3089 // @releases_lock refs non-existent field
@@ -233,7 +233,7 @@ const (
 	SemaTaskEscapesScope  Code = 3108 // Task stored in global without detach
 	SemaTaskLeakInAsync   Code = 3109 // Unawaited task at async block exit
 	SemaTaskLifetimeError Code = 3110 // Task outlives spawning scope
-	SemaSpawnNotTask      Code = 3111 // task requires Task<T> expression
+	SemaSpawnNotTask      Code = 3111 // spawn requires Task<T> expression
 
 	// Generic type parameter errors (3112)
 
@@ -249,7 +249,7 @@ const (
 	// Spawn warnings (3115)
 
 	// SemaSpawnCheckpointUseless indicates useless checkpoint.
-	SemaSpawnCheckpointUseless Code = 3115 // task checkpoint() has no effect
+	SemaSpawnCheckpointUseless Code = 3115 // spawn checkpoint() has no effect
 
 	// Clone errors (3116)
 
@@ -476,7 +476,7 @@ var ( // todo расширить описания и использовать к
 		SemaLockUnverified:                 "cannot statically verify lock is held",
 		SemaLockNonblockingCallsWait:       "@nonblocking context calls function that may block",
 		SemaLockFieldNotLockType:           "lock field is not Mutex or RwLock type",
-		SemaNosendInSpawn:                  "cannot send @nosend type to task",
+		SemaNosendInSpawn:                  "cannot send @nosend type to spawn",
 		SemaFailfastNonAsync:               "@failfast can only be applied to async blocks",
 		SemaLockAcquiresNotField:           "@acquires_lock references non-existent field",
 		SemaLockReleasesNotField:           "@releases_lock references non-existent field",
@@ -501,8 +501,8 @@ var ( // todo расширить описания и использовать к
 		SemaTaskEscapesScope:               "cannot store Task<T> in global variable without detach",
 		SemaTaskLeakInAsync:                "unawaited task at async block exit",
 		SemaTaskLifetimeError:              "task outlives spawning scope",
-		SemaSpawnNotTask:                   "task requires Task<T> expression",
-		SemaSpawnCheckpointUseless:         "task checkpoint() has no effect",
+		SemaSpawnNotTask:                   "spawn requires Task<T> expression",
+		SemaSpawnCheckpointUseless:         "spawn checkpoint() has no effect",
 		SemaSendContainsNonsend:            "@send type contains non-sendable field",
 		SemaAtomicDirectAccess:             "@atomic field must be accessed via atomic operations",
 		SemaTypeParamShadow:                "type parameter shadows outer type parameter",

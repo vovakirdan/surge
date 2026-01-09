@@ -24,22 +24,22 @@ t08_joiners.sg (span: 1:1-25:1)
          │  ├─ Name: worker
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#32: task async { 2 stmt(s) }
+         │  └─ Value: expr#32: spawn async { 2 stmt(s) }
          ├─ Stmt[1]: Let (span: 16:5-16:39)
          │  ├─ Name: worker_clone
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
          │  └─ Value: expr#35: worker.clone()
-         ├─ Stmt[2]: Let (span: 18:5-18:40)
+         ├─ Stmt[2]: Let (span: 18:5-18:41)
          │  ├─ Name: j1
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#40: task joiner("j1", worker)
-         ├─ Stmt[3]: Let (span: 19:5-19:46)
+         │  └─ Value: expr#40: spawn joiner("j1", worker)
+         ├─ Stmt[3]: Let (span: 19:5-19:47)
          │  ├─ Name: j2
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#45: task joiner("j2", worker_clone)
+         │  └─ Value: expr#45: spawn joiner("j2", worker_clone)
          ├─ Stmt[4]: Let (span: 21:5-21:24)
          │  ├─ Name: _
          │  ├─ Mutable: false

@@ -540,38 +540,12 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprTask:
 		if task, ok := tc.builder.Exprs.Task(id); ok && task != nil {
-			exprType := tc.typeExpr(task.Value)
-			tc.observeMove(task.Value, tc.exprSpan(task.Value))
-			tc.enforceSpawn(task.Value)
-
-			// task requires Task<T> — passthrough without re-wrapping
-			if tc.isTaskType(exprType) {
-				ty = exprType
-				// Warn if task checkpoint() - it has no useful effect
-				if tc.isCheckpointCall(task.Value) {
-					tc.warn(diag.SemaSpawnCheckpointUseless, expr.Span,
-						"task checkpoint() has no effect; use checkpoint().await() or ignore the result")
-				}
-			} else if exprType != types.NoTypeID {
-				tc.report(diag.SemaSpawnNotTask, expr.Span,
-					"task requires async function call or Task<T> expression, got %s",
-					tc.typeLabel(exprType))
-				ty = types.NoTypeID
-			}
-
-			// Track task for structured concurrency
-			if tc.taskTracker != nil && ty != types.NoTypeID {
-				inAsyncBlock := tc.asyncBlockDepth > 0
-				tc.taskTracker.SpawnTask(id, expr.Span, tc.currentScope(), inAsyncBlock)
-			}
+			ty = tc.typeSpawnExpr(id, expr.Span, task.Value)
 		}
 	case ast.ExprSpawn:
 		if spawn, ok := tc.builder.Exprs.Spawn(id); ok && spawn != nil {
-			tc.typeExpr(spawn.Value)
+			ty = tc.typeSpawnExpr(id, expr.Span, spawn.Value)
 		}
-		spawnSpan := source.Span{Start: expr.Span.Start, End: expr.Span.Start + uint32(len("spawn"))}
-		tc.report(diag.FutSpawnReserved, spawnSpan,
-			"`spawn` is reserved for routines/parallel runtime; use `task` for async tasks")
 	case ast.ExprSpread:
 		if spread, ok := tc.builder.Exprs.Spread(id); ok && spread != nil {
 			tc.typeExpr(spread.Value)
@@ -616,6 +590,33 @@ func (tc *typeChecker) typeExprAssignLHS(id ast.ExprID) types.TypeID {
 			}
 		}
 	}
+	return ty
+}
+
+func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value ast.ExprID) types.TypeID {
+	exprType := tc.typeExpr(value)
+	tc.observeMove(value, tc.exprSpan(value))
+	tc.enforceSpawn(value)
+
+	var ty types.TypeID
+	if tc.isTaskType(exprType) {
+		ty = exprType
+		if tc.isCheckpointCall(value) {
+			tc.warn(diag.SemaSpawnCheckpointUseless, span,
+				"spawn checkpoint() has no effect; use checkpoint().await() or ignore the result")
+		}
+	} else if exprType != types.NoTypeID {
+		tc.report(diag.SemaSpawnNotTask, span,
+			"spawn requires async function call or Task<T> expression, got %s",
+			tc.typeLabel(exprType))
+		ty = types.NoTypeID
+	}
+
+	if tc.taskTracker != nil && ty != types.NoTypeID {
+		inAsyncBlock := tc.asyncBlockDepth > 0
+		tc.taskTracker.SpawnTask(exprID, span, tc.currentScope(), inAsyncBlock)
+	}
+
 	return ty
 }
 

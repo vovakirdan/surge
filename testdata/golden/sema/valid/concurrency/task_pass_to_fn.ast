@@ -21,16 +21,16 @@ task_pass_to_fn.sg (span: 4:1-57:1)
 │  ├─ Return: int
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 17:51-24:2)
-│        ├─ Stmt[0]: Let (span: 18:5-18:28)
+│        ├─ Stmt[0]: Let (span: 18:5-18:29)
 │        │  ├─ Name: t
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
-│        │  └─ Value: expr#15: task compute()
-│        ├─ Stmt[1]: Let (span: 19:5-19:38)
+│        │  └─ Value: expr#15: spawn compute()
+│        ├─ Stmt[1]: Let (span: 19:5-19:39)
 │        │  ├─ Name: drainer
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
-│        │  └─ Value: expr#19: task drain_task(t)
+│        │  └─ Value: expr#19: spawn drain_task(t)
 │        └─ Stmt[2]: Return (span: 20:5-23:7)
 │           └─ Expr: expr#30: compare drainer.await() { 2 arms }
 ├─ Item[3]: Fn (span: 27:1-33:2)
@@ -39,11 +39,11 @@ task_pass_to_fn.sg (span: 4:1-57:1)
 │  ├─ Return: int
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 27:40-33:2)
-│        ├─ Stmt[0]: Let (span: 28:5-28:51)
+│        ├─ Stmt[0]: Let (span: 28:5-28:53)
 │        │  ├─ Name: drainer
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
-│        │  └─ Value: expr#36: task drain_task(task compute())
+│        │  └─ Value: expr#36: spawn drain_task(spawn compute())
 │        └─ Stmt[1]: Return (span: 29:5-32:7)
 │           └─ Expr: expr#47: compare drainer.await() { 2 arms }
 ├─ Item[4]: Fn (span: 36:1-46:2)
@@ -70,20 +70,20 @@ task_pass_to_fn.sg (span: 4:1-57:1)
    ├─ Return: int
    └─ Body:
       └─ Stmt[0]: Block (span: 48:42-56:2)
-         ├─ Stmt[0]: Let (span: 49:5-49:28)
+         ├─ Stmt[0]: Let (span: 49:5-49:29)
          │  ├─ Name: a
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#75: task compute()
-         ├─ Stmt[1]: Let (span: 50:5-50:28)
+         │  └─ Value: expr#75: spawn compute()
+         ├─ Stmt[1]: Let (span: 50:5-50:29)
          │  ├─ Name: b
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#78: task compute()
-         ├─ Stmt[2]: Let (span: 51:5-51:39)
+         │  └─ Value: expr#78: spawn compute()
+         ├─ Stmt[2]: Let (span: 51:5-51:40)
          │  ├─ Name: summer
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#83: task sum_tasks(a, b)
+         │  └─ Value: expr#83: spawn sum_tasks(a, b)
          └─ Stmt[3]: Return (span: 52:5-55:7)
             └─ Expr: expr#94: compare summer.await() { 2 arms }

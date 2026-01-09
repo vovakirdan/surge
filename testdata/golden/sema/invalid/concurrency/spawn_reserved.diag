@@ -1,1 +1,0 @@
-error FUT7007 testdata/golden/sema/invalid/concurrency/spawn_reserved.sg:6:13 `spawn` is reserved for routines/parallel runtime; use `task` for async tasks

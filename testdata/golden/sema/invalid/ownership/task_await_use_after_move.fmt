@@ -3,7 +3,7 @@ async fn compute(x: int) -> int {
 }
 
 pub async fn test_use_after_move() -> int {
-    let t = task compute(1);
+    let t = spawn compute(1);
     let r1: int = compare t.await() {
         Success(v) => v;
         Cancelled() => 0;

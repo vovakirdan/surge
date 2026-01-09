@@ -1,6 +1,6 @@
 @entrypoint
 fn main() -> int {
-    let worker = task async {
+    let worker = spawn async {
         sleep(100).await();
         print("worker done");
         return 1;
@@ -12,7 +12,7 @@ fn main() -> int {
         Cancelled() => print("timeout");
     };
 
-    let guard = task async {
+    let guard = spawn async {
         sleep(200).await();
         return 0;
     };

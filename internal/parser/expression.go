@@ -136,7 +136,6 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 	type prefixKind uint8
 	const (
 		prefixUnary prefixKind = iota
-		prefixTask
 		prefixSpawn
 	)
 
@@ -151,15 +150,6 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 	// Собираем все префиксы
 	for {
 		tok := p.lx.Peek()
-
-		if tok.Kind == token.KwTask {
-			taskTok := p.advance()
-			prefixes = append(prefixes, prefixOp{
-				kind: prefixTask,
-				span: taskTok.Span,
-			})
-			continue
-		}
 
 		if tok.Kind == token.KwSpawn {
 			spawnTok := p.advance()
@@ -234,8 +224,6 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 		switch prefixes[i].kind {
 		case prefixUnary:
 			expr = p.arenas.Exprs.NewUnary(exprSpan, prefixes[i].unary, expr)
-		case prefixTask:
-			expr = p.arenas.Exprs.NewTask(exprSpan, expr)
 		case prefixSpawn:
 			expr = p.arenas.Exprs.NewSpawn(exprSpan, expr)
 		}

@@ -9,7 +9,7 @@ async fn busy(steps: int) -> int {
 
 @entrypoint
 fn main() {
-    let t = task busy(1_000_000);
+    let t = spawn busy(1_000_000);
 
     sleep(1:uint).await();
     t.cancel();

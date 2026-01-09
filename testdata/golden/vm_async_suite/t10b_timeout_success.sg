@@ -1,6 +1,6 @@
 @entrypoint
 fn main() -> int {
-    let worker = task async {
+    let worker = spawn async {
         sleep(3).await();
         return 3;
     };
