@@ -15,6 +15,8 @@
 
 ## Quickstart
 
+Удобнее всего с VScode расширением: [Surge](https://marketplace.visualstudio.com/items?itemName=VladimirKirdan.surge-syntax-highlighting).
+
 Если вам лень читать документацию (или вы уже её читали), давайте сразу напишем первую программу на Surge.
 
 > **Примечание**

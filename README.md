@@ -14,6 +14,8 @@ not for people who love to fight compilers.**
 
 ## Quickstart
 
+It'll be prettier with VScode extension: [Surge](https://marketplace.visualstudio.com/items?itemName=VladimirKirdan.surge-syntax-highlighting).
+
 If you're too lazy to read the documentation (or you've already read it), let's write the first program on Surge right away.
 
 > **Note**
