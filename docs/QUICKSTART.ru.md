@@ -10,6 +10,15 @@
 
 Копируйте код. Запускайте его. Изменяйте его. Ломайте его. Исправляйте его.
 
+Если вы работаете в VSCode, вы можете установить расширение Surge для получения подсветки синтаксиса и автодополнения.
+Здесь ссылка на расширение: [Surge](https://marketplace.visualstudio.com/items?itemName=VladimirKirdan.surge-syntax-highlighting).
+
+Или вы можете использовать следующую команду для установки расширения:
+```bash
+code --install-extension VladimirKirdan.surge-syntax-highlighting
+```
+Также доступна подсветка синтаксиса tree-sitter: https://github.com/vovakirdan/tree-sitter-surge
+
 ---
 
 ## 1. Ваша первая программа

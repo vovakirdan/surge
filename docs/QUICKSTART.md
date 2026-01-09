@@ -10,6 +10,16 @@ This is a small book of **runnable examples** that show how to write real progra
 
 Copy the code. Run it. Change it. Break it. Fix it.
 
+If you are working in VSCode, you can install the Surge extension to get syntax highlighting and autocomplete.
+Here is a link to the extension: [Surge](https://marketplace.visualstudio.com/items?itemName=VladimirKirdan.surge-syntax-highlighting).
+
+Or you can use the following command to install the extension:
+```bash
+code --install-extension VladimirKirdan.surge-syntax-highlighting
+```
+
+Also the tree-sitter syntax highlighting available: https://github.com/vovakirdan/tree-sitter-surge
+
 ---
 
 ## 1. Your first program
