@@ -1,0 +1,36 @@
+task_container_pop_not_awaited.sg (span: 3:1-16:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:24-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:14)
+│           └─ Expr: expr#1: 1
+└─ Item[1]: Fn (span: 7:1-15:2)
+   ├─ Name: drain_requires_await
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:31-15:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:33)
+         │  ├─ Name: q
+         │  ├─ Mutable: true
+         │  ├─ Type: Task<int>[]
+         │  └─ Value: expr#2: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 10:5-10:26)
+         │  └─ Expr: expr#8: q.push(spawn work())
+         └─ Stmt[2]: While (span: 11:5-14:6)
+            ├─ Cond: expr#14: (q.__len() != (0 to uint))
+            └─ Body:
+Block (span: 11:31-14:6)
+               ├─ Stmt[0]: Let (span: 12:9-12:32)
+               │  ├─ Name: t
+               │  ├─ Mutable: false
+               │  ├─ Type: <inferred>
+               │  └─ Value: expr#19: q.pop().safe()
+               └─ Stmt[1]: Let (span: 13:9-13:19)
+                  ├─ Name: _
+                  ├─ Mutable: false
+                  ├─ Type: <inferred>
+                  └─ Value: expr#20: t

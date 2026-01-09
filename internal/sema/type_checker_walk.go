@@ -230,6 +230,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 						tc.taskTracker.BindTaskByExpr(letStmt.Value, symID)
 					}
 					tc.updateLocalTaskBindingFromExpr(symID, letStmt.Value)
+					tc.trackTaskContainerPopBinding(symID, letStmt.Value)
 				}
 			}
 		}
@@ -279,8 +280,10 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			}
 			tc.walkStmt(whileStmt.Body)
 			if loopOK {
-				if loop, ok := tc.leaveTaskContainerLoop(); ok && loop.popSeen && !loop.earlyExit {
-					tc.markTaskContainerConsumed(loop.place)
+				if loop, ok := tc.leaveTaskContainerLoop(); ok && loop.popCount > 0 && !loop.earlyExit {
+					if tc.taskContainerLoopDrained(loop) {
+						tc.markTaskContainerConsumed(loop.place)
+					}
 				}
 			}
 		}
