@@ -365,6 +365,10 @@ func runHTTPServerCommand(t *testing.T, cmd *exec.Cmd, port int) (stdout, stderr
 				running = true
 			}
 		}
+		if os.Getenv("SURGE_TRACE_EXEC") != "" && cmd.Process != nil {
+			_ = cmd.Process.Signal(syscall.SIGUSR1)
+			time.Sleep(50 * time.Millisecond)
+		}
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 		outStr := stripTimingLines(outBuf.String())

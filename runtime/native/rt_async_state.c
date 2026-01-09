@@ -1,6 +1,7 @@
 #include "rt_async_internal.h"
 
 #include <limits.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -26,6 +27,100 @@ _Thread_local waker_key pending_key;
 _Thread_local uint64_t tls_current_id;
 _Thread_local rt_task* tls_current_task;
 static pthread_once_t exec_once = PTHREAD_ONCE_INIT;
+
+static volatile sig_atomic_t trace_exec_enabled_flag = 0;
+static _Atomic uint64_t trace_wake_called_total;
+static _Atomic uint64_t trace_wake_enqueued_total;
+static _Atomic uint64_t trace_wake_ignored_completed_total;
+static _Atomic uint64_t trace_park_attempt_total;
+static _Atomic uint64_t trace_park_committed_total;
+static _Atomic uint64_t trace_worker_sleep_total;
+static _Atomic uint64_t trace_worker_wake_total;
+
+static int trace_exec_enabled(void) {
+    return trace_exec_enabled_flag != 0;
+}
+
+static void trace_exec_inc(_Atomic uint64_t* counter) {
+    if (!trace_exec_enabled() || counter == NULL) {
+        return;
+    }
+    (void)atomic_fetch_add_explicit(counter, 1, memory_order_relaxed);
+}
+
+static size_t trace_exec_append_literal(char* buf, size_t pos, size_t cap, const char* lit) {
+    if (buf == NULL || lit == NULL) {
+        return pos;
+    }
+    for (size_t i = 0; lit[i] != '\0' && pos + 1 < cap; i++) {
+        buf[pos++] = lit[i];
+    }
+    return pos;
+}
+
+static size_t trace_exec_append_u64(char* buf, size_t pos, size_t cap, uint64_t value) {
+    char tmp[32];
+    size_t len = 0;
+    do {
+        tmp[len++] = (char)('0' + (value % 10));
+        value /= 10;
+    } while (value > 0 && len < sizeof(tmp));
+    for (size_t i = 0; i < len && pos + 1 < cap; i++) {
+        buf[pos++] = tmp[len - 1 - i];
+    }
+    return pos;
+}
+
+static void trace_exec_dump(const char* reason) {
+    if (!trace_exec_enabled()) {
+        return;
+    }
+    char buf[512];
+    size_t pos = 0;
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC ");
+    if (reason != NULL) {
+        pos = trace_exec_append_literal(buf, pos, sizeof(buf), "reason=");
+        pos = trace_exec_append_literal(buf, pos, sizeof(buf), reason);
+        pos = trace_exec_append_literal(buf, pos, sizeof(buf), " ");
+    }
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), "wake_called=");
+    pos = trace_exec_append_u64(
+        buf, pos, sizeof(buf),
+        atomic_load_explicit(&trace_wake_called_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " wake_enqueued=");
+    pos = trace_exec_append_u64(
+        buf, pos, sizeof(buf),
+        atomic_load_explicit(&trace_wake_enqueued_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " wake_ignored_completed=");
+    pos = trace_exec_append_u64(
+        buf, pos, sizeof(buf),
+        atomic_load_explicit(&trace_wake_ignored_completed_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " park_attempt=");
+    pos = trace_exec_append_u64(
+        buf, pos, sizeof(buf),
+        atomic_load_explicit(&trace_park_attempt_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " park_committed=");
+    pos = trace_exec_append_u64(
+        buf, pos, sizeof(buf),
+        atomic_load_explicit(&trace_park_committed_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " worker_sleep=");
+    pos = trace_exec_append_u64(
+        buf, pos, sizeof(buf),
+        atomic_load_explicit(&trace_worker_sleep_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " worker_wake=");
+    pos = trace_exec_append_u64(
+        buf, pos, sizeof(buf),
+        atomic_load_explicit(&trace_worker_wake_total, memory_order_relaxed));
+    if (pos + 1 < sizeof(buf)) {
+        buf[pos++] = '\n';
+    }
+    (void)write(STDERR_FILENO, buf, pos);
+}
+
+static void trace_exec_signal_handler(int sig) {
+    (void)sig;
+    trace_exec_dump("sigusr1");
+}
 
 void panic_msg(const char* msg) {
     if (msg == NULL) {
@@ -148,6 +243,7 @@ static void* rt_worker_main(void* arg);
 static void* rt_io_main(void* arg);
 static void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome);
 static int ready_is_empty(const rt_executor* ex);
+static void trace_exec_init(void);
 
 static void exec_init_once(void) {
     rt_executor* ex = &exec_state;
@@ -158,6 +254,7 @@ static void exec_init_once(void) {
     pthread_cond_init(&ex->ready_cv, NULL);
     pthread_cond_init(&ex->io_cv, NULL);
     pthread_cond_init(&ex->done_cv, NULL);
+    trace_exec_init();
     uint32_t threads = rt_env_worker_count();
     if (threads == 0) {
         threads = rt_default_worker_count();
@@ -178,6 +275,17 @@ static int ready_is_empty(const rt_executor* ex) {
         return 1;
     }
     return ex->ready_head >= ex->ready_len;
+}
+
+static void trace_exec_init(void) {
+    const char* value = getenv("SURGE_TRACE_EXEC");
+    if (value == NULL || value[0] == '\0' || (value[0] == '0' && value[1] == '\0')) {
+        return;
+    }
+    trace_exec_enabled_flag = 1;
+#ifdef SIGUSR1
+    (void)signal(SIGUSR1, trace_exec_signal_handler);
+#endif
 }
 
 static void rt_start_workers(rt_executor* ex) {
@@ -472,26 +580,31 @@ void add_wait_key(rt_executor* ex, rt_task* task, waker_key key) {
     add_waiter(ex, key, task->id);
 }
 
-void ready_push(rt_executor* ex, uint64_t id) {
+static int ready_push_inner(rt_executor* ex, uint64_t id) {
     if (ex == NULL) {
-        return;
+        return 0;
     }
     rt_task* task = get_task(ex, id);
     uint8_t status = task_status_load(task);
     if (task == NULL || status == TASK_DONE) {
-        return;
+        return 0;
     }
     if (status == TASK_RUNNING) {
-        return;
+        return 0;
     }
     if (task_enqueued_load(task) != 0) {
-        return;
+        return 0;
     }
     ensure_ready_cap(ex);
     ex->ready[ex->ready_len++] = id;
     task_enqueued_store(task, 1);
     task_status_store(task, TASK_READY);
     pthread_cond_signal(&ex->ready_cv);
+    return 1;
+}
+
+void ready_push(rt_executor* ex, uint64_t id) {
+    (void)ready_push_inner(ex, id);
 }
 
 int ready_pop(rt_executor* ex, uint64_t* out_id) {
@@ -522,8 +635,10 @@ void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
     if (ex == NULL) {
         return;
     }
+    trace_exec_inc(&trace_wake_called_total);
     rt_task* task = get_task(ex, id);
     if (task == NULL || task_status_load(task) == TASK_DONE) {
+        trace_exec_inc(&trace_wake_ignored_completed_total);
         return;
     }
     if (remove_waiter_flag && waker_valid(task->park_key)) {
@@ -531,7 +646,9 @@ void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
     }
     task->park_key = waker_none();
     (void)task_wake_token_exchange(task, 1);
-    ready_push(ex, id);
+    if (ready_push_inner(ex, id)) {
+        trace_exec_inc(&trace_wake_enqueued_total);
+    }
 }
 
 void wake_key_all(rt_executor* ex, waker_key key) {
@@ -558,6 +675,7 @@ void park_current(rt_executor* ex, waker_key key) {
     if (task == NULL || task_status_load(task) == TASK_DONE) {
         return;
     }
+    trace_exec_inc(&trace_park_attempt_total);
     if (task_wake_token_exchange(task, 0) != 0) {
         task_status_store(task, TASK_READY);
         ready_push(ex, task->id);
@@ -573,6 +691,7 @@ void park_current(rt_executor* ex, waker_key key) {
         ready_push(ex, task->id);
         return;
     }
+    trace_exec_inc(&trace_park_committed_total);
     pthread_cond_signal(&ex->io_cv);
 }
 
@@ -858,7 +977,9 @@ static void* rt_worker_main(void* arg) {
     for (;;) {
         rt_lock(ex);
         while (!ex->shutdown && ready_is_empty(ex)) {
+            trace_exec_inc(&trace_worker_sleep_total);
             pthread_cond_wait(&ex->ready_cv, &ex->lock);
+            trace_exec_inc(&trace_worker_wake_total);
         }
         if (ex->shutdown) {
             rt_unlock(ex);
