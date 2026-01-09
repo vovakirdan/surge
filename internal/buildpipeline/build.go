@@ -227,7 +227,11 @@ func buildLLVMOutput(tmpDir, outputPath string, printCommands bool) error {
 	if err := compileLLVMIR(printCommands, llPath, objPath); err != nil {
 		return err
 	}
-	if err := runCommand(printCommands, "clang", objPath, libPath, "-o", outputPath); err != nil {
+	args := []string{objPath, libPath, "-o", outputPath}
+	if runtime.GOOS != "windows" {
+		args = append(args, "-pthread")
+	}
+	if err := runCommand(printCommands, "clang", args...); err != nil {
 		return err
 	}
 	return nil
@@ -334,7 +338,12 @@ func compileRuntime(runtimeDir string, sources []string, printCommands bool) ([]
 	for _, src := range sources {
 		base := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
 		obj := filepath.Join(runtimeDir, base+".o")
-		if err := runCommand(printCommands, "clang", "-c", "-std=c11", src, "-o", obj); err != nil {
+		args := []string{"-c", "-std=c11"}
+		if runtime.GOOS != "windows" {
+			args = append(args, "-pthread")
+		}
+		args = append(args, src, "-o", obj)
+		if err := runCommand(printCommands, "clang", args...); err != nil {
 			return nil, err
 		}
 		objs = append(objs, obj)
