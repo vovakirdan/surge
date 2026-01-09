@@ -98,6 +98,10 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	showTimings, err := cmd.Root().PersistentFlags().GetBool("timings")
+	if err != nil {
+		return fmt.Errorf("failed to get timings flag: %w", err)
+	}
 
 	vmTrace, err := cmd.Flags().GetBool("vm-trace")
 	if err != nil {
@@ -167,6 +171,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 	}
 
 	useTUI := shouldUseTUI(uiModeValue)
+	printTimings := showTimings || useTUI
 	files, fileErr := collectProjectFiles(targetPath, dirInfo)
 	if fileErr != nil && len(files) == 0 && targetPath != "" {
 		files = []string{targetPath}
@@ -212,14 +217,18 @@ func runExecution(cmd *cobra.Command, args []string) error {
 			buildRes, err = buildpipeline.Build(cmd.Context(), &buildReq)
 		}
 		if err != nil {
-			printStageTimings(os.Stdout, buildRes.Timings, false, true)
+			if printTimings {
+				printStageTimings(os.Stdout, buildRes.Timings, false, true)
+			}
 			return err
 		}
 
 		runStart := time.Now()
 		runErr := runBinary(buildRes.OutputPath, programArgs, outputRoot)
 		buildRes.Timings.Set(buildpipeline.StageRun, time.Since(runStart))
-		printStageTimings(os.Stdout, buildRes.Timings, true, true)
+		if printTimings {
+			printStageTimings(os.Stdout, buildRes.Timings, true, true)
+		}
 		if runErr != nil {
 			var exitErr *exec.ExitError
 			if errors.As(runErr, &exitErr) {
@@ -238,7 +247,9 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		compileRes, err = buildpipeline.Compile(cmd.Context(), &compileReq)
 	}
 	if err != nil {
-		printStageTimings(os.Stdout, compileRes.Timings, false, true)
+		if printTimings {
+			printStageTimings(os.Stdout, compileRes.Timings, false, true)
+		}
 		return err
 	}
 
@@ -313,7 +324,9 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		runStart := time.Now()
 		res, vmErr := dbg.Run()
 		compileRes.Timings.Set(buildpipeline.StageRun, time.Since(runStart))
-		printStageTimings(os.Stdout, compileRes.Timings, true, true)
+		if printTimings {
+			printStageTimings(os.Stdout, compileRes.Timings, true, true)
+		}
 		if vmErr != nil {
 			fmt.Fprint(os.Stderr, vmErr.FormatWithFiles(compileRes.Diagnose.FileSet))
 			os.Exit(1)
@@ -331,23 +344,31 @@ func runExecution(cmd *cobra.Command, args []string) error {
 
 	if recorder != nil {
 		if err := recorder.Err(); err != nil {
-			printStageTimings(os.Stdout, compileRes.Timings, true, true)
+			if printTimings {
+				printStageTimings(os.Stdout, compileRes.Timings, true, true)
+			}
 			fmt.Fprintf(os.Stderr, "vm record failed: %v\n", err)
 			os.Exit(1)
 		}
 		if err := os.WriteFile(vmRecordPath, recordBuf.Bytes(), 0o600); err != nil {
-			printStageTimings(os.Stdout, compileRes.Timings, true, true)
+			if printTimings {
+				printStageTimings(os.Stdout, compileRes.Timings, true, true)
+			}
 			fmt.Fprintf(os.Stderr, "vm record write failed: %v\n", err)
 			os.Exit(1)
 		}
 	}
 	if vmErr != nil {
-		printStageTimings(os.Stdout, compileRes.Timings, true, true)
+		if printTimings {
+			printStageTimings(os.Stdout, compileRes.Timings, true, true)
+		}
 		fmt.Fprint(os.Stderr, vmErr.FormatWithFiles(compileRes.Diagnose.FileSet))
 		os.Exit(1)
 	}
 
-	printStageTimings(os.Stdout, compileRes.Timings, true, true)
+	if printTimings {
+		printStageTimings(os.Stdout, compileRes.Timings, true, true)
+	}
 	os.Exit(vmInstance.ExitCode)
 	return nil
 }
