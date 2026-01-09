@@ -106,6 +106,96 @@ func (vm *VM) handleNetListen(frame *Frame, call *mir.CallInstr, writes *[]Local
 	return vm.netWriteSuccess(frame, dstLocal, dstType, listenerVal, writes)
 }
 
+func (vm *VM) handleNetConnect(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if !call.HasDst {
+		return nil
+	}
+	if len(call.Args) != 2 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_net_connect requires 2 arguments")
+	}
+	addrVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(addrVal)
+	addrStr, vmErr := vm.extractStringValue(addrVal)
+	if vmErr != nil {
+		return vmErr
+	}
+	addrObj := vm.Heap.Get(addrStr.H)
+	addr := string(vm.stringBytes(addrObj))
+	portVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(portVal)
+	port, vmErr := vm.uintValueToInt(portVal, "net connect port out of range")
+	if vmErr != nil {
+		return vmErr
+	}
+
+	dstLocal := call.Dst.Local
+	dstType := frame.Locals[dstLocal].TypeID
+	errType, vmErr := vm.erringErrorType(dstType)
+	if vmErr != nil {
+		return vmErr
+	}
+
+	if netInvalidAddr(addr) || port < 0 || port > 65535 {
+		return vm.netWriteError(frame, dstLocal, errType, netErrInvalidAddr, writes)
+	}
+	ip := net.ParseIP(addr)
+	ip4 := ip.To4()
+	if ip == nil || ip4 == nil {
+		return vm.netWriteError(frame, dstLocal, errType, netErrInvalidAddr, writes)
+	}
+
+	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
+	if err != nil {
+		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
+	}
+	addr4 := [4]byte{ip4[0], ip4[1], ip4[2], ip4[3]}
+	sa := &syscall.SockaddrInet4{Port: port, Addr: addr4}
+	for {
+		err = syscall.Connect(fd, sa)
+		if err == syscall.EINTR {
+			continue
+		}
+		break
+	}
+	if err != nil {
+		closeNetFD(fd)
+		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
+	}
+	if err := syscall.SetNonblock(fd, true); err != nil {
+		closeNetFD(fd)
+		return vm.netWriteError(frame, dstLocal, errType, netErrorCodeFromErr(err), writes)
+	}
+
+	layout, vmErr := vm.tagLayoutFor(dstType)
+	if vmErr != nil {
+		closeNetFD(fd)
+		return vmErr
+	}
+	tc, ok := layout.CaseByName("Success")
+	if !ok || len(tc.PayloadTypes) != 1 {
+		closeNetFD(fd)
+		return vm.eb.makeError(PanicTypeMismatch, "Erring missing Success tag payload")
+	}
+	connHandle := vm.netNextConn
+	if connHandle == 0 {
+		connHandle = 1
+	}
+	vm.netNextConn = connHandle + 1
+	connVal, vmErr := vm.netConnValue(connHandle, tc.PayloadTypes[0])
+	if vmErr != nil {
+		closeNetFD(fd)
+		return vmErr
+	}
+	vm.netConns[connHandle] = &vmNetConn{fd: fd}
+	return vm.netWriteSuccess(frame, dstLocal, dstType, connVal, writes)
+}
+
 func (vm *VM) handleNetCloseListener(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if !call.HasDst {
 		return nil

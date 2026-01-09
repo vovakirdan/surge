@@ -19,6 +19,8 @@ func (fe *funcEmitter) emitNetIntrinsic(call *mir.CallInstr) (bool, error) {
 	switch name {
 	case "rt_net_listen":
 		return true, fe.emitNetListen(call)
+	case "rt_net_connect":
+		return true, fe.emitNetConnect(call)
 	case "rt_net_close_listener":
 		return true, fe.emitNetUnary(call, "rt_net_close_listener", "TcpListener")
 	case "rt_net_close_conn":
@@ -54,6 +56,23 @@ func (fe *funcEmitter) emitNetListen(call *mir.CallInstr) error {
 	}
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_net_listen(ptr %s, i64 %s)\n", tmp, addrVal, port64)
+	return fe.storePtrResult(call, tmp)
+}
+
+func (fe *funcEmitter) emitNetConnect(call *mir.CallInstr) error {
+	if len(call.Args) != 2 {
+		return fmt.Errorf("rt_net_connect requires 2 arguments")
+	}
+	addrVal, err := fe.emitHandleOperandPtr(&call.Args[0])
+	if err != nil {
+		return err
+	}
+	port64, err := fe.emitUintOperandToI64(&call.Args[1], "net connect port out of range")
+	if err != nil {
+		return err
+	}
+	tmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_net_connect(ptr %s, i64 %s)\n", tmp, addrVal, port64)
 	return fe.storePtrResult(call, tmp)
 }
 

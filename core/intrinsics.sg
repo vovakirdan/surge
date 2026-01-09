@@ -88,6 +88,7 @@ pub type NetError = { message: string, code: uint };
 pub type NetResult<T> = Erring<T, NetError>;
 
 @intrinsic fn rt_net_listen(addr: &string, port: uint) -> NetResult<TcpListener>;
+@intrinsic fn rt_net_connect(addr: &string, port: uint) -> NetResult<TcpConn>;
 @intrinsic fn rt_net_close_listener(l: own TcpListener) -> NetResult<nothing>;
 @intrinsic fn rt_net_close_conn(c: own TcpConn) -> NetResult<nothing>;
 
