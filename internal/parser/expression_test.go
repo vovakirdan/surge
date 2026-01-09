@@ -1198,7 +1198,7 @@ func TestBooleanAndNothingLiterals(t *testing.T) {
 	}
 }
 
-func TestTaskExpressionForms(t *testing.T) {
+func TestSpawnExpressionForms(t *testing.T) {
 	tests := []struct {
 		name          string
 		input         string
@@ -1206,17 +1206,17 @@ func TestTaskExpressionForms(t *testing.T) {
 	}{
 		{
 			name:          "call_operand",
-			input:         "let t = task fetch();",
+			input:         "let t = spawn fetch();",
 			wantInnerKind: ast.ExprCall,
 		},
 		{
 			name:          "await_operand",
-			input:         "let t = task future.await();",
+			input:         "let t = spawn future.await();",
 			wantInnerKind: ast.ExprCall,
 		},
 		{
 			name:          "async_block_operand",
-			input:         "let t = task async { return 1; };",
+			input:         "let t = spawn async { return 1; };",
 			wantInnerKind: ast.ExprAsync,
 		},
 	}
@@ -1230,19 +1230,19 @@ func TestTaskExpressionForms(t *testing.T) {
 
 			expr := arenas.Exprs.Get(letItem.Value)
 			if expr == nil {
-				t.Fatal("task expression missing")
+				t.Fatal("spawn expression missing")
 			}
-			if expr.Kind != ast.ExprTask {
-				t.Fatalf("expected task expression, got %v", expr.Kind)
+			if expr.Kind != ast.ExprSpawn {
+				t.Fatalf("expected spawn expression, got %v", expr.Kind)
 			}
 
-			data, ok := arenas.Exprs.Task(letItem.Value)
+			data, ok := arenas.Exprs.Spawn(letItem.Value)
 			if !ok {
-				t.Fatal("task payload missing")
+				t.Fatal("spawn payload missing")
 			}
 			inner := arenas.Exprs.Get(data.Value)
 			if inner == nil {
-				t.Fatal("task operand missing")
+				t.Fatal("spawn operand missing")
 			}
 			if inner.Kind != tt.wantInnerKind {
 				t.Fatalf("expected inner kind %v, got %v", tt.wantInnerKind, inner.Kind)
@@ -1251,7 +1251,7 @@ func TestTaskExpressionForms(t *testing.T) {
 	}
 }
 
-func TestSpawnExpressionReserved(t *testing.T) {
+func TestSpawnExpression(t *testing.T) {
 	letItem, arenas := parseExprTestInput(t, "let t = spawn fetch();")
 	if letItem.Value == ast.NoExprID {
 		t.Fatal("expected expression value")
@@ -1271,6 +1271,13 @@ func TestSpawnExpressionReserved(t *testing.T) {
 	}
 	if inner := arenas.Exprs.Get(data.Value); inner == nil {
 		t.Fatal("spawn operand missing")
+	}
+}
+
+func TestTaskIsNotSpawnExpression(t *testing.T) {
+	_, _, bag := parseSource(t, "let t = task { return 1; };")
+	if !bag.HasErrors() {
+		t.Fatal("expected diagnostics for task used as identifier")
 	}
 }
 

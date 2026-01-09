@@ -10,9 +10,9 @@
  10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
  11: Ident           "worker" at 3:9-3:15 (leading: Space)
  12: Assign          "=" at 3:16-3:17 (leading: Space)
- 13: KwTask          "task" at 3:18-3:22 (leading: Space)
- 14: KwAsync         "async" at 3:23-3:28 (leading: Space)
- 15: LBrace          "{" at 3:29-3:30 (leading: Space)
+ 13: KwSpawn         "spawn" at 3:18-3:23 (leading: Space)
+ 14: KwAsync         "async" at 3:24-3:29 (leading: Space)
+ 15: LBrace          "{" at 3:30-3:31 (leading: Space)
  16: Ident           "sleep" at 4:9-4:14 (leading: Newline, Space)
  17: LParen          "(" at 4:14-4:15
  18: IntLit          "100" at 4:15-4:18
@@ -75,9 +75,9 @@
  75: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
  76: Ident           "guard" at 15:9-15:14 (leading: Space)
  77: Assign          "=" at 15:15-15:16 (leading: Space)
- 78: KwTask          "task" at 15:17-15:21 (leading: Space)
- 79: KwAsync         "async" at 15:22-15:27 (leading: Space)
- 80: LBrace          "{" at 15:28-15:29 (leading: Space)
+ 78: KwSpawn         "spawn" at 15:17-15:22 (leading: Space)
+ 79: KwAsync         "async" at 15:23-15:28 (leading: Space)
+ 80: LBrace          "{" at 15:29-15:30 (leading: Space)
  81: Ident           "sleep" at 16:9-16:14 (leading: Newline, Space)
  82: LParen          "(" at 16:14-16:15
  83: IntLit          "200" at 16:15-16:18

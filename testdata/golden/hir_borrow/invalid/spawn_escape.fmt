@@ -3,6 +3,6 @@ async fn use_ref(x: &int) {}
 async fn t() {
     let mut x: int = 1;
     let r: &int = &x;
-    let t = task use_ref(r);
+    let t = spawn use_ref(r);
     t.await();
 }

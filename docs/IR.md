@@ -57,7 +57,7 @@ HIR is built after successful semantic analysis:
 - normalization of high-level constructs:
   - `compare` -> conditional branches
   - `for` -> `while`
-- **does not** desugar async/task (that happens in MIR)
+- **does not** desugar async/spawn (that happens in MIR)
 
 ### 2.2. Borrow graph and move plan
 

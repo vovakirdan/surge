@@ -5,9 +5,9 @@ async fn work() -> int {
 }
 
 pub fn start_work() -> Task<int> {
-    return task work();
+    return spawn work();
 }
 
 pub async fn start_nested() -> Task<int> {
-    return task work();
+    return spawn work();
 }

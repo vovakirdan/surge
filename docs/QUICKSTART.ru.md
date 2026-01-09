@@ -443,7 +443,7 @@ fn main() {
 
 ## 11. Запуск задач
 
-Вы можете запускать задачи параллельно используя `task`.
+Вы можете запускать задачи параллельно используя `spawn`.
 
 ```surge
 async fn work(id: int) -> int {
@@ -452,8 +452,8 @@ async fn work(id: int) -> int {
 
 @entrypoint
 fn main() {
-    let t1 = task work(1);
-    let t2 = task work(2);
+    let t1 = spawn work(1);
+    let t2 = spawn work(2);
 
     let r1 = t1.await();
     let r2 = t2.await();
@@ -499,8 +499,8 @@ async fn consumer(ch: &Channel<int>) {
 fn main() {
     let ch = make_channel<int>(2);
 
-    task producer(&ch);
-    task consumer(&ch);
+    spawn producer(&ch);
+    spawn consumer(&ch);
 }
 ```
 
@@ -529,7 +529,7 @@ fn main(values: string[]) {
 
     async {
         for v in values {
-            task parse_and_send(&ch, v);
+            spawn parse_and_send(&ch, v);
         }
         ch.close();
     };

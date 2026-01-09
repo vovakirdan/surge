@@ -188,7 +188,6 @@ func TestKeywords_Lowercase(t *testing.T) {
 		{"compare", token.KwCompare},
 		{"finally", token.KwFinally},
 		{"channel", token.KwChannel},
-		{"task", token.KwTask},
 		{"spawn", token.KwSpawn},
 		{"signal", token.KwSignal},
 		{"parallel", token.KwParallel},
@@ -208,6 +207,14 @@ func TestKeywords_Lowercase(t *testing.T) {
 				t.Errorf("Expected %v, got %v", tt.kind, tok.Kind)
 			}
 		})
+	}
+}
+
+func TestTaskIsIdentifier(t *testing.T) {
+	lx, _ := makeTestLexer("task")
+	tok := lx.Next()
+	if tok.Kind != token.Ident {
+		t.Fatalf("expected Ident, got %v", tok.Kind)
 	}
 }
 

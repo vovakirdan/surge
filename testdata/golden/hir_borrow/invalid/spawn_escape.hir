@@ -1,5 +1,5 @@
 warning SEM3004 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:5 declaration of 't' shadows previous binding
-error SEM3021 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:26 cannot send 'r' to a task
+error SEM3021 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:27 cannot send 'r' to a task
 
 == HIR ==
 module 
@@ -17,7 +17,7 @@ move plan:
 async fn t() -> nothing (id=2, sym=1354) {
   let mut x: int [copy] = 1
   let r: &int [&] = (& x): &int
-  let t: type#542 = task use_ref(r): type#542: type#542
+  let t: type#542 = spawn use_ref(r): type#542: type#542
   await(t): type#1326
   return
 }
@@ -26,8 +26,8 @@ borrow edges:
   L2709(r) (&) borrows L2708(x) at 0:87-89 scope=S5
 events:
   borrow_start L2709(r) -> L2708(x) (&) at 0:87-89 scope=S5 note="B1"
-  spawn_escape L2709(r) -> L2708(x) at 0:116-117 scope=S5 note="B1"
-  move L2710(t) at 0:124-125 scope=S5
+  spawn_escape L2709(r) -> L2708(x) at 0:117-118 scope=S5 note="B1"
+  move L2710(t) at 0:125-126 scope=S5
   borrow_end L2709(r) -> L2708(x) scope=S5 note="scope_end B1"
 move plan:
   L2708(x): MoveCopy (copy type)

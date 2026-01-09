@@ -130,6 +130,31 @@ func (l *funcLowerer) lowerTaskExpr(e *hir.Expr, consume bool) (Operand, error) 
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }
 
+// lowerSpawnExpr lowers a spawn expression into a spawn instruction.
+func (l *funcLowerer) lowerSpawnExpr(e *hir.Expr, consume bool) (Operand, error) {
+	data, ok := e.Data.(hir.SpawnData)
+	if !ok {
+		return Operand{}, fmt.Errorf("mir: spawn: unexpected payload %T", e.Data)
+	}
+	value, err := l.lowerExprForType(data.Value, e.Type)
+	if err != nil {
+		return Operand{}, err
+	}
+	tmp := l.newTemp(e.Type, "spawn", e.Span)
+	l.emit(&Instr{Kind: InstrSpawn, Spawn: SpawnInstr{Dst: Place{Local: tmp}, Value: value}})
+	if l.scopeLocal != NoLocalID {
+		l.emit(&Instr{Kind: InstrCall, Call: CallInstr{
+			HasDst: false,
+			Callee: Callee{Kind: CalleeValue, Name: "rt_scope_register_child"},
+			Args: []Operand{
+				{Kind: OperandCopy, Place: Place{Local: l.scopeLocal}},
+				{Kind: OperandCopy, Place: Place{Local: tmp}},
+			},
+		}})
+	}
+	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
+}
+
 // lowerAsyncExpr lowers an async block to a placeholder Task value.
 func (l *funcLowerer) lowerAsyncExpr(e *hir.Expr, consume bool) (Operand, error) {
 	data, ok := e.Data.(hir.AsyncData)

@@ -63,7 +63,7 @@ const (
 	KwFinally // finally
 	// KwChannel represents the 'channel' keyword.
 	KwChannel // channel
-	// KwTask represents the 'task' keyword.
+	// KwTask represents the legacy 'task' token (not produced by the lexer).
 	KwTask // task
 	// KwSpawn represents the 'spawn' keyword.
 	KwSpawn // spawn

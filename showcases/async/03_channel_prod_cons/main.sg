@@ -20,8 +20,8 @@ async fn consumer(ch: &Channel<int>) -> int {
 fn main() {
     let ch = make_channel::<int>(16:uint);
 
-    let p = task producer(&ch, 100);
-    let c = task consumer(&ch);
+    let p = spawn producer(&ch, 100);
+    let c = spawn consumer(&ch);
 
     // await в явных местах
     p.await();

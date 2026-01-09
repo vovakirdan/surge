@@ -1,13 +1,13 @@
 @entrypoint
 fn main() -> int {
     let r = (async {
-        let a = task async {
+        let a = spawn async {
             checkpoint().await();
             checkpoint().await();
             checkpoint().await();
             return 1;
         };
-        let b = task async { return 2; };
+        let b = spawn async { return 2; };
 
         return 0;
     }).await();

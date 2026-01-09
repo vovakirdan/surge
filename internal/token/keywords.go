@@ -27,7 +27,6 @@ var keywords = map[string]Kind{
 	"race":     KwRace,
 	"finally":  KwFinally,
 	"channel":  KwChannel,
-	"task":     KwTask,
 	"spawn":    KwSpawn,
 	"true":     KwTrue,
 	"false":    KwFalse,

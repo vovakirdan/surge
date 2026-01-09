@@ -8,7 +8,7 @@ fn main() {
     let mut tasks: Task<int>[] = Array::<Task<int>>::with_len(8:uint);
 
     for i in 0..8 {
-        tasks[i] = task job(i);
+        tasks[i] = spawn job(i);
     }
 
     let mut sum: int = 0;

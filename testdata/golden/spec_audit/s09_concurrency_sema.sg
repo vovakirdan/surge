@@ -11,8 +11,8 @@ async fn process_async() -> string {
     return "done";
 }
 
-// §9.4 task expression (syntax only)
-// let t = task fetch_data();
+// §9.4 spawn expression (syntax only)
+// let t = spawn fetch_data();
 
 // §9.2 parallel map/reduce - spec says v2+ only
 // parallel map xs with (x) => transform(x)
@@ -24,7 +24,7 @@ fn cpu_only_fn() -> int {
 }
 
 // NOTE: All async primitives are SEMA ONLY
-// VM does not implement async, task, await, channels, etc.
+// VM does not implement async, spawn, await, channels, etc.
 
 @entrypoint
 fn main() {
@@ -34,7 +34,7 @@ fn main() {
     print("§9 Concurrency: SEMA PASS");
     print("  - async fn declaration: SEMA PASS");
     print("  - @backend attribute: SEMA PASS");
-    print("  - task/await: SEMA ONLY (VM NOT IMPLEMENTED)");
+    print("  - spawn/await: SEMA ONLY (VM NOT IMPLEMENTED)");
     print("  - channels: SEMA ONLY (VM NOT IMPLEMENTED)");
     print("  - parallel map/reduce: v2+ feature");
 }

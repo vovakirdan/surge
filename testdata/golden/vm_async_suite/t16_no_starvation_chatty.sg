@@ -1,6 +1,6 @@
 @entrypoint
 fn main() -> int {
-    let a = task async {
+    let a = spawn async {
         let i = 0;
         while i < 100 {
             print("A");
@@ -9,7 +9,7 @@ fn main() -> int {
         }
         return 0;
     };
-    let b = task async {
+    let b = spawn async {
         let i = 0;
         while i < 3 {
             print("B");
@@ -18,7 +18,7 @@ fn main() -> int {
         }
         return 0;
     };
-    let c = task async {
+    let c = spawn async {
         let i = 0;
         while i < 3 {
             print("C");
