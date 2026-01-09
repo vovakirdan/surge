@@ -169,11 +169,12 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					for _, arg := range call.Args {
 						argTypes = append(argTypes, tc.typeExpr(arg.Value))
 						argExprs = append(argExprs, arg.Value)
+						tc.trackTaskPassedAsArg(arg.Value)
 					}
 					if !receiverIsType && methodName == "push" && len(argTypes) > 0 &&
 						tc.isTaskType(argTypes[0]) && tc.isTaskContainerType(receiverType) {
 						if place, ok := tc.taskContainerPlace(member.Target); ok {
-							tc.markTaskContainerPending(place, expr.Span)
+							tc.markTaskContainerPending(place, expr.Span, receiverType)
 						}
 					}
 					if !receiverIsType && methodName == "pop" && tc.isTaskContainerType(receiverType) {

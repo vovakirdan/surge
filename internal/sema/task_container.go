@@ -12,6 +12,7 @@ type taskContainerInfo struct {
 	Scope   symbols.ScopeID
 	Pending bool
 	Span    source.Span
+	Type    types.TypeID
 }
 
 type taskContainerLoop struct {
@@ -96,6 +97,32 @@ func (tc *typeChecker) containsTaskTypeVisited(id types.TypeID, seen map[types.T
 	return false
 }
 
+func (tc *typeChecker) isSuspendSafeType(id types.TypeID) bool {
+	visited := make(map[types.TypeID]struct{})
+	return tc.isSuspendSafeTypeVisited(id, visited)
+}
+
+func (tc *typeChecker) isSuspendSafeTypeVisited(id types.TypeID, visited map[types.TypeID]struct{}) bool {
+	if id == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	id = tc.valueType(id)
+	if id == types.NoTypeID {
+		return false
+	}
+	if _, seen := visited[id]; seen {
+		return true
+	}
+	visited[id] = struct{}{}
+	if tc.isTaskType(id) {
+		return true
+	}
+	if elem, _, fixed, ok := tc.arrayInfo(id); ok && !fixed {
+		return tc.isSuspendSafeTypeVisited(elem, visited)
+	}
+	return false
+}
+
 func (tc *typeChecker) containerExprForStore(target ast.ExprID) ast.ExprID {
 	if !target.IsValid() || tc.builder == nil {
 		return ast.NoExprID
@@ -130,7 +157,7 @@ func (tc *typeChecker) taskContainerPlace(expr ast.ExprID) (Place, bool) {
 	return place, true
 }
 
-func (tc *typeChecker) markTaskContainerPending(place Place, span source.Span) {
+func (tc *typeChecker) markTaskContainerPending(place Place, span source.Span, containerType types.TypeID) {
 	if !place.IsValid() {
 		return
 	}
@@ -149,6 +176,9 @@ func (tc *typeChecker) markTaskContainerPending(place Place, span source.Span) {
 	info.Pending = true
 	if info.Span == (source.Span{}) {
 		info.Span = span
+	}
+	if containerType != types.NoTypeID {
+		info.Type = containerType
 	}
 }
 
@@ -173,6 +203,7 @@ func (tc *typeChecker) markTaskContainerFromBinding(symID symbols.SymbolID, valu
 					Scope:   info.Scope,
 					Pending: info.Pending,
 					Span:    info.Span,
+					Type:    info.Type,
 				}
 				delete(tc.taskContainers, src)
 				return
@@ -183,7 +214,7 @@ func (tc *typeChecker) markTaskContainerFromBinding(symID symbols.SymbolID, valu
 		if expr := tc.builder.Exprs.Get(value); expr != nil {
 			switch expr.Kind {
 			case ast.ExprArray, ast.ExprStruct:
-				tc.markTaskContainerPending(dest, span)
+				tc.markTaskContainerPending(dest, span, valueType)
 			}
 		}
 	}
@@ -205,7 +236,7 @@ func (tc *typeChecker) trackTaskContainerStore(target, value ast.ExprID, valueTy
 	if !ok {
 		return
 	}
-	tc.markTaskContainerPending(place, tc.exprSpan(target))
+	tc.markTaskContainerPending(place, tc.exprSpan(target), containerType)
 	tc.trackTaskPassedAsArg(value)
 }
 
@@ -224,6 +255,7 @@ func (tc *typeChecker) trackTaskContainerAssign(target, value ast.ExprID, valueT
 					Scope:   info.Scope,
 					Pending: info.Pending,
 					Span:    info.Span,
+					Type:    info.Type,
 				}
 				delete(tc.taskContainers, src)
 				return
@@ -233,7 +265,7 @@ func (tc *typeChecker) trackTaskContainerAssign(target, value ast.ExprID, valueT
 			if expr := tc.builder.Exprs.Get(value); expr != nil {
 				switch expr.Kind {
 				case ast.ExprArray, ast.ExprStruct:
-					tc.markTaskContainerPending(place, span)
+					tc.markTaskContainerPending(place, span, valueType)
 				}
 			}
 		}
@@ -293,17 +325,21 @@ func (tc *typeChecker) checkTaskContainersLiveAcrossAwait(span source.Span) {
 	if tc.taskContainers == nil {
 		return
 	}
-	for _, info := range tc.taskContainers {
+	for place, info := range tc.taskContainers {
 		if info == nil || !info.Pending {
 			continue
 		}
 		if !tc.scopeActive(info.Scope) {
 			continue
 		}
+		if tc.isSuspendSafeType(info.Type) {
+			continue
+		}
 		if tc.taskContainerLoopAllowsAwait(info) {
 			continue
 		}
 		tc.report(diag.SemaTaskLifetimeError, span, "task container cannot live across await")
+		tc.markTaskContainerConsumed(place)
 		return
 	}
 }
