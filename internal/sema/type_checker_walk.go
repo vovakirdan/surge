@@ -115,7 +115,11 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 				paramTypes = append(paramTypes, paramType)
 			}
 			if allParamsValid {
-				fnType := tc.types.RegisterFn(paramTypes, returnType)
+				resultType := returnType
+				if fnItem.Flags&ast.FnModifierAsync != 0 {
+					resultType = tc.taskType(returnType, returnSpan)
+				}
+				fnType := tc.types.RegisterFn(paramTypes, resultType)
 				tc.assignSymbolType(symID, fnType)
 			}
 		}

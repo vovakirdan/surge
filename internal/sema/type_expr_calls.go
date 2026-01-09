@@ -84,7 +84,7 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 				case symbols.SymbolFunction:
 					candidates = append(candidates, symID)
 				case symbols.SymbolLet, symbols.SymbolParam:
-					varType := tc.bindingType(symID)
+					varType := tc.resolveAlias(tc.bindingType(symID))
 					if fnInfo, found := tc.types.FnInfo(varType); found {
 						return tc.callFunctionVariable(fnInfo, args, span)
 					}
