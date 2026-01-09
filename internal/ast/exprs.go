@@ -403,8 +403,12 @@ func (e *Exprs) Task(id ExprID) (*ExprTaskData, bool) {
 }
 
 // NewSpawn creates a new spawn expression.
-func (e *Exprs) NewSpawn(span source.Span, value ExprID) ExprID {
-	payload := e.Spawns.Allocate(ExprSpawnData{Value: value})
+func (e *Exprs) NewSpawn(span source.Span, value ExprID, attrStart AttrID, attrCount uint32) ExprID {
+	payload := e.Spawns.Allocate(ExprSpawnData{
+		Value:     value,
+		AttrStart: attrStart,
+		AttrCount: attrCount,
+	})
 	return e.new(ExprSpawn, span, PayloadID(payload))
 }
 

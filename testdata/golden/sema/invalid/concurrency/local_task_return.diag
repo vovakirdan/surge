@@ -1,0 +1,1 @@
+error SEM3132 testdata/golden/sema/invalid/concurrency/local_task_return.sg:8:12 local task handle cannot be returned from function

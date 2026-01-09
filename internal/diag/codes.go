@@ -282,6 +282,7 @@ const (
 	SemaRawPointerNotAllowed           Code = 3129 // Raw pointer types are backend-only
 	SemaUseAfterMove                   Code = 3130 // Use of moved value
 	SemaTrivialRecursion               Code = 3131 // Obvious infinite recursion cycle
+	SemaLocalTaskNotSendable           Code = 3132 // Local task handle used in sendable context
 
 	// Ошибки I/O
 
@@ -522,6 +523,7 @@ var ( // todo расширить описания и использовать к
 		SemaRawPointerNotAllowed:           "raw pointers are backend-only",
 		SemaUseAfterMove:                   "use of moved value",
 		SemaTrivialRecursion:               "obvious infinite recursion cycle",
+		SemaLocalTaskNotSendable:           "local task handle is not sendable",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",

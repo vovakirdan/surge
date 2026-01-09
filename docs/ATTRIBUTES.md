@@ -27,6 +27,7 @@ Notes:
 - Unknown attributes are errors.
 - Statement attributes: only `@drop expr;` is allowed (no arguments).
 - Async block attributes: only `@failfast` is accepted.
+- Spawn expression attributes: only `@local` is accepted.
 - Attribute arguments must be literals (string or integer as required).
 
 ---
@@ -47,6 +48,7 @@ Status legend:
 | `@drop` | stmt | none | Enforced | Explicit drop/borrow end point. |
 | `@entrypoint` | fn | optional string | Enforced | Program entrypoint. |
 | `@failfast` | async fn, async block | none | Enforced | Structured concurrency cancellation. |
+| `@local` | spawn expr | none | Enforced | Allows @nosend captures; local task handle is not sendable. |
 | `@guarded_by` | field | string | Enforced | Requires holding a lock to access. |
 | `@hidden` | fn, type, field, let, const | none | Enforced (top-level) | Field-level is parsed only. |
 | `@intrinsic` | fn, type | none | Enforced | Decl-only; type body restrictions. |
@@ -203,6 +205,13 @@ Validates an execution target string (known: `cpu`, `gpu`, `tpu`, `wasm`,
 
 - Allowed on `async fn` and `@failfast async { ... }` blocks.
 - Cancels sibling tasks in the same scope when one is cancelled.
+
+### `@local`
+
+- Allowed on `spawn` expressions: `@local spawn expr`.
+- Allows capturing `@nosend` values.
+- The resulting task handle is local (not sendable): it cannot be captured by `spawn`,
+  sent through channels, or returned from a function.
 
 ### `@pure`
 

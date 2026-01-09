@@ -458,7 +458,9 @@ type ExprTaskData struct {
 // ExprSpawnData represents the operand of a `spawn` expression.
 // TODO(sema): enforce async context and Future/Task requirements once sema is in place.
 type ExprSpawnData struct {
-	Value ExprID
+	Value     ExprID
+	AttrStart AttrID
+	AttrCount uint32
 }
 
 // ExprParallelKind distinguishes parallel map and reduce operations.

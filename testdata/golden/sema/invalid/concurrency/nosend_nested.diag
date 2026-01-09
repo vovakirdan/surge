@@ -1,1 +1,1 @@
-error SEM3086 testdata/golden/sema/invalid/concurrency/nosend_nested.sg:17:16 type 'AppState' contains @nosend field of type 'Database'
+error SEM3086 testdata/golden/sema/invalid/concurrency/nosend_nested.sg:17:16 type 'AppState' contains @nosend field of type 'Database'; use @local spawn

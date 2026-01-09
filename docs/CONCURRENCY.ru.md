@@ -98,6 +98,7 @@ Failfast означает: если дочерняя задача заверша
 
 ```sg
 spawn expr
+@local spawn expr
 ```
 
 Правила:
@@ -105,7 +106,9 @@ spawn expr
 - `expr` должно быть `Task<T>` (вызов async функции или async блок).
 - `spawn` планирует задачу и возвращает дескриптор `Task<T>`.
 - Только `own` значения могут пересекать границу задачи.
-- Типы с `@nosend` отвергаются в spawn (`SemaNosendInSpawn`).
+- `spawn` требует sendable-захватов; типы с `@nosend` отвергаются (`SemaNosendInSpawn`).
+- `@local spawn` разрешает `@nosend` захваты, но возвращает локальный task handle (не sendable):
+  его нельзя захватывать в `spawn`, отправлять через каналы или возвращать из функции.
 - `spawn checkpoint()` вызывает предупреждение как бесполезный вызов (`SemaSpawnCheckpointUseless`).
 
 Пример:

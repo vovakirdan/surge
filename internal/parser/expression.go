@@ -225,7 +225,7 @@ func (p *Parser) parseUnaryExpr() (ast.ExprID, bool) {
 		case prefixUnary:
 			expr = p.arenas.Exprs.NewUnary(exprSpan, prefixes[i].unary, expr)
 		case prefixSpawn:
-			expr = p.arenas.Exprs.NewSpawn(exprSpan, expr)
+			expr = p.arenas.Exprs.NewSpawn(exprSpan, expr, ast.NoAttrID, 0)
 		}
 	}
 
@@ -535,17 +535,20 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 		if !ok {
 			return ast.NoExprID, false
 		}
-		if !p.at(token.KwAsync) {
-			p.emitDiagnostic(
-				diag.SynUnexpectedToken,
-				diag.SevError,
-				attrSpan,
-				"attributes are only allowed before async blocks",
-				nil,
-			)
-			return ast.NoExprID, false
+		if p.at(token.KwAsync) {
+			return p.parseAsyncExprWithAttrs(attrs, attrSpan)
 		}
-		return p.parseAsyncExprWithAttrs(attrs, attrSpan)
+		if p.at(token.KwSpawn) {
+			return p.parseSpawnExprWithAttrs(attrs, attrSpan)
+		}
+		p.emitDiagnostic(
+			diag.SynUnexpectedToken,
+			diag.SevError,
+			attrSpan,
+			"attributes are only allowed before async blocks or spawn expressions",
+			nil,
+		)
+		return ast.NoExprID, false
 
 	case token.LBrace:
 		return p.parseBraceExpr()

@@ -229,6 +229,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 					if tc.taskTracker != nil && tc.isTaskType(valueType) {
 						tc.taskTracker.BindTaskByExpr(letStmt.Value, symID)
 					}
+					tc.updateLocalTaskBindingFromExpr(symID, letStmt.Value)
 				}
 			}
 		}
@@ -250,6 +251,10 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			if ret.Expr.IsValid() {
 				valueType = tc.typeExpr(ret.Expr)
 				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
+				if tc.isLocalTaskExpr(ret.Expr) {
+					tc.report(diag.SemaLocalTaskNotSendable, tc.exprSpan(ret.Expr),
+						"local task handle cannot be returned from function")
+				}
 				tc.checkTaskContainerEscape(ret.Expr, valueType, tc.exprSpan(ret.Expr))
 				// Track task return for structured concurrency
 				tc.trackTaskReturn(ret.Expr)

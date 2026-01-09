@@ -1631,12 +1631,15 @@ run on one OS thread, yielding control at `.await()` points. No preemption; use
 
 ```sg
 spawn expr
+@local spawn expr
 ```
 
 - `expr` must be `Task<T>` (an `async fn` call or `async { ... }` block result).
 - `spawn` немедленно планирует async задачу.
 - Returns `Task<T>` — a handle to the task.
-- Captured values are moved into the task; `@nosend` types are rejected.
+- Captured values are moved into the task; `@nosend` types are rejected unless using `@local spawn`.
+- `@local spawn` возвращает локальный task handle (не sendable): его нельзя захватывать в `spawn`,
+  отправлять через каналы или возвращать из функции.
 
 **Example:**
 ```sg

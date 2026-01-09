@@ -557,11 +557,12 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		}
 	case ast.ExprTask:
 		if task, ok := tc.builder.Exprs.Task(id); ok && task != nil {
-			ty = tc.typeSpawnExpr(id, expr.Span, task.Value)
+			ty = tc.typeSpawnExpr(id, expr.Span, task.Value, false)
 		}
 	case ast.ExprSpawn:
 		if spawn, ok := tc.builder.Exprs.Spawn(id); ok && spawn != nil {
-			ty = tc.typeSpawnExpr(id, expr.Span, spawn.Value)
+			local := tc.spawnHasAttr(id, "local")
+			ty = tc.typeSpawnExpr(id, expr.Span, spawn.Value, local)
 		}
 	case ast.ExprSpread:
 		if spread, ok := tc.builder.Exprs.Spread(id); ok && spread != nil {
@@ -610,10 +611,10 @@ func (tc *typeChecker) typeExprAssignLHS(id ast.ExprID) types.TypeID {
 	return ty
 }
 
-func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value ast.ExprID) types.TypeID {
+func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value ast.ExprID, local bool) types.TypeID {
 	exprType := tc.typeExpr(value)
 	tc.observeMove(value, tc.exprSpan(value))
-	tc.enforceSpawn(value)
+	tc.enforceSpawn(value, local)
 
 	var ty types.TypeID
 	if tc.isTaskType(exprType) {
@@ -631,7 +632,7 @@ func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value 
 
 	if tc.taskTracker != nil && ty != types.NoTypeID {
 		inAsyncBlock := tc.asyncBlockDepth > 0
-		tc.taskTracker.SpawnTask(exprID, span, tc.currentScope(), inAsyncBlock)
+		tc.taskTracker.SpawnTask(exprID, span, tc.currentScope(), inAsyncBlock, local)
 	}
 
 	return ty

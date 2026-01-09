@@ -1274,6 +1274,36 @@ func TestSpawnExpression(t *testing.T) {
 	}
 }
 
+func TestSpawnExpressionAttributes(t *testing.T) {
+	letItem, arenas := parseExprTestInput(t, "let t = @local spawn fetch();")
+	if letItem.Value == ast.NoExprID {
+		t.Fatal("expected expression value")
+	}
+
+	expr := arenas.Exprs.Get(letItem.Value)
+	if expr == nil {
+		t.Fatal("spawn expression missing")
+	}
+	if expr.Kind != ast.ExprSpawn {
+		t.Fatalf("expected spawn expression, got %v", expr.Kind)
+	}
+
+	data, ok := arenas.Exprs.Spawn(letItem.Value)
+	if !ok {
+		t.Fatal("spawn payload missing")
+	}
+	if data.AttrCount != 1 {
+		t.Fatalf("expected 1 spawn attribute, got %d", data.AttrCount)
+	}
+	attrs := arenas.Items.CollectAttrs(data.AttrStart, data.AttrCount)
+	if len(attrs) != 1 {
+		t.Fatalf("expected 1 spawn attribute, got %d", len(attrs))
+	}
+	if got := arenas.StringsInterner.MustLookup(attrs[0].Name); got != "local" {
+		t.Fatalf("expected @local attribute, got %q", got)
+	}
+}
+
 func TestTaskIsNotSpawnExpression(t *testing.T) {
 	_, _, bag := parseSource(t, "let t = task { return 1; };")
 	if !bag.HasErrors() {
