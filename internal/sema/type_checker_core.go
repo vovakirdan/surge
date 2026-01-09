@@ -99,6 +99,7 @@ type typeChecker struct {
 	fnConcurrencySummaries      map[symbols.SymbolID]*FnConcurrencySummary
 	lockOrderGraph              *LockOrderGraph // Global lock ordering for deadlock detection
 	taskTracker                 *TaskTracker    // Task tracking for structured concurrency
+	localTaskBindings           map[symbols.SymbolID]struct{}
 	taskContainers              map[Place]*taskContainerInfo
 	taskContainerLoops          []taskContainerLoop
 	addressOfOperands           map[ast.ExprID]struct{} // Tracks operands of & expressions (for @atomic validation)
@@ -198,6 +199,7 @@ func (tc *typeChecker) run() {
 	tc.fnConcurrencySummaries = make(map[symbols.SymbolID]*FnConcurrencySummary)
 	tc.lockOrderGraph = NewLockOrderGraph()
 	tc.taskTracker = NewTaskTracker()
+	tc.localTaskBindings = make(map[symbols.SymbolID]struct{})
 	tc.arrayViewExprs = make(map[ast.ExprID]struct{})
 	tc.arrayViewBindings = make(map[symbols.SymbolID]struct{})
 	tc.movedBindings = make(map[symbols.SymbolID]source.Span)

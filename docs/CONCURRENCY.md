@@ -98,6 +98,7 @@ remaining children and the parent returns `Cancelled`.
 
 ```sg
 spawn expr
+@local spawn expr
 ```
 
 Rules:
@@ -105,7 +106,9 @@ Rules:
 - `expr` must be a `Task<T>` (async function call or async block).
 - `spawn` schedules the task and returns a `Task<T>` handle.
 - Only `own` values may cross the task boundary.
-- `@nosend` types are rejected in spawn (`SemaNosendInSpawn`).
+- `spawn` requires sendable captures; `@nosend` types are rejected (`SemaNosendInSpawn`).
+- `@local spawn` allows `@nosend` captures, but the resulting task handle is local (not sendable):
+  it cannot be captured by `spawn`, sent through channels, or returned from a function.
 - `spawn checkpoint()` is warned as useless (`SemaSpawnCheckpointUseless`).
 
 Example:

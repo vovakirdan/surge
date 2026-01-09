@@ -16,6 +16,7 @@ type TaskInfo struct {
 	Awaited      bool             // Whether .await() was called on this task
 	Returned     bool             // Whether the task was returned from the scope
 	InAsyncBlock bool             // Whether task was created inside async block (for error differentiation)
+	Local        bool             // Whether task handle is local (@local spawn)
 }
 
 // TaskTracker manages task lifecycle within scopes for structured concurrency.
@@ -44,7 +45,7 @@ func NewTaskTracker() *TaskTracker {
 // SpawnTask records a new task in the given scope.
 // inAsyncBlock indicates whether the task was created inside an async block (for error differentiation).
 // Returns the task ID for later binding/tracking.
-func (tt *TaskTracker) SpawnTask(expr ast.ExprID, span source.Span, scope symbols.ScopeID, inAsyncBlock bool) uint32 {
+func (tt *TaskTracker) SpawnTask(expr ast.ExprID, span source.Span, scope symbols.ScopeID, inAsyncBlock, local bool) uint32 {
 	id := tt.nextID
 	tt.nextID++
 
@@ -54,6 +55,7 @@ func (tt *TaskTracker) SpawnTask(expr ast.ExprID, span source.Span, scope symbol
 		Span:         span,
 		Scope:        scope,
 		InAsyncBlock: inAsyncBlock,
+		Local:        local,
 	}
 	tt.tasks = append(tt.tasks, info)
 	tt.scopeTasks[scope] = append(tt.scopeTasks[scope], id)
@@ -193,4 +195,30 @@ func (tt *TaskTracker) GetTask(id uint32) (TaskInfo, bool) {
 // HasTasks returns true if there are any tracked tasks.
 func (tt *TaskTracker) HasTasks() bool {
 	return tt.nextID > 1
+}
+
+// IsLocalBinding reports whether the binding refers to a local task handle.
+func (tt *TaskTracker) IsLocalBinding(binding symbols.SymbolID) bool {
+	if !binding.IsValid() {
+		return false
+	}
+	if taskID, ok := tt.bindingTasks[binding]; ok && taskID != 0 {
+		if int(taskID) < len(tt.tasks) {
+			return tt.tasks[taskID].Local
+		}
+	}
+	return false
+}
+
+// IsLocalExpr reports whether the expression refers to a local task handle.
+func (tt *TaskTracker) IsLocalExpr(expr ast.ExprID) bool {
+	if !expr.IsValid() {
+		return false
+	}
+	if taskID, ok := tt.exprTasks[expr]; ok && taskID != 0 {
+		if int(taskID) < len(tt.tasks) {
+			return tt.tasks[taskID].Local
+		}
+	}
+	return false
 }
