@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/fn_type_async_mismatch.sg:10:25 cannot assign fn(int) -> int to AsyncAdder
