@@ -16,9 +16,17 @@ type taskContainerInfo struct {
 }
 
 type taskContainerLoop struct {
-	place     Place
-	popSeen   bool
-	earlyExit bool
+	place        Place
+	popCount     int
+	popConsumed  int
+	earlyExit    bool
+	popBindings  []taskContainerPopBinding
+}
+
+type taskContainerPopBinding struct {
+	symID    symbols.SymbolID
+	span     source.Span
+	consumed bool
 }
 
 func (tc *typeChecker) isTaskContainerType(id types.TypeID) bool {
@@ -350,7 +358,7 @@ func (tc *typeChecker) taskContainerLoopAllowsAwait(info *taskContainerInfo) boo
 	}
 	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
 		loop := tc.taskContainerLoops[i]
-		if !loop.popSeen {
+		if loop.popCount == 0 {
 			continue
 		}
 		if existing := tc.taskContainers[loop.place]; existing == info {
@@ -391,7 +399,119 @@ func (tc *typeChecker) noteTaskContainerPop(place Place) {
 	}
 	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
 		if tc.taskContainerLoops[i].place == place {
-			tc.taskContainerLoops[i].popSeen = true
+			tc.taskContainerLoops[i].popCount++
+			return
+		}
+	}
+}
+
+func (tc *typeChecker) noteTaskContainerPopBinding(place Place, symID symbols.SymbolID, span source.Span) {
+	if !place.IsValid() || !symID.IsValid() {
+		return
+	}
+	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
+		if tc.taskContainerLoops[i].place != place {
+			continue
+		}
+		for _, binding := range tc.taskContainerLoops[i].popBindings {
+			if binding.symID == symID {
+				return
+			}
+		}
+		tc.taskContainerLoops[i].popBindings = append(tc.taskContainerLoops[i].popBindings, taskContainerPopBinding{
+			symID: symID,
+			span:  span,
+		})
+		return
+	}
+}
+
+func (tc *typeChecker) taskContainerLoopDrained(loop taskContainerLoop) bool {
+	if loop.popCount == 0 {
+		return false
+	}
+	return loop.popConsumed >= loop.popCount
+}
+
+func (tc *typeChecker) taskContainerPopSource(expr ast.ExprID) (Place, bool) {
+	if !expr.IsValid() || tc.builder == nil {
+		return Place{}, false
+	}
+	expr = tc.unwrapGroupExpr(expr)
+	if call, ok := tc.builder.Exprs.Call(expr); ok && call != nil {
+		if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
+			if tc.lookupName(member.Field) == "pop" && len(call.Args) == 0 {
+				recvType := tc.result.ExprTypes[member.Target]
+				if recvType == types.NoTypeID {
+					recvType = tc.typeExpr(member.Target)
+				}
+				if tc.isTaskContainerType(recvType) {
+					return tc.taskContainerPlace(member.Target)
+				}
+			}
+			if place, ok := tc.taskContainerPopSource(member.Target); ok {
+				return place, true
+			}
+		} else if place, ok := tc.taskContainerPopSource(call.Target); ok {
+			return place, true
+		}
+	}
+	if unary, ok := tc.builder.Exprs.Unary(expr); ok && unary != nil {
+		return tc.taskContainerPopSource(unary.Operand)
+	}
+	if await, ok := tc.builder.Exprs.Await(expr); ok && await != nil {
+		return tc.taskContainerPopSource(await.Value)
+	}
+	return Place{}, false
+}
+
+func (tc *typeChecker) trackTaskContainerPopBinding(symID symbols.SymbolID, value ast.ExprID) {
+	if !symID.IsValid() || !value.IsValid() {
+		return
+	}
+	place, ok := tc.taskContainerPopSource(value)
+	if !ok {
+		return
+	}
+	tc.noteTaskContainerPopBinding(place, symID, tc.exprSpan(value))
+}
+
+func (tc *typeChecker) trackTaskContainerPopBindingFromAssign(left, right ast.ExprID) {
+	left = tc.unwrapGroupExpr(left)
+	expr := tc.builder.Exprs.Get(left)
+	if expr == nil || expr.Kind != ast.ExprIdent {
+		return
+	}
+	symID := tc.symbolForExpr(left)
+	tc.trackTaskContainerPopBinding(symID, right)
+}
+
+func (tc *typeChecker) noteTaskContainerPopBindingConsumed(symID symbols.SymbolID) {
+	if !symID.IsValid() {
+		return
+	}
+	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
+		loop := &tc.taskContainerLoops[i]
+		for idx := range loop.popBindings {
+			binding := &loop.popBindings[idx]
+			if binding.symID != symID || binding.consumed {
+				continue
+			}
+			binding.consumed = true
+			loop.popConsumed++
+			return
+		}
+	}
+}
+
+func (tc *typeChecker) noteTaskContainerPopConsumedByExpr(expr ast.ExprID) {
+	place, ok := tc.taskContainerPopSource(expr)
+	if !ok {
+		return
+	}
+	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
+		if tc.taskContainerLoops[i].place == place {
+			tc.taskContainerLoops[i].popConsumed++
 			return
 		}
 	}
