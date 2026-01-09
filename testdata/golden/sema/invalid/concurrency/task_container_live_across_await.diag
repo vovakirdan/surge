@@ -1,0 +1,3 @@
+error SEM3107 testdata/golden/sema/invalid/concurrency/task_container_live_across_await.sg:9:12 task is neither awaited nor returned
+error SEM3110 testdata/golden/sema/invalid/concurrency/task_container_live_across_await.sg:11:5 task container cannot live across await
+error SEM3110 testdata/golden/sema/invalid/concurrency/task_container_live_across_await.sg:13:17 task container cannot live across await

@@ -244,7 +244,7 @@ func (tc *typeChecker) checkTaskContainerEscape(expr ast.ExprID, exprType types.
 	if !expr.IsValid() || !tc.isTaskContainerType(exprType) {
 		return
 	}
-	tc.report(diag.SemaTaskLifetimeError, span, "task container cannot escape its scope")
+	tc.reportTaskContainerEscape(expr, span)
 }
 
 func (tc *typeChecker) checkTaskContainersAtScopeExit(scope symbols.ScopeID) {
@@ -262,10 +262,66 @@ func (tc *typeChecker) checkTaskContainersAtScopeExit(scope symbols.ScopeID) {
 					span = sym.Span
 				}
 			}
-			tc.report(diag.SemaTaskNotAwaited, span, "task container has unconsumed tasks at scope exit")
+			tc.report(diag.SemaTaskNotAwaited, span, "task container has unconsumed tasks at scope exit (drain required)")
 		}
 		delete(tc.taskContainers, place)
 	}
+}
+
+func (tc *typeChecker) scopeActive(scope symbols.ScopeID) bool {
+	if !scope.IsValid() {
+		return false
+	}
+	for _, current := range tc.scopeStack {
+		if current == scope {
+			return true
+		}
+	}
+	return false
+}
+
+func (tc *typeChecker) reportTaskContainerEscape(expr ast.ExprID, span source.Span) {
+	if expr.IsValid() {
+		if place, ok := tc.taskContainerPlace(expr); ok {
+			tc.markTaskContainerConsumed(place)
+		}
+	}
+	tc.report(diag.SemaTaskLifetimeError, span, "task container cannot escape its scope")
+}
+
+func (tc *typeChecker) checkTaskContainersLiveAcrossAwait(span source.Span) {
+	if tc.taskContainers == nil {
+		return
+	}
+	for _, info := range tc.taskContainers {
+		if info == nil || !info.Pending {
+			continue
+		}
+		if !tc.scopeActive(info.Scope) {
+			continue
+		}
+		if tc.taskContainerLoopAllowsAwait(info) {
+			continue
+		}
+		tc.report(diag.SemaTaskLifetimeError, span, "task container cannot live across await")
+		return
+	}
+}
+
+func (tc *typeChecker) taskContainerLoopAllowsAwait(info *taskContainerInfo) bool {
+	if info == nil || len(tc.taskContainerLoops) == 0 {
+		return false
+	}
+	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
+		loop := tc.taskContainerLoops[i]
+		if !loop.popSeen {
+			continue
+		}
+		if existing := tc.taskContainers[loop.place]; existing == info {
+			return true
+		}
+	}
+	return false
 }
 
 func (tc *typeChecker) bindingMoved(symID symbols.SymbolID) bool {

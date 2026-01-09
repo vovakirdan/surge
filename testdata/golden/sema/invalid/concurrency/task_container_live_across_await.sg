@@ -1,0 +1,15 @@
+// ERROR: Task container cannot live across await
+
+async fn work() -> int {
+    return 1;
+}
+
+pub async fn test_container_across_await() {
+    let mut q: Task<int>[] = [];
+    q.push(spawn work());
+    // ERROR SEM3110: task container cannot live across await
+    sleep(1).await();
+    for t in q {
+        let _ = t.await();
+    }
+}
