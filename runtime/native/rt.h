@@ -151,6 +151,12 @@ void rt_task_cancel(void* task);
 void* rt_task_clone(void* task);
 uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits);
 int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index);
+int64_t rt_select_poll(uint64_t count,
+                       const uint8_t* kinds,
+                       void** handles,
+                       const uint64_t* values,
+                       const uint64_t* ms,
+                       int64_t default_index);
 void rt_async_yield(void* state);
 void rt_async_return(void* state, uint64_t bits);
 void rt_async_return_cancelled(void* state);

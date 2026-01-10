@@ -52,12 +52,12 @@ func overrideEnv(base []string, value string) []string {
 	return out
 }
 
-func runBinaryWithTimeout(t *testing.T, outputPath string, env []string, args []string, timeout time.Duration) (time.Duration, runResult) {
+func runBinaryWithTimeout(t *testing.T, outputPath string, env []string, timeout time.Duration) (time.Duration, runResult) {
 	t.Helper()
 	root := repoRoot(t)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, outputPath, args...)
+	cmd := exec.CommandContext(ctx, outputPath)
 	cmd.Dir = root
 	cmd.Env = env
 	var outBuf, errBuf bytes.Buffer
@@ -90,7 +90,7 @@ func TestMTParallelism(t *testing.T) {
 	}
 	t.Parallel()
 
-source := `async fn spin(progress: own Channel<nothing>, n: int) -> int {
+	source := `async fn spin(progress: own Channel<nothing>, n: int) -> int {
     let mut i: int = 0;
     let mut sent: bool = false;
     while i < n {
@@ -180,7 +180,7 @@ fn main() -> int {
 	baseEnv := envWithStdlib(repoRoot(t))
 
 	env := overrideEnv(baseEnv, "2")
-	_, res := runBinaryWithTimeout(t, outputPath, env, nil, 10*time.Second)
+	_, res := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
 	if res.exitCode != 0 {
 		t.Fatalf("run failed (exit=%d)\nstdout:\n%s\nstderr:\n%s",
 			res.exitCode, res.stdout, res.stderr)
@@ -260,7 +260,7 @@ fn main() -> int {
 	outputPath := buildLLVMProgramFromSource(t, source)
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnv(baseEnv, "2")
-	dur, res := runBinaryWithTimeout(t, outputPath, env, nil, 10*time.Second)
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
 	if res.exitCode != 0 {
 		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
 			res.exitCode, dur, res.stdout, res.stderr)
@@ -487,7 +487,7 @@ fn main() -> int {
 	outputPath := buildLLVMProgramFromSource(t, source)
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnv(baseEnv, "2")
-	dur, res := runBinaryWithTimeout(t, outputPath, env, nil, 20*time.Second)
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 20*time.Second)
 	if res.exitCode != 0 {
 		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
 			res.exitCode, dur, res.stdout, res.stderr)

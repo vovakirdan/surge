@@ -135,6 +135,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_task_clone", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_timeout_poll", ret: "i8", params: []string{"ptr", "i64", "ptr"}},
 		{name: "rt_select_poll_tasks", ret: "i64", params: []string{"i64", "ptr", "i64"}},
+		{name: "rt_select_poll", ret: "i64", params: []string{"i64", "ptr", "ptr", "ptr", "ptr", "i64"}},
 		{name: "rt_async_yield", ret: "void", params: []string{"ptr"}},
 		{name: "rt_async_return", ret: "void", params: []string{"ptr", "i64"}},
 		{name: "rt_async_return_cancelled", ret: "void", params: []string{"ptr"}},

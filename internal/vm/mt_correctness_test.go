@@ -32,7 +32,7 @@ func runMTSource(t *testing.T, source string, timeout time.Duration) {
 	t.Helper()
 	outputPath := buildLLVMProgramFromSource(t, source)
 	env := mtEnv(t)
-	dur, res := runBinaryWithTimeout(t, outputPath, env, nil, timeout)
+	dur, res := runBinaryWithTimeout(t, outputPath, env, timeout)
 	if res.exitCode != 0 {
 		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
 			res.exitCode, dur, res.stdout, res.stderr)
@@ -254,10 +254,10 @@ async fn sem_worker(sem: Semaphore, done: own Channel<int>, id: int) -> int {
 }
 
 async fn cond_waiter(cond: Condition, mtx: Mutex, done: own Channel<int>, id: int) -> int {
-    let mut m = mtx;
+    let m = mtx;
     let lock_task = m.lock();
     lock_task.await();
-    let wait_task = cond.wait(&mut m);
+    let wait_task = cond.wait(&m);
     wait_task.await();
     m.unlock();
     done.send(id);

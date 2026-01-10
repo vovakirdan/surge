@@ -285,6 +285,66 @@ bool rt_channel_try_recv(void* channel, uint64_t* out_bits) {
     return 0;
 }
 
+// rt_channel_try_recv_status_locked is the locked, non-blocking recv with closed status.
+// Returns 0 = not ready, 1 = received value, 2 = channel closed.
+uint8_t rt_channel_try_recv_status_locked(rt_executor* ex, void* channel, uint64_t* out_bits) {
+    rt_channel* ch = channel_from_handle(channel);
+    if (ex == NULL || ch == NULL) {
+        return 0;
+    }
+    uint64_t val = 0;
+    if (buf_pop(ch, &val)) {
+        if (out_bits != NULL) {
+            *out_bits = val;
+        }
+        refill_buffer_from_sender(ex, ch);
+        return 1;
+    }
+    uint64_t sender_id = 0;
+    if (pop_waiter(ex, channel_send_key(ch), &sender_id)) {
+        rt_task* sender = get_task(ex, sender_id);
+        if (sender != NULL && task_status_load(sender) != TASK_DONE) {
+            if (out_bits != NULL) {
+                *out_bits = sender->resume_bits;
+            }
+            sender->resume_kind = RESUME_CHAN_SEND_ACK;
+            sender->resume_bits = 0;
+            wake_task(ex, sender_id, 1);
+        }
+        return 1;
+    }
+    if (ch->closed) {
+        return 2;
+    }
+    return 0;
+}
+
+// rt_channel_try_send_status_locked is the locked, non-blocking send with closed status.
+// Returns 0 = not ready, 1 = sent, 2 = channel closed.
+uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64_t value_bits) {
+    rt_channel* ch = channel_from_handle(channel);
+    if (ex == NULL || ch == NULL) {
+        return 0;
+    }
+    if (ch->closed) {
+        return 2;
+    }
+    uint64_t recv_id = 0;
+    if (pop_waiter(ex, channel_recv_key(ch), &recv_id)) {
+        rt_task* recv_task = get_task(ex, recv_id);
+        if (recv_task != NULL && task_status_load(recv_task) != TASK_DONE) {
+            recv_task->resume_kind = RESUME_CHAN_RECV_VALUE;
+            recv_task->resume_bits = value_bits;
+            wake_task(ex, recv_id, 1);
+        }
+        return 1;
+    }
+    if (ch->capacity > 0 && ch->buf_len < ch->capacity && buf_push(ch, value_bits)) {
+        return 1;
+    }
+    return 0;
+}
+
 void rt_channel_close(void* channel) {
     rt_executor* ex = ensure_exec();
     rt_channel* ch = channel_from_handle(channel);

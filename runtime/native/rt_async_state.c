@@ -590,6 +590,25 @@ void clear_wait_keys(rt_executor* ex, rt_task* task) {
     task->wait_keys_len = 0;
 }
 
+void clear_select_timers(rt_executor* ex, rt_task* task) {
+    if (ex == NULL || task == NULL || task->select_timers_len == 0) {
+        return;
+    }
+    for (size_t i = 0; i < task->select_timers_len; i++) {
+        uint64_t timer_id = task->select_timers[i];
+        if (timer_id == 0) {
+            continue;
+        }
+        rt_task* timer = get_task(ex, timer_id);
+        if (timer != NULL) {
+            cancel_task(ex, timer_id);
+            task_release(ex, timer);
+        }
+        task->select_timers[i] = 0;
+    }
+    task->select_timers_len = 0;
+}
+
 void add_wait_key(rt_executor* ex, rt_task* task, waker_key key) {
     if (ex == NULL || task == NULL || !waker_valid(key)) {
         return;
@@ -939,6 +958,11 @@ static void free_task(rt_executor* ex, rt_task* task) {
                 (uint64_t)(task->wait_keys_cap * sizeof(waker_key)),
                 _Alignof(waker_key));
     }
+    if (task->select_timers != NULL && task->select_timers_cap > 0) {
+        rt_free((uint8_t*)task->select_timers,
+                (uint64_t)(task->select_timers_cap * sizeof(uint64_t)),
+                _Alignof(uint64_t));
+    }
     if (task->children != NULL && task->children_cap > 0) {
         rt_free((uint8_t*)task->children,
                 (uint64_t)(task->children_cap * sizeof(uint64_t)),
@@ -997,6 +1021,9 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     }
     if (task->wait_keys_len > 0) {
         clear_wait_keys(ex, task);
+    }
+    if (task->select_timers_len > 0) {
+        clear_select_timers(ex, task);
     }
     if (waker_valid(task->park_key)) {
         remove_waiter(ex, task->park_key, task->id);

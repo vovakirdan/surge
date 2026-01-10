@@ -4,6 +4,15 @@
 
 static rt_task* spawn_checkpoint_task_locked(rt_executor* ex);
 static rt_task* spawn_sleep_task_locked(rt_executor* ex, uint64_t delay);
+static void ensure_select_timers_cap(rt_task* task, size_t want);
+
+enum {
+    SELECT_TASK = 0,
+    SELECT_CHAN_RECV = 1,
+    SELECT_CHAN_SEND = 2,
+    SELECT_TIMEOUT = 3,
+    SELECT_DEFAULT = 4,
+};
 
 void* __task_create(
     uint64_t poll_fn_id,
@@ -359,6 +368,254 @@ int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index
     return -1;
 }
 
+int64_t rt_select_poll(uint64_t count,
+                       const uint8_t* kinds,
+                       void** handles,
+                       const uint64_t* values,
+                       const uint64_t* ms,
+                       int64_t default_index) {
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL) {
+        return default_index >= 0 ? default_index : -1;
+    }
+    rt_lock(ex);
+    if (rt_current_task_id() == 0) {
+        rt_unlock(ex);
+        panic_msg("async select outside task");
+        return -1;
+    }
+    rt_task* current = rt_current_task();
+    if (current == NULL) {
+        rt_unlock(ex);
+        panic_msg("async: missing current task");
+        return -1;
+    }
+    clear_wait_keys(ex, current);
+    if (current_task_cancelled(ex)) {
+        clear_select_timers(ex, current);
+        pending_key = waker_none();
+        rt_unlock(ex);
+        return -1;
+    }
+
+    int has_timeout = 0;
+    for (uint64_t i = 0; i < count; i++) {
+        if (kinds != NULL && kinds[i] == SELECT_TIMEOUT) {
+            has_timeout = 1;
+            break;
+        }
+    }
+    if (!has_timeout && current->select_timers_len > 0) {
+        clear_select_timers(ex, current);
+    }
+    if (has_timeout && current->select_timers_len != count) {
+        clear_select_timers(ex, current);
+        if (count > 0) {
+            ensure_select_timers_cap(current, (size_t)count);
+        }
+        if (current->select_timers_cap < count) {
+            pending_key = waker_none();
+            rt_unlock(ex);
+            return -1;
+        }
+        current->select_timers_len = (size_t)count;
+        if (current->select_timers != NULL) {
+            for (uint64_t i = 0; i < count; i++) {
+                current->select_timers[i] = 0;
+            }
+        }
+    }
+
+    int64_t selected = -1;
+    int selected_timeout = 0;
+    uint64_t selected_task_id = 0;
+
+    for (uint64_t i = 0; i < count; i++) {
+        uint8_t kind = kinds != NULL ? kinds[i] : SELECT_TASK;
+        void* handle = handles != NULL ? handles[i] : NULL;
+        switch (kind) {
+            case SELECT_DEFAULT:
+                break;
+            case SELECT_TASK: {
+                const rt_task* target = task_from_handle(handle);
+                if (target == NULL) {
+                    rt_unlock(ex);
+                    return -1;
+                }
+                if (task_status_load(target) != TASK_WAITING &&
+                    task_status_load(target) != TASK_DONE) {
+                    wake_task(ex, target->id, 1);
+                }
+                if (task_status_load(target) == TASK_DONE) {
+                    selected = (int64_t)i;
+                }
+                break;
+            }
+            case SELECT_CHAN_RECV: {
+                uint8_t status = rt_channel_try_recv_status_locked(ex, handle, NULL);
+                if (status == 1 || status == 2) {
+                    selected = (int64_t)i;
+                }
+                break;
+            }
+            case SELECT_CHAN_SEND: {
+                uint64_t value_bits = values != NULL ? values[i] : 0;
+                uint8_t status = rt_channel_try_send_status_locked(ex, handle, value_bits);
+                if (status == 1) {
+                    selected = (int64_t)i;
+                } else if (status == 2) {
+                    rt_unlock(ex);
+                    panic_msg("send on closed channel");
+                    return -1;
+                }
+                break;
+            }
+            case SELECT_TIMEOUT: {
+                const rt_task* target = task_from_handle(handle);
+                if (target == NULL) {
+                    rt_unlock(ex);
+                    return -1;
+                }
+                if (task_status_load(target) != TASK_WAITING &&
+                    task_status_load(target) != TASK_DONE) {
+                    wake_task(ex, target->id, 1);
+                }
+                if (task_status_load(target) == TASK_DONE) {
+                    selected = (int64_t)i;
+                    break;
+                }
+                if (current->select_timers_len == count && current->select_timers != NULL) {
+                    uint64_t timer_id = current->select_timers[i];
+                    if (timer_id != 0) {
+                        const rt_task* timer_task = get_task(ex, timer_id);
+                        if (timer_task != NULL && task_status_load(timer_task) == TASK_DONE) {
+                            selected = (int64_t)i;
+                            selected_timeout = 1;
+                            selected_task_id = target->id;
+                        }
+                    }
+                }
+                break;
+            }
+            default:
+                break;
+        }
+        if (selected >= 0) {
+            break;
+        }
+    }
+
+    if (selected < 0 && default_index >= 0) {
+        selected = default_index;
+    }
+
+    if (selected >= 0) {
+        if (selected_timeout) {
+            cancel_task(ex, selected_task_id);
+            wake_task(ex, selected_task_id, 1);
+        }
+        clear_select_timers(ex, current);
+        pending_key = waker_none();
+        rt_unlock(ex);
+        return selected;
+    }
+
+    waker_key first_key = waker_none();
+    int first_added = 0;
+    for (uint64_t i = 0; i < count; i++) {
+        uint8_t kind = kinds != NULL ? kinds[i] : SELECT_TASK;
+        void* handle = handles != NULL ? handles[i] : NULL;
+        switch (kind) {
+            case SELECT_TASK: {
+                const rt_task* target = task_from_handle(handle);
+                if (target == NULL) {
+                    rt_unlock(ex);
+                    return -1;
+                }
+                waker_key key = join_key(target->id);
+                size_t prev_len = current->wait_keys_len;
+                add_wait_key(ex, current, key);
+                if (!waker_valid(first_key)) {
+                    first_key = key;
+                    first_added = current->wait_keys_len > prev_len;
+                }
+                break;
+            }
+            case SELECT_CHAN_RECV: {
+                waker_key key = channel_recv_key((rt_channel*)handle);
+                size_t prev_len = current->wait_keys_len;
+                add_wait_key(ex, current, key);
+                if (!waker_valid(first_key)) {
+                    first_key = key;
+                    first_added = current->wait_keys_len > prev_len;
+                }
+                break;
+            }
+            case SELECT_CHAN_SEND: {
+                waker_key key = channel_send_key((rt_channel*)handle);
+                size_t prev_len = current->wait_keys_len;
+                add_wait_key(ex, current, key);
+                if (!waker_valid(first_key)) {
+                    first_key = key;
+                    first_added = current->wait_keys_len > prev_len;
+                }
+                break;
+            }
+            case SELECT_TIMEOUT: {
+                const rt_task* target = task_from_handle(handle);
+                if (target == NULL) {
+                    rt_unlock(ex);
+                    return -1;
+                }
+                waker_key key = join_key(target->id);
+                size_t prev_len = current->wait_keys_len;
+                add_wait_key(ex, current, key);
+                if (!waker_valid(first_key)) {
+                    first_key = key;
+                    first_added = current->wait_keys_len > prev_len;
+                }
+
+                uint64_t timer_id = 0;
+                if (current->select_timers_len == count && current->select_timers != NULL) {
+                    timer_id = current->select_timers[i];
+                }
+                if (timer_id == 0) {
+                    uint64_t delay = ms != NULL ? ms[i] : 0;
+                    const rt_task* timer_task = spawn_sleep_task_locked(ex, delay);
+                    if (timer_task != NULL && current->select_timers != NULL &&
+                        current->select_timers_len == count) {
+                        current->select_timers[i] = timer_task->id;
+                        timer_id = timer_task->id;
+                    }
+                }
+                if (timer_id != 0) {
+                    const rt_task* timer_task = get_task(ex, timer_id);
+                    if (timer_task != NULL) {
+                        waker_key timer_key_join = join_key(timer_task->id);
+                        size_t prev_timer_len = current->wait_keys_len;
+                        add_wait_key(ex, current, timer_key_join);
+                        if (!waker_valid(first_key)) {
+                            first_key = timer_key_join;
+                            first_added = current->wait_keys_len > prev_timer_len;
+                        }
+                    }
+                }
+                break;
+            }
+            case SELECT_DEFAULT:
+            default:
+                break;
+        }
+    }
+
+    if (waker_valid(first_key)) {
+        prepare_park(ex, current, first_key, first_added);
+    }
+    pending_key = first_key;
+    rt_unlock(ex);
+    return -1;
+}
+
 static rt_task* spawn_checkpoint_task_locked(rt_executor* ex) {
     if (ex == NULL) {
         return NULL;
@@ -406,6 +663,29 @@ static rt_task* spawn_sleep_task_locked(rt_executor* ex, uint64_t delay) {
     ex->tasks[id] = task;
     ready_push(ex, id);
     return task;
+}
+
+static void ensure_select_timers_cap(rt_task* task, size_t want) {
+    if (task == NULL) {
+        return;
+    }
+    if (task->select_timers_cap >= want) {
+        return;
+    }
+    size_t next_cap = task->select_timers_cap == 0 ? 4 : task->select_timers_cap;
+    while (next_cap < want) {
+        next_cap *= 2;
+    }
+    size_t old_size = task->select_timers_cap * sizeof(uint64_t);
+    size_t new_size = next_cap * sizeof(uint64_t);
+    uint64_t* next = (uint64_t*)rt_realloc(
+        (uint8_t*)task->select_timers, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
+    if (next == NULL) {
+        panic_msg("async: select timer allocation failed");
+        return;
+    }
+    task->select_timers = next;
+    task->select_timers_cap = next_cap;
 }
 
 void* checkpoint(void) {
