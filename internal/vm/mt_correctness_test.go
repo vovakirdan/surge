@@ -703,3 +703,222 @@ fn main() -> int {
 
 	runMTSource(t, source, 20*time.Second)
 }
+
+func TestMTStructuredConcurrency(t *testing.T) {
+	ensureLLVMToolchain(t)
+	t.Parallel()
+
+	source := `async fn spin(count: int) -> int {
+    let mut i = 0;
+    while i < count {
+        checkpoint().await();
+        i = i + 1;
+    }
+    return count;
+}
+
+async fn send_done(done: own Channel<int>, id: int, spins: int) -> int {
+    let _ = spin(spins).await();
+    done.send(id);
+    return id;
+}
+
+async fn worker_recv(ch: own Channel<int>) -> int {
+    checkpoint().await();
+    ch.recv();
+    return 1;
+}
+
+async fn join_worker(t: Task<int>) -> int {
+    let r = t.await();
+    let ok = compare r {
+        Success(_) => true;
+        Cancelled() => false;
+    };
+    if ok {
+        return 0;
+    }
+    return 1;
+}
+
+async fn main_async() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 90;
+    }
+
+    let pres = (async {
+        let done = make_channel::<int>(8);
+        let mut i = 0;
+        while i < 4 {
+            let c = done;
+            let t = spawn send_done(c, i, 10 + i);
+            let _ = t;
+            i = i + 1;
+        }
+        return done;
+    }).await();
+    let mut done_ch = make_channel::<int>(0);
+    let parent_ok = compare pres {
+        Success(v) => {
+            done_ch = v;
+            true;
+        }
+        Cancelled() => false;
+    };
+    if !parent_ok {
+        return 1;
+    }
+    let mut got = 0;
+    while got < 4 {
+        let v = done_ch.try_recv();
+        let ok = compare v {
+            Some(_) => true;
+            nothing => false;
+        };
+        if !ok {
+            return 2;
+        }
+        got = got + 1;
+    }
+
+    let ff = (@failfast async {
+        let slow = spawn async {
+            let _ = spin(200).await();
+            return 1;
+        };
+        let fast = spawn async {
+            checkpoint().await();
+            return 2;
+        };
+        fast.cancel();
+        let r_fast = fast.await();
+        let fast_cancelled = compare r_fast {
+            Cancelled() => true;
+            Success(_) => false;
+        };
+        if !fast_cancelled {
+            return 10;
+        }
+        let r_slow = slow.await();
+        let slow_cancelled = compare r_slow {
+            Cancelled() => true;
+            Success(_) => false;
+        };
+        if !slow_cancelled {
+            return 11;
+        }
+        return 0;
+    }).await();
+    let ff_ok = compare ff {
+        Cancelled() => true;
+        Success(_) => false;
+    };
+    if !ff_ok {
+        return 12;
+    }
+
+    let ff2 = (@failfast async {
+        let a = spawn async {
+            let _ = spin(50).await();
+            return 1;
+        };
+        let b = spawn async {
+            let _ = spin(50).await();
+            return 2;
+        };
+        a.cancel();
+        b.cancel();
+        let _ = a.await();
+        let _ = b.await();
+        return 0;
+    }).await();
+    let ff2_ok = compare ff2 {
+        Cancelled() => true;
+        Success(_) => false;
+    };
+    if !ff2_ok {
+        return 13;
+    }
+
+    let long = spawn spin(200);
+    let long_clone = long.clone();
+    let r_timeout = timeout(long_clone, 5);
+    let timed_out = compare r_timeout {
+        Cancelled() => true;
+        Success(_) => false;
+    };
+    if !timed_out {
+        return 20;
+    }
+    let r_long = long.await();
+    let long_cancelled = compare r_long {
+        Cancelled() => true;
+        Success(_) => false;
+    };
+    if !long_cancelled {
+        return 21;
+    }
+
+    let short = spawn spin(3);
+    let short_clone = short.clone();
+    let r_short = timeout(short_clone, 50);
+    let short_ok = compare r_short {
+        Success(_) => true;
+        Cancelled() => false;
+    };
+    if !short_ok {
+        return 22;
+    }
+    let r_short2 = short.await();
+    let short2_ok = compare r_short2 {
+        Success(_) => true;
+        Cancelled() => false;
+    };
+    if !short2_ok {
+        return 23;
+    }
+
+    let join_res = async {
+        let ch = make_channel::<int>(0);
+        let worker = spawn worker_recv(ch);
+        let worker_clone = worker.clone();
+        let joiner = spawn join_worker(worker_clone);
+        checkpoint().await();
+        joiner.cancel();
+        let jr = joiner.await();
+        let jr_ok = compare jr {
+            Cancelled() => true;
+            Success(_) => false;
+        };
+        if !jr_ok {
+            return 30;
+        }
+        worker.cancel();
+        let _ = worker.await();
+        return 0;
+    }.await();
+    let join_ok = compare join_res {
+        Success(v) => v == 0;
+        Cancelled() => false;
+    };
+    if !join_ok {
+        return 31;
+    }
+
+    print("ok");
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let r = main_async().await();
+    let code = compare r {
+        Success(v) => v;
+        Cancelled() => 99;
+    };
+    return code;
+}
+`
+
+	runMTSource(t, source, 20*time.Second)
+}

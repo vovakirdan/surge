@@ -162,6 +162,11 @@ waker_key timer_key(uint64_t id) {
     return key;
 }
 
+waker_key scope_key(uint64_t id) {
+    waker_key key = {WAKER_SCOPE, id};
+    return key;
+}
+
 waker_key channel_send_key(rt_channel* ch) {
     waker_key key = {WAKER_CHAN_SEND, (uint64_t)(uintptr_t)ch};
     return key;
@@ -939,6 +944,27 @@ void scope_add_child(rt_scope* scope, uint64_t child_id) {
     scope->children[scope->children_len++] = child_id;
 }
 
+void scope_cancel_children_locked(rt_executor* ex, const rt_scope* scope) {
+    if (ex == NULL || scope == NULL) {
+        return;
+    }
+    for (size_t i = 0; i < scope->children_len; i++) {
+        cancel_task(ex, scope->children[i]);
+    }
+}
+
+void scope_child_done_locked(rt_executor* ex, rt_scope* scope) {
+    if (ex == NULL || scope == NULL) {
+        return;
+    }
+    if (scope->active_children > 0) {
+        scope->active_children--;
+    }
+    if (scope->active_children == 0) {
+        wake_key_all(ex, scope_key(scope->id));
+    }
+}
+
 void task_add_ref(rt_task* task) {
     if (task == NULL) {
         return;
@@ -1035,17 +1061,28 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     task->result_kind = result_kind;
     task->result_bits = result_bits;
     task->state = NULL;
-    wake_key_all(ex, join_key(task->id));
-    pthread_cond_broadcast(&ex->done_cv);
-    if (result_kind == TASK_RESULT_CANCELLED && task->parent_scope_id != 0) {
-        rt_scope* scope = get_scope(ex, task->parent_scope_id);
-        if (scope != NULL && scope->failfast && !scope->failfast_triggered) {
+    rt_scope* scope = NULL;
+    if (task->parent_scope_id != 0) {
+        scope = get_scope(ex, task->parent_scope_id);
+    }
+    if (scope != NULL) {
+        if (result_kind == TASK_RESULT_CANCELLED && scope->failfast && !scope->failfast_triggered) {
+            // First cancellation observed under the executor lock wins.
             scope->failfast_triggered = 1;
+            scope->failfast_child = task->id;
+            // First cancellation wins; cancel remaining children and wake the owner.
+            scope_cancel_children_locked(ex, scope);
             if (scope->owner != 0) {
-                cancel_task(ex, scope->owner);
+                wake_task(ex, scope->owner, 1);
             }
         }
+        if (task->scope_registered) {
+            scope_child_done_locked(ex, scope);
+            task->scope_registered = 0;
+        }
     }
+    wake_key_all(ex, join_key(task->id));
+    pthread_cond_broadcast(&ex->done_cv);
     if (atomic_load_explicit(&task->handle_refs, memory_order_relaxed) == 0) {
         free_task(ex, task);
     }
@@ -1060,6 +1097,21 @@ static void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outc
             mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);
             break;
         case POLL_DONE_CANCELLED:
+            if (task->scope_id != 0) {
+                rt_scope* scope = get_scope(ex, task->scope_id);
+                if (scope != NULL) {
+                    if (scope->active_children > 0) {
+                        task->cancel_pending = 1;
+                        scope_cancel_children_locked(ex, scope);
+                        task->state = outcome.state;
+                        waker_key key = scope_key(scope->id);
+                        prepare_park(ex, task, key, 0);
+                        park_current(ex, key);
+                        break;
+                    }
+                    scope_exit_locked(ex, scope);
+                }
+            }
             mark_done(ex, task, TASK_RESULT_CANCELLED, 0);
             break;
         case POLL_YIELDED:

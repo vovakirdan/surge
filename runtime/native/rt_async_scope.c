@@ -26,6 +26,8 @@ void* rt_scope_enter(bool failfast) {
     scope->owner = rt_current_task_id();
     scope->failfast = failfast ? 1 : 0;
     scope->failfast_triggered = 0;
+    scope->failfast_child = 0;
+    scope->active_children = 0;
     ex->scopes[id] = scope;
     rt_task* owner = rt_current_task();
     if (owner != NULL) {
@@ -48,10 +50,28 @@ void rt_scope_register_child(void* scope_handle, void* task) {
         return;
     }
     uint64_t child_id = task_id_from_handle(task);
-    scope_add_child(scope, child_id);
     rt_task* child = get_task(ex, child_id);
-    if (child != NULL) {
-        child->parent_scope_id = scope_id;
+    if (child == NULL) {
+        rt_unlock(ex);
+        return;
+    }
+    if (child->scope_registered) {
+        rt_unlock(ex);
+        return;
+    }
+    scope_add_child(scope, child_id);
+    child->parent_scope_id = scope_id;
+    child->scope_registered = 1;
+    if (task_status_load(child) != TASK_DONE) {
+        scope->active_children++;
+    } else if (child->result_kind == TASK_RESULT_CANCELLED && scope->failfast &&
+               !scope->failfast_triggered) {
+        scope->failfast_triggered = 1;
+        scope->failfast_child = child_id;
+        scope_cancel_children_locked(ex, scope);
+        if (scope->owner != 0) {
+            wake_task(ex, scope->owner, 1);
+        }
     }
     rt_unlock(ex);
 }
@@ -68,9 +88,7 @@ void rt_scope_cancel_all(void* scope_handle) {
         rt_unlock(ex);
         return;
     }
-    for (size_t i = 0; i < scope->children_len; i++) {
-        cancel_task(ex, scope->children[i]);
-    }
+    scope_cancel_children_locked(ex, scope);
     rt_unlock(ex);
 }
 
@@ -89,26 +107,23 @@ bool rt_scope_join_all(void* scope_handle, uint64_t* pending, bool* failfast) {
     if (failfast != NULL) {
         *failfast = scope->failfast_triggered ? true : false;
     }
-    for (size_t i = 0; i < scope->children_len; i++) {
-        uint64_t child_id = scope->children[i];
-        const rt_task* child = get_task(ex, child_id);
-        if (child == NULL || task_status_load(child) == TASK_DONE) {
-            continue;
-        }
-        if (pending != NULL) {
-            *pending = child_id;
-        }
-        waker_key key = join_key(child_id);
-        rt_task* current = rt_current_task();
-        if (current != NULL) {
-            prepare_park(ex, current, key, 0);
-        }
-        pending_key = key;
+    if (pending != NULL) {
+        *pending = 0;
+    }
+    if (scope->active_children == 0) {
         rt_unlock(ex);
-        return false;
+        return true;
+    }
+    waker_key key = scope_key(scope_id);
+    rt_task* current = rt_current_task();
+    if (current != NULL) {
+        prepare_park(ex, current, key, 0);
+        pending_key = key;
+    } else {
+        pending_key = waker_none();
     }
     rt_unlock(ex);
-    return true;
+    return false;
 }
 
 void rt_scope_exit(void* scope_handle) {
@@ -123,6 +138,20 @@ void rt_scope_exit(void* scope_handle) {
         rt_unlock(ex);
         return;
     }
+    if (scope->active_children > 0) {
+        rt_unlock(ex);
+        panic_msg("async: scope exit with active children");
+        return;
+    }
+    scope_exit_locked(ex, scope);
+    rt_unlock(ex);
+}
+
+void scope_exit_locked(rt_executor* ex, rt_scope* scope) {
+    if (ex == NULL || scope == NULL) {
+        return;
+    }
+    uint64_t scope_id = scope->id;
     if (scope->owner != 0) {
         rt_task* owner = get_task(ex, scope->owner);
         if (owner != NULL && owner->scope_id == scope_id) {
@@ -138,5 +167,4 @@ void rt_scope_exit(void* scope_handle) {
     if (scope_id < ex->scopes_cap) {
         ex->scopes[scope_id] = NULL;
     }
-    rt_unlock(ex);
 }
