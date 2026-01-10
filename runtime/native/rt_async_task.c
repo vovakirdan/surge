@@ -67,10 +67,17 @@ void rt_task_wake(void* task) {
         return;
     }
     rt_lock(ex);
-    const rt_task* target = task_from_handle(task);
+    rt_task* target = task_from_handle(task);
     if (target == NULL || task_status_load(target) == TASK_DONE) {
         rt_unlock(ex);
         return;
+    }
+    const rt_task* current = rt_current_task();
+    if (current != NULL && current->scope_id != 0 && target->parent_scope_id == 0) {
+        const rt_scope* scope = get_scope(ex, current->scope_id);
+        if (scope != NULL) {
+            target->parent_scope_id = scope->id;
+        }
     }
     wake_task(ex, target->id, 1);
     rt_unlock(ex);

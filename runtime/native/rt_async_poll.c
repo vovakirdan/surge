@@ -70,7 +70,7 @@ static poll_outcome poll_user_task(const rt_executor* ex, const rt_task* task) {
     return poll_result;
 }
 
-poll_outcome poll_task(const rt_executor* ex, rt_task* task) {
+poll_outcome poll_task(rt_executor* ex, rt_task* task) {
     poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
     if (task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
@@ -80,6 +80,35 @@ poll_outcome poll_task(const rt_executor* ex, rt_task* task) {
         out.kind =
             task->result_kind == TASK_RESULT_CANCELLED ? POLL_DONE_CANCELLED : POLL_DONE_SUCCESS;
         out.value_bits = task->result_bits;
+        return out;
+    }
+    if (task->cancel_pending) {
+        if (task->scope_id != 0 && ex != NULL) {
+            rt_lock(ex);
+            rt_scope* scope = get_scope(ex, task->scope_id);
+            if (scope == NULL) {
+                task->cancel_pending = 0;
+                rt_unlock(ex);
+                out.kind = POLL_DONE_CANCELLED;
+                return out;
+            }
+            if (scope->active_children == 0) {
+                task->cancel_pending = 0;
+                scope_exit_locked(ex, scope);
+                rt_unlock(ex);
+                out.kind = POLL_DONE_CANCELLED;
+                return out;
+            }
+            waker_key key = scope_key(scope->id);
+            prepare_park(ex, task, key, 0);
+            out.kind = POLL_PARKED;
+            out.park_key = key;
+            out.state = task->state;
+            rt_unlock(ex);
+            return out;
+        }
+        task->cancel_pending = 0;
+        out.kind = POLL_DONE_CANCELLED;
         return out;
     }
     switch (task->kind) {

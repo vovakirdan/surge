@@ -59,6 +59,7 @@ typedef enum {
     WAKER_NET_ACCEPT = 5,
     WAKER_NET_READ = 6,
     WAKER_NET_WRITE = 7,
+    WAKER_SCOPE = 8,
 } waker_kind;
 
 typedef struct {
@@ -90,6 +91,8 @@ typedef struct rt_task {
     uint8_t checkpoint_polled;
     uint8_t sleep_armed;
     uint8_t park_prepared;
+    uint8_t scope_registered;
+    uint8_t cancel_pending;
     atomic_u32 handle_refs;
     uint64_t resume_bits;
     uint64_t sleep_delay;
@@ -115,6 +118,8 @@ typedef struct {
     uint64_t owner;
     uint8_t failfast;
     uint8_t failfast_triggered;
+    uint64_t failfast_child;
+    size_t active_children;
     uint64_t* children;
     size_t children_len;
     size_t children_cap;
@@ -228,6 +233,7 @@ waker_key waker_none(void);
 int waker_valid(waker_key key);
 waker_key join_key(uint64_t id);
 waker_key timer_key(uint64_t id);
+waker_key scope_key(uint64_t id);
 waker_key channel_send_key(rt_channel* ch);
 waker_key channel_recv_key(rt_channel* ch);
 waker_key net_accept_key(int fd);
@@ -273,6 +279,9 @@ uint64_t task_id_from_handle(void* handle);
 
 void task_add_child(rt_task* parent, uint64_t child_id);
 void scope_add_child(rt_scope* scope, uint64_t child_id);
+void scope_cancel_children_locked(rt_executor* ex, const rt_scope* scope);
+void scope_child_done_locked(rt_executor* ex, rt_scope* scope);
+void scope_exit_locked(rt_executor* ex, rt_scope* scope);
 
 void task_add_ref(rt_task* task);
 void task_release(rt_executor* ex, rt_task* task);
@@ -288,7 +297,7 @@ int current_task_cancelled(rt_executor* ex);
 void cancel_task(rt_executor* ex, uint64_t id);
 void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t result_bits);
 
-poll_outcome poll_task(const rt_executor* ex, rt_task* task);
+poll_outcome poll_task(rt_executor* ex, rt_task* task);
 poll_outcome poll_net_task(const rt_executor* ex, const rt_task* task);
 int poll_net_waiters(rt_executor* ex, int timeout_ms);
 int run_ready_one(rt_executor* ex);

@@ -31,6 +31,9 @@ func (e *Emitter) collectStringConsts() {
 					e.collectOperand(&ins.ChanSend.Value)
 				case mir.InstrChanRecv:
 					e.collectOperand(&ins.ChanRecv.Channel)
+				case mir.InstrTimeout:
+					e.collectOperand(&ins.Timeout.Task)
+					e.collectOperand(&ins.Timeout.Ms)
 				case mir.InstrSelect:
 					for k := range ins.Select.Arms {
 						arm := &ins.Select.Arms[k]
