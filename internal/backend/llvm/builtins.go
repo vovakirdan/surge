@@ -50,6 +50,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_panic", ret: "void", params: []string{"ptr", "i64"}},
 		{name: "rt_panic_numeric", ret: "void", params: []string{"ptr", "i64"}},
 		{name: "rt_panic_bounds", ret: "void", params: []string{"i64", "i64", "i64"}},
+		{name: "rt_worker_count", ret: "i64", params: nil},
 		{name: "rt_string_from_bytes", ret: "ptr", params: []string{"ptr", "i64"}},
 		{name: "rt_string_from_utf16", ret: "ptr", params: []string{"ptr", "i64"}},
 		{name: "rt_utf8_valid", ret: "i1", params: []string{"ptr", "i64"}},

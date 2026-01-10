@@ -117,7 +117,9 @@ int run_ready_one(rt_executor* ex) {
     rt_set_current_task(task);
 
     if (task->kind != TASK_KIND_USER) {
+        task_polling_enter(task);
         poll_outcome outcome = poll_task(ex, task);
+        task_polling_exit(task);
         switch (outcome.kind) {
             case POLL_DONE_SUCCESS:
                 mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);
@@ -145,7 +147,9 @@ int run_ready_one(rt_executor* ex) {
     }
 
     rt_unlock(ex);
+    task_polling_enter(task);
     poll_outcome outcome = poll_task(ex, task);
+    task_polling_exit(task);
     rt_lock(ex);
     switch (outcome.kind) {
         case POLL_DONE_SUCCESS:

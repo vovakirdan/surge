@@ -164,6 +164,8 @@ pub type HeapStats = {
 @intrinsic pub fn rt_heap_stats() -> HeapStats;
 // Deterministic heap summary with no addresses or allocation IDs.
 @intrinsic pub fn rt_heap_dump() -> string;
+// Active async executor worker count (1 means single-worker mode).
+@intrinsic pub fn rt_worker_count() -> uint;
 
 pub type Task<T> = {
     __opaque: int,
@@ -738,18 +740,6 @@ pub fn panic(msg: string) -> nothing {
 }
 
 @intrinsic
-pub type Mutex = {
-    __opaque: *byte,
-};
-
-extern<Mutex> {
-    @intrinsic pub fn new() -> Mutex;
-    @intrinsic pub fn lock(self: &mut Mutex) -> nothing;
-    @intrinsic pub fn unlock(self: &mut Mutex) -> nothing;
-    @intrinsic pub fn try_lock(self: &mut Mutex) -> bool;
-}
-
-@intrinsic
 pub type RwLock = {
     __opaque: *byte,
 };
@@ -762,31 +752,6 @@ extern<RwLock> {
     @intrinsic pub fn write_unlock(self: &mut RwLock) -> nothing;
     @intrinsic pub fn try_read_lock(self: &mut RwLock) -> bool;
     @intrinsic pub fn try_write_lock(self: &mut RwLock) -> bool;
-}
-
-@intrinsic
-pub type Condition = {
-    __opaque: *byte,
-};
-
-extern<Condition> {
-    @intrinsic pub fn new() -> Condition;
-    @intrinsic pub fn wait(self: &Condition, mutex: &mut Mutex) -> nothing;
-    @intrinsic pub fn notify_one(self: &Condition) -> nothing;
-    @intrinsic pub fn notify_all(self: &Condition) -> nothing;
-}
-
-@intrinsic
-pub type Semaphore = {
-    __opaque: *byte,
-    __count: uint,
-};
-
-extern<Semaphore> {
-    @intrinsic pub fn new(count: uint) -> Semaphore;
-    @intrinsic pub fn acquire(self: &mut Semaphore) -> nothing;
-    @intrinsic pub fn release(self: &mut Semaphore) -> nothing;
-    @intrinsic pub fn try_acquire(self: &mut Semaphore) -> bool;
 }
 
 // Atomic operations for @atomic fields
