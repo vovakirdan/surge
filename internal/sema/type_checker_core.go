@@ -231,6 +231,10 @@ func (tc *typeChecker) run() {
 	for _, f := range files {
 		tc.registerTypeDecls(f)
 	}
+	// Record type-level attrs early so @copy/@send are visible across files during instantiation.
+	for _, f := range files {
+		tc.recordTypeDeclAttrs(f)
+	}
 	for _, f := range files {
 		tc.populateTypeDecls(f)
 	}

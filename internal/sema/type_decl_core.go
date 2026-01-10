@@ -61,6 +61,31 @@ func (tc *typeChecker) registerTypeDecls(file *ast.File) {
 	}
 }
 
+func (tc *typeChecker) recordTypeDeclAttrs(file *ast.File) {
+	if tc.builder == nil || file == nil {
+		return
+	}
+	for _, itemID := range file.Items {
+		item := tc.builder.Items.Get(itemID)
+		if item == nil || item.Kind != ast.ItemType {
+			continue
+		}
+		typeItem, ok := tc.builder.Items.Type(itemID)
+		if !ok || typeItem == nil {
+			continue
+		}
+		typeID := tc.typeItems[itemID]
+		if typeID == types.NoTypeID {
+			continue
+		}
+		infos := tc.collectAttrs(typeItem.AttrStart, typeItem.AttrCount)
+		if len(infos) == 0 {
+			continue
+		}
+		tc.recordTypeAttrs(typeID, infos)
+	}
+}
+
 func (tc *typeChecker) populateTypeDecls(file *ast.File) {
 	if tc.builder == nil || tc.types == nil || file == nil {
 		return

@@ -1,0 +1,2 @@
+error SEM3007 testdata/golden/sema/invalid/concurrency/timeout_in_sync_fn.sg:10:12 timeout(...) is only available in async/task context; call it inside async/task and await it via x.await()
+error SEM3007 testdata/golden/sema/invalid/concurrency/timeout_in_sync_fn.sg:15:12 timeout(...) is only available in async/task context; call it inside async/task and await it via x.await()

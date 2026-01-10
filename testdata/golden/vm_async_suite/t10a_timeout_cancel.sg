@@ -1,5 +1,4 @@
-@entrypoint
-fn main() -> int {
+async fn run() -> int {
     let worker = spawn async {
         sleep(30).await();
         print("worker done");
@@ -19,4 +18,13 @@ fn main() -> int {
     let _ = guard.await();
 
     return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let exit_code: int = compare run().await() {
+        Success(v) => v;
+        Cancelled() => 1;
+    };
+    return exit_code;
 }
