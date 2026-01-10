@@ -186,6 +186,7 @@ func runExecution(cmd *cobra.Command, args []string) error {
 		DirInfo:               toPipelineDirInfo(dirInfo),
 		AllowDiagnosticsError: unsafeRun,
 		Files:                 displayFiles,
+		Backend:               buildpipeline.Backend(backendValue),
 	}
 
 	outputRoot := baseDir

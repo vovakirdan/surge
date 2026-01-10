@@ -590,6 +590,15 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 		p.printIndent()
 		p.printf("}")
 
+	case ExprBlocking:
+		data := e.Data.(BlockingData)
+		p.printf("blocking {\n")
+		p.indent++
+		p.printBlock(data.Body)
+		p.indent--
+		p.printIndent()
+		p.printf("}")
+
 	case ExprCast:
 		data := e.Data.(CastData)
 		p.printExpr(data.Value)

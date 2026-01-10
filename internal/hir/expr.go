@@ -59,6 +59,8 @@ const (
 	ExprSpawn
 	// ExprAsync represents async { ... } block expression.
 	ExprAsync
+	// ExprBlocking represents blocking { ... } block expression.
+	ExprBlocking
 	// ExprCast represents type cast (expr to Type or expr: Type).
 	ExprCast
 	// ExprBlock represents a block expression { ... }.
@@ -114,6 +116,8 @@ func (k ExprKind) String() string {
 		return "Spawn"
 	case ExprAsync:
 		return "Async"
+	case ExprBlocking:
+		return "Blocking"
 	case ExprCast:
 		return "Cast"
 	case ExprBlock:
@@ -360,6 +364,20 @@ type AsyncData struct {
 }
 
 func (AsyncData) exprData() {}
+
+// BlockingCapture describes a captured symbol in a blocking block.
+type BlockingCapture struct {
+	SymbolID symbols.SymbolID
+	Name     string
+}
+
+// BlockingData holds data for ExprBlocking.
+type BlockingData struct {
+	Body     *Block
+	Captures []BlockingCapture
+}
+
+func (BlockingData) exprData() {}
 
 // CastData holds data for ExprCast.
 type CastData struct {

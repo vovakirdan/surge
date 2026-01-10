@@ -560,6 +560,43 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			}
 			ty = tc.taskType(payload, expr.Span)
 		}
+	case ast.ExprBlocking:
+		if blockingData, ok := tc.builder.Exprs.Blocking(id); ok && blockingData != nil {
+			var returns []types.TypeID
+			tc.pushReturnContext(types.NoTypeID, expr.Span, &returns)
+			tc.walkStmt(blockingData.Body)
+			tc.popReturnContext()
+			payload := tc.types.Builtins().Nothing
+			for _, rt := range returns {
+				if rt == types.NoTypeID {
+					continue
+				}
+				if payload == tc.types.Builtins().Nothing {
+					payload = rt
+					continue
+				}
+				if !tc.typesAssignable(payload, rt, true) && !tc.typesAssignable(rt, payload, true) {
+					payload = types.NoTypeID
+				}
+			}
+			if payload == types.NoTypeID {
+				payload = tc.types.Builtins().Nothing
+			}
+			ty = tc.taskType(payload, expr.Span)
+
+			captures := tc.collectBlockingCaptures(blockingData.Body)
+			tc.recordBlockingCaptures(id, captures)
+			for _, cap := range captures {
+				capType := tc.bindingType(cap.symID)
+				if tc.isReferenceType(capType) {
+					tc.report(diag.SemaBlockingBorrowCapture, cap.span,
+						"blocking captures must be by value; cannot capture reference %s", tc.typeLabel(capType))
+					continue
+				}
+				tc.checkSpawnSendability(cap.symID, cap.span)
+				tc.observeMove(cap.exprID, cap.span)
+			}
+		}
 	case ast.ExprTask:
 		if task, ok := tc.builder.Exprs.Task(id); ok && task != nil {
 			ty = tc.typeSpawnExpr(id, expr.Span, task.Value, false)
@@ -641,43 +678,4 @@ func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value 
 	}
 
 	return ty
-}
-
-// memberReceiverType determines the receiver type for a method call target.
-// It first tries to treat the target as a type operand (for static/associated methods),
-// and falls back to value typing.
-func (tc *typeChecker) memberReceiverType(target ast.ExprID) (types.TypeID, bool) {
-	if t := tc.tryResolveTypeOperand(target); t != types.NoTypeID {
-		return t, true
-	}
-	return tc.typeExpr(target), false
-}
-
-// unifyTernaryBranches determines the result type of a ternary expression
-// by unifying the types of the true and false branches.
-func (tc *typeChecker) unifyTernaryBranches(trueType, falseType types.TypeID, span source.Span) types.TypeID {
-	if trueType == types.NoTypeID || falseType == types.NoTypeID {
-		if trueType != types.NoTypeID {
-			return trueType
-		}
-		return falseType
-	}
-
-	nothingType := tc.types.Builtins().Nothing
-
-	switch {
-	case trueType == nothingType:
-		return falseType
-	case falseType == nothingType:
-		return trueType
-	case tc.typesAssignable(trueType, falseType, true):
-		return trueType
-	case tc.typesAssignable(falseType, trueType, true):
-		return falseType
-	default:
-		tc.report(diag.SemaTypeMismatch, span,
-			"ternary branches have incompatible types: %s and %s",
-			tc.typeLabel(trueType), tc.typeLabel(falseType))
-		return types.NoTypeID
-	}
 }

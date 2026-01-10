@@ -73,7 +73,7 @@ func TestIsKeyword(t *testing.T) {
 		token.KwFor, token.KwIn, token.KwBreak, token.KwContinue, token.KwReturn, token.KwImport,
 		token.KwAs, token.KwType, token.KwTag,
 		token.KwExtern, token.KwPub, token.KwAsync, token.KwCompare, token.KwSelect, token.KwRace, token.KwFinally,
-		token.KwChannel, token.KwSpawn, token.KwTrue, token.KwFalse, token.KwSignal, token.KwParallel,
+		token.KwBlocking, token.KwChannel, token.KwSpawn, token.KwTrue, token.KwFalse, token.KwSignal, token.KwParallel,
 		token.KwMap, token.KwReduce, token.KwWith,
 		token.KwMacro, token.KwPragma, token.KwTo, token.KwHeir, token.KwIs,
 	}

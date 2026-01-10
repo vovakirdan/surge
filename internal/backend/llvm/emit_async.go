@@ -17,6 +17,13 @@ func isPollFunc(f *mir.Func) bool {
 	return strings.HasSuffix(f.Name, "$poll")
 }
 
+func isBlockingFunc(f *mir.Func) bool {
+	if f == nil || f.Name == "" {
+		return false
+	}
+	return strings.HasPrefix(f.Name, "__blocking_block$")
+}
+
 func (e *Emitter) emitPollDispatch() error {
 	if e == nil || e.mod == nil {
 		return nil
@@ -68,6 +75,64 @@ func (e *Emitter) emitPollDispatch() error {
 	return nil
 }
 
+func (e *Emitter) emitBlockingDispatch() error {
+	if e == nil || e.mod == nil {
+		return nil
+	}
+	blockIDs := make([]mir.FuncID, 0)
+	for id, f := range e.mod.Funcs {
+		if isBlockingFunc(f) {
+			blockIDs = append(blockIDs, id)
+		}
+	}
+	sort.Slice(blockIDs, func(i, j int) bool { return blockIDs[i] < blockIDs[j] })
+
+	fmt.Fprintf(&e.buf, "define i64 @__surge_blocking_call(i64 %%id, ptr %%state) {\n")
+	fmt.Fprintf(&e.buf, "entry:\n")
+	fmt.Fprintf(&e.buf, "  switch i64 %%id, label %%blocking_default [\n")
+	for _, id := range blockIDs {
+		fmt.Fprintf(&e.buf, "    i64 %d, label %%blocking.%d\n", id, id)
+	}
+	fmt.Fprintf(&e.buf, "  ]\n")
+
+	fe := funcEmitter{emitter: e}
+	for _, id := range blockIDs {
+		f := e.mod.Funcs[id]
+		if f == nil {
+			continue
+		}
+		name := e.funcNames[id]
+		sig, ok := e.funcSigs[id]
+		if !ok {
+			return fmt.Errorf("missing blocking function signature for %s", f.Name)
+		}
+		if len(sig.params) != 1 {
+			return fmt.Errorf("blocking function %s must have 1 parameter", f.Name)
+		}
+		fmt.Fprintf(&e.buf, "blocking.%d:\n", id)
+		if sig.ret == "void" {
+			fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", name)
+			fmt.Fprintf(&e.buf, "  ret i64 0\n")
+			continue
+		}
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&e.buf, "  %s = call %s @%s(ptr %%state)\n", tmp, sig.ret, name)
+		bits, err := fe.emitValueToI64(tmp, sig.ret, f.Result)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(&e.buf, "  ret i64 %s\n", bits)
+	}
+
+	fmt.Fprintf(&e.buf, "blocking_default:\n")
+	if sc, ok := e.stringConsts["missing blocking function"]; ok && sc.globalName != "" {
+		fmt.Fprintf(&e.buf, "  call void @rt_panic(ptr getelementptr inbounds ([%d x i8], ptr @%s, i64 0, i64 0), i64 %d)\n", sc.arrayLen, sc.globalName, sc.dataLen)
+	}
+	fmt.Fprintf(&e.buf, "  unreachable\n")
+	fmt.Fprintf(&e.buf, "}\n\n")
+	return nil
+}
+
 func isTaskType(typesIn *types.Interner, typeID types.TypeID) bool {
 	if typesIn == nil || typeID == types.NoTypeID {
 		return false
@@ -109,6 +174,45 @@ func (fe *funcEmitter) emitInstrSpawn(ins *mir.Instr) error {
 		dstTy = "ptr"
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
+	return nil
+}
+
+func (fe *funcEmitter) emitInstrBlocking(ins *mir.Instr) error {
+	if ins == nil {
+		return nil
+	}
+	stateVal, stateTy, err := fe.emitStructLit(&ins.Blocking.State)
+	if err != nil {
+		return err
+	}
+	if stateTy != "ptr" {
+		return fmt.Errorf("blocking expects state pointer, got %s", stateTy)
+	}
+	layout, err := fe.emitter.layoutOf(ins.Blocking.State.TypeID)
+	if err != nil {
+		return err
+	}
+	size := layout.Size
+	align := layout.Align
+	if align <= 0 {
+		align = 1
+	}
+	callTmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf,
+		"  %s = call ptr @rt_blocking_submit(i64 %d, ptr %s, i64 %d, i64 %d)\n",
+		callTmp,
+		ins.Blocking.FuncID,
+		stateVal,
+		size,
+		align)
+	ptr, dstTy, err := fe.emitPlacePtr(ins.Blocking.Dst)
+	if err != nil {
+		return err
+	}
+	if dstTy != "ptr" {
+		dstTy = "ptr"
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, callTmp, ptr)
 	return nil
 }
 

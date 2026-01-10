@@ -26,6 +26,7 @@ typedef enum {
     TASK_KIND_NET_ACCEPT = 3,
     TASK_KIND_NET_READ = 4,
     TASK_KIND_NET_WRITE = 5,
+    TASK_KIND_BLOCKING = 6,
 } task_kind;
 
 typedef enum {
@@ -60,6 +61,7 @@ typedef enum {
     WAKER_NET_READ = 6,
     WAKER_NET_WRITE = 7,
     WAKER_SCOPE = 8,
+    WAKER_BLOCKING = 9,
 } waker_kind;
 
 typedef enum {
@@ -76,6 +78,12 @@ typedef struct {
     waker_key key;
     uint64_t task_id;
 } waiter;
+
+typedef enum {
+    BLOCKING_JOB_PENDING = 0,
+    BLOCKING_JOB_DONE = 1,
+    BLOCKING_JOB_CANCELLED = 2,
+} blocking_job_status;
 
 typedef struct {
     uint64_t* buf;
@@ -165,6 +173,18 @@ typedef struct {
     uint8_t io_started;
     uint8_t shutdown;
     uint64_t sched_seed;
+    pthread_mutex_t blocking_lock;
+    pthread_cond_t blocking_cv;
+    pthread_t* blocking_workers;
+    uint32_t blocking_count;
+    uint8_t blocking_started;
+    uint8_t blocking_shutdown;
+    atomic_u32 blocking_running;
+    atomic_u32 blocking_submitted;
+    atomic_u32 blocking_completed;
+    atomic_u32 blocking_cancel_requested;
+    struct rt_blocking_job* blocking_head;
+    struct rt_blocking_job* blocking_tail;
 } rt_executor;
 
 typedef struct rt_channel rt_channel;
@@ -175,6 +195,19 @@ typedef struct {
     void* state;
     uint64_t value_bits;
 } poll_outcome;
+
+typedef struct rt_blocking_job {
+    uint64_t task_id;
+    uint64_t fn_id;
+    void* state;
+    uint64_t state_size;
+    uint64_t state_align;
+    uint64_t result_bits;
+    atomic_u8 status;
+    atomic_u8 cancel_requested;
+    atomic_u32 refs;
+    struct rt_blocking_job* next;
+} rt_blocking_job;
 
 void panic_msg(const char* msg);
 
@@ -236,6 +269,8 @@ static inline void task_polling_exit(rt_task* task) {
 
 extern void
 __surge_poll_call(uint64_t id); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+extern uint64_t __surge_blocking_call(uint64_t id, void* state);
 
 extern rt_executor exec_state;
 extern _Thread_local jmp_buf poll_env;
@@ -255,6 +290,7 @@ waker_key channel_recv_key(rt_channel* ch);
 waker_key net_accept_key(int fd);
 waker_key net_read_key(int fd);
 waker_key net_write_key(int fd);
+waker_key blocking_key(uint64_t id);
 
 rt_executor* ensure_exec(void);
 uint64_t rt_current_task_id(void);
@@ -262,6 +298,8 @@ rt_task* rt_current_task(void);
 void rt_set_current_task(rt_task* task);
 void rt_lock(rt_executor* ex);
 void rt_unlock(rt_executor* ex);
+void rt_blocking_init(rt_executor* ex);
+void rt_blocking_request_cancel(rt_executor* ex, rt_task* task);
 rt_task* get_task(rt_executor* ex, uint64_t id);
 rt_scope* get_scope(rt_executor* ex, uint64_t id);
 
@@ -313,6 +351,7 @@ void cancel_task(rt_executor* ex, uint64_t id);
 void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t result_bits);
 
 poll_outcome poll_task(rt_executor* ex, rt_task* task);
+poll_outcome poll_blocking_task(rt_executor* ex, rt_task* task);
 poll_outcome poll_net_task(const rt_executor* ex, const rt_task* task);
 int poll_net_waiters(rt_executor* ex, int timeout_ms);
 int run_ready_one(rt_executor* ex);

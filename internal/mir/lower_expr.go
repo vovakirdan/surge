@@ -207,6 +207,9 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 	case hir.ExprAsync:
 		return l.lowerAsyncExpr(e, consume)
 
+	case hir.ExprBlocking:
+		return l.lowerBlockingExpr(e, consume)
+
 	case hir.ExprCompare:
 		return Operand{}, fmt.Errorf("mir: compare must be normalized before MIR lowering")
 

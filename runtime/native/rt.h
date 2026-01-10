@@ -150,6 +150,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits);
 void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits);
 void rt_task_cancel(void* task);
 void* rt_task_clone(void* task);
+void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint64_t state_align);
 uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits);
 int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index);
 int64_t rt_select_poll(uint64_t count,

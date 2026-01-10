@@ -56,6 +56,8 @@ const (
 	ExprStruct
 	// ExprAsync represents an async expression.
 	ExprAsync
+	// ExprBlocking represents a blocking expression.
+	ExprBlocking
 	// ExprBlock represents a block expression.
 	ExprBlock
 	// ExprRangeLit represents a range literal expression.
@@ -441,6 +443,12 @@ type ExprAsyncData struct {
 	Body      StmtID
 	AttrStart AttrID
 	AttrCount uint32
+}
+
+// ExprBlockingData represents a `blocking { ... }` block expression.
+// Body references the block statement containing its statements.
+type ExprBlockingData struct {
+	Body StmtID
 }
 
 // ExprBlockData represents a block expression `{ stmts; return expr; }`.

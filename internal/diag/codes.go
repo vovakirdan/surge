@@ -283,6 +283,7 @@ const (
 	SemaUseAfterMove                   Code = 3130 // Use of moved value
 	SemaTrivialRecursion               Code = 3131 // Obvious infinite recursion cycle
 	SemaLocalTaskNotSendable           Code = 3132 // Local task handle used in sendable context
+	SemaBlockingBorrowCapture          Code = 3133 // blocking capture cannot borrow
 
 	// Ошибки I/O
 
@@ -322,6 +323,7 @@ const (
 	FutNullCoalescingNotSupported Code = 7005
 	FutNestedFnNotSupported       Code = 7006
 	FutSpawnReserved              Code = 7007
+	FutBlockingNotSupported       Code = 7008
 
 	// Alien hints (8000-series; optional extra diagnostics)
 
@@ -484,6 +486,7 @@ var ( // todo расширить описания и использовать к
 		SemaIteratorNotImplemented:         "type does not implement iterator (missing __range method)",
 		SemaRangeTypeMismatch:              "range operands have incompatible types",
 		SemaIndexOutOfBounds:               "index out of bounds",
+		SemaBlockingBorrowCapture:          "blocking captures must be by value (borrows are not allowed)",
 		SemaEnumVariantNotFound:            "enum variant not found",
 		SemaEnumValueOverflow:              "enum value overflow",
 		SemaEnumValueTypeMismatch:          "enum value type mismatch",
@@ -547,6 +550,7 @@ var ( // todo расширить описания и использовать к
 		FutNullCoalescingNotSupported:      "null coalescing '??' is not supported in v1",
 		FutNestedFnNotSupported:            "nested function declarations are not supported yet",
 		FutSpawnReserved:                   "'spawn' is reserved for routines/parallel runtime",
+		FutBlockingNotSupported:            "blocking { } is not supported in the VM backend; VM is single-threaded and has no blocking pool",
 		AlnRustImplTrait:                   "alien hint: rust impl/trait",
 		AlnRustAttribute:                   "alien hint: rust attribute syntax",
 		AlnRustMacroCall:                   "alien hint: rust macro call",

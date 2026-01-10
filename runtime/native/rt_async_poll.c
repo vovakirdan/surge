@@ -116,6 +116,8 @@ poll_outcome poll_task(rt_executor* ex, rt_task* task) {
             return poll_checkpoint_task(ex, task);
         case TASK_KIND_SLEEP:
             return poll_sleep_task(ex, task);
+        case TASK_KIND_BLOCKING:
+            return poll_blocking_task(ex, task);
         case TASK_KIND_NET_ACCEPT:
         case TASK_KIND_NET_READ:
         case TASK_KIND_NET_WRITE:

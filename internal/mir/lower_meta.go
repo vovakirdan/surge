@@ -149,6 +149,10 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 					visitOperand(&ins.Await.Task)
 				case InstrSpawn:
 					visitOperand(&ins.Spawn.Value)
+				case InstrBlocking:
+					for fi := range ins.Blocking.State.Fields {
+						visitOperand(&ins.Blocking.State.Fields[fi].Value)
+					}
 				case InstrPoll:
 					visitOperand(&ins.Poll.Task)
 				case InstrJoinAll:

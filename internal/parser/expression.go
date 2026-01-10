@@ -529,6 +529,8 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 
 	case token.KwAsync:
 		return p.parseAsyncExpr()
+	case token.KwBlocking:
+		return p.parseBlockingExpr()
 
 	case token.At:
 		attrs, attrSpan, ok := p.parseAttributes()
