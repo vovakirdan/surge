@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"strings"
 	"unicode"
 	"unicode/utf8"
 
@@ -34,6 +35,9 @@ func (p *Parser) parseIdentOrStructLiteral() (ast.ExprID, bool) {
 
 func (p *Parser) isTypeLiteralName(name string) bool {
 	if name == "" {
+		return false
+	}
+	if strings.ContainsRune(name, '_') {
 		return false
 	}
 	r, _ := utf8.DecodeRuneInString(name)

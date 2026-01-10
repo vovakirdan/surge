@@ -202,10 +202,13 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 		return l.lowerTaskExpr(e, consume)
 
 	case hir.ExprSpawn:
-		return Operand{}, fmt.Errorf("mir: spawn is reserved for routines/parallel runtime")
+		return l.lowerSpawnExpr(e, consume)
 
 	case hir.ExprAsync:
 		return l.lowerAsyncExpr(e, consume)
+
+	case hir.ExprBlocking:
+		return l.lowerBlockingExpr(e, consume)
 
 	case hir.ExprCompare:
 		return Operand{}, fmt.Errorf("mir: compare must be normalized before MIR lowering")

@@ -11,6 +11,102 @@ but Surge is not a clone of any of them.
 It is a language built for people who love to code,
 not for people who love to fight compilers.**
 
+
+## Quickstart
+
+It'll be prettier with VScode extension: [Surge](https://marketplace.visualstudio.com/items?itemName=VladimirKirdan.surge-syntax-highlighting).
+
+If you're too lazy to read the documentation (or you've already read it), let's write the first program on Surge right away.
+
+> **Note**
+>
+> Surge is currently in the *developers-only* stage.
+> Be prepared for the fact that:
+>
+> * there is no "simple installer",
+> * `hello world` may not work on the first try,
+> * the function you need may not yet be implemented.
+>
+> This is normal for the current stage of the project.
+> The issue board is always open — thank you for your interest and support 🙌
+> Every your attempt to write a program and leave feedback is a huge contribution to the project.
+
+---
+
+### Prerequisites
+
+> If you downloaded a release from the releases page, Go is **not** required.
+
+Surge was officially tested on **only Linux x86_64**.
+There are known issues with Apple Silicon (ARM64) with ABI (layout) LLVM.
+Running on other Unix systems is possible, but not guaranteed.
+Working on Windows is not supported. But you can try WSL2 to run Surge on Windows. 
+We do it that way.
+
+Required dependencies:
+
+* `go >= 1.25.1`
+* `clang >= 18.1.3`
+* `gcc >= 13.3.0`
+* `llvm` & `lld`
+* good mood and desire to win
+
+---
+
+### Start
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/vovakirdan/surge.git
+   cd surge
+   ```
+
+2. Build Surge:
+
+   ```bash
+   make build
+   ```
+
+   *(optional)*
+   If you have Linux/MacOS, you can install Surge in the system:
+
+   ```bash
+   make install-system
+   ```
+
+   This is not required for the first run.
+   The command simply copies the binary to the system directory and sets the `SURGE_STDLIB` environment variable for access to the standard library.
+
+3. Create a file `hello.sg` and open it in any editor.
+
+4. Write the classic Hello World:
+
+   ```surge
+   @entrypoint
+   fn main() {
+       print("Hello, World!");
+   }
+   ```
+
+5. Run the program:
+
+   ```bash
+   surge run hello.sg
+   ```
+
+6. Or compile it to a binary:
+
+   ```bash
+   surge build hello.sg
+   ./target/debug/hello
+   ```
+
+7. Congratulations — you have just written your first program on Surge 🎉
+   You are great.
+
+Detailed Quickstart is available in [docs/QUICKSTART.md](docs/QUICKSTART.md).
+
 </div>
 
 ---
@@ -95,7 +191,7 @@ In Surge, it’s *clean, readable, boring* — exactly as it should be.
 
 `own T` means “this value is mine”; `&T` means “I’m only looking”; `&mut T` means “I’m the only one mutating right now”.
 Borrow scopes are lexical and obvious. If you need to end a borrow early, say so with an explicit `@drop binding;` — no hidden lifetimes.
-Only owning values can cross task boundaries, so concurrency stays sound without requiring a theorem prover in your head.
+Only sendable values (typically `own T`) can cross task boundaries, so concurrency stays sound without requiring a theorem prover in your head. `@local spawn` is the explicit escape hatch for `@nosend` captures.
 
 Boring ownership is the best ownership.
 
@@ -107,13 +203,13 @@ Async/await in Surge is predictable:
 
 * tasks don’t outlive their scope,
 * no “task-and-forget”,
-* clear ownership across tasks (only `own T` crosses the boundary),
+* clear ownership across tasks (only sendable values cross the boundary),
 * channels as first-class primitives,
 * cancellation that actually returns a value (`Cancelled`) instead of silently tearing down state.
 
 It’s a “grown-up” model, but expressed very simply.
 
-Single-threaded cooperative scheduling today, a path to parallel backends tomorrow. Tasks are just `Task<T>` values; `.await()` is a method, not a keyword; `async { ... }` blocks enforce structured concurrency by waiting for every task. If you need to yield in a CPU-bound loop, `checkpoint().await()` is there instead of hoping for preemption.
+Native/LLVM run a multi-worker executor; the VM backend is single-threaded and deterministic by design. Tasks are just `Task<T>` values; `.await()` is a method, not a keyword; `async { ... }` blocks enforce structured concurrency by waiting for every task. If you need to yield in a CPU-bound loop, `checkpoint().await()` is there instead of hoping for preemption. OS-blocking work belongs in `blocking { ... }` (native/LLVM only).
 
 ---
 
@@ -148,6 +244,32 @@ It keeps types clean and promotes clarity:
 Structural typing without the ceremony.
 If your type has the required fields/methods — it satisfies the contract.
 No inheritance gymnastics.
+
+```surge
+contract Pet<T> {
+    field name: string;
+    field age: int;
+    fn bark(self: T) -> nothing;
+}
+
+fn feed<T: Pet<T>>(pet: T) -> nothing {
+    pet.bark();
+}
+
+type Dog = {
+    name: string;
+    age: int;
+}
+
+extern<Dog> {
+    fn bark(self: &Dog) -> nothing {
+        print("woof");
+    }
+}
+
+let dog = Dog { name = "Rex", age = 3 };
+feed(dog); // func accepts any value that satisfies the contract
+```
 
 ---
 
@@ -192,13 +314,13 @@ Magic methods are just functions; contracts are structural, not class hierarchie
 If a value moves — it’s visible.
 If it borrows — it’s visible.
 
-Borrow lifetimes are lexical, the borrow checker tells you where the conflict is, and only `own` values cross thread or task boundaries. When you need to end a borrow early, there is a literal `@drop expr;` statement instead of ritual incantations.
+Borrow lifetimes are lexical, the borrow checker tells you where the conflict is, and only sendable values cross worker-thread or task boundaries. When you need to end a borrow early, there is a literal `@drop expr;` statement instead of ritual incantations.
 
 ### **Structured concurrency**
 
 Async code shouldn't be smuggled into memory.
 
-`async fn` returns `Task<T>`, `.await()` is explicit, `task` returns a handle you must either await or store. No loose tasks leaking into the void. The event loop is cooperative, honest about blocking, and ready for a future parallel runtime without changing user code.
+`async fn` returns `Task<T>`, `.await()` is explicit, `spawn` returns a handle you must either await or store. No loose tasks leaking into the void. The executor is cooperative; it runs across multiple workers on native/LLVM and is single-threaded in the VM. OS-blocking work is explicit via `blocking { ... }`.
 
 ### **No surprises**
 
@@ -239,7 +361,7 @@ This is Surge in one breath:
 Below is a realistic snippet combining:
 
 * async/await,
-* task,
+* spawn,
 * channels,
 * ownership,
 * tags,
@@ -270,38 +392,47 @@ extern<Endpoint> {
 }
 
 // Worker pipeline using channels
-async fn pipeline(endpoints: Endpoint[]) -> Success<string>[] {
-    let ch = make_channel<Erring<string, Error>>(10);
+async fn fetch_and_send(ch: &Channel<Erring<string, Error>>, ep: Endpoint) -> nothing {
+    let out = ep.fetch().await();
+    ch.send(out);
+}
 
-    // Producer: task fetchers
-    async {
-        for ep in endpoints {
-            task async {
-                let out = ep.fetch().await();
-                send(&ch, out);
-            };
-        }
-    };
-
-    // Consumer: collect only Success results
+async fn collect_success(ch: &Channel<Erring<string, Error>>) -> Success<string>[] {
     let mut results: Success<string>[] = [];
-
-    // When channel closes, recv() returns nothing
-    while let Some(msg) = recv(&ch) {
-        compare msg {
+    while true {
+        let msg = ch.recv();
+        if msg is nothing { break; }
+        compare msg.safe() {
             Success(v)  => results.push(Success(v));
             finally => { /* ignore failures */ }
         }
     }
-
     return results;
+}
+
+async fn pipeline(endpoints: Endpoint[]) -> Success<string>[] {
+    let ch = make_channel::<Erring<string, Error>>(10:uint);
+    let consumer = spawn collect_success(&ch);
+
+    // Producer: spawn fetchers
+    async {
+        for ep in endpoints {
+            spawn fetch_and_send(&ch, ep);
+        }
+    }.await();
+    ch.close();
+
+    compare consumer.await() {
+        Success(v) => return v;
+        Cancelled() => return [];
+    }
 }
 ```
 
 If this example looks readable —
 that’s the whole point.
-It shows ownership moves (`task` takes `ep` by value),
-borrows (`recv(&ch)` is explicit),
+It shows ownership moves (`spawn` takes `ep` by value),
+borrows (`ch.recv()` is explicit),
 and structural typing (`contract Fetchable`) without ornamentation.
 You can drop `@drop` inside a loop if you need to end a borrow early, or mark the function `@failfast` to auto-cancel tasks on the first error — but only when you ask for it.
 
@@ -393,7 +524,7 @@ Diagnostics include fix-suggestions where safe, and directive code lives in real
 It’s not just diagnostics —
 it’s *X-ray vision* for understanding your own code.
 
-Attributes like `@pure` are enforced; concurrency contracts like `@guarded_by` are checked; lock ordering and task leaks are diagnosed. All of that is surfaced through `surge diag` with trace files you can load into Chrome Trace Viewer when you feel like spelunking.
+Some attributes are enforced (e.g., `@guarded_by`, `@nonblocking`, lock ordering, task leaks), while others like `@pure` are parsed but not checked yet. All of that is surfaced through `surge diag` with trace files you can load into Chrome Trace Viewer when you feel like spelunking.
 
 Because a language should help you see more, not hide more.
 
@@ -435,14 +566,13 @@ Here’s the short roadmap:
 
 * full frontend (AST, type system, semantics),
 * VM execution backend,
+* native/LLVM backend with MT executor,
 * directive system (tests, benchmarks, docs),
 * AST reflection for lints & analysis,
 * improved concurrency primitives.
 
 ### **v1.5 → v2**
 
-* real multithreading,
-* LLVM backend for true native performance,
 * macro system (structural code generation),
 * improved channels & select,
 * WASM backend.
@@ -501,7 +631,7 @@ Go taught me that a programming language can be **simple without being simplisti
 
 Surge wouldn't look the way it does without Go’s influence:
 
-* **Goroutines** inspired the structured concurrency model.
+* Go's **goroutines** inspired the structured concurrency model.
   Not by copying, but by understanding the value of lightweight, honest tasks.
 
 * **The Go toolchain** demonstrated what “one tool, many commands” can feel like.

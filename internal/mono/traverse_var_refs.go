@@ -360,6 +360,15 @@ func rewriteVarRefsInExpr(e *hir.Expr, f varRefRewriteFunc) error {
 			return err
 		}
 		e.Data = data
+	case hir.ExprBlocking:
+		data, ok := e.Data.(hir.BlockingData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteVarRefsInBlock(data.Body, f); err != nil {
+			return err
+		}
+		e.Data = data
 	case hir.ExprCast:
 		data, ok := e.Data.(hir.CastData)
 		if !ok {

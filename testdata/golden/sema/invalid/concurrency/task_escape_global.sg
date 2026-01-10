@@ -5,4 +5,4 @@ async fn work() -> int {
 }
 
 // ERROR SEM3108: cannot store Task<T> in module-level variable
-pub let GLOBAL_TASK: Task<int> = task work();
+pub let GLOBAL_TASK: Task<int> = spawn work();

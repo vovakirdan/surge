@@ -26,12 +26,12 @@
  26: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
  27: Ident           "t" at 6:9-6:10 (leading: Space)
  28: Assign          "=" at 6:11-6:12 (leading: Space)
- 29: KwTask          "task" at 6:13-6:17 (leading: Space)
- 30: Ident           "inc" at 6:18-6:21 (leading: Space)
- 31: LParen          "(" at 6:21-6:22
- 32: IntLit          "5" at 6:22-6:23
- 33: RParen          ")" at 6:23-6:24
- 34: Semicolon       ";" at 6:24-6:25
+ 29: KwSpawn         "spawn" at 6:13-6:18 (leading: Space)
+ 30: Ident           "inc" at 6:19-6:22 (leading: Space)
+ 31: LParen          "(" at 6:22-6:23
+ 32: IntLit          "5" at 6:23-6:24
+ 33: RParen          ")" at 6:24-6:25
+ 34: Semicolon       ";" at 6:25-6:26
  35: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
  36: KwCompare       "compare" at 7:12-7:19 (leading: Space)
  37: Ident           "t" at 7:20-7:21 (leading: Space)

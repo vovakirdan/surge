@@ -29,6 +29,24 @@ get_dir_stats() {
     echo "${file_count:-0} ${line_count:-0}"
 }
 
+# Функция для получения статистики по C коду из runtime/native
+get_c_stats() {
+    local dir="runtime/native"
+    
+    if [ ! -d "$dir" ]; then
+        echo "0 0"
+        return
+    fi
+    
+    # Считаем .c и .h файлы
+    local find_cmd="find \"$dir\" \\( -name \"*.c\" -o -name \"*.h\" \\)"
+    
+    local file_count=$(eval "$find_cmd" 2>/dev/null | wc -l)
+    local line_count=$(eval "$find_cmd -exec wc -l {} +" 2>/dev/null | tail -1 | awk '{print $1}')
+    
+    echo "${file_count:-0} ${line_count:-0}"
+}
+
 # Функция для получения топ пакетов
 get_top_packages() {
     local limit=${1:-10}
@@ -85,6 +103,11 @@ internal_stats=$(get_dir_stats "internal" true)
 internal_files=$(echo $internal_stats | awk '{print $1}')
 internal_lines=$(echo $internal_stats | awk '{print $2}')
 
+# Статистика по C коду из runtime/native
+c_stats=$(get_c_stats)
+c_files=$(echo $c_stats | awk '{print $1}')
+c_lines=$(echo $c_stats | awk '{print $2}')
+
 # Тестовые файлы
 test_stats=$(get_dir_stats "." false)
 test_files_total=$(echo $test_stats | awk '{print $1}')
@@ -96,15 +119,19 @@ test_only_files=$(find cmd internal -name "*_test.go" 2>/dev/null | wc -l)
 test_only_lines=$(find cmd internal -name "*_test.go" 2>/dev/null -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print $1}')
 test_only_lines=${test_only_lines:-0}
 
-# Общий объем
-total_lines=$((main_lines + test_only_lines))
-total_files=$((main_files + test_only_files))
+# Общий объем (Go код + C код + тесты)
+total_lines=$((main_lines + c_lines + test_only_lines))
+total_files=$((main_files + c_files + test_only_files))
+
+# Основной код включая C код
+main_with_c_lines=$((main_lines + c_lines))
+main_with_c_files=$((main_files + c_files))
 
 # Вывод основной статистики
 echo "## 📊 Main code (without tests)"
 echo ""
-echo "- **Files:** $(format_number $main_files)"
-echo "- **Lines of code:** $(format_number $main_lines)"
+echo "- **Files:** $(format_number $main_with_c_files) (Go: $(format_number $main_files), C: $(format_number $c_files))"
+echo "- **Lines of code:** $(format_number $main_with_c_lines) (Go: $(format_number $main_lines), C: $(format_number $c_lines))"
 echo ""
 
 # Разбивка по директориям
@@ -114,6 +141,7 @@ echo "| Directory | Files | Lines |"
 echo "|------------|--------|-------|"
 printf "| \`cmd/\` | %s | %s |\n" "$(format_number $cmd_files)" "$(format_number $cmd_lines)"
 printf "| \`internal/\` | %s | %s |\n" "$(format_number $internal_files)" "$(format_number $internal_lines)"
+printf "| \`runtime/native/\` (C code) | %s | %s |\n" "$(format_number $c_files)" "$(format_number $c_lines)"
 echo ""
 
 # Топ пackages
@@ -148,11 +176,13 @@ echo ""
 
 # Процентное соотношение
 if [ $total_lines -gt 0 ]; then
-    main_percent=$((main_lines * 100 / total_lines))
+    main_go_percent=$((main_lines * 100 / total_lines))
+    main_c_percent=$((c_lines * 100 / total_lines))
+    main_total_percent=$((main_with_c_lines * 100 / total_lines))
     test_percent=$((test_only_lines * 100 / total_lines))
     echo "## 📊 Percentage breakdown"
     echo ""
-    echo "- **Main code:** ${main_percent}%"
+    echo "- **Main code (Go + C):** ${main_total_percent}% (Go: ${main_go_percent}%, C: ${main_c_percent}%)"
     echo "- **Tests:** ${test_percent}%"
     echo ""
 fi

@@ -9,12 +9,12 @@ async_fairness.sg (span: 1:1-23:1)
          │  ├─ Name: a
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#20: task async { 6 stmt(s) }
+         │  └─ Value: expr#20: spawn async { 6 stmt(s) }
          ├─ Stmt[1]: Let (span: 11:5-18:7)
          │  ├─ Name: b
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#40: task async { 6 stmt(s) }
+         │  └─ Value: expr#40: spawn async { 6 stmt(s) }
          ├─ Stmt[2]: Let (span: 19:5-19:23)
          │  ├─ Name: _
          │  ├─ Mutable: false

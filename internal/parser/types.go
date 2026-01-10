@@ -115,83 +115,18 @@ func (p *Parser) parseTypePrimary() (ast.TypeID, bool) {
 		value := p.arenas.StringsInterner.Intern(lit.Text)
 		return p.parseTypeSuffix(p.arenas.Types.NewConst(lit.Span, value))
 
+	case token.KwAsync:
+		asyncTok := p.advance()
+		if !p.at(token.KwFn) {
+			p.err(diag.SynUnexpectedToken, "expected 'fn' after 'async' in function type")
+			return ast.NoTypeID, false
+		}
+		p.advance()
+		return p.parseFunctionType(asyncTok.Span, true)
+
 	case token.KwFn:
 		fnTok := p.advance()
-		if _, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after 'fn' in function type", nil); !ok {
-			return ast.NoTypeID, false
-		}
-
-		var params []ast.TypeFnParam
-
-		if !p.at(token.RParen) {
-			for {
-				if p.at(token.DotDotDot) {
-					p.advance()
-					elemType, ok := p.parseTypePrefix()
-					if !ok {
-						return ast.NoTypeID, false
-					}
-					params = append(params, ast.TypeFnParam{
-						Type:     elemType,
-						Name:     source.NoStringID,
-						Variadic: true,
-					})
-					if p.at(token.Comma) {
-						p.err(diag.SynVariadicMustBeLast, "variadic parameter must be last in function type")
-						p.advance()
-					}
-					break
-				}
-
-				elemType, ok := p.parseTypePrefix()
-				if !ok {
-					return ast.NoTypeID, false
-				}
-				params = append(params, ast.TypeFnParam{
-					Type:     elemType,
-					Name:     source.NoStringID,
-					Variadic: false,
-				})
-
-				if !p.at(token.Comma) {
-					break
-				}
-				p.advance()
-
-				if p.at(token.RParen) {
-					break
-				}
-			}
-		}
-
-		closeTok, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' to close function type parameters", nil)
-		if !ok {
-			return ast.NoTypeID, false
-		}
-
-		fnSpan := fnTok.Span.Cover(closeTok.Span)
-		var returnType ast.TypeID
-
-		if p.at(token.Arrow) {
-			arrowTok := p.advance()
-			retType, ok := p.parseTypePrefix()
-			if !ok {
-				return ast.NoTypeID, false
-			}
-			returnType = retType
-			retSpan := p.arenas.Types.Get(returnType).Span
-			fnSpan = fnSpan.Cover(arrowTok.Span.Cover(retSpan))
-		} else {
-			retSpan := source.Span{
-				File:  closeTok.Span.File,
-				Start: closeTok.Span.End,
-				End:   closeTok.Span.End,
-			}
-			returnType = p.makeNothingType(retSpan)
-		}
-
-		fnType := p.arenas.Types.NewFn(fnSpan, params, returnType)
-		return p.parseTypeSuffix(fnType)
+		return p.parseFunctionType(fnTok.Span, false)
 
 	default:
 		// p.err(diag.SynExpectType, "expected type")
@@ -230,6 +165,102 @@ func (p *Parser) makeNothingType(span source.Span) ast.TypeID {
 		Generics: nil,
 	}}
 	return p.arenas.Types.NewPath(span, segments)
+}
+
+func (p *Parser) makeTaskType(inner ast.TypeID) ast.TypeID {
+	span := source.Span{}
+	if innerExpr := p.arenas.Types.Get(inner); innerExpr != nil {
+		span = innerExpr.Span
+	}
+	nameID := p.arenas.StringsInterner.Intern("Task")
+	segments := []ast.TypePathSegment{{
+		Name:     nameID,
+		Generics: []ast.TypeID{inner},
+	}}
+	return p.arenas.Types.NewPath(span, segments)
+}
+
+func (p *Parser) parseFunctionType(startSpan source.Span, isAsync bool) (ast.TypeID, bool) {
+	if _, ok := p.expect(token.LParen, diag.SynUnexpectedToken, "expected '(' after 'fn' in function type", nil); !ok {
+		return ast.NoTypeID, false
+	}
+
+	var params []ast.TypeFnParam
+
+	if !p.at(token.RParen) {
+		for {
+			if p.at(token.DotDotDot) {
+				p.advance()
+				elemType, ok := p.parseTypePrefix()
+				if !ok {
+					return ast.NoTypeID, false
+				}
+				params = append(params, ast.TypeFnParam{
+					Type:     elemType,
+					Name:     source.NoStringID,
+					Variadic: true,
+				})
+				if p.at(token.Comma) {
+					p.err(diag.SynVariadicMustBeLast, "variadic parameter must be last in function type")
+					p.advance()
+				}
+				break
+			}
+
+			elemType, ok := p.parseTypePrefix()
+			if !ok {
+				return ast.NoTypeID, false
+			}
+			params = append(params, ast.TypeFnParam{
+				Type:     elemType,
+				Name:     source.NoStringID,
+				Variadic: false,
+			})
+
+			if !p.at(token.Comma) {
+				break
+			}
+			p.advance()
+
+			if p.at(token.RParen) {
+				break
+			}
+		}
+	}
+
+	closeTok, ok := p.expect(token.RParen, diag.SynUnclosedParen, "expected ')' to close function type parameters", nil)
+	if !ok {
+		return ast.NoTypeID, false
+	}
+
+	fnSpan := startSpan.Cover(closeTok.Span)
+	var returnType ast.TypeID
+	var retSpan source.Span
+
+	if p.at(token.Arrow) {
+		arrowTok := p.advance()
+		retType, ok := p.parseTypePrefix()
+		if !ok {
+			return ast.NoTypeID, false
+		}
+		returnType = retType
+		retSpan = p.arenas.Types.Get(returnType).Span
+		fnSpan = fnSpan.Cover(arrowTok.Span.Cover(retSpan))
+	} else {
+		retSpan = source.Span{
+			File:  closeTok.Span.File,
+			Start: closeTok.Span.End,
+			End:   closeTok.Span.End,
+		}
+		returnType = p.makeNothingType(retSpan)
+	}
+
+	if isAsync {
+		returnType = p.makeTaskType(returnType)
+	}
+
+	fnType := p.arenas.Types.NewFn(fnSpan, params, returnType)
+	return p.parseTypeSuffix(fnType)
 }
 
 func (p *Parser) finishTypePath(firstID source.StringID, startSpan source.Span) (ast.TypeID, bool) {

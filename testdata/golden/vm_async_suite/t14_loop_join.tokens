@@ -16,63 +16,63 @@
  16: KwLet           "let" at 4:9-4:12 (leading: Newline, Space)
  17: Ident           "t1" at 4:13-4:15 (leading: Space)
  18: Assign          "=" at 4:16-4:17 (leading: Space)
- 19: KwTask          "task" at 4:18-4:22 (leading: Space)
- 20: KwAsync         "async" at 4:23-4:28 (leading: Space)
- 21: LBrace          "{" at 4:29-4:30 (leading: Space)
- 22: Ident           "sleep" at 4:31-4:36 (leading: Space)
- 23: LParen          "(" at 4:36-4:37
- 24: IntLit          "5" at 4:37-4:38
- 25: RParen          ")" at 4:38-4:39
- 26: Dot             "." at 4:39-4:40
- 27: Ident           "await" at 4:40-4:45
- 28: LParen          "(" at 4:45-4:46
- 29: RParen          ")" at 4:46-4:47
- 30: Semicolon       ";" at 4:47-4:48
- 31: KwReturn        "return" at 4:49-4:55 (leading: Space)
- 32: IntLit          "1" at 4:56-4:57 (leading: Space)
- 33: Semicolon       ";" at 4:57-4:58
- 34: RBrace          "}" at 4:59-4:60 (leading: Space)
- 35: Semicolon       ";" at 4:60-4:61
+ 19: KwSpawn         "spawn" at 4:18-4:23 (leading: Space)
+ 20: KwAsync         "async" at 4:24-4:29 (leading: Space)
+ 21: LBrace          "{" at 4:30-4:31 (leading: Space)
+ 22: Ident           "sleep" at 4:32-4:37 (leading: Space)
+ 23: LParen          "(" at 4:37-4:38
+ 24: IntLit          "5" at 4:38-4:39
+ 25: RParen          ")" at 4:39-4:40
+ 26: Dot             "." at 4:40-4:41
+ 27: Ident           "await" at 4:41-4:46
+ 28: LParen          "(" at 4:46-4:47
+ 29: RParen          ")" at 4:47-4:48
+ 30: Semicolon       ";" at 4:48-4:49
+ 31: KwReturn        "return" at 4:50-4:56 (leading: Space)
+ 32: IntLit          "1" at 4:57-4:58 (leading: Space)
+ 33: Semicolon       ";" at 4:58-4:59
+ 34: RBrace          "}" at 4:60-4:61 (leading: Space)
+ 35: Semicolon       ";" at 4:61-4:62
  36: KwLet           "let" at 5:9-5:12 (leading: Newline, Space)
  37: Ident           "t2" at 5:13-5:15 (leading: Space)
  38: Assign          "=" at 5:16-5:17 (leading: Space)
- 39: KwTask          "task" at 5:18-5:22 (leading: Space)
- 40: KwAsync         "async" at 5:23-5:28 (leading: Space)
- 41: LBrace          "{" at 5:29-5:30 (leading: Space)
- 42: Ident           "sleep" at 5:31-5:36 (leading: Space)
- 43: LParen          "(" at 5:36-5:37
- 44: IntLit          "5" at 5:37-5:38
- 45: RParen          ")" at 5:38-5:39
- 46: Dot             "." at 5:39-5:40
- 47: Ident           "await" at 5:40-5:45
- 48: LParen          "(" at 5:45-5:46
- 49: RParen          ")" at 5:46-5:47
- 50: Semicolon       ";" at 5:47-5:48
- 51: KwReturn        "return" at 5:49-5:55 (leading: Space)
- 52: IntLit          "2" at 5:56-5:57 (leading: Space)
- 53: Semicolon       ";" at 5:57-5:58
- 54: RBrace          "}" at 5:59-5:60 (leading: Space)
- 55: Semicolon       ";" at 5:60-5:61
+ 39: KwSpawn         "spawn" at 5:18-5:23 (leading: Space)
+ 40: KwAsync         "async" at 5:24-5:29 (leading: Space)
+ 41: LBrace          "{" at 5:30-5:31 (leading: Space)
+ 42: Ident           "sleep" at 5:32-5:37 (leading: Space)
+ 43: LParen          "(" at 5:37-5:38
+ 44: IntLit          "5" at 5:38-5:39
+ 45: RParen          ")" at 5:39-5:40
+ 46: Dot             "." at 5:40-5:41
+ 47: Ident           "await" at 5:41-5:46
+ 48: LParen          "(" at 5:46-5:47
+ 49: RParen          ")" at 5:47-5:48
+ 50: Semicolon       ";" at 5:48-5:49
+ 51: KwReturn        "return" at 5:50-5:56 (leading: Space)
+ 52: IntLit          "2" at 5:57-5:58 (leading: Space)
+ 53: Semicolon       ";" at 5:58-5:59
+ 54: RBrace          "}" at 5:60-5:61 (leading: Space)
+ 55: Semicolon       ";" at 5:61-5:62
  56: KwLet           "let" at 6:9-6:12 (leading: Newline, Space)
  57: Ident           "t3" at 6:13-6:15 (leading: Space)
  58: Assign          "=" at 6:16-6:17 (leading: Space)
- 59: KwTask          "task" at 6:18-6:22 (leading: Space)
- 60: KwAsync         "async" at 6:23-6:28 (leading: Space)
- 61: LBrace          "{" at 6:29-6:30 (leading: Space)
- 62: Ident           "sleep" at 6:31-6:36 (leading: Space)
- 63: LParen          "(" at 6:36-6:37
- 64: IntLit          "5" at 6:37-6:38
- 65: RParen          ")" at 6:38-6:39
- 66: Dot             "." at 6:39-6:40
- 67: Ident           "await" at 6:40-6:45
- 68: LParen          "(" at 6:45-6:46
- 69: RParen          ")" at 6:46-6:47
- 70: Semicolon       ";" at 6:47-6:48
- 71: KwReturn        "return" at 6:49-6:55 (leading: Space)
- 72: IntLit          "3" at 6:56-6:57 (leading: Space)
- 73: Semicolon       ";" at 6:57-6:58
- 74: RBrace          "}" at 6:59-6:60 (leading: Space)
- 75: Semicolon       ";" at 6:60-6:61
+ 59: KwSpawn         "spawn" at 6:18-6:23 (leading: Space)
+ 60: KwAsync         "async" at 6:24-6:29 (leading: Space)
+ 61: LBrace          "{" at 6:30-6:31 (leading: Space)
+ 62: Ident           "sleep" at 6:32-6:37 (leading: Space)
+ 63: LParen          "(" at 6:37-6:38
+ 64: IntLit          "5" at 6:38-6:39
+ 65: RParen          ")" at 6:39-6:40
+ 66: Dot             "." at 6:40-6:41
+ 67: Ident           "await" at 6:41-6:46
+ 68: LParen          "(" at 6:46-6:47
+ 69: RParen          ")" at 6:47-6:48
+ 70: Semicolon       ";" at 6:48-6:49
+ 71: KwReturn        "return" at 6:50-6:56 (leading: Space)
+ 72: IntLit          "3" at 6:57-6:58 (leading: Space)
+ 73: Semicolon       ";" at 6:58-6:59
+ 74: RBrace          "}" at 6:60-6:61 (leading: Space)
+ 75: Semicolon       ";" at 6:61-6:62
  76: KwLet           "let" at 8:9-8:12 (leading: Newline, Space)
  77: KwMut           "mut" at 8:13-8:16 (leading: Space)
  78: Ident           "ts" at 8:17-8:19 (leading: Space)

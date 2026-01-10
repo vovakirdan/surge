@@ -12,12 +12,21 @@ type taskContainerInfo struct {
 	Scope   symbols.ScopeID
 	Pending bool
 	Span    source.Span
+	Type    types.TypeID
 }
 
 type taskContainerLoop struct {
-	place     Place
-	popSeen   bool
-	earlyExit bool
+	place       Place
+	popCount    int
+	popConsumed int
+	earlyExit   bool
+	popBindings []taskContainerPopBinding
+}
+
+type taskContainerPopBinding struct {
+	symID    symbols.SymbolID
+	span     source.Span
+	consumed bool
 }
 
 func (tc *typeChecker) isTaskContainerType(id types.TypeID) bool {
@@ -96,6 +105,32 @@ func (tc *typeChecker) containsTaskTypeVisited(id types.TypeID, seen map[types.T
 	return false
 }
 
+func (tc *typeChecker) isSuspendSafeType(id types.TypeID) bool {
+	visited := make(map[types.TypeID]struct{})
+	return tc.isSuspendSafeTypeVisited(id, visited)
+}
+
+func (tc *typeChecker) isSuspendSafeTypeVisited(id types.TypeID, visited map[types.TypeID]struct{}) bool {
+	if id == types.NoTypeID || tc.types == nil {
+		return false
+	}
+	id = tc.valueType(id)
+	if id == types.NoTypeID {
+		return false
+	}
+	if _, seen := visited[id]; seen {
+		return true
+	}
+	visited[id] = struct{}{}
+	if tc.isTaskType(id) {
+		return true
+	}
+	if elem, _, fixed, ok := tc.arrayInfo(id); ok && !fixed {
+		return tc.isSuspendSafeTypeVisited(elem, visited)
+	}
+	return false
+}
+
 func (tc *typeChecker) containerExprForStore(target ast.ExprID) ast.ExprID {
 	if !target.IsValid() || tc.builder == nil {
 		return ast.NoExprID
@@ -130,7 +165,7 @@ func (tc *typeChecker) taskContainerPlace(expr ast.ExprID) (Place, bool) {
 	return place, true
 }
 
-func (tc *typeChecker) markTaskContainerPending(place Place, span source.Span) {
+func (tc *typeChecker) markTaskContainerPending(place Place, span source.Span, containerType types.TypeID) {
 	if !place.IsValid() {
 		return
 	}
@@ -149,6 +184,9 @@ func (tc *typeChecker) markTaskContainerPending(place Place, span source.Span) {
 	info.Pending = true
 	if info.Span == (source.Span{}) {
 		info.Span = span
+	}
+	if containerType != types.NoTypeID {
+		info.Type = containerType
 	}
 }
 
@@ -173,6 +211,7 @@ func (tc *typeChecker) markTaskContainerFromBinding(symID symbols.SymbolID, valu
 					Scope:   info.Scope,
 					Pending: info.Pending,
 					Span:    info.Span,
+					Type:    info.Type,
 				}
 				delete(tc.taskContainers, src)
 				return
@@ -183,7 +222,7 @@ func (tc *typeChecker) markTaskContainerFromBinding(symID symbols.SymbolID, valu
 		if expr := tc.builder.Exprs.Get(value); expr != nil {
 			switch expr.Kind {
 			case ast.ExprArray, ast.ExprStruct:
-				tc.markTaskContainerPending(dest, span)
+				tc.markTaskContainerPending(dest, span, valueType)
 			}
 		}
 	}
@@ -205,7 +244,7 @@ func (tc *typeChecker) trackTaskContainerStore(target, value ast.ExprID, valueTy
 	if !ok {
 		return
 	}
-	tc.markTaskContainerPending(place, tc.exprSpan(target))
+	tc.markTaskContainerPending(place, tc.exprSpan(target), containerType)
 	tc.trackTaskPassedAsArg(value)
 }
 
@@ -224,6 +263,7 @@ func (tc *typeChecker) trackTaskContainerAssign(target, value ast.ExprID, valueT
 					Scope:   info.Scope,
 					Pending: info.Pending,
 					Span:    info.Span,
+					Type:    info.Type,
 				}
 				delete(tc.taskContainers, src)
 				return
@@ -233,7 +273,7 @@ func (tc *typeChecker) trackTaskContainerAssign(target, value ast.ExprID, valueT
 			if expr := tc.builder.Exprs.Get(value); expr != nil {
 				switch expr.Kind {
 				case ast.ExprArray, ast.ExprStruct:
-					tc.markTaskContainerPending(place, span)
+					tc.markTaskContainerPending(place, span, valueType)
 				}
 			}
 		}
@@ -244,7 +284,7 @@ func (tc *typeChecker) checkTaskContainerEscape(expr ast.ExprID, exprType types.
 	if !expr.IsValid() || !tc.isTaskContainerType(exprType) {
 		return
 	}
-	tc.report(diag.SemaTaskLifetimeError, span, "task container cannot escape its scope")
+	tc.reportTaskContainerEscape(expr, span)
 }
 
 func (tc *typeChecker) checkTaskContainersAtScopeExit(scope symbols.ScopeID) {
@@ -262,10 +302,70 @@ func (tc *typeChecker) checkTaskContainersAtScopeExit(scope symbols.ScopeID) {
 					span = sym.Span
 				}
 			}
-			tc.report(diag.SemaTaskNotAwaited, span, "task container has unconsumed tasks at scope exit")
+			tc.report(diag.SemaTaskNotAwaited, span, "task container has unconsumed tasks at scope exit (drain required)")
 		}
 		delete(tc.taskContainers, place)
 	}
+}
+
+func (tc *typeChecker) scopeActive(scope symbols.ScopeID) bool {
+	if !scope.IsValid() {
+		return false
+	}
+	for _, current := range tc.scopeStack {
+		if current == scope {
+			return true
+		}
+	}
+	return false
+}
+
+func (tc *typeChecker) reportTaskContainerEscape(expr ast.ExprID, span source.Span) {
+	if expr.IsValid() {
+		if place, ok := tc.taskContainerPlace(expr); ok {
+			tc.markTaskContainerConsumed(place)
+		}
+	}
+	tc.report(diag.SemaTaskLifetimeError, span, "task container cannot escape its scope")
+}
+
+func (tc *typeChecker) checkTaskContainersLiveAcrossAwait(span source.Span) {
+	if tc.taskContainers == nil {
+		return
+	}
+	for place, info := range tc.taskContainers {
+		if info == nil || !info.Pending {
+			continue
+		}
+		if !tc.scopeActive(info.Scope) {
+			continue
+		}
+		if tc.isSuspendSafeType(info.Type) {
+			continue
+		}
+		if tc.taskContainerLoopAllowsAwait(info) {
+			continue
+		}
+		tc.report(diag.SemaTaskLifetimeError, span, "task container cannot live across await")
+		tc.markTaskContainerConsumed(place)
+		return
+	}
+}
+
+func (tc *typeChecker) taskContainerLoopAllowsAwait(info *taskContainerInfo) bool {
+	if info == nil || len(tc.taskContainerLoops) == 0 {
+		return false
+	}
+	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
+		loop := tc.taskContainerLoops[i]
+		if loop.popCount == 0 {
+			continue
+		}
+		if existing := tc.taskContainers[loop.place]; existing == info {
+			return true
+		}
+	}
+	return false
 }
 
 func (tc *typeChecker) bindingMoved(symID symbols.SymbolID) bool {
@@ -299,7 +399,119 @@ func (tc *typeChecker) noteTaskContainerPop(place Place) {
 	}
 	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
 		if tc.taskContainerLoops[i].place == place {
-			tc.taskContainerLoops[i].popSeen = true
+			tc.taskContainerLoops[i].popCount++
+			return
+		}
+	}
+}
+
+func (tc *typeChecker) noteTaskContainerPopBinding(place Place, symID symbols.SymbolID, span source.Span) {
+	if !place.IsValid() || !symID.IsValid() {
+		return
+	}
+	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
+		if tc.taskContainerLoops[i].place != place {
+			continue
+		}
+		for _, binding := range tc.taskContainerLoops[i].popBindings {
+			if binding.symID == symID {
+				return
+			}
+		}
+		tc.taskContainerLoops[i].popBindings = append(tc.taskContainerLoops[i].popBindings, taskContainerPopBinding{
+			symID: symID,
+			span:  span,
+		})
+		return
+	}
+}
+
+func (tc *typeChecker) taskContainerLoopDrained(loop taskContainerLoop) bool {
+	if loop.popCount == 0 {
+		return false
+	}
+	return loop.popConsumed >= loop.popCount
+}
+
+func (tc *typeChecker) taskContainerPopSource(expr ast.ExprID) (Place, bool) {
+	if !expr.IsValid() || tc.builder == nil {
+		return Place{}, false
+	}
+	expr = tc.unwrapGroupExpr(expr)
+	if call, ok := tc.builder.Exprs.Call(expr); ok && call != nil {
+		if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
+			if tc.lookupName(member.Field) == "pop" && len(call.Args) == 0 {
+				recvType := tc.result.ExprTypes[member.Target]
+				if recvType == types.NoTypeID {
+					recvType = tc.typeExpr(member.Target)
+				}
+				if tc.isTaskContainerType(recvType) {
+					return tc.taskContainerPlace(member.Target)
+				}
+			}
+			if place, ok := tc.taskContainerPopSource(member.Target); ok {
+				return place, true
+			}
+		} else if place, ok := tc.taskContainerPopSource(call.Target); ok {
+			return place, true
+		}
+	}
+	if unary, ok := tc.builder.Exprs.Unary(expr); ok && unary != nil {
+		return tc.taskContainerPopSource(unary.Operand)
+	}
+	if await, ok := tc.builder.Exprs.Await(expr); ok && await != nil {
+		return tc.taskContainerPopSource(await.Value)
+	}
+	return Place{}, false
+}
+
+func (tc *typeChecker) trackTaskContainerPopBinding(symID symbols.SymbolID, value ast.ExprID) {
+	if !symID.IsValid() || !value.IsValid() {
+		return
+	}
+	place, ok := tc.taskContainerPopSource(value)
+	if !ok {
+		return
+	}
+	tc.noteTaskContainerPopBinding(place, symID, tc.exprSpan(value))
+}
+
+func (tc *typeChecker) trackTaskContainerPopBindingFromAssign(left, right ast.ExprID) {
+	left = tc.unwrapGroupExpr(left)
+	expr := tc.builder.Exprs.Get(left)
+	if expr == nil || expr.Kind != ast.ExprIdent {
+		return
+	}
+	symID := tc.symbolForExpr(left)
+	tc.trackTaskContainerPopBinding(symID, right)
+}
+
+func (tc *typeChecker) noteTaskContainerPopBindingConsumed(symID symbols.SymbolID) {
+	if !symID.IsValid() {
+		return
+	}
+	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
+		loop := &tc.taskContainerLoops[i]
+		for idx := range loop.popBindings {
+			binding := &loop.popBindings[idx]
+			if binding.symID != symID || binding.consumed {
+				continue
+			}
+			binding.consumed = true
+			loop.popConsumed++
+			return
+		}
+	}
+}
+
+func (tc *typeChecker) noteTaskContainerPopConsumedByExpr(expr ast.ExprID) {
+	place, ok := tc.taskContainerPopSource(expr)
+	if !ok {
+		return
+	}
+	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
+		if tc.taskContainerLoops[i].place == place {
+			tc.taskContainerLoops[i].popConsumed++
 			return
 		}
 	}

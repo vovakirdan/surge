@@ -687,7 +687,7 @@ void* rt_fs_open(void* path, uint32_t flags) {
 }
 
 void* rt_fs_close(void* file) {
-    const FsFile* f = (const FsFile*)file;
+    FsFile* f = (FsFile*)file;
     if (f == NULL || f->closed) {
         return fs_make_error(FS_ERR_IO);
     }

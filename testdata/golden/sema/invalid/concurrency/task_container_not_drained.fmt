@@ -1,0 +1,11 @@
+// ERROR: Task container must be drained before scope exit
+
+async fn work() -> int {
+    return 1;
+}
+
+pub fn drain_required() {
+    let mut q: Task<int>[] = [];
+    q.push(spawn work());
+    // ERROR SEM3107: task container has unconsumed tasks at scope exit (drain required)
+}

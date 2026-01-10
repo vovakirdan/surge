@@ -30,6 +30,7 @@ type CompileRequest struct {
 	AllowDiagnosticsError bool
 	Progress              ProgressSink
 	Files                 []string
+	Backend               Backend
 }
 
 // CompileResult captures compilation artefacts and stage timings.
@@ -80,6 +81,8 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 	result.Diagnose = diagRes
 	recordDiagnoseTimings(&result, diagRes.TimingReport)
 	expandProgressFiles(req, phaseProgress, diagRes)
+
+	addBlockingVMErrors(req, diagRes)
 
 	if diagRes.Bag != nil && diagRes.Bag.HasErrors() {
 		for _, d := range diagRes.Bag.Items() {

@@ -1,0 +1,1 @@
+error SEM3107 testdata/golden/sema/invalid/concurrency/task_container_pop_not_awaited.sg:10:5 task container has unconsumed tasks at scope exit (drain required)

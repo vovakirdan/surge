@@ -353,6 +353,11 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 		}
 		return tc.types.RegisterFn(paramTypes, resultType)
 	}
+	if strings.Contains(s, "::") {
+		if ty := tc.resolveQualifiedTypeKey(s); ty != types.NoTypeID {
+			return ty
+		}
+	}
 	switch {
 	case strings.HasPrefix(s, "&mut "):
 		if inner := tc.typeFromKey(symbols.TypeKey(strings.TrimSpace(strings.TrimPrefix(s, "&mut ")))); inner != types.NoTypeID {
@@ -495,6 +500,66 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 	}
 }
 
+func (tc *typeChecker) resolveQualifiedTypeKey(key string) types.TypeID {
+	if key == "" || tc == nil || tc.exports == nil || tc.builder == nil || tc.builder.StringsInterner == nil {
+		return types.NoTypeID
+	}
+	parts := splitTypePathSegments(key)
+	if len(parts) < 2 {
+		return types.NoTypeID
+	}
+	moduleName := parts[0]
+	typeName := parts[len(parts)-1]
+	if moduleName == "" || typeName == "" {
+		return types.NoTypeID
+	}
+	if strings.Contains(typeName, "<") {
+		return types.NoTypeID
+	}
+
+	scope := tc.scopeOrFile(tc.currentScope())
+	moduleNameID := tc.builder.StringsInterner.Intern(moduleName)
+	modulePath := ""
+	if moduleSym := tc.lookupSymbolAny(moduleNameID, scope); moduleSym.IsValid() {
+		if sym := tc.symbolFromID(moduleSym); sym != nil && (sym.Kind == symbols.SymbolImport || sym.Kind == symbols.SymbolModule) {
+			modulePath = sym.ModulePath
+		}
+	}
+	if modulePath == "" {
+		for key := range tc.exports {
+			if strings.HasSuffix(key, "/"+moduleName) || key == moduleName {
+				modulePath = key
+				break
+			}
+		}
+	}
+	if modulePath == "" {
+		return types.NoTypeID
+	}
+	exports := tc.exports[modulePath]
+	if exports == nil {
+		return types.NoTypeID
+	}
+	exported := exports.Lookup(typeName)
+	if len(exported) == 0 {
+		return types.NoTypeID
+	}
+	for i := range exported {
+		exp := exported[i]
+		if exp.Flags&symbols.SymbolFlagPublic == 0 {
+			continue
+		}
+		if exp.Kind == symbols.SymbolType {
+			return exp.Type
+		}
+		if exp.Kind == symbols.SymbolTag {
+			nameID := tc.builder.StringsInterner.Intern(typeName)
+			return tc.resolveImportedTagType(&exp, nameID, nil, nil, source.Span{})
+		}
+	}
+	return types.NoTypeID
+}
+
 func splitTopLevel(s string) []string {
 	if s == "" {
 		return nil
@@ -513,6 +578,39 @@ func splitTopLevel(s string) []string {
 		case ',':
 			if depth == 0 {
 				parts = append(parts, strings.TrimSpace(s[start:i]))
+				start = i + 1
+			}
+		}
+	}
+	parts = append(parts, strings.TrimSpace(s[start:]))
+	filtered := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p != "" {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
+}
+
+func splitTypePathSegments(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var parts []string
+	depth := 0
+	start := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '<', '[', '(':
+			depth++
+		case '>', ']', ')':
+			if depth > 0 {
+				depth--
+			}
+		case ':':
+			if depth == 0 && i+1 < len(s) && s[i+1] == ':' {
+				parts = append(parts, strings.TrimSpace(s[start:i]))
+				i++
 				start = i + 1
 			}
 		}

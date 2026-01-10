@@ -1,4 +1,4 @@
-// Testing that sendable types can be used in async functions with task
+// Testing that sendable types can be used in async functions with spawn
 
 pub type Counter = {
     value: int,
@@ -17,17 +17,17 @@ async fn negate_bool(b: bool) -> bool {
     return !b;
 }
 
-// task with owned data passed to async function
+// spawn with owned data passed to async function
 pub fn spawn_with_owned_data(c: Counter) -> Task<int> {
-    return task process_counter(c);
+    return spawn process_counter(c);
 }
 
-// task with primitive int
+// spawn with primitive int
 pub fn spawn_with_int(x: int) -> Task<int> {
-    return task double_int(x);
+    return spawn double_int(x);
 }
 
-// task with primitive bool
+// spawn with primitive bool
 pub fn spawn_with_bool(b: bool) -> Task<bool> {
-    return task negate_bool(b);
+    return spawn negate_bool(b);
 }

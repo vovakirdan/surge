@@ -57,6 +57,12 @@ const (
 	TaskKindSleep
 	// TaskKindTimeout indicates a timeout task.
 	TaskKindTimeout
+	// TaskKindNetAccept indicates a network accept wait task.
+	TaskKindNetAccept
+	// TaskKindNetRead indicates a network readable wait task.
+	TaskKindNetRead
+	// TaskKindNetWrite indicates a network writable wait task.
+	TaskKindNetWrite
 )
 
 // TaskResultKind describes how a task completed.
@@ -271,6 +277,37 @@ func (e *Executor) NextReady() (TaskID, bool) {
 		return 0, false
 	}
 	for len(e.ready) == 0 {
+		if e.hasNetWaiters() {
+			timeoutMs := int64(0)
+			deadline, hasTimer := e.nextTimerDeadline()
+			if hasTimer {
+				if e.cfg.TimerMode == TimerModeReal {
+					nowMs := e.nowMs
+					if e.clock != nil {
+						nowMs = e.clock.NowMs()
+						e.nowMs = nowMs
+					}
+					if deadline > nowMs {
+						const maxInt64 = int64(^uint64(0) >> 1)
+						delta := deadline - nowMs
+						if delta > uint64(maxInt64) {
+							timeoutMs = maxInt64
+						} else {
+							timeoutMs = int64(delta) //nolint:gosec // delta clamped to maxInt64.
+						}
+					} else {
+						timeoutMs = 0
+					}
+				} else {
+					timeoutMs = 0
+				}
+			} else {
+				timeoutMs = -1
+			}
+			if e.netPoll(timeoutMs) {
+				continue
+			}
+		}
 		if !e.advanceTimeToNextTimer() {
 			return 0, false
 		}
@@ -298,6 +335,20 @@ func (e *Executor) NextReady() (TaskID, bool) {
 		return id, true
 	}
 	return 0, false
+}
+
+func (e *Executor) hasNetWaiters() bool {
+	if e == nil || len(e.waiters) == 0 {
+		return false
+	}
+	for key := range e.waiters {
+		switch key.Kind {
+		case WakerNetAccept, WakerNetRead, WakerNetWrite:
+			return true
+		default:
+		}
+	}
+	return false
 }
 
 // Wake enqueues a task if it is not done.

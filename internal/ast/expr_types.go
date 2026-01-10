@@ -56,6 +56,8 @@ const (
 	ExprStruct
 	// ExprAsync represents an async expression.
 	ExprAsync
+	// ExprBlocking represents a blocking expression.
+	ExprBlocking
 	// ExprBlock represents a block expression.
 	ExprBlock
 	// ExprRangeLit represents a range literal expression.
@@ -443,6 +445,12 @@ type ExprAsyncData struct {
 	AttrCount uint32
 }
 
+// ExprBlockingData represents a `blocking { ... }` block expression.
+// Body references the block statement containing its statements.
+type ExprBlockingData struct {
+	Body StmtID
+}
+
 // ExprBlockData represents a block expression `{ stmts; return expr; }`.
 // The block must end with a return statement (unless type is nothing).
 type ExprBlockData struct {
@@ -458,7 +466,9 @@ type ExprTaskData struct {
 // ExprSpawnData represents the operand of a `spawn` expression.
 // TODO(sema): enforce async context and Future/Task requirements once sema is in place.
 type ExprSpawnData struct {
-	Value ExprID
+	Value     ExprID
+	AttrStart AttrID
+	AttrCount uint32
 }
 
 // ExprParallelKind distinguishes parallel map and reduce operations.

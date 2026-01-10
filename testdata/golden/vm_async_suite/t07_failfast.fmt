@@ -1,12 +1,12 @@
 @entrypoint
 fn main() -> int {
     let r = (@failfast async {
-        let slow = task async {
+        let slow = spawn async {
             sleep(100).await();
             print("slow");
             return 1;
         };
-        let fast = task async {
+        let fast = spawn async {
             checkpoint().await();
             return 2;
         };

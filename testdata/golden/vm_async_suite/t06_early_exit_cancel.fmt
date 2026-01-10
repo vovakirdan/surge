@@ -1,7 +1,7 @@
 @entrypoint
 fn main() -> int {
     let r = (async {
-        let _child = task async {
+        let _child = spawn async {
             checkpoint().await();
             checkpoint().await();
             print("child done");
@@ -20,7 +20,7 @@ fn main() -> int {
         Cancelled() => print("parent=cancelled");
     };
 
-    let guard = task async {
+    let guard = spawn async {
         sleep(50).await();
         return 0;
     };

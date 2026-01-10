@@ -163,6 +163,103 @@ func (vm *VM) handleStringFromBytes(frame *Frame, call *mir.CallInstr, writes *[
 	return nil
 }
 
+// handleFromBytes handles built-in from_bytes(&byte[]) -> Erring<string, Error>.
+func (vm *VM) handleFromBytes(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if len(call.Args) != 1 {
+		return vm.eb.makeError(PanicTypeMismatch, "from_bytes requires 1 argument")
+	}
+	if !call.HasDst {
+		return nil
+	}
+	arrVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	borrowed := arrVal.Kind == VKRef || arrVal.Kind == VKRefMut
+	if arrVal.Kind == VKRef || arrVal.Kind == VKRefMut {
+		loaded, loadErr := vm.loadLocationRaw(arrVal.Loc)
+		if loadErr != nil {
+			return loadErr
+		}
+		arrVal = loaded
+	}
+	if arrVal.Kind != VKHandleArray {
+		if !borrowed {
+			vm.dropValue(arrVal)
+		}
+		return vm.eb.typeMismatch("byte[]", arrVal.Kind.String())
+	}
+	if borrowed {
+		arrVal, vmErr = vm.cloneForShare(arrVal)
+		if vmErr != nil {
+			return vmErr
+		}
+	}
+	defer vm.dropValue(arrVal)
+
+	view, vmErr := vm.arrayViewFromHandle(arrVal.H)
+	if vmErr != nil {
+		return vmErr
+	}
+	raw := make([]byte, view.length)
+	for i := range raw {
+		b, convErr := vm.valueToUint8(view.baseObj.Arr[view.start+i])
+		if convErr != nil {
+			return convErr
+		}
+		raw[i] = b
+	}
+
+	dstLocal := call.Dst.Local
+	dstType := frame.Locals[dstLocal].TypeID
+	layout, vmErr := vm.tagLayoutFor(dstType)
+	if vmErr != nil {
+		return vmErr
+	}
+	successCase, ok := layout.CaseByName("Success")
+	if !ok || len(successCase.PayloadTypes) != 1 || !vm.isStringType(successCase.PayloadTypes[0]) {
+		return vm.eb.makeError(PanicTypeMismatch, "from_bytes requires Erring<string, Error> destination")
+	}
+
+	if !utf8.Valid(raw) {
+		errType, vmErr := vm.erringErrorType(dstType)
+		if vmErr != nil {
+			return vmErr
+		}
+		errVal, vmErr := vm.makeErrorLikeValue(errType, "invalid UTF-8", 1)
+		if vmErr != nil {
+			return vmErr
+		}
+		if vmErr := vm.writeLocal(frame, dstLocal, errVal); vmErr != nil {
+			vm.dropValue(errVal)
+			return vmErr
+		}
+		*writes = append(*writes, LocalWrite{
+			LocalID: dstLocal,
+			Name:    frame.Locals[dstLocal].Name,
+			Value:   errVal,
+		})
+		return nil
+	}
+
+	str := norm.NFC.String(string(raw))
+	payloadType := successCase.PayloadTypes[0]
+	h := vm.Heap.AllocString(payloadType, str)
+	payload := MakeHandleString(h, payloadType)
+	tag := vm.Heap.AllocTag(dstType, successCase.TagSym, []Value{payload})
+	tagVal := MakeHandleTag(tag, dstType)
+	if vmErr := vm.writeLocal(frame, dstLocal, tagVal); vmErr != nil {
+		vm.dropValue(tagVal)
+		return vmErr
+	}
+	*writes = append(*writes, LocalWrite{
+		LocalID: dstLocal,
+		Name:    frame.Locals[dstLocal].Name,
+		Value:   tagVal,
+	})
+	return nil
+}
+
 // handleStringFromUTF16 handles the rt_string_from_utf16 intrinsic.
 func (vm *VM) handleStringFromUTF16(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if !call.HasDst {

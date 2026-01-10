@@ -1,4 +1,4 @@
-// ERROR: struct containing @nosend field cannot be sent to task
+// ERROR: struct containing @nosend field cannot be sent to spawn
 
 @nosend
 pub type Database = {
@@ -12,8 +12,8 @@ pub type AppState = {
 
 pub fn spawn_with_nested_nosend() -> Task<int> {
     let state: AppState = { db: { connection: 1 }, counter: 0 };
-    // ERROR SEM3086: type 'AppState' contains @nosend field of type 'Database'
-    return task async {
+    // ERROR SEM3086: type 'AppState' contains @nosend field of type 'Database'; use @local spawn
+    return spawn async {
         return state.counter;
     };
 }

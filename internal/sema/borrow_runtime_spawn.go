@@ -6,15 +6,15 @@ import (
 	"surge/internal/symbols"
 )
 
-func (tc *typeChecker) enforceSpawn(expr ast.ExprID) {
+func (tc *typeChecker) enforceSpawn(expr ast.ExprID, allowNosend bool) {
 	if len(tc.bindingBorrow) == 0 {
 		return
 	}
 	seen := make(map[symbols.SymbolID]struct{})
-	tc.scanSpawn(expr, seen)
+	tc.scanSpawn(expr, seen, allowNosend)
 }
 
-func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]struct{}) {
+func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]struct{}, allowNosend bool) {
 	if !expr.IsValid() || tc.builder == nil {
 		return
 	}
@@ -53,115 +53,120 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 			})
 			tc.reportSpawnThreadEscape(symID, node.Span, bid)
 		}
+		if tc.isTaskContainerType(tc.bindingType(symID)) {
+			tc.reportTaskContainerEscape(expr, node.Span)
+		}
 		// Check @nosend attribute
-		tc.checkSpawnSendability(symID, node.Span)
+		if !allowNosend {
+			tc.checkSpawnSendability(symID, node.Span)
+		}
 		return
 	}
 	switch node.Kind {
 	case ast.ExprBinary:
 		if data, _ := tc.builder.Exprs.Binary(expr); data != nil {
-			tc.scanSpawn(data.Left, seen)
-			tc.scanSpawn(data.Right, seen)
+			tc.scanSpawn(data.Left, seen, allowNosend)
+			tc.scanSpawn(data.Right, seen, allowNosend)
 		}
 	case ast.ExprUnary:
 		if data, _ := tc.builder.Exprs.Unary(expr); data != nil {
-			tc.scanSpawn(data.Operand, seen)
+			tc.scanSpawn(data.Operand, seen, allowNosend)
 		}
 	case ast.ExprGroup:
 		if data, _ := tc.builder.Exprs.Group(expr); data != nil {
-			tc.scanSpawn(data.Inner, seen)
+			tc.scanSpawn(data.Inner, seen, allowNosend)
 		}
 	case ast.ExprCall:
 		if data, _ := tc.builder.Exprs.Call(expr); data != nil {
-			tc.scanSpawn(data.Target, seen)
+			tc.scanSpawn(data.Target, seen, allowNosend)
 			for _, arg := range data.Args {
-				tc.scanSpawn(arg.Value, seen)
+				tc.scanSpawn(arg.Value, seen, allowNosend)
 			}
 		}
 	case ast.ExprTuple:
 		if data, _ := tc.builder.Exprs.Tuple(expr); data != nil {
 			for _, elem := range data.Elements {
-				tc.scanSpawn(elem, seen)
+				tc.scanSpawn(elem, seen, allowNosend)
 			}
 		}
 	case ast.ExprArray:
 		if data, _ := tc.builder.Exprs.Array(expr); data != nil {
 			for _, elem := range data.Elements {
-				tc.scanSpawn(elem, seen)
+				tc.scanSpawn(elem, seen, allowNosend)
 			}
 		}
 	case ast.ExprRangeLit:
 		if data, _ := tc.builder.Exprs.RangeLit(expr); data != nil {
-			tc.scanSpawn(data.Start, seen)
-			tc.scanSpawn(data.End, seen)
+			tc.scanSpawn(data.Start, seen, allowNosend)
+			tc.scanSpawn(data.End, seen, allowNosend)
 		}
 	case ast.ExprIndex:
 		if data, _ := tc.builder.Exprs.Index(expr); data != nil {
-			tc.scanSpawn(data.Target, seen)
-			tc.scanSpawn(data.Index, seen)
+			tc.scanSpawn(data.Target, seen, allowNosend)
+			tc.scanSpawn(data.Index, seen, allowNosend)
 		}
 	case ast.ExprMember:
 		if data, _ := tc.builder.Exprs.Member(expr); data != nil {
-			tc.scanSpawn(data.Target, seen)
+			tc.scanSpawn(data.Target, seen, allowNosend)
 		}
 	case ast.ExprAwait:
 		if data, _ := tc.builder.Exprs.Await(expr); data != nil {
-			tc.scanSpawn(data.Value, seen)
+			tc.scanSpawn(data.Value, seen, allowNosend)
 		}
 	case ast.ExprSpread:
 		if data, _ := tc.builder.Exprs.Spread(expr); data != nil {
-			tc.scanSpawn(data.Value, seen)
+			tc.scanSpawn(data.Value, seen, allowNosend)
 		}
 	case ast.ExprParallel:
 		if data, _ := tc.builder.Exprs.Parallel(expr); data != nil {
-			tc.scanSpawn(data.Iterable, seen)
-			tc.scanSpawn(data.Init, seen)
+			tc.scanSpawn(data.Iterable, seen, allowNosend)
+			tc.scanSpawn(data.Init, seen, allowNosend)
 			for _, arg := range data.Args {
-				tc.scanSpawn(arg, seen)
+				tc.scanSpawn(arg, seen, allowNosend)
 			}
-			tc.scanSpawn(data.Body, seen)
+			tc.scanSpawn(data.Body, seen, allowNosend)
 		}
 	case ast.ExprCompare:
 		if data, _ := tc.builder.Exprs.Compare(expr); data != nil {
-			tc.scanSpawn(data.Value, seen)
+			tc.scanSpawn(data.Value, seen, allowNosend)
 			for _, arm := range data.Arms {
-				tc.scanSpawn(arm.Pattern, seen)
-				tc.scanSpawn(arm.Guard, seen)
-				tc.scanSpawn(arm.Result, seen)
+				tc.scanSpawn(arm.Pattern, seen, allowNosend)
+				tc.scanSpawn(arm.Guard, seen, allowNosend)
+				tc.scanSpawn(arm.Result, seen, allowNosend)
 			}
 		}
 	case ast.ExprSelect:
 		if data, _ := tc.builder.Exprs.Select(expr); data != nil {
 			for _, arm := range data.Arms {
-				tc.scanSpawn(arm.Await, seen)
-				tc.scanSpawn(arm.Result, seen)
+				tc.scanSpawn(arm.Await, seen, allowNosend)
+				tc.scanSpawn(arm.Result, seen, allowNosend)
 			}
 		}
 	case ast.ExprRace:
 		if data, _ := tc.builder.Exprs.Race(expr); data != nil {
 			for _, arm := range data.Arms {
-				tc.scanSpawn(arm.Await, seen)
-				tc.scanSpawn(arm.Result, seen)
+				tc.scanSpawn(arm.Await, seen, allowNosend)
+				tc.scanSpawn(arm.Result, seen, allowNosend)
 			}
 		}
 	case ast.ExprTask:
 		if data, _ := tc.builder.Exprs.Task(expr); data != nil {
-			tc.scanSpawn(data.Value, seen)
+			tc.scanSpawn(data.Value, seen, allowNosend)
 		}
 	case ast.ExprSpawn:
 		if data, _ := tc.builder.Exprs.Spawn(expr); data != nil {
-			tc.scanSpawn(data.Value, seen)
+			tc.scanSpawn(data.Value, seen, allowNosend)
 		}
 	case ast.ExprAsync:
 		if data, _ := tc.builder.Exprs.Async(expr); data != nil {
 			// Scan async block body for captured @nosend variables
-			tc.scanSpawnStmt(data.Body, seen)
+			tc.scanSpawnStmt(data.Body, seen, allowNosend)
 		}
 	}
 }
 
 // scanSpawnStmt recursively scans statements for @nosend captures
-func (tc *typeChecker) scanSpawnStmt(stmtID ast.StmtID, seen map[symbols.SymbolID]struct{}) {
+func (tc *typeChecker) scanSpawnStmt(stmtID ast.StmtID, seen map[symbols.SymbolID]struct{}, allowNosend bool) {
 	if !stmtID.IsValid() || tc.builder == nil {
 		return
 	}
@@ -173,55 +178,55 @@ func (tc *typeChecker) scanSpawnStmt(stmtID ast.StmtID, seen map[symbols.SymbolI
 	case ast.StmtBlock:
 		if data := tc.builder.Stmts.Block(stmtID); data != nil {
 			for _, child := range data.Stmts {
-				tc.scanSpawnStmt(child, seen)
+				tc.scanSpawnStmt(child, seen, allowNosend)
 			}
 		}
 	case ast.StmtExpr:
 		if data := tc.builder.Stmts.Expr(stmtID); data != nil {
-			tc.scanSpawn(data.Expr, seen)
+			tc.scanSpawn(data.Expr, seen, allowNosend)
 		}
 	case ast.StmtLet:
 		if data := tc.builder.Stmts.Let(stmtID); data != nil {
-			tc.scanSpawn(data.Value, seen)
+			tc.scanSpawn(data.Value, seen, allowNosend)
 		}
 	case ast.StmtConst:
 		if data := tc.builder.Stmts.Const(stmtID); data != nil {
-			tc.scanSpawn(data.Value, seen)
+			tc.scanSpawn(data.Value, seen, allowNosend)
 		}
 	case ast.StmtReturn:
 		if data := tc.builder.Stmts.Return(stmtID); data != nil {
-			tc.scanSpawn(data.Expr, seen)
+			tc.scanSpawn(data.Expr, seen, allowNosend)
 		}
 	case ast.StmtSignal:
 		if data := tc.builder.Stmts.Signal(stmtID); data != nil {
-			tc.scanSpawn(data.Value, seen)
+			tc.scanSpawn(data.Value, seen, allowNosend)
 		}
 	case ast.StmtDrop:
 		if data := tc.builder.Stmts.Drop(stmtID); data != nil {
-			tc.scanSpawn(data.Expr, seen)
+			tc.scanSpawn(data.Expr, seen, allowNosend)
 		}
 	case ast.StmtIf:
 		if data := tc.builder.Stmts.If(stmtID); data != nil {
-			tc.scanSpawn(data.Cond, seen)
-			tc.scanSpawnStmt(data.Then, seen)
-			tc.scanSpawnStmt(data.Else, seen)
+			tc.scanSpawn(data.Cond, seen, allowNosend)
+			tc.scanSpawnStmt(data.Then, seen, allowNosend)
+			tc.scanSpawnStmt(data.Else, seen, allowNosend)
 		}
 	case ast.StmtWhile:
 		if data := tc.builder.Stmts.While(stmtID); data != nil {
-			tc.scanSpawn(data.Cond, seen)
-			tc.scanSpawnStmt(data.Body, seen)
+			tc.scanSpawn(data.Cond, seen, allowNosend)
+			tc.scanSpawnStmt(data.Body, seen, allowNosend)
 		}
 	case ast.StmtForIn:
 		if data := tc.builder.Stmts.ForIn(stmtID); data != nil {
-			tc.scanSpawn(data.Iterable, seen)
-			tc.scanSpawnStmt(data.Body, seen)
+			tc.scanSpawn(data.Iterable, seen, allowNosend)
+			tc.scanSpawnStmt(data.Body, seen, allowNosend)
 		}
 	case ast.StmtForClassic:
 		if data := tc.builder.Stmts.ForClassic(stmtID); data != nil {
-			tc.scanSpawnStmt(data.Init, seen)
-			tc.scanSpawn(data.Cond, seen)
-			tc.scanSpawn(data.Post, seen)
-			tc.scanSpawnStmt(data.Body, seen)
+			tc.scanSpawnStmt(data.Init, seen, allowNosend)
+			tc.scanSpawn(data.Cond, seen, allowNosend)
+			tc.scanSpawn(data.Post, seen, allowNosend)
+			tc.scanSpawnStmt(data.Body, seen, allowNosend)
 		}
 	}
 }

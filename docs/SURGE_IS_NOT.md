@@ -646,9 +646,9 @@ I should warn you: Surge wasn't designed as the language you'll use to launch a 
 
 Surge is a **systems and application language**:
 
-* without GC, with honest ownership, RAII and a future LLVM backend;
+* without GC, with honest ownership, RAII and a native/LLVM backend;
 * with async/await, tasks, channels and structured concurrency;
-* with a complete story: from tokens and AST to VM and, later, native code.
+* with a complete story: from tokens and AST to VM and native/LLVM code.
 
 But at the same time:
 

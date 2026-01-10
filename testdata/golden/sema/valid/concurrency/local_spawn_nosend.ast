@@ -1,0 +1,26 @@
+local_spawn_nosend.sg (span: 3:1-16:1)
+├─ Item[0]: Type (span: 3:1-6:3)
+│  ├─ Name: LocalConn
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @nosend
+│  └─ Struct:
+│     └─ Field[0]: id: int
+└─ Item[1]: Fn (span: 8:1-15:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:23-15:2)
+         ├─ Stmt[0]: Let (span: 9:5-9:37)
+         │  ├─ Name: conn
+         │  ├─ Mutable: false
+         │  ├─ Type: LocalConn
+         │  └─ Value: expr#3: <ExprKind(22)>
+         ├─ Stmt[1]: Let (span: 10:5-10:52)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#7: spawn async { 1 stmt(s) }
+         └─ Stmt[2]: Expr (span: 11:5-14:7)
+            └─ Expr: expr#18: compare t.await() { 2 arms }

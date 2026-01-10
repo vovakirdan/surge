@@ -17,28 +17,32 @@ type Options struct {
 
 // VM is a direct MIR interpreter.
 type VM struct {
-	M            *mir.Module
-	Stack        []Frame
-	Globals      []LocalSlot
-	RT           Runtime
-	Recorder     *Recorder
-	Replayer     *Replayer
-	Trace        *Tracer
-	Files        *source.FileSet
-	Types        *types.Interner
-	Layout       *layout.LayoutEngine
-	Heap         *Heap
-	rawMem       *rawMemory
-	heapCounters heapCounters
-	layouts      *layoutCache
-	tagLayouts   *TagLayouts
-	Async        *asyncrt.Executor
-	AsyncConfig  asyncrt.Config
-	ExitCode     int
-	Halted       bool
-	started      bool
-	fsFiles      map[uint64]*vmFile
-	fsNextHandle uint64
+	M             *mir.Module
+	Stack         []Frame
+	Globals       []LocalSlot
+	RT            Runtime
+	Recorder      *Recorder
+	Replayer      *Replayer
+	Trace         *Tracer
+	Files         *source.FileSet
+	Types         *types.Interner
+	Layout        *layout.LayoutEngine
+	Heap          *Heap
+	rawMem        *rawMemory
+	heapCounters  heapCounters
+	layouts       *layoutCache
+	tagLayouts    *TagLayouts
+	Async         *asyncrt.Executor
+	AsyncConfig   asyncrt.Config
+	ExitCode      int
+	Halted        bool
+	started       bool
+	fsFiles       map[uint64]*vmFile
+	fsNextHandle  uint64
+	netListeners  map[uint64]*vmNetListener
+	netConns      map[uint64]*vmNetConn
+	netNextListen uint64
+	netNextConn   uint64
 
 	eb                  *errorBuilder // for creating errors with backtrace
 	captureReturn       *Value
@@ -86,6 +90,10 @@ func New(m *mir.Module, rt Runtime, files *source.FileSet, typeInterner *types.I
 	}
 	vm.fsFiles = make(map[uint64]*vmFile)
 	vm.fsNextHandle = 1
+	vm.netListeners = make(map[uint64]*vmNetListener)
+	vm.netConns = make(map[uint64]*vmNetConn)
+	vm.netNextListen = 1
+	vm.netNextConn = 1
 	return vm
 }
 

@@ -7,7 +7,7 @@ async fn work() -> int {
 // Direct await in async block - all tasks awaited
 pub async fn test_await_in_async_block() -> int {
     let result = async {
-        let t = task work();
+        let t = spawn work();
         return compare t.await() {
             Success(v) => v;
             Cancelled() => 0;
@@ -23,7 +23,7 @@ pub async fn test_await_in_async_block() -> int {
 pub async fn test_nested_async() -> int {
     let outer = async {
         let inner = async {
-            let t = task work();
+            let t = spawn work();
             return compare t.await() {
                 Success(v) => v;
                 Cancelled() => 0;

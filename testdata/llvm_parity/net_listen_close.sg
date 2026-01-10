@@ -1,0 +1,25 @@
+@entrypoint
+fn main() -> int {
+    let addr = "127.0.0.1";
+    let res = rt_net_listen(&addr, 0:uint);
+    compare res {
+        Success(l) => {
+            print("listen_ok");
+            let closed = rt_net_close_listener(own l);
+            compare closed {
+                Success(_) => {
+                    print("close_ok");
+                }
+                err => {
+                    print("close_err=" + (err.code to string));
+                    return 1;
+                }
+            };
+        }
+        err => {
+            print("listen_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    return 0;
+}

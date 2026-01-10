@@ -1,0 +1,44 @@
+async fn recv_once(ch: own Channel<int>) -> int {
+    let v = ch.recv();
+    let out = compare v {
+        Some(x) => x;
+        nothing => 0;
+    };
+    return out;
+}
+
+@entrypoint
+fn main() -> int {
+    let r = (async {
+        let ch = make_channel::<int>(1);
+        ch.send(7);
+        let v1 = select {
+            ch.recv() => 1;
+            default => 0;
+        };
+
+        let ch2 = make_channel::<int>(0);
+        let recv_ch = ch2;
+        let send_ch = ch2;
+        let recv = spawn recv_once(recv_ch);
+
+        let _ = checkpoint().await();
+        let v2 = select {
+            send_ch.send(42) => 2;
+            default => 0;
+        };
+
+        let got = compare recv.await() {
+            Success(x) => x;
+            Cancelled() => 0;
+        };
+
+        return v1 + v2 + got;
+    }).await();
+
+    compare r {
+        Success(v) => print("sum=" + (v to string));
+        Cancelled() => print("cancelled");
+    };
+    return 0;
+}

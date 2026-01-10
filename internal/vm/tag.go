@@ -130,14 +130,30 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 	field := obj.Tag.Fields[tp.Index]
 	wantTy := want.PayloadTypes[tp.Index]
 	if wantTy != types.NoTypeID && field.TypeID != types.NoTypeID {
-		if vm.valueType(wantTy) != vm.valueType(field.TypeID) {
-			if !vm.compatiblePayloadTypes(wantTy, field.TypeID) {
-				return Value{}, vm.eb.typeMismatch(fmt.Sprintf("type#%d", wantTy), fmt.Sprintf("type#%d", field.TypeID))
-			}
-			field.TypeID = wantTy
-			if field.IsHeap() && field.H != 0 {
-				if obj := vm.Heap.Get(field.H); obj != nil {
-					obj.TypeID = wantTy
+		wantVal := vm.valueType(wantTy)
+		fieldVal := vm.valueType(field.TypeID)
+		if wantVal != fieldVal {
+			switch {
+			case vm.isUnionType(wantVal) && vm.unionContains(wantVal, fieldVal):
+				if retagged, ok := vm.retagUnionValue(field, wantTy); ok {
+					field = retagged
+				}
+			case vm.isUnionType(fieldVal) && vm.unionContains(fieldVal, wantVal):
+				field.TypeID = wantTy
+				if field.IsHeap() && field.H != 0 {
+					if obj := vm.Heap.Get(field.H); obj != nil && obj.Kind == OKTag {
+						obj.TypeID = wantTy
+					}
+				}
+			default:
+				if !vm.compatiblePayloadTypes(wantTy, field.TypeID) {
+					return Value{}, vm.eb.typeMismatch(fmt.Sprintf("type#%d", wantTy), fmt.Sprintf("type#%d", field.TypeID))
+				}
+				field.TypeID = wantTy
+				if field.IsHeap() && field.H != 0 {
+					if obj := vm.Heap.Get(field.H); obj != nil {
+						obj.TypeID = wantTy
+					}
 				}
 			}
 		}

@@ -13,21 +13,21 @@ task_all_awaited.sg (span: 3:1-27:1)
    ├─ Return: int
    └─ Body:
       └─ Stmt[0]: Block (span: 7:40-26:2)
-         ├─ Stmt[0]: Let (span: 8:5-8:30)
+         ├─ Stmt[0]: Let (span: 8:5-8:31)
          │  ├─ Name: t1
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#7: task compute(1)
-         ├─ Stmt[1]: Let (span: 9:5-9:30)
+         │  └─ Value: expr#7: spawn compute(1)
+         ├─ Stmt[1]: Let (span: 9:5-9:31)
          │  ├─ Name: t2
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#11: task compute(2)
-         ├─ Stmt[2]: Let (span: 10:5-10:30)
+         │  └─ Value: expr#11: spawn compute(2)
+         ├─ Stmt[2]: Let (span: 10:5-10:31)
          │  ├─ Name: t3
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#15: task compute(3)
+         │  └─ Value: expr#15: spawn compute(3)
          ├─ Stmt[3]: Let (span: 12:5-15:7)
          │  ├─ Name: r1
          │  ├─ Mutable: false

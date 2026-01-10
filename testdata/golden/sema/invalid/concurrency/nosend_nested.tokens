@@ -57,9 +57,9 @@
  57: RBrace          "}" at 14:63-14:64 (leading: Space)
  58: Semicolon       ";" at 14:64-14:65
  59: KwReturn        "return" at 16:5-16:11 (leading: Newline, Space, LineComment, Newline, Space)
- 60: KwTask          "task" at 16:12-16:16 (leading: Space)
- 61: KwAsync         "async" at 16:17-16:22 (leading: Space)
- 62: LBrace          "{" at 16:23-16:24 (leading: Space)
+ 60: KwSpawn         "spawn" at 16:12-16:17 (leading: Space)
+ 61: KwAsync         "async" at 16:18-16:23 (leading: Space)
+ 62: LBrace          "{" at 16:24-16:25 (leading: Space)
  63: KwReturn        "return" at 17:9-17:15 (leading: Newline, Space)
  64: Ident           "state" at 17:16-17:21 (leading: Space)
  65: Dot             "." at 17:21-17:22

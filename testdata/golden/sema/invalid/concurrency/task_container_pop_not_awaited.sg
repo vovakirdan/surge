@@ -1,0 +1,15 @@
+// ERROR: Task container drain requires awaiting popped tasks
+
+async fn work() -> int {
+    return 1;
+}
+
+pub fn drain_requires_await() {
+    let mut q: Task<int>[] = [];
+    // ERROR SEM3107: task container has unconsumed tasks at scope exit (drain required)
+    q.push(spawn work());
+    while q.__len() != 0:uint {
+        let t = q.pop().safe();
+        let _ = t;
+    }
+}

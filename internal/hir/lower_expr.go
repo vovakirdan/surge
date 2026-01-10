@@ -119,6 +119,8 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 
 	case ast.ExprAsync:
 		return l.lowerAsyncExpr(expr, ty)
+	case ast.ExprBlocking:
+		return l.lowerBlockingExpr(exprID, expr, ty)
 
 	case ast.ExprCast:
 		return l.lowerCastExpr(exprID, expr, ty)
@@ -704,6 +706,34 @@ func (l *lowerer) lowerAsyncExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 	}
 }
 
+// lowerBlockingExpr lowers a blocking block expression.
+func (l *lowerer) lowerBlockingExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
+	blockingData := l.builder.Exprs.Blockings.Get(uint32(expr.Payload))
+	if blockingData == nil {
+		return nil
+	}
+
+	var body *Block
+	if blockingData.Body.IsValid() {
+		body = l.lowerBlockOrWrap(blockingData.Body)
+	}
+	l.markTailReturn(body)
+
+	var captures []BlockingCapture
+	if l.semaRes != nil && l.semaRes.BlockingCaptures != nil {
+		if caps, ok := l.semaRes.BlockingCaptures[exprID]; ok {
+			captures = l.blockingCaptureInfo(caps)
+		}
+	}
+
+	return &Expr{
+		Kind: ExprBlocking,
+		Type: ty,
+		Span: expr.Span,
+		Data: BlockingData{Body: body, Captures: captures},
+	}
+}
+
 // lowerCastExpr lowers a cast expression.
 func (l *lowerer) lowerCastExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	castData := l.builder.Exprs.Casts.Get(uint32(expr.Payload))
@@ -749,4 +779,21 @@ func (l *lowerer) lowerBlockExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 		Span: expr.Span,
 		Data: BlockExprData{Block: block},
 	}
+}
+
+func (l *lowerer) blockingCaptureInfo(captures []symbols.SymbolID) []BlockingCapture {
+	if len(captures) == 0 {
+		return nil
+	}
+	out := make([]BlockingCapture, 0, len(captures))
+	for _, symID := range captures {
+		name := ""
+		if l.symRes != nil && l.symRes.Table != nil && l.symRes.Table.Symbols != nil && l.strings != nil {
+			if sym := l.symRes.Table.Symbols.Get(symID); sym != nil && sym.Name != source.NoStringID {
+				name = l.strings.MustLookup(sym.Name)
+			}
+		}
+		out = append(out, BlockingCapture{SymbolID: symID, Name: name})
+	}
+	return out
 }

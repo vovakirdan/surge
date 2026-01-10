@@ -20,9 +20,9 @@ import (
 // This is called when a .await() method call is detected on a task.
 //
 // The function handles two cases:
-//  1. Direct task expression: task foo().await()
+//  1. Direct spawn expression: spawn foo().await()
 //     - The task expression itself is marked as awaited
-//  2. Variable reference: let t = task foo(); t.await()
+//  2. Variable reference: let t = spawn foo(); t.await()
 //     - The binding symbol is used to locate and mark the task
 //
 // After a task is marked as awaited, it won't generate a "task not awaited"
@@ -38,9 +38,10 @@ func (tc *typeChecker) trackTaskAwait(targetExpr ast.ExprID) {
 		return
 	}
 
-	// Case 1: Direct task expression (task foo().await())
-	if expr.Kind == ast.ExprTask {
+	// Case 1: Direct spawn expression (spawn foo().await())
+	if expr.Kind == ast.ExprTask || expr.Kind == ast.ExprSpawn {
 		tc.taskTracker.MarkAwaitedByExpr(targetExpr)
+		tc.noteTaskContainerPopConsumedByExpr(targetExpr)
 		return
 	}
 
@@ -48,8 +49,12 @@ func (tc *typeChecker) trackTaskAwait(targetExpr ast.ExprID) {
 	if expr.Kind == ast.ExprIdent {
 		if symID := tc.symbolForExpr(targetExpr); symID.IsValid() {
 			tc.taskTracker.MarkAwaited(symID)
+			tc.noteTaskContainerPopBindingConsumed(symID)
 		}
+		return
 	}
+
+	tc.noteTaskContainerPopConsumedByExpr(targetExpr)
 }
 
 // trackTaskReturn marks a task as returned for structured concurrency tracking.
@@ -60,8 +65,8 @@ func (tc *typeChecker) trackTaskAwait(targetExpr ast.ExprID) {
 // structured concurrency guarantees.
 //
 // The function handles two cases:
-//  1. Direct task expression: return task foo()
-//  2. Variable reference: return t where let t = task foo()
+//  1. Direct spawn expression: return spawn foo()
+//  2. Variable reference: return t where let t = spawn foo()
 func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 	if tc.taskTracker == nil || !returnExpr.IsValid() {
 		return
@@ -79,8 +84,8 @@ func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 		return
 	}
 
-	// Case 1: Direct task expression (return task foo())
-	if expr.Kind == ast.ExprTask {
+	// Case 1: Direct spawn expression (return spawn foo())
+	if expr.Kind == ast.ExprTask || expr.Kind == ast.ExprSpawn {
 		tc.taskTracker.MarkReturnedByExpr(returnExpr)
 		return
 	}
@@ -101,8 +106,8 @@ func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 // the task - the current scope is no longer responsible for awaiting it.
 //
 // Common patterns this enables:
-//   - Task combinators: join_all([task a(), task b()])
-//   - Task storage: task_queue.push(task compute())
+//   - Task combinators: join_all([spawn a(), spawn b()])
+//   - Task storage: task_queue.push(spawn compute())
 //   - Higher-order functions: map_async(items, task_processor)
 func (tc *typeChecker) trackTaskPassedAsArg(argExpr ast.ExprID) {
 	if tc.taskTracker == nil || !argExpr.IsValid() {
@@ -116,12 +121,14 @@ func (tc *typeChecker) trackTaskPassedAsArg(argExpr ast.ExprID) {
 			return
 		}
 		switch expr.Kind {
-		case ast.ExprTask:
+		case ast.ExprTask, ast.ExprSpawn:
 			tc.taskTracker.MarkPassedByExpr(argExpr)
+			tc.noteTaskContainerPopConsumedByExpr(argExpr)
 			return
 		case ast.ExprIdent:
 			if symID := tc.symbolForExpr(argExpr); symID.IsValid() && tc.isTaskType(tc.bindingType(symID)) {
 				tc.taskTracker.MarkPassed(symID)
+				tc.noteTaskContainerPopBindingConsumed(symID)
 			}
 			return
 		case ast.ExprUnary:
@@ -131,6 +138,7 @@ func (tc *typeChecker) trackTaskPassedAsArg(argExpr ast.ExprID) {
 			}
 			return
 		default:
+			tc.noteTaskContainerPopConsumedByExpr(argExpr)
 			return
 		}
 	}

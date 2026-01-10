@@ -25,27 +25,27 @@
  25: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
  26: Ident           "t1" at 8:9-8:11 (leading: Space)
  27: Assign          "=" at 8:12-8:13 (leading: Space)
- 28: KwTask          "task" at 8:14-8:18 (leading: Space)
- 29: Ident           "work" at 8:19-8:23 (leading: Space)
- 30: LParen          "(" at 8:23-8:24
- 31: RParen          ")" at 8:24-8:25
- 32: Semicolon       ";" at 8:25-8:26
+ 28: KwSpawn         "spawn" at 8:14-8:19 (leading: Space)
+ 29: Ident           "work" at 8:20-8:24 (leading: Space)
+ 30: LParen          "(" at 8:24-8:25
+ 31: RParen          ")" at 8:25-8:26
+ 32: Semicolon       ";" at 8:26-8:27
  33: KwLet           "let" at 9:5-9:8 (leading: Space, LineComment, Newline, Space)
  34: Ident           "t2" at 9:9-9:11 (leading: Space)
  35: Assign          "=" at 9:12-9:13 (leading: Space)
- 36: KwTask          "task" at 9:14-9:18 (leading: Space)
- 37: Ident           "work" at 9:19-9:23 (leading: Space)
- 38: LParen          "(" at 9:23-9:24
- 39: RParen          ")" at 9:24-9:25
- 40: Semicolon       ";" at 9:25-9:26
+ 36: KwSpawn         "spawn" at 9:14-9:19 (leading: Space)
+ 37: Ident           "work" at 9:20-9:24 (leading: Space)
+ 38: LParen          "(" at 9:24-9:25
+ 39: RParen          ")" at 9:25-9:26
+ 40: Semicolon       ";" at 9:26-9:27
  41: KwLet           "let" at 10:5-10:8 (leading: Space, LineComment, Newline, Space)
  42: Ident           "t3" at 10:9-10:11 (leading: Space)
  43: Assign          "=" at 10:12-10:13 (leading: Space)
- 44: KwTask          "task" at 10:14-10:18 (leading: Space)
- 45: Ident           "work" at 10:19-10:23 (leading: Space)
- 46: LParen          "(" at 10:23-10:24
- 47: RParen          ")" at 10:24-10:25
- 48: Semicolon       ";" at 10:25-10:26
+ 44: KwSpawn         "spawn" at 10:14-10:19 (leading: Space)
+ 45: Ident           "work" at 10:20-10:24 (leading: Space)
+ 46: LParen          "(" at 10:24-10:25
+ 47: RParen          ")" at 10:25-10:26
+ 48: Semicolon       ";" at 10:26-10:27
  49: KwLet           "let" at 12:5-12:8 (leading: Space, LineComment, Newline, Space)
  50: Ident           "r" at 12:9-12:10 (leading: Space)
  51: Assign          "=" at 12:11-12:12 (leading: Space)

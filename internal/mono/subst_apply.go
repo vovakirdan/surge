@@ -415,6 +415,15 @@ func (s *Subst) ApplyExpr(e *hir.Expr) error {
 			return err
 		}
 		e.Data = data
+	case hir.ExprBlocking:
+		data, ok := e.Data.(hir.BlockingData)
+		if !ok {
+			return nil
+		}
+		if err := s.ApplyBlock(data.Body); err != nil {
+			return err
+		}
+		e.Data = data
 	case hir.ExprCast:
 		data, ok := e.Data.(hir.CastData)
 		if !ok {

@@ -1,4 +1,4 @@
-// Testing task with async function calls
+// Testing spawn with async function calls
 
 async fn compute(x: int) -> int {
     return x * 2;
@@ -8,16 +8,16 @@ async fn process(data: string) -> bool {
     return true;
 }
 
-// task async fn call -> Task<T>
+// spawn async fn call -> Task<T>
 pub async fn test_spawn_async_fn() {
-    let t1: Task<int> = task compute(42);
+    let t1: Task<int> = spawn compute(42);
     let result1: TaskResult<int> = t1.await();
 
-    let t2: Task<bool> = task process("hello");
+    let t2: Task<bool> = spawn process("hello");
     let result2: TaskResult<bool> = t2.await();
 }
 
-// task from sync function returning Task
+// spawn from sync function returning Task
 pub fn sync_fn_spawn_async() -> Task<int> {
-    return task compute(100);
+    return spawn compute(100);
 }

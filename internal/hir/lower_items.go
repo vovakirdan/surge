@@ -56,7 +56,13 @@ func (l *lowerer) lowerFnItem(itemID ast.ItemID) *Func {
 	fn.Params = l.lowerFnParams(itemID, fnItem)
 
 	// Process return type from function symbol's type
-	fn.Result = l.getFunctionReturnType(symID)
+	resultType := l.getFunctionReturnType(symID)
+	if fnItem.Flags&ast.FnModifierAsync != 0 {
+		if payload := l.taskPayloadType(resultType); payload != types.NoTypeID {
+			resultType = payload
+		}
+	}
+	fn.Result = resultType
 
 	// Process body
 	if fnItem.Body.IsValid() {
@@ -121,7 +127,13 @@ func (l *lowerer) lowerExternFn(memberID ast.ExternMemberID, fnItem *ast.FnItem)
 	fn.Flags |= l.extractFnFlags(fnItem)
 	fn.GenericParams = l.lowerGenericParams(fnItem)
 	fn.Params = l.lowerExternFnParams(memberID, fnItem)
-	fn.Result = l.getFunctionReturnType(symID)
+	resultType := l.getFunctionReturnType(symID)
+	if fnItem.Flags&ast.FnModifierAsync != 0 {
+		if payload := l.taskPayloadType(resultType); payload != types.NoTypeID {
+			resultType = payload
+		}
+	}
+	fn.Result = resultType
 
 	if fnItem.Body.IsValid() {
 		fn.Body = l.lowerBlockStmt(fnItem.Body)
@@ -364,6 +376,37 @@ func (l *lowerer) getFunctionReturnType(symID symbols.SymbolID) types.TypeID {
 	if sym.Signature != nil && sym.Signature.Result != "" {
 		if ty := l.typeFromResultKey(sym.Signature.Result); ty != types.NoTypeID {
 			return ty
+		}
+	}
+	return types.NoTypeID
+}
+
+func (l *lowerer) taskPayloadType(taskType types.TypeID) types.TypeID {
+	if l == nil || l.semaRes == nil || l.semaRes.TypeInterner == nil {
+		return types.NoTypeID
+	}
+	typesIn := l.semaRes.TypeInterner
+	resolved := taskType
+	for {
+		tt, ok := typesIn.Lookup(resolved)
+		if !ok {
+			return types.NoTypeID
+		}
+		switch tt.Kind {
+		case types.KindReference, types.KindPointer, types.KindOwn:
+			resolved = tt.Elem
+			continue
+		}
+		break
+	}
+	if info, ok := typesIn.StructInfo(resolved); ok && info != nil {
+		if typesIn.Strings != nil && typesIn.Strings.MustLookup(info.Name) == "Task" && len(info.TypeArgs) == 1 {
+			return info.TypeArgs[0]
+		}
+	}
+	if info, ok := typesIn.AliasInfo(resolved); ok && info != nil {
+		if typesIn.Strings != nil && typesIn.Strings.MustLookup(info.Name) == "Task" && len(info.TypeArgs) == 1 {
+			return info.TypeArgs[0]
 		}
 	}
 	return types.NoTypeID

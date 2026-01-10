@@ -1,0 +1,29 @@
+fn write_str(s: string) -> nothing {
+    let ptr = rt_string_ptr(&s);
+    let length = rt_string_len_bytes(&s);
+    rt_write_stdout(ptr, length);
+}
+
+fn write_line(s: string) -> nothing {
+    write_str(s);
+    let nl = "\n";
+    rt_write_stdout(rt_string_ptr(&nl), 1:uint);
+}
+
+@entrypoint
+fn main() -> int {
+    let bytes: byte[] = [0xC3:uint8, 0x28:uint8];
+    let res = string.from_bytes(&bytes);
+    let mut code: int = 1;
+    compare res {
+        Success(s) => {
+            write_line("ok=" + s);
+            code = 1;
+        }
+        err => {
+            write_line("err=" + (err.code to string));
+            code = 0;
+        }
+    }
+    return code;
+}

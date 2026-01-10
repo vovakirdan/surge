@@ -1,0 +1,356 @@
+sync.sg (span: 1:1-199:1)
+├─ Item[0]: Type (span: 3:1-6:3)
+│  ├─ Name: Mutex
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @copy
+│  └─ Struct:
+│     └─ Field[0]: gate: Channel<nothing>
+├─ Item[1]: Fn (span: 8:1-11:2)
+│  ├─ Name: mutex_lock_task
+│  ├─ Params: (mtx: Mutex)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:49-11:2)
+│        ├─ Stmt[0]: Let (span: 9:5-9:29)
+│        │  ├─ Name: _
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#4: mtx.gate.recv()
+│        └─ Stmt[1]: Return (span: 10:5-10:20)
+│           └─ Expr: expr#5: nothing
+├─ Item[2]: Extern (span: 13:1-38:2)
+│  ├─ Target: Mutex
+│  ├─ Members:
+│  │  ├─ Fn[0]: new
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: Mutex
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 14:27-18:6)
+│  │  │     ├─ Stmt[0]: Let (span: 15:9-15:47)
+│  │  │     │  ├─ Name: gate
+│  │  │     │  ├─ Mutable: false
+│  │  │     │  ├─ Type: <inferred>
+│  │  │     │  └─ Value: expr#8: make_channel(1)
+│  │  │     ├─ Stmt[1]: Expr (span: 16:9-16:32)
+│  │  │     │  └─ Expr: expr#12: gate.try_send(nothing)
+│  │  │     └─ Stmt[2]: Return (span: 17:9-17:32)
+│  │  │        └─ Expr: expr#15: <ExprKind(22)>
+│  │  ├─ Fn[1]: lock
+│  │  │  ├─ Params: (self: &Mutex)
+│  │  │  ├─ Return: Task<nothing>
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 20:48-22:6)
+│  │  │     └─ Stmt[0]: Return (span: 21:9-21:39)
+│  │  │        └─ Expr: expr#19: mutex_lock_task(*self)
+│  │  ├─ Fn[2]: try_lock
+│  │  │  ├─ Params: (self: &Mutex)
+│  │  │  ├─ Return: bool
+│  │  │  ├─ Attributes: @nonblocking
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 25:43-31:6)
+│  │  │     ├─ Stmt[0]: Let (span: 26:9-26:40)
+│  │  │     │  ├─ Name: res
+│  │  │     │  ├─ Mutable: false
+│  │  │     │  ├─ Type: <inferred>
+│  │  │     │  └─ Value: expr#23: self.gate.try_recv()
+│  │  │     └─ Stmt[1]: Return (span: 27:9-30:11)
+│  │  │        └─ Expr: expr#31: compare res { 2 arms }
+│  │  └─ Fn[3]: unlock
+│  │     ├─ Params: (self: &Mutex)
+│  │     ├─ Return: nothing
+│  │     ├─ Attributes: @nonblocking
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 34:44-37:6)
+│  │        ├─ Stmt[0]: Expr (span: 35:9-35:37)
+│  │        │  └─ Expr: expr#36: self.gate.try_send(nothing)
+│  │        └─ Stmt[1]: Return (span: 36:9-36:24)
+│  │           └─ Expr: expr#37: nothing
+├─ Item[3]: Type (span: 40:1-43:3)
+│  ├─ Name: Condition
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @copy
+│  └─ Struct:
+│     └─ Field[0]: queue: Channel<nothing>
+├─ Item[4]: Fn (span: 45:1-50:2)
+│  ├─ Name: condition_wait_task
+│  ├─ Params: (cond: Condition, mutex: Mutex)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 45:72-50:2)
+│        ├─ Stmt[0]: Expr (span: 46:5-46:34)
+│        │  └─ Expr: expr#42: mutex.gate.try_send(nothing)
+│        ├─ Stmt[1]: Let (span: 47:5-47:31)
+│        │  ├─ Name: _
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#46: cond.queue.recv()
+│        ├─ Stmt[2]: Let (span: 48:5-48:31)
+│        │  ├─ Name: _
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#50: mutex.gate.recv()
+│        └─ Stmt[3]: Return (span: 49:5-49:20)
+│           └─ Expr: expr#51: nothing
+├─ Item[5]: Extern (span: 52:1-76:2)
+│  ├─ Target: Condition
+│  ├─ Members:
+│  │  ├─ Fn[0]: new
+│  │  │  ├─ Params: ()
+│  │  │  ├─ Return: Condition
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 53:31-56:6)
+│  │  │     ├─ Stmt[0]: Let (span: 54:9-54:54)
+│  │  │     │  ├─ Name: queue
+│  │  │     │  ├─ Mutable: false
+│  │  │     │  ├─ Type: <inferred>
+│  │  │     │  └─ Value: expr#55: make_channel(64 to uint)
+│  │  │     └─ Stmt[1]: Return (span: 55:9-55:34)
+│  │  │        └─ Expr: expr#58: <ExprKind(22)>
+│  │  ├─ Fn[1]: wait
+│  │  │  ├─ Params: (self: &Condition, mutex: &mut Mutex)
+│  │  │  ├─ Return: Task<nothing>
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 58:71-60:6)
+│  │  │     └─ Stmt[0]: Return (span: 59:9-59:51)
+│  │  │        └─ Expr: expr#64: condition_wait_task(*self, *mutex)
+│  │  ├─ Fn[2]: notify_one
+│  │  │  ├─ Params: (self: &Condition)
+│  │  │  ├─ Return: nothing
+│  │  │  ├─ Attributes: @nonblocking
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 63:52-66:6)
+│  │  │     ├─ Stmt[0]: Expr (span: 64:9-64:38)
+│  │  │     │  └─ Expr: expr#69: self.queue.try_send(nothing)
+│  │  │     └─ Stmt[1]: Return (span: 65:9-65:24)
+│  │  │        └─ Expr: expr#70: nothing
+│  │  └─ Fn[3]: notify_all
+│  │     ├─ Params: (self: &Condition)
+│  │     ├─ Return: nothing
+│  │     ├─ Attributes: @nonblocking
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 69:52-75:6)
+│  │        ├─ Stmt[0]: Let (span: 70:9-70:53)
+│  │        │  ├─ Name: sent
+│  │        │  ├─ Mutable: true
+│  │        │  ├─ Type: <inferred>
+│  │        │  └─ Value: expr#75: self.queue.try_send(nothing)
+│  │        ├─ Stmt[1]: While (span: 71:9-73:10)
+│  │        │  ├─ Cond: expr#76: sent
+│  │        │  └─ Body:
+Block (span: 71:20-73:10)
+│  │        │     └─ Stmt[0]: Expr (span: 72:13-72:49)
+│  │        │        └─ Expr: expr#83: (sent = self.queue.try_send(nothing))
+│  │        └─ Stmt[2]: Return (span: 74:9-74:24)
+│  │           └─ Expr: expr#84: nothing
+├─ Item[6]: Type (span: 78:1-81:3)
+│  ├─ Name: Semaphore
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @copy
+│  └─ Struct:
+│     └─ Field[0]: permits: Channel<nothing>
+├─ Item[7]: Fn (span: 83:1-86:2)
+│  ├─ Name: semaphore_acquire_task
+│  ├─ Params: (sem: Semaphore)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 83:60-86:2)
+│        ├─ Stmt[0]: Let (span: 84:5-84:32)
+│        │  ├─ Name: _
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#88: sem.permits.recv()
+│        └─ Stmt[1]: Return (span: 85:5-85:20)
+│           └─ Expr: expr#89: nothing
+├─ Item[8]: Extern (span: 88:1-121:2)
+│  ├─ Target: Semaphore
+│  ├─ Members:
+│  │  ├─ Fn[0]: new
+│  │  │  ├─ Params: (count: uint)
+│  │  │  ├─ Return: Semaphore
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 89:42-101:6)
+│  │  │     ├─ Stmt[0]: Let (span: 90:9-90:29)
+│  │  │     │  ├─ Name: cap
+│  │  │     │  ├─ Mutable: true
+│  │  │     │  ├─ Type: <inferred>
+│  │  │     │  └─ Value: expr#90: count
+│  │  │     ├─ Stmt[1]: If (span: 91:9-93:10)
+│  │  │     │  ├─ Cond: expr#94: (cap == (0 to uint))
+│  │  │     │  ├─ Then:
+Block (span: 91:26-93:10)
+│  │  │     │  │  └─ Stmt[0]: Expr (span: 92:13-92:26)
+│  │  │     │  │     └─ Expr: expr#98: (cap = (1 to uint))
+│  │  │     │  └─ Else: <none>
+│  │  │     ├─ Stmt[2]: Let (span: 94:9-94:52)
+│  │  │     │  ├─ Name: permits
+│  │  │     │  ├─ Mutable: false
+│  │  │     │  ├─ Type: <inferred>
+│  │  │     │  └─ Value: expr#101: make_channel(cap)
+│  │  │     ├─ Stmt[3]: Let (span: 95:9-95:34)
+│  │  │     │  ├─ Name: i
+│  │  │     │  ├─ Mutable: true
+│  │  │     │  ├─ Type: uint
+│  │  │     │  └─ Value: expr#103: 0 to uint
+│  │  │     ├─ Stmt[4]: While (span: 96:9-99:10)
+│  │  │     │  ├─ Cond: expr#106: (i < count)
+│  │  │     │  └─ Body:
+Block (span: 96:25-99:10)
+│  │  │     │     ├─ Stmt[0]: Expr (span: 97:13-97:39)
+│  │  │     │     │  └─ Expr: expr#110: permits.try_send(nothing)
+│  │  │     │     └─ Stmt[1]: Expr (span: 98:13-98:28)
+│  │  │     │        └─ Expr: expr#116: (i = ((i + (1 to uint))))
+│  │  │     └─ Stmt[5]: Return (span: 100:9-100:38)
+│  │  │        └─ Expr: expr#119: <ExprKind(22)>
+│  │  ├─ Fn[1]: acquire
+│  │  │  ├─ Params: (self: &mut Semaphore)
+│  │  │  ├─ Return: Task<nothing>
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 103:59-105:6)
+│  │  │     └─ Stmt[0]: Return (span: 104:9-104:46)
+│  │  │        └─ Expr: expr#123: semaphore_acquire_task(*self)
+│  │  ├─ Fn[2]: try_acquire
+│  │  │  ├─ Params: (self: &mut Semaphore)
+│  │  │  ├─ Return: bool
+│  │  │  ├─ Attributes: @nonblocking
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 108:54-114:6)
+│  │  │     ├─ Stmt[0]: Let (span: 109:9-109:43)
+│  │  │     │  ├─ Name: res
+│  │  │     │  ├─ Mutable: false
+│  │  │     │  ├─ Type: <inferred>
+│  │  │     │  └─ Value: expr#127: self.permits.try_recv()
+│  │  │     └─ Stmt[1]: Return (span: 110:9-113:11)
+│  │  │        └─ Expr: expr#135: compare res { 2 arms }
+│  │  └─ Fn[3]: release
+│  │     ├─ Params: (self: &mut Semaphore)
+│  │     ├─ Return: nothing
+│  │     ├─ Attributes: @nonblocking
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 117:53-120:6)
+│  │        ├─ Stmt[0]: Expr (span: 118:9-118:40)
+│  │        │  └─ Expr: expr#140: self.permits.try_send(nothing)
+│  │        └─ Stmt[1]: Return (span: 119:9-119:24)
+│  │           └─ Expr: expr#141: nothing
+├─ Item[9]: Type (span: 123:1-128:3)
+│  ├─ Name: BarrierState
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @copy
+│  └─ Struct:
+│     ├─ Field[0]: count: uint
+│     ├─ Field[1]: gen: uint
+│     └─ Field[2]: gate: Channel<uint>
+├─ Item[10]: Type (span: 130:1-134:3)
+│  ├─ Name: Barrier
+│  ├─ Kind: Struct
+│  ├─ Visibility: public
+│  ├─ Attributes: @copy
+│  └─ Struct:
+│     ├─ Field[0]: parties: uint
+│     └─ Field[1]: state: Channel<BarrierState>
+├─ Item[11]: Fn (span: 136:1-174:2)
+│  ├─ Name: barrier_arrive_task
+│  ├─ Params: (barrier: Barrier)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 136:59-174:2)
+│        ├─ Stmt[0]: If (span: 137:5-139:6)
+│        │  ├─ Cond: expr#146: (barrier.parties <= (1 to uint))
+│        │  ├─ Then:
+Block (span: 137:34-139:6)
+│        │  │  └─ Stmt[0]: Return (span: 138:9-138:24)
+│        │  │     └─ Expr: expr#147: nothing
+│        │  └─ Else: <none>
+│        ├─ Stmt[1]: Let (span: 141:5-145:7)
+│        │  ├─ Name: st
+│        │  ├─ Mutable: true
+│        │  ├─ Type: BarrierState
+│        │  └─ Value: expr#159: <ExprKind(22)>
+│        ├─ Stmt[2]: Let (span: 146:5-146:39)
+│        │  ├─ Name: st_opt
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#163: barrier.state.recv()
+│        ├─ Stmt[3]: Expr (span: 147:5-154:7)
+│        │  └─ Expr: expr#175: compare st_opt { 2 arms }
+│        ├─ Stmt[4]: Let (span: 156:5-156:24)
+│        │  ├─ Name: gate
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#177: st.gate
+│        ├─ Stmt[5]: Expr (span: 157:5-157:34)
+│        │  └─ Expr: expr#185: (st.count = ((st.count + (1 to uint))))
+│        ├─ Stmt[6]: If (span: 158:5-169:6)
+│        │  ├─ Cond: expr#190: (st.count == barrier.parties)
+│        │  ├─ Then:
+Block (span: 158:36-169:6)
+│        │  │  ├─ Stmt[0]: Expr (span: 159:9-159:27)
+│        │  │  │  └─ Expr: expr#195: (st.count = (0 to uint))
+│        │  │  ├─ Stmt[1]: Expr (span: 160:9-160:34)
+│        │  │  │  └─ Expr: expr#203: (st.gen = ((st.gen + (1 to uint))))
+│        │  │  ├─ Stmt[2]: Expr (span: 161:9-161:57)
+│        │  │  │  └─ Expr: expr#210: (st.gate = make_channel(barrier.parties))
+│        │  │  ├─ Stmt[3]: Expr (span: 162:9-162:32)
+│        │  │  │  └─ Expr: expr#215: barrier.state.send(st)
+│        │  │  ├─ Stmt[4]: Let (span: 163:9-163:34)
+│        │  │  │  ├─ Name: i
+│        │  │  │  ├─ Mutable: true
+│        │  │  │  ├─ Type: uint
+│        │  │  │  └─ Value: expr#217: 0 to uint
+│        │  │  ├─ Stmt[5]: While (span: 164:9-167:10)
+│        │  │  │  ├─ Cond: expr#225: (i < ((barrier.parties - (1 to uint))))
+│        │  │  │  └─ Body:
+Block (span: 164:46-167:10)
+│        │  │  │     ├─ Stmt[0]: Expr (span: 165:13-165:31)
+│        │  │  │     │  └─ Expr: expr#230: gate.send(st.gen)
+│        │  │  │     └─ Stmt[1]: Expr (span: 166:13-166:28)
+│        │  │  │        └─ Expr: expr#236: (i = ((i + (1 to uint))))
+│        │  │  └─ Stmt[6]: Return (span: 168:9-168:24)
+│        │  │     └─ Expr: expr#237: nothing
+│        │  └─ Else: <none>
+│        ├─ Stmt[7]: Expr (span: 171:5-171:28)
+│        │  └─ Expr: expr#242: barrier.state.send(st)
+│        ├─ Stmt[8]: Let (span: 172:5-172:25)
+│        │  ├─ Name: _
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#245: gate.recv()
+│        └─ Stmt[9]: Return (span: 173:5-173:20)
+│           └─ Expr: expr#246: nothing
+└─ Item[12]: Extern (span: 176:1-188:2)
+   ├─ Target: Barrier
+   ├─ Members:
+   │  ├─ Fn[0]: new
+   │  │  ├─ Params: (parties: uint)
+   │  │  ├─ Return: Barrier
+   │  │  └─ Body:
+   │  │     Stmt[0]: Block (span: 177:42-183:6)
+   │  │     ├─ Stmt[0]: Let (span: 178:9-178:76)
+   │  │     │  ├─ Name: state
+   │  │     │  ├─ Mutable: false
+   │  │     │  ├─ Type: Channel<BarrierState>
+   │  │     │  └─ Value: expr#249: make_channel(1)
+   │  │     ├─ Stmt[1]: Let (span: 179:9-179:65)
+   │  │     │  ├─ Name: gate
+   │  │     │  ├─ Mutable: false
+   │  │     │  ├─ Type: Channel<uint>
+   │  │     │  └─ Value: expr#252: make_channel(parties)
+   │  │     ├─ Stmt[2]: Let (span: 180:9-180:93)
+   │  │     │  ├─ Name: init
+   │  │     │  ├─ Mutable: false
+   │  │     │  ├─ Type: BarrierState
+   │  │     │  └─ Value: expr#261: <ExprKind(22)>
+   │  │     ├─ Stmt[3]: Expr (span: 181:9-181:30)
+   │  │     │  └─ Expr: expr#265: state.try_send(init)
+   │  │     └─ Stmt[4]: Return (span: 182:9-182:53)
+   │  │        └─ Expr: expr#270: <ExprKind(22)>
+   │  └─ Fn[1]: arrive_and_wait
+   │     ├─ Params: (self: &Barrier)
+   │     ├─ Return: Task<nothing>
+   │     └─ Body:
+   │        Stmt[0]: Block (span: 185:61-187:6)
+   │        └─ Stmt[0]: Return (span: 186:9-186:43)
+   │           └─ Expr: expr#274: barrier_arrive_task(*self)

@@ -350,7 +350,25 @@ func (e *Emitter) tagCaseMeta(id types.TypeID, tagName string, tagSym symbols.Sy
 			}
 		}
 	}
-	return -1, mir.TagCaseMeta{}, fmt.Errorf("unknown tag %q", tagName)
+	typeLabel := fmt.Sprintf("type#%d", id)
+	if e != nil && e.types != nil {
+		if info, ok := e.types.UnionInfo(id); ok && info != nil {
+			if e.syms != nil && e.syms.Strings != nil && info.Name != 0 {
+				typeLabel = fmt.Sprintf("%s %q", typeLabel, e.syms.Strings.MustLookup(info.Name))
+			}
+		}
+	}
+	caseNames := make([]string, 0, len(cases))
+	for _, c := range cases {
+		if c.TagName != "" {
+			caseNames = append(caseNames, c.TagName)
+			continue
+		}
+		if c.TagSym.IsValid() {
+			caseNames = append(caseNames, fmt.Sprintf("sym#%d", c.TagSym))
+		}
+	}
+	return -1, mir.TagCaseMeta{}, fmt.Errorf("unknown tag %q for %s (cases: %s)", tagName, typeLabel, strings.Join(caseNames, ", "))
 }
 
 func (e *Emitter) tagCaseIndex(id types.TypeID, tagName string, tagSym symbols.SymbolID) (int, error) {

@@ -1,0 +1,30 @@
+fn_type_async_mismatch.sg (span: 3:1-13:1)
+├─ Item[0]: Type (span: 3:1-3:40)
+│  ├─ Name: AsyncAdder
+│  ├─ Kind: Alias
+│  ├─ Visibility: private
+│  └─ Target: fn(int) -> Task<int>
+├─ Item[1]: Fn (span: 5:1-7:2)
+│  ├─ Name: add_one
+│  ├─ Params: (x: int)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:27-7:2)
+│        └─ Stmt[0]: Return (span: 6:5-6:18)
+│           └─ Expr: expr#3: (x + 1)
+└─ Item[2]: Fn (span: 9:1-12:2)
+   ├─ Name: test_async_fn_type_mismatch
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 9:34-12:2)
+         ├─ Stmt[0]: Let (span: 10:5-10:33)
+         │  ├─ Name: f
+         │  ├─ Mutable: false
+         │  ├─ Type: AsyncAdder
+         │  └─ Value: expr#4: add_one
+         └─ Stmt[1]: Let (span: 11:5-11:15)
+            ├─ Name: _
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#5: f

@@ -35,21 +35,21 @@ spawn_sendable.sg (span: 3:1-34:1)
 │  ├─ Return: Task<int>
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 21:55-23:2)
-│        └─ Stmt[0]: Return (span: 22:5-22:36)
-│           └─ Expr: expr#13: task process_counter(c)
+│        └─ Stmt[0]: Return (span: 22:5-22:37)
+│           └─ Expr: expr#13: spawn process_counter(c)
 ├─ Item[5]: Fn (span: 26:1-28:2)
 │  ├─ Name: spawn_with_int
 │  ├─ Params: (x: int)
 │  ├─ Return: Task<int>
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 26:44-28:2)
-│        └─ Stmt[0]: Return (span: 27:5-27:31)
-│           └─ Expr: expr#17: task double_int(x)
+│        └─ Stmt[0]: Return (span: 27:5-27:32)
+│           └─ Expr: expr#17: spawn double_int(x)
 └─ Item[6]: Fn (span: 31:1-33:2)
    ├─ Name: spawn_with_bool
    ├─ Params: (b: bool)
    ├─ Return: Task<bool>
    └─ Body:
       └─ Stmt[0]: Block (span: 31:47-33:2)
-         └─ Stmt[0]: Return (span: 32:5-32:32)
-            └─ Expr: expr#21: task negate_bool(b)
+         └─ Stmt[0]: Return (span: 32:5-32:33)
+            └─ Expr: expr#21: spawn negate_bool(b)

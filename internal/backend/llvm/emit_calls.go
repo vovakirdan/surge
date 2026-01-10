@@ -56,6 +56,9 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	if handled, err := fe.emitFromStrIntrinsic(call); handled {
 		return err
 	}
+	if handled, err := fe.emitFromBytesIntrinsic(call); handled {
+		return err
+	}
 	if handled, err := fe.emitExitIntrinsic(call); handled {
 		return err
 	}
@@ -115,6 +118,14 @@ func (fe *funcEmitter) resolveCallee(call *mir.CallInstr) (string, funcSig, erro
 		name := call.Callee.Name
 		if name == "" {
 			name = fe.symbolName(call.Callee.Sym)
+		}
+		if name != "" && fe.emitter != nil {
+			if id, ok := fe.emitter.funcByExactName(name); ok {
+				return fe.emitter.funcNames[id], fe.emitter.funcSigs[id], nil
+			}
+			if id, ok := fe.emitter.funcByName(name); ok {
+				return fe.emitter.funcNames[id], fe.emitter.funcSigs[id], nil
+			}
 		}
 		if sig, ok := fe.emitter.runtimeSigs[name]; ok {
 			return name, sig, nil

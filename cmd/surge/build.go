@@ -140,6 +140,7 @@ func buildExecution(cmd *cobra.Command, args []string) error {
 		MaxDiagnostics: maxDiagnostics,
 		DirInfo:        toPipelineDirInfo(dirInfo),
 		Files:          displayFiles,
+		Backend:        buildpipeline.Backend(backendValue),
 	}
 
 	buildReq := buildpipeline.BuildRequest{

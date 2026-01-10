@@ -1,2 +1,2 @@
 warning SEM3004 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:5 declaration of 't' shadows previous binding
-error SEM3021 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:26 cannot send 'r' to a task
+error SEM3021 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:27 cannot send 'r' to a task

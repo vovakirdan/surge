@@ -3,9 +3,9 @@
 Basic introduction to async tasks.
 
 ### What it demonstrates
-- Simple task creation with `task`
+- Simple task creation with `spawn`
 - Execution order of async code
-- Waiting for completion with `await()`
+- Waiting for completion with `.await()`
 
 ### Run
 ```bash

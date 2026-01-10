@@ -1,4 +1,4 @@
-// ERROR: @nosend type cannot be sent to task
+// ERROR: @nosend type cannot be sent to spawn
 
 @nosend
 pub type FileHandle = {
@@ -11,8 +11,8 @@ async fn process_fd(fd: int) -> int {
 
 pub fn spawn_with_nosend() -> Task<int> {
     let handle: FileHandle = { fd: 42 };
-    // ERROR SEM3086: cannot send 'handle' of @nosend type 'FileHandle' to task
-    return task async {
+    // ERROR SEM3086: cannot send 'handle' of @nosend type 'FileHandle' to spawn; use @local spawn
+    return spawn async {
         return handle.fd;
     };
 }

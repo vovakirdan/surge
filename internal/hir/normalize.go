@@ -422,6 +422,14 @@ func normalizeExpr(ctx *normCtx, e *Expr) error {
 		e.Data = data
 		return nil
 
+	case ExprBlocking:
+		data := e.Data.(BlockingData)
+		if err := normalizeBlock(ctx, data.Body); err != nil {
+			return err
+		}
+		e.Data = data
+		return nil
+
 	case ExprCast:
 		data := e.Data.(CastData)
 		if data.Value != nil {

@@ -10,9 +10,9 @@
  10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
  11: Ident           "t" at 3:9-3:10 (leading: Space)
  12: Assign          "=" at 3:11-3:12 (leading: Space)
- 13: KwTask          "task" at 3:13-3:17 (leading: Space)
- 14: KwAsync         "async" at 3:18-3:23 (leading: Space)
- 15: LBrace          "{" at 3:24-3:25 (leading: Space)
+ 13: KwSpawn         "spawn" at 3:13-3:18 (leading: Space)
+ 14: KwAsync         "async" at 3:19-3:24 (leading: Space)
+ 15: LBrace          "{" at 3:25-3:26 (leading: Space)
  16: Ident           "checkpoint" at 4:9-4:19 (leading: Newline, Space)
  17: LParen          "(" at 4:19-4:20
  18: RParen          ")" at 4:20-4:21

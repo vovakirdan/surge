@@ -10,9 +10,9 @@
  10: KwLet           "let" at 3:5-3:8 (leading: Newline, Space)
  11: Ident           "a" at 3:9-3:10 (leading: Space)
  12: Assign          "=" at 3:11-3:12 (leading: Space)
- 13: KwTask          "task" at 3:13-3:17 (leading: Space)
- 14: KwAsync         "async" at 3:18-3:23 (leading: Space)
- 15: LBrace          "{" at 3:24-3:25 (leading: Space)
+ 13: KwSpawn         "spawn" at 3:13-3:18 (leading: Space)
+ 14: KwAsync         "async" at 3:19-3:24 (leading: Space)
+ 15: LBrace          "{" at 3:25-3:26 (leading: Space)
  16: Ident           "print" at 4:9-4:14 (leading: Newline, Space)
  17: LParen          "(" at 4:14-4:15
  18: StringLit       "\"A1\"" at 4:15-4:19
@@ -52,9 +52,9 @@
  52: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
  53: Ident           "b" at 11:9-11:10 (leading: Space)
  54: Assign          "=" at 11:11-11:12 (leading: Space)
- 55: KwTask          "task" at 11:13-11:17 (leading: Space)
- 56: KwAsync         "async" at 11:18-11:23 (leading: Space)
- 57: LBrace          "{" at 11:24-11:25 (leading: Space)
+ 55: KwSpawn         "spawn" at 11:13-11:18 (leading: Space)
+ 56: KwAsync         "async" at 11:19-11:24 (leading: Space)
+ 57: LBrace          "{" at 11:25-11:26 (leading: Space)
  58: Ident           "print" at 12:9-12:14 (leading: Newline, Space)
  59: LParen          "(" at 12:14-12:15
  60: StringLit       "\"B1\"" at 12:15-12:19

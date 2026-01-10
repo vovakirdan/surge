@@ -22,7 +22,7 @@ func TestLLVMBuildPortable(t *testing.T) {
 	// #nosec G204 -- test executes a locally built binary with known args
 	buildCmd := exec.Command(surge, "build", srcPath)
 	buildCmd.Dir = tmpDir
-	buildCmd.Env = append(os.Environ(), "SURGE_STDLIB="+root)
+	buildCmd.Env = envWithStdlib(root)
 	buildOut, buildErr, buildCode := runCommand(t, buildCmd, "")
 	if buildCode != 0 {
 		t.Fatalf("build failed (code=%d)\nstdout:\n%s\nstderr:\n%s", buildCode, buildOut, buildErr)

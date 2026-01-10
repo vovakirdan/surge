@@ -90,6 +90,58 @@ static uint64_t count_codepoints(const uint8_t* data, uint64_t len) {
     return count;
 }
 
+bool rt_utf8_valid(const uint8_t* data, uint64_t len) {
+    if (len == 0) {
+        return true;
+    }
+    if (data == NULL) {
+        return false;
+    }
+    uint64_t i = 0;
+    while (i < len) {
+        uint8_t c0 = data[i];
+        if (c0 < 0x80) {
+            i += 1;
+            continue;
+        }
+        if (c0 < 0xC2) {
+            return false;
+        }
+        if (c0 <= 0xDF) {
+            if (i + 1 >= len || !is_cont(data[i + 1])) {
+                return false;
+            }
+            i += 2;
+            continue;
+        }
+        if (c0 <= 0xEF) {
+            if (i + 2 >= len || !is_cont(data[i + 1]) || !is_cont(data[i + 2])) {
+                return false;
+            }
+            uint8_t c1 = data[i + 1];
+            if ((c0 == 0xE0 && c1 < 0xA0) || (c0 == 0xED && c1 >= 0xA0)) {
+                return false;
+            }
+            i += 3;
+            continue;
+        }
+        if (c0 <= 0xF4) {
+            if (i + 3 >= len || !is_cont(data[i + 1]) || !is_cont(data[i + 2]) ||
+                !is_cont(data[i + 3])) {
+                return false;
+            }
+            uint8_t c1 = data[i + 1];
+            if ((c0 == 0xF0 && c1 < 0x90) || (c0 == 0xF4 && c1 >= 0x90)) {
+                return false;
+            }
+            i += 4;
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
 static uint32_t decode_utf8_at(const uint8_t* data, uint64_t len, uint64_t idx, uint64_t* advance) {
     if (idx >= len) {
         *advance = 0;

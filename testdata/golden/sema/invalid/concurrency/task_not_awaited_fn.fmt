@@ -5,6 +5,6 @@ async fn work() -> int {
 }
 
 pub fn test_fn_scope_leak() {
-    let t = task work();
-    // ERROR SEM3107: task is neither awaited nor returned
+    let t = spawn work();
+    // ERROR SEM3107: spawn is neither awaited nor returned
 }

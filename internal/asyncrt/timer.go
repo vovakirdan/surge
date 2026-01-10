@@ -139,6 +139,25 @@ func (e *Executor) fireDueTimers() {
 	}
 }
 
+func (e *Executor) nextTimerDeadline() (uint64, bool) {
+	if e == nil {
+		return 0, false
+	}
+	for len(e.timers) > 0 {
+		timer := e.timers[0]
+		if timer == nil {
+			heap.Pop(&e.timers)
+			continue
+		}
+		if timer.cancelled {
+			heap.Pop(&e.timers)
+			continue
+		}
+		return timer.deadlineMs, true
+	}
+	return 0, false
+}
+
 func (e *Executor) advanceTimeToNextTimer() bool {
 	if e == nil {
 		return false

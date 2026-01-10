@@ -21,6 +21,8 @@ void rt_exit(int64_t code);
 void rt_panic(const uint8_t* ptr, uint64_t length);
 void rt_panic_numeric(const uint8_t* ptr, uint64_t length);
 void rt_panic_bounds(uint64_t kind, int64_t index, int64_t length);
+uint64_t rt_worker_count(void);
+void rt_sched_trace_dump(void);
 
 void* rt_argv(void);
 void* rt_stdin_read_all(void);
@@ -43,6 +45,17 @@ void* rt_fs_file_name(void* file);
 void* rt_fs_file_type(void* file);
 void* rt_fs_file_metadata(void* file);
 
+void* rt_net_listen(void* addr, uint64_t port);
+void* rt_net_connect(void* addr, uint64_t port);
+void* rt_net_close_listener(const void* listener);
+void* rt_net_close_conn(const void* conn);
+void* rt_net_accept(const void* listener);
+void* rt_net_read(const void* conn, uint8_t* buf, uint64_t cap);
+void* rt_net_write(const void* conn, const uint8_t* buf, uint64_t len);
+void* rt_net_wait_accept(const void* listener);
+void* rt_net_wait_readable(const void* conn);
+void* rt_net_wait_writable(const void* conn);
+
 typedef struct SurgeRange {
     void* start;
     void* end;
@@ -53,6 +66,7 @@ typedef struct SurgeRange {
 } SurgeRange;
 
 void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len);
+bool rt_utf8_valid(const uint8_t* ptr, uint64_t len);
 const uint8_t* rt_string_ptr(void* s);
 uint64_t rt_string_len(void* s);
 uint64_t rt_string_len_bytes(void* s);
@@ -136,8 +150,15 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits);
 void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits);
 void rt_task_cancel(void* task);
 void* rt_task_clone(void* task);
+void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint64_t state_align);
 uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits);
 int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index);
+int64_t rt_select_poll(uint64_t count,
+                       const uint8_t* kinds,
+                       void** handles,
+                       const uint64_t* values,
+                       const uint64_t* ms,
+                       int64_t default_index);
 void rt_async_yield(void* state);
 void rt_async_return(void* state, uint64_t bits);
 void rt_async_return_cancelled(void* state);

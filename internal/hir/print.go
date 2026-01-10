@@ -570,7 +570,7 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 
 	case ExprTask:
 		data := e.Data.(TaskData)
-		p.printf("task ")
+		p.printf("spawn ")
 		p.printExpr(data.Value)
 
 	case ExprSpawn:
@@ -584,6 +584,15 @@ func (p *Printer) printExprWithType(e *Expr, showType bool) {
 			p.printf("@failfast ")
 		}
 		p.printf("async {\n")
+		p.indent++
+		p.printBlock(data.Body)
+		p.indent--
+		p.printIndent()
+		p.printf("}")
+
+	case ExprBlocking:
+		data := e.Data.(BlockingData)
+		p.printf("blocking {\n")
 		p.indent++
 		p.printBlock(data.Body)
 		p.indent--

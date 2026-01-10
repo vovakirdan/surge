@@ -3,7 +3,7 @@
 Demonstrates explicit task cancellation and checkpoints.
 
 ### What it demonstrates
-- Spawning tasks with `task`
+- Spawning tasks with `spawn`
 - `checkpoint().await()` for cooperative cancellation
 - `t.cancel()` to signal cancellation
 - Handling `Cancelled` result

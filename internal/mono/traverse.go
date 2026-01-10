@@ -357,6 +357,15 @@ func rewriteCallsInExpr(e *hir.Expr, f callRewriteFunc) error {
 			return err
 		}
 		e.Data = data
+	case hir.ExprBlocking:
+		data, ok := e.Data.(hir.BlockingData)
+		if !ok {
+			return nil
+		}
+		if err := rewriteCallsInBlock(data.Body, f); err != nil {
+			return err
+		}
+		e.Data = data
 	case hir.ExprCast:
 		data, ok := e.Data.(hir.CastData)
 		if !ok {

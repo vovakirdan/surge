@@ -1,0 +1,16 @@
+// ERROR: timeout(...) is only available in async/task context; call it inside async/task and await it via x.await()
+
+async fn async_task() -> int {
+    return 42;
+}
+
+// ERROR SEM3007: timeout in non-async function
+fn sync_fn_with_timeout() -> TaskResult<int> {
+    let t: Task<int> = spawn async_task();
+    return timeout(t, 10:uint);
+}
+
+// ERROR SEM3007: timeout directly on async fn call in sync context
+fn sync_fn_direct_timeout() -> TaskResult<int> {
+    return timeout(async_task(), 10:uint);
+}

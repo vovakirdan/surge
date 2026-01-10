@@ -1,0 +1,9 @@
+// ERROR: local task handle cannot be returned
+
+async fn work() -> int { return 1; }
+
+pub fn make_local_task() -> Task<int> {
+    let t = @local spawn work();
+    // ERROR SEM3132: local task handle cannot be returned from function
+    return t;
+}

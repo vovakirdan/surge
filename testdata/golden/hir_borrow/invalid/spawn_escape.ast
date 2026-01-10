@@ -21,10 +21,10 @@ spawn_escape.sg (span: 1:1-9:1)
          │  ├─ Mutable: false
          │  ├─ Type: &int
          │  └─ Value: expr#3: &x
-         ├─ Stmt[2]: Let (span: 6:5-6:29)
+         ├─ Stmt[2]: Let (span: 6:5-6:30)
          │  ├─ Name: t
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#7: task use_ref(r)
+         │  └─ Value: expr#7: spawn use_ref(r)
          └─ Stmt[3]: Expr (span: 7:5-7:15)
             └─ Expr: expr#10: t.await()

@@ -1,0 +1,1 @@
+error SEM3110 testdata/golden/sema/invalid/concurrency/task_container_escape_return.sg:11:12 task container cannot escape its scope

@@ -94,6 +94,12 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 			addUsesFromOperand(&ins.Spawn.Value, addUse, addDef)
 			addUsesFromPlaceWrite(ins.Spawn.Dst, addUse)
 			addDefFromPlace(ins.Spawn.Dst, addDef)
+		case InstrBlocking:
+			for i := range ins.Blocking.State.Fields {
+				addUsesFromOperand(&ins.Blocking.State.Fields[i].Value, addUse, addDef)
+			}
+			addUsesFromPlaceWrite(ins.Blocking.Dst, addUse)
+			addDefFromPlace(ins.Blocking.Dst, addDef)
 		case InstrPoll:
 			addUsesFromOperand(&ins.Poll.Task, addUse, addDef)
 			addUsesFromPlaceWrite(ins.Poll.Dst, addUse)

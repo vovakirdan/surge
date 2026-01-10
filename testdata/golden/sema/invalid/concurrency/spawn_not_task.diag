@@ -1,4 +1,4 @@
-error SEM3111 testdata/golden/sema/invalid/concurrency/spawn_not_task.sg:9:12 task requires async function call or Task<T> expression, got int
-error SEM3111 testdata/golden/sema/invalid/concurrency/spawn_not_task.sg:14:12 task requires async function call or Task<T> expression, got int
-error SEM3111 testdata/golden/sema/invalid/concurrency/spawn_not_task.sg:20:12 task requires async function call or Task<T> expression, got bool
-error SEM3111 testdata/golden/sema/invalid/concurrency/spawn_not_task.sg:25:12 task requires async function call or Task<T> expression, got string
+error SEM3111 testdata/golden/sema/invalid/concurrency/spawn_not_task.sg:9:12 spawn requires async function call or Task<T> expression, got int
+error SEM3111 testdata/golden/sema/invalid/concurrency/spawn_not_task.sg:14:12 spawn requires async function call or Task<T> expression, got int
+error SEM3111 testdata/golden/sema/invalid/concurrency/spawn_not_task.sg:20:12 spawn requires async function call or Task<T> expression, got bool
+error SEM3111 testdata/golden/sema/invalid/concurrency/spawn_not_task.sg:25:12 spawn requires async function call or Task<T> expression, got string

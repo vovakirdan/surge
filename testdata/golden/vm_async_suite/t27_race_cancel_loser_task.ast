@@ -16,7 +16,7 @@ t27_race_cancel_loser_task.sg (span: 1:1-33:1)
          │  ├─ Name: guard
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#58: task async { 2 stmt(s) }
+         │  └─ Value: expr#58: spawn async { 2 stmt(s) }
          ├─ Stmt[3]: Let (span: 30:5-30:27)
          │  ├─ Name: _
          │  ├─ Mutable: false

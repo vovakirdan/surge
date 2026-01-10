@@ -383,6 +383,12 @@ func (fr *fileResolver) walkExpr(exprID ast.ExprID) {
 			return
 		}
 		fr.walkStmt(data.Body)
+	case ast.ExprBlocking:
+		data, _ := fr.builder.Exprs.Blocking(exprID)
+		if data == nil || !data.Body.IsValid() {
+			return
+		}
+		fr.walkStmt(data.Body)
 	case ast.ExprBlock:
 		data, _ := fr.builder.Exprs.Block(exprID)
 		if data == nil {

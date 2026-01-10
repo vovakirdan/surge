@@ -12,8 +12,8 @@ async fn will_cancel() -> int {
 
 @failfast
 async fn scope() -> int {
-    let a = task ok_work();
-    let b = task will_cancel();
+    let a = spawn ok_work();
+    let b = spawn will_cancel();
 
     // В этом примере мы искусственно отменим b таймаутом:
     let br = timeout(b.clone(), 5:uint); // Cancelled на дедлайне + cancel цели

@@ -291,6 +291,11 @@ func validateLocalIDs(f *Func, globals []Global) error {
 			case InstrSpawn:
 				checkPlace(ins.Spawn.Dst, ctx)
 				checkOperand(ins.Spawn.Value, ctx)
+			case InstrBlocking:
+				checkPlace(ins.Blocking.Dst, ctx)
+				for i := range ins.Blocking.State.Fields {
+					checkOperand(ins.Blocking.State.Fields[i].Value, ctx)
+				}
 			case InstrPoll:
 				checkPlace(ins.Poll.Dst, ctx)
 				checkOperand(ins.Poll.Task, ctx)

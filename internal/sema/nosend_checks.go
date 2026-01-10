@@ -8,14 +8,21 @@ import (
 	"surge/internal/types"
 )
 
-// checkSpawnSendability verifies that a symbol's type can be safely sent to a task.
-// Types with the @nosend attribute cannot cross task boundaries as they may contain
+// checkSpawnSendability verifies that a symbol's type can be safely sent to a spawn.
+// Types with the @nosend attribute cannot cross spawn boundaries as they may contain
 // thread-local state, non-atomic reference counts, or other non-thread-safe data.
 //
-// This check is performed when a variable is captured by a task expression
+// This check is performed when a variable is captured by a spawn expression
 // to ensure structured concurrency safety.
 func (tc *typeChecker) checkSpawnSendability(symID symbols.SymbolID, span source.Span) {
 	if !symID.IsValid() {
+		return
+	}
+
+	if tc.isLocalTaskBinding(symID) {
+		label := tc.symbolLabel(symID)
+		tc.report(diag.SemaNosendInSpawn, span,
+			"cannot send local task handle %s to spawn; use @local spawn", label)
 		return
 	}
 
@@ -32,7 +39,7 @@ func (tc *typeChecker) checkSpawnSendability(symID symbols.SymbolID, span source
 		label := tc.symbolLabel(symID)
 		typeName := tc.typeLabel(baseType)
 		tc.report(diag.SemaNosendInSpawn, span,
-			"cannot send %s of @nosend type '%s' to task", label, typeName)
+			"cannot send %s of @nosend type '%s' to spawn; use @local spawn", label, typeName)
 	}
 
 	// Recursively check struct fields for nested @nosend types
@@ -45,6 +52,12 @@ func (tc *typeChecker) checkSpawnSendability(symID symbols.SymbolID, span source
 // This check is performed when evaluating channel send operations (ch.send(value)).
 func (tc *typeChecker) checkChannelSendValue(valueExpr ast.ExprID, span source.Span) {
 	if !valueExpr.IsValid() {
+		return
+	}
+
+	if tc.isLocalTaskExpr(valueExpr) {
+		tc.report(diag.SemaChannelNosendValue, span,
+			"cannot send local task handle through channel")
 		return
 	}
 
@@ -103,8 +116,13 @@ func (tc *typeChecker) checkNestedNosendWithVisited(typeID types.TypeID, span so
 		if tc.typeHasAttr(fieldType, "nosend") {
 			typeName := tc.typeLabel(typeID)
 			fieldTypeName := tc.typeLabel(fieldType)
-			tc.report(diagCode, span,
-				"type '%s' contains @nosend field of type '%s'", typeName, fieldTypeName)
+			if diagCode == diag.SemaNosendInSpawn {
+				tc.report(diagCode, span,
+					"type '%s' contains @nosend field of type '%s'; use @local spawn", typeName, fieldTypeName)
+			} else {
+				tc.report(diagCode, span,
+					"type '%s' contains @nosend field of type '%s'", typeName, fieldTypeName)
+			}
 		}
 		// Recurse into nested structs
 		tc.checkNestedNosendWithVisited(fieldType, span, diagCode, visited)

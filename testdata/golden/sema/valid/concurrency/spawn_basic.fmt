@@ -1,0 +1,10 @@
+// Test: spawn schedules async tasks and returns a Task<T>
+async fn foo() -> int { return 1; }
+
+@entrypoint fn main() {
+    let t = spawn foo();
+    compare t.await() {
+        Success(_) => nothing;
+        Cancelled() => nothing;
+    };
+}

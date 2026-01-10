@@ -13,6 +13,7 @@ func TestLookupKeyword_Positive(t *testing.T) {
 		"select":   KwSelect,
 		"race":     KwRace,
 		"parallel": KwParallel,
+		"blocking": KwBlocking,
 		"map":      KwMap,
 		"reduce":   KwReduce,
 		"with":     KwWith,
