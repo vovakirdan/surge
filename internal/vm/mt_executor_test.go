@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -50,6 +51,89 @@ func overrideEnv(base []string, value string) []string {
 	}
 	out = append(out, prefix+value)
 	return out
+}
+
+func overrideEnvVar(base []string, key, value string) []string {
+	prefix := key + "="
+	out := make([]string, 0, len(base)+1)
+	for _, kv := range base {
+		if strings.HasPrefix(kv, prefix) {
+			continue
+		}
+		out = append(out, kv)
+	}
+	out = append(out, prefix+value)
+	return out
+}
+
+type schedTrace struct {
+	mode   string
+	seed   uint64
+	local  uint64
+	inject uint64
+	steal  uint64
+	events uint64
+	hash   uint64
+}
+
+func parseSchedTrace(t *testing.T, stderr string) schedTrace {
+	t.Helper()
+	for _, line := range strings.Split(stderr, "\n") {
+		if !strings.HasPrefix(line, "SCHED_TRACE") {
+			continue
+		}
+		fields := strings.Fields(line)
+		out := schedTrace{}
+		for _, field := range fields[1:] {
+			kv := strings.SplitN(field, "=", 2)
+			if len(kv) != 2 {
+				continue
+			}
+			switch kv[0] {
+			case "mode":
+				out.mode = kv[1]
+			case "seed":
+				v, err := strconv.ParseUint(kv[1], 10, 64)
+				if err != nil {
+					t.Fatalf("parse seed: %v", err)
+				}
+				out.seed = v
+			case "local":
+				v, err := strconv.ParseUint(kv[1], 10, 64)
+				if err != nil {
+					t.Fatalf("parse local: %v", err)
+				}
+				out.local = v
+			case "inject":
+				v, err := strconv.ParseUint(kv[1], 10, 64)
+				if err != nil {
+					t.Fatalf("parse inject: %v", err)
+				}
+				out.inject = v
+			case "steal":
+				v, err := strconv.ParseUint(kv[1], 10, 64)
+				if err != nil {
+					t.Fatalf("parse steal: %v", err)
+				}
+				out.steal = v
+			case "events":
+				v, err := strconv.ParseUint(kv[1], 10, 64)
+				if err != nil {
+					t.Fatalf("parse events: %v", err)
+				}
+				out.events = v
+			case "hash":
+				v, err := strconv.ParseUint(kv[1], 10, 64)
+				if err != nil {
+					t.Fatalf("parse hash: %v", err)
+				}
+				out.hash = v
+			}
+		}
+		return out
+	}
+	t.Fatalf("missing SCHED_TRACE in stderr")
+	return schedTrace{}
 }
 
 func runBinaryWithTimeout(t *testing.T, outputPath string, env []string, timeout time.Duration) (time.Duration, runResult) {
@@ -494,5 +578,166 @@ fn main() -> int {
 	}
 	if !strings.Contains(res.stdout, "ok") {
 		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+}
+
+func TestMTWorkStealing(t *testing.T) {
+	ensureLLVMToolchain(t)
+	threads := mtThreadCount(t)
+	t.Parallel()
+
+	source := `async fn worker(steps: int) -> int {
+    let mut i: int = 0;
+    while i < steps {
+        checkpoint().await();
+        i = i + 1;
+    }
+    return 0;
+}
+
+async fn spawn_many(count: int, steps: int) -> int {
+    let mut tasks: Task<int>[] = Array::<Task<int>>::with_len(count to uint);
+    let mut i: int = 0;
+    while i < count {
+        tasks[i] = spawn worker(steps);
+        i = i + 1;
+    }
+    let mut failed: bool = false;
+    for t in tasks {
+        let r = t.await();
+        let ok = compare r {
+            Success(v) => v == 0;
+            Cancelled() => false;
+        };
+        if !ok {
+            failed = true;
+        }
+    }
+    if failed {
+        return 1;
+    }
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 2;
+    }
+    let workers: int = rt_worker_count() to int;
+    let count: int = workers * 8;
+    let steps: int = 80;
+    let res = spawn_many(count, steps).await();
+    let ok = compare res {
+        Success(v) => v == 0;
+        Cancelled() => false;
+    };
+    if !ok {
+        return 1;
+    }
+    print("ok");
+    return 0;
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	baseEnv := envWithStdlib(repoRoot(t))
+	env := overrideEnv(baseEnv, strconv.Itoa(threads))
+	env = overrideEnvVar(env, "SURGE_SCHED_TRACE", "1")
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 20*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
+	trace := parseSchedTrace(t, res.stderr)
+	if trace.steal == 0 {
+		t.Fatalf("expected steals > 0 (trace=%+v)\nstderr:\n%s", trace, res.stderr)
+	}
+}
+
+func TestMTSeededScheduler(t *testing.T) {
+	ensureLLVMToolchain(t)
+	threads := mtThreadCount(t)
+	t.Parallel()
+
+	source := `async fn leaf(id: int) -> int {
+    let mut sum: int = 0;
+    let mut i: int = 0;
+    while i < 400 {
+        sum = sum + i;
+        i = i + 1;
+    }
+    return sum + id;
+}
+
+@entrypoint
+fn main() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 2;
+    }
+    let count: int = 32;
+    let mut tasks: Task<int>[] = Array::<Task<int>>::with_len(count to uint);
+    let mut i: int = 0;
+    while i < count {
+        tasks[i] = spawn leaf(i);
+        i = i + 1;
+    }
+    let mut cancelled: bool = false;
+    let mut total: int = 0;
+    for t in tasks {
+        let r = t.await();
+        let ok = compare r {
+            Success(v) => {
+                total = total + v;
+                true;
+            }
+            Cancelled() => false;
+        };
+        if !ok {
+            cancelled = true;
+        }
+    }
+    if cancelled {
+        return 3;
+    }
+    print("ok");
+    return 0;
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	baseEnv := envWithStdlib(repoRoot(t))
+	env := overrideEnv(baseEnv, strconv.Itoa(threads))
+	env = overrideEnvVar(env, "SURGE_SCHED", "seeded")
+	env = overrideEnvVar(env, "SURGE_SCHED_SEED", "424242")
+	env = overrideEnvVar(env, "SURGE_SCHED_TRACE", "1")
+
+	dur1, res1 := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
+	if res1.exitCode != 0 {
+		t.Fatalf("run 1 failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res1.exitCode, dur1, res1.stdout, res1.stderr)
+	}
+	if !strings.Contains(res1.stdout, "ok") {
+		t.Fatalf("unexpected stdout (run 1): %q", res1.stdout)
+	}
+	trace1 := parseSchedTrace(t, res1.stderr)
+	if trace1.mode != "seeded" || trace1.seed != 424242 {
+		t.Fatalf("unexpected trace mode/seed: %+v\nstderr:\n%s", trace1, res1.stderr)
+	}
+
+	dur2, res2 := runBinaryWithTimeout(t, outputPath, env, 10*time.Second)
+	if res2.exitCode != 0 {
+		t.Fatalf("run 2 failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res2.exitCode, dur2, res2.stdout, res2.stderr)
+	}
+	if !strings.Contains(res2.stdout, "ok") {
+		t.Fatalf("unexpected stdout (run 2): %q", res2.stdout)
+	}
+	trace2 := parseSchedTrace(t, res2.stderr)
+	if trace1.hash != trace2.hash || trace1.events != trace2.events {
+		t.Fatalf("seeded trace mismatch:\ntrace1=%+v\ntrace2=%+v", trace1, trace2)
 	}
 }

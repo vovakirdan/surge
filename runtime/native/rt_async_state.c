@@ -1,5 +1,6 @@
 #include "rt_async_internal.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -8,7 +9,7 @@
 // Async runtime state, queues, and memory helpers.
 //
 // MT NOTES (iteration 1):
-// - ST executor stored tasks in exec_state.tasks and scheduled via exec_state.ready.
+// - ST executor stored tasks in exec_state.tasks and scheduled via the global injection queue.
 // - A poll sets pending_key, then rt_async_yield parks via park_current and waiters list.
 // - Cancellation is observed in rt_async_yield/current_task_cancelled.
 // - MT needs a wake token to avoid wake-before-park races and a dedicated I/O thread
@@ -26,9 +27,23 @@ _Thread_local poll_outcome poll_result;
 _Thread_local waker_key pending_key;
 _Thread_local uint64_t tls_current_id;
 _Thread_local rt_task* tls_current_task;
+_Thread_local int tls_worker_id = -1;
 static pthread_once_t exec_once = PTHREAD_ONCE_INIT;
 
+struct rt_worker_ctx {
+    rt_executor* ex;
+    uint32_t worker_id;
+    uint64_t sched_rng;
+};
+
+enum {
+    SCHED_SRC_LOCAL = 0,
+    SCHED_SRC_INJECT = 1,
+    SCHED_SRC_STEAL = 2,
+};
+
 static volatile sig_atomic_t trace_exec_enabled_flag = 0;
+static volatile sig_atomic_t trace_sched_enabled_flag = 0;
 static _Atomic uint64_t trace_wake_called_total;
 static _Atomic uint64_t trace_wake_enqueued_total;
 static _Atomic uint64_t trace_wake_ignored_completed_total;
@@ -36,9 +51,18 @@ static _Atomic uint64_t trace_park_attempt_total;
 static _Atomic uint64_t trace_park_committed_total;
 static _Atomic uint64_t trace_worker_sleep_total;
 static _Atomic uint64_t trace_worker_wake_total;
+static uint64_t trace_sched_hash;
+static uint64_t trace_sched_events;
+static uint64_t trace_sched_local_pops;
+static uint64_t trace_sched_inject_pops;
+static uint64_t trace_sched_steal_pops;
 
 static int trace_exec_enabled(void) {
     return trace_exec_enabled_flag != 0;
+}
+
+static int trace_sched_enabled(void) {
+    return trace_sched_enabled_flag != 0;
 }
 
 static void trace_exec_inc(_Atomic uint64_t* counter) {
@@ -131,9 +155,39 @@ static void trace_exec_dump(const char* reason) {
     (void)write(STDERR_FILENO, buf, pos);
 }
 
+static void trace_sched_record(uint8_t source, uint64_t id) {
+    if (!trace_sched_enabled()) {
+        return;
+    }
+    trace_sched_events++;
+    if (source == 0) {
+        trace_sched_local_pops++;
+    } else if (source == 1) {
+        trace_sched_inject_pops++;
+    } else if (source == 2) {
+        trace_sched_steal_pops++;
+    }
+    uint64_t mix = id ^ ((uint64_t)source << 56);
+    trace_sched_hash ^= mix;
+    trace_sched_hash *= UINT64_C(1099511628211);
+}
+
 static void trace_exec_signal_handler(int sig) {
     (void)sig;
     trace_exec_dump("sigusr1");
+}
+
+static void trace_sched_init(void) {
+    const char* value = getenv("SURGE_SCHED_TRACE");
+    if (value == NULL || value[0] == '\0' || (value[0] == '0' && value[1] == '\0')) {
+        return;
+    }
+    trace_sched_enabled_flag = 1;
+    trace_sched_hash = UINT64_C(1469598103934665603);
+    trace_sched_events = 0;
+    trace_sched_local_pops = 0;
+    trace_sched_inject_pops = 0;
+    trace_sched_steal_pops = 0;
 }
 
 void panic_msg(const char* msg) {
@@ -238,6 +292,36 @@ static uint32_t rt_env_worker_count(void) {
     return (uint32_t)parsed;
 }
 
+// Seeded scheduler mode provides deterministic scheduler choices given the same seed and the same
+// arrival order of external events; it does not control I/O timing or OS thread interleavings.
+static uint8_t rt_env_sched_mode(void) {
+    const char* value = getenv("SURGE_SCHED");
+    if (value == NULL || value[0] == '\0') {
+        return SCHED_PARALLEL;
+    }
+    if (strcmp(value, "seeded") == 0) {
+        return SCHED_SEEDED;
+    }
+    if (strcmp(value, "parallel") == 0) {
+        return SCHED_PARALLEL;
+    }
+    return SCHED_PARALLEL;
+}
+
+static uint64_t rt_env_sched_seed(void) {
+    const char* value = getenv("SURGE_SCHED_SEED");
+    if (value == NULL || value[0] == '\0') {
+        return 0;
+    }
+    errno = 0;
+    char* end = NULL;
+    unsigned long long parsed = strtoull(value, &end, 0);
+    if (end == value || errno != 0) {
+        return 0;
+    }
+    return (uint64_t)parsed;
+}
+
 static uint32_t rt_detect_cpu_count(void) {
     long cpus = sysconf(_SC_NPROCESSORS_ONLN);
     if (cpus <= 0) {
@@ -261,7 +345,8 @@ static void rt_start_workers(rt_executor* ex);
 static void* rt_worker_main(void* arg);
 static void* rt_io_main(void* arg);
 static void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome);
-static int ready_is_empty(const rt_executor* ex);
+static int runnable_is_empty(const rt_executor* ex);
+static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_id);
 static void trace_exec_init(void);
 
 static void exec_init_once(void) {
@@ -274,14 +359,27 @@ static void exec_init_once(void) {
     pthread_cond_init(&ex->io_cv, NULL);
     pthread_cond_init(&ex->done_cv, NULL);
     trace_exec_init();
+    trace_sched_init();
     uint32_t threads = rt_env_worker_count();
     if (threads == 0) {
         threads = rt_default_worker_count();
     }
     ex->worker_count = threads;
+    ex->sched_mode = rt_env_sched_mode();
+    ex->sched_seed = rt_env_sched_seed();
+    if (ex->worker_count > 0) {
+        ex->local_queues = (rt_deque*)rt_alloc((uint64_t)(ex->worker_count * sizeof(rt_deque)),
+                                               _Alignof(rt_deque));
+        if (ex->local_queues == NULL) {
+            panic_msg("async: local queue allocation failed");
+        } else {
+            memset(ex->local_queues, 0, ex->worker_count * sizeof(rt_deque));
+        }
+    }
     if (ex->worker_count > 1) {
         rt_start_workers(ex);
     }
+    ex->initialized = 1;
 }
 
 rt_executor* ensure_exec(void) {
@@ -297,11 +395,22 @@ uint64_t rt_worker_count(void) {
     return (uint64_t)ex->worker_count;
 }
 
-static int ready_is_empty(const rt_executor* ex) {
+static int runnable_is_empty(const rt_executor* ex) {
     if (ex == NULL) {
         return 1;
     }
-    return ex->ready_head >= ex->ready_len;
+    if (ex->inject.len > 0) {
+        return 0;
+    }
+    if (ex->local_queues == NULL || ex->worker_count == 0) {
+        return 1;
+    }
+    for (uint32_t i = 0; i < ex->worker_count; i++) {
+        if (ex->local_queues[i].len > 0) {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 static void trace_exec_init(void) {
@@ -313,6 +422,56 @@ static void trace_exec_init(void) {
 #ifdef SIGUSR1
     (void)signal(SIGUSR1, trace_exec_signal_handler);
 #endif
+}
+
+void rt_sched_trace_dump(void) {
+    if (!trace_sched_enabled()) {
+        return;
+    }
+    if (!exec_state.initialized) {
+        return;
+    }
+    rt_lock(&exec_state);
+    uint64_t local = trace_sched_local_pops;
+    uint64_t inject = trace_sched_inject_pops;
+    uint64_t steal = trace_sched_steal_pops;
+    uint64_t events = trace_sched_events;
+    uint64_t hash = trace_sched_hash;
+    uint64_t seed = exec_state.sched_seed;
+    uint8_t mode = exec_state.sched_mode;
+    rt_unlock(&exec_state);
+
+    char buf[256];
+    size_t pos = 0;
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), "SCHED_TRACE mode=");
+    pos = trace_exec_append_literal(
+        buf, pos, sizeof(buf), mode == SCHED_SEEDED ? "seeded" : "parallel");
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " seed=");
+    pos = trace_exec_append_u64(buf, pos, sizeof(buf), seed);
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " local=");
+    pos = trace_exec_append_u64(buf, pos, sizeof(buf), local);
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " inject=");
+    pos = trace_exec_append_u64(buf, pos, sizeof(buf), inject);
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " steal=");
+    pos = trace_exec_append_u64(buf, pos, sizeof(buf), steal);
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " events=");
+    pos = trace_exec_append_u64(buf, pos, sizeof(buf), events);
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " hash=");
+    pos = trace_exec_append_u64(buf, pos, sizeof(buf), hash);
+    if (pos + 1 < sizeof(buf)) {
+        buf[pos++] = '\n';
+    }
+    (void)write(STDERR_FILENO, buf, pos);
+}
+
+static uint64_t sched_next_u64(rt_worker_ctx* ctx) {
+    if (ctx == NULL) {
+        return 0;
+    }
+    uint64_t z = (ctx->sched_rng += UINT64_C(0x9e3779b97f4a7c15));
+    z = (z ^ (z >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
+    z = (z ^ (z >> 27)) * UINT64_C(0x94d049bb133111eb);
+    return z ^ (z >> 31);
 }
 
 static void rt_start_workers(rt_executor* ex) {
@@ -327,7 +486,15 @@ static void rt_start_workers(rt_executor* ex) {
         panic_msg("async: worker allocation failed");
         return;
     }
+    rt_worker_ctx* ctxs = (rt_worker_ctx*)rt_alloc((uint64_t)(count * sizeof(rt_worker_ctx)),
+                                                   _Alignof(rt_worker_ctx));
+    if (ctxs == NULL) {
+        panic_msg("async: worker context allocation failed");
+        return;
+    }
+    memset(ctxs, 0, count * sizeof(rt_worker_ctx));
     ex->workers = threads;
+    ex->worker_ctxs = ctxs;
     if (pthread_create(&threads[0], NULL, rt_io_main, ex) != 0) {
         panic_msg("async: io worker start failed");
         return;
@@ -335,7 +502,10 @@ static void rt_start_workers(rt_executor* ex) {
     (void)pthread_detach(threads[0]);
     ex->io_started = 1;
     for (uint32_t i = 0; i < count; i++) {
-        if (pthread_create(&threads[i + 1], NULL, rt_worker_main, ex) != 0) {
+        ctxs[i].ex = ex;
+        ctxs[i].worker_id = i;
+        ctxs[i].sched_rng = ex->sched_seed + UINT64_C(0x9e3779b97f4a7c15) * (uint64_t)(i + 1);
+        if (pthread_create(&threads[i + 1], NULL, rt_worker_main, &ctxs[i]) != 0) {
             panic_msg("async: worker start failed");
             return;
         }
@@ -411,6 +581,131 @@ static int ensure_ptr_array_cap(void** array,
     return 1;
 }
 
+static int
+deque_reserve(rt_deque* dq, size_t want, const char* overflow_msg, const char* alloc_msg) {
+    if (dq == NULL) {
+        return 0;
+    }
+    if (want <= dq->cap) {
+        return 1;
+    }
+    size_t next_cap = dq->cap == 0 ? 16 : dq->cap;
+    while (next_cap < want) {
+        if (next_cap > SIZE_MAX / 2) {
+            panic_msg(overflow_msg);
+            return 0;
+        }
+        next_cap *= 2;
+    }
+    if (next_cap > SIZE_MAX / sizeof(uint64_t)) {
+        panic_msg(overflow_msg);
+        return 0;
+    }
+    size_t old_size = dq->cap * sizeof(uint64_t);
+    size_t new_size = next_cap * sizeof(uint64_t);
+    if (old_size > UINT64_MAX || new_size > UINT64_MAX) {
+        panic_msg(overflow_msg);
+        return 0;
+    }
+    uint64_t* next = (uint64_t*)rt_alloc((uint64_t)new_size, _Alignof(uint64_t));
+    if (next == NULL) {
+        panic_msg(alloc_msg);
+        return 0;
+    }
+    if (dq->len > 0 && dq->buf != NULL) {
+        memcpy(next, dq->buf + dq->head, dq->len * sizeof(uint64_t));
+    }
+    if (dq->buf != NULL && dq->cap > 0) {
+        rt_free((uint8_t*)dq->buf, (uint64_t)old_size, _Alignof(uint64_t));
+    }
+    dq->buf = next;
+    dq->cap = next_cap;
+    dq->head = 0;
+    return 1;
+}
+
+static int
+deque_ensure_space(rt_deque* dq, size_t extra, const char* overflow_msg, const char* alloc_msg) {
+    if (dq == NULL) {
+        return 0;
+    }
+    if (dq->len == 0) {
+        dq->head = 0;
+    }
+    if (dq->head > SIZE_MAX - dq->len) {
+        panic_msg(overflow_msg);
+        return 0;
+    }
+    size_t used = dq->head + dq->len;
+    if (extra > SIZE_MAX - used) {
+        panic_msg(overflow_msg);
+        return 0;
+    }
+    size_t want = used + extra;
+    if (want <= dq->cap) {
+        return 1;
+    }
+    if (dq->head > 0 && dq->len > 0 && dq->buf != NULL) {
+        memmove(dq->buf, dq->buf + dq->head, dq->len * sizeof(uint64_t));
+        dq->head = 0;
+        used = dq->len;
+        if (extra > SIZE_MAX - used) {
+            panic_msg(overflow_msg);
+            return 0;
+        }
+        want = used + extra;
+        if (want <= dq->cap) {
+            return 1;
+        }
+    }
+    return deque_reserve(dq, want, overflow_msg, alloc_msg);
+}
+
+static int
+deque_push_tail(rt_deque* dq, uint64_t id, const char* overflow_msg, const char* alloc_msg) {
+    if (dq == NULL) {
+        return 0;
+    }
+    if (!deque_ensure_space(dq, 1, overflow_msg, alloc_msg)) {
+        return 0;
+    }
+    dq->buf[dq->head + dq->len] = id;
+    dq->len++;
+    return 1;
+}
+
+static int deque_pop_head(rt_deque* dq, uint64_t* out_id) {
+    if (dq == NULL || dq->len == 0) {
+        return 0;
+    }
+    uint64_t id = dq->buf[dq->head];
+    dq->head++;
+    dq->len--;
+    if (dq->len == 0) {
+        dq->head = 0;
+    }
+    if (out_id != NULL) {
+        *out_id = id;
+    }
+    return 1;
+}
+
+static int deque_pop_tail(rt_deque* dq, uint64_t* out_id) {
+    if (dq == NULL || dq->len == 0) {
+        return 0;
+    }
+    size_t idx = dq->head + dq->len - 1;
+    uint64_t id = dq->buf[idx];
+    dq->len--;
+    if (dq->len == 0) {
+        dq->head = 0;
+    }
+    if (out_id != NULL) {
+        *out_id = id;
+    }
+    return 1;
+}
+
 void ensure_task_cap(rt_executor* ex, uint64_t id) {
     if (ex == NULL) {
         return;
@@ -451,26 +746,6 @@ void ensure_scope_cap(rt_executor* ex, uint64_t id) {
                                _Alignof(rt_scope*),
                                "async: scope capacity overflow",
                                "async: scope allocation failed");
-}
-
-void ensure_ready_cap(rt_executor* ex) {
-    if (ex == NULL) {
-        return;
-    }
-    if (ex->ready_len < ex->ready_cap) {
-        return;
-    }
-    size_t next_cap = ex->ready_cap == 0 ? 16 : ex->ready_cap * 2;
-    size_t old_size = ex->ready_cap * sizeof(uint64_t);
-    size_t new_size = next_cap * sizeof(uint64_t);
-    uint64_t* next = (uint64_t*)rt_realloc(
-        (uint8_t*)ex->ready, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
-    if (next == NULL) {
-        panic_msg("async: ready queue allocation failed");
-        return;
-    }
-    ex->ready = next;
-    ex->ready_cap = next_cap;
 }
 
 void ensure_waiter_cap(rt_executor* ex) {
@@ -676,7 +951,52 @@ int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
     return found;
 }
 
-static int ready_push_inner(rt_executor* ex, uint64_t id) {
+static rt_deque* current_local_queue(rt_executor* ex) {
+    if (ex == NULL || ex->local_queues == NULL || ex->worker_count == 0) {
+        return NULL;
+    }
+    if (tls_worker_id < 0 || (uint32_t)tls_worker_id >= ex->worker_count) {
+        return NULL;
+    }
+    return &ex->local_queues[(uint32_t)tls_worker_id];
+}
+
+static int
+pop_task_from_deque(rt_executor* ex, rt_deque* dq, int lifo, uint64_t* out_id, uint8_t source) {
+    if (ex == NULL || dq == NULL) {
+        return 0;
+    }
+    while (dq->len > 0) {
+        uint64_t id = 0;
+        if (lifo) {
+            if (!deque_pop_tail(dq, &id)) {
+                return 0;
+            }
+        } else {
+            if (!deque_pop_head(dq, &id)) {
+                return 0;
+            }
+        }
+        rt_task* task = get_task(ex, id);
+        uint8_t status = task_status_load(task);
+        if (task == NULL || status == TASK_DONE || status == TASK_RUNNING) {
+            if (task != NULL) {
+                // Clear stale enqueue flags for discarded entries (e.g., duplicates).
+                task_enqueued_store(task, 0);
+            }
+            continue;
+        }
+        task_enqueued_store(task, 0);
+        trace_sched_record(source, id);
+        if (out_id != NULL) {
+            *out_id = id;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static int ready_push_inner(rt_executor* ex, uint64_t id, int force_inject) {
     if (ex == NULL) {
         return 0;
     }
@@ -691,8 +1011,27 @@ static int ready_push_inner(rt_executor* ex, uint64_t id) {
     if (task_enqueued_load(task) != 0) {
         return 0;
     }
-    ensure_ready_cap(ex);
-    ex->ready[ex->ready_len++] = id;
+    // Injection policy:
+    // - Worker thread: enqueue locally (LIFO pop) to keep cache locality.
+    // - Non-worker thread (main/I/O/external): enqueue on the global injection queue.
+    // No last-worker affinity is tracked; wake/spawn follows the current thread.
+    rt_deque* local = NULL;
+    if (!force_inject) {
+        local = current_local_queue(ex);
+    }
+    if (local != NULL) {
+        if (!deque_push_tail(
+                local, id, "async: local queue overflow", "async: local queue allocation failed")) {
+            return 0;
+        }
+    } else {
+        if (!deque_push_tail(&ex->inject,
+                             id,
+                             "async: inject queue overflow",
+                             "async: inject queue allocation failed")) {
+            return 0;
+        }
+    }
     task_enqueued_store(task, 1);
     task_status_store(task, TASK_READY);
     pthread_cond_signal(&ex->ready_cv);
@@ -700,29 +1039,122 @@ static int ready_push_inner(rt_executor* ex, uint64_t id) {
 }
 
 void ready_push(rt_executor* ex, uint64_t id) {
-    (void)ready_push_inner(ex, id);
+    (void)ready_push_inner(ex, id, 0);
 }
 
 int ready_pop(rt_executor* ex, uint64_t* out_id) {
+    return pop_task_from_deque(ex, &ex->inject, 0, out_id, SCHED_SRC_INJECT);
+}
+
+static int worker_next_ready(rt_executor* ex, uint32_t worker_id, uint64_t* out_id) {
     if (ex == NULL) {
         return 0;
     }
-    while (ex->ready_head < ex->ready_len) {
-        uint64_t id = ex->ready[ex->ready_head++];
-        rt_task* task = get_task(ex, id);
-        uint8_t status = task_status_load(task);
-        if (task == NULL || status == TASK_DONE || status == TASK_RUNNING) {
+    if (ex->sched_mode == SCHED_SEEDED) {
+        rt_worker_ctx* ctx = ex->worker_ctxs != NULL && worker_id < ex->worker_count
+                                 ? &ex->worker_ctxs[worker_id]
+                                 : NULL;
+        rt_deque* local = ex->local_queues != NULL && worker_id < ex->worker_count
+                              ? &ex->local_queues[worker_id]
+                              : NULL;
+        int local_has = local != NULL && local->len > 0;
+        int inject_has = ex->inject.len > 0;
+        int others_have = 0;
+        if (ex->local_queues != NULL && ex->worker_count > 1) {
+            for (uint32_t i = 0; i < ex->worker_count; i++) {
+                if (i == worker_id) {
+                    continue;
+                }
+                if (ex->local_queues[i].len > 0) {
+                    others_have = 1;
+                    break;
+                }
+            }
+        }
+        if (local_has && inject_has) {
+            if ((sched_next_u64(ctx) & 1U) == 0U) {
+                if (pop_task_from_deque(ex, local, 1, out_id, SCHED_SRC_LOCAL)) {
+                    return 1;
+                }
+                if (pop_task_from_deque(ex, &ex->inject, 0, out_id, SCHED_SRC_INJECT)) {
+                    return 1;
+                }
+            } else {
+                if (pop_task_from_deque(ex, &ex->inject, 0, out_id, SCHED_SRC_INJECT)) {
+                    return 1;
+                }
+                if (pop_task_from_deque(ex, local, 1, out_id, SCHED_SRC_LOCAL)) {
+                    return 1;
+                }
+            }
+        } else if (local_has) {
+            if (pop_task_from_deque(ex, local, 1, out_id, SCHED_SRC_LOCAL)) {
+                return 1;
+            }
+        } else if (inject_has) {
+            if (others_have && (sched_next_u64(ctx) & 1U) != 0U) {
+                if (ex->worker_count > 1) {
+                    uint32_t span = ex->worker_count - 1;
+                    uint32_t start =
+                        (worker_id + 1 + (uint32_t)(sched_next_u64(ctx) % span)) % ex->worker_count;
+                    for (uint32_t offset = 0; offset < span; offset++) {
+                        uint32_t victim = start + offset;
+                        if (victim >= ex->worker_count) {
+                            victim -= ex->worker_count;
+                        }
+                        if (victim == worker_id) {
+                            continue;
+                        }
+                        if (pop_task_from_deque(
+                                ex, &ex->local_queues[victim], 0, out_id, SCHED_SRC_STEAL)) {
+                            return 1;
+                        }
+                    }
+                }
+            }
+            if (pop_task_from_deque(ex, &ex->inject, 0, out_id, SCHED_SRC_INJECT)) {
+                return 1;
+            }
+        }
+        if (ex->local_queues == NULL || ex->worker_count <= 1) {
+            return 0;
+        }
+        uint32_t span = ex->worker_count - 1;
+        uint32_t start =
+            (worker_id + 1 + (uint32_t)(sched_next_u64(ctx) % span)) % ex->worker_count;
+        for (uint32_t offset = 0; offset < span; offset++) {
+            uint32_t victim = start + offset;
+            if (victim >= ex->worker_count) {
+                victim -= ex->worker_count;
+            }
+            if (victim == worker_id) {
+                continue;
+            }
+            if (pop_task_from_deque(ex, &ex->local_queues[victim], 0, out_id, SCHED_SRC_STEAL)) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    if (ex->local_queues != NULL && worker_id < ex->worker_count) {
+        if (pop_task_from_deque(ex, &ex->local_queues[worker_id], 1, out_id, SCHED_SRC_LOCAL)) {
+            return 1;
+        }
+    }
+    if (pop_task_from_deque(ex, &ex->inject, 0, out_id, SCHED_SRC_INJECT)) {
+        return 1;
+    }
+    if (ex->local_queues == NULL || ex->worker_count <= 1) {
+        return 0;
+    }
+    for (uint32_t offset = 1; offset < ex->worker_count; offset++) {
+        uint32_t victim = (worker_id + offset) % ex->worker_count;
+        if (victim == worker_id) {
             continue;
         }
-        task_enqueued_store(task, 0);
-        if (out_id != NULL) {
-            *out_id = id;
+        if (pop_task_from_deque(ex, &ex->local_queues[victim], 0, out_id, SCHED_SRC_STEAL)) {
+            return 1;
         }
-        if (ex->ready_head > 0 && ex->ready_head == ex->ready_len) {
-            ex->ready_head = 0;
-            ex->ready_len = 0;
-        }
-        return 1;
     }
     return 0;
 }
@@ -743,7 +1175,7 @@ void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag) {
     task->park_key = waker_none();
     task->park_prepared = 0;
     (void)task_wake_token_exchange(task, 1);
-    if (ready_push_inner(ex, id)) {
+    if (ready_push_inner(ex, id, 0)) {
         trace_exec_inc(&trace_wake_enqueued_total);
     }
 }
@@ -1117,7 +1549,8 @@ static void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outc
         case POLL_YIELDED:
             task->state = outcome.state;
             task_status_store(task, TASK_READY);
-            ready_push(ex, task->id);
+            // Yielded tasks go through the inject queue to avoid local LIFO starvation.
+            (void)ready_push_inner(ex, task->id, 1);
             tick_virtual(ex);
             break;
         case POLL_PARKED:
@@ -1131,14 +1564,18 @@ static void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outc
 }
 
 static void* rt_worker_main(void* arg) {
-    rt_executor* ex = (rt_executor*)arg;
+    rt_worker_ctx* ctx = (rt_worker_ctx*)arg;
+    rt_executor* ex = ctx != NULL ? ctx->ex : NULL;
+    uint32_t worker_id = ctx != NULL ? ctx->worker_id : 0;
     if (ex == NULL) {
         return NULL;
     }
+    tls_worker_id = (int)worker_id;
     rt_set_current_task(NULL);
     for (;;) {
         rt_lock(ex);
-        while (!ex->shutdown && ready_is_empty(ex)) {
+        uint64_t id = 0;
+        while (!ex->shutdown && !worker_next_ready(ex, worker_id, &id)) {
             trace_exec_inc(&trace_worker_sleep_total);
             pthread_cond_wait(&ex->ready_cv, &ex->lock);
             trace_exec_inc(&trace_worker_wake_total);
@@ -1146,11 +1583,6 @@ static void* rt_worker_main(void* arg) {
         if (ex->shutdown) {
             rt_unlock(ex);
             break;
-        }
-        uint64_t id = 0;
-        if (!ready_pop(ex, &id)) {
-            rt_unlock(ex);
-            continue;
         }
         rt_task* task = get_task(ex, id);
         if (task == NULL || task_status_load(task) == TASK_DONE) {
@@ -1170,7 +1602,7 @@ static void* rt_worker_main(void* arg) {
             ex->running_count--;
             apply_poll_outcome(ex, task, outcome);
             rt_set_current_task(NULL);
-            if (ex->running_count == 0 && ready_is_empty(ex)) {
+            if (ex->running_count == 0 && runnable_is_empty(ex)) {
                 pthread_cond_signal(&ex->io_cv);
             }
             rt_unlock(ex);
@@ -1186,7 +1618,7 @@ static void* rt_worker_main(void* arg) {
         ex->running_count--;
         apply_poll_outcome(ex, task, outcome);
         rt_set_current_task(NULL);
-        if (ex->running_count == 0 && ready_is_empty(ex)) {
+        if (ex->running_count == 0 && runnable_is_empty(ex)) {
             pthread_cond_signal(&ex->io_cv);
         }
         rt_unlock(ex);
@@ -1209,7 +1641,7 @@ static void* rt_io_main(void* arg) {
         uint64_t deadline = 0;
         int have_timer = next_sleep_deadline(ex, &deadline);
         int have_net = has_net_waiters(ex);
-        int idle = ex->running_count == 0 && ready_is_empty(ex);
+        int idle = ex->running_count == 0 && runnable_is_empty(ex);
 
         if (!have_net && (!have_timer || !idle)) {
             pthread_cond_wait(&ex->io_cv, &ex->lock);

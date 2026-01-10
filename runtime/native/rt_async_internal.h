@@ -62,6 +62,11 @@ typedef enum {
     WAKER_SCOPE = 8,
 } waker_kind;
 
+typedef enum {
+    SCHED_PARALLEL = 0,
+    SCHED_SEEDED = 1,
+} sched_mode;
+
 typedef struct {
     uint8_t kind;
     uint64_t id;
@@ -72,8 +77,17 @@ typedef struct {
     uint64_t task_id;
 } waiter;
 
+typedef struct {
+    uint64_t* buf;
+    size_t cap;
+    size_t head;
+    size_t len;
+} rt_deque;
+
 typedef _Atomic uint8_t atomic_u8;
 typedef _Atomic uint32_t atomic_u32;
+
+typedef struct rt_worker_ctx rt_worker_ctx;
 
 typedef struct rt_task {
     uint64_t id;
@@ -131,10 +145,8 @@ typedef struct {
     uint64_t now_ms;
     rt_task** tasks;
     size_t tasks_cap;
-    uint64_t* ready;
-    size_t ready_len;
-    size_t ready_head;
-    size_t ready_cap;
+    rt_deque inject;
+    rt_deque* local_queues;
     rt_scope** scopes;
     size_t scopes_cap;
     waiter* waiters;
@@ -145,10 +157,14 @@ typedef struct {
     pthread_cond_t io_cv;
     pthread_cond_t done_cv;
     pthread_t* workers;
+    rt_worker_ctx* worker_ctxs;
     uint32_t worker_count;
     uint32_t running_count;
+    uint8_t sched_mode;
+    uint8_t initialized;
     uint8_t io_started;
     uint8_t shutdown;
+    uint64_t sched_seed;
 } rt_executor;
 
 typedef struct rt_channel rt_channel;
@@ -251,7 +267,6 @@ rt_scope* get_scope(rt_executor* ex, uint64_t id);
 
 void ensure_task_cap(rt_executor* ex, uint64_t id);
 void ensure_scope_cap(rt_executor* ex, uint64_t id);
-void ensure_ready_cap(rt_executor* ex);
 void ensure_waiter_cap(rt_executor* ex);
 void ensure_child_cap(rt_task* task, size_t want);
 void ensure_scope_child_cap(rt_scope* scope, size_t want);
