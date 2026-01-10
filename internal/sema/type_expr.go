@@ -241,6 +241,11 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					break
 				}
 			}
+			if ident, okIdent := tc.builder.Exprs.Ident(call.Target); okIdent && ident != nil {
+				if tc.lookupName(ident.Name) == "timeout" && tc.awaitDepth == 0 {
+					tc.report(diag.SemaIntrinsicBadContext, expr.Span, "timeout(...) is only available in async/task context; call it inside async/task and await it via x.await()")
+				}
+			}
 			ty = tc.callResultType(id, call, expr.Span)
 		}
 	case ast.ExprArray:
