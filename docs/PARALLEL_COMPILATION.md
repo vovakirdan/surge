@@ -14,7 +14,7 @@ When you run diagnostics on a directory, Surge uses **file-level parallelism**
 plus **batch-parallel hash computation** for the module graph:
 
 - **File-level parallelism:** tokenization, parsing, symbols, and sema run in
-  worker goroutines (bounded by `--jobs`).
+  compiler worker goroutines (Go, bounded by `--jobs`).
 - **Module graph phase:** only files that import project modules are included.
 - **Batch hash computation:** module hashes are computed in dependency order
   with parallel batches.
@@ -61,7 +61,7 @@ hashes in **topological batches**:
 
 - Kahn topo sort produces batches of independent nodes.
 - Batches are processed **in reverse order** (dependencies first).
-- Each batch is computed in parallel using goroutines + `sync.WaitGroup`.
+- Each batch is computed in parallel using Go goroutines + `sync.WaitGroup`.
 
 Implementation: `internal/driver/hashcalc.go`.
 

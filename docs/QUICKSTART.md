@@ -512,10 +512,13 @@ async fn consumer(ch: &Channel<int>) {
 
 @entrypoint
 fn main() {
-    let ch = make_channel<int>(2);
+    let ch = make_channel::<int>(2:uint);
 
-    spawn producer(&ch);
-    spawn consumer(&ch);
+    let p = spawn producer(&ch);
+    let c = spawn consumer(&ch);
+
+    p.await();
+    c.await();
 }
 ```
 
@@ -540,26 +543,29 @@ async fn parse_and_send(ch: &Channel<int>, text: string) {
 
 @entrypoint("argv")
 fn main(values: string[]) {
-    let ch = make_channel<int>(4);
+    let ch = make_channel::<int>(4:uint);
+    let consumer = spawn async {
+        let mut sum: int = 0;
+        while true {
+            let v = ch.recv();
+            compare v {
+                Some(x) => sum = sum + x;
+                nothing => return sum;
+            }
+        }
+    };
 
     async {
         for v in values {
             spawn parse_and_send(&ch, v);
         }
-        ch.close();
-    };
+    }.await();
+    ch.close();
 
-    let mut sum: int = 0;
-
-    while true {
-        let v = ch.recv();
-        compare v {
-            Some(x) => sum = sum + x;
-            nothing => break;
-        }
+    compare consumer.await() {
+        Success(sum) => print("sum = " + (sum to string));
+        Cancelled() => print("cancelled");
     }
-
-    print("sum = " + (sum to string));
 }
 ```
 
