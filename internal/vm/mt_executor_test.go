@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -91,73 +90,103 @@ func TestMTParallelism(t *testing.T) {
 	}
 	t.Parallel()
 
-	source := `async fn spin(n: int) -> int {
+source := `async fn spin(progress: own Channel<nothing>, n: int) -> int {
     let mut i: int = 0;
-    let mut acc: int = 0;
-    while (i < n) {
-        acc = acc + i;
+    let mut sent: bool = false;
+    while i < n {
+        sent = progress.try_send(nothing);
+        while !sent {
+            sent = progress.try_send(nothing);
+        }
         i = i + 1;
     }
-    return acc;
+    return 0;
 }
 
-@entrypoint("argv")
-fn main(iters: int) -> int {
-    let t1 = spawn spin(iters);
-    let t2 = spawn spin(iters);
-    let r1 = t1.await();
-    let r2 = t2.await();
-    let mut total: int = 0;
-    let cancelled1: bool = compare r1 {
-        Success(v) => {
-            total = total + v;
-            false;
+async fn sink(progress: own Channel<nothing>, target: int) -> int {
+    let mut seen: int = 0;
+    while seen < target {
+        let v = progress.recv();
+        let ok = compare v {
+            Some(_) => true;
+            nothing => false;
+        };
+        if !ok {
+            return 2;
         }
-        Cancelled() => true;
-    };
-    let cancelled2: bool = compare r2 {
-        Success(v) => {
-            total = total + v;
-            false;
-        }
-        Cancelled() => true;
-    };
-    if cancelled1 || cancelled2 {
-        return 1;
+        seen = seen + 1;
     }
-    print(total to string);
     return 0;
+}
+
+async fn run() -> int {
+    let workers: uint = rt_worker_count();
+    if workers <= 1:uint {
+        return 3;
+    }
+    let mut spinners_u: uint = workers - 1:uint;
+    if spinners_u > 4:uint {
+        spinners_u = 4:uint;
+    }
+    let spinners: int = spinners_u to int;
+    let iters: int = 1000;
+    let target: int = spinners * iters;
+    let progress = make_channel::<nothing>(0);
+
+    let sink_task = spawn sink(progress, target);
+    checkpoint().await();
+
+    let mut tasks: Task<int>[] = Array::<Task<int>>::with_len(spinners to uint);
+    let mut i: int = 0;
+    while i < spinners {
+        tasks[i] = spawn spin(progress, iters);
+        i = i + 1;
+    }
+
+    let mut failed: bool = false;
+    for t in tasks {
+        let r = t.await();
+        let ok = compare r {
+            Success(v) => v == 0;
+            Cancelled() => false;
+        };
+        if !ok {
+            failed = true;
+        }
+    }
+    let sink_res = sink_task.await();
+    let sink_ok = compare sink_res {
+        Success(v) => v == 0;
+        Cancelled() => false;
+    };
+    if failed || !sink_ok {
+        return 4;
+    }
+    print("ok");
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let res = run().await();
+    return compare res {
+        Success(v) => v;
+        Cancelled() => 1;
+    };
 }
 `
 
 	outputPath := buildLLVMProgramFromSource(t, source)
 	baseEnv := envWithStdlib(repoRoot(t))
 
-	run := func(iters int, threads int) time.Duration {
-		env := overrideEnv(baseEnv, strconv.Itoa(threads))
-		args := []string{strconv.Itoa(iters)}
-		dur, res := runBinaryWithTimeout(t, outputPath, env, args, 15*time.Second)
-		if res.exitCode != 0 {
-			t.Fatalf("run failed (threads=%d iters=%d exit=%d)\nstdout:\n%s\nstderr:\n%s",
-				threads, iters, res.exitCode, res.stdout, res.stderr)
-		}
-		return dur
+	env := overrideEnv(baseEnv, "2")
+	_, res := runBinaryWithTimeout(t, outputPath, env, nil, 10*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, res.stdout, res.stderr)
 	}
-
-	iters := 5_000_000
-	maxIters := 50_000_000
-	dur := run(iters, 1)
-	for dur < 50*time.Millisecond && iters < maxIters {
-		iters *= 2
-		dur = run(iters, 1)
-	}
-	if dur < 50*time.Millisecond {
-		t.Skipf("single-thread runtime too short for timing (%s)", dur)
-	}
-
-	parallelDur := run(iters, 2)
-	if parallelDur >= dur-(dur/10) {
-		t.Fatalf("expected parallel speedup (iters=%d): single=%s parallel=%s", iters, dur, parallelDur)
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
 	}
 }
 
