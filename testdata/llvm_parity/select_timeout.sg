@@ -1,0 +1,24 @@
+@entrypoint
+fn main() -> int {
+    let r = (async {
+        let worker = spawn async {
+            sleep(50).await();
+            return 9;
+        };
+        let worker2 = worker.clone();
+        let v = select {
+            timeout(worker, 5) => 1;
+        };
+        let status = compare worker2.await() {
+            Success(_) => 0;
+            Cancelled() => 2;
+        };
+        return v + status;
+    }).await();
+
+    compare r {
+        Success(v) => print("sum=" + (v to string));
+        Cancelled() => print("cancelled");
+    };
+    return 0;
+}

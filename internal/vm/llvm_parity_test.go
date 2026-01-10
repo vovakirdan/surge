@@ -39,6 +39,8 @@ func TestLLVMParity(t *testing.T) {
 		{name: "panic", file: "panic.sg"},
 		{name: "string_concat", file: "string_concat.sg"},
 		{name: "tagged_switch", file: "tagged_switch.sg"},
+		{name: "select_channel", file: "select_channel.sg"},
+		{name: "select_timeout", file: "select_timeout.sg"},
 		{name: "unicode_len", file: "unicode_len.sg"},
 		{name: "path_smoke", file: "path_smoke.sg"},
 		{
