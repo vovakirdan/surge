@@ -22,6 +22,7 @@ void rt_panic(const uint8_t* ptr, uint64_t length);
 void rt_panic_numeric(const uint8_t* ptr, uint64_t length);
 void rt_panic_bounds(uint64_t kind, int64_t index, int64_t length);
 uint64_t rt_worker_count(void);
+void rt_sched_trace_dump(void);
 
 void* rt_argv(void);
 void* rt_stdin_read_all(void);

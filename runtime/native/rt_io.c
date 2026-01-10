@@ -159,6 +159,7 @@ void* rt_stdin_read_all(void) {
 }
 
 void rt_exit(int64_t code) {
+    rt_sched_trace_dump();
     exit((int)code);
 }
 
