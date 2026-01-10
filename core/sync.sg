@@ -1,0 +1,198 @@
+pragma module, no_std;
+
+@copy
+pub type Mutex = {
+    gate: Channel<nothing>
+};
+
+async fn mutex_lock_task(mtx: Mutex) -> nothing {
+    let _ = mtx.gate.recv();
+    return nothing;
+}
+
+extern<Mutex> {
+    pub fn new() -> Mutex {
+        let gate = make_channel::<nothing>(1);
+        gate.try_send(nothing);
+        return { gate = gate };
+    }
+
+    pub fn lock(self: &mut Mutex) -> Task<nothing> {
+        return mutex_lock_task(*self);
+    }
+
+    @nonblocking
+    pub fn try_lock(self: &mut Mutex) -> bool {
+        let res = self.gate.try_recv();
+        return compare res {
+            Some(_) => true;
+            nothing => false;
+        };
+    }
+
+    @nonblocking
+    pub fn unlock(self: &mut Mutex) -> nothing {
+        self.gate.try_send(nothing);
+        return nothing;
+    }
+}
+
+@copy
+pub type Condition = {
+    queue: Channel<nothing>
+};
+
+async fn condition_wait_task(cond: Condition, mutex: Mutex) -> nothing {
+    mutex.gate.try_send(nothing);
+    let _ = cond.queue.recv();
+    let _ = mutex.gate.recv();
+    return nothing;
+}
+
+extern<Condition> {
+    pub fn new() -> Condition {
+        let queue = make_channel::<nothing>(64:uint);
+        return { queue = queue };
+    }
+
+    pub fn wait(self: &Condition, mutex: &mut Mutex) -> Task<nothing> {
+        return condition_wait_task(*self, *mutex);
+    }
+
+    @nonblocking
+    pub fn notify_one(self: &Condition) -> nothing {
+        self.queue.try_send(nothing);
+        return nothing;
+    }
+
+    @nonblocking
+    pub fn notify_all(self: &Condition) -> nothing {
+        let mut sent = self.queue.try_send(nothing);
+        while sent {
+            sent = self.queue.try_send(nothing);
+        }
+        return nothing;
+    }
+}
+
+@copy
+pub type Semaphore = {
+    permits: Channel<nothing>
+};
+
+async fn semaphore_acquire_task(sem: Semaphore) -> nothing {
+    let _ = sem.permits.recv();
+    return nothing;
+}
+
+extern<Semaphore> {
+    pub fn new(count: uint) -> Semaphore {
+        let mut cap = count;
+        if cap == 0:uint {
+            cap = 1:uint;
+        }
+        let permits = make_channel::<nothing>(cap);
+        let mut i: uint = 0:uint;
+        while i < count {
+            permits.try_send(nothing);
+            i = i + 1:uint;
+        }
+        return { permits = permits };
+    }
+
+    pub fn acquire(self: &mut Semaphore) -> Task<nothing> {
+        return semaphore_acquire_task(*self);
+    }
+
+    @nonblocking
+    pub fn try_acquire(self: &mut Semaphore) -> bool {
+        let res = self.permits.try_recv();
+        return compare res {
+            Some(_) => true;
+            nothing => false;
+        };
+    }
+
+    @nonblocking
+    pub fn release(self: &mut Semaphore) -> nothing {
+        self.permits.try_send(nothing);
+        return nothing;
+    }
+}
+
+@copy
+type BarrierState = {
+    count: uint,
+    gen: uint,
+    gate: Channel<uint>
+};
+
+@copy
+pub type Barrier = {
+    parties: uint,
+    state: Channel<BarrierState>
+};
+
+async fn barrier_arrive_task(barrier: Barrier) -> nothing {
+    if barrier.parties <= 1:uint {
+        return nothing;
+    }
+
+    let mut st: BarrierState = BarrierState {
+        count = 0:uint,
+        gen = 0:uint,
+        gate = make_channel::<uint>(barrier.parties)
+    };
+    let st_opt = barrier.state.recv();
+    compare st_opt {
+        Some(v) => {
+            st = v;
+        }
+        nothing => {
+            return nothing;
+        }
+    };
+
+    let gate = st.gate;
+    st.count = st.count + 1:uint;
+    if st.count == barrier.parties {
+        st.count = 0:uint;
+        st.gen = st.gen + 1:uint;
+        st.gate = make_channel::<uint>(barrier.parties);
+        barrier.state.send(st);
+        let mut i: uint = 0:uint;
+        while i < (barrier.parties - 1:uint) {
+            gate.send(st.gen);
+            i = i + 1:uint;
+        }
+        return nothing;
+    }
+
+    barrier.state.send(st);
+    let _ = gate.recv();
+    return nothing;
+}
+
+extern<Barrier> {
+    pub fn new(parties: uint) -> Barrier {
+        let state: Channel<BarrierState> = make_channel::<BarrierState>(1);
+        let gate: Channel<uint> = make_channel::<uint>(parties);
+        let init: BarrierState = BarrierState { count = 0:uint, gen = 0:uint, gate = gate };
+        state.try_send(init);
+        return { parties = parties, state = state };
+    }
+
+    pub fn arrive_and_wait(self: &Barrier) -> Task<nothing> {
+        return barrier_arrive_task(*self);
+    }
+}
+
+// NOTES (MT iteration 2.5):
+// - core/sync.sg:Mutex.lock and Semaphore.acquire return Task<nothing>; callers must .await().
+// - core/sync.sg:Condition.wait releases and re-acquires the mutex via the gate channel, not
+//   atomic unlock+park; notifications can be missed if callers don't guard with a predicate.
+// - core/sync.sg:Condition uses a bounded queue (capacity 64); notify_all can queue tokens for
+//   later waiters and may allow spurious wakeups if signals outpace waiters.
+// - core/sync.sg:Semaphore is bounded by channel capacity (max permits = max(1, initial count)).
+// - core/sync.sg:Barrier rotates its gate channel per generation; cancelled waiters can leave
+//   tokens behind, but they remain isolated to the old gate.

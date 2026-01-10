@@ -284,6 +284,14 @@ rt_executor* ensure_exec(void) {
     return &exec_state;
 }
 
+uint64_t rt_worker_count(void) {
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL) {
+        return 0;
+    }
+    return (uint64_t)ex->worker_count;
+}
+
 static int ready_is_empty(const rt_executor* ex) {
     if (ex == NULL) {
         return 1;
@@ -1077,7 +1085,9 @@ static void* rt_worker_main(void* arg) {
 
         uint8_t kind = task->kind;
         if (kind != TASK_KIND_USER) {
+            task_polling_enter(task);
             poll_outcome outcome = poll_task(ex, task);
+            task_polling_exit(task);
             ex->running_count--;
             apply_poll_outcome(ex, task, outcome);
             rt_set_current_task(NULL);
@@ -1089,7 +1099,9 @@ static void* rt_worker_main(void* arg) {
         }
         rt_unlock(ex);
 
+        task_polling_enter(task);
         poll_outcome outcome = poll_task(ex, task);
+        task_polling_exit(task);
 
         rt_lock(ex);
         ex->running_count--;

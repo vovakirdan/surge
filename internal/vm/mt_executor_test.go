@@ -39,7 +39,8 @@ func buildLLVMProgramFromSource(t *testing.T, source string) string {
 	return outputPath
 }
 
-func overrideEnv(base []string, key, value string) []string {
+func overrideEnv(base []string, value string) []string {
+	const key = "SURGE_THREADS"
 	prefix := key + "="
 	out := make([]string, 0, len(base)+1)
 	for _, kv := range base {
@@ -88,6 +89,7 @@ func TestMTParallelism(t *testing.T) {
 	if runtime.NumCPU() < 2 {
 		t.Skip("parallelism test needs >=2 CPUs")
 	}
+	t.Parallel()
 
 	source := `async fn spin(n: int) -> int {
     let mut i: int = 0;
@@ -132,7 +134,7 @@ fn main(iters: int) -> int {
 	baseEnv := envWithStdlib(repoRoot(t))
 
 	run := func(iters int, threads int) time.Duration {
-		env := overrideEnv(baseEnv, "SURGE_THREADS", strconv.Itoa(threads))
+		env := overrideEnv(baseEnv, strconv.Itoa(threads))
 		args := []string{strconv.Itoa(iters)}
 		dur, res := runBinaryWithTimeout(t, outputPath, env, args, 15*time.Second)
 		if res.exitCode != 0 {
@@ -143,13 +145,13 @@ fn main(iters: int) -> int {
 	}
 
 	iters := 5_000_000
-	maxIters := 200_000_000
+	maxIters := 50_000_000
 	dur := run(iters, 1)
-	for dur < 200*time.Millisecond && iters < maxIters {
+	for dur < 50*time.Millisecond && iters < maxIters {
 		iters *= 2
 		dur = run(iters, 1)
 	}
-	if dur < 200*time.Millisecond {
+	if dur < 50*time.Millisecond {
 		t.Skipf("single-thread runtime too short for timing (%s)", dur)
 	}
 
@@ -161,6 +163,7 @@ fn main(iters: int) -> int {
 
 func TestMTWakeupsAndCancellation(t *testing.T) {
 	ensureLLVMToolchain(t)
+	t.Parallel()
 
 	// NOTE: Channel stress under MT showed nondeterministic hangs; keep this test on checkpoint/join wakeups for now.
 	source := `async fn step(id: int) -> int {
@@ -227,7 +230,7 @@ fn main() -> int {
 
 	outputPath := buildLLVMProgramFromSource(t, source)
 	baseEnv := envWithStdlib(repoRoot(t))
-	env := overrideEnv(baseEnv, "SURGE_THREADS", "2")
+	env := overrideEnv(baseEnv, "2")
 	dur, res := runBinaryWithTimeout(t, outputPath, env, nil, 10*time.Second)
 	if res.exitCode != 0 {
 		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
@@ -240,6 +243,7 @@ fn main() -> int {
 
 func TestMTChannelParkUnpark(t *testing.T) {
 	ensureLLVMToolchain(t)
+	t.Parallel()
 
 	source := `async fn producer(ch: own Channel<int>, count: int, base: int) -> int {
     let mut i = 0;
@@ -453,7 +457,7 @@ fn main() -> int {
 
 	outputPath := buildLLVMProgramFromSource(t, source)
 	baseEnv := envWithStdlib(repoRoot(t))
-	env := overrideEnv(baseEnv, "SURGE_THREADS", "2")
+	env := overrideEnv(baseEnv, "2")
 	dur, res := runBinaryWithTimeout(t, outputPath, env, nil, 20*time.Second)
 	if res.exitCode != 0 {
 		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",

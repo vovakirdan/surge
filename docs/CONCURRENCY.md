@@ -317,7 +317,12 @@ Notes:
   blocking pool threads, FFI, and any other nondeterministic inputs.
 - **VM/testing mode:** may choose single-worker scheduling or seeded scheduling.
 
-### 10.4 Fairness and CPU-bound work
+### 10.4 Testing policy (parity vs MT)
+
+- VM/LLVM parity tests force `threads=1` to compare backend semantics, not scheduler interleavings.
+- MT correctness is validated by a separate MT test suite that runs with workers > 1.
+
+### 10.5 Fairness and CPU-bound work
 
 Fairness is guaranteed for **Ready** tasks in single-worker mode under
 cooperative scheduling:

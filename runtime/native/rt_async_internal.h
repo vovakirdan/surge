@@ -86,6 +86,7 @@ typedef struct rt_task {
     atomic_u8 cancelled;
     atomic_u8 enqueued;
     atomic_u8 wake_token;
+    atomic_u8 polling;
     uint8_t checkpoint_polled;
     uint8_t sleep_armed;
     uint8_t park_prepared;
@@ -151,6 +152,8 @@ typedef struct {
     uint64_t value_bits;
 } poll_outcome;
 
+void panic_msg(const char* msg);
+
 static inline uint8_t task_status_load(const rt_task* task) {
     return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);
 }
@@ -191,6 +194,22 @@ static inline uint8_t task_wake_token_exchange(rt_task* task, uint8_t value) {
     return atomic_exchange_explicit(&task->wake_token, value, memory_order_acq_rel);
 }
 
+static inline void task_polling_enter(rt_task* task) {
+    if (task == NULL) {
+        return;
+    }
+    if (atomic_exchange_explicit(&task->polling, 1, memory_order_acq_rel) != 0) {
+        panic_msg("async: double poll");
+    }
+}
+
+static inline void task_polling_exit(rt_task* task) {
+    if (task == NULL) {
+        return;
+    }
+    atomic_store_explicit(&task->polling, 0, memory_order_release);
+}
+
 extern void
 __surge_poll_call(uint64_t id); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 
@@ -201,8 +220,6 @@ extern _Thread_local poll_outcome poll_result;
 extern _Thread_local waker_key pending_key;
 extern _Thread_local uint64_t tls_current_id;
 extern _Thread_local rt_task* tls_current_task;
-
-void panic_msg(const char* msg);
 
 waker_key waker_none(void);
 int waker_valid(waker_key key);

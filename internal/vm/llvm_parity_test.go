@@ -28,6 +28,7 @@ func TestLLVMParity(t *testing.T) {
 	}
 
 	surge := buildSurgeBinary(t, root)
+	parityEnv := envForParity(root)
 
 	cases := []struct {
 		name  string
@@ -133,7 +134,7 @@ func TestLLVMParity(t *testing.T) {
 				message := "hello"
 				vmOut, vmErr, vmCode := runNetEchoSurge(t, root, surge, sgRel, message)
 
-				buildOut, buildErr, buildCode := runSurge(t, root, surge, "build", sgRel)
+				buildOut, buildErr, buildCode := runSurgeWithEnv(t, root, surge, parityEnv, "build", sgRel)
 				if buildCode != 0 {
 					t.Fatalf("build failed (code=%d)\nstdout:\n%s\nstderr:\n%s", buildCode, buildOut, buildErr)
 				}
@@ -155,7 +156,7 @@ func TestLLVMParity(t *testing.T) {
 			if tc.name == "http_server" {
 				vmOut, vmErr, vmCode := runHTTPServerSurge(t, root, surge, sgRel)
 
-				buildOut, buildErr, buildCode := runSurge(t, root, surge, "build", sgRel)
+				buildOut, buildErr, buildCode := runSurgeWithEnv(t, root, surge, parityEnv, "build", sgRel)
 				if buildCode != 0 {
 					t.Fatalf("build failed (code=%d)\nstdout:\n%s\nstderr:\n%s", buildCode, buildOut, buildErr)
 				}
@@ -177,7 +178,7 @@ func TestLLVMParity(t *testing.T) {
 			if tc.name == "http_connect" {
 				vmOut, vmErr, vmCode := runHTTPConnectSurge(t, root, surge, sgRel)
 
-				buildOut, buildErr, buildCode := runSurge(t, root, surge, "build", sgRel)
+				buildOut, buildErr, buildCode := runSurgeWithEnv(t, root, surge, parityEnv, "build", sgRel)
 				if buildCode != 0 {
 					t.Fatalf("build failed (code=%d)\nstdout:\n%s\nstderr:\n%s", buildCode, buildOut, buildErr)
 				}
@@ -206,9 +207,9 @@ func TestLLVMParity(t *testing.T) {
 				args = append(args, "--")
 				args = append(args, progArgs...)
 			}
-			vmOut, vmErr, vmCode := runSurge(t, root, surge, args...)
+			vmOut, vmErr, vmCode := runSurgeWithEnv(t, root, surge, parityEnv, args...)
 
-			buildOut, buildErr, buildCode := runSurge(t, root, surge, "build", sgRel)
+			buildOut, buildErr, buildCode := runSurgeWithEnv(t, root, surge, parityEnv, "build", sgRel)
 			if buildCode != 0 {
 				t.Fatalf("build failed (code=%d)\nstdout:\n%s\nstderr:\n%s", buildCode, buildOut, buildErr)
 			}
@@ -237,7 +238,7 @@ func runNetEchoSurge(t *testing.T, root, surge, sgRel, message string) (stdout, 
 	portStr := strconv.Itoa(port)
 	cmd := exec.Command(surge, "run", "--backend=vm", sgRel, "--", portStr, message)
 	cmd.Dir = root
-	cmd.Env = envWithStdlib(root)
+	cmd.Env = envForParity(root)
 	return runNetEchoCommand(t, cmd, port, message)
 }
 
@@ -246,6 +247,7 @@ func runNetEchoBinary(t *testing.T, path, message string) (stdout, stderr string
 	port := pickFreePort(t)
 	portStr := strconv.Itoa(port)
 	cmd := exec.Command(path, portStr, message)
+	cmd.Env = envForParity(repoRoot(t))
 	return runNetEchoCommand(t, cmd, port, message)
 }
 
@@ -321,7 +323,7 @@ func runHTTPServerSurge(t *testing.T, root, surge, sgRel string) (stdout, stderr
 	portStr := strconv.Itoa(port)
 	cmd := exec.Command(surge, "run", "--backend=vm", "--real-time", sgRel, "--", portStr)
 	cmd.Dir = root
-	cmd.Env = envWithStdlib(root)
+	cmd.Env = envForParity(root)
 	return runHTTPServerCommand(t, cmd, port)
 }
 
@@ -330,6 +332,7 @@ func runHTTPServerBinary(t *testing.T, path string) (stdout, stderr string, exit
 	port := pickFreePort(t)
 	portStr := strconv.Itoa(port)
 	cmd := exec.Command(path, portStr)
+	cmd.Env = envForParity(repoRoot(t))
 	return runHTTPServerCommand(t, cmd, port)
 }
 
@@ -337,7 +340,7 @@ func runHTTPConnectSurge(t *testing.T, root, surge, sgRel string) (stdout, stder
 	t.Helper()
 	port := pickFreePort(t)
 	portStr := strconv.Itoa(port)
-	return runSurge(t, root, surge, "run", "--backend=vm", sgRel, "--", portStr)
+	return runSurgeWithEnv(t, root, surge, envForParity(root), "run", "--backend=vm", sgRel, "--", portStr)
 }
 
 func runHTTPConnectBinary(t *testing.T, path string) (stdout, stderr string, exitCode int) {

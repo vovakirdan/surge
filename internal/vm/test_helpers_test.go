@@ -70,6 +70,21 @@ func envWithStdlib(root string) []string {
 	return out
 }
 
+func envForParity(root string) []string {
+	const key = "SURGE_THREADS"
+	prefix := key + "="
+	env := envWithStdlib(root)
+	out := make([]string, 0, len(env)+1)
+	for _, kv := range env {
+		if strings.HasPrefix(kv, prefix) {
+			continue
+		}
+		out = append(out, kv)
+	}
+	out = append(out, prefix+"1")
+	return out
+}
+
 func buildSurgeBinary(t *testing.T, root string) string {
 	t.Helper()
 
@@ -133,15 +148,25 @@ func ensureLLVMToolchain(t *testing.T) {
 	}
 }
 
-func runSurge(t *testing.T, root, surgeBin string, args ...string) (stdout, stderr string, exitCode int) {
-	return runSurgeWithInput(t, root, surgeBin, "", args...)
-}
-
 func runSurgeWithInput(t *testing.T, root, surgeBin, stdin string, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 	cmd := exec.Command(surgeBin, args...)
 	cmd.Dir = root
 	cmd.Env = envWithStdlib(root)
+	stdout, stderr, exitCode = runCommand(t, cmd, stdin)
+	stdout = stripTimingLines(stdout)
+	return stdout, stderr, exitCode
+}
+
+func runSurgeWithEnv(t *testing.T, root, surgeBin string, env []string, args ...string) (stdout, stderr string, exitCode int) {
+	return runSurgeWithInputEnv(t, root, surgeBin, "", env, args...)
+}
+
+func runSurgeWithInputEnv(t *testing.T, root, surgeBin, stdin string, env []string, args ...string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	cmd := exec.Command(surgeBin, args...)
+	cmd.Dir = root
+	cmd.Env = env
 	stdout, stderr, exitCode = runCommand(t, cmd, stdin)
 	stdout = stripTimingLines(stdout)
 	return stdout, stderr, exitCode
