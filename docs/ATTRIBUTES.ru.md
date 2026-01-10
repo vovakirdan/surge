@@ -54,7 +54,7 @@ fn multiple() { return nothing; }
 | `@intrinsic` | fn, type | нет | Enforced | Только объявление; ограничения тела типа. |
 | `@noinherit` | type, field | нет | Enforced | Предотвращает наследование. |
 | `@nosend` | type | нет | Enforced | Запрещает пересечение границ задач. |
-| `@nonblocking` | fn | нет | Enforced | Запрещает блокирующие вызовы. |
+| `@nonblocking` | fn | нет | Enforced | Запрещает операции, которые могут ждать (park/unpark), и OS-блокирующие вызовы. |
 | `@overload` | fn | нет | Enforced | Добавляет новую сигнатуру. |
 | `@override` | fn | нет | Enforced | Заменяет существующую сигнатуру. |
 | `@packed` | type, field | нет | Enforced (type) | На уровне полей не влияет на layout. |
@@ -169,11 +169,11 @@ fn takes_string(@allow_to s: string) { print(s); }
 
 ### `@nonblocking` и `@waits_on`
 
-- `@nonblocking` запрещает блокирующие вызовы.
-- `@waits_on("field")` помечает функцию как потенциально блокирующую.
+- `@nonblocking` запрещает операции, которые могут ждать (park/unpark) или OS-блокировать.
+- `@waits_on("field")` помечает функцию как потенциально ожидающую этого поля.
 - Они **конфликтуют**, если используются вместе.
 
-Блокирующие методы, проверяемые сегодня:
+Методы, которые могут ждать (паркуют задачи, не OS-блокируют):
 - `Mutex.lock`
 - `RwLock.read_lock` / `RwLock.write_lock`
 - `Condition.wait`

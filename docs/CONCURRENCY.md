@@ -1,8 +1,8 @@
 # Surge Concurrency Model v1
 [English](CONCURRENCY.md) | [Russian](CONCURRENCY.ru.md)
 
-> **Status:** VM uses a single-threaded cooperative scheduler. MT execution, blocking pool, and strict nonblocking are specified here as a forward contract.
-> **Scope:** async/await, Task/TaskResult, spawn, channels, cancellation, timeouts, MT executor modes, blocking { }, strict::nonblocking
+> **Status:** Native/LLVM backends run the MT executor; VM is single-threaded for correctness and diagnostics. `blocking { ... }` is supported only on native/LLVM. `strict::nonblocking` is not implemented yet (future work).
+> **Scope:** async/await, Task/TaskResult, spawn, channels, cancellation, timeouts, MT executor modes, blocking { }, strict::nonblocking (future)
 > **Out of scope:** data-parallel keywords (`parallel map/reduce`), `signal`
 
 ---
@@ -15,13 +15,15 @@ Task abstraction.
 
 - Tasks are **stackless state machines**, not OS threads.
 - A task runs until it hits a suspension point (`await`, channel ops, `sleep`, `checkpoint`).
+- Task-context waiting is implemented via **park/unpark**; the worker keeps running other tasks.
 - `spawn` schedules a task for concurrent execution.
 - Cancellation is **cooperative** and observed only at suspension points.
 - MT execution uses multiple worker threads; a task is never polled concurrently by multiple workers.
 - OS-blocking is not allowed on executor worker threads; use `blocking { ... }` for OS-blocking work.
 - If workers > 1 and hardware has multiple cores, true parallelism happens naturally (no separate "MC" feature).
+- Backend reality: native/LLVM use the MT executor; VM is single-worker and focuses on correctness/diagnostics.
 
-This keeps the ownership model sound across workers without cross-thread borrow checking.
+This keeps the ownership model sound across workers without cross-worker-thread borrow checking.
 
 ---
 
@@ -43,6 +45,9 @@ Surge distinguishes task-level waiting from OS-thread blocking:
 
 In core APIs, some methods are labeled "blocking" to mean "may wait"
 (e.g., `Channel.send`/`recv`); this is task parking, not OS-blocking.
+
+All task-context waits (channels, timers, joins, select) are implemented via
+park/unpark in the runtime.
 
 ---
 
@@ -218,8 +223,10 @@ Notes:
 - `sleep(ms).await()` suspends for `ms` (virtual time by default).
 - `timeout(t, ms)` waits up to `ms` and returns `Success` or `Cancelled`.
   It cancels the target on deadline.
-- Timers run in virtual time by default. Real-time mode can be enabled via
-  `surge run --real-time`.
+- VM timers run in virtual time by default. Real-time mode is available only in
+  the VM (`surge run --backend=vm --real-time`).
+- Native/LLVM timers use executor time (virtual) and do not currently expose a
+  real-time switch.
 - Cancellation is cooperative and does not preempt OS-blocking calls (see "Blocking Scope").
 
 Example:
@@ -298,8 +305,17 @@ Notes:
 ### 10.1 Executor Modes (runtime property)
 
 - The executor may run with a single worker or multiple workers.
+- Native/LLVM backends use the MT executor; VM is single-worker.
 - MT is a runtime configuration; the Task abstraction and language semantics do not change.
 - If workers > 1 and hardware has multiple cores, tasks can run in parallel.
+- Worker count is configured at runtime (e.g., `SURGE_THREADS`); the default is
+  based on CPU count.
+
+### 10.1.1 VM backend vs native/LLVM
+
+- The VM exists for correctness, diagnostics, and deterministic execution during development.
+- VM scheduling is single-worker and may use virtual time or fuzzed scheduling; native/LLVM are MT and use real time timers.
+- Some features are backend-specific: `blocking { ... }` is supported only on native/LLVM; the VM rejects it.
 
 ### 10.2 Core MT invariants
 
@@ -315,7 +331,8 @@ Notes:
   the same seed and the same external event order. This is best-effort.
   Limits include external I/O completion order, system time, OS scheduling of
   blocking pool threads, FFI, and any other nondeterministic inputs.
-- **VM/testing mode:** may choose single-worker scheduling or seeded scheduling.
+- **VM mode:** single-worker deterministic FIFO by default; optional fuzzed
+  scheduling with a fixed seed for reproducible interleavings (VM only).
 
 ### 10.4 Testing policy (parity vs MT)
 
@@ -359,6 +376,10 @@ Rules:
 - Cancellation is best-effort; OS-blocking calls may not be preemptable.
 - Overuse of `blocking { ... }` is a performance risk (thread saturation,
   scheduling overhead, and latency).
+- Backend support: native/LLVM only. The VM backend rejects `blocking { ... }`
+  because it is single-threaded and has no blocking pool.
+- Blocking pool size is configured at runtime (default = worker count; override
+  with `SURGE_BLOCKING_THREADS`).
 
 Example:
 
@@ -375,35 +396,20 @@ compare t.await() {
 
 ---
 
-## 12. Strict Nonblocking Mode (`pragma strict::nonblocking`)
+## 12. Future: Strict Nonblocking Mode (`pragma strict::nonblocking`)
 
-`pragma strict::nonblocking` is an opt-in, file-level strictness rule. In this
-mode, task-context code must not perform OS-blocking operations without
-`blocking { ... }`.
+`pragma strict::nonblocking` is **reserved** and has no effect today.
 
-Enforcement uses existing contracts:
+Current behavior:
 
-- `@nonblocking` marks a function as nonblocking; it cannot call blocking/may-wait operations.
-- `@waits_on("field")` marks a function as potentially waiting on a `Condition`
-  or `Semaphore`.
-- The compiler treats the following methods as blocking/may-wait:
-  `Mutex.lock`, `RwLock.read_lock`, `RwLock.write_lock`, `Condition.wait`,
-  `Semaphore.acquire`, `Channel.send`, `Channel.recv`, `Channel.close`.
+- `@nonblocking` is enforced on functions (see `docs/ATTRIBUTES.md`).
+- The compiler rejects calls to known may-wait operations from `@nonblocking`
+  functions (e.g., `Mutex.lock`, `Condition.wait`, `Semaphore.acquire`,
+  `Channel.send`/`recv`/`close`).
+- `@waits_on("field")` is enforced and conflicts with `@nonblocking`.
 
-Under `strict::nonblocking`, the compiler applies these checks to task-context
-code and its callees. The rule is intentionally conservative: any call that is
-known (or declared) to **may wait** is treated as potentially OS-blocking and is
-rejected in task context.
-
-Without this pragma, `@nonblocking` checks apply only to functions explicitly
-annotated with `@nonblocking`.
-
-Why this is conservative:
-
-- Whether a call OS-blocks can depend on runtime state, the OS, or external resources.
-- The compiler cannot prove non-blocking behavior in the general case.
-- Strict mode therefore relies on explicit contracts (`@nonblocking`, `@waits_on`)
-  and conservative checks of known waiting primitives.
+If/when `strict::nonblocking` is implemented, it will apply the same checks
+transitively to task-context code. This is future work only.
 
 ---
 
@@ -430,6 +436,7 @@ Non-guarantees (explicitly not promised):
 ## 14. Limitations (v1)
 
 - The VM backend is single-worker today; MT execution is a runtime option for other backends.
+- `blocking { ... }` is not supported in the VM backend.
 - `parallel map/reduce` and `signal` remain reserved keywords (not supported).
 - `await` inside loops is not supported (MIR lowering rejects it).
 
@@ -442,8 +449,8 @@ See `docs/PARALLEL.md` for the status of parallel features.
 - The term "blocking" is already used in core APIs to mean "may wait" (task
   parking), which can be confused with OS-blocking despite the distinction.
 - `@nonblocking` currently treats channel ops (`send`/`recv`/`close`) as blocking,
-  so `strict::nonblocking` is likely to reject common async patterns unless this
-  distinction is clarified.
+  which can reject common async patterns in `@nonblocking` code; clearer guidance
+  may be needed if `strict::nonblocking` is implemented later.
 - The lack of `await` in loops makes it awkward to express periodic
   `checkpoint().await()` in long-running CPU loops.
 - Seeded scheduling depends on external event order; reproducibility boundaries

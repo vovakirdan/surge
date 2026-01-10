@@ -19,7 +19,7 @@
 
 ### Implementation Snapshot
 
-- Keywords match `internal/token/keywords.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, contract, tag, enum, extern, pub, async, compare, select, race, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, field, nothing`. `signal`/`parallel` are reserved (`FutSignalNotSupported` / `FutParallelNotSupported`) and `macro` is rejected by the parser (`FutMacroNotSupported`).
+- Keywords match `internal/token/keywords.go`: `fn, let, const, mut, own, if, else, while, for, in, break, continue, return, import, as, type, contract, tag, enum, extern, pub, async, blocking, compare, select, race, finally, channel, spawn, true, false, signal, parallel, map, reduce, with, macro, pragma, to, heir, is, field, nothing`. `signal`/`parallel` are reserved (`FutSignalNotSupported` / `FutParallelNotSupported`) and `macro` is rejected by the parser (`FutMacroNotSupported`).
 - The type checker resolves `int`, `uint`, `float`, fixed-width numerics (`int8`, `uint64`, `float32`, ...), `bool`, `string`, `nothing`, `unit`, ownership/ref forms (`own T`, `&T`, `&mut T`), slices `T[]`, and sized arrays `T[N]` with constant `N`. Raw pointers (`*T`) are allowed only in `extern` and `@intrinsic` declarations.
 - Tuple and function types are supported in sema and runtime lowering.
 - Tags and tagged unions are implemented. `Option` and `Erring` are standard aliases built on `Some`/`Success` tags plus `nothing`/error types; `ErrorLike` and `Error` live in the prelude; `compare` exhaustiveness is enforced for tagged unions.
@@ -53,7 +53,7 @@ Identifiers are case-sensitive. `snake_case` is conventional for values and func
 ```
 pub, fn, let, const, mut, own, if, else, while, for, in, break, continue,
 import, as, type, contract, tag, enum, extern, return, signal, compare, select, race, spawn, channel,
-parallel, map, reduce, with, to, heir, is, async, macro, pragma, field,
+parallel, map, reduce, with, to, heir, is, async, blocking, macro, pragma, field,
 true, false, nothing
 ```
 
@@ -155,14 +155,14 @@ Borrowing rules:
 * `fn f(x: &mut T)`: exclusive mutable borrow.
 * `fn f(x: *T)`: raw pointer parameter (backend-only; allowed only in `extern`/`@intrinsic` declarations).
 
-### Ownership and threads
+### Ownership and worker threads
 
 To avoid data races the following conservative rule applies:
 
 * Only `own T` values may be moved (transferred) into tasks.
-* Borrowed references `&T` and `&mut T` are not allowed to cross thread boundaries (attempting to do so is a compile-time error).
+* Borrowed references `&T` and `&mut T` are not allowed to cross worker-thread boundaries (attempting to do so is a compile-time error).
 
-This rule simplifies early implementation and preserves soundness of the ownership model without a full cross-thread borrow-checker.
+This rule simplifies early implementation and preserves soundness of the ownership model without a full cross-worker-thread borrow-checker.
 
 ### 2.4. Generics
 
@@ -1601,8 +1601,8 @@ Implicit `Some(...)`/`Success(...)` injection happens only in specific contexts 
 
 * `make_channel<T>(capacity: uint) -> own Channel<T>` (helper)
 * `Channel<T>::new(capacity: uint) -> own Channel<T>`
-* `send(self: &Channel<T>, value: own T)` — blocking send
-* `recv(self: &Channel<T>) -> Option<T>` — blocking receive
+* `send(self: &Channel<T>, value: own T)` — may wait (parks the task) until the channel has capacity
+* `recv(self: &Channel<T>) -> Option<T>` — may wait (parks the task) until a value is available
 * `try_send(self: &Channel<T>, value: own T) -> bool` — non-blocking send
 * `try_recv(self: &Channel<T>) -> Option<T>` — non-blocking receive
 * `close(self: &Channel<T>)`
@@ -1617,14 +1617,14 @@ The following types are provided by the standard library for synchronization and
 
 * `Mutex` — mutual exclusion lock
 * `RwLock` — reader-writer lock allowing multiple readers or single writer
-* `Condition` — condition variable for thread coordination
+* `Condition` — condition variable for task coordination
 * `Semaphore` — counting semaphore for resource control
 
 These types are used in conjunction with concurrency contract attributes (§4.2.E) to express locking requirements and data protection invariants.
 
-### 9.2. Parallel Map / Reduce — **Future Feature (v2+)**
+### 9.2. Parallel Map / Reduce — **Reserved**
 
-> **Status:** Not supported in v1. Requires multi-threading (v2+).
+> **Status:** Reserved; not implemented yet. The `parallel` keyword is still rejected even though native/LLVM uses an MT executor.
 
 **Reserved syntax:**
 ```sg
@@ -1632,10 +1632,10 @@ parallel map xs with (args) => func
 parallel reduce xs with init, (args) => func
 ```
 
-The execution model for `parallel` is **not specified yet**; v1 only reserves
-the syntax.
+The execution model for `parallel` is **not specified yet**; the syntax is
+reserved.
 
-**v1 alternative:** Use `spawn` with channels for concurrent (not parallel) processing:
+**Alternative:** Use `spawn` with channels for concurrent processing. On native/LLVM this can run in parallel; the VM backend is single-threaded:
 ```sg
 async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
     let mut tasks: Task<U>[] = [];
@@ -1655,11 +1655,11 @@ async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
 }
 ```
 
-**Note:** v1 uses single-threaded cooperative concurrency. See §9.4-9.5 for async/await model.
+**Note:** The VM backend is single-threaded and deterministic; native/LLVM use a cooperative MT executor. See §9.4-9.5 for the async/await model.
 
 Restriction: `=>` is valid only in these `parallel` constructs and within `compare`/`select`/`race` arms (§3.6). Any other use triggers `SynFatArrowOutsideParallel`.
 
-**v1 behavior:** Parsed, but semantic analysis rejects with `FutParallelNotSupported` (`"parallel" requires multi-threading`).
+**Current behavior:** Parsed, but semantic analysis rejects with `FutParallelNotSupported` (current message: `"parallel" requires multi-threading"`).
 
 See §22.3 for the current v2+ status note.
 
@@ -1673,9 +1673,10 @@ Block-level `@backend` is reserved and not parsed in v1.
 
 ### 9.4. Tasks and Task Semantics
 
-**Execution model:** v1 uses single-threaded cooperative scheduling. All tasks
-run on one OS thread, yielding control at `.await()` points. No preemption; use
-`checkpoint().await()` for long CPU work.
+**Execution model:** Scheduling is cooperative at suspension points. Native/LLVM
+run a multi-worker executor; the VM backend is single-threaded and deterministic.
+Tasks are never preempted; use `checkpoint().await()` for long CPU work. OS-blocking
+work must go through `blocking { ... }` (native/LLVM only).
 
 #### Spawn Expression
 
@@ -1684,7 +1685,7 @@ spawn expr
 @local spawn expr
 ```
 
-- `expr` must be `Task<T>` (an `async fn` call or `async { ... }` block result).
+- `expr` must be `Task<T>` (an `async fn` call, an `async { ... }` block, or a `blocking { ... }` block).
 - `spawn` schedules the async task immediately.
 - Returns `Task<T>` — a handle to the task.
 - Captured values are moved into the task; `@nosend` types are rejected unless using `@local spawn`.
@@ -1737,8 +1738,8 @@ timeout<T>(t: Task<T>, ms: uint) -> TaskResult<T>
 - `checkpoint()` yields and checks cancellation.
 - `sleep` suspends for the specified duration.
 - `timeout` returns `Success(value)` on time, `Cancelled()` on deadline.
-- Timers are driven by the async runtime: virtual time by default, real time via
-  `surge run --real-time`.
+- Timers are driven by the async runtime. The VM uses virtual time by default
+  (real time via `surge run --real-time`); native/LLVM use real time.
 
 #### Select and Race
 
@@ -1836,6 +1837,22 @@ async fn process_all(urls: string[]) -> Data[] {
 }
 ```
 
+#### Blocking Blocks
+
+```sg
+blocking {
+    // synchronous, possibly OS-blocking work
+    expr
+}
+```
+
+- Creates `Task<T>` where `T` is the block's result type.
+- The block runs on the blocking pool in native/LLVM.
+- The VM backend rejects `blocking { ... }` with a diagnostic.
+- Captures are by move/copy only; borrowing captures are currently rejected.
+- Cancellation is best-effort: the awaiting task can stop waiting, but the blocking
+  work may still finish in the background.
+
 #### Structured Concurrency Rules
 
 - Tasks created in a normal scope must be awaited or returned before leaving
@@ -1851,7 +1868,9 @@ completes as `Cancelled()`. The scope then completes as `Cancelled()`.
 #### Current Limitations
 
 - `await` inside loops is rejected during async lowering.
-- v1 is single-threaded; tasks yield only at `.await()`.
+- The VM backend is single-threaded; native/LLVM are MT but still cooperative
+  (no preemption).
+- `blocking { ... }` is not supported in the VM backend.
 
 **See also:** `docs/CONCURRENCY.md` for more examples.
 
@@ -2312,7 +2331,7 @@ extern<BankAccount> {
 ```
 
 ```sg
-// @waits_on example for blocking receive
+// @waits_on example for a may-wait receive (parks the task)
 type MessageQueue<T> = {
   items: T[],
   not_empty: Condition,
@@ -2672,7 +2691,7 @@ ImportSpec := "*" | Ident ("as" Ident)? | "{" ImportName ("," ImportName)* ","? 
 ImportName := Ident ("as" Ident)?
 Path       := ("." | ".." | Ident) ("/" ("." | ".." | Ident))*
 Block      := "{" Stmt* "}"
-Stmt       := Const | Let | While | For | If | Spawn ";" | Async | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
+Stmt       := Const | Let | While | For | If | Spawn ";" | Async | Blocking | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
 Const      := "const" Ident (":" Type)? "=" Expr ";"
 Let        := "let" ("mut")? Ident (":" Type)? ("=" Expr)? ";"
 While      := "while" "(" Expr ")" Block
@@ -2681,7 +2700,8 @@ If         := "if" "(" Expr ")" Block ("else" If | "else" Block)?
 Return     := "return" Expr?
 Signal     := "signal" Ident ":=" Expr
 Async      := "async" "{" Stmt* "}"
-Expr       := Compare | Select | Race | Spawn | Parallel | TypeHeirPred | TupleLit | ... (standard precedence)
+Blocking   := "blocking" "{" Stmt* "}"
+Expr       := Compare | Select | Race | Spawn | Async | Blocking | Parallel | TypeHeirPred | TupleLit | ... (standard precedence)
 Parallel   := "parallel" "map" Expr "with" ArgList "=>" Expr
           | "parallel" "reduce" Expr "with" Expr "," ArgList "=>" Expr
 ArgList    := "(" (Expr ("," Expr)*)? ")" | "()"
@@ -2778,5 +2798,6 @@ TBD; the notes below describe current compiler behavior only.
 
 ### 22.4. Compatibility Notes
 
-- v1 remains single-threaded; `parallel` is not a stable API.
+- `parallel` remains reserved and is not a stable API (even though native/LLVM is MT).
+- The VM backend is single-threaded; native/LLVM use an MT executor.
 - Lock contract attributes are partially enforced (see `docs/ATTRIBUTES.md`).

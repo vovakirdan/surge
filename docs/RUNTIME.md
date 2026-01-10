@@ -1,8 +1,8 @@
 # Surge Runtime (VM)
 [English](RUNTIME.md) | [Russian](RUNTIME.ru.md)
 
-This document describes the current runtime for Surge v1. The runtime is a
-single-threaded VM that interprets MIR and hosts async execution.
+This document describes the VM runtime. Native/LLVM use a separate MT runtime;
+see `docs/CONCURRENCY.md` for the concurrency model.
 
 See also: `docs/IR.md`, `docs/CONCURRENCY.md`, `docs/ABI_LAYOUT.md`.
 
