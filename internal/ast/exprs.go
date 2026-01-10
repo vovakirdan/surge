@@ -32,6 +32,7 @@ type Exprs struct {
 	Races        *Arena[ExprSelectData]
 	Structs      *Arena[ExprStructData]
 	Asyncs       *Arena[ExprAsyncData]
+	Blockings    *Arena[ExprBlockingData]
 	Blocks       *Arena[ExprBlockData]
 }
 
@@ -68,6 +69,7 @@ func NewExprs(capHint uint) *Exprs {
 		Races:        NewArena[ExprSelectData](capHint),
 		Structs:      NewArena[ExprStructData](capHint),
 		Asyncs:       NewArena[ExprAsyncData](capHint),
+		Blockings:    NewArena[ExprBlockingData](capHint),
 		Blocks:       NewArena[ExprBlockData](capHint),
 	}
 }
@@ -438,6 +440,23 @@ func (e *Exprs) Async(id ExprID) (*ExprAsyncData, bool) {
 		return nil, false
 	}
 	return e.Asyncs.Get(uint32(expr.Payload)), true
+}
+
+// NewBlocking creates a new blocking expression.
+func (e *Exprs) NewBlocking(span source.Span, body StmtID) ExprID {
+	payload := e.Blockings.Allocate(ExprBlockingData{
+		Body: body,
+	})
+	return e.new(ExprBlocking, span, PayloadID(payload))
+}
+
+// Blocking returns the blocking data for the given expression ID.
+func (e *Exprs) Blocking(id ExprID) (*ExprBlockingData, bool) {
+	expr := e.Get(id)
+	if expr == nil || expr.Kind != ExprBlocking {
+		return nil, false
+	}
+	return e.Blockings.Get(uint32(expr.Payload)), true
 }
 
 // NewParallelMap creates a new parallel map expression.

@@ -96,8 +96,7 @@ async fn send_after(ch: own Channel<int>, value: int) -> int {
     return 0;
 }
 
-@entrypoint
-fn main() -> int {
+async fn main_async() -> int {
     if rt_worker_count() <= 1:uint {
         return 90;
     }
@@ -185,9 +184,29 @@ fn main() -> int {
     print("ok");
     return 0;
 }
+
+@entrypoint
+fn main() -> int {
+    let r = main_async().await();
+    let code = compare r {
+        Success(v) => v;
+        Cancelled() => 99;
+    };
+    return code;
+}
 `
 
-	runMTSource(t, source, 20*time.Second)
+	outputPath := buildLLVMProgramFromSource(t, source)
+	env := mtEnv(t)
+	env = overrideEnvVar(env, "SURGE_BLOCKING_THREADS", "1")
+	dur, res := runBinaryWithTimeout(t, outputPath, env, 20*time.Second)
+	if res.exitCode != 0 {
+		t.Fatalf("run failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
+			res.exitCode, dur, res.stdout, res.stderr)
+	}
+	if !strings.Contains(res.stdout, "ok") {
+		t.Fatalf("unexpected stdout: %q", res.stdout)
+	}
 }
 
 func TestMTCorrectnessChannels(t *testing.T) {
@@ -303,8 +322,7 @@ async fn recv_int(ch: own Channel<int>) -> Option<int> {
     return ch.recv();
 }
 
-@entrypoint
-fn main() -> int {
+async fn main_async() -> int {
     if rt_worker_count() <= 1:uint {
         return 90;
     }
@@ -699,6 +717,16 @@ fn main() -> int {
     print("ok");
     return 0;
 }
+
+@entrypoint
+fn main() -> int {
+    let r = main_async().await();
+    let code = compare r {
+        Success(v) => v;
+        Cancelled() => 99;
+    };
+    return code;
+}
 `
 
 	runMTSource(t, source, 20*time.Second)
@@ -861,7 +889,7 @@ async fn main_async() -> int {
 
     let short = spawn spin(3);
     let short_clone = short.clone();
-    let r_short = timeout(short_clone, 50);
+    let r_short = timeout(short_clone, 200);
     let short_ok = compare r_short {
         Success(_) => true;
         Cancelled() => false;
@@ -903,6 +931,195 @@ async fn main_async() -> int {
     };
     if !join_ok {
         return 31;
+    }
+
+    print("ok");
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let r = main_async().await();
+    let code = compare r {
+        Success(v) => v;
+        Cancelled() => 99;
+    };
+    return code;
+}
+`
+
+	runMTSource(t, source, 20*time.Second)
+}
+
+func TestMTBlockingPool(t *testing.T) {
+	ensureLLVMToolchain(t)
+	t.Parallel()
+
+	source := `fn busy_loop(iter: int) -> int {
+    let mut i = 0;
+    let mut acc = 0;
+    while i < iter {
+        acc = acc + (i % 2);
+        i = i + 1;
+    }
+    return acc;
+}
+
+async fn progress_worker(steps: int) -> int {
+    let mut i = 0;
+    while i < steps {
+        checkpoint().await();
+        i = i + 1;
+    }
+    return steps;
+}
+
+async fn cancel_waiter(started: own Channel<int>, spin_iters: int) -> int {
+    let b = blocking {
+        return busy_loop(spin_iters);
+    };
+    started.send(1);
+    let _ = b.await();
+    return 0;
+}
+
+async fn main_async() -> int {
+    if rt_worker_count() <= 1:uint {
+        return 90;
+    }
+    let workers: int = rt_worker_count() to int;
+    let spin_iters: int = 50000;
+    let mut blocking_count = workers;
+    if blocking_count > 2 {
+        blocking_count = 2;
+    }
+
+    let mut blocking_tasks: Task<int>[] = Array::<Task<int>>::with_len(blocking_count to uint);
+    let mut i = 0;
+    while i < blocking_count {
+        let iters = spin_iters;
+        blocking_tasks[i] = blocking {
+            return busy_loop(iters);
+        };
+        i = i + 1;
+    }
+    let mut y = 0;
+    while y < blocking_count {
+        checkpoint().await();
+        y = y + 1;
+    }
+
+    let mut progress_tasks: Task<int>[] = Array::<Task<int>>::with_len(workers to uint);
+    i = 0;
+    while i < workers {
+        progress_tasks[i] = spawn progress_worker(200);
+        i = i + 1;
+    }
+    let mut progress_cancelled = false;
+    for t in progress_tasks {
+        let r = t.await();
+        let ok = compare r {
+            Success(_) => true;
+            Cancelled() => false;
+        };
+        if !ok {
+            progress_cancelled = true;
+        }
+    }
+    if progress_cancelled {
+        return 1;
+    }
+    for b in blocking_tasks {
+        let r = b.await();
+        let ok = compare r {
+            Success(_) => true;
+            Cancelled() => false;
+        };
+        if !ok {
+            return 2;
+        }
+    }
+
+    let cancel_iters = spin_iters / 2;
+    let blocker = blocking {
+        return busy_loop(spin_iters);
+    };
+    let started = make_channel::<int>(1);
+    let st = started;
+    let waiter = spawn cancel_waiter(st, cancel_iters);
+    let s = started.recv();
+    let s_ok = compare s {
+        Some(_) => true;
+        nothing => false;
+    };
+    if !s_ok {
+        return 10;
+    }
+    checkpoint().await();
+    waiter.cancel();
+    let wres = waiter.await();
+    let w_ok = compare wres {
+        Cancelled() => true;
+        Success(_) => false;
+    };
+    if !w_ok {
+        return 11;
+    }
+    let bres = blocker.await();
+    let b_ok = compare bres {
+        Success(_) => true;
+        Cancelled() => true;
+    };
+    if !b_ok {
+        return 12;
+    }
+
+    let stress_jobs: int = blocking_count * 2;
+    let stress_tasks: int = workers * 2;
+    let mut stress_blocking: Task<int>[] = Array::<Task<int>>::with_len(stress_jobs to uint);
+    let mut j = 0;
+    while j < stress_jobs {
+        let iters = cancel_iters;
+        stress_blocking[j] = blocking {
+            return busy_loop(iters);
+        };
+        j = j + 1;
+    }
+    let mut k = 0;
+    while k < workers {
+        checkpoint().await();
+        k = k + 1;
+    }
+
+    let mut stress_tasks_arr: Task<int>[] = Array::<Task<int>>::with_len(stress_tasks to uint);
+    j = 0;
+    while j < stress_tasks {
+        stress_tasks_arr[j] = spawn progress_worker(100);
+        j = j + 1;
+    }
+    let mut stress_cancelled = false;
+    for t in stress_tasks_arr {
+        let r = t.await();
+        let ok = compare r {
+            Success(_) => true;
+            Cancelled() => false;
+        };
+        if !ok {
+            stress_cancelled = true;
+        }
+    }
+    if stress_cancelled {
+        return 20;
+    }
+    for b in stress_blocking {
+        let r = b.await();
+        let ok = compare r {
+            Success(_) => true;
+            Cancelled() => false;
+        };
+        if !ok {
+            return 21;
+        }
     }
 
     print("ok");

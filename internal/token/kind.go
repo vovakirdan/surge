@@ -53,6 +53,8 @@ const (
 	KwPub // pub
 	// KwAsync represents the 'async' keyword.
 	KwAsync // async
+	// KwBlocking represents the 'blocking' keyword.
+	KwBlocking // blocking
 	// KwCompare represents the 'compare' keyword.
 	KwCompare // compare
 	// KwSelect represents the 'select' keyword.

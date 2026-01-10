@@ -20,6 +20,8 @@ func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
 		return fe.emitInstrAwait(ins)
 	case mir.InstrSpawn:
 		return fe.emitInstrSpawn(ins)
+	case mir.InstrBlocking:
+		return fe.emitInstrBlocking(ins)
 	case mir.InstrPoll:
 		return fe.emitInstrPoll(ins)
 	case mir.InstrJoinAll:

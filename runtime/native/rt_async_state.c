@@ -149,6 +149,30 @@ static void trace_exec_dump(const char* reason) {
                               pos,
                               sizeof(buf),
                               atomic_load_explicit(&trace_worker_wake_total, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " blocking_submitted=");
+    pos = trace_exec_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&exec_state.blocking_submitted, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " blocking_running=");
+    pos = trace_exec_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&exec_state.blocking_running, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " blocking_completed=");
+    pos = trace_exec_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&exec_state.blocking_completed, memory_order_relaxed));
+    pos = trace_exec_append_literal(buf, pos, sizeof(buf), " blocking_cancel_requested=");
+    pos = trace_exec_append_u64(
+        buf,
+        pos,
+        sizeof(buf),
+        atomic_load_explicit(&exec_state.blocking_cancel_requested, memory_order_relaxed));
     if (pos + 1 < sizeof(buf)) {
         buf[pos++] = '\n';
     }
@@ -218,6 +242,11 @@ waker_key timer_key(uint64_t id) {
 
 waker_key scope_key(uint64_t id) {
     waker_key key = {WAKER_SCOPE, id};
+    return key;
+}
+
+waker_key blocking_key(uint64_t id) {
+    waker_key key = {WAKER_BLOCKING, id};
     return key;
 }
 
@@ -292,6 +321,22 @@ static uint32_t rt_env_worker_count(void) {
     return (uint32_t)parsed;
 }
 
+static uint32_t rt_env_blocking_count(void) {
+    const char* value = getenv("SURGE_BLOCKING_THREADS");
+    if (value == NULL || value[0] == '\0') {
+        return 0;
+    }
+    char* end = NULL;
+    long parsed = strtol(value, &end, 10);
+    if (end == value || parsed <= 0) {
+        return 0;
+    }
+    if ((unsigned long)parsed > UINT32_MAX) { // NOLINT(runtime/int)
+        return UINT32_MAX;
+    }
+    return (uint32_t)parsed;
+}
+
 // Seeded scheduler mode provides deterministic scheduler choices given the same seed and the same
 // arrival order of external events; it does not control I/O timing or OS thread interleavings.
 static uint8_t rt_env_sched_mode(void) {
@@ -341,6 +386,13 @@ static uint32_t rt_default_worker_count(void) {
     return cpus;
 }
 
+static uint32_t rt_default_blocking_count(uint32_t workers) {
+    if (workers < 1) {
+        workers = 1;
+    }
+    return workers;
+}
+
 static void rt_start_workers(rt_executor* ex);
 static void* rt_worker_main(void* arg);
 static void* rt_io_main(void* arg);
@@ -367,6 +419,11 @@ static void exec_init_once(void) {
     ex->worker_count = threads;
     ex->sched_mode = rt_env_sched_mode();
     ex->sched_seed = rt_env_sched_seed();
+    uint32_t blocking_threads = rt_env_blocking_count();
+    if (blocking_threads == 0) {
+        blocking_threads = rt_default_blocking_count(ex->worker_count);
+    }
+    ex->blocking_count = blocking_threads;
     if (ex->worker_count > 0) {
         ex->local_queues = (rt_deque*)rt_alloc((uint64_t)(ex->worker_count * sizeof(rt_deque)),
                                                _Alignof(rt_deque));
@@ -379,6 +436,7 @@ static void exec_init_once(void) {
     if (ex->worker_count > 1) {
         rt_start_workers(ex);
     }
+    rt_blocking_init(ex);
     ex->initialized = 1;
 }
 
@@ -1465,6 +1523,9 @@ void cancel_task(rt_executor* ex, uint64_t id) {
         return;
     }
     task_cancelled_store(task, 1);
+    if (task->kind == TASK_KIND_BLOCKING) {
+        rt_blocking_request_cancel(ex, task);
+    }
     if (task_status_load(task) == TASK_WAITING) {
         wake_task(ex, task->id, 1);
     }

@@ -31,6 +31,11 @@ func (e *Emitter) collectStringConsts() {
 					e.collectOperand(&ins.ChanSend.Value)
 				case mir.InstrChanRecv:
 					e.collectOperand(&ins.ChanRecv.Channel)
+				case mir.InstrBlocking:
+					e.fnRefs[ins.Blocking.FuncID] = struct{}{}
+					for k := range ins.Blocking.State.Fields {
+						e.collectOperand(&ins.Blocking.State.Fields[k].Value)
+					}
 				case mir.InstrTimeout:
 					e.collectOperand(&ins.Timeout.Task)
 					e.collectOperand(&ins.Timeout.Ms)

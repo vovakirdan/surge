@@ -60,6 +60,7 @@ func Build(ctx context.Context, req *BuildRequest) (BuildResult, error) {
 		req.Profile = "debug"
 	}
 
+	req.CompileRequest.Backend = req.Backend
 	compileRes, err := Compile(ctx, &req.CompileRequest)
 	result.Timings = compileRes.Timings
 	result.Diagnose = compileRes.Diagnose

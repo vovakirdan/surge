@@ -251,6 +251,12 @@ func collectTypesFromExpr(e *hir.Expr, visit func(id types.TypeID)) {
 			return
 		}
 		collectTypesFromBlock(data.Body, visit)
+	case hir.ExprBlocking:
+		data, ok := e.Data.(hir.BlockingData)
+		if !ok {
+			return
+		}
+		collectTypesFromBlock(data.Body, visit)
 	case hir.ExprCast:
 		data, ok := e.Data.(hir.CastData)
 		if !ok {

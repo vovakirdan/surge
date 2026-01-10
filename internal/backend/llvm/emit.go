@@ -120,6 +120,7 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("panic bounds index out of range")
 	e.ensureStringConst("panic bounds length out of range")
 	e.ensureStringConst("missing poll function")
+	e.ensureStringConst("missing blocking function")
 	if err := e.prepareGlobals(); err != nil {
 		return "", err
 	}
@@ -139,6 +140,9 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 		return "", err
 	}
 	if err := e.emitPollDispatch(); err != nil {
+		return "", err
+	}
+	if err := e.emitBlockingDispatch(); err != nil {
 		return "", err
 	}
 	return e.buf.String(), nil

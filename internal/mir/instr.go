@@ -22,6 +22,8 @@ const (
 	InstrAwait
 	// InstrSpawn represents a spawn instruction.
 	InstrSpawn
+	// InstrBlocking represents a blocking task creation instruction.
+	InstrBlocking
 	// InstrPoll represents a poll instruction.
 	InstrPoll
 	// InstrJoinAll represents a join all instruction.
@@ -48,6 +50,7 @@ type Instr struct {
 	EndBorrow EndBorrowInstr
 	Await     AwaitInstr
 	Spawn     SpawnInstr
+	Blocking  BlockingInstr
 	Poll      PollInstr
 	JoinAll   JoinAllInstr
 	ChanSend  ChanSendInstr
@@ -108,6 +111,13 @@ type AwaitInstr struct {
 type SpawnInstr struct {
 	Dst   Place
 	Value Operand
+}
+
+// BlockingInstr represents a blocking task creation instruction.
+type BlockingInstr struct {
+	Dst    Place
+	FuncID FuncID
+	State  StructLit
 }
 
 // PollInstr represents a poll instruction.
