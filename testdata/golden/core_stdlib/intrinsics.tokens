@@ -209,7 +209,7 @@
 209: Ident           "uint8" at 23:21-23:26 (leading: Space)
 210: Semicolon       ";" at 23:26-23:27
 211: KwPub           "pub" at 24:1-24:4 (leading: Newline)
-212: Kind(44)        "enum" at 24:5-24:9 (leading: Space)
+212: Kind(45)        "enum" at 24:5-24:9 (leading: Space)
 213: Ident           "FileTypes" at 24:10-24:19 (leading: Space)
 214: Colon           ":" at 24:19-24:20
 215: Ident           "FileType" at 24:21-24:29 (leading: Space)
@@ -281,7 +281,7 @@
 281: Ident           "uint32" at 44:24-44:30 (leading: Space)
 282: Semicolon       ";" at 44:30-44:31
 283: KwPub           "pub" at 45:1-45:4 (leading: Newline)
-284: Kind(44)        "enum" at 45:5-45:9 (leading: Space)
+284: Kind(45)        "enum" at 45:5-45:9 (leading: Space)
 285: Ident           "FS_O" at 45:10-45:14 (leading: Space)
 286: Colon           ":" at 45:14-45:15
 287: Ident           "FsOpenFlags" at 45:16-45:27 (leading: Space)
@@ -314,7 +314,7 @@
 314: Ident           "int" at 47:23-47:26 (leading: Space)
 315: Semicolon       ";" at 47:26-47:27
 316: KwPub           "pub" at 48:1-48:4 (leading: Newline)
-317: Kind(44)        "enum" at 48:5-48:9 (leading: Space)
+317: Kind(45)        "enum" at 48:5-48:9 (leading: Space)
 318: Ident           "SeekWhences" at 48:10-48:21 (leading: Space)
 319: Colon           ":" at 48:21-48:22
 320: Ident           "SeekWhence" at 48:23-48:33 (leading: Space)

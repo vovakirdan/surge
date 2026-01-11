@@ -1,1 +1,2 @@
+error SEM3046 testdata/golden/sema/invalid/concurrency/nonblocking_calls_waits_on.sg:7:9 no matching overload for Condition.wait
 error SEM3084 testdata/golden/sema/invalid/concurrency/nonblocking_calls_waits_on.sg:13:5 @nonblocking function cannot call function with @waits_on

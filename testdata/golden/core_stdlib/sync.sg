@@ -55,7 +55,7 @@ extern<Condition> {
         return { queue = queue };
     }
 
-    pub fn wait(self: &Condition, mutex: &mut Mutex) -> Task<nothing> {
+    pub fn wait(self: &Condition, mutex: &Mutex) -> Task<nothing> {
         return condition_wait_task(*self, *mutex);
     }
 
@@ -100,12 +100,12 @@ extern<Semaphore> {
         return { permits = permits };
     }
 
-    pub fn acquire(self: &mut Semaphore) -> Task<nothing> {
+    pub fn acquire(self: &Semaphore) -> Task<nothing> {
         return semaphore_acquire_task(*self);
     }
 
     @nonblocking
-    pub fn try_acquire(self: &mut Semaphore) -> bool {
+    pub fn try_acquire(self: &Semaphore) -> bool {
         let res = self.permits.try_recv();
         return compare res {
             Some(_) => true;
@@ -114,7 +114,7 @@ extern<Semaphore> {
     }
 
     @nonblocking
-    pub fn release(self: &mut Semaphore) -> nothing {
+    pub fn release(self: &Semaphore) -> nothing {
         self.permits.try_send(nothing);
         return nothing;
     }

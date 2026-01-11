@@ -290,712 +290,708 @@
 290: Ident           "mutex" at 58:35-58:40 (leading: Space)
 291: Colon           ":" at 58:40-58:41
 292: Amp             "&" at 58:42-58:43 (leading: Space)
-293: KwMut           "mut" at 58:43-58:46
-294: Ident           "Mutex" at 58:47-58:52 (leading: Space)
-295: RParen          ")" at 58:52-58:53
-296: Arrow           "->" at 58:54-58:56 (leading: Space)
-297: Ident           "Task" at 58:57-58:61 (leading: Space)
-298: Lt              "<" at 58:61-58:62
-299: NothingLit      "nothing" at 58:62-58:69
-300: Gt              ">" at 58:69-58:70
-301: LBrace          "{" at 58:71-58:72 (leading: Space)
-302: KwReturn        "return" at 59:9-59:15 (leading: Newline, Space)
-303: Ident           "condition_wait_task" at 59:16-59:35 (leading: Space)
-304: LParen          "(" at 59:35-59:36
-305: Star            "*" at 59:36-59:37
-306: Ident           "self" at 59:37-59:41
-307: Comma           "," at 59:41-59:42
-308: Star            "*" at 59:43-59:44 (leading: Space)
-309: Ident           "mutex" at 59:44-59:49
-310: RParen          ")" at 59:49-59:50
-311: Semicolon       ";" at 59:50-59:51
-312: RBrace          "}" at 60:5-60:6 (leading: Newline, Space)
-313: At              "@" at 62:5-62:6 (leading: Newline, Space)
-314: Ident           "nonblocking" at 62:6-62:17
-315: KwPub           "pub" at 63:5-63:8 (leading: Newline, Space)
-316: KwFn            "fn" at 63:9-63:11 (leading: Space)
-317: Ident           "notify_one" at 63:12-63:22 (leading: Space)
-318: LParen          "(" at 63:22-63:23
-319: Ident           "self" at 63:23-63:27
-320: Colon           ":" at 63:27-63:28
-321: Amp             "&" at 63:29-63:30 (leading: Space)
-322: Ident           "Condition" at 63:30-63:39
-323: RParen          ")" at 63:39-63:40
-324: Arrow           "->" at 63:41-63:43 (leading: Space)
-325: NothingLit      "nothing" at 63:44-63:51 (leading: Space)
-326: LBrace          "{" at 63:52-63:53 (leading: Space)
-327: Ident           "self" at 64:9-64:13 (leading: Newline, Space)
-328: Dot             "." at 64:13-64:14
-329: Ident           "queue" at 64:14-64:19
-330: Dot             "." at 64:19-64:20
-331: Ident           "try_send" at 64:20-64:28
-332: LParen          "(" at 64:28-64:29
-333: NothingLit      "nothing" at 64:29-64:36
-334: RParen          ")" at 64:36-64:37
-335: Semicolon       ";" at 64:37-64:38
-336: KwReturn        "return" at 65:9-65:15 (leading: Newline, Space)
-337: NothingLit      "nothing" at 65:16-65:23 (leading: Space)
-338: Semicolon       ";" at 65:23-65:24
-339: RBrace          "}" at 66:5-66:6 (leading: Newline, Space)
-340: At              "@" at 68:5-68:6 (leading: Newline, Space)
-341: Ident           "nonblocking" at 68:6-68:17
-342: KwPub           "pub" at 69:5-69:8 (leading: Newline, Space)
-343: KwFn            "fn" at 69:9-69:11 (leading: Space)
-344: Ident           "notify_all" at 69:12-69:22 (leading: Space)
-345: LParen          "(" at 69:22-69:23
-346: Ident           "self" at 69:23-69:27
-347: Colon           ":" at 69:27-69:28
-348: Amp             "&" at 69:29-69:30 (leading: Space)
-349: Ident           "Condition" at 69:30-69:39
-350: RParen          ")" at 69:39-69:40
-351: Arrow           "->" at 69:41-69:43 (leading: Space)
-352: NothingLit      "nothing" at 69:44-69:51 (leading: Space)
-353: LBrace          "{" at 69:52-69:53 (leading: Space)
-354: KwLet           "let" at 70:9-70:12 (leading: Newline, Space)
-355: KwMut           "mut" at 70:13-70:16 (leading: Space)
-356: Ident           "sent" at 70:17-70:21 (leading: Space)
-357: Assign          "=" at 70:22-70:23 (leading: Space)
-358: Ident           "self" at 70:24-70:28 (leading: Space)
-359: Dot             "." at 70:28-70:29
-360: Ident           "queue" at 70:29-70:34
-361: Dot             "." at 70:34-70:35
-362: Ident           "try_send" at 70:35-70:43
-363: LParen          "(" at 70:43-70:44
-364: NothingLit      "nothing" at 70:44-70:51
-365: RParen          ")" at 70:51-70:52
-366: Semicolon       ";" at 70:52-70:53
-367: KwWhile         "while" at 71:9-71:14 (leading: Newline, Space)
-368: Ident           "sent" at 71:15-71:19 (leading: Space)
-369: LBrace          "{" at 71:20-71:21 (leading: Space)
-370: Ident           "sent" at 72:13-72:17 (leading: Newline, Space)
-371: Assign          "=" at 72:18-72:19 (leading: Space)
-372: Ident           "self" at 72:20-72:24 (leading: Space)
-373: Dot             "." at 72:24-72:25
-374: Ident           "queue" at 72:25-72:30
-375: Dot             "." at 72:30-72:31
-376: Ident           "try_send" at 72:31-72:39
-377: LParen          "(" at 72:39-72:40
-378: NothingLit      "nothing" at 72:40-72:47
-379: RParen          ")" at 72:47-72:48
-380: Semicolon       ";" at 72:48-72:49
-381: RBrace          "}" at 73:9-73:10 (leading: Newline, Space)
-382: KwReturn        "return" at 74:9-74:15 (leading: Newline, Space)
-383: NothingLit      "nothing" at 74:16-74:23 (leading: Space)
-384: Semicolon       ";" at 74:23-74:24
-385: RBrace          "}" at 75:5-75:6 (leading: Newline, Space)
-386: RBrace          "}" at 76:1-76:2 (leading: Newline)
-387: At              "@" at 78:1-78:2 (leading: Newline)
-388: Ident           "copy" at 78:2-78:6
-389: KwPub           "pub" at 79:1-79:4 (leading: Newline)
-390: KwType          "type" at 79:5-79:9 (leading: Space)
-391: Ident           "Semaphore" at 79:10-79:19 (leading: Space)
-392: Assign          "=" at 79:20-79:21 (leading: Space)
-393: LBrace          "{" at 79:22-79:23 (leading: Space)
-394: Ident           "permits" at 80:5-80:12 (leading: Newline, Space)
-395: Colon           ":" at 80:12-80:13
-396: Ident           "Channel" at 80:14-80:21 (leading: Space)
-397: Lt              "<" at 80:21-80:22
-398: NothingLit      "nothing" at 80:22-80:29
-399: Gt              ">" at 80:29-80:30
-400: RBrace          "}" at 81:1-81:2 (leading: Newline)
-401: Semicolon       ";" at 81:2-81:3
-402: KwAsync         "async" at 83:1-83:6 (leading: Newline)
-403: KwFn            "fn" at 83:7-83:9 (leading: Space)
-404: Ident           "semaphore_acquire_task" at 83:10-83:32 (leading: Space)
-405: LParen          "(" at 83:32-83:33
-406: Ident           "sem" at 83:33-83:36
-407: Colon           ":" at 83:36-83:37
-408: Ident           "Semaphore" at 83:38-83:47 (leading: Space)
-409: RParen          ")" at 83:47-83:48
-410: Arrow           "->" at 83:49-83:51 (leading: Space)
-411: NothingLit      "nothing" at 83:52-83:59 (leading: Space)
-412: LBrace          "{" at 83:60-83:61 (leading: Space)
-413: KwLet           "let" at 84:5-84:8 (leading: Newline, Space)
-414: Underscore      "_" at 84:9-84:10 (leading: Space)
-415: Assign          "=" at 84:11-84:12 (leading: Space)
-416: Ident           "sem" at 84:13-84:16 (leading: Space)
-417: Dot             "." at 84:16-84:17
-418: Ident           "permits" at 84:17-84:24
-419: Dot             "." at 84:24-84:25
-420: Ident           "recv" at 84:25-84:29
-421: LParen          "(" at 84:29-84:30
-422: RParen          ")" at 84:30-84:31
-423: Semicolon       ";" at 84:31-84:32
-424: KwReturn        "return" at 85:5-85:11 (leading: Newline, Space)
-425: NothingLit      "nothing" at 85:12-85:19 (leading: Space)
-426: Semicolon       ";" at 85:19-85:20
-427: RBrace          "}" at 86:1-86:2 (leading: Newline)
-428: KwExtern        "extern" at 88:1-88:7 (leading: Newline)
-429: Lt              "<" at 88:7-88:8
-430: Ident           "Semaphore" at 88:8-88:17
-431: Gt              ">" at 88:17-88:18
-432: LBrace          "{" at 88:19-88:20 (leading: Space)
-433: KwPub           "pub" at 89:5-89:8 (leading: Newline, Space)
-434: KwFn            "fn" at 89:9-89:11 (leading: Space)
-435: Ident           "new" at 89:12-89:15 (leading: Space)
-436: LParen          "(" at 89:15-89:16
-437: Ident           "count" at 89:16-89:21
-438: Colon           ":" at 89:21-89:22
-439: Ident           "uint" at 89:23-89:27 (leading: Space)
-440: RParen          ")" at 89:27-89:28
-441: Arrow           "->" at 89:29-89:31 (leading: Space)
-442: Ident           "Semaphore" at 89:32-89:41 (leading: Space)
-443: LBrace          "{" at 89:42-89:43 (leading: Space)
-444: KwLet           "let" at 90:9-90:12 (leading: Newline, Space)
-445: KwMut           "mut" at 90:13-90:16 (leading: Space)
-446: Ident           "cap" at 90:17-90:20 (leading: Space)
-447: Assign          "=" at 90:21-90:22 (leading: Space)
-448: Ident           "count" at 90:23-90:28 (leading: Space)
-449: Semicolon       ";" at 90:28-90:29
-450: KwIf            "if" at 91:9-91:11 (leading: Newline, Space)
-451: Ident           "cap" at 91:12-91:15 (leading: Space)
-452: EqEq            "==" at 91:16-91:18 (leading: Space)
-453: IntLit          "0" at 91:19-91:20 (leading: Space)
-454: Colon           ":" at 91:20-91:21
-455: Ident           "uint" at 91:21-91:25
-456: LBrace          "{" at 91:26-91:27 (leading: Space)
-457: Ident           "cap" at 92:13-92:16 (leading: Newline, Space)
-458: Assign          "=" at 92:17-92:18 (leading: Space)
-459: IntLit          "1" at 92:19-92:20 (leading: Space)
-460: Colon           ":" at 92:20-92:21
-461: Ident           "uint" at 92:21-92:25
-462: Semicolon       ";" at 92:25-92:26
-463: RBrace          "}" at 93:9-93:10 (leading: Newline, Space)
-464: KwLet           "let" at 94:9-94:12 (leading: Newline, Space)
-465: Ident           "permits" at 94:13-94:20 (leading: Space)
-466: Assign          "=" at 94:21-94:22 (leading: Space)
-467: Ident           "make_channel" at 94:23-94:35 (leading: Space)
-468: ColonColon      "::" at 94:35-94:37
-469: Lt              "<" at 94:37-94:38
-470: NothingLit      "nothing" at 94:38-94:45
-471: Gt              ">" at 94:45-94:46
-472: LParen          "(" at 94:46-94:47
-473: Ident           "cap" at 94:47-94:50
-474: RParen          ")" at 94:50-94:51
-475: Semicolon       ";" at 94:51-94:52
-476: KwLet           "let" at 95:9-95:12 (leading: Newline, Space)
-477: KwMut           "mut" at 95:13-95:16 (leading: Space)
-478: Ident           "i" at 95:17-95:18 (leading: Space)
-479: Colon           ":" at 95:18-95:19
-480: Ident           "uint" at 95:20-95:24 (leading: Space)
-481: Assign          "=" at 95:25-95:26 (leading: Space)
-482: IntLit          "0" at 95:27-95:28 (leading: Space)
-483: Colon           ":" at 95:28-95:29
-484: Ident           "uint" at 95:29-95:33
-485: Semicolon       ";" at 95:33-95:34
-486: KwWhile         "while" at 96:9-96:14 (leading: Newline, Space)
-487: Ident           "i" at 96:15-96:16 (leading: Space)
-488: Lt              "<" at 96:17-96:18 (leading: Space)
-489: Ident           "count" at 96:19-96:24 (leading: Space)
-490: LBrace          "{" at 96:25-96:26 (leading: Space)
-491: Ident           "permits" at 97:13-97:20 (leading: Newline, Space)
-492: Dot             "." at 97:20-97:21
-493: Ident           "try_send" at 97:21-97:29
-494: LParen          "(" at 97:29-97:30
-495: NothingLit      "nothing" at 97:30-97:37
-496: RParen          ")" at 97:37-97:38
-497: Semicolon       ";" at 97:38-97:39
-498: Ident           "i" at 98:13-98:14 (leading: Newline, Space)
-499: Assign          "=" at 98:15-98:16 (leading: Space)
-500: Ident           "i" at 98:17-98:18 (leading: Space)
-501: Plus            "+" at 98:19-98:20 (leading: Space)
-502: IntLit          "1" at 98:21-98:22 (leading: Space)
-503: Colon           ":" at 98:22-98:23
-504: Ident           "uint" at 98:23-98:27
-505: Semicolon       ";" at 98:27-98:28
-506: RBrace          "}" at 99:9-99:10 (leading: Newline, Space)
-507: KwReturn        "return" at 100:9-100:15 (leading: Newline, Space)
-508: LBrace          "{" at 100:16-100:17 (leading: Space)
-509: Ident           "permits" at 100:18-100:25 (leading: Space)
-510: Assign          "=" at 100:26-100:27 (leading: Space)
-511: Ident           "permits" at 100:28-100:35 (leading: Space)
-512: RBrace          "}" at 100:36-100:37 (leading: Space)
-513: Semicolon       ";" at 100:37-100:38
-514: RBrace          "}" at 101:5-101:6 (leading: Newline, Space)
-515: KwPub           "pub" at 103:5-103:8 (leading: Newline, Space)
-516: KwFn            "fn" at 103:9-103:11 (leading: Space)
-517: Ident           "acquire" at 103:12-103:19 (leading: Space)
-518: LParen          "(" at 103:19-103:20
-519: Ident           "self" at 103:20-103:24
-520: Colon           ":" at 103:24-103:25
-521: Amp             "&" at 103:26-103:27 (leading: Space)
-522: KwMut           "mut" at 103:27-103:30
-523: Ident           "Semaphore" at 103:31-103:40 (leading: Space)
-524: RParen          ")" at 103:40-103:41
-525: Arrow           "->" at 103:42-103:44 (leading: Space)
-526: Ident           "Task" at 103:45-103:49 (leading: Space)
-527: Lt              "<" at 103:49-103:50
-528: NothingLit      "nothing" at 103:50-103:57
-529: Gt              ">" at 103:57-103:58
-530: LBrace          "{" at 103:59-103:60 (leading: Space)
-531: KwReturn        "return" at 104:9-104:15 (leading: Newline, Space)
-532: Ident           "semaphore_acquire_task" at 104:16-104:38 (leading: Space)
-533: LParen          "(" at 104:38-104:39
-534: Star            "*" at 104:39-104:40
-535: Ident           "self" at 104:40-104:44
-536: RParen          ")" at 104:44-104:45
-537: Semicolon       ";" at 104:45-104:46
-538: RBrace          "}" at 105:5-105:6 (leading: Newline, Space)
-539: At              "@" at 107:5-107:6 (leading: Newline, Space)
-540: Ident           "nonblocking" at 107:6-107:17
-541: KwPub           "pub" at 108:5-108:8 (leading: Newline, Space)
-542: KwFn            "fn" at 108:9-108:11 (leading: Space)
-543: Ident           "try_acquire" at 108:12-108:23 (leading: Space)
-544: LParen          "(" at 108:23-108:24
-545: Ident           "self" at 108:24-108:28
-546: Colon           ":" at 108:28-108:29
-547: Amp             "&" at 108:30-108:31 (leading: Space)
-548: KwMut           "mut" at 108:31-108:34
-549: Ident           "Semaphore" at 108:35-108:44 (leading: Space)
-550: RParen          ")" at 108:44-108:45
-551: Arrow           "->" at 108:46-108:48 (leading: Space)
-552: Ident           "bool" at 108:49-108:53 (leading: Space)
-553: LBrace          "{" at 108:54-108:55 (leading: Space)
-554: KwLet           "let" at 109:9-109:12 (leading: Newline, Space)
-555: Ident           "res" at 109:13-109:16 (leading: Space)
-556: Assign          "=" at 109:17-109:18 (leading: Space)
-557: Ident           "self" at 109:19-109:23 (leading: Space)
-558: Dot             "." at 109:23-109:24
-559: Ident           "permits" at 109:24-109:31
-560: Dot             "." at 109:31-109:32
-561: Ident           "try_recv" at 109:32-109:40
-562: LParen          "(" at 109:40-109:41
-563: RParen          ")" at 109:41-109:42
-564: Semicolon       ";" at 109:42-109:43
-565: KwReturn        "return" at 110:9-110:15 (leading: Newline, Space)
-566: KwCompare       "compare" at 110:16-110:23 (leading: Space)
-567: Ident           "res" at 110:24-110:27 (leading: Space)
-568: LBrace          "{" at 110:28-110:29 (leading: Space)
-569: Ident           "Some" at 111:13-111:17 (leading: Newline, Space)
-570: LParen          "(" at 111:17-111:18
-571: Underscore      "_" at 111:18-111:19
-572: RParen          ")" at 111:19-111:20
-573: FatArrow        "=>" at 111:21-111:23 (leading: Space)
-574: KwTrue          "true" at 111:24-111:28 (leading: Space)
-575: Semicolon       ";" at 111:28-111:29
-576: NothingLit      "nothing" at 112:13-112:20 (leading: Newline, Space)
-577: FatArrow        "=>" at 112:21-112:23 (leading: Space)
-578: KwFalse         "false" at 112:24-112:29 (leading: Space)
-579: Semicolon       ";" at 112:29-112:30
-580: RBrace          "}" at 113:9-113:10 (leading: Newline, Space)
-581: Semicolon       ";" at 113:10-113:11
-582: RBrace          "}" at 114:5-114:6 (leading: Newline, Space)
-583: At              "@" at 116:5-116:6 (leading: Newline, Space)
-584: Ident           "nonblocking" at 116:6-116:17
-585: KwPub           "pub" at 117:5-117:8 (leading: Newline, Space)
-586: KwFn            "fn" at 117:9-117:11 (leading: Space)
-587: Ident           "release" at 117:12-117:19 (leading: Space)
-588: LParen          "(" at 117:19-117:20
-589: Ident           "self" at 117:20-117:24
-590: Colon           ":" at 117:24-117:25
-591: Amp             "&" at 117:26-117:27 (leading: Space)
-592: KwMut           "mut" at 117:27-117:30
-593: Ident           "Semaphore" at 117:31-117:40 (leading: Space)
-594: RParen          ")" at 117:40-117:41
-595: Arrow           "->" at 117:42-117:44 (leading: Space)
-596: NothingLit      "nothing" at 117:45-117:52 (leading: Space)
-597: LBrace          "{" at 117:53-117:54 (leading: Space)
-598: Ident           "self" at 118:9-118:13 (leading: Newline, Space)
-599: Dot             "." at 118:13-118:14
-600: Ident           "permits" at 118:14-118:21
-601: Dot             "." at 118:21-118:22
-602: Ident           "try_send" at 118:22-118:30
-603: LParen          "(" at 118:30-118:31
-604: NothingLit      "nothing" at 118:31-118:38
-605: RParen          ")" at 118:38-118:39
-606: Semicolon       ";" at 118:39-118:40
-607: KwReturn        "return" at 119:9-119:15 (leading: Newline, Space)
-608: NothingLit      "nothing" at 119:16-119:23 (leading: Space)
-609: Semicolon       ";" at 119:23-119:24
-610: RBrace          "}" at 120:5-120:6 (leading: Newline, Space)
-611: RBrace          "}" at 121:1-121:2 (leading: Newline)
-612: At              "@" at 123:1-123:2 (leading: Newline)
-613: Ident           "copy" at 123:2-123:6
-614: KwType          "type" at 124:1-124:5 (leading: Newline)
-615: Ident           "BarrierState" at 124:6-124:18 (leading: Space)
-616: Assign          "=" at 124:19-124:20 (leading: Space)
-617: LBrace          "{" at 124:21-124:22 (leading: Space)
-618: Ident           "count" at 125:5-125:10 (leading: Newline, Space)
-619: Colon           ":" at 125:10-125:11
-620: Ident           "uint" at 125:12-125:16 (leading: Space)
-621: Comma           "," at 125:16-125:17
-622: Ident           "gen" at 126:5-126:8 (leading: Newline, Space)
-623: Colon           ":" at 126:8-126:9
-624: Ident           "uint" at 126:10-126:14 (leading: Space)
-625: Comma           "," at 126:14-126:15
-626: Ident           "gate" at 127:5-127:9 (leading: Newline, Space)
-627: Colon           ":" at 127:9-127:10
-628: Ident           "Channel" at 127:11-127:18 (leading: Space)
-629: Lt              "<" at 127:18-127:19
-630: Ident           "uint" at 127:19-127:23
-631: Gt              ">" at 127:23-127:24
-632: RBrace          "}" at 128:1-128:2 (leading: Newline)
-633: Semicolon       ";" at 128:2-128:3
-634: At              "@" at 130:1-130:2 (leading: Newline)
-635: Ident           "copy" at 130:2-130:6
-636: KwPub           "pub" at 131:1-131:4 (leading: Newline)
-637: KwType          "type" at 131:5-131:9 (leading: Space)
-638: Ident           "Barrier" at 131:10-131:17 (leading: Space)
-639: Assign          "=" at 131:18-131:19 (leading: Space)
-640: LBrace          "{" at 131:20-131:21 (leading: Space)
-641: Ident           "parties" at 132:5-132:12 (leading: Newline, Space)
-642: Colon           ":" at 132:12-132:13
-643: Ident           "uint" at 132:14-132:18 (leading: Space)
-644: Comma           "," at 132:18-132:19
-645: Ident           "state" at 133:5-133:10 (leading: Newline, Space)
-646: Colon           ":" at 133:10-133:11
-647: Ident           "Channel" at 133:12-133:19 (leading: Space)
-648: Lt              "<" at 133:19-133:20
-649: Ident           "BarrierState" at 133:20-133:32
-650: Gt              ">" at 133:32-133:33
-651: RBrace          "}" at 134:1-134:2 (leading: Newline)
-652: Semicolon       ";" at 134:2-134:3
-653: KwAsync         "async" at 136:1-136:6 (leading: Newline)
-654: KwFn            "fn" at 136:7-136:9 (leading: Space)
-655: Ident           "barrier_arrive_task" at 136:10-136:29 (leading: Space)
-656: LParen          "(" at 136:29-136:30
-657: Ident           "barrier" at 136:30-136:37
-658: Colon           ":" at 136:37-136:38
-659: Ident           "Barrier" at 136:39-136:46 (leading: Space)
-660: RParen          ")" at 136:46-136:47
-661: Arrow           "->" at 136:48-136:50 (leading: Space)
-662: NothingLit      "nothing" at 136:51-136:58 (leading: Space)
-663: LBrace          "{" at 136:59-136:60 (leading: Space)
-664: KwIf            "if" at 137:5-137:7 (leading: Newline, Space)
-665: Ident           "barrier" at 137:8-137:15 (leading: Space)
-666: Dot             "." at 137:15-137:16
-667: Ident           "parties" at 137:16-137:23
-668: LtEq            "<=" at 137:24-137:26 (leading: Space)
-669: IntLit          "1" at 137:27-137:28 (leading: Space)
-670: Colon           ":" at 137:28-137:29
-671: Ident           "uint" at 137:29-137:33
-672: LBrace          "{" at 137:34-137:35 (leading: Space)
-673: KwReturn        "return" at 138:9-138:15 (leading: Newline, Space)
-674: NothingLit      "nothing" at 138:16-138:23 (leading: Space)
-675: Semicolon       ";" at 138:23-138:24
-676: RBrace          "}" at 139:5-139:6 (leading: Newline, Space)
-677: KwLet           "let" at 141:5-141:8 (leading: Newline, Space)
-678: KwMut           "mut" at 141:9-141:12 (leading: Space)
-679: Ident           "st" at 141:13-141:15 (leading: Space)
-680: Colon           ":" at 141:15-141:16
-681: Ident           "BarrierState" at 141:17-141:29 (leading: Space)
-682: Assign          "=" at 141:30-141:31 (leading: Space)
-683: Ident           "BarrierState" at 141:32-141:44 (leading: Space)
-684: LBrace          "{" at 141:45-141:46 (leading: Space)
-685: Ident           "count" at 142:9-142:14 (leading: Newline, Space)
-686: Assign          "=" at 142:15-142:16 (leading: Space)
-687: IntLit          "0" at 142:17-142:18 (leading: Space)
-688: Colon           ":" at 142:18-142:19
-689: Ident           "uint" at 142:19-142:23
-690: Comma           "," at 142:23-142:24
-691: Ident           "gen" at 143:9-143:12 (leading: Newline, Space)
-692: Assign          "=" at 143:13-143:14 (leading: Space)
-693: IntLit          "0" at 143:15-143:16 (leading: Space)
-694: Colon           ":" at 143:16-143:17
-695: Ident           "uint" at 143:17-143:21
-696: Comma           "," at 143:21-143:22
-697: Ident           "gate" at 144:9-144:13 (leading: Newline, Space)
-698: Assign          "=" at 144:14-144:15 (leading: Space)
-699: Ident           "make_channel" at 144:16-144:28 (leading: Space)
-700: ColonColon      "::" at 144:28-144:30
-701: Lt              "<" at 144:30-144:31
-702: Ident           "uint" at 144:31-144:35
-703: Gt              ">" at 144:35-144:36
-704: LParen          "(" at 144:36-144:37
-705: Ident           "barrier" at 144:37-144:44
-706: Dot             "." at 144:44-144:45
-707: Ident           "parties" at 144:45-144:52
-708: RParen          ")" at 144:52-144:53
-709: RBrace          "}" at 145:5-145:6 (leading: Newline, Space)
-710: Semicolon       ";" at 145:6-145:7
-711: KwLet           "let" at 146:5-146:8 (leading: Newline, Space)
-712: Ident           "st_opt" at 146:9-146:15 (leading: Space)
-713: Assign          "=" at 146:16-146:17 (leading: Space)
-714: Ident           "barrier" at 146:18-146:25 (leading: Space)
-715: Dot             "." at 146:25-146:26
-716: Ident           "state" at 146:26-146:31
-717: Dot             "." at 146:31-146:32
-718: Ident           "recv" at 146:32-146:36
-719: LParen          "(" at 146:36-146:37
-720: RParen          ")" at 146:37-146:38
-721: Semicolon       ";" at 146:38-146:39
-722: KwCompare       "compare" at 147:5-147:12 (leading: Newline, Space)
-723: Ident           "st_opt" at 147:13-147:19 (leading: Space)
-724: LBrace          "{" at 147:20-147:21 (leading: Space)
-725: Ident           "Some" at 148:9-148:13 (leading: Newline, Space)
-726: LParen          "(" at 148:13-148:14
-727: Ident           "v" at 148:14-148:15
-728: RParen          ")" at 148:15-148:16
-729: FatArrow        "=>" at 148:17-148:19 (leading: Space)
-730: LBrace          "{" at 148:20-148:21 (leading: Space)
-731: Ident           "st" at 149:13-149:15 (leading: Newline, Space)
-732: Assign          "=" at 149:16-149:17 (leading: Space)
-733: Ident           "v" at 149:18-149:19 (leading: Space)
-734: Semicolon       ";" at 149:19-149:20
-735: RBrace          "}" at 150:9-150:10 (leading: Newline, Space)
-736: NothingLit      "nothing" at 151:9-151:16 (leading: Newline, Space)
-737: FatArrow        "=>" at 151:17-151:19 (leading: Space)
-738: LBrace          "{" at 151:20-151:21 (leading: Space)
-739: KwReturn        "return" at 152:13-152:19 (leading: Newline, Space)
-740: NothingLit      "nothing" at 152:20-152:27 (leading: Space)
-741: Semicolon       ";" at 152:27-152:28
-742: RBrace          "}" at 153:9-153:10 (leading: Newline, Space)
-743: RBrace          "}" at 154:5-154:6 (leading: Newline, Space)
-744: Semicolon       ";" at 154:6-154:7
-745: KwLet           "let" at 156:5-156:8 (leading: Newline, Space)
-746: Ident           "gate" at 156:9-156:13 (leading: Space)
-747: Assign          "=" at 156:14-156:15 (leading: Space)
-748: Ident           "st" at 156:16-156:18 (leading: Space)
-749: Dot             "." at 156:18-156:19
-750: Ident           "gate" at 156:19-156:23
-751: Semicolon       ";" at 156:23-156:24
-752: Ident           "st" at 157:5-157:7 (leading: Newline, Space)
-753: Dot             "." at 157:7-157:8
-754: Ident           "count" at 157:8-157:13
-755: Assign          "=" at 157:14-157:15 (leading: Space)
-756: Ident           "st" at 157:16-157:18 (leading: Space)
-757: Dot             "." at 157:18-157:19
-758: Ident           "count" at 157:19-157:24
-759: Plus            "+" at 157:25-157:26 (leading: Space)
-760: IntLit          "1" at 157:27-157:28 (leading: Space)
-761: Colon           ":" at 157:28-157:29
-762: Ident           "uint" at 157:29-157:33
-763: Semicolon       ";" at 157:33-157:34
-764: KwIf            "if" at 158:5-158:7 (leading: Newline, Space)
-765: Ident           "st" at 158:8-158:10 (leading: Space)
-766: Dot             "." at 158:10-158:11
-767: Ident           "count" at 158:11-158:16
-768: EqEq            "==" at 158:17-158:19 (leading: Space)
-769: Ident           "barrier" at 158:20-158:27 (leading: Space)
-770: Dot             "." at 158:27-158:28
-771: Ident           "parties" at 158:28-158:35
-772: LBrace          "{" at 158:36-158:37 (leading: Space)
-773: Ident           "st" at 159:9-159:11 (leading: Newline, Space)
-774: Dot             "." at 159:11-159:12
-775: Ident           "count" at 159:12-159:17
-776: Assign          "=" at 159:18-159:19 (leading: Space)
-777: IntLit          "0" at 159:20-159:21 (leading: Space)
-778: Colon           ":" at 159:21-159:22
-779: Ident           "uint" at 159:22-159:26
-780: Semicolon       ";" at 159:26-159:27
-781: Ident           "st" at 160:9-160:11 (leading: Newline, Space)
-782: Dot             "." at 160:11-160:12
-783: Ident           "gen" at 160:12-160:15
-784: Assign          "=" at 160:16-160:17 (leading: Space)
-785: Ident           "st" at 160:18-160:20 (leading: Space)
-786: Dot             "." at 160:20-160:21
-787: Ident           "gen" at 160:21-160:24
-788: Plus            "+" at 160:25-160:26 (leading: Space)
-789: IntLit          "1" at 160:27-160:28 (leading: Space)
-790: Colon           ":" at 160:28-160:29
-791: Ident           "uint" at 160:29-160:33
-792: Semicolon       ";" at 160:33-160:34
-793: Ident           "st" at 161:9-161:11 (leading: Newline, Space)
-794: Dot             "." at 161:11-161:12
-795: Ident           "gate" at 161:12-161:16
-796: Assign          "=" at 161:17-161:18 (leading: Space)
-797: Ident           "make_channel" at 161:19-161:31 (leading: Space)
-798: ColonColon      "::" at 161:31-161:33
-799: Lt              "<" at 161:33-161:34
-800: Ident           "uint" at 161:34-161:38
-801: Gt              ">" at 161:38-161:39
-802: LParen          "(" at 161:39-161:40
-803: Ident           "barrier" at 161:40-161:47
-804: Dot             "." at 161:47-161:48
-805: Ident           "parties" at 161:48-161:55
-806: RParen          ")" at 161:55-161:56
-807: Semicolon       ";" at 161:56-161:57
-808: Ident           "barrier" at 162:9-162:16 (leading: Newline, Space)
-809: Dot             "." at 162:16-162:17
-810: Ident           "state" at 162:17-162:22
-811: Dot             "." at 162:22-162:23
-812: Ident           "send" at 162:23-162:27
-813: LParen          "(" at 162:27-162:28
-814: Ident           "st" at 162:28-162:30
-815: RParen          ")" at 162:30-162:31
-816: Semicolon       ";" at 162:31-162:32
-817: KwLet           "let" at 163:9-163:12 (leading: Newline, Space)
-818: KwMut           "mut" at 163:13-163:16 (leading: Space)
-819: Ident           "i" at 163:17-163:18 (leading: Space)
-820: Colon           ":" at 163:18-163:19
-821: Ident           "uint" at 163:20-163:24 (leading: Space)
-822: Assign          "=" at 163:25-163:26 (leading: Space)
-823: IntLit          "0" at 163:27-163:28 (leading: Space)
-824: Colon           ":" at 163:28-163:29
-825: Ident           "uint" at 163:29-163:33
-826: Semicolon       ";" at 163:33-163:34
-827: KwWhile         "while" at 164:9-164:14 (leading: Newline, Space)
-828: Ident           "i" at 164:15-164:16 (leading: Space)
-829: Lt              "<" at 164:17-164:18 (leading: Space)
-830: LParen          "(" at 164:19-164:20 (leading: Space)
-831: Ident           "barrier" at 164:20-164:27
-832: Dot             "." at 164:27-164:28
-833: Ident           "parties" at 164:28-164:35
-834: Minus           "-" at 164:36-164:37 (leading: Space)
-835: IntLit          "1" at 164:38-164:39 (leading: Space)
-836: Colon           ":" at 164:39-164:40
-837: Ident           "uint" at 164:40-164:44
-838: RParen          ")" at 164:44-164:45
-839: LBrace          "{" at 164:46-164:47 (leading: Space)
-840: Ident           "gate" at 165:13-165:17 (leading: Newline, Space)
-841: Dot             "." at 165:17-165:18
-842: Ident           "send" at 165:18-165:22
-843: LParen          "(" at 165:22-165:23
-844: Ident           "st" at 165:23-165:25
-845: Dot             "." at 165:25-165:26
-846: Ident           "gen" at 165:26-165:29
-847: RParen          ")" at 165:29-165:30
-848: Semicolon       ";" at 165:30-165:31
-849: Ident           "i" at 166:13-166:14 (leading: Newline, Space)
-850: Assign          "=" at 166:15-166:16 (leading: Space)
-851: Ident           "i" at 166:17-166:18 (leading: Space)
-852: Plus            "+" at 166:19-166:20 (leading: Space)
-853: IntLit          "1" at 166:21-166:22 (leading: Space)
-854: Colon           ":" at 166:22-166:23
-855: Ident           "uint" at 166:23-166:27
-856: Semicolon       ";" at 166:27-166:28
-857: RBrace          "}" at 167:9-167:10 (leading: Newline, Space)
-858: KwReturn        "return" at 168:9-168:15 (leading: Newline, Space)
-859: NothingLit      "nothing" at 168:16-168:23 (leading: Space)
-860: Semicolon       ";" at 168:23-168:24
-861: RBrace          "}" at 169:5-169:6 (leading: Newline, Space)
-862: Ident           "barrier" at 171:5-171:12 (leading: Newline, Space)
-863: Dot             "." at 171:12-171:13
-864: Ident           "state" at 171:13-171:18
-865: Dot             "." at 171:18-171:19
-866: Ident           "send" at 171:19-171:23
-867: LParen          "(" at 171:23-171:24
-868: Ident           "st" at 171:24-171:26
-869: RParen          ")" at 171:26-171:27
-870: Semicolon       ";" at 171:27-171:28
-871: KwLet           "let" at 172:5-172:8 (leading: Newline, Space)
-872: Underscore      "_" at 172:9-172:10 (leading: Space)
-873: Assign          "=" at 172:11-172:12 (leading: Space)
-874: Ident           "gate" at 172:13-172:17 (leading: Space)
-875: Dot             "." at 172:17-172:18
-876: Ident           "recv" at 172:18-172:22
-877: LParen          "(" at 172:22-172:23
-878: RParen          ")" at 172:23-172:24
-879: Semicolon       ";" at 172:24-172:25
-880: KwReturn        "return" at 173:5-173:11 (leading: Newline, Space)
-881: NothingLit      "nothing" at 173:12-173:19 (leading: Space)
-882: Semicolon       ";" at 173:19-173:20
-883: RBrace          "}" at 174:1-174:2 (leading: Newline)
-884: KwExtern        "extern" at 176:1-176:7 (leading: Newline)
-885: Lt              "<" at 176:7-176:8
-886: Ident           "Barrier" at 176:8-176:15
-887: Gt              ">" at 176:15-176:16
-888: LBrace          "{" at 176:17-176:18 (leading: Space)
-889: KwPub           "pub" at 177:5-177:8 (leading: Newline, Space)
-890: KwFn            "fn" at 177:9-177:11 (leading: Space)
-891: Ident           "new" at 177:12-177:15 (leading: Space)
-892: LParen          "(" at 177:15-177:16
-893: Ident           "parties" at 177:16-177:23
-894: Colon           ":" at 177:23-177:24
-895: Ident           "uint" at 177:25-177:29 (leading: Space)
-896: RParen          ")" at 177:29-177:30
-897: Arrow           "->" at 177:31-177:33 (leading: Space)
-898: Ident           "Barrier" at 177:34-177:41 (leading: Space)
-899: LBrace          "{" at 177:42-177:43 (leading: Space)
-900: KwLet           "let" at 178:9-178:12 (leading: Newline, Space)
-901: Ident           "state" at 178:13-178:18 (leading: Space)
-902: Colon           ":" at 178:18-178:19
-903: Ident           "Channel" at 178:20-178:27 (leading: Space)
-904: Lt              "<" at 178:27-178:28
-905: Ident           "BarrierState" at 178:28-178:40
-906: Gt              ">" at 178:40-178:41
-907: Assign          "=" at 178:42-178:43 (leading: Space)
-908: Ident           "make_channel" at 178:44-178:56 (leading: Space)
-909: ColonColon      "::" at 178:56-178:58
-910: Lt              "<" at 178:58-178:59
-911: Ident           "BarrierState" at 178:59-178:71
-912: Gt              ">" at 178:71-178:72
-913: LParen          "(" at 178:72-178:73
-914: IntLit          "1" at 178:73-178:74
-915: RParen          ")" at 178:74-178:75
-916: Semicolon       ";" at 178:75-178:76
-917: KwLet           "let" at 179:9-179:12 (leading: Newline, Space)
-918: Ident           "gate" at 179:13-179:17 (leading: Space)
-919: Colon           ":" at 179:17-179:18
-920: Ident           "Channel" at 179:19-179:26 (leading: Space)
-921: Lt              "<" at 179:26-179:27
-922: Ident           "uint" at 179:27-179:31
-923: Gt              ">" at 179:31-179:32
-924: Assign          "=" at 179:33-179:34 (leading: Space)
-925: Ident           "make_channel" at 179:35-179:47 (leading: Space)
-926: ColonColon      "::" at 179:47-179:49
-927: Lt              "<" at 179:49-179:50
-928: Ident           "uint" at 179:50-179:54
-929: Gt              ">" at 179:54-179:55
-930: LParen          "(" at 179:55-179:56
-931: Ident           "parties" at 179:56-179:63
-932: RParen          ")" at 179:63-179:64
-933: Semicolon       ";" at 179:64-179:65
-934: KwLet           "let" at 180:9-180:12 (leading: Newline, Space)
-935: Ident           "init" at 180:13-180:17 (leading: Space)
-936: Colon           ":" at 180:17-180:18
-937: Ident           "BarrierState" at 180:19-180:31 (leading: Space)
-938: Assign          "=" at 180:32-180:33 (leading: Space)
-939: Ident           "BarrierState" at 180:34-180:46 (leading: Space)
-940: LBrace          "{" at 180:47-180:48 (leading: Space)
-941: Ident           "count" at 180:49-180:54 (leading: Space)
-942: Assign          "=" at 180:55-180:56 (leading: Space)
-943: IntLit          "0" at 180:57-180:58 (leading: Space)
-944: Colon           ":" at 180:58-180:59
-945: Ident           "uint" at 180:59-180:63
-946: Comma           "," at 180:63-180:64
-947: Ident           "gen" at 180:65-180:68 (leading: Space)
-948: Assign          "=" at 180:69-180:70 (leading: Space)
-949: IntLit          "0" at 180:71-180:72 (leading: Space)
-950: Colon           ":" at 180:72-180:73
-951: Ident           "uint" at 180:73-180:77
-952: Comma           "," at 180:77-180:78
-953: Ident           "gate" at 180:79-180:83 (leading: Space)
-954: Assign          "=" at 180:84-180:85 (leading: Space)
-955: Ident           "gate" at 180:86-180:90 (leading: Space)
-956: RBrace          "}" at 180:91-180:92 (leading: Space)
-957: Semicolon       ";" at 180:92-180:93
-958: Ident           "state" at 181:9-181:14 (leading: Newline, Space)
-959: Dot             "." at 181:14-181:15
-960: Ident           "try_send" at 181:15-181:23
-961: LParen          "(" at 181:23-181:24
-962: Ident           "init" at 181:24-181:28
-963: RParen          ")" at 181:28-181:29
-964: Semicolon       ";" at 181:29-181:30
-965: KwReturn        "return" at 182:9-182:15 (leading: Newline, Space)
-966: LBrace          "{" at 182:16-182:17 (leading: Space)
-967: Ident           "parties" at 182:18-182:25 (leading: Space)
-968: Assign          "=" at 182:26-182:27 (leading: Space)
-969: Ident           "parties" at 182:28-182:35 (leading: Space)
-970: Comma           "," at 182:35-182:36
-971: Ident           "state" at 182:37-182:42 (leading: Space)
-972: Assign          "=" at 182:43-182:44 (leading: Space)
-973: Ident           "state" at 182:45-182:50 (leading: Space)
-974: RBrace          "}" at 182:51-182:52 (leading: Space)
-975: Semicolon       ";" at 182:52-182:53
-976: RBrace          "}" at 183:5-183:6 (leading: Newline, Space)
-977: KwPub           "pub" at 185:5-185:8 (leading: Newline, Space)
-978: KwFn            "fn" at 185:9-185:11 (leading: Space)
-979: Ident           "arrive_and_wait" at 185:12-185:27 (leading: Space)
-980: LParen          "(" at 185:27-185:28
-981: Ident           "self" at 185:28-185:32
-982: Colon           ":" at 185:32-185:33
-983: Amp             "&" at 185:34-185:35 (leading: Space)
-984: Ident           "Barrier" at 185:35-185:42
-985: RParen          ")" at 185:42-185:43
-986: Arrow           "->" at 185:44-185:46 (leading: Space)
-987: Ident           "Task" at 185:47-185:51 (leading: Space)
-988: Lt              "<" at 185:51-185:52
-989: NothingLit      "nothing" at 185:52-185:59
-990: Gt              ">" at 185:59-185:60
-991: LBrace          "{" at 185:61-185:62 (leading: Space)
-992: KwReturn        "return" at 186:9-186:15 (leading: Newline, Space)
-993: Ident           "barrier_arrive_task" at 186:16-186:35 (leading: Space)
-994: LParen          "(" at 186:35-186:36
-995: Star            "*" at 186:36-186:37
-996: Ident           "self" at 186:37-186:41
-997: RParen          ")" at 186:41-186:42
-998: Semicolon       ";" at 186:42-186:43
-999: RBrace          "}" at 187:5-187:6 (leading: Newline, Space)
-1000: RBrace          "}" at 188:1-188:2 (leading: Newline)
-1001: EOF             at 199:1-199:1
+293: Ident           "Mutex" at 58:43-58:48
+294: RParen          ")" at 58:48-58:49
+295: Arrow           "->" at 58:50-58:52 (leading: Space)
+296: Ident           "Task" at 58:53-58:57 (leading: Space)
+297: Lt              "<" at 58:57-58:58
+298: NothingLit      "nothing" at 58:58-58:65
+299: Gt              ">" at 58:65-58:66
+300: LBrace          "{" at 58:67-58:68 (leading: Space)
+301: KwReturn        "return" at 59:9-59:15 (leading: Newline, Space)
+302: Ident           "condition_wait_task" at 59:16-59:35 (leading: Space)
+303: LParen          "(" at 59:35-59:36
+304: Star            "*" at 59:36-59:37
+305: Ident           "self" at 59:37-59:41
+306: Comma           "," at 59:41-59:42
+307: Star            "*" at 59:43-59:44 (leading: Space)
+308: Ident           "mutex" at 59:44-59:49
+309: RParen          ")" at 59:49-59:50
+310: Semicolon       ";" at 59:50-59:51
+311: RBrace          "}" at 60:5-60:6 (leading: Newline, Space)
+312: At              "@" at 62:5-62:6 (leading: Newline, Space)
+313: Ident           "nonblocking" at 62:6-62:17
+314: KwPub           "pub" at 63:5-63:8 (leading: Newline, Space)
+315: KwFn            "fn" at 63:9-63:11 (leading: Space)
+316: Ident           "notify_one" at 63:12-63:22 (leading: Space)
+317: LParen          "(" at 63:22-63:23
+318: Ident           "self" at 63:23-63:27
+319: Colon           ":" at 63:27-63:28
+320: Amp             "&" at 63:29-63:30 (leading: Space)
+321: Ident           "Condition" at 63:30-63:39
+322: RParen          ")" at 63:39-63:40
+323: Arrow           "->" at 63:41-63:43 (leading: Space)
+324: NothingLit      "nothing" at 63:44-63:51 (leading: Space)
+325: LBrace          "{" at 63:52-63:53 (leading: Space)
+326: Ident           "self" at 64:9-64:13 (leading: Newline, Space)
+327: Dot             "." at 64:13-64:14
+328: Ident           "queue" at 64:14-64:19
+329: Dot             "." at 64:19-64:20
+330: Ident           "try_send" at 64:20-64:28
+331: LParen          "(" at 64:28-64:29
+332: NothingLit      "nothing" at 64:29-64:36
+333: RParen          ")" at 64:36-64:37
+334: Semicolon       ";" at 64:37-64:38
+335: KwReturn        "return" at 65:9-65:15 (leading: Newline, Space)
+336: NothingLit      "nothing" at 65:16-65:23 (leading: Space)
+337: Semicolon       ";" at 65:23-65:24
+338: RBrace          "}" at 66:5-66:6 (leading: Newline, Space)
+339: At              "@" at 68:5-68:6 (leading: Newline, Space)
+340: Ident           "nonblocking" at 68:6-68:17
+341: KwPub           "pub" at 69:5-69:8 (leading: Newline, Space)
+342: KwFn            "fn" at 69:9-69:11 (leading: Space)
+343: Ident           "notify_all" at 69:12-69:22 (leading: Space)
+344: LParen          "(" at 69:22-69:23
+345: Ident           "self" at 69:23-69:27
+346: Colon           ":" at 69:27-69:28
+347: Amp             "&" at 69:29-69:30 (leading: Space)
+348: Ident           "Condition" at 69:30-69:39
+349: RParen          ")" at 69:39-69:40
+350: Arrow           "->" at 69:41-69:43 (leading: Space)
+351: NothingLit      "nothing" at 69:44-69:51 (leading: Space)
+352: LBrace          "{" at 69:52-69:53 (leading: Space)
+353: KwLet           "let" at 70:9-70:12 (leading: Newline, Space)
+354: KwMut           "mut" at 70:13-70:16 (leading: Space)
+355: Ident           "sent" at 70:17-70:21 (leading: Space)
+356: Assign          "=" at 70:22-70:23 (leading: Space)
+357: Ident           "self" at 70:24-70:28 (leading: Space)
+358: Dot             "." at 70:28-70:29
+359: Ident           "queue" at 70:29-70:34
+360: Dot             "." at 70:34-70:35
+361: Ident           "try_send" at 70:35-70:43
+362: LParen          "(" at 70:43-70:44
+363: NothingLit      "nothing" at 70:44-70:51
+364: RParen          ")" at 70:51-70:52
+365: Semicolon       ";" at 70:52-70:53
+366: KwWhile         "while" at 71:9-71:14 (leading: Newline, Space)
+367: Ident           "sent" at 71:15-71:19 (leading: Space)
+368: LBrace          "{" at 71:20-71:21 (leading: Space)
+369: Ident           "sent" at 72:13-72:17 (leading: Newline, Space)
+370: Assign          "=" at 72:18-72:19 (leading: Space)
+371: Ident           "self" at 72:20-72:24 (leading: Space)
+372: Dot             "." at 72:24-72:25
+373: Ident           "queue" at 72:25-72:30
+374: Dot             "." at 72:30-72:31
+375: Ident           "try_send" at 72:31-72:39
+376: LParen          "(" at 72:39-72:40
+377: NothingLit      "nothing" at 72:40-72:47
+378: RParen          ")" at 72:47-72:48
+379: Semicolon       ";" at 72:48-72:49
+380: RBrace          "}" at 73:9-73:10 (leading: Newline, Space)
+381: KwReturn        "return" at 74:9-74:15 (leading: Newline, Space)
+382: NothingLit      "nothing" at 74:16-74:23 (leading: Space)
+383: Semicolon       ";" at 74:23-74:24
+384: RBrace          "}" at 75:5-75:6 (leading: Newline, Space)
+385: RBrace          "}" at 76:1-76:2 (leading: Newline)
+386: At              "@" at 78:1-78:2 (leading: Newline)
+387: Ident           "copy" at 78:2-78:6
+388: KwPub           "pub" at 79:1-79:4 (leading: Newline)
+389: KwType          "type" at 79:5-79:9 (leading: Space)
+390: Ident           "Semaphore" at 79:10-79:19 (leading: Space)
+391: Assign          "=" at 79:20-79:21 (leading: Space)
+392: LBrace          "{" at 79:22-79:23 (leading: Space)
+393: Ident           "permits" at 80:5-80:12 (leading: Newline, Space)
+394: Colon           ":" at 80:12-80:13
+395: Ident           "Channel" at 80:14-80:21 (leading: Space)
+396: Lt              "<" at 80:21-80:22
+397: NothingLit      "nothing" at 80:22-80:29
+398: Gt              ">" at 80:29-80:30
+399: RBrace          "}" at 81:1-81:2 (leading: Newline)
+400: Semicolon       ";" at 81:2-81:3
+401: KwAsync         "async" at 83:1-83:6 (leading: Newline)
+402: KwFn            "fn" at 83:7-83:9 (leading: Space)
+403: Ident           "semaphore_acquire_task" at 83:10-83:32 (leading: Space)
+404: LParen          "(" at 83:32-83:33
+405: Ident           "sem" at 83:33-83:36
+406: Colon           ":" at 83:36-83:37
+407: Ident           "Semaphore" at 83:38-83:47 (leading: Space)
+408: RParen          ")" at 83:47-83:48
+409: Arrow           "->" at 83:49-83:51 (leading: Space)
+410: NothingLit      "nothing" at 83:52-83:59 (leading: Space)
+411: LBrace          "{" at 83:60-83:61 (leading: Space)
+412: KwLet           "let" at 84:5-84:8 (leading: Newline, Space)
+413: Underscore      "_" at 84:9-84:10 (leading: Space)
+414: Assign          "=" at 84:11-84:12 (leading: Space)
+415: Ident           "sem" at 84:13-84:16 (leading: Space)
+416: Dot             "." at 84:16-84:17
+417: Ident           "permits" at 84:17-84:24
+418: Dot             "." at 84:24-84:25
+419: Ident           "recv" at 84:25-84:29
+420: LParen          "(" at 84:29-84:30
+421: RParen          ")" at 84:30-84:31
+422: Semicolon       ";" at 84:31-84:32
+423: KwReturn        "return" at 85:5-85:11 (leading: Newline, Space)
+424: NothingLit      "nothing" at 85:12-85:19 (leading: Space)
+425: Semicolon       ";" at 85:19-85:20
+426: RBrace          "}" at 86:1-86:2 (leading: Newline)
+427: KwExtern        "extern" at 88:1-88:7 (leading: Newline)
+428: Lt              "<" at 88:7-88:8
+429: Ident           "Semaphore" at 88:8-88:17
+430: Gt              ">" at 88:17-88:18
+431: LBrace          "{" at 88:19-88:20 (leading: Space)
+432: KwPub           "pub" at 89:5-89:8 (leading: Newline, Space)
+433: KwFn            "fn" at 89:9-89:11 (leading: Space)
+434: Ident           "new" at 89:12-89:15 (leading: Space)
+435: LParen          "(" at 89:15-89:16
+436: Ident           "count" at 89:16-89:21
+437: Colon           ":" at 89:21-89:22
+438: Ident           "uint" at 89:23-89:27 (leading: Space)
+439: RParen          ")" at 89:27-89:28
+440: Arrow           "->" at 89:29-89:31 (leading: Space)
+441: Ident           "Semaphore" at 89:32-89:41 (leading: Space)
+442: LBrace          "{" at 89:42-89:43 (leading: Space)
+443: KwLet           "let" at 90:9-90:12 (leading: Newline, Space)
+444: KwMut           "mut" at 90:13-90:16 (leading: Space)
+445: Ident           "cap" at 90:17-90:20 (leading: Space)
+446: Assign          "=" at 90:21-90:22 (leading: Space)
+447: Ident           "count" at 90:23-90:28 (leading: Space)
+448: Semicolon       ";" at 90:28-90:29
+449: KwIf            "if" at 91:9-91:11 (leading: Newline, Space)
+450: Ident           "cap" at 91:12-91:15 (leading: Space)
+451: EqEq            "==" at 91:16-91:18 (leading: Space)
+452: IntLit          "0" at 91:19-91:20 (leading: Space)
+453: Colon           ":" at 91:20-91:21
+454: Ident           "uint" at 91:21-91:25
+455: LBrace          "{" at 91:26-91:27 (leading: Space)
+456: Ident           "cap" at 92:13-92:16 (leading: Newline, Space)
+457: Assign          "=" at 92:17-92:18 (leading: Space)
+458: IntLit          "1" at 92:19-92:20 (leading: Space)
+459: Colon           ":" at 92:20-92:21
+460: Ident           "uint" at 92:21-92:25
+461: Semicolon       ";" at 92:25-92:26
+462: RBrace          "}" at 93:9-93:10 (leading: Newline, Space)
+463: KwLet           "let" at 94:9-94:12 (leading: Newline, Space)
+464: Ident           "permits" at 94:13-94:20 (leading: Space)
+465: Assign          "=" at 94:21-94:22 (leading: Space)
+466: Ident           "make_channel" at 94:23-94:35 (leading: Space)
+467: ColonColon      "::" at 94:35-94:37
+468: Lt              "<" at 94:37-94:38
+469: NothingLit      "nothing" at 94:38-94:45
+470: Gt              ">" at 94:45-94:46
+471: LParen          "(" at 94:46-94:47
+472: Ident           "cap" at 94:47-94:50
+473: RParen          ")" at 94:50-94:51
+474: Semicolon       ";" at 94:51-94:52
+475: KwLet           "let" at 95:9-95:12 (leading: Newline, Space)
+476: KwMut           "mut" at 95:13-95:16 (leading: Space)
+477: Ident           "i" at 95:17-95:18 (leading: Space)
+478: Colon           ":" at 95:18-95:19
+479: Ident           "uint" at 95:20-95:24 (leading: Space)
+480: Assign          "=" at 95:25-95:26 (leading: Space)
+481: IntLit          "0" at 95:27-95:28 (leading: Space)
+482: Colon           ":" at 95:28-95:29
+483: Ident           "uint" at 95:29-95:33
+484: Semicolon       ";" at 95:33-95:34
+485: KwWhile         "while" at 96:9-96:14 (leading: Newline, Space)
+486: Ident           "i" at 96:15-96:16 (leading: Space)
+487: Lt              "<" at 96:17-96:18 (leading: Space)
+488: Ident           "count" at 96:19-96:24 (leading: Space)
+489: LBrace          "{" at 96:25-96:26 (leading: Space)
+490: Ident           "permits" at 97:13-97:20 (leading: Newline, Space)
+491: Dot             "." at 97:20-97:21
+492: Ident           "try_send" at 97:21-97:29
+493: LParen          "(" at 97:29-97:30
+494: NothingLit      "nothing" at 97:30-97:37
+495: RParen          ")" at 97:37-97:38
+496: Semicolon       ";" at 97:38-97:39
+497: Ident           "i" at 98:13-98:14 (leading: Newline, Space)
+498: Assign          "=" at 98:15-98:16 (leading: Space)
+499: Ident           "i" at 98:17-98:18 (leading: Space)
+500: Plus            "+" at 98:19-98:20 (leading: Space)
+501: IntLit          "1" at 98:21-98:22 (leading: Space)
+502: Colon           ":" at 98:22-98:23
+503: Ident           "uint" at 98:23-98:27
+504: Semicolon       ";" at 98:27-98:28
+505: RBrace          "}" at 99:9-99:10 (leading: Newline, Space)
+506: KwReturn        "return" at 100:9-100:15 (leading: Newline, Space)
+507: LBrace          "{" at 100:16-100:17 (leading: Space)
+508: Ident           "permits" at 100:18-100:25 (leading: Space)
+509: Assign          "=" at 100:26-100:27 (leading: Space)
+510: Ident           "permits" at 100:28-100:35 (leading: Space)
+511: RBrace          "}" at 100:36-100:37 (leading: Space)
+512: Semicolon       ";" at 100:37-100:38
+513: RBrace          "}" at 101:5-101:6 (leading: Newline, Space)
+514: KwPub           "pub" at 103:5-103:8 (leading: Newline, Space)
+515: KwFn            "fn" at 103:9-103:11 (leading: Space)
+516: Ident           "acquire" at 103:12-103:19 (leading: Space)
+517: LParen          "(" at 103:19-103:20
+518: Ident           "self" at 103:20-103:24
+519: Colon           ":" at 103:24-103:25
+520: Amp             "&" at 103:26-103:27 (leading: Space)
+521: Ident           "Semaphore" at 103:27-103:36
+522: RParen          ")" at 103:36-103:37
+523: Arrow           "->" at 103:38-103:40 (leading: Space)
+524: Ident           "Task" at 103:41-103:45 (leading: Space)
+525: Lt              "<" at 103:45-103:46
+526: NothingLit      "nothing" at 103:46-103:53
+527: Gt              ">" at 103:53-103:54
+528: LBrace          "{" at 103:55-103:56 (leading: Space)
+529: KwReturn        "return" at 104:9-104:15 (leading: Newline, Space)
+530: Ident           "semaphore_acquire_task" at 104:16-104:38 (leading: Space)
+531: LParen          "(" at 104:38-104:39
+532: Star            "*" at 104:39-104:40
+533: Ident           "self" at 104:40-104:44
+534: RParen          ")" at 104:44-104:45
+535: Semicolon       ";" at 104:45-104:46
+536: RBrace          "}" at 105:5-105:6 (leading: Newline, Space)
+537: At              "@" at 107:5-107:6 (leading: Newline, Space)
+538: Ident           "nonblocking" at 107:6-107:17
+539: KwPub           "pub" at 108:5-108:8 (leading: Newline, Space)
+540: KwFn            "fn" at 108:9-108:11 (leading: Space)
+541: Ident           "try_acquire" at 108:12-108:23 (leading: Space)
+542: LParen          "(" at 108:23-108:24
+543: Ident           "self" at 108:24-108:28
+544: Colon           ":" at 108:28-108:29
+545: Amp             "&" at 108:30-108:31 (leading: Space)
+546: Ident           "Semaphore" at 108:31-108:40
+547: RParen          ")" at 108:40-108:41
+548: Arrow           "->" at 108:42-108:44 (leading: Space)
+549: Ident           "bool" at 108:45-108:49 (leading: Space)
+550: LBrace          "{" at 108:50-108:51 (leading: Space)
+551: KwLet           "let" at 109:9-109:12 (leading: Newline, Space)
+552: Ident           "res" at 109:13-109:16 (leading: Space)
+553: Assign          "=" at 109:17-109:18 (leading: Space)
+554: Ident           "self" at 109:19-109:23 (leading: Space)
+555: Dot             "." at 109:23-109:24
+556: Ident           "permits" at 109:24-109:31
+557: Dot             "." at 109:31-109:32
+558: Ident           "try_recv" at 109:32-109:40
+559: LParen          "(" at 109:40-109:41
+560: RParen          ")" at 109:41-109:42
+561: Semicolon       ";" at 109:42-109:43
+562: KwReturn        "return" at 110:9-110:15 (leading: Newline, Space)
+563: KwCompare       "compare" at 110:16-110:23 (leading: Space)
+564: Ident           "res" at 110:24-110:27 (leading: Space)
+565: LBrace          "{" at 110:28-110:29 (leading: Space)
+566: Ident           "Some" at 111:13-111:17 (leading: Newline, Space)
+567: LParen          "(" at 111:17-111:18
+568: Underscore      "_" at 111:18-111:19
+569: RParen          ")" at 111:19-111:20
+570: FatArrow        "=>" at 111:21-111:23 (leading: Space)
+571: KwTrue          "true" at 111:24-111:28 (leading: Space)
+572: Semicolon       ";" at 111:28-111:29
+573: NothingLit      "nothing" at 112:13-112:20 (leading: Newline, Space)
+574: FatArrow        "=>" at 112:21-112:23 (leading: Space)
+575: KwFalse         "false" at 112:24-112:29 (leading: Space)
+576: Semicolon       ";" at 112:29-112:30
+577: RBrace          "}" at 113:9-113:10 (leading: Newline, Space)
+578: Semicolon       ";" at 113:10-113:11
+579: RBrace          "}" at 114:5-114:6 (leading: Newline, Space)
+580: At              "@" at 116:5-116:6 (leading: Newline, Space)
+581: Ident           "nonblocking" at 116:6-116:17
+582: KwPub           "pub" at 117:5-117:8 (leading: Newline, Space)
+583: KwFn            "fn" at 117:9-117:11 (leading: Space)
+584: Ident           "release" at 117:12-117:19 (leading: Space)
+585: LParen          "(" at 117:19-117:20
+586: Ident           "self" at 117:20-117:24
+587: Colon           ":" at 117:24-117:25
+588: Amp             "&" at 117:26-117:27 (leading: Space)
+589: Ident           "Semaphore" at 117:27-117:36
+590: RParen          ")" at 117:36-117:37
+591: Arrow           "->" at 117:38-117:40 (leading: Space)
+592: NothingLit      "nothing" at 117:41-117:48 (leading: Space)
+593: LBrace          "{" at 117:49-117:50 (leading: Space)
+594: Ident           "self" at 118:9-118:13 (leading: Newline, Space)
+595: Dot             "." at 118:13-118:14
+596: Ident           "permits" at 118:14-118:21
+597: Dot             "." at 118:21-118:22
+598: Ident           "try_send" at 118:22-118:30
+599: LParen          "(" at 118:30-118:31
+600: NothingLit      "nothing" at 118:31-118:38
+601: RParen          ")" at 118:38-118:39
+602: Semicolon       ";" at 118:39-118:40
+603: KwReturn        "return" at 119:9-119:15 (leading: Newline, Space)
+604: NothingLit      "nothing" at 119:16-119:23 (leading: Space)
+605: Semicolon       ";" at 119:23-119:24
+606: RBrace          "}" at 120:5-120:6 (leading: Newline, Space)
+607: RBrace          "}" at 121:1-121:2 (leading: Newline)
+608: At              "@" at 123:1-123:2 (leading: Newline)
+609: Ident           "copy" at 123:2-123:6
+610: KwType          "type" at 124:1-124:5 (leading: Newline)
+611: Ident           "BarrierState" at 124:6-124:18 (leading: Space)
+612: Assign          "=" at 124:19-124:20 (leading: Space)
+613: LBrace          "{" at 124:21-124:22 (leading: Space)
+614: Ident           "count" at 125:5-125:10 (leading: Newline, Space)
+615: Colon           ":" at 125:10-125:11
+616: Ident           "uint" at 125:12-125:16 (leading: Space)
+617: Comma           "," at 125:16-125:17
+618: Ident           "gen" at 126:5-126:8 (leading: Newline, Space)
+619: Colon           ":" at 126:8-126:9
+620: Ident           "uint" at 126:10-126:14 (leading: Space)
+621: Comma           "," at 126:14-126:15
+622: Ident           "gate" at 127:5-127:9 (leading: Newline, Space)
+623: Colon           ":" at 127:9-127:10
+624: Ident           "Channel" at 127:11-127:18 (leading: Space)
+625: Lt              "<" at 127:18-127:19
+626: Ident           "uint" at 127:19-127:23
+627: Gt              ">" at 127:23-127:24
+628: RBrace          "}" at 128:1-128:2 (leading: Newline)
+629: Semicolon       ";" at 128:2-128:3
+630: At              "@" at 130:1-130:2 (leading: Newline)
+631: Ident           "copy" at 130:2-130:6
+632: KwPub           "pub" at 131:1-131:4 (leading: Newline)
+633: KwType          "type" at 131:5-131:9 (leading: Space)
+634: Ident           "Barrier" at 131:10-131:17 (leading: Space)
+635: Assign          "=" at 131:18-131:19 (leading: Space)
+636: LBrace          "{" at 131:20-131:21 (leading: Space)
+637: Ident           "parties" at 132:5-132:12 (leading: Newline, Space)
+638: Colon           ":" at 132:12-132:13
+639: Ident           "uint" at 132:14-132:18 (leading: Space)
+640: Comma           "," at 132:18-132:19
+641: Ident           "state" at 133:5-133:10 (leading: Newline, Space)
+642: Colon           ":" at 133:10-133:11
+643: Ident           "Channel" at 133:12-133:19 (leading: Space)
+644: Lt              "<" at 133:19-133:20
+645: Ident           "BarrierState" at 133:20-133:32
+646: Gt              ">" at 133:32-133:33
+647: RBrace          "}" at 134:1-134:2 (leading: Newline)
+648: Semicolon       ";" at 134:2-134:3
+649: KwAsync         "async" at 136:1-136:6 (leading: Newline)
+650: KwFn            "fn" at 136:7-136:9 (leading: Space)
+651: Ident           "barrier_arrive_task" at 136:10-136:29 (leading: Space)
+652: LParen          "(" at 136:29-136:30
+653: Ident           "barrier" at 136:30-136:37
+654: Colon           ":" at 136:37-136:38
+655: Ident           "Barrier" at 136:39-136:46 (leading: Space)
+656: RParen          ")" at 136:46-136:47
+657: Arrow           "->" at 136:48-136:50 (leading: Space)
+658: NothingLit      "nothing" at 136:51-136:58 (leading: Space)
+659: LBrace          "{" at 136:59-136:60 (leading: Space)
+660: KwIf            "if" at 137:5-137:7 (leading: Newline, Space)
+661: Ident           "barrier" at 137:8-137:15 (leading: Space)
+662: Dot             "." at 137:15-137:16
+663: Ident           "parties" at 137:16-137:23
+664: LtEq            "<=" at 137:24-137:26 (leading: Space)
+665: IntLit          "1" at 137:27-137:28 (leading: Space)
+666: Colon           ":" at 137:28-137:29
+667: Ident           "uint" at 137:29-137:33
+668: LBrace          "{" at 137:34-137:35 (leading: Space)
+669: KwReturn        "return" at 138:9-138:15 (leading: Newline, Space)
+670: NothingLit      "nothing" at 138:16-138:23 (leading: Space)
+671: Semicolon       ";" at 138:23-138:24
+672: RBrace          "}" at 139:5-139:6 (leading: Newline, Space)
+673: KwLet           "let" at 141:5-141:8 (leading: Newline, Space)
+674: KwMut           "mut" at 141:9-141:12 (leading: Space)
+675: Ident           "st" at 141:13-141:15 (leading: Space)
+676: Colon           ":" at 141:15-141:16
+677: Ident           "BarrierState" at 141:17-141:29 (leading: Space)
+678: Assign          "=" at 141:30-141:31 (leading: Space)
+679: Ident           "BarrierState" at 141:32-141:44 (leading: Space)
+680: LBrace          "{" at 141:45-141:46 (leading: Space)
+681: Ident           "count" at 142:9-142:14 (leading: Newline, Space)
+682: Assign          "=" at 142:15-142:16 (leading: Space)
+683: IntLit          "0" at 142:17-142:18 (leading: Space)
+684: Colon           ":" at 142:18-142:19
+685: Ident           "uint" at 142:19-142:23
+686: Comma           "," at 142:23-142:24
+687: Ident           "gen" at 143:9-143:12 (leading: Newline, Space)
+688: Assign          "=" at 143:13-143:14 (leading: Space)
+689: IntLit          "0" at 143:15-143:16 (leading: Space)
+690: Colon           ":" at 143:16-143:17
+691: Ident           "uint" at 143:17-143:21
+692: Comma           "," at 143:21-143:22
+693: Ident           "gate" at 144:9-144:13 (leading: Newline, Space)
+694: Assign          "=" at 144:14-144:15 (leading: Space)
+695: Ident           "make_channel" at 144:16-144:28 (leading: Space)
+696: ColonColon      "::" at 144:28-144:30
+697: Lt              "<" at 144:30-144:31
+698: Ident           "uint" at 144:31-144:35
+699: Gt              ">" at 144:35-144:36
+700: LParen          "(" at 144:36-144:37
+701: Ident           "barrier" at 144:37-144:44
+702: Dot             "." at 144:44-144:45
+703: Ident           "parties" at 144:45-144:52
+704: RParen          ")" at 144:52-144:53
+705: RBrace          "}" at 145:5-145:6 (leading: Newline, Space)
+706: Semicolon       ";" at 145:6-145:7
+707: KwLet           "let" at 146:5-146:8 (leading: Newline, Space)
+708: Ident           "st_opt" at 146:9-146:15 (leading: Space)
+709: Assign          "=" at 146:16-146:17 (leading: Space)
+710: Ident           "barrier" at 146:18-146:25 (leading: Space)
+711: Dot             "." at 146:25-146:26
+712: Ident           "state" at 146:26-146:31
+713: Dot             "." at 146:31-146:32
+714: Ident           "recv" at 146:32-146:36
+715: LParen          "(" at 146:36-146:37
+716: RParen          ")" at 146:37-146:38
+717: Semicolon       ";" at 146:38-146:39
+718: KwCompare       "compare" at 147:5-147:12 (leading: Newline, Space)
+719: Ident           "st_opt" at 147:13-147:19 (leading: Space)
+720: LBrace          "{" at 147:20-147:21 (leading: Space)
+721: Ident           "Some" at 148:9-148:13 (leading: Newline, Space)
+722: LParen          "(" at 148:13-148:14
+723: Ident           "v" at 148:14-148:15
+724: RParen          ")" at 148:15-148:16
+725: FatArrow        "=>" at 148:17-148:19 (leading: Space)
+726: LBrace          "{" at 148:20-148:21 (leading: Space)
+727: Ident           "st" at 149:13-149:15 (leading: Newline, Space)
+728: Assign          "=" at 149:16-149:17 (leading: Space)
+729: Ident           "v" at 149:18-149:19 (leading: Space)
+730: Semicolon       ";" at 149:19-149:20
+731: RBrace          "}" at 150:9-150:10 (leading: Newline, Space)
+732: NothingLit      "nothing" at 151:9-151:16 (leading: Newline, Space)
+733: FatArrow        "=>" at 151:17-151:19 (leading: Space)
+734: LBrace          "{" at 151:20-151:21 (leading: Space)
+735: KwReturn        "return" at 152:13-152:19 (leading: Newline, Space)
+736: NothingLit      "nothing" at 152:20-152:27 (leading: Space)
+737: Semicolon       ";" at 152:27-152:28
+738: RBrace          "}" at 153:9-153:10 (leading: Newline, Space)
+739: RBrace          "}" at 154:5-154:6 (leading: Newline, Space)
+740: Semicolon       ";" at 154:6-154:7
+741: KwLet           "let" at 156:5-156:8 (leading: Newline, Space)
+742: Ident           "gate" at 156:9-156:13 (leading: Space)
+743: Assign          "=" at 156:14-156:15 (leading: Space)
+744: Ident           "st" at 156:16-156:18 (leading: Space)
+745: Dot             "." at 156:18-156:19
+746: Ident           "gate" at 156:19-156:23
+747: Semicolon       ";" at 156:23-156:24
+748: Ident           "st" at 157:5-157:7 (leading: Newline, Space)
+749: Dot             "." at 157:7-157:8
+750: Ident           "count" at 157:8-157:13
+751: Assign          "=" at 157:14-157:15 (leading: Space)
+752: Ident           "st" at 157:16-157:18 (leading: Space)
+753: Dot             "." at 157:18-157:19
+754: Ident           "count" at 157:19-157:24
+755: Plus            "+" at 157:25-157:26 (leading: Space)
+756: IntLit          "1" at 157:27-157:28 (leading: Space)
+757: Colon           ":" at 157:28-157:29
+758: Ident           "uint" at 157:29-157:33
+759: Semicolon       ";" at 157:33-157:34
+760: KwIf            "if" at 158:5-158:7 (leading: Newline, Space)
+761: Ident           "st" at 158:8-158:10 (leading: Space)
+762: Dot             "." at 158:10-158:11
+763: Ident           "count" at 158:11-158:16
+764: EqEq            "==" at 158:17-158:19 (leading: Space)
+765: Ident           "barrier" at 158:20-158:27 (leading: Space)
+766: Dot             "." at 158:27-158:28
+767: Ident           "parties" at 158:28-158:35
+768: LBrace          "{" at 158:36-158:37 (leading: Space)
+769: Ident           "st" at 159:9-159:11 (leading: Newline, Space)
+770: Dot             "." at 159:11-159:12
+771: Ident           "count" at 159:12-159:17
+772: Assign          "=" at 159:18-159:19 (leading: Space)
+773: IntLit          "0" at 159:20-159:21 (leading: Space)
+774: Colon           ":" at 159:21-159:22
+775: Ident           "uint" at 159:22-159:26
+776: Semicolon       ";" at 159:26-159:27
+777: Ident           "st" at 160:9-160:11 (leading: Newline, Space)
+778: Dot             "." at 160:11-160:12
+779: Ident           "gen" at 160:12-160:15
+780: Assign          "=" at 160:16-160:17 (leading: Space)
+781: Ident           "st" at 160:18-160:20 (leading: Space)
+782: Dot             "." at 160:20-160:21
+783: Ident           "gen" at 160:21-160:24
+784: Plus            "+" at 160:25-160:26 (leading: Space)
+785: IntLit          "1" at 160:27-160:28 (leading: Space)
+786: Colon           ":" at 160:28-160:29
+787: Ident           "uint" at 160:29-160:33
+788: Semicolon       ";" at 160:33-160:34
+789: Ident           "st" at 161:9-161:11 (leading: Newline, Space)
+790: Dot             "." at 161:11-161:12
+791: Ident           "gate" at 161:12-161:16
+792: Assign          "=" at 161:17-161:18 (leading: Space)
+793: Ident           "make_channel" at 161:19-161:31 (leading: Space)
+794: ColonColon      "::" at 161:31-161:33
+795: Lt              "<" at 161:33-161:34
+796: Ident           "uint" at 161:34-161:38
+797: Gt              ">" at 161:38-161:39
+798: LParen          "(" at 161:39-161:40
+799: Ident           "barrier" at 161:40-161:47
+800: Dot             "." at 161:47-161:48
+801: Ident           "parties" at 161:48-161:55
+802: RParen          ")" at 161:55-161:56
+803: Semicolon       ";" at 161:56-161:57
+804: Ident           "barrier" at 162:9-162:16 (leading: Newline, Space)
+805: Dot             "." at 162:16-162:17
+806: Ident           "state" at 162:17-162:22
+807: Dot             "." at 162:22-162:23
+808: Ident           "send" at 162:23-162:27
+809: LParen          "(" at 162:27-162:28
+810: Ident           "st" at 162:28-162:30
+811: RParen          ")" at 162:30-162:31
+812: Semicolon       ";" at 162:31-162:32
+813: KwLet           "let" at 163:9-163:12 (leading: Newline, Space)
+814: KwMut           "mut" at 163:13-163:16 (leading: Space)
+815: Ident           "i" at 163:17-163:18 (leading: Space)
+816: Colon           ":" at 163:18-163:19
+817: Ident           "uint" at 163:20-163:24 (leading: Space)
+818: Assign          "=" at 163:25-163:26 (leading: Space)
+819: IntLit          "0" at 163:27-163:28 (leading: Space)
+820: Colon           ":" at 163:28-163:29
+821: Ident           "uint" at 163:29-163:33
+822: Semicolon       ";" at 163:33-163:34
+823: KwWhile         "while" at 164:9-164:14 (leading: Newline, Space)
+824: Ident           "i" at 164:15-164:16 (leading: Space)
+825: Lt              "<" at 164:17-164:18 (leading: Space)
+826: LParen          "(" at 164:19-164:20 (leading: Space)
+827: Ident           "barrier" at 164:20-164:27
+828: Dot             "." at 164:27-164:28
+829: Ident           "parties" at 164:28-164:35
+830: Minus           "-" at 164:36-164:37 (leading: Space)
+831: IntLit          "1" at 164:38-164:39 (leading: Space)
+832: Colon           ":" at 164:39-164:40
+833: Ident           "uint" at 164:40-164:44
+834: RParen          ")" at 164:44-164:45
+835: LBrace          "{" at 164:46-164:47 (leading: Space)
+836: Ident           "gate" at 165:13-165:17 (leading: Newline, Space)
+837: Dot             "." at 165:17-165:18
+838: Ident           "send" at 165:18-165:22
+839: LParen          "(" at 165:22-165:23
+840: Ident           "st" at 165:23-165:25
+841: Dot             "." at 165:25-165:26
+842: Ident           "gen" at 165:26-165:29
+843: RParen          ")" at 165:29-165:30
+844: Semicolon       ";" at 165:30-165:31
+845: Ident           "i" at 166:13-166:14 (leading: Newline, Space)
+846: Assign          "=" at 166:15-166:16 (leading: Space)
+847: Ident           "i" at 166:17-166:18 (leading: Space)
+848: Plus            "+" at 166:19-166:20 (leading: Space)
+849: IntLit          "1" at 166:21-166:22 (leading: Space)
+850: Colon           ":" at 166:22-166:23
+851: Ident           "uint" at 166:23-166:27
+852: Semicolon       ";" at 166:27-166:28
+853: RBrace          "}" at 167:9-167:10 (leading: Newline, Space)
+854: KwReturn        "return" at 168:9-168:15 (leading: Newline, Space)
+855: NothingLit      "nothing" at 168:16-168:23 (leading: Space)
+856: Semicolon       ";" at 168:23-168:24
+857: RBrace          "}" at 169:5-169:6 (leading: Newline, Space)
+858: Ident           "barrier" at 171:5-171:12 (leading: Newline, Space)
+859: Dot             "." at 171:12-171:13
+860: Ident           "state" at 171:13-171:18
+861: Dot             "." at 171:18-171:19
+862: Ident           "send" at 171:19-171:23
+863: LParen          "(" at 171:23-171:24
+864: Ident           "st" at 171:24-171:26
+865: RParen          ")" at 171:26-171:27
+866: Semicolon       ";" at 171:27-171:28
+867: KwLet           "let" at 172:5-172:8 (leading: Newline, Space)
+868: Underscore      "_" at 172:9-172:10 (leading: Space)
+869: Assign          "=" at 172:11-172:12 (leading: Space)
+870: Ident           "gate" at 172:13-172:17 (leading: Space)
+871: Dot             "." at 172:17-172:18
+872: Ident           "recv" at 172:18-172:22
+873: LParen          "(" at 172:22-172:23
+874: RParen          ")" at 172:23-172:24
+875: Semicolon       ";" at 172:24-172:25
+876: KwReturn        "return" at 173:5-173:11 (leading: Newline, Space)
+877: NothingLit      "nothing" at 173:12-173:19 (leading: Space)
+878: Semicolon       ";" at 173:19-173:20
+879: RBrace          "}" at 174:1-174:2 (leading: Newline)
+880: KwExtern        "extern" at 176:1-176:7 (leading: Newline)
+881: Lt              "<" at 176:7-176:8
+882: Ident           "Barrier" at 176:8-176:15
+883: Gt              ">" at 176:15-176:16
+884: LBrace          "{" at 176:17-176:18 (leading: Space)
+885: KwPub           "pub" at 177:5-177:8 (leading: Newline, Space)
+886: KwFn            "fn" at 177:9-177:11 (leading: Space)
+887: Ident           "new" at 177:12-177:15 (leading: Space)
+888: LParen          "(" at 177:15-177:16
+889: Ident           "parties" at 177:16-177:23
+890: Colon           ":" at 177:23-177:24
+891: Ident           "uint" at 177:25-177:29 (leading: Space)
+892: RParen          ")" at 177:29-177:30
+893: Arrow           "->" at 177:31-177:33 (leading: Space)
+894: Ident           "Barrier" at 177:34-177:41 (leading: Space)
+895: LBrace          "{" at 177:42-177:43 (leading: Space)
+896: KwLet           "let" at 178:9-178:12 (leading: Newline, Space)
+897: Ident           "state" at 178:13-178:18 (leading: Space)
+898: Colon           ":" at 178:18-178:19
+899: Ident           "Channel" at 178:20-178:27 (leading: Space)
+900: Lt              "<" at 178:27-178:28
+901: Ident           "BarrierState" at 178:28-178:40
+902: Gt              ">" at 178:40-178:41
+903: Assign          "=" at 178:42-178:43 (leading: Space)
+904: Ident           "make_channel" at 178:44-178:56 (leading: Space)
+905: ColonColon      "::" at 178:56-178:58
+906: Lt              "<" at 178:58-178:59
+907: Ident           "BarrierState" at 178:59-178:71
+908: Gt              ">" at 178:71-178:72
+909: LParen          "(" at 178:72-178:73
+910: IntLit          "1" at 178:73-178:74
+911: RParen          ")" at 178:74-178:75
+912: Semicolon       ";" at 178:75-178:76
+913: KwLet           "let" at 179:9-179:12 (leading: Newline, Space)
+914: Ident           "gate" at 179:13-179:17 (leading: Space)
+915: Colon           ":" at 179:17-179:18
+916: Ident           "Channel" at 179:19-179:26 (leading: Space)
+917: Lt              "<" at 179:26-179:27
+918: Ident           "uint" at 179:27-179:31
+919: Gt              ">" at 179:31-179:32
+920: Assign          "=" at 179:33-179:34 (leading: Space)
+921: Ident           "make_channel" at 179:35-179:47 (leading: Space)
+922: ColonColon      "::" at 179:47-179:49
+923: Lt              "<" at 179:49-179:50
+924: Ident           "uint" at 179:50-179:54
+925: Gt              ">" at 179:54-179:55
+926: LParen          "(" at 179:55-179:56
+927: Ident           "parties" at 179:56-179:63
+928: RParen          ")" at 179:63-179:64
+929: Semicolon       ";" at 179:64-179:65
+930: KwLet           "let" at 180:9-180:12 (leading: Newline, Space)
+931: Ident           "init" at 180:13-180:17 (leading: Space)
+932: Colon           ":" at 180:17-180:18
+933: Ident           "BarrierState" at 180:19-180:31 (leading: Space)
+934: Assign          "=" at 180:32-180:33 (leading: Space)
+935: Ident           "BarrierState" at 180:34-180:46 (leading: Space)
+936: LBrace          "{" at 180:47-180:48 (leading: Space)
+937: Ident           "count" at 180:49-180:54 (leading: Space)
+938: Assign          "=" at 180:55-180:56 (leading: Space)
+939: IntLit          "0" at 180:57-180:58 (leading: Space)
+940: Colon           ":" at 180:58-180:59
+941: Ident           "uint" at 180:59-180:63
+942: Comma           "," at 180:63-180:64
+943: Ident           "gen" at 180:65-180:68 (leading: Space)
+944: Assign          "=" at 180:69-180:70 (leading: Space)
+945: IntLit          "0" at 180:71-180:72 (leading: Space)
+946: Colon           ":" at 180:72-180:73
+947: Ident           "uint" at 180:73-180:77
+948: Comma           "," at 180:77-180:78
+949: Ident           "gate" at 180:79-180:83 (leading: Space)
+950: Assign          "=" at 180:84-180:85 (leading: Space)
+951: Ident           "gate" at 180:86-180:90 (leading: Space)
+952: RBrace          "}" at 180:91-180:92 (leading: Space)
+953: Semicolon       ";" at 180:92-180:93
+954: Ident           "state" at 181:9-181:14 (leading: Newline, Space)
+955: Dot             "." at 181:14-181:15
+956: Ident           "try_send" at 181:15-181:23
+957: LParen          "(" at 181:23-181:24
+958: Ident           "init" at 181:24-181:28
+959: RParen          ")" at 181:28-181:29
+960: Semicolon       ";" at 181:29-181:30
+961: KwReturn        "return" at 182:9-182:15 (leading: Newline, Space)
+962: LBrace          "{" at 182:16-182:17 (leading: Space)
+963: Ident           "parties" at 182:18-182:25 (leading: Space)
+964: Assign          "=" at 182:26-182:27 (leading: Space)
+965: Ident           "parties" at 182:28-182:35 (leading: Space)
+966: Comma           "," at 182:35-182:36
+967: Ident           "state" at 182:37-182:42 (leading: Space)
+968: Assign          "=" at 182:43-182:44 (leading: Space)
+969: Ident           "state" at 182:45-182:50 (leading: Space)
+970: RBrace          "}" at 182:51-182:52 (leading: Space)
+971: Semicolon       ";" at 182:52-182:53
+972: RBrace          "}" at 183:5-183:6 (leading: Newline, Space)
+973: KwPub           "pub" at 185:5-185:8 (leading: Newline, Space)
+974: KwFn            "fn" at 185:9-185:11 (leading: Space)
+975: Ident           "arrive_and_wait" at 185:12-185:27 (leading: Space)
+976: LParen          "(" at 185:27-185:28
+977: Ident           "self" at 185:28-185:32
+978: Colon           ":" at 185:32-185:33
+979: Amp             "&" at 185:34-185:35 (leading: Space)
+980: Ident           "Barrier" at 185:35-185:42
+981: RParen          ")" at 185:42-185:43
+982: Arrow           "->" at 185:44-185:46 (leading: Space)
+983: Ident           "Task" at 185:47-185:51 (leading: Space)
+984: Lt              "<" at 185:51-185:52
+985: NothingLit      "nothing" at 185:52-185:59
+986: Gt              ">" at 185:59-185:60
+987: LBrace          "{" at 185:61-185:62 (leading: Space)
+988: KwReturn        "return" at 186:9-186:15 (leading: Newline, Space)
+989: Ident           "barrier_arrive_task" at 186:16-186:35 (leading: Space)
+990: LParen          "(" at 186:35-186:36
+991: Star            "*" at 186:36-186:37
+992: Ident           "self" at 186:37-186:41
+993: RParen          ")" at 186:41-186:42
+994: Semicolon       ";" at 186:42-186:43
+995: RBrace          "}" at 187:5-187:6 (leading: Newline, Space)
+996: RBrace          "}" at 188:1-188:2 (leading: Newline)
+997: EOF             at 199:1-199:1
