@@ -16,6 +16,12 @@ const (
 	WakerTimer
 	// WakerSelect indicates a select wait queue.
 	WakerSelect
+	// WakerNetAccept indicates a network accept wait queue.
+	WakerNetAccept
+	// WakerNetRead indicates a network readable wait queue.
+	WakerNetRead
+	// WakerNetWrite indicates a network writable wait queue.
+	WakerNetWrite
 )
 
 // WakerKey identifies a wait queue entry.
@@ -53,6 +59,30 @@ func TimerKey(timerID TimerID) WakerKey {
 // SelectKey builds a wait key for a select operation.
 func SelectKey(selectID SelectID) WakerKey {
 	return WakerKey{Kind: WakerSelect, A: uint64(selectID)}
+}
+
+// NetAcceptKey builds a wait key for listener accept readiness.
+func NetAcceptKey(fd int) WakerKey {
+	if fd <= 0 {
+		return WakerKey{Kind: WakerInvalid}
+	}
+	return WakerKey{Kind: WakerNetAccept, A: uint64(fd)}
+}
+
+// NetReadKey builds a wait key for connection readable readiness.
+func NetReadKey(fd int) WakerKey {
+	if fd <= 0 {
+		return WakerKey{Kind: WakerInvalid}
+	}
+	return WakerKey{Kind: WakerNetRead, A: uint64(fd)}
+}
+
+// NetWriteKey builds a wait key for connection writable readiness.
+func NetWriteKey(fd int) WakerKey {
+	if fd <= 0 {
+		return WakerKey{Kind: WakerInvalid}
+	}
+	return WakerKey{Kind: WakerNetWrite, A: uint64(fd)}
 }
 
 // Waiter represents a task waiting on a key (optionally as part of a select).

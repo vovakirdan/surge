@@ -1,0 +1,67 @@
+import stdlib/fs as fs;
+
+fn bytes_to_ascii(bytes: &byte[]) -> string {
+    let length: int = bytes.__len() to int;
+    if length == 0 {
+        return "";
+    }
+    let buf = rt_alloc(1:uint, 1:uint);
+    let mut out: string = "";
+    let mut i: int = 0;
+    while i < length {
+        *buf = clone(bytes[i]);
+        let piece = rt_string_from_bytes(buf, 1:uint);
+        out = out + piece;
+        i = i + 1;
+    }
+    rt_free(buf, 1:uint, 1:uint);
+    return out;
+}
+
+@entrypoint("argv")
+fn main(dir: string) -> int {
+    let path = dir + "/text.txt";
+    let head_res = fs.head(path.__clone(), 5:uint);
+    compare head_res {
+        Success(bytes) => {
+            print("head=" + bytes_to_ascii(&bytes));
+            print("head_len=" + (bytes.__len() to string));
+        }
+        err => {
+            print("head_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    let tail_res = fs.tail(path.__clone(), 5:uint);
+    compare tail_res {
+        Success(bytes) => {
+            print("tail=" + bytes_to_ascii(&bytes));
+            print("tail_len=" + (bytes.__len() to string));
+        }
+        err => {
+            print("tail_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    let text_res = fs.read_to_string(path.__clone());
+    compare text_res {
+        Success(s) => {
+            print("text=" + s);
+        }
+        err => {
+            print("text_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    let bytes_res = fs.read_to_bytes(path);
+    compare bytes_res {
+        Success(bytes) => {
+            print("bytes_len=" + (bytes.__len() to string));
+        }
+        err => {
+            print("bytes_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    return 0;
+}

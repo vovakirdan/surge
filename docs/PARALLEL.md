@@ -1,32 +1,32 @@
-# Parallelism in Surge (v1 status)
+# Parallelism in Surge (current status)
 
-> **Short version:** v1 has no real parallelism. There is only cooperative
-> concurrency via `async`/`task` and channels. The keywords `parallel` and
-> `signal` are reserved and not supported.
+> **Short version:** Surge has cooperative concurrency via `async`/`spawn` and channels.
+> Native/LLVM run a multi-worker executor; the VM backend is single-threaded.
+> The language keywords `parallel` and `signal` are reserved and not supported.
 
 ---
 
-## 1. What exists in v1
+## 1. What exists today
 
 ### 1.1. Cooperative concurrency
 
-- Single execution thread; tasks switch at suspension points.
-- Tools: `async`, `task`, `.await()`, `Channel<T>`.
+- Scheduling is cooperative at suspension points.
+- Native/LLVM use a multi-worker executor; the VM backend is single-threaded.
+- Tools: `async`, `spawn`, `.await()`, `Channel<T>`.
 - Await result: `TaskResult<T> = Success(T) | Cancelled`.
 
 See `docs/CONCURRENCY.md` for the precise model.
 
-### 1.2. v1 limitations
+### 1.2. Current limitations
 
-- **No parallelism** across multiple cores.
 - `parallel map/reduce` is not supported (error `FutParallelNotSupported`).
 - `signal` is not supported (error `FutSignalNotSupported`).
 
 ---
 
-## 2. Data-parallel alternative in v1
+## 2. Data-parallel alternative today
 
-If you need to process a collection, use `task` + await. In v1 you cannot
+If you need to process a collection, use `spawn` + await. You cannot
 `await` in loops, so awaiting tasks is structured via recursion:
 
 ```sg
@@ -42,7 +42,7 @@ async fn await_all<T>(tasks: Task<T>[], idx: int, mut out: T[]) -> T[] {
 async fn concurrent_map<T, U>(xs: T[], f: fn(T) -> U) -> U[] {
     let mut tasks: Task<U>[] = [];
     for x in xs {
-        tasks.push(task f(x));
+        tasks.push(spawn f(x));
     }
     return await_all(tasks, 0, []);
 }
@@ -77,11 +77,10 @@ Current status: error `FutSignalNotSupported`.
 
 ---
 
-## 4. v2+ plan (brief)
+## 4. Future plan (brief)
 
-- Real parallelism across multiple threads.
 - Data-parallel constructs (`parallel map/reduce`).
 - Reactive computations (`signal`).
 
-Details will be clarified as the implementation progresses; in v1 this is
-**not part of the specification**.
+Details will be clarified as the implementation progresses; this is
+**not part of the current specification**.

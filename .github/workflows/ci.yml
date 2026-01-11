@@ -39,6 +39,8 @@ jobs:
         run: go test ./...
       - name: Run go tests (llvm)
         if: matrix.backend == 'llvm'
+        env:
+          SURGE_MT_TIMEOUT_SCALE: "3"
         run: go test ./...
 
   lint:

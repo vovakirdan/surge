@@ -17,6 +17,7 @@ type Func struct {
 	IsAsync        bool
 	Failfast       bool
 	AsyncLoweredV2 bool
+	ParamCount     int
 
 	Locals []Local
 	Blocks []Block

@@ -1,13 +1,13 @@
-// ERROR: Multiple task leaks
+// ERROR: Multiple spawn leaks
 
 async fn work() -> int {
     return 42;
 }
 
 pub async fn test_multiple_leaks() -> Task<int> {
-    let t1 = task work();  // OK - awaited
-    let t2 = task work();  // ERROR SEM3107 - leaked
-    let t3 = task work();  // OK - returned
+    let t1 = spawn work();  // OK - awaited
+    let t2 = spawn work();  // ERROR SEM3107 - leaked
+    let t3 = spawn work();  // OK - returned
 
     let r = t1.await();
     return t3;

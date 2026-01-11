@@ -1,6 +1,10 @@
 package vm
 
 import (
+	"runtime"
+
+	"fortio.org/safecast"
+
 	"surge/internal/mir"
 	"surge/internal/types"
 	"surge/internal/vm/bignum"
@@ -109,6 +113,35 @@ func (vm *VM) handleHeapDump(frame *Frame, call *mir.CallInstr, writes *[]LocalW
 	val := MakeHandleString(h, dstType)
 	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
 		vm.Heap.Release(h)
+		return vmErr
+	}
+	*writes = append(*writes, LocalWrite{
+		LocalID: dstLocal,
+		Name:    frame.Locals[dstLocal].Name,
+		Value:   val,
+	})
+	return nil
+}
+
+func (vm *VM) handleWorkerCount(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if !call.HasDst {
+		return nil
+	}
+	if len(call.Args) != 0 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_worker_count requires 0 arguments")
+	}
+	dstLocal := call.Dst.Local
+	dstType := frame.Locals[dstLocal].TypeID
+	n := runtime.NumCPU()
+	val := MakeInt(int64(n), dstType)
+	if kind, width, ok := vm.numericKind(dstType); ok && kind == types.KindUint && width == types.WidthAny {
+		u64n, err := safecast.Conv[uint64](n)
+		if err != nil {
+			return vm.eb.invalidNumericConversion("rt_worker_count out of range") // but this should never happen... over 18*10^18 cores?
+		}
+		val = vm.makeBigUint(dstType, bignum.UintFromUint64(u64n))
+	}
+	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
 		return vmErr
 	}
 	*writes = append(*writes, LocalWrite{

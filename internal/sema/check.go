@@ -53,6 +53,7 @@ type Result struct {
 	IndexSetSymbols        map[ast.ExprID]symbols.SymbolID   // Resolved magic symbols for index assignment
 	BindingTypes           map[symbols.SymbolID]types.TypeID // Maps symbol IDs to their resolved types
 	ItemScopes             map[ast.ItemID]symbols.ScopeID    // Maps items to their scopes (for HIR lowering)
+	BlockingCaptures       map[ast.ExprID][]symbols.SymbolID // Captures for blocking { ... } expressions
 }
 
 // Check performs semantic analysis (type inference, borrow checks, etc.).
@@ -71,6 +72,7 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 		MagicBinarySymbols:     make(map[ast.ExprID]symbols.SymbolID),
 		IndexSymbols:           make(map[ast.ExprID]symbols.SymbolID),
 		IndexSetSymbols:        make(map[ast.ExprID]symbols.SymbolID),
+		BlockingCaptures:       make(map[ast.ExprID][]symbols.SymbolID),
 	}
 	if opts.Types != nil {
 		res.TypeInterner = opts.Types

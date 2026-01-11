@@ -21,11 +21,11 @@ spec_alignment.sg (span: 9:1-302:1)
 │  ├─ Return: nothing
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 19:33-22:2)
-│        ├─ Stmt[0]: Let (span: 20:5-20:47)
+│        ├─ Stmt[0]: Let (span: 20:5-20:48)
 │        │  ├─ Name: t
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Task<int>
-│        │  └─ Value: expr#7: task simple_async_fn()
+│        │  └─ Value: expr#7: spawn simple_async_fn()
 │        └─ Stmt[1]: Let (span: 21:5-21:45)
 │           ├─ Name: result
 │           ├─ Mutable: false
@@ -37,8 +37,8 @@ spec_alignment.sg (span: 9:1-302:1)
 │  ├─ Return: Task<int>
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 25:44-27:2)
-│        └─ Stmt[0]: Return (span: 26:5-26:35)
-│           └─ Expr: expr#13: task simple_async_fn()
+│        └─ Stmt[0]: Return (span: 26:5-26:36)
+│           └─ Expr: expr#13: spawn simple_async_fn()
 ├─ Item[4]: Fn (span: 31:1-33:2)
 │  ├─ Name: test_await_basic
 │  ├─ Params: ()
@@ -56,11 +56,11 @@ spec_alignment.sg (span: 9:1-302:1)
 │  ├─ Return: nothing
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 35:35-38:2)
-│        ├─ Stmt[0]: Let (span: 36:5-36:47)
+│        ├─ Stmt[0]: Let (span: 36:5-36:48)
 │        │  ├─ Name: t
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Task<int>
-│        │  └─ Value: expr#20: task simple_async_fn()
+│        │  └─ Value: expr#20: spawn simple_async_fn()
 │        └─ Stmt[1]: Let (span: 37:5-37:44)
 │           ├─ Name: value
 │           ├─ Mutable: false
@@ -497,5 +497,5 @@ Block (span: 68:24-70:10)
    ├─ Return: Task<int>
    └─ Body:
       └─ Stmt[0]: Block (span: 299:47-301:2)
-         └─ Stmt[0]: Return (span: 300:5-300:35)
-            └─ Expr: expr#309: task simple_async_fn()
+         └─ Stmt[0]: Return (span: 300:5-300:36)
+            └─ Expr: expr#309: spawn simple_async_fn()

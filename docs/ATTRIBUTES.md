@@ -27,6 +27,7 @@ Notes:
 - Unknown attributes are errors.
 - Statement attributes: only `@drop expr;` is allowed (no arguments).
 - Async block attributes: only `@failfast` is accepted.
+- Spawn expression attributes: only `@local` is accepted.
 - Attribute arguments must be literals (string or integer as required).
 
 ---
@@ -47,12 +48,13 @@ Status legend:
 | `@drop` | stmt | none | Enforced | Explicit drop/borrow end point. |
 | `@entrypoint` | fn | optional string | Enforced | Program entrypoint. |
 | `@failfast` | async fn, async block | none | Enforced | Structured concurrency cancellation. |
+| `@local` | spawn expr | none | Enforced | Allows @nosend captures; local task handle is not sendable. |
 | `@guarded_by` | field | string | Enforced | Requires holding a lock to access. |
 | `@hidden` | fn, type, field, let, const | none | Enforced (top-level) | Field-level is parsed only. |
 | `@intrinsic` | fn, type | none | Enforced | Decl-only; type body restrictions. |
 | `@noinherit` | type, field | none | Enforced | Prevents inheritance. |
 | `@nosend` | type | none | Enforced | Disallows crossing task boundaries. |
-| `@nonblocking` | fn | none | Enforced | Forbids blocking calls. |
+| `@nonblocking` | fn | none | Enforced | Forbids may-wait (park/unpark) and OS-blocking calls. |
 | `@overload` | fn | none | Enforced | Adds a new signature. |
 | `@override` | fn | none | Enforced | Replaces an existing signature. |
 | `@packed` | type, field | none | Enforced (type) | Field-level has no layout effect. |
@@ -167,11 +169,11 @@ fn takes_string(@allow_to s: string) { print(s); }
 
 ### `@nonblocking` and `@waits_on`
 
-- `@nonblocking` forbids blocking calls.
-- `@waits_on("field")` marks a function as potentially blocking.
+- `@nonblocking` forbids operations that may wait (park/unpark) or OS-block.
+- `@waits_on("field")` marks a function as potentially waiting on that field.
 - They **conflict** if used together.
 
-Blocking methods checked today:
+May-wait methods checked today (they park tasks, not OS-block):
 - `Mutex.lock`
 - `RwLock.read_lock` / `RwLock.write_lock`
 - `Condition.wait`
@@ -203,6 +205,13 @@ Validates an execution target string (known: `cpu`, `gpu`, `tpu`, `wasm`,
 
 - Allowed on `async fn` and `@failfast async { ... }` blocks.
 - Cancels sibling tasks in the same scope when one is cancelled.
+
+### `@local`
+
+- Allowed on `spawn` expressions: `@local spawn expr`.
+- Allows capturing `@nosend` values.
+- The resulting task handle is local (not sendable): it cannot be captured by `spawn`,
+  sent through channels, or returned from a function.
 
 ### `@pure`
 

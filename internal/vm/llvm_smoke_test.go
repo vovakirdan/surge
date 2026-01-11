@@ -19,6 +19,7 @@ func TestLLVMSmoke(t *testing.T) {
 	}
 
 	surge := buildSurgeBinary(t, root)
+	parityEnv := envForParity(root)
 
 	cases := []struct {
 		name string
@@ -33,9 +34,9 @@ func TestLLVMSmoke(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			sgRel := filepath.ToSlash(filepath.Join("testdata", "llvm_smoke", tc.file))
 
-			vmOut, vmErr, vmCode := runSurge(t, root, surge, "run", "--backend=vm", sgRel)
+			vmOut, vmErr, vmCode := runSurgeWithEnv(t, root, surge, parityEnv, "run", "--backend=vm", sgRel)
 
-			buildOut, buildErr, buildCode := runSurge(t, root, surge, "build", sgRel)
+			buildOut, buildErr, buildCode := runSurgeWithEnv(t, root, surge, parityEnv, "build", sgRel)
 			if buildCode != 0 {
 				t.Fatalf("build failed (code=%d)\nstdout:\n%s\nstderr:\n%s", buildCode, buildOut, buildErr)
 			}
@@ -56,9 +57,10 @@ func TestLLVMSmoke(t *testing.T) {
 	}
 }
 
-func runBinary(t *testing.T, path string) (stdout, stderr string, exitCode int) {
+func runBinary(t *testing.T, path string, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
-	cmd := exec.Command(path)
+	cmd := exec.Command(path, args...)
+	cmd.Env = envForParity(repoRoot(t))
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf

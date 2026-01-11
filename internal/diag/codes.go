@@ -184,7 +184,7 @@ const (
 	SemaLockUnverified           Code = 3083 // Cannot verify lock held (warning)
 	SemaLockNonblockingCallsWait Code = 3084 // @nonblocking calls @waits_on
 	SemaLockFieldNotLockType     Code = 3085 // Referenced field not Mutex/RwLock
-	SemaNosendInSpawn            Code = 3086 // @nosend type in task
+	SemaNosendInSpawn            Code = 3086 // @nosend type in spawn
 	SemaFailfastNonAsync         Code = 3087 // @failfast on non-async block
 	SemaLockAcquiresNotField     Code = 3088 // @acquires_lock refs non-existent field
 	SemaLockReleasesNotField     Code = 3089 // @releases_lock refs non-existent field
@@ -233,7 +233,7 @@ const (
 	SemaTaskEscapesScope  Code = 3108 // Task stored in global without detach
 	SemaTaskLeakInAsync   Code = 3109 // Unawaited task at async block exit
 	SemaTaskLifetimeError Code = 3110 // Task outlives spawning scope
-	SemaSpawnNotTask      Code = 3111 // task requires Task<T> expression
+	SemaSpawnNotTask      Code = 3111 // spawn requires Task<T> expression
 
 	// Generic type parameter errors (3112)
 
@@ -249,7 +249,7 @@ const (
 	// Spawn warnings (3115)
 
 	// SemaSpawnCheckpointUseless indicates useless checkpoint.
-	SemaSpawnCheckpointUseless Code = 3115 // task checkpoint() has no effect
+	SemaSpawnCheckpointUseless Code = 3115 // spawn checkpoint() has no effect
 
 	// Clone errors (3116)
 
@@ -282,6 +282,8 @@ const (
 	SemaRawPointerNotAllowed           Code = 3129 // Raw pointer types are backend-only
 	SemaUseAfterMove                   Code = 3130 // Use of moved value
 	SemaTrivialRecursion               Code = 3131 // Obvious infinite recursion cycle
+	SemaLocalTaskNotSendable           Code = 3132 // Local task handle used in sendable context
+	SemaBlockingBorrowCapture          Code = 3133 // blocking capture cannot borrow
 
 	// Ошибки I/O
 
@@ -321,6 +323,7 @@ const (
 	FutNullCoalescingNotSupported Code = 7005
 	FutNestedFnNotSupported       Code = 7006
 	FutSpawnReserved              Code = 7007
+	FutBlockingNotSupported       Code = 7008
 
 	// Alien hints (8000-series; optional extra diagnostics)
 
@@ -476,13 +479,14 @@ var ( // todo расширить описания и использовать к
 		SemaLockUnverified:                 "cannot statically verify lock is held",
 		SemaLockNonblockingCallsWait:       "@nonblocking context calls function that may block",
 		SemaLockFieldNotLockType:           "lock field is not Mutex or RwLock type",
-		SemaNosendInSpawn:                  "cannot send @nosend type to task",
+		SemaNosendInSpawn:                  "cannot send @nosend type to spawn",
 		SemaFailfastNonAsync:               "@failfast can only be applied to async blocks",
 		SemaLockAcquiresNotField:           "@acquires_lock references non-existent field",
 		SemaLockReleasesNotField:           "@releases_lock references non-existent field",
 		SemaIteratorNotImplemented:         "type does not implement iterator (missing __range method)",
 		SemaRangeTypeMismatch:              "range operands have incompatible types",
 		SemaIndexOutOfBounds:               "index out of bounds",
+		SemaBlockingBorrowCapture:          "blocking captures must be by value (borrows are not allowed)",
 		SemaEnumVariantNotFound:            "enum variant not found",
 		SemaEnumValueOverflow:              "enum value overflow",
 		SemaEnumValueTypeMismatch:          "enum value type mismatch",
@@ -501,8 +505,8 @@ var ( // todo расширить описания и использовать к
 		SemaTaskEscapesScope:               "cannot store Task<T> in global variable without detach",
 		SemaTaskLeakInAsync:                "unawaited task at async block exit",
 		SemaTaskLifetimeError:              "task outlives spawning scope",
-		SemaSpawnNotTask:                   "task requires Task<T> expression",
-		SemaSpawnCheckpointUseless:         "task checkpoint() has no effect",
+		SemaSpawnNotTask:                   "spawn requires Task<T> expression",
+		SemaSpawnCheckpointUseless:         "spawn checkpoint() has no effect",
 		SemaSendContainsNonsend:            "@send type contains non-sendable field",
 		SemaAtomicDirectAccess:             "@atomic field must be accessed via atomic operations",
 		SemaTypeParamShadow:                "type parameter shadows outer type parameter",
@@ -522,6 +526,7 @@ var ( // todo расширить описания и использовать к
 		SemaRawPointerNotAllowed:           "raw pointers are backend-only",
 		SemaUseAfterMove:                   "use of moved value",
 		SemaTrivialRecursion:               "obvious infinite recursion cycle",
+		SemaLocalTaskNotSendable:           "local task handle is not sendable",
 		IOLoadFileError:                    "I/O load file error",
 		ProjInfo:                           "Project information",
 		ProjDuplicateModule:                "Duplicate module definition",
@@ -545,6 +550,7 @@ var ( // todo расширить описания и использовать к
 		FutNullCoalescingNotSupported:      "null coalescing '??' is not supported in v1",
 		FutNestedFnNotSupported:            "nested function declarations are not supported yet",
 		FutSpawnReserved:                   "'spawn' is reserved for routines/parallel runtime",
+		FutBlockingNotSupported:            "blocking { } is not supported in the VM backend; VM is single-threaded and has no blocking pool",
 		AlnRustImplTrait:                   "alien hint: rust impl/trait",
 		AlnRustAttribute:                   "alien hint: rust attribute syntax",
 		AlnRustMacroCall:                   "alien hint: rust macro call",

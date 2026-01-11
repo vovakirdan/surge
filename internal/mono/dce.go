@@ -225,6 +225,12 @@ func collectCallSyms(b *hir.Block) []symbols.SymbolID {
 				return
 			}
 			walkBlock(data.Body)
+		case hir.ExprBlocking:
+			data, ok := e.Data.(hir.BlockingData)
+			if !ok {
+				return
+			}
+			walkBlock(data.Body)
 		case hir.ExprCast:
 			data, ok := e.Data.(hir.CastData)
 			if !ok {

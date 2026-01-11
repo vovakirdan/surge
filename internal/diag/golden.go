@@ -23,13 +23,23 @@ type goldenDiagnostic struct {
 // that belong to stdlib or internal files, sorted deterministically, and returned
 // as a single string (empty when nothing remains).
 func FormatGoldenDiagnostics(diags []*Diagnostic, fs *source.FileSet, includeNotes bool) string {
+	return formatDiagnostics(diags, fs, includeNotes, true)
+}
+
+// FormatShortDiagnostics renders diagnostics into a stable, single-line-per-entry
+// representation intended for CLI short output. It includes stdlib/internal paths.
+func FormatShortDiagnostics(diags []*Diagnostic, fs *source.FileSet, includeNotes bool) string {
+	return formatDiagnostics(diags, fs, includeNotes, false)
+}
+
+func formatDiagnostics(diags []*Diagnostic, fs *source.FileSet, includeNotes, skipInternal bool) string {
 	if fs == nil || len(diags) == 0 {
 		return ""
 	}
 
 	rendered := make([]goldenDiagnostic, 0, len(diags))
 	for _, d := range diags {
-		rendered = appendDiagnostic(rendered, d, fs, includeNotes)
+		rendered = appendDiagnostic(rendered, d, fs, includeNotes, skipInternal)
 	}
 
 	sort.SliceStable(rendered, func(i, j int) bool {
@@ -62,9 +72,9 @@ func FormatGoldenDiagnostics(diags []*Diagnostic, fs *source.FileSet, includeNot
 	return b.String()
 }
 
-func appendDiagnostic(out []goldenDiagnostic, d *Diagnostic, fs *source.FileSet, includeNotes bool) []goldenDiagnostic {
+func appendDiagnostic(out []goldenDiagnostic, d *Diagnostic, fs *source.FileSet, includeNotes, skipInternal bool) []goldenDiagnostic {
 	loc, ok := resolveSpan(fs, d.Primary)
-	if ok && !shouldSkipPath(loc.Path) {
+	if ok && (!skipInternal || !shouldSkipPath(loc.Path)) {
 		out = append(out, goldenDiagnostic{
 			Severity: severityLabel(d.Severity),
 			Code:     d.Code.ID(),
@@ -78,7 +88,7 @@ func appendDiagnostic(out []goldenDiagnostic, d *Diagnostic, fs *source.FileSet,
 	if includeNotes {
 		for _, note := range d.Notes {
 			nloc, nok := resolveSpan(fs, note.Span)
-			if !nok || shouldSkipPath(nloc.Path) {
+			if !nok || (skipInternal && shouldSkipPath(nloc.Path)) {
 				continue
 			}
 			out = append(out, goldenDiagnostic{

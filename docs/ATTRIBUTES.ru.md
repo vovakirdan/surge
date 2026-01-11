@@ -27,6 +27,7 @@ fn multiple() { return nothing; }
 - Неизвестные атрибуты считаются ошибкой.
 - Атрибуты инструкций: разрешен только `@drop expr;` (без аргументов).
 - Атрибуты async-блоков: принимается только `@failfast`.
+- Атрибуты spawn-выражений: принимается только `@local`.
 - Аргументы атрибутов должны быть литералами (строка или целое число, как требуется).
 
 ---
@@ -47,12 +48,13 @@ fn multiple() { return nothing; }
 | `@drop` | stmt | нет | Enforced | Явная точка сброса/окончания заимствования. |
 | `@entrypoint` | fn | опц. string | Enforced | Точка входа в программу. |
 | `@failfast` | async fn, async block | нет | Enforced | Отмена структурированной конкурентности. |
+| `@local` | spawn expr | нет | Enforced | Разрешает @nosend-захваты; локальный task handle не sendable. |
 | `@guarded_by` | field | string | Enforced | Требует удержания блокировки для доступа. |
 | `@hidden` | fn, type, field, let, const | нет | Enforced (top-level) | На уровне полей только парсится. |
 | `@intrinsic` | fn, type | нет | Enforced | Только объявление; ограничения тела типа. |
 | `@noinherit` | type, field | нет | Enforced | Предотвращает наследование. |
 | `@nosend` | type | нет | Enforced | Запрещает пересечение границ задач. |
-| `@nonblocking` | fn | нет | Enforced | Запрещает блокирующие вызовы. |
+| `@nonblocking` | fn | нет | Enforced | Запрещает операции, которые могут ждать (park/unpark), и OS-блокирующие вызовы. |
 | `@overload` | fn | нет | Enforced | Добавляет новую сигнатуру. |
 | `@override` | fn | нет | Enforced | Заменяет существующую сигнатуру. |
 | `@packed` | type, field | нет | Enforced (type) | На уровне полей не влияет на layout. |
@@ -167,11 +169,11 @@ fn takes_string(@allow_to s: string) { print(s); }
 
 ### `@nonblocking` и `@waits_on`
 
-- `@nonblocking` запрещает блокирующие вызовы.
-- `@waits_on("field")` помечает функцию как потенциально блокирующую.
+- `@nonblocking` запрещает операции, которые могут ждать (park/unpark) или OS-блокировать.
+- `@waits_on("field")` помечает функцию как потенциально ожидающую этого поля.
 - Они **конфликтуют**, если используются вместе.
 
-Блокирующие методы, проверяемые сегодня:
+Методы, которые могут ждать (паркуют задачи, не OS-блокируют):
 - `Mutex.lock`
 - `RwLock.read_lock` / `RwLock.write_lock`
 - `Condition.wait`
@@ -203,6 +205,13 @@ extern<Counter> {
 
 - Разрешено на `async fn` и блоках `@failfast async { ... }`.
 - Отменяет братские задачи (sibling tasks) в той же области видимости, когда одна из них отменяется.
+
+### `@local`
+
+- Допустим только на spawn-выражениях: `@local spawn expr`.
+- Разрешает захватывать `@nosend` значения.
+- Результирующий task handle локальный (не sendable): его нельзя захватывать в `spawn`,
+  отправлять через каналы или возвращать из функции.
 
 ### `@pure`
 

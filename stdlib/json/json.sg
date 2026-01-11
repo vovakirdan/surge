@@ -1,0 +1,118 @@
+pragma module;
+
+// stdlib/json/json.sg
+// Minimal JSON parser + serializer for Surge.
+
+const JSON_ERR_PARSE: uint = 1;
+const JSON_ERR_EOF: uint = 2;
+const JSON_ERR_UTF8: uint = 3;
+
+pub type JsonError = { message: string, code: uint, offset: uint };
+type JsonResult<T> = Erring<T, JsonError>;
+
+pub tag JsonNull();
+pub tag JsonBool(bool);
+pub tag JsonNumber(string);
+pub tag JsonString(string);
+pub tag JsonArray(JsonValue[]);
+pub tag JsonObject(Map<string, JsonValue>);
+pub type JsonValue = JsonNull() | JsonBool(bool) | JsonNumber(string) | JsonString(string) | JsonArray(JsonValue[]) | JsonObject(Map<string, JsonValue>);
+
+pub contract JsonEncodable<T> {
+    pub fn to_json(self: &T) -> JsonValue;
+}
+
+extern<string> {
+    pub fn to_json(self: &string) -> JsonValue {
+        return JsonString(self.__clone());
+    }
+}
+
+extern<bool> {
+    pub fn to_json(self: &bool) -> JsonValue {
+        return JsonBool(*self);
+    }
+}
+
+extern<int> {
+    pub fn to_json(self: &int) -> JsonValue {
+        let text: string = (*self) to string;
+        return JsonNumber(text);
+    }
+}
+
+extern<uint> {
+    pub fn to_json(self: &uint) -> JsonValue {
+        let text: string = (*self) to string;
+        return JsonNumber(text);
+    }
+}
+
+fn json_clone(value: &JsonValue) -> JsonValue {
+    let mut out_val: JsonValue = JsonNull();
+    compare *value {
+        JsonNull() => {
+            out_val = JsonNull();
+            0:int;
+        }
+        JsonBool(v) => {
+            out_val = JsonBool(v);
+            0:int;
+        }
+        JsonNumber(text) => {
+            out_val = JsonNumber(text.__clone());
+            0:int;
+        }
+        JsonString(text) => {
+            out_val = JsonString(text.__clone());
+            0:int;
+        }
+        JsonArray(values) => {
+            let mut out: JsonValue[] = [];
+            let count: int = values.__len() to int;
+            if count > 0 {
+                out.reserve(values.__len());
+            }
+            let mut i: int = 0;
+            while i < count {
+                out.push(json_clone(values[i]));
+                i = i + 1;
+            }
+            out_val = JsonArray(out);
+            0:int;
+        }
+        JsonObject(obj) => {
+            let mut out: Map<string, JsonValue> = Map::<string, JsonValue>.new();
+            let keys: string[] = obj.keys();
+            let count: int = keys.__len() to int;
+            let mut i: int = 0;
+            while i < count {
+                let key_ref = keys[i];
+                let key: string = clone(key_ref);
+                let value_opt = obj.get_ref(key_ref);
+                let mut value_copy: JsonValue = JsonNull();
+                compare value_opt {
+                    Some(v) => {
+                        value_copy = json_clone(v);
+                        0:int;
+                    }
+                    nothing => {
+                        value_copy = JsonNull();
+                        0:int;
+                    }
+                };
+                let _ = out.insert(key, value_copy);
+                i = i + 1;
+            }
+            out_val = JsonObject(out);
+            0:int;
+        }
+    };
+    return out_val;
+}
+
+extern<JsonValue> {
+    pub fn to_json(self: &JsonValue) -> JsonValue {
+        return json_clone(self);
+    }
+}

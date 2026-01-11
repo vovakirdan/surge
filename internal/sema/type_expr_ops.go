@@ -131,6 +131,8 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 		tc.trackTaskContainerAssign(data.Left, data.Right, rightType, span)
 		tc.handleAssignment(data.Op, data.Left, data.Right, span)
 		tc.updateArrayViewBindingFromAssign(data.Left, data.Right)
+		tc.updateLocalTaskBindingFromAssign(data.Left, data.Right)
+		tc.trackTaskContainerPopBindingFromAssign(data.Left, data.Right)
 		return leftType
 	}
 	leftType := tc.typeExpr(data.Left)

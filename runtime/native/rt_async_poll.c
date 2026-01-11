@@ -8,7 +8,7 @@ static poll_outcome poll_checkpoint_task(const rt_executor* ex, rt_task* task) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
     }
-    if (task->cancelled) {
+    if (task_cancelled_load(task) != 0) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
     }
@@ -27,7 +27,7 @@ static poll_outcome poll_sleep_task(const rt_executor* ex, rt_task* task) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
     }
-    if (task->cancelled) {
+    if (task_cancelled_load(task) != 0) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
     }
@@ -70,16 +70,45 @@ static poll_outcome poll_user_task(const rt_executor* ex, const rt_task* task) {
     return poll_result;
 }
 
-poll_outcome poll_task(const rt_executor* ex, rt_task* task) {
+poll_outcome poll_task(rt_executor* ex, rt_task* task) {
     poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
     if (task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
     }
-    if (task->status == TASK_DONE) {
+    if (task_status_load(task) == TASK_DONE) {
         out.kind =
             task->result_kind == TASK_RESULT_CANCELLED ? POLL_DONE_CANCELLED : POLL_DONE_SUCCESS;
         out.value_bits = task->result_bits;
+        return out;
+    }
+    if (task->cancel_pending) {
+        if (task->scope_id != 0 && ex != NULL) {
+            rt_lock(ex);
+            rt_scope* scope = get_scope(ex, task->scope_id);
+            if (scope == NULL) {
+                task->cancel_pending = 0;
+                rt_unlock(ex);
+                out.kind = POLL_DONE_CANCELLED;
+                return out;
+            }
+            if (scope->active_children == 0) {
+                task->cancel_pending = 0;
+                scope_exit_locked(ex, scope);
+                rt_unlock(ex);
+                out.kind = POLL_DONE_CANCELLED;
+                return out;
+            }
+            waker_key key = scope_key(scope->id);
+            prepare_park(ex, task, key, 0);
+            out.kind = POLL_PARKED;
+            out.park_key = key;
+            out.state = task->state;
+            rt_unlock(ex);
+            return out;
+        }
+        task->cancel_pending = 0;
+        out.kind = POLL_DONE_CANCELLED;
         return out;
     }
     switch (task->kind) {
@@ -87,6 +116,12 @@ poll_outcome poll_task(const rt_executor* ex, rt_task* task) {
             return poll_checkpoint_task(ex, task);
         case TASK_KIND_SLEEP:
             return poll_sleep_task(ex, task);
+        case TASK_KIND_BLOCKING:
+            return poll_blocking_task(ex, task);
+        case TASK_KIND_NET_ACCEPT:
+        case TASK_KIND_NET_READ:
+        case TASK_KIND_NET_WRITE:
+            return poll_net_task(ex, task);
         default:
             return poll_user_task(ex, task);
     }
@@ -96,18 +131,57 @@ int run_ready_one(rt_executor* ex) {
     if (ex == NULL) {
         return 0;
     }
+    rt_lock(ex);
     uint64_t id = 0;
     if (!next_ready(ex, &id)) {
+        rt_unlock(ex);
         return 0;
     }
     rt_task* task = get_task(ex, id);
     if (task == NULL) {
+        rt_unlock(ex);
         panic_msg("invalid task id");
         return 1;
     }
-    ex->current = id;
-    task->status = TASK_RUNNING;
+    task_status_store(task, TASK_RUNNING);
+    (void)task_wake_token_exchange(task, 0);
+    rt_set_current_task(task);
+
+    if (task->kind != TASK_KIND_USER) {
+        task_polling_enter(task);
+        poll_outcome outcome = poll_task(ex, task);
+        task_polling_exit(task);
+        switch (outcome.kind) {
+            case POLL_DONE_SUCCESS:
+                mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);
+                break;
+            case POLL_DONE_CANCELLED:
+                mark_done(ex, task, TASK_RESULT_CANCELLED, 0);
+                break;
+            case POLL_YIELDED:
+                task->state = outcome.state;
+                task_status_store(task, TASK_READY);
+                ready_push(ex, task->id);
+                tick_virtual(ex);
+                break;
+            case POLL_PARKED:
+                task->state = outcome.state;
+                park_current(ex, outcome.park_key);
+                break;
+            default:
+                panic_msg("async: unknown poll outcome");
+                break;
+        }
+        rt_set_current_task(NULL);
+        rt_unlock(ex);
+        return 1;
+    }
+
+    rt_unlock(ex);
+    task_polling_enter(task);
     poll_outcome outcome = poll_task(ex, task);
+    task_polling_exit(task);
+    rt_lock(ex);
     switch (outcome.kind) {
         case POLL_DONE_SUCCESS:
             mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);
@@ -117,6 +191,7 @@ int run_ready_one(rt_executor* ex) {
             break;
         case POLL_YIELDED:
             task->state = outcome.state;
+            task_status_store(task, TASK_READY);
             ready_push(ex, task->id);
             tick_virtual(ex);
             break;
@@ -128,7 +203,8 @@ int run_ready_one(rt_executor* ex) {
             panic_msg("async: unknown poll outcome");
             break;
     }
-    ex->current = 0;
+    rt_set_current_task(NULL);
+    rt_unlock(ex);
     return 1;
 }
 
@@ -138,24 +214,30 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uin
         return;
     }
     uint64_t id = task->id;
-    if (task->status != TASK_WAITING && task->status != TASK_DONE) {
+    rt_lock(ex);
+    if (task_status_load(task) != TASK_WAITING && task_status_load(task) != TASK_DONE) {
         wake_task(ex, id, 1);
     }
+    rt_unlock(ex);
     for (;;) {
+        rt_lock(ex);
         const rt_task* current = get_task(ex, id);
         if (current == NULL) {
+            rt_unlock(ex);
             panic_msg("invalid task id");
             return;
         }
-        if (current->status == TASK_DONE) {
+        if (task_status_load(current) == TASK_DONE) {
             if (out_kind != NULL) {
                 *out_kind = current->result_kind == TASK_RESULT_CANCELLED ? 2 : 1;
             }
             if (out_bits != NULL) {
                 *out_bits = current->result_bits;
             }
+            rt_unlock(ex);
             return;
         }
+        rt_unlock(ex);
         if (!run_ready_one(ex)) {
             panic_msg("async deadlock");
             return;

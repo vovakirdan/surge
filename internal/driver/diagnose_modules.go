@@ -25,6 +25,7 @@ func analyzeDependencyModule(
 	fs *source.FileSet,
 	modulePath string,
 	baseDir string,
+	stdlibRoot string,
 	opts *DiagnoseOptions,
 	cache *ModuleCache,
 	strs *source.Interner,
@@ -42,7 +43,7 @@ func analyzeDependencyModule(
 		span.End(status)
 	}()
 
-	dirPath, err := resolveModuleDir(modulePath, baseDir)
+	dirPath, err := resolveModuleDir(modulePath, baseDir, stdlibRoot)
 	if err != nil {
 		if errors.Is(err, errModuleNotFound) {
 			return nil, errModuleNotFound

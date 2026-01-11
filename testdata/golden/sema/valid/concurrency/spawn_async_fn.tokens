@@ -45,12 +45,12 @@
  45: Ident           "int" at 13:18-13:21
  46: Gt              ">" at 13:21-13:22
  47: Assign          "=" at 13:23-13:24 (leading: Space)
- 48: KwTask          "task" at 13:25-13:29 (leading: Space)
- 49: Ident           "compute" at 13:30-13:37 (leading: Space)
- 50: LParen          "(" at 13:37-13:38
- 51: IntLit          "42" at 13:38-13:40
- 52: RParen          ")" at 13:40-13:41
- 53: Semicolon       ";" at 13:41-13:42
+ 48: KwSpawn         "spawn" at 13:25-13:30 (leading: Space)
+ 49: Ident           "compute" at 13:31-13:38 (leading: Space)
+ 50: LParen          "(" at 13:38-13:39
+ 51: IntLit          "42" at 13:39-13:41
+ 52: RParen          ")" at 13:41-13:42
+ 53: Semicolon       ";" at 13:42-13:43
  54: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
  55: Ident           "result1" at 14:9-14:16 (leading: Space)
  56: Colon           ":" at 14:16-14:17
@@ -73,12 +73,12 @@
  73: Ident           "bool" at 16:18-16:22
  74: Gt              ">" at 16:22-16:23
  75: Assign          "=" at 16:24-16:25 (leading: Space)
- 76: KwTask          "task" at 16:26-16:30 (leading: Space)
- 77: Ident           "process" at 16:31-16:38 (leading: Space)
- 78: LParen          "(" at 16:38-16:39
- 79: StringLit       "\"hello\"" at 16:39-16:46
- 80: RParen          ")" at 16:46-16:47
- 81: Semicolon       ";" at 16:47-16:48
+ 76: KwSpawn         "spawn" at 16:26-16:31 (leading: Space)
+ 77: Ident           "process" at 16:32-16:39 (leading: Space)
+ 78: LParen          "(" at 16:39-16:40
+ 79: StringLit       "\"hello\"" at 16:40-16:47
+ 80: RParen          ")" at 16:47-16:48
+ 81: Semicolon       ";" at 16:48-16:49
  82: KwLet           "let" at 17:5-17:8 (leading: Newline, Space)
  83: Ident           "result2" at 17:9-17:16 (leading: Space)
  84: Colon           ":" at 17:16-17:17
@@ -106,11 +106,11 @@
 106: Gt              ">" at 21:41-21:42
 107: LBrace          "{" at 21:43-21:44 (leading: Space)
 108: KwReturn        "return" at 22:5-22:11 (leading: Newline, Space)
-109: KwTask          "task" at 22:12-22:16 (leading: Space)
-110: Ident           "compute" at 22:17-22:24 (leading: Space)
-111: LParen          "(" at 22:24-22:25
-112: IntLit          "100" at 22:25-22:28
-113: RParen          ")" at 22:28-22:29
-114: Semicolon       ";" at 22:29-22:30
+109: KwSpawn         "spawn" at 22:12-22:17 (leading: Space)
+110: Ident           "compute" at 22:18-22:25 (leading: Space)
+111: LParen          "(" at 22:25-22:26
+112: IntLit          "100" at 22:26-22:29
+113: RParen          ")" at 22:29-22:30
+114: Semicolon       ";" at 22:30-22:31
 115: RBrace          "}" at 23:1-23:2 (leading: Newline)
 116: EOF             at 24:1-24:1

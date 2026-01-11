@@ -1,8 +1,8 @@
 # Рантайм Surge (VM)
 [English](RUNTIME.md) | [Russian](RUNTIME.ru.md)
 
-Этот документ описывает текущий рантайм Surge v1. Рантайм — это
-однопоточная VM, которая интерпретирует MIR и исполняет async-задачи.
+Этот документ описывает VM-рантайм. Native/LLVM используют отдельный MT-рантайм;
+см. `docs/CONCURRENCY.ru.md` для модели конкурентности.
 
 См. также: `docs/IR.ru.md`, `docs/CONCURRENCY.ru.md`, `docs/ABI_LAYOUT.ru.md`.
 

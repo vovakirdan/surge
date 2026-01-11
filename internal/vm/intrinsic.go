@@ -71,6 +71,9 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_heap_dump":
 		return vm.handleHeapDump(frame, call, writes)
 
+	case "rt_worker_count":
+		return vm.handleWorkerCount(frame, call, writes)
+
 	case "rt_range_int_new":
 		return vm.handleRangeIntNew(frame, call, writes)
 
@@ -121,6 +124,8 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleMapInsert(frame, call, writes)
 	case "rt_map_remove":
 		return vm.handleMapRemove(frame, call, writes)
+	case "rt_map_keys":
+		return vm.handleMapKeys(frame, call, writes)
 
 	case "__task_create":
 		return vm.handleTaskCreate(frame, call, writes)
@@ -162,6 +167,60 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleWriteStdout(frame, call, writes)
 	case "rt_write_stderr":
 		return vm.handleWriteStderr(frame, call, writes)
+	case "rt_fs_cwd":
+		return vm.handleFsCwd(frame, call, writes)
+	case "rt_fs_metadata":
+		return vm.handleFsMetadata(frame, call, writes)
+	case "rt_fs_read_dir":
+		return vm.handleFsReadDir(frame, call, writes)
+	case "rt_fs_mkdir":
+		return vm.handleFsMkdir(frame, call, writes)
+	case "rt_fs_remove_file":
+		return vm.handleFsRemoveFile(frame, call, writes)
+	case "rt_fs_remove_dir":
+		return vm.handleFsRemoveDir(frame, call, writes)
+	case "rt_fs_open":
+		return vm.handleFsOpen(frame, call, writes)
+	case "rt_fs_close":
+		return vm.handleFsClose(frame, call, writes)
+	case "rt_fs_read":
+		return vm.handleFsRead(frame, call, writes)
+	case "rt_fs_write":
+		return vm.handleFsWrite(frame, call, writes)
+	case "rt_fs_seek":
+		return vm.handleFsSeek(frame, call, writes)
+	case "rt_fs_flush":
+		return vm.handleFsFlush(frame, call, writes)
+	case "rt_fs_read_file":
+		return vm.handleFsReadFile(frame, call, writes)
+	case "rt_fs_write_file":
+		return vm.handleFsWriteFile(frame, call, writes)
+	case "rt_fs_file_name":
+		return vm.handleFsFileName(frame, call, writes)
+	case "rt_fs_file_type":
+		return vm.handleFsFileType(frame, call, writes)
+	case "rt_fs_file_metadata":
+		return vm.handleFsFileMetadata(frame, call, writes)
+	case "rt_net_listen":
+		return vm.handleNetListen(frame, call, writes)
+	case "rt_net_connect":
+		return vm.handleNetConnect(frame, call, writes)
+	case "rt_net_close_listener":
+		return vm.handleNetCloseListener(frame, call, writes)
+	case "rt_net_close_conn":
+		return vm.handleNetCloseConn(frame, call, writes)
+	case "rt_net_accept":
+		return vm.handleNetAccept(frame, call, writes)
+	case "rt_net_read":
+		return vm.handleNetRead(frame, call, writes)
+	case "rt_net_write":
+		return vm.handleNetWrite(frame, call, writes)
+	case "rt_net_wait_accept":
+		return vm.handleNetWaitAccept(frame, call, writes)
+	case "rt_net_wait_readable":
+		return vm.handleNetWaitReadable(frame, call, writes)
+	case "rt_net_wait_writable":
+		return vm.handleNetWaitWritable(frame, call, writes)
 
 	case "rt_exit":
 		return vm.handleRtExit(frame, call)
@@ -175,6 +234,8 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 	case "from_str":
 		return vm.handleFromStr(frame, call, writes)
+	case "from_bytes":
+		return vm.handleFromBytes(frame, call, writes)
 
 	case "__len":
 		return vm.handleLen(frame, call, writes)

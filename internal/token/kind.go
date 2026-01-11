@@ -53,6 +53,8 @@ const (
 	KwPub // pub
 	// KwAsync represents the 'async' keyword.
 	KwAsync // async
+	// KwBlocking represents the 'blocking' keyword.
+	KwBlocking // blocking
 	// KwCompare represents the 'compare' keyword.
 	KwCompare // compare
 	// KwSelect represents the 'select' keyword.
@@ -63,7 +65,7 @@ const (
 	KwFinally // finally
 	// KwChannel represents the 'channel' keyword.
 	KwChannel // channel
-	// KwTask represents the 'task' keyword.
+	// KwTask represents the legacy 'task' token (not produced by the lexer).
 	KwTask // task
 	// KwSpawn represents the 'spawn' keyword.
 	KwSpawn // spawn

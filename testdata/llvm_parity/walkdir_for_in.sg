@@ -1,0 +1,30 @@
+import stdlib/fs as fs;
+
+fn strip_prefix(path: &string, prefix: &string) -> string {
+    if !path.starts_with(prefix.__clone()) {
+        return path.__clone();
+    }
+    let plen: int = prefix.__len() to int;
+    let path_len: int = path.__len() to int;
+    if path_len <= plen {
+        return "";
+    }
+    if path[plen] == "/"[0] {
+        return path[[plen + 1..path_len]];
+    }
+    return path[[plen..path_len]];
+}
+
+@entrypoint("argv")
+fn main(root: string) -> int {
+    let mut count: int = 0;
+    let root_for_walk = root.__clone();
+    for e in fs.walkdir(root_for_walk) {
+        let rel = strip_prefix(&e.path, &root);
+        let t: uint = e.file_type to uint;
+        print(rel + " type=" + (t to string));
+        count = count + 1;
+    }
+    print("count=" + (count to string));
+    return 0;
+}

@@ -358,6 +358,14 @@ func cloneExpr(e *hir.Expr) *hir.Expr {
 		}
 		data.Body = cloneBlock(data.Body)
 		out.Data = data
+	case hir.ExprBlocking:
+		data, ok := e.Data.(hir.BlockingData)
+		if !ok {
+			break
+		}
+		data.Body = cloneBlock(data.Body)
+		data.Captures = append([]hir.BlockingCapture(nil), data.Captures...)
+		out.Data = data
 	case hir.ExprCast:
 		data, ok := e.Data.(hir.CastData)
 		if !ok {

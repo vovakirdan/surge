@@ -9,8 +9,8 @@ async fn spinner(name: string, n: int) -> nothing {
 
 @entrypoint
 fn main() {
-    let a = task spinner("A", 5);
-    let b = task spinner("B", 5);
+    let a = spawn spinner("A", 5);
+    let b = spawn spinner("B", 5);
 
     a.await();
     b.await();

@@ -115,7 +115,11 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 				paramTypes = append(paramTypes, paramType)
 			}
 			if allParamsValid {
-				fnType := tc.types.RegisterFn(paramTypes, returnType)
+				resultType := returnType
+				if fnItem.Flags&ast.FnModifierAsync != 0 {
+					resultType = tc.taskType(returnType, returnSpan)
+				}
+				fnType := tc.types.RegisterFn(paramTypes, resultType)
 				tc.assignSymbolType(symID, fnType)
 			}
 		}
@@ -229,6 +233,8 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 					if tc.taskTracker != nil && tc.isTaskType(valueType) {
 						tc.taskTracker.BindTaskByExpr(letStmt.Value, symID)
 					}
+					tc.updateLocalTaskBindingFromExpr(symID, letStmt.Value)
+					tc.trackTaskContainerPopBinding(symID, letStmt.Value)
 				}
 			}
 		}
@@ -250,6 +256,10 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			if ret.Expr.IsValid() {
 				valueType = tc.typeExpr(ret.Expr)
 				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
+				if tc.isLocalTaskExpr(ret.Expr) {
+					tc.report(diag.SemaLocalTaskNotSendable, tc.exprSpan(ret.Expr),
+						"local task handle cannot be returned from function")
+				}
 				tc.checkTaskContainerEscape(ret.Expr, valueType, tc.exprSpan(ret.Expr))
 				// Track task return for structured concurrency
 				tc.trackTaskReturn(ret.Expr)
@@ -274,8 +284,10 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			}
 			tc.walkStmt(whileStmt.Body)
 			if loopOK {
-				if loop, ok := tc.leaveTaskContainerLoop(); ok && loop.popSeen && !loop.earlyExit {
-					tc.markTaskContainerConsumed(loop.place)
+				if loop, ok := tc.leaveTaskContainerLoop(); ok && loop.popCount > 0 && !loop.earlyExit {
+					if tc.taskContainerLoopDrained(loop) {
+						tc.markTaskContainerConsumed(loop.place)
+					}
 				}
 			}
 		}
@@ -516,6 +528,18 @@ func (tc *typeChecker) buildExportNameIndexes() {
 }
 
 func (tc *typeChecker) lookupTypeName(typeID types.TypeID, nameID source.StringID) string {
+	if tc.types != nil {
+		if tt, ok := tc.types.Lookup(typeID); ok && tt.Kind == types.KindAlias {
+			if name := tc.lookupName(nameID); name != "" {
+				return name
+			}
+			if tc.exportNames != nil {
+				if name := tc.exportNames[nameID]; name != "" {
+					return name
+				}
+			}
+		}
+	}
 	if tc.typeNames != nil {
 		if name := tc.typeNames[tc.resolveAlias(typeID)]; name != "" {
 			return name

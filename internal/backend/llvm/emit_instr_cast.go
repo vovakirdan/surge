@@ -72,6 +72,8 @@ func (fe *funcEmitter) emitUnary(op *mir.UnaryOp) (val, ty string, err error) {
 	switch op.Op {
 	case ast.ExprUnaryPlus:
 		return fe.emitValueOperand(&op.Operand)
+	case ast.ExprUnaryOwn:
+		return fe.emitValueOperand(&op.Operand)
 	case ast.ExprUnaryMinus:
 		val, ty, err := fe.emitValueOperand(&op.Operand)
 		if err != nil {

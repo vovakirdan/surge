@@ -41,8 +41,8 @@ func (t Token) IsPunctOrOp() bool {
 func (t Token) IsKeyword() bool {
 	switch t.Kind {
 	case KwFn, KwLet, KwConst, KwMut, KwOwn, KwIf, KwElse, KwWhile, KwFor, KwIn, KwBreak, KwContinue, KwReturn,
-		KwImport, KwAs, KwType, KwContract, KwTag, KwExtern, KwPub, KwAsync,
-		KwCompare, KwSelect, KwRace, KwFinally, KwChannel, KwTask, KwSpawn, KwTrue, KwFalse, KwSignal, KwParallel, KwMap, KwReduce,
+		KwImport, KwAs, KwType, KwContract, KwTag, KwExtern, KwPub, KwAsync, KwBlocking,
+		KwCompare, KwSelect, KwRace, KwFinally, KwChannel, KwSpawn, KwTrue, KwFalse, KwSignal, KwParallel, KwMap, KwReduce,
 		KwWith, KwMacro, KwPragma, KwTo, KwHeir, KwIs, KwField:
 		return true
 	default:

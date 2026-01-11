@@ -157,6 +157,8 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 		return fmt.Sprintf("%s = await %s", formatPlace(ins.Await.Dst), formatOperand(&ins.Await.Task))
 	case InstrSpawn:
 		return fmt.Sprintf("%s = spawn %s", formatPlace(ins.Spawn.Dst), formatOperand(&ins.Spawn.Value))
+	case InstrBlocking:
+		return fmt.Sprintf("%s = blocking fn.%d", formatPlace(ins.Blocking.Dst), ins.Blocking.FuncID)
 	case InstrPoll:
 		return fmt.Sprintf("%s = poll %s ? bb%d : bb%d",
 			formatPlace(ins.Poll.Dst),

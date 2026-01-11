@@ -13,8 +13,8 @@ task_not_awaited_fn.sg (span: 3:1-11:1)
    ├─ Return: nothing
    └─ Body:
       └─ Stmt[0]: Block (span: 7:29-10:2)
-         └─ Stmt[0]: Let (span: 8:5-8:25)
+         └─ Stmt[0]: Let (span: 8:5-8:26)
             ├─ Name: t
             ├─ Mutable: false
             ├─ Type: <inferred>
-            └─ Value: expr#4: task work()
+            └─ Value: expr#4: spawn work()

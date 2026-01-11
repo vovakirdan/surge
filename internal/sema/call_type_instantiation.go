@@ -46,7 +46,7 @@ func (tc *typeChecker) instantiateTypeKeyWithInference(key symbols.TypeKey, actu
 			return bound
 		}
 		// Infer from actual type and record binding
-		bound := tc.valueType(actual)
+		bound := tc.peelReferencePreserveAlias(actual)
 		if bound == types.NoTypeID {
 			return types.NoTypeID
 		}
@@ -463,6 +463,27 @@ func (tc *typeChecker) peelReference(id types.TypeID) types.TypeID {
 		}
 		switch tt.Kind {
 		case types.KindReference, types.KindOwn:
+			id = tt.Elem
+		default:
+			return id
+		}
+	}
+}
+
+func (tc *typeChecker) peelReferencePreserveAlias(id types.TypeID) types.TypeID {
+	if id == types.NoTypeID || tc.types == nil {
+		return id
+	}
+	for {
+		tt, ok := tc.types.Lookup(id)
+		if !ok {
+			return id
+		}
+		switch tt.Kind {
+		case types.KindReference, types.KindPointer, types.KindOwn:
+			if tt.Elem == types.NoTypeID {
+				return id
+			}
 			id = tt.Elem
 		default:
 			return id

@@ -487,9 +487,6 @@ func runModuleGraph(
 
 	baseDir := fs.BaseDir()
 	stdlibRoot := detectStdlibRoot()
-	if stdlibRoot == "" && (opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll) {
-		return nil, nil, nil, fmt.Errorf("standard library not found: set SURGE_STDLIB to a directory containing core/intrinsics.sg (e.g. /usr/local/share/surge)")
-	}
 	reporter := &diag.BagReporter{Bag: bag}
 	dirPath := filepath.Dir(file.Path)
 	preloaded := map[string]ast.FileID{
@@ -568,7 +565,7 @@ func runModuleGraph(
 				continue
 			}
 
-			depRec, err := analyzeDependencyModule(ctx, fs, imp.Path, baseDir, opts, cache, strs)
+			depRec, err := analyzeDependencyModule(ctx, fs, imp.Path, baseDir, stdlibRoot, opts, cache, strs)
 			if err != nil {
 				if errors.Is(err, errModuleNotFound) {
 					missing[imp.Path] = struct{}{}

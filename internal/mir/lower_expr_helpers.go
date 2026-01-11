@@ -108,6 +108,13 @@ func (l *funcLowerer) lowerExprForType(e *hir.Expr, expected types.TypeID) (Oper
 	if e == nil {
 		return l.constNothing(types.NoTypeID), nil
 	}
+	if e.Type == types.NoTypeID && expected != types.NoTypeID {
+		// Fallback to expected type when sema didn't populate Expr.Type,
+		// so we don't drop call results in return/assignment contexts.
+		clone := *e
+		clone.Type = expected
+		e = &clone
+	}
 	consume := true
 	if expected != types.NoTypeID && l.types != nil {
 		if tt, ok := l.types.Lookup(resolveAlias(l.types, expected)); ok && tt.Kind == types.KindReference {

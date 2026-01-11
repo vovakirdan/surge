@@ -1,0 +1,110 @@
+import stdlib/net as net;
+
+fn string_to_bytes(s: &string) -> byte[] {
+    let view = s.bytes();
+    let length: uint = view.__len();
+    let mut out: byte[] = [];
+    out.reserve(length);
+    let len_i: int = length to int;
+    let mut i: int = 0;
+    while i < len_i {
+        let b: byte = view[i];
+        out.push(b);
+        i = i + 1;
+    }
+    return out;
+}
+
+fn bytes_eq(a: &byte[], b: &byte[]) -> bool {
+    if a.__len() != b.__len() {
+        return false;
+    }
+    let length: int = a.__len() to int;
+    let mut i: int = 0;
+    while i < length {
+        if a[i] != b[i] {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+@entrypoint("argv")
+fn main(port: uint, msg: string) -> int {
+    let addr = "127.0.0.1";
+    let listen_res = net.listen(addr, port);
+    compare listen_res {
+        Success(listener) => {
+            let accept_res = net.accept(&listener).await();
+            compare accept_res {
+                Success(conn_res) => {
+                    compare conn_res {
+                        Success(conn) => {
+                            let expected: byte[] = string_to_bytes(&msg);
+                            let target_len: uint = expected.__len();
+                            let read_task = net.read_some(&conn, target_len).await();
+                            compare read_task {
+                                Success(read_res) => {
+                                    compare read_res {
+                                        Success(bytes) => {
+                                            if bytes.__len() != target_len || !bytes_eq(&bytes, &expected) {
+                                                print("mismatch");
+                                                let _ = net.close_conn(own conn);
+                                                return 1;
+                                            }
+                                            let write_task = net.write_all(&conn, bytes).await();
+                                            compare write_task {
+                                                Success(write_res) => {
+                                                    compare write_res {
+                                                        Success(_) => {}
+                                                        err => {
+                                                            print("write_err=" + (err.code to string));
+                                                            let _ = net.close_conn(own conn);
+                                                            return 1;
+                                                        }
+                                                    };
+                                                }
+                                                Cancelled() => {
+                                                    print("write_cancelled");
+                                                    let _ = net.close_conn(own conn);
+                                                    return 1;
+                                                }
+                                            };
+                                            let _ = net.close_conn(own conn);
+                                            print(msg);
+                                            return 0;
+                                        }
+                                        err => {
+                                            print("read_err=" + (err.code to string));
+                                            let _ = net.close_conn(own conn);
+                                            return 1;
+                                        }
+                                    };
+                                }
+                                Cancelled() => {
+                                    print("read_cancelled");
+                                    let _ = net.close_conn(own conn);
+                                    return 1;
+                                }
+                            };
+                        }
+                        err => {
+                            print("accept_err=" + (err.code to string));
+                            return 1;
+                        }
+                    };
+                }
+                Cancelled() => {
+                    print("accept_cancelled");
+                    return 1;
+                }
+            };
+        }
+        err => {
+            print("listen_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    return 1;
+}

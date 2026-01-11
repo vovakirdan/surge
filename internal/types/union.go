@@ -44,6 +44,9 @@ func (in *Interner) RegisterUnion(name source.StringID, decl source.Span) TypeID
 
 // RegisterUnionInstance allocates a union instantiation with concrete type arguments.
 func (in *Interner) RegisterUnionInstance(name source.StringID, decl source.Span, args []TypeID) TypeID {
+	if existing, ok := in.FindUnionInstanceWithDecl(name, decl, args); ok {
+		return existing
+	}
 	slot := in.appendUnionInfo(UnionInfo{Name: name, Decl: decl, TypeArgs: cloneTypeArgs(args)})
 	return in.internRaw(Type{Kind: KindUnion, Payload: slot})
 }

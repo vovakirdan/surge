@@ -29,6 +29,35 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 		tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
 		return types.NoTypeID
 	}
+	sig, recvCand, subst, borrowInfo, sawReceiverMatch := tc.matchMethodSignature(name, recv, recvExpr, args, argExprs, staticReceiver)
+	if sig != nil {
+		// Substitute type params in result type key as well
+		resultKey := substituteTypeKeyParams(sig.Result, subst)
+		res := tc.typeFromKey(resultKey)
+		if res == types.NoTypeID && staticReceiver && recv != types.NoTypeID {
+			recvKey := tc.typeKeyForType(recv)
+			if recvKey != "" && typeKeyMatchesWithGenerics(resultKey, recvKey) {
+				return tc.adjustAliasUnaryResult(recv, recvCand)
+			}
+		}
+		return tc.adjustAliasUnaryResult(res, recvCand)
+	}
+	if borrowInfo.expr.IsValid() {
+		tc.reportBorrowFailure(&borrowInfo)
+		return types.NoTypeID
+	}
+	if sawReceiverMatch {
+		tc.report(diag.SemaNoOverload, span, "no matching overload for %s.%s", tc.typeLabel(recv), name)
+		return types.NoTypeID
+	}
+	tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
+	return types.NoTypeID
+}
+
+func (tc *typeChecker) matchMethodSignature(name string, recv types.TypeID, recvExpr ast.ExprID, args []types.TypeID, argExprs []ast.ExprID, staticReceiver bool) (*symbols.FunctionSignature, typeKeyCandidate, map[string]symbols.TypeKey, borrowMatchInfo, bool) {
+	if name == "" || tc.magic == nil {
+		return nil, typeKeyCandidate{}, nil, borrowMatchInfo{}, false
+	}
 	var borrowInfo borrowMatchInfo
 	sawReceiverMatch := false
 	for _, recvCand := range tc.typeKeyCandidates(recv) {
@@ -72,28 +101,10 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 			default:
 				continue
 			}
-			// Substitute type params in result type key as well
-			resultKey := substituteTypeKeyParams(sig.Result, subst)
-			res := tc.typeFromKey(resultKey)
-			if res == types.NoTypeID && staticReceiver && recv != types.NoTypeID {
-				recvKey := tc.typeKeyForType(recv)
-				if recvKey != "" && typeKeyMatchesWithGenerics(resultKey, recvKey) {
-					return tc.adjustAliasUnaryResult(recv, recvCand)
-				}
-			}
-			return tc.adjustAliasUnaryResult(res, recvCand)
+			return sig, recvCand, subst, borrowInfo, sawReceiverMatch
 		}
 	}
-	if borrowInfo.expr.IsValid() {
-		tc.reportBorrowFailure(&borrowInfo)
-		return types.NoTypeID
-	}
-	if sawReceiverMatch {
-		tc.report(diag.SemaNoOverload, span, "no matching overload for %s.%s", tc.typeLabel(recv), name)
-		return types.NoTypeID
-	}
-	tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
-	return types.NoTypeID
+	return nil, typeKeyCandidate{}, nil, borrowInfo, sawReceiverMatch
 }
 
 func (tc *typeChecker) recordMethodCallSymbol(callID ast.ExprID, member *ast.ExprMemberData, recv types.TypeID, recvExpr ast.ExprID, args []types.TypeID, argExprs []ast.ExprID, staticReceiver bool) symbols.SymbolID {
@@ -104,10 +115,68 @@ func (tc *typeChecker) recordMethodCallSymbol(callID ast.ExprID, member *ast.Exp
 		return symbols.NoSymbolID
 	}
 	symID := tc.resolveMethodCallSymbol(member, recv, recvExpr, args, argExprs, staticReceiver)
+	if !symID.IsValid() && tc.magic != nil {
+		name := tc.lookupExportedName(member.Field)
+		if name != "" {
+			sig, _, _, _, _ := tc.matchMethodSignature(name, recv, recvExpr, args, argExprs, staticReceiver)
+			if sig != nil {
+				symID = tc.magicSymbolForSignature(sig)
+				if !symID.IsValid() {
+					symID = tc.ensureExportedMethodSymbol(name, sig, tc.exprSpan(callID))
+				}
+			}
+		}
+	}
 	if symID.IsValid() {
 		tc.symbols.ExprSymbols[callID] = symID
 	}
 	return symID
+}
+
+func (tc *typeChecker) ensureExportedMethodSymbol(name string, sig *symbols.FunctionSignature, fallback source.Span) symbols.SymbolID {
+	if name == "" || sig == nil || tc.exports == nil || tc.symbols == nil || tc.symbols.Table == nil || tc.builder == nil || tc.builder.StringsInterner == nil {
+		return symbols.NoSymbolID
+	}
+	if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
+		return symID
+	}
+	nameID := tc.builder.StringsInterner.Intern(name)
+	for modulePath, exports := range tc.exports {
+		if exports == nil {
+			continue
+		}
+		exported := exports.Lookup(name)
+		for i := range exported {
+			exp := &exported[i]
+			if exp.Signature != sig || exp.Kind != symbols.SymbolFunction || exp.ReceiverKey == "" {
+				continue
+			}
+			sym := tc.exportedSymbolToSymbol(exp, modulePath)
+			if sym == nil {
+				return symbols.NoSymbolID
+			}
+			sym.Scope = tc.fileScope()
+			if sym.Span == (source.Span{}) {
+				sym.Span = fallback
+			}
+			sym.Name = nameID
+			sym.ImportName = nameID
+			id := tc.symbols.Table.Symbols.New(sym)
+			if scope := tc.symbols.Table.Scopes.Get(tc.fileScope()); scope != nil {
+				scope.Symbols = append(scope.Symbols, id)
+				if scope.NameIndex == nil {
+					scope.NameIndex = make(map[source.StringID][]symbols.SymbolID)
+				}
+				scope.NameIndex[nameID] = append(scope.NameIndex[nameID], id)
+			}
+			if tc.magicSymbols == nil {
+				tc.magicSymbols = make(map[*symbols.FunctionSignature]symbols.SymbolID)
+			}
+			tc.magicSymbols[sig] = id
+			return id
+		}
+	}
+	return symbols.NoSymbolID
 }
 
 func (tc *typeChecker) recordMethodCallInstantiation(symID symbols.SymbolID, recv types.TypeID, explicitArgs []types.TypeID, span source.Span) {

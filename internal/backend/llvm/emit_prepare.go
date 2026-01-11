@@ -166,6 +166,20 @@ func (e *Emitter) paramLocals(f *mir.Func) ([]mir.LocalID, error) {
 	if isPollFunc(f) {
 		return nil, nil
 	}
+	if f.ParamCount > 0 {
+		if f.ParamCount > len(f.Locals) {
+			return nil, fmt.Errorf("function %q has %d params but only %d locals", f.Name, f.ParamCount, len(f.Locals))
+		}
+		params := make([]mir.LocalID, f.ParamCount)
+		for i := range params {
+			localID, err := safeLocalID(i)
+			if err != nil {
+				return nil, err
+			}
+			params[i] = localID
+		}
+		return params, nil
+	}
 	if e.syms == nil || e.syms.Symbols == nil || e.syms.Strings == nil {
 		return nil, fmt.Errorf("missing symbol table")
 	}

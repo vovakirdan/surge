@@ -26,12 +26,12 @@
  26: Gt              ">" at 7:35-7:36
  27: LBrace          "{" at 7:37-7:38 (leading: Space)
  28: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space, LineComment, Newline, Space)
- 29: KwTask          "task" at 9:12-9:16 (leading: Space)
- 30: Ident           "sync_compute" at 9:17-9:29 (leading: Space)
- 31: LParen          "(" at 9:29-9:30
- 32: IntLit          "10" at 9:30-9:32
- 33: RParen          ")" at 9:32-9:33
- 34: Semicolon       ";" at 9:33-9:34
+ 29: KwSpawn         "spawn" at 9:12-9:17 (leading: Space)
+ 30: Ident           "sync_compute" at 9:18-9:30 (leading: Space)
+ 31: LParen          "(" at 9:30-9:31
+ 32: IntLit          "10" at 9:31-9:33
+ 33: RParen          ")" at 9:33-9:34
+ 34: Semicolon       ";" at 9:34-9:35
  35: RBrace          "}" at 10:1-10:2 (leading: Newline)
  36: KwPub           "pub" at 12:1-12:4 (leading: Newline)
  37: KwFn            "fn" at 12:5-12:7 (leading: Space)
@@ -45,9 +45,9 @@
  45: Gt              ">" at 12:39-12:40
  46: LBrace          "{" at 12:41-12:42 (leading: Space)
  47: KwReturn        "return" at 14:5-14:11 (leading: Newline, Space, LineComment, Newline, Space)
- 48: KwTask          "task" at 14:12-14:16 (leading: Space)
- 49: IntLit          "42" at 14:17-14:19 (leading: Space)
- 50: Semicolon       ";" at 14:19-14:20
+ 48: KwSpawn         "spawn" at 14:12-14:17 (leading: Space)
+ 49: IntLit          "42" at 14:18-14:20 (leading: Space)
+ 50: Semicolon       ";" at 14:20-14:21
  51: RBrace          "}" at 15:1-15:2 (leading: Newline)
  52: KwPub           "pub" at 17:1-17:4 (leading: Newline)
  53: KwFn            "fn" at 17:5-17:7 (leading: Space)
@@ -68,9 +68,9 @@
  68: KwTrue          "true" at 18:19-18:23 (leading: Space)
  69: Semicolon       ";" at 18:23-18:24
  70: KwReturn        "return" at 20:5-20:11 (leading: Newline, Space, LineComment, Newline, Space)
- 71: KwTask          "task" at 20:12-20:16 (leading: Space)
- 72: Ident           "x" at 20:17-20:18 (leading: Space)
- 73: Semicolon       ";" at 20:18-20:19
+ 71: KwSpawn         "spawn" at 20:12-20:17 (leading: Space)
+ 72: Ident           "x" at 20:18-20:19 (leading: Space)
+ 73: Semicolon       ";" at 20:19-20:20
  74: RBrace          "}" at 21:1-21:2 (leading: Newline)
  75: KwPub           "pub" at 23:1-23:4 (leading: Newline)
  76: KwFn            "fn" at 23:5-23:7 (leading: Space)
@@ -84,8 +84,8 @@
  84: Gt              ">" at 23:37-23:38
  85: LBrace          "{" at 23:39-23:40 (leading: Space)
  86: KwReturn        "return" at 25:5-25:11 (leading: Newline, Space, LineComment, Newline, Space)
- 87: KwTask          "task" at 25:12-25:16 (leading: Space)
- 88: StringLit       "\"hello\"" at 25:17-25:24 (leading: Space)
- 89: Semicolon       ";" at 25:24-25:25
+ 87: KwSpawn         "spawn" at 25:12-25:17 (leading: Space)
+ 88: StringLit       "\"hello\"" at 25:18-25:25 (leading: Space)
+ 89: Semicolon       ";" at 25:25-25:26
  90: RBrace          "}" at 26:1-26:2 (leading: Newline)
  91: EOF             at 27:1-27:1

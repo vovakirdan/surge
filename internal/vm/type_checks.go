@@ -155,6 +155,114 @@ func (vm *VM) retagUnionValue(val Value, expected types.TypeID) (Value, bool) {
 	return val, true
 }
 
+func (vm *VM) compatiblePayloadTypes(expected, got types.TypeID) bool {
+	if expected == got {
+		return true
+	}
+	if expected == types.NoTypeID || got == types.NoTypeID || vm.Types == nil {
+		return false
+	}
+	expVal := vm.valueType(expected)
+	gotVal := vm.valueType(got)
+	if expVal == gotVal {
+		return true
+	}
+	if expElem, ok := vm.Types.ArrayInfo(expVal); ok {
+		if gotElem, ok := vm.Types.ArrayInfo(gotVal); ok {
+			return vm.compatiblePayloadTypes(expElem, gotElem)
+		}
+	}
+	if expElem, expLen, ok := vm.Types.ArrayFixedInfo(expVal); ok {
+		if gotElem, gotLen, ok := vm.Types.ArrayFixedInfo(gotVal); ok && expLen == gotLen {
+			return vm.compatiblePayloadTypes(expElem, gotElem)
+		}
+	}
+	if expTuple, ok := vm.Types.TupleInfo(expVal); ok && expTuple != nil {
+		if gotTuple, ok := vm.Types.TupleInfo(gotVal); ok && gotTuple != nil {
+			if len(expTuple.Elems) != len(gotTuple.Elems) {
+				return false
+			}
+			for i := range expTuple.Elems {
+				if !vm.compatiblePayloadTypes(expTuple.Elems[i], gotTuple.Elems[i]) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	if expInfo, ok := vm.Types.UnionInfo(expVal); ok && expInfo != nil {
+		if gotInfo, ok := vm.Types.UnionInfo(gotVal); ok && gotInfo != nil {
+			if expInfo.Name != source.NoStringID && expInfo.Name == gotInfo.Name {
+				if len(expInfo.TypeArgs) != len(gotInfo.TypeArgs) {
+					return false
+				}
+				for i := range expInfo.TypeArgs {
+					if !vm.compatiblePayloadTypes(expInfo.TypeArgs[i], gotInfo.TypeArgs[i]) {
+						return false
+					}
+				}
+				return true
+			}
+			if len(expInfo.Members) != len(gotInfo.Members) {
+				return false
+			}
+			for i := range expInfo.Members {
+				expMember := expInfo.Members[i]
+				gotMember := gotInfo.Members[i]
+				if expMember.Kind != gotMember.Kind {
+					return false
+				}
+				switch expMember.Kind {
+				case types.UnionMemberNothing:
+					continue
+				case types.UnionMemberType:
+					if !vm.compatiblePayloadTypes(expMember.Type, gotMember.Type) {
+						return false
+					}
+				case types.UnionMemberTag:
+					if expMember.TagName != gotMember.TagName {
+						return false
+					}
+					if len(expMember.TagArgs) != len(gotMember.TagArgs) {
+						return false
+					}
+					for j := range expMember.TagArgs {
+						if !vm.compatiblePayloadTypes(expMember.TagArgs[j], gotMember.TagArgs[j]) {
+							return false
+						}
+					}
+				}
+			}
+			return true
+		}
+	}
+	if vm.tagLayouts != nil {
+		if expLayout, ok := vm.tagLayouts.Layout(expVal); ok && expLayout != nil {
+			if gotLayout, ok := vm.tagLayouts.Layout(gotVal); ok && gotLayout != nil {
+				if len(expLayout.Cases) != len(gotLayout.Cases) {
+					return false
+				}
+				for _, expCase := range expLayout.Cases {
+					gotCase, ok := gotLayout.CaseByName(expCase.TagName)
+					if !ok {
+						return false
+					}
+					if len(expCase.PayloadTypes) != len(gotCase.PayloadTypes) {
+						return false
+					}
+					for i := range expCase.PayloadTypes {
+						if !vm.compatiblePayloadTypes(expCase.PayloadTypes[i], gotCase.PayloadTypes[i]) {
+							return false
+						}
+					}
+				}
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (vm *VM) isUnionType(id types.TypeID) bool {
 	if id == types.NoTypeID || vm.Types == nil {
 		return false

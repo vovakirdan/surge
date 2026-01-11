@@ -1,0 +1,12 @@
+// scenario: async function type rejects sync fn assignment
+
+type AsyncAdder = async fn(int) -> int;
+
+fn add_one(x: int) -> int {
+    return x + 1;
+}
+
+fn test_async_fn_type_mismatch() {
+    let f: AsyncAdder = add_one;
+    let _ = f;
+}

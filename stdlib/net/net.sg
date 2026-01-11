@@ -1,0 +1,224 @@
+// stdlib/net/net.sg
+// Async TCP helpers built on net intrinsics.
+
+const NET_ERR_WOULD_BLOCK: uint = 1;
+const NET_ERR_IO: uint = 8;
+
+type _NetAcceptTask = Task<NetResult<TcpConn>>;
+type _NetReadTask = Task<NetResult<byte[]>>;
+type _NetWriteTask = Task<NetResult<uint>>;
+type _NetWriteAllTask = Task<NetResult<nothing>>;
+
+fn net_error(code: uint, msg: string) -> NetError {
+    return { message: msg, code: code };
+}
+
+fn is_would_block(err: &NetError) -> bool {
+    return err.code == NET_ERR_WOULD_BLOCK;
+}
+
+fn listener_handle(l: &TcpListener) -> int {
+    return l.__opaque;
+}
+
+fn conn_handle(c: &TcpConn) -> int {
+    return c.__opaque;
+}
+
+fn empty_bytes() -> byte[] {
+    let out: byte[] = [];
+    return out;
+}
+
+pub fn listen(addr: string, port: uint) -> NetResult<TcpListener> {
+    return rt_net_listen(&addr, port);
+}
+
+pub fn connect(addr: string, port: uint) -> NetResult<TcpConn> {
+    return rt_net_connect(&addr, port);
+}
+
+pub fn close_conn(c: own TcpConn) -> NetResult<nothing> {
+    return rt_net_close_conn(own c);
+}
+
+async fn accept_owned(handle: int) -> NetResult<TcpConn> {
+    let listener: TcpListener = { __opaque: handle };
+    let mut out: NetResult<TcpConn> = net_error(NET_ERR_IO, "accept failed");
+    while true {
+        let res = rt_net_accept(&listener);
+        compare res {
+            Success(conn) => {
+                out = Success(conn);
+                break;
+            }
+            err => {
+                if is_would_block(&err) {
+                    let wait_res = rt_net_wait_accept(&listener).await();
+                    compare wait_res {
+                        Success(_) => {}
+                        Cancelled() => {
+                            out = net_error(NET_ERR_IO, "accept cancelled");
+                            break;
+                        }
+                    };
+                    continue;
+                }
+                out = err;
+                break;
+            }
+        };
+    }
+    return out;
+}
+
+async fn read_some_owned(handle: int, cap: uint) -> NetResult<byte[]> {
+    if cap == 0:uint {
+        return Success(empty_bytes());
+    }
+    let conn: TcpConn = { __opaque: handle };
+    let buf = rt_alloc(1:uint, 1:uint);
+    let mut out: byte[] = [];
+    out.reserve(cap);
+    let mut read_total: uint = 0:uint;
+    while read_total < cap {
+        let res = rt_net_read(&conn, buf, 1:uint);
+        compare res {
+            Success(n) => {
+                if n == 0:uint {
+                    break;
+                }
+                let b: byte = *buf;
+                out.push(b);
+                read_total = read_total + n;
+                0:int;
+            }
+            err => {
+                if is_would_block(&err) {
+                    if read_total > 0:uint {
+                        break;
+                    }
+                    let wait_res = rt_net_wait_readable(&conn).await();
+                    compare wait_res {
+                        Success(_) => {}
+                        Cancelled() => {
+                            rt_free(buf, 1:uint, 1:uint);
+                            return net_error(NET_ERR_IO, "read cancelled");
+                        }
+                    };
+                    0:int;
+                } else {
+                    rt_free(buf, 1:uint, 1:uint);
+                    return err;
+                }
+            }
+        };
+    }
+    rt_free(buf, 1:uint, 1:uint);
+    return Success(out);
+}
+
+async fn write_some_owned(handle: int, data: byte[]) -> NetResult<uint> {
+    let length: uint = data.__len();
+    if length == 0:uint {
+        return Success(0:uint);
+    }
+    let conn: TcpConn = { __opaque: handle };
+    let buf = rt_alloc(1:uint, 1:uint);
+    let mut written: uint = 0:uint;
+    while written < length {
+        let idx: int = written to int;
+        *buf = clone(data[idx]);
+        let res = rt_net_write(&conn, buf, 1:uint);
+        compare res {
+            Success(n) => {
+                if n == 0:uint {
+                    rt_free(buf, 1:uint, 1:uint);
+                    return net_error(NET_ERR_IO, "write made no progress");
+                }
+                written = written + n;
+                0:int;
+            }
+            err => {
+                if is_would_block(&err) {
+                    if written > 0:uint {
+                        break;
+                    }
+                    let wait_res = rt_net_wait_writable(&conn).await();
+                    compare wait_res {
+                        Success(_) => {}
+                        Cancelled() => {
+                            rt_free(buf, 1:uint, 1:uint);
+                            return net_error(NET_ERR_IO, "write cancelled");
+                        }
+                    };
+                    0:int;
+                } else {
+                    rt_free(buf, 1:uint, 1:uint);
+                    return err;
+                }
+            }
+        };
+    }
+    rt_free(buf, 1:uint, 1:uint);
+    return Success(written);
+}
+
+async fn write_all_owned(handle: int, data: byte[]) -> NetResult<nothing> {
+    let length: uint = data.__len();
+    if length == 0:uint {
+        return Success(nothing);
+    }
+    let conn: TcpConn = { __opaque: handle };
+    let buf = rt_alloc(1:uint, 1:uint);
+    let mut written: uint = 0:uint;
+    while written < length {
+        let idx: int = written to int;
+        *buf = clone(data[idx]);
+        let res = rt_net_write(&conn, buf, 1:uint);
+        compare res {
+            Success(n) => {
+                if n == 0:uint {
+                    rt_free(buf, 1:uint, 1:uint);
+                    return net_error(NET_ERR_IO, "write made no progress");
+                }
+                written = written + n;
+                0:int;
+            }
+            err => {
+                if is_would_block(&err) {
+                    let wait_res = rt_net_wait_writable(&conn).await();
+                    compare wait_res {
+                        Success(_) => {}
+                        Cancelled() => {
+                            rt_free(buf, 1:uint, 1:uint);
+                            return net_error(NET_ERR_IO, "write cancelled");
+                        }
+                    };
+                    0:int;
+                } else {
+                    rt_free(buf, 1:uint, 1:uint);
+                    return err;
+                }
+            }
+        };
+    }
+    rt_free(buf, 1:uint, 1:uint);
+    return Success(nothing);
+}
+
+pub fn accept(l: &TcpListener) -> Task<NetResult<TcpConn>> {
+    return accept_owned(listener_handle(l));
+}
+
+pub fn read_some(c: &TcpConn, cap: uint) -> Task<NetResult<byte[]>> {
+    return read_some_owned(conn_handle(c), cap);
+}
+
+pub fn write_some(c: &TcpConn, data: byte[]) -> Task<NetResult<uint>> {
+    return write_some_owned(conn_handle(c), data);
+}
+
+pub fn write_all(c: &TcpConn, data: byte[]) -> Task<NetResult<nothing>> {
+    return write_all_owned(conn_handle(c), data);
+}

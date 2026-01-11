@@ -1,0 +1,366 @@
+import stdlib/json as json;
+import stdlib/json::{JsonValue, JsonNull, JsonBool, JsonNumber, JsonString, JsonArray, JsonObject};
+
+fn assert(cond: bool, msg: string) -> nothing {
+    if !cond {
+        panic(msg);
+    }
+    return nothing;
+}
+
+fn parse_ok(input: &string) -> JsonValue {
+    let res = json.parse(input);
+    return compare res {
+        Success(v) => v;
+        err => {
+            let _ = err;
+            panic("parse failed");
+        }
+    };
+}
+
+fn parse_err_offset(input: &string, offset: uint) -> nothing {
+    let res = json.parse(input);
+    compare res {
+        Success(_) => {
+            panic("expected parse error");
+        }
+        err => {
+            if err.offset != offset {
+                panic("offset mismatch");
+            }
+        }
+    };
+    return nothing;
+}
+
+fn array_eq(a: JsonValue[], b: JsonValue[]) -> bool {
+    if a.__len() != b.__len() {
+        return false;
+    }
+    let mut stack_a: JsonValue[] = [];
+    let mut stack_b: JsonValue[] = [];
+    let mut remaining_a: JsonValue[] = a;
+    let mut remaining_b: JsonValue[] = b;
+    let mut done: bool = false;
+    while true {
+        let next_opt = remaining_a.pop();
+        compare next_opt {
+            Some(v) => {
+                stack_a.push(v);
+                done = false;
+                0:int;
+            }
+            nothing => {
+                done = true;
+                0:int;
+            }
+        };
+        if done {
+            break;
+        }
+    }
+    done = false;
+    while true {
+        let next_opt = remaining_b.pop();
+        compare next_opt {
+            Some(v) => {
+                stack_b.push(v);
+                done = false;
+                0:int;
+            }
+            nothing => {
+                done = true;
+                0:int;
+            }
+        };
+        if done {
+            break;
+        }
+    }
+    let mut ok: bool = true;
+    done = false;
+    while true {
+        let a_opt = stack_a.pop();
+        let b_opt = stack_b.pop();
+        compare a_opt {
+            Some(av) => {
+                let mut b_has: bool = true;
+                let mut bv: JsonValue = JsonNull();
+                compare b_opt {
+                    Some(val) => {
+                        bv = val;
+                        b_has = true;
+                        0:int;
+                    }
+                    nothing => {
+                        b_has = false;
+                        0:int;
+                    }
+                };
+                if !b_has || !json_eq(av, bv) {
+                    ok = false;
+                    done = true;
+                } else {
+                    done = false;
+                }
+                0:int;
+            }
+            nothing => {
+                let mut b_has: bool = false;
+                compare b_opt {
+                    Some(_) => {
+                        b_has = true;
+                        0:int;
+                    }
+                    nothing => {
+                        b_has = false;
+                        0:int;
+                    }
+                };
+                if b_has {
+                    ok = false;
+                }
+                done = true;
+                0:int;
+            }
+        };
+        if done {
+            break;
+        }
+    }
+    return ok;
+}
+
+fn object_eq(a: Map<string, JsonValue>, b: Map<string, JsonValue>) -> bool {
+    if a.length() != b.length() {
+        return false;
+    }
+    let mut map_a: Map<string, JsonValue> = a;
+    let mut map_b: Map<string, JsonValue> = b;
+    let keys: string[] = map_a.keys();
+    let count: int = keys.__len() to int;
+    let mut i: int = 0;
+    while i < count {
+        let key_ref = keys[i];
+        let a_opt = map_a.remove(key_ref);
+        let b_opt = map_b.remove(key_ref);
+        let mut ok: bool = true;
+        compare a_opt {
+            Some(av) => {
+                let mut b_has: bool = true;
+                let mut bv: JsonValue = JsonNull();
+                compare b_opt {
+                    Some(val) => {
+                        bv = val;
+                        b_has = true;
+                        0:int;
+                    }
+                    nothing => {
+                        b_has = false;
+                        0:int;
+                    }
+                };
+                if !b_has || !json_eq(av, bv) {
+                    ok = false;
+                }
+                0:int;
+            }
+            nothing => {
+                ok = false;
+                0:int;
+            }
+        };
+        if !ok {
+            return false;
+        }
+        i = i + 1;
+    }
+    return map_b.length() == 0:uint;
+}
+
+fn json_eq(a: JsonValue, b: JsonValue) -> bool {
+    return compare a {
+        JsonNull() => {
+            return compare b {
+                JsonNull() => true;
+                _ => false;
+            };
+        }
+        JsonBool(av) => {
+            return compare b {
+                JsonBool(bv) => av == bv;
+                _ => false;
+            };
+        }
+        JsonNumber(av) => {
+            return compare b {
+                JsonNumber(bv) => av == bv;
+                _ => false;
+            };
+        }
+        JsonString(av) => {
+            return compare b {
+                JsonString(bv) => av == bv;
+                _ => false;
+            };
+        }
+        JsonArray(av) => {
+            return compare b {
+                JsonArray(bv) => array_eq(av, bv);
+                _ => false;
+            };
+        }
+        JsonObject(av) => {
+            return compare b {
+                JsonObject(bv) => object_eq(av, bv);
+                _ => false;
+            };
+        }
+    };
+}
+
+fn test_literals() -> nothing {
+    let input_null: string = "null";
+    let v_null = parse_ok(&input_null);
+    let expected_null: JsonValue = JsonNull();
+    assert(json_eq(v_null, expected_null), "parse null");
+
+    let input_true: string = "true";
+    let v_true = parse_ok(&input_true);
+    let expected_true: JsonValue = JsonBool(true);
+    assert(json_eq(v_true, expected_true), "parse true");
+
+    let input_false: string = "false";
+    let v_false = parse_ok(&input_false);
+    let expected_false: JsonValue = JsonBool(false);
+    assert(json_eq(v_false, expected_false), "parse false");
+    return nothing;
+}
+
+fn test_strings() -> nothing {
+    let input: string = "\"line\\n\\t\\\\\\\"\"";
+    let v = parse_ok(&input);
+    let expected: JsonValue = JsonString("line\n\t\\\"");
+    assert(json_eq(v, expected), "parse string escapes");
+
+    let input_u: string = "\"\\u0041\"";
+    let v_u = parse_ok(&input_u);
+    let expected_u: JsonValue = JsonString("A");
+    assert(json_eq(v_u, expected_u), "parse unicode escape");
+    return nothing;
+}
+
+fn test_numbers() -> nothing {
+    let input: string = "-12.34e+5";
+    let v = parse_ok(&input);
+    let expected: JsonValue = JsonNumber("-12.34e+5");
+    assert(json_eq(v, expected), "parse number");
+    return nothing;
+}
+
+fn test_arrays_objects() -> nothing {
+    let input: string = "{\"a\":[true,false,null],\"b\":{\"c\":\"d\"}}";
+    let v = parse_ok(&input);
+
+    let mut arr: JsonValue[] = [];
+    let v_true: JsonValue = JsonBool(true);
+    arr.push(v_true);
+    let v_false: JsonValue = JsonBool(false);
+    arr.push(v_false);
+    let v_null: JsonValue = JsonNull();
+    arr.push(v_null);
+    let mut inner: Map<string, JsonValue> = Map::<string, JsonValue>.new();
+    let v_c: JsonValue = JsonString("d");
+    let _ = inner.insert("c", v_c);
+    let mut obj: Map<string, JsonValue> = Map::<string, JsonValue>.new();
+    let v_a: JsonValue = JsonArray(arr);
+    let _ = obj.insert("a", v_a);
+    let v_b: JsonValue = JsonObject(inner);
+    let _ = obj.insert("b", v_b);
+
+    let expected: JsonValue = JsonObject(obj);
+    assert(json_eq(v, expected), "parse object");
+    return nothing;
+}
+
+fn test_whitespace() -> nothing {
+    let input: string = " \n\t { \"a\" : 1 } ";
+    let v = parse_ok(&input);
+    let mut obj: Map<string, JsonValue> = Map::<string, JsonValue>.new();
+    let v_a: JsonValue = JsonNumber("1");
+    let _ = obj.insert("a", v_a);
+    let expected: JsonValue = JsonObject(obj);
+    assert(json_eq(v, expected), "parse whitespace");
+    return nothing;
+}
+
+fn test_parse_bytes() -> nothing {
+    let bytes: byte[] = "true" to byte[];
+    let res = json.parse_bytes(bytes);
+    let v = compare res {
+        Success(val) => val;
+        err => {
+            let _ = err;
+            panic("parse_bytes failed");
+        }
+    };
+    let expected: JsonValue = JsonBool(true);
+    assert(json_eq(v, expected), "parse_bytes");
+    return nothing;
+}
+
+fn test_stringify() -> nothing {
+    let value: JsonValue = JsonString("line\n\"quote\"");
+    let out: string = json.stringify(&value);
+    let expected: string = "\"line\\n\\\"quote\\\"\"";
+    assert(out == expected, "stringify string");
+
+    let mut obj: Map<string, JsonValue> = Map::<string, JsonValue>.new();
+    let v_b: JsonValue = JsonNumber("2");
+    let _ = obj.insert("b", v_b);
+    let v_a: JsonValue = JsonNumber("1");
+    let _ = obj.insert("a", v_a);
+    let obj_val: JsonValue = JsonObject(obj);
+    let out_obj: string = json.stringify(&obj_val);
+    let expected_obj: string = "{\"a\":1,\"b\":2}";
+    assert(out_obj == expected_obj, "stringify object order");
+    return nothing;
+}
+
+fn test_roundtrip() -> nothing {
+    let input: string = "{\"b\":2,\"a\":[1,2,\"x\"]}";
+    let v1 = parse_ok(&input);
+    let text: string = json.stringify(&v1);
+    let v1_copy: JsonValue = v1.to_json();
+    let v2 = parse_ok(&text);
+    assert(json_eq(v1_copy, v2), "roundtrip");
+    return nothing;
+}
+
+fn test_errors() -> nothing {
+    let input1: string = "[1,]";
+    parse_err_offset(&input1, 3:uint);
+
+    let input2: string = "\"abc";
+    parse_err_offset(&input2, 0:uint);
+
+    let input3: string = "01";
+    parse_err_offset(&input3, 1:uint);
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    test_literals();
+    test_strings();
+    test_numbers();
+    test_arrays_objects();
+    test_whitespace();
+    test_parse_bytes();
+    test_stringify();
+    test_roundtrip();
+    test_errors();
+    print("ok");
+    return 0;
+}

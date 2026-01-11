@@ -78,6 +78,7 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("\\\" as uint: invalid numeric format: \\\"")
 	e.ensureStringConst("\\\" as float: invalid numeric format: \\\"")
 	e.ensureStringConst("\\\"")
+	e.ensureStringConst("invalid UTF-8")
 	e.ensureStringConst("\n")
 	e.ensureStringConst("true")
 	e.ensureStringConst("false")
@@ -104,12 +105,22 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("memmove length out of range")
 	e.ensureStringConst("stdout write length out of range")
 	e.ensureStringConst("stderr write length out of range")
+	e.ensureStringConst("fs open flags out of range")
+	e.ensureStringConst("fs read cap out of range")
+	e.ensureStringConst("fs write length out of range")
+	e.ensureStringConst("fs seek offset out of range")
+	e.ensureStringConst("fs seek whence out of range")
+	e.ensureStringConst("net listen port out of range")
+	e.ensureStringConst("net connect port out of range")
+	e.ensureStringConst("net read cap out of range")
+	e.ensureStringConst("net write length out of range")
 	e.ensureStringConst("panic message length out of range")
 	e.ensureStringConst("string length out of range")
 	e.ensureStringConst("panic bounds kind out of range")
 	e.ensureStringConst("panic bounds index out of range")
 	e.ensureStringConst("panic bounds length out of range")
 	e.ensureStringConst("missing poll function")
+	e.ensureStringConst("missing blocking function")
 	if err := e.prepareGlobals(); err != nil {
 		return "", err
 	}
@@ -129,6 +140,9 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 		return "", err
 	}
 	if err := e.emitPollDispatch(); err != nil {
+		return "", err
+	}
+	if err := e.emitBlockingDispatch(); err != nil {
 		return "", err
 	}
 	return e.buf.String(), nil

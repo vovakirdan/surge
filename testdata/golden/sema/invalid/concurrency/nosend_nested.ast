@@ -25,4 +25,4 @@ nosend_nested.sg (span: 3:1-20:1)
          │  ├─ Type: AppState
          │  └─ Value: expr#7: <ExprKind(22)>
          └─ Stmt[1]: Return (span: 16:5-18:7)
-            └─ Expr: expr#11: task async { 1 stmt(s) }
+            └─ Expr: expr#11: spawn async { 1 stmt(s) }

@@ -138,14 +138,20 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 						}
 					}
 					if !receiverIsType && tc.lookupName(member.Field) == "await" {
-						if tc.awaitDepth == 0 {
+						allowAwait := tc.awaitDepth > 0
+						if !allowAwait {
 							sym := tc.symbolFromID(tc.currentFnSym())
 							if sym == nil || sym.Flags&symbols.SymbolFlagEntrypoint == 0 {
 								tc.report(diag.SemaIntrinsicBadContext, expr.Span, "await can only be used in async context")
+							} else {
+								allowAwait = true
 							}
 						}
 						if receiverType != types.NoTypeID && !tc.isTaskType(receiverType) {
 							tc.report(diag.SemaTypeMismatch, expr.Span, "await expects Task<T>, got %s", tc.typeLabel(receiverType))
+						}
+						if allowAwait {
+							tc.checkTaskContainersLiveAcrossAwait(expr.Span)
 						}
 						// Track await for structured concurrency
 						if tc.taskTracker != nil {
@@ -163,11 +169,12 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					for _, arg := range call.Args {
 						argTypes = append(argTypes, tc.typeExpr(arg.Value))
 						argExprs = append(argExprs, arg.Value)
+						tc.trackTaskPassedAsArg(arg.Value)
 					}
 					if !receiverIsType && methodName == "push" && len(argTypes) > 0 &&
 						tc.isTaskType(argTypes[0]) && tc.isTaskContainerType(receiverType) {
 						if place, ok := tc.taskContainerPlace(member.Target); ok {
-							tc.markTaskContainerPending(place, expr.Span)
+							tc.markTaskContainerPending(place, expr.Span, receiverType)
 						}
 					}
 					if !receiverIsType && methodName == "pop" && tc.isTaskContainerType(receiverType) {
@@ -232,6 +239,11 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 						tc.markArrayViewMethodCall(id, methodName, receiverType, argTypes)
 					}
 					break
+				}
+			}
+			if ident, okIdent := tc.builder.Exprs.Ident(call.Target); okIdent && ident != nil {
+				if tc.lookupName(ident.Name) == "timeout" && tc.awaitDepth == 0 {
+					tc.report(diag.SemaIntrinsicBadContext, expr.Span, "timeout(...) is only available in async/task context; call it inside async/task and await it via x.await()")
 				}
 			}
 			ty = tc.callResultType(id, call, expr.Span)
@@ -397,6 +409,16 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			} else {
 				ty = taskType
 			}
+			allowAwait := tc.awaitDepth > 0
+			if !allowAwait {
+				sym := tc.symbolFromID(tc.currentFnSym())
+				if sym != nil && sym.Flags&symbols.SymbolFlagEntrypoint != 0 {
+					allowAwait = true
+				}
+			}
+			if allowAwait {
+				tc.checkTaskContainersLiveAcrossAwait(expr.Span)
+			}
 		}
 	case ast.ExprCast:
 		if cast, ok := tc.builder.Exprs.Cast(id); ok && cast != nil {
@@ -538,40 +560,52 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 			}
 			ty = tc.taskType(payload, expr.Span)
 		}
+	case ast.ExprBlocking:
+		if blockingData, ok := tc.builder.Exprs.Blocking(id); ok && blockingData != nil {
+			var returns []types.TypeID
+			tc.pushReturnContext(types.NoTypeID, expr.Span, &returns)
+			tc.walkStmt(blockingData.Body)
+			tc.popReturnContext()
+			payload := tc.types.Builtins().Nothing
+			for _, rt := range returns {
+				if rt == types.NoTypeID {
+					continue
+				}
+				if payload == tc.types.Builtins().Nothing {
+					payload = rt
+					continue
+				}
+				if !tc.typesAssignable(payload, rt, true) && !tc.typesAssignable(rt, payload, true) {
+					payload = types.NoTypeID
+				}
+			}
+			if payload == types.NoTypeID {
+				payload = tc.types.Builtins().Nothing
+			}
+			ty = tc.taskType(payload, expr.Span)
+
+			captures := tc.collectBlockingCaptures(blockingData.Body)
+			tc.recordBlockingCaptures(id, captures)
+			for _, cap := range captures {
+				capType := tc.bindingType(cap.symID)
+				if tc.isReferenceType(capType) {
+					tc.report(diag.SemaBlockingBorrowCapture, cap.span,
+						"blocking captures must be by value; cannot capture reference %s", tc.typeLabel(capType))
+					continue
+				}
+				tc.checkSpawnSendability(cap.symID, cap.span)
+				tc.observeMove(cap.exprID, cap.span)
+			}
+		}
 	case ast.ExprTask:
 		if task, ok := tc.builder.Exprs.Task(id); ok && task != nil {
-			exprType := tc.typeExpr(task.Value)
-			tc.observeMove(task.Value, tc.exprSpan(task.Value))
-			tc.enforceSpawn(task.Value)
-
-			// task requires Task<T> — passthrough without re-wrapping
-			if tc.isTaskType(exprType) {
-				ty = exprType
-				// Warn if task checkpoint() - it has no useful effect
-				if tc.isCheckpointCall(task.Value) {
-					tc.warn(diag.SemaSpawnCheckpointUseless, expr.Span,
-						"task checkpoint() has no effect; use checkpoint().await() or ignore the result")
-				}
-			} else if exprType != types.NoTypeID {
-				tc.report(diag.SemaSpawnNotTask, expr.Span,
-					"task requires async function call or Task<T> expression, got %s",
-					tc.typeLabel(exprType))
-				ty = types.NoTypeID
-			}
-
-			// Track task for structured concurrency
-			if tc.taskTracker != nil && ty != types.NoTypeID {
-				inAsyncBlock := tc.asyncBlockDepth > 0
-				tc.taskTracker.SpawnTask(id, expr.Span, tc.currentScope(), inAsyncBlock)
-			}
+			ty = tc.typeSpawnExpr(id, expr.Span, task.Value, false)
 		}
 	case ast.ExprSpawn:
 		if spawn, ok := tc.builder.Exprs.Spawn(id); ok && spawn != nil {
-			tc.typeExpr(spawn.Value)
+			local := tc.spawnHasAttr(id, "local")
+			ty = tc.typeSpawnExpr(id, expr.Span, spawn.Value, local)
 		}
-		spawnSpan := source.Span{Start: expr.Span.Start, End: expr.Span.Start + uint32(len("spawn"))}
-		tc.report(diag.FutSpawnReserved, spawnSpan,
-			"`spawn` is reserved for routines/parallel runtime; use `task` for async tasks")
 	case ast.ExprSpread:
 		if spread, ok := tc.builder.Exprs.Spread(id); ok && spread != nil {
 			tc.typeExpr(spread.Value)
@@ -619,41 +653,29 @@ func (tc *typeChecker) typeExprAssignLHS(id ast.ExprID) types.TypeID {
 	return ty
 }
 
-// memberReceiverType determines the receiver type for a method call target.
-// It first tries to treat the target as a type operand (for static/associated methods),
-// and falls back to value typing.
-func (tc *typeChecker) memberReceiverType(target ast.ExprID) (types.TypeID, bool) {
-	if t := tc.tryResolveTypeOperand(target); t != types.NoTypeID {
-		return t, true
-	}
-	return tc.typeExpr(target), false
-}
+func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value ast.ExprID, local bool) types.TypeID {
+	exprType := tc.typeExpr(value)
+	tc.observeMove(value, tc.exprSpan(value))
+	tc.enforceSpawn(value, local)
 
-// unifyTernaryBranches determines the result type of a ternary expression
-// by unifying the types of the true and false branches.
-func (tc *typeChecker) unifyTernaryBranches(trueType, falseType types.TypeID, span source.Span) types.TypeID {
-	if trueType == types.NoTypeID || falseType == types.NoTypeID {
-		if trueType != types.NoTypeID {
-			return trueType
+	var ty types.TypeID
+	if tc.isTaskType(exprType) {
+		ty = exprType
+		if tc.isCheckpointCall(value) {
+			tc.warn(diag.SemaSpawnCheckpointUseless, span,
+				"spawn checkpoint() has no effect; use checkpoint().await() or ignore the result")
 		}
-		return falseType
+	} else if exprType != types.NoTypeID {
+		tc.report(diag.SemaSpawnNotTask, span,
+			"spawn requires async function call or Task<T> expression, got %s",
+			tc.typeLabel(exprType))
+		ty = types.NoTypeID
 	}
 
-	nothingType := tc.types.Builtins().Nothing
-
-	switch {
-	case trueType == nothingType:
-		return falseType
-	case falseType == nothingType:
-		return trueType
-	case tc.typesAssignable(trueType, falseType, true):
-		return trueType
-	case tc.typesAssignable(falseType, trueType, true):
-		return falseType
-	default:
-		tc.report(diag.SemaTypeMismatch, span,
-			"ternary branches have incompatible types: %s and %s",
-			tc.typeLabel(trueType), tc.typeLabel(falseType))
-		return types.NoTypeID
+	if tc.taskTracker != nil && ty != types.NoTypeID {
+		inAsyncBlock := tc.asyncBlockDepth > 0
+		tc.taskTracker.SpawnTask(exprID, span, tc.currentScope(), inAsyncBlock, local)
 	}
+
+	return ty
 }

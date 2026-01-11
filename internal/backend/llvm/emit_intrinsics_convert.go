@@ -177,6 +177,102 @@ func (fe *funcEmitter) emitFromStrIntrinsic(call *mir.CallInstr) (bool, error) {
 	return true, nil
 }
 
+func (fe *funcEmitter) emitFromBytesIntrinsic(call *mir.CallInstr) (bool, error) {
+	if call == nil || call.Callee.Kind != mir.CalleeSym {
+		return false, nil
+	}
+	name := call.Callee.Name
+	if name == "" {
+		name = fe.symbolName(call.Callee.Sym)
+	}
+	name = stripGenericSuffix(name)
+	if name != "from_bytes" {
+		return false, nil
+	}
+	if len(call.Args) != 1 {
+		return true, fmt.Errorf("from_bytes requires 1 argument")
+	}
+	if !call.HasDst {
+		return true, nil
+	}
+	if fe.emitter == nil || fe.emitter.types == nil {
+		return true, fmt.Errorf("missing type interner")
+	}
+
+	dstType := fe.f.Locals[call.Dst.Local].Type
+	successIdx, successMeta, err := fe.emitter.tagCaseMeta(dstType, "Success", symbols.NoSymbolID)
+	if err != nil {
+		return true, err
+	}
+	if len(successMeta.PayloadTypes) != 1 || !isStringLike(fe.emitter.types, successMeta.PayloadTypes[0]) {
+		return true, fmt.Errorf("from_bytes requires Erring<string, Error> destination")
+	}
+	elemType, dynamic, ok := arrayElemType(fe.emitter.types, call.Args[0].Type)
+	if !ok || !dynamic {
+		return true, fmt.Errorf("from_bytes requires byte[] argument")
+	}
+	elemType = resolveValueType(fe.emitter.types, elemType)
+	if elemType != fe.emitter.types.Builtins().Uint8 {
+		return true, fmt.Errorf("from_bytes requires byte[] argument")
+	}
+
+	handlePtr, err := fe.emitHandleOperandPtr(&call.Args[0])
+	if err != nil {
+		return true, err
+	}
+	lenVal := fe.emitArrayLen(handlePtr)
+	head := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", head, handlePtr)
+	dataPtrPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, head, arrayDataOffset)
+	dataPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", dataPtr, dataPtrPtr)
+
+	okVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_utf8_valid(ptr %s, i64 %s)\n", okVal, dataPtr, lenVal)
+	okBB := fe.nextInlineBlock()
+	errBB := fe.nextInlineBlock()
+	contBB := fe.nextInlineBlock()
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, okBB, errBB)
+
+	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	if err != nil {
+		return true, err
+	}
+	if dstTy != "ptr" {
+		dstTy = "ptr"
+	}
+
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
+	strVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_from_bytes(ptr %s, i64 %s)\n", strVal, dataPtr, lenVal)
+	tagVal, err := fe.emitTagValueSinglePayload(dstType, successIdx, successMeta.PayloadTypes[0], strVal, "ptr", successMeta.PayloadTypes[0])
+	if err != nil {
+		return true, err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tagVal, ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
+
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", errBB)
+	errType, err := fe.erringErrorType(dstType)
+	if err != nil {
+		return true, err
+	}
+	msgVal, _, err := fe.emitStringConst("invalid UTF-8")
+	if err != nil {
+		return true, err
+	}
+	errVal, err := fe.emitErrorLikeValue(errType, msgVal, "ptr", "1", "i64")
+	if err != nil {
+		return true, err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, errVal, ptr)
+	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
+
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
+	return true, nil
+}
+
 func (fe *funcEmitter) parseKindForType(typeID types.TypeID) string {
 	if isBigIntType(fe.emitter.types, typeID) {
 		return "int"

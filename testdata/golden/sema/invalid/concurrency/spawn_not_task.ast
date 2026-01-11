@@ -13,16 +13,16 @@ spawn_not_task.sg (span: 3:1-27:1)
 │  ├─ Return: Task<int>
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 7:37-10:2)
-│        └─ Stmt[0]: Return (span: 9:5-9:34)
-│           └─ Expr: expr#7: task sync_compute(10)
+│        └─ Stmt[0]: Return (span: 9:5-9:35)
+│           └─ Expr: expr#7: spawn sync_compute(10)
 ├─ Item[2]: Fn (span: 12:1-15:2)
 │  ├─ Name: spawn_int_literal
 │  ├─ Params: ()
 │  ├─ Return: Task<int>
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 12:41-15:2)
-│        └─ Stmt[0]: Return (span: 14:5-14:20)
-│           └─ Expr: expr#9: task 42
+│        └─ Stmt[0]: Return (span: 14:5-14:21)
+│           └─ Expr: expr#9: spawn 42
 ├─ Item[3]: Fn (span: 17:1-21:2)
 │  ├─ Name: spawn_variable
 │  ├─ Params: ()
@@ -34,13 +34,13 @@ spawn_not_task.sg (span: 3:1-27:1)
 │        │  ├─ Mutable: false
 │        │  ├─ Type: bool
 │        │  └─ Value: expr#10: true
-│        └─ Stmt[1]: Return (span: 20:5-20:19)
-│           └─ Expr: expr#12: task x
+│        └─ Stmt[1]: Return (span: 20:5-20:20)
+│           └─ Expr: expr#12: spawn x
 └─ Item[4]: Fn (span: 23:1-26:2)
    ├─ Name: spawn_string
    ├─ Params: ()
    ├─ Return: Task<string>
    └─ Body:
       └─ Stmt[0]: Block (span: 23:39-26:2)
-         └─ Stmt[0]: Return (span: 25:5-25:25)
-            └─ Expr: expr#14: task "hello"
+         └─ Stmt[0]: Return (span: 25:5-25:26)
+            └─ Expr: expr#14: spawn "hello"

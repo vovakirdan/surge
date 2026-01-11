@@ -1,0 +1,55 @@
+import stdlib/http as http;
+
+fn bytes_to_ascii(bytes: byte[]) -> string {
+    let res = string.from_bytes(&bytes);
+    return compare res {
+        Success(s) => s;
+        err => {
+            let _ = err;
+            "";
+        }
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let raw = "POST /chunk HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n";
+    let res = http.parse_request(&raw);
+    compare res {
+        Success(req) => {
+            print("method=" + req.method);
+            let mut body = req.body;
+            let mut idx: int = 0;
+            while idx < 3 {
+                let body_task = http.next(&mut body);
+                compare body_task.await() {
+                    Success(body_res) => {
+                        compare body_res {
+                            Success(bytes) => {
+                                if bytes.__len() == 0:uint {
+                                    print("chunk_end");
+                                } else {
+                                    print("chunk=" + bytes_to_ascii(bytes));
+                                }
+                            }
+                            err => {
+                                print("chunk_err=" + (err.code to string));
+                                return 1;
+                            }
+                        };
+                    }
+                    Cancelled() => {
+                        print("chunk_cancelled");
+                        return 1;
+                    }
+                };
+                idx = idx + 1;
+            }
+        }
+        err => {
+            print("parse_err=" + (err.code to string));
+            return 1;
+        }
+    };
+    return 0;
+}

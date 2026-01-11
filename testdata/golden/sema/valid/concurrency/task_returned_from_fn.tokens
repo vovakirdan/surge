@@ -22,11 +22,11 @@
  22: Gt              ">" at 7:32-7:33
  23: LBrace          "{" at 7:34-7:35 (leading: Space)
  24: KwReturn        "return" at 8:5-8:11 (leading: Newline, Space)
- 25: KwTask          "task" at 8:12-8:16 (leading: Space)
- 26: Ident           "work" at 8:17-8:21 (leading: Space)
- 27: LParen          "(" at 8:21-8:22
- 28: RParen          ")" at 8:22-8:23
- 29: Semicolon       ";" at 8:23-8:24
+ 25: KwSpawn         "spawn" at 8:12-8:17 (leading: Space)
+ 26: Ident           "work" at 8:18-8:22 (leading: Space)
+ 27: LParen          "(" at 8:22-8:23
+ 28: RParen          ")" at 8:23-8:24
+ 29: Semicolon       ";" at 8:24-8:25
  30: RBrace          "}" at 9:1-9:2 (leading: Newline)
  31: KwPub           "pub" at 11:1-11:4 (leading: Newline)
  32: KwAsync         "async" at 11:5-11:10 (leading: Space)
@@ -41,10 +41,10 @@
  41: Gt              ">" at 11:40-11:41
  42: LBrace          "{" at 11:42-11:43 (leading: Space)
  43: KwReturn        "return" at 12:5-12:11 (leading: Newline, Space)
- 44: KwTask          "task" at 12:12-12:16 (leading: Space)
- 45: Ident           "work" at 12:17-12:21 (leading: Space)
- 46: LParen          "(" at 12:21-12:22
- 47: RParen          ")" at 12:22-12:23
- 48: Semicolon       ";" at 12:23-12:24
+ 44: KwSpawn         "spawn" at 12:12-12:17 (leading: Space)
+ 45: Ident           "work" at 12:18-12:22 (leading: Space)
+ 46: LParen          "(" at 12:22-12:23
+ 47: RParen          ")" at 12:23-12:24
+ 48: Semicolon       ";" at 12:24-12:25
  49: RBrace          "}" at 13:1-13:2 (leading: Newline)
  50: EOF             at 14:1-14:1

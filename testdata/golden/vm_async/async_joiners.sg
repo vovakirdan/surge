@@ -1,14 +1,14 @@
 @entrypoint
 fn main() -> int {
-    let t = task async {
+    let t = spawn async {
         checkpoint().await();
         checkpoint().await();
         return 7;
     };
     let t1 = t.clone();
 
-    let j1 = task joiner("J1", t);
-    let j2 = task joiner("J2", t1);
+    let j1 = spawn joiner("J1", t);
+    let j2 = spawn joiner("J2", t1);
 
     let _ = j1.await();
     let _ = j2.await();

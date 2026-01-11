@@ -21,6 +21,12 @@ func (fe *funcEmitter) emitRuntimeIntrinsic(call *mir.CallInstr) (bool, error) {
 			return false, nil
 		}
 	}
+	if handled, err := fe.emitFsIntrinsic(call); handled {
+		return true, err
+	}
+	if handled, err := fe.emitNetIntrinsic(call); handled {
+		return true, err
+	}
 	switch name {
 	case "rt_alloc":
 		return true, fe.emitRtAlloc(call)
@@ -48,6 +54,8 @@ func (fe *funcEmitter) emitRuntimeIntrinsic(call *mir.CallInstr) (bool, error) {
 		return true, fe.emitRtPanic(call)
 	case "rt_panic_bounds":
 		return true, fe.emitRtPanicBounds(call)
+	case "rt_worker_count":
+		return true, fe.emitRtWorkerCount(call)
 	case "rt_exit":
 		return true, fe.emitRtExit(call)
 	case "rt_string_index":
@@ -82,6 +90,27 @@ func (fe *funcEmitter) emitRtSleep(call *mir.CallInstr) error {
 		}
 		fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, tmp, ptr)
 		return nil
+	}
+	return nil
+}
+
+func (fe *funcEmitter) emitRtWorkerCount(call *mir.CallInstr) error {
+	if call == nil {
+		return nil
+	}
+	if len(call.Args) != 0 {
+		return fmt.Errorf("rt_worker_count requires 0 arguments")
+	}
+	tmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_worker_count()\n", tmp)
+	if call.HasDst {
+		dstType := types.NoTypeID
+		if call.Dst.Kind == mir.PlaceLocal && int(call.Dst.Local) < len(fe.f.Locals) {
+			dstType = fe.f.Locals[call.Dst.Local].Type
+		}
+		if err := fe.emitLenStore(call.Dst, dstType, tmp); err != nil {
+			return err
+		}
 	}
 	return nil
 }

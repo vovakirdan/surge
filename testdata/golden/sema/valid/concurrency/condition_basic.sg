@@ -13,6 +13,6 @@ pub fn test_condition_wait() -> nothing {
     let mut mtx: Mutex = Mutex.new();
 
     mtx.lock();
-    cond.wait(&mut mtx);
+    cond.wait(&mtx);
     mtx.unlock();
 }

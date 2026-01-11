@@ -3,7 +3,6 @@ package llvm
 import (
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 
 	"surge/internal/mir"
@@ -16,6 +15,13 @@ func isPollFunc(f *mir.Func) bool {
 		return false
 	}
 	return strings.HasSuffix(f.Name, "$poll")
+}
+
+func isBlockingFunc(f *mir.Func) bool {
+	if f == nil || f.Name == "" {
+		return false
+	}
+	return strings.HasPrefix(f.Name, "__blocking_block$")
 }
 
 func (e *Emitter) emitPollDispatch() error {
@@ -69,6 +75,64 @@ func (e *Emitter) emitPollDispatch() error {
 	return nil
 }
 
+func (e *Emitter) emitBlockingDispatch() error {
+	if e == nil || e.mod == nil {
+		return nil
+	}
+	blockIDs := make([]mir.FuncID, 0)
+	for id, f := range e.mod.Funcs {
+		if isBlockingFunc(f) {
+			blockIDs = append(blockIDs, id)
+		}
+	}
+	sort.Slice(blockIDs, func(i, j int) bool { return blockIDs[i] < blockIDs[j] })
+
+	fmt.Fprintf(&e.buf, "define i64 @__surge_blocking_call(i64 %%id, ptr %%state) {\n")
+	fmt.Fprintf(&e.buf, "entry:\n")
+	fmt.Fprintf(&e.buf, "  switch i64 %%id, label %%blocking_default [\n")
+	for _, id := range blockIDs {
+		fmt.Fprintf(&e.buf, "    i64 %d, label %%blocking.%d\n", id, id)
+	}
+	fmt.Fprintf(&e.buf, "  ]\n")
+
+	fe := funcEmitter{emitter: e}
+	for _, id := range blockIDs {
+		f := e.mod.Funcs[id]
+		if f == nil {
+			continue
+		}
+		name := e.funcNames[id]
+		sig, ok := e.funcSigs[id]
+		if !ok {
+			return fmt.Errorf("missing blocking function signature for %s", f.Name)
+		}
+		if len(sig.params) != 1 {
+			return fmt.Errorf("blocking function %s must have 1 parameter", f.Name)
+		}
+		fmt.Fprintf(&e.buf, "blocking.%d:\n", id)
+		if sig.ret == "void" {
+			fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", name)
+			fmt.Fprintf(&e.buf, "  ret i64 0\n")
+			continue
+		}
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&e.buf, "  %s = call %s @%s(ptr %%state)\n", tmp, sig.ret, name)
+		bits, err := fe.emitValueToI64(tmp, sig.ret, f.Result)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(&e.buf, "  ret i64 %s\n", bits)
+	}
+
+	fmt.Fprintf(&e.buf, "blocking_default:\n")
+	if sc, ok := e.stringConsts["missing blocking function"]; ok && sc.globalName != "" {
+		fmt.Fprintf(&e.buf, "  call void @rt_panic(ptr getelementptr inbounds ([%d x i8], ptr @%s, i64 0, i64 0), i64 %d)\n", sc.arrayLen, sc.globalName, sc.dataLen)
+	}
+	fmt.Fprintf(&e.buf, "  unreachable\n")
+	fmt.Fprintf(&e.buf, "}\n\n")
+	return nil
+}
+
 func isTaskType(typesIn *types.Interner, typeID types.TypeID) bool {
 	if typesIn == nil || typeID == types.NoTypeID {
 		return false
@@ -110,6 +174,45 @@ func (fe *funcEmitter) emitInstrSpawn(ins *mir.Instr) error {
 		dstTy = "ptr"
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, val, ptr)
+	return nil
+}
+
+func (fe *funcEmitter) emitInstrBlocking(ins *mir.Instr) error {
+	if ins == nil {
+		return nil
+	}
+	stateVal, stateTy, err := fe.emitStructLit(&ins.Blocking.State)
+	if err != nil {
+		return err
+	}
+	if stateTy != "ptr" {
+		return fmt.Errorf("blocking expects state pointer, got %s", stateTy)
+	}
+	layout, err := fe.emitter.layoutOf(ins.Blocking.State.TypeID)
+	if err != nil {
+		return err
+	}
+	size := layout.Size
+	align := layout.Align
+	if align <= 0 {
+		align = 1
+	}
+	callTmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf,
+		"  %s = call ptr @rt_blocking_submit(i64 %d, ptr %s, i64 %d, i64 %d)\n",
+		callTmp,
+		ins.Blocking.FuncID,
+		stateVal,
+		size,
+		align)
+	ptr, dstTy, err := fe.emitPlacePtr(ins.Blocking.Dst)
+	if err != nil {
+		return err
+	}
+	if dstTy != "ptr" {
+		dstTy = "ptr"
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, callTmp, ptr)
 	return nil
 }
 
@@ -398,20 +501,31 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 				return fmt.Errorf("select has multiple default arms")
 			}
 			defaultIndex = int64(i)
-		case mir.SelectArmTask:
+		case mir.SelectArmTask, mir.SelectArmChanRecv, mir.SelectArmChanSend, mir.SelectArmTimeout:
 			// handled below
 		default:
 			return fmt.Errorf("unsupported select arm kind %v", arm.Kind)
 		}
 	}
 
-	arrPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x ptr]\n", arrPtr, armCount)
+	kindsPtr := fe.nextTemp()
+	handlesPtr := fe.nextTemp()
+	valuesPtr := fe.nextTemp()
+	msPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i8]\n", kindsPtr, armCount)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x ptr]\n", handlesPtr, armCount)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64]\n", valuesPtr, armCount)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64]\n", msPtr, armCount)
 	for i := range ins.Select.Arms {
 		arm := &ins.Select.Arms[i]
-		elemPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 %d\n", elemPtr, armCount, arrPtr, i)
-		if arm.Kind == mir.SelectArmTask {
+		kindPtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x i8], ptr %s, i64 0, i64 %d\n", kindPtr, armCount, kindsPtr, i)
+		fmt.Fprintf(&fe.emitter.buf, "  store i8 %d, ptr %s\n", arm.Kind, kindPtr)
+
+		handlePtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 %d\n", handlePtr, armCount, handlesPtr, i)
+		switch arm.Kind {
+		case mir.SelectArmTask, mir.SelectArmTimeout:
 			val, valTy, err := fe.emitValueOperand(&arm.Task)
 			if err != nil {
 				return err
@@ -419,15 +533,63 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 			if valTy != "ptr" {
 				return fmt.Errorf("select expects Task pointer, got %s", valTy)
 			}
-			fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", val, elemPtr)
-			continue
+			fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", val, handlePtr)
+		case mir.SelectArmChanRecv, mir.SelectArmChanSend:
+			chVal, err := fe.emitChannelHandle(&arm.Channel)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", chVal, handlePtr)
+		default:
+			fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", handlePtr)
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", elemPtr)
+
+		valuePtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 %d\n", valuePtr, armCount, valuesPtr, i)
+		if arm.Kind == mir.SelectArmChanSend {
+			val, valTy, err := fe.emitValueOperand(&arm.Value)
+			if err != nil {
+				return err
+			}
+			valueType := operandValueType(fe.emitter.types, &arm.Value)
+			if valueType == types.NoTypeID && arm.Value.Kind != mir.OperandConst {
+				if baseType, baseErr := fe.placeBaseType(arm.Value.Place); baseErr == nil {
+					valueType = baseType
+				}
+			}
+			bitsVal, err := fe.emitValueToI64(val, valTy, valueType)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", bitsVal, valuePtr)
+		} else {
+			fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", valuePtr)
+		}
+
+		msElemPtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 %d\n", msElemPtr, armCount, msPtr, i)
+		if arm.Kind == mir.SelectArmTimeout {
+			ms64, err := fe.emitUintOperandToI64(&arm.Ms, "timeout duration out of range")
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", ms64, msElemPtr)
+		} else {
+			fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", msElemPtr)
+		}
 	}
-	tasksPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 0\n", tasksPtr, armCount, arrPtr)
+
+	kindsBase := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x i8], ptr %s, i64 0, i64 0\n", kindsBase, armCount, kindsPtr)
+	handlesBase := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 0\n", handlesBase, armCount, handlesPtr)
+	valuesBase := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 0\n", valuesBase, armCount, valuesPtr)
+	msBase := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 0\n", msBase, armCount, msPtr)
 	idxVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_select_poll_tasks(i64 %d, ptr %s, i64 %d)\n", idxVal, armCount, tasksPtr, defaultIndex)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i64 @rt_select_poll(i64 %d, ptr %s, ptr %s, ptr %s, ptr %s, i64 %d)\n",
+		idxVal, armCount, kindsBase, handlesBase, valuesBase, msBase, defaultIndex)
 	pendingCond := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp slt i64 %s, 0\n", pendingCond, idxVal)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%bb%d, label %%bb.inline.select_ready%d\n", pendingCond, ins.Select.PendBB, fe.inlineBlock)
@@ -521,143 +683,4 @@ func (fe *funcEmitter) emitTermAsyncReturnCancelled(term *mir.Terminator) error 
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_async_return_cancelled(ptr %s)\n", stateVal)
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 	return nil
-}
-
-func (fe *funcEmitter) taskResultInfo(resultType types.TypeID) (successIdx int, payloadType types.TypeID, err error) {
-	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
-		return -1, types.NoTypeID, fmt.Errorf("missing type info")
-	}
-	if resultType == types.NoTypeID {
-		return -1, types.NoTypeID, fmt.Errorf("missing task result type")
-	}
-	resultType = resolveValueType(fe.emitter.types, resultType)
-	successCaseIdx, successMeta, successErr := fe.emitter.tagCaseMeta(resultType, "Success", symbols.NoSymbolID)
-	if successErr != nil {
-		return -1, types.NoTypeID, successErr
-	}
-	if len(successMeta.PayloadTypes) != 1 {
-		return -1, types.NoTypeID, fmt.Errorf("TaskResult::Success expects single payload")
-	}
-	_, cancelMeta, cancelErr := fe.emitter.tagCaseMeta(resultType, "Cancelled", symbols.NoSymbolID)
-	if cancelErr != nil {
-		return -1, types.NoTypeID, cancelErr
-	}
-	if len(cancelMeta.PayloadTypes) != 0 {
-		return -1, types.NoTypeID, fmt.Errorf("TaskResult::Cancelled expects no payload")
-	}
-	return successCaseIdx, successMeta.PayloadTypes[0], nil
-}
-
-func (fe *funcEmitter) emitValueToI64(val, valTy string, typeID types.TypeID) (string, error) {
-	switch valTy {
-	case "i64":
-		return val, nil
-	case "ptr":
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = ptrtoint ptr %s to i64\n", out, val)
-		return out, nil
-	case "double":
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = bitcast double %s to i64\n", out, val)
-		return out, nil
-	case "float":
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = bitcast float %s to i32\n", tmp, val)
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = zext i32 %s to i64\n", out, tmp)
-		return out, nil
-	case "half":
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = bitcast half %s to i16\n", tmp, val)
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = zext i16 %s to i64\n", out, tmp)
-		return out, nil
-	}
-	if strings.HasPrefix(valTy, "i") {
-		width, err := strconv.Atoi(strings.TrimPrefix(valTy, "i"))
-		if err != nil || width <= 0 {
-			return "", fmt.Errorf("invalid integer type %s", valTy)
-		}
-		if width == 64 {
-			return val, nil
-		}
-		op := "zext"
-		if info, ok := intInfo(fe.emitter.types, typeID); ok && info.signed {
-			op = "sext"
-		}
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = %s %s %s to i64\n", out, op, valTy, val)
-		return out, nil
-	}
-	return "", fmt.Errorf("unsupported value type %s for async payload", valTy)
-}
-
-func (fe *funcEmitter) emitI64ToValue(bits string, typeID types.TypeID) (value, valueTy string, err error) {
-	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
-		return "", "", fmt.Errorf("missing type info")
-	}
-	llvmTy, err := llvmValueType(fe.emitter.types, typeID)
-	if err != nil {
-		return "", "", err
-	}
-	switch llvmTy {
-	case "ptr":
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = inttoptr i64 %s to ptr\n", out, bits)
-		return out, "ptr", nil
-	case "double":
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = bitcast i64 %s to double\n", out, bits)
-		return out, "double", nil
-	case "float":
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = trunc i64 %s to i32\n", tmp, bits)
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = bitcast i32 %s to float\n", out, tmp)
-		return out, "float", nil
-	case "half":
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = trunc i64 %s to i16\n", tmp, bits)
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = bitcast i16 %s to half\n", out, tmp)
-		return out, "half", nil
-	case "i64":
-		return bits, "i64", nil
-	}
-	if strings.HasPrefix(llvmTy, "i") {
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = trunc i64 %s to %s\n", out, bits, llvmTy)
-		return out, llvmTy, nil
-	}
-	return "", "", fmt.Errorf("unsupported async payload type %s", llvmTy)
-}
-
-func (fe *funcEmitter) emitTaskCancelIntrinsic(call *mir.CallInstr) (bool, error) {
-	if call == nil || call.Callee.Kind != mir.CalleeSym {
-		return false, nil
-	}
-	name := call.Callee.Name
-	if name == "" {
-		name = fe.symbolName(call.Callee.Sym)
-	}
-	name = stripGenericSuffix(name)
-	if name != "cancel" {
-		return false, nil
-	}
-	if len(call.Args) != 1 {
-		return true, fmt.Errorf("cancel requires 1 argument")
-	}
-	argType := operandValueType(fe.emitter.types, &call.Args[0])
-	if !isTaskType(fe.emitter.types, argType) {
-		return true, fmt.Errorf("cancel requires Task handle")
-	}
-	val, valTy, err := fe.emitValueOperand(&call.Args[0])
-	if err != nil {
-		return true, err
-	}
-	if valTy != "ptr" {
-		return true, fmt.Errorf("cancel expects Task pointer, got %s", valTy)
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_task_cancel(ptr %s)\n", val)
-	return true, nil
 }

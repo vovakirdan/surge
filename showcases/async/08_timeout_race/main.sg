@@ -7,10 +7,10 @@ fn main() {
 }
 
 async fn main_async() -> nothing {
-    let t1 = task fast();
-    let t2 = task slow();
+    let t1 = spawn fast();
+    let t2 = spawn slow();
 
-    // race cancels losing task arms
+    // race cancels losing spawn arms
     let winner = race {
         t1.await() => 1;
         t2.await() => 2;
@@ -18,7 +18,7 @@ async fn main_async() -> nothing {
     print(f"winner={winner}");
 
     // timeout demo
-    let t3 = task slow();
+    let t3 = spawn slow();
     let res = timeout(t3, 10:uint);
     compare res {
         Success(v) => print(f"finished {v}");

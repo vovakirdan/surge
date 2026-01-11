@@ -14,6 +14,92 @@ pub type byte = uint8;
 @intrinsic fn rt_read_stdin(buf: *byte, max_len: uint) -> uint;
 @intrinsic fn rt_panic_bounds(kind: uint, index: int, length: int) -> nothing;
 
+// Filesystem intrinsics
+// FsError.code:
+// 1 NotFound, 2 PermissionDenied, 3 AlreadyExists, 4 InvalidPath, 5 NotDir,
+// 6 NotFile, 7 IsDir, 8 InvalidData, 9 Io, 10 Unsupported.
+pub type FsError = { message: string, code: uint };
+
+pub type FileType = uint8;
+pub enum FileTypes: FileType = { FILE, DIR, SYMLINK, OTHER }
+
+pub type Metadata = {
+    size: uint,
+    file_type: FileType,
+    readonly: bool
+};
+
+pub type DirEntry = {
+    name: string,
+    path: string,
+    file_type: FileType
+};
+
+@nosend
+@intrinsic
+pub type File = {
+    __opaque: int,
+};
+
+pub type FsOpenFlags = uint32;
+pub enum FS_O: FsOpenFlags = { READ = 1, WRITE = 2, CREATE = 4, TRUNC = 8, APPEND = 16 }
+
+pub type SeekWhence = int;
+pub enum SeekWhences: SeekWhence = { Start, Current, End }
+
+@intrinsic fn rt_fs_cwd() -> Erring<string, FsError>;
+
+@intrinsic fn rt_fs_metadata(path: &string) -> Erring<Metadata, FsError>;
+@intrinsic fn rt_fs_read_dir(path: &string) -> Erring<DirEntry[], FsError>;
+
+@intrinsic fn rt_fs_mkdir(path: &string, recursive: bool) -> Erring<nothing, FsError>;
+@intrinsic fn rt_fs_remove_file(path: &string) -> Erring<nothing, FsError>;
+@intrinsic fn rt_fs_remove_dir(path: &string, recursive: bool) -> Erring<nothing, FsError>;
+
+@intrinsic fn rt_fs_open(path: &string, flags: FsOpenFlags) -> Erring<File, FsError>;
+@intrinsic fn rt_fs_close(file: own File) -> Erring<nothing, FsError>;
+@intrinsic fn rt_fs_read(file: &File, buf: *byte, cap: uint) -> Erring<uint, FsError>;
+@intrinsic fn rt_fs_write(file: &File, buf: *byte, length: uint) -> Erring<uint, FsError>;
+@intrinsic fn rt_fs_seek(file: &File, offset: int, whence: SeekWhence) -> Erring<uint, FsError>;
+@intrinsic fn rt_fs_flush(file: &File) -> Erring<nothing, FsError>;
+
+@intrinsic fn rt_fs_read_file(path: &string) -> Erring<byte[], FsError>;
+@intrinsic fn rt_fs_write_file(path: &string, data: *byte, length: uint, flags: FsOpenFlags) -> Erring<nothing, FsError>;
+
+@intrinsic fn rt_fs_file_name(file: &File) -> Erring<string, FsError>;
+@intrinsic fn rt_fs_file_type(file: &File) -> Erring<FileType, FsError>;
+@intrinsic fn rt_fs_file_metadata(file: &File) -> Erring<Metadata, FsError>;
+
+// Network intrinsics
+// NetError.code:
+// 1 WouldBlock, 2 TimedOut, 3 ConnectionReset, 4 ConnectionRefused, 5 NotConnected,
+// 6 AddrInUse, 7 InvalidAddr, 8 Io, 9 Unsupported.
+@intrinsic @nosend
+pub type TcpListener = {
+    __opaque: int,
+};
+
+@intrinsic @nosend
+pub type TcpConn = {
+    __opaque: int,
+};
+
+pub type NetError = { message: string, code: uint };
+pub type NetResult<T> = Erring<T, NetError>;
+
+@intrinsic fn rt_net_listen(addr: &string, port: uint) -> NetResult<TcpListener>;
+@intrinsic fn rt_net_connect(addr: &string, port: uint) -> NetResult<TcpConn>;
+@intrinsic fn rt_net_close_listener(l: own TcpListener) -> NetResult<nothing>;
+@intrinsic fn rt_net_close_conn(c: own TcpConn) -> NetResult<nothing>;
+
+@intrinsic fn rt_net_accept(l: &TcpListener) -> NetResult<TcpConn>;
+@intrinsic fn rt_net_read(c: &TcpConn, buf: *byte, cap: uint) -> NetResult<uint>;
+@intrinsic fn rt_net_write(c: &TcpConn, buf: *byte, length: uint) -> NetResult<uint>;
+
+@intrinsic fn rt_net_wait_accept(l: &TcpListener) -> Task<nothing>;
+@intrinsic fn rt_net_wait_readable(c: &TcpConn) -> Task<nothing>;
+@intrinsic fn rt_net_wait_writable(c: &TcpConn) -> Task<nothing>;
+
 // String access intrinsics
 @intrinsic fn rt_string_ptr(s: &string) -> *byte;
 // Returns Unicode code point length (not bytes).
@@ -42,6 +128,7 @@ pub type byte = uint8;
 @intrinsic fn rt_map_get_mut<K, V>(m: &mut Map<K, V>, key: &K) -> Option<&mut V>;
 @intrinsic fn rt_map_insert<K, V>(m: &mut Map<K, V>, key: K, value: V) -> Option<V>;
 @intrinsic fn rt_map_remove<K, V>(m: &mut Map<K, V>, key: &K) -> Option<V>;
+@intrinsic fn rt_map_keys<K, V>(m: &Map<K, V>) -> K[];
 
 // Higher-level I/O
 @intrinsic
@@ -78,6 +165,8 @@ pub type HeapStats = {
 @intrinsic pub fn rt_heap_stats() -> HeapStats;
 // Deterministic heap summary with no addresses or allocation IDs.
 @intrinsic pub fn rt_heap_dump() -> string;
+// Active async executor worker count (1 means single-worker mode).
+@intrinsic pub fn rt_worker_count() -> uint;
 
 pub type Task<T> = {
     __opaque: int,
@@ -576,6 +665,21 @@ extern<string> {
     @overload pub fn __to(self: &string, _: string) -> string {
         return self.__clone();
     }
+    @overload
+    pub fn __to(self: &string, _: byte[]) -> byte[] {
+        let view = self.bytes();
+        let length: uint = view.__len();
+        let mut out: byte[] = [];
+        out.reserve(length);
+        let len_i: int = length to int;
+        let mut i: int = 0;
+        while i < len_i {
+            let b: byte = view[i];
+            out.push(b);
+            i = i + 1;
+        }
+        return out;
+    }
     @intrinsic fn __len(self: &string) -> uint;
     @intrinsic fn __clone(self: &string) -> string;
     @intrinsic @overload fn __index(self: &string, index: int) -> uint32;
@@ -652,18 +756,6 @@ pub fn panic(msg: string) -> nothing {
 }
 
 @intrinsic
-pub type Mutex = {
-    __opaque: *byte,
-};
-
-extern<Mutex> {
-    @intrinsic pub fn new() -> Mutex;
-    @intrinsic pub fn lock(self: &mut Mutex) -> nothing;
-    @intrinsic pub fn unlock(self: &mut Mutex) -> nothing;
-    @intrinsic pub fn try_lock(self: &mut Mutex) -> bool;
-}
-
-@intrinsic
 pub type RwLock = {
     __opaque: *byte,
 };
@@ -676,31 +768,6 @@ extern<RwLock> {
     @intrinsic pub fn write_unlock(self: &mut RwLock) -> nothing;
     @intrinsic pub fn try_read_lock(self: &mut RwLock) -> bool;
     @intrinsic pub fn try_write_lock(self: &mut RwLock) -> bool;
-}
-
-@intrinsic
-pub type Condition = {
-    __opaque: *byte,
-};
-
-extern<Condition> {
-    @intrinsic pub fn new() -> Condition;
-    @intrinsic pub fn wait(self: &Condition, mutex: &mut Mutex) -> nothing;
-    @intrinsic pub fn notify_one(self: &Condition) -> nothing;
-    @intrinsic pub fn notify_all(self: &Condition) -> nothing;
-}
-
-@intrinsic
-pub type Semaphore = {
-    __opaque: *byte,
-    __count: uint,
-};
-
-extern<Semaphore> {
-    @intrinsic pub fn new(count: uint) -> Semaphore;
-    @intrinsic pub fn acquire(self: &mut Semaphore) -> nothing;
-    @intrinsic pub fn release(self: &mut Semaphore) -> nothing;
-    @intrinsic pub fn try_acquire(self: &mut Semaphore) -> bool;
 }
 
 // Atomic operations for @atomic fields

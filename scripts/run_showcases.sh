@@ -176,14 +176,40 @@ while IFS= read -r sg; do
 	if [[ "$vm_status" == "ok" && "$llvm_status" == "ok" ]]; then
 		vm_stdout_filtered="$(mktemp)"
 		strip_timings "$vm_stdout" "$vm_stdout_filtered"
-		if ! cmp -s "$vm_stdout_filtered" "$llvm_stdout"; then
-			vm_status="fail"
-			llvm_status="fail"
-			notes+=("stdout mismatch")
-		elif ! cmp -s "$vm_stderr" "$llvm_stderr"; then
-			vm_status="fail"
-			llvm_status="fail"
-			notes+=("stderr mismatch")
+		
+		# Для async программ порядок stdout не гарантирован (LLVM backend многопоточный)
+		is_async=0
+		if [[ "$rel" == *"async/"* ]]; then
+			is_async=1
+		fi
+		
+		if [[ "$is_async" -eq 1 ]]; then
+			# Для async программ сравниваем только набор строк (порядок игнорируем)
+			vm_sorted="$(mktemp)"
+			llvm_sorted="$(mktemp)"
+			sort "$vm_stdout_filtered" >"$vm_sorted"
+			sort "$llvm_stdout" >"$llvm_sorted"
+			if ! cmp -s "$vm_sorted" "$llvm_sorted"; then
+				vm_status="fail"
+				llvm_status="fail"
+				notes+=("stdout mismatch (lines differ)")
+			fi
+			rm -f "$vm_sorted" "$llvm_sorted"
+		else
+			# Для обычных программ сравниваем строго по порядку
+			if ! cmp -s "$vm_stdout_filtered" "$llvm_stdout"; then
+				vm_status="fail"
+				llvm_status="fail"
+				notes+=("stdout mismatch")
+			fi
+		fi
+		
+		if [[ "$vm_status" == "ok" && "$llvm_status" == "ok" ]]; then
+			if ! cmp -s "$vm_stderr" "$llvm_stderr"; then
+				vm_status="fail"
+				llvm_status="fail"
+				notes+=("stderr mismatch")
+			fi
 		fi
 		rm -f "$vm_stdout_filtered"
 	fi

@@ -1,21 +1,34 @@
-t10b_timeout_success.sg (span: 1:1-15:1)
-└─ Item[0]: Fn (span: 1:1-14:2)
+t10b_timeout_success.sg (span: 1:1-23:1)
+├─ Item[0]: Fn (span: 1:1-13:2)
+│  ├─ Name: run
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 1:23-13:2)
+│        ├─ Stmt[0]: Let (span: 2:5-5:7)
+│        │  ├─ Name: worker
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#8: spawn async { 2 stmt(s) }
+│        ├─ Stmt[1]: Let (span: 7:5-7:33)
+│        │  ├─ Name: r
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#12: timeout(worker, 10)
+│        ├─ Stmt[2]: Expr (span: 8:5-11:7)
+│        │  └─ Expr: expr#29: compare r { 2 arms }
+│        └─ Stmt[3]: Return (span: 12:5-12:14)
+│           └─ Expr: expr#30: 0
+└─ Item[1]: Fn (span: 15:1-22:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: int
    └─ Body:
-      └─ Stmt[0]: Block (span: 2:18-14:2)
-         ├─ Stmt[0]: Let (span: 3:5-6:7)
-         │  ├─ Name: worker
+      └─ Stmt[0]: Block (span: 16:18-22:2)
+         ├─ Stmt[0]: Let (span: 17:5-20:7)
+         │  ├─ Name: exit_code
          │  ├─ Mutable: false
-         │  ├─ Type: <inferred>
-         │  └─ Value: expr#8: task async { 2 stmt(s) }
-         ├─ Stmt[1]: Let (span: 8:5-8:33)
-         │  ├─ Name: r
-         │  ├─ Mutable: false
-         │  ├─ Type: <inferred>
-         │  └─ Value: expr#12: timeout(worker, 10)
-         ├─ Stmt[2]: Expr (span: 9:5-12:7)
-         │  └─ Expr: expr#29: compare r { 2 arms }
-         └─ Stmt[3]: Return (span: 13:5-13:14)
-            └─ Expr: expr#30: 0
+         │  ├─ Type: int
+         │  └─ Value: expr#42: compare run().await() { 2 arms }
+         └─ Stmt[1]: Return (span: 21:5-21:22)
+            └─ Expr: expr#43: exit_code
