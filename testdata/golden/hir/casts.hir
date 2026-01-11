@@ -2,11 +2,11 @@
 == HIR ==
 module 
 
-fn to_float(x: int [copy]) -> float (id=1, sym=1365) {
+fn to_float(x: int [copy]) -> float (id=1, sym=1371) {
   return x to ?: float
 }
 
-fn explicit_int(x: int [copy]) -> int (id=2, sym=1366) {
+fn explicit_int(x: int [copy]) -> int (id=2, sym=1372) {
   return x to ?: int
 }
 

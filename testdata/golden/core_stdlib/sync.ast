@@ -73,47 +73,47 @@ sync.sg (span: 1:1-199:1)
 │  ├─ Attributes: @copy
 │  └─ Struct:
 │     └─ Field[0]: queue: Channel<nothing>
-├─ Item[4]: Fn (span: 45:1-50:2)
+├─ Item[4]: Fn (span: 45:1-49:2)
 │  ├─ Name: condition_wait_task
 │  ├─ Params: (cond: Condition, mutex: Mutex)
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 45:72-50:2)
-│        ├─ Stmt[0]: Expr (span: 46:5-46:34)
-│        │  └─ Expr: expr#42: mutex.gate.try_send(nothing)
+│     └─ Stmt[0]: Block (span: 45:72-49:2)
+│        ├─ Stmt[0]: Let (span: 46:5-46:31)
+│        │  ├─ Name: _
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#41: cond.queue.recv()
 │        ├─ Stmt[1]: Let (span: 47:5-47:31)
 │        │  ├─ Name: _
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
-│        │  └─ Value: expr#46: cond.queue.recv()
-│        ├─ Stmt[2]: Let (span: 48:5-48:31)
-│        │  ├─ Name: _
-│        │  ├─ Mutable: false
-│        │  ├─ Type: <inferred>
-│        │  └─ Value: expr#50: mutex.gate.recv()
-│        └─ Stmt[3]: Return (span: 49:5-49:20)
-│           └─ Expr: expr#51: nothing
-├─ Item[5]: Extern (span: 52:1-76:2)
+│        │  └─ Value: expr#45: mutex.gate.recv()
+│        └─ Stmt[2]: Return (span: 48:5-48:20)
+│           └─ Expr: expr#46: nothing
+├─ Item[5]: Extern (span: 51:1-76:2)
 │  ├─ Target: Condition
 │  ├─ Members:
 │  │  ├─ Fn[0]: new
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: Condition
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 53:31-56:6)
-│  │  │     ├─ Stmt[0]: Let (span: 54:9-54:54)
+│  │  │     Stmt[0]: Block (span: 52:31-55:6)
+│  │  │     ├─ Stmt[0]: Let (span: 53:9-53:54)
 │  │  │     │  ├─ Name: queue
 │  │  │     │  ├─ Mutable: false
 │  │  │     │  ├─ Type: <inferred>
-│  │  │     │  └─ Value: expr#55: make_channel(64 to uint)
-│  │  │     └─ Stmt[1]: Return (span: 55:9-55:34)
-│  │  │        └─ Expr: expr#58: <ExprKind(22)>
+│  │  │     │  └─ Value: expr#50: make_channel(64 to uint)
+│  │  │     └─ Stmt[1]: Return (span: 54:9-54:34)
+│  │  │        └─ Expr: expr#53: <ExprKind(22)>
 │  │  ├─ Fn[1]: wait
 │  │  │  ├─ Params: (self: &Condition, mutex: &Mutex)
 │  │  │  ├─ Return: Task<nothing>
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 58:67-60:6)
-│  │  │     └─ Stmt[0]: Return (span: 59:9-59:51)
+│  │  │     Stmt[0]: Block (span: 57:67-60:6)
+│  │  │     ├─ Stmt[0]: Expr (span: 58:9-58:38)
+│  │  │     │  └─ Expr: expr#58: mutex.gate.try_send(nothing)
+│  │  │     └─ Stmt[1]: Return (span: 59:9-59:51)
 │  │  │        └─ Expr: expr#64: condition_wait_task(*self, *mutex)
 │  │  ├─ Fn[2]: notify_one
 │  │  │  ├─ Params: (self: &Condition)

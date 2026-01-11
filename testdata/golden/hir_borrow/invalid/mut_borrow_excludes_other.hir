@@ -3,7 +3,7 @@ error SEM3018 testdata/golden/hir_borrow/invalid/mut_borrow_excludes_other.sg:4:
 == HIR ==
 module 
 
-fn t() -> nothing (id=1, sym=1365) {
+fn t() -> nothing (id=1, sym=1371) {
   let mut x: int [copy] = 1
   let m: &mut int [&mut] = (&mut x): &mut int
   let r: &int [&] = (& x): &int
@@ -11,13 +11,13 @@ fn t() -> nothing (id=1, sym=1365) {
 }
 
 borrow edges:
-  L2731(m) (&mut) borrows L2730(x) at 0:55-61 scope=S3
+  L2743(m) (&mut) borrows L2742(x) at 0:55-61 scope=S3
 events:
-  borrow_start L2731(m) -> L2730(x) (&mut) at 0:55-61 scope=S3 note="B1"
-  borrow_start _ -> L2730(x) at 0:81-83 scope=S3 note="issue=conflict_mut borrow=B1"
-  borrow_end L2731(m) -> L2730(x) scope=S3 note="scope_end B1"
+  borrow_start L2743(m) -> L2742(x) (&mut) at 0:55-61 scope=S3 note="B1"
+  borrow_start _ -> L2742(x) at 0:81-83 scope=S3 note="issue=conflict_mut borrow=B1"
+  borrow_end L2743(m) -> L2742(x) scope=S3 note="scope_end B1"
 move plan:
-  L2730(x): MoveCopy (copy type)
-  L2731(m): MoveAllowed (non-copy reference)
-  L2732(r): MoveCopy (copy type)
+  L2742(x): MoveCopy (copy type)
+  L2743(m): MoveAllowed (non-copy reference)
+  L2744(r): MoveCopy (copy type)
 

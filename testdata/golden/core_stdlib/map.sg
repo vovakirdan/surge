@@ -15,6 +15,10 @@ extern<Map<K, V>> {
         return rt_map_len(self);
     }
 
+    pub fn keys(self: &Map<K, V>) -> K[] {
+        return rt_map_keys(self);
+    }
+
     pub fn contains(self: &Map<K, V>, key: &K) -> bool {
         return rt_map_contains(self, key);
     }

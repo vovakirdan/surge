@@ -2,7 +2,7 @@
 == HIR ==
 module 
 
-fn sum_to(n: int [copy]) -> int (id=1, sym=1365) {
+fn sum_to(n: int [copy]) -> int (id=1, sym=1371) {
   let mut total: int [copy] = 0
   {
     let mut i: int [copy] = 0

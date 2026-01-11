@@ -43,7 +43,6 @@ pub type Condition = {
 };
 
 async fn condition_wait_task(cond: Condition, mutex: Mutex) -> nothing {
-    mutex.gate.try_send(nothing);
     let _ = cond.queue.recv();
     let _ = mutex.gate.recv();
     return nothing;
@@ -56,6 +55,7 @@ extern<Condition> {
     }
 
     pub fn wait(self: &Condition, mutex: &Mutex) -> Task<nothing> {
+        mutex.gate.try_send(nothing);
         return condition_wait_task(*self, *mutex);
     }
 
