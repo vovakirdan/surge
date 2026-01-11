@@ -1,0 +1,238 @@
+pragma module;
+
+// stdlib/json/stringify.sg
+// JSON serialization implementation.
+
+fn append_byte(out: &mut byte[], b: uint) -> nothing {
+    let val: byte = b to byte;
+    out.push(val);
+    return nothing;
+}
+
+fn append_string_bytes(out: &mut byte[], s: &string) -> nothing {
+    let view = s.bytes();
+    let length: uint = view.__len();
+    let len_i: int = length to int;
+    let mut i: int = 0;
+    while i < len_i {
+        let b: byte = view[i];
+        out.push(b);
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn hex_digit(value: uint) -> uint {
+    if value < 10:uint {
+        return 48:uint + value;
+    }
+    return 87:uint + value;
+}
+
+fn append_hex2(out: &mut byte[], value: uint) -> nothing {
+    let hi: uint = (value >> 4:uint) & 0xF:uint;
+    let lo: uint = value & 0xF:uint;
+    append_byte(out, hex_digit(hi));
+    append_byte(out, hex_digit(lo));
+    return nothing;
+}
+
+fn escape_string(out: &mut byte[], s: &string) -> nothing {
+    let view = s.bytes();
+    let length: uint = view.__len();
+    let len_i: int = length to int;
+    let mut i: int = 0;
+    while i < len_i {
+        let b: uint = view[i] to uint;
+        if b == 34:uint {
+            append_string_bytes(out, "\\\"");
+        } else if b == 92:uint {
+            append_string_bytes(out, "\\\\");
+        } else if b == 8:uint {
+            append_string_bytes(out, "\\b");
+        } else if b == 12:uint {
+            append_string_bytes(out, "\\f");
+        } else if b == 10:uint {
+            append_string_bytes(out, "\\n");
+        } else if b == 13:uint {
+            append_string_bytes(out, "\\r");
+        } else if b == 9:uint {
+            append_string_bytes(out, "\\t");
+        } else if b < 32:uint {
+            append_string_bytes(out, "\\u00");
+            append_hex2(out, b);
+        } else {
+            append_byte(out, b);
+        }
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn string_lt(a: &string, b: &string) -> bool {
+    let la: int = a.__len() to int;
+    let lb: int = b.__len() to int;
+    let mut i: int = 0;
+    let mut min: int = la;
+    if lb < min {
+        min = lb;
+    }
+    while i < min {
+        let ac: uint32 = a[i];
+        let bc: uint32 = b[i];
+        if ac < bc {
+            return true;
+        }
+        if ac > bc {
+            return false;
+        }
+        i = i + 1;
+    }
+    return la < lb;
+}
+
+fn sort_strings(strings: &mut string[]) -> nothing {
+    let n: int = strings.__len() to int;
+    if n <= 1 {
+        return nothing;
+    }
+    let mut i: int = 0;
+    while i < n {
+        let mut j: int = 0;
+        while j + 1 < n - i {
+            let left: string = clone(strings[j]);
+            let right: string = clone(strings[j + 1]);
+            if string_lt(&right, &left) {
+                strings[j] = right;
+                strings[j + 1] = left;
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return nothing;
+}
+
+fn stringify_value(out: &mut byte[], value: JsonValue) -> nothing {
+    compare value {
+        JsonNull() => {
+            append_string_bytes(out, "null");
+        }
+        JsonBool(v) => {
+            if v {
+                append_string_bytes(out, "true");
+            } else {
+                append_string_bytes(out, "false");
+            }
+        }
+        JsonNumber(text) => {
+            append_string_bytes(out, &text);
+        }
+        JsonString(text) => {
+            append_byte(out, 34:uint);
+            escape_string(out, &text);
+            append_byte(out, 34:uint);
+        }
+        JsonArray(values) => {
+            append_byte(out, 91:uint);
+            let mut pending: JsonValue[] = [];
+            let mut remaining: JsonValue[] = values;
+            let mut done: bool = false;
+            while true {
+                let next_opt = remaining.pop();
+                compare next_opt {
+                    Some(v) => {
+                        pending.push(v);
+                        done = false;
+                        0:int;
+                    }
+                    nothing => {
+                        done = true;
+                        0:int;
+                    }
+                };
+                if done {
+                    break;
+                }
+            }
+            let mut first: bool = true;
+            done = false;
+            while true {
+                let next_opt = pending.pop();
+                compare next_opt {
+                    Some(v) => {
+                        if !first {
+                            append_byte(out, 44:uint);
+                        }
+                        first = false;
+                        stringify_value(out, v);
+                        done = false;
+                        0:int;
+                    }
+                    nothing => {
+                        done = true;
+                        0:int;
+                    }
+                };
+                if done {
+                    break;
+                }
+            }
+            append_byte(out, 93:uint);
+        }
+        JsonObject(obj) => {
+            append_byte(out, 123:uint);
+            let mut obj_map: Map<string, JsonValue> = obj;
+            let mut keys: string[] = obj_map.keys();
+            sort_strings(&mut keys);
+            let count: int = keys.__len() to int;
+            let mut i: int = 0;
+            while i < count {
+                if i != 0 {
+                    append_byte(out, 44:uint);
+                }
+                let key_ref = keys[i];
+                append_byte(out, 34:uint);
+                escape_string(out, key_ref);
+                append_byte(out, 34:uint);
+                append_byte(out, 58:uint);
+                let mut entry_value: JsonValue = JsonNull();
+                let removed = obj_map.remove(key_ref);
+                compare removed {
+                    Some(v) => {
+                        entry_value = v;
+                        0:int;
+                    }
+                    nothing => {
+                        entry_value = JsonNull();
+                        0:int;
+                    }
+                };
+                stringify_value(out, entry_value);
+                i = i + 1;
+            }
+            append_byte(out, 125:uint);
+        }
+    };
+    return nothing;
+}
+
+pub fn stringify(value: &JsonValue) -> string {
+    let mut out: byte[] = [];
+    let owned: JsonValue = json_clone(value);
+    stringify_value(&mut out, owned);
+    let res = from_bytes(&out);
+    let mut out_str: string = "";
+    compare res {
+        Success(s) => {
+            out_str = s;
+            0:int;
+        }
+        err => {
+            let _ = err;
+            out_str = "";
+            0:int;
+        }
+    };
+    return out_str;
+}

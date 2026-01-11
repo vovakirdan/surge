@@ -128,6 +128,7 @@ pub type NetResult<T> = Erring<T, NetError>;
 @intrinsic fn rt_map_get_mut<K, V>(m: &mut Map<K, V>, key: &K) -> Option<&mut V>;
 @intrinsic fn rt_map_insert<K, V>(m: &mut Map<K, V>, key: K, value: V) -> Option<V>;
 @intrinsic fn rt_map_remove<K, V>(m: &mut Map<K, V>, key: &K) -> Option<V>;
+@intrinsic fn rt_map_keys<K, V>(m: &Map<K, V>) -> K[];
 
 // Higher-level I/O
 @intrinsic

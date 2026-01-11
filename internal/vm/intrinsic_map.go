@@ -445,6 +445,52 @@ func (vm *VM) handleMapRemove(frame *Frame, call *mir.CallInstr, writes *[]Local
 	return nil
 }
 
+func (vm *VM) handleMapKeys(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if !call.HasDst {
+		return nil
+	}
+	if len(call.Args) != 1 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_map_keys requires 1 argument")
+	}
+	mapVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(mapVal)
+	obj, _, vmErr := vm.mapObjectFromValue(mapVal)
+	if vmErr != nil {
+		return vmErr
+	}
+
+	dstLocal := call.Dst.Local
+	dstType := frame.Locals[dstLocal].TypeID
+	elems := make([]Value, len(obj.MapEntries))
+	for i, entry := range obj.MapEntries {
+		cloned, cloneErr := vm.cloneForShare(entry.Key)
+		if cloneErr != nil {
+			for j := 0; j < i; j++ {
+				vm.dropValue(elems[j])
+			}
+			return cloneErr
+		}
+		elems[i] = cloned
+	}
+	handle := vm.Heap.AllocArray(dstType, elems)
+	val := MakeHandleArray(handle, dstType)
+	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+		vm.dropValue(val)
+		return vmErr
+	}
+	if writes != nil {
+		*writes = append(*writes, LocalWrite{
+			LocalID: dstLocal,
+			Name:    frame.Locals[dstLocal].Name,
+			Value:   val,
+		})
+	}
+	return nil
+}
+
 func (vm *VM) mapObjectFromValue(val Value) (*Object, Handle, *VMError) {
 	if val.Kind == VKRef || val.Kind == VKRefMut {
 		loaded, vmErr := vm.loadLocationRaw(val.Loc)

@@ -124,6 +124,8 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleMapInsert(frame, call, writes)
 	case "rt_map_remove":
 		return vm.handleMapRemove(frame, call, writes)
+	case "rt_map_keys":
+		return vm.handleMapKeys(frame, call, writes)
 
 	case "__task_create":
 		return vm.handleTaskCreate(frame, call, writes)

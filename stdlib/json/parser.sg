@@ -1,0 +1,671 @@
+pragma module;
+
+// stdlib/json/parser.sg
+// JSON parser implementation.
+
+type Parser = {
+    data: &byte[],
+    cursor: int,
+    length: int
+};
+
+fn json_error(code: uint, msg: string, offset: uint) -> JsonError {
+    return { message: msg, code: code, offset: offset };
+}
+
+fn parser_init(data: &byte[]) -> Parser {
+    return { data: data, cursor: 0, length: data.__len() to int };
+}
+
+fn parser_offset(p: &mut Parser) -> uint {
+    return p.cursor to uint;
+}
+
+fn at_end(p: &mut Parser) -> bool {
+    return p.cursor >= p.length;
+}
+
+fn byte_at(data: &&byte[], index: int) -> uint {
+    return clone((*(*data))[index]) to uint;
+}
+
+fn is_ws(b: uint) -> bool {
+    return b == 32:uint || b == 9:uint || b == 10:uint || b == 13:uint;
+}
+
+fn is_digit(b: uint) -> bool {
+    return b >= 48:uint && b <= 57:uint;
+}
+
+fn skip_ws(p: &mut Parser) -> nothing {
+    while p.cursor < p.length {
+        let b: uint = byte_at(&p.data, p.cursor);
+        if !is_ws(b) {
+            break;
+        }
+        p.cursor = p.cursor + 1;
+    }
+    return nothing;
+}
+
+fn string_to_bytes(s: &string) -> byte[] {
+    let view = s.bytes();
+    let length: uint = view.__len();
+    let mut out: byte[] = [];
+    out.reserve(length);
+    let len_i: int = length to int;
+    let mut i: int = 0;
+    while i < len_i {
+        let b: byte = view[i];
+        out.push(b);
+        i = i + 1;
+    }
+    return out;
+}
+
+fn copy_bytes_range(data: &&byte[], start: int, end: int) -> byte[] {
+    let mut out: byte[] = [];
+    if end > start {
+        let length: int = end - start;
+        out.reserve(length to uint);
+        let mut i: int = start;
+        while i < end {
+            let b: byte = clone((*(*data))[i]);
+            out.push(b);
+            i = i + 1;
+        }
+    }
+    return out;
+}
+
+fn match_literal(p: &mut Parser, text: &string) -> bool {
+    let view = text.bytes();
+    let length: int = view.__len() to int;
+    if p.cursor + length > p.length {
+        return false;
+    }
+    let mut i: int = 0;
+    while i < length {
+        let b: uint = byte_at(&p.data, p.cursor + i);
+        if b != (view[i] to uint) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn consume_literal(p: &mut Parser, text: &string) -> bool {
+    if !match_literal(p, text) {
+        return false;
+    }
+    let view = text.bytes();
+    let length: int = view.__len() to int;
+    p.cursor = p.cursor + length;
+    return true;
+}
+
+fn hex_value(b: uint) -> int {
+    if b >= 48:uint && b <= 57:uint {
+        return (b - 48:uint) to int;
+    }
+    if b >= 65:uint && b <= 70:uint {
+        return (b - 65:uint + 10:uint) to int;
+    }
+    if b >= 97:uint && b <= 102:uint {
+        return (b - 97:uint + 10:uint) to int;
+    }
+    return -1;
+}
+
+fn parse_unicode_escape(p: &mut Parser) -> JsonResult<uint> {
+    if p.cursor + 4 > p.length {
+        return json_error(JSON_ERR_EOF, "incomplete unicode escape", parser_offset(p));
+    }
+    let mut value: uint = 0:uint;
+    let mut i: int = 0;
+    while i < 4 {
+        let b: uint = byte_at(&p.data, p.cursor);
+        let v: int = hex_value(b);
+        if v < 0 {
+            return json_error(JSON_ERR_PARSE, "invalid unicode escape", parser_offset(p));
+        }
+        value = value * 16:uint + (v to uint);
+        p.cursor = p.cursor + 1;
+        i = i + 1;
+    }
+    return Success(value);
+}
+
+fn append_utf8(out: &mut byte[], cp: uint) -> bool {
+    if cp > 0x10FFFF:uint {
+        return false;
+    }
+    if cp >= 0xD800:uint && cp <= 0xDFFF:uint {
+        return false;
+    }
+    if cp <= 0x7F:uint {
+        let b: byte = cp to byte;
+        out.push(b);
+        return true;
+    }
+    if cp <= 0x7FF:uint {
+        let b0: byte = (0xC0:uint | (cp >> 6:uint)) to byte;
+        let b1: byte = (0x80:uint | (cp & 0x3F:uint)) to byte;
+        out.push(b0);
+        out.push(b1);
+        return true;
+    }
+    if cp <= 0xFFFF:uint {
+        let b0: byte = (0xE0:uint | (cp >> 12:uint)) to byte;
+        let b1: byte = (0x80:uint | ((cp >> 6:uint) & 0x3F:uint)) to byte;
+        let b2: byte = (0x80:uint | (cp & 0x3F:uint)) to byte;
+        out.push(b0);
+        out.push(b1);
+        out.push(b2);
+        return true;
+    }
+    let b0: byte = (0xF0:uint | (cp >> 18:uint)) to byte;
+    let b1: byte = (0x80:uint | ((cp >> 12:uint) & 0x3F:uint)) to byte;
+    let b2: byte = (0x80:uint | ((cp >> 6:uint) & 0x3F:uint)) to byte;
+    let b3: byte = (0x80:uint | (cp & 0x3F:uint)) to byte;
+    out.push(b0);
+    out.push(b1);
+    out.push(b2);
+    out.push(b3);
+    return true;
+}
+
+fn parse_string_value(p: &mut Parser) -> JsonResult<string> {
+    let start_offset: uint = parser_offset(p);
+    p.cursor = p.cursor + 1;
+    let mut out: byte[] = [];
+    while true {
+        if p.cursor >= p.length {
+            return json_error(JSON_ERR_EOF, "unterminated string", start_offset);
+        }
+        let b: uint = byte_at(&p.data, p.cursor);
+        if b == 34:uint {
+            p.cursor = p.cursor + 1;
+            break;
+        }
+        if b == 92:uint {
+            p.cursor = p.cursor + 1;
+            if p.cursor >= p.length {
+                return json_error(JSON_ERR_EOF, "unterminated escape", parser_offset(p));
+            }
+            let esc: uint = byte_at(&p.data, p.cursor);
+            p.cursor = p.cursor + 1;
+            if esc == 34:uint {
+                out.push(34:uint to byte);
+                continue;
+            }
+            if esc == 92:uint {
+                out.push(92:uint to byte);
+                continue;
+            }
+            if esc == 47:uint {
+                out.push(47:uint to byte);
+                continue;
+            }
+            if esc == 98:uint {
+                out.push(8:uint to byte);
+                continue;
+            }
+            if esc == 102:uint {
+                out.push(12:uint to byte);
+                continue;
+            }
+            if esc == 110:uint {
+                out.push(10:uint to byte);
+                continue;
+            }
+            if esc == 114:uint {
+                out.push(13:uint to byte);
+                continue;
+            }
+            if esc == 116:uint {
+                out.push(9:uint to byte);
+                continue;
+            }
+            if esc == 117:uint {
+                let mut cp: uint = 0:uint;
+                let mut high_sur: uint = 0:uint;
+                let mut have_high: bool = false;
+                let first = parse_unicode_escape(p);
+                let mut first_ok: bool = false;
+                let mut first_err: JsonError = json_error(JSON_ERR_PARSE, "invalid unicode escape", parser_offset(p));
+                compare first {
+                    Success(v) => {
+                        cp = v;
+                        first_ok = true;
+                        0:int;
+                    }
+                    err => {
+                        first_err = err;
+                        first_ok = false;
+                        0:int;
+                    }
+                };
+                if !first_ok {
+                    return first_err;
+                }
+                if cp >= 0xD800:uint && cp <= 0xDBFF:uint {
+                    high_sur = cp;
+                    have_high = true;
+                } else if cp >= 0xDC00:uint && cp <= 0xDFFF:uint {
+                    return json_error(JSON_ERR_PARSE, "unexpected low surrogate", parser_offset(p));
+                }
+                if have_high {
+                    if p.cursor + 2 > p.length {
+                        return json_error(JSON_ERR_EOF, "missing low surrogate", parser_offset(p));
+                    }
+                    let esc1: uint = byte_at(&p.data, p.cursor);
+                    let esc2: uint = byte_at(&p.data, p.cursor + 1);
+                    if esc1 != 92:uint || esc2 != 117:uint {
+                        return json_error(JSON_ERR_PARSE, "missing low surrogate", parser_offset(p));
+                    }
+                    p.cursor = p.cursor + 2;
+                    let second = parse_unicode_escape(p);
+                    let mut low_sur: uint = 0:uint;
+                    let mut second_ok: bool = false;
+                    let mut second_err: JsonError = json_error(JSON_ERR_PARSE, "invalid unicode escape", parser_offset(p));
+                    compare second {
+                        Success(v) => {
+                            low_sur = v;
+                            second_ok = true;
+                            0:int;
+                        }
+                        err => {
+                            second_err = err;
+                            second_ok = false;
+                            0:int;
+                        }
+                    };
+                    if !second_ok {
+                        return second_err;
+                    }
+                    if low_sur < 0xDC00:uint || low_sur > 0xDFFF:uint {
+                        return json_error(JSON_ERR_PARSE, "invalid low surrogate", parser_offset(p));
+                    }
+                    cp = 0x10000:uint + ((high_sur - 0xD800:uint) << 10:uint) + (low_sur - 0xDC00:uint);
+                }
+                if !append_utf8(&mut out, cp) {
+                    return json_error(JSON_ERR_PARSE, "invalid unicode code point", parser_offset(p));
+                }
+                continue;
+            }
+            return json_error(JSON_ERR_PARSE, "invalid escape sequence", parser_offset(p));
+        }
+        if b < 32:uint {
+            return json_error(JSON_ERR_PARSE, "control character in string", parser_offset(p));
+        }
+        out.push(b to byte);
+        p.cursor = p.cursor + 1;
+    }
+    let res = from_bytes(&out);
+    let mut out_res: JsonResult<string> = json_error(JSON_ERR_UTF8, "invalid utf-8 in string", parser_offset(p));
+    compare res {
+        Success(s) => {
+            out_res = Success(s);
+            0:int;
+        }
+        err => {
+            let _ = err;
+            out_res = json_error(JSON_ERR_UTF8, "invalid utf-8 in string", parser_offset(p));
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+fn parse_number_value(p: &mut Parser) -> JsonResult<string> {
+    let start: int = p.cursor;
+    if at_end(p) {
+        return json_error(JSON_ERR_EOF, "expected number", parser_offset(p));
+    }
+    let mut b: uint = byte_at(&p.data, p.cursor);
+    if b == 45:uint {
+        p.cursor = p.cursor + 1;
+        if at_end(p) {
+            return json_error(JSON_ERR_EOF, "expected digit", parser_offset(p));
+        }
+        b = byte_at(&p.data, p.cursor);
+    }
+    if b == 48:uint {
+        p.cursor = p.cursor + 1;
+        if p.cursor < p.length {
+            let next: uint = byte_at(&p.data, p.cursor);
+            if is_digit(next) {
+                return json_error(JSON_ERR_PARSE, "leading zero in number", parser_offset(p));
+            }
+        }
+    } else if is_digit(b) {
+        while p.cursor < p.length {
+            let d: uint = byte_at(&p.data, p.cursor);
+            if !is_digit(d) {
+                break;
+            }
+            p.cursor = p.cursor + 1;
+        }
+    } else {
+        return json_error(JSON_ERR_PARSE, "expected digit", parser_offset(p));
+    }
+
+    if p.cursor < p.length {
+        let dot: uint = byte_at(&p.data, p.cursor);
+        if dot == 46:uint {
+            p.cursor = p.cursor + 1;
+            if p.cursor >= p.length {
+                return json_error(JSON_ERR_EOF, "expected fraction digit", parser_offset(p));
+            }
+            let mut saw_digit: bool = false;
+            while p.cursor < p.length {
+                let d: uint = byte_at(&p.data, p.cursor);
+                if !is_digit(d) {
+                    break;
+                }
+                saw_digit = true;
+                p.cursor = p.cursor + 1;
+            }
+            if !saw_digit {
+                return json_error(JSON_ERR_PARSE, "expected fraction digit", parser_offset(p));
+            }
+        }
+    }
+
+    if p.cursor < p.length {
+        let expc: uint = byte_at(&p.data, p.cursor);
+        if expc == 69:uint || expc == 101:uint {
+            p.cursor = p.cursor + 1;
+            if p.cursor >= p.length {
+                return json_error(JSON_ERR_EOF, "expected exponent digit", parser_offset(p));
+            }
+            let sign: uint = byte_at(&p.data, p.cursor);
+            if sign == 43:uint || sign == 45:uint {
+                p.cursor = p.cursor + 1;
+                if p.cursor >= p.length {
+                    return json_error(JSON_ERR_EOF, "expected exponent digit", parser_offset(p));
+                }
+            }
+            let mut saw_digit: bool = false;
+            while p.cursor < p.length {
+                let d: uint = byte_at(&p.data, p.cursor);
+                if !is_digit(d) {
+                    break;
+                }
+                saw_digit = true;
+                p.cursor = p.cursor + 1;
+            }
+            if !saw_digit {
+                return json_error(JSON_ERR_PARSE, "expected exponent digit", parser_offset(p));
+            }
+        }
+    }
+
+    let slice = copy_bytes_range(&p.data, start, p.cursor);
+    let res = from_bytes(&slice);
+    let mut out_res: JsonResult<string> = json_error(JSON_ERR_UTF8, "invalid utf-8 in number", parser_offset(p));
+    compare res {
+        Success(s) => {
+            out_res = Success(s);
+            0:int;
+        }
+        err => {
+            let _ = err;
+            out_res = json_error(JSON_ERR_UTF8, "invalid utf-8 in number", parser_offset(p));
+            0:int;
+        }
+    };
+    return out_res;
+}
+
+fn parse_array_value(p: &mut Parser) -> JsonResult<JsonValue[]> {
+    p.cursor = p.cursor + 1;
+    skip_ws(p);
+    let mut items: JsonValue[] = [];
+    if p.cursor < p.length {
+        let b: uint = byte_at(&p.data, p.cursor);
+        if b == 93:uint {
+            p.cursor = p.cursor + 1;
+            return Success(items);
+        }
+    }
+    while true {
+        let val_res = parse_value(p);
+        let mut err_out: JsonError = json_error(JSON_ERR_PARSE, "invalid array value", parser_offset(p));
+        let mut ok: bool = true;
+        compare val_res {
+            Success(val) => {
+                items.push(val);
+                ok = true;
+                0:int;
+            }
+            err => {
+                err_out = err;
+                ok = false;
+                0:int;
+            }
+        };
+        if !ok {
+            return err_out;
+        }
+        skip_ws(p);
+        if at_end(p) {
+            return json_error(JSON_ERR_EOF, "unterminated array", parser_offset(p));
+        }
+        let b: uint = byte_at(&p.data, p.cursor);
+        if b == 44:uint {
+            p.cursor = p.cursor + 1;
+            skip_ws(p);
+            continue;
+        }
+        if b == 93:uint {
+            p.cursor = p.cursor + 1;
+            break;
+        }
+        return json_error(JSON_ERR_PARSE, "expected ',' or ']'", parser_offset(p));
+    }
+    return Success(items);
+}
+
+fn parse_object_value(p: &mut Parser) -> JsonResult<Map<string, JsonValue>> {
+    p.cursor = p.cursor + 1;
+    skip_ws(p);
+    let mut obj: Map<string, JsonValue> = Map::<string, JsonValue>.new();
+    if p.cursor < p.length {
+        let b: uint = byte_at(&p.data, p.cursor);
+        if b == 125:uint {
+            p.cursor = p.cursor + 1;
+            return Success(obj);
+        }
+    }
+    while true {
+        if at_end(p) {
+            return json_error(JSON_ERR_EOF, "unterminated object", parser_offset(p));
+        }
+        let b: uint = byte_at(&p.data, p.cursor);
+        if b != 34:uint {
+            return json_error(JSON_ERR_PARSE, "expected string key", parser_offset(p));
+        }
+        let key_res = parse_string_value(p);
+        let mut key: string = "";
+        let mut key_ok: bool = true;
+        let mut key_err: JsonError = json_error(JSON_ERR_PARSE, "invalid key", parser_offset(p));
+        compare key_res {
+            Success(s) => {
+                key = s;
+                key_ok = true;
+                0:int;
+            }
+            err => {
+                key_err = err;
+                key_ok = false;
+                0:int;
+            }
+        };
+        if !key_ok {
+            return key_err;
+        }
+        skip_ws(p);
+        if at_end(p) {
+            return json_error(JSON_ERR_EOF, "unterminated object", parser_offset(p));
+        }
+        let colon: uint = byte_at(&p.data, p.cursor);
+        if colon != 58:uint {
+            return json_error(JSON_ERR_PARSE, "expected ':'", parser_offset(p));
+        }
+        p.cursor = p.cursor + 1;
+        skip_ws(p);
+        let val_res = parse_value(p);
+        let mut value: JsonValue = JsonNull();
+        let mut value_ok: bool = true;
+        let mut value_err: JsonError = json_error(JSON_ERR_PARSE, "invalid value", parser_offset(p));
+        compare val_res {
+            Success(v) => {
+                value = v;
+                value_ok = true;
+                0:int;
+            }
+            err => {
+                value_err = err;
+                value_ok = false;
+                0:int;
+            }
+        };
+        if !value_ok {
+            return value_err;
+        }
+        let _ = obj.insert(key, value);
+        skip_ws(p);
+        if at_end(p) {
+            return json_error(JSON_ERR_EOF, "unterminated object", parser_offset(p));
+        }
+        let next: uint = byte_at(&p.data, p.cursor);
+        if next == 44:uint {
+            p.cursor = p.cursor + 1;
+            skip_ws(p);
+            continue;
+        }
+        if next == 125:uint {
+            p.cursor = p.cursor + 1;
+            break;
+        }
+        return json_error(JSON_ERR_PARSE, "expected ',' or '}'", parser_offset(p));
+    }
+    return Success(obj);
+}
+
+fn parse_value(p: &mut Parser) -> JsonResult<JsonValue> {
+    if at_end(p) {
+        return json_error(JSON_ERR_EOF, "unexpected end of input", parser_offset(p));
+    }
+    let b: uint = byte_at(&p.data, p.cursor);
+    if b == 110:uint {
+        if consume_literal(p, "null") {
+            return Success(JsonNull());
+        }
+        return json_error(JSON_ERR_PARSE, "invalid literal", parser_offset(p));
+    }
+    if b == 116:uint {
+        if consume_literal(p, "true") {
+            return Success(JsonBool(true));
+        }
+        return json_error(JSON_ERR_PARSE, "invalid literal", parser_offset(p));
+    }
+    if b == 102:uint {
+        if consume_literal(p, "false") {
+            return Success(JsonBool(false));
+        }
+        return json_error(JSON_ERR_PARSE, "invalid literal", parser_offset(p));
+    }
+    if b == 34:uint {
+        let res = parse_string_value(p);
+        let mut out: JsonResult<JsonValue> = json_error(JSON_ERR_PARSE, "invalid string", parser_offset(p));
+        compare res {
+            Success(s) => {
+                out = Success(JsonString(s));
+                0:int;
+            }
+            err => {
+                out = err;
+                0:int;
+            }
+        };
+        return out;
+    }
+    if b == 91:uint {
+        let res = parse_array_value(p);
+        let mut out: JsonResult<JsonValue> = json_error(JSON_ERR_PARSE, "invalid array", parser_offset(p));
+        compare res {
+            Success(values) => {
+                out = Success(JsonArray(values));
+                0:int;
+            }
+            err => {
+                out = err;
+                0:int;
+            }
+        };
+        return out;
+    }
+    if b == 123:uint {
+        let res = parse_object_value(p);
+        let mut out: JsonResult<JsonValue> = json_error(JSON_ERR_PARSE, "invalid object", parser_offset(p));
+        compare res {
+            Success(obj) => {
+                out = Success(JsonObject(obj));
+                0:int;
+            }
+            err => {
+                out = err;
+                0:int;
+            }
+        };
+        return out;
+    }
+    if b == 45:uint || is_digit(b) {
+        let res = parse_number_value(p);
+        let mut out: JsonResult<JsonValue> = json_error(JSON_ERR_PARSE, "invalid number", parser_offset(p));
+        compare res {
+            Success(text) => {
+                out = Success(JsonNumber(text));
+                0:int;
+            }
+            err => {
+                out = err;
+                0:int;
+            }
+        };
+        return out;
+    }
+    return json_error(JSON_ERR_PARSE, "unexpected character", parser_offset(p));
+}
+
+pub fn parse_bytes(input: byte[]) -> Erring<JsonValue, JsonError> {
+    let mut parser: Parser = parser_init(&input);
+    skip_ws(&mut parser);
+    let res = parse_value(&mut parser);
+    let mut out: JsonResult<JsonValue> = json_error(JSON_ERR_PARSE, "invalid json", parser_offset(&mut parser));
+    compare res {
+        Success(value) => {
+            skip_ws(&mut parser);
+            if !at_end(&mut parser) {
+                out = json_error(JSON_ERR_PARSE, "trailing data", parser_offset(&mut parser));
+            } else {
+                out = Success(value);
+            }
+            0:int;
+        }
+        err => {
+            out = err;
+            0:int;
+        }
+    };
+    return out;
+}
+
+pub fn parse(input: &string) -> Erring<JsonValue, JsonError> {
+    let bytes: byte[] = string_to_bytes(input);
+    return parse_bytes(bytes);
+}
