@@ -6,7 +6,7 @@ block_advanced_test.sg (span: 3:1-58:1)
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 3:29-7:2)
 │        └─ Stmt[0]: Return (span: 4:5-6:7)
-│           └─ Expr: expr#2: <ExprKind(24)>
+│           └─ Expr: expr#2: <ExprKind(25)>
 ├─ Item[1]: Fn (span: 9:1-17:2)
 │  ├─ Name: test_block_expr_2
 │  ├─ Params: ()
@@ -17,12 +17,12 @@ block_advanced_test.sg (span: 3:1-58:1)
 │        │  ├─ Name: x
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Option<int>
-│        │  └─ Value: expr#6: <ExprKind(24)>
+│        │  └─ Value: expr#6: <ExprKind(25)>
 │        ├─ Stmt[1]: Let (span: 13:5-15:7)
 │        │  ├─ Name: y
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Option<int>
-│        │  └─ Value: expr#8: <ExprKind(24)>
+│        │  └─ Value: expr#8: <ExprKind(25)>
 │        └─ Stmt[2]: Return (span: 16:5-16:21)
 │           └─ Expr: expr#11: x.safe()
 ├─ Item[2]: Fn (span: 19:1-24:2)
@@ -35,7 +35,7 @@ block_advanced_test.sg (span: 3:1-58:1)
 │        │  ├─ Name: x
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Erring<int, Error>
-│        │  └─ Value: expr#15: <ExprKind(24)>
+│        │  └─ Value: expr#15: <ExprKind(25)>
 │        └─ Stmt[1]: Return (span: 23:5-23:21)
 │           └─ Expr: expr#18: x.safe()
 ├─ Item[3]: Fn (span: 26:1-35:2)
@@ -48,7 +48,7 @@ block_advanced_test.sg (span: 3:1-58:1)
 │        │  ├─ Name: x
 │        │  ├─ Mutable: false
 │        │  ├─ Type: int
-│        │  └─ Value: expr#25: <ExprKind(24)>
+│        │  └─ Value: expr#25: <ExprKind(25)>
 │        └─ Stmt[1]: Return (span: 34:5-34:14)
 │           └─ Expr: expr#26: x
 ├─ Item[4]: Fn (span: 38:1-46:2)
@@ -61,7 +61,7 @@ block_advanced_test.sg (span: 3:1-58:1)
 │        │  ├─ Name: x
 │        │  ├─ Mutable: false
 │        │  ├─ Type: nothing
-│        │  └─ Value: expr#30: <ExprKind(24)>
+│        │  └─ Value: expr#30: <ExprKind(25)>
 │        ├─ Stmt[1]: If (span: 42:5-44:6)
 │        │  ├─ Cond: expr#35: !((x is int))
 │        │  ├─ Then:
@@ -94,6 +94,6 @@ Block (span: 42:20-44:6)
          │  ├─ Name: x
          │  ├─ Mutable: false
          │  ├─ Type: Foo<int>
-         │  └─ Value: expr#41: <ExprKind(24)>
+         │  └─ Value: expr#41: <ExprKind(25)>
          └─ Stmt[1]: Return (span: 56:5-56:20)
             └─ Expr: expr#42: nothing

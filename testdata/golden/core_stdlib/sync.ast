@@ -109,10 +109,10 @@ sync.sg (span: 1:1-199:1)
 │  │  │     └─ Stmt[1]: Return (span: 55:9-55:34)
 │  │  │        └─ Expr: expr#58: <ExprKind(22)>
 │  │  ├─ Fn[1]: wait
-│  │  │  ├─ Params: (self: &Condition, mutex: &mut Mutex)
+│  │  │  ├─ Params: (self: &Condition, mutex: &Mutex)
 │  │  │  ├─ Return: Task<nothing>
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 58:71-60:6)
+│  │  │     Stmt[0]: Block (span: 58:67-60:6)
 │  │  │     └─ Stmt[0]: Return (span: 59:9-59:51)
 │  │  │        └─ Expr: expr#64: condition_wait_task(*self, *mutex)
 │  │  ├─ Fn[2]: notify_one
@@ -205,18 +205,18 @@ Block (span: 96:25-99:10)
 │  │  │     └─ Stmt[5]: Return (span: 100:9-100:38)
 │  │  │        └─ Expr: expr#119: <ExprKind(22)>
 │  │  ├─ Fn[1]: acquire
-│  │  │  ├─ Params: (self: &mut Semaphore)
+│  │  │  ├─ Params: (self: &Semaphore)
 │  │  │  ├─ Return: Task<nothing>
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 103:59-105:6)
+│  │  │     Stmt[0]: Block (span: 103:55-105:6)
 │  │  │     └─ Stmt[0]: Return (span: 104:9-104:46)
 │  │  │        └─ Expr: expr#123: semaphore_acquire_task(*self)
 │  │  ├─ Fn[2]: try_acquire
-│  │  │  ├─ Params: (self: &mut Semaphore)
+│  │  │  ├─ Params: (self: &Semaphore)
 │  │  │  ├─ Return: bool
 │  │  │  ├─ Attributes: @nonblocking
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 108:54-114:6)
+│  │  │     Stmt[0]: Block (span: 108:50-114:6)
 │  │  │     ├─ Stmt[0]: Let (span: 109:9-109:43)
 │  │  │     │  ├─ Name: res
 │  │  │     │  ├─ Mutable: false
@@ -225,11 +225,11 @@ Block (span: 96:25-99:10)
 │  │  │     └─ Stmt[1]: Return (span: 110:9-113:11)
 │  │  │        └─ Expr: expr#135: compare res { 2 arms }
 │  │  └─ Fn[3]: release
-│  │     ├─ Params: (self: &mut Semaphore)
+│  │     ├─ Params: (self: &Semaphore)
 │  │     ├─ Return: nothing
 │  │     ├─ Attributes: @nonblocking
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 117:53-120:6)
+│  │        Stmt[0]: Block (span: 117:49-120:6)
 │  │        ├─ Stmt[0]: Expr (span: 118:9-118:40)
 │  │        │  └─ Expr: expr#140: self.permits.try_send(nothing)
 │  │        └─ Stmt[1]: Return (span: 119:9-119:24)
