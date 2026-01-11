@@ -161,11 +161,11 @@ func (l *lowerer) applyParamBorrow(symID symbols.SymbolID, args []*Expr) []*Expr
 		_, argIsRef, _ := l.referenceInfo(arg.Type)
 		param := strings.TrimSpace(string(sym.Signature.Params[i]))
 		switch {
-		case strings.HasPrefix(param, "&mut "):
-			if argIsRef && isBorrowExpr(arg) {
-				continue
-			}
-			args[i] = l.applyBorrow(arg, true)
+	case strings.HasPrefix(param, "&mut "):
+		if argIsRef {
+			continue
+		}
+		args[i] = l.applyBorrow(arg, true)
 		case strings.HasPrefix(param, "&"):
 			if argIsRef {
 				continue

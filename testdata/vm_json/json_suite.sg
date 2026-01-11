@@ -331,8 +331,10 @@ fn test_stringify() -> nothing {
 fn test_roundtrip() -> nothing {
     let input: string = "{\"b\":2,\"a\":[1,2,\"x\"]}";
     let v1 = parse_ok(&input);
-    let text: string = json.stringify(&v1);
     let v1_copy: JsonValue = v1.to_json();
+    let v1_ref: &JsonValue = &v1_copy;
+    let text: string = json.stringify(v1_ref);
+    @drop v1_ref;
     let v2 = parse_ok(&text);
     assert(json_eq(v1_copy, v2), "roundtrip");
     return nothing;

@@ -19,31 +19,31 @@ pub tag JsonObject(Map<string, JsonValue>);
 pub type JsonValue = JsonNull() | JsonBool(bool) | JsonNumber(string) | JsonString(string) | JsonArray(JsonValue[]) | JsonObject(Map<string, JsonValue>);
 
 pub contract JsonEncodable<T> {
-    pub fn to_json(self: &T) -> JsonValue;
+    pub fn to_json(self: T) -> JsonValue;
 }
 
 extern<string> {
-    pub fn to_json(self: &string) -> JsonValue {
-        return JsonString(self.__clone());
+    pub fn to_json(self: string) -> JsonValue {
+        return JsonString(self);
     }
 }
 
 extern<bool> {
-    pub fn to_json(self: &bool) -> JsonValue {
-        return JsonBool(*self);
+    pub fn to_json(self: bool) -> JsonValue {
+        return JsonBool(self);
     }
 }
 
 extern<int> {
-    pub fn to_json(self: &int) -> JsonValue {
-        let text: string = (*self) to string;
+    pub fn to_json(self: int) -> JsonValue {
+        let text: string = self to string;
         return JsonNumber(text);
     }
 }
 
 extern<uint> {
-    pub fn to_json(self: &uint) -> JsonValue {
-        let text: string = (*self) to string;
+    pub fn to_json(self: uint) -> JsonValue {
+        let text: string = self to string;
         return JsonNumber(text);
     }
 }
@@ -112,7 +112,7 @@ fn json_clone(value: &JsonValue) -> JsonValue {
 }
 
 extern<JsonValue> {
-    pub fn to_json(self: &JsonValue) -> JsonValue {
-        return json_clone(self);
+    pub fn to_json(self: JsonValue) -> JsonValue {
+        return self;
     }
 }

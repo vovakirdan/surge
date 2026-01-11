@@ -1,0 +1,156 @@
+import stdlib/http as http;
+import stdlib/http::Response;
+import stdlib/json as json;
+
+fn bytes_to_ascii(bytes: byte[]) -> string {
+    let res = string.from_bytes(&bytes);
+    return compare res {
+        Success(s) => s;
+        err => {
+            let _ = err;
+            "";
+        }
+    };
+}
+
+fn expect(cond: bool, msg: string) -> nothing {
+    if !cond {
+        panic(msg);
+    }
+    return nothing;
+}
+
+async fn handle(req: http.Request) -> http.Response {
+    let mut req_mut: http.Request = req;
+    let json_task = req_mut.json_value(1024:uint);
+    let json_task_res = json_task.await();
+    let mut json_res: Erring<http.JsonValue, http.HttpError> = Success(json.JsonNull());
+    let mut cancelled: bool = false;
+    compare json_task_res {
+        Success(res) => {
+            json_res = res;
+            cancelled = false;
+            0:int;
+        }
+        Cancelled() => {
+            cancelled = true;
+            0:int;
+        }
+    };
+    if cancelled {
+        let headers: http.Headers = [];
+        return http.Response { status = 500, headers = headers, body = http.Empty() };
+    }
+    return compare json_res {
+        Success(value) => Response.json(value);
+        err => {
+            let headers: http.Headers = [];
+            http.Response { status = err.code to int, headers = headers, body = http.Empty() };
+        }
+    };
+}
+
+async fn run_echo(path: string) -> nothing {
+    let body = "{\"x\":1}";
+    let len_str: string = body.__len() to string;
+    let raw = "POST " + path + " HTTP/1.1\r\nContent-Length: " + len_str + "\r\n\r\n" + body;
+
+    let mut req: http.Request = http.parse_request(&raw).safe();
+    let res = http.parse_request(&raw);
+    let mut ok: bool = false;
+    compare res {
+        Success(parsed) => {
+            req = parsed;
+            ok = true;
+            0:int;
+        }
+        err => {
+            panic("parse_err=" + (err.code to string));
+            0:int;
+        }
+    };
+    expect(ok, "parse failed");
+
+    let resp_task = handle(req);
+    let resp_res = resp_task.await();
+    let resp = compare resp_res {
+        Success(value) => value;
+        Cancelled() => {
+            panic("handler cancelled");
+            let headers: http.Headers = [];
+            http.Response { status = 500, headers = headers, body = http.Empty() };
+        }
+    };
+    expect(resp.status == 200, "status != 200");
+
+    let resp_bytes = http.write_response(resp);
+    let resp_text = bytes_to_ascii(resp_bytes);
+    let header_end: int = resp_text.find("\r\n\r\n");
+    expect(header_end >= 0, "missing header terminator");
+    let header_text = resp_text[[0..header_end]];
+    expect(header_text.find("Content-Type: application/json; charset=utf-8") >= 0, "missing content-type");
+    let body_text = resp_text[[header_end + 4..resp_text.__len() to int]];
+    expect(body_text == body, "body mismatch");
+    return nothing;
+}
+
+async fn run_limit() -> nothing {
+    let body = "{\"x\":1}";
+    let len_str: string = body.__len() to string;
+    let raw = "POST /limit HTTP/1.1\r\nContent-Length: " + len_str + "\r\n\r\n" + body;
+
+    let mut req: http.Request = http.parse_request(&raw).safe();
+    let res = http.parse_request(&raw);
+    let mut ok: bool = false;
+    compare res {
+        Success(parsed) => {
+            req = parsed;
+            ok = true;
+            0:int;
+        }
+        err => {
+            panic("parse_err=" + (err.code to string));
+            0:int;
+        }
+    };
+    expect(ok, "parse failed");
+
+    let json_task = req.json_value(2:uint);
+    let json_task_res = json_task.await();
+    let json_res = compare json_task_res {
+        Success(value) => value;
+        Cancelled() => {
+            panic("json cancelled");
+            http.HttpError { message = "cancelled", code = 500:uint };
+        }
+    };
+    compare json_res {
+        Success(_) => {
+            panic("expected 413");
+            0:int;
+        }
+        err => {
+            let expected: uint = 413:uint;
+            expect(err.code == expected, "limit code mismatch");
+            0:int;
+        }
+    };
+    return nothing;
+}
+
+async fn main_async() -> int {
+    run_echo("/echo").await();
+    run_echo("/other").await();
+    run_limit().await();
+    print("ok");
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let res = main_async().await();
+    return compare res {
+        Success(code) => code;
+        Cancelled() => 1;
+    };
+}

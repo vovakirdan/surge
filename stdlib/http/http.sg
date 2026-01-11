@@ -2,6 +2,7 @@
 // HTTP/1.1 protocol core: request parser + response writer.
 
 import stdlib/net as net;
+import stdlib/json as jsonlib;
 
 const HTTP_ERR_PARSE: uint = 400;
 const HTTP_ERR_HEADER: uint = 400;
@@ -23,7 +24,7 @@ pub type Header = { key: string, value: string };
 pub type Headers = Header[];
 
 pub type HttpError = { message: string, code: uint };
-type HttpResult<T> = Erring<T, HttpError>;
+pub type JsonValue = jsonlib.JsonValue;
 type BodyResult = Erring<byte[], HttpError>;
 type ChunkSize = { size: uint, cursor: uint };
 
@@ -146,6 +147,15 @@ type QueueItem = {
 
 fn http_error(code: uint, msg: string) -> HttpError {
     return { message: msg, code: code };
+}
+
+fn json_error_to_http(err: jsonlib.JsonError) -> HttpError {
+    let mut msg: string = "invalid json";
+    if err.message.__len() != 0:uint {
+        msg = "invalid json: " + err.message;
+    }
+    msg = msg + " at " + (err.offset to string);
+    return http_error(HTTP_ERR_PARSE, msg);
 }
 
 fn ascii_lower(cp: uint32) -> uint32 {
@@ -651,6 +661,146 @@ extern<BodyReader> {
     pub fn next(self: &mut BodyReader) -> Task<Erring<byte[], HttpError>> {
         return body_next_async(self);
     }
+
+    pub fn read_all(self: &mut BodyReader, limit: uint) -> Task<Erring<byte[], HttpError>> {
+        return body_read_all(self, limit);
+    }
+}
+
+async fn body_read_all(reader: &mut BodyReader, limit: uint) -> Erring<byte[], HttpError> {
+    if limit != 0:uint && reader.mode == BODY_MODE_LENGTH {
+        if reader.remaining > limit {
+            reader.done = true;
+            reader.remaining = 0:uint;
+            return http_error(HTTP_ERR_BODY_TOO_LARGE, "body too large");
+        }
+    }
+    if limit != 0:uint && reader.mode == BODY_MODE_CHUNKED {
+        if reader.limit_remaining == 0:uint || reader.limit_remaining > limit {
+            reader.limit_remaining = limit;
+        }
+    }
+
+    let mut out: byte[] = [];
+    let mut remaining: uint = limit;
+    if limit == 0:uint {
+        remaining = 0:uint;
+    } else if reader.limit_remaining != 0:uint && reader.limit_remaining < remaining {
+        remaining = reader.limit_remaining;
+    }
+
+    while true {
+        let next_task = reader.next();
+        let next_res = next_task.await();
+        let mut chunk_res: Erring<byte[], HttpError> = http_error(HTTP_ERR_BODY, "read failed");
+        let mut cancelled: bool = false;
+        compare next_res {
+            Success(res) => {
+                chunk_res = res;
+                cancelled = false;
+                0:int;
+            }
+            Cancelled() => {
+                cancelled = true;
+                0:int;
+            }
+        };
+        if cancelled {
+            return http_error(HTTP_ERR_TIMEOUT, "read timeout");
+        }
+        let mut chunk: byte[] = [];
+        let mut got_chunk: bool = false;
+        let mut chunk_err: HttpError = http_error(HTTP_ERR_BODY, "read failed");
+        compare chunk_res {
+            Success(bytes) => {
+                chunk = bytes;
+                got_chunk = true;
+                0:int;
+            }
+            err => {
+                chunk_err = err;
+                got_chunk = false;
+                0:int;
+            }
+        };
+        if !got_chunk {
+            return chunk_err;
+        }
+        if chunk.__len() == 0:uint {
+            break;
+        }
+        let chunk_len: uint = chunk.__len();
+        if limit != 0:uint {
+            if chunk_len > remaining {
+                reader.done = true;
+                return http_error(HTTP_ERR_BODY_TOO_LARGE, "body too large");
+            }
+            remaining = remaining - chunk_len;
+        }
+        let new_cap: uint = out.__len() + chunk_len;
+        out.reserve(new_cap);
+        append_bytes(&mut out, &chunk);
+    }
+    return Success(out);
+}
+
+async fn request_json_value(req: &mut Request, limit: uint) -> Erring<JsonValue, HttpError> {
+    let body_task = req.body.read_all(limit);
+    let body_task_res = body_task.await();
+    let mut body_res: Erring<byte[], HttpError> = http_error(HTTP_ERR_BODY, "read failed");
+    let mut cancelled: bool = false;
+    compare body_task_res {
+        Success(res) => {
+            body_res = res;
+            cancelled = false;
+            0:int;
+        }
+        Cancelled() => {
+            cancelled = true;
+            0:int;
+        }
+    };
+    if cancelled {
+        return http_error(HTTP_ERR_TIMEOUT, "read timeout");
+    }
+    let mut body_bytes: byte[] = [];
+    let mut bytes_ok: bool = false;
+    let mut body_err: HttpError = http_error(HTTP_ERR_BODY, "read failed");
+    compare body_res {
+        Success(bytes) => {
+            body_bytes = bytes;
+            bytes_ok = true;
+            0:int;
+        }
+        err => {
+            body_err = err;
+            bytes_ok = false;
+            0:int;
+        }
+    };
+    if !bytes_ok {
+        return body_err;
+    }
+
+    let json_res = jsonlib.parse_bytes(body_bytes);
+    let mut out: Erring<JsonValue, HttpError> = http_error(HTTP_ERR_PARSE, "invalid json");
+    compare json_res {
+        Success(value) => {
+            out = Success(value);
+            0:int;
+        }
+        err => {
+            out = json_error_to_http(err);
+            0:int;
+        }
+    };
+    return out;
+}
+
+extern<Request> {
+    pub fn json_value(self: &mut Request, limit: uint) -> Task<Erring<JsonValue, HttpError>> {
+        return request_json_value(self, limit);
+    }
 }
 
 fn parse_request_head(head: &string, max_headers_count: uint) -> Erring<ParsedHead, HttpError> {
@@ -1148,6 +1298,44 @@ pub fn write_response(resp: Response) -> byte[] {
     return out;
 }
 
+fn response_json_value(value: JsonValue) -> Response {
+    let body_str = jsonlib.stringify(&value);
+    let body_bytes = string_to_bytes(&body_str);
+    let mut headers: Headers = [];
+    headers.push(Header { key: "Content-Type", value: "application/json; charset=utf-8" });
+    return { status: 200, headers: headers, body: Bytes(body_bytes) };
+}
+
+extern<Response> {
+    pub fn json(value: JsonValue) -> Response {
+        return response_json_value(value);
+    }
+
+    @overload
+    pub fn json(value: string) -> Response {
+        let json_val = value.to_json();
+        return response_json_value(json_val);
+    }
+
+    @overload
+    pub fn json(value: bool) -> Response {
+        let json_val = value.to_json();
+        return response_json_value(json_val);
+    }
+
+    @overload
+    pub fn json(value: int) -> Response {
+        let json_val = value.to_json();
+        return response_json_value(json_val);
+    }
+
+    @overload
+    pub fn json(value: uint) -> Response {
+        let json_val = value.to_json();
+        return response_json_value(json_val);
+    }
+}
+
 fn buffer_drop_prefix(data: &byte[], consumed: uint) -> byte[] {
     let length: int = data.__len() to int;
     let start: int = consumed to int;
@@ -1231,7 +1419,7 @@ fn append_buffer(buf: &mut byte[], data: &byte[]) -> nothing {
     return nothing;
 }
 
-async fn read_into_buffer(conn: TcpConn, cap: uint, timeout_ms: uint) -> HttpResult<byte[]> {
+async fn read_into_buffer(conn: TcpConn, cap: uint, timeout_ms: uint) -> Erring<byte[], HttpError> {
     if timeout_ms == 0:uint {
         let read_task = net.read_some(&conn, cap);
         let read_res = read_task.await();
@@ -1300,7 +1488,7 @@ async fn read_into_buffer(conn: TcpConn, cap: uint, timeout_ms: uint) -> HttpRes
     return Success(bytes);
 }
 
-async fn write_response_conn(conn: TcpConn, resp: Response, timeout_ms: uint) -> HttpResult<nothing> {
+async fn write_response_conn(conn: TcpConn, resp: Response, timeout_ms: uint) -> Erring<nothing, HttpError> {
     let bytes = write_response(resp);
     if timeout_ms == 0:uint {
         let write_task = net.write_all(&conn, bytes);
