@@ -170,6 +170,15 @@ bool rt_channel_try_send(void* channel, uint64_t value_bits);
 bool rt_channel_try_recv(void* channel, uint64_t* out_bits);
 void rt_channel_close(void* channel);
 
+void* rt_map_new(uint64_t key_kind);
+uint64_t rt_map_len(const void* map);
+bool rt_map_contains(void* map, uint64_t key_bits);
+bool rt_map_get_ref(void* map, uint64_t key_bits, uint64_t* out_bits);
+bool rt_map_get_mut(void* map, uint64_t key_bits, uint64_t* out_bits);
+bool rt_map_insert(void* map, uint64_t key_bits, uint64_t value_bits, uint64_t* out_prev);
+bool rt_map_remove(void* map, uint64_t key_bits, uint64_t* out_prev);
+void* rt_map_keys(const void* map, uint64_t elem_size, uint64_t elem_align);
+
 void* rt_scope_enter(bool failfast);
 void rt_scope_register_child(void* scope, void* task);
 void rt_scope_cancel_all(void* scope);
