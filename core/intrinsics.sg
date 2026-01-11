@@ -664,6 +664,21 @@ extern<string> {
     @overload pub fn __to(self: &string, _: string) -> string {
         return self.__clone();
     }
+    @overload
+    pub fn __to(self: &string, _: byte[]) -> byte[] {
+        let view = self.bytes();
+        let length: uint = view.__len();
+        let mut out: byte[] = [];
+        out.reserve(length);
+        let len_i: int = length to int;
+        let mut i: int = 0;
+        while i < len_i {
+            let b: byte = view[i];
+            out.push(b);
+            i = i + 1;
+        }
+        return out;
+    }
     @intrinsic fn __len(self: &string) -> uint;
     @intrinsic fn __clone(self: &string) -> string;
     @intrinsic @overload fn __index(self: &string, index: int) -> uint32;

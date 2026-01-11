@@ -1,9 +1,17 @@
 package vm_test
 
 import (
+	"bufio"
+	"bytes"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -1138,4 +1146,246 @@ fn main() -> int {
 `
 
 	runMTSource(t, source, 20*time.Second)
+}
+
+func TestMTCorrectnessHTTPServer(t *testing.T) {
+	ensureLLVMToolchain(t)
+	t.Parallel()
+
+	source := `import stdlib/http as http;
+
+fn string_to_bytes(s: &string) -> byte[] {
+    let view = s.bytes();
+    let length: uint = view.__len();
+    let mut out: byte[] = [];
+    out.reserve(length);
+    let len_i: int = length to int;
+    let mut i: int = 0;
+    while i < len_i {
+        let b: byte = view[i];
+        out.push(b);
+        i = i + 1;
+    }
+    return out;
+}
+
+async fn handle(req: http.Request) -> http.Response {
+    if req.path == "/slow" {
+        sleep(200:uint).await();
+    }
+    let bytes = string_to_bytes(&"ok");
+    return { status = 200, headers = [], body = http.Bytes(bytes) };
+}
+
+@entrypoint("argv")
+fn main(port: uint) -> int {
+    if rt_worker_count() <= 1:uint {
+        return 90;
+    }
+    let cfg: http.ServerConfig = {
+        max_pipeline_depth = 16:uint,
+        max_initial_line_bytes = 1024:uint,
+        max_header_bytes = 4096:uint,
+        max_headers_count = 64:uint,
+        max_body_bytes = 16:uint,
+        idle_timeout_ms = 1000:uint,
+        read_timeout_ms = 1000:uint,
+        write_timeout_ms = 1000:uint
+    };
+    let handler: http.Handler = handle;
+    http.serve("127.0.0.1", port, cfg, handler).await();
+    return 0;
+}
+`
+
+	outputPath := buildLLVMProgramFromSource(t, source)
+	port := pickFreePort(t)
+	portStr := strconv.Itoa(port)
+	cmd := exec.Command(outputPath, portStr)
+	cmd.Env = mtEnv(t)
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start http server: %v", err)
+	}
+
+	addr := net.JoinHostPort("127.0.0.1", portStr)
+	fail := func(action string, err error) {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		_ = cmd.Wait()
+		t.Fatalf("%s: %v\nstdout:\n%s\nstderr:\n%s", action, err, outBuf.String(), errBuf.String())
+	}
+
+	if err := runMTHTTPKeepaliveScenario(addr); err != nil {
+		fail("keepalive scenario failed", err)
+	}
+	if err := runMTHTTPConcurrentScenario(addr, 50); err != nil {
+		fail("concurrent scenario failed", err)
+	}
+	if err := runMTHTTPPostScenario(addr); err != nil {
+		fail("post scenario failed", err)
+	}
+
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-waitCh:
+		if err != nil {
+			t.Fatalf("http server exit: %v\nstdout:\n%s\nstderr:\n%s", err, outBuf.String(), errBuf.String())
+		}
+	case <-time.After(10 * time.Second):
+		_ = cmd.Process.Kill()
+		<-waitCh
+		t.Fatalf("http server command timed out\nstdout:\n%s\nstderr:\n%s", outBuf.String(), errBuf.String())
+	}
+}
+
+func runMTHTTPKeepaliveScenario(addr string) error {
+	conn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
+	if err != nil {
+		return fmt.Errorf("dial: %w", err)
+	}
+	defer conn.Close()
+	if err = conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return fmt.Errorf("set deadline: %w", err)
+	}
+	reader := bufio.NewReader(conn)
+
+	req := "GET /fast HTTP/1.1\r\nHost: example\r\n\r\n"
+	if _, err = conn.Write([]byte(req)); err != nil {
+		return fmt.Errorf("write keepalive req1: %w", err)
+	}
+	status, body, err := readHTTPResponse(reader)
+	if err != nil {
+		return fmt.Errorf("read keepalive resp1: %w", err)
+	}
+	if status != 200 || body != "ok" {
+		return fmt.Errorf("keepalive resp1 mismatch: status=%d body=%q", status, body)
+	}
+
+	if _, err = conn.Write([]byte(req)); err != nil {
+		return fmt.Errorf("write keepalive req2: %w", err)
+	}
+	status, body, err = readHTTPResponse(reader)
+	if err != nil {
+		return fmt.Errorf("read keepalive resp2: %w", err)
+	}
+	if status != 200 || body != "ok" {
+		return fmt.Errorf("keepalive resp2 mismatch: status=%d body=%q", status, body)
+	}
+	return nil
+}
+
+func runMTHTTPConcurrentScenario(addr string, clients int) error {
+	var wg sync.WaitGroup
+	errCh := make(chan error, clients)
+	for i := range clients {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			conn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
+			if err != nil {
+				errCh <- fmt.Errorf("dial %d: %w", id, err)
+				return
+			}
+			defer conn.Close()
+			if err = conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+				errCh <- fmt.Errorf("set deadline %d: %w", id, err)
+				return
+			}
+			reader := bufio.NewReader(conn)
+			path := "/fast"
+			if id%10 == 0 {
+				path = "/slow"
+			}
+			req := fmt.Sprintf("GET %s HTTP/1.1\r\nHost: example\r\n\r\n", path)
+			if _, err = conn.Write([]byte(req)); err != nil {
+				errCh <- fmt.Errorf("write %d: %w", id, err)
+				return
+			}
+			status, body, err := readHTTPResponse(reader)
+			if err != nil {
+				errCh <- fmt.Errorf("read %d: %w", id, err)
+				return
+			}
+			if status != 200 || body != "ok" {
+				errCh <- fmt.Errorf("resp %d mismatch: status=%d body=%q", id, status, body)
+				return
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func runMTHTTPPostScenario(addr string) error {
+	conn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
+	if err != nil {
+		return fmt.Errorf("dial small: %w", err)
+	}
+	if err = conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		_ = conn.Close()
+		return fmt.Errorf("set small deadline: %w", err)
+	}
+	reader := bufio.NewReader(conn)
+	body := "abcdefgh"
+	req := fmt.Sprintf("POST /upload HTTP/1.1\r\nHost: example\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
+	if _, err = conn.Write([]byte(req)); err != nil {
+		_ = conn.Close()
+		return fmt.Errorf("write small body: %w", err)
+	}
+	status, respBody, err := readHTTPResponse(reader)
+	if err != nil {
+		_ = conn.Close()
+		return fmt.Errorf("read small body: %w", err)
+	}
+	if status != 200 || respBody != "ok" {
+		_ = conn.Close()
+		return fmt.Errorf("small body mismatch: status=%d body=%q", status, respBody)
+	}
+	_ = conn.Close()
+
+	largeConn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
+	if err != nil {
+		return fmt.Errorf("dial large: %w", err)
+	}
+	defer largeConn.Close()
+	if err = largeConn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return fmt.Errorf("set large deadline: %w", err)
+	}
+	largeReader := bufio.NewReader(largeConn)
+	largeBody := strings.Repeat("a", 32)
+	largeReq := fmt.Sprintf("POST /upload HTTP/1.1\r\nHost: example\r\nContent-Length: %d\r\n\r\n%s", len(largeBody), largeBody)
+	if _, err = largeConn.Write([]byte(largeReq)); err != nil {
+		return fmt.Errorf("write large body: %w", err)
+	}
+	status, respBody, err = readHTTPResponse(largeReader)
+	if err != nil {
+		return fmt.Errorf("read large body: %w", err)
+	}
+	if status != 413 || respBody != "" {
+		return fmt.Errorf("large body mismatch: status=%d body=%q", status, respBody)
+	}
+	if err := largeConn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		return fmt.Errorf("set close deadline: %w", err)
+	}
+	if _, err := largeReader.ReadByte(); err == nil {
+		return fmt.Errorf("expected connection close after body limit, got byte")
+	} else if !errors.Is(err, io.EOF) {
+		return fmt.Errorf("expected connection close after body limit: %w", err)
+	}
+	return nil
 }

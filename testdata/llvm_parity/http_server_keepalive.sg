@@ -44,6 +44,7 @@ fn main(port: uint) -> int {
         max_initial_line_bytes = 1024:uint,
         max_header_bytes = 4096:uint,
         max_headers_count = 32:uint,
+        max_body_bytes = 0:uint,
         idle_timeout_ms = 1000:uint,
         read_timeout_ms = 1000:uint,
         write_timeout_ms = 1000:uint

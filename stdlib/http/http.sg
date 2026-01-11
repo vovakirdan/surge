@@ -3,9 +3,12 @@
 
 import stdlib/net as net;
 
-const HTTP_ERR_PARSE: uint = 1;
-const HTTP_ERR_HEADER: uint = 2;
-const HTTP_ERR_BODY: uint = 3;
+const HTTP_ERR_PARSE: uint = 400;
+const HTTP_ERR_HEADER: uint = 400;
+const HTTP_ERR_BODY: uint = 400;
+const HTTP_ERR_TIMEOUT: uint = 408;
+const HTTP_ERR_BODY_TOO_LARGE: uint = 413;
+const HTTP_ERR_HEADER_TOO_LARGE: uint = 431;
 
 const BODY_MODE_NONE: uint = 0;
 const BODY_MODE_LENGTH: uint = 1;
@@ -29,7 +32,8 @@ pub type BodyReader = {
     raw: byte[],
     cursor: uint,
     remaining: uint,
-    done: bool
+    done: bool,
+    limit_remaining: uint
 };
 
 pub type Request = {
@@ -69,6 +73,7 @@ pub type ServerConfig = {
     max_initial_line_bytes: uint,
     max_header_bytes: uint,
     max_headers_count: uint,
+    max_body_bytes: uint,
     idle_timeout_ms: uint,
     read_timeout_ms: uint,
     write_timeout_ms: uint
@@ -80,6 +85,7 @@ fn copy_server_config(cfg: &ServerConfig) -> ServerConfig {
         max_initial_line_bytes = cfg.max_initial_line_bytes,
         max_header_bytes = cfg.max_header_bytes,
         max_headers_count = cfg.max_headers_count,
+        max_body_bytes = cfg.max_body_bytes,
         idle_timeout_ms = cfg.idle_timeout_ms,
         read_timeout_ms = cfg.read_timeout_ms,
         write_timeout_ms = cfg.write_timeout_ms
@@ -95,6 +101,16 @@ type HeaderMeta = {
     has_content_len: bool,
     chunked: bool,
     close: bool
+};
+
+type ParsedHead = {
+    method: string,
+    target: string,
+    path: string,
+    query: string,
+    version: int,
+    headers: Headers,
+    meta: HeaderMeta
 };
 
 type ParsedRequest = {
@@ -266,16 +282,16 @@ fn find_crlf_bytes(data: &byte[]) -> int {
 }
 
 fn body_reader_none() -> BodyReader {
-    return { mode: BODY_MODE_NONE, raw: [], cursor: 0:uint, remaining: 0:uint, done: true };
+    return { mode: BODY_MODE_NONE, raw: [], cursor: 0:uint, remaining: 0:uint, done: true, limit_remaining: 0:uint };
 }
 
 fn body_reader_length(body: byte[]) -> BodyReader {
     let length: uint = body.__len();
-    return { mode: BODY_MODE_LENGTH, raw: body, cursor: 0:uint, remaining: length, done: length == 0:uint };
+    return { mode: BODY_MODE_LENGTH, raw: body, cursor: 0:uint, remaining: length, done: length == 0:uint, limit_remaining: 0:uint };
 }
 
-fn body_reader_chunked(body: byte[]) -> BodyReader {
-    return { mode: BODY_MODE_CHUNKED, raw: body, cursor: 0:uint, remaining: 0:uint, done: false };
+fn body_reader_chunked(body: byte[], limit: uint) -> BodyReader {
+    return { mode: BODY_MODE_CHUNKED, raw: body, cursor: 0:uint, remaining: 0:uint, done: false, limit_remaining: limit };
 }
 
 fn copy_bytes_range(data: &byte[], start: int, end: int) -> byte[] {
@@ -434,9 +450,10 @@ fn try_parse_chunk_size(data: &byte[], cursor: uint) -> ChunkParseResult {
     return ChunkOk(pair);
 }
 
-fn find_chunked_end(data: &byte[], start: uint) -> ChunkedResult {
+fn find_chunked_end(data: &byte[], start: uint, max_body: uint) -> ChunkedResult {
     let length: int = data.__len() to int;
     let mut cursor: uint = start;
+    let mut total: uint = 0:uint;
     while true {
         let size_res = try_parse_chunk_size(data, cursor);
         let mut size_pair: Option<ChunkSize> = nothing;
@@ -465,6 +482,15 @@ fn find_chunked_end(data: &byte[], start: uint) -> ChunkedResult {
             Some(pair) => {
                 let size: uint = pair.size;
                 cursor = pair.cursor;
+                if max_body != 0:uint {
+                    if total >= max_body {
+                        return ChunkedErr(http_error(HTTP_ERR_BODY_TOO_LARGE, "body too large"));
+                    }
+                    let remaining: uint = max_body - total;
+                    if size > remaining {
+                        return ChunkedErr(http_error(HTTP_ERR_BODY_TOO_LARGE, "body too large"));
+                    }
+                }
                 if size == 0:uint {
                     let end: int = cursor to int;
                     if end + 1 >= length {
@@ -494,6 +520,7 @@ fn find_chunked_end(data: &byte[], start: uint) -> ChunkedResult {
                 if term1_u != 13:uint || term2_u != 10:uint {
                     return ChunkedErr(http_error(HTTP_ERR_BODY, "invalid chunk terminator"));
                 }
+                total = total + size;
                 cursor = (end + 2) to uint;
             }
             nothing => {
@@ -560,6 +587,9 @@ fn body_next_sync(reader: &mut BodyReader) -> Erring<byte[], HttpError> {
         if !has_size {
             return out;
         }
+        if reader.limit_remaining != 0:uint && size > reader.limit_remaining {
+            return http_error(HTTP_ERR_BODY_TOO_LARGE, "body too large");
+        }
         let raw = reader.raw;
         if size == 0:uint {
             let raw_len: int = raw.__len() to int;
@@ -602,6 +632,9 @@ fn body_next_sync(reader: &mut BodyReader) -> Erring<byte[], HttpError> {
             return http_error(HTTP_ERR_BODY, "invalid chunk terminator");
         }
         let slice = copy_bytes_range(raw, start, end);
+        if reader.limit_remaining != 0:uint {
+            reader.limit_remaining = reader.limit_remaining - size;
+        }
         reader.cursor = (end + 2) to uint;
         return Success(slice);
     }
@@ -620,15 +653,7 @@ extern<BodyReader> {
     }
 }
 
-pub fn parse_request(raw: &string) -> Erring<Request, HttpError> {
-    let length: int = raw.__len() to int;
-    let header_end: int = find_double_crlf(raw);
-    if header_end < 0 {
-        return http_error(HTTP_ERR_PARSE, "missing header terminator");
-    }
-
-    let head = raw[[0..header_end]];
-    let body_str = raw[[header_end + 4..length]];
+fn parse_request_head(head: &string, max_headers_count: uint) -> Erring<ParsedHead, HttpError> {
     let lines = head.split("\r\n");
     let count: int = lines.__len() to int;
     if count <= 0 {
@@ -659,83 +684,6 @@ pub fn parse_request(raw: &string) -> Erring<Request, HttpError> {
     let mut headers: Headers = [];
     let mut content_len: uint = 0:uint;
     let mut has_content_len: bool = false;
-    let mut is_chunked: bool = false;
-    let mut i: int = 1;
-    while i < count {
-        let line: string = clone(lines[i]);
-        if line.__len() == 0:uint {
-            i = i + 1;
-            continue;
-        }
-        let colon: int = line.find(":");
-        if colon < 0 {
-            return http_error(HTTP_ERR_HEADER, "invalid header");
-        }
-        let key_raw = line[[0..colon]];
-        let val_raw = line[[colon + 1..line.__len() to int]];
-        let key = key_raw.trim();
-        let value = val_raw.trim();
-        if string_eq_ascii_ci(&key, "content-length") {
-            let len_res = uint.from_str(&value);
-            let mut len_ok: bool = true;
-            compare len_res {
-                Success(n) => {
-                    content_len = n;
-                    has_content_len = true;
-                    0:int;
-                }
-                err => {
-                    let _ = err;
-                    len_ok = false;
-                    0:int;
-                }
-            };
-            if !len_ok {
-                return http_error(HTTP_ERR_HEADER, "invalid content-length");
-            }
-        }
-        if string_eq_ascii_ci(&key, "transfer-encoding") {
-            if string_contains_ascii_ci(&value, "chunked") {
-                is_chunked = true;
-            }
-        }
-        headers.push(Header { key: key, value: value });
-        i = i + 1;
-    }
-
-    let mut body: BodyReader = body_reader_none();
-    if is_chunked {
-        let body_bytes = string_to_bytes(&body_str);
-        body = body_reader_chunked(body_bytes);
-    } else if has_content_len {
-        let body_bytes = string_to_bytes(&body_str);
-        let body_len: uint = body_bytes.__len();
-        if content_len > body_len {
-            return http_error(HTTP_ERR_BODY, "content-length exceeds body");
-        }
-        let slice = copy_bytes_range(body_bytes, 0, content_len to int);
-        body = body_reader_length(slice);
-    }
-
-    return Success(Request {
-        method: method,
-        target: target,
-        path: path,
-        query: query,
-        version: HttpVersion::Http11,
-        headers: headers,
-        body: body
-    });
-}
-
-fn parse_header_meta(head: &string, max_headers_count: uint) -> Erring<HeaderMeta, HttpError> {
-    let lines = head.split("\r\n");
-    let count: int = lines.__len() to int;
-    if count <= 0 {
-        return http_error(HTTP_ERR_PARSE, "empty request");
-    }
-    let mut content_len: uint = 0:uint;
-    let mut has_content_len: bool = false;
     let mut chunked: bool = false;
     let mut close: bool = false;
     let mut header_count: uint = 0:uint;
@@ -748,7 +696,7 @@ fn parse_header_meta(head: &string, max_headers_count: uint) -> Erring<HeaderMet
         }
         header_count = header_count + 1;
         if max_headers_count != 0:uint && header_count > max_headers_count {
-            return http_error(HTTP_ERR_HEADER, "too many headers");
+            return http_error(HTTP_ERR_HEADER_TOO_LARGE, "too many headers");
         }
         let colon: int = line.find(":");
         if colon < 0 {
@@ -787,10 +735,82 @@ fn parse_header_meta(head: &string, max_headers_count: uint) -> Erring<HeaderMet
                 close = true;
             }
         }
+        headers.push(Header { key: key, value: value });
         i = i + 1;
     }
     let meta: HeaderMeta = { content_len: content_len, has_content_len: has_content_len, chunked: chunked, close: close };
-    return Success(meta);
+    let out: ParsedHead = {
+        method: method,
+        target: target,
+        path: path,
+        query: query,
+        version: HttpVersion::Http11,
+        headers: headers,
+        meta: meta
+    };
+    return Success(out);
+}
+
+pub fn parse_request(raw: &string) -> Erring<Request, HttpError> {
+    let length: int = raw.__len() to int;
+    let header_end: int = find_double_crlf(raw);
+    if header_end < 0 {
+        return http_error(HTTP_ERR_PARSE, "missing header terminator");
+    }
+
+    let head_text = raw[[0..header_end]];
+    let body_str = raw[[header_end + 4..length]];
+    let head_res = parse_request_head(&head_text, 0:uint);
+    let mut parsed_head: ParsedHead = {
+        method = "",
+        target = "",
+        path = "",
+        query = "",
+        version = HttpVersion::Http11,
+        headers = [],
+        meta = { content_len = 0:uint, has_content_len = false, chunked = false, close = false }
+    };
+    let mut head_ok: bool = false;
+    let mut head_err: HttpError = http_error(HTTP_ERR_PARSE, "invalid request");
+    compare head_res {
+        Success(parsed) => {
+            parsed_head = parsed;
+            head_ok = true;
+            0:int;
+        }
+        err => {
+            head_err = err;
+            head_ok = false;
+            0:int;
+        }
+    };
+    if !head_ok {
+        return head_err;
+    }
+
+    let mut body: BodyReader = body_reader_none();
+    if parsed_head.meta.chunked {
+        let body_bytes = string_to_bytes(&body_str);
+        body = body_reader_chunked(body_bytes, 0:uint);
+    } else if parsed_head.meta.has_content_len {
+        let body_bytes = string_to_bytes(&body_str);
+        let body_len: uint = body_bytes.__len();
+        if parsed_head.meta.content_len > body_len {
+            return http_error(HTTP_ERR_BODY, "content-length exceeds body");
+        }
+        let slice = copy_bytes_range(body_bytes, 0, parsed_head.meta.content_len to int);
+        body = body_reader_length(slice);
+    }
+
+    return Success(Request {
+        method: parsed_head.method,
+        target: parsed_head.target,
+        path: parsed_head.path,
+        query: parsed_head.query,
+        version: parsed_head.version,
+        headers: parsed_head.headers,
+        body: body
+    });
 }
 
 fn headers_has_connection_close(headers: &Headers) -> bool {
@@ -831,14 +851,14 @@ fn try_parse_request(buf: &byte[], cfg: &ServerConfig) -> ParseResult {
     if header_end < 0 {
         let max_header: uint = cfg.max_header_bytes;
         if max_header != 0:uint && buf_len > (max_header to int) {
-            return ParseErr(http_error(HTTP_ERR_HEADER, "headers too large"));
+            return ParseErr(http_error(HTTP_ERR_HEADER_TOO_LARGE, "headers too large"));
         }
         return ParseMore();
     }
 
     let header_len: int = header_end + 4;
     if cfg.max_header_bytes != 0:uint && header_len > (cfg.max_header_bytes to int) {
-        return ParseErr(http_error(HTTP_ERR_HEADER, "headers too large"));
+        return ParseErr(http_error(HTTP_ERR_HEADER_TOO_LARGE, "headers too large"));
     }
 
     let head_bytes = copy_bytes_range(buf, 0, header_end);
@@ -861,29 +881,38 @@ fn try_parse_request(buf: &byte[], cfg: &ServerConfig) -> ParseResult {
     if !head_ok {
         return ParseErr(head_err);
     }
-    let meta_res = parse_header_meta(&head_str, cfg.max_headers_count);
-    let mut meta: HeaderMeta = { content_len: 0:uint, has_content_len: false, chunked: false, close: false };
-    let mut meta_ok: bool = false;
-    let mut meta_err: HttpError = http_error(HTTP_ERR_HEADER, "invalid header");
-    compare meta_res {
-        Success(hm) => {
-            meta = hm;
-            meta_ok = true;
+    let head_parse_res = parse_request_head(&head_str, cfg.max_headers_count);
+    let mut parsed_head: ParsedHead = {
+        method = "",
+        target = "",
+        path = "",
+        query = "",
+        version = HttpVersion::Http11,
+        headers = [],
+        meta = { content_len = 0:uint, has_content_len = false, chunked = false, close = false }
+    };
+    let mut parsed_ok: bool = false;
+    let mut parsed_err: HttpError = http_error(HTTP_ERR_PARSE, "invalid request");
+    compare head_parse_res {
+        Success(parsed) => {
+            parsed_head = parsed;
+            parsed_ok = true;
             0:int;
         }
         err => {
-            meta_err = err;
-            meta_ok = false;
+            parsed_err = err;
+            parsed_ok = false;
             0:int;
         }
     };
-    if !meta_ok {
-        return ParseErr(meta_err);
+    if !parsed_ok {
+        return ParseErr(parsed_err);
     }
 
+    let max_body: uint = cfg.max_body_bytes;
     let mut total_len: int = header_len;
-    if meta.chunked {
-        let chunk_res = find_chunked_end(buf, header_len to uint);
+    if parsed_head.meta.chunked {
+        let chunk_res = find_chunked_end(buf, header_len to uint, max_body);
         let mut chunk_end: uint = 0:uint;
         let mut chunk_ok: bool = false;
         let mut chunk_need_more: bool = false;
@@ -913,8 +942,11 @@ fn try_parse_request(buf: &byte[], cfg: &ServerConfig) -> ParseResult {
             return ParseErr(chunk_err);
         }
         total_len = chunk_end to int;
-    } else if meta.has_content_len {
-        total_len = header_len + (meta.content_len to int);
+    } else if parsed_head.meta.has_content_len {
+        if max_body != 0:uint && parsed_head.meta.content_len > max_body {
+            return ParseErr(http_error(HTTP_ERR_BODY_TOO_LARGE, "body too large"));
+        }
+        total_len = header_len + (parsed_head.meta.content_len to int);
         if buf_len < total_len {
             return ParseMore();
         }
@@ -924,77 +956,25 @@ fn try_parse_request(buf: &byte[], cfg: &ServerConfig) -> ParseResult {
         return ParseMore();
     }
 
-    let full_bytes = copy_bytes_range(buf, 0, total_len);
-    let full_res = bytes_to_ascii(&full_bytes);
-    let mut full_str: string = "";
-    let mut full_ok: bool = false;
-    let mut full_err: HttpError = http_error(HTTP_ERR_PARSE, "invalid utf-8");
-    compare full_res {
-        Success(text) => {
-            full_str = text;
-            full_ok = true;
-            0:int;
-        }
-        err => {
-            full_err = err;
-            full_ok = false;
-            0:int;
-        }
-    };
-    if !full_ok {
-        return ParseErr(full_err);
+    let mut body: BodyReader = body_reader_none();
+    if parsed_head.meta.chunked {
+        let body_bytes = copy_bytes_range(buf, header_len, total_len);
+        body = body_reader_chunked(body_bytes, max_body);
+    } else if parsed_head.meta.has_content_len {
+        let body_bytes = copy_bytes_range(buf, header_len, total_len);
+        body = body_reader_length(body_bytes);
     }
-    let req_res = parse_request(&full_str);
-    let mut req_opt: Option<Request> = nothing;
-    let mut req_err: HttpError = http_error(HTTP_ERR_PARSE, "invalid request");
-    let mut req_ok: bool = false;
-    compare req_res {
-        Success(req) => {
-            req_opt = Some(req);
-            req_ok = true;
-            0:int;
-        }
-        err => {
-            req_err = err;
-            req_ok = false;
-            0:int;
-        }
+    let req: Request = {
+        method: parsed_head.method,
+        target: parsed_head.target,
+        path: parsed_head.path,
+        query: parsed_head.query,
+        version: parsed_head.version,
+        headers: parsed_head.headers,
+        body: body
     };
-    if !req_ok {
-        return ParseErr(req_err);
-    }
-    let mut parsed_opt: Option<ParsedRequest> = nothing;
-    let mut parse_ok: bool = false;
-    let mut parse_err: HttpError = http_error(HTTP_ERR_PARSE, "invalid request");
-    compare req_opt {
-        Some(req) => {
-            let close: bool = headers_has_connection_close(&req.headers);
-            let parsed: ParsedRequest = { req: req, consumed: total_len to uint, close: close };
-            parsed_opt = Some(parsed);
-            parse_ok = true;
-            0:int;
-        }
-        nothing => {
-            parse_err = http_error(HTTP_ERR_PARSE, "invalid request");
-            parse_ok = false;
-            0:int;
-        }
-    };
-    if !parse_ok {
-        return ParseErr(parse_err);
-    }
-    let mut out: ParseResult = ParseMore();
-    compare parsed_opt {
-        Some(parsed) => {
-            out = ParseOk(parsed);
-            0:int;
-        }
-        nothing => {
-            out = ParseErr(http_error(HTTP_ERR_PARSE, "invalid request"));
-            0:int;
-        }
-    };
-    return out;
+    let parsed: ParsedRequest = { req: req, consumed: total_len to uint, close: parsed_head.meta.close };
+    return ParseOk(parsed);
 }
 
 extern<ByteStream> {
@@ -1065,8 +1045,17 @@ fn status_reason(status: int) -> string {
     if status == 400 {
         return "Bad Request";
     }
+    if status == 408 {
+        return "Request Timeout";
+    }
     if status == 404 {
         return "Not Found";
+    }
+    if status == 413 {
+        return "Payload Too Large";
+    }
+    if status == 431 {
+        return "Request Header Fields Too Large";
     }
     if status == 500 {
         return "Internal Server Error";
@@ -1181,6 +1170,14 @@ fn response_bad_request() -> Response {
     return response_empty(400);
 }
 
+fn response_from_error(err: &HttpError) -> Response {
+    let mut status: int = 400;
+    if err.code >= 400:uint && err.code <= 599:uint {
+        status = err.code to int;
+    }
+    return response_empty(status);
+}
+
 fn response_internal_error() -> Response {
     return response_empty(500);
 }
@@ -1259,7 +1256,7 @@ async fn read_into_buffer(conn: TcpConn, cap: uint, timeout_ms: uint) -> HttpRes
                 0:int;
             }
             Cancelled() => {
-                err_out = http_error(HTTP_ERR_BODY, "read timeout");
+                err_out = http_error(HTTP_ERR_TIMEOUT, "read timeout");
                 ok = false;
                 0:int;
             }
@@ -1292,7 +1289,7 @@ async fn read_into_buffer(conn: TcpConn, cap: uint, timeout_ms: uint) -> HttpRes
             0:int;
         }
         Cancelled() => {
-            err_out = http_error(HTTP_ERR_BODY, "read timeout");
+            err_out = http_error(HTTP_ERR_TIMEOUT, "read timeout");
             ok = false;
             0:int;
         }
@@ -1327,7 +1324,7 @@ async fn write_response_conn(conn: TcpConn, resp: Response, timeout_ms: uint) ->
                 0:int;
             }
             Cancelled() => {
-                err_out = http_error(HTTP_ERR_BODY, "write timeout");
+                err_out = http_error(HTTP_ERR_TIMEOUT, "write timeout");
                 ok = false;
                 0:int;
             }
@@ -1358,7 +1355,7 @@ async fn write_response_conn(conn: TcpConn, resp: Response, timeout_ms: uint) ->
             0:int;
         }
         Cancelled() => {
-            err_out = http_error(HTTP_ERR_BODY, "write timeout");
+            err_out = http_error(HTTP_ERR_TIMEOUT, "write timeout");
             ok = false;
             0:int;
         }
@@ -1420,11 +1417,11 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: Handler) -> nothi
                             break;
                         }
                         ParseErr(err) => {
-                            let _ = err;
+                            let resp = response_from_error(&err);
                             pending_in.push(QueueItem {
                                 kind: QUEUE_KIND_RESP,
                                 req: dummy_request(),
-                                resp: response_bad_request(),
+                                resp: resp,
                                 close: true
                             });
                             closing = true;
@@ -1449,11 +1446,11 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: Handler) -> nothi
                     let overflow_res = try_parse_request(&buffer, &cfg);
                     compare overflow_res {
                         ParseErr(err) => {
-                            let _ = err;
+                            let resp = response_from_error(&err);
                             pending_in.push(QueueItem {
                                 kind: QUEUE_KIND_RESP,
                                 req: dummy_request(),
-                                resp: response_bad_request(),
+                                resp: resp,
                                 close: true
                             });
                             closing = true;
@@ -1501,11 +1498,11 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: Handler) -> nothi
                                         }
                                     }
                                     err => {
-                                        let _ = err;
+                                        let resp = response_from_error(&err);
                                         pending_in.push(QueueItem {
                                             kind: QUEUE_KIND_RESP,
                                             req: dummy_request(),
-                                            resp: response_bad_request(),
+                                            resp: resp,
                                             close: true
                                         });
                                         closing = true;
@@ -1513,10 +1510,12 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: Handler) -> nothi
                                 };
                             }
                             Cancelled() => {
+                                let timeout_err = http_error(HTTP_ERR_TIMEOUT, "read cancelled");
+                                let resp = response_from_error(&timeout_err);
                                 pending_in.push(QueueItem {
                                     kind: QUEUE_KIND_RESP,
                                     req: dummy_request(),
-                                    resp: response_bad_request(),
+                                    resp: resp,
                                     close: true
                                 });
                                 closing = true;
@@ -1530,11 +1529,11 @@ async fn serve_conn(conn: TcpConn, cfg: ServerConfig, handler: Handler) -> nothi
                 compare parse_res {
                     ParseMore() => {}
                     ParseErr(err) => {
-                        let _ = err;
+                        let resp = response_from_error(&err);
                         pending_in.push(QueueItem {
                             kind: QUEUE_KIND_RESP,
                             req: dummy_request(),
-                            resp: response_bad_request(),
+                            resp: resp,
                             close: true
                         });
                         closing = true;

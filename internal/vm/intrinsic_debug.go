@@ -1,6 +1,10 @@
 package vm
 
 import (
+	"runtime"
+
+	"fortio.org/safecast"
+
 	"surge/internal/mir"
 	"surge/internal/types"
 	"surge/internal/vm/bignum"
@@ -128,9 +132,14 @@ func (vm *VM) handleWorkerCount(frame *Frame, call *mir.CallInstr, writes *[]Loc
 	}
 	dstLocal := call.Dst.Local
 	dstType := frame.Locals[dstLocal].TypeID
-	val := MakeInt(1, dstType)
+	n := runtime.NumCPU()
+	val := MakeInt(int64(n), dstType)
 	if kind, width, ok := vm.numericKind(dstType); ok && kind == types.KindUint && width == types.WidthAny {
-		val = vm.makeBigUint(dstType, bignum.UintFromUint64(1))
+		u64n, err := safecast.Conv[uint64](n)
+		if err != nil {
+			return vm.eb.invalidNumericConversion("rt_worker_count out of range") // but this should never happen... over 18*10^18 cores?
+		}
+		val = vm.makeBigUint(dstType, bignum.UintFromUint64(u64n))
 	}
 	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
 		return vmErr

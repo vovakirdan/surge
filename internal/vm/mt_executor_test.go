@@ -136,9 +136,24 @@ func parseSchedTrace(t *testing.T, stderr string) schedTrace {
 	return schedTrace{}
 }
 
+func mtScaledTimeout(t *testing.T, timeout time.Duration) time.Duration {
+	t.Helper()
+	// Allow CI to relax MT program timeouts without touching source.
+	raw := strings.TrimSpace(os.Getenv("SURGE_MT_TIMEOUT_SCALE"))
+	if raw == "" {
+		return timeout
+	}
+	scale, err := strconv.Atoi(raw)
+	if err != nil || scale < 1 {
+		t.Fatalf("invalid SURGE_MT_TIMEOUT_SCALE=%q", raw)
+	}
+	return time.Duration(scale) * timeout
+}
+
 func runBinaryWithTimeout(t *testing.T, outputPath string, env []string, timeout time.Duration) (time.Duration, runResult) {
 	t.Helper()
 	root := repoRoot(t)
+	timeout = mtScaledTimeout(t, timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, outputPath)
