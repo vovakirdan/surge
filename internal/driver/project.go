@@ -396,10 +396,6 @@ func collectImports(
 		}
 
 		if hasCandidate && !baseExists {
-			imports = append(imports, project.ImportMeta{
-				Path: normImport,
-				Span: item.Span,
-			})
 			continue
 		}
 
@@ -435,9 +431,27 @@ func moduleFileExists(fs *source.FileSet, baseDir, modulePath string) bool {
 		dirPath = filepath.Join(baseDir, dirPath)
 	}
 	if info, err := os.Stat(dirPath); err == nil && info.IsDir() {
-		return true
+		if dirHasModuleFiles(dirPath) {
+			return true
+		}
 	}
 
+	return false
+}
+
+func dirHasModuleFiles(dirPath string) bool {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return false
+	}
+	for _, ent := range entries {
+		if ent.IsDir() {
+			continue
+		}
+		if filepath.Ext(ent.Name()) == ".sg" {
+			return true
+		}
+	}
 	return false
 }
 

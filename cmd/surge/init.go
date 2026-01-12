@@ -135,6 +135,7 @@ func runInit(_ *cobra.Command, args []string) error {
 // The manifest contains [package] metadata and a [run] section pointing at main.sg.
 func buildDefaultManifest(name string) string {
 	// Minimal TOML manifest used as a project marker.
+	versionInfo := collectVersionInfo()
 	return fmt.Sprintf(`# Surge project manifest
 [package]
 name = "%s"
@@ -142,7 +143,13 @@ version = "0.1.0"
 
 [run]
 main = "main.sg"
-`, name)
+
+[version]
+version = %q
+commit = %q
+message = %q
+built = %q
+`, name, versionInfo.Version, versionInfo.GitCommit, versionInfo.GitMessage, versionInfo.BuildDate)
 }
 
 // defaultMainSG returns the default placeholder Surge program used when initializing a new project.
@@ -159,6 +166,7 @@ fn hello_world() -> string {
     return "Hello, Surge!";
 }
 
+@entrypoint
 fn main() {
     print(hello_world());
 }
