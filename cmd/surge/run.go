@@ -28,7 +28,7 @@ Arguments after "--" are passed to the program via rt_argv().`,
 }
 
 func init() {
-	runCmd.Flags().String("backend", string(buildpipeline.BackendLLVM), "execution backend (llvm, vm)")
+	runCmd.Flags().String("backend", string(buildpipeline.BackendVM), "execution backend (llvm, vm)")
 	runCmd.Flags().String("ui", "off", "user interface (auto|on|off)")
 	runCmd.Flags().Bool("vm-trace", false, "enable VM execution tracing")
 	runCmd.Flags().Bool("vm-debug", false, "enable VM debugger")

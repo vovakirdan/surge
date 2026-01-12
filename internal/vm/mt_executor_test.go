@@ -182,7 +182,15 @@ func runBinaryWithTimeout(t *testing.T, outputPath string, env []string, timeout
 	return dur, runResult{stdout: stdout, stderr: stderr, exitCode: exitCode}
 }
 
+func requireLLVMBackend(t *testing.T) {
+	t.Helper()
+	if testBackend(t) == backendVM {
+		t.Skipf("skipping MT executor test for %s=%s (VM is single-threaded)", backendEnvVar, backendVM)
+	}
+}
+
 func TestMTParallelism(t *testing.T) {
+	requireLLVMBackend(t)
 	ensureLLVMToolchain(t)
 	if runtime.NumCPU() < 2 {
 		t.Skip("parallelism test needs >=2 CPUs")
@@ -290,6 +298,7 @@ fn main() -> int {
 }
 
 func TestMTWakeupsAndCancellation(t *testing.T) {
+	requireLLVMBackend(t)
 	ensureLLVMToolchain(t)
 	t.Parallel()
 
@@ -370,6 +379,7 @@ fn main() -> int {
 }
 
 func TestMTChannelParkUnpark(t *testing.T) {
+	requireLLVMBackend(t)
 	ensureLLVMToolchain(t)
 	t.Parallel()
 
@@ -597,6 +607,7 @@ fn main() -> int {
 }
 
 func TestMTWorkStealing(t *testing.T) {
+	requireLLVMBackend(t)
 	ensureLLVMToolchain(t)
 	threads := mtThreadCount(t)
 	t.Parallel()
@@ -674,6 +685,7 @@ fn main() -> int {
 }
 
 func TestMTSeededScheduler(t *testing.T) {
+	requireLLVMBackend(t)
 	ensureLLVMToolchain(t)
 	threads := mtThreadCount(t)
 	t.Parallel()
