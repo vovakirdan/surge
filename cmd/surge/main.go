@@ -41,6 +41,7 @@ func main() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(buildCmd)
+	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(philosophyCmd)
 

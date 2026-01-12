@@ -4,14 +4,14 @@
 
 ## 📊 Main code (without tests)
 
-- **Files:** 607 (Go: 581, C: 26)
-- **Lines of code:** 137389 (Go: 125722, C: 11667)
+- **Files:** 608 (Go: 582, C: 26)
+- **Lines of code:** 137458 (Go: 125791, C: 11667)
 
 ## 📁 Directory breakdown
 
 | Directory | Files | Lines |
 |------------|--------|-------|
-| `cmd/` | 20 | 3597 |
+| `cmd/` | 21 | 3666 |
 | `internal/` | 560 | 122110 |
 | `runtime/native/` (C code) | 26 | 11667 |
 
@@ -37,8 +37,8 @@
 
 ## 📈 Total volume (code + tests)
 
-- **Files:** 726
-- **Lines of code:** 164410
+- **Files:** 727
+- **Lines of code:** 164479
 
 ## 📊 Percentage breakdown
 
