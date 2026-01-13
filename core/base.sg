@@ -73,7 +73,8 @@ pub fn print(s: string, end: string = "\n") -> nothing {
     let slen = rt_string_len_bytes(&s);
     rt_write_stdout(ptr, slen);
     let newline = end;
-    rt_write_stdout(rt_string_ptr(&newline), 1:uint);
+    let nlen = rt_string_len_bytes(&newline);
+    rt_write_stdout(rt_string_ptr(&newline), nlen);
 }
 
 pub fn len<T: HasLength<T>>(self: &T) -> uint {

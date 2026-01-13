@@ -207,6 +207,127 @@ func (l *funcLowerer) lowerConstValue(symID symbols.SymbolID, consume bool) (Ope
 	return op, true, nil
 }
 
+func (l *funcLowerer) calleeFunc(symID symbols.SymbolID) *hir.Func {
+	if l == nil || !symID.IsValid() || l.mono == nil || l.mono.FuncBySym == nil {
+		return nil
+	}
+	mf := l.mono.FuncBySym[symID]
+	if mf == nil || mf.Func == nil {
+		return nil
+	}
+	return mf.Func
+}
+
+func (l *funcLowerer) lowerCallArgs(e *hir.Expr, data hir.CallData) ([]Operand, error) {
+	fn := l.calleeFunc(data.SymbolID)
+	if fn == nil || len(data.Args) >= len(fn.Params) {
+		args := make([]Operand, 0, len(data.Args))
+		for _, a := range data.Args {
+			op, err := l.lowerExpr(a, true)
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, op)
+		}
+		return args, nil
+	}
+	return l.lowerCallArgsWithDefaults(e, data, fn)
+}
+
+func (l *funcLowerer) lowerCallArgsWithDefaults(e *hir.Expr, data hir.CallData, fn *hir.Func) ([]Operand, error) {
+	if l == nil || fn == nil {
+		return nil, nil
+	}
+	params := fn.Params
+	if len(data.Args) > len(params) {
+		args := make([]Operand, 0, len(data.Args))
+		for _, a := range data.Args {
+			op, err := l.lowerExpr(a, true)
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, op)
+		}
+		return args, nil
+	}
+
+	added := make([]symbols.SymbolID, 0, len(params))
+	replaced := make(map[symbols.SymbolID]LocalID, len(params))
+	bind := func(sym symbols.SymbolID, local LocalID) {
+		if !sym.IsValid() {
+			return
+		}
+		if prev, ok := l.symToLocal[sym]; ok {
+			if _, recorded := replaced[sym]; !recorded {
+				replaced[sym] = prev
+			}
+		} else {
+			added = append(added, sym)
+		}
+		l.symToLocal[sym] = local
+	}
+	restore := func() {
+		for sym, prev := range replaced {
+			l.symToLocal[sym] = prev
+		}
+		for _, sym := range added {
+			delete(l.symToLocal, sym)
+		}
+	}
+	defer restore()
+
+	args := make([]Operand, 0, len(params))
+	for i, argExpr := range data.Args {
+		op, err := l.lowerExpr(argExpr, true)
+		if err != nil {
+			return nil, err
+		}
+		span := e.Span
+		if argExpr != nil {
+			span = argExpr.Span
+		}
+		paramType := params[i].Type
+		if paramType == types.NoTypeID {
+			paramType = op.Type
+		}
+		tmp := l.newTemp(paramType, "arg", span)
+		l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+			Dst: Place{Local: tmp},
+			Src: RValue{Kind: RValueUse, Use: op},
+		}})
+		bind(params[i].SymbolID, tmp)
+		args = append(args, l.placeOperand(Place{Local: tmp}, paramType, true))
+	}
+
+	for i := len(data.Args); i < len(params); i++ {
+		param := params[i]
+		if !param.HasDefault || param.Default == nil {
+			name := param.Name
+			if name == "" {
+				name = fmt.Sprintf("#%d", i)
+			}
+			return nil, fmt.Errorf("mir: call: missing default for parameter %q", name)
+		}
+		op, err := l.lowerExpr(param.Default, true)
+		if err != nil {
+			return nil, err
+		}
+		paramType := param.Type
+		if paramType == types.NoTypeID {
+			paramType = op.Type
+		}
+		tmp := l.newTemp(paramType, "default", e.Span)
+		l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+			Dst: Place{Local: tmp},
+			Src: RValue{Kind: RValueUse, Use: op},
+		}})
+		bind(param.SymbolID, tmp)
+		args = append(args, l.placeOperand(Place{Local: tmp}, paramType, true))
+	}
+
+	return args, nil
+}
+
 // lowerCallExpr lowers a HIR call expression to MIR.
 func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) {
 	if l == nil || e == nil || e.Kind != hir.ExprCall {
@@ -231,13 +352,9 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 		}
 	}
 
-	args := make([]Operand, 0, len(data.Args))
-	for _, a := range data.Args {
-		op, err := l.lowerExpr(a, true)
-		if err != nil {
-			return Operand{}, err
-		}
-		args = append(args, op)
+	args, err := l.lowerCallArgs(e, data)
+	if err != nil {
+		return Operand{}, err
 	}
 
 	callee := Callee{Kind: CalleeSym, Sym: data.SymbolID}
