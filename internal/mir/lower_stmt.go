@@ -113,7 +113,7 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 			return fmt.Errorf("mir: return: unexpected payload %T", st.Data)
 		}
 		early := !data.IsTail
-		if len(l.returnStack) > 0 {
+		if len(l.returnStack) > 0 && data.IsImplicit {
 			ctx := l.returnStack[len(l.returnStack)-1]
 			if ctx.hasResult && data.Value != nil {
 				expected := types.NoTypeID

@@ -87,7 +87,8 @@ func normalizeCompareExpr(ctx *normCtx, e *Expr) error {
 						SymbolID: symbols.NoSymbolID,
 					},
 				},
-				IsTail: false,
+				IsTail:     false,
+				IsImplicit: true,
 			},
 		})
 	}
@@ -354,7 +355,7 @@ func resolveAlias(typesIn *types.Interner, id types.TypeID, depth int) types.Typ
 }
 
 func mkReturn(span source.Span, value *Expr) Stmt {
-	return Stmt{Kind: StmtReturn, Span: span, Data: ReturnData{Value: value, IsTail: false}}
+	return Stmt{Kind: StmtReturn, Span: span, Data: ReturnData{Value: value, IsTail: false, IsImplicit: true}}
 }
 
 func mkIf(span source.Span, cond *Expr, thenB *Block) Stmt {

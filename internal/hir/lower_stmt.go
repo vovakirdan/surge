@@ -65,10 +65,11 @@ func (l *lowerer) lowerStmt(stmtID ast.StmtID) *Stmt {
 		if retStmt != nil && retStmt.Expr.IsValid() {
 			value = l.lowerExpr(retStmt.Expr)
 		}
+		isImplicit := l.isImplicitReturnStmt(stmtID, retStmt)
 		return &Stmt{
 			Kind: StmtReturn,
 			Span: stmt.Span,
-			Data: ReturnData{Value: value, IsTail: false},
+			Data: ReturnData{Value: value, IsTail: false, IsImplicit: isImplicit},
 		}
 
 	case ast.StmtBreak:
@@ -115,6 +116,27 @@ func (l *lowerer) lowerStmt(stmtID ast.StmtID) *Stmt {
 	default:
 		return nil
 	}
+}
+
+func (l *lowerer) isImplicitReturnStmt(stmtID ast.StmtID, retStmt *ast.ReturnStmt) bool {
+	if l == nil || l.builder == nil || retStmt == nil {
+		return false
+	}
+	stmt := l.builder.Stmts.Get(stmtID)
+	if stmt == nil {
+		return false
+	}
+	if !retStmt.Expr.IsValid() {
+		return stmt.Span.Start == stmt.Span.End
+	}
+	expr := l.builder.Exprs.Get(retStmt.Expr)
+	if expr == nil {
+		return false
+	}
+	if stmt.Span.File != expr.Span.File {
+		return false
+	}
+	return stmt.Span.Start >= expr.Span.Start
 }
 
 // lowerLetStmt lowers a let statement.
@@ -377,7 +399,7 @@ func (l *lowerer) ensureExplicitReturn(fn *Func) {
 		fn.Body.Stmts = append(fn.Body.Stmts, Stmt{
 			Kind: StmtReturn,
 			Span: fn.Body.Span.ZeroideToEnd(),
-			Data: ReturnData{Value: nil, IsTail: true},
+			Data: ReturnData{Value: nil, IsTail: true, IsImplicit: false},
 		})
 		return
 	}
@@ -390,7 +412,7 @@ func (l *lowerer) ensureExplicitReturn(fn *Func) {
 			fn.Body.Stmts[len(fn.Body.Stmts)-1] = Stmt{
 				Kind: StmtReturn,
 				Span: lastStmt.Span,
-				Data: ReturnData{Value: exprData.Expr, IsTail: true},
+				Data: ReturnData{Value: exprData.Expr, IsTail: true, IsImplicit: false},
 			}
 		}
 	}

@@ -493,6 +493,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					tc.ensureBoolContext(arm.Guard, tc.exprSpan(arm.Guard))
 				}
 				armResult := tc.typeExpr(arm.Result)
+				if nothingType != types.NoTypeID && tc.compareArmIsExplicitReturn(arm.Result) {
+					armResult = nothingType
+				}
 				armTypes[i] = armResult
 				if armResult != types.NoTypeID {
 					switch {

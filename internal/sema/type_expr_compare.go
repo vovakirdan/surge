@@ -202,6 +202,39 @@ func (tc *typeChecker) isNamedBindingPattern(pattern ast.ExprID) bool {
 	return !tc.isTagConstructor(ident.Name)
 }
 
+// compareArmIsExplicitReturn reports whether a compare arm result is a block that
+// ends with an explicit "return" statement (not a synthetic block return).
+func (tc *typeChecker) compareArmIsExplicitReturn(result ast.ExprID) bool {
+	if !result.IsValid() || tc.builder == nil {
+		return false
+	}
+	expr := tc.builder.Exprs.Get(result)
+	if expr == nil || expr.Kind != ast.ExprBlock {
+		return false
+	}
+	block, ok := tc.builder.Exprs.Block(result)
+	if !ok || block == nil || len(block.Stmts) == 0 {
+		return false
+	}
+	stmtID := block.Stmts[len(block.Stmts)-1]
+	stmt := tc.builder.Stmts.Get(stmtID)
+	if stmt == nil || stmt.Kind != ast.StmtReturn {
+		return false
+	}
+	ret := tc.builder.Stmts.Return(stmtID)
+	if ret == nil {
+		return false
+	}
+	if !ret.Expr.IsValid() {
+		return true
+	}
+	retExpr := tc.builder.Exprs.Get(ret.Expr)
+	if retExpr == nil {
+		return true
+	}
+	return stmt.Span.Start < retExpr.Span.Start
+}
+
 // emitNonExhaustiveMatchForMembers reports a diagnostic for uncovered union members (tags, types, or nothing)
 func (tc *typeChecker) emitNonExhaustiveMatchForMembers(span source.Span, missing []types.UnionMember) {
 	if tc.reporter == nil || len(missing) == 0 {

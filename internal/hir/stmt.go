@@ -108,8 +108,9 @@ func (AssignData) stmtData() {}
 
 // ReturnData holds data for StmtReturn.
 type ReturnData struct {
-	Value  *Expr // nil for bare return
-	IsTail bool  // true if this return is the tail (normal) exit for a body
+	Value      *Expr // nil for bare return
+	IsTail     bool  // true if this return is the tail (normal) exit for a body
+	IsImplicit bool  // true if this is a synthesized block return
 }
 
 func (ReturnData) stmtData() {}
