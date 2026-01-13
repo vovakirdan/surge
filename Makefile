@@ -259,7 +259,7 @@ install: build
 
 # Системная установка (требует sudo)
 # Автоматически определяет правильные пути для macOS и Linux
-install-system: build
+install-system: # build
 	@echo ">> Detected OS: $(OS)"
 	@echo ">> Installing surge to $(SYSTEM_BINDIR) (requires sudo)"
 	@sudo mkdir -p $(SYSTEM_BINDIR)

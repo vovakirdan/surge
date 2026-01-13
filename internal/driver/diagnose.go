@@ -74,6 +74,7 @@ type DiagnoseOptions struct {
 	WarningsAsErrors   bool
 	NoAlienHints       bool // Disable extra alien-hint diagnostics (enabled by default)
 	BaseDir            string
+	ReadFile           func(string) ([]byte, error)
 	RootKind           project.ModuleKind
 	EnableTimings      bool
 	PhaseObserver      PhaseObserver
@@ -148,6 +149,9 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOpt
 	fs := source.NewFileSet()
 	if opts.BaseDir != "" {
 		fs.SetBaseDir(opts.BaseDir)
+	}
+	if opts.ReadFile != nil {
+		fs.SetReadFile(opts.ReadFile)
 	}
 	sharedTypes := types.NewInterner()
 	fileID, err := fs.Load(filePath)
@@ -486,7 +490,7 @@ func runModuleGraph(
 	defer graphSpan.End("")
 
 	baseDir := fs.BaseDir()
-	stdlibRoot := detectStdlibRoot()
+	stdlibRoot := detectStdlibRootFrom(fs.BaseDir())
 	reporter := &diag.BagReporter{Bag: bag}
 	dirPath := filepath.Dir(file.Path)
 	preloaded := map[string]ast.FileID{

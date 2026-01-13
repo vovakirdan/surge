@@ -43,6 +43,7 @@ func main() {
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(lspCmd)
 	rootCmd.AddCommand(philosophyCmd)
 
 	// Глобальные флаги
@@ -74,6 +75,9 @@ func isTerminal(f *os.File) bool {
 }
 
 func applyTimeout(cmd *cobra.Command, _ []string) error {
+	if cmd.Name() == "lsp" {
+		return nil
+	}
 	secs, err := cmd.Root().PersistentFlags().GetInt("timeout")
 	if err != nil {
 		return fmt.Errorf("failed to read timeout flag: %w", err)

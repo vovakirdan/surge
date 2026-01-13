@@ -43,7 +43,7 @@ func analyzeDependencyModule(
 		span.End(status)
 	}()
 
-	dirPath, err := resolveModuleDir(modulePath, baseDir, stdlibRoot)
+	dirPath, err := resolveModuleDir(modulePath, baseDir, stdlibRoot, opts.ReadFile)
 	if err != nil {
 		if errors.Is(err, errModuleNotFound) {
 			return nil, errModuleNotFound

@@ -16,6 +16,10 @@ not for people who love to fight compilers.**
 
 It'll be prettier with VScode extension: [Surge](https://marketplace.visualstudio.com/items?itemName=VladimirKirdan.surge-syntax-highlighting).
 
+For LSP features, use a generic LSP client extension and point it at `surge lsp` (stdio).
+Command: `surge`
+Args: `lsp`
+
 If you're too lazy to read the documentation (or you've already read it), let's write the first program on Surge right away.
 
 > **Note**

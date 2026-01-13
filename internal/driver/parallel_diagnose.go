@@ -29,6 +29,9 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptio
 	}
 
 	fileSet := source.NewFileSetWithBase(dir)
+	if opts.ReadFile != nil {
+		fileSet.SetReadFile(opts.ReadFile)
+	}
 	fileIDs := make(map[string]source.FileID, len(files))
 	loadErrors := make(map[string]error, len(files))
 

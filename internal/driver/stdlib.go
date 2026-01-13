@@ -11,11 +11,14 @@ const (
 	stdModuleCore = "core"
 )
 
-func detectStdlibRoot() string {
+func detectStdlibRootFrom(start string) string {
 	if root := resolveStdlibRoot(os.Getenv("SURGE_STDLIB")); root != "" {
 		return root
 	}
-	return resolveStdlibRootUpwards(".")
+	if start == "" {
+		start = "."
+	}
+	return resolveStdlibRootUpwards(start)
 }
 
 func resolveStdlibRootUpwards(start string) string {
