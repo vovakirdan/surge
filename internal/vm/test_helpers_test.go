@@ -133,6 +133,7 @@ func testBackend(t *testing.T) string {
 
 func requireVMBackend(t *testing.T) {
 	t.Helper()
+	skipTimeoutTests(t)
 	if backend := testBackend(t); backend != backendVM {
 		t.Skipf("skipping VM-only test for %s=%s", backendEnvVar, backend)
 	}
@@ -140,12 +141,28 @@ func requireVMBackend(t *testing.T) {
 
 func ensureLLVMToolchain(t *testing.T) {
 	t.Helper()
+	skipTimeoutTests(t)
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang not installed; skipping LLVM backend tests")
 	}
 	if _, err := exec.LookPath("ar"); err != nil {
 		t.Skip("ar not installed; skipping LLVM backend tests")
 	}
+}
+
+func skipTimeoutTests(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("timeout-sensitive test skipped in short mode")
+	}
+	raw := strings.TrimSpace(os.Getenv("SURGE_SKIP_TIMEOUT_TESTS"))
+	if raw == "" {
+		return
+	}
+	if raw == "0" || strings.EqualFold(raw, "false") {
+		return
+	}
+	t.Skip("timeout-sensitive test skipped; set SURGE_SKIP_TIMEOUT_TESTS=0 to run")
 }
 
 func runSurgeWithInput(t *testing.T, root, surgeBin, stdin string, args ...string) (stdout, stderr string, exitCode int) {

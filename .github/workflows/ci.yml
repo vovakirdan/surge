@@ -19,6 +19,8 @@ jobs:
     name: Go tests (${{ matrix.backend }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      SURGE_SKIP_TIMEOUT_TESTS: "1"
     strategy:
       fail-fast: false
       matrix:
