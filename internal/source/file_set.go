@@ -11,32 +11,41 @@ import (
 
 // FileSet manages a collection of source files and provides global byte offset resolution.
 type FileSet struct {
-	files   []File
-	index   map[string]FileID // path -> id
-	baseDir string            // базовая директория для относительных путей
+	files    []File
+	index    map[string]FileID // path -> id
+	baseDir  string            // базовая директория для относительных путей
+	readFile func(string) ([]byte, error)
 }
 
 // NewFileSet creates a new empty FileSet.
 func NewFileSet() *FileSet {
 	return &FileSet{
-		files:   make([]File, 0),
-		index:   make(map[string]FileID),
-		baseDir: "", // будет установлен при первом Load() или явно
+		files:    make([]File, 0),
+		index:    make(map[string]FileID),
+		baseDir:  "", // будет установлен при первом Load() или явно
+		readFile: nil,
 	}
 }
 
 // NewFileSetWithBase создаёт FileSet с заданной базовой директорией.
 func NewFileSetWithBase(baseDir string) *FileSet {
 	return &FileSet{
-		files:   make([]File, 0),
-		index:   make(map[string]FileID),
-		baseDir: baseDir,
+		files:    make([]File, 0),
+		index:    make(map[string]FileID),
+		baseDir:  baseDir,
+		readFile: nil,
 	}
 }
 
 // SetBaseDir устанавливает базовую директорию для относительных путей.
 func (fileSet *FileSet) SetBaseDir(dir string) {
 	fileSet.baseDir = dir
+}
+
+// SetReadFile configures a custom file reader used by Load.
+// When unset, Load falls back to os.ReadFile.
+func (fileSet *FileSet) SetReadFile(fn func(string) ([]byte, error)) {
+	fileSet.readFile = fn
 }
 
 // BaseDir возвращает текущую базовую директорию.
@@ -77,8 +86,12 @@ func (fileSet *FileSet) Add(path string, content []byte, flags FileFlags) FileID
 
 // Load reads a file from disk, normalizes CRLF/BOM, and calls Add.
 func (fileSet *FileSet) Load(path string) (FileID, error) {
+	readFile := fileSet.readFile
+	if readFile == nil {
+		readFile = os.ReadFile
+	}
 	// #nosec G304 -- path is provided by the caller
-	content, err := os.ReadFile(path)
+	content, err := readFile(path)
 	if err != nil {
 		return 0, err
 	}
@@ -105,6 +118,11 @@ func (fileSet *FileSet) AddVirtual(name string, content []byte) FileID {
 func (fileSet *FileSet) Get(id FileID) *File {
 	// TODO: optional bounds check in debug builds
 	return &fileSet.files[id]
+}
+
+// HasFile reports whether the given FileID is valid for this FileSet.
+func (fileSet *FileSet) HasFile(id FileID) bool {
+	return int(id) >= 0 && int(id) < len(fileSet.files)
 }
 
 // GetLatest returns the latest file ID for the given path, if it exists.

@@ -28,25 +28,25 @@ option.sg (span: 1:1-45:1)
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 16:59-21:6)
    │  │     └─ Stmt[0]: Expr (span: 17:9-20:11)
-   │  │        └─ Expr: expr#18: compare self { 1 arms }
+   │  │        └─ Expr: expr#20: compare self { 2 arms }
    │  ├─ Fn[2]: is_some
    │  │  ├─ Params: (self: &Option<T>)
    │  │  ├─ Return: bool
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 23:46-28:6)
    │  │     └─ Stmt[0]: Return (span: 24:9-27:11)
-   │  │        └─ Expr: expr#26: compare self { 2 arms }
+   │  │        └─ Expr: expr#28: compare self { 2 arms }
    │  ├─ Fn[3]: is_nothing
    │  │  ├─ Params: (self: &Option<T>)
    │  │  ├─ Return: bool
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 30:49-35:6)
    │  │     └─ Stmt[0]: Return (span: 31:9-34:11)
-   │  │        └─ Expr: expr#34: compare self { 2 arms }
+   │  │        └─ Expr: expr#36: compare self { 2 arms }
    │  └─ Fn[4]: __to
    │     ├─ Params: (self: &Option<T>, target: int)
    │     ├─ Return: int
    │     └─ Body:
    │        Stmt[0]: Block (span: 38:55-43:6)
    │        └─ Stmt[0]: Return (span: 39:9-42:11)
-   │           └─ Expr: expr#42: compare self { 2 arms }
+   │           └─ Expr: expr#44: compare self { 2 arms }

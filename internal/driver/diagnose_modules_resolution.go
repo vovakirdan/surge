@@ -2,6 +2,7 @@ package driver
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,9 +14,9 @@ import (
 
 // resolveModuleDir resolves a module path to a directory on the filesystem.
 // It tries stdlib root first for stdlib/core modules, then falls back to baseDir.
-func resolveModuleDir(modulePath, baseDir, stdlibRoot string) (string, error) {
+func resolveModuleDir(modulePath, baseDir, stdlibRoot string, readFile func(string) ([]byte, error)) (string, error) {
 	if stdlibRoot != "" && isStdlibModulePath(modulePath) {
-		dir, err := resolveModuleDirFromBase(modulePath, stdlibRoot)
+		dir, err := resolveModuleDirFromBase(modulePath, stdlibRoot, readFile)
 		if err == nil {
 			return dir, nil
 		}
@@ -23,7 +24,7 @@ func resolveModuleDir(modulePath, baseDir, stdlibRoot string) (string, error) {
 			return "", err
 		}
 	}
-	return resolveModuleDirFromBase(modulePath, baseDir)
+	return resolveModuleDirFromBase(modulePath, baseDir, readFile)
 }
 
 // resolveModuleDirFromBase resolves a module path relative to baseDir.
@@ -31,7 +32,7 @@ func resolveModuleDir(modulePath, baseDir, stdlibRoot string) (string, error) {
 // 1. Check if modulePath is a file path and return its directory
 // 2. Check if modulePath is a directory
 // 3. Search for explicit module declarations in the codebase
-func resolveModuleDirFromBase(modulePath, baseDir string) (string, error) {
+func resolveModuleDirFromBase(modulePath, baseDir string, readFile func(string) ([]byte, error)) (string, error) {
 	filePath := modulePathToFilePath(baseDir, modulePath)
 	if st, err := os.Stat(filePath); err == nil && !st.IsDir() {
 		return filepath.Dir(filePath), nil
@@ -44,7 +45,7 @@ func resolveModuleDirFromBase(modulePath, baseDir string) (string, error) {
 		return dirCandidate, nil
 	}
 	if name := filepath.Base(modulePath); name != "" {
-		if dir := findExplicitModuleDir(baseDir, modulePath, name); dir != "" {
+		if dir := findExplicitModuleDir(baseDir, modulePath, name, readFile); dir != "" {
 			return dir, nil
 		}
 	}
@@ -67,11 +68,17 @@ var explicitModuleDirCache struct {
 
 // findExplicitModuleDir searches for a module directory by scanning for
 // explicit module declarations (pragma module:: or pragma binary::) in .sg files.
-func findExplicitModuleDir(baseDir, modulePath, name string) string {
+func findExplicitModuleDir(baseDir, modulePath, name string, readFile func(string) ([]byte, error)) string {
 	if baseDir == "" || name == "" {
 		return ""
 	}
+	if readFile == nil {
+		readFile = os.ReadFile
+	}
 	cacheKey := baseDir
+	if readFile != nil {
+		cacheKey = fmt.Sprintf("%s|%p", baseDir, readFile)
+	}
 	explicitModuleDirCache.mu.Lock()
 	if explicitModuleDirCache.byBase != nil {
 		if m := explicitModuleDirCache.byBase[cacheKey]; m != nil {
@@ -102,7 +109,7 @@ func findExplicitModuleDir(baseDir, modulePath, name string) string {
 			return nil
 		}
 		// #nosec G304 -- path comes from filesystem walk
-		content, err := os.ReadFile(path)
+		content, err := readFile(path)
 		if err != nil {
 			return nil
 		}

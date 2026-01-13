@@ -7,9 +7,9 @@ async fn inc(x: int [copy]) -> int (id=1, sym=1371) {
 }
 
 async fn test() -> int (id=2, sym=1372) {
-  let t: type#1416 = spawn inc(5): type#1416: type#1416
+  let t: type#1417 = spawn inc(5): type#1417: type#1417
   return {
-    let __cmp1: type#1419 = await(t): type#1419
+    let __cmp1: type#1420 = await(t): type#1420
     if tag_test(__cmp1, Success): bool {
       let v: int [copy] = tag_payload(__cmp1, Success, 0): int
       return v

@@ -12,6 +12,7 @@ import (
 	"surge/internal/diagfmt"
 	"surge/internal/directive"
 	"surge/internal/driver"
+	driverdiag "surge/internal/driver/diagnose"
 	"surge/internal/hir"
 	"surge/internal/mir"
 	"surge/internal/mono"
@@ -227,7 +228,8 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	printHIR := emitHIR || emitBorrow
 	buildHIR := printHIR || emitMono || emitMIR
 	buildInstantiations := emitInstantiations || emitMono || emitMIR
-	opts := driver.DiagnoseOptions{
+	diagOpts := driverdiag.DiagnoseOptions{
+		ProjectRoot:        filePath,
 		Stage:              stage,
 		MaxDiagnostics:     maxDiagnostics,
 		IgnoreWarnings:     noWarnings,
@@ -263,9 +265,16 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	)
 
 	runFile := func() (int, error) {
-		result, err := driver.DiagnoseWithOptions(cmd.Context(), filePath, &opts)
+		diagRunOpts := diagOpts
+		workspace := driverdiag.WorkspaceResult{}
+		diagRunOpts.Result = &workspace
+		_, err := driverdiag.DiagnoseWorkspace(cmd.Context(), &diagRunOpts, driverdiag.FileOverlay{})
 		if err != nil {
 			return 0, fmt.Errorf("diagnosis failed: %w", err)
+		}
+		result := workspace.FileResult
+		if result == nil {
+			return 0, fmt.Errorf("diagnosis failed: missing file results")
 		}
 
 		exit := 0
@@ -450,10 +459,19 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			return 0, fmt.Errorf("failed to get jobs flag: %w", err)
 		}
 
-		fs, results, err := driver.DiagnoseDirWithOptions(cmd.Context(), filePath, &opts, jobs)
+		diagRunOpts := diagOpts
+		diagRunOpts.Jobs = jobs
+		workspace := driverdiag.WorkspaceResult{}
+		diagRunOpts.Result = &workspace
+		_, err = driverdiag.DiagnoseWorkspace(cmd.Context(), &diagRunOpts, driverdiag.FileOverlay{})
 		if err != nil {
 			return 0, fmt.Errorf("diagnosis failed: %w", err)
 		}
+		if workspace.Mode != driverdiag.WorkspaceModeDir {
+			return 0, fmt.Errorf("diagnosis failed: expected directory results")
+		}
+		fs := workspace.DirFileSet
+		results := workspace.DirResults
 
 		exit := 0
 		for _, r := range results {

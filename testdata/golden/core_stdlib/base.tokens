@@ -416,96 +416,109 @@
 416: Ident           "s" at 71:14-71:15
 417: Colon           ":" at 71:15-71:16
 418: Ident           "string" at 71:17-71:23 (leading: Space)
-419: RParen          ")" at 71:23-71:24
-420: Arrow           "->" at 71:25-71:27 (leading: Space)
-421: NothingLit      "nothing" at 71:28-71:35 (leading: Space)
-422: LBrace          "{" at 71:36-71:37 (leading: Space)
-423: KwLet           "let" at 72:5-72:8 (leading: Newline, Space)
-424: Ident           "ptr" at 72:9-72:12 (leading: Space)
-425: Assign          "=" at 72:13-72:14 (leading: Space)
-426: Ident           "rt_string_ptr" at 72:15-72:28 (leading: Space)
-427: LParen          "(" at 72:28-72:29
-428: Amp             "&" at 72:29-72:30
-429: Ident           "s" at 72:30-72:31
-430: RParen          ")" at 72:31-72:32
-431: Semicolon       ";" at 72:32-72:33
-432: KwLet           "let" at 73:5-73:8 (leading: Newline, Space)
-433: Ident           "slen" at 73:9-73:13 (leading: Space)
-434: Assign          "=" at 73:14-73:15 (leading: Space)
-435: Ident           "rt_string_len_bytes" at 73:16-73:35 (leading: Space)
-436: LParen          "(" at 73:35-73:36
-437: Amp             "&" at 73:36-73:37
-438: Ident           "s" at 73:37-73:38
-439: RParen          ")" at 73:38-73:39
-440: Semicolon       ";" at 73:39-73:40
-441: Ident           "rt_write_stdout" at 74:5-74:20 (leading: Newline, Space)
-442: LParen          "(" at 74:20-74:21
-443: Ident           "ptr" at 74:21-74:24
-444: Comma           "," at 74:24-74:25
-445: Ident           "slen" at 74:26-74:30 (leading: Space)
-446: RParen          ")" at 74:30-74:31
-447: Semicolon       ";" at 74:31-74:32
-448: KwLet           "let" at 75:5-75:8 (leading: Newline, Space)
-449: Ident           "newline" at 75:9-75:16 (leading: Space)
-450: Assign          "=" at 75:17-75:18 (leading: Space)
-451: StringLit       "\"\\n\"" at 75:19-75:23 (leading: Space)
-452: Semicolon       ";" at 75:23-75:24
-453: Ident           "rt_write_stdout" at 76:5-76:20 (leading: Newline, Space)
-454: LParen          "(" at 76:20-76:21
-455: Ident           "rt_string_ptr" at 76:21-76:34
-456: LParen          "(" at 76:34-76:35
-457: Amp             "&" at 76:35-76:36
-458: Ident           "newline" at 76:36-76:43
-459: RParen          ")" at 76:43-76:44
-460: Comma           "," at 76:44-76:45
-461: IntLit          "1" at 76:46-76:47 (leading: Space)
-462: Colon           ":" at 76:47-76:48
-463: Ident           "uint" at 76:48-76:52
-464: RParen          ")" at 76:52-76:53
-465: Semicolon       ";" at 76:53-76:54
-466: RBrace          "}" at 77:1-77:2 (leading: Newline)
-467: KwPub           "pub" at 79:1-79:4 (leading: Newline)
-468: KwFn            "fn" at 79:5-79:7 (leading: Space)
-469: Ident           "len" at 79:8-79:11 (leading: Space)
-470: Lt              "<" at 79:11-79:12
-471: Ident           "T" at 79:12-79:13
-472: Colon           ":" at 79:13-79:14
-473: Ident           "HasLength" at 79:15-79:24 (leading: Space)
-474: Lt              "<" at 79:24-79:25
-475: Ident           "T" at 79:25-79:26
-476: Shr             ">>" at 79:26-79:28
-477: LParen          "(" at 79:28-79:29
-478: Ident           "self" at 79:29-79:33
-479: Colon           ":" at 79:33-79:34
-480: Amp             "&" at 79:35-79:36 (leading: Space)
-481: Ident           "T" at 79:36-79:37
-482: RParen          ")" at 79:37-79:38
-483: Arrow           "->" at 79:39-79:41 (leading: Space)
-484: Ident           "uint" at 79:42-79:46 (leading: Space)
-485: LBrace          "{" at 79:47-79:48 (leading: Space)
-486: KwReturn        "return" at 80:5-80:11 (leading: Newline, Space)
-487: Ident           "self" at 80:12-80:16 (leading: Space)
-488: Dot             "." at 80:16-80:17
-489: Ident           "__len" at 80:17-80:22
-490: LParen          "(" at 80:22-80:23
-491: RParen          ")" at 80:23-80:24
-492: Semicolon       ";" at 80:24-80:25
-493: RBrace          "}" at 81:1-81:2 (leading: Newline)
-494: At              "@" at 86:1-86:2 (leading: Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
-495: Ident           "intrinsic" at 86:2-86:11
-496: KwPub           "pub" at 87:1-87:4 (leading: Newline)
-497: KwFn            "fn" at 87:5-87:7 (leading: Space)
-498: Ident           "clone" at 87:8-87:13 (leading: Space)
-499: Lt              "<" at 87:13-87:14
-500: Ident           "T" at 87:14-87:15
-501: Gt              ">" at 87:15-87:16
-502: LParen          "(" at 87:16-87:17
-503: Ident           "value" at 87:17-87:22
-504: Colon           ":" at 87:22-87:23
-505: Amp             "&" at 87:24-87:25 (leading: Space)
-506: Ident           "T" at 87:25-87:26
-507: RParen          ")" at 87:26-87:27
-508: Arrow           "->" at 87:28-87:30 (leading: Space)
-509: Ident           "T" at 87:31-87:32 (leading: Space)
-510: Semicolon       ";" at 87:32-87:33
-511: EOF             at 88:1-88:1
+419: Comma           "," at 71:23-71:24
+420: Ident           "end" at 71:25-71:28 (leading: Space)
+421: Colon           ":" at 71:28-71:29
+422: Ident           "string" at 71:30-71:36 (leading: Space)
+423: Assign          "=" at 71:37-71:38 (leading: Space)
+424: StringLit       "\"\\n\"" at 71:39-71:43 (leading: Space)
+425: RParen          ")" at 71:43-71:44
+426: Arrow           "->" at 71:45-71:47 (leading: Space)
+427: NothingLit      "nothing" at 71:48-71:55 (leading: Space)
+428: LBrace          "{" at 71:56-71:57 (leading: Space)
+429: KwLet           "let" at 72:5-72:8 (leading: Newline, Space)
+430: Ident           "ptr" at 72:9-72:12 (leading: Space)
+431: Assign          "=" at 72:13-72:14 (leading: Space)
+432: Ident           "rt_string_ptr" at 72:15-72:28 (leading: Space)
+433: LParen          "(" at 72:28-72:29
+434: Amp             "&" at 72:29-72:30
+435: Ident           "s" at 72:30-72:31
+436: RParen          ")" at 72:31-72:32
+437: Semicolon       ";" at 72:32-72:33
+438: KwLet           "let" at 73:5-73:8 (leading: Newline, Space)
+439: Ident           "slen" at 73:9-73:13 (leading: Space)
+440: Assign          "=" at 73:14-73:15 (leading: Space)
+441: Ident           "rt_string_len_bytes" at 73:16-73:35 (leading: Space)
+442: LParen          "(" at 73:35-73:36
+443: Amp             "&" at 73:36-73:37
+444: Ident           "s" at 73:37-73:38
+445: RParen          ")" at 73:38-73:39
+446: Semicolon       ";" at 73:39-73:40
+447: Ident           "rt_write_stdout" at 74:5-74:20 (leading: Newline, Space)
+448: LParen          "(" at 74:20-74:21
+449: Ident           "ptr" at 74:21-74:24
+450: Comma           "," at 74:24-74:25
+451: Ident           "slen" at 74:26-74:30 (leading: Space)
+452: RParen          ")" at 74:30-74:31
+453: Semicolon       ";" at 74:31-74:32
+454: KwLet           "let" at 75:5-75:8 (leading: Newline, Space)
+455: Ident           "newline" at 75:9-75:16 (leading: Space)
+456: Assign          "=" at 75:17-75:18 (leading: Space)
+457: Ident           "end" at 75:19-75:22 (leading: Space)
+458: Semicolon       ";" at 75:22-75:23
+459: KwLet           "let" at 76:5-76:8 (leading: Newline, Space)
+460: Ident           "nlen" at 76:9-76:13 (leading: Space)
+461: Assign          "=" at 76:14-76:15 (leading: Space)
+462: Ident           "rt_string_len_bytes" at 76:16-76:35 (leading: Space)
+463: LParen          "(" at 76:35-76:36
+464: Amp             "&" at 76:36-76:37
+465: Ident           "newline" at 76:37-76:44
+466: RParen          ")" at 76:44-76:45
+467: Semicolon       ";" at 76:45-76:46
+468: Ident           "rt_write_stdout" at 77:5-77:20 (leading: Newline, Space)
+469: LParen          "(" at 77:20-77:21
+470: Ident           "rt_string_ptr" at 77:21-77:34
+471: LParen          "(" at 77:34-77:35
+472: Amp             "&" at 77:35-77:36
+473: Ident           "newline" at 77:36-77:43
+474: RParen          ")" at 77:43-77:44
+475: Comma           "," at 77:44-77:45
+476: Ident           "nlen" at 77:46-77:50 (leading: Space)
+477: RParen          ")" at 77:50-77:51
+478: Semicolon       ";" at 77:51-77:52
+479: RBrace          "}" at 78:1-78:2 (leading: Newline)
+480: KwPub           "pub" at 80:1-80:4 (leading: Newline)
+481: KwFn            "fn" at 80:5-80:7 (leading: Space)
+482: Ident           "len" at 80:8-80:11 (leading: Space)
+483: Lt              "<" at 80:11-80:12
+484: Ident           "T" at 80:12-80:13
+485: Colon           ":" at 80:13-80:14
+486: Ident           "HasLength" at 80:15-80:24 (leading: Space)
+487: Lt              "<" at 80:24-80:25
+488: Ident           "T" at 80:25-80:26
+489: Shr             ">>" at 80:26-80:28
+490: LParen          "(" at 80:28-80:29
+491: Ident           "self" at 80:29-80:33
+492: Colon           ":" at 80:33-80:34
+493: Amp             "&" at 80:35-80:36 (leading: Space)
+494: Ident           "T" at 80:36-80:37
+495: RParen          ")" at 80:37-80:38
+496: Arrow           "->" at 80:39-80:41 (leading: Space)
+497: Ident           "uint" at 80:42-80:46 (leading: Space)
+498: LBrace          "{" at 80:47-80:48 (leading: Space)
+499: KwReturn        "return" at 81:5-81:11 (leading: Newline, Space)
+500: Ident           "self" at 81:12-81:16 (leading: Space)
+501: Dot             "." at 81:16-81:17
+502: Ident           "__len" at 81:17-81:22
+503: LParen          "(" at 81:22-81:23
+504: RParen          ")" at 81:23-81:24
+505: Semicolon       ";" at 81:24-81:25
+506: RBrace          "}" at 82:1-82:2 (leading: Newline)
+507: At              "@" at 87:1-87:2 (leading: Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+508: Ident           "intrinsic" at 87:2-87:11
+509: KwPub           "pub" at 88:1-88:4 (leading: Newline)
+510: KwFn            "fn" at 88:5-88:7 (leading: Space)
+511: Ident           "clone" at 88:8-88:13 (leading: Space)
+512: Lt              "<" at 88:13-88:14
+513: Ident           "T" at 88:14-88:15
+514: Gt              ">" at 88:15-88:16
+515: LParen          "(" at 88:16-88:17
+516: Ident           "value" at 88:17-88:22
+517: Colon           ":" at 88:22-88:23
+518: Amp             "&" at 88:24-88:25 (leading: Space)
+519: Ident           "T" at 88:25-88:26
+520: RParen          ")" at 88:26-88:27
+521: Arrow           "->" at 88:28-88:30 (leading: Space)
+522: Ident           "T" at 88:31-88:32 (leading: Space)
+523: Semicolon       ";" at 88:32-88:33
+524: EOF             at 89:1-89:1

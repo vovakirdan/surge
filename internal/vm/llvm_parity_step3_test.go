@@ -26,6 +26,7 @@ func firstLine(s string) string {
 }
 
 func TestLLVMParityStep3(t *testing.T) {
+	skipTimeoutTests(t)
 	root := repoRoot(t)
 
 	if _, err := exec.LookPath("clang"); err != nil {

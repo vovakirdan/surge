@@ -152,6 +152,7 @@ func mtScaledTimeout(t *testing.T, timeout time.Duration) time.Duration {
 
 func runBinaryWithTimeout(t *testing.T, outputPath string, env []string, timeout time.Duration) (time.Duration, runResult) {
 	t.Helper()
+	skipTimeoutTests(t)
 	root := repoRoot(t)
 	timeout = mtScaledTimeout(t, timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

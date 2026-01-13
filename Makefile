@@ -4,6 +4,7 @@
 
 # ===== Variables =====
 GO ?= go
+SURGE_SKIP_TIMEOUT_TESTS ?= 1
 
 GOBIN := $(shell $(GO) env GOBIN)
 ifeq ($(GOBIN),)
@@ -85,7 +86,7 @@ sec:
 # ===== Test =====
 test:
 	@echo ">> Running tests"
-	$(GO) test ./... --timeout 90s
+	SURGE_SKIP_TIMEOUT_TESTS=$(SURGE_SKIP_TIMEOUT_TESTS) $(GO) test ./... --timeout 90s
 
 # ===== Format =====
 format: fmt

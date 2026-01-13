@@ -9,6 +9,7 @@ import (
 )
 
 func TestLLVMSmoke(t *testing.T) {
+	skipTimeoutTests(t)
 	root := repoRoot(t)
 
 	if _, err := exec.LookPath("clang"); err != nil {

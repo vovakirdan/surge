@@ -30,7 +30,9 @@ func runClean(_ *cobra.Command, args []string) error {
 	info, err := os.Stat(targetDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			_, _ = fmt.Fprintf(os.Stdout, "target directory not found\n")
+			if _, printErr := fmt.Fprintf(os.Stdout, "target directory not found\n"); printErr != nil {
+				return fmt.Errorf("failed to print message: %w", printErr)
+			}
 			return nil
 		}
 		return fmt.Errorf("failed to stat %q: %w", targetDir, err)
@@ -41,7 +43,9 @@ func runClean(_ *cobra.Command, args []string) error {
 	if err := os.RemoveAll(targetDir); err != nil {
 		return fmt.Errorf("failed to remove %q: %w", targetDir, err)
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "removed %s\n", formatPathForOutput(baseDir, targetDir))
+	if _, printErr := fmt.Fprintf(os.Stdout, "removed %s\n", formatPathForOutput(baseDir, targetDir)); printErr != nil {
+		return fmt.Errorf("failed to print message: %w", printErr)
+	}
 	return nil
 }
 

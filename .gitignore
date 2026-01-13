@@ -41,6 +41,7 @@ target/
 
 # Surge project
 helloworld/
+surgesqlite/
 
 surge
 !cmd/surge

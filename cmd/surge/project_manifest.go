@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"surge/internal/project"
 )
 
 const noSurgeTomlMessage = "no surge.toml found; pass explicit module/file or create surge.toml"
@@ -31,32 +33,8 @@ type runConfig struct {
 	Main string `toml:"main"`
 }
 
-func findSurgeToml(startDir string) (path string, ok bool, err error) {
-	if startDir == "" {
-		startDir = "."
-	}
-	dir, err := filepath.Abs(startDir)
-	if err != nil {
-		return "", false, fmt.Errorf("failed to resolve start directory: %w", err)
-	}
-	for {
-		candidate := filepath.Join(dir, "surge.toml")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, true, nil
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return "", false, fmt.Errorf("failed to stat %q: %w", candidate, err)
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	return "", false, nil
-}
-
 func loadProjectManifest(startDir string) (*projectManifest, bool, error) {
-	manifestPath, ok, err := findSurgeToml(startDir)
+	manifestPath, ok, err := project.FindSurgeToml(startDir)
 	if err != nil || !ok {
 		return nil, ok, err
 	}

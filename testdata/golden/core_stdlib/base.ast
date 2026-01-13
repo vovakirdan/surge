@@ -1,4 +1,4 @@
-base.sg (span: 1:1-88:1)
+base.sg (span: 1:1-89:1)
 ├─ Item[0]: Extern (span: 5:1-7:2)
 │  ├─ Target: bool
 │  ├─ Members:
@@ -159,41 +159,46 @@ base.sg (span: 1:1-88:1)
 │  │        Stmt[0]: Block (span: 66:42-66:75)
 │  │        └─ Stmt[0]: Return (span: 66:44-66:73)
 │  │           └─ Expr: expr#65: (self != ((0.0) to float64))
-├─ Item[16]: Fn (span: 71:1-77:2)
+├─ Item[16]: Fn (span: 71:1-78:2)
 │  ├─ Name: print
-│  ├─ Params: (s: string)
+│  ├─ Params: (s: string, end: string = "\n")
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 71:36-77:2)
+│     └─ Stmt[0]: Block (span: 71:56-78:2)
 │        ├─ Stmt[0]: Let (span: 72:5-72:33)
 │        │  ├─ Name: ptr
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
-│        │  └─ Value: expr#69: rt_string_ptr(&s)
+│        │  └─ Value: expr#70: rt_string_ptr(&s)
 │        ├─ Stmt[1]: Let (span: 73:5-73:40)
 │        │  ├─ Name: slen
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
-│        │  └─ Value: expr#73: rt_string_len_bytes(&s)
+│        │  └─ Value: expr#74: rt_string_len_bytes(&s)
 │        ├─ Stmt[2]: Expr (span: 74:5-74:32)
-│        │  └─ Expr: expr#77: rt_write_stdout(ptr, slen)
-│        ├─ Stmt[3]: Let (span: 75:5-75:24)
+│        │  └─ Expr: expr#78: rt_write_stdout(ptr, slen)
+│        ├─ Stmt[3]: Let (span: 75:5-75:23)
 │        │  ├─ Name: newline
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
-│        │  └─ Value: expr#78: "\n"
-│        └─ Stmt[4]: Expr (span: 76:5-76:54)
-│           └─ Expr: expr#86: rt_write_stdout(rt_string_ptr(&newline), 1 to uint)
-├─ Item[17]: Fn (span: 79:1-81:2)
+│        │  └─ Value: expr#79: end
+│        ├─ Stmt[4]: Let (span: 76:5-76:46)
+│        │  ├─ Name: nlen
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#83: rt_string_len_bytes(&newline)
+│        └─ Stmt[5]: Expr (span: 77:5-77:52)
+│           └─ Expr: expr#90: rt_write_stdout(rt_string_ptr(&newline), nlen)
+├─ Item[17]: Fn (span: 80:1-82:2)
 │  ├─ Name: len
 │  ├─ Generics: <T>
 │  ├─ Params: (self: &T)
 │  ├─ Return: uint
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 79:47-81:2)
-│        └─ Stmt[0]: Return (span: 80:5-80:25)
-│           └─ Expr: expr#89: self.__len()
-└─ Item[18]: Fn (span: 86:1-87:33)
+│     └─ Stmt[0]: Block (span: 80:47-82:2)
+│        └─ Stmt[0]: Return (span: 81:5-81:25)
+│           └─ Expr: expr#93: self.__len()
+└─ Item[18]: Fn (span: 87:1-88:33)
    ├─ Name: clone
    ├─ Generics: <T>
    ├─ Params: (value: &T)
