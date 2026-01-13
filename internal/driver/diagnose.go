@@ -83,6 +83,7 @@ type DiagnoseOptions struct {
 	DirectiveFilter    []string             // Directive namespaces to process (empty = all)
 	EmitHIR            bool                 // Build HIR (High-level IR) from AST + sema
 	EmitInstantiations bool                 // Capture generic instantiation map (sema artefact)
+	KeepArtifacts      bool                 // Retain AST/symbol/semantic data (for analysis snapshots)
 }
 
 // Diagnose запускает диагностику файла до указанного уровня

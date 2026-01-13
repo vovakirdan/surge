@@ -43,6 +43,11 @@ type versionedTextDocumentIdentifier struct {
 	Version int    `json:"version"`
 }
 
+type textDocumentPositionParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+	Position     position               `json:"position"`
+}
+
 type position struct {
 	Line      int `json:"line"`
 	Character int `json:"character"`
@@ -87,7 +92,10 @@ type saveOptions struct {
 }
 
 type serverCapabilities struct {
-	TextDocumentSync textDocumentSyncOptions `json:"textDocumentSync"`
+	TextDocumentSync   textDocumentSyncOptions `json:"textDocumentSync"`
+	HoverProvider      bool                    `json:"hoverProvider,omitempty"`
+	DefinitionProvider bool                    `json:"definitionProvider,omitempty"`
+	InlayHintProvider  *inlayHintOptions       `json:"inlayHintProvider,omitempty"`
 }
 
 type initializeResult struct {
@@ -105,4 +113,57 @@ type lspDiagnostic struct {
 	Code     string   `json:"code,omitempty"`
 	Source   string   `json:"source,omitempty"`
 	Message  string   `json:"message"`
+}
+
+type hoverParams textDocumentPositionParams
+
+type markupContent struct {
+	Kind  string `json:"kind"`
+	Value string `json:"value"`
+}
+
+type hover struct {
+	Contents markupContent `json:"contents"`
+	Range    *lspRange     `json:"range,omitempty"`
+}
+
+type inlayHintParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+	Range        lspRange               `json:"range"`
+}
+
+type inlayHintOptions struct {
+	ResolveProvider bool `json:"resolveProvider,omitempty"`
+}
+
+type inlayHint struct {
+	Position     position `json:"position"`
+	Label        string   `json:"label"`
+	Kind         int      `json:"kind,omitempty"`
+	PaddingLeft  bool     `json:"paddingLeft,omitempty"`
+	PaddingRight bool     `json:"paddingRight,omitempty"`
+}
+
+type definitionParams textDocumentPositionParams
+
+type location struct {
+	URI   string   `json:"uri"`
+	Range lspRange `json:"range"`
+}
+
+type didChangeConfigurationParams struct {
+	Settings json.RawMessage `json:"settings"`
+}
+
+type lspSettings struct {
+	Surge surgeSettings `json:"surge"`
+}
+
+type surgeSettings struct {
+	InlayHints inlayHintsSettings `json:"inlayHints"`
+}
+
+type inlayHintsSettings struct {
+	LetTypes    *bool `json:"letTypes,omitempty"`
+	HideObvious *bool `json:"hideObvious,omitempty"`
 }

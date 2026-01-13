@@ -24,13 +24,13 @@ var (
 	ErrExitWithoutShutdown = errors.New("lsp exit without shutdown")
 )
 
-// DiagnoseFunc runs workspace diagnostics for the LSP server.
-type DiagnoseFunc func(ctx context.Context, opts *diagnose.DiagnoseOptions, overlay diagnose.FileOverlay) ([]diagnose.Diagnostic, error)
+// AnalyzeFunc runs workspace diagnostics and returns an analysis snapshot.
+type AnalyzeFunc func(ctx context.Context, opts *diagnose.DiagnoseOptions, overlay diagnose.FileOverlay) (*diagnose.AnalysisSnapshot, []diagnose.Diagnostic, error)
 
 // ServerOptions configures LSP server behavior.
 type ServerOptions struct {
 	Debounce       time.Duration
-	Diagnose       DiagnoseFunc
+	Analyze        AnalyzeFunc
 	MaxDiagnostics int
 }
 
@@ -50,9 +50,12 @@ type Server struct {
 	debounceTimer     *time.Timer
 	diagCancel        context.CancelFunc
 	diagSeq           int64
-	diagnose          DiagnoseFunc
+	analyze           AnalyzeFunc
 	maxDiagnostics    int
 	baseCtx           context.Context
+	lastSnapshot      *diagnose.AnalysisSnapshot
+	snapshotVersion   int64
+	inlayHints        inlayHintConfig
 }
 
 // NewServer constructs a new LSP server.
@@ -61,9 +64,9 @@ func NewServer(in io.Reader, out io.Writer, opts ServerOptions) *Server {
 	if debounce <= 0 {
 		debounce = 300 * time.Millisecond
 	}
-	diagnoseFn := opts.Diagnose
-	if diagnoseFn == nil {
-		diagnoseFn = diagnose.DiagnoseWorkspace
+	analyzeFn := opts.Analyze
+	if analyzeFn == nil {
+		analyzeFn = diagnose.AnalyzeWorkspace
 	}
 	maxDiagnostics := opts.MaxDiagnostics
 	if maxDiagnostics <= 0 {
@@ -76,8 +79,9 @@ func NewServer(in io.Reader, out io.Writer, opts ServerOptions) *Server {
 		versions:       make(map[string]int),
 		published:      make(map[string]struct{}),
 		debounce:       debounce,
-		diagnose:       diagnoseFn,
+		analyze:        analyzeFn,
 		maxDiagnostics: maxDiagnostics,
+		inlayHints:     defaultInlayHintConfig(),
 	}
 }
 
@@ -122,6 +126,8 @@ func (s *Server) handleMessage(msg *rpcMessage) error {
 			return ErrExit
 		}
 		return ErrExitWithoutShutdown
+	case "workspace/didChangeConfiguration":
+		return s.handleDidChangeConfiguration(msg)
 	case "textDocument/didOpen":
 		return s.handleDidOpen(msg)
 	case "textDocument/didChange":
@@ -130,6 +136,12 @@ func (s *Server) handleMessage(msg *rpcMessage) error {
 		return s.handleDidSave(msg)
 	case "textDocument/didClose":
 		return s.handleDidClose(msg)
+	case "textDocument/hover":
+		return s.handleHover(msg)
+	case "textDocument/inlayHint":
+		return s.handleInlayHint(msg)
+	case "textDocument/definition":
+		return s.handleDefinition(msg)
 	default:
 		if len(msg.ID) > 0 {
 			return s.sendError(msg.ID, -32601, "method not found")
@@ -173,6 +185,9 @@ func (s *Server) handleInitialize(msg *rpcMessage) error {
 					IncludeText: true,
 				},
 			},
+			HoverProvider:      true,
+			DefinitionProvider: true,
+			InlayHintProvider:  &inlayHintOptions{},
 		},
 	}
 	return s.sendResponse(msg.ID, result)
@@ -297,13 +312,18 @@ func (s *Server) runDiagnostics() {
 		DirectiveMode:  parser.DirectiveModeOff,
 	}
 
-	diags, err := s.diagnose(ctx, &opts, diagnose.FileOverlay{Files: overlay})
+	snapshot, diags, err := s.analyze(ctx, &opts, diagnose.FileOverlay{Files: overlay})
 	if err != nil {
 		s.logf("diagnostics failed: %v", err)
-		return
 	}
 	if ctx.Err() != nil {
 		return
+	}
+	if err == nil && snapshot != nil {
+		s.mu.Lock()
+		s.lastSnapshot = snapshot
+		s.snapshotVersion++
+		s.mu.Unlock()
 	}
 	s.publishDiagnostics(seq, diags)
 }

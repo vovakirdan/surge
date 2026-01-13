@@ -15,8 +15,8 @@ import (
 func TestPublishDiagnosticsMapping(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.sg")
 	uri := pathToURI(path)
-	diagFn := func(ctx context.Context, opts *diagnose.DiagnoseOptions, overlay diagnose.FileOverlay) ([]diagnose.Diagnostic, error) {
-		return []diagnose.Diagnostic{
+	analyzeFn := func(ctx context.Context, opts *diagnose.DiagnoseOptions, overlay diagnose.FileOverlay) (*diagnose.AnalysisSnapshot, []diagnose.Diagnostic, error) {
+		return nil, []diagnose.Diagnostic{
 			{
 				FilePath:  path,
 				StartLine: 2,
@@ -33,7 +33,7 @@ func TestPublishDiagnosticsMapping(t *testing.T) {
 	var out bytes.Buffer
 	server := NewServer(bytes.NewReader(nil), &out, ServerOptions{
 		Debounce: time.Hour,
-		Diagnose: diagFn,
+		Analyze:  analyzeFn,
 	})
 	server.baseCtx = context.Background()
 

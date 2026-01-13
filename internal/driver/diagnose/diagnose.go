@@ -33,6 +33,8 @@ type DiagnoseOptions struct {
 	EmitInstantiations bool
 	Jobs               int
 	Result             *WorkspaceResult
+	// KeepArtifacts retains AST/symbol/semantic data for analysis snapshots.
+	KeepArtifacts bool
 }
 
 // FileOverlay stores in-memory file contents keyed by absolute path or file URI.
@@ -107,6 +109,7 @@ func DiagnoseWorkspace(ctx context.Context, opts *DiagnoseOptions, overlay FileO
 		DirectiveFilter:    opts.DirectiveFilter,
 		EmitHIR:            opts.EmitHIR,
 		EmitInstantiations: opts.EmitInstantiations,
+		KeepArtifacts:      opts.KeepArtifacts,
 	}
 
 	isOverlayFile := err != nil && overlayHasPath(overlayMap, opts.ProjectRoot, rootDir)

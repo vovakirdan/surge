@@ -472,8 +472,10 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptio
 		if bag == nil {
 			continue
 		}
-		results[i].Builder = nil
-		results[i].ASTFile = 0
+		if !opts.KeepArtifacts {
+			results[i].Builder = nil
+			results[i].ASTFile = 0
+		}
 		if opts.IgnoreWarnings {
 			bag.Filter(func(d *diag.Diagnostic) bool {
 				return d.Severity != diag.SevWarning && d.Severity != diag.SevInfo
