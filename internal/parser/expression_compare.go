@@ -4,6 +4,7 @@ import (
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/fix"
+	"surge/internal/source"
 	"surge/internal/token"
 )
 
@@ -163,9 +164,25 @@ func (p *Parser) parseCompareArm() (ast.ExprCompareArm, bool) {
 		return arm, false
 	}
 
-	resultExpr, ok := p.parseExprOrBlockAsValue()
-	if !ok {
-		return arm, false
+	var resultExpr ast.ExprID
+	if p.at(token.KwReturn) {
+		stmtID, ok := p.parseReturnStmt()
+		if !ok {
+			return arm, false
+		}
+		stmt := p.arenas.Stmts.Get(stmtID)
+		span := source.Span{}
+		if stmt != nil {
+			span = stmt.Span
+		}
+		resultExpr = p.arenas.Exprs.NewBlock(span, []ast.StmtID{stmtID})
+		p.normalizeBlockExprValue(resultExpr)
+	} else {
+		var ok bool
+		resultExpr, ok = p.parseExprOrBlockAsValue()
+		if !ok {
+			return arm, false
+		}
 	}
 	arm.Result = resultExpr
 	return arm, true
