@@ -202,17 +202,19 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptio
 					}
 					end(parseIdx, parseNote)
 					if opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
-						symbolIdx := begin("symbols")
-						symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, file.Path, fileSet.BaseDir(), nil)
-						symbolNote := ""
-						if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
-							symbolNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
-						}
-						end(symbolIdx, symbolNote)
+						if !opts.FullModuleGraph {
+							symbolIdx := begin("symbols")
+							symbolsRes = diagnoseSymbols(builder, astFile, bag, modulePath, file.Path, fileSet.BaseDir(), nil)
+							symbolNote := ""
+							if timer != nil && symbolsRes != nil && symbolsRes.Table != nil {
+								symbolNote = fmt.Sprintf("symbols=%d", symbolsRes.Table.Symbols.Len())
+							}
+							end(symbolIdx, symbolNote)
 
-						semaIdx := begin("sema")
-						semaRes = diagnoseSema(ctx, builder, astFile, bag, nil, symbolsRes, !opts.NoAlienHints, nil)
-						end(semaIdx, "")
+							semaIdx := begin("sema")
+							semaRes = diagnoseSema(ctx, builder, astFile, bag, nil, symbolsRes, !opts.NoAlienHints, nil)
+							end(semaIdx, "")
+						}
 					}
 				}
 
@@ -236,7 +238,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptio
 		return fileSet, results, err
 	}
 
-	if opts.Stage == DiagnoseStageSyntax || opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
+	if !opts.FullModuleGraph && (opts.Stage == DiagnoseStageSyntax || opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll) {
 		baseDir := fileSet.BaseDir()
 		graphPath = baseDir
 		type entry struct {
@@ -462,8 +464,14 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptio
 	}
 
 	if opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
-		if err := enrichModuleResults(ctx, dir, fileSet, results, opts); err != nil {
-			return nil, nil, err
+		if opts.FullModuleGraph {
+			if err := resolveDirModuleGraph(ctx, fileSet, results, opts); err != nil {
+				return nil, nil, err
+			}
+		} else {
+			if err := enrichModuleResults(ctx, dir, fileSet, results, opts); err != nil {
+				return nil, nil, err
+			}
 		}
 	}
 

@@ -38,6 +38,7 @@ func AnalyzeWorkspace(ctx context.Context, opts *DiagnoseOptions, overlay FileOv
 		runOpts = *opts
 	}
 	runOpts.KeepArtifacts = true
+	runOpts.FullModuleGraph = true
 	workspace := WorkspaceResult{}
 	runOpts.Result = &workspace
 	diags, err := DiagnoseWorkspace(ctx, &runOpts, overlay)
@@ -91,11 +92,19 @@ func buildSnapshot(opts *DiagnoseOptions, workspace *WorkspaceResult, diags []Di
 		snapshot.FileSet = workspace.DirFileSet
 		for _, res := range workspace.DirResults {
 			path := res.Path
+			fileID := res.FileID
 			var file *source.File
-			if res.FileID != 0 && snapshot.FileSet != nil {
-				file = snapshot.FileSet.Get(res.FileID)
+			if snapshot.FileSet != nil {
+				if snapshot.FileSet.HasFile(res.FileID) {
+					file = snapshot.FileSet.Get(res.FileID)
+				} else if res.Path != "" {
+					if latestID, ok := snapshot.FileSet.GetLatest(res.Path); ok {
+						file = snapshot.FileSet.Get(latestID)
+					}
+				}
 				if file != nil {
 					path = file.Path
+					fileID = file.ID
 				}
 			}
 			key := snapshotPathKey(path)
@@ -104,7 +113,7 @@ func buildSnapshot(opts *DiagnoseOptions, workspace *WorkspaceResult, diags []Di
 			}
 			af := &AnalysisFile{
 				Path:    path,
-				FileID:  res.FileID,
+				FileID:  fileID,
 				ASTFile: res.ASTFile,
 				Builder: res.Builder,
 				Symbols: res.Symbols,

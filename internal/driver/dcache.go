@@ -99,7 +99,7 @@ func (c *DiskCache) Put(key project.Digest, payload *DiskPayload) error {
 	}
 	defer func() {
 		if err = os.Remove(f.Name()); err != nil {
-			fmt.Printf("failed to remove temp file: %v", err)
+			fmt.Fprintf(os.Stderr, "failed to remove temp file: %v\n", err)
 		}
 	}()
 

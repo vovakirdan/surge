@@ -5,12 +5,14 @@ import "encoding/json"
 type inlayHintConfig struct {
 	letTypes    bool
 	hideObvious bool
+	defaultInit bool
 }
 
 func defaultInlayHintConfig() inlayHintConfig {
 	return inlayHintConfig{
 		letTypes:    true,
 		hideObvious: false,
+		defaultInit: true,
 	}
 }
 
@@ -41,5 +43,11 @@ func (s *Server) applySettings(raw json.RawMessage) {
 	}
 	if settings.Surge.InlayHints.HideObvious != nil {
 		s.inlayHints.hideObvious = *settings.Surge.InlayHints.HideObvious
+	}
+	if settings.Surge.InlayHints.DefaultInit != nil {
+		s.inlayHints.defaultInit = *settings.Surge.InlayHints.DefaultInit
+	}
+	if settings.Surge.LSP.Trace != nil {
+		s.traceLSP = *settings.Surge.LSP.Trace
 	}
 }

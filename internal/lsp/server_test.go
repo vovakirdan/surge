@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -108,5 +109,49 @@ func TestPublishDiagnosticsMapping(t *testing.T) {
 	}
 	if got.Message != "boom" {
 		t.Fatalf("unexpected message: %q", got.Message)
+	}
+}
+
+func TestSnapshotRetentionOnFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.sg")
+	uri := pathToURI(path)
+	snapshot := &diagnose.AnalysisSnapshot{ProjectRoot: filepath.Dir(path)}
+
+	call := 0
+	analyzeFn := func(ctx context.Context, opts *diagnose.DiagnoseOptions, overlay diagnose.FileOverlay) (*diagnose.AnalysisSnapshot, []diagnose.Diagnostic, error) {
+		call++
+		if call == 1 {
+			return snapshot, nil, nil
+		}
+		return nil, nil, errors.New("boom")
+	}
+
+	var out bytes.Buffer
+	server := NewServer(bytes.NewReader(nil), &out, ServerOptions{
+		Debounce: time.Hour,
+		Analyze:  analyzeFn,
+	})
+	server.baseCtx = context.Background()
+
+	openParams := didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{
+			URI:     uri,
+			Version: 1,
+			Text:    "fn main() {}",
+		},
+	}
+	openPayload, _ := json.Marshal(openParams)
+	if err := server.handleDidOpen(&rpcMessage{Method: "textDocument/didOpen", Params: openPayload}); err != nil {
+		t.Fatalf("didOpen: %v", err)
+	}
+
+	server.runDiagnostics()
+	if got := server.currentSnapshot(); got != snapshot {
+		t.Fatal("expected snapshot after first analysis")
+	}
+
+	server.runDiagnostics()
+	if got := server.currentSnapshot(); got != snapshot {
+		t.Fatal("expected last good snapshot after failure")
 	}
 }

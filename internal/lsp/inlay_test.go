@@ -76,4 +76,70 @@ func TestInlayHintsOverlay(t *testing.T) {
 	if hints[0].Label != ": string" {
 		t.Fatalf("unexpected overlay hint label: %q", hints[0].Label)
 	}
+	letIdx := strings.Index(overlay, "let n")
+	if letIdx < 0 {
+		t.Fatal("missing let n")
+	}
+	nameOffset := letIdx + len("let n")
+	expectPos := positionForOffsetUTF16(overlay, nameOffset)
+	smallRange := lspRange{
+		Start: position{Line: expectPos.Line, Character: 0},
+		End:   position{Line: expectPos.Line, Character: expectPos.Character + 1},
+	}
+	repeat := buildInlayHints(snapshot, uri, smallRange, defaultInlayHintConfig())
+	if len(repeat) != 1 {
+		t.Fatalf("expected 1 inlay hint for small range, got %d", len(repeat))
+	}
+	if repeat[0].Label != ": string" {
+		t.Fatalf("unexpected small-range hint label: %q", repeat[0].Label)
+	}
+}
+
+func TestInlayHintsDefaultInit(t *testing.T) {
+	src := strings.Join([]string{
+		"fn foo() -> int {",
+		"    return 1;",
+		"}",
+		"",
+		"fn main() {",
+		"    let a: int;",
+		"    let b = foo();",
+		"    let c: int = foo();",
+		"}",
+		"",
+	}, "\n")
+	snapshot, uri := analyzeSnapshot(t, src)
+	fullRange := lspRange{
+		Start: position{Line: 0, Character: 0},
+		End:   position{Line: 200, Character: 0},
+	}
+	hints := buildInlayHints(snapshot, uri, fullRange, defaultInlayHintConfig())
+	if len(hints) != 2 {
+		t.Fatalf("expected 2 inlay hints, got %d", len(hints))
+	}
+	foundType := false
+	foundDefault := false
+	semicolonIdx := strings.Index(src, "let a: int;")
+	if semicolonIdx < 0 {
+		t.Fatal("missing let a")
+	}
+	semicolonOffset := semicolonIdx + len("let a: int")
+	expectDefaultPos := positionForOffsetUTF16(src, semicolonOffset)
+	for _, hint := range hints {
+		switch hint.Label {
+		case ": int":
+			foundType = true
+		case " = default::<int>();":
+			foundDefault = true
+			if hint.Position != expectDefaultPos {
+				t.Fatalf("unexpected default-init position: %+v", hint.Position)
+			}
+		}
+	}
+	if !foundType {
+		t.Fatal("expected type hint for let b")
+	}
+	if !foundDefault {
+		t.Fatal("expected default-init hint for let a")
+	}
 }

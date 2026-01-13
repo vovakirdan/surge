@@ -25,14 +25,20 @@ func (s *Server) handleInlayHint(msg *rpcMessage) error {
 	}
 	snapshot := s.currentSnapshot()
 	if snapshot == nil {
+		if s.currentTrace() {
+			s.logf("inlayHint: snapshot=%d nil=true hints=0", s.currentSnapshotVersion())
+		}
 		return s.sendResponse(msg.ID, []inlayHint{})
 	}
 	hints := buildInlayHints(snapshot, params.TextDocument.URI, params.Range, s.currentInlayConfig())
+	if s.currentTrace() {
+		s.logf("inlayHint: snapshot=%d nil=false hints=%d", s.currentSnapshotVersion(), len(hints))
+	}
 	return s.sendResponse(msg.ID, hints)
 }
 
 func buildInlayHints(snapshot *diagnose.AnalysisSnapshot, uri string, rng lspRange, cfg inlayHintConfig) []inlayHint {
-	if !cfg.letTypes {
+	if !cfg.letTypes && !cfg.defaultInit {
 		return nil
 	}
 	af, file := snapshotFile(snapshot, uri)
@@ -57,34 +63,55 @@ func buildInlayHints(snapshot *diagnose.AnalysisSnapshot, uri string, rng lspRan
 			if !ok || letItem == nil {
 				continue
 			}
-			if letItem.Type.IsValid() || letItem.Name == source.NoStringID {
+			if letItem.Name == source.NoStringID {
 				continue
 			}
 			name := lookupName(af, letItem.Name)
 			if name == "" {
 				continue
 			}
-			nameSpan := letItem.NameSpan
-			if nameSpan == (source.Span{}) || nameSpan.File != file.ID {
-				continue
+			if cfg.letTypes && !letItem.Type.IsValid() {
+				nameSpan := letItem.NameSpan
+				if nameSpan == (source.Span{}) || nameSpan.File != file.ID {
+					continue
+				}
+				hintOff := nameSpan.End
+				if hintOff < startOff || hintOff > endOff {
+					continue
+				}
+				symID := symbolForLetItem(af, itemID)
+				ty := bindingOrInitType(af, symID, letItem.Value)
+				if ty == types.NoTypeID {
+					continue
+				}
+				if cfg.hideObvious && isObviousLiteral(af, letItem.Value, ty) {
+					continue
+				}
+				hints = append(hints, inlayHint{
+					Position: positionForOffsetInFile(file, nameSpan.End),
+					Label:    ": " + types.Label(af.Sema.TypeInterner, ty),
+					Kind:     inlayHintKindType,
+				})
 			}
-			hintOff := nameSpan.End
-			if hintOff < startOff || hintOff > endOff {
-				continue
+			if cfg.defaultInit && letItem.Type.IsValid() && !letItem.Value.IsValid() {
+				symID := symbolForLetItem(af, itemID)
+				ty := bindingOrInitType(af, symID, letItem.Value)
+				if ty == types.NoTypeID {
+					continue
+				}
+				hintOff := letItem.Span.End
+				if letItem.SemicolonSpan != (source.Span{}) && letItem.SemicolonSpan.File == file.ID {
+					hintOff = letItem.SemicolonSpan.Start
+				}
+				if hintOff < startOff || hintOff > endOff {
+					continue
+				}
+				hints = append(hints, inlayHint{
+					Position: positionForOffsetInFile(file, hintOff),
+					Label:    " = default::<" + types.Label(af.Sema.TypeInterner, ty) + ">();",
+					Kind:     inlayHintKindType,
+				})
 			}
-			symID := symbolForLetItem(af, itemID)
-			ty := bindingOrInitType(af, symID, letItem.Value)
-			if ty == types.NoTypeID {
-				continue
-			}
-			if cfg.hideObvious && isObviousLiteral(af, letItem.Value, ty) {
-				continue
-			}
-			hints = append(hints, inlayHint{
-				Position: positionForOffsetInFile(file, nameSpan.End),
-				Label:    ": " + types.Label(af.Sema.TypeInterner, ty),
-				Kind:     inlayHintKindType,
-			})
 		}
 	}
 
@@ -101,34 +128,55 @@ func buildInlayHints(snapshot *diagnose.AnalysisSnapshot, uri string, rng lspRan
 		if letStmt == nil {
 			continue
 		}
-		if letStmt.Pattern.IsValid() || letStmt.Type.IsValid() || letStmt.Name == source.NoStringID {
+		if letStmt.Pattern.IsValid() || letStmt.Name == source.NoStringID {
 			continue
 		}
 		name := lookupName(af, letStmt.Name)
 		if name == "" {
 			continue
 		}
-		nameSpan := letStmtNameSpan(af, stmt.Span, name)
-		if nameSpan == (source.Span{}) {
-			continue
+		if cfg.letTypes && !letStmt.Type.IsValid() {
+			nameSpan := letStmtNameSpan(af, stmt.Span, name)
+			if nameSpan == (source.Span{}) {
+				continue
+			}
+			hintOff := nameSpan.End
+			if hintOff < startOff || hintOff > endOff {
+				continue
+			}
+			symID := symbolForLetStmt(af, stmtID)
+			ty := bindingOrInitType(af, symID, letStmt.Value)
+			if ty == types.NoTypeID {
+				continue
+			}
+			if cfg.hideObvious && isObviousLiteral(af, letStmt.Value, ty) {
+				continue
+			}
+			hints = append(hints, inlayHint{
+				Position: positionForOffsetInFile(file, nameSpan.End),
+				Label:    ": " + types.Label(af.Sema.TypeInterner, ty),
+				Kind:     inlayHintKindType,
+			})
 		}
-		hintOff := nameSpan.End
-		if hintOff < startOff || hintOff > endOff {
-			continue
+		if cfg.defaultInit && letStmt.Type.IsValid() && !letStmt.Value.IsValid() {
+			symID := symbolForLetStmt(af, stmtID)
+			ty := bindingOrInitType(af, symID, letStmt.Value)
+			if ty == types.NoTypeID {
+				continue
+			}
+			hintOff := stmt.Span.End
+			if semiSpan := letStmtSemicolonSpan(af, stmt.Span); semiSpan != (source.Span{}) {
+				hintOff = semiSpan.Start
+			}
+			if hintOff < startOff || hintOff > endOff {
+				continue
+			}
+			hints = append(hints, inlayHint{
+				Position: positionForOffsetInFile(file, hintOff),
+				Label:    " = default::<" + types.Label(af.Sema.TypeInterner, ty) + ">();",
+				Kind:     inlayHintKindType,
+			})
 		}
-		symID := symbolForLetStmt(af, stmtID)
-		ty := bindingOrInitType(af, symID, letStmt.Value)
-		if ty == types.NoTypeID {
-			continue
-		}
-		if cfg.hideObvious && isObviousLiteral(af, letStmt.Value, ty) {
-			continue
-		}
-		hints = append(hints, inlayHint{
-			Position: positionForOffsetInFile(file, nameSpan.End),
-			Label:    ": " + types.Label(af.Sema.TypeInterner, ty),
-			Kind:     inlayHintKindType,
-		})
 	}
 
 	sort.Slice(hints, func(i, j int) bool {
@@ -232,6 +280,28 @@ func letStmtNameSpan(af *diagnose.AnalysisFile, stmtSpan source.Span, name strin
 		}
 	}
 	return source.Span{}
+}
+
+func letStmtSemicolonSpan(af *diagnose.AnalysisFile, stmtSpan source.Span) source.Span {
+	if af == nil || len(af.Tokens) == 0 {
+		return source.Span{}
+	}
+	var semi source.Span
+	for _, tok := range af.Tokens {
+		if tok.Span.File != stmtSpan.File {
+			continue
+		}
+		if tok.Span.End <= stmtSpan.Start {
+			continue
+		}
+		if tok.Span.Start >= stmtSpan.End {
+			break
+		}
+		if tok.Kind == token.Semicolon {
+			semi = tok.Span
+		}
+	}
+	return semi
 }
 
 func isObviousLiteral(af *diagnose.AnalysisFile, exprID ast.ExprID, typeID types.TypeID) bool {

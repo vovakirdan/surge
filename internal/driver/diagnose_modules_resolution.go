@@ -2,6 +2,7 @@ package driver
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,6 +76,9 @@ func findExplicitModuleDir(baseDir, modulePath, name string, readFile func(strin
 		readFile = os.ReadFile
 	}
 	cacheKey := baseDir
+	if readFile != nil {
+		cacheKey = fmt.Sprintf("%s|%p", baseDir, readFile)
+	}
 	explicitModuleDirCache.mu.Lock()
 	if explicitModuleDirCache.byBase != nil {
 		if m := explicitModuleDirCache.byBase[cacheKey]; m != nil {

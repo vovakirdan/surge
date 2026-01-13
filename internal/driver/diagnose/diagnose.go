@@ -31,6 +31,7 @@ type DiagnoseOptions struct {
 	DirectiveFilter    []string
 	EmitHIR            bool
 	EmitInstantiations bool
+	FullModuleGraph    bool
 	Jobs               int
 	Result             *WorkspaceResult
 	// KeepArtifacts retains AST/symbol/semantic data for analysis snapshots.
@@ -110,6 +111,7 @@ func DiagnoseWorkspace(ctx context.Context, opts *DiagnoseOptions, overlay FileO
 		EmitHIR:            opts.EmitHIR,
 		EmitInstantiations: opts.EmitInstantiations,
 		KeepArtifacts:      opts.KeepArtifacts,
+		FullModuleGraph:    opts.FullModuleGraph,
 	}
 
 	isOverlayFile := err != nil && overlayHasPath(overlayMap, opts.ProjectRoot, rootDir)

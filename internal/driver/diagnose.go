@@ -84,6 +84,7 @@ type DiagnoseOptions struct {
 	EmitHIR            bool                 // Build HIR (High-level IR) from AST + sema
 	EmitInstantiations bool                 // Capture generic instantiation map (sema artefact)
 	KeepArtifacts      bool                 // Retain AST/symbol/semantic data (for analysis snapshots)
+	FullModuleGraph    bool                 // Resolve full module graph for directory diagnostics (LSP analysis)
 }
 
 // Diagnose запускает диагностику файла до указанного уровня

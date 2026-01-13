@@ -161,9 +161,15 @@ type lspSettings struct {
 
 type surgeSettings struct {
 	InlayHints inlayHintsSettings `json:"inlayHints"`
+	LSP        lspTraceSettings   `json:"lsp"`
 }
 
 type inlayHintsSettings struct {
 	LetTypes    *bool `json:"letTypes,omitempty"`
 	HideObvious *bool `json:"hideObvious,omitempty"`
+	DefaultInit *bool `json:"defaultInit,omitempty"`
+}
+
+type lspTraceSettings struct {
+	Trace *bool `json:"trace,omitempty"`
 }

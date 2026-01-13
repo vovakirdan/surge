@@ -54,8 +54,10 @@ type Server struct {
 	maxDiagnostics    int
 	baseCtx           context.Context
 	lastSnapshot      *diagnose.AnalysisSnapshot
+	lastGoodSnapshot  *diagnose.AnalysisSnapshot
 	snapshotVersion   int64
 	inlayHints        inlayHintConfig
+	traceLSP          bool
 }
 
 // NewServer constructs a new LSP server.
@@ -322,6 +324,7 @@ func (s *Server) runDiagnostics() {
 	if err == nil && snapshot != nil {
 		s.mu.Lock()
 		s.lastSnapshot = snapshot
+		s.lastGoodSnapshot = snapshot
 		s.snapshotVersion++
 		s.mu.Unlock()
 	}
