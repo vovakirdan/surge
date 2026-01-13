@@ -90,6 +90,30 @@ func TestStdlibExportsVisibleInModuleGraph(t *testing.T) {
 	}
 }
 
+func TestStdlibDependencyUsesStdlibRoot(t *testing.T) {
+	stdlibRoot := detectStdlibRootFrom(".")
+	if stdlibRoot == "" {
+		t.Skip("stdlib root not found")
+	}
+
+	baseDir := t.TempDir()
+	fs := source.NewFileSetWithBase(baseDir)
+	opts := DiagnoseOptions{
+		Stage:          DiagnoseStageSema,
+		MaxDiagnostics: 16,
+	}
+	rec, err := analyzeDependencyModule(context.Background(), fs, "stdlib/fs", baseDir, stdlibRoot, &opts, NewModuleCache(4), source.NewInterner())
+	if err != nil {
+		t.Fatalf("analyzeDependencyModule failed: %v", err)
+	}
+	if rec == nil || rec.Meta == nil {
+		t.Fatalf("expected module record for stdlib/fs")
+	}
+	if rec.Meta.Path != "stdlib/fs" {
+		t.Fatalf("expected stdlib module path, got %q", rec.Meta.Path)
+	}
+}
+
 func exportKeys(m map[string][]symbols.ExportedSymbol) []string {
 	if len(m) == 0 {
 		return nil

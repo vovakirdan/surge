@@ -50,6 +50,11 @@ func analyzeDependencyModule(
 		}
 		return nil, err
 	}
+
+	metaBaseDir := baseDir
+	if stdlibRoot != "" && isStdlibModulePath(modulePath) {
+		metaBaseDir = stdlibRoot
+	}
 	bag := diag.NewBag(opts.MaxDiagnostics)
 	builder, fileIDs, files, err := parseModuleDir(ctx, fs, dirPath, bag, strs, nil, nil, parser.DirectiveModeOff)
 	if err != nil {
@@ -59,16 +64,16 @@ func analyzeDependencyModule(
 		return nil, err
 	}
 	reporter := &diag.BagReporter{Bag: bag}
-	meta, ok := buildModuleMeta(fs, builder, fileIDs, baseDir, reporter)
+	meta, ok := buildModuleMeta(fs, builder, fileIDs, metaBaseDir, reporter)
 	if !ok {
 		fallbackFile := files[0]
 		if fallbackFile == nil {
 			return nil, errModuleNotFound
 		}
-		meta = fallbackModuleMeta(fallbackFile, baseDir)
+		meta = fallbackModuleMeta(fallbackFile, metaBaseDir)
 	}
 	if meta != nil && !meta.HasModulePragma && len(fileIDs) > 1 {
-		targetPath := modulePathToFilePath(baseDir, modulePath)
+		targetPath := modulePathToFilePath(metaBaseDir, modulePath)
 		idx := 0
 		normTarget := filepath.ToSlash(targetPath)
 		for i, f := range files {
@@ -82,9 +87,9 @@ func analyzeDependencyModule(
 		}
 		fileIDs = []ast.FileID{fileIDs[idx]}
 		files = []*source.File{files[idx]}
-		meta, ok = buildModuleMeta(fs, builder, fileIDs, baseDir, reporter)
+		meta, ok = buildModuleMeta(fs, builder, fileIDs, metaBaseDir, reporter)
 		if !ok {
-			meta = fallbackModuleMeta(files[0], baseDir)
+			meta = fallbackModuleMeta(files[0], metaBaseDir)
 		}
 		if bag != nil && len(files) > 0 && files[0] != nil {
 			targetID := files[0].ID
