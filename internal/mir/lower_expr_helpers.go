@@ -220,7 +220,7 @@ func (l *funcLowerer) calleeFunc(symID symbols.SymbolID) *hir.Func {
 
 func (l *funcLowerer) lowerCallArgs(e *hir.Expr, data hir.CallData) ([]Operand, error) {
 	fn := l.calleeFunc(data.SymbolID)
-	if fn == nil || len(data.Args) >= len(fn.Params) {
+	if fn == nil || fn.IsIntrinsic() || len(data.Args) >= len(fn.Params) {
 		args := make([]Operand, 0, len(data.Args))
 		for _, a := range data.Args {
 			op, err := l.lowerExpr(a, true)

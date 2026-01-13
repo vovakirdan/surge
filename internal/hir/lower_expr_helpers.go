@@ -65,11 +65,12 @@ func (l *lowerer) toCallExpr(span source.Span, value *Expr, target types.TypeID,
 	if value == nil {
 		return nil
 	}
+	args := []*Expr{value}
+	if symID.IsValid() && !l.isBuiltinSymbol(symID) {
+		args = append(args, l.defaultValueExpr(span, target))
+	}
 	if symID.IsValid() {
-		args := l.applyParamBorrow(symID, []*Expr{value})
-		if len(args) == 1 {
-			value = args[0]
-		}
+		args = l.applyParamBorrow(symID, args)
 	}
 	callee := l.varRefForSymbol(symID, span)
 	if callee == nil {
@@ -89,10 +90,18 @@ func (l *lowerer) toCallExpr(span source.Span, value *Expr, target types.TypeID,
 		Span: span,
 		Data: CallData{
 			Callee:   callee,
-			Args:     []*Expr{value},
+			Args:     args,
 			SymbolID: symID,
 		},
 	}
+}
+
+func (l *lowerer) isBuiltinSymbol(symID symbols.SymbolID) bool {
+	if l == nil || l.symRes == nil || l.symRes.Table == nil || l.symRes.Table.Symbols == nil || !symID.IsValid() {
+		return false
+	}
+	sym := l.symRes.Table.Symbols.Get(symID)
+	return sym != nil && sym.Flags&symbols.SymbolFlagBuiltin != 0
 }
 
 func (l *lowerer) magicCallExpr(span source.Span, ty types.TypeID, symID symbols.SymbolID, args []*Expr) *Expr {

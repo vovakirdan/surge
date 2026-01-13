@@ -15,14 +15,21 @@ func (vm *VM) handleDefault(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	if len(call.Args) != 0 {
 		return vm.eb.makeError(PanicTypeMismatch, "default requires 0 arguments")
 	}
-	if vm.M == nil || vm.M.Meta == nil || len(vm.M.Meta.FuncTypeArgs) == 0 || !call.Callee.Sym.IsValid() {
-		return vm.eb.makeError(PanicUnimplemented, "missing type arguments for default")
+	targetType := types.NoTypeID
+	if vm.M != nil && vm.M.Meta != nil && len(vm.M.Meta.FuncTypeArgs) != 0 && call.Callee.Sym.IsValid() {
+		if typeArgs, ok := vm.M.Meta.FuncTypeArgs[call.Callee.Sym]; ok && len(typeArgs) == 1 {
+			targetType = typeArgs[0]
+		}
 	}
-	typeArgs, ok := vm.M.Meta.FuncTypeArgs[call.Callee.Sym]
-	if !ok || len(typeArgs) != 1 || typeArgs[0] == types.NoTypeID {
+	if targetType == types.NoTypeID {
+		dstLocal := call.Dst.Local
+		if int(dstLocal) < len(frame.Locals) {
+			targetType = frame.Locals[dstLocal].TypeID
+		}
+	}
+	if targetType == types.NoTypeID {
 		return vm.eb.makeError(PanicUnimplemented, "invalid type arguments for default")
 	}
-	targetType := typeArgs[0]
 	val, vmErr := vm.defaultValue(targetType)
 	if vmErr != nil {
 		return vmErr
