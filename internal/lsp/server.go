@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"surge/internal/driver"
@@ -49,7 +50,8 @@ type Server struct {
 	debounce          time.Duration
 	debounceTimer     *time.Timer
 	diagCancel        context.CancelFunc
-	diagSeq           int64
+	analysisSeq       uint64
+	latestSeq         uint64
 	analyze           AnalyzeFunc
 	maxDiagnostics    int
 	baseCtx           context.Context
@@ -270,22 +272,30 @@ func (s *Server) handleDidClose(msg *rpcMessage) error {
 
 func (s *Server) scheduleDiagnostics() {
 	s.mu.Lock()
+	seq := atomic.AddUint64(&s.analysisSeq, 1)
+	atomic.StoreUint64(&s.latestSeq, seq)
+	if s.diagCancel != nil {
+		s.diagCancel()
+	}
 	if s.debounceTimer != nil {
 		s.debounceTimer.Stop()
 	}
 	delay := s.debounce
-	s.debounceTimer = time.AfterFunc(delay, s.runDiagnostics)
+	s.debounceTimer = time.AfterFunc(delay, func() {
+		s.runDiagnostics(seq)
+	})
 	s.mu.Unlock()
 }
 
-func (s *Server) runDiagnostics() {
+func (s *Server) runDiagnostics(seq uint64) {
+	if seq == 0 || !s.isLatestSeq(seq) {
+		return
+	}
 	s.mu.Lock()
 	if len(s.openDocs) == 0 {
 		s.mu.Unlock()
 		return
 	}
-	seq := s.diagSeq + 1
-	s.diagSeq = seq
 	if s.diagCancel != nil {
 		s.diagCancel()
 	}
@@ -321,17 +331,22 @@ func (s *Server) runDiagnostics() {
 	if ctx.Err() != nil {
 		return
 	}
-	if err == nil && snapshot != nil {
+	if err == nil && snapshot != nil && s.isLatestSeq(seq) {
 		s.mu.Lock()
-		s.lastSnapshot = snapshot
-		s.lastGoodSnapshot = snapshot
-		s.snapshotVersion++
+		if s.isLatestSeq(seq) {
+			s.lastSnapshot = snapshot
+			s.lastGoodSnapshot = snapshot
+			s.snapshotVersion++
+		}
 		s.mu.Unlock()
 	}
 	s.publishDiagnostics(seq, diags)
 }
 
-func (s *Server) publishDiagnostics(seq int64, diags []diagnose.Diagnostic) {
+func (s *Server) publishDiagnostics(seq uint64, diags []diagnose.Diagnostic) {
+	if !s.isLatestSeq(seq) {
+		return
+	}
 	grouped := make(map[string][]lspDiagnostic)
 	for _, d := range diags {
 		uri := pathToURI(d.FilePath)
@@ -359,7 +374,7 @@ func (s *Server) publishDiagnostics(seq int64, diags []diagnose.Diagnostic) {
 	}
 
 	s.mu.Lock()
-	if seq != s.diagSeq {
+	if !s.isLatestSeq(seq) {
 		s.mu.Unlock()
 		return
 	}
@@ -442,6 +457,13 @@ func (s *Server) send(msg any) error {
 
 func (s *Server) logf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "lsp: "+format+"\n", args...)
+}
+
+func (s *Server) isLatestSeq(seq uint64) bool {
+	if seq == 0 {
+		return false
+	}
+	return seq == atomic.LoadUint64(&s.latestSeq)
 }
 
 func maxZero(value int) int {

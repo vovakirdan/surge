@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -76,7 +77,8 @@ func TestPublishDiagnosticsMapping(t *testing.T) {
 	}
 	server.mu.Unlock()
 
-	server.runDiagnostics()
+	seq := atomic.LoadUint64(&server.latestSeq)
+	server.runDiagnostics(seq)
 
 	reader := bufio.NewReader(bytes.NewReader(out.Bytes()))
 	payload, err := readMessage(reader)
@@ -145,12 +147,20 @@ func TestSnapshotRetentionOnFailure(t *testing.T) {
 		t.Fatalf("didOpen: %v", err)
 	}
 
-	server.runDiagnostics()
+	seq := atomic.LoadUint64(&server.latestSeq)
+	server.runDiagnostics(seq)
 	if got := server.currentSnapshot(); got != snapshot {
 		t.Fatal("expected snapshot after first analysis")
 	}
 
-	server.runDiagnostics()
+	server.scheduleDiagnostics()
+	server.mu.Lock()
+	if server.debounceTimer != nil {
+		server.debounceTimer.Stop()
+	}
+	server.mu.Unlock()
+	seq = atomic.LoadUint64(&server.latestSeq)
+	server.runDiagnostics(seq)
 	if got := server.currentSnapshot(); got != snapshot {
 		t.Fatal("expected last good snapshot after failure")
 	}
