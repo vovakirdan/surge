@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,10 +30,14 @@ var (
 // AnalyzeFunc runs workspace diagnostics and returns an analysis snapshot.
 type AnalyzeFunc func(ctx context.Context, opts *diagnose.DiagnoseOptions, overlay diagnose.FileOverlay) (*diagnose.AnalysisSnapshot, []diagnose.Diagnostic, error)
 
+// AnalyzeFilesFunc runs diagnostics for a fixed file set and returns an analysis snapshot.
+type AnalyzeFilesFunc func(ctx context.Context, opts *diagnose.DiagnoseOptions, files []string, overlay diagnose.FileOverlay) (*diagnose.AnalysisSnapshot, []diagnose.Diagnostic, error)
+
 // ServerOptions configures LSP server behavior.
 type ServerOptions struct {
 	Debounce       time.Duration
 	Analyze        AnalyzeFunc
+	AnalyzeFiles   AnalyzeFilesFunc
 	MaxDiagnostics int
 }
 
@@ -53,6 +59,7 @@ type Server struct {
 	analysisSeq       uint64
 	latestSeq         uint64
 	analyze           AnalyzeFunc
+	analyzeFiles      AnalyzeFilesFunc
 	maxDiagnostics    int
 	baseCtx           context.Context
 	lastSnapshot      *diagnose.AnalysisSnapshot
@@ -60,6 +67,8 @@ type Server struct {
 	snapshotVersion   int64
 	inlayHints        inlayHintConfig
 	traceLSP          bool
+	analysisMode      analysisMode
+	analysisRoot      string
 }
 
 // NewServer constructs a new LSP server.
@@ -71,6 +80,10 @@ func NewServer(in io.Reader, out io.Writer, opts ServerOptions) *Server {
 	analyzeFn := opts.Analyze
 	if analyzeFn == nil {
 		analyzeFn = diagnose.AnalyzeWorkspace
+	}
+	analyzeFilesFn := opts.AnalyzeFiles
+	if analyzeFilesFn == nil {
+		analyzeFilesFn = diagnose.AnalyzeFiles
 	}
 	maxDiagnostics := opts.MaxDiagnostics
 	if maxDiagnostics <= 0 {
@@ -84,6 +97,7 @@ func NewServer(in io.Reader, out io.Writer, opts ServerOptions) *Server {
 		published:      make(map[string]struct{}),
 		debounce:       debounce,
 		analyze:        analyzeFn,
+		analyzeFiles:   analyzeFilesFn,
 		maxDiagnostics: maxDiagnostics,
 		inlayHints:     defaultInlayHintConfig(),
 	}
@@ -201,6 +215,7 @@ func (s *Server) handleShutdown(msg *rpcMessage) error {
 	s.mu.Lock()
 	s.shutdownRequested = true
 	s.mu.Unlock()
+	s.clearPublishedDiagnostics()
 	return s.sendResponse(msg.ID, nil)
 }
 
@@ -209,7 +224,10 @@ func (s *Server) handleDidOpen(msg *rpcMessage) error {
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
 		return err
 	}
-	uri := params.TextDocument.URI
+	uri := canonicalURI(params.TextDocument.URI)
+	if uri == "" {
+		return nil
+	}
 	s.mu.Lock()
 	s.openDocs[uri] = params.TextDocument.Text
 	s.versions[uri] = params.TextDocument.Version
@@ -223,7 +241,10 @@ func (s *Server) handleDidChange(msg *rpcMessage) error {
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
 		return err
 	}
-	uri := params.TextDocument.URI
+	uri := canonicalURI(params.TextDocument.URI)
+	if uri == "" {
+		return nil
+	}
 	s.mu.Lock()
 	text := s.openDocs[uri]
 	text = applyChanges(text, params.ContentChanges)
@@ -240,7 +261,10 @@ func (s *Server) handleDidSave(msg *rpcMessage) error {
 		return err
 	}
 	if params.Text != nil {
-		uri := params.TextDocument.URI
+		uri := canonicalURI(params.TextDocument.URI)
+		if uri == "" {
+			return nil
+		}
 		s.mu.Lock()
 		s.openDocs[uri] = *params.Text
 		s.mu.Unlock()
@@ -254,7 +278,10 @@ func (s *Server) handleDidClose(msg *rpcMessage) error {
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
 		return err
 	}
-	uri := params.TextDocument.URI
+	uri := canonicalURI(params.TextDocument.URI)
+	if uri == "" {
+		return nil
+	}
 	s.mu.Lock()
 	delete(s.openDocs, uri)
 	delete(s.versions, uri)
@@ -294,6 +321,7 @@ func (s *Server) runDiagnostics(seq uint64) {
 	s.mu.Lock()
 	if len(s.openDocs) == 0 {
 		s.mu.Unlock()
+		s.clearPublishedDiagnostics()
 		return
 	}
 	if s.diagCancel != nil {
@@ -306,14 +334,19 @@ func (s *Server) runDiagnostics(seq uint64) {
 	overlay := make(map[string]string, len(s.openDocs))
 	for uri, text := range s.openDocs {
 		if path := uriToPath(uri); path != "" {
-			overlay[path] = text
+			overlay[canonicalPath(path)] = text
 		}
 	}
 	s.mu.Unlock()
 
-	projectRoot := detectProjectRoot(workspaceRoot, firstFile)
+	projectRoot, mode := detectAnalysisScope(workspaceRoot, firstFile)
 	if projectRoot == "" {
+		s.clearPublishedDiagnostics()
 		return
+	}
+	projectRoot = canonicalPath(projectRoot)
+	if s.updateAnalysisScope(projectRoot, mode) {
+		s.clearPublishedDiagnostics()
 	}
 
 	opts := diagnose.DiagnoseOptions{
@@ -324,7 +357,22 @@ func (s *Server) runDiagnostics(seq uint64) {
 		DirectiveMode:  parser.DirectiveModeOff,
 	}
 
-	snapshot, diags, err := s.analyze(ctx, &opts, diagnose.FileOverlay{Files: overlay})
+	var (
+		snapshot *diagnose.AnalysisSnapshot
+		diags    []diagnose.Diagnostic
+		err      error
+	)
+	if mode == modeOpenFiles {
+		openFiles, openSet, filteredOverlay := filterOpenFiles(overlay, projectRoot)
+		if len(openFiles) == 0 {
+			s.clearPublishedDiagnostics()
+			return
+		}
+		snapshot, diags, err = s.analyzeFiles(ctx, &opts, openFiles, diagnose.FileOverlay{Files: filteredOverlay})
+		diags = filterDiagnosticsForOpenFiles(diags, openSet)
+	} else {
+		snapshot, diags, err = s.analyze(ctx, &opts, diagnose.FileOverlay{Files: overlay})
+	}
 	if err != nil {
 		s.logf("diagnostics failed: %v", err)
 	}
@@ -400,10 +448,111 @@ func (s *Server) publishDiagnostics(seq uint64, diags []diagnose.Diagnostic) {
 	}
 }
 
+func (s *Server) updateAnalysisScope(root string, mode analysisMode) bool {
+	s.mu.Lock()
+	changed := s.analysisRoot != root || s.analysisMode != mode
+	if changed {
+		s.analysisRoot = root
+		s.analysisMode = mode
+	}
+	s.mu.Unlock()
+	return changed
+}
+
+func (s *Server) clearPublishedDiagnostics() {
+	s.mu.Lock()
+	if len(s.published) == 0 {
+		s.mu.Unlock()
+		return
+	}
+	prev := s.published
+	s.published = make(map[string]struct{})
+	s.mu.Unlock()
+	for uri := range prev {
+		if err := s.sendPublish(uri, nil); err != nil {
+			s.logf("failed to clear diagnostics: %v", err)
+		}
+	}
+}
+
+func canonicalPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	candidate := filepath.FromSlash(path)
+	if abs, err := filepath.Abs(candidate); err == nil {
+		candidate = abs
+	}
+	return filepath.ToSlash(filepath.Clean(candidate))
+}
+
+func pathWithinRoot(root, path string) bool {
+	if root == "" || path == "" {
+		return false
+	}
+	root = filepath.Clean(filepath.FromSlash(root))
+	path = filepath.Clean(filepath.FromSlash(path))
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	if rel == "." {
+		return true
+	}
+	if rel == ".." {
+		return false
+	}
+	prefix := ".." + string(filepath.Separator)
+	return !strings.HasPrefix(rel, prefix)
+}
+
+func filterOpenFiles(overlay map[string]string, root string) (files []string, openSet map[string]struct{}, filtered map[string]string) {
+	if len(overlay) == 0 {
+		return nil, nil, nil
+	}
+	root = canonicalPath(root)
+	files = make([]string, 0, len(overlay))
+	openSet = make(map[string]struct{}, len(overlay))
+	filtered = make(map[string]string, len(overlay))
+	for path, text := range overlay {
+		canon := canonicalPath(path)
+		if canon == "" {
+			continue
+		}
+		if root != "" && !pathWithinRoot(root, canon) {
+			continue
+		}
+		if !strings.HasSuffix(canon, ".sg") {
+			continue
+		}
+		if _, ok := openSet[canon]; ok {
+			continue
+		}
+		openSet[canon] = struct{}{}
+		files = append(files, canon)
+		filtered[canon] = text
+	}
+	sort.Strings(files)
+	return files, openSet, filtered
+}
+
+func filterDiagnosticsForOpenFiles(diags []diagnose.Diagnostic, openSet map[string]struct{}) []diagnose.Diagnostic {
+	if len(diags) == 0 || len(openSet) == 0 {
+		return nil
+	}
+	out := make([]diagnose.Diagnostic, 0, len(diags))
+	for _, d := range diags {
+		if _, ok := openSet[canonicalPath(d.FilePath)]; ok {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
 func (s *Server) firstOpenFileLocked() string {
 	for uri := range s.openDocs {
 		if path := uriToPath(uri); path != "" {
-			return path
+			return canonicalPath(path)
 		}
 	}
 	return ""

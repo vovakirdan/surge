@@ -40,3 +40,14 @@ func pathToURI(path string) string {
 	u := url.URL{Scheme: "file", Path: filepath.ToSlash(path)}
 	return u.String()
 }
+
+func canonicalURI(uri string) string {
+	if uri == "" {
+		return ""
+	}
+	path := uriToPath(uri)
+	if path == "" {
+		return ""
+	}
+	return pathToURI(path)
+}

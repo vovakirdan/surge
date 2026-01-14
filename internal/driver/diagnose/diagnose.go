@@ -143,6 +143,57 @@ func DiagnoseWorkspace(ctx context.Context, opts *DiagnoseOptions, overlay FileO
 	return collectFileDiagnostics(result), nil
 }
 
+// DiagnoseFiles runs diagnostics for an explicit list of files.
+func DiagnoseFiles(ctx context.Context, opts *DiagnoseOptions, files []string, overlay FileOverlay) ([]Diagnostic, error) {
+	if opts == nil {
+		opts = &DiagnoseOptions{}
+	}
+	if len(files) == 0 {
+		if opts.Result != nil {
+			opts.Result.Mode = WorkspaceModeDir
+			opts.Result.DirFileSet = source.NewFileSetWithBase(opts.BaseDir)
+			opts.Result.DirResults = nil
+		}
+		return nil, nil
+	}
+	baseDir := opts.BaseDir
+	if baseDir == "" {
+		baseDir = filepath.Dir(files[0])
+	}
+	overlayMap := normalizeOverlay(overlay, baseDir)
+	readFile := overlayReadFile(overlayMap, baseDir)
+
+	driverOpts := driver.DiagnoseOptions{
+		Stage:              opts.Stage,
+		MaxDiagnostics:     opts.MaxDiagnostics,
+		IgnoreWarnings:     opts.IgnoreWarnings,
+		WarningsAsErrors:   opts.WarningsAsErrors,
+		NoAlienHints:       opts.NoAlienHints,
+		BaseDir:            baseDir,
+		ReadFile:           readFile,
+		RootKind:           opts.RootKind,
+		EnableTimings:      opts.EnableTimings,
+		EnableDiskCache:    opts.EnableDiskCache,
+		DirectiveMode:      opts.DirectiveMode,
+		DirectiveFilter:    opts.DirectiveFilter,
+		EmitHIR:            opts.EmitHIR,
+		EmitInstantiations: opts.EmitInstantiations,
+		KeepArtifacts:      opts.KeepArtifacts,
+		FullModuleGraph:    opts.FullModuleGraph,
+	}
+
+	fs, results, diagErr := driver.DiagnoseFilesWithOptions(ctx, baseDir, files, &driverOpts, opts.Jobs)
+	if diagErr != nil {
+		return nil, diagErr
+	}
+	if opts.Result != nil {
+		opts.Result.Mode = WorkspaceModeDir
+		opts.Result.DirFileSet = fs
+		opts.Result.DirResults = results
+	}
+	return collectDirDiagnostics(fs, results), nil
+}
+
 func collectFileDiagnostics(result *driver.DiagnoseResult) []Diagnostic {
 	if result == nil || result.Bag == nil || result.FileSet == nil {
 		return nil

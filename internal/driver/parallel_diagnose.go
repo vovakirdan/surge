@@ -3,8 +3,10 @@ package driver
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 
@@ -27,8 +29,24 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptio
 	if err != nil {
 		return nil, nil, err
 	}
+	return DiagnoseFilesWithOptions(ctx, dir, files, opts, jobs)
+}
 
-	fileSet := source.NewFileSetWithBase(dir)
+// DiagnoseFilesWithOptions runs diagnostics for an explicit list of .sg files.
+func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []string, opts *DiagnoseOptions, jobs int) (*source.FileSet, []DiagnoseDirResult, error) {
+	if opts == nil {
+		opts = &DiagnoseOptions{}
+	}
+	var err error
+	files = normalizeFileList(baseDir, files)
+	if len(files) == 0 {
+		return source.NewFileSetWithBase(baseDir), nil, nil
+	}
+	if baseDir == "" {
+		baseDir = filepath.Dir(files[0])
+	}
+
+	fileSet := source.NewFileSetWithBase(baseDir)
 	if opts.ReadFile != nil {
 		fileSet.SetReadFile(opts.ReadFile)
 	}
@@ -43,10 +61,6 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptio
 			continue
 		}
 		fileIDs[p] = id
-	}
-
-	if len(files) == 0 {
-		return fileSet, nil, nil
 	}
 
 	if jobs <= 0 {
@@ -239,7 +253,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptio
 	}
 
 	if !opts.FullModuleGraph && (opts.Stage == DiagnoseStageSyntax || opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll) {
-		baseDir := fileSet.BaseDir()
+		baseDir = fileSet.BaseDir()
 		graphPath = baseDir
 		type entry struct {
 			meta *project.ModuleMeta
@@ -469,7 +483,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptio
 				return nil, nil, err
 			}
 		} else {
-			if err := enrichModuleResults(ctx, dir, fileSet, results, opts); err != nil {
+			if err := enrichModuleResults(ctx, baseDir, fileSet, results, opts); err != nil {
 				return nil, nil, err
 			}
 		}
@@ -523,7 +537,7 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptio
 		if graphReport != nil {
 			path := graphPath
 			if path == "" {
-				path = dir
+				path = baseDir
 			}
 			for i := range results {
 				if results[i].Bag == nil {
@@ -558,4 +572,35 @@ func DiagnoseDirWithOptions(ctx context.Context, dir string, opts *DiagnoseOptio
 	}
 
 	return fileSet, results, nil
+}
+
+func normalizeFileList(baseDir string, files []string) []string {
+	if len(files) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(files))
+	out := make([]string, 0, len(files))
+	for _, file := range files {
+		if strings.TrimSpace(file) == "" {
+			continue
+		}
+		path := filepath.FromSlash(file)
+		if !filepath.IsAbs(path) && baseDir != "" {
+			path = filepath.Join(baseDir, path)
+		}
+		if abs, err := filepath.Abs(path); err == nil {
+			path = abs
+		}
+		path = filepath.Clean(path)
+		if !strings.HasSuffix(path, ".sg") {
+			continue
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		out = append(out, path)
+	}
+	sort.Strings(out)
+	return out
 }

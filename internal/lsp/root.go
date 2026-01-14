@@ -7,19 +7,26 @@ import (
 	"surge/internal/project"
 )
 
-func detectProjectRoot(workspaceRoot, firstFile string) string {
+type analysisMode uint8
+
+const (
+	modeProjectRoot analysisMode = iota
+	modeOpenFiles
+)
+
+func detectAnalysisScope(workspaceRoot, firstFile string) (string, analysisMode) {
 	if root := resolveStartDir(workspaceRoot); root != "" {
 		if found, ok, err := project.FindProjectRoot(root); err == nil && ok {
-			return found
+			return found, modeProjectRoot
 		}
 	}
 	if root := resolveStartDir(firstFile); root != "" {
 		if found, ok, err := project.FindProjectRoot(root); err == nil && ok {
-			return found
+			return found, modeProjectRoot
 		}
-		return root
+		return root, modeOpenFiles
 	}
-	return ""
+	return "", modeOpenFiles
 }
 
 func resolveStartDir(path string) string {

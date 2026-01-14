@@ -46,6 +46,21 @@ func AnalyzeWorkspace(ctx context.Context, opts *DiagnoseOptions, overlay FileOv
 	return snapshot, diags, err
 }
 
+// AnalyzeFiles runs diagnostics for an explicit file set and returns a reusable analysis snapshot.
+func AnalyzeFiles(ctx context.Context, opts *DiagnoseOptions, files []string, overlay FileOverlay) (*AnalysisSnapshot, []Diagnostic, error) {
+	var runOpts DiagnoseOptions
+	if opts != nil {
+		runOpts = *opts
+	}
+	runOpts.KeepArtifacts = true
+	runOpts.FullModuleGraph = true
+	workspace := WorkspaceResult{}
+	runOpts.Result = &workspace
+	diags, err := DiagnoseFiles(ctx, &runOpts, files, overlay)
+	snapshot := buildSnapshot(&runOpts, &workspace, diags)
+	return snapshot, diags, err
+}
+
 func buildSnapshot(opts *DiagnoseOptions, workspace *WorkspaceResult, diags []Diagnostic) *AnalysisSnapshot {
 	if workspace == nil {
 		return nil
