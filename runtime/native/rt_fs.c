@@ -79,17 +79,6 @@ typedef struct SurgeArrayHeader {
     void* data;
 } SurgeArrayHeader;
 
-static size_t fs_align_up(size_t n, size_t align) {
-    if (align <= 1) {
-        return n;
-    }
-    size_t r = n % align;
-    if (r == 0) {
-        return n;
-    }
-    return n + (align - r);
-}
-
 static const char* fs_error_message(uint64_t code) {
     switch (code) {
         case FS_ERR_NOT_FOUND:
@@ -160,13 +149,11 @@ static void* fs_make_success_ptr(void* payload) {
     if (payload_size < sizeof(void*)) {
         payload_size = sizeof(void*);
     }
-    size_t payload_offset = fs_align_up(4, payload_align);
-    size_t size = fs_align_up(payload_offset + payload_size, payload_align);
-    uint8_t* mem = (uint8_t*)rt_alloc((uint64_t)size, (uint64_t)payload_align);
+    size_t payload_offset = rt_tag_payload_offset(payload_align);
+    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
     if (mem == NULL) {
         return NULL;
     }
-    *(uint32_t*)mem = 0;
     *(void**)(mem + payload_offset) = payload;
     return mem;
 }
@@ -177,13 +164,11 @@ static void* fs_make_success_nothing(void) {
     if (payload_size < sizeof(Metadata)) {
         payload_size = sizeof(Metadata);
     }
-    size_t payload_offset = fs_align_up(4, payload_align);
-    size_t size = fs_align_up(payload_offset + payload_size, payload_align);
-    uint8_t* mem = (uint8_t*)rt_alloc((uint64_t)size, (uint64_t)payload_align);
+    size_t payload_offset = rt_tag_payload_offset(payload_align);
+    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
     if (mem == NULL) {
         return NULL;
     }
-    *(uint32_t*)mem = 0;
     mem[payload_offset] = 0;
     return mem;
 }
@@ -197,13 +182,11 @@ static void* fs_make_success_u8(uint8_t value) {
     if (payload_size < sizeof(void*)) {
         payload_size = sizeof(void*);
     }
-    size_t payload_offset = fs_align_up(4, payload_align);
-    size_t size = fs_align_up(payload_offset + payload_size, payload_align);
-    uint8_t* mem = (uint8_t*)rt_alloc((uint64_t)size, (uint64_t)payload_align);
+    size_t payload_offset = rt_tag_payload_offset(payload_align);
+    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
     if (mem == NULL) {
         return NULL;
     }
-    *(uint32_t*)mem = 0;
     mem[payload_offset] = value;
     return mem;
 }

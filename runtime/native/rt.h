@@ -2,6 +2,7 @@
 #define SURGE_RUNTIME_NATIVE_RT_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -13,6 +14,8 @@ void rt_free(uint8_t* ptr, uint64_t size, uint64_t align);
 void* rt_realloc(uint8_t* ptr, uint64_t old_size, uint64_t new_size, uint64_t align);
 void rt_memcpy(uint8_t* dst, const uint8_t* src, uint64_t n);
 void rt_memmove(uint8_t* dst, const uint8_t* src, uint64_t n);
+size_t rt_tag_payload_offset(size_t payload_align);
+void* rt_tag_alloc(uint32_t tag, size_t payload_align, size_t payload_size);
 
 uint64_t rt_write_stdout(const uint8_t* ptr, uint64_t length);
 uint64_t rt_write_stderr(const uint8_t* ptr, uint64_t length);

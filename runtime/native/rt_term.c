@@ -92,41 +92,11 @@ enum {
     TERM_EVENT_TAG_EOF = 2,
 };
 
-static size_t term_align_up(size_t n, size_t align) {
-    if (align <= 1) {
-        return n;
-    }
-    size_t r = n % align;
-    if (r == 0) {
-        return n;
-    }
-    return n + (align - r);
-}
-
-static size_t term_tag_payload_offset(size_t payload_align) {
-    return term_align_up(4, payload_align);
-}
-
-static void* term_alloc_tag(uint32_t tag, size_t payload_align, size_t payload_size) {
-    size_t payload_offset = term_tag_payload_offset(payload_align);
-    size_t size = term_align_up(payload_offset + payload_size, payload_align);
-    if (size == 0) {
-        size = 1;
-    }
-    uint8_t* mem = (uint8_t*)rt_alloc((uint64_t)size, (uint64_t)payload_align);
-    if (mem == NULL) {
-        return NULL;
-    }
-    memset(mem, 0, size);
-    *(uint32_t*)mem = tag;
-    return mem;
-}
-
 static void* term_make_key(TermKeyData key) {
     size_t payload_align = alignof(uint32_t);
     size_t payload_size = sizeof(uint32_t);
-    size_t payload_offset = term_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)term_alloc_tag((uint32_t)key.kind, payload_align, payload_size);
+    size_t payload_offset = rt_tag_payload_offset(payload_align);
+    uint8_t* mem = (uint8_t*)rt_tag_alloc((uint32_t)key.kind, payload_align, payload_size);
     if (mem == NULL) {
         return NULL;
     }
@@ -149,8 +119,8 @@ static void* term_make_event_key(TermKeyData key, uint8_t mods) {
     if (payload_size < sizeof(TermKeyEventPayload)) {
         payload_size = sizeof(TermKeyEventPayload);
     }
-    size_t payload_offset = term_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)term_alloc_tag(TERM_EVENT_TAG_KEY, payload_align, payload_size);
+    size_t payload_offset = rt_tag_payload_offset(payload_align);
+    uint8_t* mem = (uint8_t*)rt_tag_alloc(TERM_EVENT_TAG_KEY, payload_align, payload_size);
     if (mem == NULL) {
         return NULL;
     }
@@ -167,8 +137,8 @@ static void* term_make_event_resize(int64_t cols, int64_t rows) {
     if (payload_size < sizeof(TermKeyEventPayload)) {
         payload_size = sizeof(TermKeyEventPayload);
     }
-    size_t payload_offset = term_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)term_alloc_tag(TERM_EVENT_TAG_RESIZE, payload_align, payload_size);
+    size_t payload_offset = rt_tag_payload_offset(payload_align);
+    uint8_t* mem = (uint8_t*)rt_tag_alloc(TERM_EVENT_TAG_RESIZE, payload_align, payload_size);
     if (mem == NULL) {
         return NULL;
     }
@@ -185,7 +155,7 @@ static void* term_make_event_eof(void) {
     if (payload_size < sizeof(TermKeyEventPayload)) {
         payload_size = sizeof(TermKeyEventPayload);
     }
-    return term_alloc_tag(TERM_EVENT_TAG_EOF, payload_align, payload_size);
+    return rt_tag_alloc(TERM_EVENT_TAG_EOF, payload_align, payload_size);
 }
 
 static bool term_parse_i64(const char* text, int64_t* out) {
