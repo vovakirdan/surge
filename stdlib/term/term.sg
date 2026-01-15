@@ -1,0 +1,72 @@
+// stdlib/term/term.sg
+// Terminal events and convenience wrappers.
+pragma module;
+
+pub type TermMods = uint8;
+pub enum TermMod: TermMods = { SHIFT = 1, ALT = 2, CTRL = 4, META = 8 };
+
+pub type KeyEvent = {
+    key: TermKey,
+    mods: TermMods
+};
+
+pub tag Char(uint32);
+pub tag Enter();
+pub tag Esc();
+pub tag Backspace();
+pub tag Tab();
+pub tag Up();
+pub tag Down();
+pub tag Left();
+pub tag Right();
+pub tag Home();
+pub tag End();
+pub tag PageUp();
+pub tag PageDown();
+pub tag Delete();
+pub tag F(uint8);
+pub type TermKey =
+    Char(uint32) | Enter() | Esc() | Backspace() | Tab() |
+    Up() | Down() | Left() | Right() | Home() | End() |
+    PageUp() | PageDown() | Delete() | F(uint8);
+
+pub tag Key(KeyEvent);
+pub tag Resize(int, int);
+pub tag Eof();
+pub type TermEvent = Key(KeyEvent) | Resize(int, int) | Eof();
+
+pub fn enter() -> nothing {
+    term_enter_alt_screen();
+    term_hide_cursor();
+    term_set_raw_mode(true);
+    return nothing;
+}
+
+pub fn exit() -> nothing {
+    term_set_raw_mode(false);
+    term_show_cursor();
+    term_exit_alt_screen();
+    return nothing;
+}
+
+pub fn write_str(s: string) -> nothing {
+    term_write(s to byte[]);
+    return nothing;
+}
+
+pub fn read_event_async(ch: &Channel<TermEvent>) -> Task<nothing> {
+    return blocking {
+        while true {
+            let ev = term_read_event();
+            let done = compare &ev {
+                Eof() => true;
+                _ => false;
+            };
+            ch.send(ev);
+            if done {
+                return nothing;
+            }
+        }
+        return nothing;
+    };
+}

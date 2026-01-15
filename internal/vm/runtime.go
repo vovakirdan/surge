@@ -116,6 +116,13 @@ type TestRuntime struct {
 	stdinPos int
 	exitCode int
 	exited   bool
+
+	termEvents  []TermEventData
+	termCalls   []TermCall
+	termWrites  [][]byte
+	termCols    int
+	termRows    int
+	termSizeSet bool
 }
 
 // NewTestRuntime creates a test runtime with controlled inputs.

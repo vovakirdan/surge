@@ -42,6 +42,24 @@ func (fe *funcEmitter) emitRuntimeIntrinsic(call *mir.CallInstr) (bool, error) {
 		return true, fe.emitRtWrite(call, "rt_write_stdout", "stdout write length out of range")
 	case "rt_write_stderr":
 		return true, fe.emitRtWrite(call, "rt_write_stderr", "stderr write length out of range")
+	case "term_enter_alt_screen":
+		return true, fe.emitTermNoop(call, "rt_term_enter_alt_screen")
+	case "term_exit_alt_screen":
+		return true, fe.emitTermNoop(call, "rt_term_exit_alt_screen")
+	case "term_set_raw_mode":
+		return true, fe.emitTermSetRawMode(call)
+	case "term_hide_cursor":
+		return true, fe.emitTermNoop(call, "rt_term_hide_cursor")
+	case "term_show_cursor":
+		return true, fe.emitTermNoop(call, "rt_term_show_cursor")
+	case "term_size":
+		return true, fe.emitTermSize(call)
+	case "term_write":
+		return true, fe.emitTermWrite(call)
+	case "term_flush":
+		return true, fe.emitTermNoop(call, "rt_term_flush")
+	case "term_read_event":
+		return true, fe.emitTermReadEvent(call)
 	case "rt_string_len":
 		return true, fe.emitRtStringLen(call, "rt_string_len")
 	case "rt_string_len_bytes":

@@ -1,0 +1,13 @@
+// stdlib/term/intrinsics.sg
+// Terminal intrinsics (backend-provided).
+pragma module;
+
+@intrinsic pub fn term_enter_alt_screen() -> nothing;
+@intrinsic pub fn term_exit_alt_screen() -> nothing;
+@intrinsic pub fn term_set_raw_mode(enabled: bool) -> nothing;
+@intrinsic pub fn term_hide_cursor() -> nothing;
+@intrinsic pub fn term_show_cursor() -> nothing;
+@intrinsic pub fn term_size() -> (int, int); // cols, rows
+@intrinsic pub fn term_write(bytes: byte[]) -> nothing;
+@intrinsic pub fn term_flush() -> nothing;
+@intrinsic pub fn term_read_event() -> TermEvent;

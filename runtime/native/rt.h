@@ -16,6 +16,15 @@ void rt_memmove(uint8_t* dst, const uint8_t* src, uint64_t n);
 
 uint64_t rt_write_stdout(const uint8_t* ptr, uint64_t length);
 uint64_t rt_write_stderr(const uint8_t* ptr, uint64_t length);
+void rt_term_enter_alt_screen(void);
+void rt_term_exit_alt_screen(void);
+void rt_term_set_raw_mode(bool enabled);
+void rt_term_hide_cursor(void);
+void rt_term_show_cursor(void);
+void* rt_term_size(void);
+void rt_term_write(void* bytes);
+void rt_term_flush(void);
+void* rt_term_read_event(void);
 void* rt_readline(void);
 void rt_exit(int64_t code);
 void rt_panic(const uint8_t* ptr, uint64_t length);
