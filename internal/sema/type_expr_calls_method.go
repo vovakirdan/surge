@@ -140,6 +140,23 @@ func (tc *typeChecker) ensureExportedMethodSymbol(name string, sig *symbols.Func
 	if symID := tc.magicSymbolForSignature(sig); symID.IsValid() {
 		return symID
 	}
+	matchesSignature := func(a, b *symbols.FunctionSignature) bool {
+		if a == b {
+			return true
+		}
+		if a == nil || b == nil || len(a.Params) != len(b.Params) {
+			return false
+		}
+		if !typeKeyEqual(a.Result, b.Result) {
+			return false
+		}
+		for i := range a.Params {
+			if !typeKeyEqual(a.Params[i], b.Params[i]) {
+				return false
+			}
+		}
+		return true
+	}
 	nameID := tc.builder.StringsInterner.Intern(name)
 	for modulePath, exports := range tc.exports {
 		if exports == nil {
@@ -148,7 +165,10 @@ func (tc *typeChecker) ensureExportedMethodSymbol(name string, sig *symbols.Func
 		exported := exports.Lookup(name)
 		for i := range exported {
 			exp := &exported[i]
-			if exp.Signature != sig || exp.Kind != symbols.SymbolFunction || exp.ReceiverKey == "" {
+			if exp.Kind != symbols.SymbolFunction || exp.ReceiverKey == "" {
+				continue
+			}
+			if !matchesSignature(exp.Signature, sig) {
 				continue
 			}
 			sym := tc.exportedSymbolToSymbol(exp, modulePath)

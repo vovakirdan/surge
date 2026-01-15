@@ -261,11 +261,68 @@ func (tc *typeChecker) resolveToSymbol(expr ast.ExprID, src, target types.TypeID
 		return symbols.NoSymbolID
 	}
 	if symID, ok := tc.resolveToSymbolByMagicCost(expr, src, target); ok {
+		if symID.IsValid() {
+			return symID
+		}
+	}
+	if methods := tc.collectToMethods(src, target); len(methods) == 1 {
+		if symID := tc.ensureExportedMethodSymbol("__to", methods[0], tc.exprSpan(expr)); symID.IsValid() {
+			return symID
+		}
+	}
+	if symID := tc.resolveToSymbolFromExports(expr, src, target); symID.IsValid() {
 		return symID
 	}
 	nameID := tc.builder.StringsInterner.Intern("__to")
 	member := &ast.ExprMemberData{Field: nameID}
 	return tc.resolveMethodCallSymbol(member, src, expr, []types.TypeID{target}, nil, false)
+}
+
+func (tc *typeChecker) resolveToSymbolFromExports(expr ast.ExprID, src, target types.TypeID) symbols.SymbolID {
+	if tc == nil || tc.exports == nil {
+		return symbols.NoSymbolID
+	}
+	targetCandidates := tc.filterTargetCandidates(target, tc.typeKeyCandidates(target))
+	if len(targetCandidates) == 0 {
+		return symbols.NoSymbolID
+	}
+	for _, sc := range tc.typeKeyCandidates(src) {
+		if sc.key == "" {
+			continue
+		}
+		for _, exp := range tc.exports {
+			if exp == nil {
+				continue
+			}
+			exported := exp.Lookup("__to")
+			for i := range exported {
+				cand := &exported[i]
+				if cand.Kind != symbols.SymbolFunction || cand.ReceiverKey == "" || cand.Signature == nil || len(cand.Signature.Params) < 2 {
+					continue
+				}
+				if !typeKeyEqual(cand.ReceiverKey, sc.key) {
+					continue
+				}
+				matchesTarget := false
+				for _, tgt := range targetCandidates {
+					if tgt.key == "" {
+						continue
+					}
+					if typeKeyEqual(cand.Signature.Params[1], tgt.key) && typeKeyEqual(cand.Signature.Result, tgt.key) {
+						matchesTarget = true
+						break
+					}
+				}
+				if !matchesTarget {
+					continue
+				}
+				if symID := tc.ensureExportedMethodSymbol("__to", cand.Signature, tc.exprSpan(expr)); symID.IsValid() {
+					return symID
+				}
+			}
+		}
+	}
+	return symbols.NoSymbolID
 }
 
 func (tc *typeChecker) resolveToSymbolByMagicCost(expr ast.ExprID, src, target types.TypeID) (symbols.SymbolID, bool) {
@@ -317,7 +374,14 @@ func (tc *typeChecker) resolveToSymbolByMagicCost(expr ast.ExprID, src, target t
 	if bestSig == nil {
 		return symbols.NoSymbolID, false
 	}
-	return tc.magicSymbolForSignature(bestSig), true
+	symID := tc.magicSymbolForSignature(bestSig)
+	if !symID.IsValid() {
+		symID = tc.ensureExportedMethodSymbol("__to", bestSig, tc.exprSpan(expr))
+	}
+	if !symID.IsValid() {
+		return symbols.NoSymbolID, false
+	}
+	return symID, true
 }
 
 // recordTagInstantiationForInjection registers a tag instantiation for implicit tag injection.

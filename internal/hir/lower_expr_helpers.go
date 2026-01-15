@@ -101,7 +101,13 @@ func (l *lowerer) isBuiltinSymbol(symID symbols.SymbolID) bool {
 		return false
 	}
 	sym := l.symRes.Table.Symbols.Get(symID)
-	return sym != nil && sym.Flags&symbols.SymbolFlagBuiltin != 0
+	if sym == nil || sym.Flags&symbols.SymbolFlagBuiltin == 0 {
+		return false
+	}
+	if sym.Signature != nil && sym.Signature.HasBody {
+		return false
+	}
+	return true
 }
 
 func (l *lowerer) magicCallExpr(span source.Span, ty types.TypeID, symID symbols.SymbolID, args []*Expr) *Expr {

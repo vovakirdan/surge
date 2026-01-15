@@ -201,15 +201,25 @@ func (l *lowerer) lowerFnParams(fnItemID ast.ItemID, fnItem *ast.FnItem) []Param
 	if l.semaRes != nil && l.semaRes.ItemScopes != nil {
 		fnScope = l.semaRes.ItemScopes[fnItemID]
 	}
-	return l.lowerFnParamsWithScope(fnScope, fnItem)
+	var fnSymID symbols.SymbolID
+	if l.symRes != nil {
+		if syms, ok := l.symRes.ItemSymbols[fnItemID]; ok && len(syms) > 0 {
+			fnSymID = syms[0]
+		}
+	}
+	return l.lowerFnParamsWithScope(fnScope, fnSymID, fnItem)
 }
 
 func (l *lowerer) lowerExternFnParams(memberID ast.ExternMemberID, fnItem *ast.FnItem) []Param {
 	fnScope := l.scopeForExtern(memberID)
-	return l.lowerFnParamsWithScope(fnScope, fnItem)
+	var fnSymID symbols.SymbolID
+	if l.symRes != nil {
+		fnSymID = l.symRes.ExternSyms[memberID]
+	}
+	return l.lowerFnParamsWithScope(fnScope, fnSymID, fnItem)
 }
 
-func (l *lowerer) lowerFnParamsWithScope(fnScope symbols.ScopeID, fnItem *ast.FnItem) []Param {
+func (l *lowerer) lowerFnParamsWithScope(fnScope symbols.ScopeID, fnSymID symbols.SymbolID, fnItem *ast.FnItem) []Param {
 	paramIDs := l.builder.Items.GetFnParamIDs(fnItem)
 	if len(paramIDs) == 0 {
 		return nil
@@ -241,6 +251,14 @@ func (l *lowerer) lowerFnParamsWithScope(fnScope symbols.ScopeID, fnItem *ast.Fn
 				p.SymbolID = symID
 				if p.Type == types.NoTypeID && l.semaRes != nil && l.semaRes.BindingTypes != nil {
 					p.Type = l.semaRes.BindingTypes[symID]
+				}
+			}
+		}
+
+		if p.Type == types.NoTypeID && fnSymID.IsValid() && l.symRes != nil && l.symRes.Table != nil && l.semaRes != nil && l.semaRes.TypeInterner != nil {
+			if sym := l.symRes.Table.Symbols.Get(fnSymID); sym != nil && sym.Type != types.NoTypeID {
+				if fnInfo, ok := l.semaRes.TypeInterner.FnInfo(sym.Type); ok && fnInfo != nil && len(fnInfo.Params) > len(params) {
+					p.Type = fnInfo.Params[len(params)]
 				}
 			}
 		}
