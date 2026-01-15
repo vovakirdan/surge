@@ -4,7 +4,7 @@ module
 
 type Foo <struct> (sym=1371, type=0)
 
-fn __to(self: type#1417, _: ?) -> string (id=1, sym=1372) {
+fn __to(self: type#1417, _: string) -> string (id=1, sym=1372) {
   return "\"Foo\""
 }
 

@@ -261,9 +261,7 @@ func (tc *typeChecker) resolveToSymbol(expr ast.ExprID, src, target types.TypeID
 		return symbols.NoSymbolID
 	}
 	if symID, ok := tc.resolveToSymbolByMagicCost(expr, src, target); ok {
-		if symID.IsValid() {
-			return symID
-		}
+		return symID
 	}
 	if methods := tc.collectToMethods(src, target); len(methods) == 1 {
 		if symID := tc.ensureExportedMethodSymbol("__to", methods[0], tc.exprSpan(expr)); symID.IsValid() {
@@ -379,7 +377,7 @@ func (tc *typeChecker) resolveToSymbolByMagicCost(expr ast.ExprID, src, target t
 		symID = tc.ensureExportedMethodSymbol("__to", bestSig, tc.exprSpan(expr))
 	}
 	if !symID.IsValid() {
-		return symbols.NoSymbolID, false
+		return symbols.NoSymbolID, true
 	}
 	return symID, true
 }
