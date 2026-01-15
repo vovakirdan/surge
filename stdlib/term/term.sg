@@ -5,6 +5,7 @@ pragma module;
 pub type TermMods = uint8;
 pub enum TermMod: TermMods = { SHIFT = 1, ALT = 2, CTRL = 4, META = 8 };
 
+@copy
 pub type KeyEvent = {
     key: TermKey,
     mods: TermMods
@@ -25,6 +26,7 @@ pub tag PageUp();
 pub tag PageDown();
 pub tag Delete();
 pub tag F(uint8);
+@copy
 pub type TermKey =
     Char(uint32) | Enter() | Esc() | Backspace() | Tab() |
     Up() | Down() | Left() | Right() | Home() | End() |
@@ -33,6 +35,7 @@ pub type TermKey =
 pub tag Key(KeyEvent);
 pub tag Resize(int, int);
 pub tag Eof();
+@copy
 pub type TermEvent = Key(KeyEvent) | Resize(int, int) | Eof();
 
 pub fn enter() -> nothing {
@@ -42,7 +45,7 @@ pub fn enter() -> nothing {
     return nothing;
 }
 
-pub fn exit() -> nothing {
+pub fn leave() -> nothing {
     term_set_raw_mode(false);
     term_show_cursor();
     term_exit_alt_screen();
@@ -54,11 +57,11 @@ pub fn write_str(s: string) -> nothing {
     return nothing;
 }
 
-pub fn read_event_async(ch: &Channel<TermEvent>) -> Task<nothing> {
+pub fn read_event_async(ch: Channel<TermEvent>) -> Task<nothing> {
     return blocking {
         while true {
             let ev = term_read_event();
-            let done = compare &ev {
+            let done = compare ev {
                 Eof() => true;
                 _ => false;
             };

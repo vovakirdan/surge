@@ -1,0 +1,186 @@
+// stdlib/strings/strings.sg
+// Character helpers and ASCII constants.
+pragma module;
+
+pub enum ASCII: uint = {
+    NUL = 0,
+    SOH,
+    STX,
+    ETX,
+    EOT,
+    ENQ,
+    ACK,
+    BEL,
+    BS,
+    TAB,
+    LF,
+    VT,
+    FF,
+    CR,
+    SO,
+    SI,
+    DLE,
+    DC1,
+    DC2,
+    DC3,
+    DC4,
+    NAK,
+    SYN,
+    ETB,
+    CAN,
+    EM,
+    SUB,
+    ESC,
+    FS,
+    GS,
+    RS,
+    US,
+    SPACE,
+    EXCLAMATION,
+    DOUBLE_QUOTE,
+    HASH,
+    DOLLAR,
+    PERCENT,
+    AMPERSAND,
+    APOSTROPHE,
+    LEFT_PAREN,
+    RIGHT_PAREN,
+    ASTERISK,
+    PLUS,
+    COMMA,
+    HYPHEN,
+    DOT,
+    SLASH,
+    DIGIT_0,
+    DIGIT_1,
+    DIGIT_2,
+    DIGIT_3,
+    DIGIT_4,
+    DIGIT_5,
+    DIGIT_6,
+    DIGIT_7,
+    DIGIT_8,
+    DIGIT_9,
+    COLON,
+    SEMICOLON,
+    LESS_THAN,
+    EQUAL,
+    GREATER_THAN,
+    QUESTION,
+    AT,
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+    M,
+    N,
+    O,
+    P,
+    Q,
+    R,
+    S,
+    T,
+    U,
+    V,
+    W,
+    X,
+    Y,
+    Z,
+    LEFT_BRACKET,
+    BACKSLASH,
+    RIGHT_BRACKET,
+    CARET,
+    UNDERSCORE,
+    BACKTICK,
+    LOWER_A,
+    LOWER_B,
+    LOWER_C,
+    LOWER_D,
+    LOWER_E,
+    LOWER_F,
+    LOWER_G,
+    LOWER_H,
+    LOWER_I,
+    LOWER_J,
+    LOWER_K,
+    LOWER_L,
+    LOWER_M,
+    LOWER_N,
+    LOWER_O,
+    LOWER_P,
+    LOWER_Q,
+    LOWER_R,
+    LOWER_S,
+    LOWER_T,
+    LOWER_U,
+    LOWER_V,
+    LOWER_W,
+    LOWER_X,
+    LOWER_Y,
+    LOWER_Z,
+    LEFT_BRACE,
+    PIPE,
+    RIGHT_BRACE,
+    TILDE,
+    DEL,
+};
+
+pub fn ord(s: &string) -> uint {
+    return s[0] to uint;
+}
+
+fn append_utf8(out: &mut byte[], cp: uint) -> bool {
+    if cp > 0x10FFFF:uint {
+        return false;
+    }
+    if cp >= 0xD800:uint && cp <= 0xDFFF:uint {
+        return false;
+    }
+    if cp <= 0x7F:uint {
+        let b: byte = cp to byte;
+        out.push(b);
+        return true;
+    }
+    if cp <= 0x7FF:uint {
+        let b0: byte = (0xC0:uint | (cp >> 6:uint)) to byte;
+        let b1: byte = (0x80:uint | (cp & 0x3F:uint)) to byte;
+        out.push(b0);
+        out.push(b1);
+        return true;
+    }
+    if cp <= 0xFFFF:uint {
+        let b0: byte = (0xE0:uint | (cp >> 12:uint)) to byte;
+        let b1: byte = (0x80:uint | ((cp >> 6:uint) & 0x3F:uint)) to byte;
+        let b2: byte = (0x80:uint | (cp & 0x3F:uint)) to byte;
+        out.push(b0);
+        out.push(b1);
+        out.push(b2);
+        return true;
+    }
+    let b0: byte = (0xF0:uint | (cp >> 18:uint)) to byte;
+    let b1: byte = (0x80:uint | ((cp >> 12:uint) & 0x3F:uint)) to byte;
+    let b2: byte = (0x80:uint | ((cp >> 6:uint) & 0x3F:uint)) to byte;
+    let b3: byte = (0x80:uint | (cp & 0x3F:uint)) to byte;
+    out.push(b0);
+    out.push(b1);
+    out.push(b2);
+    out.push(b3);
+    return true;
+}
+
+pub fn chr(cp: uint) -> Erring<string, Error> {
+    let mut out: byte[] = [];
+    out.reserve(4:uint);
+    if !append_utf8(&mut out, cp) {
+        return Error { message: "chr: invalid code point", code: 1:uint };
+    }
+    return string.from_bytes(&out);
+}
