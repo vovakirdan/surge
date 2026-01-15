@@ -1,0 +1,197 @@
+// stdlib/term/ansi.sg
+// ANSI builder for efficient terminal output.
+pragma module;
+
+pub type Ansi = {
+    buf: byte[],
+};
+
+extern<Ansi> {
+    pub fn new() -> Ansi {
+        return { buf = [] };
+    }
+
+    pub fn with_capacity(cap: uint) -> Ansi {
+        let mut a: Ansi = { buf = [] };
+        if cap != 0:uint {
+            a.buf.reserve(cap);
+        }
+        return a;
+    }
+
+    pub fn clear(self: &mut Ansi, save_cap: bool = false) -> nothing {
+        if save_cap {
+            let mut remaining: int = self.buf.__len() to int;
+            while remaining > 0 {
+                let _ = self.buf.pop();
+                remaining = remaining - 1;
+            }
+            return nothing;
+        }
+        self.buf = [];
+        return nothing;
+    }
+
+    pub fn reserve(self: &mut Ansi, additional: uint) -> nothing {
+        let new_cap: uint = self.buf.__len() + additional;
+        self.buf.reserve(new_cap);
+        return nothing;
+    }
+
+    pub fn push_byte(self: &mut Ansi, b: byte) -> nothing {
+        self.buf.push(b);
+        return nothing;
+    }
+
+    pub fn push_bytes(self: &mut Ansi, xs: &byte[]) -> nothing {
+        let len_i: int = xs.__len() to int;
+        let mut i: int = 0;
+        while i < len_i {
+            let b: byte = clone(xs[i]);
+            self.buf.push(b);
+            i = i + 1;
+        }
+        return nothing;
+    }
+
+    pub fn push_str(self: &mut Ansi, s: &string) -> nothing {
+        let view = s.bytes();
+        let len_i: int = view.__len() to int;
+        let mut i: int = 0;
+        while i < len_i {
+            let b: byte = view[i];
+            self.buf.push(b);
+            i = i + 1;
+        }
+        return nothing;
+    }
+
+    pub fn push_uint(self: &mut Ansi, v: uint) -> nothing {
+        if v == 0:uint {
+            self.buf.push(48:uint to byte);
+            return nothing;
+        }
+        let mut tmp: byte[] = [];
+        let mut n: uint = v;
+        while n > 0:uint {
+            let d: uint = n % 10:uint;
+            tmp.push((48:uint + d) to byte);
+            n = n / 10:uint;
+        }
+        let mut i: int = tmp.__len() to int;
+        while i > 0 {
+            i = i - 1;
+            let b: byte = clone(tmp[i]);
+            self.buf.push(b);
+        }
+        return nothing;
+    }
+
+    pub fn push_int(self: &mut Ansi, v: int) -> nothing {
+        if v < 0 {
+            self.buf.push(45:uint to byte);
+            self.push_uint((0 - v) to uint);
+            return nothing;
+        }
+        self.push_uint(v to uint);
+        return nothing;
+    }
+
+    pub fn esc(self: &mut Ansi) -> nothing {
+        self.buf.push(27:uint to byte);
+        return nothing;
+    }
+
+    pub fn csi(self: &mut Ansi) -> nothing {
+        self.esc();
+        self.buf.push(91:uint to byte);
+        return nothing;
+    }
+
+    pub fn sgr_reset(self: &mut Ansi) -> nothing {
+        self.csi();
+        self.buf.push(48:uint to byte);
+        self.buf.push(109:uint to byte);
+        return nothing;
+    }
+
+    pub fn sgr_bold(self: &mut Ansi) -> nothing {
+        self.csi();
+        self.buf.push(49:uint to byte);
+        self.buf.push(109:uint to byte);
+        return nothing;
+    }
+
+    pub fn fg_256(self: &mut Ansi, idx: uint) -> nothing {
+        self.csi();
+        self.push_str(&"38;5;");
+        self.push_uint(idx);
+        self.buf.push(109:uint to byte);
+        return nothing;
+    }
+
+    pub fn bg_256(self: &mut Ansi, idx: uint) -> nothing {
+        self.csi();
+        self.push_str(&"48;5;");
+        self.push_uint(idx);
+        self.buf.push(109:uint to byte);
+        return nothing;
+    }
+
+    pub fn move_to(self: &mut Ansi, row1: uint, col1: uint) -> nothing {
+        self.csi();
+        self.push_uint(row1);
+        self.buf.push(59:uint to byte);
+        self.push_uint(col1);
+        self.buf.push(72:uint to byte);
+        return nothing;
+    }
+
+    pub fn clear_screen(self: &mut Ansi) -> nothing {
+        self.csi();
+        self.buf.push(50:uint to byte);
+        self.buf.push(74:uint to byte);
+        return nothing;
+    }
+
+    pub fn clear_line(self: &mut Ansi) -> nothing {
+        self.csi();
+        self.buf.push(50:uint to byte);
+        self.buf.push(75:uint to byte);
+        return nothing;
+    }
+
+    pub fn write(self: &Ansi) -> nothing {
+        term_write(self.to_bytes());
+        return nothing;
+    }
+
+    pub fn flush(self: &Ansi) -> nothing {
+        let _ = self;
+        term_flush();
+        return nothing;
+    }
+
+    pub fn to_bytes(self: &Ansi) -> byte[] {
+        let length: uint = self.buf.__len();
+        if length == 0:uint {
+            return [];
+        }
+        let mut out: byte[] = [];
+        out.reserve(length);
+        let len_i: int = length to int;
+        let mut i: int = 0;
+        while i < len_i {
+            let b: byte = clone(self.buf[i]);
+            out.push(b);
+            i = i + 1;
+        }
+        return out;
+    }
+
+    pub fn take_bytes(self: &mut Ansi) -> byte[] {
+        let out: byte[] = self.to_bytes();
+        self.buf = [];
+        return out;
+    }
+}

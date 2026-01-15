@@ -438,7 +438,6 @@ Non-guarantees (explicitly not promised):
 - The VM backend is single-worker today; MT execution is a runtime option for other backends.
 - `blocking { ... }` is not supported in the VM backend.
 - `parallel map/reduce` and `signal` remain reserved keywords (not supported).
-- `await` inside loops is not supported (MIR lowering rejects it).
 
 See `docs/PARALLEL.md` for the status of parallel features.
 
@@ -451,7 +450,5 @@ See `docs/PARALLEL.md` for the status of parallel features.
 - `@nonblocking` currently treats channel ops (`send`/`recv`/`close`) as blocking,
   which can reject common async patterns in `@nonblocking` code; clearer guidance
   may be needed if `strict::nonblocking` is implemented later.
-- The lack of `await` in loops makes it awkward to express periodic
-  `checkpoint().await()` in long-running CPU loops.
 - Seeded scheduling depends on external event order; reproducibility boundaries
   may need more explicit guidance in test tooling.

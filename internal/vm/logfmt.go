@@ -133,6 +133,45 @@ func MustDecodeInt64(v LogValue) (int64, error) {
 	return out, nil
 }
 
+type logTermSize struct {
+	Cols int `json:"cols"`
+	Rows int `json:"rows"`
+}
+
+// LogTermSize creates a LogValue from a terminal size pair.
+func LogTermSize(cols, rows int) LogValue {
+	return LogValue{Type: "term_size", V: mustJSON(logTermSize{Cols: cols, Rows: rows})}
+}
+
+// LogTermEvent creates a LogValue from a terminal event.
+func LogTermEvent(ev TermEventData) LogValue {
+	return LogValue{Type: "term_event", V: mustJSON(ev)}
+}
+
+// MustDecodeTermSize decodes a LogValue as a terminal size pair.
+func MustDecodeTermSize(v LogValue) (cols, rows int, err error) {
+	if v.Type != "term_size" {
+		return 0, 0, fmt.Errorf("expected value type term_size, got %q", v.Type)
+	}
+	var out logTermSize
+	if err := json.Unmarshal(v.V, &out); err != nil {
+		return 0, 0, err
+	}
+	return out.Cols, out.Rows, nil
+}
+
+// MustDecodeTermEvent decodes a LogValue as a terminal event.
+func MustDecodeTermEvent(v LogValue) (TermEventData, error) {
+	if v.Type != "term_event" {
+		return TermEventData{}, fmt.Errorf("expected value type term_event, got %q", v.Type)
+	}
+	var out TermEventData
+	if err := json.Unmarshal(v.V, &out); err != nil {
+		return TermEventData{}, err
+	}
+	return out, nil
+}
+
 // NewLogPanicEvent creates a LogPanicEvent from a VMError.
 func NewLogPanicEvent(vmErr *VMError, files *source.FileSet) LogPanicEvent {
 	if vmErr == nil {

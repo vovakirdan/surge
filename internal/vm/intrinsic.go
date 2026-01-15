@@ -167,6 +167,24 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleWriteStdout(frame, call, writes)
 	case "rt_write_stderr":
 		return vm.handleWriteStderr(frame, call, writes)
+	case "term_enter_alt_screen":
+		return vm.handleTermEnterAltScreen(frame, call)
+	case "term_exit_alt_screen":
+		return vm.handleTermExitAltScreen(frame, call)
+	case "term_set_raw_mode":
+		return vm.handleTermSetRawMode(frame, call)
+	case "term_hide_cursor":
+		return vm.handleTermHideCursor(frame, call)
+	case "term_show_cursor":
+		return vm.handleTermShowCursor(frame, call)
+	case "term_size":
+		return vm.handleTermSize(frame, call, writes)
+	case "term_write":
+		return vm.handleTermWrite(frame, call)
+	case "term_flush":
+		return vm.handleTermFlush(frame, call)
+	case "term_read_event":
+		return vm.handleTermReadEvent(frame, call, writes)
 	case "rt_fs_cwd":
 		return vm.handleFsCwd(frame, call, writes)
 	case "rt_fs_metadata":
