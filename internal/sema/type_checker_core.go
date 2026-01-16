@@ -87,6 +87,8 @@ type typeChecker struct {
 	typeParamBounds             map[types.TypeID][]symbols.BoundInstance
 	typeParamStack              []types.TypeID
 	typeParamMarks              []int
+	expectedExpr               ast.ExprID
+	expectedType               types.TypeID
 	arrayName                   source.StringID
 	arraySymbol                 symbols.SymbolID
 	arrayType                   types.TypeID

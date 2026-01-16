@@ -38,6 +38,10 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 		tagName := source.NoStringID
 		if ident, ok := tc.builder.Exprs.Ident(call.Target); ok && ident != nil {
 			tagName = ident.Name
+		} else if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
+			if tc.moduleSymbolForExpr(member.Target) != nil {
+				tagName = member.Field
+			}
 		}
 		argTypes := tc.unionTagPayloadTypes(subjectValue, tagName)
 		for i, arg := range call.Args {
@@ -359,6 +363,12 @@ func (tc *typeChecker) matchedUnionMembers(pattern ast.ExprID, members []types.U
 				if idxs := tc.matchUnionTagMembers(ident.Name, members); len(idxs) > 0 {
 					return idxs
 				}
+			} else if member, ok := tc.builder.Exprs.Member(call.Target); ok && member != nil {
+				if tc.moduleSymbolForExpr(member.Target) != nil {
+					if idxs := tc.matchUnionTagMembers(member.Field, members); len(idxs) > 0 {
+						return idxs
+					}
+				}
 			}
 		}
 	case ast.ExprIdent:
@@ -369,6 +379,14 @@ func (tc *typeChecker) matchedUnionMembers(pattern ast.ExprID, members []types.U
 			}
 			if idxs := tc.matchUnionTagMembers(ident.Name, members); len(idxs) > 0 {
 				return idxs
+			}
+		}
+	case ast.ExprMember:
+		if member, ok := tc.builder.Exprs.Member(pattern); ok && member != nil {
+			if tc.moduleSymbolForExpr(member.Target) != nil {
+				if idxs := tc.matchUnionTagMembers(member.Field, members); len(idxs) > 0 {
+					return idxs
+				}
 			}
 		}
 	case ast.ExprLit:

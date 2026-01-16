@@ -405,6 +405,34 @@ func (tc *typeChecker) applyExpectedType(expr ast.ExprID, expected types.TypeID)
 	return false
 }
 
+func (tc *typeChecker) typeExprWithExpected(expr ast.ExprID, expected types.TypeID) types.TypeID {
+	if expected == types.NoTypeID || !expr.IsValid() {
+		return tc.typeExpr(expr)
+	}
+	target := expr
+	if tc.builder != nil {
+		if node := tc.builder.Exprs.Get(expr); node != nil && node.Kind == ast.ExprGroup {
+			if group, ok := tc.builder.Exprs.Group(expr); ok && group != nil {
+				if group.Inner.IsValid() {
+					target = group.Inner
+				}
+			}
+		}
+	}
+	prevExpr, prevType := tc.expectedExpr, tc.expectedType
+	tc.expectedExpr, tc.expectedType = target, expected
+	ty := tc.typeExpr(expr)
+	tc.expectedExpr, tc.expectedType = prevExpr, prevType
+	return ty
+}
+
+func (tc *typeChecker) expectedTypeForExpr(expr ast.ExprID) types.TypeID {
+	if expr == tc.expectedExpr {
+		return tc.expectedType
+	}
+	return types.NoTypeID
+}
+
 func (tc *typeChecker) tryBindGenericFnValue(expr ast.ExprID, expected types.TypeID) bool {
 	if !expr.IsValid() || tc.builder == nil || tc.types == nil || tc.result == nil {
 		return false

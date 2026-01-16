@@ -43,7 +43,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			tc.handleLetDefaultInit(scope, letItem.Type, declaredType, item.Span)
 			return
 		}
-		valueType := tc.typeExpr(letItem.Value)
+		valueType := tc.typeExprWithExpected(letItem.Value, declaredType)
 		tc.observeMove(letItem.Value, tc.exprSpan(letItem.Value))
 		tc.ensureBindingTypeMatch(letItem.Type, declaredType, valueType, letItem.Value)
 		// Check for Task<T> escape to global scope - module-level let bindings
@@ -220,7 +220,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 					return
 				}
 				if letStmt.Value.IsValid() {
-					valueType := tc.typeExpr(letStmt.Value)
+					valueType := tc.typeExprWithExpected(letStmt.Value, declaredType)
 					tc.observeMove(letStmt.Value, tc.exprSpan(letStmt.Value))
 					tc.ensureBindingTypeMatch(letStmt.Type, declaredType, valueType, letStmt.Value)
 					if declaredType == types.NoTypeID {
@@ -254,7 +254,11 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		if ret := tc.builder.Stmts.Return(id); ret != nil {
 			var valueType types.TypeID
 			if ret.Expr.IsValid() {
-				valueType = tc.typeExpr(ret.Expr)
+				expected := types.NoTypeID
+				if ctx := tc.currentReturnContext(); ctx != nil {
+					expected = ctx.expected
+				}
+				valueType = tc.typeExprWithExpected(ret.Expr, expected)
 				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
 				if tc.isLocalTaskExpr(ret.Expr) {
 					tc.report(diag.SemaLocalTaskNotSendable, tc.exprSpan(ret.Expr),
