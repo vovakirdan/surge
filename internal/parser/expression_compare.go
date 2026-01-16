@@ -177,6 +177,30 @@ func (p *Parser) parseCompareArm() (ast.ExprCompareArm, bool) {
 		}
 		resultExpr = p.arenas.Exprs.NewBlock(span, []ast.StmtID{stmtID})
 		p.normalizeBlockExprValue(resultExpr)
+	} else if p.at(token.KwBreak) {
+		stmtID, ok := p.parseBreakStmt()
+		if !ok {
+			return arm, false
+		}
+		stmt := p.arenas.Stmts.Get(stmtID)
+		span := source.Span{}
+		if stmt != nil {
+			span = stmt.Span
+		}
+		resultExpr = p.arenas.Exprs.NewBlock(span, []ast.StmtID{stmtID})
+		p.normalizeBlockExprValue(resultExpr)
+	} else if p.at(token.KwContinue) {
+		stmtID, ok := p.parseContinueStmt()
+		if !ok {
+			return arm, false
+		}
+		stmt := p.arenas.Stmts.Get(stmtID)
+		span := source.Span{}
+		if stmt != nil {
+			span = stmt.Span
+		}
+		resultExpr = p.arenas.Exprs.NewBlock(span, []ast.StmtID{stmtID})
+		p.normalizeBlockExprValue(resultExpr)
 	} else {
 		var ok bool
 		resultExpr, ok = p.parseExprOrBlockAsValue()

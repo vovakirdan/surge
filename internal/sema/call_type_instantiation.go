@@ -533,7 +533,10 @@ func (tc *typeChecker) genericTypeArgs(actual types.TypeID) (base string, args [
 	if actual == types.NoTypeID || tc.types == nil {
 		return "", nil, false
 	}
-	resolved := tc.resolveAlias(actual)
+	resolved := tc.valueType(actual)
+	if resolved == types.NoTypeID {
+		return "", nil, false
+	}
 	tt, ok := tc.types.Lookup(resolved)
 	if !ok {
 		return "", nil, false

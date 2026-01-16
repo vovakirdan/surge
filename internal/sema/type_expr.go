@@ -505,7 +505,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				armTypes[i] = armResult
 				if armResult != types.NoTypeID {
 					if expectedCompare != types.NoTypeID {
-						if !explicitReturn {
+						if !explicitReturn && !(nothingType != types.NoTypeID && armResult == nothingType) {
 							tc.ensureBindingTypeMatch(ast.NoTypeID, expectedCompare, armResult, arm.Result)
 						}
 					} else {
