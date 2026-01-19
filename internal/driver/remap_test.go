@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"surge/internal/hir"
+	"surge/internal/project"
+	"surge/internal/source"
 	"surge/internal/symbols"
 )
 
@@ -44,5 +46,39 @@ func TestRemapHIRModuleSharedExprRemappedOnce(t *testing.T) {
 	}
 	if data.SymbolID != symbols.SymbolID(2) {
 		t.Fatalf("expected symbol to remap once to 2, got %d", data.SymbolID)
+	}
+}
+
+func TestBuildCoreSymbolRemapIncludesLocals(t *testing.T) {
+	strings := source.NewInterner()
+	rootTable := symbols.NewTable(symbols.Hints{}, strings)
+	coreTable := symbols.NewTable(symbols.Hints{}, strings)
+
+	name := strings.Intern("foo")
+	rootTable.Symbols.New(&symbols.Symbol{
+		Name:       name,
+		Kind:       symbols.SymbolFunction,
+		ModulePath: "core",
+		Flags:      symbols.SymbolFlagImported | symbols.SymbolFlagBuiltin,
+	})
+	coreTable.Symbols.New(&symbols.Symbol{
+		Name:       name,
+		Kind:       symbols.SymbolFunction,
+		ModulePath: "core",
+		Flags:      symbols.SymbolFlagPublic,
+	})
+
+	localID := coreTable.Symbols.New(&symbols.Symbol{
+		Name: strings.Intern("local"),
+		Kind: symbols.SymbolParam,
+	})
+
+	mapping := buildCoreSymbolRemap(&symbols.Result{Table: rootTable}, &moduleRecord{
+		Table: coreTable,
+		Meta:  &project.ModuleMeta{Path: "core"},
+	})
+
+	if _, ok := mapping[localID]; !ok {
+		t.Fatalf("expected local symbol to be remapped")
 	}
 }

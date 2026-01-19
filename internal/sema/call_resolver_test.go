@@ -53,8 +53,12 @@ func TestCallResolverPrefersExactOverCoercion(t *testing.T) {
 	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: resolveBag},
 	})
-	if len(resolveBag.Items()) > 0 {
-		t.Fatalf("unexpected resolve diagnostics: %v", resolveBag.Items())
+	if len(diagCodes(resolveBag)) > 0 {
+		for _, item := range resolveBag.Items() {
+			if item.Code != diag.SemaShadowSymbol {
+				t.Fatalf("unexpected resolve diagnostics: %v", diagCodes(resolveBag))
+			}
+		}
 	}
 	semaBag := diag.NewBag(8)
 	res := Check(context.Background(), builder, file, Options{
@@ -140,8 +144,12 @@ func TestCallResolverInfersGenericReturn(t *testing.T) {
 	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: resolveBag},
 	})
-	if len(resolveBag.Items()) > 0 {
-		t.Fatalf("unexpected resolve diagnostics: %v", resolveBag.Items())
+	if len(diagCodes(resolveBag)) > 0 {
+		for _, item := range resolveBag.Items() {
+			if item.Code != diag.SemaShadowSymbol {
+				t.Fatalf("unexpected resolve diagnostics: %v", diagCodes(resolveBag))
+			}
+		}
 	}
 	semaBag := diag.NewBag(8)
 	res := Check(context.Background(), builder, file, Options{
@@ -153,6 +161,46 @@ func TestCallResolverInfersGenericReturn(t *testing.T) {
 	}
 	if res.ExprTypes[call] != res.TypeInterner.Builtins().Int {
 		t.Fatalf("expected call type int, got %v", res.ExprTypes[call])
+	}
+}
+
+func TestCallResolverPrefersFunctionVarOverGlobal(t *testing.T) {
+	builder, file := newTestBuilder()
+	intType := builder.Types.NewPath(source.Span{}, []ast.TypePathSegment{{Name: intern(builder, "int")}})
+	fnType := builder.Types.NewFn(source.Span{}, nil, intType)
+
+	addSimpleFn(builder, file, "gen", nil, intType, nil)
+
+	callTarget := builder.Exprs.NewIdent(source.Span{}, intern(builder, "gen"))
+	call := builder.Exprs.NewCall(source.Span{}, callTarget, nil, nil, nil, false)
+	ret := builder.Stmts.NewReturn(source.Span{}, call)
+	addFunctionWithParamsReturn(builder, file, "wrapper",
+		[]ast.FnParam{{Name: intern(builder, "gen"), Type: fnType}},
+		[]ast.StmtID{ret},
+		intType,
+	)
+
+	resolveBag := diag.NewBag(8)
+	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{
+		Reporter: &diag.BagReporter{Bag: resolveBag},
+	})
+	if len(diagCodes(resolveBag)) > 0 {
+		for _, item := range resolveBag.Items() {
+			if item.Code != diag.SemaShadowSymbol {
+				t.Fatalf("unexpected resolve diagnostics: %v", diagCodes(resolveBag))
+			}
+		}
+	}
+	semaBag := diag.NewBag(8)
+	Check(context.Background(), builder, file, Options{
+		Reporter: &diag.BagReporter{Bag: semaBag},
+		Symbols:  &symRes,
+	})
+	if len(semaBag.Items()) > 0 {
+		t.Fatalf("unexpected sema diagnostics: %v", semaBag.Items())
+	}
+	if symID, ok := symRes.ExprSymbols[call]; ok && symID.IsValid() {
+		t.Fatalf("expected function-typed param to shadow global, got symbol %d", symID)
 	}
 }
 
@@ -172,8 +220,8 @@ func TestCallResolverErrorableDefaultError(t *testing.T) {
 	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: resolveBag},
 	})
-	if len(resolveBag.Items()) > 0 {
-		t.Fatalf("unexpected resolve diagnostics: %v", resolveBag.Items())
+	if len(diagCodes(resolveBag)) > 0 {
+		t.Fatalf("unexpected resolve diagnostics: %v", diagCodes(resolveBag))
 	}
 	semaBag := diag.NewBag(8)
 	res := Check(context.Background(), builder, file, Options{
@@ -244,8 +292,8 @@ func TestFunctionInstantiationsRecorded(t *testing.T) {
 	symRes := symbols.ResolveFile(builder, file, &symbols.ResolveOptions{
 		Reporter: &diag.BagReporter{Bag: resolveBag},
 	})
-	if len(resolveBag.Items()) > 0 {
-		t.Fatalf("unexpected resolve diagnostics: %v", resolveBag.Items())
+	if len(diagCodes(resolveBag)) > 0 {
+		t.Fatalf("unexpected resolve diagnostics: %v", diagCodes(resolveBag))
 	}
 	semaBag := diag.NewBag(8)
 	res := Check(context.Background(), builder, file, Options{

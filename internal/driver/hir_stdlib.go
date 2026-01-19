@@ -178,6 +178,10 @@ func buildCoreSymbolRemap(rootSyms *symbols.Result, coreRec *moduleRecord) map[s
 
 	mapping := make(map[symbols.SymbolID]symbols.SymbolID)
 	coreSymsLen := coreRec.Table.Symbols.Len()
+	modulePath := "core"
+	if coreRec.Meta != nil && coreRec.Meta.Path != "" {
+		modulePath = normalizeExportsKey(coreRec.Meta.Path)
+	}
 	for i := 1; i <= coreSymsLen; i++ {
 		id, err := safecast.Conv[symbols.SymbolID](i)
 		if err != nil {
@@ -187,18 +191,22 @@ func buildCoreSymbolRemap(rootSyms *symbols.Result, coreRec *moduleRecord) map[s
 		if sym == nil {
 			continue
 		}
-		if isLocalSymbol(sym, coreRec.Table) {
-			continue
+		key := ""
+		if !isLocalSymbol(sym, coreRec.Table) && (sym.Flags&symbols.SymbolFlagPublic != 0 || sym.Flags&symbols.SymbolFlagBuiltin != 0) {
+			key = symbolKey(sym, coreRec.Table.Strings)
+			if key != "" {
+				if rootID, ok := rootMap[key]; ok {
+					mapping[id] = rootID
+					continue
+				}
+			}
 		}
-		if sym.Flags&symbols.SymbolFlagPublic == 0 && sym.Flags&symbols.SymbolFlagBuiltin == 0 {
-			continue
-		}
-		key := symbolKey(sym, coreRec.Table.Strings)
-		if key == "" {
-			continue
-		}
-		if rootID, ok := rootMap[key]; ok {
-			mapping[id] = rootID
+		newID := synthesizeModuleSymbol(rootSyms.Table, modulePath, sym)
+		if newID.IsValid() {
+			mapping[id] = newID
+			if key != "" {
+				rootMap[key] = newID
+			}
 		}
 	}
 

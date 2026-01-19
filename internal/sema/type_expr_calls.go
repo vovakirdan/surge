@@ -69,6 +69,17 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 		// If handleCloneCall returns NoTypeID, fall through to normal resolution
 		// which will report "no matching overload" or similar error
 	}
+	if symID := tc.symbolForExpr(call.Target); symID.IsValid() {
+		if sym := tc.symbolFromID(symID); sym != nil {
+			switch sym.Kind {
+			case symbols.SymbolLet, symbols.SymbolParam:
+				varType := tc.resolveAlias(tc.bindingType(symID))
+				if fnInfo, found := tc.types.FnInfo(varType); found {
+					return tc.callFunctionVariable(fnInfo, args, span)
+				}
+			}
+		}
+	}
 	candidates := tc.functionCandidates(ident.Name)
 	if traceSpan != nil {
 		traceSpan.WithExtra("candidates", fmt.Sprintf("%d", len(candidates)))
