@@ -40,6 +40,41 @@ const (
 	InstrNop
 )
 
+func (k InstrKind) String() string {
+	switch k {
+	case InstrAssign:
+		return "Assign"
+	case InstrCall:
+		return "Call"
+	case InstrDrop:
+		return "Drop"
+	case InstrEndBorrow:
+		return "EndBorrow"
+	case InstrAwait:
+		return "Await"
+	case InstrSpawn:
+		return "Spawn"
+	case InstrBlocking:
+		return "Blocking"
+	case InstrPoll:
+		return "Poll"
+	case InstrJoinAll:
+		return "JoinAll"
+	case InstrChanSend:
+		return "ChanSend"
+	case InstrChanRecv:
+		return "ChanRecv"
+	case InstrTimeout:
+		return "Timeout"
+	case InstrSelect:
+		return "Select"
+	case InstrNop:
+		return "Nop"
+	default:
+		return "Unknown"
+	}
+}
+
 // Instr represents a MIR instruction.
 type Instr struct {
 	Kind InstrKind
@@ -209,6 +244,23 @@ const (
 	// OperandAddrOfMut represents a mutable address-of operand.
 	OperandAddrOfMut
 )
+
+func (k OperandKind) String() string {
+	switch k {
+	case OperandConst:
+		return "Const"
+	case OperandCopy:
+		return "Copy"
+	case OperandMove:
+		return "Move"
+	case OperandAddrOf:
+		return "AddrOf"
+	case OperandAddrOfMut:
+		return "AddrOfMut"
+	default:
+		return "Unknown"
+	}
+}
 
 // Operand represents a MIR operand.
 type Operand struct {

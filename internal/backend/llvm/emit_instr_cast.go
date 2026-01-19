@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/mir"
+	"surge/internal/types"
 )
 
 func (fe *funcEmitter) emitCast(c *mir.CastOp) (val, ty string, err error) {
@@ -117,7 +118,7 @@ func (fe *funcEmitter) emitUnary(op *mir.UnaryOp) (val, ty string, err error) {
 		}
 		elemType, ok := derefType(fe.emitter.types, op.Operand.Type)
 		if !ok {
-			return "", "", fmt.Errorf("unsupported deref type")
+			return "", "", fmt.Errorf("unsupported deref type %s (id=%d) for %s operand", types.Label(fe.emitter.types, op.Operand.Type), op.Operand.Type, op.Operand.Kind)
 		}
 		elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
 		if err != nil {

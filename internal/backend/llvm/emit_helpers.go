@@ -43,13 +43,13 @@ func (fe *funcEmitter) emitPlacePtr(place mir.Place) (ptr, ty string, err error)
 		switch proj.Kind {
 		case mir.PlaceProjDeref:
 			if curLLVMType != "ptr" {
-				return "", "", fmt.Errorf("deref requires pointer type, got %s", curLLVMType)
+				return "", "", fmt.Errorf("deref requires pointer type, got %s (%s)", curLLVMType, types.Label(fe.emitter.types, curType))
 			}
 			tmp := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, curPtr)
 			nextType, ok := derefType(fe.emitter.types, curType)
 			if !ok {
-				return "", "", fmt.Errorf("unsupported deref type")
+				return "", "", fmt.Errorf("unsupported place deref type %s (id=%d)", types.Label(fe.emitter.types, curType), curType)
 			}
 			curPtr = tmp
 			curType = nextType

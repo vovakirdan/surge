@@ -24,6 +24,31 @@ const (
 	TermUnreachable
 )
 
+func (k TermKind) String() string {
+	switch k {
+	case TermNone:
+		return "None"
+	case TermReturn:
+		return "Return"
+	case TermAsyncYield:
+		return "AsyncYield"
+	case TermAsyncReturn:
+		return "AsyncReturn"
+	case TermAsyncReturnCancelled:
+		return "AsyncReturnCancelled"
+	case TermGoto:
+		return "Goto"
+	case TermIf:
+		return "If"
+	case TermSwitchTag:
+		return "SwitchTag"
+	case TermUnreachable:
+		return "Unreachable"
+	default:
+		return "Unknown"
+	}
+}
+
 // Terminator represents a block terminator.
 type Terminator struct {
 	Kind TermKind

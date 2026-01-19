@@ -53,6 +53,10 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 		if data.Op != ast.ExprUnaryDeref {
 			return Place{Local: NoLocalID}, fmt.Errorf("mir: expected place, got UnaryOp %s", data.Op)
 		}
+		if data.Operand != nil && data.Operand.Kind == hir.ExprIndex {
+			// Index expressions already lower to element places, so deref is redundant here.
+			return l.lowerPlace(data.Operand)
+		}
 		base, err := l.lowerPlace(data.Operand)
 		if err != nil {
 			return Place{Local: NoLocalID}, err

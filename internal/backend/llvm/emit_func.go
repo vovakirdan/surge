@@ -53,15 +53,15 @@ func (e *Emitter) emitFunction(f *mir.Func) error {
 		fe.blockTerminated = false
 		if bb.ID == f.Entry {
 			if err := fe.emitAllocas(); err != nil {
-				return err
+				return fmt.Errorf("llvm emit %s allocas: %w", f.Name, err)
 			}
 			if err := fe.emitParamStores(); err != nil {
-				return err
+				return fmt.Errorf("llvm emit %s param stores: %w", f.Name, err)
 			}
 		}
 		for i := range bb.Instrs {
 			if err := fe.emitInstr(&bb.Instrs[i]); err != nil {
-				return err
+				return fmt.Errorf("llvm emit %s bb%d instr[%d] (%s): %w", f.Name, bb.ID, i, bb.Instrs[i].Kind, err)
 			}
 			if fe.blockTerminated {
 				break
@@ -71,7 +71,7 @@ func (e *Emitter) emitFunction(f *mir.Func) error {
 			continue
 		}
 		if err := fe.emitTerminator(&bb.Term); err != nil {
-			return err
+			return fmt.Errorf("llvm emit %s bb%d term (%s): %w", f.Name, bb.ID, bb.Term.Kind, err)
 		}
 	}
 	fmt.Fprint(&e.buf, "}\n\n")
