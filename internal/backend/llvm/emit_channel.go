@@ -103,6 +103,105 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 		}
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_channel_close(ptr %s)\n", chVal)
 		return true, nil
+	case "send":
+		if len(call.Args) != 2 {
+			return true, fmt.Errorf("send expects 2 arguments")
+		}
+		if !isChannelType(fe.emitter.types, call.Args[0].Type) {
+			return false, nil
+		}
+		chVal, err := fe.emitChannelHandle(&call.Args[0])
+		if err != nil {
+			return true, err
+		}
+		val, valTy, err := fe.emitValueOperand(&call.Args[1])
+		if err != nil {
+			return true, err
+		}
+		valueType := operandValueType(fe.emitter.types, &call.Args[1])
+		if valueType == types.NoTypeID && call.Args[1].Kind != mir.OperandConst {
+			if baseType, baseErr := fe.placeBaseType(call.Args[1].Place); baseErr == nil {
+				valueType = baseType
+			}
+		}
+		bitsVal, err := fe.emitValueToI64(val, valTy, valueType)
+		if err != nil {
+			return true, err
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_channel_send_blocking(ptr %s, i64 %s)\n", chVal, bitsVal)
+		return true, nil
+	case "recv":
+		if len(call.Args) != 1 {
+			return true, fmt.Errorf("recv expects 1 argument")
+		}
+		if !isChannelType(fe.emitter.types, call.Args[0].Type) {
+			return false, nil
+		}
+		chVal, err := fe.emitChannelHandle(&call.Args[0])
+		if err != nil {
+			return true, err
+		}
+		bitsPtr := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64\n", bitsPtr)
+		kindVal := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_channel_recv_blocking(ptr %s, ptr %s)\n", kindVal, chVal, bitsPtr)
+		if call.HasDst {
+			dstType, err := fe.placeBaseType(call.Dst)
+			if err != nil {
+				return true, err
+			}
+			someIdx, someMeta, err := fe.emitter.tagCaseMeta(dstType, "Some", symbols.NoSymbolID)
+			if err != nil {
+				return true, err
+			}
+			if len(someMeta.PayloadTypes) != 1 {
+				return true, fmt.Errorf("Option::Some expects single payload")
+			}
+			payloadType := someMeta.PayloadTypes[0]
+			readyBB := fe.nextInlineBlock()
+			noneBB := fe.nextInlineBlock()
+			contBB := fe.nextInlineBlock()
+			outPtr := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr\n", outPtr)
+			hasValue := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i8 %s, 1\n", hasValue, kindVal)
+			fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", hasValue, readyBB, noneBB)
+
+			fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
+			bitsVal := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
+			payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
+			if err != nil {
+				return true, err
+			}
+			somePtr, err := fe.emitTagValueSinglePayload(dstType, someIdx, payloadType, payloadVal, payloadTy, payloadType)
+			if err != nil {
+				return true, err
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", somePtr, outPtr)
+			fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
+
+			fmt.Fprintf(&fe.emitter.buf, "%s:\n", noneBB)
+			nonePtr, err := fe.emitTagValue(dstType, "nothing", symbols.NoSymbolID, nil)
+			if err != nil {
+				return true, err
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", nonePtr, outPtr)
+			fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
+
+			fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
+			resultVal := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, outPtr)
+			ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+			if err != nil {
+				return true, err
+			}
+			if dstTy != "ptr" {
+				dstTy = "ptr"
+			}
+			fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, resultVal, ptr)
+		}
+		return true, nil
 	case "try_send":
 		if len(call.Args) != 2 {
 			return true, fmt.Errorf("try_send expects 2 arguments")

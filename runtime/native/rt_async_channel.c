@@ -345,6 +345,52 @@ uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64
     return 0;
 }
 
+static void channel_blocking_yield(void) {
+    void* task = checkpoint();
+    if (task == NULL) {
+        return;
+    }
+    rt_task_await(task, NULL, NULL);
+}
+
+void rt_channel_send_blocking(void* channel, uint64_t value_bits) {
+    rt_executor* ex = ensure_exec();
+    const rt_channel* ch = channel_from_handle(channel);
+    if (ex == NULL || ch == NULL) {
+        return;
+    }
+    for (;;) {
+        rt_lock(ex);
+        uint8_t status = rt_channel_try_send_status_locked(ex, channel, value_bits);
+        rt_unlock(ex);
+        if (status == 1) {
+            return;
+        }
+        if (status == 2) {
+            panic_msg("send on closed channel");
+            return;
+        }
+        channel_blocking_yield();
+    }
+}
+
+uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits) {
+    rt_executor* ex = ensure_exec();
+    const rt_channel* ch = channel_from_handle(channel);
+    if (ex == NULL || ch == NULL) {
+        return 2;
+    }
+    for (;;) {
+        rt_lock(ex);
+        uint8_t status = rt_channel_try_recv_status_locked(ex, channel, out_bits);
+        rt_unlock(ex);
+        if (status == 1 || status == 2) {
+            return status;
+        }
+        channel_blocking_yield();
+    }
+}
+
 void rt_channel_close(void* channel) {
     rt_executor* ex = ensure_exec();
     rt_channel* ch = channel_from_handle(channel);

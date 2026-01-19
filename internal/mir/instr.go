@@ -110,6 +110,17 @@ const (
 	CalleeValue
 )
 
+func (k CalleeKind) String() string {
+	switch k {
+	case CalleeSym:
+		return "Sym"
+	case CalleeValue:
+		return "Value"
+	default:
+		return "Unknown"
+	}
+}
+
 // Callee represents a call target.
 type Callee struct {
 	Kind  CalleeKind

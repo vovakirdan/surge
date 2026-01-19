@@ -267,6 +267,22 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 			return symbols.TypeKey("(" + strings.Join(elems, ",") + ")")
 		}
 		return symbols.TypeKey("()")
+	case types.KindFn:
+		info, ok := tc.types.FnInfo(id)
+		if !ok || info == nil {
+			return symbols.TypeKey("fn()")
+		}
+		params := make([]string, 0, len(info.Params))
+		for _, param := range info.Params {
+			if key := tc.typeKeyForType(param); key != "" {
+				params = append(params, string(key))
+			}
+		}
+		resultKey := tc.typeKeyForType(info.Result)
+		if resultKey == "" {
+			resultKey = symbols.TypeKey("nothing")
+		}
+		return symbols.TypeKey("fn(" + strings.Join(params, ",") + ")->" + string(resultKey))
 	default:
 		return ""
 	}

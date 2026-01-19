@@ -178,6 +178,8 @@ void rt_async_return_cancelled(void* state);
 void* rt_channel_new(uint64_t capacity);
 bool rt_channel_send(void* channel, uint64_t value_bits);
 uint8_t rt_channel_recv(void* channel, uint64_t* out_bits);
+void rt_channel_send_blocking(void* channel, uint64_t value_bits);
+uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits);
 bool rt_channel_try_send(void* channel, uint64_t value_bits);
 bool rt_channel_try_recv(void* channel, uint64_t* out_bits);
 void rt_channel_close(void* channel);

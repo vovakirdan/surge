@@ -133,7 +133,7 @@ func (fe *funcEmitter) resolveCallee(call *mir.CallInstr) (string, funcSig, erro
 		if sig, ok := fe.emitter.runtimeSigs[name]; ok {
 			return name, sig, nil
 		}
-		return "", funcSig{}, fmt.Errorf("unknown external function %q", name)
+		return "", funcSig{}, fmt.Errorf("unknown external function %q (callee %s sym %v)", name, call.Callee.Kind, call.Callee.Sym)
 	}
 	if call.Callee.Kind == mir.CalleeValue {
 		if call.Callee.Value.Type != types.NoTypeID {
@@ -149,7 +149,7 @@ func (fe *funcEmitter) resolveCallee(call *mir.CallInstr) (string, funcSig, erro
 		if sig, ok := fe.emitter.runtimeSigs[name]; ok {
 			return name, sig, nil
 		}
-		return "", funcSig{}, fmt.Errorf("unknown external function %q", name)
+		return "", funcSig{}, fmt.Errorf("unknown external function %q (callee %s sym %v)", name, call.Callee.Kind, call.Callee.Sym)
 	}
 	return "", funcSig{}, fmt.Errorf("unsupported callee kind %v", call.Callee.Kind)
 }

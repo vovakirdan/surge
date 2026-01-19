@@ -165,7 +165,8 @@ func (p *Parser) parseCompareArm() (ast.ExprCompareArm, bool) {
 	}
 
 	var resultExpr ast.ExprID
-	if p.at(token.KwReturn) {
+	switch p.lx.Peek().Kind {
+	case token.KwReturn:
 		stmtID, ok := p.parseReturnStmt()
 		if !ok {
 			return arm, false
@@ -177,7 +178,7 @@ func (p *Parser) parseCompareArm() (ast.ExprCompareArm, bool) {
 		}
 		resultExpr = p.arenas.Exprs.NewBlock(span, []ast.StmtID{stmtID})
 		p.normalizeBlockExprValue(resultExpr)
-	} else if p.at(token.KwBreak) {
+	case token.KwBreak:
 		stmtID, ok := p.parseBreakStmt()
 		if !ok {
 			return arm, false
@@ -189,7 +190,7 @@ func (p *Parser) parseCompareArm() (ast.ExprCompareArm, bool) {
 		}
 		resultExpr = p.arenas.Exprs.NewBlock(span, []ast.StmtID{stmtID})
 		p.normalizeBlockExprValue(resultExpr)
-	} else if p.at(token.KwContinue) {
+	case token.KwContinue:
 		stmtID, ok := p.parseContinueStmt()
 		if !ok {
 			return arm, false
@@ -201,7 +202,7 @@ func (p *Parser) parseCompareArm() (ast.ExprCompareArm, bool) {
 		}
 		resultExpr = p.arenas.Exprs.NewBlock(span, []ast.StmtID{stmtID})
 		p.normalizeBlockExprValue(resultExpr)
-	} else {
+	default:
 		var ok bool
 		resultExpr, ok = p.parseExprOrBlockAsValue()
 		if !ok {
