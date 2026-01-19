@@ -33,6 +33,12 @@ func (fr *fileResolver) resolveModuleMember(exprID ast.ExprID, member *ast.ExprM
 	}
 	exports := fr.aliasExports[moduleSym.Name]
 	modulePath := fr.aliasModulePaths[moduleSym.Name]
+	if modulePath == "" && moduleSym.ModulePath != "" {
+		modulePath = moduleSym.ModulePath
+	}
+	if exports == nil && modulePath != "" {
+		exports = fr.moduleExports[modulePath]
+	}
 	memberName := fr.lookupString(member.Field)
 	useSpan := source.Span{}
 	if expr := fr.builder.Exprs.Get(exprID); expr != nil {

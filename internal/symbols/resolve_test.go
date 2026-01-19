@@ -525,6 +525,205 @@ func TestResolveImportSingleItem(t *testing.T) {
 	expectNoDiagnostics(t, bag)
 }
 
+func TestModuleImportsVisibleAcrossFiles(t *testing.T) {
+	fs := source.NewFileSetWithBase("")
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+
+	fileA, bagA := parseVirtualFile(t, fs, builder, "a.sg", `
+pragma module;
+import foo::Bar;
+`)
+	if bagA.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %s", diagSummary(bagA))
+	}
+	fileB, bagB := parseVirtualFile(t, fs, builder, "b.sg", `
+pragma module;
+fn main() {
+	let tmp = Bar;
+}
+`)
+	if bagB.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %s", diagSummary(bagB))
+	}
+
+	exports := NewModuleExports("foo")
+	exports.Add(&ExportedSymbol{
+		Name:  "Bar",
+		Kind:  SymbolType,
+		Flags: SymbolFlagPublic,
+	})
+	moduleExports := map[string]*ModuleExports{"foo": exports}
+
+	table := NewTable(Hints{}, builder.StringsInterner)
+	moduleScope := table.ModuleRoot("mod", source.Span{})
+	bag := diag.NewBag(16)
+	reporter := &diag.BagReporter{Bag: bag}
+
+	ResolveFile(builder, fileA, &ResolveOptions{
+		Table:         table,
+		Reporter:      reporter,
+		ModuleScope:   moduleScope,
+		ModuleExports: moduleExports,
+		DeclareOnly:   true,
+	})
+	ResolveFile(builder, fileB, &ResolveOptions{
+		Table:         table,
+		Reporter:      reporter,
+		ModuleScope:   moduleScope,
+		ModuleExports: moduleExports,
+		DeclareOnly:   true,
+	})
+
+	if bag.HasErrors() {
+		t.Fatalf("unexpected resolve diagnostics: %s", diagSummary(bag))
+	}
+
+	bag2 := diag.NewBag(16)
+	resB := ResolveFile(builder, fileB, &ResolveOptions{
+		Table:         table,
+		Reporter:      &diag.BagReporter{Bag: bag2},
+		ModuleScope:   moduleScope,
+		ModuleExports: moduleExports,
+		ReuseDecls:    true,
+	})
+	if bag2.HasErrors() {
+		t.Fatalf("unexpected resolve diagnostics: %s", diagSummary(bag2))
+	}
+	if resB.FileScope == NoScopeID {
+		t.Fatalf("missing file scope")
+	}
+}
+
+func TestModuleAliasMemberVisibleAcrossFiles(t *testing.T) {
+	fs := source.NewFileSetWithBase("")
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+
+	fileA, bagA := parseVirtualFile(t, fs, builder, "a.sg", `
+pragma module;
+import foo/bar;
+`)
+	if bagA.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %s", diagSummary(bagA))
+	}
+	fileB, bagB := parseVirtualFile(t, fs, builder, "b.sg", `
+pragma module;
+fn main() { bar.baz(); }
+`)
+	if bagB.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %s", diagSummary(bagB))
+	}
+
+	exports := NewModuleExports("foo/bar")
+	exports.Add(&ExportedSymbol{
+		Name:  "baz",
+		Kind:  SymbolFunction,
+		Flags: SymbolFlagPublic,
+	})
+	moduleExports := map[string]*ModuleExports{"foo/bar": exports}
+
+	table := NewTable(Hints{}, builder.StringsInterner)
+	moduleScope := table.ModuleRoot("mod", source.Span{})
+	bag := diag.NewBag(16)
+	reporter := &diag.BagReporter{Bag: bag}
+
+	ResolveFile(builder, fileA, &ResolveOptions{
+		Table:         table,
+		Reporter:      reporter,
+		ModuleScope:   moduleScope,
+		ModuleExports: moduleExports,
+		DeclareOnly:   true,
+	})
+	ResolveFile(builder, fileB, &ResolveOptions{
+		Table:         table,
+		Reporter:      reporter,
+		ModuleScope:   moduleScope,
+		ModuleExports: moduleExports,
+		DeclareOnly:   true,
+	})
+
+	if bag.HasErrors() {
+		t.Fatalf("unexpected resolve diagnostics: %s", diagSummary(bag))
+	}
+
+	bag2 := diag.NewBag(16)
+	ResolveFile(builder, fileB, &ResolveOptions{
+		Table:         table,
+		Reporter:      &diag.BagReporter{Bag: bag2},
+		ModuleScope:   moduleScope,
+		ModuleExports: moduleExports,
+		ReuseDecls:    true,
+	})
+	if bag2.HasErrors() {
+		t.Fatalf("unexpected resolve diagnostics: %s", diagSummary(bag2))
+	}
+}
+
+func TestModuleImportDuplicateAcrossFilesWarns(t *testing.T) {
+	fs := source.NewFileSetWithBase("")
+	builder := ast.NewBuilder(ast.Hints{}, nil)
+
+	fileA, bagA := parseVirtualFile(t, fs, builder, "a.sg", `
+pragma module;
+import foo::Bar;
+`)
+	if bagA.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %s", diagSummary(bagA))
+	}
+	fileB, bagB := parseVirtualFile(t, fs, builder, "b.sg", `
+pragma module;
+import foo::Bar;
+fn main() { let tmp = Bar; }
+`)
+	if bagB.Len() != 0 {
+		t.Fatalf("unexpected parse diagnostics: %s", diagSummary(bagB))
+	}
+
+	exports := NewModuleExports("foo")
+	exports.Add(&ExportedSymbol{
+		Name:  "Bar",
+		Kind:  SymbolType,
+		Flags: SymbolFlagPublic,
+	})
+	moduleExports := map[string]*ModuleExports{"foo": exports}
+
+	table := NewTable(Hints{}, builder.StringsInterner)
+	moduleScope := table.ModuleRoot("mod", source.Span{})
+	bag := diag.NewBag(16)
+	reporter := &diag.BagReporter{Bag: bag}
+
+	ResolveFile(builder, fileA, &ResolveOptions{
+		Table:         table,
+		Reporter:      reporter,
+		ModuleScope:   moduleScope,
+		ModuleExports: moduleExports,
+		DeclareOnly:   true,
+	})
+	ResolveFile(builder, fileB, &ResolveOptions{
+		Table:         table,
+		Reporter:      reporter,
+		ModuleScope:   moduleScope,
+		ModuleExports: moduleExports,
+		DeclareOnly:   true,
+	})
+
+	if bag.HasErrors() {
+		t.Fatalf("unexpected resolve diagnostics: %s", diagSummary(bag))
+	}
+	if !bag.HasWarnings() {
+		t.Fatalf("expected import duplicate warning, got none")
+	}
+	found := false
+	for _, item := range bag.Items() {
+		if item.Severity == diag.SevWarning && item.Code == diag.SemaDuplicateSymbol && strings.Contains(item.Message, "already imported") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected duplicate import warning, got %s", diagSummary(bag))
+	}
+}
+
 func TestResolveDuplicateModuleImport(t *testing.T) {
 	src := `
         import foo;
@@ -1102,6 +1301,20 @@ func parseSnippet(t *testing.T, src string) (*ast.Builder, ast.FileID, *diag.Bag
 	result := parser.ParseFile(context.Background(), fs, lx, builder, opts)
 
 	return builder, result.File, bag
+}
+
+func parseVirtualFile(t *testing.T, fs *source.FileSet, builder *ast.Builder, name, src string) (ast.FileID, *diag.Bag) {
+	t.Helper()
+	fileID := fs.AddVirtual(name, []byte(src))
+	file := fs.Get(fileID)
+	bag := diag.NewBag(32)
+	lx := lexer.New(file, lexer.Options{})
+	opts := parser.Options{
+		Reporter:  &diag.BagReporter{Bag: bag},
+		MaxErrors: uint(bag.Cap()),
+	}
+	result := parser.ParseFile(context.Background(), fs, lx, builder, opts)
+	return result.File, bag
 }
 
 func containsCode(bag *diag.Bag, code diag.Code) bool {

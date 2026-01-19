@@ -58,16 +58,24 @@ func (fr *fileResolver) declareModuleAlias(itemID ast.ItemID, alias source.Strin
 		ASTFile:    fr.fileID,
 		Item:       itemID,
 	}
+	if reused := fr.findExistingSymbol(alias, SymbolModule, decl); reused.IsValid() {
+		fr.appendItemSymbol(itemID, reused)
+		fr.recordModuleAlias(alias, modulePath)
+		return
+	}
+	if existingID, existing := fr.findCompatibleModuleAlias(alias, modulePath); existing != nil {
+		fr.appendItemSymbol(itemID, existingID)
+		fr.recordModuleAlias(alias, modulePath)
+		if !fr.reuseDecls {
+			fr.reportDuplicateImport(alias, span, existing.Span, "module alias")
+		}
+		return
+	}
 	if symID, ok := fr.resolver.Declare(alias, span, SymbolModule, SymbolFlagImported, decl); ok {
 		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
 			sym.ModulePath = modulePath
 		}
-		if fr.aliasModulePaths != nil {
-			fr.aliasModulePaths[alias] = modulePath
-		}
-		if exports := fr.moduleExports[modulePath]; exports != nil && fr.aliasExports != nil {
-			fr.aliasExports[alias] = exports
-		}
+		fr.recordModuleAlias(alias, modulePath)
 		fr.appendItemSymbol(itemID, symID)
 	}
 }
@@ -82,6 +90,17 @@ func (fr *fileResolver) declareImportName(itemID ast.ItemID, name, original sour
 		SourceFile: fr.sourceFile,
 		ASTFile:    fr.fileID,
 		Item:       itemID,
+	}
+	if reused := fr.findExistingSymbol(name, SymbolImport, decl); reused.IsValid() {
+		fr.appendItemSymbol(itemID, reused)
+		return
+	}
+	if existingID, existing := fr.findCompatibleImport(name, modulePath, original); existing != nil {
+		fr.appendItemSymbol(itemID, existingID)
+		if !fr.reuseDecls {
+			fr.reportDuplicateImport(name, span, existing.Span, "imported name")
+		}
+		return
 	}
 	if symID, ok := fr.resolver.Declare(name, span, SymbolImport, SymbolFlagImported, decl); ok {
 		if sym := fr.result.Table.Symbols.Get(symID); sym != nil {
@@ -172,6 +191,98 @@ func (fr *fileResolver) moduleAliasForImport(importItem *ast.ImportItem, allowDe
 		return seg
 	}
 	return source.NoStringID
+}
+
+func (fr *fileResolver) recordModuleAlias(alias source.StringID, modulePath string) {
+	if alias == source.NoStringID {
+		return
+	}
+	if fr.aliasModulePaths != nil {
+		fr.aliasModulePaths[alias] = modulePath
+	}
+	if exports := fr.moduleExports[modulePath]; exports != nil && fr.aliasExports != nil {
+		fr.aliasExports[alias] = exports
+	}
+}
+
+func (fr *fileResolver) findCompatibleImport(name source.StringID, modulePath string, importName source.StringID) (SymbolID, *Symbol) {
+	if fr.resolver == nil || fr.result == nil || fr.result.Table == nil {
+		return NoSymbolID, nil
+	}
+	scope := fr.result.Table.Scopes.Get(fr.resolver.CurrentScope())
+	if scope == nil {
+		return NoSymbolID, nil
+	}
+	ids := scope.NameIndex[name]
+	for _, id := range ids {
+		sym := fr.result.Table.Symbols.Get(id)
+		if sym == nil || sym.Kind != SymbolImport {
+			continue
+		}
+		if sym.Decl.ASTFile == fr.fileID {
+			continue
+		}
+		if modulePath == "" {
+			if sym.ModulePath != "" {
+				continue
+			}
+		} else if sym.ModulePath != modulePath {
+			continue
+		}
+		if importName != source.NoStringID && sym.ImportName != importName {
+			continue
+		}
+		return id, sym
+	}
+	return NoSymbolID, nil
+}
+
+func (fr *fileResolver) findCompatibleModuleAlias(name source.StringID, modulePath string) (SymbolID, *Symbol) {
+	if fr.resolver == nil || fr.result == nil || fr.result.Table == nil {
+		return NoSymbolID, nil
+	}
+	scope := fr.result.Table.Scopes.Get(fr.resolver.CurrentScope())
+	if scope == nil {
+		return NoSymbolID, nil
+	}
+	ids := scope.NameIndex[name]
+	for _, id := range ids {
+		sym := fr.result.Table.Symbols.Get(id)
+		if sym == nil || sym.Kind != SymbolModule {
+			continue
+		}
+		if sym.Decl.ASTFile == fr.fileID {
+			continue
+		}
+		if modulePath == "" {
+			if sym.ModulePath != "" {
+				continue
+			}
+		} else if sym.ModulePath != modulePath {
+			continue
+		}
+		return id, sym
+	}
+	return NoSymbolID, nil
+}
+
+func (fr *fileResolver) reportDuplicateImport(name source.StringID, span, prev source.Span, label string) {
+	if fr.resolver == nil || fr.resolver.reporter == nil {
+		return
+	}
+	nameStr := fr.lookupString(name)
+	if nameStr == "" {
+		nameStr = "_"
+	}
+	msg := fmt.Sprintf("%s '%s' already imported", label, nameStr)
+	builder := diag.ReportWarning(fr.resolver.reporter, diag.SemaDuplicateSymbol, span, msg)
+	if builder == nil {
+		return
+	}
+	if prev != (source.Span{}) {
+		builder.WithNote(prev, "previous import here")
+	}
+	builder.Emit()
 }
 
 // resolveImportModulePath разрешает путь импортируемого модуля.

@@ -48,9 +48,6 @@ func (fr *fileResolver) handleItem(id ast.ItemID) {
 		}
 	case ast.ItemImport:
 		if importItem, ok := fr.builder.Items.Import(id); ok && importItem != nil {
-			if fr.declareOnly {
-				return
-			}
 			fr.declareImport(id, importItem, item.Span)
 		}
 	case ast.ItemExtern:
