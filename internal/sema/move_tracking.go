@@ -44,3 +44,31 @@ func (tc *typeChecker) checkUseAfterMove(symID symbols.SymbolID, span source.Spa
 	}
 	tc.report(diag.SemaUseAfterMove, span, "use of moved value '%s'", name)
 }
+
+func (tc *typeChecker) snapshotMovedBindings() map[symbols.SymbolID]source.Span {
+	out := make(map[symbols.SymbolID]source.Span, len(tc.movedBindings))
+	for key, value := range tc.movedBindings {
+		out[key] = value
+	}
+	return out
+}
+
+func (tc *typeChecker) restoreMovedBindings(snapshot map[symbols.SymbolID]source.Span) {
+	tc.movedBindings = make(map[symbols.SymbolID]source.Span, len(snapshot))
+	for key, value := range snapshot {
+		tc.movedBindings[key] = value
+	}
+}
+
+func mergeMovedBindings(a, b map[symbols.SymbolID]source.Span) map[symbols.SymbolID]source.Span {
+	out := make(map[symbols.SymbolID]source.Span, len(a)+len(b))
+	for key, value := range a {
+		out[key] = value
+	}
+	for key, value := range b {
+		if _, exists := out[key]; !exists {
+			out[key] = value
+		}
+	}
+	return out
+}

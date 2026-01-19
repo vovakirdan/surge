@@ -274,9 +274,16 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 	case ast.StmtIf:
 		if ifStmt := tc.builder.Stmts.If(id); ifStmt != nil {
 			tc.ensureBoolContext(ifStmt.Cond, tc.exprSpan(ifStmt.Cond))
+			movedBefore := tc.snapshotMovedBindings()
 			tc.walkStmt(ifStmt.Then)
+			movedThen := tc.snapshotMovedBindings()
 			if ifStmt.Else.IsValid() {
+				tc.restoreMovedBindings(movedBefore)
 				tc.walkStmt(ifStmt.Else)
+				movedElse := tc.snapshotMovedBindings()
+				tc.movedBindings = mergeMovedBindings(movedThen, movedElse)
+			} else {
+				tc.movedBindings = mergeMovedBindings(movedThen, movedBefore)
 			}
 		}
 	case ast.StmtWhile:
