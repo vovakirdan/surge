@@ -143,3 +143,46 @@ func TestInlayHintsDefaultInit(t *testing.T) {
 		t.Fatal("expected default-init hint for let a")
 	}
 }
+
+func TestInlayHintsEnumImplicitValues(t *testing.T) {
+	src := strings.Join([]string{
+		"enum Color = {",
+		"    Red,",
+		"    Green = 4,",
+		"    Blue,",
+		"}",
+		"",
+	}, "\n")
+	snapshot, uri := analyzeSnapshot(t, src)
+	fullRange := lspRange{
+		Start: position{Line: 0, Character: 0},
+		End:   position{Line: 200, Character: 0},
+	}
+	hints := buildInlayHints(snapshot, uri, fullRange, defaultInlayHintConfig())
+	if len(hints) != 2 {
+		t.Fatalf("expected 2 enum inlay hints, got %d", len(hints))
+	}
+	redOffset := strings.Index(src, "Red") + len("Red")
+	blueOffset := strings.Index(src, "Blue") + len("Blue")
+	expectRed := positionForOffsetUTF16(src, redOffset)
+	expectBlue := positionForOffsetUTF16(src, blueOffset)
+	foundRed := false
+	foundBlue := false
+	for _, hint := range hints {
+		switch hint.Label {
+		case " = 0":
+			foundRed = true
+			if hint.Position != expectRed {
+				t.Fatalf("unexpected Red hint position: %+v", hint.Position)
+			}
+		case " = 5":
+			foundBlue = true
+			if hint.Position != expectBlue {
+				t.Fatalf("unexpected Blue hint position: %+v", hint.Position)
+			}
+		}
+	}
+	if !foundRed || !foundBlue {
+		t.Fatalf("missing enum hints: Red=%v Blue=%v", foundRed, foundBlue)
+	}
+}

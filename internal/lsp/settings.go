@@ -3,16 +3,18 @@ package lsp
 import "encoding/json"
 
 type inlayHintConfig struct {
-	letTypes    bool
-	hideObvious bool
-	defaultInit bool
+	letTypes           bool
+	hideObvious        bool
+	defaultInit        bool
+	enumImplicitValues bool
 }
 
 func defaultInlayHintConfig() inlayHintConfig {
 	return inlayHintConfig{
-		letTypes:    true,
-		hideObvious: false,
-		defaultInit: true,
+		letTypes:           true,
+		hideObvious:        false,
+		defaultInit:        true,
+		enumImplicitValues: true,
 	}
 }
 
@@ -46,6 +48,9 @@ func (s *Server) applySettings(raw json.RawMessage) {
 	}
 	if settings.Surge.InlayHints.DefaultInit != nil {
 		s.inlayHints.defaultInit = *settings.Surge.InlayHints.DefaultInit
+	}
+	if settings.Surge.InlayHints.EnumImplicitValues != nil {
+		s.inlayHints.enumImplicitValues = *settings.Surge.InlayHints.EnumImplicitValues
 	}
 	if settings.Surge.LSP.Trace != nil {
 		s.traceLSP = *settings.Surge.LSP.Trace

@@ -263,6 +263,9 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 			exports[normalizeExportsKey(alias)] = exp
 		}
 	}
+	if opts.ExportsOut != nil {
+		*opts.ExportsOut = exports
+	}
 
 	for _, rec := range records {
 		if rec == nil || rec.Builder == nil || len(rec.FileIDs) == 0 {

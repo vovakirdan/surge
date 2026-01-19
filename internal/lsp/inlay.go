@@ -3,6 +3,7 @@ package lsp
 import (
 	"encoding/json"
 	"sort"
+	"strconv"
 
 	"fortio.org/safecast"
 
@@ -38,7 +39,7 @@ func (s *Server) handleInlayHint(msg *rpcMessage) error {
 }
 
 func buildInlayHints(snapshot *diagnose.AnalysisSnapshot, uri string, rng lspRange, cfg inlayHintConfig) []inlayHint {
-	if !cfg.letTypes && !cfg.defaultInit {
+	if !cfg.letTypes && !cfg.defaultInit && !cfg.enumImplicitValues {
 		return nil
 	}
 	af, file := snapshotFile(snapshot, uri)
@@ -179,6 +180,10 @@ func buildInlayHints(snapshot *diagnose.AnalysisSnapshot, uri string, rng lspRan
 		}
 	}
 
+	if cfg.enumImplicitValues {
+		hints = append(hints, enumImplicitValueHints(af, file, startOff, endOff)...)
+	}
+
 	sort.Slice(hints, func(i, j int) bool {
 		if hints[i].Position.Line == hints[j].Position.Line {
 			return hints[i].Position.Character < hints[j].Position.Character
@@ -186,6 +191,97 @@ func buildInlayHints(snapshot *diagnose.AnalysisSnapshot, uri string, rng lspRan
 		return hints[i].Position.Line < hints[j].Position.Line
 	})
 	return hints
+}
+
+func enumImplicitValueHints(af *diagnose.AnalysisFile, file *source.File, startOff, endOff uint32) []inlayHint {
+	if af == nil || file == nil || af.Builder == nil || af.Sema == nil || af.Sema.TypeInterner == nil {
+		return nil
+	}
+	fileNode := af.Builder.Files.Get(af.ASTFile)
+	if fileNode == nil {
+		return nil
+	}
+	hints := make([]inlayHint, 0)
+	for _, itemID := range fileNode.Items {
+		item := af.Builder.Items.Get(itemID)
+		if item == nil || item.Kind != ast.ItemType {
+			continue
+		}
+		typeItem, ok := af.Builder.Items.Type(itemID)
+		if !ok || typeItem == nil || typeItem.Kind != ast.TypeDeclEnum {
+			continue
+		}
+		enumDecl := af.Builder.Items.TypeEnum(typeItem)
+		if enumDecl == nil {
+			continue
+		}
+		enumType := enumTypeForItem(af, itemID)
+		if enumType == types.NoTypeID {
+			continue
+		}
+		enumInfo, ok := af.Sema.TypeInterner.EnumInfo(enumType)
+		if !ok || enumInfo == nil || len(enumInfo.Variants) == 0 {
+			continue
+		}
+		variantsByName := make(map[source.StringID]types.EnumVariantInfo, len(enumInfo.Variants))
+		for _, variant := range enumInfo.Variants {
+			variantsByName[variant.Name] = variant
+		}
+		start := uint32(enumDecl.VariantsStart)
+		for offset := range enumDecl.VariantsCount {
+			variantID := ast.EnumVariantID(start + uint32(offset))
+			variant := af.Builder.Items.EnumVariant(variantID)
+			if variant == nil || variant.Name == source.NoStringID {
+				continue
+			}
+			if variant.Value.IsValid() {
+				continue
+			}
+			info, ok := variantsByName[variant.Name]
+			if !ok || info.IsString {
+				continue
+			}
+			hintOff := variant.NameSpan.End
+			if hintOff < startOff || hintOff > endOff {
+				continue
+			}
+			hints = append(hints, inlayHint{
+				Position: positionForOffsetInFile(file, hintOff),
+				Label:    " = " + strconv.FormatInt(info.IntValue, 10),
+				Kind:     inlayHintKindType,
+			})
+		}
+	}
+	return hints
+}
+
+func enumTypeForItem(af *diagnose.AnalysisFile, itemID ast.ItemID) types.TypeID {
+	if af == nil || af.Symbols == nil || af.Symbols.Table == nil {
+		return types.NoTypeID
+	}
+	if ids := af.Symbols.ItemSymbols[itemID]; len(ids) > 0 {
+		for _, id := range ids {
+			sym := af.Symbols.Table.Symbols.Get(id)
+			if sym != nil && sym.Kind == symbols.SymbolType && sym.Type != types.NoTypeID {
+				return sym.Type
+			}
+		}
+	}
+	symCount := af.Symbols.Table.Symbols.Len()
+	for i := 1; i <= symCount; i++ {
+		id, err := safecast.Conv[symbols.SymbolID](i)
+		if err != nil {
+			continue
+		}
+		sym := af.Symbols.Table.Symbols.Get(id)
+		if sym == nil || sym.Kind != symbols.SymbolType {
+			continue
+		}
+		if sym.Decl.Item == itemID && sym.Type != types.NoTypeID {
+			return sym.Type
+		}
+	}
+	return types.NoTypeID
 }
 
 func symbolForLetItem(af *diagnose.AnalysisFile, itemID ast.ItemID) symbols.SymbolID {

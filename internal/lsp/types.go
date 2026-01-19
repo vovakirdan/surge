@@ -92,10 +92,13 @@ type saveOptions struct {
 }
 
 type serverCapabilities struct {
-	TextDocumentSync   textDocumentSyncOptions `json:"textDocumentSync"`
-	HoverProvider      bool                    `json:"hoverProvider,omitempty"`
-	DefinitionProvider bool                    `json:"definitionProvider,omitempty"`
-	InlayHintProvider  *inlayHintOptions       `json:"inlayHintProvider,omitempty"`
+	TextDocumentSync      textDocumentSyncOptions `json:"textDocumentSync"`
+	HoverProvider         bool                    `json:"hoverProvider,omitempty"`
+	DefinitionProvider    bool                    `json:"definitionProvider,omitempty"`
+	InlayHintProvider     *inlayHintOptions       `json:"inlayHintProvider,omitempty"`
+	CompletionProvider    *completionOptions      `json:"completionProvider,omitempty"`
+	SignatureHelpProvider *signatureHelpOptions   `json:"signatureHelpProvider,omitempty"`
+	FoldingRangeProvider  bool                    `json:"foldingRangeProvider,omitempty"`
 }
 
 type initializeResult struct {
@@ -165,11 +168,66 @@ type surgeSettings struct {
 }
 
 type inlayHintsSettings struct {
-	LetTypes    *bool `json:"letTypes,omitempty"`
-	HideObvious *bool `json:"hideObvious,omitempty"`
-	DefaultInit *bool `json:"defaultInit,omitempty"`
+	LetTypes           *bool `json:"letTypes,omitempty"`
+	HideObvious        *bool `json:"hideObvious,omitempty"`
+	DefaultInit        *bool `json:"defaultInit,omitempty"`
+	EnumImplicitValues *bool `json:"enumImplicitValues,omitempty"`
 }
 
 type lspTraceSettings struct {
 	Trace *bool `json:"trace,omitempty"`
+}
+
+type completionParams textDocumentPositionParams
+
+type completionOptions struct {
+	TriggerCharacters []string `json:"triggerCharacters,omitempty"`
+}
+
+type completionList struct {
+	IsIncomplete bool             `json:"isIncomplete"`
+	Items        []completionItem `json:"items"`
+}
+
+type completionItem struct {
+	Label            string `json:"label"`
+	Kind             int    `json:"kind,omitempty"`
+	Detail           string `json:"detail,omitempty"`
+	SortText         string `json:"sortText,omitempty"`
+	FilterText       string `json:"filterText,omitempty"`
+	InsertText       string `json:"insertText,omitempty"`
+	InsertTextFormat int    `json:"insertTextFormat,omitempty"`
+}
+
+type signatureHelpParams textDocumentPositionParams
+
+type signatureHelpOptions struct {
+	TriggerCharacters []string `json:"triggerCharacters,omitempty"`
+}
+
+type signatureHelp struct {
+	Signatures      []signatureInformation `json:"signatures"`
+	ActiveSignature int                    `json:"activeSignature,omitempty"`
+	ActiveParameter int                    `json:"activeParameter,omitempty"`
+}
+
+type signatureInformation struct {
+	Label      string                 `json:"label"`
+	Parameters []parameterInformation `json:"parameters,omitempty"`
+}
+
+type parameterInformation struct {
+	Label string `json:"label"`
+}
+
+type foldingRangeParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+}
+
+type foldingRange struct {
+	StartLine      int    `json:"startLine"`
+	EndLine        int    `json:"endLine"`
+	StartCharacter *int   `json:"startCharacter,omitempty"`
+	EndCharacter   *int   `json:"endCharacter,omitempty"`
+	Kind           string `json:"kind,omitempty"`
 }

@@ -156,10 +156,16 @@ func (s *Server) handleMessage(msg *rpcMessage) error {
 		return s.handleDidClose(msg)
 	case "textDocument/hover":
 		return s.handleHover(msg)
+	case "textDocument/completion":
+		return s.handleCompletion(msg)
+	case "textDocument/signatureHelp":
+		return s.handleSignatureHelp(msg)
 	case "textDocument/inlayHint":
 		return s.handleInlayHint(msg)
 	case "textDocument/definition":
 		return s.handleDefinition(msg)
+	case "textDocument/foldingRange":
+		return s.handleFoldingRange(msg)
 	default:
 		if len(msg.ID) > 0 {
 			return s.sendError(msg.ID, -32601, "method not found")
@@ -206,6 +212,13 @@ func (s *Server) handleInitialize(msg *rpcMessage) error {
 			HoverProvider:      true,
 			DefinitionProvider: true,
 			InlayHintProvider:  &inlayHintOptions{},
+			CompletionProvider: &completionOptions{
+				TriggerCharacters: []string{".", ":"},
+			},
+			SignatureHelpProvider: &signatureHelpOptions{
+				TriggerCharacters: []string{"(", ","},
+			},
+			FoldingRangeProvider: true,
 		},
 	}
 	return s.sendResponse(msg.ID, result)

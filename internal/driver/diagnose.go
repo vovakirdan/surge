@@ -85,6 +85,7 @@ type DiagnoseOptions struct {
 	EmitInstantiations bool                 // Capture generic instantiation map (sema artefact)
 	KeepArtifacts      bool                 // Retain AST/symbol/semantic data (for analysis snapshots)
 	FullModuleGraph    bool                 // Resolve full module graph for directory diagnostics (LSP analysis)
+	ExportsOut         *map[string]*symbols.ModuleExports
 }
 
 // Diagnose запускает диагностику файла до указанного уровня
@@ -175,6 +176,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOpt
 		astFile       ast.FileID
 		symbolsRes    *symbols.Result
 		semaRes       *sema.Result
+		moduleExports map[string]*symbols.ModuleExports
 		rootRec       *moduleRecord
 		moduleRecords map[string]*moduleRecord
 	)
@@ -218,7 +220,6 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOpt
 		phaseBegin("imports_graph")
 		graphIdx := begin("imports_graph")
 		graphSpan := trace.Begin(tracer, trace.ScopePass, "imports_graph", diagSpan.ID())
-		var moduleExports map[string]*symbols.ModuleExports
 		moduleExports, rootRec, moduleRecords, err = runModuleGraph(ctx, fs, file, builder, astFile, bag, opts, cache, sharedTypes, sharedStrings)
 		graphSpan.End("")
 		end(graphIdx, "")
@@ -326,6 +327,9 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOpt
 		hirSpan.End("")
 		end(hirIdx, "")
 		phaseEnd("hir")
+	}
+	if opts.ExportsOut != nil {
+		*opts.ExportsOut = moduleExports
 	}
 
 	return &DiagnoseResult{

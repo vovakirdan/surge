@@ -14,10 +14,11 @@ import (
 
 // AnalysisSnapshot captures analysis artefacts for LSP queries.
 type AnalysisSnapshot struct {
-	ProjectRoot string
-	FileSet     *source.FileSet
-	Files       map[string]*AnalysisFile
-	Diagnostics []Diagnostic
+	ProjectRoot   string
+	FileSet       *source.FileSet
+	Files         map[string]*AnalysisFile
+	Diagnostics   []Diagnostic
+	ModuleExports map[string]*symbols.ModuleExports
 }
 
 // AnalysisFile bundles per-file analysis outputs.
@@ -71,6 +72,9 @@ func buildSnapshot(opts *DiagnoseOptions, workspace *WorkspaceResult, diags []Di
 	}
 	if opts != nil {
 		snapshot.ProjectRoot = opts.ProjectRoot
+	}
+	if workspace.ModuleExports != nil {
+		snapshot.ModuleExports = workspace.ModuleExports
 	}
 
 	switch workspace.Mode {

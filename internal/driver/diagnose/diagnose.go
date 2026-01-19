@@ -13,6 +13,7 @@ import (
 	"surge/internal/parser"
 	"surge/internal/project"
 	"surge/internal/source"
+	"surge/internal/symbols"
 )
 
 // DiagnoseOptions configures workspace diagnostics.
@@ -68,10 +69,11 @@ const (
 
 // WorkspaceResult optionally captures the raw driver results for CLI usage.
 type WorkspaceResult struct {
-	Mode       WorkspaceMode
-	FileResult *driver.DiagnoseResult
-	DirFileSet *source.FileSet
-	DirResults []driver.DiagnoseDirResult
+	Mode          WorkspaceMode
+	FileResult    *driver.DiagnoseResult
+	DirFileSet    *source.FileSet
+	DirResults    []driver.DiagnoseDirResult
+	ModuleExports map[string]*symbols.ModuleExports
 }
 
 // DiagnoseWorkspace runs diagnostics for a file or directory and returns simplified diagnostics.
@@ -113,6 +115,8 @@ func DiagnoseWorkspace(ctx context.Context, opts *DiagnoseOptions, overlay FileO
 		KeepArtifacts:      opts.KeepArtifacts,
 		FullModuleGraph:    opts.FullModuleGraph,
 	}
+	var moduleExports map[string]*symbols.ModuleExports
+	driverOpts.ExportsOut = &moduleExports
 
 	isOverlayFile := err != nil && overlayHasPath(overlayMap, opts.ProjectRoot, rootDir)
 	if err != nil && !isOverlayFile {
@@ -128,6 +132,7 @@ func DiagnoseWorkspace(ctx context.Context, opts *DiagnoseOptions, overlay FileO
 			opts.Result.Mode = WorkspaceModeDir
 			opts.Result.DirFileSet = fs
 			opts.Result.DirResults = results
+			opts.Result.ModuleExports = moduleExports
 		}
 		return collectDirDiagnostics(fs, results), nil
 	}
@@ -139,6 +144,7 @@ func DiagnoseWorkspace(ctx context.Context, opts *DiagnoseOptions, overlay FileO
 	if opts.Result != nil {
 		opts.Result.Mode = WorkspaceModeFile
 		opts.Result.FileResult = result
+		opts.Result.ModuleExports = moduleExports
 	}
 	return collectFileDiagnostics(result), nil
 }
@@ -181,6 +187,8 @@ func DiagnoseFiles(ctx context.Context, opts *DiagnoseOptions, files []string, o
 		KeepArtifacts:      opts.KeepArtifacts,
 		FullModuleGraph:    opts.FullModuleGraph,
 	}
+	var moduleExports map[string]*symbols.ModuleExports
+	driverOpts.ExportsOut = &moduleExports
 
 	fs, results, diagErr := driver.DiagnoseFilesWithOptions(ctx, baseDir, files, &driverOpts, opts.Jobs)
 	if diagErr != nil {
@@ -190,6 +198,7 @@ func DiagnoseFiles(ctx context.Context, opts *DiagnoseOptions, files []string, o
 		opts.Result.Mode = WorkspaceModeDir
 		opts.Result.DirFileSet = fs
 		opts.Result.DirResults = results
+		opts.Result.ModuleExports = moduleExports
 	}
 	return collectDirDiagnostics(fs, results), nil
 }
