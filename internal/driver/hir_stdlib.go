@@ -319,27 +319,34 @@ func remapSymbol(id symbols.SymbolID, mapping map[symbols.SymbolID]symbols.Symbo
 	return id
 }
 
+type remapState struct {
+	seenExpr map[*hir.Expr]struct{}
+}
+
 func remapHIRModule(mod *hir.Module, mapping map[symbols.SymbolID]symbols.SymbolID) {
 	if mod == nil || len(mapping) == 0 {
 		return
+	}
+	state := &remapState{
+		seenExpr: make(map[*hir.Expr]struct{}),
 	}
 	for i := range mod.Types {
 		mod.Types[i].SymbolID = remapSymbol(mod.Types[i].SymbolID, mapping)
 	}
 	for i := range mod.Consts {
 		mod.Consts[i].SymbolID = remapSymbol(mod.Consts[i].SymbolID, mapping)
-		remapExpr(mod.Consts[i].Value, mapping)
+		remapExpr(mod.Consts[i].Value, mapping, state)
 	}
 	for i := range mod.Globals {
 		mod.Globals[i].SymbolID = remapSymbol(mod.Globals[i].SymbolID, mapping)
-		remapExpr(mod.Globals[i].Value, mapping)
+		remapExpr(mod.Globals[i].Value, mapping, state)
 	}
 	for _, fn := range mod.Funcs {
-		remapFunc(fn, mapping)
+		remapFunc(fn, mapping, state)
 	}
 }
 
-func remapFunc(fn *hir.Func, mapping map[symbols.SymbolID]symbols.SymbolID) {
+func remapFunc(fn *hir.Func, mapping map[symbols.SymbolID]symbols.SymbolID, state *remapState) {
 	if fn == nil {
 		return
 	}
@@ -348,20 +355,20 @@ func remapFunc(fn *hir.Func, mapping map[symbols.SymbolID]symbols.SymbolID) {
 		fn.Params[i].SymbolID = remapSymbol(fn.Params[i].SymbolID, mapping)
 	}
 	if fn.Body != nil {
-		remapBlock(fn.Body, mapping)
+		remapBlock(fn.Body, mapping, state)
 	}
 }
 
-func remapBlock(block *hir.Block, mapping map[symbols.SymbolID]symbols.SymbolID) {
+func remapBlock(block *hir.Block, mapping map[symbols.SymbolID]symbols.SymbolID, state *remapState) {
 	if block == nil {
 		return
 	}
 	for i := range block.Stmts {
-		remapStmt(&block.Stmts[i], mapping)
+		remapStmt(&block.Stmts[i], mapping, state)
 	}
 }
 
-func remapStmt(st *hir.Stmt, mapping map[symbols.SymbolID]symbols.SymbolID) {
+func remapStmt(st *hir.Stmt, mapping map[symbols.SymbolID]symbols.SymbolID, state *remapState) {
 	if st == nil {
 		return
 	}
@@ -372,47 +379,47 @@ func remapStmt(st *hir.Stmt, mapping map[symbols.SymbolID]symbols.SymbolID) {
 			return
 		}
 		data.SymbolID = remapSymbol(data.SymbolID, mapping)
-		remapExpr(data.Value, mapping)
-		remapExpr(data.Pattern, mapping)
+		remapExpr(data.Value, mapping, state)
+		remapExpr(data.Pattern, mapping, state)
 		st.Data = data
 	case hir.StmtExpr:
 		data, ok := st.Data.(hir.ExprStmtData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Expr, mapping)
+		remapExpr(data.Expr, mapping, state)
 		st.Data = data
 	case hir.StmtAssign:
 		data, ok := st.Data.(hir.AssignData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Target, mapping)
-		remapExpr(data.Value, mapping)
+		remapExpr(data.Target, mapping, state)
+		remapExpr(data.Value, mapping, state)
 		st.Data = data
 	case hir.StmtReturn:
 		data, ok := st.Data.(hir.ReturnData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Value, mapping)
+		remapExpr(data.Value, mapping, state)
 		st.Data = data
 	case hir.StmtIf:
 		data, ok := st.Data.(hir.IfStmtData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Cond, mapping)
-		remapBlock(data.Then, mapping)
-		remapBlock(data.Else, mapping)
+		remapExpr(data.Cond, mapping, state)
+		remapBlock(data.Then, mapping, state)
+		remapBlock(data.Else, mapping, state)
 		st.Data = data
 	case hir.StmtWhile:
 		data, ok := st.Data.(hir.WhileData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Cond, mapping)
-		remapBlock(data.Body, mapping)
+		remapExpr(data.Cond, mapping, state)
+		remapBlock(data.Body, mapping, state)
 		st.Data = data
 	case hir.StmtFor:
 		data, ok := st.Data.(hir.ForData)
@@ -421,34 +428,40 @@ func remapStmt(st *hir.Stmt, mapping map[symbols.SymbolID]symbols.SymbolID) {
 		}
 		data.VarSym = remapSymbol(data.VarSym, mapping)
 		if data.Init != nil {
-			remapStmt(data.Init, mapping)
+			remapStmt(data.Init, mapping, state)
 		}
-		remapExpr(data.Cond, mapping)
-		remapExpr(data.Post, mapping)
-		remapExpr(data.Iterable, mapping)
-		remapBlock(data.Body, mapping)
+		remapExpr(data.Cond, mapping, state)
+		remapExpr(data.Post, mapping, state)
+		remapExpr(data.Iterable, mapping, state)
+		remapBlock(data.Body, mapping, state)
 		st.Data = data
 	case hir.StmtBlock:
 		data, ok := st.Data.(hir.BlockStmtData)
 		if !ok {
 			return
 		}
-		remapBlock(data.Block, mapping)
+		remapBlock(data.Block, mapping, state)
 		st.Data = data
 	case hir.StmtDrop:
 		data, ok := st.Data.(hir.DropData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Value, mapping)
+		remapExpr(data.Value, mapping, state)
 		st.Data = data
 	default:
 	}
 }
 
-func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID) {
+func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID, state *remapState) {
 	if expr == nil {
 		return
+	}
+	if state != nil {
+		if _, ok := state.seenExpr[expr]; ok {
+			return
+		}
+		state.seenExpr[expr] = struct{}{}
 	}
 	switch expr.Kind {
 	case hir.ExprVarRef:
@@ -463,15 +476,15 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID) {
 		if !ok {
 			return
 		}
-		remapExpr(data.Operand, mapping)
+		remapExpr(data.Operand, mapping, state)
 		expr.Data = data
 	case hir.ExprBinaryOp:
 		data, ok := expr.Data.(hir.BinaryOpData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Left, mapping)
-		remapExpr(data.Right, mapping)
+		remapExpr(data.Left, mapping, state)
+		remapExpr(data.Right, mapping, state)
 		expr.Data = data
 	case hir.ExprCall:
 		data, ok := expr.Data.(hir.CallData)
@@ -479,9 +492,9 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID) {
 			return
 		}
 		data.SymbolID = remapSymbol(data.SymbolID, mapping)
-		remapExpr(data.Callee, mapping)
+		remapExpr(data.Callee, mapping, state)
 		for _, arg := range data.Args {
-			remapExpr(arg, mapping)
+			remapExpr(arg, mapping, state)
 		}
 		expr.Data = data
 	case hir.ExprFieldAccess:
@@ -489,15 +502,15 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID) {
 		if !ok {
 			return
 		}
-		remapExpr(data.Object, mapping)
+		remapExpr(data.Object, mapping, state)
 		expr.Data = data
 	case hir.ExprIndex:
 		data, ok := expr.Data.(hir.IndexData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Object, mapping)
-		remapExpr(data.Index, mapping)
+		remapExpr(data.Object, mapping, state)
+		remapExpr(data.Index, mapping, state)
 		expr.Data = data
 	case hir.ExprStructLit:
 		data, ok := expr.Data.(hir.StructLitData)
@@ -505,7 +518,7 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID) {
 			return
 		}
 		for i := range data.Fields {
-			remapExpr(data.Fields[i].Value, mapping)
+			remapExpr(data.Fields[i].Value, mapping, state)
 		}
 		expr.Data = data
 	case hir.ExprArrayLit:
@@ -514,7 +527,7 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID) {
 			return
 		}
 		for _, el := range data.Elements {
-			remapExpr(el, mapping)
+			remapExpr(el, mapping, state)
 		}
 		expr.Data = data
 	case hir.ExprMapLit:
@@ -523,8 +536,8 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID) {
 			return
 		}
 		for _, entry := range data.Entries {
-			remapExpr(entry.Key, mapping)
-			remapExpr(entry.Value, mapping)
+			remapExpr(entry.Key, mapping, state)
+			remapExpr(entry.Value, mapping, state)
 		}
 		expr.Data = data
 	case hir.ExprTupleLit:
@@ -533,7 +546,7 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID) {
 			return
 		}
 		for _, el := range data.Elements {
-			remapExpr(el, mapping)
+			remapExpr(el, mapping, state)
 		}
 		expr.Data = data
 	case hir.ExprCompare:
@@ -541,11 +554,11 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID) {
 		if !ok {
 			return
 		}
-		remapExpr(data.Value, mapping)
+		remapExpr(data.Value, mapping, state)
 		for i := range data.Arms {
-			remapExpr(data.Arms[i].Pattern, mapping)
-			remapExpr(data.Arms[i].Guard, mapping)
-			remapExpr(data.Arms[i].Result, mapping)
+			remapExpr(data.Arms[i].Pattern, mapping, state)
+			remapExpr(data.Arms[i].Guard, mapping, state)
+			remapExpr(data.Arms[i].Result, mapping, state)
 		}
 		expr.Data = data
 	case hir.ExprTagTest:
@@ -553,79 +566,89 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID) {
 		if !ok {
 			return
 		}
-		remapExpr(data.Value, mapping)
+		remapExpr(data.Value, mapping, state)
 		expr.Data = data
 	case hir.ExprTagPayload:
 		data, ok := expr.Data.(hir.TagPayloadData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Value, mapping)
+		remapExpr(data.Value, mapping, state)
 		expr.Data = data
 	case hir.ExprIterInit:
 		data, ok := expr.Data.(hir.IterInitData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Iterable, mapping)
+		remapExpr(data.Iterable, mapping, state)
 		expr.Data = data
 	case hir.ExprIterNext:
 		data, ok := expr.Data.(hir.IterNextData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Iter, mapping)
+		remapExpr(data.Iter, mapping, state)
 		expr.Data = data
 	case hir.ExprIf:
 		data, ok := expr.Data.(hir.IfData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Cond, mapping)
-		remapExpr(data.Then, mapping)
-		remapExpr(data.Else, mapping)
+		remapExpr(data.Cond, mapping, state)
+		remapExpr(data.Then, mapping, state)
+		remapExpr(data.Else, mapping, state)
 		expr.Data = data
 	case hir.ExprAwait:
 		data, ok := expr.Data.(hir.AwaitData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Value, mapping)
+		remapExpr(data.Value, mapping, state)
 		expr.Data = data
 	case hir.ExprTask:
 		data, ok := expr.Data.(hir.TaskData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Value, mapping)
+		remapExpr(data.Value, mapping, state)
 		expr.Data = data
 	case hir.ExprSpawn:
 		data, ok := expr.Data.(hir.SpawnData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Value, mapping)
+		remapExpr(data.Value, mapping, state)
 		expr.Data = data
 	case hir.ExprAsync:
 		data, ok := expr.Data.(hir.AsyncData)
 		if !ok {
 			return
 		}
-		remapBlock(data.Body, mapping)
+		remapBlock(data.Body, mapping, state)
+		expr.Data = data
+	case hir.ExprBlocking:
+		data, ok := expr.Data.(hir.BlockingData)
+		if !ok {
+			return
+		}
+		remapBlock(data.Body, mapping, state)
+		for i := range data.Captures {
+			data.Captures[i].SymbolID = remapSymbol(data.Captures[i].SymbolID, mapping)
+		}
 		expr.Data = data
 	case hir.ExprCast:
 		data, ok := expr.Data.(hir.CastData)
 		if !ok {
 			return
 		}
-		remapExpr(data.Value, mapping)
+		remapExpr(data.Value, mapping, state)
 		expr.Data = data
 	case hir.ExprBlock:
 		data, ok := expr.Data.(hir.BlockExprData)
 		if !ok {
 			return
 		}
-		remapBlock(data.Block, mapping)
+		remapBlock(data.Block, mapping, state)
 		expr.Data = data
 	default:
 	}

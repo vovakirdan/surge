@@ -36,6 +36,13 @@ func (l *funcLowerer) lowerPlace(e *hir.Expr) (Place, error) {
 				return Place{Kind: PlaceGlobal, Global: global}, nil
 			}
 		}
+		funcName := ""
+		if l.f != nil {
+			funcName = l.f.Name
+		}
+		if funcName != "" {
+			return Place{Local: NoLocalID}, fmt.Errorf("mir: unknown local symbol %d (%s) in %s", data.SymbolID, data.Name, funcName)
+		}
 		return Place{Local: NoLocalID}, fmt.Errorf("mir: unknown local symbol %d (%s)", data.SymbolID, data.Name)
 
 	case hir.ExprUnaryOp:
