@@ -5,10 +5,16 @@
 #include "rt.h"
 
 #include <ctype.h>
+#include <errno.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/select.h>
+#include <termios.h>
+#include <unistd.h>
 
 #ifndef alignof
 #define alignof(t) __alignof__(t)
@@ -58,6 +64,13 @@ typedef struct TermEventSpec {
     int64_t rows;
 } TermEventSpec;
 
+enum {
+    TERM_MOD_SHIFT = 1,
+    TERM_MOD_ALT = 2,
+    TERM_MOD_CTRL = 4,
+    TERM_MOD_META = 8,
+};
+
 typedef struct TermKeyEventPayload {
     void* key;
     uint8_t mods;
@@ -91,6 +104,18 @@ enum {
     TERM_EVENT_TAG_RESIZE = 1,
     TERM_EVENT_TAG_EOF = 2,
 };
+
+static bool term_raw_enabled = false;
+static bool term_orig_valid = false;
+static struct termios term_orig;
+static bool term_exit_handler_installed = false;
+
+static volatile sig_atomic_t term_sigwinch = 0;
+static bool term_sigwinch_installed = false;
+static struct sigaction term_prev_sigwinch;
+
+static bool term_events_override = false;
+static bool term_size_override = false;
 
 static void* term_make_key(TermKeyData key) {
     size_t payload_align = alignof(uint32_t);
@@ -359,6 +384,7 @@ static void term_events_init(void) {
     if (term_events_buf == NULL) {
         return;
     }
+    term_events_override = true;
     memcpy(term_events_buf, env, len + 1);
     term_events_next = term_events_buf;
 }
@@ -389,6 +415,16 @@ static bool term_size_inited = false;
 static int term_size_cols = 80;
 static int term_size_rows = 24;
 
+static int term_tty_fd(void) {
+    if (isatty(STDOUT_FILENO)) {
+        return STDOUT_FILENO;
+    }
+    if (isatty(STDIN_FILENO)) {
+        return STDIN_FILENO;
+    }
+    return -1;
+}
+
 static void term_size_init(void) {
     if (term_size_inited) {
         return;
@@ -415,6 +451,7 @@ static void term_size_init(void) {
     }
     term_size_cols = (int)cols;
     term_size_rows = (int)rows;
+    term_size_override = true;
 }
 
 static void term_get_size(int* cols, int* rows) {
@@ -422,24 +459,128 @@ static void term_get_size(int* cols, int* rows) {
         return;
     }
     term_size_init();
+    if (!term_size_override) {
+        int fd = term_tty_fd();
+        if (fd >= 0) {
+            struct winsize ws = {0};
+            if (ioctl(fd, TIOCGWINSZ, &ws) == 0) {
+                if (ws.ws_col > 0) {
+                    term_size_cols = (int)ws.ws_col;
+                }
+                if (ws.ws_row > 0) {
+                    term_size_rows = (int)ws.ws_row;
+                }
+            }
+        }
+    }
     *cols = term_size_cols;
     *rows = term_size_rows;
 }
 
+static void term_handle_sigwinch(int signo) {
+    (void)signo;
+    term_sigwinch = 1;
+}
+
+static void term_install_sigwinch(void) {
+    if (term_sigwinch_installed) {
+        return;
+    }
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = term_handle_sigwinch;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    if (sigaction(SIGWINCH, &sa, &term_prev_sigwinch) == 0) {
+        term_sigwinch_installed = true;
+    }
+}
+
+static void term_restore_sigwinch(void) {
+    if (!term_sigwinch_installed) {
+        return;
+    }
+    sigaction(SIGWINCH, &term_prev_sigwinch, NULL);
+    term_sigwinch_installed = false;
+}
+
+static void term_write_ansi(const char* seq) {
+    if (seq == NULL) {
+        return;
+    }
+    rt_write_stdout((const uint8_t*)seq, (uint64_t)strlen(seq));
+}
+
+static void term_restore_at_exit(void) {
+    rt_term_set_raw_mode(false);
+    rt_term_show_cursor();
+    rt_term_exit_alt_screen();
+}
+
 void rt_term_enter_alt_screen(void) {
+    if (term_tty_fd() < 0) {
+        return;
+    }
+    term_write_ansi("\x1b[?1049h");
 }
 
 void rt_term_exit_alt_screen(void) {
+    if (term_tty_fd() < 0) {
+        return;
+    }
+    term_write_ansi("\x1b[?1049l");
 }
 
 void rt_term_set_raw_mode(bool enabled) {
-    (void)enabled;
+    int fd = term_tty_fd();
+    if (fd < 0) {
+        return;
+    }
+    if (enabled) {
+        if (!term_orig_valid) {
+            if (tcgetattr(fd, &term_orig) != 0) {
+                return;
+            }
+            term_orig_valid = true;
+        }
+        if (!term_raw_enabled) {
+            struct termios raw = term_orig;
+            raw.c_iflag &= (tcflag_t) ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+            raw.c_oflag &= (tcflag_t) ~(OPOST);
+            raw.c_cflag |= (tcflag_t)CS8;
+            raw.c_lflag &= (tcflag_t) ~(ECHO | ICANON | IEXTEN | ISIG);
+            raw.c_cc[VMIN] = 1;
+            raw.c_cc[VTIME] = 0;
+            if (tcsetattr(fd, TCSAFLUSH, &raw) == 0) {
+                term_raw_enabled = true;
+                term_install_sigwinch();
+                if (!term_exit_handler_installed) {
+                    atexit(term_restore_at_exit);
+                    term_exit_handler_installed = true;
+                }
+            }
+        }
+        return;
+    }
+    if (term_raw_enabled && term_orig_valid) {
+        tcsetattr(fd, TCSAFLUSH, &term_orig);
+        term_raw_enabled = false;
+    }
+    term_restore_sigwinch();
 }
 
 void rt_term_hide_cursor(void) {
+    if (term_tty_fd() < 0) {
+        return;
+    }
+    term_write_ansi("\x1b[?25l");
 }
 
 void rt_term_show_cursor(void) {
+    if (term_tty_fd() < 0) {
+        return;
+    }
+    term_write_ansi("\x1b[?25h");
 }
 
 void* rt_term_size(void) {
@@ -475,11 +616,349 @@ void rt_term_write(void* bytes) {
 }
 
 void rt_term_flush(void) {
+    int fd = term_tty_fd();
+    if (fd >= 0) {
+        tcdrain(fd);
+    }
+}
+
+static uint8_t term_mods_from_xterm(int mod) {
+    switch (mod) {
+        case 2:
+            return TERM_MOD_SHIFT;
+        case 3:
+            return TERM_MOD_ALT;
+        case 4:
+            return TERM_MOD_SHIFT | TERM_MOD_ALT;
+        case 5:
+            return TERM_MOD_CTRL;
+        case 6:
+            return TERM_MOD_SHIFT | TERM_MOD_CTRL;
+        case 7:
+            return TERM_MOD_ALT | TERM_MOD_CTRL;
+        case 8:
+            return TERM_MOD_SHIFT | TERM_MOD_ALT | TERM_MOD_CTRL;
+        default:
+            return 0;
+    }
+}
+
+static bool term_set_key_event(TermEventSpec* out, TermKeyKind kind, uint32_t ch, uint8_t f, uint8_t mods) {
+    if (out == NULL) {
+        return false;
+    }
+    out->kind = TERM_EVENT_KIND_KEY;
+    out->mods = mods;
+    out->key.kind = kind;
+    out->key.ch = ch;
+    out->key.f = f;
+    return true;
+}
+
+static bool term_set_resize_event(TermEventSpec* out) {
+    if (out == NULL) {
+        return false;
+    }
+    int cols = 80;
+    int rows = 24;
+    term_get_size(&cols, &rows);
+    out->kind = TERM_EVENT_KIND_RESIZE;
+    out->cols = (int64_t)cols;
+    out->rows = (int64_t)rows;
+    return true;
+}
+
+static int term_read_byte_blocking(void) {
+    uint8_t ch = 0;
+    while (true) {
+        ssize_t n = read(STDIN_FILENO, &ch, 1);
+        if (n == 1) {
+            return (int)ch;
+        }
+        if (n == 0) {
+            return -1;
+        }
+        if (errno == EINTR) {
+            if (term_sigwinch != 0) {
+                return -2;
+            }
+            continue;
+        }
+        return -1;
+    }
+}
+
+static int term_read_byte_timeout(int timeout_ms) {
+    fd_set set;
+    FD_ZERO(&set);
+    FD_SET(STDIN_FILENO, &set);
+    struct timeval tv;
+    tv.tv_sec = timeout_ms / 1000;
+    tv.tv_usec = (timeout_ms % 1000) * 1000;
+    int res = select(STDIN_FILENO + 1, &set, NULL, NULL, &tv);
+    if (res <= 0) {
+        return -1;
+    }
+    return term_read_byte_blocking();
+}
+
+static bool term_read_utf8(uint8_t first, uint32_t* out) {
+    if (out == NULL) {
+        return false;
+    }
+    if (first < 0x80) {
+        *out = first;
+        return true;
+    }
+    uint32_t code = 0;
+    int need = 0;
+    if ((first & 0xE0) == 0xC0) {
+        code = (uint32_t)(first & 0x1F);
+        need = 1;
+    } else if ((first & 0xF0) == 0xE0) {
+        code = (uint32_t)(first & 0x0F);
+        need = 2;
+    } else if ((first & 0xF8) == 0xF0) {
+        code = (uint32_t)(first & 0x07);
+        need = 3;
+    } else {
+        return false;
+    }
+    for (int i = 0; i < need; i++) {
+        int b = term_read_byte_blocking();
+        if (b < 0) {
+            return false;
+        }
+        if ((b & 0xC0) != 0x80) {
+            return false;
+        }
+        code = (code << 6) | (uint32_t)(b & 0x3F);
+    }
+    *out = code;
+    return true;
+}
+
+static bool term_parse_csi(TermEventSpec* out) {
+    int params[3] = {0, 0, 0};
+    int pcount = 0;
+    int current = 0;
+    bool have_num = false;
+    while (true) {
+        int b = term_read_byte_blocking();
+        if (b < 0) {
+            return term_set_key_event(out, TERM_KEY_KIND_ESC, 0, 0, 0);
+        }
+        if (b >= '0' && b <= '9') {
+            have_num = true;
+            current = current * 10 + (b - '0');
+            continue;
+        }
+        if (b == ';') {
+            if (pcount < 3) {
+                params[pcount++] = have_num ? current : 0;
+            }
+            current = 0;
+            have_num = false;
+            continue;
+        }
+        if (have_num || pcount > 0) {
+            if (pcount < 3) {
+                params[pcount++] = have_num ? current : 0;
+            }
+        }
+        int mod_param = 0;
+        if (pcount >= 2) {
+            mod_param = params[1];
+        }
+        uint8_t mods = term_mods_from_xterm(mod_param);
+        switch (b) {
+            case 'A':
+                return term_set_key_event(out, TERM_KEY_KIND_UP, 0, 0, mods);
+            case 'B':
+                return term_set_key_event(out, TERM_KEY_KIND_DOWN, 0, 0, mods);
+            case 'C':
+                return term_set_key_event(out, TERM_KEY_KIND_RIGHT, 0, 0, mods);
+            case 'D':
+                return term_set_key_event(out, TERM_KEY_KIND_LEFT, 0, 0, mods);
+            case 'H':
+                return term_set_key_event(out, TERM_KEY_KIND_HOME, 0, 0, mods);
+            case 'F':
+                return term_set_key_event(out, TERM_KEY_KIND_END, 0, 0, mods);
+            case 'Z':
+                return term_set_key_event(out, TERM_KEY_KIND_TAB, 0, 0, TERM_MOD_SHIFT);
+            case '~': {
+                int key = (pcount >= 1) ? params[0] : 0;
+                uint8_t f = 0;
+                switch (key) {
+                    case 1:
+                    case 7:
+                        return term_set_key_event(out, TERM_KEY_KIND_HOME, 0, 0, mods);
+                    case 4:
+                    case 8:
+                        return term_set_key_event(out, TERM_KEY_KIND_END, 0, 0, mods);
+                    case 3:
+                        return term_set_key_event(out, TERM_KEY_KIND_DELETE, 0, 0, mods);
+                    case 5:
+                        return term_set_key_event(out, TERM_KEY_KIND_PAGE_UP, 0, 0, mods);
+                    case 6:
+                        return term_set_key_event(out, TERM_KEY_KIND_PAGE_DOWN, 0, 0, mods);
+                    case 11:
+                        f = 1;
+                        break;
+                    case 12:
+                        f = 2;
+                        break;
+                    case 13:
+                        f = 3;
+                        break;
+                    case 14:
+                        f = 4;
+                        break;
+                    case 15:
+                        f = 5;
+                        break;
+                    case 17:
+                        f = 6;
+                        break;
+                    case 18:
+                        f = 7;
+                        break;
+                    case 19:
+                        f = 8;
+                        break;
+                    case 20:
+                        f = 9;
+                        break;
+                    case 21:
+                        f = 10;
+                        break;
+                    case 23:
+                        f = 11;
+                        break;
+                    case 24:
+                        f = 12;
+                        break;
+                    default:
+                        break;
+                }
+                if (f != 0) {
+                    return term_set_key_event(out, TERM_KEY_KIND_F, 0, f, mods);
+                }
+                return term_set_key_event(out, TERM_KEY_KIND_ESC, 0, 0, 0);
+            }
+            default:
+                break;
+        }
+        return term_set_key_event(out, TERM_KEY_KIND_ESC, 0, 0, 0);
+    }
+}
+
+static bool term_parse_ss3(TermEventSpec* out) {
+    int b = term_read_byte_blocking();
+    if (b < 0) {
+        return term_set_key_event(out, TERM_KEY_KIND_ESC, 0, 0, 0);
+    }
+    switch (b) {
+        case 'A':
+            return term_set_key_event(out, TERM_KEY_KIND_UP, 0, 0, 0);
+        case 'B':
+            return term_set_key_event(out, TERM_KEY_KIND_DOWN, 0, 0, 0);
+        case 'C':
+            return term_set_key_event(out, TERM_KEY_KIND_RIGHT, 0, 0, 0);
+        case 'D':
+            return term_set_key_event(out, TERM_KEY_KIND_LEFT, 0, 0, 0);
+        case 'H':
+            return term_set_key_event(out, TERM_KEY_KIND_HOME, 0, 0, 0);
+        case 'F':
+            return term_set_key_event(out, TERM_KEY_KIND_END, 0, 0, 0);
+        case 'P':
+            return term_set_key_event(out, TERM_KEY_KIND_F, 0, 1, 0);
+        case 'Q':
+            return term_set_key_event(out, TERM_KEY_KIND_F, 0, 2, 0);
+        case 'R':
+            return term_set_key_event(out, TERM_KEY_KIND_F, 0, 3, 0);
+        case 'S':
+            return term_set_key_event(out, TERM_KEY_KIND_F, 0, 4, 0);
+        default:
+            break;
+    }
+    return term_set_key_event(out, TERM_KEY_KIND_ESC, 0, 0, 0);
+}
+
+static bool term_read_escape_sequence(TermEventSpec* out) {
+    int next = term_read_byte_timeout(15);
+    if (next < 0) {
+        return term_set_key_event(out, TERM_KEY_KIND_ESC, 0, 0, 0);
+    }
+    if (next == '[') {
+        return term_parse_csi(out);
+    }
+    if (next == 'O') {
+        return term_parse_ss3(out);
+    }
+    if (next == 0x1B) {
+        return term_set_key_event(out, TERM_KEY_KIND_ESC, 0, 0, 0);
+    }
+    uint32_t ch = 0;
+    if (!term_read_utf8((uint8_t)next, &ch)) {
+        return term_set_key_event(out, TERM_KEY_KIND_ESC, 0, 0, 0);
+    }
+    return term_set_key_event(out, TERM_KEY_KIND_CHAR, ch, 0, TERM_MOD_ALT);
+}
+
+static bool term_read_key_event(TermEventSpec* out) {
+    int b = term_read_byte_blocking();
+    if (b == -2) {
+        term_sigwinch = 0;
+        return term_set_resize_event(out);
+    }
+    if (b < 0) {
+        out->kind = TERM_EVENT_KIND_EOF;
+        return true;
+    }
+    if (b == 0x1B) {
+        return term_read_escape_sequence(out);
+    }
+    if (b == '\r' || b == '\n') {
+        return term_set_key_event(out, TERM_KEY_KIND_ENTER, 0, 0, 0);
+    }
+    if (b == '\t') {
+        return term_set_key_event(out, TERM_KEY_KIND_TAB, 0, 0, 0);
+    }
+    if (b == 0x7F || b == 0x08) {
+        return term_set_key_event(out, TERM_KEY_KIND_BACKSPACE, 0, 0, 0);
+    }
+    if (b >= 0x01 && b <= 0x1A) {
+        uint32_t ch = (uint32_t)('a' + (b - 1));
+        return term_set_key_event(out, TERM_KEY_KIND_CHAR, ch, 0, TERM_MOD_CTRL);
+    }
+    if (b == 0x00) {
+        return term_set_key_event(out, TERM_KEY_KIND_CHAR, (uint32_t)'@', 0, TERM_MOD_CTRL);
+    }
+    uint32_t ch = 0;
+    if (!term_read_utf8((uint8_t)b, &ch)) {
+        return term_set_key_event(out, TERM_KEY_KIND_ESC, 0, 0, 0);
+    }
+    return term_set_key_event(out, TERM_KEY_KIND_CHAR, ch, 0, 0);
+}
+
+static bool term_read_event_spec(TermEventSpec* out) {
+    if (out == NULL) {
+        return false;
+    }
+    if (term_events_override) {
+        return term_next_event(out);
+    }
+    if (term_sigwinch != 0) {
+        term_sigwinch = 0;
+        return term_set_resize_event(out);
+    }
+    return term_read_key_event(out);
 }
 
 void* rt_term_read_event(void) {
     TermEventSpec spec = {0};
-    if (!term_next_event(&spec)) {
+    if (!term_read_event_spec(&spec)) {
         spec.kind = TERM_EVENT_KIND_EOF;
     }
     void* ev = NULL;
