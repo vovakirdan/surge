@@ -4,7 +4,7 @@ error SEM3021 testdata/golden/hir_borrow/invalid/spawn_escape.sg:6:27 cannot sen
 == HIR ==
 module 
 
-async fn use_ref(x: &int [&]) -> nothing (id=1, sym=1371) {
+async fn use_ref(x: &int [&]) -> nothing (id=1, sym=1373) {
 }
 
 borrow edges:
@@ -12,25 +12,25 @@ borrow edges:
 events:
   <none>
 move plan:
-  L2743(x): MoveCopy (copy type)
+  L2747(x): MoveCopy (copy type)
 
-async fn t() -> nothing (id=2, sym=1372) {
+async fn t() -> nothing (id=2, sym=1374) {
   let mut x: int [copy] = 1
   let r: &int [&] = (& x): &int
-  let t: type#548 = spawn use_ref(r): type#548: type#548
-  await(t): type#1418
+  let t: type#552 = spawn use_ref(r): type#552: type#552
+  await(t): type#1422
   return
 }
 
 borrow edges:
-  L2745(r) (&) borrows L2744(x) at 0:87-89 scope=S5
+  L2749(r) (&) borrows L2748(x) at 0:87-89 scope=S5
 events:
-  borrow_start L2745(r) -> L2744(x) (&) at 0:87-89 scope=S5 note="B1"
-  spawn_escape L2745(r) -> L2744(x) at 0:117-118 scope=S5 note="B1"
-  move L2746(t) at 0:125-126 scope=S5
-  borrow_end L2745(r) -> L2744(x) scope=S5 note="scope_end B1"
+  borrow_start L2749(r) -> L2748(x) (&) at 0:87-89 scope=S5 note="B1"
+  spawn_escape L2749(r) -> L2748(x) at 0:117-118 scope=S5 note="B1"
+  move L2750(t) at 0:125-126 scope=S5
+  borrow_end L2749(r) -> L2748(x) scope=S5 note="scope_end B1"
 move plan:
-  L2744(x): MoveCopy (copy type)
-  L2745(r): MoveForbidden (task escape)
-  L2746(t): MoveNeedsDrop (non-copy (drop))
+  L2748(x): MoveCopy (copy type)
+  L2749(r): MoveForbidden (task escape)
+  L2750(t): MoveNeedsDrop (non-copy (drop))
 

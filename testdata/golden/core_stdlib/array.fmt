@@ -53,6 +53,20 @@ extern<Array<T>> {
         return out;
     }
 
+    @overload
+    pub fn with_len_value(length: uint, generator: fn() -> T) -> Array<T> {
+        let mut out: Array<T> = [];
+        if length != 0:uint {
+            out.reserve(length);
+            let mut i: uint = 0;
+            while i < length {
+                out.push(generator());
+                i = i + 1;
+            }
+        }
+        return out;
+    }
+
     pub fn from_range(r: Range<T>) -> Array<T> {
         let mut out: Array<T> = [];
         let mut iter: Range<T> = r;

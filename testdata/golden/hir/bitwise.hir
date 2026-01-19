@@ -2,7 +2,7 @@
 == HIR ==
 module 
 
-fn bit_ops(a: int [copy], b: int [copy]) -> int (id=1, sym=1371) {
+fn bit_ops(a: int [copy], b: int [copy]) -> int (id=1, sym=1373) {
   let and_result: int [copy] = __bit_and(a, b): int
   let or_result: int [copy] = __bit_or(a, b): int
   let xor_result: int [copy] = __bit_xor(a, b): int
@@ -11,7 +11,7 @@ fn bit_ops(a: int [copy], b: int [copy]) -> int (id=1, sym=1371) {
   return __bit_or(and_result, or_result): int
 }
 
-fn logical_ops(a: bool [copy], b: bool [copy]) -> bool (id=2, sym=1372) {
+fn logical_ops(a: bool [copy], b: bool [copy]) -> bool (id=2, sym=1374) {
   return ((a && b) || __not(a)): bool
 }
 
