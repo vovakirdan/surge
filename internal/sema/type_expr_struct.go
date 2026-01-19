@@ -70,6 +70,9 @@ func (tc *typeChecker) memberResultType(base types.TypeID, field source.StringID
 		if ty == types.NoTypeID || !isRef {
 			return ty
 		}
+		if tc.isReferenceType(ty) {
+			return ty
+		}
 		if tc.assignmentLHSDepth > 0 || tc.isCopyType(ty) {
 			return ty
 		}
