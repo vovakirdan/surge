@@ -1,0 +1,21 @@
+type Menu = {
+    items: string[],
+    selected: int,
+};
+
+type App = {
+    menu: Menu,
+};
+
+fn update(st: &mut App) -> nothing {
+    st.menu.selected = st.menu.selected - 1;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut app: App = {
+        menu = Menu { items = ["x"], selected = 1 }
+    };
+    update(&mut app);
+    return app.menu.selected;
+}

@@ -25,7 +25,7 @@ func (fe *funcEmitter) emitFieldAccess(fa *mir.FieldAccess) (val, ty string, err
 			objType = baseType
 		}
 	}
-	if isRefType(fe.emitter.types, objType) {
+	if isRefType(fe.emitter.types, objType) && fa.Object.Kind != mir.OperandAddrOf && fa.Object.Kind != mir.OperandAddrOfMut {
 		deref := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", deref, objVal)
 		objVal = deref

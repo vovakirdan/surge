@@ -1,0 +1,23 @@
+pub tag A(int);
+pub tag B(int);
+pub type U = A(int) | B(int);
+
+fn make_u() -> Option<U> {
+    let a = A(1);
+    let o = Some(a);
+    return o;
+}
+
+@entrypoint
+fn main() -> int {
+    let opt = make_u();
+    return compare opt {
+        Some(u) => {
+            compare u {
+                A(v) => v;
+                B(v) => v;
+            }
+        }
+        nothing => 0;
+    };
+}

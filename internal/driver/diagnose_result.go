@@ -107,3 +107,19 @@ func (r *DiagnoseResult) Entrypoints() []EntrypointInfo {
 	})
 	return entries
 }
+
+// MergeModuleDiagnostics merges diagnostics from dependency modules into the root bag.
+// This is useful for build pipelines that must fail on dependency errors.
+func (r *DiagnoseResult) MergeModuleDiagnostics() {
+	if r == nil || r.Bag == nil || r.moduleRecords == nil {
+		return
+	}
+	for _, rec := range r.moduleRecords {
+		if rec == nil || rec.Bag == nil || rec.Bag == r.Bag {
+			continue
+		}
+		r.Bag.Merge(rec.Bag)
+	}
+	r.Bag.Dedup()
+	r.Bag.Sort()
+}

@@ -84,6 +84,10 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 
 	addBlockingVMErrors(req, diagRes)
 
+	if diagRes != nil {
+		diagRes.MergeModuleDiagnostics()
+	}
+
 	if diagRes.Bag != nil && diagRes.Bag.HasErrors() {
 		for _, d := range diagRes.Bag.Items() {
 			if d.Severity != diag.SevError {

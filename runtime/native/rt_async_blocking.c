@@ -71,15 +71,31 @@ static void* rt_blocking_worker_main(void* arg) {
         if (job == NULL) {
             continue;
         }
+        rt_async_debug_printf("async blocking pop task=%llu fn=%llu state=%p status=%u\n",
+                              (unsigned long long)job->task_id,
+                              (unsigned long long)job->fn_id,
+                              job->state,
+                              (unsigned)atomic_load_explicit(&job->status, memory_order_relaxed));
 
         uint8_t status = atomic_load_explicit(&job->status, memory_order_acquire);
         if (status == BLOCKING_JOB_CANCELLED) {
+            rt_async_debug_printf("async blocking cancelled task=%llu fn=%llu\n",
+                                  (unsigned long long)job->task_id,
+                                  (unsigned long long)job->fn_id);
             blocking_job_release(job);
             continue;
         }
 
         (void)atomic_fetch_add_explicit(&ex->blocking_running, 1, memory_order_relaxed);
+        rt_async_debug_printf("async blocking start task=%llu fn=%llu state=%p\n",
+                              (unsigned long long)job->task_id,
+                              (unsigned long long)job->fn_id,
+                              job->state);
         uint64_t result = __surge_blocking_call(job->fn_id, job->state);
+        rt_async_debug_printf("async blocking done task=%llu fn=%llu result=%llu\n",
+                              (unsigned long long)job->task_id,
+                              (unsigned long long)job->fn_id,
+                              (unsigned long long)result);
         (void)atomic_fetch_sub_explicit(&ex->blocking_running, 1, memory_order_relaxed);
         (void)atomic_fetch_add_explicit(&ex->blocking_completed, 1, memory_order_relaxed);
 
@@ -244,6 +260,12 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
     task->state = job;
 
     (void)atomic_fetch_add_explicit(&ex->blocking_submitted, 1, memory_order_relaxed);
+    rt_async_debug_printf("async blocking submit task=%llu fn=%llu state=%p size=%llu align=%llu\n",
+                          (unsigned long long)id,
+                          (unsigned long long)fn_id,
+                          state,
+                          (unsigned long long)state_size,
+                          (unsigned long long)state_align);
     blocking_queue_push(ex, job);
     ready_push(ex, id);
     rt_unlock(ex);

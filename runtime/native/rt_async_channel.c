@@ -77,6 +77,9 @@ void* rt_channel_new(uint64_t capacity) {
             return NULL;
         }
     }
+    rt_async_debug_printf("async chan new ch=%p cap=%llu\n",
+                          (void*)ch,
+                          (unsigned long long)capacity);
     return ch;
 }
 
@@ -359,14 +362,19 @@ void rt_channel_send_blocking(void* channel, uint64_t value_bits) {
     if (ex == NULL || ch == NULL) {
         return;
     }
+    rt_async_debug_printf("async chan send start ch=%p bits=%llu\n",
+                          (void*)ch,
+                          (unsigned long long)value_bits);
     for (;;) {
         rt_lock(ex);
         uint8_t status = rt_channel_try_send_status_locked(ex, channel, value_bits);
         rt_unlock(ex);
         if (status == 1) {
+            rt_async_debug_printf("async chan send ok ch=%p\n", (void*)ch);
             return;
         }
         if (status == 2) {
+            rt_async_debug_printf("async chan send closed ch=%p\n", (void*)ch);
             panic_msg("send on closed channel");
             return;
         }
@@ -380,11 +388,19 @@ uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits) {
     if (ex == NULL || ch == NULL) {
         return 2;
     }
+    rt_async_debug_printf("async chan recv start ch=%p\n", (void*)ch);
     for (;;) {
         rt_lock(ex);
         uint8_t status = rt_channel_try_recv_status_locked(ex, channel, out_bits);
         rt_unlock(ex);
         if (status == 1 || status == 2) {
+            if (status == 1 && out_bits != NULL) {
+                rt_async_debug_printf("async chan recv ok ch=%p bits=%llu\n",
+                                      (void*)ch,
+                                      (unsigned long long)*out_bits);
+            } else if (status == 2) {
+                rt_async_debug_printf("async chan recv closed ch=%p\n", (void*)ch);
+            }
             return status;
         }
         channel_blocking_yield();
@@ -400,6 +416,7 @@ void rt_channel_close(void* channel) {
     if (ch->closed) {
         return;
     }
+    rt_async_debug_printf("async chan close ch=%p\n", (void*)ch);
     rt_lock(ex);
     ch->closed = 1;
     if (ex == NULL) {

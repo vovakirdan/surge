@@ -210,6 +210,8 @@ typedef struct rt_blocking_job {
 } rt_blocking_job;
 
 void panic_msg(const char* msg);
+int rt_async_debug_enabled(void);
+void rt_async_debug_printf(const char* fmt, ...);
 
 static inline uint8_t task_status_load(const rt_task* task) {
     return task == NULL ? TASK_DONE : atomic_load_explicit(&task->status, memory_order_acquire);

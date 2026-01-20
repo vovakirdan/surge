@@ -7,8 +7,10 @@
 #include <ctype.h>
 #include <errno.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -121,6 +123,41 @@ static struct sigaction term_prev_sigwinch;
 
 static bool term_events_override = false;
 static bool term_size_override = false;
+static bool term_debug_enabled_flag = false;
+static bool term_debug_inited = false;
+
+static bool term_debug_enabled(void) {
+    if (term_debug_inited) {
+        return term_debug_enabled_flag;
+    }
+    term_debug_inited = true;
+    const char* env = getenv("SURGE_TERM_DEBUG");
+    if (env == NULL || env[0] == '\0' || (env[0] == '0' && env[1] == '\0')) {
+        term_debug_enabled_flag = false;
+        return false;
+    }
+    term_debug_enabled_flag = true;
+    return true;
+}
+
+static void term_debug_printf(const char* fmt, ...) {
+    if (!term_debug_enabled() || fmt == NULL) {
+        return;
+    }
+    char buf[256];
+    va_list args;
+    va_start(args, fmt);
+    int n = vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    if (n <= 0) {
+        return;
+    }
+    uint64_t len = (uint64_t)n;
+    if ((size_t)n >= sizeof(buf)) {
+        len = (uint64_t)(sizeof(buf) - 1);
+    }
+    rt_write_stderr((const uint8_t*)buf, len);
+}
 
 static void* term_make_key(TermKeyData key) {
     size_t payload_align = alignof(uint32_t);
@@ -151,6 +188,10 @@ static void* term_make_key_event(TermKeyData key, uint8_t mods) {
     }
     ev->key = term_make_key(key);
     ev->mods = mods;
+    term_debug_printf("term_make_key_event ev=%p key=%p mods=%u\n",
+                      (void*)ev,
+                      ev->key,
+                      (unsigned)mods);
     return (void*)ev;
 }
 
@@ -168,6 +209,20 @@ static void* term_make_event_key(TermKeyData key, uint8_t mods) {
     void* key_event = term_make_key_event(key, mods);
     if (key_event == NULL) {
         return NULL;
+    }
+    if (term_debug_enabled()) {
+        TermKeyEvent* ev = (TermKeyEvent*)key_event;
+        uint32_t key_tag = 0;
+        if (ev != NULL && ev->key != NULL) {
+            key_tag = *(uint32_t*)ev->key;
+        }
+        term_debug_printf("term_make_event_key tag=%u ev=%p key_event=%p key=%p key_tag=%u mods=%u\n",
+                          TERM_EVENT_TAG_KEY,
+                          (void*)mem,
+                          key_event,
+                          ev ? ev->key : NULL,
+                          (unsigned)key_tag,
+                          (unsigned)mods);
     }
     *(void**)(mem + payload_offset) = key_event;
     return mem;
@@ -964,6 +1019,7 @@ static bool term_read_event_spec(TermEventSpec* out) {
     if (out == NULL) {
         return false;
     }
+    term_events_init();
     if (term_events_override) {
         return term_next_event(out);
     }
@@ -979,6 +1035,14 @@ void* rt_term_read_event(void) {
     if (!term_read_event_spec(&spec)) {
         spec.kind = TERM_EVENT_KIND_EOF;
     }
+    if (term_debug_enabled()) {
+        term_debug_printf("term_read_event spec kind=%d key_kind=%d mods=%u cols=%lld rows=%lld\n",
+                          (int)spec.kind,
+                          (int)spec.key.kind,
+                          (unsigned)spec.mods,
+                          (long long)spec.cols,
+                          (long long)spec.rows);
+    }
     void* ev = NULL;
     switch (spec.kind) {
         case TERM_EVENT_KIND_KEY:
@@ -991,6 +1055,13 @@ void* rt_term_read_event(void) {
         default:
             ev = term_make_event_eof();
             break;
+    }
+    if (term_debug_enabled()) {
+        uint32_t tag = 0;
+        if (ev != NULL) {
+            tag = *(uint32_t*)ev;
+        }
+        term_debug_printf("term_read_event result=%p tag=%u\n", ev, (unsigned)tag);
     }
     if (ev == NULL) {
         const char* msg = "term_read_event allocation failed";

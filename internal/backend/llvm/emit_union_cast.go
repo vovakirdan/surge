@@ -64,26 +64,36 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 			if err != nil {
 				return "", "", err
 			}
-			for j, payloadType := range srcCase.PayloadTypes {
-				srcLLVM, err := llvmValueType(fe.emitter.types, payloadType)
-				if err != nil {
-					return "", "", err
-				}
-				dstLLVM, err := llvmValueType(fe.emitter.types, dstCase.PayloadTypes[j])
-				if err != nil {
-					return "", "", err
-				}
-				if srcLLVM != dstLLVM {
-					return "", "", fmt.Errorf("union cast payload type mismatch for tag %q", srcCase.TagName)
-				}
-				off := srcLayout.PayloadOffset + offsets[j]
-				bytePtr := fe.nextTemp()
-				fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, val, off)
-				loaded := fe.nextTemp()
-				fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", loaded, srcLLVM, bytePtr)
-				payloadVals = append(payloadVals, loaded)
-				payloadLLVM = append(payloadLLVM, srcLLVM)
+		for j, payloadType := range srcCase.PayloadTypes {
+			srcLLVM, err := llvmValueType(fe.emitter.types, payloadType)
+			if err != nil {
+				return "", "", err
 			}
+			dstLLVM, err := llvmValueType(fe.emitter.types, dstCase.PayloadTypes[j])
+			if err != nil {
+				return "", "", err
+			}
+			if srcLLVM != dstLLVM {
+				return "", "", fmt.Errorf("union cast payload type mismatch for tag %q", srcCase.TagName)
+			}
+			off := srcLayout.PayloadOffset + offsets[j]
+			bytePtr := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, val, off)
+			loaded := fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", loaded, srcLLVM, bytePtr)
+			srcPayload := resolveValueType(fe.emitter.types, payloadType)
+			dstPayload := resolveValueType(fe.emitter.types, dstCase.PayloadTypes[j])
+			if srcPayload != dstPayload && isUnionType(fe.emitter.types, srcPayload) && isUnionType(fe.emitter.types, dstPayload) {
+				casted, castTy, err := fe.emitUnionCast(loaded, payloadType, dstCase.PayloadTypes[j])
+				if err != nil {
+					return "", "", err
+				}
+				loaded = casted
+				srcLLVM = castTy
+			}
+			payloadVals = append(payloadVals, loaded)
+			payloadLLVM = append(payloadLLVM, srcLLVM)
+		}
 		}
 		newTag, err := fe.emitTagValueFromValues(dstResolved, dstIdx, dstCase.PayloadTypes, payloadVals, payloadLLVM)
 		if err != nil {
