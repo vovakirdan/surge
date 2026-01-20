@@ -76,6 +76,11 @@ typedef struct TermKeyEventPayload {
     uint8_t mods;
 } TermKeyEventPayload;
 
+typedef struct TermKeyEvent {
+    void* key;
+    uint8_t mods;
+} TermKeyEvent;
+
 typedef struct TermResizePayload {
     void* cols;
     void* rows;
@@ -138,6 +143,17 @@ static void* term_make_key(TermKeyData key) {
     return mem;
 }
 
+static void* term_make_key_event(TermKeyData key, uint8_t mods) {
+    TermKeyEvent* ev = (TermKeyEvent*)rt_alloc((uint64_t)sizeof(TermKeyEvent),
+                                               (uint64_t)alignof(TermKeyEvent));
+    if (ev == NULL) {
+        return NULL;
+    }
+    ev->key = term_make_key(key);
+    ev->mods = mods;
+    return (void*)ev;
+}
+
 static void* term_make_event_key(TermKeyData key, uint8_t mods) {
     size_t payload_align = alignof(void*);
     size_t payload_size = sizeof(TermResizePayload);
@@ -149,10 +165,11 @@ static void* term_make_event_key(TermKeyData key, uint8_t mods) {
     if (mem == NULL) {
         return NULL;
     }
-    TermKeyEventPayload payload = {0};
-    payload.key = term_make_key(key);
-    payload.mods = mods;
-    memcpy(mem + payload_offset, &payload, sizeof(payload));
+    void* key_event = term_make_key_event(key, mods);
+    if (key_event == NULL) {
+        return NULL;
+    }
+    *(void**)(mem + payload_offset) = key_event;
     return mem;
 }
 
@@ -522,6 +539,7 @@ void rt_term_enter_alt_screen(void) {
         return;
     }
     term_write_ansi("\x1b[?1049h");
+    term_write_ansi("\x1b[2J\x1b[H");
 }
 
 void rt_term_exit_alt_screen(void) {
