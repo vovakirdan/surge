@@ -191,6 +191,9 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 					tc.recordMethodCallInstantiation(symID, receiverType, explicitArgs, expr.Span)
 					appliedArgsOwnership := false
 					if symID.IsValid() {
+						if sym := tc.symbolFromID(symID); sym != nil && sym.Signature != nil {
+							tc.recordImplicitConversionsForMethodCall(sym, member.Target, receiverType, call.Args, argTypes)
+						}
 						if !receiverIsType {
 							tc.applyMethodReceiverOwnership(symID, member.Target, receiverType)
 							if sym := tc.symbolFromID(symID); sym != nil && sym.Signature != nil {

@@ -91,6 +91,34 @@ func (tc *typeChecker) recordImplicitConversionsForCall(sym *symbols.Symbol, arg
 	}
 }
 
+func (tc *typeChecker) recordImplicitConversionsForMethodCall(sym *symbols.Symbol, recvExpr ast.ExprID, recvType types.TypeID, args []ast.CallArg, argTypes []types.TypeID) {
+	if sym == nil || sym.Signature == nil {
+		return
+	}
+	callArgs := make([]callArg, 0, len(args)+1)
+	if sym.Signature.HasSelf {
+		callArgs = append(callArgs, callArg{
+			name:      source.NoStringID,
+			ty:        recvType,
+			isLiteral: tc.isLiteralExpr(recvExpr),
+			expr:      recvExpr,
+		})
+	}
+	for i, arg := range args {
+		argType := types.NoTypeID
+		if i < len(argTypes) {
+			argType = argTypes[i]
+		}
+		callArgs = append(callArgs, callArg{
+			name:      arg.Name,
+			ty:        argType,
+			isLiteral: tc.isLiteralExpr(arg.Value),
+			expr:      arg.Value,
+		})
+	}
+	tc.recordImplicitConversionsForCall(sym, callArgs)
+}
+
 // materializeCallArguments applies expected types to literal arguments after overload resolution.
 // This ensures numeric literals are range-checked and typed to the selected parameter types.
 func (tc *typeChecker) materializeCallArguments(sym *symbols.Symbol, args []callArg, concreteArgs []types.TypeID) {

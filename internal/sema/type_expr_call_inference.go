@@ -440,12 +440,18 @@ func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral, 
 	if info, ok := tc.types.UnionInfo(expected); ok && info != nil {
 		best := -1
 		for _, member := range info.Members {
-			if member.Kind != types.UnionMemberType {
-				continue
-			}
-			if cost, ok := tc.conversionCost(actual, member.Type, isLiteral, allowImplicitTo); ok {
-				if best == -1 || cost < best {
-					best = cost
+			switch member.Kind {
+			case types.UnionMemberType:
+				if cost, ok := tc.conversionCost(actual, member.Type, isLiteral, allowImplicitTo); ok {
+					if best == -1 || cost < best {
+						best = cost
+					}
+				}
+			case types.UnionMemberTag:
+				if tc.isTagTypeMatch(actual, member.TagName, member.TagArgs) {
+					if best == -1 || 1 < best {
+						best = 1
+					}
 				}
 			}
 		}

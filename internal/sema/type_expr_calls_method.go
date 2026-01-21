@@ -505,6 +505,11 @@ func (tc *typeChecker) methodParamMatchesWithSubst(expected symbols.TypeKey, arg
 			}
 		}
 	}
+	if expectedType := tc.typeFromKey(substituted); expectedType != types.NoTypeID {
+		if tc.isUnionMember(expectedType, arg) {
+			return true
+		}
+	}
 	return false
 }
 
