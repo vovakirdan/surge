@@ -78,15 +78,18 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 		emitStage(req.Progress, req.Files, StageDiagnose, StatusError, err, 0)
 		return result, err
 	}
+	if diagRes == nil {
+		err = fmt.Errorf("diagnostics result missing")
+		emitStage(req.Progress, req.Files, StageDiagnose, StatusError, err, 0)
+		return result, err
+	}
 	result.Diagnose = diagRes
 	recordDiagnoseTimings(&result, diagRes.TimingReport)
 	expandProgressFiles(req, phaseProgress, diagRes)
 
 	addBlockingVMErrors(req, diagRes)
 
-	if diagRes != nil {
-		diagRes.MergeModuleDiagnostics()
-	}
+	diagRes.MergeModuleDiagnostics()
 
 	if diagRes.Bag != nil && diagRes.Bag.HasErrors() {
 		for _, d := range diagRes.Bag.Items() {

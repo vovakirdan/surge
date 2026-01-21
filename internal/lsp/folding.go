@@ -81,7 +81,7 @@ func lineForOffset(file *source.File, offset uint32) int {
 	return positionForOffsetInFile(file, offset).Line
 }
 
-func itemFoldingRanges(af *diagnose.AnalysisFile, file *source.File) ([]foldingRange, map[uint32]struct{}) {
+func itemFoldingRanges(af *diagnose.AnalysisFile, file *source.File) (ranges []foldingRange, skipBraces map[uint32]struct{}) {
 	if af == nil || af.Builder == nil {
 		return nil, map[uint32]struct{}{}
 	}
@@ -89,8 +89,8 @@ func itemFoldingRanges(af *diagnose.AnalysisFile, file *source.File) ([]foldingR
 	if fileNode == nil {
 		return nil, map[uint32]struct{}{}
 	}
-	ranges := make([]foldingRange, 0)
-	skipBraces := make(map[uint32]struct{})
+	ranges = make([]foldingRange, 0)
+	skipBraces = make(map[uint32]struct{})
 
 	addRange := func(startSpan, bodySpan source.Span) {
 		if startSpan == (source.Span{}) || bodySpan == (source.Span{}) {

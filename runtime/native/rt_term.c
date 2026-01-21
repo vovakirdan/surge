@@ -181,17 +181,15 @@ static void* term_make_key(TermKeyData key) {
 }
 
 static void* term_make_key_event(TermKeyData key, uint8_t mods) {
-    TermKeyEvent* ev = (TermKeyEvent*)rt_alloc((uint64_t)sizeof(TermKeyEvent),
-                                               (uint64_t)alignof(TermKeyEvent));
+    TermKeyEvent* ev =
+        (TermKeyEvent*)rt_alloc((uint64_t)sizeof(TermKeyEvent), (uint64_t)alignof(TermKeyEvent));
     if (ev == NULL) {
         return NULL;
     }
     ev->key = term_make_key(key);
     ev->mods = mods;
-    term_debug_printf("term_make_key_event ev=%p key=%p mods=%u\n",
-                      (void*)ev,
-                      ev->key,
-                      (unsigned)mods);
+    term_debug_printf(
+        "term_make_key_event ev=%p key=%p mods=%u\n", (void*)ev, ev->key, (unsigned)mods);
     return (void*)ev;
 }
 
@@ -216,13 +214,14 @@ static void* term_make_event_key(TermKeyData key, uint8_t mods) {
         if (ev != NULL && ev->key != NULL) {
             key_tag = *(uint32_t*)ev->key;
         }
-        term_debug_printf("term_make_event_key tag=%u ev=%p key_event=%p key=%p key_tag=%u mods=%u\n",
-                          TERM_EVENT_TAG_KEY,
-                          (void*)mem,
-                          key_event,
-                          ev ? ev->key : NULL,
-                          (unsigned)key_tag,
-                          (unsigned)mods);
+        term_debug_printf(
+            "term_make_event_key tag=%u ev=%p key_event=%p key=%p key_tag=%u mods=%u\n",
+            TERM_EVENT_TAG_KEY,
+            (void*)mem,
+            key_event,
+            ev ? ev->key : NULL,
+            (unsigned)key_tag,
+            (unsigned)mods);
     }
     *(void**)(mem + payload_offset) = key_event;
     return mem;
@@ -716,7 +715,8 @@ static uint8_t term_mods_from_xterm(int mod) {
     }
 }
 
-static bool term_set_key_event(TermEventSpec* out, TermKeyKind kind, uint32_t ch, uint8_t f, uint8_t mods) {
+static bool
+term_set_key_event(TermEventSpec* out, TermKeyKind kind, uint32_t ch, uint8_t f, uint8_t mods) {
     if (out == NULL) {
         return false;
     }

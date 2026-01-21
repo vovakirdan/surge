@@ -77,9 +77,8 @@ void* rt_channel_new(uint64_t capacity) {
             return NULL;
         }
     }
-    rt_async_debug_printf("async chan new ch=%p cap=%llu\n",
-                          (void*)ch,
-                          (unsigned long long)capacity);
+    rt_async_debug_printf(
+        "async chan new ch=%p cap=%llu\n", (void*)ch, (unsigned long long)capacity);
     return ch;
 }
 
@@ -358,13 +357,12 @@ static void channel_blocking_yield(void) {
 
 void rt_channel_send_blocking(void* channel, uint64_t value_bits) {
     rt_executor* ex = ensure_exec();
-    const rt_channel* ch = channel_from_handle(channel);
+    rt_channel* ch = channel_from_handle(channel);
     if (ex == NULL || ch == NULL) {
         return;
     }
-    rt_async_debug_printf("async chan send start ch=%p bits=%llu\n",
-                          (void*)ch,
-                          (unsigned long long)value_bits);
+    rt_async_debug_printf(
+        "async chan send start ch=%p bits=%llu\n", (void*)ch, (unsigned long long)value_bits);
     for (;;) {
         rt_lock(ex);
         uint8_t status = rt_channel_try_send_status_locked(ex, channel, value_bits);
@@ -384,7 +382,7 @@ void rt_channel_send_blocking(void* channel, uint64_t value_bits) {
 
 uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits) {
     rt_executor* ex = ensure_exec();
-    const rt_channel* ch = channel_from_handle(channel);
+    rt_channel* ch = channel_from_handle(channel);
     if (ex == NULL || ch == NULL) {
         return 2;
     }

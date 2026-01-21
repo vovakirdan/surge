@@ -43,6 +43,7 @@ target/
 helloworld/
 surgesqlite/
 neon/
+sigil/
 
 surge
 !cmd/surge
