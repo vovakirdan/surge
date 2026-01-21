@@ -518,3 +518,94 @@ func TestAnalysisDiscardedOnDocStateChange(t *testing.T) {
 		t.Fatalf("expected no diagnostics published, got %d bytes", out.Len())
 	}
 }
+
+func TestNoStdDoesNotLeakAcrossDocs(t *testing.T) {
+	dir := tempProjectDir(t)
+	mainPath := filepath.Join(dir, "main.sg")
+	noStdPath := filepath.Join(dir, "nostd.sg")
+
+	mainSrc := strings.Join([]string{
+		"@entrypoint",
+		"fn main() -> int {",
+		"    let foo = Some(1);",
+		"    return 0;",
+		"}",
+		"",
+	}, "\n")
+	noStdSrc := strings.Join([]string{
+		"pragma no_std",
+		"fn main() -> int {",
+		"    let foo: Option<int> = nothing;",
+		"    return 0;",
+		"}",
+		"",
+	}, "\n")
+
+	if err := os.WriteFile(mainPath, []byte(mainSrc), 0644); err != nil {
+		t.Fatalf("write main.sg: %v", err)
+	}
+	if err := os.WriteFile(noStdPath, []byte(noStdSrc), 0644); err != nil {
+		t.Fatalf("write nostd.sg: %v", err)
+	}
+
+	run := func(firstPath, firstSrc, secondPath, secondSrc string) {
+		var lastDiags []diagnose.Diagnostic
+		analyzeFilesFn := func(ctx context.Context, opts *diagnose.DiagnoseOptions, files []string, overlay diagnose.FileOverlay) (*diagnose.AnalysisSnapshot, []diagnose.Diagnostic, error) {
+			snapshot, diags, err := diagnose.AnalyzeFiles(ctx, opts, files, overlay)
+			lastDiags = diags
+			return snapshot, diags, err
+		}
+		var out bytes.Buffer
+		server := NewServer(bytes.NewReader(nil), &out, ServerOptions{
+			Debounce:     time.Hour,
+			AnalyzeFiles: analyzeFilesFn,
+		})
+		server.baseCtx = context.Background()
+		server.mu.Lock()
+		server.workspaceRoot = dir
+		server.mu.Unlock()
+
+		openFirst := didOpenTextDocumentParams{
+			TextDocument: textDocumentItem{
+				URI:     pathToURI(firstPath),
+				Version: 1,
+				Text:    firstSrc,
+			},
+		}
+		openFirstPayload, _ := json.Marshal(openFirst)
+		if err := server.handleDidOpen(&rpcMessage{Method: "textDocument/didOpen", Params: openFirstPayload}); err != nil {
+			t.Fatalf("didOpen first: %v", err)
+		}
+
+		openSecond := didOpenTextDocumentParams{
+			TextDocument: textDocumentItem{
+				URI:     pathToURI(secondPath),
+				Version: 1,
+				Text:    secondSrc,
+			},
+		}
+		openSecondPayload, _ := json.Marshal(openSecond)
+		if err := server.handleDidOpen(&rpcMessage{Method: "textDocument/didOpen", Params: openSecondPayload}); err != nil {
+			t.Fatalf("didOpen second: %v", err)
+		}
+
+		server.mu.Lock()
+		if server.debounceTimer != nil {
+			server.debounceTimer.Stop()
+		}
+		server.mu.Unlock()
+
+		seq := atomic.LoadUint64(&server.latestSeq)
+		server.runDiagnostics(seq)
+
+		if !hasDiagCode(lastDiags, noStdPath, "SEM3005") {
+			t.Fatalf("expected SEM3005 for no_std file, got %s", diagSummary(lastDiags))
+		}
+		if hasDiagCode(lastDiags, mainPath, "SEM3005") {
+			t.Fatalf("unexpected SEM3005 for main file, got %s", diagSummary(lastDiags))
+		}
+	}
+
+	run(noStdPath, noStdSrc, mainPath, mainSrc)
+	run(mainPath, mainSrc, noStdPath, noStdSrc)
+}

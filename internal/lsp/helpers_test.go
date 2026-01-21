@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,6 +121,57 @@ func stdlibRoot(t *testing.T) string {
 	}
 	t.Fatalf("stdlib root not found from %s", dir)
 	return ""
+}
+
+func tempProjectDir(t *testing.T) string {
+	t.Helper()
+	root := stdlibRoot(t)
+	dir, err := os.MkdirTemp(root, "lsp-prelude-")
+	if err != nil {
+		t.Fatalf("mkdir temp project: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(dir)
+	})
+	return dir
+}
+
+func hasDiagCode(diags []diagnose.Diagnostic, path, code string) bool {
+	if len(diags) == 0 || path == "" || code == "" {
+		return false
+	}
+	path = canonicalPath(path)
+	for _, d := range diags {
+		if canonicalPath(d.FilePath) != path {
+			continue
+		}
+		if d.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+func diagSummary(diags []diagnose.Diagnostic) string {
+	if len(diags) == 0 {
+		return "<none>"
+	}
+	var b strings.Builder
+	for i, d := range diags {
+		if i > 0 {
+			b.WriteString("; ")
+		}
+		path := d.FilePath
+		if path == "" {
+			path = "<unknown>"
+		}
+		code := d.Code
+		if code == "" {
+			code = "<no-code>"
+		}
+		fmt.Fprintf(&b, "%s:%s:%s", path, code, d.Message)
+	}
+	return b.String()
 }
 
 func positionForOffsetUTF16(text string, offset int) position {

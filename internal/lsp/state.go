@@ -41,15 +41,10 @@ func (s *Server) snapshotForURI(uri string) *diagnose.AnalysisSnapshot {
 	if s.lastGoodSnapshot == nil {
 		return nil
 	}
-	current, ok := s.docStateLocked(uri)
-	if !ok {
+	if _, ok := s.snapshotDocs[uri]; !ok {
 		return nil
 	}
-	snapshotState, ok := s.snapshotDocs[uri]
-	if !ok {
-		return nil
-	}
-	if current != snapshotState {
+	if _, mismatch := s.firstDocMismatchLocked(s.snapshotDocs); mismatch {
 		return nil
 	}
 	return s.lastGoodSnapshot

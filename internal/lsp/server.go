@@ -50,6 +50,7 @@ type Server struct {
 	openDocs     map[string]string
 	versions     map[string]int
 	docSnapshots map[string]int64
+	lastTouched  string
 	published    map[string]struct{}
 
 	workspaceRoot     string
@@ -250,6 +251,7 @@ func (s *Server) handleDidOpen(msg *rpcMessage) error {
 	s.openDocs[uri] = params.TextDocument.Text
 	s.versions[uri] = params.TextDocument.Version
 	s.docSnapshots[uri]++
+	s.lastTouched = uri
 	s.mu.Unlock()
 	s.scheduleDiagnostics()
 	return nil
@@ -272,6 +274,7 @@ func (s *Server) handleDidChange(msg *rpcMessage) error {
 	oldSnapshot := s.docSnapshots[uri]
 	newSnapshot := oldSnapshot + 1
 	s.docSnapshots[uri] = newSnapshot
+	s.lastTouched = uri
 	trace := s.traceLSP
 	s.mu.Unlock()
 	if trace {
@@ -297,6 +300,7 @@ func (s *Server) handleDidSave(msg *rpcMessage) error {
 	oldSnapshot := s.docSnapshots[uri]
 	newSnapshot := oldSnapshot + 1
 	s.docSnapshots[uri] = newSnapshot
+	s.lastTouched = uri
 	version := s.versions[uri]
 	trace := s.traceLSP
 	s.mu.Unlock()
@@ -321,6 +325,9 @@ func (s *Server) handleDidClose(msg *rpcMessage) error {
 	delete(s.versions, uri)
 	delete(s.docSnapshots, uri)
 	delete(s.snapshotDocs, uri)
+	if s.lastTouched == uri {
+		s.lastTouched = ""
+	}
 	_, hadDiagnostics := s.published[uri]
 	delete(s.published, uri)
 	s.mu.Unlock()
@@ -367,7 +374,7 @@ func (s *Server) runDiagnostics(seq uint64) {
 	ctx, cancel := context.WithCancel(s.baseCtx)
 	s.diagCancel = cancel
 	workspaceRoot := s.workspaceRoot
-	firstFile := s.firstOpenFileLocked()
+	firstFile := s.preferredOpenFileLocked()
 	overlay := make(map[string]string, len(s.openDocs))
 	docStates := make(map[string]docState, len(s.openDocs))
 	docPaths := make(map[string]string, len(s.openDocs))
@@ -765,13 +772,29 @@ func (s *Server) logPublishDiagnostics(uri string, count int) {
 	s.logf("publishDiagnostics: uri=%s version=unknown snapshotID=unknown diags=%d", uri, count)
 }
 
-func (s *Server) firstOpenFileLocked() string {
-	for uri := range s.openDocs {
-		if path := uriToPath(uri); path != "" {
-			return canonicalPath(path)
+func (s *Server) preferredOpenFileLocked() string {
+	if s.lastTouched != "" {
+		if _, ok := s.openDocs[s.lastTouched]; ok {
+			if path := uriToPath(s.lastTouched); path != "" {
+				return canonicalPath(path)
+			}
 		}
 	}
-	return ""
+	return s.firstOpenFileLocked()
+}
+
+func (s *Server) firstOpenFileLocked() string {
+	best := ""
+	for uri := range s.openDocs {
+		path := canonicalPath(uriToPath(uri))
+		if path == "" {
+			continue
+		}
+		if best == "" || path < best {
+			best = path
+		}
+	}
+	return best
 }
 
 func (s *Server) sendResponse(id json.RawMessage, result any) error {

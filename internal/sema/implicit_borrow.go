@@ -235,7 +235,6 @@ func (tc *typeChecker) applyCallOwnership(sym *symbols.Symbol, args []callArg) {
 		}
 		tc.applyParamOwnership(sig.Params[paramIndex], arg.expr, arg.ty, tc.exprSpan(arg.expr))
 	}
-	return
 }
 
 func (tc *typeChecker) applyParamOwnershipForType(expected types.TypeID, expr ast.ExprID, actual types.TypeID, span source.Span) {
