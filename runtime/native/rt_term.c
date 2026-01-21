@@ -211,7 +211,7 @@ static void* term_make_event_key(TermKeyData key, uint8_t mods) {
     if (term_debug_enabled()) {
         TermKeyEvent* ev = (TermKeyEvent*)key_event;
         uint32_t key_tag = 0;
-        if (ev != NULL && ev->key != NULL) {
+        if (ev->key != NULL) {
             key_tag = *(uint32_t*)ev->key;
         }
         term_debug_printf(
@@ -219,7 +219,7 @@ static void* term_make_event_key(TermKeyData key, uint8_t mods) {
             TERM_EVENT_TAG_KEY,
             (void*)mem,
             key_event,
-            ev ? ev->key : NULL,
+            ev->key,
             (unsigned)key_tag,
             (unsigned)mods);
     }

@@ -3,6 +3,8 @@ package vm
 import (
 	"fmt"
 
+	"fortio.org/safecast"
+
 	"surge/internal/mir"
 	"surge/internal/types"
 )
@@ -138,6 +140,78 @@ func (vm *VM) handleArrayPop(frame *Frame, call *mir.CallInstr, writes *[]LocalW
 			LocalID: dstLocal,
 			Name:    frame.Locals[dstLocal].Name,
 			Value:   res,
+		})
+	}
+	return nil
+}
+
+func (vm *VM) handleArrayGetMut(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if !call.HasDst {
+		return nil
+	}
+	if len(call.Args) != 2 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_array_get_mut requires 2 arguments")
+	}
+	arrVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(arrVal)
+	idxVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(idxVal)
+
+	if arrVal.Kind == VKRef || arrVal.Kind == VKRefMut {
+		loaded, loadErr := vm.loadLocationRaw(arrVal.Loc)
+		if loadErr != nil {
+			return loadErr
+		}
+		arrVal = loaded
+	}
+	if arrVal.Kind != VKHandleArray {
+		return vm.eb.typeMismatch("array", arrVal.Kind.String())
+	}
+	view, vmErr := vm.arrayViewFromHandle(arrVal.H)
+	if vmErr != nil {
+		return vmErr
+	}
+	idx, vmErr := vm.arrayIndexFromValue(idxVal, view.length)
+	if vmErr != nil {
+		return vmErr
+	}
+	baseIdx := view.start + idx
+	idx32, err := safecast.Conv[int32](baseIdx)
+	if err != nil {
+		return vm.eb.invalidLocation("array index overflow")
+	}
+
+	elemType := types.NoTypeID
+	if vm.Types != nil && arrVal.TypeID != types.NoTypeID {
+		if t, ok := vm.Types.ArrayInfo(arrVal.TypeID); ok {
+			elemType = t
+		} else if t, _, ok := vm.Types.ArrayFixedInfo(arrVal.TypeID); ok {
+			elemType = t
+		} else if tt, ok := vm.Types.Lookup(arrVal.TypeID); ok && tt.Kind == types.KindArray {
+			elemType = tt.Elem
+		}
+	}
+	refType := types.NoTypeID
+	if vm.Types != nil && elemType != types.NoTypeID {
+		refType = vm.Types.Intern(types.MakeReference(elemType, true))
+	}
+	ref := MakeRefMut(Location{Kind: LKArrayElem, Handle: view.baseHandle, Index: idx32}, refType)
+
+	dstLocal := call.Dst.Local
+	if err := vm.writeLocal(frame, dstLocal, ref); err != nil {
+		return err
+	}
+	if writes != nil {
+		*writes = append(*writes, LocalWrite{
+			LocalID: dstLocal,
+			Name:    frame.Locals[dstLocal].Name,
+			Value:   ref,
 		})
 	}
 	return nil

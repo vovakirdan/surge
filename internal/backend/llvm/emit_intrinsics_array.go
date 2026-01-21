@@ -29,6 +29,8 @@ func (fe *funcEmitter) emitArrayIntrinsic(call *mir.CallInstr) (bool, error) {
 		return true, fe.emitArrayPush(call)
 	case "rt_array_pop":
 		return true, fe.emitArrayPop(call)
+	case "rt_array_get_mut":
+		return true, fe.emitArrayGetMut(call)
 	default:
 		return false, nil
 	}
@@ -414,5 +416,57 @@ func (fe *funcEmitter) emitArrayPop(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", done)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", done)
+	return nil
+}
+
+func (fe *funcEmitter) emitArrayGetMut(call *mir.CallInstr) error {
+	if call == nil {
+		return nil
+	}
+	if len(call.Args) != 2 {
+		return fmt.Errorf("rt_array_get_mut requires 2 arguments")
+	}
+	if !call.HasDst {
+		return nil
+	}
+	containerType := operandValueType(fe.emitter.types, &call.Args[0])
+	if containerType == types.NoTypeID && call.Args[0].Kind != mir.OperandConst {
+		if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
+			containerType = baseType
+		}
+	}
+
+	arrArg, err := fe.emitHandleOperandPtr(&call.Args[0])
+	if err != nil {
+		return err
+	}
+	idxVal, idxTy, err := fe.emitValueOperand(&call.Args[1])
+	if err != nil {
+		return err
+	}
+
+	var elemPtr string
+	if fixedElemType, fixedLen, fixedOK := arrayFixedInfo(fe.emitter.types, containerType); fixedOK {
+		elemPtr, _, err = fe.emitArrayFixedElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, fixedElemType, fixedLen)
+		if err != nil {
+			return err
+		}
+	} else if elemType, dynamic, ok := arrayElemType(fe.emitter.types, containerType); ok && dynamic {
+		elemPtr, _, err = fe.emitArrayElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, elemType)
+		if err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("rt_array_get_mut requires array")
+	}
+
+	ptr, dstTy, err := fe.emitPlacePtr(call.Dst)
+	if err != nil {
+		return err
+	}
+	if dstTy != "ptr" {
+		dstTy = "ptr"
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", dstTy, elemPtr, ptr)
 	return nil
 }

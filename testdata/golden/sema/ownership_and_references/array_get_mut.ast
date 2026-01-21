@@ -1,0 +1,19 @@
+array_get_mut.sg (span: 1:1-6:1)
+└─ Item[0]: Fn (span: 1:1-5:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 1:11-5:2)
+         ├─ Stmt[0]: Let (span: 2:5-2:28)
+         │  ├─ Name: xs
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 3:5-3:37)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: &mut int
+         │  └─ Value: expr#8: xs.get_mut(1)
+         └─ Stmt[2]: Expr (span: 4:5-4:12)
+            └─ Expr: expr#12: (*r = 9)

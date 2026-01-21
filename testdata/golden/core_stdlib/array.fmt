@@ -14,6 +14,10 @@ pub fn array_pop<T>(a: &mut Array<T>) -> Option<T> {
     return rt_array_pop(a);
 }
 
+pub fn array_get_mut<T>(a: &mut Array<T>, index: int) -> &mut T {
+    return rt_array_get_mut(a, index);
+}
+
 extern<Array<T>> {
     pub fn reserve(self: &mut Array<T>, new_cap: uint) -> nothing {
         array_reserve(self, new_cap);
@@ -25,6 +29,10 @@ extern<Array<T>> {
 
     pub fn pop(self: &mut Array<T>) -> Option<T> {
         return array_pop(self);
+    }
+
+    pub fn get_mut(self: &mut Array<T>, index: int) -> &mut T {
+        return array_get_mut(self, index);
     }
 
     pub fn with_len(length: uint) -> Array<T> {
@@ -232,6 +240,10 @@ extern<ArrayFixed<T, N>> {
             panic("ArrayFixed length mismatch");
         }
         return out;
+    }
+
+    pub fn get_mut(self: &mut ArrayFixed<T, N>, index: int) -> &mut T {
+        return rt_array_get_mut::<T, N>(self, index);
     }
 
     pub fn with_len_value(length: uint, value: T) -> ArrayFixed<T, N> {
