@@ -360,6 +360,16 @@ func (tc *typeChecker) ensureStructFieldType(name source.StringID, value ast.Exp
 	if tc.valueType(actual) == tc.valueType(expected) {
 		return
 	}
+	if tc.typesAssignable(expected, actual, true) {
+		tc.dropImplicitBorrow(value, expected, actual, tc.exprSpan(value))
+		if tc.recordTagUnionUpcast(value, actual, expected) {
+			return
+		}
+		if tc.recordNumericWidening(value, actual, expected) {
+			return
+		}
+		return
+	}
 	if tc.recordTagUnionUpcast(value, actual, expected) {
 		return
 	}
