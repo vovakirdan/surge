@@ -99,25 +99,38 @@ func (tc *typeChecker) moduleFunctionResult(module *symbols.Symbol, name source.
 	}
 	bestCost := -1
 	bestType := types.NoTypeID
+	var bestSym *symbols.Symbol
+	var bestArgs []types.TypeID
 	bestName := tc.lookupName(name)
 	if bestName == "" {
 		bestName = "_"
 	}
 	var borrowInfo borrowMatchInfo
 	for _, cand := range candidates {
-		cost, result, _, ok := tc.evaluateFunctionCandidate(cand, args, typeArgs, &borrowInfo)
+		cost, result, concreteArgs, ok := tc.evaluateFunctionCandidate(cand, args, typeArgs, &borrowInfo)
 		if !ok {
 			continue
 		}
 		if bestCost == -1 || cost < bestCost {
 			bestCost = cost
 			bestType = result
+			bestSym = cand
+			bestArgs = concreteArgs
 		} else if cost == bestCost {
 			tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for %s", bestName)
 			return types.NoTypeID
 		}
 	}
 	if bestType != types.NoTypeID {
+		if bestSym != nil {
+			tc.materializeCallArguments(bestSym, args, bestArgs)
+			tc.recordImplicitConversionsForCall(bestSym, args)
+			tc.applyCallOwnership(bestSym, args)
+			tc.dropImplicitBorrowsForCall(bestSym, args, bestType)
+			if bestName != "" && bestName != "_" {
+				tc.checkArrayViewResizeCall(bestName, args, span)
+			}
+		}
 		return bestType
 	}
 	if borrowInfo.expr.IsValid() {

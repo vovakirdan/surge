@@ -24,16 +24,26 @@ func (s *Server) handleInlayHint(msg *rpcMessage) error {
 			return s.sendError(msg.ID, -32602, "invalid params")
 		}
 	}
-	snapshot := s.currentSnapshot()
+	uri := params.TextDocument.URI
+	snapshot := s.snapshotForURI(uri)
 	if snapshot == nil {
 		if s.currentTrace() {
-			s.logf("inlayHint: snapshot=%d nil=true hints=0", s.currentSnapshotVersion())
+			currentState, _ := s.currentDocState(uri)
+			snapshotState, _ := s.snapshotDocState(uri)
+			s.logf("inlayHint: uri=%s snapshotVersion=%d stale=true currentVersion=%d currentSnapshotID=%d snapshotDocVersion=%d snapshotDocSnapshotID=%d hints=0",
+				uri,
+				s.currentSnapshotVersion(),
+				currentState.version,
+				currentState.snapshotID,
+				snapshotState.version,
+				snapshotState.snapshotID,
+			)
 		}
 		return s.sendResponse(msg.ID, []inlayHint{})
 	}
 	hints := buildInlayHints(snapshot, params.TextDocument.URI, params.Range, s.currentInlayConfig())
 	if s.currentTrace() {
-		s.logf("inlayHint: snapshot=%d nil=false hints=%d", s.currentSnapshotVersion(), len(hints))
+		s.logf("inlayHint: uri=%s snapshotVersion=%d stale=false hints=%d", uri, s.currentSnapshotVersion(), len(hints))
 	}
 	return s.sendResponse(msg.ID, hints)
 }

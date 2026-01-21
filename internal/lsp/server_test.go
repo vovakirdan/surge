@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -323,5 +324,197 @@ func TestDiagnosticsClearedOnScopeChange(t *testing.T) {
 	}
 	if len(params.Diagnostics) != 0 {
 		t.Fatalf("expected cleared diagnostics, got %d", len(params.Diagnostics))
+	}
+}
+
+func TestDiagnosticsClearedAfterFix(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.sg")
+	uri := pathToURI(path)
+	analyzeFilesFn := func(ctx context.Context, opts *diagnose.DiagnoseOptions, files []string, overlay diagnose.FileOverlay) (*diagnose.AnalysisSnapshot, []diagnose.Diagnostic, error) {
+		if len(files) != 1 {
+			t.Fatalf("expected 1 file, got %v", files)
+		}
+		text := overlay.Files[files[0]]
+		var diags []diagnose.Diagnostic
+		if strings.Contains(text, "bad") {
+			diags = append(diags, diagnose.Diagnostic{
+				FilePath:  files[0],
+				StartLine: 1,
+				StartCol:  1,
+				EndLine:   1,
+				EndCol:    2,
+				Severity:  1,
+				Code:      "SYN2205",
+				Message:   "bad modifier",
+			})
+		}
+		return &diagnose.AnalysisSnapshot{ProjectRoot: filepath.Dir(files[0])}, diags, nil
+	}
+
+	var out bytes.Buffer
+	server := NewServer(bytes.NewReader(nil), &out, ServerOptions{
+		Debounce:     time.Hour,
+		AnalyzeFiles: analyzeFilesFn,
+	})
+	server.baseCtx = context.Background()
+
+	openParams := didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{
+			URI:     uri,
+			Version: 1,
+			Text:    "fn main() { bad }",
+		},
+	}
+	openPayload, _ := json.Marshal(openParams)
+	if err := server.handleDidOpen(&rpcMessage{Method: "textDocument/didOpen", Params: openPayload}); err != nil {
+		t.Fatalf("didOpen: %v", err)
+	}
+
+	server.mu.Lock()
+	if server.debounceTimer != nil {
+		server.debounceTimer.Stop()
+	}
+	server.mu.Unlock()
+
+	seq := atomic.LoadUint64(&server.latestSeq)
+	server.runDiagnostics(seq)
+
+	changeParams := didChangeTextDocumentParams{
+		TextDocument: versionedTextDocumentIdentifier{
+			URI:     uri,
+			Version: 2,
+		},
+		ContentChanges: []textDocumentContentChangeEvent{
+			{
+				Text: "fn main() { ok }",
+			},
+		},
+	}
+	changePayload, _ := json.Marshal(changeParams)
+	if err := server.handleDidChange(&rpcMessage{Method: "textDocument/didChange", Params: changePayload}); err != nil {
+		t.Fatalf("didChange: %v", err)
+	}
+
+	server.mu.Lock()
+	if server.debounceTimer != nil {
+		server.debounceTimer.Stop()
+	}
+	server.mu.Unlock()
+
+	seq = atomic.LoadUint64(&server.latestSeq)
+	server.runDiagnostics(seq)
+
+	reader := bufio.NewReader(bytes.NewReader(out.Bytes()))
+	firstPayload, err := readMessage(reader)
+	if err != nil {
+		t.Fatalf("read first publish: %v", err)
+	}
+	var firstMsg rpcMessage
+	if unmarshalErr := json.Unmarshal(firstPayload, &firstMsg); unmarshalErr != nil {
+		t.Fatalf("decode first publish: %v", unmarshalErr)
+	}
+	var firstParams publishDiagnosticsParams
+	if unmarshalErr := json.Unmarshal(firstMsg.Params, &firstParams); unmarshalErr != nil {
+		t.Fatalf("decode first params: %v", unmarshalErr)
+	}
+	if len(firstParams.Diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(firstParams.Diagnostics))
+	}
+
+	secondPayload, err := readMessage(reader)
+	if err != nil {
+		t.Fatalf("read second publish: %v", err)
+	}
+	var secondMsg rpcMessage
+	if unmarshalErr := json.Unmarshal(secondPayload, &secondMsg); unmarshalErr != nil {
+		t.Fatalf("decode second publish: %v", unmarshalErr)
+	}
+	var secondParams publishDiagnosticsParams
+	if unmarshalErr := json.Unmarshal(secondMsg.Params, &secondParams); unmarshalErr != nil {
+		t.Fatalf("decode second params: %v", unmarshalErr)
+	}
+	if len(secondParams.Diagnostics) != 0 {
+		t.Fatalf("expected cleared diagnostics, got %d", len(secondParams.Diagnostics))
+	}
+
+	if got := server.currentSnapshotVersion(); got < 2 {
+		t.Fatalf("expected snapshot version >= 2, got %d", got)
+	}
+	t.Logf("after fix: diags=%d snapshotVersion=%d", len(secondParams.Diagnostics), server.currentSnapshotVersion())
+}
+
+func TestAnalysisDiscardedOnDocStateChange(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.sg")
+	uri := pathToURI(path)
+	started := make(chan struct{})
+	proceed := make(chan struct{})
+	analyzeFilesFn := func(ctx context.Context, opts *diagnose.DiagnoseOptions, files []string, overlay diagnose.FileOverlay) (*diagnose.AnalysisSnapshot, []diagnose.Diagnostic, error) {
+		close(started)
+		<-proceed
+		diags := []diagnose.Diagnostic{
+			{
+				FilePath:  files[0],
+				StartLine: 1,
+				StartCol:  1,
+				EndLine:   1,
+				EndCol:    2,
+				Severity:  1,
+				Code:      "SYN2205",
+				Message:   "bad modifier",
+			},
+		}
+		return &diagnose.AnalysisSnapshot{ProjectRoot: filepath.Dir(files[0])}, diags, nil
+	}
+
+	var out bytes.Buffer
+	server := NewServer(bytes.NewReader(nil), &out, ServerOptions{
+		Debounce:     time.Hour,
+		AnalyzeFiles: analyzeFilesFn,
+	})
+	server.baseCtx = context.Background()
+
+	openParams := didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{
+			URI:     uri,
+			Version: 1,
+			Text:    "fn main() { bad }",
+		},
+	}
+	openPayload, _ := json.Marshal(openParams)
+	if err := server.handleDidOpen(&rpcMessage{Method: "textDocument/didOpen", Params: openPayload}); err != nil {
+		t.Fatalf("didOpen: %v", err)
+	}
+
+	server.mu.Lock()
+	if server.debounceTimer != nil {
+		server.debounceTimer.Stop()
+	}
+	server.mu.Unlock()
+
+	seq := atomic.LoadUint64(&server.latestSeq)
+	done := make(chan struct{})
+	go func() {
+		server.runDiagnostics(seq)
+		close(done)
+	}()
+
+	<-started
+	server.mu.Lock()
+	server.openDocs[uri] = "fn main() { ok }"
+	server.versions[uri] = 2
+	server.docSnapshots[uri]++
+	server.mu.Unlock()
+	close(proceed)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("analysis did not finish")
+	}
+
+	if out.Len() != 0 {
+		t.Fatalf("expected no diagnostics published, got %d bytes", out.Len())
 	}
 }

@@ -31,7 +31,7 @@ func (s *Server) handleCompletion(msg *rpcMessage) error {
 			return s.sendError(msg.ID, -32602, "invalid params")
 		}
 	}
-	snapshot := s.currentSnapshot()
+	snapshot := s.snapshotForURI(params.TextDocument.URI)
 	if snapshot == nil {
 		return s.sendResponse(msg.ID, completionList{IsIncomplete: false, Items: nil})
 	}

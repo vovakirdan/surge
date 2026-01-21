@@ -26,7 +26,7 @@ func (s *Server) handleSignatureHelp(msg *rpcMessage) error {
 			return s.sendError(msg.ID, -32602, "invalid params")
 		}
 	}
-	snapshot := s.currentSnapshot()
+	snapshot := s.snapshotForURI(params.TextDocument.URI)
 	if snapshot == nil {
 		return s.sendResponse(msg.ID, nil)
 	}

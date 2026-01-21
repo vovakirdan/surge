@@ -195,9 +195,9 @@ func (tc *typeChecker) dropImplicitBorrowsForCall(sym *symbols.Symbol, args []ca
 	}
 }
 
-func (tc *typeChecker) applyCallOwnership(sym *symbols.Symbol, args []callArg) bool {
+func (tc *typeChecker) applyCallOwnership(sym *symbols.Symbol, args []callArg) {
 	if sym == nil || sym.Signature == nil {
-		return false
+		return
 	}
 	sig := sym.Signature
 
@@ -213,7 +213,7 @@ func (tc *typeChecker) applyCallOwnership(sym *symbols.Symbol, args []callArg) b
 		if reordered, ok := tc.reorderArgsForSignature(sig, args); ok {
 			ordered = reordered
 		} else {
-			return false
+			return
 		}
 	}
 
@@ -235,7 +235,7 @@ func (tc *typeChecker) applyCallOwnership(sym *symbols.Symbol, args []callArg) b
 		}
 		tc.applyParamOwnership(sig.Params[paramIndex], arg.expr, arg.ty, tc.exprSpan(arg.expr))
 	}
-	return true
+	return
 }
 
 func (tc *typeChecker) applyParamOwnershipForType(expected types.TypeID, expr ast.ExprID, actual types.TypeID, span source.Span) {
