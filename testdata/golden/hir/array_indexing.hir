@@ -6,7 +6,7 @@ fn test() -> nothing (id=1, sym=1373) {
   let a: type#76 = [1, 2, 3, 4]: type#76
   let x: &int [&] = a[1]: &int
   let y: &int [&] = a[__neg(1): int]: &int
-  let slice: type#76 = a[rt_range_int_new(1, 3, false): type#175]: type#76
+  let slice: type#76 = a[rt_range_int_new(1, 3, false): type#171]: type#76
   return
 }
 
