@@ -1,6 +1,9 @@
 package sema
 
 import (
+	"fmt"
+	"strings"
+
 	"surge/internal/ast"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -100,6 +103,74 @@ func (tc *typeChecker) defaultable(id types.TypeID) bool {
 	default:
 		return false
 	}
+}
+
+func (tc *typeChecker) defaultableReason(id types.TypeID) (ok bool, reason string) {
+	if tc.defaultable(id) {
+		return true, ""
+	}
+	refType, path := tc.findReferenceInType(id, make(map[types.TypeID]bool))
+	if refType == types.NoTypeID {
+		return false, ""
+	}
+	rootLabel := tc.typeLabel(id)
+	refLabel := tc.typeLabel(refType)
+	if len(path) == 0 {
+		if rootLabel == refLabel {
+			return false, fmt.Sprintf("type %s is a reference type and does not have a default value", rootLabel)
+		}
+		return false, fmt.Sprintf("type %s is a reference type (%s) and does not have a default value", rootLabel, refLabel)
+	}
+	return false, fmt.Sprintf("type %s contains %s that does not have a default value (reference type %s)", rootLabel, strings.Join(path, " -> "), refLabel)
+}
+
+func (tc *typeChecker) findReferenceInType(id types.TypeID, visited map[types.TypeID]bool) (refType types.TypeID, path []string) {
+	if id == types.NoTypeID || tc.types == nil {
+		return types.NoTypeID, nil
+	}
+	id = tc.resolveAlias(id)
+	if id == types.NoTypeID {
+		return types.NoTypeID, nil
+	}
+	if visited[id] {
+		return types.NoTypeID, nil
+	}
+	visited[id] = true
+
+	if elem, ok := tc.arrayElemType(id); ok {
+		if refType, path := tc.findReferenceInType(elem, visited); refType != types.NoTypeID {
+			return refType, append([]string{"array element"}, path...)
+		}
+		return types.NoTypeID, nil
+	}
+
+	tt, ok := tc.types.Lookup(id)
+	if !ok {
+		return types.NoTypeID, nil
+	}
+	switch tt.Kind {
+	case types.KindReference:
+		return id, nil
+	case types.KindStruct:
+		if info, ok := tc.types.StructInfo(id); ok && info != nil {
+			for _, field := range info.Fields {
+				if refType, path := tc.findReferenceInType(field.Type, visited); refType != types.NoTypeID {
+					name := tc.lookupName(field.Name)
+					if name == "" {
+						return refType, append([]string{"field"}, path...)
+					}
+					return refType, append([]string{fmt.Sprintf("field '%s'", name)}, path...)
+				}
+			}
+		}
+	case types.KindAlias:
+		if target, ok := tc.types.AliasTarget(id); ok && target != types.NoTypeID {
+			if refType, path := tc.findReferenceInType(target, visited); refType != types.NoTypeID {
+				return refType, path
+			}
+		}
+	}
+	return types.NoTypeID, nil
 }
 
 func (tc *typeChecker) lookupTypeSymbol(name source.StringID, scope symbols.ScopeID) symbols.SymbolID {

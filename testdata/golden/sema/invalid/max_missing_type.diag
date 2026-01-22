@@ -1,2 +1,1 @@
-error SEM3005 testdata/golden/sema/invalid/max_missing_type.sg:3:13 cannot resolve 'max_value'
-error SEM3046 testdata/golden/sema/invalid/max_missing_type.sg:3:13 no matching overload for max_value
+error SEM3046 testdata/golden/sema/invalid/max_missing_type.sg:3:13 cannot infer type parameter T for max_value; use max_value::<T>(...)

@@ -1,0 +1,21 @@
+type Leaf = {
+    ref: &int,
+};
+
+type Branch = {
+    leaves: Leaf[],
+};
+
+type Root = {
+    branch: Branch,
+};
+
+type Forest = {
+    roots: Root[],
+};
+
+type ForestAlias = Forest;
+
+fn main() {
+    let _ = default::<ForestAlias>();
+}

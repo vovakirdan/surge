@@ -1,31 +1,26 @@
-default_max_min_calls.sg (span: 1:1-10:1)
-├─ Item[0]: Import (span: 1:1-1:47)
-│  ├─ Module: stdlib::bounded
-│  └─ Group:
-│     ├─ [0] min_value
-│     └─ [1] max_value
-└─ Item[1]: Fn (span: 4:1-9:2)
+default_max_min_calls.sg (span: 2:1-8:1)
+└─ Item[0]: Fn (span: 2:1-7:2)
    ├─ Name: use_limits
    ├─ Params: ()
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 4:17-9:2)
-         ├─ Stmt[0]: Let (span: 5:5-5:35)
+      └─ Stmt[0]: Block (span: 2:17-7:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:35)
          │  ├─ Name: a
          │  ├─ Mutable: false
          │  ├─ Type: int
          │  └─ Value: expr#2: default()
-         ├─ Stmt[1]: Let (span: 6:5-6:39)
+         ├─ Stmt[1]: Let (span: 4:5-4:39)
          │  ├─ Name: b
          │  ├─ Mutable: false
          │  ├─ Type: int8
          │  └─ Value: expr#4: max_value()
-         ├─ Stmt[2]: Let (span: 7:5-7:39)
+         ├─ Stmt[2]: Let (span: 5:5-5:39)
          │  ├─ Name: c
          │  ├─ Mutable: false
          │  ├─ Type: int8
          │  └─ Value: expr#6: min_value()
-         └─ Stmt[3]: Let (span: 8:5-8:49)
+         └─ Stmt[3]: Let (span: 6:5-6:49)
             ├─ Name: _sum
             ├─ Mutable: false
             ├─ Type: int

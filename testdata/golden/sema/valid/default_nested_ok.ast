@@ -1,0 +1,49 @@
+default_nested_ok.sg (span: 1:1-26:1)
+├─ Item[0]: Type (span: 1:1-4:3)
+│  ├─ Name: Leaf
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: id: int
+│     └─ Field[1]: label: string
+├─ Item[1]: Type (span: 6:1-9:3)
+│  ├─ Name: Branch
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: leaves: Leaf[]
+│     └─ Field[1]: fixed: Leaf[2]
+├─ Item[2]: Type (span: 11:1-14:3)
+│  ├─ Name: Root
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: branch: Branch
+│     └─ Field[1]: flags: bool[3]
+├─ Item[3]: Type (span: 16:1-18:3)
+│  ├─ Name: Forest
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: roots: Root[]
+├─ Item[4]: Type (span: 20:1-20:27)
+│  ├─ Name: ForestAlias
+│  ├─ Kind: Alias
+│  ├─ Visibility: private
+│  └─ Target: Forest
+└─ Item[5]: Fn (span: 22:1-25:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 22:11-25:2)
+         ├─ Stmt[0]: Let (span: 23:5-23:38)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#2: default()
+         └─ Stmt[1]: Let (span: 24:5-24:23)
+            ├─ Name: _root
+            ├─ Mutable: false
+            ├─ Type: Forest
+            └─ Value: <none>

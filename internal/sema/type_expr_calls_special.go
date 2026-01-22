@@ -218,9 +218,15 @@ func (tc *typeChecker) handleDefaultLikeCall(name string, symID symbols.SymbolID
 	if targetType == types.NoTypeID {
 		return types.NoTypeID
 	}
-	if name == "default" && !tc.defaultable(targetType) {
-		tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Target), "default is not defined for %s", tc.typeLabel(targetType))
-		return types.NoTypeID
+	if name == "default" {
+		if ok, reason := tc.defaultableReason(targetType); !ok {
+			if reason == "" {
+				tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Target), "default is not defined for %s", tc.typeLabel(targetType))
+			} else {
+				tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Target), "default is not defined for %s: %s", tc.typeLabel(targetType), reason)
+			}
+			return types.NoTypeID
+		}
 	}
 	if symID.IsValid() {
 		if sym := tc.symbolFromID(symID); sym == nil || (sym.Kind != symbols.SymbolFunction && sym.Kind != symbols.SymbolTag) {

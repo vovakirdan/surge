@@ -1,0 +1,25 @@
+type Leaf = {
+    id: int,
+    label: string,
+};
+
+type Branch = {
+    leaves: Leaf[],
+    fixed: Leaf[2],
+};
+
+type Root = {
+    branch: Branch,
+    flags: bool[3],
+};
+
+type Forest = {
+    roots: Root[],
+};
+
+type ForestAlias = Forest;
+
+fn main() {
+    let _ = default::<ForestAlias>();
+    let _root: Forest;
+}

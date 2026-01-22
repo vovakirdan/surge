@@ -464,12 +464,16 @@ func (tc *typeChecker) handleLetDefaultInit(scope symbols.ScopeID, typeExpr ast.
 	if declaredType == types.NoTypeID {
 		return
 	}
-	if !tc.defaultable(declaredType) {
+	if ok, reason := tc.defaultableReason(declaredType); !ok {
 		reportSpan := tc.typeSpan(typeExpr)
 		if reportSpan == (source.Span{}) {
 			reportSpan = span
 		}
-		tc.report(diag.SemaTypeMismatch, reportSpan, "default is not defined for %s", tc.typeLabel(declaredType))
+		if reason == "" {
+			tc.report(diag.SemaTypeMismatch, reportSpan, "default is not defined for %s", tc.typeLabel(declaredType))
+		} else {
+			tc.report(diag.SemaTypeMismatch, reportSpan, "default is not defined for %s: %s", tc.typeLabel(declaredType), reason)
+		}
 		return
 	}
 	if tc.builder == nil {

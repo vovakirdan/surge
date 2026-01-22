@@ -239,6 +239,14 @@ pub contract Printable<T> {
     fn __to(self: &T, target: string) -> string;
 }
 
+pub fn max_value<T: Bounded<T>>() -> T {
+    return T.__max_value();
+}
+
+pub fn min_value<T: Bounded<T>>() -> T {
+    return T.__min_value();
+}
+
 extern<int> {
     @intrinsic fn __add(self: int, other: int) -> int;
     @intrinsic fn __sub(self: int, other: int) -> int;
