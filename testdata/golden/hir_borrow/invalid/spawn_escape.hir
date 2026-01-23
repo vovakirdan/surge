@@ -18,7 +18,7 @@ async fn t() -> nothing (id=2, sym=1388) {
   let mut x: int [copy] = 1
   let r: &int [&] = (& x): &int
   let t: type#570 = spawn use_ref(r): type#570: type#570
-  await(t): type#1451
+  await(t): type#1456
   return
 }
 

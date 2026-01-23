@@ -558,6 +558,8 @@ func (t *Tracer) formatLocation(loc Location) string {
 		return fmt.Sprintf("G%d(%s)", loc.Global, name)
 	case LKStructField:
 		return fmt.Sprintf("struct.field[%d]", loc.Index)
+	case LKTagField:
+		return fmt.Sprintf("tag.field[%d]", loc.Index)
 	case LKArrayElem:
 		return fmt.Sprintf("array[%d]", loc.Index)
 	case LKMapElem:

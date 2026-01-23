@@ -18,7 +18,13 @@ func (tc *typeChecker) inferComparePatternTypes(pattern ast.ExprID, subject type
 	subjectValue := subject
 	if subjectValue != types.NoTypeID {
 		subjectValue = tc.resolveAlias(tc.stripOwnType(subjectValue))
-		if applied, _ := tc.materializeNumericLiteral(pattern, subjectValue); applied {
+		literalExpected := subjectValue
+		if tc.types != nil {
+			if tt, ok := tc.types.Lookup(subjectValue); ok && tt.Kind == types.KindReference {
+				literalExpected = tt.Elem
+			}
+		}
+		if applied, _ := tc.materializeNumericLiteral(pattern, literalExpected); applied {
 			return
 		}
 	}
@@ -76,7 +82,14 @@ func (tc *typeChecker) unionTagPayloadTypes(subject types.TypeID, tag source.Str
 	if tag == source.NoStringID || tc.types == nil {
 		return nil
 	}
-	normalized := tc.resolveAlias(subject)
+	normalized := tc.resolveAlias(tc.stripOwnType(subject))
+	isRef := false
+	refMut := false
+	if tt, ok := tc.types.Lookup(normalized); ok && tt.Kind == types.KindReference {
+		isRef = true
+		refMut = tt.Mutable
+		normalized = tc.resolveAlias(tc.stripOwnType(tt.Elem))
+	}
 	info, ok := tc.types.UnionInfo(normalized)
 	if !ok || info == nil {
 		return nil
@@ -86,7 +99,22 @@ func (tc *typeChecker) unionTagPayloadTypes(subject types.TypeID, tag source.Str
 			continue
 		}
 		if member.TagName == tag {
-			return member.TagArgs
+			if !isRef {
+				return member.TagArgs
+			}
+			payload := make([]types.TypeID, len(member.TagArgs))
+			for i, arg := range member.TagArgs {
+				payload[i] = arg
+				if arg == types.NoTypeID {
+					continue
+				}
+				resolved := tc.resolveAlias(arg)
+				if tt, ok := tc.types.Lookup(resolved); ok && tt.Kind == types.KindReference {
+					continue
+				}
+				payload[i] = tc.types.Intern(types.MakeReference(arg, refMut))
+			}
+			return payload
 		}
 	}
 	return nil
@@ -99,7 +127,7 @@ func (tc *typeChecker) checkCompareExhausiveness(cmp *ast.ExprCompareData, subje
 	}
 
 	// Get union info - skip non-unions
-	normalized := tc.resolveAlias(subjectType)
+	normalized := tc.compareUnionSubjectType(subjectType)
 	unionInfo, ok := tc.types.UnionInfo(normalized)
 	if !ok || unionInfo == nil || len(unionInfo.Members) == 0 {
 		return
@@ -292,7 +320,7 @@ func (tc *typeChecker) unionMembers(subject types.TypeID) []types.UnionMember {
 	if tc.types == nil {
 		return nil
 	}
-	normalized := tc.resolveAlias(subject)
+	normalized := tc.compareUnionSubjectType(subject)
 	info, ok := tc.types.UnionInfo(normalized)
 	if !ok || info == nil || len(info.Members) == 0 {
 		return nil
@@ -300,6 +328,17 @@ func (tc *typeChecker) unionMembers(subject types.TypeID) []types.UnionMember {
 	members := make([]types.UnionMember, len(info.Members))
 	copy(members, info.Members)
 	return members
+}
+
+func (tc *typeChecker) compareUnionSubjectType(subject types.TypeID) types.TypeID {
+	if tc.types == nil || subject == types.NoTypeID {
+		return subject
+	}
+	normalized := tc.resolveAlias(tc.stripOwnType(subject))
+	if tt, ok := tc.types.Lookup(normalized); ok && tt.Kind == types.KindReference {
+		normalized = tc.resolveAlias(tt.Elem)
+	}
+	return normalized
 }
 
 // narrowCompareSubjectType chooses a more specific subject type for the current arm.

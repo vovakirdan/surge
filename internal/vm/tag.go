@@ -3,6 +3,8 @@ package vm
 import (
 	"fmt"
 
+	"fortio.org/safecast"
+
 	"surge/internal/mir"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -72,7 +74,9 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	if val.Kind == VKRef || val.Kind == VKRefMut {
+	operandIsRef := val.Kind == VKRef || val.Kind == VKRefMut
+	operandRefMut := val.Kind == VKRefMut
+	if operandIsRef {
 		var loaded Value
 		loaded, vmErr = vm.loadLocationRaw(val.Loc)
 		if vmErr != nil {
@@ -91,29 +95,33 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	want, ok := layout.CaseByName(tp.TagName)
-	if !ok {
-		obj := vm.Heap.Get(val.H)
-		if obj != nil && obj.Kind == OKTag {
-			if gotName, ok := vm.tagNameForSym(layout, obj.Tag.TagSym); ok {
-				if gotName != tp.TagName {
-					return Value{}, vm.eb.tagPayloadTagMismatch(tp.TagName, gotName)
-				}
-				if tp.Index < 0 || tp.Index >= len(obj.Tag.Fields) {
-					return Value{}, vm.eb.tagPayloadIndexOutOfRange(tp.Index, len(obj.Tag.Fields))
-				}
-				field, cloneErr := vm.cloneForShare(obj.Tag.Fields[tp.Index])
-				if cloneErr != nil {
-					return Value{}, cloneErr
-				}
-				return field, nil
-			}
-		}
-		return Value{}, vm.eb.unknownTagLayout(fmt.Sprintf("unknown tag %q in type#%d layout", tp.TagName, layout.TypeID))
-	}
 	obj := vm.Heap.Get(val.H)
 	if obj.Kind != OKTag {
 		return Value{}, vm.eb.typeMismatch("tag", fmt.Sprintf("%v", obj.Kind))
+	}
+	want, ok := layout.CaseByName(tp.TagName)
+	if !ok {
+		gotName, okName := vm.tagNameForSym(layout, obj.Tag.TagSym)
+		if !okName {
+			return Value{}, vm.eb.unknownTagLayout(fmt.Sprintf("unknown tag %q in type#%d layout", tp.TagName, layout.TypeID))
+		}
+		if gotName != tp.TagName {
+			return Value{}, vm.eb.tagPayloadTagMismatch(tp.TagName, gotName)
+		}
+		if tc, okCase := layout.CaseBySym(obj.Tag.TagSym); okCase {
+			want = tc
+			ok = true
+		}
+	}
+	if !ok {
+		if tp.Index < 0 || tp.Index >= len(obj.Tag.Fields) {
+			return Value{}, vm.eb.tagPayloadIndexOutOfRange(tp.Index, len(obj.Tag.Fields))
+		}
+		field, cloneErr := vm.cloneForShare(obj.Tag.Fields[tp.Index])
+		if cloneErr != nil {
+			return Value{}, cloneErr
+		}
+		return field, nil
 	}
 	if obj.Tag.TagSym != want.TagSym {
 		gotName, ok := vm.tagNameForSym(layout, obj.Tag.TagSym)
@@ -141,8 +149,8 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 			case vm.isUnionType(fieldVal) && vm.unionContains(fieldVal, wantVal):
 				field.TypeID = wantTy
 				if field.IsHeap() && field.H != 0 {
-					if obj := vm.Heap.Get(field.H); obj != nil && obj.Kind == OKTag {
-						obj.TypeID = wantTy
+					if fieldObj := vm.Heap.Get(field.H); fieldObj != nil && fieldObj.Kind == OKTag {
+						fieldObj.TypeID = wantTy
 					}
 				}
 			default:
@@ -151,18 +159,60 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 				}
 				field.TypeID = wantTy
 				if field.IsHeap() && field.H != 0 {
-					if obj := vm.Heap.Get(field.H); obj != nil {
-						obj.TypeID = wantTy
+					if fieldObj := vm.Heap.Get(field.H); fieldObj != nil {
+						fieldObj.TypeID = wantTy
 					}
 				}
 			}
 		}
+	}
+	payloadIsRef := false
+	if vm.Types != nil && wantTy != types.NoTypeID {
+		payloadIsRef = isReferenceType(vm.Types, wantTy)
+	}
+	if operandIsRef && !payloadIsRef {
+		obj.Tag.Fields[tp.Index] = field
+		idx32, err := safecast.Conv[int32](tp.Index)
+		if err != nil {
+			return Value{}, vm.eb.invalidLocation("tag payload index overflow")
+		}
+		loc := Location{Kind: LKTagField, Handle: val.H, Index: idx32}
+		refType := types.NoTypeID
+		if vm.Types != nil && wantTy != types.NoTypeID {
+			refType = vm.Types.Intern(types.MakeReference(wantTy, operandRefMut))
+		}
+		if operandRefMut {
+			return MakeRefMut(loc, refType), nil
+		}
+		return MakeRef(loc, refType), nil
 	}
 	out, vmErr := vm.cloneForShare(field)
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
 	return out, nil
+}
+
+func isReferenceType(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil || id == types.NoTypeID {
+		return false
+	}
+	for range 32 {
+		tt, ok := typesIn.Lookup(id)
+		if !ok {
+			return false
+		}
+		if tt.Kind == types.KindAlias {
+			target, ok := typesIn.AliasTarget(id)
+			if !ok || target == types.NoTypeID || target == id {
+				return false
+			}
+			id = target
+			continue
+		}
+		return tt.Kind == types.KindReference
+	}
+	return false
 }
 
 func (vm *VM) execSwitchTag(frame *Frame, st *mir.SwitchTagTerm) *VMError {

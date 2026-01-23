@@ -20,6 +20,8 @@ const (
 	LKStringBytes
 	// LKRawBytes represents a raw bytes location.
 	LKRawBytes
+	// LKTagField represents a tagged union payload location.
+	LKTagField
 )
 
 // Location represents a memory location in the VM.
@@ -54,6 +56,8 @@ func (l Location) String() string {
 		return fmt.Sprintf("string.bytes+%d", l.ByteOffset)
 	case LKRawBytes:
 		return fmt.Sprintf("raw+%d", l.ByteOffset)
+	case LKTagField:
+		return fmt.Sprintf("tag.field[%d]", l.Index)
 	default:
 		return "<invalid-loc>"
 	}

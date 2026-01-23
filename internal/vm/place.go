@@ -253,6 +253,20 @@ func (vm *VM) loadLocationRaw(loc Location) (Value, *VMError) {
 		}
 		return obj.Fields[fieldIdx], nil
 
+	case LKTagField:
+		obj, vmErr := vm.heapAliveForRef(loc.Handle)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		if obj.Kind != OKTag {
+			return Value{}, vm.eb.invalidLocation(fmt.Sprintf("expected tag handle, got %v", obj.Kind))
+		}
+		fieldIdx := int(loc.Index)
+		if loc.Index < 0 || fieldIdx < 0 || fieldIdx >= len(obj.Tag.Fields) {
+			return Value{}, vm.eb.tagPayloadIndexOutOfRange(fieldIdx, len(obj.Tag.Fields))
+		}
+		return obj.Tag.Fields[fieldIdx], nil
+
 	case LKArrayElem:
 		obj, vmErr := vm.heapAliveForRef(loc.Handle)
 		if vmErr != nil {
@@ -345,6 +359,22 @@ func (vm *VM) storeLocation(loc Location, val Value) *VMError {
 		}
 		vm.dropValue(obj.Fields[fieldIdx])
 		obj.Fields[fieldIdx] = val
+		return nil
+
+	case LKTagField:
+		obj, vmErr := vm.heapAliveForRef(loc.Handle)
+		if vmErr != nil {
+			return vmErr
+		}
+		if obj.Kind != OKTag {
+			return vm.eb.invalidLocation(fmt.Sprintf("expected tag handle, got %v", obj.Kind))
+		}
+		fieldIdx := int(loc.Index)
+		if loc.Index < 0 || fieldIdx < 0 || fieldIdx >= len(obj.Tag.Fields) {
+			return vm.eb.tagPayloadIndexOutOfRange(fieldIdx, len(obj.Tag.Fields))
+		}
+		vm.dropValue(obj.Tag.Fields[fieldIdx])
+		obj.Tag.Fields[fieldIdx] = val
 		return nil
 
 	case LKArrayElem:

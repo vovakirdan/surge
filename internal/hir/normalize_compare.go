@@ -265,7 +265,7 @@ func compareExhaustive(ctx *normCtx, subjectTy types.TypeID, arms []CompareArm) 
 	if ctx.mod == nil || ctx.mod.TypeInterner == nil || ctx.mod.Symbols == nil || ctx.mod.Symbols.Table == nil || ctx.mod.Symbols.Table.Strings == nil {
 		return false
 	}
-	subjectTy = resolveAlias(ctx.mod.TypeInterner, subjectTy, 0)
+	subjectTy = compareUnionSubjectType(ctx.mod.TypeInterner, subjectTy)
 	info, ok := ctx.mod.TypeInterner.UnionInfo(subjectTy)
 	if !ok || info == nil || len(info.Members) == 0 {
 		return false
@@ -354,6 +354,87 @@ func resolveAlias(typesIn *types.Interner, id types.TypeID, depth int) types.Typ
 	return resolveAlias(typesIn, target, depth+1)
 }
 
+func compareUnionSubjectType(typesIn *types.Interner, id types.TypeID) types.TypeID {
+	if typesIn == nil || id == types.NoTypeID {
+		return id
+	}
+	normalized := stripOwnType(typesIn, resolveAlias(typesIn, id, 0))
+	if tt, ok := typesIn.Lookup(normalized); ok && tt.Kind == types.KindReference {
+		normalized = stripOwnType(typesIn, resolveAlias(typesIn, tt.Elem, 0))
+	}
+	return normalized
+}
+
+func tagPayloadType(ctx *normCtx, subject types.TypeID, tag string, index int) types.TypeID {
+	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || ctx.mod.Symbols == nil || ctx.mod.Symbols.Table == nil || ctx.mod.Symbols.Table.Strings == nil {
+		return types.NoTypeID
+	}
+	typesIn := ctx.mod.TypeInterner
+	normalized := stripOwnType(typesIn, resolveAlias(typesIn, subject, 0))
+	isRef := false
+	refMut := false
+	if tt, ok := typesIn.Lookup(normalized); ok && tt.Kind == types.KindReference {
+		isRef = true
+		refMut = tt.Mutable
+		normalized = stripOwnType(typesIn, resolveAlias(typesIn, tt.Elem, 0))
+	}
+	info, ok := typesIn.UnionInfo(normalized)
+	if !ok || info == nil {
+		return types.NoTypeID
+	}
+	tagID := ctx.mod.Symbols.Table.Strings.Intern(tag)
+	if tagID == source.NoStringID {
+		return types.NoTypeID
+	}
+	for _, member := range info.Members {
+		if member.Kind != types.UnionMemberTag || member.TagName != tagID {
+			continue
+		}
+		if index < 0 || index >= len(member.TagArgs) {
+			return types.NoTypeID
+		}
+		payload := member.TagArgs[index]
+		if !isRef || payload == types.NoTypeID {
+			return payload
+		}
+		resolved := resolveAlias(typesIn, payload, 0)
+		if tt, ok := typesIn.Lookup(resolved); ok && tt.Kind == types.KindReference {
+			return payload
+		}
+		return typesIn.Intern(types.MakeReference(payload, refMut))
+	}
+	return types.NoTypeID
+}
+
+func derefReferenceType(ctx *normCtx, id types.TypeID) types.TypeID {
+	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || id == types.NoTypeID {
+		return types.NoTypeID
+	}
+	typesIn := ctx.mod.TypeInterner
+	resolved := resolveAlias(typesIn, id, 0)
+	tt, ok := typesIn.Lookup(resolved)
+	if !ok || tt.Kind != types.KindReference {
+		return types.NoTypeID
+	}
+	return tt.Elem
+}
+
+func stripOwnType(typesIn *types.Interner, id types.TypeID) types.TypeID {
+	if typesIn == nil || id == types.NoTypeID {
+		return id
+	}
+	for {
+		tt, ok := typesIn.Lookup(id)
+		if !ok || tt.Kind != types.KindOwn {
+			return id
+		}
+		if tt.Elem == types.NoTypeID {
+			return id
+		}
+		id = resolveAlias(typesIn, tt.Elem, 0)
+	}
+}
+
 func mkReturn(span source.Span, value *Expr) Stmt {
 	return Stmt{Kind: StmtReturn, Span: span, Data: ReturnData{Value: value, IsTail: false, IsImplicit: true}}
 }
@@ -397,19 +478,33 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 		if isWildcardPattern(pat) {
 			continue
 		}
+		payloadType := tagPayloadType(ctx, subject.Type, tag, i)
+		payloadExpr := &Expr{
+			Kind: ExprTagPayload,
+			Type: payloadType,
+			Span: span,
+			Data: TagPayloadData{Value: subject, TagName: tag, Index: i},
+		}
+		payloadValue := payloadExpr
+		if derefType := derefReferenceType(ctx, payloadType); derefType != types.NoTypeID {
+			payloadValue = &Expr{
+				Kind: ExprUnaryOp,
+				Type: derefType,
+				Span: span,
+				Data: UnaryOpData{Op: ast.ExprUnaryDeref, Operand: payloadExpr},
+			}
+		}
 		if isNothingPattern(pat) {
 			// Payload cannot be `nothing` in v1 lowering; treat as a best-effort literal check.
-			payloadConds = append(payloadConds, ctx.binary(ast.ExprBinaryEq, &Expr{
-				Kind: ExprTagPayload,
-				Type: types.NoTypeID,
-				Span: span,
-				Data: TagPayloadData{Value: subject, TagName: tag, Index: i},
-			}, pat, ctx.boolType(), span))
+			payloadConds = append(payloadConds, ctx.binary(ast.ExprBinaryEq, payloadValue, pat, ctx.boolType(), span))
 			continue
 		}
 
 		if name, sym, ok := bindingPattern(ctx, pat); ok {
 			ty := ctx.bindingType(sym)
+			if ty == types.NoTypeID {
+				ty = payloadType
+			}
 			thenB.Stmts = append(thenB.Stmts, Stmt{
 				Kind: StmtLet,
 				Span: span,
@@ -417,7 +512,7 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 					Name:      name,
 					SymbolID:  sym,
 					Type:      ty,
-					Value:     &Expr{Kind: ExprTagPayload, Type: ty, Span: span, Data: TagPayloadData{Value: subject, TagName: tag, Index: i}},
+					Value:     payloadExpr,
 					IsMut:     false,
 					IsConst:   false,
 					Ownership: ctx.inferOwnership(ty),
@@ -429,7 +524,7 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 		// Literal pattern: compare payload slot to the literal.
 		if pat.Kind == ExprLiteral {
 			payloadConds = append(payloadConds, ctx.binary(ast.ExprBinaryEq,
-				&Expr{Kind: ExprTagPayload, Type: types.NoTypeID, Span: span, Data: TagPayloadData{Value: subject, TagName: tag, Index: i}},
+				payloadValue,
 				pat,
 				ctx.boolType(),
 				span,
