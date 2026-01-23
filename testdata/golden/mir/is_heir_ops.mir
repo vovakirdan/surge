@@ -14,19 +14,19 @@ fn __surge_start:
 
 fn main:
   locals:
-    L0: type#1456 name=x
-    L1: type#1456 name=tmp_struct1
+    L0: type#1458 name=x
+    L1: type#1458 name=tmp_struct1
     L2: bool [copy] name=a
     L3: bool [copy] name=tmp_is2
     L4: bool [copy] name=b
     L5: bool [copy] name=tmp_heir3
     L6: bool [copy] name=tmp_bin4
   bb0:
-    L1 = struct_lit type#1456 {x=const 1, y=const 2}
+    L1 = struct_lit type#1458 {x=const 1, y=const 2}
     L0 = move L1
-    L3 = type_test copy L0 is type#1456
+    L3 = type_test copy L0 is type#1458
     L2 = copy L3
-    L5 = heir_test copy L0 heir type#1455
+    L5 = heir_test copy L0 heir type#1457
     L4 = copy L5
     L6 = (copy L2 && copy L4)
     if copy L6 then bb1 else bb2

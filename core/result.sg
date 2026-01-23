@@ -4,6 +4,12 @@ pragma module, no_std;
 
 pub type Error = { message: string, code: uint };
 
+extern<Error> {
+    pub fn __clone(self: &Error) -> Error {
+        return Error { message = *self.message, code = self.code };
+    }
+}
+
 pub tag Success<T>(T);
 pub type Erring<T, E: ErrorLike> = Success(T) | E;
 

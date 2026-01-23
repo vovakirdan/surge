@@ -2,7 +2,7 @@
 == HIR ==
 module 
 
-fn make_ranges() -> nothing (id=1, sym=1387) {
+fn make_ranges() -> nothing (id=1, sym=1389) {
   let a: type#183 = rt_range_int_new(1, 3, false): type#183
   let b: type#183 = rt_range_int_new(1, 3, true): type#183
   let c: type#183 = rt_range_int_from_start(1, false): type#183
