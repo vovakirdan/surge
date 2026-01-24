@@ -134,7 +134,7 @@ void rt_blocking_init(rt_executor* ex) {
         ex->blocking_count = count;
     }
     pthread_t* threads =
-        (pthread_t*)rt_alloc((uint64_t)(count * sizeof(pthread_t)), _Alignof(pthread_t));
+        (pthread_t*)rt_alloc((uint64_t)count * (uint64_t)sizeof(pthread_t), _Alignof(pthread_t));
     if (threads == NULL) {
         panic_msg("async: blocking worker allocation failed");
         return;

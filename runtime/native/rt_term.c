@@ -118,8 +118,10 @@ static struct termios term_orig;
 static bool term_exit_handler_installed = false;
 
 static volatile sig_atomic_t term_sigwinch = 0;
+#ifdef SIGWINCH
 static bool term_sigwinch_installed = false;
 static struct sigaction term_prev_sigwinch;
+#endif
 
 static bool term_events_override = false;
 static bool term_size_override = false;
@@ -147,7 +149,19 @@ static void term_debug_printf(const char* fmt, ...) {
     char buf[256];
     va_list args;
     va_start(args, fmt);
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
     int n = vsnprintf(buf, sizeof(buf), fmt, args);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
     va_end(args);
     if (n <= 0) {
         return;
@@ -169,7 +183,7 @@ static void* term_make_key(TermKeyData key) {
     }
     switch (key.kind) {
         case TERM_KEY_KIND_CHAR:
-            *(uint32_t*)(mem + payload_offset) = key.ch;
+            memcpy(mem + payload_offset, &key.ch, sizeof(key.ch));
             break;
         case TERM_KEY_KIND_F:
             *(uint8_t*)(mem + payload_offset) = key.f;
@@ -212,7 +226,7 @@ static void* term_make_event_key(TermKeyData key, uint8_t mods) {
         TermKeyEvent* ev = (TermKeyEvent*)key_event;
         uint32_t key_tag = 0;
         if (ev->key != NULL) {
-            key_tag = *(uint32_t*)ev->key;
+            memcpy(&key_tag, ev->key, sizeof(key_tag));
         }
         term_debug_printf(
             "term_make_event_key tag=%u ev=%p key_event=%p key=%p key_tag=%u mods=%u\n",
@@ -223,7 +237,7 @@ static void* term_make_event_key(TermKeyData key, uint8_t mods) {
             (unsigned)key_tag,
             (unsigned)mods);
     }
-    *(void**)(mem + payload_offset) = key_event;
+    memcpy(mem + payload_offset, (const void*)&key_event, sizeof(key_event));
     return mem;
 }
 
@@ -680,7 +694,7 @@ void* rt_term_size(void) {
     return (void*)out;
 }
 
-void rt_term_write(void* bytes) {
+void rt_term_write(const void* bytes) {
     if (bytes == NULL) {
         return;
     }

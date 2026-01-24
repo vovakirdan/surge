@@ -34,6 +34,6 @@ void* rt_tag_alloc(uint32_t tag, size_t payload_align, size_t payload_size) {
         return NULL;
     }
     memset(mem, 0, size);
-    *(uint32_t*)mem = tag;
+    memcpy(mem, &tag, sizeof(tag));
     return mem;
 }

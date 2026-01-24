@@ -527,7 +527,7 @@ static bool string_span(void* s, const char** out_ptr, size_t* out_len) {
     if (s == NULL) {
         return false;
     }
-    SurgeString* str = *(SurgeString**)s;
+    const SurgeString* str = *(const SurgeString**)s;
     if (str == NULL) {
         return false;
     }

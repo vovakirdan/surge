@@ -81,7 +81,19 @@ void rt_async_debug_printf(const char* fmt, ...) {
     char buf[512];
     va_list args;
     va_start(args, fmt);
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
     int n = vsnprintf(buf, sizeof(buf), fmt, args);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
     va_end(args);
     if (n <= 0) {
         return;
@@ -286,12 +298,12 @@ waker_key blocking_key(uint64_t id) {
     return key;
 }
 
-waker_key channel_send_key(rt_channel* ch) {
+waker_key channel_send_key(const rt_channel* ch) {
     waker_key key = {WAKER_CHAN_SEND, (uint64_t)(uintptr_t)ch};
     return key;
 }
 
-waker_key channel_recv_key(rt_channel* ch) {
+waker_key channel_recv_key(const rt_channel* ch) {
     waker_key key = {WAKER_CHAN_RECV, (uint64_t)(uintptr_t)ch};
     return key;
 }
@@ -461,8 +473,8 @@ static void exec_init_once(void) {
     }
     ex->blocking_count = blocking_threads;
     if (ex->worker_count > 0) {
-        ex->local_queues = (rt_deque*)rt_alloc((uint64_t)(ex->worker_count * sizeof(rt_deque)),
-                                               _Alignof(rt_deque));
+        ex->local_queues = (rt_deque*)rt_alloc(
+            (uint64_t)ex->worker_count * (uint64_t)sizeof(rt_deque), _Alignof(rt_deque));
         if (ex->local_queues == NULL) {
             panic_msg("async: local queue allocation failed");
         } else {
@@ -482,10 +494,7 @@ rt_executor* ensure_exec(void) {
 }
 
 uint64_t rt_worker_count(void) {
-    rt_executor* ex = ensure_exec();
-    if (ex == NULL) {
-        return 0;
-    }
+    const rt_executor* ex = ensure_exec();
     return (uint64_t)ex->worker_count;
 }
 
@@ -575,13 +584,13 @@ static void rt_start_workers(rt_executor* ex) {
     uint32_t count = ex->worker_count;
     size_t total = (size_t)count + 1;
     pthread_t* threads =
-        (pthread_t*)rt_alloc((uint64_t)(total * sizeof(pthread_t)), _Alignof(pthread_t));
+        (pthread_t*)rt_alloc((uint64_t)total * (uint64_t)sizeof(pthread_t), _Alignof(pthread_t));
     if (threads == NULL) {
         panic_msg("async: worker allocation failed");
         return;
     }
-    rt_worker_ctx* ctxs = (rt_worker_ctx*)rt_alloc((uint64_t)(count * sizeof(rt_worker_ctx)),
-                                                   _Alignof(rt_worker_ctx));
+    rt_worker_ctx* ctxs = (rt_worker_ctx*)rt_alloc(
+        (uint64_t)count * (uint64_t)sizeof(rt_worker_ctx), _Alignof(rt_worker_ctx));
     if (ctxs == NULL) {
         panic_msg("async: worker context allocation failed");
         return;
@@ -1507,17 +1516,17 @@ static void free_task(rt_executor* ex, rt_task* task) {
     }
     if (task->wait_keys != NULL && task->wait_keys_cap > 0) {
         rt_free((uint8_t*)task->wait_keys,
-                (uint64_t)(task->wait_keys_cap * sizeof(waker_key)),
+                (uint64_t)task->wait_keys_cap * (uint64_t)sizeof(waker_key),
                 _Alignof(waker_key));
     }
     if (task->select_timers != NULL && task->select_timers_cap > 0) {
         rt_free((uint8_t*)task->select_timers,
-                (uint64_t)(task->select_timers_cap * sizeof(uint64_t)),
+                (uint64_t)task->select_timers_cap * (uint64_t)sizeof(uint64_t),
                 _Alignof(uint64_t));
     }
     if (task->children != NULL && task->children_cap > 0) {
         rt_free((uint8_t*)task->children,
-                (uint64_t)(task->children_cap * sizeof(uint64_t)),
+                (uint64_t)task->children_cap * (uint64_t)sizeof(uint64_t),
                 _Alignof(uint64_t));
     }
     if (task->id < ex->tasks_cap) {

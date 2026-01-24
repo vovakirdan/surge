@@ -37,7 +37,7 @@ void* rt_scope_enter(bool failfast) {
     return (void*)(uintptr_t)id;
 }
 
-void rt_scope_register_child(void* scope_handle, void* task) {
+void rt_scope_register_child(const void* scope_handle, void* task) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return;
@@ -76,7 +76,7 @@ void rt_scope_register_child(void* scope_handle, void* task) {
     rt_unlock(ex);
 }
 
-void rt_scope_cancel_all(void* scope_handle) {
+void rt_scope_cancel_all(const void* scope_handle) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return;
@@ -92,7 +92,7 @@ void rt_scope_cancel_all(void* scope_handle) {
     rt_unlock(ex);
 }
 
-bool rt_scope_join_all(void* scope_handle, uint64_t* pending, bool* failfast) {
+bool rt_scope_join_all(const void* scope_handle, uint64_t* pending, bool* failfast) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return true;
@@ -126,7 +126,7 @@ bool rt_scope_join_all(void* scope_handle, uint64_t* pending, bool* failfast) {
     return false;
 }
 
-void rt_scope_exit(void* scope_handle) {
+void rt_scope_exit(const void* scope_handle) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return;
@@ -160,7 +160,7 @@ void scope_exit_locked(rt_executor* ex, rt_scope* scope) {
     }
     if (scope->children != NULL && scope->children_cap > 0) {
         rt_free((uint8_t*)scope->children,
-                (uint64_t)(scope->children_cap * sizeof(uint64_t)),
+                (uint64_t)scope->children_cap * (uint64_t)sizeof(uint64_t),
                 _Alignof(uint64_t));
     }
     rt_free((uint8_t*)scope, sizeof(rt_scope), _Alignof(rt_scope));

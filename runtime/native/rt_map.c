@@ -172,7 +172,7 @@ uint64_t rt_map_len(const void* map_ptr) {
     return map->len;
 }
 
-bool rt_map_contains(void* map_ptr, uint64_t key_bits) {
+bool rt_map_contains(const void* map_ptr, uint64_t key_bits) {
     if (map_ptr == NULL) {
         map_panic("map: null handle");
         return false;
@@ -298,7 +298,7 @@ void* rt_map_keys(const void* map_ptr, uint64_t elem_size, uint64_t elem_align) 
             size_t offset = (size_t)i * stride_size;
             uint8_t* slot = bytes + offset;
             if (elem_size == 8) {
-                *(uint64_t*)slot = key_bits;
+                memcpy(slot, &key_bits, sizeof(key_bits));
             } else {
                 memcpy(slot, &key_bits, (size_t)elem_size);
             }

@@ -573,7 +573,7 @@ int32_t rt_bigfloat_cmp(void* a, void* b) {
     return (int32_t)bf_cmp((const SurgeBigFloat*)a, (const SurgeBigFloat*)b);
 }
 
-void* rt_bigint_to_biguint(void* a) {
+void* rt_bigint_to_biguint(const void* a) {
     const SurgeBigInt* src = (const SurgeBigInt*)a;
     if (src != NULL && src->neg && !bi_is_zero(src)) {
         bignum_panic("cannot convert negative int to uint");

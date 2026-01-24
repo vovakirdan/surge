@@ -54,7 +54,7 @@ static inline const SurgeBigUint* bi_as_uint(const SurgeBigInt* i) {
     if (i == NULL) {
         return NULL;
     }
-    return (const SurgeBigUint*)((const uint8_t*)i + offsetof(SurgeBigInt, len));
+    return (const SurgeBigUint*)&i->len;
 }
 
 static inline uint32_t trim_len(const uint32_t* limbs, uint32_t len) {

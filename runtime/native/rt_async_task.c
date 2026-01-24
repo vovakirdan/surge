@@ -280,9 +280,12 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
     }
 
     waker_key first_key = join_key(target->id);
-    size_t prev_len = current->wait_keys_len;
-    add_wait_key(ex, current, first_key);
-    int first_added = current->wait_keys_len > prev_len;
+    int first_added = 0;
+    {
+        size_t prev_len = current->wait_keys_len;
+        add_wait_key(ex, current, first_key);
+        first_added = current->wait_keys_len > prev_len;
+    }
     if (timeout_task != NULL) {
         add_wait_key(ex, current, join_key(timeout_task->id));
     }
@@ -359,11 +362,13 @@ int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index
             continue;
         }
         waker_key key = join_key(target->id);
-        size_t prev_len = current->wait_keys_len;
-        add_wait_key(ex, current, key);
         if (!waker_valid(first_key)) {
+            size_t prev_len = current->wait_keys_len;
+            add_wait_key(ex, current, key);
             first_key = key;
             first_added = current->wait_keys_len > prev_len;
+        } else {
+            add_wait_key(ex, current, key);
         }
     }
 
@@ -540,31 +545,37 @@ int64_t rt_select_poll(uint64_t count,
                     return -1;
                 }
                 waker_key key = join_key(target->id);
-                size_t prev_len = current->wait_keys_len;
-                add_wait_key(ex, current, key);
                 if (!waker_valid(first_key)) {
+                    size_t prev_len = current->wait_keys_len;
+                    add_wait_key(ex, current, key);
                     first_key = key;
                     first_added = current->wait_keys_len > prev_len;
+                } else {
+                    add_wait_key(ex, current, key);
                 }
                 break;
             }
             case SELECT_CHAN_RECV: {
                 waker_key key = channel_recv_key((rt_channel*)handle);
-                size_t prev_len = current->wait_keys_len;
-                add_wait_key(ex, current, key);
                 if (!waker_valid(first_key)) {
+                    size_t prev_len = current->wait_keys_len;
+                    add_wait_key(ex, current, key);
                     first_key = key;
                     first_added = current->wait_keys_len > prev_len;
+                } else {
+                    add_wait_key(ex, current, key);
                 }
                 break;
             }
             case SELECT_CHAN_SEND: {
                 waker_key key = channel_send_key((rt_channel*)handle);
-                size_t prev_len = current->wait_keys_len;
-                add_wait_key(ex, current, key);
                 if (!waker_valid(first_key)) {
+                    size_t prev_len = current->wait_keys_len;
+                    add_wait_key(ex, current, key);
                     first_key = key;
                     first_added = current->wait_keys_len > prev_len;
+                } else {
+                    add_wait_key(ex, current, key);
                 }
                 break;
             }
@@ -575,11 +586,13 @@ int64_t rt_select_poll(uint64_t count,
                     return -1;
                 }
                 waker_key key = join_key(target->id);
-                size_t prev_len = current->wait_keys_len;
-                add_wait_key(ex, current, key);
                 if (!waker_valid(first_key)) {
+                    size_t prev_len = current->wait_keys_len;
+                    add_wait_key(ex, current, key);
                     first_key = key;
                     first_added = current->wait_keys_len > prev_len;
+                } else {
+                    add_wait_key(ex, current, key);
                 }
 
                 uint64_t timer_id = 0;
@@ -599,11 +612,13 @@ int64_t rt_select_poll(uint64_t count,
                     const rt_task* timer_task = get_task(ex, timer_id);
                     if (timer_task != NULL) {
                         waker_key timer_key_join = join_key(timer_task->id);
-                        size_t prev_timer_len = current->wait_keys_len;
-                        add_wait_key(ex, current, timer_key_join);
                         if (!waker_valid(first_key)) {
+                            size_t prev_timer_len = current->wait_keys_len;
+                            add_wait_key(ex, current, timer_key_join);
                             first_key = timer_key_join;
                             first_added = current->wait_keys_len > prev_timer_len;
+                        } else {
+                            add_wait_key(ex, current, timer_key_join);
                         }
                     }
                 }

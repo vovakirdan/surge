@@ -128,9 +128,9 @@ bool bu_limbs_to_u64(const uint32_t* limbs, uint32_t len, uint64_t* out) {
     if (len > 2) {
         return false;
     }
-    uint64_t lo = limbs[0];
     uint64_t hi = len > 1 ? (uint64_t)limbs[1] : 0;
     if (out != NULL) {
+        uint64_t lo = limbs[0];
         *out = lo | (hi << SURGE_BIGNUM_LIMB_BITS);
     }
     return true;

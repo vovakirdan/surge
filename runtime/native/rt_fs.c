@@ -154,7 +154,7 @@ static void* fs_make_success_ptr(void* payload) {
     if (mem == NULL) {
         return NULL;
     }
-    *(void**)(mem + payload_offset) = payload;
+    memcpy(mem + payload_offset, (const void*)&payload, sizeof(payload));
     return mem;
 }
 
@@ -401,12 +401,21 @@ static int fs_remove_dir_recursive(const char* path) {
 }
 
 void* rt_fs_cwd(void) {
-    char* cwd = getcwd(NULL, 0);
+    long path_max = pathconf(".", _PC_PATH_MAX);
+    if (path_max <= 0) {
+        path_max = 4096;
+    }
+    char* cwd_buf = (char*)malloc((size_t)path_max);
+    if (cwd_buf == NULL) {
+        return fs_make_error(FS_ERR_IO);
+    }
+    char* cwd = getcwd(cwd_buf, (size_t)path_max);
     if (cwd == NULL) {
+        free(cwd_buf);
         return fs_make_error(fs_error_code_from_errno(errno));
     }
     void* str = rt_string_from_bytes((const uint8_t*)cwd, (uint64_t)strlen(cwd));
-    free(cwd);
+    free(cwd_buf);
     return fs_make_success_ptr(str);
 }
 
@@ -540,7 +549,7 @@ void* rt_fs_read_dir(void* path) {
 
     void* data = NULL;
     if (len > 0) {
-        data = rt_alloc((uint64_t)(len * sizeof(void*)), (uint64_t)alignof(void*));
+        data = rt_alloc((uint64_t)len * (uint64_t)sizeof(void*), (uint64_t)alignof(void*));
         if (data == NULL) {
             free((void*)elems);
             return fs_make_error(FS_ERR_IO);
@@ -914,7 +923,7 @@ void* rt_fs_write_file(void* path, const uint8_t* data, uint64_t len, uint32_t f
     return fs_make_success_nothing();
 }
 
-void* rt_fs_file_name(void* file) {
+void* rt_fs_file_name(const void* file) {
     const FsFile* f = (const FsFile*)file;
     if (f == NULL || f->closed || f->path == NULL) {
         return fs_make_error(FS_ERR_IO);
@@ -928,7 +937,7 @@ void* rt_fs_file_name(void* file) {
     return fs_make_success_ptr(str);
 }
 
-void* rt_fs_file_type(void* file) {
+void* rt_fs_file_type(const void* file) {
     const FsFile* f = (const FsFile*)file;
     if (f == NULL || f->closed) {
         return fs_make_error(FS_ERR_IO);
