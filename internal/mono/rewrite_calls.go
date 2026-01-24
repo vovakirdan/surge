@@ -40,28 +40,38 @@ func (b *monoBuilder) rewriteCallsInFunc(fn *hir.Func, callerSym symbols.SymbolI
 			rawArgs   []types.TypeID
 		)
 
+		knownCallee := symbols.NoSymbolID
+		if data.SymbolID.IsValid() {
+			knownCallee = data.SymbolID
+		} else if data.Callee != nil && data.Callee.Kind == hir.ExprVarRef {
+			if vr, ok := data.Callee.Data.(hir.VarRefData); ok {
+				knownCallee = vr.SymbolID
+			}
+		}
+
 		// Prefer the InstantiationMap: it records the exact callee SymbolID and the
 		// (possibly implicit) inferred type args, which is critical for overloads.
 		if callerSym.IsValid() && call.Span != (source.Span{}) {
 			if callee, args, ok := b.callSiteInstantiation(callerSym, call.Span, InstTag); ok {
-				kind = InstTag
-				calleeSym = callee
-				rawArgs = args
-			} else if callee, args, ok := b.callSiteInstantiation(callerSym, call.Span, InstFn); ok {
-				kind = InstFn
-				calleeSym = callee
-				rawArgs = args
+				if !knownCallee.IsValid() || callee == knownCallee {
+					kind = InstTag
+					calleeSym = callee
+					rawArgs = args
+				}
+			}
+			if !calleeSym.IsValid() {
+				if callee, args, ok := b.callSiteInstantiation(callerSym, call.Span, InstFn); ok {
+					if !knownCallee.IsValid() || callee == knownCallee {
+						kind = InstFn
+						calleeSym = callee
+						rawArgs = args
+					}
+				}
 			}
 		}
 
 		if !calleeSym.IsValid() {
-			if data.SymbolID.IsValid() {
-				calleeSym = data.SymbolID
-			} else if data.Callee != nil && data.Callee.Kind == hir.ExprVarRef {
-				if vr, ok := data.Callee.Data.(hir.VarRefData); ok {
-					calleeSym = vr.SymbolID
-				}
-			}
+			calleeSym = knownCallee
 		}
 		if !calleeSym.IsValid() || !b.isCallableSymbol(calleeSym) {
 			return nil
@@ -176,13 +186,20 @@ func (b *monoBuilder) rewriteFuncValuesInFunc(fn *hir.Func, callerSym symbols.Sy
 
 		if callerSym.IsValid() && expr.Span != (source.Span{}) {
 			if callee, args, ok := b.callSiteInstantiation(callerSym, expr.Span, InstTag); ok {
-				kind = InstTag
-				calleeSym = callee
-				rawArgs = args
-			} else if callee, args, ok := b.callSiteInstantiation(callerSym, expr.Span, InstFn); ok {
-				kind = InstFn
-				calleeSym = callee
-				rawArgs = args
+				if callee == calleeSym {
+					kind = InstTag
+					calleeSym = callee
+					rawArgs = args
+				}
+			}
+			if len(rawArgs) == 0 {
+				if callee, args, ok := b.callSiteInstantiation(callerSym, expr.Span, InstFn); ok {
+					if callee == calleeSym {
+						kind = InstFn
+						calleeSym = callee
+						rawArgs = args
+					}
+				}
 			}
 		}
 
