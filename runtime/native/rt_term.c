@@ -554,6 +554,7 @@ static void term_handle_sigwinch(int signo) {
 }
 
 static void term_install_sigwinch(void) {
+#ifdef SIGWINCH
     if (term_sigwinch_installed) {
         return;
     }
@@ -565,14 +566,19 @@ static void term_install_sigwinch(void) {
     if (sigaction(SIGWINCH, &sa, &term_prev_sigwinch) == 0) {
         term_sigwinch_installed = true;
     }
+#else
+    (void)term_handle_sigwinch;
+#endif
 }
 
 static void term_restore_sigwinch(void) {
+#ifdef SIGWINCH
     if (!term_sigwinch_installed) {
         return;
     }
     sigaction(SIGWINCH, &term_prev_sigwinch, NULL);
     term_sigwinch_installed = false;
+#endif
 }
 
 static void term_write_ansi(const char* seq) {
