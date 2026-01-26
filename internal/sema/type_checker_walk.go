@@ -95,7 +95,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			returnSpan = fnItem.Span
 		}
 		tc.registerFnParamTypes(id, fnItem, allowRawPointer)
-		if len(paramSpecs) == 0 && symID.IsValid() && tc.types != nil {
+		if symID.IsValid() && tc.types != nil {
 			paramIDs := tc.builder.Items.GetFnParamIDs(fnItem)
 			paramTypes := make([]types.TypeID, 0, len(paramIDs))
 			allParamsValid := true

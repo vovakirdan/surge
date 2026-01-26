@@ -223,6 +223,16 @@ func (vm *VM) execSwitchTag(frame *Frame, st *mir.SwitchTagTerm) *VMError {
 	if vmErr != nil {
 		return vmErr
 	}
+	if val.Kind == VKRef || val.Kind == VKRefMut {
+		loaded, loadErr := vm.loadLocationRaw(val.Loc)
+		if loadErr != nil {
+			return loadErr
+		}
+		if loaded.IsHeap() && loaded.H != 0 {
+			vm.Heap.Retain(loaded.H)
+		}
+		val = loaded
+	}
 	defer vm.dropValue(val)
 	if val.Kind != VKHandleTag {
 		return vm.eb.switchTagOnNonTag(val.Kind.String())

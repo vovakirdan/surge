@@ -69,10 +69,22 @@ func (l *lowerer) applySelfBorrow(symID symbols.SymbolID, recv *Expr) *Expr {
 			if !recvMut {
 				return recv
 			}
+			if isBorrowExpr(recv) {
+				return recv
+			}
+			if recv.Kind == ExprVarRef {
+				return l.applyBorrow(recv, true)
+			}
 			return recv
 		}
 		if recvMut {
-			return l.applyBorrow(recv, false)
+			if isBorrowExpr(recv) {
+				return recv
+			}
+			if recv.Kind == ExprVarRef {
+				return l.applyBorrow(recv, false)
+			}
+			return recv
 		}
 		return recv
 	}
@@ -162,7 +174,13 @@ func (l *lowerer) applyParamBorrow(symID symbols.SymbolID, args []*Expr) []*Expr
 		param := strings.TrimSpace(string(sym.Signature.Params[i]))
 		switch {
 		case strings.HasPrefix(param, "&mut "):
-			if argIsRef && isBorrowExpr(arg) {
+			if argIsRef {
+				if isBorrowExpr(arg) {
+					continue
+				}
+				if arg.Kind == ExprVarRef {
+					args[i] = l.applyBorrow(arg, true)
+				}
 				continue
 			}
 			args[i] = l.applyBorrow(arg, true)

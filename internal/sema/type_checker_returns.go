@@ -111,6 +111,19 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		return
 	}
 	if ctx.collect != nil && ctx.expected == types.NoTypeID {
+		// Returns inside block expressions still return from the function.
+		// Apply implicit tag injection against the outer return type (if any).
+		if expr.IsValid() && actual != types.NoTypeID && tc.types != nil {
+			var outerExpected types.TypeID
+			if len(tc.returnStack) > 1 {
+				outerExpected = tc.returnStack[len(tc.returnStack)-2].expected
+			}
+			if outerExpected != types.NoTypeID && outerExpected != tc.types.Builtins().Nothing {
+				if convType, kind, found := tc.tryTagInjection(actual, outerExpected); found {
+					tc.recordImplicitConversionWithKind(expr, actual, convType, kind)
+				}
+			}
+		}
 		record := actual
 		if !expr.IsValid() {
 			record = tc.types.Builtins().Nothing
@@ -160,7 +173,13 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		}
 		actual = tc.result.ExprTypes[expr]
 	}
+	actualOrig := actual
 	actual = tc.coerceReturnType(expected, actual)
+	if actual == expected && actualOrig != expected {
+		if convType, kind, found := tc.tryTagInjection(actualOrig, expected); found {
+			tc.recordImplicitConversionWithKind(expr, actualOrig, convType, kind)
+		}
+	}
 	if tc.typesAssignable(expected, actual, false) {
 		tc.dropImplicitBorrow(expr, expected, actual, span)
 		if tc.recordTagUnionUpcast(expr, actual, expected) {
@@ -179,6 +198,11 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		tc.report(diag.SemaAmbiguousConversion, span,
 			"ambiguous conversion from %s to %s: multiple __to methods found",
 			tc.typeLabel(actual), tc.typeLabel(expected))
+		return
+	}
+	// Try implicit tag injection for Option<T> and Erring<T, E> on returns.
+	if convType, kind, found := tc.tryTagInjection(actual, expected); found {
+		tc.recordImplicitConversionWithKind(expr, actual, convType, kind)
 		return
 	}
 	tc.report(diag.SemaTypeMismatch, span, "return type mismatch: expected %s, got %s", tc.typeLabel(expected), tc.typeLabel(actual))
