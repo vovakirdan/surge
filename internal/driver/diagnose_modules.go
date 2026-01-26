@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"surge/internal/ast"
@@ -241,6 +242,39 @@ func collectModuleExports(
 	exports := collectedExports(records)
 	if exports == nil {
 		exports = make(map[string]*symbols.ModuleExports, len(records))
+	}
+	if len(records) > 0 {
+		coreRecords := make(map[string]*moduleRecord)
+		for _, rec := range records {
+			if rec == nil || rec.Meta == nil {
+				continue
+			}
+			normPath := normalizeExportsKey(rec.Meta.Path)
+			trimmed := strings.Trim(normPath, "/")
+			if trimmed != "core" && !strings.HasPrefix(trimmed, "core/") {
+				continue
+			}
+			if _, exists := coreRecords[normPath]; exists {
+				continue
+			}
+			coreRecords[normPath] = rec
+		}
+		if len(coreRecords) > 0 {
+			keys := make([]string, 0, len(coreRecords))
+			for key := range coreRecords {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+			for _, key := range keys {
+				rec := coreRecords[key]
+				if rec == nil {
+					continue
+				}
+				if exp := resolveModuleRecord(ctx, rec, baseDir, exports, typeInterner, opts, nil); exp != nil {
+					exports[key] = exp
+				}
+			}
+		}
 	}
 	normalizedRoot := normalizeExportsKey(rootPath)
 	if topo != nil && len(topo.Order) > 0 {

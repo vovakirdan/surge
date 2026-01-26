@@ -184,3 +184,12 @@ pub fn chr(cp: uint) -> Erring<string, Error> {
     }
     return string.from_bytes(&out);
 }
+
+pub fn is_int(s: &string) -> bool {
+    for i in 0..(len(s) to int) {
+        if ((s[i] < (ASCII::DIGIT_0 to uint32)) || (s[i] > (ASCII::DIGIT_9 to uint32))) {
+            return false;
+        }
+    }
+    return true;
+}

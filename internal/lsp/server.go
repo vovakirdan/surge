@@ -18,6 +18,7 @@ import (
 	"surge/internal/driver"
 	"surge/internal/driver/diagnose"
 	"surge/internal/parser"
+	"surge/internal/project"
 )
 
 var (
@@ -60,6 +61,7 @@ type Server struct {
 	diagCancel        context.CancelFunc
 	analysisSeq       uint64
 	latestSeq         uint64
+	appliedSeq        uint64
 	analyze           AnalyzeFunc
 	analyzeFiles      AnalyzeFilesFunc
 	maxDiagnostics    int
@@ -378,6 +380,7 @@ func (s *Server) runDiagnostics(seq uint64) {
 	overlay := make(map[string]string, len(s.openDocs))
 	docStates := make(map[string]docState, len(s.openDocs))
 	docPaths := make(map[string]string, len(s.openDocs))
+	docProjects := make(map[string]string, len(s.openDocs))
 	for uri, text := range s.openDocs {
 		path := uriToPath(uri)
 		if path == "" {
@@ -393,6 +396,9 @@ func (s *Server) runDiagnostics(seq uint64) {
 			snapshotID: s.docSnapshots[uri],
 		}
 		docPaths[uri] = canon
+		if root, ok, err := project.FindProjectRoot(filepath.Dir(canon)); err == nil && ok {
+			docProjects[uri] = canonicalPath(root)
+		}
 	}
 	s.mu.Unlock()
 
@@ -421,7 +427,7 @@ func (s *Server) runDiagnostics(seq uint64) {
 		diags    []diagnose.Diagnostic
 		err      error
 	)
-	analysisDocs := filterAnalysisDocs(docStates, docPaths, projectRoot, mode, nil)
+	analysisDocs := filterAnalysisDocs(docStates, docPaths, projectRoot, mode, nil, docProjects)
 	if mode == modeOpenFiles {
 		openFiles, openSet, filteredOverlay := filterOpenFiles(overlay, projectRoot)
 		if len(openFiles) == 0 {
@@ -429,31 +435,52 @@ func (s *Server) runDiagnostics(seq uint64) {
 			s.clearSnapshotState()
 			return
 		}
-		analysisDocs = filterAnalysisDocs(docStates, docPaths, projectRoot, mode, openSet)
-		s.logAnalysisStart(analysisDocs)
+		analysisDocs = filterAnalysisDocs(docStates, docPaths, projectRoot, mode, openSet, docProjects)
+		s.logAnalysisStart(analysisPlan{
+			seq:  seq,
+			root: projectRoot,
+			mode: mode,
+			docs: analysisDocs,
+		})
 		snapshot, diags, err = s.analyzeFiles(ctx, &opts, openFiles, diagnose.FileOverlay{Files: filteredOverlay})
 		diags = filterDiagnosticsForOpenFiles(diags, openSet)
 	} else {
-		s.logAnalysisStart(analysisDocs)
+		s.logAnalysisStart(analysisPlan{
+			seq:  seq,
+			root: projectRoot,
+			mode: mode,
+			docs: analysisDocs,
+		})
 		snapshot, diags, err = s.analyze(ctx, &opts, diagnose.FileOverlay{Files: overlay})
 	}
+	plan := analysisPlan{
+		seq:  seq,
+		root: projectRoot,
+		mode: mode,
+		docs: analysisDocs,
+	}
+	canceled := ctx.Err() != nil
+	s.logAnalysisDone(plan, snapshot, diags, err, canceled)
 	if err != nil {
 		s.logf("diagnostics failed: %v", err)
 	}
-	if ctx.Err() != nil {
+	if canceled && s.baseCtx != nil && s.baseCtx.Err() != nil {
+		s.logAnalysisDiscard(plan, "canceled")
 		return
 	}
-	if !s.analysisAllowed(seq, analysisDocs) {
+	if !s.analysisAllowed(plan, true) {
 		return
 	}
 	if err == nil && snapshot != nil {
-		s.applySnapshot(seq, snapshot, analysisDocs)
+		if s.applySnapshot(plan, snapshot) {
+			s.logAnalysisApply(plan)
+		}
 	}
-	s.publishDiagnostics(seq, diags, analysisDocs)
+	s.publishDiagnostics(plan, diags)
 }
 
-func (s *Server) publishDiagnostics(seq uint64, diags []diagnose.Diagnostic, analysisDocs map[string]docState) {
-	if !s.analysisAllowed(seq, analysisDocs) {
+func (s *Server) publishDiagnostics(plan analysisPlan, diags []diagnose.Diagnostic) {
+	if !s.analysisAllowed(plan, false) {
 		return
 	}
 	grouped := make(map[string][]lspDiagnostic)
@@ -482,32 +509,40 @@ func (s *Server) publishDiagnostics(seq uint64, diags []diagnose.Diagnostic, ana
 		})
 	}
 
+	targets := make([]string, 0, len(plan.docs))
+	for uri := range plan.docs {
+		targets = append(targets, uri)
+	}
+	sort.Strings(targets)
+
 	s.mu.Lock()
-	if !s.analysisMatchesLocked(seq, analysisDocs) {
+	if !s.analysisMatchesLocked(plan) {
 		s.mu.Unlock()
 		return
 	}
 	prev := s.published
-	s.published = make(map[string]struct{}, len(grouped))
-	for uri := range grouped {
+	s.published = make(map[string]struct{}, len(targets))
+	for _, uri := range targets {
 		s.published[uri] = struct{}{}
 	}
 	s.mu.Unlock()
 
-	for uri, list := range grouped {
-		if !s.analysisMatches(seq, analysisDocs) {
+	for _, uri := range targets {
+		if !s.analysisMatches(plan) {
 			return
 		}
+		list := grouped[uri]
 		if err := s.sendPublish(uri, list); err != nil {
 			s.logf("failed to publish diagnostics: %v", err)
 		}
 		s.logPublishDiagnostics(uri, len(list))
 	}
+
 	for uri := range prev {
-		if _, ok := grouped[uri]; ok {
+		if _, ok := plan.docs[uri]; ok {
 			continue
 		}
-		if !s.analysisMatches(seq, analysisDocs) {
+		if !s.analysisMatches(plan) {
 			return
 		}
 		if err := s.sendPublish(uri, nil); err != nil {
@@ -618,7 +653,7 @@ func filterDiagnosticsForOpenFiles(diags []diagnose.Diagnostic, openSet map[stri
 	return out
 }
 
-func filterAnalysisDocs(docStates map[string]docState, docPaths map[string]string, root string, mode analysisMode, openSet map[string]struct{}) map[string]docState {
+func filterAnalysisDocs(docStates map[string]docState, docPaths map[string]string, root string, mode analysisMode, openSet map[string]struct{}, docProjects map[string]string) map[string]docState {
 	if len(docStates) == 0 {
 		return nil
 	}
@@ -640,6 +675,18 @@ func filterAnalysisDocs(docStates map[string]docState, docPaths map[string]strin
 			}
 		} else if root != "" && !pathWithinRoot(root, path) {
 			continue
+		}
+		if len(docProjects) > 0 {
+			projectRoot := docProjects[uri]
+			if mode == modeProjectRoot {
+				if projectRoot != "" && root != "" && projectRoot != root {
+					continue
+				}
+			} else {
+				if projectRoot != "" && projectRoot != root {
+					continue
+				}
+			}
 		}
 		out[uri] = state
 	}
@@ -664,48 +711,90 @@ type analysisMismatch struct {
 	missing  bool
 }
 
-func (s *Server) analysisMatchesLocked(seq uint64, expected map[string]docState) bool {
-	if seq == 0 || !s.isLatestSeq(seq) {
-		return false
-	}
-	_, ok := s.firstDocMismatchLocked(expected)
-	return !ok
+type analysisPlan struct {
+	seq  uint64
+	root string
+	mode analysisMode
+	docs map[string]docState
 }
 
-func (s *Server) analysisMatches(seq uint64, expected map[string]docState) bool {
+func (s *Server) analysisMatchesLocked(plan analysisPlan) bool {
+	if plan.seq == 0 {
+		return false
+	}
+	if plan.seq < s.appliedSeq {
+		return false
+	}
+	if s.analysisRoot != plan.root || s.analysisMode != plan.mode {
+		return false
+	}
+	_, mismatch := s.firstDocMismatchLocked(plan.docs)
+	return !mismatch
+}
+
+func (s *Server) analysisMatches(plan analysisPlan) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.analysisMatchesLocked(seq, expected)
+	return s.analysisMatchesLocked(plan)
 }
 
-func (s *Server) analysisAllowed(seq uint64, expected map[string]docState) bool {
-	if seq == 0 || !s.isLatestSeq(seq) {
-		if s.currentTrace() {
-			s.logf("discard analysis: seq=%d not latest", seq)
-		}
-		return false
-	}
+func (s *Server) analysisAllowed(plan analysisPlan, requireNew bool) bool {
 	s.mu.Lock()
 	trace := s.traceLSP
-	if seq == 0 || !s.isLatestSeq(seq) {
+	if plan.seq == 0 {
 		s.mu.Unlock()
 		if trace {
-			s.logf("discard analysis: seq=%d not latest", seq)
+			s.logf("discard analysis: seq=0")
 		}
 		return false
 	}
-	mismatch, ok := s.firstDocMismatchLocked(expected)
+	if requireNew {
+		if plan.seq <= s.appliedSeq {
+			applied := s.appliedSeq
+			s.mu.Unlock()
+			if trace {
+				s.logf("discard analysis: seq=%d olderApplied=%d", plan.seq, applied)
+			}
+			return false
+		}
+	} else {
+		if plan.seq < s.appliedSeq {
+			applied := s.appliedSeq
+			s.mu.Unlock()
+			if trace {
+				s.logf("discard analysis: seq=%d olderApplied=%d", plan.seq, applied)
+			}
+			return false
+		}
+	}
+	if s.analysisRoot != plan.root || s.analysisMode != plan.mode {
+		root := s.analysisRoot
+		mode := s.analysisMode
+		s.mu.Unlock()
+		if trace {
+			s.logf("discard analysis: seq=%d scopeMismatch root=%s/%d expected=%s/%d", plan.seq, root, mode, plan.root, plan.mode)
+		}
+		return false
+	}
+	mismatch, ok := s.firstDocMismatchLocked(plan.docs)
+	applied := s.appliedSeq
 	s.mu.Unlock()
 	if !ok {
+		if trace {
+			latest := atomic.LoadUint64(&s.latestSeq)
+			if plan.seq != latest {
+				s.logf("analysis result: seq=%d latest=%d applied=%d", plan.seq, latest, applied)
+			}
+		}
 		return true
 	}
 	if trace {
 		if mismatch.missing {
-			s.logf("discard analysis: uri=%s resultVersion=%d resultSnapshotID=%d currentVersion=missing currentSnapshotID=missing",
-				mismatch.uri, mismatch.expected.version, mismatch.expected.snapshotID)
+			s.logf("discard analysis: seq=%d uri=%s resultVersion=%d resultSnapshotID=%d currentVersion=missing currentSnapshotID=missing",
+				plan.seq, mismatch.uri, mismatch.expected.version, mismatch.expected.snapshotID)
 		} else {
-			s.logf("discard analysis: uri=%s resultVersion=%d resultSnapshotID=%d currentVersion=%d currentSnapshotID=%d",
-				mismatch.uri, mismatch.expected.version, mismatch.expected.snapshotID, mismatch.current.version, mismatch.current.snapshotID)
+			s.logf("discard analysis: seq=%d uri=%s resultVersion=%d resultSnapshotID=%d currentVersion=%d currentSnapshotID=%d",
+				plan.seq, mismatch.uri, mismatch.expected.version, mismatch.expected.snapshotID, mismatch.current.version, mismatch.current.snapshotID)
 		}
 	}
 	return false
@@ -727,19 +816,26 @@ func (s *Server) firstDocMismatchLocked(expected map[string]docState) (analysisM
 	return analysisMismatch{}, false
 }
 
-func (s *Server) applySnapshot(seq uint64, snapshot *diagnose.AnalysisSnapshot, expected map[string]docState) bool {
+func (s *Server) applySnapshot(plan analysisPlan, snapshot *diagnose.AnalysisSnapshot) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if seq == 0 || !s.isLatestSeq(seq) {
+	if plan.seq == 0 {
 		return false
 	}
-	if !s.analysisMatchesLocked(seq, expected) {
+	if plan.seq <= s.appliedSeq {
+		return false
+	}
+	if s.analysisRoot != plan.root || s.analysisMode != plan.mode {
+		return false
+	}
+	if _, mismatch := s.firstDocMismatchLocked(plan.docs); mismatch {
 		return false
 	}
 	s.lastSnapshot = snapshot
 	s.lastGoodSnapshot = snapshot
-	s.snapshotDocs = cloneDocStates(expected)
+	s.snapshotDocs = cloneDocStates(plan.docs)
 	s.snapshotVersion++
+	s.appliedSeq = plan.seq
 	return true
 }
 
@@ -751,13 +847,59 @@ func (s *Server) clearSnapshotState() {
 	s.mu.Unlock()
 }
 
-func (s *Server) logAnalysisStart(expected map[string]docState) {
+func (s *Server) logAnalysisStart(plan analysisPlan) {
 	if !s.currentTrace() {
 		return
 	}
-	for uri, state := range expected {
-		s.logf("analysis start: uri=%s version=%d snapshotID=%d", uri, state.version, state.snapshotID)
+	for uri, state := range plan.docs {
+		s.logf("analysis start: seq=%d uri=%s version=%d snapshotID=%d", plan.seq, uri, state.version, state.snapshotID)
 	}
+}
+
+func (s *Server) logAnalysisDone(plan analysisPlan, snapshot *diagnose.AnalysisSnapshot, diags []diagnose.Diagnostic, err error, canceled bool) {
+	if !s.currentTrace() {
+		return
+	}
+	status := "ok"
+	if err != nil {
+		status = "error"
+	}
+	if snapshot == nil {
+		if status == "ok" {
+			status = "nosnapshot"
+		} else {
+			status += "+nosnapshot"
+		}
+	}
+	if canceled {
+		if status == "ok" {
+			status = "canceled"
+		} else {
+			status += "+canceled"
+		}
+	}
+	for uri, state := range plan.docs {
+		s.logf("analysis done: seq=%d status=%s uri=%s version=%d snapshotID=%d diags=%d",
+			plan.seq, status, uri, state.version, state.snapshotID, len(diags))
+	}
+}
+
+func (s *Server) logAnalysisApply(plan analysisPlan) {
+	if !s.currentTrace() {
+		return
+	}
+	version := s.currentSnapshotVersion()
+	for uri, state := range plan.docs {
+		s.logf("analysis apply: seq=%d uri=%s snapshotVersion=%d snapshotDocVersion=%d snapshotDocSnapshotID=%d",
+			plan.seq, uri, version, state.version, state.snapshotID)
+	}
+}
+
+func (s *Server) logAnalysisDiscard(plan analysisPlan, reason string) {
+	if !s.currentTrace() {
+		return
+	}
+	s.logf("analysis discard: seq=%d reason=%s", plan.seq, reason)
 }
 
 func (s *Server) logPublishDiagnostics(uri string, count int) {
@@ -819,6 +961,9 @@ func (s *Server) sendError(id json.RawMessage, code int, message string) error {
 }
 
 func (s *Server) sendPublish(uri string, list []lspDiagnostic) error {
+	if list == nil {
+		list = []lspDiagnostic{}
+	}
 	msg := map[string]any{
 		"jsonrpc": "2.0",
 		"method":  "textDocument/publishDiagnostics",

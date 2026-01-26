@@ -519,6 +519,280 @@ func TestAnalysisDiscardedOnDocStateChange(t *testing.T) {
 	}
 }
 
+func TestLatestAnalysisAppliedAfterOutOfOrderCompletion(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.sg")
+	uri := pathToURI(path)
+	var call int32
+	startedFirst := make(chan struct{})
+	startedSecond := make(chan struct{})
+	proceedFirst := make(chan struct{})
+	proceedSecond := make(chan struct{})
+	analyzeFilesFn := func(ctx context.Context, opts *diagnose.DiagnoseOptions, files []string, overlay diagnose.FileOverlay) (*diagnose.AnalysisSnapshot, []diagnose.Diagnostic, error) {
+		switch atomic.AddInt32(&call, 1) {
+		case 1:
+			close(startedFirst)
+			<-proceedFirst
+		case 2:
+			close(startedSecond)
+			<-proceedSecond
+		}
+		return &diagnose.AnalysisSnapshot{ProjectRoot: filepath.Dir(files[0])}, nil, nil
+	}
+
+	var out bytes.Buffer
+	server := NewServer(bytes.NewReader(nil), &out, ServerOptions{
+		Debounce:     time.Hour,
+		AnalyzeFiles: analyzeFilesFn,
+	})
+	server.baseCtx = context.Background()
+
+	openParams := didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{
+			URI:     uri,
+			Version: 1,
+			Text:    "fn main() { ok }",
+		},
+	}
+	openPayload, _ := json.Marshal(openParams)
+	if err := server.handleDidOpen(&rpcMessage{Method: "textDocument/didOpen", Params: openPayload}); err != nil {
+		t.Fatalf("didOpen: %v", err)
+	}
+
+	server.mu.Lock()
+	if server.debounceTimer != nil {
+		server.debounceTimer.Stop()
+	}
+	server.mu.Unlock()
+
+	seq := atomic.LoadUint64(&server.latestSeq)
+	doneFirst := make(chan struct{})
+	go func() {
+		server.runDiagnostics(seq)
+		close(doneFirst)
+	}()
+
+	<-startedFirst
+
+	changeParams := didChangeTextDocumentParams{
+		TextDocument: versionedTextDocumentIdentifier{
+			URI:     uri,
+			Version: 2,
+		},
+		ContentChanges: []textDocumentContentChangeEvent{
+			{
+				Text: "fn main() { ok }\n",
+			},
+		},
+	}
+	changePayload, _ := json.Marshal(changeParams)
+	if err := server.handleDidChange(&rpcMessage{Method: "textDocument/didChange", Params: changePayload}); err != nil {
+		t.Fatalf("didChange: %v", err)
+	}
+
+	server.mu.Lock()
+	if server.debounceTimer != nil {
+		server.debounceTimer.Stop()
+	}
+	server.mu.Unlock()
+
+	seq = atomic.LoadUint64(&server.latestSeq)
+	doneSecond := make(chan struct{})
+	go func() {
+		server.runDiagnostics(seq)
+		close(doneSecond)
+	}()
+
+	<-startedSecond
+	close(proceedSecond)
+
+	select {
+	case <-doneSecond:
+	case <-time.After(time.Second):
+		t.Fatal("second analysis did not finish")
+	}
+
+	close(proceedFirst)
+
+	select {
+	case <-doneFirst:
+	case <-time.After(time.Second):
+		t.Fatal("first analysis did not finish")
+	}
+
+	state, ok := server.snapshotDocState(uri)
+	if !ok {
+		t.Fatal("expected snapshot doc state")
+	}
+	if state.version != 2 {
+		t.Fatalf("expected snapshot version 2, got %d", state.version)
+	}
+	if state.snapshotID != 2 {
+		t.Fatalf("expected snapshotID 2, got %d", state.snapshotID)
+	}
+}
+
+func TestAnalysisAppliesDespiteUnrelatedDocChange(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.sg")
+	otherPath := filepath.Join(dir, "notes.txt")
+	mainURI := pathToURI(mainPath)
+	otherURI := pathToURI(otherPath)
+	started := make(chan struct{})
+	proceed := make(chan struct{})
+	analyzeFilesFn := func(ctx context.Context, opts *diagnose.DiagnoseOptions, files []string, overlay diagnose.FileOverlay) (*diagnose.AnalysisSnapshot, []diagnose.Diagnostic, error) {
+		close(started)
+		<-proceed
+		return &diagnose.AnalysisSnapshot{ProjectRoot: filepath.Dir(files[0])}, nil, nil
+	}
+
+	var out bytes.Buffer
+	server := NewServer(bytes.NewReader(nil), &out, ServerOptions{
+		Debounce:     time.Hour,
+		AnalyzeFiles: analyzeFilesFn,
+	})
+	server.baseCtx = context.Background()
+
+	openMain := didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{
+			URI:     mainURI,
+			Version: 1,
+			Text:    "fn main() { ok }",
+		},
+	}
+	openMainPayload, _ := json.Marshal(openMain)
+	if err := server.handleDidOpen(&rpcMessage{Method: "textDocument/didOpen", Params: openMainPayload}); err != nil {
+		t.Fatalf("didOpen main: %v", err)
+	}
+
+	openOther := didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{
+			URI:     otherURI,
+			Version: 1,
+			Text:    "note",
+		},
+	}
+	openOtherPayload, _ := json.Marshal(openOther)
+	if err := server.handleDidOpen(&rpcMessage{Method: "textDocument/didOpen", Params: openOtherPayload}); err != nil {
+		t.Fatalf("didOpen other: %v", err)
+	}
+
+	server.mu.Lock()
+	if server.debounceTimer != nil {
+		server.debounceTimer.Stop()
+	}
+	server.mu.Unlock()
+
+	seq := atomic.LoadUint64(&server.latestSeq)
+	done := make(chan struct{})
+	go func() {
+		server.runDiagnostics(seq)
+		close(done)
+	}()
+
+	<-started
+
+	changeOther := didChangeTextDocumentParams{
+		TextDocument: versionedTextDocumentIdentifier{
+			URI:     otherURI,
+			Version: 2,
+		},
+		ContentChanges: []textDocumentContentChangeEvent{
+			{
+				Text: "note updated",
+			},
+		},
+	}
+	changeOtherPayload, _ := json.Marshal(changeOther)
+	if err := server.handleDidChange(&rpcMessage{Method: "textDocument/didChange", Params: changeOtherPayload}); err != nil {
+		t.Fatalf("didChange other: %v", err)
+	}
+
+	server.mu.Lock()
+	if server.debounceTimer != nil {
+		server.debounceTimer.Stop()
+	}
+	server.mu.Unlock()
+
+	close(proceed)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("analysis did not finish")
+	}
+
+	state, ok := server.snapshotDocState(mainURI)
+	if !ok {
+		t.Fatal("expected snapshot doc state")
+	}
+	if state.version != 1 {
+		t.Fatalf("expected snapshot version 1, got %d", state.version)
+	}
+	if state.snapshotID != 1 {
+		t.Fatalf("expected snapshotID 1, got %d", state.snapshotID)
+	}
+	if server.currentSnapshotVersion() == 0 {
+		t.Fatal("expected snapshot version to advance")
+	}
+}
+
+func TestFilterAnalysisDocsSkipsOtherProjectsInOpenFilesMode(t *testing.T) {
+	docStates := map[string]docState{
+		"file:///root/loose.sg":    {version: 1, snapshotID: 1},
+		"file:///root/proj/app.sg": {version: 1, snapshotID: 1},
+	}
+	docPaths := map[string]string{
+		"file:///root/loose.sg":    "/root/loose.sg",
+		"file:///root/proj/app.sg": "/root/proj/app.sg",
+	}
+	docProjects := map[string]string{
+		"file:///root/proj/app.sg": "/root/proj",
+	}
+
+	got := filterAnalysisDocs(docStates, docPaths, "/root", modeOpenFiles, nil, docProjects)
+	if _, ok := got["file:///root/loose.sg"]; !ok {
+		t.Fatalf("expected loose file to be included")
+	}
+	if _, ok := got["file:///root/proj/app.sg"]; ok {
+		t.Fatalf("expected project file to be excluded")
+	}
+}
+
+func TestFilterAnalysisDocsSkipsNestedProjectsInProjectMode(t *testing.T) {
+	docStates := map[string]docState{
+		"file:///root/main.sg":         {version: 1, snapshotID: 1},
+		"file:///root/sub/app.sg":      {version: 1, snapshotID: 1},
+		"file:///root/sub/other.sg":    {version: 1, snapshotID: 1},
+		"file:///root/other/loose.sg":  {version: 1, snapshotID: 1},
+	}
+	docPaths := map[string]string{
+		"file:///root/main.sg":         "/root/main.sg",
+		"file:///root/sub/app.sg":      "/root/sub/app.sg",
+		"file:///root/sub/other.sg":    "/root/sub/other.sg",
+		"file:///root/other/loose.sg":  "/root/other/loose.sg",
+	}
+	docProjects := map[string]string{
+		"file:///root/main.sg":      "/root",
+		"file:///root/sub/app.sg":   "/root/sub",
+		"file:///root/sub/other.sg": "/root/sub",
+	}
+
+	got := filterAnalysisDocs(docStates, docPaths, "/root", modeProjectRoot, nil, docProjects)
+	if _, ok := got["file:///root/main.sg"]; !ok {
+		t.Fatalf("expected root file to be included")
+	}
+	if _, ok := got["file:///root/sub/app.sg"]; ok {
+		t.Fatalf("expected nested project file to be excluded")
+	}
+	if _, ok := got["file:///root/sub/other.sg"]; ok {
+		t.Fatalf("expected nested project file to be excluded")
+	}
+	if _, ok := got["file:///root/other/loose.sg"]; !ok {
+		t.Fatalf("expected loose file within root to be included")
+	}
+}
+
 func TestNoStdDoesNotLeakAcrossDocs(t *testing.T) {
 	dir := tempProjectDir(t)
 	mainPath := filepath.Join(dir, "main.sg")
