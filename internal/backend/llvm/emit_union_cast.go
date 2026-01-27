@@ -52,7 +52,8 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 		fmt.Fprintf(&fe.emitter.buf, "tagcast%d.%d:\n", castID, i)
 		dstIdx, dstCase, ok := matchTagCase(dstCases, srcCase)
 		if !ok {
-			return "", "", fmt.Errorf("union cast missing tag %q in target type#%d", srcCase.TagName, dstResolved)
+			fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
+			continue
 		}
 		if len(srcCase.PayloadTypes) != len(dstCase.PayloadTypes) {
 			return "", "", fmt.Errorf("union cast payload mismatch for tag %q", srcCase.TagName)

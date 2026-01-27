@@ -8,6 +8,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/hir"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -115,13 +116,32 @@ func (l *funcLowerer) lowerExprForType(e *hir.Expr, expected types.TypeID) (Oper
 		clone.Type = expected
 		e = &clone
 	}
+	if expected != types.NoTypeID && e != nil && e.Kind == hir.ExprTupleLit && l != nil && l.types != nil {
+		if _, ok := l.types.TupleInfo(resolveAlias(l.types, expected)); ok {
+			clone := *e
+			clone.Type = expected
+			e = &clone
+		}
+	}
 	consume := true
 	if expected != types.NoTypeID && l.types != nil {
 		if tt, ok := l.types.Lookup(resolveAlias(l.types, expected)); ok && tt.Kind == types.KindReference {
 			return l.lowerExpr(e, consume)
 		}
 	}
-	return l.lowerValueExpr(e, consume)
+	op, err := l.lowerValueExpr(e, consume)
+	if err != nil {
+		return op, err
+	}
+	if expected != types.NoTypeID {
+		op = l.coerceNothingOperand(op, expected)
+		casted, err := l.unionCastOperand(op, expected, e.Span)
+		if err != nil {
+			return op, err
+		}
+		op = casted
+	}
+	return op, nil
 }
 
 func (l *funcLowerer) lowerExprForSideEffects(e *hir.Expr) error {
@@ -218,14 +238,127 @@ func (l *funcLowerer) calleeFunc(symID symbols.SymbolID) *hir.Func {
 	return mf.Func
 }
 
+func resolveAliasType(in *types.Interner, id types.TypeID) types.TypeID {
+	if in == nil || id == types.NoTypeID {
+		return id
+	}
+	const maxDepth = 32
+	for range maxDepth {
+		tt, ok := in.Lookup(id)
+		if !ok {
+			return id
+		}
+		switch tt.Kind {
+		case types.KindAlias:
+			target, ok := in.AliasTarget(id)
+			if !ok || target == types.NoTypeID || target == id {
+				return id
+			}
+			id = target
+		case types.KindOwn:
+			if tt.Elem == types.NoTypeID {
+				return id
+			}
+			id = tt.Elem
+		default:
+			return id
+		}
+	}
+	return id
+}
+
+func isUnionType(in *types.Interner, id types.TypeID) bool {
+	if in == nil || id == types.NoTypeID {
+		return false
+	}
+	id = resolveAliasType(in, id)
+	if id == types.NoTypeID {
+		return false
+	}
+	tt, ok := in.Lookup(id)
+	return ok && tt.Kind == types.KindUnion
+}
+
+func (l *funcLowerer) unionHasNothing(id types.TypeID) bool {
+	if l == nil || l.types == nil || id == types.NoTypeID {
+		return false
+	}
+	id = resolveAliasType(l.types, id)
+	if id == types.NoTypeID {
+		return false
+	}
+	info, ok := l.types.UnionInfo(id)
+	if !ok || info == nil {
+		return false
+	}
+	for _, member := range info.Members {
+		if member.Kind == types.UnionMemberNothing {
+			return true
+		}
+	}
+	return false
+}
+
+func (l *funcLowerer) needsUnionCast(src, target types.TypeID) bool {
+	if l == nil || l.types == nil || src == types.NoTypeID || target == types.NoTypeID {
+		return false
+	}
+	src = resolveAliasType(l.types, src)
+	target = resolveAliasType(l.types, target)
+	if src == types.NoTypeID || target == types.NoTypeID || src == target {
+		return false
+	}
+	return isUnionType(l.types, src) && isUnionType(l.types, target)
+}
+
+func (l *funcLowerer) coerceNothingOperand(op Operand, expected types.TypeID) Operand {
+	if expected == types.NoTypeID || l == nil {
+		return op
+	}
+	if !l.isNothingType(op.Type) {
+		return op
+	}
+	if !l.unionHasNothing(expected) {
+		return op
+	}
+	op.Type = expected
+	if op.Kind == OperandConst && op.Const.Kind == ConstNothing {
+		op.Const.Type = expected
+	}
+	return op
+}
+
+func (l *funcLowerer) unionCastOperand(op Operand, target types.TypeID, span source.Span) (Operand, error) {
+	if !l.needsUnionCast(op.Type, target) {
+		return op, nil
+	}
+	tmp := l.newTemp(target, "cast", span)
+	l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: Place{Local: tmp},
+		Src: RValue{Kind: RValueCast, Cast: CastOp{Value: op, TargetTy: target}},
+	}})
+	return l.placeOperand(Place{Local: tmp}, target, true), nil
+}
+
 func (l *funcLowerer) lowerCallArgs(e *hir.Expr, data hir.CallData) ([]Operand, error) {
 	fn := l.calleeFunc(data.SymbolID)
 	if fn == nil || fn.IsIntrinsic() || len(data.Args) >= len(fn.Params) {
 		args := make([]Operand, 0, len(data.Args))
-		for _, a := range data.Args {
+		for i, a := range data.Args {
 			op, err := l.lowerExpr(a, true)
 			if err != nil {
 				return nil, err
+			}
+			if fn != nil && i < len(fn.Params) && fn.Params[i].Type != types.NoTypeID {
+				span := e.Span
+				if a != nil {
+					span = a.Span
+				}
+				if casted, err := l.unionCastOperand(op, fn.Params[i].Type, span); err == nil {
+					op = casted
+				} else if err != nil {
+					return nil, err
+				}
 			}
 			args = append(args, op)
 		}
@@ -291,9 +424,13 @@ func (l *funcLowerer) lowerCallArgsWithDefaults(e *hir.Expr, data hir.CallData, 
 			paramType = op.Type
 		}
 		tmp := l.newTemp(paramType, "arg", span)
+		src := RValue{Kind: RValueUse, Use: op}
+		if l.needsUnionCast(op.Type, paramType) {
+			src = RValue{Kind: RValueCast, Cast: CastOp{Value: op, TargetTy: paramType}}
+		}
 		l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
 			Dst: Place{Local: tmp},
-			Src: RValue{Kind: RValueUse, Use: op},
+			Src: src,
 		}})
 		bind(params[i].SymbolID, tmp)
 		args = append(args, l.placeOperand(Place{Local: tmp}, paramType, true))
@@ -317,9 +454,13 @@ func (l *funcLowerer) lowerCallArgsWithDefaults(e *hir.Expr, data hir.CallData, 
 			paramType = op.Type
 		}
 		tmp := l.newTemp(paramType, "default", e.Span)
+		src := RValue{Kind: RValueUse, Use: op}
+		if l.needsUnionCast(op.Type, paramType) {
+			src = RValue{Kind: RValueCast, Cast: CastOp{Value: op, TargetTy: paramType}}
+		}
 		l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
 			Dst: Place{Local: tmp},
-			Src: RValue{Kind: RValueUse, Use: op},
+			Src: src,
 		}})
 		bind(param.SymbolID, tmp)
 		args = append(args, l.placeOperand(Place{Local: tmp}, paramType, true))

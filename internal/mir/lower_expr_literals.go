@@ -12,12 +12,37 @@ func (l *funcLowerer) lowerStructLitExpr(e *hir.Expr, consume bool) (Operand, er
 	if !ok {
 		return Operand{}, fmt.Errorf("mir: struct lit: unexpected payload %T", e.Data)
 	}
+	var fieldTypes map[string]types.TypeID
+	if l != nil && l.types != nil && data.TypeID != types.NoTypeID {
+		if info, ok := l.types.StructInfo(resolveAlias(l.types, data.TypeID)); ok && info != nil && len(info.Fields) > 0 {
+			if l.symbols != nil && l.symbols.Table != nil && l.symbols.Table.Strings != nil {
+				fieldTypes = make(map[string]types.TypeID, len(info.Fields))
+				for _, field := range info.Fields {
+					if name := l.symbols.Table.Strings.MustLookup(field.Name); name != "" {
+						fieldTypes[name] = field.Type
+					}
+				}
+			}
+		}
+	}
 	fields := make([]StructLitField, 0, len(data.Fields))
 	for _, f := range data.Fields {
 		if f.Value == nil {
 			continue
 		}
-		val, err := l.lowerExpr(f.Value, true)
+		var (
+			val Operand
+			err error
+		)
+		if fieldTypes != nil {
+			if expected, ok := fieldTypes[f.Name]; ok && expected != types.NoTypeID {
+				val, err = l.lowerExprForType(f.Value, expected)
+			} else {
+				val, err = l.lowerExpr(f.Value, true)
+			}
+		} else {
+			val, err = l.lowerExpr(f.Value, true)
+		}
 		if err != nil {
 			return Operand{}, err
 		}
@@ -111,9 +136,23 @@ func (l *funcLowerer) lowerTupleLitExpr(e *hir.Expr, consume bool) (Operand, err
 	if !ok {
 		return Operand{}, fmt.Errorf("mir: tuple lit: unexpected payload %T", e.Data)
 	}
+	var expectedElems []types.TypeID
+	if l != nil && l.types != nil && e.Type != types.NoTypeID {
+		if info, ok := l.types.TupleInfo(resolveAlias(l.types, e.Type)); ok && info != nil {
+			expectedElems = info.Elems
+		}
+	}
 	elems := make([]Operand, 0, len(data.Elements))
-	for _, el := range data.Elements {
-		op, err := l.lowerExpr(el, true)
+	for i, el := range data.Elements {
+		var (
+			op  Operand
+			err error
+		)
+		if i < len(expectedElems) && expectedElems[i] != types.NoTypeID {
+			op, err = l.lowerExprForType(el, expectedElems[i])
+		} else {
+			op, err = l.lowerExpr(el, true)
+		}
 		if err != nil {
 			return Operand{}, err
 		}

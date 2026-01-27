@@ -55,7 +55,13 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 	}
 
 	typeIDs := make(map[types.TypeID]struct{})
-	visitType := func(id types.TypeID) {
+	visited := make(map[types.TypeID]struct{})
+	var visitType func(id types.TypeID)
+	var visitTypeDeep func(id types.TypeID)
+	visitType = func(id types.TypeID) {
+		visitTypeDeep(id)
+	}
+	visitTypeDeep = func(id types.TypeID) {
 		if id == types.NoTypeID {
 			return
 		}
@@ -63,7 +69,52 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 		if id == types.NoTypeID {
 			return
 		}
-		typeIDs[id] = struct{}{}
+		if _, ok := visited[id]; ok {
+			return
+		}
+		visited[id] = struct{}{}
+		tt, ok := typesIn.Lookup(id)
+		if !ok {
+			return
+		}
+		if tt.Kind == types.KindUnion {
+			typeIDs[id] = struct{}{}
+		}
+		switch tt.Kind {
+		case types.KindUnion:
+			if info, ok := typesIn.UnionInfo(id); ok && info != nil {
+				for _, member := range info.Members {
+					switch member.Kind {
+					case types.UnionMemberType:
+						visitTypeDeep(member.Type)
+					case types.UnionMemberTag:
+						for _, arg := range member.TagArgs {
+							visitTypeDeep(arg)
+						}
+					default:
+					}
+				}
+			}
+		case types.KindStruct:
+			if info, ok := typesIn.StructInfo(id); ok && info != nil {
+				for _, field := range info.Fields {
+					visitTypeDeep(field.Type)
+				}
+			}
+		case types.KindTuple:
+			if info, ok := typesIn.TupleInfo(id); ok && info != nil {
+				for _, elem := range info.Elems {
+					visitTypeDeep(elem)
+				}
+			}
+		case types.KindArray:
+			visitTypeDeep(tt.Elem)
+		case types.KindEnum:
+			if info, ok := typesIn.EnumInfo(id); ok && info != nil && info.BaseType != types.NoTypeID {
+				visitTypeDeep(info.BaseType)
+			}
+		default:
+		}
 	}
 
 	var visitOperand func(op *Operand)
@@ -209,37 +260,88 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 
 	layouts := make(map[types.TypeID][]TagCaseMeta)
 	strs := src.Symbols.Table.Strings
+	type tagKey struct {
+		sym  symbols.SymbolID
+		name string
+	}
+	keyFor := func(meta TagCaseMeta) tagKey {
+		if meta.TagSym.IsValid() {
+			return tagKey{sym: meta.TagSym}
+		}
+		return tagKey{name: meta.TagName}
+	}
+	collectTagCases := func(typeID types.TypeID) []TagCaseMeta {
+		if typeID == types.NoTypeID {
+			return nil
+		}
+		seen := make(map[tagKey]struct{})
+		visiting := make(map[types.TypeID]struct{})
+		cases := make([]TagCaseMeta, 0)
+		var addCase func(TagCaseMeta)
+		addCase = func(meta TagCaseMeta) {
+			key := keyFor(meta)
+			if _, ok := seen[key]; ok {
+				return
+			}
+			seen[key] = struct{}{}
+			cases = append(cases, meta)
+		}
+		var visitUnion func(id types.TypeID)
+		visitUnion = func(id types.TypeID) {
+			if id == types.NoTypeID {
+				return
+			}
+			id = canonicalType(typesIn, id)
+			if id == types.NoTypeID {
+				return
+			}
+			if _, ok := visiting[id]; ok {
+				return
+			}
+			visiting[id] = struct{}{}
+			info, ok := typesIn.UnionInfo(id)
+			if !ok || info == nil || len(info.Members) == 0 {
+				return
+			}
+			for _, member := range info.Members {
+				switch member.Kind {
+				case types.UnionMemberTag:
+					tagName := strs.MustLookup(member.TagName)
+					if tagName == "" {
+						continue
+					}
+					payload := make([]types.TypeID, len(member.TagArgs))
+					for i := range member.TagArgs {
+						payload[i] = canonicalType(typesIn, member.TagArgs[i])
+					}
+					addCase(TagCaseMeta{
+						TagName:      tagName,
+						TagSym:       tagSymByName[member.TagName],
+						PayloadTypes: payload,
+					})
+				case types.UnionMemberNothing:
+					addCase(TagCaseMeta{TagName: "nothing"})
+				case types.UnionMemberType:
+					memberType := canonicalType(typesIn, member.Type)
+					if memberType == types.NoTypeID {
+						continue
+					}
+					if tt, ok := typesIn.Lookup(memberType); ok && tt.Kind == types.KindUnion {
+						visitUnion(memberType)
+					}
+				default:
+				}
+			}
+		}
+		visitUnion(typeID)
+		return cases
+	}
 	for typeID := range typeIDs {
 		tt, ok := typesIn.Lookup(typeID)
 		if !ok || tt.Kind != types.KindUnion {
 			continue
 		}
-		info, ok := typesIn.UnionInfo(typeID)
-		if !ok || info == nil || len(info.Members) == 0 {
-			continue
-		}
-		cases := make([]TagCaseMeta, 0, len(info.Members))
-		for _, member := range info.Members {
-			switch member.Kind {
-			case types.UnionMemberTag:
-				tagName := strs.MustLookup(member.TagName)
-				payload := make([]types.TypeID, len(member.TagArgs))
-				for i := range member.TagArgs {
-					payload[i] = canonicalType(typesIn, member.TagArgs[i])
-				}
-				cases = append(cases, TagCaseMeta{
-					TagName:      tagName,
-					TagSym:       tagSymByName[member.TagName],
-					PayloadTypes: payload,
-				})
-			case types.UnionMemberNothing:
-				cases = append(cases, TagCaseMeta{TagName: "nothing"})
-			case types.UnionMemberType:
-				continue
-			default:
-				cases = nil
-			}
-		}
+		cases := collectTagCases(typeID)
 		if len(cases) == 0 {
 			continue
 		}

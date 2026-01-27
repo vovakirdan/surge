@@ -132,17 +132,8 @@ func (fe *funcEmitter) emitValueOperand(op *mir.Operand) (val, ty string, err er
 		if err != nil {
 			return "", "", err
 		}
-		elemType, ok := derefType(fe.emitter.types, op.Type)
-		if !ok {
-			return "", "", fmt.Errorf("unsupported address-of operand type")
-		}
-		llvmTy, err := llvmValueType(fe.emitter.types, elemType)
-		if err != nil {
-			return "", "", err
-		}
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, llvmTy, ptr)
-		return tmp, llvmTy, nil
+		// Address-of yields a reference value, which is represented as a pointer.
+		return ptr, "ptr", nil
 	default:
 		return fe.emitOperand(op)
 	}
