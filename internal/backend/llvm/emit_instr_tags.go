@@ -89,6 +89,11 @@ func (fe *funcEmitter) emitTagPayload(tp *mir.TagPayload) (val, ty string, errTa
 	}
 	bytePtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", bytePtr, basePtr, offset)
+	operandIsRef := isRefType(fe.emitter.types, tp.Value.Type)
+	payloadIsRef := isRefType(fe.emitter.types, payloadType)
+	if operandIsRef && !payloadIsRef {
+		return bytePtr, "ptr", nil
+	}
 	val = fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", val, payloadLLVM, bytePtr)
 	return val, payloadLLVM, nil

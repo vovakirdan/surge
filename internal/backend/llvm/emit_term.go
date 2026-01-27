@@ -197,6 +197,12 @@ func (fe *funcEmitter) emitConst(c *mir.Const) (val, ty string, err error) {
 		if err != nil {
 			return "", "", err
 		}
+		if ty == "ptr" {
+			if c.IntValue == 0 {
+				return "null", ty, nil
+			}
+			return "", "", fmt.Errorf("unsupported non-zero pointer literal %d", c.IntValue)
+		}
 		return fmt.Sprintf("%d", c.IntValue), ty, nil
 	case mir.ConstUint:
 		if isBigUintType(fe.emitter.types, c.Type) {

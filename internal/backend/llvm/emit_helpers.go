@@ -303,7 +303,7 @@ func (e *Emitter) hasTagLayout(id types.TypeID) bool {
 	if e == nil || e.mod == nil || e.mod.Meta == nil || len(e.mod.Meta.TagLayouts) == 0 {
 		return false
 	}
-	id = resolveAliasAndOwn(e.types, id)
+	id = resolveValueType(e.types, id)
 	_, ok := e.mod.Meta.TagLayouts[id]
 	return ok
 }
@@ -312,7 +312,7 @@ func (e *Emitter) tagCases(id types.TypeID) ([]mir.TagCaseMeta, error) {
 	if e == nil || e.mod == nil || e.mod.Meta == nil || len(e.mod.Meta.TagLayouts) == 0 {
 		return nil, fmt.Errorf("missing tag layout metadata")
 	}
-	id = resolveAliasAndOwn(e.types, id)
+	id = resolveValueType(e.types, id)
 	cases, ok := e.mod.Meta.TagLayouts[id]
 	if !ok {
 		return nil, fmt.Errorf("missing tag layout for type#%d", id)

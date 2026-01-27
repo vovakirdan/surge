@@ -31,7 +31,14 @@ func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (val, ty string, err er
 		if fieldIdx < 0 || fieldIdx >= len(layoutInfo.FieldOffsets) {
 			return "", "", fmt.Errorf("field index %d out of range", fieldIdx)
 		}
-		val, valTy, err := fe.emitValueOperand(&field.Value)
+		op := field.Value
+		if op.Type == types.NoTypeID {
+			op.Type = fieldType
+		}
+		if op.Kind == mir.OperandConst && (op.Const.Type == types.NoTypeID || isNothingType(fe.emitter.types, op.Const.Type)) {
+			op.Const.Type = fieldType
+		}
+		val, valTy, err := fe.emitValueOperand(&op)
 		if err != nil {
 			return "", "", err
 		}
@@ -40,7 +47,7 @@ func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (val, ty string, err er
 			return "", "", err
 		}
 		if valTy != fieldLLVM {
-			valType := operandValueType(fe.emitter.types, &field.Value)
+			valType := operandValueType(fe.emitter.types, &op)
 			if valType == types.NoTypeID && field.Value.Kind != mir.OperandConst {
 				if baseType, err := fe.placeBaseType(field.Value.Place); err == nil {
 					valType = baseType
@@ -100,17 +107,24 @@ func (fe *funcEmitter) emitTupleLit(lit *mir.TupleLit, dstType types.TypeID) (va
 		if i >= len(layoutInfo.FieldOffsets) {
 			return "", "", fmt.Errorf("tuple field %d out of range", i)
 		}
-		val, valTy, err := fe.emitValueOperand(&lit.Elems[i])
+		op := lit.Elems[i]
+		elemType := info.Elems[i]
+		if op.Type == types.NoTypeID {
+			op.Type = elemType
+		}
+		if op.Kind == mir.OperandConst && (op.Const.Type == types.NoTypeID || isNothingType(fe.emitter.types, op.Const.Type)) {
+			op.Const.Type = elemType
+		}
+		val, valTy, err := fe.emitValueOperand(&op)
 		if err != nil {
 			return "", "", err
 		}
-		elemType := info.Elems[i]
 		elemLLVM, err := llvmValueType(fe.emitter.types, elemType)
 		if err != nil {
 			return "", "", err
 		}
 		if valTy != elemLLVM {
-			valType := operandValueType(fe.emitter.types, &lit.Elems[i])
+			valType := operandValueType(fe.emitter.types, &op)
 			if valType == types.NoTypeID && lit.Elems[i].Kind != mir.OperandConst {
 				if baseType, err := fe.placeBaseType(lit.Elems[i].Place); err == nil {
 					valType = baseType

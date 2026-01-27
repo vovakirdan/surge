@@ -35,6 +35,34 @@ func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expec
 			}
 			return val, expectedLLVM, nil
 		}
+		if info, ok := fe.emitter.types.UnionInfo(expected); ok && info != nil {
+			for _, member := range info.Members {
+				if member.Kind != types.UnionMemberType {
+					continue
+				}
+				memberType := resolveValueType(fe.emitter.types, member.Type)
+				if memberType == opType {
+					if valTy != expectedLLVM {
+						return "", "", fmt.Errorf("return type mismatch: expected %s, got %s", expectedLLVM, valTy)
+					}
+					return val, expectedLLVM, nil
+				}
+				if isUnionType(fe.emitter.types, memberType) {
+					ok, err := fe.unionTagsSubset(opType, memberType)
+					if err != nil || !ok {
+						continue
+					}
+					casted, castTy, err := fe.emitUnionCast(val, opType, memberType)
+					if err != nil {
+						return "", "", err
+					}
+					if castTy != expectedLLVM {
+						return "", "", fmt.Errorf("return type mismatch: expected %s, got %s", expectedLLVM, castTy)
+					}
+					return casted, expectedLLVM, nil
+				}
+			}
+		}
 		casted, castTy, err := fe.emitUnionCast(val, opType, expected)
 		if err != nil {
 			return "", "", err
@@ -110,4 +138,24 @@ func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expec
 		return "", "", fmt.Errorf("return type mismatch: expected %s, got %s", expectedLLVM, valTy)
 	}
 	return val, expectedLLVM, nil
+}
+
+func (fe *funcEmitter) unionTagsSubset(srcType, dstType types.TypeID) (bool, error) {
+	if fe == nil || fe.emitter == nil {
+		return false, fmt.Errorf("missing emitter")
+	}
+	srcCases, err := fe.emitter.tagCases(srcType)
+	if err != nil {
+		return false, err
+	}
+	dstCases, err := fe.emitter.tagCases(dstType)
+	if err != nil {
+		return false, err
+	}
+	for _, srcCase := range srcCases {
+		if _, _, ok := matchTagCase(dstCases, srcCase); !ok {
+			return false, nil
+		}
+	}
+	return true, nil
 }
