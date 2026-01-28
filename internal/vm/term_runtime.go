@@ -27,7 +27,7 @@ type TermEventKind string
 const (
 	TermEventKey    TermEventKind = "key"
 	TermEventResize TermEventKind = "resize"
-	TermEventEof    TermEventKind = "eof"
+	TermEventEOF    TermEventKind = "eof"
 )
 
 // TermKeyKind describes terminal key kinds.
@@ -207,7 +207,7 @@ func (r *TestRuntime) TermFlush() {
 func (r *TestRuntime) TermReadEvent() TermEventData {
 	if r == nil || len(r.termEvents) == 0 {
 		r.appendTermCall(TermCall{Name: "term_read_event"})
-		return TermEventData{Kind: TermEventEof}
+		return TermEventData{Kind: TermEventEOF}
 	}
 	ev := r.termEvents[0]
 	r.termEvents = r.termEvents[1:]
@@ -307,7 +307,7 @@ func (r *RecordingRuntime) TermFlush() {
 
 // TermReadEvent forwards to the wrapped runtime and records the result.
 func (r *RecordingRuntime) TermReadEvent() TermEventData {
-	ev := TermEventData{Kind: TermEventEof}
+	ev := TermEventData{Kind: TermEventEOF}
 	if r != nil && r.rt != nil {
 		if tr, ok := r.rt.(TermRuntime); ok {
 			ev = tr.TermReadEvent()
@@ -369,7 +369,7 @@ func (r *ReplayRuntime) TermFlush() {
 // TermReadEvent replays a recorded terminal event.
 func (r *ReplayRuntime) TermReadEvent() TermEventData {
 	if r == nil || r.vm == nil || r.rp == nil {
-		return TermEventData{Kind: TermEventEof}
+		return TermEventData{Kind: TermEventEOF}
 	}
 	ev := r.rp.ConsumeIntrinsic(r.vm, "term_read_event")
 	out, err := MustDecodeTermEvent(ev.Ret)

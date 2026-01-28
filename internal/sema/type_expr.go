@@ -88,6 +88,14 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 				tc.report(diag.SemaTypeMismatch, expr.Span, "type %s cannot be used as a value", name)
 				ty = types.NoTypeID
 			default:
+				if sym.Kind == symbols.SymbolFunction && len(sym.TypeParams) > 0 {
+					if expected := tc.expectedTypeForExpr(id); expected != types.NoTypeID {
+						if tc.tryBindGenericFnValue(id, expected) {
+							ty = expected
+							break
+						}
+					}
+				}
 				ty = sym.Type
 			}
 		}

@@ -761,16 +761,16 @@ func TestFilterAnalysisDocsSkipsOtherProjectsInOpenFilesMode(t *testing.T) {
 
 func TestFilterAnalysisDocsSkipsNestedProjectsInProjectMode(t *testing.T) {
 	docStates := map[string]docState{
-		"file:///root/main.sg":         {version: 1, snapshotID: 1},
-		"file:///root/sub/app.sg":      {version: 1, snapshotID: 1},
-		"file:///root/sub/other.sg":    {version: 1, snapshotID: 1},
-		"file:///root/other/loose.sg":  {version: 1, snapshotID: 1},
+		"file:///root/main.sg":        {version: 1, snapshotID: 1},
+		"file:///root/sub/app.sg":     {version: 1, snapshotID: 1},
+		"file:///root/sub/other.sg":   {version: 1, snapshotID: 1},
+		"file:///root/other/loose.sg": {version: 1, snapshotID: 1},
 	}
 	docPaths := map[string]string{
-		"file:///root/main.sg":         "/root/main.sg",
-		"file:///root/sub/app.sg":      "/root/sub/app.sg",
-		"file:///root/sub/other.sg":    "/root/sub/other.sg",
-		"file:///root/other/loose.sg":  "/root/other/loose.sg",
+		"file:///root/main.sg":        "/root/main.sg",
+		"file:///root/sub/app.sg":     "/root/sub/app.sg",
+		"file:///root/sub/other.sg":   "/root/sub/other.sg",
+		"file:///root/other/loose.sg": "/root/other/loose.sg",
 	}
 	docProjects := map[string]string{
 		"file:///root/main.sg":      "/root",

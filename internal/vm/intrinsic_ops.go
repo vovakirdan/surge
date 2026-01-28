@@ -249,6 +249,62 @@ func (vm *VM) handleIndex(frame *Frame, call *mir.CallInstr, writes *[]LocalWrit
 	return nil
 }
 
+// handleIndexSet handles the __index_set intrinsic.
+func (vm *VM) handleIndexSet(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	_ = writes
+	if len(call.Args) != 3 {
+		return vm.eb.makeError(PanicTypeMismatch, "__index_set requires 3 arguments")
+	}
+	objVal, vmErr := vm.evalOperand(frame, &call.Args[0])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(objVal)
+	idxVal, vmErr := vm.evalOperand(frame, &call.Args[1])
+	if vmErr != nil {
+		return vmErr
+	}
+	defer vm.dropValue(idxVal)
+	val, vmErr := vm.evalOperand(frame, &call.Args[2])
+	if vmErr != nil {
+		return vmErr
+	}
+
+	if objVal.Kind == VKRef || objVal.Kind == VKRefMut {
+		v, loadErr := vm.loadLocationRaw(objVal.Loc)
+		if loadErr != nil {
+			vm.dropValue(val)
+			return loadErr
+		}
+		objVal = v
+	}
+	if objVal.Kind != VKHandleArray {
+		vm.dropValue(val)
+		return vm.eb.typeMismatch("array", objVal.Kind.String())
+	}
+	view, vmErr := vm.arrayViewFromHandle(objVal.H)
+	if vmErr != nil {
+		vm.dropValue(val)
+		return vmErr
+	}
+	idx, vmErr := vm.arrayIndexFromValue(idxVal, view.length)
+	if vmErr != nil {
+		vm.dropValue(val)
+		return vmErr
+	}
+	idx32, err := safecast.Conv[int32](idx)
+	if err != nil {
+		vm.dropValue(val)
+		return vm.eb.invalidLocation("array index overflow")
+	}
+	loc := Location{Kind: LKArrayElem, Handle: objVal.H, Index: idx32, IsMut: true}
+	if vmErr := vm.storeLocation(loc, val); vmErr != nil {
+		vm.dropValue(val)
+		return vmErr
+	}
+	return nil
+}
+
 // handleTo handles the __to intrinsic.
 func (vm *VM) handleTo(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if !call.HasDst {

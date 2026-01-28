@@ -1,16 +1,16 @@
 
 == MONO ==
 funcs=5 types=0
-fn id::<string>(x: string) (id=2147483653, sym=2415919109) {
+fn id::<string>(x: string) -> string (id=2147483653, sym=2415919109) {
   return x
 }
-fn id::<int>(x: int [copy]) (id=2147483651, sym=2415919107) {
+fn id::<int>(x: int [copy]) -> int (id=2147483651, sym=2415919107) {
   return x
 }
-fn wrap::<string>(x: string) (id=2147483652, sym=2415919108) {
+fn wrap::<string>(x: string) -> string (id=2147483652, sym=2415919108) {
   return id::<string>(x): string
 }
-fn wrap::<int>(x: int [copy]) (id=2147483650, sym=2415919106) {
+fn wrap::<int>(x: int [copy]) -> int (id=2147483650, sym=2415919106) {
   return id::<int>(x): int
 }
 fn main() -> nothing (id=2147483649, sym=2415919105) {

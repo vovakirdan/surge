@@ -45,7 +45,7 @@ fn main() -> int {
 			Rows: 30,
 		},
 		vm.TermEventData{
-			Kind: vm.TermEventEof,
+			Kind: vm.TermEventEOF,
 		},
 	)
 	exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)

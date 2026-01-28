@@ -165,7 +165,7 @@ func (vm *VM) handleTermReadEvent(frame *Frame, call *mir.CallInstr, writes *[]L
 	if len(call.Args) != 0 {
 		return vm.eb.makeError(PanicTypeMismatch, "term_read_event requires 0 arguments")
 	}
-	ev := TermEventData{Kind: TermEventEof}
+	ev := TermEventData{Kind: TermEventEOF}
 	if tr, ok := vm.RT.(TermRuntime); ok && tr != nil {
 		ev = tr.TermReadEvent()
 	}
@@ -281,7 +281,7 @@ func (vm *VM) termEventValue(typeID types.TypeID, ev TermEventData) (Value, *VME
 		}
 		h := vm.Heap.AllocTag(typeID, tc.TagSym, []Value{colsVal, rowsVal})
 		return MakeHandleTag(h, typeID), nil
-	case TermEventEof:
+	case TermEventEOF:
 		tc, ok := layout.CaseByName("Eof")
 		if !ok {
 			return Value{}, vm.eb.unknownTagLayout(fmt.Sprintf("unknown tag %q in type#%d layout", "Eof", layout.TypeID))

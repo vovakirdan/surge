@@ -279,6 +279,8 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 	case "__index":
 		return vm.handleIndex(frame, call, writes)
+	case "__index_set":
+		return vm.handleIndexSet(frame, call, writes)
 
 	case "__to":
 		return vm.handleTo(frame, call, writes)

@@ -23,7 +23,7 @@ extern<Bag> {
 
 fn main() {
     let mut b: Bag = { dummy: 0 };
-    b.accept(Short(1:uint32));
+    b.accept(Short(1 to uint32));
 }
 `
 	builder, fileID, parseBag := parseSource(t, src)

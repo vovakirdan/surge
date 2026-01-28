@@ -277,8 +277,7 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 		seen := make(map[tagKey]struct{})
 		visiting := make(map[types.TypeID]struct{})
 		cases := make([]TagCaseMeta, 0)
-		var addCase func(TagCaseMeta)
-		addCase = func(meta TagCaseMeta) {
+		addCase := func(meta TagCaseMeta) {
 			key := keyFor(meta)
 			if _, ok := seen[key]; ok {
 				return
