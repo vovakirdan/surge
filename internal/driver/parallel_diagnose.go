@@ -45,6 +45,9 @@ func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []strin
 	if baseDir == "" {
 		baseDir = filepath.Dir(files[0])
 	}
+	if mapErr := ensureModuleMapping(opts, baseDir); mapErr != nil {
+		return nil, nil, mapErr
+	}
 
 	fileSet := source.NewFileSetWithBase(baseDir)
 	if opts.ReadFile != nil {
@@ -163,12 +166,7 @@ func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []strin
 				end(loadIdx, "")
 
 				// Предвычислим modulePath по имени файла, чтобы обратиться к кэшу до парсинга.
-				modulePath := file.Path
-				if base := fileSet.BaseDir(); base != "" {
-					if rel, relErr := source.RelativePath(modulePath, base); relErr == nil {
-						modulePath = rel
-					}
-				}
+				modulePath := logicalPathForFile(file.Path, fileSet.BaseDir(), opts.ModuleMapping)
 				if norm, normErr := project.NormalizeModulePath(modulePath); normErr == nil {
 					modulePath = norm
 				}
@@ -294,12 +292,7 @@ func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []strin
 			)
 			file := fileSet.Get(res.FileID)
 			// Попробуем взять из in-memory кэша (по пути файла).
-			modulePath := file.Path
-			if baseDir != "" {
-				if rel, relErr := source.RelativePath(modulePath, baseDir); relErr == nil {
-					modulePath = rel
-				}
-			}
+			modulePath := logicalPathForFile(file.Path, baseDir, opts.ModuleMapping)
 			if norm, normErr := project.NormalizeModulePath(modulePath); normErr == nil {
 				modulePath = norm
 			}
@@ -331,11 +324,11 @@ func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []strin
 					meta = m
 					ok = true
 				} else if res.Builder != nil {
-					meta, ok = buildModuleMeta(fileSet, res.Builder, []ast.FileID{res.ASTFile}, baseDir, reporter)
+					meta, ok = buildModuleMeta(fileSet, res.Builder, []ast.FileID{res.ASTFile}, baseDir, opts.ModuleMapping, reporter)
 				}
 			}
 			if !ok {
-				meta = fallbackModuleMeta(file, baseDir)
+				meta = fallbackModuleMeta(file, baseDir, opts.ModuleMapping)
 				// Гарантируем ContentHash (для последующих шагов)
 				if meta.ContentHash == ([32]byte{}) {
 					meta.ContentHash = file.Hash
@@ -392,12 +385,26 @@ func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []strin
 		endGraph(collectIdx, collectNote)
 		var graphErr error
 		if len(entries) > 0 {
+			var overrides map[source.Span]string
+			if opts.ModuleMapping != nil {
+				records := make(map[string]*moduleRecord, len(entries))
+				for _, e := range entries {
+					if e.meta == nil {
+						continue
+					}
+					records[e.meta.Path] = &moduleRecord{Meta: e.meta}
+				}
+				overrides = missingModuleOverrides(records, opts.ModuleMapping)
+			}
 			sort.Slice(entries, func(i, j int) bool {
 				return entries[i].meta.Path < entries[j].meta.Path
 			})
 			metas := make([]*project.ModuleMeta, 0, len(entries))
 			nodes := make([]*dag.ModuleNode, 0, len(entries))
 			for _, e := range entries {
+				if e.node.Reporter != nil {
+					e.node.Reporter = wrapMissingModuleReporter(e.node.Reporter, overrides)
+				}
 				metas = append(metas, e.meta)
 				nodes = append(nodes, &e.node)
 			}

@@ -76,6 +76,7 @@ type DiagnoseOptions struct {
 	BaseDir            string
 	ReadFile           func(string) ([]byte, error)
 	RootKind           project.ModuleKind
+	ModuleMapping      *project.ModuleMapping
 	EnableTimings      bool
 	PhaseObserver      PhaseObserver
 	EnableDiskCache    bool                 // Enable persistent disk cache (experimental, adds I/O overhead)
@@ -166,7 +167,14 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOpt
 	}
 	file := fs.Get(fileID)
 	baseDir := fs.BaseDir()
-	modulePath := modulePathForFile(fs, file)
+	startDir := baseDir
+	if startDir == "" && file != nil {
+		startDir = filepath.Dir(file.Path)
+	}
+	if mapErr := ensureModuleMapping(opts, startDir); mapErr != nil {
+		return nil, mapErr
+	}
+	modulePath := modulePathForFile(fs, file, opts.ModuleMapping)
 
 	// Создаём диагностический пакет
 	bag := diag.NewBag(opts.MaxDiagnostics)
@@ -506,16 +514,16 @@ func runModuleGraph(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	meta, ok := buildModuleMeta(fs, builder, rootFileIDs, baseDir, reporter)
+	meta, ok := buildModuleMeta(fs, builder, rootFileIDs, baseDir, opts.ModuleMapping, reporter)
 	if !ok && len(rootFiles) > 0 && rootFiles[0] != nil {
-		meta = fallbackModuleMeta(rootFiles[0], baseDir)
+		meta = fallbackModuleMeta(rootFiles[0], baseDir, opts.ModuleMapping)
 	}
 	if meta != nil && !meta.HasModulePragma && len(rootFileIDs) > 1 {
 		rootFileIDs = []ast.FileID{astFile}
 		rootFiles = []*source.File{file}
-		meta, ok = buildModuleMeta(fs, builder, rootFileIDs, baseDir, reporter)
+		meta, ok = buildModuleMeta(fs, builder, rootFileIDs, baseDir, opts.ModuleMapping, reporter)
 		if !ok {
-			meta = fallbackModuleMeta(file, baseDir)
+			meta = fallbackModuleMeta(file, baseDir, opts.ModuleMapping)
 		}
 		if bag != nil && file != nil {
 			targetFileID := file.ID
@@ -631,12 +639,15 @@ func runModuleGraph(
 
 	metas := make([]*project.ModuleMeta, 0, len(paths))
 	nodes := make([]*dag.ModuleNode, 0, len(paths))
+	overrides := missingModuleOverrides(records, opts.ModuleMapping)
 	for _, p := range paths {
 		rec := records[p]
+		reporter := diag.Reporter(&diag.BagReporter{Bag: rec.Bag})
+		reporter = wrapMissingModuleReporter(reporter, overrides)
 		metas = append(metas, rec.Meta)
 		nodes = append(nodes, &dag.ModuleNode{
 			Meta:     rec.Meta,
-			Reporter: &diag.BagReporter{Bag: rec.Bag},
+			Reporter: reporter,
 			Broken:   rec.Broken,
 			FirstErr: rec.FirstErr,
 		})
@@ -709,13 +720,8 @@ func validateCoreModule(meta *project.ModuleMeta, file *source.File, stdlibRoot 
 	return false
 }
 
-func fallbackModuleMeta(file *source.File, baseDir string) *project.ModuleMeta {
-	filePath := file.Path
-	if baseDir != "" {
-		if rel, err := source.RelativePath(filePath, baseDir); err == nil {
-			filePath = rel
-		}
-	}
+func fallbackModuleMeta(file *source.File, baseDir string, mapping *project.ModuleMapping) *project.ModuleMeta {
+	filePath := logicalPathForFile(file.Path, baseDir, mapping)
 	if norm, err := project.NormalizeModulePath(filePath); err == nil {
 		filePath = norm
 	}

@@ -74,9 +74,9 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 			return err
 		}
 		reporter := &diag.BagReporter{Bag: bag}
-		meta, ok := buildModuleMeta(fileSet, builder, fileIDs, baseDir, reporter)
+		meta, ok := buildModuleMeta(fileSet, builder, fileIDs, baseDir, opts.ModuleMapping, reporter)
 		if !ok && len(files) > 0 && files[0] != nil {
-			meta = fallbackModuleMeta(files[0], baseDir)
+			meta = fallbackModuleMeta(files[0], baseDir, opts.ModuleMapping)
 		}
 		if meta == nil || !meta.HasModulePragma {
 			continue
@@ -117,9 +117,9 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 		diagnoseTokenize(file, bag)
 		builder, astFile := diagnoseParseWithStrings(ctx, fileSet, file, bag, sharedStrings, opts.DirectiveMode)
 		reporter := &diag.BagReporter{Bag: bag}
-		meta, ok := buildModuleMeta(fileSet, builder, []ast.FileID{astFile}, baseDir, reporter)
+		meta, ok := buildModuleMeta(fileSet, builder, []ast.FileID{astFile}, baseDir, opts.ModuleMapping, reporter)
 		if !ok {
-			meta = fallbackModuleMeta(file, baseDir)
+			meta = fallbackModuleMeta(file, baseDir, opts.ModuleMapping)
 		}
 		if meta == nil {
 			continue
@@ -224,15 +224,18 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 	sort.Strings(paths)
 	metas := make([]*project.ModuleMeta, 0, len(paths))
 	nodes := make([]*dag.ModuleNode, 0, len(paths))
+	overrides := missingModuleOverrides(records, opts.ModuleMapping)
 	for _, p := range paths {
 		rec := records[p]
 		if rec == nil || rec.Meta == nil {
 			continue
 		}
+		reporter := diag.Reporter(&diag.BagReporter{Bag: rec.Bag})
+		reporter = wrapMissingModuleReporter(reporter, overrides)
 		metas = append(metas, rec.Meta)
 		nodes = append(nodes, &dag.ModuleNode{
 			Meta:     rec.Meta,
-			Reporter: &diag.BagReporter{Bag: rec.Bag},
+			Reporter: reporter,
 			Broken:   rec.Broken,
 			FirstErr: rec.FirstErr,
 		})

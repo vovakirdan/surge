@@ -18,6 +18,7 @@ func buildModuleMeta(
 	builder *ast.Builder,
 	fileIDs []ast.FileID,
 	baseDir string,
+	mapping *project.ModuleMapping,
 	reporter diag.Reporter,
 ) (*project.ModuleMeta, bool) {
 	if builder == nil || len(fileIDs) == 0 {
@@ -39,14 +40,12 @@ func buildModuleMeta(
 	}
 
 	dirPath := filepath.Dir(fs.Get(files[0].node.Span.File).Path)
-	relDir := dirPath
-	if baseDir != "" {
-		if rel, err := source.RelativePath(dirPath, baseDir); err == nil {
-			relDir = rel
-		}
-	}
-	normDir := filepath.ToSlash(relDir)
+	logicalDir := logicalPathForDir(dirPath, baseDir, mapping)
+	normDir := filepath.ToSlash(logicalDir)
 	dirName := filepath.Base(dirPath)
+	if normDir != "" && normDir != "." {
+		dirName = filepath.Base(normDir)
+	}
 
 	moduleName := ""
 	var kind project.ModuleKind
@@ -148,19 +147,13 @@ func buildModuleMeta(
 			kind = project.ModuleKindModule
 		}
 	} else {
-		filePath := fs.Get(files[0].node.Span.File).Path
-		rel := filePath
-		if baseDir != "" {
-			if relP, err := source.RelativePath(filePath, baseDir); err == nil {
-				rel = relP
-			}
-		}
-		if norm, err := project.NormalizeModulePath(rel); err == nil {
+		filePath := logicalPathForFile(fs.Get(files[0].node.Span.File).Path, baseDir, mapping)
+		if norm, err := project.NormalizeModulePath(filePath); err == nil {
 			moduleName = filepath.Base(norm)
 			normDir = filepath.Dir(norm)
 			kind = project.ModuleKindModule
 		} else {
-			moduleName = filepath.Base(rel)
+			moduleName = filepath.Base(filePath)
 			kind = project.ModuleKindModule
 		}
 	}
@@ -193,7 +186,7 @@ func buildModuleMeta(
 		if node == nil {
 			continue
 		}
-		fileImports := collectImports(fs, builder, node, baseDir, reporter)
+		fileImports := collectImports(fs, builder, node, baseDir, mapping, reporter)
 		imports = append(imports, fileImports...)
 	}
 
@@ -209,12 +202,7 @@ func buildModuleMeta(
 			continue
 		}
 		src := fs.Get(node.Span.File)
-		filePath := src.Path
-		if baseDir != "" {
-			if rel, err := source.RelativePath(filePath, baseDir); err == nil {
-				filePath = rel
-			}
-		}
+		filePath := logicalPathForFile(src.Path, baseDir, mapping)
 		fileInfos = append(fileInfos, fileInfo{
 			path: filepath.ToSlash(filePath),
 			span: node.Span,
@@ -266,6 +254,7 @@ func collectImports(
 	builder *ast.Builder,
 	fileNode *ast.File,
 	baseDir string,
+	mapping *project.ModuleMapping,
 	reporter diag.Reporter,
 ) []project.ImportMeta {
 	if builder == nil || fileNode == nil {
@@ -274,12 +263,7 @@ func collectImports(
 	fileSpan := fileNode.Span
 	srcFile := fs.Get(fileSpan.File)
 
-	modulePath := srcFile.Path
-	if baseDir != "" {
-		if rel, err := source.RelativePath(modulePath, baseDir); err == nil {
-			modulePath = rel
-		}
-	}
+	modulePath := logicalPathForFile(srcFile.Path, baseDir, mapping)
 
 	fullModulePath, err := project.NormalizeModulePath(modulePath)
 	if err != nil {
@@ -346,7 +330,7 @@ func collectImports(
 			continue
 		}
 
-		baseExists := moduleFileExists(fs, baseDir, normImport)
+		baseExists := moduleFileExists(fs, baseDir, normImport, mapping)
 		if baseExists {
 			imports = append(imports, project.ImportMeta{
 				Path: normImport,
@@ -360,7 +344,7 @@ func collectImports(
 			if name, ok := interner.Lookup(importItem.One.Name); ok && name != "" {
 				candidateSegments := append(append([]string(nil), segments...), name)
 				if candidatePath, err := project.ResolveImportPath(fullModulePath, baseDir, candidateSegments); err == nil {
-					if moduleFileExists(fs, baseDir, candidatePath) {
+					if moduleFileExists(fs, baseDir, candidatePath, mapping) {
 						imports = append(imports, project.ImportMeta{
 							Path: candidatePath,
 							Span: item.Span,
@@ -385,7 +369,7 @@ func collectImports(
 				if err != nil {
 					continue
 				}
-				if moduleFileExists(fs, baseDir, candidatePath) {
+				if moduleFileExists(fs, baseDir, candidatePath, mapping) {
 					imports = append(imports, project.ImportMeta{
 						Path: candidatePath,
 						Span: item.Span,
@@ -408,7 +392,17 @@ func collectImports(
 	return imports
 }
 
-func moduleFileExists(fs *source.FileSet, baseDir, modulePath string) bool {
+func moduleFileExists(fs *source.FileSet, baseDir, modulePath string, mapping *project.ModuleMapping) bool {
+	if moduleFileExistsInBase(fs, baseDir, modulePath) {
+		return true
+	}
+	if root, rest, ok := resolveMappedModulePath(modulePath, mapping); ok {
+		return moduleFileExistsInBase(fs, root, rest)
+	}
+	return false
+}
+
+func moduleFileExistsInBase(fs *source.FileSet, baseDir, modulePath string) bool {
 	filePath := modulePathToFilePath(baseDir, modulePath)
 
 	// Проверяем, загружен ли файл в текущем FileSet

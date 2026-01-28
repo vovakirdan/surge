@@ -86,9 +86,9 @@ func loadStdModule(
 		return nil, err
 	}
 	reporter := &diag.BagReporter{Bag: bag}
-	meta, ok := buildModuleMeta(fs, builder, fileIDs, stdlibRoot, reporter)
+	meta, ok := buildModuleMeta(fs, builder, fileIDs, stdlibRoot, nil, reporter)
 	if !ok && len(files) > 0 && files[0] != nil {
-		meta = fallbackModuleMeta(files[0], stdlibRoot)
+		meta = fallbackModuleMeta(files[0], stdlibRoot, nil)
 	}
 	if meta != nil && !meta.HasModulePragma && len(fileIDs) > 1 {
 		normTarget := filepath.ToSlash(filePath)
@@ -104,9 +104,9 @@ func loadStdModule(
 		}
 		fileIDs = []ast.FileID{fileIDs[idx]}
 		files = []*source.File{files[idx]}
-		meta, ok = buildModuleMeta(fs, builder, fileIDs, stdlibRoot, reporter)
+		meta, ok = buildModuleMeta(fs, builder, fileIDs, stdlibRoot, nil, reporter)
 		if !ok && len(files) > 0 && files[0] != nil {
-			meta = fallbackModuleMeta(files[0], stdlibRoot)
+			meta = fallbackModuleMeta(files[0], stdlibRoot, nil)
 		}
 		if bag != nil && len(files) > 0 && files[0] != nil {
 			targetID := files[0].ID

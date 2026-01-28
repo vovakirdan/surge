@@ -87,9 +87,15 @@ func runInit(_ *cobra.Command, args []string) error {
 
 	// Create .gitignore file if not exists
 	gitignorePath := filepath.Join(target, ".gitignore")
-	if _, err := os.Stat(gitignorePath); errors.Is(err, os.ErrNotExist) {
-		if err := os.WriteFile(gitignorePath, []byte(defaultGitignore()), 0o600); err != nil {
-			return fmt.Errorf("failed to write .gitignore: %w", err)
+	if _, statErr := os.Stat(gitignorePath); errors.Is(statErr, os.ErrNotExist) {
+		if writeErr := os.WriteFile(gitignorePath, []byte(defaultGitignore()), 0o600); writeErr != nil {
+			return fmt.Errorf("failed to write .gitignore: %w", writeErr)
+		}
+	} else if statErr != nil {
+		return fmt.Errorf("failed to stat .gitignore: %w", statErr)
+	} else {
+		if ensureErr := ensureGitignoreHasDeps(gitignorePath); ensureErr != nil {
+			return ensureErr
 		}
 	}
 
@@ -139,6 +145,7 @@ func buildDefaultManifest(name string) string {
 	return fmt.Sprintf(`# Surge project manifest
 [package]
 name = "%s"
+root = "."
 version = "0.1.0"
 
 [run]
@@ -184,5 +191,37 @@ func defaultGitignore() string {
 
 # Surge build artifacts
 target/
+
+# Surge dependencies
+deps/
 `
+}
+
+func ensureGitignoreHasDeps(path string) error {
+	// #nosec G304 -- reading a user-specified .gitignore path is expected here
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read .gitignore: %w", err)
+	}
+	if gitignoreHasLine(string(data), "deps/") {
+		return nil
+	}
+	content := string(data)
+	if content != "" && !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	content += "deps/\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		return fmt.Errorf("failed to update .gitignore: %w", err)
+	}
+	return nil
+}
+
+func gitignoreHasLine(content, line string) bool {
+	for _, raw := range strings.Split(content, "\n") {
+		if strings.TrimSpace(raw) == line {
+			return true
+		}
+	}
+	return false
 }

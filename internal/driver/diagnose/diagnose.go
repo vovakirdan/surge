@@ -104,6 +104,7 @@ func DiagnoseWorkspace(ctx context.Context, opts *DiagnoseOptions, overlay FileO
 		WarningsAsErrors:   opts.WarningsAsErrors,
 		NoAlienHints:       opts.NoAlienHints,
 		BaseDir:            opts.BaseDir,
+		ModuleMapping:      nil,
 		ReadFile:           readFile,
 		RootKind:           opts.RootKind,
 		EnableTimings:      opts.EnableTimings,

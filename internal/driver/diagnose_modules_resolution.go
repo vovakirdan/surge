@@ -14,7 +14,7 @@ import (
 
 // resolveModuleDir resolves a module path to a directory on the filesystem.
 // It tries stdlib root first for stdlib/core modules, then falls back to baseDir.
-func resolveModuleDir(modulePath, baseDir, stdlibRoot string, readFile func(string) ([]byte, error)) (string, error) {
+func resolveModuleDir(modulePath, baseDir, stdlibRoot string, mapping *project.ModuleMapping, readFile func(string) ([]byte, error)) (string, error) {
 	if stdlibRoot != "" && isStdlibModulePath(modulePath) {
 		dir, err := resolveModuleDirFromBase(modulePath, stdlibRoot, readFile)
 		if err == nil {
@@ -24,7 +24,23 @@ func resolveModuleDir(modulePath, baseDir, stdlibRoot string, readFile func(stri
 			return "", err
 		}
 	}
-	return resolveModuleDirFromBase(modulePath, baseDir, readFile)
+	dir, err := resolveModuleDirFromBase(modulePath, baseDir, readFile)
+	if err == nil {
+		return dir, nil
+	}
+	if !errors.Is(err, errModuleNotFound) {
+		return "", err
+	}
+	if root, rest, ok := resolveMappedModulePath(modulePath, mapping); ok {
+		dir, err = resolveModuleDirFromBase(rest, root, readFile)
+		if err == nil {
+			return dir, nil
+		}
+		if !errors.Is(err, errModuleNotFound) {
+			return "", err
+		}
+	}
+	return "", errModuleNotFound
 }
 
 // resolveModuleDirFromBase resolves a module path relative to baseDir.
@@ -206,17 +222,12 @@ func modulePathToFilePath(baseDir, modulePath string) string {
 }
 
 // modulePathForFile extracts a module path from a source file.
-func modulePathForFile(fs *source.FileSet, file *source.File) string {
+func modulePathForFile(fs *source.FileSet, file *source.File, mapping *project.ModuleMapping) string {
 	if fs == nil || file == nil {
 		return ""
 	}
-	path := file.Path
 	baseDir := fs.BaseDir()
-	if baseDir != "" {
-		if rel, err := source.RelativePath(path, baseDir); err == nil {
-			path = rel
-		}
-	}
+	path := logicalPathForFile(file.Path, baseDir, mapping)
 	if norm, err := project.NormalizeModulePath(path); err == nil {
 		return norm
 	}

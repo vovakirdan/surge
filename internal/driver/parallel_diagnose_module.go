@@ -117,9 +117,9 @@ func diagnoseModuleDirectory(
 	}
 
 	reporter := &diag.BagReporter{Bag: bag}
-	meta, ok := buildModuleMeta(fileSet, builder, fileIDs, fileSet.BaseDir(), reporter)
+	meta, ok := buildModuleMeta(fileSet, builder, fileIDs, fileSet.BaseDir(), opts.ModuleMapping, reporter)
 	if !ok && len(files) > 0 && files[0] != nil {
-		meta = fallbackModuleMeta(files[0], fileSet.BaseDir())
+		meta = fallbackModuleMeta(files[0], fileSet.BaseDir(), opts.ModuleMapping)
 	}
 	if meta == nil || !meta.HasModulePragma {
 		return nil, nil
